@@ -13,6 +13,7 @@
   "engines": {
     "node": "20"
   },
+  "type":"module",
   "main": "index.js",
   "dependencies": {
     "@google-cloud/storage": "^7.11.2",

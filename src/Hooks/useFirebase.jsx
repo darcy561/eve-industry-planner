@@ -478,6 +478,15 @@ export function useFirebase() {
     });
   };
 
+  async function uploadApplicationSettings(settingsObject) {
+    if (!settingsObject) return;
+    await fbAuthState();
+
+    await updateDoc(doc(firestore, "Users", parentUser.accountID), {
+      settings: convertApplicationSettingsToDocument(settingsObject),
+    });
+  }
+
   return {
     getArchivedJobData,
     updateMainUserDoc,
