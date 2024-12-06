@@ -7,8 +7,6 @@ import {
   Paper,
   Select,
 } from "@mui/material";
-import { useContext } from "react";
-import { EveIDsContext } from "../../Context/EveDataContext";
 import { useHelperFunction } from "../../Hooks/GeneralHooks/useHelperFunctions";
 
 export function AssetSearch({
@@ -49,8 +47,7 @@ export function AssetSearch({
                   }}
                 >
                   {locationList.map((entry) => {
-                    const name =
-                      findUniverseItemObject(entry)?.name
+                    const name = findUniverseItemObject(entry)?.name;
 
                     if (!name || name === "No Access To Location") {
                       return null;

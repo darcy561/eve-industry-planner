@@ -9,7 +9,7 @@ function createFirebaseJobDocumentListener(
   updateFirebaseListeners
 ) {
   try {
-    if ((!documentID, !updateJobArray)) {
+    if (!documentID || !updateJobArray) {
       throw new Error("Missing Inputs");
     }
 
@@ -28,19 +28,34 @@ function createFirebaseJobDocumentListener(
             prev.filter((i) => i.id !== documentID)
           );
           unsubscribe();
+          return;
         }
-        const job = new Job(docSnapshot.data());
+
+        const jobData = docSnapshot.data();
+
+        if (!jobData) {
+          console.error(`Document with ID ${documentID} has no data.`);
+          return;
+        }
+
+        const job = new Job(jobData);
 
         if (docSnapshot.metadata.fromCache) return;
 
         updateJobArray((prev) => {
           const jobExists = prev.some((doc) => doc.jobID === documentID);
 
-          if (!jobExists || !docSnapshot.metadata.fromCache) {
-            return [...prev.filter((doc) => doc.jobID !== documentID), job];
+          if (jobExists) {
+            return prev.map((existingJob) =>
+              existingJob.jobID === documentID ? job : existingJob
+            );
+          } else {
+            return [...prev, job];
           }
-          return prevDocs;
         });
+      },
+      (error) => {
+        console.error("Error in snapshot listener:", error);
       }
     );
     return unsubscribe;

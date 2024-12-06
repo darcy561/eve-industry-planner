@@ -26,6 +26,7 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
 export const firestore = initializeFirestore(app, {
   localCache: memoryLocalCache(),
 });
@@ -33,6 +34,7 @@ export const firestore = initializeFirestore(app, {
 export const auth = getAuth(app);
 
 export const functions = getFunctions(app, FIREBASE_FUNCTION_REGION);
+
 export const appCheck = initializeAppCheck(app, {
   provider: new ReCaptchaEnterpriseProvider(import.meta.env.VITE_ReCaptchaKey),
   isTokenAutoRefreshEnabled: true,

@@ -44,7 +44,6 @@ import {
   defaultEsiStandings,
 } from "../Context/defaultValues";
 import { httpsCallable } from "firebase/functions";
-import { RefreshTokens } from "../Components/Auth/RefreshToken";
 import searchData from "../RawData/searchIndex.json";
 import { useBuildCorporationState } from "./Account Management Hooks/Corporation State/useBuildCorporationState";
 import { useRemoveCorporatinState } from "./Account Management Hooks/Corporation State/useRemoveCorporationState";
@@ -53,6 +52,7 @@ import { useHelperFunction } from "./GeneralHooks/useHelperFunctions";
 import getWorldData from "../Functions/EveESI/World/getWorldData";
 import getSystemIndexes from "../Functions/System Indexes/findSystemIndex";
 import ApplicationSettingsObject from "../Classes/applicationSettingsConstructor";
+import getUserFromRefreshToken from "../Components/Auth/RefreshToken";
 
 export function useAccountManagement() {
   const { updateIsLoggedIn } = useContext(IsLoggedInContext);
@@ -345,7 +345,7 @@ export function useAccountManagement() {
     esiObjectArray
   ) => {
     for (let token of refreshTokens) {
-      let newUser = await RefreshTokens(token.rToken);
+      let newUser = await getUserFromRefreshToken(token.rToken);
       if (newUser === "RefreshFail") continue;
 
       await newUser.getPublicCharacterData();
@@ -374,7 +374,7 @@ export function useAccountManagement() {
       return userArray;
     }
     for (let token of rTokens) {
-      let newUser = await RefreshTokens(token.rToken);
+      let newUser = await getUserFromRefreshToken(token.rToken);
       if (newUser === "RefreshFail") continue;
 
       await newUser.getPublicCharacterData();

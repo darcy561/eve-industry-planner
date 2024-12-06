@@ -1,8 +1,6 @@
 import { useContext, useEffect } from "react";
 import { UserJobSnapshotContext } from "../../Context/AuthContext";
 import { IsLoggedInContext } from "../../Context/AuthContext";
-import { decodeJwt } from "jose";
-import { firebaseAuth } from "./firebaseAuth";
 import { useFirebase } from "../../Hooks/useFirebase";
 import { JobArrayContext } from "../../Context/JobContext";
 import { trace } from "@firebase/performance";
@@ -14,11 +12,10 @@ import {
 } from "../../Context/LayoutContext";
 import { getAnalytics, logEvent } from "firebase/analytics";
 import { UserLogInUI } from "./LoginUI/LoginUI";
-import { Buffer } from "buffer";
 import useCheckGlobalAppVersion from "../../Hooks/GeneralHooks/useCheckGlobalAppVersion";
-import User from "../../Classes/usersConstructor";
 import buildNewUserData from "../../Functions/Firebase/buildNewUserAccount";
-import { useNavigate } from "react-router-dom";
+import getEveOauthToken from "../../Functions/EveESI/Character/getEveSSOToken";
+import getFirebaseAuthToken from "../../Functions/Firebase/getFirebaseToken";
 
 export function login() {
   const state = "main";
@@ -31,7 +28,7 @@ export function login() {
 
 export default function AuthMainUser() {
   const { updateJobArray } = useContext(JobArrayContext);
-  const { isLoggedIn, updateIsLoggedIn } = useContext(IsLoggedInContext);
+  const { updateIsLoggedIn } = useContext(IsLoggedInContext);
   const { updatePageLoad } = useContext(PageLoadContext);
   const { updateUserJobSnapshot } = useContext(UserJobSnapshotContext);
   const { updateDialogData } = useContext(DialogDataContext);
@@ -44,7 +41,6 @@ export default function AuthMainUser() {
     userGroupDataListener,
   } = useFirebase();
   const analytics = getAnalytics();
-  const navigate = useNavigate();
 
   useEffect(() => {
     async function processOauthCallback() {
@@ -80,9 +76,11 @@ export default function AuthMainUser() {
         }
         if (!authCode) return;
 
-        const userObject = await EveSSOTokens(authCode, true);
-        console.log(userObject);
-        let fbToken = await firebaseAuth(userObject);
+        const userObject = await getEveOauthToken(authCode, true);
+        if (!userObject) {
+          login()
+        }
+        let fbToken = await getFirebaseAuthToken(userObject);
         await userObject.getPublicCharacterData();
         updateUserUIData((prev) => ({
           ...prev,
@@ -118,39 +116,4 @@ export default function AuthMainUser() {
   }, []);
 
   return <UserLogInUI />;
-}
-
-async function EveSSOTokens(authCode, accountType = false) {
-  try {
-    const buffer = Buffer.from(
-      `${import.meta.env.VITE_eveClientID}:${import.meta.env.VITE_eveSecretKey}`
-    );
-    const authHeader = `Basic ${buffer.toString("base64")}`;
-
-    const eveTokenPromise = await fetch(
-      "https://login.eveonline.com/v2/oauth/token",
-      {
-        method: "POST",
-        headers: {
-          Authorization: authHeader,
-          "Content-Type": "application/x-www-form-urlencoded",
-          Host: "login.eveonline.com",
-          "Access-Control-Allow-Origin": "*",
-        },
-        body: `grant_type=authorization_code&code=${authCode}`,
-      }
-    );
-
-    const tokenJSON = await eveTokenPromise.json();
-
-    const decodedToken = decodeJwt(tokenJSON.access_token);
-
-    const newUser = new User(decodedToken, tokenJSON, accountType);
-    if (accountType) {
-      localStorage.setItem("Auth", tokenJSON.refresh_token);
-    }
-    return newUser;
-  } catch (err) {
-    console.log(err);
-  }
 }

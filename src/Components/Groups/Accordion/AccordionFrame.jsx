@@ -86,7 +86,7 @@ function GroupAccordionFrame({
                           if (prev.includes(status.id)) {
                             return prev.filter((i) => i !== status.id);
                           } else {
-                            [...prev, status.id];
+                            return [...prev, status.id];
                           }
                         });
                       }}

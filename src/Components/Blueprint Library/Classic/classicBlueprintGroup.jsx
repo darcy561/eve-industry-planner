@@ -32,7 +32,7 @@ import { useInstallCostsCalc } from "../../../Hooks/GeneralHooks/useInstallCostC
 
 export function ClassicBlueprintGroup({ bpID, blueprintResults }) {
   const { apiJobs } = useContext(ApiJobsContext);
-  const { updateJobArray } = useContext(JobArrayContext);
+  const { jobArray, updateJobArray } = useContext(JobArrayContext);
   const { evePrices, updateEvePrices } = useContext(EvePricesContext);
   const { systemIndexData, updateSystemIndexData } =
     useContext(SystemIndexContext);

@@ -80,8 +80,10 @@ function useBuildNewJobs() {
         const matchedGroup = newGroupArray.find(
           (i) => i.groupID === jobObject.groupID
         );
-        matchedGroup.addJobsToGroup(jobObject);
-        requiresGroupDocSave = true;
+        if (matchedGroup) {
+          matchedGroup.addJobsToGroup(jobObject);
+          requiresGroupDocSave = true;
+        }
       }
 
       if (addNewGroup) {

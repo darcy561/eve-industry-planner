@@ -1,26 +1,22 @@
 import { useContext } from "react";
-import { RefreshTokens } from "../Components/Auth/RefreshToken";
-import { firebaseAuth } from "../Components/Auth/firebaseAuth";
 import { useFirebase } from "./useFirebase";
 import { JobArrayContext } from "../Context/JobContext";
 import {
   IsLoggedInContext,
   UserJobSnapshotContext,
-  UsersContext,
 } from "../Context/AuthContext";
 import {
   DialogDataContext,
   PageLoadContext,
   UserLoginUIContext,
 } from "../Context/LayoutContext";
-import { decodeJwt } from "jose";
 import { trace } from "firebase/performance";
 import { performance } from "../firebase";
 import { getAnalytics, logEvent } from "firebase/analytics";
-import { useAccountManagement } from "./useAccountManagement";
-import { Buffer } from "buffer";
 import useCheckGlobalAppVersion from "./GeneralHooks/useCheckGlobalAppVersion";
 import buildNewUserData from "../Functions/Firebase/buildNewUserAccount";
+import getFirebaseAuthToken from "../Functions/Firebase/getFirebaseToken";
+import getUserFromRefreshToken from "../Components/Auth/RefreshToken";
 
 export function useRefreshUser() {
   const {
@@ -30,7 +26,6 @@ export function useRefreshUser() {
     userGroupDataListener,
   } = useFirebase();
   const { updateJobArray } = useContext(JobArrayContext);
-  const { users } = useContext(UsersContext);
   const { updateIsLoggedIn } = useContext(IsLoggedInContext);
   const { updatePageLoad } = useContext(PageLoadContext);
   const { updateUserJobSnapshot } = useContext(UserJobSnapshotContext);
@@ -38,7 +33,7 @@ export function useRefreshUser() {
   const { updateUserUIData, updateLoginInProgressComplete } =
     useContext(UserLoginUIContext);
 
-  const reloadMainUser = async (refreshToken) => {
+  async function reloadMainUser(refreshToken) {
     const analytics = getAnalytics();
     const t = trace(performance, "MainUserRefreshProcessFull");
     t.start();
@@ -58,8 +53,8 @@ export function useRefreshUser() {
 
     updateUserJobSnapshot([]);
 
-    let refreshedUser = await RefreshTokens(refreshToken, true);
-    let fbToken = await firebaseAuth(refreshedUser);
+    const refreshedUser = await getUserFromRefreshToken(refreshToken, true);
+    const fbToken = await getFirebaseAuthToken(refreshedUser);
     await refreshedUser.getPublicCharacterData();
     updateUserUIData((prev) => ({
       ...prev,
@@ -86,60 +81,9 @@ export function useRefreshUser() {
       UID: fbToken.user.uid,
     });
     t.stop();
-  };
-
-  const RefreshUserAToken = async (user) => {
-    try {
-      const buffer = Buffer.from(
-        `${import.meta.env.VITE_eveClientID}:${
-          import.meta.env.VITE_eveSecretKey
-        }`
-      );
-      const authHeader = `Basic ${buffer.toString("base64")}`;
-
-      const newTokenPromise = await fetch(
-        "https://login.eveonline.com/v2/oauth/token",
-        {
-          method: "POST",
-          headers: {
-            Authorization: authHeader,
-            "Content-Type": "application/x-www-form-urlencoded",
-            Host: "login.eveonline.com",
-          },
-          body: `grant_type=refresh_token&refresh_token=${
-            user.ParentUser ? localStorage.getItem("Auth") : user.rToken
-          }`,
-        }
-      );
-      const newTokenJSON = await newTokenPromise.json();
-
-      const decodedToken = decodeJwt(newTokenJSON.access_token);
-
-      user.aToken = newTokenJSON.access_token;
-      user.aTokenEXP = Number(decodedToken.exp);
-
-      if (user.ParentUser) {
-        localStorage.setItem("Auth", newTokenJSON.refresh_token);
-      }
-
-      return user;
-    } catch (err) {
-      console.log(err);
-    }
-  };
-
-  async function refreshUserAccessTokens() {
-    const newUserArray = [...users];
-    for (let user of newUserArray) {
-      await user.refreshAccessToken();
-    }
-
-    return newUserArray;
   }
 
   return {
-    RefreshUserAToken,
     reloadMainUser,
-    refreshUserAccessTokens,
   };
 }

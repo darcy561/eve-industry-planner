@@ -41,7 +41,6 @@ function useSubscribeToJobListeners(requestedJobID, onJobLoaded) {
           updateJobArray,
           updateFirebaseListeners
         );
-
         if (!unsubscribe) return;
 
         updateFirebaseListeners((prev) => {
@@ -59,13 +58,7 @@ function useSubscribeToJobListeners(requestedJobID, onJobLoaded) {
     } catch (err) {
       console.error("Error setting up job listeners:", err);
     }
-  }, [
-    requestedJobID,
-    firebaseListeners,
-    updateFirebaseListeners,
-    jobArray,
-    updateJobArray,
-  ]);
+  }, [requestedJobID, ]);
 }
 
 export default useSubscribeToJobListeners;

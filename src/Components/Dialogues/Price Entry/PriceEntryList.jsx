@@ -120,8 +120,10 @@ export function PriceEntryDialog() {
       const matchedSnapshot = newUserJobSnapshot.find(
         (i) => i.jobID === job.jobID
       );
-      matchedSnapshot.setSnapshot(job);
-
+      if (matchedSnapshot) {
+        matchedSnapshot.setSnapshot(job);
+      }
+      
       if (isLoggedIn) {
         await updateJobInFirebase(job);
       }

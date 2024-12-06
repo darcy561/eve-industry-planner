@@ -40,8 +40,8 @@ export function useArchiveGroupJobs() {
     let newLinkedTrans = new Set(newUserArray[parentUserIndex].linkedTrans);
     let newLinkedJobs = new Set(newUserArray[parentUserIndex].linkedJobs);
 
-    const filteredJobs = selectedJobs.filter((job) =>
-      userJobSnapshot.some((i) => i.jobID === job.jobID)
+    const filteredJobs = selectedJobs.filter(
+      (job) => !userJobSnapshot.some((i) => i.jobID === job.jobID)
     );
 
     logEvent(analytics, "Archive Group Jobs", {
@@ -64,15 +64,15 @@ export function useArchiveGroupJobs() {
 
     let newGroupArray = groupArray.filter((i) => i.groupID !== activeGroup);
 
-    for (let selectedJob of filteredJobs) {
-      await archiveJobInFirebase(selectedJob);
-      await deleteJobFromFirebase(selectedJob);
-    }
     updateActiveGroup(null);
     updateUsers(newUserArray);
     updateGroupArray(newGroupArray);
     updateJobArray(newJobArray);
     if (isLoggedIn) {
+      for (let selectedJob of filteredJobs) {
+        await archiveJobInFirebase(selectedJob);
+        await deleteJobFromFirebase(selectedJob);
+      }
       closeFirebaseListeners(
         filteredJobs,
         firebaseListeners,

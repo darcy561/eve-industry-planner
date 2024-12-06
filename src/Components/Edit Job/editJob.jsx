@@ -35,26 +35,34 @@ import { ShoppingListDialog } from "../Dialogues/Shopping List/ShoppingList";
 import { Header } from "../Header";
 import { Footer } from "../Footer/Footer";
 import Job from "../../Classes/jobConstructor";
-import useSubscribeToJobListeners from "./Edit Job Hooks/useSubscribeToJobListeners";
 import {
   EvePricesContext,
   SystemIndexContext,
 } from "../../Context/EveDataContext";
-import { IsLoggedInContext } from "../../Context/AuthContext";
+import {
+  FirebaseListenersContext,
+  IsLoggedInContext,
+} from "../../Context/AuthContext";
 import { useFirebase } from "../../Hooks/useFirebase";
 import { useInstallCostsCalc } from "../../Hooks/GeneralHooks/useInstallCostCalc";
 import useSetupUnmountEventListeners from "../../Hooks/GeneralHooks/useSetupUnmountEventListeners";
 import getMissingESIData from "../../Functions/Shared/getMissingESIData";
+import convertJobIDsToObjects from "../../Functions/Helper/convertJobIDsToObjects";
+import manageListenerRequests from "../../Functions/Firebase/manageListenerRequests";
+import findOrGetJobObject from "../../Functions/Helper/findJobObject";
 
 export default function EditJob_New({ colorMode }) {
-  const { jobArray } = useContext(JobArrayContext);
+  const { jobArray, updateJobArray } = useContext(JobArrayContext);
   const { jobStatus } = useContext(JobStatusContext);
   const { updateActiveJob: updateActiveJobID } = useContext(ActiveJobContext);
-  const { IsLoggedIn } = useContext(IsLoggedInContext);
+  const { isLoggedIn } = useContext(IsLoggedInContext);
   const { updateArchivedJobs } = useContext(ArchivedJobsContext);
   const { evePrices, updateEvePrices } = useContext(EvePricesContext);
   const { systemIndexData, updateSystemIndexData } =
     useContext(SystemIndexContext);
+  const { firebaseListeners, updateFirebaseListeners } = useContext(
+    FirebaseListenersContext
+  );
   const [activeJob, updateActiveJob] = useState(null);
   const [jobModified, setJobModified] = useState(false);
   const [temporaryChildJobs, updateTemporaryChildJobs] = useState({});
@@ -80,35 +88,39 @@ export default function EditJob_New({ colorMode }) {
     childJobs: {},
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [jobArrayUpdated, setJobArrayUpdated] = useState(false);
   const { getArchivedJobData } = useFirebase();
   const { calculateInstallCostFromJob } = useInstallCostsCalc();
   const navigate = useNavigate();
   const { jobID } = useParams();
   let backupJob = useRef(null);
 
-  useSubscribeToJobListeners(jobID, () => {
-    setJobArrayUpdated(true);
-  });
   useSetupUnmountEventListeners();
 
   useEffect(() => {
     async function setInitialState() {
-      if (!jobArrayUpdated || jobID === activeJob?.jobID) return;
+      if (jobID === activeJob?.jobID) return;
+      const retrievedJobs = [];
 
-      const matchedJob = jobArray.find((i) => i.jobID === jobID);
+      const matchedJob = await findOrGetJobObject(
+        jobID,
+        jobArray,
+        retrievedJobs
+      );
 
       if (!matchedJob) {
         console.error("Unable to find job document");
         navigate("/jobplanner");
         return;
       }
+
       try {
-        const linkedJobs = jobArray.filter(
-          (i) =>
-            i.jobID === jobID || matchedJob.getRelatedJobs().includes(i.jobID)
+        const linkedJobs = await convertJobIDsToObjects(
+          [...matchedJob.getRelatedJobs(), jobID],
+          jobArray,
+          retrievedJobs
         );
-        if (IsLoggedIn) {
+
+        if (isLoggedIn) {
           const newArchivedJobsArray = await getArchivedJobData(jobID);
           updateArchivedJobs(newArchivedJobsArray);
         }
@@ -123,6 +135,11 @@ export default function EditJob_New({ colorMode }) {
           );
         }
 
+        if (!matchedJob.layout.setupToEdit) {
+          matchedJob.layout.setupToEdit =
+            Object.keys(matchedJob.build.setup)[0] || null;
+        }
+
         updateEvePrices((prev) => ({
           ...prev,
           ...requestedMarketData,
@@ -133,18 +150,29 @@ export default function EditJob_New({ colorMode }) {
         }));
         backupJob.current = new Job(matchedJob);
         updateActiveJob(matchedJob);
+        updateJobArray((prev) => {
+          const existingIDs = new Set(prev.map(({ jobID }) => jobID));
+          return [
+            ...prev,
+            ...retrievedJobs.filter(({ jobID }) => !existingIDs.has(jobID)),
+          ];
+        });
         updateActiveJobID(matchedJob.jobID);
+        manageListenerRequests(
+          [...matchedJob.getRelatedJobs(), jobID],
+          updateJobArray,
+          updateFirebaseListeners,
+          firebaseListeners,
+          isLoggedIn
+        );
         setIsLoading(false);
       } catch (err) {
         console.error("Error importing job data:", err);
         navigate("/jobplanner");
       }
     }
-
-    if (jobArrayUpdated && jobArray.some((job) => job.jobID === jobID)) {
-      setInitialState();
-    }
-  }, [jobArrayUpdated, jobArray, jobID]);
+    setInitialState();
+  }, [jobID]);
 
   function stepBack() {
     activeJob.stepBackward();

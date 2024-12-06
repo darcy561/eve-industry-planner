@@ -21,7 +21,8 @@ async function getJobDocumentFromFirebase(inputID) {
     if (document.exists()) {
       return new Job(document.data());
     } else {
-      throw new Error("Document Not Found");
+      return null
+      // throw new Error("Document Not Found");
     }
   } catch (err) {
     console.error("Error getting document from Firebase:", err);

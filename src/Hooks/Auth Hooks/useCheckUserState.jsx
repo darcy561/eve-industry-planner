@@ -8,7 +8,7 @@ import { useRefreshUser } from "../useRefreshUser";
 import { auth } from "../../firebase";
 
 function useCheckUserAuthState() {
-  const { updateUsers } = useContext(UsersContext);
+  const { users, updateUsers } = useContext(UsersContext);
   const { isLoggedIn } = useContext(IsLoggedInContext);
   const { updatePageLoad } = useContext(PageLoadContext);
   const {
@@ -18,7 +18,7 @@ function useCheckUserAuthState() {
     updateUserWatchlistDataFetch,
     updateUserGroupsDataFetch,
   } = useContext(UserLoginUIContext);
-  const { reloadMainUser, refreshUserAccessTokens } = useRefreshUser();
+  const { reloadMainUser } = useRefreshUser();
 
   useEffect(() => {
     authState();
@@ -26,8 +26,14 @@ function useCheckUserAuthState() {
 
   async function authState() {
     if (isLoggedIn) {
-      const newUserArray = await refreshUserAccessTokens();
-      updateUsers(newUserArray);
+      for (let user of users) {
+        try {
+          await user.refreshAccessToken();
+        } catch (err) {
+          console.error("Unable to refresh user");
+        }
+      }
+      updateUsers((prev) => [...prev]);
       updatePageLoad(false);
     } else {
       if (!localStorage.getItem("Auth")) {

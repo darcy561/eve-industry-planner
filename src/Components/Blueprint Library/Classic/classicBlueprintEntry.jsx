@@ -60,7 +60,11 @@ export function BlueprintEntry({ blueprint, esiJobs, bpData }) {
       sx={{ marginBottom: "10px" }}
     >
       <Tooltip
-        title={blueprint.isCorp ? corpOwner.name : bpOwner.CharacterName}
+        title={
+          blueprint.isCorp
+            ? corpOwner?.name || "unknown"
+            : bpOwner?.CharacterName || "unknown"
+        }
         arrow
         placement="top"
       >

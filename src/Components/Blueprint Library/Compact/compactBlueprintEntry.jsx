@@ -14,7 +14,7 @@ export function CompactBlueprintEntry({ blueprintGroup, bpData }) {
   const bpOwner = users.find(
     (u) => u.CharacterHash === blueprint.CharacterHash
   );
-  const corpOwner = corpEsiData.get(blueprint?.corporation_id)
+  const corpOwner = corpEsiData.get(blueprint?.corporation_id);
 
   return (
     <Grid container item xs={12} md={6}>
@@ -29,7 +29,11 @@ export function CompactBlueprintEntry({ blueprintGroup, bpData }) {
         <Grid container item xs={12}>
           <Grid container item xs={12} align="center">
             <Tooltip
-              title={blueprint.isCorp ? corpOwner.name : bpOwner.CharacterName}
+              title={
+                blueprint.isCorp
+                  ? corpOwner?.name || "unknown"
+                  : bpOwner?.CharacterName || "unknown"
+              }
               arrow
               placement="top"
             >

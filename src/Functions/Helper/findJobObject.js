@@ -15,13 +15,14 @@ async function findOrGetJobObject(
       jobArray.find(({ jobID }) => jobID === requestedJobID) ||
       alternativeJobStore.find(({ jobID }) => jobID === requestedJobID);
 
+    
     if (matchedJob) {
       return matchedJob;
     } else if (isUserLoggedIn()) {
       const retrievedJob = await getJobDocumentFromFirebase(requestedJobID);
 
       if (!retrievedJob) {
-        throw new Error("Unable to find job.");
+        return null
       }
 
       alternativeJobStore.push(retrievedJob);

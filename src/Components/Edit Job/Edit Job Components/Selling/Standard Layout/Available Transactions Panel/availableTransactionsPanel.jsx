@@ -88,7 +88,9 @@ export function AvailableTransactionsPanel({
                   <Grid item xs={1}>
                     <Tooltip
                       title={
-                        tData.is_corp ? corpData.name : charData.CharacterName
+                        tData.is_corp
+                          ? corpData?.name || "Unknown"
+                          : charData?.CharacterName || "Unknown"
                       }
                       arrow
                       placement="right"

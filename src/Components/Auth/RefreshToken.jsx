@@ -2,32 +2,19 @@ import { trace } from "@firebase/performance";
 import { performance } from "../../firebase";
 import { decodeJwt } from "jose";
 import { login } from "./MainUserAuth";
-import { Buffer } from "buffer";
 import User from "../../Classes/usersConstructor";
+import refreshAccessTokenESICall from "../../Functions/EveESI/Character/refreshAccessToken";
 
-export async function RefreshTokens(rToken, accountType = false) {
+async function getUserFromRefreshToken(rToken, accountType = false) {
   const t = trace(performance, "UseRefreshToken");
   t.start();
   try {
-    const authHeader = `Basic ${Buffer.from(
-      `${import.meta.env.VITE_eveClientID}:${import.meta.env.VITE_eveSecretKey}`
-    ).toString("base64")}`;
+    const refreshToken = await refreshAccessTokenESICall(rToken);
 
-    const newTokenPromise = await fetch(
-      "https://login.eveonline.com/v2/oauth/token",
-      {
-        method: "POST",
-        headers: {
-          Authorization: authHeader,
-          "Content-Type": "application/x-www-form-urlencoded",
-          Host: "login.eveonline.com",
-        },
-        body: `grant_type=refresh_token&refresh_token=${rToken}&scope=${
-          import.meta.env.VITE_eveScope
-        }`,
-      }
-    );
-    const newTokenJSON = await newTokenPromise.json();
+    if (!refreshToken) {
+      throw new Error("Failed Refresh");
+    }
+
     const decodedToken = decodeJwt(newTokenJSON.access_token);
 
     const newUser = new User(decodedToken, newTokenJSON, accountType);
@@ -50,3 +37,5 @@ export async function RefreshTokens(rToken, accountType = false) {
     }
   }
 }
+
+export default getUserFromRefreshToken;

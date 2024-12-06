@@ -121,10 +121,8 @@ export function LinkedTransactionPanel({
                         <Tooltip
                           title={
                             tData.is_corp
-                              ? corpData.name
-                              : charData
-                              ? charData.CharacterName
-                              : ""
+                              ? corpData?.name || "Unknown"
+                              : charData?.CharacterName || "Unknown"
                           }
                           arrow
                           placement="right"
