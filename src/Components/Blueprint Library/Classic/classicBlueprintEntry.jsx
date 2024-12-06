@@ -76,9 +76,16 @@ export function BlueprintEntry({ blueprint, esiJobs, bpData }) {
               badgeContent={
                 <Avatar
                   src={
-                    blueprint.isCorp
+                    blueprint.isCorp && blueprint.corporation_id
                       ? `https://images.evetech.net/corporations/${blueprint.corporation_id}/logo`
-                      : `https://images.evetech.net/characters/${bpOwner.CharacterID}/portrait`
+                      : bpOwner.CharacterID
+                      ? `https://images.evetech.net/characters/${bpOwner.CharacterID}/portrait`
+                      : undefined
+                  }
+                  alt={
+                    blueprint.isCorp
+                      ? "Corp Logo"
+                      : bpOwner?.CharacterName || "Unknown"
                   }
                   variant="circular"
                   sx={{

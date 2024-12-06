@@ -16,7 +16,7 @@ async function archiveJobInFirebase(inputJob) {
     inputJob.archived = true;
 
     setDoc(
-      doc(firestore, `Users/${uid}/ArchivedJobs`, job.jobID.toString()),
+      doc(firestore, `Users/${uid}/ArchivedJobs`, inputJob.jobID.toString()),
       inputJob.toDocument()
     );
   } catch (err) {

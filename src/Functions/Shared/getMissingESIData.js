@@ -2,18 +2,20 @@ import getMarketData from "../MarketData/findMarketData";
 import getSystemIndexes from "../System Indexes/findSystemIndex";
 
 async function getMissingESIData(
-  allJobObjects,
+  inputJobs,
   evePricesObject,
   systemIndexesObject
 ) {
-  if (!allJobObjects) {
+  if (!inputJobs) {
     throw new Error("Missing Job Objects");
   }
+
+  const jobsAsArray = Array.isArray(inputJobs) ? inputJobs : [inputJobs];
 
   let requiredMarketData = new Set();
   let requiredSystemIndexes = new Set();
 
-  for (let job of allJobObjects) {
+  for (let job of jobsAsArray) {
     requiredMarketData = new Set([
       ...requiredMarketData,
       ...job.getMaterialIDs(),

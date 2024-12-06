@@ -15,17 +15,18 @@ async function getUserFromRefreshToken(rToken, accountType = false) {
       throw new Error("Failed Refresh");
     }
 
-    const decodedToken = decodeJwt(newTokenJSON.access_token);
+    const decodedToken = decodeJwt(refreshToken.access_token);
 
-    const newUser = new User(decodedToken, newTokenJSON, accountType);
+    const newUser = new User(decodedToken, refreshToken, accountType);
 
     if (accountType) {
-      localStorage.setItem("Auth", newTokenJSON.refresh_token);
+      localStorage.setItem("Auth", refreshToken.refresh_token);
     }
     t.incrementMetric("RefreshSuccess", 1);
     t.stop();
     return newUser;
   } catch (err) {
+    console.error(err)
     t.incrementMetric("RefreshFail", 1);
     t.putAttribute("FailError", err.name);
     t.stop();
