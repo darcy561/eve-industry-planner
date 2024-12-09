@@ -25,6 +25,8 @@ import { Box } from "@mui/material";
 import { getBoolean } from "firebase/remote-config";
 import { remoteConfig } from "./firebase";
 import MaintenanceMode from "./MaintenanceMode";
+import activateServiceWorker from "./Service Workers/activateServiceWorker";
+import useServiceWorker from "./Hooks/useServiceWorker";
 
 const { ENABLE_FEEDBACK_ICON, PRIMARY_THEME, SECONDARY_THEME } = GLOBAL_CONFIG;
 
@@ -104,6 +106,8 @@ export default function App() {
   const [mode, setMode] = useState(
     localStorage.getItem("theme") || PRIMARY_THEME
   );
+  activateServiceWorker();
+  useServiceWorker();
 
   useEffect(() => {
     localStorage.setItem("theme", mode);
@@ -128,18 +132,18 @@ export default function App() {
   const isMaintenanceMode = getBoolean(remoteConfig, "maintenance_mode");
 
   return (
-      <ThemeProvider theme={theme}>
+    <ThemeProvider theme={theme}>
       <Box sx={{ display: "flex", width: "100%", height: "100%" }}>
-          <CssBaseline />
-          <SnackBarNotification />
-          <DialogBox />
-          {isMaintenanceMode ? (
-            <MaintenanceMode />
-          ) : (
-            <NavRoutes colorMode={colorMode} />
-          )}
-          {ENABLE_FEEDBACK_ICON && !isMaintenanceMode && <FeedbackIcon />}
-        </Box>
-      </ThemeProvider>
+        <CssBaseline />
+        <SnackBarNotification />
+        <DialogBox />
+        {isMaintenanceMode ? (
+          <MaintenanceMode />
+        ) : (
+          <NavRoutes colorMode={colorMode} />
+        )}
+        {ENABLE_FEEDBACK_ICON && !isMaintenanceMode && <FeedbackIcon />}
+      </Box>
+    </ThemeProvider>
   );
 }

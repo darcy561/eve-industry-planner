@@ -1,5 +1,4 @@
 import {
-  Autocomplete,
   FormControl,
   FormControlLabel,
   FormHelperText,
@@ -20,7 +19,7 @@ import {
   CorpEsiDataContext,
   PersonalESIDataContext,
 } from "../../Context/EveDataContext";
-import VirtualisedRecipeSearch from "../../Styled Components/autocomplete/singleSelectScrollable";
+import VirtualisedRecipeSearch from "../../Styled Components/autocomplete/virtualisedRecipeSearch";
 
 export function LibrarySearch({
   updateBlueprintData,

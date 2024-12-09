@@ -7,7 +7,7 @@ async function getFirebaseAuthToken(userObject) {
     throw new Error("userObject missing");
   }
   try {
-    const appCheckToken = await getToken(appCheck, true);
+    const appCheckToken = await getToken(appCheck);
 
     const response = await fetch(
       `${import.meta.env.VITE_APIURL}/auth/gentoken`,

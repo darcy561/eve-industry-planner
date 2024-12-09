@@ -17,7 +17,7 @@ import { ApplicationSettingsContext } from "../../../Context/LayoutContext";
 import uploadApplicationSettingsToFirebase from "../../../Functions/Firebase/uploadApplicationSettings";
 import { blueprintOptions } from "../../../Context/defaultValues";
 import uuid from "react-uuid";
-import VirtualisedRecipeSearch from "../../../Styled Components/autocomplete/singleSelectScrollable";
+import VirtualisedRecipeSearch from "../../../Styled Components/autocomplete/virtualisedRecipeSearch";
 import fullItemList from "../../../RawData/fullItemList.json";
 import ClearIcon from "@mui/icons-material/Clear";
 

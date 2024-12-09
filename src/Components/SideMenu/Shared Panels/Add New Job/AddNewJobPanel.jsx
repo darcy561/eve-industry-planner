@@ -18,7 +18,7 @@ import uuid from "react-uuid";
 import AddShipFittingPanel from "./addFittingJobs";
 import { ActiveJobContext } from "../../../../Context/JobContext";
 import useBuildNewJobs from "../../../../Hooks/JobHooks/useBuildNewJobs";
-import VirtualisedRecipeSearch from "../../../../Styled Components/autocomplete/singleSelectScrollable";
+import VirtualisedRecipeSearch from "../../../../Styled Components/autocomplete/virtualisedRecipeSearch";
 
 function AddNewJobSharedContentPanel({
   hideContentPanel,

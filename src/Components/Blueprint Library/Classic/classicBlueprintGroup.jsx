@@ -97,7 +97,7 @@ export function ClassicBlueprintGroup({ bpID, blueprintResults }) {
                       return;
                     }
                     const newJobArray = [...jobArray];
-                    const newSnapshotArray = [...newSnapshotArray];
+                    const newSnapshotArray = [...userJobSnapshot];
 
                     const newJob = await buildJob({ itemID: bpData.itemID });
                     if (!newJob) {

@@ -1,6 +1,5 @@
-import { useContext, useMemo, useState } from "react";
+import { useContext } from "react";
 import {
-  Autocomplete,
   FormControl,
   FormHelperText,
   Grid,
@@ -13,11 +12,13 @@ import {
   blueprintOptions,
   customStructureMap,
   jobTypes,
-  structureOptions,
+  rigTypeMap,
+  structureTypeMap,
+  systemTypeMap,
 } from "../../../../../Context/defaultValues";
-import systemIDS from "../../../../../RawData/systems.json";
 import { useUpdateSetupValue } from "../../../../../Hooks/JobHooks/useUpdateSetupValue";
 import { ApplicationSettingsContext } from "../../../../../Context/LayoutContext";
+import VirtualisedSystemSearch from "../../../../../Styled Components/autocomplete/virtualisedSystemSearch";
 
 export function WatchListSetupOptions_WatchlistDialog({
   parentUser,
@@ -27,28 +28,11 @@ export function WatchListSetupOptions_WatchlistDialog({
   itemToModify,
   updateItemToModify,
 }) {
-  const {applicationSettings} = useContext(ApplicationSettingsContext)
+  const { applicationSettings } = useContext(ApplicationSettingsContext);
   const { recalculateWatchListItems } = useUpdateSetupValue();
   const jobSetup = Object.values(materialJobs[itemToModify]?.build?.setup)[0];
 
   const theme = useTheme();
-
-  const structureTypeMap = {
-    [jobTypes.manufacturing]: structureOptions.manStructure,
-    [jobTypes.reaction]: structureOptions.reactionStructure,
-  };
-  const rigTypeMap = {
-    [jobTypes.manufacturing]: structureOptions.manRigs,
-    [jobTypes.reaction]: structureOptions.reactionRigs,
-  };
-  const systemTypeMap = {
-    [jobTypes.manufacturing]: structureOptions.manSystem,
-    [jobTypes.reaction]: structureOptions.reactionSystem,
-  };
-
-  const systemIDMap = useMemo(() => {
-    return buildSystemIDMap(systemIDS);
-  }, []);
 
   return (
     <Grid container item xs={12} spacing={2}>
@@ -90,15 +74,15 @@ export function WatchListSetupOptions_WatchlistDialog({
                   None
                 </MenuItem>
               ) : null}
-              {applicationSettings[
-                customStructureMap[jobSetup.jobType]
-              ].map((entry) => {
-                return (
-                  <MenuItem key={entry.id} value={entry.id}>
-                    {entry.name}
-                  </MenuItem>
-                );
-              })}
+              {applicationSettings[customStructureMap[jobSetup.jobType]].map(
+                (entry) => {
+                  return (
+                    <MenuItem key={entry.id} value={entry.id}>
+                      {entry.name}
+                    </MenuItem>
+                  );
+                }
+              )}
             </Select>
             <FormHelperText variant="standard">
               Custom Structure Used
@@ -329,60 +313,21 @@ export function WatchListSetupOptions_WatchlistDialog({
               </FormControl>
             </Grid>
             <Grid item xs={6} sx={{ paddingLeft: "10px" }}>
-              <FormControl
-                sx={{
-                  "& .MuiFormHelperText-root": {
-                    color: theme.palette.secondary.main,
-                  },
-                  "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-                    {
-                      display: "none",
-                    },
+              <VirtualisedSystemSearch
+                selectedValue={jobSetup.systemID}
+                updateSelectedValue={(value) => {
+                  const updatedMaterialJob = recalculateWatchListItems(
+                    itemToModify,
+                    watchlistItemRequest,
+                    jobSetup.id,
+                    "systemID",
+                    Number(value),
+                    undefined,
+                    materialJobs
+                  );
+                  setMaterialJobs(updatedMaterialJob);
                 }}
-                fullWidth
-              >
-                <Autocomplete
-                  disableClearable
-                  fullWidth
-                  id="System Search"
-                  clearOnBlur
-                  blurOnSelect
-                  value={systemIDMap[jobSetup.systemID]}
-                  variant="standard"
-                  size="small"
-                  options={systemIDS}
-                  getOptionLabel={(option) => option.name}
-                  onChange={(event, value) => {
-                    const updatedMaterialJob = recalculateWatchListItems(
-                      itemToModify,
-                      watchlistItemRequest,
-                      jobSetup.id,
-                      "systemID",
-                      Number(value.id),
-                      undefined,
-                      materialJobs
-                    );
-                    setMaterialJobs(updatedMaterialJob);
-                  }}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      size="small"
-                      margin="none"
-                      variant="standard"
-                      sx={{
-                        borderRadius: "5px",
-                      }}
-                      InputProps={{
-                        ...params.InputProps,
-                        type: "System Name",
-                      }}
-                      value={systemIDMap[jobSetup.systemID].name}
-                    />
-                  )}
-                />
-                <FormHelperText variant="standard">System Name</FormHelperText>
-              </FormControl>
+              />
             </Grid>
           </Grid>
           <Grid container item xs={12}>
@@ -429,14 +374,4 @@ export function WatchListSetupOptions_WatchlistDialog({
       )}
     </Grid>
   );
-}
-
-function buildSystemIDMap(systemIDArray) {
-  let results = {};
-
-  for (let system of systemIDArray) {
-    results[system.id] = system;
-  }
-
-  return results;
 }

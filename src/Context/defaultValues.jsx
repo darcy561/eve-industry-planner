@@ -603,10 +603,42 @@ export const structureOptions = {
   },
 };
 
+export const structureTypeMap = {
+  [jobTypes.manufacturing]: structureOptions.manStructure,
+  [jobTypes.reaction]: structureOptions.reactionStructure,
+};
+export const rigTypeMap = {
+  [jobTypes.manufacturing]: structureOptions.manRigs,
+  [jobTypes.reaction]: structureOptions.reactionRigs,
+};
+export const systemTypeMap = {
+  [jobTypes.manufacturing]: structureOptions.manSystem,
+  [jobTypes.reaction]: structureOptions.reactionSystem,
+};
+
 export const customStructureMap = {
   [jobTypes.manufacturing]: "manufacturingStructures",
   [jobTypes.reaction]: "reactionStructures",
 };
+
+export const systemStructureRequirements = {
+  30100000: {
+    rigID: 0,
+    systemTypeID: 3,
+    structureID: 4,
+    systemID: 30100000,
+    taxValue: 0.25,
+    allowedJobTypes: [jobTypes.manufacturing],
+  },
+};
+
+export const structureTypeTooltip = (
+  <span>
+    <p>Medium: Astrahus, Athanor, Raitaru</p>
+    <p>Large: Azbel, Fortizar, Tatara</p>
+    <p>X-Large: Keepstar, Sotiyo</p>
+  </span>
+);
 
 export const ancientRelicIDs = new Set([
   30614, 30615, 30618, 30599, 30600, 30605, 30582, 30586, 30588, 30752, 30753,

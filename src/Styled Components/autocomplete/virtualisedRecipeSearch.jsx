@@ -1,15 +1,13 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { FixedSizeList } from "react-window";
 import Autocomplete from "@mui/material/Autocomplete";
-import Checkbox from "@mui/material/Checkbox";
 import TextField from "@mui/material/TextField";
-import { useTheme } from "@mui/material/styles";
-import { Avatar, Chip } from "@mui/material";
+import itemList from "../../RawData/searchIndex.json";
 
-function VirtualizedAutocomplete({ itemList }) {
-  const theme = useTheme();
+function VirtualisedRecipeSearch({ onSelect }) {
+  const [selectedValue, setSelectedValue] = useState(null);
+  const [inputValue, setInputValue] = useState("");
 
-  // Custom Listbox component with react-window
   const ListboxComponent = React.forwardRef(function ListboxComponent(
     props,
     ref
@@ -26,13 +24,12 @@ function VirtualizedAutocomplete({ itemList }) {
       ));
       return OuterElement;
     }, []);
-
     return (
       <div ref={ref} {...other}>
         <FixedSizeList
-          height={250} // Adjust based on desired list height
+          height={250}
           itemCount={itemCount}
-          itemSize={50} // Adjust based on item height
+          itemSize={50}
           outerElementType={outerElementType}
           width="100%"
         >
@@ -42,42 +39,48 @@ function VirtualizedAutocomplete({ itemList }) {
     );
   });
 
+  const handleChange = (event, newValue) => {
+    if (newValue) {
+      onSelect(newValue);
+      setSelectedValue(null);
+      setInputValue("");
+    }
+  };
+
   return (
     <Autocomplete
-      multiple
-      id="checkboxes-tags-demo"
+      fullWidth
+      id="Recipe Search"
+      value={selectedValue}
       options={itemList}
-      disableCloseOnSelect
+      clearOnBlur
+      inputValue={inputValue}
+      onInputChange={(event, newInputValue) => setInputValue(newInputValue)}
+      onClose={() => setSelectedValue(null)}
+      onChange={handleChange}
       getOptionLabel={(option) => option.name}
-      renderOption={(props, option, { selected }) => {
+      renderOption={(props, option) => {
         const { key, ...optionProps } = props;
         return (
           <li key={key} {...optionProps}>
-            <Checkbox style={{ marginRight: 8 }} checked={selected} />
             {option.name}
           </li>
         );
       }}
-      style={{ width: 500 }}
+      style={{ width: "100%" }}
       renderInput={(params) => (
-        <TextField {...params} label="Search" placeholder="Selected" />
+        <TextField
+          {...params}
+          fullWidth
+          label="Search"
+          placeholder="Select an item"
+          margin="none"
+          variant="standard"
+        />
       )}
-      renderTags={(tagValue, getTagProps) =>
-        tagValue.map((option, index) => (
-          <Chip
-            label={option.name}
-            {...getTagProps({ index })}
-            avatar={
-              <Avatar
-                src={`https://image.eveonline.com/Type/${option.itemID}_32.png`}
-              />
-            }
-          />
-        ))
-      }
       ListboxComponent={ListboxComponent}
     />
   );
 }
 
-export default VirtualizedAutocomplete;
+export default VirtualisedRecipeSearch;

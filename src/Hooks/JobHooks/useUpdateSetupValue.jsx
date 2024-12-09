@@ -6,6 +6,7 @@ import { useRecalcuateJob } from "../GeneralHooks/useRecalculateJob";
 import { ApplicationSettingsContext } from "../../Context/LayoutContext";
 import Job from "../../Classes/jobConstructor";
 import getSystemIndexes from "../../Functions/System Indexes/findSystemIndex";
+import checkJobTypeIsBuildable from "../../Functions/Helper/checkJobTypeIsBuildable";
 
 export function useUpdateSetupValue() {
   const { systemIndexData, updateSystemIndexData } =

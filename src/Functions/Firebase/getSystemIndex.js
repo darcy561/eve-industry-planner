@@ -11,7 +11,7 @@ async function getSystemIndexDataFromFirebase(inputArray) {
     return returnObject;
   }
 
-  const appCheckToken = await getToken(appCheck, true);
+  const appCheckToken = await getToken(appCheck);
 
   if (inputArray.size === 1) {
     URL += `/${inputArray[0]}`;

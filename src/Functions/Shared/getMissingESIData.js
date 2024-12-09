@@ -3,8 +3,8 @@ import getSystemIndexes from "../System Indexes/findSystemIndex";
 
 async function getMissingESIData(
   inputJobs,
-  evePricesObject,
-  systemIndexesObject
+  evePricesObject = {},
+  systemIndexesObject = {}
 ) {
   if (!inputJobs) {
     throw new Error("Missing Job Objects");

@@ -1,6 +1,5 @@
 import { useContext, useState } from "react";
 import {
-  Autocomplete,
   Avatar,
   Button,
   Chip,
@@ -17,6 +16,7 @@ import fullItemList from "../../../RawData/fullItemList.json";
 import uuid from "react-uuid";
 import ClearIcon from "@mui/icons-material/Clear";
 import { ActiveJobContext } from "../../../Context/JobContext";
+import VirtualisedRecipeSearch from "../../../Styled Components/autocomplete/virtualisedRecipeSearch";
 
 export function SearchBar({
   updateRightContentMenuContentID,
@@ -77,27 +77,11 @@ export function SearchBar({
       <Grid container direction="row" alignItems="center">
         <Grid container item xs={12}>
           <Grid item xs={12} sx={{ marginBottom: 1 }}>
-            <Autocomplete
-              fullWidth
-              id="Recipe Search"
-              blurOnSelect
-              clearOnBlur
-              size="small"
-              options={itemList}
-              getOptionLabel={(option) => option.name}
-              onChange={(event, value) => {
+            <VirtualisedRecipeSearch
+              onSelect={(value) => {
                 if (!value) return;
                 addItemToSelection(value.itemID);
               }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  size="small"
-                  margin="none"
-                  variant="standard"
-                  InputProps={{ ...params.InputProps, type: "search" }}
-                />
-              )}
             />
           </Grid>
           <Grid
@@ -121,7 +105,7 @@ export function SearchBar({
             >
               Clear
             </Button>
-            {!activeGroup &&
+            {!activeGroup && (
               <FormControlLabel
                 control={
                   <Switch
@@ -134,7 +118,7 @@ export function SearchBar({
                 label={<Typography variant="caption">Add To Group</Typography>}
                 labelPlacement="bottom"
               />
-            }
+            )}
           </Grid>
           <Grid container item xs={12} sx={{ marginTop: 2 }}>
             {itemIDsToAdd.map((itemObj) => {

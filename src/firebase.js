@@ -3,6 +3,7 @@ import { getAuth } from "firebase/auth";
 import { initializeFirestore, memoryLocalCache } from "firebase/firestore";
 import {
   initializeAppCheck,
+  onTokenChanged,
   ReCaptchaEnterpriseProvider,
 } from "firebase/app-check";
 import { getPerformance } from "firebase/performance";
@@ -11,6 +12,7 @@ import { getAnalytics } from "firebase/analytics";
 import GLOBAL_CONFIG from "./global-config-app";
 import { fetchAndActivate, getRemoteConfig } from "firebase/remote-config";
 import { REMOTE_CONFIG_DEFAULT_VALUES } from "./Context/defaultValues";
+import sendAppCheckTokenToSW from "./Service Workers/sendAppCheckToSW";
 
 const { FIREBASE_FUNCTION_REGION } = GLOBAL_CONFIG;
 
@@ -38,6 +40,10 @@ export const functions = getFunctions(app, FIREBASE_FUNCTION_REGION);
 export const appCheck = initializeAppCheck(app, {
   provider: new ReCaptchaEnterpriseProvider(import.meta.env.VITE_ReCaptchaKey),
   isTokenAutoRefreshEnabled: true,
+});
+
+onTokenChanged(appCheck, async () => {
+  await sendAppCheckTokenToSW();
 });
 
 export const performance = getPerformance(app);

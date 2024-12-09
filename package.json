@@ -2,6 +2,7 @@
   "name": "eve-industry-planner-react",
   "version": "0.7.5",
   "private": true,
+  "type": "module",
   "dependencies": {
     "@emotion/react": "^11.13.5",
     "@emotion/styled": "^11.13.5",

@@ -1,5 +1,4 @@
-import { Autocomplete, Grid, TextField, Typography } from "@mui/material";
-import itemList from "../../../../../RawData/searchIndex.json";
+import { Grid, Typography } from "@mui/material";
 import { useJobBuild } from "../../../../../Hooks/useJobBuild";
 import { useContext, useEffect } from "react";
 import {
@@ -10,6 +9,8 @@ import { UserWatchlistContext } from "../../../../../Context/AuthContext";
 import getMissingESIData from "../../../../../Functions/Shared/getMissingESIData";
 import checkJobTypeIsBuildable from "../../../../../Functions/Helper/checkJobTypeIsBuildable";
 import { useInstallCostsCalc } from "../../../../../Hooks/GeneralHooks/useInstallCostCalc";
+import recalculateInstallCostsWithNewData from "../../../../../Functions/Installation Costs/recalculateInstallCostsWithNewData";
+import VirtualisedRecipeSearch from "../../../../../Styled Components/autocomplete/virtualisedRecipeSearch";
 
 export function ImportNewJob_WatchlistDialog({
   setFailedImport,
@@ -73,7 +74,11 @@ export function ImportNewJob_WatchlistDialog({
     }
 
     const { requestedMarketData, requestedSystemIndexes } =
-      await getMissingESIData([...MaterialJobs, WatchlistItemJob]);
+      await getMissingESIData(
+        [...MaterialJobs, WatchlistItemJob],
+        evePrices,
+        systemIndexData
+      );
 
     recalculateInstallCostsWithNewData(
       MaterialJobs,
@@ -101,29 +106,10 @@ export function ImportNewJob_WatchlistDialog({
       <Grid item xs={12} align="center">
         <Typography> Select An Item To Begin</Typography>
       </Grid>
-      <Autocomplete
-        disableClearable
-        fullWidth
-        id="Item Search"
-        clearOnBlur
-        blurOnSelect
-        variant="standard"
-        size="small"
-        options={itemList}
-        getOptionLabel={(option) => option.name}
-        onChange={async (event, value) => {
+      <VirtualisedRecipeSearch
+        onSelect={async (value) => {
           await importWatchlistItem(value.itemID);
         }}
-        renderInput={(params) => (
-          <TextField
-            {...params}
-            size="small"
-            label="Search"
-            nargin="none"
-            variant="standard"
-            InputProps={{ ...params.InputProps, type: "Search" }}
-          />
-        )}
       />
     </Grid>
   );

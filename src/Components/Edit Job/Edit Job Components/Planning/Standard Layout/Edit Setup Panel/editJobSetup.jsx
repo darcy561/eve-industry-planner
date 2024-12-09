@@ -1,5 +1,4 @@
 import {
-  Autocomplete,
   Grid,
   FormControl,
   FormHelperText,
@@ -19,13 +18,18 @@ import {
 import {
   blueprintOptions,
   customStructureMap,
+  rigTypeMap,
   structureOptions,
+  structureTypeMap,
+  structureTypeTooltip,
+  systemTypeMap,
 } from "../../../../../../Context/defaultValues";
 import { jobTypes } from "../../../../../../Context/defaultValues";
 import systemIDS from "../../../../../../RawData/systems.json";
 import { useUpdateSetupValue } from "../../../../../../Hooks/JobHooks/useUpdateSetupValue";
 import { useHelperFunction } from "../../../../../../Hooks/GeneralHooks/useHelperFunctions";
 import { ApplicationSettingsContext } from "../../../../../../Context/LayoutContext";
+import VirtualisedSystemSearch from "../../../../../../Styled Components/autocomplete/virtualisedSystemSearch";
 
 export function EditJobSetup({ activeJob, updateActiveJob, setJobModified }) {
   const { applicationSettings } = useContext(ApplicationSettingsContext);
@@ -351,39 +355,13 @@ function ManualStructureSelection({
   const [fetchSystemDataTrigger, updateFetchSystemDataTrigger] =
     useState(false);
   const { recalcuateJobFromSetup } = useUpdateSetupValue();
-  const structureTypeMap = {
-    [jobTypes.manufacturing]: structureOptions.manStructure,
-    [jobTypes.reaction]: structureOptions.reactionStructure,
-  };
-  const rigTypeMap = {
-    [jobTypes.manufacturing]: structureOptions.manRigs,
-    [jobTypes.reaction]: structureOptions.reactionRigs,
-  };
-  const systemTypeMap = {
-    [jobTypes.manufacturing]: structureOptions.manSystem,
-    [jobTypes.reaction]: structureOptions.reactionSystem,
-  };
-
-  const systemIDMap = useMemo(() => {
-    return buildSystemIDMap(systemIDS);
-  }, []);
 
   if (activeJob.build.setup[setupToEdit].customStructureID) return null;
 
   return (
     <>
       <Grid item xs={6}>
-        <Tooltip
-          title={
-            <span>
-              <p>Medium: Astrahus, Athanor, Raitaru</p>
-              <p>Large: Azbel, Fortizar, Tatara</p>
-              <p>X-Large: Keepstar, Sotiyo </p>
-            </span>
-          }
-          arrow
-          placement="top"
-        >
+        <Tooltip title={structureTypeTooltip} arrow placement="top">
           <FormControl
             sx={{
               "& .MuiFormHelperText-root": {
@@ -512,65 +490,23 @@ function ManualStructureSelection({
       </Grid>
       <Grid item xs={6} align="center">
         {!fetchSystemDataTrigger ? (
-          <FormControl
-            sx={{
-              "& .MuiFormHelperText-root": {
-                color: (theme) => theme.palette.secondary.main,
-              },
-              "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-                {
-                  display: "none",
-                },
+          <VirtualisedSystemSearch
+            selectedValue={activeJob.build.setup[setupToEdit].systemID}
+            updateSelectedValue={async (value) => {
+              updateFetchSystemDataTrigger((prev) => !prev);
+              await recalcuateJobFromSetup(
+                buildObject,
+                "systemID",
+                Number(value),
+                undefined,
+                activeJob,
+                updateActiveJob,
+                true
+              );
+              setJobModified(true);
+              updateFetchSystemDataTrigger((prev) => !prev);
             }}
-            fullWidth
-          >
-            <Autocomplete
-              disableClearable
-              fullWidth
-              id="System Search"
-              clearOnBlur
-              blurOnSelect
-              value={systemIDMap[activeJob.build.setup[setupToEdit].systemID]}
-              variant="standard"
-              size="small"
-              options={systemIDS}
-              getOptionLabel={(option) => option.name}
-              onChange={async (event, value) => {
-                updateFetchSystemDataTrigger((prev) => !prev);
-                await recalcuateJobFromSetup(
-                  buildObject,
-                  "systemID",
-                  Number(value.id),
-                  undefined,
-                  activeJob,
-                  updateActiveJob,
-                  true
-                );
-                setJobModified(true);
-                updateFetchSystemDataTrigger((prev) => !prev);
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  size="small"
-                  margin="none"
-                  variant="standard"
-                  sx={{
-                    borderRadius: "5px",
-                  }}
-                  InputProps={{
-                    ...params.InputProps,
-                    type: "System Name",
-                  }}
-                  value={
-                    systemIDMap[activeJob.build.setup[setupToEdit].systemID]
-                      .name
-                  }
-                />
-              )}
-            />
-            <FormHelperText variant="standard">System Name</FormHelperText>
-          </FormControl>
+          />
         ) : (
           <CircularProgress size={26} />
         )}
@@ -612,14 +548,4 @@ function ManualStructureSelection({
       </Grid>
     </>
   );
-}
-
-function buildSystemIDMap(systemIDArray) {
-  let results = {};
-
-  for (let system of systemIDArray) {
-    results[system.id] = system;
-  }
-
-  return results;
 }

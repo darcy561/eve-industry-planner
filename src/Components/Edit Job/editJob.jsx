@@ -121,7 +121,9 @@ export default function EditJob_New({ colorMode }) {
         );
 
         if (isLoggedIn) {
-          const newArchivedJobsArray = await getArchivedJobData(jobID);
+          const newArchivedJobsArray = await getArchivedJobData(
+            matchedJob.itemID
+          );
           updateArchivedJobs(newArchivedJobsArray);
         }
         const { requestedMarketData, requestedSystemIndexes } =

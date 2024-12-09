@@ -78,7 +78,7 @@ export default function AuthMainUser() {
 
         const userObject = await getEveOauthToken(authCode, true);
         if (!userObject) {
-          // login()
+          login()
         }
         let fbToken = await getFirebaseAuthToken(userObject);
         await userObject.getPublicCharacterData();

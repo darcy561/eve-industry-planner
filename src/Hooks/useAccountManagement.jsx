@@ -346,7 +346,6 @@ export function useAccountManagement() {
   ) => {
     for (let token of refreshTokens) {
       let newUser = await getUserFromRefreshToken(token.rToken);
-      console.log(newUser)
       if (newUser === "RefreshFail") continue;
 
       await newUser.getPublicCharacterData();

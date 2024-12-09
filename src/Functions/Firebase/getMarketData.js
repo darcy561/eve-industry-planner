@@ -8,7 +8,7 @@ async function getMarketDataFromFirebase(inputArray) {
       throw new Error("missing price input array");
     }
 
-    const appCheckToken = await getToken(appCheck, true);
+    const appCheckToken = await getToken(appCheck);
     const response = await fetch(`${import.meta.env.VITE_APIURL}/market-data`, {
       method: "POST",
       headers: {

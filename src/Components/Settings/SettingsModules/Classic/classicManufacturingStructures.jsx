@@ -1,5 +1,4 @@
 import {
-  Autocomplete,
   Box,
   Button,
   Card,
@@ -29,9 +28,11 @@ import { useHelperFunction } from "../../../../Hooks/GeneralHooks/useHelperFunct
 import { ApplicationSettingsContext } from "../../../../Context/LayoutContext";
 import uploadApplicationSettingsToFirebase from "../../../../Functions/Firebase/uploadApplicationSettings";
 import getSystemIndexes from "../../../../Functions/System Indexes/findSystemIndex";
+import VirtualisedSystemSearch from "../../../../Styled Components/autocomplete/virtualisedSystemSearch";
 
 export function ClassicManufacturingStrutures() {
-  const { systemIndexData, updateSystemIndexData } = useContext(SystemIndexContext);
+  const { systemIndexData, updateSystemIndexData } =
+    useContext(SystemIndexContext);
   const { applicationSettings, updateApplicationSettings } = useContext(
     ApplicationSettingsContext
   );
@@ -66,7 +67,10 @@ export function ClassicManufacturingStrutures() {
         applicationSettings.manufacturingStructures.length === 0 ? true : false,
     };
 
-    const systemIndexResults = await getSystemIndexes(systemIDValue, systemIndexData);
+    const systemIndexResults = await getSystemIndexes(
+      systemIDValue,
+      systemIndexData
+    );
     const newApplicationSettings =
       applicationSettings.addCustomManufacturingStructure(newStructure);
 
@@ -275,49 +279,12 @@ export function ClassicManufacturingStrutures() {
                       </FormControl>
                     </Grid>
                     <Grid item xs={6} sx={{ paddingLeft: "5px" }}>
-                      <FormControl
-                        sx={{
-                          "& .MuiFormHelperText-root": {
-                            color: (theme) => theme.palette.secondary.main,
-                          },
-                          "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-                            {
-                              display: "none",
-                            },
+                      <VirtualisedSystemSearch
+                        selectedValue={systemIDValue}
+                        updateSelectedValue={(value) => {
+                          updateSystemIDValue(Number(value.id));
                         }}
-                        fullWidth={true}
-                      >
-                        <Autocomplete
-                          disableClearable
-                          fullWidth
-                          id="System Search"
-                          clearOnBlur
-                          blurOnSelect
-                          variant="standard"
-                          size="small"
-                          options={systemIDS}
-                          getOptionLabel={(option) => option.name}
-                          onChange={(event, value) => {
-                            updateSystemIDValue(Number(value.id));
-                          }}
-                          renderInput={(params) => (
-                            <TextField
-                              {...params}
-                              size="small"
-                              margin="none"
-                              variant="standard"
-                              style={{ borderRadius: "5px" }}
-                              InputProps={{
-                                ...params.InputProps,
-                                type: "System Name",
-                              }}
-                            />
-                          )}
-                        />
-                        <FormHelperText variant="standard">
-                          System Name
-                        </FormHelperText>
-                      </FormControl>
+                      />
                     </Grid>
                     <Grid item xs={12} align="center">
                       <Tooltip title="Add new structure" arrow postion="bottom">
@@ -418,7 +385,9 @@ export function ClassicManufacturingStrutures() {
                                   entry.id
                                 );
                               updateApplicationSettings(newApplicationSettings);
-                              uploadApplicationSettingsToFirebase(newApplicationSettings);
+                              uploadApplicationSettingsToFirebase(
+                                newApplicationSettings
+                              );
                             }}
                           >
                             Make Default
@@ -435,7 +404,9 @@ export function ClassicManufacturingStrutures() {
                                   entry
                                 );
                               updateApplicationSettings(newApplicationSettings);
-                              uploadApplicationSettingsToFirebase(newApplicationSettings);
+                              uploadApplicationSettingsToFirebase(
+                                newApplicationSettings
+                              );
                               logEvent(
                                 analytics,
                                 "Remove Manufacturing Structure",

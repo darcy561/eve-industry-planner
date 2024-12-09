@@ -1,9 +1,9 @@
-import { Autocomplete, Grid, Paper, TextField } from "@mui/material";
+import { Grid, Paper } from "@mui/material";
 import { useContext } from "react";
 import { EvePricesContext } from "../../Context/EveDataContext";
 import { useJobBuild } from "../../Hooks/useJobBuild";
-import itemList from "../../RawData/searchIndex.json";
 import getMarketData from "../../Functions/MarketData/findMarketData";
+import VirtualisedRecipeSearch from "../../Styled Components/autocomplete/virtualisedRecipeSearch";
 
 export function UpcomingChangesSearch({
   updateTranqItem,
@@ -24,17 +24,8 @@ export function UpcomingChangesSearch({
     >
       <Grid container>
         <Grid item xs={12} sm={4} lg={3} xl={2}>
-          <Autocomplete
-            disableClearable
-            fullWidth
-            id="Item Search"
-            clearOnBlur
-            blurOnSelect
-            variant="standard"
-            size="small"
-            options={itemList}
-            getOptionLabel={(option) => option.name}
-            onChange={async (event, value) => {
+          <VirtualisedRecipeSearch
+            onSelect={async (value) => {
               updateItemLoad(true);
               let newTranqJob = await buildJob({
                 itemID: value.itemID,
@@ -78,16 +69,6 @@ export function UpcomingChangesSearch({
               }
               updateItemLoad(false);
             }}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                size="small"
-                label="Search"
-                nargin="none"
-                variant="standard"
-                InputProps={{ ...params.InputProps, type: "search" }}
-              />
-            )}
           />
         </Grid>
       </Grid>

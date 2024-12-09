@@ -1,5 +1,4 @@
 import {
-  Autocomplete,
   Box,
   Button,
   Card,
@@ -30,6 +29,7 @@ import { useHelperFunction } from "../../../../Hooks/GeneralHooks/useHelperFunct
 import { ApplicationSettingsContext } from "../../../../Context/LayoutContext";
 import uploadApplicationSettingsToFirebase from "../../../../Functions/Firebase/uploadApplicationSettings";
 import getSystemIndexes from "../../../../Functions/System Indexes/findSystemIndex";
+import VirtualisedSystemSearch from "../../../../Styled Components/autocomplete/virtualisedSystemSearch";
 
 export function CompactManufacturingStrutures({ parentUserIndex }) {
   const { systemIndexData, updateSystemIndexData } = useContext(SystemIndexContext);
@@ -267,59 +267,12 @@ export function CompactManufacturingStrutures({ parentUserIndex }) {
                       </FormControl>
                     </Grid>
                     <Grid item xs={6} sx={{ paddingLeft: "5px" }}>
-                      <FormControl
-                        sx={{
-                          "& .MuiFormHelperText-root": {
-                            color: (theme) => theme.palette.secondary.main,
-                          },
-                          "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-                            {
-                              display: "none",
-                            },
+                    <VirtualisedSystemSearch
+                        selectedValue={systemIDValue}
+                        updateSelectedValue={(value) => {
+                          updateSystemIDValue(Number(value.id));
                         }}
-                        fullWidth={true}
-                      >
-                        <Autocomplete
-                          disableClearable
-                          fullWidth
-                          id="System Search"
-                          clearOnBlur
-                          blurOnSelect
-                          variant="standard"
-                          size="small"
-                          options={systemIDS}
-                          getOptionLabel={(option) => option.name}
-                          onChange={(event, value) => {
-                            updateSystemIDValue(Number(value.id));
-                          }}
-                          renderInput={(params) => (
-                            <TextField
-                              {...params}
-                              size="small"
-                              sx={{
-                                color: (theme) =>
-                                  theme.palette.mode === PRIMARY_THEME
-                                    ? "black"
-                                    : theme.palette.secondary.main,
-                                borderColor: (theme) =>
-                                  theme.palette.mode === PRIMARY_THEME
-                                    ? "black"
-                                    : theme.palette.secondary.main,
-                              }}
-                              margin="none"
-                              variant="standard"
-                              style={{ borderRadius: "5px" }}
-                              InputProps={{
-                                ...params.InputProps,
-                                type: "System Name",
-                              }}
-                            />
-                          )}
-                        />
-                        <FormHelperText variant="standard">
-                          System Name
-                        </FormHelperText>
-                      </FormControl>
+                      />
                     </Grid>
                     <Grid item xs={12} align="center">
                       <Tooltip title="Add new structure" arrow postion="bottom">

@@ -158,7 +158,7 @@ export function useJobBuild() {
         for (let request of buildRequest) {
           buildRequestIDs.add(request.itemID);
         }
-        const appCheckToken = await getToken(appCheck, true);
+        const appCheckToken = await getToken(appCheck);
         const response = await fetch(`${import.meta.env.VITE_APIURL}/item`, {
           method: "POST",
           headers: {
@@ -186,7 +186,7 @@ export function useJobBuild() {
           jobBuildErrors(buildRequest, "Item Data Missing From Request");
           return undefined;
         }
-        const appCheckToken = await getToken(appCheck, true);
+        const appCheckToken = await getToken(appCheck);
         const response = await fetch(
           buildRequest.sisiData
             ? `${import.meta.env.VITE_APIURL}/item/sisiData/${

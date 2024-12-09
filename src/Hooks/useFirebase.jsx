@@ -63,7 +63,7 @@ export function useFirebase() {
     checkUserClaims,
     getLocationNames,
     getSystemIndexDataFromUserStructures,
-    storeESIData, 
+    storeESIData,
     tidyLinkedData,
     updateCloudRefreshTokens,
     updateLocalRefreshTokens,
@@ -114,7 +114,6 @@ export function useFirebase() {
           typeID.toString()
         )
       );
-
       if (document.exists()) {
         let docData = document.data();
         docData.lastUpdated = Date.now();
