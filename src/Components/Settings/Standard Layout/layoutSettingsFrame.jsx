@@ -9,7 +9,7 @@ function LayoutSettingsFrame() {
   );
 
   return (
-    <Box sx={{ width: "100%", height: "100%" }}>
+    // <Box sx={{ width: "100%", height: "100%" }}>
       <Grid container>
         <Grid item xs={12} sm={6} align="center">
           <FormControlLabel
@@ -47,7 +47,7 @@ function LayoutSettingsFrame() {
           />
         </Grid>
       </Grid>
-    </Box>
+    // </Box>
   );
 }
 

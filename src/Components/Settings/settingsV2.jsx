@@ -17,34 +17,50 @@ function SettingsPageV2({ colorMode }) {
     changeSelectedTab(newValue);
   }
   return (
-    <>
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        width: "100%",
+        height: "100vh",
+      }}
+    >
       <Header colorMode={colorMode} />
-      <Box sx={{ height: "100%", width: "100%" }}>
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          marginTop: 8,
+          width: "100%",
+          padding: 2,
+        }}
+      >
         <Paper
           square
           elevation={3}
           sx={{
             height: "100%",
             width: "100%",
-
             padding: 2,
-            marginTop: 10,
-            marginBottom: 2,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
           }}
         >
           <TabContext value={selectedTab}>
             <Box
               sx={{
-                height: "100vh",
-                width: "100%",
                 display: "flex",
                 flexDirection: deviceNotMobile ? "row" : "column",
+                flexGrow: 1,
+                height: "100%",
               }}
             >
               <Box
                 sx={{
                   height: deviceNotMobile ? "100%" : "10%",
                   width: deviceNotMobile ? "15%" : "100%",
+                  overflowY: "auto",
                 }}
               >
                 <TabList
@@ -60,7 +76,16 @@ function SettingsPageV2({ colorMode }) {
                   <Tab label={"Blueprint Settings"} wrapped value={"3"} />
                 </TabList>
               </Box>
-              <Box sx={{ width: "85%", padding: deviceNotMobile ? 2 : 0 }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  height: "100%",
+                  width: deviceNotMobile ? "85%" : "100%",
+                  overflowY: "auto",
+                  padding: deviceNotMobile ? 2 : 0,
+                }}
+              >
                 <TabPanel value={"0"}>
                   <LayoutSettingsFrame />
                 </TabPanel>
@@ -77,9 +102,11 @@ function SettingsPageV2({ colorMode }) {
             </Box>
           </TabContext>
         </Paper>
-        <Footer />
+        <Box sx={{ marginTop: 2 }}>
+          <Footer />
+        </Box>
       </Box>
-    </>
+    </Box>
   );
 }
 

@@ -31,6 +31,7 @@ export function useRecalcuateJob() {
       inputJob.blueprintTypeID
     );
     const structureData = addDefaultStructure(inputJob.jobType);
+    const rawTimeValue = inputJob.rawData.time;
 
     inputJob.build.setup = {};
     newSetupQuantities.forEach((newItem, index) => {
@@ -42,6 +43,7 @@ export function useRecalcuateJob() {
         characterToUse: parentUser.CharacterHash,
         ...inputJob.rawData.time,
         jobType: inputJob.jobType,
+        rawTimeValue,
       });
 
       inputJob.rawData.materials.forEach((material) => {

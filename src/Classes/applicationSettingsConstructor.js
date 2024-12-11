@@ -1,5 +1,9 @@
 import uuid from "react-uuid";
-import { customStructureLocationMap, customStructureMap, jobTypes } from "../Context/defaultValues";
+import {
+  customStructureLocationMap,
+  customStructureMap,
+  jobTypes,
+} from "../Context/defaultValues";
 import GLOBAL_CONFIG from "../global-config-app";
 
 const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION, DEFAULT_ASSET_LOCATION } =
@@ -244,27 +248,31 @@ class ApplicationSettingsObject {
     return new ApplicationSettingsObject(this);
   }
 
-  getCustomStructureWithID(inputID) {
-    if (!inputID) return null;
-    let structureLocation;
-    if (inputID.includes("manStruct")) {
-      structureLocation = this.manufacturingStructures;
-    } else if (inputID.includes("reacStruct")) {
-      structureLocation = this.reactionStructures;
-    } else {
-      console.warn(`Input ID ${inputID} does not match.`);
-      return null;
+  getCustomStructureWithID(structureID) {
+    if (!structureID) return null;
+    const jobType = Object.entries(customStructureLocationMap).find(
+      ([, value]) => structureID.includes(value)
+    )?.[0];
+
+    if (!jobType) {
+      console.error("Invalid StructureID");
+      return;
     }
 
-    if (!Array.isArray(structureLocation)) {
-      console.error("Structure location is not an array.");
-      return null;
+    const storageLocationKey = [customStructureMap[jobType]];
+    const storageLocation = this[storageLocationKey];
+
+    if (!storageLocation) {
+      console.error("No Matching Storage Location");
+      return;
     }
 
-    const foundStructure = structureLocation.find((obj) => obj.id === inputID);
+    const foundStructure = storageLocation.find(
+      (obj) => obj.id === structureID
+    );
 
     if (!foundStructure) {
-      console.warn(`No structure found with ID ${inputID}.`);
+      console.warn(`No structure found with ID ${structureID}.`);
       return null;
     }
 
@@ -274,16 +282,9 @@ class ApplicationSettingsObject {
   getDefaultCustomStructureWithJobType(inputJobType) {
     if (!inputJobType) return null;
 
-    let structureLocation;
+    const structureKey = customStructureMap[inputJobType];
+    const structureLocation = this[structureKey];
 
-    if (jobTypes.manufacturing === inputJobType) {
-      structureLocation = this.manufacturingStructures;
-    } else if (jobTypes.reaction === inputJobType) {
-      structureLocation = this.reactionStructures;
-    } else {
-      console.warn(`No custom structures for job type. ${inputJobType}`);
-      return null;
-    }
     if (!Array.isArray(structureLocation)) {
       console.error("Structure location is not an array.");
       return null;
@@ -314,8 +315,6 @@ class ApplicationSettingsObject {
       return;
     }
 
-
-
     const storageLocation = this[customStructureMap[jobType]];
 
     const structureObject = {
@@ -334,10 +333,87 @@ class ApplicationSettingsObject {
   }
 
   setDefaultCustomStructure(structureID) {
-    if (!structureID) return 
-    
-    
-    
+    if (!structureID) {
+      console.error("Missing StructureID");
+      return;
+    }
+
+    const jobType = Object.entries(customStructureLocationMap).find(
+      ([, value]) => structureID.includes(value)
+    )?.[0];
+
+    if (!jobType) {
+      console.error("Invalid StructureID");
+      return;
+    }
+
+    const storageLocation = this[customStructureMap[jobType]];
+
+    if (!storageLocation) {
+      console.error("No Matching Storage Location");
+      return;
+    }
+
+    const matchingStructure = storageLocation.find(
+      ({ id }) => id === structureID
+    );
+
+    if (!matchingStructure) {
+      console.error("No Matching Structure");
+      return;
+    }
+
+    matchingStructure.default = true;
+
+    for (let structure of storageLocation) {
+      if (structure.id !== structureID) {
+        structure.default = false;
+      }
+    }
+
+    return new ApplicationSettingsObject(this);
+  }
+
+  deleteCustomStructure(structureID) {
+    if (!structureID) {
+      console.error("Missing StructureID");
+      return;
+    }
+
+    const jobType = Object.entries(customStructureLocationMap).find(
+      ([, value]) => structureID.includes(value)
+    )?.[0];
+
+    if (!jobType) {
+      console.error("Invalid StructureID");
+      return;
+    }
+
+    const storageLocationKey = [customStructureMap[jobType]];
+    const storageLocation = this[storageLocationKey];
+
+    if (!storageLocation) {
+      console.error("No Matching Storage Location");
+      return;
+    }
+
+    const matchingStructure = storageLocation.find(
+      ({ id }) => id === structureID
+    );
+
+    if (!matchingStructure) {
+      console.error("No Matching Structure");
+      return;
+    }
+
+    this[storageLocationKey] = storageLocation.filter(
+      ({ id }) => id !== structureID
+    );
+
+    if (matchingStructure.default && this[storageLocationKey].length > 0) {
+      this[storageLocationKey][0].default = true;
+    }
+    return new ApplicationSettingsObject(this);
   }
 
   addExemptTypeID(inputValue) {

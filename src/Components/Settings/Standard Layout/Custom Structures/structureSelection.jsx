@@ -28,7 +28,10 @@ import getCurrentFirebaseUser from "../../../../Functions/Firebase/currentFireba
 import { analytics } from "../../../../firebase";
 import { useHelperFunction } from "../../../../Hooks/GeneralHooks/useHelperFunctions";
 
-function StructureOptionsSelection_CustomStructures({ selectedJobType }) {
+function StructureOptionsSelection_CustomStructures({
+  selectedJobType,
+  setIsLoading,
+}) {
   const { applicationSettings, updateApplicationSettings } = useContext(
     ApplicationSettingsContext
   );
@@ -97,6 +100,7 @@ function StructureOptionsSelection_CustomStructures({ selectedJobType }) {
   };
 
   async function handleAdd() {
+    setIsLoading(true);
     const systemIndexResults = await getSystemIndexes(
       systemID,
       systemIndexData
@@ -114,17 +118,35 @@ function StructureOptionsSelection_CustomStructures({ selectedJobType }) {
     updateApplicationSettings(newApplicationSettings);
     updateSystemIndexData((prev) => ({
       ...prev,
-      systemIndexResults,
+      ...systemIndexResults,
     }));
     logEvent(analytics, "Add Custom Structure", {
       UID: getCurrentFirebaseUser(),
       type: selectedJobType,
     });
     sendSnackbarNotificationSuccess(`${structureName} Added`);
+    setStructureName("");
+    setStructureType(structureTypeMap[selectedJobType][0].id);
+    setRigType(
+      rigTypeMap[selectedJobType][structureType]?.requirements?.rigID ||
+        rigTypeMap[selectedJobType][0].id
+    );
+    setTaxPercentage(
+      structureTypeMap[selectedJobType][structureType]?.requirements
+        ?.taxValue || 0
+    );
+    setSystemID(
+      structureType[selectedJobType]?.requirements?.systemID || 30000142
+    );
+    setSystemType(
+      structureTypeMap[selectedJobType][structureType]?.requirements
+        ?.systemTypeID || systemTypeMap[selectedJobType][0].id
+    );
+    setIsLoading(false);
   }
 
   return (
-    <Box>
+    <Box sx={{}}>
       <Grid container>
         <Grid item xs={12}>
           <FormControl fullWidth sx={styling}>

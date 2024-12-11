@@ -20,30 +20,28 @@ function JobTypeSelection_CustomStructures({
   }
 
   return (
-    <Box>
-      <Grid container>
-        <FormControl>
-          <FormLabel>Choose Structure Type To Begin:</FormLabel>
-          <RadioGroup
-            row
-            name="exclusive-radio-buttons"
-            value={selectedJobType}
-            onChange={handleChange}
-          >
-            <FormControlLabel
-              value={jobTypes.manufacturing}
-              control={<Radio />}
-              label="Manufacturing"
-            />
-            <FormControlLabel
-              value={jobTypes.reaction}
-              control={<Radio />}
-              label="Reaction"
-            />
-          </RadioGroup>
-        </FormControl>
-      </Grid>
-    </Box>
+    <Grid container>
+      <FormControl>
+        <FormLabel>Choose Structure Type To Begin:</FormLabel>
+        <RadioGroup
+          row
+          name="exclusive-radio-buttons"
+          value={selectedJobType}
+          onChange={handleChange}
+        >
+          <FormControlLabel
+            value={jobTypes.manufacturing}
+            control={<Radio />}
+            label="Manufacturing"
+          />
+          <FormControlLabel
+            value={jobTypes.reaction}
+            control={<Radio />}
+            label="Reaction"
+          />
+        </RadioGroup>
+      </FormControl>
+    </Grid>
   );
 }
 

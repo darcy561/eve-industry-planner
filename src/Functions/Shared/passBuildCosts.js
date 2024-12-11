@@ -143,13 +143,14 @@ function distributeItemsBetweenParentJobs(
           remainingQuantityToPurchase,
           costEntry.quantity
         );
+        console.log(quantityAvailableToPurchase)
         priceItemsImportedCount++;
         if (quantityAvailableToPurchase > 0) {
           const purchaseObject = {
             id: uuid(),
             childID: costEntry.id,
             childJobImport: true,
-            itemCount: costEntry.quantity,
+            itemCount: quantityAvailableToPurchase,
             itemCost: costEntry.cost,
           };
 

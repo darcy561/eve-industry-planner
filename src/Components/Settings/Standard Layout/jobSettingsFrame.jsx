@@ -56,7 +56,6 @@ function JobSettingsFrame() {
     getAsset();
   }, [users]);
 
-  console.log(applicationSettings);
   return (
     <Box sx={{ width: "100%", height: "100%" }}>
       <Grid container>
