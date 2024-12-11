@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import {
   Box,
+  Button,
   FormControl,
   FormHelperText,
   FormLabel,
@@ -18,8 +19,22 @@ import {
   systemTypeMap,
 } from "../../../../Context/defaultValues";
 import VirtualisedSystemSearch from "../../../../Styled Components/autocomplete/virtualisedSystemSearch";
+import { ApplicationSettingsContext } from "../../../../Context/LayoutContext";
+import getSystemIndexes from "../../../../Functions/System Indexes/findSystemIndex";
+import { SystemIndexContext } from "../../../../Context/EveDataContext";
+import uploadApplicationSettingsToFirebase from "../../../../Functions/Firebase/uploadApplicationSettings";
+import { logEvent } from "firebase/analytics";
+import getCurrentFirebaseUser from "../../../../Functions/Firebase/currentFirebaseUser";
+import { analytics } from "../../../../firebase";
+import { useHelperFunction } from "../../../../Hooks/GeneralHooks/useHelperFunctions";
 
 function StructureOptionsSelection_CustomStructures({ selectedJobType }) {
+  const { applicationSettings, updateApplicationSettings } = useContext(
+    ApplicationSettingsContext
+  );
+  const { systemIndexData, updateSystemIndexData } =
+    useContext(SystemIndexContext);
+
   const [structureName, setStructureName] = useState("");
   const [structureType, setStructureType] = useState(
     structureTypeMap[selectedJobType][0].id
@@ -39,6 +54,8 @@ function StructureOptionsSelection_CustomStructures({ selectedJobType }) {
     structureTypeMap[selectedJobType][structureType]?.requirements
       ?.systemTypeID || systemTypeMap[selectedJobType][0].id
   );
+
+  const { sendSnackbarNotificationSuccess } = useHelperFunction();
 
   function handleStructureStateRequirements(locationRequirements) {
     if (!locationRequirements) return;
@@ -78,6 +95,33 @@ function StructureOptionsSelection_CustomStructures({ selectedJobType }) {
       },
     paddingX: "20px",
   };
+
+  async function handleAdd() {
+    const systemIndexResults = await getSystemIndexes(
+      systemID,
+      systemIndexData
+    );
+    const newApplicationSettings = applicationSettings.addCustomStructure(
+      selectedJobType,
+      structureName,
+      structureType,
+      rigType,
+      taxPercentage,
+      systemID,
+      systemType
+    );
+    await uploadApplicationSettingsToFirebase(newApplicationSettings);
+    updateApplicationSettings(newApplicationSettings);
+    updateSystemIndexData((prev) => ({
+      ...prev,
+      systemIndexResults,
+    }));
+    logEvent(analytics, "Add Custom Structure", {
+      UID: getCurrentFirebaseUser(),
+      type: selectedJobType,
+    });
+    sendSnackbarNotificationSuccess(`${structureName} Added`);
+  }
 
   return (
     <Box>
@@ -212,6 +256,9 @@ function StructureOptionsSelection_CustomStructures({ selectedJobType }) {
               }
             }}
           />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <Button onClick={handleAdd}>Add</Button>
         </Grid>
       </Grid>
     </Box>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Box } from "@mui/material";
 import JobTypeSelection_CustomStructures from "./Custom Structures/jobTypeSelection";
 import StructureOptionsSelection_CustomStructures from "./Custom Structures/structureSelection";
+import CurrentStructuresFrame from "./Custom Structures/currentStructures";
 
 function CustomStructuresFrame() {
   const [selectedJobType, setSelectedJobType] = useState(null);
@@ -20,7 +21,8 @@ function CustomStructuresFrame() {
             key={selectedJobType}
             selectedJobType={selectedJobType}
           />
-        </Box>
+          <CurrentStructuresFrame selectedJobType={selectedJobType} />
+        </Box>  
       )}
     </Box>
   );

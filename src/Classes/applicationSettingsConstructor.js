@@ -1,4 +1,5 @@
-import { jobTypes } from "../Context/defaultValues";
+import uuid from "react-uuid";
+import { customStructureLocationMap, customStructureMap, jobTypes } from "../Context/defaultValues";
 import GLOBAL_CONFIG from "../global-config-app";
 
 const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION, DEFAULT_ASSET_LOCATION } =
@@ -293,6 +294,50 @@ class ApplicationSettingsObject {
       structureLocation[0] ||
       null
     );
+  }
+
+  addCustomStructure(
+    jobType,
+    name,
+    structureType,
+    rigType,
+    tax,
+    systemID,
+    systemType
+  ) {
+    if (
+      [jobType, name, structureType, rigType, tax, systemID, systemType].some(
+        (param) => param === undefined
+      )
+    ) {
+      console.error("Unable to add structurem, missing requirements");
+      return;
+    }
+
+
+
+    const storageLocation = this[customStructureMap[jobType]];
+
+    const structureObject = {
+      id: `${customStructureLocationMap[jobType]}-${uuid()}`,
+      name,
+      systemType,
+      structureType,
+      rigType,
+      systemID,
+      tax,
+      default: storageLocation.length === 0 ? true : false,
+    };
+    storageLocation.push(structureObject);
+
+    return new ApplicationSettingsObject(this);
+  }
+
+  setDefaultCustomStructure(structureID) {
+    if (!structureID) return 
+    
+    
+    
   }
 
   addExemptTypeID(inputValue) {

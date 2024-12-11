@@ -621,6 +621,11 @@ export const customStructureMap = {
   [jobTypes.reaction]: "reactionStructures",
 };
 
+export const customStructureLocationMap = {
+  [jobTypes.manufacturing]: "manStruct",
+  [jobTypes.reaction]: "reacStruct",
+}
+
 export const systemStructureRequirements = {
   30100000: {
     rigID: 0,

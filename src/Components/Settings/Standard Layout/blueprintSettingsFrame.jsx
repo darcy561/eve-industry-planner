@@ -124,6 +124,7 @@ function BlueprintSettingsFrame() {
 
             return (
               <Chip
+                key={id}
                 label={itemName}
                 size="small"
                 variant="outlined"
