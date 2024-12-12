@@ -28,7 +28,7 @@ jobs:
           VITE_fbAppID: ${{ secrets.VITE_fbAppID }}
           VITE_ReCaptchaKey: ${{ secrets.VITE_ReCaptchaKey }}
           VITE_measurementID: ${{ secrets.VITE_measurementID }}
-          VITE_APIURL: ${{ secrets.VITE_APIURL] }}
+          VITE_APIURL: ${{ secrets.VITE_APIURL }}
           VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
           VITE_eveClientID: ${{ secrets.VITE_eveClientID }}
           VITE_eveSecretKey: ${{ secrets.VITE_eveSecretKey }}
