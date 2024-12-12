@@ -14,11 +14,14 @@ export default defineConfig(({ command, mode }) => {
         project: env.VITE_SENTRY_PROJECT,
       }),
       VitePWA({
-      registerType: 'autoUpdate',
-      injectRegister: "null",
-      srcDir: 'public',
-      filename: 'sw.js',
-      strategies: 'injectManifest', // Allows you to provide a custom service worker
+        registerType: "autoUpdate",
+        injectRegister: "null",
+        srcDir: "public",
+        filename: "sw.js",
+        strategies: "injectManifest", // Allows you to provide a custom service worker
+        injectManifest: {
+          injectionPoint: undefined,
+        },
       }),
     ],
 
