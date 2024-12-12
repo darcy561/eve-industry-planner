@@ -36,6 +36,10 @@ jobs:
           VITE_eveScope: ${{ secrets.VITE_eveScope }}
         run: echo "Environment variables are set."
 
+
+      - run: |
+          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" | jq . || echo "Invalid JSON format in FIREBASE_SERVICE_ACCOUNT."
+
       - run: npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
