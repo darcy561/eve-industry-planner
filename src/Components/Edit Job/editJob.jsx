@@ -43,10 +43,6 @@ import {
   FirebaseListenersContext,
   IsLoggedInContext,
 } from "../../Context/AuthContext";
-import {
-  FirebaseListenersContext,
-  IsLoggedInContext,
-} from "../../Context/AuthContext";
 import { useFirebase } from "../../Hooks/useFirebase";
 import { useInstallCostsCalc } from "../../Hooks/GeneralHooks/useInstallCostCalc";
 import useSetupUnmountEventListeners from "../../Hooks/GeneralHooks/useSetupUnmountEventListeners";
