@@ -54,24 +54,16 @@ import getMissingESIData from "../../Functions/Shared/getMissingESIData";
 import convertJobIDsToObjects from "../../Functions/Helper/convertJobIDsToObjects";
 import manageListenerRequests from "../../Functions/Firebase/manageListenerRequests";
 import findOrGetJobObject from "../../Functions/Helper/findJobObject";
-import convertJobIDsToObjects from "../../Functions/Helper/convertJobIDsToObjects";
-import manageListenerRequests from "../../Functions/Firebase/manageListenerRequests";
-import findOrGetJobObject from "../../Functions/Helper/findJobObject";
 
 export default function EditJob_New({ colorMode }) {
   const { jobArray, updateJobArray } = useContext(JobArrayContext);
-  const { jobArray, updateJobArray } = useContext(JobArrayContext);
   const { jobStatus } = useContext(JobStatusContext);
   const { updateActiveJob: updateActiveJobID } = useContext(ActiveJobContext);
-  const { isLoggedIn } = useContext(IsLoggedInContext);
   const { isLoggedIn } = useContext(IsLoggedInContext);
   const { updateArchivedJobs } = useContext(ArchivedJobsContext);
   const { evePrices, updateEvePrices } = useContext(EvePricesContext);
   const { systemIndexData, updateSystemIndexData } =
     useContext(SystemIndexContext);
-  const { firebaseListeners, updateFirebaseListeners } = useContext(
-    FirebaseListenersContext
-  );
   const { firebaseListeners, updateFirebaseListeners } = useContext(
     FirebaseListenersContext
   );
@@ -118,14 +110,6 @@ export default function EditJob_New({ colorMode }) {
         jobArray,
         retrievedJobs
       );
-      if (jobID === activeJob?.jobID) return;
-      const retrievedJobs = [];
-
-      const matchedJob = await findOrGetJobObject(
-        jobID,
-        jobArray,
-        retrievedJobs
-      );
 
       if (!matchedJob) {
         console.error("Unable to find job document");
@@ -133,12 +117,7 @@ export default function EditJob_New({ colorMode }) {
         return;
       }
 
-
       try {
-        const linkedJobs = await convertJobIDsToObjects(
-          [...matchedJob.getRelatedJobs(), jobID],
-          jobArray,
-          retrievedJobs
         const linkedJobs = await convertJobIDsToObjects(
           [...matchedJob.getRelatedJobs(), jobID],
           jobArray,
@@ -217,8 +196,6 @@ export default function EditJob_New({ colorMode }) {
         navigate("/jobplanner");
       }
     }
-    setInitialState();
-  }, [jobID]);
     setInitialState();
   }, [jobID]);
 
