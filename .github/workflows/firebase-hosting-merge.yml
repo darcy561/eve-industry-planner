@@ -19,21 +19,21 @@ jobs:
 
       - name: Set environment variables
         env:
-          VITE_fbApiKey: ${{ secrets.VITE_fbApiKey }}
-          VITE_fbAuthDomain: ${{ secrets.VITE_fbAuthDomain }}
-          VITE_fbDatabaseURL: ${{ secrets.VITE_fbDatabaseURL }}
-          VITE_fbProjectID: ${{ secrets.VITE_fbProjectID }}
-          VITE_fbStorageBucket: ${{ secrets.VITE_fbStorageBucket }}
-          VITE_fbMessagingSenderID: ${{ secrets.VITE_fbMessagingSenderID }}
-          VITE_fbAppID: ${{ secrets.VITE_fbAppID }}
-          VITE_ReCaptchaKey: ${{ secrets.VITE_ReCaptchaKey }}
-          VITE_measurementID: ${{ secrets.VITE_measurementID }}
-          VITE_APIURL: ${{ secrets.VITE_APIURL }}
-          VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
-          VITE_eveClientID: ${{ secrets.VITE_eveClientID }}
-          VITE_eveSecretKey: ${{ secrets.VITE_eveSecretKey }}
-          VITE_eveCallbackURL: ${{ secrets.VITE_eveCallbackURL }}
-          VITE_eveScope: ${{ secrets.VITE_eveScope }}
+          VITE_fbApiKey: "${{ secrets.VITE_fbApiKey }}"
+          VITE_fbAuthDomain: "${{ secrets.VITE_fbAuthDomain }}"
+          VITE_fbDatabaseURL: "${{ secrets.VITE_fbDatabaseURL }}"
+          VITE_fbProjectID: "${{ secrets.VITE_fbProjectID }}"
+          VITE_fbStorageBucket: "${{ secrets.VITE_fbStorageBucket }}"
+          VITE_fbMessagingSenderID: "${{ secrets.VITE_fbMessagingSenderID }}"
+          VITE_fbAppID: "${{ secrets.VITE_fbAppID }}"
+          VITE_ReCaptchaKey: "${{ secrets.VITE_ReCaptchaKey }}"
+          VITE_measurementID: "${{ secrets.VITE_measurementID }}"
+          VITE_APIURL: "${{ secrets.VITE_APIURL }}"
+          VITE_SENTRY_PROJECT: "${{ secrets.VITE_SENTRY_PROJECT }}"
+          VITE_eveClientID: "${{ secrets.VITE_eveClientID }}"
+          VITE_eveSecretKey: "${{ secrets.VITE_eveSecretKey }}"
+          VITE_eveCallbackURL: "${{ secrets.VITE_eveCallbackURL }}"
+          VITE_eveScope: "${{ secrets.VITE_eveScope }}"
         run: echo "Environment variables are set."
 
 
@@ -43,7 +43,7 @@ jobs:
       - run: npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          channelId: ${{ github.ref_name == 'Live' && 'Live' || github.event.number }}
-          projectId: ${{ secrets.VITE_fbProjectID }}
+          repoToken: "${{ secrets.GITHUB_TOKEN }}"
+          firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}"
+          channelId: "${{ github.ref_name == 'Live' && 'Live' || github.event.number }}"
+          projectId: "${{ secrets.VITE_fbProjectID }}"
