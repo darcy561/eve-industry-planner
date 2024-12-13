@@ -41,5 +41,5 @@ jobs:
         with:
           repoToken: "${{ secrets.GITHUB_TOKEN }}"
           firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}"
-          channelId: "${{ github.ref_name == 'Dev' && 'Live' || (github.ref_name == 'Live' && 'Live' || github.ref_name) }}"
+          channelId: "${{ github.ref_name == 'Live' && github.ref_name || 'Live' }}"
           projectId: "${{ secrets.VITE_fbProjectID }}"
