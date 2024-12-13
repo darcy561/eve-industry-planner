@@ -17,30 +17,26 @@ jobs:
 
       - run: npm install
 
-      - name: Set environment variables
-        env:
-          VITE_fbApiKey: "${{ secrets.VITE_fbApiKey }}"
-          VITE_fbAuthDomain: "${{ secrets.VITE_fbAuthDomain }}"
-          VITE_fbDatabaseURL: "${{ secrets.VITE_fbDatabaseURL }}"
-          VITE_fbProjectID: "${{ secrets.VITE_fbProjectID }}"
-          VITE_fbStorageBucket: "${{ secrets.VITE_fbStorageBucket }}"
-          VITE_fbMessagingSenderID: "${{ secrets.VITE_fbMessagingSenderID }}"
-          VITE_fbAppID: "${{ secrets.VITE_fbAppID }}"
-          VITE_ReCaptchaKey: "${{ secrets.VITE_ReCaptchaKey }}"
-          VITE_measurementID: "${{ secrets.VITE_measurementID }}"
-          VITE_APIURL: "${{ secrets.VITE_APIURL }}"
-          VITE_SENTRY_PROJECT: "${{ secrets.VITE_SENTRY_PROJECT }}"
-          VITE_eveClientID: "${{ secrets.VITE_eveClientID }}"
-          VITE_eveSecretKey: "${{ secrets.VITE_eveSecretKey }}"
-          VITE_eveCallbackURL: "${{ secrets.VITE_eveCallbackURL }}"
-          VITE_eveScope: "${{ secrets.VITE_eveScope }}"
-        run: echo "Environment variables are set."
-
-
-      - run: |
-          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" | jq . || echo "Invalid JSON format in FIREBASE_SERVICE_ACCOUNT."
+      - name: Set environment variables globally
+        run: |
+          echo "VITE_fbApiKey=${{ secrets.VITE_fbApiKey }}" >> $GITHUB_ENV
+          echo "VITE_fbAuthDomain=${{ secrets.VITE_fbAuthDomain }}" >> $GITHUB_ENV
+          echo "VITE_fbDatabaseURL=${{ secrets.VITE_fbDatabaseURL }}" >> $GITHUB_ENV
+          echo "VITE_fbProjectID=${{ secrets.VITE_fbProjectID }}" >> $GITHUB_ENV
+          echo "VITE_fbStorageBucket=${{ secrets.VITE_fbStorageBucket }}" >> $GITHUB_ENV
+          echo "VITE_fbMessagingSenderID=${{ secrets.VITE_fbMessagingSenderID }}" >> $GITHUB_ENV
+          echo "VITE_fbAppID=${{ secrets.VITE_fbAppID }}" >> $GITHUB_ENV
+          echo "VITE_ReCaptchaKey=${{ secrets.VITE_ReCaptchaKey }}" >> $GITHUB_ENV
+          echo "VITE_measurementID=${{ secrets.VITE_measurementID }}" >> $GITHUB_ENV
+          echo "VITE_APIURL=${{ secrets.VITE_APIURL }}" >> $GITHUB_ENV
+          echo "VITE_SENTRY_PROJECT=${{ secrets.VITE_SENTRY_PROJECT }}" >> $GITHUB_ENV
+          echo "VITE_eveClientID=${{ secrets.VITE_eveClientID }}" >> $GITHUB_ENV
+          echo "VITE_eveSecretKey=${{ secrets.VITE_eveSecretKey }}" >> $GITHUB_ENV
+          echo "VITE_eveCallbackURL=${{ secrets.VITE_eveCallbackURL }}" >> $GITHUB_ENV
+          echo "VITE_eveScope=${{ secrets.VITE_eveScope }}" >> $GITHUB_ENV
 
       - run: npm run build
+
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: "${{ secrets.GITHUB_TOKEN }}"

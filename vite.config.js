@@ -27,6 +27,7 @@ export default defineConfig(({ command, mode }) => {
 
     define: {
       __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+      'process.env': process.env,
       global: {},
     },
     server: {
