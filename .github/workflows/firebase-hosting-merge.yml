@@ -39,4 +39,4 @@ jobs:
       - run: npm run build
 
       - name: Deploy to Firebase Hosting
-        run: firebase deploy --only hosting --token ${{secrets.FIREBASE_SERVICE_ACCOUNT}}
+        run: firebase deploy --only hosting --token ${{secrets.FIREBASE_SERVICE_ACCOUNT}} --project ${{secrets.VITE_fbProjectID}}
