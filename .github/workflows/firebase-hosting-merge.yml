@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: "22"
 
-      - run: npm install
+      - run: npm ci
       - run: npm install -g firebase-tools
 
       - name: Set environment variables globally
