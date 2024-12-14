@@ -1,6 +1,6 @@
 import { Button } from "@mui/material";
 import { useCloseActiveJob } from "../../../../../../../Hooks/JobHooks/useCloseActiveJob";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 export function OpenChildJobButon_ChildJobPopoverFrame({
   activeJob,
@@ -13,6 +13,8 @@ export function OpenChildJobButon_ChildJobPopoverFrame({
 }) {
   const { closeActiveJob } = useCloseActiveJob();
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
 
   return (
     <Button
@@ -25,7 +27,12 @@ export function OpenChildJobButon_ChildJobPopoverFrame({
           esiDataToLink,
           parentChildToEdit
         );
-        navigate(`/editjob/${childJobObjects[jobDisplay].jobID}`);
+        const groupIDFromParams = queryParams.get("activeGroup");
+        let navigationURL = `/editjob/${childJobObjects[jobDisplay].jobID}`;
+        if (groupIDFromParams) {
+          navigationURL += `?activeGroup=${groupIDFromParams}`;
+        }
+        navigate(navigationURL);
       }}
     >
       Open Child Job

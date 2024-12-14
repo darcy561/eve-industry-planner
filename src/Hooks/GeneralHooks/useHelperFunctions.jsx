@@ -4,7 +4,6 @@ import { IsLoggedInContext, UsersContext } from "../../Context/AuthContext";
 import {
   ApplicationSettingsContext,
   SnackBarDataContext,
-  UserLoginUIContext,
 } from "../../Context/LayoutContext";
 
 export function useHelperFunction() {
@@ -13,7 +12,6 @@ export function useHelperFunction() {
   const { evePrices } = useContext(EvePricesContext);
   const { eveIDs } = useContext(EveIDsContext);
   const { setSnackbarData } = useContext(SnackBarDataContext);
-  const { userDataFetch } = useContext(UserLoginUIContext);
   const { applicationSettings } = useContext(ApplicationSettingsContext);
 
   function findItemPriceObject(requestedTypeID, alternativePriceObject = {}) {
@@ -76,6 +74,13 @@ export function useHelperFunction() {
   async function importMultibuyFromClipboard() {
     try {
       const returnArray = [];
+      const hasPermission = await checkClipboardReadPermissions();
+      if (!hasPermission) {
+        sendSnackbarNotificationError(
+          "Clipboard access denied. Please enable permissions."
+        );
+        return returnArray;
+      }
       const importedText = await readTextFromClipboard();
 
       const matchedItems = [
@@ -99,6 +104,13 @@ export function useHelperFunction() {
   async function importAssetsFromClipboard_IconView() {
     try {
       let returnObject = {};
+      const hasPermission = await checkClipboardReadPermissions();
+      if (!hasPermission) {
+        sendSnackbarNotificationError(
+          "Clipboard access denied. Please enable permissions."
+        );
+        return returnObject;
+      }
       const importedText = await readTextFromClipboard();
       if (!importedText) return returnObject;
 

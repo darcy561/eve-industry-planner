@@ -78,6 +78,7 @@ function VirtualisedSystemSearch({ selectedValue = 0, updateSelectedValue }) {
           {
             display: "none",
           },
+        paddingX: "20px",
       }}
     >
       <Autocomplete

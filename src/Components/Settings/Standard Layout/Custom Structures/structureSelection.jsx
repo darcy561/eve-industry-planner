@@ -147,7 +147,7 @@ function StructureOptionsSelection_CustomStructures({
 
   return (
     <Box sx={{}}>
-      <Grid container>
+      <Grid container spacing={1}>
         <Grid item xs={12}>
           <FormControl fullWidth sx={styling}>
             <TextField
@@ -257,7 +257,7 @@ function StructureOptionsSelection_CustomStructures({
             />
           </FormControl>
         </Grid>
-        <Grid item xs={12} sm={6} sx={{ paddingX: "20px" }}>
+        <Grid item xs={12} sm={6}>
           <VirtualisedSystemSearch
             selectedValue={systemID}
             updateSelectedValue={(newValue) => {

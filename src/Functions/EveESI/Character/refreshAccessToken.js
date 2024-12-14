@@ -26,7 +26,7 @@ async function refreshAccessTokenESICall(refreshToken) {
     return await response.json();
   } catch (err) {
     console.error(`Error refreshing access token: ${err}`);
-    return null;
+    return err;
   }
 }
 

@@ -146,7 +146,7 @@ export function useBlueprintCalc() {
         );
       }
       if (job.jobType === jobTypes.reaction) {
-        const reactionSkill = userSkills[45746].activeLevel;
+        const reactionSkill = userSkills[45746].activeLevel || 0;
         const strucData =
           structureOptions.reactionStructure[job.structureID].time;
         const rigData = structureOptions.reactionRigs[job.rigID].time;

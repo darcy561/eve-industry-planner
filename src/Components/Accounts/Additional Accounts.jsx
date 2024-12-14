@@ -56,73 +56,83 @@ export function AdditionalAccounts({ parentUserIndex }) {
   };
 
   const importNewAccount = async () => {
-    if (!localStorage.getItem("AdditionalUser")) return;
+    try {
+      if (!localStorage.getItem("AdditionalUser")) return;
 
-    const authCode = localStorage.getItem("AdditionalUser");
-    const newUser = await getEveOauthToken(authCode, false);
+      const authCode = localStorage.getItem("AdditionalUser");
+      const newUser = await getEveOauthToken(authCode, false);
 
-    if (users.some((u) => u.CharacterHash === newUser.CharacterHash)) {
-      localStorage.removeItem("AdditionalUser");
-      sendSnackbarNotificationError(`Duplicate Account`, 3);
-      toggleSkeleton(false);
-      return;
-    }
-
-    let newUserArray = [...users];
-    let esiObjectsArray = [];
-    let newApiArray = [...apiJobs];
-    await newUser.getPublicCharacterData();
-    esiObjectsArray.push(await newUser.getCharacterESIData());
-    localStorage.removeItem("AdditionalUser");
-    newUserArray.push(newUser);
-    await checkUserClaims(newUserArray);
-    if (applicationSettings.cloudAccounts) {
-      newUserArray[parentUserIndex].accountRefreshTokens.push({
-        CharacterHash: newUser.CharacterHash,
-        rToken: newUser.rToken,
-      });
-    } else {
-      let accountArray = JSON.parse(
-        localStorage.getItem(
-          `${newUserArray[parentUserIndex].CharacterHash} AdditionalAccounts`
-        )
-      );
-      if (accountArray === null) {
-        accountArray = [];
-        accountArray.push({
-          CharacterHash: newUser.CharacterHash,
-          rToken: newUser.rToken,
-        });
-        localStorage.setItem(
-          `${newUserArray[parentUserIndex].CharacterHash} AdditionalAccounts`,
-          JSON.stringify(accountArray)
-        );
-      } else {
-        accountArray.push({
-          CharacterHash: newUser.CharacterHash,
-          rToken: newUser.rToken,
-        });
-        localStorage.setItem(
-          `${newUserArray[parentUserIndex].CharacterHash} AdditionalAccounts`,
-          JSON.stringify(accountArray)
-        );
+      if (newUser instanceof Error) {
+        throw newUser;
       }
+
+      if (users.some((u) => u.CharacterHash === newUser.CharacterHash)) {
+        localStorage.removeItem("AdditionalUser");
+        sendSnackbarNotificationError(`Duplicate Account`, 3);
+        toggleSkeleton(false);
+        return;
+      }
+
+      let newUserArray = [...users];
+      let esiObjectsArray = [];
+      let newApiArray = [...apiJobs];
+      await newUser.getPublicCharacterData();
+      esiObjectsArray.push(await newUser.getCharacterESIData());
+      localStorage.removeItem("AdditionalUser");
+      newUserArray.push(newUser);
+      await checkUserClaims(newUserArray);
+      if (applicationSettings.cloudAccounts) {
+        newUserArray[parentUserIndex].accountRefreshTokens.push({
+          CharacterHash: newUser.CharacterHash,
+          rToken: newUser.rToken,
+        });
+      } else {
+        let accountArray = JSON.parse(
+          localStorage.getItem(
+            `${newUserArray[parentUserIndex].CharacterHash} AdditionalAccounts`
+          )
+        );
+        if (accountArray === null) {
+          accountArray = [];
+          accountArray.push({
+            CharacterHash: newUser.CharacterHash,
+            rToken: newUser.rToken,
+          });
+          localStorage.setItem(
+            `${newUserArray[parentUserIndex].CharacterHash} AdditionalAccounts`,
+            JSON.stringify(accountArray)
+          );
+        } else {
+          accountArray.push({
+            CharacterHash: newUser.CharacterHash,
+            rToken: newUser.rToken,
+          });
+          localStorage.setItem(
+            `${newUserArray[parentUserIndex].CharacterHash} AdditionalAccounts`,
+            JSON.stringify(accountArray)
+          );
+        }
+      }
+      updateUserEsiData(esiObjectsArray);
+      updateCorporationObject(esiObjectsArray);
+      newApiArray = updateApiArray(newApiArray, newUserArray, esiObjectsArray);
+      updateUsers(newUserArray);
+      updateApiJobs(newApiArray);
+      if (applicationSettings.cloudAccounts) {
+        updateMainUserDoc();
+      }
+      logEvent(analytics, "Link Character", {
+        UID: newUserArray[parentUserIndex].accountID,
+        newHash: newUser.CharacterHash,
+        cloudAccount: applicationSettings.cloudAccounts,
+      });
+      sendSnackbarNotificationSuccess(`${newUser.CharacterName} Imported`, 3);
+      toggleSkeleton(false);
+    } catch (err) {
+      localStorage.removeItem("AdditionalUser");
+      sendSnackbarNotificationError(`${err.message}`, 3);
+      toggleSkeleton(false);
     }
-    updateUserEsiData(esiObjectsArray);
-    updateCorporationObject(esiObjectsArray);
-    newApiArray = updateApiArray(newApiArray, newUserArray, esiObjectsArray);
-    updateUsers(newUserArray);
-    updateApiJobs(newApiArray);
-    if (applicationSettings.cloudAccounts) {
-      updateMainUserDoc();
-    }
-    logEvent(analytics, "Link Character", {
-      UID: newUserArray[parentUserIndex].accountID,
-      newHash: newUser.CharacterHash,
-      cloudAccount: applicationSettings.cloudAccounts,
-    });
-    sendSnackbarNotificationSuccess(`${newUser.CharacterName} Imported`, 3);
-    toggleSkeleton(false);
   };
 
   return (

@@ -3,10 +3,10 @@ import { appCheck, auth } from "../../firebase";
 import { signInWithCustomToken } from "firebase/auth";
 
 async function getFirebaseAuthToken(userObject) {
-  if (!userObject) {
-    throw new Error("userObject missing");
-  }
   try {
+    if (!userObject) {
+      throw new Error("userObject missing");
+    }
     const appCheckToken = await getToken(appCheck);
 
     const response = await fetch(
@@ -32,9 +32,10 @@ async function getFirebaseAuthToken(userObject) {
     }
 
     const fbTokenJSON = await response.json();
-    return await signInWithCustomToken(auth, fbTokenJSON.access_token);
+    return signInWithCustomToken(auth, fbTokenJSON.access_token);
   } catch (err) {
     console.error("Unable get Firebase Auth Token:", err);
+    return undefined
   }
 }
 export default getFirebaseAuthToken;

@@ -77,8 +77,8 @@ export function BlueprintEntry({ blueprint, esiJobs, bpData }) {
                 <Avatar
                   src={
                     blueprint.isCorp && blueprint.corporation_id
-                      ? `https://images.evetech.net/corporations/${blueprint.corporation_id}/logo`
-                      : bpOwner.CharacterID
+                      ? `https://images.evetech.net/corporations/${blueprint?.corporation_id}/logo`
+                      : bpOwner?.CharacterID
                       ? `https://images.evetech.net/characters/${bpOwner.CharacterID}/portrait`
                       : undefined
                   }

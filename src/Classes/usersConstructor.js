@@ -102,7 +102,9 @@ class User {
       if (this.aTokenEXP >= currentTimeStamp) return 0;
       this.refreshState = 2;
       const JWT = await refreshAccessTokenESICall(this.rToken);
-      if (!JWT) return 0;
+      if (JWT instanceof Error) {
+        throw JWT;
+      }
       const { exp } = decodeJwt(JWT.access_token);
 
       this.aToken = JWT.access_token;
@@ -114,8 +116,8 @@ class User {
       }
       return 1;
     } catch (err) {
-      console.error("Error when refreshing access token.");
-      console.log(err);
+      console.error(err.message)
+      return 0;
     }
   };
 
