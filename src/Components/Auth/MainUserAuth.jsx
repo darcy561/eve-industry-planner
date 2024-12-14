@@ -59,57 +59,67 @@ export default function AuthMainUser() {
         window.close();
       }
       async function mainUserLoggin(authCode, mode) {
-        const t = trace(performance, "MainUserLoginProcessFull");
-        t.start();
+        try {
+          const t = trace(performance, "MainUserLoginProcessFull");
+          t.start();
 
-        updateLoginInProgressComplete(false);
-        if (!useCheckGlobalAppVersion()) {
-          updateDialogData((prev) => ({
+          updateLoginInProgressComplete(false);
+          if (!useCheckGlobalAppVersion()) {
+            updateDialogData((prev) => ({
+              ...prev,
+              buttonText: "Close",
+              id: "OutdatedAppVersion",
+              open: true,
+              title: "Outdated App Version",
+              body: "A newer version of the application is available, refresh the page to begin using this.",
+            }));
+            return;
+          }
+          if (!authCode) {
+            throw new Error("Missing Authorisation Code.");
+          }
+
+          const userObject = await getEveOauthToken(authCode, true);
+          if (!userObject) {
+            throw new Error("Unable to Authenticate SSO Token");
+          }
+          let fbToken = await getFirebaseAuthToken(userObject);
+          if (!fbToken) {
+            throw new Error("Unable to Authenticate Firebase Token");
+          }
+          await userObject.getPublicCharacterData();
+          updateUserUIData((prev) => ({
             ...prev,
-            buttonText: "Close",
-            id: "OutdatedAppVersion",
-            open: true,
-            title: "Outdated App Version",
-            body: "A newer version of the application is available, refresh the page to begin using this.",
+            eveLoginComplete: true,
+            userArray: [
+              {
+                CharacterID: userObject.CharacterID,
+                CharacterName: userObject.CharacterName,
+              },
+            ],
+            returnState: decodeURIComponent(
+              window.location.search.match(/state=(\S*)/)[1]
+            ),
           }));
-          return;
+          await buildNewUserData(fbToken);
+
+          userMaindDocListener(fbToken, userObject);
+          userJobSnapshotListener(userObject);
+          userWatchlistListener(fbToken, userObject);
+          userGroupDataListener(userObject);
+
+          updateUserJobSnapshot([]);
+          updateJobArray([]);
+          updateIsLoggedIn(true);
+          updatePageLoad(false);
+          logEvent(analytics, "userSignIn", {
+            UID: fbToken.user.uid,
+          });
+          t.stop();
+        } catch (err) {
+          console.error(err.message);
+          login();
         }
-        if (!authCode) return;
-
-        const userObject = await getEveOauthToken(authCode, true);
-        if (!userObject) {
-          login()
-        }
-        let fbToken = await getFirebaseAuthToken(userObject);
-        await userObject.getPublicCharacterData();
-        updateUserUIData((prev) => ({
-          ...prev,
-          eveLoginComplete: true,
-          userArray: [
-            {
-              CharacterID: userObject.CharacterID,
-              CharacterName: userObject.CharacterName,
-            },
-          ],
-          returnState: decodeURIComponent(
-            window.location.search.match(/state=(\S*)/)[1]
-          ),
-        }));
-        await buildNewUserData(fbToken);
-
-        userMaindDocListener(fbToken, userObject);
-        userJobSnapshotListener(userObject);
-        userWatchlistListener(fbToken, userObject);
-        userGroupDataListener(userObject);
-
-        updateUserJobSnapshot([]);
-        updateJobArray([]);
-        updateIsLoggedIn(true);
-        updatePageLoad(false);
-        logEvent(analytics, "userSignIn", {
-          UID: fbToken.user.uid,
-        });
-        t.stop();
       }
     }
     processOauthCallback();

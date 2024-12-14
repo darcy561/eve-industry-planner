@@ -17,6 +17,7 @@ import useCheckGlobalAppVersion from "./GeneralHooks/useCheckGlobalAppVersion";
 import buildNewUserData from "../Functions/Firebase/buildNewUserAccount";
 import getFirebaseAuthToken from "../Functions/Firebase/getFirebaseToken";
 import getUserFromRefreshToken from "../Components/Auth/RefreshToken";
+import { login } from "../Components/Auth/MainUserAuth";
 
 export function useRefreshUser() {
   const {
@@ -34,53 +35,61 @@ export function useRefreshUser() {
     useContext(UserLoginUIContext);
 
   async function reloadMainUser(refreshToken) {
-    const analytics = getAnalytics();
-    const t = trace(performance, "MainUserRefreshProcessFull");
-    t.start();
-    updateLoginInProgressComplete(false);
+    try {
+      const analytics = getAnalytics();
+      const t = trace(performance, "MainUserRefreshProcessFull");
+      t.start();
+      updateLoginInProgressComplete(false);
 
-    if (!useCheckGlobalAppVersion) {
-      updateDialogData((prev) => ({
+      if (!useCheckGlobalAppVersion) {
+        updateDialogData((prev) => ({
+          ...prev,
+          buttonText: "Close",
+          id: "OutdatedAppVersion",
+          open: true,
+          title: "Outdated App Version",
+          body: "A newer version of the application is available, refresh the page to begin using this.",
+        }));
+        return;
+      }
+
+      updateUserJobSnapshot([]);
+
+      const refreshedUser = await getUserFromRefreshToken(refreshToken, true);
+      if (refreshedUser instanceof Error) {
+        throw refreshedUser;
+      }
+      const fbToken = await getFirebaseAuthToken(refreshedUser);
+      await refreshedUser.getPublicCharacterData();
+      updateUserUIData((prev) => ({
         ...prev,
-        buttonText: "Close",
-        id: "OutdatedAppVersion",
-        open: true,
-        title: "Outdated App Version",
-        body: "A newer version of the application is available, refresh the page to begin using this.",
+        eveLoginComplete: true,
+        userArray: [
+          {
+            CharacterID: refreshedUser.CharacterID,
+            CharacterName: refreshedUser.CharacterName,
+          },
+        ],
       }));
-      return;
+
+      await buildNewUserData(fbToken);
+
+      userMaindDocListener(fbToken, refreshedUser);
+      userJobSnapshotListener(refreshedUser);
+      userWatchlistListener(fbToken, refreshedUser);
+      userGroupDataListener(refreshedUser);
+
+      updateJobArray([]);
+      updateIsLoggedIn(true);
+      updatePageLoad(false);
+      logEvent(analytics, "userSignIn", {
+        UID: fbToken.user.uid,
+      });
+      t.stop();
+    } catch (err) {
+      console.error(err)
+      login();
     }
-
-    updateUserJobSnapshot([]);
-
-    const refreshedUser = await getUserFromRefreshToken(refreshToken, true);
-    const fbToken = await getFirebaseAuthToken(refreshedUser);
-    await refreshedUser.getPublicCharacterData();
-    updateUserUIData((prev) => ({
-      ...prev,
-      eveLoginComplete: true,
-      userArray: [
-        {
-          CharacterID: refreshedUser.CharacterID,
-          CharacterName: refreshedUser.CharacterName,
-        },
-      ],
-    }));
-
-    await buildNewUserData(fbToken);
-
-    userMaindDocListener(fbToken, refreshedUser);
-    userJobSnapshotListener(refreshedUser);
-    userWatchlistListener(fbToken, refreshedUser);
-    userGroupDataListener(refreshedUser);
-
-    updateJobArray([]);
-    updateIsLoggedIn(true);
-    updatePageLoad(false);
-    logEvent(analytics, "userSignIn", {
-      UID: fbToken.user.uid,
-    });
-    t.stop();
   }
 
   return {

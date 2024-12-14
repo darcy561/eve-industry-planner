@@ -6,6 +6,7 @@ import {
   CardContent,
   CircularProgress,
   Grid,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { useContext } from "react";
@@ -63,10 +64,19 @@ function CurrentStructuresFrame({ selectedJobType, isLoading }) {
               sx={{
                 width: "100%",
                 padding: "5px",
+                display: "flex",
               }}
             >
-              <Card variant="elevation" square>
-                <CardContent>
+              <Card
+                variant="elevation"
+                square
+                sx={{
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <CardContent sx={{ flexGrow: 1 }}>
                   <Grid container align="center">
                     <Grid item xs={12}>
                       <Typography
@@ -101,33 +111,49 @@ function CurrentStructuresFrame({ selectedJobType, isLoading }) {
                       </Typography>
                     </Grid>
                     <Grid item xs={6}>
-                      <Typography variant="caption">
-                        {getSystemNameFromID(structure.systemID)}
-                      </Typography>
-                      <Typography variant="caption">
-                        {`${getSystemIndex(structure.systemID)}%`}
-                      </Typography>
+                      <Box sx={{ display: "flex", flexDirection: "column" }}>
+                        <Typography variant="caption">
+                          {getSystemNameFromID(structure.systemID)}
+                        </Typography>
+                        <Tooltip
+                          title="System Index Value"
+                          arrow
+                          placement="right"
+                        >
+                          <Typography variant="caption">
+                            {`${getSystemIndex(structure.systemID)}%`}
+                          </Typography>
+                        </Tooltip>
+                      </Box>
                     </Grid>
                   </Grid>
                 </CardContent>
                 <CardActions>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    disabled={structure.default}
-                    onClick={() => {
-                      const newApplicationSettings =
-                        applicationSettings.setDefaultCustomStructure(
-                          structure.id
-                        );
-                      updateApplicationSettings(newApplicationSettings);
-                      uploadApplicationSettingsToFirebase(
-                        newApplicationSettings
-                      );
-                    }}
+                  <Tooltip
+                    title="Default structures are automatically applied when creating new jobs."
+                    arrow
+                    placement="top"
                   >
-                    Make Default
-                  </Button>
+                    <span>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        disabled={structure.default}
+                        onClick={() => {
+                          const newApplicationSettings =
+                            applicationSettings.setDefaultCustomStructure(
+                              structure.id
+                            );
+                          updateApplicationSettings(newApplicationSettings);
+                          uploadApplicationSettingsToFirebase(
+                            newApplicationSettings
+                          );
+                        }}
+                      >
+                        Make Default
+                      </Button>
+                    </span>
+                  </Tooltip>
                   <Button
                     size="small"
                     variant="text"

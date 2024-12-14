@@ -346,7 +346,7 @@ export function useAccountManagement() {
   ) => {
     for (let token of refreshTokens) {
       let newUser = await getUserFromRefreshToken(token.rToken);
-      if (newUser === "RefreshFail") continue;
+      if (newUser instanceof Error) continue;
 
       await newUser.getPublicCharacterData();
       let esiObject = await newUser.getCharacterESIData();
@@ -375,7 +375,7 @@ export function useAccountManagement() {
     }
     for (let token of rTokens) {
       let newUser = await getUserFromRefreshToken(token.rToken);
-      if (newUser === "RefreshFail") continue;
+      if (newUser instanceof Error) continue;
 
       await newUser.getPublicCharacterData();
       let esiObject = await newUser.getCharacterESIData();
@@ -793,8 +793,6 @@ export function useAccountManagement() {
       sessionStorage.setItem(`assets${characterHash}`, null);
     }
   }
-
-
 
   return {
     buildApiArray,

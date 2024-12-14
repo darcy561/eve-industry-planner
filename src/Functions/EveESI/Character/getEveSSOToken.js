@@ -37,6 +37,7 @@ async function getEveOauthToken(authCode, accountType = false) {
     return newUser;
   } catch (err) {
     console.log(err);
+    return new Error("Unable to Authenticate SSO Token")
   } 
 }
 export default getEveOauthToken;

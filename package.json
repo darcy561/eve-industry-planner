@@ -11,7 +11,7 @@
     "@mui/material": "^5.16.9",
     "@mui/x-date-pickers": "^5.0.20",
     "@sentry/react": "^8.12.0",
-    "@sentry/vite-plugin": "^2.20.1",
+    "@sentry/vite-plugin": "^2.22.7",
     "buffer": "^6.0.3",
     "css-what": "^5.1.0",
     "date-fns": "^2.30.0",

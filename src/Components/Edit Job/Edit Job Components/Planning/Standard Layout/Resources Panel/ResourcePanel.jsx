@@ -238,7 +238,7 @@ export function RawResourceList({
       newTempChildJobs[newJob.itemID] = newJob;
     }
 
-    groupJobsToLink.entries().forEach(([typeID, jobID]) => {
+    groupJobsToLink.entries() || [].forEach(([typeID, jobID]) => {
       const childLocation = newParentJobsToEdit_ChildJobs[typeID];
 
       if (!childLocation) {
