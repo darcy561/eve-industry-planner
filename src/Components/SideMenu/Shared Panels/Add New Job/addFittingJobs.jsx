@@ -51,7 +51,7 @@ function AddShipFittingPanel({ updateItemIDsToAdd, addNewGroupOnBuild }) {
         } else {
           newItemsToAdd.push({
             itemID: request.itemID,
-            itemQty: 1,
+            itemQty: request.itemQty,
             addNewGroup: addNewGroupOnBuild,
           });
         }
