@@ -37,6 +37,7 @@ jobs:
           echo "VITE_measurementID=${{ secrets.VITE_measurementID }}" >> $GITHUB_ENV
           echo "VITE_APIURL=${{ secrets.VITE_APIURL }}" >> $GITHUB_ENV
           echo "VITE_SENTRY_PROJECT=${{ secrets.VITE_SENTRY_PROJECT }}" >> $GITHUB_ENV
+          echo "VITE_SENTRY_KEY=${{ secrets.VITE_SENTRY_KEY }}" >> $GITHUB_ENV
           echo "VITE_eveClientID=${{ secrets.VITE_eveClientID }}" >> $GITHUB_ENV
           echo "VITE_eveSecretKey=${{ secrets.VITE_eveSecretKey }}" >> $GITHUB_ENV
           echo "VITE_eveCallbackURL=${{ secrets.VITE_eveCallbackURL }}" >> $GITHUB_ENV

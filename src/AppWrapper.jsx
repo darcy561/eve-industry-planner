@@ -46,7 +46,7 @@ import * as Sentry from "@sentry/react";
 
 export function AppWrapper() {
   Sentry.init({
-    dsn: import.meta.env.VITE_SOCKETIO_KEY,
+    dsn: import.meta.env.VITE_SENTRY_KEY,
     integrations: [],
   });
   return (
