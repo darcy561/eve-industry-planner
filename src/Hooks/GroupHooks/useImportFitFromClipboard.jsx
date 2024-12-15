@@ -167,17 +167,19 @@ export function useImportFitFromClipboard() {
     const matchedGroup = newGroupArray.find(
       (i) => i.groupID === jobObject.groupID
     );
-    matchedGroup.addJobsToGroup(newJobs);
+    if (matchedGroup) {
+      matchedGroup.addJobsToGroup(newJobs);
+    }
 
     const { requestedMarketData, requestedSystemIndexes } =
       await getMissingESIData(newJobs, evePrices, systemIndexData);
-    
-      recalculateInstallCostsWithNewData(
-        newJobs,
-        calculateInstallCostFromJob,
-        requestedMarketData,
-        requestedSystemIndexes
-      );
+
+    recalculateInstallCostsWithNewData(
+      newJobs,
+      calculateInstallCostFromJob,
+      requestedMarketData,
+      requestedSystemIndexes
+    );
 
     updateGroupArray(newGroupArray);
     updateJobArray(newJobArray);
