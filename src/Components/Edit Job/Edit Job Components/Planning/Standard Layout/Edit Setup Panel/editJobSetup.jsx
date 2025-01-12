@@ -1,51 +1,30 @@
-import {
-  Grid,
-  FormControl,
-  FormHelperText,
-  MenuItem,
-  Paper,
-  TextField,
-  Tooltip,
-  Select,
-  CircularProgress,
-} from "@mui/material";
-import React, { useContext, useMemo, useState } from "react";
-import {
-  IsLoggedInContext,
-  UsersContext,
-} from "../../../../../../Context/AuthContext";
-
-import {
-  blueprintOptions,
-  customStructureMap,
-  rigTypeMap,
-  structureOptions,
-  structureTypeMap,
-  structureTypeTooltip,
-  systemTypeMap,
-} from "../../../../../../Context/defaultValues";
+import { Grid, Paper, CircularProgress } from "@mui/material";
+import { useContext, useState } from "react";
+import { IsLoggedInContext } from "../../../../../../Context/AuthContext";
 import { jobTypes } from "../../../../../../Context/defaultValues";
-import systemIDS from "../../../../../../RawData/systems.json";
 import { useUpdateSetupValue } from "../../../../../../Hooks/JobHooks/useUpdateSetupValue";
-import { useHelperFunction } from "../../../../../../Hooks/GeneralHooks/useHelperFunctions";
-import { ApplicationSettingsContext } from "../../../../../../Context/LayoutContext";
 import VirtualisedSystemSearch from "../../../../../../Styled Components/autocomplete/virtualisedSystemSearch";
+import MaterialEfficiencySelect from "../../../../../../Styled Components/Select/materialEfficiency";
+import TimeEfficiencySelect from "../../../../../../Styled Components/Select/timeEfficiency";
+import StructureTypeSelect from "../../../../../../Styled Components/Select/structureType";
+import RigTypeSelect from "../../../../../../Styled Components/Select/rigType";
+import SystemTypeSelect from "../../../../../../Styled Components/Select/systemType";
+import BlueprintRunsTextField from "../../../../../../Styled Components/Textfield/blueprintRuns";
+import JobSlotsTextField from "../../../../../../Styled Components/Textfield/jobSlots";
+import AssignUsersSelect from "../../../../../../Styled Components/Select/users";
+import CustomStructureSelect from "../../../../../../Styled Components/Select/customStructure";
+import TaxPercentageTextField from "../../../../../../Styled Components/Textfield/tax";
+import { ApplicationSettingsContext } from "../../../../../../Context/LayoutContext";
 
 export function EditJobSetup({ activeJob, updateActiveJob, setJobModified }) {
-  const { applicationSettings } = useContext(ApplicationSettingsContext);
-  const { users } = useContext(UsersContext);
   const { isLoggedIn } = useContext(IsLoggedInContext);
+  const { applicationSettings } = useContext(ApplicationSettingsContext);
   const { recalcuateJobFromSetup } = useUpdateSetupValue();
-  const { findParentUser } = useHelperFunction();
-  const parentUser = findParentUser();
   const setupToEdit = activeJob.layout.setupToEdit;
 
   if (!activeJob.build.setup[setupToEdit]) return null;
 
   let buildObject = activeJob.build.setup[setupToEdit];
-
-  const [runCountInput, updateRunCountInput] = useState(buildObject.runCount);
-  const [jobCountInput, updateJobCountInput] = useState(buildObject.jobCount);
 
   return (
     <Paper
@@ -59,74 +38,28 @@ export function EditJobSetup({ activeJob, updateActiveJob, setJobModified }) {
       <Grid container direction="column">
         <Grid item container direction="row" spacing={2}>
           <Grid item xs={6}>
-            <TextField
-              value={runCountInput}
-              size="small"
-              variant="standard"
-              helperText="Blueprint Runs"
-              type="number"
-              sx={{
-                "& .MuiFormHelperText-root": {
-                  color: (theme) => theme.palette.secondary.main,
-                },
-                "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-                  {
-                    display: "none",
-                  },
-              }}
-              onChange={(e) => {
-                updateRunCountInput(e.target.value);
-              }}
-              onBlur={(e) => {
-                let valueToPass = Number(runCountInput);
-                if (valueToPass <= 0) {
-                  valueToPass = 1;
-                }
+            <BlueprintRunsTextField
+              initialState={buildObject.runCount}
+              onChange={(value) => {
+                buildObject.updateRunCount(value);
                 recalcuateJobFromSetup(
                   buildObject,
-                  "runCount",
-                  valueToPass,
-                  undefined,
                   activeJob,
-                  updateActiveJob,
-                  false
+                  updateActiveJob
                 );
                 setJobModified(true);
               }}
             />
           </Grid>
           <Grid item xs={6}>
-            <TextField
-              value={jobCountInput}
-              size="small"
-              variant="standard"
-              sx={{
-                "& .MuiFormHelperText-root": {
-                  color: (theme) => theme.palette.secondary.main,
-                },
-                "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-                  {
-                    display: "none",
-                  },
-              }}
-              helperText="Job Slots"
-              type="number"
-              onChange={(e) => {
-                updateJobCountInput(e.target.value);
-              }}
-              onBlur={(e) => {
-                let valueToPass = Number(jobCountInput);
-                if (valueToPass <= 0) {
-                  valueToPass = 1;
-                }
+            <JobSlotsTextField
+              initialState={buildObject.jobCount}
+              onChange={(value) => {
+                buildObject.updateJobCount(value);
                 recalcuateJobFromSetup(
                   buildObject,
-                  "jobCount",
-                  valueToPass,
-                  undefined,
                   activeJob,
-                  updateActiveJob,
-                  false
+                  updateActiveJob
                 );
                 setJobModified(true);
               }}
@@ -135,90 +68,32 @@ export function EditJobSetup({ activeJob, updateActiveJob, setJobModified }) {
           {activeJob.jobType === jobTypes.manufacturing && (
             <>
               <Grid item xs={6}>
-                <FormControl
-                  sx={{
-                    "& .MuiFormHelperText-root": {
-                      color: (theme) => theme.palette.secondary.main,
-                    },
-                    "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-                      {
-                        display: "none",
-                      },
+                <MaterialEfficiencySelect
+                  value={activeJob.build.setup[setupToEdit].ME}
+                  onChange={(value) => {
+                    buildObject.updateMEValue(value);
+                    recalcuateJobFromSetup(
+                      buildObject,
+                      activeJob,
+                      updateActiveJob
+                    );
+                    setJobModified(true);
                   }}
-                  fullWidth
-                >
-                  <Select
-                    variant="standard"
-                    size="small"
-                    value={activeJob.build.setup[setupToEdit].ME}
-                    onChange={(e) => {
-                      recalcuateJobFromSetup(
-                        buildObject,
-                        "ME",
-                        e.target.value,
-                        undefined,
-                        activeJob,
-                        updateActiveJob,
-                        false
-                      );
-                      setJobModified(true);
-                    }}
-                  >
-                    {blueprintOptions.me.map((entry) => {
-                      return (
-                        <MenuItem key={entry.label} value={entry.value}>
-                          {entry.label}
-                        </MenuItem>
-                      );
-                    })}
-                  </Select>
-                  <FormHelperText variant="standard">
-                    Material Efficiency
-                  </FormHelperText>
-                </FormControl>
+                />
               </Grid>
               <Grid item xs={6}>
-                <FormControl
-                  sx={{
-                    "& .MuiFormHelperText-root": {
-                      color: (theme) => theme.palette.secondary.main,
-                    },
-                    "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-                      {
-                        display: "none",
-                      },
+                <TimeEfficiencySelect
+                  value={activeJob.build.setup[setupToEdit].TE}
+                  onChange={(value) => {
+                    buildObject.updateTEValue(value);
+                    recalcuateJobFromSetup(
+                      buildObject,
+                      activeJob,
+                      updateActiveJob
+                    );
+                    setJobModified(true);
                   }}
-                  fullWidth={true}
-                >
-                  <Select
-                    variant="standard"
-                    size="small"
-                    value={activeJob.build.setup[setupToEdit].TE}
-                    onChange={(e) => {
-                      recalcuateJobFromSetup(
-                        buildObject,
-                        "TE",
-                        e.target.value,
-                        undefined,
-                        activeJob,
-                        updateActiveJob,
-                        false
-                      );
-                      setJobModified(true);
-                    }}
-                  >
-                    {blueprintOptions.te.map((entry) => {
-                      return (
-                        <MenuItem key={entry.label} value={entry.value}>
-                          {entry.label}
-                        </MenuItem>
-                      );
-                    })}
-                  </Select>
-                  <FormHelperText variant="standard">
-                    Time Efficiency
-                  </FormHelperText>
-                </FormControl>
+                />
               </Grid>
             </>
           )}
@@ -232,110 +107,36 @@ export function EditJobSetup({ activeJob, updateActiveJob, setJobModified }) {
           {isLoggedIn && (
             <>
               <Grid item xs={12}>
-                <FormControl
-                  sx={{
-                    "& .MuiFormHelperText-root": {
-                      color: (theme) => theme.palette.secondary.main,
-                    },
-                    "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-                      {
-                        display: "none",
-                      },
+                <CustomStructureSelect
+                  value={activeJob.build.setup[setupToEdit].customStructureID}
+                  jobType={activeJob.jobType}
+                  onChange={(value) => {
+                    buildObject.updateCustomStructureID(
+                      value,
+                      applicationSettings
+                    );
+                    recalcuateJobFromSetup(
+                      buildObject,
+                      activeJob,
+                      updateActiveJob
+                    );
+                    setJobModified(true);
                   }}
-                  fullWidth={true}
-                >
-                  <Select
-                    variant="standard"
-                    size="small"
-                    value={
-                      activeJob.build.setup[setupToEdit].customStructureID
-                        ? activeJob.build.setup[setupToEdit].customStructureID
-                        : ""
-                    }
-                    onChange={(e) => {
-                      recalcuateJobFromSetup(
-                        buildObject,
-                        "customStructureID",
-                        e.target.value,
-                        undefined,
-                        activeJob,
-                        updateActiveJob,
-                        false
-                      );
-                      setJobModified(true);
-                    }}
-                  >
-                    {activeJob.build.setup[setupToEdit].customStructureID ? (
-                      <MenuItem key="clear" value={null}>
-                        Clear
-                      </MenuItem>
-                    ) : null}
-                    {applicationSettings[
-                      customStructureMap[activeJob.jobType]
-                    ].map((entry) => {
-                      return (
-                        <MenuItem key={entry.id} value={entry.id}>
-                          {entry.name}
-                        </MenuItem>
-                      );
-                    })}
-                  </Select>
-                  <FormHelperText variant="standard">
-                    Custom Structure Used
-                  </FormHelperText>
-                </FormControl>
+                />
               </Grid>
               <Grid item xs={12} xl={8}>
-                <FormControl
-                  sx={{
-                    "& .MuiFormHelperText-root": {
-                      color: (theme) => theme.palette.secondary.main,
-                    },
-                    "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-                      {
-                        display: "none",
-                      },
+                <AssignUsersSelect
+                  value={activeJob.build.setup[setupToEdit].selectedCharacter}
+                  onChange={(value) => {
+                    buildObject.updateSelectedCharacter(value);
+                    recalcuateJobFromSetup(
+                      buildObject,
+                      activeJob,
+                      updateActiveJob
+                    );
+                    setJobModified(true);
                   }}
-                  fullWidth
-                >
-                  <Select
-                    variant="standard"
-                    size="small"
-                    value={
-                      users.find(
-                        (i) =>
-                          i.CharacterHash ===
-                          activeJob.build.setup[setupToEdit].selectedCharacter
-                      )?.CharacterHash || parentUser.CharacterHash
-                    }
-                    onChange={(e) => {
-                      recalcuateJobFromSetup(
-                        buildObject,
-                        "selectedCharacter",
-                        e.target.value,
-                        undefined,
-                        activeJob,
-                        updateActiveJob,
-                        false
-                      );
-                      setJobModified(true);
-                    }}
-                  >
-                    {users.map((user) => {
-                      return (
-                        <MenuItem
-                          key={user.CharacterHash}
-                          value={user.CharacterHash}
-                        >
-                          {user.CharacterName}
-                        </MenuItem>
-                      );
-                    })}
-                  </Select>
-                  <FormHelperText variant="standard">
-                    Assigned Character
-                  </FormHelperText>
-                </FormControl>
+                />
               </Grid>
             </>
           )}
@@ -361,147 +162,62 @@ function ManualStructureSelection({
   return (
     <>
       <Grid item xs={6}>
-        <Tooltip title={structureTypeTooltip} arrow placement="top">
-          <FormControl
-            sx={{
-              "& .MuiFormHelperText-root": {
-                color: (theme) => theme.palette.secondary.main,
-              },
-              "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-                {
-                  display: "none",
-                },
-            }}
-            fullWidth={true}
-          >
-            <Select
-              variant="standard"
-              size="small"
-              value={activeJob.build.setup[setupToEdit].structureID}
-              onChange={(e) => {
-                recalcuateJobFromSetup(
-                  buildObject,
-                  "structureID",
-                  e.target.value,
-                  structureTypeMap[activeJob.jobType][e.target.value]
-                    .requirements,
-                  activeJob,
-                  updateActiveJob,
-                  false
-                );
-                setJobModified(true);
-              }}
-            >
-              {Object.values(structureTypeMap[activeJob.jobType]).map(
-                (entry) => {
-                  return (
-                    <MenuItem key={entry.id} value={entry.id}>
-                      {entry.label}
-                    </MenuItem>
-                  );
-                }
-              )}
-            </Select>
-            <FormHelperText variant="standard">Structure Type</FormHelperText>
-          </FormControl>
-        </Tooltip>
+        <StructureTypeSelect
+          value={activeJob.build.setup[setupToEdit].structureID}
+          jobType={activeJob.jobType}
+          onChange={(selectedEntry) => {
+            buildObject.updateStructureID(selectedEntry);
+            recalcuateJobFromSetup(
+              buildObject,
+              activeJob,
+              updateActiveJob
+            );
+            setJobModified(true);
+          }}
+        />
       </Grid>
       <Grid item xs={6}>
-        <FormControl
-          sx={{
-            "& .MuiFormHelperText-root": {
-              color: (theme) => theme.palette.secondary.main,
-            },
-            "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-              {
-                display: "none",
-              },
+        <RigTypeSelect
+          value={activeJob.build.setup[setupToEdit].rigID}
+          jobType={activeJob.jobType}
+          onChange={(selectedEntry) => {
+            buildObject.updateRigID(selectedEntry);
+            recalcuateJobFromSetup(
+              buildObject,
+              activeJob,
+              updateActiveJob
+            );
+            setJobModified(true);
           }}
-          fullWidth={true}
-        >
-          <Select
-            variant="standard"
-            size="small"
-            value={activeJob.build.setup[setupToEdit].rigID}
-            onChange={(e) => {
-              recalcuateJobFromSetup(
-                buildObject,
-                "rigID",
-                e.target.value,
-                rigTypeMap[activeJob.jobType][e.target.value].requirements,
-                activeJob,
-                updateActiveJob,
-                false
-              );
-              setJobModified(true);
-            }}
-          >
-            {Object.values(rigTypeMap[activeJob.jobType]).map((entry) => {
-              return (
-                <MenuItem key={entry.id} value={entry.id}>
-                  {entry.label}
-                </MenuItem>
-              );
-            })}
-          </Select>
-          <FormHelperText variant="standard">Rig Type</FormHelperText>
-        </FormControl>
+        />
       </Grid>
       <Grid item xs={6}>
-        <FormControl
-          sx={{
-            "& .MuiFormHelperText-root": {
-              color: (theme) => theme.palette.secondary.main,
-            },
-            "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-              {
-                display: "none",
-              },
+        <SystemTypeSelect
+          value={activeJob.build.setup[setupToEdit].systemTypeID}
+          jobType={activeJob.jobType}
+          onChange={(selectedEntry) => {
+            buildObject.updateSystemType(selectedEntry);
+            recalcuateJobFromSetup(
+              buildObject,
+              activeJob,
+              updateActiveJob
+            );
+            setJobModified(true);
           }}
-          fullWidth={true}
-        >
-          <Select
-            variant="standard"
-            size="small"
-            value={activeJob.build.setup[setupToEdit].systemTypeID}
-            onChange={(e) => {
-              recalcuateJobFromSetup(
-                buildObject,
-                "systemTypeID",
-                e.target.value,
-                systemTypeMap[activeJob.jobType][e.target.value].requirements,
-                activeJob,
-                updateActiveJob,
-                false
-              );
-              setJobModified(true);
-            }}
-          >
-            {Object.values(systemTypeMap[activeJob.jobType]).map((entry) => {
-              return (
-                <MenuItem key={entry.id} value={entry.id}>
-                  {entry.label}
-                </MenuItem>
-              );
-            })}
-          </Select>
-          <FormHelperText variant="standard">System Type</FormHelperText>
-        </FormControl>
+        />
       </Grid>
       <Grid item xs={6} align="center">
         {!fetchSystemDataTrigger ? (
           <VirtualisedSystemSearch
             selectedValue={activeJob.build.setup[setupToEdit].systemID}
+            jobType={activeJob.jobType}
             updateSelectedValue={async (value) => {
               updateFetchSystemDataTrigger((prev) => !prev);
+              buildObject.updateSystemID(Number(value));
               await recalcuateJobFromSetup(
                 buildObject,
-                "systemID",
-                Number(value),
-                undefined,
                 activeJob,
-                updateActiveJob,
-                true
+                updateActiveJob
               );
               setJobModified(true);
               updateFetchSystemDataTrigger((prev) => !prev);
@@ -512,35 +228,14 @@ function ManualStructureSelection({
         )}
       </Grid>
       <Grid item xs={6}>
-        <TextField
-          defaultValue={activeJob.build.setup[setupToEdit].taxValue}
-          size="small"
-          variant="standard"
-          helperText="Tax"
-          type="number"
-          sx={{
-            "& .MuiFormHelperText-root": {
-              color: (theme) => theme.palette.secondary.main,
-            },
-            "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-              {
-                display: "none",
-              },
-          }}
-          onBlur={(e) => {
-            let inputValue =
-              Math.round((Number(e.target.value) + Number.EPSILON) * 100) / 100;
-            if (inputValue < 0) {
-              inputValue = 0;
-            }
+        <TaxPercentageTextField
+          initialState={activeJob.build.setup[setupToEdit].taxValue}
+          onBlur={(value) => {
+            buildObject.updateTaxValue(value);
             recalcuateJobFromSetup(
               buildObject,
-              "taxValue",
-              inputValue,
-              null,
               activeJob,
-              updateActiveJob,
-              false
+              updateActiveJob
             );
             setJobModified(true);
           }}

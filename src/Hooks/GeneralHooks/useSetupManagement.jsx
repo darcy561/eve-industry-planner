@@ -23,10 +23,6 @@ export function useSetupManagement() {
     alternativvePriceData,
     alternativeSystemIndexData
   ) {
-    let jobSetups = { ...chosenJob.build.setup };
-    const itemsProducedPerRun = chosenJob.itemsProducedPerRun;
-    let newMaterialArray = [...chosenJob.build.materials];
-
     chosenSetup.materialCount = calculateResources(chosenSetup);
     chosenSetup.estimatedTime = calculateTime(chosenSetup, chosenJob.skills);
     chosenSetup.estimatedInstallCost = calculateInstallCostFromJob(
@@ -34,26 +30,22 @@ export function useSetupManagement() {
       alternativvePriceData,
       alternativeSystemIndexData
     );
+    chosenJob.build.products.totalQuantity = Object.values(
+      chosenJob.build.setup
+    ).reduce((prev, { runCount, jobCount }) => {
+      return (prev += chosenJob.itemsProducedPerRun * runCount * jobCount);
+    }, 0);
 
-    jobSetups[chosenSetup.id] = chosenSetup;
-
-    const newTotalProduced = Object.values(jobSetups).reduce(
-      (prev, { runCount, jobCount }) => {
-        return (prev += itemsProducedPerRun * runCount * jobCount);
-      },
-      0
+    const newTotalQuantities = calculateJobMaterialQuantities(
+      chosenJob.build.setup
     );
 
-    const newTotalQuantities = calculateJobMaterialQuantities(jobSetups);
-
-    for (const material of newMaterialArray) {
+    for (const material of chosenJob.build.materials) {
       const materialId = material.typeID.toString();
       if (materialId in newTotalQuantities) {
         material.quantity = newTotalQuantities[materialId];
       }
     }
-
-    return { jobSetups, newMaterialArray, newTotalProduced };
   }
 
   function addNewSetup(selectedJob) {

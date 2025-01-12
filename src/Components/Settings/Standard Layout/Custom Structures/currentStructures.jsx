@@ -55,6 +55,7 @@ function CurrentStructuresFrame({ selectedJobType, isLoading }) {
     <Grid container sx={{ width: "100%" }}>
       {applicationSettings[customStructureMap[selectedJobType]].map(
         (structure) => {
+          console.log(structure)
           return (
             <Grid
               key={structure.id}
