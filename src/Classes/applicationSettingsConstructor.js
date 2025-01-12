@@ -272,7 +272,6 @@ class ApplicationSettingsObject {
     );
 
     if (!foundStructure) {
-      console.warn(`No structure found with ID ${structureID}.`);
       return null;
     }
 
