@@ -6,6 +6,8 @@ import { CurrentMaterialHeader } from "./currentMaterialHeader";
 import { MaterialCostRow_MaterialPricePanel } from "./itemRow";
 import { MaterialTotals_MaterialPricesPanel } from "./materialTotals";
 import { ApplicationSettingsContext } from "../../../../../../Context/LayoutContext";
+import PriceHistoryDialog from "../../../../../Dialogues/Price History/dialogFrame";
+import MarketDataDialog from "../../../../../Dialogues/Market Data/dialogFrame";
 
 export function MaterialCostPanel({
   activeJob,
@@ -26,6 +28,11 @@ export function MaterialCostPanel({
   const [listingSelect, updateListingSelect] = useState(
     applicationSettings.defaultOrders
   );
+  const [isPriceHistoryDialogOpen, setIsPriceHistoryDialogOpen] =
+    useState(false);
+  const [priceHistoryTypeID, setPriceHistoryTypeID] = useState(null);
+  const [isMarketDataDialogOpen, setIsMarketDataDialogOpen] = useState(false);
+  const [marketDataTypeID, setMarketDataTypeID] = useState(null);
   const { MARKET_OPTIONS } = GLOBAL_CONFIG;
 
   if (!activeJob.build.setup[activeJob.layout.setupToEdit]) return null;
@@ -36,6 +43,22 @@ export function MaterialCostPanel({
       square
       sx={{ minWidth: "100%", padding: "20px", position: "relative" }}
     >
+      {isPriceHistoryDialogOpen && (
+        <PriceHistoryDialog
+          isOpen={isPriceHistoryDialogOpen}
+          setIsOpen={setIsPriceHistoryDialogOpen}
+          typeID={priceHistoryTypeID}
+          setTypeID={setPriceHistoryTypeID}
+        />
+      )}
+      {isMarketDataDialogOpen && (
+        <MarketDataDialog
+          isOpen={isMarketDataDialogOpen}
+          setIsOpen={setIsMarketDataDialogOpen}
+          typeID={marketDataTypeID}
+          setTypeID={setMarketDataTypeID}
+        />
+      )}
       <Grid container>
         <Grid
           item
@@ -96,6 +119,10 @@ export function MaterialCostPanel({
         activeJob={activeJob}
         marketSelect={marketSelect}
         listingSelect={listingSelect}
+        setIsPriceHistoryDialogOpen={setIsPriceHistoryDialogOpen}
+        setPriceHistoryTypeID={setPriceHistoryTypeID}
+        setIsMarketDataDialogOpen={setIsMarketDataDialogOpen}
+        setMarketDataTypeID={setMarketDataTypeID}
       />
       <Grid container item xs={12}>
         {activeJob.build.materials.map((material) => {
@@ -115,6 +142,10 @@ export function MaterialCostPanel({
               updateEsiDataToLink={updateEsiDataToLink}
               parentChildToEdit={parentChildToEdit}
               updateParentChildToEdit={updateParentChildToEdit}
+              setIsPriceHistoryDialogOpen={setIsPriceHistoryDialogOpen}
+              setPriceHistoryTypeID={setPriceHistoryTypeID}
+              setIsMarketDataDialogOpen={setIsMarketDataDialogOpen}
+              setMarketDataTypeID={setMarketDataTypeID}
             />
           );
         })}

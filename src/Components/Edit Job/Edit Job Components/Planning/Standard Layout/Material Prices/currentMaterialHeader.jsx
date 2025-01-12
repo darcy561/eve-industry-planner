@@ -10,6 +10,10 @@ export function CurrentMaterialHeader({
   activeJob,
   marketSelect,
   listingSelect,
+  setIsPriceHistoryDialogOpen,
+  setPriceHistoryTypeID,
+  setIsMarketDataDialogOpen,
+  setMarketDataTypeID,
 }) {
   const { findItemPriceObject } = useHelperFunction();
 
@@ -39,9 +43,17 @@ export function CurrentMaterialHeader({
         />
       </Grid>
       <Grid item xs={12} md={4}>
-        <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
-          {activeJob.name}
-        </Typography>
+        <Tooltip title="Click to view price history." arrow placement="top">
+          <Typography
+            sx={{ typography: LARGE_TEXT_FORMAT, cursor: "pointer" }}
+            onClick={() => {
+              setPriceHistoryTypeID(activeJob.itemID);
+              setIsPriceHistoryDialogOpen((prev) => !prev);
+            }}
+          >
+            {activeJob.name}
+          </Typography>
+        </Tooltip>
       </Grid>
       <Grid
         item
@@ -54,43 +66,17 @@ export function CurrentMaterialHeader({
           {`Item ${formatedMarketTitle} Price:`}
         </Typography>
         <Tooltip
-          title={
-            <span>
-              <p>
-                <strong>30 Day Region Market History</strong>
-              </p>
-              <p>
-                Highest Market Price:{" "}
-                {(marketPriceObject.highestMarketPrice || 0).toLocaleString()}
-              </p>
-              <p>
-                Lowest Market Price:{" "}
-                {(marketPriceObject.lowestMarketPrice || 0).toLocaleString()}
-              </p>
-              <p>
-                Daily Average Market Price:{" "}
-                {(
-                  marketPriceObject.dailyAverageMarketPrice || 0
-                ).toLocaleString()}
-              </p>
-              <p>
-                Daily Average Order Quantity:{" "}
-                {(
-                  marketPriceObject.dailyAverageOrderQuantity || 0
-                ).toLocaleString()}
-              </p>
-              <p>
-                Daily Average Unit Count:{" "}
-                {(
-                  marketPriceObject.dailyAverageUnitCount || 0
-                ).toLocaleString()}
-              </p>
-            </span>
-          }
+          title="Click to view current market data."
           arrow
           placement="top"
         >
-          <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
+          <Typography
+            sx={{ typography: STANDARD_TEXT_FORMAT }}
+            onClick={() => {
+              setMarketDataTypeID(activeJob.itemID);
+              setIsMarketDataDialogOpen((prev) => !prev);
+            }}
+          >
             {itemPrice.toLocaleString(undefined, TWO_DECIMAL_PLACES)}
           </Typography>
         </Tooltip>

@@ -33,7 +33,7 @@ export function useInstallCostsCalc() {
     additionalSystemIndexValues
   ) {
     if (!inputSetup) return 0;
-
+      
     const estimatedItemValue = estimatedItemPriceCalc(
       inputSetup.materialCount,
       inputSetup.jobCount,

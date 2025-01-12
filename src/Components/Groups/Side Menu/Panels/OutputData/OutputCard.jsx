@@ -1,4 +1,4 @@
-import { Highlight, Search } from "@mui/icons-material";
+import { Highlight } from "@mui/icons-material";
 import {
   Avatar,
   Card,
@@ -10,26 +10,36 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useContext, useMemo, useState } from "react";
+import { useContext } from "react";
 import { useGroupManagement } from "../../../../../Hooks/useGroupManagement";
 import { TWO_DECIMAL_PLACES } from "../../../../../Context/defaultValues";
 import { EvePricesContext } from "../../../../../Context/EveDataContext";
 import { ApplicationSettingsContext } from "../../../../../Context/LayoutContext";
-import { useNavigate, useOutlet } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   ActiveJobContext,
   JobArrayContext,
 } from "../../../../../Context/JobContext";
 import findJobsToHighlight from "./findJobsToHighlight";
+import TimelineIcon from "@mui/icons-material/Timeline";
+import LocalAtmIcon from "@mui/icons-material/LocalAtm";
 
-function OutputJobCard({ inputJob, updateHighlightedItem, highlightedItems }) {
+function OutputJobCard({
+  inputJob,
+  updateHighlightedItem,
+  highlightedItems,
+  setIsPriceHistoryDialogOpen,
+  setPriceHistoryTypeID,
+  setIsMarketDataDialogOpen,
+  setMarketDataTypeID,
+}) {
   const { activeGroup } = useContext(ActiveJobContext);
   const { jobArray } = useContext(JobArrayContext);
   const { evePrices } = useContext(EvePricesContext);
   const { calculateCurrentJobBuildCostFromChildren } = useGroupManagement();
   const { applicationSettings } = useContext(ApplicationSettingsContext);
   const navigate = useNavigate();
-
+  //
   const CurrentBuildCost =
     calculateCurrentJobBuildCostFromChildren(inputJob)?.toLocaleString(
       undefined,
@@ -84,30 +94,52 @@ function OutputJobCard({ inputJob, updateHighlightedItem, highlightedItems }) {
             </Grid>
           </Grid>
         </CardContent>
-        <CardActions sx={{ justifyContent: "flex-end" }}>
-          <Tooltip
-            title="Highlight jobs within the production chain."
-            arrow
-            placement="left"
-          >
-            <IconButton
-              size="small"
-              onClick={(event) => {
-                event.stopPropagation();
-                if (highlightedItems.has(inputJob.jobID)) {
-                  updateHighlightedItem(new Set());
-                } else {
-                  updateHighlightedItem(
-                    findJobsToHighlight(inputJob, jobArray)
-                  );
-                }
-              }}
-            >
-              <Highlight color={isHighlighted ? "primary" : "secondary"} />
-            </IconButton>
-          </Tooltip>
-        </CardActions>
       </CardActionArea>
+      <CardActions sx={{ justifyContent: "flex-end" }}>
+        <Tooltip
+          title="Highlight jobs within the production chain."
+          arrow
+          placement="left"
+        >
+          <IconButton
+            size="small"
+            color="primary"
+            onClick={(event) => {
+              if (highlightedItems.has(inputJob.jobID)) {
+                updateHighlightedItem(new Set());
+              } else {
+                updateHighlightedItem(findJobsToHighlight(inputJob, jobArray));
+              }
+            }}
+          >
+            <Highlight color={isHighlighted ? "secondary" : "primary"} />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Item Price History" arrow placement="left">
+          <IconButton
+            size="small"
+            color="primary"
+            onClick={(event) => {
+              setIsPriceHistoryDialogOpen((prev) => !prev);
+              setPriceHistoryTypeID(inputJob.itemID);
+            }}
+          >
+            <TimelineIcon />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Current Market Data" arrow placement="left">
+          <IconButton
+            size="small"
+            color="primary"
+            onClick={() => {
+              setIsMarketDataDialogOpen((prev) => !prev);
+              setMarketDataTypeID(inputJob.itemID);
+            }}
+          >
+            <LocalAtmIcon />
+          </IconButton>
+        </Tooltip>
+      </CardActions>
     </Card>
   );
 }

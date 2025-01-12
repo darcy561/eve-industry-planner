@@ -12,6 +12,7 @@ import {
   Tooltip,
 } from "@mui/material";
 import {
+  requirements,
   rigTypeMap,
   structureTypeMap,
   structureTypeTooltip,
@@ -27,6 +28,13 @@ import { logEvent } from "firebase/analytics";
 import getCurrentFirebaseUser from "../../../../Functions/Firebase/currentFirebaseUser";
 import { analytics } from "../../../../firebase";
 import { useHelperFunction } from "../../../../Hooks/GeneralHooks/useHelperFunctions";
+import GLOBAL_CONFIG from "../../../../global-config-app";
+import StructureTypeSelect from "../../../../Styled Components/Select/structureType";
+import RigTypeSelect from "../../../../Styled Components/Select/rigType";
+import SystemTypeSelect from "../../../../Styled Components/Select/systemType";
+import TaxPercentageTextField from "../../../../Styled Components/Textfield/tax";
+
+const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
 
 function StructureOptionsSelection_CustomStructures({
   selectedJobType,
@@ -51,7 +59,7 @@ function StructureOptionsSelection_CustomStructures({
       0
   );
   const [systemID, setSystemID] = useState(
-    structureType[selectedJobType]?.requirements?.systemID || 30000142
+    structureType[selectedJobType]?.requirements?.systemID || DEFAULT_SYSTEM
   );
   const [systemType, setSystemType] = useState(
     structureTypeMap[selectedJobType][structureType]?.requirements
@@ -86,6 +94,17 @@ function StructureOptionsSelection_CustomStructures({
     if (systemTypeID !== undefined) {
       setSystemType(systemTypeID);
     }
+  }
+  function getRequirements(requirementID) {
+    if (requirementID == null || requirementID == undefined) {
+      return {};
+    }
+
+    const matchedRequirements = requirements[requirementID];
+
+    if (!matchedRequirements) return {};
+
+    return matchedRequirements;
   }
 
   const styling = {
@@ -136,7 +155,7 @@ function StructureOptionsSelection_CustomStructures({
         ?.taxValue || 0
     );
     setSystemID(
-      structureType[selectedJobType]?.requirements?.systemID || 30000142
+      structureType[selectedJobType]?.requirements?.systemID || DEFAULT_SYSTEM
     );
     setSystemType(
       structureTypeMap[selectedJobType][structureType]?.requirements
@@ -147,7 +166,7 @@ function StructureOptionsSelection_CustomStructures({
 
   return (
     <Box sx={{}}>
-      <Grid container spacing={1}>
+      <Grid container>
         <Grid item xs={12}>
           <FormControl fullWidth sx={styling}>
             <TextField
@@ -165,104 +184,55 @@ function StructureOptionsSelection_CustomStructures({
             />
           </FormControl>
         </Grid>
-        <Grid item xs={12} sm={6}>
-          <Tooltip title={structureTypeTooltip} arrow placement="top">
-            <FormControl fullWidth sx={styling}>
-              <Select
-                variant="standard"
-                size="small"
-                value={structureType}
-                onChange={(event) => {
-                  const newValue = event.target.value;
-                  setStructureType(newValue);
-                  handleStructureStateRequirements(
-                    structureTypeMap[selectedJobType][newValue]?.requirements
-                  );
-                }}
-              >
-                {Object.values(structureTypeMap[selectedJobType]).map(
-                  (entry) => {
-                    return (
-                      <MenuItem key={entry.id} value={entry.id}>
-                        {entry.label}
-                      </MenuItem>
-                    );
-                  }
-                )}
-              </Select>
-              <FormHelperText variant="standard">Structure Type</FormHelperText>
-            </FormControl>
-          </Tooltip>
+        <Grid item xs={12} sm={6} sx={{ paddingX: "20px" }}>
+          <StructureTypeSelect
+            value={structureType}
+            onChange={(selectedEntry) => {
+              setStructureType(selectedEntry.id);
+              handleStructureStateRequirements(
+                getRequirements(selectedEntry.requirementID)
+              );
+            }}
+          />
         </Grid>
-        <Grid item xs={12} sm={6}>
-          <FormControl fullWidth sx={styling}>
-            <Select
-              variant="standard"
-              size="small"
-              value={rigType}
-              onChange={(event) => {
-                const newValue = event.target.value;
-                setRigType(newValue);
-                handleStructureStateRequirements(
-                  rigTypeMap[selectedJobType][newValue]?.requirements
-                );
-              }}
-            >
-              {Object.values(rigTypeMap[selectedJobType]).map((entry) => {
-                return (
-                  <MenuItem key={entry.id} value={entry.id}>
-                    {entry.label}
-                  </MenuItem>
-                );
-              })}
-            </Select>
-            <FormHelperText variant="standard">Rig Type</FormHelperText>
-          </FormControl>
+        <Grid item xs={12} sm={6} sx={{ paddingX: "20px" }}>
+          <RigTypeSelect
+            value={rigType}
+            onChange={(selectedEntry) => {
+              setRigType(selectedEntry.id);
+              handleStructureStateRequirements(
+                getRequirements(selectedEntry.requirementID)
+              );
+            }}
+          />
         </Grid>
-        <Grid item xs={12} sm={6}>
-          <FormControl fullWidth sx={styling}>
-            <Select
-              variant="standard"
-              size="small"
-              value={systemType}
-              onChange={(event) => {
-                const newValue = event.target.value;
-                setSystemType(newValue);
-                handleStructureStateRequirements(
-                  systemTypeMap[selectedJobType][newValue]?.requirements
-                );
-              }}
-            >
-              {Object.values(systemTypeMap[selectedJobType]).map((entry) => {
-                return (
-                  <MenuItem key={entry.id} value={entry.id}>
-                    {entry.label}
-                  </MenuItem>
-                );
-              })}
-            </Select>
-            <FormHelperText variant="standard">System Type</FormHelperText>
-          </FormControl>
+        <Grid item xs={12} sm={6} sx={{ paddingX: "20px" }}>
+          <SystemTypeSelect
+            value={systemType}
+            onChange={(selectedEntry) => {
+              setSystemType(selectedEntry.id);
+              handleStructureStateRequirements(
+                getRequirements(selectedEntry.requirementID)
+              );
+            }}
+          />
         </Grid>
-        <Grid item xs={12} sm={6}>
-          <FormControl fullWidth sx={styling}>
-            <TextField
-              value={taxPercentage}
-              size="small"
-              variant="standard"
-              helperText="Tax"
-              type="number"
-              onChange={(e) => setTaxPercentage(Number(e.target.value))}
-              onBlur={(e) => setTaxPercentage(Number(e.target.value))}
-            />
-          </FormControl>
+        <Grid item xs={12} sm={6} sx={{ paddingX: "20px" }}>
+          <TaxPercentageTextField
+            initialState={taxPercentage}
+            onBlur={(value) => {
+              setTaxPercentage(value);
+            }}
+          />
         </Grid>
         <Grid item xs={12} sm={6}>
           <VirtualisedSystemSearch
             selectedValue={systemID}
+            jobType={selectedJobType}
             updateSelectedValue={(newValue) => {
               try {
-                const requirements = systemStructureRequirements[newValue];
+                const object = systemStructureRequirements[newValue];
+                const requirements = getRequirements(object?.requirementID);
                 if (
                   requirements?.allowedJobTypes &&
                   !requirements?.allowedJobTypes.includes(selectedJobType)

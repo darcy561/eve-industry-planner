@@ -2,7 +2,6 @@ import { useContext, useState } from "react";
 import { Grid, Icon, Tooltip, Typography } from "@mui/material";
 import InfoIcon from "@mui/icons-material/Info";
 import {
-  jobTypes,
   LARGE_TEXT_FORMAT,
   STANDARD_TEXT_FORMAT,
   TWO_DECIMAL_PLACES,
@@ -31,6 +30,10 @@ export function MaterialCostRow_MaterialPricePanel({
   updateEsiDataToLink,
   parentChildToEdit,
   updateParentChildToEdit,
+  setIsPriceHistoryDialogOpen,
+  setPriceHistoryTypeID,
+  setIsMarketDataDialogOpen,
+  setMarketDataTypeID,
 }) {
   const { jobArray } = useContext(JobArrayContext);
   const { applicationSettings } = useContext(ApplicationSettingsContext);
@@ -114,9 +117,17 @@ export function MaterialCostRow_MaterialPricePanel({
       </Grid>
       <Grid container item xs={10} md={4} align="left">
         <Grid item xs={11} alignItems="center" sx={{ display: "flex" }}>
-          <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
-            {material.name}
-          </Typography>
+          <Tooltip title="Click to view price history." arrow placement="top">
+            <Typography
+              sx={{ typography: LARGE_TEXT_FORMAT, cursor: "pointer" }}
+              onClick={() => {
+                setPriceHistoryTypeID(material.typeID);
+                setIsPriceHistoryDialogOpen((prev) => !prev);
+              }}
+            >
+              {material.name}
+            </Typography>
+          </Tooltip>
         </Grid>
         <Grid
           item
@@ -184,33 +195,7 @@ export function MaterialCostRow_MaterialPricePanel({
       >
         <Grid item xs={12}>
           <Tooltip
-            title={
-              <span>
-                <p>
-                  <b>30 Day Region Market History</b>
-                </p>
-                <p>
-                  Highest Market Price:{" "}
-                  {marketObject.highestMarketPrice.toLocaleString()}
-                </p>
-                <p>
-                  Lowest Market Price:{" "}
-                  {marketObject.lowestMarketPrice.toLocaleString()}
-                </p>
-                <p>
-                  Daily Average Market Price:{" "}
-                  {marketObject.dailyAverageMarketPrice.toLocaleString()}
-                </p>
-                <p>
-                  Daily Average Order Quantity:{" "}
-                  {marketObject.dailyAverageOrderQuantity.toLocaleString()}
-                </p>
-                <p>
-                  Daily Average Unit Count:{" "}
-                  {marketObject.dailyAverageUnitCount.toLocaleString()}
-                </p>
-              </span>
-            }
+            title="Click to view current market data"
             arrow
             placement="top"
           >
@@ -221,6 +206,10 @@ export function MaterialCostRow_MaterialPricePanel({
                 productionCostPerItem,
                 true
               )}
+              onClick={() => {
+                setIsMarketDataDialogOpen((prev) => !prev);
+                setMarketDataTypeID(material.typeID);
+              }}
             >
               {currentMaterialPrice.toLocaleString(
                 undefined,

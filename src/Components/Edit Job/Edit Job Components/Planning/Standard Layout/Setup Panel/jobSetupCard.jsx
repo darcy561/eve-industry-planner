@@ -10,15 +10,19 @@ import {
 import {
   jobTypeMapping,
   STANDARD_TEXT_FORMAT,
-  structureOptions,
   TWO_DECIMAL_PLACES,
 } from "../../../../../../Context/defaultValues";
 import { jobTypes } from "../../../../../../Context/defaultValues";
 import { UsersContext } from "../../../../../../Context/AuthContext";
-import rawSystemData from "../../../../../../RawData/systems.json";
 import { SystemIndexContext } from "../../../../../../Context/EveDataContext";
 import { ApplicationSettingsContext } from "../../../../../../Context/LayoutContext";
 import Job from "../../../../../../Classes/jobConstructor";
+import {
+  getRigInfoFromID,
+  getStructureInfoFromID,
+  getSystemTypeFromID,
+} from "../../../../../../Functions/Helper/getStructureInfo";
+import getSystemNameFromID from "../../../../../../Functions/Helper/getSystemName";
 
 export function JobSetupCard({ setupEntry, activeJob, updateActiveJob }) {
   const { users } = useContext(UsersContext);
@@ -172,35 +176,20 @@ function UseCustomStructure({ setupEntry }) {
 
 function UseDefaultStructures({ setupEntry }) {
   const { systemIndexData } = useContext(SystemIndexContext);
+  
+  const structureTypeData = getStructureInfoFromID(
+    setupEntry.jobType,
+    setupEntry.structureID
+  );
 
-  const jobTypeMapping = {
-    [jobTypes.manufacturing]: "manufacturing",
-    [jobTypes.reaction]: "reaction",
-  };
-  const structureTypeMap = {
-    [jobTypes.manufacturing]: structureOptions.manStructure,
-    [jobTypes.reaction]: structureOptions.reactionStructure,
-  };
-  const rigTypeMap = {
-    [jobTypes.manufacturing]: structureOptions.manRigs,
-    [jobTypes.reaction]: structureOptions.reactionRigs,
-  };
-  const systemTypeMap = {
-    [jobTypes.manufacturing]: structureOptions.manSystem,
-    [jobTypes.reaction]: structureOptions.reactionSystem,
-  };
+  const rigTypeData = getRigInfoFromID(setupEntry.jobType, setupEntry.rigID);
 
-  const structureTypeData =
-    structureTypeMap[setupEntry.jobType][setupEntry.structureID];
+  const systemTypeData = getSystemTypeFromID(
+    setupEntry.jobType,
+    setupEntry.systemTypeID
+  );
 
-  const rigTypeData = rigTypeMap[setupEntry.jobType][setupEntry.rigID];
-
-  const systemTypeData =
-    systemTypeMap[setupEntry.jobType][setupEntry.systemTypeID];
-
-  const matchedSystemID =
-    rawSystemData.find((i) => i.id === setupEntry.systemID)?.name ||
-    "No Matching System";
+  const matchedSystemID = getSystemNameFromID(setupEntry.systemID);
 
   const systemIndexValue =
     systemIndexData[setupEntry.systemID]?.[
