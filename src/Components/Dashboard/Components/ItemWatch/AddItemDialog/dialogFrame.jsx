@@ -66,7 +66,9 @@ export function AddWatchItemDialog({
         materials: [],
         group: groupSelect,
         buildData:
-          job !== undefined ? Object.values(job?.build?.setup)[0] : null,
+          job !== undefined
+            ? Object.values(job?.build?.setup)[0].toDocument()
+            : null,
       });
     });
     mainJobMaterials.forEach((mat) => {
@@ -94,9 +96,8 @@ export function AddWatchItemDialog({
       childJobPresent: childJobPresent,
       buildData: Object.values(
         materialJobs[watchlistItemRequest].build.setup
-      )[0],
+      )[0].toDocument(),
     };
-
     if (watchlistItemToEdit) {
       newUserWatchlistItems[watchlistItemToEdit] = finalWatchlistItem;
     } else {
@@ -120,7 +121,8 @@ export function AddWatchItemDialog({
     });
 
     sendSnackbarNotificationSuccess(
-      `${materialJobs[watchlistItemRequest].name} Added`, 3
+      `${materialJobs[watchlistItemRequest].name} Added`,
+      3
     );
     handleClose();
   }

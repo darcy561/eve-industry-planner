@@ -9,7 +9,11 @@ function RightSideMenuContent_GroupPage({
   setSkeletonElementsToDisplay,
   highlightedItems,
   updateHighlightedItem,
-  pageRequiresDrawerToBeOpen
+  pageRequiresDrawerToBeOpen,
+  setIsPriceHistoryDialogOpen,
+  setPriceHistoryTypeID,
+  setIsMarketDataDialogOpen,
+  setMarketDataTypeID,
 }) {
   switch (rightContentMenuContentID) {
     case 1:
@@ -28,6 +32,10 @@ function RightSideMenuContent_GroupPage({
           groupJobs={groupJobs}
           highlightedItems={highlightedItems}
           updateHighlightedItem={updateHighlightedItem}
+          setIsPriceHistoryDialogOpen={setIsPriceHistoryDialogOpen}
+          setPriceHistoryTypeID={setPriceHistoryTypeID}
+          setIsMarketDataDialogOpen={setIsMarketDataDialogOpen}
+          setMarketDataTypeID={setMarketDataTypeID}
         />
       );
   }

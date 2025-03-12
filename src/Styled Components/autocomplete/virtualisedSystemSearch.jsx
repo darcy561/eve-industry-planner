@@ -4,8 +4,13 @@ import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import systemIDsJSON from "../../RawData/systems.json";
 import { FormControl, FormHelperText } from "@mui/material";
+import { systemStructureRequirements } from "../../Context/defaultValues";
 
-function VirtualisedSystemSearch({ selectedValue = 0, updateSelectedValue }) {
+function VirtualisedSystemSearch({
+  selectedValue = 0,
+  updateSelectedValue,
+  jobType = null,
+}) {
   const [inputValue, setInputValue] = useState("");
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("Error");
@@ -41,16 +46,23 @@ function VirtualisedSystemSearch({ selectedValue = 0, updateSelectedValue }) {
       </div>
     );
   });
-
   const systemIDMap = useMemo(() => {
     let results = {};
-
     for (let system of systemIDsJSON) {
-      results[system.id] = system;
+      const availableJobTypes =
+        systemStructureRequirements[system.id]?.allowedJobTypes || [];
+      if (jobType === null || availableJobTypes.length === 0) {
+        results[system.id] = system;
+      } else {
+        const matches = availableJobTypes.includes(jobType);
+        if (matches) {
+          results[system.id] = system;
+        }
+      }
     }
 
     return results;
-  }, []);
+  }, [jobType]);
 
   const handleChange = (event, newValue) => {
     if (newValue) {
@@ -84,7 +96,7 @@ function VirtualisedSystemSearch({ selectedValue = 0, updateSelectedValue }) {
       <Autocomplete
         id="System Search"
         value={systemIDMap[selectedValue]}
-        options={systemIDsJSON}
+        options={Object.values(systemIDMap)}
         clearOnBlur
         inputValue={inputValue}
         onInputChange={(event, newInputValue) => setInputValue(newInputValue)}

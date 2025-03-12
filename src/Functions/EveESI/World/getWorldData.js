@@ -17,13 +17,13 @@ async function getWorldData(inputIDs, userObj) {
     const locationSplit = { citadels: [], standard: [] };
 
     inputIDs.forEach((id) => {
-      if (id >= STATIONID_RANGE.low && id <= STATIONID_RANGE.high) {
-        locationSplit.standard.push(id);
-      } else {
+      if (id.toString().length > 10) {
         locationSplit.citadels.push(id);
+      } else {
+        locationSplit.standard.push(id);
       }
     });
-
+    console.log(locationSplit);
     for (let i = 0; i < locationSplit.standard.length; i += chunkSize) {
       const chunk = locationSplit.standard.slice(i, i + chunkSize);
       if (chunk.length === 0) continue;

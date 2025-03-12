@@ -4,6 +4,11 @@ import { jobTypes } from "../Context/defaultValues";
 import { structureOptions } from "../Context/defaultValues";
 import { PersonalESIDataContext } from "../Context/EveDataContext";
 import { useHelperFunction } from "./GeneralHooks/useHelperFunctions";
+import Setup from "../Classes/jobSetupConstructor";
+import {
+  getStructureInfoFromID,
+  getRigInfoFromID,
+} from "../Functions/Helper/getStructureInfo";
 
 export function useBlueprintCalc() {
   const { users } = useContext(UsersContext);
@@ -11,15 +16,15 @@ export function useBlueprintCalc() {
   const { findParentUser } = useHelperFunction();
 
   function calculateResources(calcData) {
+    if (!(calcData instanceof Setup)) return;
+
+    const requirements = calcData.gatherRequirements();
     switch (calcData.jobType) {
       case jobTypes.manufacturing:
-        const manStructureData = getStructureData(
-          "manStructure",
-          calcData.structureID
-        );
+        const manStructureValue = getStructureData(calcData, requirements);
 
-        const manRigData = getStructureData("manRigs", calcData.rigID);
-        const manSystemData = getSystemData("manSystem", calcData.systemTypeID);
+        const manRigValue = getRigData(calcData, requirements);
+        const manSystemValue = getSystemTypeData(calcData, requirements);
 
         return updateMaterialQuantities(calcData.materialCount, (rawQuantity) =>
           manufacturingMaterialCalc(
@@ -27,32 +32,27 @@ export function useBlueprintCalc() {
             calcData.runCount,
             calcData.jobCount,
             calcData.ME,
-            manStructureData,
-            manRigData,
-            manSystemData
+            manStructureValue,
+            manRigValue,
+            manSystemValue
           )
         );
 
       case jobTypes.reaction:
-        const reactionRigData = getStructureData(
-          "reactionRigs",
-          calcData.rigID
-        );
-        const reactionSystemData = getSystemData(
-          "reactionSystem",
-          calcData.systemTypeID
-        );
+        const reactionRigValue = getRigData(calcData, requirements);
+        const reactionSystemValue = getSystemTypeData(calcData, requirements);
 
         return updateMaterialQuantities(calcData.materialCount, (rawQuantity) =>
           reactionMaterialCalc(
             rawQuantity,
             calcData.runCount,
             calcData.jobCount,
-            reactionRigData,
-            reactionSystemData
+            reactionRigValue,
+            reactionSystemValue
           )
         );
     }
+
     function manufacturingMaterialCalc(
       baseQty,
       itemRuns,
@@ -94,12 +94,44 @@ export function useBlueprintCalc() {
     }
   }
 
-  function getSystemData(materialType, id) {
-    return structureOptions[materialType][id]?.value || 0;
+  function getStructureData(setup, requirements) {
+    const structureObject = setup.getStructureObject();
+
+    if (Object.hasOwn(requirements, "structureID")) {
+      const requiredObject = getStructureInfoFromID(
+        setup.jobType,
+        requirements.structureID
+      );
+
+      return requiredObject?.material ?? 0;
+    }
+    return structureObject?.material ?? 0;
   }
-  function getStructureData(materialType, id) {
-    return structureOptions[materialType][id]?.material || 0;
+
+  function getRigData(setup, requirements) {
+    const rigObject = setup.getRigObject();
+    if (Object.hasOwn(requirements, "rigID")) {
+      const requiredObject = getRigInfoFromID(
+        setup.jobType,
+        requirements.rigID
+      );
+      return requiredObject?.material ?? 0;
+    }
+    return rigObject?.material ?? 0;
   }
+  function getSystemTypeData(setup, requirements) {
+    const systemTypeObject = setup.getSystemTypeObject();
+
+    if (Object.hasOwn(requirements, "alternativeSystemValue")) {
+      return (
+        requirements.alternativeSystemValue[systemTypeObject.id] ??
+        systemTypeObject?.value ??
+        0
+      );
+    }
+    return systemTypeObject?.value ?? 0;
+  }
+
   const calculateTime = (calcData, jobSkills) => {
     let user =
       users.find((i) => i.CharacterHash === calcData.selectedCharacter) ||
@@ -119,8 +151,9 @@ export function useBlueprintCalc() {
       if (job.jobType === jobTypes.manufacturing) {
         const indySkill = userSkills[3380]?.activeLevel || 0;
         const advIndySkill = userSkills[3388]?.activeLevel || 0;
-        const strucData = structureOptions.manStructure[job.structureID].time;
-        const rigData = structureOptions.manRigs[job.rigID].time;
+        const strucData =
+          getStructureInfoFromID(job.jobType, job.structureID)?.time || 0;
+        const rigData = getRigInfoFromID(job.jobType, job.rigID)?.time || 0;
 
         let teIndexer = 1;
         let indyIndexer = 1 - 0.04 * indySkill;
@@ -148,8 +181,8 @@ export function useBlueprintCalc() {
       if (job.jobType === jobTypes.reaction) {
         const reactionSkill = userSkills[45746].activeLevel || 0;
         const strucData =
-          structureOptions.reactionStructure[job.structureID].time;
-        const rigData = structureOptions.reactionRigs[job.rigID].time;
+          getStructureInfoFromID(job.jobType, job.structureID)?.time || 0;
+        const rigData = getRigInfoFromID(job.jobType, job.rigID)?.time || 0;
 
         let reacIndexer = 1 - 0.04 * reactionSkill;
         let strucIndexer = 1 - strucData;

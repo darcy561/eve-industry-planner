@@ -31,6 +31,8 @@ import convertJobIDsToObjects from "../../Functions/Helper/convertJobIDsToObject
 import { useInstallCostsCalc } from "../../Hooks/GeneralHooks/useInstallCostCalc";
 import recalculateInstallCostsWithNewData from "../../Functions/Installation Costs/recalculateInstallCostsWithNewData";
 import getMissingESIData from "../../Functions/Shared/getMissingESIData";
+import PriceHistoryDialog from "../Dialogues/Price History/dialogFrame";
+import MarketDataDialog from "../Dialogues/Market Data/dialogFrame";
 
 function GroupPageFrame({ colorMode }) {
   const { activeGroup, updateActiveGroup } = useContext(ActiveJobContext);
@@ -51,6 +53,11 @@ function GroupPageFrame({ colorMode }) {
     useState(null);
   const [skeletonElementsToDisplay, setSkeletonElementsToDisplay] = useState(0);
   const [highlightedItems, updateHighlightedItem] = useState(new Set());
+  const [isPriceHistoryDialogOpen, setIsPriceHistoryDialogOpen] =
+    useState(false);
+  const [priceHistoryTypeID, setPriceHistoryTypeID] = useState(null);
+  const [isMarketDataDialogOpen, setIsMarketDataDialogOpen] = useState(false);
+  const [marketDataTypeID, setMarketDataTypeID] = useState(null);
   const { calculateInstallCostFromJob } = useInstallCostsCalc();
   const { groupID } = useParams();
 
@@ -148,6 +155,22 @@ function GroupPageFrame({ colorMode }) {
 
       <ShoppingListDialog />
       <PriceEntryDialog />
+      {isPriceHistoryDialogOpen && (
+        <PriceHistoryDialog
+          isOpen={isPriceHistoryDialogOpen}
+          setIsOpen={setIsPriceHistoryDialogOpen}
+          typeID={priceHistoryTypeID}
+          setTypeID={setPriceHistoryTypeID}
+        />
+      )}
+      {isMarketDataDialogOpen && (
+        <MarketDataDialog
+          isOpen={isMarketDataDialogOpen}
+          setIsOpen={setIsMarketDataDialogOpen}
+          typeID={marketDataTypeID}
+          setTypeID={setPriceHistoryTypeID}
+        />
+      )}
       <LeftCollapseableMenuDrawer inputDrawerButtons={buttonOptions} />
       <Box
         component="main"
@@ -199,6 +222,10 @@ function GroupPageFrame({ colorMode }) {
               highlightedItems={highlightedItems}
               updateHighlightedItem={updateHighlightedItem}
               pageRequiresDrawerToBeOpen={pageRequiresRightDrawerOpen}
+              setIsPriceHistoryDialogOpen={setIsPriceHistoryDialogOpen}
+              setPriceHistoryTypeID={setPriceHistoryTypeID}
+              setIsMarketDataDialogOpen={setIsMarketDataDialogOpen}
+              setMarketDataTypeID={setMarketDataTypeID}
             />
           }
           expandRightContentMenu={expandRightContentMenu}

@@ -531,10 +531,7 @@ export const structureOptions = {
       material: 0,
       time: 0,
       cost: 0,
-      requirements: {
-        taxValue: 0.25,
-        rigID: 0,
-      },
+      requirementID: 2,
     },
     1: { id: 1, label: "Medium", material: 1, time: 0.15, cost: 0.03 },
     2: { id: 2, label: "Large", material: 1, time: 0.2, cost: 0.04 },
@@ -545,12 +542,7 @@ export const structureOptions = {
       material: 1.06,
       time: 0.7,
       cost: 0.9,
-      requirements: {
-        rigID: 0,
-        systemTypeID: 3,
-        systemID: 30100000,
-        taxValue: 0.25,
-      },
+      requirementID: 0,
     },
   },
 
@@ -564,6 +556,7 @@ export const structureOptions = {
     6: { id: 6, label: "T2 - ME & TE", material: 2.4, time: 0.24 },
     7: { id: 7, label: "T1 - ME, T2 - TE ", material: 2.0, time: 0.24 },
     8: { id: 8, label: "T2 - ME, T1 - TE", material: 2.4, time: 0.2 },
+    9: { id: 9, label: "Faction", material: 3.7, time: 0.2, requirementID: 1 },
   },
 
   manSystem: {
@@ -574,12 +567,7 @@ export const structureOptions = {
       id: 3,
       label: "Zarzakh",
       value: 1,
-      requirements: {
-        rigID: 0,
-        structureID: 4,
-        systemID: 30100000,
-        taxValue: 0.25,
-      },
+      requirementID: 0,
     },
   },
   reactionSystem: {
@@ -624,16 +612,43 @@ export const customStructureMap = {
 export const customStructureLocationMap = {
   [jobTypes.manufacturing]: "manStruct",
   [jobTypes.reaction]: "reacStruct",
-}
+};
 
 export const systemStructureRequirements = {
   30100000: {
+    allowedJobTypes: [jobTypes.manufacturing],
+    requirementID: 0,
+  },
+};
+
+export const requirements = {
+  0: {
+    id: 0,
     rigID: 0,
     systemTypeID: 3,
     structureID: 4,
     systemID: 30100000,
     taxValue: 0.25,
     allowedJobTypes: [jobTypes.manufacturing],
+    label: "The Fulcrum - Zarzak",
+  },
+  1: {
+    id: 1,
+    rigID: 9,
+    alternativeSystemValue: {
+      0: 0.1,
+      1: 1.9,
+      2: 0.1,
+    },
+    allowedJobTypes: [jobTypes.manufacturing],
+    label: "Thukker Manufacturing Rigs",
+  },
+  2: {
+    id: 2,
+    rigID: 0,
+    structureID: 0,
+    taxValue: 0.25,
+    label: "NPC Station",
   },
 };
 
@@ -658,6 +673,11 @@ export const STATIONID_RANGE = {
 export const SYSTEMID_RANGE = {
   low: 30000000,
   high: 32000000,
+};
+
+export const CITADELID_RANGE = {
+  low: 61000000,
+  high: 64000000,
 };
 
 export const TWO_DECIMAL_PLACES = {

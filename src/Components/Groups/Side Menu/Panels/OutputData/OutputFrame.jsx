@@ -6,6 +6,10 @@ function OutputJobsInfoPanel({
   groupJobs,
   updateHighlightedItem,
   highlightedItems,
+  setIsPriceHistoryDialogOpen,
+  setPriceHistoryTypeID,
+  setIsMarketDataDialogOpen,
+  setMarketDataTypeID
 }) {
   const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("sm"));
 
@@ -19,7 +23,7 @@ function OutputJobsInfoPanel({
     <Paper
       elevation={3}
       square
-      sx={{ padding: 1, height: "100%", width: "100%", }}
+      sx={{ padding: 1, height: "100%", width: "100%" }}
     >
       <Box sx={{ height: "100%", width: deviceBasedWidth }}>
         {outputJobs.map((job) => {
@@ -29,6 +33,10 @@ function OutputJobsInfoPanel({
               inputJob={job}
               updateHighlightedItem={updateHighlightedItem}
               highlightedItems={highlightedItems}
+              setIsPriceHistoryDialogOpen={setIsPriceHistoryDialogOpen}
+              setPriceHistoryTypeID={setPriceHistoryTypeID}
+              setIsMarketDataDialogOpen={setIsMarketDataDialogOpen}
+              setMarketDataTypeID={setMarketDataTypeID}
             />
           );
         })}
