@@ -49,11 +49,7 @@ export function JobSetupPanel({ activeJob, updateActiveJob, setJobModified }) {
           sx={{ position: "absolute", top: "10px", left: "10px" }}
           color="primary"
           onClick={() => {
-            const { jobSetups, newMaterialArray, newTotalProduced } =
-              addNewSetup(activeJob);
-            activeJob.build.setup = jobSetups;
-            activeJob.build.materials = newMaterialArray;
-            activeJob.build.products.totalQuantity = newTotalProduced;
+            addNewSetup(activeJob);
             updateActiveJob((prev) => new Job(prev));
             sendSnackbarNotificationSuccess("Added");
             setJobModified(true);
@@ -90,25 +86,19 @@ export function JobSetupPanel({ activeJob, updateActiveJob, setJobModified }) {
           <MenuItem
             onClick={() => {
               handleMenuClose();
-              const {
-                jobSetups,
-                newMaterialArray,
-                newTotalProduced,
-                replacementSetupID,
-                preventUpdate,
-              } = deleteActiveSetup(activeJob, setupToEdit);
+              const succesfullyDeleted = deleteActiveSetup(
+                activeJob,
+                setupToEdit
+              );
 
-              if (preventUpdate) {
+              if (!succesfullyDeleted) {
                 sendSnackbarNotificationWarning(
                   "Cannot delete the final setup. Create a replacement setup first.",
                   3
                 );
                 return;
               }
-              activeJob.build.setup = jobSetups;
-              activeJob.build.materials = newMaterialArray;
-              activeJob.build.products.totalQuantity = newTotalProduced;
-              activeJob.layout.setupToEdit = replacementSetupID;
+
               updateActiveJob((prev) => new Job(prev));
               sendSnackbarNotificationError("Deleted");
               setJobModified(true);

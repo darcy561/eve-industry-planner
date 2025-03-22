@@ -11,7 +11,7 @@ export function useSetupManagement() {
     addItemBlueprint,
     addDefaultStructure,
     recalculateItemQty,
-    calculateJobMaterialQuantities,
+    calculateJobTotalMaterialQuantities,
   } = useJobBuild();
   const { findParentUser } = useHelperFunction();
 
@@ -30,39 +30,26 @@ export function useSetupManagement() {
       alternativvePriceData,
       alternativeSystemIndexData
     );
-    chosenJob.build.products.totalQuantity = Object.values(
-      chosenJob.build.setup
-    ).reduce((prev, { runCount, jobCount }) => {
-      return (prev += chosenJob.itemsProducedPerRun * runCount * jobCount);
-    }, 0);
 
-    const newTotalQuantities = calculateJobMaterialQuantities(
-      chosenJob.build.setup
-    );
+    recalculateTotalQuantityProduced(chosenJob);
 
-    for (const material of chosenJob.build.materials) {
-      const materialId = material.typeID.toString();
-      if (materialId in newTotalQuantities) {
-        material.quantity = newTotalQuantities[materialId];
-      }
-    }
+    updateTotalMaterialQuantities(chosenJob);
   }
 
-  function addNewSetup(selectedJob) {
-    const existingMaterialsLocation = selectedJob.rawData.materials;
-    const rawTimeValue = selectedJob.rawData.time;
+  function addNewSetup(chosenJob) {
+    const rawTimeValue = chosenJob.rawData.time;
 
-    const requiredQuantity = selectedJob.rawData.products[0].quantity;
+    const requiredQuantity = chosenJob.rawData.products[0].quantity;
 
     const { ME, TE } = addItemBlueprint(
-      selectedJob.jobType,
-      selectedJob.blueprintTypeID
+      chosenJob.jobType,
+      chosenJob.blueprintTypeID
     );
-    const structureData = addDefaultStructure(selectedJob.jobType);
+    const structureData = addDefaultStructure(chosenJob.jobType);
 
     const setupQuantities = recalculateItemQty(
-      selectedJob.maxProductionLimit,
-      selectedJob.rawData.products[0].quantity,
+      chosenJob.maxProductionLimit,
+      chosenJob.rawData.products[0].quantity,
       requiredQuantity
     );
 
@@ -73,10 +60,10 @@ export function useSetupManagement() {
       ...setupQuantities[0],
       characterToUse: parentUser.CharacterHash,
       rawTimeValue,
-      jobType: selectedJob.jobType,
+      jobType: chosenJob.jobType,
     });
 
-    existingMaterialsLocation.forEach((material) => {
+    chosenJob.rawData.materials.forEach((material) => {
       newSetup.materialCount[material.typeID] = {
         typeID: material.typeID,
         quantity: material.quantity,
@@ -84,56 +71,54 @@ export function useSetupManagement() {
       };
     });
 
-    newSetup.estimatedTime = calculateTime(newSetup, selectedJob.skills);
+    newSetup.estimatedTime = calculateTime(newSetup, chosenJob.skills);
     newSetup.materialCount = calculateResources(newSetup);
     newSetup.estimatedInstallCost = calculateInstallCostFromJob(newSetup);
 
-    const { jobSetups, newMaterialArray, newTotalProduced } = recalculateSetup(
-      newSetup,
-      selectedJob
-    );
+    chosenJob.build.setup[newSetup.id] = newSetup;
+    
+    chosenJob.layout.setupToEdit = newSetup.id
 
-    return { jobSetups, newMaterialArray, newTotalProduced };
+    recalculateTotalQuantityProduced(chosenJob);
+
+    updateTotalMaterialQuantities(chosenJob);
   }
 
   function deleteActiveSetup(chosenJob, activeSetup) {
-    let jobSetups = { ...chosenJob.build.setup };
-    const itemsProducedPerRun = chosenJob.itemsProducedPerRun;
-    let newMaterialArray = [...chosenJob.build.materials];
-    let preventUpdate = false;
-
     if (Object.keys(chosenJob.build.setup).length === 1) {
-      preventUpdate = true;
-      return { preventUpdate };
+      return false;
     }
 
-    delete jobSetups[activeSetup];
+    delete chosenJob.build.setup[activeSetup];
 
-    const newTotalProduced = Object.values(jobSetups).reduce(
-      (prev, { runCount, jobCount }) => {
-        return (prev += itemsProducedPerRun * runCount * jobCount);
-      },
-      0
+    chosenJob.layout.setupToEdit = Object.keys(chosenJob.build.setup).at(-1);
+
+    recalculateTotalQuantityProduced(chosenJob);
+
+    updateTotalMaterialQuantities(chosenJob);
+
+    return true;
+  }
+
+  function recalculateTotalQuantityProduced(inputJob) {
+    inputJob.build.products.totalQuantity = Object.values(
+      inputJob.build.setup
+    ).reduce((prev, { runCount, jobCount }) => {
+      return (prev += inputJob.itemsProducedPerRun * runCount * jobCount);
+    }, 0);
+  }
+
+  function updateTotalMaterialQuantities(inputjob) {
+    const newTotalQuantities = calculateJobTotalMaterialQuantities(
+      inputjob.build.setup
     );
 
-    const newTotalQuantities = calculateJobMaterialQuantities(jobSetups);
-
-    for (const material of newMaterialArray) {
+    for (const material of inputjob.build.materials) {
       const materialId = material.typeID.toString();
       if (materialId in newTotalQuantities) {
         material.quantity = newTotalQuantities[materialId];
       }
     }
-
-    const replacementSetupID = Object.keys(jobSetups)[0];
-
-    return {
-      jobSetups,
-      newMaterialArray,
-      newTotalProduced,
-      preventUpdate,
-      replacementSetupID,
-    };
   }
 
   return {

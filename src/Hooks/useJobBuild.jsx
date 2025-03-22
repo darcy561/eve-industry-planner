@@ -363,7 +363,7 @@ export function useJobBuild() {
         calculateInstallCostFromJob(setupLocation[nextObject.id]);
     }
 
-    const newTotalQuantities = calculateJobMaterialQuantities(setupLocation);
+    const newTotalQuantities = calculateJobTotalMaterialQuantities(setupLocation);
 
     for (const material of inputJobObject.build.materials) {
       const materialId = material.typeID.toString();
@@ -454,11 +454,11 @@ export function useJobBuild() {
     outputObject.groupID = buildRequest.groupID;
   }
 
-  function calculateJobMaterialQuantities(jobSetupObject) {
+  function calculateJobTotalMaterialQuantities(jobSetupsContainerObject) {
     const totals = {};
 
-    for (const objId of Object.keys(jobSetupObject)) {
-      const materialCount = jobSetupObject[objId].materialCount || {};
+    for (const objId of Object.keys(jobSetupsContainerObject)) {
+      const materialCount = jobSetupsContainerObject[objId].materialCount || {};
 
       for (const materialId of Object.keys(materialCount)) {
         const quantity = materialCount[materialId].quantity || 0;
@@ -483,7 +483,7 @@ export function useJobBuild() {
     addDefaultStructure,
     addItemBlueprint,
     buildJob,
-    calculateJobMaterialQuantities,
+    calculateJobTotalMaterialQuantities,
     checkAllowBuild,
     jobBuildErrors,
     recalculateItemQty,

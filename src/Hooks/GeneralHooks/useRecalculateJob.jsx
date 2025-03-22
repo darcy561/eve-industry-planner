@@ -8,7 +8,7 @@ export function useRecalcuateJob() {
   const {
     addItemBlueprint,
     addDefaultStructure,
-    calculateJobMaterialQuantities,
+    calculateJobTotalMaterialQuantities,
     recalculateItemQty,
   } = useJobBuild();
   const { calculateTime, calculateResources } = useBlueprintCalc();
@@ -65,7 +65,7 @@ export function useRecalcuateJob() {
       }
     });
 
-    const newTotalQuantities = calculateJobMaterialQuantities(
+    const newTotalQuantities = calculateJobTotalMaterialQuantities(
       inputJob.build.setup
     );
     for (const material of inputJob.build.materials) {
