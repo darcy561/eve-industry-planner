@@ -121,7 +121,7 @@ services:
       - "--api.dashboard=true"
       # Entrypoints
       - "--entrypoints.web.address=:80"
-      - "--entrypoints.tailscale.address=:81"
+      - "--entrypoints.tailscale.address=${TAILSCALE_IP}:81"
       # Providers
       - "--providers.docker=true"
       - "--providers.docker.endpoint=unix:///var/run/docker.sock"
@@ -135,18 +135,18 @@ services:
     labels:
       # Traefik Dashboard
       - "traefik.enable=true"
-      - "traefik.http.routers.traefik-dashboard.rule=PathPrefix(`/`)"
-      - "traefik.http.routers.traefik-dashboard.entrypoints=tailscale"
+      - "traefik.http.routers.traefik-dashboard.rule=PathPrefix(`/traefik`)"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=web"
       - "traefik.http.routers.traefik-dashboard.service=api@internal"
-      - "traefik.http.routers.traefik-dashboard.priority=10"
+      - "traefik.http.middlewares.tailscale-whitelist.ipWhiteList.sourcerange=100.64.0.0/10"
+      - "traefik.http.routers.traefik-dashboard.middlewares=tailscale-whitelist"
     dns:
       - 8.8.8.8
       - 8.8.4.4
       - 1.1.1.1
     ports:
       - "80:80"
-      - "443:443"
-      - "81:81"
+      - "${TAILSCALE_IP}:81:81"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "traefik_data:/data"
