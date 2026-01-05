@@ -4,24 +4,30 @@ services:
     restart: unless-stopped
     env_file: [.env]
     labels:
+      # Enable Traefik for this container
       - "traefik.enable=true"
-      - "traefik.http.routers.api.rule=Host(`${DOMAIN:-}`) && PathPrefix(`/api`)"
+      # API Router & Service
+      - "traefik.http.routers.api.rule=PathPrefix(`/api`)"
       - "traefik.http.routers.api.entrypoints=web"
       - "traefik.http.routers.api.service=api"
       - "traefik.http.routers.api.middlewares=cors,api-compress"
+      # CORS Middleware
       - "traefik.http.middlewares.cors.headers.accessControlAllowMethods=GET,POST,PUT,DELETE,PATCH,OPTIONS"
       - "traefik.http.middlewares.cors.headers.accessControlAllowHeaders=Content-Type,Authorization,X-Requested-With,Accept,Origin"
-      - "traefik.http.middlewares.cors.headers.accessControlAllowOriginListRegex=^https://([a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*\\.)*${DOMAIN}(:[0-9]+)?$,^https://${DOMAIN}(:[0-9]+)?$"
+      - "traefik.http.middlewares.cors.headers.accessControlAllowOriginListRegex=^https://eveindustryplanner.com$"
       - "traefik.http.middlewares.cors.headers.accessControlAllowCredentials=true"
       - "traefik.http.middlewares.cors.headers.accessControlMaxAge=86400"
       - "traefik.http.middlewares.cors.headers.addVaryHeader=true"
+      # API Compression Middleware
       - "traefik.http.middlewares.api-compress.compress.includedContentTypes=application/json,text/plain,text/html"
+      # API Service Load Balancer
       - "traefik.http.services.api.loadbalancer.server.port=4000"
       - "traefik.http.services.api.loadbalancer.healthcheck.path=/health"
       - "traefik.http.services.api.loadbalancer.healthcheck.interval=10s"
       - "traefik.http.services.api.loadbalancer.healthcheck.timeout=3s"
       - "traefik.http.services.api.loadbalancer.healthcheck.scheme=http"
-      - "traefik.http.routers.ws.rule=Host(`${DOMAIN:-}`) && PathPrefix(`/ws`)"
+      # WebSocket Router & Service
+      - "traefik.http.routers.ws.rule=PathPrefix(`/ws`)"
       - "traefik.http.routers.ws.entrypoints=web"
       - "traefik.http.routers.ws.service=ws"
       - "traefik.http.routers.ws.middlewares=cors,ws-compress"
@@ -80,19 +86,24 @@ services:
       retries: 3
       start_period: 5s
     labels:
+      # Frontend Router & Service
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.service=frontend"
+      # Frontend Service Load Balancer
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
       - "traefik.http.services.frontend.loadbalancer.healthcheck.path=/health.json"
       - "traefik.http.services.frontend.loadbalancer.healthcheck.interval=10s"
       - "traefik.http.services.frontend.loadbalancer.healthcheck.timeout=3s"
       - "traefik.http.services.frontend.loadbalancer.healthcheck.scheme=http"
-      - "traefik.http.routers.frontend.rule=Host(`${DOMAIN:-}`) && PathPrefix(`/`)"
+      # Frontend Router Rule
+      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
       - "traefik.http.routers.frontend.priority=1"
+      # Frontend Middlewares
       - "traefik.http.routers.frontend.middlewares=frontend-contenttype,frontend-compress,security-headers"
       - "traefik.http.routers.frontend.entrypoints=web"
       - "traefik.http.middlewares.frontend-contenttype.contentType=true"
-      - "traefik.http.middlewares.frontend-compress.compress.includedContentTypes=text/html,text/css,text/javascript,application/javascript,application/json,text/xml,application/xml,application/xml+rss,text/plain,application/json,application/x-javascript,text/css,image/svg+xml"
+      - "traefik.http.middlewares.frontend-compress.compress.includedContentTypes=text/html,text/css,text/javascript,application/javascript,text/css,image/svg+xml"
+      # Security Headers Middleware
       - "traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true"
       - "traefik.http.middlewares.security-headers.headers.browserXssFilter=true"
       - "traefik.http.middlewares.security-headers.headers.frameDeny=true"
@@ -105,18 +116,29 @@ services:
     image: traefik:v3.6.6
     restart: unless-stopped
     command:
+      # API Dashboard
       - "--api.insecure=true"
       - "--api.dashboard=true"
-      - "--api.port=81"
+      # Entrypoints
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.tailscale.address=:81"
+      # Providers
       - "--providers.docker=true"
       - "--providers.docker.endpoint=unix:///var/run/docker.sock"
       - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--log.level=INFO"
+      # Access Log
       - "--accesslog=true"
       - "--accesslog.filepath=/var/log/traefik/access.log"
+      - "--log.level=INFO"
       - "--log.filepath=/var/log/traefik/traefik.log"
     env_file: [.env]
+    labels:
+      # Traefik Dashboard
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik-dashboard.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=tailscale"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      - "traefik.http.routers.traefik-dashboard.priority=10"
     dns:
       - 8.8.8.8
       - 8.8.4.4
@@ -124,7 +146,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "${TAILSCALE_IP}:81:81"
+      - "81:81"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "traefik_data:/data"

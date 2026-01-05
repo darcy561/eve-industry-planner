@@ -17,6 +17,7 @@ functions
 # production
 /dist
 frontend/dist
+frontend/routeTree.gen.js
 
 # misc
 *.env
