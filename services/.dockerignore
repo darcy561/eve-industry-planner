@@ -1,0 +1,71 @@
+# Dockerignore for Go services build context
+# This applies when build context is set to ./services
+
+# Git files
+.git/
+.gitignore
+.github/
+
+# Documentation
+*.md
+README*
+LICENSE*
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test files (not needed for builds)
+**/*_test.go
+**/testdata/
+**/*.test.go
+
+# Build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+main
+
+# Logs
+*.log
+logs/
+
+# Environment files (except .env which might be needed)
+.env.local
+.env.*.local
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# CI/CD files
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Coverage reports
+coverage/
+*.coverprofile
+
+# Vendor directory (if using old vendoring)
+vendor/
+

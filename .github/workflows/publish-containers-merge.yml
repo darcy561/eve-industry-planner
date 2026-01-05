@@ -1,0 +1,289 @@
+name: Publish containers
+on:
+    push:
+        branches:
+            - Public
+            - migration
+    workflow_dispatch:
+        inputs:
+            branch:
+                description: 'Branch to build from (must be Public or migration)'
+                required: true
+                default: 'migration'
+                type: choice
+                options:
+                    - Public
+                    - migration
+
+jobs:
+    detect_changes:
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            contents: read
+        outputs:
+            api: ${{ steps.filter.outputs.api }}
+            worker: ${{ steps.filter.outputs.worker }}
+            core: ${{ steps.filter.outputs.core }}
+            frontend: ${{ steps.filter.outputs.frontend }}
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.inputs.branch || github.ref || github.ref_name }}
+                  fetch-depth: 2
+
+            - name: Detect changes
+              uses: dorny/paths-filter@v2
+              id: filter
+              with:
+                  base: ${{ github.event.before }}
+                  filters: |
+                      api:
+                        - 'services/api/**'
+                        - 'services/shared/**'
+                        - 'services/go.mod'
+                        - 'services/go.sum'
+                      worker:
+                        - 'services/worker/**'
+                        - 'services/shared/**'
+                        - 'services/go.mod'
+                        - 'services/go.sum'
+                      core:
+                        - 'services/core/**'
+                        - 'services/shared/**'
+                        - 'services/go.mod'
+                        - 'services/go.sum'
+                      frontend:
+                        - 'frontend/**'
+
+    publish_containers:
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        needs: detect_changes
+        if: github.event.inputs.branch == 'Public' || github.event.inputs.branch == 'migration' || github.ref_name == 'Public' || github.ref_name == 'migration'
+        environment: ${{ (github.event.inputs.branch || github.ref_name) == 'Public' && 'Public' || 'migration' }}
+        permissions:
+            contents: read
+            packages: write
+
+        strategy:
+            matrix:
+                service: [api, worker, core, frontend]
+
+        steps:
+            - name: Determine branch name
+              id: branch-info
+              run: |
+                  BRANCH_NAME="${{ github.event.inputs.branch || github.ref_name }}"
+                  echo "branch=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+                  echo "Building for branch: ${BRANCH_NAME}"
+                  if [ "${BRANCH_NAME}" != "Public" ] && [ "${BRANCH_NAME}" != "migration" ]; then
+                      echo "Error: Only Public and migration branches are supported"
+                      exit 1
+                  fi
+
+            - name: Check if ${{ matrix.service }} should be built
+              id: should-build
+              run: |
+                  SERVICE="${{ matrix.service }}"
+                  case "$SERVICE" in
+                      api)
+                          CHANGED="${{ needs.detect_changes.outputs.api }}"
+                          ;;
+                      worker)
+                          CHANGED="${{ needs.detect_changes.outputs.worker }}"
+                          ;;
+                      core)
+                          CHANGED="${{ needs.detect_changes.outputs.core }}"
+                          ;;
+                      frontend)
+                          CHANGED="${{ needs.detect_changes.outputs.frontend }}"
+                          ;;
+                      *)
+                          CHANGED="false"
+                          ;;
+                  esac
+                  if [ "$CHANGED" = "true" ]; then
+                      echo "should_build=true" >> $GITHUB_OUTPUT
+                      echo "Building $SERVICE - relevant files changed"
+                  else
+                      echo "should_build=false" >> $GITHUB_OUTPUT
+                      echo "Skipping $SERVICE - no relevant files changed"
+                  fi
+
+            - name: Checkout repository
+              if: steps.should-build.outputs.should_build == 'true'
+              uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.inputs.branch || github.ref || github.ref_name }}
+                  fetch-depth: 0
+                  fetch-tags: true
+
+            - name: Set up Docker Buildx
+              if: steps.should-build.outputs.should_build == 'true'
+              uses: docker/setup-buildx-action@v3
+
+            - name: Log in to GitHub Container Registry
+              if: steps.should-build.outputs.should_build == 'true'
+              uses: docker/login-action@v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GHCR_TOKEN }}
+
+            - name: Set package name
+              if: steps.should-build.outputs.should_build == 'true'
+              id: package-name
+              run: |
+                  # Use repository name with service suffix for better linking
+                  # Format: repo-name-service (Docker requires lowercase)
+                  REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2 | tr '[:upper:]' '[:lower:]')
+                  PACKAGE_NAME="${REPO_NAME}-${{ matrix.service }}"
+                  echo "name=${PACKAGE_NAME}" >> $GITHUB_OUTPUT
+                  echo "Package name: ${PACKAGE_NAME}"
+                  echo "Repository: ${{ github.repository }}"
+                  echo "Owner: ${{ github.repository_owner }}"
+
+            - name: Determine version
+              if: steps.should-build.outputs.should_build == 'true'
+              id: version
+              run: |
+                  # Determine version based on service type
+                  if [ "${{ matrix.service }}" == "frontend" ]; then
+                      # Frontend: use package.json
+                      if [ -f frontend/package.json ]; then
+                          VERSION=$(grep -o '"version": "[^"]*"' frontend/package.json | cut -d'"' -f4)
+                          echo "Using frontend package.json version: ${VERSION}"
+                      else
+                          VERSION="0.0.0"
+                          echo "Warning: frontend/package.json not found, using default: ${VERSION}"
+                      fi
+                  else
+                      # Go services: use service-specific VERSION file
+                      VERSION_FILE="services/${{ matrix.service }}/VERSION"
+                      if [ -f "${VERSION_FILE}" ]; then
+                          VERSION=$(cat "${VERSION_FILE}" | tr -d '[:space:]')
+                          echo "Using ${VERSION_FILE} version: ${VERSION}"
+                      else
+                          VERSION="0.0.0"
+                          echo "Warning: ${VERSION_FILE} not found, using default: ${VERSION}"
+                      fi
+                  fi
+                  
+                  # Validate version format (should be X.Y.Z)
+                  if ! echo "${VERSION}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
+                      echo "Warning: Version '${VERSION}' does not match semantic versioning format (X.Y.Z)"
+                  fi
+                  
+                  # Extract major.minor.patch for semantic versioning
+                  MAJOR=$(echo "${VERSION}" | cut -d'.' -f1)
+                  MINOR=$(echo "${VERSION}" | cut -d'.' -f2)
+                  PATCH=$(echo "${VERSION}" | cut -d'.' -f3)
+                  
+                  echo "version=${VERSION}" >> $GITHUB_OUTPUT
+                  echo "major=${MAJOR}" >> $GITHUB_OUTPUT
+                  echo "minor=${MINOR}" >> $GITHUB_OUTPUT
+                  echo "patch=${PATCH}" >> $GITHUB_OUTPUT
+                  echo "Service: ${{ matrix.service }}"
+                  echo "Version: ${VERSION} (${MAJOR}.${MINOR}.${PATCH})"
+
+            - name: Extract metadata for ${{ matrix.service }}
+              if: steps.should-build.outputs.should_build == 'true' && steps.branch-info.outputs.branch != ''
+              id: meta
+              uses: docker/metadata-action@v5
+              with:
+                  images: ghcr.io/${{ github.repository_owner }}/${{ steps.package-name.outputs.name }}
+                  tags: |
+                      type=raw,value=${{ steps.version.outputs.version }}
+                      type=raw,value=${{ steps.version.outputs.version }}-${{ steps.branch-info.outputs.branch }}
+                      type=raw,value=${{ steps.version.outputs.major }}.${{ steps.version.outputs.minor }}.${{ steps.version.outputs.patch }}
+                      type=raw,value=${{ steps.version.outputs.major }}.${{ steps.version.outputs.minor }}
+                      type=raw,value=${{ steps.version.outputs.major }}
+                      type=raw,value=latest,enable=${{ steps.branch-info.outputs.branch == 'Public' }}
+                      type=raw,value=${{ steps.branch-info.outputs.branch }}-latest
+                  labels: |
+                      org.opencontainers.image.source=https://github.com/${{ github.repository }}
+                      org.opencontainers.image.revision=${{ github.sha }}
+                      org.opencontainers.image.version=${{ steps.version.outputs.version }}
+                      org.opencontainers.image.created=${{ github.event.head_commit.timestamp || github.event.pull_request.head.repo.updated_at || github.run_started_at }}
+                      org.opencontainers.image.url=https://github.com/${{ github.repository }}
+                      org.opencontainers.image.title=eve-industry-planner-${{ matrix.service }}
+                      org.opencontainers.image.branch=${{ steps.branch-info.outputs.branch }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Set build context and dockerfile
+              if: steps.should-build.outputs.should_build == 'true'
+              id: build-config
+              run: |
+                  if [ "${{ matrix.service }}" == "frontend" ]; then
+                      echo "context=." >> $GITHUB_OUTPUT
+                      echo "dockerfile=./frontend/Dockerfile" >> $GITHUB_OUTPUT
+                  else
+                      echo "context=./services" >> $GITHUB_OUTPUT
+                      echo "dockerfile=./services/${{ matrix.service }}/Dockerfile" >> $GITHUB_OUTPUT
+                  fi
+
+            - name: Prepare build args
+              if: steps.should-build.outputs.should_build == 'true'
+              id: build-args
+              run: |
+                  IMAGE_SOURCE="https://github.com/${{ github.repository }}"
+                  
+                  {
+                      echo "build-args<<EOF"
+                      echo "IMAGE_SOURCE=${IMAGE_SOURCE}"
+                      
+                      # Frontend needs ENVIRONMENT for build (defaults to production)
+                      if [ "${{ matrix.service }}" == "frontend" ]; then
+                          if [ "${{ steps.branch-info.outputs.branch }}" == "migration" ]; then
+                              ENVIRONMENT="development"
+                          else
+                              ENVIRONMENT="production"
+                          fi
+                          echo "ENVIRONMENT=${ENVIRONMENT}"
+                          
+                          # Add Sentry build args from secrets
+                          # These are used by the Sentry Vite plugin for source map uploads
+                          # and baked into the bundle at build time
+                          echo "SENTRY_ORG=${{ vars.SENTRY_ORG }}"
+                          echo "SENTRY_PROJECT_ID=${{ vars.SENTRY_PROJECT_ID }}"
+                          echo "SENTRY_DSN=${{ vars.SENTRY_DSN }}"
+                          echo "SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}"
+                      fi
+                      
+                      # API service needs FEEDBACK_DISCORD_WEBHOOK_URL from GitHub variable
+                      # Can be overridden at runtime via environment variable
+                      if [ "${{ matrix.service }}" == "api" ]; then
+                          echo "FEEDBACK_DISCORD_WEBHOOK_URL=${{ vars.FEEDBACK_DISCORD_WEBHOOK_URL }}"
+                      fi
+                      
+                      echo "EOF"
+                  } >> $GITHUB_OUTPUT
+
+            - name: Build and push ${{ matrix.service }} container
+              if: steps.should-build.outputs.should_build == 'true'
+              uses: docker/build-push-action@v5
+              with:
+                  context: ${{ steps.build-config.outputs.context }}
+                  file: ${{ steps.build-config.outputs.dockerfile }}
+                  push: true
+                  tags: ${{ steps.meta.outputs.tags }}
+                  labels: ${{ steps.meta.outputs.labels }}
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
+                  build-args: ${{ steps.build-args.outputs.build-args }}
+              continue-on-error: false
+
+            - name: Set package visibility to public
+              if: steps.should-build.outputs.should_build == 'true'
+              run: |
+                  PACKAGE_NAME="${{ steps.package-name.outputs.name }}"
+                  OWNER="${{ github.repository_owner }}"
+                  echo "Setting package visibility to public: ${OWNER}/${PACKAGE_NAME}"
+                  curl -X PATCH \
+                    -H "Accept: application/vnd.github+json" \
+                    -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                    -H "X-GitHub-Api-Version: 2022-11-28" \
+                    "https://api.github.com/users/${OWNER}/packages/container/${PACKAGE_NAME}" \
+                    -d '{"visibility":"public"}' || echo "Warning: Failed to set package visibility. Set manually in GitHub Package settings."

@@ -1,0 +1,38 @@
+services:
+  api:
+    image: eve-industry-planner-api:local
+    build:
+      context: ./services
+      dockerfile: api/Dockerfile
+    env_file: [.env]
+    environment:
+      FAIL_ON_STARTUP: "false"
+      LOG_LEVEL: debug
+
+  worker:
+    image: eve-industry-planner-worker:local
+    build:
+      context: ./services
+      dockerfile: worker/Dockerfile
+    env_file: [.env]
+    environment:
+      LOG_LEVEL: info
+  core:
+    image: eve-industry-planner-core:local
+    build:
+      context: ./services
+      dockerfile: core/Dockerfile
+    env_file: [.env]
+    environment:
+      LOG_LEVEL: info
+
+  frontend:
+    image: eve-industry-planner-frontend:local
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        ENVIRONMENT: ${ENVIRONMENT:-development}
+    env_file: [.env]
+    environment:
+      LOG_LEVEL: info

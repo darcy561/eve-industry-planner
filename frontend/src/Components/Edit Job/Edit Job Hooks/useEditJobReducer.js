@@ -1,0 +1,409 @@
+/**
+ * Edit Job Reducer Hook for EVE Industry Planner.
+ * 
+ * Custom React hook that provides state management for the edit job dialog component.
+ * Uses useReducer with a custom reducer to handle complex state transitions for
+ * job editing, parent-child relationships, ESI data linking, and temporary job management.
+ * 
+ * @fileoverview Custom hook for edit job dialog state management
+ * @author EVE Industry Planner Team
+ */
+
+import { useReducer } from "react";
+import { editJobReducer, EDIT_JOB_ACTION_TYPES } from "./editJobReducer";
+
+/**
+ * Custom hook for managing edit job dialog state.
+ * 
+ * Provides a reducer-based state management solution for the edit job dialog,
+ * including initial state creation, action dispatching, and state access.
+ * The hook manages complex job editing operations including parent-child
+ * relationships, ESI data linking, and temporary job state.
+ * 
+ * @returns {Object} Hook return object
+ * @returns {Object} returns.state - Current dialog state
+ * @returns {Object|null} returns.state.activeJob - Currently active job being edited
+ * @returns {boolean} returns.state.jobModified - Whether the job has unsaved changes
+ * @returns {Object} returns.state.temporaryChildJobs - Temporary child jobs data
+ * @returns {Object} returns.state.esiDataToLink - ESI data to be linked to the job
+ * @returns {Object} returns.state.parentChildToEdit - Parent-child job relationship changes
+ * @returns {boolean} returns.state.isLoading - Loading state
+ * @returns {Object} returns.actions - Action dispatchers
+ * @returns {Function} returns.actions.setActiveJob - Set the active job
+ * @returns {Function} returns.actions.updateActiveJob - Update the active job
+ * @returns {Function} returns.actions.stepActiveJobForward - Move job status forward
+ * @returns {Function} returns.actions.stepActiveJobBackward - Move job status backward
+ * @returns {Function} returns.actions.markJobAsModified - Mark job as modified
+ * @returns {Function} returns.actions.setTemporaryChildJobs - Set temporary child jobs
+ * @returns {Function} returns.actions.getCurrentParentJobs - Get current parent jobs
+ * @returns {Function} returns.actions.getCurrentMaterialChildJobs - Get child jobs for material
+ * @returns {Function} returns.actions.markParentJobForAddition - Mark parent job for addition
+ * @returns {Function} returns.actions.markParentJobForRemoval - Mark parent job for removal
+ * @returns {Function} returns.actions.markChildJobsForAddition - Mark child jobs for addition
+ * @returns {Function} returns.actions.markChildJobsForRemoval - Mark child jobs for removal
+ * @returns {Function} returns.actions.setIsLoading - Set loading state
+ * @returns {Function} returns.actions.addIndustryESIJobsForAddition - Add ESI industry jobs
+ * @returns {Function} returns.actions.addIndustryESIJobsForRemoval - Remove ESI industry jobs
+ * @returns {Function} returns.actions.addMarketOrdersForAddition - Add market orders
+ * @returns {Function} returns.actions.addMarketOrdersForRemoval - Remove market orders
+ * @returns {Function} returns.actions.addTransactionsForAddition - Add transactions
+ * @returns {Function} returns.actions.addTransactionsForRemoval - Remove transactions
+ * 
+ * @example
+ * function EditJobDialog() {
+ *   const { state, actions } = useEditJobReducer();
+ *   
+ *   const handleJobUpdate = (jobData) => {
+ *     actions.updateActiveJob(jobData);
+ *   };
+ *   
+ *   const handleStepForward = () => {
+ *     actions.stepActiveJobForward();
+ *   };
+ *   
+ *   return (
+ *     <div>
+ *       {state.activeJob && (
+ *         <div>
+ *           Job: {state.activeJob.jobID}
+ *           Modified: {state.jobModified ? 'Yes' : 'No'}
+ *           Loading: {state.isLoading ? 'Yes' : 'No'}
+ *         </div>
+ *       )}
+ *     </div>
+ *   );
+ * }
+ */
+export default function useEditJobReducer() {
+  const initialState = {
+    activeJob: null,
+    jobModified: false,
+    temporaryChildJobs: {},
+    esiDataToLink: {
+      industryJobs: { add: [], remove: [] },
+      marketOrders: { add: [], remove: [] },
+      transactions: { add: [], remove: [] },
+    },
+    parentChildToEdit: {
+      parentJobs: { add: [], remove: [] },
+      childJobs: {},
+    },
+    isLoading: true,
+  };
+  const [state, dispatch] = useReducer(editJobReducer, initialState);
+
+  /**
+   * Action dispatchers for the edit job dialog state.
+   * 
+   * Provides convenient methods to dispatch actions to the reducer,
+   * abstracting away the action creation and dispatch logic.
+   */
+  const actions = {
+    /**
+     * Sets the active job being edited.
+     * 
+     * @param {Object|null} activeJob - Job object to set as active
+     * 
+     * @example
+     * actions.setActiveJob(jobObject);
+     */
+    setActiveJob: (activeJob) => {
+      dispatch({
+        type: EDIT_JOB_ACTION_TYPES.SET_ACTIVE_JOB,
+        payload: activeJob,
+      });
+    },
+    /**
+     * Updates the active job with new data and marks it as modified.
+     * 
+     * @param {Object} activeJob - Updated job data
+     * 
+     * @example
+     * actions.updateActiveJob(updatedJobData);
+     */
+    updateActiveJob: (activeJob) => {
+      dispatch({
+        type: EDIT_JOB_ACTION_TYPES.UPDATE_ACTIVE_JOB,
+        payload: activeJob,
+      });
+    },
+    /**
+     * Moves the active job status forward and marks it as modified.
+     * 
+     * @example
+     * actions.stepActiveJobForward();
+     */
+    stepActiveJobForward: () => {
+      dispatch({
+        type: EDIT_JOB_ACTION_TYPES.STEP_ACTIVE_JOB_FORWARD,
+      });
+    },
+    /**
+     * Moves the active job status backward and marks it as modified.
+     * 
+     * @example
+     * actions.stepActiveJobBackward();
+     */
+    stepActiveJobBackward: () => {
+      dispatch({
+        type: EDIT_JOB_ACTION_TYPES.STEP_ACTIVE_JOB_BACKWARD,
+      });
+    },
+    /**
+     * Marks the job as having unsaved changes.
+     * 
+     * @example
+     * actions.markJobAsModified();
+     */
+    markJobAsModified: () => {
+      dispatch({
+        type: EDIT_JOB_ACTION_TYPES.MARK_JOB_AS_MODIFIED,
+      });
+    },
+    /**
+     * Sets the temporary child jobs data.
+     * 
+     * @param {Object} temporaryChildJobs - Temporary child jobs object
+     * 
+     * @example
+     * actions.setTemporaryChildJobs({ 34: childJobObject });
+     */
+    setTemporaryChildJobs: (temporaryChildJobs) => {
+      dispatch({
+        type: EDIT_JOB_ACTION_TYPES.SET_TEMPORARY_CHILD_JOBS,
+        payload: temporaryChildJobs,
+      });
+    },
+
+    /**
+     * Gets the current parent jobs considering pending changes.
+     * 
+     * Combines the active job's parent jobs with pending additions and
+     * removes pending removals to show the current state.
+     * 
+     * @returns {Array} Array of current parent job IDs
+     * 
+     * @example
+     * const currentParents = actions.getCurrentParentJobs();
+     */
+    getCurrentParentJobs: () => {
+      const activeJobParentJobs = state.activeJob.parentJob || [];
+      const parentJobsToAdd = state.parentChildToEdit.parentJobs.add || [];
+      const parentJobsToRemove =
+        state.parentChildToEdit.parentJobs.remove || [];
+
+      return [
+        ...new Set(
+          [...activeJobParentJobs, ...parentJobsToAdd].filter(
+            (id) => !parentJobsToRemove.includes(id)
+          )
+        ),
+      ];
+    },
+
+    /**
+     * Gets the current child jobs for a specific material type considering pending changes.
+     * 
+     * Combines the active job's child jobs for the material with pending
+     * additions and removes pending removals to show the current state.
+     * 
+     * @param {number} materialTypeID - Material type ID to get child jobs for
+     * @returns {Array} Array of current child job IDs for the material
+     * 
+     * @example
+     * const childJobs = actions.getCurrentMaterialChildJobs(34);
+     */
+    getCurrentMaterialChildJobs: (materialTypeID) => {
+      const activeJobChildJobs =
+        state.activeJob.build.childJobs[materialTypeID] || [];
+      const childJobsToAdd =
+        state.parentChildToEdit.childJobs[materialTypeID]?.add || [];
+      const childJobsToRemove =
+        state.parentChildToEdit.childJobs[materialTypeID]?.remove || [];
+
+      return [
+        ...new Set(
+          [...activeJobChildJobs, ...childJobsToAdd].filter(
+            (id) => !childJobsToRemove.includes(id)
+          )
+        ),
+      ];
+    },
+
+    /**
+     * Marks a parent job for addition to the active job.
+     * 
+     * @param {string} parentJobID - ID of the parent job to add
+     * 
+     * @example
+     * actions.markParentJobForAddition('parent-job-123');
+     */
+    markParentJobForAddition: (parentJobID) => {
+      dispatch({
+        type: EDIT_JOB_ACTION_TYPES.MARK_PARENT_JOB_FOR_ADDITION,
+        payload: parentJobID,
+      });
+    },
+    /**
+     * Marks a parent job for removal from the active job.
+     * 
+     * @param {string} parentJobID - ID of the parent job to remove
+     * 
+     * @example
+     * actions.markParentJobForRemoval('parent-job-123');
+     */
+    markParentJobForRemoval: (parentJobID) => {
+      dispatch({
+        type: EDIT_JOB_ACTION_TYPES.MARK_PARENT_JOB_FOR_REMOVAL,
+        payload: parentJobID,
+      });
+    },
+    /**
+     * Marks child jobs for addition to the active job.
+     * 
+     * @param {Object|Array} jobsToAdd - Job object or array of job objects to add
+     * 
+     * @example
+     * actions.markChildJobsForAddition(childJobObject);
+     * actions.markChildJobsForAddition([job1, job2, job3]);
+     */
+    markChildJobsForAddition: (jobsToAdd) => {
+      dispatch({
+        type: EDIT_JOB_ACTION_TYPES.MARK_CHILD_JOBS_FOR_ADDITION,
+        payload: jobsToAdd,
+      });
+    },
+    /**
+     * Marks child jobs for removal from the active job.
+     * 
+     * @param {Object|Array} jobsToRemove - Job object or array of job objects to remove
+     * 
+     * @example
+     * actions.markChildJobsForRemoval(childJobObject);
+     * actions.markChildJobsForRemoval([job1, job2, job3]);
+     */
+    markChildJobsForRemoval: (jobsToRemove) => {
+      dispatch({
+        type: EDIT_JOB_ACTION_TYPES.MARK_CHILD_JOBS_FOR_REMOVAL,
+        payload: jobsToRemove,
+      });
+    },
+
+    /**
+     * Sets the loading state.
+     * 
+     * @param {boolean} isLoading - Loading state value
+     * 
+     * @example
+     * actions.setIsLoading(true); // Start loading
+     * actions.setIsLoading(false); // Stop loading
+     */
+    setIsLoading: (isLoading) => {
+      dispatch({
+        type: EDIT_JOB_ACTION_TYPES.SET_IS_LOADING,
+        payload: isLoading,
+      });
+    },
+
+    /**
+     * Adds ESI industry jobs for linking to the active job.
+     * 
+     * @param {string|Array} jobIDs - Job ID or array of job IDs to add
+     * 
+     * @example
+     * actions.addIndustryESIJobsForAddition('job-123');
+     * actions.addIndustryESIJobsForAddition(['job-1', 'job-2', 'job-3']);
+     */
+    addIndustryESIJobsForAddition: (jobIDs) => {
+      dispatch({
+        type: EDIT_JOB_ACTION_TYPES.ADD_INDUSTRY_ESI_JOBS_FOR_ADDITION,
+        payload: jobIDs,
+      });
+    },
+    /**
+     * Removes ESI industry jobs from linking to the active job.
+     * 
+     * @param {string|Array} jobIDs - Job ID or array of job IDs to remove
+     * 
+     * @example
+     * actions.addIndustryESIJobsForRemoval('job-123');
+     * actions.addIndustryESIJobsForRemoval(['job-1', 'job-2', 'job-3']);
+     */
+    addIndustryESIJobsForRemoval: (jobIDs) => {
+      dispatch({
+        type: EDIT_JOB_ACTION_TYPES.ADD_INDUSTRY_ESI_JOBS_FOR_REMOVAL,
+        payload: jobIDs,
+      });
+    },
+
+    /**
+     * Adds market orders for linking to the active job.
+     * 
+     * @param {Object|Array} marketOrders - Market order object or array to add
+     * 
+     * @example
+     * actions.addMarketOrdersForAddition(marketOrderObject);
+     * actions.addMarketOrdersForAddition([order1, order2, order3]);
+     */
+    addMarketOrdersForAddition: (marketOrders) => {
+      dispatch({
+        type: EDIT_JOB_ACTION_TYPES.ADD_MARKET_ORDERS_FOR_ADDITION,
+        payload: marketOrders,
+      });
+    },
+
+    /**
+     * Removes market orders from linking to the active job.
+     * 
+     * Also removes associated transactions when market orders are removed.
+     * 
+     * @param {Object|Array} marketOrders - Market order object or array to remove
+     * @param {Object|Array} transactions - Associated transaction object or array
+     * 
+     * @example
+     * actions.addMarketOrdersForRemoval(marketOrderObject, transactionObject);
+     * actions.addMarketOrdersForRemoval([order1, order2], [trans1, trans2]);
+     */
+    addMarketOrdersForRemoval: (marketOrders, transactions) => {
+      dispatch({
+        type: EDIT_JOB_ACTION_TYPES.ADD_MARKET_ORDERS_FOR_REMOVAL,
+        payload: { marketOrders, transactions },
+      });
+    },
+
+    /**
+     * Adds transactions for linking to the active job.
+     * 
+     * @param {Object|Array} transactions - Transaction object or array to add
+     * 
+     * @example
+     * actions.addTransactionsForAddition(transactionObject);
+     * actions.addTransactionsForAddition([trans1, trans2, trans3]);
+     */
+    addTransactionsForAddition: (transactions) => {
+      dispatch({
+        type: EDIT_JOB_ACTION_TYPES.ADD_TRANSACTIONS_FOR_ADDITION,
+        payload: transactions,
+      });
+    },
+    
+    /**
+     * Removes transactions from linking to the active job.
+     * 
+     * @param {Object|Array} transactions - Transaction object or array to remove
+     * 
+     * @example
+     * actions.addTransactionsForRemoval(transactionObject);
+     * actions.addTransactionsForRemoval([trans1, trans2, trans3]);
+     */
+    addTransactionsForRemoval: (transactions) => {
+      dispatch({
+        type: EDIT_JOB_ACTION_TYPES.ADD_TRANSACTIONS_FOR_REMOVAL,
+        payload: transactions,
+      });
+    },
+
+  }
+
+  return { state, actions };
+}

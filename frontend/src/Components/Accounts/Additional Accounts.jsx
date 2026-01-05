@@ -1,0 +1,290 @@
+import {
+  Button,
+  FormControlLabel,
+  FormGroup,
+  Grid,
+  Skeleton,
+  Switch,
+  Typography,
+} from "@mui/material";
+import { useState } from "react";
+import { AccountEntry } from "./AccountEntry";
+import { getAnalytics, logEvent } from "firebase/analytics";
+import getEveOauthToken from "../../Functions/EveESI/Character/getEveSSOToken";
+import {
+  showSnackbarSuccess,
+  showSnackbarError,
+} from "../../Events/snackbarEvents";
+import checkUserClaims from "../../Functions/Auth/checkUserClaims";
+import useUsersStore from "../../Zustand/usersStore";
+import uploadApplicationSettingsToFirebase from "../../Functions/Firebase/uploadApplicationSettings";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCharacterHooks } from "../../Hooks/React Query/useCharacterHooks";
+import { buildCorporationObjectFromUserObject } from "../../Functions/Corporations/buildCorporationObject";
+import { useGlobalDebounce } from "../../Hooks/GeneralHooks/useGlobalDebounce";
+import { DEBOUNCE_KEYS } from "../../Context/debounceKeys";
+import ContentPanel from "../../Styled Components/Paper/ContentPanel";
+import { STANDARD_TEXT_FORMAT } from "../../Context/defaultValues";
+import { updateLocalRefreshTokens } from "../../Functions/Auth/buildAccountData";
+
+
+export function AdditionalAccounts() {
+  const users = useUsersStore((state) => state.users.userArray);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const cloudAccounts = useUsersStore(
+    (state) => state.applicationSettings.cloudAccounts
+  );
+  const { toggleCloudAccounts } =
+    useUsersStore.getState().applicationSettings.actions;
+  const { addUser, setAccountRefreshTokens, addAccountRefreshToken, findParentUser } =
+    useUsersStore((state) => state.users.actions);
+
+  const [skeletonVisible, toggleSkeleton] = useState(false);
+  const analytics = getAnalytics();
+  const queryClient = useQueryClient();
+  const { triggerCharacterDataPrefetch } = useCharacterHooks();
+
+  const debouncedSaveSettings = useGlobalDebounce(
+    DEBOUNCE_KEYS.APP_SETTINGS_SAVE,
+    async () => {
+      await uploadApplicationSettingsToFirebase();
+    },
+    2000
+  );
+
+  const handleAdd = async () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    toggleSkeleton(true);
+
+    // Remove any existing listener first
+    window.removeEventListener("storage", importNewAccount);
+
+    // Add new listener
+    window.addEventListener("storage", importNewAccount);
+
+    const { getRuntimeEnv } = await import("../../utils/runtime-config");
+    window.open(
+      `https://login.eveonline.com/v2/oauth/authorize/?response_type=code&redirect_uri=${encodeURIComponent(
+        getRuntimeEnv("EVE_CALLBACK_URL")
+      )}&client_id=${getRuntimeEnv("EVE_CLIENT_ID")}&scope=${getRuntimeEnv("EVE_SCOPE")
+      }&state=additional`,
+      "_blank"
+    );
+
+    // Set a timeout to clean up if no response
+    setTimeout(() => {
+      if (!localStorage.getItem("AdditionalUser")) {
+        window.removeEventListener("storage", importNewAccount);
+        toggleSkeleton(false);
+        setIsProcessing(false);
+      }
+    }, 180000);
+  };
+
+  const importNewAccount = async (event) => {
+    // Only proceed if the event is for AdditionalUser
+    if (event.key !== "AdditionalUser") return;
+    if (isProcessing) return;
+
+    try {
+      const authCode = localStorage.getItem("AdditionalUser");
+      if (!authCode) return;
+
+      // Remove the listener immediately to prevent multiple executions
+      window.removeEventListener("storage", importNewAccount);
+
+      const newUser = await getEveOauthToken(authCode, false);
+
+      if (newUser instanceof Error) {
+        throw newUser;
+      }
+
+      if (users.some((u) => u.CharacterHash === newUser.CharacterHash)) {
+        localStorage.removeItem("AdditionalUser");
+        showSnackbarError(`Duplicate Account`, 3);
+        toggleSkeleton(false);
+        setIsProcessing(false);
+        return;
+      }
+
+      await newUser.getPublicCharacterData();
+      await buildCorporationObjectFromUserObject(newUser);
+      addUser(newUser);
+
+      localStorage.removeItem("AdditionalUser");
+
+      if (cloudAccounts) {
+        addAccountRefreshToken({
+          CharacterHash: newUser.CharacterHash,
+          rToken: newUser.rToken,
+        });
+      } else {
+        updateLocalRefreshTokens(users);
+      }
+
+      await checkUserClaims(users);
+      if (cloudAccounts) {
+        debouncedSaveSettings();
+      }
+      logEvent(analytics, "Link Character", {
+        UID: findParentUser().accountID,
+        newHash: newUser.CharacterHash,
+        cloudAccount: cloudAccounts,
+      });
+      triggerCharacterDataPrefetch(queryClient, newUser.CharacterHash);
+      showSnackbarSuccess(`${newUser.CharacterName} Imported`, 3);
+      toggleSkeleton(false);
+      setIsProcessing(false);
+    } catch (err) {
+      localStorage.removeItem("AdditionalUser");
+      console.error(err);
+      showSnackbarError(`${err.message}`, 3);
+      toggleSkeleton(false);
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <ContentPanel title="Additional Accounts" componentName="Additional Accounts"
+      paperSx={{ overflow: "hidden" }}
+    >
+      <Grid container>
+        <Grid sx={{ marginTop: 1, marginBottom: 2 }} size={12}>
+          <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
+            Additional accounts can be linked allowing you to import the ESI
+            data in alongside your main accounts data. Additional accounts can
+            be added and removed at any time.{<br />}
+            {<br />}
+            By default the additional accounts that you choose to link are only
+            stored in the browser where they were added. If you wanted to make
+            these accounts available on all other devices then you will need to
+            enable the option to store the accounts in the cloud. Accounts that are stored locally will be removed if the browsers cache is cleared.
+          </Typography>
+        </Grid>
+        <Grid container size={12}>
+          <Grid
+            size={{
+              xs: 0,
+              sm: 3,
+              md: 7
+            }} />
+          <Grid
+            size={{
+              xs: 6,
+              sm: 5,
+              md: 3
+            }}>
+            <FormGroup>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={cloudAccounts}
+                    color="primary"
+                    onChange={async (e) => {
+                      const parentUserHash = useUsersStore
+                        .getState()
+                        .users.actions.findParentUser().CharacterHash;
+                      const localStorageKey = `${parentUserHash} AdditionalAccounts`;
+                      if (e.target.checked) {
+                        const storedAccounts = JSON.parse(
+                          localStorage.getItem(localStorageKey) || "[]"
+                        );
+                        localStorage.removeItem(localStorageKey);
+                        setAccountRefreshTokens(storedAccounts);
+                      } else {
+                        updateLocalRefreshTokens(users);
+                        setAccountRefreshTokens([]);
+                      }
+                      toggleCloudAccounts();
+                      debouncedSaveSettings();
+                    }}
+                  />
+                }
+                label={
+                  <Typography
+                    sx={{ typography: STANDARD_TEXT_FORMAT }}
+                  >
+                    Store Accounts In Cloud
+                  </Typography>
+                }
+                labelPlacement="start"
+              />
+            </FormGroup>
+          </Grid>
+          <Grid
+            container
+            justifyContent="center"
+            alignItems="center"
+            size={{
+              xs: 6,
+              sm: 4,
+              md: 2
+            }}>
+            <Button
+              variant="contained"
+              size="small"
+              disabled={skeletonVisible}
+              onClick={handleAdd}
+            >
+              Add Account
+            </Button>
+          </Grid>
+        </Grid>
+        <Grid container sx={{ marginTop: 2 }} size={12}>
+          {skeletonVisible ? (
+            <Grid
+              container
+              align="center"
+              alignItems="center"
+              sx={{ marginTop: 1, marginLeft: 1 }}
+              size={12}>
+              <Grid
+                align="left"
+                size={{
+                  xs: 2,
+                  sm: 1
+                }}>
+                <Skeleton variant="circular" width={40} height={40} />
+              </Grid>
+              <Grid
+                size={{
+                  xs: 8,
+                  sm: 9
+                }}>
+                <Skeleton variant="text" />
+              </Grid>
+              <Grid size={1}>
+                <Skeleton
+                  variant="circular"
+                  width={30}
+                  height={30}
+                  align="center"
+                />
+              </Grid>
+              <Grid size={1}>
+                <Skeleton
+                  variant="circular"
+                  width={30}
+                  height={30}
+                  align="center"
+                />
+              </Grid>
+            </Grid>
+          ) : (
+            users.map((user) => {
+              if (user.ParentUser) return null;
+              return (
+                <AccountEntry
+                  key={user.CharacterHash}
+                  user={user}
+                />
+              );
+            })
+          )}
+        </Grid>
+      </Grid>
+    </ContentPanel>
+  );
+}

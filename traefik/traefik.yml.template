@@ -1,0 +1,49 @@
+api:
+  insecure: true
+  dashboard: ${TRAEFIK_DASHBOARD:-false}
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+
+http:
+  middlewares:
+    dashboard-ipwhitelist:
+      ipAllowList:
+        sourceRange:
+          - PLACEHOLDER_IPS
+
+entryPoints:
+  websecure:
+    address: ":443"
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  traefik:
+    address: ":8080"
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: ${LETSENCRYPT_EMAIL:-}
+      storage: /data/acme.json
+      httpChallenge:
+        entryPoint: web
+
+log:
+  level: INFO
+
+accessLog: {}
+
+experimental:
+  plugins:
+    cache:
+      moduleName: github.com/traefik/plugin-simplecache
+      version: v0.2.1
+

@@ -1,0 +1,35 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+frontend/node_modules
+node_modules
+functions
+/.pnp
+.pnp.js
+.vscode
+.firebase
+.tanstack
+.vite
+
+# testing
+/coverage
+
+# production
+/dist
+frontend/dist
+
+# misc
+*.env
+.env.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+firebase-debug.log
+ui-debug.log
+pubsub-debug.log
+firestore-debug.log
+database-debug.log
+.firebaserc
+
+# Sentry Config File
+.env.sentry-build-plugin

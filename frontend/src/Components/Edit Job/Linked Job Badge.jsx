@@ -1,0 +1,126 @@
+import { useState } from "react";
+import {
+  Avatar,
+  Box,
+  Chip,
+  Grid,
+  IconButton,
+  Stack,
+  Typography,
+} from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import ClearIcon from "@mui/icons-material/Clear";
+import { ParentJobDialog } from "./parentJobDialog";
+import useUsersStore from "../../Zustand/usersStore";
+import { useCloseActiveJob } from "../../Hooks/JobHooks/useCloseActiveJob";
+import { useNavigate } from "@tanstack/react-router";
+import { showSnackbarError } from "../../Events/snackbarEvents";
+
+export function LinkedJobBadge(props) {
+  const { state, actions } = props;
+  const { findJobInUserJobSnapshotArray, findJobInJobArray } = useUsersStore.getState().jobData.actions;
+  const [dialogTrigger, updateDialogTrigger] = useState(false);
+  const { closeActiveJob } = useCloseActiveJob();
+  const navigate = useNavigate({ from: '/editjob/$jobID' });
+
+  function findParent(inputID) {
+    if (!state.activeJob.groupID) {
+      return findJobInUserJobSnapshotArray(inputID);
+    } else {
+      return findJobInJobArray(inputID);
+    }
+  }
+
+  const parentJobSelection = actions.getCurrentParentJobs();
+
+  return (
+    <>
+      <ParentJobDialog
+        {...props}
+        dialogTrigger={dialogTrigger}
+        updateDialogTrigger={updateDialogTrigger}
+      />
+      <Stack
+        direction="row"
+        sx={{ marginBottom: { xs: "10px", sm: "0px" }, position: "relative" }}
+      >
+        <Box sx={{ width: "100%" }}>
+          <Grid container>
+            <Grid align="center" sx={{ marginBottom: { xs: "10px", sm: "0px" } }} size={12}>
+              <Typography variant="h6" color="primary">
+                Parent Jobs
+              </Typography>
+            </Grid>
+            <IconButton
+              size="small"
+              color="primary"
+              sx={{ position: "absolute", top: "0px", right: "40px" }}
+              onClick={() => {
+                updateDialogTrigger(true);
+              }}
+            >
+              <AddIcon />
+            </IconButton>
+
+            <Box
+              sx={{
+                width: "100%",
+                maxHeight: { xs: "200px", sm: "250px", md: "300px" },
+                overflowY: "auto",
+                overflowX: "hidden",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 1,
+                padding: "5px",
+              }}
+            >
+              {parentJobSelection.map((jobID) => {
+                let parent = findParent(jobID);
+                if (!parent) return null;
+                return (
+                  <Chip
+                    key={parent.jobID}
+                    label={parent.name}
+                    size="large"
+                    deleteIcon={<ClearIcon />}
+                    avatar={
+                      <Avatar
+                        src={`https://image.eveonline.com/Type/${parent.itemID}_32.png`}
+                      />
+                    }
+                    clickable
+                    onClick={async () => {
+                      await closeActiveJob(
+                        state.activeJob,
+                        state.jobModified,
+                        state.temporaryChildJobs,
+                        state.esiDataToLink,
+                        state.parentChildToEdit
+                      );
+                      navigate({ 
+                        to: '/editjob/$jobID', 
+                        params: { jobID: parent.jobID } 
+                      });
+                    }}
+                    variant="outlined"
+                    sx={{
+                      "& .MuiChip-deleteIcon": {
+                        color: "error.main",
+                      },
+                      boxShadow: 3,
+                      flexShrink: 0,
+                    }}
+                    onDelete={() => {
+                      actions.markParentJobForRemoval(jobID);
+                      showSnackbarError(`${parent.name} Unlinked`);
+                    }}
+                  />
+                );
+              })}
+            </Box>
+          </Grid>
+        </Box>
+      </Stack>
+    </>
+  );
+}

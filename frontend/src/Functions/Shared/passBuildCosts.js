@@ -1,0 +1,256 @@
+import uuid from "react-uuid";
+import findOrGetJobObject from "../Helper/findJobObject";
+import convertJobIDsToObjects from "../Helper/convertJobIDsToObjects";
+import firebaseBatchUpdateJobs from "../Firebase/batchUpdateJobs";
+import useUsersStore from "../../Zustand/usersStore";
+import { materialPriceObjectFactory } from "../JobPlanner/materialCosts";
+
+/**
+ * Passes build costs from child jobs to their parent jobs.
+ * Collects materials and costs from child jobs and distributes them to parent jobs
+ * as purchase costs, updating Firebase with the changes.
+ *
+ * @param {Array|Object} jobsToPass - Job object(s) to pass costs from
+ * @returns {Promise<Object>} Promise that resolves to notification text and retrieved jobs
+ *
+ * @example
+ * const result = await passBuildCostsToParentJobs([job1, job2]);
+ * console.log(result.messageText); // "2 Costs Imported into 1 Job."
+ */
+export async function passBuildCostsToParentJobs(jobsToPass) {
+  const retrievedJobs = [];
+  const matchedObjects = await convertJobIDsToObjects(
+    jobsToPass,
+    retrievedJobs
+  );
+
+  const { collectedMaterials, parentJobMap } =
+    collectMaterialsAndParentJobs(matchedObjects);
+
+  const parentJobs = await findNeededParentJobs(parentJobMap, retrievedJobs);
+
+  const { successfulJobImportCount, priceItemsImportedCount } =
+    distributeItemCostsBetweenJobs(
+      collectedMaterials,
+      parentJobs,
+      parentJobMap
+    );
+
+  useUsersStore
+    .getState()
+    .jobData.actions.updateJobSnapshotsFromJobs(parentJobs);
+
+  await firebaseBatchUpdateJobs(parentJobs);
+
+  return {
+    messageText: buildNotificationText(
+      successfulJobImportCount,
+      priceItemsImportedCount
+    ),
+    retrievedJobs,
+  };
+}
+
+/**
+ * Collects materials and parent job mappings from chosen jobs.
+ *
+ * @param {Array<Object>} chosenJobs - Array of job objects to collect from
+ * @returns {Object} Object containing collectedMaterials and parentJobMap
+ *
+ * @private
+ */
+function collectMaterialsAndParentJobs(chosenJobs) {
+  const collectedMaterials = {};
+  const parentJobMap = {};
+
+  for (let job of chosenJobs) {
+    const materialID = job.itemID;
+    const quantity = job.build.products.totalQuantity;
+    const itemCost = job.totalCostPerItem();
+
+    if (!collectedMaterials[materialID]) {
+      collectedMaterials[materialID] = {
+        totalQuantity: 0,
+        costs: [],
+      };
+    }
+
+    collectedMaterials[materialID].totalQuantity += quantity;
+
+    const existingCostEntry = collectedMaterials[materialID].costs.find(
+      (i) => i.cost === itemCost
+    );
+
+    if (existingCostEntry) {
+      existingCostEntry.totalQuantity += quantity;
+    } else {
+      collectedMaterials[materialID].costs.push({
+        id: job.jobID,
+        cost: itemCost,
+        quantity,
+      });
+    }
+
+    for (const parentID of job.parentJob) {
+      if (!parentJobMap[materialID]) {
+        parentJobMap[materialID] = new Set();
+      }
+
+      parentJobMap[materialID].add(parentID);
+    }
+  }
+  return { collectedMaterials, parentJobMap };
+}
+
+/**
+ * Finds and retrieves all needed parent jobs.
+ *
+ * @param {Object} parentMap - Map of material IDs to parent job IDs
+ * @param {Array<Object>} retrievedJobs - Array to store retrieved jobs
+ * @returns {Promise<Array<Object>>} Promise that resolves to array of parent job objects
+ *
+ * @private
+ */
+async function findNeededParentJobs(parentMap, retrievedJobs) {
+  const parentJobs = [];
+  const parentJobPromises = [];
+
+  for (const parentIDs of Object.values(parentMap)) {
+    for (const parentID of parentIDs) {
+      parentJobPromises.push(findOrGetJobObject(parentID, retrievedJobs));
+    }
+  }
+
+  const resolvedPromises = await Promise.allSettled(parentJobPromises);
+
+  for (const result of resolvedPromises) {
+    if (
+      result.status === "fulfilled" &&
+      result.value &&
+      !parentJobs.some((i) => i.jobID === result.value.jobID)
+    ) {
+      parentJobs.push(result.value);
+    }
+  }
+
+  return parentJobs;
+}
+
+/**
+ * Distributes collected material costs to jobs.
+ *
+ * @param {Object} collectedMaterials - Materials collected from child jobs
+ * @param {Array<Object>} jobSelection - Array of job objects to distribute costs to
+ * @param {Object} materialIDMap - Map of material IDs to job IDs that have the material
+ * @returns {Object} Return object containing:
+ * @returns {number} returns.successfulJobImportCount - Number of jobs that received costs
+ * @returns {number} returns.priceItemsImportedCount - Number of price items imported
+ * @returns {Set<string>} returns.modifiedJobIDs - Set of job IDs that were modified
+ * @example
+ * const result = distributeItemCostsBetweenJobs(collectedMaterials, jobSelection, materialIDMap);
+ * console.log(result.successfulJobImportCount); // Number of jobs
+ * console.log(result.priceItemsImportedCount); // Number of price items
+ * console.log(result.modifiedJobIDs); // Set of modified job IDs
+ */
+export function distributeItemCostsBetweenJobs(collectedMaterials, jobSelection, materialIDMap) {
+
+  let priceItemsImportedCount = 0;
+  const modifiedJobIDs = new Set(); 
+  for (const job of jobSelection) {
+    for (const materialID of Object.keys(collectedMaterials)) {
+      if (!materialIDMap[materialID]?.has(job.jobID)) continue;
+
+      // Convert materialID to number for comparison (Object.keys returns strings)
+      const materialIDNum = Number(materialID);
+      const material = job.build.materials.find((i) => i.typeID == materialIDNum);
+      if (!material) continue;
+      const materialToImport = collectedMaterials[materialID];
+      if (!materialToImport) continue;
+
+      let remainingQuantityToPurchase =
+        material.quantity - material.quantityPurchased;
+
+      for (const costEntry of materialToImport.costs) {
+        if (remainingQuantityToPurchase <= 0) break;
+
+        if (costEntry.quantity <= 0) continue;
+
+        if (isMaterialPurchased(material, costEntry.id, job)) continue;
+
+        const quantityAvailableToPurchase = Math.min(
+          remainingQuantityToPurchase,
+          costEntry.quantity
+        );
+
+        if (quantityAvailableToPurchase > 0) {
+          const purchaseObject = materialPriceObjectFactory(
+            materialIDNum,
+            quantityAvailableToPurchase,
+            costEntry.cost,
+            costEntry?.id || null
+          );
+
+          job.addPurchaseCostToMaterial(materialIDNum, purchaseObject);
+
+          modifiedJobIDs.add(job.jobID);
+
+          costEntry.quantity -= quantityAvailableToPurchase;
+          remainingQuantityToPurchase -= quantityAvailableToPurchase;
+
+          priceItemsImportedCount++;
+        }
+      }
+    }
+  }
+
+  return { successfulJobImportCount : modifiedJobIDs.size, priceItemsImportedCount, modifiedJobIDs };
+}
+
+/**
+ * Builds notification text for successful cost imports.
+ *
+ * @param {number} successfulParentImportCount - Number of successful parent imports
+ * @param {number} priceItemsImportedCount - Number of price items imported
+ * @returns {string|null} Notification text or null if no items imported
+ *
+ * @private
+ */
+
+export function buildNotificationText(
+  successfulJobImportCount,
+  priceItemsImportedCount
+) {
+  if (priceItemsImportedCount === 0) {
+    return null;
+  }
+
+  let costLabel = "Cost";
+  if (priceItemsImportedCount !== 1) {
+    costLabel = "Costs";
+  }
+
+  let jobLabel = "Job";
+  if (successfulJobImportCount !== 1) {
+    jobLabel = "Jobs";
+  }
+
+  return `${priceItemsImportedCount} ${costLabel} Imported into ${successfulJobImportCount} ${jobLabel}.`;
+}
+
+/**
+ * Checks if a material has already been purchased from a specific job.
+ *
+ * @param {Object} material - Material object to check
+ * @param {string} jobID - Job ID to check for
+ * @param {Object} parentJob - Parent job object
+ * @returns {boolean} True if material is already purchased from this job
+ *
+ * @private
+ */
+
+function isMaterialPurchased(material, jobID, parentJob) {
+  return (
+    material.purchasing.some((i) => i.childID === jobID) &&
+    parentJob.build.childJobs[material.typeID]?.includes(jobID)
+  );
+}

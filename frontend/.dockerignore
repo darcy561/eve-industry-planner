@@ -1,0 +1,40 @@
+# Dockerignore for frontend build context
+# This only applies when build context is set to ./frontend
+
+# Node modules (installed fresh in container via cache mount)
+node_modules/
+
+# Build output (we build fresh in container)
+dist/
+
+# Firebase functions (not needed for React build)
+functions/
+
+# Test files
+tests/
+**/*.test.js
+**/*.test.jsx
+**/*.spec.js
+**/*.spec.jsx
+
+# Firebase config files (not needed for build)
+firebase*.json
+firestore.*
+database.rules.json
+storage.rules
+cors.json
+
+# Logs
+*.log
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation
+*.md
+README*
+

@@ -1,0 +1,131 @@
+import { Icon, Tooltip, Typography, useTheme, Grid } from "@mui/material";
+
+import { jobTypes } from "../../../../../../Context/defaultValues";
+import DoneIcon from "@mui/icons-material/Done";
+import LensIcon from "@mui/icons-material/Lens";
+import MaterialPopoverIconButtons from "../../../../../../Styled Components/Popover/iconButtons";
+import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
+
+export function MaterialRow({ state, material, displayType }) {
+  const theme = useTheme();
+
+  const quantityToUse =
+    displayType === "active"
+      ? state.activeJob.build.setup[state.activeJob.layout.setupToEdit]
+          .materialCount[material.typeID].quantity
+      : material.quantity;
+
+  const jobTypeTextMap = {
+    [jobTypes.baseMaterial]: "Base Material",
+    [jobTypes.manufacturing]: "Manufacturing Job",
+    [jobTypes.reaction]: "Reaction Job",
+    [jobTypes.pi]: "Planetary Interaction",
+  };
+
+  function colorSelector() {
+    const { jobType, typeID } = material;
+    const { childJobs } = state.activeJob.build;
+
+    switch (jobType) {
+      case jobTypes.manufacturing:
+      case jobTypes.reaction:
+        if (state.activeJob.build.childJobs[typeID].length > 0) {
+          return jobType === jobTypes.manufacturing
+            ? theme.palette.manufacturing.main
+            : theme.palette.reaction.main;
+        } else if (
+          state.temporaryChildJobs[typeID] ||
+          state.parentChildToEdit.childJobs[typeID]?.add.length > 0
+        ) {
+          return theme.palette.warning.main;
+        } else {
+          return jobType === jobTypes.manufacturing
+            ? theme.palette.manufacturing.main
+            : theme.palette.reaction.main;
+        }
+
+      case jobTypes.pi:
+        return theme.palette.pi.main;
+
+      default:
+        return theme.palette.baseMat.main;
+    }
+  }
+
+  return (
+    <Grid container size={12}>
+      <Grid
+        container
+        justifyContent="center"
+        alignItems="center"
+        size={{
+          xs: 2,
+          sm: 1,
+        }}
+      >
+        {state.activeJob.build.childJobs[material.typeID].length === 0 &&
+        !state.temporaryChildJobs[material.typeID] &&
+        (!state.parentChildToEdit.childJobs[material.typeID]?.add ||
+          state.parentChildToEdit.childJobs[material.typeID].add.length ===
+            0) ? (
+          <Tooltip
+            title={jobTypeTextMap[material.jobType]}
+            placement="left-start"
+            arrow
+          >
+            <Icon
+              sx={{
+                color: colorSelector(),
+              }}
+            >
+              <LensIcon fontSize="small" />
+            </Icon>
+          </Tooltip>
+        ) : (
+          <Tooltip
+            title={
+              state.temporaryChildJobs[material.typeID] ||
+              state.parentChildToEdit.childJobs[material.typeID]?.add.length > 0
+                ? `${jobTypeTextMap[material.jobType]} Pending`
+                : `${jobTypeTextMap[material.jobType]} Linked`
+            }
+            placement="left-start"
+            arrow
+          >
+            <Icon
+              size="small"
+              sx={{
+                color: colorSelector(),
+              }}
+            >
+              <DoneIcon xs={22} />
+            </Icon>
+          </Tooltip>
+        )}
+      </Grid>
+      <Grid
+        size={{
+          xs: 7,
+          sm: 7,
+        }}
+      >
+        <MaterialPopoverIconButtons typeID={material.typeID}>
+          <Typography sx={{ typography: { xs: "caption", sm: "body1" } }}>
+            {material.name}
+          </Typography>
+        </MaterialPopoverIconButtons>
+      </Grid>
+      <Grid
+        align="right"
+        size={{
+          xs: 3,
+          sm: 4,
+        }}
+      >
+        <Typography sx={{ typography: { xs: "caption", sm: "body1" } }}>
+          {formatNumberForLocale(quantityToUse, { max: 0 })}
+        </Typography>
+      </Grid>
+    </Grid>
+  );
+}

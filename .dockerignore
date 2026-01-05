@@ -1,0 +1,77 @@
+# Exclude files not needed by any service builds
+# Go services (api, worker, core) need: cmd/, internal/, *.go, go.mod, go.sum
+# Nginx service needs: .env, frontend/ (source), nginx/conf.d/default.conf
+
+# Node modules (exclude - installed fresh in container via cache mount)
+node_modules/
+frontend/node_modules/
+**/node_modules/
+
+# Root dist/ folder (if it exists from local builds, exclude it - we build fresh in container)
+dist/
+frontend/dist/
+
+# Exclude frontend functions/ directory (Firebase functions, not needed for React build)
+frontend/functions/
+
+# Exclude frontend test files
+frontend/tests/
+frontend/**/*.test.js
+frontend/**/*.test.jsx
+frontend/**/*.spec.js
+frontend/**/*.spec.jsx
+
+# Exclude Firebase config files (not needed for build)
+frontend/firebase*.json
+frontend/firestore.*
+frontend/database.rules.json
+frontend/storage.rules
+frontend/cors.json
+
+# Exclude logs
+frontend/*.log
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+README*
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build artifacts (dist folders, but keep source code)
+cmd/**/dist/
+internal/**/dist/
+
+# Test files (not needed for builds)
+cmd/**/tests/
+internal/**/tests/
+cmd/**/*_test.go
+internal/**/*_test.go
+
+# Logs
+*.log
+logs/
+
+# Environment files (except .env which is needed)
+.env.local
+.env.*.local
+
+# Other Docker files
+docker-compose*.yml
+docker-compose*.yaml
+
+# Scripts
+scripts/
+
+# Database files
+*.db
+*.sqlite
+

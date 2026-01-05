@@ -1,0 +1,195 @@
+services:
+  api:
+    image: ghcr.io/darcy561/eve-industry-planner-api:Public-latest
+    restart: unless-stopped
+    env_file: [.env]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`${DOMAIN:-}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.api.entrypoints=web"
+      - "traefik.http.routers.api.service=api"
+      - "traefik.http.routers.api.middlewares=cors,api-compress"
+      - "traefik.http.middlewares.cors.headers.accessControlAllowMethods=GET,POST,PUT,DELETE,PATCH,OPTIONS"
+      - "traefik.http.middlewares.cors.headers.accessControlAllowHeaders=Content-Type,Authorization,X-Requested-With,Accept,Origin"
+      - "traefik.http.middlewares.cors.headers.accessControlAllowOriginListRegex=^https://([a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*\\.)*${DOMAIN}(:[0-9]+)?$,^https://${DOMAIN}(:[0-9]+)?$"
+      - "traefik.http.middlewares.cors.headers.accessControlAllowCredentials=true"
+      - "traefik.http.middlewares.cors.headers.accessControlMaxAge=86400"
+      - "traefik.http.middlewares.cors.headers.addVaryHeader=true"
+      - "traefik.http.middlewares.api-compress.compress.includedContentTypes=application/json,text/plain,text/html"
+      - "traefik.http.services.api.loadbalancer.server.port=4000"
+      - "traefik.http.services.api.loadbalancer.healthcheck.path=/health"
+      - "traefik.http.services.api.loadbalancer.healthcheck.interval=10s"
+      - "traefik.http.services.api.loadbalancer.healthcheck.timeout=3s"
+      - "traefik.http.services.api.loadbalancer.healthcheck.scheme=http"
+      - "traefik.http.routers.ws.rule=Host(`${DOMAIN:-}`) && PathPrefix(`/ws`)"
+      - "traefik.http.routers.ws.entrypoints=web"
+      - "traefik.http.routers.ws.service=ws"
+      - "traefik.http.routers.ws.middlewares=cors,ws-compress"
+      - "traefik.http.middlewares.ws-compress.compress.includedContentTypes=application/json,text/plain"
+      - "traefik.http.services.ws.loadbalancer.server.port=4001"
+    volumes:
+      - api_data:/data
+    depends_on:
+      - mongo
+      - mongo-secondary
+      - redis
+      - nats
+    networks:
+      - eip
+
+  worker:
+    image: ghcr.io/darcy561/eve-industry-planner-worker:Public-latest
+    restart: unless-stopped
+    env_file: [.env]
+    depends_on:
+      - mongo
+      - mongo-secondary
+      - redis
+      - nats
+    networks:
+      - eip
+  core:
+    container_name: core-service
+    image: ghcr.io/darcy561/eve-industry-planner-core:Public-latest
+    restart: unless-stopped
+    env_file: [.env]
+    depends_on:
+      - mongo
+      - mongo-secondary
+      - redis
+      - nats
+    networks:
+      - eip
+
+  frontend:
+    image: ghcr.io/darcy561/eve-industry-planner-frontend:Public-latest
+    restart: unless-stopped
+    env_file: [.env]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:80/health.json",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.service=frontend"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+      - "traefik.http.services.frontend.loadbalancer.healthcheck.path=/health.json"
+      - "traefik.http.services.frontend.loadbalancer.healthcheck.interval=10s"
+      - "traefik.http.services.frontend.loadbalancer.healthcheck.timeout=3s"
+      - "traefik.http.services.frontend.loadbalancer.healthcheck.scheme=http"
+      - "traefik.http.routers.frontend.rule=Host(`${DOMAIN:-}`) && PathPrefix(`/`)"
+      - "traefik.http.routers.frontend.priority=1"
+      - "traefik.http.routers.frontend.middlewares=frontend-contenttype,frontend-compress,security-headers"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.middlewares.frontend-contenttype.contentType=true"
+      - "traefik.http.middlewares.frontend-compress.compress.includedContentTypes=text/html,text/css,text/javascript,application/javascript,application/json,text/xml,application/xml,application/xml+rss,text/plain,application/json,application/x-javascript,text/css,image/svg+xml"
+      - "traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.security-headers.headers.browserXssFilter=true"
+      - "traefik.http.middlewares.security-headers.headers.frameDeny=true"
+      - "traefik.http.middlewares.security-headers.headers.isDevelopment=false"
+    networks:
+      - eip
+
+  traefik:
+    container_name: traefik-reverse-proxy-service
+    image: traefik:v3.6.6
+    restart: unless-stopped
+    command:
+      - "--api.insecure=true"
+      - "--api.dashboard=true"
+      - "--api.port=81"
+      - "--providers.docker=true"
+      - "--providers.docker.endpoint=unix:///var/run/docker.sock"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--log.level=INFO"
+      - "--accesslog=true"
+      - "--accesslog.filepath=/var/log/traefik/access.log"
+      - "--log.filepath=/var/log/traefik/traefik.log"
+    env_file: [.env]
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
+    ports:
+      - "80:80"
+      - "443:443"
+      - "${TAILSCALE_IP}:81:81"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "traefik_data:/data"
+      - "/var/log/traefik:/var/log/traefik"
+    networks:
+      - eip
+
+  nats:
+    container_name: nats-message-broker-service
+    image: nats:2.12.3
+    restart: unless-stopped
+    volumes:
+      - nats_data:/data
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    networks:
+      - eip
+
+  redis:
+    container_name: redis-server
+    image: redis:8.4.0
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - eip
+
+  mongo:
+    container_name: mongo-primary-database
+    image: mongo:8.2.3
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    command: >
+      bash -c " mongod --replSet rs0 --bind_ip_all & sleep 5 && mongosh --eval ' try {
+        rs.initiate({
+          _id: \"rs0\",
+          members: [
+            { _id: 0, host: \"mongo:27017\" },
+            { _id: 1, host: \"mongo-secondary:27017\" }
+          ]
+        })
+      } catch(e) { print(e) } ' && wait "
+    networks:
+      - eip
+
+  mongo-secondary:
+    container_name: mongo-secondary-database
+    image: mongo:8.2.3
+    restart: unless-stopped
+    volumes:
+      - mongo_secondary_data:/data/db
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    depends_on:
+      - mongo
+    networks:
+      - eip
+
+volumes:
+  mongo_data:
+  mongo_secondary_data:
+  redis_data:
+  nats_data:
+  api_data:
+  traefik_data:
+
+networks:
+  eip:
+    driver: bridge
