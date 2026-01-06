@@ -137,6 +137,7 @@ services:
       # Entrypoints
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.websecure.http.tls=true"
       - "--entrypoints.dashboard.address=:81"
       # Providers
       - "--providers.docker=true"

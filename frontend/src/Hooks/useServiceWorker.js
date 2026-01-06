@@ -23,6 +23,26 @@ import { useEffect } from 'react';
 export const useServiceWorker = () => {
   useEffect(() => {
     if ('serviceWorker' in navigator) {
+      // First, unregister any existing service workers
+      const unregisterServiceWorkers = async () => {
+        try {
+          // Get all service worker registrations
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          
+          // Unregister all service workers
+          await Promise.all(
+            registrations.map((registration) => registration.unregister())
+          );
+          
+          if (registrations.length > 0) {
+            console.log(`Unregistered ${registrations.length} service worker(s)`);
+          }
+        } catch (error) {
+          console.error('Service Worker unregistration failed:', error);
+        }
+      };
+
+      // Original registration code (currently disabled)
       const registerServiceWorker = async () => {
         try {
           const registration = await navigator.serviceWorker.register('/sw.js', {
@@ -33,8 +53,11 @@ export const useServiceWorker = () => {
         }
       };
 
-      // Register after a short delay to ensure the page is loaded
-      setTimeout(registerServiceWorker, 1000);
+      // Unregister existing service workers after a short delay
+      setTimeout(unregisterServiceWorkers, 1000);
+      
+      // Original registration (commented out - uncomment to re-enable)
+      // setTimeout(registerServiceWorker, 1000);
     }
   }, []);
 };
