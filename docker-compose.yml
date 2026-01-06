@@ -6,11 +6,16 @@ services:
     labels:
       # Enable Traefik for this container
       - "traefik.enable=true"
-      # API Router & Service
+      # API Router & Service (HTTP)
       - "traefik.http.routers.api.rule=PathPrefix(`/api`)"
       - "traefik.http.routers.api.entrypoints=web"
       - "traefik.http.routers.api.service=api"
       - "traefik.http.routers.api.middlewares=cors,api-compress"
+      # API Router (HTTPS)
+      - "traefik.http.routers.api-secure.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.api-secure.entrypoints=websecure"
+      - "traefik.http.routers.api-secure.service=api"
+      - "traefik.http.routers.api-secure.middlewares=cors,api-compress"
       # CORS Middleware
       - "traefik.http.middlewares.cors.headers.accessControlAllowMethods=GET,POST,PUT,DELETE,PATCH,OPTIONS"
       - "traefik.http.middlewares.cors.headers.accessControlAllowHeaders=Content-Type,Authorization,X-Requested-With,Accept,Origin"
@@ -26,11 +31,16 @@ services:
       - "traefik.http.services.api.loadbalancer.healthcheck.interval=10s"
       - "traefik.http.services.api.loadbalancer.healthcheck.timeout=3s"
       - "traefik.http.services.api.loadbalancer.healthcheck.scheme=http"
-      # WebSocket Router & Service
+      # WebSocket Router & Service (HTTP)
       - "traefik.http.routers.ws.rule=PathPrefix(`/ws`)"
       - "traefik.http.routers.ws.entrypoints=web"
       - "traefik.http.routers.ws.service=ws"
       - "traefik.http.routers.ws.middlewares=cors,ws-compress"
+      # WebSocket Router (HTTPS)
+      - "traefik.http.routers.ws-secure.rule=PathPrefix(`/ws`)"
+      - "traefik.http.routers.ws-secure.entrypoints=websecure"
+      - "traefik.http.routers.ws-secure.service=ws"
+      - "traefik.http.routers.ws-secure.middlewares=cors,ws-compress"
       - "traefik.http.middlewares.ws-compress.compress.includedContentTypes=application/json,text/plain"
       - "traefik.http.services.ws.loadbalancer.server.port=4001"
     volumes:
@@ -95,12 +105,17 @@ services:
       - "traefik.http.services.frontend.loadbalancer.healthcheck.interval=10s"
       - "traefik.http.services.frontend.loadbalancer.healthcheck.timeout=3s"
       - "traefik.http.services.frontend.loadbalancer.healthcheck.scheme=http"
-      # Frontend Router Rule
+      # Frontend Router Rule (HTTP)
       - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
       - "traefik.http.routers.frontend.priority=1"
-      # Frontend Middlewares
-      - "traefik.http.routers.frontend.middlewares=frontend-contenttype,frontend-compress,security-headers"
       - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.routers.frontend.middlewares=frontend-contenttype,frontend-compress,security-headers"
+      # Frontend Router (HTTPS)
+      - "traefik.http.routers.frontend-secure.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend-secure.priority=1"
+      - "traefik.http.routers.frontend-secure.entrypoints=websecure"
+      - "traefik.http.routers.frontend-secure.service=frontend"
+      - "traefik.http.routers.frontend-secure.middlewares=frontend-contenttype,frontend-compress,security-headers"
       - "traefik.http.middlewares.frontend-contenttype.contentType=true"
       - "traefik.http.middlewares.frontend-compress.compress.includedContentTypes=text/html,text/css,text/javascript,application/javascript,text/css,image/svg+xml"
       # Security Headers Middleware
@@ -121,7 +136,8 @@ services:
       - "--api.dashboard=true"
       # Entrypoints
       - "--entrypoints.web.address=:80"
-      - "--entrypoints.tailscale.address=${TAILSCALE_IP}:81"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.dashboard.address=:81"
       # Providers
       - "--providers.docker=true"
       - "--providers.docker.endpoint=unix:///var/run/docker.sock"
@@ -133,12 +149,13 @@ services:
       - "--log.filepath=/var/log/traefik/traefik.log"
     env_file: [.env]
     labels:
-      # Traefik Dashboard
+      # Enable Traefik
       - "traefik.enable=true"
-      - "traefik.http.routers.traefik-dashboard.rule=PathPrefix(`/traefik`)"
-      - "traefik.http.routers.traefik-dashboard.entrypoints=web"
+      # Dashboard router - port 81 (dashboard entrypoint), Tailscale only
+      - "traefik.http.routers.traefik-dashboard.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=dashboard"
       - "traefik.http.routers.traefik-dashboard.service=api@internal"
-      - "traefik.http.middlewares.tailscale-whitelist.ipWhiteList.sourcerange=100.64.0.0/10"
+      - "traefik.http.middlewares.tailscale-whitelist.ipWhiteList.sourceRange=100.64.0.0/10"
       - "traefik.http.routers.traefik-dashboard.middlewares=tailscale-whitelist"
     dns:
       - 8.8.8.8
@@ -146,6 +163,7 @@ services:
       - 1.1.1.1
     ports:
       - "80:80"
+      - "443:443"
       - "${TAILSCALE_IP}:81:81"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
