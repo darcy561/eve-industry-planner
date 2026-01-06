@@ -1,5 +1,6 @@
 services:
   api:
+    container_name: api-service
     image: ghcr.io/darcy561/eve-industry-planner-api:Public-latest
     restart: unless-stopped
     env_file: [.env]
@@ -52,8 +53,13 @@ services:
       - nats
     networks:
       - eip
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
 
   worker:
+    container_name: worker-service
     image: ghcr.io/darcy561/eve-industry-planner-worker:Public-latest
     restart: unless-stopped
     env_file: [.env]
@@ -64,6 +70,10 @@ services:
       - nats
     networks:
       - eip
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
   core:
     container_name: core-service
     image: ghcr.io/darcy561/eve-industry-planner-core:Public-latest
@@ -78,6 +88,7 @@ services:
       - eip
 
   frontend:
+    container_name: frontend-service
     image: ghcr.io/darcy561/eve-industry-planner-frontend:Public-latest
     restart: unless-stopped
     env_file: [.env]
@@ -125,6 +136,10 @@ services:
       - "traefik.http.middlewares.security-headers.headers.isDevelopment=false"
     networks:
       - eip
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
 
   traefik:
     container_name: traefik-reverse-proxy-service
@@ -158,10 +173,6 @@ services:
       - "traefik.http.routers.traefik-dashboard.service=api@internal"
       - "traefik.http.middlewares.tailscale-whitelist.ipWhiteList.sourceRange=100.64.0.0/10"
       - "traefik.http.routers.traefik-dashboard.middlewares=tailscale-whitelist"
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-      - 1.1.1.1
     ports:
       - "80:80"
       - "443:443"
@@ -172,6 +183,10 @@ services:
       - "/var/log/traefik:/var/log/traefik"
     networks:
       - eip
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
 
   nats:
     container_name: nats-message-broker-service
