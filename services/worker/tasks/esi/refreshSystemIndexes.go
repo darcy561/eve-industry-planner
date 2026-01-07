@@ -1,4 +1,4 @@
-package esi
+package tasks
 
 import (
 	"compress/gzip"
@@ -13,11 +13,14 @@ import (
 
 	esicore "eve-industry-planner/shared/core/esi"
 	esiratelimiter "eve-industry-planner/shared/core/esi/rateLimiter"
+	esitypes "eve-industry-planner/shared/core/esi/types"
 	natscore "eve-industry-planner/shared/core/nats"
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/shared/logs"
 	"eve-industry-planner/shared/shared/metrics"
-	tasks "eve-industry-planner/shared/tasks"
+	taskscore "eve-industry-planner/shared/tasks"
+
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 // ESICostIndice represents an individual cost index returned by ESI.
@@ -32,35 +35,20 @@ type ESIIndustrySystem struct {
 	SolarSystemID int32           `json:"solar_system_id"`
 }
 
-// SystemIndexes is the normalized structure used internally.
-type SystemIndexes struct {
-	SolarSystemID    int32   `json:"solar_system_id"`
-	LastUpdated      int64   `json:"lastUpdated"`
-	Manufacturing    float64 `json:"manufacturing,omitempty"`
-	ResearchTime     float64 `json:"researching_time_efficiency,omitempty"`
-	ResearchMaterial float64 `json:"researching_material_efficiency,omitempty"`
-	Copying          float64 `json:"copying,omitempty"`
-	Invention        float64 `json:"invention,omitempty"`
-	Reaction         float64 `json:"reaction,omitempty"`
-}
-
 // RefreshSystemIndexes fetches the latest industry system cost indices from ESI using a streaming decoder.
 // It checks for HTTP 304 Not Modified responses to avoid unnecessary work when data hasn't changed.
 // When data has changed, each item is persisted to Redis in the stream callback, and the ETag
 // is saved after a successful pass. Cache headers are respected for scheduling future refreshes.
-func RefreshSystemIndexes(natsMessage MessageInterface, deps *TaskDependencies) {
+func RefreshSystemIndexes(msg jetstream.Msg, deps *TaskDependencies) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	deliveryCount := uint64(0)
-	if natsMessage != nil {
-		deliveryCount = natsMessage.NumDelivered()
-	}
+	deliveryCount := natscore.GetDeliveryCount(msg)
 	logs.Info("system indexes message received", "delivery_count", deliveryCount)
 
 	// Acquire a lock to prevent concurrent refreshes
 	lockKey := "esi:industry_systems:refresh_lock"
-	cleanup, shouldContinue := tasks.AcquireRefreshLock(ctx, deps.Redis, lockKey, natsMessage, deliveryCount)
+	cleanup, shouldContinue := taskscore.AcquireRefreshLock(ctx, deps.Redis, lockKey, msg, deliveryCount)
 	if !shouldContinue {
 		return
 	}
@@ -68,7 +56,7 @@ func RefreshSystemIndexes(natsMessage MessageInterface, deps *TaskDependencies) 
 
 	// Check server status before proceeding
 	statusResult := esicore.CheckServerStatus(ctx, deps.ESIClient, deps.Redis)
-	if !HandleStatusCheckResult(statusResult, natsMessage, "system indexes refresh", deliveryCount) {
+	if !HandleStatusCheckResult(statusResult, msg, "system indexes refresh", deliveryCount) {
 		return
 	}
 
@@ -83,21 +71,21 @@ func RefreshSystemIndexes(natsMessage MessageInterface, deps *TaskDependencies) 
 	start := time.Now()
 	logs.Debug("System Indexes Refresh Started", "etag_used", prevETag)
 	// initial heartbeat so long fetches don't time out
-	if natsMessage != nil {
-		_ = natsMessage.InProgress()
+	if msg != nil {
+		natscore.InProgressMessage(msg)
 	}
 
 	var totalBytes int64
 	var cacheSeconds int
-	newETag, notModified, bytesRead, err := StreamIndustrySystems(ctx, natsMessage, deps.ESIClient, prevETag, func(s SystemIndexes) error {
+	newETag, notModified, bytesRead, err := StreamIndustrySystems(ctx, msg, deps.ESIClient, prevETag, func(s esitypes.SystemIndexes) error {
 		if err := rediscore.SaveIndustrySystemIndex(ctx, deps.Redis, s.SolarSystemID, s); err != nil {
 			return err
 		}
 		count++
 		// send progress heartbeat at most every 5s
-		if natsMessage != nil {
+		if msg != nil {
 			if time.Since(lastProgress) >= 5*time.Second {
-				_ = natsMessage.InProgress()
+				natscore.InProgressMessage(msg)
 				lastProgress = time.Now()
 			}
 		}
@@ -105,18 +93,14 @@ func RefreshSystemIndexes(natsMessage MessageInterface, deps *TaskDependencies) 
 	}, &cacheSeconds)
 	totalBytes = bytesRead
 	if err != nil {
-		HandleStreamError(err, natsMessage, "system indexes refresh", deliveryCount, metrics.GetESIIndustrySystems().Errors)
+		HandleStreamError(err, msg, "system indexes refresh", deliveryCount, metrics.GetESIIndustrySystems().Errors)
 		return
 	}
 
 	if notModified {
 		logs.Info("System Indexes Refresh Completed - Not Modified (ETag Match)")
-		if natsMessage != nil {
-			if ackErr := natsMessage.Ack(); ackErr != nil {
-				logs.Warn("failed to ack message (not modified)", "error", ackErr)
-			} else {
-				logs.Info("message acknowledged (not modified)", "delivery_count", deliveryCount)
-			}
+		if msg != nil {
+			natscore.AcknowledgeMessage(msg, "not modified (ETag match)", deliveryCount)
 		}
 		m := metrics.GetESIIndustrySystems()
 		m.Requests.Observe(time.Since(start).Seconds())
@@ -131,8 +115,8 @@ func RefreshSystemIndexes(natsMessage MessageInterface, deps *TaskDependencies) 
 
 	if err := rediscore.SaveIndustrySystemsETag(ctx, deps.Redis, newETag); err != nil {
 		logs.Error("failed to save ETag, nacking with backoff", "error", err, "reason", "etag_save_error", "delivery_count", deliveryCount)
-		if natsMessage != nil {
-			natscore.NackWithBackoff(natsMessage)
+		if msg != nil {
+			natscore.NackMessage(msg)
 		}
 		metrics.GetESIIndustrySystems().Errors.WithLabelValues("etag_save").Inc()
 		return
@@ -141,8 +125,8 @@ func RefreshSystemIndexes(natsMessage MessageInterface, deps *TaskDependencies) 
 	// Save last updated timestamp
 	if err := rediscore.SaveIndustrySystemsLastUpdated(ctx, deps.Redis, time.Now().UnixMilli()); err != nil {
 		logs.Warn("failed to save last updated timestamp, nacking with backoff", "error", err, "reason", "last_updated_save_error", "delivery_count", deliveryCount)
-		if natsMessage != nil {
-			natscore.NackWithBackoff(natsMessage)
+		if msg != nil {
+			natscore.NackMessage(msg)
 		}
 		metrics.GetESIIndustrySystems().Errors.WithLabelValues("last_updated_save").Inc()
 		return
@@ -155,12 +139,8 @@ func RefreshSystemIndexes(natsMessage MessageInterface, deps *TaskDependencies) 
 	}
 
 	// Acknowledge message completion
-	if natsMessage != nil {
-		if ackErr := natsMessage.Ack(); ackErr != nil {
-			logs.Warn("failed to ack message (success)", "error", ackErr, "delivery_count", deliveryCount)
-		} else {
-			logs.Debug("message acknowledged (success)", "delivery_count", deliveryCount)
-		}
+	if msg != nil {
+		natscore.AcknowledgeMessage(msg, "successful processing", deliveryCount)
 	}
 
 	duration := time.Since(start)
@@ -178,7 +158,7 @@ func RefreshSystemIndexes(natsMessage MessageInterface, deps *TaskDependencies) 
 // onItem for each normalized SystemIndexes. Callers typically persist within the callback.
 // Returns the new ETag, whether it was not modified (HTTP 304), bytes read, and any error.
 // cacheSecondsOut will be populated with parsed cache max-age from response headers if available.
-func StreamIndustrySystems(ctx context.Context, natsMessage MessageInterface, esiClient esiratelimiter.ClientInterface, etag string, onItem func(SystemIndexes) error, cacheSecondsOut *int) (string, bool, int64, error) {
+func StreamIndustrySystems(ctx context.Context, msg jetstream.Msg, esiClient esiratelimiter.ClientInterface, etag string, onItem func(esitypes.SystemIndexes) error, cacheSecondsOut *int) (string, bool, int64, error) {
 	if esiClient == nil {
 		return "", false, 0, errors.New("ESI client is nil")
 	}
@@ -296,7 +276,7 @@ func StreamIndustrySystems(ctx context.Context, natsMessage MessageInterface, es
 		if err := dec.Decode(&item); err != nil {
 			return newETag, false, cr.n, err
 		}
-		s := SystemIndexes{SolarSystemID: item.SolarSystemID, LastUpdated: nowMs}
+		s := esitypes.SystemIndexes{SolarSystemID: item.SolarSystemID, LastUpdated: nowMs}
 		for _, ci := range item.CostIndices {
 			switch ci.Activity {
 			case "manufacturing":

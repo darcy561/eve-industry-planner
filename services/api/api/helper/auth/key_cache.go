@@ -40,7 +40,10 @@ func GetOrLoadPrivateKey() (*CachedPrivateKey, error) {
 		return privateKeyCache, nil
 	}
 
-	cfg := config.LoadConfig()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return nil, err
+	}
 	key, err := LoadRSAPrivateKey()
 	if err != nil {
 		return nil, err

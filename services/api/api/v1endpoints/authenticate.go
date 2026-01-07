@@ -34,7 +34,11 @@ type AuthResponse struct {
 func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	start := time.Now()
 	m := metrics.GetAPIAuthLogin()
-	cfg := config.LoadConfig()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		http.Error(w, "Configuration error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	// Only allow POST requests
 	if r.Method != http.MethodPost {

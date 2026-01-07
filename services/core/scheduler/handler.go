@@ -170,7 +170,7 @@ func (s *TaskScheduler) ScheduleOneTimeJob(jobID string, taskType string, runAt 
 		}
 
 		// Remove job from scheduler and Redis after execution
-		s.removeOneTimeJob(jobIDCopy, taskTypeCopy)
+		s.removeOneTimeJob(jobIDCopy)
 	}
 
 	// Schedule the job using gocron
@@ -204,7 +204,7 @@ func (s *TaskScheduler) ScheduleOneTimeJob(jobID string, taskType string, runAt 
 }
 
 // removeOneTimeJob removes a one-time job from the scheduler and Redis
-func (s *TaskScheduler) removeOneTimeJob(jobID string, taskType string) {
+func (s *TaskScheduler) removeOneTimeJob(jobID string) {
 	// Remove from scheduler
 	if job, exists := s.oneTimeJobs[jobID]; exists {
 		if err := s.scheduler.RemoveJob(job.ID()); err != nil {
@@ -362,12 +362,10 @@ func (s *TaskScheduler) Start() error {
 
 // processScheduleRequest processes a schedule request message from JetStream
 func (s *TaskScheduler) processScheduleRequest(msg jetstream.Msg) {
-	var req natscore.ScheduleRequest
-	if err := json.Unmarshal(msg.Data(), &req); err != nil {
+	req, err := natscore.UnmarshalMessagePayload[natscore.ScheduleRequest](msg)
+	if err != nil {
 		s.log.Error("failed to parse schedule request", "error", err)
-		if err := msg.Nak(); err != nil {
-			s.log.Warn("failed to nack invalid message", "error", err)
-		}
+		natscore.NackMessage(msg)
 		return
 	}
 
@@ -376,9 +374,7 @@ func (s *TaskScheduler) processScheduleRequest(msg jetstream.Msg) {
 		jobID, err := s.generateJobID()
 		if err != nil {
 			s.log.Error("failed to generate job ID", "error", err)
-			if err := msg.Nak(); err != nil {
-				s.log.Warn("failed to nack message", "error", err)
-			}
+			natscore.NackMessage(msg)
 			return
 		}
 		req.JobID = jobID
@@ -397,9 +393,8 @@ func (s *TaskScheduler) processScheduleRequest(msg jetstream.Msg) {
 			"run_at", runAt.Format(time.RFC3339),
 			"now", now.Format(time.RFC3339))
 		// Acknowledge and drop the message
-		if err := msg.Ack(); err != nil {
-			s.log.Warn("failed to ack message", "error", err)
-		}
+		deliveryCount := natscore.GetDeliveryCount(msg)
+		natscore.AcknowledgeMessage(msg, "run_at not in future", deliveryCount)
 		return
 	}
 
@@ -407,25 +402,21 @@ func (s *TaskScheduler) processScheduleRequest(msg jetstream.Msg) {
 	_, exists := s.handlers[req.TaskType]
 	if !exists {
 		s.log.Warn("no handler registered for task type", "task_type", req.TaskType)
-		if err := msg.Ack(); err != nil {
-			s.log.Warn("failed to ack message", "error", err)
-		}
+		deliveryCount := natscore.GetDeliveryCount(msg)
+		natscore.AcknowledgeMessage(msg, "no handler registered", deliveryCount)
 		return
 	}
 
 	// Schedule the one-time job
 	if err := s.ScheduleOneTimeJob(req.JobID, req.TaskType, runAt, req.Data); err != nil {
 		s.log.Error("failed to schedule one-time job", "job_id", req.JobID, "task_type", req.TaskType, "error", err)
-		if err := msg.Nak(); err != nil {
-			s.log.Warn("failed to nack message", "error", err)
-		}
+		natscore.NackMessage(msg)
 		return
 	}
 
 	// Acknowledge successful processing
-	if err := msg.Ack(); err != nil {
-		s.log.Warn("failed to ack message", "error", err)
-	}
+	deliveryCount := natscore.GetDeliveryCount(msg)
+	natscore.AcknowledgeMessage(msg, "successful scheduling", deliveryCount)
 }
 
 // Stop stops listening for scheduling requests and stops the scheduler

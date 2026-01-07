@@ -41,14 +41,11 @@ func StartMessageProcessingLoop(
 				}
 
 				for msg := range msgs.Messages() {
-					jetstreamMsg := msg
 					// Acknowledge message receipt immediately to prevent redelivery while processing
-					if err := jetstreamMsg.InProgress(); err != nil {
-						logs.Warn("failed to send InProgress for message", "subject", subject, "error", err)
-					}
+					InProgressMessage(msg)
 
 					// Process the message using the provided callback
-					processor(jetstreamMsg)
+					processor(msg)
 				}
 			}
 		}

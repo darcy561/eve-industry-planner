@@ -9,7 +9,10 @@ import (
 )
 
 func StartWSServer(clients *shared.ServiceClients) error {
-	cfg := config.LoadConfig()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return err
+	}
 
 	wsServer := server.NewServer(clients)
 

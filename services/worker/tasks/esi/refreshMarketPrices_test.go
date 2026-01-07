@@ -1,4 +1,4 @@
-package esi
+package tasks
 
 import (
 	"bytes"
@@ -19,7 +19,7 @@ import (
 )
 
 // Helper to create a test market order
-func createTestMarketOrder(orderID int64, typeID int32, locationID int64, price float64, isBuyOrder bool, stationID int64) ESIMarketOrder {
+func createTestMarketOrder(orderID int64, typeID int32, locationID int64, price float64, isBuyOrder bool, _ int64) ESIMarketOrder {
 	return ESIMarketOrder{
 		OrderID:      orderID,
 		TypeID:       typeID,
@@ -213,7 +213,7 @@ func TestGetBestBuyAndSellPrices_NoOrders(t *testing.T) {
 func TestFetchPaginatedMarketOrders_NilESIClient(t *testing.T) {
 	ctx := context.Background()
 
-	_, notModified, bytesRead, err := FetchPaginatedMarketOrders(ctx, nil, nil, 10000002, 34, nil, func(order ESIMarketOrder) error {
+	_, notModified, bytesRead, err := FetchPaginatedMarketOrders(ctx, nil, nil, nil, 10000002, 34, 10000002, nil, func(order ESIMarketOrder) error {
 		return nil
 	}, nil)
 
@@ -235,7 +235,7 @@ func TestFetchPaginatedMarketOrders_NilCallback(t *testing.T) {
 	ctx := context.Background()
 	esiClient := &mockESIClientForStreaming{}
 
-	_, notModified, bytesRead, err := FetchPaginatedMarketOrders(ctx, nil, esiClient, 10000002, 34, nil, nil, nil)
+	_, notModified, bytesRead, err := FetchPaginatedMarketOrders(ctx, nil, esiClient, nil, 10000002, 34, 10000002, nil, nil, nil)
 
 	if err == nil {
 		t.Error("expected error when callback is nil")
@@ -277,7 +277,7 @@ func TestFetchPaginatedMarketOrders_FirstPage304(t *testing.T) {
 		},
 	}
 
-	etags, notModified, bytesRead, err := FetchPaginatedMarketOrders(ctx, nil, esiClient, 10000002, 34, prevETags, func(order ESIMarketOrder) error {
+	etags, notModified, bytesRead, err := FetchPaginatedMarketOrders(ctx, nil, esiClient, nil, 10000002, 34, 10000002, prevETags, func(order ESIMarketOrder) error {
 		t.Error("callback should not be called for 304 response")
 		return nil
 	}, &cacheSeconds)
@@ -323,7 +323,7 @@ func TestFetchPaginatedMarketOrders_SinglePage(t *testing.T) {
 		},
 	}
 
-	etags, notModified, bytesRead, err := FetchPaginatedMarketOrders(ctx, nil, esiClient, 10000002, 34, nil, func(order ESIMarketOrder) error {
+	etags, notModified, bytesRead, err := FetchPaginatedMarketOrders(ctx, nil, esiClient, nil, 10000002, 34, 10000002, nil, func(order ESIMarketOrder) error {
 		processedOrders = append(processedOrders, order)
 		return nil
 	}, nil)
@@ -369,11 +369,12 @@ func TestFetchPaginatedMarketOrders_MultiplePages(t *testing.T) {
 			var etag string
 			var xPages string
 
-			if pageCount == 1 {
+			switch pageCount {
+			case 1:
 				bodyData = page1Data
 				etag = "page1-etag"
 				xPages = "2"
-			} else if pageCount == 2 {
+			case 2:
 				bodyData = page2Data
 				etag = "page2-etag"
 				xPages = "2"
@@ -391,7 +392,7 @@ func TestFetchPaginatedMarketOrders_MultiplePages(t *testing.T) {
 		},
 	}
 
-	etags, notModified, bytesRead, err := FetchPaginatedMarketOrders(ctx, nil, esiClient, 10000002, 34, nil, func(order ESIMarketOrder) error {
+	etags, notModified, bytesRead, err := FetchPaginatedMarketOrders(ctx, nil, esiClient, nil, 10000002, 34, 10000002, nil, func(order ESIMarketOrder) error {
 		processedOrders = append(processedOrders, order)
 		return nil
 	}, nil)
@@ -438,7 +439,7 @@ func TestFetchPaginatedMarketOrders_Non200Status(t *testing.T) {
 		},
 	}
 
-	etags, notModified, bytesRead, err := FetchPaginatedMarketOrders(ctx, nil, esiClient, 10000002, 34, nil, func(order ESIMarketOrder) error {
+	etags, notModified, bytesRead, err := FetchPaginatedMarketOrders(ctx, nil, esiClient, nil, 10000002, 34, 10000002, nil, func(order ESIMarketOrder) error {
 		t.Error("callback should not be called for non-200 response")
 		return nil
 	}, nil)
@@ -472,7 +473,7 @@ func TestFetchPaginatedMarketOrders_InvalidJSON(t *testing.T) {
 		},
 	}
 
-	_, notModified, _, err := FetchPaginatedMarketOrders(ctx, nil, esiClient, 10000002, 34, nil, func(order ESIMarketOrder) error {
+	_, notModified, _, err := FetchPaginatedMarketOrders(ctx, nil, esiClient, nil, 10000002, 34, 10000002, nil, func(order ESIMarketOrder) error {
 		t.Error("callback should not be called for invalid JSON")
 		return nil
 	}, nil)
@@ -507,7 +508,7 @@ func TestFetchPaginatedMarketOrders_CallbackError(t *testing.T) {
 	}
 
 	callbackErr := errors.New("callback error")
-	_, notModified, _, err := FetchPaginatedMarketOrders(ctx, nil, esiClient, 10000002, 34, nil, func(order ESIMarketOrder) error {
+	_, notModified, _, err := FetchPaginatedMarketOrders(ctx, nil, esiClient, nil, 10000002, 34, 10000002, nil, func(order ESIMarketOrder) error {
 		return callbackErr
 	}, nil)
 
@@ -536,7 +537,7 @@ func TestFetchPaginatedMarketOrders_RateLimitError(t *testing.T) {
 		},
 	}
 
-	_, notModified, _, err := FetchPaginatedMarketOrders(ctx, nil, esiClient, 10000002, 34, nil, func(order ESIMarketOrder) error {
+	_, notModified, _, err := FetchPaginatedMarketOrders(ctx, nil, esiClient, nil, 10000002, 34, 10000002, nil, func(order ESIMarketOrder) error {
 		t.Error("callback should not be called on rate limit error")
 		return nil
 	}, nil)
@@ -570,9 +571,8 @@ func TestRefreshMarketPrices_NilMessage(t *testing.T) {
 
 func TestRefreshMarketPrices_InvalidJSON(t *testing.T) {
 	msg := &mockMessage{
-		data:          []byte("invalid json"),
-		deliveryCount: 1,
-		parseErr:      errors.New("invalid json"),
+		mockJetStreamMsg: &mockJetStreamMsg{data: []byte("invalid json")},
+		deliveryCount:    1,
 	}
 
 	redisClient := redis.NewClient(&redis.Options{
@@ -602,8 +602,8 @@ func TestRefreshMarketPrices_MissingParameters(t *testing.T) {
 	data, _ := json.Marshal(request)
 
 	msg := &mockMessage{
-		data:          data,
-		deliveryCount: 1,
+		mockJetStreamMsg: &mockJetStreamMsg{data: data},
+		deliveryCount:    1,
 	}
 
 	redisClient := redis.NewClient(&redis.Options{

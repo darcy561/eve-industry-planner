@@ -1,4 +1,4 @@
-package esi
+package tasks
 
 import (
 	"compress/gzip"
@@ -13,11 +13,14 @@ import (
 
 	esicore "eve-industry-planner/shared/core/esi"
 	esiratelimiter "eve-industry-planner/shared/core/esi/rateLimiter"
+	esitypes "eve-industry-planner/shared/core/esi/types"
 	natscore "eve-industry-planner/shared/core/nats"
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/shared/logs"
 	"eve-industry-planner/shared/shared/metrics"
-	tasks "eve-industry-planner/shared/tasks"
+	taskscore "eve-industry-planner/shared/tasks"
+
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 // ESIAdjustedPrice represents an individual adjusted price entry from ESI.
@@ -27,30 +30,20 @@ type ESIAdjustedPrice struct {
 	AveragePrice  float64 `json:"average_price"`
 }
 
-// AdjustedPrice is the normalized structure used internally (only adjusted price per user request).
-type AdjustedPrice struct {
-	TypeID        int32   `json:"type_id"`
-	AdjustedPrice float64 `json:"adjusted_price"`
-	LastUpdated   int64   `json:"last_updated"`
-}
-
 // RefreshAdjustedPrices fetches the latest adjusted prices from ESI using a streaming decoder.
 // It checks for HTTP 304 Not Modified responses to avoid unnecessary work when data hasn't changed.
 // When data has changed, each item is persisted to Redis in the stream callback, and the ETag
 // is saved after a successful pass. Cache headers are respected for scheduling future refreshes.
-func RefreshAdjustedPrices(natsMessage MessageInterface, deps *TaskDependencies) {
+func RefreshAdjustedPrices(msg jetstream.Msg, deps *TaskDependencies) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	deliveryCount := uint64(0)
-	if natsMessage != nil {
-		deliveryCount = natsMessage.NumDelivered()
-	}
-	logs.Debug("Adjusted Prices Refresh Message Received", "delivery_count", deliveryCount)
+	deliveryCount := natscore.GetDeliveryCount(msg)
+	logs.Info("Adjusted Prices Refresh Message Received", "delivery_count", deliveryCount)
 
 	// Acquire a lock to prevent concurrent refreshes
 	lockKey := "esi:market_prices:refresh_lock"
-	cleanup, shouldContinue := tasks.AcquireRefreshLock(ctx, deps.Redis, lockKey, natsMessage, deliveryCount)
+	cleanup, shouldContinue := taskscore.AcquireRefreshLock(ctx, deps.Redis, lockKey, msg, deliveryCount)
 	if !shouldContinue {
 		return
 	}
@@ -58,7 +51,7 @@ func RefreshAdjustedPrices(natsMessage MessageInterface, deps *TaskDependencies)
 
 	// Check server status before proceeding
 	statusResult := esicore.CheckServerStatus(ctx, deps.ESIClient, deps.Redis)
-	if !HandleStatusCheckResult(statusResult, natsMessage, "adjusted prices refresh", deliveryCount) {
+	if !HandleStatusCheckResult(statusResult, msg, "adjusted prices refresh", deliveryCount) {
 		return
 	}
 
@@ -73,21 +66,21 @@ func RefreshAdjustedPrices(natsMessage MessageInterface, deps *TaskDependencies)
 	start := time.Now()
 	logs.Debug("Adjusted Prices Refresh Started", "etag_used", prevETag)
 	// initial heartbeat so long fetches don't time out
-	if natsMessage != nil {
-		_ = natsMessage.InProgress()
+	if msg != nil {
+		natscore.InProgressMessage(msg)
 	}
 
 	var totalBytes int64
 	var cacheSeconds int
-	newETag, notModified, bytesRead, err := StreamAdjustedPrices(ctx, natsMessage, deps.ESIClient, prevETag, func(m AdjustedPrice) error {
+	newETag, notModified, bytesRead, err := StreamAdjustedPrices(ctx, msg, deps.ESIClient, prevETag, func(m esitypes.AdjustedPrice) error {
 		if err := rediscore.SaveMarketPrice(ctx, deps.Redis, m.TypeID, m); err != nil {
 			return err
 		}
 		count++
 		// send progress heartbeat at most every 5s
-		if natsMessage != nil {
+		if msg != nil {
 			if time.Since(lastProgress) >= 5*time.Second {
-				_ = natsMessage.InProgress()
+				natscore.InProgressMessage(msg)
 				lastProgress = time.Now()
 			}
 		}
@@ -95,18 +88,14 @@ func RefreshAdjustedPrices(natsMessage MessageInterface, deps *TaskDependencies)
 	}, &cacheSeconds)
 	totalBytes = bytesRead
 	if err != nil {
-		HandleStreamError(err, natsMessage, "adjusted prices refresh", deliveryCount, metrics.GetESIMarketPrices().Errors)
+		HandleStreamError(err, msg, "adjusted prices refresh", deliveryCount, metrics.GetESIMarketPrices().Errors)
 		return
 	}
 
 	if notModified {
-		logs.Debug("ESI adjusted prices not modified (ETag match)")
-		if natsMessage != nil {
-			if ackErr := natsMessage.Ack(); ackErr != nil {
-				logs.Warn("failed to ack message (not modified)", "error", ackErr)
-			} else {
-				logs.Debug("message acknowledged (not modified)", "delivery_count", deliveryCount)
-			}
+		logs.Info("ESI adjusted prices not modified (ETag match)")
+		if msg != nil {
+			natscore.AcknowledgeMessage(msg, "not modified (ETag match)", deliveryCount)
 		}
 		m := metrics.GetESIMarketPrices()
 		m.Requests.Observe(time.Since(start).Seconds())
@@ -121,8 +110,8 @@ func RefreshAdjustedPrices(natsMessage MessageInterface, deps *TaskDependencies)
 
 	if err := rediscore.SaveMarketPricesETag(ctx, deps.Redis, newETag); err != nil {
 		logs.Error("failed to save ETag, nacking with backoff", "error", err, "reason", "etag_save_error", "delivery_count", deliveryCount)
-		if natsMessage != nil {
-			natscore.NackWithBackoff(natsMessage)
+		if msg != nil {
+			natscore.NackMessage(msg)
 		}
 		metrics.GetESIMarketPrices().Errors.WithLabelValues("etag_save").Inc()
 		return
@@ -131,8 +120,8 @@ func RefreshAdjustedPrices(natsMessage MessageInterface, deps *TaskDependencies)
 	// Save last updated timestamp
 	if err := rediscore.SaveMarketPricesLastUpdated(ctx, deps.Redis, time.Now().UnixMilli()); err != nil {
 		logs.Warn("failed to save last updated timestamp, nacking with backoff", "error", err, "reason", "last_updated_save_error", "delivery_count", deliveryCount)
-		if natsMessage != nil {
-			natscore.NackWithBackoff(natsMessage)
+		if msg != nil {
+			natscore.NackMessage(msg)
 		}
 		metrics.GetESIMarketPrices().Errors.WithLabelValues("last_updated_save").Inc()
 		return
@@ -145,12 +134,8 @@ func RefreshAdjustedPrices(natsMessage MessageInterface, deps *TaskDependencies)
 	}
 
 	// Acknowledge message completion
-	if natsMessage != nil {
-		if ackErr := natsMessage.Ack(); ackErr != nil {
-			logs.Warn("failed to ack message (success)", "error", ackErr, "delivery_count", deliveryCount)
-		} else {
-			logs.Debug("message acknowledged (success)", "delivery_count", deliveryCount)
-		}
+	if msg != nil {
+		natscore.AcknowledgeMessage(msg, "successful processing", deliveryCount)
 	}
 
 	duration := time.Since(start)
@@ -168,7 +153,7 @@ func RefreshAdjustedPrices(natsMessage MessageInterface, deps *TaskDependencies)
 // onItem for each normalized AdjustedPrice. Callers typically persist within the callback.
 // Returns the new ETag, whether it was not modified (HTTP 304), bytes read, and any error.
 // cacheSecondsOut will be populated with parsed cache max-age from response headers if available.
-func StreamAdjustedPrices(ctx context.Context, natsMessage MessageInterface, esiClient esiratelimiter.ClientInterface, etag string, onItem func(AdjustedPrice) error, cacheSecondsOut *int) (string, bool, int64, error) {
+func StreamAdjustedPrices(ctx context.Context, msg jetstream.Msg, esiClient esiratelimiter.ClientInterface, etag string, onItem func(esitypes.AdjustedPrice) error, cacheSecondsOut *int) (string, bool, int64, error) {
 	if esiClient == nil {
 		return "", false, 0, errors.New("ESI client is nil")
 	}
@@ -287,7 +272,7 @@ func StreamAdjustedPrices(ctx context.Context, natsMessage MessageInterface, esi
 			return newETag, false, cr.n, err
 		}
 		// Only save adjusted_price as per user request
-		m := AdjustedPrice{
+		m := esitypes.AdjustedPrice{
 			TypeID:        item.TypeID,
 			AdjustedPrice: item.AdjustedPrice,
 			LastUpdated:   nowMs,

@@ -1,8 +1,7 @@
-package esi
+package tasks
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,70 +12,32 @@ import (
 	"time"
 
 	esiratelimiter "eve-industry-planner/shared/core/esi/rateLimiter"
+	esitypes "eve-industry-planner/shared/core/esi/types"
 	"eve-industry-planner/shared/shared"
 
 	"github.com/redis/go-redis/v9"
 )
 
-// mockESIClientForStreaming extends mockESIClient to support DoRequest for streaming
-type mockESIClientForStreaming struct {
-	doRequestFunc func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error)
-	doFunc        func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error)
-}
-
-func (m *mockESIClientForStreaming) Do(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
-	if m.doFunc != nil {
-		return m.doFunc(ctx, method, path, headers, groupDesignation)
-	}
-	return nil, nil, errors.New("doFunc not set")
-}
-
-func (m *mockESIClientForStreaming) DoRequest(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
-	if m.doRequestFunc != nil {
-		return m.doRequestFunc(ctx, method, path, headers, groupDesignation)
-	}
-	return nil, errors.New("doRequestFunc not set")
-}
-
-// Helper to create a test industry systems JSON response
-func createIndustrySystemsJSON(systems []ESIIndustrySystem) []byte {
-	data, _ := json.Marshal(systems)
+// Helper to create a test adjusted prices JSON response
+func createAdjustedPricesJSON(prices []ESIAdjustedPrice) []byte {
+	data, _ := json.Marshal(prices)
 	return data
 }
 
-// Helper to create a gzipped response body
-func createGzippedBody(data []byte) ([]byte, error) {
-	var buf bytes.Buffer
-	w := gzip.NewWriter(&buf)
-	if _, err := w.Write(data); err != nil {
-		return nil, err
-	}
-	if err := w.Close(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
-// Helper to create a test system index
-func createTestSystemIndex(systemID int32, activities map[string]float64) ESIIndustrySystem {
-	costIndices := make([]ESICostIndice, 0, len(activities))
-	for activity, costIndex := range activities {
-		costIndices = append(costIndices, ESICostIndice{
-			Activity:  activity,
-			CostIndex: costIndex,
-		})
-	}
-	return ESIIndustrySystem{
-		SolarSystemID: systemID,
-		CostIndices:   costIndices,
+// Helper to create a test adjusted price
+func createTestAdjustedPrice(typeID int32, adjustedPrice, averagePrice float64) ESIAdjustedPrice {
+	return ESIAdjustedPrice{
+		TypeID:        typeID,
+		AdjustedPrice: adjustedPrice,
+		AveragePrice:  averagePrice,
 	}
 }
 
-func TestStreamIndustrySystems_NilESIClient(t *testing.T) {
+func TestStreamAdjustedPrices_NilESIClient(t *testing.T) {
 	ctx := context.Background()
 	var cacheSeconds int
 
-	_, notModified, bytesRead, err := StreamIndustrySystems(ctx, nil, nil, "", func(s SystemIndexes) error {
+	_, notModified, bytesRead, err := StreamAdjustedPrices(ctx, nil, nil, "", func(m esitypes.AdjustedPrice) error {
 		return nil
 	}, &cacheSeconds)
 
@@ -94,12 +55,12 @@ func TestStreamIndustrySystems_NilESIClient(t *testing.T) {
 	}
 }
 
-func TestStreamIndustrySystems_NilCallback(t *testing.T) {
+func TestStreamAdjustedPrices_NilCallback(t *testing.T) {
 	ctx := context.Background()
 	esiClient := &mockESIClientForStreaming{}
 	var cacheSeconds int
 
-	_, notModified, bytesRead, err := StreamIndustrySystems(ctx, nil, esiClient, "", nil, &cacheSeconds)
+	_, notModified, bytesRead, err := StreamAdjustedPrices(ctx, nil, esiClient, "", nil, &cacheSeconds)
 
 	if err == nil {
 		t.Error("expected error when callback is nil")
@@ -115,7 +76,7 @@ func TestStreamIndustrySystems_NilCallback(t *testing.T) {
 	}
 }
 
-func TestStreamIndustrySystems_304NotModified(t *testing.T) {
+func TestStreamAdjustedPrices_304NotModified(t *testing.T) {
 	ctx := context.Background()
 	etag := "test-etag-123"
 	newETag := "test-etag-456"
@@ -140,7 +101,7 @@ func TestStreamIndustrySystems_304NotModified(t *testing.T) {
 		},
 	}
 
-	returnedETag, notModified, bytesRead, err := StreamIndustrySystems(ctx, nil, esiClient, etag, func(s SystemIndexes) error {
+	returnedETag, notModified, bytesRead, err := StreamAdjustedPrices(ctx, nil, esiClient, etag, func(m esitypes.AdjustedPrice) error {
 		t.Error("callback should not be called for 304 response")
 		return nil
 	}, &cacheSeconds)
@@ -162,7 +123,7 @@ func TestStreamIndustrySystems_304NotModified(t *testing.T) {
 	}
 }
 
-func TestStreamIndustrySystems_Non200Status(t *testing.T) {
+func TestStreamAdjustedPrices_Non200Status(t *testing.T) {
 	ctx := context.Background()
 	var cacheSeconds int
 
@@ -179,7 +140,7 @@ func TestStreamIndustrySystems_Non200Status(t *testing.T) {
 		},
 	}
 
-	returnedETag, notModified, bytesRead, err := StreamIndustrySystems(ctx, nil, esiClient, "", func(s SystemIndexes) error {
+	returnedETag, notModified, bytesRead, err := StreamAdjustedPrices(ctx, nil, esiClient, "", func(m esitypes.AdjustedPrice) error {
 		t.Error("callback should not be called for non-200 response")
 		return nil
 	}, &cacheSeconds)
@@ -196,22 +157,16 @@ func TestStreamIndustrySystems_Non200Status(t *testing.T) {
 	_ = bytesRead // bytesRead is 0 on error
 }
 
-func TestStreamIndustrySystems_SuccessfulStreaming(t *testing.T) {
+func TestStreamAdjustedPrices_SuccessfulStreaming(t *testing.T) {
 	ctx := context.Background()
-	systems := []ESIIndustrySystem{
-		createTestSystemIndex(30000142, map[string]float64{
-			"manufacturing": 0.1,
-			"copying":       0.05,
-		}),
-		createTestSystemIndex(30000144, map[string]float64{
-			"invention":     0.15,
-			"reaction":      0.2,
-			"manufacturing": 0.12,
-		}),
+	prices := []ESIAdjustedPrice{
+		createTestAdjustedPrice(34, 100.5, 99.2),
+		createTestAdjustedPrice(35, 200.75, 198.5),
+		createTestAdjustedPrice(36, 50.25, 49.8),
 	}
-	jsonData := createIndustrySystemsJSON(systems)
+	jsonData := createAdjustedPricesJSON(prices)
 	var cacheSeconds int
-	var processedItems []SystemIndexes
+	var processedItems []esitypes.AdjustedPrice
 
 	esiClient := &mockESIClientForStreaming{
 		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
@@ -227,8 +182,8 @@ func TestStreamIndustrySystems_SuccessfulStreaming(t *testing.T) {
 		},
 	}
 
-	returnedETag, notModified, bytesRead, err := StreamIndustrySystems(ctx, nil, esiClient, "", func(s SystemIndexes) error {
-		processedItems = append(processedItems, s)
+	returnedETag, notModified, bytesRead, err := StreamAdjustedPrices(ctx, nil, esiClient, "", func(m esitypes.AdjustedPrice) error {
+		processedItems = append(processedItems, m)
 		return nil
 	}, &cacheSeconds)
 
@@ -241,8 +196,8 @@ func TestStreamIndustrySystems_SuccessfulStreaming(t *testing.T) {
 	if returnedETag != "success-etag" {
 		t.Errorf("expected ETag %s, got %s", "success-etag", returnedETag)
 	}
-	if len(processedItems) != 2 {
-		t.Errorf("expected 2 items to be processed, got %d", len(processedItems))
+	if len(processedItems) != 3 {
+		t.Errorf("expected 3 items to be processed, got %d", len(processedItems))
 	}
 	if bytesRead == 0 {
 		t.Error("expected bytesRead to be greater than 0")
@@ -251,43 +206,50 @@ func TestStreamIndustrySystems_SuccessfulStreaming(t *testing.T) {
 		t.Errorf("expected cacheSeconds to be 600, got %d", cacheSeconds)
 	}
 
-	// Verify first system
-	if processedItems[0].SolarSystemID != 30000142 {
-		t.Errorf("expected first system ID 30000142, got %d", processedItems[0].SolarSystemID)
+	// Verify first price
+	if processedItems[0].TypeID != 34 {
+		t.Errorf("expected first type ID 34, got %d", processedItems[0].TypeID)
 	}
-	if processedItems[0].Manufacturing != 0.1 {
-		t.Errorf("expected manufacturing 0.1, got %f", processedItems[0].Manufacturing)
-	}
-	if processedItems[0].Copying != 0.05 {
-		t.Errorf("expected copying 0.05, got %f", processedItems[0].Copying)
+	if processedItems[0].AdjustedPrice != 100.5 {
+		t.Errorf("expected adjusted price 100.5, got %f", processedItems[0].AdjustedPrice)
 	}
 
-	// Verify second system
-	if processedItems[1].SolarSystemID != 30000144 {
-		t.Errorf("expected second system ID 30000144, got %d", processedItems[1].SolarSystemID)
+	// Verify second price
+	if processedItems[1].TypeID != 35 {
+		t.Errorf("expected second type ID 35, got %d", processedItems[1].TypeID)
 	}
-	if processedItems[1].Invention != 0.15 {
-		t.Errorf("expected invention 0.15, got %f", processedItems[1].Invention)
+	if processedItems[1].AdjustedPrice != 200.75 {
+		t.Errorf("expected adjusted price 200.75, got %f", processedItems[1].AdjustedPrice)
 	}
-	if processedItems[1].Reaction != 0.2 {
-		t.Errorf("expected reaction 0.2, got %f", processedItems[1].Reaction)
+
+	// Verify third price
+	if processedItems[2].TypeID != 36 {
+		t.Errorf("expected third type ID 36, got %d", processedItems[2].TypeID)
+	}
+	if processedItems[2].AdjustedPrice != 50.25 {
+		t.Errorf("expected adjusted price 50.25, got %f", processedItems[2].AdjustedPrice)
+	}
+
+	// Verify all have LastUpdated set
+	for i, item := range processedItems {
+		if item.LastUpdated == 0 {
+			t.Errorf("expected LastUpdated to be set for item %d", i)
+		}
 	}
 }
 
-func TestStreamIndustrySystems_GzipCompression(t *testing.T) {
+func TestStreamAdjustedPrices_GzipCompression(t *testing.T) {
 	ctx := context.Background()
-	systems := []ESIIndustrySystem{
-		createTestSystemIndex(30000142, map[string]float64{
-			"manufacturing": 0.1,
-		}),
+	prices := []ESIAdjustedPrice{
+		createTestAdjustedPrice(34, 100.5, 99.2),
 	}
-	jsonData := createIndustrySystemsJSON(systems)
+	jsonData := createAdjustedPricesJSON(prices)
 	gzippedData, err := createGzippedBody(jsonData)
 	if err != nil {
 		t.Fatalf("failed to create gzipped data: %v", err)
 	}
 
-	var processedItems []SystemIndexes
+	var processedItems []esitypes.AdjustedPrice
 
 	esiClient := &mockESIClientForStreaming{
 		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
@@ -303,8 +265,8 @@ func TestStreamIndustrySystems_GzipCompression(t *testing.T) {
 		},
 	}
 
-	_, notModified, bytesRead, err := StreamIndustrySystems(ctx, nil, esiClient, "", func(s SystemIndexes) error {
-		processedItems = append(processedItems, s)
+	_, notModified, bytesRead, err := StreamAdjustedPrices(ctx, nil, esiClient, "", func(m esitypes.AdjustedPrice) error {
+		processedItems = append(processedItems, m)
 		return nil
 	}, nil)
 
@@ -319,12 +281,15 @@ func TestStreamIndustrySystems_GzipCompression(t *testing.T) {
 	if len(processedItems) != 1 {
 		t.Errorf("expected 1 item to be processed, got %d", len(processedItems))
 	}
-	if processedItems[0].SolarSystemID != 30000142 {
-		t.Errorf("expected system ID 30000142, got %d", processedItems[0].SolarSystemID)
+	if processedItems[0].TypeID != 34 {
+		t.Errorf("expected type ID 34, got %d", processedItems[0].TypeID)
+	}
+	if processedItems[0].AdjustedPrice != 100.5 {
+		t.Errorf("expected adjusted price 100.5, got %f", processedItems[0].AdjustedPrice)
 	}
 }
 
-func TestStreamIndustrySystems_InvalidJSON(t *testing.T) {
+func TestStreamAdjustedPrices_InvalidJSON(t *testing.T) {
 	ctx := context.Background()
 	var cacheSeconds int
 
@@ -341,7 +306,7 @@ func TestStreamIndustrySystems_InvalidJSON(t *testing.T) {
 		},
 	}
 
-	_, notModified, _, err := StreamIndustrySystems(ctx, nil, esiClient, "", func(s SystemIndexes) error {
+	_, notModified, _, err := StreamAdjustedPrices(ctx, nil, esiClient, "", func(m esitypes.AdjustedPrice) error {
 		t.Error("callback should not be called for invalid JSON")
 		return nil
 	}, &cacheSeconds)
@@ -354,7 +319,7 @@ func TestStreamIndustrySystems_InvalidJSON(t *testing.T) {
 	}
 }
 
-func TestStreamIndustrySystems_NotArray(t *testing.T) {
+func TestStreamAdjustedPrices_NotArray(t *testing.T) {
 	ctx := context.Background()
 	var cacheSeconds int
 
@@ -371,7 +336,7 @@ func TestStreamIndustrySystems_NotArray(t *testing.T) {
 		},
 	}
 
-	_, notModified, _, err := StreamIndustrySystems(ctx, nil, esiClient, "", func(s SystemIndexes) error {
+	_, notModified, _, err := StreamAdjustedPrices(ctx, nil, esiClient, "", func(m esitypes.AdjustedPrice) error {
 		t.Error("callback should not be called for non-array JSON")
 		return nil
 	}, &cacheSeconds)
@@ -387,14 +352,12 @@ func TestStreamIndustrySystems_NotArray(t *testing.T) {
 	}
 }
 
-func TestStreamIndustrySystems_CallbackError(t *testing.T) {
+func TestStreamAdjustedPrices_CallbackError(t *testing.T) {
 	ctx := context.Background()
-	systems := []ESIIndustrySystem{
-		createTestSystemIndex(30000142, map[string]float64{
-			"manufacturing": 0.1,
-		}),
+	prices := []ESIAdjustedPrice{
+		createTestAdjustedPrice(34, 100.5, 99.2),
 	}
-	jsonData := createIndustrySystemsJSON(systems)
+	jsonData := createAdjustedPricesJSON(prices)
 
 	esiClient := &mockESIClientForStreaming{
 		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
@@ -410,7 +373,7 @@ func TestStreamIndustrySystems_CallbackError(t *testing.T) {
 	}
 
 	callbackErr := errors.New("callback error")
-	_, notModified, _, err := StreamIndustrySystems(ctx, nil, esiClient, "", func(s SystemIndexes) error {
+	_, notModified, _, err := StreamAdjustedPrices(ctx, nil, esiClient, "", func(m esitypes.AdjustedPrice) error {
 		return callbackErr
 	}, nil)
 
@@ -425,14 +388,12 @@ func TestStreamIndustrySystems_CallbackError(t *testing.T) {
 	}
 }
 
-func TestStreamIndustrySystems_RetryOnError(t *testing.T) {
+func TestStreamAdjustedPrices_RetryOnError(t *testing.T) {
 	ctx := context.Background()
-	systems := []ESIIndustrySystem{
-		createTestSystemIndex(30000142, map[string]float64{
-			"manufacturing": 0.1,
-		}),
+	prices := []ESIAdjustedPrice{
+		createTestAdjustedPrice(34, 100.5, 99.2),
 	}
-	jsonData := createIndustrySystemsJSON(systems)
+	jsonData := createAdjustedPricesJSON(prices)
 	attemptCount := 0
 
 	esiClient := &mockESIClientForStreaming{
@@ -452,7 +413,7 @@ func TestStreamIndustrySystems_RetryOnError(t *testing.T) {
 		},
 	}
 
-	_, notModified, _, err := StreamIndustrySystems(ctx, nil, esiClient, "", func(s SystemIndexes) error {
+	_, notModified, _, err := StreamAdjustedPrices(ctx, nil, esiClient, "", func(m esitypes.AdjustedPrice) error {
 		return nil
 	}, nil)
 
@@ -467,7 +428,7 @@ func TestStreamIndustrySystems_RetryOnError(t *testing.T) {
 	}
 }
 
-func TestStreamIndustrySystems_RateLimitError(t *testing.T) {
+func TestStreamAdjustedPrices_RateLimitError(t *testing.T) {
 	ctx := context.Background()
 	rateLimitErr := &esiratelimiter.RateLimitError{
 		Retryable:  true,
@@ -481,7 +442,7 @@ func TestStreamIndustrySystems_RateLimitError(t *testing.T) {
 		},
 	}
 
-	_, notModified, _, err := StreamIndustrySystems(ctx, nil, esiClient, "", func(s SystemIndexes) error {
+	_, notModified, _, err := StreamAdjustedPrices(ctx, nil, esiClient, "", func(m esitypes.AdjustedPrice) error {
 		t.Error("callback should not be called on rate limit error")
 		return nil
 	}, nil)
@@ -498,7 +459,48 @@ func TestStreamIndustrySystems_RateLimitError(t *testing.T) {
 	}
 }
 
-func TestRefreshSystemIndexes_NilMessage(t *testing.T) {
+func TestStreamAdjustedPrices_OnlyAdjustedPriceSaved(t *testing.T) {
+	ctx := context.Background()
+	// Create a price with both adjusted_price and average_price
+	prices := []ESIAdjustedPrice{
+		createTestAdjustedPrice(34, 100.5, 99.2), // average_price should be ignored
+	}
+	jsonData := createAdjustedPricesJSON(prices)
+	var processedItems []esitypes.AdjustedPrice
+
+	esiClient := &mockESIClientForStreaming{
+		doRequestFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error) {
+			resp := &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     make(http.Header),
+				Body:       io.NopCloser(bytes.NewReader(jsonData)),
+			}
+			resp.Header.Set("ETag", "adjusted-only-etag")
+			return resp, nil
+		},
+	}
+
+	_, _, _, err := StreamAdjustedPrices(ctx, nil, esiClient, "", func(m esitypes.AdjustedPrice) error {
+		processedItems = append(processedItems, m)
+		return nil
+	}, nil)
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if len(processedItems) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(processedItems))
+	}
+
+	// Verify only adjusted_price is saved (average_price should not be in AdjustedPrice struct)
+	if processedItems[0].AdjustedPrice != 100.5 {
+		t.Errorf("expected adjusted price 100.5, got %f", processedItems[0].AdjustedPrice)
+	}
+	// AdjustedPrice struct doesn't have AveragePrice field, which is correct
+}
+
+func TestRefreshAdjustedPrices_NilMessage(t *testing.T) {
 	redisClient := redis.NewClient(&redis.Options{
 		Addr: "invalid:6379",
 	})
@@ -511,37 +513,37 @@ func TestRefreshSystemIndexes_NilMessage(t *testing.T) {
 	}
 
 	// Should not panic with nil message
-	RefreshSystemIndexes(nil, deps)
+	RefreshAdjustedPrices(nil, deps)
 }
 
-func TestRefreshSystemIndexes_LockAcquisitionFailure(t *testing.T) {
+func TestRefreshAdjustedPrices_LockAcquisitionFailure(t *testing.T) {
 	// This test would require mocking AcquireRefreshLock
 	// Since it's in a different package, this is better tested in integration tests
 	t.Skip("Requires mocking AcquireRefreshLock - better suited for integration tests")
 }
 
-func TestRefreshSystemIndexes_StatusCheckFailure(t *testing.T) {
+func TestRefreshAdjustedPrices_StatusCheckFailure(t *testing.T) {
 	// This test would require mocking CheckServerStatus
 	// Since it's in a different package, this is better tested in integration tests
 	t.Skip("Requires mocking CheckServerStatus - better suited for integration tests")
 }
 
-func TestRefreshSystemIndexes_NotModified(t *testing.T) {
+func TestRefreshAdjustedPrices_NotModified(t *testing.T) {
 	// This test requires full integration with Redis, ESI client, and status checks
 	t.Skip("Requires full integration setup - better suited for integration tests")
 }
 
-func TestRefreshSystemIndexes_SuccessfulRefresh(t *testing.T) {
+func TestRefreshAdjustedPrices_SuccessfulRefresh(t *testing.T) {
 	// This test requires full integration with Redis, ESI client, and status checks
 	t.Skip("Requires full integration setup - better suited for integration tests")
 }
 
-func TestRefreshSystemIndexes_ETagSaveFailure(t *testing.T) {
+func TestRefreshAdjustedPrices_ETagSaveFailure(t *testing.T) {
 	// This test requires full integration setup
 	t.Skip("Requires full integration setup - better suited for integration tests")
 }
 
-func TestRefreshSystemIndexes_StreamError(t *testing.T) {
+func TestRefreshAdjustedPrices_StreamError(t *testing.T) {
 	// This test requires full integration setup
 	t.Skip("Requires full integration setup - better suited for integration tests")
 }

@@ -1,4 +1,4 @@
-package esi
+package tasks
 
 import (
 	"context"
@@ -13,6 +13,8 @@ import (
 	esiratelimiter "eve-industry-planner/shared/core/esi/rateLimiter"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/shared/logs"
+
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 // CharacterInfo represents the response from ESI API for character information
@@ -23,25 +25,23 @@ type CharacterInfo struct {
 // UpdateCustomCorporationClaims processes a batch of EVE SSO tokens, extracts character IDs,
 // queries ESI API for corporation IDs, and stores the aggregated unique set in Redis.
 // This task respects ESI rate limiting through the rate-limited ESI client.
-func UpdateCustomCorporationClaims(natsMessage MessageInterface, deps *TaskDependencies) {
+func UpdateCustomCorporationClaims(msg jetstream.Msg, deps *TaskDependencies) {
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second) // Longer timeout for batch processing
 	defer cancel()
 
-	if natsMessage == nil {
+	if msg == nil {
 		logs.Error("fetch corporations task requires a NATS message with data payload, exiting (nothing to acknowledge)")
 		return
 	}
 
-	deliveryCount := natsMessage.NumDelivered()
+	deliveryCount := natscore.GetDeliveryCount(msg)
 	logs.Info("Fetch Corporations Message Received", "delivery_count", deliveryCount)
 
 	// Parse JSON data from message payload
-	var request natscore.CorporationClaimsRequest
-	if err := natsMessage.ParseData(&request); err != nil {
+	request, err := natscore.UnmarshalMessagePayload[natscore.CorporationClaimsRequest](msg)
+	if err != nil {
 		logs.Warn("failed to parse message data, dropping message", "error", err, "delivery_count", deliveryCount)
-		if ackErr := natsMessage.Ack(); ackErr != nil {
-			logs.Warn("failed to ack invalid message", "error", ackErr)
-		}
+		natscore.AcknowledgeMessage(msg, "invalid message data", deliveryCount)
 		return
 	}
 
@@ -49,9 +49,7 @@ func UpdateCustomCorporationClaims(natsMessage MessageInterface, deps *TaskDepen
 	if request.AccountID == "" {
 		logs.Warn("missing required parameter (account_id), dropping message",
 			"delivery_count", deliveryCount)
-		if ackErr := natsMessage.Ack(); ackErr != nil {
-			logs.Warn("failed to ack message with missing account_id", "error", ackErr)
-		}
+		natscore.AcknowledgeMessage(msg, "missing account_id", deliveryCount)
 		return
 	}
 
@@ -59,13 +57,16 @@ func UpdateCustomCorporationClaims(natsMessage MessageInterface, deps *TaskDepen
 		logs.Warn("no tokens provided in task request, dropping message",
 			"account_id", request.AccountID,
 			"delivery_count", deliveryCount)
-		if ackErr := natsMessage.Ack(); ackErr != nil {
-			logs.Warn("failed to ack message with no tokens", "error", ackErr)
-		}
+		natscore.AcknowledgeMessage(msg, "no tokens provided", deliveryCount)
 		return
 	}
 
-	cfg := config.LoadConfig()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		logs.Error("failed to load config", "error", err)
+		natscore.AcknowledgeMessage(msg, "config error", deliveryCount)
+		return
+	}
 
 	// Process all EVE SSO tokens and collect corporation IDs
 	corpSet := make(map[int64]bool)
@@ -130,9 +131,7 @@ func UpdateCustomCorporationClaims(natsMessage MessageInterface, deps *TaskDepen
 					"character_id", characterID,
 					"account_id", request.AccountID,
 					"error", err)
-				if nackErr := natsMessage.Nak(); nackErr != nil {
-					logs.Warn("failed to nack message", "error", nackErr)
-				}
+				natscore.NackMessage(msg)
 				return // Nack the entire message to retry all tokens
 			}
 
@@ -192,17 +191,12 @@ func UpdateCustomCorporationClaims(natsMessage MessageInterface, deps *TaskDepen
 			"delivery_count", deliveryCount)
 
 		// Try to ack anyway - some ESI calls succeeded, just storage failed
-		if ackErr := natsMessage.Ack(); ackErr != nil {
-			logs.Warn("failed to ack message after storage error", "error", ackErr)
-		}
+		natscore.AcknowledgeMessage(msg, "storage error (partial success)", deliveryCount)
 		return
 	}
 
 	// Acknowledge successful processing
-	if err := natsMessage.Ack(); err != nil {
-		logs.Warn("failed to ack message after successful processing", "error", err)
-		return
-	}
+	natscore.AcknowledgeMessage(msg, "successful processing", deliveryCount)
 
 	logs.Info("successfully processed corporation lookup task",
 		"account_id", request.AccountID,

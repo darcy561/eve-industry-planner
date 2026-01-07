@@ -643,7 +643,7 @@ curl http://localhost/api/health
 
 **Common issues:**
 
-- Missing database connection (check `MONGO_URL` in `.env`)
+- Missing database connection (check `MONGO_USERNAME`, `MONGO_PASSWORD` in `.env` - secondary uses same credentials)
 - Missing Redis connection (check `REDIS_URL` in `.env`)
 - Missing NATS connection (check `NATS_URL` in `.env`)
 - Invalid authentication secrets

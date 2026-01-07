@@ -49,8 +49,12 @@ func ConnectServices(ctx context.Context, services ...string) (*ServiceClients, 
 
 	// Connect to MongoDB if requested
 	if requested[ServiceMongo] {
-		mongoClient, err := mongo.Connect()
+		mongoClient, err := mongo.ConnectPrimary()
 		if err != nil {
+			// Check if error is from config loading (missing env vars)
+			if configErr, ok := err.(interface{ Error() string }); ok {
+				return nil, fmt.Errorf("configuration error: %w", configErr)
+			}
 			return nil, fmt.Errorf("failed to connect to mongo: %w", err)
 		}
 		clients.Mongo = mongoClient

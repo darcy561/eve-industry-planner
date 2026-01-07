@@ -22,8 +22,8 @@ func ScheduleAdjustedPricesRefresh(deps scheduler.Dependencies, sched scheduler.
 		subject := natscore.SubjectRefreshAdjustedPrices
 		log.Debug("publishing adjusted prices refresh trigger", "subject", subject)
 
-		// Use standard EmptyMessage helper for simple trigger messages with retry logic
-		if err := scheduler.PublishEmptyMessage(jsContext, subject, natsConn); err != nil {
+		// Publish empty message for simple trigger messages with retry logic
+		if err := natscore.PublishEmpty(jsContext, subject, natsConn); err != nil {
 			log.Error("failed to publish adjusted prices refresh trigger", "subject", subject, "error", err)
 			return err
 		}

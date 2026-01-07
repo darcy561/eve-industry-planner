@@ -10,14 +10,13 @@ import (
 
 	"eve-industry-planner/api/api/helper"
 	esicore "eve-industry-planner/shared/core/esi"
+	esitypes "eve-industry-planner/shared/core/esi/types"
 	natscore "eve-industry-planner/shared/core/nats"
 	rediscore "eve-industry-planner/shared/core/redis"
-	"eve-industry-planner/shared/scheduler"
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/shared/logs"
 	"eve-industry-planner/shared/shared/metrics"
 	taskscore "eve-industry-planner/shared/tasks"
-	esitasks "eve-industry-planner/shared/tasks/esi"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -196,7 +195,7 @@ func fetchMarketPricesForType(ctx context.Context, redisClient *redis.Client, js
 	}
 
 	// Fetch adjusted price
-	var adjustedPrice esitasks.AdjustedPrice
+	var adjustedPrice esitypes.AdjustedPrice
 	err := rediscore.GetMarketPrice(ctx, redisClient, typeID, &adjustedPrice)
 	if err == nil {
 		response.AdjustedPrice = adjustedPrice.AdjustedPrice
@@ -249,8 +248,15 @@ func fetchMarketPricesForType(ctx context.Context, redisClient *redis.Client, js
 
 	// If no data found for any location, send messages to worker to request prices for all locations
 	if !hasAnyData {
+		// Validate typeID before sending messages
+		if typeID == 0 {
+			logs.WarnCtx(ctx, "skipping market prices refresh messages due to invalid type_id", "type_id", typeID)
+			return response, hasAnyData, nil
+		}
+
 		// Send message for each default location
 		for _, location := range esicore.DefaultMarketLocations {
+
 			request := natscore.MarketPricesRequest{
 				TypeID:     typeID,
 				LocationID: location.RegionID,
@@ -258,7 +264,7 @@ func fetchMarketPricesForType(ctx context.Context, redisClient *redis.Client, js
 			}
 
 			subject := natscore.SubjectRefreshMarketPrices
-			if err := scheduler.PublishTaskMessage(js, subject, taskscore.TaskTypeRefreshMarketPrices, request, natsConn); err != nil {
+			if err := natscore.PublishTask(js, subject, taskscore.TaskTypeRefreshMarketPrices, request, natsConn); err != nil {
 				logs.WarnCtx(ctx, "failed to publish market prices refresh message",
 					"type_id", typeID,
 					"location_id", location.RegionID,

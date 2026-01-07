@@ -18,7 +18,10 @@ import (
 // Connect establishes a connection and returns it.
 // The connection includes automatic reconnection handling.
 func Connect() (*natslib.Conn, error) {
-	cfg := config.LoadConfig()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return nil, err
+	}
 
 	retryCount := 5
 	retryDelay := 5 * time.Second
@@ -104,41 +107,91 @@ func Cleanup(conn *natslib.Conn) {
 	conn.Close()
 }
 
-// MessageAcker interface for messages that can be acknowledged.
-// Used by NackWithBackoff to work with JetStream messages.
-type MessageAcker interface {
-	Ack() error
-	Nak() error
-	Term() error
-	InProgress() error
-	NakWithDelay(delay time.Duration) error
-	NumDelivered() uint64
+// PublishTask publishes a task message to NATS JetStream with retry logic.
+// The payload is automatically marshaled and wrapped in a TaskMessage structure.
+// Retries up to 5 times with exponential backoff on connection/stream errors.
+// If natsConn is provided, it will check connection status and retry on failure.
+//
+// Example:
+//
+//	PublishTask(js, subject, "refreshMarketPrices", request, natsConn...)
+func PublishTask(js jetstream.JetStream, subject string, taskType string, payload interface{}, natsConn ...*natslib.Conn) error {
+	taskMsg := TaskMessage{
+		TaskType: taskType,
+	}
+	if payload != nil {
+		var err error
+		taskMsg.Data, err = json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+	}
+	// Marshal the TaskMessage and put it in Message.Data
+	taskMsgData, err := json.Marshal(taskMsg)
+	if err != nil {
+		return err
+	}
+	msg := Message{
+		Type: MessageTypeTask,
+		Data: taskMsgData,
+	}
+	return PublishMessage(js, subject, msg, natsConn...)
 }
 
-// NackWithBackoff performs a NAK with exponential backoff based on delivery count,
-// and terminates the message after a maximum number of deliveries.
-// Backoff schedule: 1s, 2s, 4s, 8s, ... capped at 60s.
-func NackWithBackoff(msg MessageAcker) {
-	const maxDeliveries = 5
-	deliveries := msg.NumDelivered()
-	if deliveries >= maxDeliveries {
-		logs.Warn("nats message terminated after max deliveries", "deliveries", deliveries, "reason", "max_retries_exceeded")
-		_ = msg.Term()
-		return
+// PublishSchedule publishes a schedule request message to NATS JetStream with retry logic.
+// The ScheduleRequest is automatically marshaled and wrapped in a Message structure.
+// Retries up to 5 times with exponential backoff on connection/stream errors.
+// If natsConn is provided, it will check connection status and retry on failure.
+//
+// Example:
+//
+//	PublishSchedule(js, subject, scheduleRequest, natsConn...)
+func PublishSchedule(js jetstream.JetStream, subject string, scheduleRequest ScheduleRequest, natsConn ...*natslib.Conn) error {
+	scheduleData, err := json.Marshal(scheduleRequest)
+	if err != nil {
+		return err
 	}
-	delaySecs := 1 << (deliveries - 1)
-	if delaySecs > 60 {
-		delaySecs = 60
+	msg := Message{
+		Type: MessageTypeSchedule,
+		Data: scheduleData,
 	}
-	logs.Warn("nats message nak with backoff", "deliveries", deliveries, "delay_secs", delaySecs, "reason", "retry_with_backoff")
-	_ = msg.NakWithDelay(time.Duration(delaySecs) * time.Second)
+	return PublishMessage(js, subject, msg, natsConn...)
+}
+
+// PublishEmpty publishes an empty message to NATS JetStream with retry logic.
+// Used for simple trigger messages where no data is needed.
+// Retries up to 5 times with exponential backoff on connection/stream errors.
+// If natsConn is provided, it will check connection status and retry on failure.
+//
+// Example:
+//
+//	PublishEmpty(js, subject, natsConn...)
+func PublishEmpty(js jetstream.JetStream, subject string, natsConn ...*natslib.Conn) error {
+	msg := Message{
+		Type: MessageTypeEmpty,
+		Data: nil,
+	}
+	return PublishMessage(js, subject, msg, natsConn...)
 }
 
 // PublishMessage publishes a message to NATS JetStream with retry logic.
 // This is a general-purpose helper for publishing any message type to NATS.
+// The message is automatically marshaled to JSON if it's not already []byte.
 // Retries up to 5 times with exponential backoff on connection/stream errors.
 // If natsConn is provided, it will check connection status and retry on failure.
-func PublishMessage(js jetstream.JetStream, subject string, msgData []byte, natsConn ...*natslib.Conn) error {
+func PublishMessage[T any](js jetstream.JetStream, subject string, msg T, natsConn ...*natslib.Conn) error {
+	var msgData []byte
+	var err error
+
+	// If msg is already []byte, use it directly; otherwise marshal to JSON
+	if bytes, ok := any(msg).([]byte); ok {
+		msgData = bytes
+	} else {
+		msgData, err = json.Marshal(msg)
+		if err != nil {
+			return err
+		}
+	}
 	maxRetries := 5
 	baseDelay := 500 * time.Millisecond
 	maxDelay := 5 * time.Second
@@ -222,17 +275,6 @@ func PublishMessage(js jetstream.JetStream, subject string, msgData []byte, nats
 	}
 
 	return lastErr
-}
-
-// UnmarshalMessage unmarshals JSON data from a NATS JetStream message into the provided struct.
-// This is a convenience helper for parsing message data in message processors.
-// Returns an error if the message data cannot be unmarshaled into the target type.
-func UnmarshalMessage(msg jetstream.Msg, v interface{}) error {
-	messageData := msg.Data()
-	if err := json.Unmarshal(messageData, v); err != nil {
-		return fmt.Errorf("failed to unmarshal message data: %w", err)
-	}
-	return nil
 }
 
 // ExtractIDFromSubject extracts an ID from a NATS subject after a given prefix.

@@ -64,9 +64,8 @@ func (s *Server) subscribeToDocUpdates() {
 		docID, err := natscore.ExtractIDFromSubject(subject, natscore.SubjectDocUpdate)
 		if err != nil {
 			logs.Warn("invalid doc update subject format", "subject", subject, "error", err)
-			if err := msg.Ack(); err != nil {
-				logs.Warn("failed to ack invalid message", "error", err)
-			}
+			deliveryCount := natscore.GetDeliveryCount(msg)
+			natscore.AcknowledgeMessage(msg, "invalid subject format", deliveryCount)
 			return
 		}
 
@@ -78,15 +77,11 @@ func (s *Server) subscribeToDocUpdates() {
 		s.enqueueOutgoingEvent(docID, messageData)
 
 		// Acknowledge message
-		if err := msg.Ack(); err != nil {
-			logs.Warn("failed to ack doc update message",
-				"doc_id", docID,
-				"error", err)
-		} else {
-			logs.Debug("doc update message processed",
-				"doc_id", docID,
-				"subject", subject)
-		}
+		deliveryCount := natscore.GetDeliveryCount(msg)
+		natscore.AcknowledgeMessage(msg, "doc update processed", deliveryCount)
+		logs.Debug("doc update message processed",
+			"doc_id", docID,
+			"subject", subject)
 	}
 
 	// Start message processing loop
@@ -163,21 +158,19 @@ func (s *Server) subscribeToDocSubscriptions() {
 		accountID, err := natscore.ExtractIDFromSubject(subject, natscore.SubjectDocSubscribe)
 		if err != nil {
 			logs.Warn("invalid doc subscribe subject format", "subject", subject, "error", err)
-			if err := msg.Ack(); err != nil {
-				logs.Warn("failed to ack invalid message", "error", err)
-			}
+			deliveryCount := natscore.GetDeliveryCount(msg)
+			natscore.AcknowledgeMessage(msg, "invalid subject format", deliveryCount)
 			return
 		}
 
 		// Parse message body to get collection and docIDs
-		var subscriptionRequest natscore.SubscriptionRequest
-		if err := natscore.UnmarshalMessage(msg, &subscriptionRequest); err != nil {
+		subscriptionRequest, err := natscore.UnmarshalMessagePayload[natscore.SubscriptionRequest](msg)
+		if err != nil {
 			logs.Warn("failed to parse subscription request",
 				"account_id", accountID,
 				"error", err)
-			if err := msg.Ack(); err != nil {
-				logs.Warn("failed to ack invalid message", "error", err)
-			}
+			deliveryCount := natscore.GetDeliveryCount(msg)
+			natscore.AcknowledgeMessage(msg, "invalid subscription request", deliveryCount)
 			return
 		}
 
@@ -185,9 +178,8 @@ func (s *Server) subscribeToDocSubscriptions() {
 		if subscriptionRequest.Collection == "" {
 			logs.Warn("subscription request missing collection",
 				"account_id", accountID)
-			if err := msg.Ack(); err != nil {
-				logs.Warn("failed to ack invalid message", "error", err)
-			}
+			deliveryCount := natscore.GetDeliveryCount(msg)
+			natscore.AcknowledgeMessage(msg, "missing collection", deliveryCount)
 			return
 		}
 
@@ -216,16 +208,12 @@ func (s *Server) subscribeToDocSubscriptions() {
 		}
 
 		// Acknowledge message
-		if err := msg.Ack(); err != nil {
-			logs.Warn("failed to ack doc subscribe message",
-				"account_id", accountID,
-				"error", err)
-		} else {
-			logs.Info("doc subscribe message processed",
-				"account_id", accountID,
-				"collection", subscriptionRequest.Collection,
-				"doc_count", len(subscriptionRequest.DocIDs))
-		}
+		deliveryCount := natscore.GetDeliveryCount(msg)
+		natscore.AcknowledgeMessage(msg, "subscription processed", deliveryCount)
+		logs.Info("doc subscribe message processed",
+			"account_id", accountID,
+			"collection", subscriptionRequest.Collection,
+			"doc_count", len(subscriptionRequest.DocIDs))
 	}
 
 	// Start message processing loop

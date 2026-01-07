@@ -109,8 +109,11 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 	// Only send Discord message if feedback content is not blank
 	if sanitizedContent != "" {
 		// Get Discord webhook URL from config
-		cfg := config.LoadConfig()
-		if cfg.FeedbackDiscordWebhookURL != "" {
+		cfg, err := config.LoadConfig()
+		if err != nil {
+			// Log error but continue without Discord webhook
+			logs.Error("Failed to load config for feedback", "error", err)
+		} else if cfg.FeedbackDiscordWebhookURL != "" {
 			// Split content into multiple embeds if needed (Discord field max is 1024 chars)
 			contentParts := splitContentForDiscord(sanitizedContent, 1024)
 

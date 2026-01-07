@@ -48,6 +48,12 @@ func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Sc
 		maxMessages := 200
 
 		for _, refreshTime := range refreshTimes {
+			// Skip entries with invalid (zero) type_id or location_id
+			if refreshTime.TypeID == 0 || refreshTime.LocationID == 0 {
+				log.Debug("skipping entry with invalid parameters", "type_id", refreshTime.TypeID, "location_id", refreshTime.LocationID)
+				continue
+			}
+
 			// Skip if updated within the last 4 hours (i.e., not old enough)
 			// LastUpdated >= thresholdTime means it was updated AFTER 4 hours ago, so it's recent
 			if refreshTime.LastUpdated >= thresholdTime {
@@ -73,7 +79,7 @@ func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Sc
 
 			// Publish message to trigger refresh with retry logic
 			subject := natscore.SubjectRefreshMarketPrices
-			if err := scheduler.PublishTaskMessage(jsContext, subject, taskscore.TaskTypeRefreshMarketPrices, request, natsConn); err != nil {
+			if err := natscore.PublishTask(jsContext, subject, taskscore.TaskTypeRefreshMarketPrices, request, natsConn); err != nil {
 				log.Warn("failed to publish market prices refresh message",
 					"type_id", refreshTime.TypeID,
 					"location_id", refreshTime.LocationID,
@@ -101,4 +107,3 @@ func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Sc
 
 	return func() {}, nil
 }
-

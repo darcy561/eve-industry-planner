@@ -1,4 +1,4 @@
-package esi
+package tasks
 
 import (
 	"context"
@@ -12,58 +12,94 @@ import (
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/shared"
 
+	natslib "github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/redis/go-redis/v9"
 )
 
-// mockMessage implements MessageInterface for testing
+// mockJetStreamMsg implements jetstream.Msg for testing
+type mockJetStreamMsg struct {
+	data []byte
+}
+
+func (m *mockJetStreamMsg) Data() []byte {
+	return m.data
+}
+
+func (m *mockJetStreamMsg) Headers() natslib.Header {
+	return nil
+}
+
+func (m *mockJetStreamMsg) Metadata() (*jetstream.MsgMetadata, error) {
+	return nil, nil
+}
+
+func (m *mockJetStreamMsg) Ack() error {
+	return nil
+}
+
+func (m *mockJetStreamMsg) Nak() error {
+	return nil
+}
+
+func (m *mockJetStreamMsg) Term() error {
+	return nil
+}
+
+func (m *mockJetStreamMsg) InProgress() error {
+	return nil
+}
+
+func (m *mockJetStreamMsg) NakWithDelay(delay time.Duration) error {
+	return nil
+}
+
+func (m *mockJetStreamMsg) DoubleAck(ctx context.Context) error {
+	return nil
+}
+
+func (m *mockJetStreamMsg) Reply() string {
+	return ""
+}
+
+func (m *mockJetStreamMsg) Subject() string {
+	return ""
+}
+
+func (m *mockJetStreamMsg) TermWithReason(reason string) error {
+	return nil
+}
+
+// mockMessage implements jetstream.Msg for testing (using mockJetStreamMsg)
 type mockMessage struct {
-	data          []byte
+	*mockJetStreamMsg
 	deliveryCount uint64
 	ackCalled     bool
 	nakCalled     bool
 	ackErr        error
 	nakErr        error
-	parseErr      error
 }
 
 func (m *mockMessage) Ack() error {
 	m.ackCalled = true
-	return m.ackErr
+	if m.ackErr != nil {
+		return m.ackErr
+	}
+	return m.mockJetStreamMsg.Ack()
 }
 
 func (m *mockMessage) Nak() error {
 	m.nakCalled = true
-	return m.nakErr
-}
-
-func (m *mockMessage) Term() error {
-	return nil
-}
-
-func (m *mockMessage) InProgress() error {
-	return nil
-}
-
-func (m *mockMessage) NakWithDelay(delay time.Duration) error {
-	return m.Nak()
-}
-
-func (m *mockMessage) NumDelivered() uint64 {
-	return m.deliveryCount
-}
-
-func (m *mockMessage) GetData() []byte {
-	return m.data
-}
-
-func (m *mockMessage) ParseData(target interface{}) error {
-	if m.parseErr != nil {
-		return m.parseErr
+	if m.nakErr != nil {
+		return m.nakErr
 	}
-	if len(m.data) == 0 {
-		return nil
-	}
-	return json.Unmarshal(m.data, target)
+	return m.mockJetStreamMsg.Nak()
+}
+
+func (m *mockMessage) Metadata() (*jetstream.MsgMetadata, error) {
+	return &jetstream.MsgMetadata{
+		NumDelivered: m.deliveryCount,
+	}, nil
 }
 
 // mockESIClient implements ClientInterface for testing
@@ -101,9 +137,8 @@ func TestUpdateCustomCorporationClaims_NilMessage(t *testing.T) {
 
 func TestUpdateCustomCorporationClaims_InvalidJSON(t *testing.T) {
 	msg := &mockMessage{
-		data:          []byte("invalid json"),
-		deliveryCount: 1,
-		parseErr:      errors.New("invalid json"),
+		mockJetStreamMsg: &mockJetStreamMsg{data: []byte("invalid json")},
+		deliveryCount:    1,
 	}
 
 	deps := &TaskDependencies{
@@ -126,8 +161,8 @@ func TestUpdateCustomCorporationClaims_MissingAccountID(t *testing.T) {
 	data, _ := json.Marshal(request)
 
 	msg := &mockMessage{
-		data:          data,
-		deliveryCount: 1,
+		mockJetStreamMsg: &mockJetStreamMsg{data: data},
+		deliveryCount:    1,
 	}
 
 	deps := &TaskDependencies{
@@ -150,8 +185,8 @@ func TestUpdateCustomCorporationClaims_EmptyTokens(t *testing.T) {
 	data, _ := json.Marshal(request)
 
 	msg := &mockMessage{
-		data:          data,
-		deliveryCount: 1,
+		mockJetStreamMsg: &mockJetStreamMsg{data: data},
+		deliveryCount:    1,
 	}
 
 	deps := &TaskDependencies{
@@ -177,8 +212,8 @@ func TestUpdateCustomCorporationClaims_TokenValidationFailure(t *testing.T) {
 	data, _ := json.Marshal(request)
 
 	msg := &mockMessage{
-		data:          data,
-		deliveryCount: 1,
+		mockJetStreamMsg: &mockJetStreamMsg{data: data},
+		deliveryCount:    1,
 	}
 
 	// Create a Redis client that will fail on operations but won't cause nil pointer panic
@@ -281,8 +316,8 @@ func TestUpdateCustomCorporationClaims_ESINonRetryableError(t *testing.T) {
 	data, _ := json.Marshal(request)
 
 	msg := &mockMessage{
-		data:          data,
-		deliveryCount: 1,
+		mockJetStreamMsg: &mockJetStreamMsg{data: data},
+		deliveryCount:    1,
 	}
 
 	deps := &TaskDependencies{
@@ -320,8 +355,8 @@ func TestUpdateCustomCorporationClaims_ESINon200Status(t *testing.T) {
 	data, _ := json.Marshal(request)
 
 	msg := &mockMessage{
-		data:          data,
-		deliveryCount: 1,
+		mockJetStreamMsg: &mockJetStreamMsg{data: data},
+		deliveryCount:    1,
 	}
 
 	deps := &TaskDependencies{
@@ -359,8 +394,8 @@ func TestUpdateCustomCorporationClaims_InvalidJSONResponse(t *testing.T) {
 	data, _ := json.Marshal(request)
 
 	msg := &mockMessage{
-		data:          data,
-		deliveryCount: 1,
+		mockJetStreamMsg: &mockJetStreamMsg{data: data},
+		deliveryCount:    1,
 	}
 
 	deps := &TaskDependencies{
@@ -387,13 +422,14 @@ func TestUpdateCustomCorporationClaims_SuccessfulProcessing(t *testing.T) {
 			// Extract character ID from path
 			// Path format: /v5/characters/{character_id}/?datasource=tranquility
 			var corpID int
-			if path == "/v5/characters/12345/?datasource=tranquility" {
+			switch path {
+			case "/v5/characters/12345/?datasource=tranquility":
 				corpID = 1001
-			} else if path == "/v5/characters/67890/?datasource=tranquility" {
+			case "/v5/characters/67890/?datasource=tranquility":
 				corpID = 1002
-			} else if path == "/v5/characters/11111/?datasource=tranquility" {
+			case "/v5/characters/11111/?datasource=tranquility":
 				corpID = 1001 // Same corp as first character (test deduplication)
-			} else {
+			default:
 				corpID = 1003
 			}
 
@@ -412,8 +448,8 @@ func TestUpdateCustomCorporationClaims_SuccessfulProcessing(t *testing.T) {
 	data, _ := json.Marshal(request)
 
 	msg := &mockMessage{
-		data:          data,
-		deliveryCount: 1,
+		mockJetStreamMsg: &mockJetStreamMsg{data: data},
+		deliveryCount:    1,
 	}
 
 	deps := &TaskDependencies{
@@ -458,8 +494,8 @@ func TestUpdateCustomCorporationClaims_DuplicateCorporations(t *testing.T) {
 	data, _ := json.Marshal(request)
 
 	msg := &mockMessage{
-		data:          data,
-		deliveryCount: 1,
+		mockJetStreamMsg: &mockJetStreamMsg{data: data},
+		deliveryCount:    1,
 	}
 
 	deps := &TaskDependencies{
@@ -497,8 +533,8 @@ func TestUpdateCustomCorporationClaims_ZeroCorporationID(t *testing.T) {
 	data, _ := json.Marshal(request)
 
 	msg := &mockMessage{
-		data:          data,
-		deliveryCount: 1,
+		mockJetStreamMsg: &mockJetStreamMsg{data: data},
+		deliveryCount:    1,
 	}
 
 	deps := &TaskDependencies{
@@ -536,8 +572,8 @@ func TestUpdateCustomCorporationClaims_MixedSuccessAndFailure(t *testing.T) {
 	data, _ := json.Marshal(request)
 
 	msg := &mockMessage{
-		data:          data,
-		deliveryCount: 1,
+		mockJetStreamMsg: &mockJetStreamMsg{data: data},
+		deliveryCount:    1,
 	}
 
 	deps := &TaskDependencies{
@@ -579,8 +615,8 @@ func TestUpdateCustomCorporationClaims_RedisStorageFailure(t *testing.T) {
 	data, _ := json.Marshal(request)
 
 	msg := &mockMessage{
-		data:          data,
-		deliveryCount: 1,
+		mockJetStreamMsg: &mockJetStreamMsg{data: data},
+		deliveryCount:    1,
 	}
 
 	// Use nil Redis to trigger storage error
@@ -618,8 +654,8 @@ func TestUpdateCustomCorporationClaims_NilResponse(t *testing.T) {
 	data, _ := json.Marshal(request)
 
 	msg := &mockMessage{
-		data:          data,
-		deliveryCount: 1,
+		mockJetStreamMsg: &mockJetStreamMsg{data: data},
+		deliveryCount:    1,
 	}
 
 	deps := &TaskDependencies{

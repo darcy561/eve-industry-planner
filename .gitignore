@@ -22,6 +22,9 @@ frontend/routeTree.gen.js
 # misc
 *.env
 .env.*
+mongo-keyfile
+bin/
+docker-compose
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

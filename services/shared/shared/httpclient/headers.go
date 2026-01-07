@@ -7,7 +7,7 @@ const APP_VERSION = "1.0"
 // DefaultHeaders returns a map of default headers that should be applied to all HTTP requests.
 func DefaultHeaders() map[string]string {
 	return map[string]string{
-		"User-Agent": `Eve Industry Planner Standalone/V` + APP_VERSION + ` (eve:Oswold Saraki/Reginal Shardani; discordID:darcy561; discordURL:+https://discord.gg/KGSa8gh37z; Github:+https://github.com/darcy561/Eve-Industry-Planner-React)`,
+		"User-Agent": `Eve Industry Planner Public/V` + APP_VERSION + ` (eve:Oswold Saraki/Reginal Shardani; discordID:darcy561; discordURL:+https://discord.gg/KGSa8gh37z; Github:+https://github.com/darcy561/Eve-Industry-Planner-React)`,
 	}
 }
 

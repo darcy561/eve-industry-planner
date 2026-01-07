@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"eve-industry-planner/shared/core/config"
@@ -30,25 +29,17 @@ var (
 	CollectionGroups = "groups"
 )
 
-// ConnectMongo establishes a client and returns it.
-func Connect() (*mongo.Client, error) {
-	cfg := config.LoadConfig()
-
+// connectMongo is a generic connection function that establishes a MongoDB client
+// with the provided URL and connection options builder function
+func connectMongo(mongoURL string, connectionName string, configureOpts func(*options.ClientOptions)) (*mongo.Client, error) {
 	retryCount := 5
 	retryDelay := 5 * time.Second
 
 	for i := 0; i < retryCount; i++ {
-		// Configure MongoDB client with reconnection settings
-		opts := options.Client().ApplyURI(cfg.MONGO_URL)
-		opts.SetConnectTimeout(10 * time.Second)
-		opts.SetServerSelectionTimeout(10 * time.Second)
-		opts.SetSocketTimeout(10 * time.Second)
-		opts.SetHeartbeatInterval(10 * time.Second)
-		opts.SetMaxPoolSize(10) // Match IncomingPoolSize (10 workers) to allow full concurrent DB operations
-		opts.SetMinPoolSize(1)  // Minimal warm pool, scales automatically up to MaxPoolSize under load
-		// Enable automatic reconnection
-		opts.SetRetryWrites(true)
-		opts.SetRetryReads(true)
+		// Start with URI, then apply additional options
+		opts := options.Client().ApplyURI(mongoURL)
+		// Apply additional configuration
+		configureOpts(opts)
 
 		client, err := mongo.Connect(context.Background(), opts)
 		if err == nil {
@@ -59,7 +50,7 @@ func Connect() (*mongo.Client, error) {
 
 			if err == nil {
 				i++
-				message := fmt.Sprintf("Connected to Mongo on attempt %d/%d", i, retryCount)
+				message := fmt.Sprintf("Connected to %s on attempt %d/%d", connectionName, i, retryCount)
 				logs.Debug(message)
 
 				// Start background monitoring for connection health
@@ -71,14 +62,37 @@ func Connect() (*mongo.Client, error) {
 			_ = client.Disconnect(context.Background())
 		}
 		i++
-		message := fmt.Sprintf("Failed to connect to Mongo. Attempt %d/%d. Error: %v", i, retryCount, err)
+		message := fmt.Sprintf("Failed to connect to %s. Attempt %d/%d. Error: %v", connectionName, i, retryCount, err)
 		logs.Error(message)
 		time.Sleep(retryDelay)
 	}
 
-	message := fmt.Sprintf("Failed to connect to Mongo after %d attempts. Exiting...", retryCount)
+	message := fmt.Sprintf("Failed to connect to %s after %d attempts. Exiting...", connectionName, retryCount)
 	logs.Error(message)
 	return nil, errors.New(message)
+}
+
+// ConnectPrimary establishes a client connection to the primary MongoDB instance
+func ConnectPrimary() (*mongo.Client, error) {
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	// Configure MongoDB client with reconnection settings for primary
+	configureOpts := func(opts *options.ClientOptions) {
+		opts.SetConnectTimeout(10 * time.Second)
+		opts.SetServerSelectionTimeout(10 * time.Second)
+		opts.SetSocketTimeout(10 * time.Second)
+		opts.SetHeartbeatInterval(10 * time.Second)
+		opts.SetMaxPoolSize(10) // Match IncomingPoolSize (10 workers) to allow full concurrent DB operations
+		opts.SetMinPoolSize(1)  // Minimal warm pool, scales automatically up to MaxPoolSize under load
+		// Enable automatic reconnection
+		opts.SetRetryWrites(true)
+		opts.SetRetryReads(true)
+	}
+
+	return connectMongo(cfg.MONGO_URL, "Mongo", configureOpts)
 }
 
 // monitorMongoConnection periodically checks MongoDB connection health and logs reconnections
@@ -106,22 +120,17 @@ func monitorMongoConnection(client *mongo.Client) {
 }
 
 // ConnectSecondary connects to the MongoDB secondary instance for change streams
-// Uses MONGO_SECONDARY_URL if set, otherwise defaults to mongo-secondary:27017
+// Uses MONGO_SECONDARY_URL from config (credentials are validated in LoadConfig)
 func ConnectSecondary() (*mongo.Client, error) {
-	// Default to mongo-secondary if MONGO_SECONDARY_URL is not set
-	mongoURL := os.Getenv("MONGO_SECONDARY_URL")
-	if mongoURL == "" {
-		mongoURL = "mongodb://mongo-secondary:27017/eve_industry_planner"
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return nil, err
 	}
 
-	retryCount := 5
-	retryDelay := 5 * time.Second
-
-	for i := 0; i < retryCount; i++ {
-		// Configure MongoDB client with reconnection settings
-		opts := options.Client().ApplyURI(mongoURL)
+	// Configure MongoDB client with reconnection settings for secondary
+	configureOpts := func(opts *options.ClientOptions) {
 		opts.SetConnectTimeout(10 * time.Second)
-		opts.SetServerSelectionTimeout(10 * time.Second)
+		opts.SetServerSelectionTimeout(30 * time.Second) // Increased timeout for replica set stabilization
 		opts.SetSocketTimeout(10 * time.Second)
 		opts.SetHeartbeatInterval(10 * time.Second)
 		opts.SetMaxPoolSize(10) // Lower pool size for read-only secondary
@@ -131,36 +140,51 @@ func ConnectSecondary() (*mongo.Client, error) {
 		opts.SetRetryReads(true)
 		// Read preference for secondary - prefer secondary, fallback to primary
 		opts.SetReadPreference(readpref.SecondaryPreferred())
-
-		client, err := mongo.Connect(context.Background(), opts)
-		if err == nil {
-			// Verify connection by pinging
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			err = client.Ping(ctx, nil)
-			cancel()
-
-			if err == nil {
-				i++
-				message := fmt.Sprintf("Connected to Mongo Secondary on attempt %d/%d", i, retryCount)
-				logs.Debug(message)
-
-				// Start background monitoring for connection health
-				go monitorMongoConnection(client)
-
-				return client, nil
-			}
-			// If ping failed, close client and retry
-			_ = client.Disconnect(context.Background())
-		}
-		i++
-		message := fmt.Sprintf("Failed to connect to Mongo Secondary. Attempt %d/%d. Error: %v", i, retryCount, err)
-		logs.Error(message)
-		time.Sleep(retryDelay)
 	}
 
-	message := fmt.Sprintf("Failed to connect to Mongo Secondary after %d attempts. Exiting...", retryCount)
-	logs.Error(message)
-	return nil, errors.New(message)
+	client, err := connectMongo(cfg.MONGO_SECONDARY_URL, "Mongo Secondary", configureOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Wait for replica set to be ready (has a PRIMARY) before returning
+	// This prevents "No keys found for HMAC" errors during replica set initialization
+	if err := waitForReplicaSetReady(client, 60*time.Second); err != nil {
+		_ = client.Disconnect(context.Background())
+		return nil, fmt.Errorf("replica set not ready: %w", err)
+	}
+
+	return client, nil
+}
+
+// waitForReplicaSetReady waits for the replica set to have a PRIMARY member
+// This is necessary to avoid "No keys found for HMAC" errors during replica set initialization
+func waitForReplicaSetReady(client *mongo.Client, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	logs.Debug("Waiting for replica set to be ready (PRIMARY must exist)")
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timeout waiting for replica set to be ready: %w", ctx.Err())
+		case <-ticker.C:
+			// Try to ping with PRIMARY read preference - this will only succeed if PRIMARY exists
+			pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			err := client.Ping(pingCtx, readpref.Primary())
+			pingCancel()
+
+			if err == nil {
+				logs.Debug("Replica set is ready (PRIMARY exists)")
+				return nil
+			}
+			// Continue waiting if ping failed
+		}
+	}
 }
 
 func Cleanup(ctx context.Context, client *mongo.Client) {

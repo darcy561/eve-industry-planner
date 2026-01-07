@@ -7,14 +7,14 @@ import (
 
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/shared/logs"
-	"eve-industry-planner/shared/tasks/esi"
+	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/nats-io/nats.go/jetstream"
 	antslib "github.com/panjf2000/ants/v2"
 )
 
 // TaskFunc is a function that processes a message
-type TaskFunc func(natsMessage esi.MessageInterface, deps *esi.TaskDependencies)
+type TaskFunc func(msg jetstream.Msg, deps *esitasks.TaskDependencies)
 
 // SubscriberConfig holds the configuration for a subscriber
 type SubscriberConfig struct {
@@ -37,23 +37,21 @@ type GroupedSubscriberConfig struct {
 // processWorkerMessage processes a single message by submitting it to the goroutine pool.
 // Handles panic recovery and error handling for pool submission.
 func processWorkerMessage(
-	jetstreamMsg jetstream.Msg,
+	msg jetstream.Msg,
 	taskFunc TaskFunc,
 	taskName string,
 	subject string,
 	pool *antslib.Pool,
 	deps *WorkerDependencies,
 ) {
-	deliveryCount, sequence := getMessageMetadata(jetstreamMsg)
+	deliveryCount, sequence := natscore.GetMessageMetadata(msg)
 	logs.Debug(fmt.Sprintf("received %s message", taskName), "subject", subject, "sequence", sequence, "delivery_count", deliveryCount)
 
 	// Acknowledge message receipt immediately to prevent redelivery while waiting for pool
-	if err := jetstreamMsg.InProgress(); err != nil {
-		logs.Warn("failed to send InProgress for message", "subject", subject, "sequence", sequence, "error", err)
-	}
+	natscore.InProgressMessage(msg)
 
 	// Create task dependencies
-	taskDeps := &esi.TaskDependencies{
+	taskDeps := &esitasks.TaskDependencies{
 		ServiceClients: deps.ServiceClients,
 		ESIClient:      deps.ESIClient,
 	}
@@ -65,24 +63,18 @@ func processWorkerMessage(
 			if r := recover(); r != nil {
 				logs.Error(fmt.Sprintf("panic in %s task", taskName), "error", r, "subject", subject, "sequence", sequence, "delivery_count", deliveryCount)
 				// Nack the message on panic so it can be retried
-				if err := jetstreamMsg.Nak(); err != nil {
-					logs.Warn("failed to nack message after panic", "subject", subject, "sequence", sequence, "error", err)
-				} else {
-					logs.Info("message nacked after panic", "subject", subject, "sequence", sequence)
-				}
+				natscore.NackMessage(msg)
+				logs.Info("message nacked after panic", "subject", subject, "sequence", sequence)
 			}
 		}()
-		// Pass jetstream.Msg wrapped as MessageInterface
-		taskFunc(wrapJetStreamMsg(jetstreamMsg), taskDeps)
+		// Pass jetstream.Msg directly
+		taskFunc(msg, taskDeps)
 	})
 	if err != nil {
 		logs.Error("failed to submit task to pool", "subject", subject, "sequence", sequence, "error", err)
 		// Nack the message if we can't process it
-		if err := jetstreamMsg.Nak(); err != nil {
-			logs.Warn("failed to nack message", "subject", subject, "sequence", sequence, "error", err)
-		} else {
-			logs.Info("message nacked due to pool submission failure", "subject", subject, "sequence", sequence)
-		}
+		natscore.NackMessage(msg)
+		logs.Info("message nacked due to pool submission failure", "subject", subject, "sequence", sequence)
 	}
 }
 
@@ -94,10 +86,12 @@ func startWorkerMessageLoop(
 	stopChan chan struct{},
 	subject string,
 ) {
+	logs.Info("starting message fetch loop", "subject", subject)
 	go func() {
 		for {
 			select {
 			case <-stopChan:
+				logs.Info("message fetch loop stopped", "subject", subject)
 				return
 			default:
 				// Fetch up to 10 messages at a time
@@ -118,7 +112,7 @@ func startWorkerMessageLoop(
 				for msg := range msgs.Messages() {
 					msgCount++
 					actualSubject := msg.Subject()
-					_, sequence := getMessageMetadata(msg)
+					_, sequence := natscore.GetMessageMetadata(msg)
 					logs.Debug("processing message from fetch", "subject", subject, "actual_subject", actualSubject, "sequence", sequence)
 					processor(msg)
 				}
@@ -210,23 +204,23 @@ func SubscribeToSubjectGroup(deps *WorkerDependencies, config GroupedSubscriberC
 
 	// Create message processor that routes to appropriate task function
 	processor := func(msg jetstream.Msg) {
-		jetstreamMsg := msg
-		actualSubject := jetstreamMsg.Subject()
+		actualSubject := msg.Subject()
+		_, sequence := natscore.GetMessageMetadata(msg)
+		logs.Info("message received in subscriber processor", "subject", actualSubject, "group", config.TaskName, "sequence", sequence, "available_routes", len(config.TaskRoutes))
 
 		// Find the appropriate task function for this subject
 		taskFunc, exists := config.TaskRoutes[actualSubject]
 		if !exists {
-			_, sequence := getMessageMetadata(jetstreamMsg)
 			logs.Warn("no task handler found for subject", "subject", actualSubject, "group", config.TaskName, "sequence", sequence)
 			// Ack the message even though we don't have a handler, to prevent redelivery
-			if err := jetstreamMsg.Ack(); err != nil {
-				logs.Warn("failed to ack unhandled message", "subject", actualSubject, "sequence", sequence, "error", err)
-			}
+			deliveryCount := natscore.GetDeliveryCount(msg)
+			natscore.AcknowledgeMessage(msg, "no handler found", deliveryCount)
 			return
 		}
 
+		logs.Info("routing message to task handler", "subject", actualSubject, "group", config.TaskName, "sequence", sequence)
 		// Process the message using the worker message processing helper
-		processWorkerMessage(jetstreamMsg, taskFunc, config.TaskName, actualSubject, deps.Pool, deps)
+		processWorkerMessage(msg, taskFunc, config.TaskName, actualSubject, deps.Pool, deps)
 	}
 
 	// Start message processing loop

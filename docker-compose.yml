@@ -20,7 +20,7 @@ services:
       # CORS Middleware
       - "traefik.http.middlewares.cors.headers.accessControlAllowMethods=GET,POST,PUT,DELETE,PATCH,OPTIONS"
       - "traefik.http.middlewares.cors.headers.accessControlAllowHeaders=Content-Type,Authorization,X-Requested-With,Accept,Origin"
-      - "traefik.http.middlewares.cors.headers.accessControlAllowOriginListRegex=^https://eveindustryplanner.com$"
+      - "traefik.http.middlewares.cors.headers.accessControlAllowOriginListRegex=^https://eveindustryplanner.com$$"
       - "traefik.http.middlewares.cors.headers.accessControlAllowCredentials=true"
       - "traefik.http.middlewares.cors.headers.accessControlMaxAge=86400"
       - "traefik.http.middlewares.cors.headers.addVaryHeader=true"
@@ -47,10 +47,14 @@ services:
     volumes:
       - api_data:/data
     depends_on:
-      - mongo
-      - mongo-secondary
-      - redis
-      - nats
+      mongo:
+        condition: service_healthy
+      mongo-secondary:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_started
     networks:
       - eip
     dns:
@@ -64,10 +68,14 @@ services:
     restart: unless-stopped
     env_file: [.env]
     depends_on:
-      - mongo
-      - mongo-secondary
-      - redis
-      - nats
+      mongo:
+        condition: service_healthy
+      mongo-secondary:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_started
     networks:
       - eip
     dns:
@@ -80,10 +88,14 @@ services:
     restart: unless-stopped
     env_file: [.env]
     depends_on:
-      - mongo
-      - mongo-secondary
-      - redis
-      - nats
+      mongo:
+        condition: service_healthy
+      mongo-secondary:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_started
     networks:
       - eip
 
@@ -92,6 +104,15 @@ services:
     image: ghcr.io/darcy561/eve-industry-planner-frontend:Public-latest
     restart: unless-stopped
     env_file: [.env]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-secondary:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_started
     healthcheck:
       test:
         [
@@ -146,9 +167,6 @@ services:
     image: traefik:v3.6.6
     restart: unless-stopped
     command:
-      # API Dashboard
-      - "--api.insecure=true"
-      - "--api.dashboard=true"
       # Entrypoints
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
@@ -164,19 +182,21 @@ services:
       - "--log.level=INFO"
       - "--log.filepath=/var/log/traefik/traefik.log"
     env_file: [.env]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-secondary:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_started
     labels:
       # Enable Traefik
       - "traefik.enable=true"
-      # Dashboard router - port 81 (dashboard entrypoint), Tailscale only
-      - "traefik.http.routers.traefik-dashboard.rule=PathPrefix(`/`)"
-      - "traefik.http.routers.traefik-dashboard.entrypoints=dashboard"
-      - "traefik.http.routers.traefik-dashboard.service=api@internal"
-      - "traefik.http.middlewares.tailscale-whitelist.ipWhiteList.sourceRange=100.64.0.0/10"
-      - "traefik.http.routers.traefik-dashboard.middlewares=tailscale-whitelist"
     ports:
       - "80:80"
       - "443:443"
-      - "${TAILSCALE_IP}:81:81"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "traefik_data:/data"
@@ -202,8 +222,16 @@ services:
     container_name: redis-server
     image: redis:8.4.0
     restart: unless-stopped
+    env_file: [.env]
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: redis-cli -a "${REDIS_PASSWORD}" ping
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
     networks:
       - eip
 
@@ -211,18 +239,23 @@ services:
     container_name: mongo-primary-database
     image: mongo:8.2.3
     restart: unless-stopped
+    env_file: [.env]
+    environment:
+      - MONGO_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+      - MONGO_USERNAME=${MONGO_USERNAME}
+      - MONGO_PASSWORD=${MONGO_PASSWORD}
     volumes:
-      - mongo_data:/data/db
-    command: >
-      bash -c " mongod --replSet rs0 --bind_ip_all & sleep 5 && mongosh --eval ' try {
-        rs.initiate({
-          _id: \"rs0\",
-          members: [
-            { _id: 0, host: \"mongo:27017\" },
-            { _id: 1, host: \"mongo-secondary:27017\" }
-          ]
-        })
-      } catch(e) { print(e) } ' && wait "
+      - mongo_data:/data/db 
+      - ./scripts/mongo-setup.sh:/mongo-setup.sh:ro
+      - ./mongo-keyfile:/etc/mongo-keyfile:ro
+    command: ["bash", "/mongo-setup.sh"]
+    healthcheck:
+      test: mongosh -u "${MONGO_ROOT_USERNAME:-admin}" -p "${MONGO_ROOT_PASSWORD:-admin}" --authenticationDatabase admin --eval "var status = rs.status(); var hasPrimary = status.members.some(m => m.stateStr === 'PRIMARY'); if (!hasPrimary) { quit(1); }" --quiet
+      interval: 3s
+      timeout: 3s
+      retries: 60
+      start_period: 90s
     networks:
       - eip
 
@@ -230,11 +263,24 @@ services:
     container_name: mongo-secondary-database
     image: mongo:8.2.3
     restart: unless-stopped
+    env_file: [.env]
+    environment:
+      - MONGO_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
     volumes:
       - mongo_secondary_data:/data/db
-    command: ["--replSet", "rs0", "--bind_ip_all"]
+      - ./scripts/mongo-setup-secondary.sh:/mongo-setup.sh:ro
+      - ./mongo-keyfile:/etc/mongo-keyfile:ro
+    command: ["bash", "/mongo-setup.sh"]
+    healthcheck:
+      test: mongosh -u "${MONGO_ROOT_USERNAME:-admin}" -p "${MONGO_ROOT_PASSWORD:-admin}" --authenticationDatabase admin --eval "try { var status = rs.status(); var isHealthy = status.members.some(m => m.health === 1); if (!isHealthy) { quit(1); } } catch(e) { quit(1); }" --quiet || exit 1
+      interval: 3s
+      timeout: 3s
+      retries: 60
+      start_period: 90s
     depends_on:
-      - mongo
+      mongo:
+        condition: service_started
     networks:
       - eip
 

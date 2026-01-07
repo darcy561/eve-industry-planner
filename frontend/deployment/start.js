@@ -28,7 +28,33 @@ try {
   
   // Start serve with SPA support and CORS
   const serveArgs = ["-s", DIST_DIR, "-l", PORT.toString(), "--cors"];
-  const child = spawn("serve", serveArgs, { stdio: "inherit" });
+  const child = spawn("serve", serveArgs);
+
+  // Filter logs: suppress health check requests, show errors and other requests
+  child.stdout.on("data", (data) => {
+    const lines = data.toString().split("\n");
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      
+      // Suppress health check requests (both GET and HEAD)
+      if (line.includes("/health.json")) {
+        // Only log if it's an error (status code >= 400)
+        if (line.includes("Returned") && !line.match(/Returned [23]\d{2}/)) {
+          console.log(line);
+        }
+        // Otherwise, suppress the log
+        continue;
+      }
+      
+      // Log all other requests
+      console.log(line);
+    }
+  });
+
+  child.stderr.on("data", (data) => {
+    // Always log errors
+    process.stderr.write(data);
+  });
 
   child.on("exit", (code) => {
     if (code !== 0) {

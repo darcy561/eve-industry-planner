@@ -77,7 +77,11 @@ func RefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	}
 
 	// Validate the EVE SSO token and extract the owner field (character hash)
-	cfg := config.LoadConfig()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		http.Error(w, "Configuration error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 	eveTokenInfo, err := auth.ValidateEveTokenAndExtractHash(eveToken, cfg.EveSSOClientID, r.RemoteAddr)
 	if err != nil {
 		m.Errors.WithLabelValues("validation_error").Inc()

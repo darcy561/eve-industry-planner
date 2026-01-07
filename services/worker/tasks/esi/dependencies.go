@@ -1,4 +1,4 @@
-package esi
+package tasks
 
 import (
 	esiratelimiter "eve-industry-planner/shared/core/esi/rateLimiter"

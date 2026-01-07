@@ -189,11 +189,13 @@ func SaveRSAPrivateKey(key *rsa.PrivateKey, filePath string) error {
 // This allows key rotation by updating the environment variable.
 // Supports both PKCS#1 and PKCS#8 formats
 func LoadRSAPrivateKey() (*rsa.PrivateKey, error) {
-	cfg := config.LoadConfig()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return nil, err
+	}
 	autoGeneratePath := DefaultAutoGeneratePath
 	var keyData []byte
 	var keySource string
-	var err error
 
 	// Check both file and env var to handle key rotation
 	envKey := os.Getenv(cfg.JWTPrivateKeyEnvVar)

@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"eve-industry-planner/api/api/helper"
+	esitypes "eve-industry-planner/shared/core/esi/types"
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/shared/contextkeys"
 	"eve-industry-planner/shared/shared/logs"
 	"eve-industry-planner/shared/shared/metrics"
-	"eve-industry-planner/shared/tasks/esi"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -88,20 +88,20 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *share
 	}
 
 	// Retrieve system indexes from Redis
-	result := make(map[string]esi.SystemIndexes, len(validatedIDs))
+	result := make(map[string]esitypes.SystemIndexes, len(validatedIDs))
 	systemsFound := 0
 	systemsNotFound := 0
 
 	for _, idStr := range validatedIDs {
 		systemID, _ := strconv.ParseInt(idStr, 10, 32) // Already validated, so no error check needed
 
-		var index esi.SystemIndexes
+		var index esitypes.SystemIndexes
 		err = rediscore.GetIndustrySystemIndex(ctx, clients.Redis, int32(systemID), &index)
 		if err != nil {
 			// System not found in Redis - return blank index
 			systemsNotFound++
 			m.SystemsNotFoundByID.WithLabelValues(idStr).Inc()
-			index = esi.SystemIndexes{
+			index = esitypes.SystemIndexes{
 				SolarSystemID:    int32(systemID),
 				LastUpdated:      0,
 				Manufacturing:    0,

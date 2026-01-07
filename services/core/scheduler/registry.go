@@ -4,11 +4,10 @@ import (
 	"log/slog"
 
 	"eve-industry-planner/core/scheduler/esi"
+	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/scheduler"
 	"eve-industry-planner/shared/shared/logs"
 	taskscore "eve-industry-planner/shared/tasks"
-
-	schedulerhelpers "eve-industry-planner/core/scheduler/helpers"
 
 	natslib "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -46,7 +45,7 @@ func (r *JobRegistry) Register(scheduler SchedulerFunc) {
 // Start registers all schedulers
 func (r *JobRegistry) Start(natsConn *natslib.Conn, jsContext jetstream.JetStream, redisClient *redislib.Client, mongoClient *mongodriver.Client) error {
 	// Ensure required JetStream streams exist before starting schedulers
-	if err := schedulerhelpers.EnsureWorkerTaskStream(jsContext); err != nil {
+	if err := natscore.EnsureWorkerTaskStream(jsContext); err != nil {
 		return err
 	}
 
@@ -82,8 +81,8 @@ func (r *JobRegistry) Start(natsConn *natslib.Conn, jsContext jetstream.JetStrea
 		r.log.Warn("failed to schedule system indexes cron job", "error", err)
 	}
 
-	// Adjusted prices: every hour at 20 minutes past
-	if err := r.schedulerHandler.ScheduleCronJob("20 * * * *", taskscore.TaskTypeRefreshAdjustedPrices); err != nil {
+	// Adjusted prices: every 5 minutes (for testing)
+	if err := r.schedulerHandler.ScheduleCronJob("*/5 * * * *", taskscore.TaskTypeRefreshAdjustedPrices); err != nil {
 		r.log.Warn("failed to schedule adjusted prices cron job", "error", err)
 	}
 

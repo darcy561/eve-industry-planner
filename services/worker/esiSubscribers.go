@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/tasks/esi"
+	esitasks "eve-industry-planner/worker/tasks/esi"
 )
 
 // SubscribeScheduledTasks sets up the JetStream pull consumer for all scheduled tasks (task.scheduled.>).
@@ -16,9 +16,9 @@ func SubscribeScheduledTasks(deps *WorkerDependencies) (func(context.Context), e
 		StreamName:   natscore.WorkerTaskStream,
 		TaskName:     "scheduled tasks",
 		TaskRoutes: map[string]TaskFunc{
-			natscore.SubjectRefreshSystemIndexes:  esi.RefreshSystemIndexes,
-			natscore.SubjectRefreshAdjustedPrices: esi.RefreshAdjustedPrices,
-			natscore.SubjectRefreshMarketPrices:   esi.RefreshMarketPrices,
+			natscore.SubjectRefreshSystemIndexes:  esitasks.RefreshSystemIndexes,
+			natscore.SubjectRefreshAdjustedPrices: esitasks.RefreshAdjustedPrices,
+			natscore.SubjectRefreshMarketPrices:   esitasks.RefreshMarketPrices,
 		},
 	})
 }
@@ -33,7 +33,7 @@ func SubscribeAuthTasks(deps *WorkerDependencies) (func(context.Context), error)
 		StreamName:   natscore.WorkerTaskStream,
 		TaskName:     "auth tasks",
 		TaskRoutes: map[string]TaskFunc{
-			natscore.SubjectFetchCorporations: esi.UpdateCustomCorporationClaims,
+			natscore.SubjectFetchCorporations: esitasks.UpdateCustomCorporationClaims,
 		},
 	})
 }

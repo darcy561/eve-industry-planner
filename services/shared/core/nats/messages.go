@@ -2,8 +2,30 @@ package nats
 
 import "encoding/json"
 
+// Message type constants for the Message.Type field
+const (
+	MessageTypeTask     = "task"     // Task message type
+	MessageTypeSchedule = "schedule" // Schedule message type
+	MessageTypeEmpty    = "empty"    // Empty message type
+)
+
+// MessageType is an interface that message payload types can implement to specify their message type.
+// If a type implements this interface, Publish will use the returned type string.
+// Otherwise, the type name will be used as the message type.
+type MessageType interface {
+	MessageType() string
+}
+
+// Message represents a generic message with a type and optional payload data.
+// This is the unified message structure used for all NATS message publishing.
+type Message struct {
+	Type string          `json:"type"`           // Message type identifier (e.g., "task", "schedule", "empty")
+	Data json.RawMessage `json:"data,omitempty"` // Optional JSON-encoded payload data
+}
+
 // ScheduleRequest represents a request to schedule a one-time task.
 // Used for scheduling tasks via the scheduler.schedule subject.
+// This is the payload structure for "schedule" type messages.
 type ScheduleRequest struct {
 	JobID    string          `json:"job_id,omitempty"` // Unique job identifier (optional, will be generated if not provided)
 	TaskType string          `json:"task_type"`        // e.g., "refreshSystemIndexes"
@@ -11,15 +33,22 @@ type ScheduleRequest struct {
 	Data     json.RawMessage `json:"data,omitempty"`   // Optional JSON-encoded data to pass to the task handler
 }
 
-// EmptyMessage represents an empty message with no payload.
-// Used for simple trigger messages where no data is needed.
-type EmptyMessage struct{}
+// MessageType returns the message type identifier for ScheduleRequest.
+func (ScheduleRequest) MessageType() string {
+	return MessageTypeSchedule
+}
 
 // TaskMessage represents a generic task message with optional data.
-// Can be used for task triggers that need to pass arbitrary data.
+// This is the payload structure for "task" type messages.
+// Deprecated: Use Message with Type="task" and payload in Data field instead.
 type TaskMessage struct {
 	TaskType string          `json:"task_type"`      // Task type identifier
 	Data     json.RawMessage `json:"data,omitempty"` // Optional task-specific data
+}
+
+// MessageType returns the message type identifier for TaskMessage.
+func (TaskMessage) MessageType() string {
+	return MessageTypeTask
 }
 
 // ErrorMessage represents an error response message.

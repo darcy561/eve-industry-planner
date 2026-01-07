@@ -69,7 +69,11 @@ type EveSSOErrorResponse struct {
 func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	start := time.Now()
 	m := metrics.GetAPISSOExchange()
-	cfg := config.LoadConfig()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		http.Error(w, "Configuration error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	// Set context timeout
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
@@ -227,7 +231,11 @@ func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.
 func SSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	start := time.Now()
 	m := metrics.GetAPISSORefresh()
-	cfg := config.LoadConfig()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		http.Error(w, "Configuration error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	// Set context timeout
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)

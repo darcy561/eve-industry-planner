@@ -174,7 +174,10 @@ func StartAPIServer(clients *shared.ServiceClients) error {
 		privateGroup.HandleFunc(route.Path, route.Handler)
 	}
 
-	cfg := config.LoadConfig()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return err
+	}
 	logs.Info("api http server starting", "addr", ":"+cfg.API_PORT)
 	if err := http.ListenAndServe(":"+cfg.API_PORT, mux); err != nil {
 		logs.Error("api http server error", "err", err)

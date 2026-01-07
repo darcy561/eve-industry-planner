@@ -12,92 +12,50 @@ COMPOSE_BASE = docker-compose.yml
 COMPOSE_DEV  = docker-compose.dev.yml
 PROJECT_NAME = eve-industry-planner
 
-# Use wrapper script if it exists, otherwise use docker compose directly
-DC_WRAPPER = ./docker-compose-wrapper.sh -p $(PROJECT_NAME)
-DC = docker compose -p $(PROJECT_NAME)
-DC_DEV = docker compose -p $(PROJECT_NAME) -f $(COMPOSE_BASE) -f $(COMPOSE_DEV)
+# Function to get docker compose command
+# Uses local binary if available, otherwise falls back to system docker compose
+define get_docker_compose
+	@if [ -f ./bin/docker-compose ] && [ -x ./bin/docker-compose ]; then \
+		echo "./bin/docker-compose"; \
+	elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then \
+		echo "docker compose"; \
+	elif command -v docker-compose >/dev/null 2>&1; then \
+		echo "docker-compose"; \
+	else \
+		echo "docker compose"; \
+	fi
+endef
+
+# Use local docker compose binary if it exists, otherwise use system docker compose
+DC_BIN = $(shell if [ -f ./docker-compose ] && [ -x ./docker-compose ]; then echo "./docker-compose"; elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi)
+DC = $(DC_BIN) -p $(PROJECT_NAME)
+DC_DEV = $(DC_BIN) -p $(PROJECT_NAME) -f $(COMPOSE_BASE) -f $(COMPOSE_DEV)
 
 # ---------- Phony targets ----------
-.PHONY: help up down restart dev build pull logs ps clean
+.PHONY: help up dev ensure-keyfile download-setup-scripts
 
 # ---------- Help ----------
 help:
 	@echo ""
 	@echo "Available commands:"
+	@echo "  make help     - Show this help message"
 	@echo "  make up       - Start app (users / live images)"
 	@echo "  make dev      - Start app in dev mode (local builds)"
-	@echo "  make down     - Stop and remove containers"
-	@echo "  make restart  - Restart all services"
-	@echo "  make pull     - Pull latest images"
-	@echo "  make build    - Build dev images"
-	@echo "  make logs     - Follow logs"
-	@echo "  make ps       - Show running containers"
-	@echo "  make clean    - Stop app and remove volumes"
+	@echo ""
+	@echo "For detailed deployment instructions, see DEPLOYMENT.md"
 	@echo ""
 
+# ---------- Prerequisites ----------
+download-setup-scripts:
+	@./scripts/download-setup-scripts.sh
+
+ensure-keyfile:
+	@./scripts/generate-mongo-keyfile.sh
+
 # ---------- User / live ----------
-up:
-	@if [ -f docker-compose-wrapper.sh ]; then \
-		$(DC_WRAPPER) up -d; \
-	else \
-		$(DC) -f $(COMPOSE_BASE) up -d; \
-	fi
-
-pull:
-	@if [ -f docker-compose-wrapper.sh ]; then \
-		$(DC_WRAPPER) pull; \
-	else \
-		$(DC) -f $(COMPOSE_BASE) pull; \
-	fi
-
-restart:
-	@if [ -f docker-compose-wrapper.sh ]; then \
-		$(DC_WRAPPER) restart; \
-	else \
-		$(DC) -f $(COMPOSE_BASE) restart; \
-	fi
+up: download-setup-scripts ensure-keyfile
+	@$(DC) -f $(COMPOSE_BASE) up -d
 
 # ---------- Dev ----------
-dev:
-	@if [ -f docker-compose-wrapper.sh ]; then \
-		$(DC_WRAPPER) -f $(COMPOSE_BASE) -f $(COMPOSE_DEV) up -d --build; \
-	else \
-		$(DC_DEV) up -d --build; \
-	fi
-
-build:
-	@if [ -f docker-compose-wrapper.sh ]; then \
-		$(DC_WRAPPER) -f $(COMPOSE_BASE) -f $(COMPOSE_DEV) build; \
-	else \
-		$(DC_DEV) build; \
-	fi
-
-# ---------- Shared ----------
-down:
-	@if [ -f docker-compose-wrapper.sh ]; then \
-		$(DC_WRAPPER) down; \
-	else \
-		$(DC) down; \
-	fi
-
-logs:
-	@if [ -f docker-compose-wrapper.sh ]; then \
-		$(DC_WRAPPER) logs -f; \
-	else \
-		$(DC) logs -f; \
-	fi
-
-ps:
-	@if [ -f docker-compose-wrapper.sh ]; then \
-		$(DC_WRAPPER) ps; \
-	else \
-		$(DC) ps; \
-	fi
-
-# ---------- Danger zone ----------
-clean:
-	@if [ -f docker-compose-wrapper.sh ]; then \
-		$(DC_WRAPPER) down -v; \
-	else \
-		$(DC) down -v; \
-	fi
+dev: ensure-keyfile
+	@$(DC_DEV) up -d --build

@@ -13,7 +13,6 @@ import (
 	"eve-industry-planner/api/api/helper/sso"
 	"eve-industry-planner/shared/core/config"
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/scheduler"
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/shared/logs"
 	"eve-industry-planner/shared/shared/metrics"
@@ -110,7 +109,11 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		return
 	}
 
-	cfg := config.LoadConfig()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		http.Error(w, "Configuration error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	// Validate each EVE SSO token before submitting to worker
 	validTokens := make([]string, 0)
@@ -150,7 +153,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		Tokens:    validTokens,
 	}
 
-	if err := scheduler.PublishTaskMessage(clients.JetStream, natscore.SubjectFetchCorporations, taskscore.TaskTypeUpdateCorporationClaims, taskRequest, clients.NATS); err != nil {
+	if err := natscore.PublishTask(clients.JetStream, natscore.SubjectFetchCorporations, taskscore.TaskTypeUpdateCorporationClaims, taskRequest, clients.NATS); err != nil {
 		m.Errors.WithLabelValues("publish_error").Inc()
 		logs.ErrorCtx(r.Context(), "failed to publish corporation lookup task",
 			"account_id", accountID,
