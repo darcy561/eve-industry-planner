@@ -37,3 +37,6 @@ database-debug.log
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Version tracking (optional - remove if you want to track versions in git)
+.downloaded-versions.json

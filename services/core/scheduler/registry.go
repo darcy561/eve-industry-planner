@@ -81,8 +81,8 @@ func (r *JobRegistry) Start(natsConn *natslib.Conn, jsContext jetstream.JetStrea
 		r.log.Warn("failed to schedule system indexes cron job", "error", err)
 	}
 
-	// Adjusted prices: every 5 minutes (for testing)
-	if err := r.schedulerHandler.ScheduleCronJob("*/5 * * * *", taskscore.TaskTypeRefreshAdjustedPrices); err != nil {
+	// Adjusted prices: every hour at 20 minutes past
+	if err := r.schedulerHandler.ScheduleCronJob("20 * * * *", taskscore.TaskTypeRefreshAdjustedPrices); err != nil {
 		r.log.Warn("failed to schedule adjusted prices cron job", "error", err)
 	}
 

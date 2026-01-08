@@ -1,9 +1,34 @@
+name: eve-industry-planner
+
+# Extension fields for reusable configurations
+x-common-dns: &common-dns
+  - 8.8.8.8
+  - 8.8.4.4
+  - 1.1.1.1
+
+x-common-depends-on: &common-depends-on
+  mongo:
+    condition: service_healthy
+  mongo-secondary:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+  nats:
+    condition: service_started
+
+x-common-service-config: &common-service-config
+  restart: unless-stopped
+  env_file: [.env]
+  networks:
+    - eip
+  dns: *common-dns
+  depends_on: *common-depends-on
+
 services:
   api:
+    <<: *common-service-config
     container_name: api-service
     image: ghcr.io/darcy561/eve-industry-planner-api:Public-latest
-    restart: unless-stopped
-    env_file: [.env]
     labels:
       # Enable Traefik for this container
       - "traefik.enable=true"
@@ -46,73 +71,25 @@ services:
       - "traefik.http.services.ws.loadbalancer.server.port=4001"
     volumes:
       - api_data:/data
-    depends_on:
-      mongo:
-        condition: service_healthy
-      mongo-secondary:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      nats:
-        condition: service_started
-    networks:
-      - eip
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-      - 1.1.1.1
 
   worker:
+    <<: *common-service-config
     container_name: worker-service
     image: ghcr.io/darcy561/eve-industry-planner-worker:Public-latest
-    restart: unless-stopped
-    env_file: [.env]
-    depends_on:
-      mongo:
-        condition: service_healthy
-      mongo-secondary:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      nats:
-        condition: service_started
-    networks:
-      - eip
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-      - 1.1.1.1
+    volumes:
+      - worker_data:/data
+
   core:
+    <<: *common-service-config
     container_name: core-service
     image: ghcr.io/darcy561/eve-industry-planner-core:Public-latest
-    restart: unless-stopped
-    env_file: [.env]
-    depends_on:
-      mongo:
-        condition: service_healthy
-      mongo-secondary:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      nats:
-        condition: service_started
-    networks:
-      - eip
+    volumes:
+      - core_data:/data
 
   frontend:
+    <<: *common-service-config
     container_name: frontend-service
     image: ghcr.io/darcy561/eve-industry-planner-frontend:Public-latest
-    restart: unless-stopped
-    env_file: [.env]
-    depends_on:
-      mongo:
-        condition: service_healthy
-      mongo-secondary:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      nats:
-        condition: service_started
     healthcheck:
       test:
         [
@@ -155,17 +132,11 @@ services:
       - "traefik.http.middlewares.security-headers.headers.browserXssFilter=true"
       - "traefik.http.middlewares.security-headers.headers.frameDeny=true"
       - "traefik.http.middlewares.security-headers.headers.isDevelopment=false"
-    networks:
-      - eip
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-      - 1.1.1.1
 
   traefik:
+    <<: *common-service-config
     container_name: traefik-reverse-proxy-service
     image: traefik:v3.6.6
-    restart: unless-stopped
     command:
       # Entrypoints
       - "--entrypoints.web.address=:80"
@@ -181,16 +152,6 @@ services:
       - "--accesslog.filepath=/var/log/traefik/access.log"
       - "--log.level=INFO"
       - "--log.filepath=/var/log/traefik/traefik.log"
-    env_file: [.env]
-    depends_on:
-      mongo:
-        condition: service_healthy
-      mongo-secondary:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      nats:
-        condition: service_started
     labels:
       # Enable Traefik
       - "traefik.enable=true"
@@ -201,12 +162,6 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "traefik_data:/data"
       - "/var/log/traefik:/var/log/traefik"
-    networks:
-      - eip
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-      - 1.1.1.1
 
   nats:
     container_name: nats-message-broker-service
@@ -251,10 +206,10 @@ services:
       - ./mongo-keyfile:/etc/mongo-keyfile:ro
     command: ["bash", "/mongo-setup.sh"]
     healthcheck:
-      test: mongosh -u "${MONGO_ROOT_USERNAME:-admin}" -p "${MONGO_ROOT_PASSWORD:-admin}" --authenticationDatabase admin --eval "var status = rs.status(); var hasPrimary = status.members.some(m => m.stateStr === 'PRIMARY'); if (!hasPrimary) { quit(1); }" --quiet
-      interval: 3s
+      test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/localhost/27017'"]
+      interval: 30s
       timeout: 3s
-      retries: 60
+      retries: 5
       start_period: 90s
     networks:
       - eip
@@ -273,10 +228,10 @@ services:
       - ./mongo-keyfile:/etc/mongo-keyfile:ro
     command: ["bash", "/mongo-setup.sh"]
     healthcheck:
-      test: mongosh -u "${MONGO_ROOT_USERNAME:-admin}" -p "${MONGO_ROOT_PASSWORD:-admin}" --authenticationDatabase admin --eval "try { var status = rs.status(); var isHealthy = status.members.some(m => m.health === 1); if (!isHealthy) { quit(1); } } catch(e) { quit(1); }" --quiet || exit 1
-      interval: 3s
+      test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/localhost/27017'"]
+      interval: 30s
       timeout: 3s
-      retries: 60
+      retries: 5
       start_period: 90s
     depends_on:
       mongo:
@@ -291,6 +246,8 @@ volumes:
   nats_data:
   api_data:
   traefik_data:
+  worker_data:
+  core_data:
 
 networks:
   eip:

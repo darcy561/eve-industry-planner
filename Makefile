@@ -1,16 +1,7 @@
 # ---------- Configuration ----------
-# Use bash on Windows (Git Bash) or system bash on Linux/Unix
-# On Windows, make uses cmd.exe by default, so we need to explicitly set bash
-ifeq ($(OS),Windows_NT)
-  # Windows: Use Git Bash (short path to avoid spaces)
-  SHELL := C:/Progra~1/Git/bin/bash.exe
-else
-  # Linux/Unix: Use system bash
-  SHELL := /bin/bash
-endif
+SHELL := /bin/bash
 COMPOSE_BASE = docker-compose.yml
 COMPOSE_DEV  = docker-compose.dev.yml
-PROJECT_NAME = eve-industry-planner
 
 # Function to get docker compose command
 # Uses local binary if available, otherwise falls back to system docker compose
@@ -28,19 +19,21 @@ endef
 
 # Use local docker compose binary if it exists, otherwise use system docker compose
 DC_BIN = $(shell if [ -f ./docker-compose ] && [ -x ./docker-compose ]; then echo "./docker-compose"; elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi)
-DC = $(DC_BIN) -p $(PROJECT_NAME)
-DC_DEV = $(DC_BIN) -p $(PROJECT_NAME) -f $(COMPOSE_BASE) -f $(COMPOSE_DEV)
+# Project name is specified in docker-compose.yml via the 'name' field, so no need for -p flag
+DC = $(DC_BIN) -f $(COMPOSE_BASE)
+DC_DEV = $(DC_BIN) -f $(COMPOSE_BASE) -f $(COMPOSE_DEV)
 
 # ---------- Phony targets ----------
-.PHONY: help up dev ensure-keyfile ensure-env download-setup-scripts bootstrap-download-script
+.PHONY: help up dev ensure-keyfile ensure-env download-setup-scripts bootstrap-download-script bootstrap-version-tracker update-files
 
 # ---------- Help ----------
 help:
 	@echo ""
 	@echo "Available commands:"
-	@echo "  make help     - Show this help message"
-	@echo "  make up       - Start app (users / live images)"
-	@echo "  make dev      - Start app in develpoment mode (Designed for use with local builds)"
+	@echo "  make up               - Start app (users / live images)"
+	@echo "  make update-files     - Updates all necessary files from GitHub"
+	@echo "  make dev              - Start app in develpoment mode (Designed for use with local builds)"
+	@echo "  make help            - Show this help message"
 	@echo ""
 	@echo "For detailed deployment instructions, see DEPLOYMENT.md"
 	@echo ""
@@ -101,8 +94,53 @@ ensure-env:
 
 # ---------- User / live ----------
 up: download-setup-scripts ensure-keyfile ensure-env
-	@$(DC) -f $(COMPOSE_BASE) up -d
+	@$(DC) up -d
 
 # ---------- Dev ----------
 dev: ensure-keyfile ensure-env
 	@$(DC_DEV) up -d --build
+
+# Bootstrap: Download version-tracker.sh if it doesn't exist
+bootstrap-version-tracker:
+	@if [ ! -f ./scripts/version-tracker.sh ]; then \
+		echo "Bootstrap: Downloading version-tracker.sh from GitHub..."; \
+		mkdir -p ./scripts; \
+		if command -v curl >/dev/null 2>&1; then \
+			curl -L -f -o ./scripts/version-tracker.sh \
+				"https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Public/scripts/version-tracker.sh" || \
+			(echo "Error: Failed to download version-tracker.sh from GitHub" >&2; exit 1); \
+		elif command -v wget >/dev/null 2>&1; then \
+			wget -O ./scripts/version-tracker.sh \
+				"https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Public/scripts/version-tracker.sh" || \
+			(echo "Error: Failed to download version-tracker.sh from GitHub" >&2; exit 1); \
+		else \
+			echo "Error: Neither curl nor wget is available. Please install one of them." >&2; \
+			exit 1; \
+		fi; \
+		chmod +x ./scripts/version-tracker.sh; \
+		echo "Bootstrap: version-tracker.sh downloaded and made executable"; \
+	fi
+
+# ---------- Update Files ----------
+update-files: bootstrap-version-tracker
+	@echo "Updating files from GitHub..." >&2; \
+	echo "" >&2; \
+	echo "Updating Makefile..." >&2; \
+	TEMP_FILE="Makefile.tmp"; \
+	if command -v curl >/dev/null 2>&1; then \
+		curl -L -f -o "$$TEMP_FILE" \
+			"https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Public/Makefile" || \
+		(echo "Error: Failed to download Makefile from GitHub" >&2; rm -f "$$TEMP_FILE"; exit 1); \
+	elif command -v wget >/dev/null 2>&1; then \
+		wget -O "$$TEMP_FILE" \
+			"https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Public/Makefile" || \
+		(echo "Error: Failed to download Makefile from GitHub" >&2; rm -f "$$TEMP_FILE"; exit 1); \
+	else \
+		echo "Error: Neither curl nor wget is available. Please install one of them." >&2; \
+		exit 1; \
+	fi; \
+	mv "$$TEMP_FILE" Makefile; \
+	echo "Makefile updated successfully!" >&2; \
+	echo "" >&2; \
+	echo "Updating docker-compose.yml and scripts..." >&2; \
+	./scripts/version-tracker.sh update
