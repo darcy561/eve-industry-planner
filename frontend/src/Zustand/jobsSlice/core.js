@@ -183,29 +183,32 @@ export const coreActions = (set, get) => ({
    * store.getState().jobData.actions.updateOrAddJobsToJobArray(jobs);
    */
   updateOrAddJobsToJobArray: (jobs) => {
-    const inputJobs = Array.isArray(jobs) ? jobs : [jobs];
+    const inputArray = Array.isArray(jobs) ? jobs : [jobs];
+
+    // Deduplicate incoming jobs (keep last occurrence of each jobID)
+    const jobsMap = new Map();
+    inputArray.forEach((job) => {
+      jobsMap.set(job.jobID, job);
+    });
+    const inputJobs = Array.from(jobsMap.values());
 
     set(
       (state) => {
-        const updatedJobArray = [...state.jobData.jobArray];
+        // Create a Set of incoming job IDs for quick lookup
+        const incomingJobIDs = new Set(inputJobs.map((j) => j.jobID));
 
-        inputJobs.forEach((job) => {
-          const existingJobIndex = updatedJobArray.findIndex(
-            (existingJob) => existingJob.jobID === job.jobID
-          );
+        // Remove all jobs that match incoming job IDs (removes duplicates)
+        // Keep only jobs that don't match any incoming job IDs
+        const jobsToKeep = state.jobData.jobArray.filter(
+          (job) => !incomingJobIDs.has(job.jobID)
+        );
 
-          if (existingJobIndex !== -1) {
-            updatedJobArray[existingJobIndex] = job;
-          } else {
-            updatedJobArray.push(job);
-          }
-        });
-
+        // Add all incoming jobs (replaces any duplicates)
         return {
           ...state,
           jobData: {
             ...state.jobData,
-            jobArray: updatedJobArray,
+            jobArray: [...jobsToKeep, ...inputJobs],
           },
         };
       },

@@ -80,18 +80,41 @@ export const jobSnapshotsActions = (set, get) => ({
       return;
     }
 
-    const jobsToProcess = Array.isArray(inputJobs) ? inputJobs : [inputJobs];
+    const inputArray = Array.isArray(inputJobs) ? inputJobs : [inputJobs];
 
-    const newSnapshots = jobsToProcess.map((j) => new JobSnapshot(j));
+    // Deduplicate incoming jobs (keep last occurrence of each jobID)
+    const jobsMap = new Map();
+    inputArray.forEach((job) => {
+      jobsMap.set(job.jobID, job);
+    });
+    const jobsToProcess = Array.from(jobsMap.values());
 
     set(
-      (state) => ({
-        ...state,
-        jobData: {
-          ...state.jobData,
-          userJobSnapshot: [...state.jobData.userJobSnapshot, ...newSnapshots],
-        },
-      }),
+      (state) => {
+        // Create a Set of existing job IDs for quick lookup
+        const existingJobIDs = new Set(
+          state.jobData.userJobSnapshot.map((i) => i.jobID)
+        );
+
+        // Filter out jobs that already exist to prevent duplicates
+        const newJobs = jobsToProcess.filter(
+          (j) => !existingJobIDs.has(j.jobID)
+        );
+
+        // Create new snapshots only for jobs that don't already exist
+        const newSnapshots = newJobs.map((j) => new JobSnapshot(j));
+
+        return {
+          ...state,
+          jobData: {
+            ...state.jobData,
+            userJobSnapshot: [
+              ...state.jobData.userJobSnapshot,
+              ...newSnapshots,
+            ],
+          },
+        };
+      },
       false,
       "addJobsToUserJobSnapshotArray"
     );
@@ -156,24 +179,37 @@ export const jobSnapshotsActions = (set, get) => ({
       return;
     }
     const state = get().jobData;
-    const jobsToUpdate = Array.isArray(updatedJobs)
-      ? updatedJobs
-      : [updatedJobs];
+    const inputArray = Array.isArray(updatedJobs) ? updatedJobs : [updatedJobs];
 
-    const replacementSnapshotArray = state.userJobSnapshot.map((i) => {
-      const jobToUpdate = jobsToUpdate.find((j) => j.jobID === i.jobID);
-      if (jobToUpdate) {
-        return new JobSnapshot(jobToUpdate);
-      }
-      return i;
+    // Deduplicate incoming jobs (keep last occurrence of each jobID)
+    const jobsMap = new Map();
+    inputArray.forEach((job) => {
+      jobsMap.set(job.jobID, job);
     });
+    const jobsToUpdate = Array.from(jobsMap.values());
+
+    // Create a Set of incoming job IDs for quick lookup
+    const incomingJobIDs = new Set(jobsToUpdate.map((j) => j.jobID));
+
+    // Remove all snapshots that match incoming job IDs (removes duplicates)
+    // Keep only snapshots that don't match any incoming job IDs
+    const snapshotsToKeep = state.userJobSnapshot.filter(
+      (i) => !incomingJobIDs.has(i.jobID)
+    );
+
+    // Create new snapshots for all incoming jobs (replaces any duplicates)
+    // Only include jobs that already exist in the snapshot array
+    const existingJobIDs = new Set(state.userJobSnapshot.map((i) => i.jobID));
+    const updatedSnapshots = jobsToUpdate
+      .filter((j) => existingJobIDs.has(j.jobID))
+      .map((j) => new JobSnapshot(j));
 
     set(
       (state) => ({
         ...state,
         jobData: {
           ...state.jobData,
-          userJobSnapshot: replacementSnapshotArray,
+          userJobSnapshot: [...snapshotsToKeep, ...updatedSnapshots],
         },
       }),
       false,
@@ -195,29 +231,33 @@ export const jobSnapshotsActions = (set, get) => ({
       return;
     }
     const state = get().jobData;
-    const jobsToProcess = Array.isArray(inputJobs) ? inputJobs : [inputJobs];
+    const inputArray = Array.isArray(inputJobs) ? inputJobs : [inputJobs];
 
-    // Replace existing snapshots or keep existing ones
-    const replacementSnapshotArray = state.userJobSnapshot.map((i) => {
-      const jobToUpdate = jobsToProcess.find((j) => j.jobID === i.jobID);
-      if (jobToUpdate) {
-        return new JobSnapshot(jobToUpdate);
-      }
-      return i;
+    // Deduplicate incoming jobs (keep last occurrence of each jobID)
+    const jobsMap = new Map();
+    inputArray.forEach((job) => {
+      jobsMap.set(job.jobID, job);
     });
+    const jobsToProcess = Array.from(jobsMap.values());
 
-    // Add new snapshots for jobs that don't exist in the array
-    const existingJobIDs = new Set(state.userJobSnapshot.map((i) => i.jobID));
-    const newSnapshots = jobsToProcess
-      .filter((j) => !existingJobIDs.has(j.jobID))
-      .map((j) => new JobSnapshot(j));
+    // Create a Set of incoming job IDs for quick lookup
+    const incomingJobIDs = new Set(jobsToProcess.map((j) => j.jobID));
+
+    // Remove all snapshots that match incoming job IDs (removes duplicates)
+    // Keep only snapshots that don't match any incoming job IDs
+    const snapshotsToKeep = state.userJobSnapshot.filter(
+      (i) => !incomingJobIDs.has(i.jobID)
+    );
+
+    // Create new snapshots for all incoming jobs (replaces any duplicates)
+    const newSnapshots = jobsToProcess.map((j) => new JobSnapshot(j));
 
     set(
       (state) => ({
         ...state,
         jobData: {
           ...state.jobData,
-          userJobSnapshot: [...replacementSnapshotArray, ...newSnapshots],
+          userJobSnapshot: [...snapshotsToKeep, ...newSnapshots],
         },
       }),
       false,

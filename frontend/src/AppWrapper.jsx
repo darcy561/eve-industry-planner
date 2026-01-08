@@ -54,8 +54,7 @@ export function AppWrapper() {
 
   useEffect(() => {
     const mode = import.meta.env.MODE;
-    console.log(`🚀 App built in ${mode === "development" ? "DEV" : "PROD"} mode (Vite: ${mode})`);
-    
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         Sentry.setUser({

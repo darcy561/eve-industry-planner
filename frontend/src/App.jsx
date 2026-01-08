@@ -24,7 +24,7 @@ export default function App() {
   useCheckEveServerStatus();
   useVersionCheck();
   useFetchStaticDataFiles();
-  useServiceWorker();
+  // useServiceWorker();
 
   return (
     <ThemeProvider>
