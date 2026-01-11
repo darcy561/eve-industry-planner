@@ -36,12 +36,12 @@ services:
       - "traefik.http.routers.api.rule=PathPrefix(`/api`)"
       - "traefik.http.routers.api.entrypoints=web"
       - "traefik.http.routers.api.service=api"
-      - "traefik.http.routers.api.middlewares=cors,api-compress"
+      - "traefik.http.routers.api.middlewares=cors"
       # API Router (HTTPS)
       - "traefik.http.routers.api-secure.rule=PathPrefix(`/api`)"
       - "traefik.http.routers.api-secure.entrypoints=websecure"
       - "traefik.http.routers.api-secure.service=api"
-      - "traefik.http.routers.api-secure.middlewares=cors,api-compress"
+      - "traefik.http.routers.api-secure.middlewares=cors"
       # CORS Middleware
       - "traefik.http.middlewares.cors.headers.accessControlAllowMethods=GET,POST,PUT,DELETE,PATCH,OPTIONS"
       - "traefik.http.middlewares.cors.headers.accessControlAllowHeaders=Content-Type,Authorization,X-Requested-With,Accept,Origin"
@@ -49,8 +49,6 @@ services:
       - "traefik.http.middlewares.cors.headers.accessControlAllowCredentials=true"
       - "traefik.http.middlewares.cors.headers.accessControlMaxAge=86400"
       - "traefik.http.middlewares.cors.headers.addVaryHeader=true"
-      # API Compression Middleware
-      - "traefik.http.middlewares.api-compress.compress.includedContentTypes=application/json,text/plain,text/html"
       # API Service Load Balancer
       - "traefik.http.services.api.loadbalancer.server.port=4000"
       - "traefik.http.services.api.loadbalancer.healthcheck.path=/health"
@@ -61,13 +59,12 @@ services:
       - "traefik.http.routers.ws.rule=PathPrefix(`/ws`)"
       - "traefik.http.routers.ws.entrypoints=web"
       - "traefik.http.routers.ws.service=ws"
-      - "traefik.http.routers.ws.middlewares=cors,ws-compress"
+      - "traefik.http.routers.ws.middlewares=cors"
       # WebSocket Router (HTTPS)
       - "traefik.http.routers.ws-secure.rule=PathPrefix(`/ws`)"
       - "traefik.http.routers.ws-secure.entrypoints=websecure"
       - "traefik.http.routers.ws-secure.service=ws"
-      - "traefik.http.routers.ws-secure.middlewares=cors,ws-compress"
-      - "traefik.http.middlewares.ws-compress.compress.includedContentTypes=application/json,text/plain"
+      - "traefik.http.routers.ws-secure.middlewares=cors"
       - "traefik.http.services.ws.loadbalancer.server.port=4001"
     volumes:
       - api_data:/data
@@ -100,8 +97,8 @@ services:
           "--spider",
           "http://localhost:80/health.json",
         ]
-      interval: 10s
-      timeout: 3s
+      interval: 60s
+      timeout: 10s
       retries: 3
       start_period: 5s
     labels:
@@ -118,15 +115,14 @@ services:
       - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
       - "traefik.http.routers.frontend.priority=1"
       - "traefik.http.routers.frontend.entrypoints=web"
-      - "traefik.http.routers.frontend.middlewares=frontend-contenttype,frontend-compress,security-headers"
+      - "traefik.http.routers.frontend.middlewares=frontend-contenttype,security-headers"
       # Frontend Router (HTTPS)
       - "traefik.http.routers.frontend-secure.rule=PathPrefix(`/`)"
       - "traefik.http.routers.frontend-secure.priority=1"
       - "traefik.http.routers.frontend-secure.entrypoints=websecure"
       - "traefik.http.routers.frontend-secure.service=frontend"
-      - "traefik.http.routers.frontend-secure.middlewares=frontend-contenttype,frontend-compress,security-headers"
+      - "traefik.http.routers.frontend-secure.middlewares=frontend-contenttype,security-headers"
       - "traefik.http.middlewares.frontend-contenttype.contentType=true"
-      - "traefik.http.middlewares.frontend-compress.compress.includedContentTypes=text/html,text/css,text/javascript,application/javascript,text/css,image/svg+xml"
       # Security Headers Middleware
       - "traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true"
       - "traefik.http.middlewares.security-headers.headers.browserXssFilter=true"
@@ -201,7 +197,7 @@ services:
       - MONGO_USERNAME=${MONGO_USERNAME}
       - MONGO_PASSWORD=${MONGO_PASSWORD}
     volumes:
-      - mongo_data:/data/db 
+      - mongo_data:/data/db
       - ./scripts/mongo-setup.sh:/mongo-setup.sh:ro
       - ./mongo-keyfile:/etc/mongo-keyfile:ro
     command: ["bash", "/mongo-setup.sh"]

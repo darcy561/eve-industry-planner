@@ -47,9 +47,8 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# Install required packages for serving and healthcheck
-RUN npm install -g serve@14.2.5 && \
-    apk add --no-cache wget
+# Install required packages for healthcheck
+RUN apk add --no-cache wget
 
 # Copy built frontend files
 COPY --from=frontend-builder /app/dist ./dist
