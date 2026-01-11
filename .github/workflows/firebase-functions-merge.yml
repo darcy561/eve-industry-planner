@@ -2,17 +2,16 @@ name: Deploy Firebase Functions on merge
 on:
   push:
     branches:
-      - Main
-      - Live
+      - Public
     paths:
-      - 'functions/**'
+      - 'frontend/functions/**'
       - 'firebase.json'
   workflow_dispatch:
   
 jobs:
   deploy_functions:
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'Live' && 'Live' || 'Dev' }}
+    environment: ${{ github.ref_name == 'Public' && 'Live' || 'Dev' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -22,7 +21,7 @@ jobs:
           
       - name: Install dependencies
         run: |
-          cd functions
+          cd frontend/functions
           npm ci
 
       - name: Install Firebase tools
@@ -30,8 +29,10 @@ jobs:
 
       - name: Set up cleanup policy
         run: |
-          cd functions
+          cd frontend/functions
           firebase functions:artifacts:setpolicy --days 1 --location europe-west1 --token ${{secrets.FIREBASE_SERVICE_ACCOUNT}} --project ${{secrets.VITE_fbProjectID}}
 
       - name: Deploy Firebase Functions
-        run: firebase deploy --only functions --token ${{secrets.FIREBASE_SERVICE_ACCOUNT}} --project ${{secrets.VITE_fbProjectID}} 
+        run: |
+          cd frontend
+          firebase deploy --only functions --token ${{secrets.FIREBASE_SERVICE_ACCOUNT}} --project ${{secrets.VITE_fbProjectID}} 
