@@ -45,15 +45,14 @@ func SetupESIHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 
 // SetupRegularHandlers registers regular task handlers on the given mux
 func SetupRegularHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
-	// Create task dependencies once
-	taskDeps := &esitasks.TaskDependencies{
-		ServiceClients: deps.GetServiceClients(),
-		ESIClient:      deps.GetESIClient(),
-	}
-
 	// Register regular task handlers
 	// These are tasks that don't interact with ESI API
 	// (No regular tasks currently - all tasks use ESI rate limiter)
 
 	// Add more regular task handlers here as needed
+	// When adding handlers, create taskDeps like in SetupESIHandlers:
+	// taskDeps := &esitasks.TaskDependencies{
+	//     ServiceClients: deps.GetServiceClients(),
+	//     ESIClient:      deps.GetESIClient(),
+	// }
 }
