@@ -1,7 +1,7 @@
 package tasks
 
 import (
-	esiratelimiter "eve-industry-planner/shared/core/esi/rateLimiter"
+	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 	"eve-industry-planner/shared/shared"
 )
 

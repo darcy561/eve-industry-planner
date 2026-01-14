@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	esiratelimiter "eve-industry-planner/shared/core/esi/rateLimiter"
 	esitypes "eve-industry-planner/shared/core/esi/types"
 	"eve-industry-planner/shared/shared"
+	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -77,7 +77,7 @@ func TestStreamIndustrySystems_NilESIClient(t *testing.T) {
 	ctx := context.Background()
 	var cacheSeconds int
 
-	_, notModified, bytesRead, err := StreamIndustrySystems(ctx, nil, nil, "", func(s esitypes.SystemIndexes) error {
+	_, notModified, bytesRead, err := StreamIndustrySystems(ctx, nil, "", func(s esitypes.SystemIndexes) error {
 		return nil
 	}, &cacheSeconds)
 
@@ -100,7 +100,7 @@ func TestStreamIndustrySystems_NilCallback(t *testing.T) {
 	esiClient := &mockESIClientForStreaming{}
 	var cacheSeconds int
 
-	_, notModified, bytesRead, err := StreamIndustrySystems(ctx, nil, esiClient, "", nil, &cacheSeconds)
+	_, notModified, bytesRead, err := StreamIndustrySystems(ctx, esiClient, "", nil, &cacheSeconds)
 
 	if err == nil {
 		t.Error("expected error when callback is nil")
@@ -141,7 +141,7 @@ func TestStreamIndustrySystems_304NotModified(t *testing.T) {
 		},
 	}
 
-	returnedETag, notModified, bytesRead, err := StreamIndustrySystems(ctx, nil, esiClient, etag, func(s esitypes.SystemIndexes) error {
+	returnedETag, notModified, bytesRead, err := StreamIndustrySystems(ctx, esiClient, etag, func(s esitypes.SystemIndexes) error {
 		t.Error("callback should not be called for 304 response")
 		return nil
 	}, &cacheSeconds)
@@ -180,7 +180,7 @@ func TestStreamIndustrySystems_Non200Status(t *testing.T) {
 		},
 	}
 
-	returnedETag, notModified, bytesRead, err := StreamIndustrySystems(ctx, nil, esiClient, "", func(s esitypes.SystemIndexes) error {
+	returnedETag, notModified, bytesRead, err := StreamIndustrySystems(ctx, esiClient, "", func(s esitypes.SystemIndexes) error {
 		t.Error("callback should not be called for non-200 response")
 		return nil
 	}, &cacheSeconds)
@@ -228,7 +228,7 @@ func TestStreamIndustrySystems_SuccessfulStreaming(t *testing.T) {
 		},
 	}
 
-	returnedETag, notModified, bytesRead, err := StreamIndustrySystems(ctx, nil, esiClient, "", func(s esitypes.SystemIndexes) error {
+	returnedETag, notModified, bytesRead, err := StreamIndustrySystems(ctx, esiClient, "", func(s esitypes.SystemIndexes) error {
 		processedItems = append(processedItems, s)
 		return nil
 	}, &cacheSeconds)
@@ -304,7 +304,7 @@ func TestStreamIndustrySystems_GzipCompression(t *testing.T) {
 		},
 	}
 
-	_, notModified, bytesRead, err := StreamIndustrySystems(ctx, nil, esiClient, "", func(s esitypes.SystemIndexes) error {
+	_, notModified, bytesRead, err := StreamIndustrySystems(ctx, esiClient, "", func(s esitypes.SystemIndexes) error {
 		processedItems = append(processedItems, s)
 		return nil
 	}, nil)
@@ -342,7 +342,7 @@ func TestStreamIndustrySystems_InvalidJSON(t *testing.T) {
 		},
 	}
 
-	_, notModified, _, err := StreamIndustrySystems(ctx, nil, esiClient, "", func(s esitypes.SystemIndexes) error {
+	_, notModified, _, err := StreamIndustrySystems(ctx, esiClient, "", func(s esitypes.SystemIndexes) error {
 		t.Error("callback should not be called for invalid JSON")
 		return nil
 	}, &cacheSeconds)
@@ -372,7 +372,7 @@ func TestStreamIndustrySystems_NotArray(t *testing.T) {
 		},
 	}
 
-	_, notModified, _, err := StreamIndustrySystems(ctx, nil, esiClient, "", func(s esitypes.SystemIndexes) error {
+	_, notModified, _, err := StreamIndustrySystems(ctx, esiClient, "", func(s esitypes.SystemIndexes) error {
 		t.Error("callback should not be called for non-array JSON")
 		return nil
 	}, &cacheSeconds)
@@ -411,7 +411,7 @@ func TestStreamIndustrySystems_CallbackError(t *testing.T) {
 	}
 
 	callbackErr := errors.New("callback error")
-	_, notModified, _, err := StreamIndustrySystems(ctx, nil, esiClient, "", func(s esitypes.SystemIndexes) error {
+	_, notModified, _, err := StreamIndustrySystems(ctx, esiClient, "", func(s esitypes.SystemIndexes) error {
 		return callbackErr
 	}, nil)
 
@@ -453,7 +453,7 @@ func TestStreamIndustrySystems_RetryOnError(t *testing.T) {
 		},
 	}
 
-	_, notModified, _, err := StreamIndustrySystems(ctx, nil, esiClient, "", func(s esitypes.SystemIndexes) error {
+	_, notModified, _, err := StreamIndustrySystems(ctx, esiClient, "", func(s esitypes.SystemIndexes) error {
 		return nil
 	}, nil)
 
@@ -482,7 +482,7 @@ func TestStreamIndustrySystems_RateLimitError(t *testing.T) {
 		},
 	}
 
-	_, notModified, _, err := StreamIndustrySystems(ctx, nil, esiClient, "", func(s esitypes.SystemIndexes) error {
+	_, notModified, _, err := StreamIndustrySystems(ctx, esiClient, "", func(s esitypes.SystemIndexes) error {
 		t.Error("callback should not be called on rate limit error")
 		return nil
 	}, nil)
@@ -499,7 +499,8 @@ func TestStreamIndustrySystems_RateLimitError(t *testing.T) {
 	}
 }
 
-func TestRefreshSystemIndexes_NilMessage(t *testing.T) {
+func TestRefreshSystemIndexes_NilTask(t *testing.T) {
+	ctx := context.Background()
 	redisClient := redis.NewClient(&redis.Options{
 		Addr: "invalid:6379",
 	})
@@ -511,8 +512,11 @@ func TestRefreshSystemIndexes_NilMessage(t *testing.T) {
 		ESIClient: &mockESIClientForStreaming{},
 	}
 
-	// Should not panic with nil message
-	RefreshSystemIndexes(nil, deps)
+	// Should return error when task is nil
+	err := RefreshSystemIndexes(ctx, nil, deps)
+	if err == nil {
+		t.Error("expected error when task is nil")
+	}
 }
 
 func TestRefreshSystemIndexes_LockAcquisitionFailure(t *testing.T) {

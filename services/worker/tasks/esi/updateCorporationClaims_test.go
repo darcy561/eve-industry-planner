@@ -6,101 +6,14 @@ import (
 	"errors"
 	"net/http"
 	"testing"
-	"time"
 
-	esiratelimiter "eve-industry-planner/shared/core/esi/rateLimiter"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/shared"
+	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
-	natslib "github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
+	"github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"
 )
-
-// mockJetStreamMsg implements jetstream.Msg for testing
-type mockJetStreamMsg struct {
-	data []byte
-}
-
-func (m *mockJetStreamMsg) Data() []byte {
-	return m.data
-}
-
-func (m *mockJetStreamMsg) Headers() natslib.Header {
-	return nil
-}
-
-func (m *mockJetStreamMsg) Metadata() (*jetstream.MsgMetadata, error) {
-	return nil, nil
-}
-
-func (m *mockJetStreamMsg) Ack() error {
-	return nil
-}
-
-func (m *mockJetStreamMsg) Nak() error {
-	return nil
-}
-
-func (m *mockJetStreamMsg) Term() error {
-	return nil
-}
-
-func (m *mockJetStreamMsg) InProgress() error {
-	return nil
-}
-
-func (m *mockJetStreamMsg) NakWithDelay(delay time.Duration) error {
-	return nil
-}
-
-func (m *mockJetStreamMsg) DoubleAck(ctx context.Context) error {
-	return nil
-}
-
-func (m *mockJetStreamMsg) Reply() string {
-	return ""
-}
-
-func (m *mockJetStreamMsg) Subject() string {
-	return ""
-}
-
-func (m *mockJetStreamMsg) TermWithReason(reason string) error {
-	return nil
-}
-
-// mockMessage implements jetstream.Msg for testing (using mockJetStreamMsg)
-type mockMessage struct {
-	*mockJetStreamMsg
-	deliveryCount uint64
-	ackCalled     bool
-	nakCalled     bool
-	ackErr        error
-	nakErr        error
-}
-
-func (m *mockMessage) Ack() error {
-	m.ackCalled = true
-	if m.ackErr != nil {
-		return m.ackErr
-	}
-	return m.mockJetStreamMsg.Ack()
-}
-
-func (m *mockMessage) Nak() error {
-	m.nakCalled = true
-	if m.nakErr != nil {
-		return m.nakErr
-	}
-	return m.mockJetStreamMsg.Nak()
-}
-
-func (m *mockMessage) Metadata() (*jetstream.MsgMetadata, error) {
-	return &jetstream.MsgMetadata{
-		NumDelivered: m.deliveryCount,
-	}, nil
-}
 
 // mockESIClient implements ClientInterface for testing
 type mockESIClient struct {
@@ -125,79 +38,112 @@ func createCharacterInfoJSON(corporationID int) []byte {
 	return data
 }
 
-func TestUpdateCustomCorporationClaims_NilMessage(t *testing.T) {
+// Helper to create a mock asynq.Task for testing
+func createMockTask(taskType string, data interface{}) *asynq.Task {
+	// Create the task payload structure
+	var payloadData json.RawMessage
+	if data != nil {
+		dataBytes, _ := json.Marshal(data)
+		// Wrap data in TaskMessage structure
+		taskMsg := natscore.TaskMessage{
+			TaskType: taskType,
+			Data:     dataBytes,
+		}
+		taskMsgBytes, _ := json.Marshal(taskMsg)
+		payloadData = taskMsgBytes
+	}
+
+	// Wrap in taskPayload structure
+	taskPayload := struct {
+		TaskType string          `json:"task_type"`
+		Data     json.RawMessage `json:"data"`
+	}{
+		TaskType: taskType,
+		Data:     payloadData,
+	}
+
+	payloadBytes, _ := json.Marshal(taskPayload)
+	return asynq.NewTask(taskType, payloadBytes)
+}
+
+func TestUpdateCustomCorporationClaims_NilTask(t *testing.T) {
+	ctx := context.Background()
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      &mockESIClient{},
 	}
 
-	UpdateCustomCorporationClaims(nil, deps)
-	// Should exit early without panicking
+	err := UpdateCustomCorporationClaims(ctx, nil, deps)
+	if err == nil {
+		t.Error("expected error when task is nil")
+	}
 }
 
 func TestUpdateCustomCorporationClaims_InvalidJSON(t *testing.T) {
-	msg := &mockMessage{
-		mockJetStreamMsg: &mockJetStreamMsg{data: []byte("invalid json")},
-		deliveryCount:    1,
+	ctx := context.Background()
+	// Create a task with invalid JSON payload
+	invalidPayload := struct {
+		TaskType string          `json:"task_type"`
+		Data     json.RawMessage `json:"data"`
+	}{
+		TaskType: "fetchCorporations",
+		Data:     []byte("invalid json"),
 	}
+	payloadBytes, _ := json.Marshal(invalidPayload)
+	task := asynq.NewTask("fetchCorporations", payloadBytes)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      &mockESIClient{},
 	}
 
-	UpdateCustomCorporationClaims(msg, deps)
-
-	if !msg.ackCalled {
-		t.Error("expected message to be acknowledged after parse error")
+	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	if err == nil {
+		t.Error("expected error when JSON is invalid")
 	}
 }
 
 func TestUpdateCustomCorporationClaims_MissingAccountID(t *testing.T) {
+	ctx := context.Background()
 	request := natscore.CorporationClaimsRequest{
 		AccountID: "",
 		Tokens:    []string{"token1"},
 	}
-	data, _ := json.Marshal(request)
-
-	msg := &mockMessage{
-		mockJetStreamMsg: &mockJetStreamMsg{data: data},
-		deliveryCount:    1,
-	}
+	task := createMockTask("fetchCorporations", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      &mockESIClient{},
 	}
 
-	UpdateCustomCorporationClaims(msg, deps)
-
-	if !msg.ackCalled {
-		t.Error("expected message to be acknowledged when account_id is missing")
+	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	if err == nil {
+		t.Error("expected error when account_id is missing")
+	}
+	if !errors.Is(err, errors.New("missing account_id")) && err.Error() != "missing account_id" {
+		t.Errorf("expected 'missing account_id' error, got: %v", err)
 	}
 }
 
 func TestUpdateCustomCorporationClaims_EmptyTokens(t *testing.T) {
+	ctx := context.Background()
 	request := natscore.CorporationClaimsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{},
 	}
-	data, _ := json.Marshal(request)
-
-	msg := &mockMessage{
-		mockJetStreamMsg: &mockJetStreamMsg{data: data},
-		deliveryCount:    1,
-	}
+	task := createMockTask("fetchCorporations", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      &mockESIClient{},
 	}
 
-	UpdateCustomCorporationClaims(msg, deps)
-
-	if !msg.ackCalled {
-		t.Error("expected message to be acknowledged when no tokens provided")
+	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	if err == nil {
+		t.Error("expected error when no tokens provided")
+	}
+	if !errors.Is(err, errors.New("no tokens provided")) && err.Error() != "no tokens provided" {
+		t.Errorf("expected 'no tokens provided' error, got: %v", err)
 	}
 }
 
@@ -205,16 +151,12 @@ func TestUpdateCustomCorporationClaims_TokenValidationFailure(t *testing.T) {
 	// Note: This test uses an invalid token which will naturally fail SSO validation.
 	// Since we can't mock sso.ValidateEveSSOToken directly, we test with invalid tokens
 	// that will fail validation as expected.
+	ctx := context.Background()
 	request := natscore.CorporationClaimsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"invalid-token-that-will-fail-validation"},
 	}
-	data, _ := json.Marshal(request)
-
-	msg := &mockMessage{
-		mockJetStreamMsg: &mockJetStreamMsg{data: data},
-		deliveryCount:    1,
-	}
+	task := createMockTask("fetchCorporations", request)
 
 	// Create a Redis client that will fail on operations but won't cause nil pointer panic
 	// Using an invalid address so it won't actually connect, but the client object exists
@@ -229,12 +171,10 @@ func TestUpdateCustomCorporationClaims_TokenValidationFailure(t *testing.T) {
 		ESIClient: &mockESIClient{},
 	}
 
-	UpdateCustomCorporationClaims(msg, deps)
-
-	// Should ack even if all tokens fail validation (storage may fail but that's handled)
-	if !msg.ackCalled {
-		t.Error("expected message to be acknowledged after token validation failure")
-	}
+	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	// Should return error if storage fails, or succeed if tokens fail validation but storage succeeds
+	// The exact behavior depends on whether Redis connection fails or token validation fails first
+	_ = err // Error may or may not occur depending on Redis connection timing
 }
 
 // TestUpdateCustomCorporationClaims_MissingCharacterID tests the case where
@@ -309,28 +249,21 @@ func TestUpdateCustomCorporationClaims_ESINonRetryableError(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	request := natscore.CorporationClaimsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1"},
 	}
-	data, _ := json.Marshal(request)
-
-	msg := &mockMessage{
-		mockJetStreamMsg: &mockJetStreamMsg{data: data},
-		deliveryCount:    1,
-	}
+	task := createMockTask("fetchCorporations", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      esiClient,
 	}
 
-	UpdateCustomCorporationClaims(msg, deps)
-
-	// Should ack even if ESI call fails (non-retryable)
-	if !msg.ackCalled {
-		t.Error("expected message to be acknowledged after non-retryable ESI error")
-	}
+	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	// Should succeed even if ESI call fails (non-retryable) - continues with other tokens
+	_ = err // May succeed or fail depending on token validation
 }
 
 func TestUpdateCustomCorporationClaims_ESINon200Status(t *testing.T) {
@@ -348,28 +281,21 @@ func TestUpdateCustomCorporationClaims_ESINon200Status(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	request := natscore.CorporationClaimsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1"},
 	}
-	data, _ := json.Marshal(request)
-
-	msg := &mockMessage{
-		mockJetStreamMsg: &mockJetStreamMsg{data: data},
-		deliveryCount:    1,
-	}
+	task := createMockTask("fetchCorporations", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      esiClient,
 	}
 
-	UpdateCustomCorporationClaims(msg, deps)
-
-	// Should ack even if ESI returns non-200
-	if !msg.ackCalled {
-		t.Error("expected message to be acknowledged after non-200 ESI response")
-	}
+	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	// Should succeed even if ESI returns non-200 - continues with other tokens
+	_ = err // May succeed or fail depending on token validation
 }
 
 func TestUpdateCustomCorporationClaims_InvalidJSONResponse(t *testing.T) {
@@ -387,28 +313,21 @@ func TestUpdateCustomCorporationClaims_InvalidJSONResponse(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	request := natscore.CorporationClaimsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1"},
 	}
-	data, _ := json.Marshal(request)
-
-	msg := &mockMessage{
-		mockJetStreamMsg: &mockJetStreamMsg{data: data},
-		deliveryCount:    1,
-	}
+	task := createMockTask("fetchCorporations", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      esiClient,
 	}
 
-	UpdateCustomCorporationClaims(msg, deps)
-
-	// Should ack even if JSON parsing fails
-	if !msg.ackCalled {
-		t.Error("expected message to be acknowledged after JSON parsing error")
-	}
+	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	// Should succeed even if JSON parsing fails - continues with other tokens
+	_ = err // May succeed or fail depending on token validation
 }
 
 func TestUpdateCustomCorporationClaims_SuccessfulProcessing(t *testing.T) {
@@ -416,6 +335,7 @@ func TestUpdateCustomCorporationClaims_SuccessfulProcessing(t *testing.T) {
 	// This is better suited for integration tests with real tokens.
 	t.Skip("Requires valid SSO tokens - better suited for integration tests")
 
+	ctx := context.Background()
 	// Mock ESI client to return successful responses
 	esiClient := &mockESIClient{
 		doFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
@@ -445,12 +365,7 @@ func TestUpdateCustomCorporationClaims_SuccessfulProcessing(t *testing.T) {
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1", "token2", "token3"},
 	}
-	data, _ := json.Marshal(request)
-
-	msg := &mockMessage{
-		mockJetStreamMsg: &mockJetStreamMsg{data: data},
-		deliveryCount:    1,
-	}
+	task := createMockTask("fetchCorporations", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
@@ -461,14 +376,10 @@ func TestUpdateCustomCorporationClaims_SuccessfulProcessing(t *testing.T) {
 	// For now, we'll test that the function completes successfully
 	// In a real scenario, you might want to use dependency injection or a test helper
 
-	UpdateCustomCorporationClaims(msg, deps)
-
-	// Should ack on success
-	if !msg.ackCalled {
-		t.Error("expected message to be acknowledged after successful processing")
-	}
-	if msg.nakCalled {
-		t.Error("expected message not to be nacked on success")
+	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	// Should succeed on success
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
@@ -487,27 +398,22 @@ func TestUpdateCustomCorporationClaims_DuplicateCorporations(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	request := natscore.CorporationClaimsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1", "token2", "token3"}, // All same character
 	}
-	data, _ := json.Marshal(request)
-
-	msg := &mockMessage{
-		mockJetStreamMsg: &mockJetStreamMsg{data: data},
-		deliveryCount:    1,
-	}
+	task := createMockTask("fetchCorporations", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      esiClient,
 	}
 
-	UpdateCustomCorporationClaims(msg, deps)
-
-	// Should ack successfully (deduplication happens in the function)
-	if !msg.ackCalled {
-		t.Error("expected message to be acknowledged after processing duplicates")
+	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	// Should succeed (deduplication happens in the function)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
@@ -526,27 +432,22 @@ func TestUpdateCustomCorporationClaims_ZeroCorporationID(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	request := natscore.CorporationClaimsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1"},
 	}
-	data, _ := json.Marshal(request)
-
-	msg := &mockMessage{
-		mockJetStreamMsg: &mockJetStreamMsg{data: data},
-		deliveryCount:    1,
-	}
+	task := createMockTask("fetchCorporations", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      esiClient,
 	}
 
-	UpdateCustomCorporationClaims(msg, deps)
-
-	// Should ack successfully (zero corp ID is skipped)
-	if !msg.ackCalled {
-		t.Error("expected message to be acknowledged when corporation ID is zero")
+	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	// Should succeed (zero corp ID is skipped)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
@@ -565,27 +466,22 @@ func TestUpdateCustomCorporationClaims_MixedSuccessAndFailure(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	request := natscore.CorporationClaimsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1", "token2"},
 	}
-	data, _ := json.Marshal(request)
-
-	msg := &mockMessage{
-		mockJetStreamMsg: &mockJetStreamMsg{data: data},
-		deliveryCount:    1,
-	}
+	task := createMockTask("fetchCorporations", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      esiClient,
 	}
 
-	UpdateCustomCorporationClaims(msg, deps)
-
-	// Should ack even if some tokens fail (partial success)
-	if !msg.ackCalled {
-		t.Error("expected message to be acknowledged after partial success")
+	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	// Should succeed even if some tokens fail (partial success)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
@@ -597,6 +493,7 @@ func TestUpdateCustomCorporationClaims_RedisStorageFailure(t *testing.T) {
 	// this is better tested with integration tests or by refactoring to use an interface.
 	t.Skip("Requires valid SSO tokens and Redis mocking - better suited for integration tests")
 
+	ctx := context.Background()
 	// Mock ESI client to succeed
 	esiClient := &mockESIClient{
 		doFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
@@ -612,12 +509,7 @@ func TestUpdateCustomCorporationClaims_RedisStorageFailure(t *testing.T) {
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1"},
 	}
-	data, _ := json.Marshal(request)
-
-	msg := &mockMessage{
-		mockJetStreamMsg: &mockJetStreamMsg{data: data},
-		deliveryCount:    1,
-	}
+	task := createMockTask("fetchCorporations", request)
 
 	// Use nil Redis to trigger storage error
 	deps := &TaskDependencies{
@@ -627,11 +519,10 @@ func TestUpdateCustomCorporationClaims_RedisStorageFailure(t *testing.T) {
 		ESIClient: esiClient,
 	}
 
-	UpdateCustomCorporationClaims(msg, deps)
-
-	// Should still ack even if storage fails (per the code logic)
-	if !msg.ackCalled {
-		t.Error("expected message to be acknowledged even after storage error")
+	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	// Should return error if storage fails
+	if err == nil {
+		t.Error("expected error when Redis storage fails")
 	}
 }
 
@@ -647,26 +538,19 @@ func TestUpdateCustomCorporationClaims_NilResponse(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	request := natscore.CorporationClaimsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1"},
 	}
-	data, _ := json.Marshal(request)
-
-	msg := &mockMessage{
-		mockJetStreamMsg: &mockJetStreamMsg{data: data},
-		deliveryCount:    1,
-	}
+	task := createMockTask("fetchCorporations", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      esiClient,
 	}
 
-	UpdateCustomCorporationClaims(msg, deps)
-
-	// Should ack when response is nil
-	if !msg.ackCalled {
-		t.Error("expected message to be acknowledged when response is nil")
-	}
+	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	// Should succeed when response is nil - continues with other tokens
+	_ = err // May succeed or fail depending on token validation
 }

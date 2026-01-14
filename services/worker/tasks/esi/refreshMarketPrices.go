@@ -13,15 +13,15 @@ import (
 	"strconv"
 	"time"
 
-	esicore "eve-industry-planner/shared/core/esi"
-	esiratelimiter "eve-industry-planner/shared/core/esi/rateLimiter"
+	esicore "eve-industry-planner/worker/esi"
+	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 	natscore "eve-industry-planner/shared/core/nats"
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/shared/logs"
 	"eve-industry-planner/shared/shared/metrics"
 	taskscore "eve-industry-planner/shared/tasks"
 
-	"github.com/nats-io/nats.go/jetstream"
+	"github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -53,54 +53,48 @@ type MarketPriceEntry struct {
 // It checks for HTTP 304 Not Modified responses to avoid unnecessary work when data hasn't changed.
 // When data has changed, all orders are persisted to Redis with location_id and type_id in the key.
 // Cache headers and rate limiting are respected as in other refresh functions.
-func RefreshMarketPrices(msg jetstream.Msg, deps *TaskDependencies) {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+// Returns an error if processing fails - asynq will automatically retry on error.
+func RefreshMarketPrices(ctx context.Context, task *asynq.Task, deps *TaskDependencies) error {
+	if task == nil {
+		return fmt.Errorf("task is nil")
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	// This task requires a NATS message with data payload (type_id and location_id)
-	// In normal operation via subscriber, msg should never be nil
-	if msg == nil {
-		logs.Error("market prices refresh requires a NATS message with data payload, exiting (nothing to acknowledge)")
-		return
-	}
+	logs.Debug("Market Prices Refresh Task Received")
 
-	deliveryCount := natscore.GetDeliveryCount(msg)
-	logs.Debug("Market Prices Refresh Message Received", "delivery_count", deliveryCount)
-
-	// Parse JSON data from message payload into MarketPricesRequest
-	request, err := natscore.UnmarshalMessagePayload[natscore.MarketPricesRequest](msg)
+	// Parse JSON data from task payload into MarketPricesRequest
+	request, err := UnmarshalTaskPayload[natscore.MarketPricesRequest](task)
 	if err != nil {
-		logs.Warn("failed to parse message data, dropping message", "error", err, "delivery_count", deliveryCount)
-		natscore.AcknowledgeMessage(msg, "invalid message data", deliveryCount)
-		return
+		logs.Warn("failed to parse task data", "error", err)
+		return fmt.Errorf("invalid task data: %w", err)
 	}
 
-	// If no request data provided, we can't proceed - acknowledge and drop to avoid retrying invalid data
+	// If no request data provided, we can't proceed - return error
 	if request.TypeID == 0 || request.LocationID == 0 || request.StationID == 0 {
-		logs.Warn("missing required parameters (type_id, location_id, or station_id), dropping message",
+		logs.Warn("missing required parameters (type_id, location_id, or station_id)",
 			"type_id", request.TypeID,
 			"location_id", request.LocationID,
-			"station_id", request.StationID,
-			"delivery_count", deliveryCount)
-		natscore.AcknowledgeMessage(msg, "missing required parameters", deliveryCount)
-		return
+			"station_id", request.StationID)
+		return fmt.Errorf("missing required parameters")
 	}
 
 	lockKey := fmt.Sprintf("esi:market_orders:%d:%d:refresh_lock", request.TypeID, request.LocationID)
-	cleanup, shouldContinue := taskscore.AcquireRefreshLock(ctx, deps.Redis, lockKey, msg, deliveryCount)
+	cleanup, shouldContinue := taskscore.AcquireRefreshLock(ctx, deps.Redis, lockKey)
 	if !shouldContinue {
-		return
+		// Lock already held - skip processing (not an error)
+		return nil
 	}
 	defer cleanup()
 
 	// Check server status before proceeding
 	statusResult := esicore.CheckServerStatus(ctx, deps.ESIClient, deps.Redis)
-	if !HandleStatusCheckResult(statusResult, msg, "market prices refresh", deliveryCount) {
-		return
+	if err := HandleStatusCheckResult(statusResult, "market prices refresh"); err != nil {
+		return err
 	}
 
 	var count int
-	lastProgress := time.Now()
 	start := time.Now()
 
 	// Read previous ETags per page
@@ -111,32 +105,19 @@ func RefreshMarketPrices(msg jetstream.Msg, deps *TaskDependencies) {
 	}
 	logs.Debug("market prices refresh started", "location_id", request.LocationID, "station_id", request.StationID, "type_id", request.TypeID, "etag_pages", len(prevETags))
 
-	// Initial heartbeat so long fetches don't time out
-	if msg != nil {
-		natscore.InProgressMessage(msg)
-	}
-
 	var totalBytes int64
 	var cacheSeconds int
 	var allOrders []ESIMarketOrder
 
-	newETags, notModified, bytesRead, err := FetchPaginatedMarketOrders(ctx, msg, deps.ESIClient, deps.Redis, request.LocationID, request.TypeID, request.LocationID, prevETags, func(order ESIMarketOrder) error {
+	newETags, notModified, bytesRead, err := FetchPaginatedMarketOrders(ctx, deps.ESIClient, deps.Redis, request.LocationID, request.TypeID, request.LocationID, prevETags, func(order ESIMarketOrder) error {
 		allOrders = append(allOrders, order)
 		count++
-		// Send progress heartbeat at most every 5s
-		if msg != nil {
-			if time.Since(lastProgress) >= 5*time.Second {
-				natscore.InProgressMessage(msg)
-				lastProgress = time.Now()
-			}
-		}
 		return nil
 	}, &cacheSeconds)
 	totalBytes = bytesRead
 
 	if err != nil {
-		HandleStreamError(err, msg, "market prices refresh", deliveryCount, metrics.GetESIMarketPrices().Errors)
-		return
+		return HandleStreamError(err, "market prices refresh", metrics.GetESIMarketPrices().Errors)
 	}
 
 	if notModified {
@@ -147,23 +128,17 @@ func RefreshMarketPrices(msg jetstream.Msg, deps *TaskDependencies) {
 
 		// Save ETags per page (they may have been updated even if data hasn't changed)
 		if err := rediscore.SaveMarketOrdersETags(ctx, deps.Redis, request.TypeID, request.LocationID, newETags); err != nil {
-			logs.Warn("failed to save ETags (not modified), nacking with backoff", "error", err, "reason", "etag_save_error", "delivery_count", deliveryCount)
-			if msg != nil {
-				natscore.NackMessage(msg)
-			}
+			logs.Warn("failed to save ETags (not modified)", "error", err, "reason", "etag_save_error")
 			metrics.GetESIMarketPrices().Errors.WithLabelValues("etag_save").Inc()
-			return
+			return fmt.Errorf("failed to save ETags: %w", err)
 		}
 
 		// Update last updated timestamp even for 304 responses to prevent constant re-selection
 		nowMillis := time.Now().UnixMilli()
 		if err := rediscore.SaveMarketOrdersLastUpdated(ctx, deps.Redis, request.TypeID, request.LocationID, nowMillis); err != nil {
-			logs.Warn("failed to save last updated timestamp (not modified), nacking with backoff", "error", err, "reason", "last_updated_save_error", "delivery_count", deliveryCount)
-			if msg != nil {
-				natscore.NackMessage(msg)
-			}
+			logs.Warn("failed to save last updated timestamp (not modified)", "error", err, "reason", "last_updated_save_error")
 			metrics.GetESIMarketPrices().Errors.WithLabelValues("last_updated_save").Inc()
-			return
+			return fmt.Errorf("failed to save last updated timestamp: %w", err)
 		}
 
 		// Update refresh time tracking sorted set for finding oldest entries
@@ -172,9 +147,6 @@ func RefreshMarketPrices(msg jetstream.Msg, deps *TaskDependencies) {
 			// Don't fail the whole operation if this tracking fails
 		}
 
-		if msg != nil {
-			natscore.AcknowledgeMessage(msg, "not modified (ETag match)", deliveryCount)
-		}
 		m := metrics.GetESIMarketPrices()
 		m.Requests.Observe(time.Since(start).Seconds())
 		m.Bytes.Add(float64(totalBytes))
@@ -183,7 +155,7 @@ func RefreshMarketPrices(msg jetstream.Msg, deps *TaskDependencies) {
 			nextRefreshMillis := time.Now().Add(time.Duration(cacheSeconds) * time.Second).UnixMilli()
 			metrics.GetESIMarketPrices().NextRefresh.Set(float64(nextRefreshMillis))
 		}
-		return
+		return nil
 	}
 
 	// Filter orders by station ID (like legacy version)
@@ -200,33 +172,24 @@ func RefreshMarketPrices(msg jetstream.Msg, deps *TaskDependencies) {
 		LastUpdated: time.Now().UnixMilli(),
 	}
 	if err := rediscore.SaveMarketPriceEntry(ctx, deps.Redis, request.TypeID, request.LocationID, priceEntry); err != nil {
-		logs.Error("failed to save market price entry, nacking with backoff", "error", err, "reason", "save_error", "delivery_count", deliveryCount)
-		if msg != nil {
-			natscore.NackMessage(msg)
-		}
+		logs.Error("failed to save market price entry", "error", err, "reason", "save_error")
 		metrics.GetESIMarketPrices().Errors.WithLabelValues("save_error").Inc()
-		return
+		return fmt.Errorf("failed to save market price entry: %w", err)
 	}
 
 	// Save ETags per page
 	if err := rediscore.SaveMarketOrdersETags(ctx, deps.Redis, request.TypeID, request.LocationID, newETags); err != nil {
-		logs.Error("failed to save ETags, nacking with backoff", "error", err, "reason", "etag_save_error", "delivery_count", deliveryCount)
-		if msg != nil {
-			natscore.NackMessage(msg)
-		}
+		logs.Error("failed to save ETags", "error", err, "reason", "etag_save_error")
 		metrics.GetESIMarketPrices().Errors.WithLabelValues("etag_save").Inc()
-		return
+		return fmt.Errorf("failed to save ETags: %w", err)
 	}
 
 	// Save last updated timestamp
 	nowMillis := time.Now().UnixMilli()
 	if err := rediscore.SaveMarketOrdersLastUpdated(ctx, deps.Redis, request.TypeID, request.LocationID, nowMillis); err != nil {
-		logs.Warn("failed to save last updated timestamp, nacking with backoff", "error", err, "reason", "last_updated_save_error", "delivery_count", deliveryCount)
-		if msg != nil {
-			natscore.NackMessage(msg)
-		}
+		logs.Warn("failed to save last updated timestamp", "error", err, "reason", "last_updated_save_error")
 		metrics.GetESIMarketPrices().Errors.WithLabelValues("last_updated_save").Inc()
-		return
+		return fmt.Errorf("failed to save last updated timestamp: %w", err)
 	}
 
 	// Update refresh time tracking sorted set for finding oldest entries
@@ -239,11 +202,6 @@ func RefreshMarketPrices(msg jetstream.Msg, deps *TaskDependencies) {
 	if cacheSeconds > 0 {
 		nextRefreshMillis := time.Now().Add(time.Duration(cacheSeconds) * time.Second).UnixMilli()
 		metrics.GetESIMarketPrices().NextRefresh.Set(float64(nextRefreshMillis))
-	}
-
-	// Acknowledge message completion
-	if msg != nil {
-		natscore.AcknowledgeMessage(msg, "successful processing", deliveryCount)
 	}
 
 	duration := time.Since(start)
@@ -266,7 +224,10 @@ func RefreshMarketPrices(msg jetstream.Msg, deps *TaskDependencies) {
 	logs.Info("Market Prices Refresh Complete",
 		"location_id", request.LocationID,
 		"type_id", request.TypeID,
+		"station_id", request.StationID,
+		"orders_processed", count,
 		"duration_ms", duration.Milliseconds())
+	return nil
 }
 
 // filterOrdersByStation filters orders to only include those matching the station ID.
@@ -325,7 +286,7 @@ func getBestBuyAndSellPrices(buyOrders, sellOrders []ESIMarketOrder) (highestBuy
 // For HTTP 304 responses, it retrieves cached orders and invokes onOrder for each cached order.
 // Returns ETags per page (map[page]etag), whether all pages were unchanged (304 with valid cache), total bytes read, and any error.
 // cacheSecondsOut will be populated with parsed cache max-age from response headers if available.
-func FetchPaginatedMarketOrders(ctx context.Context, msg jetstream.Msg, esiClient esiratelimiter.ClientInterface, redisClient *redis.Client, regionID int32, typeID int32, locationID int32, prevETags map[int]string, onOrder func(ESIMarketOrder) error, cacheSecondsOut *int) (map[int]string, bool, int64, error) {
+func FetchPaginatedMarketOrders(ctx context.Context, esiClient esiratelimiter.ClientInterface, redisClient *redis.Client, regionID int32, typeID int32, locationID int32, prevETags map[int]string, onOrder func(ESIMarketOrder) error, cacheSecondsOut *int) (map[int]string, bool, int64, error) {
 	if esiClient == nil {
 		return nil, false, 0, errors.New("ESI client is nil")
 	}

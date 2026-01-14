@@ -49,14 +49,18 @@ func LoadConfig() (Config, error) {
 	const mongoDatabase = "eve_industry_planner"
 
 	// Build primary MongoDB URL
+	// Include replicaSet parameter and both hosts so driver can discover all members and find primary
 	mongoHost := getEnv("MONGO_HOST", "mongo")
 	mongoPort := getEnv("MONGO_PORT", "27017")
-	mongoURL := "mongodb://" + mongoUsername + ":" + mongoPassword + "@" + mongoHost + ":" + mongoPort + "/" + mongoDatabase + "?authSource=admin"
-
-	// Build secondary MongoDB URL (uses same credentials as primary)
 	mongoSecondaryHost := getEnv("MONGO_SECONDARY_HOST", "mongo-secondary")
 	mongoSecondaryPort := getEnv("MONGO_SECONDARY_PORT", "27017")
-	mongoSecondaryURL := "mongodb://" + mongoUsername + ":" + mongoPassword + "@" + mongoSecondaryHost + ":" + mongoSecondaryPort + "/" + mongoDatabase + "?authSource=admin"
+	mongoReplicaSet := getEnv("MONGO_REPLICA_SET", "rs0")
+	// Include both hosts in connection string for better replica set discovery
+	mongoURL := "mongodb://" + mongoUsername + ":" + mongoPassword + "@" + mongoHost + ":" + mongoPort + "," + mongoSecondaryHost + ":" + mongoSecondaryPort + "/" + mongoDatabase + "?authSource=admin&replicaSet=" + mongoReplicaSet
+
+	// Build secondary MongoDB URL (uses same credentials as primary)
+	// Include replicaSet parameter and both hosts so driver can discover all members
+	mongoSecondaryURL := "mongodb://" + mongoUsername + ":" + mongoPassword + "@" + mongoHost + ":" + mongoPort + "," + mongoSecondaryHost + ":" + mongoSecondaryPort + "/" + mongoDatabase + "?authSource=admin&replicaSet=" + mongoReplicaSet
 
 	// Build Redis URL with password
 	redisHost := getEnv("REDIS_HOST", "redis")

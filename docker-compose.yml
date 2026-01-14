@@ -203,10 +203,10 @@ services:
     command: ["bash", "/mongo-setup.sh"]
     healthcheck:
       test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/localhost/27017'"]
-      interval: 30s
-      timeout: 3s
+      interval: 10s
+      timeout: 2s
       retries: 5
-      start_period: 90s
+      start_period: 120s
     networks:
       - eip
 
@@ -225,13 +225,13 @@ services:
     command: ["bash", "/mongo-setup.sh"]
     healthcheck:
       test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/localhost/27017'"]
-      interval: 30s
-      timeout: 3s
+      interval: 10s
+      timeout: 2s
       retries: 5
-      start_period: 90s
+      start_period: 120s
     depends_on:
       mongo:
-        condition: service_started
+        condition: service_healthy
     networks:
       - eip
 

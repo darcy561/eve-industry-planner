@@ -3,18 +3,28 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/shared/logs"
-	esitasks "eve-industry-planner/worker/tasks/esi"
+	asynqpkg "eve-industry-planner/worker/asynq"
 
+	"github.com/hibiken/asynq"
 	"github.com/nats-io/nats.go/jetstream"
-	antslib "github.com/panjf2000/ants/v2"
 )
 
-// TaskFunc is a function that processes a message
-type TaskFunc func(msg jetstream.Msg, deps *esitasks.TaskDependencies)
+const (
+	// MessageFetchBatchSize is the number of messages to fetch per batch
+	MessageFetchBatchSize = 50
+	// MessageFetchMaxWait is the maximum time to wait for messages when fetching
+	MessageFetchMaxWait = 2 * time.Second
+	// MessageFetchIdleWait is the time to wait when no messages are available
+	MessageFetchIdleWait = 100 * time.Millisecond
+	// MaxConcurrentEnqueues limits concurrent enqueue operations per batch
+	// This prevents overwhelming asynq clients while still allowing parallelism
+	MaxConcurrentEnqueues = 20
+)
 
 // SubscriberConfig holds the configuration for a subscriber
 type SubscriberConfig struct {
@@ -22,7 +32,6 @@ type SubscriberConfig struct {
 	ConsumerName string
 	StreamName   string
 	TaskName     string // For logging purposes (e.g., "system indexes refresh", "adjusted prices refresh")
-	TaskFunc     TaskFunc
 }
 
 // GroupedSubscriberConfig holds the configuration for a subscriber that handles multiple subjects
@@ -30,105 +39,257 @@ type GroupedSubscriberConfig struct {
 	Subject      string // Wildcard subject like "task.scheduled>" or "task.auth>"
 	ConsumerName string
 	StreamName   string
-	TaskName     string              // Group name for logging (e.g., "scheduled tasks", "auth tasks")
-	TaskRoutes   map[string]TaskFunc // Map of specific subject to task function
+	TaskName     string   // Group name for logging (e.g., "scheduled tasks", "auth tasks")
+	TaskRoutes   []string // List of subjects this subscriber handles (for routing to asynq)
 }
 
-// processWorkerMessage processes a single message by submitting it to the goroutine pool.
-// Handles panic recovery and error handling for pool submission.
-func processWorkerMessage(
+// processESIMessage receives an ESI NATS message and enqueues it to the ESI asynq server.
+// Acknowledges NATS message immediately after successful enqueue to prevent redelivery.
+// This is the ESI message processor - completely independent from regular message processing.
+func processESIMessage(
 	msg jetstream.Msg,
-	taskFunc TaskFunc,
-	taskName string,
 	subject string,
-	pool *antslib.Pool,
-	deps *WorkerDependencies,
+	esiClient *asynq.Client,
 ) {
-	deliveryCount, sequence := natscore.GetMessageMetadata(msg)
-	logs.Debug(fmt.Sprintf("received %s message", taskName), "subject", subject, "sequence", sequence, "delivery_count", deliveryCount)
-
-	// Acknowledge message receipt immediately to prevent redelivery while waiting for pool
-	natscore.InProgressMessage(msg)
-
-	// Create task dependencies
-	taskDeps := &esitasks.TaskDependencies{
-		ServiceClients: deps.ServiceClients,
-		ESIClient:      deps.ESIClient,
+	// Determine task type from subject
+	taskType := getESITaskTypeFromSubject(subject)
+	if taskType == "" {
+		deliveryCount, _ := natscore.GetMessageMetadata(msg)
+		logs.Warn("unknown ESI task type for subject", "subject", subject)
+		natscore.AcknowledgeMessage(msg, "unknown ESI task type", deliveryCount)
+		return
 	}
 
-	// Submit task to goroutine pool - will wait if pool is full
-	err := pool.Submit(func() {
-		// Recover from panics to ensure message is always acknowledged
-		defer func() {
-			if r := recover(); r != nil {
-				logs.Error(fmt.Sprintf("panic in %s task", taskName), "error", r, "subject", subject, "sequence", sequence, "delivery_count", deliveryCount)
-				// Nack the message on panic so it can be retried
-				natscore.NackMessage(msg)
-				logs.Info("message nacked after panic", "subject", subject, "sequence", sequence)
-			}
-		}()
-		// Pass jetstream.Msg directly
-		taskFunc(msg, taskDeps)
-	})
+	// Enqueue to ESI asynq server only
+	// This is fast and non-blocking - ESI asynq server handles processing with strict priority
+	err := asynqpkg.EnqueueESI(msg, esiClient, taskType, subject)
 	if err != nil {
-		logs.Error("failed to submit task to pool", "subject", subject, "sequence", sequence, "error", err)
-		// Nack the message if we can't process it
+		logs.Error("failed to enqueue ESI task to asynq", "subject", subject, "error", err)
+		// Nack the message so it can be retried
 		natscore.NackMessage(msg)
-		logs.Info("message nacked due to pool submission failure", "subject", subject, "sequence", sequence)
+		return
+	}
+
+	// Acknowledge NATS message immediately after successful enqueue
+	// Message is now safely in ESI asynq queue with retention, won't expire
+	deliveryCount, _ := natscore.GetMessageMetadata(msg)
+	natscore.AcknowledgeMessage(msg, "enqueued to ESI asynq", deliveryCount)
+}
+
+// processRegularMessage receives a regular NATS message and enqueues it to the regular asynq server.
+// Acknowledges NATS message immediately after successful enqueue to prevent redelivery.
+// This is the regular message processor - completely independent from ESI message processing.
+func processRegularMessage(
+	msg jetstream.Msg,
+	subject string,
+	regularClient *asynq.Client,
+) {
+	// Determine task type from subject
+	taskType := getRegularTaskTypeFromSubject(subject)
+	if taskType == "" {
+		deliveryCount, _ := natscore.GetMessageMetadata(msg)
+		logs.Warn("unknown regular task type for subject", "subject", subject)
+		natscore.AcknowledgeMessage(msg, "unknown regular task type", deliveryCount)
+		return
+	}
+
+	// Enqueue to regular asynq server only
+	// This is fast and non-blocking - regular asynq server handles processing with strict priority
+	err := asynqpkg.EnqueueRegular(msg, regularClient, taskType, subject)
+	if err != nil {
+		logs.Error("failed to enqueue regular task to asynq", "subject", subject, "error", err)
+		// Nack the message so it can be retried
+		natscore.NackMessage(msg)
+		return
+	}
+
+	// Acknowledge NATS message immediately after successful enqueue
+	// Message is now safely in regular asynq queue with retention, won't expire
+	deliveryCount, _ := natscore.GetMessageMetadata(msg)
+	natscore.AcknowledgeMessage(msg, "enqueued to regular asynq", deliveryCount)
+}
+
+// getESITaskTypeFromSubject maps ESI NATS subject to asynq task type
+func getESITaskTypeFromSubject(subject string) string {
+	switch subject {
+	case natscore.SubjectRefreshSystemIndexes:
+		return "refreshSystemIndexes"
+	case natscore.SubjectRefreshAdjustedPrices:
+		return "refreshAdjustedPrices"
+	case natscore.SubjectRefreshMarketPrices, natscore.SubjectFetchMissingMarketPrices:
+		return "refreshMarketPrices" // Both subjects use the same task handler
+	case natscore.SubjectFetchCorporations:
+		return "fetchCorporations"
+	default:
+		return ""
 	}
 }
 
-// startWorkerMessageLoop starts a background goroutine that continuously fetches and processes messages
-// from the given consumer using the worker's pool submission pattern.
-func startWorkerMessageLoop(
+// getRegularTaskTypeFromSubject maps regular NATS subject to asynq task type
+func getRegularTaskTypeFromSubject(subject string) string {
+	// No regular tasks currently - all tasks use ESI rate limiter
+	return ""
+}
+
+// startESIMessageLoop starts a background goroutine that continuously fetches and processes ESI messages.
+// This is the ESI message service - completely independent from regular message processing.
+func startESIMessageLoop(
 	consumer jetstream.Consumer,
 	processor func(msg jetstream.Msg),
 	stopChan chan struct{},
 	subject string,
 ) {
-	logs.Info("starting message fetch loop", "subject", subject)
+	logs.Debug("starting ESI message fetch loop", "subject", subject, "batch_size", MessageFetchBatchSize, "max_concurrent", MaxConcurrentEnqueues, "service", "esi")
 	go func() {
+		consecutiveEmptyFetches := 0
 		for {
 			select {
 			case <-stopChan:
-				logs.Info("message fetch loop stopped", "subject", subject)
+				logs.Info("ESI message fetch loop stopped", "subject", subject)
 				return
 			default:
-				// Fetch up to 10 messages at a time
-				logs.Debug("fetching messages from NATS", "subject", subject)
-				msgs, err := consumer.Fetch(10, jetstream.FetchMaxWait(5*time.Second))
+				// Fetch messages in larger batches for better throughput
+				msgs, err := consumer.Fetch(MessageFetchBatchSize, jetstream.FetchMaxWait(MessageFetchMaxWait))
 				if err != nil {
 					if err == context.DeadlineExceeded {
-						// Reduce log noise - only log timeout occasionally
-						logs.Debug("fetch timeout (no messages available)", "subject", subject)
+						consecutiveEmptyFetches++
+						// Reduce log noise - only log every 50 empty fetches
+						if consecutiveEmptyFetches%50 == 0 {
+							logs.Debug("ESI fetch timeout (no messages available)", "subject", subject, "consecutive_empty", consecutiveEmptyFetches)
+						}
+						// Short sleep when idle to reduce CPU usage
+						time.Sleep(MessageFetchIdleWait)
 						continue
 					}
-					logs.Error("failed to fetch messages", "subject", subject, "error", err)
+					logs.Error("failed to fetch ESI messages", "subject", subject, "error", err)
 					time.Sleep(time.Second)
 					continue
 				}
 
-				msgCount := 0
+				// Collect all messages from the channel first
+				var messageBatch []jetstream.Msg
 				for msg := range msgs.Messages() {
-					msgCount++
-					actualSubject := msg.Subject()
-					_, sequence := natscore.GetMessageMetadata(msg)
-					logs.Debug("processing message from fetch", "subject", subject, "actual_subject", actualSubject, "sequence", sequence)
-					processor(msg)
+					messageBatch = append(messageBatch, msg)
 				}
-				if msgCount > 0 {
-					logs.Debug("fetched batch of messages", "subject", subject, "count", msgCount, "messages_processed", msgCount)
-				} else {
-					logs.Debug("fetch returned but no messages in batch", "subject", subject)
+
+				msgCount := len(messageBatch)
+				if msgCount == 0 {
+					consecutiveEmptyFetches++
+					continue
 				}
+
+				// Reset empty fetch counter when we get messages
+				consecutiveEmptyFetches = 0
+
+				// Process messages in parallel with controlled concurrency
+				// This significantly improves throughput while preventing resource exhaustion
+				processBatchInParallel(messageBatch, processor)
+
+				// Log batch summary (reduced logging overhead)
+				logs.Debug("processed ESI message batch", "subject", subject, "count", msgCount)
 			}
 		}
 	}()
 }
 
-// SubscribeToSubject sets up a JetStream pull consumer for a specific subject.
+// startRegularMessageLoop starts a background goroutine that continuously fetches and processes regular messages.
+// This is the regular message service - completely independent from ESI message processing.
+func startRegularMessageLoop(
+	consumer jetstream.Consumer,
+	processor func(msg jetstream.Msg),
+	stopChan chan struct{},
+	subject string,
+) {
+	logs.Info("starting regular message fetch loop", "subject", subject, "batch_size", MessageFetchBatchSize, "max_concurrent", MaxConcurrentEnqueues, "service", "regular")
+	go func() {
+		consecutiveEmptyFetches := 0
+		for {
+			select {
+			case <-stopChan:
+				logs.Info("regular message fetch loop stopped", "subject", subject)
+				return
+			default:
+				// Fetch messages in larger batches for better throughput
+				msgs, err := consumer.Fetch(MessageFetchBatchSize, jetstream.FetchMaxWait(MessageFetchMaxWait))
+				if err != nil {
+					if err == context.DeadlineExceeded {
+						consecutiveEmptyFetches++
+						// Reduce log noise - only log every 50 empty fetches
+						if consecutiveEmptyFetches%50 == 0 {
+							logs.Debug("regular fetch timeout (no messages available)", "subject", subject, "consecutive_empty", consecutiveEmptyFetches)
+						}
+						// Short sleep when idle to reduce CPU usage
+						time.Sleep(MessageFetchIdleWait)
+						continue
+					}
+					logs.Error("failed to fetch regular messages", "subject", subject, "error", err)
+					time.Sleep(time.Second)
+					continue
+				}
+
+				// Collect all messages from the channel first
+				var messageBatch []jetstream.Msg
+				for msg := range msgs.Messages() {
+					messageBatch = append(messageBatch, msg)
+				}
+
+				msgCount := len(messageBatch)
+				if msgCount == 0 {
+					consecutiveEmptyFetches++
+					continue
+				}
+
+				// Reset empty fetch counter when we get messages
+				consecutiveEmptyFetches = 0
+
+				// Process messages in parallel with controlled concurrency
+				// This significantly improves throughput while preventing resource exhaustion
+				processBatchInParallel(messageBatch, processor)
+
+				// Log batch summary (reduced logging overhead)
+				logs.Debug("processed regular message batch", "subject", subject, "count", msgCount)
+			}
+		}
+	}()
+}
+
+// processBatchInParallel processes a batch of messages concurrently with controlled concurrency.
+// Uses a semaphore pattern to limit concurrent enqueue operations.
+func processBatchInParallel(
+	messages []jetstream.Msg,
+	processor func(msg jetstream.Msg),
+) {
+	if len(messages) == 0 {
+		return
+	}
+
+	// Use a semaphore to limit concurrent enqueue operations
+	sem := make(chan struct{}, MaxConcurrentEnqueues)
+	var wg sync.WaitGroup
+
+	for _, msg := range messages {
+		wg.Add(1)
+		// Acquire semaphore (blocks if at capacity)
+		sem <- struct{}{}
+
+		go func(m jetstream.Msg) {
+			defer wg.Done()
+			defer func() { <-sem }() // Release semaphore
+
+			// Process message - enqueues to asynq and acknowledges NATS immediately
+			// asynq handles processing with strict priority ordering
+			processor(m)
+		}(msg)
+	}
+
+	// Wait for all messages in the batch to be processed
+	wg.Wait()
+}
+
+// SubscribeToESISubject sets up a JetStream pull consumer for a specific ESI subject.
+// This is the ESI subscriber service - completely independent from regular message processing.
 // Returns a cleanup function and an error if subscription fails.
-func SubscribeToSubject(deps *WorkerDependencies, config SubscriberConfig) (func(context.Context), error) {
+func SubscribeToESISubject(deps *WorkerDependencies, config SubscriberConfig) (func(context.Context), error) {
 	ctx := context.Background()
 
 	// Get or ensure the stream exists
@@ -137,7 +298,7 @@ func SubscribeToSubject(deps *WorkerDependencies, config SubscriberConfig) (func
 		return nil, fmt.Errorf("failed to get or ensure stream: %w", err)
 	}
 
-	// Create or get durable consumer
+	// Create or get durable consumer for ESI messages
 	// Use DeliverLastPolicy to only get new messages, avoiding reprocessing old messages on startup
 	// FilterSubject ensures this consumer only receives messages for its specific subject
 	consumerConfig := jetstream.ConsumerConfig{
@@ -151,19 +312,19 @@ func SubscribeToSubject(deps *WorkerDependencies, config SubscriberConfig) (func
 
 	consumer, err := natscore.GetOrCreateConsumer(ctx, stream, consumerConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create consumer: %w", err)
+		return nil, fmt.Errorf("failed to create ESI consumer: %w", err)
 	}
 
-	// Create message processor that submits to pool
+	// Create ESI message processor that enqueues to ESI asynq server only
 	processor := func(msg jetstream.Msg) {
-		processWorkerMessage(msg, config.TaskFunc, config.TaskName, config.Subject, deps.Pool, deps)
+		processESIMessage(msg, config.Subject, deps.ESIAsynqClient)
 	}
 
-	// Start message processing loop
+	// Start ESI message processing loop
 	stopChan := make(chan struct{})
-	startWorkerMessageLoop(consumer, processor, stopChan, config.Subject)
+	startESIMessageLoop(consumer, processor, stopChan, config.Subject)
 
-	logs.Debug(fmt.Sprintf("subscribed to %s", config.TaskName), "subject", config.Subject, "consumer", config.ConsumerName, "type", "pull")
+	logs.Debug(fmt.Sprintf("subscribed to ESI %s", config.TaskName), "subject", config.Subject, "consumer", config.ConsumerName, "type", "pull", "service", "esi")
 
 	cleanup := func(ctx context.Context) {
 		close(stopChan)
@@ -173,10 +334,10 @@ func SubscribeToSubject(deps *WorkerDependencies, config SubscriberConfig) (func
 	return cleanup, nil
 }
 
-// SubscribeToSubjectGroup sets up a JetStream pull consumer for a wildcard subject group.
-// Messages are routed to the appropriate task function based on their actual subject.
+// SubscribeToRegularSubject sets up a JetStream pull consumer for a specific regular subject.
+// This is the regular subscriber service - completely independent from ESI message processing.
 // Returns a cleanup function and an error if subscription fails.
-func SubscribeToSubjectGroup(deps *WorkerDependencies, config GroupedSubscriberConfig) (func(context.Context), error) {
+func SubscribeToRegularSubject(deps *WorkerDependencies, config SubscriberConfig) (func(context.Context), error) {
 	ctx := context.Background()
 
 	// Get or ensure the stream exists
@@ -185,7 +346,55 @@ func SubscribeToSubjectGroup(deps *WorkerDependencies, config GroupedSubscriberC
 		return nil, fmt.Errorf("failed to get or ensure stream: %w", err)
 	}
 
-	// Create or get durable consumer
+	// Create or get durable consumer for regular messages
+	// Use DeliverLastPolicy to only get new messages, avoiding reprocessing old messages on startup
+	// FilterSubject ensures this consumer only receives messages for its specific subject
+	consumerConfig := jetstream.ConsumerConfig{
+		Durable:       config.ConsumerName,
+		FilterSubject: config.Subject,
+		DeliverPolicy: jetstream.DeliverLastPolicy,
+		AckPolicy:     jetstream.AckExplicitPolicy,
+		AckWait:       30 * time.Second,
+		MaxDeliver:    5,
+	}
+
+	consumer, err := natscore.GetOrCreateConsumer(ctx, stream, consumerConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create regular consumer: %w", err)
+	}
+
+	// Create regular message processor that enqueues to regular asynq server only
+	processor := func(msg jetstream.Msg) {
+		processRegularMessage(msg, config.Subject, deps.RegularClient)
+	}
+
+	// Start regular message processing loop
+	stopChan := make(chan struct{})
+	startRegularMessageLoop(consumer, processor, stopChan, config.Subject)
+
+	logs.Debug(fmt.Sprintf("subscribed to regular %s", config.TaskName), "subject", config.Subject, "consumer", config.ConsumerName, "type", "pull", "service", "regular")
+
+	cleanup := func(ctx context.Context) {
+		close(stopChan)
+		// Messages channel will be closed, processing will stop
+	}
+
+	return cleanup, nil
+}
+
+// SubscribeToESISubjectGroup sets up a JetStream pull consumer for a wildcard ESI subject group.
+// This is the ESI grouped subscriber service - completely independent from regular message processing.
+// Returns a cleanup function and an error if subscription fails.
+func SubscribeToESISubjectGroup(deps *WorkerDependencies, config GroupedSubscriberConfig) (func(context.Context), error) {
+	ctx := context.Background()
+
+	// Get or ensure the stream exists
+	stream, err := natscore.GetOrEnsureStream(ctx, deps.JetStream, natscore.EnsureWorkerTaskStream, config.StreamName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get or ensure stream: %w", err)
+	}
+
+	// Create or get durable consumer for ESI messages
 	// Use DeliverLastPolicy to only get new messages, avoiding reprocessing old messages on startup
 	// FilterSubject uses wildcard pattern to match all subjects in the group
 	consumerConfig := jetstream.ConsumerConfig{
@@ -199,35 +408,101 @@ func SubscribeToSubjectGroup(deps *WorkerDependencies, config GroupedSubscriberC
 
 	consumer, err := natscore.GetOrCreateConsumer(ctx, stream, consumerConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create consumer: %w", err)
+		return nil, fmt.Errorf("failed to create ESI consumer: %w", err)
 	}
 
-	// Create message processor that routes to appropriate task function
+	// Build a map for O(1) subject lookup instead of O(n) linear search
+	validRoutes := make(map[string]bool, len(config.TaskRoutes))
+	for _, route := range config.TaskRoutes {
+		validRoutes[route] = true
+	}
+
+	// Create ESI message processor that routes to ESI asynq server only
 	processor := func(msg jetstream.Msg) {
 		actualSubject := msg.Subject()
-		_, sequence := natscore.GetMessageMetadata(msg)
-		logs.Info("message received in subscriber processor", "subject", actualSubject, "group", config.TaskName, "sequence", sequence, "available_routes", len(config.TaskRoutes))
 
-		// Find the appropriate task function for this subject
-		taskFunc, exists := config.TaskRoutes[actualSubject]
-		if !exists {
-			logs.Warn("no task handler found for subject", "subject", actualSubject, "group", config.TaskName, "sequence", sequence)
+		// Fast O(1) lookup instead of O(n) linear search
+		if !validRoutes[actualSubject] {
 			// Ack the message even though we don't have a handler, to prevent redelivery
 			deliveryCount := natscore.GetDeliveryCount(msg)
-			natscore.AcknowledgeMessage(msg, "no handler found", deliveryCount)
+			natscore.AcknowledgeMessage(msg, "no ESI handler found", deliveryCount)
 			return
 		}
 
-		logs.Info("routing message to task handler", "subject", actualSubject, "group", config.TaskName, "sequence", sequence)
-		// Process the message using the worker message processing helper
-		processWorkerMessage(msg, taskFunc, config.TaskName, actualSubject, deps.Pool, deps)
+		// Process the message using the ESI message processing helper
+		processESIMessage(msg, actualSubject, deps.ESIAsynqClient)
 	}
 
-	// Start message processing loop
+	// Start ESI message processing loop
 	stopChan := make(chan struct{})
-	startWorkerMessageLoop(consumer, processor, stopChan, config.Subject)
+	startESIMessageLoop(consumer, processor, stopChan, config.Subject)
 
-	logs.Debug(fmt.Sprintf("subscribed to %s", config.TaskName), "subject", config.Subject, "consumer", config.ConsumerName, "type", "pull")
+	logs.Debug(fmt.Sprintf("subscribed to ESI %s", config.TaskName), "subject", config.Subject, "consumer", config.ConsumerName, "type", "pull", "service", "esi")
+
+	cleanup := func(ctx context.Context) {
+		close(stopChan)
+		// Messages channel will be closed, processing will stop
+	}
+
+	return cleanup, nil
+}
+
+// SubscribeToRegularSubjectGroup sets up a JetStream pull consumer for a wildcard regular subject group.
+// This is the regular grouped subscriber service - completely independent from ESI message processing.
+// Returns a cleanup function and an error if subscription fails.
+func SubscribeToRegularSubjectGroup(deps *WorkerDependencies, config GroupedSubscriberConfig) (func(context.Context), error) {
+	ctx := context.Background()
+
+	// Get or ensure the stream exists
+	stream, err := natscore.GetOrEnsureStream(ctx, deps.JetStream, natscore.EnsureWorkerTaskStream, config.StreamName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get or ensure stream: %w", err)
+	}
+
+	// Create or get durable consumer for regular messages
+	// Use DeliverLastPolicy to only get new messages, avoiding reprocessing old messages on startup
+	// FilterSubject uses wildcard pattern to match all subjects in the group
+	consumerConfig := jetstream.ConsumerConfig{
+		Durable:       config.ConsumerName,
+		FilterSubject: config.Subject,
+		DeliverPolicy: jetstream.DeliverLastPolicy,
+		AckPolicy:     jetstream.AckExplicitPolicy,
+		AckWait:       30 * time.Second,
+		MaxDeliver:    5,
+	}
+
+	consumer, err := natscore.GetOrCreateConsumer(ctx, stream, consumerConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create regular consumer: %w", err)
+	}
+
+	// Build a map for O(1) subject lookup instead of O(n) linear search
+	validRoutes := make(map[string]bool, len(config.TaskRoutes))
+	for _, route := range config.TaskRoutes {
+		validRoutes[route] = true
+	}
+
+	// Create regular message processor that routes to regular asynq server only
+	processor := func(msg jetstream.Msg) {
+		actualSubject := msg.Subject()
+
+		// Fast O(1) lookup instead of O(n) linear search
+		if !validRoutes[actualSubject] {
+			// Ack the message even though we don't have a handler, to prevent redelivery
+			deliveryCount := natscore.GetDeliveryCount(msg)
+			natscore.AcknowledgeMessage(msg, "no regular handler found", deliveryCount)
+			return
+		}
+
+		// Process the message using the regular message processing helper
+		processRegularMessage(msg, actualSubject, deps.RegularClient)
+	}
+
+	// Start regular message processing loop
+	stopChan := make(chan struct{})
+	startRegularMessageLoop(consumer, processor, stopChan, config.Subject)
+
+	logs.Debug(fmt.Sprintf("subscribed to regular %s", config.TaskName), "subject", config.Subject, "consumer", config.ConsumerName, "type", "pull", "service", "regular")
 
 	cleanup := func(ctx context.Context) {
 		close(stopChan)

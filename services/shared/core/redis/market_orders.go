@@ -11,6 +11,13 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const (
+	// refreshTimesKey is the Redis key for the sorted set tracking market orders refresh times
+	refreshTimesKey = "esi:market_orders:refresh_times"
+	// totalCountCacheKey is the Redis key for caching the total count of market orders items
+	totalCountCacheKey = "esi:market_orders:total_count_cache"
+)
+
 // MarketPriceEntry is a helper type for GetMarketPriceEntriesByType
 // This matches the structure used in internal/tasks/esi/refreshMarketPrices.go
 type MarketPriceEntry struct {
@@ -171,25 +178,94 @@ func SaveMarketOrdersLastUpdated(ctx context.Context, client *redis.Client, type
 	return SetString(ctx, client, key, strconv.FormatInt(unixMillis, 10), 0)
 }
 
+// parseRefreshTimeMember parses a member string in format "type_id:location_id" and score into MarketOrdersRefreshTime.
+// Returns nil if parsing fails.
+func parseRefreshTimeMember(member string, score float64) *MarketOrdersRefreshTime {
+	var typeID, locationID int64
+	if _, err := fmt.Sscanf(member, "%d:%d", &typeID, &locationID); err != nil {
+		return nil
+	}
+	return &MarketOrdersRefreshTime{
+		TypeID:      int32(typeID),
+		LocationID:  int32(locationID),
+		LastUpdated: int64(score),
+	}
+}
+
+// formatScoreRange converts minScore and maxScore to Redis string format.
+// If score is 0, it's treated as infinity (-inf for min, +inf for max).
+func formatScoreRange(minScore, maxScore float64) (minStr, maxStr string) {
+	if minScore == 0 {
+		minStr = "-inf"
+	} else {
+		minStr = fmt.Sprintf("%.0f", minScore)
+	}
+	if maxScore == 0 {
+		maxStr = "+inf"
+	} else {
+		maxStr = fmt.Sprintf("%.0f", maxScore)
+	}
+	return minStr, maxStr
+}
+
 // SaveMarketOrdersRefreshTime updates the refresh time tracking sorted set.
 // Uses composite key format: "{type_id}:{location_id}" as member, timestamp as score.
-// Key: esi:market_orders:refresh_times
 func SaveMarketOrdersRefreshTime(ctx context.Context, client *redis.Client, typeID int32, locationID int32, unixMillis int64) error {
 	member := fmt.Sprintf("%d:%d", typeID, locationID)
-	key := "esi:market_orders:refresh_times"
-	return client.ZAdd(ctx, key, redis.Z{
+	return client.ZAdd(ctx, refreshTimesKey, redis.Z{
 		Score:  float64(unixMillis),
 		Member: member,
 	}).Err()
 }
 
+// CountMarketOrdersRefreshTimesByScoreRange counts items in the refresh times sorted set
+// within a score range (timestamp range). Useful for estimating outdated items without fetching all data.
+// minScore and maxScore are timestamps in milliseconds. Use 0 for infinity (-inf for min, +inf for max).
+func CountMarketOrdersRefreshTimesByScoreRange(ctx context.Context, client *redis.Client, minScore, maxScore float64) (int64, error) {
+	minStr, maxStr := formatScoreRange(minScore, maxScore)
+	count, err := client.ZCount(ctx, refreshTimesKey, minStr, maxStr).Result()
+	return count, err
+}
+
+// CountTotalMarketOrdersRefreshTimes counts the total number of items in the refresh times sorted set.
+// This is used to calculate batch sizes based on total items that need to be refreshed.
+func CountTotalMarketOrdersRefreshTimes(ctx context.Context, client *redis.Client) (int64, error) {
+	// ZCard returns the cardinality (total count) of the sorted set
+	count, err := client.ZCard(ctx, refreshTimesKey).Result()
+	return count, err
+}
+
+// GetCachedTotalMarketOrdersCount retrieves the cached total count of market orders items.
+// Returns 0 if not found (cache miss is not an error).
+func GetCachedTotalMarketOrdersCount(ctx context.Context, client *redis.Client) (int64, error) {
+	val, err := client.Get(ctx, totalCountCacheKey).Int64()
+	if err == redis.Nil {
+		return 0, nil // Cache miss, not an error
+	}
+	return val, err
+}
+
+// CachedTotalMarketOrdersCountExists checks if the cached total count key exists in Redis.
+// Returns true if the key exists, false otherwise.
+func CachedTotalMarketOrdersCountExists(ctx context.Context, client *redis.Client) (bool, error) {
+	exists, err := client.Exists(ctx, totalCountCacheKey).Result()
+	if err != nil {
+		return false, err
+	}
+	return exists > 0, nil
+}
+
+// SetCachedTotalMarketOrdersCount stores the total count of market orders items in cache.
+// TTL should be set to match the recalculation interval (e.g., 4 hours).
+func SetCachedTotalMarketOrdersCount(ctx context.Context, client *redis.Client, count int64, ttl time.Duration) error {
+	return client.Set(ctx, totalCountCacheKey, count, ttl).Err()
+}
+
 // GetOldestMarketOrdersRefreshTimes retrieves the N oldest market orders that need refreshing.
 // Returns entries sorted by last refresh time (oldest first).
 func GetOldestMarketOrdersRefreshTimes(ctx context.Context, client *redis.Client, limit int) ([]MarketOrdersRefreshTime, error) {
-	key := "esi:market_orders:refresh_times"
-
 	// ZRange returns members with scores, ordered by score ascending (oldest first)
-	results, err := client.ZRangeWithScores(ctx, key, 0, int64(limit-1)).Result()
+	results, err := client.ZRangeWithScores(ctx, refreshTimesKey, 0, int64(limit-1)).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -201,17 +277,44 @@ func GetOldestMarketOrdersRefreshTimes(ctx context.Context, client *redis.Client
 			continue
 		}
 
-		// Parse composite key format: "type_id:location_id"
-		var typeID, locationID int64
-		if _, err := fmt.Sscanf(member, "%d:%d", &typeID, &locationID); err != nil {
+		parsed := parseRefreshTimeMember(member, result.Score)
+		if parsed != nil {
+			refreshTimes = append(refreshTimes, *parsed)
+		}
+	}
+
+	return refreshTimes, nil
+}
+
+// GetMarketOrdersRefreshTimesByScoreRange retrieves items within a score (timestamp) range.
+// Useful for fetching only outdated items without fetching everything.
+// minScore and maxScore are timestamps in milliseconds. Use 0 for infinity (-inf for min, +inf for max).
+func GetMarketOrdersRefreshTimesByScoreRange(ctx context.Context, client *redis.Client, minScore, maxScore float64, limit int) ([]MarketOrdersRefreshTime, error) {
+	minStr, maxStr := formatScoreRange(minScore, maxScore)
+
+	// ZRangeByScore returns members with scores between minScore and maxScore, ordered by score ascending
+	opt := &redis.ZRangeBy{
+		Min:    minStr,
+		Max:    maxStr,
+		Offset: 0,
+		Count:  int64(limit),
+	}
+	results, err := client.ZRangeByScoreWithScores(ctx, refreshTimesKey, opt).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	refreshTimes := make([]MarketOrdersRefreshTime, 0, len(results))
+	for _, result := range results {
+		member, ok := result.Member.(string)
+		if !ok {
 			continue
 		}
 
-		refreshTimes = append(refreshTimes, MarketOrdersRefreshTime{
-			TypeID:      int32(typeID),
-			LocationID:  int32(locationID),
-			LastUpdated: int64(result.Score),
-		})
+		parsed := parseRefreshTimeMember(member, result.Score)
+		if parsed != nil {
+			refreshTimes = append(refreshTimes, *parsed)
+		}
 	}
 
 	return refreshTimes, nil
@@ -220,7 +323,6 @@ func GetOldestMarketOrdersRefreshTimes(ctx context.Context, client *redis.Client
 // GetMarketOrdersRefreshTimesByType retrieves refresh times for a specific type_id.
 // Uses ZScan to find members matching the pattern "{type_id}:*"
 func GetMarketOrdersRefreshTimesByType(ctx context.Context, client *redis.Client, typeID int32, limit int) ([]MarketOrdersRefreshTime, error) {
-	key := "esi:market_orders:refresh_times"
 	pattern := fmt.Sprintf("%d:*", typeID)
 
 	var refreshTimes []MarketOrdersRefreshTime
@@ -229,7 +331,7 @@ func GetMarketOrdersRefreshTimesByType(ctx context.Context, client *redis.Client
 	for {
 		var keys []string
 		var err error
-		keys, cursor, err = client.ZScan(ctx, key, cursor, pattern, int64(limit)).Result()
+		keys, cursor, err = client.ZScan(ctx, refreshTimesKey, cursor, pattern, int64(limit)).Result()
 		if err != nil {
 			return nil, err
 		}
@@ -242,22 +344,15 @@ func GetMarketOrdersRefreshTimesByType(ctx context.Context, client *redis.Client
 			member := keys[i]
 			scoreStr := keys[i+1]
 
-			// Parse composite key
-			var typeIDParsed, locationID int64
-			if _, err := fmt.Sscanf(member, "%d:%d", &typeIDParsed, &locationID); err != nil {
-				continue
-			}
-
 			score, err := strconv.ParseFloat(scoreStr, 64)
 			if err != nil {
 				continue
 			}
 
-			refreshTimes = append(refreshTimes, MarketOrdersRefreshTime{
-				TypeID:      int32(typeIDParsed),
-				LocationID:  int32(locationID),
-				LastUpdated: int64(score),
-			})
+			parsed := parseRefreshTimeMember(member, score)
+			if parsed != nil {
+				refreshTimes = append(refreshTimes, *parsed)
+			}
 		}
 
 		if cursor == 0 || len(refreshTimes) >= limit {

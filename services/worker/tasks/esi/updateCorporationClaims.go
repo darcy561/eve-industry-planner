@@ -10,11 +10,11 @@ import (
 	"eve-industry-planner/api/api/helper/auth"
 	"eve-industry-planner/api/api/helper/sso"
 	"eve-industry-planner/shared/core/config"
-	esiratelimiter "eve-industry-planner/shared/core/esi/rateLimiter"
+	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/shared/logs"
 
-	"github.com/nats-io/nats.go/jetstream"
+	"github.com/hibiken/asynq"
 )
 
 // CharacterInfo represents the response from ESI API for character information
@@ -25,47 +25,40 @@ type CharacterInfo struct {
 // UpdateCustomCorporationClaims processes a batch of EVE SSO tokens, extracts character IDs,
 // queries ESI API for corporation IDs, and stores the aggregated unique set in Redis.
 // This task respects ESI rate limiting through the rate-limited ESI client.
-func UpdateCustomCorporationClaims(msg jetstream.Msg, deps *TaskDependencies) {
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second) // Longer timeout for batch processing
-	defer cancel()
-
-	if msg == nil {
-		logs.Error("fetch corporations task requires a NATS message with data payload, exiting (nothing to acknowledge)")
-		return
+// Returns an error if processing fails - asynq will automatically retry on error.
+func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *TaskDependencies) error {
+	if task == nil {
+		return fmt.Errorf("task is nil")
 	}
 
-	deliveryCount := natscore.GetDeliveryCount(msg)
-	logs.Info("Fetch Corporations Message Received", "delivery_count", deliveryCount)
+	ctx, cancel := context.WithTimeout(ctx, 300*time.Second) // Longer timeout for batch processing
+	defer cancel()
 
-	// Parse JSON data from message payload
-	request, err := natscore.UnmarshalMessagePayload[natscore.CorporationClaimsRequest](msg)
+	logs.Info("Fetch Corporations Task Received")
+
+	// Parse JSON data from task payload
+	request, err := UnmarshalTaskPayload[natscore.CorporationClaimsRequest](task)
 	if err != nil {
-		logs.Warn("failed to parse message data, dropping message", "error", err, "delivery_count", deliveryCount)
-		natscore.AcknowledgeMessage(msg, "invalid message data", deliveryCount)
-		return
+		logs.Warn("failed to parse task data", "error", err)
+		return fmt.Errorf("invalid task data: %w", err)
 	}
 
 	// Validate request data
 	if request.AccountID == "" {
-		logs.Warn("missing required parameter (account_id), dropping message",
-			"delivery_count", deliveryCount)
-		natscore.AcknowledgeMessage(msg, "missing account_id", deliveryCount)
-		return
+		logs.Warn("missing required parameter (account_id)")
+		return fmt.Errorf("missing account_id")
 	}
 
 	if len(request.Tokens) == 0 {
-		logs.Warn("no tokens provided in task request, dropping message",
-			"account_id", request.AccountID,
-			"delivery_count", deliveryCount)
-		natscore.AcknowledgeMessage(msg, "no tokens provided", deliveryCount)
-		return
+		logs.Warn("no tokens provided in task request",
+			"account_id", request.AccountID)
+		return fmt.Errorf("no tokens provided")
 	}
 
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		logs.Error("failed to load config", "error", err)
-		natscore.AcknowledgeMessage(msg, "config error", deliveryCount)
-		return
+		return fmt.Errorf("failed to load config: %w", err)
 	}
 
 	// Process all EVE SSO tokens and collect corporation IDs
@@ -80,8 +73,7 @@ func UpdateCustomCorporationClaims(msg jetstream.Msg, deps *TaskDependencies) {
 			logs.Warn("failed to validate EVE SSO token in worker",
 				"index", i,
 				"account_id", request.AccountID,
-				"error", err,
-				"delivery_count", deliveryCount)
+				"error", err)
 			failedCount++
 			continue
 		}
@@ -91,8 +83,7 @@ func UpdateCustomCorporationClaims(msg jetstream.Msg, deps *TaskDependencies) {
 		if characterID == "" {
 			logs.Warn("missing character ID in token",
 				"index", i,
-				"account_id", request.AccountID,
-				"delivery_count", deliveryCount)
+				"account_id", request.AccountID)
 			failedCount++
 			continue
 		}
@@ -104,8 +95,7 @@ func UpdateCustomCorporationClaims(msg jetstream.Msg, deps *TaskDependencies) {
 				"character_id", characterID,
 				"index", i,
 				"account_id", request.AccountID,
-				"error", err,
-				"delivery_count", deliveryCount)
+				"error", err)
 			failedCount++
 			continue
 		}
@@ -122,17 +112,15 @@ func UpdateCustomCorporationClaims(msg jetstream.Msg, deps *TaskDependencies) {
 				"character_id", characterID,
 				"account_id", request.AccountID,
 				"index", i,
-				"error", err,
-				"delivery_count", deliveryCount)
+				"error", err)
 
-			// Check if it's a rate limit error - if retryable, nack with delay
+			// Check if it's a rate limit error - return error for asynq to retry
 			if esiratelimiter.IsRetryableRateLimitError(err) {
-				logs.Warn("retryable rate limit error, nacking message for retry",
+				logs.Warn("retryable rate limit error, returning error for retry",
 					"character_id", characterID,
 					"account_id", request.AccountID,
 					"error", err)
-				natscore.NackMessage(msg)
-				return // Nack the entire message to retry all tokens
+				return fmt.Errorf("rate limited: %w", err)
 			}
 
 			// Non-retryable error - continue with other tokens
@@ -150,8 +138,7 @@ func UpdateCustomCorporationClaims(msg jetstream.Msg, deps *TaskDependencies) {
 				"character_id", characterID,
 				"account_id", request.AccountID,
 				"status_code", statusCode,
-				"index", i,
-				"delivery_count", deliveryCount)
+				"index", i)
 			failedCount++
 			continue
 		}
@@ -163,8 +150,7 @@ func UpdateCustomCorporationClaims(msg jetstream.Msg, deps *TaskDependencies) {
 				"character_id", characterID,
 				"account_id", request.AccountID,
 				"index", i,
-				"error", err,
-				"delivery_count", deliveryCount)
+				"error", err)
 			failedCount++
 			continue
 		}
@@ -187,22 +173,15 @@ func UpdateCustomCorporationClaims(msg jetstream.Msg, deps *TaskDependencies) {
 		logs.Error("failed to store corporation IDs in Redis",
 			"account_id", request.AccountID,
 			"corporation_count", len(allCorporations),
-			"error", err,
-			"delivery_count", deliveryCount)
-
-		// Try to ack anyway - some ESI calls succeeded, just storage failed
-		natscore.AcknowledgeMessage(msg, "storage error (partial success)", deliveryCount)
-		return
+			"error", err)
+		return fmt.Errorf("failed to store corporations: %w", err)
 	}
-
-	// Acknowledge successful processing
-	natscore.AcknowledgeMessage(msg, "successful processing", deliveryCount)
 
 	logs.Info("successfully processed corporation lookup task",
 		"account_id", request.AccountID,
 		"total_tokens", len(request.Tokens),
 		"processed", processedCount,
 		"failed", failedCount,
-		"unique_corporations", len(allCorporations),
-		"delivery_count", deliveryCount)
+		"unique_corporations", len(allCorporations))
+	return nil
 }
