@@ -37,6 +37,10 @@ func SetupESIHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	mux.HandleFunc("refreshMarketPrices", func(ctx context.Context, t *asynq.Task) error {
 		return esitasks.RefreshMarketPrices(ctx, t, taskDeps)
 	})
+
+	mux.HandleFunc("fetchCorporations", func(ctx context.Context, t *asynq.Task) error {
+		return esitasks.UpdateCustomCorporationClaims(ctx, t, taskDeps)
+	})
 }
 
 // SetupRegularHandlers registers regular task handlers on the given mux
@@ -49,9 +53,7 @@ func SetupRegularHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 
 	// Register regular task handlers
 	// These are tasks that don't interact with ESI API
-	mux.HandleFunc("fetchCorporations", func(ctx context.Context, t *asynq.Task) error {
-		return esitasks.UpdateCustomCorporationClaims(ctx, t, taskDeps)
-	})
+	// (No regular tasks currently - all tasks use ESI rate limiter)
 
 	// Add more regular task handlers here as needed
 }
