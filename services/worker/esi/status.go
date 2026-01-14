@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	esiratelimiter "eve-industry-planner/shared/core/esi/rateLimiter"
+	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/shared/logs"
 

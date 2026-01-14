@@ -45,6 +45,9 @@ const (
 	// SubjectRefreshMarketPrices is the NATS subject for market prices refresh tasks
 	SubjectRefreshMarketPrices = "task.scheduled.refreshMarketPrices"
 
+	// SubjectFetchMissingMarketPrices is the NATS subject for fetching missing market prices (high priority)
+	SubjectFetchMissingMarketPrices = "task.scheduled.fetchMissingMarketPrices"
+
 	// SubjectFetchCorporations is the NATS subject for fetching corporation IDs from character IDs
 	SubjectFetchCorporations = "task.auth.fetchCorporations"
 

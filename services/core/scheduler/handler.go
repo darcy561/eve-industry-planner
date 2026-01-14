@@ -104,7 +104,7 @@ func (s *TaskScheduler) ScheduleCronJob(cronExpr string, taskType string) error 
 		ctx := context.Background()
 		startTime := time.Now()
 		jobID := fmt.Sprintf("cron-%s-%d", taskType, startTime.UnixNano())
-		s.log.Info("cron job triggered", "job_id", jobID, "task_type", taskType, "cron_expr", cronExpr)
+		s.log.Debug("cron job triggered", "job_id", jobID, "task_type", taskType, "cron_expr", cronExpr)
 
 		if err := handler(ctx, nil); err != nil {
 			s.log.Error("cron job handler failed", "job_id", jobID, "task_type", taskType, "error", err, "duration_ms", time.Since(startTime).Milliseconds())

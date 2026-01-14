@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	esiratelimiter "eve-industry-planner/shared/core/esi/rateLimiter"
 	esitypes "eve-industry-planner/shared/core/esi/types"
 	"eve-industry-planner/shared/shared"
+	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -37,7 +37,7 @@ func TestStreamAdjustedPrices_NilESIClient(t *testing.T) {
 	ctx := context.Background()
 	var cacheSeconds int
 
-	_, notModified, bytesRead, err := StreamAdjustedPrices(ctx, nil, nil, "", func(m esitypes.AdjustedPrice) error {
+	_, notModified, bytesRead, err := StreamAdjustedPrices(ctx, nil, "", func(m esitypes.AdjustedPrice) error {
 		return nil
 	}, &cacheSeconds)
 
@@ -60,7 +60,7 @@ func TestStreamAdjustedPrices_NilCallback(t *testing.T) {
 	esiClient := &mockESIClientForStreaming{}
 	var cacheSeconds int
 
-	_, notModified, bytesRead, err := StreamAdjustedPrices(ctx, nil, esiClient, "", nil, &cacheSeconds)
+	_, notModified, bytesRead, err := StreamAdjustedPrices(ctx, esiClient, "", nil, &cacheSeconds)
 
 	if err == nil {
 		t.Error("expected error when callback is nil")
@@ -101,7 +101,7 @@ func TestStreamAdjustedPrices_304NotModified(t *testing.T) {
 		},
 	}
 
-	returnedETag, notModified, bytesRead, err := StreamAdjustedPrices(ctx, nil, esiClient, etag, func(m esitypes.AdjustedPrice) error {
+	returnedETag, notModified, bytesRead, err := StreamAdjustedPrices(ctx, esiClient, etag, func(m esitypes.AdjustedPrice) error {
 		t.Error("callback should not be called for 304 response")
 		return nil
 	}, &cacheSeconds)
@@ -140,7 +140,7 @@ func TestStreamAdjustedPrices_Non200Status(t *testing.T) {
 		},
 	}
 
-	returnedETag, notModified, bytesRead, err := StreamAdjustedPrices(ctx, nil, esiClient, "", func(m esitypes.AdjustedPrice) error {
+	returnedETag, notModified, bytesRead, err := StreamAdjustedPrices(ctx, esiClient, "", func(m esitypes.AdjustedPrice) error {
 		t.Error("callback should not be called for non-200 response")
 		return nil
 	}, &cacheSeconds)
@@ -182,7 +182,7 @@ func TestStreamAdjustedPrices_SuccessfulStreaming(t *testing.T) {
 		},
 	}
 
-	returnedETag, notModified, bytesRead, err := StreamAdjustedPrices(ctx, nil, esiClient, "", func(m esitypes.AdjustedPrice) error {
+	returnedETag, notModified, bytesRead, err := StreamAdjustedPrices(ctx, esiClient, "", func(m esitypes.AdjustedPrice) error {
 		processedItems = append(processedItems, m)
 		return nil
 	}, &cacheSeconds)
@@ -265,7 +265,7 @@ func TestStreamAdjustedPrices_GzipCompression(t *testing.T) {
 		},
 	}
 
-	_, notModified, bytesRead, err := StreamAdjustedPrices(ctx, nil, esiClient, "", func(m esitypes.AdjustedPrice) error {
+	_, notModified, bytesRead, err := StreamAdjustedPrices(ctx, esiClient, "", func(m esitypes.AdjustedPrice) error {
 		processedItems = append(processedItems, m)
 		return nil
 	}, nil)
@@ -306,7 +306,7 @@ func TestStreamAdjustedPrices_InvalidJSON(t *testing.T) {
 		},
 	}
 
-	_, notModified, _, err := StreamAdjustedPrices(ctx, nil, esiClient, "", func(m esitypes.AdjustedPrice) error {
+	_, notModified, _, err := StreamAdjustedPrices(ctx, esiClient, "", func(m esitypes.AdjustedPrice) error {
 		t.Error("callback should not be called for invalid JSON")
 		return nil
 	}, &cacheSeconds)
@@ -336,7 +336,7 @@ func TestStreamAdjustedPrices_NotArray(t *testing.T) {
 		},
 	}
 
-	_, notModified, _, err := StreamAdjustedPrices(ctx, nil, esiClient, "", func(m esitypes.AdjustedPrice) error {
+	_, notModified, _, err := StreamAdjustedPrices(ctx, esiClient, "", func(m esitypes.AdjustedPrice) error {
 		t.Error("callback should not be called for non-array JSON")
 		return nil
 	}, &cacheSeconds)
@@ -373,7 +373,7 @@ func TestStreamAdjustedPrices_CallbackError(t *testing.T) {
 	}
 
 	callbackErr := errors.New("callback error")
-	_, notModified, _, err := StreamAdjustedPrices(ctx, nil, esiClient, "", func(m esitypes.AdjustedPrice) error {
+	_, notModified, _, err := StreamAdjustedPrices(ctx, esiClient, "", func(m esitypes.AdjustedPrice) error {
 		return callbackErr
 	}, nil)
 
@@ -413,7 +413,7 @@ func TestStreamAdjustedPrices_RetryOnError(t *testing.T) {
 		},
 	}
 
-	_, notModified, _, err := StreamAdjustedPrices(ctx, nil, esiClient, "", func(m esitypes.AdjustedPrice) error {
+	_, notModified, _, err := StreamAdjustedPrices(ctx, esiClient, "", func(m esitypes.AdjustedPrice) error {
 		return nil
 	}, nil)
 
@@ -442,7 +442,7 @@ func TestStreamAdjustedPrices_RateLimitError(t *testing.T) {
 		},
 	}
 
-	_, notModified, _, err := StreamAdjustedPrices(ctx, nil, esiClient, "", func(m esitypes.AdjustedPrice) error {
+	_, notModified, _, err := StreamAdjustedPrices(ctx, esiClient, "", func(m esitypes.AdjustedPrice) error {
 		t.Error("callback should not be called on rate limit error")
 		return nil
 	}, nil)
@@ -481,7 +481,7 @@ func TestStreamAdjustedPrices_OnlyAdjustedPriceSaved(t *testing.T) {
 		},
 	}
 
-	_, _, _, err := StreamAdjustedPrices(ctx, nil, esiClient, "", func(m esitypes.AdjustedPrice) error {
+	_, _, _, err := StreamAdjustedPrices(ctx, esiClient, "", func(m esitypes.AdjustedPrice) error {
 		processedItems = append(processedItems, m)
 		return nil
 	}, nil)
@@ -500,7 +500,8 @@ func TestStreamAdjustedPrices_OnlyAdjustedPriceSaved(t *testing.T) {
 	// AdjustedPrice struct doesn't have AveragePrice field, which is correct
 }
 
-func TestRefreshAdjustedPrices_NilMessage(t *testing.T) {
+func TestRefreshAdjustedPrices_NilTask(t *testing.T) {
+	ctx := context.Background()
 	redisClient := redis.NewClient(&redis.Options{
 		Addr: "invalid:6379",
 	})
@@ -512,8 +513,11 @@ func TestRefreshAdjustedPrices_NilMessage(t *testing.T) {
 		ESIClient: &mockESIClientForStreaming{},
 	}
 
-	// Should not panic with nil message
-	RefreshAdjustedPrices(nil, deps)
+	// Should return error when task is nil
+	err := RefreshAdjustedPrices(ctx, nil, deps)
+	if err == nil {
+		t.Error("expected error when task is nil")
+	}
 }
 
 func TestRefreshAdjustedPrices_LockAcquisitionFailure(t *testing.T) {

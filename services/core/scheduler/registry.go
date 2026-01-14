@@ -91,6 +91,12 @@ func (r *JobRegistry) Start(natsConn *natslib.Conn, jsContext jetstream.JetStrea
 		r.log.Warn("failed to schedule market prices cron job", "error", err)
 	}
 
+	// Market prices total recalculation: every 4 hours at 0 minutes past the hour
+	// This recalculates the total number of items to track, which is used for batch size calculation
+	if err := r.schedulerHandler.ScheduleCronJob("0 */4 * * *", taskscore.TaskTypeRecalculateMarketPricesTotal); err != nil {
+		r.log.Warn("failed to schedule market prices total recalculation cron job", "error", err)
+	}
+
 	// Restore one-time jobs from Redis (after handlers are registered)
 	if err := r.schedulerHandler.RestoreOneTimeJobs(); err != nil {
 		r.log.Warn("failed to restore one-time jobs from Redis", "error", err)
@@ -128,6 +134,7 @@ func StartService(logComponent string, natsConn *natslib.Conn, jsContext jetstre
 	registry.Register(esi.ScheduleIndustrySystemsRefresh)
 	registry.Register(esi.ScheduleAdjustedPricesRefresh)
 	registry.Register(esi.ScheduleMarketPricesRefresh)
+	registry.Register(esi.ScheduleMarketPricesTotalRecalculation)
 	// Add more schedulers here:
 	// registry.Register(market.ScheduleMarketHistoryRefresh)
 

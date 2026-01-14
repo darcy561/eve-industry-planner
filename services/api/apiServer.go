@@ -60,6 +60,7 @@ func StartAPIServer(clients *shared.ServiceClients) error {
 	// RequestID should be first so all subsequent middleware and handlers can use it
 	globalConstructors := []middleware.MiddlewareConstructor{
 		middleware.RequestIDConstructor(),
+		middleware.CompressionConstructor(),
 	}
 
 	// Public and private groups, with middleware constructors applied after global

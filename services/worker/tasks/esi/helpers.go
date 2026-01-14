@@ -8,13 +8,10 @@ import (
 	"strings"
 	"time"
 
-	esicore "eve-industry-planner/shared/core/esi"
-	esiratelimiter "eve-industry-planner/shared/core/esi/rateLimiter"
-	natscore "eve-industry-planner/shared/core/nats"
+	esicore "eve-industry-planner/worker/esi"
+	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 	"eve-industry-planner/shared/shared/logs"
 	"eve-industry-planner/shared/shared/metrics"
-
-	"github.com/nats-io/nats.go/jetstream"
 )
 
 // countingReader counts bytes read from an underlying reader
@@ -55,121 +52,78 @@ func parseCacheSeconds(resp *http.Response) int {
 	return 0
 }
 
-// HandleStatusCheckResult handles the result of a server status check, returning true if processing should continue.
-// Returns false if the status check failed and the caller should exit early.
+// HandleStatusCheckResult handles the result of a server status check, returning nil if processing should continue.
+// Returns an error if the status check failed - asynq will automatically retry on error.
 // taskName is used for logging purposes (e.g., "system indexes refresh", "adjusted prices refresh").
-func HandleStatusCheckResult(statusResult esicore.StatusResult, msg jetstream.Msg, taskName string, deliveryCount uint64) bool {
+func HandleStatusCheckResult(statusResult esicore.StatusResult, taskName string) error {
 	if statusResult.Available {
 		logs.Debug("server status check passed, proceeding with refresh",
 			"cached", statusResult.Cached,
-			"task", taskName,
-			"delivery_count", deliveryCount)
-		return true
+			"task", taskName)
+		return nil
 	}
 
-	// Server not available - handle errors
+	// Server not available - return error for asynq to retry
 	if statusResult.Error != nil {
 		if esiratelimiter.IsRateLimitError(statusResult.Error) {
-			return handleStatusCheckRateLimit(statusResult.Error, msg, taskName, deliveryCount)
+			rateLimitErr := esiratelimiter.GetRateLimitError(statusResult.Error)
+			logs.Info("server status check rate limited",
+				"retryable", rateLimitErr.Retryable,
+				"retry_after", rateLimitErr.RetryAfter,
+				"reason", rateLimitErr.Reason,
+				"group", rateLimitErr.Group,
+				"task", taskName)
+			// Return error - asynq will retry with exponential backoff
+			return fmt.Errorf("rate limited: %w", statusResult.Error)
 		}
 		// Other error - server unavailable
-		handleStatusCheckError(statusResult.Error, msg, taskName, deliveryCount)
-		return false
+		logs.Warn("server status check failed, servers may be unavailable",
+			"error", statusResult.Error,
+			"task", taskName)
+		return fmt.Errorf("server unavailable: %w", statusResult.Error)
 	}
 
 	// Available is false but no error - shouldn't happen, but handle gracefully
-	logs.Warn("server status check indicates servers unavailable, acknowledging message",
-		"task", taskName,
-		"delivery_count", deliveryCount)
-	natscore.AcknowledgeMessage(msg, "server unavailable", deliveryCount)
-	return false
-}
-
-// handleStatusCheckRateLimit handles rate limit errors from status check.
-// Returns true if retryable and should continue (shouldn't happen), false otherwise.
-func handleStatusCheckRateLimit(err error, msg jetstream.Msg, taskName string, deliveryCount uint64) bool {
-	rateLimitErr := esiratelimiter.GetRateLimitError(err)
-	logs.Info("server status check rate limited, delaying refresh",
-		"retryable", rateLimitErr.Retryable,
-		"retry_after", rateLimitErr.RetryAfter,
-		"reason", rateLimitErr.Reason,
-		"group", rateLimitErr.Group,
-		"task", taskName,
-		"delivery_count", deliveryCount)
-
-	if esiratelimiter.IsRetryableRateLimitError(err) {
-		return handleRetryableRateLimit(msg, rateLimitErr, taskName, deliveryCount)
-	}
-
-	// Non-retryable rate limit error
-	logs.Warn("server status check rate limit error is NOT retryable, acknowledging message",
-		"reason", rateLimitErr.Reason,
-		"task", taskName,
-		"delivery_count", deliveryCount)
-	natscore.AcknowledgeMessage(msg, "non-retryable rate limit", deliveryCount)
-	return false
-}
-
-// handleRetryableRateLimit handles retryable rate limit errors by scheduling delayed redelivery.
-// Returns false since we're exiting early.
-func handleRetryableRateLimit(msg jetstream.Msg, rateLimitErr *esiratelimiter.RateLimitError, taskName string, deliveryCount uint64) bool {
-	if msg != nil {
-		waitDuration := time.Until(rateLimitErr.RetryAfter)
-		if waitDuration > 0 {
-			logs.Info("refresh delayed due to status check rate limit, delaying redelivery",
-				"retry_after", rateLimitErr.RetryAfter,
-				"wait_duration", waitDuration,
-				"task", taskName,
-				"delivery_count", deliveryCount)
-			natscore.NackMessageWithDelay(msg, waitDuration)
-			return false
-		}
-	}
-	natscore.NackMessage(msg)
-	return false
-}
-
-// handleStatusCheckError handles non-rate-limit errors from status check.
-func handleStatusCheckError(err error, msg jetstream.Msg, taskName string, deliveryCount uint64) {
-	logs.Warn("server status check failed, servers may be unavailable, acknowledging message",
-		"error", err,
-		"task", taskName,
-		"delivery_count", deliveryCount)
-	natscore.AcknowledgeMessage(msg, "server unavailable", deliveryCount)
+	logs.Warn("server status check indicates servers unavailable",
+		"task", taskName)
+	return fmt.Errorf("server unavailable")
 }
 
 // HandleStreamError handles errors from ESI streaming operations, including rate limit errors.
-// If the error is a rate limit error, it handles delayed redelivery for retryable errors or nacks for non-retryable.
-// For other errors, it logs them as stream errors and increments the error metrics.
-// The function always causes the caller to exit (returns), so it should be called before the success path.
+// Logs the error and increments error metrics. Returns the error so asynq can retry.
 // taskName is used for logging (e.g., "system indexes refresh", "adjusted prices refresh").
 // errorCounterVec should be the Errors field from the metrics struct (e.g., metrics.GetESIIndustrySystems().Errors).
-func HandleStreamError(err error, msg jetstream.Msg, taskName string, deliveryCount uint64, errorCounterVec *metrics.CounterVec) {
+func HandleStreamError(err error, taskName string, errorCounterVec *metrics.CounterVec) error {
 	if err == nil {
-		return
+		return nil
 	}
 
-	logs.Debug("stream error returned", "error", err, "error_type", fmt.Sprintf("%T", err), "task", taskName, "delivery_count", deliveryCount)
+	logs.Debug("stream error returned", "error", err, "error_type", fmt.Sprintf("%T", err), "task", taskName)
 
 	// Check if this is a rate limit error
 	if esiratelimiter.IsRateLimitError(err) {
-		handleStreamRateLimitError(err, msg, taskName, deliveryCount)
-		return
+		rateLimitErr := esiratelimiter.GetRateLimitError(err)
+		logs.Info("detected rate limit error in refresh",
+			"retryable", rateLimitErr.Retryable,
+			"retry_after", rateLimitErr.RetryAfter,
+			"reason", rateLimitErr.Reason,
+			"group", rateLimitErr.Group,
+			"task", taskName)
+		// Return error - asynq will retry with exponential backoff
+		return err
 	}
 
 	// Handle non-rate-limit stream errors
-	logs.Error("failed streaming ESI data, nacking with backoff",
+	logs.Error("failed streaming ESI data",
 		"error", err,
 		"error_type", fmt.Sprintf("%T", err),
 		"reason", "stream_error",
-		"task", taskName,
-		"delivery_count", deliveryCount)
-	if msg != nil {
-		natscore.NackMessage(msg)
-	}
+		"task", taskName)
 	if errorCounterVec != nil {
 		errorCounterVec.WithLabelValues("stream").Inc()
 	}
+	// Return error - asynq will retry
+	return err
 }
 
 // ShouldStopRetryOnRateLimit checks if an error is a rate limit error during retry attempts.
@@ -182,7 +136,7 @@ func ShouldStopRetryOnRateLimit(err error, attempt int, path string) bool {
 	}
 
 	rateLimitErr := esiratelimiter.GetRateLimitError(err)
-	logs.Info("rate limit error detected in stream function, returning for NATS redelivery",
+	logs.Info("rate limit error detected in stream function, returning for asynq retry",
 		"attempt", attempt,
 		"retryable", rateLimitErr.Retryable,
 		"retry_after", rateLimitErr.RetryAfter,
@@ -193,97 +147,6 @@ func ShouldStopRetryOnRateLimit(err error, attempt int, path string) bool {
 		"estimated_tokens", rateLimitErr.EstimatedTokens,
 		"path", path)
 
-	if esiratelimiter.IsRetryableRateLimitError(err) {
-		logs.Debug("rate limit error is retryable, returning error for caller to handle redelivery", "path", path)
-		return true
-	}
-
-	logs.Warn("rate limit error is NOT retryable, returning error anyway", "path", path, "reason", rateLimitErr.Reason)
+	// Always return true for rate limit errors - let asynq handle retries
 	return true
-}
-
-// handleStreamRateLimitError handles rate limit errors from ESI streaming operations.
-func handleStreamRateLimitError(err error, msg jetstream.Msg, taskName string, deliveryCount uint64) {
-	rateLimitErr := esiratelimiter.GetRateLimitError(err)
-	logs.Info("detected rate limit error in refresh", "error", err, "task", taskName, "delivery_count", deliveryCount)
-
-	logs.Debug("rate limit error details",
-		"retryable", rateLimitErr.Retryable,
-		"retry_after", rateLimitErr.RetryAfter,
-		"reason", rateLimitErr.Reason,
-		"group", rateLimitErr.Group,
-		"token_used", rateLimitErr.TokenUsed,
-		"token_limit", rateLimitErr.TokenLimit,
-		"estimated_tokens", rateLimitErr.EstimatedTokens,
-		"task", taskName,
-		"delivery_count", deliveryCount)
-
-	if esiratelimiter.IsRetryableRateLimitError(err) {
-		handleStreamRetryableRateLimit(msg, rateLimitErr, taskName, deliveryCount)
-		return
-	}
-
-	// Non-retryable rate limit error
-	logs.Warn("rate limit error is NOT retryable, using normal nack backoff",
-		"reason", rateLimitErr.Reason,
-		"group", rateLimitErr.Group,
-		"task", taskName,
-		"delivery_count", deliveryCount)
-	if msg != nil {
-		natscore.NackMessage(msg)
-	}
-}
-
-// handleStreamRetryableRateLimit handles retryable rate limit errors from streaming operations.
-func handleStreamRetryableRateLimit(msg jetstream.Msg, rateLimitErr *esiratelimiter.RateLimitError, taskName string, deliveryCount uint64) {
-	logs.Info("rate limit error is retryable, attempting NATS redelivery", "task", taskName, "delivery_count", deliveryCount)
-	if msg == nil {
-		logs.Warn("rate limit error is retryable but msg is nil, cannot delay redelivery",
-			"task", taskName,
-			"delivery_count", deliveryCount)
-		return
-	}
-
-	waitDuration := time.Until(rateLimitErr.RetryAfter)
-	now := time.Now()
-
-	logs.Debug("calculating wait duration for redelivery",
-		"now", now,
-		"retry_after", rateLimitErr.RetryAfter,
-		"wait_duration", waitDuration,
-		"wait_duration_seconds", waitDuration.Seconds(),
-		"task", taskName,
-		"delivery_count", deliveryCount)
-
-	if waitDuration <= 0 {
-		logs.Warn("wait duration is <= 0, cannot delay redelivery, falling back to normal nack",
-			"wait_duration", waitDuration,
-			"retry_after", rateLimitErr.RetryAfter,
-			"now", now,
-			"task", taskName,
-			"delivery_count", deliveryCount)
-		natscore.NackMessage(msg)
-		return
-	}
-
-	logs.Info("refresh rate limited, delaying redelivery",
-		"retry_after", rateLimitErr.RetryAfter,
-		"wait_duration", waitDuration,
-		"wait_duration_seconds", waitDuration.Seconds(),
-		"wait_duration_minutes", waitDuration.Minutes(),
-		"reason", rateLimitErr.Reason,
-		"group", rateLimitErr.Group,
-		"token_used", rateLimitErr.TokenUsed,
-		"token_limit", rateLimitErr.TokenLimit,
-		"estimated_tokens", rateLimitErr.EstimatedTokens,
-		"task", taskName,
-		"delivery_count", deliveryCount)
-
-	logs.Debug("calling NakWithDelay", "delay", waitDuration, "task", taskName, "delivery_count", deliveryCount)
-	natscore.NackMessageWithDelay(msg, waitDuration)
-	logs.Info("message will be redelivered after delay",
-		"delay", waitDuration,
-		"redelivery_time", rateLimitErr.RetryAfter,
-		"task", taskName,
-		"delivery_count", deliveryCount)
 }

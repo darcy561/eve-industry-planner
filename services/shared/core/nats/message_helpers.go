@@ -28,7 +28,7 @@ func AcknowledgeMessage(msg jetstream.Msg, reason string, deliveryCount uint64) 
 	var lastErr error
 	for attempt := 1; attempt <= maxAckAttempts; attempt++ {
 		if ackErr := msg.Ack(); ackErr == nil {
-			logs.Info("message acknowledged", "reason", reason, "delivery_count", deliveryCount, "attempt", attempt)
+			logs.Debug("message acknowledged", "reason", reason, "delivery_count", deliveryCount, "attempt", attempt)
 			return
 		} else {
 			lastErr = ackErr
