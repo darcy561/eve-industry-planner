@@ -13,6 +13,12 @@ import (
 func CompressionConstructor() MiddlewareConstructor {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Add Cache-Control header for POST requests to help Cloudflare skip caching attempts
+			// Use "private, no-store" to clearly signal user-specific data that should not be edge cached
+			if r.Method == http.MethodPost {
+				w.Header().Set("Cache-Control", "private, no-store")
+			}
+
 			acceptedEncodings := r.Header.Get("Accept-Encoding")
 
 			if acceptedEncodings == "" {
@@ -131,7 +137,7 @@ func CompressionConstructor() MiddlewareConstructor {
 				w.Header().Set("Vary", "Accept-Encoding")
 				w.Header().Set("Content-Encoding", "br")
 				w.Header().Del("Content-Length")
-				br := brotli.NewWriterLevel(w, 5)
+				br := brotli.NewWriterLevel(w, 6) // Quality level 6 (optimized for better compression)
 				defer br.Close()
 				logs.DebugCtx(r.Context(), "brotli compression applied", "request", r.URL.Path)
 				next.ServeHTTP(&brotliResponseWriter{ResponseWriter: w, Writer: br}, r)
@@ -140,7 +146,7 @@ func CompressionConstructor() MiddlewareConstructor {
 				w.Header().Set("Content-Encoding", "gzip")
 				w.Header().Del("Content-Length")
 				logs.DebugCtx(r.Context(), "gzip compression applied", "request", r.URL.Path)
-				gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
+				gz, err := gzip.NewWriterLevel(w, 6) // Level 6 (optimized for better compression)
 				if err != nil {
 					logs.ErrorCtx(r.Context(), "failed to create gzip writer", "error", err)
 					next.ServeHTTP(w, r)
