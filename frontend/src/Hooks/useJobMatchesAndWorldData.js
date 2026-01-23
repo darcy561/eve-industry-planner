@@ -75,9 +75,9 @@ export function useGatherJobMatchesAndUpdateExistingLinkedJobs(
             isNotInActiveApiJobs &&
             (isNotLinked || isLinkedButBeingRemoved)
           );
-        });
+        }); 
 
-        activeJob.updateLinkedJobData(matches);
+        activeJob.updateLinkedJobData(allIndustryJobs);
 
         setJobMatches(matches);
 
