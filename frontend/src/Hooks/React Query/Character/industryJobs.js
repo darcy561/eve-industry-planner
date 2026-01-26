@@ -1,7 +1,7 @@
 import getCharacterIndustryJobs from "../../../Functions/EveESI/Character/getIndustryJobs";
 import useUsersStore from "../../../Zustand/usersStore";
 import { getQueryEnabled } from "../../useQueryEnabled";
-import { getESIRateLimitStatuses } from "../../../Functions/EveESI/fetchWithCustomHeaders";
+import { getESIRateLimitStatus } from "../../../Functions/EveESI/fetchWithCustomHeaders";
 
 const characterIndustryJobsQueryKey = "characterIndustryJobs";
 
@@ -43,17 +43,17 @@ const characterIndustryJobsQueryKey = "characterIndustryJobs";
  * return <div>Industry Jobs: {industryJobs.data.length} active jobs</div>;
  */
 function characterIndustryJobsQuery(characterHash) {
-  const isLoggedIn = useUsersStore.getState().users.isLoggedIn;
   const findUserByCharacterHash = useUsersStore.getState().users.actions.findUserByCharacterHash;
   return {
     queryKey: [characterIndustryJobsQueryKey, characterHash],
     queryFn: async () => {
-      // Check if industry group is rate limited
-      const rateLimits = getESIRateLimitStatuses();
-      const industryStatus = rateLimits.find(status => status.group === 'industry');
+      const userObject = findUserByCharacterHash(characterHash);
+      
+      // Check if industry group is rate limited for this specific character
+      // Use config.group as hint, will be updated from headers if different
+      const industryStatus = getESIRateLimitStatus('industry', characterHash);
 
-      if (industryStatus && industryStatus.availableTokens <= 0) {
-        const now = Date.now();
+      if (industryStatus && industryStatus.availableTokens <= 0 && industryStatus.maxTokens && industryStatus.windowSize) {
         const tokensPerMs = industryStatus.maxTokens / industryStatus.windowSize;
         const tokensToRecover = industryStatus.maxTokens - industryStatus.availableTokens;
         const waitTime = Math.ceil(tokensToRecover / tokensPerMs);
@@ -61,23 +61,20 @@ function characterIndustryJobsQuery(characterHash) {
         throw new Error(`Industry group is rate limited. Wait ${Math.ceil(waitTime / 1000)} seconds.`);
       }
 
-      const userObject = findUserByCharacterHash(characterHash);
-
       try {
-        const result = await getCharacterIndustryJobs({
+        return await getCharacterIndustryJobs({
           character: userObject,
           existingData: {
-          data: null,
-          etag: null,
-        },
-        config: {
-          characterHash,
-          group: 'industry',
-          priority: 'normal',
-          batchable: true
-        }
-      });
-      return result;
+            data: null,
+            etag: null,
+          },
+          config: {
+            characterHash,
+            group: 'industry',
+            priority: 'normal',
+            batchable: true
+          }
+        });
       } catch (error) {
         console.error('Error fetching character industry jobs:', error);
         throw new Error(`Failed to fetch character industry jobs: ${error.message}`);
@@ -89,10 +86,9 @@ function characterIndustryJobsQuery(characterHash) {
     retry: 3,
     retryDelay: (attemptIndex, error) => {
       if (error?.message?.includes('rate limited')) {
-        const rateLimits = getESIRateLimitStatuses();
-        const industryStatus = rateLimits.find(status => status.group === 'industry');
-        if (industryStatus) {
-          const now = Date.now();
+        // Get status for this specific character's industry bucket
+        const industryStatus = getESIRateLimitStatus('industry', characterHash);
+        if (industryStatus && industryStatus.maxTokens && industryStatus.windowSize) {
           const tokensPerMs = industryStatus.maxTokens / industryStatus.windowSize;
           const tokensToRecover = industryStatus.maxTokens - industryStatus.availableTokens;
           const waitTime = Math.ceil(tokensToRecover / tokensPerMs);

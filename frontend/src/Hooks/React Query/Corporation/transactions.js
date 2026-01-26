@@ -1,7 +1,7 @@
 import getCorpTransactions from "../../../Functions/EveESI/Corporation/getTransactions";
 import useUsersStore from "../../../Zustand/usersStore";
 import { getQueryEnabled } from "../../useQueryEnabled";
-import { getESIRateLimitStatuses } from "../../../Functions/EveESI/fetchWithCustomHeaders";
+import { getESIRateLimitStatus } from "../../../Functions/EveESI/fetchWithCustomHeaders";
 
 const corporationTransactionsQueryKey = "corporationTransactions";
 
@@ -43,17 +43,16 @@ const corporationTransactionsQueryKey = "corporationTransactions";
  * return <div>Corporation Transactions: {corpTransactions.length} transactions across all divisions</div>;
  */
 function corporationTransactionsQuery(characterHash) {
-  const isLoggedIn = useUsersStore.getState().users.isLoggedIn;
   const findUserByCharacterHash =
     useUsersStore.getState().users.actions.findUserByCharacterHash;
   return {
     queryKey: [corporationTransactionsQueryKey, characterHash],
     queryFn: async () => {
-      // Check if corporation group is rate limited
-      const rateLimits = getESIRateLimitStatuses();
-      const corporationStatus = rateLimits.find(
-        (status) => status?.group === "corporation"
-      );
+      const userObject = findUserByCharacterHash(characterHash);
+      
+      // Check if corporation group is rate limited for this specific character
+      // Use config.group as hint, will be updated from headers if different
+      const corporationStatus = getESIRateLimitStatus('corporation', characterHash);
 
       if (
         corporationStatus &&
@@ -61,7 +60,6 @@ function corporationTransactionsQuery(characterHash) {
         corporationStatus.maxTokens &&
         corporationStatus.windowSize
       ) {
-        const now = Date.now();
         const tokensPerMs =
           corporationStatus.maxTokens / corporationStatus.windowSize;
         const tokensToRecover =
@@ -72,8 +70,6 @@ function corporationTransactionsQuery(characterHash) {
           `Corporation group is rate limited. Wait ${Math.ceil(waitTime / 1000)} seconds.`
         );
       }
-
-      const userObject = findUserByCharacterHash(characterHash);
 
       try {
         // Fetch all divisions for the current page
@@ -107,16 +103,13 @@ function corporationTransactionsQuery(characterHash) {
     retry: 3,
     retryDelay: (attemptIndex, error) => {
       if (error?.message?.includes("rate limited")) {
-        const rateLimits = getESIRateLimitStatuses();
-        const corporationStatus = rateLimits.find(
-          (status) => status?.group === "corporation"
-        );
+        // Get status for this specific character's corporation bucket
+        const corporationStatus = getESIRateLimitStatus('corporation', characterHash);
         if (
           corporationStatus &&
           corporationStatus.maxTokens &&
           corporationStatus.windowSize
         ) {
-          const now = Date.now();
           const tokensPerMs =
             corporationStatus.maxTokens / corporationStatus.windowSize;
           const tokensToRecover =

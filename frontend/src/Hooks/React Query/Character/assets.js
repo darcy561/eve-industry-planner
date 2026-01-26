@@ -1,7 +1,8 @@
 import getCharacterAssets from "../../../Functions/EveESI/Character/getAssets";
 import useUsersStore from "../../../Zustand/usersStore";
 import { getQueryEnabled } from "../../useQueryEnabled";
-import { getESIRateLimitStatuses } from "../../../Functions/EveESI/fetchWithCustomHeaders";
+import { getESIRateLimitStatus } from "../../../Functions/EveESI/fetchWithCustomHeaders";
+import fetchPaginatedDataParallel from "../../../Functions/Helper/fetchPaginatedDataParallel";
 
 const characterAssetsQueryKey = "characterAssets";
 
@@ -17,10 +18,11 @@ const characterAssetsQueryKey = "characterAssets";
  * 
  * The query process:
  * 1. Checks ESI rate limits for assets group
- * 2. Fetches assets page by page until all data is retrieved
- * 3. Combines all pages into a single array
- * 4. Handles rate limiting errors with appropriate wait times
- * 5. Caches data for 30 minutes with 5-minute stale time
+ * 2. Fetches the first page to determine total pages
+ * 3. Fetches remaining pages in parallel for optimal performance
+ * 4. Combines all pages into a single array
+ * 5. Handles rate limiting errors with appropriate wait times
+ * 6. Caches data for 30 minutes with 5-minute stale time
  * 
  * @param {string} characterHash - Character hash identifier for the user
  * @returns {Object} React Query configuration object
@@ -42,32 +44,27 @@ const characterAssetsQueryKey = "characterAssets";
  * return <div>Assets: {assets.length} items</div>;
  */
 function characterAssetsQuery(characterHash) {
-  const isLoggedIn = useUsersStore.getState().users.isLoggedIn;
   const findUserByCharacterHash =
     useUsersStore.getState().users.actions.findUserByCharacterHash;
   return {
     queryKey: [characterAssetsQueryKey, characterHash],
     queryFn: async () => {
-      // Check if assets group is rate limited
-      const rateLimits = getESIRateLimitStatuses();
-      const assetsStatus = rateLimits.find(status => status.group === 'assets');
+      const userObject = findUserByCharacterHash(characterHash);
+      
+      // Check if assets group is rate limited for this specific character
+      // Use config.group as hint, will be updated from headers if different
+      const assetsStatus = getESIRateLimitStatus('assets', characterHash);
 
-      if (assetsStatus && assetsStatus.availableTokens <= 0) {
-        const now = Date.now();
+      if (assetsStatus && assetsStatus.availableTokens <= 0 && assetsStatus.maxTokens && assetsStatus.windowSize) {
         const tokensPerMs = assetsStatus.maxTokens / assetsStatus.windowSize;
         const tokensToRecover = assetsStatus.maxTokens - assetsStatus.availableTokens;
         const waitTime = Math.ceil(tokensToRecover / tokensPerMs);
 
         throw new Error(`Assets group is rate limited. Wait ${Math.ceil(waitTime / 1000)} seconds.`);
       }
-
-      const allData = [];
-      let page = 1;
-      let totalPages = 1;
-      const userObject = findUserByCharacterHash(characterHash);
       try {
-        do {
-          const result = await getCharacterAssets({
+        return await fetchPaginatedDataParallel(async (page) => {
+          return await getCharacterAssets({
             character: userObject,
             page: page,
             config: {
@@ -77,14 +74,8 @@ function characterAssetsQuery(characterHash) {
               batchable: true
             }
           });
+        });
 
-          allData.push(...result.data);
-
-          totalPages = result.totalPages ?? 1;
-          page++;
-        } while (page <= totalPages);
-
-        return allData;
       } catch (error) {
         console.error("Error fetching character assets:", error);
         throw new Error(`Failed to fetch character assets: ${error.message}`);
@@ -96,10 +87,9 @@ function characterAssetsQuery(characterHash) {
     retry: 3,
     retryDelay: (attemptIndex, error) => {
       if (error?.message?.includes('rate limited')) {
-        const rateLimits = getESIRateLimitStatuses();
-        const assetsStatus = rateLimits.find(status => status.group === 'assets');
-        if (assetsStatus) {
-          const now = Date.now();
+        // Get status for this specific character's assets bucket
+        const assetsStatus = getESIRateLimitStatus('assets', characterHash);
+        if (assetsStatus && assetsStatus.maxTokens && assetsStatus.windowSize) {
           const tokensPerMs = assetsStatus.maxTokens / assetsStatus.windowSize;
           const tokensToRecover = assetsStatus.maxTokens - assetsStatus.availableTokens;
           const waitTime = Math.ceil(tokensToRecover / tokensPerMs);

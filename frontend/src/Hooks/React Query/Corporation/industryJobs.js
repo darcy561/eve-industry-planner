@@ -1,7 +1,8 @@
 import getCorpIndustryJobs from "../../../Functions/EveESI/Corporation/getIndustryJobs";
 import useUsersStore from "../../../Zustand/usersStore";
 import { getQueryEnabled } from "../../useQueryEnabled";
-import { getESIRateLimitStatuses } from "../../../Functions/EveESI/fetchWithCustomHeaders";
+import { getESIRateLimitStatus } from "../../../Functions/EveESI/fetchWithCustomHeaders";
+import fetchPaginatedDataParallel from "../../../Functions/Helper/fetchPaginatedDataParallel";
 
 const corporationIndustryJobsQueryKey = "corporationIndustryJobs";
 
@@ -44,18 +45,18 @@ const corporationIndustryJobsQueryKey = "corporationIndustryJobs";
  * return <div>Corporation Industry Jobs: {corpIndustryJobs.data.length} active jobs for corp {corpIndustryJobs.corporation_id}</div>;
  */
 function corporationIndustryJobsQuery(characterHash) {
-  const isLoggedIn = useUsersStore.getState().users.isLoggedIn;
   const findUserByCharacterHash = useUsersStore.getState().users.actions.findUserByCharacterHash;
 
   return {
     queryKey: [corporationIndustryJobsQueryKey, characterHash],
     queryFn: async () => {
-      // Check if industry group is rate limited
-      const rateLimits = getESIRateLimitStatuses();
-      const industryStatus = rateLimits.find(status => status?.group === 'industry');
+      const userObject = findUserByCharacterHash(characterHash);
+      
+      // Check if industry group is rate limited for this specific character
+      // Use config.group as hint, will be updated from headers if different
+      const industryStatus = getESIRateLimitStatus('industry', characterHash);
 
       if (industryStatus && industryStatus.availableTokens <= 0 && industryStatus.maxTokens && industryStatus.windowSize) {
-        const now = Date.now();
         const tokensPerMs = industryStatus.maxTokens / industryStatus.windowSize;
         const tokensToRecover = industryStatus.maxTokens - industryStatus.availableTokens;
         const waitTime = Math.ceil(tokensToRecover / tokensPerMs);
@@ -63,14 +64,9 @@ function corporationIndustryJobsQuery(characterHash) {
         throw new Error(`Industry group is rate limited. Wait ${Math.ceil(waitTime / 1000)} seconds.`);
       }
 
-      const allData = [];
-      const userObject = findUserByCharacterHash(characterHash);
-      let page = 1;
-      let totalPages = 1;
-
       try {
-        do {
-          const result = await getCorpIndustryJobs({
+        const allData = await fetchPaginatedDataParallel(async (page) => {
+          return await getCorpIndustryJobs({
             character: userObject,
             page: page,
             config: {
@@ -80,18 +76,12 @@ function corporationIndustryJobsQuery(characterHash) {
               batchable: true
             }
           });
-
-          allData.push(...result.data);
-
-          totalPages = result.totalPages ?? 1;
-          page++;
-        } while (page <= totalPages);
+        });
 
         return {
           data: allData,
           corporation_id: userObject.corporation_id,
         };
-
       } catch (error) {
         console.error('Error fetching corporation industry jobs:', error);
         throw new Error(`Failed to fetch corporation industry jobs: ${error.message}`);
@@ -103,10 +93,9 @@ function corporationIndustryJobsQuery(characterHash) {
     retry: 3,
     retryDelay: (attemptIndex, error) => {
       if (error?.message?.includes('rate limited')) {
-        const rateLimits = getESIRateLimitStatuses();
-        const industryStatus = rateLimits.find(status => status?.group === 'industry');
+        // Get status for this specific character's industry bucket
+        const industryStatus = getESIRateLimitStatus('industry', characterHash);
         if (industryStatus && industryStatus.maxTokens && industryStatus.windowSize) {
-          const now = Date.now();
           const tokensPerMs = industryStatus.maxTokens / industryStatus.windowSize;
           const tokensToRecover = industryStatus.maxTokens - industryStatus.availableTokens;
           const waitTime = Math.ceil(tokensToRecover / tokensPerMs);

@@ -17,8 +17,19 @@ import {
  */
 function extractJournalEntriesFromResults(results) {
   return results.flatMap((result) => {
+    // Guard against undefined/null results
+    if (!result || !result.data) {
+      return [];
+    }
+    
     const pages = result.data?.pages || [];
-    return pages.flatMap((page) => page.data || []);
+    return pages.flatMap((page) => {
+      // Guard against undefined/null pages
+      if (!page || !page.data) {
+        return [];
+      }
+      return page.data;
+    });
   });
 }
 
@@ -106,6 +117,11 @@ function createSuccessObject(data) {
  */
 function groupJournalEntriesByCorporation(entries) {
   return entries.reduce((acc, entry) => {
+    // Guard against undefined/null entries or missing corporation_id
+    if (!entry || entry.corporation_id === undefined) {
+      return acc;
+    }
+    
     const corpId = entry.corporation_id;
     if (!acc[corpId]) {
       acc[corpId] = [];
@@ -127,6 +143,10 @@ function removeDuplicateJournalEntries(entries) {
   const uniqueJournalEntries = new Map();
 
   entries.forEach((entry) => {
+    // Guard against undefined/null entries or missing required properties
+    if (!entry || entry.corporation_id === undefined || entry.id === undefined) {
+      return;
+    }
 
     const key = `${entry.corporation_id}-${entry.id}`;
     if (!uniqueJournalEntries.has(key)) {
@@ -197,9 +217,10 @@ export function getAllCachedCorporationJournal(queryClient) {
     return createErrorObject(error);
   }
 
-  // Get cached data
+  // Get cached data, filtering out undefined/null values
   const cachedJournalEntries = queryStates
     .map(({ cachedData }) => cachedData)
+    .filter((data) => data != null) // Filter out null/undefined cached data
     .flat();
 
   const uniqueJournalEntries = removeDuplicateJournalEntries(cachedJournalEntries);

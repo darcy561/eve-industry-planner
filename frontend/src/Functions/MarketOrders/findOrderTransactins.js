@@ -24,6 +24,10 @@ export default function findOrderTransactins(
       const { journalEntry, transactionTax } =
         findJournalEntriesFromTransaction(itemTrans, queryClient);
       if (!journalEntry && !transactionTax) return;
+      
+      // Guard against undefined journalEntry when accessing description
+      if (!journalEntry || !journalEntry.description) return;
+      
       const descriptionTrim = journalEntry.description
         .replace("Market: ", "")
         .split(" bought");

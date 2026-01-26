@@ -95,10 +95,20 @@ function createJournalEntriesObject(userArray, dataArray, isCachedData = false) 
       let journalData;
       if (isCachedData) {
         // For cached data, extract from query state object
-        journalData = item.cachedData?.data || item.cachedData || [];
+        // Guard against undefined/null cached data
+        if (!item || !item.cachedData) {
+          journalData = [];
+        } else {
+          journalData = item.cachedData?.data || item.cachedData || [];
+        }
       } else {
         // For query results, extract from result object
-        journalData = item.data || [];
+        // Guard against undefined/null results
+        if (!item) {
+          journalData = [];
+        } else {
+          journalData = item.data || [];
+        }
       }
       journalEntriesByCharacter[CharacterHash] = journalData;
     }

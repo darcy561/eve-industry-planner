@@ -22,14 +22,11 @@ async function fetchWithCustomHeaders(URL, options = {}, config = {}) {
   const isESIEndpoint = URL.includes('esi.evetech.net') || URL.includes('esi.eveonline.com');
   
   if (isESIEndpoint) {
-    // Extract rate limit group from URL or config
-    const group = config.group || extractRateLimitGroup(URL);
-    
-    // Check if rate limiting is disabled for this group
-    const isGroupDisabled = esiFetchWrapper.isGroupDisabled(group);
+    // Use group from config if provided, otherwise will be discovered from headers
+    // Check if rate limiting is disabled
     const isIndividuallyDisabled = config.disabled === true || options.disabled === true;
     
-    if (isGroupDisabled || isIndividuallyDisabled) {
+    if (isIndividuallyDisabled) {
       // Use regular fetch when rate limiting is disabled
       return fetch(URL, {
         ...options,
@@ -64,59 +61,6 @@ async function fetchWithCustomHeaders(URL, options = {}, config = {}) {
   }
 }
 
-/**
- * Extract rate limit group from URL
- * @param {string} URL - Request URL
- * @returns {string} Rate limit group
- */
-function extractRateLimitGroup(URL) {
-  // Core groups
-  if (URL.includes('/markets/')) return 'market';
-  if (URL.includes('/characters/')) return 'character';
-  if (URL.includes('/corporations/')) return 'corporation';
-  if (URL.includes('/universe/')) return 'universe';
-  
-  // 13 October 2025 rollout
-  if (URL.includes('/status/')) return 'status';
-  
-  // 27 October 2025 rollout
-  if (URL.includes('/fw/')) return 'fw';
-  if (URL.includes('/incursions/')) return 'incursions';
-  if (URL.includes('/insurance/')) return 'insurance';
-  if (URL.includes('/routes/')) return 'routes';
-  if (URL.includes('/sovereignty/')) return 'sovereignty';
-  
-  // 30 October 2025 rollout
-  if (URL.includes('/fitting/')) return 'fitting';
-  if (URL.includes('/fleets/')) return 'fleets';
-  if (URL.includes('/industry/')) return 'industry';
-  if (URL.includes('/notifications/')) return 'notifications';
-  if (URL.includes('/ui/')) return 'ui';
-  
-  // 3 November 2025 rollout
-  if (URL.includes('/location/')) return 'location';
-  
-  // 6 November 2025 rollout
-  if (URL.includes('/killmails/')) return 'killmails';
-  if (URL.includes('/wars/')) return 'wars';
-  if (URL.includes('/conflicts/')) return 'conflicts';
-  
-  // 10 November 2025 rollout
-  if (URL.includes('/alliances/')) return 'alliances';
-  
-  // 13 November 2025 rollout
-  if (URL.includes('/skills/')) return 'skills';
-  if (URL.includes('/attributes/')) return 'attributes';
-  if (URL.includes('/portrait/')) return 'portrait';
-  
-  // 24 November 2025 rollout
-  if (URL.includes('/assets/')) return 'assets';
-  
-  // 27 November 2025 rollout
-  if (URL.includes('/contracts/')) return 'contracts';
-  
-  return 'default';
-}
 
 /**
  * Direct ESI fetch without queue management (for immediate requests)
@@ -161,6 +105,16 @@ function getESIRateLimitStatuses() {
 }
 
 /**
+ * Get rate limit status for a specific group and userID pair
+ * @param {string} group - Rate limit group
+ * @param {string} userID - User identifier (characterHash)
+ * @returns {Object} Rate limit status for the specific (group, userID) pair
+ */
+function getESIRateLimitStatus(group, userID) {
+  return esiFetchWrapper.getRateLimitStatus(group, userID);
+}
+
+/**
  * Get queue status for all ESI endpoints
  * @returns {Object} Queue statuses
  */
@@ -181,6 +135,7 @@ export {
   fetchESIDirect, 
   fetchESIQueued, 
   getESIRateLimitStatuses, 
+  getESIRateLimitStatus,
   getESIQueueStatuses, 
   clearESILimits
 };

@@ -1,7 +1,7 @@
 import getCharacterSkills from "../../../Functions/EveESI/Character/getSkills";
 import useUsersStore from "../../../Zustand/usersStore";
 import { getQueryEnabled } from "../../useQueryEnabled";
-import { getESIRateLimitStatuses } from "../../../Functions/EveESI/fetchWithCustomHeaders";
+import { getESIRateLimitStatus } from "../../../Functions/EveESI/fetchWithCustomHeaders";
 
 const characterSkillsQueryKey = "characterSkills";
 
@@ -42,25 +42,23 @@ const characterSkillsQueryKey = "characterSkills";
  * return <div>Skills: {Object.keys(skills).length} skills loaded</div>;
  */
 function characterSkillsQuery(characterHash) {
-  const isLoggedIn = useUsersStore.getState().users.isLoggedIn;
   const findUserByCharacterHash = useUsersStore.getState().users.actions.findUserByCharacterHash;
   return {
     queryKey: [characterSkillsQueryKey, characterHash],
     queryFn: async () => {
-      // Check if character group is rate limited
-      const rateLimits = getESIRateLimitStatuses();
-      const characterStatus = rateLimits.find(status => status?.group === 'character');
+      const userObject = findUserByCharacterHash(characterHash);
+      
+      // Check if character group is rate limited for this specific character
+      // Use config.group as hint, will be updated from headers if different
+      const characterStatus = getESIRateLimitStatus('character', characterHash);
 
       if (characterStatus && characterStatus.availableTokens <= 0 && characterStatus.maxTokens && characterStatus.windowSize) {
-        const now = Date.now();
         const tokensPerMs = characterStatus.maxTokens / characterStatus.windowSize;
         const tokensToRecover = characterStatus.maxTokens - characterStatus.availableTokens;
         const waitTime = Math.ceil(tokensToRecover / tokensPerMs);
 
         throw new Error(`Character group is rate limited. Wait ${Math.ceil(waitTime / 1000)} seconds.`);
       }
-
-      const userObject = findUserByCharacterHash(characterHash);
       const result = await getCharacterSkills({
         character: userObject,
         config: {
@@ -78,10 +76,9 @@ function characterSkillsQuery(characterHash) {
     retry: 3,
     retryDelay: (attemptIndex, error) => {
       if (error?.message?.includes('rate limited')) {
-        const rateLimits = getESIRateLimitStatuses();
-        const characterStatus = rateLimits.find(status => status?.group === 'character');
+        // Get status for this specific character's character bucket
+        const characterStatus = getESIRateLimitStatus('character', characterHash);
         if (characterStatus && characterStatus.maxTokens && characterStatus.windowSize) {
-          const now = Date.now();
           const tokensPerMs = characterStatus.maxTokens / characterStatus.windowSize;
           const tokensToRecover = characterStatus.maxTokens - characterStatus.availableTokens;
           const waitTime = Math.ceil(tokensToRecover / tokensPerMs);

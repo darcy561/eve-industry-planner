@@ -17,6 +17,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useCharacterHooks } from "./React Query/useCharacterHooks";
 import { buildUsersFromRefreshTokens, getSystemIndexDataFromUserStructures } from "../Functions/Auth/buildAccountData";
+import { clearQueryTimings, logWaterfall } from "../Functions/Debugging/queryWaterfallLogger";
 
 /**
  * Custom hook that provides comprehensive Firebase integration for EVE Online industry planning.
@@ -69,7 +70,7 @@ export function useFirebase() {
     useUsersStore.getState().applicationSettings.actions;
   const { DEFAULT_ARCHIVE_REFRESH_PERIOD } = GLOBAL_CONFIG;
   const queryClient = useQueryClient();
-  const { triggerCharacterDataPrefetch } = useCharacterHooks();
+  const { prefetchMultipleCharacters } = useCharacterHooks();
 
   const uploadUserWatchlist = async (itemGroups, itemWatchlist) => {
     updateDoc(
@@ -316,9 +317,18 @@ export function useFirebase() {
               );
               useUsersStore.getState().users.actions.addNewUsers(newUserArray);
 
-              newUserArray.forEach(({ CharacterHash }) => {
-                triggerCharacterDataPrefetch(queryClient, CharacterHash);
-              });
+              // Clear timings before starting all character prefetches
+              clearQueryTimings();
+              
+              // Extract character hashes
+              const characterHashes = newUserArray.map(({ CharacterHash }) => CharacterHash);
+              
+              // Prefetch data for all characters in batches (fire-and-forget to not block listener)
+              // This prevents overwhelming ESI endpoints when users have many characters
+              prefetchMultipleCharacters(queryClient, characterHashes, true)
+                .catch((error) => {
+                  console.error('Error during character data prefetch:', error);
+                });
 
               await checkUserClaims();
 

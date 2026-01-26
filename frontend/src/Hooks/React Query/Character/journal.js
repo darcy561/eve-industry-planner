@@ -1,7 +1,8 @@
 import getCharacterJournal from "../../../Functions/EveESI/Character/getJournal";
 import useUsersStore from "../../../Zustand/usersStore";
 import { getQueryEnabled } from "../../useQueryEnabled";
-import { getESIRateLimitStatuses, getESIQueueStatuses } from "../../../Functions/EveESI/fetchWithCustomHeaders";
+import { getESIRateLimitStatus } from "../../../Functions/EveESI/fetchWithCustomHeaders";
+import fetchPaginatedDataParallel from "../../../Functions/Helper/fetchPaginatedDataParallel";
 
 const characterJournalQueryKey = "characterJournal";
 
@@ -42,33 +43,28 @@ const characterJournalQueryKey = "characterJournal";
  * return <div>Journal: {journal.length} entries</div>;
  */
 function characterJournalQuery(characterHash) {
-  const isLoggedIn = useUsersStore.getState().users.isLoggedIn;
   const findUserByCharacterHash = useUsersStore.getState().users.actions.findUserByCharacterHash;
 
   return {
     queryKey: [characterJournalQueryKey, characterHash],
     queryFn: async () => {
-      // Check if character group is rate limited
-      const rateLimits = getESIRateLimitStatuses();
-      const characterStatus = rateLimits.find(status => status?.group === 'character');
+      const userObject = findUserByCharacterHash(characterHash);
       
+      // Check if character group is rate limited for this specific character
+      // Use config.group as hint, will be updated from headers if different
+      const characterStatus = getESIRateLimitStatus('character', characterHash);
+
       if (characterStatus && characterStatus.availableTokens <= 0 && characterStatus.maxTokens && characterStatus.windowSize) {
-        const now = Date.now();
         const tokensPerMs = characterStatus.maxTokens / characterStatus.windowSize;
         const tokensToRecover = characterStatus.maxTokens - characterStatus.availableTokens;
         const waitTime = Math.ceil(tokensToRecover / tokensPerMs);
-        
+
         throw new Error(`Character group is rate limited. Wait ${Math.ceil(waitTime / 1000)} seconds.`);
       }
 
-      const allData = [];
-      let page = 1;
-      let totalPages = 1;
-      const userObject = findUserByCharacterHash(characterHash);
-
       try {
-        do {
-          const result = await getCharacterJournal({
+        return await fetchPaginatedDataParallel(async (page) => {
+          return await getCharacterJournal({
             character: userObject,
             page: page,
             config: {
@@ -79,13 +75,8 @@ function characterJournalQuery(characterHash) {
             }
           });
 
-        allData.push(...result.data);
+        });
 
-        totalPages = result.totalPages ?? 1;
-        page++;
-      } while (page <= totalPages);
-
-      return allData;
       } catch (error) {
         console.error('Error fetching character journal:', error);
         throw new Error(`Failed to fetch character journal: ${error.message}`);
@@ -98,8 +89,8 @@ function characterJournalQuery(characterHash) {
     retryDelay: (attemptIndex, error) => {
       // If rate limited, use the wait time
       if (error?.message?.includes('rate limited')) {
-        const rateLimits = getESIRateLimitStatuses();
-        const characterStatus = rateLimits.find(status => status?.group === 'character');
+        // Get status for this specific character's character bucket
+        const characterStatus = getESIRateLimitStatus('character', characterHash);
         if (characterStatus && characterStatus.maxTokens && characterStatus.windowSize) {
           const tokensPerMs = characterStatus.maxTokens / characterStatus.windowSize;
           const tokensToRecover = characterStatus.maxTokens - characterStatus.availableTokens;
