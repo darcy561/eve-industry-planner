@@ -31,7 +31,10 @@ export function LinkedJobsTab(props) {
 
   const analytics = getAnalytics();
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status, isReadyToDeliver) => {
+    if (isReadyToDeliver) {
+      return "info";
+    }
     switch (status) {
       case "active":
         return "warning";
@@ -113,7 +116,9 @@ export function LinkedJobsTab(props) {
               .worldData.actions.findUniverseData(job.station_id);
             const timeRemaining = formatTimeRemaining(Date.parse(job.end_date));
             const isReadyToDeliver =
-              job.status === "active" && timeRemaining === "Complete";
+              job.status === "active" && 
+              (timeRemaining === "Complete" || 
+               Date.parse(job.end_date) - Date.now() <= 0);
 
             return (
               <Grid
@@ -259,10 +264,12 @@ export function LinkedJobsTab(props) {
                         </Typography>
                         <Chip
                           label={
-                            job.status.charAt(0).toUpperCase() +
-                            job.status.slice(1)
+                            isReadyToDeliver
+                              ? "Ready for Delivery"
+                              : job.status.charAt(0).toUpperCase() +
+                                job.status.slice(1)
                           }
-                          color={getStatusColor(job.status)}
+                          color={getStatusColor(job.status, isReadyToDeliver)}
                           size="small"
                           sx={{
                             width: "100%",

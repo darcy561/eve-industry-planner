@@ -209,15 +209,55 @@ export function createServer(distDir, port = 80) {
         "Content-Type": mimeType,
       };
 
-      // Apply compression if supported
-      if (compressionType === "br") {
+      // Add Cache-Control headers for Cloudflare caching
+      // These headers help Cloudflare understand what can be cached and for how long
+      const ext = path.extname(filePath).toLowerCase();
+      const fileName = path.basename(filePath);
+      
+      // Check if file has a hash in the name (versioned assets)
+      // Versioned assets (e.g., app.abc123.js) can be cached indefinitely since the hash changes on updates
+      const hasHash = /[a-f0-9]{8,}/i.test(fileName);
+      
+      if (ext === ".html" || fileName === "index.html") {
+        // HTML files - 1 hour cache (3600 seconds) with stale-while-revalidate
+        // HTML may contain dynamic content or need updates, so shorter cache is safer
+        // stale-while-revalidate allows Cloudflare to serve instantly while updating in background
+        headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=86400";
+      } else if ((ext === ".js" || ext === ".css") && hasHash) {
+        // Versioned JS/CSS files - 1 year cache (31536000 seconds), immutable
+        // These files have content hashes in their names, so they can be cached indefinitely
+        // The hash changes when content changes, ensuring users get updated files
+        headers["Cache-Control"] = "public, max-age=31536000, immutable";
+      } else if (ext === ".js" || ext === ".css") {
+        // Non-versioned JS/CSS files - 1 hour cache (3600 seconds) with stale-while-revalidate
+        // Without versioning, we use shorter cache to allow for updates
+        // stale-while-revalidate allows Cloudflare to serve instantly while updating in background
+        headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=86400";
+      } else if ([".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".eot"].includes(ext)) {
+        // Images and fonts - 1 year cache (31536000 seconds), immutable
+        // These assets rarely change and can be cached long-term
+        // Cloudflare will serve these from cache, significantly reducing egress
+        headers["Cache-Control"] = "public, max-age=31536000, immutable";
+      } else {
+        // Other static files - 1 hour cache (3600 seconds) with stale-while-revalidate
+        // Default cache for unknown file types
+        // stale-while-revalidate allows Cloudflare to serve instantly while updating in background
+        headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=86400";
+      }
+
+      // Skip compression for already-compressed assets (images, fonts, etc.)
+      // These files are already optimized and compression provides minimal benefit
+      const alreadyCompressed = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".woff", ".woff2", ".mp4", ".zip", ".gz"].includes(ext);
+      
+      // Apply compression if supported and asset is not already compressed
+      if (!alreadyCompressed && compressionType === "br") {
         headers["Vary"] = "Accept-Encoding";
         headers["Content-Encoding"] = "br";
         delete headers["Content-Length"];
 
         const brotli = createBrotliCompress({
           params: {
-            [constants.BROTLI_PARAM_QUALITY]: 5, // Quality level 5
+            [constants.BROTLI_PARAM_QUALITY]: 6, // Quality level 6 (optimized for better compression)
           },
         });
         res.writeHead(200, headers);
@@ -226,12 +266,12 @@ export function createServer(distDir, port = 80) {
         if (shouldLog) {
           console.log(`${req.method} ${req.url} - 200 (brotli)`);
         }
-      } else if (compressionType === "gzip") {
+      } else if (!alreadyCompressed && compressionType === "gzip") {
         headers["Vary"] = "Accept-Encoding";
         headers["Content-Encoding"] = "gzip";
         delete headers["Content-Length"];
 
-        const gzip = createGzip({ level: 1 }); // BestSpeed
+        const gzip = createGzip({ level: 6 }); // Level 6 (optimized for better compression)
         res.writeHead(200, headers);
         gzip.pipe(res);
         gzip.end(data);
