@@ -3,7 +3,7 @@
 # dependencies
 frontend/node_modules
 node_modules
-functions
+/functions
 /.pnp
 .pnp.js
 .vscode

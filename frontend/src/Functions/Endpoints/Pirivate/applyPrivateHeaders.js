@@ -18,10 +18,11 @@ function getServerToken() {
 
 /**
  * Apply private headers (Authorization Bearer token) to options
+ * Private endpoints always require authentication.
  * @param {Object} options - Fetch options
  * @param {Object} config - Configuration
- * @param {boolean} config.requireToken - Force token requirement even if not available (default: false)
- * @returns {Object|null} Options with private headers applied, or null if token required but not available
+ * @param {string} [config.requestName] - Optional name for the request (appears in network tab headers)
+ * @returns {Object|null} Options with private headers applied, or null if token not available
  *
  * @example
  * const options = applyPrivateHeaders({
@@ -33,19 +34,14 @@ function applyPrivateHeaders(options = {}, config = {}) {
   const serverToken = getServerToken();
 
   if (!serverToken) {
-    if (config.requireToken) {
-      console.error("No server access token available but token is required");
-      return null;
-    }
-    console.warn(
-      "No server access token available, skipping Authorization header"
-    );
-    return options;
+    console.error("No server access token available - authentication required for private endpoints");
+    return null;
   }
 
   const headers = {
     ...options.headers,
     Authorization: `Bearer ${serverToken}`,
+    ...(config.requestName && { "X-Request-Name": config.requestName }),
   };
 
   return {
@@ -55,32 +51,34 @@ function applyPrivateHeaders(options = {}, config = {}) {
 }
 
 /**
- * Enhanced fetch with private headers (authentication)
+ * Enhanced HTTP request with private headers (authentication)
+ * Private endpoints always require authentication - token is mandatory.
  * Only applies Authorization header - use applyPublicHeaders separately if needed
  *
  * @param {string} URL - Request URL
- * @param {Object} options - Fetch options
+ * @param {Object} options - Request options
  * @param {Object} config - Configuration
- * @param {boolean} config.requireToken - Force token requirement (default: false)
+ * @param {string} [config.requestName] - Optional name for the request (appears in network tab headers as X-Request-Name)
  * @returns {Promise<Response>} HTTP response
+ * @throws {Error} Throws error if authentication token is not available
  *
  * @example
- * const response = await fetchWithPrivateHeaders('/api/v1/jobs/add', {
+ * const response = await requestWithPrivateHeaders('/api/v1/jobs/add', {
  *   method: 'POST',
  *   body: JSON.stringify(data)
- * });
+ * }, { requestName: 'addJob' });
  */
-async function fetchWithPrivateHeaders(URL, options = {}, config = {}) {
+async function requestWithPrivateHeaders(URL, options = {}, config = {}) {
   const enhancedOptions = applyPrivateHeaders(options, config);
 
-  if (!enhancedOptions && config.requireToken) {
+  if (!enhancedOptions) {
     return Promise.reject(
       new Error("Authentication required but no server token available")
     );
   }
 
-  return fetch(URL, enhancedOptions || options);
+  return fetch(URL, enhancedOptions);
 }
 
-export default fetchWithPrivateHeaders;
-export { fetchWithPrivateHeaders, applyPrivateHeaders };
+export default requestWithPrivateHeaders;
+export { requestWithPrivateHeaders, applyPrivateHeaders };

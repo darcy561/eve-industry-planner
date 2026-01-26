@@ -336,10 +336,15 @@ export function useFirebase() {
                 userData.settings.account.cloudAccounts &&
                 newUserArray.length > 0
               ) {
+                // Normalize refreshTokens from database (characterHash -> CharacterHash) for internal use
+                const normalizedTokens = (userData.refreshTokens || []).map(token => ({
+                  CharacterHash: token.CharacterHash || token.characterHash,
+                  rToken: token.rToken,
+                }));
                 useUsersStore
                   .getState()
                   .users.actions.updateAccountRefreshTokens(
-                    userData.refreshTokens
+                    normalizedTokens
                   );
               }
 

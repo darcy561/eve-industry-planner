@@ -36,7 +36,7 @@ async function fetchMarketPrices(inputArray) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ typeIDs: ids }),
-    });
+    }, { requestName: "fetchMarketPrices" });
 
     if (!response.ok) {
       return returnObject;
