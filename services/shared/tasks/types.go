@@ -11,8 +11,8 @@ const (
 	// TaskTypeRefreshMarketPrices is the task type identifier for market prices refresh
 	TaskTypeRefreshMarketPrices = "refreshMarketPrices"
 
-	// TaskTypeRecalculateMarketPricesTotal is the task type identifier for recalculating total market prices count
-	TaskTypeRecalculateMarketPricesTotal = "recalculateMarketPricesTotal"
+	// TaskTypeCountMarketPricesItems is the task type identifier for counting market prices items
+	TaskTypeCountMarketPricesItems = "countMarketPricesItems"
 
 	// TaskTypeUpdateCorporationClaims is the task type identifier for corporation claims update
 	TaskTypeUpdateCorporationClaims = "updateCorporationClaims"

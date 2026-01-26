@@ -84,6 +84,8 @@ func getTaskTypeFromSubject(subject string) string {
 		return "refreshAdjustedPrices"
 	case natscore.SubjectRefreshMarketPrices, natscore.SubjectFetchMissingMarketPrices:
 		return "refreshMarketPrices" // Both subjects use the same task handler
+	case natscore.SubjectCountMarketPricesItems:
+		return "countMarketPricesItems"
 	case natscore.SubjectFetchCorporations:
 		return "fetchCorporations"
 	default:
@@ -336,6 +338,18 @@ func SubscribeScheduledTasks(deps *WorkerDependencies) (func(context.Context), e
 		return nil, err
 	}
 	cleanups = append(cleanups, cleanup3)
+
+	// Market prices count
+	cleanup3a, err := SubscribeToSubject(deps, SubscriberConfig{
+		Subject:      natscore.SubjectCountMarketPricesItems,
+		ConsumerName: "task-scheduled-count-market-prices-items",
+		StreamName:   natscore.WorkerTaskStream,
+		TaskName:     "count market prices items",
+	})
+	if err != nil {
+		return nil, err
+	}
+	cleanups = append(cleanups, cleanup3a)
 
 	// Missing market prices
 	cleanup4, err := SubscribeToSubject(deps, SubscriberConfig{

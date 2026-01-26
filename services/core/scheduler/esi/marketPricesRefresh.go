@@ -13,10 +13,11 @@ import (
 	taskscore "eve-industry-planner/shared/tasks"
 )
 
-// ScheduleMarketPricesRefresh sets up a static cron job for market prices refresh (every 15 minutes).
+// ScheduleMarketPricesRefresh sets up a static cron job for market prices refresh (every 5 minutes).
 // It uses a cached total item count (recalculated every 4 hours) to determine batch sizes,
 // ensuring all items are refreshed within 4 hours. The batch size is calculated as:
-// batchSize = (totalItems / 16) * buffer, where 16 is the number of runs in 4 hours.
+// batchSize = (totalItems / 48) * buffer, where 48 is the number of runs in 4 hours.
+// Running more frequently with smaller batches reduces Redis CPU spikes from thundering herd.
 // This approach is simpler and more predictable than counting outdated items each run.
 // Returns a cleanup function and an error if scheduling fails.
 func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Scheduler) (func(), error) {
@@ -25,7 +26,7 @@ func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Sc
 	redisClient := deps.Redis
 	log := deps.Log
 
-	// Register the main task handler (runs every 15 minutes)
+		// Register the main task handler (runs every 5 minutes)
 	sched.RegisterHandler(taskscore.TaskTypeRefreshMarketPrices, func(ctx context.Context, data json.RawMessage) error {
 		// Build a map of region_id -> station_id for quick lookup
 		regionToStation := make(map[int32]int64)
@@ -91,9 +92,10 @@ func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Sc
 		thresholdTime := now.Add(-4 * time.Hour).UnixMilli()
 
 		// Calculate batch size based on total items
-		// Runs every 15 minutes = 16 runs in 4 hours
+		// Runs every 5 minutes = 48 runs in 4 hours
 		// We want to process all items within 4 hours, so divide total by number of runs
-		const runsPer4Hours = 16.0
+		// More frequent runs with smaller batches reduce Redis CPU spikes
+		const runsPer4Hours = 48.0
 		const maxBatchSize = 1000
 		const bufferMultiplier = 1.15 // 15% buffer to account for growth and ensure we stay ahead
 
@@ -216,9 +218,9 @@ func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Sc
 			// Calculate detailed backlog metrics only when needed
 			estimatedHoursToClearBacklog := 0.0
 			if remainingOutdated > 0 {
-				// Calculate how many runs it would take to clear the remaining backlog
-				runsNeeded := float64(remainingOutdated) / float64(batchSize)
-				estimatedHoursToClearBacklog = runsNeeded * (15.0 / 60.0) // 15 minutes per run
+			// Calculate how many runs it would take to clear the remaining backlog
+			runsNeeded := float64(remainingOutdated) / float64(batchSize)
+			estimatedHoursToClearBacklog = runsNeeded * (5.0 / 60.0) // 5 minutes per run
 			}
 
 			// Check if we can keep up: can we process all currently outdated items within 4 hours?

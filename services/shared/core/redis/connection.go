@@ -31,9 +31,12 @@ func Connect() (*redis.Client, error) {
 		}
 		// Override timeouts and pool settings
 		opts.DialTimeout = 5 * time.Second
-		opts.ReadTimeout = 3 * time.Second
-		opts.WriteTimeout = 3 * time.Second
-		opts.PoolSize = 10 // Max concurrent connections for performance under load
+		// Increased ReadTimeout to handle Lua script execution under load
+		// Lua scripts can take longer when Redis is processing many concurrent operations
+		opts.ReadTimeout = 10 * time.Second
+		opts.WriteTimeout = 5 * time.Second
+		// Increased pool size to handle concurrent rate limit checks from multiple workers
+		opts.PoolSize = 20 // Max concurrent connections for performance under load
 
 		client := redis.NewClient(opts)
 

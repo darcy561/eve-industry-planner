@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"strconv"
 	"time"
@@ -280,6 +281,17 @@ func (c *RedisESIClient) Do(ctx context.Context, method, path string, headers ma
 	// Estimate tokens needed (assume 2XX response = 2 tokens for now)
 	estimatedTokens := 2
 
+	// Add small random jitter before first rate limit check to spread out Redis calls
+	// This prevents thundering herd when many tasks start simultaneously (e.g., cron job submissions)
+	// Jitter of 0-100ms spreads load over a small window, reducing CPU spikes
+	jitter := time.Duration(rand.Intn(100)) * time.Millisecond
+	select {
+	case <-ctx.Done():
+		return nil, nil, ctx.Err()
+	case <-time.After(jitter):
+		// Jitter complete, proceed with rate limit check
+	}
+
 	// Check rate limits in Redis
 	allowed, waitUntil, err := c.checkAndReserve(ctx, groupName, estimatedTokens, tokenLimit, rateLimit)
 	if err != nil {
@@ -503,6 +515,17 @@ func (c *RedisESIClient) DoRequest(ctx context.Context, method, path string, hea
 
 	// Estimate tokens needed
 	estimatedTokens := 2
+
+	// Add small random jitter before first rate limit check to spread out Redis calls
+	// This prevents thundering herd when many tasks start simultaneously (e.g., cron job submissions)
+	// Jitter of 0-100ms spreads load over a small window, reducing CPU spikes
+	jitter := time.Duration(rand.Intn(100)) * time.Millisecond
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-time.After(jitter):
+		// Jitter complete, proceed with rate limit check
+	}
 
 	// Check rate limits in Redis
 	allowed, waitUntil, err := c.checkAndReserve(ctx, groupName, estimatedTokens, tokenLimit, rateLimit)

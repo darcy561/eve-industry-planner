@@ -37,6 +37,10 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 		return esitasks.RefreshMarketPrices(ctx, t, taskDeps)
 	})
 
+	mux.HandleFunc("countMarketPricesItems", func(ctx context.Context, t *asynq.Task) error {
+		return esitasks.CountMarketPricesItems(ctx, t, taskDeps)
+	})
+
 	mux.HandleFunc("fetchCorporations", func(ctx context.Context, t *asynq.Task) error {
 		return esitasks.UpdateCustomCorporationClaims(ctx, t, taskDeps)
 	})

@@ -1,6 +1,6 @@
 {
   "name": "eve-industry-planner-react",
-  "version": "0.8.04",
+  "version": "0.8.05",
   "private": true,
   "type": "module",
   "dependencies": {

@@ -23,6 +23,8 @@ func GetPriorityQueue(subject string) string {
 		return "priority_3" // Default, steady throughput
 	case natscore.SubjectRefreshMarketPrices:
 		return "priority_4" // High-volume background
+	case natscore.SubjectCountMarketPricesItems:
+		return "priority_3" // Default, steady throughput (maintenance task)
 	default:
 		// Unknown tasks default to priority_3
 		// Log when default routing is used to catch misclassifications
