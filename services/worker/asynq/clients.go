@@ -10,15 +10,9 @@ import (
 	"github.com/hibiken/asynq"
 )
 
-// Clients holds the asynq clients for ESI and regular tasks
-type Clients struct {
-	ESI     *asynq.Client
-	Regular *asynq.Client
-}
-
-// SetupClients creates and returns asynq clients for ESI and regular tasks.
+// SetupClient creates and returns an asynq client for all tasks.
 // It handles Redis connection configuration and client initialization.
-func SetupClients() (*Clients, asynq.RedisClientOpt, error) {
+func SetupClient() (*asynq.Client, asynq.RedisClientOpt, error) {
 	// Get Redis connection info for asynq
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -51,15 +45,11 @@ func SetupClients() (*Clients, asynq.RedisClientOpt, error) {
 		DB:       0, // asynq uses DB 0 by default
 	}
 
-	// Create separate asynq clients for ESI and regular tasks
-	esiClient := asynq.NewClient(redisOpt)
-	regularClient := asynq.NewClient(redisOpt)
+	// Create asynq client for all tasks
+	client := asynq.NewClient(redisOpt)
 
-	logs.Info("asynq clients initialized", "redis_addr", redisAddr)
+	logs.Info("asynq client initialized", "redis_addr", redisAddr)
 
-	return &Clients{
-		ESI:     esiClient,
-		Regular: regularClient,
-	}, redisOpt, nil
+	return client, redisOpt, nil
 }
 

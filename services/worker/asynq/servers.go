@@ -18,31 +18,38 @@ type ServerConfig struct {
 	Concurrency int
 }
 
-// setupESIServer creates and starts an asynq server dedicated to ESI tasks.
-// ESI tasks can flood the queue, so they're isolated in their own server.
+// setupServer creates and starts an asynq server that handles all tasks.
+// Uses a 5-tier priority queue system to ensure proper task scheduling.
 // handlerFunc is called to set up the task handlers (mux.HandleFunc calls).
 // Concurrency is the worker pool size - controls how many tasks run concurrently.
-// Returns the server instance and a cleanup function.
-func setupESIServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (*asynq.Server, func(context.Context), error) {
-	// ESI server configuration - optimized for high-volume, rate-limited tasks
-	// Concurrency IS the worker pool - controls how many ESI tasks run simultaneously
-	esiConcurrency := min(config.Concurrency, 150) // Increased from 20 to maximize throughput across multiple rate limit groups
+// Returns a cleanup function to shut down the server.
+func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(context.Context), error) {
+	// Server configuration - handles all tasks (ESI and regular)
+	// Concurrency IS the worker pool - controls how many tasks run simultaneously
+	// Use 50-75 workers to balance ESI rate limits and regular task throughput
+	concurrency := min(config.Concurrency, 75)
 
 	srv := asynq.NewServer(
 		config.RedisOpt,
 		asynq.Config{
-			Concurrency: esiConcurrency,
-			// ESI tasks use PrimaryGroup-based queues for rate limit isolation.
-			// All PrimaryGroups get equal weight (10) for equal distribution.
-			// Markets group is split into high/low priority to prevent low-priority tasks from starving high-priority ones.
+			Concurrency: concurrency,
+			// 5-tier priority queue system:
+			// - priority_1: Reserved for future critical tasks (weight 20)
+			// - priority_2: Urgent, user-impacting tasks (weight 15)
+			// - priority_3: Default, steady throughput tasks (weight 10)
+			// - priority_4: High-volume background tasks (weight 5)
+			// - priority_5: Reserved / bulk tasks (weight 1)
+			// Note: Queue weights are probabilistic, not strict ratios
+			// Note: TaskCheckInterval defaults to 1s (only applies when queues are empty)
 			Queues: map[string]int{
-				"esi_markets_high": 10, // Adjusted prices - high priority within markets group
-				"esi_markets_low":  3,  // Market prices - low priority within markets group
-				"esi_industry":     10, // Industry group (system indexes)
-				"esi_characters":   10, // Characters group (corporation claims)
-				"esi_default":      10, // Unknown groups - default fallback
+				"priority_1": 20, // Reserved for future critical tasks
+				"priority_2": 15, // Urgent, user-impacting tasks
+				"priority_3": 10, // Default, steady throughput tasks
+				"priority_4": 5,  // High-volume background tasks
+				"priority_5": 1,  // Reserved / bulk tasks
 			},
 			// Custom retry delay function that respects ESI rate limit RetryAfter times
+			// CRITICAL: Adds jitter to prevent thundering herd when many tasks retry simultaneously
 			RetryDelayFunc: func(n int, e error, t *asynq.Task) time.Duration {
 				// Check if this is a rate limit error with RetryAfter
 				rateLimitErr := extractRateLimitError(e)
@@ -52,6 +59,46 @@ func setupESIServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (*as
 					if waitTime > 0 {
 						// Add small buffer to ensure tokens are available
 						waitTime += 1 * time.Second
+
+						// CRITICAL: Add jitter to spread out retries and prevent thundering herd
+						// With 150 concurrent workers and 3 req/s rate limit, many tasks retry simultaneously
+						// Jitter spreads retries over a window to prevent synchronized failures
+						// Use 20% jitter (random 0-20% of wait time) to break synchronization
+						// This ensures tasks don't all retry at exactly the same time
+						jitterWindow := waitTime / 5 // 20% of wait time
+						if jitterWindow > 0 {
+							// Generate deterministic jitter based on task type and payload
+							// This ensures each unique task gets consistent jitter across retries
+							// but different tasks get different jitter values
+							taskIDHash := uint64(0)
+							taskTypeBytes := []byte(t.Type())
+							payloadBytes := t.Payload()
+							// Hash task type
+							for _, b := range taskTypeBytes {
+								taskIDHash = taskIDHash*31 + uint64(b)
+							}
+							// Hash payload (use first 100 bytes to avoid excessive computation)
+							payloadLen := len(payloadBytes)
+							if payloadLen > 100 {
+								payloadLen = 100
+							}
+							for i := 0; i < payloadLen; i++ {
+								taskIDHash = taskIDHash*31 + uint64(payloadBytes[i])
+							}
+							jitter := time.Duration(taskIDHash % uint64(jitterWindow))
+							finalWait := waitTime + jitter
+
+							logs.Info("scheduling retry with jitter to prevent thundering herd",
+								"task_type", t.Type(),
+								"retry_attempt", n,
+								"retry_after", rateLimitErr.RetryAfter,
+								"base_wait", waitTime,
+								"jitter", jitter,
+								"final_wait", finalWait,
+								"group", rateLimitErr.Group)
+							return finalWait
+						}
+
 						logs.Info("scheduling retry based on rate limit RetryAfter",
 							"task_type", t.Type(),
 							"retry_attempt", n,
@@ -60,25 +107,73 @@ func setupESIServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (*as
 							"group", rateLimitErr.Group)
 						return waitTime
 					}
-					// RetryAfter is in the past, use minimum delay
-					return 5 * time.Second
+					// RetryAfter is in the past, use minimum delay with jitter
+					baseDelay := 5 * time.Second
+					// Add small jitter even for minimum delay
+					taskIDHash := uint64(0)
+					taskTypeBytes := []byte(t.Type())
+					payloadBytes := t.Payload()
+					for _, b := range taskTypeBytes {
+						taskIDHash = taskIDHash*31 + uint64(b)
+					}
+					payloadLen := len(payloadBytes)
+					if payloadLen > 100 {
+						payloadLen = 100
+					}
+					for i := 0; i < payloadLen; i++ {
+						taskIDHash = taskIDHash*31 + uint64(payloadBytes[i])
+					}
+					jitter := time.Duration(taskIDHash%1000) * time.Millisecond // 0-1s jitter
+					return baseDelay + jitter
 				}
-				// Not a rate limit error or no RetryAfter - use exponential backoff
+				// Not a rate limit error or no RetryAfter - use exponential backoff with jitter
 				// Base delay: 2 seconds, max delay: 5 minutes
 				delay := min(time.Duration(1<<uint(n))*time.Second, 5*time.Minute)
+				// Add jitter to exponential backoff (10% of delay)
+				jitterWindow := delay / 10
+				if jitterWindow > 0 {
+					taskIDHash := uint64(0)
+					taskTypeBytes := []byte(t.Type())
+					payloadBytes := t.Payload()
+					for _, b := range taskTypeBytes {
+						taskIDHash = taskIDHash*31 + uint64(b)
+					}
+					payloadLen := len(payloadBytes)
+					if payloadLen > 100 {
+						payloadLen = 100
+					}
+					for i := 0; i < payloadLen; i++ {
+						taskIDHash = taskIDHash*31 + uint64(payloadBytes[i])
+					}
+					jitter := time.Duration(taskIDHash % uint64(jitterWindow))
+					delay += jitter
+				}
 				return delay
 			},
 			// Error handling
+			// RateLimitError with Retryable=true is intentional (task returned to queue for retry)
+			// Only log actual errors, not intentional retries
 			ErrorHandler: asynq.ErrorHandlerFunc(func(ctx context.Context, task *asynq.Task, err error) {
-				logs.Error("asynq ESI task failed",
+				// Check if this is an intentional rate limit retry
+				rateLimitErr := extractRateLimitError(err)
+				if rateLimitErr != nil && rateLimitErr.Retryable {
+					// Intentional retry - log at debug level, not error
+					logs.Debug("asynq task returned to queue for rate limit retry",
+						"task_type", task.Type(),
+						"retry_after", rateLimitErr.RetryAfter,
+						"reason", rateLimitErr.Reason,
+						"group", rateLimitErr.Group)
+					return
+				}
+				// Actual error - log as error
+				logs.Error("asynq task failed",
 					"task_type", task.Type(),
-					"server_type", "esi",
 					"error", err)
 			}),
 		},
 	)
 
-	// Create mux for routing ESI tasks to handlers
+	// Create mux for routing tasks to handlers
 	mux := asynq.NewServeMux()
 
 	// Set up handlers via callback function
@@ -87,26 +182,26 @@ func setupESIServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (*as
 	// Start server in background
 	go func() {
 		if err := srv.Run(mux); err != nil {
-			logs.Error("asynq ESI server error", "error", err)
+			logs.Error("asynq server error", "error", err)
 		}
 	}()
 
-	logs.Debug("asynq ESI server started",
-		"concurrency", esiConcurrency,
+	logs.Debug("asynq server started",
+		"concurrency", concurrency,
 		"queues", map[string]int{
-			"esi_markets_high": 10,
-			"esi_markets_low":  3,
-			"esi_industry":     10,
-			"esi_characters":   10,
-			"esi_default":      10,
+			"priority_1": 20,
+			"priority_2": 15,
+			"priority_3": 10,
+			"priority_4": 5,
+			"priority_5": 1,
 		})
 
 	cleanup := func(ctx context.Context) {
 		srv.Shutdown()
-		logs.Info("asynq ESI server shut down")
+		logs.Info("asynq server shut down")
 	}
 
-	return srv, cleanup, nil
+	return cleanup, nil
 }
 
 // extractRateLimitError unwraps errors to find a RateLimitError
@@ -129,106 +224,28 @@ func extractRateLimitError(err error) *esiratelimiter.RateLimitError {
 	return nil
 }
 
-// setupRegularServer creates and starts an asynq server for regular (non-ESI) tasks.
-// These tasks don't interact with external APIs and won't flood the queue.
-// handlerFunc is called to set up the task handlers (mux.HandleFunc calls).
-// Concurrency is the worker pool size - controls how many tasks run concurrently.
-// Returns the server instance and a cleanup function.
-func setupRegularServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (*asynq.Server, func(context.Context), error) {
-	// Regular server configuration - for internal tasks
-	// Concurrency IS the worker pool - can handle more since these don't hit external APIs
-	srv := asynq.NewServer(
-		config.RedisOpt,
-		asynq.Config{
-			Concurrency: config.Concurrency,
-			// Regular tasks use separate queues
-			Queues: map[string]int{
-				"regular_high":   10, // Highest priority regular tasks (reserved for future)
-				"regular_normal": 6,  // Normal priority regular tasks
-				"regular_low":    3,  // Low priority regular tasks
-				"auth":           1,  // Auth tasks (lowest priority)
-			},
-			// Error handling
-			ErrorHandler: asynq.ErrorHandlerFunc(func(ctx context.Context, task *asynq.Task, err error) {
-				logs.Error("asynq regular task failed",
-					"task_type", task.Type(),
-					"server_type", "regular",
-					"error", err)
-			}),
-		},
-	)
-
-	// Create mux for routing regular tasks to handlers
-	mux := asynq.NewServeMux()
-
-	// Set up handlers via callback function
-	handlerFunc(mux)
-
-	// Start server in background
-	go func() {
-		if err := srv.Run(mux); err != nil {
-			logs.Error("asynq regular server error", "error", err)
-		}
-	}()
-
-	logs.Debug("asynq regular server started",
-		"concurrency", config.Concurrency,
-		"queues", map[string]int{
-			"regular_high":   10,
-			"regular_normal": 6,
-			"regular_low":    3,
-			"auth":           1,
-		})
-
-	cleanup := func(ctx context.Context) {
-		srv.Shutdown()
-		logs.Info("asynq regular server shut down")
-	}
-
-	return srv, cleanup, nil
-}
-
-// SetupServers sets up and starts both ESI and regular asynq servers.
-// Returns cleanup functions for both servers.
-func SetupServers(
+// SetupServer sets up and starts an asynq server that handles all tasks.
+// Returns a cleanup function for the server.
+func SetupServer(
 	redisOpt asynq.RedisClientOpt,
 	deps WorkerDependencies,
-) (func(context.Context), func(context.Context), error) {
-	// Setup and start ESI asynq server (handles ESI API tasks)
-	// High concurrency maximizes throughput across different rate limit groups (markets, industry, characters, etc.).
-	// When tasks find no tokens, they fail immediately and are requeued with delay, freeing the slot.
-	// Higher concurrency ensures that when one group is exhausted, tasks from other groups with available
-	// tokens can still process in parallel, maximizing overall throughput.
-	esiServerConfig := ServerConfig{
+) (func(context.Context), error) {
+	// Setup and start asynq server (handles all tasks)
+	// Concurrency of 50-75 balances ESI rate limits and regular task throughput
+	// ESI rate limiting is enforced by Redis, not worker count, so higher concurrency
+	// allows tasks from different rate limit groups to process in parallel
+	serverConfig := ServerConfig{
 		RedisOpt:    redisOpt,
-		Concurrency: 150, // High concurrency to maximize throughput across all rate limit groups
+		Concurrency: 75, // Balanced concurrency for all tasks
 	}
-	esiServer, esiCleanup, err := setupESIServer(esiServerConfig, func(mux *asynq.ServeMux) {
-		SetupESIHandlers(mux, deps)
+	cleanup, err := setupServer(serverConfig, func(mux *asynq.ServeMux) {
+		SetupHandlers(mux, deps)
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to setup ESI asynq server: %w", err)
+		return nil, fmt.Errorf("failed to setup asynq server: %w", err)
 	}
 
-	// Setup and start regular asynq server (handles non-ESI tasks)
-	regularServerConfig := ServerConfig{
-		RedisOpt:    redisOpt,
-		Concurrency: 20, // Regular tasks can handle more concurrency
-	}
-	regularServer, regularCleanup, err := setupRegularServer(regularServerConfig, func(mux *asynq.ServeMux) {
-		SetupRegularHandlers(mux, deps)
-	})
-	if err != nil {
-		// Cleanup ESI server if regular server setup fails
-		esiCleanup(context.Background())
-		return nil, nil, fmt.Errorf("failed to setup regular asynq server: %w", err)
-	}
+	logs.Info("asynq server started")
 
-	// Prevent unused variable warnings
-	_ = esiServer
-	_ = regularServer
-
-	logs.Info("asynq servers started", "total_count", 2)
-
-	return esiCleanup, regularCleanup, nil
+	return cleanup, nil
 }

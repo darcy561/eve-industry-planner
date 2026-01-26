@@ -10,7 +10,6 @@ functions
 .firebase
 .tanstack
 .vite
-
 # testing
 /coverage
 
@@ -20,6 +19,7 @@ frontend/dist
 frontend/routeTree.gen.js
 
 # misc
+*.exe
 *.env
 .env.*
 mongo-keyfile
