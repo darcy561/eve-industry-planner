@@ -29,15 +29,15 @@ type GroupLimiter struct {
 	Name         string
 
 	// Token bucket tracking (floating window)
-	mu                    sync.RWMutex
-	EnforceTokenRestrictions bool // If true, enforce token limits; if false, only use rate limiter
-	TokenLimit            int                // Total tokens allowed (from X-Ratelimit-Limit)
-	TokenUsed             int                // Current tokens used
-	consumptions          []TokenConsumption // History for floating window (15 min)
-	lastUpdate            time.Time
-	retryAfter            time.Time     // When to retry after 429
-	windowDuration        time.Duration // Token return window (15 minutes)
-	lastUsed              time.Time     // Last time this limiter was used for a request
+	mu                       sync.RWMutex
+	EnforceTokenRestrictions bool               // If true, enforce token limits; if false, only use rate limiter
+	TokenLimit               int                // Total tokens allowed (from X-Ratelimit-Limit)
+	TokenUsed                int                // Current tokens used
+	consumptions             []TokenConsumption // History for floating window (15 min)
+	lastUpdate               time.Time
+	retryAfter               time.Time     // When to retry after 429
+	windowDuration           time.Duration // Token return window (15 minutes)
+	lastUsed                 time.Time     // Last time this limiter was used for a request
 }
 
 // ESIClient manages API requests and per-group dynamic rate limiting.

@@ -102,7 +102,18 @@ export function AvailableTransactionsPanel({
 
   // Memoize transaction data to recalculate when transaction/journal/market order cache updates
   // Market orders are included because findOrderTransactins searches for transactions matching the job's market orders
+  // Only calculate when data is loaded to prevent errors from incomplete data
   const transactionData = useMemo(() => {
+    // Don't run if data is still loading to prevent errors from incomplete data
+    if (combinedIsLoading) {
+      return [];
+    }
+    
+    // Guard against missing job data
+    if (!state.activeJob?.build?.sale?.marketOrders) {
+      return [];
+    }
+    
     return findOrderTransactins(
       state.activeJob,
       queryClient,
@@ -123,6 +134,7 @@ export function AvailableTransactionsPanel({
     characterHistoricMarketOrders,
     corporationMarketOrders,
     corporationHistoricMarketOrders,
+    combinedIsLoading, // Include loading state to prevent execution during updates
   ]);
 
   return (

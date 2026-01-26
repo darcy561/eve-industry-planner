@@ -36,7 +36,7 @@ async function fetchSystemIndexes(inputArray) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ system_ids: ids }),
-    });
+    }, { requestName: "fetchSystemIndexes" });
 
     if (!response.ok) {
       return returnObject;

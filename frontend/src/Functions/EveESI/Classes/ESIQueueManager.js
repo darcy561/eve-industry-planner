@@ -31,7 +31,9 @@ class ESIQueueManager {
    * @returns {Promise<Response>} HTTP response
    */
   async addRequest(url, options = {}, config = {}) {
-    const group = this.extractRateLimitGroup(url);
+    // Use 'default' group for queue organization until group is discovered from headers
+    // The actual rate limiting will use the discovered group dynamically
+    const group = 'default';
     const priority = config.priority || 'normal';
     const batchable = config.batchable !== false; // Default to true
     const characterHash = config.characterHash || options.characterHash;
@@ -61,29 +63,15 @@ class ESIQueueManager {
   }
 
   /**
-   * Extract rate limit group from URL
+   * Get rate limit group for URL (from cache or default)
+   * Groups are discovered dynamically from X-Ratelimit-Group headers
    * @param {string} url - ESI endpoint URL
-   * @returns {string} Rate limit group
+   * @returns {string} Rate limit group (from cache or 'default')
    */
-  extractRateLimitGroup(url) {
-    if (url.includes('/markets/')) return 'market';
-    if (url.includes('/characters/')) return 'character';
-    if (url.includes('/corporations/')) return 'corporation';
-    if (url.includes('/universe/')) return 'universe';
-    if (url.includes('/alliances/')) return 'alliance';
-    if (url.includes('/factions/')) return 'faction';
-    if (url.includes('/fw/')) return 'factionwarfare';
-    if (url.includes('/incursions/')) return 'incursions';
-    if (url.includes('/killmails/')) return 'killmails';
-    if (url.includes('/loyalty/')) return 'loyalty';
-    if (url.includes('/opportunities/')) return 'opportunities';
-    if (url.includes('/planetary/')) return 'planetary';
-    if (url.includes('/route/')) return 'route';
-    if (url.includes('/search/')) return 'search';
-    if (url.includes('/sovereignty/')) return 'sovereignty';
-    if (url.includes('/status/')) return 'status';
-    if (url.includes('/wars/')) return 'wars';
-    
+  getGroupForUrl(url) {
+    // Groups are discovered from headers and cached
+    // For queue organization, we use 'default' until group is discovered
+    // The actual rate limiting will use the discovered group from headers
     return 'default';
   }
 
@@ -187,14 +175,21 @@ class ESIQueueManager {
 
   /**
    * Process a single request
+   * Group will be discovered dynamically from X-Ratelimit-Group header
    * @param {Object} request - Request object
    */
   async processSingleRequest(request) {
     try {
+      // Use group from config if provided, otherwise will be discovered from headers
+      const configWithUrl = {
+        ...request.config,
+        url: request.url // Pass URL for path-to-group mapping
+      };
+      
       const response = await esiFetchWrapper.fetch(
         request.url,
         request.options,
-        request.config
+        configWithUrl
       );
       request.resolve(response);
     } catch (error) {

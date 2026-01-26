@@ -3,14 +3,13 @@
 # dependencies
 frontend/node_modules
 node_modules
-functions
+/functions
 /.pnp
 .pnp.js
 .vscode
 .firebase
 .tanstack
 .vite
-
 # testing
 /coverage
 
@@ -20,6 +19,7 @@ frontend/dist
 frontend/routeTree.gen.js
 
 # misc
+*.exe
 *.env
 .env.*
 mongo-keyfile

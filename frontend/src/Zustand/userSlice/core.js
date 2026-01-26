@@ -99,7 +99,10 @@ export const coreActions = (set, get) => ({
       linkedOrders: [...(state.linkedOrders || [])],
       linkedJobs: [...(state.linkedJobs || [])],
       linkedTrans: [...(state.linkedTrans || [])],
-      refreshTokens: state.accountRefreshTokens,
+      refreshTokens: state.accountRefreshTokens.map(token => ({
+        characterHash: token.CharacterHash || token.characterHash,
+        rToken: token.rToken,
+      })),
       jobStatusArray: state.jobStatus,
     };
   },

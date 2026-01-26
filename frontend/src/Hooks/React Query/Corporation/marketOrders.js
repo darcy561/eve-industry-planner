@@ -1,7 +1,8 @@
 import getCorpMarketOrders from "../../../Functions/EveESI/Corporation/getMarketOrders";
 import useUsersStore from "../../../Zustand/usersStore";
 import { getQueryEnabled } from "../../useQueryEnabled";
-import { getESIRateLimitStatuses } from "../../../Functions/EveESI/fetchWithCustomHeaders";
+import { getESIRateLimitStatus } from "../../../Functions/EveESI/fetchWithCustomHeaders";
+import fetchPaginatedDataParallel from "../../../Functions/Helper/fetchPaginatedDataParallel";
 
 const corporationMarketOrdersQueryKey = "corporationMarketOrders";
 
@@ -42,17 +43,17 @@ const corporationMarketOrdersQueryKey = "corporationMarketOrders";
  * return <div>Corporation Market Orders: {corpMarketOrders.length} active orders</div>;
  */
 function corporationMarketOrdersQuery(characterHash) {
-  const isLoggedIn = useUsersStore.getState().users.isLoggedIn;
   const findUserByCharacterHash = useUsersStore.getState().users.actions.findUserByCharacterHash;
   return {
     queryKey: [corporationMarketOrdersQueryKey, characterHash],
     queryFn: async () => {
-      // Check if corporation group is rate limited
-      const rateLimits = getESIRateLimitStatuses();
-      const corporationStatus = rateLimits.find(status => status?.group === 'corporation');
+      const userObject = findUserByCharacterHash(characterHash);
+      
+      // Check if corporation group is rate limited for this specific character
+      // Use config.group as hint, will be updated from headers if different
+      const corporationStatus = getESIRateLimitStatus('corporation', characterHash);
 
       if (corporationStatus && corporationStatus.availableTokens <= 0 && corporationStatus.maxTokens && corporationStatus.windowSize) {
-        const now = Date.now();
         const tokensPerMs = corporationStatus.maxTokens / corporationStatus.windowSize;
         const tokensToRecover = corporationStatus.maxTokens - corporationStatus.availableTokens;
         const waitTime = Math.ceil(tokensToRecover / tokensPerMs);
@@ -60,14 +61,9 @@ function corporationMarketOrdersQuery(characterHash) {
         throw new Error(`Corporation group is rate limited. Wait ${Math.ceil(waitTime / 1000)} seconds.`);
       }
 
-      const allData = [];
-      const userObject = findUserByCharacterHash(characterHash);
-      let page = 1;
-      let totalPages = 1;
-
       try {
-        do {
-          const result = await getCorpMarketOrders({
+        return await fetchPaginatedDataParallel(async (page) => {
+          return await getCorpMarketOrders({
             character: userObject,
             page: page,
             config: {
@@ -77,14 +73,8 @@ function corporationMarketOrdersQuery(characterHash) {
               batchable: true
             }
           });
+        });
 
-          allData.push(...result.data);
-
-          totalPages = result.totalPages ?? 1;
-          page++;
-        } while (page <= totalPages);
-
-        return allData;
       } catch (error) {
         console.error('Error fetching corporation market orders:', error);
         throw new Error(`Failed to fetch corporation market orders: ${error.message}`);
@@ -96,10 +86,9 @@ function corporationMarketOrdersQuery(characterHash) {
     retry: 3,
     retryDelay: (attemptIndex, error) => {
       if (error?.message?.includes('rate limited')) {
-        const rateLimits = getESIRateLimitStatuses();
-        const corporationStatus = rateLimits.find(status => status?.group === 'corporation');
+        // Get status for this specific character's corporation bucket
+        const corporationStatus = getESIRateLimitStatus('corporation', characterHash);
         if (corporationStatus && corporationStatus.maxTokens && corporationStatus.windowSize) {
-          const now = Date.now();
           const tokensPerMs = corporationStatus.maxTokens / corporationStatus.windowSize;
           const tokensToRecover = corporationStatus.maxTokens - corporationStatus.availableTokens;
           const waitTime = Math.ceil(tokensToRecover / tokensPerMs);

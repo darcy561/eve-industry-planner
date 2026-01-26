@@ -944,16 +944,23 @@ class Job {
   updateLinkedMarketOrderData(latestESIOrders) {
     if (!latestESIOrders) return;
     this.build.sale.marketOrders.forEach((order) => {
-      if (!order.complete) {
+      if (!order?.complete) {
         const latestData = latestESIOrders.find(
           (i) => i.order_id === order.order_id
         );
         if (!latestData) return;
-        order.volume_remain = latestData.volume_remain;
-        order.item_price = latestData.price;
-        order.issued = latestData.issued;
-        order.complete = latestData.volume_remain === 0;
-        order.timeStamps = [...(order.timeStamps || []), latestData.issued];
+        
+        // Merge latestData onto order, mapping price to item_price and preserving timestamp history
+        const merged = {
+          ...order,
+          ...latestData,
+          item_price: latestData.price,
+          complete: latestData.volume_remain === 0,
+          timeStamps: [...(order.timeStamps || []), latestData.issued],
+        };
+        Object.keys(merged).forEach(key => {
+          order[key] = merged[key];
+        });
       }
     });
   }

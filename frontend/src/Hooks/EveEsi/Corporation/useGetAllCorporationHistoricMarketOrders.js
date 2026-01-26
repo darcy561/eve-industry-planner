@@ -18,7 +18,6 @@ function extractAndGroupMarketOrdersByCorporation(dataSources) {
   dataSources.forEach((dataSource, index) => {
     // Add defensive programming to handle non-array data
     if (!Array.isArray(dataSource)) {
-      console.warn(`Data source ${index} is not an array:`, dataSource);
       return;
     }
     

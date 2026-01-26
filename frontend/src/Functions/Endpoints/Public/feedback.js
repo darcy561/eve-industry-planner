@@ -48,7 +48,7 @@ async function submitFeedback(feedbackContent) {
     }
 
     // Use fetchWithPublicHeaders which will add public headers
-    const response = await fetchWithPublicHeaders(URL, options);
+    const response = await fetchWithPublicHeaders(URL, options, { requestName: "submitFeedback" });
 
     if (!response.ok) {
       console.error("Failed to submit feedback:", response.status, response.statusText);

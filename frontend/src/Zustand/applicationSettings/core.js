@@ -112,7 +112,7 @@ export const coreActions = (set, get) => ({
    * @param {string} [settings.editJob.defaultOrders] - Default order type
    * @param {boolean} [settings.editJob.hideCompleteMaterials] - Hide complete materials preference
    * @param {number} [settings.editJob.defaultAssetLocation] - Default asset location
-   * @param {number} [settings.editJob.citatadelBrokersFee] - Citadel broker's fee
+   * @param {number} [settings.editJob.citadelBrokersFee] - Citadel broker's fee
    * @param {Object} [settings.structures] - Structure configurations
    * @param {Array} [settings.structures.manufacturing] - Manufacturing structures
    * @param {Array} [settings.structures.reaction] - Reaction structures
@@ -177,7 +177,7 @@ export const coreActions = (set, get) => ({
               settings?.editJob?.defaultAssetLocation ??
               state.applicationSettings.defaultAssetLocation,
             citadelBrokersFee:
-              settings?.editJob?.citatadelBrokersFee ??
+              settings?.editJob?.citadelBrokersFee ??
               state.applicationSettings.citadelBrokersFee,
             manufacturingStructures: (
               settings?.structures?.manufacturing ??
@@ -276,7 +276,7 @@ export const coreActions = (set, get) => ({
         cloudAccounts: state.cloudAccounts,
       },
       editJob: {
-        citatadelBrokersFee: state.citadelBrokersFee,
+        citadelBrokersFee: state.citadelBrokersFee,
         defaultAssetLocation: state.defaultAssetLocation,
         defaultMarket: state.defaultMarket,
         defaultOrders: state.defaultOrders,
@@ -287,7 +287,7 @@ export const coreActions = (set, get) => ({
       layout: {
         esiJobTab: state.esiJobTab,
         hideTutorials: state.hideTutorials,
-        localMarketDisplay: state.localOrderDisplay,
+        localMarketDisplay: state.localMarketDisplay,
         localOrderDisplay: state.localOrderDisplay,
         enableCompactView: state.enableCompactView,
       },

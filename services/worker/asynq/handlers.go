@@ -16,16 +16,15 @@ type WorkerDependencies interface {
 	GetESIClient() esiratelimiter.ClientInterface
 }
 
-// SetupESIHandlers registers ESI task handlers on the given mux
-func SetupESIHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
+// SetupHandlers registers all task handlers (both ESI and regular) on the given mux
+func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	// Create task dependencies once
 	taskDeps := &esitasks.TaskDependencies{
 		ServiceClients: deps.GetServiceClients(),
 		ESIClient:      deps.GetESIClient(),
 	}
 
-	// Register ESI task handlers
-	// These are tasks that interact with the EVE Online ESI API
+	// Register task handlers
 	mux.HandleFunc("refreshSystemIndexes", func(ctx context.Context, t *asynq.Task) error {
 		return esitasks.RefreshSystemIndexes(ctx, t, taskDeps)
 	})
@@ -41,18 +40,4 @@ func SetupESIHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	mux.HandleFunc("fetchCorporations", func(ctx context.Context, t *asynq.Task) error {
 		return esitasks.UpdateCustomCorporationClaims(ctx, t, taskDeps)
 	})
-}
-
-// SetupRegularHandlers registers regular task handlers on the given mux
-func SetupRegularHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
-	// Register regular task handlers
-	// These are tasks that don't interact with ESI API
-	// (No regular tasks currently - all tasks use ESI rate limiter)
-
-	// Add more regular task handlers here as needed
-	// When adding handlers, create taskDeps like in SetupESIHandlers:
-	// taskDeps := &esitasks.TaskDependencies{
-	//     ServiceClients: deps.GetServiceClients(),
-	//     ESIClient:      deps.GetESIClient(),
-	// }
 }

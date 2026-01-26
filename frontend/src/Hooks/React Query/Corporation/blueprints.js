@@ -1,8 +1,8 @@
 import getCorpBlueprints from "../../../Functions/EveESI/Corporation/getBlueprints";
 import useUsersStore from "../../../Zustand/usersStore";
 import { getQueryEnabled } from "../../useQueryEnabled";
-import { getESIRateLimitStatuses } from "../../../Functions/EveESI/fetchWithCustomHeaders";
-
+import { getESIRateLimitStatus } from "../../../Functions/EveESI/fetchWithCustomHeaders";
+import fetchPaginatedDataParallel from "../../../Functions/Helper/fetchPaginatedDataParallel";
 const corporationBlueprintsQueryKey = "corporationBlueprints";
 
 /**
@@ -44,17 +44,17 @@ const corporationBlueprintsQueryKey = "corporationBlueprints";
  * return <div>Corporation Blueprints: {corpBlueprints.data.length} items for corp {corpBlueprints.corporation_id}</div>;
  */
 function corporationBlueprintsQuery(characterHash) {
-  const isLoggedIn = useUsersStore.getState().users.isLoggedIn;
   const findUserByCharacterHash = useUsersStore.getState().users.actions.findUserByCharacterHash;
   return {
     queryKey: [corporationBlueprintsQueryKey, characterHash],
     queryFn: async () => {
-      // Check if corporation group is rate limited
-      const rateLimits = getESIRateLimitStatuses();
-      const corporationStatus = rateLimits.find(status => status?.group === 'corporation');
+      const userObject = findUserByCharacterHash(characterHash);
+      
+      // Check if corporation group is rate limited for this specific character
+      // Use config.group as hint, will be updated from headers if different
+      const corporationStatus = getESIRateLimitStatus('corporation', characterHash);
 
       if (corporationStatus && corporationStatus.availableTokens <= 0 && corporationStatus.maxTokens && corporationStatus.windowSize) {
-        const now = Date.now();
         const tokensPerMs = corporationStatus.maxTokens / corporationStatus.windowSize;
         const tokensToRecover = corporationStatus.maxTokens - corporationStatus.availableTokens;
         const waitTime = Math.ceil(tokensToRecover / tokensPerMs);
@@ -62,14 +62,9 @@ function corporationBlueprintsQuery(characterHash) {
         throw new Error(`Corporation group is rate limited. Wait ${Math.ceil(waitTime / 1000)} seconds.`);
       }
 
-      const alldata = [];
-      const userObject = findUserByCharacterHash(characterHash);
-      let page = 1;
-      let totalPages = 1;
-
       try {
-        do {
-          const result = await getCorpBlueprints({
+        const allData = await fetchPaginatedDataParallel(async (page) => {
+          return await getCorpBlueprints({
             character: userObject,
             page: page,
             config: {
@@ -80,14 +75,10 @@ function corporationBlueprintsQuery(characterHash) {
             }
           });
 
-          alldata.push(...result.data);
-
-          totalPages = result.totalPages ?? 1;
-          page++;
-        } while (page <= totalPages);
+        });
 
         return {
-          data: alldata,
+          data: allData,
           corporation_id: userObject.corporation_id,
         };
       } catch (error) {
@@ -101,10 +92,9 @@ function corporationBlueprintsQuery(characterHash) {
     retry: 3,
     retryDelay: (attemptIndex, error) => {
       if (error?.message?.includes('rate limited')) {
-        const rateLimits = getESIRateLimitStatuses();
-        const corporationStatus = rateLimits.find(status => status?.group === 'corporation');
+        // Get status for this specific character's corporation bucket
+        const corporationStatus = getESIRateLimitStatus('corporation', characterHash);
         if (corporationStatus && corporationStatus.maxTokens && corporationStatus.windowSize) {
-          const now = Date.now();
           const tokensPerMs = corporationStatus.maxTokens / corporationStatus.windowSize;
           const tokensToRecover = corporationStatus.maxTokens - corporationStatus.availableTokens;
           const waitTime = Math.ceil(tokensToRecover / tokensPerMs);

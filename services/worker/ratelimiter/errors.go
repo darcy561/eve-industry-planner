@@ -26,8 +26,10 @@ type RateLimitError struct {
 
 func (e *RateLimitError) Error() string {
 	if e.Retryable {
-		waitTime := time.Until(e.RetryAfter)
-		return fmt.Sprintf("rate limit %s (retryable, retry after %v, waiting %v)", e.Reason, e.RetryAfter, waitTime)
+		// Don't calculate waitTime dynamically - it can be negative if RetryAfter is in the past
+		// Logs should describe decisions, not live clock math
+		// Use RFC3339Nano format for precise, parseable timestamps
+		return fmt.Sprintf("rate limit %s (retryable, retry after %s)", e.Reason, e.RetryAfter.UTC().Format(time.RFC3339Nano))
 	}
 	return fmt.Sprintf("rate limit %s (non-retryable)", e.Reason)
 }

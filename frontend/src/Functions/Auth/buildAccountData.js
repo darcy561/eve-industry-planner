@@ -45,7 +45,11 @@ export async function buildAccountDataFromRefreshToken(refreshToken) {
 
 export async function buildUsersFromRefreshTokens(userData) {
     const cloudAccountsActive = userData.settings.account.cloudAccounts;
-    const refreshTokens = userData.refreshTokens;
+    // Normalize refreshTokens from database (characterHash -> CharacterHash) for internal use
+    const refreshTokens = (userData.refreshTokens || []).map(token => ({
+        CharacterHash: token.CharacterHash || token.characterHash,
+        rToken: token.rToken,
+    }));
     const newUsers = [];
     const userPromises = [];
     try {

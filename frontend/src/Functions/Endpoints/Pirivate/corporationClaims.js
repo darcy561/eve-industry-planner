@@ -1,4 +1,4 @@
-import fetchWithPrivateHeaders from "./applyPrivateHeaders.js";
+import requestWithPrivateHeaders from "./applyPrivateHeaders.js";
 
 /**
  * Requests corporation claims update for the provided EVE SSO tokens.
@@ -6,10 +6,12 @@ import fetchWithPrivateHeaders from "./applyPrivateHeaders.js";
  * This function submits an array of EVE SSO tokens to the server, which will
  * extract character IDs, query ESI for corporation information, and update
  * the user's corporation claims in their JWT token.
- * Automatically applies both public and private headers.
+ * Requires authentication (server access token).
  * 
  * @param {Array<string>} accessTokenArray - Array of EVE SSO JWT tokens (strings)
  * @returns {Promise<boolean>} Promise that resolves to true if successful, false if failed
+ * 
+ * @throws {Error} Throws error if authentication fails (no server token available)
  * 
  * @example
  * const tokens = ["eve-sso-token-1", "eve-sso-token-2"];
@@ -35,7 +37,7 @@ async function updateCorporationClaims(accessTokenArray) {
   const URL = `/api/v1/auth/claims/corporations`;
 
   try {
-    const response = await fetchWithPrivateHeaders(URL, {
+    const response = await requestWithPrivateHeaders(URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -43,7 +45,7 @@ async function updateCorporationClaims(accessTokenArray) {
       body: JSON.stringify({
         tokens: validTokens,
       }),
-    });
+    }, { requestName: "updateCorporationClaims" });
 
     if (!response.ok) {
       // Error responses are typically plain text from http.Error()
@@ -55,7 +57,11 @@ async function updateCorporationClaims(accessTokenArray) {
     // Endpoint returns 204 No Content on success (no body)
     return true;
   } catch (error) {
-    console.error("Error requesting corporation claims:", error);
+    if (error.message && error.message.includes("Authentication required")) {
+      console.error("Authentication required: No server access token available");
+    } else {
+      console.error("Error requesting corporation claims:", error);
+    }
     return false;
   }
 }

@@ -1,7 +1,8 @@
 import useUsersStore from "../../../Zustand/usersStore";
 import getCorpAssets from "../../../Functions/EveESI/Corporation/getAssets";
 import { getQueryEnabled } from "../../useQueryEnabled";
-import { getESIRateLimitStatuses } from "../../../Functions/EveESI/fetchWithCustomHeaders";
+import { getESIRateLimitStatus } from "../../../Functions/EveESI/fetchWithCustomHeaders";
+import fetchPaginatedDataParallel from "../../../Functions/Helper/fetchPaginatedDataParallel";
 
 const corporationAssetsQueryKey = "corporationAssets";
 
@@ -42,18 +43,18 @@ const corporationAssetsQueryKey = "corporationAssets";
  * return <div>Corporation Assets: {corpAssets.length} items</div>;
  */
 function corporationAssetsQuery(characterHash) {
-  const isLoggedIn = useUsersStore.getState().users.isLoggedIn;
   const findUserByCharacterHash =
     useUsersStore.getState().users.actions.findUserByCharacterHash;
   return {
     queryKey: [corporationAssetsQueryKey, characterHash],
     queryFn: async () => {
-      // Check if assets group is rate limited
-      const rateLimits = getESIRateLimitStatuses();
-      const assetsStatus = rateLimits.find(status => status?.group === 'assets');
+      const userObject = findUserByCharacterHash(characterHash);
+      
+      // Check if assets group is rate limited for this specific character
+      // Use config.group as hint, will be updated from headers if different
+      const assetsStatus = getESIRateLimitStatus('assets', characterHash);
 
       if (assetsStatus && assetsStatus.availableTokens <= 0 && assetsStatus.maxTokens && assetsStatus.windowSize) {
-        const now = Date.now();
         const tokensPerMs = assetsStatus.maxTokens / assetsStatus.windowSize;
         const tokensToRecover = assetsStatus.maxTokens - assetsStatus.availableTokens;
         const waitTime = Math.ceil(tokensToRecover / tokensPerMs);
@@ -61,14 +62,9 @@ function corporationAssetsQuery(characterHash) {
         throw new Error(`Assets group is rate limited. Wait ${Math.ceil(waitTime / 1000)} seconds.`);
       }
 
-      const allData = [];
-      const userObject = findUserByCharacterHash(characterHash);
-      let page = 1;
-      let totalPages = 1;
-
       try {
-        do {
-          const result = await getCorpAssets({
+        return await fetchPaginatedDataParallel(async (page) => {
+          return await getCorpAssets({
             character: userObject,
             page: page,
             config: {
@@ -79,13 +75,8 @@ function corporationAssetsQuery(characterHash) {
             }
           });
 
-          allData.push(...result.data);
+        });
 
-          totalPages = result.totalPages ?? 1;
-          page++;
-        } while (page <= totalPages);
-
-        return allData;
       } catch (error) {
         console.error("Error fetching corporation assets:", error);
         throw new Error(`Failed to fetch corporation assets: ${error.message}`);
@@ -97,10 +88,9 @@ function corporationAssetsQuery(characterHash) {
     retry: 3,
     retryDelay: (attemptIndex, error) => {
       if (error?.message?.includes('rate limited')) {
-        const rateLimits = getESIRateLimitStatuses();
-        const assetsStatus = rateLimits.find(status => status?.group === 'assets');
+        // Get status for this specific character's assets bucket
+        const assetsStatus = getESIRateLimitStatus('assets', characterHash);
         if (assetsStatus && assetsStatus.maxTokens && assetsStatus.windowSize) {
-          const now = Date.now();
           const tokensPerMs = assetsStatus.maxTokens / assetsStatus.windowSize;
           const tokensToRecover = assetsStatus.maxTokens - assetsStatus.availableTokens;
           const waitTime = Math.ceil(tokensToRecover / tokensPerMs);

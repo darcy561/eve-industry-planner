@@ -31,12 +31,15 @@ export function AvailableJobsTab(props) {
 
   const analytics = getAnalytics();
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status, isReadyToDeliver) => {
+    if (isReadyToDeliver) {
+      return "success";
+    }
     switch (status) {
       case "active":
         return "warning";
       case "delivered":
-        return "success";
+        return "info";
       case "cancelled":
         return "error";
       default:
@@ -142,7 +145,9 @@ export function AvailableJobsTab(props) {
               "Location Data Unavailable";
             const timeRemaining = formatTimeRemaining(Date.parse(job.end_date));
             const isReadyToDeliver =
-              job.status === "active" && timeRemaining === "Complete";
+              job.status === "active" && 
+              (timeRemaining === "Complete" || 
+               Date.parse(job.end_date) - Date.now() <= 0);
 
             return (
               <Grid
@@ -292,10 +297,12 @@ export function AvailableJobsTab(props) {
                         )}
                         <Chip
                           label={
-                            job.status.charAt(0).toUpperCase() +
-                            job.status.slice(1)
+                            isReadyToDeliver
+                              ? "Ready for Delivery"
+                              : job.status.charAt(0).toUpperCase() +
+                                job.status.slice(1)
                           }
-                          color={getStatusColor(job.status)}
+                          color={getStatusColor(job.status, isReadyToDeliver)}
                           size="small"
                           sx={{
                             width: "100%",

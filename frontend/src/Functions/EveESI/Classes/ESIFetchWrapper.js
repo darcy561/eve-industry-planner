@@ -13,33 +13,6 @@ class ESIFetchWrapper {
     this.baseRetryDelay = 1000; // 1 second
   }
 
-  /**
-   * Extract rate limit group from URL
-   * @param {string} url - ESI endpoint URL
-   * @returns {string} Rate limit group
-   */
-  extractRateLimitGroup(url) {
-    // Map URL patterns to rate limit groups
-    if (url.includes("/markets/")) return "market";
-    if (url.includes("/characters/")) return "character";
-    if (url.includes("/corporations/")) return "corporation";
-    if (url.includes("/universe/")) return "universe";
-    if (url.includes("/alliances/")) return "alliance";
-    if (url.includes("/factions/")) return "faction";
-    if (url.includes("/fw/")) return "factionwarfare";
-    if (url.includes("/incursions/")) return "incursions";
-    if (url.includes("/killmails/")) return "killmails";
-    if (url.includes("/loyalty/")) return "loyalty";
-    if (url.includes("/opportunities/")) return "opportunities";
-    if (url.includes("/planetary/")) return "planetary";
-    if (url.includes("/route/")) return "route";
-    if (url.includes("/search/")) return "search";
-    if (url.includes("/sovereignty/")) return "sovereignty";
-    if (url.includes("/status/")) return "status";
-    if (url.includes("/wars/")) return "wars";
-
-    return "default";
-  }
 
   /**
    * Generate user ID for rate limiting
@@ -91,26 +64,30 @@ class ESIFetchWrapper {
 
   /**
    * Enhanced fetch with rate limiting and retry logic
+   * Uses dynamic group discovery from ESI headers
    * @param {string} url - Request URL
    * @param {Object} options - Fetch options
    * @param {Object} config - Additional configuration
    * @returns {Promise<Response>} HTTP response
    */
   async fetch(url, options = {}, config = {}) {
-    const group = this.extractRateLimitGroup(url);
+    // Get group from cache if available, otherwise use 'default' until headers are received
+    const cachedGroup = this.rateLimiter.getGroupForUrl(url);
+    const initialGroup = config.group || cachedGroup || 'default';
     const userID = this.generateUserID(options, config.characterHash);
     const maxRetries = config.maxRetries || this.maxRetries;
 
     let lastError;
+    let actualGroup = initialGroup; // Will be updated from headers
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        // Check rate limits before making request
-        const canMake = this.rateLimiter.canMakeRequest(group, userID);
+        // Check rate limits before making request (use cached/known group)
+        const canMake = this.rateLimiter.canMakeRequest(actualGroup, userID);
 
         if (!canMake.canProceed) {
           console.log(
-            `Rate limit reached for ${group}. Waiting ${canMake.waitTime}ms...`
+            `Rate limit reached for ${actualGroup}. Waiting ${canMake.waitTime}ms...`
           );
           await this.rateLimiter.sleep(canMake.waitTime);
         }
@@ -118,9 +95,10 @@ class ESIFetchWrapper {
         // Make the request using native fetch to avoid circular dependency
         const response = await fetch(url, options);
 
-        // Update rate limiter with response headers
-        this.rateLimiter.updateBucketFromHeaders(
-          group,
+        // Update rate limiter with response headers and discover actual group
+        actualGroup = this.rateLimiter.updateBucketFromHeaders(
+          url,
+          actualGroup,
           userID,
           response.headers
         );
@@ -144,10 +122,10 @@ class ESIFetchWrapper {
           }
         }
 
-        // Update token consumption
+        // Update token consumption (use actual group from headers)
         const tokenCost = this.rateLimiter.calculateTokenCost(response.status);
         this.rateLimiter.consumeTokens(
-          this.rateLimiter.getBucket(group, userID),
+          this.rateLimiter.getBucket(actualGroup, userID),
           tokenCost
         );
 
@@ -181,20 +159,24 @@ class ESIFetchWrapper {
 
   /**
    * Queue a request for processing (respects rate limits)
+   * Uses dynamic group discovery from ESI headers
    * @param {string} url - Request URL
    * @param {Object} options - Fetch options
    * @param {Object} config - Additional configuration
    * @returns {Promise<Response>} HTTP response
    */
   async queueFetch(url, options = {}, config = {}) {
-    const group = this.extractRateLimitGroup(url);
+    // Get group from cache if available, otherwise use 'default' until headers are received
+    const cachedGroup = this.rateLimiter.getGroupForUrl(url);
+    const initialGroup = config.group || cachedGroup || 'default';
     const userID = this.generateUserID(options, config.characterHash);
 
     return this.rateLimiter.queueRequest(
       () => this.fetch(url, options, config),
       [],
-      group,
-      userID
+      initialGroup,
+      userID,
+      url // Pass URL for path-to-group mapping
     );
   }
 
