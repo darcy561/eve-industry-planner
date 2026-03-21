@@ -47,9 +47,6 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# Install required packages for healthcheck
-RUN apk add --no-cache wget
-
 # Copy built frontend files
 COPY --from=frontend-builder /app/dist ./dist
 

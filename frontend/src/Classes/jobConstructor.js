@@ -540,7 +540,7 @@ class Job {
           this.build.costs.totalPurchaseCost) /
           this.build.products.totalQuantity +
           Number.EPSILON) *
-          100
+        100
       ) / 100
     );
   }
@@ -792,6 +792,27 @@ class Job {
   }
 
   /**
+   * Calculates the total purchase cost for raw materials.
+   *
+   * This method calculates the total purchase cost for raw materials:
+   * - Filters materials that have child jobs
+   * - Sums the purchased cost of the materials that do not have child jobs
+   *
+   * @returns {number} Total purchase cost for raw materials
+   */
+
+  totalRawMaterialPurchaseCost() {
+    return this.build.materials.reduce((prev, material) => {
+      return prev + material.purchasing.reduce((prev, purchase) => {
+        if (purchase.childJobImport) {
+          return prev;
+        }
+        return prev + purchase.itemCost * purchase.itemCount;
+      }, 0);
+    }, 0);
+  }
+
+  /**
    * Adds transaction data to the job's sales tracking.
    *
    * This method processes and adds transaction data:
@@ -949,7 +970,7 @@ class Job {
           (i) => i.order_id === order.order_id
         );
         if (!latestData) return;
-        
+
         // Merge latestData onto order, mapping price to item_price and preserving timestamp history
         const merged = {
           ...order,
@@ -1068,6 +1089,34 @@ class Job {
     this.recalculateTotalQuantityProduced();
     this.recalculateTotalMaterialQuantities();
   }
+  /**
+ * Calculates the total number of involved characters for the job.
+ *
+  * This method calculates the total number of involved characters for the job:
+  * - Creates a set of involved character IDs
+  * - Adds the character IDs from the linked jobs to the set
+  * - Adds the character IDs from the market orders to the set
+  * - This does not include any characters relating to the invention costs.
+  * - Returns an object containing the number of unique characters and the set of involved character IDs
+ *
+ * @returns {Object} Object containing the number of unique characters and the set of involved character IDs
+ */
+
+  calculateTotalInvolvedCharacters() {
+    const involvedCharacterIDs = new Set();
+
+    for (const linkedJob of this.build.costs.linkedJobs) {
+      involvedCharacterIDs.add(linkedJob.characterID);
+    }
+
+    for (const order of this.build.sale.marketOrders) {
+      involvedCharacterIDs.add(order.characterID);
+    }
+
+    return { numberOfUniqueCharacters: involvedCharacterIDs.size, involvedCharacterIDs }
+  }
+
+  
 }
 
 /**
@@ -1105,5 +1154,8 @@ function documentToSetups(object) {
     return acc;
   }, {});
 }
+
+
+
 
 export default Job;

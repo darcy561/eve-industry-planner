@@ -1,5 +1,6 @@
 import GroupAccordionFrame from "./Accordion/AccordionFrame";
 import GroupSchedulerFrame from "./Scheduler/schedularFrame";
+import GroupBreakdownFrame from "./Breakdown/breakdownframe";
 
 export default function GroupPageViewSelector(props) {
     const { state } = props;
@@ -7,6 +8,10 @@ export default function GroupPageViewSelector(props) {
     switch (state.pageView) {
         case "planner":
             return <GroupAccordionFrame
+                {...props}
+            />;
+        case "breakdown":
+            return <GroupBreakdownFrame
                 {...props}
             />;
         case "scheduler":

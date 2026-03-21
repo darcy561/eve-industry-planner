@@ -15,12 +15,13 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import InfoIcon from "@mui/icons-material/Info";
-import { deepPurple, grey, lightGreen } from "@mui/material/colors";
+import { grey } from "@mui/material/colors";
 import GLOBAL_CONFIG from "../../../../global-config-app";
 import { useNavigate } from "@tanstack/react-router";
 import getTooltipContent from "./jobCardTooltips";
 import useUsersStore from "../../../../Zustand/usersStore";
 import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
+import { getJobTypeAccentColor } from "../../../../Functions/Helper/jobTypeDividerColor";
 
 export function CompactGroupJobCardFrame({ job, highlightedItems }) {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
@@ -54,15 +55,12 @@ export function CompactGroupJobCardFrame({ job, highlightedItems }) {
   function getCardColor(theme, jobType) {
     switch (jobType) {
       case jobTypes.manufacturing:
+      case jobTypes.reaction: {
+        const accent = getJobTypeAccentColor(theme, jobType);
         return theme.palette.mode === PRIMARY_THEME
-          ? `linear-gradient(to right, ${lightGreen[300]} 30%, ${grey[900]} 60%)`
-          : `linear-gradient(to right, ${lightGreen[200]} 30%, white 60%)`;
-
-      case jobTypes.reaction:
-        return theme.palette.mode === PRIMARY_THEME
-          ? `linear-gradient(to right, ${deepPurple[300]} 30%, ${grey[900]} 60%)`
-          : `linear-gradient(to right, ${deepPurple[100]} 20%, white 60%)`;
-
+          ? `linear-gradient(to right, ${accent} 30%, ${grey[900]} 60%)`
+          : `linear-gradient(to right, ${accent} 30%, white 60%)`;
+      }
       default:
         return "transparent";
     }
@@ -103,94 +101,100 @@ export function CompactGroupJobCardFrame({ job, highlightedItems }) {
         };
       }}
     >
-      <Grid container sx={{ height: "100%" }}>
-        <Grid container>
+      <Grid container size={12}>
+        <Grid
+          align="center"
+          size={{
+            xs: 2,
+            sm: 1,
+          }}
+        >
+          <Checkbox
+            sx={{
+              color: (theme) =>
+                theme.palette.mode === PRIMARY_THEME
+                  ? theme.palette.primary.main
+                  : theme.palette.secondary.main,
+            }}
+            checked={jobCardChecked}
+            onChange={(event) => {
+              if (event.target.checked) {
+                addToMultiSelect(job.jobID);
+              } else {
+                removeFromMultiSelect(job.jobID);
+              }
+            }}
+          />
+        </Grid>
+        <Grid container alignItems="center" size={isMobile ? 7 : 8}>
+          <Typography sx={{ typography: { xs: "body2", sm: "body1" } }}>
+            {job.name}
+          </Typography>
+        </Grid>
+        {!isMobile && (
           <Grid
-            align="center"
-            size={{
-              xs: 2,
-              sm: 1
-            }}>
-            <Checkbox
+            alignItems="center"
+            justifyContent="center"
+            sx={{
+              display: "flex",
+              minHeight: "100%",
+            }}
+            size={1}
+          >
+            <Tooltip title={tooltipContent} arrow placement="left">
+              <Box
+                sx={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <InfoIcon fontSize="small" color="primary" />
+              </Box>
+            </Tooltip>
+          </Grid>
+        )}
+        <Grid
+          container
+          align="center"
+          alignItems="center"
+          justifyContent="center"
+          size={isMobile ? 3 : 1}
+        >
+          <Button color="primary" onClick={onJobClick}>
+            Edit
+          </Button>
+        </Grid>
+        {!isMobile && (
+          <Grid container align="center" alignItems="center" size={1}>
+            <IconButton
               sx={{
                 color: (theme) =>
                   theme.palette.mode === PRIMARY_THEME
                     ? theme.palette.primary.main
                     : theme.palette.secondary.main,
+                "&:Hover": {
+                  color: "error.main",
+                },
               }}
-              checked={jobCardChecked}
-              onChange={(event) => {
-                if (event.target.checked) {
-                  addToMultiSelect(job.jobID);
-                } else {
-                  removeFromMultiSelect(job.jobID);
-                }
+              onClick={async () => {
+                await deleteJobsFromPlanner(job.jobID);
               }}
-            />
+            >
+              <DeleteIcon fontSize="small" />
+            </IconButton>
           </Grid>
-          <Grid container alignItems="center" size={isMobile ? 7 : 8}>
-            <Typography sx={{ typography: { xs: "body2", sm: "body1" } }}>
-              {job.name}
-            </Typography>
-          </Grid>
-          {!isMobile && (
-            <Grid
-              alignItems="center"
-              justifyContent="center"
-              sx={{
-                display: "flex",
-                minHeight: "100%",
-              }}
-              size={1}>
-              <Tooltip title={tooltipContent} arrow placement="left">
-                <Box
-                  sx={{
-                    width: "100%",
-                    height: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <InfoIcon fontSize="small" color="primary" />
-                </Box>
-              </Tooltip>
-            </Grid>
-          )}
-          <Grid container align="center" alignItems="center" size={isMobile ? 3 : 1}>
-            <Button color="primary" onClick={onJobClick}>
-              Edit
-            </Button>
-          </Grid>
-          {!isMobile && (
-            <Grid container align="center" alignItems="center" size={1}>
-              <IconButton
-                sx={{
-                  color: (theme) =>
-                    theme.palette.mode === PRIMARY_THEME
-                      ? theme.palette.primary.main
-                      : theme.palette.secondary.main,
-                  "&:Hover": {
-                    color: "error.main",
-                  },
-                }}
-                onClick={async () => {
-                  await deleteJobsFromPlanner(job.jobID);
-                }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            </Grid>
-          )}
-        </Grid>
-        <Grid container>
-          <Grid
-            sx={{
-              height: "2px",
-              background: (theme) => getCardColor(theme, job.jobType),
-            }}
-            size={12} />
-        </Grid>
+        )}
+        <Grid
+          sx={{
+            height: "2px",
+            width: "100%",
+            background: (theme) => getCardColor(theme, job.jobType),
+          }}
+          size={12}
+        />
       </Grid>
     </Card>
   );
