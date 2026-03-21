@@ -2,6 +2,10 @@ import { useQueries } from "@tanstack/react-query";
 import useUsersStore from "../../../Zustand/usersStore";
 import { useCallback } from "react";
 import { corporationIndustryJobsQuery, corporationIndustryJobsQueryKey } from "../../React Query/Corporation/industryJobs";
+import {
+  isQueryObserverResultLoading,
+  isQueryStateLoading,
+} from "../queryLoadingState";
 
 /**
  * Utility function to extract industry jobs from query results.
@@ -28,7 +32,7 @@ function extractIndustryJobsFromResults(results) {
  * @private
  */
 function checkLoadingState(results) {
-  return results.some((result) => result.isLoading);
+  return results.some(isQueryObserverResultLoading);
 }
 
 /**
@@ -157,8 +161,8 @@ export function getCachedCorporationIndustryJobs(queryClient) {
   });
 
   // Check loading state
-  const isLoading = queryStates.some(({ queryState }) => 
-    queryState?.status === "loading" || !queryState
+  const isLoading = queryStates.some(({ queryState }) =>
+    isQueryStateLoading(queryState)
   );
 
   if (isLoading) {

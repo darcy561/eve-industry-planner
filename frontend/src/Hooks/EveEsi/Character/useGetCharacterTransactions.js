@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { characterTransactionsQuery, characterTransactionsQueryKey } from "../../React Query/Character/transactions"
+import { isQueryStateLoading } from "../queryLoadingState";
 
 /**
  * Custom hook that fetches character transactions for a specific character.
@@ -78,7 +79,7 @@ export function useGetCharacterTransactions(userObject) {
 export function getCachedCharacterTransactions(queryClient, userObject) {
     const queryState = queryClient.getQueryState([characterTransactionsQueryKey, userObject.CharacterHash]);
 
-    if (queryState?.status === "loading" || !queryState) {
+    if (isQueryStateLoading(queryState)) {
         return { data: [], isLoading: true, isError: false };
     }
 

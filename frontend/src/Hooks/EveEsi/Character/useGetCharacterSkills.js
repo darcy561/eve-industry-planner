@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { characterSkillsQuery, characterSkillsQueryKey } from "../../React Query/Character/skills"
+import { isQueryStateLoading } from "../queryLoadingState";
 
 /**
  * Custom hook that fetches character skills for a specific character.
@@ -68,7 +69,7 @@ export function useGetCharacterSkills(characterHash) {
 export function getCachedCharacterSkills(queryClient, characterHash) {
   const queryState = queryClient.getQueryState([characterSkillsQueryKey, characterHash]);
 
-  if (queryState?.status === "loading" || !queryState) {
+  if (isQueryStateLoading(queryState)) {
     return { data: {}, isLoading: true, isError: false };
   }
 

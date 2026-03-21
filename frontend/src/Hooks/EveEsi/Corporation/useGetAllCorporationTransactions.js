@@ -2,6 +2,10 @@ import { useQueries } from "@tanstack/react-query";
 import useUsersStore from "../../../Zustand/usersStore";
 import { useCallback } from "react";
 import { corporationTransactionsQuery, corporationTransactionsQueryKey } from "../../React Query/Corporation/transactions";
+import {
+  isQueryObserverResultLoading,
+  isQueryStateLoading,
+} from "../queryLoadingState";
 
 /**
  * Utility function to check loading state from query results.
@@ -12,7 +16,7 @@ import { corporationTransactionsQuery, corporationTransactionsQueryKey } from ".
  * @private
  */
 function checkLoadingState(results) {
-  return results.some((result) => result.isLoading);
+  return results.some(isQueryObserverResultLoading);
 }
 
 /**
@@ -205,8 +209,8 @@ export function getAllCachedCorporationTransactions(queryClient) {
   });
 
   // Check loading state
-  const isLoading = queryStates.some(({ queryState }) => 
-    queryState?.status === "loading" || !queryState
+  const isLoading = queryStates.some(({ queryState }) =>
+    isQueryStateLoading(queryState)
   );
 
   if (isLoading) {

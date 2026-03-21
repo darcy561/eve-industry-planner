@@ -2,6 +2,10 @@ import { useQueries } from "@tanstack/react-query";
 import useUsersStore from "../../../Zustand/usersStore";
 import { useCallback } from "react";
 import { characterJournalQuery, characterJournalQueryKey } from "../../React Query/Character/journal";
+import {
+  isQueryObserverResultLoading,
+  isQueryStateLoading,
+} from "../queryLoadingState";
 
 /**
  * Utility function to check loading state from query results.
@@ -12,7 +16,7 @@ import { characterJournalQuery, characterJournalQueryKey } from "../../React Que
  * @private
  */
 function checkLoadingState(results) {
-  return results.some((result) => result.isLoading);
+  return results.some(isQueryObserverResultLoading);
 }
 
 /**
@@ -162,7 +166,7 @@ export function getAllCachedCharacterJournal(queryClient) {
 
   // Check loading state
   const isLoading = queryStates.some(({ queryState }) =>
-    queryState?.status === "loading" || !queryState
+    isQueryStateLoading(queryState)
   );
 
   if (isLoading) {

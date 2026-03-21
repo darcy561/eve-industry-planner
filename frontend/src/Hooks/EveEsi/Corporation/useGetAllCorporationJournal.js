@@ -5,6 +5,10 @@ import {
   corporationJournalQuery,
   corporationJournalQueryKey,
 } from "../../React Query/Corporation/journal";
+import {
+  isQueryObserverResultLoading,
+  isQueryStateLoading,
+} from "../queryLoadingState";
 
 /**
  * Utility function to extract journal entries from query results.
@@ -42,7 +46,7 @@ function extractJournalEntriesFromResults(results) {
  * @private
  */
 function checkLoadingState(results) {
-  return results.some((result) => result.isLoading);
+  return results.some(isQueryObserverResultLoading);
 }
 
 /**
@@ -202,8 +206,8 @@ export function getAllCachedCorporationJournal(queryClient) {
   });
   
   // Check loading state
-  const isLoading = queryStates.some(({ queryState }) => 
-    queryState?.status === "loading" || !queryState
+  const isLoading = queryStates.some(({ queryState }) =>
+    isQueryStateLoading(queryState)
   );
 
   if (isLoading) {

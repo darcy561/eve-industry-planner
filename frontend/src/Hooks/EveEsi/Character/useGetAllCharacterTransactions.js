@@ -5,6 +5,10 @@ import {
   characterTransactionsQuery,
   characterTransactionsQueryKey,
 } from "../../React Query/Character/transactions";
+import {
+  isQueryObserverResultLoading,
+  isQueryStateLoading,
+} from "../queryLoadingState";
 
 /**
  * Utility function to extract transactions from query results.
@@ -31,7 +35,7 @@ function extractTransactionsFromResults(results) {
  * @private
  */
 function checkLoadingState(results) {
-  return results.some((result) => result.isLoading);
+  return results.some(isQueryObserverResultLoading);
 }
 
 /**
@@ -186,8 +190,8 @@ export function getAllCachedCharacterTransactions(queryClient) {
   });
 
   // Check loading state
-  const isLoading = queryStates.some(
-    ({ queryState }) => queryState?.status === "loading" || !queryState
+  const isLoading = queryStates.some(({ queryState }) =>
+    isQueryStateLoading(queryState)
   );
 
   if (isLoading) {

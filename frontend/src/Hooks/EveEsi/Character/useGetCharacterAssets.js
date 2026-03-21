@@ -3,6 +3,7 @@ import {
   characterAssetsQuery,
   characterAssetsQueryKey,
 } from "../../React Query/Character/assets";
+import { isQueryStateLoading } from "../queryLoadingState";
 
 /**
  * Custom hook that fetches character assets for a specific character.
@@ -78,7 +79,7 @@ export function getCachedCharacterAssets(queryClient, characterHash) {
     characterHash,
   ]);
 
-  if (queryState?.status === "loading" || !queryState) {
+  if (isQueryStateLoading(queryState)) {
     return { data: [], isLoading: true, isError: false };
   }
 

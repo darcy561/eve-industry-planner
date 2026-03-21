@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { corporationMarketOrdersQuery, corporationMarketOrdersQueryKey } from "../../React Query/Corporation/marketOrders"
+import { isQueryStateLoading } from "../queryLoadingState";
 
 /**
  * Custom hook that fetches corporation market orders for a specific character.
@@ -77,7 +78,7 @@ function useGetCorporationMarketOrders(characterHash) {
 function getCachedCorporationMarketOrders(queryClient, characterHash) {
     const queryState = queryClient.getQueryState([corporationMarketOrdersQueryKey, characterHash])
 
-    if (queryState?.status === "loading" || !queryState) {
+    if (isQueryStateLoading(queryState)) {
         return { data: {}, isLoading: true, isError: false }
     }
 

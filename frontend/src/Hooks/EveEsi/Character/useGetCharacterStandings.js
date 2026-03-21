@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { characterStandingsQuery, characterStandingsQueryKey } from "../../React Query/Character/standings";
+import { isQueryStateLoading } from "../queryLoadingState";
 
 /**
  * Custom hook that fetches character standings for a specific character.
@@ -68,7 +69,7 @@ export function useGetCharacterStandings(characterHash) {
 export function getCachedCharacterStandings(queryClient, characterHash) {
   const queryState = queryClient.getQueryState([characterStandingsQueryKey, characterHash]);
 
-  if (queryState?.status === "loading" || !queryState) {
+  if (isQueryStateLoading(queryState)) {
     return { data: [], isLoading: true, isError: false };
   }
 

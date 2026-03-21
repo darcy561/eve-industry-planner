@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { characterJournalQuery, characterJournalQueryKey } from "../React Query/Character/journal";
+import { isQueryStateLoading } from "../queryLoadingState";
 
 /**
  * Custom hook that fetches character journal entries for a specific character.
@@ -78,7 +79,7 @@ export function useGetCharacterJournal(userObject) {
 export function getCachedCharacterJournal(queryClient, userObject) {
     const queryState = queryClient.getQueryState([characterJournalQueryKey, userObject.CharacterHash]);
 
-    if (queryState?.status === "loading" || !queryState) {
+    if (isQueryStateLoading(queryState)) {
         return { data: [], isLoading: true, isError: false };
     }
 

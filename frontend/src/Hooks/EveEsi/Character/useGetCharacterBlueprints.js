@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { characterBlueprintsQuery, characterBlueprintsQueryKey } from "../../React Query/Character/blueprints"
+import { isQueryStateLoading } from "../queryLoadingState";
 
 /**
  * Custom hook that fetches character blueprints for a specific character.
@@ -76,7 +77,7 @@ export function useGetCharacterBlueprints(characterHash) {
 export function getCachedCharacterBlueprints(queryClient, characterHash) {
     const queryState = queryClient.getQueryState([characterBlueprintsQueryKey, characterHash]);
 
-    if (queryState?.status === "loading" || !queryState) {
+    if (isQueryStateLoading(queryState)) {
         return { data: [], isLoading: true, isError: false };
     }
 
