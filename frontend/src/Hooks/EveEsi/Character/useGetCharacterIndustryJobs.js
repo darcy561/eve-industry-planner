@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { characterIndustryJobsQuery, characterIndustryJobsQueryKey } from "../../React Query/Character/industryJobs";
+import { isQueryStateLoading } from "../queryLoadingState";
 
 /**
  * Custom hook that fetches character industry jobs for a specific character.
@@ -76,7 +77,7 @@ export function useGetCharacterIndustryJobs(characterHash) {
 export function getCachedCharacterIndustryJobs(queryClient, characterHash) {
     const queryState = queryClient.getQueryState([characterIndustryJobsQueryKey, characterHash]);
 
-    if (queryState?.status === "loading" || !queryState) {
+    if (isQueryStateLoading(queryState)) {
         return { data: [], isLoading: true, isError: false };
     }
 

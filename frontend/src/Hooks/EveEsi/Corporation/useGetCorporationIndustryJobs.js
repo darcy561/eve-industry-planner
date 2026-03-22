@@ -3,6 +3,7 @@ import {
   corporationIndustryJobsQuery,
   corporationIndustryJobsQueryKey,
 } from "../../React Query/Corporation/industryJobs";
+import { isQueryStateLoading } from "../queryLoadingState";
 
 /**
  * Custom hook that fetches corporation industry jobs for a specific character.
@@ -82,7 +83,7 @@ export function getCachedCorporationIndustryJobs(queryClient, characterHash) {
     characterHash,
   ]);
 
-  if (queryState?.status === "loading" || !queryState) {
+  if (isQueryStateLoading(queryState)) {
     return { data: [], isLoading: true, isError: false };
   }
 

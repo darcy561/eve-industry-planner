@@ -25,6 +25,7 @@ import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultip
 import useUsersStore from "../../../../Zustand/usersStore";
 import ContentPanel from "../../../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../../../Context/defaultValues";
+import { getJobTypeAccentColor } from "../../../../Functions/Helper/jobTypeDividerColor";
 
 function DisplaySwitch({ job }) {
   switch (job.jobStatus) {
@@ -211,10 +212,8 @@ export function JobCardFrame({ job }) {
             </Box>
             <Box
               sx={{
-                backgroundColor:
-                  job.jobType === jobTypes.manufacturing
-                    ? "manufacturing.main"
-                    : "reaction.main",
+                backgroundColor: (theme) =>
+                  getJobTypeAccentColor(theme, job.jobType),
                 marginTop: 1,
                 width: "100%",
               }}

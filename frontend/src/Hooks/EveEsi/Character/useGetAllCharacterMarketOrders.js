@@ -2,6 +2,10 @@ import { useQueries } from "@tanstack/react-query";
 import useUsersStore from "../../../Zustand/usersStore";
 import { useCallback } from "react";
 import { characterMarketOrdersQuery, characterMarketOrdersQueryKey } from "../../React Query/Character/marketOrders";
+import {
+  isQueryObserverResultLoading,
+  isQueryStateLoading,
+} from "../queryLoadingState";
 
 /**
  * Utility function to extract market orders from query results and organize by character hash.
@@ -36,7 +40,7 @@ function extractMarketOrdersByCharacter(results, userArray) {
  * @private
  */
 function checkLoadingState(results) {
-  return results.some((result) => result.isLoading);
+  return results.some(isQueryObserverResultLoading);
 }
 
 /**
@@ -159,8 +163,8 @@ export function getAllCachedCharacterMarketOrders(queryClient) {
   });
 
   // Check loading state
-  const isLoading = queryStates.some(({ queryState }) => 
-    queryState?.status === "loading" || !queryState
+  const isLoading = queryStates.some(({ queryState }) =>
+    isQueryStateLoading(queryState)
   );
 
   if (isLoading) {

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { corporationTransactionsQuery, corporationTransactionsQueryKey } from "../React Query/Corporation/transactions"
+import { isQueryStateLoading } from "../queryLoadingState";
 
 /**
  * Custom hook that fetches corporation transactions for a specific character.
@@ -76,7 +77,7 @@ function useGetCorporationTransactions(characterHash) {
 function getCachedCorporationTransactions(queryClient, characterHash) {
     const queryState = queryClient.getQueryState([corporationTransactionsQueryKey, characterHash])
 
-    if (queryState?.status === "loading" || !queryState) {
+    if (isQueryStateLoading(queryState)) {
         return { data: {}, isLoading: true, isError: false }
     }
 

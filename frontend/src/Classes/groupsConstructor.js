@@ -1,5 +1,6 @@
 import uuid from "react-uuid";
 import DOMPurify from "dompurify";
+import getAllRelatedJobs from "../Functions/Helper/getAllRelatedJobs";
 
 /**
  * Group class for organizing and managing EVE Online industry jobs.
@@ -478,7 +479,7 @@ class Group {
    */
   toggleShowComplete() {
     this.showComplete = !this.showComplete;
-  } 
+  }
 
   /**
    * Sets the group status.
@@ -774,6 +775,23 @@ class Group {
     this.setLinkedOrderIDs(newLinkedOrderIDs);
     this.setLinkedTransIDs(newLinkedTransIDs);
   }
+
+  findOutputJobs(groupJobs) {
+    if (!groupJobs) return [];
+    const outputJobs = [];
+    for (const job of groupJobs) {
+      if (job?.parentJob.length > 0) continue;
+      outputJobs.push(job);
+    }
+    return outputJobs;
+  }
+
+  async getJobIDsForOutputJob(outputJob) {
+    if (!outputJob) return [];
+
+    return await getAllRelatedJobs(outputJob.jobID);
+  }
+
 }
 
 export default Group;

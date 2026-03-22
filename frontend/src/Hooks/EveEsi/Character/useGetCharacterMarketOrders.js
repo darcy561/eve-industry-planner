@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { characterMarketOrdersQuery, characterMarketOrdersQueryKey } from "../React Query/Character/marketOrders";  
+import { characterMarketOrdersQuery, characterMarketOrdersQueryKey } from "../React Query/Character/marketOrders";
+import { isQueryStateLoading } from "../queryLoadingState";
 
 /**
  * Custom hook that fetches character market orders for a specific character.
@@ -78,7 +79,7 @@ export function useGetCharacterMarketOrders(userObject) {
 export function getCachedCharacterMarketOrders(queryClient, userObject) {
     const queryState = queryClient.getQueryState([characterMarketOrdersQueryKey, userObject.CharacterHash]);
 
-    if (queryState?.status === "loading" || !queryState) {
+    if (isQueryStateLoading(queryState)) {
         return { data: [], isLoading: true, isError: false };
     }
 

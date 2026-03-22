@@ -18,6 +18,7 @@ import findOrGetJobObject from "./findJobObject";
  * const relatedJobs = await getAllRelatedJobs(["job_123", "job_456"], []);
  * console.log(relatedJobs.length); // Number of related jobs found
  */
+
 async function getAllRelatedJobs(inputJobIDs, retrievedJobs = []) {
   try {
     if (!inputJobIDs || !retrievedJobs) {
@@ -51,6 +52,7 @@ async function getAllRelatedJobs(inputJobIDs, retrievedJobs = []) {
       jobIDMap[jobID] = matchedJob;
 
       const relatedJobs = matchedJob.getRelatedJobs();
+
       if (relatedJobs && Array.isArray(relatedJobs)) {
         stack.push(...relatedJobs);
       }

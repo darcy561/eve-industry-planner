@@ -8,6 +8,7 @@ import { corporationMarketOrdersQuery, corporationMarketOrdersQueryKey } from ".
 import { corporationHistoricMarketOrdersQuery, corporationHistoricMarketOrdersQueryKey } from "../React Query/Corporation/historicMarketOrders";
 import { corporationJournalQuery, corporationJournalQueryKey } from "../React Query/Corporation/journal";
 import { corporationTransactionsQuery, corporationTransactionsQueryKey } from "../React Query/Corporation/transactions";
+import { isQueryStateLoading } from "./queryLoadingState";
 
 /**
  * Empty character data model template for initializing character data structures.
@@ -238,7 +239,7 @@ export function fetchCachedCharacterOrdersAndWalletData(
   const isLoading = requestedCharacters.some((character) =>
     requiredQueries.some((queryFunction) => {
       const queryState = queryClient.getQueryState(queryFunction(character.CharacterHash).queryKey);
-      return queryState?.status === "loading" || !queryState;
+      return isQueryStateLoading(queryState);
     })
   );
 

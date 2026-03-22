@@ -101,7 +101,7 @@ function GroupPageFrame() {
         useUsersStore
           .getState()
           .worldData.actions.addSystemIndex(requestedSystemIndexes);
-        
+
         // Only set activeGroupID if it's not already set to this group
         // This prevents unnecessary updates and race conditions
         const currentActiveGroupID = useUsersStore.getState().jobData.activeGroupID;
@@ -176,6 +176,7 @@ function GroupPageFrame() {
                   }}
                 >
                   <ToggleButton value="planner">Plannner</ToggleButton>
+                  <ToggleButton value="breakdown">Breakdown</ToggleButton>
                   <ToggleButton value="scheduler">Scheduler</ToggleButton>
                 </ToggleButtonGroup>
               </Box>

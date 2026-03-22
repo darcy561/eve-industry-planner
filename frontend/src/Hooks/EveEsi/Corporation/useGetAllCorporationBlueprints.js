@@ -5,6 +5,10 @@ import {
   corporationBlueprintsQuery,
   corporationBlueprintsQueryKey,
 } from "../../React Query/Corporation/blueprints";
+import {
+  isQueryObserverResultLoading,
+  isQueryStateLoading,
+} from "../queryLoadingState";
 
 /**
  * Utility function to extract blueprints from query results.
@@ -32,7 +36,7 @@ function extractBlueprintsFromResults(results) {
  * @private
  */
 function checkLoadingState(results) {
-  return results.some((result) => result.isLoading);
+  return results.some(isQueryObserverResultLoading);
 }
 
 /**
@@ -178,8 +182,8 @@ export function getAllCachedCorporationBlueprints(queryClient) {
   });
 
   // Check loading state
-  const isLoading = queryStates.some(
-    ({ queryState }) => queryState?.status === "loading" || !queryState
+  const isLoading = queryStates.some(({ queryState }) =>
+    isQueryStateLoading(queryState)
   );
 
   if (isLoading) {

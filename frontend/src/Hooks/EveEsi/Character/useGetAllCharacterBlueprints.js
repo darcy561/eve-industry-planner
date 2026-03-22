@@ -2,6 +2,10 @@ import { useQueries } from "@tanstack/react-query";
 import useUsersStore from "../../../Zustand/usersStore";
 import { useCallback } from "react";
 import { characterBlueprintsQuery, characterBlueprintsQueryKey } from "../../React Query/Character/blueprints";
+import {
+  isQueryObserverResultLoading,
+  isQueryStateLoading,
+} from "../queryLoadingState";
 
 /**
  * Utility function to extract blueprints from query results.
@@ -29,7 +33,7 @@ function extractBlueprintsFromResults(results) {
  * @private
  */
 function checkLoadingState(results) {
-  return results.some((result) => result.isLoading);
+  return results.some(isQueryObserverResultLoading);
 }
 
 /**
@@ -141,7 +145,7 @@ export function getAllCachedCharacterBlueprints(queryClient) {
 
   // Check loading state
   const isLoading = queryStates.some(({ queryState }) =>
-    queryState?.status === "loading" || !queryState
+    isQueryStateLoading(queryState)
   );
 
   if (isLoading) {

@@ -5,6 +5,10 @@ import {
   corporationMarketOrdersQuery,
   corporationMarketOrdersQueryKey,
 } from "../../React Query/Corporation/marketOrders";
+import {
+  isQueryObserverResultLoading,
+  isQueryStateLoading,
+} from "../queryLoadingState";
 
 /**
  * Utility function to extract and group market orders by corporation_id with deduplication.
@@ -57,7 +61,7 @@ function extractAndGroupMarketOrdersByCorporation(dataSources) {
  * @private
  */
 function checkLoadingState(results) {
-  return results.some((result) => result.isLoading);
+  return results.some(isQueryObserverResultLoading);
 }
 
 /**
@@ -167,8 +171,8 @@ export function getAllCachedCorporationMarketOrders(queryClient) {
   });
 
   // Check loading state
-  const isLoading = queryStates.some(({ queryState }) => 
-    queryState?.status === "loading" || !queryState
+  const isLoading = queryStates.some(({ queryState }) =>
+    isQueryStateLoading(queryState)
   );
 
   if (isLoading) {

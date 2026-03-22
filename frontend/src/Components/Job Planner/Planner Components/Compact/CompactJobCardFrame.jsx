@@ -4,7 +4,7 @@ import { ItemTypes } from "../../../../Context/DnDTypes";
 import { jobTypes, STANDARD_TEXT_FORMAT } from "../../../../Context/defaultValues";
 import InfoIcon from "@mui/icons-material/Info";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { deepPurple, grey, lightGreen } from "@mui/material/colors";
+import { grey } from "@mui/material/colors";
 import {
   Box,
   Button,
@@ -21,6 +21,7 @@ import getTooltipContent from "./tooltipContent";
 import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
 import { useMediaQuery } from "@mui/material";
 import useUsersStore from "../../../../Zustand/usersStore";
+import { getJobTypeAccentColor } from "../../../../Functions/Helper/jobTypeDividerColor";
 
 export function CompactJobCardFrame({ job }) {
   const multiSelect = useUsersStore((state) => state.jobData.multiSelect);
@@ -51,15 +52,12 @@ export function CompactJobCardFrame({ job }) {
   function getCardColor(theme, jobType) {
     switch (jobType) {
       case jobTypes.manufacturing:
+      case jobTypes.reaction: {
+        const accent = getJobTypeAccentColor(theme, jobType);
         return theme.palette.mode === PRIMARY_THEME
-          ? `linear-gradient(to right, ${lightGreen[300]} 30%, ${grey[900]} 60%)`
-          : `linear-gradient(to right, ${lightGreen[200]} 30%, white 60%)`;
-
-      case jobTypes.reaction:
-        return theme.palette.mode === PRIMARY_THEME
-          ? `linear-gradient(to right, ${deepPurple[300]} 30%, ${grey[900]} 60%)`
-          : `linear-gradient(to right, ${deepPurple[100]} 20%, white 60%)`;
-
+          ? `linear-gradient(to right, ${accent} 30%, ${grey[900]} 60%)`
+          : `linear-gradient(to right, ${accent} 30%, white 60%)`;
+      }
       default:
         return "transparent";
     }

@@ -2,6 +2,10 @@ import { useCallback } from "react";
 import { useQueries } from "@tanstack/react-query";
 import useUsersStore from "../../../Zustand/usersStore";
 import { characterAssetsQuery, characterAssetsQueryKey } from "../../React Query/Character/assets";
+import {
+    isQueryObserverResultLoading,
+    isQueryStateLoading,
+} from "../queryLoadingState";
 
 /**
  * Creates a loading state object for character assets queries.
@@ -48,20 +52,6 @@ function createSuccessObject(data) {
         error: null,
         data: data,
     };
-}
-
-/**
- * Checks if any query results indicate loading status.
- * 
- * @param {Array<Object>} results - Array of query result objects
- * @returns {boolean} True if any query is loading
- * 
- * @private
- */
-function checkLoadingState(results) {
-    return results.some((result) =>
-        result?.isLoading || result?.status === "loading"
-    );
 }
 
 /**
@@ -120,9 +110,8 @@ export function getAllCachedCharacterAssets(queryClient) {
         };
     });
 
-    // Check if any queries are still loading
     const isLoading = queryStates.some(({ queryState }) =>
-        queryState?.status === "loading" || !queryState
+        isQueryStateLoading(queryState)
     );
 
     if (isLoading) {
@@ -185,7 +174,7 @@ export function useGetAllCharacterAssets(enabled = true) {
     const { userArray } = useUsersStore((state) => state.users);
 
     const combineFunction = useCallback((results) => {
-        const isLoading = checkLoadingState(results);
+        const isLoading = results.some(isQueryObserverResultLoading);
         const error = findFirstError(results);
 
         if (isLoading) {

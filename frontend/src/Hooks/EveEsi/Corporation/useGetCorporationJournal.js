@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { corporationJournalQuery, corporationJournalQueryKey } from "../../React Query/Corporation/journal"
+import { isQueryStateLoading } from "../queryLoadingState";
 
 /**
  * Custom hook that fetches corporation journal entries for a specific character.
@@ -77,7 +78,7 @@ function useGetCorporationJournal(characterHash) {
 function getCachedCorporationJournal(queryClient, characterHash) {
     const queryState = queryClient.getQueryState([corporationJournalQueryKey, characterHash])
 
-    if (queryState?.status === "loading" || !queryState) {
+    if (isQueryStateLoading(queryState)) {
         return { data: {}, isLoading: true, isError: false }
     }
 

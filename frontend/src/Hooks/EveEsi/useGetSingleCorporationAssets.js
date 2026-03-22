@@ -5,18 +5,7 @@ import {
   corporationAssetsQuery,
   corporationAssetsQueryKey,
 } from "../React Query/Corporation/assets";
-
-/**
- * Checks if any query states indicate loading status.
- * 
- * @param {Array<Object>} queryStates - Array of query state objects
- * @returns {boolean} True if any query is loading
- * 
- * @private
- */
-function checkLoadingState(queryStates) {
-  return queryStates.some(({ isLoading }) => isLoading);
-}
+import { isQueryObserverResultLoading, isQueryStateLoading } from "./queryLoadingState";
 
 /**
  * Finds the first error in query states.
@@ -149,8 +138,8 @@ export function getCachedSingleCorporationAssets(queryClient, corporation_id) {
     }
   );
 
-  const isLoading = queryStates.some(
-    ({ queryState }) => queryState?.status === "loading" || !queryState
+  const isLoading = queryStates.some(({ queryState }) =>
+    isQueryStateLoading(queryState)
   );
 
   const error = queryStates.some(({ queryState }) => queryState?.error);
@@ -207,7 +196,7 @@ export function useGetSingleCorporationAssets(corporation_id, enabled = true) {
 
   const combineFunction = useCallback(
     (results) => {
-      const isLoading = checkLoadingState(results);
+      const isLoading = results.some(isQueryObserverResultLoading);
       const error = findFirstError(results);
 
       if (isLoading) {

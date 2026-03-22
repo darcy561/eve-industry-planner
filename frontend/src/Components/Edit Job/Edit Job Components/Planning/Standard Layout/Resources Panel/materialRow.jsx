@@ -5,6 +5,7 @@ import DoneIcon from "@mui/icons-material/Done";
 import LensIcon from "@mui/icons-material/Lens";
 import MaterialPopoverIconButtons from "../../../../../../Styled Components/Popover/iconButtons";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
+import { getJobTypeAccentColor } from "../../../../../../Functions/Helper/jobTypeDividerColor";
 
 export function MaterialRow({ state, material, displayType }) {
   const theme = useTheme();
@@ -26,30 +27,17 @@ export function MaterialRow({ state, material, displayType }) {
     const { jobType, typeID } = material;
     const { childJobs } = state.activeJob.build;
 
-    switch (jobType) {
-      case jobTypes.manufacturing:
-      case jobTypes.reaction:
-        if (state.activeJob.build.childJobs[typeID].length > 0) {
-          return jobType === jobTypes.manufacturing
-            ? theme.palette.manufacturing.main
-            : theme.palette.reaction.main;
-        } else if (
-          state.temporaryChildJobs[typeID] ||
-          state.parentChildToEdit.childJobs[typeID]?.add.length > 0
-        ) {
-          return theme.palette.warning.main;
-        } else {
-          return jobType === jobTypes.manufacturing
-            ? theme.palette.manufacturing.main
-            : theme.palette.reaction.main;
-        }
-
-      case jobTypes.pi:
-        return theme.palette.pi.main;
-
-      default:
-        return theme.palette.baseMat.main;
+    if (jobType === jobTypes.manufacturing || jobType === jobTypes.reaction) {
+      const hasLinkedChildren = childJobs[typeID].length > 0;
+      const hasPendingChild =
+        state.temporaryChildJobs[typeID] ||
+        state.parentChildToEdit.childJobs[typeID]?.add.length > 0;
+      if (!hasLinkedChildren && hasPendingChild) {
+        return theme.palette.warning.main;
+      }
     }
+
+    return getJobTypeAccentColor(theme, jobType);
   }
 
   return (

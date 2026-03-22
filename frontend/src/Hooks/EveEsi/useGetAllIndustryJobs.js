@@ -3,6 +3,10 @@ import { useMemo, useCallback } from "react";
 import useUsersStore from "../../Zustand/usersStore";
 import { characterIndustryJobsQuery, characterIndustryJobsQueryKey } from "../React Query/Character/industryJobs";
 import { corporationIndustryJobsQuery, corporationIndustryJobsQueryKey } from "../React Query/Corporation/industryJobs";
+import {
+  isQueryObserverResultLoading,
+  isQueryStateLoading,
+} from "./queryLoadingState";
 
 /**
  * Utility function to deduplicate industry jobs by job_id.
@@ -163,8 +167,8 @@ export function getCachedAllIndustryJobs(queryClient) {
   ]);
 
   // Check loading state
-  const isLoading = queryStates.some(({ queryState }) => 
-    queryState?.status === "loading" || !queryState
+  const isLoading = queryStates.some(({ queryState }) =>
+    isQueryStateLoading(queryState)
   );
 
   if (isLoading) {
@@ -246,7 +250,7 @@ export default function useGetAllIndustryJobs() {
   const { userArray } = useUsersStore((state) => state.users);
 
   const combineFunction = useCallback((results) => {
-    const isLoading = results.some((result) => result.isLoading);
+    const isLoading = results.some(isQueryObserverResultLoading);
     const error = results.find((result) => result.error)?.error;
 
     if (isLoading) {

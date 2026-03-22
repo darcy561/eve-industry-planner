@@ -25,6 +25,7 @@ import { useNavigate } from "@tanstack/react-router";
 import useUsersStore from "../../../../Zustand/usersStore";
 import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
 import ContentPanel from "../../../../Styled Components/Paper/ContentPanel";
+import { getJobTypeAccentColor } from "../../../../Functions/Helper/jobTypeDividerColor";
 
 function DisplaySwitch({ job }) {
   switch (job.jobStatus) {
@@ -222,10 +223,8 @@ export function ClassicGroupJobCardFrame({ job, highlightedItems }) {
               </Box>
               <Box
                 sx={{
-                  backgroundColor:
-                    job.jobType === jobTypes.manufacturing
-                      ? "manufacturing.main"
-                      : "reaction.main",
+                  backgroundColor: (theme) =>
+                    getJobTypeAccentColor(theme, job.jobType),
                   marginTop: 1,
                   width: "100%",
                 }}
