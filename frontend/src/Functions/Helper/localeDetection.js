@@ -11,11 +11,35 @@ import GLOBAL_CONFIG from "../../global-config-app";
  * console.log(locale); // "en-US" or user's browser locale
  */
 export function detectUserLocale() {
-  if (typeof window === "undefined") return GLOBAL_CONFIG.DEFAULT_LOCALE;
+  if (typeof window === "undefined") {
+    return normalizeLocaleForIntl(GLOBAL_CONFIG.DEFAULT_LOCALE);
+  }
 
-  return (
+  return normalizeLocaleForIntl(
     navigator.language ||
     navigator.languages?.[0] ||
     GLOBAL_CONFIG.DEFAULT_LOCALE
   );
+}
+
+
+export function normalizeLocaleForIntl(locale) {
+  const fallbackLocale = "en-US";
+
+  if (typeof locale !== "string" || locale.trim() === "") {
+    return fallbackLocale;
+  }
+
+  // Convert common POSIX/ICU locale forms (e.g. en_US@posix) into BCP-47.
+  const normalized = locale.trim().replace(/_/g, "-").split("@")[0];
+
+  if (!normalized) {
+    return fallbackLocale;
+  }
+
+  try {
+    return Intl.getCanonicalLocales(normalized)[0] || fallbackLocale;
+  } catch {
+    return fallbackLocale;
+  }
 }
