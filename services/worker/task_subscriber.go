@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,23 +26,6 @@ const (
 	// This prevents overwhelming asynq clients while still allowing parallelism
 	MaxConcurrentEnqueues = 20
 )
-
-// SubscriberConfig holds the configuration for a subscriber
-type SubscriberConfig struct {
-	Subject      string
-	ConsumerName string
-	StreamName   string
-	TaskName     string // For logging purposes (e.g., "system indexes refresh", "adjusted prices refresh")
-}
-
-// GroupedSubscriberConfig holds the configuration for a subscriber that handles multiple subjects
-type GroupedSubscriberConfig struct {
-	Subject      string // Wildcard subject like "task.scheduled>" or "task.auth>"
-	ConsumerName string
-	StreamName   string
-	TaskName     string   // Group name for logging (e.g., "scheduled tasks", "auth tasks")
-	TaskRoutes   []string // List of subjects this subscriber handles (for routing to asynq)
-}
 
 // processMessage receives a NATS message and enqueues it to the asynq server.
 // Acknowledges NATS message immediately after successful enqueue to prevent redelivery.
@@ -75,22 +59,21 @@ func processMessage(
 	natscore.AcknowledgeMessage(msg, "enqueued to asynq", deliveryCount)
 }
 
-// getTaskTypeFromSubject maps NATS subject to asynq task type
+// getTaskTypeFromSubject derives the asynq task type from the NATS subject.
+// Any subject starting with the task prefix (task.) uses the last segment as the task type.
+// Example: task.scheduled.refreshSystemIndexes -> refreshSystemIndexes, task.migration.migrateUserDocumentToMongo -> migrateUserDocumentToMongo
 func getTaskTypeFromSubject(subject string) string {
-	switch subject {
-	case natscore.SubjectRefreshSystemIndexes:
-		return "refreshSystemIndexes"
-	case natscore.SubjectRefreshAdjustedPrices:
-		return "refreshAdjustedPrices"
-	case natscore.SubjectRefreshMarketPrices, natscore.SubjectFetchMissingMarketPrices:
-		return "refreshMarketPrices" // Both subjects use the same task handler
-	case natscore.SubjectCountMarketPricesItems:
-		return "countMarketPricesItems"
-	case natscore.SubjectFetchCorporations:
-		return "fetchCorporations"
-	default:
+	if !strings.HasPrefix(subject, natscore.TaskSubjectPrefix) {
 		return ""
 	}
+	after := strings.TrimPrefix(subject, natscore.TaskSubjectPrefix)
+	if after == "" {
+		return ""
+	}
+	if idx := strings.LastIndex(after, "."); idx >= 0 {
+		return after[idx+1:]
+	}
+	return after
 }
 
 // startMessageLoop starts a background goroutine that continuously fetches and processes messages.
@@ -186,199 +169,42 @@ func processBatchInParallel(
 	wg.Wait()
 }
 
-// SubscribeToSubject sets up a JetStream pull consumer for a specific subject.
-// Returns a cleanup function and an error if subscription fails.
-func SubscribeToSubject(deps *WorkerDependencies, config SubscriberConfig) (func(context.Context), error) {
-	ctx := context.Background()
-
-	// Get or ensure the stream exists
-	stream, err := natscore.GetOrEnsureStream(ctx, deps.JetStream, natscore.EnsureWorkerTaskStream, config.StreamName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get or ensure stream: %w", err)
-	}
-
-	// Create or get durable consumer for messages
-	// Use DeliverLastPolicy to only get new messages, avoiding reprocessing old messages on startup
-	// FilterSubject ensures this consumer only receives messages for its specific subject
-	consumerConfig := jetstream.ConsumerConfig{
-		Durable:       config.ConsumerName,
-		FilterSubject: config.Subject,
-		DeliverPolicy: jetstream.DeliverLastPolicy,
-		AckPolicy:     jetstream.AckExplicitPolicy,
-		AckWait:       30 * time.Second,
-		MaxDeliver:    5,
-	}
-
-	consumer, err := natscore.GetOrCreateConsumer(ctx, stream, consumerConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create consumer: %w", err)
-	}
-
-	// Create message processor that enqueues to asynq server
-	processor := func(msg jetstream.Msg) {
-		processMessage(msg, config.Subject, deps.AsynqClient)
-	}
-
-	// Start message processing loop
-	stopChan := make(chan struct{})
-	startMessageLoop(consumer, processor, stopChan, config.Subject)
-
-	logs.Debug(fmt.Sprintf("subscribed to %s", config.TaskName), "subject", config.Subject, "consumer", config.ConsumerName, "type", "pull")
-
-	cleanup := func(ctx context.Context) {
-		close(stopChan)
-		// Messages channel will be closed, processing will stop
-	}
-
-	return cleanup, nil
-}
-
-// SubscribeToSubjectGroup sets up a JetStream pull consumer for a wildcard subject group.
-// Returns a cleanup function and an error if subscription fails.
-func SubscribeToSubjectGroup(deps *WorkerDependencies, config GroupedSubscriberConfig) (func(context.Context), error) {
-	ctx := context.Background()
-
-	// Get or ensure the stream exists
-	stream, err := natscore.GetOrEnsureStream(ctx, deps.JetStream, natscore.EnsureWorkerTaskStream, config.StreamName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get or ensure stream: %w", err)
-	}
-
-	// Create or get durable consumer for messages
-	// Use DeliverLastPolicy to only get new messages, avoiding reprocessing old messages on startup
-	// FilterSubject uses wildcard pattern to match all subjects in the group
-	consumerConfig := jetstream.ConsumerConfig{
-		Durable:       config.ConsumerName,
-		FilterSubject: config.Subject,
-		DeliverPolicy: jetstream.DeliverLastPolicy,
-		AckPolicy:     jetstream.AckExplicitPolicy,
-		AckWait:       30 * time.Second,
-		MaxDeliver:    5,
-	}
-
-	consumer, err := natscore.GetOrCreateConsumer(ctx, stream, consumerConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create consumer: %w", err)
-	}
-
-	// Build a map for O(1) subject lookup instead of O(n) linear search
-	validRoutes := make(map[string]bool, len(config.TaskRoutes))
-	for _, route := range config.TaskRoutes {
-		validRoutes[route] = true
-	}
-
-	// Create message processor that routes to asynq server
-	processor := func(msg jetstream.Msg) {
-		actualSubject := msg.Subject()
-
-		// Fast O(1) lookup instead of O(n) linear search
-		if !validRoutes[actualSubject] {
-			// Ack the message even though we don't have a handler, to prevent redelivery
-			deliveryCount := natscore.GetDeliveryCount(msg)
-			natscore.AcknowledgeMessage(msg, "no handler found", deliveryCount)
-			return
-		}
-
-		// Process the message using the message processing helper
-		processMessage(msg, actualSubject, deps.AsynqClient)
-	}
-
-	// Start message processing loop
-	stopChan := make(chan struct{})
-	startMessageLoop(consumer, processor, stopChan, config.Subject)
-
-	logs.Debug(fmt.Sprintf("subscribed to %s", config.TaskName), "subject", config.Subject, "consumer", config.ConsumerName, "type", "pull")
-
-	cleanup := func(ctx context.Context) {
-		close(stopChan)
-		// Messages channel will be closed, processing will stop
-	}
-
-	return cleanup, nil
-}
-
-// SubscribeScheduledTasks sets up JetStream pull consumers for all scheduled tasks.
-// Task priority is determined by GetPriorityQueue() routing, not by subscription order.
+// SubscribeScheduledTasks sets up a single JetStream pull consumer for all tasks (task.>).
+// Any message whose subject starts with the task prefix is accepted and queued; task type is derived
+// from the subject (last segment), and priority from GetPriorityQueue(subject).
 // Returns a cleanup function and an error if subscription fails.
 func SubscribeScheduledTasks(deps *WorkerDependencies) (func(context.Context), error) {
-	cleanups := []func(context.Context){}
+	ctx := context.Background()
 
-	// Corporation claims
-	cleanup1, err := SubscribeToSubject(deps, SubscriberConfig{
-		Subject:      natscore.SubjectFetchCorporations,
-		ConsumerName: "task-scheduled-corporation-claims",
-		StreamName:   natscore.WorkerTaskStream,
-		TaskName:     "corporation claims",
-	})
+	stream, err := natscore.GetOrEnsureStream(ctx, deps.JetStream, natscore.EnsureWorkerTaskStream, natscore.WorkerTaskStream)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get or ensure stream: %w", err)
 	}
-	cleanups = append(cleanups, cleanup1)
 
-	// System indexes
-	cleanup2, err := SubscribeToSubject(deps, SubscriberConfig{
-		Subject:      natscore.SubjectRefreshSystemIndexes,
-		ConsumerName: "task-scheduled-system-indexes",
-		StreamName:   natscore.WorkerTaskStream,
-		TaskName:     "system indexes refresh",
-	})
+	consumerConfig := jetstream.ConsumerConfig{
+		Durable:       "task-worker",
+		FilterSubject: natscore.WorkerTaskStreamSubjects[0], // "task.>"
+		DeliverPolicy: jetstream.DeliverLastPolicy,
+		AckPolicy:     jetstream.AckExplicitPolicy,
+		AckWait:       30 * time.Second,
+		MaxDeliver:    5,
+	}
+
+	consumer, err := natscore.GetOrCreateConsumer(ctx, stream, consumerConfig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create task consumer: %w", err)
 	}
-	cleanups = append(cleanups, cleanup2)
 
-	// Adjusted prices
-	cleanup3, err := SubscribeToSubject(deps, SubscriberConfig{
-		Subject:      natscore.SubjectRefreshAdjustedPrices,
-		ConsumerName: "task-scheduled-adjusted-prices",
-		StreamName:   natscore.WorkerTaskStream,
-		TaskName:     "adjusted prices refresh",
-	})
-	if err != nil {
-		return nil, err
+	processor := func(msg jetstream.Msg) {
+		processMessage(msg, msg.Subject(), deps.AsynqClient)
 	}
-	cleanups = append(cleanups, cleanup3)
 
-	// Market prices count
-	cleanup3a, err := SubscribeToSubject(deps, SubscriberConfig{
-		Subject:      natscore.SubjectCountMarketPricesItems,
-		ConsumerName: "task-scheduled-count-market-prices-items",
-		StreamName:   natscore.WorkerTaskStream,
-		TaskName:     "count market prices items",
-	})
-	if err != nil {
-		return nil, err
-	}
-	cleanups = append(cleanups, cleanup3a)
+	stopChan := make(chan struct{})
+	startMessageLoop(consumer, processor, stopChan, natscore.WorkerTaskStreamSubjects[0])
 
-	// Missing market prices
-	cleanup4, err := SubscribeToSubject(deps, SubscriberConfig{
-		Subject:      natscore.SubjectFetchMissingMarketPrices,
-		ConsumerName: "task-missing-market-prices",
-		StreamName:   natscore.WorkerTaskStream,
-		TaskName:     "fetch missing market prices",
-	})
-	if err != nil {
-		return nil, err
-	}
-	cleanups = append(cleanups, cleanup4)
+	logs.Debug("subscribed to task stream", "subject", natscore.WorkerTaskStreamSubjects[0], "consumer", "task-worker", "type", "pull")
 
-	// Market prices refresh
-	cleanup5, err := SubscribeToSubject(deps, SubscriberConfig{
-		Subject:      natscore.SubjectRefreshMarketPrices,
-		ConsumerName: "task-scheduled-market-prices",
-		StreamName:   natscore.WorkerTaskStream,
-		TaskName:     "market prices refresh",
-	})
-	if err != nil {
-		return nil, err
-	}
-	cleanups = append(cleanups, cleanup5)
-
-	// Return combined cleanup function
 	return func(ctx context.Context) {
-		for _, cleanup := range cleanups {
-			cleanup(ctx)
-		}
+		close(stopChan)
 	}, nil
 }

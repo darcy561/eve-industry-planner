@@ -84,7 +84,7 @@ curl -L -f -o Makefile \
 make up
 ```
 
-This automatically downloads all required files, creates `.env` from `env.example`, generates the MongoDB keyfile.
+This automatically downloads all required files and creates `.env` from `env.example`.
 
 ### Step 3: Configure Environment
 
@@ -155,8 +155,7 @@ Eve Industry Planner is broken down into smaller services that handle different 
 - **core**: Core business logic service
 
 - **traefik**: Reverse proxy and load balancer
-- **mongo**: MongoDB primary database
-- **mongo-secondary**: MongoDB replica set secondary
+- **mongo**: MongoDB database (single-node replica set)
 - **redis**: Redis cache
 - **nats**: NATS message broker
 

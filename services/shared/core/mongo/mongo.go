@@ -11,7 +11,6 @@ import (
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
 // Database and collection names
@@ -27,6 +26,9 @@ var (
 
 	// CollectionGroups is the name of the groups collection
 	CollectionGroups = "groups"
+
+	// CollectionApplicationSettings is the name of the application settings collection (per-account settings document)
+	CollectionApplicationSettings = "application_settings"
 )
 
 // connectMongo is a generic connection function that establishes a MongoDB client
@@ -115,74 +117,6 @@ func monitorMongoConnection(client *mongo.Client) {
 				logs.Info("MongoDB reconnected successfully")
 			}
 			cancel()
-		}
-	}
-}
-
-// ConnectSecondary connects to the MongoDB secondary instance for change streams
-// Uses MONGO_SECONDARY_URL from config (credentials are validated in LoadConfig)
-func ConnectSecondary() (*mongo.Client, error) {
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	// Configure MongoDB client with reconnection settings for secondary
-	configureOpts := func(opts *options.ClientOptions) {
-		opts.SetConnectTimeout(10 * time.Second)
-		opts.SetServerSelectionTimeout(30 * time.Second) // Increased timeout for replica set stabilization
-		opts.SetSocketTimeout(10 * time.Second)
-		opts.SetHeartbeatInterval(10 * time.Second)
-		opts.SetMaxPoolSize(10) // Lower pool size for read-only secondary
-		opts.SetMinPoolSize(1)
-		// Enable automatic reconnection
-		opts.SetRetryWrites(false) // Secondaries don't accept writes
-		opts.SetRetryReads(true)
-		// Read preference for secondary - prefer secondary, fallback to primary
-		opts.SetReadPreference(readpref.SecondaryPreferred())
-	}
-
-	client, err := connectMongo(cfg.MONGO_SECONDARY_URL, "Mongo Secondary", configureOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	// Wait for replica set to be ready (has a PRIMARY) before returning
-	// This prevents "No keys found for HMAC" errors during replica set initialization
-	if err := waitForReplicaSetReady(client, 60*time.Second); err != nil {
-		_ = client.Disconnect(context.Background())
-		return nil, fmt.Errorf("replica set not ready: %w", err)
-	}
-
-	return client, nil
-}
-
-// waitForReplicaSetReady waits for the replica set to have a PRIMARY member
-// This is necessary to avoid "No keys found for HMAC" errors during replica set initialization
-func waitForReplicaSetReady(client *mongo.Client, timeout time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-
-	logs.Debug("Waiting for replica set to be ready (PRIMARY must exist)")
-
-	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("timeout waiting for replica set to be ready: %w", ctx.Err())
-		case <-ticker.C:
-			// Try to ping with PRIMARY read preference - this will only succeed if PRIMARY exists
-			pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
-			err := client.Ping(pingCtx, readpref.Primary())
-			pingCancel()
-
-			if err == nil {
-				logs.Debug("Replica set is ready (PRIMARY exists)")
-				return nil
-			}
-			// Continue waiting if ping failed
 		}
 	}
 }

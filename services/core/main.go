@@ -6,7 +6,6 @@ import (
 
 	"eve-industry-planner/core/changestream"
 	"eve-industry-planner/core/scheduler"
-	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/shared/logs"
 )
@@ -22,17 +21,6 @@ func main() {
 		return
 	}
 
-	// Connect to MongoDB secondary for change streams
-	mongoSecondaryClient, err := mongocore.ConnectSecondary()
-	if err != nil {
-		logs.Error("failed to connect to MongoDB secondary", "error", err)
-		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
-		return
-	}
-	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) {
-		mongocore.Cleanup(c, mongoSecondaryClient)
-	})
-
 	logs.Info("core service running")
 
 	// Start scheduler service (runs in background goroutines)
@@ -40,7 +28,7 @@ func main() {
 	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) { schedulerStop() })
 
 	// Start change stream watcher (runs in background goroutine)
-	changestreamStop := changestream.StartService(mongoSecondaryClient, clients.JetStream)
+	changestreamStop := changestream.StartService(clients.Mongo, clients.JetStream)
 	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) { changestreamStop() })
 
 	// normal blocking shutdown

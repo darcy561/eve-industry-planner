@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"eve-industry-planner/api/api/helper/auth"
+	"eve-industry-planner/api/api/migration"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/shared"
@@ -25,10 +26,12 @@ const (
 
 // AuthResponse represents the response sent to the client
 type AuthResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresAt    int64  `json:"expires_at"` // Unix timestamp (seconds since epoch)
-	FirstLogin   bool   `json:"first_login"`
+	AccessToken        string `json:"access_token"`
+	RefreshToken       string `json:"refresh_token"`
+	ExpiresAt          int64  `json:"expires_at"` // Unix timestamp (seconds since epoch)
+	FirstLogin         bool   `json:"first_login"`
+	FirebaseToken      string `json:"firebase_token"`       // Firebase custom token for sign-in (avoids extra request)
+	FirebaseFirstLogin bool   `json:"firebase_first_login"` // Whether user was new in Firebase Auth
 }
 
 func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
@@ -170,15 +173,32 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	// Return the internal JWT token and refresh token
+	// Generate Firebase custom token in the same request so the frontend can sign in without a second call
+	firebaseToken, firebaseFirstLogin, err := migration.GenerateFirebaseCustomToken(r.Context(), accountID)
+	if err != nil {
+		duration := time.Since(start)
+		m.Errors.WithLabelValues("firebase_token_error").Inc()
+		metrics.LogRequestMetrics("auth_login", duration, "firebase_token_error",
+			"error", err, "account_id", accountID, "ip", r.RemoteAddr)
+		logs.ErrorCtx(r.Context(), "failed to generate firebase custom token", "error", err, "account_id", accountID, "ip", r.RemoteAddr)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	migration.EnqueueMigrateUserDocumentToMongo(r.Context(), clients.JetStream, accountID, clients.NATS)
+	logs.InfoCtx(r.Context(), "enqueued migrate user document to mongo task", "account_id", accountID)
+
+	// Return the internal JWT token, refresh token, and Firebase token
 	// Calculate expiration timestamp using the same duration as token generation (Unix timestamp in seconds)
 	expiresAt := time.Now().Add(auth.TokenExpirationDuration).Unix()
 
 	response := AuthResponse{
-		AccessToken:  internalToken,
-		RefreshToken: refreshToken,
-		ExpiresAt:    expiresAt,
-		FirstLogin:   firstLogin,
+		AccessToken:        internalToken,
+		RefreshToken:       refreshToken,
+		ExpiresAt:          expiresAt,
+		FirstLogin:         firstLogin,
+		FirebaseToken:      firebaseToken,
+		FirebaseFirstLogin: firebaseFirstLogin,
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {

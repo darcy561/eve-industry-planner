@@ -211,7 +211,11 @@ class User {
       this.serverAccessTokenEXP = response.expires_at || 0;
       this.serverRefreshToken = response.refresh_token;
 
-      return { first_login: response.first_login };
+      return {
+        first_login: response.first_login,
+        firebase_token: response.firebase_token,
+        firebase_first_login: response.firebase_first_login,
+      };
     } catch (err) {
       throw new Error("Error requesting server token:" + err.message);
     }

@@ -6,28 +6,33 @@ import (
 	"math"
 	"time"
 
+	"eve-industry-planner/core/scheduler/contract"
 	esicore "eve-industry-planner/shared/core/esi"
 	natscore "eve-industry-planner/shared/core/nats"
 	rediscore "eve-industry-planner/shared/core/redis"
-	"eve-industry-planner/shared/scheduler"
 	taskscore "eve-industry-planner/shared/tasks"
 )
 
-// ScheduleMarketPricesRefresh sets up a static cron job for market prices refresh (every 5 minutes).
+const (
+	cronMarketPricesRefreshName     = "cron.marketPricesRefresh"
+	cronMarketPricesRefreshSchedule = "*/5 * * * *"
+)
+
+// ScheduleMarketPricesRefresh sets up a cron job for market prices refresh (every 5 minutes).
 // It uses a cached total item count (recalculated every 4 hours) to determine batch sizes,
 // ensuring all items are refreshed within 4 hours. The batch size is calculated as:
 // batchSize = (totalItems / 48) * buffer, where 48 is the number of runs in 4 hours.
 // Running more frequently with smaller batches reduces Redis CPU spikes from thundering herd.
 // This approach is simpler and more predictable than counting outdated items each run.
 // Returns a cleanup function and an error if scheduling fails.
-func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Scheduler) (func(), error) {
+func ScheduleMarketPricesRefresh(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
 	jsContext := deps.JSContext
 	natsConn := deps.NATS
 	redisClient := deps.Redis
 	log := deps.Log
 
-		// Register the main task handler (runs every 5 minutes)
-	sched.RegisterHandler(taskscore.TaskTypeRefreshMarketPrices, func(ctx context.Context, data json.RawMessage) error {
+	task := taskscore.RefreshMarketPrices
+	sched.RegisterHandler(cronMarketPricesRefreshName, func(ctx context.Context, data json.RawMessage) error {
 		// Build a map of region_id -> station_id for quick lookup
 		regionToStation := make(map[int32]int64)
 		for _, location := range esicore.DefaultMarketLocations {
@@ -194,8 +199,7 @@ func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Sc
 			}
 
 			// Publish message to trigger refresh with retry logic
-			subject := natscore.SubjectRefreshMarketPrices
-			if err := natscore.PublishTask(jsContext, subject, taskscore.TaskTypeRefreshMarketPrices, request, natsConn); err != nil {
+			if err := natscore.PublishTask(jsContext, task.Subject, task.Name, request, natsConn); err != nil {
 				log.Warn("failed to publish market prices refresh message",
 					"type_id", refreshTime.TypeID,
 					"location_id", refreshTime.LocationID,
@@ -218,9 +222,9 @@ func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Sc
 			// Calculate detailed backlog metrics only when needed
 			estimatedHoursToClearBacklog := 0.0
 			if remainingOutdated > 0 {
-			// Calculate how many runs it would take to clear the remaining backlog
-			runsNeeded := float64(remainingOutdated) / float64(batchSize)
-			estimatedHoursToClearBacklog = runsNeeded * (5.0 / 60.0) // 5 minutes per run
+				// Calculate how many runs it would take to clear the remaining backlog
+				runsNeeded := float64(remainingOutdated) / float64(batchSize)
+				estimatedHoursToClearBacklog = runsNeeded * (5.0 / 60.0) // 5 minutes per run
 			}
 
 			// Check if we can keep up: can we process all currently outdated items within 4 hours?
@@ -271,6 +275,8 @@ func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Sc
 
 		return nil
 	})
-
+	if err := sched.ScheduleCronJob(cronMarketPricesRefreshSchedule, cronMarketPricesRefreshName); err != nil {
+		return nil, err
+	}
 	return func() {}, nil
 }

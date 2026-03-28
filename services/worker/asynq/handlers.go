@@ -6,6 +6,7 @@ import (
 	"eve-industry-planner/shared/shared"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 	esitasks "eve-industry-planner/worker/tasks/esi"
+	migrationtasks "eve-industry-planner/worker/tasks/migration"
 
 	"github.com/hibiken/asynq"
 )
@@ -36,6 +37,9 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	mux.HandleFunc("refreshMarketPrices", func(ctx context.Context, t *asynq.Task) error {
 		return esitasks.RefreshMarketPrices(ctx, t, taskDeps)
 	})
+	mux.HandleFunc("fetchMissingMarketPrices", func(ctx context.Context, t *asynq.Task) error {
+		return esitasks.RefreshMarketPrices(ctx, t, taskDeps)
+	})
 
 	mux.HandleFunc("countMarketPricesItems", func(ctx context.Context, t *asynq.Task) error {
 		return esitasks.CountMarketPricesItems(ctx, t, taskDeps)
@@ -43,5 +47,9 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 
 	mux.HandleFunc("fetchCorporations", func(ctx context.Context, t *asynq.Task) error {
 		return esitasks.UpdateCustomCorporationClaims(ctx, t, taskDeps)
+	})
+
+	mux.HandleFunc("migrateUserDocumentToMongo", func(ctx context.Context, t *asynq.Task) error {
+		return migrationtasks.MigrateUserDocumentToMongo(ctx, t, taskDeps)
 	})
 }

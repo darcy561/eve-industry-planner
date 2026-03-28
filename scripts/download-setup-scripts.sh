@@ -62,7 +62,6 @@ record_version() {
 declare -A FILES=(
     ["docker-compose.yml"]="$RUN_DIR/docker-compose.yml"
     ["scripts/mongo-setup.sh"]="$SCRIPTS_DIR/mongo-setup.sh"
-    ["scripts/mongo-setup-secondary.sh"]="$SCRIPTS_DIR/mongo-setup-secondary.sh"
     ["scripts/generate-mongo-keyfile.sh"]="$SCRIPTS_DIR/generate-mongo-keyfile.sh"
     ["scripts/version-tracker.sh"]="$SCRIPTS_DIR/version-tracker.sh"
 )

@@ -15,8 +15,8 @@ import (
 	redislib "github.com/redis/go-redis/v9"
 
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/scheduler"
 
+	"eve-industry-planner/core/scheduler/contract"
 	"eve-industry-planner/core/scheduler/helpers"
 )
 
@@ -43,7 +43,7 @@ type TaskScheduler struct {
 	redisClient *redislib.Client
 	natsConn    *natslib.Conn
 	log         *slog.Logger
-	handlers    map[string]scheduler.TaskHandler
+	handlers    map[string]contract.TaskHandler
 	consumer    jetstream.Consumer
 
 	// Track one-time jobs by job ID for easy removal
@@ -66,14 +66,14 @@ func NewTaskScheduler(jsContext jetstream.JetStream, redisClient *redislib.Clien
 		redisClient: redisClient,
 		natsConn:    natsConn,
 		log:         log,
-		handlers:    make(map[string]scheduler.TaskHandler),
+		handlers:    make(map[string]contract.TaskHandler),
 		oneTimeJobs: make(map[string]gocron.Job),
 		stopChan:    make(chan struct{}),
 	}, nil
 }
 
 // RegisterHandler registers a task handler for a specific task type
-func (s *TaskScheduler) RegisterHandler(taskType string, handler scheduler.TaskHandler) {
+func (s *TaskScheduler) RegisterHandler(taskType string, handler contract.TaskHandler) {
 	s.handlers[taskType] = handler
 }
 
@@ -92,8 +92,9 @@ func (s *TaskScheduler) HasScheduledJob(taskType string) bool {
 	return false
 }
 
-// ScheduleCronJob schedules a recurring cron job for a task type
-// These are not requestable and not persisted
+// ScheduleCronJob schedules a recurring cron job for a worker task (taskType = task.Name from shared/tasks).
+// When the cron fires, the handler for that task runs and publishes to NATS; the worker receives and processes it.
+// These cron jobs are not requestable and not persisted.
 func (s *TaskScheduler) ScheduleCronJob(cronExpr string, taskType string) error {
 	handler, exists := s.handlers[taskType]
 	if !exists {

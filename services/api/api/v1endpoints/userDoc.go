@@ -16,7 +16,6 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func UserMainDocumentHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
@@ -138,15 +137,6 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 		return
 	}
 
-	// Set accountID from JWT token (ensures it's always set correctly)
-	userDoc.AccountID = accountID
-
-	// Extract clientID from X-Client-ID header and set in Meta (optional)
-	clientID := r.Header.Get("X-Client-ID")
-	if clientID != "" {
-		userDoc.Meta.ClientID = clientID
-	}
-
 	// Save to MongoDB
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
@@ -154,47 +144,14 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 	database := clients.Mongo.Database(mongocore.DatabaseName)
 	collection := database.Collection(mongocore.CollectionUsers)
 
-	now := time.Now()
-	userDoc.UpdatedAt = now
-
-	// Convert user document struct to MongoDB document with _id set to accountID
-	docBson, err := mongocore.StructToMongoDoc(userDoc, accountID)
-	if err != nil {
-		m.Errors.WithLabelValues("marshal_error").Inc()
-		logs.ErrorCtx(r.Context(), "failed to convert user document to MongoDB document", "error", err, "account_id", accountID)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	// Upsert user document - filter by _id (which is accountID)
-	opts := options.Update().SetUpsert(true)
-
-	// Ensure accountID is always set (in case frontend didn't include it)
-	setDoc := bson.M{}
-	for k, v := range docBson {
-		// Skip _id field as it's already set in the filter
-		if k != "_id" {
-			setDoc[k] = v
-		}
-	}
-	// Explicitly set accountID to ensure it's never removed
-	setDoc["accountID"] = accountID
-
-	update := bson.M{
-		"$set": setDoc,
-		"$setOnInsert": bson.M{
-			"createdAt": now,
-		},
-	}
-
 	retryConfigUpdate := mongocore.DefaultRetryConfig()
 	retryConfigUpdate.OperationName = fmt.Sprintf("update user document %s", accountID)
 
 	var result *mongo.UpdateResult
 	err = mongocore.RetryMongoOperation(ctx, retryConfigUpdate, func() error {
-		var err error
-		result, err = collection.UpdateOne(ctx, bson.M{"_id": accountID}, update, opts)
-		return err
+		var upsertErr error
+		result, upsertErr = mongocore.UpsertStructByIDPreservingMeta(ctx, collection, userDoc, accountID)
+		return upsertErr
 	})
 	if err != nil {
 		m.Errors.WithLabelValues("database_error").Inc()

@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "react";
 import { useFirebase } from "../../Hooks/useFirebase";
 import { trace } from "@firebase/performance";
-import { performance } from "../../firebase";
+import { performance, auth } from "../../firebase";
 import { getAnalytics, logEvent } from "firebase/analytics";
+import { signInWithCustomToken } from "firebase/auth";
 import { UserLogInUI } from "./LoginUI/LoginUI";
 import getEveOauthToken from "../../Functions/EveESI/Character/getEveSSOToken";
-import getFirebaseAuthToken from "../../Functions/Firebase/getFirebaseToken";
+import getFirebaseTokenViaApi from "../../Functions/Migration/getFirebaseTokenViaApi";
 import useUsersStore from "../../Zustand/usersStore";
 import redirectToEveSSO from "./Functions/eveSSORedirect";
 import { useNavigate } from "@tanstack/react-router";
@@ -88,15 +89,27 @@ export default function AuthMainUser() {
           const tokenResponse = await userObject.requestServerToken();
           if (tokenResponse instanceof Error) throw tokenResponse;
 
-          let fbToken = await getFirebaseAuthToken(userObject);
-          if (!fbToken || !fbToken.user) {
+          // Use Firebase token from login response when available (single request); otherwise fetch separately
+          const firebaseToken = tokenResponse.firebase_token
+            ? tokenResponse.firebase_token
+            : (await getFirebaseTokenViaApi(userObject.serverAccessToken))
+                ?.access_token;
+          if (!firebaseToken) {
+            throw new Error("Unable to Authenticate Firebase Token");
+          }
+          const signInResult = await signInWithCustomToken(auth, firebaseToken);
+
+          if (!signInResult || !signInResult.user) {
             throw new Error("Unable to Authenticate Firebase Token");
           }
 
-          userObject.accountID = fbToken.user.uid;
+          userObject.accountID = signInResult.user.uid;
 
-          // Check if this is a first-time login
-          const isFirstTimeLogin = tokenResponse.first_login || false;
+          // Check if this is a first-time login (from combined response or Mongo)
+          const isFirstTimeLogin =
+            tokenResponse.firebase_first_login ??
+            tokenResponse.first_login ??
+            false;
 
           // Store the first-time login state
           setIsFirstTimeLogin(isFirstTimeLogin);
@@ -107,7 +120,7 @@ export default function AuthMainUser() {
 
           updateUserArrayAction([userObject]);
           triggerCharacterDataPrefetch(queryClient, userObject.CharacterHash);
-          
+
           emitUserDataUpdate({
             eveLoginComplete: true,
             userArray: [
@@ -127,7 +140,7 @@ export default function AuthMainUser() {
           clearJobArray([]);
           toggleIsLoggedIn();
           logEvent(analytics, "userSignIn", {
-            UID: fbToken.user.uid,
+            UID: signInResult.user.uid,
             isFirstTimeLogin: isFirstTimeLogin,
           });
           t.stop();

@@ -1,31 +1,29 @@
 #!/bin/bash
-# Generate MongoDB replica set key file
-# This key file is required for MongoDB replica sets with authentication enabled
-
-set -e  # Exit on error
+set -u
 
 KEYFILE_PATH="./mongo-keyfile"
 
-if [ -f "$KEYFILE_PATH" ]; then
-    echo "Key file already exists at $KEYFILE_PATH"
-    echo "If you want to regenerate it, delete the existing file first."
-    exit 0
+fail() {
+  echo "ERROR: $1" >&2
+  exit 1
+}
+
+if [ -f "${KEYFILE_PATH}" ] && [ -s "${KEYFILE_PATH}" ]; then
+  echo "Mongo keyfile already exists at ${KEYFILE_PATH}"
+  exit 0
 fi
 
-# Check if openssl is available
-if ! command -v openssl &> /dev/null; then
-    echo "Error: openssl is required to generate the MongoDB key file" >&2
-    echo "Please install openssl and try again" >&2
-    exit 1
-fi
+command -v openssl >/dev/null 2>&1 || fail "openssl is required to generate mongo keyfile"
 
-# Generate a random key file (MongoDB requires 6-1024 characters)
-openssl rand -base64 756 > "$KEYFILE_PATH"
+# MongoDB keyFile is a shared secret string (6 to 1024 chars). Avoid newlines.
+TMP_FILE="$(mktemp)"
+trap 'rm -f "${TMP_FILE}"' EXIT
 
-# Set proper permissions (read-only for owner)
-chmod 600 "$KEYFILE_PATH"
+# 756 base64 chars ~ 1000 bits. Keep within MongoDB limits and ensure no newline.
+openssl rand -base64 756 | tr -d '\n' > "${TMP_FILE}" || fail "failed to generate random keyfile"
 
-echo "MongoDB key file generated successfully at $KEYFILE_PATH"
-echo "This file is required for MongoDB replica set authentication."
-echo "Make sure to keep this file secure and do not commit it to version control."
+mv "${TMP_FILE}" "${KEYFILE_PATH}"
+chmod 600 "${KEYFILE_PATH}" || fail "failed to chmod mongo keyfile"
+
+echo "Generated MongoDB keyfile at ${KEYFILE_PATH} (chmod 600)"
 

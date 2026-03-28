@@ -38,12 +38,13 @@ func (ScheduleRequest) MessageType() string {
 	return MessageTypeSchedule
 }
 
-// TaskMessage represents a generic task message with optional data.
+// TaskMessage represents a generic task message with optional data and optional priority override.
 // This is the payload structure for "task" type messages.
-// Deprecated: Use Message with Type="task" and payload in Data field instead.
+// Priority, when set, overrides the worker's default priority for this task type.
 type TaskMessage struct {
-	TaskType string          `json:"task_type"`      // Task type identifier
-	Data     json.RawMessage `json:"data,omitempty"` // Optional task-specific data
+	TaskType string          `json:"task_type"`          // Task type identifier
+	Data     json.RawMessage `json:"data,omitempty"`     // Optional task-specific data
+	Priority string          `json:"priority,omitempty"` // Optional queue name override (e.g. "priority_5"); empty uses task default
 }
 
 // MessageType returns the message type identifier for TaskMessage.
@@ -83,6 +84,12 @@ type MarketPricesRequest struct {
 type CorporationClaimsRequest struct {
 	AccountID string   `json:"account_id"` // Account ID from internal JWT token
 	Tokens    []string `json:"tokens"`     // Array of EVE SSO JWT tokens
+}
+
+// MigrateUserDocumentToMongoRequest represents the data sent to the worker for migrating a Firebase user document to MongoDB.
+// The worker fetches the user document from Firestore using accountID.
+type MigrateUserDocumentToMongoRequest struct {
+	AccountID string `json:"account_id"` // Account ID (Firebase UID)
 }
 
 // SubscriptionRequest represents a request to subscribe WebSocket clients to document updates.
