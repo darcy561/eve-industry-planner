@@ -14,10 +14,14 @@ const (
 
 // WorkerTaskStreamSubjects are the subject patterns for the worker task stream
 // The stream accepts all subjects starting with "task."
-// Consumers filter to specific patterns like "task.auth>" or "task.scheduled>"
 var WorkerTaskStreamSubjects = []string{
 	"task.>",
 }
+
+// TaskSubjectPrefix is the subject prefix for all worker tasks. The worker subscribes to "task.>"
+// and derives task type from the subject (last segment after the final dot).
+// Task names, subjects, and default priorities are defined in shared/tasks.
+const TaskSubjectPrefix = "task."
 
 // SchedulerStreamSubjects are the subject patterns for the scheduler stream
 // The stream accepts all subjects starting with "scheduler."
@@ -34,26 +38,8 @@ var DocUpdateStreamSubjects = []string{
 	"doc.subscribe.>",
 }
 
-// Subject names for task scheduling and processing
+// Subject names (non-task; task subjects are in shared/tasks)
 const (
-	// SubjectRefreshSystemIndexes is the NATS subject for system indexes refresh tasks
-	SubjectRefreshSystemIndexes = "task.scheduled.refreshSystemIndexes"
-
-	// SubjectRefreshAdjustedPrices is the NATS subject for adjusted prices refresh tasks
-	SubjectRefreshAdjustedPrices = "task.scheduled.refreshAdjustedPrices"
-
-	// SubjectRefreshMarketPrices is the NATS subject for market prices refresh tasks
-	SubjectRefreshMarketPrices = "task.scheduled.refreshMarketPrices"
-
-	// SubjectCountMarketPricesItems is the NATS subject for counting market prices items
-	SubjectCountMarketPricesItems = "task.scheduled.countMarketPricesItems"
-
-	// SubjectFetchMissingMarketPrices is the NATS subject for fetching missing market prices (high priority)
-	SubjectFetchMissingMarketPrices = "task.scheduled.fetchMissingMarketPrices"
-
-	// SubjectFetchCorporations is the NATS subject for fetching corporation IDs from character IDs
-	SubjectFetchCorporations = "task.auth.fetchCorporations"
-
 	// SubjectSchedulerSchedule is the NATS subject for requesting one-time scheduled tasks
 	SubjectSchedulerSchedule = "scheduler.schedule"
 

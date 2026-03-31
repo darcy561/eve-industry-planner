@@ -13,18 +13,18 @@ func TestBuildGroupNameFromDesignation(t *testing.T) {
 		{
 			name: "primary only",
 			designation: GroupDesignation{
-				PrimaryGroup:   "markets",
+				PrimaryGroup:   "market-order",
 				SecondaryGroup: "",
 			},
-			want: "markets",
+			want: "market-order",
 		},
 		{
 			name: "primary and secondary",
 			designation: GroupDesignation{
-				PrimaryGroup:   "markets",
+				PrimaryGroup:   "market-order",
 				SecondaryGroup: "prices",
 			},
-			want: "markets-prices",
+			want: "market-order-prices",
 		},
 		{
 			name: "empty primary",

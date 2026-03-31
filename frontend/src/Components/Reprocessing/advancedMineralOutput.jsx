@@ -517,7 +517,7 @@ export function AdvancedMineralOutput(props) {
               const totalValue = unitPrice * item.totalQuantity;
 
               return (
-                <Grid container key={item.id}>
+                <Grid container key={item.id} size={12}>
                   <Grid
                     container
                     spacing={isMobile ? 0.5 : 2}

@@ -263,9 +263,8 @@ func fetchMarketPricesForType(ctx context.Context, redisClient *redis.Client, js
 				StationID:  location.StationID,
 			}
 
-			// Use high-priority subject for missing market prices to prioritize them over scheduled refreshes
-			subject := natscore.SubjectFetchMissingMarketPrices
-			if err := natscore.PublishTask(js, subject, taskscore.TaskTypeRefreshMarketPrices, request, natsConn); err != nil {
+			// Use high-priority task for missing market prices (FetchMissingMarketPrices has DefaultPriority Priority2)
+			if err := natscore.PublishTask(js, taskscore.FetchMissingMarketPrices.Subject, taskscore.FetchMissingMarketPrices.Name, request, natsConn); err != nil {
 				logs.WarnCtx(ctx, "failed to publish market prices refresh message",
 					"type_id", typeID,
 					"location_id", location.RegionID,

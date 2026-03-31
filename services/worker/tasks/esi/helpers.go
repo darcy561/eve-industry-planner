@@ -103,7 +103,7 @@ func HandleStreamError(err error, taskName string, errorCounterVec *metrics.Coun
 	// Check if this is a rate limit error
 	if esiratelimiter.IsRateLimitError(err) {
 		rateLimitErr := esiratelimiter.GetRateLimitError(err)
-		logs.Info("detected rate limit error in refresh",
+		logs.Debug("detected rate limit error in refresh",
 			"retryable", rateLimitErr.Retryable,
 			"retry_after", rateLimitErr.RetryAfter,
 			"reason", rateLimitErr.Reason,
@@ -136,7 +136,7 @@ func ShouldStopRetryOnRateLimit(err error, attempt int, path string) bool {
 	}
 
 	rateLimitErr := esiratelimiter.GetRateLimitError(err)
-	logs.Info("rate limit error detected in stream function, returning for asynq retry",
+	logs.Debug("rate limit error detected in stream function, returning for asynq retry",
 		"attempt", attempt,
 		"retryable", rateLimitErr.Retryable,
 		"retry_after", rateLimitErr.RetryAfter,

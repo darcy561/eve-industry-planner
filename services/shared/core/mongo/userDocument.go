@@ -24,42 +24,36 @@ func getDefaultJobStatusArray() []models.JobStatus {
 	}
 }
 
-// getDefaultSettings returns the default user settings
-func getDefaultSettings() models.UserSettings {
-	return models.UserSettings{
-		Account: models.AccountSettings{
-			CloudAccounts: false, // DEFAULT_CLOUD_ACCOUNTS
+// getDefaultApplicationSettings returns the default application settings for a new account.
+func getDefaultApplicationSettings(accountID string, now time.Time) models.ApplicationSettings {
+	return models.ApplicationSettings{
+		UseCloudAccounts:                 false,
+		DisplayHelpCards:                 false,
+		DefaultMarketLocation:            "jita",
+		DefaultOrderType:                 "sell",
+		LocalMarketDisplay:               nil,
+		LocalOrderDisplay:                nil,
+		EsiJobTab:                        nil,
+		EnableCompactLayoutView:          false,
+		EnableAutomaticJobRecalculation:  true,
+		EnableSkipMissingBlueprints:      false,
+		HideCompleteMaterialsFromEditJob: false,
+		DefaultStationIDForAssets:        60003760,
+		DefaultCitadelBrokersFee:         1,
+		DefaultMaterialEfficiencyValue:   0,
+		CustomStructures: models.CustomStructures{
+			Manufacturing: []models.CustomStructure{},
+			Reaction:      []models.CustomStructure{},
+			Reprocessing:  []models.ReprocessingStructure{},
 		},
-		Layout: models.LayoutSettings{
-			HideTutorials:      false,
-			LocalMarketDisplay: nil,
-			LocalOrderDisplay:  nil,
-			EsiJobTab:          nil,
-			EnableCompactView:  false,
-		},
-		EditJob: models.EditJobSettings{
-			DefaultMarket:                  "jita", // DEFAULT_MARKET_OPTION
-			DefaultOrders:                  "sell", // DEFAULT_ORDER_OPTION
-			HideCompleteMaterials:          false,
-			DefaultAssetLocation:           60003760, // DEFAULT_ASSET_LOCATION
-			CitadelBrokersFee:              1,        // DEFAULT_CITADEL_BROKERS_FEE
-			DefaultMaterialEfficiencyValue: 0,
-		},
-		Structures: models.StructuresSettings{
-			Manufacturing: []models.CustomStructure{},       // DEFAULT_MANUFACTURING_STRUCTURES
-			Reaction:      []models.CustomStructure{},       // DEFAULT_REACTION_STRUCTURES
-			Reprocessing:  []models.ReprocessingStructure{}, // DEFAULT_REPROCESSING_STRUCTURES
-		},
-		ExemptTypeIDs:                []int{},
-		AutomaticJobRecalculation:    true,
-		IgnoreItemsWithoutBlueprints: false,
-		DefaultReprocessingCharacter: nil,
-		ReprocessingCalculationSettings: models.ReprocessingCalculationSettings{
-			PreferCompressed:           true,
-			CompressionBonusMultiplier: 0.25,
-			ValueMultiplier:            2.0,
-			WastePenaltyMultiplier:     0.1,
-			SellExcessMineralTypes:     false,
+		ExemptTypeIDs: []int{},
+		ReprocessingSettings: models.ReprocessingSettings{
+			DefaultReprocessingCharacter: nil,
+			PreferCompressed:             true,
+			CompressionBonusMultiplier:   0.25,
+			ValueMultiplier:              2.0,
+			WastePenaltyMultiplier:       0.1,
+			SellExcessMineralTypes:       false,
 		},
 		ExtrasCategories: []models.ExtraCategory{
 			{ID: "0", Label: "Unassigned"},
@@ -70,6 +64,10 @@ func getDefaultSettings() models.UserSettings {
 			{ID: "5", Label: "Other"},
 		},
 		PredefinedSystemIndexes: make(map[string]map[string]float64),
+		MetaData: models.MetaData{
+			LastModified: now,
+			AccountID:    accountID,
+		},
 	}
 }
 
@@ -95,7 +93,7 @@ func EnsureUserAccountDocument(ctx context.Context, client *mongo.Client, accoun
 	var userDoc models.UserAccountDocument
 	retryConfig := DefaultRetryConfig()
 	retryConfig.OperationName = fmt.Sprintf("find user document %s", accountID)
-	
+
 	var findErr error
 	documentExists := false
 	err := RetryMongoOperation(queryCtx, retryConfig, func() error {
@@ -113,38 +111,43 @@ func EnsureUserAccountDocument(ctx context.Context, client *mongo.Client, accoun
 		documentExists = false
 		return nil
 	})
-	
+
 	if err != nil {
 		return false, fmt.Errorf("failed to query user document: %w", err)
 	}
-	
+
 	// Check if document was found
 	if documentExists {
 		// Document exists, nothing to do
 		return false, nil
 	}
 
-	// Document not found, create a new one with default values
+	// Document not found, create both the account document and the application settings document
 	now := time.Now()
 	newUserDoc := models.UserAccountDocument{
-		AccountID:      accountID,
-		JobStatusArray: getDefaultJobStatusArray(),
-		Deleted:        nil,
-		LinkedJobs:     []int64{},
-		LinkedTrans:    []int64{},
-		LinkedOrders:   []int64{},
-		Settings:       getDefaultSettings(),
-		RefreshTokens:  []models.RefreshToken{},
-		CreatedAt:      now,
-		UpdatedAt:      now,
-		LastLoginAt:    now,
+		AccountID:       accountID,
+		JobStatusArray:  getDefaultJobStatusArray(),
+		LinkedJobs:      []int64{},
+		LinkedTrans:     []int64{},
+		LinkedOrders:    []int64{},
+		RefreshTokens:   []models.RefreshToken{},
+		FlagForDeletion: false,
+		DeletedAt:       nil,
+		MetaData: models.UserMeta{
+			MetaData: models.MetaData{
+				AccountID: accountID,
+			},
+			CreatedAt:   now,
+			LastLoginAt: now,
+		},
 	}
 
-	// Insert the new document with accountID as _id
+	newSettingsDoc := getDefaultApplicationSettings(accountID, now)
+
 	insertCtx, cancelInsert := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelInsert()
 
-	// Convert struct to MongoDB document with _id set to accountID
+	// Convert account document to MongoDB document with _id set to accountID
 	doc, err := StructToMongoDoc(newUserDoc, accountID)
 	if err != nil {
 		return false, fmt.Errorf("failed to convert struct to document: %w", err)
@@ -152,7 +155,7 @@ func EnsureUserAccountDocument(ctx context.Context, client *mongo.Client, accoun
 
 	retryConfigInsert := DefaultRetryConfig()
 	retryConfigInsert.OperationName = fmt.Sprintf("insert user document %s", accountID)
-	
+
 	err = RetryMongoOperation(insertCtx, retryConfigInsert, func() error {
 		_, err := collection.InsertOne(insertCtx, doc)
 		return err
@@ -161,6 +164,24 @@ func EnsureUserAccountDocument(ctx context.Context, client *mongo.Client, accoun
 		return false, fmt.Errorf("failed to create user document: %w", err)
 	}
 
-	logs.Info("created new user document", "accountID", accountID)
+	// Insert the application settings document in the application_settings collection
+	settingsCollection := database.Collection(CollectionApplicationSettings)
+	settingsDoc, err := StructToMongoDoc(newSettingsDoc, accountID)
+	if err != nil {
+		return false, fmt.Errorf("failed to convert application settings to document: %w", err)
+	}
+
+	retryConfigSettings := DefaultRetryConfig()
+	retryConfigSettings.OperationName = fmt.Sprintf("insert application settings %s", accountID)
+
+	err = RetryMongoOperation(insertCtx, retryConfigSettings, func() error {
+		_, err := settingsCollection.InsertOne(insertCtx, settingsDoc)
+		return err
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to create application settings document: %w", err)
+	}
+
+	logs.Info("created new user document and application settings", "accountID", accountID)
 	return true, nil
 }

@@ -73,9 +73,6 @@ func PutJobsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	savedCount := 0
 	failedCount := 0
 
-	// Extract clientID from X-Client-ID header (optional)
-	clientID := r.Header.Get("X-Client-ID")
-
 	for _, job := range reqBody.Jobs {
 		if job.JobID == "" {
 			logs.WarnCtx(ctx, "skipping job with empty jobID", "account_id", accountID)
@@ -83,11 +80,9 @@ func PutJobsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 			continue
 		}
 		// Update metadata fields on the struct before converting to BSON
-		job.MetaData.LastUpdated = now
+		job.MetaData.LastModified = now
 		job.MetaData.LastUpdatedBy = accountID
-		if clientID != "" {
-			job.MetaData.ClientID = clientID
-		}
+		job.MetaData.AccountID = accountID
 		job.AccountID = accountID
 
 		bulkOps = append(bulkOps, mongo.NewUpdateOneModel().

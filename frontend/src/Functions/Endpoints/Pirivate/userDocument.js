@@ -1,7 +1,7 @@
 import requestWithPrivateHeaders from "./applyPrivateHeaders.js";
 import useUsersStore from "../../../Zustand/usersStore";
 
-const USER_DOCUMENT_URL = "/api/v1/user/main";
+const USER_DOCUMENT_URL = "/api/migration/application-settings";
 
 /**
  * Saves user document to MongoDB via backend API.

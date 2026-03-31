@@ -23,6 +23,10 @@ services:
       dockerfile: core/Dockerfile
     env_file: [.env]
 
+  mongo:
+    ports:
+      - "27017:27017"
+
 
 
   frontend:

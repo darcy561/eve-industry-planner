@@ -2,12 +2,12 @@ package config
 
 import (
 	"errors"
+	"net/url"
 	"os"
 )
 
 type Config struct {
 	MONGO_URL                 string
-	MONGO_SECONDARY_URL       string
 	WS_URL                    string
 	NATS_URL                  string
 	REDIS_URL                 string
@@ -36,8 +36,6 @@ func LoadConfig() (Config, error) {
 		return Config{}, errors.New("MONGO_PASSWORD environment variable is required")
 	}
 
-	// MongoDB secondary uses the same credentials as primary (users are replicated in replica set)
-
 	// Redis password is REQUIRED - no fallbacks
 	redisPassword := os.Getenv("REDIS_PASSWORD")
 	if redisPassword == "" {
@@ -49,18 +47,13 @@ func LoadConfig() (Config, error) {
 	const mongoDatabase = "eve_industry_planner"
 
 	// Build primary MongoDB URL
-	// Include replicaSet parameter and both hosts so driver can discover all members and find primary
+	// Include replicaSet parameter for single-node replica set deployments.
 	mongoHost := getEnv("MONGO_HOST", "mongo")
 	mongoPort := getEnv("MONGO_PORT", "27017")
-	mongoSecondaryHost := getEnv("MONGO_SECONDARY_HOST", "mongo-secondary")
-	mongoSecondaryPort := getEnv("MONGO_SECONDARY_PORT", "27017")
 	mongoReplicaSet := getEnv("MONGO_REPLICA_SET", "rs0")
-	// Include both hosts in connection string for better replica set discovery
-	mongoURL := "mongodb://" + mongoUsername + ":" + mongoPassword + "@" + mongoHost + ":" + mongoPort + "," + mongoSecondaryHost + ":" + mongoSecondaryPort + "/" + mongoDatabase + "?authSource=admin&replicaSet=" + mongoReplicaSet
-
-	// Build secondary MongoDB URL (uses same credentials as primary)
-	// Include replicaSet parameter and both hosts so driver can discover all members
-	mongoSecondaryURL := "mongodb://" + mongoUsername + ":" + mongoPassword + "@" + mongoHost + ":" + mongoPort + "," + mongoSecondaryHost + ":" + mongoSecondaryPort + "/" + mongoDatabase + "?authSource=admin&replicaSet=" + mongoReplicaSet
+	escapedMongoUsername := url.QueryEscape(mongoUsername)
+	escapedMongoPassword := url.QueryEscape(mongoPassword)
+	mongoURL := "mongodb://" + escapedMongoUsername + ":" + escapedMongoPassword + "@" + mongoHost + ":" + mongoPort + "/" + mongoDatabase + "?authSource=" + mongoDatabase + "&replicaSet=" + mongoReplicaSet
 
 	// Build Redis URL with password
 	redisHost := getEnv("REDIS_HOST", "redis")
@@ -69,7 +62,6 @@ func LoadConfig() (Config, error) {
 
 	return Config{
 		MONGO_URL:                 mongoURL,
-		MONGO_SECONDARY_URL:       mongoSecondaryURL,
 		REDIS_URL:                 redisURL,
 		NATS_URL:                  getEnv("NATS_URL", "nats://nats:4222"),
 		MINIO_URL:                 getEnv("MINIO_URL", "http://minio:9000"),

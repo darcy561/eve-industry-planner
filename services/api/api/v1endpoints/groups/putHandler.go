@@ -73,9 +73,6 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 	savedCount := 0
 	failedCount := 0
 
-	// Extract clientID from X-Client-ID header (optional)
-	clientID := r.Header.Get("X-Client-ID")
-
 	for _, group := range reqBody.Groups {
 		if group.GroupID == "" {
 			logs.WarnCtx(ctx, "skipping group with empty groupID", "account_id", accountID)
@@ -83,11 +80,9 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 			continue
 		}
 		// Update metadata fields on the struct before converting to BSON
-		group.MetaData.LastUpdated = now
+		group.MetaData.LastModified = now
 		group.MetaData.LastUpdatedBy = accountID
-		if clientID != "" {
-			group.MetaData.ClientID = clientID
-		}
+		group.MetaData.AccountID = accountID
 		// Set CreatedAt if it's zero (new document)
 		if group.MetaData.CreatedAt.IsZero() {
 			group.MetaData.CreatedAt = now

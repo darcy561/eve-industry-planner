@@ -6,28 +6,35 @@ import (
 	"math"
 	"time"
 
+	"eve-industry-planner/core/scheduler/contract"
 	esicore "eve-industry-planner/shared/core/esi"
 	natscore "eve-industry-planner/shared/core/nats"
 	rediscore "eve-industry-planner/shared/core/redis"
-	"eve-industry-planner/shared/scheduler"
 	taskscore "eve-industry-planner/shared/tasks"
 )
 
-// ScheduleMarketPricesRefresh sets up a static cron job for market prices refresh (every 5 minutes).
+const (
+	cronMarketPricesRefreshName     = "cron.marketPricesRefresh"
+	cronMarketPricesRefreshSchedule = "*/5 * * * *"
+	microBatchInterval              = 15 * time.Second
+	microBatchPublishWindow         = 4*time.Minute + 15*time.Second
+)
+
+// ScheduleMarketPricesRefresh sets up a cron job for market prices refresh (every 5 minutes).
 // It uses a cached total item count (recalculated every 4 hours) to determine batch sizes,
 // ensuring all items are refreshed within 4 hours. The batch size is calculated as:
 // batchSize = (totalItems / 48) * buffer, where 48 is the number of runs in 4 hours.
 // Running more frequently with smaller batches reduces Redis CPU spikes from thundering herd.
 // This approach is simpler and more predictable than counting outdated items each run.
 // Returns a cleanup function and an error if scheduling fails.
-func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Scheduler) (func(), error) {
+func ScheduleMarketPricesRefresh(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
 	jsContext := deps.JSContext
 	natsConn := deps.NATS
 	redisClient := deps.Redis
 	log := deps.Log
 
-		// Register the main task handler (runs every 5 minutes)
-	sched.RegisterHandler(taskscore.TaskTypeRefreshMarketPrices, func(ctx context.Context, data json.RawMessage) error {
+	task := taskscore.RefreshMarketPrices
+	sched.RegisterHandler(cronMarketPricesRefreshName, func(ctx context.Context, data json.RawMessage) error {
 		// Build a map of region_id -> station_id for quick lookup
 		regionToStation := make(map[int32]int64)
 		for _, location := range esicore.DefaultMarketLocations {
@@ -98,6 +105,8 @@ func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Sc
 		const runsPer4Hours = 48.0
 		const maxBatchSize = 1000
 		const bufferMultiplier = 1.15 // 15% buffer to account for growth and ensure we stay ahead
+		const estimatedTokensPerRequest = 2.0
+		const tokenReserveRatio = 0.1 // Keep 10% token headroom to avoid edge-of-window exhaustion
 
 		// Calculate target batch size: totalItems / runsPer4Hours with buffer
 		// This ensures all items are processed within the 4-hour window
@@ -135,12 +144,53 @@ func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Sc
 			batchSize = maxBatchSize
 		}
 
+		// Apply dynamic cap based on currently available market-order-group tokens.
+		// This prevents publishing more work than the current 15-minute floating window can safely absorb.
+		tokenLimitedBatchSize := -1
+		marketTokenLimit, err := rediscore.GetMarketOrderTokenLimit(ctx, redisClient)
+		if err != nil {
+			log.Warn("failed to read market-order token limit, skipping token-aware batch cap", "error", err)
+		} else if marketTokenLimit > 0 {
+			marketTokensUsed, err := rediscore.GetMarketOrderTokensUsed(ctx, redisClient)
+			if err != nil {
+				log.Warn("failed to read market-order tokens used, skipping token-aware batch cap", "error", err)
+			} else {
+				availableTokens := float64(marketTokenLimit) - marketTokensUsed
+				if availableTokens < 0 {
+					availableTokens = 0
+				}
+
+				tokenReserve := float64(marketTokenLimit) * tokenReserveRatio
+				effectiveTokens := availableTokens - tokenReserve
+				if effectiveTokens < 0 {
+					effectiveTokens = 0
+				}
+
+				tokenLimitedBatchSize = int(math.Floor(effectiveTokens / estimatedTokensPerRequest))
+				if tokenLimitedBatchSize < 1 {
+					tokenLimitedBatchSize = 1
+				}
+
+				if batchSize > tokenLimitedBatchSize {
+					log.Debug("batch size limited by current market-order token availability",
+						"calculated_batch_size", batchSize,
+						"token_limited_batch_size", tokenLimitedBatchSize,
+						"market_order_token_limit", marketTokenLimit,
+						"market_order_tokens_used", marketTokensUsed,
+						"estimated_tokens_per_request", estimatedTokensPerRequest,
+						"token_reserve_ratio", tokenReserveRatio)
+					batchSize = tokenLimitedBatchSize
+				}
+			}
+		}
+
 		log.Debug("calculated batch size",
 			"total_items", totalItems,
 			"target_batch_size", int(math.Ceil(targetBatchSize)),
 			"final_batch_size", batchSize,
 			"dynamic_min_batch_size", dynamicMinBatchSize,
-			"max_items_per_run_by_api", maxItemsPerRunByAPI)
+			"max_items_per_run_by_api", maxItemsPerRunByAPI,
+			"token_limited_batch_size", tokenLimitedBatchSize)
 
 		// Fetch outdated items to process (only fetch what we need for this batch)
 		// Fetch items older than 4 hours, up to batch size
@@ -157,8 +207,9 @@ func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Sc
 			}
 		}
 
-		// Publish messages up to the calculated batch size
-		var publishedCount int
+		// Collect publishable requests up to the calculated batch size, then spread
+		// publication across the current 5-minute window to reduce queue spikes.
+		requestsToPublish := make([]natscore.MarketPricesRequest, 0, batchSize)
 		var outdatedCount int
 		for _, refreshTime := range refreshTimes {
 			// Skip entries with invalid (zero) type_id or location_id
@@ -174,8 +225,8 @@ func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Sc
 			// Count outdated items for logging
 			outdatedCount++
 
-			// Only publish if we haven't reached the batch size limit
-			if publishedCount >= batchSize {
+			// Only collect if we haven't reached the batch size limit
+			if len(requestsToPublish) >= batchSize {
 				continue
 			}
 
@@ -186,25 +237,75 @@ func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Sc
 				continue
 			}
 
-			// Create market prices request
-			request := natscore.MarketPricesRequest{
+			requestsToPublish = append(requestsToPublish, natscore.MarketPricesRequest{
 				TypeID:     refreshTime.TypeID,
 				LocationID: refreshTime.LocationID,
 				StationID:  stationID,
+			})
+		}
+
+		var publishedCount int
+		microBatchStarted := false
+		microBatchCompleted := false
+		var microBatchSlices int
+		var microBatchRequestsPerSlice int
+		if len(requestsToPublish) > 0 {
+			plannedSlices := int(microBatchPublishWindow / microBatchInterval)
+			if plannedSlices < 1 {
+				plannedSlices = 1
+			}
+			if len(requestsToPublish) < plannedSlices {
+				plannedSlices = len(requestsToPublish)
+			}
+			requestsPerSlice := int(math.Ceil(float64(len(requestsToPublish)) / float64(plannedSlices)))
+
+			microBatchStarted = true
+			microBatchSlices = plannedSlices
+			microBatchRequestsPerSlice = requestsPerSlice
+
+			log.Info("market prices micro-batch publishing started",
+				"publishable_requests", len(requestsToPublish),
+				"planned_slices", plannedSlices,
+				"requests_per_slice", requestsPerSlice,
+				"slice_interval_seconds", int(microBatchInterval.Seconds()),
+				"publish_window_seconds", int(microBatchPublishWindow.Seconds()))
+
+			for start := 0; start < len(requestsToPublish); start += requestsPerSlice {
+				end := min(start+requestsPerSlice, len(requestsToPublish))
+				for _, request := range requestsToPublish[start:end] {
+					if err := natscore.PublishTask(jsContext, task.Subject, task.Name, request, natsConn); err != nil {
+						log.Warn("failed to publish market prices refresh message",
+							"type_id", request.TypeID,
+							"location_id", request.LocationID,
+							"station_id", request.StationID,
+							"error", err)
+						continue
+					}
+					publishedCount++
+				}
+
+				if end >= len(requestsToPublish) {
+					break
+				}
+
+				timer := time.NewTimer(microBatchInterval)
+				select {
+				case <-ctx.Done():
+					timer.Stop()
+					log.Warn("market prices micro-batch publishing stopped early", "published_messages", publishedCount, "remaining_messages", len(requestsToPublish)-end, "error", ctx.Err())
+					return ctx.Err()
+				case <-timer.C:
+				}
 			}
 
-			// Publish message to trigger refresh with retry logic
-			subject := natscore.SubjectRefreshMarketPrices
-			if err := natscore.PublishTask(jsContext, subject, taskscore.TaskTypeRefreshMarketPrices, request, natsConn); err != nil {
-				log.Warn("failed to publish market prices refresh message",
-					"type_id", refreshTime.TypeID,
-					"location_id", refreshTime.LocationID,
-					"station_id", stationID,
-					"error", err)
-				continue
-			}
-
-			publishedCount++
+			microBatchCompleted = true
+			log.Info("market prices micro-batch publishing completed",
+				"publishable_requests", len(requestsToPublish),
+				"published_messages", publishedCount,
+				"planned_slices", microBatchSlices,
+				"requests_per_slice", microBatchRequestsPerSlice,
+				"slice_interval_seconds", int(microBatchInterval.Seconds()),
+				"publish_window_seconds", int(microBatchPublishWindow.Seconds()))
 		}
 
 		remainingOutdated := outdatedCount - publishedCount
@@ -218,9 +319,9 @@ func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Sc
 			// Calculate detailed backlog metrics only when needed
 			estimatedHoursToClearBacklog := 0.0
 			if remainingOutdated > 0 {
-			// Calculate how many runs it would take to clear the remaining backlog
-			runsNeeded := float64(remainingOutdated) / float64(batchSize)
-			estimatedHoursToClearBacklog = runsNeeded * (5.0 / 60.0) // 5 minutes per run
+				// Calculate how many runs it would take to clear the remaining backlog
+				runsNeeded := float64(remainingOutdated) / float64(batchSize)
+				estimatedHoursToClearBacklog = runsNeeded * (5.0 / 60.0) // 5 minutes per run
 			}
 
 			// Check if we can keep up: can we process all currently outdated items within 4 hours?
@@ -258,7 +359,9 @@ func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Sc
 					"published_messages", publishedCount,
 					"remaining_outdated", remainingOutdated,
 					"checked_entries", len(refreshTimes),
-					"batch_size", batchSize)
+					"batch_size", batchSize,
+					"micro_batch_started", microBatchStarted,
+					"micro_batch_completed", microBatchCompleted)
 			}
 		} else {
 			// Normal operation - no backlog, minimal logging
@@ -266,11 +369,15 @@ func ScheduleMarketPricesRefresh(deps scheduler.Dependencies, sched scheduler.Sc
 				"outdated_entries_found", outdatedCount,
 				"published_messages", publishedCount,
 				"checked_entries", len(refreshTimes),
-				"batch_size", batchSize)
+				"batch_size", batchSize,
+				"micro_batch_started", microBatchStarted,
+				"micro_batch_completed", microBatchCompleted)
 		}
 
 		return nil
 	})
-
+	if err := sched.ScheduleCronJob(cronMarketPricesRefreshSchedule, cronMarketPricesRefreshName); err != nil {
+		return nil, err
+	}
 	return func() {}, nil
 }

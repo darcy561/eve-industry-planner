@@ -3,10 +3,164 @@ import {
   CACHED_DATA_FILES,
 } from "../../Context/defaultValues";
 import * as Sentry from "@sentry/react";
-import {
-  getFileMetadata,
-  getDataFileFromStorage,
-} from "../Firebase/getDataFilesFromStorage";
+
+const STATIC_DATA_META_URL = "/api/static-data/meta";
+const LEGACY_STATIC_CACHE_PREFIX = "static-data-cache-";
+let cacheMigrationDone = false;
+
+let staticMetaCache = null;
+let staticMetaFetchedAt = 0;
+let staticMetaInFlight = null;
+const STATIC_META_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function fetchStaticMeta(force = false, allowNetwork = true) {
+  const now = Date.now();
+  if (!force && staticMetaCache && now - staticMetaFetchedAt < STATIC_META_TTL_MS) {
+    return staticMetaCache;
+  }
+  if (!allowNetwork) {
+    return staticMetaCache;
+  }
+
+  // Deduplicate concurrent callers so we don't spam /api/static-data/meta.
+  if (!force && staticMetaInFlight) {
+    return staticMetaInFlight;
+  }
+
+  staticMetaInFlight = (async () => {
+    const response = await fetch(STATIC_DATA_META_URL, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch static data metadata: ${response.status} ${response.statusText}`);
+    }
+
+    staticMetaCache = await response.json();
+    staticMetaFetchedAt = Date.now();
+    return staticMetaCache;
+  })();
+
+  try {
+    return await staticMetaInFlight;
+  } catch (error) {
+    // If we already have metadata, prefer stale metadata over hard failure.
+    if (staticMetaCache) {
+      return staticMetaCache;
+    }
+    throw error;
+  } finally {
+    staticMetaInFlight = null;
+  }
+}
+
+async function getMetaForRead() {
+  // Fast path for normal read calls: no network if we already have metadata.
+  const cached = await fetchStaticMeta(false, false);
+  if (cached) return cached;
+
+  // Cold start fallback: fetch once.
+  return fetchStaticMeta(false, true);
+}
+
+function getVersionedURLFromMeta(meta, fileKey) {
+  const fileMeta = meta?.file_keys?.[fileKey];
+  if (!fileMeta) {
+    throw new Error(`Static data metadata missing file key: ${fileKey}`);
+  }
+  return fileMeta.versioned_url || fileMeta.url;
+}
+
+async function getCache() {
+  if (typeof caches === "undefined") {
+    return null;
+  }
+  return caches.open(STATIC_DATA_CACHE);
+}
+
+async function migrateAndCleanupStaticCaches() {
+  if (cacheMigrationDone || typeof caches === "undefined") {
+    return;
+  }
+  cacheMigrationDone = true;
+
+  try {
+    const cacheNames = await caches.keys();
+
+    // Remove old static-data cache versions.
+    await Promise.all(
+      cacheNames
+        .filter((name) => name.startsWith(LEGACY_STATIC_CACHE_PREFIX) && name !== STATIC_DATA_CACHE)
+        .map((name) => caches.delete(name))
+    );
+  } catch (error) {
+    console.warn("[App] static cache migration cleanup failed:", error);
+  }
+}
+
+async function parseJSONResponse(response) {
+  const text = await response.text();
+  return JSON.parse(text);
+}
+
+async function fetchAndCacheByURL(cache, cacheURL) {
+  const response = await fetch(cacheURL, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${cacheURL}: ${response.status} ${response.statusText}`);
+  }
+
+  const cloned = response.clone();
+  if (cache) {
+    await cache.put(cacheURL, cloned);
+  }
+  return parseJSONResponse(response);
+}
+
+function getCurrentStaticURLsFromMeta(meta) {
+  const keys = Object.keys(meta?.file_keys || {});
+  const urls = new Set();
+  for (const key of keys) {
+    const fileMeta = meta.file_keys[key];
+    const url = fileMeta?.versioned_url || fileMeta?.url;
+    if (url) {
+      urls.add(url);
+    }
+  }
+  return urls;
+}
+
+function isStaticDataRequestURL(requestURL) {
+  try {
+    const parsed = new URL(requestURL, window.location.origin);
+    return parsed.pathname.startsWith("/api/static-data/") && parsed.pathname !== "/api/static-data/meta";
+  } catch {
+    return false;
+  }
+}
+
+async function pruneStaleStaticCacheEntries(cache, meta) {
+  if (!cache) return;
+
+  const validURLs = getCurrentStaticURLsFromMeta(meta);
+  if (validURLs.size === 0) return;
+
+  const requests = await cache.keys();
+  await Promise.all(
+    requests.map(async (req) => {
+      if (!isStaticDataRequestURL(req.url)) return;
+
+      // Normalize to path+query so it matches meta URLs.
+      const parsed = new URL(req.url, window.location.origin);
+      const normalized = `${parsed.pathname}${parsed.search}`;
+      if (!validURLs.has(normalized)) {
+        await cache.delete(req);
+      }
+    })
+  );
+}
 
 /**
  * Checks if a file exists in the cache and returns the data if found
@@ -15,18 +169,18 @@ import {
  */
 export async function checkFileInCache(fileName) {
   try {
-    // Check if Cache API is available (not available in all contexts)
-    if (typeof caches === 'undefined') {
+    const meta = await getMetaForRead();
+    if (!meta) return null;
+    const cacheURL = getVersionedURLFromMeta(meta, fileName);
+    const cache = await getCache();
+    if (!cache) {
       return null;
     }
-    
-    const cache = await caches.open(STATIC_DATA_CACHE);
-    const cacheUrl = `/data/${fileName}`;
-    const cachedResponse = await cache.match(cacheUrl);
+
+    const cachedResponse = await cache.match(cacheURL);
 
     if (cachedResponse) {
-      const text = await cachedResponse.text();
-      return JSON.parse(text);
+      return parseJSONResponse(cachedResponse);
     }
 
     return null;
@@ -40,86 +194,26 @@ export async function checkFileInCache(fileName) {
 }
 
 /**
- * Checks if cached data is stale by comparing with Firebase Storage metadata
- * @param {string} fileName - The name of the file to check
- * @returns {Promise<boolean>} True if cache is stale and needs refresh, false if cache is fresh
- */
-export async function isCacheStale(fileName) {
-  try {
-    // Check if Cache API is available (not available in all contexts)
-    if (typeof caches === 'undefined') {
-      return true; // If no cache API, consider it stale so data is fetched
-    }
-    
-    const cache = await caches.open(STATIC_DATA_CACHE);
-    const cacheUrl = `/data/${fileName}`;
-    const cachedResponse = await cache.match(cacheUrl);
-
-    if (!cachedResponse) {
-      return true;
-    }
-
-    // Get the cached date from the response headers
-    const cachedDate = cachedResponse.headers.get("date");
-    if (!cachedDate) {
-      return true;
-    }
-
-    try {
-      // Get current metadata from Firebase Storage
-      const metadata = await getFileMetadata(fileName);
-      const firebaseLastModified = new Date(metadata.lastModified);
-      const cachedDateObj = new Date(cachedDate);
-
-      const isStale = firebaseLastModified > cachedDateObj;
-
-      return isStale;
-    } catch (metadataError) {
-      console.error(
-        `[App] isCacheStale: Error getting metadata for ${fileName}:`,
-        metadataError
-      );
-      // If we can't get metadata, assume cache is fresh to avoid unnecessary refetches
-      return false;
-    }
-  } catch (error) {
-    console.error(
-      `[App] isCacheStale: Error checking if cache is stale for ${fileName}:`,
-      error
-    );
-    // If we can't check, assume it's stale to be safe
-    return true;
-  }
-}
-
-/**
  * Checks if a file exists in cache and is not stale
  * @param {string} fileName - The name of the file to check
  * @returns {Promise<Object|null>} The parsed data from cache if found and fresh, null otherwise
  */
 export async function checkFileInCacheWithMetadata(fileName) {
   try {
-    // Check if Cache API is available (not available in all contexts)
-    if (typeof caches === 'undefined') {
+    const meta = await getMetaForRead();
+    if (!meta) return null;
+    const cacheURL = getVersionedURLFromMeta(meta, fileName);
+    const cache = await getCache();
+    if (!cache) {
       return null;
     }
-    
-    const cache = await caches.open(STATIC_DATA_CACHE);
-    const cacheUrl = `/data/${fileName}`;
-    const cachedResponse = await cache.match(cacheUrl);
+
+    const cachedResponse = await cache.match(cacheURL);
 
     if (!cachedResponse) {
       return null;
     }
-
-    // Check if cache is stale
-    const isStale = await isCacheStale(fileName);
-    if (isStale) {
-      return null;
-    }
-
-    const text = await cachedResponse.text();
-    return JSON.parse(text);
+    return parseJSONResponse(cachedResponse);
   } catch (error) {
     console.error(
       `[App] checkFileInCacheWithMetadata: Error checking cache for ${fileName}:`,
@@ -136,25 +230,22 @@ export async function checkFileInCacheWithMetadata(fileName) {
  */
 export async function getCachedData(fileName) {
   try {
-    const url = `/data/${fileName}`;
-
-    // Check if Cache API is available (not available in all contexts)
-    if (typeof caches === 'undefined') {
-      // If no cache API, fetch directly from storage
-      return await getDataFileFromStorage(fileName);
+    const meta = await getMetaForRead();
+    if (!meta) {
+      throw new Error("Static metadata unavailable");
+    }
+    const cacheURL = getVersionedURLFromMeta(meta, fileName);
+    const cache = await getCache();
+    if (!cache) {
+      return fetchAndCacheByURL(null, cacheURL);
     }
 
-    const cache = await caches.open(STATIC_DATA_CACHE);
-    const cachedResponse = await cache.match(url);
-
+    const cachedResponse = await cache.match(cacheURL);
     if (!cachedResponse) {
-      return await getDataFileFromStorage(fileName);
+      return fetchAndCacheByURL(cache, cacheURL);
     }
 
-    const response = cachedResponse.clone();
-    const data = await response.json();
-
-    return data;
+    return parseJSONResponse(cachedResponse);
   } catch (error) {
     console.error(`Error getting ${fileName}:`, error);
 
@@ -173,6 +264,42 @@ export async function getCachedData(fileName) {
 
     throw error;
   }
+}
+
+export async function preloadAllStaticDataFromAPI() {
+  const meta = await fetchStaticMeta(false, true);
+  const cache = await getCache();
+  await pruneStaleStaticCacheEntries(cache, meta);
+  const fileKeys = Object.keys(meta?.file_keys || {});
+  const results = {};
+
+  for (const fileKey of fileKeys) {
+    const cacheURL = getVersionedURLFromMeta(meta, fileKey);
+    try {
+      if (cache) {
+        const cached = await cache.match(cacheURL);
+        if (cached) {
+          results[fileKey] = { data: await parseJSONResponse(cached) };
+          continue;
+        }
+      }
+      const data = await fetchAndCacheByURL(cache, cacheURL);
+      results[fileKey] = { data };
+    } catch (error) {
+      results[fileKey] = { error: error.message };
+    }
+  }
+  return results;
+}
+
+// Refreshes metadata from API and prunes/fetches static files.
+// Intended for app startup and periodic refreshes, not per-file reads.
+export async function refreshStaticDataCache() {
+  await migrateAndCleanupStaticCaches();
+  const meta = await fetchStaticMeta(true, true);
+  const cache = await getCache();
+  await pruneStaleStaticCacheEntries(cache, meta);
+  return preloadAllStaticDataFromAPI();
 }
 
 // Helper functions for specific data files

@@ -57,10 +57,10 @@ func main() {
 	// Initialize rate limits for primary groups on startup
 	// This overwrites any existing values, allowing configuration changes to take effect on restart
 	rateLimits := map[string]float64{
-		"markets":    defaultRateLimit, // Market data endpoints
-		"industry":   defaultRateLimit, // Industry/system indexes
-		"characters": defaultRateLimit, // Corporation claims
-		"status":     defaultRateLimit, // Status endpoints
+		"market-order": defaultRateLimit, // Market order endpoints
+		"industry":     defaultRateLimit, // Industry/system indexes
+		"characters":   defaultRateLimit, // Corporation claims
+		"status":       defaultRateLimit, // Status endpoints
 	}
 	if err := esiClient.InitializeDefaultRateLimits(ctx, rateLimits); err != nil {
 		logs.Error("failed to initialize rate limits", "error", err)

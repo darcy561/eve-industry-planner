@@ -23,11 +23,10 @@ type Group struct {
 
 // GroupMetaData represents metadata for group documents (stored as _meta in MongoDB)
 type GroupMetaData struct {
+	MetaData    `json:",inline" bson:",inline"`
 	BuildVer      string     `json:"buildVer" bson:"buildVer"`
 	CreatedAt     time.Time  `json:"createdAt" bson:"createdAt"`
-	LastUpdated   time.Time  `json:"lastUpdated" bson:"lastUpdated"`
 	LastUpdatedBy string     `json:"lastUpdatedBy" bson:"lastUpdatedBy"`
-	ClientID      string     `json:"clientID,omitempty" bson:"clientID,omitempty"` // ClientID from X-Client-ID header (for change stream filtering)
 	ArchivedAt    *time.Time `json:"archivedAt" bson:"archivedAt"`
 	ArchivedBy    *string    `json:"archivedBy" bson:"archivedBy"`
 }

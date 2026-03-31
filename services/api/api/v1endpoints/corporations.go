@@ -153,7 +153,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		Tokens:    validTokens,
 	}
 
-	if err := natscore.PublishTask(clients.JetStream, natscore.SubjectFetchCorporations, taskscore.TaskTypeUpdateCorporationClaims, taskRequest, clients.NATS); err != nil {
+	if err := natscore.PublishTask(clients.JetStream, taskscore.FetchCorporations.Subject, taskscore.FetchCorporations.Name, taskRequest, clients.NATS); err != nil {
 		m.Errors.WithLabelValues("publish_error").Inc()
 		logs.ErrorCtx(r.Context(), "failed to publish corporation lookup task",
 			"account_id", accountID,

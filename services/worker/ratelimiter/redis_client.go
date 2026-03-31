@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -135,6 +136,145 @@ func (c *RedisESIClient) checkAndReserve(ctx context.Context, group string, esti
 	}
 
 	return allowed, waitUntil, nil
+}
+
+// snapshotGroupTokenUsed reads esi:group:{group}:tokens:sum for logging. Returns -1 if missing/error.
+func (c *RedisESIClient) snapshotGroupTokenUsed(ctx context.Context, group string) int {
+	if c.redis == nil {
+		return -1
+	}
+	key := fmt.Sprintf("esi:group:%s:tokens:sum", group)
+	v, err := c.redis.Get(ctx, key).Float64()
+	if err != nil {
+		return -1
+	}
+	return int(math.Round(v))
+}
+
+const (
+	// rateLimitMaxBlockWait is the longest we block in-process before yielding with
+	// RateLimitError so asynq can re-queue (avoids tying up a worker slot).
+	rateLimitMaxBlockWait = 2 * time.Second
+	// rateLimitDeadlineReserve stays under the task context deadline so checks/redis work remain possible.
+	rateLimitDeadlineReserve = 300 * time.Millisecond
+)
+
+// waitUntilRateLimiterAllowed runs the check/wait loop until checkAndReserve allows,
+// or returns RateLimitError for asynq to retry. Waits are capped by rateLimitMaxBlockWait
+// and by remaining time on ctx (e.g. asynq task timeout) so multi-page work does not
+// burn the whole budget in the limiter loop.
+func (c *RedisESIClient) waitUntilRateLimiterAllowed(
+	ctx context.Context,
+	path string,
+	groupName string,
+	estimatedTokens int,
+	tokenLimit int,
+	rateLimit float64,
+	streaming bool,
+) error {
+	allowed, waitUntil, err := c.checkAndReserve(ctx, groupName, estimatedTokens, tokenLimit, rateLimit)
+	if err != nil {
+		if streaming {
+			logs.Error("checkAndReserve failed (streaming)", "path", path, "group", groupName, "error", err)
+		} else {
+			logs.Error("checkAndReserve failed", "path", path, "group", groupName, "error", err)
+		}
+		return err
+	}
+
+	for !allowed {
+		waitTime := time.Until(waitUntil)
+		if waitTime <= 0 {
+			allowed, waitUntil, err = c.checkAndReserve(ctx, groupName, estimatedTokens, tokenLimit, rateLimit)
+			if err != nil {
+				return err
+			}
+			if allowed {
+				return nil
+			}
+			waitTime = time.Until(waitUntil)
+		}
+
+		maxBlock := rateLimitMaxBlockWait
+		if dl, ok := ctx.Deadline(); ok {
+			budget := time.Until(dl) - rateLimitDeadlineReserve
+			if budget <= 0 {
+				logs.Debug("rate limit wait skipped: task context deadline too tight",
+					"path", path, "group", groupName, "streaming", streaming)
+				tu := -1
+				if tokenLimit > 0 {
+					tu = c.snapshotGroupTokenUsed(ctx, groupName)
+				}
+				return &RateLimitError{
+					Retryable:       true,
+					RetryAfter:      waitUntil,
+					Kind:            RateLimitKindTaskBudget,
+					Reason:          "task has no time left to wait for the next ESI rate slot; will retry",
+					Group:           groupName,
+					TokenUsed:       tu,
+					TokenLimit:      tokenLimit,
+					EstimatedTokens: estimatedTokens,
+				}
+			}
+			if budget < maxBlock {
+				maxBlock = budget
+			}
+		}
+
+		if waitTime > maxBlock {
+			if streaming {
+				logs.Debug("rate limit wait exceeds cap or task budget, returning to queue for retry (streaming)",
+					"path", path, "group", groupName, "wait_time", waitTime, "max_block", maxBlock, "wait_until", waitUntil)
+			} else {
+				logs.Debug("rate limit wait exceeds cap or task budget, returning to queue for retry",
+					"path", path, "group", groupName, "wait_time", waitTime, "max_block", maxBlock, "wait_until", waitUntil)
+			}
+			tu := -1
+			if tokenLimit > 0 {
+				tu = c.snapshotGroupTokenUsed(ctx, groupName)
+			}
+			kind := RateLimitKindClientYield
+			reason := fmt.Sprintf(
+				"next ESI rate slot is ~%s away; worker yields after %s so task can re-queue (spacing/token window, not necessarily 429)",
+				waitTime.Round(time.Millisecond), maxBlock.Round(time.Millisecond))
+			if maxBlock < rateLimitMaxBlockWait {
+				kind = RateLimitKindTaskBudget
+				reason = fmt.Sprintf(
+					"next ESI rate slot is ~%s away but only ~%s remains on task deadline; re-queueing",
+					waitTime.Round(time.Millisecond), maxBlock.Round(time.Millisecond))
+			}
+			return &RateLimitError{
+				Retryable:       true,
+				RetryAfter:      waitUntil,
+				Kind:            kind,
+				Reason:          reason,
+				Group:           groupName,
+				TokenUsed:       tu,
+				TokenLimit:      tokenLimit,
+				EstimatedTokens: estimatedTokens,
+			}
+		}
+
+		if streaming {
+			logs.Debug("rate limit check failed, blocking and waiting (streaming)",
+				"path", path, "group", groupName, "wait_until", waitUntil, "wait_time", waitTime)
+		} else {
+			logs.Debug("rate limit check failed, blocking and waiting",
+				"path", path, "group", groupName, "wait_until", waitUntil, "wait_time", waitTime)
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(waitTime):
+			allowed, waitUntil, err = c.checkAndReserve(ctx, groupName, estimatedTokens, tokenLimit, rateLimit)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // updateTokens updates token bucket in Redis after request completes
@@ -292,75 +432,8 @@ func (c *RedisESIClient) Do(ctx context.Context, method, path string, headers ma
 		// Jitter complete, proceed with rate limit check
 	}
 
-	// Check rate limits in Redis
-	allowed, waitUntil, err := c.checkAndReserve(ctx, groupName, estimatedTokens, tokenLimit, rateLimit)
-	if err != nil {
-		logs.Error("checkAndReserve failed", "path", path, "group", groupName, "error", err)
+	if err := c.waitUntilRateLimiterAllowed(ctx, path, groupName, estimatedTokens, tokenLimit, rateLimit, false); err != nil {
 		return nil, nil, err
-	}
-
-	// Hybrid approach: Block for short waits, return error for long waits
-	// Short waits (< maxWaitTime): Block in worker (efficient, no retry overhead)
-	// Long waits (> maxWaitTime): Return error, let asynq retry (frees worker for other tasks)
-	// Note: Asynq polls every 1s when queues are empty, so maxWaitTime should account for this
-	// plus some buffer. Tasks pulled from queue should be ready to run (or close to ready).
-	maxWaitTime := 2 * time.Second // Maximum time to block before returning to queue
-	// This accounts for: asynq's 1s polling + ~1s buffer for task execution variance
-	for !allowed {
-		waitTime := time.Until(waitUntil)
-		if waitTime <= 0 {
-			// Wait time is in the past, re-check immediately
-			allowed, waitUntil, err = c.checkAndReserve(ctx, groupName, estimatedTokens, tokenLimit, rateLimit)
-			if err != nil {
-				return nil, nil, err
-			}
-			if allowed {
-				break
-			}
-			// Still rate limited, recalculate wait time
-			waitTime = time.Until(waitUntil)
-		}
-
-		// If wait time exceeds maximum, return error and let asynq retry
-		// This frees the worker for other tasks while keeping queue populated
-		if waitTime > maxWaitTime {
-			logs.Debug("rate limit wait time exceeds maximum, returning to queue for retry",
-				"path", path,
-				"group", groupName,
-				"wait_time", waitTime,
-				"max_wait_time", maxWaitTime,
-				"wait_until", waitUntil)
-			return nil, nil, &RateLimitError{
-				Retryable:       true,
-				RetryAfter:      waitUntil,
-				Reason:          "rate limited or insufficient tokens (wait time exceeds maximum)",
-				Group:           groupName,
-				TokenUsed:       0,
-				TokenLimit:      tokenLimit,
-				EstimatedTokens: estimatedTokens,
-			}
-		}
-
-		// Block and wait for short waits (like original gl.Limiter.Wait approach)
-		// This keeps the task in the worker instead of failing and retrying
-		logs.Debug("rate limit check failed, blocking and waiting",
-			"path", path,
-			"group", groupName,
-			"wait_until", waitUntil,
-			"wait_time", waitTime)
-
-		// Wait with context cancellation support
-		select {
-		case <-ctx.Done():
-			return nil, nil, ctx.Err()
-		case <-time.After(waitTime):
-			// Wait complete, re-check Redis state
-			allowed, waitUntil, err = c.checkAndReserve(ctx, groupName, estimatedTokens, tokenLimit, rateLimit)
-			if err != nil {
-				return nil, nil, err
-			}
-			// Loop will continue if still not allowed
-		}
 	}
 
 	// Make HTTP request
@@ -527,75 +600,8 @@ func (c *RedisESIClient) DoRequest(ctx context.Context, method, path string, hea
 		// Jitter complete, proceed with rate limit check
 	}
 
-	// Check rate limits in Redis
-	allowed, waitUntil, err := c.checkAndReserve(ctx, groupName, estimatedTokens, tokenLimit, rateLimit)
-	if err != nil {
-		logs.Error("checkAndReserve failed (streaming)", "path", path, "group", groupName, "error", err)
+	if err := c.waitUntilRateLimiterAllowed(ctx, path, groupName, estimatedTokens, tokenLimit, rateLimit, true); err != nil {
 		return nil, err
-	}
-
-	// Hybrid approach: Block for short waits, return error for long waits
-	// Short waits (< maxWaitTime): Block in worker (efficient, no retry overhead)
-	// Long waits (> maxWaitTime): Return error, let asynq retry (frees worker for other tasks)
-	// Note: Asynq polls every 1s when queues are empty, so maxWaitTime should account for this
-	// plus some buffer. Tasks pulled from queue should be ready to run (or close to ready).
-	maxWaitTime := 2 * time.Second // Maximum time to block before returning to queue
-	// This accounts for: asynq's 1s polling + ~1s buffer for task execution variance
-	for !allowed {
-		waitTime := time.Until(waitUntil)
-		if waitTime <= 0 {
-			// Wait time is in the past, re-check immediately
-			allowed, waitUntil, err = c.checkAndReserve(ctx, groupName, estimatedTokens, tokenLimit, rateLimit)
-			if err != nil {
-				return nil, err
-			}
-			if allowed {
-				break
-			}
-			// Still rate limited, recalculate wait time
-			waitTime = time.Until(waitUntil)
-		}
-
-		// If wait time exceeds maximum, return error and let asynq retry
-		// This frees the worker for other tasks while keeping queue populated
-		if waitTime > maxWaitTime {
-			logs.Debug("rate limit wait time exceeds maximum, returning to queue for retry (streaming)",
-				"path", path,
-				"group", groupName,
-				"wait_time", waitTime,
-				"max_wait_time", maxWaitTime,
-				"wait_until", waitUntil)
-			return nil, &RateLimitError{
-				Retryable:       true,
-				RetryAfter:      waitUntil,
-				Reason:          "rate limited or insufficient tokens (wait time exceeds maximum)",
-				Group:           groupName,
-				TokenUsed:       0,
-				TokenLimit:      tokenLimit,
-				EstimatedTokens: estimatedTokens,
-			}
-		}
-
-		// Block and wait for short waits (like original gl.Limiter.Wait approach)
-		// This keeps the task in the worker instead of failing and retrying
-		logs.Debug("rate limit check failed, blocking and waiting (streaming)",
-			"path", path,
-			"group", groupName,
-			"wait_until", waitUntil,
-			"wait_time", waitTime)
-
-		// Wait with context cancellation support
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(waitTime):
-			// Wait complete, re-check Redis state
-			allowed, waitUntil, err = c.checkAndReserve(ctx, groupName, estimatedTokens, tokenLimit, rateLimit)
-			if err != nil {
-				return nil, err
-			}
-			// Loop will continue if still not allowed
-		}
 	}
 
 	// Make HTTP request
@@ -694,7 +700,7 @@ func (c *RedisESIClient) DoRequest(ctx context.Context, method, path string, hea
 
 // SetPrimaryGroupRateLimit sets the rate limit (req/s) for a primary group
 // This allows different primary groups to have different rate limits
-// Example: markets group could have 5 req/s, while industry has 3 req/s
+// Example: market-order group could have 5 req/s, while industry has 3 req/s
 func (c *RedisESIClient) SetPrimaryGroupRateLimit(ctx context.Context, primaryGroup string, rateLimit float64) error {
 	if rateLimit <= 0 {
 		return fmt.Errorf("rate limit must be greater than 0, got %f", rateLimit)

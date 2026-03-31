@@ -88,7 +88,7 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 							jitter := time.Duration(taskIDHash % uint64(jitterWindow))
 							finalWait := waitTime + jitter
 
-							logs.Info("scheduling retry with jitter to prevent thundering herd",
+							logs.Debug("scheduling retry with jitter to prevent thundering herd",
 								"task_type", t.Type(),
 								"retry_attempt", n,
 								"retry_after", rateLimitErr.RetryAfter,
@@ -99,7 +99,7 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 							return finalWait
 						}
 
-						logs.Info("scheduling retry based on rate limit RetryAfter",
+						logs.Debug("scheduling retry based on rate limit RetryAfter",
 							"task_type", t.Type(),
 							"retry_attempt", n,
 							"retry_after", rateLimitErr.RetryAfter,

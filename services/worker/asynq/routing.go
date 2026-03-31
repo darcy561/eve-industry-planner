@@ -1,33 +1,30 @@
 package asynq
 
 import (
-	natscore "eve-industry-planner/shared/core/nats"
+	taskscore "eve-industry-planner/shared/tasks"
 )
 
-// GetPriorityQueue maps NATS subject to priority queue name.
-// Uses a 5-tier priority system:
-// - priority_1: Reserved for future critical tasks
-// - priority_2: Urgent, user-impacting tasks (e.g., adjusted prices, missing market prices)
-// - priority_3: Default, steady throughput tasks (e.g., system indexes, corporation claims)
-// - priority_4: High-volume background tasks (e.g., market prices)
-// - priority_5: Reserved / bulk tasks
-func GetPriorityQueue(subject string) string {
-	switch subject {
-	case natscore.SubjectRefreshAdjustedPrices:
-		return "priority_2" // Urgent, user-impacting
-	case natscore.SubjectFetchMissingMarketPrices:
-		return "priority_2" // Urgent, user-impacting
-	case natscore.SubjectRefreshSystemIndexes:
-		return "priority_3" // Default, steady throughput
-	case natscore.SubjectFetchCorporations:
-		return "priority_3" // Default, steady throughput
-	case natscore.SubjectRefreshMarketPrices:
-		return "priority_4" // High-volume background
-	case natscore.SubjectCountMarketPricesItems:
-		return "priority_3" // Default, steady throughput (maintenance task)
-	default:
-		// Unknown tasks default to priority_3
-		// Log when default routing is used to catch misclassifications
-		return "priority_3" // Default fallback
+// validQueues is the set of allowed queue names for override validation (tasks.Priority1..5).
+var validQueues = map[string]bool{
+	taskscore.Priority1: true,
+	taskscore.Priority2: true,
+	taskscore.Priority3: true,
+	taskscore.Priority4: true,
+	taskscore.Priority5: true,
+}
+
+// DefaultPriorityForTaskType returns the default queue name for a task type from shared/tasks.
+func DefaultPriorityForTaskType(taskType string) string {
+	if t, ok := taskscore.ByName[taskType]; ok {
+		return t.DefaultPriority
 	}
+	return taskscore.Priority3
+}
+
+// GetPriorityQueue returns the queue name for a task: override if valid and set, otherwise the task default from shared/tasks.
+func GetPriorityQueue(taskType string, overridePriority string) string {
+	if overridePriority != "" && validQueues[overridePriority] {
+		return overridePriority
+	}
+	return DefaultPriorityForTaskType(taskType)
 }

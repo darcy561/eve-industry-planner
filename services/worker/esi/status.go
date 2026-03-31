@@ -58,11 +58,70 @@ type StatusResult struct {
 	Error error
 }
 
+// tryRedisSharedStatusCache returns (true, result) if Redis still considers the last
+// successful /v1/status/ response fresh (valid_until in the future and body present).
+func tryRedisSharedStatusCache(ctx context.Context, redisClient *redis.Client) (bool, StatusResult) {
+	validUntil, err := rediscore.GetServerStatusValidUntil(ctx, redisClient)
+	if err != nil && err != redis.Nil {
+		logs.Debug("failed to read server status valid-until from redis", "error", err)
+		return false, StatusResult{}
+	}
+	if validUntil == 0 {
+		return false, StatusResult{}
+	}
+	now := time.Now().UnixMilli()
+	if now >= validUntil {
+		return false, StatusResult{}
+	}
+
+	var cachedStatus ServerStatusResponse
+	if err := rediscore.GetServerStatus(ctx, redisClient, &cachedStatus); err != nil {
+		return false, StatusResult{}
+	}
+
+	lastUpdated, _ := rediscore.GetServerStatusLastUpdated(ctx, redisClient)
+	etag, _ := rediscore.GetServerStatusETag(ctx, redisClient)
+
+	return true, StatusResult{
+		Available:   true,
+		Status:      &cachedStatus,
+		LastUpdated: lastUpdated,
+		ETag:        etag,
+		Cached:      true,
+	}
+}
+
+// persistStatusValidUntil stores when cached status may be reused without HTTP, from ESI cache headers.
+func persistStatusValidUntil(ctx context.Context, redisClient *redis.Client, cacheTTL time.Duration) {
+	if redisClient == nil || cacheTTL <= 0 {
+		return
+	}
+	until := time.Now().Add(cacheTTL).UnixMilli()
+	if err := rediscore.SaveServerStatusValidUntil(ctx, redisClient, until); err != nil {
+		logs.Warn("failed to save server status valid-until to redis", "error", err)
+	}
+}
+
 // CheckServerStatus queries the ESI /v1/status/ endpoint to check if EVE servers are available.
 // It uses the provided ESI rate limiter and Redis for caching with ETag support.
 // If multiple goroutines call this simultaneously, they will share a single request result.
 // Returns a StatusResult with enough information for callers to handle or exit as needed.
 func CheckServerStatus(ctx context.Context, esiClient esiratelimiter.ClientInterface, redisClient *redis.Client) StatusResult {
+	// Redis shared gate: skip HTTP while valid_until is in the future (any worker can set it).
+	if redisClient != nil {
+		if ok, res := tryRedisSharedStatusCache(ctx, redisClient); ok {
+			validUntil, _ := rediscore.GetServerStatusValidUntil(ctx, redisClient)
+			secLeft := int((validUntil - time.Now().UnixMilli()) / 1000)
+			if secLeft < 0 {
+				secLeft = 0
+			}
+			logs.Debug("server status from shared Redis cache (no HTTP)",
+				"valid_until_ms", validUntil,
+				"seconds_left", secLeft)
+			return res
+		}
+	}
+
 	// Check if we have a recent cached result (within TTL)
 	lastCheckMu.RLock()
 	timeSinceLastCheck := time.Since(lastCheckTime)
@@ -268,6 +327,7 @@ func checkServerStatusInternal(ctx context.Context, esiClient esiratelimiter.Cli
 		result.Available = true
 		result.ETag = newETag
 		result.Cached = true
+		persistStatusValidUntil(ctx, redisClient, cacheTTL)
 		return result, cacheTTL
 	}
 
@@ -321,5 +381,6 @@ func checkServerStatusInternal(ctx context.Context, esiClient esiratelimiter.Cli
 	result.ETag = newETag
 	result.Cached = false
 
+	persistStatusValidUntil(ctx, redisClient, cacheTTL)
 	return result, cacheTTL
 }

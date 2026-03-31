@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"eve-industry-planner/api/api/middleware"
+	"eve-industry-planner/api/api/migrationendpoints"
+	"eve-industry-planner/api/api/staticdata"
 	"eve-industry-planner/api/api/v1endpoints"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/shared"
@@ -63,7 +65,7 @@ func StartAPIServer(clients *shared.ServiceClients) error {
 		middleware.CompressionConstructor(),
 	}
 
-	// Public and private groups, with middleware constructors applied after global
+	// Public and private groups for v1, with middleware constructors applied after global
 	publicGroup := middleware.NewGroup(mux,
 		append(globalConstructors,
 			middleware.RateLimiterConstructor(store, publicRateLimit),
@@ -76,7 +78,7 @@ func StartAPIServer(clients *shared.ServiceClients) error {
 		)...,
 	)
 
-	// Define public routes
+	// Define public routes (v1)
 	publicRoutes := []route{
 		{
 			Path: "/api/v1/auth/login",
@@ -124,13 +126,55 @@ func StartAPIServer(clients *shared.ServiceClients) error {
 				v1endpoints.FeedbackHandler(w, r, clients)
 			},
 		},
+		{
+			Path: "/api/v1/blueprints/{blueprintID}",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				v1endpoints.BlueprintsHandler(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/v1/blueprints",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				v1endpoints.BlueprintsHandler(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/static-data/recipeList.json",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				staticdata.RecipeListHandler(w, r)
+			},
+		},
+		{
+			Path: "/api/static-data/searchIndex.json",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				staticdata.SearchIndexHandler(w, r)
+			},
+		},
+		{
+			Path: "/api/static-data/fullItemList.json",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				staticdata.FullItemListHandler(w, r)
+			},
+		},
+		{
+			Path: "/api/static-data/reprocessingData.json",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				staticdata.ReprocessingDataHandler(w, r)
+			},
+		},
+		{
+			Path: "/api/static-data/meta",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				staticdata.MetaHandler(w, r)
+			},
+		},
 	}
 	// Register public routes
 	for _, route := range publicRoutes {
 		publicGroup.HandleFunc(route.Path, route.Handler)
 	}
 
-	// Define private routes
+	// Define private routes (v1)
 	privateRoutes := []route{
 		{
 			Path: "/api/v1/auth/claims/corporations",
@@ -170,9 +214,60 @@ func StartAPIServer(clients *shared.ServiceClients) error {
 		},
 	}
 
-	// Register private routes
+	// Register private routes (v1)
 	for _, route := range privateRoutes {
 		privateGroup.HandleFunc(route.Path, route.Handler)
+	}
+
+	// Migration-specific groups (separate from v1 handlers)
+	migrationPublicGroup := middleware.NewGroup(mux,
+		append(globalConstructors,
+			middleware.RateLimiterConstructor(store, publicRateLimit),
+		)...,
+	)
+	migrationPrivateGroup := middleware.NewGroup(mux,
+		append(globalConstructors,
+			middleware.RateLimiterConstructor(store, privateRateLimit),
+			middleware.AuthConstructor(),
+		)...,
+	)
+
+	// Migration public routes
+	migrationPublicRoutes := []route{
+		{
+			Path: "/api/migration/item/{itemID}",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				migrationendpoints.ItemRecipeHandler(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/migration/item",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				migrationendpoints.ItemRecipeHandler(w, r, clients)
+			},
+		},
+	}
+	for _, route := range migrationPublicRoutes {
+		migrationPublicGroup.HandleFunc(route.Path, route.Handler)
+	}
+
+	// Migration private routes
+	migrationPrivateRoutes := []route{
+		{
+			Path: "/api/migration/application-settings",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				migrationendpoints.ApplicationSettingsHandler(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/migration/firebase-token",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				migrationendpoints.FirebaseTokenHandler(w, r, clients)
+			},
+		},
+	}
+	for _, route := range migrationPrivateRoutes {
+		migrationPrivateGroup.HandleFunc(route.Path, route.Handler)
 	}
 
 	cfg, err := config.LoadConfig()

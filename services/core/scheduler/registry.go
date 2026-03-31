@@ -3,11 +3,11 @@ package scheduler
 import (
 	"log/slog"
 
+	"eve-industry-planner/core/scheduler/contract"
 	"eve-industry-planner/core/scheduler/esi"
+	"eve-industry-planner/core/scheduler/sde"
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/scheduler"
 	"eve-industry-planner/shared/shared/logs"
-	taskscore "eve-industry-planner/shared/tasks"
 
 	natslib "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -18,7 +18,7 @@ import (
 // SchedulerFunc represents a function that sets up a scheduled job.
 // Accepts a Dependencies struct containing all available dependencies and a Scheduler interface.
 // Returns a cleanup function and an error if scheduling fails.
-type SchedulerFunc func(scheduler.Dependencies, scheduler.Scheduler) (func(), error)
+type SchedulerFunc func(contract.Dependencies, contract.Scheduler) (func(), error)
 
 // JobRegistry manages all scheduled jobs
 type JobRegistry struct {
@@ -56,7 +56,7 @@ func (r *JobRegistry) Start(natsConn *natslib.Conn, jsContext jetstream.JetStrea
 		return err
 	}
 
-	deps := scheduler.Dependencies{
+	deps := contract.Dependencies{
 		NATS:      natsConn,
 		JSContext: jsContext,
 		Redis:     redisClient,
@@ -64,7 +64,7 @@ func (r *JobRegistry) Start(natsConn *natslib.Conn, jsContext jetstream.JetStrea
 		Log:       r.log,
 	}
 
-	// Register handlers first
+	// Register handlers and schedule crons (each scheduler func registers its handler and calls ScheduleCronJob)
 	for _, schedulerFunc := range r.schedulers {
 		cleanup, err := schedulerFunc(deps, r.schedulerHandler)
 		if err != nil {
@@ -73,28 +73,6 @@ func (r *JobRegistry) Start(natsConn *natslib.Conn, jsContext jetstream.JetStrea
 			continue
 		}
 		r.cleanups = append(r.cleanups, cleanup)
-	}
-
-	// Schedule static cron jobs for periodic tasks
-	// System indexes: every hour at 50 minutes past
-	if err := r.schedulerHandler.ScheduleCronJob("50 * * * *", taskscore.TaskTypeRefreshSystemIndexes); err != nil {
-		r.log.Warn("failed to schedule system indexes cron job", "error", err)
-	}
-
-	// Adjusted prices: every hour at 20 minutes past
-	if err := r.schedulerHandler.ScheduleCronJob("20 * * * *", taskscore.TaskTypeRefreshAdjustedPrices); err != nil {
-		r.log.Warn("failed to schedule adjusted prices cron job", "error", err)
-	}
-
-	// Market prices: every 5 minutes (reduced from 15 to spread out Redis load and reduce CPU spikes)
-	if err := r.schedulerHandler.ScheduleCronJob("*/5 * * * *", taskscore.TaskTypeRefreshMarketPrices); err != nil {
-		r.log.Warn("failed to schedule market prices cron job", "error", err)
-	}
-
-	// Market prices count: every 4 hours at 0 minutes past the hour
-	// This counts the number of items to track, which is used for batch size calculation
-	if err := r.schedulerHandler.ScheduleCronJob("0 */4 * * *", taskscore.TaskTypeCountMarketPricesItems); err != nil {
-		r.log.Warn("failed to schedule market prices count cron job", "error", err)
 	}
 
 	// Restore one-time jobs from Redis (after handlers are registered)
@@ -122,8 +100,8 @@ func (r *JobRegistry) Stop() {
 }
 
 // StartService starts the scheduler service with all registered schedulers.
-// Returns a stop function for graceful shutdown.
-func StartService(logComponent string, natsConn *natslib.Conn, jsContext jetstream.JetStream, redisClient *redislib.Client, mongoClient *mongodriver.Client) func() {
+// Returns a stop function for graceful shutdown, plus an error if startup fails.
+func StartService(logComponent string, natsConn *natslib.Conn, jsContext jetstream.JetStream, redisClient *redislib.Client, mongoClient *mongodriver.Client) (func(), error) {
 	log := logs.Component(logComponent)
 	stop := make(chan struct{})
 
@@ -135,20 +113,20 @@ func StartService(logComponent string, natsConn *natslib.Conn, jsContext jetstre
 	registry.Register(esi.ScheduleAdjustedPricesRefresh)
 	registry.Register(esi.ScheduleMarketPricesRefresh)
 	registry.Register(esi.ScheduleMarketPricesCount)
+	registry.Register(sde.ScheduleCheckSDEUpdates)
 	// Add more schedulers here:
 	// registry.Register(market.ScheduleMarketHistoryRefresh)
 
 	// Start all registered schedulers
 	if err := registry.Start(natsConn, jsContext, redisClient, mongoClient); err != nil {
 		log.Error("failed to start job registry", "error", err)
-		return func() {
-			registry.Stop()
-			close(stop)
-		}
+		registry.Stop()
+		close(stop)
+		return nil, err
 	}
 
 	return func() {
 		registry.Stop()
 		close(stop)
-	}
+	}, nil
 }

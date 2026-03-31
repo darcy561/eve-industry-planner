@@ -18,6 +18,8 @@ type taskPayload struct {
 }
 
 // Enqueue receives a NATS message and enqueues it to the asynq server.
+// Task type is derived from the subject (by the subscriber). Queue priority is taken from the message
+// only if a valid priority field is present; otherwise from shared/tasks.ByName for that task type.
 // Returns immediately after enqueueing - NATS message should be acknowledged after this.
 func Enqueue(
 	msg jetstream.Msg,
@@ -25,16 +27,20 @@ func Enqueue(
 	taskType string,
 	subject string,
 ) error {
-	// Extract payload from NATS message
 	payload := msg.Data()
 
-	// Parse the NATS message structure to extract task data
 	var natsMsg natscore.Message
 	if err := json.Unmarshal(payload, &natsMsg); err != nil {
 		return fmt.Errorf("failed to unmarshal NATS message: %w", err)
 	}
 
-	// Create asynq task payload - preserve the original task data
+	// Parse TaskMessage to get optional priority override
+	var taskMsg natscore.TaskMessage
+	overridePriority := ""
+	if err := json.Unmarshal(natsMsg.Data, &taskMsg); err == nil && taskMsg.Priority != "" {
+		overridePriority = taskMsg.Priority
+	}
+
 	asynqPayload := taskPayload{
 		TaskType: taskType,
 		Data:     natsMsg.Data,
@@ -45,8 +51,8 @@ func Enqueue(
 		return fmt.Errorf("failed to marshal asynq payload: %w", err)
 	}
 
-	// Determine priority queue based on subject
-	queue := GetPriorityQueue(subject)
+	// Queue from message override (if valid) or task type default
+	queue := GetPriorityQueue(taskType, overridePriority)
 
 	// Create asynq task with retention to prevent expiration
 	// Retention of 24 hours ensures messages don't expire while waiting in queue

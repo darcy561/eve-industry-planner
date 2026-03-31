@@ -10,9 +10,9 @@ import (
 	"eve-industry-planner/api/api/helper/auth"
 	"eve-industry-planner/api/api/helper/sso"
 	"eve-industry-planner/shared/core/config"
-	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/shared/logs"
+	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
 	"github.com/hibiken/asynq"
 )
@@ -103,9 +103,7 @@ func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *
 		// Fetch character information from ESI API
 		// Endpoint: GET /v5/characters/{character_id}/
 		path := fmt.Sprintf("/v5/characters/%d/?datasource=tranquility", characterIDInt)
-		groupDesignation := esiratelimiter.GroupDesignation{
-			PrimaryGroup: "characters", // Character endpoints use "characters" group
-		}
+		groupDesignation := esiratelimiter.GroupDesignation{}
 		body, resp, err := deps.ESIClient.Do(ctx, "GET", path, nil, groupDesignation)
 		if err != nil {
 			logs.Error("failed to fetch character info from ESI API",

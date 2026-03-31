@@ -9,6 +9,9 @@
  *   @property {string} access_token - The server JWT access token
  *   @property {string} refresh_token - The refresh token for obtaining new access tokens
  *   @property {number} expires_at - Token expiration time as Unix timestamp (seconds since epoch)
+ *   @property {boolean} [first_login] - Whether this was the user's first login (Mongo)
+ *   @property {string} [firebase_token] - Firebase custom token (when returned, avoids a separate Firebase token request)
+ *   @property {boolean} [firebase_first_login] - Whether the user was new in Firebase Auth
  * @throws {Error} Throws an error if the request fails or the response is not OK
  * 
  * @example

@@ -2,7 +2,6 @@ import convertMarketDataResponseToObject from "./convertResponse";
 import doesMarketItemRequireRefresh from "./refreshPeriod";
 import splitMarketDataRequestIntoChuncks from "./requestChunks";
 import useUsersStore from "../../Zustand/usersStore";
-import pollForProcessingItems from "./pollForProcessingItems";
 
 /**
  * Fetches market data for specified item IDs with caching and processing support.
@@ -40,23 +39,6 @@ async function getMarketData(inputIDs) {
   );
 
   const marketDataResults = convertMarketDataResponseToObject(returnedPrices);
-  
-  // // Check if any items are still processing and poll for them
-  // const processingItems = Object.values(marketDataResults).filter(
-  //   item => item.status === 'processing'
-  // );
-  
-  // if (processingItems.length > 0) {
-  //   console.log(`${processingItems.length} items still processing, polling for updates...`);
-  //   await pollForProcessingItems(processingItems, marketDataResults);
-  // }
-
-  // // Safety filter: Remove any remaining processing objects (in case polling failed)
-  // const finalResults = Object.fromEntries(
-  //   Object.entries(marketDataResults).filter(([key, value]) => 
-  //     !value.status || value.status !== 'processing'
-  //   )
-  // );
 
   return marketDataResults;
 }

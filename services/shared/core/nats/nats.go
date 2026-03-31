@@ -39,9 +39,6 @@ func Connect() (*natslib.Conn, error) {
 			natslib.ReconnectHandler(func(nc *natslib.Conn) {
 				logs.Info("NATS reconnected", "url", nc.ConnectedUrl())
 			}),
-			natslib.ClosedHandler(func(nc *natslib.Conn) {
-				logs.Warn("NATS connection closed")
-			}),
 			natslib.ErrorHandler(func(nc *natslib.Conn, sub *natslib.Subscription, err error) {
 				if err != nil {
 					logs.Error("NATS error", "error", err)
@@ -109,15 +106,31 @@ func Cleanup(conn *natslib.Conn) {
 
 // PublishTask publishes a task message to NATS JetStream with retry logic.
 // The payload is automatically marshaled and wrapped in a TaskMessage structure.
-// Retries up to 5 times with exponential backoff on connection/stream errors.
-// If natsConn is provided, it will check connection status and retry on failure.
+// Optional trailing args can be *natslib.Conn (for connection check on retry) and/or a priority
+// queue name (e.g. "priority_5") to override the task type default. Order does not matter.
 //
-// Example:
+// Examples:
 //
-//	PublishTask(js, subject, "refreshMarketPrices", request, natsConn...)
-func PublishTask(js jetstream.JetStream, subject string, taskType string, payload interface{}, natsConn ...*natslib.Conn) error {
+//	PublishTask(js, subject, "refreshMarketPrices", request)
+//	PublishTask(js, subject, "refreshMarketPrices", request, natsConn)
+//	PublishTask(js, subject, "migrateUserDocumentToMongo", payload, natsConn, "priority_5")
+func PublishTask(js jetstream.JetStream, subject string, taskType string, payload interface{}, opts ...interface{}) error {
+	var natsConn *natslib.Conn
+	var priority string
+	for _, a := range opts {
+		switch v := a.(type) {
+		case *natslib.Conn:
+			natsConn = v
+		case string:
+			priority = v
+		}
+	}
+
 	taskMsg := TaskMessage{
 		TaskType: taskType,
+	}
+	if priority != "" {
+		taskMsg.Priority = priority
 	}
 	if payload != nil {
 		var err error
@@ -126,7 +139,6 @@ func PublishTask(js jetstream.JetStream, subject string, taskType string, payloa
 			return err
 		}
 	}
-	// Marshal the TaskMessage and put it in Message.Data
 	taskMsgData, err := json.Marshal(taskMsg)
 	if err != nil {
 		return err
@@ -135,7 +147,10 @@ func PublishTask(js jetstream.JetStream, subject string, taskType string, payloa
 		Type: MessageTypeTask,
 		Data: taskMsgData,
 	}
-	return PublishMessage(js, subject, msg, natsConn...)
+	if natsConn != nil {
+		return PublishMessage(js, subject, msg, natsConn)
+	}
+	return PublishMessage(js, subject, msg)
 }
 
 // PublishSchedule publishes a schedule request message to NATS JetStream with retry logic.

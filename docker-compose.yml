@@ -9,8 +9,6 @@ x-common-dns: &common-dns
 x-common-depends-on: &common-depends-on
   mongo:
     condition: service_healthy
-  mongo-secondary:
-    condition: service_healthy
   redis:
     condition: service_healthy
   nats:
@@ -29,6 +27,10 @@ services:
     <<: *common-service-config
     container_name: api-service
     image: ghcr.io/darcy561/eve-industry-planner-api:Public-latest
+    depends_on:
+      <<: *common-depends-on
+      core:
+        condition: service_healthy
     labels:
       # Enable Traefik for this container
       - "traefik.enable=true"
@@ -68,6 +70,8 @@ services:
       - "traefik.http.services.ws.loadbalancer.server.port=4001"
     volumes:
       - api_data:/data
+      - static_data_files:/static-data
+      - ./adminSDK.json:/app/adminSDK.json:ro
 
   worker:
     <<: *common-service-config
@@ -75,18 +79,31 @@ services:
     image: ghcr.io/darcy561/eve-industry-planner-worker:Public-latest
     volumes:
       - worker_data:/data
+      - static_data_files:/static-data
+      - ./adminSDK.json:/app/adminSDK.json:ro
 
   core:
     <<: *common-service-config
     container_name: core-service
     image: ghcr.io/darcy561/eve-industry-planner-core:Public-latest
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /data/core-ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 180
+      start_period: 10s
     volumes:
       - core_data:/data
+      - static_data_files:/static-data
 
   frontend:
     <<: *common-service-config
     container_name: frontend-service
     image: ghcr.io/darcy561/eve-industry-planner-frontend:Public-latest
+    depends_on:
+      <<: *common-depends-on
+      core:
+        condition: service_healthy
     healthcheck:
       test:
         [
@@ -186,7 +203,7 @@ services:
 
   mongo:
     container_name: mongo-primary-database
-    image: mongo:8.2.3
+    image: mongo:8.2
     restart: unless-stopped
     env_file: [.env]
     environment:
@@ -200,48 +217,29 @@ services:
       - ./mongo-keyfile:/etc/mongo-keyfile:ro
     command: ["bash", "/mongo-setup.sh"]
     healthcheck:
-      test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/localhost/27017'"]
+      # Ensure the DB is not just accepting TCP, but also successfully authenticates.
+      # This prevents core/api from starting while `mongo-setup.sh` is still in its noauth bootstrap phase.
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet -u \"$MONGO_ROOT_USERNAME\" -p \"$MONGO_ROOT_PASSWORD\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" >/dev/null 2>&1 || exit 1"
+        ]
       interval: 10s
-      timeout: 2s
-      retries: 5
-      start_period: 120s
-    networks:
-      - eip
-
-  mongo-secondary:
-    container_name: mongo-secondary-database
-    image: mongo:8.2.3
-    restart: unless-stopped
-    env_file: [.env]
-    environment:
-      - MONGO_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
-      - MONGO_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
-    volumes:
-      - mongo_secondary_data:/data/db
-      - ./scripts/mongo-setup-secondary.sh:/mongo-setup.sh:ro
-      - ./mongo-keyfile:/etc/mongo-keyfile:ro
-    command: ["bash", "/mongo-setup.sh"]
-    healthcheck:
-      test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/localhost/27017'"]
-      interval: 10s
-      timeout: 2s
-      retries: 5
-      start_period: 120s
-    depends_on:
-      mongo:
-        condition: service_healthy
+      timeout: 10s
+      retries: 30
+      start_period: 30s
     networks:
       - eip
 
 volumes:
   mongo_data:
-  mongo_secondary_data:
   redis_data:
   nats_data:
   api_data:
   traefik_data:
   worker_data:
   core_data:
+  static_data_files:
 
 networks:
   eip:

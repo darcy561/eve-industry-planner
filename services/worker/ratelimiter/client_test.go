@@ -40,7 +40,7 @@ func TestGetLimiterForGroup(t *testing.T) {
 		{
 			name: "existing group",
 			designation: GroupDesignation{
-				PrimaryGroup:   "markets",
+				PrimaryGroup:   "market-order",
 				SecondaryGroup: "prices",
 			},
 			preCreateGroup: true,
@@ -49,7 +49,7 @@ func TestGetLimiterForGroup(t *testing.T) {
 		{
 			name: "new group",
 			designation: GroupDesignation{
-				PrimaryGroup:   "markets",
+				PrimaryGroup:   "market-order",
 				SecondaryGroup: "orders",
 			},
 			preCreateGroup: false,
@@ -105,7 +105,7 @@ func TestGetOrCreateGroupLimiter(t *testing.T) {
 	}{
 		{
 			name:                         "create new group with headers",
-			groupName:                    "markets-prices",
+			groupName:                    "market-order-prices",
 			path:                         "/v1/markets/prices/",
 			tokenLimit:                   600,
 			hasHeaders:                   true,
@@ -115,7 +115,7 @@ func TestGetOrCreateGroupLimiter(t *testing.T) {
 		},
 		{
 			name:                         "create new group without headers",
-			groupName:                    "markets-orders",
+			groupName:                    "market-order-orders",
 			path:                         "/v1/markets/orders/",
 			tokenLimit:                   0,
 			hasHeaders:                   false,
@@ -125,7 +125,7 @@ func TestGetOrCreateGroupLimiter(t *testing.T) {
 		},
 		{
 			name:                         "get existing group",
-			groupName:                    "markets-prices",
+			groupName:                    "market-order-prices",
 			path:                         "/v1/markets/prices/",
 			tokenLimit:                   600,
 			hasHeaders:                   true,
@@ -135,7 +135,7 @@ func TestGetOrCreateGroupLimiter(t *testing.T) {
 		},
 		{
 			name:                         "update existing group token limit",
-			groupName:                    "markets-prices",
+			groupName:                    "market-order-prices",
 			path:                         "/v1/markets/prices/",
 			tokenLimit:                   800, // Different limit
 			hasHeaders:                   true,
@@ -145,7 +145,7 @@ func TestGetOrCreateGroupLimiter(t *testing.T) {
 		},
 		{
 			name:                         "enable token restrictions for existing group",
-			groupName:                    "markets-orders",
+			groupName:                    "market-order-orders",
 			path:                         "/v1/markets/orders/",
 			tokenLimit:                   600,
 			hasHeaders:                   true,
@@ -400,7 +400,7 @@ func TestGroupCreationVariations(t *testing.T) {
 
 	t.Run("create group with valid token limit header", func(t *testing.T) {
 		// Scenario: Valid X-Ratelimit-Limit header parsed successfully
-		groupName := "markets-prices"
+		groupName := "market-order-prices"
 		path := "/v1/markets/prices/"
 		tokenLimit := 600
 		hasHeaders := true
@@ -426,7 +426,7 @@ func TestGroupCreationVariations(t *testing.T) {
 
 	t.Run("create group without any headers", func(t *testing.T) {
 		// Scenario: No headers at all - should use rate limiting only
-		groupName := "markets-orders"
+		groupName := "market-order-orders"
 		path := "/v1/markets/orders/"
 		tokenLimit := 0
 		hasHeaders := false
@@ -453,7 +453,7 @@ func TestGroupCreationVariations(t *testing.T) {
 	t.Run("create group with invalid limit header but valid usage headers", func(t *testing.T) {
 		// Scenario: Invalid X-Ratelimit-Limit but valid remaining/used headers
 		// This simulates: limitStr = "invalid" (parsing fails), but remainingStr and usedStr are present
-		groupName := "markets-history"
+		groupName := "market-order-history"
 		path := "/v1/markets/history/"
 		tokenLimit := 0    // Parsing failed
 		hasHeaders := true // But we have remaining/used headers
@@ -476,7 +476,7 @@ func TestGroupCreationVariations(t *testing.T) {
 
 	t.Run("upgrade group from no headers to with headers", func(t *testing.T) {
 		// Scenario: Group created without headers, then gets headers later
-		groupName := "markets-stats"
+		groupName := "market-order-stats"
 		path := "/v1/markets/stats/"
 
 		// First: Create without headers
@@ -535,7 +535,7 @@ func TestGroupCreationVariations(t *testing.T) {
 	t.Run("upgrade group with headers but no token limit yet", func(t *testing.T) {
 		// Scenario: Group gets headers (usage headers) but token limit is 0
 		// This can happen if limit header is invalid but remaining/used headers are present
-		groupName := "markets-history-upgrade"
+		groupName := "market-order-history-upgrade"
 		path := "/v1/markets/history-upgrade/"
 
 		// First: Create without headers

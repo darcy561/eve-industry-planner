@@ -11,13 +11,13 @@ import (
 	"net/http"
 	"time"
 
-	esicore "eve-industry-planner/worker/esi"
-	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 	esitypes "eve-industry-planner/shared/core/esi/types"
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/shared/logs"
 	"eve-industry-planner/shared/shared/metrics"
 	taskscore "eve-industry-planner/shared/tasks"
+	esicore "eve-industry-planner/worker/esi"
+	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
 	"github.com/hibiken/asynq"
 )
@@ -158,9 +158,7 @@ func StreamAdjustedPrices(ctx context.Context, esiClient esiratelimiter.ClientIn
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		logs.Debug("making ESI request attempt", "attempt", attempt, "max_attempts", maxAttempts, "path", path)
-		groupDesignation := esiratelimiter.GroupDesignation{
-			PrimaryGroup: "markets", // Market data endpoints
-		}
+		groupDesignation := esiratelimiter.GroupDesignation{}
 		resp, err = esiClient.DoRequest(ctx, http.MethodGet, path, headers, groupDesignation)
 		if err == nil {
 			logs.Debug("ESI request succeeded", "attempt", attempt, "path", path)
