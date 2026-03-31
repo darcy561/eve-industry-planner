@@ -2,7 +2,9 @@ package mongo
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"maps"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -10,6 +12,46 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+type StructUpsertItem struct {
+	DocID string
+	Value interface{}
+}
+
+type BulkUpsertSummary struct {
+	Total   int
+	Batches int
+	Success int
+	Failed  int
+}
+
+// GetPublicDocumentByID fetches a public document by _id.
+func GetPublicDocumentByID(ctx context.Context, collection *mongo.Collection, docID string) (bson.M, bool, error) {
+	return getDocumentByID(ctx, collection, docID, nil)
+}
+
+// GetPublicDocumentsByIDs fetches public documents by _id and returns them in request order.
+// Missing documents are skipped.
+func GetPublicDocumentsByIDs(ctx context.Context, collection *mongo.Collection, docIDs []string) ([]bson.M, error) {
+	return getDocumentsByIDs(ctx, collection, docIDs, nil)
+}
+
+// GetPrivateDocumentByID fetches an account-owned document by _id and _meta.accountID.
+func GetPrivateDocumentByID(ctx context.Context, collection *mongo.Collection, accountID, docID string) (bson.M, bool, error) {
+	if accountID == "" {
+		return nil, false, fmt.Errorf("accountID is required")
+	}
+	return getDocumentByID(ctx, collection, docID, bson.M{"_meta.accountID": accountID})
+}
+
+// GetPrivateDocumentsByIDs fetches account-owned documents by _id and _meta.accountID.
+// Returned documents preserve the input order; missing documents are skipped.
+func GetPrivateDocumentsByIDs(ctx context.Context, collection *mongo.Collection, accountID string, docIDs []string) ([]bson.M, error) {
+	if accountID == "" {
+		return nil, fmt.Errorf("accountID is required")
+	}
+	return getDocumentsByIDs(ctx, collection, docIDs, bson.M{"_meta.accountID": accountID})
+}
 
 // StructToMongoDoc converts a struct to a MongoDB document with _id set.
 // If docID is provided (non-empty string), it will be used as the _id. Otherwise, a new ObjectID is generated.
@@ -127,6 +169,168 @@ func UpsertStructByIDPreservingMeta(ctx context.Context, collection *mongo.Colle
 	return result, nil
 }
 
+// UpsertStructsByIDPreservingMetaBulk upserts many structs by _id using unordered bulk writes.
+// It preserves existing _meta fields and updates _meta.lastModified.
+// Invalid items (missing docID or marshal errors) are counted as failures and skipped.
+func UpsertStructsByIDPreservingMetaBulk(ctx context.Context, collection *mongo.Collection, items []StructUpsertItem, batchSize int) (BulkUpsertSummary, error) {
+	summary := BulkUpsertSummary{Total: len(items)}
+	if collection == nil {
+		return summary, fmt.Errorf("collection is required")
+	}
+	if len(items) == 0 {
+		return summary, nil
+	}
+	if batchSize <= 0 {
+		batchSize = 500
+	}
+
+	models := make([]mongo.WriteModel, 0, batchSize)
+	flush := func() error {
+		if len(models) == 0 {
+			return nil
+		}
+		summary.Batches++
+		success, failed, err := executeBulkUpsertModels(ctx, collection, models)
+		summary.Success += success
+		summary.Failed += failed
+		models = models[:0]
+		return err
+	}
+
+	for _, item := range items {
+		if item.DocID == "" || item.Value == nil {
+			summary.Failed++
+			continue
+		}
+
+		doc, err := StructToMongoDoc(item.Value, item.DocID)
+		if err != nil {
+			summary.Failed++
+			continue
+		}
+
+		models = append(models, buildPreservingMetaUpsertModel(item.DocID, doc))
+		if len(models) >= batchSize {
+			if err := flush(); err != nil {
+				return summary, err
+			}
+		}
+	}
+
+	if err := flush(); err != nil {
+		return summary, err
+	}
+
+	return summary, nil
+}
+
+func buildPreservingMetaUpsertModel(docID string, doc bson.M) mongo.WriteModel {
+	setDoc := buildSetDoc(doc, "_id", "_meta")
+	setOnInsert := bson.M{"_id": docID}
+	applyLastModified(setDoc, setOnInsert, doc, true)
+
+	return mongo.NewUpdateOneModel().
+		SetFilter(bson.M{"_id": docID}).
+		SetUpdate(bson.M{
+			"$set":         setDoc,
+			"$setOnInsert": setOnInsert,
+		}).
+		SetUpsert(true)
+}
+
+func executeBulkUpsertModels(ctx context.Context, collection *mongo.Collection, models []mongo.WriteModel) (success int, failed int, err error) {
+	if len(models) == 0 {
+		return 0, 0, nil
+	}
+
+	_, err = collection.BulkWrite(ctx, models, options.BulkWrite().SetOrdered(false))
+	if err == nil {
+		return len(models), 0, nil
+	}
+
+	var bwe mongo.BulkWriteException
+	if errors.As(err, &bwe) {
+		failed = len(bwe.WriteErrors)
+		success = len(models) - failed
+		return success, failed, nil
+	}
+
+	return 0, len(models), err
+}
+
+func getDocumentByID(ctx context.Context, collection *mongo.Collection, docID string, extraFilter bson.M) (bson.M, bool, error) {
+	if collection == nil {
+		return nil, false, fmt.Errorf("collection is required")
+	}
+	if docID == "" {
+		return nil, false, fmt.Errorf("docID is required")
+	}
+
+	filter := mergeFilters(bson.M{"_id": docID}, extraFilter)
+	var result bson.M
+	err := collection.FindOne(ctx, filter).Decode(&result)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+
+	return result, true, nil
+}
+
+func getDocumentsByIDs(ctx context.Context, collection *mongo.Collection, docIDs []string, extraFilter bson.M) ([]bson.M, error) {
+	if collection == nil {
+		return nil, fmt.Errorf("collection is required")
+	}
+	if len(docIDs) == 0 {
+		return nil, fmt.Errorf("docIDs cannot be empty")
+	}
+
+	filter := mergeFilters(bson.M{"_id": bson.M{"$in": docIDs}}, extraFilter)
+	cursor, err := collection.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	byID := make(map[string]bson.M, len(docIDs))
+	for cursor.Next(ctx) {
+		var doc bson.M
+		if err := cursor.Decode(&doc); err != nil {
+			return nil, err
+		}
+
+		docID, _ := doc["_id"].(string)
+		if docID == "" {
+			continue
+		}
+		byID[docID] = doc
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+
+	results := make([]bson.M, 0, len(docIDs))
+	for _, docID := range docIDs {
+		if doc, ok := byID[docID]; ok {
+			results = append(results, doc)
+		}
+	}
+
+	return results, nil
+}
+
+func mergeFilters(base bson.M, extra bson.M) bson.M {
+	if len(extra) == 0 {
+		return base
+	}
+
+	merged := bson.M{}
+	maps.Copy(merged, base)
+	maps.Copy(merged, extra)
+	return merged
+}
 func buildSetDoc(doc bson.M, excludedFields ...string) bson.M {
 	excluded := make(map[string]struct{}, len(excludedFields))
 	for _, field := range excludedFields {

@@ -8,6 +8,7 @@ import (
 
 	"eve-industry-planner/api/api/middleware"
 	"eve-industry-planner/api/api/migrationendpoints"
+	"eve-industry-planner/api/api/staticdata"
 	"eve-industry-planner/api/api/v1endpoints"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/shared"
@@ -123,6 +124,48 @@ func StartAPIServer(clients *shared.ServiceClients) error {
 			Path: "/api/v1/feedback",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.FeedbackHandler(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/v1/blueprints/{blueprintID}",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				v1endpoints.BlueprintsHandler(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/v1/blueprints",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				v1endpoints.BlueprintsHandler(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/static-data/recipeList.json",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				staticdata.RecipeListHandler(w, r)
+			},
+		},
+		{
+			Path: "/api/static-data/searchIndex.json",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				staticdata.SearchIndexHandler(w, r)
+			},
+		},
+		{
+			Path: "/api/static-data/fullItemList.json",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				staticdata.FullItemListHandler(w, r)
+			},
+		},
+		{
+			Path: "/api/static-data/reprocessingData.json",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				staticdata.ReprocessingDataHandler(w, r)
+			},
+		},
+		{
+			Path: "/api/static-data/meta",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				staticdata.MetaHandler(w, r)
 			},
 		},
 	}

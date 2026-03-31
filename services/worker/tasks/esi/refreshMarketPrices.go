@@ -13,13 +13,13 @@ import (
 	"strconv"
 	"time"
 
-	esicore "eve-industry-planner/worker/esi"
-	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 	natscore "eve-industry-planner/shared/core/nats"
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/shared/logs"
 	"eve-industry-planner/shared/shared/metrics"
 	taskscore "eve-industry-planner/shared/tasks"
+	esicore "eve-industry-planner/worker/esi"
+	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
 	"github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"
@@ -329,7 +329,7 @@ func FetchPaginatedMarketOrders(ctx context.Context, esiClient esiratelimiter.Cl
 		for attempt := 1; attempt <= maxAttempts; attempt++ {
 			logs.Debug("making ESI request attempt", "attempt", attempt, "max_attempts", maxAttempts, "path", queryPath)
 			groupDesignation := esiratelimiter.GroupDesignation{
-				PrimaryGroup: "markets", // Market data endpoints
+				PrimaryGroup: "market-order", // Market order endpoints
 			}
 			resp, err = esiClient.DoRequest(ctx, http.MethodGet, queryPath, headers, groupDesignation)
 			if err == nil {

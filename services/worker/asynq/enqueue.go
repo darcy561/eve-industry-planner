@@ -18,8 +18,8 @@ type taskPayload struct {
 }
 
 // Enqueue receives a NATS message and enqueues it to the asynq server.
-// Task type is derived from the subject (by the subscriber); priority is taken from the message
-// if set, otherwise from the task type default.
+// Task type is derived from the subject (by the subscriber). Queue priority is taken from the message
+// only if a valid priority field is present; otherwise from shared/tasks.ByName for that task type.
 // Returns immediately after enqueueing - NATS message should be acknowledged after this.
 func Enqueue(
 	msg jetstream.Msg,

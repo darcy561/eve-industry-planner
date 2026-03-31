@@ -29,6 +29,9 @@ var (
 
 	// CollectionApplicationSettings is the name of the application settings collection (per-account settings document)
 	CollectionApplicationSettings = "application_settings"
+
+	// CollectionBlueprints is the static SDE blueprint recipes collection.
+	CollectionBlueprints = "blueprints"
 )
 
 // connectMongo is a generic connection function that establishes a MongoDB client

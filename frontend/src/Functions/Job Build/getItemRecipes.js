@@ -1,9 +1,9 @@
 import { getRecipeListFromCache } from "../Helper/getCachedData";
-import getItemRecipesFromMigration from "../Migration/getItemRecipe";
+import fetchBlueprints from "../Endpoints/Public/blueprints";
 
 /**
  * Retrieves item recipes with cache-first strategy.
- * First attempts to get recipes from cached data, then falls back to migration API.
+ * First attempts to get recipes from cached data, then falls back to the public blueprints API.
  * 
  * @param {string|string[]} itemRequests - The ID of the item to retrieve the recipe for or an array of item IDs
  * @returns {Promise<Object|Array>} The recipe for the item or an array of recipes for the items
@@ -65,6 +65,6 @@ export default async function getItemRecipes(itemRequests) {
     console.warn(cacheError);
   }
 
-  // Fallback to migration API call
-  return await getItemRecipesFromMigration(itemRequests);
+  // Fallback to public blueprints API call
+  return await fetchBlueprints(itemRequests);
 }

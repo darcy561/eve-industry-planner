@@ -54,15 +54,33 @@ var (
 		Subject:         "task.auth.fetchCorporations",
 		DefaultPriority: Priority3,
 	}
+	CheckSDEUpdates = Task{
+		Name:            "checkSDEUpdates",
+		Subject:         "task.scheduled.checkSDEUpdates",
+		DefaultPriority: Priority5,
+	}
+	RollbackSDEVersion = Task{
+		Name:            "rollbackSDEVersion",
+		Subject:         "task.scheduled.rollbackSDEVersion",
+		DefaultPriority: Priority5,
+	}
+	ApplySDEVersion = Task{
+		Name:            "applySDEVersion",
+		Subject:         "task.scheduled.applySDEVersion",
+		DefaultPriority: Priority5,
+	}
 )
 
 // ByName maps task name (handler key) to task definition for lookup (e.g. worker default priority).
 var ByName = map[string]Task{
 	MigrateUserDocumentToMongo.Name: MigrateUserDocumentToMongo,
-	RefreshSystemIndexes.Name:     RefreshSystemIndexes,
-	RefreshAdjustedPrices.Name:    RefreshAdjustedPrices,
-	RefreshMarketPrices.Name:      RefreshMarketPrices,
-	CountMarketPricesItems.Name:   CountMarketPricesItems,
-	FetchMissingMarketPrices.Name: FetchMissingMarketPrices,
-	FetchCorporations.Name:        FetchCorporations,
+	RefreshSystemIndexes.Name:       RefreshSystemIndexes,
+	RefreshAdjustedPrices.Name:      RefreshAdjustedPrices,
+	RefreshMarketPrices.Name:        RefreshMarketPrices,
+	CountMarketPricesItems.Name:     CountMarketPricesItems,
+	FetchMissingMarketPrices.Name:   FetchMissingMarketPrices,
+	FetchCorporations.Name:          FetchCorporations,
+	CheckSDEUpdates.Name:            CheckSDEUpdates,
+	RollbackSDEVersion.Name:         RollbackSDEVersion,
+	ApplySDEVersion.Name:            ApplySDEVersion,
 }

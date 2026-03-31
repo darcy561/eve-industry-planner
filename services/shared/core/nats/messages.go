@@ -77,6 +77,12 @@ type MarketPricesRequest struct {
 	StationID  int64 `json:"station_id"`  // Station ID to filter orders (matches order.LocationID)
 }
 
+// SDEApplyVersionRequest represents a request to apply a specific SDE build.
+// The worker will build/persist this version and then lock to it.
+type SDEApplyVersionRequest struct {
+	BuildNumber int `json:"build_number"`
+}
+
 // CorporationClaimsRequest represents the data sent to the worker for fetching corporation IDs.
 // Contains AccountID and all EVE SSO tokens to process.
 // This struct is used as the Data field content in TaskMessage when triggering corporation lookups.

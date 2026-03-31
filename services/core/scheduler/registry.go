@@ -5,6 +5,7 @@ import (
 
 	"eve-industry-planner/core/scheduler/contract"
 	"eve-industry-planner/core/scheduler/esi"
+	"eve-industry-planner/core/scheduler/sde"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/shared/logs"
 
@@ -99,8 +100,8 @@ func (r *JobRegistry) Stop() {
 }
 
 // StartService starts the scheduler service with all registered schedulers.
-// Returns a stop function for graceful shutdown.
-func StartService(logComponent string, natsConn *natslib.Conn, jsContext jetstream.JetStream, redisClient *redislib.Client, mongoClient *mongodriver.Client) func() {
+// Returns a stop function for graceful shutdown, plus an error if startup fails.
+func StartService(logComponent string, natsConn *natslib.Conn, jsContext jetstream.JetStream, redisClient *redislib.Client, mongoClient *mongodriver.Client) (func(), error) {
 	log := logs.Component(logComponent)
 	stop := make(chan struct{})
 
@@ -112,20 +113,20 @@ func StartService(logComponent string, natsConn *natslib.Conn, jsContext jetstre
 	registry.Register(esi.ScheduleAdjustedPricesRefresh)
 	registry.Register(esi.ScheduleMarketPricesRefresh)
 	registry.Register(esi.ScheduleMarketPricesCount)
+	registry.Register(sde.ScheduleCheckSDEUpdates)
 	// Add more schedulers here:
 	// registry.Register(market.ScheduleMarketHistoryRefresh)
 
 	// Start all registered schedulers
 	if err := registry.Start(natsConn, jsContext, redisClient, mongoClient); err != nil {
 		log.Error("failed to start job registry", "error", err)
-		return func() {
-			registry.Stop()
-			close(stop)
-		}
+		registry.Stop()
+		close(stop)
+		return nil, err
 	}
 
 	return func() {
 		registry.Stop()
 		close(stop)
-	}
+	}, nil
 }

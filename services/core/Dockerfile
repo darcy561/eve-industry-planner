@@ -41,9 +41,13 @@ COPY --from=builder /app/core-service /app/core-service
 # Copy entrypoint script
 COPY core/entrypoint.sh /entrypoint.sh
 
+# Wrapper for triggering core task commands
+COPY core/eip-tasks.sh /usr/local/bin/eip-tasks
+
 # Create data directory and set permissions
 RUN mkdir -p /data && \
     chmod +x /entrypoint.sh && \
+    chmod +x /usr/local/bin/eip-tasks && \
     chown -R appuser:appuser /app
 
 # Label for GitHub Container Registry linking

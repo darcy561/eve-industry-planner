@@ -840,7 +840,7 @@ export const Implants = {
  *
  * @type {string}
  */
-export const STATIC_DATA_CACHE = "static-data-cache-v1";
+export const STATIC_DATA_CACHE = "static-data-cache-v2";
 
 /**
  * Cached data file names for EVE Industry Planner.
@@ -856,10 +856,10 @@ export const STATIC_DATA_CACHE = "static-data-cache-v1";
  * @property {string} RECIPE_LIST - Recipe list file name
  */
 export const CACHED_DATA_FILES = {
-  SEARCH_INDEX: "search-index.json.gz",
-  FULL_ITEM_LIST: "all-items.json.gz",
-  REPROCESSING_DATA: "reprocessing-data.json.gz",
-  RECIPE_LIST: "recipe-list.json.gz",
+  SEARCH_INDEX: "SEARCH_INDEX",
+  FULL_ITEM_LIST: "FULL_ITEM_LIST",
+  REPROCESSING_DATA: "REPROCESSING_DATA",
+  RECIPE_LIST: "RECIPE_LIST",
 };
 
 /**

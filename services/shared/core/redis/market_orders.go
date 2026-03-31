@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	esicore "eve-industry-planner/shared/core/esi"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -16,6 +18,10 @@ const (
 	refreshTimesKey = "esi:market_orders:refresh_times"
 	// totalCountCacheKey is the Redis key for caching the total count of market orders items
 	totalCountCacheKey = "esi:market_orders:total_count_cache"
+	// marketTokenLimitKey is the Redis key for market-order group token limit.
+	marketTokenLimitKey = "esi:group:market-order:token_limit"
+	// marketTokenUsedKey is the Redis key for market-order group rolling token usage.
+	marketTokenUsedKey = "esi:group:market-order:tokens:sum"
 )
 
 // MarketPriceEntry is a helper type for GetMarketPriceEntriesByType
@@ -261,6 +267,32 @@ func SetCachedTotalMarketOrdersCount(ctx context.Context, client *redis.Client, 
 	return client.Set(ctx, totalCountCacheKey, count, ttl).Err()
 }
 
+// GetMarketOrderTokenLimit retrieves current market-order group token limit from Redis.
+// Returns -1 when the key does not exist or cannot be parsed.
+func GetMarketOrderTokenLimit(ctx context.Context, client *redis.Client) (int64, error) {
+	val, err := client.Get(ctx, marketTokenLimitKey).Int64()
+	if err == redis.Nil {
+		return -1, nil
+	}
+	if err != nil {
+		return -1, err
+	}
+	return val, nil
+}
+
+// GetMarketOrderTokensUsed retrieves current rolling token usage for market-order group.
+// Returns 0 on cache miss.
+func GetMarketOrderTokensUsed(ctx context.Context, client *redis.Client) (float64, error) {
+	val, err := client.Get(ctx, marketTokenUsedKey).Float64()
+	if err == redis.Nil {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return val, nil
+}
+
 // GetOldestMarketOrdersRefreshTimes retrieves the N oldest market orders that need refreshing.
 // Returns entries sorted by last refresh time (oldest first).
 func GetOldestMarketOrdersRefreshTimes(ctx context.Context, client *redis.Client, limit int) ([]MarketOrdersRefreshTime, error) {
@@ -361,4 +393,89 @@ func GetMarketOrdersRefreshTimesByType(ctx context.Context, client *redis.Client
 	}
 
 	return refreshTimes, nil
+}
+
+// GetExistingMarketOrdersTypeIDs checks which typeIDs have at least one entry
+// in the market orders refresh-time tracking sorted set.
+// If a typeID is "existing", Redis already has refresh history for it.
+func GetExistingMarketOrdersTypeIDs(ctx context.Context, client *redis.Client, typeIDs []int32) (map[int32]bool, error) {
+	present := make(map[int32]bool, len(typeIDs))
+
+	// Deduplicate type IDs up front.
+	uniqueTypeIDs := make([]int32, 0, len(typeIDs))
+	seen := make(map[int32]struct{}, len(typeIDs))
+	for _, id := range typeIDs {
+		if id == 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		uniqueTypeIDs = append(uniqueTypeIDs, id)
+	}
+
+	if len(uniqueTypeIDs) == 0 {
+		return present, nil
+	}
+
+	// Refresh-time members are stored as "{type_id}:{location_id}" where location_id
+	// is the market region id we refresh for (see RefreshMarketPrices request building).
+	locationIDs := make([]int32, 0, len(esicore.DefaultMarketLocations))
+	for _, loc := range esicore.DefaultMarketLocations {
+		locationIDs = append(locationIDs, loc.RegionID)
+	}
+	if len(locationIDs) == 0 {
+		return present, nil
+	}
+
+	// Use batched ZMSCORES to avoid doing ZSCAN per typeID (too slow for large lists).
+	// We chunk to keep the member list size reasonable.
+	const maxMembersPerQuery = 5000
+
+	memberTypeIDs := make([]int32, 0, maxMembersPerQuery)
+	members := make([]string, 0, maxMembersPerQuery)
+
+	flush := func() error {
+		if len(members) == 0 {
+			return nil
+		}
+
+		// ZMScore returns 0 for missing members (Redis nil reply -> 0).
+		// Since refresh timestamps are unix millis, a score of 0 effectively means "not present".
+		scores, err := client.ZMScore(ctx, refreshTimesKey, members...).Result()
+		if err != nil {
+			return err
+		}
+
+		for i, score := range scores {
+			if score != 0 {
+				present[memberTypeIDs[i]] = true
+			}
+		}
+
+		// reset buffers
+		members = members[:0]
+		memberTypeIDs = memberTypeIDs[:0]
+		return nil
+	}
+
+	for _, typeID := range uniqueTypeIDs {
+		for _, locationID := range locationIDs {
+			members = append(members, fmt.Sprintf("%d:%d", typeID, locationID))
+			memberTypeIDs = append(memberTypeIDs, typeID)
+
+			if len(members) >= maxMembersPerQuery {
+				if err := flush(); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+
+	if err := flush(); err != nil {
+		return nil, err
+	}
+
+	return present, nil
 }

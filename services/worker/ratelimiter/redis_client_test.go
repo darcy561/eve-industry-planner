@@ -158,7 +158,7 @@ func TestRedisRateLimiter_MultipleWorkers(t *testing.T) {
 	worker2 := NewRedisESIClient(server.URL, redisClient, 3.0)
 
 	ctx := context.Background()
-	group := GroupDesignation{PrimaryGroup: "markets"}
+	group := GroupDesignation{PrimaryGroup: "market-order"}
 
 	// Track requests from both workers
 	var worker1Requests, worker2Requests int64
@@ -318,7 +318,7 @@ func TestRedisRateLimiter_MultipleGroups(t *testing.T) {
 
 	// Test multiple groups simultaneously
 	groups := []GroupDesignation{
-		{PrimaryGroup: "markets"},
+		{PrimaryGroup: "market-order"},
 		{PrimaryGroup: "industry"},
 		{PrimaryGroup: "characters"},
 		{PrimaryGroup: "status"},
@@ -437,7 +437,7 @@ func TestRedisRateLimiter_ConcurrentStressTest(t *testing.T) {
 		requests  int
 		hasTokens bool
 	}{
-		{"markets_no_tokens", GroupDesignation{PrimaryGroup: "markets"}, "/markets/prices/", 100, false},
+		{"markets_no_tokens", GroupDesignation{PrimaryGroup: "market-order"}, "/markets/prices/", 100, false},
 		{"industry_with_tokens", GroupDesignation{PrimaryGroup: "industry"}, "/industry/systems/", 150, true},
 		{"characters_with_tokens", GroupDesignation{PrimaryGroup: "characters"}, "/characters/", 75, true},
 		{"status_with_tokens", GroupDesignation{PrimaryGroup: "status"}, "/status/", 50, true},
@@ -578,7 +578,7 @@ func TestRedisRateLimiter_GroupsWithoutTokens(t *testing.T) {
 	worker2 := NewRedisESIClient(server.URL, redisClient, 3.0)
 
 	ctx := context.Background()
-	group := GroupDesignation{PrimaryGroup: "markets"} // Markets has no token restrictions
+	group := GroupDesignation{PrimaryGroup: "market-order"} // Market-order has no token restrictions
 
 	var worker1Success, worker2Success int64
 	var worker1Errors, worker2Errors int64
@@ -656,9 +656,9 @@ func TestRedisRateLimiter_PerPrimaryGroupRateLimit(t *testing.T) {
 	// Set different rate limits for different primary groups
 	// Markets: 5 req/s (faster)
 	// Industry: 2 req/s (slower)
-	err := worker1.SetPrimaryGroupRateLimit(ctx, "markets", 5.0)
+	err := worker1.SetPrimaryGroupRateLimit(ctx, "market-order", 5.0)
 	if err != nil {
-		t.Fatalf("Failed to set markets rate limit: %v", err)
+		t.Fatalf("Failed to set market-order rate limit: %v", err)
 	}
 	err = worker1.SetPrimaryGroupRateLimit(ctx, "industry", 2.0)
 	if err != nil {
@@ -666,17 +666,17 @@ func TestRedisRateLimiter_PerPrimaryGroupRateLimit(t *testing.T) {
 	}
 
 	// Verify rate limits are set
-	marketsRate := worker1.GetPrimaryGroupRateLimit(ctx, "markets")
+	marketsRate := worker1.GetPrimaryGroupRateLimit(ctx, "market-order")
 	if marketsRate != 5.0 {
-		t.Errorf("Expected markets rate limit 5.0, got %f", marketsRate)
+		t.Errorf("Expected market-order rate limit 5.0, got %f", marketsRate)
 	}
 	industryRate := worker1.GetPrimaryGroupRateLimit(ctx, "industry")
 	if industryRate != 2.0 {
 		t.Errorf("Expected industry rate limit 2.0, got %f", industryRate)
 	}
 
-	// Test markets group with 5 req/s (should be faster)
-	marketsGroup := GroupDesignation{PrimaryGroup: "markets"}
+	// Test market-order group with 5 req/s (should be faster)
+	marketsGroup := GroupDesignation{PrimaryGroup: "market-order"}
 	var marketsSuccess int64
 	var marketsErrors int64
 
@@ -770,9 +770,9 @@ func TestRedisRateLimiter_PerPrimaryGroupRateLimit(t *testing.T) {
 			industryDuration, expectedMinDuration)
 	}
 
-	// Industry should be slower than markets
+	// Industry should be slower than market-order
 	if industryDuration <= marketsDuration {
-		t.Errorf("Industry (2 req/s) should be slower than markets (5 req/s), but industry took %v and markets took %v",
+		t.Errorf("Industry (2 req/s) should be slower than market-order (5 req/s), but industry took %v and market-order took %v",
 			industryDuration, marketsDuration)
 	}
 }

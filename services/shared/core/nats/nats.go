@@ -39,9 +39,6 @@ func Connect() (*natslib.Conn, error) {
 			natslib.ReconnectHandler(func(nc *natslib.Conn) {
 				logs.Info("NATS reconnected", "url", nc.ConnectedUrl())
 			}),
-			natslib.ClosedHandler(func(nc *natslib.Conn) {
-				logs.Warn("NATS connection closed")
-			}),
 			natslib.ErrorHandler(func(nc *natslib.Conn, sub *natslib.Subscription, err error) {
 				if err != nil {
 					logs.Error("NATS error", "error", err)

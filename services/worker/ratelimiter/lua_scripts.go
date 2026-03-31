@@ -30,7 +30,17 @@ if enforce_tokens then
     local expired_sum = 0
     if #expired > 0 then
         for i = 1, #expired, 2 do
-            expired_sum = expired_sum + tonumber(expired[i])
+            local member = expired[i]
+            local tok = nil
+            local colonPos = string.find(member, ':', 1, true)
+            if colonPos then
+                tok = tonumber(string.sub(member, 1, colonPos - 1))
+            else
+                tok = tonumber(member)
+            end
+            if tok then
+                expired_sum = expired_sum + tok
+            end
         end
         redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', cutoff)
         if expired_sum > 0 then
@@ -127,8 +137,14 @@ if enforce_tokens then
         -- Keys will be created by ZADD and INCRBY
     end
 
-    -- Add actual token consumption to sorted set
-    redis.call('ZADD', KEYS[1], now, actual_tokens)
+    -- Unique ZSET member per consumption. Using token cost alone as the member
+    -- would overwrite prior events (e.g. all 2xx use member "2"), while INCRBY
+    -- still counts each request — leaving tokens:sum permanently inflated.
+    local seq_key = 'esi:group:' .. ARGV[2] .. ':tokens:seq'
+    local seq = redis.call('INCR', seq_key)
+    redis.call('EXPIRE', seq_key, 86400)
+    local member = tostring(actual_tokens) .. ':' .. tostring(seq)
+    redis.call('ZADD', KEYS[1], now, member)
 
     -- Update running sum atomically (O(1) operation)
     redis.call('INCRBY', KEYS[2], actual_tokens)

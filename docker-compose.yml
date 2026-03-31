@@ -27,6 +27,10 @@ services:
     <<: *common-service-config
     container_name: api-service
     image: ghcr.io/darcy561/eve-industry-planner-api:Public-latest
+    depends_on:
+      <<: *common-depends-on
+      core:
+        condition: service_healthy
     labels:
       # Enable Traefik for this container
       - "traefik.enable=true"
@@ -66,6 +70,7 @@ services:
       - "traefik.http.services.ws.loadbalancer.server.port=4001"
     volumes:
       - api_data:/data
+      - static_data_files:/static-data
       - ./adminSDK.json:/app/adminSDK.json:ro
 
   worker:
@@ -74,19 +79,31 @@ services:
     image: ghcr.io/darcy561/eve-industry-planner-worker:Public-latest
     volumes:
       - worker_data:/data
+      - static_data_files:/static-data
       - ./adminSDK.json:/app/adminSDK.json:ro
 
   core:
     <<: *common-service-config
     container_name: core-service
     image: ghcr.io/darcy561/eve-industry-planner-core:Public-latest
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /data/core-ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 180
+      start_period: 10s
     volumes:
       - core_data:/data
+      - static_data_files:/static-data
 
   frontend:
     <<: *common-service-config
     container_name: frontend-service
     image: ghcr.io/darcy561/eve-industry-planner-frontend:Public-latest
+    depends_on:
+      <<: *common-depends-on
+      core:
+        condition: service_healthy
     healthcheck:
       test:
         [
@@ -222,6 +239,7 @@ volumes:
   traefik_data:
   worker_data:
   core_data:
+  static_data_files:
 
 networks:
   eip:
