@@ -69,6 +69,11 @@ var (
 		Subject:         "task.scheduled.applySDEVersion",
 		DefaultPriority: Priority5,
 	}
+	RebuildCurrentSDEVersion = Task{
+		Name:            "rebuildCurrentSDEVersion",
+		Subject:         "task.scheduled.rebuildCurrentSDEVersion",
+		DefaultPriority: Priority5,
+	}
 )
 
 // ByName maps task name (handler key) to task definition for lookup (e.g. worker default priority).
@@ -83,4 +88,5 @@ var ByName = map[string]Task{
 	CheckSDEUpdates.Name:            CheckSDEUpdates,
 	RollbackSDEVersion.Name:         RollbackSDEVersion,
 	ApplySDEVersion.Name:            ApplySDEVersion,
+	RebuildCurrentSDEVersion.Name:   RebuildCurrentSDEVersion,
 }

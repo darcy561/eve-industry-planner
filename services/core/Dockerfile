@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.4
-FROM golang:1.25.5-alpine AS builder
+FROM golang:1.26.1-alpine AS builder
 
 WORKDIR /app
 
@@ -42,12 +42,12 @@ COPY --from=builder /app/core-service /app/core-service
 COPY core/entrypoint.sh /entrypoint.sh
 
 # Wrapper for triggering core task commands
-COPY core/eip-tasks.sh /usr/local/bin/eip-tasks
+COPY core/tasks.sh /usr/local/bin/tasks
 
 # Create data directory and set permissions
 RUN mkdir -p /data && \
     chmod +x /entrypoint.sh && \
-    chmod +x /usr/local/bin/eip-tasks && \
+    chmod +x /usr/local/bin/tasks && \
     chown -R appuser:appuser /app
 
 # Label for GitHub Container Registry linking

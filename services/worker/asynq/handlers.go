@@ -56,6 +56,9 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	mux.HandleFunc("applySDEVersion", func(ctx context.Context, t *asynq.Task) error {
 		return sdetasks.ApplySDEVersion(ctx, t, taskDeps)
 	})
+	mux.HandleFunc("rebuildCurrentSDEVersion", func(ctx context.Context, t *asynq.Task) error {
+		return sdetasks.RebuildCurrentSDEVersion(ctx, t, taskDeps)
+	})
 
 	mux.HandleFunc("fetchCorporations", func(ctx context.Context, t *asynq.Task) error {
 		return esitasks.UpdateCustomCorporationClaims(ctx, t, taskDeps)

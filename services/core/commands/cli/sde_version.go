@@ -18,8 +18,8 @@ func sdeDataDir() string {
 	return sdeshared.DefaultDataDir
 }
 
-// RunLiveVersionInfo prints current live SDE metadata to stdout.
-func RunLiveVersionInfo() error {
+// RunSdeVersion prints current live SDE metadata to stdout.
+func RunSdeVersion() error {
 	dataDir := sdeDataDir()
 	version, err := sdeshared.ReadRootVersionJSON(dataDir)
 	if err != nil {
@@ -47,8 +47,8 @@ type previousVersionInfo struct {
 	Version   *sdeshared.StoredVersionJSON `json:"version,omitempty"`
 }
 
-// RunPreviousVersionsInfo prints retained previous SDE versions to stdout.
-func RunPreviousVersionsInfo() error {
+// RunSdeVersionHistory prints retained previous SDE versions to stdout.
+func RunSdeVersionHistory() error {
 	dataDir := sdeDataDir()
 	previousRoot := filepath.Join(dataDir, sdeshared.PreviousVersionsDirName)
 	entries, err := os.ReadDir(previousRoot)

@@ -8,9 +8,9 @@ import (
 	"eve-industry-planner/shared/shared"
 )
 
-// RunAsynqPurge removes all Asynq keys from Redis (pattern: asynq:*).
+// RunPurgeWorkerQueues removes all Asynq keys from Redis (pattern: asynq:*).
 // Intended for operational recovery when queues/retries get stuck.
-func RunAsynqPurge() error {
+func RunPurgeWorkerQueues() error {
 	ctx := context.Background()
 	clients, err := shared.ConnectServices(ctx, shared.ServiceRedis)
 	if err != nil {

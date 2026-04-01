@@ -60,8 +60,17 @@ func ApplySDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.TaskD
 		return err
 	}
 
+	liveVersion, err := sdeshared.ReadRootVersionJSON(dataDir)
+	if err != nil {
+		return fmt.Errorf("failed reading rebuilt root version.json: %w", err)
+	}
+	lockVersion := sdeshared.IntToString(req.BuildNumber)
+	if liveVersion != nil && liveVersion.Version != "" {
+		lockVersion = liveVersion.Version
+	}
+
 	if err := sdeshared.WriteVersionLock(dataDir, sdeshared.VersionLock{
-		Version:     sdeshared.IntToString(req.BuildNumber),
+		Version:     lockVersion,
 		BuildNumber: req.BuildNumber,
 		LockedAt:    time.Now().UTC(),
 		Source:      "applySDEVersion",

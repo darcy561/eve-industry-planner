@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -244,6 +246,84 @@ func SanitizeVersionFolder(version string) string {
 	version = strings.ReplaceAll(version, "/", "_")
 	version = strings.ReplaceAll(version, " ", "_")
 	return version
+}
+
+var buildVersionPattern = regexp.MustCompile(`^(\d+)_v(\d+)$`)
+
+func IsBuildVersionLabel(version string, buildNumber int) bool {
+	if buildNumber <= 0 {
+		return false
+	}
+	matches := buildVersionPattern.FindStringSubmatch(strings.TrimSpace(version))
+	if len(matches) != 3 {
+		return false
+	}
+	parsedBuild, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return false
+	}
+	return parsedBuild == buildNumber
+}
+
+func NextBuildVersionName(previousRoot string, buildNumber int) (string, error) {
+	if buildNumber <= 0 {
+		return NextUnknownVersionName(previousRoot)
+	}
+
+	maxVersion := 0
+	entries, err := os.ReadDir(previousRoot)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Sprintf("%d_v1", buildNumber), nil
+		}
+		return "", err
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		matches := buildVersionPattern.FindStringSubmatch(strings.TrimSpace(entry.Name()))
+		if len(matches) != 3 {
+			continue
+		}
+		parsedBuild, err := strconv.Atoi(matches[1])
+		if err != nil || parsedBuild != buildNumber {
+			continue
+		}
+		parsedVersion, err := strconv.Atoi(matches[2])
+		if err != nil {
+			continue
+		}
+		if parsedVersion > maxVersion {
+			maxVersion = parsedVersion
+		}
+	}
+
+	return fmt.Sprintf("%d_v%d", buildNumber, maxVersion+1), nil
+}
+
+func NextUnknownVersionName(previousRoot string) (string, error) {
+	baseName := SanitizeVersionFolder("unknown")
+	for versionNum := 1; ; versionNum++ {
+		candidate := fmt.Sprintf("%s_v%d", baseName, versionNum)
+		candidatePath := filepath.Join(previousRoot, candidate)
+		if _, err := os.Stat(candidatePath); os.IsNotExist(err) {
+			return candidate, nil
+		} else if err != nil {
+			return "", err
+		}
+	}
+}
+
+func ResolveArchiveVersionName(previousRoot string, currentVersion string, buildNumber int) (string, error) {
+	if IsBuildVersionLabel(currentVersion, buildNumber) {
+		return currentVersion, nil
+	}
+	if buildNumber > 0 {
+		return NextBuildVersionName(previousRoot, buildNumber)
+	}
+	return NextUnknownVersionName(previousRoot)
 }
 
 func IntToString(v int) string {

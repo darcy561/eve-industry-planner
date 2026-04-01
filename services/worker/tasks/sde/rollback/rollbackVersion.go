@@ -62,29 +62,31 @@ func RollbackSDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.Ta
 	}
 
 	// rollbackDir now contains the old live data; archive it with the old live version identifier.
-	archiveFolderName := sdeshared.SanitizeVersionFolder("unknown")
+	archiveFolderName := ""
+	archiveBuildNumber := 0
 	if currentRootVersion != nil {
-		if currentRootVersion.Version != "" {
-			archiveFolderName = sdeshared.SanitizeVersionFolder(currentRootVersion.Version)
-		} else if currentRootVersion.BuildNumber != 0 {
-			archiveFolderName = sdeshared.SanitizeVersionFolder(sdeshared.IntToString(currentRootVersion.BuildNumber))
-		}
+		archiveFolderName = currentRootVersion.Version
+		archiveBuildNumber = currentRootVersion.BuildNumber
+	}
+	archiveFolderName, err = sdeshared.ResolveArchiveVersionName(previousRoot, archiveFolderName, archiveBuildNumber)
+	if err != nil {
+		return fmt.Errorf("failed creating rollback archive version name: %w", err)
 	}
 
 	archiveDir := filepath.Join(previousRoot, archiveFolderName)
 	if archiveDir != rollbackDir {
-		if _, err := os.Stat(archiveDir); err == nil {
-			// Keep a single folder per build/version: replace existing archive snapshot.
-			if err := os.RemoveAll(archiveDir); err != nil {
-				return fmt.Errorf("failed removing existing rollback archive dir: %w", err)
-			}
-		}
 		if err := os.Rename(rollbackDir, archiveDir); err != nil {
 			return fmt.Errorf("failed archiving rolled-back live_data: %w", err)
 		}
 	}
 
-	if err := sdeshared.WriteVersionJSONIntoDir(archiveDir, currentRootVersion, ""); err != nil {
+	archiveVersionFile := currentRootVersion
+	if currentRootVersion != nil {
+		copyVersion := *currentRootVersion
+		copyVersion.Version = archiveFolderName
+		archiveVersionFile = &copyVersion
+	}
+	if err := sdeshared.WriteVersionJSONIntoDir(archiveDir, archiveVersionFile, ""); err != nil {
 		return fmt.Errorf("failed writing archived rollback version metadata: %w", err)
 	}
 

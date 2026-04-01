@@ -186,5 +186,23 @@ update-files: bootstrap-version-tracker
 	mv \"\$$TEMP_FILE\" Makefile; \
 	echo 'Makefile updated successfully!' >&2; \
 	echo '' >&2; \
+	echo 'Updating version-tracker.sh...' >&2; \
+	TEMP_FILE='./scripts/version-tracker.sh.tmp'; \
+	if command -v curl >/dev/null 2>&1; then \
+		curl -L -f -o \"\$$TEMP_FILE\" \
+			'https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Public/scripts/version-tracker.sh' || \
+		(echo 'Error: Failed to download version-tracker.sh from GitHub' >&2; rm -f \"\$$TEMP_FILE\"; exit 1); \
+	elif command -v wget >/dev/null 2>&1; then \
+		wget -O \"\$$TEMP_FILE\" \
+			'https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Public/scripts/version-tracker.sh' || \
+		(echo 'Error: Failed to download version-tracker.sh from GitHub' >&2; rm -f \"\$$TEMP_FILE\"; exit 1); \
+	else \
+		echo 'Error: Neither curl nor wget is available. Please install one of them.' >&2; \
+		exit 1; \
+	fi; \
+	mv \"\$$TEMP_FILE\" ./scripts/version-tracker.sh; \
+	chmod +x ./scripts/version-tracker.sh; \
+	echo 'version-tracker.sh updated successfully!' >&2; \
+	echo '' >&2; \
 	echo 'Updating docker-compose.yml and scripts...' >&2; \
 	bash ./scripts/version-tracker.sh update"
