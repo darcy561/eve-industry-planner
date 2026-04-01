@@ -23,6 +23,7 @@ var (
 	stageConversion     = runSDEConversionStage
 	stageBlueprintsSync = runSDEBlueprintsMongoStageAsync
 	stagePersist        = runSDEPersistStage
+	stagePersistReplace = runSDEPersistStageReplaceCurrent
 	stageRecipeDiff     = runSDENewRecipeItemsStage
 	stagePrunePrevious  = runSDEPrunePreviousVersions
 )
@@ -68,6 +69,20 @@ func CheckSDEUpdates(ctx context.Context, task *asynq.Task, deps *esitasks.TaskD
 }
 
 func runSDEUpdatePipeline(ctx context.Context, deps *esitasks.TaskDependencies, versionResult *sdeVersionCheckResult) error {
+	return runSDEUpdatePipelineWithPersist(ctx, deps, versionResult, stagePersist, true)
+}
+
+func runSDEUpdatePipelineReplacingCurrent(ctx context.Context, deps *esitasks.TaskDependencies, versionResult *sdeVersionCheckResult) error {
+	return runSDEUpdatePipelineWithPersist(ctx, deps, versionResult, stagePersistReplace, false)
+}
+
+func runSDEUpdatePipelineWithPersist(
+	ctx context.Context,
+	deps *esitasks.TaskDependencies,
+	versionResult *sdeVersionCheckResult,
+	persistStage func(*sdeVersionCheckResult, *sdeConversionResult) (*sdePersistResult, error),
+	runPostPersistStages bool,
+) error {
 	downloadResult, err := stageDownload(ctx, versionResult)
 	if err != nil {
 		return err
@@ -86,9 +101,12 @@ func runSDEUpdatePipeline(ctx context.Context, deps *esitasks.TaskDependencies, 
 	// Stage 4b: async sync of recipeList into Mongo /blueprints by itemID.
 	stageBlueprintsSync(ctx, conversionResult, deps)
 
-	persistResult, err := stagePersist(versionResult, conversionResult)
+	persistResult, err := persistStage(versionResult, conversionResult)
 	if err != nil {
 		return err
+	}
+	if !runPostPersistStages {
+		return nil
 	}
 
 	// Stage 5: compare recipe list between previous and current versions.

@@ -22,6 +22,7 @@ frontend/routeTree.gen.js
 *.exe
 *.env
 .env.*
+services/worker/tmp/
 mongo-keyfile
 bin/
 docker-compose

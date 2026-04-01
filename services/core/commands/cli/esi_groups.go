@@ -29,8 +29,8 @@ type esiGroupState struct {
 	TokenWaitMs              int64   `json:"token_wait_ms,omitempty"`
 }
 
-// RunESIRateLimiterGroups prints current ESI limiter groups and state from Redis.
-func RunESIRateLimiterGroups() error {
+// RunEsiRateLimitGroups prints current ESI limiter groups and state from Redis.
+func RunEsiRateLimitGroups() error {
 	ctx := context.Background()
 	clients, err := shared.ConnectServices(ctx, shared.ServiceRedis)
 	if err != nil {
@@ -77,9 +77,9 @@ func resetESIGroupKeys(group string) []string {
 	}
 }
 
-// RunResetESIRateLimiterGroups deletes token-bucket and per-request pacing state for every
+// RunResetEsiRateLimitGroups deletes token-bucket and per-request pacing state for every
 // discovered ESI group. Preserves esi:group:{name}:token_limit.
-func RunResetESIRateLimiterGroups() error {
+func RunResetEsiRateLimitGroups() error {
 	ctx := context.Background()
 	clients, err := shared.ConnectServices(ctx, shared.ServiceRedis)
 	if err != nil {

@@ -21,6 +21,14 @@ type previousVersionJSON struct {
 	GeneratedAt string `json:"generated_at"`
 }
 
+func expectBuildVersionLabel(t *testing.T, label string, buildNumber int) {
+	t.Helper()
+	expectedPrefix := fmt.Sprintf("%d_v", buildNumber)
+	if !strings.HasPrefix(label, expectedPrefix) {
+		t.Fatalf("expected version label %q to start with %q", label, expectedPrefix)
+	}
+}
+
 func seedPreviousVersion(t *testing.T, dataDir string, buildNumber int) {
 	t.Helper()
 
@@ -67,6 +75,88 @@ func assertFileJSON(t *testing.T, path string, nonEmpty bool) {
 	}
 }
 
+func integrationDataDir(t *testing.T) string {
+	t.Helper()
+
+	outputDir, err := filepath.Abs(filepath.Join("..", "..", "..", "tmp", "sde"))
+	if err != nil {
+		t.Fatalf("resolve integration output dir: %v", err)
+	}
+	if err := os.RemoveAll(outputDir); err != nil {
+		t.Fatalf("remove existing integration output dir: %v", err)
+	}
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		t.Fatalf("mkdir integration output dir: %v", err)
+	}
+	return outputDir
+}
+
+func TestSDEUpdateWorkflowIntegration_buildsLatestSDEAndWritesDataFiles(t *testing.T) {
+	if os.Getenv("SDE_INTEGRATION") == "" {
+		t.Skip("set SDE_INTEGRATION=1 to run live-url integration test")
+	}
+
+	ctx := context.Background()
+	dataDir := integrationDataDir(t)
+
+	orig := os.Getenv("SDE_DATA_DIR")
+	t.Cleanup(func() {
+		_ = os.Setenv("SDE_DATA_DIR", orig)
+	})
+	if err := os.Setenv("SDE_DATA_DIR", dataDir); err != nil {
+		t.Fatalf("set SDE_DATA_DIR: %v", err)
+	}
+
+	versionResult, err := runSDEVersionCheckStage(ctx, dataDir)
+	if err != nil {
+		t.Fatalf("runSDEVersionCheckStage failed: %v", err)
+	}
+	if versionResult == nil || versionResult.LatestBuildInfo == nil {
+		t.Fatalf("expected live latest build info")
+	}
+
+	downloadResult, err := runSDEDownloadStage(ctx, versionResult)
+	if err != nil {
+		t.Fatalf("runSDEDownloadStage failed: %v", err)
+	}
+	mapBuildResult, err := runSDEMapBuildStage(downloadResult)
+	if err != nil {
+		t.Fatalf("runSDEMapBuildStage failed: %v", err)
+	}
+	conversionResult, err := runSDEConversionStage(mapBuildResult)
+	if err != nil {
+		t.Fatalf("runSDEConversionStage failed: %v", err)
+	}
+	if _, err := runSDEPersistStage(versionResult, conversionResult); err != nil {
+		t.Fatalf("runSDEPersistStage failed: %v", err)
+	}
+
+	liveDir := filepath.Join(dataDir, "live_data")
+	t.Logf("validated generated files in %s", liveDir)
+
+	assertFileJSON(t, filepath.Join(liveDir, "recipeList.json"), true)
+	assertFileJSON(t, filepath.Join(liveDir, "searchIndex.json"), true)
+	assertFileJSON(t, filepath.Join(liveDir, "fullItemList.json"), true)
+	assertFileJSON(t, filepath.Join(liveDir, "reprocessingData.json"), true)
+
+	rootVersionPath := filepath.Join(dataDir, "version.json")
+	rootB, err := os.ReadFile(rootVersionPath)
+	if err != nil {
+		t.Fatalf("read root version.json: %v", err)
+	}
+	var root struct {
+		Version     string `json:"version"`
+		BuildNumber int    `json:"build_number"`
+	}
+	if err := json.Unmarshal(rootB, &root); err != nil {
+		t.Fatalf("parse root version.json: %v", err)
+	}
+	if root.BuildNumber != versionResult.LatestBuildInfo.BuildNumber {
+		t.Fatalf("expected root build_number=%d, got %d", versionResult.LatestBuildInfo.BuildNumber, root.BuildNumber)
+	}
+	expectBuildVersionLabel(t, root.Version, root.BuildNumber)
+}
+
 func TestSDEUpdateWorkflowIntegration_generatesAndVersionFiles(t *testing.T) {
 	if os.Getenv("SDE_INTEGRATION") == "" {
 		t.Skip("set SDE_INTEGRATION=1 to run live-url integration test")
@@ -111,6 +201,7 @@ func TestSDEUpdateWorkflowIntegration_generatesAndVersionFiles(t *testing.T) {
 	// 2) Persist multiple "versions" by only changing the build number.
 	// This validates:
 	// - archive folder naming is based on the version currently served (from root version.json)
+	//   using standard versioned names like <build>_v1, <build>_v2, ...
 	// - each previous snapshot gets its own version.json (including generated_at)
 	// - we keep only the newest 5 previous versions
 	totalPersistUpdates := 7 // creates 6 previous snapshots; retention keeps the last 5
@@ -158,7 +249,8 @@ func TestSDEUpdateWorkflowIntegration_generatesAndVersionFiles(t *testing.T) {
 		t.Fatalf("read root version.json: %v", err)
 	}
 	var root struct {
-		BuildNumber int `json:"build_number"`
+		Version     string `json:"version"`
+		BuildNumber int    `json:"build_number"`
 	}
 	if err := json.Unmarshal(rootB, &root); err != nil {
 		t.Fatalf("parse root version.json: %v", err)
@@ -167,6 +259,7 @@ func TestSDEUpdateWorkflowIntegration_generatesAndVersionFiles(t *testing.T) {
 	if root.BuildNumber != expectedRoot {
 		t.Fatalf("expected root build_number=%d, got %d", expectedRoot, root.BuildNumber)
 	}
+	expectBuildVersionLabel(t, root.Version, root.BuildNumber)
 
 	// Validate previous_versions retention policy and version.json generation metadata.
 	entries, err := os.ReadDir(previousRoot)
@@ -205,6 +298,7 @@ func TestSDEUpdateWorkflowIntegration_generatesAndVersionFiles(t *testing.T) {
 		if prev.Version != dir {
 			t.Fatalf("expected prev.version=%q to match previous dir=%q", prev.Version, dir)
 		}
+		expectBuildVersionLabel(t, prev.Version, prev.BuildNumber)
 
 		if prev.BuildNumber < minExpected || prev.BuildNumber > maxExpected {
 			t.Fatalf("retained previous build out of expected range [%d,%d]: got %d (dir=%s)", minExpected, maxExpected, prev.BuildNumber, dir)

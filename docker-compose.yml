@@ -189,7 +189,7 @@ services:
     image: redis:8.4.0
     restart: unless-stopped
     env_file: [.env]
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--bind", "0.0.0.0"]
     volumes:
       - redis_data:/data
     healthcheck:
@@ -198,6 +198,8 @@ services:
       timeout: 3s
       retries: 5
       start_period: 10s
+    ports:
+      - "10.8.0.1:6379:6379"
     networks:
       - eip
 
@@ -215,7 +217,7 @@ services:
       - mongo_data:/data/db
       - ./scripts/mongo-setup.sh:/mongo-setup.sh:ro
       - ./mongo-keyfile:/etc/mongo-keyfile:ro
-    command: ["bash", "/mongo-setup.sh"]
+    command: ["bash", "/mongo-setup.sh", "--bind_ip_all"]
     healthcheck:
       # Ensure the DB is not just accepting TCP, but also successfully authenticates.
       # This prevents core/api from starting while `mongo-setup.sh` is still in its noauth bootstrap phase.
@@ -228,6 +230,8 @@ services:
       timeout: 10s
       retries: 30
       start_period: 30s
+    ports:
+      - "10.8.0.1:27017:27017"
     networks:
       - eip
 

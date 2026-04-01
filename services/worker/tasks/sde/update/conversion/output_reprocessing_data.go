@@ -17,13 +17,25 @@ var marketGroupsToSkills = map[int]int{
 	1032: 62452,
 }
 
-var parentMarketGroupsToInclude = map[string]bool{
-	"54": true, "1855": true, "2395": true, "1032": true,
-}
+var (
+	parentMarketGroupsToInclude = map[string]bool{
+		"54": true, "1855": true, "2395": true, "1032": true,
+	}
+	ItemTypesForReprocessing = map[string]int{
+		"ore":     0,
+		"moonOre": 1,
+		"ice":     2,
+		"gas":     3,
+		"scrap":   4,
+	}
 
-var marketGroupsToItemTypes = map[string]int{
-	"54": 0, "2395": 1, "1855": 2, "1032": 3,
-}
+	marketGroupsToItemTypes = map[string]int{
+		"54":   ItemTypesForReprocessing["ore"],
+		"2395": ItemTypesForReprocessing["moonOre"],
+		"1855": ItemTypesForReprocessing["ice"],
+		"1032": ItemTypesForReprocessing["gas"],
+	}
+)
 
 func GenerateReprocessingDataOutput(reprocessingMap map[string]interface{}, typeIDMap map[string]*EVEType, marketGroupsMap map[string]interface{}) map[string]*ReprocessingItem {
 	reprocessingObjects := make(map[string]*ReprocessingItem)
@@ -52,7 +64,7 @@ func createReprocessingItem(key string, reprocessingData interface{}, mainItem *
 		Name:      mainItem.Name,
 		Materials: make(map[string]int),
 		BatchSize: mainItem.PortionSize,
-		ItemType:  assignReprocessingItemType(mainItem),
+		ItemType:  assignReprocessingItemType(mainItem, marketGroupsMap),
 	}
 	parentGroupID := findParentGroupFromMarketGroup(mainItem, marketGroupsMap)
 	if skill, exists := marketGroupsToSkills[mainItem.MarketSectionID]; exists {
@@ -97,10 +109,16 @@ func createReprocessingItem(key string, reprocessingData interface{}, mainItem *
 	return item
 }
 
-func assignReprocessingItemType(item *EVEType) int {
+func assignReprocessingItemType(item *EVEType, marketGroupsMap map[string]interface{}) int {
+	if parentGroupID := findParentGroupFromMarketGroup(item, marketGroupsMap); parentGroupID != "" {
+		if itemType, exists := marketGroupsToItemTypes[parentGroupID]; exists {
+			return itemType
+		}
+	}
+
 	marketSectionStr := fmt.Sprintf("%d", item.MarketSectionID)
 	if itemType, exists := marketGroupsToItemTypes[marketSectionStr]; exists {
 		return itemType
 	}
-	return 4
+	return ItemTypesForReprocessing["scrap"]
 }

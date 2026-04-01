@@ -46,7 +46,6 @@ async function reprocessFromMinerals(
   const reprocessingObjects = {};
   const ore = await getReprocessingData();
   const items = Object.values(ore);
-
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     if (

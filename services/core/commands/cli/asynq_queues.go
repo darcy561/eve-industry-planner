@@ -31,8 +31,8 @@ type asynqQueueInfo struct {
 	MemoryUsage    int64  `json:"memory_usage_bytes"`
 }
 
-// RunAsynqQueuesInfo prints current Asynq queue state for all known queues.
-func RunAsynqQueuesInfo() error {
+// RunWorkerQueues prints current Asynq queue state for all known queues.
+func RunWorkerQueues() error {
 	redisOpt, err := asynqRedisOptFromConfig()
 	if err != nil {
 		return err

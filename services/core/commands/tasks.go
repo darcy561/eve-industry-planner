@@ -15,53 +15,66 @@ import (
 )
 
 const usage = `Usage:
-  eip-tasks list
-  eip-tasks live-version
-  eip-tasks previous-versions
-  eip-tasks esi-groups
-  eip-tasks reset-esi-groups
-  eip-tasks market-prices-count
-  eip-tasks asynq-queues
-  eip-tasks asynq-purge
-  eip-tasks unlock-version
-  eip-tasks <task-name> [--priority=<priority_queue>] [--version=<int>] [--data='<json>']
+  tasks list
+  tasks sdeVersion
+  tasks sdeVersionHistory
+  tasks esiRateLimitGroups
+  tasks resetEsiRateLimitGroups
+  tasks displayMarketPriceCount
+  tasks workerQueues
+  tasks purgeWorkerQueues
+  tasks unlockSdeVersion
+  tasks forceSdeRebuild
+  tasks <task-name> [--priority=<priority_queue>] [--version=<int>] [--data='<json>']
 
 Examples:
-  eip-tasks list
-  eip-tasks live-version
-  eip-tasks previous-versions
-  eip-tasks esi-groups
-  eip-tasks reset-esi-groups
-  eip-tasks market-prices-count
-  eip-tasks asynq-queues
-  eip-tasks asynq-purge
-  eip-tasks unlock-version
-  eip-tasks checkSDEUpdates
-  eip-tasks applySDEVersion --version=12345
-  eip-tasks recount-market-prices
+  tasks list
+  tasks sdeVersion
+  tasks sdeVersionHistory
+  tasks esiRateLimitGroups
+  tasks resetEsiRateLimitGroups
+  tasks displayMarketPriceCount
+  tasks workerQueues
+  tasks purgeWorkerQueues
+  tasks unlockSdeVersion
+  tasks checkSdeUpdates
+  tasks applySdeVersion --version=12345
+  tasks recountMarketPrices
+  tasks forceSdeRebuild
 `
 
 // Enabled task allowlist.
-// Add more tasks to this slice to expose them in `eip-tasks`.
+// Add more tasks to this slice to expose them in `tasks`.
 // Matching is case-insensitive for user convenience.
 var enabledTasks = []taskscore.Task{
 	taskscore.CheckSDEUpdates,
 	taskscore.ApplySDEVersion,
+	taskscore.RebuildCurrentSDEVersion,
 	taskscore.CountMarketPricesItems,
 }
 
 func enabledTasksLowerLookup() map[string]taskscore.Task {
-	lookup := make(map[string]taskscore.Task, len(enabledTasks))
-	for _, task := range enabledTasks {
-		lookup[strings.ToLower(task.Name)] = task
+	return map[string]taskscore.Task{
+		"checksdeupdates":   taskscore.CheckSDEUpdates,
+		"applysdeversion":   taskscore.ApplySDEVersion,
+		"forcesderebuild":   taskscore.RebuildCurrentSDEVersion,
+		"recountmarketprices": taskscore.CountMarketPricesItems,
 	}
-	// Friendly aliases.
-	lookup["applysde"] = taskscore.ApplySDEVersion
-	lookup["applysdeversion"] = taskscore.ApplySDEVersion
-	lookup["recount-market-prices"] = taskscore.CountMarketPricesItems
-	lookup["recountmarketprices"] = taskscore.CountMarketPricesItems
-	lookup["countmarketprices"] = taskscore.CountMarketPricesItems
-	return lookup
+}
+
+func commandTaskName(task taskscore.Task) string {
+	switch task.Name {
+	case taskscore.CheckSDEUpdates.Name:
+		return "checkSdeUpdates"
+	case taskscore.ApplySDEVersion.Name:
+		return "applySdeVersion"
+	case taskscore.RebuildCurrentSDEVersion.Name:
+		return "forceSdeRebuild"
+	case taskscore.CountMarketPricesItems.Name:
+		return "recountMarketPrices"
+	default:
+		return task.Name
+	}
 }
 
 // Handle runs command-mode task commands.
@@ -77,28 +90,23 @@ func Handle(ctx context.Context, args []string) (bool, error) {
 	switch args[1] {
 	case "list":
 		return true, runList()
-	case "live-version", "live":
-		return true, clicommands.RunLiveVersionInfo()
-	case "previous-versions", "previous":
-		return true, clicommands.RunPreviousVersionsInfo()
-	case "esi-groups", "groups":
-		return true, clicommands.RunESIRateLimiterGroups()
-	case "reset-esi-groups", "esi-reset", "reset-groups":
-		return true, clicommands.RunResetESIRateLimiterGroups()
-	case "market-prices-count", "market-count", "mp-count":
-		return true, clicommands.RunMarketPricesCount()
-	case "asynq-queues", "queues-asynq", "asynq-info":
-		return true, clicommands.RunAsynqQueuesInfo()
-	case "asynq-purge", "purge-asynq", "clear-asynq":
-		return true, clicommands.RunAsynqPurge()
-	case "unlock-version", "unlock":
-		return true, clicommands.RunUnlockSDEVersion()
+	case "sdeVersion":
+		return true, clicommands.RunSdeVersion()
+	case "sdeVersionHistory":
+		return true, clicommands.RunSdeVersionHistory()
+	case "esiRateLimitGroups":
+		return true, clicommands.RunEsiRateLimitGroups()
+	case "resetEsiRateLimitGroups":
+		return true, clicommands.RunResetEsiRateLimitGroups()
+	case "displayMarketPriceCount":
+		return true, clicommands.RunDisplayMarketPriceCount()
+	case "workerQueues":
+		return true, clicommands.RunWorkerQueues()
+	case "purgeWorkerQueues":
+		return true, clicommands.RunPurgeWorkerQueues()
+	case "unlockSdeVersion":
+		return true, clicommands.RunUnlockSdeVersion()
 	default:
-		// Default: treat the first non-subcommand arg as the task-name.
-		// Also accept legacy `trigger <task-name> ...` form.
-		if args[1] == "trigger" {
-			return true, runTrigger(ctx, args[2:])
-		}
 		return true, runTrigger(ctx, args[1:])
 	}
 }
@@ -107,18 +115,18 @@ func runList() error {
 	fmt.Println("Available commands:")
 	fmt.Println("  CLI:")
 	fmt.Println("  - list")
-	fmt.Println("  - live-version (alias: live)")
-	fmt.Println("  - previous-versions (alias: previous)")
-	fmt.Println("  - esi-groups (alias: groups)")
-	fmt.Println("  - reset-esi-groups (aliases: esi-reset, reset-groups)")
-	fmt.Println("  - market-prices-count (aliases: market-count, mp-count)")
-	fmt.Println("  - asynq-queues (aliases: queues-asynq, asynq-info)")
-	fmt.Println("  - asynq-purge (aliases: purge-asynq, clear-asynq)")
-	fmt.Println("  - unlock-version (alias: unlock)")
+	fmt.Println("  - sdeVersion")
+	fmt.Println("  - sdeVersionHistory")
+	fmt.Println("  - esiRateLimitGroups")
+	fmt.Println("  - resetEsiRateLimitGroups")
+	fmt.Println("  - displayMarketPriceCount")
+	fmt.Println("  - workerQueues")
+	fmt.Println("  - purgeWorkerQueues")
+	fmt.Println("  - unlockSdeVersion")
 	fmt.Println()
 	fmt.Println("  Triggerable tasks:")
 	for _, task := range allTasks() {
-		fmt.Printf("  - %s (subject: %s, default_priority: %s)\n", task.Name, task.Subject, task.DefaultPriority)
+		fmt.Printf("  - %s (worker_task: %s, subject: %s, default_priority: %s)\n", commandTaskName(task), task.Name, task.Subject, task.DefaultPriority)
 	}
 	return nil
 }
@@ -187,7 +195,7 @@ func runTrigger(ctx context.Context, args []string) error {
 			data = v
 			i = next
 		case strings.HasPrefix(a, "version="), a == "version":
-			return fmt.Errorf("invalid version flag %q: use --version=<int> (example: eip-tasks applySDEVersion --version=3272045)", a)
+			return fmt.Errorf("invalid version flag %q: use --version=<int> (example: tasks applySdeVersion --version=3272045)", a)
 		case strings.HasPrefix(a, "--version="):
 			raw := strings.TrimPrefix(a, "--version=")
 			parsed, err := strconv.Atoi(strings.TrimSpace(raw))
@@ -199,11 +207,11 @@ func runTrigger(ctx context.Context, args []string) error {
 		case a == "--version":
 			v, next, err := consumeValue(i)
 			if err != nil {
-				return fmt.Errorf("missing value for --version: use --version=<int> (example: eip-tasks applySDEVersion --version=3272045)")
+				return fmt.Errorf("missing value for --version: use --version=<int> (example: tasks applySdeVersion --version=3272045)")
 			}
 			parsed, err := strconv.Atoi(strings.TrimSpace(v))
 			if err != nil {
-				return fmt.Errorf("invalid --version value %q: must be an integer (example: --version=3272045)", v)
+				return fmt.Errorf("invalid --version value %q: must be an integer (example: tasks applySdeVersion --version=3272045)", v)
 			}
 			version = parsed
 			versionSet = true
@@ -222,14 +230,12 @@ func runTrigger(ctx context.Context, args []string) error {
 
 	taskNameInput = strings.TrimSpace(taskNameInput)
 	if taskNameInput == "" {
-		return fmt.Errorf("trigger requires exactly one <task-name>\n\n%s", usage)
+		return fmt.Errorf("expected exactly one <task-name>\n\n%s", usage)
 	}
-	taskNameLower := strings.ToLower(taskNameInput)
-
 	lookup := enabledTasksLowerLookup()
-	task, exists := lookup[taskNameLower]
+	task, exists := lookup[strings.ToLower(taskNameInput)]
 	if !exists {
-		return fmt.Errorf("unknown or disabled task %q (use `eip-tasks list`)", taskNameInput)
+		return fmt.Errorf("unknown or disabled task %q (use `tasks list`)", taskNameInput)
 	}
 
 	payload, err := buildTaskPayload(task, versionSet, version, data)
@@ -274,10 +280,10 @@ func buildTaskPayload(task taskscore.Task, versionSet bool, version int, rawJSON
 	switch task.Name {
 	case taskscore.ApplySDEVersion.Name:
 		if !versionSet {
-			return nil, fmt.Errorf("task %q requires --version=<int> (example: eip-tasks applySDEVersion --version=3272045)", task.Name)
+			return nil, fmt.Errorf("task %q requires --version=<int> (example: tasks applySdeVersion --version=3272045)", commandTaskName(task))
 		}
 		if version <= 0 {
-			return nil, fmt.Errorf("task %q requires --version to be a positive integer (> 0), got %d", task.Name, version)
+			return nil, fmt.Errorf("task %q requires --version to be a positive integer (> 0), got %d", commandTaskName(task), version)
 		}
 		payload, err := json.Marshal(natscore.SDEApplyVersionRequest{
 			BuildNumber: version,

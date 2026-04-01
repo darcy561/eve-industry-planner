@@ -9,8 +9,8 @@ import (
 	sdeshared "eve-industry-planner/worker/tasks/sde/shared"
 )
 
-// RunUnlockSDEVersion removes the SDE version lock so scheduled/manual updates can proceed.
-func RunUnlockSDEVersion() error {
+// RunUnlockSdeVersion removes the SDE version lock so scheduled/manual updates can proceed.
+func RunUnlockSdeVersion() error {
 	dataDir := sdeDataDir()
 	lockPath := filepath.Join(dataDir, sdeshared.VersionLockFileName)
 
@@ -36,7 +36,7 @@ func RunUnlockSDEVersion() error {
 		"lock_path":        lockPath,
 		"unlocked":         true,
 		"removed_lock":     lock,
-		"next_update_hint": "You can now run eip-tasks checkSDEUpdates or eip-tasks applySDEVersion --version=<int>",
+		"next_update_hint": "You can now run tasks checkSdeUpdates or tasks applySdeVersion --version=<int>",
 	}
 	b, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {

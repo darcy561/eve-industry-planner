@@ -97,6 +97,7 @@ update_files() {
     # Files to check/update
     declare -A FILES=(
         ["docker-compose.yml"]="$RUN_DIR/docker-compose.yml"
+        ["scripts/download-setup-scripts.sh"]="$SCRIPTS_DIR/download-setup-scripts.sh"
         ["scripts/mongo-setup.sh"]="$SCRIPTS_DIR/mongo-setup.sh"
         ["scripts/generate-mongo-keyfile.sh"]="$SCRIPTS_DIR/generate-mongo-keyfile.sh"
     )

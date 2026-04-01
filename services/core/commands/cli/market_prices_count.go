@@ -9,9 +9,9 @@ import (
 	"eve-industry-planner/shared/shared"
 )
 
-// RunMarketPricesCount returns the current market prices item count.
+// RunDisplayMarketPriceCount returns the current market prices item count.
 // Prefers cached count, with live fallback from the refresh-time set cardinality.
-func RunMarketPricesCount() error {
+func RunDisplayMarketPriceCount() error {
 	ctx := context.Background()
 	clients, err := shared.ConnectServices(ctx, shared.ServiceRedis)
 	if err != nil {

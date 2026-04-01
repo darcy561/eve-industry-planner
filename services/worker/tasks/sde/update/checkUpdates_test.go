@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
 	esitasks "eve-industry-planner/worker/tasks/esi"
+	sdeshared "eve-industry-planner/worker/tasks/sde/shared"
 
 	"github.com/hibiken/asynq"
 )
@@ -22,6 +24,7 @@ func withStageMocks(t *testing.T, mocks map[string]any) {
 		"stageConversion":     stageConversion,
 		"stageBlueprintsSync": stageBlueprintsSync,
 		"stagePersist":        stagePersist,
+		"stagePersistReplace": stagePersistReplace,
 		"stageRecipeDiff":     stageRecipeDiff,
 		"stagePrunePrevious":  stagePrunePrevious,
 	}
@@ -33,6 +36,7 @@ func withStageMocks(t *testing.T, mocks map[string]any) {
 		stageConversion = orig["stageConversion"].(func(*sdeMapBuildResult) (*sdeConversionResult, error))
 		stageBlueprintsSync = orig["stageBlueprintsSync"].(func(context.Context, *sdeConversionResult, *esitasks.TaskDependencies))
 		stagePersist = orig["stagePersist"].(func(*sdeVersionCheckResult, *sdeConversionResult) (*sdePersistResult, error))
+		stagePersistReplace = orig["stagePersistReplace"].(func(*sdeVersionCheckResult, *sdeConversionResult) (*sdePersistResult, error))
 		stageRecipeDiff = orig["stageRecipeDiff"].(func(context.Context, *sdePersistResult, *esitasks.TaskDependencies) error)
 		stagePrunePrevious = orig["stagePrunePrevious"].(func(string) error)
 	})
@@ -52,6 +56,8 @@ func withStageMocks(t *testing.T, mocks map[string]any) {
 			stageBlueprintsSync = v.(func(context.Context, *sdeConversionResult, *esitasks.TaskDependencies))
 		case "stagePersist":
 			stagePersist = v.(func(*sdeVersionCheckResult, *sdeConversionResult) (*sdePersistResult, error))
+		case "stagePersistReplace":
+			stagePersistReplace = v.(func(*sdeVersionCheckResult, *sdeConversionResult) (*sdePersistResult, error))
 		case "stageRecipeDiff":
 			stageRecipeDiff = v.(func(context.Context, *sdePersistResult, *esitasks.TaskDependencies) error)
 		case "stagePrunePrevious":
@@ -224,5 +230,177 @@ func TestCheckSDEUpdates_previousVersion_runsDiffAndPrune(t *testing.T) {
 	wantOrder := []string{"versionCheck", "download", "mapBuild", "conversion", "blueprintsSync", "persist", "recipeDiff", "prune"}
 	if !reflect.DeepEqual(calls, wantOrder) {
 		t.Fatalf("calls mismatch: got %v want %v", calls, wantOrder)
+	}
+}
+
+func TestRunSDEUpdatePipelineReplacingCurrent_skipsDiffAndPrune(t *testing.T) {
+	calls := make([]string, 0, 10)
+
+	withStageMocks(t, map[string]any{
+		"stageDownload": func(ctx context.Context, v *sdeVersionCheckResult) (*sdeDownloadResult, error) {
+			calls = append(calls, "download")
+			return &sdeDownloadResult{ExtractedFiles: map[string][]byte{"types.jsonl": []byte(`{}`)}}, nil
+		},
+		"stageMapBuild": func(d *sdeDownloadResult) (*sdeMapBuildResult, error) {
+			calls = append(calls, "mapBuild")
+			return &sdeMapBuildResult{StructuredData: map[string]map[string]interface{}{"Types": {"k": map[string]interface{}{}}}}, nil
+		},
+		"stageConversion": func(m *sdeMapBuildResult) (*sdeConversionResult, error) {
+			calls = append(calls, "conversion")
+			return &sdeConversionResult{Files: map[string][]byte{"output/recipeList.json": []byte(`[]`)}}, nil
+		},
+		"stageBlueprintsSync": func(_ context.Context, _ *sdeConversionResult, _ *esitasks.TaskDependencies) {
+			calls = append(calls, "blueprintsSync")
+		},
+		"stagePersistReplace": func(_ *sdeVersionCheckResult, _ *sdeConversionResult) (*sdePersistResult, error) {
+			calls = append(calls, "persistReplace")
+			return &sdePersistResult{HasPreviousVersion: false, CurrentRecipeList: "/live/recipeList.json"}, nil
+		},
+		"stageRecipeDiff": func(_ context.Context, _ *sdePersistResult, _ *esitasks.TaskDependencies) error {
+			calls = append(calls, "recipeDiff")
+			return nil
+		},
+		"stagePrunePrevious": func(_ string) error {
+			calls = append(calls, "prune")
+			return nil
+		},
+	})
+
+	err := runSDEUpdatePipelineReplacingCurrent(context.Background(), nil, &sdeVersionCheckResult{DataDir: "/tmp/sde"})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	wantOrder := []string{"download", "mapBuild", "conversion", "blueprintsSync", "persistReplace"}
+	if !reflect.DeepEqual(calls, wantOrder) {
+		t.Fatalf("calls mismatch: got %v want %v", calls, wantOrder)
+	}
+}
+
+func TestRunSDEPersistStageReplaceCurrent_archivesWithVersionSuffix(t *testing.T) {
+	dataDir := t.TempDir()
+	liveDir := filepath.Join(dataDir, liveDataDirName)
+	if err := os.MkdirAll(liveDir, 0o755); err != nil {
+		t.Fatalf("mkdir live dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(liveDir, "recipeList.json"), []byte(`[]`), 0o644); err != nil {
+		t.Fatalf("write current recipe list: %v", err)
+	}
+
+	rootVersion := sdeshared.StoredVersionJSON{
+		Version:     "12345",
+		BuildNumber: 12345,
+	}
+	if err := sdeshared.WriteRootVersionJSON(dataDir, rootVersion); err != nil {
+		t.Fatalf("write root version: %v", err)
+	}
+
+	previousRoot := filepath.Join(dataDir, previousVersionsDirName)
+	if err := os.MkdirAll(filepath.Join(previousRoot, "12345_v1"), 0o755); err != nil {
+		t.Fatalf("mkdir existing archive: %v", err)
+	}
+
+	result, err := runSDEPersistStageReplaceCurrent(
+		&sdeVersionCheckResult{
+			DataDir: dataDir,
+			LatestBuildInfo: &latestBuildInfo{
+				BuildNumber: 12345,
+			},
+		},
+		&sdeConversionResult{
+			Files: map[string][]byte{
+				"output/recipeList.json": []byte(`[{"itemID":1}]`),
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("runSDEPersistStageReplaceCurrent failed: %v", err)
+	}
+
+	wantArchiveDir := filepath.Join(previousRoot, "12345_v2")
+	if result == nil || result.PreviousVersionDir != wantArchiveDir {
+		t.Fatalf("expected PreviousVersionDir=%q, got %#v", wantArchiveDir, result)
+	}
+
+	if _, err := os.Stat(wantArchiveDir); err != nil {
+		t.Fatalf("expected archive dir to exist: %v", err)
+	}
+
+	archivedVersion, err := sdeshared.ReadRootVersionJSON(wantArchiveDir)
+	if err != nil {
+		t.Fatalf("read archived version.json: %v", err)
+	}
+	if archivedVersion == nil || archivedVersion.Version != "12345_v2" {
+		t.Fatalf("expected archived version label 12345_v2, got %#v", archivedVersion)
+	}
+
+	liveVersion, err := sdeshared.ReadRootVersionJSON(dataDir)
+	if err != nil {
+		t.Fatalf("read live root version.json: %v", err)
+	}
+	if liveVersion == nil || liveVersion.Version != "12345_v3" || liveVersion.BuildNumber != 12345 {
+		t.Fatalf("expected live version label/build 12345_v3/12345, got %#v", liveVersion)
+	}
+}
+
+func TestRunSDEPersistStage_standardPersist_assignsVersionedLiveAndArchiveLabels(t *testing.T) {
+	dataDir := t.TempDir()
+	liveDir := filepath.Join(dataDir, liveDataDirName)
+	if err := os.MkdirAll(liveDir, 0o755); err != nil {
+		t.Fatalf("mkdir live dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(liveDir, "recipeList.json"), []byte(`[]`), 0o644); err != nil {
+		t.Fatalf("write current recipe list: %v", err)
+	}
+
+	rootVersion := sdeshared.StoredVersionJSON{
+		Version:     "12345",
+		BuildNumber: 12345,
+	}
+	if err := sdeshared.WriteRootVersionJSON(dataDir, rootVersion); err != nil {
+		t.Fatalf("write root version: %v", err)
+	}
+
+	previousRoot := filepath.Join(dataDir, previousVersionsDirName)
+	if err := os.MkdirAll(filepath.Join(previousRoot, "12345_v1"), 0o755); err != nil {
+		t.Fatalf("mkdir existing archive: %v", err)
+	}
+
+	result, err := runSDEPersistStage(
+		&sdeVersionCheckResult{
+			DataDir: dataDir,
+			LatestBuildInfo: &latestBuildInfo{
+				BuildNumber: 12345,
+			},
+		},
+		&sdeConversionResult{
+			Files: map[string][]byte{
+				"output/recipeList.json": []byte(`[{"itemID":2}]`),
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("runSDEPersistStage failed: %v", err)
+	}
+
+	wantArchiveDir := filepath.Join(previousRoot, "12345_v2")
+	if result == nil || result.PreviousVersionDir != wantArchiveDir {
+		t.Fatalf("expected PreviousVersionDir=%q, got %#v", wantArchiveDir, result)
+	}
+
+	archivedVersion, err := sdeshared.ReadRootVersionJSON(wantArchiveDir)
+	if err != nil {
+		t.Fatalf("read archived version.json: %v", err)
+	}
+	if archivedVersion == nil || archivedVersion.Version != "12345_v2" || archivedVersion.BuildNumber != 12345 {
+		t.Fatalf("expected archived version label/build 12345_v2/12345, got %#v", archivedVersion)
+	}
+
+	liveVersion, err := sdeshared.ReadRootVersionJSON(dataDir)
+	if err != nil {
+		t.Fatalf("read live root version.json: %v", err)
+	}
+	if liveVersion == nil || liveVersion.Version != "12345_v3" || liveVersion.BuildNumber != 12345 {
+		t.Fatalf("expected live version label/build 12345_v3/12345, got %#v", liveVersion)
 	}
 }

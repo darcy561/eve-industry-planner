@@ -84,7 +84,9 @@ func MetaHandler(w http.ResponseWriter, r *http.Request) {
 			fm.Size = info.Size()
 			fm.ModTime = info.ModTime().UTC()
 		}
-		if meta.BuildNumber > 0 {
+		if meta.BuildVersion != "" {
+			fm.VersionedURL = fm.URL + "?v=" + meta.BuildVersion
+		} else if meta.BuildNumber > 0 {
 			fm.VersionedURL = fm.URL + "?v=" + strconv.Itoa(meta.BuildNumber)
 		}
 		for key, fileName := range filesByKey {
