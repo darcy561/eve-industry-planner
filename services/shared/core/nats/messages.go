@@ -40,11 +40,19 @@ func (ScheduleRequest) MessageType() string {
 
 // TaskMessage represents a generic task message with optional data and optional priority override.
 // This is the payload structure for "task" type messages.
+//
 // Priority, when set, overrides the worker's default priority for this task type.
+//
+// Timeout override (JSON field "timeout_seconds"):
+//   - Must be expressed in whole seconds only (e.g. 90 for 90 seconds, 1800 for 30 minutes).
+//   - Do not send minutes, milliseconds, or duration strings; the worker multiplies this integer by time.Second for asynq.
+//   - Omit the field or use 0 to keep the per-task-type default from shared/tasks (Go time.Duration there).
+//   - Values are clamped server-side (see worker asynq GetTaskTimeout).
 type TaskMessage struct {
-	TaskType string          `json:"task_type"`          // Task type identifier
-	Data     json.RawMessage `json:"data,omitempty"`     // Optional task-specific data
-	Priority string          `json:"priority,omitempty"` // Optional queue name override (e.g. "priority_5"); empty uses task default
+	TaskType       string          `json:"task_type"`          // Task type identifier
+	Data           json.RawMessage `json:"data,omitempty"`     // Optional task-specific data
+	Priority       string          `json:"priority,omitempty"` // Optional queue name override (e.g. "priority_5"); empty uses task default
+	TimeoutSeconds int             `json:"timeout_seconds,omitempty"` // NATS override: asynq handler timeout as a count of seconds (int only; not minutes/ms)
 }
 
 // MessageType returns the message type identifier for TaskMessage.

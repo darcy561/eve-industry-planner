@@ -24,10 +24,12 @@ services:
     env_file: [.env]
 
   mongo:
-    ports:
+    ports: !override
       - "27017:27017"
-
-
+  
+  redis:
+    ports: !override
+      - "6379:6379"
 
   frontend:
     image: eve-industry-planner-frontend:local

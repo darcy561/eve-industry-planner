@@ -1,7 +1,14 @@
 package asynq
 
 import (
+	"time"
+
 	taskscore "eve-industry-planner/shared/tasks"
+)
+
+const (
+	minTaskTimeout = 10 * time.Second
+	maxTaskTimeout = 2 * time.Hour
 )
 
 // validQueues is the set of allowed queue names for override validation (tasks.Priority1..5).
@@ -27,4 +34,32 @@ func GetPriorityQueue(taskType string, overridePriority string) string {
 		return overridePriority
 	}
 	return DefaultPriorityForTaskType(taskType)
+}
+
+// DefaultTimeoutForTaskType returns the asynq execution timeout for a task type from shared/tasks.
+func DefaultTimeoutForTaskType(taskType string) time.Duration {
+	if t, ok := taskscore.ByName[taskType]; ok && t.DefaultTimeout > 0 {
+		return t.DefaultTimeout
+	}
+	return taskscore.DefaultWorkerTaskTimeout
+}
+
+// clampTaskTimeout enforces sane bounds for asynq.Timeout.
+func clampTaskTimeout(d time.Duration) time.Duration {
+	switch {
+	case d < minTaskTimeout:
+		return minTaskTimeout
+	case d > maxTaskTimeout:
+		return maxTaskTimeout
+	default:
+		return d
+	}
+}
+
+// GetTaskTimeout returns the asynq handler deadline: message override (seconds) if > 0, else per-task default, clamped.
+func GetTaskTimeout(taskType string, overrideTimeoutSeconds int) time.Duration {
+	if overrideTimeoutSeconds > 0 {
+		return clampTaskTimeout(time.Duration(overrideTimeoutSeconds) * time.Second)
+	}
+	return clampTaskTimeout(DefaultTimeoutForTaskType(taskType))
 }

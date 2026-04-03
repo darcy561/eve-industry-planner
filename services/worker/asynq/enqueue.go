@@ -20,6 +20,8 @@ type taskPayload struct {
 // Enqueue receives a NATS message and enqueues it to the asynq server.
 // Task type is derived from the subject (by the subscriber). Queue priority is taken from the message
 // only if a valid priority field is present; otherwise from shared/tasks.ByName for that task type.
+// Execution timeout: TaskMessage.timeout_seconds when > 0 (integer count of seconds in JSON, not minutes or ms),
+// else each task type's DefaultTimeout in shared/tasks.
 // Returns immediately after enqueueing - NATS message should be acknowledged after this.
 func Enqueue(
 	msg jetstream.Msg,
@@ -34,11 +36,17 @@ func Enqueue(
 		return fmt.Errorf("failed to unmarshal NATS message: %w", err)
 	}
 
-	// Parse TaskMessage to get optional priority override
+	// Parse TaskMessage to get optional priority and timeout overrides
 	var taskMsg natscore.TaskMessage
 	overridePriority := ""
-	if err := json.Unmarshal(natsMsg.Data, &taskMsg); err == nil && taskMsg.Priority != "" {
-		overridePriority = taskMsg.Priority
+	overrideTimeoutSec := 0
+	if err := json.Unmarshal(natsMsg.Data, &taskMsg); err == nil {
+		if taskMsg.Priority != "" {
+			overridePriority = taskMsg.Priority
+		}
+		if taskMsg.TimeoutSeconds > 0 {
+			overrideTimeoutSec = taskMsg.TimeoutSeconds
+		}
 	}
 
 	asynqPayload := taskPayload{
@@ -53,13 +61,14 @@ func Enqueue(
 
 	// Queue from message override (if valid) or task type default
 	queue := GetPriorityQueue(taskType, overridePriority)
+	taskTimeout := GetTaskTimeout(taskType, overrideTimeoutSec)
 
 	// Create asynq task with retention to prevent expiration
 	// Retention of 24 hours ensures messages don't expire while waiting in queue
 	task := asynq.NewTask(taskType, payloadBytes,
 		asynq.Queue(queue),
 		asynq.Retention(24*time.Hour), // Keep tasks for 24 hours to prevent expiration
-		asynq.Timeout(60*time.Second), // Task execution timeout
+		asynq.Timeout(taskTimeout),
 	)
 
 	// Enqueue to asynq server - this is fast and non-blocking

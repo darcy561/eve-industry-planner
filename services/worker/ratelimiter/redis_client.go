@@ -125,15 +125,15 @@ func (c *RedisESIClient) checkAndReserve(ctx context.Context, group string, esti
 	}
 
 	// Set TTL on keys (refresh on each access)
-	if allowed {
-		// Set TTL on rate limiter key
-		c.redis.Expire(ctx, nextAllowedKey, c.keyTTL)
-		if tokenLimitArg > 0 {
-			// Set TTL on token bucket keys
-			c.redis.Expire(ctx, tokensZSetKey, 30*time.Minute)
-			c.redis.Expire(ctx, tokensSumKey, 30*time.Minute)
-		}
-	}
+	// Always ensure TTLs are present so stale groups naturally expire, even when:
+	// - the current check is not allowed, or
+	// - the group has no explicit tokenLimit (tokenLimitArg <= 0).
+	//
+	// This prevents orphaned child keys (e.g. tokens:zset / tokens:sum) from
+	// remaining indefinitely once a group stops receiving traffic.
+	c.redis.Expire(ctx, nextAllowedKey, c.keyTTL)
+	c.redis.Expire(ctx, tokensZSetKey, 30*time.Minute)
+	c.redis.Expire(ctx, tokensSumKey, 30*time.Minute)
 
 	return allowed, waitUntil, nil
 }
@@ -301,10 +301,10 @@ func (c *RedisESIClient) updateTokens(ctx context.Context, group string, path st
 	}
 
 	// Set TTLs on keys
-	if tokenLimitArg > 0 {
-		c.redis.Expire(ctx, tokensZSetKey, 30*time.Minute)
-		c.redis.Expire(ctx, tokensSumKey, 30*time.Minute)
-	}
+	// Always apply TTLs so that group-specific keys are eventually cleaned up,
+	// even for groups without explicit token limits.
+	c.redis.Expire(ctx, tokensZSetKey, 30*time.Minute)
+	c.redis.Expire(ctx, tokensSumKey, 30*time.Minute)
 	c.redis.Expire(ctx, pathGroupKey, 24*time.Hour)
 	c.redis.Expire(ctx, fmt.Sprintf("esi:group:%s:token_limit", group), 24*time.Hour)
 

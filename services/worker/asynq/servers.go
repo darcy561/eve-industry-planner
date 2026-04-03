@@ -33,14 +33,6 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 		config.RedisOpt,
 		asynq.Config{
 			Concurrency: concurrency,
-			// 5-tier priority queue system:
-			// - priority_1: Reserved for future critical tasks (weight 20)
-			// - priority_2: Urgent, user-impacting tasks (weight 15)
-			// - priority_3: Default, steady throughput tasks (weight 10)
-			// - priority_4: High-volume background tasks (weight 5)
-			// - priority_5: Reserved / bulk tasks (weight 1)
-			// Note: Queue weights are probabilistic, not strict ratios
-			// Note: TaskCheckInterval defaults to 1s (only applies when queues are empty)
 			Queues: map[string]int{
 				"priority_1": 20, // Reserved for future critical tasks
 				"priority_2": 15, // Urgent, user-impacting tasks
@@ -149,6 +141,15 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 					delay += jitter
 				}
 				return delay
+			},
+			// Mark retryable rate-limit yields as non-failures for asynq stats/reporting.
+			// These are expected flow-control events (task re-queueing), not task defects.
+			IsFailure: func(err error) bool {
+				rateLimitErr := extractRateLimitError(err)
+				if rateLimitErr != nil && rateLimitErr.Retryable {
+					return false
+				}
+				return true
 			},
 			// Error handling
 			// RateLimitError with Retryable=true is intentional (task returned to queue for retry)
