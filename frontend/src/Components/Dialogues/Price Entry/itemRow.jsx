@@ -6,7 +6,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import uuid from "react-uuid";
 import GLOBAL_CONFIG from "../../../global-config-app";
 import useUsersStore from "../../../Zustand/usersStore";
@@ -27,7 +27,11 @@ export function ItemPriceRow({
   const { findMarketData } = useUsersStore.getState().worldData.actions;
 
   const materialPrice = findMarketData(item.typeID);
-  const defaultPrice = Number(materialPrice[displayMarket][displayOrder]);
+  const rawDefault = materialPrice?.[displayMarket]?.[displayOrder];
+  const defaultPrice = Number.isFinite(Number(rawDefault)) ? Number(rawDefault) : 0;
+
+  const lastListingKeyRef = useRef(null);
+  const lastSyncedDefaultRef = useRef(null);
 
   // item.priceEntries only contains confirmed entries
   // Unconfirmed entries are held in component state only
@@ -51,28 +55,54 @@ export function ItemPriceRow({
 
   const [unconfirmedEntries, setUnconfirmedEntries] = useState(getInitialUnconfirmedEntries());
 
+  // Sync unconfirmed row prices when hub/listing changes, or when market data fills in / updates
+  // (without clobbering a value the user edited away from the last synced default).
   useEffect(() => {
-    // Update unconfirmed entries with new default price when market/order changes
-    if (unconfirmedEntries.length === 0) {
+    const { findMarketData: findMd } = useUsersStore.getState().worldData.actions;
+    const mp = findMd(item.typeID);
+    const raw = mp?.[displayMarket]?.[displayOrder];
+    const nextDefault = Number(raw);
+    if (!Number.isFinite(nextDefault)) {
       return;
     }
-    // Only update entries that are null/undefined
-    // Preserve all user-entered values including 0
-    let updated = false;
-    const newEntries = unconfirmedEntries.map((entry) => {
-      // Only update if value is null/undefined (not set yet)
-      // Preserve all set values including 0
-      if (entry.itemCost == null) {
-        updated = true;
-        return { ...entry, itemCost: defaultPrice };
-      }
-      // Preserve all other values including 0
-      return entry;
+
+    const listingKey = `${displayMarket}:${displayOrder}`;
+    const listingChanged =
+      lastListingKeyRef.current === null || lastListingKeyRef.current !== listingKey;
+    lastListingKeyRef.current = listingKey;
+
+    const priorDefault = lastSyncedDefaultRef.current;
+
+    setUnconfirmedEntries((prev) => {
+      if (prev.length === 0) return prev;
+
+      let changed = false;
+      const next = prev.map((entry) => {
+        if (listingChanged) {
+          changed = true;
+          return { ...entry, itemCost: nextDefault };
+        }
+        if (entry.itemCost == null || Number.isNaN(Number(entry.itemCost))) {
+          changed = true;
+          return { ...entry, itemCost: nextDefault };
+        }
+        if (
+          priorDefault != null &&
+          Number.isFinite(Number(priorDefault)) &&
+          Math.abs(Number(entry.itemCost) - Number(priorDefault)) < 1e-6
+        ) {
+          if (Math.abs(Number(entry.itemCost) - Number(nextDefault)) >= 1e-6) {
+            changed = true;
+            return { ...entry, itemCost: nextDefault };
+          }
+        }
+        return entry;
+      });
+      return changed ? next : prev;
     });
-    if (updated) {
-      setUnconfirmedEntries(newEntries);
-    }
-  }, [displayMarket, displayOrder, marketData]);
+
+    lastSyncedDefaultRef.current = nextDefault;
+  }, [marketData, displayMarket, displayOrder, item.typeID]);
 
   useEffect(() => {
     // When confirmed entries change externally, update unconfirmed if needed

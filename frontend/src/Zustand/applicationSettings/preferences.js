@@ -9,7 +9,10 @@
  * @author EVE Industry Planner Team
  */
 
-import { detectUserLocale } from "../../Functions/Helper/localeDetection";
+import {
+  detectUserLocale,
+  normalizeLocaleForIntl,
+} from "../../Functions/Helper/localeDetection";
 
 /**
  * User preferences management actions for application settings.
@@ -528,7 +531,7 @@ export const preferencesActions = (set, get) => ({
         ...state,
         applicationSettings: {
           ...state.applicationSettings,
-          locale: newLocale,
+          locale: normalizeLocaleForIntl(newLocale),
         },
       }),
       false,
@@ -546,7 +549,7 @@ export const preferencesActions = (set, get) => ({
    */
   getCurrentLocale: () => {
     const state = get().applicationSettings;
-    return state.locale;
+    return normalizeLocaleForIntl(state.locale);
   },
 
   /**

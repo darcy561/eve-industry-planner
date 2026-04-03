@@ -20,6 +20,7 @@ import {
   YAxis,
 } from "recharts";
 import GLOBAL_CONFIG from "../../global-config-app";
+import { normalizeLocaleForIntl } from "../../Functions/Helper/localeDetection";
 import getItemNameFromTypeID from "../../Functions/Helper/getItemNameFromTypeID";
 import useUsersStore from "../../Zustand/usersStore";
 
@@ -62,7 +63,9 @@ function PriceHistoryLineGraph({
     height: 0,
   });
   const chartContainerRef = useRef(null);
-  const userLocale = navigator.language || "en-US";
+  const userLocale = normalizeLocaleForIntl(
+    navigator.language || GLOBAL_CONFIG.DEFAULT_LOCALE
+  );
 
   useEffect(() => {
     if (isMobile) {
