@@ -25,8 +25,9 @@ x-common-service-config: &common-service-config
 services:
   api:
     <<: *common-service-config
-    container_name: api-service
     image: ghcr.io/darcy561/eve-industry-planner-api:Public-latest
+    deploy:
+      replicas: 2
     depends_on:
       <<: *common-depends-on
       core:
@@ -57,7 +58,26 @@ services:
       - "traefik.http.services.api.loadbalancer.healthcheck.interval=10s"
       - "traefik.http.services.api.loadbalancer.healthcheck.timeout=3s"
       - "traefik.http.services.api.loadbalancer.healthcheck.scheme=http"
+    volumes:
+      - api_data:/data
+      - static_data_files:/static-data
+      - ./adminSDK.json:/app/adminSDK.json:ro
+
+  websocket:
+    <<: *common-service-config
+    image: ghcr.io/darcy561/eve-industry-planner-websocket:Public-latest
+    build:
+      context: ./services
+      dockerfile: websocket/Dockerfile
+    depends_on:
+      <<: *common-depends-on
+      core:
+        condition: service_healthy
+    deploy:
+      replicas: 0
+    labels:
       # WebSocket Router & Service (HTTP)
+      - "traefik.enable=true"
       - "traefik.http.routers.ws.rule=PathPrefix(`/ws`)"
       - "traefik.http.routers.ws.entrypoints=web"
       - "traefik.http.routers.ws.service=ws"
@@ -67,16 +87,17 @@ services:
       - "traefik.http.routers.ws-secure.entrypoints=websecure"
       - "traefik.http.routers.ws-secure.service=ws"
       - "traefik.http.routers.ws-secure.middlewares=cors"
+      # WebSocket service load balancer (internal port inside the container)
       - "traefik.http.services.ws.loadbalancer.server.port=4001"
     volumes:
+      # Share JWT key material with API (both use /data/*jwt*.pem and /data/jwt-key-id.txt)
       - api_data:/data
-      - static_data_files:/static-data
-      - ./adminSDK.json:/app/adminSDK.json:ro
 
   worker:
     <<: *common-service-config
-    container_name: worker-service
     image: ghcr.io/darcy561/eve-industry-planner-worker:Public-latest
+    deploy:
+      replicas: 2
     volumes:
       - worker_data:/data
       - static_data_files:/static-data
@@ -84,7 +105,7 @@ services:
 
   core:
     <<: *common-service-config
-    container_name: core-service
+    container_name: core
     image: ghcr.io/darcy561/eve-industry-planner-core:Public-latest
     healthcheck:
       test: ["CMD-SHELL", "test -f /data/core-ready"]
@@ -98,7 +119,7 @@ services:
 
   frontend:
     <<: *common-service-config
-    container_name: frontend-service
+    container_name: frontend
     image: ghcr.io/darcy561/eve-industry-planner-frontend:Public-latest
     depends_on:
       <<: *common-depends-on
@@ -146,7 +167,7 @@ services:
 
   traefik:
     <<: *common-service-config
-    container_name: traefik-reverse-proxy-service
+    container_name: traefik
     image: traefik:v3.6.6
     command:
       # Entrypoints
@@ -175,7 +196,7 @@ services:
       - "/var/log/traefik:/var/log/traefik"
 
   nats:
-    container_name: nats-message-broker-service
+    container_name: nats
     image: nats:2.12.3
     restart: unless-stopped
     volumes:
@@ -184,8 +205,21 @@ services:
     networks:
       - eip
 
+  asynqmon:
+    <<: *common-service-config
+    container_name: asynqmon
+    image: hibiken/asynqmon
+    ports:
+      - "10.8.0.1:8080:8080"
+    command:
+      - "--redis-addr=redis:6379"
+      - "--redis-password=${REDIS_PASSWORD}"
+    depends_on:
+      redis:
+        condition: service_healthy
+
   redis:
-    container_name: redis-server
+    container_name: redisDB
     image: redis:8.4.0
     restart: unless-stopped
     env_file: [.env]
@@ -204,7 +238,7 @@ services:
       - eip
 
   mongo:
-    container_name: mongo-primary-database
+    container_name: mongoDB
     image: mongo:8.2
     restart: unless-stopped
     env_file: [.env]
@@ -219,8 +253,6 @@ services:
       - ./mongo-keyfile:/etc/mongo-keyfile:ro
     command: ["bash", "/mongo-setup.sh", "--bind_ip_all"]
     healthcheck:
-      # Ensure the DB is not just accepting TCP, but also successfully authenticates.
-      # This prevents core/api from starting while `mongo-setup.sh` is still in its noauth bootstrap phase.
       test:
         [
           "CMD-SHELL",

@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"eve-industry-planner/api/api/helper/auth"
-	"eve-industry-planner/api/api/helper/sso"
+	"eve-industry-planner/api/helper/auth"
+	"eve-industry-planner/api/helper/sso"
 	"eve-industry-planner/shared/core/config"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/shared/logs"

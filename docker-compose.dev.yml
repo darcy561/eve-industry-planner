@@ -8,6 +8,15 @@ services:
     environment:
       FAIL_ON_STARTUP: "false"
 
+  websocket:
+    image: eve-industry-planner-websocket:local
+    build:
+      context: ./services
+      dockerfile: websocket/Dockerfile
+    env_file: [.env]
+    environment:
+      FAIL_ON_STARTUP: "false"
+
   worker:
     image: eve-industry-planner-worker:local
     build:
@@ -26,10 +35,14 @@ services:
   mongo:
     ports: !override
       - "27017:27017"
-  
+
   redis:
     ports: !override
       - "6379:6379"
+
+  asynqmon:
+    ports: !override
+      - "8080:8080"
 
   frontend:
     image: eve-industry-planner-frontend:local

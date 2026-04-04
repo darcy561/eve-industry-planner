@@ -23,6 +23,7 @@ jobs:
             contents: read
         outputs:
             api: ${{ steps.filter.outputs.api }}
+            websocket: ${{ steps.filter.outputs.websocket }}
             worker: ${{ steps.filter.outputs.worker }}
             core: ${{ steps.filter.outputs.core }}
             frontend: ${{ steps.filter.outputs.frontend }}
@@ -41,6 +42,11 @@ jobs:
                   filters: |
                       api:
                         - 'services/api/**'
+                        - 'services/shared/**'
+                        - 'services/go.mod'
+                        - 'services/go.sum'
+                      websocket:
+                        - 'services/websocket/**'
                         - 'services/shared/**'
                         - 'services/go.mod'
                         - 'services/go.sum'
@@ -69,7 +75,7 @@ jobs:
 
         strategy:
             matrix:
-                service: [api, worker, core, frontend]
+                service: [api, websocket, worker, core, frontend]
 
         steps:
             - name: Determine branch name
@@ -90,6 +96,9 @@ jobs:
                   case "$SERVICE" in
                       api)
                           CHANGED="${{ needs.detect_changes.outputs.api }}"
+                          ;;
+                      websocket)
+                          CHANGED="${{ needs.detect_changes.outputs.websocket }}"
                           ;;
                       worker)
                           CHANGED="${{ needs.detect_changes.outputs.worker }}"
