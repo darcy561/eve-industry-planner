@@ -66,7 +66,7 @@ func taskDataAttrsFromJSON(taskType string, raw []byte) []attribute.KeyValue {
 }
 
 // AsynqTaskPayloadSpanAttributes returns task.data.* attributes from an asynq task body (Enqueue wire format).
-// Use on the worker asynq span so Grafana/Jaeger show payload on the task span as well as on nats.publish_task.
+// Use on the worker asynq span so the task span carries payload alongside nats.publish_task (logs / trace_id correlation).
 func AsynqTaskPayloadSpanAttributes(taskType string, asynqPayload []byte) []attribute.KeyValue {
 	var wrap struct {
 		Data json.RawMessage `json:"data"`

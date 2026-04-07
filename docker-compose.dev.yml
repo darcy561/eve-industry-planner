@@ -55,10 +55,6 @@ services:
       - GF_SERVER_ROOT_URL=http://127.0.0.1:3030
       - GF_DASHBOARDS_MIN_REFRESH_INTERVAL=5s
 
-  jaeger:
-    ports: !override
-      - "16686:16686"
-
   frontend:
     image: eve-industry-planner-frontend:local
     build:

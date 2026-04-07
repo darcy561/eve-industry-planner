@@ -13,7 +13,7 @@
       "id": 1,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "**Core · ESI rate limits** — token buckets shared with workers in **Redis** (`esi:group:*`). EVE’s error limit uses a **rolling 15 minute** window per group.\n\n**Tokens remaining** — time series. **Tokens consumed** — snapshot table (rolling window usage from Redis).\n\n**Seconds into rolling window** — time since the **oldest** consumption in the window (0→900s).\n\n**Countdown when exhausted** — only when the bucket has **no tokens left**: seconds until the **oldest** consumption drops out of the 15m window (next token available). **0** when not exhausted or not waiting.\n\nMetrics: OTLP → Prometheus **`job=otel_collector`**. Token **counts** export as **`core_esi_group_*_ratio`** (values are counts, not ratios). **Seconds** metrics have no `_ratio` suffix.",
+        "content": "**Core · ESI rate limits** — token buckets shared with workers in **Redis** (`esi:group:*`). EVE’s error limit uses a **rolling 15 minute** window per group.\n\n**Tokens remaining** — time series. **Tokens consumed** — snapshot table (rolling window usage from Redis).\n\n**Seconds into rolling window** — time since the **oldest** consumption in the window (0→900s).\n\n**Countdown when exhausted** — only when the bucket has **no tokens left**: seconds until the **oldest** consumption drops out of the 15m window (next token available). **0** when not exhausted or not waiting.\n\nMetrics: OTLP → Prometheus **`job=otel_collector`**. Token **counts** use names **`core_esi_group_token_*`** (values are raw token counts from Redis). Aligns with collector **`translation_strategy: UnderscoreEscapingWithoutSuffixes`** (no `*_ratio` suffix).",
         "mode": "markdown"
       },
       "title": "",
@@ -61,7 +61,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "core_esi_group_token_remaining_ratio{job=\"otel_collector\"}",
+          "expr": "core_esi_group_token_remaining{job=\"otel_collector\"}",
           "legendFormat": "{{group}}",
           "refId": "A"
         }
@@ -97,7 +97,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "core_esi_group_token_used_ratio{job=\"otel_collector\"}",
+          "expr": "core_esi_group_token_used{job=\"otel_collector\"}",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -157,7 +157,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "core_esi_group_token_limit_ratio{job=\"otel_collector\"}",
+          "expr": "core_esi_group_token_limit{job=\"otel_collector\"}",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -302,6 +302,6 @@
   "timezone": "browser",
   "title": "Core · ESI rate limits",
   "uid": "core-esi-limits",
-  "version": 8,
+  "version": 9,
   "weekStart": ""
 }
