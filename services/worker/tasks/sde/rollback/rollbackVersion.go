@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 	sdeshared "eve-industry-planner/worker/tasks/sde/shared"
 
@@ -110,7 +110,7 @@ func RollbackSDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.Ta
 		return err
 	}
 
-	logs.Info("SDE rollback completed",
+	logs.InfoCtx(ctx, "SDE rollback completed",
 		"data_dir", dataDir,
 		"rolled_back_from", archiveDir,
 		"rolled_back_to", liveDir,

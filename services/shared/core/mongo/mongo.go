@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/mongo/otelmongo"
 )
 
 // Database and collection names
@@ -39,6 +40,7 @@ var (
 func connectMongo(mongoURL string, connectionName string, configureOpts func(*options.ClientOptions)) (*mongo.Client, error) {
 	retryCount := 5
 	retryDelay := 5 * time.Second
+	bg := context.Background()
 
 	for i := 0; i < retryCount; i++ {
 		// Start with URI, then apply additional options
@@ -46,17 +48,17 @@ func connectMongo(mongoURL string, connectionName string, configureOpts func(*op
 		// Apply additional configuration
 		configureOpts(opts)
 
-		client, err := mongo.Connect(context.Background(), opts)
+		client, err := mongo.Connect(bg, opts)
 		if err == nil {
 			// Verify connection by pinging
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(bg, 5*time.Second)
 			err = client.Ping(ctx, nil)
 			cancel()
 
 			if err == nil {
 				i++
 				message := fmt.Sprintf("Connected to %s on attempt %d/%d", connectionName, i, retryCount)
-				logs.Debug(message)
+				logs.DebugCtx(bg, message)
 
 				// Start background monitoring for connection health
 				go monitorMongoConnection(client)
@@ -64,16 +66,16 @@ func connectMongo(mongoURL string, connectionName string, configureOpts func(*op
 				return client, nil
 			}
 			// If ping failed, close client and retry
-			_ = client.Disconnect(context.Background())
+			_ = client.Disconnect(bg)
 		}
 		i++
 		message := fmt.Sprintf("Failed to connect to %s. Attempt %d/%d. Error: %v", connectionName, i, retryCount, err)
-		logs.Error(message)
+		logs.ErrorCtx(bg, message)
 		time.Sleep(retryDelay)
 	}
 
 	message := fmt.Sprintf("Failed to connect to %s after %d attempts. Exiting...", connectionName, retryCount)
-	logs.Error(message)
+	logs.ErrorCtx(bg, message)
 	return nil, errors.New(message)
 }
 
@@ -95,6 +97,7 @@ func ConnectPrimary() (*mongo.Client, error) {
 		// Enable automatic reconnection
 		opts.SetRetryWrites(true)
 		opts.SetRetryReads(true)
+		opts.SetMonitor(otelmongo.NewMonitor())
 	}
 
 	return connectMongo(cfg.MONGO_URL, "Mongo", configureOpts)
@@ -104,20 +107,21 @@ func ConnectPrimary() (*mongo.Client, error) {
 func monitorMongoConnection(client *mongo.Client) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
+	bg := context.Background()
 
 	for range ticker.C {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(bg, 5*time.Second)
 		err := client.Ping(ctx, nil)
 		cancel()
 
 		if err != nil {
-			logs.Warn("MongoDB connection health check failed, attempting reconnect", "error", err)
+			logs.WarnCtx(bg, "MongoDB connection health check failed, attempting reconnect", "error", err)
 			// MongoDB driver will automatically reconnect on next operation
 			// We just need to wait for it
 			time.Sleep(2 * time.Second)
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(bg, 5*time.Second)
 			if err := client.Ping(ctx, nil); err == nil {
-				logs.Info("MongoDB reconnected successfully")
+				logs.InfoCtx(bg, "MongoDB reconnected successfully")
 			}
 			cancel()
 		}

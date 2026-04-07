@@ -3,11 +3,12 @@ package update
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 )
 
 type sdeMapBuildResult struct {
@@ -17,7 +18,7 @@ type sdeMapBuildResult struct {
 // runSDEMapBuildStage handles stage 3: parse extracted JSONL and build keyed maps in memory.
 func runSDEMapBuildStage(downloadResult *sdeDownloadResult) (*sdeMapBuildResult, error) {
 	if downloadResult == nil || len(downloadResult.ExtractedFiles) == 0 {
-		logs.Debug("SDE map-build stage skipped; no extracted files in memory")
+		logs.DebugCtx(context.Background(), "SDE map-build stage skipped; no extracted files in memory")
 		return &sdeMapBuildResult{StructuredData: map[string]map[string]interface{}{}}, nil
 	}
 
@@ -39,7 +40,7 @@ func runSDEMapBuildStage(downloadResult *sdeDownloadResult) (*sdeMapBuildResult,
 	for fieldName, entries := range structuredData {
 		counts[fieldName] = len(entries)
 	}
-	logs.Debug("SDE map-build stage completed (in-memory)",
+	logs.DebugCtx(context.Background(), "SDE map-build stage completed (in-memory)",
 		"maps", len(structuredData),
 		"entry_counts", counts,
 	)

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 	sdeshared "eve-industry-planner/worker/tasks/sde/shared"
 
@@ -79,7 +79,7 @@ func ApplySDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.TaskD
 		return fmt.Errorf("failed writing version lock: %w", err)
 	}
 
-	logs.Info("SDE apply version completed",
+	logs.InfoCtx(ctx, "SDE apply version completed",
 		"data_dir", dataDir,
 		"build_number", req.BuildNumber,
 	)

@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 )
 
 // parseMessage detects if message is bulk operation and parses it
 // Returns: (isBulk, operations array, error)
 func (s *Server) parseMessage(msg []byte, clientID string) (bool, []Operation) {
+	ctx := s.clientLogCtx(clientID)
 	// Extract JSON part from message (format: "{docID} {jsonData}")
 	// Try to parse without docID prefix first
 	messageData := msg
@@ -31,7 +32,7 @@ func (s *Server) parseMessage(msg []byte, clientID string) (bool, []Operation) {
 		Data       map[string]interface{} `json:"data"`
 	}
 	if err := json.Unmarshal(messageData, &msgFormat); err != nil {
-		logs.Debug("failed to parse message as JSON, treating as single operation",
+		logs.DebugCtx(ctx, "failed to parse message as JSON, treating as single operation",
 			"error", err)
 		return false, nil
 	}
@@ -40,7 +41,7 @@ func (s *Server) parseMessage(msg []byte, clientID string) (bool, []Operation) {
 	if msgFormat.Action == "BULK" {
 		operations, err := s.parseBulkOperations(msgFormat.Data, clientID)
 		if err != nil {
-			logs.Warn("failed to parse bulk operations",
+			logs.WarnCtx(ctx, "failed to parse bulk operations",
 				"error", err)
 			return false, nil
 		}
@@ -53,6 +54,7 @@ func (s *Server) parseMessage(msg []byte, clientID string) (bool, []Operation) {
 
 // parseBulkOperations extracts operations from bulk message format
 func (s *Server) parseBulkOperations(data map[string]interface{}, clientID string) ([]Operation, error) {
+	ctx := s.clientLogCtx(clientID)
 	operationsData, ok := data["operations"].([]interface{})
 	if !ok {
 		return nil, fmt.Errorf("invalid bulk operations format")
@@ -62,7 +64,7 @@ func (s *Server) parseBulkOperations(data map[string]interface{}, clientID strin
 	for i, opData := range operationsData {
 		opMap, ok := opData.(map[string]interface{})
 		if !ok {
-			logs.Warn("invalid operation in bulk",
+			logs.WarnCtx(ctx, "invalid operation in bulk",
 				"index", i)
 			continue
 		}
@@ -70,7 +72,7 @@ func (s *Server) parseBulkOperations(data map[string]interface{}, clientID strin
 		// Extract document ID
 		docID := s.extractDocumentIDFromMap(opMap, "documentid")
 		if docID == "" {
-			logs.Warn("missing documentid in bulk operation",
+			logs.WarnCtx(ctx, "missing documentid in bulk operation",
 				"index", i)
 			continue
 		}

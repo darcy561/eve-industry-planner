@@ -1,7 +1,6 @@
 package v1endpoints
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -10,45 +9,45 @@ import (
 	"eve-industry-planner/api/helper/auth"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/logs"
-	"eve-industry-planner/shared/shared/metrics"
+	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 func UserMainDocumentHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	// Route based on HTTP method
+	ctx := r.Context()
 	switch r.Method {
 	case http.MethodGet:
 		handleGetUserDocument(w, r, clients)
 	case http.MethodPut:
 		handleSaveUserDocument(w, r, clients)
 	default:
-		m := metrics.GetAPIAuthLogin()
-		m.Errors.WithLabelValues("method_not_allowed").Inc()
-		logs.WarnCtx(r.Context(), "invalid method for user main document endpoint", "method", r.Method, "ip", r.RemoteAddr)
+		m := apimetrics.GetAPIEveTokenLogin()
+		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
+		logs.WarnCtx(ctx, "invalid method for user main document endpoint")
 		http.Error(w, "Method not allowed. Use GET to retrieve or PUT to save.", http.StatusMethodNotAllowed)
 	}
 }
 
 func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	start := time.Now()
-	m := metrics.GetAPIAuthLogin()
+	ctx := r.Context()
+	start, ok := logs.RequestStartTime(ctx)
+	if !ok {
+		start = time.Now()
+	}
+	m := apimetrics.GetAPIEveTokenLogin()
 
 	// Extract accountID from JWT token
 	accountID, err := auth.ExtractAccountID(r)
 	if err != nil {
-		m.Errors.WithLabelValues("auth_error").Inc()
-		logs.WarnCtx(r.Context(), "failed to extract accountID", "error", err, "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("auth_error").Inc(ctx)
+		logs.WarnCtx(ctx, "failed to extract accountID", "error", err)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-
-	// Query MongoDB for user document by accountID (_id)
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
 
 	database := clients.Mongo.Database(mongocore.DatabaseName)
 	collection := database.Collection(mongocore.CollectionUsers)
@@ -64,13 +63,13 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 	})
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			m.Errors.WithLabelValues("not_found").Inc()
-			logs.WarnCtx(r.Context(), "user document not found", "account_id", accountID, "ip", r.RemoteAddr)
+			m.Errors.WithLabelValues("not_found").Inc(ctx)
+			logs.WarnCtx(ctx, "user document not found", "account_id", accountID)
 			http.Error(w, "User document not found", http.StatusNotFound)
 			return
 		}
-		m.Errors.WithLabelValues("database_error").Inc()
-		logs.ErrorCtx(r.Context(), "failed to query user document", "error", err, "account_id", accountID, "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("database_error").Inc(ctx)
+		logs.ErrorCtx(ctx, "failed to query user document", "error", err, "account_id", accountID)
 		http.Error(w, "Failed to retrieve user document", http.StatusInternalServerError)
 		return
 	}
@@ -81,40 +80,43 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 	if autoSubscribeHeader == "true" || autoSubscribeQuery == "true" {
 		if clients.JetStream != nil {
 			// User document ID is the accountID itself, collection is "users"
-			if err := publishSubscriptionRequest(r.Context(), clients.JetStream, accountID, mongocore.CollectionUsers, []string{accountID}); err != nil {
-				logs.WarnCtx(r.Context(), "failed to publish subscription request", "account_id", accountID, "error", err)
+			if err := publishSubscriptionRequest(ctx, clients.JetStream, accountID, mongocore.CollectionUsers, []string{accountID}); err != nil {
+				logs.WarnCtx(ctx, "failed to publish subscription request", "account_id", accountID, "error", err)
 			} else {
-				logs.InfoCtx(r.Context(), "published subscription request for user document", "account_id", accountID)
+				logs.InfoCtx(ctx, "published subscription request for user document", "account_id", accountID)
 			}
 		} else {
-			logs.WarnCtx(r.Context(), "JetStream not available for autosubscription", "account_id", accountID)
+			logs.WarnCtx(ctx, "JetStream not available for autosubscription", "account_id", accountID)
 		}
 	} else {
-		logs.DebugCtx(r.Context(), "autosubscription not requested", "account_id", accountID, "header", autoSubscribeHeader, "query", autoSubscribeQuery)
+		logs.DebugCtx(ctx, "autosubscription not requested", "account_id", accountID, "header", autoSubscribeHeader, "query", autoSubscribeQuery)
 	}
 
-	m.Successes.Inc()
-	logs.InfoCtx(r.Context(), "user main document retrieved",
-		"account_id", accountID,
-		"duration_ms", time.Since(start).Milliseconds())
-
-	// Encode response (nginx handles compression)
 	if err := helper.EncodeJSON(w, userDoc); err != nil {
-		logs.ErrorCtx(r.Context(), "failed to encode user document response", "error", err, "account_id", accountID)
+		logs.ErrorCtx(ctx, "failed to encode user document response", "error", err, "account_id", accountID)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+
+	m.Successes.Inc(ctx)
+	logs.InfoCtx(ctx, "user main document retrieved",
+		"account_id", accountID,
+		"duration_ms", time.Since(start).Milliseconds())
 }
 
 func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	start := time.Now()
-	m := metrics.GetAPIAuthLogin()
+	ctx := r.Context()
+	start, ok := logs.RequestStartTime(ctx)
+	if !ok {
+		start = time.Now()
+	}
+	m := apimetrics.GetAPIEveTokenLogin()
 
 	// Extract accountID from JWT token
 	accountID, err := auth.ExtractAccountID(r)
 	if err != nil {
-		m.Errors.WithLabelValues("auth_error").Inc()
-		logs.WarnCtx(r.Context(), "failed to extract accountID", "error", err, "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("auth_error").Inc(ctx)
+		logs.WarnCtx(ctx, "failed to extract accountID", "error", err)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -122,8 +124,8 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 	// Parse request body
 	var userDoc models.UserAccountDocument
 	if err := helper.DecodeJSONRequest(r, &userDoc, helper.DefaultMaxBodySize); err != nil {
-		m.Errors.WithLabelValues("invalid_json").Inc()
-		logs.WarnCtx(r.Context(), "failed to decode user document JSON", "error", err, "account_id", accountID, "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("invalid_json").Inc(ctx)
+		logs.WarnCtx(ctx, "failed to decode user document JSON", "error", err, "account_id", accountID)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -131,15 +133,11 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 	// Validate that accountID in document matches the JWT token accountID (if provided)
 	// If not provided, set it from token. If provided but wrong, reject.
 	if userDoc.AccountID != "" && userDoc.AccountID != accountID {
-		m.Errors.WithLabelValues("account_id_mismatch").Inc()
-		logs.WarnCtx(r.Context(), "account ID mismatch", "token_account_id", accountID, "doc_account_id", userDoc.AccountID, "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("account_id_mismatch").Inc(ctx)
+		logs.WarnCtx(ctx, "account ID mismatch", "token_account_id", accountID, "doc_account_id", userDoc.AccountID)
 		http.Error(w, "Account ID in document must match authenticated account", http.StatusForbidden)
 		return
 	}
-
-	// Save to MongoDB
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
 
 	database := clients.Mongo.Database(mongocore.DatabaseName)
 	collection := database.Collection(mongocore.CollectionUsers)
@@ -154,8 +152,8 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 		return upsertErr
 	})
 	if err != nil {
-		m.Errors.WithLabelValues("database_error").Inc()
-		logs.ErrorCtx(r.Context(), "failed to upsert user document", "error", err, "account_id", accountID, "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("database_error").Inc(ctx)
+		logs.ErrorCtx(ctx, "failed to upsert user document", "error", err, "account_id", accountID)
 		http.Error(w, "Failed to save user document", http.StatusInternalServerError)
 		return
 	}
@@ -166,25 +164,24 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 	if autoSubscribeHeader == "true" || autoSubscribeQuery == "true" {
 		if clients.JetStream != nil {
 			// User document ID is the accountID itself, collection is "users"
-			if err := publishSubscriptionRequest(r.Context(), clients.JetStream, accountID, mongocore.CollectionUsers, []string{accountID}); err != nil {
-				logs.WarnCtx(r.Context(), "failed to publish subscription request", "account_id", accountID, "error", err)
+			if err := publishSubscriptionRequest(ctx, clients.JetStream, accountID, mongocore.CollectionUsers, []string{accountID}); err != nil {
+				logs.WarnCtx(ctx, "failed to publish subscription request", "account_id", accountID, "error", err)
 			} else {
-				logs.InfoCtx(r.Context(), "published subscription request for user document", "account_id", accountID)
+				logs.InfoCtx(ctx, "published subscription request for user document", "account_id", accountID)
 			}
 		} else {
-			logs.WarnCtx(r.Context(), "JetStream not available for autosubscription", "account_id", accountID)
+			logs.WarnCtx(ctx, "JetStream not available for autosubscription", "account_id", accountID)
 		}
 	} else {
-		logs.DebugCtx(r.Context(), "autosubscription not requested", "account_id", accountID, "header", autoSubscribeHeader, "query", autoSubscribeQuery)
+		logs.DebugCtx(ctx, "autosubscription not requested", "account_id", accountID, "header", autoSubscribeHeader, "query", autoSubscribeQuery)
 	}
 
-	m.Successes.Inc()
-	logs.InfoCtx(r.Context(), "user main document saved",
+	w.WriteHeader(http.StatusNoContent)
+
+	m.Successes.Inc(ctx)
+	logs.InfoCtx(ctx, "user main document saved",
 		"account_id", accountID,
 		"matched", result.MatchedCount,
 		"upserted", result.UpsertedCount,
 		"duration_ms", time.Since(start).Milliseconds())
-
-	// Return 204 No Content for successful save
-	w.WriteHeader(http.StatusNoContent)
 }

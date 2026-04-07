@@ -6,7 +6,7 @@ import (
 	"time"
 
 	rediscore "eve-industry-planner/shared/core/redis"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 	taskscore "eve-industry-planner/shared/tasks"
 
 	"github.com/hibiken/asynq"
@@ -24,34 +24,34 @@ func CountMarketPricesItems(ctx context.Context, task *asynq.Task, deps *TaskDep
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	logs.Info("Market Prices Count Task Received")
+	logs.InfoCtx(ctx, "Market Prices Count Task Received")
 
 	// Acquire a lock to prevent concurrent counts
 	lockKey := "esi:market_orders:count_lock"
 	cleanup, shouldContinue := taskscore.AcquireRefreshLock(ctx, deps.Redis, lockKey)
 	if !shouldContinue {
 		// Lock already held - skip processing (not an error)
-		logs.Debug("market prices count already in progress, skipping")
+		logs.DebugCtx(ctx, "market prices count already in progress, skipping")
 		return nil
 	}
 	defer cleanup()
 
-	logs.Debug("counting market prices items")
+	logs.DebugCtx(ctx, "counting market prices items")
 
 	itemCount, err := rediscore.CountTotalMarketOrdersRefreshTimes(ctx, deps.Redis)
 	if err != nil {
-		logs.Error("failed to count market orders refresh times", "error", err)
+		logs.ErrorCtx(ctx, "failed to count market orders refresh times", "error", err)
 		return err
 	}
 
 	// Cache the count with 4.5 hour TTL (slightly longer than recalculation interval for safety)
 	ttl := 4*time.Hour + 30*time.Minute
 	if err := rediscore.SetCachedTotalMarketOrdersCount(ctx, deps.Redis, itemCount, ttl); err != nil {
-		logs.Error("failed to cache market orders count", "error", err)
+		logs.ErrorCtx(ctx, "failed to cache market orders count", "error", err)
 		return err
 	}
 
-	logs.Info("counted market prices items",
+	logs.InfoCtx(ctx, "counted market prices items",
 		"item_count", itemCount,
 		"cache_ttl_hours", ttl.Hours())
 

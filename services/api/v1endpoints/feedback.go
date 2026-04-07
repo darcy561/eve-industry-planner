@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 )
 
 const (
@@ -51,10 +52,14 @@ type DiscordWebhookPayload struct {
 // POST: expects { "response": "feedback content" } in body
 func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
+	start, ok := logs.RequestStartTime(ctx)
+	if !ok {
+		start = time.Now()
+	}
 
 	// Only accept POST requests
 	if r.Method != http.MethodPost {
-		logs.WarnCtx(ctx, "invalid method for feedback endpoint", "method", r.Method, "path", r.URL.Path, "ip", r.RemoteAddr)
+		logs.WarnCtx(ctx, "invalid method for feedback endpoint")
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -68,7 +73,7 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 	// Extract request body
 	reqBody, err := helper.ExtractRequestBody[FeedbackBody](r)
 	if err != nil {
-		logs.WarnCtx(ctx, "failed to extract feedback body", "error", err, "account_id", accountID, "ip", r.RemoteAddr)
+		logs.WarnCtx(ctx, "failed to extract feedback body", "error", err, "account_id", accountID)
 		http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
 		return
 	}
@@ -78,27 +83,27 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 
 	// Validate feedback content length
 	if len(feedbackContent) < MinFeedbackLength {
-		logs.WarnCtx(ctx, "feedback content too short", "account_id", accountID, "length", len(feedbackContent), "ip", r.RemoteAddr)
+		logs.WarnCtx(ctx, "feedback content too short", "account_id", accountID, "length", len(feedbackContent))
 		http.Error(w, "Feedback content is required", http.StatusBadRequest)
 		return
 	}
 
 	if len(feedbackContent) > MaxFeedbackLength {
-		logs.WarnCtx(ctx, "feedback content too long", "account_id", accountID, "length", len(feedbackContent), "max", MaxFeedbackLength, "ip", r.RemoteAddr)
+		logs.WarnCtx(ctx, "feedback content too long", "account_id", accountID, "length", len(feedbackContent), "max", MaxFeedbackLength)
 		http.Error(w, fmt.Sprintf("Feedback content exceeds maximum length of %d characters", MaxFeedbackLength), http.StatusBadRequest)
 		return
 	}
 
 	// Validate UTF-8 encoding
 	if !utf8.ValidString(feedbackContent) {
-		logs.WarnCtx(ctx, "feedback content contains invalid UTF-8", "account_id", accountID, "ip", r.RemoteAddr)
+		logs.WarnCtx(ctx, "feedback content contains invalid UTF-8", "account_id", accountID)
 		http.Error(w, "Feedback content contains invalid characters", http.StatusBadRequest)
 		return
 	}
 
 	// Check for suspicious patterns (excessive repetition, potential spam)
 	if isSuspiciousContent(feedbackContent) {
-		logs.WarnCtx(ctx, "suspicious feedback content detected", "account_id", accountID, "ip", r.RemoteAddr)
+		logs.WarnCtx(ctx, "suspicious feedback content detected", "account_id", accountID)
 		http.Error(w, "Invalid feedback content", http.StatusBadRequest)
 		return
 	}
@@ -112,7 +117,7 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 		cfg, err := config.LoadConfig()
 		if err != nil {
 			// Log error but continue without Discord webhook
-			logs.Error("Failed to load config for feedback", "error", err)
+			logs.ErrorCtx(ctx, "failed to load config for feedback", "error", err, "account_id", accountID)
 		} else if cfg.FeedbackDiscordWebhookURL != "" {
 			// Split content into multiple embeds if needed (Discord field max is 1024 chars)
 			contentParts := splitContentForDiscord(sanitizedContent, 1024)
@@ -159,15 +164,22 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 			// Marshal payload to JSON
 			payloadJSON, err := json.Marshal(payload)
 			if err != nil {
-				logs.ErrorCtx(ctx, "failed to marshal Discord payload", "error", err, "account_id", accountID, "ip", r.RemoteAddr)
+				logs.ErrorCtx(ctx, "failed to marshal Discord payload", "error", err, "account_id", accountID)
 				http.Error(w, "Internal server error", http.StatusInternalServerError)
 				return
 			}
 
-			// Send to Discord webhook
-			webhookResp, err := http.Post(cfg.FeedbackDiscordWebhookURL, "application/json", bytes.NewBuffer(payloadJSON))
+			webhookReq, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.FeedbackDiscordWebhookURL, bytes.NewReader(payloadJSON))
 			if err != nil {
-				logs.ErrorCtx(ctx, "failed to send Discord webhook", "error", err, "account_id", accountID, "ip", r.RemoteAddr)
+				logs.ErrorCtx(ctx, "failed to build Discord webhook request", "error", err, "account_id", accountID)
+				http.Error(w, "Failed to submit feedback", http.StatusInternalServerError)
+				return
+			}
+			webhookReq.Header.Set("Content-Type", "application/json")
+
+			webhookResp, err := http.DefaultClient.Do(webhookReq)
+			if err != nil {
+				logs.ErrorCtx(ctx, "failed to send Discord webhook", "error", err, "account_id", accountID)
 				http.Error(w, "Failed to submit feedback", http.StatusInternalServerError)
 				return
 			}
@@ -175,18 +187,18 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 
 			// Check Discord webhook response
 			if webhookResp.StatusCode < 200 || webhookResp.StatusCode >= 300 {
-				logs.ErrorCtx(ctx, "Discord webhook returned error status", "status_code", webhookResp.StatusCode, "account_id", accountID, "ip", r.RemoteAddr)
+				logs.ErrorCtx(ctx, "Discord webhook returned error status", "status_code", webhookResp.StatusCode, "account_id", accountID)
 				http.Error(w, "Failed to submit feedback", http.StatusInternalServerError)
 				return
 			}
 		} else {
-			logs.WarnCtx(ctx, "FEEDBACK_DISCORD_WEBHOOK_URL not configured, skipping Discord notification", "account_id", accountID, "ip", r.RemoteAddr)
+			logs.WarnCtx(ctx, "FEEDBACK_DISCORD_WEBHOOK_URL not configured, skipping Discord notification", "account_id", accountID)
 		}
 	} else {
-		logs.InfoCtx(ctx, "feedback content is blank, skipping Discord notification", "account_id", accountID, "ip", r.RemoteAddr)
+		logs.InfoCtx(ctx, "feedback content is blank, skipping Discord notification", "account_id", accountID)
 	}
 
-	logs.InfoCtx(ctx, "feedback submitted", "account_id", accountID, "ip", r.RemoteAddr)
+	logs.InfoCtx(ctx, "feedback submitted", "account_id", accountID, "duration_ms", time.Since(start).Milliseconds())
 
 	// Return success status code
 	w.WriteHeader(http.StatusOK)

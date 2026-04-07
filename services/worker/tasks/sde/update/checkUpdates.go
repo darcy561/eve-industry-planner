@@ -9,7 +9,7 @@ import (
 	esitasks "eve-industry-planner/worker/tasks/esi"
 	sdeshared "eve-industry-planner/worker/tasks/sde/shared"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 
 	"github.com/hibiken/asynq"
 )
@@ -39,7 +39,7 @@ func CheckSDEUpdates(ctx context.Context, task *asynq.Task, deps *esitasks.TaskD
 	defer cancel()
 
 	_ = deps
-	logs.Debug("SDE update check task received")
+	logs.DebugCtx(ctx, "SDE update check task received")
 
 	dataDir := os.Getenv("SDE_DATA_DIR")
 	if dataDir == "" {
@@ -51,7 +51,7 @@ func CheckSDEUpdates(ctx context.Context, task *asynq.Task, deps *esitasks.TaskD
 		return fmt.Errorf("failed reading SDE version lock: %w", err)
 	}
 	if lock != nil {
-		logs.Info("SDE update skipped due to version lock",
+		logs.InfoCtx(ctx, "SDE update skipped due to version lock",
 			"data_dir", dataDir,
 			"locked_build_number", lock.BuildNumber,
 			"locked_version", lock.Version,

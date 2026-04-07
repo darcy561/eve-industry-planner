@@ -1,29 +1,27 @@
 #!/bin/bash
-# Download setup scripts from the GitHub Public branch
-# This script downloads docker-compose.yml and MongoDB setup scripts only if they don't exist locally.
-# Use 'make update-files' to update existing files.
+# If the deploy layout is incomplete, download the Public branch as a tarball and extract:
+#   docker-compose.yml, observability/, scripts/
+# Use 'make update-files' to refresh when upstream changes (commit-based).
 
 set -e
 
-# Get the directory where script was run from
 RUN_DIR="$(pwd)"
 SCRIPTS_DIR="$RUN_DIR/scripts"
-
-# Ensure scripts directory exists
 mkdir -p "$SCRIPTS_DIR"
 
-# Check if curl is available
-if ! command -v curl &> /dev/null; then
-    echo "Error: curl is required to download setup scripts" >&2
-    echo "Please install curl and try again" >&2
+if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+    echo "Error: curl or wget is required" >&2
     exit 1
 fi
 
-# Base URL for GitHub Public branch
-BASE_URL="https://raw.githubusercontent.com/darcy561/eve-industry-planner/Public"
-BRANCH="Public"
+if ! command -v tar >/dev/null 2>&1; then
+    echo "Error: tar is required to extract the GitHub archive" >&2
+    exit 1
+fi
 
-# Get latest commit SHA for version tracking
+BRANCH="Public"
+REPO_TGZ_URL="https://codeload.github.com/darcy561/eve-industry-planner/tar.gz/${BRANCH}"
+
 get_latest_commit() {
     local api_url="https://api.github.com/repos/darcy561/eve-industry-planner/commits/${BRANCH}"
     if command -v curl >/dev/null 2>&1; then
@@ -35,89 +33,81 @@ get_latest_commit() {
     fi
 }
 
-# Record version for a file
-record_version() {
-    local file_path="$1"
-    local commit_sha="$2"
-    local version_file="$RUN_DIR/.downloaded-versions.json"
-    
-    # Initialize version file if needed
-    if [ ! -f "$version_file" ]; then
-        echo "{}" > "$version_file"
+apply_public_archive() {
+    local commit_sha="$1"
+    local TMP
+    TMP=$(mktemp -d)
+    # shellcheck disable=SC2064
+    trap 'rm -rf "$TMP"' EXIT
+
+    local tgz="$TMP/repo.tgz"
+    echo "→ Downloading ${BRANCH} branch archive from GitHub..."
+    if command -v curl >/dev/null 2>&1; then
+        curl -L -f -o "$tgz" "$REPO_TGZ_URL" || return 1
+    else
+        wget -q -O "$tgz" "$REPO_TGZ_URL" || return 1
     fi
-    
-    # Use jq if available for proper JSON handling
+
+    tar -xzf "$tgz" -C "$TMP"
+    local ROOT
+    ROOT=$(find "$TMP" -mindepth 1 -maxdepth 1 -type d | head -1)
+    if [ -z "$ROOT" ] || [ ! -d "$ROOT/observability" ] || [ ! -d "$ROOT/scripts" ]; then
+        echo "Error: unexpected archive layout (expected observability/ and scripts/)" >&2
+        return 1
+    fi
+
+    mkdir -p "$RUN_DIR/scripts"
+    cp -f "$ROOT/docker-compose.yml" "$RUN_DIR/"
+
+    if command -v rsync >/dev/null 2>&1; then
+        mkdir -p "$RUN_DIR/observability"
+        rsync -a --delete "$ROOT/observability/" "$RUN_DIR/observability/"
+        rsync -a --delete "$ROOT/scripts/" "$RUN_DIR/scripts/"
+    else
+        rm -rf "$RUN_DIR/observability"
+        cp -a "$ROOT/observability" "$RUN_DIR/"
+        mkdir -p "$RUN_DIR/scripts"
+        shopt -s nullglob
+        for f in "$ROOT/scripts"/*; do
+            cp -f "$f" "$RUN_DIR/scripts/"
+        done
+        shopt -u nullglob
+    fi
+    chmod +x "$RUN_DIR/scripts"/*.sh 2>/dev/null || true
+
+    local vf="$RUN_DIR/.downloaded-versions.json"
     if command -v jq >/dev/null 2>&1; then
-        local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-        jq --arg file "$file_path" \
-           --arg sha "$commit_sha" \
+        [ ! -f "$vf" ] && echo "{}" > "$vf"
+        local timestamp
+        timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        jq --arg sha "${commit_sha:-unknown}" \
            --arg time "$timestamp" \
            --arg branch "$BRANCH" \
-           '. + {($file): {commit: $sha, branch: $branch, downloaded_at: $time}}' \
-           "$version_file" > "${version_file}.tmp" && mv "${version_file}.tmp" "$version_file"
+           '. + {sync_bundle: {commit: $sha, branch: $branch, downloaded_at: $time}}' \
+           "$vf" > "${vf}.tmp" && mv "${vf}.tmp" "$vf"
     fi
+
+    echo "Synced docker-compose.yml, observability/, and scripts/ from Public branch."
 }
 
-# Files to download
-declare -A FILES=(
-    ["docker-compose.yml"]="$RUN_DIR/docker-compose.yml"
-    ["scripts/mongo-setup.sh"]="$SCRIPTS_DIR/mongo-setup.sh"
-    ["scripts/generate-mongo-keyfile.sh"]="$SCRIPTS_DIR/generate-mongo-keyfile.sh"
-    ["scripts/version-tracker.sh"]="$SCRIPTS_DIR/version-tracker.sh"
-)
+deployment_incomplete() {
+    [ ! -f "$RUN_DIR/docker-compose.yml" ] && return 0
+    [ ! -f "$RUN_DIR/observability/prometheus/prometheus.yml" ] && return 0
+    [ ! -f "$RUN_DIR/scripts/mongo-setup.sh" ] && return 0
+    return 1
+}
 
-# Get latest commit SHA once
 LATEST_COMMIT=$(get_latest_commit)
-if [ "$LATEST_COMMIT" != "unknown" ]; then
-    echo "Checking for missing files (commit: ${LATEST_COMMIT:0:8})..."
-fi
-
-# First, check if any files are missing
-has_missing_files=false
-for RELATIVE_PATH in "${!FILES[@]}"; do
-    LOCAL_PATH="${FILES[$RELATIVE_PATH]}"
-    if [ ! -f "$LOCAL_PATH" ]; then
-        has_missing_files=true
-        break
-    fi
-done
-
-# If any files are missing, download ALL files to ensure consistency
-if [ "$has_missing_files" = true ]; then
-    echo "Some files are missing. Downloading all files to ensure consistency..."
-    echo ""
-    
-    downloaded_count=0
-    for RELATIVE_PATH in "${!FILES[@]}"; do
-        LOCAL_PATH="${FILES[$RELATIVE_PATH]}"
-        DOWNLOAD_URL="${BASE_URL}/${RELATIVE_PATH}"
-        
-        echo "→ Downloading ${RELATIVE_PATH} from GitHub..."
-        
-        if ! curl -L -f -o "$LOCAL_PATH" "$DOWNLOAD_URL"; then
-            echo "Error: Failed to download ${RELATIVE_PATH} from GitHub" >&2
-            echo "URL: $DOWNLOAD_URL" >&2
-            exit 1
-        fi
-        
-        # Make scripts executable
-        if [[ "$RELATIVE_PATH" == scripts/*.sh ]]; then
-            chmod +x "$LOCAL_PATH"
-            echo "Made ${RELATIVE_PATH} executable"
-        fi
-        
-        # Record version information
-        if [ "$LATEST_COMMIT" != "unknown" ]; then
-            record_version "$RELATIVE_PATH" "$LATEST_COMMIT"
-        fi
-        
-        echo "${RELATIVE_PATH} downloaded successfully to $LOCAL_PATH"
-        downloaded_count=$((downloaded_count + 1))
-    done
-    
-    echo ""
-    echo "Downloaded ${downloaded_count} file(s) to ensure consistency"
+if [ -n "$LATEST_COMMIT" ] && [ "$LATEST_COMMIT" != "unknown" ]; then
+    echo "Checking deploy files (Public @ ${LATEST_COMMIT:0:8})..."
 else
-    echo "All required files already exist (use 'make update-files' to update them)"
+    echo "Checking deploy files..."
 fi
 
+if deployment_incomplete; then
+    echo "Some deploy files are missing. Fetching full Public archive..."
+    echo ""
+    apply_public_archive "$LATEST_COMMIT"
+else
+    echo "All required files already exist (use 'make update-files' to refresh from GitHub)"
+fi

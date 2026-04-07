@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/shared/httpclient"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -175,9 +175,9 @@ func (c *RedisESIClient) waitUntilRateLimiterAllowed(
 	allowed, waitUntil, err := c.checkAndReserve(ctx, groupName, estimatedTokens, tokenLimit, rateLimit)
 	if err != nil {
 		if streaming {
-			logs.Error("checkAndReserve failed (streaming)", "path", path, "group", groupName, "error", err)
+			logs.ErrorCtx(ctx,"checkAndReserve failed (streaming)", "path", path, "group", groupName, "error", err)
 		} else {
-			logs.Error("checkAndReserve failed", "path", path, "group", groupName, "error", err)
+			logs.ErrorCtx(ctx,"checkAndReserve failed", "path", path, "group", groupName, "error", err)
 		}
 		return err
 	}
@@ -199,7 +199,7 @@ func (c *RedisESIClient) waitUntilRateLimiterAllowed(
 		if dl, ok := ctx.Deadline(); ok {
 			budget := time.Until(dl) - rateLimitDeadlineReserve
 			if budget <= 0 {
-				logs.Debug("rate limit wait skipped: task context deadline too tight",
+				logs.DebugCtx(ctx,"rate limit wait skipped: task context deadline too tight",
 					"path", path, "group", groupName, "streaming", streaming)
 				tu := -1
 				if tokenLimit > 0 {
@@ -223,10 +223,10 @@ func (c *RedisESIClient) waitUntilRateLimiterAllowed(
 
 		if waitTime > maxBlock {
 			if streaming {
-				logs.Debug("rate limit wait exceeds cap or task budget, returning to queue for retry (streaming)",
+				logs.DebugCtx(ctx,"rate limit wait exceeds cap or task budget, returning to queue for retry (streaming)",
 					"path", path, "group", groupName, "wait_time", waitTime, "max_block", maxBlock, "wait_until", waitUntil)
 			} else {
-				logs.Debug("rate limit wait exceeds cap or task budget, returning to queue for retry",
+				logs.DebugCtx(ctx,"rate limit wait exceeds cap or task budget, returning to queue for retry",
 					"path", path, "group", groupName, "wait_time", waitTime, "max_block", maxBlock, "wait_until", waitUntil)
 			}
 			tu := -1
@@ -256,10 +256,10 @@ func (c *RedisESIClient) waitUntilRateLimiterAllowed(
 		}
 
 		if streaming {
-			logs.Debug("rate limit check failed, blocking and waiting (streaming)",
+			logs.DebugCtx(ctx,"rate limit check failed, blocking and waiting (streaming)",
 				"path", path, "group", groupName, "wait_until", waitUntil, "wait_time", waitTime)
 		} else {
-			logs.Debug("rate limit check failed, blocking and waiting",
+			logs.DebugCtx(ctx,"rate limit check failed, blocking and waiting",
 				"path", path, "group", groupName, "wait_until", waitUntil, "wait_time", waitTime)
 		}
 
@@ -320,12 +320,12 @@ func (c *RedisESIClient) getTokenLimitFromRedis(ctx context.Context, group strin
 		return -1 // Not found, assume no token restrictions
 	}
 	if err != nil {
-		logs.Debug("failed to get token limit from redis", "group", group, "error", err)
+		logs.DebugCtx(ctx,"failed to get token limit from redis", "group", group, "error", err)
 		return -1
 	}
 	tokenLimit, err := strconv.Atoi(val)
 	if err != nil {
-		logs.Debug("failed to parse token limit from redis", "group", group, "value", val, "error", err)
+		logs.DebugCtx(ctx,"failed to parse token limit from redis", "group", group, "value", val, "error", err)
 		return -1
 	}
 	return tokenLimit
@@ -340,12 +340,12 @@ func (c *RedisESIClient) getRateLimitFromRedis(ctx context.Context, primaryGroup
 		return 0 // Not found, will use default
 	}
 	if err != nil {
-		logs.Debug("failed to get rate limit from redis", "primary_group", primaryGroup, "error", err)
+		logs.DebugCtx(ctx,"failed to get rate limit from redis", "primary_group", primaryGroup, "error", err)
 		return 0
 	}
 	rateLimit, err := strconv.ParseFloat(val, 64)
 	if err != nil {
-		logs.Debug("failed to parse rate limit from redis", "primary_group", primaryGroup, "value", val, "error", err)
+		logs.DebugCtx(ctx,"failed to parse rate limit from redis", "primary_group", primaryGroup, "value", val, "error", err)
 		return 0
 	}
 	return rateLimit
@@ -356,7 +356,7 @@ func (c *RedisESIClient) setRateLimitInRedis(ctx context.Context, primaryGroup s
 	key := fmt.Sprintf("esi:primary_group:%s:rate_limit", primaryGroup)
 	val := strconv.FormatFloat(rateLimit, 'f', -1, 64)
 	if err := c.redis.Set(ctx, key, val, 24*time.Hour).Err(); err != nil {
-		logs.Debug("failed to set rate limit in redis", "primary_group", primaryGroup, "rate_limit", rateLimit, "error", err)
+		logs.DebugCtx(ctx,"failed to set rate limit in redis", "primary_group", primaryGroup, "rate_limit", rateLimit, "error", err)
 	}
 }
 
@@ -368,7 +368,7 @@ func (c *RedisESIClient) getGroupFromPath(ctx context.Context, path string) (str
 		return "", false
 	}
 	if err != nil {
-		logs.Debug("failed to get group from path", "path", path, "error", err)
+		logs.DebugCtx(ctx,"failed to get group from path", "path", path, "error", err)
 		return "", false
 	}
 	return val, true
@@ -377,7 +377,7 @@ func (c *RedisESIClient) getGroupFromPath(ctx context.Context, path string) (str
 // Do performs a rate-limited HTTP request and returns the response body, response, and error.
 func (c *RedisESIClient) Do(ctx context.Context, method, path string, headers map[string]string, groupDesignation GroupDesignation) ([]byte, *http.Response, error) {
 	groupName := buildGroupNameFromDesignation(groupDesignation)
-	logs.Debug("ESI request initiated",
+	logs.DebugCtx(ctx,"ESI request initiated",
 		"method", method,
 		"path", path,
 		"group_name", groupName,
@@ -389,7 +389,7 @@ func (c *RedisESIClient) Do(ctx context.Context, method, path string, headers ma
 	inDowntime, downtimeEnd := c.isInDowntime(now)
 	if inDowntime {
 		waitTime := time.Until(downtimeEnd)
-		logs.Debug("request blocked during EVE downtime",
+		logs.DebugCtx(ctx,"request blocked during EVE downtime",
 			"path", path,
 			"downtime_end", downtimeEnd,
 			"wait_time", waitTime)
@@ -454,7 +454,7 @@ func (c *RedisESIClient) Do(ctx context.Context, method, path string, headers ma
 	resp, err := c.httpClient.Do(req)
 	requestDuration := time.Since(requestStart)
 	if err != nil {
-		logs.Error("HTTP request failed",
+		logs.ErrorCtx(ctx,"HTTP request failed",
 			"path", path,
 			"group", groupName,
 			"error", err,
@@ -464,7 +464,7 @@ func (c *RedisESIClient) Do(ctx context.Context, method, path string, headers ma
 
 	// Calculate actual tokens consumed
 	tokensConsumed := getTokensForStatus(resp.StatusCode)
-	logs.Debug("ESI response received",
+	logs.DebugCtx(ctx,"ESI response received",
 		"path", path,
 		"status", resp.StatusCode,
 		"tokens_consumed", tokensConsumed,
@@ -482,7 +482,7 @@ func (c *RedisESIClient) Do(ctx context.Context, method, path string, headers ma
 
 	// Update tokens in Redis
 	if err := c.updateTokens(ctx, groupName, path, tokensConsumed, tokenLimit); err != nil {
-		logs.Error("updateTokens failed", "path", path, "group", groupName, "error", err)
+		logs.ErrorCtx(ctx,"updateTokens failed", "path", path, "group", groupName, "error", err)
 		// Don't fail the request, just log the error
 	}
 
@@ -521,7 +521,7 @@ func (c *RedisESIClient) Do(ctx context.Context, method, path string, headers ma
 			EstimatedTokens: tokensConsumed,
 		}
 
-		logs.Warn("received 429, returning classified error for task handling",
+		logs.WarnCtx(ctx,"received 429, returning classified error for task handling",
 			"path", path,
 			"group", groupName,
 			"retryable", retryable,
@@ -531,7 +531,7 @@ func (c *RedisESIClient) Do(ctx context.Context, method, path string, headers ma
 		return nil, resp, err
 	}
 
-	logs.Info("ESI request completed successfully",
+	logs.InfoCtx(ctx,"ESI request completed successfully",
 		"path", path,
 		"group", groupName,
 		"status", resp.StatusCode,
@@ -546,7 +546,7 @@ func (c *RedisESIClient) Do(ctx context.Context, method, path string, headers ma
 // This is useful when you need full control over reading the response body (e.g., for streaming).
 func (c *RedisESIClient) DoRequest(ctx context.Context, method, path string, headers map[string]string, groupDesignation GroupDesignation) (*http.Response, error) {
 	groupName := buildGroupNameFromDesignation(groupDesignation)
-	logs.Debug("ESI request initiated (streaming)",
+	logs.DebugCtx(ctx,"ESI request initiated (streaming)",
 		"method", method,
 		"path", path,
 		"group_name", groupName,
@@ -558,7 +558,7 @@ func (c *RedisESIClient) DoRequest(ctx context.Context, method, path string, hea
 	inDowntime, downtimeEnd := c.isInDowntime(now)
 	if inDowntime {
 		waitTime := time.Until(downtimeEnd)
-		logs.Debug("request blocked during EVE downtime (streaming)",
+		logs.DebugCtx(ctx,"request blocked during EVE downtime (streaming)",
 			"path", path,
 			"downtime_end", downtimeEnd,
 			"wait_time", waitTime)
@@ -622,7 +622,7 @@ func (c *RedisESIClient) DoRequest(ctx context.Context, method, path string, hea
 	resp, err := c.httpClient.Do(req)
 	requestDuration := time.Since(requestStart)
 	if err != nil {
-		logs.Error("HTTP request failed (streaming)",
+		logs.ErrorCtx(ctx,"HTTP request failed (streaming)",
 			"path", path,
 			"group", groupName,
 			"error", err,
@@ -632,7 +632,7 @@ func (c *RedisESIClient) DoRequest(ctx context.Context, method, path string, hea
 
 	// Calculate actual tokens consumed
 	tokensConsumed := getTokensForStatus(resp.StatusCode)
-	logs.Debug("ESI response received (streaming)",
+	logs.DebugCtx(ctx,"ESI response received (streaming)",
 		"path", path,
 		"status", resp.StatusCode,
 		"tokens_consumed", tokensConsumed,
@@ -650,7 +650,7 @@ func (c *RedisESIClient) DoRequest(ctx context.Context, method, path string, hea
 
 	// Update tokens in Redis
 	if err := c.updateTokens(ctx, groupName, path, tokensConsumed, tokenLimit); err != nil {
-		logs.Error("updateTokens failed (streaming)", "path", path, "group", groupName, "error", err)
+		logs.ErrorCtx(ctx,"updateTokens failed (streaming)", "path", path, "group", groupName, "error", err)
 		// Don't fail the request, just log the error
 	}
 
@@ -678,7 +678,7 @@ func (c *RedisESIClient) DoRequest(ctx context.Context, method, path string, hea
 			EstimatedTokens: tokensConsumed,
 		}
 
-		logs.Warn("received 429, returning classified error for task handling (streaming)",
+		logs.WarnCtx(ctx,"received 429, returning classified error for task handling (streaming)",
 			"path", path,
 			"group", groupName,
 			"retryable", retryable,
@@ -688,7 +688,7 @@ func (c *RedisESIClient) DoRequest(ctx context.Context, method, path string, hea
 		return nil, err
 	}
 
-	logs.Debug("ESI request completed (streaming response)",
+	logs.DebugCtx(ctx,"ESI request completed (streaming response)",
 		"path", path,
 		"group", groupName,
 		"status", resp.StatusCode,
@@ -706,7 +706,7 @@ func (c *RedisESIClient) SetPrimaryGroupRateLimit(ctx context.Context, primaryGr
 		return fmt.Errorf("rate limit must be greater than 0, got %f", rateLimit)
 	}
 	c.setRateLimitInRedis(ctx, primaryGroup, rateLimit)
-	logs.Info("set primary group rate limit", "primary_group", primaryGroup, "rate_limit", rateLimit)
+	logs.InfoCtx(ctx,"set primary group rate limit", "primary_group", primaryGroup, "rate_limit", rateLimit)
 	return nil
 }
 

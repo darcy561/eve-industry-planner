@@ -13,8 +13,7 @@ import (
 
 	esitypes "eve-industry-planner/shared/core/esi/types"
 	rediscore "eve-industry-planner/shared/core/redis"
-	"eve-industry-planner/shared/shared/logs"
-	"eve-industry-planner/shared/shared/metrics"
+	"eve-industry-planner/shared/logs"
 	taskscore "eve-industry-planner/shared/tasks"
 	esicore "eve-industry-planner/worker/esi"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
@@ -42,7 +41,7 @@ func RefreshAdjustedPrices(ctx context.Context, task *asynq.Task, deps *TaskDepe
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
-	logs.Info("Adjusted Prices Refresh Task Received")
+	logs.InfoCtx(ctx,"Adjusted Prices Refresh Task Received")
 
 	// Acquire a lock to prevent concurrent refreshes
 	lockKey := "esi:market_prices:refresh_lock"
@@ -55,73 +54,48 @@ func RefreshAdjustedPrices(ctx context.Context, task *asynq.Task, deps *TaskDepe
 
 	// Check server status before proceeding
 	statusResult := esicore.CheckServerStatus(ctx, deps.ESIClient, deps.Redis)
-	if err := HandleStatusCheckResult(statusResult, "adjusted prices refresh"); err != nil {
+	if err := HandleStatusCheckResult(ctx, statusResult, "adjusted prices refresh"); err != nil {
 		return err
 	}
 
 	// Read previous ETag from Redis (if available) to leverage 304s.
 	prevETag, err := rediscore.GetMarketPricesETag(ctx, deps.Redis)
 	if err != nil {
-		logs.Debug("failed to get previous ETag", "error", err)
+		logs.DebugCtx(ctx,"failed to get previous ETag", "error", err)
 	}
 
-	var count int
 	start := time.Now()
-	logs.Debug("Adjusted Prices Refresh Started", "etag_used", prevETag)
+	logs.DebugCtx(ctx,"Adjusted Prices Refresh Started", "etag_used", prevETag)
 
-	var totalBytes int64
 	var cacheSeconds int
-	newETag, notModified, bytesRead, err := StreamAdjustedPrices(ctx, deps.ESIClient, prevETag, func(m esitypes.AdjustedPrice) error {
+	newETag, notModified, _, err := StreamAdjustedPrices(ctx, deps.ESIClient, prevETag, func(m esitypes.AdjustedPrice) error {
 		if err := rediscore.SaveMarketPrice(ctx, deps.Redis, m.TypeID, m); err != nil {
 			return err
 		}
-		count++
 		return nil
 	}, &cacheSeconds)
-	totalBytes = bytesRead
 	if err != nil {
-		return HandleStreamError(err, "adjusted prices refresh", metrics.GetESIMarketPrices().Errors)
+		return HandleStreamError(ctx, err, "adjusted prices refresh")
 	}
 
 	if notModified {
-		logs.Info("ESI adjusted prices not modified (ETag match)")
-		m := metrics.GetESIMarketPrices()
-		m.Requests.Observe(time.Since(start).Seconds())
-		m.Bytes.Add(float64(totalBytes))
-		// Update metrics if cache headers available (for monitoring)
-		if cacheSeconds > 0 {
-			nextRefreshMillis := time.Now().Add(time.Duration(cacheSeconds) * time.Second).UnixMilli()
-			metrics.GetESIMarketPrices().NextRefresh.Set(float64(nextRefreshMillis))
-		}
+		logs.InfoCtx(ctx,"ESI adjusted prices not modified (ETag match)")
 		return nil
 	}
 
 	if err := rediscore.SaveMarketPricesETag(ctx, deps.Redis, newETag); err != nil {
-		logs.Error("failed to save ETag", "error", err, "reason", "etag_save_error")
-		metrics.GetESIMarketPrices().Errors.WithLabelValues("etag_save").Inc()
+		logs.ErrorCtx(ctx,"failed to save ETag", "error", err, "reason", "etag_save_error")
 		return fmt.Errorf("failed to save ETag: %w", err)
 	}
 
 	// Save last updated timestamp
 	if err := rediscore.SaveMarketPricesLastUpdated(ctx, deps.Redis, time.Now().UnixMilli()); err != nil {
-		logs.Warn("failed to save last updated timestamp", "error", err, "reason", "last_updated_save_error")
-		metrics.GetESIMarketPrices().Errors.WithLabelValues("last_updated_save").Inc()
+		logs.WarnCtx(ctx,"failed to save last updated timestamp", "error", err, "reason", "last_updated_save_error")
 		return fmt.Errorf("failed to save last updated timestamp: %w", err)
 	}
 
-	// Update metrics if cache headers available (for monitoring)
-	if cacheSeconds > 0 {
-		nextRefreshMillis := time.Now().Add(time.Duration(cacheSeconds) * time.Second).UnixMilli()
-		metrics.GetESIMarketPrices().NextRefresh.Set(float64(nextRefreshMillis))
-	}
-
 	duration := time.Since(start)
-	m := metrics.GetESIMarketPrices()
-	m.Requests.Observe(duration.Seconds())
-	m.Bytes.Add(float64(totalBytes))
-	m.Items.Add(float64(count))
-	m.LastUpdated.Set(float64(time.Now().UnixMilli()))
-	logs.Info("Adjusted Prices Refresh Complete", "duration_ms", duration.Milliseconds())
+	logs.InfoCtx(ctx,"Adjusted Prices Refresh Complete", "duration_ms", duration.Milliseconds())
 	return nil
 }
 
@@ -154,18 +128,18 @@ func StreamAdjustedPrices(ctx context.Context, esiClient esiratelimiter.ClientIn
 	maxAttempts := 4
 	var err error
 
-	logs.Debug("starting ESI request loop for adjusted prices", "path", path, "etag_provided", etag != "", "max_attempts", maxAttempts)
+	logs.DebugCtx(ctx,"starting ESI request loop for adjusted prices", "path", path, "etag_provided", etag != "", "max_attempts", maxAttempts)
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		logs.Debug("making ESI request attempt", "attempt", attempt, "max_attempts", maxAttempts, "path", path)
+		logs.DebugCtx(ctx,"making ESI request attempt", "attempt", attempt, "max_attempts", maxAttempts, "path", path)
 		groupDesignation := esiratelimiter.GroupDesignation{}
 		resp, err = esiClient.DoRequest(ctx, http.MethodGet, path, headers, groupDesignation)
 		if err == nil {
-			logs.Debug("ESI request succeeded", "attempt", attempt, "path", path)
+			logs.DebugCtx(ctx,"ESI request succeeded", "attempt", attempt, "path", path)
 			break
 		}
 
-		logs.Debug("ESI request failed",
+		logs.DebugCtx(ctx,"ESI request failed",
 			"attempt", attempt,
 			"max_attempts", maxAttempts,
 			"error", err,
@@ -173,12 +147,12 @@ func StreamAdjustedPrices(ctx context.Context, esiClient esiratelimiter.ClientIn
 			"path", path)
 
 		// Check if this is a rate limit error - return early to avoid unnecessary retries
-		if ShouldStopRetryOnRateLimit(err, attempt, path) {
+		if ShouldStopRetryOnRateLimit(ctx, err, attempt, path) {
 			return "", false, 0, err
 		}
 
 		if attempt >= maxAttempts {
-			logs.Debug("max attempts reached, returning error", "attempt", attempt, "max_attempts", maxAttempts, "error", err)
+			logs.DebugCtx(ctx,"max attempts reached, returning error", "attempt", attempt, "max_attempts", maxAttempts, "error", err)
 			return "", false, 0, err
 		}
 		// Exponential backoff: 500ms, 1s, 2s
@@ -186,7 +160,7 @@ func StreamAdjustedPrices(ctx context.Context, esiClient esiratelimiter.ClientIn
 		// Jitter: random 0-100ms
 		jitter := time.Duration(rand.Intn(100)) * time.Millisecond
 		waitTime := backoff + jitter
-		logs.Debug("waiting before retry with exponential backoff", "attempt", attempt, "backoff", backoff, "jitter", jitter, "wait_time", waitTime)
+		logs.DebugCtx(ctx,"waiting before retry with exponential backoff", "attempt", attempt, "backoff", backoff, "jitter", jitter, "wait_time", waitTime)
 		time.Sleep(waitTime)
 	}
 	if resp != nil {

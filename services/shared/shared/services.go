@@ -8,7 +8,7 @@ import (
 	"eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/core/redis"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 
 	natslib "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -89,11 +89,11 @@ func ConnectServices(ctx context.Context, services ...string) (*ServiceClients, 
 // This ensures all successfully connected services are properly cleaned up.
 func ShutdownOnError(ctx context.Context, cancel context.CancelFunc, clients *ServiceClients, err error, timeout time.Duration) {
 	if clients != nil {
-		logs.Error("initialization failed", "error", err)
+		logs.ErrorCtx(ctx, "initialization failed", "error", err)
 		cancel()
 		WaitForShutdown(ctx, timeout, clients.CleanupFns...)
 	} else {
-		logs.Error("initialization failed", "error", err)
+		logs.ErrorCtx(ctx, "initialization failed", "error", err)
 		cancel()
 		WaitForShutdown(ctx, timeout)
 	}

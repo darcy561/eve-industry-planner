@@ -1,0 +1,25 @@
+# Phase A: infra scrapes. Phase B: Go OTLP metrics → Collector Prometheus exporter (:8889).
+#
+# Prometheus reads this file only at process start or after a reload. Editing this file on the host
+# does *not* apply until you either:
+#   docker compose restart prometheus
+#   or:  curl -X POST http://localhost:9090/-/reload   (with Prometheus reachable; lifecycle enabled)
+# If you skip this, new scrape jobs (e.g. asynqmon) stay missing and Grafana Asynq queues panels show no data.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: otel_collector
+    static_configs:
+      - targets: ["otel-collector:8889"]
+
+  # Asynqmon: hibiken/asynqmon with --enable-metrics-exporter (queue metrics on /metrics).
+  - job_name: asynqmon
+    static_configs:
+      - targets: ["asynqmon:8080"]
+    metrics_path: /metrics

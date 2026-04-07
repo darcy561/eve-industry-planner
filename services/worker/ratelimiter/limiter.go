@@ -7,13 +7,13 @@ import (
 	"sync"
 	"time"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 
 	"golang.org/x/time/rate"
 )
 
 // CleanupOldConsumptions removes token consumptions older than the window duration
-func (gl *GroupLimiter) CleanupOldConsumptions() {
+func (gl *GroupLimiter) CleanupOldConsumptions(ctx context.Context) {
 	now := time.Now()
 	cutoff := now.Add(-gl.windowDuration)
 
@@ -40,7 +40,7 @@ func (gl *GroupLimiter) CleanupOldConsumptions() {
 	gl.lastUpdate = now
 
 	if expiredTokens > 0 || beforeCount != len(validConsumptions) {
-		logs.Debug("cleaned up old token consumptions",
+		logs.DebugCtx(ctx, "cleaned up old token consumptions",
 			"group", gl.Name,
 			"before_count", beforeCount,
 			"after_count", len(validConsumptions),
@@ -59,7 +59,7 @@ func (gl *GroupLimiter) CleanupOldConsumptions() {
 func (gl *GroupLimiter) CanMakeRequest(ctx context.Context, estimatedTokens int) error {
 	// Clean up expired tokens first to ensure accurate token count
 	// This proactively returns expired tokens to the bucket (15-minute floating window)
-	gl.CleanupOldConsumptions()
+	gl.CleanupOldConsumptions(ctx)
 
 	gl.mu.RLock()
 	retryAfter := gl.retryAfter
@@ -72,7 +72,7 @@ func (gl *GroupLimiter) CanMakeRequest(ctx context.Context, estimatedTokens int)
 	// Check if we're in retry-after period (from previous 429 response)
 	if now.Before(retryAfter) {
 		waitTime := time.Until(retryAfter)
-		logs.Debug("request blocked by retry-after",
+		logs.DebugCtx(ctx, "request blocked by retry-after",
 			"group", gl.Name,
 			"retry_after", retryAfter,
 			"wait_time", waitTime,
@@ -94,7 +94,7 @@ func (gl *GroupLimiter) CanMakeRequest(ctx context.Context, estimatedTokens int)
 	gl.mu.RUnlock()
 
 	if !enforceTokens {
-		logs.Debug("token check skipped (no token restrictions, using rate limiter only)",
+		logs.DebugCtx(ctx, "token check skipped (no token restrictions, using rate limiter only)",
 			"group", gl.Name,
 			"estimated_tokens", estimatedTokens)
 		return nil
@@ -103,7 +103,7 @@ func (gl *GroupLimiter) CanMakeRequest(ctx context.Context, estimatedTokens int)
 	// If TokenLimit is 0 but we should enforce tokens, treat it as an error condition
 	// This shouldn't happen if headers are present, but we should still enforce restrictions
 	if tokenLimit == 0 {
-		logs.Warn("token limit is 0 but token restrictions are enforced, blocking request",
+		logs.WarnCtx(ctx, "token limit is 0 but token restrictions are enforced, blocking request",
 			"group", gl.Name,
 			"estimated_tokens", estimatedTokens,
 			"note", "this may indicate missing rate limit headers")
@@ -175,7 +175,7 @@ func (gl *GroupLimiter) CanMakeRequest(ctx context.Context, estimatedTokens int)
 			retryable = true
 		}
 
-		logs.Warn("insufficient tokens after cleanup",
+		logs.WarnCtx(ctx, "insufficient tokens after cleanup",
 			"group", gl.Name,
 			"token_used", tokenUsed,
 			"token_limit", tokenLimit,
@@ -198,7 +198,7 @@ func (gl *GroupLimiter) CanMakeRequest(ctx context.Context, estimatedTokens int)
 		}
 	}
 
-	logs.Debug("token check passed",
+	logs.DebugCtx(ctx, "token check passed",
 		"group", gl.Name,
 		"token_used", tokenUsed,
 		"token_limit", tokenLimit,
@@ -212,6 +212,7 @@ func (gl *GroupLimiter) CanMakeRequest(ctx context.Context, estimatedTokens int)
 // If the limiter doesn't exist yet, it will be created when we receive response headers.
 // Returns the limiter and whether it already exists (true) or is new/unknown (false).
 func (c *ESIClient) GetLimiterForGroup(groupDesignation GroupDesignation) (*GroupLimiter, bool) {
+	bg := context.Background()
 	groupName := buildGroupNameFromDesignation(groupDesignation)
 
 	c.mu.RLock()
@@ -224,7 +225,7 @@ func (c *ESIClient) GetLimiterForGroup(groupDesignation GroupDesignation) (*Grou
 		limiter.lastUsed = time.Now()
 		limiter.mu.Unlock()
 
-		logs.Debug("using existing group limiter",
+		logs.DebugCtx(bg, "using existing group limiter",
 			"group", groupName,
 			"primary_group", groupDesignation.PrimaryGroup,
 			"secondary_group", groupDesignation.SecondaryGroup,
@@ -235,7 +236,7 @@ func (c *ESIClient) GetLimiterForGroup(groupDesignation GroupDesignation) (*Grou
 
 	// Group limiter doesn't exist yet - return default limiter
 	// It will be created when we receive response headers with token limit information
-	logs.Debug("group limiter not yet created, using default limiter",
+	logs.DebugCtx(bg, "group limiter not yet created, using default limiter",
 		"group", groupName,
 		"primary_group", groupDesignation.PrimaryGroup,
 		"secondary_group", groupDesignation.SecondaryGroup,
@@ -249,7 +250,7 @@ func (c *ESIClient) GetLimiterForGroup(groupDesignation GroupDesignation) (*Grou
 // GetOrCreateGroupLimiter gets an existing group limiter or creates a new one.
 // This is called after receiving a response with X-Ratelimit-Group header.
 // hasHeaders indicates whether rate limit headers were present in the response.
-func (c *ESIClient) GetOrCreateGroupLimiter(fullGroupName string, path string, tokenLimit int, hasHeaders bool) *GroupLimiter {
+func (c *ESIClient) GetOrCreateGroupLimiter(ctx context.Context, fullGroupName string, path string, tokenLimit int, hasHeaders bool) *GroupLimiter {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -295,7 +296,7 @@ func (c *ESIClient) GetOrCreateGroupLimiter(fullGroupName string, path string, t
 			limiter.Limiter.SetBurst(newBurst)
 			limiter.mu.Unlock()
 
-			logs.Info("updated token limit and rate limiter for existing group",
+			logs.InfoCtx(ctx, "updated token limit and rate limiter for existing group",
 				"group", fullGroupName,
 				"path", path,
 				"old_limit", oldLimit,
@@ -310,12 +311,12 @@ func (c *ESIClient) GetOrCreateGroupLimiter(fullGroupName string, path string, t
 		c.pathToGroup[path] = fullGroupName
 
 		if hadPath && oldPath != fullGroupName {
-			logs.Info("path reassigned to different group",
+			logs.InfoCtx(ctx, "path reassigned to different group",
 				"path", path,
 				"old_group", oldPath,
 				"new_group", fullGroupName)
 		} else if !hadPath {
-			logs.Debug("mapped path to existing group",
+			logs.DebugCtx(ctx, "mapped path to existing group",
 				"path", path,
 				"group", fullGroupName,
 				"token_limit", limiter.TokenLimit,
@@ -382,7 +383,7 @@ func (c *ESIClient) GetOrCreateGroupLimiter(fullGroupName string, path string, t
 		newLimiter.Limiter.SetLimit(c.defLim.DefaultRate)
 		newLimiter.Limiter.SetBurst(c.defLim.DefaultBurst)
 
-		logs.Debug("using default rate limiting for new group (headers missing, no token restrictions)",
+		logs.DebugCtx(ctx, "using default rate limiting for new group (headers missing, no token restrictions)",
 			"group", fullGroupName,
 			"path", path,
 			"rate", fmt.Sprintf("%.2f req/s", float64(c.defLim.DefaultRate)),
@@ -393,7 +394,7 @@ func (c *ESIClient) GetOrCreateGroupLimiter(fullGroupName string, path string, t
 	c.limiters[fullGroupName] = newLimiter
 	c.pathToGroup[path] = fullGroupName
 
-	logs.Debug("discovered new ESI rate limit group",
+	logs.DebugCtx(ctx, "discovered new ESI rate limit group",
 		"group", fullGroupName,
 		"path", path,
 		"token_limit", newLimiter.TokenLimit,
@@ -406,11 +407,12 @@ func (c *ESIClient) GetOrCreateGroupLimiter(fullGroupName string, path string, t
 
 // GetMutexForUnknownPath gets or creates a mutex for an unknown path to prevent concurrent discovery.
 func (c *ESIClient) GetMutexForUnknownPath(path string) *sync.Mutex {
+	bg := context.Background()
 	c.unknownGroupMutex.Lock()
 	defer c.unknownGroupMutex.Unlock()
 
 	if mutex, exists := c.unknownGroups[path]; exists {
-		logs.Debug("reusing mutex for unknown path",
+		logs.DebugCtx(bg, "reusing mutex for unknown path",
 			"path", path,
 			"waiting_paths", len(c.unknownGroups))
 		return mutex
@@ -418,7 +420,7 @@ func (c *ESIClient) GetMutexForUnknownPath(path string) *sync.Mutex {
 
 	mutex := &sync.Mutex{}
 	c.unknownGroups[path] = mutex
-	logs.Debug("created new mutex for unknown path",
+	logs.DebugCtx(bg, "created new mutex for unknown path",
 		"path", path,
 		"total_unknown_paths", len(c.unknownGroups))
 	return mutex
@@ -431,6 +433,7 @@ func (c *ESIClient) GetMutexForUnknownPath(path string) *sync.Mutex {
 // and don't need the discovery mutex anymore after the first request.
 // Should be called after releasing the mutex lock and processing the response.
 func (c *ESIClient) CleanupMutexForPath(path string) {
+	bg := context.Background()
 	// Check if path is now known (without holding unknownGroupMutex to avoid lock ordering issues)
 	c.mu.RLock()
 	pathKnown := false
@@ -439,7 +442,7 @@ func (c *ESIClient) CleanupMutexForPath(path string) {
 	}
 	c.mu.RUnlock()
 
-	logs.Debug("cleanupMutexForPath called",
+	logs.DebugCtx(bg, "cleanupMutexForPath called",
 		"path", path,
 		"path_known", pathKnown)
 
@@ -452,16 +455,16 @@ func (c *ESIClient) CleanupMutexForPath(path string) {
 	if _, exists := c.unknownGroups[path]; exists {
 		delete(c.unknownGroups, path)
 		if pathKnown {
-			logs.Debug("cleaned up mutex for discovered path",
+			logs.DebugCtx(bg, "cleaned up mutex for discovered path",
 				"path", path,
 				"remaining_unknown_paths", len(c.unknownGroups))
 		} else {
-			logs.Debug("cleaned up mutex for path using default limiter (no group header)",
+			logs.DebugCtx(bg, "cleaned up mutex for path using default limiter (no group header)",
 				"path", path,
 				"remaining_unknown_paths", len(c.unknownGroups))
 		}
 	} else {
-		logs.Debug("mutex already cleaned up for path",
+		logs.DebugCtx(bg, "mutex already cleaned up for path",
 			"path", path)
 	}
 }

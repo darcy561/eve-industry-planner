@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 )
 
 const (
@@ -38,7 +38,7 @@ func runSDEDownloadStage(ctx context.Context, versionResult *sdeVersionCheckResu
 	}
 
 	if !versionResult.NeedsUpdate {
-		logs.Debug("SDE download stage skipped; local data is current",
+		logs.DebugCtx(ctx, "SDE download stage skipped; local data is current",
 			"current_build", versionResult.CurrentBuild,
 			"latest_build", versionResult.LatestBuild,
 		)
@@ -62,7 +62,7 @@ func runSDEDownloadStage(ctx context.Context, versionResult *sdeVersionCheckResu
 	for _, b := range extracted {
 		totalBytes += len(b)
 	}
-	logs.Debug("SDE download/extract completed (in-memory)",
+	logs.DebugCtx(ctx, "SDE download/extract completed (in-memory)",
 		"extracted_files", len(extracted),
 		"total_extracted_bytes", totalBytes,
 		"files", fileSizes(extracted),
@@ -88,7 +88,7 @@ func downloadAndExtractJSONInMemory(ctx context.Context, specificFiles map[strin
 		}
 	}
 
-	logs.Debug("SDE downloading static-data zip (in-memory)",
+	logs.DebugCtx(ctx, "SDE downloading static-data zip (in-memory)",
 		"url", downloadURL,
 		"max_bytes", maxBytes,
 	)
@@ -143,7 +143,7 @@ func downloadAndExtractJSONInMemory(ctx context.Context, specificFiles map[strin
 
 		rc, err := file.Open()
 		if err != nil {
-			logs.Warn("SDE failed opening jsonl file in zip",
+			logs.WarnCtx(ctx, "SDE failed opening jsonl file in zip",
 				"zip_path", file.Name,
 				"target", targetFile,
 				"error", err,
@@ -154,7 +154,7 @@ func downloadAndExtractJSONInMemory(ctx context.Context, specificFiles map[strin
 		data, err := io.ReadAll(rc)
 		_ = rc.Close()
 		if err != nil {
-			logs.Warn("SDE failed reading jsonl file in zip",
+			logs.WarnCtx(ctx, "SDE failed reading jsonl file in zip",
 				"zip_path", file.Name,
 				"target", targetFile,
 				"error", err,

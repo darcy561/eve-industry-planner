@@ -8,7 +8,7 @@ import (
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/api/migration"
 	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 )
 
 func ApplicationSettingsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
@@ -24,17 +24,20 @@ func ApplicationSettingsHandler(w http.ResponseWriter, r *http.Request, clients 
 }
 
 func ApplicationSettingsGetHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	start := time.Now()
+	start, ok := logs.RequestStartTime(r.Context())
+	if !ok {
+		start = time.Now()
+	}
 	accountID, err := auth.ExtractAccountID(r)
 	if err != nil {
-		logs.WarnCtx(r.Context(), "failed to extract accountID for migration application settings", "error", err, "ip", r.RemoteAddr)
+		logs.WarnCtx(r.Context(), "failed to extract accountID for migration application settings", "error", err)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	doc, err := migration.GetApplicationSettingsFromFirebase(r.Context(), accountID)
 	if err != nil {
-		logs.ErrorCtx(r.Context(), "failed to fetch application settings from firebase", "error", err, "account_id", accountID, "ip", r.RemoteAddr)
+		logs.ErrorCtx(r.Context(), "failed to fetch application settings from firebase", "error", err, "account_id", accountID)
 		http.Error(w, "Failed to retrieve application settings", http.StatusInternalServerError)
 		return
 	}
@@ -60,10 +63,13 @@ func ApplicationSettingsGetHandler(w http.ResponseWriter, r *http.Request, clien
 }
 
 func ApplicationSettingsPutHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	start := time.Now()
+	start, ok := logs.RequestStartTime(r.Context())
+	if !ok {
+		start = time.Now()
+	}
 	accountID, err := auth.ExtractAccountID(r)
 	if err != nil {
-		logs.WarnCtx(r.Context(), "failed to extract accountID for migration application settings POST", "error", err, "ip", r.RemoteAddr)
+		logs.WarnCtx(r.Context(), "failed to extract accountID for migration application settings POST", "error", err)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -76,7 +82,7 @@ func ApplicationSettingsPutHandler(w http.ResponseWriter, r *http.Request, clien
 	}
 
 	if err := migration.SaveApplicationSettingsToFirebase(r.Context(), accountID, doc); err != nil {
-		logs.ErrorCtx(r.Context(), "failed to save application settings to firebase", "error", err, "account_id", accountID, "ip", r.RemoteAddr)
+		logs.ErrorCtx(r.Context(), "failed to save application settings to firebase", "error", err, "account_id", accountID)
 		http.Error(w, "Failed to save application settings", http.StatusInternalServerError)
 		return
 	}

@@ -14,6 +14,17 @@ x-common-depends-on: &common-depends-on
   nats:
     condition: service_started
 
+# OTLP apps dial otel-collector:4317; without this they can start first and log connection refused / export timeouts until the collector listens.
+x-common-depends-on-otel: &common-depends-on-otel
+  mongo:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+  nats:
+    condition: service_started
+  otel-collector:
+    condition: service_started
+
 x-common-service-config: &common-service-config
   restart: unless-stopped
   env_file: [.env]
@@ -25,13 +36,18 @@ x-common-service-config: &common-service-config
 services:
   api:
     <<: *common-service-config
+    environment:
+      OTEL_SERVICE_NAME: api
+      DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
     image: ghcr.io/darcy561/eve-industry-planner-api:Public-latest
     deploy:
-      replicas: 2
+      replicas: 1
     depends_on:
       <<: *common-depends-on
       core:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
     labels:
       # Enable Traefik for this container
       - "traefik.enable=true"
@@ -65,6 +81,9 @@ services:
 
   websocket:
     <<: *common-service-config
+    environment:
+      OTEL_SERVICE_NAME: websocket
+      DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
     image: ghcr.io/darcy561/eve-industry-planner-websocket:Public-latest
     build:
       context: ./services
@@ -73,6 +92,8 @@ services:
       <<: *common-depends-on
       core:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
     deploy:
       replicas: 0
     labels:
@@ -95,9 +116,13 @@ services:
 
   worker:
     <<: *common-service-config
+    depends_on: *common-depends-on-otel
+    environment:
+      OTEL_SERVICE_NAME: worker
+      DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
     image: ghcr.io/darcy561/eve-industry-planner-worker:Public-latest
     deploy:
-      replicas: 2
+      replicas: 1
     volumes:
       - worker_data:/data
       - static_data_files:/static-data
@@ -105,6 +130,10 @@ services:
 
   core:
     <<: *common-service-config
+    depends_on: *common-depends-on-otel
+    environment:
+      OTEL_SERVICE_NAME: core
+      DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
     container_name: core
     image: ghcr.io/darcy561/eve-industry-planner-core:Public-latest
     healthcheck:
@@ -184,6 +213,13 @@ services:
       - "--accesslog.filepath=/var/log/traefik/access.log"
       - "--log.level=INFO"
       - "--log.filepath=/var/log/traefik/traefik.log"
+      # OpenTelemetry
+      - "--tracing=true"
+      - "--tracing.otlp=true"
+      - "--tracing.otlp.grpc=true"
+      - "--tracing.otlp.grpc.endpoint=otel-collector:4317"
+      - "--tracing.otlp.grpc.insecure=true"
+      - "--tracing.servicename=traefik"
     labels:
       # Enable Traefik
       - "traefik.enable=true"
@@ -214,6 +250,7 @@ services:
     command:
       - "--redis-addr=redis:6379"
       - "--redis-password=${REDIS_PASSWORD}"
+      - "--enable-metrics-exporter"
     depends_on:
       redis:
         condition: service_healthy
@@ -267,6 +304,121 @@ services:
     networks:
       - eip
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    networks:
+      - eip
+    dns: *common-dns
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      otel-collector:
+        condition: service_started
+      asynqmon:
+        condition: service_started
+
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    restart: unless-stopped
+    networks:
+      - eip
+    dns: *common-dns
+    command: -config.file=/etc/loki/config.yaml
+    volumes:
+      - loki_data:/loki
+      - ./observability/loki/config.yaml:/etc/loki/config.yaml:ro
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    restart: unless-stopped
+    networks:
+      - eip
+    dns: *common-dns
+    environment:
+      DOCKER_API_VERSION: "1.44"
+    command: -config.file=/etc/promtail/config.yaml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./observability/promtail/config.yaml:/etc/promtail/config.yaml:ro
+    depends_on:
+      loki:
+        condition: service_started
+
+  jaeger:
+    image: jaegertracing/jaeger:2.17.0
+    container_name: jaeger
+    restart: unless-stopped
+    networks:
+      - eip
+    dns: *common-dns
+    command: ["--config", "/etc/jaeger/config.yaml"]
+    volumes:
+      - ./observability/jaeger/config.yaml:/etc/jaeger/config.yaml:ro
+    ports:
+      - "10.8.0.1:16686:16686"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    restart: unless-stopped
+    networks:
+      - eip
+    dns: *common-dns
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./observability/otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
+    depends_on:
+      jaeger:
+        condition: service_started
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    networks:
+      - eip
+    dns: *common-dns
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://10.8.0.1:3030
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "10.8.0.1:3030:3000"
+    depends_on:
+      prometheus:
+        condition: service_started
+      loki:
+        condition: service_started
+      jaeger:
+        condition: service_started
+
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    networks:
+      - eip
+    dns: *common-dns
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --no-collector.kernel_hung
+    volumes:
+      - /:/host:ro
+
 volumes:
   mongo_data:
   redis_data:
@@ -276,6 +428,9 @@ volumes:
   worker_data:
   core_data:
   static_data_files:
+  prometheus_data:
+  loki_data:
+  grafana_data:
 
 networks:
   eip:

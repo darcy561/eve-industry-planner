@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper/auth"
-	"eve-industry-planner/shared/shared/logs"
-	"eve-industry-planner/shared/shared/metrics"
+	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
 var (
@@ -38,15 +38,26 @@ func InvalidateJWKSCache() {
 // This endpoint exposes the public key so end users can verify their tokens
 // Response is cached to reduce queries and computation
 func JWKSHandler(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	m := metrics.GetAPIAuthJWKS()
+	ctx := r.Context()
+	start, ok := logs.RequestStartTime(ctx)
+	if !ok {
+		start = time.Now()
+	}
+	m := apimetrics.GetAPIAuthJWKS()
+
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
+		logs.WarnCtx(ctx, "invalid method for JWKS endpoint")
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
 	// Load the private key first to get current key ID
 	// Loading priority: 1) Persistent file, 2) Environment variable, 3) Auto-generate new key
 	cachedKey, err := auth.GetOrLoadPrivateKey()
 	if err != nil {
-		m.Errors.WithLabelValues("key_load_error").Inc()
-		logs.ErrorCtx(r.Context(), "failed to load private key for JWKS", "error", err, "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("key_load_error").Inc(ctx)
+		logs.ErrorCtx(ctx, "failed to load private key for JWKS", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -69,8 +80,8 @@ func JWKSHandler(w http.ResponseWriter, r *http.Request) {
 
 			// Update metrics for not modified response
 			duration := time.Since(start)
-			m.Requests.Observe(duration.Seconds())
-			m.RequestsCount.Inc()
+			m.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
+			m.RequestsCount.Inc(ctx)
 			return
 		}
 
@@ -79,12 +90,14 @@ func JWKSHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "public, max-age=3600") // 1 hour
 		w.Header().Set("ETag", cachedETag)
 		w.WriteHeader(http.StatusOK)
-		w.Write(cachedJWKS)
+		if r.Method != http.MethodHead {
+			w.Write(cachedJWKS)
+		}
 
 		// Update metrics for cached response
 		duration := time.Since(start)
-		m.Requests.Observe(duration.Seconds())
-		m.RequestsCount.Inc()
+		m.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
+		m.RequestsCount.Inc(ctx)
 		return
 	}
 
@@ -92,8 +105,8 @@ func JWKSHandler(w http.ResponseWriter, r *http.Request) {
 	// Generate JWKS response
 	jwks, err := auth.GenerateRS256JWKS(cachedKey.Key, cachedKey.Kid)
 	if err != nil {
-		m.Errors.WithLabelValues("jwks_generation_error").Inc()
-		logs.ErrorCtx(r.Context(), "failed to generate JWKS", "error", err, "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("jwks_generation_error").Inc(ctx)
+		logs.ErrorCtx(ctx, "failed to generate JWKS", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -115,12 +128,14 @@ func JWKSHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=3600") // 1 hour
 	w.Header().Set("ETag", etag)
 	w.WriteHeader(http.StatusOK)
-	w.Write(jwks)
+	if r.Method != http.MethodHead {
+		w.Write(jwks)
+	}
 
 	// Update metrics
 	duration := time.Since(start)
-	m.Requests.Observe(duration.Seconds())
-	m.RequestsCount.Inc()
+	m.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
+	m.RequestsCount.Inc(ctx)
 }
 
 // min returns the minimum of two integers

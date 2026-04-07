@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 )
 
 const latestBuildURL = "https://developers.eveonline.com/static-data/tranquility/latest.jsonl"
@@ -45,7 +45,7 @@ func runSDEVersionCheckStage(ctx context.Context, dataDir string) (*sdeVersionCh
 	if err != nil {
 		if os.IsNotExist(err) {
 			hasCurrentVersion = false
-			logs.Debug("no local SDE version found; update required",
+			logs.DebugCtx(ctx, "no local SDE version found; update required",
 				"data_dir", dataDir,
 				"expected_file", filepath.Join(dataDir, "version.json"),
 			)
@@ -75,7 +75,7 @@ func runSDEVersionCheckStage(ctx context.Context, dataDir string) (*sdeVersionCh
 		result.NeedsUpdate = current.BuildNumber < latest.BuildNumber
 	}
 
-	logs.Debug("SDE version check completed",
+	logs.DebugCtx(ctx, "SDE version check completed",
 		"data_dir", result.DataDir,
 		"current_build", result.CurrentBuild,
 		"current_version", result.CurrentVersion,

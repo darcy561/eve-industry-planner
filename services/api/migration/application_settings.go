@@ -8,7 +8,7 @@ import (
 	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/firebaseadmin"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 	taskscore "eve-industry-planner/shared/tasks"
 
 	natslib "github.com/nats-io/nats.go"
@@ -58,7 +58,7 @@ func EnqueueMigrateUserDocumentToMongo(ctx context.Context, js jetstream.JetStre
 	payload := natscore.MigrateUserDocumentToMongoRequest{
 		AccountID: accountID,
 	}
-	if err := natscore.PublishTask(js, taskscore.MigrateUserDocumentToMongo.Subject, taskscore.MigrateUserDocumentToMongo.Name, payload, natsConn); err != nil {
+	if err := natscore.PublishTask(ctx, js, taskscore.MigrateUserDocumentToMongo.Subject, taskscore.MigrateUserDocumentToMongo.Name, payload, natsConn); err != nil {
 		logs.WarnCtx(ctx, "failed to enqueue migrate user document to mongo task", "account_id", accountID, "error", err)
 		return
 	}

@@ -1,11 +1,12 @@
 package nats
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -23,12 +24,13 @@ func AcknowledgeMessage(msg jetstream.Msg, reason string, deliveryCount uint64) 
 	if msg == nil {
 		return
 	}
+	bg := context.Background()
 
 	const maxAckAttempts = 3
 	var lastErr error
 	for attempt := 1; attempt <= maxAckAttempts; attempt++ {
 		if ackErr := msg.Ack(); ackErr == nil {
-			logs.Debug("message acknowledged", "reason", reason, "delivery_count", deliveryCount, "attempt", attempt)
+			logs.DebugCtx(bg, "message acknowledged", "reason", reason, "delivery_count", deliveryCount, "attempt", attempt)
 			return
 		} else {
 			lastErr = ackErr
@@ -36,7 +38,7 @@ func AcknowledgeMessage(msg jetstream.Msg, reason string, deliveryCount uint64) 
 
 		// If this is the last attempt, fall back to NACK
 		if attempt == maxAckAttempts {
-			logs.Warn("failed to ack message after all attempts, nacking",
+			logs.WarnCtx(bg, "failed to ack message after all attempts, nacking",
 				"error", lastErr,
 				"reason", reason,
 				"delivery_count", deliveryCount,
@@ -47,7 +49,7 @@ func AcknowledgeMessage(msg jetstream.Msg, reason string, deliveryCount uint64) 
 
 		// Exponential backoff: 100ms, 200ms, 400ms
 		backoffMs := 100 * (1 << (attempt - 1))
-		logs.Debug("ack attempt failed, retrying with backoff",
+		logs.DebugCtx(bg, "ack attempt failed, retrying with backoff",
 			"attempt", attempt,
 			"max_attempts", maxAckAttempts,
 			"backoff_ms", backoffMs,
@@ -151,15 +153,16 @@ func GetMessageMetadata(msg jetstream.Msg) (uint64, string) {
 // and terminates the message after a maximum number of deliveries.
 // Backoff schedule: 1s, 2s, 4s, 8s, ... capped at 60s.
 func NackMessage(msg jetstream.Msg) {
+	bg := context.Background()
 	const maxDeliveries = 5
 	deliveries := GetDeliveryCount(msg)
 	if deliveries >= maxDeliveries {
-		logs.Warn("nats message terminated after max deliveries", "deliveries", deliveries, "reason", "max_retries_exceeded")
+		logs.WarnCtx(bg, "nats message terminated after max deliveries", "deliveries", deliveries, "reason", "max_retries_exceeded")
 		_ = msg.Term()
 		return
 	}
 	delaySecs := min(1<<(deliveries-1), 60)
-	logs.Warn("nats message nak with backoff", "deliveries", deliveries, "delay_secs", delaySecs, "reason", "retry_with_backoff")
+	logs.WarnCtx(bg, "nats message nak with backoff", "deliveries", deliveries, "delay_secs", delaySecs, "reason", "retry_with_backoff")
 	_ = msg.NakWithDelay(time.Duration(delaySecs) * time.Second)
 }
 
@@ -173,12 +176,13 @@ func NackMessageWithDelay(msg jetstream.Msg, delay time.Duration) {
 	if msg == nil {
 		return
 	}
+	bg := context.Background()
 
 	const maxAttempts = 3
 	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		if nakErr := msg.NakWithDelay(delay); nakErr == nil {
-			logs.Debug("message nacked with delay", "delay", delay, "attempt", attempt)
+			logs.DebugCtx(bg, "message nacked with delay", "delay", delay, "attempt", attempt)
 			return
 		} else {
 			lastErr = nakErr
@@ -186,7 +190,7 @@ func NackMessageWithDelay(msg jetstream.Msg, delay time.Duration) {
 
 		// If this is the last attempt, fall back to standard NackMessage
 		if attempt == maxAttempts {
-			logs.Warn("failed to nack with delay after all attempts, falling back to standard nack",
+			logs.WarnCtx(bg, "failed to nack with delay after all attempts, falling back to standard nack",
 				"error", lastErr,
 				"requested_delay", delay,
 				"attempts", maxAttempts)
@@ -196,7 +200,7 @@ func NackMessageWithDelay(msg jetstream.Msg, delay time.Duration) {
 
 		// Exponential backoff: 100ms, 200ms, 400ms
 		backoffMs := 100 * (1 << (attempt - 1))
-		logs.Debug("nak with delay attempt failed, retrying with backoff",
+		logs.DebugCtx(bg, "nak with delay attempt failed, retrying with backoff",
 			"attempt", attempt,
 			"max_attempts", maxAttempts,
 			"backoff_ms", backoffMs,
@@ -216,6 +220,7 @@ func InProgressMessage(msg jetstream.Msg) {
 	if msg == nil {
 		return
 	}
+	bg := context.Background()
 
 	const maxAttempts = 3
 	var lastErr error
@@ -228,7 +233,7 @@ func InProgressMessage(msg jetstream.Msg) {
 
 		// If this is the last attempt, just log and return (don't block processing)
 		if attempt == maxAttempts {
-			logs.Debug("failed to send in-progress heartbeat after all attempts",
+			logs.DebugCtx(bg, "failed to send in-progress heartbeat after all attempts",
 				"error", lastErr,
 				"attempts", maxAttempts)
 			return
@@ -236,7 +241,7 @@ func InProgressMessage(msg jetstream.Msg) {
 
 		// Exponential backoff: 100ms, 200ms, 400ms
 		backoffMs := 100 * (1 << (attempt - 1))
-		logs.Debug("in-progress heartbeat attempt failed, retrying with backoff",
+		logs.DebugCtx(bg, "in-progress heartbeat attempt failed, retrying with backoff",
 			"attempt", attempt,
 			"max_attempts", maxAttempts,
 			"backoff_ms", backoffMs,

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -8,8 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"eve-industry-planner/shared/shared/logs"
-	"eve-industry-planner/shared/shared/metrics"
+	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/websocket/auth"
 
 	"github.com/gorilla/websocket"
@@ -18,10 +18,10 @@ import (
 // HandleWS handles WebSocket requests from clients
 func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	m := metrics.GetWebSocket()
+	reqCtx := r.Context()
 
 	// Log all connection attempts (even failed ones)
-	logs.Info("websocket connection attempt received",
+	logs.InfoCtx(reqCtx, "websocket connection attempt received",
 		"ip", r.RemoteAddr,
 		"method", r.Method,
 		"path", r.URL.Path,
@@ -34,7 +34,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 
 	// Try subprotocol first (new method - token in header)
 	subprotocols := websocket.Subprotocols(r)
-	logs.Debug("websocket connection attempt", "subprotocols", subprotocols, "ip", r.RemoteAddr)
+	logs.DebugCtx(reqCtx, "websocket connection attempt", "subprotocols", subprotocols, "ip", r.RemoteAddr)
 	for _, proto := range subprotocols {
 		if strings.HasPrefix(proto, "auth.") {
 			// Extract base64url-encoded token from subprotocol
@@ -46,10 +46,10 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 			if err == nil {
 				tokenString = string(decodedBytes)
 				acceptedSubprotocol = proto // Store the subprotocol to accept in response
-				logs.Debug("extracted token from subprotocol", "ip", r.RemoteAddr)
+				logs.DebugCtx(reqCtx, "extracted token from subprotocol", "ip", r.RemoteAddr)
 				break
 			} else {
-				logs.Warn("failed to decode token from subprotocol", "error", err, "ip", r.RemoteAddr)
+				logs.WarnCtx(reqCtx, "failed to decode token from subprotocol", "error", err, "ip", r.RemoteAddr)
 			}
 		}
 	}
@@ -58,15 +58,13 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	if tokenString == "" {
 		tokenString = r.URL.Query().Get("token")
 		if tokenString != "" {
-			logs.Debug("extracted token from query parameter (fallback)", "ip", r.RemoteAddr)
+			logs.DebugCtx(reqCtx, "extracted token from query parameter (fallback)", "ip", r.RemoteAddr)
 		}
 	}
 
 	if tokenString == "" {
 		duration := time.Since(start)
-		m.ConnectionErrors.WithLabelValues("missing_token").Inc()
-		metrics.LogWebSocketRequestMetrics("connection", duration, "missing_token", "ip", r.RemoteAddr)
-		logs.Warn("websocket connection rejected: missing token", "ip", r.RemoteAddr)
+		logs.WarnCtx(reqCtx, "websocket connection rejected: missing token", "ip", r.RemoteAddr, "duration_ms", duration.Milliseconds())
 		http.Error(w, "Unauthorized: missing token", http.StatusUnauthorized)
 		return
 	}
@@ -75,9 +73,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	claims, err := auth.ValidateInternalJWT(tokenString)
 	if err != nil {
 		duration := time.Since(start)
-		m.ConnectionErrors.WithLabelValues("invalid_token").Inc()
-		metrics.LogWebSocketRequestMetrics("connection", duration, "invalid_token", "error", err, "ip", r.RemoteAddr)
-		logs.Warn("websocket connection rejected: invalid token", "error", err, "ip", r.RemoteAddr)
+		logs.WarnCtx(reqCtx, "websocket connection rejected: invalid token", "error", err, "ip", r.RemoteAddr, "duration_ms", duration.Milliseconds())
 		http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
 		return
 	}
@@ -114,7 +110,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 			s.ClientsMu.Lock()
 			if clientToClose, exists := s.Clients[oldestClientID]; exists {
 				closeReason := "Connection limit exceeded - closing oldest connection"
-				logs.Warn("closing oldest connection to make room for new connection - multiple connections detected",
+				logs.WarnCtx(reqCtx, "closing oldest connection to make room for new connection - multiple connections detected",
 					"account_id", claims.AccountID,
 					"client_id", oldestClientID,
 					"current_connections", connCount,
@@ -128,7 +124,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 				if err := clientToClose.conn.WriteMessage(websocket.CloseMessage,
 					websocket.FormatCloseMessage(websocket.CloseNormalClosure, closeReason)); err != nil {
 					// If write fails, connection is likely already closed - that's fine
-					logs.Debug("failed to send close message to client (connection may already be closed)",
+					logs.DebugCtx(reqCtx, "failed to send close message to client (connection may already be closed)",
 						"client_id", oldestClientID,
 						"error", err)
 				}
@@ -149,7 +145,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		} else {
 			// Fallback: if we couldn't find any client to close, log and continue
 			// This shouldn't happen, but we allow the connection to proceed
-			logs.Warn("connection limit reached but could not find client to close",
+			logs.WarnCtx(reqCtx, "connection limit reached but could not find client to close",
 				"account_id", claims.AccountID,
 				"current_connections", connCount,
 				"ip", r.RemoteAddr)
@@ -161,26 +157,25 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	responseHeader := make(http.Header)
 	if acceptedSubprotocol != "" {
 		responseHeader.Set("Sec-WebSocket-Protocol", acceptedSubprotocol)
-		logs.Debug("accepting subprotocol in upgrade response", "subprotocol", acceptedSubprotocol, "ip", r.RemoteAddr)
+		logs.DebugCtx(reqCtx, "accepting subprotocol in upgrade response", "subprotocol", acceptedSubprotocol, "ip", r.RemoteAddr)
 	}
 
 	// Upgrade connection
 	conn, err := s.upgrader.Upgrade(w, r, responseHeader)
 	if err != nil {
 		duration := time.Since(start)
-		m.UpgradeErrors.Inc()
-		m.ConnectionErrors.WithLabelValues("upgrade_failed").Inc()
-		metrics.LogWebSocketRequestMetrics("connection", duration, "upgrade_failed", "error", err, "ip", r.RemoteAddr)
-		logs.Error("websocket upgrade failed", "error", err, "ip", r.RemoteAddr)
+		logs.ErrorCtx(reqCtx, "websocket upgrade failed", "error", err, "ip", r.RemoteAddr, "duration_ms", duration.Milliseconds())
 		http.Error(w, "upgrade failed", http.StatusInternalServerError)
 		return
 	}
 
 	clientID := fmt.Sprintf("%p", conn)
 	now := time.Now()
+	connCtx := context.WithoutCancel(reqCtx)
 	client := &Client{
 		id:             clientID,
 		conn:           conn,
+		connCtx:        connCtx,
 		Send:           make(chan []byte, 256),
 		subscribedDocs: make(map[string]bool),
 		AccountID:      claims.AccountID,
@@ -203,32 +198,23 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	userConnCount := len(s.userConnections[claims.AccountID])
 	s.userConnMu.Unlock()
 
-	// Update metrics
 	duration := time.Since(start)
-	m.Connections.Inc()
-	m.ActiveConnections.Set(float64(clientCount))
-	m.ConnectionsPerUser.Observe(float64(userConnCount))
-	m.ActiveConnectionsPerAccount.WithLabelValues(claims.AccountID).Set(float64(userConnCount))
-	metrics.LogWebSocketRequestMetrics("connection", duration, "success",
-		"client_id", client.id,
-		"account_id", claims.AccountID,
-		"total_clients", clientCount,
-		"user_connections", userConnCount,
-	)
 
-	logs.Info("about to log websocket client connected",
+	logs.InfoCtx(connCtx, "about to log websocket client connected",
 		"client_id", client.id,
 		"account_id", client.AccountID)
 
-	logs.Info("websocket client connected",
+	logs.InfoCtx(connCtx, "websocket client connected",
 		"client_id", client.id,
 		"character_hash", claims.CharacterHash,
 		"account_id", client.AccountID,
-		"total_clients", clientCount)
+		"total_clients", clientCount,
+		"user_connections", userConnCount,
+		"duration_ms", duration.Milliseconds())
 
 	// Verify connection is valid before starting goroutines
 	if client.conn == nil {
-		logs.Error("websocket connection is nil, cannot start goroutines",
+		logs.ErrorCtx(connCtx, "websocket connection is nil, cannot start goroutines",
 			"client_id", client.id,
 			"account_id", client.AccountID)
 		return
@@ -245,29 +231,29 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		// Send connection message with clientID (non-blocking, best effort)
 		select {
 		case client.Send <- connectionMsgBytes:
-			logs.Debug("sent clientID to client",
+			logs.DebugCtx(connCtx, "sent clientID to client",
 				"client_id", client.id,
 				"account_id", client.AccountID)
 		default:
-			logs.Warn("failed to send clientID to client (send buffer full)",
+			logs.WarnCtx(connCtx, "failed to send clientID to client (send buffer full)",
 				"client_id", client.id,
 				"account_id", client.AccountID)
 		}
 	} else {
-		logs.Warn("failed to marshal connection message",
+		logs.WarnCtx(connCtx, "failed to marshal connection message",
 			"client_id", client.id,
 			"account_id", client.AccountID,
 			"error", err)
 	}
 
 	// Start writer goroutine for sending messages and pings
-	logs.Info("starting websocket writer goroutine",
+	logs.InfoCtx(connCtx, "starting websocket writer goroutine",
 		"client_id", client.id,
 		"account_id", client.AccountID)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logs.Error("panic in writer goroutine startup",
+				logs.ErrorCtx(client.LogContext(), "panic in writer goroutine startup",
 					"client_id", client.id,
 					"account_id", client.AccountID,
 					"panic", r)
@@ -278,13 +264,13 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 
 	// Start reader goroutine (blocks until connection closes)
 	// This MUST be started or messages won't be received
-	logs.Info("starting websocket reader goroutine",
+	logs.InfoCtx(connCtx, "starting websocket reader goroutine",
 		"client_id", client.id,
 		"account_id", client.AccountID)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logs.Error("panic in reader goroutine startup",
+				logs.ErrorCtx(client.LogContext(), "panic in reader goroutine startup",
 					"client_id", client.id,
 					"account_id", client.AccountID,
 					"panic", r)
@@ -293,7 +279,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		s.reader(client)
 	}()
 
-	logs.Info("websocket handler completed, goroutines started",
+	logs.InfoCtx(connCtx, "websocket handler completed, goroutines started",
 		"client_id", client.id,
 		"account_id", client.AccountID)
 }

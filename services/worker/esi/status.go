@@ -13,7 +13,7 @@ import (
 
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 	rediscore "eve-industry-planner/shared/core/redis"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -63,7 +63,7 @@ type StatusResult struct {
 func tryRedisSharedStatusCache(ctx context.Context, redisClient *redis.Client) (bool, StatusResult) {
 	validUntil, err := rediscore.GetServerStatusValidUntil(ctx, redisClient)
 	if err != nil && err != redis.Nil {
-		logs.Debug("failed to read server status valid-until from redis", "error", err)
+		logs.DebugCtx(ctx,"failed to read server status valid-until from redis", "error", err)
 		return false, StatusResult{}
 	}
 	if validUntil == 0 {
@@ -98,7 +98,7 @@ func persistStatusValidUntil(ctx context.Context, redisClient *redis.Client, cac
 	}
 	until := time.Now().Add(cacheTTL).UnixMilli()
 	if err := rediscore.SaveServerStatusValidUntil(ctx, redisClient, until); err != nil {
-		logs.Warn("failed to save server status valid-until to redis", "error", err)
+		logs.WarnCtx(ctx,"failed to save server status valid-until to redis", "error", err)
 	}
 }
 
@@ -115,7 +115,7 @@ func CheckServerStatus(ctx context.Context, esiClient esiratelimiter.ClientInter
 			if secLeft < 0 {
 				secLeft = 0
 			}
-			logs.Debug("server status from shared Redis cache (no HTTP)",
+			logs.DebugCtx(ctx,"server status from shared Redis cache (no HTTP)",
 				"valid_until_ms", validUntil,
 				"seconds_left", secLeft)
 			return res
@@ -135,7 +135,7 @@ func CheckServerStatus(ctx context.Context, esiClient esiratelimiter.ClientInter
 		statusCheckCache.waiters = append(statusCheckCache.waiters, resultChan)
 		statusCheckCache.mu.Unlock()
 
-		logs.Debug("status check already in flight, waiting for result")
+		logs.DebugCtx(ctx,"status check already in flight, waiting for result")
 		// Wait for the result or context timeout
 		select {
 		case result := <-resultChan:
@@ -153,7 +153,7 @@ func CheckServerStatus(ctx context.Context, esiClient esiratelimiter.ClientInter
 	if timeSinceLastCheck < cacheTTL && statusCheckCache.result.Available {
 		result := statusCheckCache.result
 		statusCheckCache.mu.Unlock()
-		logs.Debug("returning cached status check result", "age_seconds", int(timeSinceLastCheck.Seconds()), "ttl_seconds", int(cacheTTL.Seconds()))
+		logs.DebugCtx(ctx,"returning cached status check result", "age_seconds", int(timeSinceLastCheck.Seconds()), "ttl_seconds", int(cacheTTL.Seconds()))
 		return result
 	}
 
@@ -170,7 +170,7 @@ func CheckServerStatus(ctx context.Context, esiClient esiratelimiter.ClientInter
 	defer func() {
 		// Recover from panic to ensure cleanup always happens
 		if r := recover(); r != nil {
-			logs.Error("panic in status check, cleaning up", "panic", r)
+			logs.ErrorCtx(ctx,"panic in status check, cleaning up", "panic", r)
 			statusResult = StatusResult{Error: fmt.Errorf("panic in status check: %v", r)}
 		}
 
@@ -252,7 +252,7 @@ func checkServerStatusInternal(ctx context.Context, esiClient esiratelimiter.Cli
 	prevETag, err := rediscore.GetServerStatusETag(ctx, redisClient)
 	if err != nil && err != redis.Nil {
 		// Log but don't fail - we can still make the request without ETag
-		logs.Debug("failed to retrieve cached ETag, proceeding without it", "error", err)
+		logs.DebugCtx(ctx,"failed to retrieve cached ETag, proceeding without it", "error", err)
 	}
 
 	// Prepare headers with ETag if available
@@ -265,7 +265,7 @@ func checkServerStatusInternal(ctx context.Context, esiClient esiratelimiter.Cli
 	}
 
 	path := "/v1/status/"
-	logs.Debug("checking ESI server status", "path", path, "etag_provided", prevETag != "")
+	logs.DebugCtx(ctx,"checking ESI server status", "path", path, "etag_provided", prevETag != "")
 
 	// Make rate-limited request
 	groupDesignation := esiratelimiter.GroupDesignation{
@@ -279,7 +279,7 @@ func checkServerStatusInternal(ctx context.Context, esiClient esiratelimiter.Cli
 	// Handle rate limit errors
 	if esiratelimiter.IsRateLimitError(err) {
 		rateLimitErr := esiratelimiter.GetRateLimitError(err)
-		logs.Info("rate limit error during status check",
+		logs.InfoCtx(ctx,"rate limit error during status check",
 			"retryable", rateLimitErr.Retryable,
 			"retry_after", rateLimitErr.RetryAfter,
 			"reason", rateLimitErr.Reason,
@@ -290,7 +290,7 @@ func checkServerStatusInternal(ctx context.Context, esiClient esiratelimiter.Cli
 
 	// Handle other errors
 	if err != nil {
-		logs.Error("failed to check server status", "error", err, "path", path)
+		logs.ErrorCtx(ctx,"failed to check server status", "error", err, "path", path)
 		result.Error = err
 		return result, statusCacheTTLFallback
 	}
@@ -338,7 +338,7 @@ func checkServerStatusInternal(ctx context.Context, esiClient esiratelimiter.Cli
 			errorBody = errorBody[:200] + "..."
 		}
 		err := fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, errorBody)
-		logs.Error("server status check returned non-200 status", "status", resp.StatusCode, "body", errorBody)
+		logs.ErrorCtx(ctx,"server status check returned non-200 status", "status", resp.StatusCode, "body", errorBody)
 		result.Error = err
 		return result, statusCacheTTLFallback
 	}
@@ -346,7 +346,7 @@ func checkServerStatusInternal(ctx context.Context, esiClient esiratelimiter.Cli
 	// Parse successful response (200 OK)
 	var status ServerStatusResponse
 	if err := json.Unmarshal(body, &status); err != nil {
-		logs.Error("failed to parse server status response", "error", err, "body_length", len(body))
+		logs.ErrorCtx(ctx,"failed to parse server status response", "error", err, "body_length", len(body))
 		result.Error = fmt.Errorf("failed to unmarshal status response: %w", err)
 		return result, statusCacheTTLFallback
 	}
@@ -354,21 +354,21 @@ func checkServerStatusInternal(ctx context.Context, esiClient esiratelimiter.Cli
 	// Save to Redis
 	now := time.Now().UnixMilli()
 	if err := rediscore.SaveServerStatus(ctx, redisClient, &status); err != nil {
-		logs.Warn("failed to save server status to Redis", "error", err)
+		logs.WarnCtx(ctx,"failed to save server status to Redis", "error", err)
 		// Don't fail - status check is successful even if cache save fails
 	}
 
 	if err := rediscore.SaveServerStatusETag(ctx, redisClient, newETag); err != nil {
-		logs.Warn("failed to save server status ETag to Redis", "error", err)
+		logs.WarnCtx(ctx,"failed to save server status ETag to Redis", "error", err)
 		// Don't fail - status check is successful even if cache save fails
 	}
 
 	if err := rediscore.SaveServerStatusLastUpdated(ctx, redisClient, now); err != nil {
-		logs.Warn("failed to save server status last updated to Redis", "error", err)
+		logs.WarnCtx(ctx,"failed to save server status last updated to Redis", "error", err)
 		// Don't fail - status check is successful even if cache save fails
 	}
 
-	logs.Debug("server status check successful",
+	logs.DebugCtx(ctx,"server status check successful",
 		"players", status.Players,
 		"server_version", status.ServerVersion,
 		"start_time", status.StartTime,

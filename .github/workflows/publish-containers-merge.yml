@@ -259,6 +259,18 @@ jobs:
                           echo "SENTRY_PROJECT_ID=${{ vars.SENTRY_PROJECT_ID }}"
                           echo "SENTRY_DSN=${{ vars.SENTRY_DSN }}"
                           echo "SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}"
+                      else
+                          # Go services (api, websocket, worker, core): bake Sentry via Dockerfile ARG + go -ldflags -X
+                          # (shared/telemetry). Same DSN / branch→ENVIRONMENT convention as the SPA.
+                          if [ "${{ steps.branch-info.outputs.branch }}" == "migration" ]; then
+                              ENVIRONMENT="development"
+                          else
+                              ENVIRONMENT="production"
+                          fi
+                          echo "ENVIRONMENT=${ENVIRONMENT}"
+                          echo "SENTRY_DSN=${{ vars.SENTRY_DSN }}"
+                          echo "APP_VERSION=${{ steps.version.outputs.version }}"
+                          echo "SENTRY_TRACES_SAMPLE_RATE=1.0"
                       fi
                       
                       # API service needs FEEDBACK_DISCORD_WEBHOOK_URL from GitHub variable

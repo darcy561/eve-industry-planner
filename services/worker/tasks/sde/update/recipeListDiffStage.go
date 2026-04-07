@@ -13,7 +13,7 @@ import (
 	natscore "eve-industry-planner/shared/core/nats"
 	rediscore "eve-industry-planner/shared/core/redis"
 	sdecore "eve-industry-planner/shared/core/sde"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 	taskscore "eve-industry-planner/shared/tasks"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 	"eve-industry-planner/worker/tasks/sde/update/conversion"
@@ -29,7 +29,7 @@ type recipeListDiffItem struct {
 func runSDENewRecipeItemsStage(ctx context.Context, persistResult *sdePersistResult, deps *esitasks.TaskDependencies) error {
 	if persistResult == nil {
 		// Placeholder for "no previous version" behavior (e.g. first-run warmup checks).
-		logs.Debug("SDE recipeList diff skipped (persist result was nil)")
+		logs.DebugCtx(ctx, "SDE recipeList diff skipped (persist result was nil)")
 		return nil
 	}
 
@@ -82,7 +82,7 @@ func runSDENewRecipeItemsStage(ctx context.Context, persistResult *sdePersistRes
 
 	slices.SortFunc(newItems, func(a, b recipeListDiffItem) int { return a.ItemID - b.ItemID })
 
-	logs.Info("SDE recipeList diff complete",
+	logs.InfoCtx(ctx, "SDE recipeList diff complete",
 		"previous_count", len(prevRecipes),
 		"current_count", len(newRecipes),
 		"new_items_count", len(newItems),
@@ -98,7 +98,7 @@ func runSDENewRecipeItemsStage(ctx context.Context, persistResult *sdePersistRes
 		itemIDs = append(itemIDs, newItems[i].ItemID)
 	}
 	if len(newItems) > 0 {
-		logs.Info("SDE recipeList new item IDs (sample)",
+		logs.InfoCtx(ctx, "SDE recipeList new item IDs (sample)",
 			"sample_count", len(itemIDs),
 			"sample_item_ids", itemIDs,
 			"total_new_items", len(newItems),
@@ -123,7 +123,7 @@ func runSDENewRecipeItemsStage(ctx context.Context, persistResult *sdePersistRes
 
 	if deps == nil || deps.Redis == nil || deps.JetStream == nil || deps.NATS == nil {
 		// Keep the diff stage working even without Redis/NATS (e.g. file-generation integration tests).
-		logs.Info("SDE market price refresh skip: missing deps",
+		logs.InfoCtx(ctx, "SDE market price refresh skip: missing deps",
 			"new_items_count", len(newItems),
 			"type_ids_extracted", len(typeIDs),
 			"reprocessing_type_ids_added", reprocessingAdded,
@@ -143,7 +143,7 @@ func runSDENewRecipeItemsStage(ctx context.Context, persistResult *sdePersistRes
 		}
 	}
 
-	logs.Info("SDE market price missing detection",
+	logs.InfoCtx(ctx, "SDE market price missing detection",
 		"new_items_count", len(newItems),
 		"type_ids_extracted", len(typeIDs),
 		"reprocessing_type_ids_added", reprocessingAdded,
@@ -166,8 +166,8 @@ func runSDENewRecipeItemsStage(ctx context.Context, persistResult *sdePersistRes
 				LocationID: location.RegionID,
 				StationID:  location.StationID,
 			}
-			if err := natscore.PublishTask(deps.JetStream, task.Subject, task.Name, request, deps.NATS); err != nil {
-				logs.Warn("SDE failed publishing fetchMissingMarketPrices task",
+			if err := natscore.PublishTask(ctx, deps.JetStream, task.Subject, task.Name, request, deps.NATS); err != nil {
+				logs.WarnCtx(ctx, "SDE failed publishing fetchMissingMarketPrices task",
 					"type_id", typeID,
 					"location_id", location.RegionID,
 					"error", err,
@@ -178,7 +178,7 @@ func runSDENewRecipeItemsStage(ctx context.Context, persistResult *sdePersistRes
 		}
 	}
 
-	logs.Info("SDE published missing market price refresh tasks",
+	logs.InfoCtx(ctx, "SDE published missing market price refresh tasks",
 		"type_ids_missing", len(missingTypeIDs),
 		"tasks_published", published,
 	)

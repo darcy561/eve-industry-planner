@@ -1,11 +1,11 @@
 package sync
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
-	"eve-industry-planner/shared/shared/logs"
-	"eve-industry-planner/shared/shared/metrics"
+	"eve-industry-planner/shared/logs"
 )
 
 // ClientSyncMessage represents a sync message from the client
@@ -18,7 +18,7 @@ type ClientSyncMessage struct {
 
 // ParseSyncMessage parses a sync message from client bytes
 // Returns SyncMessage with ClientID filled in, or error if parsing fails
-func ParseSyncMessage(clientID string, accountID string, msgBytes []byte) (*SyncMessage, error) {
+func ParseSyncMessage(ctx context.Context, clientID string, accountID string, msgBytes []byte) (*SyncMessage, error) {
 	var clientMsg ClientSyncMessage
 	if err := json.Unmarshal(msgBytes, &clientMsg); err != nil {
 		return nil, fmt.Errorf("failed to parse sync message JSON: %w", err)
@@ -54,7 +54,7 @@ func ParseSyncMessage(clientID string, accountID string, msgBytes []byte) (*Sync
 		Subscriptions: clientMsg.Subscriptions,
 	}
 
-	logs.Debug("parsed sync message",
+	logs.DebugCtx(ctx, "parsed sync message",
 		"client_id", clientID,
 		"account_id", clientMsg.AccountID,
 		"type", clientMsg.Type,
@@ -145,15 +145,12 @@ func FormatSyncData(accountID string, userDoc map[string]interface{}, collection
 	return json.Marshal(msg)
 }
 
-// HandleSyncMessage parses and enqueues a sync message, handling all error cases and metrics
-// This centralizes all sync message handling logic including parsing, enqueueing, metrics, and error handling
-func HandleSyncMessage(s SyncServer, clientID string, accountID string, msgBytes []byte) {
-	m := metrics.GetWebSocket()
-
+// HandleSyncMessage parses and enqueues a sync message, handling all error cases.
+func HandleSyncMessage(ctx context.Context, s SyncServer, clientID string, accountID string, msgBytes []byte) {
 	// Parse the sync message
-	syncMsg, err := ParseSyncMessage(clientID, accountID, msgBytes)
+	syncMsg, err := ParseSyncMessage(ctx, clientID, accountID, msgBytes)
 	if err != nil {
-		logs.Warn("failed to parse sync message",
+		logs.WarnCtx(ctx, "failed to parse sync message",
 			"client_id", clientID,
 			"account_id", accountID,
 			"error", err)
@@ -161,15 +158,13 @@ func HandleSyncMessage(s SyncServer, clientID string, accountID string, msgBytes
 	}
 
 	if syncMsg == nil {
-		logs.Warn("parsed sync message is nil",
+		logs.WarnCtx(ctx, "parsed sync message is nil",
 			"client_id", clientID,
 			"account_id", accountID)
 		return
 	}
 
-	// Update metrics for successful parse
-	m.MessagesSync.Inc()
-	logs.Info("sync message received",
+	logs.InfoCtx(ctx, "sync message received",
 		"client_id", clientID,
 		"account_id", accountID,
 		"sync_type", syncMsg.Type,
@@ -177,17 +172,13 @@ func HandleSyncMessage(s SyncServer, clientID string, accountID string, msgBytes
 		"message_account_id", syncMsg.AccountID)
 
 	// Enqueue the sync message
-	if err := EnqueueSyncMessage(s, clientID, *syncMsg); err != nil {
-		m.Errors.WithLabelValues("sync_enqueue_error").Inc()
-		metrics.LogWebSocketRequestMetrics("sync_enqueue", 0, "error",
-			"client_id", clientID,
-			"error", err)
-		logs.Warn("failed to enqueue sync message",
+	if err := EnqueueSyncMessage(ctx, s, clientID, *syncMsg); err != nil {
+		logs.WarnCtx(ctx, "failed to enqueue sync message",
 			"client_id", clientID,
 			"account_id", accountID,
 			"error", err)
 	} else {
-		logs.Debug("sync message enqueued successfully",
+		logs.DebugCtx(ctx, "sync message enqueued successfully",
 			"client_id", clientID,
 			"account_id", accountID)
 	}

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -68,6 +68,13 @@ drainComplete:
 		}
 	}
 
+	logCtx := context.Background()
+	if len(subscribeMessages) > 0 {
+		logCtx = s.clientLogCtx(subscribeMessages[0].ClientID)
+	} else if len(dbMessages) > 0 {
+		logCtx = s.clientLogCtx(dbMessages[0].ClientID)
+	}
+
 	// Process subscribe messages - ensure client is subscribed to document
 	for _, subscribeMsg := range subscribeMessages {
 		s.handleSubscribeRequest(subscribeMsg.ClientID, docID)
@@ -81,7 +88,7 @@ drainComplete:
 	// If only subscribe messages, we're done
 	if len(dbMessages) == 0 {
 		if len(subscribeMessages) > 0 {
-			logs.Debug("processed subscribe requests",
+			logs.DebugCtx(logCtx, "processed subscribe requests",
 				"doc_id", docID,
 				"count", len(subscribeMessages))
 		}
@@ -96,14 +103,14 @@ drainComplete:
 		if parsed[i].valid && parsed[i].action == "DELETE" {
 			// Found first DELETE - process it and discard all other messages
 			if err := s.processParsedMessageToDatabase(parsed[i]); err != nil {
-				logs.Error("failed to process delete event",
+				logs.ErrorCtx(logCtx, "failed to process delete event",
 					"doc_id", docID,
 					"client_id", parsed[i].clientID,
 					"error", err)
 				return err
 			}
 
-			logs.Info("processed delete event (terminal)",
+			logs.InfoCtx(logCtx, "processed delete event (terminal)",
 				"doc_id", docID,
 				"received", len(dbMessages),
 				"discarded", len(dbMessages)-1)
@@ -116,7 +123,7 @@ drainComplete:
 	messagesToProcess := s.deduplicateParsedMessages(parsed)
 	if len(messagesToProcess) == 0 {
 		// All messages were invalid (couldn't parse)
-		logs.Debug("all messages invalid, skipping",
+		logs.DebugCtx(logCtx, "all messages invalid, skipping",
 			"doc_id", docID,
 			"received", len(dbMessages))
 		return nil
@@ -126,7 +133,7 @@ drainComplete:
 	processed := 0
 	for _, parsedMsg := range messagesToProcess {
 		if err := s.processParsedMessageToDatabase(parsedMsg); err != nil {
-			logs.Error("failed to process event to database",
+			logs.ErrorCtx(logCtx, "failed to process event to database",
 				"doc_id", docID,
 				"client_id", parsedMsg.clientID,
 				"error", err)
@@ -139,7 +146,7 @@ drainComplete:
 	// Log with deduplication metrics (INFO level for visibility)
 	totalReceived := len(messages)
 	if totalReceived > 1 {
-		logs.Info("processed incoming queue",
+		logs.InfoCtx(logCtx, "processed incoming queue",
 			"doc_id", docID,
 			"received", totalReceived,
 			"subscribe_requests", len(subscribeMessages),
@@ -147,7 +154,7 @@ drainComplete:
 			"processed", processed,
 			"deduplicated", len(dbMessages)-processed)
 	} else {
-		logs.Debug("processed incoming queue",
+		logs.DebugCtx(logCtx, "processed incoming queue",
 			"doc_id", docID,
 			"received", totalReceived,
 			"subscribe_requests", len(subscribeMessages),
@@ -161,6 +168,7 @@ drainComplete:
 // processOutgoingQueue processes events from an outgoing queue (NATS → clients)
 // This is executed by pond workers in the outgoing pool
 func (s *Server) processOutgoingQueue(docID string) error {
+	outCtx := context.Background()
 	// Get queue with read lock
 	s.outgoingMu.RLock()
 	queue, exists := s.outgoingQueues[docID]
@@ -184,7 +192,7 @@ func (s *Server) processOutgoingQueue(docID string) error {
 			// Parse message once to extract all needed fields
 			var msgData map[string]interface{}
 			if err := json.Unmarshal(event.Msg, &msgData); err != nil {
-				logs.Warn("failed to parse change stream message",
+				logs.WarnCtx(outCtx, "failed to parse change stream message",
 					"doc_id", docID,
 					"error", err)
 				queue.lastUse = time.Now()
@@ -204,7 +212,7 @@ func (s *Server) processOutgoingQueue(docID string) error {
 					// Subscribe all clients to the document for future updates
 					s.SubscribeClientToDocument(accountID, docID)
 				} else {
-					logs.Warn("INSERT message missing accountID",
+					logs.WarnCtx(outCtx, "INSERT message missing accountID",
 						"doc_id", docID)
 				}
 			} else {
@@ -218,7 +226,7 @@ func (s *Server) processOutgoingQueue(docID string) error {
 		default:
 			// No more ready messages
 			if processed > 0 {
-				logs.Debug("processed outgoing queue",
+				logs.DebugCtx(outCtx, "processed outgoing queue",
 					"doc_id", docID,
 					"count", processed)
 			}
@@ -275,8 +283,9 @@ func (s *Server) deduplicateParsedMessages(parsed []parsedMessage) []parsedMessa
 // processParsedMessageToDatabase processes a parsed message to the database
 // Uses already-parsed MessageFormat to avoid re-parsing JSON
 func (s *Server) processParsedMessageToDatabase(parsed parsedMessage) error {
+	lc := s.clientLogCtx(parsed.event.ClientID)
 	if s.ServiceClients == nil || s.ServiceClients.Mongo == nil {
-		logs.Warn("MongoDB not available, skipping database write",
+		logs.WarnCtx(lc, "MongoDB not available, skipping database write",
 			"doc_id", parsed.event.DocID)
 		return nil
 	}
@@ -299,7 +308,7 @@ func (s *Server) processParsedMessageToDatabase(parsed parsedMessage) error {
 		case int:
 			docID = fmt.Sprintf("%d", v)
 		default:
-			logs.Warn("unexpected documentid type, using reader-extracted docID",
+			logs.WarnCtx(lc, "unexpected documentid type, using reader-extracted docID",
 				"documentid", msgFormat.DocumentID,
 				"type", fmt.Sprintf("%T", msgFormat.DocumentID))
 		}
@@ -318,7 +327,7 @@ func (s *Server) processParsedMessageToDatabase(parsed parsedMessage) error {
 	case "DELETE":
 		return s.handleDelete(collection, docID, event.ClientID)
 	default:
-		logs.Warn("unknown action, defaulting to ADD",
+		logs.WarnCtx(lc, "unknown action, defaulting to ADD",
 			"doc_id", docID,
 			"action", msgFormat.Action)
 		return s.handleAdd(collection, docID, event.ClientID, msgFormat.Data)
@@ -329,8 +338,9 @@ func (s *Server) processParsedMessageToDatabase(parsed parsedMessage) error {
 // Message format: { "documentid": "...", "action": "ADD|UPDATE|DELETE", "data": {...} }
 // This is used when we need to process an Event that hasn't been parsed yet
 func (s *Server) processEventToDatabase(event Event) error {
+	lc := s.clientLogCtx(event.ClientID)
 	if s.ServiceClients == nil || s.ServiceClients.Mongo == nil {
-		logs.Warn("MongoDB not available, skipping database write",
+		logs.WarnCtx(lc, "MongoDB not available, skipping database write",
 			"doc_id", event.DocID)
 		return nil
 	}
@@ -344,7 +354,7 @@ func (s *Server) processEventToDatabase(event Event) error {
 	docIDBytes := []byte(event.DocID)
 	if len(messageData) > len(docIDBytes) && string(messageData[:len(docIDBytes)]) == event.DocID && messageData[len(docIDBytes)] == ' ' {
 		messageData = messageData[len(docIDBytes)+1:]
-		logs.Debug("extracted JSON from message",
+		logs.DebugCtx(lc, "extracted JSON from message",
 			"doc_id", event.DocID,
 			"json_length", len(messageData))
 	}
@@ -356,7 +366,7 @@ func (s *Server) processEventToDatabase(event Event) error {
 		if len(messageData) < previewLen {
 			previewLen = len(messageData)
 		}
-		logs.Warn("failed to parse message as JSON",
+		logs.WarnCtx(lc, "failed to parse message as JSON",
 			"doc_id", event.DocID,
 			"error", err,
 			"message_preview", string(messageData[:previewLen]))
@@ -374,7 +384,7 @@ func (s *Server) processEventToDatabase(event Event) error {
 		case int:
 			docID = fmt.Sprintf("%d", v)
 		default:
-			logs.Warn("unexpected documentid type, using reader-extracted docID",
+			logs.WarnCtx(lc, "unexpected documentid type, using reader-extracted docID",
 				"documentid", msgFormat.DocumentID,
 				"type", fmt.Sprintf("%T", msgFormat.DocumentID))
 		}
@@ -393,7 +403,7 @@ func (s *Server) processEventToDatabase(event Event) error {
 	case "DELETE":
 		return s.handleDelete(collection, docID, event.ClientID)
 	default:
-		logs.Warn("unknown action, defaulting to ADD",
+		logs.WarnCtx(lc, "unknown action, defaulting to ADD",
 			"doc_id", docID,
 			"action", msgFormat.Action)
 		return s.handleAdd(collection, docID, event.ClientID, msgFormat.Data)
@@ -452,7 +462,7 @@ func (s *Server) handleAdd(collection *mongo.Collection, docID, clientID string,
 	if err != nil {
 		return fmt.Errorf("failed to add document: %w", err)
 	}
-	logs.Debug("document added",
+	logs.DebugCtx(ctx, "document added",
 		"doc_id", docID)
 	return nil
 }
@@ -515,11 +525,11 @@ func (s *Server) handleUpdate(collection *mongo.Collection, docID, clientID stri
 	// Note: In real-world scenarios, clients should only UPDATE documents they know exist
 	// But for testing, upsert allows UPDATE to work on new documents
 	if result.MatchedCount == 0 && result.UpsertedCount == 0 {
-		logs.Warn("update attempted on non-existent document (unexpected)",
+		logs.WarnCtx(ctx, "update attempted on non-existent document (unexpected)",
 			"doc_id", docID)
 		return fmt.Errorf("document not found: %s", docID)
 	}
-	logs.Debug("document updated",
+	logs.DebugCtx(ctx, "document updated",
 		"doc_id", docID)
 	return nil
 }
@@ -557,7 +567,7 @@ func (s *Server) handleDelete(collection *mongo.Collection, docID, clientID stri
 		return err
 	})
 	if err != nil {
-		logs.Warn("failed to add metadata before delete, proceeding with delete anyway",
+		logs.WarnCtx(ctx, "failed to add metadata before delete, proceeding with delete anyway",
 			"doc_id", docID,
 			"error", err)
 	}
@@ -576,11 +586,11 @@ func (s *Server) handleDelete(collection *mongo.Collection, docID, clientID stri
 		return fmt.Errorf("failed to delete document: %w", err)
 	}
 	if result.DeletedCount == 0 {
-		logs.Warn("delete attempted on non-existent document",
+		logs.WarnCtx(ctx, "delete attempted on non-existent document",
 			"doc_id", docID)
 		return fmt.Errorf("document not found: %s", docID)
 	}
-	logs.Debug("document deleted",
+	logs.DebugCtx(ctx, "document deleted",
 		"doc_id", docID)
 	return nil
 }
@@ -590,10 +600,11 @@ func (s *Server) handleDelete(collection *mongo.Collection, docID, clientID stri
 // docID is the collection-scoped document ID (e.g., "users.account123" or "jobs.job456")
 // Extracts accountID and sourceClientID from the message data
 func (s *Server) broadcastToAccountClients(docID string, messageData []byte) {
+	bcCtx := context.Background()
 	// Extract accountID and sourceClientID from message
 	var msgData map[string]interface{}
 	if err := json.Unmarshal(messageData, &msgData); err != nil {
-		logs.Warn("failed to parse message for account broadcast",
+		logs.WarnCtx(bcCtx, "failed to parse message for account broadcast",
 			"doc_id", docID,
 			"error", err)
 		return
@@ -601,7 +612,7 @@ func (s *Server) broadcastToAccountClients(docID string, messageData []byte) {
 
 	accountID, _ := msgData["accountID"].(string)
 	if accountID == "" {
-		logs.Warn("message missing accountID for account broadcast",
+		logs.WarnCtx(bcCtx, "message missing accountID for account broadcast",
 			"doc_id", docID)
 		return
 	}
@@ -612,7 +623,7 @@ func (s *Server) broadcastToAccountClients(docID string, messageData []byte) {
 	clientIDs, hasConnections := s.userConnections[accountID]
 	if !hasConnections {
 		s.userConnMu.RUnlock()
-		logs.Debug("no clients connected for account",
+		logs.DebugCtx(bcCtx, "no clients connected for account",
 			"account_id", accountID)
 		return
 	}
@@ -641,7 +652,7 @@ func (s *Server) broadcastToAccountClients(docID string, messageData []byte) {
 
 		// Verify client belongs to this account (safety check)
 		if client.AccountID != accountID {
-			logs.Warn("client accountID mismatch",
+			logs.WarnCtx(client.LogContext(), "client accountID mismatch",
 				"client_id", clientID,
 				"expected_account_id", accountID,
 				"client_account_id", client.AccountID)
@@ -661,7 +672,7 @@ func (s *Server) broadcastToAccountClients(docID string, messageData []byte) {
 		case client.Send <- messageData:
 			broadcastCount++
 		default:
-			logs.Warn("client send buffer full, dropping message",
+			logs.WarnCtx(client.LogContext(), "client send buffer full, dropping message",
 				"client_id", clientID,
 				"account_id", accountID)
 		}
@@ -669,7 +680,7 @@ func (s *Server) broadcastToAccountClients(docID string, messageData []byte) {
 	s.ClientsMu.RUnlock()
 
 	if broadcastCount > 0 {
-		logs.Debug("message broadcasted to account clients",
+		logs.DebugCtx(bcCtx, "message broadcasted to account clients",
 			"account_id", accountID,
 			"doc_id", docID,
 			"recipients", broadcastCount,
@@ -681,6 +692,7 @@ func (s *Server) broadcastToAccountClients(docID string, messageData []byte) {
 // broadcastToSubscribers broadcasts a message to all clients subscribed to a document
 // Extracts sourceClientID from the message data to exclude the originating client
 func (s *Server) broadcastToSubscribers(docID string, messageData []byte) {
+	bsCtx := context.Background()
 	// Extract sourceClientID from message
 	var msgData map[string]interface{}
 	sourceClientID := ""
@@ -735,7 +747,7 @@ func (s *Server) broadcastToSubscribers(docID string, messageData []byte) {
 		case client.Send <- messageData:
 			broadcastCount++
 		default:
-			logs.Warn("client send buffer full, dropping message",
+			logs.WarnCtx(client.LogContext(), "client send buffer full, dropping message",
 				"client_id", clientID,
 				"doc_id", docID)
 		}
@@ -748,7 +760,7 @@ func (s *Server) broadcastToSubscribers(docID string, messageData []byte) {
 	}
 
 	if broadcastCount > 0 {
-		logs.Debug("message broadcasted",
+		logs.DebugCtx(bsCtx, "message broadcasted",
 			"doc_id", docID,
 			"recipients", broadcastCount)
 	}
@@ -776,12 +788,13 @@ func (s *Server) cleanupStaleSubscriptions(docID string, subscriberIDs []string)
 // handleSubscribeRequest handles a subscribe request from a client
 // This ensures the client is subscribed to receive updates for the document
 func (s *Server) handleSubscribeRequest(clientID string, docID string) {
+	subCtx := s.clientLogCtx(clientID)
 	// Get client to verify it exists and get accountID
 	s.ClientsMu.Lock()
 	client, exists := s.Clients[clientID]
 	if !exists {
 		s.ClientsMu.Unlock()
-		logs.Debug("client not found for subscribe request",
+		logs.DebugCtx(subCtx, "client not found for subscribe request",
 			"client_id", clientID,
 			"doc_id", docID)
 		return
@@ -807,7 +820,7 @@ func (s *Server) handleSubscribeRequest(clientID string, docID string) {
 	s.activeSubscriptions[clientID][docID] = time.Now()
 	s.activeSubsMu.Unlock()
 
-	logs.Debug("processed subscribe request",
+	logs.DebugCtx(client.LogContext(), "processed subscribe request",
 		"client_id", clientID,
 		"account_id", accountID,
 		"doc_id", docID)
@@ -816,12 +829,13 @@ func (s *Server) handleSubscribeRequest(clientID string, docID string) {
 // handleUnsubscribeRequest handles an unsubscribe request from a client
 // This ensures the client is unsubscribed from receiving updates for the document
 func (s *Server) handleUnsubscribeRequest(clientID string, docID string) {
+	unsubCtx := s.clientLogCtx(clientID)
 	// Get client to verify it exists and get accountID
 	s.ClientsMu.Lock()
 	client, exists := s.Clients[clientID]
 	if !exists {
 		s.ClientsMu.Unlock()
-		logs.Debug("client not found for unsubscribe request",
+		logs.DebugCtx(unsubCtx, "client not found for unsubscribe request",
 			"client_id", clientID,
 			"doc_id", docID)
 		return
@@ -849,7 +863,7 @@ func (s *Server) handleUnsubscribeRequest(clientID string, docID string) {
 	}
 	s.activeSubsMu.Unlock()
 
-	logs.Debug("processed unsubscribe request",
+	logs.DebugCtx(client.LogContext(), "processed unsubscribe request",
 		"client_id", clientID,
 		"account_id", accountID,
 		"doc_id", docID)

@@ -1,13 +1,16 @@
 package server
 
 import (
-	"eve-industry-planner/shared/shared/logs"
+	"context"
 	"time"
+
+	"eve-industry-planner/shared/logs"
 )
 
 // Shutdown gracefully shuts down the WebSocket server
 func (s *Server) Shutdown() {
-	logs.Info("websocket server shutting down")
+	shutdownCtx := context.Background()
+	logs.InfoCtx(shutdownCtx, "websocket server shutting down")
 
 	// Signal shutdown to all coordinators
 	close(s.shutdownChan)
@@ -23,17 +26,17 @@ func (s *Server) Shutdown() {
 
 	select {
 	case <-stopperIncoming.Done():
-		logs.Info("incoming pool stopped")
+		logs.InfoCtx(shutdownCtx, "incoming pool stopped")
 	case <-shutdownTimer.C:
-		logs.Warn("incoming pool shutdown timeout")
+		logs.WarnCtx(shutdownCtx, "incoming pool shutdown timeout")
 	}
 
 	select {
 	case <-stopperOutgoing.Done():
-		logs.Info("outgoing pool stopped")
+		logs.InfoCtx(shutdownCtx, "outgoing pool stopped")
 	case <-shutdownTimer.C:
-		logs.Warn("outgoing pool shutdown timeout")
+		logs.WarnCtx(shutdownCtx, "outgoing pool shutdown timeout")
 	}
 
-	logs.Info("websocket server shutdown complete")
+	logs.InfoCtx(shutdownCtx, "websocket server shutdown complete")
 }

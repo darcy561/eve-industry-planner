@@ -1,16 +1,19 @@
 package server
 
 import (
-	"eve-industry-planner/shared/shared/logs"
+	"context"
 	"time"
+
+	"eve-industry-planner/shared/logs"
 )
 
 // startIncomingCoordinator starts a coordinator goroutine that watches for incoming work
 // and submits tasks to the incoming pond pool
 func (s *Server) startIncomingCoordinator() {
 	go func() {
-		logs.Debug("incoming coordinator started")
-		defer logs.Debug("incoming coordinator stopped")
+		coordCtx := context.Background()
+		logs.DebugCtx(coordCtx, "incoming coordinator started")
+		defer logs.DebugCtx(coordCtx, "incoming coordinator stopped")
 
 		for {
 			select {
@@ -42,8 +45,9 @@ func (s *Server) startIncomingCoordinator() {
 // and submits tasks to the outgoing pond pool
 func (s *Server) startOutgoingCoordinator() {
 	go func() {
-		logs.Debug("outgoing coordinator started")
-		defer logs.Debug("outgoing coordinator stopped")
+		coordCtx := context.Background()
+		logs.DebugCtx(coordCtx, "outgoing coordinator started")
+		defer logs.DebugCtx(coordCtx, "outgoing coordinator stopped")
 
 		for {
 			select {

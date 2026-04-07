@@ -1,0 +1,46 @@
+# Traces → Jaeger (all-in-one OTLP). Drops Traefik→Docker Engine API spans (/v1.xx/containers/… ping/version).
+# App routes like /api/v1/... are kept (they do not contain /v1.51/ style engine paths).
+# Logs: OTLP LogsService must be served on :4317 or Go apps log "unknown service LogsService". We accept logs
+# and write to /dev/null; Loki still ingests JSON from container stdout via Promtail.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  filter/drop_docker_engine_api:
+    error_mode: ignore
+    traces:
+      span:
+        - 'IsMatch(name, ".*/v1\\.[0-9]+/")'
+  batch: {}
+
+exporters:
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+  # App OTLP metrics → scrape target for Prometheus (Phase B).
+  # Quote the host:port — unquoted 0.0.0.0:8889 can be parsed incorrectly and the exporter never binds.
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+  file/discard_logs:
+    path: /dev/null
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [filter/drop_docker_engine_api, batch]
+      exporters: [otlp/jaeger]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file/discard_logs]

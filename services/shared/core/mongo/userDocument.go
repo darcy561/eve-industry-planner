@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared/models"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -182,6 +182,6 @@ func EnsureUserAccountDocument(ctx context.Context, client *mongo.Client, accoun
 		return false, fmt.Errorf("failed to create application settings document: %w", err)
 	}
 
-	logs.Info("created new user document and application settings", "accountID", accountID)
+	logs.InfoCtx(ctx, "created new user document and application settings", "accountID", accountID)
 	return true, nil
 }

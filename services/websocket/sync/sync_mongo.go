@@ -7,7 +7,7 @@ import (
 	"time"
 
 	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared/models"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -61,7 +61,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		for _, user := range users {
 			userMap, err := structToMap(user)
 			if err != nil {
-				logs.Warn("failed to convert user to map",
+				logs.WarnCtx(ctx, "failed to convert user to map",
 					"account_id", user.AccountID,
 					"error", err)
 				continue
@@ -78,7 +78,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		for _, job := range jobs {
 			jobMap, err := structToMap(job)
 			if err != nil {
-				logs.Warn("failed to convert job to map",
+				logs.WarnCtx(ctx, "failed to convert job to map",
 					"job_id", job.JobID,
 					"error", err)
 				continue
@@ -95,7 +95,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		for _, group := range groups {
 			groupMap, err := structToMap(group)
 			if err != nil {
-				logs.Warn("failed to convert group to map",
+				logs.WarnCtx(ctx, "failed to convert group to map",
 					"group_id", group.GroupID,
 					"error", err)
 				continue
@@ -116,7 +116,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		}
 		var doc bson.M
 		if err := cursor.Decode(&doc); err != nil {
-			logs.Warn("failed to decode document during sync",
+			logs.WarnCtx(ctx, "failed to decode document during sync",
 				"collection", collectionName,
 				"error", err)
 			continue
@@ -132,7 +132,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		default:
 			// Try to convert to string
 			docID = fmt.Sprintf("%v", doc["_id"])
-			logs.Debug("converted _id to string",
+			logs.DebugCtx(ctx, "converted _id to string",
 				"collection", collectionName,
 				"_id_type", fmt.Sprintf("%T", doc["_id"]),
 				"doc_id", docID)
@@ -142,7 +142,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		// This ensures proper BSON to JSON type conversion
 		docMap, err := structToMap(doc)
 		if err != nil {
-			logs.Warn("failed to convert document to map",
+			logs.WarnCtx(ctx, "failed to convert document to map",
 				"collection", collectionName,
 				"doc_id", docID,
 				"error", err)
@@ -223,7 +223,7 @@ func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionNam
 	}
 
 	// Log success
-	logs.Debug("queried documents for sync",
+	logs.DebugCtx(ctx, "queried documents for sync",
 		"collection", collectionName,
 		"requested", len(documentIDs),
 		"found", len(results))
@@ -292,7 +292,7 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 	for _, job := range jobs {
 		jobMap, err := structToMap(job)
 		if err != nil {
-			logs.Warn("failed to convert job to map",
+			logs.WarnCtx(ctx, "failed to convert job to map",
 				"job_id", job.JobID,
 				"error", err)
 			continue
@@ -300,7 +300,7 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 		results[job.JobID] = jobMap
 	}
 
-	logs.Debug("queried all jobs for account",
+	logs.DebugCtx(ctx, "queried all jobs for account",
 		"collection", mongocore.CollectionJobs,
 		"account_id", accountID,
 		"found", len(results))
@@ -368,7 +368,7 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 	for _, group := range groups {
 		groupMap, err := structToMap(group)
 		if err != nil {
-			logs.Warn("failed to convert group to map",
+			logs.WarnCtx(ctx, "failed to convert group to map",
 				"group_id", group.GroupID,
 				"error", err)
 			continue
@@ -376,7 +376,7 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 		results[group.GroupID] = groupMap
 	}
 
-	logs.Debug("queried all groups for account",
+	logs.DebugCtx(ctx, "queried all groups for account",
 		"collection", mongocore.CollectionGroups,
 		"account_id", accountID,
 		"found", len(results))

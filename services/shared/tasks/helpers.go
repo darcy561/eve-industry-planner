@@ -4,7 +4,7 @@ import (
 	"context"
 
 	rediscore "eve-industry-planner/shared/core/redis"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -20,11 +20,11 @@ import (
 func AcquireRefreshLock(ctx context.Context, redisClient *redis.Client, lockKey string) (cleanup func(), shouldContinue bool) {
 	lockAcquired, cleanupFunc, err := rediscore.AcquireRefreshLock(ctx, redisClient, lockKey)
 	if err != nil {
-		logs.Warn("failed to acquire refresh lock", "error", err)
+		logs.WarnCtx(ctx, "failed to acquire refresh lock", "error", err)
 		return nil, false
 	}
 	if !lockAcquired {
-		logs.Info("skipping refresh, another refresh in progress")
+		logs.InfoCtx(ctx, "skipping refresh, another refresh in progress")
 		return nil, false
 	}
 	// Lock acquired successfully - caller should defer cleanup()

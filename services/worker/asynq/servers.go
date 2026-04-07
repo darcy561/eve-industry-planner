@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
 	"github.com/hibiken/asynq"
@@ -43,6 +43,7 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 			// Custom retry delay function that respects ESI rate limit RetryAfter times
 			// CRITICAL: Adds jitter to prevent thundering herd when many tasks retry simultaneously
 			RetryDelayFunc: func(n int, e error, t *asynq.Task) time.Duration {
+				bg := context.Background()
 				// Check if this is a rate limit error with RetryAfter
 				rateLimitErr := extractRateLimitError(e)
 				if rateLimitErr != nil && rateLimitErr.Retryable {
@@ -80,7 +81,7 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 							jitter := time.Duration(taskIDHash % uint64(jitterWindow))
 							finalWait := waitTime + jitter
 
-							logs.Debug("scheduling retry with jitter to prevent thundering herd",
+							logs.DebugCtx(bg, "scheduling retry with jitter to prevent thundering herd",
 								"task_type", t.Type(),
 								"retry_attempt", n,
 								"retry_after", rateLimitErr.RetryAfter,
@@ -91,7 +92,7 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 							return finalWait
 						}
 
-						logs.Debug("scheduling retry based on rate limit RetryAfter",
+						logs.DebugCtx(bg, "scheduling retry based on rate limit RetryAfter",
 							"task_type", t.Type(),
 							"retry_attempt", n,
 							"retry_after", rateLimitErr.RetryAfter,
@@ -145,21 +146,16 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 			// Mark retryable rate-limit yields as non-failures for asynq stats/reporting.
 			// These are expected flow-control events (task re-queueing), not task defects.
 			IsFailure: func(err error) bool {
-				rateLimitErr := extractRateLimitError(err)
-				if rateLimitErr != nil && rateLimitErr.Retryable {
-					return false
-				}
-				return true
+				return !errIsRateLimitDeferral(err)
 			},
 			// Error handling
 			// RateLimitError with Retryable=true is intentional (task returned to queue for retry)
 			// Only log actual errors, not intentional retries
 			ErrorHandler: asynq.ErrorHandlerFunc(func(ctx context.Context, task *asynq.Task, err error) {
-				// Check if this is an intentional rate limit retry
-				rateLimitErr := extractRateLimitError(err)
-				if rateLimitErr != nil && rateLimitErr.Retryable {
+				if errIsRateLimitDeferral(err) {
+					rateLimitErr := extractRateLimitError(err)
 					// Intentional retry - log at debug level, not error
-					logs.Debug("asynq task returned to queue for rate limit retry",
+					logs.DebugCtx(ctx, "asynq task returned to queue for rate limit retry",
 						"task_type", task.Type(),
 						"retry_after", rateLimitErr.RetryAfter,
 						"reason", rateLimitErr.Reason,
@@ -167,7 +163,7 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 					return
 				}
 				// Actual error - log as error
-				logs.Error("asynq task failed",
+				logs.ErrorCtx(ctx, "asynq task failed",
 					"task_type", task.Type(),
 					"error", err)
 			}),
@@ -182,12 +178,13 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 
 	// Start server in background
 	go func() {
+		bg := context.Background()
 		if err := srv.Run(mux); err != nil {
-			logs.Error("asynq server error", "error", err)
+			logs.ErrorCtx(bg, "asynq server error", "error", err)
 		}
 	}()
 
-	logs.Debug("asynq server started",
+	logs.DebugCtx(context.Background(), "asynq server started",
 		"concurrency", concurrency,
 		"queues", map[string]int{
 			"priority_1": 20,
@@ -199,10 +196,20 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 
 	cleanup := func(ctx context.Context) {
 		srv.Shutdown()
-		logs.Info("asynq server shut down")
+		logs.InfoCtx(ctx, "asynq server shut down")
 	}
 
 	return cleanup, nil
+}
+
+// errIsRateLimitDeferral reports whether err is a retryable rate-limit yield (task re-queued later).
+// Same cases as asynq.Config.IsFailure == false — not a logical task failure.
+func errIsRateLimitDeferral(err error) bool {
+	if err == nil {
+		return false
+	}
+	rle := extractRateLimitError(err)
+	return rle != nil && rle.Retryable
 }
 
 // extractRateLimitError unwraps errors to find a RateLimitError
@@ -246,7 +253,7 @@ func SetupServer(
 		return nil, fmt.Errorf("failed to setup asynq server: %w", err)
 	}
 
-	logs.Info("asynq server started")
+	logs.InfoCtx(context.Background(), "asynq server started")
 
 	return cleanup, nil
 }

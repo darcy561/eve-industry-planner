@@ -68,7 +68,7 @@ help:
 	@echo "Available commands:"
 	@echo "  make up               - Start app (users / live images)"
 	@echo "  make update-files     - Updates all necessary files from GitHub"
-	@echo "  make dev              - Start app in develpoment mode (Designed for use with local builds)"
+	@echo "  make dev              - Dev mode: local builds + docker-compose.dev.yml (needs git clone; not downloaded by make up)"
 	@echo "  make help            - Show this help message"
 	@echo ""
 	@echo "For detailed deployment instructions, see DEPLOYMENT.md"
@@ -137,7 +137,7 @@ else
 endif
 
 # ---------- Dev ----------
-dev: ensure-keyfile ensure-env
+dev: download-setup-scripts ensure-keyfile ensure-env
 ifeq ($(OS),Windows_NT)
 	@"$(BASH)" -c 'DC_CMD=$$(if [ -f ./bin/docker-compose ] && [ -x ./bin/docker-compose ]; then echo "./bin/docker-compose"; elif [ -f ./docker-compose ] && [ -x ./docker-compose ]; then echo "./docker-compose"; elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi); eval "$$DC_CMD -f $(COMPOSE_BASE) -f $(COMPOSE_DEV) up -d --build"'
 else
@@ -204,5 +204,5 @@ update-files: bootstrap-version-tracker
 	chmod +x ./scripts/version-tracker.sh; \
 	echo 'version-tracker.sh updated successfully!' >&2; \
 	echo '' >&2; \
-	echo 'Updating docker-compose.yml and scripts...' >&2; \
+	echo 'Updating tracked repo files (compose, scripts, observability)...' >&2; \
 	bash ./scripts/version-tracker.sh update"

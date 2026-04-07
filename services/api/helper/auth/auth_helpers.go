@@ -1,12 +1,13 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"eve-industry-planner/api/helper/sso"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 )
 
 // Authentication error messages
@@ -26,20 +27,19 @@ type EveTokenValidationResult struct {
 	CharacterName string
 }
 
-// validateEveTokenAndExtractHash validates an EVE SSO token and extracts relevant information
-// Returns character hash, scopes, and character name if valid, or an error if invalid
-func ValidateEveTokenAndExtractHash(tokenString, clientID string, ip string) (*EveTokenValidationResult, error) {
+// ValidateEveTokenAndExtractHash validates an EVE SSO token and extracts relevant information.
+// Returns character hash, scopes, and character name if valid, or an error if invalid.
+func ValidateEveTokenAndExtractHash(ctx context.Context, tokenString, clientID string) (*EveTokenValidationResult, error) {
 	// Validate the EVE SSO token
 	claims, err := sso.ValidateEveSSOToken(tokenString, clientID)
 	if err != nil {
-		logs.Warn("failed to validate EVE SSO token", "error", err, "ip", ip)
 		return nil, err
 	}
 
 	// Extract character hash (owner field) from EVE SSO claims
 	characterHash := claims.Owner
 	if characterHash == "" {
-		logs.Warn("failed to extract character hash (owner) from token", "subject", claims.Subject, "ip", ip)
+		logs.WarnCtx(ctx, "failed to extract character hash (owner) from token", "subject", claims.Subject)
 		return nil, fmt.Errorf("missing character hash in token")
 	}
 

@@ -10,6 +10,8 @@ import (
 
 	"eve-industry-planner/api/helper"
 	sdecore "eve-industry-planner/shared/core/sde"
+	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
 type staticDataMeta struct {
@@ -28,23 +30,38 @@ type fileMeta struct {
 }
 
 func RecipeListHandler(w http.ResponseWriter, r *http.Request) {
-	serveStaticDataFile(w, r, sdecore.RecipeListFile)
+	m := apimetrics.GetAPIStaticData()
+	serveStaticDataFile(w, r, sdecore.RecipeListFile, m.RecipeList, "recipe_list")
 }
 
 func SearchIndexHandler(w http.ResponseWriter, r *http.Request) {
-	serveStaticDataFile(w, r, sdecore.SearchIndexFile)
+	m := apimetrics.GetAPIStaticData()
+	serveStaticDataFile(w, r, sdecore.SearchIndexFile, m.SearchIndex, "search_index")
 }
 
 func FullItemListHandler(w http.ResponseWriter, r *http.Request) {
-	serveStaticDataFile(w, r, sdecore.FullItemListFile)
+	m := apimetrics.GetAPIStaticData()
+	serveStaticDataFile(w, r, sdecore.FullItemListFile, m.FullItemList, "full_item_list")
 }
 
 func ReprocessingDataHandler(w http.ResponseWriter, r *http.Request) {
-	serveStaticDataFile(w, r, sdecore.ReprocessingFile)
+	m := apimetrics.GetAPIStaticData()
+	serveStaticDataFile(w, r, sdecore.ReprocessingFile, m.Reprocessing, "reprocessing")
 }
 
 func MetaHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	start, ok := logs.RequestStartTime(ctx)
+	if !ok {
+		start = time.Now()
+	}
+	m := apimetrics.GetAPIStaticData()
+
 	if r.Method != http.MethodGet {
+		duration := time.Since(start)
+		m.Errors.WithLabelValues("meta_method_not_allowed").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "static_data_meta", duration, "method_not_allowed")
+		logs.WarnCtx(ctx, "invalid method for static data meta endpoint")
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -98,13 +115,33 @@ func MetaHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := helper.EncodeJSON(w, meta); err != nil {
+		duration := time.Since(start)
+		m.Errors.WithLabelValues("meta_encode_error").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "static_data_meta", duration, "encode_error", "error", err)
+		logs.ErrorCtx(ctx, "static data meta encode error", "error", err)
 		http.Error(w, fmt.Sprintf("failed to encode response: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	duration := time.Since(start)
+	m.Meta.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
+	m.Meta.RequestsCount.Inc(ctx)
+	apimetrics.LogRequestMetrics(ctx, "static_data_meta", duration, "success")
 }
 
-func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string) {
+func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string, fileMetrics *apimetrics.StaticDataFileMetrics, errPrefix string) {
+	ctx := r.Context()
+	start, ok := logs.RequestStartTime(ctx)
+	if !ok {
+		start = time.Now()
+	}
+	shared := apimetrics.GetAPIStaticData()
+
 	if r.Method != http.MethodGet {
+		duration := time.Since(start)
+		shared.Errors.WithLabelValues(errPrefix + "_method_not_allowed").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "static_data_"+errPrefix, duration, "method_not_allowed")
+		logs.WarnCtx(ctx, "invalid method for static data file", "file", errPrefix)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -117,16 +154,29 @@ func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string
 
 	data, err := os.ReadFile(filePath)
 	if err != nil {
+		duration := time.Since(start)
 		if os.IsNotExist(err) {
+			shared.Errors.WithLabelValues(errPrefix + "_not_found").Inc(ctx)
+			apimetrics.LogRequestMetrics(ctx, "static_data_"+errPrefix, duration, "not_found", "file_path", filePath)
+			logs.WarnCtx(ctx, "static data file not found", "file", errPrefix, "file_path", filePath)
 			http.Error(w, "static data file not found", http.StatusNotFound)
 			return
 		}
+		shared.Errors.WithLabelValues(errPrefix + "_read_error").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "static_data_"+errPrefix, duration, "read_error",
+			"error", err, "file_path", filePath)
+		logs.ErrorCtx(ctx, "static data read error", "error", err, "file", errPrefix, "file_path", filePath)
 		http.Error(w, "failed to read static data file", http.StatusInternalServerError)
 		return
 	}
 
 	var raw json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
+		duration := time.Since(start)
+		shared.Errors.WithLabelValues(errPrefix + "_invalid_json").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "static_data_"+errPrefix, duration, "invalid_json",
+			"error", err, "file_path", filePath)
+		logs.ErrorCtx(ctx, "static data invalid json", "error", err, "file", errPrefix, "file_path", filePath)
 		http.Error(w, "static data file is invalid JSON", http.StatusInternalServerError)
 		return
 	}
@@ -143,4 +193,9 @@ func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
+
+	duration := time.Since(start)
+	fileMetrics.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
+	fileMetrics.RequestsCount.Inc(ctx)
+	apimetrics.LogRequestMetrics(ctx, "static_data_"+errPrefix, duration, "success")
 }

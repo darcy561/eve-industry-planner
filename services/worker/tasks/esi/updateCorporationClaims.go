@@ -11,10 +11,12 @@ import (
 	"eve-industry-planner/api/helper/sso"
 	"eve-industry-planner/shared/core/config"
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
 	"github.com/hibiken/asynq"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // CharacterInfo represents the response from ESI API for character information
@@ -34,30 +36,37 @@ func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *
 	ctx, cancel := context.WithTimeout(ctx, 300*time.Second) // Longer timeout for batch processing
 	defer cancel()
 
-	logs.Info("Fetch Corporations Task Received")
+	logs.InfoCtx(ctx, "fetch corporations task received")
 
 	// Parse JSON data from task payload
 	request, err := UnmarshalTaskPayload[natscore.CorporationClaimsRequest](task)
 	if err != nil {
-		logs.Warn("failed to parse task data", "error", err)
+		logs.WarnCtx(ctx, "failed to parse task data", "error", err)
 		return fmt.Errorf("invalid task data: %w", err)
 	}
 
 	// Validate request data
 	if request.AccountID == "" {
-		logs.Warn("missing required parameter (account_id)")
+		logs.WarnCtx(ctx, "missing required parameter (account_id)")
 		return fmt.Errorf("missing account_id")
 	}
 
 	if len(request.Tokens) == 0 {
-		logs.Warn("no tokens provided in task request",
+		logs.WarnCtx(ctx, "no tokens provided in task request",
 			"account_id", request.AccountID)
 		return fmt.Errorf("no tokens provided")
 	}
 
+	if span := trace.SpanFromContext(ctx); span.IsRecording() {
+		span.SetAttributes(
+			attribute.String("account_id", request.AccountID),
+			attribute.Int("token_count", len(request.Tokens)),
+		)
+	}
+
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		logs.Error("failed to load config", "error", err)
+		logs.ErrorCtx(ctx, "failed to load config", "error", err)
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
@@ -70,7 +79,7 @@ func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *
 		// Validate the EVE SSO token
 		claims, err := sso.ValidateEveSSOToken(tokenString, cfg.EveSSOClientID)
 		if err != nil {
-			logs.Warn("failed to validate EVE SSO token in worker",
+			logs.WarnCtx(ctx, "failed to validate EVE SSO token in worker",
 				"index", i,
 				"account_id", request.AccountID,
 				"error", err)
@@ -81,7 +90,7 @@ func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *
 		// Extract character ID
 		characterID := claims.CharacterID
 		if characterID == "" {
-			logs.Warn("missing character ID in token",
+			logs.WarnCtx(ctx, "missing character ID in token",
 				"index", i,
 				"account_id", request.AccountID)
 			failedCount++
@@ -91,7 +100,7 @@ func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *
 		// Parse character ID to integer
 		characterIDInt, err := strconv.Atoi(characterID)
 		if err != nil {
-			logs.Warn("invalid character ID format",
+			logs.WarnCtx(ctx, "invalid character ID format",
 				"character_id", characterID,
 				"index", i,
 				"account_id", request.AccountID,
@@ -106,7 +115,7 @@ func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *
 		groupDesignation := esiratelimiter.GroupDesignation{}
 		body, resp, err := deps.ESIClient.Do(ctx, "GET", path, nil, groupDesignation)
 		if err != nil {
-			logs.Error("failed to fetch character info from ESI API",
+			logs.ErrorCtx(ctx, "failed to fetch character info from ESI API",
 				"character_id", characterID,
 				"account_id", request.AccountID,
 				"index", i,
@@ -114,7 +123,7 @@ func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *
 
 			// Check if it's a rate limit error - return error for asynq to retry
 			if esiratelimiter.IsRetryableRateLimitError(err) {
-				logs.Warn("retryable rate limit error, returning error for retry",
+				logs.WarnCtx(ctx, "retryable rate limit error, returning error for retry",
 					"character_id", characterID,
 					"account_id", request.AccountID,
 					"error", err)
@@ -132,7 +141,7 @@ func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *
 			if resp != nil {
 				statusCode = resp.StatusCode
 			}
-			logs.Warn("ESI API returned non-200 status",
+			logs.WarnCtx(ctx, "ESI API returned non-200 status",
 				"character_id", characterID,
 				"account_id", request.AccountID,
 				"status_code", statusCode,
@@ -144,7 +153,7 @@ func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *
 		// Parse character information
 		var characterInfo CharacterInfo
 		if err := json.Unmarshal(body, &characterInfo); err != nil {
-			logs.Error("failed to parse character info response",
+			logs.ErrorCtx(ctx, "failed to parse character info response",
 				"character_id", characterID,
 				"account_id", request.AccountID,
 				"index", i,
@@ -168,14 +177,14 @@ func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *
 
 	// Store aggregated corporations for the account (keyed by AccountID)
 	if err := auth.StoreCorporations(ctx, deps.Redis, request.AccountID, allCorporations); err != nil {
-		logs.Error("failed to store corporation IDs in Redis",
+		logs.ErrorCtx(ctx, "failed to store corporation IDs in Redis",
 			"account_id", request.AccountID,
 			"corporation_count", len(allCorporations),
 			"error", err)
 		return fmt.Errorf("failed to store corporations: %w", err)
 	}
 
-	logs.Info("successfully processed corporation lookup task",
+	logs.InfoCtx(ctx, "successfully processed corporation lookup task",
 		"account_id", request.AccountID,
 		"total_tokens", len(request.Tokens),
 		"processed", processedCount,

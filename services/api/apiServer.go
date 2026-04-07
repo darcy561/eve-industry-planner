@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -12,10 +13,11 @@ import (
 	"eve-industry-planner/api/v1endpoints"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 
 	"github.com/ulule/limiter/v3"
 	lredis "github.com/ulule/limiter/v3/drivers/store/redis"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 type route struct {
@@ -23,7 +25,7 @@ type route struct {
 	Handler http.HandlerFunc
 }
 
-func StartAPIServer(clients *shared.ServiceClients) error {
+func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 	if os.Getenv("FAIL_ON_STARTUP") == "true" {
 		return fmt.Errorf("startup failure requested via FAIL_ON_STARTUP")
 	}
@@ -31,12 +33,12 @@ func StartAPIServer(clients *shared.ServiceClients) error {
 	//creates rate limits for routes and setups up redis store to store them
 	publicRateLimit, err := limiter.NewRateFromFormatted("50-S")
 	if err != nil {
-		logs.Error("failed to create public rate limiter", "err", err)
+		logs.ErrorCtx(ctx, "failed to create public rate limiter", "err", err)
 		return err
 	}
 	privateRateLimit, err := limiter.NewRateFromFormatted("100-M")
 	if err != nil {
-		logs.Error("failed to create private rate limiter", "err", err)
+		logs.ErrorCtx(ctx, "failed to create private rate limiter", "err", err)
 		return err
 	}
 	store, err := lredis.NewStoreWithOptions(clients.Redis, limiter.StoreOptions{
@@ -44,7 +46,7 @@ func StartAPIServer(clients *shared.ServiceClients) error {
 		CleanUpInterval: 5 * time.Minute,
 	})
 	if err != nil {
-		logs.Error("failed to create redis store", "err", err)
+		logs.ErrorCtx(ctx, "failed to create redis store", "err", err)
 		return err
 	}
 
@@ -58,24 +60,22 @@ func StartAPIServer(clients *shared.ServiceClients) error {
 		w.Write([]byte("OK"))
 	})
 
-	// Global middleware constructors, applied to all routes via groups
-	// RequestID should be first so all subsequent middleware and handlers can use it
-	globalConstructors := []middleware.MiddlewareConstructor{
-		middleware.RequestIDConstructor(),
+	// Outermost: RequestStartTimeConstructor (before otelhttp) so duration includes tracing.
+	// Under otelhttp: deadline, then request-scoped logging, then compression, then mux.
+	// Per-route middleware (rate limit, auth) is applied only to registered handlers via groups.
+	apiHandler := middleware.Chain(
+		middleware.RequestTimeoutConstructor(),
+		middleware.RequestLoggingConstructor(),
 		middleware.CompressionConstructor(),
-	}
+	)(mux)
 
-	// Public and private groups for v1, with middleware constructors applied after global
+	// Public and private groups for v1
 	publicGroup := middleware.NewGroup(mux,
-		append(globalConstructors,
-			middleware.RateLimiterConstructor(store, publicRateLimit),
-		)...,
+		middleware.RateLimiterConstructor(store, publicRateLimit, "public"),
 	)
 	privateGroup := middleware.NewGroup(mux,
-		append(globalConstructors,
-			middleware.RateLimiterConstructor(store, privateRateLimit),
-			middleware.AuthConstructor(),
-		)...,
+		middleware.RateLimiterConstructor(store, privateRateLimit, "private"),
+		middleware.AuthConstructor(),
 	)
 
 	// Define public routes (v1)
@@ -221,15 +221,11 @@ func StartAPIServer(clients *shared.ServiceClients) error {
 
 	// Migration-specific groups (separate from v1 handlers)
 	migrationPublicGroup := middleware.NewGroup(mux,
-		append(globalConstructors,
-			middleware.RateLimiterConstructor(store, publicRateLimit),
-		)...,
+		middleware.RateLimiterConstructor(store, publicRateLimit, "migration_public"),
 	)
 	migrationPrivateGroup := middleware.NewGroup(mux,
-		append(globalConstructors,
-			middleware.RateLimiterConstructor(store, privateRateLimit),
-			middleware.AuthConstructor(),
-		)...,
+		middleware.RateLimiterConstructor(store, privateRateLimit, "migration_private"),
+		middleware.AuthConstructor(),
 	)
 
 	// Migration public routes
@@ -274,11 +270,20 @@ func StartAPIServer(clients *shared.ServiceClients) error {
 	if err != nil {
 		return err
 	}
-	logs.Info("api http server starting", "addr", ":"+cfg.API_PORT)
-	if err := http.ListenAndServe(":"+cfg.API_PORT, mux); err != nil {
-		logs.Error("api http server error", "err", err)
+	handler := middleware.RequestStartTimeConstructor()(
+		otelhttp.NewHandler(
+			apiHandler,
+			"api",
+			otelhttp.WithFilter(func(r *http.Request) bool {
+				return r.URL.Path != "/health"
+			}),
+		),
+	)
+	logs.InfoCtx(ctx, "api http server starting", "addr", ":"+cfg.API_PORT)
+	if err := http.ListenAndServe(":"+cfg.API_PORT, handler); err != nil {
+		logs.ErrorCtx(ctx, "api http server error", "err", err)
 		return err
 	}
-	logs.Info("api service listening")
+	logs.InfoCtx(ctx, "api service listening")
 	return nil
 }

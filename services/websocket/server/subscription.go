@@ -1,11 +1,11 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"time"
 
-	"eve-industry-planner/shared/shared/logs"
-	"eve-industry-planner/shared/shared/metrics"
+	"eve-industry-planner/shared/logs"
 )
 
 // SubscribeClientToDocument subscribes all active WebSocket connections for a given accountID
@@ -24,12 +24,13 @@ import (
 // If no connections exist for the accountID, the subscription is still set up so that
 // when the client connects later, they will be subscribed (if they send a message).
 func (s *Server) SubscribeClientToDocument(accountID string, docID string) {
+	ctx := context.Background()
 	if accountID == "" {
-		logs.Warn("cannot subscribe: empty accountID", "doc_id", docID)
+		logs.WarnCtx(ctx, "cannot subscribe: empty accountID", "doc_id", docID)
 		return
 	}
 	if docID == "" {
-		logs.Warn("cannot subscribe: empty docID", "account_id", accountID)
+		logs.WarnCtx(ctx, "cannot subscribe: empty docID", "account_id", accountID)
 		return
 	}
 
@@ -39,7 +40,7 @@ func (s *Server) SubscribeClientToDocument(accountID string, docID string) {
 	if !exists || len(userConns) == 0 {
 		s.userConnMu.RUnlock()
 		// No active connections - nothing to subscribe
-		logs.Debug("no active connections to subscribe",
+		logs.DebugCtx(ctx, "no active connections to subscribe",
 			"account_id", accountID,
 			"doc_id", docID)
 		return
@@ -67,7 +68,7 @@ func (s *Server) SubscribeClientToDocument(accountID string, docID string) {
 
 		// Verify client belongs to this account (safety check)
 		if client.AccountID != accountID {
-			logs.Warn("client account mismatch during subscription",
+			logs.WarnCtx(client.LogContext(), "client account mismatch during subscription",
 				"client_id", clientID,
 				"expected_account_id", accountID,
 				"client_account_id", client.AccountID,
@@ -95,28 +96,13 @@ func (s *Server) SubscribeClientToDocument(accountID string, docID string) {
 	}
 	s.ClientsMu.RUnlock()
 
-	// Update metrics
-	m := metrics.GetWebSocket()
 	if subscribedCount > 0 {
-		m.SubscriptionsActive.Add(float64(subscribedCount))
-
-		// Update active subscriptions gauge
-		s.activeSubsMu.RLock()
-		totalActive := 0
-		for _, subs := range s.activeSubscriptions {
-			totalActive += len(subs)
-		}
-		s.activeSubsMu.RUnlock()
-		m.ActiveSubscriptions.Set(float64(totalActive))
-	}
-
-	if subscribedCount > 0 {
-		logs.Info("subscribed clients to document",
+		logs.InfoCtx(ctx, "subscribed clients to document",
 			"account_id", accountID,
 			"doc_id", docID,
 			"client_count", subscribedCount)
 	} else {
-		logs.Debug("no active clients to subscribe",
+		logs.DebugCtx(ctx, "no active clients to subscribe",
 			"account_id", accountID,
 			"doc_id", docID)
 	}
@@ -125,7 +111,8 @@ func (s *Server) SubscribeClientToDocument(accountID string, docID string) {
 // SubscribeClientToDocuments subscribes all active WebSocket connections for a given accountID
 // to receive updates for multiple documents. This is useful for batch operations.
 func (s *Server) SubscribeClientToDocuments(accountID string, docIDs []string) {
-	logs.Info("subscribing client to multiple documents",
+	ctx := context.Background()
+	logs.InfoCtx(ctx, "subscribing client to multiple documents",
 		"account_id", accountID,
 		"doc_count", len(docIDs),
 		"doc_ids", docIDs)
@@ -138,12 +125,13 @@ func (s *Server) SubscribeClientToDocuments(accountID string, docIDs []string) {
 // to receive updates for a specific document. This is used for autosubscription when we want
 // to subscribe only the client making the request, not all clients for the account.
 func (s *Server) SubscribeSingleClientToDocument(accountID string, docID string) {
+	ctx := context.Background()
 	if accountID == "" {
-		logs.Warn("cannot subscribe: empty accountID", "doc_id", docID)
+		logs.WarnCtx(ctx, "cannot subscribe: empty accountID", "doc_id", docID)
 		return
 	}
 	if docID == "" {
-		logs.Warn("cannot subscribe: empty docID", "account_id", accountID)
+		logs.WarnCtx(ctx, "cannot subscribe: empty docID", "account_id", accountID)
 		return
 	}
 
@@ -153,7 +141,7 @@ func (s *Server) SubscribeSingleClientToDocument(accountID string, docID string)
 	if !exists || len(userConns) == 0 {
 		s.userConnMu.RUnlock()
 		// No active connections - nothing to subscribe
-		logs.Debug("no active connections to subscribe",
+		logs.DebugCtx(ctx, "no active connections to subscribe",
 			"account_id", accountID,
 			"doc_id", docID)
 		return
@@ -172,7 +160,7 @@ func (s *Server) SubscribeSingleClientToDocument(accountID string, docID string)
 	client, exists := s.Clients[firstClientID]
 	if !exists {
 		s.ClientsMu.RUnlock()
-		logs.Debug("client not found, skipping subscription",
+		logs.DebugCtx(ctx, "client not found, skipping subscription",
 			"client_id", firstClientID,
 			"account_id", accountID,
 			"doc_id", docID)
@@ -182,7 +170,7 @@ func (s *Server) SubscribeSingleClientToDocument(accountID string, docID string)
 	// Verify client belongs to this account (safety check)
 	if client.AccountID != accountID {
 		s.ClientsMu.RUnlock()
-		logs.Warn("client account mismatch during subscription",
+		logs.WarnCtx(client.LogContext(), "client account mismatch during subscription",
 			"client_id", firstClientID,
 			"expected_account_id", accountID,
 			"client_account_id", client.AccountID,
@@ -210,7 +198,7 @@ func (s *Server) SubscribeSingleClientToDocument(accountID string, docID string)
 	s.activeSubscriptions[firstClientID][docID] = time.Now()
 	s.activeSubsMu.Unlock()
 
-	logs.Info("subscribed single client to document",
+	logs.InfoCtx(client.LogContext(), "subscribed single client to document",
 		"client_id", firstClientID,
 		"account_id", accountID,
 		"doc_id", docID)
@@ -241,7 +229,7 @@ func (s *Server) cleanupClientSubscriptions(clientID string, accountID string, s
 	// Subscriptions are preserved in activeSubscriptions (tracked per account, not per client)
 	// They will be restored when the client reconnects
 	if cleanedCount > 0 {
-		logs.Debug("cleaned up client subscriptions from outgoing queues",
+		logs.DebugCtx(s.clientLogCtx(clientID), "cleaned up client subscriptions from outgoing queues",
 			"account_id", accountID,
 			"client_id", clientID,
 			"doc_count", cleanedCount,
@@ -349,7 +337,7 @@ func (s *Server) ReplaceClientSubscriptions(clientID string, accountID string, n
 
 	s.activeSubsMu.Unlock()
 
-	logs.Info("replaced client subscriptions",
+	logs.InfoCtx(client.LogContext(), "replaced client subscriptions",
 		"client_id", clientID,
 		"account_id", accountID,
 		"removed_count", removedCount,

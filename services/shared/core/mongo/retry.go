@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 )
 
 // RetryConfig holds configuration for MongoDB operation retries
@@ -90,7 +90,7 @@ func RetryMongoOperation(ctx context.Context, config RetryConfig, operation func
 				if opName == "" {
 					opName = "MongoDB operation"
 				}
-				logs.Info("MongoDB operation succeeded after retry",
+				logs.InfoCtx(ctx, "MongoDB operation succeeded after retry",
 					"operation", opName,
 					"attempt", attempt+1)
 			}
@@ -106,7 +106,7 @@ func RetryMongoOperation(ctx context.Context, config RetryConfig, operation func
 			if opName == "" {
 				opName = "MongoDB operation"
 			}
-			logs.Error("MongoDB operation failed - non-retryable error",
+			logs.ErrorCtx(ctx, "MongoDB operation failed - non-retryable error",
 				"operation", opName,
 				"error", err)
 			return err
@@ -127,7 +127,7 @@ func RetryMongoOperation(ctx context.Context, config RetryConfig, operation func
 		if opName == "" {
 			opName = "MongoDB operation"
 		}
-		logs.Warn("MongoDB operation failed, retrying",
+		logs.WarnCtx(ctx, "MongoDB operation failed, retrying",
 			"operation", opName,
 			"attempt", attempt+1,
 			"max_retries", config.MaxRetries,
@@ -148,7 +148,7 @@ func RetryMongoOperation(ctx context.Context, config RetryConfig, operation func
 	if opName == "" {
 		opName = "MongoDB operation"
 	}
-	logs.Error("MongoDB operation failed - all retries exhausted",
+	logs.ErrorCtx(ctx, "MongoDB operation failed - all retries exhausted",
 		"operation", opName,
 		"attempts", config.MaxRetries,
 		"error", lastErr)

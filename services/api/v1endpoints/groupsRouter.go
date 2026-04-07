@@ -5,13 +5,15 @@ import (
 
 	"eve-industry-planner/api/v1endpoints/groups"
 	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared/logs"
 )
 
 func GroupsRouter(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+	ctx := r.Context()
 	path := r.URL.Path
 
 	switch {
-	case path == "/v1/groups" || path == "/v1/groups/":
+	case path == "/api/v1/groups" || path == "/api/v1/groups/":
 		switch r.Method {
 		case http.MethodGet:
 			groups.GetGroupsHandler(w, r, clients)
@@ -20,7 +22,11 @@ func GroupsRouter(w http.ResponseWriter, r *http.Request, clients *shared.Servic
 		case http.MethodDelete:
 			groups.DeleteGroupsHandler(w, r, clients)
 		default:
-			http.Error(w, "Method not allowed. Use GET /v1/groups to retrieve all groups, POST /v1/groups to create a new group, PUT /v1/groups to update a group, or DELETE /v1/groups to delete a group", http.StatusMethodNotAllowed)
+			logs.WarnCtx(ctx, "invalid method for groups collection")
+			http.Error(w, "Method not allowed. Use GET /api/v1/groups to retrieve all groups, PUT /api/v1/groups to upsert groups, or DELETE /api/v1/groups to delete groups", http.StatusMethodNotAllowed)
 		}
+	default:
+		logs.WarnCtx(ctx, "groups route not found")
+		http.Error(w, "Not found", http.StatusNotFound)
 	}
 }

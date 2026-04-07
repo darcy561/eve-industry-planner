@@ -1,11 +1,12 @@
 package auth
 
 import (
+	"context"
 	"crypto/rsa"
 	"sync"
 
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 )
 
 // CachedPrivateKey holds a cached RSA private key with its associated key ID
@@ -53,7 +54,7 @@ func GetOrLoadPrivateKey() (*CachedPrivateKey, error) {
 	keyID, err := LoadKeyID(cfg)
 	if err != nil {
 		// Fallback to config default if LoadKeyID fails
-		logs.Warn("Failed to load key ID, using config default", "error", err)
+		logs.WarnCtx(context.Background(), "Failed to load key ID, using config default", "error", err)
 		keyID = cfg.JWTKeyID
 	}
 
