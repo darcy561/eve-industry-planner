@@ -238,11 +238,35 @@ jobs:
                       echo "dockerfile=./services/${{ matrix.service }}/Dockerfile" >> $GITHUB_OUTPUT
                   fi
 
+            # Public branch jobs use GitHub Environment "Public" (see environment: above). DSN can be:
+            # - Environment secret SENTRY_DSN → secrets.SENTRY_DSN (your setup)
+            # - Optional repo/org variable vars.SENTRY_DSN if you duplicate it as a variable
+            # Using only an environment variable named SENTRY_DSN does NOT populate secrets.SENTRY_DSN.
+            - name: Verify Sentry DSN for Public builds
+              if: steps.should-build.outputs.should_build == 'true' && steps.branch-info.outputs.branch == 'Public'
+              env:
+                  SENTRY_DSN_VAR: ${{ vars.SENTRY_DSN }}
+                  SENTRY_DSN_SECRET: ${{ secrets.SENTRY_DSN }}
+              run: |
+                  if [ -n "${SENTRY_DSN_VAR}" ] || [ -n "${SENTRY_DSN_SECRET}" ]; then
+                    echo "Sentry DSN is configured (variable and/or secret)."
+                  else
+                    echo "::error::Public builds need SENTRY_DSN. Add secret SENTRY_DSN to the Public environment, or set vars.SENTRY_DSN at repo/org level. Older workflow versions only passed vars.SENTRY_DSN and skipped environment secrets."
+                    exit 1
+                  fi
+
             - name: Prepare build args
               if: steps.should-build.outputs.should_build == 'true'
               id: build-args
+              env:
+                  SENTRY_DSN_VAR: ${{ vars.SENTRY_DSN }}
+                  SENTRY_DSN_SECRET: ${{ secrets.SENTRY_DSN }}
               run: |
                   IMAGE_SOURCE="https://github.com/${{ github.repository }}"
+                  SENTRY_DSN_VAL="${SENTRY_DSN_VAR}"
+                  if [ -z "${SENTRY_DSN_VAL}" ]; then
+                    SENTRY_DSN_VAL="${SENTRY_DSN_SECRET}"
+                  fi
                   
                   {
                       echo "build-args<<EOF"
@@ -257,12 +281,10 @@ jobs:
                           fi
                           echo "ENVIRONMENT=${ENVIRONMENT}"
                           
-                          # Add Sentry build args from secrets
-                          # These are used by the Sentry Vite plugin for source map uploads
-                          # and baked into the bundle at build time
+                          # Sentry: Vite plugin + DSN baked into bundle (same DSN as Go services).
                           echo "SENTRY_ORG=${{ vars.SENTRY_ORG }}"
                           echo "SENTRY_PROJECT_ID=${{ vars.SENTRY_PROJECT_ID }}"
-                          echo "SENTRY_DSN=${{ vars.SENTRY_DSN }}"
+                          echo "SENTRY_DSN=${SENTRY_DSN_VAL}"
                           echo "SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}"
                       else
                           # Go services (api, websocket, worker, core): bake Sentry via Dockerfile ARG + go -ldflags -X
@@ -273,7 +295,7 @@ jobs:
                               ENVIRONMENT="production"
                           fi
                           echo "ENVIRONMENT=${ENVIRONMENT}"
-                          echo "SENTRY_DSN=${{ vars.SENTRY_DSN }}"
+                          echo "SENTRY_DSN=${SENTRY_DSN_VAL}"
                           echo "APP_VERSION=${{ steps.version.outputs.version }}"
                           echo "SENTRY_TRACES_SAMPLE_RATE=1.0"
                       fi

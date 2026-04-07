@@ -2,11 +2,13 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
 	"eve-industry-planner/shared/logs"
 
+	"github.com/getsentry/sentry-go"
 	"go.uber.org/zap"
 )
 
@@ -58,6 +60,13 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 
 			if rw.statusCode >= 500 {
 				doneLogger.Error("request completed with server error", logs.Ctx(ctx))
+				// Non-panic 5xx: request logging sees the status but sentryhttp only captures panics.
+				sentry.WithScope(func(scope *sentry.Scope) {
+					scope.SetRequest(r)
+					scope.SetLevel(sentry.LevelError)
+					scope.SetTag("status_code", fmt.Sprintf("%d", rw.statusCode))
+					sentry.CaptureMessage(fmt.Sprintf("HTTP %d %s %s", rw.statusCode, r.Method, r.URL.Path))
+				})
 			} else if rw.statusCode >= 400 {
 				doneLogger.Warn("request completed with client error", logs.Ctx(ctx))
 			} else {
