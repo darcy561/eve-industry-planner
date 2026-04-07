@@ -539,8 +539,11 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
           "expr": "sum(api_market_prices_requests_with_missing_prices_total)",
+          "instant": true,
           "legendFormat": "Requests with ≥1 missing type (cumulative)",
+          "range": false,
           "refId": "A"
         }
       ],
@@ -582,8 +585,11 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(api_market_prices_type_ids_requested_total[$__rate_interval])) / clamp_min(sum(rate(api_market_prices_requests_total[$__rate_interval])), 1e-9)",
-          "legendFormat": "Avg types per request (current window)",
+          "editorMode": "code",
+          "expr": "sum(rate(api_market_prices_type_ids_requested_total[5m])) / clamp_min(sum(rate(api_market_prices_requests_total[5m])), 1e-9)",
+          "instant": true,
+          "legendFormat": "Avg types per request (5m window)",
+          "range": false,
           "refId": "A"
         }
       ],
@@ -625,8 +631,11 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(api_system_indexes_system_ids_requested_total[$__rate_interval])) / clamp_min(sum(rate(api_system_indexes_requests_total[$__rate_interval])), 1e-9)",
-          "legendFormat": "Avg systems per request (current window)",
+          "editorMode": "code",
+          "expr": "sum(rate(api_system_indexes_system_ids_requested_total[5m])) / clamp_min(sum(rate(api_system_indexes_requests_total[5m])), 1e-9)",
+          "instant": true,
+          "legendFormat": "Avg systems per request (5m window)",
+          "range": false,
           "refId": "A"
         }
       ],
@@ -678,7 +687,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (reason, source) (\n  label_replace(rate(api_eve_token_login_errors_total[$__rate_interval]), \"source\", \"eve_token_login\", \"reason\", \".*\")\n  or label_replace(rate(api_session_refresh_errors_total[$__rate_interval]), \"source\", \"session_refresh\", \"reason\", \".*\")\n  or label_replace(rate(api_auth_jwks_errors_total[$__rate_interval]), \"source\", \"jwks\", \"reason\", \".*\")\n  or label_replace(rate(api_eve_sso_code_exchange_errors_total[$__rate_interval]), \"source\", \"eve_sso_code_exchange\", \"reason\", \".*\")\n  or label_replace(rate(api_eve_sso_token_refresh_errors_total[$__rate_interval]), \"source\", \"eve_sso_token_refresh\", \"reason\", \".*\")\n  or label_replace(rate(api_jobs_errors_total[$__rate_interval]), \"source\", \"jobs\", \"reason\", \".*\")\n  or label_replace(rate(api_groups_errors_total[$__rate_interval]), \"source\", \"groups\", \"reason\", \".*\")\n  or label_replace(rate(api_system_indexes_errors_total[$__rate_interval]), \"source\", \"system_indexes\", \"reason\", \".*\")\n  or label_replace(rate(api_market_prices_errors_total[$__rate_interval]), \"source\", \"market_prices\", \"reason\", \".*\")\n  or label_replace(rate(api_static_data_errors_total[$__rate_interval]), \"source\", \"static_data\", \"reason\", \".*\")\n)${err_source}",
+          "expr": "sum by (reason, source) (\n  label_replace(rate(api_eve_token_login_errors_total[$__rate_interval]), \"source\", \"eve_token_login\", \"reason\", \".*\")\n  or label_replace(rate(api_session_refresh_errors_total[$__rate_interval]), \"source\", \"session_refresh\", \"reason\", \".*\")\n  or label_replace(rate(api_auth_jwks_errors_total[$__rate_interval]), \"source\", \"jwks\", \"reason\", \".*\")\n  or label_replace(rate(api_eve_sso_code_exchange_errors_total[$__rate_interval]), \"source\", \"eve_sso_code_exchange\", \"reason\", \".*\")\n  or label_replace(rate(api_eve_sso_token_refresh_errors_total[$__rate_interval]), \"source\", \"eve_sso_token_refresh\", \"reason\", \".*\")\n  or label_replace(rate(api_jobs_errors_total[$__rate_interval]), \"source\", \"jobs\", \"reason\", \".*\")\n  or label_replace(rate(api_groups_errors_total[$__rate_interval]), \"source\", \"groups\", \"reason\", \".*\")\n  or label_replace(rate(api_system_indexes_errors_total[$__rate_interval]), \"source\", \"system_indexes\", \"reason\", \".*\")\n  or label_replace(rate(api_market_prices_errors_total[$__rate_interval]), \"source\", \"market_prices\", \"reason\", \".*\")\n  or label_replace(rate(api_static_data_errors_total[$__rate_interval]), \"source\", \"static_data\", \"reason\", \".*\")\n) $err_source",
           "legendFormat": "{{source}} · {{reason}}",
           "refId": "A"
         }
@@ -768,6 +777,6 @@
   "timezone": "browser",
   "title": "API · OTel metrics",
   "uid": "api-otel-metrics",
-  "version": 4,
+  "version": 5,
   "weekStart": ""
 }

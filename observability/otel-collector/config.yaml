@@ -1,5 +1,5 @@
-# Traces → Jaeger (all-in-one OTLP). Drops Traefik→Docker Engine API spans (/v1.xx/containers/… ping/version).
-# App routes like /api/v1/... are kept (they do not contain /v1.51/ style engine paths).
+# Traces: received on OTLP (apps still export spans) but discarded; use Loki + trace_id in JSON logs for correlation.
+# Drops Traefik→Docker Engine API spans (/v1.xx/containers/… ping/version).
 # Logs: OTLP LogsService must be served on :4317 or Go apps log "unknown service LogsService". We accept logs
 # and write to /dev/null; Loki still ingests JSON from container stdout via Promtail.
 receivers:
@@ -19,14 +19,16 @@ processors:
   batch: {}
 
 exporters:
-  otlp/jaeger:
-    endpoint: jaeger:4317
-    tls:
-      insecure: true
+  # No trace backend in stack; drop spans cheaply (same pattern as logs → /dev/null).
+  file/discard_traces:
+    path: /dev/null
   # App OTLP metrics → scrape target for Prometheus (Phase B).
   # Quote the host:port — unquoted 0.0.0.0:8889 can be parsed incorrectly and the exporter never binds.
   prometheus:
     endpoint: "0.0.0.0:8889"
+    # Match names in Grafana dashboards (api_*_total, distinct_characters gauges, etc.): no unit/type suffixes.
+    # Collector :latest defaults can append suffixes and break provisioned PromQL.
+    translation_strategy: UnderscoreEscapingWithoutSuffixes
   file/discard_logs:
     path: /dev/null
 
@@ -35,7 +37,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [filter/drop_docker_engine_api, batch]
-      exporters: [otlp/jaeger]
+      exporters: [file/discard_traces]
     metrics:
       receivers: [otlp]
       processors: [batch]

@@ -15,27 +15,3 @@ datasources:
     type: loki
     access: proxy
     url: http://loki:3100
-    jsonData:
-      derivedFields:
-        # Go services log JSON with trace_id (see shared/logs TraceLogFields); link log lines → Jaeger.
-        - name: trace_id
-          datasourceUid: jaeger
-          matcherRegex: '"trace_id"\s*:\s*"([a-fA-F0-9]{32})"'
-          url: '$${__value.raw}'
-          urlDisplayLabel: View trace
-
-  - name: Jaeger
-    uid: jaeger
-    type: jaeger
-    access: proxy
-    url: http://jaeger:16686
-    jsonData:
-      tracesToLogsV2:
-        datasourceUid: loki
-        spanStartTimeShift: "-1m"
-        spanEndTimeShift: "1m"
-        tags:
-          - key: service.name
-            value: compose_service
-        filterByTraceID: true
-        filterBySpanID: false

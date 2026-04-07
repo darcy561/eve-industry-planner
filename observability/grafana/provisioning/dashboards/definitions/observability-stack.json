@@ -13,7 +13,7 @@
       "id": 1,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "**Observability stack** — combined **Loki** stream for Compose services **otel-collector** and **jaeger** (OTLP → collector → Jaeger all-in-one; in-memory trace store).\n\nUse **Log details** → **`compose_service`** to see which container emitted a line. **Explore → Jaeger** for traces (datasources link logs ↔ traces via `trace_id` / `service.name`).\n\n**If empty:** widen the time range; confirm **Promtail** can reach the Docker socket and these containers are running.",
+        "content": "**Observability stack** — **Loki** stream for **otel-collector** (OTLP traces are accepted then discarded; correlate requests with **`trace_id`** in app JSON logs in Loki).\n\nUse **Log details** → **`compose_service`** to see which container emitted a line.\n\n**If empty:** widen the time range; confirm **Promtail** can reach the Docker socket and these containers are running.",
         "mode": "markdown"
       },
       "title": "",
@@ -22,7 +22,7 @@
     },
     {
       "datasource": { "type": "loki", "uid": "loki" },
-      "description": "otel-collector and jaeger (replicas share the same compose_service label per service).",
+      "description": "otel-collector (replicas share the same compose_service label per service).",
       "fieldConfig": { "defaults": {}, "overrides": [] },
       "gridPos": { "h": 18, "w": 24, "x": 0, "y": 7 },
       "id": 2,
@@ -41,7 +41,7 @@
         {
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "{compose_service=~\"otel-collector|jaeger\"}",
+          "expr": "{compose_service=\"otel-collector\"}",
           "queryType": "range",
           "refId": "A"
         }
@@ -53,7 +53,7 @@
   "refresh": "30s",
   "schemaVersion": 39,
   "style": "dark",
-  "tags": ["loki", "logs", "observability", "otel", "jaeger"],
+  "tags": ["loki", "logs", "observability", "otel"],
   "templating": { "list": [] },
   "time": { "from": "now-6h", "to": "now" },
   "timepicker": {

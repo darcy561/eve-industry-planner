@@ -29,7 +29,7 @@ func RegisterESIGroupGauges(rdb *redis.Client) {
 			return
 		}
 		m := coreESIMeter()
-		// Unit "1" becomes *_ratio in Prometheus via the OTel collector (values are still token counts).
+		// Unit "1"; Prometheus names are core_esi_group_token_* (collector translation_strategy without unit suffix).
 		gLimit, err := m.Float64ObservableGauge("core.esi.group.token_limit",
 			metric.WithUnit("1"),
 			metric.WithDescription("ESI error-limit token allowance for this group (X-Ratelimit-Limit style bucket)."),

@@ -353,19 +353,6 @@ services:
       loki:
         condition: service_started
 
-  jaeger:
-    image: jaegertracing/jaeger:2.17.0
-    container_name: jaeger
-    restart: unless-stopped
-    networks:
-      - eip
-    dns: *common-dns
-    command: ["--config", "/etc/jaeger/config.yaml"]
-    volumes:
-      - ./observability/jaeger/config.yaml:/etc/jaeger/config.yaml:ro
-    ports:
-      - "10.8.0.1:16686:16686"
-
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     container_name: otel-collector
@@ -376,9 +363,6 @@ services:
     command: ["--config=/etc/otelcol/config.yaml"]
     volumes:
       - ./observability/otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
-    depends_on:
-      jaeger:
-        condition: service_started
 
   grafana:
     image: grafana/grafana:latest
@@ -401,8 +385,6 @@ services:
       prometheus:
         condition: service_started
       loki:
-        condition: service_started
-      jaeger:
         condition: service_started
 
   node_exporter:
