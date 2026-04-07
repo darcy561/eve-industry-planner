@@ -213,13 +213,6 @@ services:
       - "--accesslog.filepath=/var/log/traefik/access.log"
       - "--log.level=INFO"
       - "--log.filepath=/var/log/traefik/traefik.log"
-      # OpenTelemetry
-      - "--tracing=true"
-      - "--tracing.otlp=true"
-      - "--tracing.otlp.grpc=true"
-      - "--tracing.otlp.grpc.endpoint=otel-collector:4317"
-      - "--tracing.otlp.grpc.insecure=true"
-      - "--tracing.servicename=traefik"
     labels:
       # Enable Traefik
       - "traefik.enable=true"

@@ -57,6 +57,7 @@ export default defineConfig(({ command, mode }) => {
         },
       },
       sentryVitePlugin({
+        // org = organization slug (…/organizations/<slug>/); project = project slug (…/projects/<slug>/).
         org: env.SENTRY_ORG || "eve-industry-planner",
         project: env.SENTRY_PROJECT_ID,
       }),

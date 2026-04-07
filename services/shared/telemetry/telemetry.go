@@ -13,18 +13,20 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	logglobal "go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/propagation"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"eve-industry-planner/shared/logs"
 )
 
 // Init installs global TracerProvider and MeterProvider when Config.shouldInit is true.
+// Traces are exported to Sentry only when SentryDSN is set (no OTLP trace exporter).
+// OTLP remains for metrics and logs to the collector when OTLPEndpoint is set.
 // It returns a shutdown function that flushes providers (and Sentry when configured).
 // Call shutdown on process exit with a timeout context.
 func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) {
@@ -50,12 +52,9 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 			EnableTracing:    true,
 			TracesSampleRate: sr,
 			SampleRate:       1.0,
-			BeforeSend: func(event *sentry.Event, _ *sentry.EventHint) *sentry.Event {
-				if strings.EqualFold(envMode, "development") {
-					return nil
-				}
-				return event
-			},
+			// Do not drop events by environment here: use a separate Sentry project/DSN for dev,
+			// or filter by the "environment" tag in Sentry. Dropping all "development" events
+			// made production-looking deploys (e.g. mis-set build ARG) send nothing.
 		}); err != nil {
 			return nil, fmt.Errorf("telemetry: sentry.Init: %w", err)
 		}
@@ -92,30 +91,19 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 		return nil, fmt.Errorf("telemetry: resource: %w", err)
 	}
 
-	traceOpts := []sdktrace.TracerProviderOption{
-		sdktrace.WithResource(res),
-	}
+	var traceShutdown func(context.Context) error
 	if cfg.SentryDSN != "" {
-		traceOpts = append(traceOpts, sdktrace.WithSpanProcessor(sentryotel.NewSentrySpanProcessor()))
+		tp := sdktrace.NewTracerProvider(
+			sdktrace.WithResource(res),
+			sdktrace.WithSpanProcessor(sentryotel.NewSentrySpanProcessor()),
+		)
+		otel.SetTracerProvider(tp)
+		traceShutdown = tp.Shutdown
+	} else {
+		// Metrics/logs may still use OTLP; avoid creating spans that go nowhere.
+		otel.SetTracerProvider(oteltrace.NewNoopTracerProvider())
+		traceShutdown = func(context.Context) error { return nil }
 	}
-	if cfg.OTLPEndpoint != "" {
-		hostport, err := normalizeOTLPEndpoint(cfg.OTLPEndpoint)
-		if err != nil {
-			return nil, err
-		}
-		topts := []otlptracegrpc.Option{otlptracegrpc.WithEndpoint(hostport)}
-		if cfg.OTLPInsecure {
-			topts = append(topts, otlptracegrpc.WithInsecure())
-		}
-		te, err := otlptracegrpc.New(ctx, topts...)
-		if err != nil {
-			return nil, fmt.Errorf("telemetry: otlp trace exporter: %w", err)
-		}
-		traceOpts = append(traceOpts, sdktrace.WithBatcher(te))
-	}
-
-	tp := sdktrace.NewTracerProvider(traceOpts...)
-	otel.SetTracerProvider(tp)
 
 	var lp *sdklog.LoggerProvider
 	if cfg.OTLPEndpoint != "" {
@@ -167,7 +155,7 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 
 	return func(shutdownCtx context.Context) error {
 		var errs []error
-		if err := tp.Shutdown(shutdownCtx); err != nil {
+		if err := traceShutdown(shutdownCtx); err != nil {
 			errs = append(errs, fmt.Errorf("telemetry: trace shutdown: %w", err))
 		}
 		if lp != nil {

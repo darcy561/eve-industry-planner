@@ -15,6 +15,7 @@ import (
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
 
+	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/ulule/limiter/v3"
 	lredis "github.com/ulule/limiter/v3/drivers/store/redis"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -270,7 +271,7 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 	if err != nil {
 		return err
 	}
-	handler := middleware.RequestStartTimeConstructor()(
+	baseHandler := middleware.RequestStartTimeConstructor()(
 		otelhttp.NewHandler(
 			apiHandler,
 			"api",
@@ -279,6 +280,9 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 			}),
 		),
 	)
+	// Panics → Sentry (errors); traces still from OTel → Sentry span processor when DSN is baked in.
+	sentryHandler := sentryhttp.New(sentryhttp.Options{Repanic: false})
+	handler := sentryHandler.Handle(baseHandler)
 	logs.InfoCtx(ctx, "api http server starting", "addr", ":"+cfg.API_PORT)
 	if err := http.ListenAndServe(":"+cfg.API_PORT, handler); err != nil {
 		logs.ErrorCtx(ctx, "api http server error", "err", err)
