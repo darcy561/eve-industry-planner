@@ -10,7 +10,7 @@ import (
 	"time"
 
 	rediscore "eve-industry-planner/shared/core/redis"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -114,7 +114,7 @@ func GetCorporations(ctx context.Context, redisClient *redis.Client, accountID s
 	}
 	if err != nil {
 		// Log error but return empty array - don't fail the request
-		logs.Debug("failed to get corporation IDs from Redis", "error", err, "account_id", accountID)
+		logs.DebugCtx(ctx, "failed to get corporation IDs from Redis", "error", err, "account_id", accountID)
 		return []int64{}
 	}
 

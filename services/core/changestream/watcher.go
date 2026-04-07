@@ -8,15 +8,15 @@ import (
 
 	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared/logs"
-
-	"log/slog"
+	"eve-industry-planner/shared/logs"
 
 	"github.com/nats-io/nats.go/jetstream"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+const changestreamLogComponent = "changestream"
 
 // ChangeStreamMessage represents the message payload sent to NATS
 type ChangeStreamMessage struct {
@@ -36,18 +36,15 @@ type Watcher struct {
 	jsContext   jetstream.JetStream
 	database    *mongo.Database
 	stopChan    chan struct{}
-	log         *slog.Logger
 }
 
 // NewWatcher creates a new change stream watcher
 func NewWatcher(mongoClient *mongo.Client, jsContext jetstream.JetStream) *Watcher {
-	log := logs.Component("changestream")
 	return &Watcher{
 		mongoClient: mongoClient,
 		jsContext:   jsContext,
 		database:    mongoClient.Database(mongocore.DatabaseName),
 		stopChan:    make(chan struct{}),
-		log:         log,
 	}
 }
 
@@ -62,19 +59,22 @@ func (w *Watcher) Start() func() {
 
 // watchChangeStreams watches all collections in the database
 func (w *Watcher) watchChangeStreams() {
-	w.log.Info("starting MongoDB change stream watcher",
+	streamCtx := context.Background()
+	logs.InfoCtx(streamCtx, "starting MongoDB change stream watcher",
+		"component", changestreamLogComponent,
 		"database", mongocore.DatabaseName)
 
 	reconnectCount := 0
 	for {
 		select {
 		case <-w.stopChan:
-			w.log.Info("change stream watcher stopped",
+			logs.InfoCtx(streamCtx, "change stream watcher stopped",
+				"component", changestreamLogComponent,
 				"reconnects", reconnectCount)
 			return
 		default:
 			// Watch at the database level to capture changes from all collections
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(streamCtx)
 
 			// Create change stream options
 			// SetFullDocument: include full document for update/replace operations
@@ -87,7 +87,8 @@ func (w *Watcher) watchChangeStreams() {
 			changeStream, err := w.database.Watch(ctx, mongo.Pipeline{}, opts)
 			if err != nil {
 				reconnectCount++
-				w.log.Error("failed to create change stream, will retry",
+				logs.ErrorCtx(ctx, "failed to create change stream, will retry",
+					"component", changestreamLogComponent,
 					"error", err,
 					"reconnect_attempt", reconnectCount)
 				cancel()
@@ -96,11 +97,13 @@ func (w *Watcher) watchChangeStreams() {
 			}
 
 			if reconnectCount > 0 {
-				w.log.Info("change stream reconnected successfully",
+				logs.InfoCtx(ctx, "change stream reconnected successfully",
+					"component", changestreamLogComponent,
 					"reconnect_count", reconnectCount)
 				reconnectCount = 0 // Reset counter on successful connection
 			} else {
-				w.log.Debug("change stream created, watching for changes",
+				logs.DebugCtx(ctx, "change stream created, watching for changes",
+					"component", changestreamLogComponent,
 					"database", mongocore.DatabaseName)
 			}
 
@@ -110,7 +113,7 @@ func (w *Watcher) watchChangeStreams() {
 				eventCount++
 				var changeEvent bson.M
 				if err := changeStream.Decode(&changeEvent); err != nil {
-					w.log.Warn("failed to decode change event", "error", err, "event_count", eventCount)
+					logs.WarnCtx(ctx, "failed to decode change event", "component", changestreamLogComponent, "error", err, "event_count", eventCount)
 					continue
 				}
 
@@ -118,7 +121,8 @@ func (w *Watcher) watchChangeStreams() {
 				if operationType, ok := changeEvent["operationType"].(string); ok {
 					if ns, ok := changeEvent["ns"].(bson.M); ok {
 						if collection, ok := ns["coll"].(string); ok {
-							w.log.Debug("change stream event received",
+							logs.DebugCtx(ctx, "change stream event received",
+								"component", changestreamLogComponent,
 								"operation", operationType,
 								"collection", collection,
 								"event_count", eventCount)
@@ -127,23 +131,24 @@ func (w *Watcher) watchChangeStreams() {
 				}
 
 				// Process the change event
-				if err := w.processChangeEvent(changeEvent); err != nil {
-					w.log.Warn("failed to process change event", "error", err, "event_count", eventCount)
+				if err := w.processChangeEvent(ctx, changeEvent); err != nil {
+					logs.WarnCtx(ctx, "failed to process change event", "component", changestreamLogComponent, "error", err, "event_count", eventCount)
 					// Continue processing other events
 				}
 			}
 
 			if eventCount > 0 {
-				w.log.Info("change stream iteration completed", "events_processed", eventCount)
+				logs.InfoCtx(ctx, "change stream iteration completed", "component", changestreamLogComponent, "events_processed", eventCount)
 			}
 
 			// Check if change stream ended
 			if err := changeStream.Err(); err != nil {
-				w.log.Warn("change stream error, will reconnect",
+				logs.WarnCtx(ctx, "change stream error, will reconnect",
+					"component", changestreamLogComponent,
 					"error", err,
 					"events_processed", eventCount)
 				if err := changeStream.Close(ctx); err != nil {
-					w.log.Warn("error closing change stream", "error", err)
+					logs.WarnCtx(ctx, "error closing change stream", "component", changestreamLogComponent, "error", err)
 				}
 				cancel()
 				// Wait before retrying
@@ -153,17 +158,17 @@ func (w *Watcher) watchChangeStreams() {
 
 			// Close the change stream
 			if err := changeStream.Close(ctx); err != nil {
-				w.log.Warn("error closing change stream", "error", err)
+				logs.WarnCtx(ctx, "error closing change stream", "component", changestreamLogComponent, "error", err)
 			}
 			cancel()
-			w.log.Info("change stream closed, reconnecting...", "events_processed", eventCount)
+			logs.InfoCtx(ctx, "change stream closed, reconnecting...", "component", changestreamLogComponent, "events_processed", eventCount)
 			time.Sleep(2 * time.Second)
 		}
 	}
 }
 
 // processChangeEvent processes a single change event and publishes it to NATS
-func (w *Watcher) processChangeEvent(changeEvent bson.M) error {
+func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) error {
 	// Extract operation type
 	operationType, ok := changeEvent["operationType"].(string)
 	if !ok {
@@ -270,8 +275,9 @@ func (w *Watcher) processChangeEvent(changeEvent bson.M) error {
 	}
 
 	// Publish to NATS
-	if err := natscore.PublishMessage(w.jsContext, subject, messageData); err != nil {
-		w.log.Error("failed to publish change stream message to NATS",
+	if err := natscore.PublishMessage(ctx, w.jsContext, subject, messageData); err != nil {
+		logs.ErrorCtx(ctx, "failed to publish change stream message to NATS",
+			"component", changestreamLogComponent,
 			"operation", operationType,
 			"collection", collection,
 			"doc_id", docID,
@@ -280,7 +286,8 @@ func (w *Watcher) processChangeEvent(changeEvent bson.M) error {
 		return fmt.Errorf("failed to publish change stream message: %w", err)
 	}
 
-	w.log.Info("change stream event published to NATS",
+	logs.InfoCtx(ctx, "change stream event published to NATS",
+		"component", changestreamLogComponent,
 		"operation", operationType,
 		"collection", collection,
 		"doc_id", docID,

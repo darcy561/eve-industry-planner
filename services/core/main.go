@@ -7,10 +7,12 @@ import (
 
 	"eve-industry-planner/core/changestream"
 	"eve-industry-planner/core/commands"
+	"eve-industry-planner/core/esimetrics"
 	"eve-industry-planner/core/scheduler"
 	"eve-industry-planner/core/startup"
 	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/telemetry"
 )
 
 func main() {
@@ -21,21 +23,35 @@ func main() {
 	// Command mode (e.g. docker exec core-service /app/core-service tasks ...)
 	handled, err := commands.Handle(ctx, os.Args[1:])
 	if err != nil {
-		logs.Error("command failed", "error", err)
+		logs.ErrorCtx(ctx, "command failed", "error", err)
 		os.Exit(1)
 	}
 	if handled {
 		return
 	}
 
-	logs.Info("core startup checks starting")
+	teleShutdown, err := telemetry.Init(ctx, telemetry.DefaultConfig("core"))
+	if err != nil {
+		logs.ErrorCtx(ctx, "telemetry init failed", "err", err)
+		cancel()
+		return
+	}
+
+	logs.InfoCtx(ctx, "core startup checks starting")
 
 	// Connect to required services (primary MongoDB for scheduler)
 	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo, shared.ServiceNATS, shared.ServiceRedis)
 	if err != nil {
+		sctx, sdone := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = teleShutdown(sctx)
+		sdone()
 		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
 		return
 	}
+	ts := teleShutdown
+	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) { _ = ts(c) })
+
+	esimetrics.RegisterESIGroupGauges(clients.Redis)
 
 	// Run startup checks that must complete before the rest of the system is considered ready.
 	// Today this primarily validates/bootstraps Static Data Export (SDE) files under /static-data.
@@ -43,7 +59,7 @@ func main() {
 		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
 		return
 	}
-	logs.Info("core service running")
+	logs.InfoCtx(ctx, "core service running")
 
 	// Start scheduler service (runs in background goroutines)
 	schedulerStop, err := scheduler.StartService("scheduler", clients.NATS, clients.JetStream, clients.Redis, clients.Mongo)
@@ -58,7 +74,7 @@ func main() {
 	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) { changestreamStop() })
 
 	// Mark core as healthy/ready for dependent services (e.g. api) via docker healthcheck.
-	if err := startup.WriteCoreReadyMarker(); err != nil {
+	if err := startup.WriteCoreReadyMarker(ctx); err != nil {
 		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
 		return
 	}

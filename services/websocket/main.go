@@ -6,13 +6,12 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/config"
+	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/logs"
-	"eve-industry-planner/shared/shared/metrics"
 	wsserver "eve-industry-planner/websocket/server"
 )
 
-func StartWSServer(clients *shared.ServiceClients) error {
+func StartWSServer(ctx context.Context, clients *shared.ServiceClients) error {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		return err
@@ -24,7 +23,7 @@ func StartWSServer(clients *shared.ServiceClients) error {
 	http.HandleFunc("/ws/", wsServer.HandleWS)
 
 	addr := ":" + cfg.WS_PORT
-	logs.Info("ws server starting", "addr", addr)
+	logs.InfoCtx(ctx, "ws server starting", "addr", addr)
 
 	return http.ListenAndServe(addr, nil)
 }
@@ -40,14 +39,11 @@ func main() {
 		return
 	}
 
-	logs.Debug("websocket service running")
-
-	// Start metrics logger for Dozzle viewing (logs every 60 seconds)
-	metrics.StartWebSocketMetricsLogger(60 * time.Second)
+	logs.DebugCtx(ctx, "websocket service running")
 
 	go func() {
-		if err := StartWSServer(clients); err != nil {
-			logs.Error("failed to start websocket server", "err", err)
+		if err := StartWSServer(ctx, clients); err != nil {
+			logs.ErrorCtx(ctx, "failed to start websocket server", "err", err)
 			shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
 		}
 	}()

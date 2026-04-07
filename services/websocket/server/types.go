@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -65,6 +66,7 @@ type Server struct {
 type Client struct {
 	id             string
 	conn           *websocket.Conn
+	connCtx        context.Context // derived from HTTP request for logging (WithoutCancel); set on connect
 	Send           chan []byte     // Exported for sync package
 	subscribedDocs map[string]bool // Track which documents this client is subscribed to
 	AccountID      string          // Account ID from JWT claims - exported for sync package
@@ -198,6 +200,28 @@ func (c *Client) GetAccountID() string {
 
 func (c *Client) GetSend() chan []byte {
 	return c.Send
+}
+
+// LogContext returns the connection-scoped context for structured logging.
+func (c *Client) LogContext() context.Context {
+	if c.connCtx != nil {
+		return c.connCtx
+	}
+	return context.Background()
+}
+
+// clientLogCtx returns a client's LogContext, or Background if unknown or disconnected.
+func (s *Server) clientLogCtx(clientID string) context.Context {
+	if clientID == "" {
+		return context.Background()
+	}
+	s.ClientsMu.RLock()
+	c := s.Clients[clientID]
+	s.ClientsMu.RUnlock()
+	if c == nil {
+		return context.Background()
+	}
+	return c.LogContext()
 }
 
 // Implement syncpkg.SyncServer interface - MongoDB access

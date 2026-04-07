@@ -1,6 +1,12 @@
 package nats
 
-import "encoding/json"
+import (
+	"context"
+	"encoding/json"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+)
 
 // Message type constants for the Message.Type field
 const (
@@ -21,6 +27,48 @@ type MessageType interface {
 type Message struct {
 	Type string          `json:"type"`           // Message type identifier (e.g., "task", "schedule", "empty")
 	Data json.RawMessage `json:"data,omitempty"` // Optional JSON-encoded payload data
+
+	// TraceCarrierTraceparent and TraceCarrierTracestate duplicate W3C trace context in the JSON body
+	// (same values as NATS headers from natsprop.Inject) so Asynq workers still correlate when headers
+	// are missing on the JetStream-delivered message.
+	TraceCarrierTraceparent string `json:"trace_carrier_traceparent,omitempty"`
+	TraceCarrierTracestate  string `json:"trace_carrier_tracestate,omitempty"`
+}
+
+// EnrichTraceCarrierFromContext sets TraceCarrier* fields from ctx via the global TextMapPropagator.
+func (m *Message) EnrichTraceCarrierFromContext(ctx context.Context) {
+	if ctx == nil || m == nil {
+		return
+	}
+	carrier := make(map[string]string)
+	otel.GetTextMapPropagator().Inject(ctx, propagation.MapCarrier(carrier))
+	if v := carrier["traceparent"]; v != "" {
+		m.TraceCarrierTraceparent = v
+	}
+	if v := carrier["tracestate"]; v != "" {
+		m.TraceCarrierTracestate = v
+	}
+}
+
+// MergeTraceCarrierIntoHeaders fills missing traceparent/tracestate in headers from JSON envelope fields.
+func MergeTraceCarrierIntoHeaders(headers map[string]string, traceparent, tracestate string) map[string]string {
+	if traceparent == "" && tracestate == "" {
+		return headers
+	}
+	if headers == nil {
+		headers = make(map[string]string)
+	}
+	if traceparent != "" {
+		if _, ok := headers["traceparent"]; !ok {
+			headers["traceparent"] = traceparent
+		}
+	}
+	if tracestate != "" {
+		if _, ok := headers["tracestate"]; !ok {
+			headers["tracestate"] = tracestate
+		}
+	}
+	return headers
 }
 
 // ScheduleRequest represents a request to schedule a one-time task.

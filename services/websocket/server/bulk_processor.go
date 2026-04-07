@@ -7,7 +7,7 @@ import (
 	"time"
 
 	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -31,7 +31,11 @@ func (s *Server) processIncomingBulkQueue() error {
 	// Process one bulk operation array at a time (non-blocking)
 	select {
 	case operations := <-queue.ch:
-		logs.Debug("processing bulk operation",
+		bulkCtx := context.Background()
+		if len(operations) > 0 {
+			bulkCtx = s.clientLogCtx(operations[0].ClientID)
+		}
+		logs.DebugCtx(bulkCtx, "processing bulk operation",
 			"operation_count", len(operations))
 		return s.processBulkOperations(operations)
 
@@ -47,6 +51,8 @@ func (s *Server) processBulkOperations(operations []Operation) error {
 		return nil
 	}
 
+	bulkCtx := s.clientLogCtx(operations[0].ClientID)
+
 	// Group operations by type
 	var addOps []Operation
 	var updateOps []Operation
@@ -61,7 +67,7 @@ func (s *Server) processBulkOperations(operations []Operation) error {
 		case "DELETE":
 			deleteOps = append(deleteOps, op)
 		default:
-			logs.Warn("unknown action in bulk operation",
+			logs.WarnCtx(bulkCtx, "unknown action in bulk operation",
 				"action", op.Action,
 				"doc_id", op.DocumentID)
 			// Treat as ADD by default
@@ -76,7 +82,7 @@ func (s *Server) processBulkOperations(operations []Operation) error {
 	// Process each type
 	if len(addOps) > 0 {
 		if err := s.processBulkAdds(collection, addOps); err != nil {
-			logs.Error("bulk add failed", "error", err)
+			logs.ErrorCtx(bulkCtx, "bulk add failed", "error", err)
 			// Continue processing other operations
 		}
 	}
@@ -85,7 +91,7 @@ func (s *Server) processBulkOperations(operations []Operation) error {
 		// Process updates one by one (maintain order)
 		for _, op := range updateOps {
 			if err := s.processSingleUpdate(collection, op); err != nil {
-				logs.Error("update failed",
+				logs.ErrorCtx(s.clientLogCtx(op.ClientID), "update failed",
 					"doc_id", op.DocumentID,
 					"error", err)
 				// Continue processing other updates
@@ -95,12 +101,12 @@ func (s *Server) processBulkOperations(operations []Operation) error {
 
 	if len(deleteOps) > 0 {
 		if err := s.processBulkDeletes(collection, deleteOps); err != nil {
-			logs.Error("bulk delete failed", "error", err)
+			logs.ErrorCtx(bulkCtx, "bulk delete failed", "error", err)
 			// Continue processing other operations
 		}
 	}
 
-	logs.Debug("bulk operations processed",
+	logs.DebugCtx(bulkCtx, "bulk operations processed",
 		"total", len(operations),
 		"adds", len(addOps),
 		"updates", len(updateOps),
@@ -169,7 +175,7 @@ func (s *Server) processBulkAdds(collection *mongo.Collection, operations []Oper
 		return fmt.Errorf("bulk add failed: %w", err)
 	}
 
-	logs.Info("bulk add completed",
+	logs.InfoCtx(ctx, "bulk add completed",
 		"operations", len(operations),
 		"inserted", result.InsertedCount,
 		"upserted", result.UpsertedCount,
@@ -229,12 +235,12 @@ func (s *Server) processSingleUpdate(collection *mongo.Collection, op Operation)
 	}
 
 	if result.MatchedCount == 0 {
-		logs.Warn("update attempted on non-existent document",
+		logs.WarnCtx(ctx, "update attempted on non-existent document",
 			"doc_id", op.DocumentID)
 		return fmt.Errorf("document not found: %s", op.DocumentID)
 	}
 
-	logs.Debug("document updated", "doc_id", op.DocumentID)
+	logs.DebugCtx(ctx, "document updated", "doc_id", op.DocumentID)
 	s.broadcastDocumentUpdate(op.DocumentID, op)
 
 	return nil
@@ -276,7 +282,7 @@ func (s *Server) processBulkDeletes(collection *mongo.Collection, operations []O
 		})
 		if err != nil {
 			// Log but continue - document might not exist
-			logs.Debug("failed to add metadata before delete",
+			logs.DebugCtx(ctx, "failed to add metadata before delete",
 				"doc_id", op.DocumentID,
 				"error", err)
 		}
@@ -304,7 +310,7 @@ func (s *Server) processBulkDeletes(collection *mongo.Collection, operations []O
 		// Check if error is acceptable (e.g., some documents already deleted)
 		if bulkErr, ok := err.(mongo.BulkWriteException); ok {
 			for _, writeErr := range bulkErr.WriteErrors {
-				logs.Warn("delete operation failed",
+				logs.WarnCtx(ctx, "delete operation failed",
 					"doc_id", operations[writeErr.Index].DocumentID,
 					"error", writeErr)
 			}
@@ -314,7 +320,7 @@ func (s *Server) processBulkDeletes(collection *mongo.Collection, operations []O
 		}
 	}
 
-	logs.Info("bulk delete completed",
+	logs.InfoCtx(ctx, "bulk delete completed",
 		"operations", len(operations),
 		"deleted", result.DeletedCount)
 
@@ -335,7 +341,7 @@ func (s *Server) broadcastDocumentUpdate(docID string, op Operation) {
 
 	jsonData, err := json.Marshal(updateData)
 	if err != nil {
-		logs.Warn("failed to marshal update for broadcast",
+		logs.WarnCtx(s.clientLogCtx(op.ClientID), "failed to marshal update for broadcast",
 			"doc_id", docID,
 			"error", err)
 		return

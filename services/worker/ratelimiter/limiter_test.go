@@ -93,7 +93,7 @@ func TestCleanupOldConsumptions(t *testing.T) {
 				}
 			}
 
-			gl.CleanupOldConsumptions()
+			gl.CleanupOldConsumptions(context.Background())
 
 			if gl.TokenUsed != tt.wantTokenUsed {
 				t.Errorf("CleanupOldConsumptions() TokenUsed = %v, want %v", gl.TokenUsed, tt.wantTokenUsed)

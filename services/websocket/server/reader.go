@@ -6,8 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"eve-industry-planner/shared/shared/logs"
-	"eve-industry-planner/shared/shared/metrics"
+	"eve-industry-planner/shared/logs"
 	syncpkg "eve-industry-planner/websocket/sync"
 
 	"github.com/gorilla/websocket"
@@ -15,16 +14,15 @@ import (
 
 // reader reads messages from the WebSocket connection
 func (s *Server) reader(client *Client) {
-	logs.Info("websocket reader function called",
+	ctx := client.LogContext()
+	logs.InfoCtx(ctx, "websocket reader function called",
 		"client_id", client.id,
 		"account_id", client.AccountID)
-
-	m := metrics.GetWebSocket()
 
 	// Add panic recovery
 	defer func() {
 		if r := recover(); r != nil {
-			logs.Error("websocket reader goroutine panicked",
+			logs.ErrorCtx(ctx, "websocket reader goroutine panicked",
 				"client_id", client.id,
 				"account_id", client.AccountID,
 				"panic", r)
@@ -57,20 +55,13 @@ func (s *Server) reader(client *Client) {
 		}
 		s.userConnMu.Unlock()
 
-		// Update metrics
-		m.Disconnections.Inc()
-		m.ActiveConnections.Set(float64(clientCount))
-
-		// Update per-account connection count
-		m.ActiveConnectionsPerAccount.WithLabelValues(client.AccountID).Set(float64(userConnCount))
-
 		// Close connection if not already closed
 		client.conn.Close()
 
 		// Close Send channel to signal writer goroutine to exit
 		close(client.Send)
 
-		logs.Info("websocket client disconnected",
+		logs.InfoCtx(ctx, "websocket client disconnected",
 			"client_id", client.id,
 			"account_id", client.AccountID,
 			"remaining_clients", clientCount,
@@ -83,7 +74,7 @@ func (s *Server) reader(client *Client) {
 	// We'll extend it in the loop when messages are received
 	client.conn.SetReadDeadline(time.Now().Add(pongWait))
 
-	logs.Info("websocket reader starting to read messages",
+	logs.InfoCtx(ctx, "websocket reader starting to read messages",
 		"client_id", client.id,
 		"account_id", client.AccountID,
 		"pong_wait", pongWait)
@@ -93,7 +84,7 @@ func (s *Server) reader(client *Client) {
 		messageType, msg, err := client.conn.ReadMessage()
 		messageCount++
 
-		logs.Debug("websocket reader: ReadMessage returned",
+		logs.DebugCtx(ctx, "websocket reader: ReadMessage returned",
 			"client_id", client.id,
 			"account_id", client.AccountID,
 			"message_count", messageCount,
@@ -102,9 +93,6 @@ func (s *Server) reader(client *Client) {
 			"message_type", messageType,
 			"message_length", len(msg))
 		if err != nil {
-			m.ReadErrors.Inc()
-			m.Errors.WithLabelValues("read_error").Inc()
-
 			// Check if this is a timeout error (no pong received)
 			errStr := err.Error()
 			if strings.Contains(errStr, "timeout") || strings.Contains(errStr, "deadline exceeded") {
@@ -114,7 +102,7 @@ func (s *Server) reader(client *Client) {
 				idleDuration := time.Since(lastActivity)
 				client.activityMu.RUnlock()
 
-				logs.Warn("websocket read timeout - no pong received (connection likely stale)",
+				logs.WarnCtx(ctx, "websocket read timeout - no pong received (connection likely stale)",
 					"client_id", client.id,
 					"account_id", client.AccountID,
 					"idle_duration", idleDuration,
@@ -122,23 +110,19 @@ func (s *Server) reader(client *Client) {
 					"error", err,
 					"note", "This suggests old connections aren't being closed when token refreshes")
 			} else {
-				logs.Warn("websocket read error", "client_id", client.id, "error", err)
+				logs.WarnCtx(ctx, "websocket read error", "client_id", client.id, "error", err)
 			}
 			break
 		}
 
 		// Log all received messages with type and content for debugging
-		logs.Debug("websocket message received",
+		logs.DebugCtx(ctx, "websocket message received",
 			"client_id", client.id,
 			"message_type", messageType,
 			"message_type_name", getMessageTypeName(messageType),
 			"message_length", len(msg),
 			"message", string(msg),
 			"message_bytes", fmt.Sprintf("%x", msg))
-
-		// Update message metrics
-		m.MessagesIncoming.Inc()
-		m.MessageBytesIn.Add(float64(len(msg)))
 
 		// Update last activity when message is received
 		client.activityMu.Lock()
@@ -159,14 +143,7 @@ func (s *Server) reader(client *Client) {
 		client.messageCount++
 		if client.messageCount > MessageRateLimit {
 			client.messageMu.Unlock()
-			m.MessageRateLimit.WithLabelValues("exceeded").Inc()
-			m.Errors.WithLabelValues("rate_limit_exceeded").Inc()
-			metrics.LogWebSocketRequestMetrics("message_rate_limit", 0, "exceeded",
-				"client_id", client.id,
-				"account_id", client.AccountID,
-				"message_count", client.messageCount,
-				"limit", MessageRateLimit)
-			logs.Warn("websocket message rate limit exceeded",
+			logs.WarnCtx(ctx, "websocket message rate limit exceeded",
 				"client_id", client.id,
 				"account_id", client.AccountID,
 				"message_count", client.messageCount,
@@ -185,12 +162,12 @@ func (s *Server) reader(client *Client) {
 			// Must use Send channel to avoid concurrent writes (gorilla/websocket requires serialized writes)
 			select {
 			case client.Send <- []byte("pong"):
-				logs.Debug("websocket heartbeat: pong queued for sending",
+				logs.DebugCtx(ctx, "websocket heartbeat: pong queued for sending",
 					"client_id", client.id,
 					"account_id", client.AccountID)
 			default:
 				// Send buffer full - log warning but continue (heartbeat failure is not critical)
-				logs.Warn("websocket heartbeat: failed to queue pong (send buffer full)",
+				logs.WarnCtx(ctx, "websocket heartbeat: failed to queue pong (send buffer full)",
 					"client_id", client.id,
 					"account_id", client.AccountID)
 			}
@@ -205,12 +182,11 @@ func (s *Server) reader(client *Client) {
 			var msgData map[string]interface{}
 			if err := json.Unmarshal(msg, &msgData); err != nil {
 				// Not valid JSON
-				logs.Warn("websocket message is not valid JSON",
+				logs.WarnCtx(ctx, "websocket message is not valid JSON",
 					"client_id", client.id,
 					"account_id", client.AccountID,
 					"error", err,
 					"message_preview", msgStr)
-				m.Errors.WithLabelValues("invalid_message_format").Inc()
 				continue
 			}
 
@@ -219,7 +195,7 @@ func (s *Server) reader(client *Client) {
 			if !ok {
 				msgType = ""
 			}
-			logs.Debug("parsed message type from JSON",
+			logs.DebugCtx(ctx, "parsed message type from JSON",
 				"client_id", client.id,
 				"account_id", client.AccountID,
 				"type", msgType,
@@ -228,7 +204,7 @@ func (s *Server) reader(client *Client) {
 			switch msgType {
 			case "sync":
 				// Sync message - route to sync queue
-				syncpkg.HandleSyncMessage(s, client.id, client.AccountID, msg)
+				syncpkg.HandleSyncMessage(ctx, s, client.id, client.AccountID, msg)
 				continue
 
 			case "subscribe":
@@ -236,21 +212,19 @@ func (s *Server) reader(client *Client) {
 					DocIDs []string `json:"docIDs"`
 				}
 				if err := json.Unmarshal(msg, &subscribeMsg); err != nil {
-					logs.Warn("failed to parse subscribe message",
+					logs.WarnCtx(ctx, "failed to parse subscribe message",
 						"client_id", client.id,
 						"account_id", client.AccountID,
 						"error", err,
 						"message_preview", msgStr)
-					m.Errors.WithLabelValues("invalid_message_format").Inc()
 					continue
 				}
 
 				if len(subscribeMsg.DocIDs) == 0 {
-					logs.Warn("subscribe message missing or empty docIDs field - expected format: {\"type\":\"subscribe\",\"docIDs\":[\"doc1\",\"doc2\"]}",
+					logs.WarnCtx(ctx, "subscribe message missing or empty docIDs field - expected format: {\"type\":\"subscribe\",\"docIDs\":[\"doc1\",\"doc2\"]}",
 						"client_id", client.id,
 						"account_id", client.AccountID,
 						"message_preview", msgStr)
-					m.Errors.WithLabelValues("invalid_message_format").Inc()
 					continue
 				}
 
@@ -268,21 +242,19 @@ func (s *Server) reader(client *Client) {
 					DocIDs []string `json:"docIDs"`
 				}
 				if err := json.Unmarshal(msg, &unsubscribeMsg); err != nil {
-					logs.Warn("failed to parse unsubscribe message",
+					logs.WarnCtx(ctx, "failed to parse unsubscribe message",
 						"client_id", client.id,
 						"account_id", client.AccountID,
 						"error", err,
 						"message_preview", msgStr)
-					m.Errors.WithLabelValues("invalid_message_format").Inc()
 					continue
 				}
 
 				if len(unsubscribeMsg.DocIDs) == 0 {
-					logs.Warn("unsubscribe message missing or empty docIDs field - expected format: {\"type\":\"unsubscribe\",\"docIDs\":[\"doc1\",\"doc2\"]}",
+					logs.WarnCtx(ctx, "unsubscribe message missing or empty docIDs field - expected format: {\"type\":\"unsubscribe\",\"docIDs\":[\"doc1\",\"doc2\"]}",
 						"client_id", client.id,
 						"account_id", client.AccountID,
 						"message_preview", msgStr)
-					m.Errors.WithLabelValues("invalid_message_format").Inc()
 					continue
 				}
 
@@ -297,21 +269,19 @@ func (s *Server) reader(client *Client) {
 
 			default:
 				// Unknown type or no type field
-				logs.Warn("websocket message with unknown or missing type field",
+				logs.WarnCtx(ctx, "websocket message with unknown or missing type field",
 					"client_id", client.id,
 					"account_id", client.AccountID,
 					"type", msgType,
 					"message_preview", msgStr)
-				m.Errors.WithLabelValues("unknown_message_type").Inc()
 				continue
 			}
 		} else {
 			// Not JSON and not plain string ping
-			logs.Warn("websocket message is not JSON and not a ping",
+			logs.WarnCtx(ctx, "websocket message is not JSON and not a ping",
 				"client_id", client.id,
 				"account_id", client.AccountID,
 				"message_preview", msgStr)
-			m.Errors.WithLabelValues("invalid_message_format").Inc()
 			continue
 		}
 	}

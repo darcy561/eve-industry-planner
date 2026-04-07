@@ -1,13 +1,14 @@
 package update
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
 	sdecore "eve-industry-planner/shared/core/sde"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 	sdeshared "eve-industry-planner/worker/tasks/sde/shared"
 )
 
@@ -35,7 +36,7 @@ func runSDEPersistStageReplaceCurrent(versionResult *sdeVersionCheckResult, conv
 
 func runSDEPersistStageWithMode(versionResult *sdeVersionCheckResult, conversionResult *sdeConversionResult, replaceCurrentOnly bool) (*sdePersistResult, error) {
 	if versionResult == nil || conversionResult == nil || len(conversionResult.Files) == 0 {
-		logs.Debug("SDE persist stage skipped; nothing to persist")
+		logs.DebugCtx(context.Background(), "SDE persist stage skipped; nothing to persist")
 		return nil, nil
 	}
 
@@ -150,7 +151,7 @@ func runSDEPersistStageWithMode(versionResult *sdeVersionCheckResult, conversion
 		return nil, err
 	}
 
-	logs.Info("SDE persist stage completed",
+	logs.InfoCtx(context.Background(), "SDE persist stage completed",
 		"live_data_dir", liveDir,
 		"files_written", len(conversionResult.Files),
 		"replace_current_only", replaceCurrentOnly,

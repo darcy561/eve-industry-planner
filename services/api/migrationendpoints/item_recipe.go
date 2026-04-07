@@ -9,7 +9,7 @@ import (
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/migration"
 	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 )
 
 const (
@@ -23,6 +23,7 @@ func ItemRecipeHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 	case http.MethodPost:
 		ItemRecipesPostHandler(w, r, clients)
 	default:
+		logs.WarnCtx(r.Context(), "item recipe: method not allowed")
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -31,8 +32,11 @@ func ItemRecipeHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 // ItemRecipeGetHandler handles GET /api/migration/item/{itemID} (public migration).
 // Returns item recipe from Firestore Items collection; 404 if not found.
 func ItemRecipeGetHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	start := time.Now()
 	ctx := r.Context()
+	start, ok := logs.RequestStartTime(ctx)
+	if !ok {
+		start = time.Now()
+	}
 
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -45,7 +49,7 @@ func ItemRecipeGetHandler(w http.ResponseWriter, r *http.Request, clients *share
 	}
 	itemID = strings.TrimSpace(itemID)
 	if itemID == "" {
-		logs.WarnCtx(ctx, "item recipe get: missing or empty itemID", "path", r.URL.Path)
+		logs.WarnCtx(ctx, "item recipe get: missing or empty itemID")
 		http.Error(w, "Invalid or missing itemID", http.StatusBadRequest)
 		return
 	}
@@ -79,8 +83,11 @@ type ItemRecipesPostBody struct {
 // ItemRecipesPostHandler handles POST /api/migration/item (public migration).
 // Body: { "idArray": [34, 35, 36] }. Returns array of item recipe documents for found items.
 func ItemRecipesPostHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	start := time.Now()
 	ctx := r.Context()
+	start, ok := logs.RequestStartTime(ctx)
+	if !ok {
+		start = time.Now()
+	}
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -94,6 +101,7 @@ func ItemRecipesPostHandler(w http.ResponseWriter, r *http.Request, clients *sha
 		return
 	}
 	if len(body.IDArray) == 0 {
+		logs.WarnCtx(ctx, "item recipes post: empty idArray")
 		http.Error(w, "Invalid or empty ID array", http.StatusBadRequest)
 		return
 	}

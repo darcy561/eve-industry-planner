@@ -1,18 +1,21 @@
 package server
 
 import (
-	"eve-industry-planner/shared/shared/logs"
+	"context"
 	"time"
+
+	"eve-industry-planner/shared/logs"
 )
 
 // startCleanupGoroutine starts a background goroutine that periodically cleans up idle queues
 func (s *Server) startCleanupGoroutine() {
 	go func() {
+		cleanupCtx := context.Background()
 		ticker := time.NewTicker(CleanupInterval)
 		defer ticker.Stop()
 
-		logs.Debug("cleanup goroutine started")
-		defer logs.Debug("cleanup goroutine stopped")
+		logs.DebugCtx(cleanupCtx, "cleanup goroutine started")
+		defer logs.DebugCtx(cleanupCtx, "cleanup goroutine stopped")
 
 		for {
 			select {
@@ -29,6 +32,7 @@ func (s *Server) startCleanupGoroutine() {
 // cleanupIdleQueues removes queues that have been idle for longer than IdleQueueTimeout
 // and has no active subscribers (for outgoing queues).
 func (s *Server) cleanupIdleQueues() {
+	ctx := context.Background()
 	now := time.Now()
 	cleanedIncoming := 0
 	cleanedOutgoing := 0
@@ -46,7 +50,7 @@ func (s *Server) cleanupIdleQueues() {
 					close(queue.ch)
 					delete(s.incomingQueues, docID)
 					cleanedIncoming++
-					logs.Debug("cleaned idle incoming queue",
+					logs.DebugCtx(ctx, "cleaned idle incoming queue",
 						"doc_id", docID,
 						"idle_time", idleTime)
 				}
@@ -69,7 +73,7 @@ func (s *Server) cleanupIdleQueues() {
 					close(queue.ch)
 					delete(s.outgoingQueues, docID)
 					cleanedOutgoing++
-					logs.Debug("cleaned idle outgoing queue",
+					logs.DebugCtx(ctx, "cleaned idle outgoing queue",
 						"doc_id", docID,
 						"idle_time", idleTime)
 				}
@@ -96,7 +100,7 @@ func (s *Server) cleanupIdleQueues() {
 		if !existingClients[clientID] {
 			cleanedActive += len(activeDocs)
 			delete(s.activeSubscriptions, clientID)
-			logs.Debug("cleaned active subscriptions for disconnected client",
+			logs.DebugCtx(ctx, "cleaned active subscriptions for disconnected client",
 				"client_id", clientID,
 				"doc_count", len(activeDocs))
 			continue
@@ -108,7 +112,7 @@ func (s *Server) cleanupIdleQueues() {
 			if age > ActiveSubscriptionTimeout {
 				delete(activeDocs, docID)
 				cleanedActive++
-				logs.Debug("cleaned stale active subscription (timeout)",
+				logs.DebugCtx(ctx, "cleaned stale active subscription (timeout)",
 					"client_id", clientID,
 					"doc_id", docID,
 					"age", age)
@@ -122,7 +126,7 @@ func (s *Server) cleanupIdleQueues() {
 	s.activeSubsMu.Unlock()
 
 	if cleanedIncoming > 0 || cleanedOutgoing > 0 || cleanedActive > 0 {
-		logs.Info("cleanup completed",
+		logs.InfoCtx(ctx, "cleanup completed",
 			"incoming_queues_cleaned", cleanedIncoming,
 			"outgoing_queues_cleaned", cleanedOutgoing,
 			"active_subscriptions_cleaned", cleanedActive)

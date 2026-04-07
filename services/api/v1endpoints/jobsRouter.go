@@ -5,11 +5,13 @@ import (
 
 	"eve-industry-planner/api/v1endpoints/jobs"
 	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared/logs"
 )
 
 // JobsRouter handles all job-related routes and routes to appropriate handlers
 // This centralizes routing logic for all job endpoints
 func JobsRouter(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+	ctx := r.Context()
 	path := r.URL.Path
 
 	// Route based on path and method
@@ -26,10 +28,11 @@ func JobsRouter(w http.ResponseWriter, r *http.Request, clients *shared.ServiceC
 		case http.MethodDelete:
 			jobs.DeleteJobsHandler(w, r, clients)
 		default:
+			logs.WarnCtx(ctx, "invalid method for jobs collection")
 			http.Error(w, "Method not allowed. Use GET /api/v1/jobs to retrieve all jobs, POST /api/v1/jobs to retrieve specific jobs by IDs, PUT /api/v1/jobs to save jobs, or DELETE /api/v1/jobs to delete jobs", http.StatusMethodNotAllowed)
 		}
 	default:
-		// No longer support individual job endpoints
+		logs.WarnCtx(ctx, "jobs route not found")
 		http.Error(w, "Not found. Use PUT /api/v1/jobs to save jobs", http.StatusNotFound)
 	}
 }

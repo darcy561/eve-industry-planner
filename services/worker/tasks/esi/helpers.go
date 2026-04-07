@@ -1,6 +1,7 @@
 package tasks
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -8,10 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"eve-industry-planner/shared/logs"
 	esicore "eve-industry-planner/worker/esi"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
-	"eve-industry-planner/shared/shared/logs"
-	"eve-industry-planner/shared/shared/metrics"
 )
 
 // countingReader counts bytes read from an underlying reader
@@ -55,9 +55,9 @@ func parseCacheSeconds(resp *http.Response) int {
 // HandleStatusCheckResult handles the result of a server status check, returning nil if processing should continue.
 // Returns an error if the status check failed - asynq will automatically retry on error.
 // taskName is used for logging purposes (e.g., "system indexes refresh", "adjusted prices refresh").
-func HandleStatusCheckResult(statusResult esicore.StatusResult, taskName string) error {
+func HandleStatusCheckResult(ctx context.Context, statusResult esicore.StatusResult, taskName string) error {
 	if statusResult.Available {
-		logs.Debug("server status check passed, proceeding with refresh",
+		logs.DebugCtx(ctx, "server status check passed, proceeding with refresh",
 			"cached", statusResult.Cached,
 			"task", taskName)
 		return nil
@@ -67,7 +67,7 @@ func HandleStatusCheckResult(statusResult esicore.StatusResult, taskName string)
 	if statusResult.Error != nil {
 		if esiratelimiter.IsRateLimitError(statusResult.Error) {
 			rateLimitErr := esiratelimiter.GetRateLimitError(statusResult.Error)
-			logs.Info("server status check rate limited",
+			logs.InfoCtx(ctx, "server status check rate limited",
 				"retryable", rateLimitErr.Retryable,
 				"retry_after", rateLimitErr.RetryAfter,
 				"reason", rateLimitErr.Reason,
@@ -77,33 +77,32 @@ func HandleStatusCheckResult(statusResult esicore.StatusResult, taskName string)
 			return fmt.Errorf("rate limited: %w", statusResult.Error)
 		}
 		// Other error - server unavailable
-		logs.Warn("server status check failed, servers may be unavailable",
+		logs.WarnCtx(ctx, "server status check failed, servers may be unavailable",
 			"error", statusResult.Error,
 			"task", taskName)
 		return fmt.Errorf("server unavailable: %w", statusResult.Error)
 	}
 
 	// Available is false but no error - shouldn't happen, but handle gracefully
-	logs.Warn("server status check indicates servers unavailable",
+	logs.WarnCtx(ctx, "server status check indicates servers unavailable",
 		"task", taskName)
 	return fmt.Errorf("server unavailable")
 }
 
 // HandleStreamError handles errors from ESI streaming operations, including rate limit errors.
-// Logs the error and increments error metrics. Returns the error so asynq can retry.
+// Logs the error and returns it so asynq can retry.
 // taskName is used for logging (e.g., "system indexes refresh", "adjusted prices refresh").
-// errorCounterVec should be the Errors field from the metrics struct (e.g., metrics.GetESIIndustrySystems().Errors).
-func HandleStreamError(err error, taskName string, errorCounterVec *metrics.CounterVec) error {
+func HandleStreamError(ctx context.Context, err error, taskName string) error {
 	if err == nil {
 		return nil
 	}
 
-	logs.Debug("stream error returned", "error", err, "error_type", fmt.Sprintf("%T", err), "task", taskName)
+	logs.DebugCtx(ctx, "stream error returned", "error", err, "error_type", fmt.Sprintf("%T", err), "task", taskName)
 
 	// Check if this is a rate limit error
 	if esiratelimiter.IsRateLimitError(err) {
 		rateLimitErr := esiratelimiter.GetRateLimitError(err)
-		logs.Debug("detected rate limit error in refresh",
+		logs.DebugCtx(ctx, "detected rate limit error in refresh",
 			"retryable", rateLimitErr.Retryable,
 			"retry_after", rateLimitErr.RetryAfter,
 			"reason", rateLimitErr.Reason,
@@ -114,15 +113,11 @@ func HandleStreamError(err error, taskName string, errorCounterVec *metrics.Coun
 	}
 
 	// Handle non-rate-limit stream errors
-	logs.Error("failed streaming ESI data",
+	logs.ErrorCtx(ctx, "failed streaming ESI data",
 		"error", err,
 		"error_type", fmt.Sprintf("%T", err),
 		"reason", "stream_error",
 		"task", taskName)
-	if errorCounterVec != nil {
-		errorCounterVec.WithLabelValues("stream").Inc()
-	}
-	// Return error - asynq will retry
 	return err
 }
 
@@ -130,13 +125,13 @@ func HandleStreamError(err error, taskName string, errorCounterVec *metrics.Coun
 // If it is, it logs the details and returns true to indicate the caller should stop retrying
 // and return immediately, letting the error propagate up to HandleStreamError for proper handling.
 // This is used in retry loops to avoid unnecessary retries when rate limited.
-func ShouldStopRetryOnRateLimit(err error, attempt int, path string) bool {
+func ShouldStopRetryOnRateLimit(ctx context.Context, err error, attempt int, path string) bool {
 	if !esiratelimiter.IsRateLimitError(err) {
 		return false
 	}
 
 	rateLimitErr := esiratelimiter.GetRateLimitError(err)
-	logs.Debug("rate limit error detected in stream function, returning for asynq retry",
+	logs.DebugCtx(ctx, "rate limit error detected in stream function, returning for asynq retry",
 		"attempt", attempt,
 		"retryable", rateLimitErr.Retryable,
 		"retry_after", rateLimitErr.RetryAfter,

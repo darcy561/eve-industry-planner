@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -20,7 +21,7 @@ import (
 	"github.com/google/uuid"
 
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 )
 
 const (
@@ -70,14 +71,14 @@ func LoadKeyID(cfg config.Config) (string, error) {
 		// Both exist: compare and use env var if different (env var is authoritative for key rotation)
 		if fileKeyID != envKeyID {
 			// Key IDs are different, replace file with env var (key rotation)
-			logs.Info("JWT key ID from environment differs from file. Replacing file with environment key ID.",
+			logs.InfoCtx(context.Background(), "JWT key ID from environment differs from file. Replacing file with environment key ID.",
 				"file", keyIDPath,
 				"old_id", fileKeyID,
 				"new_id", envKeyID,
 				"reason", "Environment variable is authoritative for key rotation")
 
 			if err := os.WriteFile(keyIDPath, []byte(envKeyID), 0600); err != nil {
-				logs.Warn("Failed to update key ID file with environment key ID", "error", err, "file", keyIDPath)
+				logs.WarnCtx(context.Background(), "Failed to update key ID file with environment key ID", "error", err, "file", keyIDPath)
 				// Continue with file key ID since we couldn't update it
 				return fileKeyID, nil
 			}
@@ -92,9 +93,9 @@ func LoadKeyID(cfg config.Config) (string, error) {
 		// Only env var exists, use it and save to file
 		if keyIDPath != "" {
 			if err := os.WriteFile(keyIDPath, []byte(envKeyID), 0600); err != nil {
-				logs.Warn("Failed to save key ID from environment to file", "error", err, "file", keyIDPath)
+				logs.WarnCtx(context.Background(), "Failed to save key ID from environment to file", "error", err, "file", keyIDPath)
 			} else {
-				logs.Info("Saved key ID from environment variable to file for persistence", "file", keyIDPath, "key_id", envKeyID)
+				logs.InfoCtx(context.Background(), "Saved key ID from environment variable to file for persistence", "file", keyIDPath, "key_id", envKeyID)
 			}
 		}
 		return envKeyID, nil
@@ -110,16 +111,16 @@ func LoadKeyID(cfg config.Config) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("failed to generate key ID: %w", err)
 		}
-		logs.Info("No JWT key ID found. Auto-generating new key ID.", "key_id_path", keyIDPath, "key_id", newKeyID)
+		logs.InfoCtx(context.Background(), "No JWT key ID found. Auto-generating new key ID.", "key_id_path", keyIDPath, "key_id", newKeyID)
 
 		// Save to file
 		if err := os.WriteFile(keyIDPath, []byte(newKeyID), 0600); err != nil {
-			logs.Warn("Failed to save generated key ID to file", "error", err, "file", keyIDPath)
+			logs.WarnCtx(context.Background(), "Failed to save generated key ID to file", "error", err, "file", keyIDPath)
 			// Return generated ID anyway
 			return newKeyID, nil
 		}
 
-		logs.Info("Successfully generated and saved key ID", "key_id_path", keyIDPath, "key_id", newKeyID)
+		logs.InfoCtx(context.Background(), "Successfully generated and saved key ID", "key_id_path", keyIDPath, "key_id", newKeyID)
 		return newKeyID, nil
 	}
 }
@@ -219,12 +220,12 @@ func LoadRSAPrivateKey() (*rsa.PrivateKey, error) {
 
 		if hex.EncodeToString(envKeyHash[:]) != hex.EncodeToString(fileKeyHash[:]) {
 			// Keys are different, replace file with env var (key rotation)
-			logs.Info("JWT private key from environment differs from file. Replacing file with environment key.",
+			logs.InfoCtx(context.Background(), "JWT private key from environment differs from file. Replacing file with environment key.",
 				"file", autoGeneratePath,
 				"reason", "Environment variable is authoritative for key rotation")
 
 			if err := os.WriteFile(autoGeneratePath, []byte(envKey), 0600); err != nil {
-				logs.Warn("Failed to update key file with environment key", "error", err, "file", autoGeneratePath)
+				logs.WarnCtx(context.Background(), "Failed to update key file with environment key", "error", err, "file", autoGeneratePath)
 				// Continue with file key since we couldn't update it
 				keyData = fileKeyData
 				keySource = "persistent file (update failed)"
@@ -249,9 +250,9 @@ func LoadRSAPrivateKey() (*rsa.PrivateKey, error) {
 		// Save env var to file for persistence
 		if autoGeneratePath != "" {
 			if err := os.WriteFile(autoGeneratePath, []byte(envKey), 0600); err != nil {
-				logs.Warn("Failed to save key from environment to file", "error", err, "file", autoGeneratePath)
+				logs.WarnCtx(context.Background(), "Failed to save key from environment to file", "error", err, "file", autoGeneratePath)
 			} else {
-				logs.Info("Saved key from environment variable to file for persistence", "file", autoGeneratePath)
+				logs.InfoCtx(context.Background(), "Saved key from environment variable to file for persistence", "file", autoGeneratePath)
 			}
 		}
 	} else {
@@ -300,7 +301,7 @@ func LoadRSAPrivateKey() (*rsa.PrivateKey, error) {
 				// Continue to decode below
 			} else {
 				// We hold the lock, generate the key
-				logs.Info("No JWT private key found. Auto-generating RSA private key for JWT signing.",
+				logs.InfoCtx(context.Background(), "No JWT private key found. Auto-generating RSA private key for JWT signing.",
 					"key_path", autoGeneratePath,
 					"note", "For production deployments, provide your own key via JWT_PRIVATE_KEY environment variable")
 
@@ -318,10 +319,10 @@ func LoadRSAPrivateKey() (*rsa.PrivateKey, error) {
 				// LoadKeyID will auto-generate if not found
 				_, err = LoadKeyID(cfg)
 				if err != nil {
-					logs.Warn("Failed to load/generate key ID when generating new key", "error", err)
+					logs.WarnCtx(context.Background(), "Failed to load/generate key ID when generating new key", "error", err)
 				}
 
-				logs.Info("Successfully generated and saved RSA private key", "key_path", autoGeneratePath)
+				logs.InfoCtx(context.Background(), "Successfully generated and saved RSA private key", "key_path", autoGeneratePath)
 
 				return key, nil
 			}
@@ -329,7 +330,7 @@ func LoadRSAPrivateKey() (*rsa.PrivateKey, error) {
 	}
 
 	if keySource != "" {
-		logs.Debug("Loaded RSA private key", "source", keySource)
+		logs.DebugCtx(context.Background(), "Loaded RSA private key", "source", keySource)
 	}
 
 	// Decode PEM block

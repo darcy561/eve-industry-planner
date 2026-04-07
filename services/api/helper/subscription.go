@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -44,7 +44,7 @@ func PublishSubscriptionRequest(ctx context.Context, js jetstream.JetStream, acc
 	subject := fmt.Sprintf("%s.%s", natscore.SubjectDocSubscribe, accountID)
 
 	// Publish to NATS using helper function (includes retry logic)
-	err = natscore.PublishMessage(js, subject, msgData)
+	err = natscore.PublishMessage(ctx, js, subject, msgData)
 	if err != nil {
 		return fmt.Errorf("failed to publish subscription request: %w", err)
 	}

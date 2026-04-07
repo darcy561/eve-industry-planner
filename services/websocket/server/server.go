@@ -1,11 +1,12 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"time"
 
+	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/logs"
 	syncpkg "eve-industry-planner/websocket/sync"
 
 	"github.com/alitto/pond/v2"
@@ -62,7 +63,7 @@ func NewServer(clients *shared.ServiceClients) *Server {
 		shutdownChan:        make(chan struct{}),
 	}
 
-	logs.Debug("websocket server instance created",
+	logs.DebugCtx(context.Background(), "websocket server instance created",
 		"incoming_pool_size", IncomingPoolSize,
 		"outgoing_pool_size", OutgoingPoolSize,
 		"sync_pool_size", SyncPoolSize)

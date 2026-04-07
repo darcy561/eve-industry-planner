@@ -3,19 +3,20 @@ package helpers
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	natscore "eve-industry-planner/shared/core/nats"
+	"eve-industry-planner/shared/logs"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
+
+const schedulerLogComponent = "scheduler"
 
 // SetupScheduleRequestReceiver sets up a JetStream consumer to receive schedule request messages.
 // Returns the consumer and starts a background goroutine for message processing.
 func SetupScheduleRequestReceiver(
 	js jetstream.JetStream,
-	log *slog.Logger,
 	processMessage func(msg jetstream.Msg),
 	stopChan chan struct{},
 ) (jetstream.Consumer, error) {
@@ -47,11 +48,11 @@ func SetupScheduleRequestReceiver(
 		return nil, fmt.Errorf("failed to create scheduler consumer: %w", err)
 	}
 
-	log.Debug("scheduler consumer setup", "subject", subject, "consumer", consumerName, "stream", streamName)
+	logs.DebugCtx(ctx, "scheduler consumer setup", "component", schedulerLogComponent,
+		"subject", subject, "consumer", consumerName, "stream", streamName)
 
 	// Start message processing loop in background
 	natscore.StartMessageProcessingLoop(consumer, processMessage, stopChan, subject)
 
 	return consumer, nil
 }
-

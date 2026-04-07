@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"eve-industry-planner/shared/firebaseadmin"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 
 	"cloud.google.com/go/firestore"
 )

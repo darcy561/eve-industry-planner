@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 )
 
 // ProcessSyncQueue processes sync messages for a client
@@ -18,8 +18,13 @@ func ProcessSyncQueue(s SyncServer, clientID string, timeout time.Duration) erro
 	client, exists := clients[clientID]
 	s.GetClientsMu().RUnlock()
 
+	logCtx := context.Background()
+	if exists {
+		logCtx = client.LogContext()
+	}
+
 	if !exists {
-		logs.Debug("client not found, skipping sync", "client_id", clientID)
+		logs.DebugCtx(logCtx, "client not found, skipping sync", "client_id", clientID)
 		return nil // Client disconnected
 	}
 
@@ -30,7 +35,7 @@ func ProcessSyncQueue(s SyncServer, clientID string, timeout time.Duration) erro
 	s.GetSyncMu().Unlock()
 
 	if !hasQueue {
-		logs.Debug("sync queue not found", "client_id", clientID)
+		logs.DebugCtx(logCtx, "sync queue not found", "client_id", clientID)
 		return nil
 	}
 
@@ -51,13 +56,13 @@ func ProcessSyncQueue(s SyncServer, clientID string, timeout time.Duration) erro
 	s.GetClientsMu().RUnlock()
 
 	if !exists {
-		logs.Debug("client disconnected before sync", "client_id", clientID)
+		logs.DebugCtx(logCtx, "client disconnected before sync", "client_id", clientID)
 		return nil // Client disconnected
 	}
 
 	// Only handle sync messages (sync_drop removed)
 	if msg.Type != "sync" {
-		logs.Warn("invalid sync message type",
+		logs.WarnCtx(logCtx, "invalid sync message type",
 			"client_id", clientID,
 			"type", msg.Type)
 		return fmt.Errorf("invalid sync message type: %s (expected 'sync')", msg.Type)
@@ -68,7 +73,7 @@ func ProcessSyncQueue(s SyncServer, clientID string, timeout time.Duration) erro
 	if client.GetSyncInProgress() {
 		// Already syncing (shouldn't happen due to queue enforcement, but check anyway)
 		client.GetSyncMu().Unlock()
-		logs.Debug("client already syncing, skipping", "client_id", clientID)
+		logs.DebugCtx(logCtx, "client already syncing, skipping", "client_id", clientID)
 		return nil
 	}
 	client.SetSyncInProgress(true)
@@ -83,7 +88,8 @@ func ProcessSyncQueue(s SyncServer, clientID string, timeout time.Duration) erro
 	}()
 
 	// Create cancellable context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	baseCtx := client.LogContext()
+	ctx, cancel := context.WithTimeout(baseCtx, timeout)
 	defer cancel()
 
 	// Start goroutine to monitor client disconnect
@@ -108,7 +114,7 @@ func ProcessSyncQueue(s SyncServer, clientID string, timeout time.Duration) erro
 
 				if !exists {
 					// Client disconnected - cancel context to stop all operations
-					logs.Info("client disconnected during sync, cancelling operations",
+					logs.InfoCtx(ctx, "client disconnected during sync, cancelling operations",
 						"client_id", clientID)
 					cancel()
 					return
@@ -129,7 +135,7 @@ func ProcessSyncQueue(s SyncServer, clientID string, timeout time.Duration) erro
 		// Monitor exited
 	case <-time.After(500 * time.Millisecond):
 		// Monitor didn't exit in time (shouldn't happen, but safe)
-		logs.Debug("monitor goroutine didn't exit in time", "client_id", clientID)
+		logs.DebugCtx(context.Background(), "monitor goroutine didn't exit in time", "client_id", clientID)
 	}
 
 	return err
@@ -152,7 +158,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 	// Send sync_started message
 	syncStarted, err := FormatSyncStarted()
 	if err != nil {
-		logs.Error("failed to format sync_started message",
+		logs.ErrorCtx(ctx, "failed to format sync_started message",
 			"client_id", clientID,
 			"error", err)
 		return err
@@ -164,12 +170,12 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-time.After(1 * time.Second):
-		logs.Warn("failed to send sync_started, client send buffer full",
+		logs.WarnCtx(ctx, "failed to send sync_started, client send buffer full",
 			"client_id", clientID)
 		return fmt.Errorf("client send buffer full")
 	}
 
-	logs.Info("sync started",
+	logs.InfoCtx(ctx, "sync started",
 		"client_id", clientID,
 		"account_id", accountID,
 		"collections", len(msg.Subscriptions))
@@ -186,7 +192,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		logs.Error("failed to query account document during sync",
+		logs.ErrorCtx(ctx, "failed to query account document during sync",
 			"client_id", clientID,
 			"account_id", accountID,
 			"error", err)
@@ -194,7 +200,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 		if err == nil {
 			select {
 			case client.GetSend() <- errorMsg:
-				logs.Info("sent sync error for account document query failure",
+				logs.InfoCtx(ctx, "sent sync error for account document query failure",
 					"client_id", clientID,
 					"account_id", accountID)
 			default:
@@ -205,7 +211,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 
 	// Verify account document exists
 	if _, found := accountDocs[accountID]; !found {
-		logs.Error("account document not found during sync - critical error",
+		logs.ErrorCtx(ctx, "account document not found during sync - critical error",
 			"client_id", clientID,
 			"account_id", accountID)
 
@@ -217,7 +223,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 
 		errorMsg, err := FormatSyncError("account document not found - user may not exist")
 		if err != nil {
-			logs.Error("failed to format sync error message",
+			logs.ErrorCtx(ctx, "failed to format sync error message",
 				"client_id", clientID,
 				"error", err)
 			return fmt.Errorf("account document not found and failed to send error message")
@@ -225,14 +231,14 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 
 		select {
 		case client.GetSend() <- errorMsg:
-			logs.Info("sent sync error for missing account document",
+			logs.InfoCtx(ctx, "sent sync error for missing account document",
 				"client_id", clientID,
 				"account_id", accountID)
 			return fmt.Errorf("account document not found for accountID: %s", accountID)
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(1 * time.Second):
-			logs.Error("failed to send sync error, client send buffer full",
+			logs.ErrorCtx(ctx, "failed to send sync error, client send buffer full",
 				"client_id", clientID)
 			return fmt.Errorf("account document not found and failed to send error message")
 		}
@@ -260,7 +266,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		logs.Error("failed to query all jobs during sync",
+		logs.ErrorCtx(ctx, "failed to query all jobs during sync",
 			"client_id", clientID,
 			"account_id", accountID,
 			"error", err)
@@ -287,7 +293,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		logs.Error("failed to query all groups during sync",
+		logs.ErrorCtx(ctx, "failed to query all groups during sync",
 			"client_id", clientID,
 			"account_id", accountID,
 			"error", err)
@@ -309,7 +315,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 		// Check context cancellation
 		select {
 		case <-ctx.Done():
-			logs.Info("sync cancelled during processing",
+			logs.InfoCtx(ctx, "sync cancelled during processing",
 				"client_id", clientID,
 				"reason", ctx.Err())
 			return ctx.Err()
@@ -318,7 +324,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 
 		// Skip users collection - it's handled separately
 		if collectionName == "users" {
-			logs.Debug("skipping users collection in subscriptions (handled separately)",
+			logs.DebugCtx(ctx, "skipping users collection in subscriptions (handled separately)",
 				"client_id", clientID)
 			continue
 		}
@@ -348,7 +354,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 				if ctx.Err() != nil {
 					return ctx.Err()
 				}
-				logs.Error("failed to query additional documents during sync",
+				logs.ErrorCtx(ctx, "failed to query additional documents during sync",
 					"client_id", clientID,
 					"collection", collectionName,
 					"error", err)
@@ -416,7 +422,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 	// User document is sent separately from collections
 	syncDataMsg, err := FormatSyncData(accountID, userDoc, syncData)
 	if err != nil {
-		logs.Error("failed to format sync data message",
+		logs.ErrorCtx(ctx, "failed to format sync data message",
 			"client_id", clientID,
 			"error", err)
 		return err
@@ -425,7 +431,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 	select {
 	case client.GetSend() <- syncDataMsg:
 		// Message sent
-		logs.Info("sync data sent",
+		logs.InfoCtx(ctx, "sync data sent",
 			"client_id", clientID,
 			"account_id", accountID,
 			"collections", len(syncData),
@@ -433,7 +439,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-time.After(2 * time.Second):
-		logs.Warn("failed to send sync data, client send buffer full",
+		logs.WarnCtx(ctx, "failed to send sync data, client send buffer full",
 			"client_id", clientID)
 		return fmt.Errorf("client send buffer full")
 	}
@@ -447,7 +453,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 
 	// Replace client subscriptions with new ones from sync message
 	if err := s.ReplaceClientSubscriptions(clientID, accountID, msg.Subscriptions); err != nil {
-		logs.Error("failed to replace client subscriptions",
+		logs.ErrorCtx(ctx, "failed to replace client subscriptions",
 			"client_id", clientID,
 			"account_id", accountID,
 			"error", err)
@@ -464,7 +470,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 	// Send sync_complete message
 	syncComplete, err := FormatSyncComplete()
 	if err != nil {
-		logs.Error("failed to format sync_complete message",
+		logs.ErrorCtx(ctx, "failed to format sync_complete message",
 			"client_id", clientID,
 			"error", err)
 		return err
@@ -473,14 +479,14 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 	select {
 	case client.GetSend() <- syncComplete:
 		// Message sent
-		logs.Info("sync completed",
+		logs.InfoCtx(ctx, "sync completed",
 			"client_id", clientID,
 			"account_id", accountID)
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-time.After(1 * time.Second):
-		logs.Warn("failed to send sync_complete, client send buffer full",
+		logs.WarnCtx(ctx, "failed to send sync_complete, client send buffer full",
 			"client_id", clientID)
 		return fmt.Errorf("client send buffer full")
 	}

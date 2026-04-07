@@ -1,10 +1,11 @@
 package update
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/worker/tasks/sde/update/conversion"
 )
 
@@ -15,7 +16,7 @@ type sdeConversionResult struct {
 
 func runSDEConversionStage(mapResult *sdeMapBuildResult) (*sdeConversionResult, error) {
 	if mapResult == nil || len(mapResult.StructuredData) == 0 {
-		logs.Debug("SDE conversion stage skipped; no structured data")
+		logs.DebugCtx(context.Background(), "SDE conversion stage skipped; no structured data")
 		return &sdeConversionResult{Files: map[string][]byte{}}, nil
 	}
 
@@ -48,7 +49,7 @@ func runSDEConversionStage(mapResult *sdeMapBuildResult) (*sdeConversionResult, 
 		return nil, err
 	}
 
-	logs.Debug("SDE conversion stage completed (in-memory files ready)",
+	logs.DebugCtx(context.Background(), "SDE conversion stage completed (in-memory files ready)",
 		"files_generated", len(files),
 		"blueprints", len(recipeList),
 		"search_items", len(searchIndex),

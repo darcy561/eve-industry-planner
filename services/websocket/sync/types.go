@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"context"
 	"sync"
 	"time"
 )
@@ -58,4 +59,5 @@ type SyncClient interface {
 	}
 	GetAccountID() string
 	GetSend() chan []byte
+	LogContext() context.Context
 }

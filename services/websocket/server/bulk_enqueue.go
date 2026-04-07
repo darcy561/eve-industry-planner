@@ -1,11 +1,17 @@
 package server
 
 import (
-	"eve-industry-planner/shared/shared/logs"
+	"context"
+
+	"eve-industry-planner/shared/logs"
 )
 
 // enqueueBulkOperation enqueues bulk operations to the incoming bulk queue
 func (s *Server) enqueueBulkOperation(operations []Operation) {
+	ctx := context.Background()
+	if len(operations) > 0 {
+		ctx = s.clientLogCtx(operations[0].ClientID)
+	}
 	// Channel operations are thread-safe in Go
 	// Enqueue bulk operation (non-blocking)
 	select {
@@ -16,15 +22,15 @@ func (s *Server) enqueueBulkOperation(operations []Operation) {
 			// Signal sent successfully
 		default:
 			// Signal channel full - will be picked up by scan
-			logs.Debug("bulk signal channel full, will be picked up by scan")
+			logs.DebugCtx(ctx, "bulk signal channel full, will be picked up by scan")
 		}
 
-		logs.Debug("bulk operation enqueued",
+		logs.DebugCtx(ctx, "bulk operation enqueued",
 			"operation_count", len(operations))
 
 	default:
 		// Queue full - drop message
-		logs.Warn("bulk queue full, dropping bulk operation",
+		logs.WarnCtx(ctx, "bulk queue full, dropping bulk operation",
 			"operation_count", len(operations))
 	}
 }

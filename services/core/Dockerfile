@@ -14,11 +14,20 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # Copy source code
 COPY . .
 
+ARG SENTRY_DSN=""
+ARG ENVIRONMENT=production
+ARG APP_VERSION=development
+ARG SENTRY_TRACES_SAMPLE_RATE=1.0
+
 # Build the application with optimizations
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-s -w -extldflags '-static'" \
+    -ldflags="-s -w -extldflags '-static' \
+      -X eve-industry-planner/shared/telemetry.BakedSentryDSN=${SENTRY_DSN} \
+      -X eve-industry-planner/shared/telemetry.BakedAppMode=${ENVIRONMENT} \
+      -X eve-industry-planner/shared/telemetry.BakedRelease=${APP_VERSION} \
+      -X eve-industry-planner/shared/telemetry.BakedSentryTracesSampleRate=${SENTRY_TRACES_SAMPLE_RATE}" \
     -trimpath \
     -o core-service ./core
 

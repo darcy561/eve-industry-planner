@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 )
 
 // MessageFormat represents the new message structure
@@ -72,7 +72,7 @@ func (s *Server) parseAllMessages(messages []Event) []parsedMessage {
 		clientID, action, msgFormat, err := s.parseEventFull(messages[i])
 		if err != nil {
 			// Invalid message - mark as invalid but keep it
-			logs.Debug("skipping invalid message",
+			logs.DebugCtx(s.clientLogCtx(messages[i].ClientID), "skipping invalid message",
 				"doc_id", messages[i].DocID,
 				"error", err)
 			parsed = append(parsed, parsedMessage{

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 )
 
@@ -41,14 +41,14 @@ func runSDEBlueprintsMongoStageAsync(_ context.Context, conversionResult *sdeCon
 
 		summary, err := mongocore.UpsertStructsByIDPreservingMetaBulk(stageCtx, collection, items, blueprintsBulkWriteBatchSize)
 		if err != nil {
-			logs.Warn("SDE mongo blueprint bulk upsert failed",
+			logs.WarnCtx(stageCtx, "SDE mongo blueprint bulk upsert failed",
 				"collection", mongocore.CollectionBlueprints,
 				"error", err,
 			)
 			return
 		}
 
-		logs.Info("SDE mongo blueprint sync completed",
+		logs.InfoCtx(stageCtx, "SDE mongo blueprint sync completed",
 			"collection", mongocore.CollectionBlueprints,
 			"total", summary.Total,
 			"upserted", summary.Success,

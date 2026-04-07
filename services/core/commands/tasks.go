@@ -253,7 +253,7 @@ func runTrigger(ctx context.Context, args []string) error {
 		return fmt.Errorf("failed to ensure worker task stream: %w", err)
 	}
 
-	if err := natscore.PublishTask(clients.JetStream, task.Subject, task.Name, payloadToInterface(payload), clients.NATS, priority); err != nil {
+	if err := natscore.PublishTask(ctx, clients.JetStream, task.Subject, task.Name, payloadToInterface(payload), clients.NATS, priority); err != nil {
 		return fmt.Errorf("failed to publish task %q: %w", task.Name, err)
 	}
 

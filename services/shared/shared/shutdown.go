@@ -7,6 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"eve-industry-planner/shared/logs"
 )
 
 // NewSignalContext returns a context that is cancelled on SIGINT/SIGTERM.
@@ -35,4 +37,5 @@ func WaitForShutdown(ctx context.Context, timeoutPerFn time.Duration, cleanups .
 			fn(cctx)
 		}()
 	}
+	_ = logs.Sync()
 }

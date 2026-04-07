@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 	"fmt"
 	"time"
 
+	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -19,6 +20,7 @@ func Connect() (*redis.Client, error) {
 
 	retryCount := 5
 	retryDelay := 5 * time.Second
+	bg := context.Background()
 
 	for i := 0; i < retryCount; i++ {
 		// Parse Redis URL to handle password authentication
@@ -40,11 +42,15 @@ func Connect() (*redis.Client, error) {
 
 		client := redis.NewClient(opts)
 
-		err := client.Ping(context.Background()).Err()
+		err := client.Ping(bg).Err()
 		if err == nil {
 			i++
 			message := fmt.Sprintf("Connected to Redis on attempt %d/%d", i, retryCount)
-			logs.Debug(message)
+			logs.DebugCtx(bg, message)
+
+			if err := redisotel.InstrumentTracing(client); err != nil {
+				logs.WarnCtx(bg, "redis OpenTelemetry tracing hook not installed", "err", err)
+			}
 
 			// Start background monitoring for connection health
 			go monitorRedisConnection(client)
@@ -53,13 +59,13 @@ func Connect() (*redis.Client, error) {
 		}
 		i++
 		message := fmt.Sprintf("Failed to connect to Redis. Attempt %d/%d. Error: %v", i, retryCount, err)
-		logs.Error(message)
+		logs.ErrorCtx(bg, message)
 		client.Close()
 		time.Sleep(retryDelay)
 	}
 
 	message := fmt.Sprintf("Failed to connect to Redis after %d attempts. Exiting...", retryCount)
-	logs.Error(message)
+	logs.ErrorCtx(bg, message)
 	return nil, errors.New(message)
 }
 
@@ -73,12 +79,12 @@ func monitorRedisConnection(client *redis.Client) {
 	for range ticker.C {
 		err := client.Ping(ctx).Err()
 		if err != nil {
-			logs.Warn("Redis connection health check failed, attempting reconnect", "error", err)
+			logs.WarnCtx(ctx, "Redis connection health check failed, attempting reconnect", "error", err)
 			// The Redis client will automatically reconnect on next operation
 			// We just need to wait for it
 			time.Sleep(2 * time.Second)
 			if err := client.Ping(ctx).Err(); err == nil {
-				logs.Info("Redis reconnected successfully")
+				logs.InfoCtx(ctx, "Redis reconnected successfully")
 			}
 		}
 	}

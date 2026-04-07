@@ -1,9 +1,10 @@
 package ratelimiter
 
 import (
+	"context"
 	"time"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 )
 
 // CleanupUnusedGroups removes group limiters that haven't been used recently.
@@ -11,6 +12,7 @@ import (
 // The default limiter is never removed.
 // This should be called periodically to prevent memory leaks from accumulating unused groups.
 func (c *ESIClient) CleanupUnusedGroups() {
+	bg := context.Background()
 	now := time.Now()
 	cutoff := now.Add(-c.maxIdleTime)
 
@@ -38,7 +40,7 @@ func (c *ESIClient) CleanupUnusedGroups() {
 			delete(c.limiters, groupName)
 			removedCount++
 
-			logs.Debug("removed unused group limiter",
+			logs.DebugCtx(bg, "removed unused group limiter",
 				"group", groupName,
 				"last_used", lastUsed,
 				"idle_duration", now.Sub(lastUsed),
@@ -61,13 +63,13 @@ func (c *ESIClient) CleanupUnusedGroups() {
 			delete(c.pathToGroup, path)
 		}
 
-		logs.Info("cleaned up unused group limiters",
+		logs.InfoCtx(bg, "cleaned up unused group limiters",
 			"removed_groups", removedCount,
 			"removed_paths", len(pathsToRemove),
 			"remaining_groups", len(c.limiters),
 			"max_idle_time", c.maxIdleTime)
 	} else {
-		logs.Debug("no unused groups to clean up",
+		logs.DebugCtx(bg, "no unused groups to clean up",
 			"total_groups", len(c.limiters),
 			"max_idle_time", c.maxIdleTime)
 	}
@@ -80,10 +82,11 @@ func (c *ESIClient) StartCleanupGoroutine() func() {
 	stopChan := make(chan struct{})
 
 	go func() {
+		bg := context.Background()
 		ticker := time.NewTicker(c.cleanupInterval)
 		defer ticker.Stop()
 
-		logs.Debug("started group limiter cleanup goroutine",
+		logs.DebugCtx(bg, "started group limiter cleanup goroutine",
 			"cleanup_interval", c.cleanupInterval,
 			"max_idle_time", c.maxIdleTime)
 
@@ -95,7 +98,7 @@ func (c *ESIClient) StartCleanupGoroutine() func() {
 			case <-ticker.C:
 				c.CleanupUnusedGroups()
 			case <-stopChan:
-				logs.Info("stopping group limiter cleanup goroutine")
+				logs.InfoCtx(bg, "stopping group limiter cleanup goroutine")
 				return
 			}
 		}

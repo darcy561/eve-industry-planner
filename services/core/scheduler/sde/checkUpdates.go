@@ -6,8 +6,11 @@ import (
 
 	"eve-industry-planner/core/scheduler/contract"
 	natscore "eve-industry-planner/shared/core/nats"
+	"eve-industry-planner/shared/logs"
 	taskscore "eve-industry-planner/shared/tasks"
 )
+
+const schedulerLogComponent = "scheduler"
 
 const (
 	cronCheckSDEUpdatesName     = "cron.checkSDEUpdates"
@@ -19,16 +22,15 @@ const (
 func ScheduleCheckSDEUpdates(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
 	jsContext := deps.JSContext
 	natsConn := deps.NATS
-	log := deps.Log
 
 	task := taskscore.CheckSDEUpdates
 	sched.RegisterHandler(cronCheckSDEUpdatesName, func(ctx context.Context, data json.RawMessage) error {
-		log.Debug("publishing SDE update check trigger", "subject", task.Subject)
-		if err := natscore.PublishEmpty(jsContext, task.Subject, natsConn); err != nil {
-			log.Error("failed to publish SDE update check trigger", "subject", task.Subject, "error", err)
+		logs.DebugCtx(ctx, "publishing SDE update check trigger", "component", schedulerLogComponent, "subject", task.Subject)
+		if err := natscore.PublishEmpty(ctx, jsContext, task.Subject, natsConn); err != nil {
+			logs.ErrorCtx(ctx, "failed to publish SDE update check trigger", "component", schedulerLogComponent, "subject", task.Subject, "error", err)
 			return err
 		}
-		log.Info("SDE update check triggered", "subject", task.Subject)
+		logs.InfoCtx(ctx, "SDE update check triggered", "component", schedulerLogComponent, "subject", task.Subject)
 		return nil
 	})
 	if err := sched.ScheduleCronJob(cronCheckSDEUpdatesSchedule, cronCheckSDEUpdatesName); err != nil {

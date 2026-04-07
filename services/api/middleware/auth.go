@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"eve-industry-planner/api/helper/auth"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 )
 
 // AuthConstructor creates middleware that validates Authorization header and JWT token
@@ -16,7 +16,7 @@ func AuthConstructor() MiddlewareConstructor {
 			// Extract Authorization header
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				logs.Warn("missing Authorization header", "method", r.Method, "path", r.URL.Path, "ip", r.RemoteAddr)
+				logs.WarnCtx(r.Context(), "missing Authorization header")
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
@@ -24,14 +24,14 @@ func AuthConstructor() MiddlewareConstructor {
 			// Extract Bearer token
 			const bearerPrefix = "Bearer "
 			if !strings.HasPrefix(authHeader, bearerPrefix) {
-				logs.Warn("invalid Authorization header format", "method", r.Method, "path", r.URL.Path, "ip", r.RemoteAddr)
+				logs.WarnCtx(r.Context(), "invalid Authorization header format")
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
 
 			tokenString := strings.TrimSpace(authHeader[len(bearerPrefix):])
 			if tokenString == "" {
-				logs.Warn("empty token in Authorization header", "method", r.Method, "path", r.URL.Path, "ip", r.RemoteAddr)
+				logs.WarnCtx(r.Context(), "empty token in Authorization header")
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
@@ -39,7 +39,7 @@ func AuthConstructor() MiddlewareConstructor {
 			// Validate internal JWT token
 			claims, err := auth.ValidateInternalJWT(tokenString)
 			if err != nil {
-				logs.Warn("failed to validate internal JWT token", "error", err, "method", r.Method, "path", r.URL.Path, "ip", r.RemoteAddr)
+				logs.WarnCtx(r.Context(), "failed to validate internal JWT token", "error", err)
 				http.Error(w, auth.GetAuthErrorMessage(err), http.StatusUnauthorized)
 				return
 			}

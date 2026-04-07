@@ -9,10 +9,12 @@ import (
 	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/firebaseadmin"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"firebase.google.com/go/v4/auth"
 )
@@ -31,12 +33,16 @@ func MigrateUserDocumentToMongo(ctx context.Context, task *asynq.Task, deps *esi
 
 	request, err := esitasks.UnmarshalTaskPayload[natscore.MigrateUserDocumentToMongoRequest](task)
 	if err != nil {
-		logs.Warn("failed to parse migrate user document task payload", "error", err)
+		logs.WarnCtx(ctx, "failed to parse migrate user document task payload", "error", err)
 		return fmt.Errorf("invalid task data: %w", err)
 	}
 
 	if request.AccountID == "" {
 		return fmt.Errorf("account_id is required")
+	}
+
+	if span := trace.SpanFromContext(ctx); span.IsRecording() {
+		span.SetAttributes(attribute.String("account_id", request.AccountID))
 	}
 
 	client := deps.Mongo
@@ -53,11 +59,11 @@ func MigrateUserDocumentToMongo(ctx context.Context, task *asynq.Task, deps *esi
 		return fmt.Errorf("check existing application settings document: %w", err)
 	}
 	if userDocExists && settingsDocExists {
-		logs.Info("migration skipped, mongo documents already exist", "account_id", request.AccountID)
+		logs.InfoCtx(ctx, "migration skipped, mongo documents already exist", "account_id", request.AccountID)
 		return nil
 	}
 
-	logs.Info("migrate user document task started", "account_id", request.AccountID)
+	logs.InfoCtx(ctx, "migrate user document task started", "account_id", request.AccountID)
 
 	// Ensure user exists in Firebase Auth; exit early if not (nothing to migrate)
 	authClient, err := firebaseadmin.GetAuthClient(ctx)
@@ -67,7 +73,7 @@ func MigrateUserDocumentToMongo(ctx context.Context, task *asynq.Task, deps *esi
 	userRecord, err := authClient.GetUser(ctx, request.AccountID)
 	if err != nil {
 		if auth.IsUserNotFound(err) {
-			logs.Info("user not found in Firebase Auth, skipping migration", "account_id", request.AccountID)
+			logs.InfoCtx(ctx, "user not found in Firebase Auth, skipping migration", "account_id", request.AccountID)
 			return nil // success, nothing to migrate
 		}
 		return fmt.Errorf("get firebase auth user: %w", err)
@@ -104,7 +110,7 @@ func MigrateUserDocumentToMongo(ctx context.Context, task *asynq.Task, deps *esi
 		return fmt.Errorf("firestore user document not found for account_id %s", request.AccountID)
 	}
 	firebaseDoc := snap.Data()
-	logs.Debug("fetched user document from Firestore", "account_id", request.AccountID, "fields", len(firebaseDoc))
+	logs.DebugCtx(ctx, "fetched user document from Firestore", "account_id", request.AccountID, "fields", len(firebaseDoc))
 
 	fb, err := firebaseuserdoc.ParseUserDoc(firebaseDoc)
 	if err != nil {
@@ -128,13 +134,13 @@ func MigrateUserDocumentToMongo(ctx context.Context, task *asynq.Task, deps *esi
 	if err != nil {
 		return fmt.Errorf("upsert application settings document: %w", err)
 	}
-	logs.Debug("upserted application settings document",
+	logs.DebugCtx(ctx, "upserted application settings document",
 		"account_id", request.AccountID,
 		"matched", settingsResult.MatchedCount,
 		"modified", settingsResult.ModifiedCount,
 		"upserted", settingsResult.UpsertedCount)
 
-	logs.Info("migrated user document to MongoDB",
+	logs.InfoCtx(ctx, "migrated user document to MongoDB",
 		"account_id", request.AccountID)
 	return nil
 }

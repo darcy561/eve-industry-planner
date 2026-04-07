@@ -15,8 +15,7 @@ import (
 
 	natscore "eve-industry-planner/shared/core/nats"
 	rediscore "eve-industry-planner/shared/core/redis"
-	"eve-industry-planner/shared/shared/logs"
-	"eve-industry-planner/shared/shared/metrics"
+	"eve-industry-planner/shared/logs"
 	taskscore "eve-industry-planner/shared/tasks"
 	esicore "eve-industry-planner/worker/esi"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
@@ -62,18 +61,18 @@ func RefreshMarketPrices(ctx context.Context, task *asynq.Task, deps *TaskDepend
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	logs.Debug("Market Prices Refresh Task Received")
+	logs.DebugCtx(ctx,"Market Prices Refresh Task Received")
 
 	// Parse JSON data from task payload into MarketPricesRequest
 	request, err := UnmarshalTaskPayload[natscore.MarketPricesRequest](task)
 	if err != nil {
-		logs.Warn("failed to parse task data", "error", err)
+		logs.WarnCtx(ctx,"failed to parse task data", "error", err)
 		return fmt.Errorf("invalid task data: %w", err)
 	}
 
 	// If no request data provided, we can't proceed - return error
 	if request.TypeID == 0 || request.LocationID == 0 || request.StationID == 0 {
-		logs.Warn("missing required parameters (type_id, location_id, or station_id)",
+		logs.WarnCtx(ctx,"missing required parameters (type_id, location_id, or station_id)",
 			"type_id", request.TypeID,
 			"location_id", request.LocationID,
 			"station_id", request.StationID)
@@ -90,7 +89,7 @@ func RefreshMarketPrices(ctx context.Context, task *asynq.Task, deps *TaskDepend
 
 	// Check server status before proceeding
 	statusResult := esicore.CheckServerStatus(ctx, deps.ESIClient, deps.Redis)
-	if err := HandleStatusCheckResult(statusResult, "market prices refresh"); err != nil {
+	if err := HandleStatusCheckResult(ctx, statusResult, "market prices refresh"); err != nil {
 		return err
 	}
 
@@ -100,61 +99,49 @@ func RefreshMarketPrices(ctx context.Context, task *asynq.Task, deps *TaskDepend
 	// Read previous ETags per page
 	prevETags, err := rediscore.GetMarketOrdersETags(ctx, deps.Redis, request.TypeID, request.LocationID)
 	if err != nil {
-		logs.Debug("no previous ETags found", "location_id", request.LocationID, "type_id", request.TypeID)
+		logs.DebugCtx(ctx,"no previous ETags found", "location_id", request.LocationID, "type_id", request.TypeID)
 		prevETags = make(map[int]string)
 	}
-	logs.Debug("market prices refresh started", "location_id", request.LocationID, "station_id", request.StationID, "type_id", request.TypeID, "etag_pages", len(prevETags))
+	logs.DebugCtx(ctx,"market prices refresh started", "location_id", request.LocationID, "station_id", request.StationID, "type_id", request.TypeID, "etag_pages", len(prevETags))
 
-	var totalBytes int64
 	var cacheSeconds int
 	var allOrders []ESIMarketOrder
 
-	newETags, notModified, bytesRead, err := FetchPaginatedMarketOrders(ctx, deps.ESIClient, deps.Redis, request.LocationID, request.TypeID, request.LocationID, prevETags, func(order ESIMarketOrder) error {
+	newETags, notModified, _, err := FetchPaginatedMarketOrders(ctx, deps.ESIClient, deps.Redis, request.LocationID, request.TypeID, request.LocationID, prevETags, func(order ESIMarketOrder) error {
 		allOrders = append(allOrders, order)
 		count++
 		return nil
 	}, &cacheSeconds)
-	totalBytes = bytesRead
 
 	if err != nil {
-		return HandleStreamError(err, "market prices refresh", metrics.GetESIMarketPrices().Errors)
+		return HandleStreamError(ctx, err, "market prices refresh")
 	}
 
 	if notModified {
-		logs.Debug("Market Prices Refresh Completed - Not Modified (ETag Match)",
+		logs.DebugCtx(ctx,"Market Prices Refresh Completed - Not Modified (ETag Match)",
 			"location_id", request.LocationID,
 			"type_id", request.TypeID,
 			"etag_pages", len(newETags))
 
 		// Save ETags per page (they may have been updated even if data hasn't changed)
 		if err := rediscore.SaveMarketOrdersETags(ctx, deps.Redis, request.TypeID, request.LocationID, newETags); err != nil {
-			logs.Warn("failed to save ETags (not modified)", "error", err, "reason", "etag_save_error")
-			metrics.GetESIMarketPrices().Errors.WithLabelValues("etag_save").Inc()
+			logs.WarnCtx(ctx,"failed to save ETags (not modified)", "error", err, "reason", "etag_save_error")
 			return fmt.Errorf("failed to save ETags: %w", err)
 		}
 
 		// Update last updated timestamp even for 304 responses to prevent constant re-selection
 		nowMillis := time.Now().UnixMilli()
 		if err := rediscore.SaveMarketOrdersLastUpdated(ctx, deps.Redis, request.TypeID, request.LocationID, nowMillis); err != nil {
-			logs.Warn("failed to save last updated timestamp (not modified)", "error", err, "reason", "last_updated_save_error")
-			metrics.GetESIMarketPrices().Errors.WithLabelValues("last_updated_save").Inc()
+			logs.WarnCtx(ctx,"failed to save last updated timestamp (not modified)", "error", err, "reason", "last_updated_save_error")
 			return fmt.Errorf("failed to save last updated timestamp: %w", err)
 		}
 
 		// Update refresh time tracking sorted set for finding oldest entries
 		if err := rediscore.SaveMarketOrdersRefreshTime(ctx, deps.Redis, request.TypeID, request.LocationID, nowMillis); err != nil {
-			logs.Warn("failed to save refresh time to sorted set (not modified)", "error", err, "type_id", request.TypeID, "location_id", request.LocationID)
+			logs.WarnCtx(ctx,"failed to save refresh time to sorted set (not modified)", "error", err, "type_id", request.TypeID, "location_id", request.LocationID)
 			// Don't fail the whole operation if this tracking fails
 		}
 
-		m := metrics.GetESIMarketPrices()
-		m.Requests.Observe(time.Since(start).Seconds())
-		m.Bytes.Add(float64(totalBytes))
-		// Update metrics if cache headers available (for monitoring)
-		if cacheSeconds > 0 {
-			nextRefreshMillis := time.Now().Add(time.Duration(cacheSeconds) * time.Second).UnixMilli()
-			metrics.GetESIMarketPrices().NextRefresh.Set(float64(nextRefreshMillis))
-		}
 		return nil
 	}
 
@@ -172,45 +159,31 @@ func RefreshMarketPrices(ctx context.Context, task *asynq.Task, deps *TaskDepend
 		LastUpdated: time.Now().UnixMilli(),
 	}
 	if err := rediscore.SaveMarketPriceEntry(ctx, deps.Redis, request.TypeID, request.LocationID, priceEntry); err != nil {
-		logs.Error("failed to save market price entry", "error", err, "reason", "save_error")
-		metrics.GetESIMarketPrices().Errors.WithLabelValues("save_error").Inc()
+		logs.ErrorCtx(ctx,"failed to save market price entry", "error", err, "reason", "save_error")
 		return fmt.Errorf("failed to save market price entry: %w", err)
 	}
 
 	// Save ETags per page
 	if err := rediscore.SaveMarketOrdersETags(ctx, deps.Redis, request.TypeID, request.LocationID, newETags); err != nil {
-		logs.Error("failed to save ETags", "error", err, "reason", "etag_save_error")
-		metrics.GetESIMarketPrices().Errors.WithLabelValues("etag_save").Inc()
+		logs.ErrorCtx(ctx,"failed to save ETags", "error", err, "reason", "etag_save_error")
 		return fmt.Errorf("failed to save ETags: %w", err)
 	}
 
 	// Save last updated timestamp
 	nowMillis := time.Now().UnixMilli()
 	if err := rediscore.SaveMarketOrdersLastUpdated(ctx, deps.Redis, request.TypeID, request.LocationID, nowMillis); err != nil {
-		logs.Warn("failed to save last updated timestamp", "error", err, "reason", "last_updated_save_error")
-		metrics.GetESIMarketPrices().Errors.WithLabelValues("last_updated_save").Inc()
+		logs.WarnCtx(ctx,"failed to save last updated timestamp", "error", err, "reason", "last_updated_save_error")
 		return fmt.Errorf("failed to save last updated timestamp: %w", err)
 	}
 
 	// Update refresh time tracking sorted set for finding oldest entries
 	if err := rediscore.SaveMarketOrdersRefreshTime(ctx, deps.Redis, request.TypeID, request.LocationID, nowMillis); err != nil {
-		logs.Warn("failed to save refresh time to sorted set", "error", err, "type_id", request.TypeID, "location_id", request.LocationID)
+		logs.WarnCtx(ctx,"failed to save refresh time to sorted set", "error", err, "type_id", request.TypeID, "location_id", request.LocationID)
 		// Don't fail the whole operation if this tracking fails
 	}
 
-	// Update metrics if cache headers available (for monitoring)
-	if cacheSeconds > 0 {
-		nextRefreshMillis := time.Now().Add(time.Duration(cacheSeconds) * time.Second).UnixMilli()
-		metrics.GetESIMarketPrices().NextRefresh.Set(float64(nextRefreshMillis))
-	}
-
 	duration := time.Since(start)
-	m := metrics.GetESIMarketPrices()
-	m.Requests.Observe(duration.Seconds())
-	m.Bytes.Add(float64(totalBytes))
-	m.Items.Add(float64(count))
-	m.LastUpdated.Set(float64(time.Now().UnixMilli()))
-	logs.Debug("market prices updated",
+	logs.DebugCtx(ctx,"market prices updated",
 		"type_id", request.TypeID,
 		"location_id", request.LocationID,
 		"station_id", request.StationID,
@@ -221,7 +194,7 @@ func RefreshMarketPrices(ctx context.Context, task *asynq.Task, deps *TaskDepend
 		"pages", len(newETags),
 		"duration_ms", duration.Milliseconds())
 
-	logs.Info("Market Prices Refresh Complete",
+	logs.InfoCtx(ctx,"Market Prices Refresh Complete",
 		"location_id", request.LocationID,
 		"type_id", request.TypeID,
 		"station_id", request.StationID,
@@ -320,24 +293,24 @@ func FetchPaginatedMarketOrders(ctx context.Context, esiClient esiratelimiter.Cl
 			headers["If-None-Match"] = prevETag
 		}
 
-		logs.Debug("fetching market orders page", "page", page, "region_id", regionID, "type_id", typeID)
+		logs.DebugCtx(ctx,"fetching market orders page", "page", page, "region_id", regionID, "type_id", typeID)
 
 		// Retry on transient errors with exponential backoff + jitter
 		var resp *http.Response
 		var err error
 
 		for attempt := 1; attempt <= maxAttempts; attempt++ {
-			logs.Debug("making ESI request attempt", "attempt", attempt, "max_attempts", maxAttempts, "path", queryPath)
+			logs.DebugCtx(ctx,"making ESI request attempt", "attempt", attempt, "max_attempts", maxAttempts, "path", queryPath)
 			groupDesignation := esiratelimiter.GroupDesignation{
 				PrimaryGroup: "market-order", // Market order endpoints
 			}
 			resp, err = esiClient.DoRequest(ctx, http.MethodGet, queryPath, headers, groupDesignation)
 			if err == nil {
-				logs.Debug("ESI request succeeded", "attempt", attempt, "path", queryPath)
+				logs.DebugCtx(ctx,"ESI request succeeded", "attempt", attempt, "path", queryPath)
 				break
 			}
 
-			logs.Debug("ESI request failed",
+			logs.DebugCtx(ctx,"ESI request failed",
 				"attempt", attempt,
 				"max_attempts", maxAttempts,
 				"error", err,
@@ -345,12 +318,12 @@ func FetchPaginatedMarketOrders(ctx context.Context, esiClient esiratelimiter.Cl
 				"path", queryPath)
 
 			// Check if this is a rate limit error - return early to avoid unnecessary retries
-			if ShouldStopRetryOnRateLimit(err, attempt, queryPath) {
+			if ShouldStopRetryOnRateLimit(ctx, err, attempt, queryPath) {
 				return nil, false, 0, err
 			}
 
 			if attempt >= maxAttempts {
-				logs.Debug("max attempts reached, returning error", "attempt", attempt, "max_attempts", maxAttempts, "error", err)
+				logs.DebugCtx(ctx,"max attempts reached, returning error", "attempt", attempt, "max_attempts", maxAttempts, "error", err)
 				return nil, false, 0, err
 			}
 
@@ -359,7 +332,7 @@ func FetchPaginatedMarketOrders(ctx context.Context, esiClient esiratelimiter.Cl
 			// Jitter: random 0-100ms
 			jitter := time.Duration(rand.Intn(100)) * time.Millisecond
 			waitTime := backoff + jitter
-			logs.Debug("waiting before retry with exponential backoff", "attempt", attempt, "backoff", backoff, "jitter", jitter, "wait_time", waitTime)
+			logs.DebugCtx(ctx,"waiting before retry with exponential backoff", "attempt", attempt, "backoff", backoff, "jitter", jitter, "wait_time", waitTime)
 			time.Sleep(waitTime)
 		}
 
@@ -392,32 +365,32 @@ func FetchPaginatedMarketOrders(ctx context.Context, esiClient esiratelimiter.Cl
 			if xPagesStr != "" {
 				if parsed, err := strconv.Atoi(xPagesStr); err == nil && parsed > 0 {
 					totalPages = parsed
-					logs.Debug("parsed X-Pages header", "total_pages", totalPages, "page", page, "status", resp.StatusCode)
+					logs.DebugCtx(ctx,"parsed X-Pages header", "total_pages", totalPages, "page", page, "status", resp.StatusCode)
 				} else {
-					logs.Warn("failed to parse X-Pages header", "value", xPagesStr, "error", err)
+					logs.WarnCtx(ctx,"failed to parse X-Pages header", "value", xPagesStr, "error", err)
 				}
 			}
 		}
 
 		// Check response status code
 		if resp.StatusCode == http.StatusNotModified {
-			logs.Debug("page not modified (304), retrieving cached orders", "page", page)
+			logs.DebugCtx(ctx,"page not modified (304), retrieving cached orders", "page", page)
 			// Retrieve cached orders for this page and process them
 			var cachedOrders []ESIMarketOrder
 			if redisClient == nil {
 				// No Redis client available, treat as missing cache
-				logs.Warn("cache missing for 304 page - Redis client not available, treating as modified", "page", page, "type_id", typeID, "location_id", locationID)
+				logs.WarnCtx(ctx,"cache missing for 304 page - Redis client not available, treating as modified", "page", page, "type_id", typeID, "location_id", locationID)
 				allPagesUnchanged = false
 			} else if err := rediscore.GetMarketOrdersPage(ctx, redisClient, typeID, locationID, page, &cachedOrders); err != nil {
 				// Check if the error is due to missing cache (key not found)
 				if err == redis.Nil {
-					logs.Warn("cache missing for 304 page - data may be incomplete, treating as modified", "page", page, "type_id", typeID, "location_id", locationID)
+					logs.WarnCtx(ctx,"cache missing for 304 page - data may be incomplete, treating as modified", "page", page, "type_id", typeID, "location_id", locationID)
 					// If cache is missing, we can't process this page, so mark as changed
 					// This ensures we don't incorrectly report all pages as unchanged
 					allPagesUnchanged = false
 				} else {
 					// Other errors (connection issues, etc.)
-					logs.Warn("failed to retrieve cached orders for 304 page", "page", page, "error", err, "type_id", typeID, "location_id", locationID)
+					logs.WarnCtx(ctx,"failed to retrieve cached orders for 304 page", "page", page, "error", err, "type_id", typeID, "location_id", locationID)
 					// Treat other errors as changed to be safe
 					allPagesUnchanged = false
 				}
@@ -429,7 +402,7 @@ func FetchPaginatedMarketOrders(ctx context.Context, esiClient esiratelimiter.Cl
 						return newETags, false, totalBytes, err
 					}
 				}
-				logs.Debug("retrieved and processed cached orders", "page", page, "orders", len(cachedOrders))
+				logs.DebugCtx(ctx,"retrieved and processed cached orders", "page", page, "orders", len(cachedOrders))
 			}
 		} else if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(resp.Body)
@@ -486,20 +459,20 @@ func FetchPaginatedMarketOrders(ctx context.Context, esiClient esiratelimiter.Cl
 			// Cache the orders for this page with 24 hour TTL
 			if redisClient != nil && len(pageOrders) > 0 {
 				if err := rediscore.SaveMarketOrdersPage(ctx, redisClient, typeID, locationID, page, pageOrders, 24*time.Hour); err != nil {
-					logs.Warn("failed to cache orders for page", "page", page, "error", err)
+					logs.WarnCtx(ctx,"failed to cache orders for page", "page", page, "error", err)
 					// Don't fail the whole operation if caching fails
 				}
 			}
 
 			totalBytes += cr.n
-			logs.Debug("processed market orders page", "page", page, "orders", pageCount, "bytes", cr.n, "total_pages", totalPages)
+			logs.DebugCtx(ctx,"processed market orders page", "page", page, "orders", pageCount, "bytes", cr.n, "total_pages", totalPages)
 		}
 
 		// Check if there are more pages using X-Pages header
 		if totalPages > 0 {
 			// We have X-Pages header - check if we've reached the last page
 			if page >= totalPages {
-				logs.Debug("reached last page from X-Pages header", "page", page, "total_pages", totalPages)
+				logs.DebugCtx(ctx,"reached last page from X-Pages header", "page", page, "total_pages", totalPages)
 				break
 			}
 			page++
@@ -516,11 +489,11 @@ func FetchPaginatedMarketOrders(ctx context.Context, esiClient esiratelimiter.Cl
 				page++
 			} else if page == 2 && resp.StatusCode == http.StatusNotModified && totalPages == 0 {
 				// Page 2 is also 304 and we still don't have X-Pages - likely only 1 page exists
-				logs.Debug("page 2 also 304 without X-Pages, assuming only 1 page", "page", page)
+				logs.DebugCtx(ctx,"page 2 also 304 without X-Pages, assuming only 1 page", "page", page)
 				break
 			} else {
 				// No X-Pages header available and we can't determine pagination - stop
-				logs.Debug("X-Pages header not available, stopping pagination", "page", page)
+				logs.DebugCtx(ctx,"X-Pages header not available, stopping pagination", "page", page)
 				break
 			}
 		}

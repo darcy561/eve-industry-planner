@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/telemetry/natsprop"
 
 	natslib "github.com/nats-io/nats.go"
+	"go.opentelemetry.io/otel/codes"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
@@ -25,6 +27,7 @@ func Connect() (*natslib.Conn, error) {
 
 	retryCount := 5
 	retryDelay := 5 * time.Second
+	bg := context.Background()
 
 	for i := 0; i < retryCount; i++ {
 		// Enable automatic reconnection with callbacks
@@ -33,15 +36,15 @@ func Connect() (*natslib.Conn, error) {
 			natslib.MaxReconnects(-1), // Unlimited reconnects
 			natslib.DisconnectErrHandler(func(nc *natslib.Conn, err error) {
 				if err != nil {
-					logs.Warn("NATS disconnected", "error", err)
+					logs.WarnCtx(bg, "NATS disconnected", "error", err)
 				}
 			}),
 			natslib.ReconnectHandler(func(nc *natslib.Conn) {
-				logs.Info("NATS reconnected", "url", nc.ConnectedUrl())
+				logs.InfoCtx(bg, "NATS reconnected", "url", nc.ConnectedUrl())
 			}),
 			natslib.ErrorHandler(func(nc *natslib.Conn, sub *natslib.Subscription, err error) {
 				if err != nil {
-					logs.Error("NATS error", "error", err)
+					logs.ErrorCtx(bg, "NATS error", "error", err)
 				}
 			}),
 			natslib.Timeout(retryDelay),
@@ -51,12 +54,12 @@ func Connect() (*natslib.Conn, error) {
 		if err == nil {
 			i++
 			message := fmt.Sprintf("Connected to NATS on attempt %d/%d", i, retryCount)
-			logs.Debug(message, "url", conn.ConnectedUrl())
+			logs.DebugCtx(bg, message, "url", conn.ConnectedUrl())
 			return conn, nil
 		}
 		i++
 		message := fmt.Sprintf("Failed to connect to NATS. Attempt %d/%d. Error: %v", i, retryCount, err.Error())
-		logs.Error(message)
+		logs.ErrorCtx(bg, message)
 		time.Sleep(retryDelay)
 	}
 
@@ -106,15 +109,18 @@ func Cleanup(conn *natslib.Conn) {
 
 // PublishTask publishes a task message to NATS JetStream with retry logic.
 // The payload is automatically marshaled and wrapped in a TaskMessage structure.
+// W3C propagated context from ctx is attached to the NATS message (traceparent, tracestate, baggage)
+// and copied into Asynq task headers by the worker subscriber. Handlers should log with
+// logs.InfoCtx(ctx, ...), WarnCtx, or ErrorCtx so otelzap and stdout trace_id stay linked to the API span.
 // Optional trailing args can be *natslib.Conn (for connection check on retry) and/or a priority
 // queue name (e.g. "priority_5") to override the task type default. Order does not matter.
 //
 // Examples:
 //
-//	PublishTask(js, subject, "refreshMarketPrices", request)
-//	PublishTask(js, subject, "refreshMarketPrices", request, natsConn)
-//	PublishTask(js, subject, "migrateUserDocumentToMongo", payload, natsConn, "priority_5")
-func PublishTask(js jetstream.JetStream, subject string, taskType string, payload interface{}, opts ...interface{}) error {
+//	PublishTask(ctx, js, subject, "refreshMarketPrices", request)
+//	PublishTask(ctx, js, subject, "refreshMarketPrices", request, natsConn)
+//	PublishTask(ctx, js, subject, "migrateUserDocumentToMongo", payload, natsConn, "priority_5")
+func PublishTask(ctx context.Context, js jetstream.JetStream, subject string, taskType string, payload interface{}, opts ...interface{}) (err error) {
 	var natsConn *natslib.Conn
 	var priority string
 	for _, a := range opts {
@@ -126,20 +132,36 @@ func PublishTask(js jetstream.JetStream, subject string, taskType string, payloa
 		}
 	}
 
+	var payloadJSON json.RawMessage
+	if payload != nil {
+		payloadJSON, err = json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+	}
+	taskDataAttrs := taskDataAttrsFromJSON(taskType, payloadJSON)
+	ctx, span := startPublishTaskSpan(ctx, subject, taskType, taskDataAttrs)
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		} else {
+			span.SetStatus(codes.Ok, "")
+		}
+		span.End()
+	}()
+
 	taskMsg := TaskMessage{
 		TaskType: taskType,
 	}
 	if priority != "" {
 		taskMsg.Priority = priority
 	}
-	if payload != nil {
-		var err error
-		taskMsg.Data, err = json.Marshal(payload)
-		if err != nil {
-			return err
-		}
+	if len(payloadJSON) > 0 {
+		taskMsg.Data = payloadJSON
 	}
-	taskMsgData, err := json.Marshal(taskMsg)
+	var taskMsgData []byte
+	taskMsgData, err = json.Marshal(taskMsg)
 	if err != nil {
 		return err
 	}
@@ -148,9 +170,11 @@ func PublishTask(js jetstream.JetStream, subject string, taskType string, payloa
 		Data: taskMsgData,
 	}
 	if natsConn != nil {
-		return PublishMessage(js, subject, msg, natsConn)
+		err = PublishMessage(ctx, js, subject, msg, natsConn)
+	} else {
+		err = PublishMessage(ctx, js, subject, msg)
 	}
-	return PublishMessage(js, subject, msg)
+	return err
 }
 
 // PublishSchedule publishes a schedule request message to NATS JetStream with retry logic.
@@ -161,7 +185,7 @@ func PublishTask(js jetstream.JetStream, subject string, taskType string, payloa
 // Example:
 //
 //	PublishSchedule(js, subject, scheduleRequest, natsConn...)
-func PublishSchedule(js jetstream.JetStream, subject string, scheduleRequest ScheduleRequest, natsConn ...*natslib.Conn) error {
+func PublishSchedule(ctx context.Context, js jetstream.JetStream, subject string, scheduleRequest ScheduleRequest, natsConn ...*natslib.Conn) error {
 	scheduleData, err := json.Marshal(scheduleRequest)
 	if err != nil {
 		return err
@@ -170,7 +194,7 @@ func PublishSchedule(js jetstream.JetStream, subject string, scheduleRequest Sch
 		Type: MessageTypeSchedule,
 		Data: scheduleData,
 	}
-	return PublishMessage(js, subject, msg, natsConn...)
+	return PublishMessage(ctx, js, subject, msg, natsConn...)
 }
 
 // PublishEmpty publishes an empty message to NATS JetStream with retry logic.
@@ -181,20 +205,24 @@ func PublishSchedule(js jetstream.JetStream, subject string, scheduleRequest Sch
 // Example:
 //
 //	PublishEmpty(js, subject, natsConn...)
-func PublishEmpty(js jetstream.JetStream, subject string, natsConn ...*natslib.Conn) error {
+func PublishEmpty(ctx context.Context, js jetstream.JetStream, subject string, natsConn ...*natslib.Conn) error {
 	msg := Message{
 		Type: MessageTypeEmpty,
 		Data: nil,
 	}
-	return PublishMessage(js, subject, msg, natsConn...)
+	return PublishMessage(ctx, js, subject, msg, natsConn...)
 }
 
 // PublishMessage publishes a message to NATS JetStream with retry logic.
 // This is a general-purpose helper for publishing any message type to NATS.
 // The message is automatically marshaled to JSON if it's not already []byte.
+// OpenTelemetry trace context from ctx is injected into NATS headers (traceparent, tracestate, baggage) when present.
 // Retries up to 5 times with exponential backoff on connection/stream errors.
 // If natsConn is provided, it will check connection status and retry on failure.
-func PublishMessage[T any](js jetstream.JetStream, subject string, msg T, natsConn ...*natslib.Conn) error {
+func PublishMessage[T any](ctx context.Context, js jetstream.JetStream, subject string, msg T, natsConn ...*natslib.Conn) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var msgData []byte
 	var err error
 
@@ -202,7 +230,13 @@ func PublishMessage[T any](js jetstream.JetStream, subject string, msg T, natsCo
 	if bytes, ok := any(msg).([]byte); ok {
 		msgData = bytes
 	} else {
-		msgData, err = json.Marshal(msg)
+		switch m := any(msg).(type) {
+		case Message:
+			m.EnrichTraceCarrierFromContext(ctx)
+			msgData, err = json.Marshal(m)
+		default:
+			msgData, err = json.Marshal(msg)
+		}
 		if err != nil {
 			return err
 		}
@@ -227,7 +261,7 @@ func PublishMessage[T any](js jetstream.JetStream, subject string, msg T, natsCo
 					if delay > maxDelay {
 						delay = maxDelay
 					}
-					logs.Info("NATS not connected, waiting for reconnection", "attempt", attempt+1, "delay_ms", delay.Milliseconds())
+					logs.InfoCtx(ctx, "NATS not connected, waiting for reconnection", "attempt", attempt+1, "delay_ms", delay.Milliseconds())
 					time.Sleep(delay)
 					continue
 				}
@@ -240,19 +274,22 @@ func PublishMessage[T any](js jetstream.JetStream, subject string, msg T, natsCo
 			}
 		}
 
-		// Try to publish with context timeout
-		publishCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		pubAck, err := js.Publish(publishCtx, subject, msgData)
+		hdr := make(natslib.Header)
+		natsprop.Inject(ctx, hdr)
+
+		publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		nmsg := &natslib.Msg{Subject: subject, Data: msgData, Header: hdr}
+		pubAck, err := js.PublishMsg(publishCtx, nmsg)
 		cancel()
 		if err == nil {
 			if attempt > 0 {
-				logs.Info("JetStream publish succeeded after retry", "attempt", attempt+1, "subject", subject)
+				logs.InfoCtx(ctx, "JetStream publish succeeded after retry", "attempt", attempt+1, "subject", subject)
 			} else {
 				// Log successful publish for debugging
 				if pubAck != nil {
-					logs.Debug("JetStream message published", "subject", subject, "sequence", pubAck.Sequence)
+					logs.DebugCtx(ctx, "JetStream message published", "subject", subject, "sequence", pubAck.Sequence)
 				} else {
-					logs.Debug("JetStream message published", "subject", subject)
+					logs.DebugCtx(ctx, "JetStream message published", "subject", subject)
 				}
 			}
 			return nil
@@ -271,12 +308,12 @@ func PublishMessage[T any](js jetstream.JetStream, subject string, msg T, natsCo
 			strings.Contains(errStr, "no responders")
 
 		if !isRetryable {
-			logs.Warn("JetStream publish error is not retryable", "error", errStr, "subject", subject)
+			logs.WarnCtx(ctx, "JetStream publish error is not retryable", "error", errStr, "subject", subject)
 			return err
 		}
 
 		if attempt == maxRetries-1 {
-			logs.Error("JetStream publish failed after all retries", "attempts", maxRetries, "error", errStr, "subject", subject)
+			logs.ErrorCtx(ctx, "JetStream publish failed after all retries", "attempts", maxRetries, "error", errStr, "subject", subject)
 			return err
 		}
 
@@ -285,7 +322,7 @@ func PublishMessage[T any](js jetstream.JetStream, subject string, msg T, natsCo
 		if delay > maxDelay {
 			delay = maxDelay
 		}
-		logs.Info("JetStream publish failed, retrying", "attempt", attempt+1, "max_retries", maxRetries, "delay_ms", delay.Milliseconds(), "error", errStr, "subject", subject)
+		logs.InfoCtx(ctx, "JetStream publish failed, retrying", "attempt", attempt+1, "max_retries", maxRetries, "delay_ms", delay.Milliseconds(), "error", errStr, "subject", subject)
 		time.Sleep(delay)
 	}
 

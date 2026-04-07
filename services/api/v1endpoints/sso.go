@@ -12,11 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/api/helper/sso"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/logs"
-	"eve-industry-planner/shared/shared/metrics"
+	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
 const (
@@ -67,25 +68,24 @@ type EveSSOErrorResponse struct {
 
 // SSOExchangeHandler handles SSO authorization code exchange for access token
 func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	start := time.Now()
-	m := metrics.GetAPISSOExchange()
+	ctx := r.Context()
+	start, ok := logs.RequestStartTime(ctx)
+	if !ok {
+		start = time.Now()
+	}
+	m := apimetrics.GetAPIEveSSOCodeExchange()
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		http.Error(w, "Configuration error: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Set context timeout
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-
 	// Only allow POST requests
 	if r.Method != http.MethodPost {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("method_not_allowed").Inc()
-		metrics.LogRequestMetrics("sso_exchange", duration, "method_not_allowed",
-			"method", r.Method, "ip", r.RemoteAddr)
-		logs.WarnCtx(ctx, "invalid method for SSO exchange endpoint", "method", r.Method, "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "method_not_allowed")
+		logs.WarnCtx(ctx, "invalid method for SSO exchange endpoint")
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -94,10 +94,10 @@ func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.
 	authCode, accountType, err := extractAuthCodeFromRequest(r)
 	if err != nil {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("extraction_error").Inc()
-		metrics.LogRequestMetrics("sso_exchange", duration, "extraction_error",
-			"error", err, "ip", r.RemoteAddr)
-		logs.WarnCtx(ctx, "failed to extract auth code from request body", "error", err, "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("extraction_error").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "extraction_error",
+			"error", err)
+		logs.WarnCtx(ctx, "failed to extract auth code from request body", "error", err)
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
@@ -105,10 +105,10 @@ func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.
 	// Validate auth code length
 	if len(authCode) > maxAuthCodeLength {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("auth_code_too_long").Inc()
-		metrics.LogRequestMetrics("sso_exchange", duration, "auth_code_too_long",
-			"length", len(authCode), "max", maxAuthCodeLength, "ip", r.RemoteAddr)
-		logs.WarnCtx(ctx, "auth code too long", "length", len(authCode), "max", maxAuthCodeLength, "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("auth_code_too_long").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "auth_code_too_long",
+			"length", len(authCode), "max", maxAuthCodeLength)
+		logs.WarnCtx(ctx, "auth code too long", "length", len(authCode), "max", maxAuthCodeLength)
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
@@ -116,23 +116,25 @@ func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.
 	// Validate client ID and secret are configured
 	if cfg.EveSSOClientID == "" || cfg.EveSSOClientSecret == "" {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("config_error").Inc()
-		metrics.LogRequestMetrics("sso_exchange", duration, "config_error",
-			"ip", r.RemoteAddr)
-		logs.ErrorCtx(ctx, "EVE SSO client ID or secret not configured", "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("config_error").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "config_error")
+		logs.ErrorCtx(ctx, "EVE SSO client ID or secret not configured")
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 
 	// Exchange authorization code for access token
 	tokenResponse, err := exchangeAuthCodeForToken(ctx, cfg.EveSSOClientID, cfg.EveSSOClientSecret, authCode)
 	var characterHash string
 	if err != nil {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("sso_exchange_error").Inc()
-		metrics.LogRequestMetrics("sso_exchange", duration, "sso_exchange_error",
-			"error", err, "ip", r.RemoteAddr)
-		logs.WarnCtx(ctx, "failed to exchange auth code for token", "error", err, "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("sso_exchange_error").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "sso_exchange_error",
+			"error", err)
+		logs.WarnCtx(ctx, "failed to exchange auth code for token", "error", err)
 
 		// Return appropriate error based on SSO response
 		if strings.Contains(err.Error(), "invalid_grant") || strings.Contains(err.Error(), "invalid_request") {
@@ -148,10 +150,9 @@ func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.
 	// Validate access token was received
 	if tokenResponse.AccessToken == "" {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("no_access_token").Inc()
-		metrics.LogRequestMetrics("sso_exchange", duration, "no_access_token",
-			"ip", r.RemoteAddr)
-		logs.WarnCtx(ctx, "no access token received from EVE SSO", "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("no_access_token").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "no_access_token")
+		logs.WarnCtx(ctx, "no access token received from EVE SSO")
 		http.Error(w, "No access token received from EVE SSO", http.StatusInternalServerError)
 		return
 	}
@@ -160,14 +161,14 @@ func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.
 	decodedClaims, err := decodeJWTWithoutValidation(tokenResponse.AccessToken)
 	if err != nil {
 		// If decoding fails, validate the token to ensure it's legitimate before returning it
-		logs.WarnCtx(ctx, "failed to decode JWT token without validation, attempting full validation", "error", err, "ip", r.RemoteAddr)
+		logs.WarnCtx(ctx, "failed to decode JWT token without validation, attempting full validation", "error", err)
 		validatedClaims, validateErr := sso.ValidateEveSSOToken(tokenResponse.AccessToken, cfg.EveSSOClientID)
 		if validateErr != nil {
 			duration := time.Since(start)
-			m.Errors.WithLabelValues("token_validation_error").Inc()
-			metrics.LogRequestMetrics("sso_exchange", duration, "token_validation_error",
-				"error", validateErr, "decode_error", err, "ip", r.RemoteAddr)
-			logs.ErrorCtx(ctx, "failed to validate token after decode failure", "decode_error", err, "validation_error", validateErr, "ip", r.RemoteAddr)
+			m.Errors.WithLabelValues("token_validation_error").Inc(ctx)
+			apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "token_validation_error",
+				"error", validateErr, "decode_error", err)
+			logs.ErrorCtx(ctx, "failed to validate token after decode failure", "decode_error", err, "validation_error", validateErr)
 			http.Error(w, "Invalid token received from EVE SSO", http.StatusInternalServerError)
 			return
 		}
@@ -175,19 +176,15 @@ func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.
 		decodedClaims = validatedClaims
 		characterHash = validatedClaims.Owner
 		logs.DebugCtx(ctx, "token validated successfully after decode failure",
-			"character_id", validatedClaims.CharacterID,
 			"character_hash", characterHash,
-			"account_type", accountType,
-			"ip", r.RemoteAddr)
+			"account_type", accountType)
 	} else {
 		// Extract character hash from the Owner field
 		characterHash = decodedClaims.Owner
 		// Log successful exchange (debug level for detailed info)
 		logs.DebugCtx(ctx, "successfully decoded JWT token",
-			"character_id", decodedClaims.CharacterID,
 			"character_hash", characterHash,
-			"account_type", accountType,
-			"ip", r.RemoteAddr)
+			"account_type", accountType)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -202,9 +199,9 @@ func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("encode_error").Inc()
-		metrics.LogRequestMetrics("sso_exchange", duration, "encode_error",
-			"error", err, "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("encode_error").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "encode_error",
+			"error", err)
 		logs.ErrorCtx(ctx, "failed to encode response", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -212,42 +209,43 @@ func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.
 
 	// Update metrics
 	duration := time.Since(start)
-	m.Requests.Observe(duration.Seconds())
-	m.RequestsCount.Inc()
-	m.Successes.Inc()
+	m.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
+	m.RequestsCount.Inc(ctx)
+	m.Successes.Inc(ctx)
 
-	metrics.LogRequestMetrics("sso_exchange", duration, "success",
+	accountID := auth.GetAccountIDFromCharacterHash(characterHash)
+	apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "success",
 		"account_type", accountType,
 		"character_hash", characterHash,
-		"ip", r.RemoteAddr)
+		"account_id", accountID)
 
 	logs.InfoCtx(ctx, "SSO token exchange completed",
 		"character_hash", characterHash,
-		"duration_ms", duration.Milliseconds(),
-		"ip", r.RemoteAddr)
+		"account_id", accountID,
+		"account_type", accountType,
+		"duration_ms", duration.Milliseconds())
 }
 
 // SSORefreshHandler handles SSO refresh token requests
 func SSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	start := time.Now()
-	m := metrics.GetAPISSORefresh()
+	ctx := r.Context()
+	start, ok := logs.RequestStartTime(ctx)
+	if !ok {
+		start = time.Now()
+	}
+	m := apimetrics.GetAPIEveSSOTokenRefresh()
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		http.Error(w, "Configuration error: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Set context timeout
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-
 	// Only allow POST requests
 	if r.Method != http.MethodPost {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("method_not_allowed").Inc()
-		metrics.LogRequestMetrics("sso_refresh", duration, "method_not_allowed",
-			"method", r.Method, "ip", r.RemoteAddr)
-		logs.WarnCtx(ctx, "invalid method for SSO refresh endpoint", "method", r.Method, "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "method_not_allowed")
+		logs.WarnCtx(ctx, "invalid method for SSO refresh endpoint")
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -256,10 +254,10 @@ func SSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 	refreshToken, err := extractRefreshTokenFromSSORequest(r)
 	if err != nil {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("extraction_error").Inc()
-		metrics.LogRequestMetrics("sso_refresh", duration, "extraction_error",
-			"error", err, "ip", r.RemoteAddr)
-		logs.WarnCtx(ctx, "failed to extract refresh token from request body", "error", err, "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("extraction_error").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "extraction_error",
+			"error", err)
+		logs.WarnCtx(ctx, "failed to extract refresh token from request body", "error", err)
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
@@ -267,10 +265,10 @@ func SSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 	// Validate refresh token length (using same constant as refresh.go)
 	if len(refreshToken) > maxRefreshTokenLength {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("refresh_token_too_long").Inc()
-		metrics.LogRequestMetrics("sso_refresh", duration, "refresh_token_too_long",
-			"length", len(refreshToken), "max", maxRefreshTokenLength, "ip", r.RemoteAddr)
-		logs.WarnCtx(ctx, "refresh token too long", "length", len(refreshToken), "max", maxRefreshTokenLength, "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("refresh_token_too_long").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "refresh_token_too_long",
+			"length", len(refreshToken), "max", maxRefreshTokenLength)
+		logs.WarnCtx(ctx, "refresh token too long", "length", len(refreshToken), "max", maxRefreshTokenLength)
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
@@ -278,23 +276,25 @@ func SSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 	// Validate client ID and secret are configured
 	if cfg.EveSSOClientID == "" || cfg.EveSSOClientSecret == "" {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("config_error").Inc()
-		metrics.LogRequestMetrics("sso_refresh", duration, "config_error",
-			"ip", r.RemoteAddr)
-		logs.ErrorCtx(ctx, "EVE SSO client ID or secret not configured", "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("config_error").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "config_error")
+		logs.ErrorCtx(ctx, "EVE SSO client ID or secret not configured")
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 
 	// Refresh access token using refresh token
 	tokenResponse, err := refreshAccessToken(ctx, cfg.EveSSOClientID, cfg.EveSSOClientSecret, refreshToken)
 	var characterHash string
 	if err != nil {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("sso_refresh_error").Inc()
-		metrics.LogRequestMetrics("sso_refresh", duration, "sso_refresh_error",
-			"error", err, "ip", r.RemoteAddr)
-		logs.WarnCtx(ctx, "failed to refresh access token", "error", err, "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("sso_refresh_error").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "sso_refresh_error",
+			"error", err)
+		logs.WarnCtx(ctx, "failed to refresh access token", "error", err)
 
 		// Return appropriate error based on SSO response
 		if strings.Contains(err.Error(), "invalid_grant") || strings.Contains(err.Error(), "invalid_request") {
@@ -311,14 +311,14 @@ func SSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 	decodedClaims, err := decodeJWTWithoutValidation(tokenResponse.AccessToken)
 	if err != nil {
 		// If decoding fails, validate the token to ensure it's legitimate before returning it
-		logs.WarnCtx(ctx, "failed to decode JWT token without validation, attempting full validation", "error", err, "ip", r.RemoteAddr)
+		logs.WarnCtx(ctx, "failed to decode JWT token without validation, attempting full validation", "error", err)
 		validatedClaims, validateErr := sso.ValidateEveSSOToken(tokenResponse.AccessToken, cfg.EveSSOClientID)
 		if validateErr != nil {
 			duration := time.Since(start)
-			m.Errors.WithLabelValues("token_validation_error").Inc()
-			metrics.LogRequestMetrics("sso_refresh", duration, "token_validation_error",
-				"error", validateErr, "decode_error", err, "ip", r.RemoteAddr)
-			logs.ErrorCtx(ctx, "failed to validate token after decode failure", "decode_error", err, "validation_error", validateErr, "ip", r.RemoteAddr)
+			m.Errors.WithLabelValues("token_validation_error").Inc(ctx)
+			apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "token_validation_error",
+				"error", validateErr, "decode_error", err)
+			logs.ErrorCtx(ctx, "failed to validate token after decode failure", "decode_error", err, "validation_error", validateErr)
 			http.Error(w, "Invalid token received from EVE SSO", http.StatusInternalServerError)
 			return
 		}
@@ -326,16 +326,12 @@ func SSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 		decodedClaims = validatedClaims
 		characterHash = validatedClaims.Owner
 		logs.DebugCtx(ctx, "token validated successfully after decode failure",
-			"character_id", validatedClaims.CharacterID,
-			"character_hash", characterHash,
-			"ip", r.RemoteAddr)
+			"character_hash", characterHash)
 	} else {
 		// Extract character hash from the Owner field
 		characterHash = decodedClaims.Owner
 		logs.DebugCtx(ctx, "successfully decoded JWT token",
-			"character_id", decodedClaims.CharacterID,
-			"character_hash", characterHash,
-			"ip", r.RemoteAddr)
+			"character_hash", characterHash)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -350,9 +346,9 @@ func SSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("encode_error").Inc()
-		metrics.LogRequestMetrics("sso_refresh", duration, "encode_error",
-			"error", err, "ip", r.RemoteAddr)
+		m.Errors.WithLabelValues("encode_error").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "encode_error",
+			"error", err)
 		logs.ErrorCtx(ctx, "failed to encode response", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -360,18 +356,20 @@ func SSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 
 	// Update metrics
 	duration := time.Since(start)
-	m.Requests.Observe(duration.Seconds())
-	m.RequestsCount.Inc()
-	m.Successes.Inc()
+	m.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
+	m.RequestsCount.Inc(ctx)
+	m.Successes.Inc(ctx)
+	apimetrics.RecordSSORefreshDistinctCharacter(ctx, clients.Redis, characterHash)
 
-	metrics.LogRequestMetrics("sso_refresh", duration, "success",
+	accountID := auth.GetAccountIDFromCharacterHash(characterHash)
+	apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "success",
 		"character_hash", characterHash,
-		"ip", r.RemoteAddr)
+		"account_id", accountID)
 
 	logs.InfoCtx(ctx, "SSO token refresh completed",
 		"character_hash", characterHash,
-		"duration_ms", duration.Milliseconds(),
-		"ip", r.RemoteAddr)
+		"account_id", accountID,
+		"duration_ms", duration.Milliseconds())
 }
 
 // exchangeAuthCodeForToken exchanges an authorization code for an access token

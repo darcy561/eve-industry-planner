@@ -1,11 +1,12 @@
 package asynq
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 
 	"github.com/hibiken/asynq"
 )
@@ -48,7 +49,7 @@ func SetupClient() (*asynq.Client, asynq.RedisClientOpt, error) {
 	// Create asynq client for all tasks
 	client := asynq.NewClient(redisOpt)
 
-	logs.Info("asynq client initialized", "redis_addr", redisAddr)
+	logs.InfoCtx(context.Background(), "asynq client initialized", "redis_addr", redisAddr)
 
 	return client, redisOpt, nil
 }

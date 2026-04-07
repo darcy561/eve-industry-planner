@@ -6,8 +6,8 @@ import (
 
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/logs"
-	"eve-industry-planner/shared/shared/metrics"
+	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/telemetry"
 	asynqpkg "eve-industry-planner/worker/asynq"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
@@ -35,16 +35,28 @@ func main() {
 	// signal-aware context first
 	ctx, cancel := shared.NewSignalContext(context.Background())
 
-	// Connect to required services
-	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo, shared.ServiceNATS, shared.ServiceRedis)
+	teleShutdown, err := telemetry.Init(ctx, telemetry.DefaultConfig("worker"))
 	if err != nil {
-		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
+		logs.ErrorCtx(ctx, "telemetry init failed", "err", err)
+		cancel()
 		return
 	}
 
+	// Connect to required services
+	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo, shared.ServiceNATS, shared.ServiceRedis)
+	if err != nil {
+		sctx, sdone := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = teleShutdown(sctx)
+		sdone()
+		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
+		return
+	}
+	ts := teleShutdown
+	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) { _ = ts(c) })
+
 	// Ensure JetStream streams exist
 	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
-		logs.Error("failed to ensure JetStream streams", "err", err)
+		logs.ErrorCtx(ctx, "failed to ensure JetStream streams", "err", err)
 		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
 		return
 	}
@@ -63,19 +75,19 @@ func main() {
 		"status":       defaultRateLimit, // Status endpoints
 	}
 	if err := esiClient.InitializeDefaultRateLimits(ctx, rateLimits); err != nil {
-		logs.Error("failed to initialize rate limits", "error", err)
+		logs.ErrorCtx(ctx, "failed to initialize rate limits", "error", err)
 		// Don't fail startup - rate limits will fall back to default
 	} else {
-		logs.Info("rate limits initialized for primary groups", "rate_limits", rateLimits)
+		logs.InfoCtx(ctx, "rate limits initialized for primary groups", "rate_limits", rateLimits)
 	}
 
-	logs.Info("Redis-based ESI rate-limited client initialized (distributed rate limiting enabled)")
+	logs.InfoCtx(ctx, "Redis-based ESI rate-limited client initialized (distributed rate limiting enabled)")
 
 	// Setup asynq for priority task processing
 	// asynq's Concurrency setting IS the worker pool - no need for separate goroutine pool
 	asynqClient, redisOpt, err := asynqpkg.SetupClient()
 	if err != nil {
-		logs.Error("failed to setup asynq client", "error", err)
+		logs.ErrorCtx(ctx, "failed to setup asynq client", "error", err)
 		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
 		return
 	}
@@ -83,10 +95,7 @@ func main() {
 		asynqClient.Close()
 	})
 
-	logs.Info("worker service running")
-
-	// Start metrics logger for Dozzle viewing (logs every 60 seconds)
-	metrics.StartMetricsLogger(60 * time.Second)
+	logs.InfoCtx(ctx, "worker service running")
 
 	// Create worker dependencies (needed for asynq server setup)
 	deps := &WorkerDependencies{
@@ -98,7 +107,7 @@ func main() {
 	// Setup and start asynq server
 	serverCleanup, err := asynqpkg.SetupServer(redisOpt, deps)
 	if err != nil {
-		logs.Error("failed to setup asynq server", "error", err)
+		logs.ErrorCtx(ctx, "failed to setup asynq server", "error", err)
 		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
 		return
 	}
@@ -108,13 +117,13 @@ func main() {
 	// Task priority is determined by GetPriorityQueue() routing in asynq, not by subscription order
 	scheduledTasksCleanup, err := SubscribeScheduledTasks(deps)
 	if err != nil {
-		logs.Error("failed to setup scheduled task subscribers", "error", err)
+		logs.ErrorCtx(ctx, "failed to setup scheduled task subscribers", "error", err)
 		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
 		return
 	}
 	clients.CleanupFns = append(clients.CleanupFns, scheduledTasksCleanup)
 
-	logs.Info("message loops started successfully", "total_count", 5)
+	logs.InfoCtx(ctx, "message loops started successfully", "total_count", 5)
 
 	// normal blocking shutdown
 	shared.WaitForShutdown(ctx, 5*time.Second, clients.CleanupFns...)

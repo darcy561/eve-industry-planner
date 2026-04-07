@@ -10,6 +10,7 @@ import (
 	esicore "eve-industry-planner/shared/core/esi"
 	natscore "eve-industry-planner/shared/core/nats"
 	rediscore "eve-industry-planner/shared/core/redis"
+	"eve-industry-planner/shared/logs"
 	taskscore "eve-industry-planner/shared/tasks"
 )
 
@@ -31,7 +32,6 @@ func ScheduleMarketPricesRefresh(deps contract.Dependencies, sched contract.Sche
 	jsContext := deps.JSContext
 	natsConn := deps.NATS
 	redisClient := deps.Redis
-	log := deps.Log
 
 	task := taskscore.RefreshMarketPrices
 	sched.RegisterHandler(cronMarketPricesRefreshName, func(ctx context.Context, data json.RawMessage) error {
@@ -46,49 +46,49 @@ func ScheduleMarketPricesRefresh(deps contract.Dependencies, sched contract.Sche
 		// We need to check if the cache key exists to distinguish "cache miss" from "cached value is 0"
 		totalItems, err := rediscore.GetCachedTotalMarketOrdersCount(ctx, redisClient)
 		if err != nil {
-			log.Warn("failed to get cached total count, recalculating", "error", err)
+			logs.WarnCtx(ctx, "failed to get cached total count, recalculating", "component", schedulerLogComponent, "error", err)
 			// Recalculate on the fly if there was an error getting the cache
 			totalItems, err = rediscore.CountTotalMarketOrdersRefreshTimes(ctx, redisClient)
 			if err != nil {
-				log.Error("failed to count total market orders refresh times", "error", err)
+				logs.ErrorCtx(ctx, "failed to count total market orders refresh times", "component", schedulerLogComponent, "error", err)
 				return err
 			}
 			// Cache it for next time
 			ttl := 4*time.Hour + 30*time.Minute
 			if err := rediscore.SetCachedTotalMarketOrdersCount(ctx, redisClient, totalItems, ttl); err != nil {
-				log.Warn("failed to cache total count", "error", err)
+				logs.WarnCtx(ctx, "failed to cache total count", "component", schedulerLogComponent, "error", err)
 			}
 		} else {
 			// Check if cache key exists to distinguish cache miss (returns 0) from actual 0 value
 			// If key doesn't exist, it's a cache miss and we should recalculate
 			cacheExists, err := rediscore.CachedTotalMarketOrdersCountExists(ctx, redisClient)
 			if err != nil {
-				log.Warn("failed to check if cache key exists, assuming cache miss", "error", err)
+				logs.WarnCtx(ctx, "failed to check if cache key exists, assuming cache miss", "component", schedulerLogComponent, "error", err)
 				// Treat as cache miss and recalculate
 				totalItems, err = rediscore.CountTotalMarketOrdersRefreshTimes(ctx, redisClient)
 				if err != nil {
-					log.Error("failed to count total market orders refresh times", "error", err)
+					logs.ErrorCtx(ctx, "failed to count total market orders refresh times", "component", schedulerLogComponent, "error", err)
 					return err
 				}
 				ttl := 4*time.Hour + 30*time.Minute
 				if err := rediscore.SetCachedTotalMarketOrdersCount(ctx, redisClient, totalItems, ttl); err != nil {
-					log.Warn("failed to cache total count", "error", err)
+					logs.WarnCtx(ctx, "failed to cache total count", "component", schedulerLogComponent, "error", err)
 				}
 			} else if !cacheExists && totalItems == 0 {
 				// Cache key doesn't exist and we got 0 - this is a cache miss
-				log.Debug("cache key missing, recalculating total count")
+				logs.DebugCtx(ctx, "cache key missing, recalculating total count", "component", schedulerLogComponent)
 				totalItems, err = rediscore.CountTotalMarketOrdersRefreshTimes(ctx, redisClient)
 				if err != nil {
-					log.Error("failed to count total market orders refresh times", "error", err)
+					logs.ErrorCtx(ctx, "failed to count total market orders refresh times", "component", schedulerLogComponent, "error", err)
 					return err
 				}
 				// Cache it for next time
 				ttl := 4*time.Hour + 30*time.Minute
 				if err := rediscore.SetCachedTotalMarketOrdersCount(ctx, redisClient, totalItems, ttl); err != nil {
-					log.Warn("failed to cache total count", "error", err)
+					logs.WarnCtx(ctx, "failed to cache total count", "component", schedulerLogComponent, "error", err)
 				}
 				if totalItems > 0 {
-					log.Info("recalculated total count after cache miss", "total_items", totalItems)
+					logs.InfoCtx(ctx, "recalculated total count after cache miss", "component", schedulerLogComponent, "total_items", totalItems)
 				}
 			}
 			// If cacheExists is true, the cache key exists, so totalItems is the actual cached value (even if 0)
@@ -133,7 +133,8 @@ func ScheduleMarketPricesRefresh(deps contract.Dependencies, sched contract.Sche
 		// Apply API limit constraint (more restrictive than maxBatchSize)
 		if batchSize > maxItemsPerRunByAPI {
 			batchSize = maxItemsPerRunByAPI
-			log.Debug("batch size limited by API rate limit",
+			logs.DebugCtx(ctx, "batch size limited by API rate limit",
+				"component", schedulerLogComponent,
 				"calculated_batch_size", int(math.Ceil(targetBatchSize)),
 				"api_limited_batch_size", batchSize,
 				"max_items_per_run_by_api", maxItemsPerRunByAPI,
@@ -149,11 +150,11 @@ func ScheduleMarketPricesRefresh(deps contract.Dependencies, sched contract.Sche
 		tokenLimitedBatchSize := -1
 		marketTokenLimit, err := rediscore.GetMarketOrderTokenLimit(ctx, redisClient)
 		if err != nil {
-			log.Warn("failed to read market-order token limit, skipping token-aware batch cap", "error", err)
+			logs.WarnCtx(ctx, "failed to read market-order token limit, skipping token-aware batch cap", "component", schedulerLogComponent, "error", err)
 		} else if marketTokenLimit > 0 {
 			marketTokensUsed, err := rediscore.GetMarketOrderTokensUsed(ctx, redisClient)
 			if err != nil {
-				log.Warn("failed to read market-order tokens used, skipping token-aware batch cap", "error", err)
+				logs.WarnCtx(ctx, "failed to read market-order tokens used, skipping token-aware batch cap", "component", schedulerLogComponent, "error", err)
 			} else {
 				availableTokens := float64(marketTokenLimit) - marketTokensUsed
 				if availableTokens < 0 {
@@ -172,7 +173,8 @@ func ScheduleMarketPricesRefresh(deps contract.Dependencies, sched contract.Sche
 				}
 
 				if batchSize > tokenLimitedBatchSize {
-					log.Debug("batch size limited by current market-order token availability",
+					logs.DebugCtx(ctx, "batch size limited by current market-order token availability",
+						"component", schedulerLogComponent,
 						"calculated_batch_size", batchSize,
 						"token_limited_batch_size", tokenLimitedBatchSize,
 						"market_order_token_limit", marketTokenLimit,
@@ -184,7 +186,8 @@ func ScheduleMarketPricesRefresh(deps contract.Dependencies, sched contract.Sche
 			}
 		}
 
-		log.Debug("calculated batch size",
+		logs.DebugCtx(ctx, "calculated batch size",
+			"component", schedulerLogComponent,
 			"total_items", totalItems,
 			"target_batch_size", int(math.Ceil(targetBatchSize)),
 			"final_batch_size", batchSize,
@@ -198,11 +201,11 @@ func ScheduleMarketPricesRefresh(deps contract.Dependencies, sched contract.Sche
 		queryLimit := batchSize + 100 // Small buffer for invalid entries
 		refreshTimes, err := rediscore.GetMarketOrdersRefreshTimesByScoreRange(ctx, redisClient, 0, float64(thresholdTime), queryLimit)
 		if err != nil {
-			log.Error("failed to get market orders refresh times by score range, falling back to oldest", "error", err)
+			logs.ErrorCtx(ctx, "failed to get market orders refresh times by score range, falling back to oldest", "component", schedulerLogComponent, "error", err)
 			// Fallback to original method if score range query fails
 			refreshTimes, err = rediscore.GetOldestMarketOrdersRefreshTimes(ctx, redisClient, queryLimit)
 			if err != nil {
-				log.Error("failed to get oldest market orders refresh times", "error", err)
+				logs.ErrorCtx(ctx, "failed to get oldest market orders refresh times", "component", schedulerLogComponent, "error", err)
 				return err
 			}
 		}
@@ -233,7 +236,7 @@ func ScheduleMarketPricesRefresh(deps contract.Dependencies, sched contract.Sche
 			// Find station_id for this region_id
 			stationID, exists := regionToStation[refreshTime.LocationID]
 			if !exists {
-				log.Debug("no station mapping found for region", "region_id", refreshTime.LocationID, "type_id", refreshTime.TypeID)
+				logs.DebugCtx(ctx, "no station mapping found for region", "component", schedulerLogComponent, "region_id", refreshTime.LocationID, "type_id", refreshTime.TypeID)
 				continue
 			}
 
@@ -263,7 +266,8 @@ func ScheduleMarketPricesRefresh(deps contract.Dependencies, sched contract.Sche
 			microBatchSlices = plannedSlices
 			microBatchRequestsPerSlice = requestsPerSlice
 
-			log.Info("market prices micro-batch publishing started",
+			logs.InfoCtx(ctx, "market prices micro-batch publishing started",
+				"component", schedulerLogComponent,
 				"publishable_requests", len(requestsToPublish),
 				"planned_slices", plannedSlices,
 				"requests_per_slice", requestsPerSlice,
@@ -273,8 +277,9 @@ func ScheduleMarketPricesRefresh(deps contract.Dependencies, sched contract.Sche
 			for start := 0; start < len(requestsToPublish); start += requestsPerSlice {
 				end := min(start+requestsPerSlice, len(requestsToPublish))
 				for _, request := range requestsToPublish[start:end] {
-					if err := natscore.PublishTask(jsContext, task.Subject, task.Name, request, natsConn); err != nil {
-						log.Warn("failed to publish market prices refresh message",
+					if err := natscore.PublishTask(ctx, jsContext, task.Subject, task.Name, request, natsConn); err != nil {
+						logs.WarnCtx(ctx, "failed to publish market prices refresh message",
+							"component", schedulerLogComponent,
 							"type_id", request.TypeID,
 							"location_id", request.LocationID,
 							"station_id", request.StationID,
@@ -292,14 +297,15 @@ func ScheduleMarketPricesRefresh(deps contract.Dependencies, sched contract.Sche
 				select {
 				case <-ctx.Done():
 					timer.Stop()
-					log.Warn("market prices micro-batch publishing stopped early", "published_messages", publishedCount, "remaining_messages", len(requestsToPublish)-end, "error", ctx.Err())
+					logs.WarnCtx(ctx, "market prices micro-batch publishing stopped early", "component", schedulerLogComponent, "published_messages", publishedCount, "remaining_messages", len(requestsToPublish)-end, "error", ctx.Err())
 					return ctx.Err()
 				case <-timer.C:
 				}
 			}
 
 			microBatchCompleted = true
-			log.Info("market prices micro-batch publishing completed",
+			logs.InfoCtx(ctx, "market prices micro-batch publishing completed",
+				"component", schedulerLogComponent,
 				"publishable_requests", len(requestsToPublish),
 				"published_messages", publishedCount,
 				"planned_slices", microBatchSlices,
@@ -338,7 +344,8 @@ func ScheduleMarketPricesRefresh(deps contract.Dependencies, sched contract.Sche
 				estimatedDaysToClearBacklog := estimatedHoursToClearBacklog / 24.0
 				messagesMayExpire := estimatedDaysToClearBacklog > 1.0
 
-				log.Warn("market prices refresh backlog exceeds capacity",
+				logs.WarnCtx(ctx, "market prices refresh backlog exceeds capacity",
+					"component", schedulerLogComponent,
 					"outdated_entries_found", outdatedCount,
 					"published_messages", publishedCount,
 					"remaining_outdated", remainingOutdated,
@@ -354,7 +361,8 @@ func ScheduleMarketPricesRefresh(deps contract.Dependencies, sched contract.Sche
 					"backlog_growth_rate", "items will continue to age if capacity is insufficient")
 			} else {
 				// Log info with basic stats when backlog exists but is manageable
-				log.Info("market prices refresh triggered",
+				logs.InfoCtx(ctx, "market prices refresh triggered",
+					"component", schedulerLogComponent,
 					"outdated_entries_found", outdatedCount,
 					"published_messages", publishedCount,
 					"remaining_outdated", remainingOutdated,
@@ -365,7 +373,8 @@ func ScheduleMarketPricesRefresh(deps contract.Dependencies, sched contract.Sche
 			}
 		} else {
 			// Normal operation - no backlog, minimal logging
-			log.Info("market prices refresh triggered",
+			logs.InfoCtx(ctx, "market prices refresh triggered",
+				"component", schedulerLogComponent,
 				"outdated_entries_found", outdatedCount,
 				"published_messages", publishedCount,
 				"checked_entries", len(refreshTimes),

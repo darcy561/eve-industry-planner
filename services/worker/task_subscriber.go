@@ -8,7 +8,7 @@ import (
 	"time"
 
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 	asynqpkg "eve-industry-planner/worker/asynq"
 
 	"github.com/hibiken/asynq"
@@ -30,6 +30,7 @@ const (
 // processMessage receives a NATS message and enqueues it to the asynq server.
 // Acknowledges NATS message immediately after successful enqueue to prevent redelivery.
 func processMessage(
+	ctx context.Context,
 	msg jetstream.Msg,
 	subject string,
 	client *asynq.Client,
@@ -38,7 +39,7 @@ func processMessage(
 	taskType := getTaskTypeFromSubject(subject)
 	if taskType == "" {
 		deliveryCount, _ := natscore.GetMessageMetadata(msg)
-		logs.Warn("unknown task type for subject", "subject", subject)
+		logs.WarnCtx(ctx, "unknown task type for subject", "subject", subject)
 		natscore.AcknowledgeMessage(msg, "unknown task type", deliveryCount)
 		return
 	}
@@ -47,7 +48,7 @@ func processMessage(
 	// This is fast and non-blocking - asynq server handles processing with priority queues
 	err := asynqpkg.Enqueue(msg, client, taskType, subject)
 	if err != nil {
-		logs.Error("failed to enqueue task to asynq", "subject", subject, "error", err)
+		logs.ErrorCtx(ctx, "failed to enqueue task to asynq", "subject", subject, "error", err)
 		// Nack the message so it can be retried
 		natscore.NackMessage(msg)
 		return
@@ -82,14 +83,15 @@ func startMessageLoop(
 	processor func(msg jetstream.Msg),
 	stopChan chan struct{},
 	subject string,
+	loopCtx context.Context,
 ) {
-	logs.Debug("starting message fetch loop", "subject", subject, "batch_size", MessageFetchBatchSize, "max_concurrent", MaxConcurrentEnqueues)
+	logs.DebugCtx(loopCtx, "starting message fetch loop", "subject", subject, "batch_size", MessageFetchBatchSize, "max_concurrent", MaxConcurrentEnqueues)
 	go func() {
 		consecutiveEmptyFetches := 0
 		for {
 			select {
 			case <-stopChan:
-				logs.Info("message fetch loop stopped", "subject", subject)
+				logs.InfoCtx(loopCtx, "message fetch loop stopped", "subject", subject)
 				return
 			default:
 				// Fetch messages in larger batches for better throughput
@@ -99,13 +101,13 @@ func startMessageLoop(
 						consecutiveEmptyFetches++
 						// Reduce log noise - only log every 50 empty fetches
 						if consecutiveEmptyFetches%50 == 0 {
-							logs.Debug("fetch timeout (no messages available)", "subject", subject, "consecutive_empty", consecutiveEmptyFetches)
+							logs.DebugCtx(loopCtx, "fetch timeout (no messages available)", "subject", subject, "consecutive_empty", consecutiveEmptyFetches)
 						}
 						// Short sleep when idle to reduce CPU usage
 						time.Sleep(MessageFetchIdleWait)
 						continue
 					}
-					logs.Error("failed to fetch messages", "subject", subject, "error", err)
+					logs.ErrorCtx(loopCtx, "failed to fetch messages", "subject", subject, "error", err)
 					time.Sleep(time.Second)
 					continue
 				}
@@ -130,7 +132,7 @@ func startMessageLoop(
 				processBatchInParallel(messageBatch, processor)
 
 				// Log batch summary (reduced logging overhead)
-				logs.Debug("processed message batch", "subject", subject, "count", msgCount)
+				logs.DebugCtx(loopCtx, "processed message batch", "subject", subject, "count", msgCount)
 			}
 		}
 	}()
@@ -196,13 +198,13 @@ func SubscribeScheduledTasks(deps *WorkerDependencies) (func(context.Context), e
 	}
 
 	processor := func(msg jetstream.Msg) {
-		processMessage(msg, msg.Subject(), deps.AsynqClient)
+		processMessage(ctx, msg, msg.Subject(), deps.AsynqClient)
 	}
 
 	stopChan := make(chan struct{})
-	startMessageLoop(consumer, processor, stopChan, natscore.WorkerTaskStreamSubjects[0])
+	startMessageLoop(consumer, processor, stopChan, natscore.WorkerTaskStreamSubjects[0], ctx)
 
-	logs.Debug("subscribed to task stream", "subject", natscore.WorkerTaskStreamSubjects[0], "consumer", "task-worker", "type", "pull")
+	logs.DebugCtx(ctx, "subscribed to task stream", "subject", natscore.WorkerTaskStreamSubjects[0], "consumer", "task-worker", "type", "pull")
 
 	return func(ctx context.Context) {
 		close(stopChan)

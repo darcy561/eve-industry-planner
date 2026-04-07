@@ -2,14 +2,31 @@ package middleware
 
 import (
 	"compress/gzip"
-	"eve-industry-planner/shared/shared/logs"
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/andybalholm/brotli"
+
+	"eve-industry-planner/shared/logs"
+
+	"go.uber.org/zap"
 )
 
+// withContentEncodingOnLogger adds content_encoding to the request-scoped logger (LoggerKey) so
+// handlers and logs.InfoCtx see the negotiated encoding after this middleware runs.
+func withContentEncodingOnLogger(r *http.Request, encoding string) *http.Request {
+	ctx := r.Context()
+	if l, ok := ctx.Value(logs.LoggerKey{}).(*zap.Logger); ok && l != nil {
+		ctx = context.WithValue(ctx, logs.LoggerKey{}, l.With(zap.String("content_encoding", encoding)))
+	}
+	return r.WithContext(ctx)
+}
+
+// CompressionConstructor negotiates Accept-Encoding and wraps the response writer when brotli or gzip applies.
+// It attaches content_encoding on the scoped logger before the mux; r.Context() is already enriched by
+// RequestTimeoutConstructor and RequestLoggingConstructor upstream.
 func CompressionConstructor() MiddlewareConstructor {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -22,7 +39,7 @@ func CompressionConstructor() MiddlewareConstructor {
 			acceptedEncodings := r.Header.Get("Accept-Encoding")
 
 			if acceptedEncodings == "" {
-				next.ServeHTTP(w, r)
+				next.ServeHTTP(w, withContentEncodingOnLogger(r, "identity"))
 				return
 			}
 
@@ -131,33 +148,30 @@ func CompressionConstructor() MiddlewareConstructor {
 				}
 			}
 
-			// Apply compression based on best encoding found
 			switch bestEncoding {
 			case "br":
 				w.Header().Set("Vary", "Accept-Encoding")
 				w.Header().Set("Content-Encoding", "br")
 				w.Header().Del("Content-Length")
-				br := brotli.NewWriterLevel(w, 6) // Quality level 6 (optimized for better compression)
+				br := brotli.NewWriterLevel(w, 6)
 				defer br.Close()
-				logs.DebugCtx(r.Context(), "brotli compression applied", "request", r.URL.Path)
+				r = withContentEncodingOnLogger(r, "br")
 				next.ServeHTTP(&brotliResponseWriter{ResponseWriter: w, Writer: br}, r)
 			case "gzip":
 				w.Header().Set("Vary", "Accept-Encoding")
 				w.Header().Set("Content-Encoding", "gzip")
 				w.Header().Del("Content-Length")
-				logs.DebugCtx(r.Context(), "gzip compression applied", "request", r.URL.Path)
-				gz, err := gzip.NewWriterLevel(w, 6) // Level 6 (optimized for better compression)
+				gz, err := gzip.NewWriterLevel(w, 6)
 				if err != nil {
 					logs.ErrorCtx(r.Context(), "failed to create gzip writer", "error", err)
-					next.ServeHTTP(w, r)
+					next.ServeHTTP(w, withContentEncodingOnLogger(r, "identity"))
 					return
 				}
 				defer gz.Close()
+				r = withContentEncodingOnLogger(r, "gzip")
 				next.ServeHTTP(&gzipResponseWriter{ResponseWriter: w, Writer: gz}, r)
 			default:
-				// No supported encoding found
-				logs.DebugCtx(r.Context(), "no compression applied", "request", r.URL.Path)
-				next.ServeHTTP(w, r)
+				next.ServeHTTP(w, withContentEncodingOnLogger(r, "identity"))
 			}
 		})
 	}

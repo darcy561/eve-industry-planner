@@ -5,29 +5,41 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/logs"
-	"eve-industry-planner/shared/shared/metrics"
+	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/telemetry"
+	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
 func main() {
 	// create signal-aware context first so we can cancel on startup failures
 	ctx, cancel := shared.NewSignalContext(context.Background())
 
-	// Connect to required services
-	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo, shared.ServiceNATS, shared.ServiceRedis)
+	teleShutdown, err := telemetry.Init(ctx, telemetry.DefaultConfig("api"))
 	if err != nil {
-		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
+		logs.ErrorCtx(ctx, "telemetry init failed", "err", err)
+		cancel()
 		return
 	}
 
-	logs.Debug("api service running")
+	// Connect to required services
+	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo, shared.ServiceNATS, shared.ServiceRedis)
+	if err != nil {
+		sctx, sdone := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = teleShutdown(sctx)
+		sdone()
+		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
+		return
+	}
+	ts := teleShutdown
+	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) { _ = ts(c) })
 
-	// Start metrics logger for Dozzle viewing (logs every 60 seconds)
-	metrics.StartAPIMetricsLogger(60 * time.Second)
+	apimetrics.RegisterSSORefreshDistinctGauges(clients.Redis)
+
+	logs.DebugCtx(ctx, "api service running")
 
 	go func() {
-		if err := StartAPIServer(clients); err != nil {
-			logs.Error("failed to start api server", "err", err)
+		if err := StartAPIServer(ctx, clients); err != nil {
+			logs.ErrorCtx(ctx, "failed to start api server", "err", err)
 			shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
 			return
 		}

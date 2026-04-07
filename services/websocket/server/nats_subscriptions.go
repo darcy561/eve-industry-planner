@@ -6,7 +6,7 @@ import (
 	"time"
 
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -14,16 +14,15 @@ import (
 // subscribeToDocUpdates subscribes to NATS document update notifications
 // and enqueues them to the outgoing queue for broadcasting to clients
 func (s *Server) subscribeToDocUpdates() {
+	ctx := context.Background()
 	if s.ServiceClients == nil || s.ServiceClients.JetStream == nil {
-		logs.Warn("JetStream not available, document update subscription disabled")
+		logs.WarnCtx(ctx, "JetStream not available, document update subscription disabled")
 		return
 	}
 
-	ctx := context.Background()
-
 	// Ensure the document update stream exists
 	if err := natscore.EnsureDocUpdateStream(s.ServiceClients.JetStream); err != nil {
-		logs.Error("failed to ensure doc update stream", "error", err)
+		logs.ErrorCtx(ctx, "failed to ensure doc update stream", "error", err)
 		return
 	}
 
@@ -35,7 +34,7 @@ func (s *Server) subscribeToDocUpdates() {
 		natscore.DocUpdateStream,
 	)
 	if err != nil {
-		logs.Error("failed to get doc update stream", "error", err)
+		logs.ErrorCtx(ctx, "failed to get doc update stream", "error", err)
 		return
 	}
 
@@ -53,7 +52,7 @@ func (s *Server) subscribeToDocUpdates() {
 
 	consumer, err := natscore.GetOrCreateConsumer(ctx, stream, consumerConfig)
 	if err != nil {
-		logs.Error("failed to create doc updates consumer", "error", err)
+		logs.ErrorCtx(ctx, "failed to create doc updates consumer", "error", err)
 		return
 	}
 
@@ -63,7 +62,7 @@ func (s *Server) subscribeToDocUpdates() {
 		subject := msg.Subject()
 		docID, err := natscore.ExtractIDFromSubject(subject, natscore.SubjectDocUpdate)
 		if err != nil {
-			logs.Warn("invalid doc update subject format", "subject", subject, "error", err)
+			logs.WarnCtx(ctx, "invalid doc update subject format", "subject", subject, "error", err)
 			deliveryCount := natscore.GetDeliveryCount(msg)
 			natscore.AcknowledgeMessage(msg, "invalid subject format", deliveryCount)
 			return
@@ -79,7 +78,7 @@ func (s *Server) subscribeToDocUpdates() {
 		// Acknowledge message
 		deliveryCount := natscore.GetDeliveryCount(msg)
 		natscore.AcknowledgeMessage(msg, "doc update processed", deliveryCount)
-		logs.Debug("doc update message processed",
+		logs.DebugCtx(ctx, "doc update message processed",
 			"doc_id", docID,
 			"subject", subject)
 	}
@@ -99,7 +98,7 @@ func (s *Server) subscribeToDocUpdates() {
 		"doc.update.>",
 	)
 
-	logs.Debug("subscribed to document updates",
+	logs.DebugCtx(ctx, "subscribed to document updates",
 		"subject", "doc.update.>",
 		"consumer", natscore.ConsumerDocUpdates)
 }
@@ -107,16 +106,15 @@ func (s *Server) subscribeToDocUpdates() {
 // subscribeToDocSubscriptions subscribes to NATS subscription requests
 // and subscribes clients to the requested documents
 func (s *Server) subscribeToDocSubscriptions() {
+	ctx := context.Background()
 	if s.ServiceClients == nil || s.ServiceClients.JetStream == nil {
-		logs.Warn("JetStream not available, document subscription handler disabled")
+		logs.WarnCtx(ctx, "JetStream not available, document subscription handler disabled")
 		return
 	}
 
-	ctx := context.Background()
-
 	// Ensure the document update stream exists (subscription messages use the same stream)
 	if err := natscore.EnsureDocUpdateStream(s.ServiceClients.JetStream); err != nil {
-		logs.Error("failed to ensure doc update stream", "error", err)
+		logs.ErrorCtx(ctx, "failed to ensure doc update stream", "error", err)
 		return
 	}
 
@@ -128,7 +126,7 @@ func (s *Server) subscribeToDocSubscriptions() {
 		natscore.DocUpdateStream,
 	)
 	if err != nil {
-		logs.Error("failed to get doc update stream", "error", err)
+		logs.ErrorCtx(ctx, "failed to get doc update stream", "error", err)
 		return
 	}
 
@@ -145,7 +143,7 @@ func (s *Server) subscribeToDocSubscriptions() {
 
 	consumer, err := natscore.GetOrCreateConsumer(ctx, stream, consumerConfig)
 	if err != nil {
-		logs.Error("failed to create doc subscribe consumer", "error", err)
+		logs.ErrorCtx(ctx, "failed to create doc subscribe consumer", "error", err)
 		return
 	}
 
@@ -153,11 +151,11 @@ func (s *Server) subscribeToDocSubscriptions() {
 	processor := func(msg jetstream.Msg) {
 		// Extract accountID from subject (format: doc.subscribe.{accountID})
 		subject := msg.Subject()
-		logs.Info("received doc subscription request", "subject", subject)
+		logs.InfoCtx(ctx, "received doc subscription request", "subject", subject)
 
 		accountID, err := natscore.ExtractIDFromSubject(subject, natscore.SubjectDocSubscribe)
 		if err != nil {
-			logs.Warn("invalid doc subscribe subject format", "subject", subject, "error", err)
+			logs.WarnCtx(ctx, "invalid doc subscribe subject format", "subject", subject, "error", err)
 			deliveryCount := natscore.GetDeliveryCount(msg)
 			natscore.AcknowledgeMessage(msg, "invalid subject format", deliveryCount)
 			return
@@ -166,7 +164,7 @@ func (s *Server) subscribeToDocSubscriptions() {
 		// Parse message body to get collection and docIDs
 		subscriptionRequest, err := natscore.UnmarshalMessagePayload[natscore.SubscriptionRequest](msg)
 		if err != nil {
-			logs.Warn("failed to parse subscription request",
+			logs.WarnCtx(ctx, "failed to parse subscription request",
 				"account_id", accountID,
 				"error", err)
 			deliveryCount := natscore.GetDeliveryCount(msg)
@@ -176,7 +174,7 @@ func (s *Server) subscribeToDocSubscriptions() {
 
 		// Validate collection
 		if subscriptionRequest.Collection == "" {
-			logs.Warn("subscription request missing collection",
+			logs.WarnCtx(ctx, "subscription request missing collection",
 				"account_id", accountID)
 			deliveryCount := natscore.GetDeliveryCount(msg)
 			natscore.AcknowledgeMessage(msg, "missing collection", deliveryCount)
@@ -192,7 +190,7 @@ func (s *Server) subscribeToDocSubscriptions() {
 				collectionScopedDocID := fmt.Sprintf("%s.%s", subscriptionRequest.Collection, docID)
 				collectionScopedDocIDs = append(collectionScopedDocIDs, collectionScopedDocID)
 			}
-			logs.Info("subscribing single client to documents (autosubscription)",
+			logs.InfoCtx(ctx, "subscribing single client to documents (autosubscription)",
 				"account_id", accountID,
 				"collection", subscriptionRequest.Collection,
 				"doc_ids", subscriptionRequest.DocIDs,
@@ -202,7 +200,7 @@ func (s *Server) subscribeToDocSubscriptions() {
 				s.SubscribeSingleClientToDocument(accountID, docID)
 			}
 		} else {
-			logs.Warn("subscription request has no docIDs",
+			logs.WarnCtx(ctx, "subscription request has no docIDs",
 				"account_id", accountID,
 				"collection", subscriptionRequest.Collection)
 		}
@@ -210,7 +208,7 @@ func (s *Server) subscribeToDocSubscriptions() {
 		// Acknowledge message
 		deliveryCount := natscore.GetDeliveryCount(msg)
 		natscore.AcknowledgeMessage(msg, "subscription processed", deliveryCount)
-		logs.Info("doc subscribe message processed",
+		logs.InfoCtx(ctx, "doc subscribe message processed",
 			"account_id", accountID,
 			"collection", subscriptionRequest.Collection,
 			"doc_count", len(subscriptionRequest.DocIDs))
@@ -231,7 +229,7 @@ func (s *Server) subscribeToDocSubscriptions() {
 		"doc.subscribe.>",
 	)
 
-	logs.Debug("subscribed to document subscription requests",
+	logs.DebugCtx(ctx, "subscribed to document subscription requests",
 		"subject", "doc.subscribe.>",
 		"consumer", "doc-subscribe-consumer")
 }

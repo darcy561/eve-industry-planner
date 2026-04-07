@@ -1,11 +1,12 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/websocket/sso"
 )
 
@@ -32,14 +33,14 @@ func ValidateEveTokenAndExtractHash(tokenString, clientID string, ip string) (*E
 	// Validate the EVE SSO token
 	claims, err := sso.ValidateEveSSOToken(tokenString, clientID)
 	if err != nil {
-		logs.Warn("failed to validate EVE SSO token", "error", err, "ip", ip)
+		logs.WarnCtx(context.Background(), "failed to validate EVE SSO token", "error", err, "ip", ip)
 		return nil, err
 	}
 
 	// Extract character hash (owner field) from EVE SSO claims
 	characterHash := claims.Owner
 	if characterHash == "" {
-		logs.Warn("failed to extract character hash (owner) from token", "subject", claims.Subject, "ip", ip)
+		logs.WarnCtx(context.Background(), "failed to extract character hash (owner) from token", "subject", claims.Subject, "ip", ip)
 		return nil, fmt.Errorf("missing character hash in token")
 	}
 

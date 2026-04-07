@@ -6,6 +6,7 @@ import (
 	"time"
 
 	natscore "eve-industry-planner/shared/core/nats"
+	"eve-industry-planner/shared/telemetry/natsprop"
 
 	"github.com/hibiken/asynq"
 	"github.com/nats-io/nats.go/jetstream"
@@ -63,13 +64,29 @@ func Enqueue(
 	queue := GetPriorityQueue(taskType, overridePriority)
 	taskTimeout := GetTaskTimeout(taskType, overrideTimeoutSec)
 
+	// Propagate W3C trace from NATS; handlers that publish follow-up tasks should use the same ctx so
+	// PublishMessage injects the active span. For enqueue without NATS, use natsprop.AsynqHeadersFromContext(ctx).
+	// JSON envelope may carry trace_carrier_* when JetStream omits user headers (see [natscore.Message]).
+	traceHeaders := natsprop.AsynqHeadersFromNATS(msg.Headers())
+	traceHeaders = natscore.MergeTraceCarrierIntoHeaders(traceHeaders,
+		natsMsg.TraceCarrierTraceparent, natsMsg.TraceCarrierTracestate)
+
 	// Create asynq task with retention to prevent expiration
 	// Retention of 24 hours ensures messages don't expire while waiting in queue
-	task := asynq.NewTask(taskType, payloadBytes,
-		asynq.Queue(queue),
-		asynq.Retention(24*time.Hour), // Keep tasks for 24 hours to prevent expiration
-		asynq.Timeout(taskTimeout),
-	)
+	var task *asynq.Task
+	if len(traceHeaders) > 0 {
+		task = asynq.NewTaskWithHeaders(taskType, payloadBytes, traceHeaders,
+			asynq.Queue(queue),
+			asynq.Retention(24*time.Hour), // Keep tasks for 24 hours to prevent expiration
+			asynq.Timeout(taskTimeout),
+		)
+	} else {
+		task = asynq.NewTask(taskType, payloadBytes,
+			asynq.Queue(queue),
+			asynq.Retention(24*time.Hour),
+			asynq.Timeout(taskTimeout),
+		)
+	}
 
 	// Enqueue to asynq server - this is fast and non-blocking
 	_, err = client.Enqueue(task)

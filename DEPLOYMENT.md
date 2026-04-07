@@ -15,6 +15,8 @@ Before deploying, ensure you have the following:
 - **Operating System**: Linux
 - **Make**: Required for deployment commands (install with `sudo apt-get install make` or `sudo yum install make`)
 - **curl or wget**: Required for downloading files
+- **tar**: Required to extract the GitHub branch archive (standard on Linux)
+- **rsync** (optional): If present, `scripts/` and `observability/` are mirrored exactly with `--delete`; otherwise files are copied without removing extras upstream deleted
 - **Disk Space**: At least 5GB free (for images, volumes, and data)
 - **RAM**: Minimum 2GB, recommended 4GB+
 - **CPU**: 2+ cores recommended
@@ -179,7 +181,7 @@ All services run on the `eip` Docker network. Traefik handles:
 To update the application to the latest version.
 
 ```bash
-# Step 1: Update all files from GitHub (Makefile, docker-compose.yml, scripts)
+# Step 1: Update all files from GitHub (Makefile, compose files, scripts, observability)
 make update-files
 
 # Step 2: Restart services to apply updates
@@ -187,8 +189,8 @@ make up
 ```
 
 This will:
-1. Update the Makefile, docker-compose.yml, and all setup scripts from GitHub
-2. Pull the latest container images
+1. Update the Makefile from GitHub, then replace `docker-compose.yml`, the entire `observability/` tree, and `scripts/` from a **single Public branch tarball** when the branch HEAD has changed (`docker-compose.dev.yml` is not part of this download flow; it is only for local development from a git clone)
+2. Pull the latest container images when you run `make up` or `make dev`
 3. Restart all services with the updated configuration
 
 ## Maintenance
@@ -225,13 +227,22 @@ docker compose down
 
 ### Development Mode
 
-For development users working locally after cloning the repository:
+For development users with a **full git clone** (not the Makefile-only `make up` layout):
 
 ```bash
 make dev
 ```
 
-This builds images locally and uses development settings. Only use this if you're developing and have cloned the repository.
+`docker-compose.dev.yml` lives in the repository alongside the source; it is **not** downloaded by `download-setup-scripts` or `make update-files`. This target runs `download-setup-scripts` first so `docker-compose.yml` and `observability/` match **Public**, then builds local images and applies the dev overlay.
+
+To refresh deploy-related files after upstream changes:
+
+```bash
+make update-files
+make dev
+```
+
+There is no per-file manifest: the archive flow refreshes **whole directories** so new dashboards or config files appear automatically when you merge to **Public**.
 
 ## Support
 

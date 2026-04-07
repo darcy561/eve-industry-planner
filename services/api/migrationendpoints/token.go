@@ -7,7 +7,7 @@ import (
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/api/migration"
 	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 )
 
 type firebaseTokenResponse struct {
@@ -18,7 +18,10 @@ type firebaseTokenResponse struct {
 // FirebaseTokenHandler generates a Firebase custom token for the authenticated user.
 // This allows the frontend to continue accessing Firebase while migration is in progress.
 func FirebaseTokenHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	start := time.Now()
+	start, ok := logs.RequestStartTime(r.Context())
+	if !ok {
+		start = time.Now()
+	}
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -27,14 +30,14 @@ func FirebaseTokenHandler(w http.ResponseWriter, r *http.Request, clients *share
 
 	accountID, err := auth.ExtractAccountID(r)
 	if err != nil {
-		logs.WarnCtx(r.Context(), "failed to extract accountID for migration firebase token", "error", err, "ip", r.RemoteAddr)
+		logs.WarnCtx(r.Context(), "failed to extract accountID for migration firebase token", "error", err)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	token, isFirstTime, err := migration.GenerateFirebaseCustomToken(r.Context(), accountID)
 	if err != nil {
-		logs.ErrorCtx(r.Context(), "failed to generate firebase custom token", "error", err, "account_id", accountID, "ip", r.RemoteAddr)
+		logs.ErrorCtx(r.Context(), "failed to generate firebase custom token", "error", err, "account_id", accountID)
 		http.Error(w, "Failed to generate Firebase token", http.StatusInternalServerError)
 		return
 	}

@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 	sdeshared "eve-industry-planner/worker/tasks/sde/shared"
 
@@ -56,7 +56,7 @@ func RebuildCurrentSDEVersion(ctx context.Context, task *asynq.Task, deps *esita
 		return err
 	}
 
-	logs.Info("SDE rebuild current version completed",
+	logs.InfoCtx(ctx, "SDE rebuild current version completed",
 		"data_dir", dataDir,
 		"build_number", rootVersion.BuildNumber,
 		"version", rootVersion.Version,

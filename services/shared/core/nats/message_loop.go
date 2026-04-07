@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -23,6 +23,7 @@ func StartMessageProcessingLoop(
 	subject string, // For logging purposes
 ) {
 	go func() {
+		bg := context.Background()
 		for {
 			select {
 			case <-stopChan:
@@ -35,7 +36,7 @@ func StartMessageProcessingLoop(
 						// No messages available, continue
 						continue
 					}
-					logs.Error("failed to fetch messages", "subject", subject, "error", err)
+					logs.ErrorCtx(bg, "failed to fetch messages", "subject", subject, "error", err)
 					time.Sleep(time.Second)
 					continue
 				}

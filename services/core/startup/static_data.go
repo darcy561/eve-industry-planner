@@ -11,7 +11,7 @@ import (
 	natscore "eve-industry-planner/shared/core/nats"
 	sdecore "eve-industry-planner/shared/core/sde"
 	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 	taskscore "eve-industry-planner/shared/tasks"
 )
 
@@ -86,11 +86,11 @@ func triggerCheckSDEUpdates(ctx context.Context, clients *shared.ServiceClients)
 
 	// Publish the task to the worker. The worker will persist output into /static-data.
 	task := taskscore.CheckSDEUpdates
-	if err := natscore.PublishTask(clients.JetStream, task.Subject, task.Name, nil, clients.NATS); err != nil {
+	if err := natscore.PublishTask(ctx, clients.JetStream, task.Subject, task.Name, nil, clients.NATS); err != nil {
 		return fmt.Errorf("failed to publish %q task: %w", task.Name, err)
 	}
 
-	logs.Info("triggered SDE update check task", "task", task.Name)
+	logs.InfoCtx(ctx, "triggered SDE update check task", "task", task.Name)
 	return nil
 }
 
@@ -120,17 +120,17 @@ func EnsureSDEStaticDataReady(ctx context.Context, clients *shared.ServiceClient
 
 	ready, invalid := CheckSDEStaticDataReady(dataDir)
 	if ready {
-		logs.Info("SDE static-data already ready", "data_dir", dataDir)
+		logs.InfoCtx(ctx, "SDE static-data already ready", "data_dir", dataDir)
 		return nil
 	}
 
-	logs.Warn(
+	logs.WarnCtx(ctx,
 		"SDE static-data not ready; will trigger worker task and wait",
 		"data_dir", dataDir,
 		"missing_or_invalid", len(invalid),
 	)
 	for i := 0; i < len(invalid) && i < 5; i++ {
-		logs.Warn("SDE static-data issue", "detail", invalid[i])
+		logs.WarnCtx(ctx, "SDE static-data issue", "detail", invalid[i])
 	}
 
 	if err := triggerCheckSDEUpdates(ctx, clients); err != nil {
@@ -154,7 +154,7 @@ func EnsureSDEStaticDataReady(ctx context.Context, clients *shared.ServiceClient
 		case <-ticker.C:
 			ready, invalid = CheckSDEStaticDataReady(dataDir)
 			if ready {
-				logs.Info("SDE static-data became ready", "data_dir", dataDir)
+				logs.InfoCtx(waitCtx, "SDE static-data became ready", "data_dir", dataDir)
 				return nil
 			}
 

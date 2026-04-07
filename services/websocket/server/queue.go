@@ -1,13 +1,16 @@
 package server
 
 import (
-	"eve-industry-planner/shared/shared/logs"
+	"context"
 	"time"
+
+	"eve-industry-planner/shared/logs"
 )
 
 // getOrCreateIncomingQueue retrieves an existing incoming queue for a document,
 // or creates a new one if it doesn't exist. Thread-safe.
 func (s *Server) getOrCreateIncomingQueue(docID string) *IncomingDocQueue {
+	ctx := context.Background()
 	s.incomingMu.Lock()
 	defer s.incomingMu.Unlock()
 
@@ -26,18 +29,19 @@ func (s *Server) getOrCreateIncomingQueue(docID string) *IncomingDocQueue {
 	}
 	s.incomingQueues[docID] = dq
 
-	logs.Debug("created incoming queue", "doc_id", docID)
+	logs.DebugCtx(ctx, "created incoming queue", "doc_id", docID)
 	return dq
 }
 
 // getOrCreateOutgoingQueue retrieves an existing outgoing queue for a document,
 // or creates a new one if it doesn't exist. Thread-safe.
 func (s *Server) getOrCreateOutgoingQueue(docID string) *OutgoingDocQueue {
-	logs.Info("getOrCreateOutgoingQueue: attempting to acquire lock", "doc_id", docID)
+	ctx := context.Background()
+	logs.InfoCtx(ctx, "getOrCreateOutgoingQueue: attempting to acquire lock", "doc_id", docID)
 	s.outgoingMu.Lock()
-	logs.Info("getOrCreateOutgoingQueue: lock acquired", "doc_id", docID)
+	logs.InfoCtx(ctx, "getOrCreateOutgoingQueue: lock acquired", "doc_id", docID)
 	defer func() {
-		logs.Info("getOrCreateOutgoingQueue: releasing lock", "doc_id", docID)
+		logs.InfoCtx(ctx, "getOrCreateOutgoingQueue: releasing lock", "doc_id", docID)
 		s.outgoingMu.Unlock()
 	}()
 
@@ -46,12 +50,12 @@ func (s *Server) getOrCreateOutgoingQueue(docID string) *OutgoingDocQueue {
 	if exists {
 		// Update last use time
 		dq.lastUse = time.Now()
-		logs.Info("getOrCreateOutgoingQueue: queue exists", "doc_id", docID)
+		logs.InfoCtx(ctx, "getOrCreateOutgoingQueue: queue exists", "doc_id", docID)
 		return dq
 	}
 
 	// Create new outgoing queue
-	logs.Info("getOrCreateOutgoingQueue: creating new queue", "doc_id", docID)
+	logs.InfoCtx(ctx, "getOrCreateOutgoingQueue: creating new queue", "doc_id", docID)
 	dq = &OutgoingDocQueue{
 		ch:          make(chan Event, QueueBufferSize),
 		subscribers: make(map[string]bool),
@@ -59,7 +63,7 @@ func (s *Server) getOrCreateOutgoingQueue(docID string) *OutgoingDocQueue {
 	}
 	s.outgoingQueues[docID] = dq
 
-	logs.Info("created outgoing queue", "doc_id", docID)
+	logs.InfoCtx(ctx, "created outgoing queue", "doc_id", docID)
 	return dq
 }
 
@@ -84,6 +88,7 @@ func (s *Server) getOutgoingQueue(docID string) *OutgoingDocQueue {
 // deleteIncomingQueue removes an incoming queue. Thread-safe.
 // Caller should ensure the queue is empty and not in use.
 func (s *Server) deleteIncomingQueue(docID string) {
+	ctx := context.Background()
 	s.incomingMu.Lock()
 	defer s.incomingMu.Unlock()
 
@@ -96,12 +101,13 @@ func (s *Server) deleteIncomingQueue(docID string) {
 	close(dq.ch)
 	delete(s.incomingQueues, docID)
 
-	logs.Debug("deleted incoming queue", "doc_id", docID)
+	logs.DebugCtx(ctx, "deleted incoming queue", "doc_id", docID)
 }
 
 // deleteOutgoingQueue removes an outgoing queue. Thread-safe.
 // Caller should ensure the queue is empty and not in use.
 func (s *Server) deleteOutgoingQueue(docID string) {
+	ctx := context.Background()
 	s.outgoingMu.Lock()
 	defer s.outgoingMu.Unlock()
 
@@ -114,5 +120,5 @@ func (s *Server) deleteOutgoingQueue(docID string) {
 	close(dq.ch)
 	delete(s.outgoingQueues, docID)
 
-	logs.Debug("deleted outgoing queue", "doc_id", docID)
+	logs.DebugCtx(ctx, "deleted outgoing queue", "doc_id", docID)
 }

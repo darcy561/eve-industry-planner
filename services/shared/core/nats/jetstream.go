@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"eve-industry-planner/shared/shared/logs"
+	"eve-industry-planner/shared/logs"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -61,13 +61,13 @@ func EnsureStreams(js jetstream.JetStream, streams []StreamConfig) error {
 
 					_, err = js.UpdateStream(ctx, updateCfg)
 					if err != nil {
-						logs.Warn("failed to update stream subjects", "stream", streamConfig.Name, "error", err)
+						logs.WarnCtx(ctx, "failed to update stream subjects", "stream", streamConfig.Name, "error", err)
 						// Continue - stream exists, just might be missing some subjects
 					} else {
-					logs.Debug("updated JetStream stream subjects", "name", streamConfig.Name, "subjects", mergedSubjects)
-				}
-			} else {
-				logs.Debug("stream already exists with all subjects", "name", streamConfig.Name)
+						logs.DebugCtx(ctx, "updated JetStream stream subjects", "name", streamConfig.Name, "subjects", mergedSubjects)
+					}
+				} else {
+					logs.DebugCtx(ctx, "stream already exists with all subjects", "name", streamConfig.Name)
 				}
 			}
 			continue
@@ -86,7 +86,7 @@ func EnsureStreams(js jetstream.JetStream, streams []StreamConfig) error {
 		if err != nil {
 			return fmt.Errorf("failed to create stream %s: %w", streamConfig.Name, err)
 		}
-		logs.Info("created JetStream stream", "name", streamConfig.Name, "subjects", streamConfig.Subjects)
+		logs.InfoCtx(ctx, "created JetStream stream", "name", streamConfig.Name, "subjects", streamConfig.Subjects)
 	}
 	return nil
 }
@@ -169,24 +169,24 @@ func GetOrCreateConsumer(ctx context.Context, stream jetstream.Stream, consumerC
 		if info == nil {
 			// Can't check config, delete and recreate
 			if err := stream.DeleteConsumer(ctx, consumerConfig.Durable); err != nil {
-				logs.Warn("failed to delete existing consumer", "consumer", consumerConfig.Durable, "error", err)
+				logs.WarnCtx(ctx, "failed to delete existing consumer", "consumer", consumerConfig.Durable, "error", err)
 			}
 		} else {
 			needsRecreate := false
 			// Check DeliverPolicy (immutable)
 			if info.Config.DeliverPolicy != consumerConfig.DeliverPolicy {
-				logs.Info("consumer DeliverPolicy mismatch, will recreate", "consumer", consumerConfig.Durable, "existing", info.Config.DeliverPolicy, "requested", consumerConfig.DeliverPolicy)
+				logs.InfoCtx(ctx, "consumer DeliverPolicy mismatch, will recreate", "consumer", consumerConfig.Durable, "existing", info.Config.DeliverPolicy, "requested", consumerConfig.DeliverPolicy)
 				needsRecreate = true
 			}
 			// Check FilterSubject (immutable)
 			if info.Config.FilterSubject != consumerConfig.FilterSubject {
-				logs.Info("consumer FilterSubject mismatch, will recreate", "consumer", consumerConfig.Durable, "existing", info.Config.FilterSubject, "requested", consumerConfig.FilterSubject)
+				logs.InfoCtx(ctx, "consumer FilterSubject mismatch, will recreate", "consumer", consumerConfig.Durable, "existing", info.Config.FilterSubject, "requested", consumerConfig.FilterSubject)
 				needsRecreate = true
 			}
 			if needsRecreate {
 				// Delete the existing consumer to recreate with correct config
 				if err := stream.DeleteConsumer(ctx, consumerConfig.Durable); err != nil {
-					logs.Warn("failed to delete existing consumer with different config", "consumer", consumerConfig.Durable, "error", err)
+					logs.WarnCtx(ctx, "failed to delete existing consumer with different config", "consumer", consumerConfig.Durable, "error", err)
 				}
 			} else {
 				// Consumer exists with correct config, use it

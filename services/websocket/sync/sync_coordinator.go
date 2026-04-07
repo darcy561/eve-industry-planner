@@ -1,8 +1,10 @@
 package sync
 
 import (
-	"eve-industry-planner/shared/shared/logs"
+	"context"
 	"time"
+
+	"eve-industry-planner/shared/logs"
 )
 
 const (
@@ -14,8 +16,9 @@ const (
 // and submits tasks to the sync pool. It processes one sync per client at a time.
 func StartSyncCoordinator(s SyncServer, shutdownChan <-chan struct{}, processSyncQueueFn func(clientID string) error) {
 	go func() {
-		logs.Debug("sync coordinator started")
-		defer logs.Debug("sync coordinator stopped")
+		coordCtx := context.Background()
+		logs.DebugCtx(coordCtx, "sync coordinator started")
+		defer logs.DebugCtx(coordCtx, "sync coordinator stopped")
 
 		for {
 			select {
