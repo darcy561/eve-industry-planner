@@ -29,16 +29,21 @@ jobs:
             frontend: ${{ steps.filter.outputs.frontend }}
         steps:
             - name: Checkout repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
               with:
                   ref: ${{ github.event.inputs.branch || github.ref || github.ref_name }}
-                  fetch-depth: 2
+                  # Shallow history breaks merge-base for workflow_dispatch; depth 0 is reliable for paths-filter
+                  fetch-depth: 0
 
             - name: Detect changes
-              uses: dorny/paths-filter@v2
+              uses: dorny/paths-filter@v4
               id: filter
               with:
-                  base: ${{ github.event.before }}
+                  # before is empty on workflow_dispatch and can be 000… on new branches — that causes git exit 128.
+                  # Push to long-lived branches: same as https://github.com/dorny/paths-filter#examples (base = ref).
+                  # Manual run: compare checked-out branch to the repo default branch (paths-filter default behavior).
+                  ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || github.ref }}
+                  base: ${{ github.event_name == 'push' && github.ref || github.event.repository.default_branch }}
                   filters: |
                       api:
                         - 'services/api/**'
@@ -123,7 +128,7 @@ jobs:
 
             - name: Checkout repository
               if: steps.should-build.outputs.should_build == 'true'
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
               with:
                   ref: ${{ github.event.inputs.branch || github.ref || github.ref_name }}
                   fetch-depth: 0
@@ -131,11 +136,11 @@ jobs:
 
             - name: Set up Docker Buildx
               if: steps.should-build.outputs.should_build == 'true'
-              uses: docker/setup-buildx-action@v3
+              uses: docker/setup-buildx-action@v4
 
             - name: Log in to GitHub Container Registry
               if: steps.should-build.outputs.should_build == 'true'
-              uses: docker/login-action@v3
+              uses: docker/login-action@v4
               with:
                   registry: ghcr.io
                   username: ${{ github.actor }}
@@ -200,7 +205,7 @@ jobs:
             - name: Extract metadata for ${{ matrix.service }}
               if: steps.should-build.outputs.should_build == 'true' && steps.branch-info.outputs.branch != ''
               id: meta
-              uses: docker/metadata-action@v5
+              uses: docker/metadata-action@v6
               with:
                   images: ghcr.io/${{ github.repository_owner }}/${{ steps.package-name.outputs.name }}
                   tags: |
@@ -284,7 +289,7 @@ jobs:
 
             - name: Build and push ${{ matrix.service }} container
               if: steps.should-build.outputs.should_build == 'true'
-              uses: docker/build-push-action@v5
+              uses: docker/build-push-action@v7
               with:
                   context: ${{ steps.build-config.outputs.context }}
                   file: ${{ steps.build-config.outputs.dockerfile }}
