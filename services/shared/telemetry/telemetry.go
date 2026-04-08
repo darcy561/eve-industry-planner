@@ -25,7 +25,7 @@ import (
 )
 
 // Init installs global TracerProvider and MeterProvider when Config.shouldInit is true.
-// Traces are exported to Sentry only when SentryDSN is set (no OTLP trace exporter).
+// Traces are exported to Sentry only when SentryDSN is set and SentryTracesSampleRate > 0 (no OTLP trace exporter).
 // OTLP remains for metrics and logs to the collector when OTLPEndpoint is set.
 // It returns a shutdown function that flushes providers (and Sentry when configured).
 // Call shutdown on process exit with a timeout context.
@@ -35,10 +35,15 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 	}
 
 	sentryStarted := false
+	// OTel spans are exported to Sentry only when TracesSampleRate > 0; errors still use Sentry when DSN is set.
+	sentrySendTraces := cfg.SentryDSN != "" && cfg.SentryTracesSampleRate > 0
 	if cfg.SentryDSN != "" {
 		sr := cfg.SentryTracesSampleRate
-		if sr <= 0 {
+		if sentrySendTraces && sr > 1 {
 			sr = 1.0
+		}
+		if !sentrySendTraces {
+			sr = 0
 		}
 		envMode := strings.TrimSpace(cfg.SentryEnvironment)
 		release := strings.TrimSpace(cfg.SentryRelease)
@@ -49,7 +54,7 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 			Dsn:              cfg.SentryDSN,
 			Environment:      envMode,
 			Release:          release,
-			EnableTracing:    true,
+			EnableTracing:    sentrySendTraces,
 			TracesSampleRate: sr,
 			SampleRate:       1.0,
 			// Do not drop events by environment here: use a separate Sentry project/DSN for dev,
@@ -92,7 +97,7 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 	}
 
 	var traceShutdown func(context.Context) error
-	if cfg.SentryDSN != "" {
+	if sentrySendTraces {
 		tp := sdktrace.NewTracerProvider(
 			sdktrace.WithResource(res),
 			sdktrace.WithSpanProcessor(sentryotel.NewSentrySpanProcessor()),
@@ -100,7 +105,7 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 		otel.SetTracerProvider(tp)
 		traceShutdown = tp.Shutdown
 	} else {
-		// Metrics/logs may still use OTLP; avoid creating spans that go nowhere.
+		// No OTLP trace exporter; noop avoids exporting spans when Sentry tracing is off (errors-only).
 		otel.SetTracerProvider(oteltrace.NewNoopTracerProvider())
 		traceShutdown = func(context.Context) error { return nil }
 	}

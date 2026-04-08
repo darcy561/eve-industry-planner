@@ -61,5 +61,6 @@ func RebuildCurrentSDEVersion(ctx context.Context, task *asynq.Task, deps *esita
 		"build_number", rootVersion.BuildNumber,
 		"version", rootVersion.Version,
 	)
+	pushCoreSDEBuildUpdate(ctx, deps, rootVersion.BuildNumber, rootVersion.Version)
 	return nil
 }

@@ -3,8 +3,10 @@ import { useGetSingleCorporationAssets } from "../../../Hooks/EveEsi/useGetSingl
 import AssetsDialogContent from "./diaglogContent";
 
 export function CharacterAssetsDataProvider({ state, actions, children }) {
-  const { isLoading: characterAssetsLoading, isError: characterAssetsError } =
-    useGetAllCharacterAssets();
+  const {
+    isLoading: characterAssetsLoading,
+    error: characterAssetsError,
+  } = useGetAllCharacterAssets();
   return children({
     characterAssetsLoading,
     characterAssetsError,
@@ -14,7 +16,7 @@ export function CharacterAssetsDataProvider({ state, actions, children }) {
 export function CorporationAssetsDataProvider({ state, actions, children }) {
   const {
     isLoading: corporationAssetsLoading,
-    isError: corporationAssetsError,
+    error: corporationAssetsError,
   } = useGetSingleCorporationAssets(state.selectedCorporation);
   return children({
     corporationAssetsLoading,

@@ -83,5 +83,8 @@ func ApplySDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.TaskD
 		"data_dir", dataDir,
 		"build_number", req.BuildNumber,
 	)
+	if liveVersion != nil {
+		pushCoreSDEBuildUpdate(ctx, deps, liveVersion.BuildNumber, liveVersion.Version)
+	}
 	return nil
 }

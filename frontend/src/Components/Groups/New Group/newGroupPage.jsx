@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Box } from "@mui/material";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import findOrGetJobObject from "../../../Functions/Helper/findJobObject.js";
 import Group from "../../../Classes/groupsConstructor.js";
@@ -8,6 +9,7 @@ import uploadGroupsToFirebase from "../../../Functions/Firebase/uploadGroupData.
 import firebaseBatchUpdateJobs from "../../../Functions/Firebase/batchUpdateJobs.js";
 import useUsersStore from "../../../Zustand/usersStore";
 import DefaultPageLayout from "../../../Styled Components/defaultPageLayout";
+import { LoadingPage } from "../../../Components/loadingPage";
 
 function NewGroupPage() {
   const { groupArray, userJobSnapshot, jobArray } = useUsersStore(
@@ -142,7 +144,22 @@ function NewGroupPage() {
     });
   }, []);
 
-  return <DefaultPageLayout />;
+  return (
+    <DefaultPageLayout>
+      <Box
+        component="main"
+        sx={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minWidth: 0,
+          minHeight: 0,
+        }}
+      >
+        <LoadingPage />
+      </Box>
+    </DefaultPageLayout>
+  );
 }
 
 export default NewGroupPage;

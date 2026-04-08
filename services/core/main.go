@@ -7,7 +7,7 @@ import (
 
 	"eve-industry-planner/core/changestream"
 	"eve-industry-planner/core/commands"
-	"eve-industry-planner/core/esimetrics"
+	"eve-industry-planner/core/metrics"
 	"eve-industry-planner/core/scheduler"
 	"eve-industry-planner/core/startup"
 	"eve-industry-planner/shared/shared"
@@ -51,7 +51,7 @@ func main() {
 	ts := teleShutdown
 	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) { _ = ts(c) })
 
-	esimetrics.RegisterESIGroupGauges(clients.Redis)
+	clients.CleanupFns = append(clients.CleanupFns, metrics.RegisterAll(clients.Redis, clients.Mongo, clients.NATS)...)
 
 	// Run startup checks that must complete before the rest of the system is considered ready.
 	// Today this primarily validates/bootstraps Static Data Export (SDE) files under /static-data.

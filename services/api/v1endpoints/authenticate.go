@@ -226,6 +226,9 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 	m.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
 	m.RequestsCount.Inc(ctx)
 	m.Successes.Inc(ctx)
+	if firstLogin {
+		m.NewUsers.Inc(ctx)
+	}
 
 	// Log per-request metrics for slow requests
 	apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "success",

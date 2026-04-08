@@ -114,6 +114,7 @@ type APIEveTokenLoginMetrics struct {
 	Requests      *floatHist
 	RequestsCount *intCounter
 	Successes     *intCounter
+	NewUsers      *intCounter
 	Errors        *counterVec
 }
 
@@ -136,6 +137,10 @@ func GetAPIEveTokenLogin() *APIEveTokenLoginMetrics {
 			))},
 			Successes: &intCounter{c: mustCounter(m.Int64Counter("api.eve_token_login.successes_total",
 				metric.WithDescription("Successful EVE-token logins (response written; one success per completed login)"),
+			))},
+			NewUsers: &intCounter{c: mustCounter(m.Int64Counter("api.eve_token_login.new_users_total",
+				metric.WithUnit("{users}"),
+				metric.WithDescription("New user accounts created on first login (Mongo user document created)"),
 			))},
 			Errors: &counterVec{
 				c: mustCounter(m.Int64Counter("api.eve_token_login.errors_total",

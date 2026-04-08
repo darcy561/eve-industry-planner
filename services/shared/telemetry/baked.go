@@ -7,5 +7,5 @@ var (
 	BakedSentryDSN              = ""
 	BakedAppMode                = "" // Vite-equivalent: "development" | "production" (import.meta.env.MODE)
 	BakedRelease                = "" // import.meta.env.VITE_APP_VERSION || "development"
-	BakedSentryTracesSampleRate = "" // "0.0"–"1.0"; empty → 1.0
+	BakedSentryTracesSampleRate = "" // "0" = Sentry errors only, no performance traces; empty → 1.0
 )

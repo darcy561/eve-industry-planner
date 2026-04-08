@@ -485,13 +485,10 @@ export function PriceEntryDialogContent({ state, actions }) {
                             continue;
                           }
 
-                          // Initialize priceEntries if it doesn't exist
-                          if (!listItem.priceEntries) {
-                            listItem.priceEntries = [];
-                          }
+                          const priorEntries = listItem.priceEntries || [];
 
                           // Calculate remaining quantity
-                          const confirmedQty = listItem.priceEntries.reduce(
+                          const confirmedQty = priorEntries.reduce(
                             (sum, e) => sum + (e.itemCount || 0),
                             0
                           );
@@ -515,8 +512,10 @@ export function PriceEntryDialogContent({ state, actions }) {
                             importedCost
                           );
 
-                          // Add directly to confirmed entries
-                          listItem.priceEntries.push(newEntry);
+                          // New array reference so ItemPriceRow effects see confirmed
+                          // changes (same as manual confirm); push() would mutate in place
+                          // and leave unconfirmed rows open when remaining hits 0.
+                          listItem.priceEntries = [...priorEntries, newEntry];
                           importCount++;
                         }
 

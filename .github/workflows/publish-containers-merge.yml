@@ -298,7 +298,7 @@ jobs:
                           echo "ENVIRONMENT=${ENVIRONMENT}"
                           echo "SENTRY_DSN=${SENTRY_DSN_VAL}"
                           echo "APP_VERSION=${{ steps.version.outputs.version }}"
-                          echo "SENTRY_TRACES_SAMPLE_RATE=1.0"
+                          echo "SENTRY_TRACES_SAMPLE_RATE=0.05"
                       fi
                       
                       # API service needs FEEDBACK_DISCORD_WEBHOOK_URL from GitHub variable

@@ -2,11 +2,13 @@ package rollback
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 	sdeshared "eve-industry-planner/worker/tasks/sde/shared"
@@ -21,7 +23,6 @@ func RollbackSDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.Ta
 		return fmt.Errorf("task is nil")
 	}
 
-	_ = deps
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
@@ -115,6 +116,15 @@ func RollbackSDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.Ta
 		"rolled_back_from", archiveDir,
 		"rolled_back_to", liveDir,
 	)
+	if deps != nil && deps.NATS != nil && rollbackVersion.BuildNumber > 0 {
+		payload, err := json.Marshal(natscore.SDECurrentBuildUpdate{BuildNumber: rollbackVersion.BuildNumber, Version: rollbackVersion.Version})
+		if err == nil {
+			if err := deps.NATS.Publish(natscore.SubjectCoreSDEBuildUpdated, payload); err != nil {
+				logs.WarnCtx(ctx, "failed to publish core SDE build update after rollback",
+					"build_number", rollbackVersion.BuildNumber, "error", err)
+			}
+		}
+	}
 
 	return nil
 }

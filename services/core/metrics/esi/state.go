@@ -1,5 +1,5 @@
-// Package esilimits reads EVE ESI token-bucket state from Redis (shared with worker ratelimiter).
-package esilimits
+// Package esi reads EVE ESI token-bucket state from Redis (shared with worker ratelimiter).
+package esi
 
 import (
 	"context"

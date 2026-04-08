@@ -38,7 +38,6 @@ func CheckSDEUpdates(ctx context.Context, task *asynq.Task, deps *esitasks.TaskD
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	_ = deps
 	logs.DebugCtx(ctx, "SDE update check task received")
 
 	dataDir := os.Getenv("SDE_DATA_DIR")
@@ -65,7 +64,13 @@ func CheckSDEUpdates(ctx context.Context, task *asynq.Task, deps *esitasks.TaskD
 		return err
 	}
 
-	return runSDEUpdatePipeline(ctx, deps, versionResult)
+	if err := runSDEUpdatePipeline(ctx, deps, versionResult); err != nil {
+		return err
+	}
+	if v, err := sdeshared.ReadRootVersionJSON(dataDir); err == nil && v != nil {
+		pushCoreSDEBuildUpdate(ctx, deps, v.BuildNumber, v.Version)
+	}
+	return nil
 }
 
 func runSDEUpdatePipeline(ctx context.Context, deps *esitasks.TaskDependencies, versionResult *sdeVersionCheckResult) error {

@@ -552,98 +552,6 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "description": "Mean type IDs per successful POST: `rate(type_ids_requested_total) / rate(requests_total)`. (Histogram sum÷count is unreliable with OTLP exponential histograms via the collector.)",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "decimals": 2,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "green", "value": 0 }
-            ]
-          },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 43 },
-      "id": 10,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "value_and_name"
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "editorMode": "code",
-          "expr": "sum(rate(api_market_prices_type_ids_requested_total[5m])) / clamp_min(sum(rate(api_market_prices_requests_total[5m])), 1e-9)",
-          "instant": true,
-          "legendFormat": "Avg types per request (5m window)",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Market prices · avg types per request",
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "description": "Mean solar system IDs requested per POST, from histogram sum ÷ count (`api.system_indexes.systems_requested`). Missing systems in Redis are expected for some IDs.",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "decimals": 2,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "green", "value": 0 }
-            ]
-          },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 43 },
-      "id": 11,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "value_and_name"
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "editorMode": "code",
-          "expr": "sum(rate(api_system_indexes_system_ids_requested_total[5m])) / clamp_min(sum(rate(api_system_indexes_requests_total[5m])), 1e-9)",
-          "instant": true,
-          "legendFormat": "Avg systems per request (5m window)",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "System indexes · avg systems per request",
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -673,7 +581,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 48 },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 43 },
       "id": 12,
       "options": {
         "legend": {
@@ -777,6 +685,6 @@
   "timezone": "browser",
   "title": "API · OTel metrics",
   "uid": "api-otel-metrics",
-  "version": 5,
+  "version": 6,
   "weekStart": ""
 }

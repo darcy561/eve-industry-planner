@@ -17,7 +17,7 @@ COPY . .
 ARG SENTRY_DSN=""
 ARG ENVIRONMENT=production
 ARG APP_VERSION=development
-ARG SENTRY_TRACES_SAMPLE_RATE=1.0
+ARG SENTRY_TRACES_SAMPLE_RATE=0.05
 
 # Build the application with optimizations
 RUN --mount=type=cache,target=/go/pkg/mod \

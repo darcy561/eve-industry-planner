@@ -15,6 +15,11 @@ const (
 	MessageTypeEmpty    = "empty"    // Empty message type
 )
 
+const (
+	// SubjectCoreSDEBuildUpdated is published by worker after SDE version-changing tasks complete.
+	SubjectCoreSDEBuildUpdated = "core.metrics.sde.build.updated"
+)
+
 // MessageType is an interface that message payload types can implement to specify their message type.
 // If a type implements this interface, Publish will use the returned type string.
 // Otherwise, the type name will be used as the message type.
@@ -137,6 +142,12 @@ type MarketPricesRequest struct {
 // The worker will build/persist this version and then lock to it.
 type SDEApplyVersionRequest struct {
 	BuildNumber int `json:"build_number"`
+}
+
+// SDECurrentBuildUpdate notifies core to refresh in-memory SDE build metric cache.
+type SDECurrentBuildUpdate struct {
+	BuildNumber int    `json:"build_number"`
+	Version     string `json:"version,omitempty"`
 }
 
 // CorporationClaimsRequest represents the data sent to the worker for fetching corporation IDs.

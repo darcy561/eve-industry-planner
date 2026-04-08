@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"eve-industry-planner/core/esilimits"
+	esimetrics "eve-industry-planner/core/metrics/esi"
 	"eve-industry-planner/shared/shared"
 )
 
@@ -19,15 +19,15 @@ func RunEsiRateLimitGroups() error {
 	}
 	defer runImmediateCleanups(clients.CleanupFns...)
 
-	groupNames, err := esilimits.DiscoverGroups(ctx, clients.Redis)
+	groupNames, err := esimetrics.DiscoverGroups(ctx, clients.Redis)
 	if err != nil {
 		return err
 	}
 
 	now := time.Now()
-	states := make([]esilimits.GroupState, 0, len(groupNames))
+	states := make([]esimetrics.GroupState, 0, len(groupNames))
 	for _, group := range groupNames {
-		state, err := esilimits.ReadGroupState(ctx, clients.Redis, now, group)
+		state, err := esimetrics.ReadGroupState(ctx, clients.Redis, now, group)
 		if err != nil {
 			return err
 		}
@@ -57,7 +57,7 @@ func RunResetEsiRateLimitGroups() error {
 	}
 	defer runImmediateCleanups(clients.CleanupFns...)
 
-	groupNames, err := esilimits.DiscoverGroups(ctx, clients.Redis)
+	groupNames, err := esimetrics.DiscoverGroups(ctx, clients.Redis)
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func RunResetEsiRateLimitGroups() error {
 	out := make([]groupReset, 0, len(groupNames))
 	var total int64
 	for _, group := range groupNames {
-		keys := esilimits.ResetGroupKeys(group)
+		keys := esimetrics.ResetGroupKeys(group)
 		n, err := clients.Redis.Del(ctx, keys...).Result()
 		if err != nil {
 			return fmt.Errorf("failed deleting keys for group %q: %w", group, err)

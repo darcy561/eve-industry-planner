@@ -50,7 +50,7 @@
       "type": "logs"
     }
   ],
-  "refresh": "30s",
+  "refresh": "15s",
   "schemaVersion": 39,
   "style": "dark",
   "tags": ["loki", "logs", "observability", "otel"],

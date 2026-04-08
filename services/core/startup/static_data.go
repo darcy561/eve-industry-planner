@@ -9,6 +9,7 @@ import (
 	"time"
 
 	natscore "eve-industry-planner/shared/core/nats"
+	sdemetrics "eve-industry-planner/core/metrics/sde"
 	sdecore "eve-industry-planner/shared/core/sde"
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
@@ -94,6 +95,14 @@ func triggerCheckSDEUpdates(ctx context.Context, clients *shared.ServiceClients)
 	return nil
 }
 
+func seedCurrentSDEBuildMetric(dataDir string) {
+	v, err := sdecore.ReadVersionJSON(dataDir)
+	if err != nil || v == nil || v.BuildNumber <= 0 {
+		return
+	}
+	sdemetrics.SetCurrentVersion(v.BuildNumber, v.Version)
+}
+
 // EnsureSDEStaticDataReady blocks until the SDE/static-data files exist.
 // If files are missing, it triggers the worker's `checkSDEUpdates` task and polls until ready or timeout.
 func EnsureSDEStaticDataReady(ctx context.Context, clients *shared.ServiceClients) error {
@@ -120,6 +129,7 @@ func EnsureSDEStaticDataReady(ctx context.Context, clients *shared.ServiceClient
 
 	ready, invalid := CheckSDEStaticDataReady(dataDir)
 	if ready {
+		seedCurrentSDEBuildMetric(dataDir)
 		logs.InfoCtx(ctx, "SDE static-data already ready", "data_dir", dataDir)
 		return nil
 	}
@@ -154,6 +164,7 @@ func EnsureSDEStaticDataReady(ctx context.Context, clients *shared.ServiceClient
 		case <-ticker.C:
 			ready, invalid = CheckSDEStaticDataReady(dataDir)
 			if ready {
+				seedCurrentSDEBuildMetric(dataDir)
 				logs.InfoCtx(waitCtx, "SDE static-data became ready", "data_dir", dataDir)
 				return nil
 			}

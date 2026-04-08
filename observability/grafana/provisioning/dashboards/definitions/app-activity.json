@@ -22,7 +22,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "**Application activity** — high-level usage and engagement signals from Prometheus (OpenTelemetry → collector). Values are **current snapshots** (last scrape / last point in range). Extend this dashboard as new metrics are added.\n\n**Distinct characters** uses Redis HyperLogLog (approximate; fixed rolling UTC windows, not Grafana’s time picker). Each API replica exports the same gauge (shared Redis); panels use **`max()`** so multi-replica deploys are not **summed** (which would inflate the number).",
+        "content": "**Application activity** — high-level usage and engagement signals from Prometheus (OpenTelemetry → collector).\n\n**Distinct characters** uses Redis HyperLogLog (approximate; fixed rolling UTC windows, not Grafana’s time picker). Each API replica exports the same gauge (shared Redis); panels use **`max()`** so multi-replica deploys are not **summed** (which would inflate the number).\n\n**Market prices / system indexes averages** are computed over the selected Grafana timeframe with `increase(...[$__range])`, so they are whole-range averages (not rolling 5m).\n\n**New users** come from API first-login creations (`api.eve_token_login.new_users_total`). **Total users** is counted from Mongo in core (`core.users.total`) so it includes historic data.",
         "mode": "markdown"
       },
       "title": "",
@@ -43,7 +43,7 @@
               { "color": "green", "value": 0 }
             ]
           },
-          "unit": "short"
+          "unit": "none"
         },
         "overrides": []
       },
@@ -120,6 +120,384 @@
       ],
       "title": "Distinct characters · 7d window",
       "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Mean type IDs per successful market-prices POST over the selected Grafana timeframe: `increase(type_ids_requested_total[$__range]) / increase(requests_total[$__range])`.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "green", "value": 0 }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 12, "x": 0, "y": 9 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "sum(increase(api_market_prices_type_ids_requested_total[$__range])) / clamp_min(sum(increase(api_market_prices_requests_total[$__range])), 1e-9)",
+          "instant": true,
+          "legendFormat": "Avg types per request (selected range)",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Market prices · avg types per request (time range)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Mean system IDs requested per successful system-indexes POST over the selected Grafana timeframe: `increase(system_ids_requested_total[$__range]) / increase(requests_total[$__range])`.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "green", "value": 0 }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 12, "x": 12, "y": 9 },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "sum(increase(api_system_indexes_system_ids_requested_total[$__range])) / clamp_min(sum(increase(api_system_indexes_requests_total[$__range])), 1e-9)",
+          "instant": true,
+          "legendFormat": "Avg systems per request (selected range)",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "System indexes · avg systems per request (time range)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "New users created in the selected Grafana timeframe from API first-login path.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "green", "value": 0 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 14 },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "sum(increase(api_eve_token_login_new_users_total[$__range]))",
+          "instant": true,
+          "legendFormat": "New users (selected range)",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "New users · selected range",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "New users created in the trailing 7 days from API first-login path.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "green", "value": 0 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 14 },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "sum(increase(api_eve_token_login_new_users_total[7d]))",
+          "instant": true,
+          "legendFormat": "New users (7d)",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "New users · trailing 7d",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "New users created in the trailing 30 days from API first-login path.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "green", "value": 0 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 14 },
+      "id": 8,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "sum(increase(api_eve_token_login_new_users_total[30d]))",
+          "instant": true,
+          "legendFormat": "New users (30d)",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "New users · trailing 30d",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Total users currently in Mongo users collection (core service observable gauge).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "green", "value": 0 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 14 },
+      "id": 9,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "max(core_users_total)",
+          "instant": true,
+          "legendFormat": "Total users (Mongo)",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Total users · Mongo",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Trend of new-user creation from API first-login path, shown as daily-equivalent rate.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 3,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "decimals": 2,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "lastNotNull"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "sum(rate(api_eve_token_login_new_users_total[$__rate_interval])) * 86400",
+          "legendFormat": "New users / day (equivalent)",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "New users trend",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Current SDE build number and version label in one stat.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 19 },
+      "id": 11,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "max(core_sde_current_build_number) * on() group_left(version) max by (version) (core_sde_current_version_info)",
+          "instant": true,
+          "legendFormat": "{{version}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "SDE · current (build + version)",
+      "type": "stat"
     }
   ],
   "refresh": "15s",
@@ -134,6 +512,6 @@
   "timezone": "browser",
   "title": "App · activity",
   "uid": "app-activity",
-  "version": 5,
+  "version": 13,
   "weekStart": ""
 }
