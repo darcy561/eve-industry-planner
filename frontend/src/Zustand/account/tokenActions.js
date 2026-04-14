@@ -14,8 +14,32 @@ import { mergeApplicationSettingsState } from "../applicationSettings/core.js";
 function toLinkedSet(value) {
   if (value == null) return new Set();
   if (value instanceof Set) return new Set(value);
-  if (Array.isArray(value)) return new Set(value);
+  if (Array.isArray(value)) {
+    return new Set(
+      value
+        .map(normalizeLinkedID)
+        .filter((id) => typeof id === "number" && Number.isFinite(id))
+    );
+  }
   return new Set();
+}
+
+function normalizeLinkedID(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed !== "") {
+      const parsed = Number(trimmed);
+      if (Number.isFinite(parsed)) {
+        return Math.trunc(parsed);
+      }
+    }
+  }
+
+  return null;
 }
 
 /**

@@ -10,7 +10,6 @@ import {
   TextField,
 } from "@mui/material";
 import { DateTimePicker } from "@mui/x-date-pickers";
-import uuid from "react-uuid";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 
 export function AddCustomTransactionDialog({
@@ -26,7 +25,7 @@ export function AddCustomTransactionDialog({
     journal_ref_id: null,
     unit_price: 0,
     amount: 0,
-    transaction_id: uuid(),
+    transaction_id: createCustomTransactionID(),
     quantity: 0,
     date: new Date(),
     location_id: null,
@@ -218,4 +217,10 @@ export function AddCustomTransactionDialog({
       </DialogActions>
     </Dialog>
   );
+}
+
+function createCustomTransactionID() {
+  const timestampPart = Date.now() * 1000;
+  const randomPart = Math.floor(Math.random() * 1000);
+  return -(timestampPart + randomPart);
 }

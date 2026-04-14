@@ -140,6 +140,12 @@ class Job {
       },
       materials: itemJson?.build?.materials || null,
     };
+    this.build.sale.transactions = normalizeTransactions(
+      this.build.sale.transactions
+    );
+    this.apiTransactions = new Set(
+      [...this.apiTransactions].map((id) => normalizeTransactionID(id))
+    );
     this.rawData = itemJson?.rawData || {};
     this.skills = itemJson?.skills || [];
     this.itemsProducedPerRun = itemJson?.itemsProducedPerRun || 0;
@@ -857,6 +863,7 @@ class Job {
       : [transaction];
 
     for (let trans of transactionsToAdd) {
+      trans.transaction_id = normalizeTransactionID(trans.transaction_id);
       if (activeOrder && this.build.sale.marketOrders.length > 1) {
         trans.order_id = activeOrder;
       } else {
@@ -1178,6 +1185,53 @@ function documentToSetups(object) {
     acc[value.id] = new Setup(value);
     return acc;
   }, {});
+}
+
+function normalizeTransactions(transactions) {
+  if (!Array.isArray(transactions)) {
+    return [];
+  }
+
+  return transactions.map((tx) => {
+    if (!tx || typeof tx !== "object") {
+      return tx;
+    }
+
+    return {
+      ...tx,
+      transaction_id: normalizeTransactionID(tx.transaction_id),
+    };
+  });
+}
+
+function normalizeTransactionID(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed !== "") {
+      const parsed = Number(trimmed);
+      if (Number.isFinite(parsed)) {
+        return Math.trunc(parsed);
+      }
+      return -stableStringHash(trimmed);
+    }
+  }
+
+  return 0;
+}
+
+function stableStringHash(text) {
+  // FNV-1a 32-bit hash, coerced to positive non-zero integer.
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  const normalized = hash >>> 0;
+  return normalized === 0 ? 1 : normalized;
 }
 
 export default Job;

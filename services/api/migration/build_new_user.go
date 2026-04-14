@@ -8,6 +8,8 @@ import (
 	"eve-industry-planner/shared/logs"
 
 	"cloud.google.com/go/firestore"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Default values for new user Firestore documents (match frontend/functions/api/buildNewUserData.js)
@@ -48,11 +50,15 @@ func EnsureUserFirestoreScaffold(ctx context.Context, accountID string) error {
 	err = client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		snap, err := tx.Get(userDocRef)
 		if err != nil {
-			return err
+			// Missing user doc is expected for first login; create scaffold below.
+			if status.Code(err) != codes.NotFound {
+				return err
+			}
 		}
-		if snap.Exists() {
+		if err == nil && snap.Exists() {
 			return nil
 		}
+
 		created = true
 		if err := tx.Set(userDocRef, userDocData); err != nil {
 			return err

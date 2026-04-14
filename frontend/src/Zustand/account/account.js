@@ -110,7 +110,9 @@ export const accountActions = (set, get) => ({
         if (esiData.transactionsToAdd) {
           acc.linkedTrans = new Set([
             ...acc.linkedTrans,
-            ...esiData.transactionsToAdd,
+            ...Array.from(esiData.transactionsToAdd, normalizeLinkedID).filter(
+              (id) => typeof id === "number" && Number.isFinite(id)
+            ),
           ]);
         }
 
@@ -135,8 +137,21 @@ export const accountActions = (set, get) => ({
         if (esiData.transactionsToRemove) {
           const removeSet =
             esiData.transactionsToRemove instanceof Set
-              ? esiData.transactionsToRemove
-              : new Set(esiData.transactionsToRemove);
+              ? new Set(
+                  Array.from(
+                    esiData.transactionsToRemove,
+                    normalizeLinkedID
+                  ).filter(
+                    (id) => typeof id === "number" && Number.isFinite(id)
+                  )
+                )
+              : new Set(
+                  (esiData.transactionsToRemove || [])
+                    .map(normalizeLinkedID)
+                    .filter(
+                      (id) => typeof id === "number" && Number.isFinite(id)
+                    )
+                );
           acc.linkedTrans = new Set(
             [...acc.linkedTrans].filter((id) => !removeSet.has(id))
           );
@@ -166,3 +181,21 @@ export const accountActions = (set, get) => ({
   ...characterActions(set, get),
   ...corporationsActions(set, get),
 });
+
+function normalizeLinkedID(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed !== "") {
+      const parsed = Number(trimmed);
+      if (Number.isFinite(parsed)) {
+        return Math.trunc(parsed);
+      }
+    }
+  }
+
+  return null;
+}

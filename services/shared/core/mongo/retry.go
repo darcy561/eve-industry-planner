@@ -2,11 +2,13 @@ package mongo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"eve-industry-planner/shared/logs"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // RetryConfig holds configuration for MongoDB operation retries
@@ -101,6 +103,12 @@ func RetryMongoOperation(ctx context.Context, config RetryConfig, operation func
 
 		// Check if error is retryable
 		if !IsRetryableMongoError(err) {
+			// "Not found" from FindOne is a common expected branch handled by callers.
+			// Return it without error-level retry logging to avoid noisy false alarms.
+			if errors.Is(err, mongo.ErrNoDocuments) {
+				return err
+			}
+
 			// Not a retryable error - return immediately
 			opName := config.OperationName
 			if opName == "" {
