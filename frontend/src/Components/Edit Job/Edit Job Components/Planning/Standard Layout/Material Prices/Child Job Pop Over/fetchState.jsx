@@ -1,6 +1,5 @@
 import { CircularProgress, Typography, Grid } from "@mui/material";
 
-
 export function ImportingStateLayout_ChildJobPopoverFrame({
   fetchError,
   material,

@@ -82,11 +82,22 @@ func PutJobsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		job.MetaData.LastModified = now
 		job.MetaData.LastUpdatedBy = accountID
 		job.MetaData.AccountID = accountID
-		job.AccountID = accountID
 
 		bulkOps = append(bulkOps, mongo.NewUpdateOneModel().
-			SetFilter(bson.M{"_id": job.JobID, "accountID": accountID}).
-			SetUpdate(bson.M{"$set": job}).
+			SetFilter(bson.M{"_id": job.JobID, "_meta.accountID": accountID}).
+			SetUpdate(bson.M{
+				"$set": job,
+				"$unset": bson.M{
+					"accountID":        "",
+					"deleted":          "",
+					"deletedTimeStamp": "",
+					"archived":         "",
+					"archiveTimeStamp": "",
+					"archiveProcessed": "",
+					"_meta.deleted":          "",
+					"_meta.deletedTimeStamp": "",
+				},
+			}).
 			SetUpsert(true))
 	}
 

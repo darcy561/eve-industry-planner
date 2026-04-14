@@ -11,6 +11,7 @@ import {
 import { useState } from "react";
 import DOMPurify from "dompurify";
 import submitFeedback from "../../Functions/Endpoints/Public/feedback";
+import { MAX_FEEDBACK_LENGTH } from "../../Functions/Endpoints/Public/apiLimits.js";
 import { showSnackbarSuccess, showSnackbarError } from "../../Events/snackbarEvents";
 
 export function FeedbackIcon() {
@@ -32,6 +33,13 @@ export function FeedbackIcon() {
     if (!sanitizedContent || sanitizedContent.trim().length === 0) {
       console.error("Feedback content is empty after sanitization");
       showSnackbarError("Feedback content is required");
+      return;
+    }
+
+    if (sanitizedContent.length > MAX_FEEDBACK_LENGTH) {
+      showSnackbarError(
+        `Feedback must be at most ${MAX_FEEDBACK_LENGTH} characters`
+      );
       return;
     }
 
@@ -93,6 +101,8 @@ export function FeedbackIcon() {
             minRows={5}
             fullWidth
             value={inputText}
+            inputProps={{ maxLength: MAX_FEEDBACK_LENGTH }}
+            helperText={`${inputText.length}/${MAX_FEEDBACK_LENGTH}`}
             onChange={(e) => {
               updateInputText(e.target.value);
             }}

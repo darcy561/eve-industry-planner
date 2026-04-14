@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"eve-industry-planner/core/metrics/appconfig"
 	"eve-industry-planner/core/metrics/esi"
 	"eve-industry-planner/core/metrics/sde"
 	"eve-industry-planner/core/metrics/users"
@@ -21,6 +22,7 @@ func RegisterAll(rdb *redis.Client, mongoClient *gomongo.Client, natsConn *natsl
 	esi.Register(rdb)
 	users.Register(mongoClient)
 	sde.Register()
+	appconfig.Register()
 	if natsConn != nil {
 		sub, err := natsConn.Subscribe(natscore.SubjectCoreSDEBuildUpdated, func(msg *natslib.Msg) {
 			var u natscore.SDECurrentBuildUpdate

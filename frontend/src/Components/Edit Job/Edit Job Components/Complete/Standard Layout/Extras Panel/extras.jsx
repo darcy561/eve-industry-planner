@@ -26,9 +26,15 @@ export function ExtrasPanel({ state, actions }) {
   const extrasCategories = useUsersStore((state) => state.applicationSettings.extrasCategories);
 
   const getCategoryLabel = (categoryId) => {
-    // Handle backwards compatibility - if categoryId is undefined/null, default to 0 (Unassigned)
-    const safeCategoryId = categoryId ?? 0;
-    const category = extrasCategories.find(cat => cat.id === safeCategoryId);
+    // Category may be number (new row) or string (e.g. from Mongo after import).
+    const n =
+      categoryId == null || categoryId === ""
+        ? 0
+        : Number(categoryId);
+    const safeCategoryId = Number.isFinite(n) ? n : 0;
+    const category = extrasCategories.find(
+      (cat) => cat.id === safeCategoryId || String(cat.id) === String(categoryId)
+    );
     return category ? category.label : "Unassigned";
   };
 
@@ -48,6 +54,7 @@ export function ExtrasPanel({ state, actions }) {
       ALLOWED_ATTR: [],
     });
 
+    // Persisted shape for each row: { id, category, extraText, extraValue } (see Job.addExtrasCost, models.ExtraCost).
     state.activeJob.addExtrasCost({
       id: uuid(),
       category: extras.category || 0,

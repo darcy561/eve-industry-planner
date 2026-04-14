@@ -403,7 +403,6 @@ function getSchedulingStrategyFunction(strategy) {
     }
 }
 
-
 /**
  * Decrements remaining parent counts for children and enqueues those that
  * now have zero remaining parents.
@@ -425,5 +424,4 @@ function propagateChildren(taskId, remainingParents, childrenById, readyQueue) {
         }
     }
 }
-
 

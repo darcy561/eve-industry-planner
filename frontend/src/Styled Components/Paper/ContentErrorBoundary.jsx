@@ -34,7 +34,7 @@ class ContentErrorBoundary extends React.Component {
     });
 
     // Log to Sentry if in production
-    if (process.env.ENVIRONMENT === 'production') {
+    if (import.meta.env.ENVIRONMENT === 'production') {
       Sentry.captureException(error, {
         extra: {
           componentStack: errorInfo.componentStack,
@@ -87,7 +87,7 @@ class ContentErrorBoundary extends React.Component {
             Try Again
           </Button>
 
-          {process.env.ENVIRONMENT === 'development' && (
+          {import.meta.env.ENVIRONMENT === 'development' && (
             <Box
               sx={{
                 mt: 2,

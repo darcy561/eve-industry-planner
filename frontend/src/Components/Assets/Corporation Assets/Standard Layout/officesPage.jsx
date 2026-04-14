@@ -16,12 +16,12 @@ import {
 import { useGetAllCorporationBlueprints } from "../../../../Hooks/EveEsi/Corporation/useGetAllCorporationBlueprints";
 
 export function OfficesPage_Corporation({ selectedCorporation }) {
-  const users = useUsersStore((state) => state.users.userArray);
-  const getCorporationObject = useUsersStore(
-    (state) => state.users.actions.getCorporationObject
+  const characters = useUsersStore((state) => state.account.characters);
+  const getCorporation = useUsersStore(
+    (state) => state.account.actions.getCorporation
   );
   const setCorporationOffices =
-    useUsersStore.getState().users.actions.setCorporationOffices;
+    useUsersStore.getState().account.actions.setCorporationOffices;
   const [topLevelAssets, updateTopLevelAssets] = useState(null);
   const [assetLocations, updateAssetLocations] = useState(null);
   const [assetLocationNames, updateAssetLocationNames] = useState(null);
@@ -30,7 +30,7 @@ export function OfficesPage_Corporation({ selectedCorporation }) {
   const { buildAssetMapsCorpOffices, sortLocationMapsAlphabetically } =
     useAssetHelperHooks();
   const queryClient = useQueryClient();
-  const matchedCorporation = getCorporationObject(selectedCorporation);
+  const matchedCorporation = getCorporation(selectedCorporation);
 
   const { isLoading: isLoadingAssets, isError: isErrorAssets } =
     useGetSingleCorporationAssets(selectedCorporation);
@@ -47,7 +47,7 @@ export function OfficesPage_Corporation({ selectedCorporation }) {
         return;
       }
 
-      const requiredUserObject = users.find(
+      const characterForCorp = characters.find(
         (i) => i.corporation_id === selectedCorporation
       );
 
@@ -93,8 +93,8 @@ export function OfficesPage_Corporation({ selectedCorporation }) {
       );
 
       const [locationNamesMap, additionalIDObjects] = await Promise.all([
-        getAssetLocationNames(requiredUserObject, assetIDSet, "corporation"),
-        getWorldData([...requiredLocationID], requiredUserObject),
+        getAssetLocationNames(characterForCorp, assetIDSet, "corporation"),
+        getWorldData([...requiredLocationID], characterForCorp),
       ]);
 
       const topLevelAssetLocationsSORTED = sortLocationMapsAlphabetically(

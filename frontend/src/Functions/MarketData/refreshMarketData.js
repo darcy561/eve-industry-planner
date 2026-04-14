@@ -1,11 +1,10 @@
-import convertMarketDataResponseToObject from "./convertResponse";
+import fetchMarketPrices from "../Endpoints/Public/marketPrices";
 import doesMarketItemRequireRefresh from "./refreshPeriod";
-import splitMarketDataRequestIntoChuncks from "./requestChunks";
 
 /**
  * Refreshes outdated market data by fetching new prices for items that require updates.
- * Identifies items that need refresh based on their last updated timestamp and fetches
- * new data in parallel chunks for efficiency.
+ * Identifies items that need refresh based on their last updated timestamp; batching
+ * to the API limit is handled in {@link fetchMarketPrices}.
  * 
  * @param {Object} evePricesObject - Object containing current market price data
  * @returns {Promise<Object>} Promise that resolves to updated market data object
@@ -24,11 +23,7 @@ async function refreshMarketData(evePricesObject) {
     }
   });
 
-  const returnedPrices = await Promise.allSettled(
-    splitMarketDataRequestIntoChuncks([...outdatedPriceIDSet])
-  );
-
-  return convertMarketDataResponseToObject(returnedPrices);
+  return fetchMarketPrices([...outdatedPriceIDSet]);
 }
 
 export default refreshMarketData;

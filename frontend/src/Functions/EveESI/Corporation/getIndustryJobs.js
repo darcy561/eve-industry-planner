@@ -6,13 +6,13 @@ async function getCorpIndustryJobs({ character, page = 1, existingData = {}, con
     if (
       !character ||
       !character.CharacterID ||
-      !character.aToken ||
+      !character.esiAccessToken ||
       !character.corporation_id
     ) {
       throw new Error("Character information is incomplete.");
     }
 
-    const { aToken, CharacterID, corporation_id } = character;
+    const { esiAccessToken, CharacterID, corporation_id } = character;
     const endpointURL = `https://esi.evetech.net/v1/corporations/${corporation_id}/industry/jobs/?include_completed=true&datasource=tranquility&page=${page}`;
 
     // Enhanced configuration for rate limiting
@@ -31,7 +31,7 @@ async function getCorpIndustryJobs({ character, page = 1, existingData = {}, con
       {
         headers: {
           "If-None-Match": existingData?.etag || "",
-          Authorization: `Bearer ${aToken}`,
+          Authorization: `Bearer ${esiAccessToken}`,
         },
       },
       enhancedConfig

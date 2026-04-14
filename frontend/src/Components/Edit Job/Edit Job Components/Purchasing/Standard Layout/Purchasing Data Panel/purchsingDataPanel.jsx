@@ -12,7 +12,7 @@ import {
   useAddMaterialCostsToJob,
   useBuildMaterialPriceObject,
 } from "../../../../../../Hooks/JobHooks/useAddMaterialCosts";
-import uploadApplicationSettingsToFirebase from "../../../../../../Functions/Firebase/uploadApplicationSettings";
+import { saveApplicationSettings } from "../../../../../../Functions/Endpoints/Pirivate/userDocument";
 import MarketLocationSelect from "../../../../../../Styled Components/Select/marketLocation";
 import MarketListingSelect from "../../../../../../Styled Components/Select/marketListing";
 import { showSnackbarError } from "../../../../../../Events/snackbarEvents";
@@ -44,7 +44,7 @@ export function PurchasingDataPanel_EditJob(props) {
   const debouncedSaveSettings = useGlobalDebounce(
     DEBOUNCE_KEYS.APP_SETTINGS_SAVE,
     async () => {
-      await uploadApplicationSettingsToFirebase();
+      await saveApplicationSettings();
     },
     2000
   );

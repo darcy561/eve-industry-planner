@@ -9,38 +9,21 @@
  * @author EVE Industry Planner Team
  */
 
-import User from "../../Classes/usersConstructor";
+import Character from "../../Classes/character";
 import { jobStatusDefault } from "../../Context/defaultValues";
+import { jobStatusArrayToNamesMap } from "../../Functions/Helper/jobStatuses";
 
 /**
  * Default state configuration for user data.
  * 
- * Defines the initial state values for all user-related data including
- * authentication status, user arrays, linked data, and Firebase configurations.
+ * Defines the initial state values for user-related data (Firebase listeners,
+ * job status). Characters and corporations live on the `account` slice.
  * 
  * @returns {Object} Default user state
- * @property {boolean} isLoggedIn - Whether user is currently logged in
- * @property {Array} userArray - Array of User objects
- * @property {Set} linkedOrders - Set of linked order IDs
- * @property {Set} linkedJobs - Set of linked job IDs
- * @property {Set} linkedTrans - Set of linked transaction IDs
- * @property {Array} accountRefreshTokens - Array of refresh tokens
- * @property {Object|null} indexDB - IndexedDB instance
- * @property {Object} corporationObjects - Corporation data objects
- * @property {boolean} isFirstTimeLogin - Whether this is first time login
  * @property {Array} firebaseListeners - Array of Firebase listeners
  * @property {Array} jobStatus - Job status configuration array
  */
 export const stateDefault = () => ({
-  isLoggedIn: false,
-  userArray: [new User(undefined, undefined, true)],
-  linkedOrders: new Set(),
-  linkedJobs: new Set(),
-  linkedTrans: new Set(),
-  accountRefreshTokens: [],
-  indexDB: null,
-  corporationObjects: {},
-  isFirstTimeLogin: false,
   firebaseListeners: [],
   jobStatus: jobStatusDefault,
 });
@@ -59,8 +42,8 @@ export const coreActions = (set, get) => ({
   /**
    * Resets the users settings store to its default state.
    * 
-   * Clears all user data including user arrays, linked data, refresh tokens,
-   * and corporation objects, while preserving the actions object.
+   * Clears user-slice fields and resets `account.characters` to the default main-character placeholder,
+   * while preserving slice `actions`.
    * 
    * @example
    * store.getState().users.actions.resetUsersSettingsStore();
@@ -72,7 +55,13 @@ export const coreActions = (set, get) => ({
         ...state.users,
         ...stateDefault(),
         actions: state.users.actions,
-      }
+      },
+      account: {
+        ...state.account,
+        characters: [Character.placeholder()],
+        corporations: [],
+        actions: state.account.actions,
+      },
     }), false, "resetUsersSettingsStore");
   },
 
@@ -83,64 +72,22 @@ export const coreActions = (set, get) => ({
    * persisted to Firebase or other storage systems.
    * 
    * @returns {Object} Document object for storage
-   * @returns {Array} returns.linkedOrders - Array of linked order IDs
-   * @returns {Array} returns.linkedJobs - Array of linked job IDs
-   * @returns {Array} returns.linkedTrans - Array of linked transaction IDs
-   * @returns {Array} returns.refreshTokens - Array of refresh tokens
-   * @returns {Array} returns.jobStatusArray - Job status configuration array
+   * @returns {Array} returns.refreshTokens - From `account.linkedCharacterRefreshTokens` (cloud-linked ESI tokens)
+   * Linked ESI IDs are serialized via `account.actions.linkedEsiToDocument()`.
+   * Job status labels are persisted via application settings (settings.jobStatuses).
    * 
    * @example
    * const document = store.getState().users.actions.toDocument();
    * await saveToFirebase(document);
    */
   toDocument: () => {
-    const state = get().users;
+    const account = get().account;
     return {
-      linkedOrders: [...(state.linkedOrders || [])],
-      linkedJobs: [...(state.linkedJobs || [])],
-      linkedTrans: [...(state.linkedTrans || [])],
-      refreshTokens: state.accountRefreshTokens.map(token => ({
+      refreshTokens: (account.linkedCharacterRefreshTokens || []).map((token) => ({
         characterHash: token.CharacterHash || token.characterHash,
         rToken: token.rToken,
       })),
-      jobStatusArray: state.jobStatus,
     };
-  },
-
-  /**
-   * Toggles the logged in status.
-   * 
-   * Switches between logged in and logged out states.
-   * 
-   * @example
-   * store.getState().users.actions.toggleIsLoggedIn();
-   */
-  toggleIsLoggedIn: () => {
-    set((state) => ({
-      ...state,
-      users: {
-        ...state.users,
-        isLoggedIn: !state.users.isLoggedIn,
-      }
-    }), false, "toggleIsLoggedIn");
-  },
-
-  /**
-   * Sets the first time login flag.
-   * 
-   * @param {boolean} isFirstTime - Whether this is the first time login
-   * 
-   * @example
-   * store.getState().users.actions.setIsFirstTimeLogin(true);
-   */
-  setIsFirstTimeLogin: (isFirstTime) => {
-    set((state) => ({
-      ...state,
-      users: {
-        ...state.users,
-        isFirstTimeLogin: isFirstTime,
-      }
-    }), false, "setIsFirstTimeLogin");
   },
 
   /**
@@ -157,76 +104,12 @@ export const coreActions = (set, get) => ({
       users: {
         ...state.users,
         jobStatus: statusArray,
-      }
+      },
+      applicationSettings: {
+        ...state.applicationSettings,
+        jobStatuses: jobStatusArrayToNamesMap(statusArray),
+        actions: state.applicationSettings.actions,
+      },
     }), false, "updateJobStatus");
-  },
-
-  /**
-   * Adds or removes linked ESI data (orders, jobs, transactions).
-   * 
-   * Manages the sets of linked ESI IDs for tracking real-time data from EVE Online API.
-   * Supports both adding new IDs and removing existing ones.
-   * 
-   * @param {Object} esiData - ESI data object containing IDs to add or remove
-   * @param {Set|Array} [esiData.ordersToAdd] - Order IDs to add to linked orders
-   * @param {Set|Array} [esiData.jobsToAdd] - Job IDs to add to linked jobs
-   * @param {Set|Array} [esiData.transactionsToAdd] - Transaction IDs to add to linked transactions
-   * @param {Set|Array} [esiData.ordersToRemove] - Order IDs to remove from linked orders
-   * @param {Set|Array} [esiData.jobsToRemove] - Job IDs to remove from linked jobs
-   * @param {Set|Array} [esiData.transactionsToRemove] - Transaction IDs to remove from linked transactions
-   * 
-   * @example
-   * // Add new linked ESI data
-   * store.getState().users.actions.addLinkedEsiData({
-   *   ordersToAdd: new Set([12345, 67890]),
-   *   jobsToAdd: new Set([11111, 22222]),
-   *   transactionsToAdd: new Set([33333, 44444])
-   * });
-   * 
-   * @example
-   * // Remove linked ESI data
-   * store.getState().users.actions.addLinkedEsiData({
-   *   ordersToRemove: new Set([12345]),
-   *   jobsToRemove: new Set([11111]),
-   *   transactionsToRemove: new Set([33333])
-   * });
-   */
-  addLinkedEsiData: (esiData) => {
-    if (!esiData) return;
-    
-    set((state) => {
-      const newState = { ...state };
-      const users = { ...newState.users };
-      
-      // Handle adding new IDs
-      if (esiData.ordersToAdd) {
-        users.linkedOrders = new Set([...users.linkedOrders, ...esiData.ordersToAdd]);
-      }
-      if (esiData.jobsToAdd) {
-        users.linkedJobs = new Set([...users.linkedJobs, ...esiData.jobsToAdd]);
-      }
-      if (esiData.transactionsToAdd) {
-        users.linkedTrans = new Set([...users.linkedTrans, ...esiData.transactionsToAdd]);
-      }
-      
-      // Handle removing IDs - convert to Set if it's an Array
-      if (esiData.ordersToRemove) {
-        const removeSet = esiData.ordersToRemove instanceof Set ? esiData.ordersToRemove : new Set(esiData.ordersToRemove);
-        users.linkedOrders = new Set([...users.linkedOrders].filter(id => !removeSet.has(id)));
-      }
-      if (esiData.jobsToRemove) {
-        const removeSet = esiData.jobsToRemove instanceof Set ? esiData.jobsToRemove : new Set(esiData.jobsToRemove);
-        users.linkedJobs = new Set([...users.linkedJobs].filter(id => !removeSet.has(id)));
-      }
-      if (esiData.transactionsToRemove) {
-        const removeSet = esiData.transactionsToRemove instanceof Set ? esiData.transactionsToRemove : new Set(esiData.transactionsToRemove);
-        users.linkedTrans = new Set([...users.linkedTrans].filter(id => !removeSet.has(id)));
-      }
-      
-      return {
-        ...newState,
-        users
-      };
-    }, false, "addLinkedEsiData");
   },
 });

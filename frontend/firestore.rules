@@ -13,9 +13,6 @@ service cloud.firestore {
    allow get: if request.auth != null && request.auth.uid == documentID;
    allow update: if request.auth != null && request.auth.uid == documentID;
     }
-        match /Users/{documentID}/ArchivedJobs/{documents}{ 
-   allow create: if request.auth != null && request.auth.uid == documentID;
-    }
     match /Users/{documentID}/BuildStats/{documents}{ 
    allow get: if request.auth != null && request.auth.uid == documentID;
     }

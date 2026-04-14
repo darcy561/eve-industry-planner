@@ -1,12 +1,11 @@
 import { useEffect, useRef } from "react";
 import { useFirebase } from "../../Hooks/useFirebase";
-import { trace } from "@firebase/performance";
-import { performance, auth } from "../../firebase";
+import { auth } from "../../firebase";
 import { getAnalytics, logEvent } from "firebase/analytics";
 import { signInWithCustomToken } from "firebase/auth";
 import { UserLogInUI } from "./LoginUI/LoginUI";
 import getEveOauthToken from "../../Functions/EveESI/Character/getEveSSOToken";
-import getFirebaseTokenViaApi from "../../Functions/Migration/getFirebaseTokenViaApi";
+import { fetchServerJWT } from "../../Functions/Auth/serverTokens.js";
 import useUsersStore from "../../Zustand/usersStore";
 import redirectToEveSSO from "./Functions/eveSSORedirect";
 import { useNavigate } from "@tanstack/react-router";
@@ -15,29 +14,29 @@ import { useLoginState } from "../../Hooks/useLoginState";
 import {
   emitLoginComplete,
   emitUserDataUpdate,
+  LOGIN_STEPS,
 } from "../../Events/loginEvents";
+import { getRedirectPathAfterAuth } from "../../utils/routeUtils";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCharacterHooks } from "../../Hooks/React Query/useCharacterHooks";
 import { buildCorporationObjectFromUserObject } from "../../Functions/Corporations/buildCorporationObject";
+import { runPostLoginAccountSync } from "./runPostLoginAccountSync";
 
 export default function AuthMainUser() {
   const {
     userJobSnapshotListener,
     userWatchlistListener,
-    userMaindDocListener,
     userGroupDataListener,
   } = useFirebase();
-  const {
-    toggleIsLoggedIn,
-    updateUserArray: updateUserArrayAction,
-    setIsFirstTimeLogin,
-  } = useUsersStore.getState().users.actions;
+  const { updateCharacters: updateCharactersAction } =
+    useUsersStore.getState().account.actions;
   const { clearJobArray, clearUserJobSnapshotArray } =
     useUsersStore.getState().jobData.actions;
   const { reloadMainUser } = useRefreshUser();
-  const { isLoginComplete, completedSteps } = useLoginState();
+  const { completedSteps } = useLoginState();
   const queryClient = useQueryClient();
-  const { triggerCharacterDataPrefetch } = useCharacterHooks();
+  const { triggerCharacterDataPrefetch, prefetchMultipleCharacters } =
+    useCharacterHooks();
   const analytics = getAnalytics();
   const navigate = useNavigate({ from: "/auth" });
   const hasNavigated = useRef(false);
@@ -63,7 +62,6 @@ export default function AuthMainUser() {
       // Check if we have an existing auth token
       const existingAuth = localStorage.getItem("Auth");
       if (existingAuth) {
-        // If there's a state parameter, preserve it for redirect after reload
         if (state && state !== "additional") {
           localStorage.setItem("originalPath", state);
         }
@@ -78,24 +76,25 @@ export default function AuthMainUser() {
 
       async function mainUserLogin(authCode) {
         try {
-          const t = trace(performance, "MainUserLoginProcessFull");
-          t.start();
 
           const userObject = await getEveOauthToken(authCode, true);
           if (!userObject) {
             throw new Error("Unable to Authenticate SSO Token");
           }
 
-          const tokenResponse = await userObject.requestServerToken();
-          if (tokenResponse instanceof Error) throw tokenResponse;
+          const tokenResponse = await fetchServerJWT(userObject.esiAccessToken);
+          useUsersStore
+            .getState()
+            .account.actions.applyLoginAuthResponse(
+              tokenResponse,
+              userObject.CharacterHash
+            );
 
-          // Use Firebase token from login response when available (single request); otherwise fetch separately
-          const firebaseToken = tokenResponse.firebase_token
-            ? tokenResponse.firebase_token
-            : (await getFirebaseTokenViaApi(userObject.serverAccessToken))
-                ?.access_token;
+          const firebaseToken = tokenResponse.firebase_token;
           if (!firebaseToken) {
-            throw new Error("Unable to Authenticate Firebase Token");
+            throw new Error(
+              "Login response missing firebase_token (server must include it from /api/v1/auth/login)"
+            );
           }
           const signInResult = await signInWithCustomToken(auth, firebaseToken);
 
@@ -103,22 +102,13 @@ export default function AuthMainUser() {
             throw new Error("Unable to Authenticate Firebase Token");
           }
 
-          userObject.accountID = signInResult.user.uid;
-
-          // Check if this is a first-time login (from combined response or Mongo)
-          const isFirstTimeLogin =
-            tokenResponse.firebase_first_login ??
-            tokenResponse.first_login ??
-            false;
-
-          // Store the first-time login state
-          setIsFirstTimeLogin(isFirstTimeLogin);
+          useUsersStore.getState().account.actions.setLoggedIn(true);
 
           await userObject.getPublicCharacterData();
 
           await buildCorporationObjectFromUserObject(userObject);
 
-          updateUserArrayAction([userObject]);
+          updateCharactersAction([userObject]);
           triggerCharacterDataPrefetch(queryClient, userObject.CharacterHash);
 
           emitUserDataUpdate({
@@ -131,19 +121,22 @@ export default function AuthMainUser() {
             ],
           });
 
-          userMaindDocListener();
+          await runPostLoginAccountSync({
+            queryClient,
+            prefetchMultipleCharacters,
+            userDocument: tokenResponse.user_document,
+          });
+
           userJobSnapshotListener();
           userWatchlistListener();
           userGroupDataListener();
 
           clearUserJobSnapshotArray([]);
           clearJobArray([]);
-          toggleIsLoggedIn();
           logEvent(analytics, "userSignIn", {
             UID: signInResult.user.uid,
-            isFirstTimeLogin: isFirstTimeLogin,
+            isFirstTimeLogin: useUsersStore.getState().account.isFirstTimeLogin,
           });
-          t.stop();
         } catch (err) {
           console.error(err.message);
           redirectToEveSSO();
@@ -153,24 +146,25 @@ export default function AuthMainUser() {
     processOauthCallback();
   }, []);
 
-  // Check if all events are complete before redirecting
+  // When all login steps complete, navigate to the post-auth destination.
+  // Do not navigate to `/auth` here: we are already on `/auth`, so that is often a no-op and
+  // `beforeLoad` on `/auth` never re-runs (it is what redirects logged-in users away).
   useEffect(() => {
-    if (!hasNavigated.current && isLoginComplete()) {
+    const allStepsDone = Object.values(LOGIN_STEPS).every((step) =>
+      completedSteps.has(step)
+    );
+    if (!hasNavigated.current && allStepsDone) {
       hasNavigated.current = true;
       emitLoginComplete();
 
-      // Navigate back to auth route to trigger redirect logic
-      // The originalPath cleanup will happen in the auth route after redirect is determined
-
-      // Get the originalPath from localStorage to pass as state parameter
       const originalPath = localStorage.getItem("originalPath");
       if (originalPath) {
-        navigate({ to: "/auth", search: { state: originalPath } });
-      } else {
-        navigate({ to: "/auth" });
+        localStorage.removeItem("originalPath");
       }
+      const redirectPath = getRedirectPathAfterAuth(originalPath, "/dashboard");
+      navigate({ to: redirectPath });
     }
-  }, [isLoginComplete, navigate]);
+  }, [completedSteps, navigate]);
 
   return <UserLogInUI />;
 }

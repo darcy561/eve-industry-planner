@@ -81,16 +81,24 @@ func StructToMongoDoc(v interface{}, docID ...string) (bson.M, error) {
 	return doc, nil
 }
 
-// DocumentExistsByID returns whether a document exists in the given collection by _id.
-func DocumentExistsByID(ctx context.Context, collection *mongo.Collection, docID string) (bool, error) {
+// DocumentExistsByID returns whether a document exists whose _id is docID and whose
+// _meta.accountID matches (same archival / ownership pattern as models.Job).
+func DocumentExistsByID(ctx context.Context, collection *mongo.Collection, docID, accountID string) (bool, error) {
 	if collection == nil {
 		return false, fmt.Errorf("collection is required")
 	}
 	if docID == "" {
 		return false, fmt.Errorf("docID is required")
 	}
+	if accountID == "" {
+		return false, fmt.Errorf("accountID is required")
+	}
 
-	err := collection.FindOne(ctx, bson.M{"_id": docID}).Err()
+	filter := bson.M{
+		"_id":              docID,
+		"_meta.accountID": accountID,
+	}
+	err := collection.FindOne(ctx, filter).Err()
 	if err == nil {
 		return true, nil
 	}
@@ -131,6 +139,29 @@ func UpsertStructByIDWithMeta(ctx context.Context, collection *mongo.Collection,
 		return nil, fmt.Errorf("upsert document: %w", err)
 	}
 
+	return result, nil
+}
+
+// ReplaceStructByIDUpsert replaces the entire document matching _id, or inserts it if missing.
+// Use when applying a full snapshot from an external source of truth so stale top-level or
+// legacy-schema keys are not left behind (unlike a partial $set upsert).
+func ReplaceStructByIDUpsert(ctx context.Context, collection *mongo.Collection, v interface{}, docID string) (*mongo.UpdateResult, error) {
+	if collection == nil {
+		return nil, fmt.Errorf("collection is required")
+	}
+	if docID == "" {
+		return nil, fmt.Errorf("docID is required")
+	}
+
+	doc, err := StructToMongoDoc(v, docID)
+	if err != nil {
+		return nil, fmt.Errorf("convert struct to BSON: %w", err)
+	}
+
+	result, err := collection.ReplaceOne(ctx, bson.M{"_id": docID}, doc, options.Replace().SetUpsert(true))
+	if err != nil {
+		return nil, fmt.Errorf("replace document: %w", err)
+	}
 	return result, nil
 }
 

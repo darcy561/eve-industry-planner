@@ -27,7 +27,7 @@ export function ButtonSelectionLogic_ChildJobPopoverFrame(props) {
     <UnlinkExistingChildJobButton_ChildJobPopoverFrame {...props} />
   );
 
-  if (state.activeJob.groupID) {
+  if (state.activeJob.includedInGroup) {
     if (childJobsLocation.length === 0) {
       if (!state.temporaryChildJobs[material.typeID]) {
         if (

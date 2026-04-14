@@ -9,7 +9,7 @@ function OutputJobsInfoPanel({ state, actions, groupJobs }) {
   const deviceBasedWidth = deviceNotMobile ? "100%" : "60%";
 
   const outputJobs = useMemo(() => {
-    return groupJobs.filter((job) => job.parentJob.length === 0);
+    return groupJobs.filter((job) => job.parentJobs.length === 0);
   }, [groupJobs]);
 
   return (

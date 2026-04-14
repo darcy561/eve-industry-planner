@@ -15,8 +15,8 @@ import (
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/api/helper/sso"
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
@@ -76,7 +76,11 @@ func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.
 	m := apimetrics.GetAPIEveSSOCodeExchange()
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		http.Error(w, "Configuration error: "+err.Error(), http.StatusInternalServerError)
+		duration := time.Since(start)
+		m.Errors.WithLabelValues("config_error").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "config_error", "error", err)
+		logs.ErrorCtx(ctx, "failed to load config for SSO exchange", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -157,32 +161,13 @@ func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.
 		return
 	}
 
-	// Decode JWT token to extract claims (without validation, just decode like JS decodeJwt)
-	decodedClaims, err := decodeJWTWithoutValidation(tokenResponse.AccessToken)
-	if err != nil {
-		// If decoding fails, validate the token to ensure it's legitimate before returning it
-		logs.WarnCtx(ctx, "failed to decode JWT token without validation, attempting full validation", "error", err)
-		validatedClaims, validateErr := sso.ValidateEveSSOToken(tokenResponse.AccessToken, cfg.EveSSOClientID)
-		if validateErr != nil {
-			duration := time.Since(start)
-			m.Errors.WithLabelValues("token_validation_error").Inc(ctx)
-			apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "token_validation_error",
-				"error", validateErr, "decode_error", err)
-			logs.ErrorCtx(ctx, "failed to validate token after decode failure", "decode_error", err, "validation_error", validateErr)
-			http.Error(w, "Invalid token received from EVE SSO", http.StatusInternalServerError)
-			return
-		}
-		// Use validated claims
-		decodedClaims = validatedClaims
-		characterHash = validatedClaims.Owner
-		logs.DebugCtx(ctx, "token validated successfully after decode failure",
-			"character_hash", characterHash,
+	characterHash, extractErr := extractCharacterHashFromToken(tokenResponse.AccessToken, cfg.EveSSOClientID)
+	if extractErr != nil {
+		logs.WarnCtx(ctx, "token character hash extraction degraded; continuing",
+			"error", extractErr,
 			"account_type", accountType)
 	} else {
-		// Extract character hash from the Owner field
-		characterHash = decodedClaims.Owner
-		// Log successful exchange (debug level for detailed info)
-		logs.DebugCtx(ctx, "successfully decoded JWT token",
+		logs.DebugCtx(ctx, "successfully parsed SSO token claims",
 			"character_hash", characterHash,
 			"account_type", accountType)
 	}
@@ -236,7 +221,11 @@ func SSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 	m := apimetrics.GetAPIEveSSOTokenRefresh()
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		http.Error(w, "Configuration error: "+err.Error(), http.StatusInternalServerError)
+		duration := time.Since(start)
+		m.Errors.WithLabelValues("config_error").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "config_error", "error", err)
+		logs.ErrorCtx(ctx, "failed to load config for SSO refresh", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -307,30 +296,11 @@ func SSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 		return
 	}
 
-	// Decode JWT token to extract character hash for logging
-	decodedClaims, err := decodeJWTWithoutValidation(tokenResponse.AccessToken)
-	if err != nil {
-		// If decoding fails, validate the token to ensure it's legitimate before returning it
-		logs.WarnCtx(ctx, "failed to decode JWT token without validation, attempting full validation", "error", err)
-		validatedClaims, validateErr := sso.ValidateEveSSOToken(tokenResponse.AccessToken, cfg.EveSSOClientID)
-		if validateErr != nil {
-			duration := time.Since(start)
-			m.Errors.WithLabelValues("token_validation_error").Inc(ctx)
-			apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "token_validation_error",
-				"error", validateErr, "decode_error", err)
-			logs.ErrorCtx(ctx, "failed to validate token after decode failure", "decode_error", err, "validation_error", validateErr)
-			http.Error(w, "Invalid token received from EVE SSO", http.StatusInternalServerError)
-			return
-		}
-		// Use validated claims
-		decodedClaims = validatedClaims
-		characterHash = validatedClaims.Owner
-		logs.DebugCtx(ctx, "token validated successfully after decode failure",
-			"character_hash", characterHash)
+	characterHash, extractErr := extractCharacterHashFromToken(tokenResponse.AccessToken, cfg.EveSSOClientID)
+	if extractErr != nil {
+		logs.WarnCtx(ctx, "token character hash extraction degraded; continuing", "error", extractErr)
 	} else {
-		// Extract character hash from the Owner field
-		characterHash = decodedClaims.Owner
-		logs.DebugCtx(ctx, "successfully decoded JWT token",
+		logs.DebugCtx(ctx, "successfully parsed SSO token claims",
 			"character_hash", characterHash)
 	}
 
@@ -494,31 +464,13 @@ func refreshAccessToken(ctx context.Context, clientID, clientSecret, refreshToke
 	return &tokenResp, nil
 }
 
-// decodeJWTWithoutValidation decodes a JWT token without validation (like JS decodeJwt)
-// Returns the decoded claims or nil if decoding fails
-func decodeJWTWithoutValidation(tokenString string) (*sso.EveSSOClaims, error) {
-	// Split token into parts
-	parts := strings.Split(tokenString, ".")
-	if len(parts) != 3 {
-		return nil, errors.New("invalid JWT format")
-	}
-
-	// Decode the payload (second part)
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+// extractCharacterHashFromToken returns character hash only from validated JWT claims.
+func extractCharacterHashFromToken(tokenString, clientID string) (string, error) {
+	validatedClaims, err := sso.ValidateEveSSOToken(tokenString, clientID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode JWT payload: %w", err)
+		return "", fmt.Errorf("validated parse failed: %w", err)
 	}
-
-	// Unmarshal into claims
-	var claims sso.EveSSOClaims
-	if err := json.Unmarshal(payload, &claims); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal JWT claims: %w", err)
-	}
-
-	// Extract character ID from subject
-	claims.CharacterID = sso.ExtractCharacterID(claims.Subject)
-
-	return &claims, nil
+	return validatedClaims.Owner, nil
 }
 
 // extractAuthCodeFromRequest extracts the authorization code from the request body

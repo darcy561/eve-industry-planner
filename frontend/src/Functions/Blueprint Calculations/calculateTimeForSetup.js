@@ -1,4 +1,4 @@
-import Setup from "../../Classes/jobSetupConstructor";
+import Setup from "../../Classes/jobSetup";
 import { jobTypes } from "../../Context/defaultValues";
 import manufacturingTimeModifierCalculation from "./manufacturingTimeModifierCalculation";
 import reactionTimeModifierCalculation from "./reactionTimeModifierCalculation";

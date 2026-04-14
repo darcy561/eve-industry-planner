@@ -7,7 +7,7 @@ import AssetLocationLogic_AssetDialogWindow from "./AssetTemplates/templateLogic
 export default function AssetLocations_AssetDialogWindow(props) {
   const { state } = props;
   const defaultAssetLocation = useUsersStore(
-    (state) => state.applicationSettings.defaultAssetLocation
+    (state) => state.applicationSettings.defaultStationIDForAssets
   );
 
   if (

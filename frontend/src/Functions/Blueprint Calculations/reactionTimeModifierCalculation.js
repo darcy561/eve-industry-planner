@@ -9,7 +9,6 @@ import { jobTypes } from "../../Context/defaultValues";
  * @returns {number} The time modifier value for the job setup
  */
 
-
 export default function reactionTimeModifierCalculation(
     structureID,
     rigID,

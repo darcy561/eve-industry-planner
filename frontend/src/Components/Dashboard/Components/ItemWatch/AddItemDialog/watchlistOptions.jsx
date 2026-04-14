@@ -80,7 +80,7 @@ export function WatchListSetupOptions_WatchlistDialog({
           </Grid>
         </Grid>
       )}
-      {!jobSetup.customStructureID && (
+      {jobSetup.customStructureID === "" && (
         <Grid container item xs={12}>
           <Grid item xs={6} sx={{ paddingRight: "10px" }}>
             <StructureTypeSelect

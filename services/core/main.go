@@ -10,6 +10,7 @@ import (
 	"eve-industry-planner/core/metrics"
 	"eve-industry-planner/core/scheduler"
 	"eve-industry-planner/core/startup"
+	mongoindex "eve-industry-planner/shared/core/mongo/indexing"
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry"
@@ -52,6 +53,11 @@ func main() {
 	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) { _ = ts(c) })
 
 	clients.CleanupFns = append(clients.CleanupFns, metrics.RegisterAll(clients.Redis, clients.Mongo, clients.NATS)...)
+
+	if err := mongoindex.EnsureIndexes(ctx, clients.Mongo); err != nil {
+		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
+		return
+	}
 
 	// Run startup checks that must complete before the rest of the system is considered ready.
 	// Today this primarily validates/bootstraps Static Data Export (SDE) files under /static-data.

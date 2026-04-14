@@ -8,8 +8,9 @@ import (
 	"eve-industry-planner/shared/logs"
 )
 
-// AuthConstructor creates middleware that validates Authorization header and JWT token
-// Rejects requests if Authorization header is missing or token is invalid
+// AuthConstructor creates middleware that validates Authorization header and JWT token.
+// Rejects requests if Authorization header is missing or token is invalid (always 401 Unauthorized).
+// Private routes chain this after rate limiting; batch clients should not retry 401 without refreshing auth.
 func AuthConstructor() MiddlewareConstructor {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

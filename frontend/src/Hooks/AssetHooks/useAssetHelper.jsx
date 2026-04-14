@@ -373,7 +373,7 @@ export function useAssetHelperHooks() {
       const corpHangars =
         useUsersStore
           .getState()
-          .users.actions.getCorporationObject(corporation_id)
+          .account.actions.getCorporation(corporation_id)
           ?.hangars || [];
 
       return (

@@ -1,6 +1,6 @@
 package firebaseuserdoc
 
-import "eve-industry-planner/shared/shared/models"
+import "encoding/json"
 
 // UserDoc represents the legacy Firebase user document shape (camelCase) for JSON unmarshaling.
 // Used when reading from Firestore or when receiving the document from the migration endpoint.
@@ -31,19 +31,25 @@ type Token struct {
 	RToken        string `json:"rToken"`
 }
 
+// JobStatusEntryFirestore mirrors settings.jobStatuses values (name only from legacy clients; extra JSON fields ignored until modeled).
+type JobStatusEntryFirestore struct {
+	Name string `json:"name"`
+}
+
 // Settings represents the settings subtree of the Firebase user document.
 type Settings struct {
-	Account                         *Account              `json:"account"`
-	Layout                          *Layout               `json:"layout"`
-	EditJob                         *EditJob              `json:"editJob"`
-	Structures                      *Structures           `json:"structures"`
-	ExemptTypeIDs                   []int                 `json:"exemptTypeIDs"`
-	AutomaticJobRecalculation       *bool                 `json:"automaticJobRecalculation"`
-	IgnoreItemsWithoutBlueprints    *bool                 `json:"ignoreItemsWithoutBlueprints"`
-	DefaultReprocessingCharacter    *string               `json:"defaultReprocessingCharacter"`
-	ReprocessingCalculationSettings *ReprocessingSettings `json:"reprocessingCalculationSettings"`
-	ExtrasCategories                []ExtraCategory       `json:"extrasCategories"`
-	PredefinedSystemIndexes         map[string]map[string]float64 `json:"predefinedSystemIndexes"`
+	Account                         *Account                         `json:"account"`
+	Layout                          *Layout                          `json:"layout"`
+	EditJob                         *EditJob                         `json:"editJob"`
+	Structures                      *Structures                      `json:"structures"`
+	ExemptTypeIDs                   []int                            `json:"exemptTypeIDs"`
+	AutomaticJobRecalculation       *bool                            `json:"automaticJobRecalculation"`
+	IgnoreItemsWithoutBlueprints    *bool                            `json:"ignoreItemsWithoutBlueprints"`
+	DefaultReprocessingCharacter    *string                          `json:"defaultReprocessingCharacter"`
+	ReprocessingCalculationSettings *ReprocessingSettings            `json:"reprocessingCalculationSettings"`
+	ExtrasCategories                []ExtraCategory                  `json:"extrasCategories"`
+	PredefinedSystemIndexes         map[string]map[string]float64    `json:"predefinedSystemIndexes"`
+	JobStatuses                     map[string]JobStatusEntryFirestore `json:"jobStatuses,omitempty"`
 }
 
 // Account represents account-level settings in Firebase.
@@ -70,11 +76,11 @@ type EditJob struct {
 	DefaultMaterialEfficiencyValue int     `json:"defaultMaterialEfficiencyValue"`
 }
 
-// Structures represents custom structures in Firebase.
+// Structures represents custom structures in Firebase (Firestore JSON may use string scalars for systemID/tax).
 type Structures struct {
-	Manufacturing []models.CustomStructure       `json:"manufacturing"`
-	Reaction      []models.CustomStructure       `json:"reaction"`
-	Reprocessing  []models.ReprocessingStructure `json:"reprocessing"`
+	Manufacturing []firestoreCustomStructure       `json:"manufacturing"`
+	Reaction      []firestoreCustomStructure       `json:"reaction"`
+	Reprocessing  []firestoreReprocessingStructure `json:"reprocessing"`
 }
 
 // ReprocessingSettings represents reprocessing calculation settings in Firebase.
@@ -87,9 +93,10 @@ type ReprocessingSettings struct {
 }
 
 // ExtraCategory represents an extra cost category in Firebase.
+// deletedAt may be absent, ISO string, or legacy epoch ms number — see extrasCategoryFromFirebase in mappings.go.
 type ExtraCategory struct {
-	ID        string `json:"id"`
-	Label     string `json:"label"`
-	Deleted   bool   `json:"deleted"`
-	DeletedAt *int64 `json:"deletedAt"`
+	ID        string          `json:"id"`
+	Label     string          `json:"label"`
+	Deleted   bool            `json:"deleted"`
+	DeletedAt json.RawMessage `json:"deletedAt"`
 }

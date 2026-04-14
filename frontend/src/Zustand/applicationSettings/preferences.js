@@ -39,7 +39,7 @@ export const preferencesActions = (set, get) => ({
         ...state,
         applicationSettings: {
           ...state.applicationSettings,
-          cloudAccounts: !state.applicationSettings.cloudAccounts,
+          userCloudAccounts: !state.applicationSettings.userCloudAccounts,
         },
       }),
       false,
@@ -60,7 +60,7 @@ export const preferencesActions = (set, get) => ({
         ...state,
         applicationSettings: {
           ...state.applicationSettings,
-          hideTutorials: !state.applicationSettings.hideTutorials,
+          displayHelpCards: !state.applicationSettings.displayHelpCards,
         },
       }),
       false,
@@ -81,55 +81,12 @@ export const preferencesActions = (set, get) => ({
         ...state,
         applicationSettings: {
           ...state.applicationSettings,
-          enableCompactView: !state.applicationSettings.enableCompactView,
+          enableCompactLayoutView:
+            !state.applicationSettings.enableCompactLayoutView,
         },
       }),
       false,
       "toggleEnableCompactView"
-    ),
-
-  /**
-   * Updates the local market display setting.
-   * 
-   * @param {string|null} newValue - New local market display value
-   * 
-   * @example
-   * store.getState().applicationSettings.actions.updatelocalMarketDisplay('jita');
-   * store.getState().applicationSettings.actions.updatelocalMarketDisplay(null);
-   */
-  updatelocalMarketDisplay: (newValue) =>
-    set(
-      (state) => ({
-        ...state,
-        applicationSettings: {
-          ...state.applicationSettings,
-          localMarketDisplay: newValue,
-        },
-      }),
-      false,
-      "updatelocalMarketDisplay"
-    ),
-
-  /**
-   * Updates the local order display setting.
-   * 
-   * @param {string|null} newValue - New local order display value
-   * 
-   * @example
-   * store.getState().applicationSettings.actions.updateLocaleOrderDisplay('sell');
-   * store.getState().applicationSettings.actions.updateLocaleOrderDisplay(null);
-   */
-  updateLocaleOrderDisplay: (newValue) =>
-    set(
-      (state) => ({
-        ...state,
-        applicationSettings: {
-          ...state.applicationSettings,
-          localOrderDisplay: newValue,
-        },
-      }),
-      false,
-      "updateLocaleOrderDisplay"
     ),
 
   /**
@@ -189,7 +146,7 @@ export const preferencesActions = (set, get) => ({
         ...state,
         applicationSettings: {
           ...state.applicationSettings,
-          defaultMarket: newValue,
+          defaultMarketLocation: newValue,
         },
       }),
       false,
@@ -210,7 +167,7 @@ export const preferencesActions = (set, get) => ({
         ...state,
         applicationSettings: {
           ...state.applicationSettings,
-          defaultOrders: newValue,
+          defaultOrderType: newValue,
         },
       }),
       false,
@@ -253,7 +210,7 @@ export const preferencesActions = (set, get) => ({
         ...state,
         applicationSettings: {
           ...state.applicationSettings,
-          defaultAssetLocation: newValue,
+          defaultStationIDForAssets: newValue,
         },
       }),
       false,
@@ -274,7 +231,7 @@ export const preferencesActions = (set, get) => ({
         ...state,
         applicationSettings: {
           ...state.applicationSettings,
-          citadelBrokersFee: newValue,
+          defaultCitadelBrokersFee: newValue,
         },
       }),
       false,
@@ -411,8 +368,8 @@ export const preferencesActions = (set, get) => ({
         ...state,
         applicationSettings: {
           ...state.applicationSettings,
-          automaticJobRecalculation:
-            !state.applicationSettings.automaticJobRecalculation,
+          enableAutomaticJobRecalculation:
+            !state.applicationSettings.enableAutomaticJobRecalculation,
         },
       }),
       false,
@@ -433,8 +390,8 @@ export const preferencesActions = (set, get) => ({
         ...state,
         applicationSettings: {
           ...state.applicationSettings,
-          ignoreItemsWithoutBlueprints:
-            !state.applicationSettings.ignoreItemsWithoutBlueprints,
+          enableSkipMissingBlueprints:
+            !state.applicationSettings.enableSkipMissingBlueprints,
         },
       }),
       false,
@@ -455,7 +412,10 @@ export const preferencesActions = (set, get) => ({
         ...state,
         applicationSettings: {
           ...state.applicationSettings,
-          defaultReprocessingCharacter: characterHash,
+          reprocessingSettings: {
+            ...state.applicationSettings.reprocessingSettings,
+            defaultReprocessingCharacter: characterHash,
+          },
         },
       }),
       false,
@@ -471,7 +431,7 @@ export const preferencesActions = (set, get) => ({
    * @returns {Object|null} User object or null if not found
    * 
    * @example
-   * const defaultCharacter = store.getState().applicationSettings.actions.getDefaultReprocessingCharacter(userArray);
+   * const defaultCharacter = store.getState().applicationSettings.actions.getDefaultReprocessingCharacter(characters);
    * if (defaultCharacter) console.log(defaultCharacter.CharacterName);
    */
   getDefaultReprocessingCharacter: (users) => {
@@ -479,7 +439,8 @@ export const preferencesActions = (set, get) => ({
     const state = get().applicationSettings;
     return users.find(
       (character) =>
-        character.CharacterHash === state.defaultReprocessingCharacter
+        character.CharacterHash ===
+          state.reprocessingSettings.defaultReprocessingCharacter
     );
   },
 
@@ -507,8 +468,8 @@ export const preferencesActions = (set, get) => ({
         ...state,
         applicationSettings: {
           ...state.applicationSettings,
-          reprocessingCalculationSettings: {
-            ...state.applicationSettings.reprocessingCalculationSettings,
+          reprocessingSettings: {
+            ...state.applicationSettings.reprocessingSettings,
             ...newSettings,
           },
         },

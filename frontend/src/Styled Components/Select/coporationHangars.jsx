@@ -3,17 +3,20 @@ import useUsersStore from "../../Zustand/usersStore";
 import { useMemo } from "react";
 
 export default function CorporationHangarsSelect({ selectedCorporation, value, onChange }) {
-    const corporationObject = useUsersStore(
-        (state) => state.users.corporationObjects
+    const corporations = useUsersStore(
+        (state) => state.account.corporations
     );
 
     // Get hangars for the selected corporation with safety checks
     const hangars = useMemo(() => {
-        if (!selectedCorporation || !corporationObject[selectedCorporation]) {
+        const corp = corporations.find(
+            (c) => Number(c.corporation_id) === Number(selectedCorporation)
+        );
+        if (!selectedCorporation || !corp) {
             return [];
         }
-        return corporationObject[selectedCorporation].hangars || [];
-    }, [selectedCorporation, corporationObject]);
+        return corp.hangars || [];
+    }, [selectedCorporation, corporations]);
 
     // Ensure the selected value is valid (exists in hangars) or default to empty string
     const selectedValue = useMemo(() => {

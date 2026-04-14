@@ -175,7 +175,7 @@ function JobSetupItem({ setupEntry, state, actions }) {
             </Box>
           </Box>
 
-          {setupEntry.customStructureID ? (
+          {setupEntry.customStructureID !== "" ? (
             <UseCustomStructure setupEntry={setupEntry} />
           ) : (
             <UseDefaultStructures setupEntry={setupEntry} />

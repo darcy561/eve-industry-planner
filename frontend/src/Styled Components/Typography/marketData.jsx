@@ -37,7 +37,9 @@ function MarketDataDialogTriggerText({
 }) {
   if (!locationID) {
     locationID = MARKET_OPTIONS.find(
-      (i) => i.id === useUsersStore.getState().applicationSettings.defaultMarket
+      (i) =>
+        i.id ===
+        useUsersStore.getState().applicationSettings.defaultMarketLocation
     );
   }
 

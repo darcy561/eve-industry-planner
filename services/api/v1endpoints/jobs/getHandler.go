@@ -48,7 +48,7 @@ func GetJobsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	collection := database.Collection(mongocore.CollectionJobs)
 
 	// Find all jobs for this accountID with retry
-	filter := bson.M{"accountID": accountID}
+	filter := bson.M{"_meta.accountID": accountID}
 	retryConfig := mongocore.DefaultRetryConfig()
 	retryConfig.OperationName = fmt.Sprintf("find jobs for account %s", accountID)
 

@@ -70,10 +70,10 @@ export default function AssetsDialogContent(props) {
           new Set()
         );
 
-        // For "allUsers", use the parent user for API calls
+        // For "allUsers", use the main character for API calls
         const characterObject = state.selectedCharacter === "allUsers"
-          ? useUsersStore.getState().users.actions.findParentUser()
-          : useUsersStore.getState().users.actions.findUserByCharacterHash(state.selectedCharacter);
+          ? useUsersStore.getState().account.actions.getMainCharacter()
+          : useUsersStore.getState().account.actions.findCharacterByHash(state.selectedCharacter);
 
         if (!characterObject) {
           console.error('Character object not found for hash:', state.selectedCharacter);
@@ -144,11 +144,10 @@ export default function AssetsDialogContent(props) {
           new Set()
         );
 
-
         // Find a user from this corporation to use for API calls
-        const userFromCorporation = useUsersStore
-          .getState()
-          .users.userArray.find(user => user.corporation_id === state.selectedCorporation);
+        const userFromCorporation = Object.values(
+          useUsersStore.getState().account.characters
+        ).find((user) => user.corporation_id === state.selectedCorporation);
 
         if (!userFromCorporation) {
           console.error('No user found from corporation ID:', state.selectedCorporation);
@@ -170,7 +169,7 @@ export default function AssetsDialogContent(props) {
         actions.setFullItemList(fullItemList);
         useUsersStore
           .getState()
-          .users.actions.setCorporationOffices(state.selectedCorporation, corporationAssets);
+          .account.actions.setCorporationOffices(state.selectedCorporation, corporationAssets);
         useUsersStore
           .getState()
           .worldData.actions.addUniverseIDs(additonalIDObjects);

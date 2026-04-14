@@ -2,7 +2,7 @@
  * Jobs Slice for EVE Industry Planner.
  * 
  * Manages job-related state including job arrays, group arrays, multi-selection,
- * active job/group tracking, archived jobs, job snapshots, and watchlist data.
+ * active job/group tracking, job snapshots, and watchlist data.
  * This slice provides centralized state management for all job-related operations
  * and user interactions within the industry planner.
  * 
@@ -25,7 +25,7 @@ import {
  * 
  * Creates the jobs slice with state and actions for managing job-related data
  * including job arrays, group arrays, multi-selection, active job tracking,
- * archived jobs, and watchlist management.
+ * and watchlist management.
  * 
  * @param {Function} set - Zustand set function for updating state
  * @param {Function} get - Zustand get function for accessing current state

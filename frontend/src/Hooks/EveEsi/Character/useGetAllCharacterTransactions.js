@@ -115,7 +115,7 @@ function sortTransactionsByDate(transactions) {
 /**
  * Utility function to create transactions object organized by character hash.
  * 
- * @param {Array<Object>} userArray - Array of user objects with CharacterHash
+ * @param {Array<Object>} characters - Array of user objects with CharacterHash
  * @param {Array<Object>} dataArray - Array of data objects (query results or cached data)
  * @param {boolean} isCachedData - Whether the data is from cache
  * @returns {Object} Object with character hashes as keys and transaction arrays as values
@@ -123,13 +123,13 @@ function sortTransactionsByDate(transactions) {
  * @private
  */
 function createTransactionsByCharacterObject(
-  userArray,
+  characters,
   dataArray,
   isCachedData = false
 ) {
   const transactionsByCharacter = {};
   dataArray.forEach((item, index) => {
-    const CharacterHash = userArray[index]?.CharacterHash;
+    const CharacterHash = characters[index]?.CharacterHash;
     if (CharacterHash) {
       let transactionData;
       if (isCachedData) {
@@ -178,10 +178,10 @@ function createTransactionsByCharacterObject(
  * }
  */
 export function getAllCachedCharacterTransactions(queryClient) {
-  const userArray = useUsersStore.getState().users.userArray;
+  const characters = useUsersStore.getState().account.characters;
 
   // Get query states for all characters
-  const queryStates = userArray.map(({ CharacterHash }) => {
+  const queryStates = characters.map(({ CharacterHash }) => {
     const queryKey = [characterTransactionsQueryKey, CharacterHash];
     return {
       queryState: queryClient.getQueryState(queryKey),
@@ -208,7 +208,7 @@ export function getAllCachedCharacterTransactions(queryClient) {
 
   // Create object with character hash as key
   const transactionsByCharacter = createTransactionsByCharacterObject(
-    userArray,
+    characters,
     queryStates,
     true
   );
@@ -259,7 +259,7 @@ export function getAllCachedCharacterTransactions(queryClient) {
  * }
  */
 export default function useGetAllCharacterTransactions() {
-  const { userArray } = useUsersStore((state) => state.users);
+  const characters = useUsersStore((state) => state.account.characters);
 
   const combineFunction = useCallback(
     (results) => {
@@ -276,18 +276,18 @@ export default function useGetAllCharacterTransactions() {
 
       // Create object with character hash as key
       const transactionsByCharacter = createTransactionsByCharacterObject(
-        userArray,
+        characters,
         results,
         false
       );
 
       return createSuccessObject(transactionsByCharacter);
     },
-    [userArray]
+    [characters]
   );
 
   const result = useQueries({
-    queries: userArray.map(({ CharacterHash }) =>
+    queries: characters.map(({ CharacterHash }) =>
       characterTransactionsQuery(CharacterHash)
     ),
     combine: combineFunction,

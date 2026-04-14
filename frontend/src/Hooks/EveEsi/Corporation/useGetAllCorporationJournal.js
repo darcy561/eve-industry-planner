@@ -194,10 +194,10 @@ function removeDuplicateJournalEntries(entries) {
  * }
  */
 export function getAllCachedCorporationJournal(queryClient) {
-  const userArray = useUsersStore.getState().users.userArray;
+  const characters = useUsersStore.getState().account.characters;
 
   // Get query states for all users
-  const queryStates = userArray.map((user) => {
+  const queryStates = characters.map((user) => {
     const queryKey = [corporationJournalQueryKey, user.CharacterHash];
     return {
       queryState: queryClient.getQueryState(queryKey),
@@ -276,7 +276,7 @@ export function getAllCachedCorporationJournal(queryClient) {
  * }
  */
 export function useGetAllCorporationJournal() {
-  const { userArray } = useUsersStore((state) => state.users);
+  const characters = useUsersStore((state) => state.account.characters);
 
   const combineFunction = useCallback((results) => {
     const isLoading = checkLoadingState(results);
@@ -297,7 +297,7 @@ export function useGetAllCorporationJournal() {
   }, []);
 
   const result = useQueries({
-    queries: userArray.map(({ CharacterHash }) => corporationJournalQuery(CharacterHash)),
+    queries: characters.map(({ CharacterHash }) => corporationJournalQuery(CharacterHash)),
     combine: combineFunction,
   });
 

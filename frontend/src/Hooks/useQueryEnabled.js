@@ -6,7 +6,7 @@ import useUsersStore from "../Zustand/usersStore";
  * @returns {boolean} Whether queries should be enabled
  */
 export function useQueryEnabled() {
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const eveServerStatus = useUsersStore((state) => state.worldData.eveServerStatus);
   
   // Only enable queries if user is logged in AND EVE server is online
@@ -19,7 +19,7 @@ export function useQueryEnabled() {
  * @returns {boolean} Whether queries should be enabled
  */
 export function getQueryEnabled() {
-  const isLoggedIn = useUsersStore.getState().users.isLoggedIn;
+  const isLoggedIn = useUsersStore.getState().account.isLoggedIn;
   const eveServerStatus = useUsersStore.getState().worldData.eveServerStatus;
   
   return isLoggedIn && eveServerStatus;

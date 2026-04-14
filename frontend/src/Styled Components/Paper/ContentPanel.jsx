@@ -23,9 +23,11 @@ import PanelFallBack from "./panelStates";
  * @param {boolean} [props.isLoading=false] - Whether to show loading state
  * @param {boolean} [props.isError=false] - Whether to show error state
  * @param {Error} [props.error] - Error object to display if isError is true
+ * @param {string} [props.loadingMessage] - Optional caption for the loading fallback (default in PanelFallBack)
  * @param {Object} [props.paperSx] - Additional styles for the Paper component
+ * @param {boolean} [props.visible=true] - When false, the panel is not rendered
  * @param {Object} props.otherProps - Additional props passed to the Paper component
- * @returns {JSX.Element} Content panel component
+ * @returns {JSX.Element|null} Content panel component
  *
  * @example
  * <ContentPanel
@@ -49,9 +51,15 @@ export default function ContentPanel({
   isLoading = false,
   isError = false,
   error = null,
+  loadingMessage,
   paperSx,
+  visible = true,
   ...otherProps
 }) {
+  if (!visible) {
+    return null;
+  }
+
   return (
     <Paper
       elevation={elevation}
@@ -105,6 +113,7 @@ export default function ContentPanel({
                 isLoading={isLoading}
                 isError={isError}
                 error={error}
+                loadingMessage={loadingMessage}
               />
             ) : (
               children

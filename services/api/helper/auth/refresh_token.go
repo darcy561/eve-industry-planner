@@ -25,6 +25,10 @@ const (
 	CorporationKeyPrefix = "custom_claims_corporations:"
 	// CorporationTTL is how long corporation IDs are cached (30 days)
 	CorporationTTL = 30 * 24 * time.Hour
+	// SessionKeyPrefix is the Redis key prefix for session records.
+	SessionKeyPrefix = "session:"
+	// SessionTTL is how long session records are retained.
+	SessionTTL = 30 * 24 * time.Hour
 )
 
 // RefreshTokenData stores the metadata associated with a refresh token
@@ -33,6 +37,20 @@ type RefreshTokenData struct {
 	AccountID     string         `json:"account_id"`
 	Scopes        []string       `json:"scopes"`
 	Corporations  CorporationIDs `json:"corporations,omitempty"` // Corporation IDs the user can access
+	SessionID     string         `json:"session_id,omitempty"`
+	SessionStart  time.Time      `json:"session_start,omitempty"`
+	SessionSeenAt time.Time      `json:"session_seen_at,omitempty"`
+	AppVersion    string         `json:"app_version,omitempty"`
+}
+
+// SessionRecord stores a lightweight auth session timeline in Redis.
+type SessionRecord struct {
+	SessionID     string    `json:"session_id"`
+	AccountID     string    `json:"account_id"`
+	CharacterHash string    `json:"character_hash"`
+	AppVersion    string    `json:"app_version,omitempty"`
+	StartedAt     time.Time `json:"started_at"`
+	LastSeenAt    time.Time `json:"last_seen_at"`
 }
 
 // GenerateRefreshToken generates a secure random refresh token
@@ -50,11 +68,28 @@ func GenerateRefreshToken() (string, error) {
 	return u.String(), nil
 }
 
+// GenerateSessionID generates a session identifier.
+func GenerateSessionID() (string, error) {
+	return GenerateRefreshToken()
+}
+
 // StoreRefreshToken stores a refresh token in Redis with associated user data
 func StoreRefreshToken(ctx context.Context, redisClient *redis.Client, token string, data RefreshTokenData) error {
 	key := RefreshTokenKeyPrefix + token
 	if err := rediscore.SaveJSON(ctx, redisClient, key, data, RefreshTokenTTL); err != nil {
 		return fmt.Errorf("failed to store refresh token: %w", err)
+	}
+	return nil
+}
+
+// UpsertSessionRecord creates/updates a session record in Redis.
+func UpsertSessionRecord(ctx context.Context, redisClient *redis.Client, record SessionRecord) error {
+	if record.SessionID == "" {
+		return errors.New("session_id is required")
+	}
+	key := SessionKeyPrefix + record.SessionID
+	if err := rediscore.SaveJSON(ctx, redisClient, key, record, SessionTTL); err != nil {
+		return fmt.Errorf("failed to store session record: %w", err)
 	}
 	return nil
 }

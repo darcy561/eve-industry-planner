@@ -12,10 +12,10 @@ export function MaterialCostPanel(props) {
   const { state, actions } = props;
 
   const defaultMarket = useUsersStore(
-    (state) => state.applicationSettings.defaultMarket
+    (state) => state.applicationSettings.defaultMarketLocation
   );
   const defaultOrders = useUsersStore(
-    (state) => state.applicationSettings.defaultOrders
+    (state) => state.applicationSettings.defaultOrderType
   );
 
   const [marketSelect, updateMarketSelect] = useState(

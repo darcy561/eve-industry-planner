@@ -15,9 +15,7 @@ import AddIcon from "@mui/icons-material/Add";
 import { ArchiveBpData } from "../blueprintArchiveData";
 import { useJobBuild } from "../../../Hooks/useJobBuild";
 import { getAnalytics, logEvent } from "firebase/analytics";
-import { trace } from "@firebase/performance";
-import { performance } from "../../../firebase";
-import JobSnapshot from "../../../Classes/jobSnapshotConstructor";
+import JobSnapshot from "../../../Classes/jobSnapshot";
 import addNewJobToFirebase from "../../../Functions/Firebase/addNewJob";
 import uploadJobSnapshotsToFirebase from "../../../Functions/Firebase/uploadJobSnapshots";
 import getMissingESIData from "../../../Functions/Shared/getMissingESIData";
@@ -35,10 +33,7 @@ export function ClassicBlueprintGroup({ bpID, blueprintResults }) {
   const [loadingBuild, updateLoadingBuild] = useState(false);
   const { buildJob } = useJobBuild();
   const analytics = getAnalytics();
-  const t = trace(performance, "CreateJobProcessFull");
   const { data: blueprintIDs, isLoading: blueprintIDsLoading, error: blueprintIDsError } = useCachedData(CACHED_DATA_FILES.SEARCH_INDEX);
-
-  const parentUser = useUsersStore.getState().users.actions.findParentUser();
 
   const { data: apiJobs = [], isLoading: apiJobsLoading, error: apiJobsError } = useGetAllIndustryJobs();
 
@@ -83,7 +78,6 @@ export function ClassicBlueprintGroup({ bpID, blueprintResults }) {
                   disabled={!bpData}
                   onClick={async () => {
                     if (!bpData) return;
-                    t.start();
                     updateLoadingBuild((prev) => !prev);
                     const newJobArray = [...jobArray];
                     const newSnapshotArray = [...userJobSnapshot];
@@ -102,7 +96,7 @@ export function ClassicBlueprintGroup({ bpID, blueprintResults }) {
 
                     logEvent(analytics, "New Job", {
                       loggedIn: true,
-                      UID: parentUser.accountID,
+                      UID: useUsersStore.getState().account.actions.getAccountID(),
                       name: newJob.name,
                       itemID: newJob.itemID,
                     });
@@ -125,7 +119,6 @@ export function ClassicBlueprintGroup({ bpID, blueprintResults }) {
                     showSnackbarSuccess(`${newJob.name} Added`, 3);
 
                     updateLoadingBuild((prev) => !prev);
-                    t.stop();
                   }}
                 >
                   <AddIcon />

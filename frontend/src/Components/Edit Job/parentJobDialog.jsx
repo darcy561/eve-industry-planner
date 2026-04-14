@@ -31,19 +31,19 @@ export function ParentJobDialog({
       return;
     }
     let newMatches = [];
-    if (!state.activeJob.groupID) {
+    if (!state.activeJob.includedInGroup) {
       newMatches = userJobSnapshot.filter(
         (job) =>
           (job.materialIDs.has(state.activeJob.itemID) &&
-            !state.activeJob.parentJob.includes(job.jobID) &&
+            !state.activeJob.parentJobs.includes(job.jobID) &&
             !state.parentChildToEdit.parentJobs.add.includes(job.jobID)) ||
           state.parentChildToEdit.parentJobs.remove.includes(job.jobID)
       );
     } else {
       newMatches = jobArray.filter(
         (job) =>
-          (job.groupID === state.activeJob.groupID &&
-            !state.activeJob.parentJob.includes(job.jobID) &&
+          (state.activeJob.includedInGroup && job.groupID === state.activeJob.groupID &&
+            !state.activeJob.parentJobs.includes(job.jobID) &&
             job.build.materials.some(
               (material) => material.typeID === state.activeJob.itemID
             ) &&

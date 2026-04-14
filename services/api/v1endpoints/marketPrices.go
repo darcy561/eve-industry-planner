@@ -63,8 +63,12 @@ func (r MarketPriceResponse) MarshalJSON() ([]byte, error) {
 	return json.Marshal(result)
 }
 
-// MarketPricesHandler handles POST requests for market prices
-// POST: expects array of type IDs in body ["12345", "67890"]
+// MarketPricesHandler handles POST /api/v1/marketprices/query with JSON body { typeIDs: string[] }.
+// Public: rate limit → handler. Client retries: withRequestRetries (408, 429, 5xx).
+//
+//	405 — not POST
+//	400 — invalid JSON, missing typeIDs, empty array, too many IDs, or invalid IDs
+//	200 — JSON map of typeID → price rows; missing keys appear as empty arrays
 func MarketPricesHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
 	start, ok := logs.RequestStartTime(ctx)

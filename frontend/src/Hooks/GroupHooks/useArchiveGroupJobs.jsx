@@ -1,11 +1,16 @@
 import { getAnalytics, logEvent } from "firebase/analytics";
+import { useQueryClient } from "@tanstack/react-query";
 import uploadGroupsToFirebase from "../../Functions/Firebase/uploadGroupData";
-import archiveJobInFirebase from "../../Functions/Firebase/archiveJob";
+import saveArchivedJobs from "../../Functions/Endpoints/Pirivate/archivedJobs";
+import { invalidateAllBuildStatsQueries } from "../React Query/Backend/buildStats";
 import closeFirebaseListeners from "../../Functions/Firebase/closeListenerRequests";
 import firebaseBatchDeleteJobs from "../../Functions/Firebase/batchDeleteJobs";
-import { showSnackbarSuccess } from "../../Events/snackbarEvents";
+import {
+  showSnackbarError,
+  showSnackbarSuccess,
+} from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
-import uploadApplicationSettingsToFirebase from "../../Functions/Firebase/uploadApplicationSettings";
+import { saveUserAccountDocument } from "../../Functions/Endpoints/Pirivate/userDocument";
 
 /**
  * Custom hook that provides functionality to archive group jobs in EVE Online industry planning.
@@ -43,6 +48,7 @@ import uploadApplicationSettingsToFirebase from "../../Functions/Firebase/upload
  * }
  */
 export function useArchiveGroupJobs() {
+  const queryClient = useQueryClient();
   const { userJobSnapshot, jobArray } = useUsersStore((state) => state.jobData);
   const {
     setActiveGroupID,
@@ -50,7 +56,7 @@ export function useArchiveGroupJobs() {
     getActiveGroupObject,
     replaceJobArray,
   } = useUsersStore.getState().jobData.actions;
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const analytics = getAnalytics();
 
   const archiveGroupJobs = async (selectedJobs) => {
@@ -60,11 +66,11 @@ export function useArchiveGroupJobs() {
     let newLinkedJobs = new Set();
 
     const filteredJobs = selectedJobs.filter(
-      (job) => !userJobSnapshot.some((i) => i.jobID === job.jobID)
+      (job) => !userJobSnapshot.some((i) => i.jobID === job.jobID),
     );
 
     logEvent(analytics, "Archive Group Jobs", {
-      UID: useUsersStore.getState().users.actions.findParentUser().accountID,
+      UID: useUsersStore.getState().account.actions.getAccountID(),
       groupID: groupID,
       groupSize: filteredJobs.length,
     });
@@ -78,10 +84,10 @@ export function useArchiveGroupJobs() {
     let newJobArray = jobArray.filter(
       (i) =>
         selectedJobs.some((z) => z.jobID === i.jobID) &&
-        !userJobSnapshot.some((x) => x.job === i.jobID)
+        !userJobSnapshot.some((x) => x.job === i.jobID),
     );
 
-    useUsersStore.getState().users.actions.addLinkedEsiData({
+    useUsersStore.getState().account.actions.addLinkedEsiData({
       ordersToAdd: new Set(),
       jobsToAdd: new Set(),
       transactionsToAdd: new Set(),
@@ -97,12 +103,20 @@ export function useArchiveGroupJobs() {
     if (isLoggedIn) {
       closeFirebaseListeners(filteredJobs);
 
-      await Promise.all(filteredJobs.map((job) => archiveJobInFirebase(job)));
+      const archivedOk = await saveArchivedJobs(filteredJobs);
+      if (!archivedOk) {
+        showSnackbarError("Some jobs could not be archived on the server.", 5);
+        return;
+      }
+
+      if (archivedOk) {
+        invalidateAllBuildStatsQueries(queryClient);
+      }
 
       await Promise.all([
-        firebaseBatchDeleteJobs(filteredJobs),
+        ...(archivedOk ? [firebaseBatchDeleteJobs(filteredJobs)] : []),
         uploadGroupsToFirebase(),
-        uploadApplicationSettingsToFirebase(),
+        saveUserAccountDocument(),
       ]);
     }
     showSnackbarSuccess(`${groupName} Archived`, 3);
@@ -112,4 +126,3 @@ export function useArchiveGroupJobs() {
     archiveGroupJobs,
   };
 }
-0;

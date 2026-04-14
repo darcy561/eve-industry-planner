@@ -64,7 +64,7 @@ function MarketDataDialog() {
 
       getWorldData(
         locations,
-        useUsersStore.getState().users.actions.findParentUser()
+        useUsersStore.getState().account.actions.getMainCharacter()
       ).then(setWorldData);
     }
   }, [

@@ -19,9 +19,9 @@ export function AssetLocationFlagPage_Corporation({
   selectedCorporation,
   assetLocationFlagRequest,
 }) {
-  const users = useUsersStore((state) => state.users.userArray);
+  const characters = useUsersStore((state) => state.account.characters);
   const setCorporationOffices =
-    useUsersStore.getState().users.actions.setCorporationOffices;
+    useUsersStore.getState().account.actions.setCorporationOffices;
   const [topLevelAssets, updateTopLevelAssets] = useState(null);
   const [assetLocations, updateAssetLocations] = useState(null);
   const [assetLocationNames, updateAssetLocationNames] = useState(null);
@@ -37,8 +37,10 @@ export function AssetLocationFlagPage_Corporation({
   const { isLoading: isLoadingBlueprints, isError: isErrorBlueprints } =
     useGetAllCorporationBlueprints(selectedCorporation);
 
-  const matchedCorporation = useUsersStore(
-    (state) => state.users.corporationObjects[selectedCorporation]
+  const matchedCorporation = useUsersStore((state) =>
+    state.account.corporations.find(
+      (c) => Number(c.corporation_id) === Number(selectedCorporation)
+    )
   );
 
   const isLoading = isLoadingAssets || isLoadingBlueprints;
@@ -50,7 +52,7 @@ export function AssetLocationFlagPage_Corporation({
         return;
       }
 
-      const requiredUserObject = users.find(
+      const characterForCorp = characters.find(
         (i) => i.corporation_id === selectedCorporation
       );
       const fullItemListData = await getFullItemList();
@@ -91,14 +93,14 @@ export function AssetLocationFlagPage_Corporation({
       );
 
       const locationNamesMap = await getAssetLocationNames(
-        requiredUserObject,
+        characterForCorp,
         assetIDSet,
         "corporation"
       );
 
       const additionalIDObjects = await getWorldData(
         requiredLocationID,
-        requiredUserObject
+        characterForCorp
       );
 
       const topLevelAssetLocationsSORTED = sortLocationMapsAlphabetically(

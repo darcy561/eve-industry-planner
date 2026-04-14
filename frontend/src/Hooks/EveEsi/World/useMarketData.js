@@ -18,7 +18,7 @@ import useESIRateLimiting from "../../useESIRateLimiting";
  * 2. Fetches market data page by page until all data is retrieved
  * 3. Combines all pages into a single array
  * 4. Handles rate limiting errors with appropriate wait times
- * 5. Caches data for 30 minutes with 5-minute stale time
+ * 5. Retains inactive cache (gcTime) 30 minutes with 5-minute stale time
  *
  * @param {number} typeID - EVE Online item type ID to fetch market data for
  * @param {Object} location - Location object containing region information
@@ -82,7 +82,7 @@ export function useMarketData(typeID, location) {
     },
     enabled: !!typeID && !!location?.regionID && !isRateLimited("market"),
     staleTime: 5 * 60 * 1000, // 5 minutes
-    cacheTime: 30 * 60 * 1000, // 30 minutes
+    gcTime: 30 * 60 * 1000, // 30 minutes
     retry: 3,
     retryDelay: (attemptIndex, error) => {
       // If rate limited, use the wait time

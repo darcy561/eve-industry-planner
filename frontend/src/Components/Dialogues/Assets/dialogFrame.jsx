@@ -5,7 +5,7 @@ import { AssetsDataProvider } from "./dialogDataProviders";
 import useUsersStore from "../../../Zustand/usersStore";
 
 function AssetsDialogue() {
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   if (!isLoggedIn) return null;
 
   const { state, actions } = useAssetsDialogReducer();

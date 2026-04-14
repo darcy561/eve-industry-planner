@@ -156,7 +156,6 @@ export function ItemPriceRow({
     }));
   };
 
-
   const updateUnconfirmedEntry = (entryId, field, value) => {
     const entryToUpdate = unconfirmedEntries.find((e) => e.id === entryId);
     if (!entryToUpdate) return;

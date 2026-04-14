@@ -1,16 +1,19 @@
 import { useFirebase } from "./useFirebase";
-import { trace } from "firebase/performance";
-import { performance, auth } from "../firebase";
+import { auth } from "../firebase";
 import { getAnalytics, logEvent } from "firebase/analytics";
 import { signInWithCustomToken } from "firebase/auth";
-import getFirebaseTokenViaApi from "../Functions/Migration/getFirebaseTokenViaApi";
-import getUserFromRefreshToken from "../Components/Auth/RefreshToken";
+import {
+  fetchServerJWT,
+  refreshServerJWTForLogin,
+} from "../Functions/Auth/serverTokens.js";
+import getCharacterFromRefreshToken from "../Components/Auth/RefreshToken";
 import useUsersStore from "../Zustand/usersStore";
 import redirectToEveSSO from "../Components/Auth/Functions/eveSSORedirect";
 import { emitUserDataUpdate } from "../Events/loginEvents";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCharacterHooks } from "./React Query/useCharacterHooks";
 import { buildCorporationObjectFromUserObject } from "../Functions/Corporations/buildCorporationObject";
+import { runPostLoginAccountSync } from "../Components/Auth/runPostLoginAccountSync";
 
 /**
  * Custom hook that provides user refresh functionality for EVE Online industry planning.
@@ -22,7 +25,6 @@ import { buildCorporationObjectFromUserObject } from "../Functions/Corporations/
  * - Firebase listener setup for real-time data
  * - User state management and login completion
  * - Error handling with SSO redirect fallback
- * - Performance tracing for refresh operations
  *
  * The refresh process:
  * 1. Clears existing job snapshot data
@@ -57,76 +59,88 @@ export function useRefreshUser() {
   const {
     userJobSnapshotListener,
     userWatchlistListener,
-    userMaindDocListener,
     userGroupDataListener,
   } = useFirebase();
   const queryClient = useQueryClient();
-  const { triggerCharacterDataPrefetch } = useCharacterHooks();
-  const { toggleIsLoggedIn, updateUserArray: updateUserArrayAction } =
-    useUsersStore.getState().users.actions;
+  const { triggerCharacterDataPrefetch, prefetchMultipleCharacters } =
+    useCharacterHooks();
+  const { updateCharacters: updateCharactersAction } =
+    useUsersStore.getState().account.actions;
   const { clearUserJobSnapshotArray, clearJobArray } =
     useUsersStore.getState().jobData.actions;
 
   async function reloadMainUser(refreshToken) {
     try {
       const analytics = getAnalytics();
-      const t = trace(performance, "MainUserRefreshProcessFull");
-      t.start();
 
       clearUserJobSnapshotArray();
 
-      const refreshedUser = await getUserFromRefreshToken(refreshToken, true);
-      if (refreshedUser instanceof Error) {
-        throw refreshedUser;
+      const refreshedCharacter = await getCharacterFromRefreshToken(refreshToken, true);
+      if (refreshedCharacter instanceof Error) {
+        throw refreshedCharacter;
       }
 
-      const tokenResponse = await refreshedUser.requestServerToken();
-      if (tokenResponse instanceof Error) throw tokenResponse;
+      const existingServerRefreshToken = useUsersStore.getState().account.refreshToken;
+      const tokenResponse = existingServerRefreshToken
+        ? await refreshServerJWTForLogin(
+            existingServerRefreshToken,
+            refreshedCharacter.esiAccessToken
+          )
+        : await fetchServerJWT(refreshedCharacter.esiAccessToken);
+      useUsersStore
+        .getState()
+        .account.actions.applyLoginAuthResponse(
+          tokenResponse,
+          refreshedCharacter.CharacterHash
+        );
 
-      // Use Firebase token from login response when available (single request); otherwise fetch separately
-      const firebaseToken = tokenResponse.firebase_token
-        ? tokenResponse.firebase_token
-        : (await getFirebaseTokenViaApi(refreshedUser.serverAccessToken))
-            ?.access_token;
+      const firebaseToken = tokenResponse.firebase_token;
       if (!firebaseToken) {
-        throw new Error("Unable to Authenticate Firebase Token");
+        throw new Error(
+          "Login response missing firebase_token (server must include it from /api/v1/auth/login)"
+        );
       }
       const signInResult = await signInWithCustomToken(auth, firebaseToken);
 
       if (!signInResult || !signInResult.user) {
         throw new Error("Unable to Authenticate Firebase Token");
       }
-      refreshedUser.accountID = signInResult.user.uid;
 
-      await refreshedUser.getPublicCharacterData();
+      useUsersStore.getState().account.actions.setLoggedIn(true);
 
-      await buildCorporationObjectFromUserObject(refreshedUser);
+      await refreshedCharacter.getPublicCharacterData();
 
-      updateUserArrayAction([refreshedUser]);
-      triggerCharacterDataPrefetch(queryClient, refreshedUser.CharacterHash);
+      await buildCorporationObjectFromUserObject(refreshedCharacter);
+
+      updateCharactersAction([refreshedCharacter]);
+      triggerCharacterDataPrefetch(queryClient, refreshedCharacter.CharacterHash);
       emitUserDataUpdate({
         eveLoginComplete: true,
         userArray: [
           {
-            CharacterID: refreshedUser.CharacterID,
-            CharacterName: refreshedUser.CharacterName,
+            CharacterID: refreshedCharacter.CharacterID,
+            CharacterName: refreshedCharacter.CharacterName,
           },
         ],
       });
 
-      userMaindDocListener();
+      await runPostLoginAccountSync({
+        queryClient,
+        prefetchMultipleCharacters,
+        userDocument: tokenResponse.user_document,
+      });
+
       userJobSnapshotListener();
       userWatchlistListener();
       userGroupDataListener();
 
       clearJobArray();
-      toggleIsLoggedIn();
       logEvent(analytics, "userSignIn", {
         UID: signInResult.user.uid,
+        isFirstTimeLogin: useUsersStore.getState().account.isFirstTimeLogin,
       });
-      t.stop();
     } catch (err) {
-      console.error(err);
+      console.error("reloadMainUser failed:", err);
       redirectToEveSSO();
     }
   }

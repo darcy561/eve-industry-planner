@@ -241,9 +241,17 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 			}
 		}
 
-		// Extract accountID from document (for INSERT operations - broadcast to all account clients)
+		// Extract accountID from document (for INSERT operations - broadcast to all account clients).
+		// Jobs store owner on _meta.accountID; other collections may use root accountID.
 		if accID, ok := docToExtract["accountID"].(string); ok && accID != "" {
 			accountID = accID
+		}
+		if accountID == "" {
+			if meta, ok := docToExtract["_meta"].(bson.M); ok {
+				if accID, ok := meta["accountID"].(string); ok && accID != "" {
+					accountID = accID
+				}
+			}
 		}
 	}
 

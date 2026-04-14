@@ -65,7 +65,7 @@ const emptyCharacterDataModel = {
  * }
  */
 export function useGetCharacterOrdersAndWalletData(characterHashes) {
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
 
   // Convert single hash to array for consistent handling
   const hashes = Array.isArray(characterHashes)
@@ -75,7 +75,7 @@ export function useGetCharacterOrdersAndWalletData(characterHashes) {
   // Get all requested characters
   const requestedCharacters = hashes
     .map((hash) =>
-      useUsersStore.getState().users.actions.findUserByCharacterHash(hash)
+      useUsersStore.getState().account.actions.findCharacterByHash(hash)
     )
     .filter(Boolean);
 
@@ -207,7 +207,7 @@ export function fetchCachedCharacterOrdersAndWalletData(
     : [characterHashes];
   const requestedCharacters = hashes
     .map((hash) =>
-      useUsersStore.getState().users.actions.findUserByCharacterHash(hash)
+      useUsersStore.getState().account.actions.findCharacterByHash(hash)
     )
     .filter(Boolean);
 

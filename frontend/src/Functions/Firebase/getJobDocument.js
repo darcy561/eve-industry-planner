@@ -1,7 +1,7 @@
 import { firestore } from "../../firebase";
 import { doc, getDoc } from "firebase/firestore";
 import getCurrentFirebaseUser from "./currentFirebaseUser";
-import Job from "../../Classes/jobConstructor";
+import Job from "../../Classes/job";
 
 /**
  * Retrieves a job document from Firebase Firestore by job ID.

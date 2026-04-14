@@ -20,13 +20,14 @@ import useUsersStore from "../../Zustand/usersStore";
  * />
  */
 export default function CorporationSelect({ value, onChange, formHelperText }) {
-  const corporationObjects = useUsersStore(
-    (state) => state.users.corporationObjects
-  );
+  const corporations = useUsersStore((state) => state.account.corporations);
 
   const selectedCorporation = useMemo(() => {
-    return corporationObjects[value]?.corporation_id ?? "";
-  }, [corporationObjects, value]);
+    const c = corporations.find(
+      (x) => Number(x.corporation_id) === Number(value)
+    );
+    return c?.corporation_id ?? "";
+  }, [corporations, value]);
 
   return (
     <FormControl
@@ -51,7 +52,7 @@ export default function CorporationSelect({ value, onChange, formHelperText }) {
           }
         }}
       >
-        {Object.values(corporationObjects).map(
+        {corporations.map(
           ({ corporation_id, corporationName }) => {
             return (
               <MenuItem key={corporation_id} value={corporation_id}>

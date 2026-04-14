@@ -98,7 +98,7 @@ export function useShoppingListCorporationAssets({
                 // Only set corporation offices once per corporation/assets combination
                 const officesKey = `${state.selectedCorporation}-${corporationAssets?.length || 0}`;
                 if (!corporationOfficesSetRef.current.has(officesKey)) {
-                    useUsersStore.getState().users.actions.setCorporationOffices(
+                    useUsersStore.getState().account.actions.setCorporationOffices(
                         state.selectedCorporation,
                         corporationAssets
                     );
@@ -113,7 +113,7 @@ export function useShoppingListCorporationAssets({
                 // Get corporation object to understand office/hangar structure
                 const corporationObject = useUsersStore
                     .getState()
-                    .users.actions.getCorporationObject(state.selectedCorporation);
+                    .account.actions.getCorporation(state.selectedCorporation);
 
                 if (!corporationObject) {
                     actions.setIsLoading(false);

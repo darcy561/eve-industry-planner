@@ -36,6 +36,11 @@ firestore-debug.log
 database-debug.log
 .firebaserc
 adminSDK.json
+adminSDKLive.json
+
+# Firestore ArchivedJobs sample exports (see migration/README.md)
+archivejobs_firestore_samples/
+archivejobs_firestore_normalized/
 
 # Sentry Config File
 .env.sentry-build-plugin

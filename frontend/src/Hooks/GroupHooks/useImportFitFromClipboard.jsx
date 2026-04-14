@@ -62,7 +62,7 @@ export function useImportFitFromClipboard() {
     getGroupObject,
     replaceJobArray,
   } = useUsersStore.getState().jobData.actions;
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const { buildJob } = useJobBuild();
   const { recalculateJobForNewTotal } = useRecalcuateJob();
 
@@ -214,7 +214,7 @@ export function useImportFitFromClipboard() {
           (i) => i.itemID === material.typeID && i.groupID === activeGroupID
         );
         if (materialMatch) {
-          materialMatch.parentJob.push(job.jobID);
+          materialMatch.parentJobs.push(job.jobID);
           job.build.childJobs[material.typeID].push(materialMatch.jobID);
           jobsToSave.add(materialMatch.jobID);
         }

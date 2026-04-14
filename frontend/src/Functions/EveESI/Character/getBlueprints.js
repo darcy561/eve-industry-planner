@@ -4,7 +4,7 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
  * Fetches character blueprints from EVE ESI API with pagination and caching support.
  * 
  * @param {Object} params - Parameters object
- * @param {Object} params.character - Character object with aToken, CharacterID, and CharacterHash
+ * @param {Object} params.character - Character object with esiAccessToken, CharacterID, and CharacterHash
  * @param {number} [params.page=1] - Page number for pagination
  * @param {Object} [params.existingData={}] - Existing data for caching
  * @param {Object} [params.config={}] - Additional configuration options
@@ -12,7 +12,7 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
  * 
  * @example
  * const blueprints = await getCharacterBlueprints({
- *   character: { aToken: "token", CharacterID: 123456, CharacterHash: "hash" },
+ *   character: { esiAccessToken: "token", CharacterID: 123456, CharacterHash: "hash" },
  *   page: 1,
  *   config: { characterHash: "hash" }
  * });
@@ -26,14 +26,14 @@ async function getCharacterBlueprints({
   try {
     if (
       !character ||
-      !character.aToken ||
+      !character.esiAccessToken ||
       !character.CharacterID ||
       !character.CharacterHash
     ) {
       throw new Error("Character information is incomplete.");
     }
 
-    const { aToken, CharacterID, CharacterHash } = character;
+    const { esiAccessToken, CharacterID, CharacterHash } = character;
     const endpointURL = `https://esi.evetech.net/v3/characters/${CharacterID}/blueprints/?datasource=tranquility&page=${page}`;
 
     // Enhanced configuration for rate limiting
@@ -52,7 +52,7 @@ async function getCharacterBlueprints({
       {
         headers: {
           "If-None-Match": existingData?.etag || "",
-          Authorization: `Bearer ${aToken}`,
+          Authorization: `Bearer ${esiAccessToken}`,
         },
       },
       enhancedConfig

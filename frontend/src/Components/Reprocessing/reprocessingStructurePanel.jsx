@@ -8,7 +8,7 @@ import RigTypeSelect from "../../Styled Components/Select/rigType";
 import SkillSelecter from "../../Styled Components/Select/skillSelecter";
 import getAllReprocessingSkills from "../../Functions/Skills/getAllReprocessingSkills";
 import AssignUsersSelect from "../../Styled Components/Select/users";
-import ReprocessingStructure from "../../Classes/reprocessingStructureConstructor";
+import ReprocessingStructure from "../../Classes/reprocessingStructure";
 import ImplantSelect from "../../Styled Components/Select/implantSelecter";
 import useUsersStore from "../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
@@ -18,7 +18,7 @@ import PanelFallBack from "../../Styled Components/Paper/panelStates";
 import CustomStructureSelect from "../../Styled Components/Select/customStructure";
 
 function ReprocessingStructurePanel({ pageState, pageActions }) {
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const queryClient = useQueryClient();
 
   const requiredSkills = getAllReprocessingSkills();

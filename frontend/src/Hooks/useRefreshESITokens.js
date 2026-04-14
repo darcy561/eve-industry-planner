@@ -3,15 +3,12 @@ import GLOBAL_CONFIG from "../global-config-app";
 import useUsersStore from "../Zustand/usersStore";
 
 /**
- * Custom hook that automatically refreshes ESI (EVE Swagger Interface) tokens for all logged-in users
- * at regular intervals to maintain valid authentication with EVE Online's API.
+ * Custom hook that automatically refreshes ESI (EVE Online API) OAuth tokens for all logged-in users
+ * at regular intervals to maintain valid authentication. ESI routes are documented in CCP’s OpenAPI-based
+ * API Explorer: https://developers.eveonline.com/api-explorer
  *
  * This hook:
- * - Checks if users are logged in before attempting token refresh
- * - Iterates through all users in the user array
- * - Refreshes access tokens for each valid user
- * - Updates public character data after token refresh
- * - Updates the user array in the store with refreshed data
+ * - Delegates to `account.actions.runScheduledTokenRefresh` on an interval
  * - Runs at intervals defined by GLOBAL_CONFIG.DEFAULT_CHARACTER_REFRESH_INTERVAL
  *
  * @returns {void} This hook doesn't return any value, but sets up an interval for token refresh
@@ -25,25 +22,9 @@ import useUsersStore from "../Zustand/usersStore";
  */
 function useRefreshESITokens() {
   useEffect(() => {
-    const refreshESITokens = async () => {
-      if (!useUsersStore.getState().users.isLoggedIn) return;
-      const userArray = useUsersStore.getState().users.userArray;
-      for (let user of userArray) {
-        if (!user || typeof user.refreshESIToken !== "function") {
-          console.error(
-            "Invalid user object or missing refreshESIToken method"
-          );
-          continue;
-        }
-        await user.refreshESIToken();
-        await user.getPublicCharacterData();
-        await user.refreshServerToken();
-      }
-      useUsersStore.getState().users.actions.updateUserArray([...userArray]);
-    };
-
     const interval = setInterval(
-      refreshESITokens,
+      () =>
+        useUsersStore.getState().account.actions.runScheduledTokenRefresh(),
       GLOBAL_CONFIG.DEFAULT_CHARACTER_REFRESH_INTERVAL * 60 * 1000
     );
 

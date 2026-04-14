@@ -67,11 +67,6 @@ vi.mock('firebase/analytics', () => ({
   logEvent: vi.fn(),
 }));
 
-// Mock Firebase Performance
-vi.mock('firebase/performance', () => ({
-  getPerformance: vi.fn(() => ({})),
-}));
-
 // Mock Firebase Messaging
 vi.mock('firebase/messaging', () => ({
   getMessaging: vi.fn(() => ({})),

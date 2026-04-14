@@ -20,7 +20,7 @@ import redirectToEveSSO from "../Auth/Functions/eveSSORedirect";
 import OfflineNotificationIcon from "./Components/offlineNotificationIcon";
 
 export function Header() {
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const [open, setOpen] = useState(false);
   const { toggleColorMode } = useThemeContext();
   const theme = useTheme();

@@ -5,7 +5,7 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
  * Filters out buy orders and only returns sell orders.
  * 
  * @param {Object} params - Parameters object
- * @param {Object} params.character - Character object with aToken, CharacterID, and CharacterHash
+ * @param {Object} params.character - Character object with esiAccessToken, CharacterID, and CharacterHash
  * @param {number} [params.page=1] - Page number for pagination
  * @param {Object} [params.existingData={}] - Existing data for caching
  * @param {Object} [params.config={}] - Additional configuration options
@@ -13,7 +13,7 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
  * 
  * @example
  * const orders = await getCharacterMarketOrders({
- *   character: { aToken: "token", CharacterID: 123456, CharacterHash: "hash" },
+ *   character: { esiAccessToken: "token", CharacterID: 123456, CharacterHash: "hash" },
  *   page: 1,
  *   config: { characterHash: "hash" }
  * });
@@ -25,11 +25,11 @@ async function getCharacterMarketOrders({
   config = {}
 }) {
   try {
-    if (!character || !character.aToken || !character.CharacterID) {
+    if (!character || !character.esiAccessToken || !character.CharacterID) {
       throw new Error("Character information is incomplete.");
     }
 
-    const { aToken, CharacterID } = character;
+    const { esiAccessToken, CharacterID } = character;
     const endpointURL = `https://esi.evetech.net/v2/characters/${CharacterID}/orders/?datasource=tranquility&page=${page}`;
 
     // Enhanced configuration for rate limiting
@@ -48,7 +48,7 @@ async function getCharacterMarketOrders({
       {
         headers: {
           "If-None-Match": existingData?.etag || "",
-          Authorization: `Bearer ${aToken}`,
+          Authorization: `Bearer ${esiAccessToken}`,
         },
       },
       enhancedConfig

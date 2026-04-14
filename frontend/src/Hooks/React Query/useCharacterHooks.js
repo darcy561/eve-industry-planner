@@ -279,7 +279,6 @@ export function useCharacterHooks() {
         );
     }
 
-
     async function triggerCharacterDataPrefetch(queryClient, characterHash, shouldLog = false) {
         const overallStart = performance.now();
         

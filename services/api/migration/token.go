@@ -7,13 +7,14 @@ import (
 	"eve-industry-planner/shared/firebaseadmin"
 
 	"firebase.google.com/go/v4/auth"
+	"firebase.google.com/go/v4/errorutils"
 )
 
 // GenerateFirebaseCustomToken generates a Firebase custom token for the given accountID (UID).
-// It mirrors the behavior of the existing Node generateToken function:
-// - Checks if the user exists in Firebase Auth
-// - For new users, provisions initial Firestore data via BuildNewUserFirestoreData
-// - Returns a custom token and whether this is the first time login
+// Ensures a Firebase Auth user exists (creates one with that UID if missing) and ensures the
+// legacy Firestore scaffold exists (main user doc + ProfileInfo Watchlist / JobSnapshot / GroupData)
+// so client listeners used during login receive documents. Application settings and account rows
+// remain owned by MongoDB.
 func GenerateFirebaseCustomToken(ctx context.Context, accountID string) (string, bool, error) {
 	if accountID == "" {
 		return "", false, fmt.Errorf("accountID is required")
@@ -24,20 +25,25 @@ func GenerateFirebaseCustomToken(ctx context.Context, accountID string) (string,
 		return "", false, fmt.Errorf("get firebase auth client: %w", err)
 	}
 
-	var userExists bool
-
+	userExists := true
 	_, err = authClient.GetUser(ctx, accountID)
 	if err != nil {
-		if auth.IsUserNotFound(err) {
-			userExists = false
-			if err := BuildNewUserFirestoreData(ctx, accountID); err != nil {
-				return "", false, fmt.Errorf("provision new user firestore data: %w", err)
-			}
-		} else {
+		if !auth.IsUserNotFound(err) {
 			return "", false, fmt.Errorf("check firebase user: %w", err)
 		}
-	} else {
-		userExists = true
+		userExists = false
+		_, cerr := authClient.CreateUser(ctx, (&auth.UserToCreate{}).UID(accountID))
+		if cerr != nil {
+			if errorutils.IsAlreadyExists(cerr) {
+				userExists = true
+			} else {
+				return "", false, fmt.Errorf("create firebase auth user: %w", cerr)
+			}
+		}
+	}
+
+	if err := EnsureUserFirestoreScaffold(ctx, accountID); err != nil {
+		return "", userExists, fmt.Errorf("ensure firestore scaffold: %w", err)
 	}
 
 	token, err := authClient.CustomToken(ctx, accountID)

@@ -1,6 +1,7 @@
 #!/bin/bash
 # Compare local sync state to the latest commit on GitHub Public; if it changed,
-# re-download the branch tarball and replace docker-compose.yml, observability/, and scripts/.
+# re-download the branch tarball and replace docker-compose.yml, scripts/, and observability/
+# (observability/ is optional — if absent upstream, local observability/ is removed).
 
 set -e
 
@@ -64,21 +65,32 @@ apply_public_archive() {
     tar -xzf "$tgz" -C "$TMP"
     local ROOT
     ROOT=$(find "$TMP" -mindepth 1 -maxdepth 1 -type d | head -1)
-    if [ -z "$ROOT" ] || [ ! -d "$ROOT/observability" ] || [ ! -d "$ROOT/scripts" ]; then
-        echo "Error: unexpected archive layout (expected observability/ and scripts/)" >&2
+    if [ -z "$ROOT" ] || [ ! -f "$ROOT/docker-compose.yml" ] || [ ! -d "$ROOT/scripts" ]; then
+        echo "Error: unexpected archive layout (expected docker-compose.yml and scripts/)" >&2
         return 1
     fi
 
     mkdir -p "$RUN_DIR/scripts"
     cp -f "$ROOT/docker-compose.yml" "$RUN_DIR/"
 
-    if command -v rsync >/dev/null 2>&1; then
-        mkdir -p "$RUN_DIR/observability"
-        rsync -a --delete "$ROOT/observability/" "$RUN_DIR/observability/"
-        rsync -a --delete "$ROOT/scripts/" "$RUN_DIR/scripts/"
+    # observability/ may be missing from the tarball if upstream removed it or only empty dirs
+    # remained (git does not store empty folders). Mirror upstream: delete local when absent.
+    if [ -d "$ROOT/observability" ]; then
+        if command -v rsync >/dev/null 2>&1; then
+            mkdir -p "$RUN_DIR/observability"
+            rsync -a --delete "$ROOT/observability/" "$RUN_DIR/observability/"
+        else
+            rm -rf "$RUN_DIR/observability"
+            cp -a "$ROOT/observability" "$RUN_DIR/"
+        fi
     else
         rm -rf "$RUN_DIR/observability"
-        cp -a "$ROOT/observability" "$RUN_DIR/"
+        echo "Note: observability/ not in Public archive; removed local observability/." >&2
+    fi
+
+    if command -v rsync >/dev/null 2>&1; then
+        rsync -a --delete "$ROOT/scripts/" "$RUN_DIR/scripts/"
+    else
         mkdir -p "$RUN_DIR/scripts"
         shopt -s nullglob
         for f in "$ROOT/scripts"/*; do
@@ -86,7 +98,11 @@ apply_public_archive() {
         done
         shopt -u nullglob
     fi
-    chmod +x "$RUN_DIR/scripts"/*.sh 2>/dev/null || true
+    shopt -s nullglob
+    for f in "$RUN_DIR/scripts"/*.sh; do
+        chmod +x "$f"
+    done
+    shopt -u nullglob
 
     if command -v jq >/dev/null 2>&1; then
         init_version_file
@@ -99,7 +115,7 @@ apply_public_archive() {
            "$VERSION_FILE" > "${VERSION_FILE}.tmp" && mv "${VERSION_FILE}.tmp" "$VERSION_FILE"
     fi
 
-    echo "Synced docker-compose.yml, observability/, and scripts/ from Public branch."
+    echo "Synced docker-compose.yml, scripts/, and observability/ (if present) from Public branch."
 }
 
 update_files() {
@@ -131,7 +147,7 @@ case "${1:-update}" in
     *)
         echo "Usage: $0 [update]"
         echo ""
-        echo "Re-syncs compose, observability/, and scripts/ when Public branch HEAD changes."
+        echo "Re-syncs compose, scripts/, and observability/ when Public branch HEAD changes."
         exit 1
         ;;
 esac

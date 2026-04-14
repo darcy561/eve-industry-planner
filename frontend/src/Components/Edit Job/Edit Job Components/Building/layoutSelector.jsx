@@ -8,10 +8,7 @@ export function LayoutSelector_EditJob_Building(props) {
   const { state } = props;
   const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("sm"));
   const { data: allIndustryJobs, isLoading, isError, error: totalErrorObject } = useGetAllIndustryJobs();
-  const parentUser = useUsersStore((state) =>
-    state.users.actions.findParentUser()
-  );
-  const linkedJobs = useUsersStore((state) => state.users.linkedJobs);
+  const linkedJobs = useUsersStore((state) => state.account.linkedJobs);
 
   const {
     jobMatches,
@@ -27,13 +24,11 @@ export function LayoutSelector_EditJob_Building(props) {
   const totalIsLoading = isLoading || isWorldDataLoading;
   const totalError = isError || worldDataError;
 
-
   switch (deviceNotMobile) {
     case true:
       return (
         <Building_StandardLayout_EditJob
           {...props}
-          parentUser={parentUser}
           jobMatches={jobMatches}
           isLoading={totalIsLoading}
           isError={totalError}
@@ -44,7 +39,6 @@ export function LayoutSelector_EditJob_Building(props) {
       return (
         <Building_StandardLayout_EditJob
           {...props}
-          parentUser={parentUser}
           jobMatches={jobMatches}
           isLoading={totalIsLoading}
           isError={totalError}
@@ -55,7 +49,6 @@ export function LayoutSelector_EditJob_Building(props) {
       return (
         <Building_StandardLayout_EditJob
           {...props}
-          parentUser={parentUser}
           jobMatches={jobMatches}
           isLoading={totalIsLoading}
           isError={totalError}

@@ -12,7 +12,6 @@ import useUsersStore from "../../../../../Zustand/usersStore";
 import { WatchListSetupOptions_WatchlistDialog } from "./watchlistOptions";
 
 export function EditItemDisplay_WatchlistDialog({
-  parentUser,
   watchlistItemRequest,
   updateWatchlistItemRequest,
   setImportedJob,
@@ -68,7 +67,6 @@ export function EditItemDisplay_WatchlistDialog({
         })}
       </Grid>
       <WatchListSetupOptions_WatchlistDialog
-        parentUser={parentUser}
         setImportedJob={setImportedJob}
         watchlistItemRequest={watchlistItemRequest}
         materialJobs={materialJobs}

@@ -2,38 +2,85 @@ package models
 
 import "time"
 
-// JobStatus represents a job status entry in the jobStatusArray
-type JobStatus struct {
-	ID              int    `bson:"id" json:"id"`
-	Name            string `bson:"name" json:"name"`
-	SortOrder       int    `bson:"sortOrder" json:"sortOrder"`
-	Expanded        bool   `bson:"expanded" json:"expanded"`
-	OpenAPIJobs     bool   `bson:"openAPIJobs" json:"openAPIJobs"`
-	CompleteAPIJobs bool   `bson:"completeAPIJobs" json:"completeAPIJobs"`
+// JobStatusEntry is one workflow stage in ApplicationSettings.jobStatuses (keyed by status id string).
+// Values are objects so extra fields can be added later without another migration.
+type JobStatusEntry struct {
+	Name string `bson:"name" json:"name"`
 }
 
-// AccountSettings represents the account settings
-type AccountSettings struct {
-	CloudAccounts bool `bson:"cloudAccounts" json:"cloudAccounts"`
+// DefaultJobStatusesMap returns the standard five-stage planner labels keyed by id ("0"–"4").
+func DefaultJobStatusesMap() map[string]JobStatusEntry {
+	return map[string]JobStatusEntry{
+		"0": {Name: "Planning"},
+		"1": {Name: "Purchasing"},
+		"2": {Name: "Building"},
+		"3": {Name: "Complete"},
+		"4": {Name: "For Sale"},
+	}
 }
 
-// LayoutSettings represents the layout settings
-type LayoutSettings struct {
-	HideTutorials      bool    `bson:"hideTutorials" json:"hideTutorials"`
-	LocalMarketDisplay *string `bson:"localMarketDisplay,omitempty" json:"localMarketDisplay,omitempty"`
-	LocalOrderDisplay  *string `bson:"localOrderDisplay,omitempty" json:"localOrderDisplay,omitempty"`
-	EsiJobTab          *string `bson:"esiJobTab,omitempty" json:"esiJobTab,omitempty"`
-	EnableCompactView  bool    `bson:"enableCompactView" json:"enableCompactView"`
+// EmptyCustomStructures returns empty manufacturing / reaction / reprocessing lists.
+func EmptyCustomStructures() CustomStructures {
+	return CustomStructures{
+		Manufacturing: []CustomStructure{},
+		Reaction:      []CustomStructure{},
+		Reprocessing:  []ReprocessingStructure{},
+	}
 }
 
-// EditJobSettings represents the edit job settings
-type EditJobSettings struct {
-	DefaultMarket                  string  `bson:"defaultMarket" json:"defaultMarket"`
-	DefaultOrders                  string  `bson:"defaultOrders" json:"defaultOrders"`
-	HideCompleteMaterials          bool    `bson:"hideCompleteMaterials" json:"hideCompleteMaterials"`
-	DefaultAssetLocation           int64   `bson:"defaultAssetLocation" json:"defaultAssetLocation"`
-	CitadelBrokersFee              float64 `bson:"citadelBrokersFee" json:"citadelBrokersFee"`
-	DefaultMaterialEfficiencyValue int     `bson:"defaultMaterialEfficiencyValue" json:"defaultMaterialEfficiencyValue"`
+// DefaultReprocessingSettings returns default reprocessing calculation preferences (no default character).
+func DefaultReprocessingSettings() ReprocessingSettings {
+	return ReprocessingSettings{
+		DefaultReprocessingCharacter: nil,
+		PreferCompressed:             true,
+		CompressionBonusMultiplier:   0.25,
+		ValueMultiplier:              2.0,
+		WastePenaltyMultiplier:       0.1,
+		SellExcessMineralTypes:       false,
+	}
+}
+
+// DefaultExtrasCategories returns the built-in extra cost categories.
+func DefaultExtrasCategories() []ExtraCategory {
+	return []ExtraCategory{
+		{ID: "0", Label: "Unassigned", Deleted: false, DeletedAt: nil},
+		{ID: "1", Label: "Hauling Service", Deleted: false, DeletedAt: nil},
+		{ID: "2", Label: "Jump Freight Service", Deleted: false, DeletedAt: nil},
+		{ID: "3", Label: "Blueprint Copies", Deleted: false, DeletedAt: nil},
+		{ID: "4", Label: "Loyal Point Costs", Deleted: false, DeletedAt: nil},
+		{ID: "5", Label: "Other", Deleted: false, DeletedAt: nil},
+	}
+}
+
+// DefaultApplicationSettings returns a full new-account application_settings document for Mongo
+// and as the base for Firebase → Mongo mapping (overlaid with Firestore data when present).
+func DefaultApplicationSettings(accountID string, now time.Time) ApplicationSettings {
+	return ApplicationSettings{
+		UseCloudAccounts:                 false,
+		DisplayHelpCards:                 false,
+		DefaultMarketLocation:            "jita",
+		DefaultOrderType:                 "sell",
+		EsiJobTab:                        nil,
+		EnableCompactLayoutView:          false,
+		EnableAutomaticJobRecalculation:  true,
+		EnableSkipMissingBlueprints:      false,
+		HideCompleteMaterialsFromEditJob: false,
+		DefaultStationIDForAssets:        60003760,
+		DefaultCitadelBrokersFee:         1,
+		DefaultMaterialEfficiencyValue:   0,
+		CustomStructures:                 EmptyCustomStructures(),
+		ExemptTypeIDs:                    []int{},
+		ReprocessingSettings:             DefaultReprocessingSettings(),
+		ExtrasCategories:                 DefaultExtrasCategories(),
+		PredefinedSystemIndexes:          make(map[string]map[string]float64),
+		JobStatuses:                      DefaultJobStatusesMap(),
+		MetaData: ApplicationSettingsMeta{
+			MetaData: MetaData{
+				LastModified: now,
+				AccountID:    accountID,
+			},
+		},
+	}
 }
 
 // CustomStructure represents a custom structure configuration for manufacturing and reaction jobs
@@ -72,13 +119,13 @@ type CustomStructures struct {
 
 // ExtraCategory represents an extra cost category
 type ExtraCategory struct {
-	ID        string `bson:"id" json:"id"`
-	Label     string `bson:"label" json:"label"`
-	Deleted   bool   `bson:"deleted,omitempty" json:"deleted,omitempty"`
-	DeletedAt *int64 `bson:"deletedAt,omitempty" json:"deletedAt,omitempty"`
+	ID        string  `bson:"id" json:"id"`
+	Label     string  `bson:"label" json:"label"`
+	Deleted   bool    `bson:"deleted" json:"deleted"`
+	DeletedAt *string `bson:"deletedAt" json:"deletedAt"` // RFC3339 / ISO-8601; null when not deleted
 }
 
-// ReprocessingCalculationSettings represents reprocessing calculation preferences
+// ReprocessingSettings represents reprocessing calculation preferences stored on ApplicationSettings.
 type ReprocessingSettings struct {
 	DefaultReprocessingCharacter *string `bson:"defaultReprocessingCharacter,omitempty" json:"defaultReprocessingCharacter,omitempty"`
 	PreferCompressed             bool    `bson:"preferCompressed" json:"preferCompressed"`
@@ -94,24 +141,27 @@ type RefreshToken struct {
 	RToken        string `bson:"rToken" json:"rToken"`
 }
 
-// UserMeta represents metadata for user documents (stored as _meta in MongoDB)
+// UserMeta is user document metadata stored under BSON/JSON `_meta`, aligned with Job.JobMetaData
+// (shared MetaData for accountID + lastModified; additional lifecycle fields on the struct).
 type UserMeta struct {
-	MetaData    `bson:",inline" json:",inline"`
-	CreatedAt   time.Time `bson:"createdAt" json:"createdAt"`
-	LastLoginAt time.Time `bson:"lastLoginAt" json:"lastLoginAt"`
+	MetaData    `json:",inline" bson:",inline"`
+	CreatedAt   time.Time  `json:"createdAt" bson:"createdAt"`
+	LastLoginAt time.Time  `json:"lastLoginAt" bson:"lastLoginAt"`
+	DeletedAt   *time.Time `json:"deletedAt,omitempty" bson:"deletedAt,omitempty"`
+}
+
+// ApplicationSettingsMeta holds document metadata under `_meta` (same pattern as Job ownership metadata).
+type ApplicationSettingsMeta struct {
+	MetaData `json:",inline" bson:",inline"`
 }
 
 // UserAccountDocument represents a user document in the users collection
 type UserAccountDocument struct {
-	AccountID       string         `bson:"accountID" json:"accountID"`
-	JobStatusArray  []JobStatus    `bson:"jobStatusArray" json:"jobStatusArray"`
-	LinkedJobs      []int64        `bson:"linkedJobs" json:"linkedJobs"`
-	LinkedTrans     []int64        `bson:"linkedTrans" json:"linkedTrans"`
-	LinkedOrders    []int64        `bson:"linkedOrders" json:"linkedOrders"`
-	RefreshTokens   []RefreshToken `bson:"refreshTokens" json:"refreshTokens"`
-	FlagForDeletion bool           `bson:"flagForDeletion" json:"flagForDeletion"`
-	DeletedAt       *time.Time     `bson:"deletedAt,omitempty" json:"deletedAt,omitempty"`
-	MetaData        UserMeta       `bson:"_meta,omitempty" json:"_meta,omitempty"` // Metadata for change stream filtering and account lifecycle fields.
+	LinkedJobs    []int64        `bson:"linkedJobs" json:"linkedJobs"`
+	LinkedTrans   []int64        `bson:"linkedTrans" json:"linkedTrans"`
+	LinkedOrders  []int64        `bson:"linkedOrders" json:"linkedOrders"`
+	RefreshTokens []RefreshToken `bson:"refreshTokens" json:"refreshTokens"`
+	MetaData      UserMeta       `bson:"_meta" json:"_meta"`
 }
 
 type ApplicationSettings struct {
@@ -119,8 +169,6 @@ type ApplicationSettings struct {
 	DisplayHelpCards                 bool                          `bson:"displayHelpCards" json:"displayHelpCards"`
 	DefaultMarketLocation            string                        `bson:"defaultMarketLocation" json:"defaultMarketLocation"`
 	DefaultOrderType                 string                        `bson:"defaultOrderType" json:"defaultOrderType"`
-	LocalMarketDisplay               *string                       `bson:"localMarketDisplay,omitempty" json:"localMarketDisplay,omitempty"`
-	LocalOrderDisplay                *string                       `bson:"localOrderDisplay,omitempty" json:"localOrderDisplay,omitempty"`
 	EsiJobTab                        *string                       `bson:"esiJobTab,omitempty" json:"esiJobTab,omitempty"`
 	EnableCompactLayoutView          bool                          `bson:"enableCompactLayoutView" json:"enableCompactLayoutView"`
 	EnableAutomaticJobRecalculation  bool                          `bson:"enableAutomaticJobRecalculation" json:"enableAutomaticJobRecalculation"`
@@ -134,5 +182,6 @@ type ApplicationSettings struct {
 	ReprocessingSettings             ReprocessingSettings          `bson:"reprocessingSettings" json:"reprocessingSettings"`
 	ExtrasCategories                 []ExtraCategory               `bson:"extrasCategories,omitempty" json:"extrasCategories,omitempty"`
 	PredefinedSystemIndexes          map[string]map[string]float64 `bson:"predefinedSystemIndexes,omitempty" json:"predefinedSystemIndexes,omitempty"`
-	MetaData                         MetaData                      `bson:"_meta,omitempty" json:"_meta,omitempty"`
+	JobStatuses                      map[string]JobStatusEntry     `bson:"jobStatuses,omitempty" json:"jobStatuses,omitempty"`
+	MetaData                         ApplicationSettingsMeta       `bson:"_meta" json:"_meta"`
 }

@@ -3,10 +3,10 @@ import { FormControlLabel, Switch, Grid } from "@mui/material";
 import { useGlobalDebounce } from "../../../Hooks/GeneralHooks/useGlobalDebounce";
 import { DEBOUNCE_KEYS } from "../../../Context/debounceKeys";
 import useUsersStore from "../../../Zustand/usersStore";
-import uploadApplicationSettingsToFirebase from "../../../Functions/Firebase/uploadApplicationSettings";
+import { saveApplicationSettings } from "../../../Functions/Endpoints/Pirivate/userDocument";
 
 function LayoutSettingsFrame() {
-  const { hideTutorials, enableCompactView } = useUsersStore(
+  const { displayHelpCards, enableCompactLayoutView } = useUsersStore(
     (state) => state.applicationSettings
   );
 
@@ -17,7 +17,7 @@ function LayoutSettingsFrame() {
   const debouncedSaveSettings = useGlobalDebounce(
     DEBOUNCE_KEYS.APP_SETTINGS_SAVE,
     async () => {
-      await uploadApplicationSettingsToFirebase();
+      await saveApplicationSettings();
     },
     2000
   );
@@ -35,7 +35,7 @@ function LayoutSettingsFrame() {
           labelPlacement="start"
           control={
             <Switch
-              checked={!hideTutorials}
+              checked={displayHelpCards}
               color="primary"
               onChange={() => {
                 toggleHideTutorials();
@@ -56,7 +56,7 @@ function LayoutSettingsFrame() {
           labelPlacement="start"
           control={
             <Switch
-              checked={enableCompactView}
+              checked={enableCompactLayoutView}
               onChange={() => {
                 toggleEnableCompactView();
                 debouncedSaveSettings();

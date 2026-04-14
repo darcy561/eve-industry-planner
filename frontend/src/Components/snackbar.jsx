@@ -25,10 +25,20 @@ export function SnackBarNotification() {
     return () => unsubscribe();
   }, []);
 
+  const triggerVersionDismiss = () => {
+    if (
+      snackbarData.action === "VERSION_UPDATE" &&
+      typeof snackbarData.onDismiss === "function"
+    ) {
+      snackbarData.onDismiss(snackbarData.versionUpdateTarget);
+    }
+  };
+
   const handleSnackbarClose = (event, reason) => {
     if (reason === "clickaway") {
       return;
     }
+    triggerVersionDismiss();
     setSnackbarData((prev) => ({
       ...prev,
       open: false,

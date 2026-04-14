@@ -30,7 +30,7 @@ const characterAssetsQueryKey = "characterAssets";
  * @returns {Function} returns.queryFn - Async function to fetch character assets
  * @returns {boolean} returns.enabled - Whether the query is enabled
  * @returns {number} returns.staleTime - Time before data is considered stale (5 minutes)
- * @returns {number} returns.cacheTime - Time to keep data in cache (30 minutes)
+ * @returns {number} returns.gcTime - Inactive cache retention in ms (30 minutes)
  * @returns {number} returns.retry - Number of retry attempts (3)
  * @returns {Function} returns.retryDelay - Function to calculate retry delay
  * @returns {boolean} returns.refetchOnWindowFocus - Whether to refetch on window focus (false)
@@ -44,12 +44,12 @@ const characterAssetsQueryKey = "characterAssets";
  * return <div>Assets: {assets.length} items</div>;
  */
 function characterAssetsQuery(characterHash) {
-  const findUserByCharacterHash =
-    useUsersStore.getState().users.actions.findUserByCharacterHash;
+  const findCharacterByHash =
+    useUsersStore.getState().account.actions.findCharacterByHash;
   return {
     queryKey: [characterAssetsQueryKey, characterHash],
     queryFn: async () => {
-      const userObject = findUserByCharacterHash(characterHash);
+      const userObject = findCharacterByHash(characterHash);
       
       // Check if assets group is rate limited for this specific character
       // Use config.group as hint, will be updated from headers if different
@@ -83,7 +83,7 @@ function characterAssetsQuery(characterHash) {
     },
     enabled: getQueryEnabled(),
     staleTime: 5 * 60 * 1000, // 5 minutes
-    cacheTime: 30 * 60 * 1000, // 30 minutes
+    gcTime: 30 * 60 * 1000, // 30 minutes
     retry: 3,
     retryDelay: (attemptIndex, error) => {
       if (error?.message?.includes('rate limited')) {

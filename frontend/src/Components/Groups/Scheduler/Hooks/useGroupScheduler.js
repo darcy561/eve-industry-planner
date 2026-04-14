@@ -7,7 +7,7 @@ import useGetAllCorporationIndustryJobs from "../../../../Hooks/EveEsi/Corporati
 import useGetAllCharacterSkills from "../../../../Hooks/EveEsi/Character/useGetAllCharacterSkills";
 import { characterIndustryJobsQueryKey } from "../../../../Hooks/React Query/Character/industryJobs";
 import calculateTimeForSetup from "../../../../Functions/Blueprint Calculations/calculateTimeForSetup";
-import Setup from "../../../../Classes/jobSetupConstructor";
+import Setup from "../../../../Classes/jobSetup";
 import { jobTypes } from "../../../../Context/defaultValues";
 
 /**
@@ -21,17 +21,17 @@ import { jobTypes } from "../../../../Context/defaultValues";
  *
  * @param {Array<Object>} groupJobs - Array of Job objects from the active group
  * @param {number} [schedulingStrategy] - Scheduling strategy (from SchedulingStrategy enum). Defaults to 0 (GREEDY).
- * @param {Array<Object>} [users] - Optional array of User objects to include. If not provided or empty, returns empty schedule.
+ * @param {Array<Object>} [selectedCharacterRows] - Optional `account.characters` subset (`Character` instances). If empty, returns empty schedule.
  * @returns {Object} Schedule result and metadata
  */
 export function useGroupScheduler(
   groupJobs = [],
   schedulingStrategy = SchedulingStrategy.GREEDY,
-  users = null
+  selectedCharacterRows = null
 ) {
   const queryClient = useQueryClient();
 
-  // Use the "all" hooks to get data for all users
+  // "All" ESI hooks (full account), then we narrow to selectedCharacterRows
   const allCharacterIndustryJobs = useGetAllCharacterIndustryJobs();
   const allCorporationIndustryJobs = useGetAllCorporationIndustryJobs();
   const allCharacterSkills = useGetAllCharacterSkills();
@@ -54,8 +54,7 @@ export function useGroupScheduler(
       };
     }
 
-    // If no users provided, return empty schedule
-    if (!users || users.length === 0) {
+    if (!selectedCharacterRows || selectedCharacterRows.length === 0) {
       return {
         schedule: { tasks: [], unscheduledTaskIds: [], makespan: 0 },
         isLoading: false,
@@ -90,8 +89,8 @@ export function useGroupScheduler(
     const activeCharSlots = [];
     const characterSkillsByHash = {};
 
-    for (const user of users) {
-      const { CharacterHash, CharacterID } = user;
+    for (const characterRow of selectedCharacterRows) {
+      const { CharacterHash, CharacterID } = characterRow;
 
       // Get character-specific industry jobs from query cache
       // The "all" hook deduplicates and loses characterHash, so we get it from cache
@@ -111,7 +110,7 @@ export function useGroupScheduler(
       const userSkills = allSkillsByChar[CharacterHash] || {};
 
       const slotSummary = calculateActiveSlotsSingleFromData(
-        user,
+        characterRow,
         userSkills,
         userIndJobs,
         userCorpIndJobs
@@ -122,7 +121,6 @@ export function useGroupScheduler(
         characterSkillsByHash[CharacterHash] = userSkills;
       }
     }
-
 
     if (!activeCharSlots || activeCharSlots.length === 0) {
       return {
@@ -318,7 +316,7 @@ export function useGroupScheduler(
       isLoading: false,
       isError: false,
     };
-  }, [groupJobs, queryClient, users, schedulingStrategy, queriesLoading, queriesError, allCharacterIndustryJobs, allCorporationIndustryJobs, allCharacterSkills]);
+  }, [groupJobs, queryClient, selectedCharacterRows, schedulingStrategy, queriesLoading, queriesError, allCharacterIndustryJobs, allCorporationIndustryJobs, allCharacterSkills]);
 
   // Combine loading and error states
   // Loading: queries are loading OR schedule is being calculated (scheduleResult.isLoading)

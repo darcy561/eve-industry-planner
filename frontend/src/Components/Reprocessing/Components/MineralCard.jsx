@@ -367,7 +367,7 @@ export default function MineralCard({
           regionID={pageState.marketLocation}
           iconButtonStyle={{ size: "small" }}
         />
-        {useUsersStore.getState().users.isLoggedIn && (
+        {useUsersStore.getState().account.isLoggedIn && (
           <AssetsIconButton
             materialTypeID={mineralKey}
             iconButtonStyle={{ size: "small" }}

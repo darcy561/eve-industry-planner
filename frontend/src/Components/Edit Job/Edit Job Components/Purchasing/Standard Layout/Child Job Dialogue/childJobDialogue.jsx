@@ -18,7 +18,6 @@ export function ChildJobDialogue(props) {
     props;
   const { userJobSnapshot, jobArray } = useUsersStore((state) => state.jobData);
 
-
   const existingChildJobs = getCurrentLinkedChildJobIDsForMaterial(
     material.typeID,
     state.activeJob,
@@ -31,12 +30,12 @@ export function ChildJobDialogue(props) {
   }
 
   const availableChildJobs = useMemo(() => {
-    const jobs = !state.activeJob.groupID ? userJobSnapshot : jobArray;
+    const jobs = !state.activeJob.includedInGroup ? userJobSnapshot : jobArray;
     const filteredJobs = jobs.filter(
       (job) =>
         job.itemID === material.typeID &&
         !existingChildJobs.includes(job.jobID) &&
-        (state.activeJob.groupID === null ||
+        (!state.activeJob.includedInGroup ||
           job.groupID === state.activeJob.groupID)
     );
     return filteredJobs;

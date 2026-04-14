@@ -30,7 +30,7 @@ import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
 import GroupPageViewSelector from "./pageViewSelector";
 
 function GroupPageFrame() {
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const { activeGroupID, groupArray, jobArray } = useUsersStore(
     (state) => state.jobData
   );

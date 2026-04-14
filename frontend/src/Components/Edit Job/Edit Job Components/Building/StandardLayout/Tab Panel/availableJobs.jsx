@@ -23,9 +23,9 @@ import PanelFallBack from "../../../../panelStates";
 import { formatNumberForLocale, formatTimeRemaining } from "../../../../../../Functions/Helper/numberParser";
 
 export function AvailableJobsTab(props) {
-  const { state, actions, jobMatches, parentUser, isLoading, isError, error } =
+  const { state, actions, jobMatches, isLoading, isError, error } =
     props;
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const { findBlueprintType } = useJobManagement();
   const [clickedJobs, setClickedJobs] = useState(new Set());
 
@@ -51,7 +51,7 @@ export function AvailableJobsTab(props) {
     for (let job of jobMatches) {
       const jobOwner = useUsersStore
         .getState()
-        .users.actions.findUserByCharacterID(job.installer_id);
+        .account.actions.findCharacterById(job.installer_id);
       state.activeJob.linkESIJob(job, jobOwner);
     }
     actions.addIndustryESIJobsForAddition(jobMatches.map((job) => job.job_id));
@@ -59,7 +59,7 @@ export function AvailableJobsTab(props) {
 
     showSnackbarSuccess(`${jobMatches.length} Jobs Linked`);
     logEvent(analytics, "linkESIJobBulk", {
-      UID: parentUser.accountID,
+      UID: useUsersStore.getState().account.actions.getAccountID(),
       isLoggedIn: isLoggedIn,
     });
   };
@@ -67,7 +67,7 @@ export function AvailableJobsTab(props) {
   const handleJobClick = (job) => {
     const jobOwner = useUsersStore
       .getState()
-      .users.actions.findUserByCharacterID(job.installer_id);
+      .account.actions.findCharacterById(job.installer_id);
 
     setClickedJobs((prev) => new Set([...prev, job.job_id]));
 
@@ -77,7 +77,7 @@ export function AvailableJobsTab(props) {
       actions.updateActiveJob(state.activeJob);
       showSnackbarSuccess("Linked");
       logEvent(analytics, "linkESIJob", {
-        UID: parentUser.accountID,
+        UID: useUsersStore.getState().account.actions.getAccountID(),
         isLoggedIn: isLoggedIn,
       });
     }, 800);
@@ -133,7 +133,7 @@ export function AvailableJobsTab(props) {
           {jobMatches.map((job) => {
             const jobOwner = useUsersStore
               .getState()
-              .users.actions.findUserByCharacterID(job.installer_id);
+              .account.actions.findCharacterById(job.installer_id);
 
             if (!jobOwner) return null;
 

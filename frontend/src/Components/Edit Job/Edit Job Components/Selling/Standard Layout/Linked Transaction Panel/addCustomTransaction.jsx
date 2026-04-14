@@ -19,7 +19,8 @@ export function AddCustomTransactionDialog({
   newTransactionTrigger,
   updateNewTransactionTrigger,
 }) {
-  const CharacterHash = useUsersStore.getState().users.actions.findParentUser().CharacterHash;
+  const CharacterHash =
+    useUsersStore.getState().account.actions.getMainCharacterHash();
   const [transactionData, setTransactionData] = useState({
     order_id: null,
     journal_ref_id: null,

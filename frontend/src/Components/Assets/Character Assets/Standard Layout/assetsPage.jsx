@@ -33,7 +33,7 @@ export function AssetsPage_Character({ selectedCharacter }) {
 
       const requiredUserObject = useUsersStore
         .getState()
-        .users.actions.findUserByCharacterHash(selectedCharacter);
+        .account.actions.findCharacterByHash(selectedCharacter);
 
       const fullItemListData = await getFullItemList();
 

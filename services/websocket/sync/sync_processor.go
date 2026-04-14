@@ -142,7 +142,7 @@ func ProcessSyncQueue(s SyncServer, clientID string, timeout time.Duration) erro
 }
 
 // handleSyncMessage processes a sync message
-// Gathers initial data (jobs with isIncludedOnPlanner=true, groups), merges with sync request subscriptions,
+// Gathers initial data (jobs with displayOnPlanner=true, groups), merges with sync request subscriptions,
 // and sends all data as a single consolidated message split by collection and action type
 // All operations check context cancellation
 func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, clientID string, msg SyncMessage) error {
@@ -254,7 +254,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 		userDoc = accountDoc
 	}
 
-	// Gather initial data: jobs with isIncludedOnPlanner=true
+	// Gather initial data: jobs with displayOnPlanner=true
 	select {
 	case <-ctx.Done():
 		return ctx.Err()

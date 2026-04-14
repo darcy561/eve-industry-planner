@@ -2,7 +2,6 @@ import doesSystemIndexRequireRefresh from "./refreshPeriod";
 import useUsersStore from "../../Zustand/usersStore";
 import splitSystemIndexesRequestIntoChuncks from "./requestChunks";
 
-
 export const MAX_SYSTEM_INDEXES_PER_REQUEST = 500;
 /**
  * Retrieves system indexes for given system IDs, checking cache and refresh requirements.
@@ -27,7 +26,6 @@ async function getSystemIndexes(inputIDs) {
   const requiredIDArray = findRequiredSystemIndexes(inputIDs);
 
   if (requiredIDArray.length === 0) return {};
-
 
   // Fetch all batches in parallel and merge results
   const batchPromises = splitSystemIndexesRequestIntoChuncks(requiredIDArray);

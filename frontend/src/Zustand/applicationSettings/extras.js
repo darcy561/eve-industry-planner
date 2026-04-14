@@ -44,7 +44,10 @@ export const extrasActions = (set, get) => ({
         ...state,
         applicationSettings: {
           ...state.applicationSettings,
-          extrasCategories: [...state.applicationSettings.extrasCategories, category]
+          extrasCategories: [
+            ...state.applicationSettings.extrasCategories,
+            category,
+          ],
         },
       }),
       false,
@@ -212,7 +215,10 @@ export const extrasActions = (set, get) => ({
         ...state,
         applicationSettings: {
           ...state.applicationSettings,
-          extrasCategories: [...state.applicationSettings.extrasCategories, category]
+          extrasCategories: [
+            ...state.applicationSettings.extrasCategories,
+            category,
+          ],
         },
       }),
       false,
@@ -236,7 +242,7 @@ export const extrasActions = (set, get) => ({
     if (!category) return;
 
     category.deleted = true;
-    category.deletedAt = Date.now();
+    category.deletedAt = new Date().toISOString();
 
     set(
       (state) => ({
@@ -259,8 +265,8 @@ export const extrasActions = (set, get) => ({
 
     if (!category) return;
 
-    delete category.deleted;
-    delete category.deletedAt;
+    category.deleted = false;
+    category.deletedAt = null;
 
     set(
       (state) => ({

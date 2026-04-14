@@ -81,12 +81,12 @@ export let jobStatusDefault = [
  * ]
  */
 export const extrasCategoriesDefault = [
-  { id: "0", label: "Unassigned" },
-  { id: "1", label: "Hauling Service" },
-  { id: "2", label: "Jump Freight Service" },
-  { id: "3", label: "Blueprint Copies" },
-  { id: "4", label: "Loyal Point Costs" },
-  { id: "5", label: "Other" },
+  { id: "0", label: "Unassigned", deleted: false, deletedAt: null },
+  { id: "1", label: "Hauling Service", deleted: false, deletedAt: null },
+  { id: "2", label: "Jump Freight Service", deleted: false, deletedAt: null },
+  { id: "3", label: "Blueprint Copies", deleted: false, deletedAt: null },
+  { id: "4", label: "Loyal Point Costs", deleted: false, deletedAt: null },
+  { id: "5", label: "Other", deleted: false, deletedAt: null },
 ];
 
 /**
@@ -546,14 +546,14 @@ export const systemTypeMap = {
  * in user data for each type of industry job.
  *
  * @type {Object}
- * @property {string} 1 - "manufacturingStructures"
- * @property {string} 2 - "reactionStructures"
- * @property {string} 5 - "reprocessingStructures"
+ * @property {string} 1 - "manufacturing" (under `customStructures`)
+ * @property {string} 2 - "reaction"
+ * @property {string} 5 - "reprocessing"
  */
 export const customStructureMap = {
-  [jobTypes.manufacturing]: "manufacturingStructures",
-  [jobTypes.reaction]: "reactionStructures",
-  [jobTypes.reprocessing]: "reprocessingStructures",
+  [jobTypes.manufacturing]: "manufacturing",
+  [jobTypes.reaction]: "reaction",
+  [jobTypes.reprocessing]: "reprocessing",
 };
 
 /**

@@ -50,8 +50,9 @@ import importAssetsFromClipboard_IconView from "../../Functions/Clipboard/import
  */
 export function useShoppingList() {
   const { addRetrievedJobsToJobArray } = useUsersStore.getState().jobData.actions
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
-  const { defaultMarket, defaultOrders } = useUsersStore.getState().applicationSettings;
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
+  const { defaultMarketLocation, defaultOrderType } =
+    useUsersStore.getState().applicationSettings;
 
   async function buildShoppingList(inputJobIDs) {
     const retrievedJobs = [];
@@ -102,7 +103,8 @@ export function useShoppingList() {
         item.typeID,
         alternativePriceLocation
       );
-    const individualItemPrice = itemPriceObject[defaultMarket][defaultOrders];
+    const individualItemPrice =
+      itemPriceObject[defaultMarketLocation][defaultOrderType];
 
     return (
       individualItemPrice * Math.max(item.quantity - item.assetQuantity, 0)

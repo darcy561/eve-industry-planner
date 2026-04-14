@@ -10,9 +10,7 @@ import recalculateInstallCostsWithNewData from "../../Functions/Installation Cos
 import { getAvailableBlueprintsByMaterialID } from "../../Functions/Helper/getAvailableBlueprints";
 import firebaseBatchUpdateJobs from "../../Functions/Firebase/batchUpdateJobs";
 import { showSnackbarSuccess } from "../../Events/snackbarEvents";
-import { trace } from "firebase/performance";
 import { getAnalytics, logEvent } from "firebase/analytics";
-import { performance } from "../../firebase";
 import useUsersStore from "../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -55,10 +53,10 @@ import { useQueryClient } from "@tanstack/react-query";
  * }
  */
 function useBuildJobTree() {
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const { activeGroupID } = useUsersStore((state) => state.jobData);
   const { getActiveGroupObject, updateOrAddJobsToJobArray } = useUsersStore.getState().jobData.actions;
-  const { ignoreItemsWithoutBlueprints } =
+  const { enableSkipMissingBlueprints: ignoreItemsWithoutBlueprints } =
     useUsersStore.getState().applicationSettings;
   const checkTypeIDisExempt =
     useUsersStore.getState().applicationSettings.actions.checkTypeIDisExempt;
@@ -73,9 +71,6 @@ function useBuildJobTree() {
     buildFullItemTree = false
   ) {
     const analytics = getAnalytics();
-    const firebaseTrace = trace(performance, "buildNextMaterials");
-    firebaseTrace.putAttribute("isFullItemTree", buildFullItemTree.toString());
-    firebaseTrace.start();
 
     // Log start of material building
     logEvent(analytics, "material_build_start", {
@@ -119,12 +114,6 @@ function useBuildJobTree() {
       );
 
       setNumberOfVisibleSkeletonElements(materialRequests.length);
-
-      const processTrace = trace(
-        performance,
-        "buildNextMaterials-processMaterials"
-      );
-      processTrace.start();
       const newJobs = await processMaterials(
         jobIDMap,
         typeIDMap,
@@ -133,53 +122,25 @@ function useBuildJobTree() {
         setNumberOfVisibleSkeletonElements,
         availableBlueprints
       );
-      processTrace.stop();
-
-      const relationshipTrace = trace(
-        performance,
-        "buildNextMaterials-buildRelationships"
-      );
-      relationshipTrace.start();
       buildParentChildRelationships([...allJobObjects, ...newJobs]);
       materialTreeShaker(
         [...allJobObjects, ...newJobs],
         recalculateJobForNewTotal
       );
-      relationshipTrace.stop();
-
-      const esiDataTrace = trace(
-        performance,
-        "buildNextMaterials-getMissingESIData"
-      );
-      esiDataTrace.start();
       const { requestedMarketData, requestedSystemIndexes } =
         await getMissingESIData([...allJobObjects, ...newJobs]);
-      esiDataTrace.stop();
-
-      const installCostTrace = trace(
-        performance,
-        "buildNextMaterials-recalculateInstallCosts"
-      );
-      installCostTrace.start();
       recalculateInstallCostsWithNewData(
         [...allJobObjects, ...newJobs],
         requestedMarketData,
         requestedSystemIndexes
       );
-      installCostTrace.stop();
 
       setNumberOfVisibleSkeletonElements(0);
 
       activeGroupObject.addJobsToGroup(newJobs);
 
       if (isLoggedIn) {
-        const firebaseBatchTrace = trace(
-          performance,
-          "buildNextMaterials-firebaseBatchUpdate"
-        );
-        firebaseBatchTrace.start();
         await firebaseBatchUpdateJobs(newJobs);
-        firebaseBatchTrace.stop();
       }
 
       updateOrAddJobsToJobArray([...retrievedJobs, ...newJobs]);
@@ -202,7 +163,6 @@ function useBuildJobTree() {
       showSnackbarSuccess(`${newJobs.length} Jobs Added`);
     } catch (err) {
       console.error(err);
-      firebaseTrace.putAttribute("error", err.message);
 
       // Log failure of material building
       logEvent(analytics, "material_build_error", {
@@ -211,7 +171,6 @@ function useBuildJobTree() {
         has_blueprint_restriction: ignoreItemsWithoutBlueprints,
       });
     } finally {
-      firebaseTrace.stop();
     }
   }
 

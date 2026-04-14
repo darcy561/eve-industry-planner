@@ -9,7 +9,7 @@
  * @author EVE Industry Planner Team
  */
 
-import JobSnapshot from "../../Classes/jobSnapshotConstructor";
+import JobSnapshot from "../../Classes/jobSnapshot";
 
 /**
  * Job snapshots management actions for jobs slice.

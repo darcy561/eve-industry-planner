@@ -1,4 +1,4 @@
-import Setup from "../../Classes/jobSetupConstructor";
+import Setup from "../../Classes/jobSetup";
 import findSystemIndexForJob from "./findSystemIndexValue";
 import { structureTypeMap, jobTypes } from "../../Context/defaultValues";
 import useUsersStore from "../../Zustand/usersStore";
@@ -70,7 +70,7 @@ function estimatedItemPriceCalc(materialArray, jobCount, additionalMaterialPrice
     if (!materialArray || typeof materialArray !== 'object') {
         return 0;
     }
-    
+
     return Math.ceil(
         Object.values(materialArray).reduce((preValue, material) => {
             return (preValue += estimatedMaterialPriceCalc(
@@ -104,10 +104,10 @@ function findFacilityTax(facilityID, structureType, jobType, taxValue) {
         return structureTypeMap[jobTypes.manufacturing].defaultTax / 100;
     }
 
-    if (!facilityID) return taxValue / 100;
+    if (facilityID === "") return taxValue / 100;
 
-    const parentUser = useUsersStore.getState().users.actions.findParentUser();
-    if (!parentUser) return 0;
+
+    if (!useUsersStore.getState().account.actions.getMainCharacter()) return 0;
 
     return useUsersStore.getState().applicationSettings.actions.getCustomStructureWithID(facilityID)?.tax / 100 || 0;
 }
@@ -115,7 +115,7 @@ function findFacilityTax(facilityID, structureType, jobType, taxValue) {
 function findCloneValue(inputCharacterHash) {
     const matchedCharacter = useUsersStore
         .getState()
-        .users.actions.findUserByCharacterHash(inputCharacterHash);
+        .account.actions.findCharacterByHash(inputCharacterHash);
 
     return matchedCharacter?.isOmega ? 0 : ALPHA_CLONE_TAX / 100;
 }

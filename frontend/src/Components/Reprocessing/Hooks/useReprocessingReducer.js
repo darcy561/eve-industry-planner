@@ -15,11 +15,9 @@ import {
   reprocessingReducer,
   REPROCESSING_ACTION_TYPES,
 } from "./reprocessingReducer";
-import ReprocessingStructure from "../../../Classes/reprocessingStructureConstructor";
+import ReprocessingStructure from "../../../Classes/reprocessingStructure";
 import useUsersStore from "../../../Zustand/usersStore";
 import { jobTypes } from "../../../Context/defaultValues";
-import { trace } from "firebase/performance";
-import { performance } from "../../../firebase";
 import { getAnalytics, logEvent } from "firebase/analytics";
 import GLOBAL_CONFIG from "../../../global-config-app";
 
@@ -99,21 +97,21 @@ const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
  */
 export default function useReprocessingReducer() {
   const analytics = getAnalytics();
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const getDefaultReprocessingStructure = useUsersStore(
     (state) =>
       state.applicationSettings.actions.getDefaultCustomStructureWithJobType
   );
   const { getDefaultReprocessingCharacter } =
     useUsersStore.getState().applicationSettings.actions;
-  const defaultMarket = useUsersStore(
-    (state) => state.applicationSettings.defaultMarket
+  const defaultMarketLocation = useUsersStore(
+    (state) => state.applicationSettings.defaultMarketLocation
   );
-  const defaultOrders = useUsersStore(
-    (state) => state.applicationSettings.defaultOrders
+  const defaultOrderType = useUsersStore(
+    (state) => state.applicationSettings.defaultOrderType
   );
 
-  const users = useUsersStore((state) => state.users.userArray);
+  const characters = useUsersStore((state) => state.account.characters);
 
   const initialState = {
     reprocessingObjects: [],
@@ -127,17 +125,27 @@ export default function useReprocessingReducer() {
       new ReprocessingStructure(),
     activeSkills: {},
     selectedUser:
-      getDefaultReprocessingCharacter(users)?.CharacterHash ||
-      useUsersStore.getState().users.actions.findParentUser()?.CharacterHash ||
+      getDefaultReprocessingCharacter(characters)?.CharacterHash ||
+      useUsersStore.getState().account.actions.getMainCharacterHash() ||
       null,
     skillsManuallyModified: false,
     rigSlotErrors: { slot1: false, slot2: false },
     oreIDsToBeIgnored: [],
-    marketLocation: defaultMarket || DEFAULT_MARKET_OPTION,
-    marketListing: defaultOrders || DEFAULT_ORDER_OPTION,
+    marketLocation: defaultMarketLocation || DEFAULT_MARKET_OPTION,
+    marketListing: defaultOrderType || DEFAULT_ORDER_OPTION,
     inputModified: false,
     requestedMinerals: {},
-    reprocessingCalculationSettings: useUsersStore.getState().applicationSettings.reprocessingCalculationSettings,
+    reprocessingCalculationSettings: (() => {
+      const rs =
+        useUsersStore.getState().applicationSettings.reprocessingSettings;
+      return {
+        preferCompressed: rs.preferCompressed,
+        compressionBonusMultiplier: rs.compressionBonusMultiplier,
+        valueMultiplier: rs.valueMultiplier,
+        wastePenaltyMultiplier: rs.wastePenaltyMultiplier,
+        sellExcessMineralTypes: rs.sellExcessMineralTypes,
+      };
+    })(),
   };
 
   const [state, dispatch] = useReducer(reprocessingReducer, initialState);
@@ -162,8 +170,6 @@ export default function useReprocessingReducer() {
      * actions.setReprocessingObjects(reprocessingResults);
      */
     setReprocessingObjects: (data) => {
-      const firebaseTrace = trace(performance, "reprocessing_calculation");
-      firebaseTrace.start();
 
       logEvent(analytics, "reprocessing_calculation", {
         calculation_type: state.toMinerals ? "toMinerals" : "toMaterials",
@@ -177,8 +183,6 @@ export default function useReprocessingReducer() {
         type: REPROCESSING_ACTION_TYPES.SET_REPROCESSING_OBJECTS,
         payload: data,
       });
-
-      firebaseTrace.stop();
     },
     /**
      * Sets the processed input data.

@@ -1,4 +1,4 @@
-import JobSnapshot from "../../Classes/jobSnapshotConstructor";
+import JobSnapshot from "../../Classes/jobSnapshot";
 import uploadJobSnapshotsToFirebase from "../../Functions/Firebase/uploadJobSnapshots";
 import manageListenerRequests from "../../Functions/Firebase/manageListenerRequests";
 import applyParentChildChanges from "../../Components/Edit Job/functions/applyParentChildChanges";
@@ -9,7 +9,7 @@ import { useRecalcuateJob } from "../GeneralHooks/useRecalculateJob";
 import firebaseBatchUpdateJobs from "../../Functions/Firebase/batchUpdateJobs";
 import { showSnackbarInfo } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
-import uploadApplicationSettingsToFirebase from "../../Functions/Firebase/uploadApplicationSettings";
+import { saveUserAccountDocument } from "../../Functions/Endpoints/Pirivate/userDocument";
 
 /**
  * Custom hook that provides functionality to close and finalize active jobs in EVE Online industry planning.
@@ -52,9 +52,9 @@ import uploadApplicationSettingsToFirebase from "../../Functions/Firebase/upload
 export function useCloseActiveJob() {
   const { groupArray, userJobSnapshot } = useUsersStore((state) => state.jobData);
   const { setActiveJobID, replaceGroupArray, getGroupObject, replaceUserJobSnapshotArray, updateOrAddJobsToJobArray, findJobInJobArray } = useUsersStore.getState().jobData.actions;
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const automaticJobRecalculation =
-    useUsersStore.getState().applicationSettings.automaticJobRecalculation;
+    useUsersStore.getState().applicationSettings.enableAutomaticJobRecalculation;
   const { recalculateJobForNewTotal } = useRecalcuateJob();
 
   async function closeActiveJob(
@@ -110,8 +110,6 @@ export function useCloseActiveJob() {
       ].filter((id) => !IDsOfNewJobs.has(id))
     );
 
-
-
     const batchUpdates = [];
     for (let modifiedID of finalModifiedIDSet) {
       let matchedJob = findJobInJobArray(modifiedID)
@@ -131,7 +129,7 @@ export function useCloseActiveJob() {
       batchUpdates.push(matchedJob);
     }
 
-    if (!inputJob.groupID) {
+    if (!inputJob.includedInGroup) {
       for (let newJob of Object.values(tempJobsToAdd)) {
         newUserJobSnapshot.push(new JobSnapshot(newJob));
       }
@@ -143,11 +141,12 @@ export function useCloseActiveJob() {
     }
 
     if (
-      inputJob.groupID !== null &&
+      inputJob.includedInGroup &&
       inputJob.isReadyToSell &&
       !newUserJobSnapshot.some((i) => i.jobID === inputJob.jobID)
     ) {
       newUserJobSnapshot.push(new JobSnapshot(inputJob));
+      inputJob.displayOnPlanner = true;
     } else {
       const matchedSnapshot = newUserJobSnapshot.find(
         (i) => i.jobID === inputJob.jobID
@@ -195,7 +194,7 @@ export function useCloseActiveJob() {
       hasJobsToRemove ||
       hasTransactionsToRemove;
 
-    useUsersStore.getState().users.actions.addLinkedEsiData({
+    useUsersStore.getState().account.actions.addLinkedEsiData({
       ordersToAdd: esiDataToLink.marketOrders.add,
       jobsToAdd: esiDataToLink.industryJobs.add,
       transactionsToAdd: esiDataToLink.transactions.add,
@@ -205,12 +204,12 @@ export function useCloseActiveJob() {
     });
 
     if (hasAnyChanges && isLoggedIn) {
-      await uploadApplicationSettingsToFirebase();
+      await saveUserAccountDocument();
     }
 
     manageListenerRequests(retrievedJobs);
 
-    if (inputJob.groupID) {
+    if (inputJob.includedInGroup) {
       replaceGroupArray([...groupArray]);
     }
 

@@ -33,12 +33,11 @@ import useUsersStore from "../../../Zustand/usersStore";
  * {checkDisplayTutorials() && <TutorialComponent />}
  */
 export default function checkDisplayTutorials() {
-  const isLoggedIn = useUsersStore.getState().users.isLoggedIn;
-  const hideTutorials =
-    useUsersStore.getState().applicationSettings.hideTutorials;
+  const isLoggedIn = useUsersStore.getState().account.isLoggedIn;
+  const displayHelpCards =
+    useUsersStore.getState().applicationSettings.displayHelpCards;
 
-  // Show tutorials if not logged in OR if user hasn't hidden them
-  return !isLoggedIn || !hideTutorials;
+  return !isLoggedIn || displayHelpCards;
 }
 
 /**
@@ -75,22 +74,19 @@ export default function checkDisplayTutorials() {
  * }
  */
 export function shouldExpandRightDrawer(pageRequiresDrawerToBeOpen = false) {
-  const isLoggedIn = useUsersStore.getState().users.isLoggedIn;
-  const hideTutorials =
-    useUsersStore.getState().applicationSettings.hideTutorials;
+  const isLoggedIn = useUsersStore.getState().account.isLoggedIn;
+  const displayHelpCards =
+    useUsersStore.getState().applicationSettings.displayHelpCards;
 
-  // If page requires drawer to be open, always expand
   if (pageRequiresDrawerToBeOpen) {
     return true;
   }
 
-  // If not logged in, expand to show tutorials
   if (!isLoggedIn) {
     return true;
   }
 
-  // If logged in and tutorials are enabled, expand
-  if (!hideTutorials) {
+  if (displayHelpCards) {
     return true;
   }
 

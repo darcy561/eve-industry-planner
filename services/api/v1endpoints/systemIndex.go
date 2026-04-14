@@ -24,8 +24,12 @@ type SystemIndexesBody struct {
 	RequestedIDs []string `json:"system_ids"`
 }
 
-// SystemIndexesHandler handles POST requests for system indexes
-// POST: expects array of system IDs in body ["12345", "67890"]
+// SystemIndexesHandler handles POST /api/v1/systemindexes/query with JSON body { system_ids: string[] }.
+// Public: rate limit → handler. Client retries: withRequestRetries (408, 429, 5xx).
+//
+//	405 — not POST
+//	400 — invalid JSON, missing system_ids, empty array, too many IDs, or invalid IDs
+//	200 — JSON map of systemID → index rows; missing Redis keys appear as empty arrays (no per-id 404)
 func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
 	start, ok := logs.RequestStartTime(ctx)

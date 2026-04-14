@@ -1,4 +1,5 @@
 import GLOBAL_CONFIG from "../../../global-config-app";
+import withRequestRetries, { splitRetryConfig } from "../withRequestRetries.js";
 
 const { DEFAULT_DISCORD_INVITE, DEFAULT_GITHUB_LINK } = GLOBAL_CONFIG;
 
@@ -15,7 +16,7 @@ const defaultHeaders = {
  * @param {Object} config - Configuration
  * @param {string} [config.requestName] - Optional name for the request (appears in network tab headers)
  * @returns {Object} Options with public headers applied
- * 
+ *
  * @example
  * const options = applyPublicHeaders({
  *   method: 'GET',
@@ -35,21 +36,41 @@ export function applyPublicHeaders(options = {}, config = {}) {
 }
 
 /**
- * Enhanced fetch with only public headers (no authentication)
- * 
+ * Enhanced fetch with only public headers (no authentication).
+ *
+ * **Retries** (408 / 429 / 5xx by default) are applied automatically unless `config.retry === false`.
+ * Pass `config.retry: { maxAttempts, baseDelayMs, … }` to override.
+ *
  * @param {string} URL - Request URL
  * @param {Object} options - Fetch options
- * @param {Object} config - Configuration
+ * @param {Object} [config]
  * @param {string} [config.requestName] - Optional name for the request (appears in network tab headers as X-Request-Name)
+ * @param {false|true|object} [config.retry] - `false` = no retries; `true`/omit = default retries; object = `withRequestRetries` options
  * @returns {Promise<Response>} HTTP response
- * 
+ *
  * @example
  * const response = await fetchWithPublicHeaders('/api/v1/systemindexes', {
  *   method: 'GET'
  * }, { requestName: 'fetchSystemIndexes' });
  */
 export async function fetchWithPublicHeaders(URL, options = {}, config = {}) {
-  const enhancedOptions = applyPublicHeaders(options, config);
-  return fetch(URL, enhancedOptions);
-}
+  const { rest: headerConfig, retry } = splitRetryConfig(config);
 
+  const runOnce = async () => {
+    const enhancedOptions = applyPublicHeaders(options, headerConfig);
+    return fetch(URL, enhancedOptions);
+  };
+
+  if (retry === false) {
+    return runOnce();
+  }
+
+  const retryOpts =
+    retry === undefined || retry === true
+      ? {}
+      : typeof retry === "object"
+        ? retry
+        : {};
+
+  return withRequestRetries(runOnce, retryOpts);
+}

@@ -10,9 +10,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 
-// Lazy load React Query DevTools (only in dev, tree-shaken in production)
+// Lazy load React Query DevTools when ENVIRONMENT=development (see vite.config define + root .env)
 const ReactQueryDevtools =
-  import.meta.env.MODE === "development"
+  import.meta.env.ENVIRONMENT === "development"
     ? lazy(() =>
         import("@tanstack/react-query-devtools").then((res) => ({
           default: res.ReactQueryDevtools,
@@ -29,12 +29,12 @@ export function AppWrapper() {
   Sentry.init({
     dsn: import.meta.env.SENTRY_DSN,
 
-    environment: import.meta.env.MODE,
+    environment: import.meta.env.ENVIRONMENT,
 
-    release: import.meta.env.VITE_APP_VERSION || "development",
+    release: __APP_VERSION__ || "development",
 
     beforeSend(event) {
-      if (import.meta.env.MODE === "development") {
+      if (import.meta.env.ENVIRONMENT === "development") {
         return null;
       }
       return event;
@@ -53,8 +53,6 @@ export function AppWrapper() {
   });
 
   useEffect(() => {
-    const mode = import.meta.env.MODE;
-
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         Sentry.setUser({
@@ -75,7 +73,7 @@ export function AppWrapper() {
           <RouterProvider router={router} />
         </DndProvider>
       </LocalizationProvider>
-      {import.meta.env.MODE === "development" && ReactQueryDevtools && (
+      {import.meta.env.ENVIRONMENT === "development" && ReactQueryDevtools && (
         <Suspense fallback={null}>
           <ReactQueryDevtools initialIsOpen={false} />
         </Suspense>

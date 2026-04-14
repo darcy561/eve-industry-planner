@@ -17,7 +17,6 @@ function JobPlanner() {
 
   const buttonOptions = useJobPlannerSideMenuFunctions(pageState, pageActions);
 
-
   return (
     <DefaultPageLayout>
       <LeftCollapseableMenuDrawer inputDrawerButtons={buttonOptions} />

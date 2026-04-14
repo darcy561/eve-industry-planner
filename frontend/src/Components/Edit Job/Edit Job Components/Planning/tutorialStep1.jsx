@@ -1,6 +1,5 @@
 import { Typography, Grid } from "@mui/material";
 
-
 export function TutorialStep1(props) {
   const { state } = props;
   return (

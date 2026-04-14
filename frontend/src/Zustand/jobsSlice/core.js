@@ -8,7 +8,7 @@
  * @author EVE Industry Planner Team
  */
 
-import JobSnapshot from "../../Classes/jobSnapshotConstructor";
+import JobSnapshot from "../../Classes/jobSnapshot";
 
 /**
  * Default state configuration for jobs data.
@@ -22,7 +22,6 @@ import JobSnapshot from "../../Classes/jobSnapshotConstructor";
  * @property {Array} groupArray - Array of group objects
  * @property {string|null} activeJobID - Currently active job ID
  * @property {string|null} activeGroupID - Currently active group ID
- * @property {Array} archivedJobs - Array of archived job data
  * @property {Array} userJobSnapshot - Array of job snapshot objects
  * @property {Object} userWatchlist - User's watchlist data
  * @property {Array} userWatchlist.groups - Watchlist group objects
@@ -34,7 +33,6 @@ export const stateDefault = () => ({
   groupArray: [],
   activeJobID: null,
   activeGroupID: null,
-  archivedJobs: [],
   userJobSnapshot: [],
   userWatchlist: {
     groups: [],

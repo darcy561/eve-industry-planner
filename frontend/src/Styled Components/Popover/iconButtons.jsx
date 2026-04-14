@@ -32,7 +32,7 @@ export default function MaterialPopoverIconButtons({
     const [anchorEl, setAnchorEl] = useState(null);
     const timeoutRef = useRef(null);
     const isHoveringRef = useRef(false);
-    const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+    const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
 
     const handleMouseEnter = (event) => {
         if (timeoutRef.current) {
@@ -75,7 +75,6 @@ export default function MaterialPopoverIconButtons({
     }, []);
 
     const open = Boolean(anchorEl);
-
 
     return (
         <Box

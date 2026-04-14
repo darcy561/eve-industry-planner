@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/url"
 	"os"
+	"strings"
 )
 
 type Config struct {
@@ -25,15 +26,37 @@ type Config struct {
 	FeedbackDiscordWebhookURL string
 }
 
-func LoadConfig() (Config, error) {
-	// MongoDB primary credentials are REQUIRED - no fallbacks
+// MongoURLFromEnv returns the MongoDB connection URI from environment variables.
+// If MONGO_URL is non-empty, it is returned as-is.
+// Otherwise MONGO_USERNAME and MONGO_PASSWORD are required and the standard
+// eve_industry_planner URI is built (same shape as [LoadConfig]).
+func MongoURLFromEnv() (string, error) {
+	if u := strings.TrimSpace(os.Getenv("MONGO_URL")); u != "" {
+		return u, nil
+	}
 	mongoUsername := os.Getenv("MONGO_USERNAME")
 	if mongoUsername == "" {
-		return Config{}, errors.New("MONGO_USERNAME environment variable is required")
+		return "", errors.New("MONGO_URL or MONGO_USERNAME is required")
 	}
 	mongoPassword := os.Getenv("MONGO_PASSWORD")
 	if mongoPassword == "" {
-		return Config{}, errors.New("MONGO_PASSWORD environment variable is required")
+		return "", errors.New("MONGO_PASSWORD environment variable is required")
+	}
+
+	const mongoDatabase = "eve_industry_planner"
+	mongoHost := getEnv("MONGO_HOST", "mongo")
+	mongoPort := getEnv("MONGO_PORT", "27017")
+	mongoReplicaSet := getEnv("MONGO_REPLICA_SET", "rs0")
+	escapedMongoUsername := url.QueryEscape(mongoUsername)
+	escapedMongoPassword := url.QueryEscape(mongoPassword)
+	mongoURL := "mongodb://" + escapedMongoUsername + ":" + escapedMongoPassword + "@" + mongoHost + ":" + mongoPort + "/" + mongoDatabase + "?authSource=" + mongoDatabase + "&replicaSet=" + mongoReplicaSet
+	return mongoURL, nil
+}
+
+func LoadConfig() (Config, error) {
+	mongoURL, err := MongoURLFromEnv()
+	if err != nil {
+		return Config{}, err
 	}
 
 	// Redis password is REQUIRED - no fallbacks
@@ -41,19 +64,6 @@ func LoadConfig() (Config, error) {
 	if redisPassword == "" {
 		return Config{}, errors.New("REDIS_PASSWORD environment variable is required")
 	}
-
-	// Service URLs and ports have hardcoded defaults but can be overridden via environment variables
-	// Database name is hardcoded and cannot be changed
-	const mongoDatabase = "eve_industry_planner"
-
-	// Build primary MongoDB URL
-	// Include replicaSet parameter for single-node replica set deployments.
-	mongoHost := getEnv("MONGO_HOST", "mongo")
-	mongoPort := getEnv("MONGO_PORT", "27017")
-	mongoReplicaSet := getEnv("MONGO_REPLICA_SET", "rs0")
-	escapedMongoUsername := url.QueryEscape(mongoUsername)
-	escapedMongoPassword := url.QueryEscape(mongoPassword)
-	mongoURL := "mongodb://" + escapedMongoUsername + ":" + escapedMongoPassword + "@" + mongoHost + ":" + mongoPort + "/" + mongoDatabase + "?authSource=" + mongoDatabase + "&replicaSet=" + mongoReplicaSet
 
 	// Build Redis URL with password
 	redisHost := getEnv("REDIS_HOST", "redis")

@@ -10,7 +10,7 @@
  * @author EVE Industry Planner Team
  */
 
-import Job from "../../../Classes/jobConstructor";
+import Job from "../../../Classes/job";
 
 /**
  * Action types for the edit job reducer.

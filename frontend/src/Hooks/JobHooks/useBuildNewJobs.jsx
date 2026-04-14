@@ -1,9 +1,8 @@
-import { trace } from "firebase/performance";
-import { analytics, performance } from "../../firebase";
+import { analytics } from "../../firebase";
 import { useJobBuild } from "../useJobBuild";
 import { logEvent } from "firebase/analytics";
-import Group from "../../Classes/groupsConstructor";
-import JobSnapshot from "../../Classes/jobSnapshotConstructor";
+import Group from "../../Classes/group";
+import JobSnapshot from "../../Classes/jobSnapshot";
 import uploadGroupsToFirebase from "../../Functions/Firebase/uploadGroupData";
 import uploadJobSnapshotsToFirebase from "../../Functions/Firebase/uploadJobSnapshots";
 import manageListenerRequests from "../../Functions/Firebase/manageListenerRequests";
@@ -45,7 +44,7 @@ import useUsersStore from "../../Zustand/usersStore";
  *   const handleBuildJobs = async (buildRequests) => {
  *     const result = await addNewJobsToPlanner(buildRequests);
  *     if (result) {
- *       console.log("Job built with parent jobs:", result.parentJob.length);
+ *       console.log("Job built with parent jobs:", result.parentJobs.length);
  *     }
  *   };
  *
@@ -61,10 +60,8 @@ function useBuildNewJobs() {
     replaceUserJobSnapshotArray,
     updateOrAddJobsToJobArray,
   } = useUsersStore.getState().jobData.actions;
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const { buildJob } = useJobBuild();
-  const parentUser = useUsersStore.getState().users.actions.findParentUser();
-
   /**
    * Adds new jobs to the planner with comprehensive data management.
    *
@@ -74,15 +71,12 @@ function useBuildNewJobs() {
    * @private
    */
   async function addNewJobsToPlanner(buildRequests) {
-    const firestoreTrace = trace(performance, "CreateJobProcessFull");
     let newUserJobSnapshot = [...userJobSnapshot];
     let newGroupArray = [...groupArray];
     let singleJobBuildFlag = false;
     let requiresGroupDocSave = false;
     const addNewGroup = buildRequests.some((i) => i.addNewGroup);
     let newGroup = null;
-
-    firestoreTrace.start();
     let newJobObjects = await buildJob(buildRequests);
     if (!newJobObjects) return;
 
@@ -114,13 +108,15 @@ function useBuildNewJobs() {
       }
 
       if (addNewGroup) {
+        jobObject.includedInGroup = true;
         jobObject.groupID = newGroup.groupID;
+        jobObject.displayOnPlanner = false;
         requiresGroupDocSave = true;
       }
 
       logEvent(analytics, "New Job", {
         loggedIn: isLoggedIn,
-        UID: parentUser.accountID,
+        UID: useUsersStore.getState().account.actions.getAccountID(),
         name: jobObject.name,
         itemID: jobObject.itemID,
       });
@@ -164,8 +160,7 @@ function useBuildNewJobs() {
         : `${newJobObjects.length} Jobs Added.`,
       3
     );
-    firestoreTrace.stop();
-    if (singleJobBuildFlag && newJobObjects[0].parentJob.length > 0) {
+    if (singleJobBuildFlag && newJobObjects[0].parentJobs.length > 0) {
       return newJobObjects[0];
     }
   }

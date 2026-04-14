@@ -34,7 +34,8 @@ function checkAndAddLocationID(requestedID, requestSet, universeIDs, newEveIDs) 
  * @returns {Promise<{itemLocations: Array, newEveIDs: Object}>} Object with location array and universe IDs
  */
 export async function getAssetLocationList(userAssets = []) {
-  const { isLoggedIn, userArray, } = useUsersStore.getState().users
+  const { isLoggedIn } = useUsersStore.getState().account;
+  const { characters } = useUsersStore.getState().account;
   const { universeIDs } = useUsersStore.getState().worldData
   try {
     // Early return check moved outside the loop
@@ -82,9 +83,9 @@ export async function getAssetLocationList(userAssets = []) {
     // Convert Set to Array for further processing
     let itemLocations = Array.from(itemLocationsSet);
 
-    // Try fetching missing IDs with each user (different users may have access to different locations)
-    for (let user of userArray) {
-      // Filter to only IDs that are still missing after previous user attempts
+    // Try fetching missing IDs with each character (access differs per character)
+    for (const character of characters) {
+      // IDs still missing after previous character attempts
       const userMissingIDs = new Set();
       for (const id of allMissingIDs) {
         if (!universeIDs[id] && !newEveIDs[id]) {
@@ -93,7 +94,7 @@ export async function getAssetLocationList(userAssets = []) {
       }
 
       if (userMissingIDs.size > 0) {
-        const eveIDResults = await getWorldData(userMissingIDs, user);
+        const eveIDResults = await getWorldData(userMissingIDs, character);
         newEveIDs = { ...newEveIDs, ...eveIDResults };
       }
     }

@@ -23,8 +23,6 @@ export function ItemWatchPanel() {
     name: "",
   });
 
-  const parentUser = useUsersStore.getState().users.actions.findParentUser();
-
   return (
     <ContentPanel title="Item Watchlist" componentName="Item Watchlist" paperSx={{ position: "relative" }}>
       <AddWatchItemDialog
@@ -34,7 +32,6 @@ export function ItemWatchPanel() {
         updateWatchlistItemToEdit={updateWatchlistItemToEdit}
       />
       <AddGroupDialog
-        parentUser={parentUser}
         addNewGroupTrigger={addNewGroupTrigger}
         updateAddNewGroupTrigger={updateAddNewGroupTrigger}
       />
@@ -68,7 +65,6 @@ export function ItemWatchPanel() {
         </Box>
         <Grid container size={12}>
           <WatchlistContainer
-            parentUser={parentUser}
             updateGroupSettingsTrigger={updateGroupSettingsTrigger}
             groupSettingsContent={groupSettingsContent}
             updateGroupSettingsContent={updateGroupSettingsContent}

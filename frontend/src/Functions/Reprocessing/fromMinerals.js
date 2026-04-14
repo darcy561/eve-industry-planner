@@ -1,6 +1,6 @@
 import parseInputMineralString from "./parseMineralInput";
 import { reprocessingItemTypes } from "../../Context/defaultValues";
-import ReprocessingItem from "../../Classes/reprocessingConstructor";
+import ReprocessingItem from "../../Classes/reprocessingItem";
 import getMarketData from "../MarketData/findMarketData";
 import oreSelector from "./oreSelecter";
 import { getReprocessingData } from "../Helper/getCachedData";

@@ -41,10 +41,6 @@ export function useGatherJobMatchesAndUpdateExistingLinkedJobs(
   const [isWorldDataLoading, setIsWorldDataLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const parentUser = useUsersStore((state) =>
-    state.users.actions.findParentUser()
-  );
-
   useEffect(() => {
     async function processGatherJobMatchesAndUpdateExistingLinkedJobs() {
       if (!allIndustryJobs) {
@@ -100,7 +96,7 @@ export function useGatherJobMatchesAndUpdateExistingLinkedJobs(
         if (allLocationIDs.size > 0) {
           const locationNames = await getWorldData(
             allLocationIDs,
-            parentUser
+            useUsersStore.getState().account.actions.getMainCharacter()
           );
           useUsersStore
             .getState()

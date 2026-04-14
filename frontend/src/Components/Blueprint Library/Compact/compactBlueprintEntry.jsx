@@ -42,12 +42,12 @@ export function CompactBlueprintEntry({ blueprintGroup, bpData, esiJobs = [] }) 
 
   const bpOwner = useUsersStore
     .getState()
-    .users.actions.findUserByCharacterHash(blueprint.CharacterHash);
+    .account.actions.findCharacterByHash(blueprint.CharacterHash);
 
   const corpOwner = blueprint.is_corporation
     ? useUsersStore
         .getState()
-        .users.actions.getCorporationObject(blueprint?.corporation_id)
+        .account.actions.getCorporation(blueprint?.corporation_id)
     : null;
 
   return (

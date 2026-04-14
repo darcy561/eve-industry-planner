@@ -10,9 +10,12 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper/auth"
+	"eve-industry-planner/api/migration"
 	"eve-industry-planner/shared/core/config"
+	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
@@ -27,16 +30,32 @@ type RefreshResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresAt    int64  `json:"expires_at"` // Unix timestamp (seconds since epoch)
+	FirstLogin          bool                       `json:"first_login,omitempty"`
+	FirebaseToken       string                     `json:"firebase_token,omitempty"`
+	FirebaseFirstLogin  bool                       `json:"firebase_first_login,omitempty"`
+	UserDocument        models.UserAccountDocument `json:"user_document,omitempty"`
+	ApplicationSettings models.ApplicationSettings `json:"application_settings,omitempty"`
 }
 
 // RefreshHandler handles token refresh requests
 func RefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+	refreshHandler(w, r, clients, false)
+}
+
+// LoginRefreshHandler handles login refresh requests (existing token login path).
+func LoginRefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+	refreshHandler(w, r, clients, true)
+}
+
+func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients, touchLastLogin bool) {
 	ctx := r.Context()
 	start, ok := logs.RequestStartTime(ctx)
 	if !ok {
 		start = time.Now()
 	}
 	m := apimetrics.GetAPISessionRefresh()
+	sessionMetrics := apimetrics.GetAPIAuthSessionLifecycle()
+	appVersion := extractAppVersion(r)
 
 	// Only allow POST requests
 	if r.Method != http.MethodPost {
@@ -83,7 +102,9 @@ func RefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	// Validate the EVE SSO token and extract the owner field (character hash)
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		http.Error(w, "Configuration error: "+err.Error(), http.StatusInternalServerError)
+		m.Errors.WithLabelValues("config_error").Inc(ctx)
+		logs.ErrorCtx(ctx, "failed to load config for auth refresh", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 	eveTokenInfo, err := auth.ValidateEveTokenAndExtractHash(r.Context(), eveToken, cfg.EveSSOClientID)
@@ -110,6 +131,15 @@ func RefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		)
 		http.Error(w, "Invalid token", http.StatusUnauthorized)
 		return
+	}
+
+	if touchLastLogin {
+		if err := mongocore.TouchUserLastLogin(ctx, clients.Mongo, tokenData.AccountID); err != nil {
+			m.Errors.WithLabelValues("mongo_error").Inc(ctx)
+			logs.ErrorCtx(ctx, "failed to touch last login from refresh login flow", "error", err, "account_id", tokenData.AccountID)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// Load or get cached RSA private key for JWT signing
@@ -153,6 +183,34 @@ func RefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	// Update token data with fresh corporations from Redis
 	updatedTokenData := *tokenData
 	updatedTokenData.Corporations = auth.CorporationIDs(corporations)
+	now := time.Now().UTC()
+	sessionFlow := "refresh"
+	startedSession := false
+	if touchLastLogin || updatedTokenData.SessionID == "" {
+		sessionID, err := auth.GenerateSessionID()
+		if err != nil {
+			m.Errors.WithLabelValues("session_generation_error").Inc(ctx)
+			logs.ErrorCtx(ctx, "failed to generate session id", "error", err,
+				"account_id", tokenData.AccountID, "character_hash", tokenData.CharacterHash)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		updatedTokenData.SessionID = sessionID
+		updatedTokenData.SessionStart = now
+		startedSession = true
+		if touchLastLogin {
+			sessionFlow = "login_refresh"
+		} else {
+			sessionFlow = "refresh_backfill"
+		}
+	}
+	if updatedTokenData.SessionStart.IsZero() {
+		updatedTokenData.SessionStart = now
+	}
+	updatedTokenData.SessionSeenAt = now
+	if appVersion != "" && appVersion != "unknown" {
+		updatedTokenData.AppVersion = appVersion
+	}
 
 	// Store new refresh token in Redis with updated user data
 	if err := auth.StoreRefreshToken(ctx, clients.Redis, newRefreshToken, updatedTokenData); err != nil {
@@ -162,6 +220,28 @@ func RefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+	if err := auth.UpsertSessionRecord(ctx, clients.Redis, auth.SessionRecord{
+		SessionID:     updatedTokenData.SessionID,
+		AccountID:     tokenData.AccountID,
+		CharacterHash: tokenData.CharacterHash,
+		AppVersion:    updatedTokenData.AppVersion,
+		StartedAt:     updatedTokenData.SessionStart,
+		LastSeenAt:    updatedTokenData.SessionSeenAt,
+	}); err != nil {
+		m.Errors.WithLabelValues("session_store_error").Inc(ctx)
+		sessionMetrics.StoreErrors.WithLabelValues(sessionFlow).Inc(ctx)
+		logs.ErrorCtx(ctx, "failed to store session record", "error", err,
+			"account_id", tokenData.AccountID, "character_hash", tokenData.CharacterHash)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	if startedSession {
+		sessionMetrics.Started.WithLabelValues(sessionFlow).Inc(ctx)
+		apimetrics.RecordAuthSessionDistinctAccount(ctx, clients.Redis, tokenData.AccountID)
+	} else {
+		sessionMetrics.Continued.WithLabelValues(sessionFlow).Inc(ctx)
+	}
+	sessionMetrics.Stored.WithLabelValues(sessionFlow).Inc(ctx)
 
 	// Revoke old refresh token (token rotation)
 	if err := auth.RevokeRefreshToken(ctx, clients.Redis, refreshToken); err != nil {
@@ -175,12 +255,33 @@ func RefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 
 	// Return new access token and new refresh token
 	// Calculate expiration timestamp using the same duration as token generation (Unix timestamp in seconds)
-	expiresAt := time.Now().Add(auth.TokenExpirationDuration).Unix()
+	expiresAt := now.Add(auth.TokenExpirationDuration).Unix()
 
 	response := RefreshResponse{
 		AccessToken:  internalToken,
 		RefreshToken: newRefreshToken,
 		ExpiresAt:    expiresAt,
+	}
+	if touchLastLogin {
+		firebaseToken, firebaseFirstLogin, err := migration.GenerateFirebaseCustomToken(ctx, tokenData.AccountID)
+		if err != nil {
+			m.Errors.WithLabelValues("firebase_token_error").Inc(ctx)
+			logs.ErrorCtx(ctx, "failed to generate firebase custom token (login refresh)", "error", err, "account_id", tokenData.AccountID)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		loginDocs, err := mongocore.ResolveUserDocumentsForLogin(ctx, clients.Mongo, tokenData.AccountID)
+		if err != nil {
+			m.Errors.WithLabelValues("mongo_error").Inc(ctx)
+			logs.ErrorCtx(ctx, "failed to resolve user documents for login refresh", "error", err, "account_id", tokenData.AccountID)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		response.FirebaseToken = firebaseToken
+		response.FirebaseFirstLogin = firebaseFirstLogin
+		response.FirstLogin = loginDocs.FirstLogin
+		response.UserDocument = loginDocs.User
+		response.ApplicationSettings = loginDocs.Settings
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {

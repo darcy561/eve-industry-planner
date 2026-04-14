@@ -18,5 +18,3 @@ export function ShoppingListDialog() {
   return <ShoppingListContent state={state} actions={actions} />;
 }
 
-
-

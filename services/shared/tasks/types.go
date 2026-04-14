@@ -31,6 +31,20 @@ var (
 		DefaultPriority: Priority5,
 		DefaultTimeout:  5 * time.Minute,
 	}
+	// ImportArchivedJobToMongo normalizes one Firestore ArchivedJobs document and upserts [models.Job] into MongoDB archivedJobs.
+	ImportArchivedJobToMongo = Task{
+		Name:            "importArchivedJobToMongo",
+		Subject:         "task.migration.importArchivedJobToMongo",
+		DefaultPriority: Priority5,
+		DefaultTimeout:  3 * time.Minute,
+	}
+	// ProcessArchivedBuildStats aggregates unprocessed archived Mongo jobs into build_stats (worker: tasks/archivedjobs; Firebase archievedJobs.js replacement).
+	ProcessArchivedBuildStats = Task{
+		Name:            "processArchivedBuildStats",
+		Subject:         "task.scheduled.processArchivedBuildStats",
+		DefaultPriority: Priority4,
+		DefaultTimeout:  15 * time.Minute,
+	}
 	RefreshSystemIndexes = Task{
 		Name:            "refreshSystemIndexes",
 		Subject:         "task.scheduled.refreshSystemIndexes",
@@ -95,7 +109,9 @@ var (
 
 // ByName maps task name (handler key) to task definition for lookup (e.g. worker default priority).
 var ByName = map[string]Task{
-	MigrateUserDocumentToMongo.Name: MigrateUserDocumentToMongo,
+	MigrateUserDocumentToMongo.Name:   MigrateUserDocumentToMongo,
+	ImportArchivedJobToMongo.Name:     ImportArchivedJobToMongo,
+	ProcessArchivedBuildStats.Name:    ProcessArchivedBuildStats,
 	RefreshSystemIndexes.Name:       RefreshSystemIndexes,
 	RefreshAdjustedPrices.Name:      RefreshAdjustedPrices,
 	RefreshMarketPrices.Name:        RefreshMarketPrices,

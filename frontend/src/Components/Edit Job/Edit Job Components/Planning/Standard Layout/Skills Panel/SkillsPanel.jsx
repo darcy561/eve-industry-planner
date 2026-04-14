@@ -14,8 +14,8 @@ export function SkillsPanel({ state }) {
   const buildChar = selectedCharacterHash
     ? useUsersStore
         .getState()
-        .users.actions.findUserByCharacterHash(selectedCharacterHash)
-    : useUsersStore.getState().users.actions.findParentUser();
+        .account.actions.findCharacterByHash(selectedCharacterHash)
+    : useUsersStore.getState().account.actions.getMainCharacter();
 
   const {
     data: characterSkills,

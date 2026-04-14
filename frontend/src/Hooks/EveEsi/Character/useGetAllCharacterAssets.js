@@ -100,8 +100,8 @@ function findFirstError(results) {
  * }
  */
 export function getAllCachedCharacterAssets(queryClient) {
-    const userArray = useUsersStore.getState().users.userArray;
-    const queryStates = userArray.map(({ CharacterHash }) => {
+    const characters = useUsersStore.getState().account.characters;
+    const queryStates = characters.map(({ CharacterHash }) => {
         const queryKey = [characterAssetsQueryKey, CharacterHash];
         return {
             CharacterHash,
@@ -138,7 +138,6 @@ export function getAllCachedCharacterAssets(queryClient) {
     return createSuccessObject(assetsByCharacter);
 }
 
-
 /**
  * Custom hook that fetches character assets for all user characters.
  * 
@@ -171,7 +170,7 @@ export function getAllCachedCharacterAssets(queryClient) {
  * }
  */
 export function useGetAllCharacterAssets(enabled = true) {
-    const { userArray } = useUsersStore((state) => state.users);
+    const characters = useUsersStore((state) => state.account.characters);
 
     const combineFunction = useCallback((results) => {
         const isLoading = results.some(isQueryObserverResultLoading);
@@ -188,10 +187,10 @@ export function useGetAllCharacterAssets(enabled = true) {
         // Success case - combine all the data
         const data = results.map((result) => result?.data || []).flat();
         return createSuccessObject(data);
-    }, [userArray]);
+    }, [characters]);
 
     const result = useQueries({
-        queries: userArray.map(({ CharacterHash }) => {
+        queries: characters.map(({ CharacterHash }) => {
             const query = characterAssetsQuery(CharacterHash);
             return {
                 ...query,

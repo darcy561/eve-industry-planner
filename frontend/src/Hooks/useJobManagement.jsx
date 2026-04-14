@@ -1,9 +1,7 @@
-import { trace } from "@firebase/performance";
-import { performance } from "../firebase";
 import { getAnalytics, logEvent } from "firebase/analytics";
 import { useJobBuild } from "./useJobBuild";
 import { STATIONID_RANGE } from "../Context/defaultValues";
-import JobSnapshot from "../Classes/jobSnapshotConstructor";
+import JobSnapshot from "../Classes/jobSnapshot";
 import getStationData from "../Functions/EveESI/World/getStationData";
 import uploadJobSnapshotsToFirebase from "../Functions/Firebase/uploadJobSnapshots";
 import findOrGetJobObject from "../Functions/Helper/findJobObject";
@@ -71,14 +69,14 @@ import { getAllCachedCharacterBlueprints } from "../Hooks/EveEsi/Character/useGe
  * }
  */
 export function useJobManagement() {
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const { userJobSnapshot, jobArray } = useUsersStore((state) => state.jobData);
   const { replaceUserJobSnapshotArray, addRetrievedJobsToJobArray, replaceJobArray } = useUsersStore.getState().jobData.actions;
-  const { addLinkedEsiData } = useUsersStore.getState().users.actions;
-  const ignoreItemsWithoutBlueprints = useUsersStore.getState().applicationSettings.ignoreItemsWithoutBlueprints;
+  const { addLinkedEsiData } = useUsersStore.getState().account.actions;
+  const ignoreItemsWithoutBlueprints = useUsersStore.getState().applicationSettings.enableSkipMissingBlueprints;
   const checkTypeIDisExempt = useUsersStore.getState().applicationSettings.actions.checkTypeIDisExempt;
   const citadelBrokersFee =
-    useUsersStore.getState().applicationSettings.citadelBrokersFee;
+    useUsersStore.getState().applicationSettings.defaultCitadelBrokersFee;
   const firebaseListeners = useUsersStore.getState().users.firebaseListeners;
   const removeFirebaseListeners = useUsersStore.getState().users.actions.removeFirebaseListeners;
   const { buildJob } = useJobBuild();
@@ -86,8 +84,6 @@ export function useJobManagement() {
   const analytics = getAnalytics();
 
   const massBuildMaterials = async (inputJobIDs) => {
-    const r = trace(performance, "MassCreateJobProcessFull");
-    r.start();
     let finalBuildCount = [];
     let childJobs = [];
     let newUserJobSnapshot = [...userJobSnapshot];
@@ -257,12 +253,9 @@ export function useJobManagement() {
       `${childJobs.length} ${jobWord} Added, ${materialsIgnored.size} ${materialWord} Ignored.`,
       3
     );
-    r.stop();
   };
 
   const mergeJobsNew = async (inputJobIDs) => {
-    const r = trace(performance, "mergeJobsProcessFull");
-    r.start();
     let buildData = [];
     let newJobHold = [];
     let newJobArray = [...jobArray];
@@ -295,7 +288,7 @@ export function useJobManagement() {
         buildData.push({
           inputJobCount: 1,
           typeID: currentJob.itemID,
-          parentJobs: new Set(currentJob.parentJob),
+          parentJobs: new Set(currentJob.parentJobs),
           childJobs: childJobArray,
           totalItemQuantity: currentJob.build.products.totalQuantity,
           oldJobIDs: new Set([currentJob.jobID]),
@@ -305,7 +298,7 @@ export function useJobManagement() {
         buildEntry.inputJobCount++;
         buildEntry.parentJobs = new Set([
           ...buildEntry.parentJobs,
-          ...currentJob.parentJob,
+          ...currentJob.parentJobs,
         ]);
         buildEntry.totalItemQuantity += currentJob.build.products.totalQuantity;
         buildEntry.oldJobIDs.add(currentJob.jobID);
@@ -350,10 +343,10 @@ export function useJobManagement() {
         if (!replacementJob) {
           continue;
         }
-        replacementJob.parentJob = replacementJob.parentJob.concat([
+        replacementJob.parentJobs = replacementJob.parentJobs.concat([
           ...buildItem.newJobIDs,
         ]);
-        replacementJob.parentJob = replacementJob.parentJob.filter(
+        replacementJob.parentJobs = replacementJob.parentJobs.filter(
           (i) => !buildItem.oldJobIDs.has(i)
         );
       }
@@ -387,10 +380,10 @@ export function useJobManagement() {
           if (!matchingJob) {
             return;
           }
-          matchingJob.parentJob = matchingJob.parentJob.filter(
+          matchingJob.parentJobs = matchingJob.parentJobs.filter(
             (i) => !buildItem.oldJobIDs.has(i)
           );
-          matchingJob.parentJob = matchingJob.parentJob.concat([
+          matchingJob.parentJobs = matchingJob.parentJobs.concat([
             ...buildItem.newJobIDs,
           ]);
         });
@@ -505,7 +498,6 @@ export function useJobManagement() {
         : `0 Jobs Merged`,
       3
     );
-    r.stop();
   };
 
   async function calcBrokersFee(marketOrder) {

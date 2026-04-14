@@ -18,7 +18,8 @@ COPY . .
 ARG SENTRY_DSN=""
 ARG ENVIRONMENT=production
 ARG APP_VERSION=development
-ARG SENTRY_TRACES_SAMPLE_RATE=0.05
+# Optional: omit or set at build time; runtime SENTRY_TRACES_SAMPLE_RATE in .env overrides when non-empty.
+ARG SENTRY_TRACES_SAMPLE_RATE=
 
 # Build the application with optimizations
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -37,6 +38,9 @@ FROM alpine:3.20
 
 # Build arguments (only non-secret values)
 ARG IMAGE_SOURCE=https://github.com/darcy561/eve-industry-planner
+ARG APP_VERSION=development
+ARG FRONTEND_APP_VERSION=development
+ARG APP_FEATURE_FLAGS_JSON="{}"
 # FEEDBACK_DISCORD_WEBHOOK_URL: Optional Discord webhook URL for feedback notifications
 # Defaults to empty string for local builds. Can be set via build arg or overridden at runtime via env var
 ARG FEEDBACK_DISCORD_WEBHOOK_URL=""
@@ -65,6 +69,9 @@ LABEL org.opencontainers.image.source=${IMAGE_SOURCE}
 # Set environment variable from build arg (can be overridden at runtime via .env or docker-compose)
 # If empty, feedback endpoint will skip Discord notifications (still returns success)
 ENV FEEDBACK_DISCORD_WEBHOOK_URL=${FEEDBACK_DISCORD_WEBHOOK_URL}
+ENV APP_VERSION_NUMBER=${APP_VERSION}
+ENV FRONTEND_APP_VERSION=${FRONTEND_APP_VERSION}
+ENV APP_FEATURE_FLAGS_JSON=${APP_FEATURE_FLAGS_JSON}
 
 EXPOSE 80
 

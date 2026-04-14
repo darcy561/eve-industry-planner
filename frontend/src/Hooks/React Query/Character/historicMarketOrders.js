@@ -30,7 +30,7 @@ const characterHistoricMarketOrdersQueryKey = "characterHistoricMarketOrders";
  * @returns {Function} returns.queryFn - Async function to fetch character historic market orders
  * @returns {boolean} returns.enabled - Whether the query is enabled
  * @returns {number} returns.staleTime - Time before data is considered stale (30 minutes)
- * @returns {number} returns.cacheTime - Time to keep data in cache (1 hour)
+ * @returns {number} returns.gcTime - Inactive cache retention in ms (1 hour)
  * @returns {number} returns.retry - Number of retry attempts (3)
  * @returns {Function} returns.retryDelay - Function to calculate retry delay
  * @returns {boolean} returns.refetchOnWindowFocus - Whether to refetch on window focus (false)
@@ -44,11 +44,11 @@ const characterHistoricMarketOrdersQueryKey = "characterHistoricMarketOrders";
  * return <div>Historic Orders: {historicOrders.data.length} completed orders</div>;
  */
 function characterHistoricMarketOrdersQuery(characterHash) {
-  const findUserByCharacterHash = useUsersStore.getState().users.actions.findUserByCharacterHash;
+  const findCharacterByHash = useUsersStore.getState().account.actions.findCharacterByHash;
   return {
     queryKey: [characterHistoricMarketOrdersQueryKey, characterHash],
     queryFn: async () => {
-      const userObject = findUserByCharacterHash(characterHash);
+      const userObject = findCharacterByHash(characterHash);
       
       // Check if character group is rate limited for this specific character
       // Use config.group as hint, will be updated from headers if different
@@ -83,7 +83,7 @@ function characterHistoricMarketOrdersQuery(characterHash) {
     },
     enabled: getQueryEnabled(),
     staleTime: 30 * 60 * 1000, // 30 minutes
-    cacheTime: 60 * 60 * 1000, // 1 hour
+    gcTime: 60 * 60 * 1000, // 1 hour
     retry: 3,
     retryDelay: (attemptIndex, error) => {
       if (error?.message?.includes('rate limited')) {

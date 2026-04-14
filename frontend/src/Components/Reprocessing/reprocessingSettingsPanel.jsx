@@ -23,7 +23,7 @@ import { useState, useEffect } from "react";
 import useUsersStore from "../../Zustand/usersStore";
 import { useCachedData } from "../../Hooks/useCachedData";
 import { CACHED_DATA_FILES, DEFAULT_REPROCESSING_CALCULATION_SETTINGS } from "../../Context/defaultValues";
-import uploadApplicationSettingsToFirebase from "../../Functions/Firebase/uploadApplicationSettings";
+import { saveApplicationSettings } from "../../Functions/Endpoints/Pirivate/userDocument";
 import { showSnackbarSuccess } from "../../Events/snackbarEvents";
 import { useGlobalDebounce } from "../../Hooks/GeneralHooks/useGlobalDebounce";
 import { DEBOUNCE_KEYS } from "../../Context/debounceKeys";
@@ -31,7 +31,7 @@ import { DEBOUNCE_KEYS } from "../../Context/debounceKeys";
 export default function ReprocessingSettingsPanel({ pageState, pageActions }) {
     const { data: fullItemList } = useCachedData(CACHED_DATA_FILES.FULL_ITEM_LIST);
     const updateReprocessingSettings = useUsersStore((state) => state.applicationSettings.actions.updateReprocessingCalculationSettings);
-    const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+    const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
     const exemptTypeIDs = pageState.oreIDsToBeIgnored || [];
     const reprocessingSettings = pageState.reprocessingCalculationSettings;
 
@@ -41,7 +41,7 @@ export default function ReprocessingSettingsPanel({ pageState, pageActions }) {
     const debouncedSaveSettings = useGlobalDebounce(
         DEBOUNCE_KEYS.APP_SETTINGS_SAVE,
         async () => {
-            await uploadApplicationSettingsToFirebase();
+            await saveApplicationSettings();
         },
         2000
     );
@@ -89,7 +89,6 @@ export default function ReprocessingSettingsPanel({ pageState, pageActions }) {
         updateReprocessingSettings(DEFAULT_REPROCESSING_CALCULATION_SETTINGS);
         showSnackbarSuccess("Reprocessing settings reverted to default");
     };
-
 
     return (
         <Box>

@@ -148,10 +148,10 @@ function createSuccessObject(data) {
  * }
  */
 export function getCachedAllIndustryJobs(queryClient) {
-  const { userArray } = useUsersStore.getState().users;
+  const { characters } = useUsersStore.getState().account;
 
   // Get query states for all characters and corporations
-  const queryStates = userArray.flatMap(({ CharacterHash }) => [
+  const queryStates = characters.flatMap(({ CharacterHash }) => [
     // Character industry jobs query state
     {
       queryState: queryClient.getQueryState([characterIndustryJobsQueryKey, CharacterHash]),
@@ -247,7 +247,7 @@ export function getCachedAllIndustryJobs(queryClient) {
  * }
  */
 export default function useGetAllIndustryJobs() {
-  const { userArray } = useUsersStore((state) => state.users);
+  const characters = useUsersStore((state) => state.account.characters);
 
   const combineFunction = useCallback((results) => {
     const isLoading = results.some(isQueryObserverResultLoading);
@@ -270,8 +270,8 @@ export default function useGetAllIndustryJobs() {
     }
 
     // Split results into character and corporation queries
-    const characterResults = results.slice(0, userArray.length);
-    const corporationResults = results.slice(userArray.length);
+    const characterResults = results.slice(0, characters.length);
+    const corporationResults = results.slice(characters.length);
 
     // Extract jobs from both sources
     const characterJobs = extractCharacterJobs(characterResults);
@@ -287,14 +287,14 @@ export default function useGetAllIndustryJobs() {
       isLoading: false,
       error: null,
     };
-  }, [userArray]);
+  }, [characters]);
 
   // Create queries for both character and corporation industry jobs
   const queries = [
     // Character industry jobs queries
-    ...userArray.map(({ CharacterHash }) => characterIndustryJobsQuery(CharacterHash)),
+    ...characters.map(({ CharacterHash }) => characterIndustryJobsQuery(CharacterHash)),
     // Corporation industry jobs queries
-    ...userArray.map(({ CharacterHash }) => corporationIndustryJobsQuery(CharacterHash)),
+    ...characters.map(({ CharacterHash }) => corporationIndustryJobsQuery(CharacterHash)),
   ];
 
   const result = useQueries({

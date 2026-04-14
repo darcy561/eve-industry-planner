@@ -61,7 +61,6 @@ async function fetchWithCustomHeaders(URL, options = {}, config = {}) {
   }
 }
 
-
 /**
  * Direct ESI fetch without queue management (for immediate requests)
  * @param {string} URL - Request URL

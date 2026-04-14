@@ -1,27 +1,20 @@
 import { Grid } from "@mui/material";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { jobTypes } from "../../Context/defaultValues";
 import { ManufacturingOptionsUpcomingChanges } from "./manufacturingOptions";
 import { ReactionOptionsUpcomingChanges } from "./reactionOptions";
 import { UpcomingChangesSearch } from "./searchBar";
 import { SisiItem } from "./sisiItem";
 import { TranqItem } from "./tranqItem";
-import { getBoolean } from "firebase/remote-config";
-import { remoteConfig } from "../../firebase";
 import { Navigate } from "@tanstack/react-router";
+import useAppConfig from "../../Hooks/GeneralHooks/useAppConfig";
 
 export default function UpcomingChanges() {
   const [itemLoad, updateItemLoad] = useState(false);
   const [tranqItem, updateTranqItem] = useState(null);
   const [sisiItem, updateSisiItem] = useState(null);
-  const [isEnabled, setIsEnabled] = useState(false);
-
-
-  useEffect(() => {
-    const enabled = getBoolean(remoteConfig, "enable_upcoming_changes_page");
-    setIsEnabled(enabled);
-  }, []);
+  const { enable_upcoming_changes_page: isEnabled = false } = useAppConfig();
 
   // Redirect if the feature is not enabled
   if (!isEnabled) {

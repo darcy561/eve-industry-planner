@@ -15,7 +15,6 @@ import { ImportFittingItemRow } from "./importFittingItemRow";
 import { showSnackbarError } from "../../../Events/snackbarEvents";
 import { checkClipboardReadPermissions } from "../../../Functions/Clipboard/clipboardPermissions";
 
-
 export function ImportItemFitDialogue({
   importFitDialogueTrigger,
   updateImportFitDialogueTrigger,

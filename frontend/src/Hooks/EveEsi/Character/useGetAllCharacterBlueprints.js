@@ -131,10 +131,10 @@ function createSuccessObject(data) {
  * }
  */
 export function getAllCachedCharacterBlueprints(queryClient) {
-  const userArray = useUsersStore.getState().users.userArray;
+  const characters = useUsersStore.getState().account.characters;
 
   // Get query states for all characters
-  const queryStates = userArray.map(({ CharacterHash }) => {
+  const queryStates = characters.map(({ CharacterHash }) => {
     const queryKey = [characterBlueprintsQueryKey, CharacterHash];
     return {
       CharacterHash,
@@ -213,7 +213,7 @@ export function getAllCachedCharacterBlueprints(queryClient) {
  * }
  */
 export function useGetAllCharacterBlueprints() {
-  const { userArray } = useUsersStore((state) => state.users);
+  const characters = useUsersStore((state) => state.account.characters);
 
   const combineFunction = useCallback((results) => {
     const isLoading = checkLoadingState(results);
@@ -230,7 +230,7 @@ export function useGetAllCharacterBlueprints() {
     // Organize blueprints by character hash
     const blueprintsByCharacter = {};
     results.forEach((result, index) => {
-      const { CharacterHash } = userArray[index];
+      const { CharacterHash } = characters[index];
       // Extract blueprints from the single result object
       // The query returns { data: allData, characterHash: characterHash }
       const characterBlueprints = result.data || [];
@@ -238,10 +238,10 @@ export function useGetAllCharacterBlueprints() {
     });
 
     return createSuccessObject(blueprintsByCharacter);
-  }, [userArray]);
+  }, [characters]);
 
   const result = useQueries({
-    queries: userArray.map(({ CharacterHash }) => characterBlueprintsQuery(CharacterHash)),
+    queries: characters.map(({ CharacterHash }) => characterBlueprintsQuery(CharacterHash)),
     combine: combineFunction,
   });
 

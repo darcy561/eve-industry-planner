@@ -5,7 +5,6 @@ import { WatchlistGroup } from "./watchlistGroup";
 import useUsersStore from "../../../../Zustand/usersStore";
 
 export function WatchlistContainer({
-  parentUser,
   updateGroupSettingsTrigger,
   groupSettingsContent,
   updateGroupSettingsContent,
@@ -14,7 +13,7 @@ export function WatchlistContainer({
 }) {
   const { userWatchlist } = useUsersStore((state) => state.jobData);
   const defaultOrders = useUsersStore(
-    (state) => state.applicationSettings.defaultOrders
+    (state) => state.applicationSettings.defaultOrderType
   );
 
   if (userWatchlist.items.length === 0) {
@@ -98,7 +97,6 @@ export function WatchlistContainer({
             <WatchlistGroup
               key={group.id}
               group={group}
-              parentUser={parentUser}
               index={index}
               updateGroupSettingsTrigger={updateGroupSettingsTrigger}
               updateGroupSettingsContent={updateGroupSettingsContent}
@@ -114,7 +112,6 @@ export function WatchlistContainer({
               <WatchListRow
                 key={item.id}
                 item={item}
-                parentUser={parentUser}
                 index={index}
                 setOpenDialog={setOpenDialog}
                 updateWatchlistItemToEdit={updateWatchlistItemToEdit}

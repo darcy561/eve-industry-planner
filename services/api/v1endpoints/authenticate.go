@@ -12,9 +12,10 @@ import (
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/api/migration"
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/core/mongo"
+	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
@@ -26,12 +27,15 @@ const (
 
 // AuthResponse represents the response sent to the client
 type AuthResponse struct {
-	AccessToken        string `json:"access_token"`
-	RefreshToken       string `json:"refresh_token"`
-	ExpiresAt          int64  `json:"expires_at"` // Unix timestamp (seconds since epoch)
-	FirstLogin         bool   `json:"first_login"`
-	FirebaseToken      string `json:"firebase_token"`       // Firebase custom token for sign-in (avoids extra request)
-	FirebaseFirstLogin bool   `json:"firebase_first_login"` // Whether user was new in Firebase Auth
+	AccountID           string                     `json:"account_id"`
+	AccessToken         string                     `json:"access_token"`
+	RefreshToken        string                     `json:"refresh_token"`
+	ExpiresAt           int64                      `json:"expires_at"` // Unix timestamp (seconds since epoch)
+	FirstLogin          bool                       `json:"first_login"`
+	FirebaseToken       string                     `json:"firebase_token"` // Firebase custom token for sign-in (avoids extra request)
+	FirebaseFirstLogin  bool                       `json:"firebase_first_login"`
+	UserDocument        models.UserAccountDocument `json:"user_document"`
+	ApplicationSettings models.ApplicationSettings `json:"application_settings"`
 }
 
 func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
@@ -41,9 +45,14 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		start = time.Now()
 	}
 	m := apimetrics.GetAPIEveTokenLogin()
+	sessionMetrics := apimetrics.GetAPIAuthSessionLifecycle()
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		http.Error(w, "Configuration error: "+err.Error(), http.StatusInternalServerError)
+		duration := time.Since(start)
+		m.Errors.WithLabelValues("config_error").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "config_error", "error", err)
+		logs.ErrorCtx(ctx, "failed to load config for auth login", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -104,6 +113,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 	characterHash := tokenInfo.CharacterHash
 	scopes := tokenInfo.Scopes
 	accountID := auth.GetAccountIDFromCharacterHash(characterHash)
+	appVersion := extractAppVersion(r)
 
 	// Load or get cached RSA private key for JWT signing
 	// Loading priority: 1) Persistent file, 2) Environment variable, 3) Auto-generate new key
@@ -151,12 +161,28 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		return
 	}
 
+	sessionID, err := auth.GenerateSessionID()
+	if err != nil {
+		duration := time.Since(start)
+		m.Errors.WithLabelValues("session_generation_error").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "session_generation_error",
+			"error", err, "account_id", accountID, "character_hash", characterHash)
+		logs.ErrorCtx(ctx, "failed to generate session id", "error", err, "account_id", accountID, "character_hash", characterHash)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	sessionNow := time.Now().UTC()
+
 	// Store refresh token in Redis with user data (including corporations)
 	refreshTokenData := auth.RefreshTokenData{
 		CharacterHash: characterHash,
 		AccountID:     internalClaims.AccountID,
 		Scopes:        scopes,
 		Corporations:  corporations,
+		SessionID:     sessionID,
+		SessionStart:  sessionNow,
+		SessionSeenAt: sessionNow,
+		AppVersion:    appVersion,
 	}
 	if err := auth.StoreRefreshToken(ctx, clients.Redis, refreshToken, refreshTokenData); err != nil {
 		duration := time.Since(start)
@@ -167,23 +193,28 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-
-	// Checks if the user document exists, if not creates it with default values
-	firstLogin, err := mongo.EnsureUserAccountDocument(ctx, clients.Mongo, accountID)
-	if err != nil {
+	if err := auth.UpsertSessionRecord(ctx, clients.Redis, auth.SessionRecord{
+		SessionID:     sessionID,
+		AccountID:     internalClaims.AccountID,
+		CharacterHash: characterHash,
+		AppVersion:    appVersion,
+		StartedAt:     sessionNow,
+		LastSeenAt:    sessionNow,
+	}); err != nil {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("mongo_error").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "mongo_error",
-			"error", err, "account_id", accountID)
-		logs.ErrorCtx(ctx, "failed to ensure user document exists", "error", err, "account_id", accountID)
+		m.Errors.WithLabelValues("session_store_error").Inc(ctx)
+		sessionMetrics.StoreErrors.WithLabelValues("login").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "session_store_error",
+			"error", err, "account_id", accountID, "character_hash", characterHash)
+		logs.ErrorCtx(ctx, "failed to store session record", "error", err, "account_id", accountID, "character_hash", characterHash)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+	sessionMetrics.Started.WithLabelValues("login").Inc(ctx)
+	sessionMetrics.Stored.WithLabelValues("login").Inc(ctx)
+	apimetrics.RecordAuthSessionDistinctAccount(ctx, clients.Redis, internalClaims.AccountID)
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	// Generate Firebase custom token in the same request so the frontend can sign in without a second call
+	// Firebase custom token before Mongo so token minting fails fast without touching account documents.
 	firebaseToken, firebaseFirstLogin, err := migration.GenerateFirebaseCustomToken(ctx, accountID)
 	if err != nil {
 		duration := time.Since(start)
@@ -195,21 +226,34 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		return
 	}
 
-	migration.EnqueueMigrateUserDocumentToMongo(ctx, clients.JetStream, accountID, clients.NATS)
-	logs.InfoCtx(ctx, "enqueued migrate user document to mongo task", "account_id", accountID)
+	loginDocs, err := mongocore.ResolveUserDocumentsForLogin(ctx, clients.Mongo, accountID)
+	if err != nil {
+		duration := time.Since(start)
+		m.Errors.WithLabelValues("mongo_error").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "mongo_error",
+			"error", err, "account_id", accountID)
+		logs.ErrorCtx(ctx, "failed to resolve user documents for login", "error", err, "account_id", accountID)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 
-	// Return the internal JWT token, refresh token, and Firebase token
 	// Calculate expiration timestamp using the same duration as token generation (Unix timestamp in seconds)
 	expiresAt := time.Now().Add(auth.TokenExpirationDuration).Unix()
 
 	response := AuthResponse{
-		AccessToken:        internalToken,
-		RefreshToken:       refreshToken,
-		ExpiresAt:          expiresAt,
-		FirstLogin:         firstLogin,
-		FirebaseToken:      firebaseToken,
-		FirebaseFirstLogin: firebaseFirstLogin,
+		AccountID:           accountID,
+		AccessToken:         internalToken,
+		RefreshToken:        refreshToken,
+		ExpiresAt:           expiresAt,
+		FirstLogin:          loginDocs.FirstLogin,
+		FirebaseToken:       firebaseToken,
+		FirebaseFirstLogin:  firebaseFirstLogin,
+		UserDocument:        loginDocs.User,
+		ApplicationSettings: loginDocs.Settings,
 	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		duration := time.Since(start)
@@ -226,20 +270,28 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 	m.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
 	m.RequestsCount.Inc(ctx)
 	m.Successes.Inc(ctx)
-	if firstLogin {
+	if loginDocs.FirstLogin {
 		m.NewUsers.Inc(ctx)
 	}
 
 	// Log per-request metrics for slow requests
 	apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "success",
 		"account_id", accountID,
-		"first_login", firstLogin,
+		"first_login", loginDocs.FirstLogin,
 	)
 
 	logs.InfoCtx(ctx, "successfully authenticated user",
 		"account_id", accountID,
 		"duration_ms", duration.Milliseconds(),
 	)
+}
+
+func extractAppVersion(r *http.Request) string {
+	version := strings.TrimSpace(r.Header.Get("X-App-Version"))
+	if version == "" {
+		return "unknown"
+	}
+	return version
 }
 
 // extractTokenFromRequest extracts the JWT token from the request body

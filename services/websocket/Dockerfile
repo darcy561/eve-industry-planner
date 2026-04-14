@@ -17,7 +17,8 @@ COPY . .
 ARG SENTRY_DSN=""
 ARG ENVIRONMENT=production
 ARG APP_VERSION=development
-ARG SENTRY_TRACES_SAMPLE_RATE=0.05
+# Optional: omit or set at build time; runtime SENTRY_TRACES_SAMPLE_RATE in .env overrides when non-empty.
+ARG SENTRY_TRACES_SAMPLE_RATE=
 
 # Build the application with optimizations
 RUN --mount=type=cache,target=/go/pkg/mod \

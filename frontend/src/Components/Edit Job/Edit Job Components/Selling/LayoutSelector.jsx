@@ -5,16 +5,16 @@ import { useGetCharacterOrdersAndWalletData } from "../../../../Hooks/EveEsi/use
 import { useGetCharacterSkills } from "../../../../Hooks/EveEsi/Character/useGetCharacterSkills";
 import { useGetCharacterStandings } from "../../../../Hooks/EveEsi/Character/useGetCharacterStandings";
 
-
 export function LayoutSelector_EditJob_Selling(props) {
   const { state } = props;
   const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("sm"));
-  const parentUserHash = useUsersStore.getState().users.actions.findParentUser().CharacterHash;
+  const mainCharacterHash =
+    useUsersStore.getState().account.actions.getMainCharacterHash();
 
   const characterHashes = [
     ...new Set(
       [
-        parentUserHash,
+        mainCharacterHash,
         ...state.activeJob.build.sale.marketOrders.map(
           (order) => order.CharacterHash
         ),
@@ -32,14 +32,13 @@ export function LayoutSelector_EditJob_Selling(props) {
     isLoading: SkillDataLoading,
     isError: SkillDataError,
     error: SkillDataErrorObj,
-  } = useGetCharacterSkills(parentUserHash);
+  } = useGetCharacterSkills(mainCharacterHash);
 
   const {
     isLoading: StandingDataLoading,
     isError: StandingDataError,
     error: StandingDataErrorObj,
-  } = useGetCharacterStandings(parentUserHash);
-
+  } = useGetCharacterStandings(mainCharacterHash);
 
   const isLoading =
     SkillDataLoading ||

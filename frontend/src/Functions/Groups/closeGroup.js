@@ -16,7 +16,7 @@ import useUsersStore from "../../Zustand/usersStore";
  * console.log("Group closed successfully");
  */
 export default async function closeActiveGroup(groupJobs) {
-  const isLoggedIn = useUsersStore.getState().users.isLoggedIn;
+  const isLoggedIn = useUsersStore.getState().account.isLoggedIn;
   const { jobArray } = useUsersStore.getState().jobData;
   const {
     clearMultiSelect,
@@ -62,14 +62,14 @@ export default async function closeActiveGroup(groupJobs) {
     if (!groupEntry.includedJobIDs.has(startingJob.jobID)) continue;
 
     // Handle parent relationships
-    for (const parentID of startingJob.parentJob) {
+    for (const parentID of startingJob.parentJobs) {
       let parentMatch = newJobArray.find((i) => i.jobID === parentID);
       if (!parentMatch) continue;
       let materialMatch = parentMatch.build.childJobs[startingJob.itemID];
       if (!materialMatch) continue;
       if (!materialMatch.includes(startingJob.jobID)) {
         parentMatch.addChildJob(startingJob.itemID, startingJob.jobID);
-        jobsToSave.add(parentMatch.jobID);
+        jobsToSave.add(parentMatch.jobID);  
       }
     }
 
@@ -80,7 +80,7 @@ export default async function closeActiveGroup(groupJobs) {
       ]) {
         let childMatch = newJobArray.find((i) => i.jobID === childID);
         if (!childMatch) continue;
-        if (!childMatch.parentJob.includes(startingJob.jobID)) {
+        if (!childMatch.parentJobs.includes(startingJob.jobID)) {
           childMatch.addParentJob(startingJob.jobID);
           jobsToSave.add(childMatch.jobID);
         }

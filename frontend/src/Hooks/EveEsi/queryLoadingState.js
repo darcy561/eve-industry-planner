@@ -3,21 +3,31 @@
  *
  * v5 uses status pending | error | success. Observer `isLoading` is only true while
  * isPending && isFetching, so a query can be pending with `isLoading === false`.
- * Code that only checked `isLoading` or `status === "loading"` could treat empty
- * cache as a finished successful load.
+ * Disabled queries (`enabled: false` when logged out) stay pending with `fetchStatus: "idle"`
+ * and must not be treated as loading. Prefer `result.isLoading` over raw `isPending`.
  */
 
 export function isQueryStateLoading(queryState) {
   if (!queryState) return true;
+  if (
+    queryState.fetchStatus === "fetching" ||
+    queryState.fetchStatus === "paused"
+  ) {
+    return true;
+  }
+  // Disabled queries stay `pending` with `fetchStatus: "idle"` — not an in-flight load.
+  if (queryState.status === "pending" && queryState.fetchStatus === "idle") {
+    return false;
+  }
   const status = queryState.status;
   return status === "pending" || status === "loading";
 }
 
 export function isQueryObserverResultLoading(result) {
-  return (
-    Boolean(result?.isLoading) ||
-    Boolean(result?.isPending) ||
-    result?.status === "pending" ||
-    result?.status === "loading"
-  );
+  if (!result) return true;
+  // v5: `isLoading` is true only while fetching; `isPending` alone includes disabled empty queries.
+  if (typeof result.isLoading === "boolean") {
+    return result.isLoading;
+  }
+  return Boolean(result?.isFetching) || result?.status === "loading";
 }

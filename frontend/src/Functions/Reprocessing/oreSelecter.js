@@ -28,9 +28,18 @@ function oreSelector(
   mineralRequirements,
   ores,
   oreIDsToBeIgnored = [],
-  reprocessingCalculationSettings = useUsersStore.getState().applicationSettings.reprocessingCalculationSettings
+  reprocessingCalculationSettings
 ) {
-  const { preferCompressed, compressionBonusMultiplier, valueMultiplier, wastePenaltyMultiplier } = reprocessingCalculationSettings;
+  const rs = useUsersStore.getState().applicationSettings.reprocessingSettings;
+  const resolved =
+    reprocessingCalculationSettings ?? {
+      preferCompressed: rs.preferCompressed,
+      compressionBonusMultiplier: rs.compressionBonusMultiplier,
+      valueMultiplier: rs.valueMultiplier,
+      wastePenaltyMultiplier: rs.wastePenaltyMultiplier,
+      sellExcessMineralTypes: rs.sellExcessMineralTypes,
+    };
+  const { preferCompressed, compressionBonusMultiplier, valueMultiplier, wastePenaltyMultiplier } = resolved;
   const plan = [];
 
   function areMineralsRemaining() {

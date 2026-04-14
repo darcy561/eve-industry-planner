@@ -5,7 +5,6 @@ import { escapeJsString } from "./utils.js";
 export function processServiceWorkers(distDir) {
   const SW_FILES = [
     path.join(distDir, "sw.js"),
-    path.join(distDir, "firebase-messaging-sw.js"),
   ];
 
   SW_FILES.forEach(swFile => {
@@ -22,10 +21,8 @@ export function processServiceWorkers(distDir) {
         __FIREBASE_DATABASE_URL__: escapeJsString(process.env.FIREBASE_DATABASE_URL || ""),
         __FIREBASE_PROJECT_ID__: escapeJsString(process.env.FIREBASE_PROJECT_ID || ""),
         __FIREBASE_STORAGE_BUCKET__: escapeJsString(process.env.FIREBASE_STORAGE_BUCKET || ""),
-        __FIREBASE_MESSAGING_SENDER_ID__: escapeJsString(process.env.FIREBASE_MESSAGING_SENDER_ID || ""),
         __FIREBASE_APP_ID__: escapeJsString(process.env.FIREBASE_APP_ID || ""),
-        __FIREBASE_MEASUREMENT_ID__: escapeJsString(process.env.FIREBASE_MEASUREMENT_ID || ""),
-        __FIREBASE_VAPID_KEY__: escapeJsString(process.env.FIREBASE_VAPID_KEY || "")
+        __FIREBASE_MEASUREMENT_ID__: escapeJsString(process.env.FIREBASE_MEASUREMENT_ID || "")
       };
 
       for (const [key, val] of Object.entries(replacements)) {

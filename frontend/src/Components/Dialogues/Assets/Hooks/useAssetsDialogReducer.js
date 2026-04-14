@@ -76,32 +76,31 @@ export default function useAssetsDialogReducer() {
    * Creates the initial state for the assets dialog.
    * 
    * Determines initial values based on current user data, including
-   * parent user information, available characters, and default selections.
+   * main character information, available characters, and default selections.
    * 
    * @returns {Object} Initial state object
    * @returns {boolean} returns.isOpen - Dialog closed by default
    * @returns {number|null} returns.selectedTypeID - No type selected initially
    * @returns {boolean} returns.isLoading - Loading state starts as true
    * @returns {boolean} returns.useCorporationAssets - Corporation assets disabled by default
-   * @returns {string|null} returns.selectedCharacter - All users if multiple, parent user if single
-   * @returns {number|null} returns.selectedCorporation - Parent user's corporation ID
+   * @returns {string|null} returns.selectedCharacter - All characters if multiple, main character if single
+   * @returns {number|null} returns.selectedCorporation - Main character's corporation ID
    * @returns {Map} returns.assetLocations - Empty asset locations map
    * @returns {Map} returns.topLevelAssets - Empty top-level assets map
    * @returns {Map} returns.assetLocationNames - Empty asset location names map
    * @returns {Object} returns.fullItemList - Empty full item list object
    */
   const createInitialState = () => {
-    const parentUser = useUsersStore.getState().users.actions.findParentUser();
     return {
       isOpen: false,
       selectedTypeID: null,
       isLoading: true,
       useCorporationAssets: false,
       selectedCharacter:
-        useUsersStore.getState().users.userArray.length > 1
+        Object.values(useUsersStore.getState().account.characters).length > 1
           ? "allUsers"
-          : parentUser?.CharacterHash || null,
-      selectedCorporation: parentUser?.corporation_id || null,
+          : useUsersStore.getState().account.mainCharacterHash || null,
+      selectedCorporation: useUsersStore.getState().account.actions.getMainCorporation()?.corporation_id || null,
       assetLocations: new Map(),
       topLevelAssets: new Map(),
       assetLocationNames: new Map(),

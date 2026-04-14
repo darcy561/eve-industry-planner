@@ -34,7 +34,7 @@ export function Purchasing_StandardLayout_EditJob(props) {
         return jobList.filter((job) => childJobLocation.includes(job.jobID));
       }
 
-      if (!state.activeJob.groupID) {
+      if (!state.activeJob.includedInGroup) {
         childJobs = filterJobs(userJobSnapshot);
         childJobProductionTotal = childJobs.reduce(
           (total, job) => total + job.itemQuantity,

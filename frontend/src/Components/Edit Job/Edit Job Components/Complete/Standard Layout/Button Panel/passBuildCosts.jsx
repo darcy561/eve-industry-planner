@@ -13,7 +13,7 @@ import useUsersStore from "../../../../../../Zustand/usersStore";
 export function PassBuildCostsButton({ state }) {
   const { activeGroupID, userJobSnapshot } = useUsersStore((state) => state.jobData);
   const { getActiveGroupObject, addRetrievedJobsToJobArray } = useUsersStore.getState().jobData.actions;
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const analytics = getAnalytics();
 
   const buttonText = activeGroupID
@@ -49,7 +49,7 @@ export function PassBuildCostsButton({ state }) {
     }
   }
 
-  if (state.activeJob.parentJob.length === 0) {
+  if (state.activeJob.parentJobs.length === 0) {
     return null;
   }
 

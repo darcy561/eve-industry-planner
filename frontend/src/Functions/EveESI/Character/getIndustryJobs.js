@@ -6,7 +6,7 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
  * Filters jobs based on completion date and includes both active and completed jobs.
  * 
  * @param {Object} params - Parameters object
- * @param {Object} params.character - Character object with aToken and CharacterID
+ * @param {Object} params.character - Character object with esiAccessToken and CharacterID
  * @param {number} [params.page=1] - Page number for pagination
  * @param {Object} [params.existingData={}] - Existing data for caching
  * @param {Object} [params.config={}] - Additional configuration options
@@ -14,18 +14,18 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
  * 
  * @example
  * const jobs = await getCharacterIndustryJobs({
- *   character: { aToken: "token", CharacterID: 123456 },
+ *   character: { esiAccessToken: "token", CharacterID: 123456 },
  *   page: 1,
  *   config: { characterHash: "hash" }
  * });
  */
 async function getCharacterIndustryJobs({ character, page = 1, existingData = {}, config = {} }) {
   try {
-    if (!character || !character.CharacterID || !character.aToken) {
+    if (!character || !character.CharacterID || !character.esiAccessToken) {
       throw new Error("Character information is incomplete.");
     }
 
-    const { aToken, CharacterID } = character;
+    const { esiAccessToken, CharacterID } = character;
     const endpointURL = `https://esi.evetech.net/v1/characters/${CharacterID}/industry/jobs/?include_completed=true&datasource=tranquility&page=${page}`;
 
     // Enhanced configuration for rate limiting
@@ -44,7 +44,7 @@ async function getCharacterIndustryJobs({ character, page = 1, existingData = {}
       {
         headers: {
           "If-None-Match": existingData?.etag || "",
-          Authorization: `Bearer ${aToken}`,
+          Authorization: `Bearer ${esiAccessToken}`,
         },
       },
       enhancedConfig

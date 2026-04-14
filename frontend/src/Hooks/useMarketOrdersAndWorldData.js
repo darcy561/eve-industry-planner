@@ -116,10 +116,6 @@ export function useGatherMarketOrdersAndUpdateExistingLinkedOrders(
   const [isWorldDataLoading, setIsWorldDataLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const parentUser = useUsersStore((state) =>
-    state.users.actions.findParentUser()
-  );
-
   // Subscribe to market order cache updates using React Query hooks
   // React Query hooks automatically trigger re-renders when cache updates
   const {
@@ -230,7 +226,9 @@ export function useGatherMarketOrdersAndUpdateExistingLinkedOrders(
         }
 
         if (allLocationIDs.size > 0) {
-          const locationNames = await getWorldData(allLocationIDs, parentUser);
+          const locationNames = await getWorldData(allLocationIDs,
+            useUsersStore.getState().account.actions.getMainCharacter()
+          );
           useUsersStore
             .getState()
             .worldData.actions.addUniverseIDs(locationNames);

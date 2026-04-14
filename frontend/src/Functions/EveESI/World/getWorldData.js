@@ -52,8 +52,6 @@ async function getWorldData(inputIDs, userObj, config = {}) {
 
     const responses = (await Promise.all(promises)).flat();
 
-
-
     responses.forEach((obj) => {
       if (!obj) return;
       returnObject[obj.id] = obj;

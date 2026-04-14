@@ -16,7 +16,7 @@ import useUsersStore from '../Zustand/usersStore'
  * })
  */
 export function requireAuth({ location }) {
-  const isLoggedIn = useUsersStore.getState().users.isLoggedIn
+  const isLoggedIn = useUsersStore.getState().account.isLoggedIn
   
   if (!isLoggedIn) {
     throw redirect({
@@ -43,7 +43,7 @@ export function requireAuth({ location }) {
  * })
  */
 export function allowPublicAccess({ location }) {
-  const isLoggedIn = useUsersStore.getState().users.isLoggedIn
+  const isLoggedIn = useUsersStore.getState().account.isLoggedIn
   
   if (!isLoggedIn) {
     const existingAuth = localStorage.getItem("Auth");

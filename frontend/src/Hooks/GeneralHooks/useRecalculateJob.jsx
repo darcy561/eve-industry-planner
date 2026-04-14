@@ -1,4 +1,4 @@
-import Setup from "../../Classes/jobSetupConstructor";
+import Setup from "../../Classes/jobSetup";
 import useUsersStore from "../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
 import calculateTimeForSetup from "../../Functions/Blueprint Calculations/calculateTimeForSetup";
@@ -44,7 +44,6 @@ import {
  */
 export function useRecalcuateJob() {
   const queryClient = useQueryClient();
-  const parentUser = useUsersStore.getState().users.actions.findParentUser();
 
   /**
    * Recalculates a job for a new total production quantity.
@@ -80,7 +79,8 @@ export function useRecalcuateJob() {
         TE,
         ...structureData,
         ...newItem,
-        characterToUse: parentUser.CharacterHash,
+        characterToUse:
+          useUsersStore.getState().account.actions.getMainCharacterHash(),
         ...inputJob.rawData.time,
         jobType: inputJob.jobType,
         rawTimeValue,

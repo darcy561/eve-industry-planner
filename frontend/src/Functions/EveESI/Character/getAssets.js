@@ -4,7 +4,7 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
  * Fetches character assets from EVE ESI API with pagination and caching support.
  * 
  * @param {Object} params - Parameters object
- * @param {Object} params.character - Character object with aToken and CharacterID
+ * @param {Object} params.character - Character object with esiAccessToken and CharacterID
  * @param {number} [params.page=1] - Page number for pagination
  * @param {Object} [params.existingEtags={}] - Existing ETags for caching
  * @param {Object} [params.config={}] - Additional configuration options
@@ -12,17 +12,17 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
  * 
  * @example
  * const assets = await getCharacterAssets({
- *   character: { aToken: "token", CharacterID: 123456 },
+ *   character: { esiAccessToken: "token", CharacterID: 123456 },
  *   page: 1,
  *   config: { characterHash: "hash" }
  * });
  */
 async function getCharacterAssets({ character, page = 1, existingEtags = {}, config = {} }) {
   try {
-    if (!character || !character.aToken || !character.CharacterID) {
+    if (!character || !character.esiAccessToken || !character.CharacterID) {
       throw new Error("Character information is incomplete.");
     }
-    const { aToken, CharacterID } = character;
+    const { esiAccessToken, CharacterID } = character;
     const endpointURL = `https://esi.evetech.net/v5/characters/${CharacterID}/assets/?datasource=tranquility&page=${page}`;
 
     // Enhanced configuration for rate limiting
@@ -41,7 +41,7 @@ async function getCharacterAssets({ character, page = 1, existingEtags = {}, con
       {
         headers: {
           "If-None-Match": existingEtags?.etag || "",
-          Authorization: `Bearer ${aToken}`,
+          Authorization: `Bearer ${esiAccessToken}`,
         },
       },
       enhancedConfig

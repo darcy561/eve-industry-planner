@@ -8,11 +8,11 @@ async function getCharacterJournal({
   config = {}
 }) {
   try {
-    if (!character || !character.aToken || !character.CharacterID) {
+    if (!character || !character.esiAccessToken || !character.CharacterID) {
       throw new Error("Character information is incomplete.");
     }
 
-    const { aToken, CharacterID } = character;
+    const { esiAccessToken, CharacterID } = character;
     const endpointURL = `https://esi.evetech.net/v6/characters/${CharacterID}/wallet/journal/?datasource=tranquility&page=${page}`;
     const refTypes = new Set([
       "brokers_fee",
@@ -37,7 +37,7 @@ async function getCharacterJournal({
       {
         headers: {
           "If-None-Match": existingData?.etag || "",
-          Authorization: `Bearer ${aToken}`,
+          Authorization: `Bearer ${esiAccessToken}`,
         },
       },
       enhancedConfig

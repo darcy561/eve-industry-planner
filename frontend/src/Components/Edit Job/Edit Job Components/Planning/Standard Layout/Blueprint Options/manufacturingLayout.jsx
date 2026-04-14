@@ -327,7 +327,7 @@ export function ManufacturingLayout_BlueprintPanel({ state, actions }) {
           const esiJob = jobLookupMap.get(print.item_id);
           const blueprintOwner = useUsersStore
             .getState()
-            .users.actions.findUserByCharacterHash(print.CharacterHash);
+            .account.actions.findCharacterByHash(print.CharacterHash);
 
           return (
             <BlueprintItem

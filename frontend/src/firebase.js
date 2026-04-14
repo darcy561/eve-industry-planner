@@ -1,17 +1,9 @@
 import { initializeApp } from "firebase/app";
-import GLOBAL_CONFIG from "./global-config-app";
 import { initializeAppCheckWithHandlers } from "./firebase/appCheck";
 import { initializeAuth } from "./firebase/auth";
 import { initializeFirestoreWithCache } from "./firebase/firestore";
-import { initializeFunctions } from "./firebase/functions";
-import { initializePerformance } from "./firebase/performance";
 import { initializeAnalytics } from "./firebase/analytics";
-import { initializeRemoteConfig } from "./firebase/remoteConfig";
-import { initializeStorage } from "./firebase/storage";
-import { initializeMessaging } from "./firebase/messaging";
 import { getRuntimeEnv } from "./utils/runtime-config";
-
-const { FIREBASE_FUNCTION_REGION } = GLOBAL_CONFIG;
 
 /**
  * Get Firebase config dynamically from window.env
@@ -50,8 +42,6 @@ function getFirebaseConfig() {
     authDomain: getEnvValue("FIREBASE_AUTH_DOMAIN"),
     databaseURL: getEnvValue("FIREBASE_DATABASE_URL"),
     projectId: projectId,
-    storageBucket: getEnvValue("FIREBASE_STORAGE_BUCKET"),
-    messagingSenderId: getEnvValue("FIREBASE_MESSAGING_SENDER_ID"),
     appId: getEnvValue("FIREBASE_APP_ID"),
     measurementId: getEnvValue("FIREBASE_MEASUREMENT_ID"),
   };
@@ -121,12 +111,6 @@ const app = initializeApp(firebaseConfigInstance);
 export const appCheck = initializeAppCheckWithHandlers(app);
 export const firestore = initializeFirestoreWithCache(app);
 export const auth = initializeAuth(app);
-export const functions = initializeFunctions(app, FIREBASE_FUNCTION_REGION);
-export const storage = initializeStorage(app);
-
-// Performance monitoring
-export const performance = initializePerformance(app);
-
 // Analytics - may fail in service workers or unsupported browsers
 let analytics = null;
 try {
@@ -135,28 +119,7 @@ try {
   // Analytics not available
 }
 
-// Messaging - requires browser support and may fail in certain contexts
-let messaging = null;
-try {
-  // Check if browser supports required APIs
-  if (
-    typeof window !== "undefined" &&
-    "serviceWorker" in navigator &&
-    "PushManager" in window
-  ) {
-    messaging = initializeMessaging(app);
-  }
-} catch (error) {
-  // Messaging not available
-}
-
 // Export services (may be null if initialization failed)
-export { analytics, messaging };
-
-// Initialize Remote Config with development settings if needed
-export const remoteConfig = await initializeRemoteConfig(
-  app,
-  import.meta.env.DEV
-);
+export { analytics };
 
 export default app;

@@ -12,6 +12,7 @@ import (
 
 // Default values for new user Firestore documents (match frontend/functions/api/buildNewUserData.js)
 const (
+	usersCollection          = "Users"
 	defaultCloudAccounts     = false
 	defaultMarketOption      = "jita"
 	defaultOrderOption       = "sell"
@@ -19,10 +20,11 @@ const (
 	defaultCitadelBrokersFee = 1
 )
 
-// BuildNewUserFirestoreData creates the initial Firestore document structure for a new user.
-// It mirrors the JS buildNewUserdata function: main user doc + ProfileInfo subcollections
-// (Watchlist, JobSnapshot, GroupData). Uses a Firestore transaction for atomic creation.
-func BuildNewUserFirestoreData(ctx context.Context, accountID string) error {
+// EnsureUserFirestoreScaffold creates the initial Firestore layout when missing: main Users/{accountID}
+// document plus ProfileInfo docs (Watchlist, JobSnapshot, GroupData) expected by the app listeners
+// during login. If the main user document already exists, this is a no-op so existing data is not
+// overwritten. Uses a single Firestore transaction.
+func EnsureUserFirestoreScaffold(ctx context.Context, accountID string) error {
 	if accountID == "" {
 		return fmt.Errorf("accountID is required")
 	}
@@ -42,7 +44,16 @@ func BuildNewUserFirestoreData(ctx context.Context, accountID string) error {
 	jobSnapshotDoc := map[string]any{"snapshot": []any{}}
 	groupDataDoc := map[string]any{"groupData": []any{}}
 
+	var created bool
 	err = client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		snap, err := tx.Get(userDocRef)
+		if err != nil {
+			return err
+		}
+		if snap.Exists() {
+			return nil
+		}
+		created = true
 		if err := tx.Set(userDocRef, userDocData); err != nil {
 			return err
 		}
@@ -61,18 +72,20 @@ func BuildNewUserFirestoreData(ctx context.Context, accountID string) error {
 		return fmt.Errorf("firestore transaction: %w", err)
 	}
 
-	logs.InfoCtx(ctx, "new user firestore data created", "account_id", accountID)
+	if created {
+		logs.InfoCtx(ctx, "created user firestore scaffold (main doc + ProfileInfo)", "account_id", accountID)
+	}
 	return nil
 }
 
 // buildUserDocData returns the main user document map matching the JS structure.
 func buildUserDocData(accountID string) map[string]any {
-	jobStatusArray := []any{
-		map[string]any{"id": int64(0), "name": "Planning", "sortOrder": int64(0), "expanded": true, "openAPIJobs": false, "completeAPIJobs": false},
-		map[string]any{"id": int64(1), "name": "Purchasing", "sortOrder": int64(1), "expanded": true, "openAPIJobs": false, "completeAPIJobs": false},
-		map[string]any{"id": int64(2), "name": "Building", "sortOrder": int64(2), "expanded": true, "openAPIJobs": false, "completeAPIJobs": false},
-		map[string]any{"id": int64(3), "name": "Complete", "sortOrder": int64(3), "expanded": true, "openAPIJobs": false, "completeAPIJobs": false},
-		map[string]any{"id": int64(4), "name": "For Sale", "sortOrder": int64(4), "expanded": true, "openAPIJobs": false, "completeAPIJobs": false},
+	jobStatuses := map[string]any{
+		"0": map[string]any{"name": "Planning"},
+		"1": map[string]any{"name": "Purchasing"},
+		"2": map[string]any{"name": "Building"},
+		"3": map[string]any{"name": "Complete"},
+		"4": map[string]any{"name": "For Sale"},
 	}
 
 	settings := map[string]any{
@@ -80,10 +93,8 @@ func buildUserDocData(accountID string) map[string]any {
 			"cloudAccounts": defaultCloudAccounts,
 		},
 		"layout": map[string]any{
-			"hideTutorials":      false,
-			"localMarketDisplay": nil,
-			"localOrderDisplay":  nil,
-			"esiJobTab":          nil,
+			"hideTutorials": false,
+			"esiJobTab":     nil,
 		},
 		"editJob": map[string]any{
 			"defaultMarket":         defaultMarketOption,
@@ -97,12 +108,12 @@ func buildUserDocData(accountID string) map[string]any {
 			"reaction":      []any{},
 			"reprocessing":  []any{},
 		},
+		"jobStatuses": jobStatuses,
 	}
 
 	return map[string]any{
-		"accountID":      accountID,
-		"jobStatusArray": jobStatusArray,
-		"deleted":        nil,
+		"accountID": accountID,
+		"deleted":   nil,
 		"linkedJobs":     []any{},
 		"linkedTrans":    []any{},
 		"linkedOrders":   []any{},

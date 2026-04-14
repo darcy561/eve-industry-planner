@@ -5,7 +5,7 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
  * Requires character to have corporation access permissions.
  * 
  * @param {Object} params - Parameters object
- * @param {Object} params.character - Character object with aToken and corporation_id
+ * @param {Object} params.character - Character object with esiAccessToken and corporation_id
  * @param {number} [params.page=1] - Page number for pagination
  * @param {Object} [params.existingEtags={}] - Existing ETags for caching
  * @param {Object} [params.config={}] - Additional configuration options
@@ -13,17 +13,17 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
  * 
  * @example
  * const assets = await getCorpAssets({
- *   character: { aToken: "token", corporation_id: 123456 },
+ *   character: { esiAccessToken: "token", corporation_id: 123456 },
  *   page: 1,
  *   config: { characterHash: "hash" }
  * });
  */
 async function getCorpAssets({ character, page = 1, existingEtags = {}, config = {} }) {
   try {
-    if (!character || !character.aToken || !character.corporation_id) {
+    if (!character || !character.esiAccessToken || !character.corporation_id) {
       throw new Error("Character information is incomplete.");
     }
-    const { aToken, corporation_id } = character;
+    const { esiAccessToken, corporation_id } = character;
     const endpointURL = `https://esi.evetech.net/v5/corporations/${corporation_id}/assets/?datasource=tranquility&page=${page}`;
 
     // Enhanced configuration for rate limiting
@@ -42,7 +42,7 @@ async function getCorpAssets({ character, page = 1, existingEtags = {}, config =
       {
         headers: {
           "If-None-Match": existingEtags?.etag || "",
-          Authorization: `Bearer ${aToken}`,
+          Authorization: `Bearer ${esiAccessToken}`,
         },
       },
       enhancedConfig

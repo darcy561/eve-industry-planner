@@ -8,11 +8,21 @@ import fs from "fs";
 import path from "path";
 
 export default defineConfig(({ command, mode }) => {
-  const env = loadEnv(mode, process.cwd(), "");
-  
-  // Read ENVIRONMENT from .env file (via loadEnv), process.env (from Dockerfile ENV), or default to production
-  // Priority: .env file > process.env.ENVIRONMENT > process.env.NODE_ENV > "production"
+  // Repo root `.env` (monorepo) then app dir (`frontend/`) — same keys in `frontend/.env*` override root.
+  const envFromRoot = loadEnv(mode, path.resolve(__dirname, ".."), "");
+  const envFromAppDir = loadEnv(mode, process.cwd(), "");
+  const env = { ...envFromRoot, ...envFromAppDir };
+
+  // Read ENVIRONMENT from merged .env, process (Dockerfile / CI), or default to production
   const environment = env.ENVIRONMENT || process.env.ENVIRONMENT || process.env.NODE_ENV || "production";
+
+  const frontendAppVersion =
+    env.FRONTEND_APP_VERSION ||
+    process.env.FRONTEND_APP_VERSION ||
+    process.env.npm_package_version ||
+    "development";
+  const enableServiceWorker =
+    (env.ENABLE_SERVICE_WORKER || process.env.ENABLE_SERVICE_WORKER || "false").toLowerCase() === "true";
 
   return {
     plugins: [
@@ -62,6 +72,8 @@ export default defineConfig(({ command, mode }) => {
         project: env.SENTRY_PROJECT_ID,
       }),
       VitePWA({
+        disable: !enableServiceWorker,
+        injectRegister: false,
         registerType: "autoUpdate",
         srcDir: "public",
         filename: "sw.js",
@@ -89,14 +101,10 @@ export default defineConfig(({ command, mode }) => {
           server.middlewares.use((req, res, next) => {
             if (
               req.url === "/sw.js" ||
-              req.url.startsWith("/sw.js") ||
-              req.url === "/firebase-messaging-sw.js" ||
-              req.url.startsWith("/firebase-messaging-sw.js")
+              req.url.startsWith("/sw.js")
             ) {
 
-              const swPath = req.url.includes("firebase-messaging")
-                ? path.join(__dirname, "public/firebase-messaging-sw.js")
-                : path.join(__dirname, "public/sw.js");
+              const swPath = path.join(__dirname, "public/sw.js");
 
               if (fs.existsSync(swPath)) {
                 let content = fs.readFileSync(swPath, "utf-8");
@@ -115,20 +123,11 @@ export default defineConfig(({ command, mode }) => {
                   "__FIREBASE_PROJECT_ID__": JSON.stringify(
                     env.FIREBASE_PROJECT_ID || env.VITE_fbProjectID || ""
                   ),
-                  "__FIREBASE_STORAGE_BUCKET__": JSON.stringify(
-                    env.FIREBASE_STORAGE_BUCKET || env.VITE_fbStorageBucket || ""
-                  ),
-                  "__FIREBASE_MESSAGING_SENDER_ID__": JSON.stringify(
-                    env.FIREBASE_MESSAGING_SENDER_ID || env.VITE_fbMessagingSenderID || ""
-                  ),
                   "__FIREBASE_APP_ID__": JSON.stringify(
                     env.FIREBASE_APP_ID || env.VITE_fbAppID || ""
                   ),
                   "__FIREBASE_MEASUREMENT_ID__": JSON.stringify(
                     env.FIREBASE_MEASUREMENT_ID || env.VITE_measurmentID || ""
-                  ),
-                  "__FIREBASE_VAPID_KEY__": JSON.stringify(
-                    env.FIREBASE_VAPID_KEY || env.VITE_fbVapidKey || ""
                   ),
                 };
 
@@ -153,23 +152,24 @@ export default defineConfig(({ command, mode }) => {
       },
     ],
 
+    // Flat `process.env.KEY` entries so esbuild replaces every access (nested `process.env`
+    // objects do not reliably rewrite `process.env.ENVIRONMENT` in app + Zustand code).
     define: {
-      __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+      __APP_VERSION__: JSON.stringify(frontendAppVersion),
       "import.meta.env.SENTRY_PROJECT_ID": JSON.stringify(env.SENTRY_PROJECT_ID),
       "import.meta.env.SENTRY_DSN": JSON.stringify(env.SENTRY_DSN),
-      "process.env": {
-        NODE_ENV: JSON.stringify(environment), // Set from ENVIRONMENT for Node.js/Vite compatibility
-        ENVIRONMENT: JSON.stringify(environment), // Use ENVIRONMENT everywhere
-        VITE_fbApiKey: JSON.stringify(env.VITE_fbApiKey),
-        VITE_fbAuthDomain: JSON.stringify(env.VITE_fbAuthDomain),
-        VITE_fbDatabaseURL: JSON.stringify(env.VITE_fbDatabaseURL),
-        VITE_fbProjectID: JSON.stringify(env.VITE_fbProjectID),
-        VITE_fbStorageBucket: JSON.stringify(env.VITE_fbStorageBucket),
-        VITE_fbMessagingSenderID: JSON.stringify(env.VITE_fbMessagingSenderID),
-        VITE_fbAppID: JSON.stringify(env.VITE_fbAppID),
-        VITE_measurmentID: JSON.stringify(env.VITE_measurmentID),
-        VITE_fbVapidKey: JSON.stringify(env.VITE_fbVapidKey),
-      },
+      "import.meta.env.ENVIRONMENT": JSON.stringify(environment),
+      "process.env.NODE_ENV": JSON.stringify(environment),
+      "process.env.ENVIRONMENT": JSON.stringify(environment),
+      "process.env.VITE_fbApiKey": JSON.stringify(env.VITE_fbApiKey),
+      "process.env.VITE_fbAuthDomain": JSON.stringify(env.VITE_fbAuthDomain),
+      "process.env.VITE_fbDatabaseURL": JSON.stringify(env.VITE_fbDatabaseURL),
+      "process.env.VITE_fbProjectID": JSON.stringify(env.VITE_fbProjectID),
+      "process.env.VITE_fbStorageBucket": JSON.stringify(env.VITE_fbStorageBucket),
+      "process.env.VITE_fbMessagingSenderID": JSON.stringify(env.VITE_fbMessagingSenderID),
+      "process.env.VITE_fbAppID": JSON.stringify(env.VITE_fbAppID),
+      "process.env.VITE_measurmentID": JSON.stringify(env.VITE_measurmentID),
+      "process.env.VITE_fbVapidKey": JSON.stringify(env.VITE_fbVapidKey),
       global: {},
     },
     server: {

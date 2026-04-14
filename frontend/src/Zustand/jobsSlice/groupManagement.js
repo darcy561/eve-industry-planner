@@ -21,28 +21,6 @@
  */
 export const groupManagementActions = (set, get) => ({
   /**
-   * Updates the archived jobs array.
-   *
-   * @param {Array} archivedJobs - New archived jobs array
-   *
-   * @example
-   * store.getState().jobData.actions.updateArchivedJobs(archivedJobs);
-   */
-  updateArchivedJobs: (archivedJobs) => {
-    set(
-      (state) => ({
-        ...state,
-        jobData: {
-          ...state.jobData,
-          archivedJobs: archivedJobs || [],
-        },
-      }),
-      false,
-      "updateArchivedJobs"
-    );
-  },
-
-  /**
    * Replaces the entire group array.
    *
    * @param {Array} groupArray - New group array

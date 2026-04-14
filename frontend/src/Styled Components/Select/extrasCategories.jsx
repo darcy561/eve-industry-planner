@@ -1,7 +1,6 @@
 import useUsersStore from "../../Zustand/usersStore";
 import { Select, MenuItem, FormControl, FormHelperText } from "@mui/material";
 
-
 /**
  * A select component for choosing extras categories.
  * Displays categories from the user's application settings.

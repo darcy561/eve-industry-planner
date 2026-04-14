@@ -1,8 +1,11 @@
 package middleware
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
+	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,6 +15,13 @@ import (
 	"eve-industry-planner/shared/logs"
 
 	"go.uber.org/zap"
+)
+
+const (
+	responseCompressionMinBytes       = 5 * 1024
+	responseCompressionHighLevelBytes = 50 * 1024
+	responseCompressionDefaultLevel   = 4
+	responseCompressionHighLevel      = 6
 )
 
 // withContentEncodingOnLogger adds content_encoding to the request-scoped logger (LoggerKey) so
@@ -30,6 +40,14 @@ func withContentEncodingOnLogger(r *http.Request, encoding string) *http.Request
 func CompressionConstructor() MiddlewareConstructor {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			decodedRequest, err := decodeRequestBody(r)
+			if err != nil {
+				logs.WarnCtx(r.Context(), "failed to decode compressed request body", "error", err)
+				http.Error(w, "Unsupported or invalid request encoding", http.StatusUnsupportedMediaType)
+				return
+			}
+			r = decodedRequest
+
 			// Add Cache-Control header for POST requests to help Cloudflare skip caching attempts
 			// Use "private, no-store" to clearly signal user-specific data that should not be edge cached
 			if r.Method == http.MethodPost {
@@ -150,26 +168,15 @@ func CompressionConstructor() MiddlewareConstructor {
 
 			switch bestEncoding {
 			case "br":
-				w.Header().Set("Vary", "Accept-Encoding")
-				w.Header().Set("Content-Encoding", "br")
-				w.Header().Del("Content-Length")
-				br := brotli.NewWriterLevel(w, 6)
-				defer br.Close()
 				r = withContentEncodingOnLogger(r, "br")
-				next.ServeHTTP(&brotliResponseWriter{ResponseWriter: w, Writer: br}, r)
+				buffered := newBufferedResponseWriter()
+				next.ServeHTTP(buffered, r)
+				writeBufferedResponse(r, w, buffered, "br")
 			case "gzip":
-				w.Header().Set("Vary", "Accept-Encoding")
-				w.Header().Set("Content-Encoding", "gzip")
-				w.Header().Del("Content-Length")
-				gz, err := gzip.NewWriterLevel(w, 6)
-				if err != nil {
-					logs.ErrorCtx(r.Context(), "failed to create gzip writer", "error", err)
-					next.ServeHTTP(w, withContentEncodingOnLogger(r, "identity"))
-					return
-				}
-				defer gz.Close()
 				r = withContentEncodingOnLogger(r, "gzip")
-				next.ServeHTTP(&gzipResponseWriter{ResponseWriter: w, Writer: gz}, r)
+				buffered := newBufferedResponseWriter()
+				next.ServeHTTP(buffered, r)
+				writeBufferedResponse(r, w, buffered, "gzip")
 			default:
 				next.ServeHTTP(w, withContentEncodingOnLogger(r, "identity"))
 			}
@@ -177,22 +184,179 @@ func CompressionConstructor() MiddlewareConstructor {
 	}
 }
 
-// gzipResponseWriter wraps http.ResponseWriter to write compressed content
-type gzipResponseWriter struct {
-	http.ResponseWriter
-	Writer *gzip.Writer
+type bufferedResponseWriter struct {
+	headers     http.Header
+	statusCode  int
+	wroteHeader bool
+	body        bytes.Buffer
 }
 
-func (g *gzipResponseWriter) Write(b []byte) (int, error) {
-	return g.Writer.Write(b)
+func newBufferedResponseWriter() *bufferedResponseWriter {
+	return &bufferedResponseWriter{
+		headers: make(http.Header),
+	}
 }
 
-// brotliResponseWriter wraps http.ResponseWriter to write compressed content
-type brotliResponseWriter struct {
-	http.ResponseWriter
-	Writer *brotli.Writer
+func (b *bufferedResponseWriter) Header() http.Header {
+	return b.headers
 }
 
-func (b *brotliResponseWriter) Write(data []byte) (int, error) {
-	return b.Writer.Write(data)
+func (b *bufferedResponseWriter) WriteHeader(statusCode int) {
+	if b.wroteHeader {
+		return
+	}
+	b.wroteHeader = true
+	b.statusCode = statusCode
+}
+
+func (b *bufferedResponseWriter) Write(data []byte) (int, error) {
+	if !b.wroteHeader {
+		b.WriteHeader(http.StatusOK)
+	}
+	return b.body.Write(data)
+}
+
+func (b *bufferedResponseWriter) resolvedStatusCode() int {
+	if b.statusCode == 0 {
+		return http.StatusOK
+	}
+	return b.statusCode
+}
+
+func selectResponseCompressionLevel(bodySize int) int {
+	if bodySize > responseCompressionHighLevelBytes {
+		return responseCompressionHighLevel
+	}
+	return responseCompressionDefaultLevel
+}
+
+func copyHeaders(dst, src http.Header) {
+	for k, values := range src {
+		dst.Del(k)
+		for _, v := range values {
+			dst.Add(k, v)
+		}
+	}
+}
+
+func writeIdentityResponse(w http.ResponseWriter, buffered *bufferedResponseWriter) {
+	dstHeaders := w.Header()
+	copyHeaders(dstHeaders, buffered.headers)
+	dstHeaders.Del("Content-Encoding")
+	dstHeaders.Set("Content-Length", strconv.Itoa(buffered.body.Len()))
+	w.WriteHeader(buffered.resolvedStatusCode())
+	if buffered.body.Len() > 0 {
+		_, _ = w.Write(buffered.body.Bytes())
+	}
+}
+
+func writeBufferedResponse(r *http.Request, w http.ResponseWriter, buffered *bufferedResponseWriter, encoding string) {
+	statusCode := buffered.resolvedStatusCode()
+	if buffered.body.Len() < responseCompressionMinBytes || statusCode == http.StatusNoContent || statusCode == http.StatusNotModified {
+		writeIdentityResponse(w, buffered)
+		return
+	}
+
+	level := selectResponseCompressionLevel(buffered.body.Len())
+	var compressed bytes.Buffer
+
+	switch encoding {
+	case "br":
+		br := brotli.NewWriterLevel(&compressed, level)
+		if _, err := br.Write(buffered.body.Bytes()); err != nil {
+			_ = br.Close()
+			logs.ErrorCtx(r.Context(), "failed to brotli-compress response", "error", err)
+			writeIdentityResponse(w, buffered)
+			return
+		}
+		if err := br.Close(); err != nil {
+			logs.ErrorCtx(r.Context(), "failed to close brotli writer", "error", err)
+			writeIdentityResponse(w, buffered)
+			return
+		}
+	case "gzip":
+		gz, err := gzip.NewWriterLevel(&compressed, level)
+		if err != nil {
+			logs.ErrorCtx(r.Context(), "failed to create gzip writer", "error", err)
+			writeIdentityResponse(w, buffered)
+			return
+		}
+		if _, err := gz.Write(buffered.body.Bytes()); err != nil {
+			_ = gz.Close()
+			logs.ErrorCtx(r.Context(), "failed to gzip-compress response", "error", err)
+			writeIdentityResponse(w, buffered)
+			return
+		}
+		if err := gz.Close(); err != nil {
+			logs.ErrorCtx(r.Context(), "failed to close gzip writer", "error", err)
+			writeIdentityResponse(w, buffered)
+			return
+		}
+	default:
+		writeIdentityResponse(w, buffered)
+		return
+	}
+
+	dstHeaders := w.Header()
+	copyHeaders(dstHeaders, buffered.headers)
+	dstHeaders.Set("Vary", "Accept-Encoding")
+	dstHeaders.Set("Content-Encoding", encoding)
+	dstHeaders.Set("Content-Length", strconv.Itoa(compressed.Len()))
+	w.WriteHeader(statusCode)
+	_, _ = w.Write(compressed.Bytes())
+}
+
+type requestReadCloser struct {
+	io.Reader
+	closeFn func() error
+}
+
+func (r *requestReadCloser) Close() error {
+	if r.closeFn == nil {
+		return nil
+	}
+	return r.closeFn()
+}
+
+func decodeRequestBody(r *http.Request) (*http.Request, error) {
+	rawEncoding := strings.TrimSpace(strings.ToLower(r.Header.Get("Content-Encoding")))
+	if rawEncoding == "" || rawEncoding == "identity" {
+		return r, nil
+	}
+
+	switch rawEncoding {
+	case "br", "brotli":
+		originalBody := r.Body
+		r.Body = &requestReadCloser{
+			Reader: brotli.NewReader(originalBody),
+			closeFn: func() error {
+				return originalBody.Close()
+			},
+		}
+	case "gzip":
+		originalBody := r.Body
+		gz, err := gzip.NewReader(originalBody)
+		if err != nil {
+			_ = originalBody.Close()
+			return nil, fmt.Errorf("invalid gzip request body: %w", err)
+		}
+		r.Body = &requestReadCloser{
+			Reader: gz,
+			closeFn: func() error {
+				gzErr := gz.Close()
+				bodyErr := originalBody.Close()
+				if gzErr != nil {
+					return gzErr
+				}
+				return bodyErr
+			},
+		}
+	default:
+		return nil, fmt.Errorf("unsupported content encoding: %s", rawEncoding)
+	}
+
+	r.Header.Del("Content-Encoding")
+	r.Header.Del("Content-Length")
+	r.ContentLength = -1
+	return r, nil
 }

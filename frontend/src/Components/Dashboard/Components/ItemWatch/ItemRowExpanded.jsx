@@ -8,10 +8,10 @@ import calculateInstallCostfromSetup from "../../../../Functions/Helper/calculat
 
 export function ExpandedWatchlistRow({ mat }) {
   const defaultMarket = useUsersStore(
-    (state) => state.applicationSettings.defaultMarket
+    (state) => state.applicationSettings.defaultMarketLocation
   );
   const defaultOrders = useUsersStore(
-    (state) => state.applicationSettings.defaultOrders
+    (state) => state.applicationSettings.defaultOrderType
   );
   const { findMarketData } = useUsersStore.getState().worldData.actions;
   const marketData = useUsersStore((state) => state.worldData.marketData);

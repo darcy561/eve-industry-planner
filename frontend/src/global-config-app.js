@@ -47,7 +47,6 @@ const GLOBAL_CONFIG = Object.freeze({
 
   //Firebase function deployment region, this must match what is specified within the functions global config.
 
-
   /**
    * Firebase Cloud Functions deployment region.
    * 
@@ -372,7 +371,7 @@ const GLOBAL_CONFIG = Object.freeze({
    * to ensure users are running the latest version.
    * 
    * @type {number}
-   * @default 30
+   * @default 5
    * @unit minutes
    */
   DEFAULT_APP_VERSION_CHECK_INTERVAL: 30,

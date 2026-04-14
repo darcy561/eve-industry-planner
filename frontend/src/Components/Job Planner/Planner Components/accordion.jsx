@@ -24,10 +24,11 @@ import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
 
 export function PlannerAccordion({ skeletonElementsToDisplay }) {
   const enableCompactView = useUsersStore(
-    (state) => state.applicationSettings.enableCompactView
+    (state) => state.applicationSettings.enableCompactLayoutView
   );
   const { userJobSnapshot, jobArray } = useUsersStore((state) => state.jobData);
-  const { jobStatus, isLoggedIn } = useUsersStore((state) => state.users);
+  const { jobStatus } = useUsersStore((state) => state.users);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const { updateJobStatus } = useUsersStore.getState().users.actions;
   const addToMultiSelect =
     useUsersStore.getState().jobData.actions.addToMultiSelect;

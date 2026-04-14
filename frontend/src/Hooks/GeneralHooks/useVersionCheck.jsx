@@ -1,9 +1,14 @@
 import { useEffect, useRef } from "react";
-import { fetchAndActivate, getString } from "firebase/remote-config";
-import { remoteConfig } from "../../firebase";
 import { showVersionUpdateSnackbar } from "../../Events/snackbarEvents";
 import GLOBAL_CONFIG from "../../global-config-app";
+import {
+  getAppVersionNumber,
+  getLastAppConfigFetchMeta,
+  refreshAppConfig,
+} from "../../Functions/Endpoints/Public/appConfig.js";
 const { DEFAULT_APP_VERSION_CHECK_INTERVAL } = GLOBAL_CONFIG;
+const VERSION_UPDATE_NOTIFIED_KEY = "app_config_version_update_notified";
+const VERSION_UPDATE_DISMISSED_KEY = "app_config_version_update_dismissed";
 
 /**
  * Custom hook that monitors app version updates and notifies users when updates are available.
@@ -15,7 +20,7 @@ const { DEFAULT_APP_VERSION_CHECK_INTERVAL } = GLOBAL_CONFIG;
  * - Prevents duplicate notifications using a ref flag
  * - Cleans up intervals on component unmount
  * 
- * The hook uses Firebase Remote Config to fetch the latest app version
+ * The hook fetches backend app config to read the latest app version
  * and compares it with the current build version (__APP_VERSION__).
  * 
  * @returns {Object} Object containing version check functions
@@ -34,44 +39,82 @@ const { DEFAULT_APP_VERSION_CHECK_INTERVAL } = GLOBAL_CONFIG;
  * }
  */
 function useVersionCheck() {
-    const hasShownUpdateNotification = useRef(false);
-    const checkInterval = useRef(null);
+  const checkInterval = useRef(null);
 
-    useEffect(() => {
-        checkForVersionUpdate();
+  const getStoredVersion = (key) => {
+    try {
+      return window.sessionStorage.getItem(key) || "";
+    } catch {
+      return "";
+    }
+  };
 
-        checkInterval.current = setInterval(checkForVersionUpdate, DEFAULT_APP_VERSION_CHECK_INTERVAL * 60 * 1000);
+  const setStoredVersion = (key, value) => {
+    try {
+      if (!value) {
+        window.sessionStorage.removeItem(key);
+        return;
+      }
+      window.sessionStorage.setItem(key, value);
+    } catch {
+      // Ignore storage errors (private mode, blocked storage, etc.).
+    }
+  };
 
-        return () => {
-            if (checkInterval.current) {
-                clearInterval(checkInterval.current);
-            }
-        };
-    }, []);
+  useEffect(() => {
+    checkForVersionUpdate();
 
-    const checkForVersionUpdate = async () => {
-        try {
-            // Wait for fetchAndActivate to complete and ensure the config is activated
-            const activated = await fetchAndActivate(remoteConfig);
-            
-            // Only proceed if the config was actually activated (new data was fetched)
-            if (activated) {
-                const remoteVersion = getString(remoteConfig, "app_version_number");
-                const currentVersion = __APP_VERSION__;
+    checkInterval.current = setInterval(
+      checkForVersionUpdate,
+      DEFAULT_APP_VERSION_CHECK_INTERVAL * 60 * 1000
+    );
 
-                if (remoteVersion && remoteVersion !== currentVersion && !hasShownUpdateNotification.current) {
-                    hasShownUpdateNotification.current = true;
-                    showVersionUpdateSnackbar();
-                }
-            }
-        } catch (error) {
-            console.error("Error checking app version:", error);
-        }
+    return () => {
+      if (checkInterval.current) {
+        clearInterval(checkInterval.current);
+      }
     };
+  }, []);
 
-    return {
-        checkForVersionUpdate,
-    };
+  const checkForVersionUpdate = async () => {
+    try {
+      await refreshAppConfig();
+      const fetchMeta = getLastAppConfigFetchMeta();
+      if (fetchMeta.notModified) {
+        return;
+      }
+      const remoteVersion = getAppVersionNumber();
+      const currentVersion = __APP_VERSION__;
+
+      if (!remoteVersion || remoteVersion === currentVersion) {
+        setStoredVersion(VERSION_UPDATE_NOTIFIED_KEY, "");
+        setStoredVersion(VERSION_UPDATE_DISMISSED_KEY, "");
+        return;
+      }
+
+      const dismissedVersion = getStoredVersion(VERSION_UPDATE_DISMISSED_KEY);
+      if (dismissedVersion === remoteVersion) {
+        return;
+      }
+
+      const notifiedVersion = getStoredVersion(VERSION_UPDATE_NOTIFIED_KEY);
+      if (notifiedVersion !== remoteVersion) {
+        setStoredVersion(VERSION_UPDATE_NOTIFIED_KEY, remoteVersion);
+        showVersionUpdateSnackbar(remoteVersion, (dismissedTargetVersion) => {
+          if (!dismissedTargetVersion) {
+            return;
+          }
+          setStoredVersion(VERSION_UPDATE_DISMISSED_KEY, dismissedTargetVersion);
+        });
+      }
+    } catch (error) {
+      console.error("Error checking app version:", error);
+    }
+  };
+
+  return {
+    checkForVersionUpdate,
+  };
 }
 
 export default useVersionCheck;

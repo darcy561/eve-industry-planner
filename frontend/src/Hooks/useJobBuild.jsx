@@ -1,5 +1,5 @@
-import Job from "../Classes/jobConstructor";
-import Setup from "../Classes/jobSetupConstructor";
+import Job from "../Classes/job";
+import Setup from "../Classes/jobSetup";
 import { showSnackbarError } from "../Events/snackbarEvents";
 import { displayOutdatedAppVersionDialog } from "../Events/notificationDialogEvents";
 import useUsersStore from "../Zustand/usersStore";
@@ -55,8 +55,6 @@ import {
  */
 export function useJobBuild() {
   const queryClient = useQueryClient();
-
-  const parentUser = useUsersStore.getState().users.actions.findParentUser();
 
   const buildJobObject = async (itemJson, buildRequest) => {
     try {
@@ -194,7 +192,8 @@ export function useJobBuild() {
         ...setupQuantities[i],
         systemID: buildRequestObject?.systemID || structureData.systemID,
         characterToUse:
-          buildRequestObject?.characterToUse || parentUser.CharacterHash,
+          buildRequestObject?.characterToUse ||
+          useUsersStore.getState().account.actions.getMainCharacterHash(),
         rawTimeValue,
         jobType: inputJobObject.jobType,
       });

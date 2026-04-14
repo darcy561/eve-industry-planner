@@ -1,5 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TextField } from "@mui/material";
+
+function formatTaxFieldInitial(initialState) {
+  const n = coercePercentToNumber(initialState);
+  return String(n);
+}
+
+function coercePercentToNumber(value) {
+  if (value === undefined || value === null || value === "") return 0;
+  const n =
+    typeof value === "number" ? value : Number(String(value).trim());
+  return Number.isFinite(n) ? n : 0;
+}
 
 /**
  * A text field component for inputting tax percentages.
@@ -18,7 +30,13 @@ import { TextField } from "@mui/material";
  * />
  */
 function TaxPercentageTextField({ initialState, onBlur }) {
-  const [inputValue, updateInputValue] = useState(initialState ?? "0");
+  const [inputValue, updateInputValue] = useState(() =>
+    formatTaxFieldInitial(initialState)
+  );
+
+  useEffect(() => {
+    updateInputValue(formatTaxFieldInitial(initialState));
+  }, [initialState]);
 
   return (
     <TextField
@@ -47,7 +65,9 @@ function TaxPercentageTextField({ initialState, onBlur }) {
       onBlur={(e) => {
         if (onBlur) {
           let valueToPass =
-            Math.round((Number(e.target.value) + Number.EPSILON) * 100) / 100;
+            Math.round(
+              (coercePercentToNumber(e.target.value) + Number.EPSILON) * 100
+            ) / 100;
           if (isNaN(valueToPass) || valueToPass < 0) {
             valueToPass = 0;
           }

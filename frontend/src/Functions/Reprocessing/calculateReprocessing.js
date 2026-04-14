@@ -1,7 +1,5 @@
 import reprocessIntoMinerals from "./toMinerals";
 import reprocessFromMinerals from "./fromMinerals";
-import { trace } from "firebase/performance";
-import { performance } from "../../firebase";
 import { getAnalytics, logEvent } from "firebase/analytics";
 import useUsersStore from "../../Zustand/usersStore";
 
@@ -17,9 +15,6 @@ export async function calculateReprocessing({
   pageActions,
 }) {
   const analytics = getAnalytics();
-
-  const firebaseTrace = trace(performance, "reprocessing_calculation");
-  firebaseTrace.start();
 
   pageActions.setPageLoading(true);
 
@@ -66,7 +61,7 @@ export async function calculateReprocessing({
 
     logEvent(analytics, "reprocessing_calculation", {
       calculation_type: pageState.toMinerals ? "toMinerals" : "toMaterials",
-      is_logged_in: useUsersStore.getState().users.isLoggedIn,
+      is_logged_in: useUsersStore.getState().account.isLoggedIn,
     });
 
     return {
@@ -85,6 +80,5 @@ export async function calculateReprocessing({
     };
   } finally {
     pageActions.setPageLoading(false);
-    firebaseTrace.stop();
   }
 }

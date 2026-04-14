@@ -1,12 +1,10 @@
-import convertMarketDataResponseToObject from "./convertResponse";
+import fetchMarketPrices from "../Endpoints/Public/marketPrices";
 import doesMarketItemRequireRefresh from "./refreshPeriod";
-import splitMarketDataRequestIntoChuncks from "./requestChunks";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
- * Fetches market data for specified item IDs with caching and processing support.
- * Handles both individual IDs and arrays, checks for required refreshes, and polls
- * for items that are still processing on the server.
+ * Fetches market data for specified item IDs using the cache and public API when stale.
+ * Handles individual IDs, arrays, or sets; only requests IDs that are missing or past refresh TTL.
  * 
  * @param {string|number|Array<string|number>|Set<string|number>} inputIDs - Item ID(s) to fetch market data for
  * @returns {Promise<Object>} Promise that resolves to market data object with item IDs as keys
@@ -34,13 +32,7 @@ async function getMarketData(inputIDs) {
 
   const requiredIDArray = findRequiredPrices(inputIDs);
 
-  const returnedPrices = await Promise.allSettled(
-    splitMarketDataRequestIntoChuncks(requiredIDArray)
-  );
-
-  const marketDataResults = convertMarketDataResponseToObject(returnedPrices);
-
-  return marketDataResults;
+  return fetchMarketPrices(requiredIDArray);
 }
 
 /**
@@ -67,6 +59,5 @@ function findRequiredPrices(inputSet) {
   }
   return [...idsToRequest];
 }
-
 
 export default getMarketData;

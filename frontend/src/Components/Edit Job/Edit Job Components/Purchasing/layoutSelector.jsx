@@ -5,10 +5,10 @@ import useUsersStore from "../../../../Zustand/usersStore";
 
 export function LayoutSelector_EditJob_Purchasing(props) {
   const defaultOrders = useUsersStore(
-    (state) => state.applicationSettings.defaultOrders
+    (state) => state.applicationSettings.defaultOrderType
   );
   const defaultMarket = useUsersStore(
-    (state) => state.applicationSettings.defaultMarket
+    (state) => state.applicationSettings.defaultMarketLocation
   );
 
   const [orderDisplay, changeOrderDisplay] = useState(

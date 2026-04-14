@@ -22,7 +22,7 @@ import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
 
 export default function BlueprintLibrary() {
   const enableCompactView = useUsersStore(
-    (state) => state.applicationSettings.enableCompactView
+    (state) => state.applicationSettings.enableCompactLayoutView
   );
   const queryClient = useQueryClient();
   const navigate = useNavigate();

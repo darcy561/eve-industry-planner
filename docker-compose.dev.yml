@@ -1,9 +1,15 @@
 services:
+  # Dev builds use explicit manual versions.
+  # Docker Compose does not natively import values from VERSION.json.
   api:
     image: eve-industry-planner-api:local
     build:
       context: ./services
       dockerfile: api/Dockerfile
+      args:
+        APP_VERSION: 0.8.09
+        FRONTEND_APP_VERSION: 0.8.09
+        APP_FEATURE_FLAGS_JSON: '{"enable_upcoming_changes_page":false}'
     env_file: [.env]
     environment:
       FAIL_ON_STARTUP: "false"
@@ -13,6 +19,8 @@ services:
     build:
       context: ./services
       dockerfile: websocket/Dockerfile
+      args:
+        APP_VERSION: 0.8.09
     env_file: [.env]
     environment:
       FAIL_ON_STARTUP: "false"
@@ -22,6 +30,8 @@ services:
     build:
       context: ./services
       dockerfile: worker/Dockerfile
+      args:
+        APP_VERSION: 0.8.09
     env_file: [.env]
 
 
@@ -30,6 +40,10 @@ services:
     build:
       context: ./services
       dockerfile: core/Dockerfile
+      args:
+        APP_VERSION: 0.8.09
+        FRONTEND_APP_VERSION: 0.8.09
+        APP_FEATURE_FLAGS_JSON: '{"enable_upcoming_changes_page":false}'
     env_file: [.env]
 
   mongo:
@@ -62,4 +76,5 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         ENVIRONMENT: ${ENVIRONMENT:-development}
+        FRONTEND_APP_VERSION: 0.8.09
     env_file: [.env]

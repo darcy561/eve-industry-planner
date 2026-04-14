@@ -1,24 +1,22 @@
 import requestWithPrivateHeaders from "./applyPrivateHeaders.js";
 
+const CLAIMS_URL = "/api/v1/auth/claims/corporations";
+
 /**
  * Requests corporation claims update for the provided EVE SSO tokens.
- * 
- * This function submits an array of EVE SSO tokens to the server, which will
- * extract character IDs, query ESI for corporation information, and update
- * the user's corporation claims in their JWT token.
- * Requires authentication (server access token).
- * 
+ *
+ * POST `/api/v1/auth/claims/corporations`. Submits tokens; server validates SSO JWTs and queues a worker task.
+ * Uses the same private-route stack as other authenticated APIs (rate limit → auth → handler).
+ *
+ * Retries (via `requestWithPrivateHeaders`): **408 / 429 / 5xx** only — not **400**, **401**, **405**.
+ * Matches `CorporationsHandler` + middleware status semantics in `services/api/v1endpoints/corporations.go`.
+ *
  * @param {Array<string>} accessTokenArray - Array of EVE SSO JWT tokens (strings)
- * @returns {Promise<boolean>} Promise that resolves to true if successful, false if failed
- * 
- * @throws {Error} Throws error if authentication fails (no server token available)
- * 
+ * @returns {Promise<boolean>} `true` on **204** success
+ *
  * @example
  * const tokens = ["eve-sso-token-1", "eve-sso-token-2"];
  * const success = await updateCorporationClaims(tokens);
- * if (success) {
- *   console.log("Corporation claims update queued successfully");
- * }
  */
 async function updateCorporationClaims(accessTokenArray) {
   // Validate input
@@ -34,18 +32,20 @@ async function updateCorporationClaims(accessTokenArray) {
     return false;
   }
 
-  const URL = `/api/v1/auth/claims/corporations`;
-
   try {
-    const response = await requestWithPrivateHeaders(URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    const response = await requestWithPrivateHeaders(
+      CLAIMS_URL,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tokens: validTokens,
+        }),
       },
-      body: JSON.stringify({
-        tokens: validTokens,
-      }),
-    }, { requestName: "updateCorporationClaims" });
+      { requestName: "updateCorporationClaims" }
+    );
 
     if (!response.ok) {
       // Error responses are typically plain text from http.Error()

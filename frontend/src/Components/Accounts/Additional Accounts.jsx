@@ -17,7 +17,7 @@ import {
 } from "../../Events/snackbarEvents";
 import checkUserClaims from "../../Functions/Auth/checkUserClaims";
 import useUsersStore from "../../Zustand/usersStore";
-import uploadApplicationSettingsToFirebase from "../../Functions/Firebase/uploadApplicationSettings";
+import { saveUserAccountAndApplicationSettings } from "../../Functions/Endpoints/Pirivate/userDocument";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCharacterHooks } from "../../Hooks/React Query/useCharacterHooks";
 import { buildCorporationObjectFromUserObject } from "../../Functions/Corporations/buildCorporationObject";
@@ -27,18 +27,18 @@ import ContentPanel from "../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../Context/defaultValues";
 import { updateLocalRefreshTokens } from "../../Functions/Auth/buildAccountData";
 
-
 export function AdditionalAccounts() {
-  const users = useUsersStore((state) => state.users.userArray);
+  const characters = useUsersStore((state) => state.account.characters);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const cloudAccounts = useUsersStore(
-    (state) => state.applicationSettings.cloudAccounts
+    (state) => state.applicationSettings.userCloudAccounts
   );
   const { toggleCloudAccounts } =
     useUsersStore.getState().applicationSettings.actions;
-  const { addUser, setAccountRefreshTokens, addAccountRefreshToken, findParentUser } =
-    useUsersStore((state) => state.users.actions);
+  const { addCharacter } = useUsersStore((state) => state.account.actions);
+  const { setLinkedCharacterRefreshTokens, addLinkedCharacterRefreshToken } =
+    useUsersStore((state) => state.account.actions);
 
   const [skeletonVisible, toggleSkeleton] = useState(false);
   const analytics = getAnalytics();
@@ -48,7 +48,7 @@ export function AdditionalAccounts() {
   const debouncedSaveSettings = useGlobalDebounce(
     DEBOUNCE_KEYS.APP_SETTINGS_SAVE,
     async () => {
-      await uploadApplicationSettingsToFirebase();
+      await saveUserAccountAndApplicationSettings();
     },
     2000
   );
@@ -101,7 +101,7 @@ export function AdditionalAccounts() {
         throw newUser;
       }
 
-      if (users.some((u) => u.CharacterHash === newUser.CharacterHash)) {
+      if (characters.some((u) => u.CharacterHash === newUser.CharacterHash)) {
         localStorage.removeItem("AdditionalUser");
         showSnackbarError(`Duplicate Account`, 3);
         toggleSkeleton(false);
@@ -111,25 +111,25 @@ export function AdditionalAccounts() {
 
       await newUser.getPublicCharacterData();
       await buildCorporationObjectFromUserObject(newUser);
-      addUser(newUser);
+      addCharacter(newUser);
 
       localStorage.removeItem("AdditionalUser");
 
       if (cloudAccounts) {
-        addAccountRefreshToken({
+        addLinkedCharacterRefreshToken({
           CharacterHash: newUser.CharacterHash,
-          rToken: newUser.rToken,
+          rToken: newUser.esiRefreshToken,
         });
       } else {
-        updateLocalRefreshTokens(users);
+        updateLocalRefreshTokens(characters);
       }
 
-      await checkUserClaims(users);
+      await checkUserClaims(characters);
       if (cloudAccounts) {
         debouncedSaveSettings();
       }
       logEvent(analytics, "Link Character", {
-        UID: findParentUser().accountID,
+        UID: useUsersStore.getState().account.actions.getAccountID(),
         newHash: newUser.CharacterHash,
         cloudAccount: cloudAccounts,
       });
@@ -183,19 +183,24 @@ export function AdditionalAccounts() {
                     checked={cloudAccounts}
                     color="primary"
                     onChange={async (e) => {
-                      const parentUserHash = useUsersStore
+                      const mainCharacterHash = useUsersStore
                         .getState()
-                        .users.actions.findParentUser().CharacterHash;
-                      const localStorageKey = `${parentUserHash} AdditionalAccounts`;
+                        .account.actions.getMainCharacterHash();
+                      if (!mainCharacterHash) {
+                        toggleCloudAccounts();
+                        debouncedSaveSettings();
+                        return;
+                      }
+                      const localStorageKey = `${mainCharacterHash} AdditionalAccounts`;
                       if (e.target.checked) {
                         const storedAccounts = JSON.parse(
                           localStorage.getItem(localStorageKey) || "[]"
                         );
                         localStorage.removeItem(localStorageKey);
-                        setAccountRefreshTokens(storedAccounts);
+                        setLinkedCharacterRefreshTokens(storedAccounts);
                       } else {
-                        updateLocalRefreshTokens(users);
-                        setAccountRefreshTokens([]);
+                        updateLocalRefreshTokens(characters);
+                        setLinkedCharacterRefreshTokens([]);
                       }
                       toggleCloudAccounts();
                       debouncedSaveSettings();
@@ -273,12 +278,12 @@ export function AdditionalAccounts() {
               </Grid>
             </Grid>
           ) : (
-            users.map((user) => {
-              if (user.ParentUser) return null;
+            characters.map((character) => {
+              if (character.isMainCharacter) return null;
               return (
                 <AccountEntry
-                  key={user.CharacterHash}
-                  user={user}
+                  key={character.CharacterHash}
+                  character={character}
                 />
               );
             })

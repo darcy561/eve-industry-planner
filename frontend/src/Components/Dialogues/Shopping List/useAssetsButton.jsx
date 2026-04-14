@@ -6,7 +6,7 @@ function UseAssetsButton_ShoppingList({
     state,
     actions,
 }) {
-    const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+    const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
 
     if (!isLoggedIn) return null;
 

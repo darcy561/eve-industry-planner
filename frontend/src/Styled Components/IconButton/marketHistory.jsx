@@ -38,7 +38,8 @@ function MarketHistoryIconButton({
     regionID =
       MARKET_OPTIONS.find(
         (i) =>
-          i.id === useUsersStore.getState().applicationSettings.defaultMarket
+          i.id ===
+          useUsersStore.getState().applicationSettings.defaultMarketLocation
       ) ?? MARKET_OPTIONS.find((i) => i.id === DEFAULT_REGION);
   }
 

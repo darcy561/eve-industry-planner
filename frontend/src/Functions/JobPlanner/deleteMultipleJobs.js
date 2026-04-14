@@ -1,6 +1,4 @@
 import { getAnalytics, logEvent } from "firebase/analytics";
-import { trace } from "firebase/performance";
-import { performance } from "../../firebase";
 import uploadGroupsToFirebase from "../Firebase/uploadGroupData";
 import uploadJobSnapshotsToFirebase from "../Firebase/uploadJobSnapshots";
 import findOrGetJobObject from "../Helper/findJobObject";
@@ -9,7 +7,7 @@ import firebaseBatchUpdateJobs from "../Firebase/batchUpdateJobs";
 import firebaseBatchDeleteJobs from "../Firebase/batchDeleteJobs";
 import { showSnackbarError } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
-import uploadApplicationSettingsToFirebase from "../Firebase/uploadApplicationSettings";
+import { saveUserAccountDocument } from "../Endpoints/Pirivate/userDocument";
 
 /**
  * Deletes multiple jobs and handles all related cleanup operations.
@@ -35,16 +33,12 @@ export default async function deleteMultipleJobs(inputJobIDs) {
     findJobInUserJobSnapshotArray,
     mergeAndRemoveJobsFromJobArray,
   } = useUsersStore.getState().jobData.actions;
-  const isLoggedIn = useUsersStore.getState().users.isLoggedIn;
+  const isLoggedIn = useUsersStore.getState().account.isLoggedIn;
   const firebaseListeners = useUsersStore.getState().users.firebaseListeners;
   const removeFirebaseListeners =
     useUsersStore.getState().users.actions.removeFirebaseListeners;
 
   const analytics = getAnalytics();
-  const parentUser = useUsersStore.getState().users.actions.findParentUser();
-
-  const r = trace(performance, "massDeleteProcess");
-  r.start();
   const retrievedJobs = [];
   const batchJobsToDelete = [];
   let newGroupArray = [...groupArray];
@@ -58,7 +52,7 @@ export default async function deleteMultipleJobs(inputJobIDs) {
   }
 
   logEvent(analytics, "Mass Delete", {
-    UID: parentUser.accountID,
+    UID: useUsersStore.getState().account.actions.getAccountID(),
     buildCount: inputJobIDs.length,
     loggedIn: isLoggedIn,
   });
@@ -98,9 +92,15 @@ export default async function deleteMultipleJobs(inputJobIDs) {
         jobsToSave.add(child.jobID);
       }
     }
-    //Removes inputJob IDs from Parent jobs
-    if (inputJob.parentJob !== null) {
-      for (let parentJobID of inputJob.parentJob) {
+    // Removes inputJob IDs from parent jobs (canonical `parentJobs`; legacy `parentJob` from Firestore)
+    const rawParents = inputJob.parentJobs ?? inputJob.parentJob;
+    const parentJobIds = Array.isArray(rawParents)
+      ? rawParents
+      : rawParents != null
+        ? [rawParents]
+        : [];
+    if (parentJobIds.length > 0) {
+      for (let parentJobID of parentJobIds) {
         if (inputJobIDs.includes(parentJobID)) continue;
         let parentJob = await findOrGetJobObject(parentJobID, retrievedJobs);
 
@@ -130,12 +130,12 @@ export default async function deleteMultipleJobs(inputJobIDs) {
     }
   }
 
-  const requiresApplicationSettingsSave =
+  const requiresUserAccountSave =
     linkedOrderIdsToRemove.size > 0 ||
     linkedJobIdsToRemove.size > 0 ||
     linkedTransIdsToRemove.size > 0;
 
-  useUsersStore.getState().users.actions.addLinkedEsiData({
+  useUsersStore.getState().account.actions.addLinkedEsiData({
     ordersToRemove: linkedOrderIdsToRemove,
     jobsToRemove: linkedJobIdsToRemove,
     transactionsToRemove: linkedTransIdsToRemove,
@@ -169,8 +169,8 @@ export default async function deleteMultipleJobs(inputJobIDs) {
       ),
     ];
     
-    if (requiresApplicationSettingsSave) {
-      promises.push(uploadApplicationSettingsToFirebase());
+    if (requiresUserAccountSave) {
+      promises.push(saveUserAccountDocument());
     }
 
     removeFirebaseListeners(batchJobsToDelete.map(({ jobID }) => jobID));
@@ -179,7 +179,6 @@ export default async function deleteMultipleJobs(inputJobIDs) {
   }
 
   showSnackbarError(`${inputJobIDs.length} Job/Jobs Deleted`, 3);
-  r.stop();
 
   /**
    * Removes a job from its associated group.

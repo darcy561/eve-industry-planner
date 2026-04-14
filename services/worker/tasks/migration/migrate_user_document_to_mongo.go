@@ -50,11 +50,11 @@ func MigrateUserDocumentToMongo(ctx context.Context, task *asynq.Task, deps *esi
 	usersCol := db.Collection(mongocore.CollectionUsers)
 	settingsCol := db.Collection(mongocore.CollectionApplicationSettings)
 
-	userDocExists, err := mongocore.DocumentExistsByID(ctx, usersCol, request.AccountID)
+	userDocExists, err := mongocore.DocumentExistsByID(ctx, usersCol, request.AccountID, request.AccountID)
 	if err != nil {
 		return fmt.Errorf("check existing user account document: %w", err)
 	}
-	settingsDocExists, err := mongocore.DocumentExistsByID(ctx, settingsCol, request.AccountID)
+	settingsDocExists, err := mongocore.DocumentExistsByID(ctx, settingsCol, request.AccountID, request.AccountID)
 	if err != nil {
 		return fmt.Errorf("check existing application settings document: %w", err)
 	}

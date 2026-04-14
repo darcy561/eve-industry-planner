@@ -37,7 +37,8 @@ export function createTestStore(storeCreator) {
  * 
  * @example
  * const mockStore = createMockStore({
- *   users: { isLoggedIn: true, user: { name: 'Test User' } }
+ *   account: { isLoggedIn: true },
+ *   users: { user: { name: 'Test User' } }
  * });
  */
 export function createMockStore(initialState = {}, actions = {}) {

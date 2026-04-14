@@ -9,6 +9,8 @@ import (
 	"time"
 
 	clicommands "eve-industry-planner/core/commands/cli"
+	archivedjobsched "eve-industry-planner/core/scheduler/archivedjobs"
+	"eve-industry-planner/core/scheduler/contract"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/shared"
 	taskscore "eve-industry-planner/shared/tasks"
@@ -24,7 +26,13 @@ const usage = `Usage:
   tasks workerQueues
   tasks purgeWorkerQueues
   tasks unlockSdeVersion
+  tasks processArchivedBuildStats
+  tasks startArchivedJobProcessing
   tasks forceSdeRebuild
+  tasks importArchivedJobsFromFirestore [flags]
+  tasks importUserAccountsFromFirestore [flags]
+  tasks markArchivedJobsUnprocessed [-all] [-account id] [-dry-run]
+  tasks resetBuildStats [-account id] [-dry-run]
   tasks <task-name> [--priority=<priority_queue>] [--version=<int>] [--data='<json>']
 
 Examples:
@@ -37,9 +45,21 @@ Examples:
   tasks workerQueues
   tasks purgeWorkerQueues
   tasks unlockSdeVersion
+  tasks importArchivedJobsFromFirestore
+  tasks importArchivedJobsFromFirestore -credentials /app/adminSDK.json
+  tasks importArchivedJobsFromFirestore -reprocess -credentials /app/adminSDK.json
+  tasks importUserAccountsFromFirestore -dry-run -dev
+  tasks importUserAccountsFromFirestore -account <firebase_uid> -live
+  tasks markArchivedJobsUnprocessed -all -dry-run
+  tasks markArchivedJobsUnprocessed -account <firebase_uid> -dry-run
+  tasks resetBuildStats -dry-run
+  tasks resetBuildStats -account <firebase_uid>
   tasks checkSdeUpdates
   tasks applySdeVersion --version=12345
   tasks recountMarketPrices
+  tasks processArchivedBuildStats
+  tasks startArchivedJobProcessing
+  tasks processArchivedBuildStats --data='{"account_id":"<firebase_uid>"}'
   tasks forceSdeRebuild
 `
 
@@ -51,14 +71,16 @@ var enabledTasks = []taskscore.Task{
 	taskscore.ApplySDEVersion,
 	taskscore.RebuildCurrentSDEVersion,
 	taskscore.CountMarketPricesItems,
+	taskscore.ProcessArchivedBuildStats,
 }
 
 func enabledTasksLowerLookup() map[string]taskscore.Task {
 	return map[string]taskscore.Task{
-		"checksdeupdates":   taskscore.CheckSDEUpdates,
-		"applysdeversion":   taskscore.ApplySDEVersion,
-		"forcesderebuild":   taskscore.RebuildCurrentSDEVersion,
-		"recountmarketprices": taskscore.CountMarketPricesItems,
+		"checksdeupdates":           taskscore.CheckSDEUpdates,
+		"applysdeversion":           taskscore.ApplySDEVersion,
+		"forcesderebuild":           taskscore.RebuildCurrentSDEVersion,
+		"recountmarketprices":       taskscore.CountMarketPricesItems,
+		"processarchivedbuildstats": taskscore.ProcessArchivedBuildStats,
 	}
 }
 
@@ -72,6 +94,8 @@ func commandTaskName(task taskscore.Task) string {
 		return "forceSdeRebuild"
 	case taskscore.CountMarketPricesItems.Name:
 		return "recountMarketPrices"
+	case taskscore.ProcessArchivedBuildStats.Name:
+		return "processArchivedBuildStats"
 	default:
 		return task.Name
 	}
@@ -106,6 +130,19 @@ func Handle(ctx context.Context, args []string) (bool, error) {
 		return true, clicommands.RunPurgeWorkerQueues()
 	case "unlockSdeVersion":
 		return true, clicommands.RunUnlockSdeVersion()
+	case "importArchivedJobsFromFirestore":
+		return true, runImportArchivedJobsFromFirestoreScan(ctx, args[2:])
+	case "importUserAccountsFromFirestore":
+		return true, runImportUserAccountsFromFirestoreScan(ctx, args[2:])
+	case "markArchivedJobsUnprocessed":
+		return true, runMarkArchivedJobsUnprocessed(ctx, args[2:])
+	case "resetBuildStats":
+		return true, runResetBuildStats(ctx, args[2:])
+	case "startArchivedJobProcessing":
+		if len(args) > 2 {
+			return true, fmt.Errorf("startArchivedJobProcessing: takes no arguments (remove %q)\n\n%s", strings.Join(args[2:], " "), usage)
+		}
+		return true, runFanOutArchivedBuildStats(ctx)
 	default:
 		return true, runTrigger(ctx, args[1:])
 	}
@@ -123,11 +160,39 @@ func runList() error {
 	fmt.Println("  - workerQueues")
 	fmt.Println("  - purgeWorkerQueues")
 	fmt.Println("  - unlockSdeVersion")
+	fmt.Println("  - importArchivedJobsFromFirestore [-unprocessed-only] [-reprocess] [-credentials path] [-firebase-project-id id]")
+	fmt.Println("  - importUserAccountsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run]")
+	fmt.Println("  - markArchivedJobsUnprocessed [-all] [-account id] [-dry-run]")
+	fmt.Println("  - resetBuildStats [-account id] [-dry-run]")
+	fmt.Println("  - startArchivedJobProcessing (same fan-out as hourly cron; enqueue per-account build_stats work now)")
 	fmt.Println()
 	fmt.Println("  Triggerable tasks:")
 	for _, task := range allTasks() {
 		fmt.Printf("  - %s (worker_task: %s, subject: %s, default_priority: %s)\n", commandTaskName(task), task.Name, task.Subject, task.DefaultPriority)
 	}
+	return nil
+}
+
+// runFanOutArchivedBuildStats enqueues one ProcessArchivedBuildStats worker task per account that has
+// unprocessed archivedJobs rows (same behavior as the core hourly cron).
+func runFanOutArchivedBuildStats(ctx context.Context) error {
+	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo, shared.ServiceNATS)
+	if err != nil {
+		return err
+	}
+	defer runImmediateCleanups(clients.CleanupFns...)
+	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
+		return fmt.Errorf("failed to ensure worker task stream: %w", err)
+	}
+	deps := contract.Dependencies{
+		JSContext: clients.JetStream,
+		NATS:      clients.NATS,
+		Mongo:     clients.Mongo,
+	}
+	if err := archivedjobsched.PublishProcessArchivedBuildStatsPerAccount(ctx, deps); err != nil {
+		return err
+	}
+	fmt.Println("Triggered archived build stats fan-out (per-account worker tasks published)")
 	return nil
 }
 
@@ -243,6 +308,11 @@ func runTrigger(ctx context.Context, args []string) error {
 		return err
 	}
 
+	// Fan-out: one worker task per account with unprocessed archived jobs (same as core cron).
+	if task.Name == taskscore.ProcessArchivedBuildStats.Name && payload == nil {
+		return runFanOutArchivedBuildStats(ctx)
+	}
+
 	clients, err := shared.ConnectServices(ctx, shared.ServiceNATS)
 	if err != nil {
 		return err
@@ -253,7 +323,16 @@ func runTrigger(ctx context.Context, args []string) error {
 		return fmt.Errorf("failed to ensure worker task stream: %w", err)
 	}
 
-	if err := natscore.PublishTask(ctx, clients.JetStream, task.Subject, task.Name, payloadToInterface(payload), clients.NATS, priority); err != nil {
+	publishPayload := payloadToInterface(payload)
+	if task.Name == taskscore.ProcessArchivedBuildStats.Name {
+		var req natscore.ProcessArchivedBuildStatsRequest
+		if err := json.Unmarshal(payload, &req); err != nil || req.AccountID == "" {
+			return fmt.Errorf("task %q requires --data='{\"account_id\":\"...\"}' or omit --data to fan out all accounts", commandTaskName(task))
+		}
+		publishPayload = req
+	}
+
+	if err := natscore.PublishTask(ctx, clients.JetStream, task.Subject, task.Name, publishPayload, clients.NATS, priority); err != nil {
 		return fmt.Errorf("failed to publish task %q: %w", task.Name, err)
 	}
 

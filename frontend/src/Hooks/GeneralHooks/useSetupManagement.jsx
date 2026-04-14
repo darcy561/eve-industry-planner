@@ -1,4 +1,4 @@
-import Setup from "../../Classes/jobSetupConstructor";
+import Setup from "../../Classes/jobSetup";
 import useUsersStore from "../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -33,7 +33,6 @@ import {
  */
 export function useSetupManagement() {
   const queryClient = useQueryClient();
-  const parentUser = useUsersStore.getState().users.actions.findParentUser();
 
   function addNewSetup(chosenJob) {
     const rawTimeValue = chosenJob.rawData.time;
@@ -58,7 +57,8 @@ export function useSetupManagement() {
       TE,
       ...structureData,
       ...setupQuantities[0],
-      characterToUse: parentUser.CharacterHash,
+      characterToUse:
+        useUsersStore.getState().account.actions.getMainCharacterHash(),
       rawTimeValue,
       jobType: chosenJob.jobType,
     });

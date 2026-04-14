@@ -17,7 +17,6 @@ import GLOBAL_CONFIG from "../../../../global-config-app";
 
 export function WatchlistGroup({
   group,
-  parentUser,
   index,
   updateGroupSettingsTrigger,
   updateGroupSettingsContent,
@@ -96,7 +95,6 @@ export function WatchlistGroup({
                 <WatchListRow
                   key={item.id}
                   item={item}
-                  parentUser={parentUser}
                   index={index}
                   setOpenDialog={setOpenDialog}
                   updateWatchlistItemToEdit={updateWatchlistItemToEdit}

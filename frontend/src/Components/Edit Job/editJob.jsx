@@ -1,4 +1,5 @@
 import { useEffect, useRef, lazy, Suspense } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import {
   Avatar,
@@ -22,8 +23,8 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import calculateInstallCostfromSetup from "../../Functions/Helper/calculateInstallCostfromSetup";
 import { ShoppingListDialog } from "../Dialogues/Shopping List/ShoppingList";
-import Job from "../../Classes/jobConstructor";
-import { useFirebase } from "../../Hooks/useFirebase";
+import Job from "../../Classes/job";
+import { prefetchBuildStatsQuery } from "../../Hooks/React Query/Backend/buildStats";
 import useSetupUnmountEventListeners from "../../Hooks/GeneralHooks/useSetupUnmountEventListeners";
 import getMissingESIData from "../../Functions/Shared/getMissingESIData";
 import convertJobIDsToObjects from "../../Functions/Helper/convertJobIDsToObjects";
@@ -67,10 +68,10 @@ const LayoutSelector_EditJob_Selling = lazy(() =>
 
 export default function EditJob_New() {
   const { state, actions } = useEditJobReducer();
-  const { setActiveJobID, updateArchivedJobs, addRetrievedJobsToJobArray } =
+  const { setActiveJobID, addRetrievedJobsToJobArray } =
     useUsersStore.getState().jobData.actions;
-  const { jobStatus, isLoggedIn } = useUsersStore((state) => state.users);
-  const { getArchivedJobData } = useFirebase();
+  const { jobStatus } = useUsersStore((state) => state.users);
+  const queryClient = useQueryClient();
   const params = useParams({ from: "/editjob/$jobID" });
   const { jobID } = params;
   let backupJob = useRef(null);
@@ -96,11 +97,8 @@ export default function EditJob_New() {
           retrievedJobs
         );
 
-        if (isLoggedIn) {
-          const newArchivedJobsArray = await getArchivedJobData(
-            matchedJob.itemID
-          );
-          updateArchivedJobs(newArchivedJobsArray);
+        if (useUsersStore.getState().account.isLoggedIn) {
+          await prefetchBuildStatsQuery(queryClient, matchedJob.itemID);
         }
 
         const { requestedMarketData, requestedSystemIndexes } =
@@ -361,7 +359,7 @@ export default function EditJob_New() {
                                 onClick={actions.stepActiveJobForward}
                                 size="large"
                                 disabled={
-                                  state.activeJob.groupID &&
+                                  state.activeJob.includedInGroup &&
                                   !state.activeJob.isReadyToSell &&
                                   state.activeJob.jobStatus ===
                                     jobStatus.length - 2

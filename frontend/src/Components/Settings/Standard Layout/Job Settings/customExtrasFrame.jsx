@@ -7,7 +7,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import AddIcon from "@mui/icons-material/Add";
 import uuid from "react-uuid";
 import DOMPurify from "dompurify";
-import uploadApplicationSettingsToFirebase from "../../../../Functions/Firebase/uploadApplicationSettings";
+import { saveApplicationSettings } from "../../../../Functions/Endpoints/Pirivate/userDocument";
 import UndoIcon from "@mui/icons-material/Undo";
 import { useGlobalDebounce } from "../../../../Hooks/GeneralHooks/useGlobalDebounce";
 import { DEBOUNCE_KEYS } from "../../../../Context/debounceKeys";
@@ -20,7 +20,7 @@ export default function CustomExtrasFrame() {
     const debouncedSaveSettings = useGlobalDebounce(
         DEBOUNCE_KEYS.APP_SETTINGS_SAVE,
         async () => {
-            await uploadApplicationSettingsToFirebase();
+            await saveApplicationSettings();
         },
         2000
     );

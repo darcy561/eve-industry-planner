@@ -34,8 +34,6 @@ export function AddWatchItemDialog({
   const [groupSelect, updateGroupSelect] = useState(0);
   const analytics = getAnalytics();
 
-  const parentUser = useUsersStore.getState().users.actions.findParentUser();
-
   const handleClose = () => {
     setOpenDialog(false);
     changeLoadingState(false);
@@ -114,7 +112,7 @@ export function AddWatchItemDialog({
     setUserWatchlistItems(newUserWatchlistItems);
     uploadUserWatchlist(userWatchlist.groups, newUserWatchlistItems);
     logEvent(analytics, "New Watchlist Item", {
-      UID: parentUser.accountID,
+      UID: useUsersStore.getState().account.actions.getAccountID(),
     });
 
     showSnackbarSuccess(`${materialJobs[watchlistItemRequest].name} Added`, 3);
@@ -126,7 +124,6 @@ export function AddWatchItemDialog({
       <DialogContent>
         <Grid container>
           <DialogDisplayLogic
-            parentUser={parentUser}
             loadingState={loadingState}
             changeLoadingState={changeLoadingState}
             loadingText={loadingText}
@@ -162,7 +159,6 @@ export function AddWatchItemDialog({
 }
 
 function DialogDisplayLogic({
-  parentUser,
   loadingState,
   changeLoadingState,
   loadingText,
@@ -187,7 +183,6 @@ function DialogDisplayLogic({
   if (!materialJobs) {
     return (
       <ImportNewJob_WatchlistDialog
-        parentUser={parentUser}
         setFailedImport={setFailedImport}
         changeLoadingText={changeLoadingText}
         setMaterialJobs={setMaterialJobs}
@@ -201,7 +196,6 @@ function DialogDisplayLogic({
   }
   return (
     <EditItemDisplay_WatchlistDialog
-      parentUser={parentUser}
       watchlistItemRequest={watchlistItemRequest}
       materialJobs={materialJobs}
       setMaterialJobs={setMaterialJobs}

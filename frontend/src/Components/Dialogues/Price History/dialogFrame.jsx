@@ -50,7 +50,7 @@ function PriceHistoryDialog() {
     if (marketHistory?.length > 0 && messageData.selectedLocation) {
       getWorldData(
         [messageData.selectedLocation.regionID],
-        useUsersStore.getState().users.actions.findParentUser()
+        useUsersStore.getState().account.actions.getMainCharacter()
       ).then(setWorldData);
     }
   }, [marketHistory?.length, messageData.selectedLocation?.regionID]);

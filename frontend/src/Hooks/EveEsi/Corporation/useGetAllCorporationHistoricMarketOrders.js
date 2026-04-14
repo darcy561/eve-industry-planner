@@ -156,10 +156,10 @@ function createSuccessObject(data) {
  * }
  */
 export function getAllCachedCorporationHistoricMarketOrders(queryClient) {
-  const userArray = useUsersStore.getState().users.userArray;
+  const characters = useUsersStore.getState().account.characters;
 
   // Get query states for all users
-  const queryStates = userArray.map((user) => {
+  const queryStates = characters.map((user) => {
     const queryKey = [corporationHistoricMarketOrdersQueryKey, user.CharacterHash];
     return {
       queryState: queryClient.getQueryState(queryKey),
@@ -233,7 +233,7 @@ export function getAllCachedCorporationHistoricMarketOrders(queryClient) {
  * }
  */
 export function useGetAllCorporationHistoricMarketOrders() {
-  const { userArray } = useUsersStore((state) => state.users);
+  const characters = useUsersStore((state) => state.account.characters);
 
   const combineFunction = useCallback((results) => {
     const isLoading = checkLoadingState(results);
@@ -255,7 +255,7 @@ export function useGetAllCorporationHistoricMarketOrders() {
   }, []);
 
   const result = useQueries({
-    queries: userArray.map(({ CharacterHash }) => corporationHistoricMarketOrdersQuery(CharacterHash)),
+    queries: characters.map(({ CharacterHash }) => corporationHistoricMarketOrdersQuery(CharacterHash)),
     combine: combineFunction,
   });
 

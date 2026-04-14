@@ -20,7 +20,7 @@ class ErrorBoundary extends React.Component {
     });
 
     // Log to Sentry if in production
-    if (process.env.ENVIRONMENT === "production") {
+    if (import.meta.env.ENVIRONMENT === "production") {
       Sentry.captureException(error, {
         extra: {
           componentStack: errorInfo.componentStack,
@@ -69,7 +69,7 @@ class ErrorBoundary extends React.Component {
               Return Home
             </Button>
           </Box>
-          {process.env.ENVIRONMENT === "development" && (
+          {import.meta.env.ENVIRONMENT === "development" && (
             <Box sx={{ mt: 4, textAlign: "left", maxWidth: "800px", width: "100%" }}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Error details:

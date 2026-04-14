@@ -41,7 +41,6 @@ export function useAddMaterialCostsToJob(inputJob, inputPriceArray) {
     );
     if (!matchedMaterial) continue;
 
-
     if (itemPriceObject.itemCount === "allRemaining") {
       addAllRemainingItems(matchedMaterial, itemPriceObject);
     } else {

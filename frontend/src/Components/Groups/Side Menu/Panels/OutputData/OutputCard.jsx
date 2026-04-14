@@ -23,10 +23,10 @@ function OutputJobCard({ inputJob, state, actions }) {
   const { calculateCurrentJobBuildCostFromChildren } = useGroupManagement();
 
   const defaultMarket = useUsersStore(
-    (state) => state.applicationSettings.defaultMarket
+    (state) => state.applicationSettings.defaultMarketLocation
   );
   const defaultOrders = useUsersStore(
-    (state) => state.applicationSettings.defaultOrders
+    (state) => state.applicationSettings.defaultOrderType
   );
 
   const navigate = useNavigate();

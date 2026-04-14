@@ -187,7 +187,7 @@ export default function useEditJobReducer() {
      * const currentParents = actions.getCurrentParentJobs();
      */
     getCurrentParentJobs: () => {
-      const activeJobParentJobs = state.activeJob.parentJob || [];
+      const activeJobParentJobs = state.activeJob.parentJobs || [];
       const parentJobsToAdd = state.parentChildToEdit.parentJobs.add || [];
       const parentJobsToRemove =
         state.parentChildToEdit.parentJobs.remove || [];

@@ -1,5 +1,5 @@
+import fetchSystemIndexes from "../Endpoints/Public/systemIndexes";
 import doesSystemIndexRequireRefresh from "./refreshPeriod";
-import splitSystemIndexesRequestIntoChuncks from "./requestChunks";
 
 /**
  * Refreshes outdated system indexes by fetching fresh data from the API.
@@ -24,14 +24,7 @@ async function refreshSystemIndexes(systemIndexObject) {
 
   if (outdatedItems.length === 0) return {};
 
-  // Fetch all batches in parallel and merge results
-  const batchPromises = splitSystemIndexesRequestIntoChuncks(outdatedItems);
-  const batchResults = await Promise.all(batchPromises);
-
-  // Merge all batch results into a single object
-  const refreshedIndexes = Object.assign({}, ...batchResults);
-
-  return refreshedIndexes;
+  return fetchSystemIndexes(outdatedItems);
 }
 
 export default refreshSystemIndexes;

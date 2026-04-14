@@ -19,7 +19,8 @@ import useUsersStore from "../../Zustand/usersStore";
  * manageListenerRequests(["job_123", "job_456"]);
  */
 function manageListenerRequests(inputJobIDs) {
-  const { isLoggedIn, firebaseListeners } = useUsersStore.getState().users;
+  const { isLoggedIn } = useUsersStore.getState().account;
+  const { firebaseListeners } = useUsersStore.getState().users;
   const { updateFirebaseListeners } = useUsersStore.getState().users.actions;
 
   try {

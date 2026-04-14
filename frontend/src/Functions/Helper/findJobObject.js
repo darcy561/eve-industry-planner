@@ -29,7 +29,6 @@ async function findOrGetJobObject(
     const matchedJob = findJobInJobArray(requestedJobID) ||
       alternativeJobStore.find(({ jobID }) => jobID === requestedJobID);
 
-
     if (matchedJob) {
       return matchedJob;
     } else if (isUserLoggedIn()) {

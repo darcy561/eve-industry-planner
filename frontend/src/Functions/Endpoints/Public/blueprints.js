@@ -7,6 +7,8 @@ import { fetchWithPublicHeaders } from "./applyPublicHeaders.js";
  * GET  /api/v1/blueprints/:blueprintID
  * POST /api/v1/blueprints { idArray: number[] }
  *
+ * Uses `fetchWithPublicHeaders` retries (408 / 429 / 5xx including 503). Non-retriable: 400, 404, 405 — see `BlueprintsHandler` in `services/api/v1endpoints/blueprints.go`.
+ *
  * @param {string|number|Array<string|number>} blueprintRequests - Blueprint ID or array of blueprint IDs
  * @returns {Promise<Object|Array|null>} Single blueprint object, array of blueprints, or null/[] on failure
  */

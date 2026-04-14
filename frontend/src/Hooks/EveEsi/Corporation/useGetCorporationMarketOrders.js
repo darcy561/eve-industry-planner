@@ -45,7 +45,6 @@ function useGetCorporationMarketOrders(characterHash) {
     return useQuery(corporationMarketOrdersQuery(characterHash))
 }
 
-
 /**
  * Retrieves cached corporation market orders data from React Query cache for a specific character.
  * 
@@ -90,7 +89,6 @@ function getCachedCorporationMarketOrders(queryClient, characterHash) {
 
     return { data: cachedMarketOrders, isLoading: false, isError: false }
 }
-
 
 export { useGetCorporationMarketOrders, getCachedCorporationMarketOrders }
     

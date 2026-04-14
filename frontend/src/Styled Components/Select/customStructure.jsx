@@ -22,7 +22,9 @@ import useUsersStore from "../../Zustand/usersStore";
  */
 function CustomStructureSelect({ value, jobType, onChange }) {
   const structures = useUsersStore(
-    (state) => state.applicationSettings[customStructureMap[jobType]]
+    (state) =>
+      state.applicationSettings.customStructures?.[customStructureMap[jobType]] ??
+      []
   );
   
   // Validate that the current value exists in the available options

@@ -6,14 +6,14 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
  * Returns a skills map with both active and trained skill levels for all blueprint skills.
  * 
  * @param {Object} params - Parameters object
- * @param {Object} params.character - Character object with aToken and CharacterID
+ * @param {Object} params.character - Character object with esiAccessToken and CharacterID
  * @param {Object} [params.existingData={}] - Existing data for caching
  * @param {Object} [params.config={}] - Additional configuration options
  * @returns {Promise<Object>} Promise that resolves to skills map with etag
  * 
  * @example
  * const skills = await getCharacterSkills({
- *   character: { aToken: "token", CharacterID: 123456 },
+ *   character: { esiAccessToken: "token", CharacterID: 123456 },
  *   config: { characterHash: "hash" }
  * });
  * console.log(skills.data[3385].activeLevel); // Active skill level
@@ -24,11 +24,11 @@ async function getCharacterSkills({
   config = {}
 }) {
   try {
-    if (!character || !character.aToken || !character.CharacterID) {
+    if (!character || !character.esiAccessToken || !character.CharacterID) {
       throw new Error("Character information is incomplete.");
     }
 
-    const { aToken, CharacterID } = character;
+    const { esiAccessToken, CharacterID } = character;
     const endpointURL = `https://esi.evetech.net/v4/characters/${CharacterID}/skills/?datasource=tranquility`;
 
     // Enhanced configuration for rate limiting
@@ -47,7 +47,7 @@ async function getCharacterSkills({
       {
         headers: {
           "If-None-Match": existingData?.etag || "",
-          Authorization: `Bearer ${aToken}`,
+          Authorization: `Bearer ${esiAccessToken}`,
         },
       },
       enhancedConfig

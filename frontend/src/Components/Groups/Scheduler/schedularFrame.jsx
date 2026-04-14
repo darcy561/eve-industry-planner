@@ -10,17 +10,17 @@ import { SchedulingStrategy } from "../../../Functions/Scheduler/groupSchedulerC
 export default function GroupSchedulerFrame({
     groupJobs = []
 }) {
-    const [selectedUsers, setSelectedUsers] = useState([]);
+    const [selectedCharacterRows, setSelectedCharacterRows] = useState([]);
     const [schedulingStrategy, setSchedulingStrategy] = useState(SchedulingStrategy.GREEDY);
 
     const { schedule, isLoading, isError, error } = useGroupScheduler(
         groupJobs,
         schedulingStrategy,
-        selectedUsers
+        selectedCharacterRows
     );
 
-    const handleSelectionChange = useCallback((users) => {
-        setSelectedUsers(users);
+    const handleSelectionChange = useCallback((rows) => {
+        setSelectedCharacterRows(rows);
     }, []);
 
     const handleStrategyChange = useCallback((strategy) => {
@@ -104,5 +104,4 @@ export default function GroupSchedulerFrame({
         </ContentPanel>
     );
 }
-
 

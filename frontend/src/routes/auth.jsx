@@ -8,7 +8,7 @@ const AuthMainUser = lazyRouteComponent(() => import('../Components/Auth/MainUse
 
 export const Route = createFileRoute('/auth')({
   beforeLoad: ({ search }) => {
-    const isLoggedIn = useUsersStore.getState().users.isLoggedIn
+    const isLoggedIn = useUsersStore.getState().account.isLoggedIn
     
     // If user is already logged in, redirect them away from auth page
     if (isLoggedIn) {

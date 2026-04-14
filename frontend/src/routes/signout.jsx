@@ -19,6 +19,7 @@ function SignoutComponent() {
       const { resetUsersSettingsStore } = useUsersStore.getState().users.actions;
       const { resetJobDataStore } = useUsersStore.getState().jobData.actions;
       const { resetApplicationSettingsStore } = useUsersStore.getState().applicationSettings.actions;
+      const { resetAccountStore } = useUsersStore.getState().account.actions;
       const { resetWorldDataStore } = useUsersStore.getState().worldData.actions;
 
       try {
@@ -35,6 +36,7 @@ function SignoutComponent() {
         resetUsersSettingsStore();
         resetJobDataStore();
         resetApplicationSettingsStore();
+        resetAccountStore();
         resetWorldDataStore();
 
         // Clear storage

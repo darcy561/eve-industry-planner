@@ -13,7 +13,6 @@ class ESIFetchWrapper {
     this.baseRetryDelay = 1000; // 1 second
   }
 
-
   /**
    * Generate user ID for rate limiting
    * @param {Object} options - Request options

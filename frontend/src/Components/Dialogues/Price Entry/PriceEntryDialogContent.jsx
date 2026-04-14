@@ -36,9 +36,9 @@ export function PriceEntryDialogContent({ state, actions }) {
   const { userJobSnapshot } = useUsersStore((state) => state.jobData);
   const { updateJobSnapshotsFromJobs, addRetrievedJobsToJobArray } =
     useUsersStore.getState().jobData.actions;
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
-  const hideTutorials = useUsersStore(
-    (state) => state.applicationSettings.hideTutorials
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
+  const displayHelpCards = useUsersStore(
+    (state) => state.applicationSettings.displayHelpCards
   );
 
   const buildItemPriceEntry = useCallback(
@@ -232,7 +232,7 @@ export function PriceEntryDialogContent({ state, actions }) {
       <DialogTitle id="PriceEntryListDialog" align="center" color="primary">
         Price Entry
       </DialogTitle>
-      {!hideTutorials ? (
+      {displayHelpCards ? (
         <Grid
           align="center"
           sx={{ marginBottom: "20px", paddingX: "20px" }}

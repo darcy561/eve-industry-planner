@@ -24,10 +24,24 @@ type CorporationsRequest struct {
 	Tokens []string `json:"tokens"` // Array of EVE SSO JWT tokens
 }
 
-// CorporationsHandler handles requests to add corporation claims to JWT tokens
-// Requires authentication via internal JWT token in Authorization header
-// Accepts multiple EVE SSO tokens, validates them, and submits a single task to worker
-// Worker will extract character IDs, query ESI, and aggregate corporation IDs by AccountID
+// CorporationsHandler handles POST /api/v1/auth/claims/corporations.
+//
+// Registered on the private mux group (apiServer): global middleware → rate limit →
+// [middleware.AuthConstructor] → this handler. Align with frontend withRequestRetries:
+// retry only 408, 429, 5xx (see Endpoints/withRequestRetries.js defaultIsRetriableHttpStatus).
+//
+// Before this handler:
+//   - 429 — rate limiter (private); safe to retry with backoff
+//   - 401 — auth middleware: missing/invalid Bearer / internal JWT (do not retry without refresh)
+//
+// This handler (also validates auth again for AccountID claims; usually redundant if middleware passed):
+//   - 405 — method != POST
+//   - 401 — missing/invalid Bearer, invalid internal JWT, empty AccountID in claims
+//   - 400 — invalid JSON/body, no tokens, too many tokens (>50), empty token, no valid SSO tokens after validation
+//   - 500 — config load failure, NATS publish failure
+//   - 204 — task queued successfully (no body)
+//
+// Accepts multiple EVE SSO tokens, validates them, and publishes one worker task.
 func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
 	start, ok := logs.RequestStartTime(ctx)
@@ -115,7 +129,9 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		http.Error(w, "Configuration error: "+err.Error(), http.StatusInternalServerError)
+		m.Errors.WithLabelValues("config_error").Inc(ctx)
+		logs.ErrorCtx(ctx, "failed to load config for corporations endpoint", "error", err, "account_id", accountID)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 

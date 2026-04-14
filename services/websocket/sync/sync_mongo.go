@@ -62,11 +62,11 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 			userMap, err := structToMap(user)
 			if err != nil {
 				logs.WarnCtx(ctx, "failed to convert user to map",
-					"account_id", user.AccountID,
+					"account_id", user.MetaData.AccountID,
 					"error", err)
 				continue
 			}
-			results[user.AccountID] = userMap
+			results[user.MetaData.AccountID] = userMap
 		}
 		return results, cursor.Err()
 
@@ -201,10 +201,14 @@ func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionNam
 		"_id": bson.M{"$in": documentIDs},
 	}
 
-	// For non-users collections, add accountID filter for security
-	// Users collection uses _id as accountID, so no additional filter needed
-	if collectionName != "users" {
-		filter["accountID"] = accountID // Use camelCase accountID (matches BSON tag)
+	// Account scoping: jobs, users, and application_settings use _meta.accountID (see models.Job, UserAccountDocument).
+	// Other collections use root accountID.
+	if collectionName == mongocore.CollectionJobs ||
+		collectionName == mongocore.CollectionUsers ||
+		collectionName == mongocore.CollectionApplicationSettings {
+		filter["_meta.accountID"] = accountID
+	} else {
+		filter["accountID"] = accountID
 	}
 
 	// Use retry logic from mongo core package
@@ -231,7 +235,7 @@ func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionNam
 	return results, nil
 }
 
-// QueryAllJobsForAccount queries all jobs for an accountID where isIncludedOnPlanner is true
+// QueryAllJobsForAccount queries all jobs for an accountID where displayOnPlanner is true
 // Returns a map of jobID -> job data (as map[string]interface{})
 // Uses struct decoding for type safety and proper BSON to JSON conversion
 func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string) (map[string]map[string]interface{}, error) {
@@ -257,10 +261,13 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 	database := mongoClient.Database(mongocore.DatabaseName)
 	collection := database.Collection(mongocore.CollectionJobs)
 
-	// Build query filter: accountID and isIncludedOnPlanner = true
+	// Build query filter: jobs shown on planner (displayOnPlanner or legacy isIncludedOnPlanner).
 	filter := bson.M{
-		"accountID":           accountID,
-		"isIncludedOnPlanner": true,
+		"_meta.accountID": accountID,
+		"$or": []bson.M{
+			{"displayOnPlanner": true},
+			{"isIncludedOnPlanner": true},
+		},
 	}
 
 	// Use retry logic from mongo core package

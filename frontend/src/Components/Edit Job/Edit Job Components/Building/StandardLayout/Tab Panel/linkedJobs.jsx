@@ -23,8 +23,8 @@ import PanelFallBack from "../../../../panelStates";
 import { formatNumberForLocale, formatTimeRemaining } from "../../../../../../Functions/Helper/numberParser";
 
 export function LinkedJobsTab(props) {
-  const { state, actions, parentUser, isLoading, isError, error } = props;
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const { state, actions, isLoading, isError, error } = props;
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const { findBlueprintType } = useJobManagement();
   const [clickedJobs, setClickedJobs] = useState(new Set());
   const [removedJobs, setRemovedJobs] = useState(new Set());
@@ -57,7 +57,7 @@ export function LinkedJobsTab(props) {
       actions.updateActiveJob(state.activeJob);
       showSnackbarSuccess("Unlinked");
       logEvent(analytics, "unlinkESIJob", {
-        UID: parentUser.accountID,
+        UID: useUsersStore.getState().account.actions.getAccountID(),
         isLoggedIn: isLoggedIn,
       });
     }, 800);
@@ -108,7 +108,7 @@ export function LinkedJobsTab(props) {
           .map((job) => {
             const jobOwner = useUsersStore
               .getState()
-              .users.actions.findUserByCharacterHash(job.CharacterHash);
+              .account.actions.findCharacterByHash(job.CharacterHash);
 
             const blueprintType = findBlueprintType(job.blueprint_id);
             const facilityData = useUsersStore

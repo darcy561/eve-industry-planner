@@ -15,11 +15,11 @@ import StructureTypeSelect from "../../../../Styled Components/Select/structureT
 import RigTypeSelect from "../../../../Styled Components/Select/rigType";
 import SystemTypeSelect from "../../../../Styled Components/Select/systemType";
 import TaxPercentageTextField from "../../../../Styled Components/Textfield/tax";
-import CustomStructure from "../../../../Classes/customStructureConstructor";
+import CustomStructure from "../../../../Classes/customStructure";
 import { addCustomStructure as addCustomStructureFunction } from "../../../../Functions/Structure/addCustomStructure";
 import { showSnackbarSuccess } from "../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../Zustand/usersStore";
-import uploadApplicationSettingsToFirebase from "../../../../Functions/Firebase/uploadApplicationSettings";
+import { saveApplicationSettings } from "../../../../Functions/Endpoints/Pirivate/userDocument";
 import { useGlobalDebounce } from "../../../../Hooks/GeneralHooks/useGlobalDebounce";
 import { DEBOUNCE_KEYS } from "../../../../Context/debounceKeys";
 const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
@@ -46,7 +46,7 @@ function StructureOptionsSelection_CustomStructures({
   const debouncedSaveSettings = useGlobalDebounce(
     DEBOUNCE_KEYS.APP_SETTINGS_SAVE,
     async () => {
-      await uploadApplicationSettingsToFirebase();
+      await saveApplicationSettings();
     },
     2000
   );
@@ -130,7 +130,7 @@ function StructureOptionsSelection_CustomStructures({
   }
 
   function getRequirements(requirementID) {
-    if (requirementID == null || requirementID == undefined) {
+    if (requirementID == -1 || requirementID == null || requirementID == undefined) {
       return {};
     }
 

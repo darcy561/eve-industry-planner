@@ -1,21 +1,20 @@
 import { decodeJwt } from "jose";
-import User from "../../../Classes/usersConstructor";
+import Character from "../../../Classes/character";
 
 /**
- * Exchanges EVE SSO authorization code for access token and creates user object.
- * Handles the OAuth2 flow to authenticate users with EVE Online's SSO system.
- * Now uses the backend API endpoint instead of calling EVE SSO directly.
- * 
- * @param {string} authCode - Authorization code received from EVE SSO callback
- * @param {boolean} [accountType=false] - Whether this is an account-level authentication
- * @returns {Promise<User|Error>} Promise that resolves to User object or Error
- * 
- * @throws {Error} Throws error if authCode is missing or SSO authentication fails
- * 
+ * Exchanges EVE SSO authorization code for access token and builds a {@link Character} instance.
+ * Uses the backend `/api/v1/sso/exchange` endpoint.
+ *
+ * @param {string} authCode - Authorization code from EVE SSO callback
+ * @param {boolean} [accountType=false] - Main planner character (persists refresh to `Auth`)
+ * @returns {Promise<Character|Error>}
+ *
+ * @throws {Error} When authCode is missing or SSO fails
+ *
  * @example
- * const user = await getEveOauthToken("auth_code_123", true);
- * if (user instanceof User) {
- *   console.log("User authenticated:", user.characterName);
+ * const character = await getEveOauthToken("auth_code_123", true);
+ * if (character instanceof Character) {
+ *   console.log("Authenticated:", character.CharacterName);
  * }
  */
 async function getEveOauthToken(authCode, accountType = false) {
@@ -64,11 +63,15 @@ async function getEveOauthToken(authCode, accountType = false) {
 
     const decodedToken = decodeJwt(tokenJSON.access_token);
 
-    const newUser = new User(decodedToken, tokenJSON, accountType);
+    const newCharacter = new Character({
+      jwtPayload: decodedToken,
+      tokenResponse: tokenJSON,
+      isMainCharacter: accountType,
+    });
     if (accountType) {
       localStorage.setItem("Auth", tokenJSON.refresh_token);
     }
-    return newUser;
+    return newCharacter;
   } catch (err) {
     console.error("EVE SSO Authentication Error:", err);
     return new Error(`Unable to Authenticate SSO Token: ${err.message}`);

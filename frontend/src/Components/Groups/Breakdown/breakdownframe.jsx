@@ -42,7 +42,6 @@ export default function GroupBreakdownFrame({ groupJobs = [] }) {
         };
     }, [groupJobs]);
 
-
     return (
         <ContentPanel
             componentName="Group Breakdown Frame"

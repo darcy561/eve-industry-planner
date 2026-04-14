@@ -1,5 +1,7 @@
 {
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": []
+  },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -8,23 +10,21 @@
   "liveNow": false,
   "panels": [
     {
-      "datasource": { "type": "grafana", "uid": "-- Grafana --" },
-      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
-      "id": 1,
-      "options": {
-        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "**Core · logs (Loki)** — base query `{compose_service=\"core\"}` with field filters.\n\nUse dashboard filters: `level` (regex), `component` (regex), and `search` (plain text contains).\n\n**If empty:** widen the time range; **Promtail + Loki** require the stack (`docker compose up -d` or `make dev`). JSON logs — **`LOG_LEVEL`** in `.env` (see `env.example`).",
-        "mode": "markdown"
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
       },
-      "title": "",
-      "transparent": true,
-      "type": "text"
-    },
-    {
-      "datasource": { "type": "loki", "uid": "loki" },
       "description": "Docker Compose service `core` (all replicas).",
-      "fieldConfig": { "defaults": {}, "overrides": [] },
-      "gridPos": { "h": 19, "w": 24, "x": 0, "y": 6 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 19,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "id": 2,
       "options": {
         "dedupStrategy": "none",
@@ -39,7 +39,10 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "loki" },
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
           "editorMode": "code",
           "expr": "{compose_service=\"core\"} |= \"${search}\" | json | level=~\"(?i)${level:raw}\"",
           "queryType": "range",
@@ -53,30 +56,62 @@
   "refresh": "15s",
   "schemaVersion": 39,
   "style": "dark",
-  "tags": ["loki", "logs", "core"],
+  "tags": [
+    "loki",
+    "logs",
+    "core"
+  ],
   "templating": {
     "list": [
       {
         "allValue": ".*",
-        "current": { "selected": true, "text": "All", "value": "$__all" },
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
         "hide": 0,
         "includeAll": true,
         "label": "level",
         "multi": false,
         "name": "level",
         "options": [
-          { "selected": true, "text": "All", "value": "$__all" },
-          { "selected": false, "text": "debug", "value": "debug" },
-          { "selected": false, "text": "info", "value": "info" },
-          { "selected": false, "text": "warn", "value": "warn|warning" },
-          { "selected": false, "text": "error", "value": "error" }
+          {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          },
+          {
+            "selected": false,
+            "text": "debug",
+            "value": "debug"
+          },
+          {
+            "selected": false,
+            "text": "info",
+            "value": "info"
+          },
+          {
+            "selected": false,
+            "text": "warn",
+            "value": "warn|warning"
+          },
+          {
+            "selected": false,
+            "text": "error",
+            "value": "error"
+          }
         ],
         "query": "debug,info,warn|warning,error",
         "skipUrlSync": false,
         "type": "custom"
       },
       {
-        "current": { "selected": false, "text": ".*", "value": ".*" },
+        "current": {
+          "selected": false,
+          "text": ".*",
+          "value": ".*"
+        },
         "hide": 0,
         "includeAll": false,
         "label": "component (regex)",
@@ -87,7 +122,11 @@
         "type": "textbox"
       },
       {
-        "current": { "selected": false, "text": "", "value": "" },
+        "current": {
+          "selected": false,
+          "text": "",
+          "value": ""
+        },
         "hide": 0,
         "includeAll": false,
         "label": "search text",
@@ -99,13 +138,28 @@
       }
     ]
   },
-  "time": { "from": "now-6h", "to": "now" },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
   "timepicker": {
-    "refresh_intervals": ["15s", "5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"]
+    "refresh_intervals": [
+      "15s",
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
   },
   "timezone": "browser",
   "title": "Core · logs",
   "uid": "logs-core",
-  "version": 3,
+  "version": 4,
   "weekStart": ""
 }

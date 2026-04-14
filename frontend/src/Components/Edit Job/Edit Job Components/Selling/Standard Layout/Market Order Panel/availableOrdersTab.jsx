@@ -25,9 +25,9 @@ export function AvailableMarketOrdersTab({
   itemOrderMatch
 }) {
   const queryClient = useQueryClient();
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
-  const getCorporationObject =
-    useUsersStore.getState().users.actions.getCorporationObject;
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
+  const getCorporation =
+    useUsersStore.getState().account.actions.getCorporation;
   const { calcBrokersFee } = useJobManagement();
   const analytics = getAnalytics();
 
@@ -50,7 +50,7 @@ export function AvailableMarketOrdersTab({
           itemOrderMatch.map((order) => {
             const charData = useUsersStore
               .getState()
-              .users.actions.findUserByCharacterHash(order.CharacterHash);
+              .account.actions.findCharacterByHash(order.CharacterHash);
             const locationName =
               useUsersStore
                 .getState()
@@ -59,7 +59,7 @@ export function AvailableMarketOrdersTab({
 
             let corpData = null;
             if (order.is_corporation) {
-              corpData = getCorporationObject(order.corporation_id);
+              corpData = getCorporation(order.corporation_id);
             }
 
             return (
@@ -157,9 +157,7 @@ export function AvailableMarketOrdersTab({
                             actions.updateActiveJob(state.activeJob);
                             showSnackbarSuccess("Linked");
                             logEvent(analytics, "linkedMarketOrder", {
-                              UID: useUsersStore
-                                .getState()
-                                .users.actions.findParentUser().accountID,
+                              UID: useUsersStore.getState().account.actions.getAccountID(),
                               isLoggedIn: isLoggedIn,
                             });
                           } catch (error) {

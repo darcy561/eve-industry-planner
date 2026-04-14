@@ -22,7 +22,7 @@ const SKILL_IDS = {
  * Calculates active slot usage and total slots for a single character from
  * plain data objects.
  *
- * @param {Object} user - User object containing `CharacterHash` and `CharacterID`.
+ * @param {Object} character - Character row (`Character` instance) with `CharacterHash` and `CharacterID`.
  * @param {Object} userSkills - Skills map keyed by skill ID -> { activeLevel, ... }.
  * @param {Array<Object>} characterIndustryJobs - Character industry jobs (ESI) for this character.
  * @param {Array<Object>} corporationIndustryJobs - Corporation industry jobs (ESI) relevant to this character.
@@ -30,14 +30,14 @@ const SKILL_IDS = {
  * @returns {Object} Slot summary for this character.
  */
 export function calculateActiveSlotsSingleFromData(
-  user,
+  character,
   userSkills = {},
   characterIndustryJobs = [],
   corporationIndustryJobs = []
 ) {
-  if (!user) return null;
+  if (!character) return null;
 
-  const { CharacterHash, CharacterID } = user;
+  const { CharacterHash, CharacterID } = character;
 
   const slots = {
     manufacturing: { total: 1, active: 0 },
@@ -83,37 +83,36 @@ export function calculateActiveSlotsSingleFromData(
 }
 
 /**
- * Convenience helper to calculate slot totals for multiple users when you
+ * Convenience helper to calculate slot totals for multiple characters when you
  * already have per-character skill and job data available.
  *
- * @param {Array<Object>} users - Array of user objects.
+ * @param {Array<Object>} characters - Character rows (`Character` instances).
  * @param {Object} skillsByCharacterHash - Map CharacterHash -> skills map.
  * @param {Object} charJobsByCharacterHash - Map CharacterHash -> array of character industry jobs.
  * @param {Object} corpJobsByCharacterHash - Map CharacterHash -> array of corporation industry jobs for that character.
  *
- * @returns {Array<Object>} Array of slot summaries matching the users array.
+ * @returns {Array<Object>} Slot summaries in the same order as `characters`.
  */
 export function calculateActiveSlotsMultipleFromData(
-  users = [],
+  characters = [],
   skillsByCharacterHash = {},
   charJobsByCharacterHash = {},
   corpJobsByCharacterHash = {}
 ) {
-  if (!Array.isArray(users) || users.length === 0) return [];
+  if (!Array.isArray(characters) || characters.length === 0) return [];
 
-  return users.map((user) => {
-    const { CharacterHash } = user || {};
+  return characters.map((character) => {
+    const { CharacterHash } = character || {};
     const userSkills = skillsByCharacterHash?.[CharacterHash] || {};
     const charJobs = charJobsByCharacterHash?.[CharacterHash] || [];
     const corpJobs = corpJobsByCharacterHash?.[CharacterHash] || [];
 
     return calculateActiveSlotsSingleFromData(
-      user,
+      character,
       userSkills,
       charJobs,
       corpJobs
     );
   });
 }
-
 

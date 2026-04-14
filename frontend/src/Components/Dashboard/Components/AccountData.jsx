@@ -6,7 +6,8 @@ import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
 
 export function AccountData() {
-  const { userArray, jobStatus } = useUsersStore((state) => state.users);
+  const jobStatus = useUsersStore((state) => state.users.jobStatus);
+  const characters = useUsersStore((state) => state.account.characters);
   const { userJobSnapshot } = useUsersStore((state) => state.jobData);
   const [dataCount, updateDataCount] = useState({
     openMOrders: 0,
@@ -71,7 +72,7 @@ export function AccountData() {
         <Grid container size={12}>
           <Grid align="center" size={12}>
             <AvatarGroup max={5}>
-              {userArray.map((user) => {
+              {characters.map((user) => {
                 return (
                   <Avatar
                     key={user.CharacterHash}

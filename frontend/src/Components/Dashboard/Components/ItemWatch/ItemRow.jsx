@@ -21,9 +21,7 @@ import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { useJobBuild } from "../../../../Hooks/useJobBuild";
-import { trace } from "firebase/performance";
-import { performance } from "../../../../firebase";
-import JobSnapshot from "../../../../Classes/jobSnapshotConstructor";
+import JobSnapshot from "../../../../Classes/jobSnapshot";
 import addNewJobToFirebase from "../../../../Functions/Firebase/addNewJob";
 import uploadJobSnapshotsToFirebase from "../../../../Functions/Firebase/uploadJobSnapshots";
 import getMissingESIData from "../../../../Functions/Shared/getMissingESIData";
@@ -39,7 +37,6 @@ import calculateInstallCostfromSetup from "../../../../Functions/Helper/calculat
 
 export function WatchListRow({
   item,
-  parentUser,
   index,
   setOpenDialog,
   updateWatchlistItemToEdit,
@@ -55,10 +52,10 @@ export function WatchListRow({
   } = useUsersStore.getState().jobData.actions;
 
   const defaultMarket = useUsersStore(
-    (state) => state.applicationSettings.defaultMarket
+    (state) => state.applicationSettings.defaultMarketLocation
   );
   const defaultOrders = useUsersStore(
-    (state) => state.applicationSettings.defaultOrders
+    (state) => state.applicationSettings.defaultOrderType
   );
   const marketData = useUsersStore((state) => state.worldData.marketData);
 
@@ -70,7 +67,6 @@ export function WatchListRow({
   const { uploadUserWatchlist } = useFirebase();
   const { buildJob } = useJobBuild();
   const analytics = getAnalytics();
-  const t = trace(performance, "CreateJobProcessFull");
 
   async function handleRemove() {
     let newUserWatchlistItems = [...userWatchlist.items];
@@ -78,13 +74,12 @@ export function WatchListRow({
     setUserWatchlistItems(newUserWatchlistItems);
     await uploadUserWatchlist(userWatchlist.groups, newUserWatchlistItems);
     logEvent(analytics, "Remove Watchlist Item", {
-      UID: parentUser.accountID,
+      UID: useUsersStore.getState().account.actions.getAccountID(),
     });
     showSnackbarError(`${item.name} Removed`, 3);
   }
 
   async function handleAdd() {
-    t.start();
     const newSnapshotArray = [...userJobSnapshot];
 
     let newJob = await buildJob({
@@ -101,7 +96,7 @@ export function WatchListRow({
     await uploadJobSnapshotsToFirebase(newSnapshotArray);
     logEvent(analytics, "New Job", {
       loggedIn: true,
-      UID: parentUser.accountID,
+      UID: useUsersStore.getState().account.actions.getAccountID(),
       name: newJob.name,
       itemID: newJob.itemID,
     });
@@ -124,7 +119,6 @@ export function WatchListRow({
     replaceUserJobSnapshotArray(newSnapshotArray);
     addJobsToJobArray(newJob);
     showSnackbarSuccess(`${newJob.name} Added`, 3);
-    t.stop();
   }
 
   const buildCosts = useCallback(() => {
@@ -432,7 +426,6 @@ export function WatchListRow({
                     <ExpandedWatchlistRow
                       key={mat.id}
                       mat={mat}
-                      parentUser={parentUser}
                     />
                   );
                 })}

@@ -8,22 +8,19 @@ import {
   Typography,
 } from "@mui/material";
 import { useNavigate } from "@tanstack/react-router";
-import { getBoolean } from "firebase/remote-config";
-import { remoteConfig } from "../../../firebase";
 import useUsersStore from "../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
+import useAppConfig from "../../../Hooks/GeneralHooks/useAppConfig";
 
 export function SideMenu({ open, setOpen }) {
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const { eveServerStatus, evePlayerCount } = useUsersStore(
     (state) => state.worldData
   );
   const navigate = useNavigate();
 
-  const enableUpcomingChanges = getBoolean(
-    remoteConfig,
-    "enable_upcoming_changes_page"
-  );
+  const { enable_upcoming_changes_page: enableUpcomingChanges = false } =
+    useAppConfig();
 
   return (
     <Drawer

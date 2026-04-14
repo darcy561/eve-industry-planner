@@ -65,7 +65,7 @@ export default function SchedulerGanttView({
         return charHashes.map((hash) => {
             const user = useUsersStore
                 .getState()
-                .users.actions.findUserByCharacterHash(hash);
+                .account.actions.findCharacterByHash(hash);
             return {
                 characterHash: hash,
                 characterName: user?.CharacterName || hash,

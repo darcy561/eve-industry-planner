@@ -1,10 +1,15 @@
 package telemetry
 
 import (
+	"os"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// sentryTracesSampleRateEnv is optional: when set (non-empty), it overrides the link-time
+// baked rate for Sentry performance traces. Omitted or empty → use baked; both empty → 0.
+const sentryTracesSampleRateEnv = "SENTRY_TRACES_SAMPLE_RATE"
 
 // DefaultOTLPEndpoint is the gRPC host:port for the OTel collector on the default Docker Compose network.
 const DefaultOTLPEndpoint = "otel-collector:4317"
@@ -14,8 +19,9 @@ const DefaultOTLPEndpoint = "otel-collector:4317"
 // so the collector’s :8889 exposition updates between scrapes instead of going stale for a full minute.
 const DefaultMetricExportInterval = 15 * time.Second
 
-// Config controls Init. Sentry fields come from link-time [Baked*] vars (see baked.go), not .env.
-// OTLP endpoint is fixed for now; change DefaultConfig or export fields later if you need env overrides.
+// Config controls Init. Sentry DSN/release come from link-time [Baked*] vars (see baked.go).
+// SentryTracesSampleRate is resolved by [resolveSentryTracesSampleRate]: runtime
+// SENTRY_TRACES_SAMPLE_RATE overrides baked BakedSentryTracesSampleRate when set.
 type Config struct {
 	ServiceName    string
 	ServiceVersion string
@@ -47,20 +53,29 @@ func DefaultConfig(serviceName string) Config {
 		SentryDSN:              strings.TrimSpace(BakedSentryDSN),
 		SentryEnvironment:      envTag,
 		SentryRelease:          strings.TrimSpace(BakedRelease),
-		SentryTracesSampleRate: parseTracesSampleRate(BakedSentryTracesSampleRate),
+		SentryTracesSampleRate: resolveSentryTracesSampleRate(),
 	}
 }
 
-func parseTracesSampleRate(raw string) float64 {
+// parseTraceSampleRate parses a performance-trace sample rate in [0,1].
+// Empty or invalid input yields 0 (no performance traces; Sentry errors still use SampleRate 1.0 in telemetry.Init).
+func parseTraceSampleRate(raw string) float64 {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return 1.0
+		return 0
 	}
 	f, err := strconv.ParseFloat(raw, 64)
 	if err != nil || f < 0 || f > 1 {
-		return 1.0
+		return 0
 	}
 	return f
+}
+
+func resolveSentryTracesSampleRate() float64 {
+	if v := strings.TrimSpace(os.Getenv(sentryTracesSampleRateEnv)); v != "" {
+		return parseTraceSampleRate(v)
+	}
+	return parseTraceSampleRate(BakedSentryTracesSampleRate)
 }
 
 func (c Config) shouldInit() bool {

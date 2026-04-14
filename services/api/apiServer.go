@@ -11,6 +11,8 @@ import (
 	"eve-industry-planner/api/migrationendpoints"
 	"eve-industry-planner/api/staticdata"
 	"eve-industry-planner/api/v1endpoints"
+	"eve-industry-planner/api/v1endpoints/archivedjobs"
+	"eve-industry-planner/api/v1endpoints/statistics"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
@@ -67,6 +69,7 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 	apiHandler := middleware.Chain(
 		middleware.RequestTimeoutConstructor(),
 		middleware.RequestLoggingConstructor(),
+		middleware.MaintenanceModeConstructor(),
 		middleware.CompressionConstructor(),
 	)(mux)
 
@@ -91,6 +94,12 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 			Path: "/api/v1/auth/refresh",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.RefreshHandler(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/v1/auth/login-refresh",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				v1endpoints.LoginRefreshHandler(w, r, clients)
 			},
 		},
 		{
@@ -125,6 +134,12 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 			Path: "/api/v1/feedback",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.FeedbackHandler(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/v1/app-config",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				v1endpoints.AppConfigHandler(w, r, clients)
 			},
 		},
 		{
@@ -190,6 +205,12 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 			},
 		},
 		{
+			Path: "/api/v1/user/application-settings",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				v1endpoints.ApplicationSettingsDocumentHandler(w, r, clients)
+			},
+		},
+		{
 			Path: "/api/v1/jobs",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.JobsRouter(w, r, clients)
@@ -199,6 +220,30 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 			Path: "/api/v1/jobs/",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.JobsRouter(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/v1/archived-jobs",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				archivedjobs.Router(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/v1/archived-jobs/",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				archivedjobs.Router(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/v1/statistics",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				statistics.Router(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/v1/statistics/",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				statistics.Router(w, r, clients)
 			},
 		},
 		{
@@ -250,12 +295,6 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 
 	// Migration private routes
 	migrationPrivateRoutes := []route{
-		{
-			Path: "/api/migration/application-settings",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				migrationendpoints.ApplicationSettingsHandler(w, r, clients)
-			},
-		},
 		{
 			Path: "/api/migration/firebase-token",
 			Handler: func(w http.ResponseWriter, r *http.Request) {

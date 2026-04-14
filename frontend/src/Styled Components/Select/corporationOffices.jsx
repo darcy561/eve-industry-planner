@@ -3,8 +3,8 @@ import useUsersStore from "../../Zustand/usersStore";
 import { useMemo } from "react";
 
 export default function CorporationOfficesSelect({ selectedCorporation, value, onChange }) {
-    const corporationObject = useUsersStore(
-        (state) => state.users.corporationObjects
+    const corporations = useUsersStore(
+        (state) => state.account.corporations
     );
     
     // Subscribe to worldData changes so component re-renders when location names are added
@@ -14,11 +14,14 @@ export default function CorporationOfficesSelect({ selectedCorporation, value, o
 
     // Get office locations for the selected corporation with safety checks
     const officeLocations = useMemo(() => {
-        if (!selectedCorporation || !corporationObject[selectedCorporation]) {
+        const corp = corporations.find(
+            (c) => Number(c.corporation_id) === Number(selectedCorporation)
+        );
+        if (!selectedCorporation || !corp) {
             return [];
         }
-        return corporationObject[selectedCorporation].officeLocations || [];
-    }, [selectedCorporation, corporationObject]);
+        return corp.officeLocations || [];
+    }, [selectedCorporation, corporations]);
 
     // Ensure the selected value is valid (exists in officeLocations) or default to empty string
     const selectedValue = useMemo(() => {

@@ -25,7 +25,7 @@ async function repairMissingParentChildRelationships(
     const modifiedJobIDs = new Set();
     const parentIDsToRemove = new Set();
 
-    for (let parentID of inputJob.parentJob) {
+    for (let parentID of inputJob.parentJobs) {
       try {
         const isParentIDValid = await processParentID(
           parentID,
@@ -150,7 +150,7 @@ async function processChildID(
     return false;
   }
 
-  if (!matchedJob.parentJob.includes(inputJobID)) {
+  if (!matchedJob.parentJobs.includes(inputJobID)) {
     matchedJob.addParentJob(inputJobID);
     modifiedJobsSet.add(childID);
   }

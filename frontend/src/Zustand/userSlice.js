@@ -1,9 +1,8 @@
 /**
  * User Slice for EVE Industry Planner.
  * 
- * Manages user-related state including authentication status, user arrays,
- * linked orders/jobs/transactions, refresh tokens, corporation objects,
- * Firebase listeners, and job status configurations. This slice provides
+ * Manages user-related state including Firebase listeners and job status.
+ * This slice provides
  * centralized state management for all user-related operations and data.
  * 
  * @fileoverview User management state slice for EVE Industry Planner
@@ -14,16 +13,13 @@ import {
   stateDefault,
   coreActions,
   userManagementActions,
-  tokenManagementActions,
-  corporationManagementActions,
 } from './userSlice/index.js';
 
 /**
  * User Settings Slice for Zustand Store.
  * 
  * Creates the user settings slice with state and actions for managing user-related
- * data including authentication, user arrays, linked data, corporation objects,
- * and Firebase configurations.
+ * data including authentication, linked data, and Firebase configurations.
  * 
  * @param {Function} set - Zustand set function for updating state
  * @param {Function} get - Zustand get function for accessing current state
@@ -44,12 +40,6 @@ const userSettingsSlice = (set, get) => ({
       
       // User management actions
       ...userManagementActions(set, get),
-      
-      // Token management actions
-      ...tokenManagementActions(set, get),
-      
-      // Corporation management actions
-      ...corporationManagementActions(set, get),
     },
   },
 });

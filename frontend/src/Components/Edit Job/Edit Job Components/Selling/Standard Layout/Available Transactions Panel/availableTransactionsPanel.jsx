@@ -36,9 +36,9 @@ export function AvailableTransactionsPanel({
   isError,
   error,
 }) {
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
-  const getCorporationObject =
-    useUsersStore.getState().users.actions.getCorporationObject;
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
+  const getCorporation =
+    useUsersStore.getState().account.actions.getCorporation;
   const queryClient = useQueryClient();
   const analytics = getAnalytics();
 
@@ -166,8 +166,8 @@ export function AvailableTransactionsPanel({
             transactionData.map((tData) => {
               const charData = useUsersStore
                 .getState()
-                .users.actions.findUserByCharacterHash(tData.CharacterHash);
-              const corpData = getCorporationObject(charData?.corporation_id);
+                .account.actions.findCharacterByHash(tData.CharacterHash);
+              const corpData = getCorporation(charData?.corporation_id);
               return (
                 <Grid
                   key={tData.transaction_id}
@@ -279,9 +279,7 @@ export function AvailableTransactionsPanel({
                         actions.updateActiveJob(state.activeJob);
                         showSnackbarSuccess("Linked");
                         logEvent(analytics, "linkedTransaction", {
-                          UID: useUsersStore
-                            .getState()
-                            .users.actions.findParentUser().accountID,
+                          UID: useUsersStore.getState().account.actions.getAccountID(),
                           isLoggedIn: isLoggedIn,
                         });
                       }}
@@ -314,8 +312,7 @@ export function AvailableTransactionsPanel({
                 actions.updateActiveJob(state.activeJob);
                 showSnackbarSuccess("All Transactions Linked");
                 logEvent(analytics, "massLinkedTransactions", {
-                  UID: useUsersStore.getState().users.actions.findParentUser()
-                    .accountID,
+                  UID: useUsersStore.getState().account.actions.getAccountID(),
                   isLoggedIn: isLoggedIn,
                 });
               }}

@@ -40,7 +40,7 @@ import useUsersStore from "../Zustand/usersStore";
  * }
  */
 export function useGroupManagement() {
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const { activeGroupID } = useUsersStore((state) => state.jobData);
   const {
     getGroupObject,
@@ -62,7 +62,9 @@ export function useGroupManagement() {
       if (!foundJob) {
         continue;
       }
-      foundJob.groupID = null;
+      foundJob.includedInGroup = false;
+      foundJob.groupID = ""
+      foundJob.displayOnPlanner = true;
       batchJobs.push(foundJob);
     }
 

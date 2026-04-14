@@ -3,10 +3,10 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
 
 async function getCorpTransactions({ character, existingData = {}, config = {} }) {
   try {
-    if (!character || !character.aToken || !character.corporation_id) {
+    if (!character || !character.esiAccessToken || !character.corporation_id) {
       throw new Error("Character information is incomplete.");
     }
-    const { aToken, corporation_id } = character;
+    const { esiAccessToken, corporation_id } = character;
     const { ESI_DATE_PERIOD } = GLOBAL_CONFIG;
     const maxDivisions = 7;
     const currentDate = Date.now();
@@ -30,7 +30,7 @@ async function getCorpTransactions({ character, existingData = {}, config = {} }
           {
             headers: {
               "If-None-Match": existingData[division]?.eTags || "",
-              Authorization: `Bearer ${aToken}`,
+              Authorization: `Bearer ${esiAccessToken}`,
             },
           },
           enhancedConfig

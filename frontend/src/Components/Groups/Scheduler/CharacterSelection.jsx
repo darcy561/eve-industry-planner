@@ -3,51 +3,53 @@ import { Box, Typography, FormGroup, FormControlLabel, Checkbox, Grid, IconButto
 import SelectAllIcon from "@mui/icons-material/SelectAll";
 import DeselectIcon from "@mui/icons-material/Deselect";
 import useUsersStore from "../../../Zustand/usersStore";
+import { shallow } from "zustand/shallow";
 
 /**
  * Character selection component for the scheduler.
- * Allows users to select which characters to include in the schedule.
- * 
+ * Choose which `account.characters` rows to include in the schedule.
+ *
  * @param {Object} props
- * @param {Function} props.onSelectionChange - Callback when selection changes, receives array of selected User objects
+ * @param {Function} props.onSelectionChange - Receives an array of selected character rows (`Character` instances)
  * @returns {JSX.Element}
  */
 export default function CharacterSelection({ 
     onSelectionChange 
 }) {
-    const allUsers = useUsersStore((state) => state.users.userArray);
+    const allCharacters = useUsersStore(
+      (state) => Object.values(state.account.characters),
+      shallow
+    );
     
     // Initialize selected characters - default to all if available
-    const [selectedCharacters, setSelectedCharacters] = useState(() => {
-        // Default to all characters if available, otherwise empty set
-        if (allUsers && allUsers.length > 0) {
-            return new Set(allUsers.map(user => user.CharacterHash));
+    const [selectedCharacterHashes, setSelectedCharacterHashes] = useState(() => {
+        if (allCharacters && allCharacters.length > 0) {
+            return new Set(allCharacters.map((character) => character.CharacterHash));
         }
         return new Set();
     });
 
-    // Update selected characters when allUsers becomes available (if not already set)
     useEffect(() => {
-        if (allUsers && allUsers.length > 0 && selectedCharacters.size === 0) {
-            setSelectedCharacters(new Set(allUsers.map(user => user.CharacterHash)));
+        if (allCharacters && allCharacters.length > 0 && selectedCharacterHashes.size === 0) {
+            setSelectedCharacterHashes(new Set(allCharacters.map((character) => character.CharacterHash)));
         }
-    }, [allUsers]);
+    }, [allCharacters]);
 
-    // Filter users based on selected characters and notify parent
-    const selectedUsers = useMemo(() => {
-        if (!allUsers || allUsers.length === 0) return [];
-        return allUsers.filter(user => selectedCharacters.has(user.CharacterHash));
-    }, [allUsers, selectedCharacters]);
+    const selectedCharacterRows = useMemo(() => {
+        if (!allCharacters || allCharacters.length === 0) return [];
+        return allCharacters.filter((character) =>
+          selectedCharacterHashes.has(character.CharacterHash)
+        );
+    }, [allCharacters, selectedCharacterHashes]);
 
-    // Notify parent when selection changes
     useEffect(() => {
         if (onSelectionChange) {
-            onSelectionChange(selectedUsers);
+            onSelectionChange(selectedCharacterRows);
         }
-    }, [selectedUsers, onSelectionChange]);
+    }, [selectedCharacterRows, onSelectionChange]);
 
     const handleCharacterToggle = (characterHash) => {
-        setSelectedCharacters(prev => {
+        setSelectedCharacterHashes((prev) => {
             const newSet = new Set(prev);
             if (newSet.has(characterHash)) {
                 newSet.delete(characterHash);
@@ -59,20 +61,22 @@ export default function CharacterSelection({
     };
 
     const handleSelectAll = () => {
-        if (allUsers && allUsers.length > 0) {
-            setSelectedCharacters(new Set(allUsers.map(user => user.CharacterHash)));
+        if (allCharacters && allCharacters.length > 0) {
+            setSelectedCharacterHashes(
+              new Set(allCharacters.map((character) => character.CharacterHash))
+            );
         }
     };
 
     const handleDeselectAll = () => {
-        setSelectedCharacters(new Set());
+        setSelectedCharacterHashes(new Set());
     };
 
     // Calculate number of columns based on number of characters
     // Aim for roughly 3-4 items per column to keep it compact and prevent long scrolling
     const columns = useMemo(() => {
-        if (!allUsers || allUsers.length === 0) return 1;
-        const itemCount = allUsers.length;
+        if (!allCharacters || allCharacters.length === 0) return 1;
+        const itemCount = allCharacters.length;
         
         // For small numbers, use 2 columns to distribute items
         if (itemCount <= 4) {
@@ -87,7 +91,7 @@ export default function CharacterSelection({
             const calculatedColumns = Math.ceil(itemCount / itemsPerColumn);
             return Math.min(calculatedColumns, 6); // Max 6 columns
         }
-    }, [allUsers]);
+    }, [allCharacters]);
 
     // Calculate grid item size based on number of columns
     // MUI Grid uses 12 columns, so we divide 12 by our column count
@@ -117,17 +121,17 @@ export default function CharacterSelection({
             <Box sx={{ p: 2, maxHeight: 200, overflow: "auto" }}>
                 <FormGroup>
                     <Grid container spacing={1}>
-                        {allUsers.map((user) => (
-                            <Grid item xs={gridItemSize} key={user.CharacterHash}>
+                        {allCharacters.map((character) => (
+                            <Grid item xs={gridItemSize} key={character.CharacterHash}>
                                 <FormControlLabel
                                     control={   
                                         <Checkbox
-                                            checked={selectedCharacters.has(user.CharacterHash)}
-                                            onChange={() => handleCharacterToggle(user.CharacterHash)}
+                                            checked={selectedCharacterHashes.has(character.CharacterHash)}
+                                            onChange={() => handleCharacterToggle(character.CharacterHash)}
                                             size="small"
                                         />
                                     }
-                                    label={user.CharacterName || `Character ${user.CharacterID}`}
+                                    label={character.CharacterName || `Character ${character.CharacterID}`}
                                 />
                             </Grid>
                         ))}

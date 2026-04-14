@@ -78,6 +78,12 @@ function createSuccessObject(data) {
  * 
  * @private
  */
+function findCorporationById(corporations, corporation_id) {
+  return corporations?.find(
+    (c) => Number(c.corporation_id) === Number(corporation_id)
+  );
+}
+
 function removeDuplicateItems(data) {
   const uniqueItems = new Map();
   data.forEach((item) => {
@@ -125,9 +131,13 @@ function removeDuplicateItems(data) {
  * }
  */
 export function getCachedSingleCorporationAssets(queryClient, corporation_id) {
-  const corporationObjects = useUsersStore.getState().users.corporationObjects;
+  const corporations = useUsersStore.getState().account.corporations;
+  const corporation = findCorporationById(corporations, corporation_id);
+  if (!corporation?.members?.length) {
+    return createSuccessObject([]);
+  }
 
-  const queryStates = corporationObjects[corporation_id].members.map(
+  const queryStates = corporation.members.map(
     (characterHash) => {
       const queryKey = [corporationAssetsQueryKey, characterHash];
       return {
@@ -190,9 +200,7 @@ export function getCachedSingleCorporationAssets(queryClient, corporation_id) {
  * }
  */
 export function useGetSingleCorporationAssets(corporation_id, enabled = true) {
-  const corporationObjects = useUsersStore(
-    (state) => state.users.corporationObjects
-  );
+  const corporations = useUsersStore((state) => state.account.corporations);
 
   const combineFunction = useCallback(
     (results) => {
@@ -209,11 +217,11 @@ export function useGetSingleCorporationAssets(corporation_id, enabled = true) {
       const data = results.map(({ data }) => data).flat().filter(Boolean);
       return createSuccessObject(removeDuplicateItems(data));
     },
-    [corporationObjects]
+    [corporations]
   );
 
   // Handle case where corporation_id might be null or corporation doesn't exist
-  const corporation = corporationObjects[corporation_id];
+  const corporation = findCorporationById(corporations, corporation_id);
   const members = corporation?.members || [];
 
   const result = useQueries({

@@ -30,7 +30,7 @@ export default function findMarketOrdersForItem(
   temporaryOrderIDsToAdd = [],
   temporaryOrderIDsToRemove = []
 ) {
-  const linkedOrders = useUsersStore.getState().users.linkedOrders;
+  const linkedOrders = useUsersStore.getState().account.linkedOrders;
 
   const { data: characterMarketOrders } =
     getAllCachedCharacterMarketOrders(queryClient);

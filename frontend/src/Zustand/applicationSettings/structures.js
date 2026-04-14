@@ -1,12 +1,7 @@
 /**
- * Structure Management for EVE Industry Planner.
- * 
- * Handles all operations related to custom structures including manufacturing,
- * reaction, and reprocessing structures. Provides methods for adding, removing,
- * updating, and managing custom structures across different job types.
- * 
+ * Structure Management — `customStructures.{manufacturing,reaction,reprocessing}` (API-aligned).
+ *
  * @fileoverview Custom structure management actions
- * @author EVE Industry Planner Team
  */
 
 import {
@@ -14,31 +9,7 @@ import {
   customStructureLocationMap,
 } from "../../Context/defaultValues";
 
-/**
- * Structure management actions for application settings.
- * 
- * Provides methods for managing custom structures including CRUD operations,
- * default structure management, and structure retrieval.
- * 
- * @param {Function} set - Zustand set function for updating state
- * @param {Function} get - Zustand get function for accessing current state
- * @returns {Object} Structure management actions
- */
 export const structureActions = (set, get) => ({
-  /**
-   * Gets a custom structure by its ID.
-   * 
-   * Searches for a custom structure across all structure types (manufacturing,
-   * reaction, reprocessing) based on the structure ID. Determines the job type
-   * from the structure ID and retrieves the structure from the appropriate storage.
-   * 
-   * @param {string} structureID - Structure ID to search for
-   * @returns {Object|null} Custom structure object or null if not found
-   * 
-   * @example
-   * const structure = store.getState().applicationSettings.actions.getCustomStructureWithID('manufacturing-structure-1');
-   * if (structure) console.log(structure.name);
-   */
   getCustomStructureWithID: (structureID) => {
     if (!structureID) return null;
 
@@ -52,8 +23,9 @@ export const structureActions = (set, get) => ({
       return null;
     }
 
-    const storageLocationKey = [customStructureMap[jobType]];
-    const storageLocation = state.applicationSettings[storageLocationKey];
+    const key = customStructureMap[jobType];
+    const storageLocation =
+      state.applicationSettings.customStructures?.[key];
 
     if (!storageLocation) {
       console.error("No Matching Storage Location");
@@ -64,32 +36,15 @@ export const structureActions = (set, get) => ({
       (obj) => obj.id === structureID
     );
 
-    if (!foundStructure) {
-      return null;
-    }
-
-    return foundStructure;
+    return foundStructure ?? null;
   },
 
-  /**
-   * Gets the default custom structure for a specific job type.
-   * 
-   * Finds the default structure for the given job type, or returns the first
-   * structure if no default is set.
-   * 
-   * @param {string} inputJobType - Job type to get default structure for
-   * @returns {Object|null} Default custom structure object or null if not found
-   * 
-   * @example
-   * const defaultStructure = store.getState().applicationSettings.actions.getDefaultCustomStructureWithJobType('manufacturing');
-   * if (defaultStructure) console.log(defaultStructure.name);
-   */
   getDefaultCustomStructureWithJobType: (inputJobType) => {
     if (!inputJobType) return null;
     const state = get();
 
-    const structureKey = customStructureMap[inputJobType];
-    const structureLocation = state.applicationSettings[structureKey];
+    const key = customStructureMap[inputJobType];
+    const structureLocation = state.applicationSettings.customStructures?.[key];
 
     if (!Array.isArray(structureLocation)) {
       console.error(
@@ -106,26 +61,6 @@ export const structureActions = (set, get) => ({
     );
   },
 
-  /**
-   * Adds a custom structure to the appropriate storage location.
-   * 
-   * Adds a new custom structure to the storage array based on its job type.
-   * Sets the structure as default if it's the first structure of its type.
-   * 
-   * @param {Object} structure - Custom structure object to add
-   * @param {string} structure.jobType - Job type (manufacturing, reaction, reprocessing)
-   * @param {string} structure.id - Unique structure identifier
-   * @param {string} structure.name - Structure name
-   * @param {boolean} [structure.default] - Whether this is the default structure
-   * 
-   * @example
-   * const newStructure = new CustomStructure({
-   *   jobType: 'manufacturing',
-   *   id: 'structure-1',
-   *   name: 'My Manufacturing Facility'
-   * });
-   * store.getState().applicationSettings.actions.addCustomStructure(newStructure);
-   */
   addCustomStructure: (structure) => {
     if (!structure) {
       console.error("Unable to add structure, missing structure object");
@@ -133,12 +68,14 @@ export const structureActions = (set, get) => ({
     }
     set(
       (state) => {
-        const storageLocation =
-          state.applicationSettings[customStructureMap[structure.jobType]];
+        const key = customStructureMap[structure.jobType];
+        const storageLocation = [
+          ...(state.applicationSettings.customStructures[key] || []),
+        ];
 
-        if (!storageLocation) {
+        if (!key) {
           console.error("No Matching Storage Location");
-          return;
+          return state;
         }
 
         structure.setDefault(storageLocation.length === 0);
@@ -146,10 +83,10 @@ export const structureActions = (set, get) => ({
           ...state,
           applicationSettings: {
             ...state.applicationSettings,
-            [customStructureMap[structure.jobType]]: [
-              ...storageLocation,
-              structure,
-            ],
+            customStructures: {
+              ...state.applicationSettings.customStructures,
+              [key]: [...storageLocation, structure],
+            },
           },
         };
       },
@@ -158,17 +95,6 @@ export const structureActions = (set, get) => ({
     );
   },
 
-  /**
-   * Sets a custom structure as the default for its job type.
-   * 
-   * Sets the specified structure as default and removes the default flag
-   * from all other structures of the same job type.
-   * 
-   * @param {string} structureID - Structure ID to set as default
-   * 
-   * @example
-   * store.getState().applicationSettings.actions.setDefaultCustomStructure('manufacturing-structure-2');
-   */
   setDefaultCustomStructure: (structureID) => {
     if (!structureID) {
       console.error("Missing StructureID");
@@ -186,12 +112,12 @@ export const structureActions = (set, get) => ({
 
     set(
       (state) => {
-        const storageLocation =
-          state.applicationSettings[customStructureMap[jobType]];
+        const key = customStructureMap[jobType];
+        const storageLocation = state.applicationSettings.customStructures?.[key];
 
         if (!storageLocation) {
           console.error("No Matching Storage Location");
-          return;
+          return state;
         }
 
         const matchingStructure = storageLocation.find(
@@ -200,7 +126,7 @@ export const structureActions = (set, get) => ({
 
         if (!matchingStructure) {
           console.error("No Matching Structure");
-          return;
+          return state;
         }
 
         matchingStructure.default = true;
@@ -214,7 +140,10 @@ export const structureActions = (set, get) => ({
           ...state,
           applicationSettings: {
             ...state.applicationSettings,
-            [customStructureMap[jobType]]: storageLocation,
+            customStructures: {
+              ...state.applicationSettings.customStructures,
+              [key]: [...storageLocation],
+            },
           },
         };
       },
@@ -223,18 +152,6 @@ export const structureActions = (set, get) => ({
     );
   },
 
-  /**
-   * Deletes a custom structure from its storage location.
-   * 
-   * Removes the specified structure from the appropriate storage array.
-   * If the deleted structure was the default, sets the first remaining
-   * structure as the new default.
-   * 
-   * @param {string} structureID - Structure ID to delete
-   * 
-   * @example
-   * store.getState().applicationSettings.actions.deleteCustomStructure('manufacturing-structure-1');
-   */
   deleteCustomStructure: (structureID) => {
     if (!structureID) {
       console.error("Missing StructureID");
@@ -253,11 +170,11 @@ export const structureActions = (set, get) => ({
     set(
       (state) => {
         const storageLocation =
-          state.applicationSettings?.[storageLocationKey];
+          state.applicationSettings.customStructures?.[storageLocationKey];
 
         if (!storageLocation) {
           console.error("No Matching Storage Location");
-          return;
+          return state;
         }
 
         const matchingStructure = storageLocation.find(
@@ -266,7 +183,7 @@ export const structureActions = (set, get) => ({
 
         if (!matchingStructure) {
           console.error("No Matching Structure");
-          return;
+          return state;
         }
 
         const updatedStorage = storageLocation.filter(
@@ -281,7 +198,10 @@ export const structureActions = (set, get) => ({
           ...state,
           applicationSettings: {
             ...state.applicationSettings,
-            [storageLocationKey]: updatedStorage,
+            customStructures: {
+              ...state.applicationSettings.customStructures,
+              [storageLocationKey]: updatedStorage,
+            },
           },
         };
       },

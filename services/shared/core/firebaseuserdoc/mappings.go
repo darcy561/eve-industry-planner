@@ -2,6 +2,8 @@ package firebaseuserdoc
 
 import (
 	"encoding/json"
+	"strconv"
+	"strings"
 	"time"
 
 	"eve-industry-planner/shared/shared/models"
@@ -33,53 +35,45 @@ func MapUserAccountForImport(fb *UserDoc, accountID string, createdAt, lastLogin
 }
 
 // MapUserAccountForSync converts a Firebase UserDoc to the MongoDB user account format
-// for sync/update paths. _meta is intentionally excluded during sync writes so existing
-// lifecycle timestamps in metadata are preserved.
+// for Firestore→Mongo sync. Lifecycle fields not present in Firestore are zero; callers
+// that replace the whole document may merge existing Mongo _meta before writing.
 func MapUserAccountForSync(fb *UserDoc, accountID string) models.UserAccountDocument {
 	return buildUserAccountDocumentBase(fb, accountID)
 }
 
 func buildUserAccountDocumentBase(fb *UserDoc, accountID string) models.UserAccountDocument {
-	jobStatus := mapJobStatusArray(fb)
 	tokens := mapRefreshTokens(fb)
 	linkedJobs := withDefaultInt64Slice(fb.LinkedJobs)
 	linkedTrans := withDefaultInt64Slice(fb.LinkedTrans)
 	linkedOrders := withDefaultInt64Slice(fb.LinkedOrders)
-	flagForDeletion := false
-	var deletedAt *time.Time
-	if fb.Deleted != nil {
-		flagForDeletion = true
-	}
 	return models.UserAccountDocument{
-		AccountID:       accountID,
-		JobStatusArray:  jobStatus,
-		LinkedJobs:      linkedJobs,
-		LinkedTrans:     linkedTrans,
-		LinkedOrders:    linkedOrders,
-		RefreshTokens:   tokens,
-		FlagForDeletion: flagForDeletion,
-		DeletedAt:       deletedAt,
+		LinkedJobs: linkedJobs,
+		LinkedTrans:    linkedTrans,
+		LinkedOrders:   linkedOrders,
+		RefreshTokens:  tokens,
 		MetaData: models.UserMeta{
 			MetaData: models.MetaData{
 				AccountID: accountID,
 			},
+			// Legacy Firestore `deleted` is an untyped sentinel; lifecycle `deletedAt` is set only via explicit Mongo flows.
+			DeletedAt: nil,
 		},
 	}
 }
 
-func mapJobStatusArray(fb *UserDoc) []models.JobStatus {
-	jobStatus := make([]models.JobStatus, 0, len(fb.JobStatusArray))
-	for _, j := range fb.JobStatusArray {
-		jobStatus = append(jobStatus, models.JobStatus{
-			ID:              j.ID,
-			Name:            j.Name,
-			SortOrder:       j.SortOrder,
-			Expanded:        j.Expanded,
-			OpenAPIJobs:     j.OpenAPIJobs,
-			CompleteAPIJobs: j.CompleteAPIJobs,
-		})
+func jobStatusesForApplicationSettings(fb *UserDoc) map[string]models.JobStatusEntry {
+	if fb.Settings != nil && len(fb.Settings.JobStatuses) > 0 {
+		out := make(map[string]models.JobStatusEntry, len(fb.Settings.JobStatuses))
+		for k, v := range fb.Settings.JobStatuses {
+			out[k] = models.JobStatusEntry{Name: v.Name}
+		}
+		return out
 	}
-	return jobStatus
+	out := make(map[string]models.JobStatusEntry, len(fb.JobStatusArray))
+	for _, j := range fb.JobStatusArray {
+		out[strconv.Itoa(j.ID)] = models.JobStatusEntry{Name: j.Name}
+	}
+	return out
 }
 
 func mapRefreshTokens(fb *UserDoc) []models.RefreshToken {
@@ -100,6 +94,16 @@ func withDefaultInt64Slice(values []int64) []int64 {
 	return values
 }
 
+// extrasCategoryFromFirebase maps one Firestore row to models.ExtraCategory (DeletedAt as RFC3339 / ISO-8601 string or nil).
+func extrasCategoryFromFirebase(c ExtraCategory) models.ExtraCategory {
+	return models.NormalizeExtraCategory(models.ExtraCategory{
+		ID:        c.ID,
+		Label:     c.Label,
+		Deleted:   c.Deleted,
+		DeletedAt: models.ParseExtrasDeletedAtJSON(c.DeletedAt),
+	})
+}
+
 // MapApplicationSettings converts a Firebase UserDoc to the MongoDB application settings
 // document format for both import and sync/update flows.
 func MapApplicationSettings(fb *UserDoc, accountID string) models.ApplicationSettings {
@@ -107,40 +111,13 @@ func MapApplicationSettings(fb *UserDoc, accountID string) models.ApplicationSet
 }
 
 func buildApplicationSettingsBase(fb *UserDoc, accountID string) models.ApplicationSettings {
-	s := models.ApplicationSettings{
-		MetaData: models.MetaData{
-			AccountID: accountID,
-		},
-		ExemptTypeIDs:           []int{},
-		PredefinedSystemIndexes: make(map[string]map[string]float64),
-		CustomStructures: models.CustomStructures{
-			Manufacturing: []models.CustomStructure{},
-			Reaction:      []models.CustomStructure{},
-			Reprocessing:  []models.ReprocessingStructure{},
-		},
-		ReprocessingSettings: models.ReprocessingSettings{
-			PreferCompressed:           true,
-			CompressionBonusMultiplier: 0.25,
-			ValueMultiplier:            2.0,
-			WastePenaltyMultiplier:     0.1,
-			SellExcessMineralTypes:     false,
-		},
-		ExtrasCategories: []models.ExtraCategory{
-			{ID: "0", Label: "Unassigned"},
-			{ID: "1", Label: "Hauling Service"},
-			{ID: "2", Label: "Jump Freight Service"},
-			{ID: "3", Label: "Blueprint Copies"},
-			{ID: "4", Label: "Loyal Point Costs"},
-			{ID: "5", Label: "Other"},
-		},
-	}
+	now := time.Now().UTC()
+	s := models.DefaultApplicationSettings(accountID, now)
 	if fb.Settings != nil {
 		if a := fb.Settings.Account; a != nil {
 			s.UseCloudAccounts = a.CloudAccounts
 		}
 		if l := fb.Settings.Layout; l != nil {
-			s.LocalMarketDisplay = l.LocalMarketDisplay
-			s.LocalOrderDisplay = l.LocalOrderDisplay
 			s.EsiJobTab = l.EsiJobTab
 			s.EnableCompactLayoutView = l.EnableCompactView
 		}
@@ -152,11 +129,26 @@ func buildApplicationSettingsBase(fb *UserDoc, accountID string) models.Applicat
 			s.DefaultCitadelBrokersFee = e.CitadelBrokersFee
 			s.DefaultMaterialEfficiencyValue = e.DefaultMaterialEfficiencyValue
 		}
+		// Legacy Firebase layout.localMarketDisplay/localOrderDisplay duplicated edit-job defaults;
+		// fold into defaultMarketLocation/defaultOrderType when editJob did not supply values.
+		if fb.Settings.Layout != nil {
+			l := fb.Settings.Layout
+			if l.LocalMarketDisplay != nil && strings.TrimSpace(*l.LocalMarketDisplay) != "" {
+				if fb.Settings.EditJob == nil || strings.TrimSpace(fb.Settings.EditJob.DefaultMarket) == "" {
+					s.DefaultMarketLocation = strings.TrimSpace(*l.LocalMarketDisplay)
+				}
+			}
+			if l.LocalOrderDisplay != nil && strings.TrimSpace(*l.LocalOrderDisplay) != "" {
+				if fb.Settings.EditJob == nil || strings.TrimSpace(fb.Settings.EditJob.DefaultOrders) == "" {
+					s.DefaultOrderType = strings.TrimSpace(*l.LocalOrderDisplay)
+				}
+			}
+		}
 		if st := fb.Settings.Structures; st != nil {
 			s.CustomStructures = models.CustomStructures{
-				Manufacturing: st.Manufacturing,
-				Reaction:      st.Reaction,
-				Reprocessing:  st.Reprocessing,
+				Manufacturing: mapFirestoreCustomStructures(st.Manufacturing),
+				Reaction:      mapFirestoreCustomStructures(st.Reaction),
+				Reprocessing:  mapFirestoreReprocessingStructures(st.Reprocessing),
 			}
 		}
 		if fb.Settings.ExemptTypeIDs != nil {
@@ -183,12 +175,7 @@ func buildApplicationSettingsBase(fb *UserDoc, accountID string) models.Applicat
 		if fb.Settings.ExtrasCategories != nil {
 			extras := make([]models.ExtraCategory, 0, len(fb.Settings.ExtrasCategories))
 			for _, c := range fb.Settings.ExtrasCategories {
-				extras = append(extras, models.ExtraCategory{
-					ID:        c.ID,
-					Label:     c.Label,
-					Deleted:   c.Deleted,
-					DeletedAt: c.DeletedAt,
-				})
+				extras = append(extras, extrasCategoryFromFirebase(c))
 			}
 			s.ExtrasCategories = extras
 		}
@@ -196,5 +183,9 @@ func buildApplicationSettingsBase(fb *UserDoc, accountID string) models.Applicat
 			s.PredefinedSystemIndexes = fb.Settings.PredefinedSystemIndexes
 		}
 	}
+	for k, v := range jobStatusesForApplicationSettings(fb) {
+		s.JobStatuses[k] = v
+	}
+	s.ExtrasCategories = models.NormalizeExtrasCategories(s.ExtrasCategories)
 	return s
 }

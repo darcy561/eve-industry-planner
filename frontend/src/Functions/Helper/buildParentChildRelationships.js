@@ -8,7 +8,7 @@
  * @example
  * const jobs = [job1, job2, job3];
  * buildParentChildRelationships(jobs);
- * // Jobs now have parentJob and childJob relationships established
+ * // Jobs now have parentJobs and childJobs relationships established
  */
 function buildParentChildRelationships(inputJobArray) {
   const typesMap = {};

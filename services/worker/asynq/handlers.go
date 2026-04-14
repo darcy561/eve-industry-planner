@@ -9,6 +9,7 @@ import (
 	"eve-industry-planner/shared/telemetry/natsprop"
 	"eve-industry-planner/shared/telemetry/workermetrics"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
+	archivedjobtasks "eve-industry-planner/worker/tasks/archivedjobs"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 	migrationtasks "eve-industry-planner/worker/tasks/migration"
 	sderollbacktasks "eve-industry-planner/worker/tasks/sde/rollback"
@@ -109,5 +110,13 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 
 	mux.HandleFunc("migrateUserDocumentToMongo", func(ctx context.Context, t *asynq.Task) error {
 		return migrationtasks.MigrateUserDocumentToMongo(ctx, t, taskDeps)
+	})
+
+	mux.HandleFunc("importArchivedJobToMongo", func(ctx context.Context, t *asynq.Task) error {
+		return migrationtasks.ImportArchivedJobToMongo(ctx, t, taskDeps)
+	})
+
+	mux.HandleFunc("processArchivedBuildStats", func(ctx context.Context, t *asynq.Task) error {
+		return archivedjobtasks.ProcessBuildStats(ctx, t, taskDeps)
 	})
 }

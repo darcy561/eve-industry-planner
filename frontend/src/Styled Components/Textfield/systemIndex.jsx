@@ -2,7 +2,6 @@ import { useState } from "react";
 import { TextField } from "@mui/material";
 import findSystemIndexForJob from "../../Functions/Helper/findSystemIndexValue";
 
-
 /**
  * A text field component for inputting system index values.
  * Supports three value sources in priority order:

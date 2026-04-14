@@ -33,7 +33,7 @@ import useUsersStore from "../Zustand/usersStore";
  * }
  */
 export function useDnD() {
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const {
     updateModifiedGroups,
     getGroupObject,

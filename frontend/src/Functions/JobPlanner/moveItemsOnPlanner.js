@@ -23,7 +23,7 @@ export default async function moveItemsOnPlanner(inputSnapIDs, direction) {
     addRetrievedJobsToJobArray,
     updateModifiedGroups,
   } = useUsersStore.getState().jobData.actions;
-  const isLoggedIn = useUsersStore.getState().users.isLoggedIn;
+  const isLoggedIn = useUsersStore.getState().account.isLoggedIn;
 
   const retrievedJobs = [];
   let groupsModified = false;
@@ -118,7 +118,7 @@ export default async function moveItemsOnPlanner(inputSnapIDs, direction) {
    */
   function canMoveForward(job) {
     if (job.jobStatus >= 4) return false;
-    if (job.groupID !== null && job.jobStatus >= 3) return false;
+    if (job.includedInGroup && job.jobStatus >= 3) return false;
     return true;
   }
 

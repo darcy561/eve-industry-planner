@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Box } from "@mui/material";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import findOrGetJobObject from "../../../Functions/Helper/findJobObject.js";
-import Group from "../../../Classes/groupsConstructor.js";
+import Group from "../../../Classes/group.js";
 import manageListenerRequests from "../../../Functions/Firebase/manageListenerRequests.js";
 import uploadJobSnapshotsToFirebase from "../../../Functions/Firebase/uploadJobSnapshots.js";
 import uploadGroupsToFirebase from "../../../Functions/Firebase/uploadGroupData.js";
@@ -20,7 +20,7 @@ function NewGroupPage() {
     replaceUserJobSnapshotArray,
     addRetrievedJobsToJobArray,
   } = useUsersStore.getState().jobData.actions;
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const navigate = useNavigate();
   const search = useSearch({ from: "/group/new" });
 
@@ -35,9 +35,11 @@ function NewGroupPage() {
         const matchedGroupJob = await findOrGetJobObject(id, retrievedJobs);
         if (!matchedGroupJob) continue;
         groupJobs.push(matchedGroupJob);
+        matchedGroupJob.includedInGroup = true;
         matchedGroupJob.groupID = group.groupID;
+        matchedGroupJob.displayOnPlanner = false;
 
-        for (let parentID of matchedGroupJob.parentJob) {
+        for (let parentID of matchedGroupJob.parentJobs) {
           if (jobIDsToInclude.includes(parentID)) continue;
 
           const matchedParentJob = await findOrGetJobObject(
@@ -54,7 +56,7 @@ function NewGroupPage() {
           jobsToSave.add(matchedParentJob.jobID);
         }
 
-        matchedGroupJob.parentJob = matchedGroupJob.parentJob.filter((i) =>
+        matchedGroupJob.parentJobs = matchedGroupJob.parentJobs.filter((i) =>
           jobIDsToInclude.includes(i)
         );
 
@@ -67,7 +69,7 @@ function NewGroupPage() {
 
             if (!matchedChildJob) continue;
 
-            matchedChildJob.parentJob = matchedChildJob.parentJob.filter(
+            matchedChildJob.parentJobs = matchedChildJob.parentJobs.filter(
               (i) => !matchedGroupJob.jobID
             );
           }

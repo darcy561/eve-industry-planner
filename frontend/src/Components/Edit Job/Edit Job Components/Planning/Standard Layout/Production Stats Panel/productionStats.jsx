@@ -146,7 +146,7 @@ export function ProductionStats({ state, actions }) {
               </Typography>
             </Grid>
           </Grid>
-          {activeJob.parentJob.length > 0 && activeJob.groupID !== null ? (
+          {activeJob.parentJobs.length > 0 && activeJob.includedInGroup ? (
             <>
               <Grid container sx={{ marginTop: "10px" }} size={12}>
                 <Grid size={10}>

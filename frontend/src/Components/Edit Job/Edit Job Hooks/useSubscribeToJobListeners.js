@@ -35,7 +35,8 @@ import useUsersStore from "../../../Zustand/usersStore";
  * }
  */
 function useSubscribeToJobListeners(requestedJobID, onJobLoaded) {
-  const { isLoggedIn, firebaseListeners } = useUsersStore((state) => state.users);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
+  const firebaseListeners = useUsersStore((state) => state.users.firebaseListeners);
   const { jobArray } = useUsersStore((state) => state.jobData);
   const { updateFirebaseListeners } = useUsersStore.getState().users.actions;
   const { findJobInUserJobSnapshotArray, findJobInJobArray } = useUsersStore.getState().jobData.actions;

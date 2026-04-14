@@ -85,16 +85,16 @@ function createSuccessObject(data) {
  * Utility function to merge skills by character hash.
  * 
  * @param {Array<Object>} results - Array of query result objects
- * @param {Array<Object>} userArray - Array of user objects with CharacterHash
+ * @param {Array<Object>} characters - Array of user objects with CharacterHash
  * @returns {Object} Object with character hashes as keys and skills objects as values
  * 
  * @private
  */
-function mergeSkillsByCharacter(results, userArray) {
+function mergeSkillsByCharacter(results, characters) {
   const skillsByCharacter = {};
   
   results.forEach((result, index) => {
-    const character = userArray[index];
+    const character = characters[index];
     if (character && result.data) {
       skillsByCharacter[character.CharacterHash] = result.data;
     }
@@ -136,10 +136,10 @@ function mergeSkillsByCharacter(results, userArray) {
  * }
  */
 export function getCachedCharacterSkills(queryClient) {
-  const userArray = useUsersStore.getState().users.userArray;
+  const characters = useUsersStore.getState().account.characters;
 
   // Get query states for all characters
-  const queryStates = userArray.map(({ CharacterHash }) => {
+  const queryStates = characters.map(({ CharacterHash }) => {
     const queryKey = [characterSkillsQueryKey, CharacterHash];
     return {
       queryState: queryClient.getQueryState(queryKey),
@@ -217,12 +217,12 @@ export function getCachedCharacterSkills(queryClient) {
  * }
  */
 export default function useGetAllCharacterSkills() {
-  const { userArray } = useUsersStore((state) => state.users);
+  const characters = useUsersStore((state) => state.account.characters);
 
   const combineFunction = useCallback((results) => {
     const isLoading = checkLoadingState(results);
     const error = findFirstError(results);
-    const skillsByCharacter = mergeSkillsByCharacter(results, userArray);
+    const skillsByCharacter = mergeSkillsByCharacter(results, characters);
 
     if (isLoading) {
       return createLoadingObject();
@@ -233,10 +233,10 @@ export default function useGetAllCharacterSkills() {
     }
 
     return createSuccessObject(skillsByCharacter);
-  }, [userArray]);
+  }, [characters]);
 
   const result = useQueries({
-    queries: userArray.map(({ CharacterHash }) => characterSkillsQuery(CharacterHash)),
+    queries: characters.map(({ CharacterHash }) => characterSkillsQuery(CharacterHash)),
     combine: combineFunction,
   });
 

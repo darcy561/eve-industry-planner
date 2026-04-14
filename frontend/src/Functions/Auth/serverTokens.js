@@ -1,3 +1,20 @@
+import withRequestRetries from "../Endpoints/withRequestRetries.js";
+
+function getAppVersionHeaderValue() {
+    if (typeof __APP_VERSION__ === "string" && __APP_VERSION__.trim().length > 0) {
+        return __APP_VERSION__;
+    }
+    return "unknown";
+}
+
+/**
+ * Auth token HTTP calls use {@link withRequestRetries} (408 / 429 / 5xx; default 3 attempts).
+ *
+ * Call sites (use these helpers only — do not duplicate `fetch` to `/api/v1/auth/*`):
+ * - {@link fetchServerJWT} — `MainUserAuth.jsx`, `useRefreshUser.jsx` (`reloadMainUser`)
+ * - {@link refreshServerJWT} — `account.actions.refreshServerToken` in `Zustand/account/tokenActions.js`
+ */
+
 /**
  * Fetches a server JWT token using an EVE SSO token.
  * 
@@ -10,7 +27,7 @@
  *   @property {string} refresh_token - The refresh token for obtaining new access tokens
  *   @property {number} expires_at - Token expiration time as Unix timestamp (seconds since epoch)
  *   @property {boolean} [first_login] - Whether this was the user's first login (Mongo)
- *   @property {string} [firebase_token] - Firebase custom token (when returned, avoids a separate Firebase token request)
+ *   @property {string} firebase_token - Firebase custom token for signInWithCustomToken (always set by /api/v1/auth/login)
  *   @property {boolean} [firebase_first_login] - Whether the user was new in Firebase Auth
  * @throws {Error} Throws an error if the request fails or the response is not OK
  * 
@@ -20,15 +37,18 @@
  */
 export async function fetchServerJWT(eveSSOToken) {
     try {
-        const response = await fetch('/api/v1/auth/login', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                token: eveSSOToken
+        const response = await withRequestRetries(() =>
+            fetch("/api/v1/auth/login", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-App-Version": getAppVersionHeaderValue(),
+                },
+                body: JSON.stringify({
+                    token: eveSSOToken,
+                }),
             })
-        })
+        );
         if (!response.ok) {
             throw new Error(`Failed to fetch server JWT: ${response.status} ${response.statusText}`)
         }
@@ -63,16 +83,19 @@ export async function fetchServerJWT(eveSSOToken) {
  */
 export async function refreshServerJWT(refreshToken, eveSSOToken) {
     try {
-        const response = await fetch('/api/v1/auth/refresh', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                refresh_token: refreshToken,
-                eve_token: eveSSOToken
+        const response = await withRequestRetries(() =>
+            fetch("/api/v1/auth/refresh", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-App-Version": getAppVersionHeaderValue(),
+                },
+                body: JSON.stringify({
+                    refresh_token: refreshToken,
+                    eve_token: eveSSOToken,
+                }),
             })
-        })
+        );
 
         if (!response.ok) {
             throw new Error(`Failed to refresh server JWT: ${response.status} ${response.statusText}`)
@@ -85,6 +108,48 @@ export async function refreshServerJWT(refreshToken, eveSSOToken) {
             throw err
         }
         throw new Error(`Error refreshing server JWT: ${err.message}`)
+    }
+}
+
+/**
+ * Refreshes a server JWT token via the explicit login-refresh endpoint.
+ *
+ * This endpoint is used when an existing server refresh token is part of a
+ * user login path (not background/session refresh), so backend can update
+ * last-login metadata.
+ *
+ * @param {string} refreshToken - The refresh token obtained from a previous authentication
+ * @param {string} eveSSOToken - The EVE Online SSO token (must match the original token used)
+ * @returns {Promise<Object>} Promise that resolves to refreshed session tokens
+ * @throws {Error} Throws an error if the request fails, the response is not OK, or tokens are invalid
+ */
+export async function refreshServerJWTForLogin(refreshToken, eveSSOToken) {
+    try {
+        const response = await withRequestRetries(() =>
+            fetch("/api/v1/auth/login-refresh", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-App-Version": getAppVersionHeaderValue(),
+                },
+                body: JSON.stringify({
+                    refresh_token: refreshToken,
+                    eve_token: eveSSOToken,
+                }),
+            })
+        );
+
+        if (!response.ok) {
+            throw new Error(`Failed to refresh server JWT for login: ${response.status} ${response.statusText}`)
+        }
+
+        return await response.json()
+    }
+    catch (err) {
+        if (err instanceof Error && err.message.startsWith('Failed to refresh server JWT for login')) {
+            throw err
+        }
+        throw new Error(`Error refreshing server JWT for login: ${err.message}`)
     }
 }
 

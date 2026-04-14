@@ -45,7 +45,6 @@ function useGetCorporationJournal(characterHash) {
     return useQuery(corporationJournalQuery(characterHash))
 }
 
-
 /**
  * Retrieves cached corporation journal data from React Query cache for a specific character.
  * 
@@ -90,6 +89,5 @@ function getCachedCorporationJournal(queryClient, characterHash) {
 
     return { data: cachedJournal, isLoading: false, isError: false }
 }
-
 
 export { useGetCorporationJournal, getCachedCorporationJournal }

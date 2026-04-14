@@ -53,7 +53,7 @@ export function useShoppingListCorporationAssets({
         // Check if corporation object exists
         const corporationObject = useUsersStore
           .getState()
-          .users.actions.getCorporationObject(state.selectedCorporation);
+          .account.actions.getCorporation(state.selectedCorporation);
 
         if (corporationObject) {
           // Always update offices when assets are loaded
@@ -64,7 +64,7 @@ export function useShoppingListCorporationAssets({
           if (!corporationOfficesSetRef.current.has(officesKey)) {
             useUsersStore
               .getState()
-              .users.actions.setCorporationOffices(
+              .account.actions.setCorporationOffices(
                 state.selectedCorporation,
                 corporationAssets
               );
@@ -75,14 +75,16 @@ export function useShoppingListCorporationAssets({
             async function fetchOfficeLocationNames() {
               const updatedCorporationObject = useUsersStore
                 .getState()
-                .users.actions.getCorporationObject(state.selectedCorporation);
+                .account.actions.getCorporation(state.selectedCorporation);
 
               if (
                 updatedCorporationObject &&
                 updatedCorporationObject.officeLocations
               ) {
                 // Get a user object for the corporation
-                const users = useUsersStore.getState().users.userArray;
+                const users = Object.values(
+                  useUsersStore.getState().account.characters
+                );
                 const userObject = users.find(
                   (user) => user.corporation_id === state.selectedCorporation
                 );
@@ -243,7 +245,7 @@ export function useShoppingListCorporationAssets({
         // Get corporation object to understand office/hangar structure
         const corporationObject = useUsersStore
           .getState()
-          .users.actions.getCorporationObject(state.selectedCorporation);
+          .account.actions.getCorporation(state.selectedCorporation);
 
         if (!corporationObject) {
           // Apply empty map to reset applied assets info

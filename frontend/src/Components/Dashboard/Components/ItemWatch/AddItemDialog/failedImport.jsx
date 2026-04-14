@@ -1,6 +1,5 @@
 import { Typography, Grid } from "@mui/material";
 
-
 export function FailedImport_WatchlistDialog() {
   return (
     <Grid size={12}>

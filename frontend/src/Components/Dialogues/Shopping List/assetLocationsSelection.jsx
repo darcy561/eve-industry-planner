@@ -13,7 +13,7 @@ export default function SelectAssetLocation_ShoppingListDialog({
   state,
   actions
 }) {
-  const users = useUsersStore((state) => state.users.userArray);
+  const characters = useUsersStore((state) => state.account.characters);
 
   // Don't render if loading
   if (state.isLoading) return null;
@@ -37,15 +37,15 @@ export default function SelectAssetLocation_ShoppingListDialog({
               actions.setSelectedCharacter(e.target.value);
             }}
           >
-            {users.length > 1 && (
+            {characters.length > 1 && (
               <MenuItem key={"allUsers"} value={"allUsers"}>
                 All
               </MenuItem>
             )}
-            {users.map((user) => {
+            {characters.map((character) => {
               return (
-                <MenuItem key={user.CharacterHash} value={user.CharacterHash}>
-                  {user.CharacterName}
+                <MenuItem key={character.CharacterHash} value={character.CharacterHash}>
+                  {character.CharacterName}
                 </MenuItem>
               );
             })}

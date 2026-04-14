@@ -1,14 +1,10 @@
-import { trace } from "@firebase/performance";
-import { performance } from "../../firebase";
 import { decodeJwt } from "jose";
-import User from "../../Classes/usersConstructor";
+import Character from "../../Classes/character";
 import refreshAccessTokenESICall from "../../Functions/EveESI/Character/refreshAccessToken";
 
-async function getUserFromRefreshToken(rToken, isMainUser = false) {
-  const t = trace(performance, "UseRefreshToken");
+async function getCharacterFromRefreshToken(esiRefreshToken, isMainCharacter = false) {
   try {
-    t.start();
-    const refreshToken = await refreshAccessTokenESICall(rToken);
+    const refreshToken = await refreshAccessTokenESICall(esiRefreshToken);
 
     if (refreshToken instanceof Error) {
       throw refreshToken;
@@ -16,25 +12,24 @@ async function getUserFromRefreshToken(rToken, isMainUser = false) {
 
     const decodedToken = decodeJwt(refreshToken.access_token);
 
-    const newUser = new User(decodedToken, refreshToken, isMainUser);
+    const newCharacter = new Character({
+      jwtPayload: decodedToken,
+      tokenResponse: refreshToken,
+      isMainCharacter,
+    });
 
-    if (isMainUser) {
+    if (isMainCharacter) {
       localStorage.setItem("Auth", refreshToken.refresh_token);
     }
-    t.incrementMetric("RefreshSuccess", 1);
-    return newUser;
+    return newCharacter;
   } catch (err) {
     console.error(err);
-    t.incrementMetric("RefreshFail", 1);
-    t.putAttribute("FailError", err.name);
 
-    if (isMainUser) {
+    if (isMainCharacter) {
       localStorage.removeItem("Auth");
     }
     return err;
-  } finally {
-    t.stop();
   }
 }
 
-export default getUserFromRefreshToken;
+export default getCharacterFromRefreshToken;

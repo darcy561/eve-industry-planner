@@ -30,8 +30,8 @@ import { calculateActiveSlotsSingleFromData } from "../../Functions/Helper/activ
  * function SlotTracker() {
  *   const { calculateActiveSlotsSingle, calculateActiveSlotsMultiple } = useActiveSlotTotals();
  * 
- *   const userSlots = calculateActiveSlotsSingle(user, queryClient);
- *   console.log(`Manufacturing: ${userSlots.activeManufacturingJobs}/${userSlots.manufacturingSlots}`);
+ *   const slotSummary = calculateActiveSlotsSingle(character, queryClient);
+ *   console.log(`Manufacturing: ${slotSummary.activeManufacturingJobs}/${slotSummary.manufacturingSlots}`);
  * 
  *   return <div>Slot tracking interface</div>;
  * }
@@ -69,27 +69,27 @@ export function useActiveSlotTotals() {
     corpIndustryJobsErrorObject;
 
   /**
-   * Calculates active industry slots for all users in the user array.
-   * 
+   * Calculates active industry slots for every character in `account.characters`.
+   *
    * @param {Object} queryClient - React Query client for data access
-   * @returns {Array<Object>} Array of slot calculation results for all users
-   * 
+   * @returns {Array<Object>} Slot calculation results per character
+   *
    * @private
    */
   function calculateActiveSlotsMultiple(queryClient) {
-    const users = useUsersStore.getState().users.userArray;
+    const characters = useUsersStore.getState().account.characters;
 
     let returnArray = [];
-    for (let user of users) {
-      returnArray.push(calculateActiveSlotsSingle(user, queryClient));
+    for (const character of characters) {
+      returnArray.push(calculateActiveSlotsSingle(character, queryClient));
     }
     return returnArray;
   }
 
   /**
    * Calculates active industry slots for a single character.
-   * 
-   * @param {Object} user - User object containing character information
+   *
+   * @param {Object} character - Character row (`Character` instance)
    * @param {Object} queryClient - React Query client for data access
    * @returns {Object} Object containing slot information for the character
    * @returns {string} returns.characterHash - Character hash identifier
@@ -103,8 +103,8 @@ export function useActiveSlotTotals() {
    * 
    * @private
    */
-  function calculateActiveSlotsSingle(user, queryClient) {
-    const { CharacterHash, CharacterID } = user;
+  function calculateActiveSlotsSingle(character, queryClient) {
+    const { CharacterHash, CharacterID } = character;
 
     const userIndJobs =
       getCachedCharacterIndustryJobs(queryClient, CharacterHash)?.data || [];
@@ -120,7 +120,7 @@ export function useActiveSlotTotals() {
       getCachedCharacterSkills(queryClient, CharacterHash)?.data || {};
 
     return calculateActiveSlotsSingleFromData(
-      user,
+      character,
       userSkills,
       userIndJobs,
       userCorpIndJobs

@@ -1,6 +1,5 @@
 import { Typography, Grid } from "@mui/material";
 
-
 export function TutorialStep5() {
   return (
     <Grid container sx={{ display: "flex", flexDirection: "column", height: "100%" }}>

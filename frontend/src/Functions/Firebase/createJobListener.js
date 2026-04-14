@@ -1,7 +1,7 @@
 import { doc, onSnapshot } from "firebase/firestore";
 import { firestore } from "../../firebase";
 import getCurrentFirebaseUser from "./currentFirebaseUser";
-import Job from "../../Classes/jobConstructor";
+import Job from "../../Classes/job";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**

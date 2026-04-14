@@ -165,6 +165,21 @@ type MigrateUserDocumentToMongoRequest struct {
 	AccountID string `json:"account_id"` // Account ID (Firebase UID)
 }
 
+// ImportArchivedJobToMongoRequest is the payload for one ArchivedJobs Firestore document to normalize and upsert into the archivedJobs collection.
+// CanonicalBuildVer is optional; when empty the worker resolves it for structured logs only (not persisted on the job document).
+type ImportArchivedJobToMongoRequest struct {
+	UserID              string          `json:"user_id"`
+	FirestorePath       string          `json:"firestore_path,omitempty"`
+	FirestoreDocumentID string          `json:"firestore_document_id,omitempty"`
+	RawData             json.RawMessage `json:"raw_data"`
+	CanonicalBuildVer   string          `json:"canonical_build_ver,omitempty"`
+}
+
+// ProcessArchivedBuildStatsRequest scopes build_stats aggregation to one account's archived jobs.
+type ProcessArchivedBuildStatsRequest struct {
+	AccountID string `json:"account_id"`
+}
+
 // SubscriptionRequest represents a request to subscribe WebSocket clients to document updates.
 // Used for autosubscription when clients make HTTP requests with the AutoSubscribe header.
 // Published to doc.subscribe.{accountID} subject.

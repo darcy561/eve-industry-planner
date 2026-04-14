@@ -20,7 +20,7 @@ async function getAssetLocationNames(
       return new Map();
     }
 
-    const { CharacterID, corporation_id, aToken } = character;
+    const { CharacterID, corporation_id, esiAccessToken } = character;
 
     const chunkSize = 1000;
     const namesMap = new Map();
@@ -37,7 +37,7 @@ async function getAssetLocationNames(
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${aToken}`,
+            Authorization: `Bearer ${esiAccessToken}`,
           },
           body: JSON.stringify(chunk),
         }

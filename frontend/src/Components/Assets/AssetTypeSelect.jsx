@@ -5,7 +5,7 @@ import { CharacterAssetsPanel } from "./Character Assets/characterAssetsPanel";
 import { CorporationAssetsPanel } from "./Corporation Assets/corporationAssetsPanel";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
 
-export function AssetTypeSelectPanel({ parentUser }) {
+export function AssetTypeSelectPanel() {
   const [tabSelect, updateTabSelect] = useState("0");
 
   function onTabChange(event, newValue) {
@@ -26,10 +26,10 @@ export function AssetTypeSelectPanel({ parentUser }) {
         </Box>
         <Box sx={{ width: "100%" }}>
           <TabPanel value={"0"} sx={{ paddingRight: 0, paddingLeft: 0 }}>
-            <CharacterAssetsPanel parentUser={parentUser} />
+            <CharacterAssetsPanel />
           </TabPanel>
           <TabPanel value={"1"} sx={{ paddingRight: 0, paddingLeft: 0 }}>
-            <CorporationAssetsPanel parentUser={parentUser} />
+            <CorporationAssetsPanel />
           </TabPanel>
         </Box>
       </TabContext>

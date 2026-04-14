@@ -48,8 +48,14 @@ type DiscordWebhookPayload struct {
 	Embeds   []DiscordEmbed `json:"embeds"`
 }
 
-// FeedbackHandler handles POST requests for feedback submission
-// POST: expects { "response": "feedback content" } in body
+// FeedbackHandler handles POST /api/v1/feedback with JSON body { "response": "..." }.
+// Public: rate limit → handler. Optional Authorization Bearer is parsed when present for account label in Discord embeds (invalid/expired JWT ignored, not 401).
+// Client retries: withRequestRetries (408, 429, 5xx).
+//
+//	405 — not POST
+//	400 — invalid JSON, missing/empty response, length limits
+//	500 — JSON marshal or Discord webhook failure
+//	200 — success (including when webhook URL is unset)
 func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
 	start, ok := logs.RequestStartTime(ctx)

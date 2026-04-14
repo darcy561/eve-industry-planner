@@ -5,12 +5,13 @@ import { Tab, Tabs, useMediaQuery, Grid } from "@mui/material";
 import { AssetLocationFlagPage_Character } from "./Standard Layout/assetLocationFlagPage";
 import { AssetsPage_Character } from "./Standard Layout/assetsPage";
 import AssignUsersSelect from "../../../Styled Components/Select/users";
+import useUsersStore from "../../../Zustand/usersStore";
 
-export function CharacterAssetsPanel({ parentUser }) {
+export function CharacterAssetsPanel() {
   const [tabSelect, updateTabSelect] = useState("Assets");
 
-  const [selectedCharacter, updateSelectedCharacter] = useState(
-    parentUser.CharacterHash
+  const [selectedCharacter, updateSelectedCharacter] = useState(() =>
+    useUsersStore.getState().account.actions.getMainCharacterHash()
   );
   const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("sm"));
 

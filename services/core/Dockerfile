@@ -17,7 +17,8 @@ COPY . .
 ARG SENTRY_DSN=""
 ARG ENVIRONMENT=production
 ARG APP_VERSION=development
-ARG SENTRY_TRACES_SAMPLE_RATE=0.05
+# Optional: omit or set at build time; runtime SENTRY_TRACES_SAMPLE_RATE in .env overrides when non-empty.
+ARG SENTRY_TRACES_SAMPLE_RATE=
 
 # Build the application with optimizations
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -61,6 +62,14 @@ RUN mkdir -p /data && \
 
 # Label for GitHub Container Registry linking
 LABEL org.opencontainers.image.source=${IMAGE_SOURCE}
+
+# Same app-config env as API (metrics + parity with GET /api/v1/app-config); override at runtime via .env if needed.
+ARG APP_VERSION=development
+ARG FRONTEND_APP_VERSION=development
+ARG APP_FEATURE_FLAGS_JSON="{}"
+ENV APP_VERSION_NUMBER=${APP_VERSION}
+ENV FRONTEND_APP_VERSION=${FRONTEND_APP_VERSION}
+ENV APP_FEATURE_FLAGS_JSON=${APP_FEATURE_FLAGS_JSON}
 
 # Entrypoint runs as root to fix permissions, then switches to appuser
 ENTRYPOINT ["/entrypoint.sh"]

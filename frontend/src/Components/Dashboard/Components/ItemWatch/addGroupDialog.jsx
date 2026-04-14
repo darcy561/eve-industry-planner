@@ -14,7 +14,6 @@ import DOMPurify from "dompurify";
 export function AddGroupDialog({
   addNewGroupTrigger,
   updateAddNewGroupTrigger,
-  parentUser,
 }) {
   const { userWatchlist } = useUsersStore((state) => state.jobData);
   const { setUserWatchlistGroups } = useUsersStore.getState().jobData.actions;
@@ -77,7 +76,7 @@ export function AddGroupDialog({
             setUserWatchlistGroups(newUserWatchlistGroups);
             uploadUserWatchlist(newUserWatchlistGroups, userWatchlist.items);
             logEvent(analytics, "New Watchlist Group", {
-              UID: parentUser.accountID,
+              UID: useUsersStore.getState().account.actions.getAccountID(),
             });
             handleClose();
           }}

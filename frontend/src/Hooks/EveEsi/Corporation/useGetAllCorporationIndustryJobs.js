@@ -149,10 +149,10 @@ function groupIndustryJobsByCorporation(jobs) {
  * }
  */
 export function getCachedCorporationIndustryJobs(queryClient) {
-  const userArray = useUsersStore.getState().users.userArray;
+  const characters = useUsersStore.getState().account.characters;
 
   // Get query states for all users
-  const queryStates = userArray.map((user) => {
+  const queryStates = characters.map((user) => {
     const queryKey = [corporationIndustryJobsQueryKey, user.CharacterHash];
     return {
       queryState: queryClient.getQueryState(queryKey),
@@ -223,7 +223,7 @@ export function getCachedCorporationIndustryJobs(queryClient) {
  * }
  */
 export default function useGetAllCorporationIndustryJobs() {
-  const { userArray } = useUsersStore((state) => state.users);
+  const characters = useUsersStore((state) => state.account.characters);
 
   const combineFunction = useCallback((results) => {
     const isLoading = checkLoadingState(results);
@@ -243,7 +243,7 @@ export default function useGetAllCorporationIndustryJobs() {
   }, []);
 
   const result = useQueries({
-    queries: userArray.map(({ CharacterHash }) => corporationIndustryJobsQuery(CharacterHash)),
+    queries: characters.map(({ CharacterHash }) => corporationIndustryJobsQuery(CharacterHash)),
     combine: combineFunction,
   });
 

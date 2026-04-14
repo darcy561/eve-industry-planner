@@ -170,10 +170,10 @@ function groupBlueprintsByCorporation(results) {
  * }
  */
 export function getAllCachedCorporationBlueprints(queryClient) {
-  const userArray = useUsersStore.getState().users.userArray;
+  const characters = useUsersStore.getState().account.characters;
 
   // Get query states for all users
-  const queryStates = userArray.map((user) => {
+  const queryStates = characters.map((user) => {
     const queryKey = [corporationBlueprintsQueryKey, user.CharacterHash];
     return {
       queryState: queryClient.getQueryState(queryKey),
@@ -251,7 +251,7 @@ export function getAllCachedCorporationBlueprints(queryClient) {
  * }
  */
 export function useGetAllCorporationBlueprints() {
-  const { userArray } = useUsersStore((state) => state.users);
+  const characters = useUsersStore((state) => state.account.characters);
 
   const combineFunction = useCallback((results) => {
     const isLoading = checkLoadingState(results);
@@ -272,7 +272,7 @@ export function useGetAllCorporationBlueprints() {
   }, []);
 
   const result = useQueries({
-    queries: userArray.map(({ CharacterHash }) =>
+    queries: characters.map(({ CharacterHash }) =>
       corporationBlueprintsQuery(CharacterHash)
     ),
     combine: combineFunction,

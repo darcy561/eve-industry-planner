@@ -24,7 +24,7 @@ function GroupAccordionFrame({
   const addToMultiSelect =
     useUsersStore.getState().jobData.actions.addToMultiSelect;
   const enableCompactView = useUsersStore(
-    (state) => state.applicationSettings.enableCompactView
+    (state) => state.applicationSettings.enableCompactLayoutView
   );
   const [notExpanded, updateNotExpanded] = useState([]);
 

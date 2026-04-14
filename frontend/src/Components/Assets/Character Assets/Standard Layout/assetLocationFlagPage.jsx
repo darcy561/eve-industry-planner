@@ -30,7 +30,7 @@ export function AssetLocationFlagPage_Character({
     async function buildCharacterAssetsTree() {
       const requiredUserObject = useUsersStore
         .getState()
-        .users.actions.findUserByCharacterHash(selectedCharacter);
+        .account.actions.findCharacterByHash(selectedCharacter);
       const fullItemListData = await getFullItemList();
 
       const { data: characterAssets } = getCachedCharacterAssets(

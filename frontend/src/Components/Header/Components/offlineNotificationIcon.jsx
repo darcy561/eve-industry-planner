@@ -4,7 +4,7 @@ import { Tooltip, Box } from '@mui/material';
 
 export default function OfflineNotificationIcon() {
   const eveServerStatus = useUsersStore((state) => state.worldData.eveServerStatus);
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
 
   if (isLoggedIn && !eveServerStatus) {
     return (

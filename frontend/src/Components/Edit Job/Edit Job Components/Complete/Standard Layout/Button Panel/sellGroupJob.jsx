@@ -5,7 +5,6 @@ export function SellGroupJobButton({ state, actions }) {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
   const { removeJobsFromUserJobSnapshotArray } = useUsersStore.getState().jobData.actions;
 
-
   const toggleMarkForSell = async () => {
     if (!state.activeJob.isReadyToSell) {
       state.activeJob.jobStatus += 1;
@@ -17,7 +16,7 @@ export function SellGroupJobButton({ state, actions }) {
     actions.updateActiveJob(state.activeJob);
   };
 
-  if (!activeGroupID || state.activeJob.parentJob.length !== 0) {
+  if (!activeGroupID || state.activeJob.parentJobs.length !== 0) {
     return null;
   }
 

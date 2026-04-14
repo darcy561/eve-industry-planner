@@ -3,15 +3,14 @@ import { useMemo } from "react";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
- * A select component for choosing assigned users/characters.
- * Displays a dropdown with all available users from the user store.
- * Automatically selects the parent user if no specific user is chosen.
- * 
+ * A select component for choosing which character is assigned (from `account.characters`).
+ * Automatically selects the main character if no specific character is chosen.
+ *
  * @param {Object} props - Component props
- * @param {string} props.value - Currently selected user's character hash
- * @param {Function} props.onChange - Callback function called when selection changes. Receives the character hash.
- * @param {string} [props.formHelperText] - Custom helper text to display below the select
- * @returns {JSX.Element} Assign users select component
+ * @param {string} props.value - Selected character hash (`CharacterHash`)
+ * @param {Function} props.onChange - Called with the selected character hash
+ * @param {string} [props.formHelperText] - Custom helper text below the select
+ * @returns {JSX.Element} Character assignment select
  * 
  * @example
  * <AssignUsersSelect 
@@ -21,18 +20,18 @@ import useUsersStore from "../../Zustand/usersStore";
  * />
  */
 function AssignUsersSelect({ value, onChange, formHelperText }) {
-  const users = useUsersStore((state) => state.users.userArray);
-  const parentUser = useUsersStore((state) =>
-    state.users.actions.findParentUser()
+  const characters = useUsersStore((state) => state.account.characters);
+  const mainCharacterHash = useUsersStore(
+    (state) => state.account.mainCharacterHash
   );
 
   const selectedUserHash = useMemo(() => {
     return (
-      users?.find((i) => i.CharacterHash === value)?.CharacterHash ??
-      parentUser?.CharacterHash ??
+      characters?.find((i) => i.CharacterHash === value)?.CharacterHash ??
+      mainCharacterHash ??
       ""
     );
-  }, [users, value, parentUser]);
+  }, [characters, value, mainCharacterHash]);
 
   return (
     <FormControl
@@ -48,8 +47,8 @@ function AssignUsersSelect({ value, onChange, formHelperText }) {
       fullWidth
     >
       <Select
-        id="users-select"
-        aria-describedby="users-helper"
+        id="characters-select"
+        aria-describedby="characters-helper"
         variant="standard"
         size="small"
         value={selectedUserHash}
@@ -57,11 +56,11 @@ function AssignUsersSelect({ value, onChange, formHelperText }) {
           if (onChange) {
             onChange(e.target.value);
           } else {
-            console.error("Users Select is missing an onChange Function");
+            console.error("Character select is missing an onChange handler");
           }
         }}
       >
-        {users.map(({ CharacterHash, CharacterName }) => {
+        {characters.map(({ CharacterHash, CharacterName }) => {
           return (
             <MenuItem key={CharacterHash} value={CharacterHash}>
               {CharacterName}
@@ -69,7 +68,7 @@ function AssignUsersSelect({ value, onChange, formHelperText }) {
           );
         })}
       </Select>
-      <FormHelperText id="users-helper" variant="standard">
+      <FormHelperText id="characters-helper" variant="standard">
         {formHelperText ? formHelperText : "Assigned Character"}
       </FormHelperText>
     </FormControl>

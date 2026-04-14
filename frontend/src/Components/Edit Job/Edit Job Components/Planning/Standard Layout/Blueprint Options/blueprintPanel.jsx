@@ -3,11 +3,16 @@ import { ManufacturingLayout_BlueprintPanel } from "./manufacturingLayout";
 import { ReactionLayout_BlueprintOptions } from "./reactionLayout";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import { jobTypes } from "../../../../../../Context/defaultValues";
+import useUsersStore from "../../../../../../Zustand/usersStore";
 
 export function AvailableBlueprintsPanel(props) {
+  const isLoggedIn = useUsersStore((s) => s.account.isLoggedIn);
+
   return (
     <ContentPanel
+      visible={isLoggedIn}
       title="Blueprint Library"
+      componentName="Blueprint Library"
       paperSx={{ height: "auto" }}
       titleMarginBottom={2}
     >

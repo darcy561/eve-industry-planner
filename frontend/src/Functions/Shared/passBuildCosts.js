@@ -91,7 +91,7 @@ function collectMaterialsAndParentJobs(chosenJobs) {
       });
     }
 
-    for (const parentID of job.parentJob) {
+    for (const parentID of job.parentJobs) {
       if (!parentJobMap[materialID]) {
         parentJobMap[materialID] = new Set();
       }

@@ -192,7 +192,7 @@ export function RawResourceList(props) {
       });
 
       function groupJobCheck(requestedTypeID, requestedGroupID, outputMap) {
-        if (!state.activeJob.groupID) return false;
+        if (!state.activeJob.includedInGroup) return false;
         const matchedGroupJob = findMaterialJobIDInGroup(
           requestedTypeID,
           requestedGroupID

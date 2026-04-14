@@ -9,6 +9,7 @@ import { eventEmitter } from "../utils/EventSystem";
  * @param {string} [severity="info"] - Severity level: "success", "error", "warning", "info"
  * @param {number|null} [duration=1] - Duration in seconds before auto-hide (null = no auto-hide)
  * @param {string|null} [action=null] - Action identifier for special snackbar types
+ * @param {Object} [extra={}] - Additional event payload fields for specialized snackbars
  * @returns {void}
  * 
  * @example
@@ -17,8 +18,13 @@ import { eventEmitter } from "../utils/EventSystem";
  * @example
  * showSnackbar("Error occurred", "error", null); // No auto-hide
  */
-export function showSnackbar(message = "", severity = "info", duration = 1, action = null) {
-
+export function showSnackbar(
+  message = "",
+  severity = "info",
+  duration = 1,
+  action = null,
+  extra = {}
+) {
 
   eventEmitter.emit("snackbar", {
     open: true,
@@ -30,6 +36,7 @@ export function showSnackbar(message = "", severity = "info", duration = 1, acti
     variant: "filled",
     key: uuid(),
     action,
+    ...extra,
   });
 }
 
@@ -39,6 +46,8 @@ export function showSnackbar(message = "", severity = "info", duration = 1, acti
  * 
  * @param {string} message - The success message to display
  * @param {number} [duration=1] - Duration in seconds before auto-hide
+ * @param {string} targetVersion - Remote version that triggered the notification
+ * @param {Function} [onDismiss] - Optional callback invoked when user dismisses this snackbar
  * @returns {void}
  * 
  * @example
@@ -102,11 +111,15 @@ export const showSnackbarInfo = (message, duration = 1) => {
  * @example
  * showVersionUpdateSnackbar(); // Shows update notification with refresh action
  */
-export const showVersionUpdateSnackbar = () => {
+export const showVersionUpdateSnackbar = (targetVersion, onDismiss) => {
   showSnackbar(
     "New app version available! Click refresh to update.",
     "info",
     null,
-    "VERSION_UPDATE"
+    "VERSION_UPDATE",
+    {
+      versionUpdateTarget: targetVersion,
+      onDismiss,
+    }
   );
 };

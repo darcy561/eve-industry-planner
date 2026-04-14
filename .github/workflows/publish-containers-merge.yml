@@ -50,28 +50,76 @@ jobs:
                         - 'services/shared/**'
                         - 'services/go.mod'
                         - 'services/go.sum'
+                        - 'VERSION.json'
                       websocket:
                         - 'services/websocket/**'
                         - 'services/shared/**'
                         - 'services/go.mod'
                         - 'services/go.sum'
+                        - 'VERSION.json'
                       worker:
                         - 'services/worker/**'
                         - 'services/shared/**'
                         - 'services/go.mod'
                         - 'services/go.sum'
+                        - 'VERSION.json'
                       core:
                         - 'services/core/**'
                         - 'services/shared/**'
                         - 'services/go.mod'
                         - 'services/go.sum'
+                        - 'VERSION.json'
                       frontend:
                         - 'frontend/**'
+                        - 'VERSION.json'
+
+    read_versions:
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            contents: read
+        outputs:
+            frontend: ${{ steps.versions.outputs.frontend }}
+            backend: ${{ steps.versions.outputs.backend }}
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v6
+              with:
+                  ref: ${{ github.event.inputs.branch || github.ref || github.ref_name }}
+                  fetch-depth: 1
+
+            - name: Read split versions
+              id: versions
+              run: |
+                  if [ ! -f VERSION.json ]; then
+                      echo "::error::VERSION.json is required"
+                      exit 1
+                  fi
+
+                  FRONTEND_VERSION=$(jq -r '.frontend // empty' VERSION.json)
+                  BACKEND_VERSION=$(jq -r '.backend // empty' VERSION.json)
+
+                  if [ -z "${FRONTEND_VERSION}" ] || [ -z "${BACKEND_VERSION}" ]; then
+                      echo "::error::VERSION.json must contain frontend and backend fields"
+                      exit 1
+                  fi
+
+                  if ! echo "${FRONTEND_VERSION}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
+                      echo "::error::Invalid frontend version format: ${FRONTEND_VERSION}"
+                      exit 1
+                  fi
+                  if ! echo "${BACKEND_VERSION}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
+                      echo "::error::Invalid backend version format: ${BACKEND_VERSION}"
+                      exit 1
+                  fi
+
+                  echo "frontend=${FRONTEND_VERSION}" >> $GITHUB_OUTPUT
+                  echo "backend=${BACKEND_VERSION}" >> $GITHUB_OUTPUT
 
     publish_containers:
         runs-on: ubuntu-latest
         timeout-minutes: 20
-        needs: detect_changes
+        needs: [detect_changes, read_versions]
         if: github.event.inputs.branch == 'Public' || github.event.inputs.branch == 'migration' || github.ref_name == 'Public' || github.ref_name == 'migration'
         environment: ${{ (github.event.inputs.branch || github.ref_name) == 'Public' && 'Public' || 'migration' }}
         permissions:
@@ -163,26 +211,12 @@ jobs:
               if: steps.should-build.outputs.should_build == 'true'
               id: version
               run: |
-                  # Determine version based on service type
                   if [ "${{ matrix.service }}" == "frontend" ]; then
-                      # Frontend: use package.json
-                      if [ -f frontend/package.json ]; then
-                          VERSION=$(grep -o '"version": "[^"]*"' frontend/package.json | cut -d'"' -f4)
-                          echo "Using frontend package.json version: ${VERSION}"
-                      else
-                          VERSION="0.0.0"
-                          echo "Warning: frontend/package.json not found, using default: ${VERSION}"
-                      fi
+                      VERSION="${{ needs.read_versions.outputs.frontend }}"
+                      echo "Using root frontend version: ${VERSION}"
                   else
-                      # Go services: use service-specific VERSION file
-                      VERSION_FILE="services/${{ matrix.service }}/VERSION"
-                      if [ -f "${VERSION_FILE}" ]; then
-                          VERSION=$(cat "${VERSION_FILE}" | tr -d '[:space:]')
-                          echo "Using ${VERSION_FILE} version: ${VERSION}"
-                      else
-                          VERSION="0.0.0"
-                          echo "Warning: ${VERSION_FILE} not found, using default: ${VERSION}"
-                      fi
+                      VERSION="${{ needs.read_versions.outputs.backend }}"
+                      echo "Using root backend version: ${VERSION}"
                   fi
                   
                   # Validate version format (should be X.Y.Z)
@@ -201,6 +235,23 @@ jobs:
                   echo "patch=${PATCH}" >> $GITHUB_OUTPUT
                   echo "Service: ${{ matrix.service }}"
                   echo "Version: ${VERSION} (${MAJOR}.${MINOR}.${PATCH})"
+
+            - name: Guard against duplicate version tag
+              if: steps.should-build.outputs.should_build == 'true'
+              run: |
+                  IMAGE="ghcr.io/${{ github.repository_owner }}/${{ steps.package-name.outputs.name }}"
+                  VERSION_TAG="${{ steps.version.outputs.version }}"
+                  BRANCH_TAG="${{ steps.version.outputs.version }}-${{ steps.branch-info.outputs.branch }}"
+
+                  if docker manifest inspect "${IMAGE}:${VERSION_TAG}" > /dev/null 2>&1; then
+                      echo "::error::Tag ${IMAGE}:${VERSION_TAG} already exists. Bump version before rebuilding."
+                      exit 1
+                  fi
+
+                  if docker manifest inspect "${IMAGE}:${BRANCH_TAG}" > /dev/null 2>&1; then
+                      echo "::error::Tag ${IMAGE}:${BRANCH_TAG} already exists. Bump version before rebuilding."
+                      exit 1
+                  fi
 
             - name: Extract metadata for ${{ matrix.service }}
               if: steps.should-build.outputs.should_build == 'true' && steps.branch-info.outputs.branch != ''
@@ -280,6 +331,7 @@ jobs:
                               ENVIRONMENT="production"
                           fi
                           echo "ENVIRONMENT=${ENVIRONMENT}"
+                          echo "FRONTEND_APP_VERSION=${{ needs.read_versions.outputs.frontend }}"
                           
                           # Sentry: Vite plugin + DSN baked into bundle (same DSN as Go services).
                           # SENTRY_PROJECT_ID must be the project slug from Sentry (e.g. eip-live), not the numeric "Project ID".
@@ -298,13 +350,23 @@ jobs:
                           echo "ENVIRONMENT=${ENVIRONMENT}"
                           echo "SENTRY_DSN=${SENTRY_DSN_VAL}"
                           echo "APP_VERSION=${{ steps.version.outputs.version }}"
-                          echo "SENTRY_TRACES_SAMPLE_RATE=0.05"
+                          echo "FRONTEND_APP_VERSION=${{ needs.read_versions.outputs.frontend }}"
+                          # Optional: set SENTRY_TRACES_SAMPLE_RATE on the host (.env) for performance traces; omit here → baked empty → 0 unless env set at runtime.
                       fi
                       
                       # API service needs FEEDBACK_DISCORD_WEBHOOK_URL from GitHub variable
                       # Can be overridden at runtime via environment variable
                       if [ "${{ matrix.service }}" == "api" ]; then
                           echo "FEEDBACK_DISCORD_WEBHOOK_URL=${{ vars.FEEDBACK_DISCORD_WEBHOOK_URL }}"
+                      fi
+                      # API + core: bake feature flags (core exposes core_app_config_* metrics / app-config parity)
+                      if [ "${{ matrix.service }}" == "api" ] || [ "${{ matrix.service }}" == "core" ]; then
+                          if [ -f VERSION.json ]; then
+                              FEATURE_FLAGS_JSON=$(jq -c '.feature_flags // {}' VERSION.json)
+                              echo "APP_FEATURE_FLAGS_JSON=${FEATURE_FLAGS_JSON}"
+                          else
+                              echo "APP_FEATURE_FLAGS_JSON={}"
+                          fi
                       fi
                       
                       echo "EOF"

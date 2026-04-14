@@ -6,11 +6,11 @@ import { OfficesPage_Corporation } from "./Standard Layout/officesPage";
 import { AssetLocationFlagPage_Corporation } from "./Standard Layout/assetLocationFlagPage";
 import CorporationSelect from "../../../Styled Components/Select/corporations";
 
-export function CorporationAssetsPanel({ parentUser }) {
+export function CorporationAssetsPanel() {
   const [tabSelect, updateTabSelect] = useState("Offices");
 
   const [selectedCorporation, updateSelectedCorporation] = useState(
-    parentUser.corporation_id
+    useUsersStore.getState().account.actions.getMainCorporation()?.corporation_id || null
   );
 
   const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("sm"));

@@ -27,7 +27,7 @@ export function findHighestMaterialEfficiencyBlueprint(
 
   if (
     inputJobType !== jobTypes.manufacturing ||
-    !useUsersStore.getState().users.isLoggedIn
+    !useUsersStore.getState().account.isLoggedIn
   ) {
     return defaultReturn;
   }

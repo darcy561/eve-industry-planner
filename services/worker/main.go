@@ -4,9 +4,10 @@ import (
 	"context"
 	"time"
 
+	mongoindex "eve-industry-planner/shared/core/mongo/indexing"
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry"
 	asynqpkg "eve-industry-planner/worker/asynq"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
@@ -53,6 +54,12 @@ func main() {
 	}
 	ts := teleShutdown
 	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) { _ = ts(c) })
+
+	if err := mongoindex.EnsureIndexes(ctx, clients.Mongo); err != nil {
+		logs.ErrorCtx(ctx, "mongo ensure indexes failed", "err", err)
+		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
+		return
+	}
 
 	// Ensure JetStream streams exist
 	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {

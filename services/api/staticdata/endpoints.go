@@ -181,13 +181,12 @@ func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string
 		return
 	}
 
-	// Cache policy:
-	// - Browser cache 5 minutes
-	// - CDN/Cloudflare cache 24 hours
-	// - Use versioned URL from meta (?v=<build>) for natural cache invalidation on update.
-	w.Header().Set("Cache-Control", "public, max-age=300, stale-while-revalidate=600")
-	w.Header().Set("CDN-Cache-Control", "public, s-maxage=86400, stale-while-revalidate=86400")
-	w.Header().Set("Cloudflare-CDN-Cache-Control", "public, s-maxage=86400, stale-while-revalidate=86400")
+	// Cache policy for generated static files:
+	// - URLs are build-versioned (?v=<build>), so they can be treated as immutable.
+	// - Use a long but bounded TTL to align with periodic developer release cycles.
+	w.Header().Set("Cache-Control", "public, max-age=2592000, immutable")
+	w.Header().Set("CDN-Cache-Control", "public, s-maxage=2592000, immutable")
+	w.Header().Set("Cloudflare-CDN-Cache-Control", "public, s-maxage=2592000, immutable")
 	w.Header().Set("Vary", "Accept-Encoding")
 
 	w.Header().Set("Content-Type", "application/json")

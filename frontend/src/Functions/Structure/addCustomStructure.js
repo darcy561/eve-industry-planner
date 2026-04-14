@@ -1,7 +1,7 @@
 import { logEvent } from "firebase/analytics";
 import { analytics } from "../../firebase";
 import getCurrentFirebaseUser from "../../Functions/Firebase/currentFirebaseUser";
-import uploadApplicationSettingsToFirebase from "../../Functions/Firebase/uploadApplicationSettings";
+import { saveApplicationSettings } from "../Endpoints/Pirivate/userDocument";
 import getSystemIndexes from "../../Functions/System Indexes/findSystemIndex";
 import { jobTypes } from "../../Context/defaultValues";
 import { showSnackbarSuccess } from "../../Events/snackbarEvents";
@@ -40,7 +40,7 @@ export async function addCustomStructure({
       systemIndexResults = await getSystemIndexes(structure.systemID);
     }
 
-    await uploadApplicationSettingsToFirebase();
+    await saveApplicationSettings();
 
     addCustomStructure(structure);
     // Update system index data for non-reprocessing structures

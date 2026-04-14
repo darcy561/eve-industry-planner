@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Grid } from "@mui/material";
 
-
 export function Selling_MobileLayout_EditJob({
   activeJob,
   updateActiveJob,

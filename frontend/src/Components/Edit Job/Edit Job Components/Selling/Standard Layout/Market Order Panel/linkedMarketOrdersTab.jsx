@@ -23,8 +23,8 @@ export function LinkedMarketOrdersTab({
   activeOrder,
   updateActiveOrder
 }) {
-  const getCorporationObject =
-    useUsersStore.getState().users.actions.getCorporationObject;
+  const getCorporation =
+    useUsersStore.getState().account.actions.getCorporation;
 
   return (
     <Grid container>
@@ -44,14 +44,14 @@ export function LinkedMarketOrdersTab({
         {state.activeJob.build.sale.marketOrders?.map((order) => {
           const charData = useUsersStore
             .getState()
-            .users.actions.findUserByCharacterHash(order.CharacterHash);
+            .account.actions.findCharacterByHash(order.CharacterHash);
           const locationName =
             useUsersStore
               .getState()
               .worldData.actions.findUniverseData(order.location_id)?.name ||
             "Location Data Unavailable";
 
-          const corpData = getCorporationObject(charData?.corporation_id);
+          const corpData = getCorporation(charData?.corporation_id);
 
           return (
             <Grid

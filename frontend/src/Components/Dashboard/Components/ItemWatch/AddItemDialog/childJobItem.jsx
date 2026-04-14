@@ -1,6 +1,5 @@
 import { Typography, Grid } from "@mui/material";
 
-
 export function ChildJobItem({ job, itemToModify, updateItemToModify }) {
   return (
     <Grid

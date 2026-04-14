@@ -22,8 +22,10 @@ export default function usePriceEntryReducer() {
         isLoading: false,
         requestedJobIDs: [],
         priceEntryList: [],
-        displayMarket: useUsersStore.getState().applicationSettings.defaultMarket,
-        displayOrder: useUsersStore.getState().applicationSettings.defaultOrders,
+        displayMarket:
+          useUsersStore.getState().applicationSettings.defaultMarketLocation,
+        displayOrder:
+          useUsersStore.getState().applicationSettings.defaultOrderType,
         clearUnconfirmedTrigger: 0,
     });
 

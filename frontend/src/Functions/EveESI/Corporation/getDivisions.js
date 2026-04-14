@@ -2,10 +2,10 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
 
 async function getCorpDivisions(character, config = {}) {
   try {
-    if (!character || !character.aToken || !character.corporation_id) {
+    if (!character || !character.esiAccessToken || !character.corporation_id) {
       throw new Error("Character information is incomplete.");
     }
-    const { aToken, corporation_id } = character;
+    const { esiAccessToken, corporation_id } = character;
     // Enhanced configuration for rate limiting
     const enhancedConfig = {
       priority: 'normal',
@@ -21,7 +21,7 @@ async function getCorpDivisions(character, config = {}) {
       `https://esi.evetech.net/v2/corporations/${corporation_id}/divisions`,
       {
         headers: {
-          Authorization: `Bearer ${aToken}`,
+          Authorization: `Bearer ${esiAccessToken}`,
         },
       },
       enhancedConfig

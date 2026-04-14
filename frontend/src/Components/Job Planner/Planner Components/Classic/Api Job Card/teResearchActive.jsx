@@ -5,7 +5,6 @@ import { STANDARD_TEXT_FORMAT } from "../../../../../Context/defaultValues";
 export function TeResearchESICardActive({ job }) {
   const timeRemaining = formatTimeRemaining(Date.parse(job.end_date));
 
-
   return (
     <Grid container sx={{ paddingLeft: { xs: "0px", sm: "5px" } }} size={12}>
       <Grid container size={12}>

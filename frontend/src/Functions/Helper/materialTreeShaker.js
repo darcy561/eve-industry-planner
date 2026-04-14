@@ -56,11 +56,11 @@ function materialTreeShaker(allJobObjects, recalculateJob) {
  * @private
  */
 function getParentJobRequirements(job, allJobs) {
-  if (!job.parentJob || !Array.isArray(job.parentJob)) {
+  if (!job.parentJobs || !Array.isArray(job.parentJobs)) {
     return 0;
   }
 
-  return job.parentJob.reduce((total, parentJobID) => {
+  return job.parentJobs.reduce((total, parentJobID) => {
     const parentJob = allJobs.find(({ jobID }) => jobID === parentJobID);
     if (parentJob && parentJob.build && parentJob.build.materials) {
       const material = parentJob.build.materials.find(
@@ -96,7 +96,7 @@ const shouldRecalculate = (job, parentJobRequirements) => {
   const isOverproducing =
     currentProduction > minBuildQuantity + job.itemsProducedPerRun;
   const isUnderproducing = currentProduction < minBuildQuantity;
-  const isItemAParent = job.parentJob.length === 0;
+  const isItemAParent = job.parentJobs.length === 0;
 
   return isUnderproducing || (isOverproducing && !isItemAParent);
 };

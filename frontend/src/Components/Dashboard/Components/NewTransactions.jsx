@@ -33,7 +33,7 @@ export function NewTransactions() {
   const { userJobSnapshot } = useUsersStore((state) => state.jobData);
   const jobStatus = useUsersStore((state) => state.users.jobStatus);
   const queryClient = useQueryClient();
-  const linkedOrders = useUsersStore((state) => state.users.linkedOrders);
+  const linkedOrders = useUsersStore((state) => state.account.linkedOrders);
   const { data: itemData } = useCachedData(CACHED_DATA_FILES.SEARCH_INDEX);
 
   // Query states

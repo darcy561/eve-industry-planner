@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"time"
 
 	"eve-industry-planner/shared/logs"
@@ -65,7 +66,15 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 					scope.SetRequest(r)
 					scope.SetLevel(sentry.LevelError)
 					scope.SetTag("status_code", fmt.Sprintf("%d", rw.statusCode))
-					sentry.CaptureMessage(fmt.Sprintf("HTTP %d %s %s", rw.statusCode, r.Method, r.URL.Path))
+					scope.SetContext("response", map[string]interface{}{
+						"status_code":      rw.statusCode,
+						"duration_ms":      duration.Milliseconds(),
+						"duration":         duration.String(),
+						"content_encoding": contentEncoding,
+					})
+					// Attach local call stack so non-panic 5xx events still provide source hints.
+					scope.SetExtra("capture_stack", string(debug.Stack()))
+					sentry.CaptureException(fmt.Errorf("HTTP %d %s %s", rw.statusCode, r.Method, r.URL.Path))
 				})
 			} else if rw.statusCode >= 400 {
 				doneLogger.Warn("request completed with client error", logs.Ctx(ctx))

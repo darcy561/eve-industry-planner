@@ -1,6 +1,5 @@
 import useUsersStore from "../../../../../Zustand/usersStore";
 
-
 function findJobsToHighlight(startingJob) {
   const jobArray = useUsersStore.getState().jobData.jobArray;
 

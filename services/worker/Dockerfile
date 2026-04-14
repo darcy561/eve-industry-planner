@@ -17,7 +17,8 @@ COPY . .
 ARG SENTRY_DSN=""
 ARG ENVIRONMENT=production
 ARG APP_VERSION=development
-ARG SENTRY_TRACES_SAMPLE_RATE=0.05
+# Optional: omit or set at build time; runtime SENTRY_TRACES_SAMPLE_RATE in .env overrides when non-empty.
+ARG SENTRY_TRACES_SAMPLE_RATE=
 
 # Build the application with optimizations
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -29,7 +30,9 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       -X eve-industry-planner/shared/telemetry.BakedRelease=${APP_VERSION} \
       -X eve-industry-planner/shared/telemetry.BakedSentryTracesSampleRate=${SENTRY_TRACES_SAMPLE_RATE}" \
     -trimpath \
-    -o worker-service ./worker
+    -o worker-service ./worker && \
+    mkdir -p /app/worker && \
+    printf '%s\n' "${APP_VERSION}" > /app/worker/VERSION
 
 # Final stage - minimal Alpine image
 FROM alpine:3.20
@@ -46,6 +49,9 @@ WORKDIR /app
 
 # Copy the binary from builder stage
 COPY --from=builder /app/worker-service /app/worker-service
+
+# Plain-text build label for archive import normalization (see archiveimport.ResolveCanonicalBuildVer)
+COPY --from=builder /app/worker/VERSION /app/worker/VERSION
 
 # Copy entrypoint script
 COPY worker/entrypoint.sh /entrypoint.sh

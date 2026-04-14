@@ -11,16 +11,16 @@ import {
  * Utility function to extract market orders from query results and organize by character hash.
  * 
  * @param {Array<Object>} results - Array of query result objects
- * @param {Array<Object>} userArray - Array of user objects with CharacterHash
+ * @param {Array<Object>} characters - Array of user objects with CharacterHash
  * @returns {Object} Object with character hashes as keys and market order arrays as values
  * 
  * @private
  */
-function extractMarketOrdersByCharacter(results, userArray) {
+function extractMarketOrdersByCharacter(results, characters) {
   const marketOrdersObject = {};
   
   results.forEach((result, index) => {
-    const characterHash = userArray[index]?.CharacterHash;
+    const characterHash = characters[index]?.CharacterHash;
     if (characterHash) {
       // characterMarketOrdersQuery returns data directly as an array, not in a paginated structure
       const characterOrders = result.data || [];
@@ -150,10 +150,10 @@ function sortMarketOrdersByDate(marketOrders) {
  * }
  */
 export function getAllCachedCharacterMarketOrders(queryClient) {
-  const userArray = useUsersStore.getState().users.userArray;
+  const characters = useUsersStore.getState().account.characters;
 
   // Get query states for all characters
-  const queryStates = userArray.map(({ CharacterHash }) => {
+  const queryStates = characters.map(({ CharacterHash }) => {
     const queryKey = [characterMarketOrdersQueryKey, CharacterHash];
     return {
       queryState: queryClient.getQueryState(queryKey),
@@ -231,12 +231,12 @@ export function getAllCachedCharacterMarketOrders(queryClient) {
  * }
  */
 export function useGetAllCharacterMarketOrders() {
-  const { userArray } = useUsersStore((state) => state.users);
+  const characters = useUsersStore((state) => state.account.characters);
 
   const combineFunction = useCallback((results) => {
     const isLoading = checkLoadingState(results);
     const error = findFirstError(results);
-    const marketOrdersObject = extractMarketOrdersByCharacter(results, userArray);
+    const marketOrdersObject = extractMarketOrdersByCharacter(results, characters);
 
     if (isLoading) {
       return createLoadingObject();
@@ -247,10 +247,10 @@ export function useGetAllCharacterMarketOrders() {
     }
 
     return createSuccessObject(marketOrdersObject);
-  }, [userArray]);
+  }, [characters]);
 
   const result = useQueries({
-    queries: userArray.map(({ CharacterHash }) => characterMarketOrdersQuery(CharacterHash)),
+    queries: characters.map(({ CharacterHash }) => characterMarketOrdersQuery(CharacterHash)),
     combine: combineFunction,
   });
 

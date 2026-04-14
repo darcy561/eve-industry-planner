@@ -86,7 +86,7 @@ export default function useShoppingListReducer() {
      * Creates the initial state for the shopping list dialog.
      * 
      * Determines initial values based on current user data and application settings,
-     * including parent user information, available characters, and default asset locations.
+     * including main character data, available characters, and default asset locations.
      * 
      * @returns {Object} Initial state object
      * @returns {boolean} returns.isOpen - Dialog closed by default
@@ -100,8 +100,8 @@ export default function useShoppingListReducer() {
      * @returns {boolean} returns.useCorporationAssets - Corporation assets disabled by default
      * @returns {Array} returns.assetLocations - Empty asset locations array
      * @returns {number|null} returns.selectedAssetLocation - Default asset location from settings
-     * @returns {string|null} returns.selectedCharacter - All users if multiple, parent user if single
-     * @returns {number|null} returns.selectedCorporation - Parent user's corporation ID
+     * @returns {string|null} returns.selectedCharacter - All characters if multiple, main character if single
+     * @returns {number|null} returns.selectedCorporation - Main character's corporation ID
      */
     const createInitialState = () => ({
         isOpen: false,
@@ -113,11 +113,14 @@ export default function useShoppingListReducer() {
         assetType: null, // null, "character", or "corporation"
         assetsImportedFromClipboard: false,
         assetLocations: [],
-        selectedAssetLocation: useUsersStore.getState().applicationSettings.defaultAssetLocation,
-        selectedCharacter: useUsersStore.getState().users.userArray.length > 1
+        selectedAssetLocation:
+          useUsersStore.getState().applicationSettings
+            .defaultStationIDForAssets,
+        selectedCharacter: useUsersStore.getState().account.characters.length > 1
             ? "allUsers"
-            : useUsersStore.getState().users.actions.findParentUser().CharacterHash,
-        selectedCorporation: useUsersStore.getState().users.actions.findParentUser().corporation_id || useUsersStore.getState().users.actions.findParentUser().corporation_id,
+            : useUsersStore.getState().account.actions.getMainCharacterHash() ||
+              "allUsers",
+        selectedCorporation: useUsersStore.getState().account.actions.getMainCorporation()?.corporation_id || null,
         selectedCorporationOffice: null,
         selectedCorporationHangar: null,
         appliedAssetsCount: 0,
@@ -374,7 +377,6 @@ export default function useShoppingListReducer() {
             dispatch({ type: SHOPPING_LIST_ACTION_TYPES.RESET_STATE });
         },
     }), [dispatch]);
-
 
     return {
         state,

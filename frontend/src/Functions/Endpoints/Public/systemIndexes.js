@@ -1,9 +1,12 @@
 import { fetchWithPublicHeaders } from "./applyPublicHeaders.js";
+import { MAX_BATCH_SYSTEM_OR_TYPE_IDS } from "./apiLimits.js";
 
 /**
  * Retrieves system index data from API for specified system IDs.
  * Uses POST request to send system IDs in the request body.
  * Automatically applies public headers (X-User-Agent).
+ *
+ * Retries: `fetchWithPublicHeaders` (408 / 429 / 5xx). Handler: `SystemIndexesHandler` (`services/api/v1endpoints/systemIndex.go`) — 405/400 non-retriable; 200 JSON on success.
  * 
  * @param {Array<number>|Set<number>} inputArray - Array or Set of solar system IDs to get index data for
  * @returns {Promise<Object>} Promise that resolves to object with system IDs as keys
@@ -28,39 +31,47 @@ async function fetchSystemIndexes(inputArray) {
 
   const URL = `/api/v1/systemindexes/query`;
 
-  let response;
   try {
-    response = await fetchWithPublicHeaders(URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ system_ids: ids }),
-    }, { requestName: "fetchSystemIndexes" });
-
-    if (!response.ok) {
-      return returnObject;
+    const chunks = [];
+    for (let i = 0; i < ids.length; i += MAX_BATCH_SYSTEM_OR_TYPE_IDS) {
+      chunks.push(ids.slice(i, i + MAX_BATCH_SYSTEM_OR_TYPE_IDS));
     }
 
-    // Check if response is actually JSON
-    const contentType = response.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
-      console.error("Expected JSON response but got:", contentType);
-      return returnObject;
-    }
+    const mergeChunk = async (chunkIds) => {
+      const response = await fetchWithPublicHeaders(
+        URL,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ system_ids: chunkIds }),
+        },
+        { requestName: "fetchSystemIndexes" }
+      );
 
-    // Parse JSON response (browser automatically handles gzip decompression)
-    const responseData = await response.json();
+      if (!response.ok) {
+        return;
+      }
 
-    // Convert string keys to number keys
-    if (responseData && typeof responseData === 'object') {
-      for (const [key, value] of Object.entries(responseData)) {
-        const numericKey = Number(key);
-        if (!isNaN(numericKey)) {
-          returnObject[numericKey] = value;
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        console.error("Expected JSON response but got:", contentType);
+        return;
+      }
+
+      const responseData = await response.json();
+      if (responseData && typeof responseData === "object") {
+        for (const [key, value] of Object.entries(responseData)) {
+          const numericKey = Number(key);
+          if (!isNaN(numericKey)) {
+            returnObject[numericKey] = value;
+          }
         }
       }
-    }
+    };
+
+    await Promise.all(chunks.map((chunk) => mergeChunk(chunk)));
   } catch (error) {
     console.error("Error fetching system indexes:", error);
     return returnObject;

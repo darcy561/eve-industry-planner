@@ -9,6 +9,7 @@ import (
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/logs"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/mongo/otelmongo"
@@ -22,8 +23,16 @@ var (
 	// CollectionUsers is the name of the users collection
 	CollectionUsers = "users"
 
-	// CollectionJobs is the name of the jobs collection
+	// CollectionJobs is the name of the live planner jobs collection.
+	// Documents are scoped by Job.MetaData.AccountID (BSON _meta.accountID), not top-level accountID.
 	CollectionJobs = "jobs"
+
+	// CollectionArchivedJobs holds jobs imported from Firestore ArchivedJobs (distinct from live planner jobs).
+	// Ownership is keyed by Job.MetaData.AccountID (BSON _meta.accountID), not top-level accountID.
+	CollectionArchivedJobs = "archivedJobs"
+
+	// CollectionBuildStats holds per-account, per-type aggregated stats from processed archived jobs (was Firestore BuildStats).
+	CollectionBuildStats = "build_stats"
 
 	// CollectionGroups is the name of the groups collection
 	CollectionGroups = "groups"
@@ -34,6 +43,18 @@ var (
 	// CollectionBlueprints is the static SDE blueprint recipes collection.
 	CollectionBlueprints = "blueprints"
 )
+
+// ArchivedJobsUpsertUnset clears legacy top-level keys on archivedJobs upserts. Lifecycle and
+// archiveProcessed belong under _meta only; $set with models.Job does not include these roots,
+// so stale values from Firestore-era documents would otherwise remain.
+var ArchivedJobsUpsertUnset = bson.M{
+	"accountID":        "",
+	"archiveProcessed": "",
+	"archived":         "",
+	"archiveTimeStamp": "",
+	"deleted":          "",
+	"deletedTimeStamp": "",
+}
 
 // connectMongo is a generic connection function that establishes a MongoDB client
 // with the provided URL and connection options builder function
@@ -101,6 +122,26 @@ func ConnectPrimary() (*mongo.Client, error) {
 	}
 
 	return connectMongo(cfg.MONGO_URL, "Mongo", configureOpts)
+}
+
+// ConnectFromMongoEnv connects using [config.MongoURLFromEnv] only (no Redis or other service env).
+// Use from CLIs and one-off tools.
+func ConnectFromMongoEnv() (*mongo.Client, error) {
+	mongoURL, err := config.MongoURLFromEnv()
+	if err != nil {
+		return nil, err
+	}
+	configureOpts := func(opts *options.ClientOptions) {
+		opts.SetConnectTimeout(10 * time.Second)
+		opts.SetServerSelectionTimeout(10 * time.Second)
+		opts.SetSocketTimeout(10 * time.Second)
+		opts.SetHeartbeatInterval(10 * time.Second)
+		opts.SetMaxPoolSize(10)
+		opts.SetMinPoolSize(1)
+		opts.SetRetryWrites(true)
+		opts.SetRetryReads(true)
+	}
+	return connectMongo(mongoURL, "Mongo", configureOpts)
 }
 
 // monitorMongoConnection periodically checks MongoDB connection health and logs reconnections

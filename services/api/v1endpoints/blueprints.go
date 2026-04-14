@@ -18,6 +18,15 @@ const (
 	blueprintsCacheControl = "public, max-age=1800, s-maxage=3600"
 )
 
+// BlueprintsHandler serves GET /api/v1/blueprints/{id} and POST /api/v1/blueprints with JSON body { idArray }.
+// Public route: global middleware → rate limit only (no auth). Align client retries with withRequestRetries / defaultIsRetriableHttpStatus (408, 429, 5xx).
+//
+//	405 — wrong HTTP method
+//	400 — missing blueprint ID (GET), invalid JSON or idArray (POST)
+//	404 — blueprint not found (GET)
+//	503 — Mongo client unavailable
+//	500 — Mongo query or encode failure
+//	200 — JSON success
 func BlueprintsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
 	switch r.Method {
@@ -82,6 +91,8 @@ type BlueprintsPostBody struct {
 	IDArray []int `json:"idArray"`
 }
 
+// BlueprintsPostHandler accepts any non-empty idArray; there is no per-request ID count cap beyond
+// helper.DefaultMaxBodySize (1MB JSON) and Mongo query timeout.
 func BlueprintsPostHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
 	start, ok := logs.RequestStartTime(ctx)

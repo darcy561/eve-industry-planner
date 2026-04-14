@@ -8,8 +8,8 @@ import (
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
 	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
@@ -58,7 +58,7 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 	retryConfig.OperationName = fmt.Sprintf("find user document %s", accountID)
 
 	err = mongocore.RetryMongoOperation(ctx, retryConfig, func() error {
-		err := collection.FindOne(ctx, bson.M{"_id": accountID}).Decode(&userDoc)
+		err := collection.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&userDoc)
 		return err
 	})
 	if err != nil {
@@ -132,9 +132,9 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 
 	// Validate that accountID in document matches the JWT token accountID (if provided)
 	// If not provided, set it from token. If provided but wrong, reject.
-	if userDoc.AccountID != "" && userDoc.AccountID != accountID {
+	if userDoc.MetaData.AccountID != "" && userDoc.MetaData.AccountID != accountID {
 		m.Errors.WithLabelValues("account_id_mismatch").Inc(ctx)
-		logs.WarnCtx(ctx, "account ID mismatch", "token_account_id", accountID, "doc_account_id", userDoc.AccountID)
+		logs.WarnCtx(ctx, "account ID mismatch", "token_account_id", accountID, "doc_account_id", userDoc.MetaData.AccountID)
 		http.Error(w, "Account ID in document must match authenticated account", http.StatusForbidden)
 		return
 	}

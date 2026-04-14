@@ -18,7 +18,6 @@ export default function manufacturingTimeModifierCalculation(
     usersSkills) {
     if (timeEfficiencyValue == null || structureID == null || rigID == null || usersSkills == null) return 0;
 
-
     const industrySkill = usersSkills[3380]?.activeLevel ?? 0;
     const advIndustrySkill = usersSkills[3388]?.activeLevel ?? 0;
     const structureData = getStructureInfoFromID(jobTypes.manufacturing, structureID)?.time || 0;

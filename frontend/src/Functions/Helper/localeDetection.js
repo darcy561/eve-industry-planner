@@ -22,7 +22,6 @@ export function detectUserLocale() {
   );
 }
 
-
 export function normalizeLocaleForIntl(locale) {
   const fallbackLocale = "en-US";
 

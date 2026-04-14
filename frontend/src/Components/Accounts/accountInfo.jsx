@@ -4,8 +4,6 @@ import ContentPanel from "../../Styled Components/Paper/ContentPanel";
 import { LARGE_TEXT_FORMAT } from "../../Context/defaultValues";
 
 export function AccountInfo() {
-  const parentUser = useUsersStore.getState().users.actions.findParentUser();
-
   return (
     <ContentPanel
       title="Main Account"
@@ -20,7 +18,7 @@ export function AccountInfo() {
         </Grid>
         <Grid align="right" size={9}>
           <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
-            {parentUser.CharacterName}
+            {useUsersStore.getState().account.actions.getMainCharacterName()}
           </Typography>
         </Grid>
         <Grid size={3}>
@@ -30,7 +28,7 @@ export function AccountInfo() {
         </Grid>
         <Grid align="right" size={9}>
           <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
-            {parentUser.accountID}
+            {useUsersStore.getState().account.actions.getAccountID()}
           </Typography>
         </Grid>
       </Grid>

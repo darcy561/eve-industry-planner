@@ -8,11 +8,11 @@ async function getCharacterHistoricMarketOrders({
   config = {}
 }) {
   try {
-    if (!character || !character.aToken || !character.CharacterID) {
+    if (!character || !character.esiAccessToken || !character.CharacterID) {
       throw new Error("Character information is incomplete.");
     }
 
-    const { aToken, CharacterID } = character;
+    const { esiAccessToken, CharacterID } = character;
     const endpointURL = `https://esi.evetech.net/v1/characters/${CharacterID}/orders/history/?datasource=tranquility&page=${page}`;
 
     // Enhanced configuration for rate limiting
@@ -31,7 +31,7 @@ async function getCharacterHistoricMarketOrders({
       {
         headers: {
           "If-None-Match": existingData?.etag || "",
-          Authorization: `Bearer ${aToken}`,
+          Authorization: `Bearer ${esiAccessToken}`,
         },
       },
       enhancedConfig

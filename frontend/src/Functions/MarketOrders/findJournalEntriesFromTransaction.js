@@ -1,7 +1,6 @@
 import { getAllCachedCharacterJournal } from "../../Hooks/EveEsi/Character/useGetAllCharacterJournal";
 import { getAllCachedCorporationJournal } from "../../Hooks/EveEsi/Corporation/useGetAllCorporationJournal";
 
-
 export default function findJournalEntriesFromTransaction(transaction, queryClient) {
 
     const { data: characterJournal } = getAllCachedCharacterJournal(queryClient);

@@ -7,17 +7,17 @@ async function getCharacterTransactions({
   existingData = {},
 }) {
   try {
-    if (!character || !character.aToken || !character.CharacterID) {
+    if (!character || !character.esiAccessToken || !character.CharacterID) {
       throw new Error("Character information is incomplete.");
     }
 
-    const { aToken, CharacterID } = character;
+    const { esiAccessToken, CharacterID } = character;
     const endpointURL = `https://esi.evetech.net/v1/characters/${CharacterID}/wallet/transactions/?datasource=tranquility&page=${page}`;
 
     const response = await fetchWithCustomHeaders(endpointURL, {
       headers: {
         "If-None-Match": existingData?.etag || "",
-        Authorization: `Bearer ${aToken}`,
+        Authorization: `Bearer ${esiAccessToken}`,
       },
     });
 

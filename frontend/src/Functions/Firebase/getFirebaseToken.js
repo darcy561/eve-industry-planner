@@ -2,6 +2,7 @@ import { getToken } from "firebase/app-check";
 import { appCheck, auth } from "../../firebase";
 import { signInWithCustomToken } from "firebase/auth";
 import { getRuntimeEnv } from "../../utils/runtime-config";
+import useUsersStore from "../../Zustand/usersStore";
 
 /**
  * Generates and signs in with a Firebase custom token using EVE SSO credentials.
@@ -32,10 +33,13 @@ async function getFirebaseAuthToken(userObject) {
         headers: {
           "Content-Type": "application/json",
           "X-Firebase-AppCheck": appCheckToken.token,
-          "Access-Token": userObject.aToken,
+          "Access-Token": userObject.esiAccessToken,
           appVersion: __APP_VERSION__,
         },
-        body: JSON.stringify(userObject.getRefreshTokenObject()),
+        body: JSON.stringify({
+          ...userObject.getRefreshTokenObject(),
+          UID: useUsersStore.getState().account.actions.getAccountID(),
+        }),
       }
     );
 

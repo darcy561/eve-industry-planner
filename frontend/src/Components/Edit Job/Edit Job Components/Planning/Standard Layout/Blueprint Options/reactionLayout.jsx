@@ -23,7 +23,7 @@ export function ReactionLayout_BlueprintOptions({ state }) {
     error: industryJobsError,
   } = useGetAllIndustryJobs();
 
-  const users = useUsersStore((state) => state.users.userArray);
+  const characters = useUsersStore((state) => state.account.characters);
 
   // Memoize the processed blueprint options
   const blueprintOptions = useMemo(() => {
@@ -31,21 +31,21 @@ export function ReactionLayout_BlueprintOptions({ state }) {
       return [];
     }
 
-    const userBlueprints = [];
+    const perCharacterBlueprintRows = [];
     const corpBlueprints = [];
 
-    // Process user blueprints
-    users.forEach((user) => {
-      const userData = characterBlueprints?.[user.CharacterHash]?.data ?? [];
-      if (userData && userData.length > 0) {
-        const temp = userData.filter(
+    // Blueprints owned by each logged-in character
+    characters.forEach((character) => {
+      const rows = characterBlueprints?.[character.CharacterHash]?.data ?? [];
+      if (rows && rows.length > 0) {
+        const temp = rows.filter(
           (i) => i.type_id === state.activeJob.blueprintTypeID
         );
         temp.forEach((i) => {
-          i.owner_id = user.CharacterID;
+          i.owner_id = character.CharacterID;
         });
-        userBlueprints.push({
-          ownerID: user.CharacterID,
+        perCharacterBlueprintRows.push({
+          ownerID: character.CharacterID,
           blueprints: temp,
           totalBP: temp.reduce(
             (total, i) => (i.quantity > 0 ? total + i.quantity : total + 1),
@@ -94,7 +94,7 @@ export function ReactionLayout_BlueprintOptions({ state }) {
     }
 
     // Combine and sort blueprints
-    const combinedBlueprints = [...userBlueprints, ...corpBlueprints];
+    const combinedBlueprints = [...perCharacterBlueprintRows, ...corpBlueprints];
     const filteredBlueprints = combinedBlueprints.filter(
       (i) => i.blueprints.length > 0
     );
@@ -111,7 +111,7 @@ export function ReactionLayout_BlueprintOptions({ state }) {
     characterBlueprints,
     corporationBlueprints,
     industryJobs,
-    users,
+    characters,
     state.activeJob.blueprintTypeID,
   ]);
 

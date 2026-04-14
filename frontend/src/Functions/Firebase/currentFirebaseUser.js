@@ -2,9 +2,9 @@ import { auth } from "../../firebase";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
- * Gets the current Firebase user ID or falls back to the parent user's account ID.
+ * Gets the current Firebase user ID or falls back to the logged-in account ID from the store.
  * 
- * @returns {string|null} Firebase user ID or parent user account ID, null if not available
+ * @returns {string|null} Firebase user ID or Mongo account id, null if not available
  * 
  * @example
  * const userId = getCurrentFirebaseUser();
@@ -15,8 +15,7 @@ import useUsersStore from "../../Zustand/usersStore";
 function getCurrentFirebaseUser() {
   const user = auth.currentUser;
   return (
-    user?.uid ||
-    useUsersStore.getState().users.actions.findParentUser().accountID
+    user?.uid || useUsersStore.getState().account.actions.getAccountID() || null
   );
 }
 

@@ -2,11 +2,11 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
 
 async function getCorpBlueprints({ character, page = 1, existingData = {}, config = {} }) {
   try {
-    if (!character || !character.aToken || !character.corporation_id) {
+    if (!character || !character.esiAccessToken || !character.corporation_id) {
       throw new Error("Character information is incomplete.");
     }
 
-    const { aToken, corporation_id } = character;
+    const { esiAccessToken, corporation_id } = character;
     const endpointURL = `https://esi.evetech.net/v3/corporations/${corporation_id}/blueprints/?datasource=tranquility&page=${page}`;
 
     // Enhanced configuration for rate limiting
@@ -25,7 +25,7 @@ async function getCorpBlueprints({ character, page = 1, existingData = {}, confi
       {
         headers: {
           "If-None-Match": existingData?.etag || "",
-          Authorization: `Bearer ${aToken}`,
+          Authorization: `Bearer ${esiAccessToken}`,
         },
       },
       enhancedConfig

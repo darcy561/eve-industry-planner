@@ -20,7 +20,7 @@ import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel
 
 export function EditJobSetup(props) {
   const { state, actions } = props;
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
 
   const getCustomStructureWithID =
     useUsersStore.getState().applicationSettings.actions
@@ -167,7 +167,7 @@ function ManualStructureSelection({
     useState(false);
   const { recalcuateJobFromSetup } = useUpdateSetupValue();
 
-  if (state.activeJob.build.setup[setupToEdit].customStructureID) return null;
+  if (state.activeJob.build.setup[setupToEdit].customStructureID !== "") return null;
 
   return (
     <>

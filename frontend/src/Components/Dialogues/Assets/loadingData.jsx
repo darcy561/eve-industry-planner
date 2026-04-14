@@ -1,6 +1,5 @@
 import { CircularProgress, Alert, Grid } from "@mui/material";
 
-
 export default function LoadingAssetDataAndError(props) {
   const {
     state,

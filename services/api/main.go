@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
@@ -34,6 +34,7 @@ func main() {
 	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) { _ = ts(c) })
 
 	apimetrics.RegisterSSORefreshDistinctGauges(clients.Redis)
+	apimetrics.RegisterAuthSessionDistinctGauges(clients.Redis)
 
 	logs.DebugCtx(ctx, "api service running")
 

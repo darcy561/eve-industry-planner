@@ -249,8 +249,8 @@ export async function getCachedData(fileName) {
   } catch (error) {
     console.error(`Error getting ${fileName}:`, error);
 
-    // Only report to Sentry in production
-    if (import.meta.env.MODE === "production") {
+    // Match AppWrapper Sentry: skip reporting only when ENVIRONMENT is development
+    if (import.meta.env.ENVIRONMENT !== "development") {
       Sentry.captureException(error, {
         tags: {
           fileName,

@@ -9,11 +9,11 @@ async function getCorpJournal({
   config = {},
 }) {
   try {
-    if (!character || !character.aToken || !character.corporation_id) {
+    if (!character || !character.esiAccessToken || !character.corporation_id) {
       throw new Error("Character information is incomplete.");
     }
 
-    const { aToken, corporation_id } = character;
+    const { esiAccessToken, corporation_id } = character;
     const endpointURL = `https://esi.evetech.net/v4/corporations/${corporation_id}/wallets/${division}/journal/?datasource=tranquility&page=${page}`;
 
     // Enhanced configuration for rate limiting
@@ -32,7 +32,7 @@ async function getCorpJournal({
       {
         headers: {
           "If-None-Match": existingData?.etag?.[division]?.[page] ?? "",
-          Authorization: `Bearer ${aToken}`,
+          Authorization: `Bearer ${esiAccessToken}`,
         },
       },
       enhancedConfig

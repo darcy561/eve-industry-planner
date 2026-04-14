@@ -3,7 +3,7 @@ import { getAllCachedCorporationTransactions } from "../../Hooks/EveEsi/Corporat
 import useUsersStore from "../../Zustand/usersStore";
 
 export default function findTransactionsForMarketOrders(order, queryClient, existingMatchedTransactionIDs = new Set(), temporaryTransactionsToAdd = [], temporaryTransactionsToRemove = []) {
-    const linkedTransactions = useUsersStore.getState().users.linkedTrans;
+    const linkedTransactions = useUsersStore.getState().account.linkedTrans;
     const { data: characterTransactions } = getAllCachedCharacterTransactions(queryClient);
     const { data: corporationTransactions } = getAllCachedCorporationTransactions(queryClient);
 

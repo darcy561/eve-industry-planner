@@ -8,7 +8,11 @@
  * @author EVE Industry Planner Team
  */
 
-export { stateDefault, coreActions } from './core.js';
+export {
+  stateDefault,
+  coreActions,
+  mergeApplicationSettingsState,
+} from './core.js';
 export { structureActions } from './structures.js';
 export { preferencesActions } from './preferences.js';
 export { extrasActions } from './extras.js';

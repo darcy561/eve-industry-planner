@@ -37,7 +37,7 @@ export function useGroupPageSideMenuFunctions(
   groupJobs,
   pageRequiresDrawerToBeOpen
 ) {
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const { multiSelect, groupArray, userJobSnapshot } = useUsersStore((state) => state.jobData);
   const { addToMultiSelect, clearMultiSelect, replaceGroupArray, getActiveGroupObject, addRetrievedJobsToJobArray } =
     useUsersStore.getState().jobData.actions;

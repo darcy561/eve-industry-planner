@@ -1,20 +1,26 @@
 import { Button, Tooltip } from "@mui/material";
 import { getAnalytics, logEvent } from "firebase/analytics";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import deleteJobFromFirebase from "../../../../../../Functions/Firebase/deleteJob";
 import uploadJobSnapshotsToFirebase from "../../../../../../Functions/Firebase/uploadJobSnapshots";
-import uploadApplicationSettingsToFirebase from "../../../../../../Functions/Firebase/uploadApplicationSettings";
-import archiveJobInFirebase from "../../../../../../Functions/Firebase/archiveJob";
-import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
+import { saveUserAccountDocument } from "../../../../../../Functions/Endpoints/Pirivate/userDocument";
+import saveArchivedJobs from "../../../../../../Functions/Endpoints/Pirivate/archivedJobs";
+import {
+  showSnackbarError,
+  showSnackbarSuccess,
+} from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import getCurrentFirebaseUser from "../../../../../../Functions/Firebase/currentFirebaseUser";
+import { invalidateBuildStatsQuery } from "../../../../../../Hooks/React Query/Backend/buildStats";
 
 export function ArchiveJobButton({ state }) {
   const { activeGroupID, userJobSnapshot } = useUsersStore((state) => state.jobData);
   const { removeJobsFromUserJobSnapshotArray, removeJobsFromJobArray } = useUsersStore.getState().jobData.actions;
-  const isLoggedIn = useUsersStore((state) => state.users.isLoggedIn);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const analytics = getAnalytics();
   const navigate = useNavigate({ from: '/editjob/$jobID' });
+  const queryClient = useQueryClient();
 
   const archiveJobProcess = async () => {
     logEvent(analytics, "Archive Job", {
@@ -23,7 +29,7 @@ export function ArchiveJobButton({ state }) {
       itemID: state.activeJob.itemID,
     });
 
-    useUsersStore.getState().users.actions.addLinkedEsiData({
+    useUsersStore.getState().account.actions.addLinkedEsiData({
       ordersToAdd: new Set(),
       jobsToAdd: new Set(),
       transactionsToAdd: new Set(),
@@ -32,12 +38,19 @@ export function ArchiveJobButton({ state }) {
       transactionsToRemove: state.activeJob.apiTransactions,
     });
 
+    const archivedOk = await saveArchivedJobs([state.activeJob]);
+    if (!archivedOk) {
+      showSnackbarError("Could not archive job on the server. Please try again.");
+      return;
+    }
+
+    invalidateBuildStatsQuery(queryClient, state.activeJob.itemID);
+
     showSnackbarSuccess(`${state.activeJob.name} Archived`);
 
     await uploadJobSnapshotsToFirebase(userJobSnapshot.filter(i => i.jobID !== state.activeJob.jobID));
-    await archiveJobInFirebase(state.activeJob);
     await deleteJobFromFirebase(state.activeJob);
-    await uploadApplicationSettingsToFirebase();
+    await saveUserAccountDocument();
     removeJobsFromJobArray(state.activeJob.jobID);
     removeJobsFromUserJobSnapshotArray(state.activeJob.jobID);
     navigate({ to: "/jobplanner" });

@@ -124,14 +124,14 @@ function removeDuplicateTransactions(transactions) {
 /**
  * Utility function to create transactions object organized by corporation ID only.
  * 
- * @param {Array<Object>} userArray - Array of user objects
+ * @param {Array<Object>} characters - Array of user objects
  * @param {Array<Object>} dataArray - Array of data objects (query results or cached data)
  * @param {boolean} isCachedData - Whether the data is from cache
  * @returns {Object} Object with corporation IDs as keys and transaction arrays as values
  * 
  * @private
  */
-function createTransactionsByCorporationObject(userArray, dataArray, isCachedData = false) {
+function createTransactionsByCorporationObject(characters, dataArray, isCachedData = false) {
   // Collect all transactions from all characters
   let allTransactions = [];
   
@@ -193,10 +193,10 @@ function createTransactionsByCorporationObject(userArray, dataArray, isCachedDat
  * }
  */
 export function getAllCachedCorporationTransactions(queryClient) {
-  const userArray = useUsersStore.getState().users.userArray;
+  const characters = useUsersStore.getState().account.characters;
 
   // Get query states for all users
-  const queryStates = userArray.map((user) => {
+  const queryStates = characters.map((user) => {
     const queryKey = [corporationTransactionsQueryKey, user.CharacterHash];
     
     const queryState = queryClient.getQueryState(queryKey);
@@ -225,7 +225,7 @@ export function getAllCachedCorporationTransactions(queryClient) {
   }
 
   // Create object with corporation ID as key
-  const transactionsByCorporation = createTransactionsByCorporationObject(userArray, queryStates, true);
+  const transactionsByCorporation = createTransactionsByCorporationObject(characters, queryStates, true);
 
   return createSuccessObject(transactionsByCorporation);
 }
@@ -273,7 +273,7 @@ export function getAllCachedCorporationTransactions(queryClient) {
  * }
  */
 export function useGetAllCorporationTransactions() {
-  const userArray = useUsersStore.getState().users.userArray;
+  const characters = useUsersStore.getState().account.characters;
 
   const combineFunction = useCallback((results) => {
     const isLoading = checkLoadingState(results);
@@ -288,13 +288,13 @@ export function useGetAllCorporationTransactions() {
     }
 
     // Create object with corporation ID as key
-    const transactionsByCorporation = createTransactionsByCorporationObject(userArray, results, false);
+    const transactionsByCorporation = createTransactionsByCorporationObject(characters, results, false);
 
     return createSuccessObject(transactionsByCorporation);
-  }, [userArray]);
+  }, [characters]);
 
   const result = useQueries({
-    queries: userArray.map(({ CharacterHash }) => corporationTransactionsQuery(CharacterHash)),
+    queries: characters.map(({ CharacterHash }) => corporationTransactionsQuery(CharacterHash)),
     combine: combineFunction,
   });
 

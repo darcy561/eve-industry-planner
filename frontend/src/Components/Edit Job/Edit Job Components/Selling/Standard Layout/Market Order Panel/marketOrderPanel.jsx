@@ -20,7 +20,7 @@ export function MarketOrderPanel(props) {
     state.activeJob.build.sale.marketOrders.length === 0 ? "1" : "0"
   );
   const queryClient = useQueryClient();
-  const linkedOrders = useUsersStore((state) => state.users.linkedOrders);
+  const linkedOrders = useUsersStore((state) => state.account.linkedOrders);
 
   const {
     marketOrderMatches: itemOrderMatch,

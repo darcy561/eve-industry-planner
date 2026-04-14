@@ -13,7 +13,7 @@ import {
   Typography,
 } from "@mui/material";
 import { useState, useCallback } from "react";
-import uploadApplicationSettingsToFirebase from "../../../Functions/Firebase/uploadApplicationSettings";
+import { saveApplicationSettings } from "../../../Functions/Endpoints/Pirivate/userDocument";
 import { blueprintOptions } from "../../../Context/defaultValues";
 import uuid from "react-uuid";
 import VirtualisedRecipeSearch from "../../../Styled Components/autocomplete/virtualisedRecipeSearch";
@@ -28,10 +28,10 @@ function BlueprintSettingsFrame() {
     (state) => state.applicationSettings.defaultMaterialEfficiencyValue
   );
   const ignoreItemsWithoutBlueprints = useUsersStore(
-    (state) => state.applicationSettings.ignoreItemsWithoutBlueprints
+    (state) => state.applicationSettings.enableSkipMissingBlueprints
   );
   const automaticJobRecalculation = useUsersStore(
-    (state) => state.applicationSettings.automaticJobRecalculation
+    (state) => state.applicationSettings.enableAutomaticJobRecalculation
   );
   const exemptTypeIDs = useUsersStore(
     (state) => state.applicationSettings.exemptTypeIDs
@@ -66,7 +66,7 @@ function BlueprintSettingsFrame() {
               onChange={async (e) => {
                 if (!e.target.value) return;
                 updateDefaultMaterialEfficiencyValue(e.target.value);
-                await uploadApplicationSettingsToFirebase();
+                await saveApplicationSettings();
               }}
             >
               {blueprintOptions.me.map((i) => (
@@ -95,7 +95,7 @@ function BlueprintSettingsFrame() {
                 checked={automaticJobRecalculation}
                 onChange={async () => {
                   toggleAutomaticJobRecalculation();
-                  await uploadApplicationSettingsToFirebase();
+                  await saveApplicationSettings();
                 }}
               />
             }
@@ -116,7 +116,7 @@ function BlueprintSettingsFrame() {
                 checked={ignoreItemsWithoutBlueprints}
                 onChange={async () => {
                   toggleIgnoreItemsWithoutBlueprints();
-                  await uploadApplicationSettingsToFirebase();
+                  await saveApplicationSettings();
                 }}
               />
             }
@@ -145,7 +145,7 @@ function BlueprintSettingsFrame() {
               <VirtualisedRecipeSearch
                 onSelect={async (value) => {
                   addExemptTypeID(value.itemID);
-                  await uploadApplicationSettingsToFirebase();
+                  await saveApplicationSettings();
                 }}
                 ignoreSelectionOverides={true}
               />
@@ -170,7 +170,7 @@ function BlueprintSettingsFrame() {
                 deleteIcon={<ClearIcon />}
                 onDelete={async () => {
                   removeExemptTypeID(id);
-                  await uploadApplicationSettingsToFirebase();
+                  await saveApplicationSettings();
                 }}
                 avatar={
                   <Avatar

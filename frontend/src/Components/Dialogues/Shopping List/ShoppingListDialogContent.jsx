@@ -22,7 +22,7 @@ import { ListDataFrame_ShoppingListDialog } from "./shoppingListDataFrame";
 import { AssetsFromClipboardButton_ShoppingList } from "./assetsFromClipboardButton";
 import getMarketData from "../../../Functions/MarketData/findMarketData";
 import useUsersStore from "../../../Zustand/usersStore";
-import ShoppingList from "../../../Classes/shoppingListConstructor";
+import ShoppingList from "../../../Classes/shoppingList";
 import UseAssetsButton_ShoppingList from "./useAssetsButton";
 import SelectAssetLocation_ShoppingListDialog from "./assetLocationsSelection";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";

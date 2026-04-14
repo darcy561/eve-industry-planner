@@ -24,7 +24,7 @@ export function LinkedJobBadge(props) {
   const navigate = useNavigate({ from: '/editjob/$jobID' });
 
   function findParent(inputID) {
-    if (!state.activeJob.groupID) {
+    if (!state.activeJob.includedInGroup) {
       return findJobInUserJobSnapshotArray(inputID);
     } else {
       return findJobInJobArray(inputID);

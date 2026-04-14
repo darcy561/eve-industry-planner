@@ -25,7 +25,7 @@ export function JobSetupCard({ setupEntry, state, actions }) {
   const assignedCharacterName =
     useUsersStore
       .getState()
-      .users.actions.findUserByCharacterHash(setupEntry.selectedCharacter)
+      .account.actions.findCharacterByHash(setupEntry.selectedCharacter)
       ?.CharacterName || "No Matching Character Found";
 
   return (
@@ -90,7 +90,7 @@ export function JobSetupCard({ setupEntry, state, actions }) {
                   {assignedCharacterName}
                 </Typography>
               </Grid>
-              {setupEntry.customStructureID ? (
+              {setupEntry.customStructureID !== "" ? (
                 <UseCustomStructure setupEntry={setupEntry} />
               ) : (
                 <UseDefaultStructures setupEntry={setupEntry} />

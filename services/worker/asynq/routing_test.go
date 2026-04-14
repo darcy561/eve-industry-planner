@@ -9,7 +9,7 @@ import (
 
 func TestGetTaskTimeout_DefaultPerTaskType(t *testing.T) {
 	got := GetTaskTimeout("refreshMarketPrices", 0)
-	want := 30 * time.Minute
+	want := taskscore.RefreshMarketPrices.DefaultTimeout
 	if got != want {
 		t.Fatalf("GetTaskTimeout(refreshMarketPrices, 0) = %v, want %v", got, want)
 	}

@@ -9,6 +9,7 @@ import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
  * @param {boolean} props.isLoading - Whether to show the loading state
  * @param {boolean} props.isError - Whether to show the error state
  * @param {Error} [props.error] - Error object containing error details to display
+ * @param {string} [props.loadingMessage="Gathering ESI Data..."] - Caption under the loading spinner
  * @returns {JSX.Element} Panel fallback component
  * 
  * @example
@@ -17,7 +18,12 @@ import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
  *   isError={false}
  * />
  */
-export default function PanelFallBack({ isLoading, isError, error }) {
+export default function PanelFallBack({
+  isLoading,
+  isError,
+  error,
+  loadingMessage = "Gathering ESI Data...",
+}) {
   if (isLoading) {
     return (
       <Box
@@ -31,7 +37,7 @@ export default function PanelFallBack({ isLoading, isError, error }) {
       >
         <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
           <CircularProgress />
-          <Typography variant="caption">Gathering ESI Data...</Typography>
+          <Typography variant="caption">{loadingMessage}</Typography>
         </Box>
       </Box>
     );

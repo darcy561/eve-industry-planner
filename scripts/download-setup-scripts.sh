@@ -51,21 +51,30 @@ apply_public_archive() {
     tar -xzf "$tgz" -C "$TMP"
     local ROOT
     ROOT=$(find "$TMP" -mindepth 1 -maxdepth 1 -type d | head -1)
-    if [ -z "$ROOT" ] || [ ! -d "$ROOT/observability" ] || [ ! -d "$ROOT/scripts" ]; then
-        echo "Error: unexpected archive layout (expected observability/ and scripts/)" >&2
+    if [ -z "$ROOT" ] || [ ! -f "$ROOT/docker-compose.yml" ] || [ ! -d "$ROOT/scripts" ]; then
+        echo "Error: unexpected archive layout (expected docker-compose.yml and scripts/)" >&2
         return 1
     fi
 
     mkdir -p "$RUN_DIR/scripts"
     cp -f "$ROOT/docker-compose.yml" "$RUN_DIR/"
 
-    if command -v rsync >/dev/null 2>&1; then
-        mkdir -p "$RUN_DIR/observability"
-        rsync -a --delete "$ROOT/observability/" "$RUN_DIR/observability/"
-        rsync -a --delete "$ROOT/scripts/" "$RUN_DIR/scripts/"
+    if [ -d "$ROOT/observability" ]; then
+        if command -v rsync >/dev/null 2>&1; then
+            mkdir -p "$RUN_DIR/observability"
+            rsync -a --delete "$ROOT/observability/" "$RUN_DIR/observability/"
+        else
+            rm -rf "$RUN_DIR/observability"
+            cp -a "$ROOT/observability" "$RUN_DIR/"
+        fi
     else
         rm -rf "$RUN_DIR/observability"
-        cp -a "$ROOT/observability" "$RUN_DIR/"
+        echo "Note: observability/ not in Public archive; removed local observability/." >&2
+    fi
+
+    if command -v rsync >/dev/null 2>&1; then
+        rsync -a --delete "$ROOT/scripts/" "$RUN_DIR/scripts/"
+    else
         mkdir -p "$RUN_DIR/scripts"
         shopt -s nullglob
         for f in "$ROOT/scripts"/*; do
@@ -73,7 +82,11 @@ apply_public_archive() {
         done
         shopt -u nullglob
     fi
-    chmod +x "$RUN_DIR/scripts"/*.sh 2>/dev/null || true
+    shopt -s nullglob
+    for f in "$RUN_DIR/scripts"/*.sh; do
+        chmod +x "$f"
+    done
+    shopt -u nullglob
 
     local vf="$RUN_DIR/.downloaded-versions.json"
     if command -v jq >/dev/null 2>&1; then
@@ -87,7 +100,7 @@ apply_public_archive() {
            "$vf" > "${vf}.tmp" && mv "${vf}.tmp" "$vf"
     fi
 
-    echo "Synced docker-compose.yml, observability/, and scripts/ from Public branch."
+    echo "Synced docker-compose.yml, scripts/, and observability/ (if present) from Public branch."
 }
 
 deployment_incomplete() {

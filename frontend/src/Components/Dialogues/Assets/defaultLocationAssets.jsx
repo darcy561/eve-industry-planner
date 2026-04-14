@@ -6,7 +6,7 @@ import useUsersStore from "../../../Zustand/usersStore";
 export default function DefaultLocationAssets(props) {
   const { state } = props;
   const defaultAssetLocation = useUsersStore(
-    (state) => state.applicationSettings.defaultAssetLocation
+    (state) => state.applicationSettings.defaultStationIDForAssets
   );
 
   if (

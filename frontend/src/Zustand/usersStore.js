@@ -13,6 +13,7 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import applicationSettingsSlice from "./applicationSettingsSlice";
+import accountSlice from "./accountSlice";
 import userSettingsSlice from "./userSlice";
 import worldDataSlice from "./worldDataSlIce";
 import jobsSlice from "./jobsSlice";
@@ -35,12 +36,14 @@ const createUsersStore = () =>
       (set, get) => ({
         ...userSettingsSlice(set, get),
         ...applicationSettingsSlice(set, get),
+        ...accountSlice(set, get),
         ...worldDataSlice(set, get),
         ...jobsSlice(set, get),
       }),
       {
         name: "usersStore",
-        enabled: process.env.ENVIRONMENT === "development",
+        // import.meta.env.ENVIRONMENT is defined in vite.config (same merged .ENVIRONMENT as root .env)
+        enabled: import.meta.env.ENVIRONMENT === "development",
       }
     )
   );

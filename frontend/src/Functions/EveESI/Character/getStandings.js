@@ -5,17 +5,17 @@ async function getCharacterStandings({
   existingData = {},
 }) {
   try {
-    if (!character || !character.aToken || !character.CharacterID) {
+    if (!character || !character.esiAccessToken || !character.CharacterID) {
       throw new Error("Character information is incomplete.");
     }
 
-    const { aToken, CharacterID } = character;
+    const { esiAccessToken, CharacterID } = character;
     const endpointURL = `https://esi.evetech.net/v2/characters/${CharacterID}/standings/?datasource=tranquility`;
 
     const response = await fetchWithCustomHeaders(endpointURL, {
       headers: {
         "If-None-Match": existingData?.etag || "",
-        Authorization: `Bearer ${aToken}`,
+        Authorization: `Bearer ${esiAccessToken}`,
       },
     });
 

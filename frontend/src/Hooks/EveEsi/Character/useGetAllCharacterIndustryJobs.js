@@ -144,10 +144,10 @@ function deduplicateJobs(jobs) {
  * }
  */
 export function getCachedCharacterIndustryJobs(queryClient) {
-  const userArray = useUsersStore.getState().users.userArray;
+  const characters = useUsersStore.getState().account.characters;
 
   // Get query states for all characters
-  const queryStates = userArray.map(({ CharacterHash }) => {
+  const queryStates = characters.map(({ CharacterHash }) => {
     const queryKey = [characterIndustryJobsQueryKey, CharacterHash];
     return {
       queryState: queryClient.getQueryState(queryKey),
@@ -215,7 +215,7 @@ export function getCachedCharacterIndustryJobs(queryClient) {
  * }
  */
 function useGetAllCharacterIndustryJobs() {
-  const { userArray } = useUsersStore((state) => state.users);
+  const characters = useUsersStore((state) => state.account.characters);
 
   const combineFunction = useCallback((results) => {
     const isLoading = checkLoadingState(results);
@@ -232,10 +232,10 @@ function useGetAllCharacterIndustryJobs() {
     }
 
     return createSuccessObject(deduplicatedJobs);
-  }, [userArray]);
+  }, [characters]);
 
   const result = useQueries({
-    queries: userArray.map(({ CharacterHash }) => characterIndustryJobsQuery(CharacterHash)),
+    queries: characters.map(({ CharacterHash }) => characterIndustryJobsQuery(CharacterHash)),
     combine: combineFunction,
   });
 

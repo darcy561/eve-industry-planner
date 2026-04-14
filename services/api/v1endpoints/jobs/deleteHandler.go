@@ -68,8 +68,8 @@ func DeleteJobsHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 
 	// Build filter: must match accountID AND be in the provided jobIDs list
 	filter := bson.M{
-		"accountID": accountID,
-		"_id":       bson.M{"$in": reqBody.JobIDs},
+		"_meta.accountID": accountID,
+		"_id":             bson.M{"$in": reqBody.JobIDs},
 	}
 
 	retryConfig := mongocore.DefaultRetryConfig()

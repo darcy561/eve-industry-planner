@@ -74,11 +74,12 @@ function createGlobalDebouncedFunction(key, callback, delay = 1000) {
  * @example
  * // Using predefined keys (recommended)
  * import { DEBOUNCE_KEYS } from '../../Context/debounceKeys';
- * 
+ * import { saveApplicationSettings } from '../../Functions/Endpoints/Pirivate/userDocument';
+ *
  * function ComponentA() {
  *   const debouncedSaveSettings = useGlobalDebounce(
  *     DEBOUNCE_KEYS.APP_SETTINGS_SAVE,
- *     async () => await uploadApplicationSettingsToFirebase(),
+ *     async () => await saveApplicationSettings(),
  *     1000
  *   );
  *   

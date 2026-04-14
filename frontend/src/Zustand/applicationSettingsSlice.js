@@ -35,22 +35,13 @@ import {
  * }));
  */
 const applicationSettingsSlice = (set, get) => ({
-  //state
   applicationSettings: {
     ...stateDefault(),
 
-    //actions
     actions: {
-      // Core actions
       ...coreActions(set, get),
-      
-      // Structure management actions
       ...structureActions(set, get),
-      
-      // User preferences actions
       ...preferencesActions(set, get),
-      
-      // Extras management actions
       ...extrasActions(set, get),
     },
   },

@@ -1,4 +1,4 @@
-import ReprocessingItem from "../../Classes/reprocessingConstructor";
+import ReprocessingItem from "../../Classes/reprocessingItem";
 import { parseNumberWithSeparators } from "../Helper/numberParser";
 
 /**

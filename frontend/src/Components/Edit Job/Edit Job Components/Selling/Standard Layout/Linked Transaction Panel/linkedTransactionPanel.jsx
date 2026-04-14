@@ -21,8 +21,8 @@ export function LinkedTransactionPanel(props) {
   const { state, actions, activeOrder } = props;
   const [newTransactionTrigger, updateNewTransactionTrigger] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
-  const getCorporationObject =
-    useUsersStore.getState().users.actions.getCorporationObject;
+  const getCorporation =
+    useUsersStore.getState().account.actions.getCorporation;
 
   const handleMenuClick = (event) => {
     setAnchorEl(event.currentTarget);
@@ -91,9 +91,9 @@ export function LinkedTransactionPanel(props) {
             state.activeJob.build.sale.transactions.map((tData, index) => {
               const charData = useUsersStore
                 .getState()
-                .users.actions.findUserByCharacterHash(tData.CharacterHash);
+                .account.actions.findCharacterByHash(tData.CharacterHash);
 
-              const corpData = getCorporationObject(charData?.corporation_id);
+              const corpData = getCorporation(charData?.corporation_id);
 
               if (!activeOrder.some((t) => t !== tData.location_id)) {
                 return (

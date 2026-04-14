@@ -39,7 +39,7 @@ services:
     environment:
       OTEL_SERVICE_NAME: api
       DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
-    image: ghcr.io/darcy561/eve-industry-planner-api:Public-latest
+    image: ghcr.io/darcy561/eve-industry-planner-api:0.8.09
     deploy:
       replicas: 1
     depends_on:
@@ -78,13 +78,14 @@ services:
       - api_data:/data
       - static_data_files:/static-data
       - ./adminSDK.json:/app/adminSDK.json:ro
+      - ./adminSDKLive.json:/app/adminSDKLive.json:ro
 
   websocket:
     <<: *common-service-config
     environment:
       OTEL_SERVICE_NAME: websocket
       DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
-    image: ghcr.io/darcy561/eve-industry-planner-websocket:Public-latest
+    image: ghcr.io/darcy561/eve-industry-planner-websocket:0.8.09
     build:
       context: ./services
       dockerfile: websocket/Dockerfile
@@ -120,13 +121,21 @@ services:
     environment:
       OTEL_SERVICE_NAME: worker
       DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
-    image: ghcr.io/darcy561/eve-industry-planner-worker:Public-latest
+      # Live Firestore migration in dev: importUserAccountsFromFirestore -live enqueues UIDs from production
+      # Firestore, but migrateUserDocumentToMongo uses Firebase Admin here. Without matching credentials,
+      # GetUser returns not-found and tasks skip. Set in .env for the test window, then remove and recreate worker:
+      #   WORKER_GOOGLE_APPLICATION_CREDENTIALS=/app/adminSDKLive.json
+      #   WORKER_FIREBASE_PROJECT_ID=<project_id from adminSDKLive.json>
+      GOOGLE_APPLICATION_CREDENTIALS: ${WORKER_GOOGLE_APPLICATION_CREDENTIALS:-${GOOGLE_APPLICATION_CREDENTIALS}}
+      FIREBASE_PROJECT_ID: ${WORKER_FIREBASE_PROJECT_ID:-${FIREBASE_PROJECT_ID}}
+    image: ghcr.io/darcy561/eve-industry-planner-worker:0.8.09
     deploy:
       replicas: 1
     volumes:
       - worker_data:/data
       - static_data_files:/static-data
       - ./adminSDK.json:/app/adminSDK.json:ro
+      - ./adminSDKLive.json:/app/adminSDKLive.json:ro
 
   core:
     <<: *common-service-config
@@ -135,7 +144,7 @@ services:
       OTEL_SERVICE_NAME: core
       DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
     container_name: core
-    image: ghcr.io/darcy561/eve-industry-planner-core:Public-latest
+    image: ghcr.io/darcy561/eve-industry-planner-core:0.8.09
     healthcheck:
       test: ["CMD-SHELL", "test -f /data/core-ready"]
       interval: 5s
@@ -145,11 +154,14 @@ services:
     volumes:
       - core_data:/data
       - static_data_files:/static-data
+      # Firestore access for tasks importArchivedJobsFromFirestore / importUserAccountsFromFirestore (-dev: /app/adminSDK.json, -live: /app/adminSDKLive.json)
+      - ./adminSDK.json:/app/adminSDK.json:ro
+      - ./adminSDKLive.json:/app/adminSDKLive.json:ro
 
   frontend:
     <<: *common-service-config
     container_name: frontend
-    image: ghcr.io/darcy561/eve-industry-planner-frontend:Public-latest
+    image: ghcr.io/darcy561/eve-industry-planner-frontend:0.8.09
     depends_on:
       <<: *common-depends-on
       core:

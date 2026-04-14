@@ -6,11 +6,11 @@ import SystemTypeSelect from "../../../../Styled Components/Select/systemType";
 import RigTypeSelect from "../../../../Styled Components/Select/rigType";
 import ImplantSelect from "../../../../Styled Components/Select/implantSelecter";
 import { jobTypes } from "../../../../Context/defaultValues";
-import ReprocessingStructure from "../../../../Classes/reprocessingStructureConstructor";
+import ReprocessingStructure from "../../../../Classes/reprocessingStructure";
 import TaxPercentageTextField from "../../../../Styled Components/Textfield/tax";
 import { addCustomStructure as addCustomStructureFunction } from "../../../../Functions/Structure/addCustomStructure";
 import useUsersStore from "../../../../Zustand/usersStore";
-import uploadApplicationSettingsToFirebase from "../../../../Functions/Firebase/uploadApplicationSettings";
+import { saveApplicationSettings } from "../../../../Functions/Endpoints/Pirivate/userDocument";
 import DOMPurify from "dompurify";
 import { useGlobalDebounce } from "../../../../Hooks/GeneralHooks/useGlobalDebounce";
 import { DEBOUNCE_KEYS } from "../../../../Context/debounceKeys";
@@ -29,7 +29,7 @@ function ReprocessingStructureSelection({ selectedJobType, setIsLoading }) {
   const debouncedSaveSettings = useGlobalDebounce(
     DEBOUNCE_KEYS.APP_SETTINGS_SAVE,
     async () => {
-      await uploadApplicationSettingsToFirebase();
+      await saveApplicationSettings();
     },
     2000
   );

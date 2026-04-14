@@ -9,7 +9,7 @@ async function getCitadelData(citadelID, character, config = {}) {
       throw new Error("Input information is incomplete");
     }
 
-    const { aToken } = character;
+    const { esiAccessToken } = character;
 
     // Enhanced configuration for rate limiting
     const enhancedConfig = {
@@ -26,7 +26,7 @@ async function getCitadelData(citadelID, character, config = {}) {
       `https://esi.evetech.net/v2/universe/structures/${citadelID}/`,
       {
         headers: {
-          Authorization: `Bearer ${aToken}`,
+          Authorization: `Bearer ${esiAccessToken}`,
         },
       },
       enhancedConfig

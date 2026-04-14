@@ -5,8 +5,6 @@ import { Outlet } from "@tanstack/react-router";
 import { FeedbackIcon } from "./Components/Feedback/feedback";
 import GLOBAL_CONFIG from "./global-config-app";
 import { Box } from "@mui/material";
-import { getBoolean } from "firebase/remote-config";
-import { remoteConfig } from "./firebase";
 import MaintenanceMode from "./MaintenanceMode";
 import { ThemeProvider } from "./Context/ThemeContext";
 import ErrorBoundary from "./Components/ErrorBoundary";
@@ -15,10 +13,11 @@ import useCheckEveServerStatus from "./Hooks/useCheckEveServerStatus";
 import useVersionCheck from "./Hooks/GeneralHooks/useVersionCheck";
 import useFetchStaticDataFiles from "./Hooks/useFetchStaticDataFiles";
 import { useServiceWorker } from "./Hooks/useServiceWorker";
+import useAppConfig from "./Hooks/GeneralHooks/useAppConfig";
 const { ENABLE_FEEDBACK_ICON } = GLOBAL_CONFIG;
 
 export default function App() {
-  const isMaintenanceMode = getBoolean(remoteConfig, "maintenance_mode");
+  const { maintenance_mode: isMaintenanceMode = false } = useAppConfig();
 
   useRefreshESITokens();
   useCheckEveServerStatus();

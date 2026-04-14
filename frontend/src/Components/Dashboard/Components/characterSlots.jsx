@@ -32,7 +32,7 @@ export function ActiveCharacterSlots() {
         {activeCharSlots.map((char) => {
           const charName = useUsersStore
             .getState()
-            .users.actions.findUserByCharacterHash(
+            .account.actions.findCharacterByHash(
               char.characterHash
             )?.CharacterName;
 

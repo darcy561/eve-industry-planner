@@ -192,6 +192,53 @@ func GetAPISessionRefresh() *APISessionRefreshMetrics {
 	return sessionRefreshHolder
 }
 
+// APIAuthSessionLifecycleMetrics holds OTel metrics for auth session lifecycle events.
+type APIAuthSessionLifecycleMetrics struct {
+	Started      *counterVec
+	Continued    *counterVec
+	Stored       *counterVec
+	StoreErrors  *counterVec
+}
+
+var (
+	authSessionLifecycleOnce   sync.Once
+	authSessionLifecycleHolder *APIAuthSessionLifecycleMetrics
+)
+
+// GetAPIAuthSessionLifecycle returns auth session lifecycle metrics.
+func GetAPIAuthSessionLifecycle() *APIAuthSessionLifecycleMetrics {
+	authSessionLifecycleOnce.Do(func() {
+		m := apiMeter()
+		authSessionLifecycleHolder = &APIAuthSessionLifecycleMetrics{
+			Started: &counterVec{
+				c: mustCounter(m.Int64Counter("api.auth_sessions.started_total",
+					metric.WithDescription("Auth sessions started by flow"),
+				)),
+				attrKey: "flow",
+			},
+			Continued: &counterVec{
+				c: mustCounter(m.Int64Counter("api.auth_sessions.continued_total",
+					metric.WithDescription("Auth sessions continued by flow"),
+				)),
+				attrKey: "flow",
+			},
+			Stored: &counterVec{
+				c: mustCounter(m.Int64Counter("api.auth_sessions.stored_total",
+					metric.WithDescription("Session records successfully written by flow"),
+				)),
+				attrKey: "flow",
+			},
+			StoreErrors: &counterVec{
+				c: mustCounter(m.Int64Counter("api.auth_sessions.store_errors_total",
+					metric.WithDescription("Session record write failures by flow"),
+				)),
+				attrKey: "flow",
+			},
+		}
+	})
+	return authSessionLifecycleHolder
+}
+
 // APIAuthJWKSMetrics holds OpenTelemetry metrics for JWKS.
 type APIAuthJWKSMetrics struct {
 	Requests      *floatHist
@@ -225,6 +272,41 @@ func GetAPIAuthJWKS() *APIAuthJWKSMetrics {
 		}
 	})
 	return authJWKSHolder
+}
+
+// APIAppConfigMetrics holds OpenTelemetry metrics for GET /api/v1/app-config.
+type APIAppConfigMetrics struct {
+	Requests      *floatHist
+	RequestsCount *intCounter
+	Errors        *counterVec
+}
+
+var (
+	apiAppConfigOnce   sync.Once
+	apiAppConfigHolder *APIAppConfigMetrics
+)
+
+// GetAPIAppConfig returns app-config endpoint metrics.
+func GetAPIAppConfig() *APIAppConfigMetrics {
+	apiAppConfigOnce.Do(func() {
+		m := apiMeter()
+		apiAppConfigHolder = &APIAppConfigMetrics{
+			Requests: &floatHist{h: mustHist(m.Float64Histogram("api.app_config.duration_milliseconds",
+				metric.WithUnit("ms"),
+				metric.WithDescription("Latency of GET /api/v1/app-config (milliseconds)"),
+			))},
+			RequestsCount: &intCounter{c: mustCounter(m.Int64Counter("api.app_config.requests_total",
+				metric.WithDescription("Total app-config requests"),
+			))},
+			Errors: &counterVec{
+				c: mustCounter(m.Int64Counter("api.app_config.errors_total",
+					metric.WithDescription("App-config handler errors"),
+				)),
+				attrKey: "reason",
+			},
+		}
+	})
+	return apiAppConfigHolder
 }
 
 // APIEveSSOCodeExchangeMetrics holds OTel metrics for EVE OAuth authorization code exchange (auth code → EVE tokens).
@@ -355,6 +437,59 @@ func GetAPIJobs() *APIJobsMetrics {
 		}
 	})
 	return apiJobsHolder
+}
+
+// APIArchivedJobsMetrics holds OpenTelemetry metrics for PUT /api/v1/archived-jobs (Mongo archived jobs collection).
+type APIArchivedJobsMetrics struct {
+	Requests               *floatHist
+	RequestsCount          *intCounter
+	Successes              *intCounter
+	JobsRequested          *floatHist
+	JobsSaved              *intCounter // Mongo BulkWrite modified + upserted (usually equals batch size per successful PUT)
+	IndividualJobsArchived *intCounter // one increment per job document in each successful PUT (len(batch))
+	Errors                 *counterVec
+}
+
+var (
+	apiArchivedJobsOnce   sync.Once
+	apiArchivedJobsHolder *APIArchivedJobsMetrics
+)
+
+// GetAPIArchivedJobs returns archived-jobs API metrics.
+func GetAPIArchivedJobs() *APIArchivedJobsMetrics {
+	apiArchivedJobsOnce.Do(func() {
+		m := apiMeter()
+		apiArchivedJobsHolder = &APIArchivedJobsMetrics{
+			Requests: &floatHist{h: mustHist(m.Float64Histogram("api.archived_jobs.duration_milliseconds",
+				metric.WithUnit("ms"),
+				metric.WithDescription("Latency of archived jobs handler operations (milliseconds, where recorded)"),
+			))},
+			RequestsCount: &intCounter{c: mustCounter(m.Int64Counter("api.archived_jobs.requests_total",
+				metric.WithDescription("Total archived jobs API requests (where recorded)"),
+			))},
+			Successes: &intCounter{c: mustCounter(m.Int64Counter("api.archived_jobs.successes_total",
+				metric.WithDescription("Successful archived jobs batch upserts"),
+			))},
+			JobsRequested: &floatHist{h: mustHist(m.Float64Histogram("api.archived_jobs.items_per_request",
+				metric.WithUnit("{jobs}"),
+				metric.WithDescription("Archived jobs count per successful request"),
+			))},
+			JobsSaved: &intCounter{c: mustCounter(m.Int64Counter("api.archived_jobs.saved_total",
+				metric.WithDescription("Mongo bulk-write modified + upserted ops on successful PUT (should match batch size)"),
+			))},
+			IndividualJobsArchived: &intCounter{c: mustCounter(m.Int64Counter("api.archived_jobs.individual_jobs_archived_total",
+				metric.WithUnit("{jobs}"),
+				metric.WithDescription("Individual job documents archived: incremented by batch size on each successful PUT /api/v1/archived-jobs"),
+			))},
+			Errors: &counterVec{
+				c: mustCounter(m.Int64Counter("api.archived_jobs.errors_total",
+					metric.WithDescription("Archived jobs handler errors"),
+				)),
+				attrKey: "reason",
+			},
+		}
+	})
+	return apiArchivedJobsHolder
 }
 
 // APIGroupsMetrics holds OpenTelemetry metrics for groups endpoints.

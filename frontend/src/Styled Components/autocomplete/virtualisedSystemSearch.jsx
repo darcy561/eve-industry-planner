@@ -1,6 +1,13 @@
-import React, { useMemo, useState } from "react";
+import React, {
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import Autocomplete from "@mui/material/Autocomplete";
+import Autocomplete, {
+  createFilterOptions,
+} from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import systemIDsJSON from "../../RawData/systems.json";
 import { FormControl, FormHelperText } from "@mui/material";
@@ -8,18 +15,96 @@ import { systemStructureRequirements } from "../../Context/defaultValues";
 import GLOBAL_CONFIG from "../../global-config-app";
 const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
 
+const defaultAutocompleteFilter = createFilterOptions();
+
+const ListboxComponent = React.forwardRef(function ListboxComponent(
+  props,
+  ref
+) {
+  const { children, virtualizerControlRef, ...other } = props;
+  const itemCount = Array.isArray(children) ? children.length : 0;
+
+  const parentRef = React.useRef();
+
+  const virtualizer = useVirtualizer({
+    count: itemCount,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 50,
+    overscan: 5,
+  });
+
+  useLayoutEffect(() => {
+    if (!virtualizerControlRef) return;
+    virtualizerControlRef.current = {
+      scrollToIndex: (index) => {
+        if (
+          typeof index !== "number" ||
+          !Number.isFinite(index) ||
+          index < 0 ||
+          index >= itemCount
+        ) {
+          return;
+        }
+        virtualizer.scrollToIndex(index, { align: "auto" });
+      },
+    };
+    return () => {
+      virtualizerControlRef.current = null;
+    };
+  }, [virtualizer, virtualizerControlRef, itemCount]);
+
+  return (
+    <div ref={ref} {...other}>
+      <div
+        ref={parentRef}
+        style={{
+          height: 250,
+          overflow: "auto",
+          width: "100%",
+        }}
+      >
+        <div
+          style={{
+            height: virtualizer.getTotalSize(),
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          {virtualizer.getVirtualItems().map((virtualItem) => (
+            <div
+              key={virtualItem.key}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: virtualItem.size,
+                transform: `translateY(${virtualItem.start}px)`,
+              }}
+            >
+              {React.cloneElement(children[virtualItem.index], {
+                style: { height: virtualItem.size },
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+});
+
 /**
  * A virtualized autocomplete component for searching EVE Online solar systems.
  * Uses TanStack Virtual for performance and filters systems based on job type requirements.
- * 
+ *
  * @param {Object} props - Component props
  * @param {number} [props.selectedValue=0] - Currently selected system ID
  * @param {Function} props.updateSelectedValue - Callback function called when a system is selected. Receives the system ID.
  * @param {number|null} [props.jobType=null] - Job type to filter systems by. If null, shows all systems.
  * @returns {JSX.Element} Virtualized system search autocomplete component
- * 
+ *
  * @example
- * <VirtualisedSystemSearch 
+ * <VirtualisedSystemSearch
  *   selectedValue={30000142}
  *   updateSelectedValue={(systemId) => console.log('Selected system:', systemId)}
  *   jobType={1}
@@ -33,62 +118,29 @@ function VirtualisedSystemSearch({
   const [inputValue, setInputValue] = useState("");
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("Error");
+  const virtualizerControlRef = useRef(null);
+  const filteredOptionsSnapshotRef = useRef([]);
 
-  const ListboxComponent = React.forwardRef(function ListboxComponent(
-    props,
-    ref
-  ) {
-    const { children, ...other } = props;
-    const itemCount = Array.isArray(children) ? children.length : 0;
+  const filterOptions = useMemo(
+    () => (options, params) => {
+      const filtered = defaultAutocompleteFilter(options, params);
+      filteredOptionsSnapshotRef.current = filtered;
+      return filtered;
+    },
+    []
+  );
 
-    const parentRef = React.useRef();
-
-    const virtualizer = useVirtualizer({
-      count: itemCount,
-      getScrollElement: () => parentRef.current,
-      estimateSize: () => 50,
-      overscan: 5,
-    });
-
-    return (
-      <div ref={ref} {...other}>
-        <div
-          ref={parentRef}
-          style={{
-            height: 250,
-            overflow: 'auto',
-            width: '100%',
-          }}
-        >
-          <div
-            style={{
-              height: virtualizer.getTotalSize(),
-              width: '100%',
-              position: 'relative',
-            }}
-          >
-            {virtualizer.getVirtualItems().map((virtualItem) => (
-              <div
-                key={virtualItem.key}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: virtualItem.size,
-                  transform: `translateY(${virtualItem.start}px)`,
-                }}
-              >
-                {React.cloneElement(children[virtualItem.index], {
-                  style: { height: virtualItem.size },
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+  const handleHighlightChange = (event, option) => {
+    if (option == null) return;
+    const index = filteredOptionsSnapshotRef.current.findIndex(
+      (o) => o.id === option.id
     );
-  });
+    if (index < 0) return;
+    requestAnimationFrame(() => {
+      virtualizerControlRef.current?.scrollToIndex?.(index);
+    });
+  };
+
   const systemIDMap = useMemo(() => {
     let results = {};
     for (let system of systemIDsJSON) {
@@ -106,6 +158,11 @@ function VirtualisedSystemSearch({
 
     return results;
   }, [jobType]);
+
+  const autocompleteOptions = useMemo(
+    () => Object.values(systemIDMap),
+    [systemIDMap]
+  );
 
   const handleChange = (event, newValue) => {
     if (newValue) {
@@ -141,10 +198,12 @@ function VirtualisedSystemSearch({
         value={
           systemIDMap[selectedValue] ?? systemIDMap[DEFAULT_SYSTEM] ?? null
         }
-        options={Object.values(systemIDMap)}
+        options={autocompleteOptions}
+        filterOptions={filterOptions}
         clearOnBlur
         inputValue={inputValue}
         onInputChange={(event, newInputValue) => setInputValue(newInputValue)}
+        onHighlightChange={handleHighlightChange}
         onChange={handleChange}
         getOptionLabel={(option) => option.name}
         renderOption={(props, option) => {
@@ -169,8 +228,9 @@ function VirtualisedSystemSearch({
         )}
         slotProps={{
           listbox: {
-            component: ListboxComponent
-          }
+            component: ListboxComponent,
+            virtualizerControlRef,
+          },
         }}
       />
       <FormHelperText variant="standard" id="system-search-label">
