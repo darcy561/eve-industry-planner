@@ -57,7 +57,7 @@ func ItemRecipeGetHandler(w http.ResponseWriter, r *http.Request, clients *share
 	data, found, err := migration.GetItemRecipe(ctx, itemID)
 	if err != nil {
 		logs.ErrorCtx(ctx, "item recipe get: firestore error", "error", err, "item_id", itemID)
-		http.Error(w, "An error occurred while retrieving item data. Please try again later.", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "An error occurred while retrieving item data. Please try again later.", err)
 		return
 	}
 	if !found {
@@ -69,7 +69,7 @@ func ItemRecipeGetHandler(w http.ResponseWriter, r *http.Request, clients *share
 	w.Header().Set("Cache-Control", itemRecipeCacheControl)
 	if err := helper.EncodeJSON(w, data); err != nil {
 		logs.ErrorCtx(ctx, "item recipe get: encode error", "error", err, "item_id", itemID)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 	logs.InfoCtx(ctx, "item recipe retrieved via migration", "item_id", itemID, "duration_ms", time.Since(start).Milliseconds())
@@ -114,14 +114,14 @@ func ItemRecipesPostHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	results, err := migration.GetMultipleItemRecipes(ctx, typeIDs)
 	if err != nil {
 		logs.ErrorCtx(ctx, "item recipes post: firestore error", "error", err)
-		http.Error(w, "An error occurred while retrieving item data. Please try again.", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "An error occurred while retrieving item data. Please try again.", err)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := helper.EncodeJSON(w, results); err != nil {
 		logs.ErrorCtx(ctx, "item recipes post: encode error", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 	logs.InfoCtx(ctx, "item recipes retrieved via migration", "requested", len(typeIDs), "returned", len(results), "duration_ms", time.Since(start).Milliseconds())

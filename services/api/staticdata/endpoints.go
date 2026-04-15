@@ -119,7 +119,7 @@ func MetaHandler(w http.ResponseWriter, r *http.Request) {
 		m.Errors.WithLabelValues("meta_encode_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "static_data_meta", duration, "encode_error", "error", err)
 		logs.ErrorCtx(ctx, "static data meta encode error", "error", err)
-		http.Error(w, fmt.Sprintf("failed to encode response: %v", err), http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, fmt.Sprintf("failed to encode response: %v", err), err)
 		return
 	}
 
@@ -166,7 +166,7 @@ func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string
 		apimetrics.LogRequestMetrics(ctx, "static_data_"+errPrefix, duration, "read_error",
 			"error", err, "file_path", filePath)
 		logs.ErrorCtx(ctx, "static data read error", "error", err, "file", errPrefix, "file_path", filePath)
-		http.Error(w, "failed to read static data file", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "failed to read static data file", err)
 		return
 	}
 
@@ -177,7 +177,7 @@ func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string
 		apimetrics.LogRequestMetrics(ctx, "static_data_"+errPrefix, duration, "invalid_json",
 			"error", err, "file_path", filePath)
 		logs.ErrorCtx(ctx, "static data invalid json", "error", err, "file", errPrefix, "file_path", filePath)
-		http.Error(w, "static data file is invalid JSON", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "static data file is invalid JSON", err)
 		return
 	}
 

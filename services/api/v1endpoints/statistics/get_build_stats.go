@@ -1,6 +1,7 @@
 package statistics
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -27,7 +28,7 @@ func GetBuildStatsHandler(w http.ResponseWriter, r *http.Request, clients *share
 	}
 	if clients == nil || clients.Mongo == nil {
 		logs.ErrorCtx(ctx, "build stats get: mongo client missing")
-		http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
+		logs.RespondHTTPError(w, r, http.StatusServiceUnavailable, "Service unavailable", errors.New("mongo client missing"))
 		return
 	}
 
@@ -63,7 +64,7 @@ func GetBuildStatsHandler(w http.ResponseWriter, r *http.Request, clients *share
 	if err != nil {
 		if err != mongo.ErrNoDocuments {
 			logs.ErrorCtx(ctx, "build stats get: query failed", "error", err, "account_id", accountID, "type_id", typeID)
-			http.Error(w, "Failed to retrieve build statistics", http.StatusInternalServerError)
+			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to retrieve build statistics", err)
 			return
 		}
 		row = models.EmptyBuildStatsRow(typeID)

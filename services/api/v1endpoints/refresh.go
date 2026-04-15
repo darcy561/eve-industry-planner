@@ -104,7 +104,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	if err != nil {
 		m.Errors.WithLabelValues("config_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to load config for auth refresh", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 	eveTokenInfo, err := auth.ValidateEveTokenAndExtractHash(r.Context(), eveToken, cfg.EveSSOClientID)
@@ -137,7 +137,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		if err := mongocore.TouchUserLastLogin(ctx, clients.Mongo, tokenData.AccountID); err != nil {
 			m.Errors.WithLabelValues("mongo_error").Inc(ctx)
 			logs.ErrorCtx(ctx, "failed to touch last login from refresh login flow", "error", err, "account_id", tokenData.AccountID)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 			return
 		}
 	}
@@ -147,7 +147,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	if err != nil {
 		m.Errors.WithLabelValues("key_load_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to load RSA private key for JWT signing", "error", err, "account_id", tokenData.AccountID)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -166,7 +166,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		m.Errors.WithLabelValues("jwt_generation_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to generate internal JWT", "error", err,
 			"account_id", tokenData.AccountID, "character_hash", tokenData.CharacterHash)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -176,7 +176,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		m.Errors.WithLabelValues("refresh_token_generation_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to generate new refresh token", "error", err,
 			"account_id", tokenData.AccountID, "character_hash", tokenData.CharacterHash)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -192,7 +192,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 			m.Errors.WithLabelValues("session_generation_error").Inc(ctx)
 			logs.ErrorCtx(ctx, "failed to generate session id", "error", err,
 				"account_id", tokenData.AccountID, "character_hash", tokenData.CharacterHash)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 			return
 		}
 		updatedTokenData.SessionID = sessionID
@@ -217,7 +217,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		m.Errors.WithLabelValues("redis_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to store new refresh token", "error", err,
 			"account_id", tokenData.AccountID, "character_hash", tokenData.CharacterHash)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 	if err := auth.UpsertSessionRecord(ctx, clients.Redis, auth.SessionRecord{
@@ -232,7 +232,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		sessionMetrics.StoreErrors.WithLabelValues(sessionFlow).Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to store session record", "error", err,
 			"account_id", tokenData.AccountID, "character_hash", tokenData.CharacterHash)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 	if startedSession {
@@ -267,14 +267,14 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		if err != nil {
 			m.Errors.WithLabelValues("firebase_token_error").Inc(ctx)
 			logs.ErrorCtx(ctx, "failed to generate firebase custom token (login refresh)", "error", err, "account_id", tokenData.AccountID)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 			return
 		}
 		loginDocs, err := mongocore.ResolveUserDocumentsForLogin(ctx, clients.Mongo, tokenData.AccountID)
 		if err != nil {
 			m.Errors.WithLabelValues("mongo_error").Inc(ctx)
 			logs.ErrorCtx(ctx, "failed to resolve user documents for login refresh", "error", err, "account_id", tokenData.AccountID)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 			return
 		}
 		response.FirebaseToken = firebaseToken
@@ -287,7 +287,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		m.Errors.WithLabelValues("encode_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to encode response", "error", err, "account_id", tokenData.AccountID)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 

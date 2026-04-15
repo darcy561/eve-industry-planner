@@ -80,7 +80,7 @@ func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.
 		m.Errors.WithLabelValues("config_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "config_error", "error", err)
 		logs.ErrorCtx(ctx, "failed to load config for SSO exchange", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -123,7 +123,7 @@ func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.
 		m.Errors.WithLabelValues("config_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "config_error")
 		logs.ErrorCtx(ctx, "EVE SSO client ID or secret not configured")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", errors.New("EVE SSO client ID or secret not configured"))
 		return
 	}
 
@@ -144,9 +144,9 @@ func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.
 		if strings.Contains(err.Error(), "invalid_grant") || strings.Contains(err.Error(), "invalid_request") {
 			http.Error(w, "Invalid authorization code", http.StatusBadRequest)
 		} else if strings.Contains(err.Error(), "server error") {
-			http.Error(w, "EVE SSO server error", http.StatusBadGateway)
+			logs.RespondHTTPError(w, r, http.StatusBadGateway, "EVE SSO server error", err)
 		} else {
-			http.Error(w, "Failed to authenticate with EVE SSO", http.StatusInternalServerError)
+			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to authenticate with EVE SSO", err)
 		}
 		return
 	}
@@ -157,7 +157,7 @@ func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.
 		m.Errors.WithLabelValues("no_access_token").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "no_access_token")
 		logs.WarnCtx(ctx, "no access token received from EVE SSO")
-		http.Error(w, "No access token received from EVE SSO", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "No access token received from EVE SSO", errors.New("empty access token from EVE SSO"))
 		return
 	}
 
@@ -188,7 +188,7 @@ func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.
 		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "encode_error",
 			"error", err)
 		logs.ErrorCtx(ctx, "failed to encode response", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -225,7 +225,7 @@ func SSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 		m.Errors.WithLabelValues("config_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "config_error", "error", err)
 		logs.ErrorCtx(ctx, "failed to load config for SSO refresh", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -268,7 +268,7 @@ func SSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 		m.Errors.WithLabelValues("config_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "config_error")
 		logs.ErrorCtx(ctx, "EVE SSO client ID or secret not configured")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", errors.New("EVE SSO client ID or secret not configured"))
 		return
 	}
 
@@ -289,9 +289,9 @@ func SSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 		if strings.Contains(err.Error(), "invalid_grant") || strings.Contains(err.Error(), "invalid_request") {
 			http.Error(w, "Invalid refresh token", http.StatusBadRequest)
 		} else if strings.Contains(err.Error(), "server error") {
-			http.Error(w, "EVE SSO server error", http.StatusBadGateway)
+			logs.RespondHTTPError(w, r, http.StatusBadGateway, "EVE SSO server error", err)
 		} else {
-			http.Error(w, "Failed to refresh token", http.StatusInternalServerError)
+			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to refresh token", err)
 		}
 		return
 	}
@@ -320,7 +320,7 @@ func SSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "encode_error",
 			"error", err)
 		logs.ErrorCtx(ctx, "failed to encode response", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 

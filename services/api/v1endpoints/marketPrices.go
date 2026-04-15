@@ -157,7 +157,7 @@ func MarketPricesHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		apimetrics.LogRequestMetrics(ctx, "market_prices", duration, "encode_error",
 			"error", err)
 		logs.ErrorCtx(ctx, "failed to encode response", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 

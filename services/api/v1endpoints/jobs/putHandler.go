@@ -121,7 +121,7 @@ func PutJobsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	if err != nil {
 		m.Errors.WithLabelValues("database_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to bulk upsert jobs", "error", err, "account_id", accountID)
-		http.Error(w, "Failed to save jobs", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to save jobs", err)
 		return
 	}
 

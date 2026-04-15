@@ -83,7 +83,7 @@ func DeleteJobsHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 	}); err != nil {
 		m.Errors.WithLabelValues("database_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to delete jobs", "error", err, "account_id", accountID)
-		http.Error(w, "Failed to delete jobs", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to delete jobs", err)
 		return
 	}
 

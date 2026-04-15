@@ -68,7 +68,7 @@ func handleGetApplicationSettings(w http.ResponseWriter, r *http.Request, client
 		}
 		m.Errors.WithLabelValues("database_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to query application settings", "error", err, "account_id", accountID)
-		http.Error(w, "Failed to retrieve application settings", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to retrieve application settings", err)
 		return
 	}
 
@@ -90,7 +90,7 @@ func handleGetApplicationSettings(w http.ResponseWriter, r *http.Request, client
 
 	if err := helper.EncodeJSON(w, settingsDoc); err != nil {
 		logs.ErrorCtx(ctx, "failed to encode application settings response", "error", err, "account_id", accountID)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -146,7 +146,7 @@ func handleSaveApplicationSettings(w http.ResponseWriter, r *http.Request, clien
 	if err != nil {
 		m.Errors.WithLabelValues("database_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to upsert application settings", "error", err, "account_id", accountID)
-		http.Error(w, "Failed to save application settings", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to save application settings", err)
 		return
 	}
 

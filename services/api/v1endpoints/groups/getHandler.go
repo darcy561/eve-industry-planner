@@ -60,7 +60,7 @@ func GetGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 	if err != nil {
 		m.Errors.WithLabelValues("database_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to query groups", "error", err, "account_id", accountID)
-		http.Error(w, "Failed to retrieve groups", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to retrieve groups", err)
 		return
 	}
 	defer cursor.Close(ctx)
@@ -70,14 +70,14 @@ func GetGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 	if err := cursor.All(ctx, &groups); err != nil {
 		m.Errors.WithLabelValues("decode_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to decode groups", "error", err, "account_id", accountID)
-		http.Error(w, "Failed to process groups", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to process groups", err)
 		return
 	}
 
 	if err := helper.EncodeJSON(w, groups); err != nil {
 		m.Errors.WithLabelValues("encode_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to encode groups response", "error", err, "account_id", accountID)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 

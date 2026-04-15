@@ -83,7 +83,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	}); err != nil {
 		m.Errors.WithLabelValues("database_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to delete groups", "error", err, "account_id", accountID)
-		http.Error(w, "Failed to delete groups", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to delete groups", err)
 		return
 	}
 

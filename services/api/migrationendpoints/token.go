@@ -38,7 +38,7 @@ func FirebaseTokenHandler(w http.ResponseWriter, r *http.Request, clients *share
 	token, isFirstTime, err := migration.GenerateFirebaseCustomToken(r.Context(), accountID)
 	if err != nil {
 		logs.ErrorCtx(r.Context(), "failed to generate firebase custom token", "error", err, "account_id", accountID)
-		http.Error(w, "Failed to generate Firebase token", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to generate Firebase token", err)
 		return
 	}
 

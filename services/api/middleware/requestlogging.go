@@ -74,7 +74,12 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 					})
 					// Attach local call stack so non-panic 5xx events still provide source hints.
 					scope.SetExtra("capture_stack", string(debug.Stack()))
-					sentry.CaptureException(fmt.Errorf("HTTP %d %s %s", rw.statusCode, r.Method, r.URL.Path))
+					if herr := logs.HandlerErrorFromRequest(r); herr != nil {
+						scope.SetTag("handler_error", "true")
+						sentry.CaptureException(herr)
+					} else {
+						sentry.CaptureException(fmt.Errorf("HTTP %d %s %s", rw.statusCode, r.Method, r.URL.Path))
+					}
 				})
 			} else if rw.statusCode >= 400 {
 				doneLogger.Warn("request completed with client error", logs.Ctx(ctx))

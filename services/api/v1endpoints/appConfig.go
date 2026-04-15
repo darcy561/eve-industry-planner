@@ -45,7 +45,7 @@ func AppConfigHandler(w http.ResponseWriter, r *http.Request, _ *shared.ServiceC
 	if err != nil {
 		m.Errors.WithLabelValues("json_build_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "app-config: build JSON payload", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -63,7 +63,7 @@ func AppConfigHandler(w http.ResponseWriter, r *http.Request, _ *shared.ServiceC
 	if _, err := w.Write(append(payload, '\n')); err != nil {
 		m.Errors.WithLabelValues("write_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "app-config: write response", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 

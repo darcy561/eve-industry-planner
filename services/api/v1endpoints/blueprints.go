@@ -1,6 +1,7 @@
 package v1endpoints
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -60,7 +61,7 @@ func BlueprintGetHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 	if clients == nil || clients.Mongo == nil {
 		logs.WarnCtx(ctx, "blueprints get: mongo client unavailable")
-		http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
+		logs.RespondHTTPError(w, r, http.StatusServiceUnavailable, "Service unavailable", errors.New("mongo client unavailable"))
 		return
 	}
 
@@ -68,7 +69,7 @@ func BlueprintGetHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	data, found, err := mongocore.GetPublicDocumentByID(ctx, collection, blueprintID)
 	if err != nil {
 		logs.ErrorCtx(ctx, "blueprints get: mongo error", "error", err, "blueprint_id", blueprintID)
-		http.Error(w, "An error occurred while retrieving blueprint data. Please try again later.", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "An error occurred while retrieving blueprint data. Please try again later.", err)
 		return
 	}
 	if !found {
@@ -80,7 +81,7 @@ func BlueprintGetHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	w.Header().Set("Cache-Control", blueprintsCacheControl)
 	if err := helper.EncodeJSON(w, data); err != nil {
 		logs.ErrorCtx(ctx, "blueprints get: encode error", "error", err, "blueprint_id", blueprintID)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -119,7 +120,7 @@ func BlueprintsPostHandler(w http.ResponseWriter, r *http.Request, clients *shar
 
 	if clients == nil || clients.Mongo == nil {
 		logs.WarnCtx(ctx, "blueprints post: mongo client unavailable")
-		http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
+		logs.RespondHTTPError(w, r, http.StatusServiceUnavailable, "Service unavailable", errors.New("mongo client unavailable"))
 		return
 	}
 
@@ -127,7 +128,7 @@ func BlueprintsPostHandler(w http.ResponseWriter, r *http.Request, clients *shar
 	docs, err := mongocore.GetPublicDocumentsByIDs(ctx, collection, typeIDs)
 	if err != nil {
 		logs.ErrorCtx(ctx, "blueprints post: mongo error", "error", err)
-		http.Error(w, "An error occurred while retrieving blueprint data. Please try again.", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "An error occurred while retrieving blueprint data. Please try again.", err)
 		return
 	}
 	results := bsonDocsToMaps(docs)
@@ -135,7 +136,7 @@ func BlueprintsPostHandler(w http.ResponseWriter, r *http.Request, clients *shar
 	w.Header().Set("Cache-Control", "no-store")
 	if err := helper.EncodeJSON(w, results); err != nil {
 		logs.ErrorCtx(ctx, "blueprints post: encode error", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 

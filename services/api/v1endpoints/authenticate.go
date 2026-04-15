@@ -52,7 +52,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		m.Errors.WithLabelValues("config_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "config_error", "error", err)
 		logs.ErrorCtx(ctx, "failed to load config for auth login", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -124,7 +124,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "key_load_error",
 			"error", err, "account_id", accountID)
 		logs.ErrorCtx(ctx, "failed to load RSA private key for JWT signing", "error", err, "account_id", accountID)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -145,7 +145,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "jwt_generation_error",
 			"error", err, "account_id", accountID, "character_hash", characterHash)
 		logs.ErrorCtx(ctx, "failed to generate internal JWT", "error", err, "account_id", accountID, "character_hash", characterHash)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -157,7 +157,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "refresh_token_generation_error",
 			"error", err, "account_id", accountID, "character_hash", characterHash)
 		logs.ErrorCtx(ctx, "failed to generate refresh token", "error", err, "account_id", accountID, "character_hash", characterHash)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -168,7 +168,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "session_generation_error",
 			"error", err, "account_id", accountID, "character_hash", characterHash)
 		logs.ErrorCtx(ctx, "failed to generate session id", "error", err, "account_id", accountID, "character_hash", characterHash)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 	sessionNow := time.Now().UTC()
@@ -190,7 +190,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "redis_error",
 			"error", err, "account_id", accountID, "character_hash", characterHash)
 		logs.ErrorCtx(ctx, "failed to store refresh token", "error", err, "account_id", accountID, "character_hash", characterHash)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 	if err := auth.UpsertSessionRecord(ctx, clients.Redis, auth.SessionRecord{
@@ -207,7 +207,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "session_store_error",
 			"error", err, "account_id", accountID, "character_hash", characterHash)
 		logs.ErrorCtx(ctx, "failed to store session record", "error", err, "account_id", accountID, "character_hash", characterHash)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 	sessionMetrics.Started.WithLabelValues("login").Inc(ctx)
@@ -222,7 +222,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "firebase_token_error",
 			"error", err, "account_id", accountID)
 		logs.ErrorCtx(ctx, "failed to generate firebase custom token", "error", err, "account_id", accountID)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -233,7 +233,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "mongo_error",
 			"error", err, "account_id", accountID)
 		logs.ErrorCtx(ctx, "failed to resolve user documents for login", "error", err, "account_id", accountID)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -261,7 +261,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "encode_error",
 			"error", err, "account_id", accountID)
 		logs.ErrorCtx(ctx, "failed to encode response", "error", err, "account_id", accountID)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 

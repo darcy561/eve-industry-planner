@@ -115,7 +115,7 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 	if err != nil {
 		m.Errors.WithLabelValues("database_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to bulk upsert groups", "error", err, "account_id", accountID)
-		http.Error(w, "Failed to save groups", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to save groups", err)
 		return
 	}
 

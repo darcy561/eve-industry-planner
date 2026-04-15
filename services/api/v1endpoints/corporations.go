@@ -131,7 +131,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	if err != nil {
 		m.Errors.WithLabelValues("config_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to load config for corporations endpoint", "error", err, "account_id", accountID)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -179,7 +179,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 			"account_id", accountID,
 			"token_count", len(validTokens),
 			"error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 

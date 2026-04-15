@@ -61,7 +61,7 @@ func GetJobsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	if err != nil {
 		m.Errors.WithLabelValues("database_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to query jobs", "error", err, "account_id", accountID)
-		http.Error(w, "Failed to retrieve jobs", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to retrieve jobs", err)
 		return
 	}
 	defer cursor.Close(ctx)
@@ -71,7 +71,7 @@ func GetJobsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	if err := cursor.All(ctx, &jobs); err != nil {
 		m.Errors.WithLabelValues("decode_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to decode jobs", "error", err, "account_id", accountID)
-		http.Error(w, "Failed to process jobs", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to process jobs", err)
 		return
 	}
 
@@ -98,7 +98,7 @@ func GetJobsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	if err := helper.EncodeJSON(w, jobs); err != nil {
 		m.Errors.WithLabelValues("encode_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to encode jobs response", "error", err, "account_id", accountID)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 

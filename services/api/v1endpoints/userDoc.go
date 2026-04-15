@@ -70,7 +70,7 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 		}
 		m.Errors.WithLabelValues("database_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to query user document", "error", err, "account_id", accountID)
-		http.Error(w, "Failed to retrieve user document", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to retrieve user document", err)
 		return
 	}
 
@@ -94,7 +94,7 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 
 	if err := helper.EncodeJSON(w, userDoc); err != nil {
 		logs.ErrorCtx(ctx, "failed to encode user document response", "error", err, "account_id", accountID)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -154,7 +154,7 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 	if err != nil {
 		m.Errors.WithLabelValues("database_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to upsert user document", "error", err, "account_id", accountID)
-		http.Error(w, "Failed to save user document", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to save user document", err)
 		return
 	}
 

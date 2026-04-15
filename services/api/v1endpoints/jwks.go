@@ -58,7 +58,7 @@ func JWKSHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		m.Errors.WithLabelValues("key_load_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to load private key for JWKS", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -107,7 +107,7 @@ func JWKSHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		m.Errors.WithLabelValues("jwks_generation_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to generate JWKS", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
