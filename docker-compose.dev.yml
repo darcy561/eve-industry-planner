@@ -7,8 +7,8 @@ services:
       context: ./services
       dockerfile: api/Dockerfile
       args:
-        APP_VERSION: 0.8.09
-        FRONTEND_APP_VERSION: 0.8.09
+        APP_VERSION: 0.8.10
+        FRONTEND_APP_VERSION: 0.8.10
         APP_FEATURE_FLAGS_JSON: '{"enable_upcoming_changes_page":false}'
     env_file: [.env]
     environment:
@@ -20,7 +20,7 @@ services:
       context: ./services
       dockerfile: websocket/Dockerfile
       args:
-        APP_VERSION: 0.8.09
+        APP_VERSION: 0.8.10
     env_file: [.env]
     environment:
       FAIL_ON_STARTUP: "false"
@@ -31,7 +31,7 @@ services:
       context: ./services
       dockerfile: worker/Dockerfile
       args:
-        APP_VERSION: 0.8.09
+        APP_VERSION: 0.8.10
     env_file: [.env]
 
 
@@ -41,8 +41,8 @@ services:
       context: ./services
       dockerfile: core/Dockerfile
       args:
-        APP_VERSION: 0.8.09
-        FRONTEND_APP_VERSION: 0.8.09
+        APP_VERSION: 0.8.10
+        FRONTEND_APP_VERSION: 0.8.10
         APP_FEATURE_FLAGS_JSON: '{"enable_upcoming_changes_page":false}'
     env_file: [.env]
 
@@ -76,5 +76,5 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         ENVIRONMENT: ${ENVIRONMENT:-development}
-        FRONTEND_APP_VERSION: 0.8.09
+        FRONTEND_APP_VERSION: 0.8.10
     env_file: [.env]
