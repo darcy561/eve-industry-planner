@@ -1,97 +1,93 @@
-import React from 'react';
-import { Box, Typography, Alert } from '@mui/material';
-import * as Sentry from '@sentry/react';
-import useUsersStore from '../../Zustand/usersStore';
+import { useState } from "react";
+import { Box, Typography, Alert } from "@mui/material";
+import { captureReactErrorOnce } from "../../Functions/Helper/captureReactError";
+import {
+  getSentryEditJobStateHints,
+  getSentryUsersStoreContextHints,
+} from "../../Functions/Sentry/sentryErrorContextHints";
+import { ErrorBoundary as ReactErrorBoundary } from "react-error-boundary";
 
-class StepErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
-  }
-
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error, errorInfo) {
-    this.setState({
-      error: error,
-      errorInfo: errorInfo,
-    });
-
-    // Log to Sentry if in production
-    if (import.meta.env.ENVIRONMENT === 'production') {
-      Sentry.captureException(error, {
-        extra: {
-          componentStack: errorInfo.componentStack,
-          currentStep: this.props.currentStep,
-          activeJob: this.props.state.activeJob,
-          jobModified: this.props.state.jobModified,
-          temporaryChildJobs: this.props.state.temporaryChildJobs,
-          esiDataToLink: this.props.state.esiDataToLink,
-          parentChildToEdit: this.props.state.parentChildToEdit,
-          isLoading: this.props.state.isLoading,
-          users: useUsersStore.getState().users,
-          applicationSettings: useUsersStore.getState().applicationSettings,
-        },
-      });
-    }
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
+function StepErrorFallback({ error, componentStack, currentStep }) {
+  return (
+    <Box
+      sx={{
+        p: 2,
+        my: 2,
+      }}
+    >
+      <Alert
+        severity="error"
+        sx={{
+          mb: 2,
+          backgroundColor: "transparent",
+          "& .MuiAlert-icon": {
+            color: "error.main",
+          },
+        }}
+      >
+        <Typography variant="subtitle1" component="div" gutterBottom>
+          Error at the {currentStep} stage
+        </Typography>
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>
+          There was an error loading this stage. You can still navigate between
+          stages.
+        </Typography>
+      </Alert>
+      {import.meta.env.ENVIRONMENT === "development" && (
         <Box
           sx={{
+            mt: 2,
             p: 2,
-            my: 2,
+            borderRadius: 1,
+            fontFamily: "monospace",
+            fontSize: "0.875rem",
+            overflow: "auto",
+            maxHeight: "200px",
           }}
         >
-          <Alert
-            severity="error"
-            sx={{
-              mb: 2,
-              backgroundColor: 'transparent',
-              '& .MuiAlert-icon': {
-                color: 'error.main'
-              }
-            }}
-          >
-            <Typography variant="subtitle1" component="div" gutterBottom>
-              Error at the {this.props.currentStep} stage
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              There was an error loading this stage. You can still navigate between stages.
-            </Typography>
-          </Alert>
-
-          {import.meta.env.ENVIRONMENT === 'development' && (
-            <Box
-              sx={{
-                mt: 2,
-                p: 2,
-                borderRadius: 1,
-                fontFamily: 'monospace',
-                fontSize: '0.875rem',
-                overflow: 'auto',
-                maxHeight: '200px',
-              }}
-            >
-              <Typography variant="subtitle2" gutterBottom>
-                Error Details:
-              </Typography>
-              <pre style={{ margin: 0 }}>
-                {this.state.error && this.state.error.toString()}
-                {this.state.errorInfo && this.state.errorInfo.componentStack}
-              </pre>
-            </Box>
-          )}
+          <Typography variant="subtitle2" gutterBottom>
+            Error Details:
+          </Typography>
+          <pre style={{ margin: 0 }}>
+            {error?.toString()}
+            {componentStack}
+          </pre>
         </Box>
-      );
-    }
-
-    return this.props.children;
-  }
+      )}
+    </Box>
+  );
 }
 
-export default StepErrorBoundary; 
+function StepErrorBoundary({ children, currentStep, state }) {
+  const [componentStack, setComponentStack] = useState("");
+
+  return (
+    <ReactErrorBoundary
+      onError={(error, info) => {
+        const stack = info?.componentStack || "";
+        setComponentStack(stack);
+        captureReactErrorOnce(error, {
+          level: "error",
+          tags: { react_error_type: "step_error_boundary" },
+          extra: {
+            componentStack: stack,
+            currentStep,
+            ...getSentryEditJobStateHints(state),
+            ...getSentryUsersStoreContextHints(),
+          },
+        });
+      }}
+      fallbackRender={({ error }) => (
+        <StepErrorFallback
+          error={error}
+          componentStack={componentStack}
+          currentStep={currentStep}
+        />
+      )}
+    >
+      {children}
+    </ReactErrorBoundary>
+  );
+}
+
+export default StepErrorBoundary;

@@ -7,7 +7,8 @@ import {
 } from "@mui/material";
 import { useState } from "react";
 import { useFirebase } from "../../../../../Hooks/useFirebase";
-import { getAnalytics, logEvent } from "firebase/analytics";
+import { AppEvent } from "../../../../../analytics/appEventNames";
+import { trackAppEvent } from "../../../../../analytics/trackAppEvent";
 import { ImportNewJob_WatchlistDialog } from "./importNewJob.";
 import { FailedImport_WatchlistDialog } from "./failedImport";
 import { LoadingDisplay_WatchlistDialog } from "./loadingDisplay";
@@ -32,7 +33,6 @@ export function AddWatchItemDialog({
   const [materialJobs, setMaterialJobs] = useState(null);
   const [saveReady, updateSaveReady] = useState(false);
   const [groupSelect, updateGroupSelect] = useState(0);
-  const analytics = getAnalytics();
 
   const handleClose = () => {
     setOpenDialog(false);
@@ -111,9 +111,7 @@ export function AddWatchItemDialog({
 
     setUserWatchlistItems(newUserWatchlistItems);
     uploadUserWatchlist(userWatchlist.groups, newUserWatchlistItems);
-    logEvent(analytics, "New Watchlist Item", {
-      UID: useUsersStore.getState().account.actions.getAccountID(),
-    });
+    trackAppEvent(AppEvent.NEW_WATCHLIST_ITEM);
 
     showSnackbarSuccess(`${materialJobs[watchlistItemRequest].name} Added`, 3);
     handleClose();

@@ -4,7 +4,9 @@ import { ArchiveJobButton } from "../../../Complete/Standard Layout/Button Panel
 
 export function Selling_ButtonPanel_EditJob(props) {
   return (
-    <Grid container justifyContent="flex-end">
+    <Grid container sx={{
+      justifyContent: "flex-end"
+    }}>
       <ArchiveJobButton {...props} />
     </Grid>
   );

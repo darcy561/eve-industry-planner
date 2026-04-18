@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { Box } from "@mui/material";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import findOrGetJobObject from "../../../Functions/Helper/findJobObject.js";
 import Group from "../../../Classes/group.js";
@@ -8,6 +7,8 @@ import uploadJobSnapshotsToFirebase from "../../../Functions/Firebase/uploadJobS
 import uploadGroupsToFirebase from "../../../Functions/Firebase/uploadGroupData.js";
 import firebaseBatchUpdateJobs from "../../../Functions/Firebase/batchUpdateJobs.js";
 import useUsersStore from "../../../Zustand/usersStore";
+import { AppEvent } from "../../../analytics/appEventNames";
+import { trackAppEvent } from "../../../analytics/trackAppEvent";
 import DefaultPageLayout from "../../../Styled Components/defaultPageLayout";
 import { LoadingPage } from "../../../Components/loadingPage";
 
@@ -87,6 +88,9 @@ function NewGroupPage() {
 
       group.createGroup(groupJobs);
 
+      // Includes empty job groups (New Group with no jobs selected → includes query absent/empty).
+      trackAppEvent(AppEvent.NEW_JOB_GROUP);
+
       replaceUserJobSnapshotArray(newUserJobSnapshot);
       addRetrievedJobsToJobArray(retrievedJobs);
       addGroupToGroupArray(group);
@@ -148,18 +152,7 @@ function NewGroupPage() {
 
   return (
     <DefaultPageLayout>
-      <Box
-        component="main"
-        sx={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          minWidth: 0,
-          minHeight: 0,
-        }}
-      >
-        <LoadingPage />
-      </Box>
+      <LoadingPage variant="simple" helperText="Creating group…" />
     </DefaultPageLayout>
   );
 }

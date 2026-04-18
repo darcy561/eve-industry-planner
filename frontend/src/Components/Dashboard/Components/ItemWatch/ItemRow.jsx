@@ -15,7 +15,8 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ClearIcon from "@mui/icons-material/Clear";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { useFirebase } from "../../../../Hooks/useFirebase";
-import { getAnalytics, logEvent } from "firebase/analytics";
+import { AppEvent } from "../../../../analytics/appEventNames";
+import { trackAppEvent } from "../../../../analytics/trackAppEvent";
 import { ExpandedWatchlistRow } from "./ItemRowExpanded";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
@@ -66,16 +67,12 @@ export function WatchListRow({
 
   const { uploadUserWatchlist } = useFirebase();
   const { buildJob } = useJobBuild();
-  const analytics = getAnalytics();
-
   async function handleRemove() {
     let newUserWatchlistItems = [...userWatchlist.items];
     newUserWatchlistItems.splice(index, 1);
     setUserWatchlistItems(newUserWatchlistItems);
     await uploadUserWatchlist(userWatchlist.groups, newUserWatchlistItems);
-    logEvent(analytics, "Remove Watchlist Item", {
-      UID: useUsersStore.getState().account.actions.getAccountID(),
-    });
+    trackAppEvent(AppEvent.REMOVE_WATCHLIST_ITEM);
     showSnackbarError(`${item.name} Removed`, 3);
   }
 
@@ -94,12 +91,6 @@ export function WatchListRow({
 
     await addNewJobToFirebase(newJob);
     await uploadJobSnapshotsToFirebase(newSnapshotArray);
-    logEvent(analytics, "New Job", {
-      loggedIn: true,
-      UID: useUsersStore.getState().account.actions.getAccountID(),
-      name: newJob.name,
-      itemID: newJob.itemID,
-    });
 
     const { requestedMarketData, requestedSystemIndexes } =
       await getMissingESIData(newJob);
@@ -174,12 +165,14 @@ export function WatchListRow({
       >
         <Grid container size={12}>
           <Grid
-            justifyContent="center"
-            alignItems="center"
-            sx={{ display: "flex" }}
             size={{
               xs: 2,
               sm: 1
+            }}
+            sx={{
+              justifyContent: "center",
+              alignItems: "center",
+              display: "flex"
             }}>
             {isItemDataOutdated || isStructureMissing ? (
               <Tooltip
@@ -204,12 +197,14 @@ export function WatchListRow({
           </Grid>
           <Grid
             container
-            alignItems="center"
-            sx={{ marginBottom: { xs: "20px", sm: "0px" } }}
             size={{
               xs: 10,
               sm: 2,
               lg: 2
+            }}
+            sx={{
+              alignItems: "center",
+              marginBottom: { xs: "20px", sm: "0px" }
             }}>
             <MaterialPopoverIconButtons typeID={item.typeID}>
               <Typography sx={{ typography: { xs: "subtitle2", sm: "body2" } }}>
@@ -219,19 +214,21 @@ export function WatchListRow({
           </Grid>
           <Grid
             container
-            sx={{
-              color:
-                calculatedCosts.mainItemPrice[defaultMarket].sell !== 0
-                  ? "none"
-                  : "success.main",
-              marginBottom: { xs: "5px", sm: "0px" },
-            }}
-            justifyContent="center"
-            alignItems="center"
             size={{
               xs: 12,
               sm: 3,
               lg: 2
+            }}
+            sx={{
+              justifyContent: "center",
+              alignItems: "center",
+
+              color:
+                calculatedCosts.mainItemPrice[defaultMarket].sell !== 0
+                  ? "none"
+                  : "success.main",
+
+              marginBottom: { xs: "5px", sm: "0px" }
             }}>
             <Typography sx={{ typography: { xs: "caption", sm: "body2" } }}>
               {formatNumberForLocale(
@@ -246,7 +243,13 @@ export function WatchListRow({
               sm: 3,
               lg: 3
             }}>
-            <Grid container justifyContent="center" alignItems="center" size={12}>
+            <Grid
+              container
+              size={12}
+              sx={{
+                justifyContent: "center",
+                alignItems: "center"
+              }}>
               <Typography
                 sx={{
                   typography: { xs: "caption", sm: "body2" },
@@ -263,7 +266,13 @@ export function WatchListRow({
                 {formatNumberForLocale(calculatedCosts.totalPurchase)}
               </Typography>
             </Grid>
-            <Grid container justifyContent="center" alignItems="center" size={12}>
+            <Grid
+              container
+              size={12}
+              sx={{
+                justifyContent: "center",
+                alignItems: "center"
+              }}>
               <Tooltip
                 title={formatNumberForLocale(
                   ((calculatedCosts.totalPurchase -
@@ -309,7 +318,13 @@ export function WatchListRow({
               lg: 3
             }}>
             {!item.childJobPresent && (
-              <Grid container justifyContent="center" alignItems="center" size={12}>
+              <Grid
+                container
+                size={12}
+                sx={{
+                  justifyContent: "center",
+                  alignItems: "center"
+                }}>
                 <Typography
                   align="center"
                   sx={{
@@ -322,7 +337,13 @@ export function WatchListRow({
             )}
             {item.childJobPresent && (
               <>
-                <Grid container justifyContent="center" alignItems="center" size={12}>
+                <Grid
+                  container
+                  size={12}
+                  sx={{
+                    justifyContent: "center",
+                    alignItems: "center"
+                  }}>
                   <Typography
                     align="center"
                     sx={{
@@ -340,7 +361,13 @@ export function WatchListRow({
                     {formatNumberForLocale(calculatedCosts.totalBuild)}
                   </Typography>
                 </Grid>
-                <Grid container justifyContent="center" alignItems="center" size={12}>
+                <Grid
+                  container
+                  size={12}
+                  sx={{
+                    justifyContent: "center",
+                    alignItems: "center"
+                  }}>
                   <Tooltip
                     title={formatNumberForLocale(
                       ((calculatedCosts.totalBuild -

@@ -46,7 +46,7 @@ func GetServerStatusLastUpdated(ctx context.Context, client *redis.Client) (int6
 }
 
 // SaveServerStatusValidUntil stores the wall time (Unix milliseconds) until which
-// callers may treat Redis-cached server status as fresh without calling /v1/status/.
+// callers may treat Redis-cached server status as fresh without calling /status/.
 func SaveServerStatusValidUntil(ctx context.Context, client *redis.Client, unixMillis int64) error {
 	return SetString(ctx, client, "esi:server_status:valid_until", strconv.FormatInt(unixMillis, 10), 0)
 }

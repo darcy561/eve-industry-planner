@@ -34,6 +34,7 @@ import StepErrorBoundary from "./StepErrorBoundary";
 import PriceHistoryDialog from "../Dialogues/Price History/dialogFrame";
 import MarketDataDialog from "../Dialogues/Market Data/dialogFrame";
 import useUsersStore from "../../Zustand/usersStore";
+import { useJobStatuses } from "../../Hooks/useJobStatuses";
 import AssetsDialogue from "../Dialogues/Assets/dialogFrame";
 import useEditJobReducer from "./Edit Job Hooks/useEditJobReducer";
 import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
@@ -70,7 +71,7 @@ export default function EditJob_New() {
   const { state, actions } = useEditJobReducer();
   const { setActiveJobID, addRetrievedJobsToJobArray } =
     useUsersStore.getState().jobData.actions;
-  const { jobStatus } = useUsersStore((state) => state.users);
+  const { jobStatuses } = useJobStatuses();
   const queryClient = useQueryClient();
   const params = useParams({ from: "/editjob/$jobID" });
   const { jobID } = params;
@@ -152,10 +153,12 @@ export default function EditJob_New() {
 
     const LoadingFallback = () => (
       <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight={200}
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: 200,
+        }}
       >
         <CircularProgress />
       </Box>
@@ -206,6 +209,8 @@ export default function EditJob_New() {
       <ContentPanel
         componentName="Edit Job"
         isLoading={state.isLoading || !state.activeJob}
+        loadingMessage={state.loadingMessage}
+        loadingVariant="simple"
       >
         {state.activeJob && (
           <Grid container sx={{ width: "100%" }}>
@@ -303,7 +308,7 @@ export default function EditJob_New() {
                 activeStep={state.activeJob.jobStatus}
                 orientation="vertical"
               >
-                {jobStatus.map((status) => {
+                {jobStatuses.map((status) => {
                   return (
                     <Step
                       key={status.id}
@@ -335,7 +340,7 @@ export default function EditJob_New() {
                         )}
                         <StepErrorBoundary
                           currentStep={
-                            jobStatus[state.activeJob.jobStatus]?.name ||
+                            jobStatuses[state.activeJob.jobStatus]?.name ||
                             `Step ${state.activeJob.jobStatus}`
                           }
                           state={state}
@@ -347,7 +352,7 @@ export default function EditJob_New() {
                             />
                           </Box>
                         </StepErrorBoundary>
-                        {state.activeJob.jobStatus !== jobStatus.length - 1 && (
+                        {state.activeJob.jobStatus !== jobStatuses.length - 1 && (
                           <Grid align="center" size={12}>
                             <Tooltip
                               title="Move to next step"
@@ -362,7 +367,7 @@ export default function EditJob_New() {
                                   state.activeJob.includedInGroup &&
                                   !state.activeJob.isReadyToSell &&
                                   state.activeJob.jobStatus ===
-                                    jobStatus.length - 2
+                                    jobStatuses.length - 2
                                 }
                               >
                                 <ArrowDownwardIcon />

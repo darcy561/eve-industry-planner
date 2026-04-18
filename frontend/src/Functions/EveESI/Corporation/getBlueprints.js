@@ -7,7 +7,7 @@ async function getCorpBlueprints({ character, page = 1, existingData = {}, confi
     }
 
     const { esiAccessToken, corporation_id } = character;
-    const endpointURL = `https://esi.evetech.net/v3/corporations/${corporation_id}/blueprints/?datasource=tranquility&page=${page}`;
+    const endpointURL = `https://esi.evetech.net/corporations/${corporation_id}/blueprints/?datasource=tranquility&page=${page}`;
 
     // Enhanced configuration for rate limiting
     const enhancedConfig = {

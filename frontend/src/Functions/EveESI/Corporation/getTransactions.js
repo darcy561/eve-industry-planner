@@ -13,7 +13,7 @@ async function getCorpTransactions({ character, existingData = {}, config = {} }
 
     async function fetchAndFilterDivisionTransactions(division) {
       try {
-        const endpointURL = `https://esi.evetech.net/v1/corporations/${corporation_id}/wallets/${division}/transactions`;
+        const endpointURL = `https://esi.evetech.net/corporations/${corporation_id}/wallets/${division}/transactions?datasource=tranquility`;
         // Enhanced configuration for rate limiting
         const enhancedConfig = {
           priority: 'normal',

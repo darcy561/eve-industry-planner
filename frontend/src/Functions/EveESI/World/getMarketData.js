@@ -36,7 +36,7 @@ async function getMarketData({
       );
     }
 
-    const endpointURL = `https://esi.evetech.net/v1/markets/${regionID}/orders/?datasource=tranquility&order_type=all&type_id=${typeID}&page=${page}`;
+    const endpointURL = `https://esi.evetech.net/markets/${regionID}/orders/?datasource=tranquility&order_type=all&type_id=${typeID}&page=${page}`;
 
     // Enhanced configuration for rate limiting
     const enhancedConfig = {

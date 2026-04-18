@@ -7,7 +7,6 @@ import {
   Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
-import { getAnalytics, logEvent } from "firebase/analytics";
 import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
@@ -36,12 +35,9 @@ export function AvailableTransactionsPanel({
   isError,
   error,
 }) {
-  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const getCorporation =
     useUsersStore.getState().account.actions.getCorporation;
   const queryClient = useQueryClient();
-  const analytics = getAnalytics();
-
   // Subscribe to transaction and journal cache updates using React Query hooks
   // This ensures the component re-renders when transaction data updates
   const {
@@ -145,7 +141,9 @@ export function AvailableTransactionsPanel({
       isError={combinedIsError}
       error={combinedError}
     >
-      <Grid container width="100%">
+      <Grid container sx={{
+        width: "100%"
+      }}>
         <Grid
           container
           sx={{
@@ -172,8 +170,10 @@ export function AvailableTransactionsPanel({
                 <Grid
                   key={tData.transaction_id}
                   container
-                  alignItems="center"
                   size={12}
+                  sx={{
+                    alignItems: "center"
+                  }}
                 >
                   <Grid size={1}>
                     <Tooltip
@@ -278,10 +278,6 @@ export function AvailableTransactionsPanel({
                         );
                         actions.updateActiveJob(state.activeJob);
                         showSnackbarSuccess("Linked");
-                        logEvent(analytics, "linkedTransaction", {
-                          UID: useUsersStore.getState().account.actions.getAccountID(),
-                          isLoggedIn: isLoggedIn,
-                        });
                       }}
                     >
                       <AddIcon />
@@ -311,10 +307,6 @@ export function AvailableTransactionsPanel({
                 );
                 actions.updateActiveJob(state.activeJob);
                 showSnackbarSuccess("All Transactions Linked");
-                logEvent(analytics, "massLinkedTransactions", {
-                  UID: useUsersStore.getState().account.actions.getAccountID(),
-                  isLoggedIn: isLoggedIn,
-                });
               }}
             >
               Link All

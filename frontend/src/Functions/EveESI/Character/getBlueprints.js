@@ -34,7 +34,7 @@ async function getCharacterBlueprints({
     }
 
     const { esiAccessToken, CharacterID, CharacterHash } = character;
-    const endpointURL = `https://esi.evetech.net/v3/characters/${CharacterID}/blueprints/?datasource=tranquility&page=${page}`;
+    const endpointURL = `https://esi.evetech.net/characters/${CharacterID}/blueprints/?datasource=tranquility&page=${page}`;
 
     // Enhanced configuration for rate limiting
     const enhancedConfig = {

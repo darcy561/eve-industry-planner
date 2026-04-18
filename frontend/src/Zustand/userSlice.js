@@ -1,7 +1,7 @@
 /**
  * User Slice for EVE Industry Planner.
  * 
- * Manages user-related state including Firebase listeners and job status.
+ * Manages user-related state including Firebase listeners.
  * This slice provides
  * centralized state management for all user-related operations and data.
  * 

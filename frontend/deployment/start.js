@@ -3,7 +3,6 @@
 import fs from "fs";
 import path from "path";
 import { generateRuntimeConfig } from "./runtimeConfig.js";
-import { processServiceWorkers } from "./swInjection.js";
 import { createServer } from "./server.js";
 
 process.title = "frontend-service";
@@ -20,9 +19,6 @@ if (!fs.existsSync(DIST_DIR)) {
 try {
   // Generate runtime config
   generateRuntimeConfig(DIST_DIR);
-
-  // Process service workers
-  processServiceWorkers(DIST_DIR);
 
   // Start custom server with compression support
   createServer(DIST_DIR, PORT);

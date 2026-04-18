@@ -1,8 +1,9 @@
 import { SnackBarNotification } from "./Components/snackbar";
-import GeneralDialog from "./Components/generalDialog";
+import GeneralDialog from "./Components/Dialogues/General/generalDialog";
 import CssBaseline from "@mui/material/CssBaseline";
 import { Outlet } from "@tanstack/react-router";
-import { FeedbackIcon } from "./Components/Feedback/feedback";
+import { FeedbackIcon } from "./Components/Dialogues/Feedback/feedback";
+import { CrashReportDialog } from "./Components/Dialogues/CrashReport/CrashReportDialog";
 import GLOBAL_CONFIG from "./global-config-app";
 import { Box } from "@mui/material";
 import MaintenanceMode from "./MaintenanceMode";
@@ -12,7 +13,6 @@ import useRefreshESITokens from "./Hooks/useRefreshESITokens";
 import useCheckEveServerStatus from "./Hooks/useCheckEveServerStatus";
 import useVersionCheck from "./Hooks/GeneralHooks/useVersionCheck";
 import useFetchStaticDataFiles from "./Hooks/useFetchStaticDataFiles";
-import { useServiceWorker } from "./Hooks/useServiceWorker";
 import useAppConfig from "./Hooks/GeneralHooks/useAppConfig";
 const { ENABLE_FEEDBACK_ICON } = GLOBAL_CONFIG;
 
@@ -23,10 +23,10 @@ export default function App() {
   useCheckEveServerStatus();
   useVersionCheck();
   useFetchStaticDataFiles();
-  // useServiceWorker();
 
   return (
     <ThemeProvider>
+      <CrashReportDialog />
       <Box sx={{ display: "flex", width: "100%", height: "100%" }}>
         <CssBaseline />
         <ErrorBoundary>

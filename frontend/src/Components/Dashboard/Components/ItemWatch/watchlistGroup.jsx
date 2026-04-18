@@ -76,6 +76,7 @@ export function WatchlistGroup({
             <Box sx={{ display: "flex", flexDirection: "row" }}>
               <Tooltip title="Group Settings" arrow placement="bottom">
                 <IconButton
+                  component="span"
                   color="secondary"
                   onClick={() => {
                     updateGroupSettingsContent(userWatchlist.groups[index]);

@@ -94,11 +94,13 @@ export function SisiItem({ sisiItem, itemLoad, tranqItem }) {
                       sm: 11
                     }}>
                     <Grid
-                      alignItems="center"
-                      sx={{ display: "flex" }}
                       size={{
                         xs: 7,
                         sm: 8
+                      }}
+                      sx={{
+                        alignItems: "center",
+                        display: "flex"
                       }}>
                       <Typography
                         sx={{ typography: { xs: "caption", sm: "body2" } }}
@@ -107,10 +109,12 @@ export function SisiItem({ sisiItem, itemLoad, tranqItem }) {
                       </Typography>
                     </Grid>
                     <Grid
-                      alignItems="center"
-                      justifyContent="right"
-                      sx={{ display: "flex" }}
-                      size={3}>
+                      size={3}
+                      sx={{
+                        alignItems: "center",
+                        justifyContent: "right",
+                        display: "flex"
+                      }}>
                       <Typography
                         sx={{
                           typography: { xs: "caption", sm: "body2" },
@@ -121,12 +125,14 @@ export function SisiItem({ sisiItem, itemLoad, tranqItem }) {
                       </Typography>
                     </Grid>
                     <Grid
-                      alignItems="center"
-                      justifyContent="right"
-                      sx={{ display: "flex" }}
                       size={{
                         xs: 2,
                         sm: 1
+                      }}
+                      sx={{
+                        alignItems: "center",
+                        justifyContent: "right",
+                        display: "flex"
                       }}>
                       <Typography
                         sx={{
@@ -142,32 +148,46 @@ export function SisiItem({ sisiItem, itemLoad, tranqItem }) {
               );
             })}
             <Grid container sx={{ marginTop: "30px" }} size={12}>
-              <Grid alignItems="center" sx={{ display: "flex" }} size={8}>
+              <Grid
+                size={8}
+                sx={{
+                  alignItems: "center",
+                  display: "flex"
+                }}>
                 <Typography sx={{ typography: { xs: "caption", sm: "body2" } }}>
                   Items Produced Per Run:
                 </Typography>
               </Grid>
               <Grid
-                alignItems="center"
-                justifyContent="right"
-                sx={{ display: "flex" }}
-                size={4}>
+                size={4}
+                sx={{
+                  alignItems: "center",
+                  justifyContent: "right",
+                  display: "flex"
+                }}>
                 <Typography sx={{ typography: { xs: "caption", sm: "body2" } }}>
                   {sisiItem.rawData.products[0].quantity}
                 </Typography>
               </Grid>
             </Grid>
             <Grid container sx={{ marginTop: "10px" }} size={12}>
-              <Grid alignItems="center" sx={{ display: "flex" }} size={8}>
+              <Grid
+                size={8}
+                sx={{
+                  alignItems: "center",
+                  display: "flex"
+                }}>
                 <Typography sx={{ typography: { xs: "caption", sm: "body2" } }}>
                   Total Material Cost (Jita Sell Orders):
                 </Typography>
               </Grid>
               <Grid
-                alignItems="center"
-                justifyContent="right"
-                sx={{ display: "flex" }}
-                size={4}>
+                size={4}
+                sx={{
+                  alignItems: "center",
+                  justifyContent: "right",
+                  display: "flex"
+                }}>
                 <Typography sx={{ typography: { xs: "caption", sm: "body2" } }}>
                   {formatNumberForLocale(totalItemCost, { max: 0 })}
                 </Typography>

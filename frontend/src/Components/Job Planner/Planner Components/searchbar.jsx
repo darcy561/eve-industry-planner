@@ -71,7 +71,10 @@ export function SearchBar({ actions }) {
       isLoading={isLoading || !fullItemList}
       isError={isError}
     >
-      <Grid container direction="row" alignItems="center">
+      <Grid container sx={{
+        alignItems: "center",
+        flexDirection: "row",
+      }}>
         <Grid container size={12}>
           <Grid sx={{ marginBottom: 1 }} size={12}>
             <VirtualisedRecipeSearch

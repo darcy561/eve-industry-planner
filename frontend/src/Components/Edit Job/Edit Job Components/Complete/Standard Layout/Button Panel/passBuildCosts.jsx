@@ -1,8 +1,6 @@
 import { Button, Tooltip } from "@mui/material";
-import { getAnalytics, logEvent } from "firebase/analytics";
 import uploadJobSnapshotsToFirebase from "../../../../../../Functions/Firebase/uploadJobSnapshots";
 import manageListenerRequests from "../../../../../../Functions/Firebase/manageListenerRequests";
-import getCurrentFirebaseUser from "../../../../../../Functions/Firebase/currentFirebaseUser";
 import { passBuildCostsToParentJobs } from "../../../../../../Functions/Shared/passBuildCosts";
 import {
   showSnackbarSuccess,
@@ -14,8 +12,6 @@ export function PassBuildCostsButton({ state }) {
   const { activeGroupID, userJobSnapshot } = useUsersStore((state) => state.jobData);
   const { getActiveGroupObject, addRetrievedJobsToJobArray } = useUsersStore.getState().jobData.actions;
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
-  const analytics = getAnalytics();
-
   const buttonText = activeGroupID
     ? "Send Build Costs & Complete"
     : "Send Build Costs";
@@ -36,11 +32,6 @@ export function PassBuildCostsButton({ state }) {
       showSnackbarError(`No build costs imported.`, 3);
     }
     manageListenerRequests(retrievedJobs);
-
-    logEvent(analytics, "Import Costs", {
-      UID: getCurrentFirebaseUser(),
-      isLoggedIn: isLoggedIn,
-    });
 
     addRetrievedJobsToJobArray(retrievedJobs);
 

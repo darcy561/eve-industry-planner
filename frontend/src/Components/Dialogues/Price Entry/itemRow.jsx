@@ -228,7 +228,13 @@ export function ItemPriceRow({
       sx={{ marginBottom: 2, paddingBottom: 2, borderBottom: "1px solid rgba(0,0,0,0.12)" }}
       size={12}>
       {/* Item Header */}
-      <Grid container size={12} alignItems="center" sx={{ marginBottom: 1 }}>
+      <Grid
+        container
+        size={12}
+        sx={{
+          alignItems: "center",
+          marginBottom: 1
+        }}>
         <Grid
           sx={{
             display: { xs: "none", sm: "block" },
@@ -252,23 +258,27 @@ export function ItemPriceRow({
             arrow
             placement="top"
           > 
-          <Typography sx={{ typography: SMALL_TEXT_FORMAT }} color="text.secondary">
+          <Typography
+            sx={{
+              color: "text.secondary",
+              typography: SMALL_TEXT_FORMAT
+            }}>
             Total Needed: { formatNumberForLocale(item.totalQuantity, { max: 0 })} | Remaining: {formatNumberForLocale(remainingQuantity, { max: 0 })}
           </Typography>
           </Tooltip>
         </Grid>
       </Grid>
-
       {/* Confirmed Price Entries */}
       {confirmedEntries.map((entry) => (
         <Grid
           key={entry.id}
           container
           size={12}
-          alignItems="center"
-          spacing={1} 
-          sx={{ marginLeft: { xs: 0, sm: "40px" } }}
-        >
+          spacing={1}
+          sx={{
+            alignItems: "center",
+            marginLeft: { xs: 0, sm: "40px" }
+          }}>
           <Grid size={{ xs: 3, sm: 3 }}>
             <Tooltip
               title={numberToShortText(entry.itemCount || 0)}
@@ -297,7 +307,11 @@ export function ItemPriceRow({
               arrow
               placement="top"
             >
-            <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} color="text.secondary">
+            <Typography
+              sx={{
+                color: "text.secondary",
+                typography: STANDARD_TEXT_FORMAT
+              }}>
               Total: {formatNumberForLocale((entry.itemCount || 0) * (entry.itemCost || 0))}
             </Typography>
             </Tooltip>
@@ -322,17 +336,17 @@ export function ItemPriceRow({
           </Grid>
         </Grid>
       ))}
-
       {/* Unconfirmed Price Entries */}
       {unconfirmedEntries.map((entry) => (
         <Grid
           key={entry.id}
           container
           size={12}
-          alignItems="center"
           spacing={1}
-          sx={{ marginLeft: { xs: 0, sm: "40px" } }}
-        >
+          sx={{
+            alignItems: "center",
+            marginLeft: { xs: 0, sm: "40px" }
+          }}>
           <Grid size={{ xs: 3, sm: 3 }}>
             <Tooltip
               title={numberToShortText(entry.itemCount)}
@@ -393,7 +407,11 @@ export function ItemPriceRow({
               arrow
               placement="top"
             >
-            <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} color="text.secondary">
+            <Typography
+              sx={{
+                color: "text.secondary",
+                typography: STANDARD_TEXT_FORMAT
+              }}>
               Total: {formatNumberForLocale((entry.itemCount || 0) * (entry.itemCost || 0))}
             </Typography>
             </Tooltip>
@@ -419,7 +437,6 @@ export function ItemPriceRow({
           </Grid>
         </Grid>
       ))}
-
     </Grid>
   );
 }

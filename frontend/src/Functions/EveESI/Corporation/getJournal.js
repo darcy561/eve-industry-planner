@@ -14,7 +14,7 @@ async function getCorpJournal({
     }
 
     const { esiAccessToken, corporation_id } = character;
-    const endpointURL = `https://esi.evetech.net/v4/corporations/${corporation_id}/wallets/${division}/journal/?datasource=tranquility&page=${page}`;
+        const endpointURL = `https://esi.evetech.net/corporations/${corporation_id}/wallets/${division}/journal/?datasource=tranquility&page=${page}`;
 
     // Enhanced configuration for rate limiting
     const enhancedConfig = {

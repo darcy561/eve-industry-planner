@@ -1,10 +1,8 @@
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
-import { VitePWA } from "vite-plugin-pwa";
 import { visualizer } from "rollup-plugin-visualizer";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
-import fs from "fs";
 import path from "path";
 
 export default defineConfig(({ command, mode }) => {
@@ -21,8 +19,16 @@ export default defineConfig(({ command, mode }) => {
     process.env.FRONTEND_APP_VERSION ||
     process.env.npm_package_version ||
     "development";
-  const enableServiceWorker =
-    (env.ENABLE_SERVICE_WORKER || process.env.ENABLE_SERVICE_WORKER || "false").toLowerCase() === "true";
+
+  const analyzeBundle =
+    process.env.ANALYZE === "1" ||
+    String(process.env.ANALYZE || "").toLowerCase() === "true";
+
+  // Sentry bundler plugin: heavy on `vite` dev (transforms every module; plugin timings often >50% of HMR).
+  // `vite build` still runs it for release/source maps. Set SENTRY_VITE_PLUGIN_IN_DEV=1 to enable during dev.
+  const runSentryVitePlugin =
+    command === "build" ||
+    String(env.SENTRY_VITE_PLUGIN_IN_DEV || process.env.SENTRY_VITE_PLUGIN_IN_DEV || "").trim() === "1";
 
   return {
     plugins: [
@@ -35,129 +41,40 @@ export default defineConfig(({ command, mode }) => {
         disableTypes: true,
       }),
       react(),
-      // Custom plugin to serve .gz files
-      {
-        name: "serve-raw-gzip",
-        configureServer(server) {
-          server.middlewares.use((req, res, next) => {
-            if (req.url.endsWith(".json.gz")) {
-              const filePath = path.join(__dirname, "public", req.url);
-
-              if (fs.existsSync(filePath)) {
-                res.setHeader("Content-Type", "application/gzip");
-                res.setHeader(
-                  "Content-Disposition",
-                  'inline; filename="searchIndex_compressed.json.gz"'
-                );
-                fs.createReadStream(filePath).pipe(res);
-                return;
-              }
-            }
-            next();
-          });
-        },
-        // Add transform hook to prevent Vite from processing .gz files
-        transform(code, id) {
-          if (id.endsWith(".gz")) {
-            return {
-              code: "",
-              map: null,
-            };
-          }
-        },
-      },
-      sentryVitePlugin({
-        // org = organization slug (…/organizations/<slug>/); project = project slug (…/projects/<slug>/).
-        org: env.SENTRY_ORG || "eve-industry-planner",
-        project: env.SENTRY_PROJECT_ID,
-      }),
-      VitePWA({
-        disable: !enableServiceWorker,
-        injectRegister: false,
-        registerType: "autoUpdate",
-        srcDir: "public",
-        filename: "sw.js",
-        strategies: "injectManifest",
-        injectManifest: {
-          injectionPoint: undefined,
-        },
-        workbox: {
-          cleanupOutdatedCaches: true,
-          skipWaiting: true,
-          clientsClaim: true,
-        },
-      }),
-      // Bundle analyzer - generates stats.html to visualize bundle contents
-      visualizer({
-        filename: "dist/stats.html",
-        open: false,
-        gzipSize: true,
-        brotliSize: true,
-      }),
-      // Custom plugin to handle service worker environment variables in dev mode
-      {
-        name: "sw-env-replace",
-        configureServer(server) {
-          server.middlewares.use((req, res, next) => {
-            if (
-              req.url === "/sw.js" ||
-              req.url.startsWith("/sw.js")
-            ) {
-
-              const swPath = path.join(__dirname, "public/sw.js");
-
-              if (fs.existsSync(swPath)) {
-                let content = fs.readFileSync(swPath, "utf-8");
-                // Replace environment variables using new naming convention
-                // Support both new FIREBASE_* and legacy VITE_* names for backwards compatibility
-                const envReplacements = {
-                  "__FIREBASE_API_KEY__": JSON.stringify(
-                    env.FIREBASE_API_KEY || env.VITE_fbApiKey || ""
-                  ),
-                  "__FIREBASE_AUTH_DOMAIN__": JSON.stringify(
-                    env.FIREBASE_AUTH_DOMAIN || env.VITE_fbAuthDomain || ""
-                  ),
-                  "__FIREBASE_DATABASE_URL__": JSON.stringify(
-                    env.FIREBASE_DATABASE_URL || env.VITE_fbDatabaseURL || ""
-                  ),
-                  "__FIREBASE_PROJECT_ID__": JSON.stringify(
-                    env.FIREBASE_PROJECT_ID || env.VITE_fbProjectID || ""
-                  ),
-                  "__FIREBASE_APP_ID__": JSON.stringify(
-                    env.FIREBASE_APP_ID || env.VITE_fbAppID || ""
-                  ),
-                  "__FIREBASE_MEASUREMENT_ID__": JSON.stringify(
-                    env.FIREBASE_MEASUREMENT_ID || env.VITE_measurmentID || ""
-                  ),
-                };
-
-                Object.entries(envReplacements).forEach(
-                  ([placeholder, value]) => {
-                    if (value && value !== "null" && value !== '""') {
-                      content = content.replace(
-                        new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "g"),
-                        value
-                      );
-                    }
-                  }
-                );
-                res.setHeader("Content-Type", "application/javascript");
-                res.end(content);
-                return;
-              }
-            }
-            next();
-          });
-        },
-      },
+      ...(runSentryVitePlugin
+        ? [
+            sentryVitePlugin({
+              // org = organization slug (…/organizations/<slug>/); project = project slug (…/projects/<slug>/).
+              org: env.SENTRY_ORG || "eve-industry-planner",
+              project: env.SENTRY_PROJECT_ID,
+              telemetry: false,
+            }),
+          ]
+        : []),
+      ...(analyzeBundle
+        ? [
+            visualizer({
+              filename: "dist/stats.html",
+              open: false,
+              gzipSize: true,
+              brotliSize: true,
+            }),
+          ]
+        : []),
     ],
 
-    // Flat `process.env.KEY` entries so esbuild replaces every access (nested `process.env`
+    // Flat `process.env.KEY` entries so the bundler replaces every access (nested `process.env`
     // objects do not reliably rewrite `process.env.ENVIRONMENT` in app + Zustand code).
     define: {
       __APP_VERSION__: JSON.stringify(frontendAppVersion),
       "import.meta.env.SENTRY_PROJECT_ID": JSON.stringify(env.SENTRY_PROJECT_ID),
       "import.meta.env.SENTRY_DSN": JSON.stringify(env.SENTRY_DSN),
+      "import.meta.env.SENTRY_TRACES_SAMPLE_RATE": JSON.stringify(
+        env.SENTRY_TRACES_SAMPLE_RATE ?? ""
+      ),
+      "import.meta.env.SENTRY_ERROR_SAMPLE_RATE": JSON.stringify(
+        env.SENTRY_ERROR_SAMPLE_RATE ?? ""
+      ),
       "import.meta.env.ENVIRONMENT": JSON.stringify(environment),
       "process.env.NODE_ENV": JSON.stringify(environment),
       "process.env.ENVIRONMENT": JSON.stringify(environment),
@@ -178,15 +95,6 @@ export default defineConfig(({ command, mode }) => {
       strictPort: false,
       cors: true, // Enable CORS
       proxy: {},
-    },
-    // Tell Vite to treat .gz files as binary assets
-    assetsInclude: ["**/*.gz"],
-
-    resolve: {
-      extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json'],
-      alias: {
-        '@': path.resolve(__dirname, './src'),
-      },
     },
 
     test: {
@@ -228,18 +136,7 @@ export default defineConfig(({ command, mode }) => {
 
     build: {
       sourcemap: true,
-      target: "es2022",
-      chunkSizeWarningLimit: 1000, // Increase warning limit to 1MB
-      rollupOptions: {
-        output: {
-          // Let Vite handle chunking automatically - much easier to maintain!
-          manualChunks: undefined,
-          // Enable automatic chunking based on size and dependencies
-          chunkFileNames: "assets/[name]-[hash].js",
-          entryFileNames: "assets/[name]-[hash].js",
-          assetFileNames: "assets/[name]-[hash].[ext]",
-        },
-      },
+      chunkSizeWarningLimit: 1000, // kB — warn when a chunk exceeds this size after minification
     },
   };
 });

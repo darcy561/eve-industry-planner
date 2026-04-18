@@ -17,8 +17,10 @@ import Step2JobCard from "./Job Cards/step2";
 import Step3JobCard from "./Job Cards/step3";
 import Step4JobCard from "./Job Cards/step4";
 import Step5JobCard from "./Job Cards/step5";
-import { useDrag } from "react-dnd";
-import { ItemTypes } from "../../../../Context/DnDTypes";
+import {
+  plannerDragPassThroughSx,
+  usePlannerJobCardDrag,
+} from "../../../../Hooks/usePlannerCardDrag";
 import { useNavigate } from "@tanstack/react-router";
 import GLOBAL_CONFIG from "../../../../global-config-app";
 import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
@@ -48,17 +50,13 @@ export function JobCardFrame({ job }) {
   const multiSelect = useUsersStore((state) => state.jobData.multiSelect);
   const { addToMultiSelect, removeFromMultiSelect } =
     useUsersStore.getState().jobData.actions;
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: ItemTypes.jobCard,
-    item: {
-      id: job.jobID,
-      cardType: ItemTypes.jobCard,
-      currentStatus: job.jobStatus,
-    },
-    collect: (monitor) => ({
-      isDragging: !!monitor.isDragging(),
-    }),
-  }));
+  const {
+    setNodeRef,
+    attributes,
+    listeners,
+    isDragging,
+    style: dragStyle,
+  } = usePlannerJobCardDrag(job);
   const navigate = useNavigate({ from: '/jobplanner' });
   const { PRIMARY_THEME } = GLOBAL_CONFIG;
   const theme = useTheme();
@@ -90,13 +88,18 @@ export function JobCardFrame({ job }) {
 
   return (
     <Grid
-      ref={drag}
+      ref={setNodeRef}
+      style={dragStyle}
+      {...listeners}
+      {...attributes}
+      sx={plannerDragPassThroughSx(isDragging)}
       size={{
         xs: 12,
         sm: 6,
         md: 4,
         lg: 3
-      }}>
+      }}
+    >
       <ContentPanel
         componentName="ClassicJobCardFrame"
         paperSx={{

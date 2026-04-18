@@ -10,7 +10,6 @@ import recalculateInstallCostsWithNewData from "../../Functions/Installation Cos
 import { getAvailableBlueprintsByMaterialID } from "../../Functions/Helper/getAvailableBlueprints";
 import firebaseBatchUpdateJobs from "../../Functions/Firebase/batchUpdateJobs";
 import { showSnackbarSuccess } from "../../Events/snackbarEvents";
-import { getAnalytics, logEvent } from "firebase/analytics";
 import useUsersStore from "../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -70,15 +69,6 @@ function useBuildJobTree() {
     setNumberOfVisibleSkeletonElements,
     buildFullItemTree = false
   ) {
-    const analytics = getAnalytics();
-
-    // Log start of material building
-    logEvent(analytics, "material_build_start", {
-      job_count: inputJobIDs.length,
-      is_full_tree: buildFullItemTree,
-      has_blueprint_restriction: ignoreItemsWithoutBlueprints,
-    });
-
     try {
       if (!inputJobIDs || !setNumberOfVisibleSkeletonElements) {
         throw new Error("missing inputs");
@@ -151,25 +141,10 @@ function useBuildJobTree() {
         .getState()
         .worldData.actions.addSystemIndex(requestedSystemIndexes);
 
-      // Log successful completion of material building
-      logEvent(analytics, "material_build_complete", {
-        total_jobs_created: newJobs.length,
-        is_full_tree: buildFullItemTree,
-        has_blueprint_restriction: ignoreItemsWithoutBlueprints,
-        market_data_retrieved: Object.keys(requestedMarketData).length,
-        system_indexes_retrieved: Object.keys(requestedSystemIndexes).length,
-      });
-
       showSnackbarSuccess(`${newJobs.length} Jobs Added`);
     } catch (err) {
       console.error(err);
 
-      // Log failure of material building
-      logEvent(analytics, "material_build_error", {
-        error_message: err.message,
-        is_full_tree: buildFullItemTree,
-        has_blueprint_restriction: ignoreItemsWithoutBlueprints,
-      });
     } finally {
     }
   }

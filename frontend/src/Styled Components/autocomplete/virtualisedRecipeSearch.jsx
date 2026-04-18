@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import Autocomplete, {
   createFilterOptions,
@@ -17,14 +17,11 @@ import PanelFallBack from "../Paper/panelStates";
 
 const defaultAutocompleteFilter = createFilterOptions();
 
-const ListboxComponent = React.forwardRef(function ListboxComponent(
-  props,
-  ref
-) {
-  const { children, virtualizerControlRef, ...other } = props;
-  const itemCount = Array.isArray(children) ? children.length : 0;
+function ListboxComponent({ children, virtualizerControlRef, ref, ...other }) {
+  const childItems = Array.isArray(children) ? children : [children].filter(Boolean);
+  const itemCount = childItems.length;
 
-  const parentRef = React.useRef();
+  const parentRef = useRef();
 
   const virtualizer = useVirtualizer({
     count: itemCount,
@@ -82,16 +79,14 @@ const ListboxComponent = React.forwardRef(function ListboxComponent(
                 transform: `translateY(${virtualItem.start}px)`,
               }}
             >
-              {React.cloneElement(children[virtualItem.index], {
-                style: { height: virtualItem.size },
-              })}
+              {childItems[virtualItem.index]}
             </div>
           ))}
         </div>
       </div>
     </div>
   );
-});
+}
 
 /**
  * @param {Object} props

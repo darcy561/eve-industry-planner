@@ -24,7 +24,7 @@ async function getCorpAssets({ character, page = 1, existingEtags = {}, config =
       throw new Error("Character information is incomplete.");
     }
     const { esiAccessToken, corporation_id } = character;
-    const endpointURL = `https://esi.evetech.net/v5/corporations/${corporation_id}/assets/?datasource=tranquility&page=${page}`;
+    const endpointURL = `https://esi.evetech.net/corporations/${corporation_id}/assets/?datasource=tranquility&page=${page}`;
 
     // Enhanced configuration for rate limiting
     const enhancedConfig = {

@@ -59,11 +59,12 @@ export function AssetEntry_Child({
       size={12}>
       <Grid sx={{ paddingLeft: deviceNotMobile ? 1 : 0 }} size={1}>
         <Box
-          height="100%"
-          display="flex"
-          justifyContent="left"
-          alignItems="center"
-        >
+          sx={{
+            height: "100%",
+            display: "flex",
+            justifyContent: "left",
+            alignItems: "center"
+          }}>
           <Avatar
             src={imageURL}
             alt={itemName}
@@ -75,17 +76,25 @@ export function AssetEntry_Child({
           />
         </Box>
       </Grid>
-      <Grid display="flex" justifyContent="left" alignItems="center" size={8}>
+      <Grid
+        size={8}
+        sx={{
+          display: "flex",
+          justifyContent: "left",
+          alignItems: "center"
+        }}>
         <Typography sx={{ typography: deviceNotMobile ? "body2" : "caption" }}>
           {itemName}
         </Typography>
       </Grid>
       <Grid
-        display="flex"
-        justifyContent="right"
-        alignItems="center"
-        sx={{ paddingRight: deviceNotMobile ? 2 : 0 }}
-        size={3}>
+        size={3}
+        sx={{
+          display: "flex",
+          justifyContent: "right",
+          alignItems: "center",
+          paddingRight: deviceNotMobile ? 2 : 0
+        }}>
         <Typography
           sx={{
             typography: deviceNotMobile ? "body2" : "caption",

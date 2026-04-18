@@ -76,11 +76,12 @@ export function AssetEntry_Parent({
       <Grid container size={12}>
         <Grid sx={{ paddingLeft: deviceNotMobile ? 1 : 0 }} size={1}>
           <Box
-            height="100%"
-            display="flex"
-            justifyContent="left"
-            alignItems="center"
-          >
+            sx={{
+              height: "100%",
+              display: "flex",
+              justifyContent: "left",
+              alignItems: "center"
+            }}>
             <Avatar
               src={`https://images.evetech.net/types/${assetObject.type_id}/icon?size=32`}
               alt={itemName}
@@ -93,14 +94,15 @@ export function AssetEntry_Parent({
           </Box>
         </Grid>
         <Grid
-          display="flex"
-          justifyContent="left"
-          alignItems="center"
           size={{
             xs: 9,
             sm: 10,
           }}
-        >
+          sx={{
+            display: "flex",
+            justifyContent: "left",
+            alignItems: "center"
+          }}>
           <Typography
             sx={{ typography: deviceNotMobile ? "body1" : "caption" }}
           >
@@ -108,15 +110,16 @@ export function AssetEntry_Parent({
           </Typography>
         </Grid>
         <Grid
-          display="flex"
-          justifyContent="right"
-          alignItems="center"
-          sx={{ paddingRight: deviceNotMobile ? 2 : 1 }}
           size={{
             xs: 2,
             sm: 1,
           }}
-        >
+          sx={{
+            display: "flex",
+            justifyContent: "right",
+            alignItems: "center",
+            paddingRight: deviceNotMobile ? 2 : 1
+          }}>
           <IconButton size="small" onClick={toggleClick}>
             {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
           </IconButton>

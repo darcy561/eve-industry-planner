@@ -3,7 +3,7 @@
 ############################
 # Build stage
 ############################
-FROM node:22-alpine AS frontend-builder
+FROM node:24-alpine AS frontend-builder
 
 # Build arguments
 ARG ENVIRONMENT=production
@@ -12,6 +12,8 @@ ARG SENTRY_ORG
 ARG SENTRY_PROJECT_ID
 ARG SENTRY_DSN
 ARG SENTRY_AUTH_TOKEN
+ARG SENTRY_TRACES_SAMPLE_RATE=
+ARG SENTRY_ERROR_SAMPLE_RATE=
 
 WORKDIR /app
 
@@ -32,6 +34,8 @@ ENV SENTRY_ORG=${SENTRY_ORG}
 ENV SENTRY_PROJECT_ID=${SENTRY_PROJECT_ID}
 ENV SENTRY_DSN=${SENTRY_DSN}
 ENV SENTRY_AUTH_TOKEN=${SENTRY_AUTH_TOKEN}
+ENV SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE}
+ENV SENTRY_ERROR_SAMPLE_RATE=${SENTRY_ERROR_SAMPLE_RATE}
 
 # Copy frontend source and public assets
 COPY frontend/index.html ./
@@ -45,7 +49,7 @@ RUN npm run build
 # Runtime stage
 ############################
 
-FROM node:22-alpine
+FROM node:24-alpine
 
 WORKDIR /app
 

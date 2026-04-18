@@ -1,6 +1,9 @@
 import { useMemo } from "react";
-import { useDrag } from "react-dnd";
-import { ItemTypes } from "../../../../Context/DnDTypes";
+import { JobCardUiSource } from "../../../../Context/DnDTypes";
+import {
+  plannerDragPassThroughSx,
+  usePlannerJobCardDrag,
+} from "../../../../Hooks/usePlannerCardDrag";
 import { jobTypes } from "../../../../Context/defaultValues";
 import DeleteIcon from "@mui/icons-material/Delete";
 import {
@@ -29,17 +32,15 @@ export function CompactGroupJobCardFrame({ job, highlightedItems }) {
   const { addToMultiSelect, removeFromMultiSelect } =
     useUsersStore.getState().jobData.actions;
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down("sm"));
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: ItemTypes.jobCard,
-    item: {
-      id: job.jobID,
-      cardType: ItemTypes.jobCard,
-      currentStatus: job.jobStatus,
-    },
-    collect: (monitor) => ({
-      isDragging: !!monitor.isDragging(),
-    }),
-  }));
+  const {
+    setNodeRef,
+    attributes,
+    listeners,
+    isDragging,
+    style: dragStyle,
+  } = usePlannerJobCardDrag(job, {
+    uiListSource: JobCardUiSource.groupJobObjects,
+  });
   const { PRIMARY_THEME } = GLOBAL_CONFIG;
 
   const jobCardChecked = useMemo(() => {
@@ -76,7 +77,10 @@ export function CompactGroupJobCardFrame({ job, highlightedItems }) {
 
   return (
     <Card
-      ref={drag}
+      ref={setNodeRef}
+      style={dragStyle}
+      {...listeners}
+      {...attributes}
       elevation={2}
       square
       sx={(theme) => {
@@ -98,6 +102,7 @@ export function CompactGroupJobCardFrame({ job, highlightedItems }) {
           "&:hover": {
             border: `2px solid ${borderColor}`,
           },
+          ...plannerDragPassThroughSx(isDragging),
         };
       }}
     >
@@ -126,21 +131,22 @@ export function CompactGroupJobCardFrame({ job, highlightedItems }) {
             }}
           />
         </Grid>
-        <Grid container alignItems="center" size={isMobile ? 7 : 8}>
+        <Grid container size={isMobile ? 7 : 8} sx={{
+          alignItems: "center"
+        }}>
           <Typography sx={{ typography: { xs: "body2", sm: "body1" } }}>
             {job.name}
           </Typography>
         </Grid>
         {!isMobile && (
           <Grid
-            alignItems="center"
-            justifyContent="center"
-            sx={{
-              display: "flex",
-              minHeight: "100%",
-            }}
             size={1}
-          >
+            sx={{
+              alignItems: "center",
+              justifyContent: "center",
+              display: "flex",
+              minHeight: "100%"
+            }}>
             <Tooltip title={tooltipContent} arrow placement="left">
               <Box
                 sx={{
@@ -159,16 +165,19 @@ export function CompactGroupJobCardFrame({ job, highlightedItems }) {
         <Grid
           container
           align="center"
-          alignItems="center"
-          justifyContent="center"
           size={isMobile ? 3 : 1}
-        >
+          sx={{
+            alignItems: "center",
+            justifyContent: "center"
+          }}>
           <Button color="primary" onClick={onJobClick}>
             Edit
           </Button>
         </Grid>
         {!isMobile && (
-          <Grid container align="center" alignItems="center" size={1}>
+          <Grid container align="center" size={1} sx={{
+            alignItems: "center"
+          }}>
             <IconButton
               sx={{
                 color: (theme) =>

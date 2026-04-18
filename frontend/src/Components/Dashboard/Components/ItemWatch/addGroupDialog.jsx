@@ -8,7 +8,8 @@ import {
 import { useState } from "react";
 import { useFirebase } from "../../../../Hooks/useFirebase";
 import useUsersStore from "../../../../Zustand/usersStore";
-import { getAnalytics, logEvent } from "firebase/analytics";
+import { AppEvent } from "../../../../analytics/appEventNames";
+import { trackAppEvent } from "../../../../analytics/trackAppEvent";
 import DOMPurify from "dompurify";
 
 export function AddGroupDialog({
@@ -19,7 +20,6 @@ export function AddGroupDialog({
   const { setUserWatchlistGroups } = useUsersStore.getState().jobData.actions;
   const [setName, updateSetName] = useState("");
   const { uploadUserWatchlist } = useFirebase();
-  const analytics = getAnalytics();
   const handleClose = () => {
     updateSetName("");
     updateAddNewGroupTrigger((prev) => !prev);
@@ -75,9 +75,7 @@ export function AddGroupDialog({
             });
             setUserWatchlistGroups(newUserWatchlistGroups);
             uploadUserWatchlist(newUserWatchlistGroups, userWatchlist.items);
-            logEvent(analytics, "New Watchlist Group", {
-              UID: useUsersStore.getState().account.actions.getAccountID(),
-            });
+            trackAppEvent(AppEvent.NEW_WATCHLIST_GROUP);
             handleClose();
           }}
         >

@@ -1,24 +1,19 @@
-import {
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControl,
-  Grid,
-  TextField,
-  Typography,
-} from "@mui/material";
+import { Button, Grid, TextField, Typography } from "@mui/material";
+import ContentDialog, {
+  useDialogEventState,
+} from "../../../Styled Components/Dialog/ContentDialog";
 import { useEffect, useState } from "react";
 import { useImportFitFromClipboard } from "../../../Hooks/GroupHooks/useImportFitFromClipboard";
 import { ImportFittingItemRow } from "./importFittingItemRow";
 import { showSnackbarError } from "../../../Events/snackbarEvents";
 import { checkClipboardReadPermissions } from "../../../Functions/Clipboard/clipboardPermissions";
+import { IMPORT_FIT_DIALOG_EVENT } from "../../../Events/importFitDialogEvents";
 
-export function ImportItemFitDialogue({
-  importFitDialogueTrigger,
-  updateImportFitDialogueTrigger,
-}) {
+export default function ImportFitDialog() {
+  const [messageData, , resetDialog] = useDialogEventState(
+    IMPORT_FIT_DIALOG_EVENT,
+    () => ({ isOpen: false }),
+  );
   const [clipboardReadAllowed, updateClipboardReadAllowed] = useState(false);
   const [importedItemList, updateImportedItemList] = useState([]);
   const [fitQuantityMultiplier, updateFitQuantityMultiplier] = useState(1);
@@ -29,12 +24,12 @@ export function ImportItemFitDialogue({
     updateClipboardReadAllowed(false);
     updateImportedItemList([]);
     updateFitQuantityMultiplier(1);
-    updateImportFitDialogueTrigger((prev) => !prev);
+    resetDialog();
   };
 
   useEffect(() => {
     async function checkClipboardPermission() {
-      if (!importFitDialogueTrigger) return;
+      if (!messageData.isOpen) return;
 
       try {
         const queryResult = await checkClipboardReadPermissions();
@@ -52,48 +47,26 @@ export function ImportItemFitDialogue({
       }
     }
     checkClipboardPermission();
-  }, [importFitDialogueTrigger]);
+  }, [messageData.isOpen, importFromClipboard]);
+
   return (
-    <Dialog
-      open={importFitDialogueTrigger}
+    <ContentDialog
+      open={messageData.isOpen}
       onClose={handleClose}
-      sx={{ padding: "20px" }}
-    >
-      <DialogTitle color="primary" align="center">
-        Import Fit
-      </DialogTitle>
-      <DialogContent>
-        <Grid container>
-          {!clipboardReadAllowed ? (
-            <Grid size={12}>
-              <Typography align="center"> No Access To Clipboard</Typography>
-            </Grid>
-          ) : importedItemList.length > 0 ? (
-            importedItemList.map((item, index) => {
-              return (
-                <ImportFittingItemRow
-                  key={item.itemID}
-                  updateImportedItemList={updateImportedItemList}
-                  item={item}
-                  index={index}
-                />
-              );
-            })
-          ) : (
-            <Grid size={12}>
-              <Typography align="center">No Imported Items</Typography>
-            </Grid>
-          )}
-        </Grid>
-      </DialogContent>
-      <DialogActions sx={{ padding: "20px" }}>
+      title="Import Fit"
+      componentName="ImportItemFitDialogue"
+      maxWidth={false}
+      dialogSx={{ padding: "20px" }}
+      dialogActionsProps={{ sx: { padding: "20px" } }}
+      actions={
         <Grid container>
           <Grid
             sx={{ marginBottom: { xs: "20px", sm: "0px" } }}
             size={{
               xs: 12,
-              sm: 3
-            }}>
+              sm: 3,
+            }}
+          >
             <TextField
               disabled={importedItemList.length === 0 || !clipboardReadAllowed}
               fullWidth
@@ -121,7 +94,7 @@ export function ImportItemFitDialogue({
                 updateFitQuantityMultiplier(Math.round(e.target.value));
               }}
               slotProps={{
-                input: { inputProps: { step: "1", min: 1 } }
+                input: { inputProps: { step: "1", min: 1 } },
               }}
             />
           </Grid>
@@ -130,8 +103,9 @@ export function ImportItemFitDialogue({
             align="center"
             size={{
               xs: 6,
-              sm: 4
-            }}>
+              sm: 4,
+            }}
+          >
             <Button
               disabled={importedItemList.length === 0 || !clipboardReadAllowed}
               size="small"
@@ -148,12 +122,36 @@ export function ImportItemFitDialogue({
             align="center"
             size={{
               xs: 6,
-              sm: 2
-            }}>
+              sm: 2,
+            }}
+          >
             <Button onClick={handleClose}>Close</Button>
           </Grid>
         </Grid>
-      </DialogActions>
-    </Dialog>
+      }
+    >
+      <Grid container>
+        {!clipboardReadAllowed ? (
+          <Grid size={12}>
+            <Typography align="center"> No Access To Clipboard</Typography>
+          </Grid>
+        ) : importedItemList.length > 0 ? (
+          importedItemList.map((item, index) => {
+            return (
+              <ImportFittingItemRow
+                key={item.itemID}
+                updateImportedItemList={updateImportedItemList}
+                item={item}
+                index={index}
+              />
+            );
+          })
+        ) : (
+          <Grid size={12}>
+            <Typography align="center">No Imported Items</Typography>
+          </Grid>
+        )}
+      </Grid>
+    </ContentDialog>
   );
 }

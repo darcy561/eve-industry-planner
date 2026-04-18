@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
@@ -144,4 +145,132 @@ func ShouldStopRetryOnRateLimit(ctx context.Context, err error, attempt int, pat
 
 	// Always return true for rate limit errors - let asynq handle retries
 	return true
+}
+
+// DoRequestWithRetry executes an ESI HTTP request with bounded in-task retries.
+// Rate limit errors short-circuit immediately so the task can be retried by Asynq.
+func DoRequestWithRetry(
+	ctx context.Context,
+	maxAttempts int,
+	path string,
+	request func() (*http.Response, error),
+) (*http.Response, error) {
+	if maxAttempts <= 0 {
+		maxAttempts = 4
+	}
+
+	var resp *http.Response
+	var err error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		resp, err = request()
+		if err == nil {
+			return resp, nil
+		}
+
+		logs.DebugCtx(ctx, "ESI request failed",
+			"attempt", attempt,
+			"max_attempts", maxAttempts,
+			"error", err,
+			"error_type", fmt.Sprintf("%T", err),
+			"path", path)
+
+		if ShouldStopRetryOnRateLimit(ctx, err, attempt, path) {
+			return nil, err
+		}
+		if attempt >= maxAttempts {
+			return nil, err
+		}
+
+		backoff := time.Duration(500*(1<<uint(attempt-1))) * time.Millisecond
+		jitter := time.Duration(rand.Intn(100)) * time.Millisecond
+		waitTime := backoff + jitter
+		logs.DebugCtx(ctx, "waiting before retry with exponential backoff",
+			"attempt", attempt,
+			"backoff", backoff,
+			"jitter", jitter,
+			"wait_time", waitTime,
+			"path", path)
+		time.Sleep(waitTime)
+	}
+	return nil, err
+}
+
+// DoWithRetry runs ClientInterface.Do with the same bounded in-task retry, backoff,
+// and rate-limit short-circuit behavior as DoRequestWithRetry. Use a nil body for GET.
+func DoWithRetry(
+	ctx context.Context,
+	maxAttempts int,
+	path string,
+	request func() ([]byte, *http.Response, error),
+) ([]byte, *http.Response, error) {
+	if maxAttempts <= 0 {
+		maxAttempts = 4
+	}
+
+	var body []byte
+	var resp *http.Response
+	var err error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		body, resp, err = request()
+		if err == nil {
+			return body, resp, nil
+		}
+
+		logs.DebugCtx(ctx, "ESI Do request failed",
+			"attempt", attempt,
+			"max_attempts", maxAttempts,
+			"error", err,
+			"error_type", fmt.Sprintf("%T", err),
+			"path", path)
+
+		if ShouldStopRetryOnRateLimit(ctx, err, attempt, path) {
+			return nil, nil, err
+		}
+		if attempt >= maxAttempts {
+			return nil, nil, err
+		}
+
+		backoff := time.Duration(500*(1<<uint(attempt-1))) * time.Millisecond
+		jitter := time.Duration(rand.Intn(100)) * time.Millisecond
+		waitTime := backoff + jitter
+		logs.DebugCtx(ctx, "waiting before retry with exponential backoff (Do)",
+			"attempt", attempt,
+			"backoff", backoff,
+			"jitter", jitter,
+			"wait_time", waitTime,
+			"path", path)
+		time.Sleep(waitTime)
+	}
+	return nil, nil, err
+}
+
+// DoEsiWithRetry runs ClientInterface.Do for any HTTP verb with the same retry semantics as [DoWithRetry].
+// Pass requestBody as nil for GET; for POST set Content-Type and JSON in headers/requestBody as needed.
+//
+// The path value is used as the retry log key (same as streaming helpers); method is only sent to ESI.
+func DoEsiWithRetry(
+	ctx context.Context,
+	client esiratelimiter.ClientInterface,
+	maxAttempts int,
+	method, path string,
+	headers map[string]string,
+	requestBody []byte,
+	group esiratelimiter.GroupDesignation,
+) ([]byte, *http.Response, error) {
+	return DoWithRetry(ctx, maxAttempts, path, func() ([]byte, *http.Response, error) {
+		return client.Do(ctx, method, path, headers, requestBody, group)
+	})
+}
+
+// DoEsiPostWithRetry is shorthand for [DoEsiWithRetry] with http.MethodPost.
+func DoEsiPostWithRetry(
+	ctx context.Context,
+	client esiratelimiter.ClientInterface,
+	maxAttempts int,
+	path string,
+	headers map[string]string,
+	requestBody []byte,
+	group esiratelimiter.GroupDesignation,
+) ([]byte, *http.Response, error) {
+	return DoEsiWithRetry(ctx, client, maxAttempts, http.MethodPost, path, headers, requestBody, group)
 }

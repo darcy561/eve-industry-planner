@@ -2,6 +2,7 @@ import { Paper, Typography, Grid } from "@mui/material";
 
 import ContentErrorBoundary from "./ContentErrorBoundary";
 import PanelFallBack from "./panelStates";
+import { LoadingPage } from "../../Components/loadingPage";
 
 /**
  * A reusable content panel component with error boundary and loading states.
@@ -23,8 +24,10 @@ import PanelFallBack from "./panelStates";
  * @param {boolean} [props.isLoading=false] - Whether to show loading state
  * @param {boolean} [props.isError=false] - Whether to show error state
  * @param {Error} [props.error] - Error object to display if isError is true
- * @param {string} [props.loadingMessage] - Optional caption for the loading fallback (default in PanelFallBack)
+ * @param {string} [props.loadingMessage] - Optional caption for the loading fallback (default in PanelFallBack or "Loading…" for simple)
+ * @param {'minimal' | 'simple'} [props.loadingVariant='minimal'] - `simple` uses shared LoadingPage (spinner + caption), e.g. Edit Job initial load after route chunk
  * @param {Object} [props.paperSx] - Additional styles for the Paper component
+ * @param {Object} [props.contentGridSx] - Additional styles merged into the inner content Grid (e.g. overflow: "visible" for panels that size to content)
  * @param {boolean} [props.visible=true] - When false, the panel is not rendered
  * @param {Object} props.otherProps - Additional props passed to the Paper component
  * @returns {JSX.Element|null} Content panel component
@@ -52,13 +55,20 @@ export default function ContentPanel({
   isError = false,
   error = null,
   loadingMessage,
+  loadingVariant = "minimal",
   paperSx,
+  contentGridSx,
   visible = true,
   ...otherProps
 }) {
   if (!visible) {
     return null;
   }
+
+  const simpleLoadingCaption =
+    loadingMessage != null && String(loadingMessage).trim() !== ""
+      ? loadingMessage
+      : "Loading…";
 
   return (
     <Paper
@@ -103,18 +113,32 @@ export default function ContentPanel({
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
+            ...contentGridSx,
           }}
         >
           <ContentErrorBoundary
             componentName={componentName || title || "Unknown Content Panel"}
           >
             {isLoading || isError ? (
-              <PanelFallBack
-                isLoading={isLoading}
-                isError={isError}
-                error={error}
-                loadingMessage={loadingMessage}
-              />
+              isError ? (
+                <PanelFallBack
+                  isLoading={false}
+                  isError={isError}
+                  error={error}
+                />
+              ) : loadingVariant === "simple" ? (
+                <LoadingPage
+                  variant="simple"
+                  helperText={simpleLoadingCaption}
+                />
+              ) : (
+                <PanelFallBack
+                  isLoading={isLoading}
+                  isError={false}
+                  error={error}
+                  loadingMessage={loadingMessage}
+                />
+              )
             ) : (
               children
             )}

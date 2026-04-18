@@ -10,7 +10,7 @@ async function getStationData(stationID) {
       return null;
     }
     const response = await fetchWithCustomHeaders(
-      `https://esi.evetech.net/v2/universe/stations/${stationID}`
+      `https://esi.evetech.net/universe/stations/${stationID}/?datasource=tranquility`
     );
 
     if (!response.ok) {

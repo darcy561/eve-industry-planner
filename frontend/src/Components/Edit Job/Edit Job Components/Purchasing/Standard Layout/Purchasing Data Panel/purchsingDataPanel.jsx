@@ -53,7 +53,9 @@ export function PurchasingDataPanel_EditJob(props) {
 
   return (
     <ContentPanel>
-      <Grid container align="center" width="100%">
+      <Grid container align="center" sx={{
+        width: "100%"
+      }}>
         <Grid container size={12}>
           <Grid
             size={{

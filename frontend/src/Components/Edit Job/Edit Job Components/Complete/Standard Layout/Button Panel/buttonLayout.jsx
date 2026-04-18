@@ -7,7 +7,9 @@ import { ArchiveJobButton } from "./archiveJobButton";
 
 export function Complete_ButtonPanel_EditJob(props) {
   return (
-    <Grid container justifyContent="flex-end">
+    <Grid container sx={{
+      justifyContent: "flex-end"
+    }}>
       <SellGroupJobButton {...props} />
       <MarkAsCompleteButton {...props} />
       <PassBuildCostsButton {...props} />

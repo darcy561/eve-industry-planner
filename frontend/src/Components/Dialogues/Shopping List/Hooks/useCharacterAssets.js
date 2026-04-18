@@ -50,7 +50,7 @@ export function useShoppingListCharacterAssets({
             allCharacterAssetsLoading &&
             !state.isLoading
         ) {
-            actions.setIsLoading(true);
+            actions.setIsLoading(true, "Loading character assets from ESI…");
             return;
         }
 

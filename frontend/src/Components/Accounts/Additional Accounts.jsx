@@ -9,7 +9,6 @@ import {
 } from "@mui/material";
 import { useState } from "react";
 import { AccountEntry } from "./AccountEntry";
-import { getAnalytics, logEvent } from "firebase/analytics";
 import getEveOauthToken from "../../Functions/EveESI/Character/getEveSSOToken";
 import {
   showSnackbarSuccess,
@@ -26,6 +25,8 @@ import { DEBOUNCE_KEYS } from "../../Context/debounceKeys";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../Context/defaultValues";
 import { updateLocalRefreshTokens } from "../../Functions/Auth/buildAccountData";
+import { AppEvent } from "../../analytics/appEventNames";
+import { trackAppEvent } from "../../analytics/trackAppEvent";
 
 export function AdditionalAccounts() {
   const characters = useUsersStore((state) => state.account.characters);
@@ -41,7 +42,6 @@ export function AdditionalAccounts() {
     useUsersStore((state) => state.account.actions);
 
   const [skeletonVisible, toggleSkeleton] = useState(false);
-  const analytics = getAnalytics();
   const queryClient = useQueryClient();
   const { triggerCharacterDataPrefetch } = useCharacterHooks();
 
@@ -128,11 +128,11 @@ export function AdditionalAccounts() {
       if (cloudAccounts) {
         debouncedSaveSettings();
       }
-      logEvent(analytics, "Link Character", {
-        UID: useUsersStore.getState().account.actions.getAccountID(),
-        newHash: newUser.CharacterHash,
-        cloudAccount: cloudAccounts,
-      });
+      trackAppEvent(
+        cloudAccounts
+          ? AppEvent.ADD_ADDITIONAL_CHARACTER_CLOUD
+          : AppEvent.ADD_ADDITIONAL_CHARACTER_LOCAL
+      );
       triggerCharacterDataPrefetch(queryClient, newUser.CharacterHash);
       showSnackbarSuccess(`${newUser.CharacterName} Imported`, 3);
       toggleSkeleton(false);
@@ -220,12 +220,14 @@ export function AdditionalAccounts() {
           </Grid>
           <Grid
             container
-            justifyContent="center"
-            alignItems="center"
             size={{
               xs: 6,
               sm: 4,
               md: 2
+            }}
+            sx={{
+              justifyContent: "center",
+              alignItems: "center"
             }}>
             <Button
               variant="contained"
@@ -242,9 +244,12 @@ export function AdditionalAccounts() {
             <Grid
               container
               align="center"
-              alignItems="center"
-              sx={{ marginTop: 1, marginLeft: 1 }}
-              size={12}>
+              size={12}
+              sx={{
+                alignItems: "center",
+                marginTop: 1,
+                marginLeft: 1
+              }}>
               <Grid
                 align="left"
                 size={{

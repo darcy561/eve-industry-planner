@@ -1,66 +1,21 @@
 /**
- * Default job status configuration for EVE Industry Planner.
+ * Fixed planner workflow stages (ids and default labels). Custom names come from
+ * `application_settings.jobStatuses` on the server; display rows are built in
+ * {@link ../../Functions/Helper/jobStatuses.js}.
  *
- * Defines the standard workflow stages for industry jobs, including their display properties
- * and API integration settings. Each status represents a different phase in the industry
- * job lifecycle from planning to completion and sale.
- *
- * @type {Array<Object>}
- * @property {number} id - Unique identifier for the status
- * @property {string} name - Display name for the status
- * @property {number} sortOrder - Order for display sorting
- * @property {boolean} expanded - Whether this status section is expanded by default
- * @property {boolean} openAPIJobs - Whether to show open API jobs for this status
- * @property {boolean} completeAPIJobs - Whether to show completed API jobs for this status
- *
- * @example
- * [
- *   { id: 0, name: "Planning", sortOrder: 0, expanded: true, openAPIJobs: false, completeAPIJobs: false },
- *   { id: 1, name: "Purchasing", sortOrder: 1, expanded: true, openAPIJobs: false, completeAPIJobs: false }
- * ]
+ * @type {ReadonlyArray<{ id: number, order: number, defaultName: string }>}
  */
-export let jobStatusDefault = [
-  {
-    id: 0,
-    name: "Planning",
-    sortOrder: 0,
-    expanded: true,
-    openAPIJobs: false,
-    completeAPIJobs: false,
-  },
-  {
-    id: 1,
-    name: "Purchasing",
-    sortOrder: 1,
-    expanded: true,
-    openAPIJobs: false,
-    completeAPIJobs: false,
-  },
-  {
-    id: 2,
-    name: "Building",
-    sortOrder: 2,
-    expanded: true,
-    openAPIJobs: true,
-    completeAPIJobs: false,
-  },
-  {
-    id: 3,
-    name: "Complete",
-    sortOrder: 3,
-    expanded: true,
-    openAPIJobs: false,
-    completeAPIJobs: true,
-  },
-  {
-    id: 4,
-    name: "For Sale",
-    sortOrder: 4,
-    expanded: true,
-    openAPIJobs: false,
-    completeAPIJobs: false,
-  },
-];
+export const JOB_STATUS_CATALOG = Object.freeze([
+  { id: 0, order: 0, defaultName: "Planning" },
+  { id: 1, order: 1, defaultName: "Purchasing" },
+  { id: 2, order: 2, defaultName: "Building" },
+  { id: 3, order: 3, defaultName: "Complete" },
+  { id: 4, order: 4, defaultName: "For Sale" },
+]);
+
+/** Last workflow stage id (e.g. “For Sale”) — jobs in this stage match this id. */
+export const LAST_JOB_STATUS_ID =
+  JOB_STATUS_CATALOG[JOB_STATUS_CATALOG.length - 1].id;
 
 /**
  * Default categories for extra costs in EVE Industry Planner.

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { showBlueprintArchiveDialog } from "../../../Events/dialogEvents";
 import {
   Box,
   CircularProgress,
@@ -12,9 +13,7 @@ import { CACHED_DATA_FILES, STANDARD_TEXT_FORMAT } from "../../../Context/defaul
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import { BlueprintEntry } from "./classicBlueprintEntry";
 import AddIcon from "@mui/icons-material/Add";
-import { ArchiveBpData } from "../blueprintArchiveData";
 import { useJobBuild } from "../../../Hooks/useJobBuild";
-import { getAnalytics, logEvent } from "firebase/analytics";
 import JobSnapshot from "../../../Classes/jobSnapshot";
 import addNewJobToFirebase from "../../../Functions/Firebase/addNewJob";
 import uploadJobSnapshotsToFirebase from "../../../Functions/Firebase/uploadJobSnapshots";
@@ -29,10 +28,8 @@ export function ClassicBlueprintGroup({ bpID, blueprintResults }) {
   const { userJobSnapshot, jobArray } = useUsersStore((state) => state.jobData);
   const { replaceUserJobSnapshotArray, replaceJobArray } =
     useUsersStore.getState().jobData.actions;
-  const [archiveOpen, updateArchiveOpen] = useState(false);
   const [loadingBuild, updateLoadingBuild] = useState(false);
   const { buildJob } = useJobBuild();
-  const analytics = getAnalytics();
   const { data: blueprintIDs, isLoading: blueprintIDsLoading, error: blueprintIDsError } = useCachedData(CACHED_DATA_FILES.SEARCH_INDEX);
 
   const { data: apiJobs = [], isLoading: apiJobsLoading, error: apiJobsError } = useGetAllIndustryJobs();
@@ -64,7 +61,12 @@ export function ClassicBlueprintGroup({ bpID, blueprintResults }) {
         isError={blueprintIDsError || apiJobsError}
         error={blueprintIDsError || apiJobsError}
         titleAlign="left"
-        paperSx={{ position: "relative" }}
+        paperSx={{ position: "relative", height: "auto" }}
+        contentGridSx={{
+          overflow: "visible",
+          minHeight: "auto",
+          flex: "0 1 auto",
+        }}
       >
         <Grid
           container
@@ -93,13 +95,6 @@ export function ClassicBlueprintGroup({ bpID, blueprintResults }) {
 
                     await addNewJobToFirebase(newJob);
                     await uploadJobSnapshotsToFirebase(newSnapshotArray);
-
-                    logEvent(analytics, "New Job", {
-                      loggedIn: true,
-                      UID: useUsersStore.getState().account.actions.getAccountID(),
-                      name: newJob.name,
-                      itemID: newJob.itemID,
-                    });
 
                     const { requestedMarketData, requestedSystemIndexes } =
                       await getMissingESIData(newJob);
@@ -133,7 +128,7 @@ export function ClassicBlueprintGroup({ bpID, blueprintResults }) {
                 size="small"
                 disabled={!bpData}
                 onClick={() => {
-                  updateArchiveOpen((prev) => !prev);
+                  showBlueprintArchiveDialog(bpData.itemID, bpData?.name);
                 }}
               >
                 <AssessmentOutlinedIcon />
@@ -166,11 +161,6 @@ export function ClassicBlueprintGroup({ bpID, blueprintResults }) {
             )
           ) : null}
         </Grid>
-        <ArchiveBpData
-          archiveOpen={archiveOpen}
-          updateArchiveOpen={updateArchiveOpen}
-          bpData={bpData}
-        />
       </ContentPanel>
     </Grid>
   );

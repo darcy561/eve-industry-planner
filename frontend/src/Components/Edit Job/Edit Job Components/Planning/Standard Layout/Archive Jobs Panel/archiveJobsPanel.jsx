@@ -1,4 +1,3 @@
-import { forwardRef } from "react";
 import { Icon, Typography, Tooltip, Grid } from "@mui/material";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import DoneIcon from "@mui/icons-material/Done";
@@ -13,13 +12,13 @@ import { useBuildStatsQuery } from "../../../../../../Hooks/React Query/Backend/
 
 const cellTextSx = { typography: STANDARD_TEXT_FORMAT };
 
-const CellText = forwardRef(function CellText({ children, ...props }, ref) {
+function CellText({ children, ref, ...props }) {
   return (
     <Typography ref={ref} align="center" sx={cellTextSx} {...props}>
       {children}
     </Typography>
   );
-});
+}
 
 function HeaderCell({ size, sx, tooltip, children }) {
   const label = <CellText>{children}</CellText>;
@@ -136,7 +135,9 @@ export default function ArchiveJobsPanel({ state }) {
       error={error}
       loadingMessage="Loading archived data…"
     >
-      <Grid container spacing={2} width="100%">
+      <Grid container spacing={2} sx={{
+        width: "100%"
+      }}>
         <ArchiveTableHeader isReaction={isReaction} producedSm={producedSm} />
         <Grid container size={12}>
           {snapshots.length > 0 ? (

@@ -68,7 +68,9 @@ export function MassBuildFeedback() {
         }}
       >
         <Grid container spacing={3}>
-          <Grid container align="center" justifyContent="center" spacing={2} size={12}>
+          <Grid container align="center" spacing={2} size={12} sx={{
+            justifyContent: "center"
+          }}>
             <Grid>
               <Fade in={true} timeout={500}>
                 <CircularProgress 

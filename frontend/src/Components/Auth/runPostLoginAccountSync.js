@@ -5,7 +5,6 @@ import {
   getSystemIndexDataFromUserStructures,
 } from "../../Functions/Auth/buildAccountData";
 import { clearQueryTimings } from "../../Functions/Debugging/queryWaterfallLogger";
-import { expandJobStatusesMapToArray } from "../../Functions/Helper/jobStatuses";
 import {
   emitLoginError,
   emitLoginStepComplete,
@@ -30,13 +29,15 @@ function buildShimUserDataFromMongo(userDocument) {
       },
     },
     refreshTokens: userDocument?.refreshTokens ?? [],
-    jobStatusArray: userDocument?.jobStatusArray,
   };
 }
 
 /**
- * Runs post-login async work (characters, indexes, job status) after `applyLoginAuthResponse`
+ * Runs post-login async work (characters, indexes) after `applyLoginAuthResponse`
  * has already applied the login payload to the store.
+ *
+ * Job stage labels come from merged `application_settings.jobStatuses`; accordion expansion
+ * is read from localStorage when the planner mounts.
  *
  * @param {object} options
  * @param {import("@tanstack/react-query").QueryClient} options.queryClient
@@ -84,17 +85,6 @@ export async function runPostLoginAccountSync({
         .getState()
         .account.actions.updateLinkedCharacterRefreshTokens(normalizedTokens);
     }
-
-    const legacyStatuses = userData.jobStatusArray;
-    const statusMap = useUsersStore.getState().applicationSettings.jobStatuses;
-    const local = useUsersStore.getState().users.jobStatus;
-    useUsersStore.getState().users.actions.updateJobStatus(
-      legacyStatuses?.length > 0
-        ? legacyStatuses
-        : local?.length > 0
-          ? local
-          : expandJobStatusesMapToArray(statusMap)
-    );
 
     emitLoginStepComplete(LOGIN_STEPS.CHARACTER_DATA);
   } catch (err) {

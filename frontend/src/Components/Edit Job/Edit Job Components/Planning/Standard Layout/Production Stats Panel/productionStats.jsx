@@ -54,7 +54,7 @@ export function ProductionStats({ state, actions }) {
 
   return (
     <ContentPanel paperSx={{ height: "auto" }}>
-      <Grid container direction="column" sx={{}}>
+      <Grid container sx={{ flexDirection: "column" }}>
         <Grid container>
           <Grid container sx={{ marginBottom: "5px" }} size={12}>
             <Grid size={10}>

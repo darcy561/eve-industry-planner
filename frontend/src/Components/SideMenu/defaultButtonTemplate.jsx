@@ -40,15 +40,17 @@ export function SidemenuButtonTemplate_Default({
             paddingLeft: 2.5,
           }}
         >
-          <ListItemIcon
-            sx={{
-              minWidth: 0,
-              marginRight: expandedState ? 3 : "auto",
-              justifyContent: "center",
-            }}
-          >
-            {icon}
-          </ListItemIcon>
+          {icon ? (
+            <ListItemIcon
+              sx={{
+                minWidth: 0,
+                marginRight: expandedState ? 3 : "auto",
+                justifyContent: "center",
+              }}
+            >
+              {icon}
+            </ListItemIcon>
+          ) : null}
           <ListItemText
             sx={{
               overflow: "hidden",

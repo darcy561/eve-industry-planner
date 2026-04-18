@@ -35,11 +35,13 @@ export function UpcomingChangesSearch({
               let newTranqJob = await buildJob({
                 itemID: value.itemID,
                 throwError: false,
+                skipJobCreateAnalytics: true,
               });
               let newSisiJob = await buildJob({
                 itemID: value.itemID,
                 sisiData: true,
                 throwError: false,
+                skipJobCreateAnalytics: true,
               });
               let priceIDRequest = new Set();
               priceIDRequest.add(value.itemID);

@@ -6,7 +6,7 @@ const AssetLibrary = lazyRouteComponent(() => import('../../Components/Assets/as
 
 export const Route = createFileRoute('/_protected/asset-library')({
   component: () => (
-    <Suspense fallback={<LoadingPage />}>
+    <Suspense fallback={<LoadingPage variant="route" />}>
       <AssetLibrary />
     </Suspense>
   ),

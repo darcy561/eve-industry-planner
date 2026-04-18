@@ -1,6 +1,5 @@
 import { useFirebase } from "./useFirebase";
 import { auth } from "../firebase";
-import { getAnalytics, logEvent } from "firebase/analytics";
 import { signInWithCustomToken } from "firebase/auth";
 import {
   fetchServerJWT,
@@ -71,8 +70,6 @@ export function useRefreshUser() {
 
   async function reloadMainUser(refreshToken) {
     try {
-      const analytics = getAnalytics();
-
       clearUserJobSnapshotArray();
 
       const refreshedCharacter = await getCharacterFromRefreshToken(refreshToken, true);
@@ -135,10 +132,6 @@ export function useRefreshUser() {
       userGroupDataListener();
 
       clearJobArray();
-      logEvent(analytics, "userSignIn", {
-        UID: signInResult.user.uid,
-        isFirstTimeLogin: useUsersStore.getState().account.isFirstTimeLogin,
-      });
     } catch (err) {
       console.error("reloadMainUser failed:", err);
       redirectToEveSSO();

@@ -102,12 +102,7 @@ func readCurrentVersion(dataDir string) (*versionFile, error) {
 }
 
 func fetchLatestBuild(ctx context.Context) (*latestBuildInfo, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, latestBuildURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpGetOKWithRetry(ctx, latestBuildURL, "sde_fetch_latest_build")
 	if err != nil {
 		return nil, err
 	}

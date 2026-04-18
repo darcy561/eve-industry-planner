@@ -13,7 +13,7 @@ async function getCharacterJournal({
     }
 
     const { esiAccessToken, CharacterID } = character;
-    const endpointURL = `https://esi.evetech.net/v6/characters/${CharacterID}/wallet/journal/?datasource=tranquility&page=${page}`;
+    const endpointURL = `https://esi.evetech.net/characters/${CharacterID}/wallet/journal/?datasource=tranquility&page=${page}`;
     const refTypes = new Set([
       "brokers_fee",
       "market_escrow",

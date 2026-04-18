@@ -368,8 +368,9 @@ class Job {
    * @param {number} statusID - The status ID to set (0-3)
    */
   setJobStatus(statusID) {
-    if (!statusID || !isNaN(statusID)) return;
-    this.jobStatus = Number(statusID);
+    const n = Number(statusID);
+    if (Number.isNaN(n)) return;
+    this.jobStatus = n;
   }
 
   /**

@@ -8,7 +8,7 @@ const Reprocessing = lazyRouteComponent(() => import('../Components/Reprocessing
 export const Route = createFileRoute('/reprocessing')({
   beforeLoad: allowPublicAccess,
   component: () => (
-    <Suspense fallback={<LoadingPage />}>
+    <Suspense fallback={<LoadingPage variant="route" />}>
       <Reprocessing />
     </Suspense>
   ),

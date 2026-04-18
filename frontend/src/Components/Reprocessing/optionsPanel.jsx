@@ -10,22 +10,24 @@ function OptionsPanel({
 
   return (
     <Box
-      display="flex"
-      flexDirection={{ xs: "column", md: "row" }}
-      justifyContent={{ xs: "flex-start", md: "space-between" }}
-      alignItems={{ xs: "stretch", md: "center" }}
-      width="100%"
-      height="100%"
-      gap={{ xs: 2, md: 0 }}
-    >
-      <Box 
-        display="flex" 
-        flexDirection="row" 
-        alignItems="center" 
-        justifyContent={{ xs: "center", md: "flex-start" }}
-        gap={2}
-        sx={{ order: { xs: 1, md: 1 } }}
-      >
+      sx={{
+        display: "flex",
+        flexDirection: { xs: "column", md: "row" },
+        justifyContent: { xs: "flex-start", md: "space-between" },
+        alignItems: { xs: "stretch", md: "center" },
+        width: "100%",
+        height: "100%",
+        gap: { xs: 2, md: 0 }
+      }}>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: { xs: "center", md: "flex-start" },
+          gap: 2,
+          order: { xs: 1, md: 1 }
+        }}>
         <ToggleButtonGroup
           value={pageState.toMinerals}
           exclusive
@@ -68,16 +70,14 @@ function OptionsPanel({
           </ToggleButton>
         </ToggleButtonGroup>
       </Box>
-
       <Box
-        display="flex"
-        alignItems="center"
-        justifyContent="center"
-        sx={{ 
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
           flexGrow: { xs: 0, md: 1 },
           order: { xs: 2, md: 2 }
-        }}
-      >
+        }}>
         {pageState.toMinerals && (
           <ToggleButtonGroup
             value={pageState.displayAdvancedView}
@@ -117,18 +117,16 @@ function OptionsPanel({
           </ToggleButtonGroup>
         )}
       </Box>
-
       <Box
-        display="flex"
-        flexDirection="row"
-        alignItems="center"
-        justifyContent={{ xs: "center", md: "center" }}
-        gap={2}
         sx={{
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: { xs: "center", md: "center" },
+          gap: 2,
           order: { xs: 3, md: 3 },
           flexWrap: { xs: "wrap", md: "nowrap" }
-        }}
-      >
+        }}>
         <MarketLocationSelect
           value={pageState.marketLocation}
           onChange={({ id }) => pageActions.setMarketLocation(id)}

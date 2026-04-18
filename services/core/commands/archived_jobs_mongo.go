@@ -74,7 +74,7 @@ func runMarkArchivedJobsUnprocessed(ctx context.Context, args []string) error {
 	if *dryRun {
 		fmt.Printf("dry-run [%s]: %d document(s) would be marked unprocessed (archive flags only)\n", scopeDesc, n)
 		if n == 0 {
-			fmt.Fprintf(os.Stderr, archivedJobsEmptyHint(scopeDesc))
+			fmt.Fprint(os.Stderr, archivedJobsEmptyHint(scopeDesc))
 		}
 		return nil
 	}
@@ -94,7 +94,7 @@ func runMarkArchivedJobsUnprocessed(ctx context.Context, args []string) error {
 
 	fmt.Printf("marked unprocessed (build-stats) [%s]: matched=%d modified=%d\n", scopeDesc, res.MatchedCount, res.ModifiedCount)
 	if res.MatchedCount == 0 {
-		fmt.Fprintf(os.Stderr, archivedJobsEmptyHint(scopeDesc))
+		fmt.Fprint(os.Stderr, archivedJobsEmptyHint(scopeDesc))
 	}
 	return nil
 }

@@ -10,6 +10,8 @@
  * @author EVE Industry Planner Team
  */
 
+import { normalizeSetIsLoadingPayload } from "../../../../Functions/Helper/setIsLoadingAction";
+
 /**
  * Action types for the assets dialog reducer.
  * 
@@ -82,8 +84,16 @@ export function assetsDialogReducer(state, action, createInitialState) {
             return { ...state, isOpen: !state.isOpen };
         case ASSETS_DIALOG_ACTION_TYPES.SET_SELECTED_TYPE_ID:
             return { ...state, selectedTypeID: action.payload };
-        case ASSETS_DIALOG_ACTION_TYPES.SET_IS_LOADING:
-            return { ...state, isLoading: action.payload };
+        case ASSETS_DIALOG_ACTION_TYPES.SET_IS_LOADING: {
+            const { isLoading, loadingMessage } = normalizeSetIsLoadingPayload(
+                action.payload,
+            );
+            return {
+                ...state,
+                isLoading,
+                loadingMessage: isLoading ? loadingMessage : undefined,
+            };
+        }
         case ASSETS_DIALOG_ACTION_TYPES.TOGGLE_USE_CORPORATION_ASSETS:
             return { ...state, useCorporationAssets: !state.useCorporationAssets };
         case ASSETS_DIALOG_ACTION_TYPES.SET_SELECTED_CHARACTER:

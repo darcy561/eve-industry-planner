@@ -10,7 +10,7 @@ async function getCharacterStandings({
     }
 
     const { esiAccessToken, CharacterID } = character;
-    const endpointURL = `https://esi.evetech.net/v2/characters/${CharacterID}/standings/?datasource=tranquility`;
+    const endpointURL = `https://esi.evetech.net/characters/${CharacterID}/standings/?datasource=tranquility`;
 
     const response = await fetchWithCustomHeaders(endpointURL, {
       headers: {

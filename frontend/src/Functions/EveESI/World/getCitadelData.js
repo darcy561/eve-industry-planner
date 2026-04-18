@@ -23,7 +23,7 @@ async function getCitadelData(citadelID, character, config = {}) {
     };
 
     const response = await fetchWithCustomHeaders(
-      `https://esi.evetech.net/v2/universe/structures/${citadelID}/`,
+      `https://esi.evetech.net/universe/structures/${citadelID}/?datasource=tranquility`,
       {
         headers: {
           Authorization: `Bearer ${esiAccessToken}`,

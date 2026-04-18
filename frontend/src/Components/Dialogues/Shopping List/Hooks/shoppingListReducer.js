@@ -10,6 +10,8 @@
  * @author EVE Industry Planner Team
  */
 
+import { normalizeSetIsLoadingPayload } from "../../../../Functions/Helper/setIsLoadingAction";
+
 /**
  * Action types for the shopping list reducer.
  * 
@@ -96,9 +98,21 @@ export function shoppingListReducer(state, action, createInitialState) {
         case SHOPPING_LIST_ACTION_TYPES.TOGGLE_IS_OPEN:
             return { ...state, isOpen: !state.isOpen };
         case SHOPPING_LIST_ACTION_TYPES.TOGGLE_IS_LOADING:
-            return { ...state, isLoading: !state.isLoading };
-        case SHOPPING_LIST_ACTION_TYPES.SET_IS_LOADING:
-            return { ...state, isLoading: action.payload };
+            return {
+                ...state,
+                isLoading: !state.isLoading,
+                loadingMessage: undefined,
+            };
+        case SHOPPING_LIST_ACTION_TYPES.SET_IS_LOADING: {
+            const { isLoading, loadingMessage } = normalizeSetIsLoadingPayload(
+                action.payload,
+            );
+            return {
+                ...state,
+                isLoading,
+                loadingMessage: isLoading ? loadingMessage : undefined,
+            };
+        }
         case SHOPPING_LIST_ACTION_TYPES.TOGGLE_BUILDING_SHOPPING_LIST:
             return { ...state, buildingShoppingList: !state.buildingShoppingList };
         case SHOPPING_LIST_ACTION_TYPES.SET_REQUESTED_JOB_IDS:

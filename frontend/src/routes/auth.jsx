@@ -29,7 +29,7 @@ export const Route = createFileRoute('/auth')({
     }
   },
   component: () => (
-    <Suspense fallback={<LoadingPage />}>
+    <Suspense fallback={<LoadingPage variant="route" />}>
       <AuthMainUser />
     </Suspense>
   ),

@@ -12,7 +12,7 @@ async function getCharacterTransactions({
     }
 
     const { esiAccessToken, CharacterID } = character;
-    const endpointURL = `https://esi.evetech.net/v1/characters/${CharacterID}/wallet/transactions/?datasource=tranquility&page=${page}`;
+        const endpointURL = `https://esi.evetech.net/characters/${CharacterID}/wallet/transactions/?datasource=tranquility&page=${page}`;
 
     const response = await fetchWithCustomHeaders(endpointURL, {
       headers: {

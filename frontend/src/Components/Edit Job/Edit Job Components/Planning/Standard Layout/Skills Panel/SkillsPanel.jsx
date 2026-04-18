@@ -1,9 +1,8 @@
 import { Typography, Alert, Box, Stack, Tooltip, Divider } from "@mui/material";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutlineOutlined";
 import bpSkills from "../../../../../../RawData/bpSkills.json";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { useGetCharacterSkills } from "../../../../../../Hooks/EveEsi/Character/useGetCharacterSkills";
-import { LoadingPage } from "../../../../../loadingPage";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 
 export function SkillsPanel({ state }) {

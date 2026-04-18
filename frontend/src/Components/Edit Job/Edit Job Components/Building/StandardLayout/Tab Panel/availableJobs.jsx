@@ -13,7 +13,6 @@ import {
   Typography,
 } from "@mui/material";
 import { MdOutlineAddLink } from "react-icons/md";
-import { getAnalytics, logEvent } from "firebase/analytics";
 import { useJobManagement } from "../../../../../../Hooks/useJobManagement";
 import { LARGE_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
@@ -25,11 +24,8 @@ import { formatNumberForLocale, formatTimeRemaining } from "../../../../../../Fu
 export function AvailableJobsTab(props) {
   const { state, actions, jobMatches, isLoading, isError, error } =
     props;
-  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const { findBlueprintType } = useJobManagement();
   const [clickedJobs, setClickedJobs] = useState(new Set());
-
-  const analytics = getAnalytics();
 
   const getStatusColor = (status, isReadyToDeliver) => {
     if (isReadyToDeliver) {
@@ -58,10 +54,6 @@ export function AvailableJobsTab(props) {
     actions.updateActiveJob(state.activeJob);
 
     showSnackbarSuccess(`${jobMatches.length} Jobs Linked`);
-    logEvent(analytics, "linkESIJobBulk", {
-      UID: useUsersStore.getState().account.actions.getAccountID(),
-      isLoggedIn: isLoggedIn,
-    });
   };
 
   const handleJobClick = (job) => {
@@ -76,10 +68,6 @@ export function AvailableJobsTab(props) {
       actions.addIndustryESIJobsForAddition(job.job_id);
       actions.updateActiveJob(state.activeJob);
       showSnackbarSuccess("Linked");
-      logEvent(analytics, "linkESIJob", {
-        UID: useUsersStore.getState().account.actions.getAccountID(),
-        isLoggedIn: isLoggedIn,
-      });
     }, 800);
   };
 
@@ -266,7 +254,9 @@ export function AvailableJobsTab(props) {
                         )
                       }
                       title={
-                        <Stack direction="row" spacing={1} alignItems="center">
+                        <Stack direction="row" spacing={1} sx={{
+                          alignItems: "center"
+                        }}>
                           <Typography variant="body1" noWrap>
                             {formatNumberForLocale(job.runs, { max: 0 })} Runs
                           </Typography>
@@ -275,8 +265,10 @@ export function AvailableJobsTab(props) {
                       subheader={
                         <Typography
                           variant="caption"
-                          color="text.secondary"
                           noWrap
+                          sx={{
+                            color: "text.secondary"
+                          }}
                         >
                           {facilityName}
                         </Typography>
@@ -287,8 +279,10 @@ export function AvailableJobsTab(props) {
                         {job.status === "active" && (
                           <Typography
                             variant="caption"
-                            color="text.secondary"
                             align="center"
+                            sx={{
+                              color: "text.secondary"
+                            }}
                           >
                             {isReadyToDeliver
                               ? "Ready to Deliver"

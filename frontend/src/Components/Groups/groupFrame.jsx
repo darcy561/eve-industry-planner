@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Box,
   useMediaQuery,
@@ -6,7 +6,6 @@ import {
   ToggleButton,
 } from "@mui/material";
 import useSetupUnmountEventListeners from "../../Hooks/GeneralHooks/useSetupUnmountEventListeners";
-import { LoadingPage } from "../loadingPage";
 import { SearchBar } from "../Job Planner/Planner Components/searchbar";
 import { ShoppingListDialog } from "../Dialogues/Shopping List/ShoppingList";
 import { useNavigate, useParams } from "@tanstack/react-router";
@@ -27,6 +26,7 @@ import MarketDataDialog from "../Dialogues/Market Data/dialogFrame";
 import useGroupPageReducer from "./Hooks/useGroupPageReducer";
 import useUsersStore from "../../Zustand/usersStore";
 import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
+import { LoadingPage } from "../loadingPage";
 import GroupPageViewSelector from "./pageViewSelector";
 
 function GroupPageFrame() {
@@ -47,6 +47,7 @@ function GroupPageFrame() {
   const navigate = useNavigate();
   const activeGroupObject = getGroupObject(groupID);
   const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("sm"));
+  const [loadHelperText, setLoadHelperText] = useState("Loading group…");
 
   const pageRequiresRightDrawerOpen = true;
 
@@ -60,7 +61,13 @@ function GroupPageFrame() {
   }, [jobArray, activeGroupObject]);
 
   useEffect(() => {
+    let cancelled = false;
+    const hint = (text) => {
+      if (!cancelled) setLoadHelperText(text);
+    };
+
     async function retrieveGroupData() {
+      hint("Loading group…");
       try {
         // Get fresh groupArray from store to check if group still exists
         // This prevents the effect from running when closing a group
@@ -78,15 +85,18 @@ function GroupPageFrame() {
           throw new Error("Unable to find requested group");
         }
 
+        hint("Loading jobs…");
         const retrievedJobs = await getMissingJobObjects(
           currentActiveGroupObject.includedJobIDs
         );
 
+        hint("Preparing job data…");
         const allJobObjects = await convertJobIDsToObjects(
           currentActiveGroupObject.includedJobIDs,
           retrievedJobs
         );
 
+        hint("Gathering market data…");
         const { requestedMarketData, requestedSystemIndexes } =
           await getMissingESIData(allJobObjects);
 
@@ -117,6 +127,9 @@ function GroupPageFrame() {
       }
     }
     retrieveGroupData();
+    return () => {
+      cancelled = true;
+    };
     // Depend on groupID from route params instead of groupArray
     // This way it only runs when navigating to a different group, not when groupArray updates
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -131,10 +144,15 @@ function GroupPageFrame() {
     pageRequiresRightDrawerOpen
   );
 
+  const isGroupReady = activeGroupID === groupID;
+
   return (
     <DefaultPageLayout>
-      {!activeGroupID ? (
-        <LoadingPage />
+      {!isGroupReady ? (
+        <LoadingPage
+          variant="simple"
+          helperText={loadHelperText}
+        />
       ) : (
         <>
           <LeftCollapseableMenuDrawer inputDrawerButtons={buttonOptions} />

@@ -1,5 +1,5 @@
 import { IconButton, Typography, Box, Tooltip, Stack } from "@mui/material";
-import { GitHub } from "@mui/icons-material";
+import GitHubIcon from "@mui/icons-material/GitHub";
 import { FaDiscord } from "react-icons/fa";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
 import GLOBAL_CONFIG from "../../global-config-app";
@@ -18,7 +18,7 @@ const SOCIAL_LINKS = [
   {
     name: "GitHub",
     url: DEFAULT_GITHUB_LINK,
-    icon: GitHub,
+    icon: GitHubIcon,
     tooltip: "Visit our GitHub",
     placement: "right",
   },
@@ -32,14 +32,17 @@ export function Footer() {
     >
       <Stack
         spacing={2}
-        alignItems="center"
-        sx={{ width: "100%" }}
-      >
+        sx={{
+          alignItems: "center",
+          width: "100%"
+        }}>
         <Box
-          display="flex"
-          justifyContent="center"
-          alignItems="center"
-          gap={2}
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            gap: 2,
+          }}
         >
           {SOCIAL_LINKS.map((link) => {
             const IconComponent = link.icon;
@@ -65,7 +68,9 @@ export function Footer() {
           })}
         </Box>
 
-        <Stack spacing={0.5} alignItems="center">
+        <Stack spacing={0.5} sx={{
+          alignItems: "center"
+        }}>
           <Typography variant="caption" align="center">
             All EVE related materials are property of CCP Games.
           </Typography>

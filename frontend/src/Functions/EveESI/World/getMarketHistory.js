@@ -38,7 +38,7 @@ async function getMarketHistory({ regionID, typeID, existingData, config = {} })
     };
 
     const response = await fetchWithCustomHeaders(
-      `https://esi.evetech.net/v1/markets/${regionID}/history/?datasource=tranquility&type_id=${typeID}`,
+      `https://esi.evetech.net/markets/${regionID}/history/?datasource=tranquility&type_id=${typeID}`,
       {
         headers: {
           "If-None-Match": existingData?.etag || null,

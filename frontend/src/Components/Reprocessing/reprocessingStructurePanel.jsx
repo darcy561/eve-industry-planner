@@ -61,7 +61,7 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
     "You cannot have multiple rigs effecting the same material type.";
 
   return (
-    <Grid container direction="column">
+    <Grid container sx={{ flexDirection: "column" }}>
       <PanelFallBack
         isLoading={skillsLoading}
         isError={skillsError}

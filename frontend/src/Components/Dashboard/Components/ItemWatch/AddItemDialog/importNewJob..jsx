@@ -39,6 +39,7 @@ export function ImportNewJob_WatchlistDialog({
 
     const WatchlistItemJob = await buildJob({
       itemID: requestedID,
+      skipJobCreateAnalytics: true,
     });
 
     if (!WatchlistItemJob) {
@@ -52,7 +53,10 @@ export function ImportNewJob_WatchlistDialog({
     const materialJobRequests = WatchlistItemJob.build.materials.reduce(
       (prev, material) => {
         if (checkJobTypeIsBuildable(material.jobType)) {
-          prev.push({ itemID: material.typeID });
+          prev.push({
+            itemID: material.typeID,
+            skipJobCreateAnalytics: true,
+          });
         }
         return prev;
       },

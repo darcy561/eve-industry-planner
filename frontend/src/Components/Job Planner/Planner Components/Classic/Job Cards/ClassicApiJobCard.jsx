@@ -31,7 +31,7 @@ function ClassiceAPIJobCard({ job, searchData }) {
             width: "100%",
           }}
         >
-          <Grid container direction="columm" sx={{ height: "100%" }} size={12}>
+          <Grid container sx={{ height: "100%", flexDirection: "column" }} size={12}>
             <Grid container sx={{ height: "100%" }} size={12}>
               <Grid sx={{ display: "flex", justifyContent: "center" }} size={12}>
                 <Typography
@@ -50,11 +50,13 @@ function ClassiceAPIJobCard({ job, searchData }) {
                 size={12}>
                 <Grid
                   container
-                  justifyContent="center"
-                  alignItems="center"
                   size={{
                     xs: 2,
                     sm: 3
+                  }}
+                  sx={{
+                    justifyContent: "center",
+                    alignItems: "center"
                   }}>
                   <Badge
                     overlap="circular"

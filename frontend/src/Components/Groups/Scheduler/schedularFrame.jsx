@@ -46,7 +46,9 @@ export default function GroupSchedulerFrame({
                                     Total scheduled tasks: {schedule.tasks.length}
                                 </Typography>
                                 {schedule.unscheduledTaskIds.length > 0 && (
-                                    <Typography variant="body2" color="warning.main">
+                                    <Typography variant="body2" sx={{
+                                        color: "warning.main"
+                                    }}>
                                         Unscheduled tasks: {schedule.unscheduledTaskIds.length}
                                     </Typography>
                                 )}
@@ -71,12 +73,13 @@ export default function GroupSchedulerFrame({
                                     {schedule.unscheduledTaskIds.map((taskId) => {
                                         const reason = schedule.unscheduledTaskReasons[taskId] || "Unknown reason";
                                         return (
-                                            <Typography 
-                                                key={taskId} 
-                                                variant="caption" 
-                                                color="error.main"
-                                                sx={{ display: "block" }}
-                                            >
+                                            <Typography
+                                                key={taskId}
+                                                variant="caption"
+                                                sx={{
+                                                    color: "error.main",
+                                                    display: "block"
+                                                }}>
                                                 {reason}
                                             </Typography>
                                         );

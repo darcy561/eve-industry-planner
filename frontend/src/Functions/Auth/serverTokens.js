@@ -1,4 +1,5 @@
 import withRequestRetries from "../Endpoints/withRequestRetries.js";
+import { requestWithPrivateHeaders } from "../Endpoints/Pirivate/applyPrivateHeaders.js";
 
 function getAppVersionHeaderValue() {
     if (typeof __APP_VERSION__ === "string" && __APP_VERSION__.trim().length > 0) {
@@ -150,6 +151,35 @@ export async function refreshServerJWTForLogin(refreshToken, eveSSOToken) {
             throw err
         }
         throw new Error(`Error refreshing server JWT for login: ${err.message}`)
+    }
+}
+
+/**
+ * Revokes the current app session refresh token on the backend.
+ *
+ * @param {string} refreshToken - Server refresh token to revoke
+ * @returns {Promise<boolean>} true when logout token revocation succeeded
+ */
+export async function logoutServerSession(refreshToken) {
+    if (!refreshToken) {
+        return false;
+    }
+    try {
+        const response = await requestWithPrivateHeaders("/api/v1/auth/logout", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-App-Version": getAppVersionHeaderValue(),
+            },
+            body: JSON.stringify({
+                refresh_token: refreshToken,
+            }),
+        }, {
+            requestName: "logoutServerSession",
+        });
+        return response.ok;
+    } catch {
+        return false;
     }
 }
 

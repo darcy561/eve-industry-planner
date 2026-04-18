@@ -15,6 +15,7 @@ import {
   assetsDialogReducer,
 } from "./assetsDialogReducer";
 import useUsersStore from "../../../../Zustand/usersStore";
+import { buildSetIsLoadingActionPayload } from "../../../../Functions/Helper/setIsLoadingAction";
 
 /**
  * Custom hook for managing assets dialog state.
@@ -168,13 +169,18 @@ export default function useAssetsDialogReducer() {
      * Sets the loading state to a specific value.
      * 
      * @param {boolean} value - Loading state value
-     * 
+     * @param {string} [loadingMessage] - Optional caption while loading
+     *
      * @example
      * actions.setIsLoading(true); // Start loading
+     * actions.setIsLoading(true, "Resolving locations…");
      * actions.setIsLoading(false); // Stop loading
      */
-    setIsLoading: (value) => {
-      dispatch({ type: ASSETS_DIALOG_ACTION_TYPES.SET_IS_LOADING, payload: value });
+    setIsLoading: (value, loadingMessage) => {
+      dispatch({
+        type: ASSETS_DIALOG_ACTION_TYPES.SET_IS_LOADING,
+        payload: buildSetIsLoadingActionPayload(value, loadingMessage),
+      });
     },
     /**
      * Toggles the use corporation assets setting.

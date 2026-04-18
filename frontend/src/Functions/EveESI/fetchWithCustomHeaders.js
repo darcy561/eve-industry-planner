@@ -9,6 +9,23 @@ const defaultHeaders = {
 };
 
 /**
+ * Sets X-Compatibility-Date on ESI requests when not already provided (EVE ESI date-based versioning).
+ * @param {string} URL
+ * @param {Record<string, string>} headers
+ */
+function applyEsiCompatibilityHeader(URL, headers) {
+  const isESI =
+    URL.includes("esi.evetech.net") || URL.includes("esi.eveonline.com");
+  if (
+    isESI &&
+    headers["X-Compatibility-Date"] == null &&
+    headers["x-compatibility-date"] == null
+  ) {
+    headers["X-Compatibility-Date"] = GLOBAL_CONFIG.ESI_COMPATIBILITY_DATE;
+  }
+}
+
+/**
  * Enhanced fetch with ESI rate limiting
  * @param {string} URL - Request URL
  * @param {Object} options - Fetch options
@@ -17,15 +34,16 @@ const defaultHeaders = {
  */
 async function fetchWithCustomHeaders(URL, options = {}, config = {}) {
   const headers = { ...defaultHeaders, ...options.headers };
-  
+  applyEsiCompatibilityHeader(URL, headers);
+
   // Check if this is an ESI endpoint
   const isESIEndpoint = URL.includes('esi.evetech.net') || URL.includes('esi.eveonline.com');
-  
+
   if (isESIEndpoint) {
     // Use group from config if provided, otherwise will be discovered from headers
     // Check if rate limiting is disabled
     const isIndividuallyDisabled = config.disabled === true || options.disabled === true;
-    
+
     if (isIndividuallyDisabled) {
       // Use regular fetch when rate limiting is disabled
       return fetch(URL, {
@@ -33,19 +51,19 @@ async function fetchWithCustomHeaders(URL, options = {}, config = {}) {
         headers,
       });
     }
-    
+
     // Use ESI rate limiting for EVE Online endpoints
     const enhancedOptions = {
       ...options,
       headers
     };
-    
+
     // Enhanced config with characterHash support
     const enhancedConfig = {
       ...config,
       characterHash: config.characterHash || options.characterHash
     };
-    
+
     // Use queue manager for better request management
     if (config.useQueue !== false) {
       return esiQueueManager.addRequest(URL, enhancedOptions, enhancedConfig);
@@ -70,11 +88,12 @@ async function fetchWithCustomHeaders(URL, options = {}, config = {}) {
  */
 async function fetchESIDirect(URL, options = {}, config = {}) {
   const headers = { ...defaultHeaders, ...options.headers };
+  applyEsiCompatibilityHeader(URL, headers);
   const enhancedOptions = {
     ...options,
     headers
   };
-  
+
   return esiFetchWrapper.fetch(URL, enhancedOptions, config);
 }
 
@@ -87,11 +106,12 @@ async function fetchESIDirect(URL, options = {}, config = {}) {
  */
 async function fetchESIQueued(URL, options = {}, config = {}) {
   const headers = { ...defaultHeaders, ...options.headers };
+  applyEsiCompatibilityHeader(URL, headers);
   const enhancedOptions = {
     ...options,
     headers
   };
-  
+
   return esiQueueManager.addRequest(URL, enhancedOptions, config);
 }
 
@@ -130,11 +150,11 @@ function clearESILimits() {
 }
 
 export default fetchWithCustomHeaders;
-export { 
-  fetchESIDirect, 
-  fetchESIQueued, 
-  getESIRateLimitStatuses, 
+export {
+  fetchESIDirect,
+  fetchESIQueued,
+  getESIRateLimitStatuses,
   getESIRateLimitStatus,
-  getESIQueueStatuses, 
+  getESIQueueStatuses,
   clearESILimits
 };

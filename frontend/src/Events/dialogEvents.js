@@ -63,3 +63,17 @@ export function showAssetsDialog(typeID = null) {
     selectedTypeID: typeID,
   });
 }
+
+/**
+ * Shows archived build statistics for a blueprint product type (backend build-stats API).
+ *
+ * @param {number|null} [typeID=null] - Product / output item type ID (same as blueprint index `itemID`)
+ * @param {string|null} [displayName=null] - Optional title label (e.g. blueprint name from search index)
+ */
+export function showBlueprintArchiveDialog(typeID = null, displayName = null) {
+  eventEmitter.emit("showBlueprintArchiveDialog", {
+    isOpen: true,
+    selectedTypeID: typeID,
+    displayName: displayName ?? "",
+  });
+}

@@ -1,7 +1,6 @@
 import { Avatar, IconButton, Tooltip, Typography, Grid } from "@mui/material";
 
 import AddLinkIcon from "@mui/icons-material/AddLink";
-import { getAnalytics, logEvent } from "firebase/analytics";
 import { useJobManagement } from "../../../../../../Hooks/useJobManagement";
 import {
   LARGE_TEXT_FORMAT,
@@ -25,12 +24,9 @@ export function AvailableMarketOrdersTab({
   itemOrderMatch
 }) {
   const queryClient = useQueryClient();
-  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const getCorporation =
     useUsersStore.getState().account.actions.getCorporation;
   const { calcBrokersFee } = useJobManagement();
-  const analytics = getAnalytics();
-
   return (
     <Grid container>
       <Grid
@@ -72,7 +68,9 @@ export function AvailableMarketOrdersTab({
                   sm: 6
                 }}>
                 <Grid container>
-                  <Grid container align="center" justifyContent="center" size={12}>
+                  <Grid container align="center" size={12} sx={{
+                    justifyContent: "center"
+                  }}>
                     <Tooltip
                       title={
                         order.is_corporation
@@ -156,10 +154,6 @@ export function AvailableMarketOrdersTab({
                             actions.addMarketOrdersForAddition(order.order_id);
                             actions.updateActiveJob(state.activeJob);
                             showSnackbarSuccess("Linked");
-                            logEvent(analytics, "linkedMarketOrder", {
-                              UID: useUsersStore.getState().account.actions.getAccountID(),
-                              isLoggedIn: isLoggedIn,
-                            });
                           } catch (error) {
                             console.error(
                               "Failed to link market order:",

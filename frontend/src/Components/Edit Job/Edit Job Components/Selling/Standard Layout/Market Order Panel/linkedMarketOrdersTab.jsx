@@ -63,7 +63,9 @@ export function LinkedMarketOrdersTab({
                 sm: 6
               }}>
               <Grid container>
-                <Grid container align="center" justifyContent="center" size={12}>
+                <Grid container align="center" size={12} sx={{
+                  justifyContent: "center"
+                }}>
                   <Tooltip
                     title={
                       order.is_corporation

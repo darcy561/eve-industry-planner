@@ -53,7 +53,7 @@ function useCheckEveServerStatus() {
                 }
 
                 const statusPromise = await fetchWithCustomHeaders(
-                    "https://esi.evetech.net/latest/status/?datasource=tranquility",
+                    "https://esi.evetech.net/status/?datasource=tranquility",
                     {},
                     {
                         group: 'status',

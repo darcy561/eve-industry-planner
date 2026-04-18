@@ -1,4 +1,5 @@
 import { Button } from "@mui/material";
+import { trackNewJobsCreated } from "../../../../../../../analytics/trackNewJobsCreated";
 import useUsersStore from "../../../../../../../Zustand/usersStore";
 
 export function CancelCreateChildJobButton_ChildJobPopoverFrame({
@@ -29,9 +30,12 @@ export function CreateChildJobButton_ChildJobPopoverFrame({
     <Button
       size="small"
       onClick={() => {
-        actions.markChildJobsForAddition(
-          childJobObjects.find((job) => job.itemID === material.typeID)
-        );
+        const job = childJobObjects.find((j) => j.itemID === material.typeID);
+        if (!job) {
+          return;
+        }
+        actions.markChildJobsForAddition(job);
+        trackNewJobsCreated(job);
         useUsersStore.getState().worldData.actions.addMarketData(tempPrices);
       }}
     >

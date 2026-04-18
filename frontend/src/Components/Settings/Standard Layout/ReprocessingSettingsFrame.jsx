@@ -22,7 +22,9 @@ function ReprocessingSettingsFrame() {
   );
 
   return (
-    <Grid container spacing={2} alignItems="center">
+    <Grid container spacing={2} sx={{
+      alignItems: "center"
+    }}>
       <Grid item xs={12} sm={6}>
         <AssignUsersSelect
           value={defaultReprocessingCharacter}
@@ -32,7 +34,7 @@ function ReprocessingSettingsFrame() {
           }}
           formHelperText={"Default Reprocessing Character"}
         />
-      </Grid> 
+      </Grid>
     </Grid>
   );
 }

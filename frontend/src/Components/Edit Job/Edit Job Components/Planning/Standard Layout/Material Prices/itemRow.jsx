@@ -77,14 +77,14 @@ export function MaterialCostRow_MaterialPricePanel(props) {
       }}
       size={12}>
       <Grid
-        justifyContent="center"
-        sx={{
-          display: { xs: "flex", md: "flex" },
-          paddingRight: "5px",
-        }}
         size={{
           xs: 2,
           sm: 1
+        }}
+        sx={{
+          justifyContent: "center",
+          display: { xs: "flex", md: "flex" },
+          paddingRight: "5px"
         }}>
         <img
           src={`https://images.evetech.net/types/${material.typeID}/icon?size=32`}
@@ -98,7 +98,12 @@ export function MaterialCostRow_MaterialPricePanel(props) {
           xs: 10,
           md: 4
         }}>
-        <Grid alignItems="center" sx={{ display: "flex" }} size={11}>
+        <Grid
+          size={11}
+          sx={{
+            alignItems: "center",
+            display: "flex"
+          }}>
           <MaterialPopoverIconButtons
             typeID={material.typeID}
             regionID={marketSelect}
@@ -109,10 +114,12 @@ export function MaterialCostRow_MaterialPricePanel(props) {
           </MaterialPopoverIconButtons>
         </Grid>
         <Grid
-          alignItems="center"
-          justifyContent="center"
-          sx={{ display: "flex" }}
-          size={1}>
+          size={1}
+          sx={{
+            alignItems: "center",
+            justifyContent: "center",
+            display: "flex"
+          }}>
           {checkJobTypeIsBuildable(material.jobType) ? (
             <>
               <Tooltip
@@ -144,17 +151,17 @@ export function MaterialCostRow_MaterialPricePanel(props) {
         </Grid>
       </Grid>
       <Grid
-        alignItems="center"
-        justifyContent="center"
         container
         align="center"
-        sx={{
-          marginTop: { xs: "10px", md: "0px" },
-          display: "flex",
-        }}
         size={{
           xs: 6,
           md: 3
+        }}
+        sx={{
+          alignItems: "center",
+          justifyContent: "center",
+          marginTop: { xs: "10px", md: "0px" },
+          display: "flex"
         }}>
         <Grid size={12}>
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
@@ -181,14 +188,17 @@ export function MaterialCostRow_MaterialPricePanel(props) {
         )}
       </Grid>
       <Grid
-        alignItems="center"
-        justifyContent="center"
         container
         align="center"
-        sx={{ marginTop: { xs: "10px", md: "0px" }, display: "flex" }}
         size={{
           xs: 6,
           md: 4
+        }}
+        sx={{
+          alignItems: "center",
+          justifyContent: "center",
+          marginTop: { xs: "10px", md: "0px" },
+          display: "flex"
         }}>
         <Grid size={12}>
           <Typography

@@ -1,5 +1,7 @@
-import { useDrag } from "react-dnd";
-import { ItemTypes } from "../../../../Context/DnDTypes";
+import {
+  plannerDragPassThroughSx,
+  usePlannerGroupCardDrag,
+} from "../../../../Hooks/usePlannerCardDrag";
 import {
   Button,
   Card,
@@ -23,17 +25,13 @@ export function CompactGroupJobCard({ group }) {
   const { addToMultiSelect, removeFromMultiSelect } =
     useUsersStore.getState().jobData.actions;
   const { deleteGroupWithoutJobs } = useGroupManagement();
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: ItemTypes.groupCard,
-    item: {
-      id: group.groupID,
-      cardType: ItemTypes.groupCard,
-      currentStatus: group.groupStatus,
-    },
-    collect: (monitor) => ({
-      isDragging: !!monitor.isDragging(),
-    }),
-  }));
+  const {
+    setNodeRef,
+    attributes,
+    listeners,
+    isDragging,
+    style: dragStyle,
+  } = usePlannerGroupCardDrag(group);
   const navigate = useNavigate({ from: '/jobplanner' });
   const { PRIMARY_THEME } = GLOBAL_CONFIG;
 
@@ -46,7 +44,10 @@ export function CompactGroupJobCard({ group }) {
 
   return (
     <Card
-      ref={drag}
+      ref={setNodeRef}
+      style={dragStyle}
+      {...listeners}
+      {...attributes}
       square
       sx={(theme) => {
         const isDarkMode = theme.palette.mode === PRIMARY_THEME;
@@ -67,6 +68,7 @@ export function CompactGroupJobCard({ group }) {
           "&:hover": {
             border: `2px solid ${borderColor}`,
           },
+          ...plannerDragPassThroughSx(isDragging),
         };
       }}
     >
@@ -96,10 +98,12 @@ export function CompactGroupJobCard({ group }) {
         </Grid>
         <Grid
           container
-          alignItems="center"
           size={{
             xs: 7,
             sm: 9
+          }}
+          sx={{
+            alignItems: "center"
           }}>
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT  }}>
             {group.groupName}
@@ -108,11 +112,13 @@ export function CompactGroupJobCard({ group }) {
         <Grid
           container
           align="center"
-          alignItems="center"
-          justifyContent="center"
           size={{
             xs: 3,
             sm: 1
+          }}
+          sx={{
+            alignItems: "center",
+            justifyContent: "center"
           }}>
           <Button
             color="primary"
@@ -128,9 +134,11 @@ export function CompactGroupJobCard({ group }) {
           <Grid
             container
             align="center"
-            alignItems="center"
             size={{
               sm: 1
+            }}
+            sx={{
+              alignItems: "center"
             }}>
             <IconButton
               sx={{

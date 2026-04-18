@@ -106,7 +106,7 @@ func TestGetOrCreateGroupLimiter(t *testing.T) {
 		{
 			name:                         "create new group with headers",
 			groupName:                    "market-order-prices",
-			path:                         "/v1/markets/prices/",
+			path:                         "/markets/prices/",
 			tokenLimit:                   600,
 			hasHeaders:                   true,
 			preExists:                    false,
@@ -126,7 +126,7 @@ func TestGetOrCreateGroupLimiter(t *testing.T) {
 		{
 			name:                         "get existing group",
 			groupName:                    "market-order-prices",
-			path:                         "/v1/markets/prices/",
+			path:                         "/markets/prices/",
 			tokenLimit:                   600,
 			hasHeaders:                   true,
 			preExists:                    true,
@@ -136,7 +136,7 @@ func TestGetOrCreateGroupLimiter(t *testing.T) {
 		{
 			name:                         "update existing group token limit",
 			groupName:                    "market-order-prices",
-			path:                         "/v1/markets/prices/",
+			path:                         "/markets/prices/",
 			tokenLimit:                   800, // Different limit
 			hasHeaders:                   true,
 			preExists:                    true,
@@ -163,7 +163,7 @@ func TestGetOrCreateGroupLimiter(t *testing.T) {
 
 			initialCount := len(client.limiters)
 
-			limiter := client.GetOrCreateGroupLimiter(context.Background(),tt.groupName, tt.path, tt.tokenLimit, tt.hasHeaders)
+			limiter := client.GetOrCreateGroupLimiter(context.Background(), tt.groupName, tt.path, tt.tokenLimit, tt.hasHeaders)
 
 			if limiter == nil {
 				t.Error("GetOrCreateGroupLimiter() limiter is nil")
@@ -226,6 +226,7 @@ func TestDo_Success(t *testing.T) {
 		"GET",
 		"/test",
 		nil,
+		nil,
 		GroupDesignation{PrimaryGroup: "test", SecondaryGroup: ""},
 	)
 
@@ -265,6 +266,7 @@ func TestDo_429Response(t *testing.T) {
 		ctx,
 		"GET",
 		"/test",
+		nil,
 		nil,
 		GroupDesignation{PrimaryGroup: "test", SecondaryGroup: ""},
 	)
@@ -323,6 +325,7 @@ func TestDo_RateLimitCheck(t *testing.T) {
 		ctx,
 		"GET",
 		"/test",
+		nil,
 		nil,
 		GroupDesignation{PrimaryGroup: "test", SecondaryGroup: "group"},
 	)
@@ -401,11 +404,11 @@ func TestGroupCreationVariations(t *testing.T) {
 	t.Run("create group with valid token limit header", func(t *testing.T) {
 		// Scenario: Valid X-Ratelimit-Limit header parsed successfully
 		groupName := "market-order-prices"
-		path := "/v1/markets/prices/"
+		path := "/markets/prices/"
 		tokenLimit := 600
 		hasHeaders := true
 
-		limiter := client.GetOrCreateGroupLimiter(context.Background(),groupName, path, tokenLimit, hasHeaders)
+		limiter := client.GetOrCreateGroupLimiter(context.Background(), groupName, path, tokenLimit, hasHeaders)
 
 		if limiter == nil {
 			t.Fatal("limiter is nil")
@@ -431,7 +434,7 @@ func TestGroupCreationVariations(t *testing.T) {
 		tokenLimit := 0
 		hasHeaders := false
 
-		limiter := client.GetOrCreateGroupLimiter(context.Background(),groupName, path, tokenLimit, hasHeaders)
+		limiter := client.GetOrCreateGroupLimiter(context.Background(), groupName, path, tokenLimit, hasHeaders)
 
 		if limiter == nil {
 			t.Fatal("limiter is nil")
@@ -458,7 +461,7 @@ func TestGroupCreationVariations(t *testing.T) {
 		tokenLimit := 0    // Parsing failed
 		hasHeaders := true // But we have remaining/used headers
 
-		limiter := client.GetOrCreateGroupLimiter(context.Background(),groupName, path, tokenLimit, hasHeaders)
+		limiter := client.GetOrCreateGroupLimiter(context.Background(), groupName, path, tokenLimit, hasHeaders)
 
 		if limiter == nil {
 			t.Fatal("limiter is nil")
@@ -480,7 +483,7 @@ func TestGroupCreationVariations(t *testing.T) {
 		path := "/v1/markets/stats/"
 
 		// First: Create without headers
-		limiter1 := client.GetOrCreateGroupLimiter(context.Background(),groupName, path, 0, false)
+		limiter1 := client.GetOrCreateGroupLimiter(context.Background(), groupName, path, 0, false)
 
 		limiter1.mu.RLock()
 		enforceTokens1 := limiter1.EnforceTokenRestrictions
@@ -491,7 +494,7 @@ func TestGroupCreationVariations(t *testing.T) {
 		}
 
 		// Second: Update with headers (valid token limit)
-		limiter2 := client.GetOrCreateGroupLimiter(context.Background(),groupName, path, 600, true)
+		limiter2 := client.GetOrCreateGroupLimiter(context.Background(), groupName, path, 600, true)
 
 		if limiter1 != limiter2 {
 			t.Error("Should return same limiter instance")
@@ -539,7 +542,7 @@ func TestGroupCreationVariations(t *testing.T) {
 		path := "/v1/markets/history-upgrade/"
 
 		// First: Create without headers
-		limiter1 := client.GetOrCreateGroupLimiter(context.Background(),groupName, path, 0, false)
+		limiter1 := client.GetOrCreateGroupLimiter(context.Background(), groupName, path, 0, false)
 
 		limiter1.mu.RLock()
 		enforceTokens1 := limiter1.EnforceTokenRestrictions
@@ -550,7 +553,7 @@ func TestGroupCreationVariations(t *testing.T) {
 		}
 
 		// Second: Upgrade with headers but tokenLimit = 0 (invalid limit header, but usage headers present)
-		limiter2 := client.GetOrCreateGroupLimiter(context.Background(),groupName, path, 0, true)
+		limiter2 := client.GetOrCreateGroupLimiter(context.Background(), groupName, path, 0, true)
 
 		if limiter1 != limiter2 {
 			t.Error("Should return same limiter instance")

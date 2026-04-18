@@ -289,9 +289,11 @@ export function AdvancedMineralOutput(props) {
       <Grid
         container
         spacing={isMobile ? 0.5 : 2}
-        alignItems="center"
-        sx={{ marginTop: 2, marginBottom: 4 }}
-      >
+        sx={{
+          alignItems: "center",
+          marginTop: 2,
+          marginBottom: 4
+        }}>
         <Grid
           size={{
             xs: netCost !== null ? 4 : 6,
@@ -312,7 +314,9 @@ export function AdvancedMineralOutput(props) {
             </Fade>
           </Box>
           <Box sx={{ textAlign: "center", mt: 0.5 }}>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               {pageState.toMinerals
                 ? "Market value of input ores"
                 : "Market value of ores to be reprocessed"}
@@ -340,7 +344,9 @@ export function AdvancedMineralOutput(props) {
             </Fade>
           </Box>
           <Box sx={{ textAlign: "center", mt: 0.5 }}>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               {pageState.toMinerals
                 ? "Market value of processed minerals"
                 : "Market value of all minerals produced"}
@@ -373,7 +379,9 @@ export function AdvancedMineralOutput(props) {
               </Fade>
             </Box>
             <Box sx={{ textAlign: "center", mt: 0.5 }}>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 (Ore Value - Excess Minerals Value)
               </Typography>
             </Box>
@@ -423,9 +431,10 @@ export function AdvancedMineralOutput(props) {
           <Grid
             container
             spacing={isMobile ? 0.5 : 2}
-            alignItems="center"
-            sx={{ marginBottom: 2 }}
-          >
+            sx={{
+              alignItems: "center",
+              marginBottom: 2
+            }}>
             <Grid
               sx={{ display: { xs: "none", md: "block" } }}
               size={{
@@ -521,12 +530,12 @@ export function AdvancedMineralOutput(props) {
                   <Grid
                     container
                     spacing={isMobile ? 0.5 : 2}
-                    alignItems="center"
+                    size={12}
                     sx={{
+                      alignItems: "center",
                       paddingBottom: 2,
-                      mb: 2,
-                    }}
-                    size={12}>
+                      mb: 2
+                    }}>
                     <Grid
                       sx={{
                         textAlign: "center",
@@ -644,7 +653,9 @@ export function AdvancedMineralOutput(props) {
                       </Grid>
                     )}
                   </Grid>
-                  <Grid container spacing={isMobile ? 0.5 : 2} alignItems="center" size={12}>
+                  <Grid container spacing={isMobile ? 0.5 : 2} size={12} sx={{
+                    alignItems: "center"
+                  }}>
                     {Object.entries(item.reprocessedMaterials).map(
                       ([key, quantity]) => {
                         const matchedName =

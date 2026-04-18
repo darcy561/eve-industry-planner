@@ -18,13 +18,13 @@ export function ShoppingListItem_ShoppingListDialog({ item, actions, isEven = fa
   return (
     <Grid
       container
-      justifyContent="center"
-      alignItems="center"
+      size={12}
       sx={{
+        justifyContent: "center",
+        alignItems: "center",
         marginBottom: { xs: "1px", sm: "0px" },
-        backgroundColor: isEven ? "rgba(0, 0, 0, 0.06)" : "transparent",
-      }}
-      size={12}>
+        backgroundColor: isEven ? "rgba(0, 0, 0, 0.06)" : "transparent"
+      }}>
       <Grid
         align="center"
         size={{

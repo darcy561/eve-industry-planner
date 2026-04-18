@@ -38,7 +38,9 @@ export function LinkedTransactionPanel(props) {
       componentName="Linked Transaction Panel"
       paperSx={{ position: "relative" }}
     >
-      <Grid container width="100%">
+      <Grid container sx={{
+        width: "100%"
+      }}>
         <IconButton
           id="linkedTransactions_menu_button"
           onClick={handleMenuClick}
@@ -100,8 +102,10 @@ export function LinkedTransactionPanel(props) {
                   <Grid
                     key={tData.transaction_id}
                     container
-                    alignItems="center"
                     size={12}
+                    sx={{
+                      alignItems: "center"
+                    }}
                   >
                     <Grid size={1}>
                       <Tooltip

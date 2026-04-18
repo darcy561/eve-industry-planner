@@ -166,7 +166,9 @@ export function ReactionLayout_BlueprintOptions({ state }) {
   }
 
   return (
-    <Grid container alignItems="center" size={12}>
+    <Grid container size={12} sx={{
+      alignItems: "center"
+    }}>
       {blueprintOptions.map((charBP) => {
         if (charBP.blueprints.length === 0) return null;
 
@@ -181,8 +183,6 @@ export function ReactionLayout_BlueprintOptions({ state }) {
             }}>
             <Grid
               container
-              justifyContent="center"
-              alignItems="center"
               align="center"
               size={{
                 xs: 4,
@@ -190,6 +190,10 @@ export function ReactionLayout_BlueprintOptions({ state }) {
                 md: 5,
                 lg: 3,
                 xl: 3
+              }}
+              sx={{
+                justifyContent: "center",
+                alignItems: "center"
               }}>
               <Badge
                 overlap="circular"

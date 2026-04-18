@@ -9,6 +9,7 @@
 import { useReducer, useMemo } from "react";
 import { PRICE_ENTRY_ACTION_TYPES, priceEntryReducer } from "./priceEntryReducer";
 import useUsersStore from "../../../../Zustand/usersStore";
+import { buildSetIsLoadingActionPayload } from "../../../../Functions/Helper/setIsLoadingAction";
 
 /**
  * Custom hook for managing price entry dialog state.
@@ -43,8 +44,15 @@ export default function usePriceEntryReducer() {
         toggleIsOpen: () => {
             dispatch({ type: PRICE_ENTRY_ACTION_TYPES.TOGGLE_IS_OPEN });
         },
-        setIsLoading: (value) => {
-            dispatch({ type: PRICE_ENTRY_ACTION_TYPES.SET_IS_LOADING, payload: value });
+        /**
+         * @param {boolean} value
+         * @param {string} [loadingMessage] - Optional caption while loading
+         */
+        setIsLoading: (value, loadingMessage) => {
+            dispatch({
+                type: PRICE_ENTRY_ACTION_TYPES.SET_IS_LOADING,
+                payload: buildSetIsLoadingActionPayload(value, loadingMessage),
+            });
         },
         setRequestedJobIDs: (jobIDs) => {
             dispatch({ type: PRICE_ENTRY_ACTION_TYPES.SET_REQUESTED_JOB_IDS, payload: jobIDs });

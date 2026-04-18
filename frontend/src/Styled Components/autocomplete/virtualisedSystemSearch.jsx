@@ -1,4 +1,4 @@
-import React, {
+import {
   useLayoutEffect,
   useMemo,
   useRef,
@@ -17,14 +17,11 @@ const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
 
 const defaultAutocompleteFilter = createFilterOptions();
 
-const ListboxComponent = React.forwardRef(function ListboxComponent(
-  props,
-  ref
-) {
-  const { children, virtualizerControlRef, ...other } = props;
-  const itemCount = Array.isArray(children) ? children.length : 0;
+function ListboxComponent({ children, virtualizerControlRef, ref, ...other }) {
+  const childItems = Array.isArray(children) ? children : [children].filter(Boolean);
+  const itemCount = childItems.length;
 
-  const parentRef = React.useRef();
+  const parentRef = useRef();
 
   const virtualizer = useVirtualizer({
     count: itemCount,
@@ -82,16 +79,14 @@ const ListboxComponent = React.forwardRef(function ListboxComponent(
                 transform: `translateY(${virtualItem.start}px)`,
               }}
             >
-              {React.cloneElement(children[virtualItem.index], {
-                style: { height: virtualItem.size },
-              })}
+              {childItems[virtualItem.index]}
             </div>
           ))}
         </div>
       </div>
     </div>
   );
-});
+}
 
 /**
  * A virtualized autocomplete component for searching EVE Online solar systems.

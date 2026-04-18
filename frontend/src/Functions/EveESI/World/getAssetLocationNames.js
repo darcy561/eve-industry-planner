@@ -26,8 +26,8 @@ async function getAssetLocationNames(
     const namesMap = new Map();
     const selectedURLDestination =
       scope === "character"
-        ? `v1/characters/${CharacterID}`
-        : `v1/corporations/${corporation_id}`;
+        ? `characters/${CharacterID}`
+        : `corporations/${corporation_id}`;
 
     for (let i = 0; i < locationIDs.length; i += chunkSize) {
       const chunk = locationIDs.slice(i, i + chunkSize);

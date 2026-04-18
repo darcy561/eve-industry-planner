@@ -1,6 +1,4 @@
-import { analytics } from "../../firebase";
 import { useJobBuild } from "../useJobBuild";
-import { logEvent } from "firebase/analytics";
 import Group from "../../Classes/group";
 import JobSnapshot from "../../Classes/jobSnapshot";
 import uploadGroupsToFirebase from "../../Functions/Firebase/uploadGroupData";
@@ -11,6 +9,8 @@ import recalculateInstallCostsWithNewData from "../../Functions/Installation Cos
 import firebaseBatchUpdateJobs from "../../Functions/Firebase/batchUpdateJobs";
 import { showSnackbarSuccess } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
+import { AppEvent } from "../../analytics/appEventNames";
+import { trackAppEvent } from "../../analytics/trackAppEvent";
 
 /**
  * Custom hook that provides functionality to build and add new jobs to the EVE Online industry planner.
@@ -23,7 +23,6 @@ import useUsersStore from "../../Zustand/usersStore";
  * - Fetching missing ESI data (market data, system indexes)
  * - Recalculating install costs with new data
  * - Managing Firebase listeners for real-time updates
- * - Logging analytics events for tracking
  *
  * The job building process:
  * 1. Creates job objects from build requests
@@ -90,6 +89,7 @@ function useBuildNewJobs() {
       newGroup.createGroup(newJobObjects);
       newGroupArray.push(newGroup);
       requiresGroupDocSave = true;
+      trackAppEvent(AppEvent.NEW_JOB_GROUP);
     }
 
     for (let jobObject of newJobObjects) {
@@ -114,12 +114,6 @@ function useBuildNewJobs() {
         requiresGroupDocSave = true;
       }
 
-      logEvent(analytics, "New Job", {
-        loggedIn: isLoggedIn,
-        UID: useUsersStore.getState().account.actions.getAccountID(),
-        name: jobObject.name,
-        itemID: jobObject.itemID,
-      });
     }
 
     if (isLoggedIn) {

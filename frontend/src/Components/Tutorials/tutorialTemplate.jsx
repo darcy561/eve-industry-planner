@@ -74,7 +74,7 @@ function TutorialTemplate({ TutorialContent, updateExpandedMenu, paperSx, onFade
             ...paperSx,
           }}
         >
-          <Grid container direction="column" sx={{ flex: 1, minHeight: 0 }}>
+          <Grid container sx={{ flex: 1, minHeight: 0, flexDirection: "column" }}>
             <Grid size={12} sx={{ flex: 1, overflow: "auto", minHeight: 0 }}>
               {TutorialContent}
             </Grid>

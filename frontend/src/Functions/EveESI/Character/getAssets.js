@@ -23,7 +23,7 @@ async function getCharacterAssets({ character, page = 1, existingEtags = {}, con
       throw new Error("Character information is incomplete.");
     }
     const { esiAccessToken, CharacterID } = character;
-    const endpointURL = `https://esi.evetech.net/v5/characters/${CharacterID}/assets/?datasource=tranquility&page=${page}`;
+    const endpointURL = `https://esi.evetech.net/characters/${CharacterID}/assets/?datasource=tranquility&page=${page}`;
 
     // Enhanced configuration for rate limiting
     const enhancedConfig = {

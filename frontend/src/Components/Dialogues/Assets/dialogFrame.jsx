@@ -1,24 +1,36 @@
-import { useEffect } from "react";
-import { subscribeToEvent } from "../../../utils/EventSystem";
 import useAssetsDialogReducer from "./Hooks/useAssetsDialogReducer";
 import { AssetsDataProvider } from "./dialogDataProviders";
 import useUsersStore from "../../../Zustand/usersStore";
+import { useSyncedDialogEventState } from "../../../Styled Components/Dialog/ContentDialog";
+
+function serializeAssetsDialogEvent(messageData) {
+  return JSON.stringify({
+    isOpen: Boolean(messageData.isOpen),
+    selectedTypeID:
+      messageData.selectedTypeID === undefined
+        ? null
+        : messageData.selectedTypeID,
+  });
+}
 
 function AssetsDialogue() {
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
-  if (!isLoggedIn) return null;
-
   const { state, actions } = useAssetsDialogReducer();
-
-  useEffect(() => {
-    const unsubscribe = subscribeToEvent("showAssetsDialog", (data) => {
+  useSyncedDialogEventState(
+    "showAssetsDialog",
+    () => ({
+      isOpen: false,
+      selectedTypeID: null,
+    }),
+    serializeAssetsDialogEvent,
+    (msg) => {
       actions.toggleIsOpen();
-      actions.setSelectedTypeID(data.selectedTypeID);
-    });
+      actions.setSelectedTypeID(msg.selectedTypeID ?? null);
+    },
+    { enabled: isLoggedIn },
+  );
 
-    return () => unsubscribe();
-  }, []);
-
+  if (!isLoggedIn) return null;
   if (!state.isOpen) return null;
 
   return <AssetsDataProvider state={state} actions={actions} />;

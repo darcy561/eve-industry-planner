@@ -76,7 +76,9 @@ export default function SchedulerGanttView({
     if (makespan === 0 || scheduledTasks.length === 0) {
         return (
             <Box sx={{ p: 2, textAlign: "center" }}>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                }}>
                     No scheduled tasks to display
                 </Typography>
             </Box>
@@ -139,7 +141,6 @@ export default function SchedulerGanttView({
                     );
                 })}
             </Box>
-
             {/* Header */}
             <Box
                 sx={{
@@ -169,7 +170,9 @@ export default function SchedulerGanttView({
                         bgcolor: "background.paper",
                     }}
                 >
-                    <Typography variant="body2" fontWeight="bold">
+                    <Typography variant="body2" sx={{
+                        fontWeight: "bold"
+                    }}>
                         Character
                     </Typography>
                 </Box>
@@ -215,7 +218,9 @@ export default function SchedulerGanttView({
                                         transform: isLastMarker ? "translateX(-100%)" : "none",
                                     }}
                                 >
-                                    <Typography variant="caption" color="text.secondary">
+                                    <Typography variant="caption" sx={{
+                                        color: "text.secondary"
+                                    }}>
                                         {formatTimeDuration(time, { days: true, hours: true, minutes: false, seconds: false })}
                                     </Typography>
                                 </Box>
@@ -224,7 +229,6 @@ export default function SchedulerGanttView({
                     </Box>
                 </Box>
             </Box>
-
             {/* Character rows */}
             <Box>
                 {characters.map((char) => {
@@ -269,7 +273,9 @@ export default function SchedulerGanttView({
                                         bgcolor: "background.paper",
                                     }}
                                 >
-                                    <Typography variant="body2" fontWeight="bold">
+                                    <Typography variant="body2" sx={{
+                                        fontWeight: "bold"
+                                    }}>
                                         {char.characterName}
                                     </Typography>
                                 </Box>
@@ -281,7 +287,6 @@ export default function SchedulerGanttView({
                                     }}
                                 />
                             </Box>
-
                             {/* Per-slot rows for this character */}
                             {slotIndices.map((slotIndex) => {
                                 const slotTasks = slotsMap[slotIndex] || [];
@@ -311,11 +316,12 @@ export default function SchedulerGanttView({
                                                 bgcolor: "background.paper",
                                             }}
                                         >
-                                            <Typography variant="caption" color="text.secondary">
+                                            <Typography variant="caption" sx={{
+                                                color: "text.secondary"
+                                            }}>
                                                 Slot {slotIndex + 1}
                                             </Typography>
                                         </Box>
-
                                         {/* Tasks for this specific slot (per-slot row) */}
                                         <Box
                                             sx={{
@@ -350,7 +356,9 @@ export default function SchedulerGanttView({
 
                                                     const tooltipContent = (
                                                         <Box>
-                                                            <Typography variant="body2" fontWeight="bold">
+                                                            <Typography variant="body2" sx={{
+                                                                fontWeight: "bold"
+                                                            }}>
                                                                 {job?.name || task.jobID}
                                                             </Typography>
                                                             <Typography variant="caption">
@@ -359,13 +367,19 @@ export default function SchedulerGanttView({
                                                                     jobTypeKey.slice(1)
                                                                     : task.activityType}
                                                             </Typography>
-                                                            <Typography variant="caption" display="block">
+                                                            <Typography variant="caption" sx={{
+                                                                display: "block"
+                                                            }}>
                                                                 Start: {formatTimeDuration(task.startTime, { days: true, hours: true, minutes: false, seconds: false })}
                                                             </Typography>
-                                                            <Typography variant="caption" display="block">
+                                                            <Typography variant="caption" sx={{
+                                                                display: "block"
+                                                            }}>
                                                                 End: {formatTimeDuration(task.endTime, { days: true, hours: true, minutes: false, seconds: false })}
                                                             </Typography>
-                                                            <Typography variant="caption" display="block">
+                                                            <Typography variant="caption" sx={{
+                                                                display: "block"
+                                                            }}>
                                                                 Duration:{" "}
                                                                 {formatTimeDuration(task.endTime - task.startTime, { days: true, hours: true, minutes: true, seconds: true })}
                                                             </Typography>

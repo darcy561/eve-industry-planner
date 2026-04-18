@@ -34,8 +34,8 @@ export function EditJobSetup(props) {
 
   return (
     <ContentPanel paperSx={{ height: "auto" }}>
-      <Grid container direction="column">
-        <Grid container direction="row" spacing={2}>
+      <Grid container sx={{ flexDirection: "column" }}>
+        <Grid container spacing={2} sx={{ flexDirection: "row" }}>
           <Grid size={6}>
             <BlueprintRunsTextField
               initialState={buildObject.runCount}

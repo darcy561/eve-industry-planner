@@ -1,6 +1,7 @@
 package ratelimiter
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -9,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"eve-industry-planner/shared/shared/httpclient"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/shared/httpclient"
 
 	"golang.org/x/time/rate"
 )
@@ -88,7 +89,7 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 		if limit, ok := parseTokenLimitFromHeader(limitStr); ok {
 			tokenLimit = limit
 		} else {
-			logs.DebugCtx(ctx,"failed to parse X-Ratelimit-Limit header, will use default limits",
+			logs.DebugCtx(ctx, "failed to parse X-Ratelimit-Limit header, will use default limits",
 				"path", path,
 				"limit_header", limitStr,
 				"format_expected", "tokens/window (e.g., 600/15m)")
@@ -114,7 +115,7 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 		} else if fullGroupName != gl.Name || !hasLimiter {
 			// This is a new group discovery or group name mismatch
 			// Log headers for debugging when discovering a new group
-			logs.DebugCtx(ctx,"discovering new group with headers",
+			logs.DebugCtx(ctx, "discovering new group with headers",
 				"path", path,
 				"group", fullGroupName,
 				"limit_header", limitStr,
@@ -142,7 +143,7 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 		actualLimiter = gl
 
 		// Log this scenario so we can track which paths don't have group headers
-		logs.DebugCtx(ctx,"response missing X-Ratelimit-Group header, using default limiter",
+		logs.DebugCtx(ctx, "response missing X-Ratelimit-Group header, using default limiter",
 			"path", path,
 			"status", resp.StatusCode,
 			"limiter", gl.Name,
@@ -171,7 +172,7 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 			if retryAfterStr != "" {
 				if seconds, err := strconv.Atoi(retryAfterStr); err == nil {
 					actualLimiter.retryAfter = now.Add(time.Duration(seconds) * time.Second)
-					logs.WarnCtx(ctx,"ESI rate limit exceeded (default limiter), waiting for retry",
+					logs.WarnCtx(ctx, "ESI rate limit exceeded (default limiter), waiting for retry",
 						"path", path,
 						"retry_after_seconds", seconds,
 						"limiter", actualLimiter.Name)
@@ -183,7 +184,7 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 			actualLimiter.mu.Unlock()
 		}
 
-		logs.DebugCtx(ctx,"skipping token bucket updates for default limiter (no group info)",
+		logs.DebugCtx(ctx, "skipping token bucket updates for default limiter (no group info)",
 			"path", path,
 			"limiter", actualLimiter.Name,
 			"rate", fmt.Sprintf("%.2f req/s", actualLimiter.Limiter.Limit()),
@@ -244,7 +245,7 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 		actualLimiter.Limiter.SetBurst(newBurst)
 		// NOTE: Don't unlock here - we're already holding the lock from line 178
 
-		logs.DebugCtx(ctx,"updated token limit and rate limiter from response header",
+		logs.DebugCtx(ctx, "updated token limit and rate limiter from response header",
 			"limiter", actualLimiter.Name,
 			"path", path,
 			"status_code", resp.StatusCode,
@@ -271,7 +272,7 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 							Tokens:   tokensConsumed,
 							Consumed: now,
 						})
-						logs.DebugCtx(ctx,"updated token usage from X-Ratelimit-Used header",
+						logs.DebugCtx(ctx, "updated token usage from X-Ratelimit-Used header",
 							"limiter", actualLimiter.Name,
 							"path", path,
 							"status_code", resp.StatusCode,
@@ -288,7 +289,7 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 						Tokens:   tokensConsumed,
 						Consumed: now,
 					})
-					logs.DebugCtx(ctx,"calculated token usage from X-Ratelimit-Remaining",
+					logs.DebugCtx(ctx, "calculated token usage from X-Ratelimit-Remaining",
 						"limiter", actualLimiter.Name,
 						"path", path,
 						"status_code", resp.StatusCode,
@@ -307,7 +308,7 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 			})
 			actualLimiter.TokenUsed += tokensConsumed
 
-			logs.DebugCtx(ctx,"tracked token consumption locally (no server headers)",
+			logs.DebugCtx(ctx, "tracked token consumption locally (no server headers)",
 				"limiter", actualLimiter.Name,
 				"path", path,
 				"old_used", oldTokenUsed,
@@ -324,7 +325,7 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 		if retryAfterStr != "" {
 			if seconds, err := strconv.Atoi(retryAfterStr); err == nil {
 				actualLimiter.retryAfter = now.Add(time.Duration(seconds) * time.Second)
-				logs.WarnCtx(ctx,"ESI rate limit exceeded, waiting for retry",
+				logs.WarnCtx(ctx, "ESI rate limit exceeded, waiting for retry",
 					"group", groupStr,
 					"retry_after_seconds", seconds,
 					"limit", actualLimiter.TokenLimit,
@@ -341,7 +342,7 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 		if remaining, err := strconv.Atoi(remainingStr); err == nil {
 			remainingPercent := float64(remaining) / float64(actualLimiter.TokenLimit) * 100
 			if remainingPercent < 10 {
-				logs.WarnCtx(ctx,"ESI rate limit low",
+				logs.WarnCtx(ctx, "ESI rate limit low",
 					"group", groupStr,
 					"limiter", actualLimiter.Name,
 					"path", path,
@@ -351,7 +352,7 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 					"percent", fmt.Sprintf("%.1f%%", remainingPercent))
 			} else if remainingPercent < 25 {
 				// Log at debug level for 10-25% remaining
-				logs.DebugCtx(ctx,"ESI rate limit moderate",
+				logs.DebugCtx(ctx, "ESI rate limit moderate",
 					"group", groupStr,
 					"limiter", actualLimiter.Name,
 					"path", path,
@@ -379,9 +380,10 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 // Returns the response body, status code, headers, and any error.
 // groupDesignation is required and specifies the rate limit group (format: PrimaryGroup-SecondaryGroup).
 // Character ID should be included in groupDesignation.SecondaryGroup if needed.
-func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[string]string, groupDesignation GroupDesignation) ([]byte, *http.Response, error) {
+// If requestBody is non-nil, it is sent as the request body (e.g. JSON for POST); use nil for GET.
+func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[string]string, requestBody []byte, groupDesignation GroupDesignation) ([]byte, *http.Response, error) {
 	groupName := buildGroupNameFromDesignation(groupDesignation)
-	logs.DebugCtx(ctx,"ESI request initiated",
+	logs.DebugCtx(ctx, "ESI request initiated",
 		"method", method,
 		"path", path,
 		"group_name", groupName,
@@ -394,7 +396,7 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 	// If group limiter doesn't exist yet, use mutex to prevent concurrent requests to same unknown group
 	var pathMutex *sync.Mutex
 	if !known {
-		logs.DebugCtx(ctx,"acquiring mutex for unknown group discovery",
+		logs.DebugCtx(ctx, "acquiring mutex for unknown group discovery",
 			"path", path,
 			"group", groupName,
 			"current_limiter", gl.Name)
@@ -402,7 +404,7 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 		pathMutex.Lock()
 		defer func() {
 			pathMutex.Unlock()
-			logs.DebugCtx(ctx,"released mutex for path",
+			logs.DebugCtx(ctx, "released mutex for path",
 				"path", path)
 			// Clean up mutex after discovery completes (if path is now known)
 			c.CleanupMutexForPath(path)
@@ -411,7 +413,7 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 
 	// Estimate tokens needed (assume 2XX response = 2 tokens for now)
 	estimatedTokens := 2
-	logs.DebugCtx(ctx,"estimated token cost",
+	logs.DebugCtx(ctx, "estimated token cost",
 		"path", path,
 		"group", gl.Name,
 		"estimated_tokens", estimatedTokens)
@@ -419,7 +421,7 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 	// Check if we can make the request (token bucket + retry-after)
 	// Return immediately with classified error if rate limited - let task decide how to handle
 	if err := gl.CanMakeRequest(ctx, estimatedTokens); err != nil {
-		logs.DebugCtx(ctx,"rate limit check failed, returning classified error",
+		logs.DebugCtx(ctx, "rate limit check failed, returning classified error",
 			"path", path,
 			"group", gl.Name,
 			"error", err)
@@ -429,7 +431,7 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 	// Wait for general rate limiter (prevents burst)
 	rateWaitStart := time.Now()
 	if err := gl.Limiter.Wait(ctx); err != nil {
-		logs.ErrorCtx(ctx,"rate limiter wait failed",
+		logs.ErrorCtx(ctx, "rate limiter wait failed",
 			"path", path,
 			"group", gl.Name,
 			"error", err)
@@ -437,19 +439,23 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 	}
 	rateWaitDuration := time.Since(rateWaitStart)
 	if rateWaitDuration > 100*time.Millisecond {
-		logs.DebugCtx(ctx,"rate limiter wait duration",
+		logs.DebugCtx(ctx, "rate limiter wait duration",
 			"path", path,
 			"group", gl.Name,
 			"		wait_duration", rateWaitDuration)
 	}
 
-	logs.DebugCtx(ctx,"making HTTP request",
+	logs.DebugCtx(ctx, "making HTTP request",
 		"method", method,
 		"path", path,
 		"group", gl.Name,
 		"url", c.baseURL+path)
 
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, nil)
+	var reqBodyReader io.Reader
+	if requestBody != nil {
+		reqBodyReader = bytes.NewReader(requestBody)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, reqBodyReader)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -461,12 +467,15 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}
+	if requestBody != nil && req.Header.Get("Content-Type") == "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	requestStart := time.Now()
 	resp, err := c.httpClient.Do(req)
 	requestDuration := time.Since(requestStart)
 	if err != nil {
-		logs.ErrorCtx(ctx,"HTTP request failed",
+		logs.ErrorCtx(ctx, "HTTP request failed",
 			"path", path,
 			"group", gl.Name,
 			"error", err,
@@ -476,7 +485,7 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 
 	// Calculate actual tokens consumed
 	tokensConsumed := getTokensForStatus(resp.StatusCode)
-	logs.DebugCtx(ctx,"ESI response received",
+	logs.DebugCtx(ctx, "ESI response received",
 		"path", path,
 		"status", resp.StatusCode,
 		"tokens_consumed", tokensConsumed,
@@ -487,9 +496,9 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 	// Handle server feedback synchronously to ensure proper tracking
 	// This will discover/create the group limiter if needed
 	// Use provided group designation (no longer extracted from headers)
-	logs.DebugCtx(ctx,"ABOUT TO CALL updateFromHeaders", "path", path, "group", gl.Name)
+	logs.DebugCtx(ctx, "ABOUT TO CALL updateFromHeaders", "path", path, "group", gl.Name)
 	actualLimiter := c.updateFromHeaders(ctx, gl, resp, tokensConsumed, path, groupDesignation)
-	logs.DebugCtx(ctx,"RETURNED FROM updateFromHeaders", "path", path, "group", actualLimiter.Name)
+	logs.DebugCtx(ctx, "RETURNED FROM updateFromHeaders", "path", path, "group", actualLimiter.Name)
 
 	// Update last used time for the actual limiter
 	actualLimiter.mu.Lock()
@@ -498,7 +507,7 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 
 	// If we discovered a new group and were using default, update gl for next iteration
 	if actualLimiter != gl {
-		logs.DebugCtx(ctx,"switched to discovered group limiter",
+		logs.DebugCtx(ctx, "switched to discovered group limiter",
 			"path", path,
 			"old_group", gl.Name,
 			"new_group", actualLimiter.Name,
@@ -541,7 +550,7 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 			EstimatedTokens: tokensConsumed,
 		}
 
-		logs.WarnCtx(ctx,"received 429, returning classified error for task handling",
+		logs.WarnCtx(ctx, "received 429, returning classified error for task handling",
 			"path", path,
 			"group", actualLimiter.Name,
 			"retryable", retryable,
@@ -598,7 +607,7 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 // Character ID should be included in groupDesignation.SecondaryGroup if needed.
 func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers map[string]string, groupDesignation GroupDesignation) (*http.Response, error) {
 	groupName := buildGroupNameFromDesignation(groupDesignation)
-	logs.DebugCtx(ctx,"ESI request initiated (streaming)",
+	logs.DebugCtx(ctx, "ESI request initiated (streaming)",
 		"method", method,
 		"path", path,
 		"group_name", groupName,
@@ -611,7 +620,7 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 	// If group limiter doesn't exist yet, use mutex to prevent concurrent requests to same unknown group
 	var pathMutex *sync.Mutex
 	if !known {
-		logs.DebugCtx(ctx,"acquiring mutex for unknown group discovery (streaming)",
+		logs.DebugCtx(ctx, "acquiring mutex for unknown group discovery (streaming)",
 			"path", path,
 			"group", groupName,
 			"current_limiter", gl.Name)
@@ -619,7 +628,7 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 		pathMutex.Lock()
 		defer func() {
 			pathMutex.Unlock()
-			logs.DebugCtx(ctx,"released mutex for path (streaming)",
+			logs.DebugCtx(ctx, "released mutex for path (streaming)",
 				"path", path)
 			// Clean up mutex after discovery completes (if path is now known)
 			c.CleanupMutexForPath(path)
@@ -628,7 +637,7 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 
 	// Estimate tokens needed (assume 2XX response = 2 tokens for now)
 	estimatedTokens := 2
-	logs.DebugCtx(ctx,"estimated token cost (streaming)",
+	logs.DebugCtx(ctx, "estimated token cost (streaming)",
 		"path", path,
 		"group", gl.Name,
 		"estimated_tokens", estimatedTokens)
@@ -636,7 +645,7 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 	// Check if we can make the request (token bucket + retry-after)
 	// Return immediately with classified error if rate limited - let task decide how to handle
 	if err := gl.CanMakeRequest(ctx, estimatedTokens); err != nil {
-		logs.DebugCtx(ctx,"rate limit check failed, returning classified error (streaming)",
+		logs.DebugCtx(ctx, "rate limit check failed, returning classified error (streaming)",
 			"path", path,
 			"group", gl.Name,
 			"error", err)
@@ -646,7 +655,7 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 	// Wait for general rate limiter (prevents burst)
 	rateWaitStart := time.Now()
 	if err := gl.Limiter.Wait(ctx); err != nil {
-		logs.ErrorCtx(ctx,"rate limiter wait failed (streaming)",
+		logs.ErrorCtx(ctx, "rate limiter wait failed (streaming)",
 			"path", path,
 			"group", gl.Name,
 			"error", err)
@@ -654,13 +663,13 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 	}
 	rateWaitDuration := time.Since(rateWaitStart)
 	if rateWaitDuration > 100*time.Millisecond {
-		logs.DebugCtx(ctx,"rate limiter wait duration (streaming)",
+		logs.DebugCtx(ctx, "rate limiter wait duration (streaming)",
 			"path", path,
 			"group", gl.Name,
 			"		wait_duration", rateWaitDuration)
 	}
 
-	logs.DebugCtx(ctx,"making HTTP request (streaming)",
+	logs.DebugCtx(ctx, "making HTTP request (streaming)",
 		"method", method,
 		"path", path,
 		"group", gl.Name,
@@ -683,7 +692,7 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 	resp, err := c.httpClient.Do(req)
 	requestDuration := time.Since(requestStart)
 	if err != nil {
-		logs.ErrorCtx(ctx,"HTTP request failed (streaming)",
+		logs.ErrorCtx(ctx, "HTTP request failed (streaming)",
 			"path", path,
 			"group", gl.Name,
 			"error", err,
@@ -693,7 +702,7 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 
 	// Calculate actual tokens consumed based on status
 	tokensConsumed := getTokensForStatus(resp.StatusCode)
-	logs.DebugCtx(ctx,"ESI response received (streaming)",
+	logs.DebugCtx(ctx, "ESI response received (streaming)",
 		"path", path,
 		"status", resp.StatusCode,
 		"tokens_consumed", tokensConsumed,
@@ -713,7 +722,7 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 
 	// If we discovered a new group and were using default, update gl for next iteration
 	if actualLimiter != gl {
-		logs.DebugCtx(ctx,"switched to discovered group limiter (streaming)",
+		logs.DebugCtx(ctx, "switched to discovered group limiter (streaming)",
 			"path", path,
 			"old_group", gl.Name,
 			"new_group", actualLimiter.Name,
@@ -750,7 +759,7 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 			EstimatedTokens: tokensConsumed,
 		}
 
-		logs.WarnCtx(ctx,"received 429, returning classified error for task handling (streaming)",
+		logs.WarnCtx(ctx, "received 429, returning classified error for task handling (streaming)",
 			"path", path,
 			"group", actualLimiter.Name,
 			"retryable", retryable,
@@ -794,7 +803,7 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 		)
 	}
 
-	logs.DebugCtx(ctx,"ESI request completed (streaming response)", logFields...)
+	logs.DebugCtx(ctx, "ESI request completed (streaming response)", logFields...)
 
 	return resp, nil
 }
@@ -805,7 +814,8 @@ type ClientInterface interface {
 	// Do performs a rate-limited HTTP request and returns the response body, response, and error.
 	// groupDesignation is required and specifies the rate limit group (format: PrimaryGroup-SecondaryGroup).
 	// Character ID should be included in groupDesignation.SecondaryGroup if needed.
-	Do(ctx context.Context, method, path string, headers map[string]string, groupDesignation GroupDesignation) ([]byte, *http.Response, error)
+	// If requestBody is non-nil, it is sent as the request body; use nil for GET.
+	Do(ctx context.Context, method, path string, headers map[string]string, requestBody []byte, groupDesignation GroupDesignation) ([]byte, *http.Response, error)
 	// DoRequest performs a rate-limited HTTP request and returns the response.
 	// Useful when you need full control over reading the response body (e.g., for streaming).
 	// groupDesignation is required and specifies the rate limit group (format: PrimaryGroup-SecondaryGroup).

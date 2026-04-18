@@ -57,7 +57,7 @@ export function useShoppingListCorporationAssets({
             corporationAssetsLoading &&
             !state.isLoading
         ) {
-            actions.setIsLoading(true);
+            actions.setIsLoading(true, "Loading corporation assets from ESI…");
             return;
         }
 

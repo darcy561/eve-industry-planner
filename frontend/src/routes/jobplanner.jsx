@@ -8,7 +8,7 @@ const JobPlanner = lazyRouteComponent(() => import('../Components/Job Planner/Jo
 export const Route = createFileRoute('/jobplanner')({
   beforeLoad: allowPublicAccess,
   component: () => (
-    <Suspense fallback={<LoadingPage />}>
+    <Suspense fallback={<LoadingPage variant="route" />}>
       <JobPlanner />
     </Suspense>
   ),

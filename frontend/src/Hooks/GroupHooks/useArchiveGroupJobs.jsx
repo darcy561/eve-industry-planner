@@ -1,4 +1,3 @@
-import { getAnalytics, logEvent } from "firebase/analytics";
 import { useQueryClient } from "@tanstack/react-query";
 import uploadGroupsToFirebase from "../../Functions/Firebase/uploadGroupData";
 import saveArchivedJobs from "../../Functions/Endpoints/Pirivate/archivedJobs";
@@ -57,8 +56,6 @@ export function useArchiveGroupJobs() {
     replaceJobArray,
   } = useUsersStore.getState().jobData.actions;
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
-  const analytics = getAnalytics();
-
   const archiveGroupJobs = async (selectedJobs) => {
     const { groupID, groupName } = getActiveGroupObject();
     let newLinkedOrders = new Set();
@@ -68,12 +65,6 @@ export function useArchiveGroupJobs() {
     const filteredJobs = selectedJobs.filter(
       (job) => !userJobSnapshot.some((i) => i.jobID === job.jobID),
     );
-
-    logEvent(analytics, "Archive Group Jobs", {
-      UID: useUsersStore.getState().account.actions.getAccountID(),
-      groupID: groupID,
-      groupSize: filteredJobs.length,
-    });
 
     for (let selectedJob of filteredJobs) {
       newLinkedOrders = new Set([...newLinkedOrders], selectedJob.apiOrders);

@@ -44,13 +44,14 @@ export function MaterialRow({ state, material, displayType }) {
     <Grid container size={12}>
       <Grid
         container
-        justifyContent="center"
-        alignItems="center"
         size={{
           xs: 2,
           sm: 1,
         }}
-      >
+        sx={{
+          justifyContent: "center",
+          alignItems: "center"
+        }}>
         {state.activeJob.build.childJobs[material.typeID].length === 0 &&
         !state.temporaryChildJobs[material.typeID] &&
         (!state.parentChildToEdit.childJobs[material.typeID]?.add ||

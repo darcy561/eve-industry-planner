@@ -113,3 +113,25 @@ func ExtractAccountID(r *http.Request) (string, error) {
 
 	return claims.AccountID, nil
 }
+
+// BearerInternalJWTValid reports whether the request carries a valid, non-expired internal JWT in Authorization.
+// Invalid, missing, or malformed tokens yield false without logging claims (for privacy-sensitive paths).
+func BearerInternalJWTValid(r *http.Request) bool {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return false
+	}
+
+	const bearerPrefix = "Bearer "
+	if !strings.HasPrefix(authHeader, bearerPrefix) {
+		return false
+	}
+
+	tokenString := strings.TrimSpace(authHeader[len(bearerPrefix):])
+	if tokenString == "" {
+		return false
+	}
+
+	_, err := ValidateInternalJWT(tokenString)
+	return err == nil
+}

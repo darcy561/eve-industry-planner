@@ -6,7 +6,7 @@ const Accounts = lazyRouteComponent(() => import('../../Components/Accounts/Acco
 
 export const Route = createFileRoute('/_protected/accounts')({
   component: () => (
-    <Suspense fallback={<LoadingPage />}>
+    <Suspense fallback={<LoadingPage variant="route" />}>
       <Accounts />
     </Suspense>
   ),

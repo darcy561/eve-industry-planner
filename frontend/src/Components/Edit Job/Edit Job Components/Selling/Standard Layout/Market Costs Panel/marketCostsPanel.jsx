@@ -30,7 +30,9 @@ export function MarketCostsPanel({ state }) {
         <MarketHistoryIconButton itemTypeID={state.activeJob.itemID} />
         <MarketDataIconButton itemTypeID={state.activeJob.itemID} />
       </Box>
-      <Grid container width="100%">
+      <Grid container sx={{
+        width: "100%"
+      }}>
 
         {MARKET_OPTIONS.map(({ id, name }) => {
           const optionCosts = itemCosts[id];

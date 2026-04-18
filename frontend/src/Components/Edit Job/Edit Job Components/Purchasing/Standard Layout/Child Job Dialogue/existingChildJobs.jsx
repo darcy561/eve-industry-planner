@@ -40,9 +40,11 @@ function ChildJobEntry({ actions, childJobID }) {
     <Grid
       container
       key={job.jobID}
-      justifyContent="center"
-      alignItems="center"
-      size={12}>
+      size={12}
+      sx={{
+        justifyContent: "center",
+        alignItems: "center"
+      }}>
       <Grid
         sx={{
           display: { xs: "none", sm: "block" },

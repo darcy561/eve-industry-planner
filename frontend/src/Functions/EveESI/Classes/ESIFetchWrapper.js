@@ -6,6 +6,16 @@
 import ESIRateLimiter from "./ESIRateLimiter.js";
 import fetchWithCustomHeaders from "../fetchWithCustomHeaders.js";
 
+/** Only EVE ESI hosts use X-Ratelimit-* / 429 retry semantics (not arbitrary APIs or Sentry). */
+function isEveEsiUrl(url) {
+  try {
+    const s = String(url);
+    return s.includes("esi.evetech.net") || s.includes("esi.eveonline.com");
+  } catch {
+    return false;
+  }
+}
+
 class ESIFetchWrapper {
   constructor() {
     this.rateLimiter = new ESIRateLimiter();
@@ -104,12 +114,18 @@ class ESIFetchWrapper {
 
         // Handle different response statuses
         if (response.status === 429) {
-          // Rate limited - handle retry
+          if (!isEveEsiUrl(url)) {
+            return response;
+          }
+          // ESI rate limited — wait and retry (Retry-After / backoff)
           await this.handleRateLimit(response);
-          continue; // Retry the request
+          continue;
         }
 
         if (response.status >= 500) {
+          if (!isEveEsiUrl(url)) {
+            return response;
+          }
           // Server error - retry with exponential backoff
           if (attempt < maxRetries) {
             const delay = this.calculateBackoffDelay(attempt);

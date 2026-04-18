@@ -17,12 +17,12 @@ import (
 
 // mockESIClient implements ClientInterface for testing
 type mockESIClient struct {
-	doFunc func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error)
+	doFunc func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error)
 }
 
-func (m *mockESIClient) Do(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
+func (m *mockESIClient) Do(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
 	if m.doFunc != nil {
-		return m.doFunc(ctx, method, path, headers, groupDesignation)
+		return m.doFunc(ctx, method, path, headers, body, groupDesignation)
 	}
 	return nil, nil, errors.New("doFunc not set")
 }
@@ -31,10 +31,10 @@ func (m *mockESIClient) DoRequest(ctx context.Context, method, path string, head
 	return nil, errors.New("not implemented")
 }
 
-// Helper to create a test character info response
-func createCharacterInfoJSON(corporationID int) []byte {
-	info := CharacterInfo{CorporationID: corporationID}
-	data, _ := json.Marshal(info)
+// Helper to create a test affiliation POST response (array of {character_id, corporation_id}).
+func createAffiliationJSON(corporationID int) []byte {
+	row := CharacterAffiliation{CharacterID: 1, CorporationID: corporationID}
+	data, _ := json.Marshal([]CharacterAffiliation{row})
 	return data
 }
 
@@ -215,7 +215,7 @@ func TestUpdateCustomCorporationClaims_ESIRetryableRateLimitError(t *testing.T) 
 		}
 
 		esiClient := &mockESIClient{
-			doFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
+			doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
 				return nil, nil, &esiratelimiter.RateLimitError{
 					Retryable:  true,
 					RetryAfter: time.Now().Add(30 * time.Second),
@@ -244,7 +244,7 @@ func TestUpdateCustomCorporationClaims_ESINonRetryableError(t *testing.T) {
 
 	// Mock ESI client to return non-retryable error
 	esiClient := &mockESIClient{
-		doFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
+		doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
 			return nil, nil, errors.New("network error")
 		},
 	}
@@ -272,7 +272,7 @@ func TestUpdateCustomCorporationClaims_ESINon200Status(t *testing.T) {
 
 	// Mock ESI client to return 404 status
 	esiClient := &mockESIClient{
-		doFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
+		doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
 			resp := &http.Response{
 				StatusCode: 404,
 				Status:     "404 Not Found",
@@ -304,7 +304,7 @@ func TestUpdateCustomCorporationClaims_InvalidJSONResponse(t *testing.T) {
 
 	// Mock ESI client to return invalid JSON
 	esiClient := &mockESIClient{
-		doFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
+		doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
 			resp := &http.Response{
 				StatusCode: 200,
 				Status:     "200 OK",
@@ -338,17 +338,13 @@ func TestUpdateCustomCorporationClaims_SuccessfulProcessing(t *testing.T) {
 	ctx := context.Background()
 	// Mock ESI client to return successful responses
 	esiClient := &mockESIClient{
-		doFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
-			// Extract character ID from path
-			// Path format: /v5/characters/{character_id}/?datasource=tranquility
+		doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
+			// POST /characters/affiliation/ with JSON array body (integration-style mock)
+			_ = body
 			var corpID int
 			switch path {
-			case "/v5/characters/12345/?datasource=tranquility":
+			case "/characters/affiliation/?datasource=tranquility":
 				corpID = 1001
-			case "/v5/characters/67890/?datasource=tranquility":
-				corpID = 1002
-			case "/v5/characters/11111/?datasource=tranquility":
-				corpID = 1001 // Same corp as first character (test deduplication)
 			default:
 				corpID = 1003
 			}
@@ -357,7 +353,7 @@ func TestUpdateCustomCorporationClaims_SuccessfulProcessing(t *testing.T) {
 				StatusCode: 200,
 				Status:     "200 OK",
 			}
-			return createCharacterInfoJSON(corpID), resp, nil
+			return createAffiliationJSON(corpID), resp, nil
 		},
 	}
 
@@ -389,12 +385,12 @@ func TestUpdateCustomCorporationClaims_DuplicateCorporations(t *testing.T) {
 
 	// Mock ESI client to return same corporation ID for all
 	esiClient := &mockESIClient{
-		doFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
+		doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
 			resp := &http.Response{
 				StatusCode: 200,
 				Status:     "200 OK",
 			}
-			return createCharacterInfoJSON(1001), resp, nil
+			return createAffiliationJSON(1001), resp, nil
 		},
 	}
 
@@ -423,12 +419,12 @@ func TestUpdateCustomCorporationClaims_ZeroCorporationID(t *testing.T) {
 
 	// Mock ESI client to return corporation ID of 0 (should be skipped)
 	esiClient := &mockESIClient{
-		doFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
+		doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
 			resp := &http.Response{
 				StatusCode: 200,
 				Status:     "200 OK",
 			}
-			return createCharacterInfoJSON(0), resp, nil
+			return createAffiliationJSON(0), resp, nil
 		},
 	}
 
@@ -457,12 +453,12 @@ func TestUpdateCustomCorporationClaims_MixedSuccessAndFailure(t *testing.T) {
 
 	// Mock ESI client to succeed for first call
 	esiClient := &mockESIClient{
-		doFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
+		doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
 			resp := &http.Response{
 				StatusCode: 200,
 				Status:     "200 OK",
 			}
-			return createCharacterInfoJSON(1001), resp, nil
+			return createAffiliationJSON(1001), resp, nil
 		},
 	}
 
@@ -496,12 +492,12 @@ func TestUpdateCustomCorporationClaims_RedisStorageFailure(t *testing.T) {
 	ctx := context.Background()
 	// Mock ESI client to succeed
 	esiClient := &mockESIClient{
-		doFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
+		doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
 			resp := &http.Response{
 				StatusCode: 200,
 				Status:     "200 OK",
 			}
-			return createCharacterInfoJSON(1001), resp, nil
+			return createAffiliationJSON(1001), resp, nil
 		},
 	}
 
@@ -533,7 +529,7 @@ func TestUpdateCustomCorporationClaims_NilResponse(t *testing.T) {
 
 	// Mock ESI client to return nil response
 	esiClient := &mockESIClient{
-		doFunc: func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
+		doFunc: func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
 			return []byte("test"), nil, nil // nil response
 		},
 	}

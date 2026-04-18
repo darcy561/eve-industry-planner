@@ -6,7 +6,7 @@ const Dashboard = lazyRouteComponent(() => import('../../Components/Dashboard/Da
 
 export const Route = createFileRoute('/_protected/dashboard')({
   component: () => (
-    <Suspense fallback={<LoadingPage />}>
+    <Suspense fallback={<LoadingPage variant="route" />}>
       <Dashboard />
     </Suspense>
   ),

@@ -1,4 +1,3 @@
-import { getAnalytics, logEvent } from "firebase/analytics";
 import uploadGroupsToFirebase from "../Firebase/uploadGroupData";
 import uploadJobSnapshotsToFirebase from "../Firebase/uploadJobSnapshots";
 import findOrGetJobObject from "../Helper/findJobObject";
@@ -38,7 +37,6 @@ export default async function deleteMultipleJobs(inputJobIDs) {
   const removeFirebaseListeners =
     useUsersStore.getState().users.actions.removeFirebaseListeners;
 
-  const analytics = getAnalytics();
   const retrievedJobs = [];
   const batchJobsToDelete = [];
   let newGroupArray = [...groupArray];
@@ -50,12 +48,6 @@ export default async function deleteMultipleJobs(inputJobIDs) {
   if (!Array.isArray(inputJobIDs)) {
     inputJobIDs = [inputJobIDs];
   }
-
-  logEvent(analytics, "Mass Delete", {
-    UID: useUsersStore.getState().account.actions.getAccountID(),
-    buildCount: inputJobIDs.length,
-    loggedIn: isLoggedIn,
-  });
 
   for (let inputJobID of inputJobIDs) {
     let inputJob = await findOrGetJobObject(inputJobID, retrievedJobs);

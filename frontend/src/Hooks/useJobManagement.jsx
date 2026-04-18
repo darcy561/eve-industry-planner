@@ -1,4 +1,3 @@
-import { getAnalytics, logEvent } from "firebase/analytics";
 import { useJobBuild } from "./useJobBuild";
 import { STATIONID_RANGE } from "../Context/defaultValues";
 import JobSnapshot from "../Classes/jobSnapshot";
@@ -9,7 +8,6 @@ import manageListenerRequests from "../Functions/Firebase/manageListenerRequests
 import seperateGroupAndJobIDs from "../Functions/Helper/seperateGroupAndJobIDs";
 import getMissingESIData from "../Functions/Shared/getMissingESIData";
 import checkJobTypeIsBuildable from "../Functions/Helper/checkJobTypeIsBuildable";
-import getCurrentFirebaseUser from "../Functions/Firebase/currentFirebaseUser";
 import recalculateInstallCostsWithNewData from "../Functions/Installation Costs/recalculateInstallCostsWithNewData";
 import { getAvailableBlueprintsByMaterialID } from "../Functions/Helper/getAvailableBlueprints";
 import firebaseBatchUpdateJobs from "../Functions/Firebase/batchUpdateJobs";
@@ -81,8 +79,6 @@ export function useJobManagement() {
   const removeFirebaseListeners = useUsersStore.getState().users.actions.removeFirebaseListeners;
   const { buildJob } = useJobBuild();
   const queryClient = useQueryClient();
-  const analytics = getAnalytics();
-
   const massBuildMaterials = async (inputJobIDs) => {
     let finalBuildCount = [];
     let childJobs = [];
@@ -148,12 +144,6 @@ export function useJobManagement() {
       });
     }
 
-    logEvent(analytics, "Mass Build", {
-      UID: getCurrentFirebaseUser(),
-      buildCount: finalBuildCount.length,
-      loggedIn: isLoggedIn,
-    });
-
     showMassBuildFeedback(0, finalBuildCount.length, finalBuildCount.length);
 
     finalBuildCount.forEach((item) => (item.parentJobs = [...item.parentJobs]));
@@ -164,12 +154,6 @@ export function useJobManagement() {
       const newJob = newJobs[i];
       childJobs.push(newJob);
       newJobsMapByTypeID[newJob.itemID] = newJob;
-      logEvent(analytics, "New Job", {
-        loggedIn: isLoggedIn,
-        UID: getCurrentFirebaseUser(),
-        name: newJob.name,
-        itemID: newJob.itemID,
-      });
       await new Promise((resolve) => setTimeout(resolve, 50));
       showMassBuildFeedback(
         i + 1,
@@ -466,13 +450,6 @@ export function useJobManagement() {
         combinedJobsToSave.push(job);
       }
     }
-
-    logEvent(analytics, "Merge Jobs", {
-      UID: getCurrentFirebaseUser(),
-      MergeCount: buildData.length,
-      SaveCount: jobsToSave.size,
-      loggedIn: isLoggedIn,
-    });
 
     if (isLoggedIn) {
       await firebaseBatchDeleteJobs(oldJobsToDelete);

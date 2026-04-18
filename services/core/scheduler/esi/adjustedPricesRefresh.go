@@ -22,13 +22,19 @@ func ScheduleAdjustedPricesRefresh(deps contract.Dependencies, sched contract.Sc
 	natsConn := deps.NATS
 	task := taskscore.RefreshAdjustedPrices
 	sched.RegisterHandler(cronAdjustedPricesRefresh, func(ctx context.Context, data json.RawMessage) error {
-		logs.DebugCtx(ctx, "publishing adjusted prices refresh trigger", "component", schedulerLogComponent, "subject", task.Subject)
-		if err := natscore.PublishEmpty(ctx, jsContext, task.Subject, natsConn); err != nil {
-			logs.ErrorCtx(ctx, "failed to publish adjusted prices refresh trigger", "component", schedulerLogComponent, "subject", task.Subject, "error", err)
-			return err
+		publish := func(publishCtx context.Context) error {
+			logs.DebugCtx(publishCtx, "publishing adjusted prices refresh trigger", "component", schedulerLogComponent, "subject", task.Subject)
+			if err := natscore.PublishEmpty(publishCtx, jsContext, task.Subject, natsConn); err != nil {
+				logs.ErrorCtx(publishCtx, "failed to publish adjusted prices refresh trigger", "component", schedulerLogComponent, "subject", task.Subject, "error", err)
+				return err
+			}
+			logs.InfoCtx(publishCtx, "adjusted prices refresh triggered", "component", schedulerLogComponent, "subject", task.Subject)
+			return nil
 		}
-		logs.InfoCtx(ctx, "adjusted prices refresh triggered", "component", schedulerLogComponent, "subject", task.Subject)
-		return nil
+		if deferTaskPublicationUntilAfterDowntime(ctx, task.Name, task.Subject, publish) {
+			return nil
+		}
+		return publish(ctx)
 	})
 	if err := sched.ScheduleCronJob(cronAdjustedPricesSchedule, cronAdjustedPricesRefresh); err != nil {
 		return nil, err

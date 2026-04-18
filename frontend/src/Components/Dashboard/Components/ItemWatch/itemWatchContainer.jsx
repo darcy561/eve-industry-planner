@@ -16,7 +16,10 @@ export function WatchlistContainer({
     (state) => state.applicationSettings.defaultOrderType
   );
 
-  if (userWatchlist.items.length === 0) {
+  const hasItems = userWatchlist.items.length > 0;
+  const hasGroups = userWatchlist.groups?.length > 0;
+
+  if (!hasItems && !hasGroups) {
     return (
       <Grid align="center" size={12}>
         <Typography sx={{ typography: { xs: "caption", sm: "body2" } }}>
@@ -26,9 +29,9 @@ export function WatchlistContainer({
     );
   }
 
-  if (userWatchlist.items.length > 0) {
-    return (
-      <>
+  return (
+    <>
+      {hasItems && (
         <Grid
           container
           sx={{
@@ -92,35 +95,35 @@ export function WatchlistContainer({
             </Typography>
           </Grid>
         </Grid>
-        {userWatchlist.groups.map((group, index) => {
+      )}
+      {userWatchlist.groups.map((group, index) => {
+        return (
+          <WatchlistGroup
+            key={group.id}
+            group={group}
+            index={index}
+            updateGroupSettingsTrigger={updateGroupSettingsTrigger}
+            updateGroupSettingsContent={updateGroupSettingsContent}
+            groupSettingsContent={groupSettingsContent}
+            setOpenDialog={setOpenDialog}
+            updateWatchlistItemToEdit={updateWatchlistItemToEdit}
+          />
+        );
+      })}
+      {userWatchlist.items.map((item, index) => {
+        if (item.group === undefined || item.group === 0) {
           return (
-            <WatchlistGroup
-              key={group.id}
-              group={group}
+            <WatchListRow
+              key={item.id}
+              item={item}
               index={index}
-              updateGroupSettingsTrigger={updateGroupSettingsTrigger}
-              updateGroupSettingsContent={updateGroupSettingsContent}
-              groupSettingsContent={groupSettingsContent}
               setOpenDialog={setOpenDialog}
               updateWatchlistItemToEdit={updateWatchlistItemToEdit}
             />
           );
-        })}
-        {userWatchlist.items.map((item, index) => {
-          if (item.group === undefined || item.group === 0) {
-            return (
-              <WatchListRow
-                key={item.id}
-                item={item}
-                index={index}
-                setOpenDialog={setOpenDialog}
-                updateWatchlistItemToEdit={updateWatchlistItemToEdit}
-              />
-            );
-          }
-          return null;
-        })}
-      </>
-    );
-  }
+        }
+        return null;
+      })}
+    </>
+  );
 }

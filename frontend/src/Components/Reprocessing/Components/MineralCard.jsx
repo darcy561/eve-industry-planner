@@ -73,7 +73,6 @@ export default function MineralCard({
             }}
           />
         )}
-
         {/* To Be Sold Badge */}
         {isExcessMineral && (
           <Chip
@@ -88,7 +87,6 @@ export default function MineralCard({
             }}
           />
         )}
-
         {/* Mineral Icon */}
         <Tooltip title={`${matchedName} icon`} arrow placement="top">
           <Avatar
@@ -96,7 +94,6 @@ export default function MineralCard({
             sx={{ width: 40, height: 40, flexShrink: 0 }}
           />
         </Tooltip>
-
         {/* Mineral Info */}
         <Box
           sx={{
@@ -136,15 +133,14 @@ export default function MineralCard({
             >
               <Typography
                 variant="caption"
-                color="text.secondary"
                 sx={{
+                  color: "text.secondary",
                   display: "block",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
-                  lineHeight: 1.2,
-                }}
-              >
+                  lineHeight: 1.2
+                }}>
                 {formatNumberForLocale(item.materials[mineralKey], { max: 0 })}{" "}
                 | {formatNumberForLocale(quantity, { max: 0 })}
               </Typography>
@@ -160,14 +156,13 @@ export default function MineralCard({
             >
               <Typography
                 variant="caption"
-                color="text.secondary"
                 sx={{
+                  color: "text.secondary",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
-                  lineHeight: 1.2,
-                }}
-              >
+                  lineHeight: 1.2
+                }}>
                 {formatNumberForLocale(unitPrice)} |{" "}
                 {formatNumberForLocale(reprocessingCostPerUnit)} ISK
               </Typography>
@@ -235,7 +230,6 @@ export default function MineralCard({
           }}
         />
       )}
-
       {/* To Be Sold Badge */}
       {isExcessMineral && (
         <Chip
@@ -250,7 +244,6 @@ export default function MineralCard({
           }}
         />
       )}
-
       {/* Mineral Icon */}
       <Tooltip title={`${matchedName} icon`} arrow placement="top">
         <Box sx={{ display: "flex", justifyContent: "center", mb: 1 }}>
@@ -260,7 +253,6 @@ export default function MineralCard({
           />
         </Box>
       </Tooltip>
-
       {/* Mineral Name */}
       <Typography
         variant="subtitle2"
@@ -281,7 +273,6 @@ export default function MineralCard({
       >
         {matchedName}
       </Typography>
-
       {/* Quantity Display */}
       {item.itemType !== reprocessingItemTypes.gas && (
         <Tooltip
@@ -292,24 +283,21 @@ export default function MineralCard({
           <Box sx={{ textAlign: "center", mb: 1 }}>
             <Typography
               variant="body2"
-              color="text.secondary"
               sx={{
+                color: "text.secondary",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
-                maxWidth: "100%",
-              }}
-            >
+                maxWidth: "100%"
+              }}>
               {formatNumberForLocale(item.materials[mineralKey], { max: 0 })} |{" "}
               {formatNumberForLocale(quantity, { max: 0 })}
             </Typography>
           </Box>
         </Tooltip>
       )}
-
       {/* Spacer to push content to top and bottom */}
       <Box sx={{ flex: 1 }} />
-
       {/* Price & Value */}
       <Box
         sx={{
@@ -329,9 +317,10 @@ export default function MineralCard({
         >
           <Typography
             variant="caption"
-            color="text.secondary"
-            sx={{ textAlign: "center" }}
-          >
+            sx={{
+              color: "text.secondary",
+              textAlign: "center"
+            }}>
             {formatNumberForLocale(unitPrice)} |{" "}
             {formatNumberForLocale(reprocessingCostPerUnit)} ISK
           </Typography>
@@ -345,7 +334,6 @@ export default function MineralCard({
           </Typography>
         </Tooltip>
       </Box>
-
       {/* Icon buttons at bottom of card */}
       <Box
         sx={{

@@ -1,5 +1,4 @@
 import { Button, Tooltip } from "@mui/material";
-import { getAnalytics, logEvent } from "firebase/analytics";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import deleteJobFromFirebase from "../../../../../../Functions/Firebase/deleteJob";
@@ -11,24 +10,16 @@ import {
   showSnackbarSuccess,
 } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
-import getCurrentFirebaseUser from "../../../../../../Functions/Firebase/currentFirebaseUser";
 import { invalidateBuildStatsQuery } from "../../../../../../Hooks/React Query/Backend/buildStats";
 
 export function ArchiveJobButton({ state }) {
   const { activeGroupID, userJobSnapshot } = useUsersStore((state) => state.jobData);
   const { removeJobsFromUserJobSnapshotArray, removeJobsFromJobArray } = useUsersStore.getState().jobData.actions;
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
-  const analytics = getAnalytics();
   const navigate = useNavigate({ from: '/editjob/$jobID' });
   const queryClient = useQueryClient();
 
   const archiveJobProcess = async () => {
-    logEvent(analytics, "Archive Job", {
-      UID: getCurrentFirebaseUser(),
-      jobID: state.activeJob.jobID,
-      itemID: state.activeJob.itemID,
-    });
-
     useUsersStore.getState().account.actions.addLinkedEsiData({
       ordersToAdd: new Set(),
       jobsToAdd: new Set(),

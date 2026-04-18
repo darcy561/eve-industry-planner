@@ -111,6 +111,15 @@ const GLOBAL_CONFIG = Object.freeze({
    */
   ESI_MAX_PAGES: 50,
 
+  /**
+   * ESI X-Compatibility-Date (YYYY-MM-DD). Single pin for all browser ESI calls.
+   * Keep in sync with Go `worker/esi` package `CompatibilityDate` (compatibility_date.go) when bumping.
+   *
+   * @type {string}
+   * @default "2025-12-16"
+   */
+  ESI_COMPATIBILITY_DATE: "2025-12-16",
+
   //Matches the shortest refresh period defined for the market prices or market history in the functions config file.
   //(Number)
   //Default: 4
@@ -282,21 +291,6 @@ const GLOBAL_CONFIG = Object.freeze({
    * @default true
    */
   ENABLE_FEEDBACK_ICON: true,
-
-  //Disable service worker
-  //(Boolean)
-  //Default: false
-
-  /**
-   * Disable service worker functionality.
-   * 
-   * Controls whether the service worker is disabled for offline functionality
-   * and background processing capabilities.
-   * 
-   * @type {boolean}
-   * @default false
-   */
-  DISABLE_SERVICE_WORKER: false,
 
   //Default auto refresh interval in minutes
   //(Number)

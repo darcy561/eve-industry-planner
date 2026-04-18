@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"time"
 
@@ -118,57 +117,24 @@ func StreamIndustrySystems(ctx context.Context, esiClient esiratelimiter.ClientI
 		return "", false, 0, errors.New("onItem callback is nil")
 	}
 
-	path := "/v1/industry/systems/"
+	path := "/industry/systems/"
 	headers := map[string]string{
-		"Accept":          "application/json",
-		"Accept-Encoding": "gzip",
+		"Accept":               "application/json",
+		"Accept-Encoding":      "gzip",
+		"X-Compatibility-Date": esicore.CompatibilityDate,
 	}
 	if etag != "" {
 		headers["If-None-Match"] = etag
 	}
 
-	// Retry on transient errors with exponential backoff + jitter
-	// Check for rate limit errors and reschedule if retryable
-	var resp *http.Response
-	maxAttempts := 4
-	var err error
-
-	logs.DebugCtx(ctx, "starting ESI request loop for industry systems", "path", path, "etag_provided", etag != "", "max_attempts", maxAttempts)
-
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		logs.DebugCtx(ctx, "making ESI request attempt", "attempt", attempt, "max_attempts", maxAttempts, "path", path)
-		groupDesignation := esiratelimiter.GroupDesignation{
-			PrimaryGroup: "industry", // Industry endpoints
-		}
-		resp, err = esiClient.DoRequest(ctx, http.MethodGet, path, headers, groupDesignation)
-		if err == nil {
-			logs.DebugCtx(ctx, "ESI request succeeded", "attempt", attempt, "path", path)
-			break
-		}
-
-		logs.DebugCtx(ctx, "ESI request failed",
-			"attempt", attempt,
-			"max_attempts", maxAttempts,
-			"error", err,
-			"error_type", fmt.Sprintf("%T", err),
-			"path", path)
-
-		// Check if this is a rate limit error - return early to avoid unnecessary retries
-		if ShouldStopRetryOnRateLimit(ctx, err, attempt, path) {
-			return "", false, 0, err
-		}
-
-		if attempt >= maxAttempts {
-			logs.DebugCtx(ctx, "max attempts reached, returning error", "attempt", attempt, "max_attempts", maxAttempts, "error", err)
-			return "", false, 0, err
-		}
-		// Exponential backoff: 500ms, 1s, 2s
-		backoff := time.Duration(500*(1<<uint(attempt-1))) * time.Millisecond
-		// Jitter: random 0-100ms
-		jitter := time.Duration(rand.Intn(100)) * time.Millisecond
-		waitTime := backoff + jitter
-		logs.DebugCtx(ctx, "waiting before retry with exponential backoff", "attempt", attempt, "backoff", backoff, "jitter", jitter, "wait_time", waitTime)
-		time.Sleep(waitTime)
+	groupDesignation := esiratelimiter.GroupDesignation{
+		PrimaryGroup: "industry", // Industry endpoints
+	}
+	resp, err := DoRequestWithRetry(ctx, 4, path, func() (*http.Response, error) {
+		return esiClient.DoRequest(ctx, http.MethodGet, path, headers, groupDesignation)
+	})
+	if err != nil {
+		return "", false, 0, err
 	}
 	if resp != nil {
 		defer resp.Body.Close()

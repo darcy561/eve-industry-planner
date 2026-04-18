@@ -93,12 +93,7 @@ func downloadAndExtractJSONInMemory(ctx context.Context, specificFiles map[strin
 		"max_bytes", maxBytes,
 	)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpGetOKWithRetry(ctx, downloadURL, "sde_download_static_zip")
 	if err != nil {
 		return nil, err
 	}

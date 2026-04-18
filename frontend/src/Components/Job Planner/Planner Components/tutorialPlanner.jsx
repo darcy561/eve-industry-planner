@@ -5,7 +5,7 @@ export function TutorialContent_JobPlanner() {
   return (
     <Grid container spacing={2} sx={{ height: "100%", width: "100%" }}>
       <Grid size={12}>
-        <Grid container spacing={2} direction="column">
+        <Grid container spacing={2} sx={{ flexDirection: "column" }}>
           <Grid size={12}>
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
               Welcome to the Job Planner!

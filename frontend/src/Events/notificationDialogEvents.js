@@ -24,7 +24,7 @@ export function displayNotificationDialog(
   id = uuid()
 ) {
   eventEmitter.emit("notificationDialog", {
-    open: true,
+    isOpen: true,
     title,
     body,
     buttonText,

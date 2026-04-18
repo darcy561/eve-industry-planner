@@ -8,7 +8,7 @@ const EditJob = lazyRouteComponent(() => import('../../Components/Edit Job/editJ
 export const Route = createFileRoute('/editjob/$jobID')({
   beforeLoad: allowPublicAccess,
   component: () => (
-    <Suspense fallback={<LoadingPage />}>
+    <Suspense fallback={<LoadingPage variant="route" />}>
       <EditJob />
     </Suspense>
   ),

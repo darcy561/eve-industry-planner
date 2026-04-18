@@ -12,7 +12,7 @@ import {
 import CustomStructure from "../../Classes/customStructure";
 import ReprocessingStructure from "../../Classes/reprocessingStructure";
 import { detectUserLocale } from "../../Functions/Helper/localeDetection";
-import { jobStatusArrayToNamesMap } from "../../Functions/Helper/jobStatuses";
+import { jobStatusesForPersist } from "../../Functions/Helper/jobStatuses";
 
 const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION, DEFAULT_ASSET_LOCATION } =
   GLOBAL_CONFIG;
@@ -209,7 +209,7 @@ export const coreActions = (set, get) => ({
    */
   toPersistPayload: () => {
     const state = get().applicationSettings;
-    const jobStatuses = jobStatusArrayToNamesMap(get().users.jobStatus);
+    const jobStatuses = jobStatusesForPersist(state.jobStatuses);
     const cs = state.customStructures;
     const rs = state.reprocessingSettings;
 
@@ -255,7 +255,7 @@ export const coreActions = (set, get) => ({
    */
   toDocument: () => {
     const state = get().applicationSettings;
-    const jobStatuses = jobStatusArrayToNamesMap(get().users.jobStatus);
+    const jobStatuses = jobStatusesForPersist(state.jobStatuses);
     const cs = state.customStructures;
 
     return {

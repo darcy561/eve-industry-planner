@@ -8,7 +8,7 @@ const UpcomingChanges = lazyRouteComponent(() => import('../Components/Upcoming 
 export const Route = createFileRoute('/upcomingchanges')({
   beforeLoad: allowPublicAccess,
   component: () => (
-    <Suspense fallback={<LoadingPage />}>
+    <Suspense fallback={<LoadingPage variant="route" />}>
       <UpcomingChanges />
     </Suspense>
   ),

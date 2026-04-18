@@ -12,7 +12,6 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { getAnalytics, logEvent } from "firebase/analytics";
 import { useJobManagement } from "../../../../../../Hooks/useJobManagement";
 import {
   LARGE_TEXT_FORMAT
@@ -24,12 +23,9 @@ import { formatNumberForLocale, formatTimeRemaining } from "../../../../../../Fu
 
 export function LinkedJobsTab(props) {
   const { state, actions, isLoading, isError, error } = props;
-  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const { findBlueprintType } = useJobManagement();
   const [clickedJobs, setClickedJobs] = useState(new Set());
   const [removedJobs, setRemovedJobs] = useState(new Set());
-
-  const analytics = getAnalytics();
 
   const getStatusColor = (status, isReadyToDeliver) => {
     if (isReadyToDeliver) {
@@ -56,10 +52,6 @@ export function LinkedJobsTab(props) {
       actions.addIndustryESIJobsForRemoval(job.job_id);
       actions.updateActiveJob(state.activeJob);
       showSnackbarSuccess("Unlinked");
-      logEvent(analytics, "unlinkESIJob", {
-        UID: useUsersStore.getState().account.actions.getAccountID(),
-        isLoggedIn: isLoggedIn,
-      });
     }, 800);
   };
 
@@ -224,7 +216,9 @@ export function LinkedJobsTab(props) {
                         )
                       }
                       title={
-                        <Stack direction="row" spacing={1} alignItems="center">
+                        <Stack direction="row" spacing={1} sx={{
+                          alignItems: "center"
+                        }}>
                           <Typography variant="body1" noWrap>
                             {formatNumberForLocale(job.runs, { max: 0 })} Runs
                           </Typography>
@@ -233,8 +227,10 @@ export function LinkedJobsTab(props) {
                       subheader={
                         <Typography
                           variant="caption"
-                          color="text.secondary"
                           noWrap
+                          sx={{
+                            color: "text.secondary"
+                          }}
                         >
                           {facilityData
                             ? facilityData.name
@@ -247,8 +243,10 @@ export function LinkedJobsTab(props) {
                         {job.status === "active" && (
                           <Typography
                             variant="caption"
-                            color="text.secondary"
                             align="center"
+                            sx={{
+                              color: "text.secondary"
+                            }}
                           >
                             {isReadyToDeliver
                               ? "Ready to Deliver"
@@ -257,8 +255,10 @@ export function LinkedJobsTab(props) {
                         )}
                         <Typography
                           variant="caption"
-                          color="text.secondary"
                           align="center"
+                          sx={{
+                            color: "text.secondary"
+                          }}
                         >
                           Install Cost: {formatNumberForLocale(job.cost)} ISK
                         </Typography>

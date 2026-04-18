@@ -13,7 +13,7 @@ async function getCorpIndustryJobs({ character, page = 1, existingData = {}, con
     }
 
     const { esiAccessToken, CharacterID, corporation_id } = character;
-    const endpointURL = `https://esi.evetech.net/v1/corporations/${corporation_id}/industry/jobs/?include_completed=true&datasource=tranquility&page=${page}`;
+    const endpointURL = `https://esi.evetech.net/corporations/${corporation_id}/industry/jobs/?include_completed=true&datasource=tranquility&page=${page}`;
 
     // Enhanced configuration for rate limiting
     const enhancedConfig = {

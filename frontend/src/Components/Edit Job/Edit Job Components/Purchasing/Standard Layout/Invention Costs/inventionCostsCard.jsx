@@ -1,7 +1,7 @@
-import { useState } from "react";
 import {
   Avatar,
   Chip,
+  CircularProgress,
   Grid,
   IconButton,
   TextField,
@@ -9,6 +9,7 @@ import {
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
 import AddIcon from "@mui/icons-material/Add";
+import { useFormStatus } from "react-dom";
 import {
   META_LEVELS_THAT_REQUIRE_INVENTION_COSTS,
   STANDARD_TEXT_FORMAT,
@@ -20,31 +21,33 @@ import {
 } from "../../../../../../Events/snackbarEvents";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
+import DOMPurify from "dompurify";
 
 export function InventionCostsCard({ state, actions }) {
-  const [inputs, setInputs] = useState({
-    itemName: null,
-    itemCost: 0,
-  });
-
   function handleRemove(record) {
     state.activeJob.removeInventionCost(record);
     actions.updateActiveJob(state.activeJob);
     showSnackbarError("Deleted");
   }
 
-  function handleSubmit(event) {
-    event.preventDefault();
+  function handleSubmit(formData) {
+    const itemName = DOMPurify.sanitize(String(formData.get("itemName") ?? ""), {
+      ALLOWED_TAGS: [],
+      ALLOWED_ATTR: [],
+    }).trim();
+    const itemCost = Number(formData.get("itemCost") ?? 0);
+    if (!itemName || !Number.isFinite(itemCost)) {
+      return;
+    }
 
     state.activeJob.addInventionCost({
       id: Date.now(),
-      itemName: inputs.itemName,
-      itemCost: inputs.itemCost,
+      itemName,
+      itemCost,
     });
 
     actions.updateActiveJob(state.activeJob);
     showSnackbarSuccess("Success");
-    setInputs({ itemName: null, itemCost: 0 });
   }
 
   if (
@@ -118,10 +121,11 @@ export function InventionCostsCard({ state, actions }) {
                 <Grid
                   key={record.id}
                   container
-                  justifyContent="center"
-                  alignItems="center"
-                  sx={{ marginBottom: "5px" }}
-                >
+                  sx={{
+                    justifyContent: "center",
+                    alignItems: "center",
+                    marginBottom: "5px"
+                  }}>
                   <Chip
                     key={record.id}
                     label={`${record.itemName} ${formatNumberForLocale(
@@ -144,7 +148,7 @@ export function InventionCostsCard({ state, actions }) {
               );
             })}
           </Grid>
-          <form onSubmit={handleSubmit}>
+          <form action={handleSubmit}>
             <Grid container spacing={1}>
               <Grid size={6}>
                 <TextField
@@ -161,14 +165,8 @@ export function InventionCostsCard({ state, actions }) {
                   size="small"
                   variant="standard"
                   type="text"
+                  name="itemName"
                   helperText="Item"
-                  onChange={(e) => {
-                    const input = e.target.value.replace(/[^a-zA-Z0-9 ]/g, "");
-                    setInputs((prevState) => ({
-                      ...prevState,
-                      itemName: input,
-                    }));
-                  }}
                 />
               </Grid>
               <Grid size={4}>
@@ -182,28 +180,31 @@ export function InventionCostsCard({ state, actions }) {
                   size="small"
                   variant="standard"
                   type="number"
+                  name="itemCost"
                   helperText="Item Price"
                   defaultValue="0"
-                  onChange={(e) => {
-                    setInputs((prevState) => ({
-                      ...prevState,
-                      itemCost: Number(e.target.value),
-                    }));
-                  }}
                   slotProps={{
                     htmlInput: { step: "0.01" },
                   }}
                 />
               </Grid>
               <Grid align="center" size={1}>
-                <IconButton size="small" color="primary" type="submit">
-                  <AddIcon />
-                </IconButton>
+                <PendingAddIconButton />
               </Grid>
             </Grid>
           </form>
         </Grid>
       </ContentPanel>
     </Grid>
+  );
+}
+
+function PendingAddIconButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <IconButton size="small" color="primary" type="submit" disabled={pending}>
+      {pending ? <CircularProgress size={16} color="inherit" /> : <AddIcon />}
+    </IconButton>
   );
 }

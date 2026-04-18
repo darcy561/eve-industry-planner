@@ -12,6 +12,7 @@ import (
 	"eve-industry-planner/shared/core/config"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	esicore "eve-industry-planner/worker/esi"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
 	"github.com/hibiken/asynq"
@@ -19,14 +20,20 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// CharacterInfo represents the response from ESI API for character information
-type CharacterInfo struct {
+// ESI allows at most this many character IDs per POST /characters/affiliation/ request.
+const maxCharacterAffiliationBatch = 1000
+
+// CharacterAffiliation is one entry from POST /characters/affiliation/
+// (see https://developers.eveonline.com/api-explorer#/operations/PostCharactersAffiliation).
+type CharacterAffiliation struct {
+	CharacterID   int `json:"character_id"`
 	CorporationID int `json:"corporation_id"`
 }
 
 // UpdateCustomCorporationClaims processes a batch of EVE SSO tokens, extracts character IDs,
-// queries ESI API for corporation IDs, and stores the aggregated unique set in Redis.
-// This task respects ESI rate limiting through the rate-limited ESI client.
+// queries ESI in one POST per batch of up to 1000 character IDs for corporation IDs, and stores
+// the aggregated unique set in Redis. This task respects ESI rate limiting through the
+// rate-limited ESI client.
 // Returns an error if processing fails - asynq will automatically retry on error.
 func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *TaskDependencies) error {
 	if task == nil {
@@ -70,13 +77,12 @@ func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Process all EVE SSO tokens and collect corporation IDs
 	corpSet := make(map[int64]bool)
-	processedCount := 0
 	failedCount := 0
+	seenChar := make(map[int]struct{})
+	characterIDs := make([]int, 0, len(request.Tokens))
 
 	for i, tokenString := range request.Tokens {
-		// Validate the EVE SSO token
 		claims, err := sso.ValidateEveSSOToken(tokenString, cfg.EveSSOClientID)
 		if err != nil {
 			logs.WarnCtx(ctx, "failed to validate EVE SSO token in worker",
@@ -87,7 +93,6 @@ func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *
 			continue
 		}
 
-		// Extract character ID
 		characterID := claims.CharacterID
 		if characterID == "" {
 			logs.WarnCtx(ctx, "missing character ID in token",
@@ -97,7 +102,6 @@ func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *
 			continue
 		}
 
-		// Parse character ID to integer
 		characterIDInt, err := strconv.Atoi(characterID)
 		if err != nil {
 			logs.WarnCtx(ctx, "invalid character ID format",
@@ -109,73 +113,95 @@ func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *
 			continue
 		}
 
-		// Fetch character information from ESI API
-		// Endpoint: GET /v5/characters/{character_id}/
-		path := fmt.Sprintf("/v5/characters/%d/?datasource=tranquility", characterIDInt)
+		if _, ok := seenChar[characterIDInt]; ok {
+			continue
+		}
+		seenChar[characterIDInt] = struct{}{}
+		characterIDs = append(characterIDs, characterIDInt)
+	}
+
+	processedCount := 0
+
+	if len(characterIDs) > 0 {
+		affiliationPath := "/characters/affiliation/?datasource=tranquility"
+		headers := map[string]string{
+			"Content-Type":         "application/json",
+			"X-Compatibility-Date": esicore.CompatibilityDate,
+		}
 		groupDesignation := esiratelimiter.GroupDesignation{}
-		body, resp, err := deps.ESIClient.Do(ctx, "GET", path, nil, groupDesignation)
-		if err != nil {
-			logs.ErrorCtx(ctx, "failed to fetch character info from ESI API",
-				"character_id", characterID,
-				"account_id", request.AccountID,
-				"index", i,
-				"error", err)
 
-			// Check if it's a rate limit error - return error for asynq to retry
-			if esiratelimiter.IsRetryableRateLimitError(err) {
-				logs.WarnCtx(ctx, "retryable rate limit error, returning error for retry",
-					"character_id", characterID,
+		for start := 0; start < len(characterIDs); start += maxCharacterAffiliationBatch {
+			end := start + maxCharacterAffiliationBatch
+			if end > len(characterIDs) {
+				end = len(characterIDs)
+			}
+			chunk := characterIDs[start:end]
+
+			payload, err := json.Marshal(chunk)
+			if err != nil {
+				logs.ErrorCtx(ctx, "failed to marshal character ID batch for affiliation",
 					"account_id", request.AccountID,
+					"batch_size", len(chunk),
 					"error", err)
-				return fmt.Errorf("rate limited: %w", err)
+				failedCount += len(chunk)
+				continue
 			}
 
-			// Non-retryable error - continue with other tokens
-			failedCount++
-			continue
-		}
+			body, resp, err := DoEsiPostWithRetry(ctx, deps.ESIClient, 4, affiliationPath, headers, payload, groupDesignation)
+			if err != nil {
+				logs.ErrorCtx(ctx, "failed to fetch character affiliation from ESI API",
+					"account_id", request.AccountID,
+					"batch_size", len(chunk),
+					"error", err)
 
-		// Check response status
-		if resp == nil || resp.StatusCode != 200 {
-			statusCode := 0
-			if resp != nil {
-				statusCode = resp.StatusCode
+				if esiratelimiter.IsRetryableRateLimitError(err) {
+					logs.WarnCtx(ctx, "retryable rate limit error, returning error for retry",
+						"account_id", request.AccountID,
+						"error", err)
+					return fmt.Errorf("rate limited: %w", err)
+				}
+
+				failedCount += len(chunk)
+				continue
 			}
-			logs.WarnCtx(ctx, "ESI API returned non-200 status",
-				"character_id", characterID,
-				"account_id", request.AccountID,
-				"status_code", statusCode,
-				"index", i)
-			failedCount++
-			continue
-		}
 
-		// Parse character information
-		var characterInfo CharacterInfo
-		if err := json.Unmarshal(body, &characterInfo); err != nil {
-			logs.ErrorCtx(ctx, "failed to parse character info response",
-				"character_id", characterID,
-				"account_id", request.AccountID,
-				"index", i,
-				"error", err)
-			failedCount++
-			continue
-		}
+			if resp == nil || resp.StatusCode != 200 {
+				statusCode := 0
+				if resp != nil {
+					statusCode = resp.StatusCode
+				}
+				logs.WarnCtx(ctx, "ESI API returned non-200 status for affiliation",
+					"account_id", request.AccountID,
+					"status_code", statusCode,
+					"batch_size", len(chunk))
+				failedCount += len(chunk)
+				continue
+			}
 
-		// Add corporation ID to set (automatically handles duplicates)
-		if characterInfo.CorporationID > 0 {
-			corpSet[int64(characterInfo.CorporationID)] = true
-			processedCount++
+			var affiliations []CharacterAffiliation
+			if err := json.Unmarshal(body, &affiliations); err != nil {
+				logs.ErrorCtx(ctx, "failed to parse affiliation response",
+					"account_id", request.AccountID,
+					"batch_size", len(chunk),
+					"error", err)
+				failedCount += len(chunk)
+				continue
+			}
+
+			for _, row := range affiliations {
+				if row.CorporationID > 0 {
+					corpSet[int64(row.CorporationID)] = true
+					processedCount++
+				}
+			}
 		}
 	}
 
-	// Convert set to slice (unique corporation IDs, no duplicates)
 	allCorporations := make([]int64, 0, len(corpSet))
 	for corpID := range corpSet {
 		allCorporations = append(allCorporations, corpID)
 	}
 
-	// Store aggregated corporations for the account (keyed by AccountID)
 	if err := auth.StoreCorporations(ctx, deps.Redis, request.AccountID, allCorporations); err != nil {
 		logs.ErrorCtx(ctx, "failed to store corporation IDs in Redis",
 			"account_id", request.AccountID,

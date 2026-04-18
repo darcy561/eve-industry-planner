@@ -18,11 +18,12 @@ export default function AssetTemplate_AssetDialogWindow(props) {
     <Grid container size={2}>
       <Grid size={12}>
         <Box
-          height="100%"
-          display="flex"
-          justifyContent="left"
-          alignItems="center"
-        >
+          sx={{
+            height: "100%",
+            display: "flex",
+            justifyContent: "left",
+            alignItems: "center"
+          }}>
           <Avatar src={imageURL} alt={itemName} variant="square" />
         </Box>
       </Grid>

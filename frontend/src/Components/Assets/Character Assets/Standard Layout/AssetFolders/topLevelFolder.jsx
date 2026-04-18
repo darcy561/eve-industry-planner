@@ -31,12 +31,14 @@ export function AssetEntry_TopLevel({
     <Grid container>
       <Grid container size={12}>
         <Grid
-          display="flex"
-          justifyContent="center"
-          alignItems="center"
           size={{
             xs: 2,
             sm: 1
+          }}
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center"
           }}>
           <IconButton size="small" onClick={toggleClick}>
             {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
@@ -44,12 +46,14 @@ export function AssetEntry_TopLevel({
         </Grid>
         <Grid
           container
-          display="flex"
-          justifyContent="left"
-          alignItems="center"
           size={{
             xs: 10,
             sm: 11
+          }}
+          sx={{
+            display: "flex",
+            justifyContent: "left",
+            alignItems: "center"
           }}>
           <Typography
             sx={{ typography: deviceNotMobile ? "body1" : "caption" }}

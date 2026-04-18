@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -12,8 +13,8 @@ import (
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/shared"
 )
 
 const (
@@ -21,11 +22,28 @@ const (
 	MaxFeedbackLength = 5000
 	// MinFeedbackLength is the minimum required length for feedback content
 	MinFeedbackLength = 1
+	// MaxFeedbackContactField is the maximum length for optional contact name / contact info
+	MaxFeedbackContactField = 200
+	// MaxFeedbackMetadataJSON is the maximum size of JSON metadata blob (bytes)
+	MaxFeedbackMetadataJSON = 12000
+	// MaxFeedbackMetadataKeys caps how many keys the client may send in metadata
+	MaxFeedbackMetadataKeys = 64
+	// MaxFeedbackMetadataValuePerKey limits each metadata value size (bytes / UTF-8)
+	MaxFeedbackMetadataValuePerKey = 4000
+	// MaxSentryEventIDLength bounds Sentry user-feedback event id strings
+	MaxSentryEventIDLength = 128
 )
 
-// FeedbackBody represents the request body for feedback submission
+// FeedbackBody is the JSON body for POST /api/v1/feedback.
+//
+// Shape (client): response, optional sentry_event_id, optional metadata (map[string]string),
+// optional contact_name, optional contact_info (free-form contact).
 type FeedbackBody struct {
-	Response string `json:"response"`
+	Response      string            `json:"response"`
+	SentryEventID string            `json:"sentry_event_id,omitempty"`
+	Metadata      map[string]string `json:"metadata,omitempty"`
+	ContactName   string            `json:"contact_name,omitempty"`
+	ContactInfo   string            `json:"contact_info,omitempty"`
 }
 
 // DiscordEmbedField represents a field in a Discord embed
@@ -48,12 +66,12 @@ type DiscordWebhookPayload struct {
 	Embeds   []DiscordEmbed `json:"embeds"`
 }
 
-// FeedbackHandler handles POST /api/v1/feedback with JSON body { "response": "..." }.
+// FeedbackHandler handles POST /api/v1/feedback.
 // Public: rate limit → handler. Optional Authorization Bearer is parsed when present for account label in Discord embeds (invalid/expired JWT ignored, not 401).
 // Client retries: withRequestRetries (408, 429, 5xx).
 //
 //	405 — not POST
-//	400 — invalid JSON, missing/empty response, length limits
+//	400 — invalid JSON, missing/empty response, length limits, invalid metadata
 //	500 — JSON marshal or Discord webhook failure
 //	200 — success (including when webhook URL is unset)
 func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
@@ -86,6 +104,48 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 
 	// Trim whitespace and validate feedback content
 	feedbackContent := strings.TrimSpace(reqBody.Response)
+
+	contactName := strings.TrimSpace(reqBody.ContactName)
+	if len(contactName) > MaxFeedbackContactField {
+		logs.WarnCtx(ctx, "contact_name too long", "account_id", accountID, "length", len(contactName))
+		http.Error(w, fmt.Sprintf("contact_name exceeds maximum length of %d", MaxFeedbackContactField), http.StatusBadRequest)
+		return
+	}
+
+	contactDetails := strings.TrimSpace(reqBody.ContactInfo)
+	if len(contactDetails) > MaxFeedbackContactField {
+		logs.WarnCtx(ctx, "contact_info too long", "account_id", accountID, "length", len(contactDetails))
+		http.Error(w, fmt.Sprintf("contact_info exceeds maximum length of %d", MaxFeedbackContactField), http.StatusBadRequest)
+		return
+	}
+
+	sentryEventID := strings.TrimSpace(reqBody.SentryEventID)
+	if len(sentryEventID) > MaxSentryEventIDLength {
+		logs.WarnCtx(ctx, "sentry_event_id too long", "account_id", accountID, "length", len(sentryEventID))
+		http.Error(w, fmt.Sprintf("sentry_event_id exceeds maximum length of %d", MaxSentryEventIDLength), http.StatusBadRequest)
+		return
+	}
+
+	var metadataNorm map[string]string
+	if reqBody.Metadata != nil {
+		metaJSON, err := json.Marshal(reqBody.Metadata)
+		if err != nil {
+			logs.WarnCtx(ctx, "invalid metadata", "account_id", accountID, "error", err)
+			http.Error(w, "Invalid metadata", http.StatusBadRequest)
+			return
+		}
+		if len(metaJSON) > MaxFeedbackMetadataJSON {
+			logs.WarnCtx(ctx, "metadata JSON too large", "account_id", accountID, "bytes", len(metaJSON))
+			http.Error(w, "metadata too large", http.StatusBadRequest)
+			return
+		}
+		metadataNorm, err = normalizeFeedbackMetadata(reqBody.Metadata)
+		if err != nil {
+			logs.WarnCtx(ctx, "invalid metadata content", "account_id", accountID, "error", err)
+			http.Error(w, fmt.Sprintf("Invalid metadata: %v", err), http.StatusBadRequest)
+			return
+		}
+	}
 
 	// Validate feedback content length
 	if len(feedbackContent) < MinFeedbackLength {
@@ -141,6 +201,34 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 						Value:  accountID,
 						Inline: false,
 					})
+					if sentryEventID != "" {
+						fields = append(fields, DiscordEmbedField{
+							Name:   "Sentry event id",
+							Value:  truncateDiscordField(sentryEventID),
+							Inline: false,
+						})
+					}
+					if contactName != "" {
+						fields = append(fields, DiscordEmbedField{
+							Name:   "Contact name",
+							Value:  truncateDiscordField(contactName),
+							Inline: true,
+						})
+					}
+					if contactDetails != "" {
+						fields = append(fields, DiscordEmbedField{
+							Name:   "Contact",
+							Value:  truncateDiscordField(contactDetails),
+							Inline: true,
+						})
+					}
+					if len(metadataNorm) > 0 {
+						fields = append(fields, DiscordEmbedField{
+							Name:   "Client context",
+							Value:  truncateDiscordField(formatFeedbackMetadataForDiscord(metadataNorm)),
+							Inline: false,
+						})
+					}
 				}
 
 				// Add content part with part number if multiple parts
@@ -258,6 +346,66 @@ func sanitizeForDiscord(content string) string {
 	}
 
 	return sanitized.String()
+}
+
+func normalizeFeedbackMetadata(m map[string]string) (map[string]string, error) {
+	if m == nil {
+		return nil, nil
+	}
+	if len(m) > MaxFeedbackMetadataKeys {
+		return nil, fmt.Errorf("too many keys (max %d)", MaxFeedbackMetadataKeys)
+	}
+	out := make(map[string]string, len(m))
+	for k, v := range m {
+		k = strings.TrimSpace(k)
+		if k == "" {
+			continue
+		}
+		if len(k) > 128 {
+			return nil, fmt.Errorf("metadata key too long")
+		}
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		if len(v) > MaxFeedbackMetadataValuePerKey {
+			return nil, fmt.Errorf("metadata value for key %q exceeds maximum length", k)
+		}
+		out[k] = v
+	}
+	return out, nil
+}
+
+const discordEmbedFieldMaxRunes = 1024
+
+func truncateDiscordField(s string) string {
+	r := []rune(s)
+	if len(r) <= discordEmbedFieldMaxRunes {
+		return s
+	}
+	return string(r[:discordEmbedFieldMaxRunes-1]) + "…"
+}
+
+func formatFeedbackMetadataForDiscord(m map[string]string) string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	for _, k := range keys {
+		v := m[k]
+		if b.Len() > 0 {
+			b.WriteString("\n")
+		}
+		b.WriteString(k)
+		b.WriteString(": ")
+		b.WriteString(v)
+		if b.Len() > 3500 {
+			break
+		}
+	}
+	return b.String()
 }
 
 // splitContentForDiscord splits content into parts that fit Discord embed field limits

@@ -13,6 +13,7 @@ import {
   getDefaultStrutureForJobType,
   calculateSetupQuantitiesFromRequiredQuantity,
 } from "../Functions/Job Build/setupHelpers";
+import { trackNewJobsCreated } from "../analytics/trackNewJobsCreated";
 
 /**
  * Custom hook that provides comprehensive job building functionality for EVE Online industry planning.
@@ -91,6 +92,7 @@ export function useJobBuild() {
    * @param {string} [buildRequest.groupID] - Optional. Group ID to associate the job with
    * @param {Array} [buildRequest.childJobs] - Optional. Array of child job objects for material production
    * @param {boolean} [buildRequest.throwError] - Optional. Whether to throw errors on failure (defaults to true)
+   * @param {boolean} [buildRequest.skipJobCreateAnalytics] - Optional. When true, do not emit `new_job` from this call (use for speculative builds). If the user later commits that job to the planner, call `trackNewJobsCreated` at commit time (see child-job popover "Mark For Creation").
    * @returns {Promise<Object|Array|null>} Single job object, array of job objects, or null on error
    */
   const buildJob = async (buildRequest) => {
@@ -125,6 +127,7 @@ export function useJobBuild() {
 
       // Build job objects for each request
       const results = [];
+      const jobsForAnalytics = [];
       for (const request of requests) {
         const itemJson = itemsData.find(
           (item) => item.itemID === request.itemID
@@ -133,8 +136,15 @@ export function useJobBuild() {
           const jobObject = await buildJobObject(itemJson, request);
           if (jobObject) {
             results.push(jobObject);
+            if (!request.skipJobCreateAnalytics) {
+              jobsForAnalytics.push(jobObject);
+            }
           }
         }
+      }
+
+      if (jobsForAnalytics.length > 0) {
+        trackNewJobsCreated(jobsForAnalytics);
       }
 
       // Return single object for single request, array for multiple

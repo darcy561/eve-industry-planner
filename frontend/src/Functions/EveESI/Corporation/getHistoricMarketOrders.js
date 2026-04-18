@@ -13,7 +13,7 @@ async function getCorpHistoricMarketOrders({
     }
 
     const { esiAccessToken, CharacterID, corporation_id } = character;
-    const endpointURL = `https://esi.evetech.net/v2/corporations/${corporation_id}/orders/history/?datasource=tranquility&page=${page}`;
+    const endpointURL = `https://esi.evetech.net/corporations/${corporation_id}/orders/history/?datasource=tranquility&page=${page}`;
 
     // Enhanced configuration for rate limiting
     const enhancedConfig = {

@@ -15,7 +15,7 @@ import { eventEmitter } from "../utils/EventSystem";
  */
 export function showShoppingList(jobIDs = []) {
   eventEmitter.emit("shoppingList", {
-    open: true,
+    isOpen: true,
     jobIDs,
   });
 }
@@ -31,7 +31,7 @@ export function showShoppingList(jobIDs = []) {
  */
 export function hideShoppingList() {
   eventEmitter.emit("shoppingList", {
-    open: false,
+    isOpen: false,
     jobIDs: [],
   });
 } 

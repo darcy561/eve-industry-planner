@@ -13,7 +13,7 @@ async function getCharacterHistoricMarketOrders({
     }
 
     const { esiAccessToken, CharacterID } = character;
-    const endpointURL = `https://esi.evetech.net/v1/characters/${CharacterID}/orders/history/?datasource=tranquility&page=${page}`;
+    const endpointURL = `https://esi.evetech.net/characters/${CharacterID}/orders/history/?datasource=tranquility&page=${page}`;
 
     // Enhanced configuration for rate limiting
     const enhancedConfig = {

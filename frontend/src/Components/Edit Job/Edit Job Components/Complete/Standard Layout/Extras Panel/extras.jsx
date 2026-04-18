@@ -2,19 +2,22 @@ import { useState } from "react";
 import {
   Box,
   Chip,
+  CircularProgress,
   IconButton,
   TextField,
   Typography,
   Tooltip,
   Grid,
 } from "@mui/material";
+import { useFormStatus } from "react-dom";
 
-import { Add as AddIcon, Delete as DeleteIcon } from "@mui/icons-material";
+import AddIcon from "@mui/icons-material/Add";
+import DeleteIcon from "@mui/icons-material/Delete";
 import {
   showSnackbarSuccess,
   showSnackbarError,
 } from "../../../../../../Events/snackbarEvents";
-import { formatNumberForLocale, numberToShortText } from "../../../../../../Functions/Helper/numberParser";
+import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import uuid from "react-uuid";
 import ExtrasCategoriesSelect from "../../../../../../Styled Components/Select/extrasCategories";
 import useUsersStore from "../../../../../../Zustand/usersStore";
@@ -22,7 +25,7 @@ import DOMPurify from "dompurify";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 
 export function ExtrasPanel({ state, actions }) {
-  const [extras, updateExtras] = useState({ category: 0, text: "", value: 0 });
+  const [extrasCategory, setExtrasCategory] = useState(0);
   const extrasCategories = useUsersStore((state) => state.applicationSettings.extrasCategories);
 
   const getCategoryLabel = (categoryId) => {
@@ -38,18 +41,22 @@ export function ExtrasPanel({ state, actions }) {
     return category ? category.label : "Unassigned";
   };
 
-  function handleAdd() {
-    if (extras.category === 0 && !extras.text.trim()) {
+  function handleAddAction(formData) {
+    const extraText = String(formData.get("extraText") ?? "");
+    const extraValue = Number(formData.get("extraValue") ?? 0);
+    const category = Number(formData.get("extrasCategory") ?? 0);
+
+    if (category === 0 && !extraText.trim()) {
       showSnackbarError("Please enter a description");
       return;
     }
 
-    if (extras.value <= 0) {
+    if (!Number.isFinite(extraValue) || extraValue <= 0) {
       showSnackbarError("Please enter a valid cost amount");
       return;
     }
 
-    const sanitizedText = DOMPurify.sanitize(extras.text, {
+    const sanitizedText = DOMPurify.sanitize(extraText, {
       ALLOWED_TAGS: [],
       ALLOWED_ATTR: [],
     });
@@ -57,13 +64,12 @@ export function ExtrasPanel({ state, actions }) {
     // Persisted shape for each row: { id, category, extraText, extraValue } (see Job.addExtrasCost, models.ExtraCost).
     state.activeJob.addExtrasCost({
       id: uuid(),
-      category: extras.category || 0,
+      category: category || 0,
       extraText: sanitizedText,
-      extraValue: extras.value,
+      extraValue,
     });
 
     actions.updateActiveJob(state.activeJob);
-    updateExtras({ category: 0, text: "", value: 0 });
     showSnackbarSuccess("Extra cost added");
   }
 
@@ -110,7 +116,12 @@ export function ExtrasPanel({ state, actions }) {
                       {item.extraText}
                     </Typography>
                   </Box>
-                  <Typography variant="body2" color="text.secondary" sx={{ mx: 2 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "text.secondary",
+                      mx: 2
+                    }}>
                     {formatNumberForLocale(item.extraValue)} ISK
                   </Typography>
                   <IconButton
@@ -132,6 +143,8 @@ export function ExtrasPanel({ state, actions }) {
           <Typography variant="subtitle2" gutterBottom>
             Add Extra Cost
           </Typography>
+          <Box component="form" action={handleAddAction}>
+          <input type="hidden" name="extrasCategory" value={extrasCategory} />
           <Grid container spacing={1} sx={{ width: '100%' }}>
             <Grid
               size={{
@@ -139,12 +152,9 @@ export function ExtrasPanel({ state, actions }) {
                 sm: 3
               }}>
               <ExtrasCategoriesSelect
-                value={extras.category}
+                value={extrasCategory}
                 onChange={(e) => {
-                  updateExtras((prevState) => ({
-                    ...prevState,
-                    category: e,
-                  }));
+                  setExtrasCategory(Number(e) || 0);
                 }}
               />
             </Grid>
@@ -156,13 +166,7 @@ export function ExtrasPanel({ state, actions }) {
               <TextField
                 fullWidth
                 placeholder="Enter description..."
-                value={extras.text}
-                onChange={(e) => {
-                  updateExtras((prevState) => ({
-                    ...prevState,
-                    text: e.target.value,
-                  }));
-                }}
+                name="extraText"
                 variant="standard"
                 size="small"
                 helperText="Description"
@@ -174,17 +178,11 @@ export function ExtrasPanel({ state, actions }) {
                 xs: 6,
                 sm: 3
               }}>
-                <Tooltip title={numberToShortText(extras.value)} arrow placement="top">
               <TextField
                 fullWidth
                 placeholder="0.00"
-                value={extras.value || ""}
-                onChange={(e) => {
-                  updateExtras((prevState) => ({
-                    ...prevState,
-                    value: Number(e.target.value) || 0,
-                  }));
-                }}
+                name="extraValue"
+                defaultValue="0"
                 variant="standard"
                 size="small"
                 type="number"
@@ -196,7 +194,6 @@ export function ExtrasPanel({ state, actions }) {
                   }
                 }}
               />
-              </Tooltip>
             </Grid>
             <Grid
               sx={{ minWidth: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}
@@ -206,34 +203,40 @@ export function ExtrasPanel({ state, actions }) {
               }}>
               <Tooltip title="Add Extra Cost" arrow placement="top">
                 <Box>
-                  <IconButton
-                    color="primary"
-                    onClick={handleAdd}
-                    disabled={
-                      (extras.category === 0 ? !extras.text.trim() : false) ||
-                      extras.value <= 0
-                    }
-                    size="small"
-                    sx={{
-                      backgroundColor: 'primary.main',
-                      color: 'white',
-                      '&:hover': {
-                        backgroundColor: 'primary.dark',
-                      },
-                      '&:disabled': {
-                        backgroundColor: 'action.disabled',
-                        color: 'action.disabled',
-                      }
-                    }}
-                  >
-                    <AddIcon />
-                  </IconButton>
+                  <PendingAddIconButton />
                 </Box>
               </Tooltip>
             </Grid>
           </Grid>
+          </Box>
         </Grid>
       </Grid>
     </ContentPanel>
+  );
+}
+
+function PendingAddIconButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <IconButton
+      color="primary"
+      type="submit"
+      size="small"
+      disabled={pending}
+      sx={{
+        backgroundColor: "primary.main",
+        color: "white",
+        "&:hover": {
+          backgroundColor: "primary.dark",
+        },
+        "&:disabled": {
+          backgroundColor: "action.disabled",
+          color: "action.disabled",
+        },
+      }}
+    >
+      {pending ? <CircularProgress size={16} color="inherit" /> : <AddIcon />}
+    </IconButton>
   );
 }

@@ -82,7 +82,18 @@ export function LibrarySearch() {
   }
 
   return (
-    <ContentPanel componentName="Blueprint Library Search" isLoading={isLoading} isError={itemListError} error={itemListError}>
+    <ContentPanel
+      componentName="Blueprint Library Search"
+      isLoading={isLoading}
+      isError={itemListError}
+      error={itemListError}
+      paperSx={{ height: "auto" }}
+      contentGridSx={{
+        overflow: "visible",
+        minHeight: "auto",
+        flex: "0 1 auto",
+      }}
+    >
       <Grid container sx={{ width: "100%", paddingX: { xs: 0.5, md: 1 } }}>
         <Grid
           size={{

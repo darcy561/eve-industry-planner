@@ -47,7 +47,9 @@ function MaintenanceMode() {
           backdropFilter: "blur(8px)",
         }}
       >
-        <Stack spacing={2.5} alignItems="center">
+        <Stack spacing={2.5} sx={{
+          alignItems: "center"
+        }}>
           <Box
             component="img"
             src="/android-chrome-192x192.png"
@@ -69,20 +71,30 @@ function MaintenanceMode() {
           </Typography>
           <Typography
             variant="body1"
-            color="text.secondary"
-            sx={{ lineHeight: 1.65, maxWidth: 360, mx: "auto" }}
-          >
+            sx={{
+              color: "text.secondary",
+              lineHeight: 1.65,
+              maxWidth: 360,
+              mx: "auto"
+            }}>
             EVE Industry Planner is temporarily unavailable. Thank you for your
             patience—please try again shortly.
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ pt: 0.5 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              pt: 0.5
+            }}>
             Status and announcements:{" "}
             <Link
               href={DEFAULT_DISCORD_INVITE}
               target="_blank"
               rel="noopener noreferrer"
               underline="hover"
-              fontWeight={600}
+              sx={{
+                fontWeight: 600
+              }}
             >
               Discord
             </Link>

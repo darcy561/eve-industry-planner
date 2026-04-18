@@ -2,7 +2,6 @@ import { initializeApp } from "firebase/app";
 import { initializeAppCheckWithHandlers } from "./firebase/appCheck";
 import { initializeAuth } from "./firebase/auth";
 import { initializeFirestoreWithCache } from "./firebase/firestore";
-import { initializeAnalytics } from "./firebase/analytics";
 import { getRuntimeEnv } from "./utils/runtime-config";
 
 /**
@@ -43,7 +42,6 @@ function getFirebaseConfig() {
     databaseURL: getEnvValue("FIREBASE_DATABASE_URL"),
     projectId: projectId,
     appId: getEnvValue("FIREBASE_APP_ID"),
-    measurementId: getEnvValue("FIREBASE_MEASUREMENT_ID"),
   };
 
   // Validate that required config values are present and not placeholders
@@ -111,15 +109,5 @@ const app = initializeApp(firebaseConfigInstance);
 export const appCheck = initializeAppCheckWithHandlers(app);
 export const firestore = initializeFirestoreWithCache(app);
 export const auth = initializeAuth(app);
-// Analytics - may fail in service workers or unsupported browsers
-let analytics = null;
-try {
-  analytics = initializeAnalytics(app);
-} catch (error) {
-  // Analytics not available
-}
-
-// Export services (may be null if initialization failed)
-export { analytics };
 
 export default app;

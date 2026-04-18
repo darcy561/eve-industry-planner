@@ -18,7 +18,7 @@ async function getCorpDivisions(character, config = {}) {
     };
 
     const response = await fetchWithCustomHeaders(
-      `https://esi.evetech.net/v2/corporations/${corporation_id}/divisions`,
+      `https://esi.evetech.net/corporations/${corporation_id}/divisions/?datasource=tranquility`,
       {
         headers: {
           Authorization: `Bearer ${esiAccessToken}`,

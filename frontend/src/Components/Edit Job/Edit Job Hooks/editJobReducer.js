@@ -11,6 +11,7 @@
  */
 
 import Job from "../../../Classes/job";
+import { normalizeSetIsLoadingPayload } from "../../../Functions/Helper/setIsLoadingAction";
 
 /**
  * Action types for the edit job reducer.
@@ -111,8 +112,16 @@ export function editJobReducer(state, action) {
       return { ...state, jobModified: true };
     case EDIT_JOB_ACTION_TYPES.SET_TEMPORARY_CHILD_JOBS:
       return { ...state, temporaryChildJobs: action.payload };
-    case EDIT_JOB_ACTION_TYPES.SET_IS_LOADING:
-      return { ...state, isLoading: action.payload };
+    case EDIT_JOB_ACTION_TYPES.SET_IS_LOADING: {
+      const { isLoading, loadingMessage } = normalizeSetIsLoadingPayload(
+        action.payload,
+      );
+      return {
+        ...state,
+        isLoading,
+        loadingMessage: isLoading ? loadingMessage : undefined,
+      };
+    }
     case EDIT_JOB_ACTION_TYPES.MARK_PARENT_JOB_FOR_REMOVAL:
       return {
         ...state,

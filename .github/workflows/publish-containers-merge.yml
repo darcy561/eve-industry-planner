@@ -339,6 +339,8 @@ jobs:
                           echo "SENTRY_PROJECT_ID=${{ vars.SENTRY_PROJECT_ID }}"
                           echo "SENTRY_DSN=${SENTRY_DSN_VAL}"
                           echo "SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}"
+                          echo "SENTRY_TRACES_SAMPLE_RATE=${{ vars.SENTRY_TRACES_SAMPLE_RATE }}"
+                          echo "SENTRY_ERROR_SAMPLE_RATE=${{ vars.SENTRY_ERROR_SAMPLE_RATE }}"
                       else
                           # Go services (api, websocket, worker, core): bake Sentry via Dockerfile ARG + go -ldflags -X
                           # (shared/telemetry). Same DSN / branch→ENVIRONMENT convention as the SPA.

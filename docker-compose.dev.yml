@@ -7,9 +7,14 @@ services:
       context: ./services
       dockerfile: api/Dockerfile
       args:
-        APP_VERSION: 0.8.10
-        FRONTEND_APP_VERSION: 0.8.10
+        APP_VERSION: 0.8.11
+        FRONTEND_APP_VERSION: 0.8.11
         APP_FEATURE_FLAGS_JSON: '{"enable_upcoming_changes_page":false}'
+        # Same pattern as CI: bake from repo-root .env (Compose interpolates ${VAR} from .env).
+        ENVIRONMENT: ${ENVIRONMENT:-development}
+        SENTRY_DSN: ${SENTRY_DSN:-}
+        SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-}
+        FEEDBACK_DISCORD_WEBHOOK_URL: ${FEEDBACK_DISCORD_WEBHOOK_URL:-}
     env_file: [.env]
     environment:
       FAIL_ON_STARTUP: "false"
@@ -20,7 +25,10 @@ services:
       context: ./services
       dockerfile: websocket/Dockerfile
       args:
-        APP_VERSION: 0.8.10
+        APP_VERSION: 0.8.11
+        ENVIRONMENT: ${ENVIRONMENT:-development}
+        SENTRY_DSN: ${SENTRY_DSN:-}
+        SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-}
     env_file: [.env]
     environment:
       FAIL_ON_STARTUP: "false"
@@ -31,7 +39,10 @@ services:
       context: ./services
       dockerfile: worker/Dockerfile
       args:
-        APP_VERSION: 0.8.10
+        APP_VERSION: 0.8.11
+        ENVIRONMENT: ${ENVIRONMENT:-development}
+        SENTRY_DSN: ${SENTRY_DSN:-}
+        SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-}
     env_file: [.env]
 
 
@@ -41,9 +52,12 @@ services:
       context: ./services
       dockerfile: core/Dockerfile
       args:
-        APP_VERSION: 0.8.10
-        FRONTEND_APP_VERSION: 0.8.10
+        APP_VERSION: 0.8.11
+        FRONTEND_APP_VERSION: 0.8.11
         APP_FEATURE_FLAGS_JSON: '{"enable_upcoming_changes_page":false}'
+        ENVIRONMENT: ${ENVIRONMENT:-development}
+        SENTRY_DSN: ${SENTRY_DSN:-}
+        SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-}
     env_file: [.env]
 
   mongo:
@@ -76,5 +90,11 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         ENVIRONMENT: ${ENVIRONMENT:-development}
-        FRONTEND_APP_VERSION: 0.8.10
+        FRONTEND_APP_VERSION: 0.8.11
+        SENTRY_ORG: ${SENTRY_ORG:-}
+        SENTRY_PROJECT_ID: ${SENTRY_PROJECT_ID:-}
+        SENTRY_DSN: ${SENTRY_DSN:-}
+        SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN:-}
+        SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-}
+        SENTRY_ERROR_SAMPLE_RATE: ${SENTRY_ERROR_SAMPLE_RATE:-}
     env_file: [.env]

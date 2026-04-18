@@ -1,11 +1,10 @@
-import { useState } from "react";
-import { IconButton, TextField, Tooltip, Box } from "@mui/material";
+import { IconButton, TextField, Tooltip, Box, CircularProgress } from "@mui/material";
+import { useFormStatus } from "react-dom";
 
 import AddIcon from "@mui/icons-material/Add";
 import { useAddMaterialCostsToJob } from "../../../../../../Hooks/JobHooks/useAddMaterialCosts";
 import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
-import { numberToShortText } from "../../../../../../Functions/Helper/numberParser";
 import { materialPriceObjectFactory } from "../../../../../../Functions/JobPlanner/materialCosts";
 
 export function AddMaterialCost_Purchasing({
@@ -38,16 +37,16 @@ export function AddMaterialCost_Purchasing({
     }
   };
 
-  const [itemCountInput, setItemCountInput] = useState(getInitialQuantity());
-  const [itemCostInput, setItemCostInput] = useState(
-    materialPrice[marketDisplay][orderDisplay]
-  );
-
-  function handleSubmit(event) {
-    event.preventDefault();
+  function handleSubmitAction(formData) {
+    const itemCountInput = Number(formData.get("itemCountInput"));
+    const itemCostInput = Number(formData.get("itemCostInput"));
     // Item count must be > 0, price can be 0 (allow 0 for price, but not for quantity)
-    if (itemCountInput == null || itemCountInput <= 0 || 
-        itemCostInput == null || itemCostInput < 0) {
+    if (
+      !Number.isFinite(itemCountInput) ||
+      itemCountInput <= 0 ||
+      !Number.isFinite(itemCostInput) ||
+      itemCostInput < 0
+    ) {
       return;
     }
     const { newMaterialArray, newTotalPurchaseCost } = useAddMaterialCostsToJob(
@@ -65,8 +64,6 @@ export function AddMaterialCost_Purchasing({
     state.activeJob.build.costs.totalPurchaseCost = newTotalPurchaseCost;
     actions.updateActiveJob(state.activeJob);
     showSnackbarSuccess("Success");
-    setItemCostInput(0);
-    setItemCountInput(0);
   }
 
   // Determine if cost entry should be shown
@@ -92,7 +89,7 @@ export function AddMaterialCost_Purchasing({
 
   return (
     <form
-      onSubmit={handleSubmit}
+      action={handleSubmitAction}
       style={{ width: "100%", maxWidth: "100%", overflow: "hidden" }}
     >
       <Box
@@ -109,74 +106,56 @@ export function AddMaterialCost_Purchasing({
         }}
       >
         <Box sx={{ flex: { xs: "1 1 33%", sm: "1 1 40%" }, minWidth: 0 }}>
-          <Tooltip
-            title={numberToShortText(itemCountInput)}
-            arrow
-            placement="top"
-          >
-            <TextField
-              size="small"
-              variant="standard"
-              type="number"
-              label="Quantity"
-              value={itemCountInput != null ? itemCountInput : ""}
-              fullWidth
-              sx={{
-                "& .MuiInputBase-root": {
-                  fontSize: "0.875rem",
+          <TextField
+            size="small"
+            variant="standard"
+            type="number"
+            label="Quantity"
+            name="itemCountInput"
+            defaultValue={getInitialQuantity()}
+            fullWidth
+            sx={{
+              "& .MuiInputBase-root": {
+                fontSize: "0.875rem",
+              },
+              "& .MuiInputLabel-root": {
+                fontSize: "0.75rem",
+              },
+              "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
+                {
+                  display: "none",
                 },
-                "& .MuiInputLabel-root": {
-                  fontSize: "0.75rem",
-                },
-                "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-                  {
-                    display: "none",
-                  },
-              }}
-              onChange={(e) => {
-                const value = e.target.value === "" ? "" : Number(e.target.value);
-                setItemCountInput(isNaN(value) ? "" : value);
-              }}
-              slotProps={{
-                htmlInput: { step: "1", min: "0" },
-              }}
-            />
-          </Tooltip>
+            }}
+            slotProps={{
+              htmlInput: { step: "1", min: "0" },
+            }}
+          />
         </Box>
         <Box sx={{ flex: { xs: "1 1 42%", sm: "1 1 45%" }, minWidth: 0 }}>
-          <Tooltip
-            title={numberToShortText(itemCostInput || 0)}
-            arrow
-            placement="top"
-          >
-            <TextField
-              size="small"
-              variant="standard"
-              type="number"
-              label="Price"
-              value={itemCostInput != null ? itemCostInput : ""}
-              fullWidth
-              sx={{
-                "& .MuiInputBase-root": {
-                  fontSize: "0.875rem",
+          <TextField
+            size="small"
+            variant="standard"
+            type="number"
+            label="Price"
+            name="itemCostInput"
+            defaultValue={materialPrice[marketDisplay][orderDisplay]}
+            fullWidth
+            sx={{
+              "& .MuiInputBase-root": {
+                fontSize: "0.875rem",
+              },
+              "& .MuiInputLabel-root": {
+                fontSize: "0.75rem",
+              },
+              "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
+                {
+                  display: "none",
                 },
-                "& .MuiInputLabel-root": {
-                  fontSize: "0.75rem",
-                },
-                "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-                  {
-                    display: "none",
-                  },
-              }}
-              onChange={(e) => {
-                const value = e.target.value === "" ? "" : Number(e.target.value);
-                setItemCostInput(isNaN(value) ? "" : value);
-              }}
-              slotProps={{
-                htmlInput: { step: "0.01", min: "0" },
-              }}
-            />
-          </Tooltip>
+            }}
+            slotProps={{
+              htmlInput: { step: "0.01", min: "0" },
+            }}
+          />
         </Box>
         <Box
           sx={{
@@ -187,28 +166,31 @@ export function AddMaterialCost_Purchasing({
           }}
         >
           <Tooltip title="Click to add" arrow>
-            <IconButton
-              size="small"
-              color="primary"
-              type="submit"
-              disabled={
-                itemCountInput == null ||
-                itemCountInput <= 0 ||
-                itemCostInput == null ||
-                itemCostInput < 0
-              }
-              sx={{
-                padding: "6px",
-                "& .MuiSvgIcon-root": {
-                  fontSize: "1.25rem",
-                },
-              }}
-            >
-              <AddIcon />
-            </IconButton>
+            <PendingAddIconButton />
           </Tooltip>
         </Box>
       </Box>
     </form>
+  );
+}
+
+function PendingAddIconButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <IconButton
+      size="small"
+      color="primary"
+      type="submit"
+      disabled={pending}
+      sx={{
+        padding: "6px",
+        "& .MuiSvgIcon-root": {
+          fontSize: "1.25rem",
+        },
+      }}
+    >
+      {pending ? <CircularProgress size={16} color="inherit" /> : <AddIcon />}
+    </IconButton>
   );
 }

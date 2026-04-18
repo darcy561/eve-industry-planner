@@ -269,10 +269,17 @@ export default function ReprocessingSettingsPanel({ pageState, pageActions }) {
                         <Typography variant="subtitle1" gutterBottom>
                             Exempt Ores ({exemptTypeIDs.length})
                         </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        <Typography
+                            variant="body2"
+                            sx={{
+                                color: "text.secondary",
+                                mb: 2
+                            }}>
                             These ores are excluded from reprocessing calculations
                         </Typography>
-                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Stack direction="row" spacing={1} useFlexGap sx={{
+                            flexWrap: "wrap"
+                        }}>
                             {exemptTypeIDs.map((typeID) => (
                                 <Chip
                                     key={typeID}

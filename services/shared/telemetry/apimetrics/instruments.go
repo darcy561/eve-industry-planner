@@ -196,6 +196,7 @@ func GetAPISessionRefresh() *APISessionRefreshMetrics {
 type APIAuthSessionLifecycleMetrics struct {
 	Started      *counterVec
 	Continued    *counterVec
+	Ended        *counterVec
 	Stored       *counterVec
 	StoreErrors  *counterVec
 }
@@ -219,6 +220,12 @@ func GetAPIAuthSessionLifecycle() *APIAuthSessionLifecycleMetrics {
 			Continued: &counterVec{
 				c: mustCounter(m.Int64Counter("api.auth_sessions.continued_total",
 					metric.WithDescription("Auth sessions continued by flow"),
+				)),
+				attrKey: "flow",
+			},
+			Ended: &counterVec{
+				c: mustCounter(m.Int64Counter("api.auth_sessions.ended_total",
+					metric.WithDescription("Auth sessions ended by flow"),
 				)),
 				attrKey: "flow",
 			},

@@ -11,6 +11,7 @@ import {
 } from "@mui/material";
 import { DateTimePicker } from "@mui/x-date-pickers";
 import useUsersStore from "../../../../../../Zustand/usersStore";
+import DOMPurify from "dompurify";
 
 export function AddCustomTransactionDialog({
   state,
@@ -87,7 +88,10 @@ export function AddCustomTransactionDialog({
                 onBlur={(v) => {
                   setTransactionData((prev) => ({
                     ...prev,
-                    description: v.target.value.replace(/[^a-zA-Z0-9 ]/g, ""),
+                    description: DOMPurify.sanitize(v.target.value, {
+                      ALLOWED_TAGS: [],
+                      ALLOWED_ATTR: [],
+                    }).trim(),
                   }));
                 }}
               />
@@ -108,12 +112,11 @@ export function AddCustomTransactionDialog({
                   },
                 }}
                 onBlur={(v) => {
+                  const unitPrice = parseNonNegativeNumber(v.target.value);
                   setTransactionData((prev) => ({
                     ...prev,
-                    unit_price: Number(v.target.value.replace(/[^0-9. ]/g, "")),
-                    amount:
-                      Number(v.target.value.replace(/[^0-9. ]/g, "")) *
-                      transactionData.quantity,
+                    unit_price: unitPrice,
+                    amount: unitPrice * transactionData.quantity,
                   }));
                 }}
                 slotProps={{
@@ -140,22 +143,12 @@ export function AddCustomTransactionDialog({
                   },
                 }}
                 onBlur={(v) => {
-                  if (v.target.value >= 0) {
-                    setTransactionData((prev) => ({
-                      ...prev,
-
-                      quantity: Number(v.target.value.replace(/[^0-9. ]/g, "")),
-                      amount:
-                        Number(v.target.value.replace(/[^0-9. ]/g, "")) *
-                        transactionData.unit_price,
-                    }));
-                  } else {
-                    setTransactionData((prev) => ({
-                      ...prev,
-                      quantity: 0,
-                      amount: 0 * transactionData.unit_price,
-                    }));
-                  }
+                  const quantity = parseNonNegativeNumber(v.target.value);
+                  setTransactionData((prev) => ({
+                    ...prev,
+                    quantity,
+                    amount: quantity * transactionData.unit_price,
+                  }));
                 }}
               />
             </Grid>
@@ -176,17 +169,11 @@ export function AddCustomTransactionDialog({
                   },
                 }}
                 onBlur={(v) => {
-                  if (v.target.value >= 0) {
-                    setTransactionData((prev) => ({
-                      ...prev,
-                      tax: Number(v.target.value.replace(/[^0-9. ]/g, "")),
-                    }));
-                  } else {
-                    setTransactionData((prev) => ({
-                      ...prev,
-                      tax: 0,
-                    }));
-                  }
+                  const tax = parseNonNegativeNumber(v.target.value);
+                  setTransactionData((prev) => ({
+                    ...prev,
+                    tax,
+                  }));
                 }}
                 slotProps={{
                   input: {
@@ -223,4 +210,12 @@ function createCustomTransactionID() {
   const timestampPart = Date.now() * 1000;
   const randomPart = Math.floor(Math.random() * 1000);
   return -(timestampPart + randomPart);
+}
+
+function parseNonNegativeNumber(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 0;
+  }
+  return parsed;
 }

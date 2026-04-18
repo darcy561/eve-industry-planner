@@ -17,7 +17,7 @@ async function getCorpPublicInfo(character, config = {}) {
     };
 
     const response = await fetchWithCustomHeaders(
-      `https://esi.evetech.net/v5/corporations/${corporation_id}/`,
+      `https://esi.evetech.net/corporations/${corporation_id}/?datasource=tranquility`,
       {},
       enhancedConfig
     );

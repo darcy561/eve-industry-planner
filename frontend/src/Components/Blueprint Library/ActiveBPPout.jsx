@@ -28,7 +28,7 @@ export function ActiveBPPopout({
         square
         sx={{ padding: "20px", maxWidth: { xs: "350px", sm: "450px" } }}
       >
-        <Grid container direction="row">
+        <Grid container sx={{ flexDirection: "row" }}>
           <Grid sx={{ marginBottom: "10px" }} size={12}>
             <Typography variant="h5" align="center" color="primary">
               {esiJob.activity_id === 1

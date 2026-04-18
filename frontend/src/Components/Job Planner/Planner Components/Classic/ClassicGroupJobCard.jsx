@@ -14,8 +14,10 @@ import { useMemo } from "react";
 import { useGroupManagement } from "../../../../Hooks/useGroupManagement";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { grey } from "@mui/material/colors";
-import { useDrag } from "react-dnd";
-import { ItemTypes } from "../../../../Context/DnDTypes";
+import {
+  plannerDragPassThroughSx,
+  usePlannerGroupCardDrag,
+} from "../../../../Hooks/usePlannerCardDrag";
 import GLOBAL_CONFIG from "../../../../global-config-app";
 import { useNavigate } from "@tanstack/react-router";
 import useUsersStore from "../../../../Zustand/usersStore";
@@ -28,17 +30,13 @@ export function ClassicGroupJobCard({ group }) {
   const { addToMultiSelect, removeFromMultiSelect } =
     useUsersStore.getState().jobData.actions;
 
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: ItemTypes.groupCard,
-    item: {
-      id: group.groupID,
-      cardType: ItemTypes.groupCard,
-      currentStatus: group.groupStatus,
-    },
-    collect: (monitor) => ({
-      isDragging: !!monitor.isDragging(),
-    }),
-  }));
+  const {
+    setNodeRef,
+    attributes,
+    listeners,
+    isDragging,
+    style: dragStyle,
+  } = usePlannerGroupCardDrag(group);
   const { PRIMARY_THEME } = GLOBAL_CONFIG;
   const theme = useTheme();
   let groupCardChecked = useMemo(() => {
@@ -69,13 +67,18 @@ export function ClassicGroupJobCard({ group }) {
 
   return (
     <Grid
-      ref={drag}
+      ref={setNodeRef}
+      style={dragStyle}
+      {...listeners}
+      {...attributes}
+      sx={plannerDragPassThroughSx(isDragging)}
       size={{
         xs: 12,
         sm: 6,
         md: 4,
         lg: 3
-      }}>
+      }}
+    >
         <ContentPanel
           componentName="ClassicGroupJobCard"
           paperSx={{

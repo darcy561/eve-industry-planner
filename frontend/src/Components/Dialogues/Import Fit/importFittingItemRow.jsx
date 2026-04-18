@@ -8,11 +8,13 @@ export function ImportFittingItemRow({ updateImportedItemList, item, index }) {
     <Grid container size={12}>
       <Grid
         container
-        alignItems="center"
-        justifyContent="center"
         size={{
           xs: 2,
           sm: 1
+        }}
+        sx={{
+          alignItems: "center",
+          justifyContent: "center"
         }}>
         <Avatar
           src={`https://images.evetech.net/types/${item.itemID}/icon?size=32`}
@@ -23,16 +25,24 @@ export function ImportFittingItemRow({ updateImportedItemList, item, index }) {
       </Grid>
       <Grid
         container
-        alignItems="center"
         size={{
           xs: 7,
           sm: 8
+        }}
+        sx={{
+          alignItems: "center"
         }}>
         <Typography sx={{ typography: { xs: "caption", sm: "body2" } }}>
           {item.itemName}
         </Typography>
       </Grid>
-      <Grid container justifyContent="center" alignItems="center" size={2}>
+      <Grid
+        container
+        size={2}
+        sx={{
+          justifyContent: "center",
+          alignItems: "center"
+        }}>
         <Typography sx={{ typography: { xs: "caption", sm: "body2" } }}>
           {formatNumberForLocale(item.itemCalculatedQty, { max: 0 })}
         </Typography>

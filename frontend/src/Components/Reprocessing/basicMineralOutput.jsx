@@ -73,9 +73,11 @@ function BasicMineralOutput({ pageState }) {
       <Grid
         container
         spacing={2}
-        alignItems="center"
-        sx={{ marginTop: 2, marginBottom: 4 }}
-      >
+        sx={{
+          alignItems: "center",
+          marginTop: 2,
+          marginBottom: 4
+        }}>
         <Grid
           size={{
             xs: 6,
@@ -118,9 +120,10 @@ function BasicMineralOutput({ pageState }) {
       <Grid
         container
         spacing={isMobile ? 0.5 : 2}
-        alignItems="center"
-        sx={{ marginBottom: 2 }}
-      >
+        sx={{
+          alignItems: "center",
+          marginBottom: 2
+        }}>
         <Grid
           sx={{ display: { xs: "none", md: "block" } }}
           size={{
@@ -190,8 +193,10 @@ function BasicMineralOutput({ pageState }) {
               container
               key={item.id}
               spacing={isMobile ? 0.5 : 2}
-              alignItems="center"
-              size={12}>
+              size={12}
+              sx={{
+                alignItems: "center"
+              }}>
               <Grid
                 sx={{
                   textAlign: "center",

@@ -6,7 +6,7 @@ const BlueprintLibrary = lazyRouteComponent(() => import('../../Components/Bluep
 
 export const Route = createFileRoute('/_protected/blueprint-library')({
   component: () => (
-    <Suspense fallback={<LoadingPage />}>
+    <Suspense fallback={<LoadingPage variant="route" />}>
       <BlueprintLibrary />
     </Suspense>
   ),

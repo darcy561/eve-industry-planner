@@ -70,12 +70,13 @@ export function AssetEntry_CorpOffices({
     >
       <Grid container size={12}>
         <Grid
-          display="flex"
-          justifyContent="left"
-          alignItems="center"
-          sx={{ paddingLeft: deviceNotMobile ? 1 : 0 }}
           size={10}
-        >
+          sx={{
+            display: "flex",
+            justifyContent: "left",
+            alignItems: "center",
+            paddingLeft: deviceNotMobile ? 1 : 0
+          }}>
           <Typography
             sx={{ typography: deviceNotMobile ? "body1" : "caption" }}
           >
@@ -83,15 +84,16 @@ export function AssetEntry_CorpOffices({
           </Typography>
         </Grid>
         <Grid
-          display="flex"
-          justifyContent="right"
-          alignItems="center"
-          sx={{ paddingRight: deviceNotMobile ? 2 : 1 }}
           size={{
             xs: 2,
             sm: 1,
           }}
-        >
+          sx={{
+            display: "flex",
+            justifyContent: "right",
+            alignItems: "center",
+            paddingRight: deviceNotMobile ? 2 : 1
+          }}>
           <IconButton size="small" onClick={toggleClick}>
             {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
           </IconButton>

@@ -22,7 +22,13 @@ export function ChildJobSwitcher_ChildJobPopoverFrame({
             <ArrowBackOutlinedIcon />
           </IconButton>
         </Grid>
-        <Grid container justifyContent="center" alignItems="center" size={10}>
+        <Grid
+          container
+          size={10}
+          sx={{
+            justifyContent: "center",
+            alignItems: "center"
+          }}>
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
             Toggle Child Jobs
           </Typography>

@@ -80,7 +80,7 @@ func TestFloodLimiter_TokenExhaustion(t *testing.T) {
 			reqCtx, reqCancel := context.WithTimeout(ctx, 5*time.Second)
 			defer reqCancel()
 			t.Logf("Initial request %d: calling client.Do", reqNum)
-			_, _, err := client.Do(reqCtx, "GET", "/test", nil, designation)
+			_, _, err := client.Do(reqCtx, "GET", "/test", nil, nil, designation)
 			t.Logf("Initial request %d: client.Do returned, err=%v", reqNum, err != nil)
 			if err != nil {
 				rateLimitErr := GetRateLimitError(err)
@@ -126,7 +126,7 @@ func TestFloodLimiter_TokenExhaustion(t *testing.T) {
 			reqCtx, reqCancel := context.WithTimeout(ctx, 5*time.Second)
 			defer reqCancel()
 			t.Logf("Flood request %d: calling client.Do", reqNum)
-			_, _, err := client.Do(reqCtx, "GET", "/test", nil, designation)
+			_, _, err := client.Do(reqCtx, "GET", "/test", nil, nil, designation)
 			t.Logf("Flood request %d: client.Do returned, err=%v", reqNum, err != nil)
 			if err != nil {
 				rateLimitErr := GetRateLimitError(err)
@@ -238,7 +238,7 @@ func TestFloodLimiter_ProgressiveExhaustion(t *testing.T) {
 				defer wg.Done()
 				reqCtx, reqCancel := context.WithTimeout(ctx, 5*time.Second)
 				defer reqCancel()
-				_, _, err := client.Do(reqCtx, "GET", "/test", nil, designation)
+				_, _, err := client.Do(reqCtx, "GET", "/test", nil, nil, designation)
 				if err != nil {
 					if GetRateLimitError(err) != nil {
 						atomic.AddInt64(&batchRateLimitErrors, 1)
@@ -340,7 +340,7 @@ func TestFloodLimiter_RecoveryAfterExhaustion(t *testing.T) {
 			defer wg.Done()
 			reqCtx, reqCancel := context.WithTimeout(ctx, 5*time.Second)
 			defer reqCancel()
-			_, _, err := client.Do(reqCtx, "GET", "/test", nil, designation)
+			_, _, err := client.Do(reqCtx, "GET", "/test", nil, nil, designation)
 			if err != nil {
 				if GetRateLimitError(err) != nil {
 					atomic.AddInt64(&initialRateLimitErrors, 1)
@@ -392,7 +392,7 @@ func TestFloodLimiter_RecoveryAfterExhaustion(t *testing.T) {
 			defer wg.Done()
 			reqCtx, reqCancel := context.WithTimeout(ctx, 5*time.Second)
 			defer reqCancel()
-			_, _, err := client.Do(reqCtx, "GET", "/test", nil, designation)
+			_, _, err := client.Do(reqCtx, "GET", "/test", nil, nil, designation)
 			if err != nil {
 				if GetRateLimitError(err) != nil {
 					atomic.AddInt64(&recoveryRateLimitErrors, 1)
@@ -474,7 +474,7 @@ func TestFloodLimiter_ConcurrentExhaustion(t *testing.T) {
 			defer wg.Done()
 			reqCtx, reqCancel := context.WithTimeout(ctx, 5*time.Second)
 			defer reqCancel()
-			_, _, err := client.Do(reqCtx, "GET", "/test", nil, designation)
+			_, _, err := client.Do(reqCtx, "GET", "/test", nil, nil, designation)
 			if err != nil {
 				if GetRateLimitError(err) != nil {
 					atomic.AddInt64(&rateLimitErrors, 1)
@@ -578,7 +578,7 @@ func TestFloodLimiter_RetryAfterRecovery(t *testing.T) {
 			defer wg.Done()
 			reqCtx, reqCancel := context.WithTimeout(ctx, 5*time.Second)
 			defer reqCancel()
-			_, _, err := client.Do(reqCtx, "GET", "/test", nil, designation)
+			_, _, err := client.Do(reqCtx, "GET", "/test", nil, nil, designation)
 			if err != nil {
 				rateLimitErr := GetRateLimitError(err)
 				if rateLimitErr != nil && rateLimitErr.Retryable {
@@ -615,7 +615,7 @@ func TestFloodLimiter_RetryAfterRecovery(t *testing.T) {
 			defer wg.Done()
 			reqCtx, reqCancel := context.WithTimeout(ctx, 5*time.Second)
 			defer reqCancel()
-			_, _, err := client.Do(reqCtx, "GET", "/test", nil, designation)
+			_, _, err := client.Do(reqCtx, "GET", "/test", nil, nil, designation)
 			if err != nil {
 				rateLimitErr := GetRateLimitError(err)
 				if rateLimitErr != nil {

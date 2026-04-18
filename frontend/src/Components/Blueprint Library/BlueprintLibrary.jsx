@@ -19,6 +19,8 @@ import {
   getUniqueBlueprintIDs,
 } from "../../Functions/Helper/blueprintFiltering";
 import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
+import ContentPanel from "../../Styled Components/Paper/ContentPanel";
+import BlueprintArchiveDialog from "../Dialogues/Blueprint Archive";
 
 export default function BlueprintLibrary() {
   const enableCompactView = useUsersStore(
@@ -156,51 +158,77 @@ export default function BlueprintLibrary() {
   };
 
   return (
-    <DefaultPageLayout>
-      <Grid container spacing={2}>
-        <Grid size={12}>
-          <LibrarySearch />
-        </Grid>
-        <Grid size={12}>
-          <Grid container spacing={2}>
-            {blueprintResults.ids.map((bpID) => {
-              if (enableCompactView) {
-                return (
-                  <CompactBlueprintGroup
-                    key={`compact-${bpID}`}
-                    bpID={bpID}
-                    blueprintResults={blueprintResults}
-                    currentFilter={currentFilter}
-                  />
-                );
-              } else {
-                return (
-                  <ClassicBlueprintGroup
-                    key={`classic-${bpID}`}
-                    bpID={bpID}
-                    blueprintResults={blueprintResults}
-                  />
-                );
-              }
-            })}
-            <Grid
-              container
-              justifyContent="center"
-              align="center"
-              sx={{ marginTop: 4, marginBottom: 1 }}
-              size={12}
-            >
-              <Pagination
-                color="primary"
-                size="small"
-                count={totalPages}
-                page={currentPage}
-                onChange={handlePageChange}
-              />
+    <>
+      <DefaultPageLayout>
+        <Box
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            width: "100%",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "auto",
+          }}
+        >
+          <Grid container spacing={2} sx={{ width: "100%" }}>
+            <Grid size={12}>
+              <LibrarySearch />
+            </Grid>
+            <Grid size={12}>
+              <ContentPanel
+                componentName="Blueprint Library Results"
+                paperSx={{ height: "auto", width: "100%" }}
+                contentGridSx={{
+                  overflow: "visible",
+                  minHeight: "auto",
+                  flex: "0 1 auto",
+                }}
+              >
+                <Grid container spacing={2}>
+                  {blueprintResults.ids.map((bpID) => {
+                    if (enableCompactView) {
+                      return (
+                        <CompactBlueprintGroup
+                          key={`compact-${bpID}`}
+                          bpID={bpID}
+                          blueprintResults={blueprintResults}
+                          currentFilter={currentFilter}
+                        />
+                      );
+                    }
+                    return (
+                      <ClassicBlueprintGroup
+                        key={`classic-${bpID}`}
+                        bpID={bpID}
+                        blueprintResults={blueprintResults}
+                      />
+                    );
+                  })}
+                  <Grid
+                    container
+                    align="center"
+                    size={12}
+                    sx={{
+                      justifyContent: "center",
+                      marginTop: 4,
+                      marginBottom: 1,
+                    }}
+                  >
+                    <Pagination
+                      color="primary"
+                      size="small"
+                      count={totalPages}
+                      page={currentPage}
+                      onChange={handlePageChange}
+                    />
+                  </Grid>
+                </Grid>
+              </ContentPanel>
             </Grid>
           </Grid>
-        </Grid>
-      </Grid>
-    </DefaultPageLayout>
+        </Box>
+      </DefaultPageLayout>
+      <BlueprintArchiveDialog />
+    </>
   );
 }

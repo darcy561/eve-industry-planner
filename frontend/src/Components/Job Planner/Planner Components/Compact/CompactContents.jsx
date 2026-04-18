@@ -19,14 +19,16 @@ export function CompactAccordionContents({
   // Filter and sort jobs by status for better performance
   const filteredAndSortedJobs = useMemo(() => {
     const filteredJobs = userJobSnapshot.filter(
-      (job) => job.jobStatus === status.id
+      (job) => Number(job.jobStatus) === Number(status.id)
     );
     return sortJobSnapshots(filteredJobs, status.id);
   }, [userJobSnapshot, status.id]);
 
   // Filter groups by status (groups remain unsorted)
   const filteredGroups = useMemo(() => {
-    return groupArray.filter((group) => group.groupStatus === status.id);
+    return groupArray.filter(
+      (group) => Number(group.groupStatus) === Number(status.id)
+    );
   }, [groupArray, status.id]);
 
   return (

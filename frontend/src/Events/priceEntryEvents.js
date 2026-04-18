@@ -17,7 +17,7 @@ import { eventEmitter } from '../utils/EventSystem';
  */
 export function showPriceEntryDialog(jobIDs, displayMarket = null, displayOrder = null) {
   eventEmitter.emit("priceEntry", {
-    open: true,
+    isOpen: true,
     jobIDs,
     displayMarket,
     displayOrder
@@ -35,7 +35,7 @@ export function showPriceEntryDialog(jobIDs, displayMarket = null, displayOrder 
  */
 export function hidePriceEntryDialog() {
   eventEmitter.emit("priceEntry", {
-    open: false,
+    isOpen: false,
     jobIDs: [],
     displayMarket: null,
     displayOrder: null

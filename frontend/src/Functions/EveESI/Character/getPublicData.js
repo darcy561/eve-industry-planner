@@ -3,7 +3,7 @@ import fetchWithCustomHeaders from "../fetchWithCustomHeaders";
 async function getCharacterPublicInfo(characterID) {
   try {
     const response = await fetchWithCustomHeaders(
-      `https://esi.evetech.net/v5/characters/${characterID}/?datasource=tranquility`
+      `https://esi.evetech.net/characters/${characterID}/?datasource=tranquility`
     );
 
     // Handle no content responses (204)

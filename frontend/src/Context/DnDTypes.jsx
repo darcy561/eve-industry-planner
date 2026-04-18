@@ -22,4 +22,23 @@ export const ItemTypes = {
     jobCard: "JobCard",
     groupCard: "GroupCard",
     stage: "Stage"
+};
+
+/**
+ * Which planner UI rendered the draggable job row (on @dnd-kit draggable `data`).
+ * Main job planner rows are snapshot-shaped; group planner rows are canonical Job objects from `jobArray`.
+ */
+export const JobCardUiSource = {
+    /** Main job planner accordion lists `userJobSnapshot` rows. */
+    jobPlannerSnapshots: "jobPlannerSnapshots",
+    /** Group planner accordion lists jobs from `jobArray` filtered by the active group. */
+    groupJobObjects: "groupJobObjects",
+};
+
+/** Droppable `data.type` for job-planner workflow stages (see PlannerDnDProvider). */
+export const PLANNER_STAGE_DROP_TYPE = "planner-stage";
+
+/** Stable droppable id per workflow stage (job planner accordion). */
+export function plannerStageDroppableId(stageId) {
+    return `planner-stage-${stageId}`;
 }

@@ -131,6 +131,12 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 			},
 		},
 		{
+			Path: "/api/v1/analytics/event",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				v1endpoints.FrontendAppEventHandler(w, r, clients)
+			},
+		},
+		{
 			Path: "/api/v1/feedback",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.FeedbackHandler(w, r, clients)
@@ -196,6 +202,12 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 			Path: "/api/v1/auth/claims/corporations",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.CorporationsHandler(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/v1/auth/logout",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				v1endpoints.LogoutHandler(w, r, clients)
 			},
 		},
 		{

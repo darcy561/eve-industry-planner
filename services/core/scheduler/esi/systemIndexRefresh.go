@@ -22,13 +22,19 @@ func ScheduleIndustrySystemsRefresh(deps contract.Dependencies, sched contract.S
 	natsConn := deps.NATS
 	task := taskscore.RefreshSystemIndexes
 	sched.RegisterHandler(cronIndustrySystemsRefresh, func(ctx context.Context, data json.RawMessage) error {
-		logs.DebugCtx(ctx, "publishing industry systems refresh trigger", "component", schedulerLogComponent, "subject", task.Subject)
-		if err := natscore.PublishEmpty(ctx, jsContext, task.Subject, natsConn); err != nil {
-			logs.ErrorCtx(ctx, "failed to publish industry systems refresh trigger", "component", schedulerLogComponent, "subject", task.Subject, "error", err)
-			return err
+		publish := func(publishCtx context.Context) error {
+			logs.DebugCtx(publishCtx, "publishing industry systems refresh trigger", "component", schedulerLogComponent, "subject", task.Subject)
+			if err := natscore.PublishEmpty(publishCtx, jsContext, task.Subject, natsConn); err != nil {
+				logs.ErrorCtx(publishCtx, "failed to publish industry systems refresh trigger", "component", schedulerLogComponent, "subject", task.Subject, "error", err)
+				return err
+			}
+			logs.InfoCtx(publishCtx, "industry systems refresh triggered", "component", schedulerLogComponent, "subject", task.Subject)
+			return nil
 		}
-		logs.InfoCtx(ctx, "industry systems refresh triggered", "component", schedulerLogComponent, "subject", task.Subject)
-		return nil
+		if deferTaskPublicationUntilAfterDowntime(ctx, task.Name, task.Subject, publish) {
+			return nil
+		}
+		return publish(ctx)
 	})
 	if err := sched.ScheduleCronJob(cronIndustrySystemsSchedule, cronIndustrySystemsRefresh); err != nil {
 		return nil, err

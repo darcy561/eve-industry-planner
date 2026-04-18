@@ -61,12 +61,6 @@ vi.mock('firebase/app-check', () => ({
   onTokenChanged: vi.fn(),
 }));
 
-// Mock Firebase Analytics
-vi.mock('firebase/analytics', () => ({
-  getAnalytics: vi.fn(() => ({})),
-  logEvent: vi.fn(),
-}));
-
 // Mock Firebase Messaging
 vi.mock('firebase/messaging', () => ({
   getMessaging: vi.fn(() => ({})),

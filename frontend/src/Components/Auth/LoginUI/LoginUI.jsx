@@ -90,17 +90,18 @@ export function UserLogInUI() {
         <Grid
           container
           spacing={2}
-          justifyContent="center"
-          alignItems="center"
           sx={{
+            justifyContent: "center",
+            alignItems: "center",
             display: "flex",
             flexDirection: "column",
             width: "100%",
-            height: "100%",
-          }}
-        >
+            height: "100%"
+          }}>
           {userData.userArray.length > 0 && (
-            <Grid container spacing={2} justifyContent="center" size={12}>
+            <Grid container spacing={2} size={12} sx={{
+              justifyContent: "center"
+            }}>
               {userData.userArray.slice(0, 5).map((user, index) => (
                 <Zoom key={user.CharacterID} in={true}>
                   <Grid
@@ -168,10 +169,11 @@ export function UserLogInUI() {
           <Grid
             container
             spacing={2}
-            justifyContent="center"
-            sx={{ paddingTop: { xs: "2vh", sm: "5vh" } }}
             size={12}
-          >
+            sx={{
+              justifyContent: "center",
+              paddingTop: { xs: "2vh", sm: "5vh" }
+            }}>
             <LoadingStep
               title="Retrieving Character Data"
               step={LOGIN_STEPS.CHARACTER_DATA}

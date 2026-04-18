@@ -1,4 +1,4 @@
-import { Highlight } from "@mui/icons-material";
+import HighlightIcon from "@mui/icons-material/Highlight";
 import {
   Avatar,
   Card,
@@ -53,7 +53,9 @@ function OutputJobCard({ inputJob, state, actions }) {
         }}
       >
         <CardContent>
-          <Grid container alignItems="center" spacing={1}>
+          <Grid container spacing={1} sx={{
+            alignItems: "center"
+          }}>
             <Grid size={10}>
               <Typography variant="caption">{inputJob.name}</Typography>
             </Grid>
@@ -107,7 +109,7 @@ function OutputJobCard({ inputJob, state, actions }) {
               }
             }}
           >
-            <Highlight color={isHighlighted ? "secondary" : "primary"} />
+            <HighlightIcon color={isHighlighted ? "secondary" : "primary"} />
           </IconButton>
         </Tooltip>
         <MarketHistoryIconButton

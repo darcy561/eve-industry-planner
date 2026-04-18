@@ -13,6 +13,7 @@
 import { useReducer, useMemo } from "react";
 import { SHOPPING_LIST_ACTION_TYPES, shoppingListReducer } from "./shoppingListReducer";
 import useUsersStore from "../../../../Zustand/usersStore";
+import { buildSetIsLoadingActionPayload } from "../../../../Functions/Helper/setIsLoadingAction";
 
 /**
  * Custom hook for managing shopping list dialog state.
@@ -161,15 +162,20 @@ export default function useShoppingListReducer() {
         },
         /**
          * Sets the loading state to a specific value.
-         * 
+         *
          * @param {boolean} value - Loading state value
-         * 
+         * @param {string} [loadingMessage] - Optional caption for the loading panel while `value` is true
+         *
          * @example
-         * actions.setIsLoading(true); // Start loading
-         * actions.setIsLoading(false); // Stop loading
+         * actions.setIsLoading(true); // Start loading (default caption)
+         * actions.setIsLoading(true, "Fetching market prices…");
+         * actions.setIsLoading(false); // Stop loading (clears caption)
          */
-        setIsLoading: (value) => {
-            dispatch({ type: SHOPPING_LIST_ACTION_TYPES.SET_IS_LOADING, payload: value });
+        setIsLoading: (value, loadingMessage) => {
+            dispatch({
+                type: SHOPPING_LIST_ACTION_TYPES.SET_IS_LOADING,
+                payload: buildSetIsLoadingActionPayload(value, loadingMessage),
+            });
         },
         /**
          * Toggles the shopping list building mode.

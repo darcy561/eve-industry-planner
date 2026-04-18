@@ -136,12 +136,27 @@ function MarketDataDisplayGrid({
   ];
 
   return (
-    <Box display="flex" flexDirection="column" height="100%" width="100%">
-      <Box display="flex" flexDirection="column" height="45%">
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        width: "100%"
+      }}>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          height: "45%"
+        }}>
         <Typography variant="h6" color="primary" component="h3" gutterBottom>
           Sell Orders
         </Typography>
-        <Box display="flex" overflow="hidden">
+        <Box
+          sx={{
+            display: "flex",
+            overflow: "hidden"
+          }}>
           <DataGrid
             loading={isLoading}
             rows={sellOrders}
@@ -164,12 +179,20 @@ function MarketDataDisplayGrid({
           />
         </Box>
       </Box>
-
-      <Box display="flex" flexDirection="column" height="45%">
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          height: "45%"
+        }}>
         <Typography variant="h6" color="primary" component="h3" gutterBottom>
           Buy Orders
         </Typography>
-        <Box display="flex" overflow="hidden">
+        <Box
+          sx={{
+            display: "flex",
+            overflow: "hidden"
+          }}>
           <DataGrid
             loading={isLoading}
             rows={buyOrders}

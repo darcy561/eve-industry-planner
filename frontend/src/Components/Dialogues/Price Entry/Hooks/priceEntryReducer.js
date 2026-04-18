@@ -7,6 +7,8 @@
  * @fileoverview Reducer for price entry dialog state management
  */
 
+import { normalizeSetIsLoadingPayload } from "../../../../Functions/Helper/setIsLoadingAction";
+
 /**
  * Action types for the price entry reducer.
  */
@@ -28,8 +30,16 @@ export function priceEntryReducer(state, action, createInitialState) {
     switch (action.type) {
         case PRICE_ENTRY_ACTION_TYPES.TOGGLE_IS_OPEN:
             return { ...state, isOpen: !state.isOpen };
-        case PRICE_ENTRY_ACTION_TYPES.SET_IS_LOADING:
-            return { ...state, isLoading: action.payload };
+        case PRICE_ENTRY_ACTION_TYPES.SET_IS_LOADING: {
+            const { isLoading, loadingMessage } = normalizeSetIsLoadingPayload(
+                action.payload,
+            );
+            return {
+                ...state,
+                isLoading,
+                loadingMessage: isLoading ? loadingMessage : undefined,
+            };
+        }
         case PRICE_ENTRY_ACTION_TYPES.SET_REQUESTED_JOB_IDS:
             return { ...state, requestedJobIDs: action.payload };
         case PRICE_ENTRY_ACTION_TYPES.SET_PRICE_ENTRY_LIST:

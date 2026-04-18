@@ -29,7 +29,7 @@ async function getCharacterSkills({
     }
 
     const { esiAccessToken, CharacterID } = character;
-    const endpointURL = `https://esi.evetech.net/v4/characters/${CharacterID}/skills/?datasource=tranquility`;
+    const endpointURL = `https://esi.evetech.net/characters/${CharacterID}/skills/?datasource=tranquility`;
 
     // Enhanced configuration for rate limiting
     const enhancedConfig = {

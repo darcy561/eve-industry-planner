@@ -2,7 +2,8 @@ import {
   STATIC_DATA_CACHE,
   CACHED_DATA_FILES,
 } from "../../Context/defaultValues";
-import * as Sentry from "@sentry/react";
+import { captureException } from "@sentry/react";
+import { sentryIsDevelopmentEnvironment } from "../Sentry/sentryEnvironment";
 
 const STATIC_DATA_META_URL = "/api/static-data/meta";
 const LEGACY_STATIC_CACHE_PREFIX = "static-data-cache-";
@@ -249,9 +250,9 @@ export async function getCachedData(fileName) {
   } catch (error) {
     console.error(`Error getting ${fileName}:`, error);
 
-    // Match AppWrapper Sentry: skip reporting only when ENVIRONMENT is development
-    if (import.meta.env.ENVIRONMENT !== "development") {
-      Sentry.captureException(error, {
+    // Match Sentry `beforeSend`: skip cache errors in development only
+    if (!sentryIsDevelopmentEnvironment()) {
+      captureException(error, {
         tags: {
           fileName,
           errorType: "cache_load_failure",

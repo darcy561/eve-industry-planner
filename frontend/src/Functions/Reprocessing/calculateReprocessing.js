@@ -1,6 +1,8 @@
 import reprocessIntoMinerals from "./toMinerals";
 import reprocessFromMinerals from "./fromMinerals";
-import { getAnalytics, logEvent } from "firebase/analytics";
+import { captureException } from "@sentry/react";
+import { AppEvent } from "../../analytics/appEventNames";
+import { trackAppEvent } from "../../analytics/trackAppEvent";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
@@ -14,8 +16,6 @@ export async function calculateReprocessing({
   pageState,
   pageActions,
 }) {
-  const analytics = getAnalytics();
-
   pageActions.setPageLoading(true);
 
   try {
@@ -32,6 +32,11 @@ export async function calculateReprocessing({
       pageActions.setReprocessingObjects(reprocessingObjects);
       pageActions.setProcessedInput(mineralTotals);
       useUsersStore.getState().worldData.actions.addMarketData(newMarketPrices);
+
+      trackAppEvent(
+        AppEvent.REPROCESSING_CALCULATION_TO_MINERALS,
+        Math.max(1, reprocessingObjects?.length ?? 0)
+      );
 
       result = {
         reprocessingObjects,
@@ -53,25 +58,37 @@ export async function calculateReprocessing({
       pageActions.setRequestedMinerals(requestedMinerals);
       useUsersStore.getState().worldData.actions.addMarketData(newMarketPrices);
 
+      trackAppEvent(
+        AppEvent.REPROCESSING_CALCULATION_FROM_MINERALS,
+        Math.max(1, oreSelection?.length ?? 0)
+      );
+
       result = {
         oreSelection,
         newMarketPrices,
       };
     }
 
-    logEvent(analytics, "reprocessing_calculation", {
-      calculation_type: pageState.toMinerals ? "toMinerals" : "toMaterials",
-      is_logged_in: useUsersStore.getState().account.isLoggedIn,
-    });
-
     return {
       success: true,
       data: result,
     };
   } catch (error) {
-    logEvent(analytics, "reprocessing_error", {
-      error_message: error.message,
-      calculation_type: pageState.toMinerals ? "toMinerals" : "toMaterials",
+    captureException(error, {
+      tags: {
+        feature: "reprocessing",
+      },
+      extra: {
+        inputText: pageState?.inputText,
+        toMinerals: pageState?.toMinerals,
+        selectedUser: pageState?.selectedUser,
+        marketLocation: pageState?.marketLocation,
+        marketListing: pageState?.marketListing,
+        oreIDsToBeIgnored: pageState?.oreIDsToBeIgnored,
+        reprocessingCalculationSettings: pageState?.reprocessingCalculationSettings,
+        activeSkills: pageState?.activeSkills,
+        currentStructure: pageState?.currentStructure,
+      },
     });
 
     return {

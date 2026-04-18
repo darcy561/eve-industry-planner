@@ -17,8 +17,7 @@ window.env = {
   FIREBASE_PROJECT_ID: "${escapeJsString(process.env.FIREBASE_PROJECT_ID || "")}",
   FIREBASE_APP_ID: "${escapeJsString(process.env.FIREBASE_APP_ID || "")}",
   RECAPTCHA_KEY: "${escapeJsString(process.env.RECAPTCHA_KEY || "")}",
-  FIREBASE_MEASUREMENT_ID: "${escapeJsString(process.env.FIREBASE_MEASUREMENT_ID || "")}",
-  API_URL: "${escapeJsString(process.env.API_URL || "")}",
+  GA4_MEASUREMENT_ID: "${escapeJsString(process.env.GA4_MEASUREMENT_ID || process.env.FIREBASE_MEASUREMENT_ID || "")}",
   EVE_CLIENT_ID: "${escapeJsString(process.env.EVE_CLIENT_ID || "")}",
   EVE_CALLBACK_URL: "${escapeJsString(process.env.EVE_CALLBACK_URL || "")}",
   EVE_SCOPE: "${escapeJsString(process.env.EVE_SCOPE || "")}"

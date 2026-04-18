@@ -2,11 +2,12 @@ import { Avatar, AvatarGroup, Typography, Grid } from "@mui/material";
 
 import { useEffect, useState } from "react";
 import useUsersStore from "../../../Zustand/usersStore";
+import { useJobStatuses } from "../../../Hooks/useJobStatuses";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
 
 export function AccountData() {
-  const jobStatus = useUsersStore((state) => state.users.jobStatus);
+  const { jobStatuses } = useJobStatuses();
   const characters = useUsersStore((state) => state.account.characters);
   const { userJobSnapshot } = useUsersStore((state) => state.jobData);
   const [dataCount, updateDataCount] = useState({
@@ -68,7 +69,7 @@ export function AccountData() {
 
   return (
     <ContentPanel componentName="Account Data">
-      <Grid container direction="row">
+      <Grid container sx={{ flexDirection: "row" }}>
         <Grid container size={12}>
           <Grid align="center" size={12}>
             <AvatarGroup max={5}>
@@ -108,7 +109,7 @@ export function AccountData() {
           </Grid>
         </Grid>
         <Grid container sx={{ marginTop: "5px" }} size={12}>
-          {jobStatus.map((step) => {
+          {jobStatuses.map((step) => {
             const jobs = userJobSnapshot.filter(
               (job) => job.jobStatus === step.id
             );

@@ -112,6 +112,28 @@ export const preferencesActions = (set, get) => ({
     ),
 
   /**
+   * Sets a single job workflow stage label (`application_settings.jobStatuses`).
+   *
+   * @param {number|string} id - Stage id (0–4)
+   * @param {string} name - Display name (may be empty to clear to server default handling)
+   */
+  setJobStatusLabel: (id, name) =>
+    set(
+      (state) => ({
+        ...state,
+        applicationSettings: {
+          ...state.applicationSettings,
+          jobStatuses: {
+            ...state.applicationSettings.jobStatuses,
+            [String(id)]: { name },
+          },
+        },
+      }),
+      false,
+      "setJobStatusLabel"
+    ),
+
+  /**
    * Updates the default material efficiency value.
    * 
    * @param {number} newValue - New default ME value (typically 0-10)

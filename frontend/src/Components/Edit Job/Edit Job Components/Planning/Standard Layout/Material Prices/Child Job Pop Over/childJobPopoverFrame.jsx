@@ -59,6 +59,7 @@ export function ChildJobPopoverFrame(props) {
           systemID:
             state.activeJob.build.setup[state.activeJob.layout.setupToEdit]
               .systemID,
+          skipJobCreateAnalytics: true,
         });
         if (!newJob) {
           updateFetchError(true);
@@ -127,7 +128,7 @@ export function ChildJobPopoverFrame(props) {
         sx={{ padding: "20px", maxWidth: { xs: "350px", sm: "450px" } }}
       >
         {jobImportState ? (
-          <Grid container direction="row">
+          <Grid container sx={{ flexDirection: "row" }}>
             <Grid sx={{ marginBottom: "10px" }} size={12}>
               <Typography
                 sx={{ typography: STANDARD_TEXT_FORMAT }}
@@ -137,10 +138,11 @@ export function ChildJobPopoverFrame(props) {
               </Typography>
               {checkTypeIDisExempt(material.typeID) && (
                 <Typography
-                  sx={{ typography: STANDARD_TEXT_FORMAT }}
                   align="center"
-                  color="warning.main"
-                >
+                  sx={{
+                    color: "warning.main",
+                    typography: STANDARD_TEXT_FORMAT
+                  }}>
                   Material has been marked as exempt from builds.
                 </Typography>
               )}

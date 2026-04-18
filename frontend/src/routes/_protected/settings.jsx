@@ -6,7 +6,7 @@ const Settings = lazyRouteComponent(() => import('../../Components/Settings/sett
 
 export const Route = createFileRoute('/_protected/settings')({
   component: () => (
-    <Suspense fallback={<LoadingPage />}>
+    <Suspense fallback={<LoadingPage variant="route" />}>
       <Settings />
     </Suspense>
   ),

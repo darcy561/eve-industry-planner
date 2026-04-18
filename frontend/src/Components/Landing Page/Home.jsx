@@ -50,14 +50,15 @@ export function Home() {
           </Grid>
           <Grid
             container
-            justifyContent="center"
-            alignItems="center"
-            sx={{ paddingLeft: { lg: "20px" } }}
             size={{
               xs: 12,
               lg: 8,
             }}
-          >
+            sx={{
+              justifyContent: "center",
+              alignItems: "center",
+              paddingLeft: { lg: "20px" }
+            }}>
             <Box
               component="img"
               src="/images/loggedOutHome/planningStepImage.png"

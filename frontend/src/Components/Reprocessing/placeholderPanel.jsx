@@ -107,7 +107,13 @@ function PlaceholderPanel() {
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} align="center" color="textSecondary">
             Tip: Use the Advanced View toggle to see detailed breakdowns of reprocessing yields and values.
           </Typography>
-          <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} align="center" color="textSecondary" fontStyle="italic">
+          <Typography
+            align="center"
+            color="textSecondary"
+            sx={{
+              fontStyle: "italic",
+              typography: STANDARD_TEXT_FORMAT
+            }}>
             Tip: You can copy and paste directly from your EVE Online inventory or cargo hold!
           </Typography>
         </Box>

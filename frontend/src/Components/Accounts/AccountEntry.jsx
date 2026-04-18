@@ -1,7 +1,6 @@
 import { Avatar, IconButton, Paper, Typography, Grid } from "@mui/material";
 
 import CloseIcon from "@mui/icons-material/Close";
-import { getAnalytics, logEvent } from "firebase/analytics";
 import { showSnackbarError } from "../../Events/snackbarEvents";
 import checkUserClaims from "../../Functions/Auth/checkUserClaims";
 import useUsersStore from "../../Zustand/usersStore";
@@ -20,7 +19,6 @@ export function AccountEntry({ character }) {
     useUsersStore.getState().account.actions;
   const { removeLinkedCharacterRefreshToken } =
     useUsersStore.getState().account.actions;
-  const analytics = getAnalytics();
   const queryClient = useQueryClient();
 
   const debouncedSaveSettings = useGlobalDebounce(
@@ -45,12 +43,6 @@ export function AccountEntry({ character }) {
     }
     await checkUserClaims(characters);
 
-    logEvent(analytics, "Remove Link Character", {
-      UID: useUsersStore.getState().account.actions.getAccountID(),
-      RemovedHash: character.CharacterHash,
-      cloudAccount: cloudAccounts,
-    });
-    
     showSnackbarError(`${character.CharacterName} Removed`);
   }
 
@@ -59,13 +51,13 @@ export function AccountEntry({ character }) {
       <Paper elevation={3} square={true} sx={{ width: "100%" }}>
         <Grid
           container
-          sx={{
-            padding: "10px",
-          }}
           direction="row"
-          justifyContent="center"
-          alignItems="center"
-          size={12}>
+          size={12}
+          sx={{
+            justifyContent: "center",
+            alignItems: "center",
+            padding: "10px"
+          }}>
           <Grid
             size={{
               xs: 2,

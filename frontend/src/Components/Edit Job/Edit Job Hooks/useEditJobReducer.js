@@ -11,6 +11,7 @@
 
 import { useReducer } from "react";
 import { editJobReducer, EDIT_JOB_ACTION_TYPES } from "./editJobReducer";
+import { buildSetIsLoadingActionPayload } from "../../../Functions/Helper/setIsLoadingAction";
 
 /**
  * Custom hook for managing edit job dialog state.
@@ -89,6 +90,7 @@ export default function useEditJobReducer() {
       childJobs: {},
     },
     isLoading: true,
+    loadingMessage: undefined,
   };
   const [state, dispatch] = useReducer(editJobReducer, initialState);
 
@@ -291,17 +293,19 @@ export default function useEditJobReducer() {
 
     /**
      * Sets the loading state.
-     * 
+     *
      * @param {boolean} isLoading - Loading state value
-     * 
+     * @param {string} [loadingMessage] - Optional caption while loading
+     *
      * @example
      * actions.setIsLoading(true); // Start loading
+     * actions.setIsLoading(true, "Saving job…");
      * actions.setIsLoading(false); // Stop loading
      */
-    setIsLoading: (isLoading) => {
+    setIsLoading: (isLoading, loadingMessage) => {
       dispatch({
         type: EDIT_JOB_ACTION_TYPES.SET_IS_LOADING,
-        payload: isLoading,
+        payload: buildSetIsLoadingActionPayload(isLoading, loadingMessage),
       });
     },
 

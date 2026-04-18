@@ -1,14 +1,13 @@
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
-import { DndProvider } from "react-dnd";
-import { HTML5Backend } from "react-dnd-html5-backend";
-import * as Sentry from "@sentry/react";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "./firebase";
+import { PlannerDnDProvider } from "./Context/PlannerDnDProvider";
+import { setUser } from "@sentry/react";
 import { useEffect, useMemo, lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createRouter, RouterProvider } from "@tanstack/react-router";
-import { routeTree } from "./routeTree.gen";
+import { RouterProvider } from "@tanstack/react-router";
+import { appRouter } from "./appRouter";
+import { enableGa4WebVitals, subscribeGa4ToTanStackRouter } from "./analytics/googleAnalytics";
+import useUsersStore from "./Zustand/usersStore";
 
 // Lazy load React Query DevTools when ENVIRONMENT=development (see vite.config define + root .env)
 const ReactQueryDevtools =
@@ -22,56 +21,32 @@ const ReactQueryDevtools =
 
 export function AppWrapper() {
   const queryClient = useMemo(() => new QueryClient(), []);
-
-  // Create the router
-  const router = useMemo(() => createRouter({ routeTree }), []);
-
-  Sentry.init({
-    dsn: import.meta.env.SENTRY_DSN,
-
-    environment: import.meta.env.ENVIRONMENT,
-
-    release: __APP_VERSION__ || "development",
-
-    beforeSend(event) {
-      if (import.meta.env.ENVIRONMENT === "development") {
-        return null;
-      }
-      return event;
-    },
-
-    ignoreErrors: [
-      "Network request failed",
-      "Failed to fetch",
-      "NetworkError",
-
-      "ResizeObserver loop limit exceeded",
-      "Script error",
-    ],
-
-    sampleRate: 1.0,
-  });
+  const accountID = useUsersStore((state) => state.account.accountID);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        Sentry.setUser({
-          uid: user.uid,
-        });
-      } else {
-        Sentry.setUser(null);
-      }
-    });
+    if (accountID) {
+      const id = String(accountID);
+      // Sentry often labels events as "Anonymous" when only `id` is set; `username` drives display.
+      setUser({ id, username: id });
+    } else {
+      setUser(null);
+    }
+  }, [accountID]);
 
-    return () => unsubscribe();
+  useEffect(() => {
+    return subscribeGa4ToTanStackRouter(appRouter);
+  }, []);
+
+  useEffect(() => {
+    enableGa4WebVitals();
   }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
       <LocalizationProvider dateAdapter={AdapterDateFns}>
-        <DndProvider backend={HTML5Backend}>
-          <RouterProvider router={router} />
-        </DndProvider>
+        <PlannerDnDProvider>
+          <RouterProvider router={appRouter} />
+        </PlannerDnDProvider>
       </LocalizationProvider>
       {import.meta.env.ENVIRONMENT === "development" && ReactQueryDevtools && (
         <Suspense fallback={null}>

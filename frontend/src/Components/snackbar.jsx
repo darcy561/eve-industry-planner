@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Alert, Snackbar, Slide, Button, Box, IconButton } from "@mui/material";
-import { Close } from "@mui/icons-material";
+import CloseIcon from "@mui/icons-material/Close";
 import { subscribeToEvent } from "../utils/EventSystem";
 
 const initialState = {
@@ -72,7 +72,7 @@ export function SnackBarNotification() {
             onClick={handleSnackbarClose}
             sx={{ padding: 0.5 }}
           >
-            <Close fontSize="small" />
+            <CloseIcon fontSize="small" />
           </IconButton>
         </Box>
       );

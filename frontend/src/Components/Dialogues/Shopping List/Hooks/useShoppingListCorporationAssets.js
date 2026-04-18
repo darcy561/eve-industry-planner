@@ -140,7 +140,7 @@ export function useShoppingListCorporationAssets({
       corporationAssetsLoading &&
       !state.isLoading
     ) {
-      actions.setIsLoading(true);
+      actions.setIsLoading(true, "Loading corporation assets from ESI…");
       return;
     }
 
@@ -225,6 +225,7 @@ export function useShoppingListCorporationAssets({
       };
 
       async function processCorporationAssets() {
+        actions.setIsLoading(true, "Applying corporation assets to list…");
         const { data: corporationAssets } = getCachedSingleCorporationAssets(
           queryClient,
           state.selectedCorporation

@@ -1,6 +1,5 @@
-import { logEvent } from "firebase/analytics";
-import { analytics } from "../../firebase";
-import getCurrentFirebaseUser from "../../Functions/Firebase/currentFirebaseUser";
+import { AppEvent } from "../../analytics/appEventNames";
+import { trackAppEvent } from "../../analytics/trackAppEvent";
 import { saveApplicationSettings } from "../Endpoints/Pirivate/userDocument";
 import getSystemIndexes from "../../Functions/System Indexes/findSystemIndex";
 import { jobTypes } from "../../Context/defaultValues";
@@ -50,10 +49,7 @@ export async function addCustomStructure({
         .worldData.actions.addSystemIndex(systemIndexResults);
     }
 
-    logEvent(analytics, "Add Custom Structure", {
-      UID: getCurrentFirebaseUser(),
-      type: selectedJobType,
-    });
+    trackAppEvent(AppEvent.ADD_CUSTOM_STRUCTURE);
     showSnackbarSuccess(`${structure.name} Added`);
   } catch (error) {
     console.error("Error adding structure:", error);

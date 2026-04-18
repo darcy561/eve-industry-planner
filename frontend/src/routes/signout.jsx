@@ -1,16 +1,12 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { getAuth, signOut } from "firebase/auth";
-import { logEvent } from "firebase/analytics";
-import { getAnalytics } from "firebase/analytics";
+import { logoutServerSession } from "../Functions/Auth/serverTokens";
 import useUsersStore from '../Zustand/usersStore'
 import { LoadingPage } from '../Components/loadingPage'
 import { useEffect } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import getCurrentFirebaseUser from '../Functions/Firebase/currentFirebaseUser'
-
 function SignoutComponent() {
   const navigate = useNavigate();
-  const analytics = getAnalytics();
   useEffect(() => {
     async function performSignout() {
       const auth = getAuth();
@@ -21,11 +17,10 @@ function SignoutComponent() {
       const { resetApplicationSettingsStore } = useUsersStore.getState().applicationSettings.actions;
       const { resetAccountStore } = useUsersStore.getState().account.actions;
       const { resetWorldDataStore } = useUsersStore.getState().worldData.actions;
+      const { refreshToken } = useUsersStore.getState().account;
 
       try {
-        logEvent(analytics, "userLogOut", {
-          UID: getCurrentFirebaseUser(),
-        });
+        await logoutServerSession(refreshToken);
 
         // Clean up Firebase listeners
         firebaseListeners.forEach(({ unsubscribe }) => {
@@ -61,7 +56,7 @@ function SignoutComponent() {
     performSignout();
   }, [navigate]);
 
-  return <LoadingPage />;
+  return <LoadingPage variant="route" />;
 }
 
 export const Route = createFileRoute('/signout')({

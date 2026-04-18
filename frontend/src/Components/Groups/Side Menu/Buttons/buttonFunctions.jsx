@@ -11,7 +11,8 @@ import DeselectIcon from "@mui/icons-material/Deselect";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import PostAddIcon from "@mui/icons-material/PostAdd";
 import { useNavigate } from "@tanstack/react-router";
-import { ArchiveOutlined, DoneAll } from "@mui/icons-material";
+import ArchiveOutlinedIcon from "@mui/icons-material/ArchiveOutlined";
+import DoneAllIcon from "@mui/icons-material/DoneAll";
 import { passBuildCostsToParentJobs } from "../../../../Functions/Shared/passBuildCosts";
 import uploadJobSnapshotsToFirebase from "../../../../Functions/Firebase/uploadJobSnapshots";
 import manageListenerRequests from "../../../../Functions/Firebase/manageListenerRequests";
@@ -167,7 +168,7 @@ export function useGroupPageSideMenuFunctions(
       },
       {
         displayText: "Send Item Costs",
-        icon: <DoneAll />,
+        icon: <DoneAllIcon />,
         tooltip:
           "Sends the selected items costs to their parent jobs and marks the jobs as complete.",
         onClick: async () => {
@@ -227,7 +228,7 @@ export function useGroupPageSideMenuFunctions(
       },
       {
         displayText: "Archive Group Jobs",
-        icon: <ArchiveOutlined />,
+        icon: <ArchiveOutlinedIcon />,
         hoverColor: "error.main",
         tooltip:
           "Archives all jobs except the output jobs and then deletes the group.",

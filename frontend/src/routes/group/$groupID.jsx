@@ -8,7 +8,7 @@ const GroupFrame = lazyRouteComponent(() => import('../../Components/Groups/grou
 export const Route = createFileRoute('/group/$groupID')({
   beforeLoad: allowPublicAccess,
   component: () => (
-    <Suspense fallback={<LoadingPage />}>
+    <Suspense fallback={<LoadingPage variant="route" />}>
       <GroupFrame />
     </Suspense>
   ),

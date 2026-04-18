@@ -40,7 +40,7 @@ async function getUniverseNames(requestedLocationIDs, config = {}) {
     };
 
     const response = await fetchWithCustomHeaders(
-      `https://esi.evetech.net/v3/universe/names/?datasource=tranquility`,
+      `https://esi.evetech.net/universe/names/?datasource=tranquility`,
       {
         method: "POST",
         body: JSON.stringify(locationIDsArray),

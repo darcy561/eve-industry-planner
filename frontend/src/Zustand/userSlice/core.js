@@ -10,22 +10,20 @@
  */
 
 import Character from "../../Classes/character";
-import { jobStatusDefault } from "../../Context/defaultValues";
-import { jobStatusArrayToNamesMap } from "../../Functions/Helper/jobStatuses";
 
 /**
  * Default state configuration for user data.
  * 
- * Defines the initial state values for user-related data (Firebase listeners,
- * job status). Characters and corporations live on the `account` slice.
+ * Defines the initial state values for user-related data (Firebase listeners).
+ * Characters and corporations live on the `account` slice.
+ * Job stage labels and accordion expansion are handled via application settings
+ * and localStorage — see `useJobStatuses`.
  * 
  * @returns {Object} Default user state
  * @property {Array} firebaseListeners - Array of Firebase listeners
- * @property {Array} jobStatus - Job status configuration array
  */
 export const stateDefault = () => ({
   firebaseListeners: [],
-  jobStatus: jobStatusDefault,
 });
 
 /**
@@ -88,28 +86,5 @@ export const coreActions = (set, get) => ({
         rToken: token.rToken,
       })),
     };
-  },
-
-  /**
-   * Updates the job status configuration array.
-   * 
-   * @param {Array} statusArray - New job status configuration array
-   * 
-   * @example
-   * store.getState().users.actions.updateJobStatus(newStatusArray);
-   */
-  updateJobStatus: (statusArray) => {
-    set((state) => ({
-      ...state,
-      users: {
-        ...state.users,
-        jobStatus: statusArray,
-      },
-      applicationSettings: {
-        ...state.applicationSettings,
-        jobStatuses: jobStatusArrayToNamesMap(statusArray),
-        actions: state.applicationSettings.actions,
-      },
-    }), false, "updateJobStatus");
   },
 });

@@ -17,8 +17,11 @@ import GroupStep2JobCard from "./JobCards/groupStep2";
 import GroupStep3JobCard from "./JobCards/groupStep3";
 import GroupStep4JobCard from "./JobCards/groupStep4";
 import GroupStep5JobCard from "./JobCards/groupStep5";
-import { useDrag } from "react-dnd";
-import { ItemTypes } from "../../../../Context/DnDTypes";
+import { JobCardUiSource } from "../../../../Context/DnDTypes";
+import {
+  plannerDragPassThroughSx,
+  usePlannerJobCardDrag,
+} from "../../../../Hooks/usePlannerCardDrag";
 import GLOBAL_CONFIG from "../../../../global-config-app";
 import GroupStep1JobCard from "./JobCards/groupStep1";
 import { useNavigate } from "@tanstack/react-router";
@@ -48,17 +51,15 @@ export function ClassicGroupJobCardFrame({ job, highlightedItems }) {
   const { multiSelect, activeGroupID } = useUsersStore((state) => state.jobData);
   const { addToMultiSelect, removeFromMultiSelect, getActiveGroupObject } =
     useUsersStore.getState().jobData.actions;
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: ItemTypes.jobCard,
-    item: {
-      id: job.jobID,
-      cardType: ItemTypes.jobCard,
-      currentStatus: job.jobStatus,
-    },
-    collect: (monitor) => ({
-      isDragging: !!monitor.isDragging(),
-    }),
-  }));
+  const {
+    setNodeRef,
+    attributes,
+    listeners,
+    isDragging,
+    style: dragStyle,
+  } = usePlannerJobCardDrag(job, {
+    uiListSource: JobCardUiSource.groupJobObjects,
+  });
   const { PRIMARY_THEME } = GLOBAL_CONFIG;
   const theme = useTheme();
 
@@ -120,13 +121,18 @@ export function ClassicGroupJobCardFrame({ job, highlightedItems }) {
   return (
     <Grow in={true}>
       <Grid
-        ref={drag}
+        ref={setNodeRef}
+        style={dragStyle}
+        {...listeners}
+        {...attributes}
+        sx={plannerDragPassThroughSx(isDragging)}
         size={{
           xs: 12,
           sm: 6,
           md: 4,
           lg: 3
-        }}>
+        }}
+      >
         <ContentPanel
           componentName="ClassicGroupJobCardFrame"
           paperSx={paperSxStyles}

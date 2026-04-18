@@ -8,7 +8,7 @@ export function UserIcon() {
     .account.actions.getMainCharacter();
   return (
     <Box>
-      <Grid container direction="column">
+      <Grid container sx={{ flexDirection: "column" }}>
         <Grid align="center">
           <Tooltip title={mainCharacter.CharacterName} arrow>
             <Avatar

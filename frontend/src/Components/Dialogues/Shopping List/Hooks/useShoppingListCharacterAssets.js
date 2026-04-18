@@ -87,7 +87,7 @@ export function useShoppingListCharacterAssets({
             allCharacterAssetsLoading &&
             !state.isLoading
         ) {
-            actions.setIsLoading(true);
+            actions.setIsLoading(true, "Loading character assets from ESI…");
             return;
         }
 
@@ -153,6 +153,7 @@ export function useShoppingListCharacterAssets({
             };
 
             async function processCharacterAssets() {
+                actions.setIsLoading(true, "Applying character assets to list…");
                 // Clear existing assets before applying new ones
                 if (state.shoppingList) {
                     state.shoppingList.clearAssetQuantities();

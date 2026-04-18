@@ -4,7 +4,6 @@
  * Custom React hook that provides state management for the reprocessing page component.
  * Uses useReducer with a custom reducer to handle complex reprocessing calculations,
  * skill management, structure configuration, market settings, and ore filtering.
- * Includes Firebase analytics integration for tracking reprocessing calculations.
  * 
  * @fileoverview Custom hook for reprocessing page state management
  * @author EVE Industry Planner Team
@@ -18,7 +17,6 @@ import {
 import ReprocessingStructure from "../../../Classes/reprocessingStructure";
 import useUsersStore from "../../../Zustand/usersStore";
 import { jobTypes } from "../../../Context/defaultValues";
-import { getAnalytics, logEvent } from "firebase/analytics";
 import GLOBAL_CONFIG from "../../../global-config-app";
 
 const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
@@ -30,7 +28,6 @@ const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
  * including initial state creation based on user settings, action dispatching,
  * and state access. The hook manages complex reprocessing operations including
  * calculations, skill management, structure configuration, and market settings.
- * Includes Firebase analytics integration for tracking user interactions.
  * 
  * @returns {Object} Hook return object
  * @returns {Object} returns.state - Current page state
@@ -52,7 +49,7 @@ const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
  * @returns {Object} returns.state.requestedMinerals - Requested minerals data
  * @returns {Object} returns.state.reprocessingCalculationSettings - Calculation settings
  * @returns {Object} returns.actions - Action dispatchers
- * @returns {Function} returns.actions.setReprocessingObjects - Set reprocessing results (with analytics)
+ * @returns {Function} returns.actions.setReprocessingObjects - Set reprocessing results
  * @returns {Function} returns.actions.setProcessedInput - Set processed input data
  * @returns {Function} returns.actions.setInputText - Set raw input text
  * @returns {Function} returns.actions.toggleToMinerals - Toggle output type
@@ -79,7 +76,7 @@ const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
  *   const { state, actions } = useReprocessingReducer();
  *   
  *   const handleCalculate = (data) => {
- *     actions.setReprocessingObjects(data); // Includes analytics tracking
+ *     actions.setReprocessingObjects(data);
  *   };
  *   
  *   const handleSkillChange = (skillId, level) => {
@@ -96,8 +93,6 @@ const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
  * }
  */
 export default function useReprocessingReducer() {
-  const analytics = getAnalytics();
-  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const getDefaultReprocessingStructure = useUsersStore(
     (state) =>
       state.applicationSettings.actions.getDefaultCustomStructureWithJobType
@@ -154,15 +149,11 @@ export default function useReprocessingReducer() {
    * Action dispatchers for the reprocessing page state.
    * 
    * Provides convenient methods to dispatch actions to the reducer,
-   * abstracting away the action creation and dispatch logic. Includes
-   * Firebase analytics integration for tracking user interactions.
+ * abstracting away the action creation and dispatch logic.
    */
   const actions = {
     /**
-     * Sets the reprocessing calculation results with Firebase analytics tracking.
-     * 
-     * Tracks reprocessing calculations with detailed analytics including
-     * calculation type, view mode, item count, structure type, and login status.
+     * Sets the reprocessing calculation results.
      * 
      * @param {Array} data - Reprocessing calculation results
      * 
@@ -170,15 +161,6 @@ export default function useReprocessingReducer() {
      * actions.setReprocessingObjects(reprocessingResults);
      */
     setReprocessingObjects: (data) => {
-
-      logEvent(analytics, "reprocessing_calculation", {
-        calculation_type: state.toMinerals ? "toMinerals" : "toMaterials",
-        view_type: state.displayAdvancedView ? "advanced" : "basic",
-        item_count: data.length,
-        structure_type: state.currentStructure.type,
-        is_logged_in: isLoggedIn,
-      });
-
       dispatch({
         type: REPROCESSING_ACTION_TYPES.SET_REPROCESSING_OBJECTS,
         payload: data,

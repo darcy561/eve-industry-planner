@@ -1,7 +1,6 @@
-import { logEvent } from "firebase/analytics";
-import { analytics } from "../../firebase";
+import { AppEvent } from "../../analytics/appEventNames";
+import { trackAppEvent } from "../../analytics/trackAppEvent";
 import { showSnackbarError } from "../../Events/snackbarEvents";
-import getCurrentFirebaseUser from "../../Functions/Firebase/currentFirebaseUser";
 import manageListenerRequests from "../../Functions/Firebase/manageListenerRequests";
 import retrieveJobIDsFromGroupObjects from "../../Functions/Helper/getJobIDsFromGroupObjects";
 import convertJobIDsToObjects from "../../Functions/Helper/convertJobIDsToObjects";
@@ -50,7 +49,6 @@ import importAssetsFromClipboard_IconView from "../../Functions/Clipboard/import
  */
 export function useShoppingList() {
   const { addRetrievedJobsToJobArray } = useUsersStore.getState().jobData.actions
-  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const { defaultMarketLocation, defaultOrderType } =
     useUsersStore.getState().applicationSettings;
 
@@ -66,11 +64,10 @@ export function useShoppingList() {
       retrievedJobs
     );
 
-    logEvent(analytics, "Build Shopping List", {
-      UID: getCurrentFirebaseUser(),
-      buildCount: requestedJobObjects.length,
-      loggedIn: isLoggedIn,
-    });
+    trackAppEvent(
+      AppEvent.BUILD_SHOPPING_LIST,
+      Math.max(1, requestedJobObjects.length)
+    );
     manageListenerRequests(retrievedJobs);
 
     addRetrievedJobsToJobArray(retrievedJobs)

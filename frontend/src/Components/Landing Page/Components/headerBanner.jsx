@@ -7,24 +7,22 @@ export function HeaderBanner() {
   return (
     <Grid
       container
-      justifyContent="center"
-      alignItems="center"
+      size={12}
       sx={{
+        justifyContent: "center",
+        alignItems: "center",
         position: "relative",
         paddingTop: "10%",
-        paddingBottom: "10%",
-      }}
-      size={12}
-    >
+        paddingBottom: "10%"
+      }}>
       <Stack
         spacing={{ xs: 1, sm: 2, md: 3, lg: 5 }}
-        alignItems="center"
         sx={{
+          alignItems: "center",
           position: "relative",
           zIndex: 1,
-          width: "100%",
-        }}
-      >
+          width: "100%"
+        }}>
         <Typography
           variant="h3"
           color="primary"

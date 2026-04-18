@@ -28,10 +28,10 @@ import { useGetAllCharacterJournal } from "../../../Hooks/EveEsi/Character/useGe
 import { useGetAllCorporationJournal } from "../../../Hooks/EveEsi/Corporation/useGetAllCorporationJournal";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
 import { formatDateForLocale, formatNumberForLocale } from "../../../Functions/Helper/numberParser";
+import { LAST_JOB_STATUS_ID } from "../../../Context/defaultValues";
 
 export function NewTransactions() {
   const { userJobSnapshot } = useUsersStore((state) => state.jobData);
-  const jobStatus = useUsersStore((state) => state.users.jobStatus);
   const queryClient = useQueryClient();
   const linkedOrders = useUsersStore((state) => state.account.linkedOrders);
   const { data: itemData } = useCachedData(CACHED_DATA_FILES.SEARCH_INDEX);
@@ -87,19 +87,13 @@ export function NewTransactions() {
         getAllCachedCorporationHistoricMarketOrders(queryClient)?.data || {};
 
       // Validate required data
-      if (
-        !userJobSnapshot ||
-        !Array.isArray(userJobSnapshot) ||
-        !jobStatus ||
-        !Array.isArray(jobStatus) ||
-        jobStatus.length === 0
-      ) {
+      if (!userJobSnapshot || !Array.isArray(userJobSnapshot)) {
         return [];
       }
 
       // Get filtered jobs
       const filteredJobs = userJobSnapshot.filter(
-        (job) => job?.jobStatus === jobStatus[jobStatus.length - 1]?.sortOrder
+        (job) => job?.jobStatus === LAST_JOB_STATUS_ID
       );
 
       if (filteredJobs.length === 0) {
@@ -177,7 +171,6 @@ export function NewTransactions() {
     isLoading,
     isError,
     userJobSnapshot,
-    jobStatus,
     linkedOrders,
     queryClient,
   ]);

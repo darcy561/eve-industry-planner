@@ -1,11 +1,5 @@
 import { useEffect } from "react";
-import {
-  Dialog,
-  DialogTitle,
-  DialogActions,
-  DialogContent,
-  Button,
-} from "@mui/material";
+import { Box, Button } from "@mui/material";
 import { useQueryClient } from "@tanstack/react-query";
 import { getAllCachedCharacterAssets } from "../../../Hooks/EveEsi/Character/useGetAllCharacterAssets";
 import { getFullItemList } from "../../../Functions/Helper/getCachedData";
@@ -14,41 +8,51 @@ import useUsersStore from "../../../Zustand/usersStore";
 import getAssetLocationNames from "../../../Functions/EveESI/World/getAssetLocationNames";
 import getWorldData from "../../../Functions/EveESI/World/getWorldData";
 import AssignUsersSelect from "../../../Styled Components/Select/users";
-import LoadingAssetDataAndError from "./loadingData";
 import NoAssetsFound_AssetsDialog from "./noAssetsFound";
 import DefaultLocationAssets from "./defaultLocationAssets";
 import AssetLocations_AssetDialogWindow from "./assetLocations";
 import CorporationSelect from "../../../Styled Components/Select/corporations";
 import UseCorporationSelector_AssetsDialog from "./useCoporation";
 import { getCachedSingleCorporationAssets } from "../../../Hooks/EveEsi/useGetSingleCorporationAssets";
+import ContentDialog from "../../../Styled Components/Dialog/ContentDialog";
 
 export default function AssetsDialogContent(props) {
-  const { state, actions, characterAssetsLoading, corporationAssetsLoading } =
-    props;
+  const {
+    state,
+    actions,
+    characterAssetsLoading,
+    corporationAssetsLoading,
+    characterAssetsError,
+    corporationAssetsError,
+  } = props;
   const { buildAssetTypeIDMaps, sortLocationMapsAlphabetically } =
     useAssetHelperHooks();
   const queryClient = useQueryClient();
 
   useEffect(() => {
     async function buildCharacterAssetsData() {
-      if (characterAssetsLoading !== undefined && !characterAssetsLoading && state.selectedCharacter) {
+      if (
+        characterAssetsLoading !== undefined &&
+        !characterAssetsLoading &&
+        state.selectedCharacter
+      ) {
+        actions.setIsLoading(true, "Resolving locations and names…");
         const fullItemList = await getFullItemList();
         const { data: allCharacterAssets } =
           getAllCachedCharacterAssets(queryClient);
-        
+
         // Handle "allUsers" case by flattening all character assets
-        const characterAssets = state.selectedCharacter === "allUsers"
-          ? Object.values(allCharacterAssets).flat()
-          : allCharacterAssets[state.selectedCharacter];
-        
+        const characterAssets =
+          state.selectedCharacter === "allUsers"
+            ? Object.values(allCharacterAssets).flat()
+            : allCharacterAssets[state.selectedCharacter];
+
         const { assetsByLocationMap, topLevelAssetLocations, assetIDSet } =
-          buildAssetTypeIDMaps(
-            characterAssets,
-            state.selectedTypeID
-          );
+          buildAssetTypeIDMaps(characterAssets, state.selectedTypeID);
 
         if (!topLevelAssetLocations) {
-          console.error('topLevelAssetLocations is undefined');
+          console.error("topLevelAssetLocations is undefined");
+          actions.setIsLoading(false);
           return;
         }
 
@@ -67,31 +71,34 @@ export default function AssetsDialogContent(props) {
             }
             return prev;
           },
-          new Set()
+          new Set(),
         );
 
         // For "allUsers", use the main character for API calls
-        const characterObject = state.selectedCharacter === "allUsers"
-          ? useUsersStore.getState().account.actions.getMainCharacter()
-          : useUsersStore.getState().account.actions.findCharacterByHash(state.selectedCharacter);
+        const characterObject =
+          state.selectedCharacter === "allUsers"
+            ? useUsersStore.getState().account.actions.getMainCharacter()
+            : useUsersStore
+                .getState()
+                .account.actions.findCharacterByHash(state.selectedCharacter);
 
         if (!characterObject) {
-          console.error('Character object not found for hash:', state.selectedCharacter);
+          console.error(
+            "Character object not found for hash:",
+            state.selectedCharacter,
+          );
+          actions.setIsLoading(false);
           return;
         }
 
         const [locationNamesMap, additonalIDObjects] = await Promise.all([
-          getAssetLocationNames(
-            characterObject,
-            assetIDSet,
-            "character"
-          ),
+          getAssetLocationNames(characterObject, assetIDSet, "character"),
           getWorldData([...requiredLocationID], characterObject),
         ]);
 
         const topLevelAssetLocationsSORTED = sortLocationMapsAlphabetically(
           topLevelAssetLocations,
-          additonalIDObjects
+          additonalIDObjects,
         );
 
         actions.setAssetLocations(assetsByLocationMap);
@@ -114,15 +121,24 @@ export default function AssetsDialogContent(props) {
 
   useEffect(() => {
     async function buildCorporationAssetsData() {
-      if (corporationAssetsLoading !== undefined && !corporationAssetsLoading && state.selectedCorporation) {
+      if (
+        corporationAssetsLoading !== undefined &&
+        !corporationAssetsLoading &&
+        state.selectedCorporation
+      ) {
+        actions.setIsLoading(true, "Resolving locations and names…");
         const fullItemList = await getFullItemList();
-        const { data: corporationAssets } = getCachedSingleCorporationAssets(queryClient, state.selectedCorporation);
+        const { data: corporationAssets } = getCachedSingleCorporationAssets(
+          queryClient,
+          state.selectedCorporation,
+        );
 
         const { assetsByLocationMap, topLevelAssetLocations, assetIDSet } =
           buildAssetTypeIDMaps(corporationAssets, state.selectedTypeID);
 
         if (!topLevelAssetLocations) {
-          console.error('topLevelAssetLocations is undefined');
+          console.error("topLevelAssetLocations is undefined");
+          actions.setIsLoading(false);
           return;
         }
 
@@ -141,16 +157,20 @@ export default function AssetsDialogContent(props) {
             }
             return prev;
           },
-          new Set()
+          new Set(),
         );
 
         // Find a user from this corporation to use for API calls
         const userFromCorporation = Object.values(
-          useUsersStore.getState().account.characters
+          useUsersStore.getState().account.characters,
         ).find((user) => user.corporation_id === state.selectedCorporation);
 
         if (!userFromCorporation) {
-          console.error('No user found from corporation ID:', state.selectedCorporation);
+          console.error(
+            "No user found from corporation ID:",
+            state.selectedCorporation,
+          );
+          actions.setIsLoading(false);
           return;
         }
 
@@ -161,7 +181,7 @@ export default function AssetsDialogContent(props) {
 
         const topLevelAssetLocationsSORTED = sortLocationMapsAlphabetically(
           topLevelAssetLocations,
-          additonalIDObjects
+          additonalIDObjects,
         );
         actions.setAssetLocations(assetsByLocationMap);
         actions.setTopLevelAssets(topLevelAssetLocationsSORTED);
@@ -169,7 +189,10 @@ export default function AssetsDialogContent(props) {
         actions.setFullItemList(fullItemList);
         useUsersStore
           .getState()
-          .account.actions.setCorporationOffices(state.selectedCorporation, corporationAssets);
+          .account.actions.setCorporationOffices(
+            state.selectedCorporation,
+            corporationAssets,
+          );
         useUsersStore
           .getState()
           .worldData.actions.addUniverseIDs(additonalIDObjects);
@@ -189,53 +212,96 @@ export default function AssetsDialogContent(props) {
     actions.resetState();
   }
 
+  const assetsQueryLoading = state.useCorporationAssets
+    ? Boolean(corporationAssetsLoading)
+    : Boolean(characterAssetsLoading);
+
+  const assetsQueryError = state.useCorporationAssets
+    ? corporationAssetsError
+    : characterAssetsError;
+
+  const isError = Boolean(assetsQueryError);
+  const contentError = isError
+    ? assetsQueryError instanceof Error
+      ? assetsQueryError
+      : new Error(
+          assetsQueryError?.message ||
+            String(assetsQueryError || "Error loading assets"),
+        )
+    : null;
+
+  const isLoading = !isError && (assetsQueryLoading || state.isLoading);
+
+  const topSelector = state.useCorporationAssets ? (
+    <CorporationSelect
+      value={state.selectedCorporation}
+      onChange={actions.setSelectedCorporation}
+      formHelperText={""}
+    />
+  ) : (
+    <AssignUsersSelect
+      value={state.selectedCharacter}
+      onChange={actions.setSelectedCharacter}
+      formHelperText={""}
+    />
+  );
+
   return (
-    <Dialog
+    <ContentDialog
       open={state.isOpen}
       onClose={handleClose}
-      fullWidth
+      title="Material Assets"
+      dialogTitleProps={{ id: "AssetsDialog" }}
+      componentName="AssetsDialog"
       maxWidth="lg"
-      sx={{
+      fullWidth
+      isLoading={isLoading}
+      isError={isError}
+      error={contentError}
+      loadingMessage={
+        state.loadingMessage ?? "Loading assets and locations…"
+      }
+      helperArea={
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            width: "100%",
+          }}
+        >
+          {topSelector}
+        </Box>
+      }
+      actions={
+        <>
+          <UseCorporationSelector_AssetsDialog {...props} />
+          <Button
+            variant="contained"
+            size="small"
+            color="primary"
+            onClick={handleClose}
+          >
+            Close
+          </Button>
+        </>
+      }
+      dialogSx={{
         "& .MuiDialog-paper": {
           height: "100vh",
           width: "90vw",
         },
       }}
+      dialogContentSx={{
+        padding: "20px",
+        overflow: "auto",
+        flex: "1 1 auto",
+        minHeight: 0,
+      }}
     >
-      <DialogTitle>Material Assets</DialogTitle>
-      <DialogActions>
-        {state.useCorporationAssets ?
-          <CorporationSelect
-            value={state.selectedCorporation}
-            onChange={actions.setSelectedCorporation}
-            formHelperText={""}
-          />
-          : (
-            <AssignUsersSelect
-              value={state.selectedCharacter}
-              onChange={actions.setSelectedCharacter}
-              formHelperText={""}
-            />
-          )}
-      </DialogActions>
-      <DialogContent>
-        <LoadingAssetDataAndError {...props} />
-        <NoAssetsFound_AssetsDialog {...props} />
-        <DefaultLocationAssets {...props} />
-        <AssetLocations_AssetDialogWindow {...props} />
-      </DialogContent>
-      <DialogActions>
-        <UseCorporationSelector_AssetsDialog {...props} />
-        <Button
-          variant="contained"
-          size="small"
-          color="primary"
-          onClick={handleClose}
-        >
-          Close
-        </Button>
-      </DialogActions>
-    </Dialog>
+      <NoAssetsFound_AssetsDialog {...props} />
+      <DefaultLocationAssets {...props} />
+      <AssetLocations_AssetDialogWindow {...props} />
+    </ContentDialog>
   );
 }
-

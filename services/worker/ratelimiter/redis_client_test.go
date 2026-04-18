@@ -129,7 +129,7 @@ func createMockESIServer(t *testing.T) *httptest.Server {
 // doWithRetry performs a request with automatic retry on rate limit errors
 func doWithRetry(ctx context.Context, client *RedisESIClient, method, path string, headers map[string]string, group GroupDesignation) ([]byte, *http.Response, error) {
 	for {
-		body, resp, err := client.Do(ctx, method, path, headers, group)
+		body, resp, err := client.Do(ctx, method, path, headers, nil, group)
 		if err != nil {
 			if rateLimitErr := GetRateLimitError(err); rateLimitErr != nil && rateLimitErr.Retryable {
 				// Wait and retry
@@ -542,7 +542,7 @@ func TestRedisRateLimiter_TokenExhaustionAndRecovery(t *testing.T) {
 	// Phase 1: Exhaust tokens
 	var exhaustedCount int64
 	for i := 0; i < 350; i++ {
-		_, _, err := client.Do(ctx, "GET", "/industry/systems/", nil, group)
+		_, _, err := client.Do(ctx, "GET", "/industry/systems/", nil, nil, group)
 		if err != nil {
 			if rateLimitErr := GetRateLimitError(err); rateLimitErr != nil {
 				if rateLimitErr.Reason == "insufficient tokens" || rateLimitErr.Reason == "rate limited or insufficient tokens" {

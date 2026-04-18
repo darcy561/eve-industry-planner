@@ -9,7 +9,7 @@
  * @author EVE Industry Planner Team
  */
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, use, useEffect, useMemo, useState } from "react";
 import {
   ThemeProvider as MuiThemeProvider,
   createTheme,
@@ -187,12 +187,12 @@ export function ThemeProvider({ children }) {
   );
 
   return (
-    <ThemeContext.Provider value={value}>
+    <ThemeContext value={value}>
       <MuiThemeProvider theme={theme}>
         <CssBaseline />
         {children}
       </MuiThemeProvider>
-    </ThemeContext.Provider>
+    </ThemeContext>
   );
 }
 
@@ -220,7 +220,7 @@ export function ThemeProvider({ children }) {
  * }
  */
 export function useThemeContext() {
-  const context = useContext(ThemeContext);
+  const context = use(ThemeContext);
   if (!context) {
     throw new Error("useThemeContext must be used within a ThemeProvider");
   }

@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useFirebase } from "../../Hooks/useFirebase";
 import { auth } from "../../firebase";
-import { getAnalytics, logEvent } from "firebase/analytics";
 import { signInWithCustomToken } from "firebase/auth";
 import { UserLogInUI } from "./LoginUI/LoginUI";
 import getEveOauthToken from "../../Functions/EveESI/Character/getEveSSOToken";
@@ -37,7 +36,6 @@ export default function AuthMainUser() {
   const queryClient = useQueryClient();
   const { triggerCharacterDataPrefetch, prefetchMultipleCharacters } =
     useCharacterHooks();
-  const analytics = getAnalytics();
   const navigate = useNavigate({ from: "/auth" });
   const hasNavigated = useRef(false);
 
@@ -133,10 +131,6 @@ export default function AuthMainUser() {
 
           clearUserJobSnapshotArray([]);
           clearJobArray([]);
-          logEvent(analytics, "userSignIn", {
-            UID: signInResult.user.uid,
-            isFirstTimeLogin: useUsersStore.getState().account.isFirstTimeLogin,
-          });
         } catch (err) {
           console.error(err.message);
           redirectToEveSSO();

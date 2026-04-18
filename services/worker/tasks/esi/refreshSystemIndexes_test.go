@@ -22,12 +22,12 @@ import (
 // mockESIClientForStreaming extends mockESIClient to support DoRequest for streaming
 type mockESIClientForStreaming struct {
 	doRequestFunc func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) (*http.Response, error)
-	doFunc        func(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error)
+	doFunc        func(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error)
 }
 
-func (m *mockESIClientForStreaming) Do(ctx context.Context, method, path string, headers map[string]string, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
+func (m *mockESIClientForStreaming) Do(ctx context.Context, method, path string, headers map[string]string, body []byte, groupDesignation esiratelimiter.GroupDesignation) ([]byte, *http.Response, error) {
 	if m.doFunc != nil {
-		return m.doFunc(ctx, method, path, headers, groupDesignation)
+		return m.doFunc(ctx, method, path, headers, body, groupDesignation)
 	}
 	return nil, nil, errors.New("doFunc not set")
 }
