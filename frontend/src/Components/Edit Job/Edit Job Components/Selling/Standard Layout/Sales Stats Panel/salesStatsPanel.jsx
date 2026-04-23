@@ -37,7 +37,7 @@ export function SalesStats({ state }) {
             </Typography>
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
-            <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
+            <Typography sx={{ typography: STANDARD_TEXT_FORMAT }} align="right">
               {formatNumberForLocale(state.activeJob.build.products.totalQuantity)}
             </Typography>
           </Grid>

@@ -3,7 +3,6 @@ import { Box, Typography, FormGroup, FormControlLabel, Checkbox, Grid, IconButto
 import SelectAllIcon from "@mui/icons-material/SelectAll";
 import DeselectIcon from "@mui/icons-material/Deselect";
 import useUsersStore from "../../../Zustand/usersStore";
-import { shallow } from "zustand/shallow";
 
 /**
  * Character selection component for the scheduler.
@@ -16,9 +15,12 @@ import { shallow } from "zustand/shallow";
 export default function CharacterSelection({ 
     onSelectionChange 
 }) {
-    const allCharacters = useUsersStore(
-      (state) => Object.values(state.account.characters),
-      shallow
+    const charactersRecord = useUsersStore(
+      (state) => state.account.characters
+    );
+    const allCharacters = useMemo(
+      () => (charactersRecord ? Object.values(charactersRecord) : []),
+      [charactersRecord]
     );
     
     // Initialize selected characters - default to all if available
@@ -122,7 +124,7 @@ export default function CharacterSelection({
                 <FormGroup>
                     <Grid container spacing={1}>
                         {allCharacters.map((character) => (
-                            <Grid item xs={gridItemSize} key={character.CharacterHash}>
+                            <Grid size={gridItemSize} key={character.CharacterHash}>
                                 <FormControlLabel
                                     control={   
                                         <Checkbox

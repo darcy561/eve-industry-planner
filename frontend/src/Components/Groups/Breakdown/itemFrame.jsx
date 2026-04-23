@@ -63,9 +63,6 @@ export default function ItemBreakdownFrame({ groupJobs = [], outputJob = null })
         getRelatedJobs();
     }, []);
 
-    console.log(breakdownStats);
-    console.log(relatedJobs);
-
     return (
         <ContentPanel
             componentName="Item Breakdown Frame"

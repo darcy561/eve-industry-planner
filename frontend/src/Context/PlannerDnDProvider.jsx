@@ -32,13 +32,6 @@ import {
 import { useDnD } from "../Hooks/useDnD";
 import { PLANNER_STAGE_DROP_TYPE } from "./DnDTypes";
 
-const DBG = "[PlannerDnD]";
-function dbg(...args) {
-  if (import.meta.env.DEV) {
-    console.log(DBG, ...args);
-  }
-}
-
 /** Prefer pointer-inside droppables; fall back to corners for gaps between stages. */
 function plannerCollisionDetection(args) {
   const pointerHits = pointerWithin(args);
@@ -102,41 +95,22 @@ export function PlannerDnDProvider({ children }) {
       const stageId =
         resolved.stageId != null ? resolved.stageId : null;
 
-      dbg("onDragEnd", {
-        activeId: event.active?.id,
-        activeData: event.active?.data?.current,
-        overId: event.over?.id,
-        overData: event.over?.data?.current,
-        resolvedStageId: stageId,
-        resolvedVia: resolved.source,
-        lastRefBeforeClear: lastPlannerStageRef.current,
-      });
-
       lastPlannerStageRef.current = null;
 
       if (stageId == null || !dragItem) {
-        dbg("abort: missing stageId or drag payload");
         return;
       }
 
       const allowed = canDropCard(dragItem, { id: stageId });
-      dbg("canDropCard", {
-        item: dragItem,
-        targetStageId: stageId,
-        allowed,
-      });
 
       if (!allowed) {
-        dbg("abort: canDropCard returned false");
         return;
       }
 
       try {
-        dbg("calling recieveJobCardToStage...");
         await recieveJobCardToStage(dragItem, { id: stageId });
-        dbg("recieveJobCardToStage finished");
       } catch (err) {
-        console.error(DBG, "recieveJobCardToStage threw", err);
+        console.error("PlannerDnD: recieveJobCardToStage threw", err);
       }
     },
     [canDropCard, recieveJobCardToStage]
@@ -154,10 +128,6 @@ export function PlannerDnDProvider({ children }) {
           setPayload(
             /** @type {PlannerDragPayload | null} */ (e.active.data.current)
           );
-          dbg("onDragStart", {
-            activeId: e.active?.id,
-            data: e.active?.data?.current,
-          });
         }}
         onDragOver={(e) => {
           const dc =
@@ -169,11 +139,9 @@ export function PlannerDnDProvider({ children }) {
             typeof dc.stageId === "number"
           ) {
             lastPlannerStageRef.current = { stageId: dc.stageId };
-            dbg("onDragOver → stage", dc.stageId, "overId=", e.over?.id);
           }
         }}
         onDragCancel={() => {
-          dbg("onDragCancel");
           lastPlannerStageRef.current = null;
           setPayload(null);
         }}

@@ -1,6 +1,6 @@
 {
-  "frontend": "0.8.11",
-  "backend": "0.8.11",
+  "frontend": "0.8.12",
+  "backend": "0.8.12",
   "feature_flags": {
     "enable_upcoming_changes_page": false
   }

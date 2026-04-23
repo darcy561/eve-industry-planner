@@ -39,7 +39,7 @@ services:
     environment:
       OTEL_SERVICE_NAME: api
       DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
-    image: ghcr.io/darcy561/eve-industry-planner-api:0.8.10
+    image: ghcr.io/darcy561/eve-industry-planner-api:0.8.12
     deploy:
       replicas: 1
     depends_on:
@@ -85,7 +85,7 @@ services:
     environment:
       OTEL_SERVICE_NAME: websocket
       DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
-    image: ghcr.io/darcy561/eve-industry-planner-websocket:0.8.10
+    image: ghcr.io/darcy561/eve-industry-planner-websocket:0.8.12
     build:
       context: ./services
       dockerfile: websocket/Dockerfile
@@ -128,7 +128,7 @@ services:
       #   WORKER_FIREBASE_PROJECT_ID=<project_id from adminSDKLive.json>
       GOOGLE_APPLICATION_CREDENTIALS: ${WORKER_GOOGLE_APPLICATION_CREDENTIALS:-${GOOGLE_APPLICATION_CREDENTIALS}}
       FIREBASE_PROJECT_ID: ${WORKER_FIREBASE_PROJECT_ID:-${FIREBASE_PROJECT_ID}}
-    image: ghcr.io/darcy561/eve-industry-planner-worker:0.8.10
+    image: ghcr.io/darcy561/eve-industry-planner-worker:0.8.12
     deploy:
       replicas: 1
     volumes:
@@ -144,7 +144,7 @@ services:
       OTEL_SERVICE_NAME: core
       DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
     container_name: core
-    image: ghcr.io/darcy561/eve-industry-planner-core:0.8.10
+    image: ghcr.io/darcy561/eve-industry-planner-core:0.8.12
     healthcheck:
       test: ["CMD-SHELL", "test -f /data/core-ready"]
       interval: 5s
@@ -161,7 +161,7 @@ services:
   frontend:
     <<: *common-service-config
     container_name: frontend
-    image: ghcr.io/darcy561/eve-industry-planner-frontend:0.8.10
+    image: ghcr.io/darcy561/eve-industry-planner-frontend:0.8.12
     depends_on:
       <<: *common-depends-on
       core:

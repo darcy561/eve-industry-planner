@@ -6,13 +6,6 @@ import findOrGetJobObject from "../Functions/Helper/findJobObject";
 import manageListenerRequests from "../Functions/Firebase/manageListenerRequests";
 import useUsersStore from "../Zustand/usersStore";
 
-const DBG = "[useDnD]";
-function dbg(...args) {
-  if (import.meta.env.DEV) {
-    console.log(DBG, ...args);
-  }
-}
-
 /**
  * Planner DnD — two job UIs share workflow stages but different list sources:
  * - **Job planner**: lists `userJobSnapshot`; always mirror the canonical `Job` into snapshots after a move.
@@ -60,10 +53,7 @@ export function useDnD() {
    * @private
    */
   const recieveJobCardToStage = async (item, status) => {
-    dbg("recieveJobCardToStage enter", { item, status });
-
     if (sameWorkflowStage(item.currentStatus, status.id)) {
-      dbg("exit: already on target stage");
       return;
     }
 
@@ -71,7 +61,6 @@ export function useDnD() {
       case ItemTypes.jobCard: {
         let inputJob = await findOrGetJobObject(item.id);
         if (!inputJob) {
-          dbg("exit: findOrGetJobObject returned null for id=", item.id);
           return;
         }
         inputJob.setJobStatus(status.id);
@@ -101,23 +90,12 @@ export function useDnD() {
           }
         }
 
-        dbg(
-          "job move complete → stage",
-          status.id,
-          "jobID=",
-          inputJob.jobID,
-          "uiListSource=",
-          ui,
-          "snapshotMirror=",
-          shouldMirrorSnapshot
-        );
         break;
       }
 
       case ItemTypes.groupCard: {
         let groupItem = getGroupObject(item.id);
         if (!groupItem) {
-          dbg("exit: getGroupObject null for id=", item.id);
           return;
         }
 
@@ -127,11 +105,9 @@ export function useDnD() {
         if (isLoggedIn) {
           await uploadGroupsToFirebase();
         }
-        dbg("group move complete → stage", status.id, "groupID=", item.id);
         break;
       }
       default:
-        dbg("exit: unknown cardType", item.cardType);
         break;
     }
   };

@@ -27,7 +27,6 @@ export default function GroupSchedulerFrame({
         setSchedulingStrategy(strategy);
     }, []);
 
-    console.log(schedule);
     return (
         <ContentPanel
         title="Scheduler"

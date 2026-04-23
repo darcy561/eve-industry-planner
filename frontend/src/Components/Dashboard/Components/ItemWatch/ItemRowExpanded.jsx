@@ -77,7 +77,7 @@ export function ExpandedWatchlistRow({ mat }) {
           xs: 12,
           lg: 8
         }}>
-        <Typography sx={{ typography: { xs: "caption", sm: "body2" } }}>
+        <Typography sx={{ typography: { xs: "caption", sm: "body2" } }} align="center">
           {formatNumberForLocale(matPrice[defaultMarket].sell)}
         </Typography>
       </Grid>
