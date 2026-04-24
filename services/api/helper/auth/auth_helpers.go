@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"eve-industry-planner/api/helper/sso"
+	"eve-industry-planner/shared/core/internaljwt"
 	"eve-industry-planner/shared/logs"
 )
 
@@ -91,27 +92,69 @@ func GetEveTokenErrorMessage(err error) string {
 
 // ExtractAccountID extracts accountID from the JWT token in Authorization header
 func ExtractAccountID(r *http.Request) (string, error) {
+	claims, err := ExtractInternalClaims(r)
+	if err != nil {
+		return "", err
+	}
+	return claims.AccountID, nil
+}
+
+// ExtractSessionID extracts sessionID from the validated internal JWT in Authorization header.
+func ExtractSessionID(r *http.Request) (string, error) {
+	claims, err := ExtractInternalClaims(r)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(claims.SessionID) == "" {
+		return "", fmt.Errorf("missing session_id claim")
+	}
+	return claims.SessionID, nil
+}
+
+// ExtractInternalClaims validates the bearer token and returns parsed internal claims.
+func ExtractInternalClaims(r *http.Request) (*internaljwt.InternalClaims, error) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
-		return "", fmt.Errorf("missing Authorization header")
+		return nil, fmt.Errorf("missing Authorization header")
 	}
 
 	const bearerPrefix = "Bearer "
 	if !strings.HasPrefix(authHeader, bearerPrefix) {
-		return "", fmt.Errorf("invalid Authorization header format")
+		return nil, fmt.Errorf("invalid Authorization header format")
 	}
 
 	tokenString := strings.TrimSpace(authHeader[len(bearerPrefix):])
 	if tokenString == "" {
-		return "", fmt.Errorf("empty token")
+		return nil, fmt.Errorf("empty token")
 	}
 
-	claims, err := ValidateInternalJWT(tokenString)
+	claims, err := internaljwt.ValidateInternalJWT(tokenString)
 	if err != nil {
-		return "", fmt.Errorf("invalid token: %w", err)
+		return nil, fmt.Errorf("invalid token: %w", err)
+	}
+	return claims, nil
+}
+
+// BearerInternalJWTValid reports whether the request carries a valid, non-expired internal JWT in Authorization.
+// Invalid, missing, or malformed tokens yield false without logging claims (for privacy-sensitive paths).
+func BearerInternalJWTValid(r *http.Request) bool {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return false
 	}
 
-	return claims.AccountID, nil
+	const bearerPrefix = "Bearer "
+	if !strings.HasPrefix(authHeader, bearerPrefix) {
+		return false
+	}
+
+	tokenString := strings.TrimSpace(authHeader[len(bearerPrefix):])
+	if tokenString == "" {
+		return false
+	}
+
+	_, err := internaljwt.ValidateInternalJWT(tokenString)
+	return err == nil
 }
 
 // BearerInternalJWTValid reports whether the request carries a valid, non-expired internal JWT in Authorization.

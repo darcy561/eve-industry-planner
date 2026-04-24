@@ -28,7 +28,7 @@ export function PriceEntryDialog() {
     serializePriceEntryEvent,
     (msg) => {
       if (msg.isOpen) {
-        actions.setRequestedJobIDs(msg.jobIDs);
+        actions.setRequestedJobIDs(msg.jobIDs ?? []);
         if (msg.displayMarket) {
           actions.setDisplayMarket(msg.displayMarket);
         }

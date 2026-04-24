@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Avatar, Badge, Tooltip, Typography, Grid } from "@mui/material";
+import { useQueryClient } from "@tanstack/react-query";
 
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { red, yellow } from "@mui/material/colors";
@@ -7,13 +8,13 @@ import { useGetAllCharacterBlueprints } from "../../../../../../Hooks/EveEsi/Cha
 import { useGetAllCorporationBlueprints } from "../../../../../../Hooks/EveEsi/Corporation/useGetAllCorporationBlueprints";
 import useGetAllIndustryJobs from "../../../../../../Hooks/EveEsi/useGetAllIndustryJobs";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
-import { useUpdateSetupValue } from "../../../../../../Hooks/JobHooks/useUpdateSetupValue";
+import recalculateJobFromSetup from "../../../../../../Functions/JobPlanner/recalculateJobFromSetup";
 const inUse = yellow[800];
 const expiring = red[600];
 
 // Extracted component for individual blueprint item
 const BlueprintItem = ({ print, esiJob, blueprintOwner, state, actions }) => {
-  const { recalcuateJobFromSetup } = useUpdateSetupValue();
+  const queryClient = useQueryClient();
 
   const blueprintType = print.quantity === -2 ? "copy" : "original";
   const blueprintTypeUrl = print.quantity === -2 ? "bpc" : "bp";
@@ -53,7 +54,12 @@ const BlueprintItem = ({ print, esiJob, blueprintOwner, state, actions }) => {
             state.activeJob.build.setup[state.activeJob.layout.setupToEdit];
           currentSetup.updateMEValue(print.material_efficiency);
           currentSetup.updateTEValue(print.time_efficiency / 2);
-          await recalcuateJobFromSetup(currentSetup, state, actions);
+          await recalculateJobFromSetup(
+            currentSetup,
+            state,
+            actions,
+            queryClient
+          );
         }}
         size={{
           xs: 6,

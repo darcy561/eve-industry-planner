@@ -1,6 +1,4 @@
 import { Button, Tooltip } from "@mui/material";
-import uploadJobSnapshotsToFirebase from "../../../../../../Functions/Firebase/uploadJobSnapshots";
-import manageListenerRequests from "../../../../../../Functions/Firebase/manageListenerRequests";
 import { passBuildCostsToParentJobs } from "../../../../../../Functions/Shared/passBuildCosts";
 import {
   showSnackbarSuccess,
@@ -9,17 +7,14 @@ import {
 import useUsersStore from "../../../../../../Zustand/usersStore";
 
 export function PassBuildCostsButton({ state }) {
-  const { activeGroupID, userJobSnapshot } = useUsersStore((state) => state.jobData);
-  const { getActiveGroupObject, addRetrievedJobsToJobArray } = useUsersStore.getState().jobData.actions;
-  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
+  const { activeGroupID } = useUsersStore((state) => state.jobData);
+  const { getActiveGroupObject } = useUsersStore.getState().jobData.actions;
   const buttonText = activeGroupID
     ? "Send Build Costs & Complete"
     : "Send Build Costs";
 
   async function passCost() {
-    const { messageText, retrievedJobs } = await passBuildCostsToParentJobs(
-      state.activeJob,
-    );
+    const { messageText } = await passBuildCostsToParentJobs(state.activeJob);
 
     if (activeGroupID) {
       const currentGroup = getActiveGroupObject();
@@ -30,13 +25,6 @@ export function PassBuildCostsButton({ state }) {
       showSnackbarSuccess(messageText);
     } else {
       showSnackbarError(`No build costs imported.`, 3);
-    }
-    manageListenerRequests(retrievedJobs);
-
-    addRetrievedJobsToJobArray(retrievedJobs);
-
-    if (isLoggedIn) {
-      await uploadJobSnapshotsToFirebase(userJobSnapshot);
     }
   }
 

@@ -21,12 +21,10 @@ import SaveIcon from "@mui/icons-material/Save";
 import RestoreIcon from "@mui/icons-material/Restore";
 import { useState, useEffect } from "react";
 import useUsersStore from "../../Zustand/usersStore";
-import { useCachedData } from "../../Hooks/useCachedData";
+import { useCachedData } from "../../Hooks/App/useCachedData";
 import { CACHED_DATA_FILES, DEFAULT_REPROCESSING_CALCULATION_SETTINGS } from "../../Context/defaultValues";
-import { saveApplicationSettings } from "../../Functions/Endpoints/Pirivate/userDocument";
 import { showSnackbarSuccess } from "../../Events/snackbarEvents";
-import { useGlobalDebounce } from "../../Hooks/GeneralHooks/useGlobalDebounce";
-import { DEBOUNCE_KEYS } from "../../Context/debounceKeys";
+import { scheduleDebouncedApplicationSettingsSave } from "../../Functions/Debounce/userDocumentsPersistSchedule.js";
 
 export default function ReprocessingSettingsPanel({ pageState, pageActions }) {
     const { data: fullItemList } = useCachedData(CACHED_DATA_FILES.FULL_ITEM_LIST);
@@ -37,14 +35,6 @@ export default function ReprocessingSettingsPanel({ pageState, pageActions }) {
 
     // State for expandable panel
     const [expanded, setExpanded] = useState(false);
-
-    const debouncedSaveSettings = useGlobalDebounce(
-        DEBOUNCE_KEYS.APP_SETTINGS_SAVE,
-        async () => {
-            await saveApplicationSettings();
-        },
-        2000
-    );
 
     // Open by default if there are exempt ores
     useEffect(() => {
@@ -79,7 +69,7 @@ export default function ReprocessingSettingsPanel({ pageState, pageActions }) {
     // Save current settings as default
     const handleSaveAsDefault = () => {
         updateReprocessingSettings(reprocessingSettings);
-        debouncedSaveSettings();
+        scheduleDebouncedApplicationSettingsSave();
         showSnackbarSuccess("Reprocessing settings saved as default");
     };
 

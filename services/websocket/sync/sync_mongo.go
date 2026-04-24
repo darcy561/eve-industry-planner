@@ -87,7 +87,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		}
 		return results, cursor.Err()
 
-	case mongocore.CollectionGroups:
+	case mongocore.CollectionUserJobGroups:
 		var groups []models.Group
 		if err := cursor.All(ctx, &groups); err != nil {
 			return nil, fmt.Errorf("failed to decode groups: %w", err)
@@ -201,11 +201,12 @@ func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionNam
 		"_id": bson.M{"$in": documentIDs},
 	}
 
-	// Account scoping: jobs, users, and application_settings use _meta.accountID (see models.Job, UserAccountDocument).
+	// Account scoping: jobs, users, application_settings, and user_watchlist_deprecated use _meta.accountID (see models.Job, UserAccountDocument).
 	// Other collections use root accountID.
 	if collectionName == mongocore.CollectionJobs ||
 		collectionName == mongocore.CollectionUsers ||
-		collectionName == mongocore.CollectionApplicationSettings {
+		collectionName == mongocore.CollectionApplicationSettings ||
+		collectionName == mongocore.CollectionUserWatchlistDeprecated {
 		filter["_meta.accountID"] = accountID
 	} else {
 		filter["accountID"] = accountID
@@ -339,11 +340,10 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 
 	// Get database and collection
 	database := mongoClient.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionGroups)
+	collection := database.Collection(mongocore.CollectionUserJobGroups)
 
-	// Build query filter: accountID
 	filter := bson.M{
-		"accountID": accountID,
+		"_meta.accountID": accountID,
 	}
 
 	// Use retry logic from mongo core package
@@ -384,7 +384,7 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 	}
 
 	logs.DebugCtx(ctx, "queried all groups for account",
-		"collection", mongocore.CollectionGroups,
+		"collection", mongocore.CollectionUserJobGroups,
 		"account_id", accountID,
 		"found", len(results))
 

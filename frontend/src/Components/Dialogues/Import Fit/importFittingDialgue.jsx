@@ -3,7 +3,11 @@ import ContentDialog, {
   useDialogEventState,
 } from "../../../Styled Components/Dialog/ContentDialog";
 import { useEffect, useState } from "react";
-import { useImportFitFromClipboard } from "../../../Hooks/GroupHooks/useImportFitFromClipboard";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  finalBuildRequests,
+  importFromClipboard,
+} from "../../../Functions/JobPlanner/importFitFromClipboard";
 import { ImportFittingItemRow } from "./importFittingItemRow";
 import { showSnackbarError } from "../../../Events/snackbarEvents";
 import { checkClipboardReadPermissions } from "../../../Functions/Clipboard/clipboardPermissions";
@@ -17,8 +21,7 @@ export default function ImportFitDialog() {
   const [clipboardReadAllowed, updateClipboardReadAllowed] = useState(false);
   const [importedItemList, updateImportedItemList] = useState([]);
   const [fitQuantityMultiplier, updateFitQuantityMultiplier] = useState(1);
-  const { finalBuildRequests, importFromClipboard } =
-    useImportFitFromClipboard();
+  const queryClient = useQueryClient();
 
   const handleClose = () => {
     updateClipboardReadAllowed(false);
@@ -111,7 +114,7 @@ export default function ImportFitDialog() {
               size="small"
               variant="contained"
               onClick={async () => {
-                await finalBuildRequests(importedItemList);
+                await finalBuildRequests(importedItemList, queryClient);
                 handleClose();
               }}
             >

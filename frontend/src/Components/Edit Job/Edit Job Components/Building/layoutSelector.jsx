@@ -2,7 +2,7 @@ import { useMediaQuery } from "@mui/material";
 import { Building_StandardLayout_EditJob } from "./StandardLayout/standardLayout";
 import useUsersStore from "../../../../Zustand/usersStore";
 import useGetAllIndustryJobs from "../../../../Hooks/EveEsi/useGetAllIndustryJobs";
-import { useGatherJobMatchesAndUpdateExistingLinkedJobs } from "../../../../Hooks/useJobMatchesAndWorldData";
+import { useGatherJobMatchesAndUpdateExistingLinkedJobs } from "../../Hooks/useJobMatchesAndWorldData";
 
 export function LayoutSelector_EditJob_Building(props) {
   const { state } = props;

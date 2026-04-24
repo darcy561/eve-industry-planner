@@ -12,7 +12,7 @@ import {
 import CheckIcon from "@mui/icons-material/Check";
 import ErrorIcon from "@mui/icons-material/Error";
 import { LOGIN_STEPS } from "../../../Events/loginEvents";
-import { useLoginState } from "../../../Hooks/useLoginState";
+import { useLoginState } from "../Hooks/useLoginState";
 import { LARGE_TEXT_FORMAT } from "../../../Context/defaultValues";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
 import DefaultPageLayout from "../../../Styled Components/defaultPageLayout";
@@ -26,10 +26,10 @@ export function UserLogInUI() {
         return "Character Data";
       case LOGIN_STEPS.JOB_PLANNER:
         return "Job Planner";
-      case LOGIN_STEPS.WATCHLIST_DATA:
-        return "Watchlist";
       case LOGIN_STEPS.GROUP_DATA:
         return "Group Data";
+      case LOGIN_STEPS.WATCHLIST_DATA:
+        return "Watchlist";
       default:
         return "Unknown Step";
     }
@@ -103,7 +103,7 @@ export function UserLogInUI() {
               justifyContent: "center"
             }}>
               {userData.userArray.slice(0, 5).map((user, index) => (
-                <Zoom key={user.CharacterID} in={true}>
+                <Zoom key={`login-avatar-${user.CharacterID}-${index}`} in={true}>
                   <Grid
                     container
                     sx={{ marginBottom: "10px" }}

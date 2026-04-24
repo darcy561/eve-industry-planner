@@ -6,351 +6,226 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/websocket/server/outgoinglogic"
+	"eve-industry-planner/websocket/server/subscriptionlogic"
 )
 
-// SubscribeClientToDocument subscribes all active WebSocket connections for a given accountID
-// to receive updates for a specific document. This is used by API endpoints to enable
-// autosubscription when clients make HTTP requests with the AutoSubscribe header.
-//
-// Parameters:
-//   - accountID: The account ID from JWT claims (identifies which user's connections to subscribe)
-//   - docID: The document ID to subscribe to (e.g., "user.account123" or "job.456")
-//
-// This method:
-//  1. Finds all active WebSocket connections for the accountID
-//  2. Subscribes each connection to the document's outgoing queue
-//  3. Tracks the subscription in each client's subscribedDocs map
-//
-// If no connections exist for the accountID, the subscription is still set up so that
-// when the client connects later, they will be subscribed (if they send a message).
-func (s *Server) SubscribeClientToDocument(accountID string, docID string) {
-	ctx := context.Background()
-	if accountID == "" {
-		logs.WarnCtx(ctx, "cannot subscribe: empty accountID", "doc_id", docID)
+func (s *Server) addExplicitSubscriber(clientID, docID string) {
+	if docID == "" || clientID == "" {
 		return
 	}
-	if docID == "" {
-		logs.WarnCtx(ctx, "cannot subscribe: empty docID", "account_id", accountID)
+	s.explicitDocSubMu.Lock()
+	defer s.explicitDocSubMu.Unlock()
+	if s.explicitDocSubscribers[docID] == nil {
+		s.explicitDocSubscribers[docID] = make(map[string]bool)
+	}
+	s.explicitDocSubscribers[docID][clientID] = true
+}
+
+func (s *Server) removeExplicitSubscriber(clientID, docID string) {
+	if docID == "" || clientID == "" {
 		return
 	}
-
-	// Get all client IDs for this account
-	s.userConnMu.RLock()
-	userConns, exists := s.userConnections[accountID]
-	if !exists || len(userConns) == 0 {
-		s.userConnMu.RUnlock()
-		// No active connections - nothing to subscribe
-		logs.DebugCtx(ctx, "no active connections to subscribe",
-			"account_id", accountID,
-			"doc_id", docID)
-		return
-	}
-
-	// Copy client IDs to avoid holding lock while processing
-	clientIDs := make([]string, 0, len(userConns))
-	for clientID := range userConns {
-		clientIDs = append(clientIDs, clientID)
-	}
-	s.userConnMu.RUnlock()
-
-	// Get or create outgoing queue for this document
-	outQueue := s.getOrCreateOutgoingQueue(docID)
-
-	// Subscribe each client to the document
-	s.ClientsMu.RLock()
-	subscribedCount := 0
-	for _, clientID := range clientIDs {
-		client, exists := s.Clients[clientID]
-		if !exists {
-			// Client disconnected, skip
-			continue
+	s.explicitDocSubMu.Lock()
+	defer s.explicitDocSubMu.Unlock()
+	if m, ok := s.explicitDocSubscribers[docID]; ok {
+		delete(m, clientID)
+		if len(m) == 0 {
+			delete(s.explicitDocSubscribers, docID)
 		}
-
-		// Verify client belongs to this account (safety check)
-		if client.AccountID != accountID {
-			logs.WarnCtx(client.LogContext(), "client account mismatch during subscription",
-				"client_id", clientID,
-				"expected_account_id", accountID,
-				"client_account_id", client.AccountID,
-				"doc_id", docID)
-			continue
-		}
-
-		// Add to outgoing queue subscribers
-		outQueue.mu.Lock()
-		outQueue.subscribers[clientID] = true
-		outQueue.mu.Unlock()
-
-		// Track subscription in client
-		client.subscribedDocs[docID] = true
-
-		// Track as active subscription for this client (preserved across reconnects)
-		s.activeSubsMu.Lock()
-		if s.activeSubscriptions[clientID] == nil {
-			s.activeSubscriptions[clientID] = make(map[string]time.Time)
-		}
-		s.activeSubscriptions[clientID][docID] = time.Now()
-		s.activeSubsMu.Unlock()
-
-		subscribedCount++
-	}
-	s.ClientsMu.RUnlock()
-
-	if subscribedCount > 0 {
-		logs.InfoCtx(ctx, "subscribed clients to document",
-			"account_id", accountID,
-			"doc_id", docID,
-			"client_count", subscribedCount)
-	} else {
-		logs.DebugCtx(ctx, "no active clients to subscribe",
-			"account_id", accountID,
-			"doc_id", docID)
 	}
 }
 
-// SubscribeClientToDocuments subscribes all active WebSocket connections for a given accountID
-// to receive updates for multiple documents. This is useful for batch operations.
-func (s *Server) SubscribeClientToDocuments(accountID string, docIDs []string) {
-	ctx := context.Background()
-	logs.InfoCtx(ctx, "subscribing client to multiple documents",
-		"account_id", accountID,
-		"doc_count", len(docIDs),
-		"doc_ids", docIDs)
-	for _, docID := range docIDs {
-		s.SubscribeClientToDocument(accountID, docID)
-	}
-}
-
-// SubscribeSingleClientToDocument subscribes only the first available client for a given accountID
-// to receive updates for a specific document. This is used for autosubscription when we want
-// to subscribe only the client making the request, not all clients for the account.
-func (s *Server) SubscribeSingleClientToDocument(accountID string, docID string) {
-	ctx := context.Background()
-	if accountID == "" {
-		logs.WarnCtx(ctx, "cannot subscribe: empty accountID", "doc_id", docID)
+// cleanupClientSubscriptions removes explicit doc entries when a socket disconnects.
+func (s *Server) cleanupClientSubscriptions(clientID string, accountID string, explicitSnapshot map[string]bool) {
+	if len(explicitSnapshot) == 0 {
 		return
 	}
-	if docID == "" {
-		logs.WarnCtx(ctx, "cannot subscribe: empty docID", "account_id", accountID)
-		return
+	for docID := range explicitSnapshot {
+		s.removeExplicitSubscriber(clientID, docID)
 	}
-
-	// Get first available client ID for this account
-	s.userConnMu.RLock()
-	userConns, exists := s.userConnections[accountID]
-	if !exists || len(userConns) == 0 {
-		s.userConnMu.RUnlock()
-		// No active connections - nothing to subscribe
-		logs.DebugCtx(ctx, "no active connections to subscribe",
-			"account_id", accountID,
-			"doc_id", docID)
-		return
-	}
-
-	// Pick the first client ID
-	var firstClientID string
-	for clientID := range userConns {
-		firstClientID = clientID
-		break // Just get the first one
-	}
-	s.userConnMu.RUnlock()
-
-	// Get client and verify it exists
-	s.ClientsMu.RLock()
-	client, exists := s.Clients[firstClientID]
-	if !exists {
-		s.ClientsMu.RUnlock()
-		logs.DebugCtx(ctx, "client not found, skipping subscription",
-			"client_id", firstClientID,
-			"account_id", accountID,
-			"doc_id", docID)
-		return
-	}
-
-	// Verify client belongs to this account (safety check)
-	if client.AccountID != accountID {
-		s.ClientsMu.RUnlock()
-		logs.WarnCtx(client.LogContext(), "client account mismatch during subscription",
-			"client_id", firstClientID,
-			"expected_account_id", accountID,
-			"client_account_id", client.AccountID,
-			"doc_id", docID)
-		return
-	}
-	s.ClientsMu.RUnlock()
-
-	// Get or create outgoing queue for this document
-	outQueue := s.getOrCreateOutgoingQueue(docID)
-
-	// Subscribe the client to the document
-	outQueue.mu.Lock()
-	outQueue.subscribers[firstClientID] = true
-	outQueue.mu.Unlock()
-
-	// Track subscription in client
-	client.subscribedDocs[docID] = true
-
-	// Track as active subscription for this client (preserved across reconnects)
-	s.activeSubsMu.Lock()
-	if s.activeSubscriptions[firstClientID] == nil {
-		s.activeSubscriptions[firstClientID] = make(map[string]time.Time)
-	}
-	s.activeSubscriptions[firstClientID][docID] = time.Now()
-	s.activeSubsMu.Unlock()
-
-	logs.InfoCtx(client.LogContext(), "subscribed single client to document",
-		"client_id", firstClientID,
-		"account_id", accountID,
-		"doc_id", docID)
-}
-
-// cleanupClientSubscriptions removes a client's subscriptions from outgoing queues
-// Subscriptions are preserved in activeSubscriptions for reconnection (they're tracked per client)
-func (s *Server) cleanupClientSubscriptions(clientID string, accountID string, subscribedDocs map[string]bool) {
-	if len(subscribedDocs) == 0 {
-		return
-	}
-
-	// Clean up subscriptions from outgoing queues
-	cleanedCount := 0
-	s.outgoingMu.Lock()
-	for docID := range subscribedDocs {
-		if queue, exists := s.outgoingQueues[docID]; exists {
-			queue.mu.Lock()
-			if _, wasSubscribed := queue.subscribers[clientID]; wasSubscribed {
-				delete(queue.subscribers, clientID)
-				cleanedCount++
-			}
-			queue.mu.Unlock()
-		}
-	}
-	s.outgoingMu.Unlock()
-
-	// Subscriptions are preserved in activeSubscriptions (tracked per account, not per client)
-	// They will be restored when the client reconnects
-	if cleanedCount > 0 {
-		logs.DebugCtx(s.clientLogCtx(clientID), "cleaned up client subscriptions from outgoing queues",
+	if len(explicitSnapshot) > 0 {
+		logs.DebugCtx(context.Background(), "cleaned explicit subscription index on disconnect",
 			"account_id", accountID,
 			"client_id", clientID,
-			"doc_count", cleanedCount,
-			"doc_ids", getDocIDKeys(subscribedDocs))
+			"doc_ids", subscriptionlogic.Keys(explicitSnapshot))
 	}
 }
 
-// ReplaceClientSubscriptions replaces all subscriptions for a client with new ones
-// This atomically removes old subscriptions and adds new ones
-// Used during sync to replace client's subscription state with server's view
+// ReplaceClientSubscriptions records explicit doc ids from a sync payload (escape hatch / tooling).
+// Account-scoped realtime does not depend on this map.
 func (s *Server) ReplaceClientSubscriptions(clientID string, accountID string, newSubscriptions map[string][]string) error {
-	// Get client
-	s.ClientsMu.RLock()
+	s.ClientsMu.Lock()
 	client, exists := s.Clients[clientID]
-	s.ClientsMu.RUnlock()
-
 	if !exists {
+		s.ClientsMu.Unlock()
 		return fmt.Errorf("client not found: %s", clientID)
 	}
 
-	// Verify client belongs to this account (safety check)
 	if client.AccountID != accountID {
+		s.ClientsMu.Unlock()
 		return fmt.Errorf("client account mismatch: expected %s, got %s", accountID, client.AccountID)
 	}
 
-	// Get current subscriptions from client
-	oldSubscriptions := make(map[string]bool)
-	for docID := range client.subscribedDocs {
-		oldSubscriptions[docID] = true
+	old := make(map[string]bool, len(client.explicitDocIDs))
+	for id := range client.explicitDocIDs {
+		old[id] = true
 	}
 
-	// Remove old subscriptions from outgoing queues
-	removedCount := 0
-	s.outgoingMu.Lock()
-	for docID := range oldSubscriptions {
-		if queue, exists := s.outgoingQueues[docID]; exists {
-			queue.mu.Lock()
-			if _, wasSubscribed := queue.subscribers[clientID]; wasSubscribed {
-				delete(queue.subscribers, clientID)
-				removedCount++
-			}
-			queue.mu.Unlock()
-		}
+	newSet := subscriptionlogic.BuildScopedDocSet(newSubscriptions)
+	toRemove, toAdd := subscriptionlogic.DiffSubscriptionSets(old, newSet)
+
+	for _, docID := range toRemove {
+		delete(client.explicitDocIDs, docID)
+		s.removeExplicitSubscriber(clientID, docID)
 	}
-	s.outgoingMu.Unlock()
-
-	// Clear client's subscribedDocs
-	client.subscribedDocs = make(map[string]bool)
-
-	// Add new subscriptions
-	// Construct collection-scoped docIDs (e.g., "users.account123")
-	newDocIDs := make([]string, 0)
-	for collectionName, documentIDs := range newSubscriptions {
-		for _, docID := range documentIDs {
-			collectionScopedDocID := fmt.Sprintf("%s.%s", collectionName, docID)
-			newDocIDs = append(newDocIDs, collectionScopedDocID)
-
-			// Get or create outgoing queue for this document
-			outQueue := s.getOrCreateOutgoingQueue(collectionScopedDocID)
-
-			// Add to outgoing queue subscribers
-			outQueue.mu.Lock()
-			outQueue.subscribers[clientID] = true
-			outQueue.mu.Unlock()
-
-			// Track subscription in client
-			client.subscribedDocs[collectionScopedDocID] = true
-		}
+	for _, docID := range toAdd {
+		client.explicitDocIDs[docID] = true
+		s.addExplicitSubscriber(clientID, docID)
 	}
+	s.ClientsMu.Unlock()
 
-	// Update active subscriptions for this client (preserved across reconnects)
 	s.activeSubsMu.Lock()
-	if s.activeSubscriptions[clientID] == nil {
-		s.activeSubscriptions[clientID] = make(map[string]time.Time)
-	}
-
-	// Remove old subscriptions that are no longer in the new set
-	oldDocIDSet := make(map[string]bool)
-	for docID := range oldSubscriptions {
-		oldDocIDSet[docID] = true
-	}
-
-	// Create set of new docIDs for quick lookup
-	newDocIDSet := make(map[string]bool)
-	for _, docID := range newDocIDs {
-		newDocIDSet[docID] = true
-	}
-
-	// Remove old subscriptions that are no longer in the new set
-	for docID := range s.activeSubscriptions[clientID] {
-		if !newDocIDSet[docID] {
-			delete(s.activeSubscriptions[clientID], docID)
-		}
-	}
-
-	// Update timestamps for new subscriptions
-	for _, docID := range newDocIDs {
-		s.activeSubscriptions[clientID][docID] = time.Now()
-	}
-
-	// Clean up empty client entry
-	if len(s.activeSubscriptions[clientID]) == 0 {
+	now := time.Now()
+	rebuilt := subscriptionlogic.RebuildClientActiveSubscriptions(newSet, now)
+	if rebuilt == nil {
 		delete(s.activeSubscriptions, clientID)
+	} else {
+		s.activeSubscriptions[clientID] = rebuilt
 	}
-
 	s.activeSubsMu.Unlock()
 
-	logs.InfoCtx(client.LogContext(), "replaced client subscriptions",
+	logs.DebugCtx(client.LogContext(), "replaced client explicit doc set from sync",
 		"client_id", clientID,
 		"account_id", accountID,
-		"removed_count", removedCount,
-		"added_count", len(newDocIDs))
+		"doc_count", len(newSet))
 
 	return nil
 }
 
-// getDocIDKeys extracts keys from a map for logging
-func getDocIDKeys(docMap map[string]bool) []string {
-	keys := make([]string, 0, len(docMap))
-	for k := range docMap {
-		keys = append(keys, k)
+// handleSubscribeRequest registers explicit doc ids (authorized). Account stream needs no subscribe.
+func (s *Server) handleSubscribeRequest(clientID string, docID string) {
+	subCtx := s.clientLogCtx(clientID)
+	s.ClientsMu.Lock()
+	client, exists := s.Clients[clientID]
+	if !exists {
+		s.ClientsMu.Unlock()
+		logs.DebugCtx(subCtx, "client not found for subscribe request",
+			"client_id", clientID,
+			"doc_id", docID)
+		return
 	}
-	return keys
+	accountID := client.AccountID
+	if !s.docSubscribeAuthorized(context.Background(), docID, accountID) {
+		s.ClientsMu.Unlock()
+		logs.WarnCtx(subCtx, "subscribe request rejected: docID not authorized for account",
+			"client_id", clientID,
+			"account_id", accountID,
+			"doc_id", docID)
+		return
+	}
+	client.explicitDocIDs[docID] = true
+	s.ClientsMu.Unlock()
+
+	s.addExplicitSubscriber(clientID, docID)
+
+	s.activeSubsMu.Lock()
+	if s.activeSubscriptions[clientID] == nil {
+		s.activeSubscriptions[clientID] = make(map[string]time.Time)
+	}
+	s.activeSubscriptions[clientID][docID] = time.Now()
+	s.activeSubsMu.Unlock()
+
+	logs.DebugCtx(s.clientLogCtx(clientID), "processed explicit subscribe request",
+		"client_id", clientID,
+		"account_id", accountID,
+		"doc_id", docID)
+}
+
+func (s *Server) handleUnsubscribeRequest(clientID string, docID string) {
+	unsubCtx := s.clientLogCtx(clientID)
+	s.ClientsMu.Lock()
+	client, exists := s.Clients[clientID]
+	if !exists {
+		s.ClientsMu.Unlock()
+		logs.DebugCtx(unsubCtx, "client not found for unsubscribe request",
+			"client_id", clientID,
+			"doc_id", docID)
+		return
+	}
+	accountID := client.AccountID
+	if !s.docSubscribeAuthorized(context.Background(), docID, accountID) {
+		s.ClientsMu.Unlock()
+		logs.WarnCtx(unsubCtx, "unsubscribe rejected: docID not authorized for account",
+			"client_id", clientID,
+			"account_id", accountID,
+			"doc_id", docID)
+		return
+	}
+	delete(client.explicitDocIDs, docID)
+	s.ClientsMu.Unlock()
+
+	s.removeExplicitSubscriber(clientID, docID)
+
+	s.activeSubsMu.Lock()
+	if s.activeSubscriptions[clientID] != nil {
+		delete(s.activeSubscriptions[clientID], docID)
+		if len(s.activeSubscriptions[clientID]) == 0 {
+			delete(s.activeSubscriptions, clientID)
+		}
+	}
+	s.activeSubsMu.Unlock()
+
+	logs.DebugCtx(s.clientLogCtx(clientID), "processed explicit unsubscribe request",
+		"client_id", clientID,
+		"account_id", accountID,
+		"doc_id", docID)
+}
+
+// broadcastRawToAccount delivers a pre-marshaled JSON message to every connection for the account.
+func (s *Server) broadcastRawToAccount(accountID string, data []byte) {
+	if accountID == "" || len(data) == 0 {
+		return
+	}
+	s.userConnMu.RLock()
+	userConns, ok := s.userConnections[accountID]
+	if !ok || len(userConns) == 0 {
+		s.userConnMu.RUnlock()
+		return
+	}
+	ids := make([]string, 0, len(userConns))
+	for id := range userConns {
+		ids = append(ids, id)
+	}
+	s.userConnMu.RUnlock()
+
+	s.ClientsMu.RLock()
+	defer s.ClientsMu.RUnlock()
+	for _, cid := range ids {
+		client, exists := s.Clients[cid]
+		if !exists || !outgoinglogic.RawAccountRecipientDeliverable(accountID, client.AccountID) {
+			continue
+		}
+		if !outgoinglogic.TrySendNonBlocking(client.Send, data) {
+			logs.WarnCtx(context.Background(), "doc lock: client send buffer full",
+				"client_id", cid)
+		}
+	}
+}
+
+// QueueSubscribeAck sends a lightweight ack after explicit subscribe JSON (optional for clients).
+func (s *Server) QueueSubscribeAck(client *Client, docIDs []string) {
+	if client == nil || len(docIDs) == 0 {
+		return
+	}
+	b, err := subscriptionlogic.MarshalSubscribeAck(docIDs)
+	if err != nil {
+		return
+	}
+	select {
+	case client.Send <- b:
+	default:
+		logs.WarnCtx(client.LogContext(), "subscribe_ack send buffer full",
+			"client_id", client.id)
+	}
 }

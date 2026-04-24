@@ -2,7 +2,6 @@ package nats
 
 import (
 	"context"
-	"time"
 
 	"eve-industry-planner/shared/logs"
 
@@ -13,42 +12,33 @@ import (
 // The processor is responsible for acknowledging or nacking the message.
 type MessageProcessor func(msg jetstream.Msg)
 
-// StartMessageProcessingLoop starts a background goroutine that continuously fetches and processes messages
-// from the given consumer. The loop will stop when stopChan is closed.
-// Messages are fetched in batches of 10 with a 5-second timeout.
+// StartMessageProcessingLoop runs a durable pull consumer using [jetstream.Consumer.Consume].
+// This avoids polling [Consumer.Fetch] in a loop (which creates a new pull subscription per
+// iteration and does not overlap pulls—see nats.go jetstream Consumer docs).
 func StartMessageProcessingLoop(
 	consumer jetstream.Consumer,
 	processor MessageProcessor,
 	stopChan chan struct{},
 	subject string, // For logging purposes
 ) {
+	bg := context.Background()
+
+	cc, err := consumer.Consume(
+		func(msg jetstream.Msg) {
+			InProgressMessage(msg)
+			processor(msg)
+		},
+		jetstream.ConsumeErrHandler(func(_ jetstream.ConsumeContext, err error) {
+			logs.WarnCtx(bg, "jetstream consume transport error", "subject", subject, "error", err)
+		}),
+	)
+	if err != nil {
+		logs.ErrorCtx(bg, "failed to start jetstream consume loop", "subject", subject, "error", err)
+		return
+	}
+
 	go func() {
-		bg := context.Background()
-		for {
-			select {
-			case <-stopChan:
-				return
-			default:
-				// Fetch up to 10 messages at a time
-				msgs, err := consumer.Fetch(10, jetstream.FetchMaxWait(5*time.Second))
-				if err != nil {
-					if err == context.DeadlineExceeded {
-						// No messages available, continue
-						continue
-					}
-					logs.ErrorCtx(bg, "failed to fetch messages", "subject", subject, "error", err)
-					time.Sleep(time.Second)
-					continue
-				}
-
-				for msg := range msgs.Messages() {
-					// Acknowledge message receipt immediately to prevent redelivery while processing
-					InProgressMessage(msg)
-
-					// Process the message using the provided callback
-					processor(msg)
-				}
-			}
-		}
+		<-stopChan
+		cc.Stop()
 	}()
 }

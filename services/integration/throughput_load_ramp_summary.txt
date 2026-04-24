@@ -1,0 +1,46 @@
+Throughput load ramp — recorded summary
+========================================
+Generated as part of scripts/run-throughput-load-ramp.sh runs.
+Full stdout: throughput_load_ramp_results.txt
+
+Level definitions (each THROUGHPUT_DURATION=2m, 2 websocket replicas, OTEL on, changestream off):
+  L1: accounts=1024 pool=64   WS min/max 800–12000    max/acct 768 writers=8
+  L2: accounts=1024 pool=64   WS min/max 1400–18000   max/acct 1024 writers=16
+  L3: accounts=1536 pool=80   WS min/max 2200–24000   max/acct 1024 writers=24
+  L4: accounts=2048 pool=96   WS min/max 3500–32000   max/acct 1024 writers=32
+  L5: accounts=3072 pool=96   WS min/max 5000–45000   max/acct 1024 writers=48
+  L6: accounts=4096 pool=128 WS min/max 6500–55000   max/acct 1024 writers=64
+
+Run 2026-04-22 (first attempt)
+------------------------------
+L1 exit 0 — wall ~252.8s (seed + warm-up + 2m measured + teardown; infra degraded before 2m elapsed).
+  Final line (includes stall after ~60s): writes=50141 ws_delivery_msgs=12067 duration=2m0s writes/s=417.8 deliveries/s=100.6 avg_deliveries_per_write=0.24
+  Latency (matched seq) n=224 p50≈11.4s p95≈32.6s p99≈42.7s
+  Notes: writes flatlined ~50140 from ~60s onward; Mongo pool exhaustion / i/o timeouts; Docker embedded DNS timeouts (websocket-2 lookup); OTLP deadline exceeded; active_ws collapsed 799→311→261→171 as connections died.
+
+L2–L6: Docker Desktop daemon crashed / unreachable (exit 125). Re-run script after Docker is healthy; cooldown sleeps added between levels.
+
+Run 2026-04-22 continuation (Levels 2–6 after Docker recovered, 60s cooldown between levels)
+------------------------------------------------------------------------------------------
+L2 PASS exit 0 — wall ~208.6s.
+  writes/s=1830.0 deliveries/s=556.5 avg_deliveries_per_write=0.30 final writes=219597 ws_delivery_msgs=66777 accounts=1024
+  latency n=1693 p50≈35.7s p95≈72.7s p99≈94.6s
+  Notes: mid-run active_ws dipped (1426→583 at 90s) then recovered to ~840; Mongo/DNS stress visible in full log.
+
+L3 PASS exit 0 — wall ~344.5s.
+  writes/s=767.8 deliveries/s=245.3 avg_deliveries_per_write=0.32 final writes=92134 ws_delivery_msgs=29431 accounts=1536
+  latency n=480 p50≈14.2s p95≈40.4s p99≈43.7s
+  Notes: writes stalled ~92134 from ~91s (Mongo lookup/i/o timeouts, DNS timeouts to websocket-2); stack partially recovered enough to finish PASS.
+
+L4 FAIL exit 1 — wall ~420s, failed during seed (Mongo DNS/i/o timeouts, NATS EOF).
+  Fatal: seed: account tpacc000370: user_job_documents: dial tcp: lookup mongo: i/o timeout
+  Interpretation: seed size (2048×96 docs) exceeded what the Compose stack sustained under concurrent prior load.
+
+L5 PASS exit 0 — wall ~531s.
+  writes/s=74.9 deliveries/s=27.2 final writes=8990 ws_delivery_msgs=3269 accounts=3072
+  Notes: very low sustained rates — heavy infrastructure degradation despite PASS; useful only as “completed without seed failure.”
+
+L6 FAIL exit 1 — wall ~420s, failed during seed (Mongo/Redis instability).
+  Fatal: seed: account tpacc001244: user_job_documents: dial tcp: lookup mongo: i/o timeout
+
+Practical limit observed on this machine/stack: steady high throughput through L2; L3 completes but with stalls; L4+ seed or sustained load trips Docker DNS / Mongo before the 2m measurement phase.

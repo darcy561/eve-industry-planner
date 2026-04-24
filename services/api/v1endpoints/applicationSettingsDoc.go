@@ -72,22 +72,6 @@ func handleGetApplicationSettings(w http.ResponseWriter, r *http.Request, client
 		return
 	}
 
-	autoSubscribeHeader := r.Header.Get("AutoSubscribe")
-	autoSubscribeQuery := r.URL.Query().Get("autoSubscribe")
-	if autoSubscribeHeader == "true" || autoSubscribeQuery == "true" {
-		if clients.JetStream != nil {
-			if err := publishSubscriptionRequest(ctx, clients.JetStream, accountID, mongocore.CollectionApplicationSettings, []string{accountID}); err != nil {
-				logs.WarnCtx(ctx, "failed to publish subscription request", "account_id", accountID, "error", err)
-			} else {
-				logs.InfoCtx(ctx, "published subscription request for application settings", "account_id", accountID)
-			}
-		} else {
-			logs.WarnCtx(ctx, "JetStream not available for autosubscription", "account_id", accountID)
-		}
-	} else {
-		logs.DebugCtx(ctx, "autosubscription not requested", "account_id", accountID, "header", autoSubscribeHeader, "query", autoSubscribeQuery)
-	}
-
 	if err := helper.EncodeJSON(w, settingsDoc); err != nil {
 		logs.ErrorCtx(ctx, "failed to encode application settings response", "error", err, "account_id", accountID)
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
@@ -130,6 +114,14 @@ func handleSaveApplicationSettings(w http.ResponseWriter, r *http.Request, clien
 		http.Error(w, "Account ID in document must match authenticated account", http.StatusForbidden)
 		return
 	}
+	settingsDoc.MetaData.AccountID = accountID
+	if sessionID, sErr := auth.ExtractSessionID(r); sErr == nil && sessionID != "" {
+		settingsDoc.MetaData.SessionID = sessionID
+	}
+	wsClientID := helper.ExtractWSClientID(r)
+	if wsClientID != "" {
+		settingsDoc.MetaData.ClientID = wsClientID
+	}
 
 	database := clients.Mongo.Database(mongocore.DatabaseName)
 	collection := database.Collection(mongocore.CollectionApplicationSettings)
@@ -143,27 +135,23 @@ func handleSaveApplicationSettings(w http.ResponseWriter, r *http.Request, clien
 		result, upsertErr = mongocore.UpsertStructByIDPreservingMeta(ctx, collection, settingsDoc, accountID)
 		return upsertErr
 	})
+	if err != nil && wsClientID != "" {
+		logs.WarnCtx(ctx, "application settings upsert with websocket client id failed, retrying without client id",
+			"account_id", accountID,
+			"ws_client_id", wsClientID,
+			"error", err)
+		settingsDoc.MetaData.ClientID = ""
+		err = mongocore.RetryMongoOperation(ctx, retryConfigUpdate, func() error {
+			var upsertErr error
+			result, upsertErr = mongocore.UpsertStructByIDPreservingMeta(ctx, collection, settingsDoc, accountID)
+			return upsertErr
+		})
+	}
 	if err != nil {
 		m.Errors.WithLabelValues("database_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to upsert application settings", "error", err, "account_id", accountID)
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to save application settings", err)
 		return
-	}
-
-	autoSubscribeHeader := r.Header.Get("AutoSubscribe")
-	autoSubscribeQuery := r.URL.Query().Get("autoSubscribe")
-	if autoSubscribeHeader == "true" || autoSubscribeQuery == "true" {
-		if clients.JetStream != nil {
-			if err := publishSubscriptionRequest(ctx, clients.JetStream, accountID, mongocore.CollectionApplicationSettings, []string{accountID}); err != nil {
-				logs.WarnCtx(ctx, "failed to publish subscription request", "account_id", accountID, "error", err)
-			} else {
-				logs.InfoCtx(ctx, "published subscription request for application settings", "account_id", accountID)
-			}
-		} else {
-			logs.WarnCtx(ctx, "JetStream not available for autosubscription", "account_id", accountID)
-		}
-	} else {
-		logs.DebugCtx(ctx, "autosubscription not requested", "account_id", accountID, "header", autoSubscribeHeader, "query", autoSubscribeQuery)
 	}
 
 	w.WriteHeader(http.StatusNoContent)

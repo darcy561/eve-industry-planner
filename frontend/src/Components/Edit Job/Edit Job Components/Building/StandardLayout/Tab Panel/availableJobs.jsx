@@ -13,18 +13,19 @@ import {
   Typography,
 } from "@mui/material";
 import { MdOutlineAddLink } from "react-icons/md";
-import { useJobManagement } from "../../../../../../Hooks/useJobManagement";
+import { useQueryClient } from "@tanstack/react-query";
 import { LARGE_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { useState } from "react";
 import PanelFallBack from "../../../../panelStates";
 import { formatNumberForLocale, formatTimeRemaining } from "../../../../../../Functions/Helper/numberParser";
+import findBlueprintType from "../../../../../../Functions/Shared/findBlueprintType";
 
 export function AvailableJobsTab(props) {
   const { state, actions, jobMatches, isLoading, isError, error } =
     props;
-  const { findBlueprintType } = useJobManagement();
+  const queryClient = useQueryClient();
   const [clickedJobs, setClickedJobs] = useState(new Set());
 
   const getStatusColor = (status, isReadyToDeliver) => {
@@ -125,7 +126,7 @@ export function AvailableJobsTab(props) {
 
             if (!jobOwner) return null;
 
-            const blueprintType = findBlueprintType(job.blueprint_id);
+            const blueprintType = findBlueprintType(job.blueprint_id, queryClient);
             const facilityName =
               useUsersStore
                 .getState()

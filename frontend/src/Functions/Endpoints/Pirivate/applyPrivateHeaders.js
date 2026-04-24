@@ -1,5 +1,7 @@
 import useUserStore from "../../../Zustand/usersStore";
 import withRequestRetries, { splitRetryConfig } from "../withRequestRetries.js";
+import { getRealtimeClientID } from "../../../Realtime/wsClientIdentity.js";
+import { getAppJwtSessionID } from "../../Auth/appJwt.js";
 
 /**
  * Thrown / rejected when no Bearer token exists for a private request (not retried).
@@ -34,6 +36,14 @@ function getServerToken() {
   }
 }
 
+function getSessionIDFromStoreOrToken(serverToken) {
+  const fromStore = useUserStore.getState()?.account?.sessionID;
+  if (typeof fromStore === "string" && fromStore.trim().length > 0) {
+    return fromStore.trim();
+  }
+  return getAppJwtSessionID(serverToken);
+}
+
 /**
  * Apply private headers (Authorization Bearer token) to options
  * Private endpoints always require authentication.
@@ -60,6 +70,12 @@ function applyPrivateHeaders(options = {}, config = {}) {
     ...options.headers,
     Authorization: `Bearer ${serverToken}`,
     ...(config.requestName && { "X-Request-Name": config.requestName }),
+    ...(getSessionIDFromStoreOrToken(serverToken) && {
+      "X-Session-ID": getSessionIDFromStoreOrToken(serverToken),
+    }),
+    ...(getRealtimeClientID() && {
+      "X-WS-Client-ID": getRealtimeClientID(),
+    }),
   };
 
   return {

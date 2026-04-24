@@ -1,15 +1,13 @@
 import { Button } from "@mui/material";
-import { useManageGroupJobs } from "../../../../../../../Hooks/GroupHooks/useManageGroupJobs";
+import { findMaterialJobInGroup } from "../../../../../../../Functions/Groups/findMaterialJobInGroup.js";
 
 export function LinkExistingGroupJobButton_ChildJobPopoverFrame({
   state,
   actions,
   material,
 }) {
-  const { findMaterialJobIDInGroup } = useManageGroupJobs();
-
   function linkToGroupJob() {
-    const matchedGroupJob = findMaterialJobIDInGroup(
+    const matchedGroupJob = findMaterialJobInGroup(
       material.typeID,
       state.activeJob.groupID
     );
@@ -29,10 +27,8 @@ export function UnlinkExistingChildJobButton_ChildJobPopoverFrame({
   actions,
   material,
 }) {
-  const { findMaterialJobIDInGroup } = useManageGroupJobs();
-
   function linkToGroupJob() {
-    const matchedGroupJob = findMaterialJobIDInGroup(
+    const matchedGroupJob = findMaterialJobInGroup(
       material.typeID,
       state.activeJob.groupID
     );

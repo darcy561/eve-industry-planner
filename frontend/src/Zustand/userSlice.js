@@ -1,7 +1,7 @@
 /**
  * User Slice for EVE Industry Planner.
  * 
- * Manages user-related state including Firebase listeners.
+ * Manages user-related state for the app.
  * This slice provides
  * centralized state management for all user-related operations and data.
  * 
@@ -19,7 +19,7 @@ import {
  * User Settings Slice for Zustand Store.
  * 
  * Creates the user settings slice with state and actions for managing user-related
- * data including authentication, linked data, and Firebase configurations.
+ * data including authentication and linked data.
  * 
  * @param {Function} set - Zustand set function for updating state
  * @param {Function} get - Zustand get function for accessing current state

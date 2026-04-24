@@ -45,19 +45,6 @@ const GLOBAL_CONFIG = Object.freeze({
    */
   DEFAULT_GITHUB_LINK: "https://github.com/darcy561/Eve-Industry-Planner-React",
 
-  //Firebase function deployment region, this must match what is specified within the functions global config.
-
-  /**
-   * Firebase Cloud Functions deployment region.
-   * 
-   * Specifies the Google Cloud region where Firebase Cloud Functions are deployed.
-   * This must match the region specified in the functions global config file.
-   * 
-   * @type {string}
-   * @default "europe-west1"
-   */
-  FIREBASE_FUNCTION_REGION: "europe-west1",
-
   /**
    * Primary application theme.
    * 
@@ -101,15 +88,13 @@ const GLOBAL_CONFIG = Object.freeze({
   //Default: 50
 
   /**
-   * Maximum ESI API pages to query.
-   * 
-   * Defines the maximum number of pages to retrieve from ESI API endpoints
-   * to prevent excessive API usage and improve performance.
-   * 
-   * @type {number}
-   * @default 50
+   * ESI X-Compatibility-Date (YYYY-MM-DD). Single pin for all browser ESI calls.
+   * Keep in sync with Go `worker/esi` package `CompatibilityDate` (compatibility_date.go) when bumping.
+   *
+   * @type {string}
+   * @default "2025-12-16"
    */
-  ESI_MAX_PAGES: 50,
+  ESI_COMPATIBILITY_DATE: "2025-12-16",
 
   /**
    * ESI X-Compatibility-Date (YYYY-MM-DD). Single pin for all browser ESI calls.
@@ -296,63 +281,51 @@ const GLOBAL_CONFIG = Object.freeze({
   //(Number)
   //Default: 30
 
-  /**
-   * Default auto refresh interval in minutes.
-   * 
-   * Defines how often the application automatically refreshes data
-   * from the server to keep information current.
-   * 
-   * @type {number}
-   * @default 30
-   * @unit minutes
-   */
-  DEFAULT_AUTO_REFRESH_INTERVAL: 30,
-
   //Default character refresh interval in minutes
   //(Number)
   //Default: 15
 
   /**
+   * ESI: target time (minutes) to complete one full round-robin over all
+   * characters. Per-tick delay = `this × 60 / n` (clamped by min/max), so
+   * more toons get shorter gaps between steps and a full pass still fits
+   * under ~EVE 20m access + 15m in-code buffer.
+   * @type {number}
+   * @default 10
+   * @unit minutes
+   */
+  ESI_STAGGER_TARGET_FULL_CYCLE_MINUTES: 10,
+
+  /**
+   * ESI: floor (seconds) for stagger tick — avoid hammering the token endpoint
+   * when the account has many characters.
+   * @type {number}
+   * @default 20
+   * @unit seconds
+   */
+  ESI_STAGGER_TICK_MIN_SECONDS: 20,
+
+  /**
+   * ESI: ceiling (seconds) for stagger tick — a solo or small account does not
+   * need to wait a full `TARGET` between checks on a single character.
+   * @type {number}
+   * @default 180
+   * @unit seconds
+   */
+  ESI_STAGGER_TICK_MAX_SECONDS: 180,
+
+  /**
    * Default character refresh interval in minutes.
    * 
-   * Defines how often character data is refreshed from EVE Online ESI API
-   * to keep character information and skills current.
+   * How often to run non-ESI maintenance: corporation claims sync and app JWT
+   * refresh, after staggered ESI has kept per-character access tokens current.
+   * ESI is **not** bulk-refreshed on this tick (staggered rotation handles that).
    * 
    * @type {number}
    * @default 15
    * @unit minutes
    */
   DEFAULT_CHARACTER_REFRESH_INTERVAL: 15,
-
-  //Default discord invite link
-  //(String)
-  //Default: "https://discord.gg/KGSa8gh37z"
-
-  /**
-   * Default Discord invite link.
-   * 
-   * Provides the Discord server invite link for community support
-   * and user communication.
-   * 
-   * @type {string}
-   * @default "https://discord.gg/KGSa8gh37z"
-   */
-  DEFAULT_DISCORD_INVITE: "https://discord.gg/KGSa8gh37z",
-
-  //Default github link
-  //(String)
-  //Default: "https://github.com/darcy561/Eve-Industry-Planner-React"
-
-  /**
-   * Default GitHub repository link.
-   * 
-   * Provides the GitHub repository link for source code access,
-   * issue reporting, and community contributions.
-   * 
-   * @type {string}
-   * @default "https://github.com/darcy561/Eve-Industry-Planner-React"
-   */
-  DEFAULT_GITHUB_LINK: "https://github.com/darcy561/Eve-Industry-Planner-React",
 
   //Default version check interval in minutes
   //(Number)

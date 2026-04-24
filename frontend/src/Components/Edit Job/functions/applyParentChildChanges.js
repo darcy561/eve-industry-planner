@@ -9,7 +9,7 @@
  * @author EVE Industry Planner Team
  */
 
-import findOrGetJobObject from "../../../Functions/Helper/findJobObject";
+import useUsersStore from "../../../Zustand/usersStore";
 
 /**
  * Applies parent-child job relationship changes to job objects.
@@ -24,8 +24,8 @@ import findOrGetJobObject from "../../../Functions/Helper/findJobObject";
  * @param {Array} parentChildObject.parentJobs.remove - Parent job IDs to remove
  * @param {Object} parentChildObject.childJobs - Child job changes by material type
  * @param {Object} inputJob - The job being edited
- * @param {Array} retrievedJobs - Array of retrieved job objects
- * @returns {Promise<Set>} Set of modified job IDs
+ * @param {Array} tempJobs - In-flight job objects created/updated in this flow
+ * @returns {Set} Set of modified job IDs
  * 
  * @example
  * const changes = {
@@ -38,31 +38,33 @@ import findOrGetJobObject from "../../../Functions/Helper/findJobObject";
  *   }
  * };
  * 
- * const modifiedJobs = await applyParentChildChanges(changes, inputJob, retrievedJobs);
+ * const modifiedJobs = applyParentChildChanges(changes, inputJob, tempJobs);
  * console.log('Modified jobs:', Array.from(modifiedJobs));
  */
-async function applyParentChildChanges(
+function applyParentChildChanges(
   parentChildObject,
   inputJob,
-  retrievedJobs
+  tempJobs
 ) {
   try {
-    if (!parentChildObject || !retrievedJobs) {
+    if (!parentChildObject || !tempJobs) {
       throw new Error("Missing input items");
     }
 
     const modifiedJobIDs = new Set();
 
-    await processParentJobs(
+    const jobLookup = buildJobLookup(inputJob, tempJobs);
+
+    processParentJobs(
       parentChildObject,
       inputJob,
-      retrievedJobs,
+      jobLookup,
       modifiedJobIDs
     );
-    await processChildJobs(
+    processChildJobs(
       parentChildObject,
       inputJob,
-      retrievedJobs,
+      jobLookup,
       modifiedJobIDs
     );
 
@@ -83,25 +85,22 @@ export default applyParentChildChanges;
  * 
  * @param {Object} parentChildObject - Object containing parent job changes
  * @param {Object} inputJob - The job being edited
- * @param {Array} retrievedJobs - Array of retrieved job objects
+ * @param {Map<string, Object>} jobLookup - Map of jobs keyed by jobID
  * @param {Set} modifiedJobIDs - Set to track modified job IDs
- * @returns {Promise<void>}
+ * @returns {void}
  * 
  * @example
- * await processParentJobs(parentChildObject, inputJob, retrievedJobs, modifiedJobIDs);
+ * processParentJobs(parentChildObject, inputJob, jobLookup, modifiedJobIDs);
  */
-async function processParentJobs(
+function processParentJobs(
   parentChildObject,
   inputJob,
-  retrievedJobs,
+  jobLookup,
   modifiedJobIDs
 ) {
   try {
     for (let parentID of parentChildObject.parentJobs.remove) {
-      const matchingJob = await findOrGetJobObject(
-        parentID,
-        retrievedJobs
-      );
+      const matchingJob = jobLookup.get(parentID);
       if (!matchingJob) continue;
 
       matchingJob.removeChildJob(inputJob.itemID, inputJob.jobID);
@@ -113,10 +112,7 @@ async function processParentJobs(
     const unmatchedParentIDS = new Set();
 
     for (let parentID of parentChildObject.parentJobs.add) {
-      const matchingJob = await findOrGetJobObject(
-        parentID,
-        retrievedJobs
-      );
+      const matchingJob = jobLookup.get(parentID);
       if (!matchingJob) {
         unmatchedParentIDS.add(parentID);
         continue;
@@ -145,17 +141,17 @@ async function processParentJobs(
  * 
  * @param {Object} parentChildObject - Object containing child job changes
  * @param {Object} inputJob - The job being edited
- * @param {Array} retrievedJobs - Array of retrieved job objects
+ * @param {Map<string, Object>} jobLookup - Map of jobs keyed by jobID
  * @param {Set} modifiedJobIDs - Set to track modified job IDs
- * @returns {Promise<void>}
+ * @returns {void}
  * 
  * @example
- * await processChildJobs(parentChildObject, inputJob, retrievedJobs, modifiedJobIDs);
+ * processChildJobs(parentChildObject, inputJob, jobLookup, modifiedJobIDs);
  */
-async function processChildJobs(
+function processChildJobs(
   parentChildObject,
   inputJob,
-  retrievedJobs,
+  jobLookup,
   modifiedJobIDs
 ) {
   try {
@@ -166,10 +162,7 @@ async function processChildJobs(
       if (!matchedMaterial) continue;
 
       for (let childID of matchedMaterial.add) {
-        const matchedJob = await findOrGetJobObject(
-          childID,
-          retrievedJobs
-        );
+        const matchedJob = jobLookup.get(childID);
 
         if (!matchedJob) {
           unMatchedChildIDs.add(childID);
@@ -181,10 +174,7 @@ async function processChildJobs(
       }
 
       for (let childID of matchedMaterial.remove) {
-        const matchedJob = await findOrGetJobObject(
-          childID,
-          retrievedJobs
-        );
+        const matchedJob = jobLookup.get(childID);
 
         if (!matchedJob) {
           unMatchedChildIDs.add(childID);
@@ -203,4 +193,28 @@ async function processChildJobs(
   } catch (err) {
     throw new Error(`Error updating child jobs: ${err.message}`);
   }
+}
+
+/**
+ * Builds an in-memory lookup from current jobArray plus in-flight jobs.
+ *
+ * @param {Object} inputJob
+ * @param {Array} tempJobs
+ * @returns {Map<string, Object>}
+ */
+function buildJobLookup(inputJob, tempJobs) {
+  const jobLookup = new Map();
+  const stateJobs = useUsersStore.getState().jobData.jobArray ?? [];
+
+  for (const job of stateJobs) {
+    if (job?.jobID) jobLookup.set(job.jobID, job);
+  }
+  for (const job of tempJobs ?? []) {
+    if (job?.jobID) jobLookup.set(job.jobID, job);
+  }
+  if (inputJob?.jobID) {
+    jobLookup.set(inputJob.jobID, inputJob);
+  }
+
+  return jobLookup;
 }

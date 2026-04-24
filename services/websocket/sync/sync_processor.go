@@ -114,7 +114,7 @@ func ProcessSyncQueue(s SyncServer, clientID string, timeout time.Duration) erro
 
 				if !exists {
 					// Client disconnected - cancel context to stop all operations
-					logs.InfoCtx(ctx, "client disconnected during sync, cancelling operations",
+					logs.DebugCtx(ctx, "client disconnected during sync, cancelling operations",
 						"client_id", clientID)
 					cancel()
 					return
@@ -175,7 +175,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 		return fmt.Errorf("client send buffer full")
 	}
 
-	logs.InfoCtx(ctx, "sync started",
+	logs.DebugCtx(ctx, "sync started",
 		"client_id", clientID,
 		"account_id", accountID,
 		"collections", len(msg.Subscriptions))
@@ -200,7 +200,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 		if err == nil {
 			select {
 			case client.GetSend() <- errorMsg:
-				logs.InfoCtx(ctx, "sent sync error for account document query failure",
+				logs.DebugCtx(ctx, "sent sync error for account document query failure",
 					"client_id", clientID,
 					"account_id", accountID)
 			default:
@@ -231,7 +231,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 
 		select {
 		case client.GetSend() <- errorMsg:
-			logs.InfoCtx(ctx, "sent sync error for missing account document",
+			logs.DebugCtx(ctx, "sent sync error for missing account document",
 				"client_id", clientID,
 				"account_id", accountID)
 			return fmt.Errorf("account document not found for accountID: %s", accountID)
@@ -315,7 +315,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 		// Check context cancellation
 		select {
 		case <-ctx.Done():
-			logs.InfoCtx(ctx, "sync cancelled during processing",
+			logs.DebugCtx(ctx, "sync cancelled during processing",
 				"client_id", clientID,
 				"reason", ctx.Err())
 			return ctx.Err()
@@ -431,7 +431,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 	select {
 	case client.GetSend() <- syncDataMsg:
 		// Message sent
-		logs.InfoCtx(ctx, "sync data sent",
+		logs.DebugCtx(ctx, "sync data sent",
 			"client_id", clientID,
 			"account_id", accountID,
 			"collections", len(syncData),
@@ -479,7 +479,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 	select {
 	case client.GetSend() <- syncComplete:
 		// Message sent
-		logs.InfoCtx(ctx, "sync completed",
+		logs.DebugCtx(ctx, "sync completed",
 			"client_id", clientID,
 			"account_id", accountID)
 		return nil

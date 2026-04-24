@@ -51,7 +51,7 @@ func taskDataAttrsFromJSON(taskType string, raw []byte) []attribute.KeyValue {
 			return nil
 		}
 		return corporationClaimsAttrs(req)
-	case "migrateUserDocumentToMongo":
+	case "migrateUserDocumentToMongo", "migrateFirestoreWatchlistToMongo", "importUserJobDocumentsForAccount":
 		var req MigrateUserDocumentToMongoRequest
 		if err := json.Unmarshal(raw, &req); err != nil {
 			return nil

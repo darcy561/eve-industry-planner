@@ -106,30 +106,7 @@ ensure-keyfile:
 	@"$(BASH)" ./scripts/generate-mongo-keyfile.sh
 
 ensure-env:
-	@"$(BASH)" -c "if [ ! -f .env ]; then \
-		echo 'Error: .env file is missing!' >&2; \
-		echo '' >&2; \
-		echo 'Downloading env.example from GitHub and creating .env file...' >&2; \
-		if command -v curl >/dev/null 2>&1; then \
-			curl -L -f -o .env \
-				'https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Public/env.example' || \
-			(echo 'Error: Failed to download env.example from GitHub' >&2; exit 1); \
-		elif command -v wget >/dev/null 2>&1; then \
-			wget -O .env \
-				'https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Public/env.example' || \
-			(echo 'Error: Failed to download env.example from GitHub' >&2; exit 1); \
-		else \
-			echo 'Error: Neither curl nor wget is available. Please install one of them.' >&2; \
-			exit 1; \
-		fi; \
-		echo '' >&2; \
-		echo '.env file created from env.example' >&2; \
-		echo '' >&2; \
-		echo 'Please open .env and modify it with your configuration values.' >&2; \
-		echo 'Then run \"make up\" again.' >&2; \
-		echo '' >&2; \
-		exit 1; \
-	fi"
+	@"$(BASH)" ./scripts/ensure-env.sh
 
 # ---------- User / live ----------
 up: download-setup-scripts ensure-keyfile ensure-env

@@ -1,15 +1,13 @@
 import { Grid } from "@mui/material";
 
-import { useMaterialCostCalculations } from "../../../../../../Hooks/GroupHooks/useMaterialCostCalculations";
-import { useJobManagement } from "../../../../../../Hooks/useJobManagement";
+import { calculateMaterialCostFromChildJobs } from "../../../../../../Functions/Groups/materialCostFromChildJobs.js";
+import findAllChildJobCountOrIDs from "../../../../../../Functions/Shared/findAllChildJobCountOrIDs.js";
 import { MaterialTotalsWithMarketPrices_MaterialPrices } from "./Material Totals/withMarketPrices";
 import { MaterialTotalsWithChildJobs_MaterialPrices } from "./Material Totals/withChildJobs";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 
 export function MaterialTotals_MaterialPricesPanel(props) {
   const { state, actions, marketSelect, listingSelect } = props;
-  const { calculateMaterialCostFromChildJobs } = useMaterialCostCalculations();
-  const { findAllChildJobCountOrIDs } = useJobManagement();
 
   const totalInstallCosts = Object.values(state.activeJob.build.setup).reduce(
     (prev, setup) => {
@@ -47,8 +45,8 @@ export function MaterialTotals_MaterialPricesPanel(props) {
         listingSelect
       ));
     },
-    0
-  )
+    0,
+  );
 
   const totalMarketPrice =
     useUsersStore

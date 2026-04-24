@@ -5,7 +5,7 @@ import { AvailableMarketOrdersTab } from "./availableOrdersTab";
 import { LinkedMarketOrdersTab } from "./linkedMarketOrdersTab";
 import { useQueryClient } from "@tanstack/react-query";
 import useUsersStore from "../../../../../../Zustand/usersStore";
-import { useGatherMarketOrdersAndUpdateExistingLinkedOrders } from "../../../../../../Hooks/useMarketOrdersAndWorldData";
+import { useGatherMarketOrdersAndUpdateExistingLinkedOrders } from "../../../../Hooks/useMarketOrdersAndWorldData";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 
 export function MarketOrderPanel(props) {

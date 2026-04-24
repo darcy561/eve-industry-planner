@@ -1,4 +1,4 @@
-import { useEffect, useRef, lazy, Suspense } from "react";
+import { useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import {
@@ -25,18 +25,22 @@ import calculateInstallCostfromSetup from "../../Functions/Helper/calculateInsta
 import { ShoppingListDialog } from "../Dialogues/Shopping List/ShoppingList";
 import Job from "../../Classes/job";
 import { prefetchBuildStatsQuery } from "../../Hooks/React Query/Backend/buildStats";
-import useSetupUnmountEventListeners from "../../Hooks/GeneralHooks/useSetupUnmountEventListeners";
+import useWarnBeforeUnload from "../../Hooks/GeneralHooks/useWarnBeforeUnload";
 import getMissingESIData from "../../Functions/Shared/getMissingESIData";
-import convertJobIDsToObjects from "../../Functions/Helper/convertJobIDsToObjects";
-import manageListenerRequests from "../../Functions/Firebase/manageListenerRequests";
-import findOrGetJobObject from "../../Functions/Helper/findJobObject";
 import StepErrorBoundary from "./StepErrorBoundary";
 import PriceHistoryDialog from "../Dialogues/Price History/dialogFrame";
 import MarketDataDialog from "../Dialogues/Market Data/dialogFrame";
 import useUsersStore from "../../Zustand/usersStore";
-import { useJobStatuses } from "../../Hooks/useJobStatuses";
+import { useJobStatuses } from "../Job Planner/Hooks/useJobStatuses";
 import AssetsDialogue from "../Dialogues/Assets/dialogFrame";
 import useEditJobReducer from "./Edit Job Hooks/useEditJobReducer";
+import { useStripRedundantJobMarketHubOverrides } from "../../Hooks/Planner/useStripRedundantJobMarketHubOverrides.js";
+import { useDocumentLock } from "../../Hooks/DocumentLock/useDocumentLock.js";
+import { useRegisterHeaderDocumentLockUI } from "../../Hooks/DocumentLock/useRegisterHeaderDocumentLockUI.js";
+import {
+  USER_JOB_GROUPS_COLLECTION,
+  USER_JOBS_COLLECTION,
+} from "../../Functions/DocumentLock/documentLockCollections.js";
 import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
 
@@ -69,22 +73,87 @@ const LayoutSelector_EditJob_Selling = lazy(() =>
 
 export default function EditJob_New() {
   const { state, actions } = useEditJobReducer();
-  const { setActiveJobID, addRetrievedJobsToJobArray } =
-    useUsersStore.getState().jobData.actions;
+  const { setActiveJobID } = useUsersStore.getState().jobData.actions;
   const { jobStatuses } = useJobStatuses();
   const queryClient = useQueryClient();
   const params = useParams({ from: "/editjob/$jobID" });
   const { jobID } = params;
+  const isLoggedIn = useUsersStore((s) => s.account.isLoggedIn);
+  const activeGroupID = useUsersStore((s) => s.jobData.activeGroupID);
+  
+  useStripRedundantJobMarketHubOverrides(
+    state.activeJob,
+    actions.updateActiveJob
+  );
+  const documentLockReady = Boolean(
+    isLoggedIn &&
+    jobID &&
+    state.activeJob &&
+    state.activeJob.jobID === jobID &&
+    !state.isLoading
+  );
+  
+  const groupLockReady = Boolean(
+    documentLockReady &&
+      activeGroupID &&
+      state.activeJob?.groupID === activeGroupID
+  );
+
+  useDocumentLock(USER_JOBS_COLLECTION, jobID ?? "", documentLockReady, {
+    pendingAccessRequestMessage:
+      "Another tab requested edit access for this job.",
+  });
+
+  useDocumentLock(
+    USER_JOB_GROUPS_COLLECTION,
+    activeGroupID ?? "",
+    groupLockReady,
+    {
+      pendingAccessRequestMessage:
+        "Another tab requested edit access for this group.",
+    }
+  );
+
+  const headerLockRegistrations = useMemo(() => {
+    const jobReg = {
+      collection: USER_JOBS_COLLECTION,
+      docID: jobID ?? "",
+      enabled: documentLockReady,
+      label: "Job",
+      readOnlyMessage:
+        "This job is being edited in another session (read-only).",
+      treeOwnership: "full",
+    };
+    if (!groupLockReady || !activeGroupID) {
+      return [jobReg];
+    }
+    return [
+      jobReg,
+      {
+        collection: USER_JOB_GROUPS_COLLECTION,
+        docID: activeGroupID,
+        enabled: documentLockReady,
+        label: "Group",
+        readOnlyMessage:
+          "This group is being edited in another session (read-only).",
+        treeOwnership: "limited",
+      },
+    ];
+  }, [jobID, documentLockReady, groupLockReady, activeGroupID]);
+
+  useRegisterHeaderDocumentLockUI({
+    registrations: headerLockRegistrations,
+  });
+
   let backupJob = useRef(null);
   const navigate = useNavigate({ from: "/editjob/$jobID" });
-  useSetupUnmountEventListeners();
+  useWarnBeforeUnload();
 
   useEffect(() => {
     async function setInitialState() {
       if (jobID === state.activeJob?.jobID) return;
-      const retrievedJobs = [];
 
-      const matchedJob = await findOrGetJobObject(jobID, retrievedJobs);
+      const matchedJob = useUsersStore.getState().jobData.actions.findJobInJobArray(jobID);
 
       if (!matchedJob) {
         console.error("Unable to find job document");
@@ -93,10 +162,12 @@ export default function EditJob_New() {
       }
 
       try {
-        const linkedJobs = await convertJobIDsToObjects(
-          [...matchedJob.getRelatedJobs(), jobID],
-          retrievedJobs
-        );
+        const linkedJobs = await useUsersStore
+          .getState()
+          .jobData.actions.jobsFromIdsOrObjects([
+            ...matchedJob.getRelatedJobs(),
+            jobID,
+          ]);
 
         if (useUsersStore.getState().account.isLoggedIn) {
           await prefetchBuildStatsQuery(queryClient, matchedJob.itemID);
@@ -136,9 +207,7 @@ export default function EditJob_New() {
 
         actions.setActiveJob(activeJobObject);
 
-        addRetrievedJobsToJobArray(retrievedJobs);
         setActiveJobID(activeJobObject.jobID);
-        manageListenerRequests([...activeJobObject.getRelatedJobs(), jobID]);
         actions.setIsLoading(false);
       } catch (err) {
         console.error("Error importing job data:", err);

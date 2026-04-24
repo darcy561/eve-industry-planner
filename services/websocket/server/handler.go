@@ -9,23 +9,23 @@ import (
 	"strings"
 	"time"
 
+	sharedcompression "eve-industry-planner/shared/compression"
+	"eve-industry-planner/shared/core/internaljwt"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/websocket/auth"
+	"eve-industry-planner/websocket/server/config"
+	"eve-industry-planner/websocket/server/model"
 
 	"github.com/gorilla/websocket"
 )
 
 // HandleWS handles WebSocket requests from clients
 func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
 	reqCtx := r.Context()
-
-	// Log all connection attempts (even failed ones)
-	logs.InfoCtx(reqCtx, "websocket connection attempt received",
-		"ip", r.RemoteAddr,
-		"method", r.Method,
-		"path", r.URL.Path,
-		"user_agent", r.UserAgent())
+	s.recordUpgradeRequest(reqCtx)
+	upgradeStart, ok := logs.RequestStartTime(reqCtx)
+	if !ok || upgradeStart.IsZero() {
+		upgradeStart = time.Now()
+	}
 
 	// Extract token from subprotocol header (preferred) or query parameter (fallback)
 	// Format: subprotocol should be "auth.<base64-encoded-token>"
@@ -63,18 +63,36 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if tokenString == "" {
-		duration := time.Since(start)
+		duration := time.Since(upgradeStart)
+		s.recordUpgradeError(reqCtx, "missing_token", duration)
 		logs.WarnCtx(reqCtx, "websocket connection rejected: missing token", "ip", r.RemoteAddr, "duration_ms", duration.Milliseconds())
 		http.Error(w, "Unauthorized: missing token", http.StatusUnauthorized)
 		return
 	}
 
-	// Validate internal JWT token
-	claims, err := auth.ValidateInternalJWT(tokenString)
+	// Validate internal JWT (RS256, expiry, signature) on every upgrade — same module as the API.
+	// The browser must open a new WebSocket when the access token rotates (~20m); JWT cannot be refreshed on the wire.
+	// After upgrade, the client may send `session_resume` with the prior `clientID` so subscription slots can move without a cold baseline sync.
+	claims, err := internaljwt.ValidateInternalJWT(tokenString)
 	if err != nil {
-		duration := time.Since(start)
+		duration := time.Since(upgradeStart)
+		reason := classifyUpgradeAuthError(err)
+		s.recordUpgradeError(reqCtx, reason, duration)
+		if reason == "expired_token" {
+			s.recordExpiredTokenReject(reqCtx)
+		}
 		logs.WarnCtx(reqCtx, "websocket connection rejected: invalid token", "error", err, "ip", r.RemoteAddr, "duration_ms", duration.Milliseconds())
 		http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
+		return
+	}
+	if strings.TrimSpace(claims.SessionID) == "" {
+		duration := time.Since(upgradeStart)
+		s.recordUpgradeError(reqCtx, "missing_session_id", duration)
+		logs.WarnCtx(reqCtx, "websocket connection rejected: token missing session_id claim",
+			"account_id", claims.AccountID,
+			"ip", r.RemoteAddr,
+			"duration_ms", duration.Milliseconds())
+		http.Error(w, "Unauthorized: session claim required", http.StatusUnauthorized)
 		return
 	}
 
@@ -86,7 +104,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		s.userConnections[claims.AccountID] = userConns
 	}
 	connCount := len(userConns)
-	if connCount >= MaxConnectionsPerUser {
+	if connCount >= config.MaxConnectionsPerUser() {
 		// Close the oldest connection to make room for the new one
 		var oldestClientID string
 		var oldestTime time.Time
@@ -114,7 +132,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 					"account_id", claims.AccountID,
 					"client_id", oldestClientID,
 					"current_connections", connCount,
-					"max_connections", MaxConnectionsPerUser,
+					"max_connections", config.MaxConnectionsPerUser(),
 					"ip", r.RemoteAddr,
 					"note", "This suggests old connections aren't being closed when token refreshes")
 
@@ -163,25 +181,57 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	// Upgrade connection
 	conn, err := s.upgrader.Upgrade(w, r, responseHeader)
 	if err != nil {
-		duration := time.Since(start)
+		duration := time.Since(upgradeStart)
+		s.recordUpgradeError(reqCtx, "upgrade_failed", duration)
 		logs.ErrorCtx(reqCtx, "websocket upgrade failed", "error", err, "ip", r.RemoteAddr, "duration_ms", duration.Milliseconds())
 		http.Error(w, "upgrade failed", http.StatusInternalServerError)
 		return
 	}
+	// Align permessage-deflate (compress/flate) with API default brotli/gzip level (see shared/compression). No-op if extension not negotiated.
+	_ = conn.SetCompressionLevel(sharedcompression.FlateDefaultLevel)
 
 	clientID := fmt.Sprintf("%p", conn)
 	now := time.Now()
 	connCtx := context.WithoutCancel(reqCtx)
 	client := &Client{
-		id:             clientID,
-		conn:           conn,
-		connCtx:        connCtx,
-		Send:           make(chan []byte, 256),
-		subscribedDocs: make(map[string]bool),
-		AccountID:      claims.AccountID,
-		lastReset:      now,
-		connectedAt:    now,
-		lastActivity:   now,
+		id:                 clientID,
+		conn:               conn,
+		connCtx:            connCtx,
+		Send:               make(chan []byte, 256),
+		explicitDocIDs:     make(map[string]bool),
+		AccountID:          claims.AccountID,
+		SessionID:          claims.SessionID,
+		Scopes:             model.RealtimeScopes{},
+		allowedCorpJWT:     stringSetFromSlice(int64SliceToStringIDs([]int64(claims.Corporations))),
+		allowedAllianceJWT: stringSetFromSlice(int64SliceToStringIDs([]int64(claims.Alliances))),
+		lastReset:          now,
+		connectedAt:        now,
+		lastActivity:       now,
+	}
+
+	// Enforce one live websocket client per session id.
+	s.sessionConnMu.Lock()
+	previousClientID := s.sessionConnections[claims.SessionID]
+	s.sessionConnections[claims.SessionID] = client.id
+	s.sessionConnMu.Unlock()
+
+	if previousClientID != "" && previousClientID != client.id {
+		s.recordDuplicateSessionClient(connCtx, claims.AccountID, claims.SessionID)
+		logs.WarnCtx(connCtx, "duplicate websocket client detected for session; evicting previous connection",
+			"account_id", claims.AccountID,
+			"session_id", claims.SessionID,
+			"previous_client_id", previousClientID,
+			"new_client_id", client.id,
+			"eviction_reason", "duplicate_session_client")
+		s.ClientsMu.RLock()
+		oldClient := s.Clients[previousClientID]
+		s.ClientsMu.RUnlock()
+		if oldClient != nil && oldClient.conn != nil {
+			oldClient.conn.SetWriteDeadline(time.Now().Add(100 * time.Millisecond))
+			_ = oldClient.conn.WriteMessage(websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.CloseNormalClosure, "Session replaced by newer connection"))
+			_ = oldClient.conn.Close()
+		}
 	}
 
 	s.ClientsMu.Lock()
@@ -198,19 +248,18 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	userConnCount := len(s.userConnections[claims.AccountID])
 	s.userConnMu.Unlock()
 
-	duration := time.Since(start)
-
-	logs.InfoCtx(connCtx, "about to log websocket client connected",
-		"client_id", client.id,
-		"account_id", client.AccountID)
+	duration := time.Since(upgradeStart)
+	s.recordUpgradeSuccess(connCtx, client.AccountID, duration)
 
 	logs.InfoCtx(connCtx, "websocket client connected",
 		"client_id", client.id,
 		"character_hash", claims.CharacterHash,
 		"account_id", client.AccountID,
+		"session_id", client.SessionID,
 		"total_clients", clientCount,
 		"user_connections", userConnCount,
-		"duration_ms", duration.Milliseconds())
+		"duration_ms", duration.Milliseconds(),
+		"user_agent", r.UserAgent())
 
 	// Verify connection is valid before starting goroutines
 	if client.conn == nil {
@@ -225,6 +274,11 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	connectionMsg := map[string]interface{}{
 		"type":     "connected",
 		"clientID": client.id,
+		"subscription": map[string]interface{}{
+			"account":     true,
+			"corporation": false,
+			"alliance":    false,
+		},
 	}
 	connectionMsgBytes, err := json.Marshal(connectionMsg)
 	if err == nil {
@@ -247,7 +301,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Start writer goroutine for sending messages and pings
-	logs.InfoCtx(connCtx, "starting websocket writer goroutine",
+	logs.DebugCtx(connCtx, "starting websocket writer goroutine",
 		"client_id", client.id,
 		"account_id", client.AccountID)
 	go func() {
@@ -264,7 +318,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 
 	// Start reader goroutine (blocks until connection closes)
 	// This MUST be started or messages won't be received
-	logs.InfoCtx(connCtx, "starting websocket reader goroutine",
+	logs.DebugCtx(connCtx, "starting websocket reader goroutine",
 		"client_id", client.id,
 		"account_id", client.AccountID)
 	go func() {
@@ -279,7 +333,18 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		s.reader(client)
 	}()
 
-	logs.InfoCtx(connCtx, "websocket handler completed, goroutines started",
+	logs.DebugCtx(connCtx, "websocket upgrade handler finished, reader and writer started",
 		"client_id", client.id,
 		"account_id", client.AccountID)
+}
+
+func classifyUpgradeAuthError(err error) string {
+	if err == nil {
+		return "invalid_token"
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "expired") || strings.Contains(msg, "exp") {
+		return "expired_token"
+	}
+	return "invalid_token"
 }

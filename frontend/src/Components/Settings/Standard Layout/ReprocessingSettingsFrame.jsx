@@ -1,10 +1,8 @@
 import { Grid } from "@mui/material";
 
 import AssignUsersSelect from "../../../Styled Components/Select/users";
-import { saveApplicationSettings } from "../../../Functions/Endpoints/Pirivate/userDocument";
 import useUsersStore from "../../../Zustand/usersStore";
-import { useGlobalDebounce } from "../../../Hooks/GeneralHooks/useGlobalDebounce";
-import { DEBOUNCE_KEYS } from "../../../Context/debounceKeys";
+import { scheduleDebouncedApplicationSettingsSave } from "../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 
 function ReprocessingSettingsFrame() {
   const defaultReprocessingCharacter = useUsersStore(
@@ -12,14 +10,6 @@ function ReprocessingSettingsFrame() {
   );
   const { setDefaultReprocessingCharacter } =
     useUsersStore.getState().applicationSettings.actions;
-
-  const debouncedSaveSettings = useGlobalDebounce(
-    DEBOUNCE_KEYS.APP_SETTINGS_SAVE,
-    async () => {
-      await saveApplicationSettings();
-    },
-    2000
-  );
 
   return (
     <Grid container spacing={2} sx={{
@@ -30,7 +20,7 @@ function ReprocessingSettingsFrame() {
           value={defaultReprocessingCharacter}
           onChange={async (newUserHash) => {
             setDefaultReprocessingCharacter(newUserHash);
-            debouncedSaveSettings();
+            scheduleDebouncedApplicationSettingsSave();
           }}
           formHelperText={"Default Reprocessing Character"}
         />

@@ -7,9 +7,9 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import { useQueryClient } from "@tanstack/react-query";
 import AddIcon from "@mui/icons-material/Add";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
-import { useSetupManagement } from "../../../../../../Hooks/GeneralHooks/useSetupManagement";
 import { JobSetupCard } from "./jobSetupCard";
 import {
   showSnackbarSuccess,
@@ -20,8 +20,7 @@ import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel
 export function JobSetupPanel(props) {
   const { state, actions } = props;
   const [anchorEl, setAnchorEl] = useState(null);
-
-  const { addNewSetup } = useSetupManagement();
+  const queryClient = useQueryClient();
 
   const handleMenuClick = (event) => {
     setAnchorEl(event.currentTarget);
@@ -41,7 +40,7 @@ export function JobSetupPanel(props) {
           sx={{ position: "absolute", top: "10px", left: "10px" }}
           color="primary"
           onClick={() => {
-            addNewSetup(state.activeJob);
+            state.activeJob.addNewSetup(queryClient);
             actions.updateActiveJob(state.activeJob);
             showSnackbarSuccess("Added");
           }}

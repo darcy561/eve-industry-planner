@@ -8,8 +8,8 @@ import (
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
 	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
@@ -65,7 +65,10 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 	}
 
 	database := clients.Mongo.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionGroups)
+	collection := database.Collection(mongocore.CollectionUserJobGroups)
+
+	wsClientID := helper.ExtractWSClientID(r)
+	sessionID, _ := auth.ExtractSessionID(r)
 
 	now := time.Now()
 	var bulkOps []mongo.WriteModel
@@ -82,15 +85,21 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 		group.MetaData.LastModified = now
 		group.MetaData.LastUpdatedBy = accountID
 		group.MetaData.AccountID = accountID
+		if sessionID != "" {
+			group.MetaData.SessionID = sessionID
+		}
 		// Set CreatedAt if it's zero (new document)
 		if group.MetaData.CreatedAt.IsZero() {
 			group.MetaData.CreatedAt = now
 		}
 		// Ensure accountID is set
 		group.AccountID = accountID
+		if wsClientID != "" {
+			group.MetaData.ClientID = wsClientID
+		}
 
 		bulkOps = append(bulkOps, mongo.NewUpdateOneModel().
-			SetFilter(bson.M{"_id": group.GroupID, "accountID": accountID}).
+			SetFilter(bson.M{"_id": group.GroupID, "_meta.accountID": accountID}).
 			SetUpdate(bson.M{"$set": group}).
 			SetUpsert(true))
 	}

@@ -1,12 +1,10 @@
 import { Typography, Grid } from "@mui/material";
 
 import AssetLocationLogic_AssetDialogWindow from "./templateLogic";
-import { useAssetHelperHooks } from "../../../../Hooks/AssetHooks/useAssetHelper";
+import { buildAssetName } from "../../../../Functions/Assets/assetHelpers";
 
 export default function AssetContainerTemplate_AssetDialogWindow(props) {
   const { state, assetObject, matchedAssets } = props;
-  const { buildAssetName } = useAssetHelperHooks();
-
   const itemName = buildAssetName(assetObject, state.assetLocationNames, state.useCorporationAssets, state.selectedCorporation, state.fullItemList)
 
   return (

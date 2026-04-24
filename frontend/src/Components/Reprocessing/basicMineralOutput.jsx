@@ -9,7 +9,7 @@ import {
   CircularProgress,
   useMediaQuery,
 } from "@mui/material";
-import { useCachedData } from "../../Hooks/useCachedData";
+import { useCachedData } from "../../Hooks/App/useCachedData";
 import { CACHED_DATA_FILES } from "../../Context/defaultValues";
 import {
   LARGE_TEXT_FORMAT,

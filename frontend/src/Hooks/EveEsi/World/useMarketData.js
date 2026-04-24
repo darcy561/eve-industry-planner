@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import getMarketData from "../../../Functions/EveESI/World/getMarketData";
-import useESIRateLimiting from "../../useESIRateLimiting";
+import useESIRateLimiting from "../../App/useESIRateLimiting";
 
 /**
  * Custom hook that fetches market data for a specific item and region from EVE ESI API.

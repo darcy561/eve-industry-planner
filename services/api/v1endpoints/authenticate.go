@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper/auth"
-	"eve-industry-planner/api/migration"
 	"eve-industry-planner/shared/core/config"
+	"eve-industry-planner/shared/core/internaljwt"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
@@ -32,8 +32,6 @@ type AuthResponse struct {
 	RefreshToken        string                     `json:"refresh_token"`
 	ExpiresAt           int64                      `json:"expires_at"` // Unix timestamp (seconds since epoch)
 	FirstLogin          bool                       `json:"first_login"`
-	FirebaseToken       string                     `json:"firebase_token"` // Firebase custom token for sign-in (avoids extra request)
-	FirebaseFirstLogin  bool                       `json:"firebase_first_login"`
 	UserDocument        models.UserAccountDocument `json:"user_document"`
 	ApplicationSettings models.ApplicationSettings `json:"application_settings"`
 }
@@ -117,7 +115,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 
 	// Load or get cached RSA private key for JWT signing
 	// Loading priority: 1) Persistent file, 2) Environment variable, 3) Auto-generate new key
-	cachedKey, err := auth.GetOrLoadPrivateKey()
+	cachedKey, err := internaljwt.GetOrLoadPrivateKey()
 	if err != nil {
 		duration := time.Since(start)
 		m.Errors.WithLabelValues("key_load_error").Inc(ctx)
@@ -130,24 +128,6 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 
 	// Load corporations from Redis if available (keyed by AccountID)
 	corporations := auth.GetCorporations(ctx, clients.Redis, accountID)
-
-	// Generate our internal JWT token using RS256 (RSA signature)
-	// Token expires in 20 minutes, includes corporations if available
-	internalToken, internalClaims, err := auth.GenerateInternalJWT(
-		cachedKey.Key,
-		characterHash,
-		cachedKey.Kid,
-		corporations,
-	)
-	if err != nil {
-		duration := time.Since(start)
-		m.Errors.WithLabelValues("jwt_generation_error").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "jwt_generation_error",
-			"error", err, "account_id", accountID, "character_hash", characterHash)
-		logs.ErrorCtx(ctx, "failed to generate internal JWT", "error", err, "account_id", accountID, "character_hash", characterHash)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
-		return
-	}
 
 	// Generate refresh token
 	refreshToken, err := auth.GenerateRefreshToken()
@@ -172,6 +152,26 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		return
 	}
 	sessionNow := time.Now().UTC()
+
+	// Generate our internal JWT token using RS256 (RSA signature)
+	// Token expires in 20 minutes, includes corporations if available.
+	internalToken, internalClaims, err := internaljwt.GenerateInternalJWT(
+		cachedKey.Key,
+		characterHash,
+		cachedKey.Kid,
+		sessionID,
+		corporations,
+		nil,
+	)
+	if err != nil {
+		duration := time.Since(start)
+		m.Errors.WithLabelValues("jwt_generation_error").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "jwt_generation_error",
+			"error", err, "account_id", accountID, "character_hash", characterHash)
+		logs.ErrorCtx(ctx, "failed to generate internal JWT", "error", err, "account_id", accountID, "character_hash", characterHash)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		return
+	}
 
 	// Store refresh token in Redis with user data (including corporations)
 	refreshTokenData := auth.RefreshTokenData{
@@ -214,18 +214,6 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 	sessionMetrics.Stored.WithLabelValues("login").Inc(ctx)
 	apimetrics.RecordAuthSessionDistinctAccount(ctx, clients.Redis, internalClaims.AccountID)
 
-	// Firebase custom token before Mongo so token minting fails fast without touching account documents.
-	firebaseToken, firebaseFirstLogin, err := migration.GenerateFirebaseCustomToken(ctx, accountID)
-	if err != nil {
-		duration := time.Since(start)
-		m.Errors.WithLabelValues("firebase_token_error").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "firebase_token_error",
-			"error", err, "account_id", accountID)
-		logs.ErrorCtx(ctx, "failed to generate firebase custom token", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
-		return
-	}
-
 	loginDocs, err := mongocore.ResolveUserDocumentsForLogin(ctx, clients.Mongo, accountID)
 	if err != nil {
 		duration := time.Since(start)
@@ -238,17 +226,15 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 	}
 
 	// Calculate expiration timestamp using the same duration as token generation (Unix timestamp in seconds)
-	expiresAt := time.Now().Add(auth.TokenExpirationDuration).Unix()
+	expiresAt := time.Now().Add(internaljwt.TokenExpirationDuration).Unix()
 
 	response := AuthResponse{
 		AccountID:           accountID,
 		AccessToken:         internalToken,
 		RefreshToken:        refreshToken,
 		ExpiresAt:           expiresAt,
-		FirstLogin:          loginDocs.FirstLogin,
-		FirebaseToken:       firebaseToken,
-		FirebaseFirstLogin:  firebaseFirstLogin,
-		UserDocument:        loginDocs.User,
+		FirstLogin:   loginDocs.FirstLogin,
+		UserDocument: loginDocs.User,
 		ApplicationSettings: loginDocs.Settings,
 	}
 

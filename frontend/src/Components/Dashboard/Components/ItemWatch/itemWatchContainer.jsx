@@ -1,10 +1,13 @@
-import { Typography, Grid } from "@mui/material";
+import { Typography, Grid, Box, CircularProgress } from "@mui/material";
+import { useEffect, useState } from "react";
 
 import { WatchListRow } from "./ItemRow";
 import { WatchlistGroup } from "./watchlistGroup";
 import useUsersStore from "../../../../Zustand/usersStore";
+import getMarketData from "../../../../Functions/MarketData/findMarketData";
+import { collectWatchlistTypeIds } from "../../../../Functions/MarketData/collectWatchlistTypeIds";
 
-export function WatchlistContainer({
+function WatchlistContainerInner({
   updateGroupSettingsTrigger,
   groupSettingsContent,
   updateGroupSettingsContent,
@@ -126,4 +129,64 @@ export function WatchlistContainer({
       })}
     </>
   );
+}
+
+/**
+ * Fetches market prices for watchlist type IDs after watchlist data is present (per login bootstrap),
+ * then renders rows that depend on `worldData.marketData`.
+ */
+export function WatchlistContainer(props) {
+  const items = useUsersStore((state) => state.jobData.userWatchlist.items);
+  const addMarketData = useUsersStore(
+    (state) => state.worldData.actions.addMarketData
+  );
+  const [marketReady, setMarketReady] = useState(false);
+
+  useEffect(() => {
+    if (!items || items.length === 0) {
+      setMarketReady(true);
+      return;
+    }
+    let cancelled = false;
+    setMarketReady(false);
+    (async () => {
+      try {
+        const idSet = collectWatchlistTypeIds(items);
+        const itemPriceResult = await getMarketData(idSet);
+        if (cancelled) return;
+        addMarketData(itemPriceResult);
+      } catch (e) {
+        console.error("watchlist market prefetch", e);
+      } finally {
+        if (!cancelled) {
+          setMarketReady(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [items, addMarketData]);
+
+  if (items.length > 0 && !marketReady) {
+    return (
+      <Grid align="center" size={12} sx={{ py: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            gap: 1,
+          }}
+        >
+          <CircularProgress size={24} />
+          <Typography variant="body2" color="text.secondary">
+            Loading market data…
+          </Typography>
+        </Box>
+      </Grid>
+    );
+  }
+
+  return <WatchlistContainerInner {...props} />;
 }

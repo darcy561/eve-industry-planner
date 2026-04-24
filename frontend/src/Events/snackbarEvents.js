@@ -123,3 +123,19 @@ export const showVersionUpdateSnackbar = (targetVersion, onDismiss) => {
     }
   );
 };
+
+/**
+ * Shown to the current lock holder when another session requests edit access ({@link ../Hooks/useDocumentLock.js}).
+ *
+ * @param {string} [message]
+ * @param {{ collection?: string, docID?: string }} [scope] — Redis scope for hand-over / dismiss actions
+ */
+export const showDocumentLockAccessRequestSnackbar = (
+  message = "Another tab requested edit access for this document.",
+  scope = {}
+) => {
+  showSnackbar(message, "info", null, "DOCUMENT_LOCK_ACCESS_REQUEST", {
+    documentLockCollection: scope.collection,
+    documentLockDocID: scope.docID,
+  });
+};

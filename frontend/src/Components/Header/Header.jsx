@@ -18,8 +18,12 @@ import { useThemeContext } from "../../Context/ThemeContext";
 import useUsersStore from "../../Zustand/usersStore";
 import redirectToEveSSO from "../Auth/Functions/eveSSORedirect";
 import OfflineNotificationIcon from "./Components/offlineNotificationIcon";
+import DocumentLockHeaderControl from "../DocumentLock/DocumentLockHeaderControl.jsx";
 
-export function Header() {
+/**
+ * @param {{ trailing?: import("react").ReactNode }} props
+ */
+export function Header({ trailing }) {
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const [open, setOpen] = useState(false);
   const { toggleColorMode } = useThemeContext();
@@ -57,6 +61,20 @@ export function Header() {
         >
           Eve Industry Planner
         </Typography>
+
+        {trailing ? (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              flexShrink: 0,
+            }}
+          >
+            {trailing}
+          </Box>
+        ) : null}
+
+        <DocumentLockHeaderControl />
 
         <Box
           sx={{

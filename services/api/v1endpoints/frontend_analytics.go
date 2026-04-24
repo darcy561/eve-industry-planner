@@ -1,6 +1,7 @@
 package v1endpoints
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -13,7 +14,7 @@ import (
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
-// frontendAnalyticsBody is the JSON body for POST /api/v1/analytics/event.
+// frontendAnalyticsBody is the JSON body for each element of POST /api/v1/analytics/events.
 type frontendAnalyticsBody struct {
 	Event string `json:"event"`
 	// Count is optional; when >1 it increments the metric by that amount (e.g. jobs in a batch). Omitted or 0 → 1. Max 1000.
@@ -22,21 +23,26 @@ type frontendAnalyticsBody struct {
 	ByType map[string]int64 `json:"by_type"`
 }
 
+// frontendAnalyticsBatchBody is the JSON body for POST /api/v1/analytics/events.
+type frontendAnalyticsBatchBody struct {
+	Events []frontendAnalyticsBody `json:"events"`
+}
+
 // allowedFrontendAnalyticsEvents is the allowlist of event keys (lowercase snake_case).
 // Keep in sync with frontend/src/analytics/appEventNames.js.
 var allowedFrontendAnalyticsEvents = map[string]struct{}{
-	"build_shopping_list":      {},
-	"add_custom_structure":     {},
+	"build_shopping_list":                    {},
+	"add_custom_structure":                   {},
 	"reprocessing_calculation_to_minerals":   {},
 	"reprocessing_calculation_from_minerals": {},
-	"view_archived_job_data":   {},
-	"add_additional_character_cloud": {},
-	"add_additional_character_local": {},
-	"new_watchlist_group":      {},
-	"new_job_group":            {},
-	"remove_watchlist_item":    {},
-	"new_watchlist_item":       {},
-	"new_job":                  {},
+	"view_archived_job_data":                 {},
+	"add_additional_character_cloud":         {},
+	"add_additional_character_local":         {},
+	"new_watchlist_group":                    {},
+	"new_job_group":                          {},
+	"remove_watchlist_item":                  {},
+	"new_watchlist_item":                     {},
+	"new_job":                                {},
 }
 
 const maxFrontendEventKeyLen = 64
@@ -44,79 +50,105 @@ const maxFrontendEventKeyLen = 64
 // maxFrontendByTypeKeys limits distinct type_ids per request (matches frontend MAX_FRONTEND_ANALYTICS_BY_TYPE_KEYS).
 const maxFrontendByTypeKeys = 500
 
-// FrontendAppEventHandler handles POST /api/v1/analytics/event.
-// Public, rate-limited. Body: {"event":"<allowlisted_snake_case_key>","count":?} or for new_job: {"event":"new_job","by_type":{"<type_id>":<n>,...}}.
-// Optional Authorization Bearer: if the internal JWT is valid, audience=authenticated; otherwise anonymous.
-// No user identifiers are recorded in metrics.
-func FrontendAppEventHandler(w http.ResponseWriter, r *http.Request, _ *shared.ServiceClients) {
+// maxFrontendBatchEvents caps items per POST /api/v1/analytics/events (defensive; client debatches).
+const maxFrontendBatchEvents = 60
+
+func frontendAnalyticsAudience(r *http.Request) string {
+	if auth.BearerInternalJWTValid(r) {
+		return apimetrics.FrontendAudienceAuthenticated
+	}
+	return apimetrics.FrontendAudienceAnonymous
+}
+
+// validateFrontendAnalyticsBody returns empty if the body is acceptable; otherwise a short reason for RecordInvalid.
+func validateFrontendAnalyticsBody(body *frontendAnalyticsBody) string {
+	if body == nil {
+		return "missing_event"
+	}
+	key := strings.TrimSpace(body.Event)
+	if key == "" {
+		return "missing_event"
+	}
+	if len(key) > maxFrontendEventKeyLen || !isSafeEventKey(key) {
+		return "invalid_event_key"
+	}
+	if _, ok := allowedFrontendAnalyticsEvents[key]; !ok {
+		return "unknown_event"
+	}
+	if key == "new_job" {
+		if _, err := normalizeJobCreatesByType(body.ByType); err != "" {
+			return err
+		}
+		return ""
+	}
+	if body.Count < 0 {
+		return "invalid_count"
+	}
+	return ""
+}
+
+func recordValidatedFrontendAnalytics(ctx context.Context, met *apimetrics.WebFrontendEventsMetrics, body *frontendAnalyticsBody, audience string) {
+	key := strings.TrimSpace(body.Event)
+	if key == "new_job" {
+		byType, _ := normalizeJobCreatesByType(body.ByType)
+		met.RecordJobCreates(ctx, audience, byType)
+		return
+	}
+	n := body.Count
+	if n < 1 {
+		n = 1
+	}
+	met.RecordEvent(ctx, key, audience, n)
+}
+
+// FrontendAppEventsBatchHandler handles POST /api/v1/analytics/events (batched product analytics for OTel).
+// Body: {"events":[{...},{...}]} — each object matches [frontendAnalyticsBody]. Max [maxFrontendBatchEvents] items.
+func FrontendAppEventsBatchHandler(w http.ResponseWriter, r *http.Request, _ *shared.ServiceClients) {
 	ctx := r.Context()
 	met := apimetrics.GetWebFrontendEvents()
 
 	if r.Method != http.MethodPost {
-		met.RecordInvalid(ctx, "method_not_allowed")
-		logs.WarnCtx(ctx, "invalid method for analytics event endpoint")
+		met.RecordInvalid(ctx, "method_not_allowed_batch")
+		logs.WarnCtx(ctx, "invalid method for analytics events batch endpoint")
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	body, err := helper.ExtractRequestBody[frontendAnalyticsBody](r)
+	batch, err := helper.ExtractRequestBody[frontendAnalyticsBatchBody](r)
 	if err != nil {
-		met.RecordInvalid(ctx, "bad_json")
-		logs.WarnCtx(ctx, "frontend analytics: invalid JSON", "error", err)
+		met.RecordInvalid(ctx, "bad_json_batch")
+		logs.WarnCtx(ctx, "frontend analytics batch: invalid JSON", "error", err)
 		http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
 		return
 	}
 
-	key := strings.TrimSpace(body.Event)
-	if key == "" {
-		met.RecordInvalid(ctx, "missing_event")
-		logs.WarnCtx(ctx, "frontend analytics: missing event")
-		http.Error(w, "Missing event", http.StatusBadRequest)
+	n := len(batch.Events)
+	if n == 0 {
+		met.RecordInvalid(ctx, "batch_empty")
+		logs.WarnCtx(ctx, "frontend analytics batch: empty events")
+		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	if len(key) > maxFrontendEventKeyLen || !isSafeEventKey(key) {
-		met.RecordInvalid(ctx, "invalid_event_key")
-		logs.WarnCtx(ctx, "frontend analytics: invalid event key shape")
-		http.Error(w, "Invalid event", http.StatusBadRequest)
-		return
-	}
-	if _, ok := allowedFrontendAnalyticsEvents[key]; !ok {
-		met.RecordInvalid(ctx, "unknown_event")
-		logs.WarnCtx(ctx, "frontend analytics: unknown event", "event", key)
-		http.Error(w, "Unknown event", http.StatusBadRequest)
+	if n > maxFrontendBatchEvents {
+		met.RecordInvalid(ctx, "batch_too_many")
+		logs.WarnCtx(ctx, "frontend analytics batch: too many events", "count", n)
+		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
-	audience := apimetrics.FrontendAudienceAnonymous
-	if auth.BearerInternalJWTValid(r) {
-		audience = apimetrics.FrontendAudienceAuthenticated
-	}
-
-	if key == "new_job" {
-		byType, err := normalizeJobCreatesByType(body.ByType)
-		if err != "" {
-			met.RecordInvalid(ctx, err)
-			logs.WarnCtx(ctx, "frontend analytics: invalid new_job payload", "reason", err)
+	for i := range batch.Events {
+		if reason := validateFrontendAnalyticsBody(&batch.Events[i]); reason != "" {
+			met.RecordInvalid(ctx, "batch_item_"+reason)
+			logs.WarnCtx(ctx, "frontend analytics batch: item validation failed", "reason", reason, "index", i)
 			http.Error(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		met.RecordJobCreates(ctx, audience, byType)
-		w.WriteHeader(http.StatusNoContent)
-		return
 	}
 
-	n := body.Count
-	if n < 0 {
-		met.RecordInvalid(ctx, "invalid_count")
-		logs.WarnCtx(ctx, "frontend analytics: negative count")
-		http.Error(w, "Invalid count", http.StatusBadRequest)
-		return
+	audience := frontendAnalyticsAudience(r)
+	for i := range batch.Events {
+		recordValidatedFrontendAnalytics(ctx, met, &batch.Events[i], audience)
 	}
-	if n == 0 {
-		n = 1
-	}
-
-	met.RecordEvent(ctx, key, audience, n)
 	w.WriteHeader(http.StatusNoContent)
 }
 

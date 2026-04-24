@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Avatar,
   Badge,
@@ -12,7 +13,6 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useJobManagement } from "../../../../../../Hooks/useJobManagement";
 import {
   LARGE_TEXT_FORMAT
 } from "../../../../../../Context/defaultValues";
@@ -20,10 +20,11 @@ import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import PanelFallBack from "../../../../panelStates";
 import { formatNumberForLocale, formatTimeRemaining } from "../../../../../../Functions/Helper/numberParser";
+import findBlueprintType from "../../../../../../Functions/Shared/findBlueprintType";
 
 export function LinkedJobsTab(props) {
   const { state, actions, isLoading, isError, error } = props;
-  const { findBlueprintType } = useJobManagement();
+  const queryClient = useQueryClient();
   const [clickedJobs, setClickedJobs] = useState(new Set());
   const [removedJobs, setRemovedJobs] = useState(new Set());
 
@@ -102,7 +103,7 @@ export function LinkedJobsTab(props) {
               .getState()
               .account.actions.findCharacterByHash(job.CharacterHash);
 
-            const blueprintType = findBlueprintType(job.blueprint_id);
+            const blueprintType = findBlueprintType(job.blueprint_id, queryClient);
             const facilityData = useUsersStore
               .getState()
               .worldData.actions.findUniverseData(job.station_id);

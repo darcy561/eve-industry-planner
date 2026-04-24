@@ -7,9 +7,6 @@ node_modules/
 # Build output (we build fresh in container)
 dist/
 
-# Firebase functions (not needed for React build)
-functions/
-
 # Test files
 tests/
 **/*.test.js
@@ -17,11 +14,7 @@ tests/
 **/*.spec.js
 **/*.spec.jsx
 
-# Firebase config files (not needed for build)
-firebase*.json
-firestore.*
-database.rules.json
-storage.rules
+# Optional project-only files
 cors.json
 
 # Logs

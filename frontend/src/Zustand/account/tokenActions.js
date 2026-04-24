@@ -5,10 +5,25 @@
  * @fileoverview Token and session credential actions on the account slice
  */
 
-import { decodeJwt } from "jose";
+import { canonicalCharacterHashKey } from "../../Functions/Auth/characterHashCanonical.js";
+import {
+  decodeAppJwt,
+  getEffectiveAppAccessExpiryUnix,
+  getAppJwtSessionID,
+  verifyAppAccessTokenWithJwks,
+} from "../../Functions/Auth/appJwt.js";
 import { refreshServerJWT } from "../../Functions/Auth/serverTokens.js";
 import updateCorporationClaims from "../../Functions/Endpoints/Pirivate/corporationClaims.js";
 import { mergeApplicationSettingsState } from "../applicationSettings/core.js";
+import { metaLastModifiedMs } from "../realtimeSyncSlice.js";
+
+/**
+ * Monotonic counter for {@link runStaggeredEsiTokenStep}; the active slot is
+ * `esStaggerIndex % n`. It is **not** reset when the roster changes — new
+ * characters (appended to `chain` as main, then alts) fold into the existing
+ * rotation; only the modulus changes.
+ */
+let esStaggerIndex = 0;
 
 /** @param {unknown} value */
 function toLinkedSet(value) {
@@ -76,12 +91,11 @@ export const tokenActions = (set, get) => ({
     if (!token) {
       return null;
     }
-    try {
-      return decodeJwt(token);
-    } catch (error) {
-      console.error("Failed to deserialize token:", error);
-      return null;
+    const payload = decodeAppJwt(token);
+    if (payload == null) {
+      console.error("Failed to deserialize app JWT (invalid or malformed)");
     }
+    return payload;
   },
 
   /**
@@ -104,9 +118,9 @@ export const tokenActions = (set, get) => ({
   applyLoginAuthResponse: (response, mainCharacterHash) => {
     if (!response) return;
 
-    const isFirstTimeLogin = Boolean(
-      response.firebase_first_login ?? response.first_login ?? false
-    );
+    const isFirstTimeLogin = Boolean(response.first_login ?? false);
+
+    const sessionID = getAppJwtSessionID(response.access_token);
 
     set(
       (state) => {
@@ -141,6 +155,7 @@ export const tokenActions = (set, get) => ({
             }),
             accessToken: response.access_token,
             accessTokenEXP: response.expires_at,
+            sessionID,
             refreshToken: response.refresh_token,
             refreshTokenEXP:
               response.refresh_token_exp ?? response.refresh_token_expires_at,
@@ -153,6 +168,38 @@ export const tokenActions = (set, get) => ({
       },
       false,
       "account/applyLoginAuthResponse"
+    );
+
+    const aid = response.account_id;
+    if (aid) {
+      const rs = get().realtimeSync?.actions;
+      if (rs) {
+        const u = metaLastModifiedMs(response.user_document);
+        if (u != null) rs.setCursorMs(`users.${aid}`, u);
+        const ap = metaLastModifiedMs(response.application_settings);
+        if (ap != null) rs.setCursorMs(`application_settings.${aid}`, ap);
+      }
+    }
+  },
+
+  /**
+   * Merge remote `users` collection document (WebSocket) into linked ESI sets; guarded by caller cursors.
+   * @param {object} doc
+   */
+  applyUserDocumentFromRemote: (doc) => {
+    if (!doc || typeof doc !== "object") return;
+    const linkedPatch = linkedSetsFromUserDocument(doc);
+    set(
+      (state) => ({
+        ...state,
+        account: {
+          ...state.account,
+          ...linkedPatch,
+          actions: state.account.actions,
+        },
+      }),
+      false,
+      "account/applyUserDocumentFromRemote"
     );
   },
 
@@ -167,6 +214,12 @@ export const tokenActions = (set, get) => ({
    */
   setSessionTokens: (partial) => {
     if (!partial) return;
+    const nextSessionID =
+      partial.sessionID !== undefined
+        ? partial.sessionID
+        : partial.accessToken !== undefined
+          ? getAppJwtSessionID(partial.accessToken)
+          : undefined;
     set(
       (state) => ({
         ...state,
@@ -177,6 +230,9 @@ export const tokenActions = (set, get) => ({
           }),
           ...(partial.accessTokenEXP !== undefined && {
             accessTokenEXP: partial.accessTokenEXP,
+          }),
+          ...(nextSessionID !== undefined && {
+            sessionID: nextSessionID,
           }),
           ...(partial.refreshToken !== undefined && {
             refreshToken: partial.refreshToken,
@@ -202,15 +258,21 @@ export const tokenActions = (set, get) => ({
     if (!mainCharacter) return;
 
     try {
-      const { refreshToken, accessTokenEXP } = state.account;
-      if (!refreshToken || !accessTokenEXP || accessTokenEXP === 0) {
+      const { refreshToken, accessToken, accessTokenEXP } = state.account;
+      if (!refreshToken) {
+        return;
+      }
+      const exp = getEffectiveAppAccessExpiryUnix(accessToken, accessTokenEXP);
+      if (exp == null || exp <= 0) {
         return;
       }
       const currentTimeStamp = Math.floor(Date.now() / 1000);
       const bufferTime = 900; // 15 minutes in seconds
-      if (accessTokenEXP >= currentTimeStamp + bufferTime) return;
+      if (exp >= currentTimeStamp + bufferTime) return;
 
       const response = await refreshServerJWT(refreshToken, mainCharacter.esiAccessToken);
+
+      await verifyAppAccessTokenWithJwks(response.access_token);
 
       get().account.actions.setSessionTokens({
         accessToken: response.access_token,
@@ -225,10 +287,60 @@ export const tokenActions = (set, get) => ({
   },
 
   /**
-   * Interval job: refresh main character ESI first (that access token is used for `refreshServerToken`),
-   * then refresh alts in parallel with `Promise.allSettled` (failures are isolated),
-   * then POST corporation claims (`/api/v1/auth/claims/corporations`), then refresh app JWT, then persist `characters`.
-   * Used by `useRefreshESITokens`.
+   * Staggered ESI pass: one character per call (round-robin: main first, then alts).
+   * `Character#refreshESIToken` no-ops when the token is still well inside the 15m
+   * buffer, so this is cheap on ticks where nothing is due. Used by
+   * `useRefreshESITokens` (stagger from `ESI_STAGGER_TARGET_FULL_CYCLE_MINUTES` / n).
+   */
+  runStaggeredEsiTokenStep: async () => {
+    const state = get();
+    if (!state.account.isLoggedIn) return;
+    const characters = state.account.characters.filter(
+      (c) => c && typeof c.refreshESIToken === "function"
+    );
+    if (characters.length === 0) return;
+
+    const main = characters.find((u) => u.isMainCharacter);
+    const alts = characters.filter((u) => u && !u.isMainCharacter);
+    const chain = main ? [main, ...alts] : alts;
+    const n = chain.length;
+    if (n === 0) return;
+
+    const character = chain[esStaggerIndex % n];
+    esStaggerIndex++;
+
+    try {
+      await character.refreshESIToken();
+      await character.getPublicCharacterData();
+    } catch (err) {
+      console.error("Staggered ESI token refresh failed:", err);
+    }
+
+    get().account.actions.updateCharacters([...get().account.characters]);
+  },
+
+  /**
+   * Periodic (see `DEFAULT_CHARACTER_REFRESH_INTERVAL`) corporation-claims and app
+   * JWT maintenance; ESI is kept fresh by the staggered rotation, not a bulk
+   * refresh. Used by `useRefreshESITokens`.
+   */
+  runEsiTokenIntervalMaintenance: async () => {
+    if (!get().account.isLoggedIn) return;
+    const characters = get().account.characters;
+    const esiTokens = characters
+      .map((ch) => ch?.esiAccessToken)
+      .filter((t) => typeof t === "string" && t.trim().length > 0);
+    if (esiTokens.length > 0) {
+      await updateCorporationClaims(esiTokens);
+    }
+    await get().account.actions.refreshServerToken();
+    get().account.actions.updateCharacters([...get().account.characters]);
+  },
+
+  /**
+   * Refresh ESI for **all** characters in one shot (main then alts in parallel),
+   * then claims + app JWT. Prefer staggered work for the timer; this remains for
+   * exceptional cases (e.g. a forced refresh after a bulk import).
    */
   runScheduledTokenRefresh: async () => {
     const state = get();
@@ -274,7 +386,7 @@ export const tokenActions = (set, get) => ({
     }
 
     await get().account.actions.refreshServerToken();
-    get().account.actions.updateCharacters([...characters]);
+    get().account.actions.updateCharacters([...get().account.characters]);
   },
 
   /**
@@ -300,17 +412,39 @@ export const tokenActions = (set, get) => ({
    */
   addLinkedCharacterRefreshToken: (token) => {
     set(
-      (state) => ({
-        ...state,
-        account: {
-          ...state.account,
-          linkedCharacterRefreshTokens: [
-            ...state.account.linkedCharacterRefreshTokens,
-            token,
-          ],
-          actions: state.account.actions,
-        },
-      }),
+      (state) => {
+        const row = /** @type {{ CharacterHash?: string, characterHash?: string }} */ (
+          token
+        );
+        const raw =
+          typeof row.CharacterHash === "string"
+            ? row.CharacterHash
+            : typeof row.characterHash === "string"
+              ? row.characterHash
+              : "";
+        const canon = canonicalCharacterHashKey(raw);
+        const list = [...state.account.linkedCharacterRefreshTokens];
+        const idx = list.findIndex((t) => {
+          const tr = /** @type {{ CharacterHash?: string, characterHash?: string }} */ (t);
+          const h =
+            typeof tr.CharacterHash === "string"
+              ? tr.CharacterHash
+              : typeof tr.characterHash === "string"
+                ? tr.characterHash
+                : "";
+          return canonicalCharacterHashKey(h) === canon;
+        });
+        if (idx >= 0) list[idx] = token;
+        else list.push(token);
+        return {
+          ...state,
+          account: {
+            ...state.account,
+            linkedCharacterRefreshTokens: list,
+            actions: state.account.actions,
+          },
+        };
+      },
       false,
       "account/addLinkedCharacterRefreshToken"
     );
@@ -338,17 +472,26 @@ export const tokenActions = (set, get) => ({
    * Removes a cloud-linked token by character hash (`CharacterHash` or `characterHash`).
    */
   removeLinkedCharacterRefreshToken: (characterHash) => {
+    const drop = canonicalCharacterHashKey(characterHash);
     set(
       (state) => ({
         ...state,
         account: {
           ...state.account,
           linkedCharacterRefreshTokens:
-            state.account.linkedCharacterRefreshTokens.filter(
-              (token) =>
-                token.CharacterHash !== characterHash &&
-                token.characterHash !== characterHash
-            ),
+            state.account.linkedCharacterRefreshTokens.filter((token) => {
+              const row =
+                /** @type {{ CharacterHash?: string, characterHash?: string }} */ (
+                  token
+                );
+              const h =
+                typeof row.CharacterHash === "string"
+                  ? row.CharacterHash
+                  : typeof row.characterHash === "string"
+                    ? row.characterHash
+                    : "";
+              return canonicalCharacterHashKey(h) !== drop;
+            }),
           actions: state.account.actions,
         },
       }),

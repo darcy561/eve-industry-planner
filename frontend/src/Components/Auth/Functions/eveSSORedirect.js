@@ -1,10 +1,24 @@
 import { getRuntimeEnv } from "../../../utils/runtime-config";
 
-export default function redirectToEveSSO() {
-  const state = "main";
-  window.location.href = `https://login.eveonline.com/v2/oauth/authorize/?response_type=code&redirect_uri=${encodeURIComponent(
+const EVE_SSO_AUTHORIZE = "https://login.eveonline.com/v2/oauth/authorize/";
+
+/**
+ * EVE Online SSO “authorize” URL. Same for main login and additional character linking;
+ * the `state` value distinguishes the callback handling.
+ *
+ * @param {string} [state] - e.g. `"main"` or `"additional"` (see `authCallbackParams.js`).
+ * @returns {string}
+ */
+export function getEveSsoAuthorizeUrl(
+  state = "main"
+) {
+  return `${EVE_SSO_AUTHORIZE}?response_type=code&redirect_uri=${encodeURIComponent(
     getRuntimeEnv("EVE_CALLBACK_URL")
-  )}&client_id=${getRuntimeEnv("EVE_CLIENT_ID")}&scope=${
-    getRuntimeEnv("EVE_SCOPE")
-  }&state=${state}`;
+  )}&client_id=${getRuntimeEnv("EVE_CLIENT_ID")}&scope=${getRuntimeEnv(
+    "EVE_SCOPE"
+  )}&state=${encodeURIComponent(state)}`;
+}
+
+export default function redirectToEveSSO() {
+  window.location.href = getEveSsoAuthorizeUrl("main");
 }

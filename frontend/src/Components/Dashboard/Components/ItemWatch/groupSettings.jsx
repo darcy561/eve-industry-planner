@@ -7,7 +7,7 @@ import {
 } from "@mui/material";
 import { useEffect, useState } from "react";
 import useUsersStore from "../../../../Zustand/usersStore";
-import { useFirebase } from "../../../../Hooks/useFirebase";
+import { putWatchlistDeprecatedToApi } from "../../../../Functions/Endpoints/Pirivate/watchlistDeprecated.js";
 import DOMPurify from "dompurify";
 
 export function GroupSettingsDialog({
@@ -18,7 +18,6 @@ export function GroupSettingsDialog({
   const { userWatchlist } = useUsersStore((state) => state.jobData);
   const { setUserWatchlist, setUserWatchlistGroups, setUserWatchlistItems } =
     useUsersStore.getState().jobData.actions;
-  const { uploadUserWatchlist } = useFirebase();
   const [setName, updateSetName] = useState(groupSettingsContent.name);
 
   useEffect(() => {
@@ -75,7 +74,7 @@ export function GroupSettingsDialog({
               }
             });
             setUserWatchlist(newUserWatchlistItems, newUserWatchlistGroups);
-            await uploadUserWatchlist(
+            await putWatchlistDeprecatedToApi(
               newUserWatchlistGroups,
               newUserWatchlistItems
             );
@@ -100,7 +99,7 @@ export function GroupSettingsDialog({
               ALLOWED_ATTR: [],
             });
             setUserWatchlistGroups(newUserWatchlistGroups);
-            await uploadUserWatchlist(
+            await putWatchlistDeprecatedToApi(
               newUserWatchlistGroups,
               userWatchlist.items
             );

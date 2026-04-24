@@ -7,10 +7,6 @@ export function Purchasing_MobileLayout_EditJob({
   updateShoppingListTrigger,
   shoppingListData,
   updateShoppingListData,
-  orderDisplay,
-  changeOrderDisplay,
-  marketDisplay,
-  changeMarketDisplay,
   parentChildToEdit,
   updateParentChildToEdit,
 }) {

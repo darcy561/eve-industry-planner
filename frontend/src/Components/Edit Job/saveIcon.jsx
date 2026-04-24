@@ -1,10 +1,11 @@
 import { IconButton, Tooltip } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
-import { useCloseActiveJob } from "../../Hooks/JobHooks/useCloseActiveJob";
 import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import closeActiveJob from "../../Functions/JobPlanner/closeActiveJob";
 
 export function SaveJobIcon({ state }) {
-  const { closeActiveJob } = useCloseActiveJob();
+  const queryClient = useQueryClient();
   const navigate = useNavigate({ from: '/editjob/$jobID' });
   const search = useSearch({ from: '/editjob/$jobID' });
 
@@ -14,7 +15,8 @@ export function SaveJobIcon({ state }) {
       state.jobModified,
       state.temporaryChildJobs,
       state.esiDataToLink,
-      state.parentChildToEdit
+      state.parentChildToEdit,
+      queryClient
     );
     const groupIDFromParams = search.activeGroup;
     

@@ -1,13 +1,14 @@
 import { Button } from "@mui/material";
-import { useCloseActiveJob } from "../../../../../../../Hooks/JobHooks/useCloseActiveJob";
 import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import closeActiveJob from "../../../../../../../Functions/JobPlanner/closeActiveJob";
 
 export function OpenChildJobButon_ChildJobPopoverFrame({
   state,
   childJobObjects,
   jobDisplay,
 }) {
-  const { closeActiveJob } = useCloseActiveJob();
+  const queryClient = useQueryClient();
   const navigate = useNavigate({ from: '/editjob/$jobID' });
   const search = useSearch({ from: '/editjob/$jobID' });
 
@@ -20,7 +21,8 @@ export function OpenChildJobButon_ChildJobPopoverFrame({
           state.jobModified,
           state.temporaryChildJobs,
           state.esiDataToLink,
-          state.parentChildToEdit
+          state.parentChildToEdit,
+          queryClient
         );
         const groupIDFromParams = search.activeGroup;
         

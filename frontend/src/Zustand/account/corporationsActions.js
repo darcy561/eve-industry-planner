@@ -30,6 +30,9 @@ export const corporationsActions = (set, get) => ({
   },
 
   addCorporation: (corporation) => {
+    if (typeof corporation?.dedupeMembers === "function") {
+      corporation.dedupeMembers();
+    }
     set(
       (state) => {
         const id = corporation.corporation_id;

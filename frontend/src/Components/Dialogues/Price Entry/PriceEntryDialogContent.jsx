@@ -6,9 +6,7 @@ import {
   Typography,
 } from "@mui/material";
 import { ItemPriceRow, itemPriceEntryFactory } from "./itemRow";
-import uploadJobSnapshotsToFirebase from "../../../Functions/Firebase/uploadJobSnapshots";
-import manageListenerRequests from "../../../Functions/Firebase/manageListenerRequests";
-import firebaseBatchUpdateJobs from "../../../Functions/Firebase/batchUpdateJobs";
+import { saveJobsViaApi } from "../../../Functions/JobDocuments/saveJobsViaApi.js";
 import MarketLocationSelect from "../../../Styled Components/Select/marketLocation";
 import MarketListingSelect from "../../../Styled Components/Select/marketListing";
 import {
@@ -20,81 +18,65 @@ import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
 import importMultibuyFromClipboard from "../../../Functions/Clipboard/importMultibuy";
 import { requestClipboardPermissions } from "../../../Functions/Clipboard/clipboardPermissions";
 import { LARGE_TEXT_FORMAT } from "../../../Context/defaultValues";
-import convertJobIDsToObjects from "../../../Functions/Helper/convertJobIDsToObjects";
 import {
   distributeItemCostsBetweenJobs,
   buildNotificationText,
 } from "../../../Functions/Shared/passBuildCosts";
-import seperateGroupAndJobIDs from "../../../Functions/Helper/seperateGroupAndJobIDs";
-import retrieveJobIDsFromGroupObjects from "../../../Functions/Helper/getJobIDsFromGroupObjects";
 import ContentDialog from "../../../Styled Components/Dialog/ContentDialog";
 import { hidePriceEntryDialog } from "../../../Events/priceEntryEvents";
 
 export function PriceEntryDialogContent({ state, actions }) {
-  const { userJobSnapshot } = useUsersStore((s) => s.jobData);
-  const { updateJobSnapshotsFromJobs, addRetrievedJobsToJobArray } =
+  const { updateOrAddJobsToJobArray, jobsFromIdsOrObjects, resolveJobObjectsForMixedSelection } =
     useUsersStore.getState().jobData.actions;
   const isLoggedIn = useUsersStore((s) => s.account.isLoggedIn);
   const displayHelpCards = useUsersStore(
     (s) => s.applicationSettings.displayHelpCards,
   );
 
-  const buildItemPriceEntry = useCallback(
-    async (inputJobIDs) => {
-      const finalPriceEntry = [];
-      const retrievedJobs = [];
+  const buildItemPriceEntry = useCallback(async (inputJobIDs) => {
+    const finalPriceEntry = [];
 
-      const { groupIDs, jobIDs } = seperateGroupAndJobIDs(inputJobIDs);
+    const requestedJobObjects =
+      await resolveJobObjectsForMixedSelection(inputJobIDs);
 
-      const groupJobIDs = retrieveJobIDsFromGroupObjects(groupIDs);
+    for (let inputJob of requestedJobObjects) {
+      inputJob.build.materials.forEach((material) => {
+        const childJobs = inputJob.build.childJobs[material.typeID];
+        if (
+          material.quantityPurchased >= material.quantity ||
+          childJobs.length > 0
+        ) {
+          return;
+        }
 
-      const requestedJobObjects = await convertJobIDsToObjects(
-        [...jobIDs, ...groupJobIDs],
-        retrievedJobs,
-      );
+        const remainingQuantity = material.quantity - material.quantityPurchased;
+        if (remainingQuantity <= 0) {
+          return;
+        }
 
-      for (let inputJob of requestedJobObjects) {
-        inputJob.build.materials.forEach((material) => {
-          const childJobs = inputJob.build.childJobs[material.typeID];
-          if (
-            material.quantityPurchased >= material.quantity ||
-            childJobs.length > 0
-          ) {
-            return;
-          }
+        const existingEntryIndex = finalPriceEntry.findIndex(
+          (i) => i.typeID === material.typeID,
+        );
+        if (existingEntryIndex !== -1) {
+          finalPriceEntry[existingEntryIndex].totalQuantity += material.quantity;
+          finalPriceEntry[existingEntryIndex].remainingQuantity += remainingQuantity;
+          finalPriceEntry[existingEntryIndex].jobRef.push(inputJob.jobID);
+        } else {
+          finalPriceEntry.push({
+            name: material.name,
+            typeID: material.typeID,
+            priceEntries: [],
+            totalQuantity: material.quantity,
+            remainingQuantity: remainingQuantity,
+            jobRef: [inputJob.jobID],
+          });
+        }
+      });
+    }
 
-          const remainingQuantity = material.quantity - material.quantityPurchased;
-          if (remainingQuantity <= 0) {
-            return;
-          }
-
-          const existingEntryIndex = finalPriceEntry.findIndex(
-            (i) => i.typeID === material.typeID,
-          );
-          if (existingEntryIndex !== -1) {
-            finalPriceEntry[existingEntryIndex].totalQuantity += material.quantity;
-            finalPriceEntry[existingEntryIndex].remainingQuantity += remainingQuantity;
-            finalPriceEntry[existingEntryIndex].jobRef.push(inputJob.jobID);
-          } else {
-            finalPriceEntry.push({
-              name: material.name,
-              typeID: material.typeID,
-              priceEntries: [],
-              totalQuantity: material.quantity,
-              remainingQuantity: remainingQuantity,
-              jobRef: [inputJob.jobID],
-            });
-          }
-        });
-      }
-
-      finalPriceEntry.sort((a, b) => a.name.localeCompare(b.name));
-      manageListenerRequests(retrievedJobs);
-      addRetrievedJobsToJobArray(retrievedJobs);
-      return finalPriceEntry;
-    },
-    [addRetrievedJobsToJobArray],
-  );
+    finalPriceEntry.sort((a, b) => a.name.localeCompare(b.name));
+    return finalPriceEntry;
+  }, []);
 
   useEffect(() => {
     if (!state.isOpen || state.requestedJobIDs.length === 0) return;
@@ -131,7 +113,6 @@ export function PriceEntryDialogContent({ state, actions }) {
   async function handleAdd() {
     actions.setIsLoading(true, "Applying prices to jobs…");
     const jobIDSet = new Set();
-    const retrievedJobs = [];
     const collectedMaterials = {};
     const materialIDMap = {};
 
@@ -170,7 +151,7 @@ export function PriceEntryDialogContent({ state, actions }) {
       }
     }
 
-    const jobsToPass = await convertJobIDsToObjects(jobIDSet, retrievedJobs);
+    const jobsToPass = await jobsFromIdsOrObjects(jobIDSet);
 
     const result = distributeItemCostsBetweenJobs(
       collectedMaterials,
@@ -188,19 +169,13 @@ export function PriceEntryDialogContent({ state, actions }) {
       return;
     }
 
-    const modifiedJobs = await convertJobIDsToObjects(
-      result.modifiedJobIDs,
-      retrievedJobs,
-    );
+    const modifiedJobs = await jobsFromIdsOrObjects(result.modifiedJobIDs);
 
     if (isLoggedIn) {
-      await firebaseBatchUpdateJobs(modifiedJobs);
-      await uploadJobSnapshotsToFirebase(userJobSnapshot);
+      await saveJobsViaApi(modifiedJobs);
     }
 
-    manageListenerRequests(retrievedJobs);
-    updateJobSnapshotsFromJobs(modifiedJobs);
-    addRetrievedJobsToJobArray(retrievedJobs);
+    updateOrAddJobsToJobArray(modifiedJobs);
 
     showSnackbarSuccess(notificationText, 3);
     actions.setIsLoading(false);

@@ -44,10 +44,10 @@ func GetGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 	}
 
 	database := clients.Mongo.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionGroups)
+	collection := database.Collection(mongocore.CollectionUserJobGroups)
 
-	// Find all groups for this accountID with retry
-	filter := bson.M{"accountID": accountID}
+	// Find all groups for this accountID with retry (ownership via _meta.accountID)
+	filter := bson.M{"_meta.accountID": accountID}
 	retryConfig := mongocore.DefaultRetryConfig()
 	retryConfig.OperationName = fmt.Sprintf("find groups for account %s", accountID)
 

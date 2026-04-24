@@ -112,8 +112,16 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 		return migrationtasks.MigrateUserDocumentToMongo(ctx, t, taskDeps)
 	})
 
+	mux.HandleFunc("migrateFirestoreWatchlistToMongo", func(ctx context.Context, t *asynq.Task) error {
+		return migrationtasks.MigrateFirestoreWatchlistToMongo(ctx, t, taskDeps)
+	})
+
 	mux.HandleFunc("importArchivedJobToMongo", func(ctx context.Context, t *asynq.Task) error {
 		return migrationtasks.ImportArchivedJobToMongo(ctx, t, taskDeps)
+	})
+
+	mux.HandleFunc("importUserJobDocumentsForAccount", func(ctx context.Context, t *asynq.Task) error {
+		return migrationtasks.ImportUserJobDocumentsForAccount(ctx, t, taskDeps)
 	})
 
 	mux.HandleFunc("processArchivedBuildStats", func(ctx context.Context, t *asynq.Task) error {

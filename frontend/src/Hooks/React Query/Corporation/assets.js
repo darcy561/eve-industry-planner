@@ -1,6 +1,6 @@
 import useUsersStore from "../../../Zustand/usersStore";
 import getCorpAssets from "../../../Functions/EveESI/Corporation/getAssets";
-import { getQueryEnabled } from "../../useQueryEnabled";
+import { isQueryExecutionEnabled } from "../../../Functions/Shared/queryExecutionEnabled";
 import { getESIRateLimitStatus } from "../../../Functions/EveESI/fetchWithCustomHeaders";
 import fetchPaginatedDataParallel from "../../../Functions/Helper/fetchPaginatedDataParallel";
 
@@ -82,7 +82,7 @@ function corporationAssetsQuery(characterHash) {
         throw new Error(`Failed to fetch corporation assets: ${error.message}`);
       }
     },
-    enabled: getQueryEnabled(),
+    enabled: isQueryExecutionEnabled(),
     staleTime: 30 * 60 * 1000, // 30 minutes
     gcTime: 60 * 60 * 1000, // 1 hour
     retry: 3,

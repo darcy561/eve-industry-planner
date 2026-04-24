@@ -10,7 +10,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useGroupManagement } from "../../../../../Hooks/useGroupManagement";
+import { calculateCurrentJobBuildCostFromChildren } from "../../../../../Functions/Groups/calculateJobBuildCostFromChildren.js";
 import { useNavigate } from "@tanstack/react-router";
 import findJobsToHighlight from "./findJobsToHighlight";
 import useUsersStore from "../../../../../Zustand/usersStore";
@@ -20,8 +20,6 @@ import { formatNumberForLocale } from "../../../../../Functions/Helper/numberPar
 
 function OutputJobCard({ inputJob, state, actions }) {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
-  const { calculateCurrentJobBuildCostFromChildren } = useGroupManagement();
-
   const defaultMarket = useUsersStore(
     (state) => state.applicationSettings.defaultMarketLocation
   );

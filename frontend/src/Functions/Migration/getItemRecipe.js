@@ -1,4 +1,4 @@
-
+import { fetchWithPublicHeaders } from "../Endpoints/Public/applyPublicHeaders.js";
 
 /**
  * Retrieves item recipes from the migration-backed API endpoints.
@@ -20,17 +20,21 @@ export default async function getItemRecipeFromMigration(itemRequests) {
       ? `/api/migration/item/${itemID}`
       : "/api/migration/item";
 
-    const response = await fetch(URL, {
-      method: isSingleItem ? "GET" : "POST",
-      headers: {
-        "Content-Type": "application/json",
+    const response = await fetchWithPublicHeaders(
+      URL,
+      {
+        method: isSingleItem ? "GET" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: !isSingleItem
+          ? JSON.stringify({
+              idArray: itemRequests.map((id) => Number(id)),
+            })
+          : undefined,
       },
-      body: !isSingleItem
-        ? JSON.stringify({
-            idArray: itemRequests.map((id) => Number(id)),
-          })
-        : undefined,
-    });
+      { requestName: "migrationItemRecipe" }
+    );
 
     if (!response.ok) {
       throw new Error(`Error retrieving item recipe: ${response.statusText}`);

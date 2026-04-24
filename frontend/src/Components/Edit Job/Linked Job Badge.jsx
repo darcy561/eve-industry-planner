@@ -12,24 +12,17 @@ import AddIcon from "@mui/icons-material/Add";
 import ClearIcon from "@mui/icons-material/Clear";
 import { ParentJobDialog } from "./parentJobDialog";
 import useUsersStore from "../../Zustand/usersStore";
-import { useCloseActiveJob } from "../../Hooks/JobHooks/useCloseActiveJob";
 import { useNavigate } from "@tanstack/react-router";
 import { showSnackbarError } from "../../Events/snackbarEvents";
+import { useQueryClient } from "@tanstack/react-query";
+import closeActiveJob from "../../Functions/JobPlanner/closeActiveJob";
 
 export function LinkedJobBadge(props) {
   const { state, actions } = props;
-  const { findJobInUserJobSnapshotArray, findJobInJobArray } = useUsersStore.getState().jobData.actions;
+  const { findJobInJobArray } = useUsersStore.getState().jobData.actions;
   const [dialogTrigger, updateDialogTrigger] = useState(false);
-  const { closeActiveJob } = useCloseActiveJob();
+  const queryClient = useQueryClient();
   const navigate = useNavigate({ from: '/editjob/$jobID' });
-
-  function findParent(inputID) {
-    if (!state.activeJob.includedInGroup) {
-      return findJobInUserJobSnapshotArray(inputID);
-    } else {
-      return findJobInJobArray(inputID);
-    }
-  }
 
   const parentJobSelection = actions.getCurrentParentJobs();
 
@@ -75,7 +68,7 @@ export function LinkedJobBadge(props) {
               }}
             >
               {parentJobSelection.map((jobID) => {
-                let parent = findParent(jobID);
+                let parent = findJobInJobArray(jobID);
                 if (!parent) return null;
                 return (
                   <Chip
@@ -95,11 +88,12 @@ export function LinkedJobBadge(props) {
                         state.jobModified,
                         state.temporaryChildJobs,
                         state.esiDataToLink,
-                        state.parentChildToEdit
+                        state.parentChildToEdit,
+                        queryClient
                       );
-                      navigate({ 
-                        to: '/editjob/$jobID', 
-                        params: { jobID: parent.jobID } 
+                      navigate({
+                        to: '/editjob/$jobID',
+                        params: { jobID: parent.jobID }
                       });
                     }}
                     variant="outlined"

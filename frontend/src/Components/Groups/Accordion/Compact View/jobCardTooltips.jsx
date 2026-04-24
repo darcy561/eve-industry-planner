@@ -39,7 +39,7 @@ function getTooltipContent(job) {
             ESI Jobs Linked:{" "}
             {formatNumberForLocale(job.apiJobs.size, { max: 0 })}
           </p>
-          {job.apiJobs.length > 0 && (
+          {job.apiJobs.size > 0 && (
             <p>
               {timeRemaining === "Complete"
                 ? "Complete"

@@ -4,7 +4,11 @@ import Setup from "./jobSetup";
 import LinkedESIJob from "./linkedESIJob";
 import JobSnapshot from "./jobSnapshot";
 import createESIMarketOrder from "../Functions/MarketOrders/createMarketOrder";
-import getCurrentFirebaseUser from "../Functions/Firebase/currentFirebaseUser";
+import useUsersStore from "../Zustand/usersStore";
+import {
+  buildSetupContextForJob,
+  buildSetupFromQuantity,
+} from "../Functions/JobPlanner/setupBuildHelpers";
 
 /**
  * Main Job class for EVE Online industry planning and management.
@@ -162,12 +166,15 @@ class Job {
       setupToEdit: itemJson?.layout?.setupToEdit || null,
       resourceDisplayType: itemJson?.layout?.resourceDisplayType || null,
     };
-    const uid = getCurrentFirebaseUser();
+    const accountID =
+      itemJson?._meta?.accountID ||
+      useUsersStore.getState().account.accountID ||
+      "";
     this._meta = {
       lastModified: itemJson?._meta?.lastModified || new Date().toISOString(),
       createdAt: itemJson?._meta?.createdAt || new Date().toISOString(),
-      accountID: itemJson?._meta?.accountID || uid || "",
-      lastUpdatedBy: itemJson?._meta?.lastUpdatedBy || uid || "",
+      accountID,
+      lastUpdatedBy: itemJson?._meta?.lastUpdatedBy || accountID || "",
     };
   }
 
@@ -760,6 +767,40 @@ class Job {
   }
 
   /**
+   * Clears group membership and forces the job onto the planner (e.g. deleting a group without archiving jobs).
+   */
+  releaseFromGroupToPlanner() {
+    this.includedInGroup = false;
+    this.groupID = "";
+    this.displayOnPlanner = true;
+  }
+
+  /**
+   * Puts the job in a group: same fields as {@link releaseFromGroupToPlanner} in reverse
+   * (new builds, add-to-group flows).
+   *
+   * @param {string} groupID
+   */
+  assignToGroup(groupID) {
+    this.includedInGroup = true;
+    this.groupID = groupID;
+    this.displayOnPlanner = false;
+  }
+
+  /**
+   * Group edit flow: **Ready for sale** flags (`sellGroupJob` UI). Workflow stage changes stay with the caller.
+   */
+  toggleGroupJobReadyForSale() {
+    if (!this.isReadyToSell) {
+      this.isReadyToSell = true;
+      this.displayOnPlanner = true;
+    } else {
+      this.isReadyToSell = false;
+      this.displayOnPlanner = false;
+    }
+  }
+
+  /**
    * Updates the job snapshot in the provided snapshot array.
    *
    * This method finds and updates the job's snapshot in the array:
@@ -1075,6 +1116,18 @@ class Job {
     this.layout.setupToEdit = setup.id;
     this.recalculateTotalQuantityProduced();
     this.recalculateTotalMaterialQuantities();
+  }
+
+  addNewSetup(queryClient) {
+    const requiredQuantity = this.rawData.products[0].quantity;
+    const context = buildSetupContextForJob(this, requiredQuantity, queryClient);
+    const newSetup = buildSetupFromQuantity(
+      this,
+      context.setupQuantities[0],
+      queryClient,
+      context
+    );
+    this.attachNewSetupToJob(newSetup);
   }
 
   /**

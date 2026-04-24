@@ -9,7 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getAllCachedCharacterBlueprints } from "../../Hooks/EveEsi/Character/useGetAllCharacterBlueprints";
 import { getAllCachedCorporationBlueprints } from "../../Hooks/EveEsi/Corporation/useGetAllCorporationBlueprints";
 import useGetAllIndustryJobs from "../../Hooks/EveEsi/useGetAllIndustryJobs";
-import { useCachedData } from "../../Hooks/useCachedData";
+import { useCachedData } from "../../Hooks/App/useCachedData";
 import { CACHED_DATA_FILES } from "../../Context/defaultValues";
 import {
   combineBlueprints,

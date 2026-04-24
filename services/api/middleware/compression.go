@@ -12,16 +12,14 @@ import (
 
 	"github.com/andybalholm/brotli"
 
+	sharedcompression "eve-industry-planner/shared/compression"
 	"eve-industry-planner/shared/logs"
 
 	"go.uber.org/zap"
 )
 
 const (
-	responseCompressionMinBytes       = 5 * 1024
-	responseCompressionHighLevelBytes = 50 * 1024
-	responseCompressionDefaultLevel   = 4
-	responseCompressionHighLevel      = 6
+	responseCompressionMinBytes = 5 * 1024
 )
 
 // withContentEncodingOnLogger adds content_encoding to the request-scoped logger (LoggerKey) so
@@ -224,10 +222,10 @@ func (b *bufferedResponseWriter) resolvedStatusCode() int {
 }
 
 func selectResponseCompressionLevel(bodySize int) int {
-	if bodySize > responseCompressionHighLevelBytes {
-		return responseCompressionHighLevel
+	if bodySize > sharedcompression.ResponseHighLevelBytes {
+		return sharedcompression.ResponseHighLevel
 	}
-	return responseCompressionDefaultLevel
+	return sharedcompression.ResponseDefaultLevel
 }
 
 func copyHeaders(dst, src http.Header) {

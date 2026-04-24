@@ -21,7 +21,7 @@ import { JobCardUiSource } from "../../../../Context/DnDTypes";
 import {
   plannerDragPassThroughSx,
   usePlannerJobCardDrag,
-} from "../../../../Hooks/usePlannerCardDrag";
+} from "../../../Job Planner/Hooks/useDnD";
 import GLOBAL_CONFIG from "../../../../global-config-app";
 import GroupStep1JobCard from "./JobCards/groupStep1";
 import { useNavigate } from "@tanstack/react-router";
@@ -29,6 +29,8 @@ import useUsersStore from "../../../../Zustand/usersStore";
 import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
 import ContentPanel from "../../../../Styled Components/Paper/ContentPanel";
 import { getJobTypeAccentColor } from "../../../../Functions/Helper/jobTypeDividerColor";
+import { selectDocumentLockReadOnly } from "../../../../Functions/DocumentLock/documentLockSelectors.js";
+import { USER_JOBS_COLLECTION } from "../../../../Functions/DocumentLock/documentLockCollections.js";
 
 function DisplaySwitch({ job }) {
   switch (job.jobStatus) {
@@ -47,8 +49,15 @@ function DisplaySwitch({ job }) {
   }
 }
 
-export function ClassicGroupJobCardFrame({ job, highlightedItems }) {
+export function ClassicGroupJobCardFrame({
+  job,
+  highlightedItems,
+  groupReadOnly = false,
+}) {
   const { multiSelect, activeGroupID } = useUsersStore((state) => state.jobData);
+  const jobLockReadOnly = useUsersStore((s) =>
+    selectDocumentLockReadOnly(s, USER_JOBS_COLLECTION, job.jobID)
+  );
   const { addToMultiSelect, removeFromMultiSelect, getActiveGroupObject } =
     useUsersStore.getState().jobData.actions;
   const {
@@ -141,7 +150,7 @@ export function ClassicGroupJobCardFrame({ job, highlightedItems }) {
             <Box sx={{ display: "flex", flexDirection: "row", width: "100%" }}>
               <Box sx={{ flex: "0 0 auto" }}>
                 <Checkbox
-                  disabled={job.isLocked}
+                  disabled={jobLockReadOnly}
                   checked={jobCardChecked}
                   sx={{
                     color: (theme) =>
@@ -161,7 +170,7 @@ export function ClassicGroupJobCardFrame({ job, highlightedItems }) {
               <Box sx={{ flex: 1 }} />
               <Box sx={{ flex: "0 0 auto" }}>
                 <IconButton
-                  disabled={job.isLocked}
+                  disabled={jobLockReadOnly || groupReadOnly}
                   sx={{
                     color: (theme) =>
                       theme.palette.mode === PRIMARY_THEME
@@ -220,11 +229,11 @@ export function ClassicGroupJobCardFrame({ job, highlightedItems }) {
                 <Button
                   variant="outlined"
                   color="primary"
-                  disabled={job.isLocked}
+                  disabled={jobLockReadOnly}
                   onClick={onJobClick}
                   sx={{ height: 25, width: 100 }}
                 >
-                  {job.isLocked ? "Locked" : "Edit"}
+                  {jobLockReadOnly ? "Locked" : "Edit"}
                 </Button>
               </Box>
               <Box

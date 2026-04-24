@@ -20,7 +20,7 @@ import {
   reprocessingItemTypes,
   STANDARD_TEXT_FORMAT,
 } from "../../Context/defaultValues";
-import { useCachedData } from "../../Hooks/useCachedData";
+import { useCachedData } from "../../Hooks/App/useCachedData";
 import { CACHED_DATA_FILES } from "../../Context/defaultValues";
 import useUsersStore from "../../Zustand/usersStore";
 import MineralCard from "./Components/MineralCard";

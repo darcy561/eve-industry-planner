@@ -8,29 +8,19 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useCachedData } from "../../../Hooks/useCachedData";
+import { useCachedData } from "../../../Hooks/App/useCachedData";
 import { CACHED_DATA_FILES, STANDARD_TEXT_FORMAT } from "../../../Context/defaultValues";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import { CompactBlueprintEntry } from "../Compact/compactBlueprintEntry";
 import AddIcon from "@mui/icons-material/Add";
-import { useJobBuild } from "../../../Hooks/useJobBuild";
-import JobSnapshot from "../../../Classes/jobSnapshot";
-import addNewJobToFirebase from "../../../Functions/Firebase/addNewJob";
-import uploadJobSnapshotsToFirebase from "../../../Functions/Firebase/uploadJobSnapshots";
-import getMissingESIData from "../../../Functions/Shared/getMissingESIData";
-import recalculateInstallCostsWithNewData from "../../../Functions/Installation Costs/recalculateInstallCostsWithNewData";
-import { showSnackbarSuccess } from "../../../Events/snackbarEvents";
-import useUsersStore from "../../../Zustand/usersStore";
+import { useQueryClient } from "@tanstack/react-query";
 import useGetAllIndustryJobs from "../../../Hooks/EveEsi/useGetAllIndustryJobs";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
+import addNewJobsToPlanner from "../../../Functions/JobPlanner/addNewJobsToPlanner";
 
 export function CompactBlueprintGroup({ bpID, blueprintResults, currentFilter = "all" }) {
-  const { userJobSnapshot, jobArray } = useUsersStore((state) => state.jobData);
-  const { replaceUserJobSnapshotArray, replaceJobArray } =
-    useUsersStore.getState().jobData.actions;
-  const [archiveOpen, updateArchiveOpen] = useState(false);
   const [loadingBuild, updateLoadingBuild] = useState(false);
-  const { buildJob } = useJobBuild();
+  const queryClient = useQueryClient();
   const { data: blueprintIDs, isLoading: blueprintIDsLoading, error: blueprintIDsError } = useCachedData(CACHED_DATA_FILES.SEARCH_INDEX);
 
   const { data: apiJobs = [], isLoading: apiJobsLoading, error: apiJobsError } = useGetAllIndustryJobs();
@@ -123,7 +113,7 @@ export function CompactBlueprintGroup({ bpID, blueprintResults, currentFilter = 
         xs: 12,
         sm: 6
       }}>
-      <ContentPanel 
+      <ContentPanel
         title={bpData?.name}
         componentName={`Compact Blueprint Group - ${bpID}`}
         isLoading={blueprintIDsLoading || apiJobsLoading}
@@ -151,39 +141,10 @@ export function CompactBlueprintGroup({ bpID, blueprintResults, currentFilter = 
                     onClick={async () => {
                       if (!bpData) return;
                       updateLoadingBuild((prev) => !prev);
-                      const newJobArray = [...jobArray];
-                      const newSnapshotArray = [...userJobSnapshot];
-
-                      const newJob = await buildJob({ itemID: bpData.itemID });
-                      if (!newJob) {
-                        updateLoadingBuild((prev) => !prev);
-                        return;
-                      }
-
-                      newJobArray.push(newJob);
-                      newSnapshotArray.push(new JobSnapshot(newJob));
-
-                      await addNewJobToFirebase(newJob);
-                      await uploadJobSnapshotsToFirebase(newSnapshotArray);
-
-                      const { requestedMarketData, requestedSystemIndexes } =
-                        await getMissingESIData(newJob);
-
-                      recalculateInstallCostsWithNewData(
-                        newJob,
-                        requestedMarketData,
-                        requestedSystemIndexes
+                      await addNewJobsToPlanner(
+                        [{ itemID: bpData.itemID }],
+                        queryClient
                       );
-                      useUsersStore
-                        .getState()
-                        .worldData.actions.addMarketData(requestedMarketData);
-                      useUsersStore
-                        .getState()
-                        .worldData.actions.addSystemIndex(requestedSystemIndexes);
-                      replaceUserJobSnapshotArray(newSnapshotArray);
-                      replaceJobArray(newJobArray);
-                      showSnackbarSuccess(`${newJob.name} Added`, 3);
-
                       updateLoadingBuild((prev) => !prev);
                     }}
                   >

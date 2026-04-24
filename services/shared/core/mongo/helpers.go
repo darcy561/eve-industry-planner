@@ -95,7 +95,7 @@ func DocumentExistsByID(ctx context.Context, collection *mongo.Collection, docID
 	}
 
 	filter := bson.M{
-		"_id":              docID,
+		"_id":             docID,
 		"_meta.accountID": accountID,
 	}
 	err := collection.FindOne(ctx, filter).Err()
@@ -406,8 +406,17 @@ func applyLastModified(setDoc bson.M, setOnInsert bson.M, doc bson.M, preserveMe
 		}
 		if metaRaw, ok := doc["_meta"]; ok {
 			meta := ensureMetaMap(metaRaw)
+			if clientID, ok := meta["clientID"].(string); ok && clientID != "" {
+				// Ensure API-provided source client is persisted on updates (not just inserts)
+				// so changestream can emit sourceClientID for websocket echo suppression.
+				setDoc["_meta.clientID"] = clientID
+			}
 			for k, v := range meta {
 				if k == "lastModified" {
+					continue
+				}
+				// Avoid conflicting updates when this key is already explicitly set in $set.
+				if _, exists := setDoc["_meta."+k]; exists {
 					continue
 				}
 				setOnInsert["_meta."+k] = v

@@ -1,36 +1,37 @@
-import findOrGetJobObject from "../Helper/findJobObject";
+import useUsersStore from "../../Zustand/usersStore";
 
 /**
  * Repairs missing or broken parent-child relationships in a job.
  * Validates parent and child job relationships and removes invalid ones.
  * 
  * @param {Object} inputJob - Job object to repair relationships for
- * @param {Array<Object>} retrievedJobs - Array to store retrieved jobs
- * @returns {Promise<Set<string>>} Promise that resolves to set of modified job IDs
+ * @param {Array<Object>} tempJobs - In-flight job objects created/updated in this flow
+ * @returns {Set<string>} Set of modified job IDs
  * 
- * @throws {Error} Throws error if inputJob or retrievedJobs is missing
+ * @throws {Error} Throws error if inputJob or tempJobs is missing
  * 
  * @example
- * const modifiedJobs = await repairMissingParentChildRelationships(job, []);
+ * const modifiedJobs = repairMissingParentChildRelationships(job, []);
  * console.log(`Repaired ${modifiedJobs.size} jobs`);
  */
-async function repairMissingParentChildRelationships(
+function repairMissingParentChildRelationships(
   inputJob,
-  retrievedJobs
+  tempJobs
 ) {
   try {
-    if (!inputJob || !retrievedJobs) {
+    if (!inputJob || !tempJobs) {
       throw new Error("Missing Inputs");
     }
     const modifiedJobIDs = new Set();
     const parentIDsToRemove = new Set();
+    const jobLookup = buildJobLookup(inputJob, tempJobs);
 
     for (let parentID of inputJob.parentJobs) {
       try {
-        const isParentIDValid = await processParentID(
+        const isParentIDValid = processParentID(
           parentID,
           inputJob,
-          retrievedJobs,
+          jobLookup,
           modifiedJobIDs
         );
 
@@ -48,11 +49,11 @@ async function repairMissingParentChildRelationships(
       const childJobsToRemove = new Set();
 
       for (let childJobID of inputJob.build.childJobs[material.typeID]) {
-        const isChildValid = await processChildID(
+        const isChildValid = processChildID(
           childJobID,
           material,
           inputJob.jobID,
-          retrievedJobs,
+          jobLookup,
           modifiedJobIDs
         );
 
@@ -76,22 +77,19 @@ export default repairMissingParentChildRelationships;
  * 
  * @param {string} parentID - Parent job ID to process
  * @param {Object} inputJob - Input job object
- * @param {Array<Object>} retrievedJobs - Array to store retrieved jobs
+ * @param {Map<string, Object>} jobLookup - Map of jobs keyed by jobID
  * @param {Set<string>} modifiedJobsSet - Set to track modified job IDs
- * @returns {Promise<boolean>} Promise that resolves to true if parent is valid
+ * @returns {boolean} True when parent relationship is valid
  * 
  * @private
  */
-async function processParentID(
+function processParentID(
   parentID,
   inputJob,
-  retrievedJobs,
+  jobLookup,
   modifiedJobsSet
 ) {
-  const matchedJob = await findOrGetJobObject(
-    parentID,
-    retrievedJobs
-  );
+  const matchedJob = jobLookup.get(parentID);
   if (!matchedJob) return false;
 
   const parentMaterial = matchedJob.build.materials.find(
@@ -126,20 +124,20 @@ async function processParentID(
  * @param {string} childID - Child job ID to process
  * @param {Object} material - Material object
  * @param {string} inputJobID - Input job ID
- * @param {Array<Object>} retrievedJobs - Array to store retrieved jobs
+ * @param {Map<string, Object>} jobLookup - Map of jobs keyed by jobID
  * @param {Set<string>} modifiedJobsSet - Set to track modified job IDs
- * @returns {Promise<boolean>} Promise that resolves to true if child is valid
+ * @returns {boolean} True when child relationship is valid
  * 
  * @private
  */
-async function processChildID(
+function processChildID(
   childID,
   material,
   inputJobID,
-  retrievedJobs,
+  jobLookup,
   modifiedJobsSet
 ) {
-  const matchedJob = await findOrGetJobObject(childID, retrievedJobs);
+  const matchedJob = jobLookup.get(childID);
 
   if (!matchedJob) {
     return false;
@@ -156,4 +154,28 @@ async function processChildID(
   }
 
   return true;
+}
+
+/**
+ * Builds an in-memory lookup from current jobArray plus in-flight jobs.
+ *
+ * @param {Object} inputJob
+ * @param {Array} tempJobs
+ * @returns {Map<string, Object>}
+ */
+function buildJobLookup(inputJob, tempJobs) {
+  const jobLookup = new Map();
+  const stateJobs = useUsersStore.getState().jobData.jobArray ?? [];
+
+  for (const job of stateJobs) {
+    if (job?.jobID) jobLookup.set(job.jobID, job);
+  }
+  for (const job of tempJobs ?? []) {
+    if (job?.jobID) jobLookup.set(job.jobID, job);
+  }
+  if (inputJob?.jobID) {
+    jobLookup.set(inputJob.jobID, inputJob);
+  }
+
+  return jobLookup;
 }

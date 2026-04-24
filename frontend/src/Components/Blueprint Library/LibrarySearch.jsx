@@ -8,7 +8,7 @@ import {
   RadioGroup,
   Select,
 } from "@mui/material";
-import { useCachedData } from "../../Hooks/useCachedData";
+import { useCachedData } from "../../Hooks/App/useCachedData";
 import { CACHED_DATA_FILES } from "../../Context/defaultValues";
 import VirtualisedRecipeSearch from "../../Styled Components/autocomplete/virtualisedRecipeSearch";
 import { useGetAllCharacterBlueprints } from "../../Hooks/EveEsi/Character/useGetAllCharacterBlueprints";

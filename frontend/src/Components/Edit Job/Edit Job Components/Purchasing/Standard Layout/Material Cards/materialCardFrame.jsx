@@ -18,7 +18,7 @@ import { MaterialQuantityInfoDoubleRow } from "./materialQuantityInfoDoubleRow";
 export function MaterialCardFrame_Purchasing(props) {
   const { state, material } = props;
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
-  const { userJobSnapshot, jobArray } = useUsersStore((state) => state.jobData);
+  const { jobArray } = useUsersStore((state) => state.jobData);
   const [childDialogTrigger, updateChildDialogTrigger] = useState(false);
 
   function calculateChildJobData() {
@@ -38,9 +38,9 @@ export function MaterialCardFrame_Purchasing(props) {
       }
 
       if (!state.activeJob.includedInGroup) {
-        childJobs = filterJobs(userJobSnapshot);
+        childJobs = filterJobs(jobArray);
         childJobProductionTotal = childJobs.reduce(
-          (total, job) => total + job.itemQuantity,
+          (total, job) => total + job.build.products.totalQuantity,
           0
         );
         remainingTotalToBeImported = childJobs.reduce((total, job) => {
@@ -49,7 +49,7 @@ export function MaterialCardFrame_Purchasing(props) {
           );
 
           if (!matchingCostImport) {
-            return (total += job.itemQuantity);
+            return (total += job.build.products.totalQuantity);
           }
           return total;
         }, 0);

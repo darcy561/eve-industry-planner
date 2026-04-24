@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Icon, Tooltip, Typography, Grid } from "@mui/material";
-
 import InfoIcon from "@mui/icons-material/Info";
 import {
   LARGE_TEXT_FORMAT,
@@ -8,7 +7,7 @@ import {
 } from "../../../../../../Context/defaultValues";
 import GLOBAL_CONFIG from "../../../../../../global-config-app";
 import { ChildJobPopoverFrame } from "./Child Job Pop Over/childJobPopoverFrame";
-import { useMaterialCostCalculations } from "../../../../../../Hooks/GroupHooks/useMaterialCostCalculations";
+import { calculateMaterialCostFromChildJobs } from "../../../../../../Functions/Groups/materialCostFromChildJobs.js";
 import checkJobTypeIsBuildable from "../../../../../../Functions/Helper/checkJobTypeIsBuildable";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import MaterialPopoverIconButtons from "../../../../../../Styled Components/Popover/iconButtons";
@@ -21,7 +20,6 @@ export function MaterialCostRow_MaterialPricePanel(props) {
   const { jobArray } = useUsersStore((state) => state.jobData);
   const checkTypeIDisExempt = useUsersStore.getState().applicationSettings.actions.checkTypeIDisExempt;
   const [displayPopover, updateDisplayPopover] = useState(null);
-  const { calculateMaterialCostFromChildJobs } = useMaterialCostCalculations();
 
   const itemPriceObject = useUsersStore
     .getState()

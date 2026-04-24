@@ -1,16 +1,13 @@
 import { Avatar, IconButton, Paper, Typography, Grid } from "@mui/material";
-
 import CloseIcon from "@mui/icons-material/Close";
 import { showSnackbarError } from "../../Events/snackbarEvents";
 import checkUserClaims from "../../Functions/Auth/checkUserClaims";
 import useUsersStore from "../../Zustand/usersStore";
-import { saveUserAccountDocument } from "../../Functions/Endpoints/Pirivate/userDocument";
 import { useQueryClient } from "@tanstack/react-query";
-import { useGlobalDebounce } from "../../Hooks/GeneralHooks/useGlobalDebounce";
-import { DEBOUNCE_KEYS } from "../../Context/debounceKeys";
+import { scheduleDebouncedUserAccountDocumentSave } from "../../Functions/Debounce/userDocumentsPersistSchedule.js";
+import { updateLocalRefreshTokens } from "../../Functions/Auth/buildAccountData.js";
 
 export function AccountEntry({ character }) {
-  const characters = useUsersStore((state) => state.account.characters);
   const cloudAccounts = useUsersStore(
     (state) => state.applicationSettings.userCloudAccounts
   );
@@ -21,27 +18,21 @@ export function AccountEntry({ character }) {
     useUsersStore.getState().account.actions;
   const queryClient = useQueryClient();
 
-  const debouncedSaveSettings = useGlobalDebounce(
-    DEBOUNCE_KEYS.APP_SETTINGS_SAVE,
-    async () => {
-      await saveUserAccountDocument();
-    },
-    2000
-  );
-
   async function handleRemoveUser(character) {
     removeCharacter(character);
     removeLinkedCharacterRefreshToken(character.CharacterHash);
     removeCharacterFromCorporations(character.CharacterHash);
 
     queryClient.removeQueries({
-      predicate: (query) => query.queryKey.includes(character.CharacterHash)
-    })
+      predicate: (query) => query.queryKey.includes(character.CharacterHash),
+    });
 
     if (cloudAccounts) {
-      debouncedSaveSettings();
+      scheduleDebouncedUserAccountDocumentSave();
+    } else {
+      updateLocalRefreshTokens(useUsersStore.getState().account.characters);
     }
-    await checkUserClaims(characters);
+    await checkUserClaims();
 
     showSnackbarError(`${character.CharacterName} Removed`);
   }

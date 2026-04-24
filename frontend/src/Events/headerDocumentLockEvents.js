@@ -1,0 +1,59 @@
+import useUsersStore from "../Zustand/usersStore.js";
+import { eventEmitter } from "../utils/EventSystem.js";
+
+/**
+ * Fired after any register / patch / clear of the app bar document lock context.
+ * Payload: `{ action: 'register' | 'patch' | 'clear', payload?: object }`
+ */
+export const HEADER_DOCUMENT_LOCK_UI_EVENT = "header-document-lock-ui";
+
+/**
+ * @typedef {Object} HeaderDocumentLockUIRegistration
+ * @property {string} collection — e.g. `user_job_groups` (see documentLockCollections)
+ * @property {string} docID
+ * @property {boolean} [enabled=true] — when false, this row is skipped for the primary header control
+ * @property {string} [readOnlyMessage] — copy for read-only popover; default in the control if omitted
+ * @property {string} [label] — short name for secondary rows in the popover
+ * @property {'full'|'limited'} [treeOwnership] — `limited` when this scope does not imply full edit rights for a larger tree
+ */
+
+/**
+ * Register (or replace) document lock header targets. Pass **`{ registrations: [...] }`** for multiple
+ * scopes (first enabled row is primary for the icon), or legacy **`collection` + `docID`** for one scope.
+ * Idempotent when normalized registrations are unchanged.
+ *
+ * @param {HeaderDocumentLockUIRegistration & { registrations?: HeaderDocumentLockUIRegistration[] }} config
+ * @returns {void}
+ */
+export function registerHeaderDocumentLockUI(config) {
+  useUsersStore
+    .getState()
+    .headerDocumentLockUI.actions.registerHeaderDocumentLockUI(config);
+  eventEmitter.emit(HEADER_DOCUMENT_LOCK_UI_EVENT, {
+    action: "register",
+    payload: config,
+  });
+}
+
+/**
+ * @param {Partial<HeaderDocumentLockUIRegistration>} partial
+ * @returns {void}
+ */
+export function patchHeaderDocumentLockUI(partial) {
+  useUsersStore
+    .getState()
+    .headerDocumentLockUI.actions.patchHeaderDocumentLockUI(partial);
+  eventEmitter.emit(HEADER_DOCUMENT_LOCK_UI_EVENT, {
+    action: "patch",
+    payload: partial,
+  });
+}
+
+/**
+ * Remove app bar document lock context (e.g. on route unmount).
+ * @returns {void}
+ */
+export function clearHeaderDocumentLockUI() {
+  useUsersStore.getState().headerDocumentLockUI.actions.clearHeaderDocumentLockUI();
+  eventEmitter.emit(HEADER_DOCUMENT_LOCK_UI_EVENT, { action: "clear" });
+}

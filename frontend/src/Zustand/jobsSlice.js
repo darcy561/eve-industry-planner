@@ -2,7 +2,7 @@
  * Jobs Slice for EVE Industry Planner.
  * 
  * Manages job-related state including job arrays, group arrays, multi-selection,
- * active job/group tracking, job snapshots, and watchlist data.
+ * active job/group tracking, and watchlist data.
  * This slice provides centralized state management for all job-related operations
  * and user interactions within the industry planner.
  * 
@@ -13,11 +13,12 @@
 import {
   stateDefault,
   coreActions,
+  inboundSkeletonActions,
   multiSelectionActions,
   activeTrackingActions,
   watchlistManagementActions,
   groupManagementActions,
-  jobSnapshotsActions,
+  jobDocumentPersistenceActions,
 } from './jobsSlice/index.js';
 
 /**
@@ -42,6 +43,8 @@ const jobsSlice = (set, get) => ({
     actions: {
       // Core actions
       ...coreActions(set, get),
+
+      ...inboundSkeletonActions(set, get),
       
       // Multi-selection actions
       ...multiSelectionActions(set, get),
@@ -54,9 +57,9 @@ const jobsSlice = (set, get) => ({
       
       // Group management actions
       ...groupManagementActions(set, get),
-      
-      // Job snapshots actions
-      ...jobSnapshotsActions(set, get),
+
+      // Job document API persistence (debounced PUT)
+      ...jobDocumentPersistenceActions(set, get),
     },
   },
 });

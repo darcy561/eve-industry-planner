@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/websocket/server/model"
 	syncpkg "eve-industry-planner/websocket/sync"
 
 	"github.com/alitto/pond/v2"
@@ -22,6 +23,14 @@ type Server struct {
 	userConnections map[string]map[string]bool
 	userConnMu      sync.RWMutex
 
+	// Session connection tracking (session_id -> active client_id). Exactly one live client per session.
+	sessionConnections map[string]string
+	sessionConnMu      sync.RWMutex
+
+	// Short-lived snapshots of subscription sets for JWT rotation (in-process; see also Redis keys in session_resume.go).
+	sessionHandoffs   map[string]*sessionHandoffEntry
+	sessionHandoffsMu sync.Mutex
+
 	// Active subscriptions (client_id -> map[docID]timestamp)
 	// Track subscriptions per client to preserve across reconnects
 	// Timestamp tracks last activity (connection/subscription) for cleanup of stale subscriptions
@@ -33,15 +42,20 @@ type Server struct {
 	incomingSignals chan string // Channel signaling work available (docID)
 	incomingMu      sync.RWMutex
 
-	// Incoming bulk queue (for bulk operations)
-	// Persistent queue, no cleanup needed
-	incomingBulkQueue   *BulkQueue
-	incomingBulkSignals chan struct{} // Channel signaling bulk work available
+	// Optional per–doc-id fan-in for explicit client subscribe (escape hatch; not used for account stream).
+	explicitDocSubscribers map[string]map[string]bool // docID -> client_ids
+	explicitDocSubMu       sync.RWMutex
 
-	// Outgoing queues (NATS → clients)
-	outgoingQueues  map[string]*OutgoingDocQueue
-	outgoingSignals chan string // Channel signaling work available (docID)
-	outgoingMu      sync.RWMutex
+	// Reverse indexes for corporation / alliance realtime pools (populated after upgrade_scopes).
+	// Two mutexes reduce contention: corp broadcasts do not block alliance index updates and vice versa.
+	// When both locks are required, always take corpIndexMu before allianceIndexMu.
+	corpToClients     map[string]map[string]bool // corporation id -> client_id set
+	allianceToClients map[string]map[string]bool // alliance id -> client_id set
+	corpIndexMu       sync.RWMutex
+	allianceIndexMu   sync.RWMutex
+
+	// JetStream doc.update fan-out: one FIFO per shard (see outbound_doc_update.go).
+	docUpdateOutboundShards []chan docUpdateWork
 
 	// Sync queues (client_id -> sync queue)
 	// One sync per client at a time (enforced by queue)
@@ -50,32 +64,40 @@ type Server struct {
 	SyncSignals chan string // Channel signaling sync work available (clientID)
 	SyncMu      sync.RWMutex
 
-	// Worker pools (independent, limited)
-	incomingPool pond.Pool // For DB writes (limited to match MongoDB pool)
-	outgoingPool pond.Pool // For broadcasts (higher limit for fast processing)
-	SyncPool     pond.Pool // For sync operations (separate pool) - exported for sync package
+	// Sync worker pool (pond); incoming/outgoing use per-doc mutex + goroutines instead of shared pools.
+	SyncPool pond.Pool // For sync operations (separate pool) - exported for sync package
 
 	// Configuration
 	upgrader       websocket.Upgrader
 	ServiceClients *shared.ServiceClients
+	metrics        *websocketMetrics
 
 	// Shutdown coordination
 	shutdownChan chan struct{}
 }
 
 type Client struct {
-	id             string
-	conn           *websocket.Conn
-	connCtx        context.Context // derived from HTTP request for logging (WithoutCancel); set on connect
-	Send           chan []byte     // Exported for sync package
-	subscribedDocs map[string]bool // Track which documents this client is subscribed to
-	AccountID      string          // Account ID from JWT claims - exported for sync package
-	messageCount   int             // Message count for rate limiting
-	lastReset      time.Time       // Last time message count was reset
-	messageMu      sync.Mutex      // Protects message count
-	connectedAt    time.Time       // When this connection was established
-	lastActivity   time.Time       // Last time connection received activity (pong or message)
-	activityMu     sync.RWMutex    // Protects lastActivity
+	id        string
+	conn      *websocket.Conn
+	connCtx   context.Context // derived from HTTP request for logging (WithoutCancel); set on connect
+	Send      chan []byte     // Exported for sync package
+	AccountID string          // Account ID from JWT claims - exported for sync package
+	SessionID string          // Session ID from JWT claims; one active client per session
+	Scopes    model.RealtimeScopes
+
+	// allowedCorpJWT / allowedAllianceJWT are ceilings from the validated internal JWT (never trust the browser alone).
+	allowedCorpJWT     map[string]struct{}
+	allowedAllianceJWT map[string]struct{}
+
+	// Explicit collection-scoped doc subscriptions (subscribe / unsubscribe JSON). Account-scoped
+	// realtime does not require entries here.
+	explicitDocIDs map[string]bool
+	messageCount   int          // Message count for rate limiting
+	lastReset      time.Time    // Last time message count was reset
+	messageMu      sync.Mutex   // Protects message count
+	connectedAt    time.Time    // When this connection was established
+	lastActivity   time.Time    // Last time connection received activity (pong or message)
+	activityMu     sync.RWMutex // Protects lastActivity
 
 	// Sync state tracking
 	// Exported fields for use by sync package
@@ -90,33 +112,10 @@ type IncomingDocQueue struct {
 	lastUse time.Time    // Last time queue was accessed
 }
 
-type OutgoingDocQueue struct {
-	ch          chan Event      // Buffered channel for events
-	mu          sync.RWMutex    // Protects queue operations
-	lastUse     time.Time       // Last time queue was accessed
-	subscribers map[string]bool // Client IDs subscribed to this document
-}
-
 type Event struct {
 	ClientID string
 	DocID    string
 	Msg      []byte
-}
-
-// Operation represents a single document operation (ADD, UPDATE, DELETE)
-type Operation struct {
-	DocumentID string
-	Action     string // ADD, UPDATE, DELETE
-	Data       map[string]interface{}
-	ClientID   string
-}
-
-// BulkQueue handles bulk operations (arrays of operations)
-// Used for incoming bulk operations (client → database)
-// Persistent queue, no cleanup needed
-type BulkQueue struct {
-	ch chan []Operation // Channel for bulk operations (arrays of operations)
-	mu sync.RWMutex     // Protects queue operations (prevents multiple workers)
 }
 
 // SyncQueue and SyncMessage are now defined in the sync package

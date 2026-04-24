@@ -1,111 +1,147 @@
-import uploadGroupsToFirebase from "../Firebase/uploadGroupData";
-import uploadJobSnapshotsToFirebase from "../Firebase/uploadJobSnapshots";
-import findOrGetJobObject from "../Helper/findJobObject";
-import manageListenerRequests from "../Firebase/manageListenerRequests";
-import firebaseBatchUpdateJobs from "../Firebase/batchUpdateJobs";
+import Job from "../../Classes/job";
+import Group from "../../Classes/group";
+import { scheduleSaveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
- * Moves job snapshots or groups forward or backward in the planner workflow.
- * Handles both individual jobs and groups, updating their status and saving changes.
+ * Moves jobs or groups forward/backward in the planner workflow.
  *
- * @param {Array<string>} inputSnapIDs - Array of snapshot IDs to move
+ * Uses clone-on-write updates for selected items, then commits modified objects to the store.
+ * For logged-in users, job and group writes are scheduled through debounced persistence so
+ * repeated rapid moves coalesce into fewer API calls.
+ *
+ * @param {string|Array<string>|Set<string>} inputIDs - Job ID(s) and/or group ID(s) to move
  * @param {string} direction - Direction to move ("forward" or "backward")
  * @returns {Promise<void>} Promise that resolves when movement is complete
  *
  * @example
  * await moveItemsOnPlanner(["job_123", "group_456"], "forward");
  */
-export default async function moveItemsOnPlanner(inputSnapIDs, direction) {
+export default async function moveItemsOnPlanner(inputIDs, direction) {
   const {
+    findJobInJobArray,
     getGroupObject,
-    updateJobSnapshotsFromJobs,
-    addRetrievedJobsToJobArray,
+    updateOrAddJobsToJobArray,
     updateModifiedGroups,
+    queueJobGroupWritesAndSchedule,
   } = useUsersStore.getState().jobData.actions;
   const isLoggedIn = useUsersStore.getState().account.isLoggedIn;
 
-  const retrievedJobs = [];
-  let groupsModified = false;
-  let jobsModified = false;
-  const modifiedJobs = [];
-  const modifiedGroups = [];
+  const normalizedIDs = Array.isArray(inputIDs)
+    ? inputIDs
+    : inputIDs instanceof Set
+      ? [...inputIDs]
+      : [inputIDs];
+  const selectedIDs = [...new Set(normalizedIDs.filter(Boolean))];
+  if (!direction || selectedIDs.length === 0) return;
 
-  if (!direction) return;
+  const workingJobsByID = new Map();
+  const workingGroupsByID = new Map();
+  const modifiedJobIDs = new Set();
+  const modifiedGroupIDs = new Set();
 
-  for (let inputSnapID of inputSnapIDs) {
-    if (inputSnapID.includes("group")) {
-      const selectedGroup = getGroupObject(inputSnapID);
+  const getWorkingJob = (jobID) => {
+    if (workingJobsByID.has(jobID)) return workingJobsByID.get(jobID);
+    const source = findJobInJobArray(jobID);
+    if (!source) return null;
+    const cloned = new Job(source.toDocument());
+    workingJobsByID.set(jobID, cloned);
+    return cloned;
+  };
+  const getWorkingGroup = (groupID) => {
+    if (workingGroupsByID.has(groupID)) return workingGroupsByID.get(groupID);
+    const source = getGroupObject(groupID);
+    if (!source) return null;
+    const cloned = new Group(source.toDocument());
+    workingGroupsByID.set(groupID, cloned);
+    return cloned;
+  };
+
+  for (const inputID of selectedIDs) {
+    if (inputID.includes("group")) {
+      const selectedGroup = getWorkingGroup(inputID);
+      if (!selectedGroup) continue;
       if (direction === "forward") {
         selectedGroup.moveGroupStatusForward();
       } else if (direction === "backward") {
         selectedGroup.moveGroupStatusBackward();
       }
-      modifiedGroups.push(selectedGroup);
-      groupsModified = true;
+      modifiedGroupIDs.add(selectedGroup.groupID);
     } else {
       if (direction === "forward") {
-        await moveForward(inputSnapID);
+        moveForward(inputID);
       } else if (direction === "backward") {
-        await moveBackward(inputSnapID);
+        moveBackward(inputID);
       }
     }
   }
 
-  if (jobsModified) {
-    manageListenerRequests(retrievedJobs);
-    updateJobSnapshotsFromJobs(modifiedJobs);
-    addRetrievedJobsToJobArray(retrievedJobs);
-  }
-  if (groupsModified) {
-    updateModifiedGroups(modifiedGroups);
-  }
-  if (isLoggedIn) {
-    const promises = [];
-    if (jobsModified) {
-      promises.push(firebaseBatchUpdateJobs(modifiedJobs));
-      promises.push(uploadJobSnapshotsToFirebase());
+  const modifiedJobs = [...modifiedJobIDs]
+    .map((jobID) => workingJobsByID.get(jobID))
+    .filter(Boolean);
+  const groupedJobGroupIDs = [
+    ...new Set(
+      modifiedJobs
+        .filter((job) => job.includedInGroup && job.groupID)
+        .map((job) => job.groupID)
+    ),
+  ];
+  const groupsToPersistMap = new Map();
+  for (const groupID of [...modifiedGroupIDs, ...groupedJobGroupIDs]) {
+    const group = getWorkingGroup(groupID);
+    if (group) {
+      groupsToPersistMap.set(group.groupID, group);
     }
-    if (groupsModified) {
-      promises.push(uploadGroupsToFirebase());
+  }
+  const groupsToPersist = [...groupsToPersistMap.values()];
+
+  if (modifiedJobs.length > 0) {
+    updateOrAddJobsToJobArray(modifiedJobs);
+  }
+  if (groupsToPersist.length > 0) {
+    updateModifiedGroups(groupsToPersist);
+  }
+  if (isLoggedIn && modifiedJobs.length > 0) {
+    scheduleSaveJobsViaApi(modifiedJobs);
+    if (groupedJobGroupIDs.length > 0) {
+      queueJobGroupWritesAndSchedule(groupedJobGroupIDs);
     }
-    await Promise.all(promises);
   }
 
   /**
    * Moves a job forward in the workflow if possible.
    *
    * @param {string} inputJobID - Job ID to move forward
-   * @returns {Promise<void>} Promise that resolves when movement is complete
+   * @returns {void}
    *
    * @private
    */
-  async function moveForward(inputJobID) {
-    let inputJob = await findOrGetJobObject(inputJobID, retrievedJobs);
+  function moveForward(inputJobID) {
+    const inputJob = getWorkingJob(inputJobID);
     if (!inputJob) return;
 
     if (!canMoveForward(inputJob)) return;
 
     inputJob.stepForward();
-    updateJobSnapshot(inputJob);
+    collectModifiedJob(inputJob);
   }
 
   /**
    * Moves a job backward in the workflow if possible.
    *
    * @param {string} inputJobID - Job ID to move backward
-   * @returns {Promise<void>} Promise that resolves when movement is complete
+   * @returns {void}
    *
    * @private
    */
-  async function moveBackward(inputJobID) {
-    let inputJob = await findOrGetJobObject(inputJobID, retrievedJobs);
+  function moveBackward(inputJobID) {
+    const inputJob = getWorkingJob(inputJobID);
     if (!inputJob) return;
 
     if (!canMoveBackward(inputJob)) return;
 
     inputJob.stepBackward();
-    updateJobSnapshot(inputJob);
+    collectModifiedJob(inputJob);
   }
 
   /**
@@ -136,15 +172,14 @@ export default async function moveItemsOnPlanner(inputSnapIDs, direction) {
   }
 
   /**
-   * Updates job snapshot and marks job as modified.
+   * Marks job as modified for persist.
    *
    * @param {Object} inputJob - Job object to update
    * @returns {void}
    *
    * @private
    */
-  function updateJobSnapshot(inputJob) {
-    jobsModified = true;
-    modifiedJobs.push(inputJob);
+  function collectModifiedJob(inputJob) {
+    modifiedJobIDs.add(inputJob.jobID);
   }
 }

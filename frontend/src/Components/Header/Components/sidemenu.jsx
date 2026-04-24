@@ -10,7 +10,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import useUsersStore from "../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
-import useAppConfig from "../../../Hooks/GeneralHooks/useAppConfig";
+import useAppConfig from "../../../Hooks/App/useAppConfig";
 
 export function SideMenu({ open, setOpen }) {
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);

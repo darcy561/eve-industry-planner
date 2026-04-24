@@ -1,6 +1,6 @@
 import getCharacterStandings from "../../../Functions/EveESI/Character/getStandings";
 import useUsersStore from "../../../Zustand/usersStore";
-import { getQueryEnabled } from "../../useQueryEnabled";
+import { isQueryExecutionEnabled } from "../../../Functions/Shared/queryExecutionEnabled";
 import { getESIRateLimitStatus } from "../../../Functions/EveESI/fetchWithCustomHeaders";
 
 const characterStandingsQueryKey = "characterStandings";
@@ -71,7 +71,7 @@ function characterStandingsQuery(characterHash) {
       });
       return result.data;
     },
-    enabled: getQueryEnabled(),
+    enabled: isQueryExecutionEnabled(),
     staleTime: 30 * 60 * 1000, // 30 minutes
     gcTime: 60 * 60 * 1000, // 1 hour
     retry: 3,

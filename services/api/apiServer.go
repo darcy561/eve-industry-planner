@@ -12,6 +12,7 @@ import (
 	"eve-industry-planner/api/staticdata"
 	"eve-industry-planner/api/v1endpoints"
 	"eve-industry-planner/api/v1endpoints/archivedjobs"
+	"eve-industry-planner/api/v1endpoints/documentlocks"
 	"eve-industry-planner/api/v1endpoints/statistics"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/shared"
@@ -131,9 +132,9 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 			},
 		},
 		{
-			Path: "/api/v1/analytics/event",
+			Path: "/api/v1/analytics/events",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.FrontendAppEventHandler(w, r, clients)
+				v1endpoints.FrontendAppEventsBatchHandler(w, r, clients)
 			},
 		},
 		{
@@ -223,6 +224,12 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 			},
 		},
 		{
+			Path: "/api/v1/user/watchlist-deprecated",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				v1endpoints.WatchlistDeprecatedDocumentHandler(w, r, clients)
+			},
+		},
+		{
 			Path: "/api/v1/jobs",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.JobsRouter(w, r, clients)
@@ -232,6 +239,18 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 			Path: "/api/v1/jobs/",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.JobsRouter(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/v1/job-documents",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				v1endpoints.JobDocumentsRouter(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/v1/job-documents/",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				v1endpoints.JobDocumentsRouter(w, r, clients)
 			},
 		},
 		{
@@ -270,6 +289,12 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 				v1endpoints.GroupsRouter(w, r, clients)
 			},
 		},
+		{
+			Path: "/api/v1/document-locks/",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				documentlocks.Router(w, r, clients)
+			},
+		},
 	}
 
 	// Register private routes (v1)
@@ -280,10 +305,6 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 	// Migration-specific groups (separate from v1 handlers)
 	migrationPublicGroup := middleware.NewGroup(mux,
 		middleware.RateLimiterConstructor(store, publicRateLimit, "migration_public"),
-	)
-	migrationPrivateGroup := middleware.NewGroup(mux,
-		middleware.RateLimiterConstructor(store, privateRateLimit, "migration_private"),
-		middleware.AuthConstructor(),
 	)
 
 	// Migration public routes
@@ -303,19 +324,6 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 	}
 	for _, route := range migrationPublicRoutes {
 		migrationPublicGroup.HandleFunc(route.Path, route.Handler)
-	}
-
-	// Migration private routes
-	migrationPrivateRoutes := []route{
-		{
-			Path: "/api/migration/firebase-token",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				migrationendpoints.FirebaseTokenHandler(w, r, clients)
-			},
-		},
-	}
-	for _, route := range migrationPrivateRoutes {
-		migrationPrivateGroup.HandleFunc(route.Path, route.Handler)
 	}
 
 	cfg, err := config.LoadConfig()

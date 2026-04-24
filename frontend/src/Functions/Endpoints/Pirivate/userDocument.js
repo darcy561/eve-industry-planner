@@ -103,6 +103,7 @@ async function getUserAccountDocument() {
       USER_MAIN_URL,
       {
         method: "GET",
+        cache: "no-store",
       },
       { requestName: "getUserAccountDocument" }
     );
@@ -127,9 +128,45 @@ async function getUserAccountDocument() {
   }
 }
 
+/**
+ * Loads application settings from Mongo via GET `/api/v1/user/application-settings`.
+ * @returns {Promise<Object|null>}
+ */
+async function getApplicationSettingsDocument() {
+  try {
+    const response = await requestWithPrivateHeaders(
+      APPLICATION_SETTINGS_URL,
+      {
+        method: "GET",
+        cache: "no-store",
+      },
+      { requestName: "getApplicationSettingsDocument" }
+    );
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.warn("Application settings document not found");
+        return null;
+      }
+      const errorText = await response.text();
+      console.error(
+        `Failed to get application settings: ${response.status} ${response.statusText}`,
+        errorText
+      );
+      return null;
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error getting application settings document:", error);
+    return null;
+  }
+}
+
 export {
   saveUserAccountDocument,
   saveApplicationSettings,
   saveUserAccountAndApplicationSettings,
   getUserAccountDocument,
+  getApplicationSettingsDocument,
 };

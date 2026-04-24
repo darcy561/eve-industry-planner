@@ -1,21 +1,49 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/websocket/server/config"
 	syncpkg "eve-industry-planner/websocket/sync"
 
 	"github.com/gorilla/websocket"
 )
 
+// isBenignWebSocketDisconnect classifies errors that usually mean the peer went away
+// (tab closed, navigation, reconnect, proxy idle reset) rather than an internal failure.
+func isBenignWebSocketDisconnect(err error) bool {
+	if err == nil {
+		return false
+	}
+	var ce *websocket.CloseError
+	if errors.As(err, &ce) {
+		switch ce.Code {
+		case websocket.CloseNormalClosure,
+			websocket.CloseGoingAway,
+			websocket.CloseNoStatusReceived,
+			websocket.CloseAbnormalClosure:
+			return true
+		}
+	}
+	es := err.Error()
+	return strings.Contains(es, "close 1005") ||
+		strings.Contains(es, "close 1006") ||
+		strings.Contains(es, "close 1000") ||
+		strings.Contains(es, "close 1001") ||
+		strings.Contains(es, "use of closed network connection") ||
+		strings.Contains(es, "connection reset by peer")
+}
+
 // reader reads messages from the WebSocket connection
 func (s *Server) reader(client *Client) {
 	ctx := client.LogContext()
-	logs.InfoCtx(ctx, "websocket reader function called",
+	logs.DebugCtx(ctx, "websocket reader started",
 		"client_id", client.id,
 		"account_id", client.AccountID)
 
@@ -30,8 +58,13 @@ func (s *Server) reader(client *Client) {
 	}()
 
 	defer func() {
-		// Clean up subscriptions for this client
-		s.cleanupClientSubscriptions(client.id, client.AccountID, client.subscribedDocs)
+		// Snapshot subscription keys so a quick JWT re-handshake can move NATS subscriber slots to the new client_id.
+		s.snapshotSessionHandoff(ctx, client)
+
+		s.unregisterClientFromOrgPools(client)
+
+		// Clean up explicit subscription index for this client
+		s.cleanupClientSubscriptions(client.id, client.AccountID, client.explicitDocIDs)
 
 		s.ClientsMu.Lock()
 		wasInClients := s.Clients[client.id] != nil
@@ -55,29 +88,41 @@ func (s *Server) reader(client *Client) {
 		}
 		s.userConnMu.Unlock()
 
+		// Remove session -> client mapping only if this client is still the active one.
+		s.sessionConnMu.Lock()
+		wasActiveSessionClient := false
+		if activeClientID, ok := s.sessionConnections[client.SessionID]; ok && activeClientID == client.id {
+			delete(s.sessionConnections, client.SessionID)
+			wasActiveSessionClient = true
+		}
+		s.sessionConnMu.Unlock()
+
 		// Close connection if not already closed
 		client.conn.Close()
 
 		// Close Send channel to signal writer goroutine to exit
 		close(client.Send)
+		s.recordConnectionClosed(ctx, client.AccountID)
 
-		logs.InfoCtx(ctx, "websocket client disconnected",
+		logs.DebugCtx(ctx, "websocket client disconnected",
 			"client_id", client.id,
 			"account_id", client.AccountID,
+			"session_id", client.SessionID,
 			"remaining_clients", clientCount,
 			"remaining_user_connections", userConnCount,
 			"was_in_clients", wasInClients,
-			"was_in_user_conns", wasInUserConns)
+			"was_in_user_conns", wasInUserConns,
+			"was_active_session_client", wasActiveSessionClient)
 	}()
 
 	// Set read deadline to enable timeout detection for stale connections
 	// We'll extend it in the loop when messages are received
-	client.conn.SetReadDeadline(time.Now().Add(pongWait))
+	client.conn.SetReadDeadline(time.Now().Add(config.PongWait))
 
-	logs.InfoCtx(ctx, "websocket reader starting to read messages",
+	logs.DebugCtx(ctx, "websocket reader read loop",
 		"client_id", client.id,
 		"account_id", client.AccountID,
-		"pong_wait", pongWait)
+		"pong_wait", config.PongWait)
 
 	messageCount := 0
 	for {
@@ -106,9 +151,14 @@ func (s *Server) reader(client *Client) {
 					"client_id", client.id,
 					"account_id", client.AccountID,
 					"idle_duration", idleDuration,
-					"pong_wait", pongWait,
+					"pong_wait", config.PongWait,
 					"error", err,
 					"note", "This suggests old connections aren't being closed when token refreshes")
+			} else if isBenignWebSocketDisconnect(err) {
+				logs.DebugCtx(ctx, "websocket read ended (peer closed or network reset)",
+					"client_id", client.id,
+					"account_id", client.AccountID,
+					"error", err)
 			} else {
 				logs.WarnCtx(ctx, "websocket read error", "client_id", client.id, "error", err)
 			}
@@ -130,24 +180,24 @@ func (s *Server) reader(client *Client) {
 		client.activityMu.Unlock()
 
 		// Extend read deadline for next message/pong
-		client.conn.SetReadDeadline(time.Now().Add(pongWait))
+		client.conn.SetReadDeadline(time.Now().Add(config.PongWait))
 
 		// Rate limiting: Check message rate
 		client.messageMu.Lock()
 		now := time.Now()
-		if now.Sub(client.lastReset) > MessageRateWindow {
+		if now.Sub(client.lastReset) > config.MessageRateWindow {
 			// Reset counter
 			client.messageCount = 0
 			client.lastReset = now
 		}
 		client.messageCount++
-		if client.messageCount > MessageRateLimit {
+		if client.messageCount > config.MessageRateLimit {
 			client.messageMu.Unlock()
 			logs.WarnCtx(ctx, "websocket message rate limit exceeded",
 				"client_id", client.id,
 				"account_id", client.AccountID,
 				"message_count", client.messageCount,
-				"limit", MessageRateLimit)
+				"limit", config.MessageRateLimit)
 			client.conn.WriteMessage(websocket.CloseMessage,
 				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "Rate limit exceeded"))
 			break
@@ -202,6 +252,23 @@ func (s *Server) reader(client *Client) {
 				"type_ok", ok)
 
 			switch msgType {
+			case "session_resume":
+				var resume struct {
+					PreviousClientID string `json:"previousClientID"`
+				}
+				if err := json.Unmarshal(msg, &resume); err != nil {
+					logs.WarnCtx(ctx, "failed to parse session_resume message",
+						"client_id", client.id,
+						"account_id", client.AccountID,
+						"error", err,
+						"message_preview", msgStr)
+					continue
+				}
+				prev := strings.TrimSpace(resume.PreviousClientID)
+				skipBaseline, restoredIDs := s.ApplySessionResume(ctx, client, prev)
+				s.queueResumeAck(client, skipBaseline, restoredIDs)
+				continue
+
 			case "sync":
 				// Sync message - route to sync queue
 				syncpkg.HandleSyncMessage(ctx, s, client.id, client.AccountID, msg)
@@ -228,12 +295,44 @@ func (s *Server) reader(client *Client) {
 					continue
 				}
 
+				acked := make([]string, 0)
 				for _, docID := range subscribeMsg.DocIDs {
+					if !s.docSubscribeAuthorized(context.Background(), docID, client.AccountID) {
+						logs.WarnCtx(ctx, "subscribe rejected: docID not authorized for account",
+							"client_id", client.id,
+							"account_id", client.AccountID,
+							"doc_id", docID)
+						continue
+					}
 					s.enqueueIncomingEvent(Event{
 						ClientID: client.id,
 						DocID:    docID,
 						Msg:      []byte("subscribe"),
 					})
+					acked = append(acked, docID)
+				}
+				s.QueueSubscribeAck(client, acked)
+				continue
+
+			case "upgrade_scopes":
+				var upgrade struct {
+					CorporationIDs []string `json:"corporationIDs"`
+					AllianceIDs    []string `json:"allianceIDs"`
+				}
+				if err := json.Unmarshal(msg, &upgrade); err != nil {
+					logs.WarnCtx(ctx, "failed to parse upgrade_scopes message",
+						"client_id", client.id,
+						"account_id", client.AccountID,
+						"error", err,
+						"message_preview", msgStr)
+					continue
+				}
+				if s.ApplyRealtimeScopeUpgrade(client, upgrade.CorporationIDs, upgrade.AllianceIDs) {
+					s.queueScopesAck(client)
+				} else {
+					logs.DebugCtx(ctx, "upgrade_scopes: no valid corporation/alliance ids for this JWT",
+						"client_id", client.id,
+						"account_id", client.AccountID)
 				}
 				continue
 
@@ -259,12 +358,23 @@ func (s *Server) reader(client *Client) {
 				}
 
 				for _, docID := range unsubscribeMsg.DocIDs {
+					if !s.docSubscribeAuthorized(context.Background(), docID, client.AccountID) {
+						logs.WarnCtx(ctx, "unsubscribe rejected: docID not authorized for account",
+							"client_id", client.id,
+							"account_id", client.AccountID,
+							"doc_id", docID)
+						continue
+					}
 					s.enqueueIncomingEvent(Event{
 						ClientID: client.id,
 						DocID:    docID,
 						Msg:      []byte("unsubscribe"),
 					})
 				}
+				continue
+
+			case "document_lock_status_batch":
+				s.handleDocumentLockStatusBatch(client, msg)
 				continue
 
 			default:

@@ -29,7 +29,7 @@ export function SidemenuButtonTemplate_Default({
                 }),
           },
         }}
-        onClick={onClick}
+        onClick={disabled ? undefined : onClick}
       >
         <ListItemButton
           disabled={disabled}

@@ -5,13 +5,14 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/websocket/server/config"
 )
 
 // startCleanupGoroutine starts a background goroutine that periodically cleans up idle queues
 func (s *Server) startCleanupGoroutine() {
 	go func() {
 		cleanupCtx := context.Background()
-		ticker := time.NewTicker(CleanupInterval)
+		ticker := time.NewTicker(config.CleanupInterval)
 		defer ticker.Stop()
 
 		logs.DebugCtx(cleanupCtx, "cleanup goroutine started")
@@ -29,20 +30,18 @@ func (s *Server) startCleanupGoroutine() {
 	}()
 }
 
-// cleanupIdleQueues removes queues that have been idle for longer than IdleQueueTimeout
-// and has no active subscribers (for outgoing queues).
+// cleanupIdleQueues removes incoming queues that have been idle for longer than config.IdleQueueTimeout.
 func (s *Server) cleanupIdleQueues() {
 	ctx := context.Background()
 	now := time.Now()
 	cleanedIncoming := 0
-	cleanedOutgoing := 0
 
 	// Clean up incoming queues
 	s.incomingMu.Lock()
 	for docID, queue := range s.incomingQueues {
 		// Check if queue is idle and empty
 		idleTime := now.Sub(queue.lastUse)
-		if idleTime > IdleQueueTimeout {
+		if idleTime > config.IdleQueueTimeout {
 			// Try to lock to ensure no worker is processing
 			if queue.mu.TryLock() {
 				// Double-check queue is empty
@@ -60,30 +59,7 @@ func (s *Server) cleanupIdleQueues() {
 	}
 	s.incomingMu.Unlock()
 
-	// Clean up outgoing queues
-	s.outgoingMu.Lock()
-	for docID, queue := range s.outgoingQueues {
-		// Check if queue is idle and has no subscribers
-		idleTime := now.Sub(queue.lastUse)
-		if idleTime > IdleQueueTimeout {
-			// Try to lock to ensure no worker is processing
-			if queue.mu.TryLock() {
-				// Double-check queue is empty and no subscribers
-				if len(queue.ch) == 0 && len(queue.subscribers) == 0 {
-					close(queue.ch)
-					delete(s.outgoingQueues, docID)
-					cleanedOutgoing++
-					logs.DebugCtx(ctx, "cleaned idle outgoing queue",
-						"doc_id", docID,
-						"idle_time", idleTime)
-				}
-				queue.mu.Unlock()
-			}
-		}
-	}
-	s.outgoingMu.Unlock()
-
-	// Clean up stale active subscriptions (older than ActiveSubscriptionTimeout)
+	// Clean up stale active subscriptions (older than config.ActiveSubscriptionTimeout)
 	// This distinguishes between temporary disconnects and user logout
 	// Also clean up subscriptions for clients that no longer exist
 	cleanedActive := 0
@@ -109,7 +85,7 @@ func (s *Server) cleanupIdleQueues() {
 		// Clean up stale subscriptions (older than timeout)
 		for docID, timestamp := range activeDocs {
 			age := now.Sub(timestamp)
-			if age > ActiveSubscriptionTimeout {
+			if age > config.ActiveSubscriptionTimeout {
 				delete(activeDocs, docID)
 				cleanedActive++
 				logs.DebugCtx(ctx, "cleaned stale active subscription (timeout)",
@@ -125,10 +101,9 @@ func (s *Server) cleanupIdleQueues() {
 	}
 	s.activeSubsMu.Unlock()
 
-	if cleanedIncoming > 0 || cleanedOutgoing > 0 || cleanedActive > 0 {
-		logs.InfoCtx(ctx, "cleanup completed",
+	if cleanedIncoming > 0 || cleanedActive > 0 {
+		logs.DebugCtx(ctx, "cleanup completed",
 			"incoming_queues_cleaned", cleanedIncoming,
-			"outgoing_queues_cleaned", cleanedOutgoing,
 			"active_subscriptions_cleaned", cleanedActive)
 	}
 }

@@ -1,6 +1,10 @@
 import { FormControl, FormHelperText, MenuItem, Select } from "@mui/material";
 import { listingType } from "../../Context/defaultValues";
 import GLOBAL_CONFIG from "../../global-config-app";
+import useUsersStore from "../../Zustand/usersStore.js";
+import { normalizedOverrideWhenMatchesDefault } from "./applicationSettingsMarketUtils.js";
+
+const { DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
 
 /**
  * A select component for choosing market listing types (buy/sell orders).
@@ -95,3 +99,42 @@ function MarketListingSelect({
 }
 
 export default MarketListingSelect;
+
+/**
+ * Buy/sell listing select aligned with `applicationSettings.defaultOrderType`, with an optional override
+ * (same shape as persisted `layout.localOrderDisplay`).
+ *
+ * @param {Object} props
+ * @param {string | null | undefined} props.overrideOrderType
+ * @param {(orderTypeId: string | undefined) => void} props.onOrderTypeCommit — `undefined` clears override when choice matches default
+ * @param {string | undefined} [props.alternativeDefaultOrderType]
+ */
+export function MarketListingSelectApplicationSettings({
+  overrideOrderType,
+  onOrderTypeCommit,
+  alternativeDefaultOrderType,
+  ...rest
+}) {
+  const storeDefault = useUsersStore(
+    (s) => s.applicationSettings.defaultOrderType
+  );
+  const applicationDefault = alternativeDefaultOrderType ?? storeDefault;
+  const value =
+    overrideOrderType ?? applicationDefault ?? DEFAULT_ORDER_OPTION;
+
+  return (
+    <MarketListingSelect
+      {...rest}
+      value={value}
+      onChange={(listing) =>
+        onOrderTypeCommit(
+          normalizedOverrideWhenMatchesDefault(
+            listing.id,
+            applicationDefault,
+            DEFAULT_ORDER_OPTION
+          )
+        )
+      }
+    />
+  );
+}

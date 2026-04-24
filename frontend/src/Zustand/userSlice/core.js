@@ -13,18 +13,14 @@ import Character from "../../Classes/character";
 
 /**
  * Default state configuration for user data.
- * 
- * Defines the initial state values for user-related data (Firebase listeners).
+ *
  * Characters and corporations live on the `account` slice.
  * Job stage labels and accordion expansion are handled via application settings
  * and localStorage — see `useJobStatuses`.
- * 
+ *
  * @returns {Object} Default user state
- * @property {Array} firebaseListeners - Array of Firebase listeners
  */
-export const stateDefault = () => ({
-  firebaseListeners: [],
-});
+export const stateDefault = () => ({});
 
 /**
  * Core actions for user management.
@@ -67,7 +63,7 @@ export const coreActions = (set, get) => ({
    * Converts user state to document format for storage.
    * 
    * Creates a document object containing all user data that needs to be
-   * persisted to Firebase or other storage systems.
+   * persisted to the server or other storage systems.
    * 
    * @returns {Object} Document object for storage
    * @returns {Array} returns.refreshTokens - From `account.linkedCharacterRefreshTokens` (cloud-linked ESI tokens)
@@ -76,7 +72,7 @@ export const coreActions = (set, get) => ({
    * 
    * @example
    * const document = store.getState().users.actions.toDocument();
-   * await saveToFirebase(document);
+   * await saveUserDocument(...);
    */
   toDocument: () => {
     const account = get().account;

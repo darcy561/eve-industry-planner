@@ -18,6 +18,7 @@ import ReprocessingStructure from "../../../Classes/reprocessingStructure";
 import useUsersStore from "../../../Zustand/usersStore";
 import { jobTypes } from "../../../Context/defaultValues";
 import GLOBAL_CONFIG from "../../../global-config-app";
+import { useAdvanceWhenFollowingAppDefault } from "../../../Hooks/Planner/useAdvanceWhenFollowingAppDefault.js";
 
 const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
 
@@ -144,6 +145,22 @@ export default function useReprocessingReducer() {
   };
 
   const [state, dispatch] = useReducer(reprocessingReducer, initialState);
+
+  useAdvanceWhenFollowingAppDefault({
+    applicationDefault: defaultOrderType,
+    committedValue: state.marketListing,
+    fallback: DEFAULT_ORDER_OPTION,
+    dispatch,
+    advanceActionType: REPROCESSING_ACTION_TYPES.SET_MARKET_LISTING,
+  });
+
+  useAdvanceWhenFollowingAppDefault({
+    applicationDefault: defaultMarketLocation,
+    committedValue: state.marketLocation,
+    fallback: DEFAULT_MARKET_OPTION,
+    dispatch,
+    advanceActionType: REPROCESSING_ACTION_TYPES.SET_MARKET_LOCATION,
+  });
 
   /**
    * Action dispatchers for the reprocessing page state.

@@ -1,20 +1,22 @@
-import { formatNumberForLocale, formatTimeRemaining } from "../../../../Functions/Helper/numberParser";
+import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser";
 
 function getTooltipContent(job) {
   switch (job.jobStatus) {
     case 0:
       return (
         <span>
-          <p>Job Setups: {job.totalSetupCount}</p>
+          <p>Job Setups: {job.setupCount()}</p>
         </span>
       );
     case 1:
-      if (job.totalComplete < job.totalMaterials) {
+      const totalMaterials = job.build.materials.length;
+      const totalComplete = job.totalCompletedMaterials();
+      if (totalComplete < totalMaterials) {
         return (
           <span>
             <p>
-              Awaiting Materials: {job.totalMaterials - job.totalComplete}/
-              {job.totalMaterials}
+              Awaiting Materials: {totalMaterials - totalComplete}/
+              {totalMaterials}
             </p>
           </span>
         );
@@ -27,20 +29,14 @@ function getTooltipContent(job) {
             ESI Jobs Linked:{" "}
             {formatNumberForLocale(job.apiJobs.size, { max: 0 })}
           </p>
-          {job.apiJobs.size > 0 && (
-            <p>
-              {formatTimeRemaining(Date.parse(job.end_date)) === "Complete"
-                ? "Complete"
-                : `Ends In: ${formatTimeRemaining(Date.parse(job.end_date))}`}
-            </p>
-          )}
+
         </span>
       );
     case 3:
       return (
         <span>
           <p>
-            Items Built: {formatNumberForLocale(job.itemQuantity, { max: 0 })}
+            Items Built: {formatNumberForLocale(job.build.products.totalQuantity, { max: 0 })}
           </p>
         </span>
       );

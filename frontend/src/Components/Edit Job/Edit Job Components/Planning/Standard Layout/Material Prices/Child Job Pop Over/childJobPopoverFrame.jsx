@@ -1,23 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import { Paper, Popover, Typography, Grid } from "@mui/material";
-
-import { useJobBuild } from "../../../../../../../Hooks/useJobBuild";
+import { useQueryClient } from "@tanstack/react-query";
 import { ImportingStateLayout_ChildJobPopoverFrame } from "./fetchState";
 import { ChildJobMaterials_ChildJobPopoverFrame } from "./childJobMaterials";
 import { ChildJobSwitcher_ChildJobPopoverFrame } from "./switchChildJob";
 import { DisplayMismatchedChildTotals_ChildJobPopoverFrame } from "./misMatchedTotals";
 import { ChildJobMaterialTotalCosts_ChildJobPopoverFrame } from "./childJobTotalCosts";
-import { useMaterialCostCalculations } from "../../../../../../../Hooks/GroupHooks/useMaterialCostCalculations";
-import { useManageGroupJobs } from "../../../../../../../Hooks/GroupHooks/useManageGroupJobs";
+import { calculateMaterialCostFromChildJobs } from "../../../../../../../Functions/Groups/materialCostFromChildJobs.js";
+import { findMaterialJobInGroup } from "../../../../../../../Functions/Groups/findMaterialJobInGroup.js";
 import { ButtonSelectionLogic_ChildJobPopoverFrame } from "./buttonSelectionLogic";
 import { STANDARD_TEXT_FORMAT } from "../../../../../../../Context/defaultValues";
 import getMarketData from "../../../../../../../Functions/MarketData/findMarketData";
 import useUsersStore from "../../../../../../../Zustand/usersStore";
+import { buildJob } from "../../../../../../../Functions/JobPlanner/buildJob";
 
 export function ChildJobPopoverFrame(props) {
   const {
     state,
-    actions,
     displayPopover,
     updateDisplayPopover,
     material,
@@ -26,15 +25,14 @@ export function ChildJobPopoverFrame(props) {
     currentMaterialPrice,
     matchedChildJobs,
   } = props;
-  const checkTypeIDisExempt = useUsersStore.getState().applicationSettings.actions.checkTypeIDisExempt;
+  const checkTypeIDisExempt =
+    useUsersStore.getState().applicationSettings.actions.checkTypeIDisExempt;
   const [tempPrices, updateTempPrices] = useState([]);
   const [jobImportState, updateJobImportState] = useState(false);
   const [jobDisplay, setJobDisplay] = useState(0);
   const [childJobObjects, updateChildJobObjects] = useState([]);
   const [fetchError, updateFetchError] = useState(false);
-  const { buildJob } = useJobBuild();
-  const { calculateMaterialCostFromChildJobs } = useMaterialCostCalculations();
-  const { findMaterialJobIDInGroup } = useManageGroupJobs();
+  const queryClient = useQueryClient();
 
   const childJobsLocation = state.activeJob.build.childJobs[material.typeID];
   const currentJob = childJobObjects[jobDisplay];
@@ -43,7 +41,7 @@ export function ChildJobPopoverFrame(props) {
   useEffect(() => {
     async function fetchData() {
       if (!displayPopover) return;
-      const matchedGroupJob = findMaterialJobIDInGroup(
+      const matchedGroupJob = findMaterialJobInGroup(
         material.typeID,
         state.activeJob.groupID
       );
@@ -51,16 +49,19 @@ export function ChildJobPopoverFrame(props) {
         matchedChildJobs.push(matchedGroupJob);
         isExistingJobInGroup.current = true;
       } else if (matchedChildJobs.length === 0) {
-        const newJob = await buildJob({
-          itemID: material.typeID,
-          itemQty: material.quantity,
-          parentJobs: [state.activeJob.jobID],
-          groupID: state.activeJob.groupID,
-          systemID:
-            state.activeJob.build.setup[state.activeJob.layout.setupToEdit]
-              .systemID,
-          skipJobCreateAnalytics: true,
-        });
+        const newJob = await buildJob(
+          {
+            itemID: material.typeID,
+            itemQty: material.quantity,
+            parentJobs: [state.activeJob.jobID],
+            groupID: state.activeJob.groupID,
+            systemID:
+              state.activeJob.build.setup[state.activeJob.layout.setupToEdit]
+                .systemID,
+            skipJobCreateAnalytics: true,
+          },
+          { queryClient }
+        );
         if (!newJob) {
           updateFetchError(true);
         }

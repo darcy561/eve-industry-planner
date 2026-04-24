@@ -30,12 +30,6 @@ export function getRuntimeEnv(key, defaultValue = "") {
  */
 export function getEnvConfig() {
   return {
-    FIREBASE_API_KEY: getEnv("FIREBASE_API_KEY"),
-    FIREBASE_AUTH_DOMAIN: getEnv("FIREBASE_AUTH_DOMAIN"),
-    FIREBASE_DATABASE_URL: getEnv("FIREBASE_DATABASE_URL"),
-    FIREBASE_PROJECT_ID: getEnv("FIREBASE_PROJECT_ID"),
-    FIREBASE_APP_ID: getEnv("FIREBASE_APP_ID"),
-    RECAPTCHA_KEY: getEnv("RECAPTCHA_KEY"),
     GA4_MEASUREMENT_ID: getEnv("GA4_MEASUREMENT_ID"),
     EVE_CLIENT_ID: getEnv("EVE_CLIENT_ID"),
     EVE_CALLBACK_URL: getEnv("EVE_CALLBACK_URL"),

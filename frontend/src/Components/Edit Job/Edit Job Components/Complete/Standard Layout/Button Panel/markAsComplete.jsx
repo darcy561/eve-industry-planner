@@ -3,28 +3,24 @@ import useUsersStore from "../../../../../../Zustand/usersStore";
 
 export function MarkAsCompleteButton({ state, actions }) {
   const { groupArray } = useUsersStore((state) => state.jobData);
-  const { replaceGroupArray } = useUsersStore((state) => state.jobData.actions);
+  const { updateModifiedGroups, queueJobGroupWritesAndSchedule } = useUsersStore(
+    (state) => state.jobData.actions
+  );
   const { activeGroupID } = useUsersStore((state) => state.jobData);
 
   const activeGroupObject = groupArray.find((i) => i.groupID === activeGroupID);
 
   function toggleMarkJobAsComplete() {
-    const updatedGroupArray = groupArray.map(group => {
-      if (group.groupID === activeGroupID) {
-        const newGroup = { ...group };
-
-        if (group.areComplete.has(state.activeJob.jobID)) {
-          newGroup.removeAreComplete(state.activeJob.jobID);
-        } else {
-          newGroup.addAreComplete(state.activeJob.jobID);
-        }
-
-        return newGroup;
-      }
-      return group;
-    });
-
-    replaceGroupArray(updatedGroupArray);
+    if (!activeGroupObject) return;
+    if (activeGroupObject.areComplete.has(state.activeJob.jobID)) {
+      activeGroupObject.removeAreComplete(state.activeJob.jobID);
+    } else {
+      activeGroupObject.addAreComplete(state.activeJob.jobID);
+    }
+    updateModifiedGroups(activeGroupObject);
+    if (activeGroupID) {
+      queueJobGroupWritesAndSchedule(activeGroupID);
+    }
 
     actions.markJobAsModified();
   }

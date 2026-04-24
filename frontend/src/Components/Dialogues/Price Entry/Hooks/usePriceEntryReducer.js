@@ -10,11 +10,22 @@ import { useReducer, useMemo } from "react";
 import { PRICE_ENTRY_ACTION_TYPES, priceEntryReducer } from "./priceEntryReducer";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { buildSetIsLoadingActionPayload } from "../../../../Functions/Helper/setIsLoadingAction";
+import GLOBAL_CONFIG from "../../../../global-config-app";
+import { useAdvanceWhenFollowingAppDefault } from "../../../../Hooks/Planner/useAdvanceWhenFollowingAppDefault.js";
+
+const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
 
 /**
  * Custom hook for managing price entry dialog state.
  */
 export default function usePriceEntryReducer() {
+    const defaultMarketLocation = useUsersStore(
+        (s) => s.applicationSettings.defaultMarketLocation
+    );
+    const defaultOrderType = useUsersStore(
+        (s) => s.applicationSettings.defaultOrderType
+    );
+
     /**
      * Creates the initial state for the price entry dialog.
      */
@@ -24,9 +35,11 @@ export default function usePriceEntryReducer() {
         requestedJobIDs: [],
         priceEntryList: [],
         displayMarket:
-          useUsersStore.getState().applicationSettings.defaultMarketLocation,
+          useUsersStore.getState().applicationSettings.defaultMarketLocation ??
+          DEFAULT_MARKET_OPTION,
         displayOrder:
-          useUsersStore.getState().applicationSettings.defaultOrderType,
+          useUsersStore.getState().applicationSettings.defaultOrderType ??
+          DEFAULT_ORDER_OPTION,
         clearUnconfirmedTrigger: 0,
     });
 
@@ -36,6 +49,22 @@ export default function usePriceEntryReducer() {
         (state, action) => priceEntryReducer(state, action, createInitialState),
         initialState
     );
+
+    useAdvanceWhenFollowingAppDefault({
+        applicationDefault: defaultMarketLocation,
+        committedValue: state.displayMarket,
+        fallback: DEFAULT_MARKET_OPTION,
+        dispatch,
+        advanceActionType: PRICE_ENTRY_ACTION_TYPES.SET_DISPLAY_MARKET,
+    });
+
+    useAdvanceWhenFollowingAppDefault({
+        applicationDefault: defaultOrderType,
+        committedValue: state.displayOrder,
+        fallback: DEFAULT_ORDER_OPTION,
+        dispatch,
+        advanceActionType: PRICE_ENTRY_ACTION_TYPES.SET_DISPLAY_ORDER,
+    });
 
     /**
      * Action dispatchers for the price entry dialog state.

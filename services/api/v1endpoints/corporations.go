@@ -11,6 +11,7 @@ import (
 
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/api/helper/sso"
+	"eve-industry-planner/shared/core/internaljwt"
 	"eve-industry-planner/shared/core/config"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/shared"
@@ -85,7 +86,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	}
 
 	// Validate internal JWT token and extract AccountID
-	internalClaims, err := auth.ValidateInternalJWT(internalTokenString)
+	internalClaims, err := internaljwt.ValidateInternalJWT(internalTokenString)
 	if err != nil {
 		m.Errors.WithLabelValues("invalid_token").Inc(ctx)
 		logs.WarnCtx(ctx, "failed to validate internal JWT token", "error", err)

@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { useAssetHelperHooks } from "../../../../Hooks/AssetHooks/useAssetHelper";
+import {
+  buildAssetMaps,
+  sortLocationMapsAlphabetically,
+} from "../../../../Functions/Assets/assetHelpers";
 import { AssetEntry_TopLevel } from "./AssetFolders/topLevelFolder";
 import { AssetsPage_Loading } from "./loadingPage";
 import getWorldData from "../../../../Functions/EveESI/World/getWorldData";
@@ -17,8 +20,6 @@ export function AssetsPage_Character({ selectedCharacter }) {
   const [assetLocationNames, updateAssetLocationNames] = useState(null);
   const [characterBlueprintsMap, updateCharacterBlueprintsMap] = useState(null);
   const [fullItemList, setFullItemList] = useState(null);
-  const { buildAssetMaps, sortLocationMapsAlphabetically } =
-    useAssetHelperHooks();
   const queryClient = useQueryClient();
 
   const { isLoading: isLoadingAssets, isError: isErrorAssets } =

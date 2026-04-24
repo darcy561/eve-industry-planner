@@ -1,7 +1,4 @@
-import uuid from "react-uuid";
-import findOrGetJobObject from "../Helper/findJobObject";
-import convertJobIDsToObjects from "../Helper/convertJobIDsToObjects";
-import firebaseBatchUpdateJobs from "../Firebase/batchUpdateJobs";
+import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import useUsersStore from "../../Zustand/usersStore";
 import { materialPriceObjectFactory } from "../JobPlanner/materialCosts";
 
@@ -11,23 +8,20 @@ import { materialPriceObjectFactory } from "../JobPlanner/materialCosts";
  * as purchase costs, updating Firebase with the changes.
  *
  * @param {Array|Object} jobsToPass - Job object(s) to pass costs from
- * @returns {Promise<Object>} Promise that resolves to notification text and retrieved jobs
+ * @returns {Promise<Object>} Promise that resolves to notification text
  *
  * @example
  * const result = await passBuildCostsToParentJobs([job1, job2]);
  * console.log(result.messageText); // "2 Costs Imported into 1 Job."
  */
 export async function passBuildCostsToParentJobs(jobsToPass) {
-  const retrievedJobs = [];
-  const matchedObjects = await convertJobIDsToObjects(
-    jobsToPass,
-    retrievedJobs
-  );
+  const { jobsFromIdsOrObjects } = useUsersStore.getState().jobData.actions;
+  const matchedObjects = await jobsFromIdsOrObjects(jobsToPass);
 
   const { collectedMaterials, parentJobMap } =
     collectMaterialsAndParentJobs(matchedObjects);
 
-  const parentJobs = await findNeededParentJobs(parentJobMap, retrievedJobs);
+  const parentJobs = findNeededParentJobs(parentJobMap);
 
   const { successfulJobImportCount, priceItemsImportedCount } =
     distributeItemCostsBetweenJobs(
@@ -38,16 +32,15 @@ export async function passBuildCostsToParentJobs(jobsToPass) {
 
   useUsersStore
     .getState()
-    .jobData.actions.updateJobSnapshotsFromJobs(parentJobs);
+    .jobData.actions.updateOrAddJobsToJobArray(parentJobs);
 
-  await firebaseBatchUpdateJobs(parentJobs);
+  await saveJobsViaApi(parentJobs);
 
   return {
     messageText: buildNotificationText(
       successfulJobImportCount,
       priceItemsImportedCount
     ),
-    retrievedJobs,
   };
 }
 
@@ -103,33 +96,24 @@ function collectMaterialsAndParentJobs(chosenJobs) {
 }
 
 /**
- * Finds and retrieves all needed parent jobs.
+ * Finds all needed parent jobs from the job array.
  *
  * @param {Object} parentMap - Map of material IDs to parent job IDs
- * @param {Array<Object>} retrievedJobs - Array to store retrieved jobs
- * @returns {Promise<Array<Object>>} Promise that resolves to array of parent job objects
- *
+ * @returns {Array<Object>}
  * @private
  */
-async function findNeededParentJobs(parentMap, retrievedJobs) {
+function findNeededParentJobs(parentMap) {
+  const { findJobInJobArray } = useUsersStore.getState().jobData.actions;
   const parentJobs = [];
-  const parentJobPromises = [];
+  const seen = new Set();
 
   for (const parentIDs of Object.values(parentMap)) {
     for (const parentID of parentIDs) {
-      parentJobPromises.push(findOrGetJobObject(parentID, retrievedJobs));
-    }
-  }
-
-  const resolvedPromises = await Promise.allSettled(parentJobPromises);
-
-  for (const result of resolvedPromises) {
-    if (
-      result.status === "fulfilled" &&
-      result.value &&
-      !parentJobs.some((i) => i.jobID === result.value.jobID)
-    ) {
-      parentJobs.push(result.value);
+      const job = findJobInJobArray(parentID);
+      if (job && !seen.has(job.jobID)) {
+        seen.add(job.jobID);
+        parentJobs.push(job);
+      }
     }
   }
 

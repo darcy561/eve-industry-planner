@@ -10,6 +10,7 @@ import (
 	"time"
 
 	rediscore "eve-industry-planner/shared/core/redis"
+	"eve-industry-planner/shared/core/internaljwt"
 	"eve-industry-planner/shared/logs"
 
 	"github.com/google/uuid"
@@ -36,7 +37,7 @@ type RefreshTokenData struct {
 	CharacterHash string         `json:"character_hash"`
 	AccountID     string         `json:"account_id"`
 	Scopes        []string       `json:"scopes"`
-	Corporations  CorporationIDs `json:"corporations,omitempty"` // Corporation IDs the user can access
+	Corporations  internaljwt.CorporationIDs `json:"corporations,omitempty"` // Corporation IDs the user can access
 	SessionID     string         `json:"session_id,omitempty"`
 	SessionStart  time.Time      `json:"session_start,omitempty"`
 	SessionSeenAt time.Time      `json:"session_seen_at,omitempty"`

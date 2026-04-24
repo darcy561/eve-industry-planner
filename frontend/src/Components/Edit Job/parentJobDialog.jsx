@@ -19,7 +19,7 @@ export function ParentJobDialog({
   dialogTrigger,
   updateDialogTrigger,
 }) {
-  const { userJobSnapshot, jobArray } = useUsersStore((state) => state.jobData);
+  const { jobArray } = useUsersStore((state) => state.jobData);
   const [matches, updateMatches] = useState([]);
 
   const handleClose = () => {
@@ -30,29 +30,38 @@ export function ParentJobDialog({
     if (!dialogTrigger) {
       return;
     }
-    let newMatches = [];
-    if (!state.activeJob.includedInGroup) {
-      newMatches = userJobSnapshot.filter(
-        (job) =>
-          (job.materialIDs.has(state.activeJob.itemID) &&
-            !state.activeJob.parentJobs.includes(job.jobID) &&
-            !state.parentChildToEdit.parentJobs.add.includes(job.jobID)) ||
-          state.parentChildToEdit.parentJobs.remove.includes(job.jobID)
-      );
-    } else {
-      newMatches = jobArray.filter(
-        (job) =>
-          (state.activeJob.includedInGroup && job.groupID === state.activeJob.groupID &&
-            !state.activeJob.parentJobs.includes(job.jobID) &&
-            job.build.materials.some(
-              (material) => material.typeID === state.activeJob.itemID
-            ) &&
-            !state.parentChildToEdit.parentJobs.add.includes(job.jobID)) ||
-          state.parentChildToEdit.parentJobs.remove.includes(job.jobID)
-      );
-    }
+    const active = state.activeJob;
+    const itemID = active.itemID;
+
+    const usesActiveOutputAsMaterial = (job) =>
+      job.build?.materials?.some((m) => m.typeID === itemID) ?? false;
+
+    const newMatches = jobArray.filter((job) => {
+      if (state.parentChildToEdit.parentJobs.remove.includes(job.jobID)) {
+        return true;
+      }
+      if (!usesActiveOutputAsMaterial(job)) {
+        return false;
+      }
+      if (active.parentJobs.includes(job.jobID)) {
+        return false;
+      }
+      if (state.parentChildToEdit.parentJobs.add.includes(job.jobID)) {
+        return false;
+      }
+      if (active.includedInGroup && job.groupID !== active.groupID) {
+        return false;
+      }
+      return true;
+    });
+
     updateMatches(newMatches);
-  }, [dialogTrigger]);
+  }, [
+    dialogTrigger,
+    jobArray,
+    state.activeJob,
+    state.parentChildToEdit.parentJobs,
+  ]);
 
   return (
     <Dialog
@@ -99,7 +108,9 @@ export function ParentJobDialog({
                   </Grid>
                   <Grid align="center" size={4}>
                     <Typography variant="body2">
-                      Runs {job.runCount} Jobs {job.jobCount}
+                      {job.setupCount()} setup
+                      {job.setupCount() === 1 ? "" : "s"} ·{" "}
+                      {job.build?.products?.totalQuantity ?? 0} items produced
                     </Typography>
                   </Grid>
                   <Grid size={1}>

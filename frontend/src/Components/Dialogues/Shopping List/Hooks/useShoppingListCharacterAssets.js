@@ -1,7 +1,11 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getAllCachedCharacterAssets } from "../../../../Hooks/EveEsi/Character/useGetAllCharacterAssets";
-import { useAssetHelperHooks } from "../../../../Hooks/AssetHooks/useAssetHelper";
+import {
+  findAssetsInLocation,
+  convertAssetArrayIntoMapByTypeID,
+  countAssetQuantityFromMap,
+} from "../../../../Functions/Assets/assetHelpers";
 import { getAssetLocationList } from "../../../../Functions/Assets/getAssetLocations";
 import useUsersStore from "../../../../Zustand/usersStore";
 
@@ -21,11 +25,6 @@ export function useShoppingListCharacterAssets({
     allCharacterAssetsLoading,
 }) {
     const queryClient = useQueryClient();
-    const {
-        findAssetsInLocation,
-        convertAssetArrayIntoMapByTypeID,
-        countAssetQuantityFromMap,
-    } = useAssetHelperHooks();
 
     // Track last processed location to avoid reprocessing
     const lastProcessedRef = useRef({

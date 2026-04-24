@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"eve-industry-planner/api/helper/auth"
+	"eve-industry-planner/shared/core/internaljwt"
 	"eve-industry-planner/shared/logs"
 )
 
@@ -38,7 +39,7 @@ func AuthConstructor() MiddlewareConstructor {
 			}
 
 			// Validate internal JWT token
-			claims, err := auth.ValidateInternalJWT(tokenString)
+			claims, err := internaljwt.ValidateInternalJWT(tokenString)
 			if err != nil {
 				logs.WarnCtx(r.Context(), "failed to validate internal JWT token", "error", err)
 				http.Error(w, auth.GetAuthErrorMessage(err), http.StatusUnauthorized)

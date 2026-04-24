@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { useAssetHelperHooks } from "../../../../Hooks/AssetHooks/useAssetHelper";
+import {
+  buildAssetLocationFlagMaps,
+  sortLocationMapsAlphabetically,
+} from "../../../../Functions/Assets/assetHelpers";
 import { AssetsPage_Loading } from "./loadingPage";
 import { AssetEntry_TopLevel } from "./AssetFolders/topLevelFolder";
 import uuid from "react-uuid";
@@ -19,8 +22,6 @@ export function AssetLocationFlagPage_Character({
   const [assetLocations, updateAssetLocations] = useState(null);
   const [assetLocationNames, updateAssetLocationNames] = useState(null);
   const [fullItemList, setFullItemList] = useState(null);
-  const { buildAssetLocationFlagMaps, sortLocationMapsAlphabetically } =
-    useAssetHelperHooks();
   const queryClient = useQueryClient();
 
   const { isLoading: isLoadingAssets, isError: isErrorAssets } =

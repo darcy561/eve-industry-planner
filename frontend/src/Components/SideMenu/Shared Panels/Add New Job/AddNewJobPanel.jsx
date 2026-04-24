@@ -12,12 +12,13 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
-import { useCachedData } from "../../../../Hooks/useCachedData";
+import { useCachedData } from "../../../../Hooks/App/useCachedData";
 import { CACHED_DATA_FILES } from "../../../../Context/defaultValues";
 import uuid from "react-uuid";
 import AddShipFittingPanel from "./addFittingJobs";
 import useUsersStore from "../../../../Zustand/usersStore";
-import useBuildNewJobs from "../../../../Hooks/JobHooks/useBuildNewJobs";
+import { useQueryClient } from "@tanstack/react-query";
+import addNewJobsToPlanner from "../../../../Functions/JobPlanner/addNewJobsToPlanner";
 import VirtualisedRecipeSearch from "../../../../Styled Components/autocomplete/virtualisedRecipeSearch";
 import toggleRightDrawerColapse from "../../Functions/toggleRightMenuDrawerColapse";
 
@@ -25,7 +26,7 @@ function AddNewJobSharedContentPanel({ state, actions }) {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
   const [itemIDsToAdd, updateItemIDsToAdd] = useState([]);
   const [addNewGroupOnBuild, updateAddNewGroupOnBuild] = useState(false);
-  const { addNewJobsToPlanner } = useBuildNewJobs();
+  const queryClient = useQueryClient();
   const { data: fullItemList } = useCachedData(
     CACHED_DATA_FILES.FULL_ITEM_LIST
   );
@@ -38,7 +39,9 @@ function AddNewJobSharedContentPanel({ state, actions }) {
     actions.setSkeletonElementsToDisplay(
       addNewGroupOnBuild ? 1 : itemIDsToAdd.length
     );
-    await addNewJobsToPlanner(itemIDsToAdd);
+    await addNewJobsToPlanner(itemIDsToAdd, queryClient, {
+      onBeforeCommit: () => actions.setSkeletonElementsToDisplay(0),
+    });
     updateItemIDsToAdd([]);
     toggleRightDrawerColapse(
       1,

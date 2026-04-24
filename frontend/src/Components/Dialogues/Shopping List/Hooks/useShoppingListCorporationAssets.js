@@ -1,7 +1,11 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getCachedSingleCorporationAssets } from "../../../../Hooks/EveEsi/useGetSingleCorporationAssets";
-import { useAssetHelperHooks } from "../../../../Hooks/AssetHooks/useAssetHelper";
+import {
+  buildAssetMapsCorpOffices,
+  convertAssetArrayIntoMapByTypeID,
+  countAssetQuantityFromMap,
+} from "../../../../Functions/Assets/assetHelpers";
 import useUsersStore from "../../../../Zustand/usersStore";
 import getWorldData from "../../../../Functions/EveESI/World/getWorldData";
 
@@ -20,11 +24,6 @@ export function useShoppingListCorporationAssets({
   corporationAssetsLoading,
 }) {
   const queryClient = useQueryClient();
-  const {
-    convertAssetArrayIntoMapByTypeID,
-    countAssetQuantityFromMap,
-    buildAssetMapsCorpOffices,
-  } = useAssetHelperHooks();
 
   // Track if we've already set corporation offices to prevent infinite loops
   const corporationOfficesSetRef = useRef(new Set());

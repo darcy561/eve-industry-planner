@@ -1,35 +1,22 @@
-import { Skeleton, Grid } from "@mui/material";
-import { useMemo } from "react";
+import { Grid } from "@mui/material";
 
 import { ClassicGroupJobCardFrame } from "./ClassicGroupJobCardFrame";
-import uuid from "react-uuid";
-import useUsersStore from "../../../../Zustand/usersStore";
-import { sortJobs } from "../utils/jobSortingMethods";
+import { PlannerClassicJobSkeletonGrid } from "../../../../Styled Components/PlannerAccordionJobSkeletons/PlannerAccordionJobSkeletons";
+import { useGroupPlannerStageSkeletonCount } from "../../../../Hooks/Planner/usePlannerInboundSkeletonCount";
+import { useGroupPlannerAccordionJobs } from "../../Hooks/useGroupPlannerAccordionJobs";
 
 export function ClassicGroupAccordionContent({
   status,
-  statusJobs,
+  plannerJobs,
   skeletonElementsToDisplay,
   highlightedItems,
+  groupReadOnly = false,
 }) {
-  const { getActiveGroupObject } = useUsersStore.getState().jobData.actions;
-
-  const activeGroupObject = getActiveGroupObject();
-
-  const shouldJobBeDisplayed = (job) => {
-    if (!activeGroupObject) return false;
-
-    return (
-      activeGroupObject.showComplete ||
-      !activeGroupObject.areComplete.has(job.jobID)
-    );
-  };
-
-  // Memoized sorted jobs array using dependency injection sorting system
-  const sortedJobs = useMemo(() => {
-    const filteredJobs = statusJobs.filter(shouldJobBeDisplayed);
-    return sortJobs(filteredJobs, status.id);
-  }, [statusJobs, activeGroupObject, status.id]);
+  const sortedJobs = useGroupPlannerAccordionJobs(plannerJobs, status.id);
+  const { skeletonCount } = useGroupPlannerStageSkeletonCount(
+    status,
+    skeletonElementsToDisplay
+  );
 
   return (
     <Grid container spacing={2} sx={{ height: "100%" }} size={12}>
@@ -38,29 +25,12 @@ export function ClassicGroupAccordionContent({
           key={job.jobID}
           job={job}
           highlightedItems={highlightedItems}
+          groupReadOnly={groupReadOnly}
         />
       ))}
-      {status.id === 0 &&
-        Array.from({ length: skeletonElementsToDisplay }).map((_, index) => {
-          return (
-            <Grid
-              key={uuid()}
-              sx={{ minHeight: 200, width: "100%" }}
-              size={{
-                xs: 12,
-                sm: 6,
-                md: 4,
-                lg: 3
-              }}>
-              <Skeleton
-                variant="rectangular"
-                animation="wave"
-                width="100%"
-                height="100%"
-              />
-            </Grid>
-          );
-        })}
+      {skeletonCount > 0 && (
+        <PlannerClassicJobSkeletonGrid count={skeletonCount} />
+      )}
     </Grid>
   );
 }

@@ -26,10 +26,9 @@ export const ItemTypes = {
 
 /**
  * Which planner UI rendered the draggable job row (on @dnd-kit draggable `data`).
- * Main job planner rows are snapshot-shaped; group planner rows are canonical Job objects from `jobArray`.
  */
 export const JobCardUiSource = {
-    /** Main job planner accordion lists `userJobSnapshot` rows. */
+    /** Main job planner accordion lists canonical `Job` rows (`jobArray`, `displayOnPlanner`). */
     jobPlannerSnapshots: "jobPlannerSnapshots",
     /** Group planner accordion lists jobs from `jobArray` filtered by the active group. */
     groupJobObjects: "groupJobObjects",

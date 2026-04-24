@@ -17,6 +17,9 @@ import accountSlice from "./accountSlice";
 import userSettingsSlice from "./userSlice";
 import worldDataSlice from "./worldDataSlIce";
 import jobsSlice from "./jobsSlice";
+import realtimeSyncSlice from "./realtimeSyncSlice";
+import documentLockSlice from "./documentLockSlice";
+import headerDocumentLockUISlice from "./headerDocumentLockUISlice";
 
 /**
  * Creates the main users store with all state slices.
@@ -39,6 +42,9 @@ const createUsersStore = () =>
         ...accountSlice(set, get),
         ...worldDataSlice(set, get),
         ...jobsSlice(set, get),
+        ...realtimeSyncSlice(set, get),
+        ...documentLockSlice(set, get),
+        ...headerDocumentLockUISlice(set, get),
       }),
       {
         name: "usersStore",

@@ -1,8 +1,8 @@
 import { Button, Tooltip } from "@mui/material";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import deleteJobFromFirebase from "../../../../../../Functions/Firebase/deleteJob";
-import uploadJobSnapshotsToFirebase from "../../../../../../Functions/Firebase/uploadJobSnapshots";
+import { deleteJobDocumentsFromApi } from "../../../../../../Functions/Endpoints/Pirivate/jobDocuments.js";
+import { flushPendingJobDocumentsSave } from "../../../../../../Functions/Debounce/jobDocumentsPersistSchedule.js";
 import { saveUserAccountDocument } from "../../../../../../Functions/Endpoints/Pirivate/userDocument";
 import saveArchivedJobs from "../../../../../../Functions/Endpoints/Pirivate/archivedJobs";
 import {
@@ -13,8 +13,8 @@ import useUsersStore from "../../../../../../Zustand/usersStore";
 import { invalidateBuildStatsQuery } from "../../../../../../Hooks/React Query/Backend/buildStats";
 
 export function ArchiveJobButton({ state }) {
-  const { activeGroupID, userJobSnapshot } = useUsersStore((state) => state.jobData);
-  const { removeJobsFromUserJobSnapshotArray, removeJobsFromJobArray } = useUsersStore.getState().jobData.actions;
+  const { activeGroupID } = useUsersStore((state) => state.jobData);
+  const { removeJobsFromJobArray } = useUsersStore.getState().jobData.actions;
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const navigate = useNavigate({ from: '/editjob/$jobID' });
   const queryClient = useQueryClient();
@@ -37,13 +37,22 @@ export function ArchiveJobButton({ state }) {
 
     invalidateBuildStatsQuery(queryClient, state.activeJob.itemID);
 
+    try {
+      await flushPendingJobDocumentsSave();
+      await deleteJobDocumentsFromApi([state.activeJob.jobID]);
+    } catch (err) {
+      console.error(err);
+      showSnackbarError(
+        "Job was archived but removing it from the server failed. Try refreshing or deleting from the planner.",
+        5
+      );
+      return;
+    }
+
     showSnackbarSuccess(`${state.activeJob.name} Archived`);
 
-    await uploadJobSnapshotsToFirebase(userJobSnapshot.filter(i => i.jobID !== state.activeJob.jobID));
-    await deleteJobFromFirebase(state.activeJob);
     await saveUserAccountDocument();
     removeJobsFromJobArray(state.activeJob.jobID);
-    removeJobsFromUserJobSnapshotArray(state.activeJob.jobID);
     navigate({ to: "/jobplanner" });
   };
 

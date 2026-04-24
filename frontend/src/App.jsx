@@ -9,19 +9,22 @@ import { Box } from "@mui/material";
 import MaintenanceMode from "./MaintenanceMode";
 import { ThemeProvider } from "./Context/ThemeContext";
 import ErrorBoundary from "./Components/ErrorBoundary";
-import useRefreshESITokens from "./Hooks/useRefreshESITokens";
-import useCheckEveServerStatus from "./Hooks/useCheckEveServerStatus";
-import useVersionCheck from "./Hooks/GeneralHooks/useVersionCheck";
-import useFetchStaticDataFiles from "./Hooks/useFetchStaticDataFiles";
-import useAppConfig from "./Hooks/GeneralHooks/useAppConfig";
+import useRefreshESITokens from "./Hooks/App/useRefreshESITokens";
+import useCheckEveServerStatus from "./Hooks/App/useCheckEveServerStatus";
+import useFetchStaticDataFiles from "./Hooks/App/useFetchStaticDataFiles";
+import useAppConfig from "./Hooks/App/useAppConfig";
+import { useAccountWebSocket } from "./Realtime/useAccountWebSocket.js";
 const { ENABLE_FEEDBACK_ICON } = GLOBAL_CONFIG;
 
 export default function App() {
-  const { maintenance_mode: isMaintenanceMode = false } = useAppConfig();
+  const { maintenance_mode: isMaintenanceMode = false } = useAppConfig({
+    shouldFetchOnMount: true,
+    enableVersionCheck: true,
+  });
 
   useRefreshESITokens();
+  useAccountWebSocket();
   useCheckEveServerStatus();
-  useVersionCheck();
   useFetchStaticDataFiles();
 
   return (

@@ -7,23 +7,13 @@ import CloseIcon from "@mui/icons-material/Close";
 import AddIcon from "@mui/icons-material/Add";
 import uuid from "react-uuid";
 import DOMPurify from "dompurify";
-import { saveApplicationSettings } from "../../../../Functions/Endpoints/Pirivate/userDocument";
 import UndoIcon from "@mui/icons-material/Undo";
-import { useGlobalDebounce } from "../../../../Hooks/GeneralHooks/useGlobalDebounce";
-import { DEBOUNCE_KEYS } from "../../../../Context/debounceKeys";
+import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 
 export default function CustomExtrasFrame() {
     const [newCategoryName, setNewCategoryName] = useState("");
     const extrasCategories = useUsersStore((state) => state.applicationSettings.extrasCategories);
     const { markExtrasCategoryAsDeleted, addExtrasCategory, unmarkExtrasCategoryAsDeleted } = useUsersStore.getState().applicationSettings.actions;
-
-    const debouncedSaveSettings = useGlobalDebounce(
-        DEBOUNCE_KEYS.APP_SETTINGS_SAVE,
-        async () => {
-            await saveApplicationSettings();
-        },
-        2000
-    );
 
     const handleAddCategory = async () => {
         const sanitizedCategoryName = DOMPurify.sanitize(newCategoryName, {
@@ -32,7 +22,7 @@ export default function CustomExtrasFrame() {
         });
         addExtrasCategory({ id: uuid(), label: sanitizedCategoryName });
         setNewCategoryName("");
-        debouncedSaveSettings();
+        scheduleDebouncedApplicationSettingsSave();
     };
 
     return (
@@ -114,7 +104,7 @@ export default function CustomExtrasFrame() {
                                     variant="outlined"
                                     onDelete={!permanentExtrasCategories.has(extra.id) ? async () => {
                                         markExtrasCategoryAsDeleted(extra.id);
-                                        debouncedSaveSettings();
+                                        scheduleDebouncedApplicationSettingsSave();
                                     } : undefined}
 
                                 />
@@ -140,7 +130,7 @@ export default function CustomExtrasFrame() {
                                     deleteIcon={<UndoIcon />}
                                     onDelete={async () => {
                                         unmarkExtrasCategoryAsDeleted(extra.id);
-                                        debouncedSaveSettings();
+                                        scheduleDebouncedApplicationSettingsSave();
                                     }}
                                 />
                             )

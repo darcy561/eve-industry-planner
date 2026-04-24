@@ -8,20 +8,28 @@ import {
   Switch,
   Typography,
 } from "@mui/material";
-import useBuildNewJobs from "../../../Hooks/JobHooks/useBuildNewJobs";
-import { useCachedData } from "../../../Hooks/useCachedData";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCachedData } from "../../../Hooks/App/useCachedData";
 import { CACHED_DATA_FILES } from "../../../Context/defaultValues";
 import uuid from "react-uuid";
 import ClearIcon from "@mui/icons-material/Clear";
 import useUsersStore from "../../../Zustand/usersStore";
 import VirtualisedRecipeSearch from "../../../Styled Components/autocomplete/virtualisedRecipeSearch";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
+import { USER_JOB_GROUPS_COLLECTION } from "../../../Functions/DocumentLock/documentLockCollections.js";
+import { selectDocumentLockReadOnly } from "../../../Functions/DocumentLock/documentLockSelectors.js";
+import addNewJobsToPlanner from "../../../Functions/JobPlanner/addNewJobsToPlanner";
 
 export function SearchBar({ actions }) {
+  const readOnly = useUsersStore((s) => {
+    const gid = s.jobData.activeGroupID;
+    if (!gid) return false;
+    return selectDocumentLockReadOnly(s, USER_JOB_GROUPS_COLLECTION, gid);
+  });
   const { activeGroupID } = useUsersStore((state) => state.jobData);
   const [itemIDsToAdd, updateItemIDsToAdd] = useState([]);
   const [addNewGroupOnBuild, updateAddNewGroupOnBuild] = useState(false);
-  const { addNewJobsToPlanner } = useBuildNewJobs();
+  const queryClient = useQueryClient();
   const { data: fullItemList, isLoading, isError } = useCachedData(
     CACHED_DATA_FILES.FULL_ITEM_LIST
   );
@@ -31,7 +39,9 @@ export function SearchBar({ actions }) {
     actions.setSkeletonElementsToDisplay(
       addNewGroupOnBuild ? 1 : itemIDsToAdd.length
     );
-    await addNewJobsToPlanner(itemIDsToAdd);
+    await addNewJobsToPlanner(itemIDsToAdd, queryClient, {
+      onBeforeCommit: () => actions.setSkeletonElementsToDisplay(0),
+    });
     updateItemIDsToAdd([]);
     actions.setRightDrawerContentID(null);
     actions.setSkeletonElementsToDisplay(0);
@@ -79,7 +89,7 @@ export function SearchBar({ actions }) {
           <Grid sx={{ marginBottom: 1 }} size={12}>
             <VirtualisedRecipeSearch
               onSelect={(value) => {
-                if (!value) return;
+                if (!value || readOnly) return;
                 addItemToSelection(value.itemID);
               }}
             />
@@ -88,7 +98,7 @@ export function SearchBar({ actions }) {
             <Button
               size="small"
               variant="contained"
-              disabled={itemIDsToAdd.length < 1}
+              disabled={readOnly || itemIDsToAdd.length < 1}
               onClick={addJobs}
             >
               Add
@@ -96,7 +106,7 @@ export function SearchBar({ actions }) {
             <Button
               size="small"
               variant="contained"
-              disabled={itemIDsToAdd.length < 1}
+              disabled={readOnly || itemIDsToAdd.length < 1}
               onClick={() => updateItemIDsToAdd([])}
             >
               Clear

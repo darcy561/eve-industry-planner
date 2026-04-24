@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { useAssetHelperHooks } from "../../../../Hooks/AssetHooks/useAssetHelper";
+import {
+  buildAssetMapsCorpOffices,
+  sortLocationMapsAlphabetically,
+} from "../../../../Functions/Assets/assetHelpers";
 import { AssetEntry_TopLevel_CorporationOffices } from "./AssetFolders/topLevelFolderOffices";
 import { AssetsPage_Loading } from "../../Character Assets/Standard Layout/loadingPage";
 import uuid from "react-uuid";
@@ -27,8 +30,6 @@ export function OfficesPage_Corporation({ selectedCorporation }) {
   const [assetLocationNames, updateAssetLocationNames] = useState(null);
   const [characterBlueprintsMap, updateCharacterBlueprintsMap] = useState(null);
   const [fullItemList, setFullItemList] = useState(null);
-  const { buildAssetMapsCorpOffices, sortLocationMapsAlphabetically } =
-    useAssetHelperHooks();
   const queryClient = useQueryClient();
   const matchedCorporation = getCorporation(selectedCorporation);
 

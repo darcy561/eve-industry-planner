@@ -164,7 +164,7 @@ func HandleSyncMessage(ctx context.Context, s SyncServer, clientID string, accou
 		return
 	}
 
-	logs.InfoCtx(ctx, "sync message received",
+	logs.DebugCtx(ctx, "sync message received",
 		"client_id", clientID,
 		"account_id", accountID,
 		"sync_type", syncMsg.Type,

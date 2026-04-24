@@ -10,10 +10,13 @@ import RightSideMenuContent_JobPlanner from "./Planner Components/Side Menu/righ
 import { useJobPlannerSideMenuFunctions } from "./Planner Components/Side Menu/Buttons/buttonfunctions";
 import useJobPlannerReducer from "./Hooks/useJobPlannerReducer";
 import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
+import { useJobPlannerPageLockSync } from "../../Hooks/DocumentLock/useJobPlannerPageLockSync.js";
 
 function JobPlanner() {
   const { state: pageState, actions: pageActions } = useJobPlannerReducer();
   const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("sm"));
+
+  useJobPlannerPageLockSync();
 
   const buttonOptions = useJobPlannerSideMenuFunctions(pageState, pageActions);
 

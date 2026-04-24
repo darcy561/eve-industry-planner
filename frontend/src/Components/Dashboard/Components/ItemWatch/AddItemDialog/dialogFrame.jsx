@@ -6,7 +6,7 @@ import {
   Grid,
 } from "@mui/material";
 import { useState } from "react";
-import { useFirebase } from "../../../../../Hooks/useFirebase";
+import { putWatchlistDeprecatedToApi } from "../../../../../Functions/Endpoints/Pirivate/watchlistDeprecated.js";
 import { AppEvent } from "../../../../../analytics/appEventNames";
 import { trackAppEvent } from "../../../../../analytics/trackAppEvent";
 import { ImportNewJob_WatchlistDialog } from "./importNewJob.";
@@ -25,7 +25,6 @@ export function AddWatchItemDialog({
 }) {
   const { userWatchlist } = useUsersStore((state) => state.jobData);
   const { setUserWatchlistItems } = useUsersStore.getState().jobData.actions;
-  const { uploadUserWatchlist } = useFirebase();
   const [loadingState, changeLoadingState] = useState(false);
   const [loadingText, changeLoadingText] = useState(null);
   const [failedImport, setFailedImport] = useState(false);
@@ -110,7 +109,10 @@ export function AddWatchItemDialog({
     }
 
     setUserWatchlistItems(newUserWatchlistItems);
-    uploadUserWatchlist(userWatchlist.groups, newUserWatchlistItems);
+    await putWatchlistDeprecatedToApi(
+      userWatchlist.groups,
+      newUserWatchlistItems
+    );
     trackAppEvent(AppEvent.NEW_WATCHLIST_ITEM);
 
     showSnackbarSuccess(`${materialJobs[watchlistItemRequest].name} Added`, 3);

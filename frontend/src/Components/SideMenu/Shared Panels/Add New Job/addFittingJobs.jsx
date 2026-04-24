@@ -8,12 +8,15 @@ import {
   Tooltip,
 } from "@mui/material";
 import { useState } from "react";
-import { useImportFitFromClipboard } from "../../../../Hooks/GroupHooks/useImportFitFromClipboard";
 import FittingImportRow from "./fittingRow";
 import CloseIcon from "@mui/icons-material/Close";
 import { showSnackbarError } from "../../../../Events/snackbarEvents";
 import { requestClipboardPermissions } from "../../../../Functions/Clipboard/clipboardPermissions";
 import useUsersStore from "../../../../Zustand/usersStore";
+import {
+  convertImportedItemsToBuildRequests,
+  importFromClipboard,
+} from "../../../../Functions/JobPlanner/importFitFromClipboard";
 
 function AddShipFittingPanel({ updateItemIDsToAdd, addNewGroupOnBuild }) {
   const [clipboardReadAllowed, updateClipboardReadAllowed] = useState(true);
@@ -21,8 +24,6 @@ function AddShipFittingPanel({ updateItemIDsToAdd, addNewGroupOnBuild }) {
   const [importedFitData, updateImportedFitData] = useState([]);
   const [importedFitName, updateImportedFitName] = useState("");
   const [fitQuantityMultiplier, updateFitQuantityMultiplier] = useState(1);
-  const { importFromClipboard, convertImportedItemsToBuildRequests } =
-    useImportFitFromClipboard();
 
   async function importClipboardItems() {
     // Check and request permissions if needed

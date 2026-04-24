@@ -8,7 +8,6 @@ import {
   Grid,
   Typography,
 } from "@mui/material";
-import { useShoppingList } from "../../../Hooks/GeneralHooks/useShoppingList";
 import {
   LARGE_TEXT_FORMAT,
   STANDARD_TEXT_FORMAT,
@@ -27,6 +26,7 @@ import { hideShoppingList } from "../../../Events/shoppingListEvents";
 import { useShoppingListCharacterAssets } from "./Hooks/useShoppingListCharacterAssets";
 import { useShoppingListCorporationAssets } from "./Hooks/useShoppingListCorporationAssets";
 import ContentDialog from "../../../Styled Components/Dialog/ContentDialog";
+import { buildShoppingList } from "./shoppingListUtils";
 
 export function ShoppingListDialogContent({
   state,
@@ -36,8 +36,6 @@ export function ShoppingListDialogContent({
   corporationAssetsLoading = undefined,
   corporationAssetsError = undefined,
 }) {
-  const { buildShoppingList } = useShoppingList();
-
   useShoppingListCharacterAssets({
     state,
     actions,

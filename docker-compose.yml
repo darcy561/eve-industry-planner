@@ -39,7 +39,7 @@ services:
     environment:
       OTEL_SERVICE_NAME: api
       DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
-    image: ghcr.io/darcy561/eve-industry-planner-api:0.8.12
+    image: ghcr.io/darcy561/eve-industry-planner-api:0.8.10
     deploy:
       replicas: 1
     depends_on:
@@ -85,7 +85,10 @@ services:
     environment:
       OTEL_SERVICE_NAME: websocket
       DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
-    image: ghcr.io/darcy561/eve-industry-planner-websocket:0.8.12
+      # JetStream durable suffix + OTel ws_instance_id: optional DOCKER_CONTAINER_NAME if your runtime
+      # sets it to the container name; otherwise HOSTNAME (unique per container) is used — see
+      # services/websocket/server/jetstream_consumer_id.go
+    image: ghcr.io/darcy561/eve-industry-planner-websocket:0.8.10
     build:
       context: ./services
       dockerfile: websocket/Dockerfile
@@ -96,7 +99,7 @@ services:
       otel-collector:
         condition: service_started
     deploy:
-      replicas: 0
+      replicas: 2
     labels:
       # WebSocket Router & Service (HTTP)
       - "traefik.enable=true"
@@ -111,6 +114,10 @@ services:
       - "traefik.http.routers.ws-secure.middlewares=cors"
       # WebSocket service load balancer (internal port inside the container)
       - "traefik.http.services.ws.loadbalancer.server.port=4001"
+      # Sticky cookie: pin each browser to one websocket replica (pairs with Redis session handoff when routing changes).
+      - "traefik.http.services.ws.loadbalancer.sticky.cookie=true"
+      - "traefik.http.services.ws.loadbalancer.sticky.cookie.name=eip_ws_affinity"
+      - "traefik.http.services.ws.loadbalancer.sticky.cookie.httpOnly=true"
     volumes:
       # Share JWT key material with API (both use /data/*jwt*.pem and /data/jwt-key-id.txt)
       - api_data:/data
@@ -128,7 +135,7 @@ services:
       #   WORKER_FIREBASE_PROJECT_ID=<project_id from adminSDKLive.json>
       GOOGLE_APPLICATION_CREDENTIALS: ${WORKER_GOOGLE_APPLICATION_CREDENTIALS:-${GOOGLE_APPLICATION_CREDENTIALS}}
       FIREBASE_PROJECT_ID: ${WORKER_FIREBASE_PROJECT_ID:-${FIREBASE_PROJECT_ID}}
-    image: ghcr.io/darcy561/eve-industry-planner-worker:0.8.12
+    image: ghcr.io/darcy561/eve-industry-planner-worker:0.8.10
     deploy:
       replicas: 1
     volumes:
@@ -144,7 +151,7 @@ services:
       OTEL_SERVICE_NAME: core
       DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
     container_name: core
-    image: ghcr.io/darcy561/eve-industry-planner-core:0.8.12
+    image: ghcr.io/darcy561/eve-industry-planner-core:0.8.10
     healthcheck:
       test: ["CMD-SHELL", "test -f /data/core-ready"]
       interval: 5s
@@ -161,7 +168,7 @@ services:
   frontend:
     <<: *common-service-config
     container_name: frontend
-    image: ghcr.io/darcy561/eve-industry-planner-frontend:0.8.12
+    image: ghcr.io/darcy561/eve-industry-planner-frontend:0.8.10
     depends_on:
       <<: *common-depends-on
       core:
@@ -265,7 +272,16 @@ services:
     image: redis:8.4.0
     restart: unless-stopped
     env_file: [.env]
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--bind", "0.0.0.0"]
+    command:
+      [
+        "redis-server",
+        "--requirepass",
+        "${REDIS_PASSWORD}",
+        "--bind",
+        "0.0.0.0",
+        "--notify-keyspace-events",
+        "Ex",
+      ]
     volumes:
       - redis_data:/data
     healthcheck:

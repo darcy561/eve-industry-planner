@@ -1,12 +1,13 @@
 import { Typography, Grid } from "@mui/material";
 
-import { useJobBuild } from "../../../../../Hooks/useJobBuild";
 import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import getMissingESIData from "../../../../../Functions/Shared/getMissingESIData";
 import checkJobTypeIsBuildable from "../../../../../Functions/Helper/checkJobTypeIsBuildable";
 import recalculateInstallCostsWithNewData from "../../../../../Functions/Installation Costs/recalculateInstallCostsWithNewData";
 import VirtualisedRecipeSearch from "../../../../../Styled Components/autocomplete/virtualisedRecipeSearch";
 import useUsersStore from "../../../../../Zustand/usersStore";
+import { buildJob } from "../../../../../Functions/JobPlanner/buildJob";
 
 export function ImportNewJob_WatchlistDialog({
   setFailedImport,
@@ -19,7 +20,7 @@ export function ImportNewJob_WatchlistDialog({
   updateGroupSelect,
 }) {
   const { userWatchlist } = useUsersStore((state) => state.jobData);
-  const { buildJob } = useJobBuild();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     async function findJobToEdit() {
@@ -37,10 +38,13 @@ export function ImportNewJob_WatchlistDialog({
     changeLoadingText("Importing Item Data...");
     let materialMap = {};
 
-    const WatchlistItemJob = await buildJob({
-      itemID: requestedID,
-      skipJobCreateAnalytics: true,
-    });
+    const WatchlistItemJob = await buildJob(
+      {
+        itemID: requestedID,
+        skipJobCreateAnalytics: true,
+      },
+      { queryClient }
+    );
 
     if (!WatchlistItemJob) {
       changeLoadingText("Error Importing Data...");
@@ -63,7 +67,7 @@ export function ImportNewJob_WatchlistDialog({
       []
     );
 
-    const MaterialJobs = await buildJob(materialJobRequests);
+    const MaterialJobs = await buildJob(materialJobRequests, { queryClient });
 
     for (let job of MaterialJobs) {
       materialMap[job.itemID] = job;

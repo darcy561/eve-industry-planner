@@ -10,9 +10,10 @@ import (
 
 // Message type constants for the Message.Type field
 const (
-	MessageTypeTask     = "task"     // Task message type
-	MessageTypeSchedule = "schedule" // Schedule message type
-	MessageTypeEmpty    = "empty"    // Empty message type
+	MessageTypeTask          = "task"          // Task message type
+	MessageTypeSchedule      = "schedule"      // Schedule message type
+	MessageTypeEmpty         = "empty"         // Empty message type
+	MessageTypeSubscription  = "subscription"  // Legacy envelope type (historic doc.subscribe payloads)
 )
 
 const (
@@ -165,6 +166,11 @@ type MigrateUserDocumentToMongoRequest struct {
 	AccountID string `json:"account_id"` // Account ID (Firebase UID)
 }
 
+// MigrateFirestoreWatchlistToMongoRequest copies Firestore ProfileInfo/Watchlist → Mongo user_watchlist_deprecated.
+type MigrateFirestoreWatchlistToMongoRequest struct {
+	AccountID string `json:"account_id"`
+}
+
 // ImportArchivedJobToMongoRequest is the payload for one ArchivedJobs Firestore document to normalize and upsert into the archivedJobs collection.
 // CanonicalBuildVer is optional; when empty the worker resolves it for structured logs only (not persisted on the job document).
 type ImportArchivedJobToMongoRequest struct {
@@ -180,12 +186,22 @@ type ProcessArchivedBuildStatsRequest struct {
 	AccountID string `json:"account_id"`
 }
 
-// SubscriptionRequest represents a request to subscribe WebSocket clients to document updates.
-// Used for autosubscription when clients make HTTP requests with the AutoSubscribe header.
-// Published to doc.subscribe.{accountID} subject.
+// ImportUserJobDocumentsForAccountRequest runs firestoremig.ImportAllReferencedUserJobDocumentsForAccount in the worker.
+// LoginRecencyMaxAgeSeconds: 0 = apply server default window (~2y of Auth activity). -1 = skip Auth check. >0 = max window in seconds.
+type ImportUserJobDocumentsForAccountRequest struct {
+	AccountID                 string `json:"account_id"`
+	LoginRecencyMaxAgeSeconds int64  `json:"login_recency_max_age_seconds,omitempty"`
+}
+
+// SubscriptionRequest is retained for decoding legacy JetStream payloads (MessageTypeSubscription).
 type SubscriptionRequest struct {
 	Collection string   `json:"collection"` // MongoDB collection name (e.g., "users", "jobs")
 	DocIDs     []string `json:"docIDs"`     // Array of document IDs to subscribe to
+}
+
+// MessageType returns the NATS envelope type for UnmarshalMessagePayload type matching.
+func (SubscriptionRequest) MessageType() string {
+	return MessageTypeSubscription
 }
 
 // Add more message types here as needed for your application

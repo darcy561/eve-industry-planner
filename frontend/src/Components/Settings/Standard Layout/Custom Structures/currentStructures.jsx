@@ -20,10 +20,8 @@ import {
   Implants,
 } from "../../../../Context/defaultValues";
 import getSystemNameFromID from "../../../../Functions/Helper/getSystemName";
-import { saveApplicationSettings } from "../../../../Functions/Endpoints/Pirivate/userDocument";
 import useUsersStore from "../../../../Zustand/usersStore";
-import { useGlobalDebounce } from "../../../../Hooks/GeneralHooks/useGlobalDebounce";
-import { DEBOUNCE_KEYS } from "../../../../Context/debounceKeys";
+import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 
 function CurrentStructuresFrame({ selectedJobType, isLoading }) {
   const structures = useUsersStore(
@@ -43,14 +41,6 @@ function CurrentStructuresFrame({ selectedJobType, isLoading }) {
       ] || 0
     );
   }
-
-  const debouncedSaveSettings = useGlobalDebounce(
-    DEBOUNCE_KEYS.APP_SETTINGS_SAVE,
-    async () => {
-      await saveApplicationSettings();
-    },
-    2000
-  );
 
   if (isLoading) {
     return (
@@ -185,7 +175,7 @@ function CurrentStructuresFrame({ selectedJobType, isLoading }) {
                       disabled={structure.default}
                       onClick={async () => {
                         setDefaultCustomStructure(structure.id);
-                        debouncedSaveSettings();
+                        scheduleDebouncedApplicationSettingsSave();
                       }}
                     >
                       Make Default
@@ -198,7 +188,7 @@ function CurrentStructuresFrame({ selectedJobType, isLoading }) {
                   color="error"
                   onClick={async () => {
                     deleteCustomStructure(structure.id);
-                    debouncedSaveSettings();
+                    scheduleDebouncedApplicationSettingsSave();
                   }}
                 >
                   Remove

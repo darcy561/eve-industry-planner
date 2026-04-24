@@ -31,12 +31,25 @@ var (
 		DefaultPriority: Priority5,
 		DefaultTimeout:  5 * time.Minute,
 	}
+	MigrateFirestoreWatchlistToMongo = Task{
+		Name:            "migrateFirestoreWatchlistToMongo",
+		Subject:         "task.migration.migrateFirestoreWatchlistToMongo",
+		DefaultPriority: Priority5,
+		DefaultTimeout:  2 * time.Minute,
+	}
 	// ImportArchivedJobToMongo normalizes one Firestore ArchivedJobs document and upserts [models.Job] into MongoDB archivedJobs.
 	ImportArchivedJobToMongo = Task{
 		Name:            "importArchivedJobToMongo",
 		Subject:         "task.migration.importArchivedJobToMongo",
 		DefaultPriority: Priority5,
 		DefaultTimeout:  3 * time.Minute,
+	}
+	// ImportUserJobDocumentsForAccount copies referenced live Firestore job docs to Mongo user_job_documents (one account per task).
+	ImportUserJobDocumentsForAccount = Task{
+		Name:            "importUserJobDocumentsForAccount",
+		Subject:         "task.migration.importUserJobDocumentsForAccount",
+		DefaultPriority: Priority5,
+		DefaultTimeout:  15 * time.Minute,
 	}
 	// ProcessArchivedBuildStats aggregates unprocessed archived Mongo jobs into build_stats (worker: tasks/archivedjobs; Firebase archievedJobs.js replacement).
 	ProcessArchivedBuildStats = Task{
@@ -109,8 +122,10 @@ var (
 
 // ByName maps task name (handler key) to task definition for lookup (e.g. worker default priority).
 var ByName = map[string]Task{
-	MigrateUserDocumentToMongo.Name:   MigrateUserDocumentToMongo,
-	ImportArchivedJobToMongo.Name:     ImportArchivedJobToMongo,
+	MigrateUserDocumentToMongo.Name:            MigrateUserDocumentToMongo,
+	MigrateFirestoreWatchlistToMongo.Name:      MigrateFirestoreWatchlistToMongo,
+	ImportArchivedJobToMongo.Name:              ImportArchivedJobToMongo,
+	ImportUserJobDocumentsForAccount.Name:      ImportUserJobDocumentsForAccount,
 	ProcessArchivedBuildStats.Name:    ProcessArchivedBuildStats,
 	RefreshSystemIndexes.Name:       RefreshSystemIndexes,
 	RefreshAdjustedPrices.Name:      RefreshAdjustedPrices,

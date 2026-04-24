@@ -24,12 +24,12 @@ export default function ItemBreakdownFrame({ groupJobs = [], outputJob = null })
     const groupObject = useUsersStore.getState().jobData.actions.getActiveGroupObject();
 
     useEffect(() => {
-        async function getRelatedJobs() {
+        function getRelatedJobs() {
             try {
                 if (!groupObject) {
                     throw new Error("Group object not found");
                 }
-                const matchedJobs = await groupObject.getJobIDsForOutputJob(outputJob);
+                const matchedJobs = groupObject.getJobIDsForOutputJob(outputJob);
 
                 let totalRawMaterialPurchaseCost = 0;
                 let totalInstallCosts = 0;

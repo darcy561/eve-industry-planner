@@ -20,5 +20,14 @@ func EnsureIndexes(ctx context.Context, client *mongo.Client) error {
 	if err := EnsureUserAccountDocumentsIndexes(ctx, client); err != nil {
 		return err
 	}
+	if err := EnsureUserJobGroupsIndexes(ctx, client); err != nil {
+		return err
+	}
+	if err := EnsureUserWatchlistDeprecatedIndexes(ctx, client); err != nil {
+		return err
+	}
+	if err := EnsureUserJobDocumentsIndexes(ctx, client); err != nil {
+		return err
+	}
 	return nil
 }

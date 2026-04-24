@@ -1,6 +1,6 @@
 import getCorpHistoricMarketOrders from "../../../Functions/EveESI/Corporation/getHistoricMarketOrders";
 import useUsersStore from "../../../Zustand/usersStore";
-import { getQueryEnabled } from "../../useQueryEnabled";
+import { isQueryExecutionEnabled } from "../../../Functions/Shared/queryExecutionEnabled";
 import { getESIRateLimitStatus } from "../../../Functions/EveESI/fetchWithCustomHeaders";
 import fetchPaginatedDataParallel from "../../../Functions/Helper/fetchPaginatedDataParallel";
 
@@ -80,7 +80,7 @@ function corporationHistoricMarketOrdersQuery(characterHash) {
         throw new Error(`Failed to fetch corporation historic market orders: ${error.message}`);
       }
     },
-    enabled: getQueryEnabled(),
+    enabled: isQueryExecutionEnabled(),
     staleTime: 30 * 60 * 1000, // 30 minutes
     gcTime: 60 * 60 * 1000, // 1 hour
     retry: 3,

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import CloseIcon from "@mui/icons-material/Close";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
@@ -14,11 +15,10 @@ import { useNavigate } from "@tanstack/react-router";
 import ArchiveOutlinedIcon from "@mui/icons-material/ArchiveOutlined";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import { passBuildCostsToParentJobs } from "../../../../Functions/Shared/passBuildCosts";
-import uploadJobSnapshotsToFirebase from "../../../../Functions/Firebase/uploadJobSnapshots";
-import manageListenerRequests from "../../../../Functions/Firebase/manageListenerRequests";
 import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
-import useBuildJobTree from "../../../../Hooks/JobHooks/useBuildNextMaterials";
-import { useArchiveGroupJobs } from "../../../../Hooks/GroupHooks/useArchiveGroupJobs";
+import buildNextMaterialsTree from "../../../../Functions/JobPlanner/buildNextMaterialsTree";
+import { archiveGroupJobs } from "../../../../Functions/Groups/archiveGroupJobs.js";
+import { invalidateAllBuildStatsQueries } from "../../../../Hooks/React Query/Backend/buildStats.js";
 import {
   showSnackbarSuccess,
   showSnackbarError,
@@ -32,18 +32,30 @@ import { showPriceEntryDialog } from "../../../../Events/priceEntryEvents";
 import moveItemsOnPlanner from "../../../../Functions/JobPlanner/moveItemsOnPlanner";
 import closeActiveGroup from "../../../../Functions/Groups/closeGroup";
 
+/** Left drawer actions still allowed when the group doc lock is read-only. */
+const GROUP_LEFT_PANEL_READONLY_ALLOWED = new Set([
+  "Close Group",
+  "Shopping List",
+  "Select All",
+  "Clear Selection",
+]);
+
 export function useGroupPageSideMenuFunctions(
   state,
   actions,
   groupJobs,
-  pageRequiresDrawerToBeOpen
+  pageRequiresDrawerToBeOpen,
+  groupReadOnly = false
 ) {
-  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
-  const { multiSelect, groupArray, userJobSnapshot } = useUsersStore((state) => state.jobData);
-  const { addToMultiSelect, clearMultiSelect, replaceGroupArray, getActiveGroupObject, addRetrievedJobsToJobArray } =
-    useUsersStore.getState().jobData.actions;
-  const { buildNextMaterials } = useBuildJobTree();
-  const { archiveGroupJobs } = useArchiveGroupJobs();
+  const { multiSelect } = useUsersStore((state) => state.jobData);
+  const {
+    addToMultiSelect,
+    clearMultiSelect,
+    updateModifiedGroups,
+    queueJobGroupWritesAndSchedule,
+    getActiveGroupObject,
+  } = useUsersStore.getState().jobData.actions;
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const activeGroupObject = getActiveGroupObject();
 
@@ -51,6 +63,9 @@ export function useGroupPageSideMenuFunctions(
     "You will need to select at least 1 job using the checkbox's on the job cards.";
 
   const buttons = useMemo(() => {
+    const roOff = (label) =>
+      groupReadOnly && !GROUP_LEFT_PANEL_READONLY_ALLOWED.has(label);
+
     return [
       {
         displayText: "Close Group",
@@ -58,6 +73,7 @@ export function useGroupPageSideMenuFunctions(
         hoverColor: "error.main",
         tooltip: "Saves and closes the group.",
         divider: true,
+        disabled: roOff("Close Group"),
         onClick: async () => {
           await closeActiveGroup(groupJobs);
           navigate({ to: "/jobplanner" });
@@ -67,6 +83,7 @@ export function useGroupPageSideMenuFunctions(
         displayText: "Add New Jobs",
         icon: <PostAddIcon />,
         tooltip: "Adds new jobs to the group.",
+        disabled: roOff("Add New Jobs"),
         onClick: () => {
           // If clicking the same content ID, fall back to tutorial state
           if (state.rightDrawerContentID === 1) {
@@ -88,6 +105,7 @@ export function useGroupPageSideMenuFunctions(
         icon: <ShoppingCartIcon />,
         tooltip:
           "Displays a shopping list of the remaining materials needed for all group jobs  or selected jobs.",
+        disabled: roOff("Shopping List"),
         onClick: () => {
           const jobList =
             multiSelect.length > 0
@@ -101,6 +119,7 @@ export function useGroupPageSideMenuFunctions(
         icon: <PriceCheckIcon />,
         tooltip:
           "Input item costs for all selected jobs or all jobs in the group.",
+        disabled: roOff("Add Item Costs"),
         onClick: async () => {
           const jobList =
             multiSelect.length > 0
@@ -115,14 +134,17 @@ export function useGroupPageSideMenuFunctions(
         icon: <AccountTreeIcon />,
         tooltip:
           "Adds the next ingrediants of all of the jobs or just the selected jobs.",
+        disabled: roOff("Build Child Jobs"),
         onClick: async () => {
           const jobList =
             multiSelect.length > 0
               ? multiSelect
               : [...activeGroupObject.includedJobIDs];
 
-          await buildNextMaterials(jobList, (x) =>
-            actions.setSkeletonElementsToDisplay(x)
+          await buildNextMaterialsTree(
+            jobList,
+            (x) => actions.setSkeletonElementsToDisplay(x),
+            queryClient
           );
         },
       },
@@ -130,14 +152,16 @@ export function useGroupPageSideMenuFunctions(
         displayText: "Build Full Tree",
         icon: <Polyline />,
         tooltip: "Adds the full item tree for all output jobs.",
+        disabled: roOff("Build Full Tree"),
         onClick: async () => {
           const jobList =
             multiSelect.length > 0
               ? multiSelect
               : [...activeGroupObject.includedJobIDs];
-          await buildNextMaterials(
+          await buildNextMaterialsTree(
             jobList,
             (x) => actions.setSkeletonElementsToDisplay(x),
+            queryClient,
             true
           );
         },
@@ -146,6 +170,7 @@ export function useGroupPageSideMenuFunctions(
         displayText: "Move Backwards",
         icon: <ArrowUpwardIcon />,
         tooltip: "Moves the selected jobs 1 step backwards on the planner.",
+        disabled: roOff("Move Backwards"),
         onClick: () => {
           if (multiSelect.length === 0) {
             throwDialogError();
@@ -158,6 +183,7 @@ export function useGroupPageSideMenuFunctions(
         displayText: "Move Forwards",
         icon: <ArrowDownwardIcon />,
         tooltip: "Moves the selected jobs 1 step forwards on the planner.",
+        disabled: roOff("Move Forwards"),
         onClick: () => {
           if (multiSelect.length === 0) {
             throwDialogError();
@@ -171,6 +197,7 @@ export function useGroupPageSideMenuFunctions(
         icon: <DoneAllIcon />,
         tooltip:
           "Sends the selected items costs to their parent jobs and marks the jobs as complete.",
+        disabled: roOff("Send Item Costs"),
         onClick: async () => {
           if (multiSelect.length === 0) {
             throwDialogError();
@@ -178,20 +205,15 @@ export function useGroupPageSideMenuFunctions(
           }
           const group = getActiveGroupObject();
           group.addAreComplete(multiSelect);
-          const { messageText, retrievedJobs } = await passBuildCostsToParentJobs(
-            multiSelect
-          );
-          manageListenerRequests(retrievedJobs);
+          const { messageText } = await passBuildCostsToParentJobs(multiSelect);
           if (messageText) {
             showSnackbarSuccess(messageText);
           } else {
             showSnackbarError(`No build costs imported.`, 3);
           }
-          addRetrievedJobsToJobArray(retrievedJobs);
-          replaceGroupArray([...groupArray]);
-
-          if (isLoggedIn) {
-            await uploadJobSnapshotsToFirebase(userJobSnapshot);
+          if (group?.groupID) {
+            updateModifiedGroups(group);
+            queueJobGroupWritesAndSchedule(group.groupID);
           }
         },
       },
@@ -199,6 +221,7 @@ export function useGroupPageSideMenuFunctions(
         displayText: "Select All",
         icon: <SelectAllIcon />,
         tooltip: "Selects all jobs in the group.",
+        disabled: roOff("Select All"),
         onClick: () => {
           addToMultiSelect(groupJobs.map((job) => job.jobID));
         },
@@ -207,6 +230,7 @@ export function useGroupPageSideMenuFunctions(
         displayText: "Clear Selection",
         icon: <DeselectIcon />,
         tooltip: "Clears the selected jobs.",
+        disabled: roOff("Clear Selection"),
         onClick: () => {
           clearMultiSelect();
         },
@@ -217,6 +241,7 @@ export function useGroupPageSideMenuFunctions(
         hoverColor: "error.main",
         tooltip: "Deletes the selected jobs from the group.",
         divider: true,
+        disabled: roOff("Delete"),
         onClick: async () => {
           if (multiSelect.length === 0) {
             throwDialogError();
@@ -232,13 +257,24 @@ export function useGroupPageSideMenuFunctions(
         hoverColor: "error.main",
         tooltip:
           "Archives all jobs except the output jobs and then deletes the group.",
+        disabled: roOff("Archive Group Jobs"),
         onClick: async () => {
-          archiveGroupJobs(groupJobs);
+          const didArchiveOnServer = await archiveGroupJobs(groupJobs);
+          if (didArchiveOnServer) {
+            invalidateAllBuildStatsQueries(queryClient);
+          }
           navigate({ to: "/jobplanner" });
         },
       },
     ];
-  }, [actions, groupJobs, multiSelect, toggleRightDrawerColapse]);
+  }, [
+    actions,
+    groupJobs,
+    multiSelect,
+    queryClient,
+    toggleRightDrawerColapse,
+    groupReadOnly,
+  ]);
 
   function throwDialogError(inputText = standardDialogError) {
     displayNotificationDialog("Oops", inputText);

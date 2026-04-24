@@ -8,6 +8,17 @@ MONGO_PORT="${MONGO_PORT:-27017}"
 MONGO_REPLICA_SET="${MONGO_REPLICA_SET:-rs0}"
 KEYFILE_PATH="/tmp/mongo-keyfile"
 
+# eve_industry_planner collections that need changeStreamPreAndPostImages:
+# - DELETE on job collections: fullDocumentBeforeChange for _meta.accountID
+# - UPDATE on account singletons: NATS payload can include previousDocument (users, application_settings)
+CHANGE_STREAM_PREIMAGE_COLLECTIONS=(
+    user_job_groups
+    user_job_documents
+    users
+    application_settings
+    user_watchlist_deprecated
+)
+
 cleanup() {
     if [ -n "${MONGO_PID}" ] && kill -0 "${MONGO_PID}" 2>/dev/null; then
         kill "${MONGO_PID}" 2>/dev/null || true
@@ -177,6 +188,63 @@ ensure_users() {
     echo "MongoDB users verified."
 }
 
+# Enables changeStreamPreAndPostImages on each listed collection (see CHANGE_STREAM_PREIMAGE_COLLECTIONS).
+# Runs as Mongo root so the app user does not need collMod. Idempotent; MongoDB 6+ (mongo:8.x image).
+ensure_changestream_preimages_collections() {
+    if [ -z "${MONGO_ROOT_USERNAME:-}" ] || [ -z "${MONGO_ROOT_PASSWORD:-}" ]; then
+        fail "ensure_changestream_preimages_collections requires MONGO_ROOT_USERNAME / MONGO_ROOT_PASSWORD"
+    fi
+
+    if [ "${#CHANGE_STREAM_PREIMAGE_COLLECTIONS[@]}" -eq 0 ]; then
+        echo "CHANGE_STREAM_PREIMAGE_COLLECTIONS is empty; skipping changeStreamPreAndPostImages."
+        return 0
+    fi
+
+    echo "Ensuring changeStreamPreAndPostImages on eve_industry_planner for: ${CHANGE_STREAM_PREIMAGE_COLLECTIONS[*]}"
+
+    local coll_name
+    for coll_name in "${CHANGE_STREAM_PREIMAGE_COLLECTIONS[@]}"; do
+        if [ -z "${coll_name}" ]; then
+            continue
+        fi
+        # Restrict to safe collection name characters for bootstrap (extend pattern if you use dotted namespaces).
+        if [[ ! "${coll_name}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            fail "Invalid CHANGE_STREAM_PREIMAGE_COLLECTIONS entry (use letters, digits, _, -): ${coll_name}"
+        fi
+
+        echo "  collMod changeStreamPreAndPostImages: ${coll_name}"
+
+        local js
+        js='
+const collName = process.env.EIP_COLLMOD_COLL_NAME;
+if (!collName) {
+  throw new Error("EIP_COLLMOD_COLL_NAME is not set");
+}
+const appDb = db.getSiblingDB("eve_industry_planner");
+const names = appDb.getCollectionNames();
+if (!names.includes(collName)) {
+  appDb.createCollection(collName);
+}
+const r = appDb.runCommand({
+  collMod: collName,
+  changeStreamPreAndPostImages: { enabled: true }
+});
+if (!r.ok) {
+  throw new Error("collMod changeStreamPreAndPostImages failed for " + collName + ": " + tojson(r));
+}
+true;
+'
+
+        local out=""
+        if out="$(EIP_COLLMOD_COLL_NAME="${coll_name}" run_mongosh_root --eval "${js}" 2>&1)"; then
+            echo "    OK: ${coll_name}"
+        else
+            echo "${out}" >&2
+            fail "Failed to enable changeStreamPreAndPostImages on eve_industry_planner.${coll_name}"
+        fi
+    done
+}
+
 if [ ! -f "/etc/mongo-keyfile" ]; then
     fail "MongoDB keyfile not found at /etc/mongo-keyfile"
 fi
@@ -214,5 +282,6 @@ AUTH_PID=$!
 wait_for_mongo
 ensure_replica_set
 ensure_users
+ensure_changestream_preimages_collections
 
 wait "${AUTH_PID}"

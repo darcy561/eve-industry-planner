@@ -30,12 +30,10 @@ var SchedulerStreamSubjects = []string{
 	"scheduler.>",
 }
 
-// DocUpdateStreamSubjects are the subject patterns for document update notifications and subscription requests
-// Format: doc.update.{docID} or doc.subscribe.{accountID}
-// Example: doc.update.user123, doc.update.job456, doc.subscribe.account123
+// DocUpdateStreamSubjects are the subject patterns bound to doc-update-stream.
 var DocUpdateStreamSubjects = []string{
 	"doc.update.>",
-	"doc.subscribe.>",
+	"doc.lock.>",
 }
 
 // Subject names (non-task; task subjects are in shared/tasks)
@@ -57,6 +55,17 @@ const (
 	// Format: doc.unsubscribe.{docID}
 	// Example: doc.unsubscribe.user123, doc.unsubscribe.job456
 	SubjectDocUnsubscribe = "doc.unsubscribe"
+
+	// SubjectDocLock is the NATS subject for document lock coordination (API → websocket fan-out).
+	// Format: doc.lock.{accountID}
+	SubjectDocLock = "doc.lock"
+
+	// SubjectDocUpdateFanout is the legacy core-NATS prefix (ws.doc.fanout.{collection}.{docID}).
+	// Live websocket delivery uses JetStream doc.update.> with a per-replica durable consumer instead.
+	SubjectDocUpdateFanout = "ws.doc.fanout"
+
+	// SubjectDocSubscribeFanout is the legacy core-NATS prefix (ws.doc.subscribe.fanout.{accountID}).
+	SubjectDocSubscribeFanout = "ws.doc.subscribe.fanout"
 )
 
 // Consumer names for JetStream pull consumers

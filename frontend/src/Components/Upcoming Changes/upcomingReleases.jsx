@@ -8,7 +8,7 @@ import { UpcomingChangesSearch } from "./searchBar";
 import { SisiItem } from "./sisiItem";
 import { TranqItem } from "./tranqItem";
 import { Navigate } from "@tanstack/react-router";
-import useAppConfig from "../../Hooks/GeneralHooks/useAppConfig";
+import useAppConfig from "../../Hooks/App/useAppConfig";
 
 export default function UpcomingChanges() {
   const [itemLoad, updateItemLoad] = useState(false);

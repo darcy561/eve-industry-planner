@@ -1,0 +1,237 @@
+package server
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/websocket/server/config"
+
+	redislib "github.com/redis/go-redis/v9"
+)
+
+const redisHandoffKeyPrefix = "ws:session_handoff:v1"
+
+type sessionHandoffEntry struct {
+	AccountID      string
+	Docs           map[string]struct{}
+	CorporationIDs []string
+	AllianceIDs    []string
+	Expires        time.Time
+}
+
+type redisSessionHandoffPayload struct {
+	AccountID      string   `json:"account_id"`
+	Docs           []string `json:"docs"`
+	CorporationIDs []string `json:"corporation_ids,omitempty"`
+	AllianceIDs    []string `json:"alliance_ids,omitempty"`
+}
+
+func sessionHandoffRedisKey(accountID, oldClientID string) string {
+	return fmt.Sprintf("%s:%s:%s", redisHandoffKeyPrefix, accountID, oldClientID)
+}
+
+func (s *Server) snapshotSessionHandoff(ctx context.Context, client *Client) {
+	if client == nil || client.id == "" || client.AccountID == "" {
+		return
+	}
+	docs := make(map[string]struct{})
+	docList := make([]string, 0)
+	for docID := range client.explicitDocIDs {
+		if docID != "" {
+			docs[docID] = struct{}{}
+			docList = append(docList, docID)
+		}
+	}
+	corpCopy := append([]string(nil), client.Scopes.CorporationIDs...)
+	allianceCopy := append([]string(nil), client.Scopes.AllianceIDs...)
+	ent := &sessionHandoffEntry{
+		AccountID:      client.AccountID,
+		Docs:           docs,
+		CorporationIDs: corpCopy,
+		AllianceIDs:    allianceCopy,
+		Expires:        time.Now().Add(config.SessionHandoffTTL),
+	}
+	s.sessionHandoffsMu.Lock()
+	if s.sessionHandoffs == nil {
+		s.sessionHandoffs = make(map[string]*sessionHandoffEntry)
+	}
+	s.sessionHandoffs[client.id] = ent
+	s.sessionHandoffsMu.Unlock()
+
+	s.storeRedisSessionHandoff(ctx, client.AccountID, client.id, docList, corpCopy, allianceCopy)
+
+	logs.DebugCtx(ctx, "session handoff snapshot for JWT rotation resume",
+		"old_client_id", client.id,
+		"account_id", client.AccountID,
+		"doc_count", len(docs),
+		"corp_scopes", len(corpCopy),
+		"alliance_scopes", len(allianceCopy))
+}
+
+func (s *Server) storeRedisSessionHandoff(ctx context.Context, accountID, oldClientID string, docList, corpIDs, allianceIDs []string) {
+	if s.ServiceClients == nil || s.ServiceClients.Redis == nil {
+		return
+	}
+	payload := redisSessionHandoffPayload{
+		AccountID:      accountID,
+		Docs:           docList,
+		CorporationIDs: corpIDs,
+		AllianceIDs:    allianceIDs,
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		logs.WarnCtx(ctx, "session handoff redis marshal failed", "error", err)
+		return
+	}
+	rctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	key := sessionHandoffRedisKey(accountID, oldClientID)
+	err = s.ServiceClients.Redis.Set(rctx, key, b, config.SessionHandoffTTL).Err()
+	if err != nil {
+		logs.WarnCtx(ctx, "session handoff redis SET failed", "error", err, "key_prefix", redisHandoffKeyPrefix)
+	}
+}
+
+func (s *Server) pruneExpiredSessionHandoffsLocked(now time.Time) {
+	for id, ent := range s.sessionHandoffs {
+		if ent == nil || now.After(ent.Expires) {
+			delete(s.sessionHandoffs, id)
+		}
+	}
+}
+
+// popSessionHandoff removes handoff from Redis (cross-replica) or local memory (sticky / Redis miss).
+func (s *Server) popSessionHandoff(ctx context.Context, jwtAccountID, previousClientID string) *sessionHandoffEntry {
+	if jwtAccountID == "" || previousClientID == "" {
+		return nil
+	}
+
+	if s.ServiceClients != nil && s.ServiceClients.Redis != nil {
+		key := sessionHandoffRedisKey(jwtAccountID, previousClientID)
+		rctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		val, err := s.ServiceClients.Redis.GetDel(rctx, key).Result()
+		if err == nil && val != "" {
+			var payload redisSessionHandoffPayload
+			if errUnmarshal := json.Unmarshal([]byte(val), &payload); errUnmarshal != nil {
+				logs.WarnCtx(ctx, "session handoff Redis payload invalid", "error", errUnmarshal)
+			} else if payload.AccountID == jwtAccountID {
+				docs := make(map[string]struct{})
+				for _, d := range payload.Docs {
+					if d != "" {
+						docs[d] = struct{}{}
+					}
+				}
+				logs.DebugCtx(ctx, "session handoff hit from Redis",
+					"previous_client_id", previousClientID,
+					"account_id", jwtAccountID,
+					"doc_count", len(docs))
+				s.sessionHandoffsMu.Lock()
+				delete(s.sessionHandoffs, previousClientID)
+				s.sessionHandoffsMu.Unlock()
+				return &sessionHandoffEntry{
+					AccountID:      jwtAccountID,
+					Docs:           docs,
+					CorporationIDs: append([]string(nil), payload.CorporationIDs...),
+					AllianceIDs:    append([]string(nil), payload.AllianceIDs...),
+					Expires:        time.Now().Add(config.SessionHandoffTTL),
+				}
+			}
+		} else if err != nil && err != redislib.Nil {
+			logs.WarnCtx(ctx, "session handoff Redis GETDEL failed", "error", err)
+		}
+	}
+
+	now := time.Now()
+	s.sessionHandoffsMu.Lock()
+	defer s.sessionHandoffsMu.Unlock()
+	s.pruneExpiredSessionHandoffsLocked(now)
+	ent, ok := s.sessionHandoffs[previousClientID]
+	if !ok || ent == nil || now.After(ent.Expires) {
+		return nil
+	}
+	if ent.AccountID != jwtAccountID {
+		logs.WarnCtx(ctx, "session resume rejected: account mismatch (memory handoff)",
+			"previous_client_id", previousClientID,
+			"jwt_account_id", jwtAccountID,
+			"handoff_account_id", ent.AccountID)
+		return nil
+	}
+	delete(s.sessionHandoffs, previousClientID)
+	return ent
+}
+
+// ApplySessionResume moves NATS/outgoing subscription state from a disconnected client to this
+// connection when the browser re-handshakes with a fresh JWT (same tab). Returns whether the
+// handoff was applied and the doc IDs successfully re-subscribed (for resume_ack.restoredDocIDs).
+func (s *Server) ApplySessionResume(ctx context.Context, client *Client, previousClientID string) (skipBaselineSync bool, restoredDocIDs []string) {
+	if client == nil || previousClientID == "" || previousClientID == client.id {
+		return false, nil
+	}
+
+	ent := s.popSessionHandoff(ctx, client.AccountID, previousClientID)
+	if ent == nil {
+		logs.DebugCtx(ctx, "session resume: no valid handoff for previous client",
+			"new_client_id", client.id,
+			"previous_client_id", previousClientID,
+			"account_id", client.AccountID)
+		return false, nil
+	}
+
+	applied := 0
+	for docID := range ent.Docs {
+		if !s.docSubscribeAuthorized(ctx, docID, client.AccountID) {
+			logs.WarnCtx(ctx, "session resume: skipping unauthorized doc",
+				"client_id", client.id,
+				"doc_id", docID)
+			continue
+		}
+		s.handleSubscribeRequest(client.id, docID)
+		restoredDocIDs = append(restoredDocIDs, docID)
+		applied++
+	}
+
+	if len(ent.CorporationIDs) > 0 || len(ent.AllianceIDs) > 0 {
+		next := replaceScopesFromJWT(client, ent.CorporationIDs, ent.AllianceIDs)
+		if len(next.CorporationIDs) > 0 || len(next.AllianceIDs) > 0 {
+			s.swapClientOrgScopesAndIndexes(client, next)
+			s.queueScopesAck(client)
+		}
+	}
+
+	logs.InfoCtx(ctx, "session resume applied after JWT re-handshake",
+		"new_client_id", client.id,
+		"previous_client_id", previousClientID,
+		"account_id", client.AccountID,
+		"subscriptions_restored", applied,
+		"subscriptions_total", len(ent.Docs))
+
+	// Account-scoped realtime needs no per-doc restore; skip baseline sync whenever handoff matched (JWT rotation).
+	return true, restoredDocIDs
+}
+
+func (s *Server) queueResumeAck(client *Client, skipBaselineSync bool, restoredDocIDs []string) {
+	if client == nil || client.Send == nil {
+		return
+	}
+	msg := map[string]interface{}{
+		"type":             "resume_ack",
+		"skipBaselineSync": skipBaselineSync,
+	}
+	if len(restoredDocIDs) > 0 {
+		msg["restoredDocIDs"] = restoredDocIDs
+	}
+	b, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+	select {
+	case client.Send <- b:
+	default:
+		logs.WarnCtx(client.LogContext(), "failed to queue resume_ack (send buffer full)",
+			"client_id", client.id)
+	}
+}

@@ -7,6 +7,7 @@ import (
 
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/websocket/server/config"
 	syncpkg "eve-industry-planner/websocket/sync"
 
 	"github.com/alitto/pond/v2"
@@ -33,44 +34,45 @@ func getMessageTypeName(messageType int) string {
 
 // NewServer creates a new WebSocket server instance
 func NewServer(clients *shared.ServiceClients) *Server {
-	// Create independent worker pools
-	// Incoming: Limited to match MongoDB connection pool (MaxPoolSize=10)
-	// Outgoing: Higher limit for fast broadcasts
-	// Sync: Separate pool for sync operations
-	incomingPool := pond.NewPool(IncomingPoolSize)
-	outgoingPool := pond.NewPool(OutgoingPoolSize)
-	syncPool := pond.NewPool(SyncPoolSize)
+	// Sync worker pool (pond). Incoming document work uses per-docID mutex serialization in processIncomingQueue.
+	syncPool := pond.NewPool(config.SyncPoolSize)
+
+	shardN := config.DocUpdateOutboundShardCount
+	if shardN < 1 {
+		shardN = 1
+	}
+	shards := make([]chan docUpdateWork, shardN)
+	for i := range shards {
+		shards[i] = make(chan docUpdateWork, config.DocUpdateOutboundShardQueueCap)
+	}
 
 	s := &Server{
-		Clients:             make(map[string]*Client),
-		userConnections:     make(map[string]map[string]bool),
-		activeSubscriptions: make(map[string]map[string]time.Time),
-		incomingQueues:      make(map[string]*IncomingDocQueue),
-		incomingSignals:     make(chan string, SignalChannelBuffer),
-		incomingBulkQueue: &BulkQueue{
-			ch: make(chan []Operation, QueueBufferSize),
-		},
-		incomingBulkSignals: make(chan struct{}, SignalChannelBuffer),
-		outgoingQueues:      make(map[string]*OutgoingDocQueue),
-		outgoingSignals:     make(chan string, SignalChannelBuffer),
-		SyncQueues:          make(map[string]*syncpkg.SyncQueue),
-		SyncSignals:         make(chan string, SignalChannelBuffer),
-		incomingPool:        incomingPool,
-		outgoingPool:        outgoingPool,
-		SyncPool:            syncPool,
-		upgrader:            upgrader,
-		ServiceClients:      clients,
-		shutdownChan:        make(chan struct{}),
+		Clients:                 make(map[string]*Client),
+		userConnections:         make(map[string]map[string]bool),
+		sessionConnections:      make(map[string]string),
+		sessionHandoffs:         make(map[string]*sessionHandoffEntry),
+		activeSubscriptions:     make(map[string]map[string]time.Time),
+		incomingQueues:          make(map[string]*IncomingDocQueue),
+		incomingSignals:         make(chan string, config.SignalChannelBuffer),
+		explicitDocSubscribers:  make(map[string]map[string]bool),
+		corpToClients:           make(map[string]map[string]bool),
+		allianceToClients:       make(map[string]map[string]bool),
+		docUpdateOutboundShards: shards,
+		SyncQueues:              make(map[string]*syncpkg.SyncQueue),
+		SyncSignals:             make(chan string, config.SignalChannelBuffer),
+		SyncPool:                syncPool,
+		upgrader:                upgrader,
+		ServiceClients:          clients,
+		shutdownChan:            make(chan struct{}),
 	}
 
 	logs.DebugCtx(context.Background(), "websocket server instance created",
-		"incoming_pool_size", IncomingPoolSize,
-		"outgoing_pool_size", OutgoingPoolSize,
-		"sync_pool_size", SyncPoolSize)
+		"sync_pool_size", config.SyncPoolSize)
+
+	s.initMetrics()
 
 	// Start coordinator goroutines
 	s.startIncomingCoordinator()
-	s.startOutgoingCoordinator()
 
 	// Start sync coordinator
 	processFn := func(clientID string) error {
@@ -81,8 +83,8 @@ func NewServer(clients *shared.ServiceClients) *Server {
 	// Start NATS subscription for document updates
 	s.subscribeToDocUpdates()
 
-	// Start NATS subscription for subscription requests
-	s.subscribeToDocSubscriptions()
+	// Lock notifications (API → NATS doc.lock.{accountID} → all tabs)
+	s.subscribeToDocLockNotifications()
 
 	// Start cleanup goroutine for idle queues
 	s.startCleanupGoroutine()

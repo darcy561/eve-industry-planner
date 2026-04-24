@@ -1,5 +1,4 @@
 import {
-  Box,
   Grid,
   IconButton,
   Menu,
@@ -8,10 +7,10 @@ import {
   Typography,
 } from "@mui/material";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { MaterialRow } from "./materialRow";
-import { useManageGroupJobs } from "../../../../../../Hooks/GroupHooks/useManageGroupJobs";
-import { useJobBuild } from "../../../../../../Hooks/useJobBuild";
+import { findMaterialJobInGroup } from "../../../../../../Functions/Groups/findMaterialJobInGroup.js";
 import getMissingESIData from "../../../../../../Functions/Shared/getMissingESIData";
 import recalculateInstallCostsWithNewData from "../../../../../../Functions/Installation Costs/recalculateInstallCostsWithNewData";
 import checkJobTypeIsBuildable from "../../../../../../Functions/Helper/checkJobTypeIsBuildable";
@@ -19,6 +18,7 @@ import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import writeTextToClipboard from "../../../../../../Functions/Clipboard/writeTextToClipboard";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
+import { buildJob } from "../../../../../../Functions/JobPlanner/buildJob";
 
 export function RawResourceList(props) {
   const { state, actions } = props;
@@ -26,8 +26,7 @@ export function RawResourceList(props) {
   const [displayType, updateDisplyType] = useState(
     state.activeJob.layout?.resourceDisplayType || "all"
   );
-  const { findMaterialJobIDInGroup } = useManageGroupJobs();
-  const { buildJob } = useJobBuild();
+  const queryClient = useQueryClient();
 
   if (!state.activeJob.build.setup[state.activeJob.layout.setupToEdit])
     return null;
@@ -193,7 +192,7 @@ export function RawResourceList(props) {
 
       function groupJobCheck(requestedTypeID, requestedGroupID, outputMap) {
         if (!state.activeJob.includedInGroup) return false;
-        const matchedGroupJob = findMaterialJobIDInGroup(
+        const matchedGroupJob = findMaterialJobInGroup(
           requestedTypeID,
           requestedGroupID
         );
@@ -206,7 +205,7 @@ export function RawResourceList(props) {
     });
 
     // if (buildRequestArray.length === 0) return;
-    const newJobs = await buildJob(buildRequestArray);
+    const newJobs = await buildJob(buildRequestArray, { queryClient });
 
     // Combine new jobs and group jobs
     const allJobsToAdd = [...newJobs, ...groupJobsToLink.values()];

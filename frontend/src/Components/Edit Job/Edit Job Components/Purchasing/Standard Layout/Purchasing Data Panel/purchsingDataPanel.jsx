@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Button,
   FormControlLabel,
@@ -9,45 +8,29 @@ import {
 } from "@mui/material";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import {
-  useAddMaterialCostsToJob,
-  useBuildMaterialPriceObject,
-} from "../../../../../../Hooks/JobHooks/useAddMaterialCosts";
-import { saveApplicationSettings } from "../../../../../../Functions/Endpoints/Pirivate/userDocument";
-import MarketLocationSelect from "../../../../../../Styled Components/Select/marketLocation";
-import MarketListingSelect from "../../../../../../Styled Components/Select/marketListing";
+  addMaterialCostsToJob,
+  materialPriceObjectFactory,
+} from "../../../../../../Functions/JobPlanner/materialCosts";
+import {
+  MarketLocationSelectApplicationSettings,
+} from "../../../../../../Styled Components/Select/marketLocation.jsx";
+import {
+  MarketListingSelectApplicationSettings,
+} from "../../../../../../Styled Components/Select/marketListing.jsx";
 import { showSnackbarError } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { showShoppingList } from "../../../../../../Events/shoppingListEvents";
-import { useGlobalDebounce } from "../../../../../../Hooks/GeneralHooks/useGlobalDebounce";
-import { DEBOUNCE_KEYS } from "../../../../../../Context/debounceKeys";
+import { scheduleDebouncedApplicationSettingsSave } from "../../../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 import importMultibuyFromClipboard from "../../../../../../Functions/Clipboard/importMultibuy";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 
 export function PurchasingDataPanel_EditJob(props) {
-  const {
-    state,
-    actions,
-    orderDisplay,
-    marketDisplay,
-    changeOrderDisplay,
-    changeMarketDisplay,
-  } = props;
+  const { state, actions } = props;
   const hideCompleteMaterials = useUsersStore(
     (state) => state.applicationSettings.hideCompleteMaterials
   );
   const { toggleHideCompleteMaterials } =
     useUsersStore.getState().applicationSettings.actions;
-
-  const [orderSelect, updateOrderSelect] = useState(orderDisplay);
-  const [marketSelect, updateMarketSelect] = useState(marketDisplay);
-
-  const debouncedSaveSettings = useGlobalDebounce(
-    DEBOUNCE_KEYS.APP_SETTINGS_SAVE,
-    async () => {
-      await saveApplicationSettings();
-    },
-    2000
-  );
 
   const totalComplete = state.activeJob.totalCompletedMaterials();
 
@@ -114,7 +97,7 @@ export function PurchasingDataPanel_EditJob(props) {
                   onChange={async () => {
                     toggleHideCompleteMaterials();
 
-                    debouncedSaveSettings();
+                    scheduleDebouncedApplicationSettingsSave();
                   }}
                 />
               }
@@ -169,7 +152,7 @@ export function PurchasingDataPanel_EditJob(props) {
                             if (!matchedItem) continue;
 
                             materialPriceObjects.push(
-                              useBuildMaterialPriceObject(
+                              materialPriceObjectFactory(
                                 material.typeID,
 
                                 "allRemaining",
@@ -184,7 +167,7 @@ export function PurchasingDataPanel_EditJob(props) {
                           }
 
                           const { newMaterialArray, newTotalPurchaseCost } =
-                            useAddMaterialCostsToJob(
+                            addMaterialCostsToJob(
                               state.activeJob,
                               materialPriceObjects
                             );
@@ -218,12 +201,13 @@ export function PurchasingDataPanel_EditJob(props) {
             }}
           >
             <Grid size={6}>
-              <MarketLocationSelect
-                value={marketSelect}
-                onChange={(e) => {
-                  changeMarketDisplay(e.id);
-                  updateMarketSelect(e.id);
-                  state.activeJob.layout.localMarketDisplay = e.id;
+              <MarketLocationSelectApplicationSettings
+                overrideMarketLocation={
+                  state.activeJob.layout.localMarketDisplay ?? undefined
+                }
+                onMarketLocationCommit={(id) => {
+                  state.activeJob.layout.localMarketDisplay =
+                    id === undefined ? null : id;
                   actions.updateActiveJob(state.activeJob);
                 }}
                 customFormStyling={{
@@ -233,12 +217,13 @@ export function PurchasingDataPanel_EditJob(props) {
               />
             </Grid>
             <Grid size={6}>
-              <MarketListingSelect
-                value={orderSelect}
-                onChange={(e) => {
-                  changeOrderDisplay(e.id);
-                  updateOrderSelect(e.id);
-                  state.activeJob.layout.localOrderDisplay = e.id;
+              <MarketListingSelectApplicationSettings
+                overrideOrderType={
+                  state.activeJob.layout.localOrderDisplay ?? undefined
+                }
+                onOrderTypeCommit={(id) => {
+                  state.activeJob.layout.localOrderDisplay =
+                    id === undefined ? null : id;
                   actions.updateActiveJob(state.activeJob);
                 }}
                 customFormStyling={{

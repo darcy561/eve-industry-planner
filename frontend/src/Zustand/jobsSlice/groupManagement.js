@@ -9,6 +9,13 @@
  * @author EVE Industry Planner Team
  */
 
+import { scheduleDebouncedGroupSave } from "../../Functions/Debounce/jobGroupsPersistSchedule.js";
+
+/** @param {string[]|undefined} prev @param {string[]} ids */
+function mergePendingJobGroupWrites(prev, ids) {
+  return [...new Set([...(prev ?? []), ...ids.filter(Boolean)])];
+}
+
 /**
  * Group management actions for jobs slice.
  *
@@ -25,20 +32,94 @@ export const groupManagementActions = (set, get) => ({
    *
    * @param {Array} groupArray - New group array
    *
+   * @param {{ fromServer?: boolean; skipRealtimeResync?: boolean }} [opts] – `fromServer`: full REST sync (clears pending writes).
+   *   `skipRealtimeResync`: set when applying a WS/NATS doc so we do not re-send subscribe storms.
    * @example
    * store.getState().jobData.actions.replaceGroupArray(newGroupArray);
    */
-  replaceGroupArray: (groupArray) => {
+  replaceGroupArray: (groupArray, opts = {}) => {
+    const fromServer = opts.fromServer === true;
+    const skipRealtimeResync = opts.skipRealtimeResync === true;
     set(
       (state) => ({
         ...state,
         jobData: {
           ...state.jobData,
           groupArray: groupArray || [],
+          ...(fromServer ? { pendingJobGroupWrites: [] } : {}),
         },
       }),
       false,
       "replaceGroupArray"
+    );
+    if (!fromServer && !skipRealtimeResync) {
+      void import("../../Realtime/syncJobGroupWebSocketSubscriptions.js").then(
+        (m) => m.syncJobGroupWebSocketSubscriptions()
+      );
+    }
+  },
+
+  /**
+   * Queues job groups for the next API persist (`PUT /api/v1/groups`); merges into `pendingJobGroupWrites`.
+   * @param {string|string[]} groupIDs
+   */
+  queueJobGroupWrites: (groupIDs) => {
+    const ids = Array.isArray(groupIDs) ? groupIDs : [groupIDs];
+    if (!ids.length) return;
+    set(
+      (state) => ({
+        ...state,
+        jobData: {
+          ...state.jobData,
+          pendingJobGroupWrites: mergePendingJobGroupWrites(
+            state.jobData.pendingJobGroupWrites,
+            ids
+          ),
+        },
+      }),
+      false,
+      "queueJobGroupWrites"
+    );
+  },
+
+  /**
+   * {@link queueJobGroupWrites} and start the debounced `PUT /api/v1/groups` timer (`scheduleDebouncedGroupSave` from `Functions/Debounce`).
+   * Use this when the user should get a server save without waiting for tab hide/close.
+   * For queue-only (e.g. you will `flushPendingGroupSave` in the same flow), use `queueJobGroupWrites` alone.
+   * @param {string|string[]} groupIDs
+   */
+  queueJobGroupWritesAndSchedule: (groupIDs) => {
+    get().jobData.actions.queueJobGroupWrites(groupIDs);
+    scheduleDebouncedGroupSave();
+  },
+
+  /**
+   * Removes group IDs from the pending-write queue (after a successful persist or a server-pushed document).
+   * @param {string|string[]} [groupIDs] – omit to clear the whole queue
+   */
+  clearPendingJobGroupWrites: (groupIDs) => {
+    set(
+      (state) => {
+        const cur = state.jobData.pendingJobGroupWrites ?? [];
+        if (groupIDs == null) {
+          return {
+            ...state,
+            jobData: { ...state.jobData, pendingJobGroupWrites: [] },
+          };
+        }
+        const remove = new Set(
+          Array.isArray(groupIDs) ? groupIDs : [groupIDs]
+        );
+        return {
+          ...state,
+          jobData: {
+            ...state.jobData,
+            pendingJobGroupWrites: cur.filter((id) => !remove.has(id)),
+          },
+        };
+      },
+      false,
+      "clearPendingJobGroupWrites"
     );
   },
 
@@ -57,10 +138,18 @@ export const groupManagementActions = (set, get) => ({
         jobData: {
           ...state.jobData,
           groupArray: [...state.jobData.groupArray, group],
+          pendingJobGroupWrites: group?.groupID
+            ? mergePendingJobGroupWrites(state.jobData.pendingJobGroupWrites, [
+                group.groupID,
+              ])
+            : state.jobData.pendingJobGroupWrites,
         },
       }),
       false,
       "addGroupToGroupArray"
+    );
+    void import("../../Realtime/syncJobGroupWebSocketSubscriptions.js").then(
+      (m) => m.syncJobGroupWebSocketSubscriptions()
     );
   },
 
@@ -81,6 +170,9 @@ export const groupManagementActions = (set, get) => ({
           groupArray: state.jobData.groupArray.filter(
             (group) => group.groupID !== groupID
           ),
+          pendingJobGroupWrites: (
+            state.jobData.pendingJobGroupWrites ?? []
+          ).filter((id) => id !== groupID),
         },
       }),
       false,
@@ -138,6 +230,7 @@ export const groupManagementActions = (set, get) => ({
     const modifiedGroups = Array.isArray(inputGroups)
       ? inputGroups
       : [inputGroups];
+    const queuedIds = modifiedGroups.map((g) => g.groupID).filter(Boolean);
     set(
       (state) => {
         const updatedGroupArray = state.jobData.groupArray.map((group) => {
@@ -152,16 +245,26 @@ export const groupManagementActions = (set, get) => ({
           jobData: {
             ...state.jobData,
             groupArray: updatedGroupArray,
+            pendingJobGroupWrites: mergePendingJobGroupWrites(
+              state.jobData.pendingJobGroupWrites,
+              queuedIds
+            ),
           },
         };
       },
       false,
       "updateModifiedGroups"
     );
+    scheduleDebouncedGroupSave();
   },
 
-  getGroupArrayForFirebase: () => {
+  /** Documents for groups in `pendingJobGroupWrites` that still exist in `groupArray`. */
+  getPendingJobGroupWritesPayload: () => {
     const state = get().jobData;
-    return state.groupArray.map((group) => group.toDocument());
+    const queued = new Set(state.pendingJobGroupWrites ?? []);
+    if (queued.size === 0) return [];
+    return state.groupArray
+      .filter((group) => queued.has(group.groupID))
+      .map((group) => group.toDocument());
   },
 });

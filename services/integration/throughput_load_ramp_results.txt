@@ -1,0 +1,675 @@
+Throughput load ramp — 2026-04-22T20:44:03+01:00
+Fixed: THROUGHPUT_DURATION=2m THROUGHPUT_WS_STACK_REPLICAS=2 THROUGHPUT_OTEL_METRICS=1 THROUGHPUT_START_CHANGESTREAM=0
+JWT: eve-industry-planner_api_data:/data
+---
+
+#####################################################################
+### Level 1 baseline — started 2026-04-22T20:44:03+01:00
+### env: -e THROUGHPUT_ACCOUNTS=1024 -e THROUGHPUT_POOL_PER_ACCOUNT=64 -e THROUGHPUT_WS_ACTIVE_MIN=800 -e THROUGHPUT_WS_ACTIVE_MAX=12000 -e THROUGHPUT_WS_MAX_PER_ACCOUNT=768 -e THROUGHPUT_MONGO_WRITERS=8
+#####################################################################
+go: downloading go1.26.1 (linux/amd64)
+go: downloading go.mongodb.org/mongo-driver v1.17.9
+go: downloading github.com/google/uuid v1.6.0
+go: downloading github.com/gorilla/websocket v1.5.3
+go: downloading github.com/golang-jwt/jwt/v5 v5.3.1
+go: downloading github.com/nats-io/nats.go v1.50.0
+go: downloading github.com/redis/go-redis/v9 v9.18.0
+go: downloading go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/mongo/otelmongo v0.67.0
+go: downloading github.com/getsentry/sentry-go v0.44.1
+go: downloading github.com/getsentry/sentry-go/otel v0.44.1
+go: downloading go.opentelemetry.io/otel v1.43.0
+go: downloading go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.19.0
+go: downloading go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.43.0
+go: downloading go.opentelemetry.io/otel/log v0.19.0
+go: downloading go.opentelemetry.io/otel/sdk/log v0.19.0
+go: downloading go.opentelemetry.io/otel/sdk v1.43.0
+go: downloading go.opentelemetry.io/otel/sdk/metric v1.43.0
+go: downloading go.opentelemetry.io/otel/trace v1.43.0
+go: downloading github.com/alitto/pond/v2 v2.7.0
+go: downloading go.opentelemetry.io/otel/metric v1.43.0
+go: downloading go.opentelemetry.io/contrib/bridges/otelzap v0.17.0
+go: downloading go.uber.org/zap v1.27.1
+go: downloading github.com/redis/go-redis/extra/redisotel/v9 v9.18.0
+go: downloading golang.org/x/sys v0.42.0
+go: downloading github.com/klauspost/compress v1.18.5
+go: downloading github.com/nats-io/nkeys v0.4.15
+go: downloading github.com/nats-io/nuid v1.0.1
+go: downloading github.com/cespare/xxhash/v2 v2.3.0
+go: downloading github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f
+go: downloading github.com/go-logr/logr v1.4.3
+go: downloading golang.org/x/text v0.35.0
+go: downloading github.com/redis/go-redis/extra/rediscmd/v9 v9.18.0
+go: downloading go.opentelemetry.io/proto/otlp v1.10.0
+go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9
+go: downloading google.golang.org/grpc v1.80.0
+go: downloading google.golang.org/genproto v0.0.0-20260330182312-d5a96adf58d8
+go: downloading go.uber.org/atomic v1.11.0
+go: downloading go.uber.org/multierr v1.11.0
+go: downloading github.com/go-logr/stdr v1.2.2
+go: downloading go.opentelemetry.io/auto/sdk v1.2.1
+go: downloading github.com/cenkalti/backoff/v5 v5.0.3
+go: downloading golang.org/x/crypto v0.49.0
+go: downloading github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78
+go: downloading github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0
+go: downloading google.golang.org/protobuf v1.36.11
+go: downloading github.com/golang/snappy v1.0.0
+go: downloading github.com/xdg-go/scram v1.2.0
+go: downloading github.com/xdg-go/stringprep v1.0.4
+go: downloading github.com/montanaflynn/stats v0.9.0
+go: downloading golang.org/x/net v0.52.0
+go: downloading golang.org/x/sync v0.20.0
+go: downloading google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9
+=== RUN   TestRealtimeThroughputMongoToWebSocket
+    realtime_throughput_test.go:137: THROUGHPUT_START_CHANGESTREAM=0: assuming another process publishes changestream → NATS
+    realtime_throughput_test.go:167: OTLP metrics enabled (endpoint=otel-collector:4317)
+    realtime_throughput_test.go:179: seeding mongo for 1024 accounts (pool=64 per account)…
+    realtime_throughput_test.go:199: compose websocket replicas (2): [ws://eve-industry-planner-websocket-1:4001/ws ws://eve-industry-planner-websocket-2:4001/ws]
+    realtime_throughput_test.go:341: warm-up done: active_ws≈800 (target min=800)
+    realtime_throughput_test.go:446: progress elapsed=15s writes=19443 ws_delivery_msgs=4683 active_ws≈823 accounts=1024 rate_writes/s=1296.2 rate_ws_deliveries/s=312.2
+    realtime_throughput_test.go:446: progress elapsed=30s writes=36681 ws_delivery_msgs=8908 active_ws≈829 accounts=1024 rate_writes/s=1222.7 rate_ws_deliveries/s=296.9
+    realtime_throughput_test.go:446: progress elapsed=45s writes=49983 ws_delivery_msgs=11991 active_ws≈805 accounts=1024 rate_writes/s=1110.6 rate_ws_deliveries/s=266.4
+    realtime_throughput_test.go:446: progress elapsed=60s writes=50085 ws_delivery_msgs=12044 active_ws≈806 accounts=1024 rate_writes/s=833.8 rate_ws_deliveries/s=200.5
+    realtime_throughput_test.go:446: progress elapsed=75s writes=50129 ws_delivery_msgs=12063 active_ws≈799 accounts=1024 rate_writes/s=668.4 rate_ws_deliveries/s=160.8
+    realtime_throughput_test.go:446: progress elapsed=90s writes=50140 ws_delivery_msgs=12066 active_ws≈799 accounts=1024 rate_writes/s=556.7 rate_ws_deliveries/s=134.0
+2026/04/22 19:47:29 failed to upload metrics: context deadline exceeded: rpc error: code = DeadlineExceeded desc = context deadline exceeded
+{"level":"warn","ts":"2026-04-22T19:47:37.827Z","caller":"logs/logger.go:234","msg":"MongoDB connection health check failed, attempting reconnect","host_name":"9c50324552f1","ctx":"context.Background","error":"timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 8, maxPoolSize: 10, idle connections: 0, wait duration: 2.28824524s"}
+    realtime_throughput_test.go:446: progress elapsed=105s writes=50140 ws_delivery_msgs=12066 active_ws≈311 accounts=1024 rate_writes/s=477.0 rate_ws_deliveries/s=114.8
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-7]) incomplete read of message header: read tcp 172.18.0.19:56940->172.18.0.6:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-12]) incomplete read of message header: read tcp 172.18.0.19:57004->172.18.0.6:27017: i/o timeout
+2026/04/22 19:47:53 failed to upload metrics: context deadline exceeded: rpc error: code = DeadlineExceeded desc = context deadline exceeded
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-8]) incomplete read of message header: read tcp 172.18.0.19:56960->172.18.0.6:27017: i/o timeout
+    realtime_throughput_test.go:446: progress elapsed=120s writes=50141 ws_delivery_msgs=12066 active_ws≈261 accounts=1024 rate_writes/s=417.2 rate_ws_deliveries/s=100.4
+    realtime_throughput_test.go:295: dial failed (account=tpacc000897): dial tcp: lookup eve-industry-planner-websocket-2 on 127.0.0.11:53: read udp 127.0.0.1:50965->127.0.0.11:53: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-11]) incomplete read of message header: read tcp 172.18.0.19:56980->172.18.0.6:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-2]) incomplete read of message header: read tcp 172.18.0.19:56914->172.18.0.6:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-9]) incomplete read of message header: read tcp 172.18.0.19:56952->172.18.0.6:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-6]) incomplete read of message header: read tcp 172.18.0.19:56938->172.18.0.6:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-4]) incomplete read of message header: read tcp 172.18.0.19:56922->172.18.0.6:27017: i/o timeout
+    realtime_throughput_test.go:446: progress elapsed=154s writes=50141 ws_delivery_msgs=12066 active_ws≈171 accounts=1024 rate_writes/s=324.7 rate_ws_deliveries/s=78.1
+2026/04/22 19:48:28 failed to upload metrics: context deadline exceeded: rpc error: code = DeadlineExceeded desc = context deadline exceeded
+2026/04/22 19:48:28 context deadline exceeded: rpc error: code = DeadlineExceeded desc = context deadline exceeded
+{"level":"warn","ts":"2026-04-22T19:48:28.299Z","caller":"logs/logger.go:234","msg":"MongoDB connection health check failed, attempting reconnect","host_name":"9c50324552f1","ctx":"context.Background","error":"server selection error: context deadline exceeded, current topology: { Type: ReplicaSetNoPrimary, Servers: [{ Addr: mongo:27017, Type: Unknown, Last error: dial tcp: lookup mongo: i/o timeout }, ] }"}
+redis: 2026/04/22 19:48:06 pool.go:617: redis: connection pool: failed to dial after 1 attempts: dial tcp: lookup redis: i/o timeout
+{"level":"warn","ts":"2026-04-22T19:48:28.341Z","caller":"logs/logger.go:234","msg":"Redis connection health check failed, attempting reconnect","host_name":"9c50324552f1","ctx":"context.Background","error":"dial tcp: lookup redis: i/o timeout"}
+{"level":"info","ts":"2026-04-22T19:48:30.375Z","caller":"logs/logger.go:229","msg":"Redis reconnected successfully","host_name":"9c50324552f1","ctx":"context.Background"}
+    realtime_throughput_test.go:405: mongo write: server selection error: server selection timeout, current topology: { Type: ReplicaSetNoPrimary, Servers: [{ Addr: mongo:27017, Type: Unknown, Last error: dial tcp 172.18.0.6:27017: connect: connection refused }, ] }
+    realtime_throughput_test.go:487: final writes=50141 ws_delivery_msgs=12067 accounts=1024 active_ws_end=0 duration=2m0s writes/s=417.8 deliveries/s=100.6 avg_deliveries_per_write=0.24
+    realtime_throughput_test.go:499: latency mongo->ws (matched seq) n=224 p50=11.401474039s p95=32.608058955s p99=42.739011653s (subset capped at 200000 samples)
+--- PASS: TestRealtimeThroughputMongoToWebSocket (252.83s)
+PASS
+ok  	eve-industry-planner/integration	252.859s
+### exit_code=Level 1 baseline → 0 — ended 2026-04-22T20:48:49+01:00
+
+#####################################################################
+### Level 2 higher WS + writers — started 2026-04-22T20:48:49+01:00
+### env: -e THROUGHPUT_ACCOUNTS=1024 -e THROUGHPUT_POOL_PER_ACCOUNT=64 -e THROUGHPUT_WS_ACTIVE_MIN=1400 -e THROUGHPUT_WS_ACTIVE_MAX=18000 -e THROUGHPUT_WS_MAX_PER_ACCOUNT=1024 -e THROUGHPUT_MONGO_WRITERS=16
+#####################################################################
+go: downloading go1.26.1 (linux/amd64)
+go: downloading github.com/google/uuid v1.6.0
+go: downloading go.mongodb.org/mongo-driver v1.17.9
+go: downloading github.com/gorilla/websocket v1.5.3
+go: downloading github.com/nats-io/nats.go v1.50.0
+go: downloading github.com/redis/go-redis/v9 v9.18.0
+go: downloading github.com/golang-jwt/jwt/v5 v5.3.1
+go: downloading github.com/getsentry/sentry-go v0.44.1
+go: downloading go.opentelemetry.io/otel v1.43.0
+go: downloading github.com/getsentry/sentry-go/otel v0.44.1
+go: downloading go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.19.0
+go: downloading go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.43.0
+go: downloading go.opentelemetry.io/otel/log v0.19.0
+go: downloading go.opentelemetry.io/otel/sdk/log v0.19.0
+go: downloading go.opentelemetry.io/otel/sdk/metric v1.43.0
+go: downloading go.opentelemetry.io/otel/sdk v1.43.0
+go: downloading go.opentelemetry.io/otel/trace v1.43.0
+go: downloading go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/mongo/otelmongo v0.67.0
+go: downloading github.com/alitto/pond/v2 v2.7.0
+go: downloading go.opentelemetry.io/otel/metric v1.43.0
+go: downloading go.opentelemetry.io/contrib/bridges/otelzap v0.17.0
+go: downloading go.uber.org/zap v1.27.1
+go: downloading github.com/redis/go-redis/extra/redisotel/v9 v9.18.0
+go: downloading golang.org/x/sys v0.42.0
+go: downloading github.com/klauspost/compress v1.18.5
+go: downloading github.com/nats-io/nkeys v0.4.15
+go: downloading github.com/nats-io/nuid v1.0.1
+go: downloading github.com/go-logr/logr v1.4.3
+go: downloading go.opentelemetry.io/proto/otlp v1.10.0
+go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9
+go: downloading google.golang.org/grpc v1.80.0
+go: downloading google.golang.org/genproto v0.0.0-20260330182312-d5a96adf58d8
+go: downloading github.com/cespare/xxhash/v2 v2.3.0
+go: downloading github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f
+go: downloading golang.org/x/text v0.35.0
+go: downloading github.com/go-logr/stdr v1.2.2
+go: downloading go.opentelemetry.io/auto/sdk v1.2.1
+go: downloading github.com/cenkalti/backoff/v5 v5.0.3
+go: downloading github.com/redis/go-redis/extra/rediscmd/v9 v9.18.0
+go: downloading golang.org/x/crypto v0.49.0
+go: downloading github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0
+go: downloading google.golang.org/protobuf v1.36.11
+go: downloading go.uber.org/multierr v1.11.0
+go: downloading github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78
+go: downloading go.uber.org/atomic v1.11.0
+go: downloading golang.org/x/net v0.52.0
+go: downloading github.com/golang/snappy v1.0.0
+go: downloading github.com/xdg-go/scram v1.2.0
+go: downloading github.com/xdg-go/stringprep v1.0.4
+go: downloading github.com/montanaflynn/stats v0.9.0
+go: downloading golang.org/x/sync v0.20.0
+go: downloading google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9
+time="2026-04-22T20:49:43+01:00" level=error msg="error waiting for container: unexpected EOF"
+### exit_code=Level 2 higher WS + writers → 125 — ended 2026-04-22T20:49:43+01:00
+
+#####################################################################
+### Level 3 more WS burst ceiling — started 2026-04-22T20:49:43+01:00
+### env: -e THROUGHPUT_ACCOUNTS=1536 -e THROUGHPUT_POOL_PER_ACCOUNT=80 -e THROUGHPUT_WS_ACTIVE_MIN=2200 -e THROUGHPUT_WS_ACTIVE_MAX=24000 -e THROUGHPUT_WS_MAX_PER_ACCOUNT=1024 -e THROUGHPUT_MONGO_WRITERS=24
+#####################################################################
+docker: error during connect: Head "http://%2Fhome%2Fjames%2F.docker%2Fdesktop%2Fdocker.sock/_ping": EOF
+
+Run 'docker run --help' for more information
+### exit_code=Level 3 more WS burst ceiling → 125 — ended 2026-04-22T20:54:53+01:00
+
+#####################################################################
+### Level 4 accounts + WS — started 2026-04-22T20:54:53+01:00
+### env: -e THROUGHPUT_ACCOUNTS=2048 -e THROUGHPUT_POOL_PER_ACCOUNT=96 -e THROUGHPUT_WS_ACTIVE_MIN=3500 -e THROUGHPUT_WS_ACTIVE_MAX=32000 -e THROUGHPUT_WS_MAX_PER_ACCOUNT=1024 -e THROUGHPUT_MONGO_WRITERS=32
+#####################################################################
+docker: Cannot connect to the Docker daemon at unix:///home/james/.docker/desktop/docker.sock. Is the docker daemon running?
+
+Run 'docker run --help' for more information
+### exit_code=Level 4 accounts + WS → 125 — ended 2026-04-22T20:54:53+01:00
+
+#####################################################################
+### Level 5 heavy — started 2026-04-22T20:54:53+01:00
+### env: -e THROUGHPUT_ACCOUNTS=3072 -e THROUGHPUT_POOL_PER_ACCOUNT=96 -e THROUGHPUT_WS_ACTIVE_MIN=5000 -e THROUGHPUT_WS_ACTIVE_MAX=45000 -e THROUGHPUT_WS_MAX_PER_ACCOUNT=1024 -e THROUGHPUT_MONGO_WRITERS=48
+#####################################################################
+docker: Cannot connect to the Docker daemon at unix:///home/james/.docker/desktop/docker.sock. Is the docker daemon running?
+
+Run 'docker run --help' for more information
+### exit_code=Level 5 heavy → 125 — ended 2026-04-22T20:54:54+01:00
+
+#####################################################################
+### Level 6 max ramp (may hit infra limits) — started 2026-04-22T20:54:54+01:00
+### env: -e THROUGHPUT_ACCOUNTS=4096 -e THROUGHPUT_POOL_PER_ACCOUNT=128 -e THROUGHPUT_WS_ACTIVE_MIN=6500 -e THROUGHPUT_WS_ACTIVE_MAX=55000 -e THROUGHPUT_WS_MAX_PER_ACCOUNT=1024 -e THROUGHPUT_MONGO_WRITERS=64
+#####################################################################
+docker: Cannot connect to the Docker daemon at unix:///home/james/.docker/desktop/docker.sock. Is the docker daemon running?
+
+Run 'docker run --help' for more information
+### exit_code=Level 6 max ramp (may hit infra limits) → 125 — ended 2026-04-22T20:54:54+01:00
+
+Throughput load ramp finished — 2026-04-22T20:54:54+01:00
+
+######## CONTINUATION RUN 2026-04-22T20:56:09+01:00 — Docker recovered ########
+
+#####################################################################
+### Level 2 higher WS + writers — 2026-04-22T20:56:09+01:00
+### -e THROUGHPUT_ACCOUNTS=1024 -e THROUGHPUT_POOL_PER_ACCOUNT=64 -e THROUGHPUT_WS_ACTIVE_MIN=1400 -e THROUGHPUT_WS_ACTIVE_MAX=18000 -e THROUGHPUT_WS_MAX_PER_ACCOUNT=1024 -e THROUGHPUT_MONGO_WRITERS=16
+#####################################################################
+go: downloading go1.26.1 (linux/amd64)
+go: downloading go.mongodb.org/mongo-driver v1.17.9
+go: downloading github.com/google/uuid v1.6.0
+go: downloading github.com/gorilla/websocket v1.5.3
+go: downloading github.com/nats-io/nats.go v1.50.0
+go: downloading github.com/redis/go-redis/v9 v9.18.0
+go: downloading github.com/golang-jwt/jwt/v5 v5.3.1
+go: downloading go.opentelemetry.io/contrib/bridges/otelzap v0.17.0
+go: downloading go.opentelemetry.io/otel/trace v1.43.0
+go: downloading go.opentelemetry.io/otel/log v0.19.0
+go: downloading go.uber.org/zap v1.27.1
+go: downloading github.com/redis/go-redis/extra/redisotel/v9 v9.18.0
+go: downloading github.com/getsentry/sentry-go v0.44.1
+go: downloading github.com/getsentry/sentry-go/otel v0.44.1
+go: downloading go.opentelemetry.io/otel v1.43.0
+go: downloading go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.19.0
+go: downloading go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.43.0
+go: downloading go.opentelemetry.io/otel/sdk/log v0.19.0
+go: downloading go.opentelemetry.io/otel/sdk/metric v1.43.0
+go: downloading go.opentelemetry.io/otel/sdk v1.43.0
+go: downloading go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/mongo/otelmongo v0.67.0
+go: downloading github.com/alitto/pond/v2 v2.7.0
+go: downloading go.opentelemetry.io/otel/metric v1.43.0
+go: downloading github.com/redis/go-redis/extra/rediscmd/v9 v9.18.0
+go: downloading golang.org/x/sys v0.42.0
+go: downloading go.uber.org/multierr v1.11.0
+go: downloading github.com/klauspost/compress v1.18.5
+go: downloading github.com/nats-io/nkeys v0.4.15
+go: downloading github.com/nats-io/nuid v1.0.1
+go: downloading github.com/cespare/xxhash/v2 v2.3.0
+go: downloading github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f
+go: downloading github.com/go-logr/logr v1.4.3
+go: downloading go.opentelemetry.io/proto/otlp v1.10.0
+go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9
+go: downloading google.golang.org/grpc v1.80.0
+go: downloading google.golang.org/genproto v0.0.0-20260330182312-d5a96adf58d8
+go: downloading golang.org/x/text v0.35.0
+go: downloading go.uber.org/atomic v1.11.0
+go: downloading github.com/go-logr/stdr v1.2.2
+go: downloading go.opentelemetry.io/auto/sdk v1.2.1
+go: downloading github.com/cenkalti/backoff/v5 v5.0.3
+go: downloading golang.org/x/crypto v0.49.0
+go: downloading github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0
+go: downloading google.golang.org/protobuf v1.36.11
+go: downloading golang.org/x/net v0.52.0
+go: downloading github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78
+go: downloading github.com/golang/snappy v1.0.0
+go: downloading github.com/xdg-go/scram v1.2.0
+go: downloading github.com/xdg-go/stringprep v1.0.4
+go: downloading github.com/montanaflynn/stats v0.9.0
+go: downloading golang.org/x/sync v0.20.0
+go: downloading google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9
+=== RUN   TestRealtimeThroughputMongoToWebSocket
+    realtime_throughput_test.go:137: THROUGHPUT_START_CHANGESTREAM=0: assuming another process publishes changestream → NATS
+    realtime_throughput_test.go:167: OTLP metrics enabled (endpoint=otel-collector:4317)
+    realtime_throughput_test.go:179: seeding mongo for 1024 accounts (pool=64 per account)…
+    realtime_throughput_test.go:199: compose websocket replicas (2): [ws://eve-industry-planner-websocket-1:4001/ws ws://eve-industry-planner-websocket-2:4001/ws]
+    realtime_throughput_test.go:341: warm-up done: active_ws≈1400 (target min=1400)
+    realtime_throughput_test.go:446: progress elapsed=15s writes=28213 ws_delivery_msgs=7938 active_ws≈1411 accounts=1024 rate_writes/s=1880.8 rate_ws_deliveries/s=529.2
+    realtime_throughput_test.go:446: progress elapsed=30s writes=56348 ws_delivery_msgs=17785 active_ws≈1424 accounts=1024 rate_writes/s=1878.3 rate_ws_deliveries/s=592.8
+    realtime_throughput_test.go:446: progress elapsed=45s writes=85592 ws_delivery_msgs=28246 active_ws≈1426 accounts=1024 rate_writes/s=1902.0 rate_ws_deliveries/s=627.7
+    realtime_throughput_test.go:446: progress elapsed=60s writes=111912 ws_delivery_msgs=38283 active_ws≈1408 accounts=1024 rate_writes/s=1865.2 rate_ws_deliveries/s=638.0
+    realtime_throughput_test.go:446: progress elapsed=75s writes=138310 ws_delivery_msgs=47589 active_ws≈1411 accounts=1024 rate_writes/s=1844.1 rate_ws_deliveries/s=634.5
+    realtime_throughput_test.go:446: progress elapsed=90s writes=164861 ws_delivery_msgs=56383 active_ws≈583 accounts=1024 rate_writes/s=1831.8 rate_ws_deliveries/s=626.5
+    realtime_throughput_test.go:446: progress elapsed=105s writes=193569 ws_delivery_msgs=61663 active_ws≈715 accounts=1024 rate_writes/s=1843.5 rate_ws_deliveries/s=587.3
+    realtime_throughput_test.go:446: progress elapsed=120s writes=219597 ws_delivery_msgs=66469 active_ws≈840 accounts=1024 rate_writes/s=1830.0 rate_ws_deliveries/s=553.9
+    realtime_throughput_test.go:487: final writes=219597 ws_delivery_msgs=66777 accounts=1024 active_ws_end=0 duration=2m0s writes/s=1830.0 deliveries/s=556.5 avg_deliveries_per_write=0.30
+    realtime_throughput_test.go:499: latency mongo->ws (matched seq) n=1693 p50=35.693981741s p95=1m12.66745291s p99=1m34.611181802s (subset capped at 200000 samples)
+--- PASS: TestRealtimeThroughputMongoToWebSocket (208.62s)
+PASS
+ok  	eve-industry-planner/integration	208.635s
+### exit_code=Level 2 higher WS + writers → 0 — 2026-04-22T21:00:12+01:00
+
+#####################################################################
+### Level 3 more WS burst ceiling — 2026-04-22T21:01:12+01:00
+### -e THROUGHPUT_ACCOUNTS=1536 -e THROUGHPUT_POOL_PER_ACCOUNT=80 -e THROUGHPUT_WS_ACTIVE_MIN=2200 -e THROUGHPUT_WS_ACTIVE_MAX=24000 -e THROUGHPUT_WS_MAX_PER_ACCOUNT=1024 -e THROUGHPUT_MONGO_WRITERS=24
+#####################################################################
+go: downloading go1.26.1 (linux/amd64)
+go: downloading go.mongodb.org/mongo-driver v1.17.9
+go: downloading github.com/gorilla/websocket v1.5.3
+go: downloading github.com/google/uuid v1.6.0
+go: downloading github.com/nats-io/nats.go v1.50.0
+go: downloading github.com/redis/go-redis/v9 v9.18.0
+go: downloading github.com/getsentry/sentry-go v0.44.1
+go: downloading go.opentelemetry.io/otel v1.43.0
+go: downloading go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.19.0
+go: downloading github.com/getsentry/sentry-go/otel v0.44.1
+go: downloading go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.43.0
+go: downloading go.opentelemetry.io/otel/log v0.19.0
+go: downloading go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/mongo/otelmongo v0.67.0
+go: downloading github.com/golang-jwt/jwt/v5 v5.3.1
+go: downloading go.opentelemetry.io/otel/sdk/log v0.19.0
+go: downloading go.opentelemetry.io/otel/sdk v1.43.0
+go: downloading go.opentelemetry.io/otel/sdk/metric v1.43.0
+go: downloading go.opentelemetry.io/otel/trace v1.43.0
+go: downloading github.com/redis/go-redis/extra/redisotel/v9 v9.18.0
+go: downloading go.opentelemetry.io/contrib/bridges/otelzap v0.17.0
+go: downloading go.uber.org/zap v1.27.1
+go: downloading github.com/alitto/pond/v2 v2.7.0
+go: downloading go.opentelemetry.io/otel/metric v1.43.0
+go: downloading github.com/cespare/xxhash/v2 v2.3.0
+go: downloading github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f
+go: downloading golang.org/x/sys v0.42.0
+go: downloading github.com/nats-io/nkeys v0.4.15
+go: downloading github.com/klauspost/compress v1.18.5
+go: downloading github.com/nats-io/nuid v1.0.1
+go: downloading github.com/redis/go-redis/extra/rediscmd/v9 v9.18.0
+go: downloading github.com/go-logr/logr v1.4.3
+go: downloading go.opentelemetry.io/proto/otlp v1.10.0
+go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9
+go: downloading google.golang.org/grpc v1.80.0
+go: downloading google.golang.org/genproto v0.0.0-20260330182312-d5a96adf58d8
+go: downloading go.uber.org/atomic v1.11.0
+go: downloading golang.org/x/text v0.35.0
+go: downloading go.uber.org/multierr v1.11.0
+go: downloading github.com/go-logr/stdr v1.2.2
+go: downloading go.opentelemetry.io/auto/sdk v1.2.1
+go: downloading github.com/cenkalti/backoff/v5 v5.0.3
+go: downloading golang.org/x/crypto v0.49.0
+go: downloading github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0
+go: downloading google.golang.org/protobuf v1.36.11
+go: downloading github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78
+go: downloading golang.org/x/net v0.52.0
+go: downloading github.com/golang/snappy v1.0.0
+go: downloading github.com/xdg-go/scram v1.2.0
+go: downloading github.com/xdg-go/stringprep v1.0.4
+go: downloading github.com/montanaflynn/stats v0.9.0
+go: downloading golang.org/x/sync v0.20.0
+go: downloading google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9
+=== RUN   TestRealtimeThroughputMongoToWebSocket
+    realtime_throughput_test.go:137: THROUGHPUT_START_CHANGESTREAM=0: assuming another process publishes changestream → NATS
+    realtime_throughput_test.go:167: OTLP metrics enabled (endpoint=otel-collector:4317)
+    realtime_throughput_test.go:179: seeding mongo for 1536 accounts (pool=80 per account)…
+    realtime_throughput_test.go:199: compose websocket replicas (2): [ws://eve-industry-planner-websocket-1:4001/ws ws://eve-industry-planner-websocket-2:4001/ws]
+    realtime_throughput_test.go:341: warm-up done: active_ws≈2200 (target min=2200)
+    realtime_throughput_test.go:446: progress elapsed=15s writes=25626 ws_delivery_msgs=11933 active_ws≈2203 accounts=1536 rate_writes/s=1708.3 rate_ws_deliveries/s=795.5
+    realtime_throughput_test.go:446: progress elapsed=30s writes=53178 ws_delivery_msgs=20845 active_ws≈2214 accounts=1536 rate_writes/s=1772.5 rate_ws_deliveries/s=694.8
+    realtime_throughput_test.go:446: progress elapsed=45s writes=77396 ws_delivery_msgs=25126 active_ws≈2201 accounts=1536 rate_writes/s=1719.9 rate_ws_deliveries/s=558.3
+    realtime_throughput_test.go:446: progress elapsed=60s writes=91262 ws_delivery_msgs=29067 active_ws≈2227 accounts=1536 rate_writes/s=1521.0 rate_ws_deliveries/s=484.4
+    realtime_throughput_test.go:446: progress elapsed=75s writes=92134 ws_delivery_msgs=29406 active_ws≈2229 accounts=1536 rate_writes/s=1225.4 rate_ws_deliveries/s=391.1
+    realtime_throughput_test.go:295: dial failed (account=tpacc001073): dial tcp: lookup eve-industry-planner-websocket-2 on 127.0.0.11:53: write udp 127.0.0.1:34399->127.0.0.11:53: i/o timeout
+    realtime_throughput_test.go:446: progress elapsed=91s writes=92134 ws_delivery_msgs=29406 active_ws≈2219 accounts=1536 rate_writes/s=1023.4 rate_ws_deliveries/s=326.6
+    realtime_throughput_test.go:446: progress elapsed=105s writes=92134 ws_delivery_msgs=29406 active_ws≈2219 accounts=1536 rate_writes/s=876.8 rate_ws_deliveries/s=279.9
+    realtime_throughput_test.go:405: mongo write: connection() error occurred during connection handshake: dial tcp: lookup mongo: i/o timeout
+    realtime_throughput_test.go:446: progress elapsed=151s writes=92134 ws_delivery_msgs=29406 active_ws≈1761 accounts=1536 rate_writes/s=612.0 rate_ws_deliveries/s=195.3
+    realtime_throughput_test.go:405: mongo write: connection() error occurred during connection handshake: dial tcp: lookup mongo: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-11]) incomplete read of message header: read tcp 172.18.0.19:47606->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:418: mongo write: connection(mongo:27017[-4]) incomplete read of message header: read tcp 172.18.0.19:47552->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-12]) incomplete read of message header: read tcp 172.18.0.19:47622->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-7]) incomplete read of message header: read tcp 172.18.0.19:47566->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-3]) incomplete read of message header: read tcp 172.18.0.19:47514->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-8]) incomplete read of message header: read tcp 172.18.0.19:47574->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:418: mongo write: connection(mongo:27017[-10]) incomplete read of message header: read tcp 172.18.0.19:47604->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-6]) incomplete read of message header: read tcp 172.18.0.19:47556->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-13]) incomplete read of message header: read tcp 172.18.0.19:47638->172.18.0.4:27017: i/o timeout
+{"level":"warn","ts":"2026-04-22T20:07:44.278Z","caller":"logs/logger.go:234","msg":"MongoDB connection health check failed, attempting reconnect","host_name":"d9f1d8773e24","ctx":"context.Background","error":"timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 7, maxPoolSize: 10, idle connections: 0, wait duration: 243.082347ms"}
+    realtime_throughput_test.go:405: mongo write: connection pool for mongo:27017 was cleared because another operation failed with: connection() error occurred during connection handshake: dial tcp: lookup mongo: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-9]) incomplete read of message header: read tcp 172.18.0.19:47590->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection pool for mongo:27017 was cleared because another operation failed with: connection() error occurred during connection handshake: dial tcp: lookup mongo: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection pool for mongo:27017 was cleared because another operation failed with: connection() error occurred during connection handshake: dial tcp: lookup mongo: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection pool for mongo:27017 was cleared because another operation failed with: connection() error occurred during connection handshake: dial tcp: lookup mongo: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection pool for mongo:27017 was cleared because another operation failed with: connection() error occurred during connection handshake: dial tcp: lookup mongo: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection pool for mongo:27017 was cleared because another operation failed with: connection() error occurred during connection handshake: dial tcp: lookup mongo: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection pool for mongo:27017 was cleared because another operation failed with: connection() error occurred during connection handshake: dial tcp: lookup mongo: i/o timeout
+    realtime_throughput_test.go:418: mongo write: connection pool for mongo:27017 was cleared because another operation failed with: connection() error occurred during connection handshake: dial tcp: lookup mongo: i/o timeout
+    realtime_throughput_test.go:418: mongo write: connection pool for mongo:27017 was cleared because another operation failed with: connection() error occurred during connection handshake: dial tcp: lookup mongo: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection pool for mongo:27017 was cleared because another operation failed with: connection() error occurred during connection handshake: dial tcp: lookup mongo: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection pool for mongo:27017 was cleared because another operation failed with: connection() error occurred during connection handshake: dial tcp: lookup mongo: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection pool for mongo:27017 was cleared because another operation failed with: connection() error occurred during connection handshake: dial tcp: lookup mongo: i/o timeout
+    realtime_throughput_test.go:487: final writes=92134 ws_delivery_msgs=29431 accounts=1536 active_ws_end=0 duration=2m0s writes/s=767.8 deliveries/s=245.3 avg_deliveries_per_write=0.32
+    realtime_throughput_test.go:499: latency mongo->ws (matched seq) n=480 p50=14.216737396s p95=40.429123336s p99=43.663692843s (subset capped at 200000 samples)
+{"level":"warn","ts":"2026-04-22T20:07:56.368Z","caller":"logs/logger.go:234","msg":"MongoDB connection health check failed, attempting reconnect","host_name":"d9f1d8773e24","ctx":"context.Background","error":"server selection error: context deadline exceeded, current topology: { Type: ReplicaSetNoPrimary, Servers: [{ Addr: mongo:27017, Type: Unknown, Last error: dial tcp 172.18.0.4:27017: connect: connection refused }, ] }"}
+{"level":"info","ts":"2026-04-22T20:08:01.779Z","caller":"logs/logger.go:229","msg":"MongoDB reconnected successfully","host_name":"d9f1d8773e24","ctx":"context.Background"}
+--- PASS: TestRealtimeThroughputMongoToWebSocket (344.54s)
+PASS
+ok  	eve-industry-planner/integration	344.592s
+### exit_code=Level 3 more WS burst ceiling → 0 — 2026-04-22T21:08:10+01:00
+
+#####################################################################
+### Level 4 accounts + WS — 2026-04-22T21:09:10+01:00
+### -e THROUGHPUT_ACCOUNTS=2048 -e THROUGHPUT_POOL_PER_ACCOUNT=96 -e THROUGHPUT_WS_ACTIVE_MIN=3500 -e THROUGHPUT_WS_ACTIVE_MAX=32000 -e THROUGHPUT_WS_MAX_PER_ACCOUNT=1024 -e THROUGHPUT_MONGO_WRITERS=32
+#####################################################################
+go: downloading go1.26.1 (linux/amd64)
+go: downloading go.mongodb.org/mongo-driver v1.17.9
+go: downloading github.com/google/uuid v1.6.0
+go: downloading github.com/gorilla/websocket v1.5.3
+go: downloading github.com/nats-io/nats.go v1.50.0
+go: downloading github.com/redis/go-redis/v9 v9.18.0
+go: downloading github.com/golang-jwt/jwt/v5 v5.3.1
+go: downloading github.com/getsentry/sentry-go v0.44.1
+go: downloading github.com/getsentry/sentry-go/otel v0.44.1
+go: downloading go.opentelemetry.io/otel v1.43.0
+go: downloading go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.19.0
+go: downloading go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.43.0
+go: downloading go.opentelemetry.io/otel/log v0.19.0
+go: downloading go.opentelemetry.io/otel/sdk/log v0.19.0
+go: downloading go.opentelemetry.io/otel/sdk/metric v1.43.0
+go: downloading go.opentelemetry.io/otel/sdk v1.43.0
+go: downloading go.opentelemetry.io/otel/trace v1.43.0
+go: downloading go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/mongo/otelmongo v0.67.0
+go: downloading go.opentelemetry.io/contrib/bridges/otelzap v0.17.0
+go: downloading go.uber.org/zap v1.27.1
+go: downloading github.com/redis/go-redis/extra/redisotel/v9 v9.18.0
+go: downloading github.com/alitto/pond/v2 v2.7.0
+go: downloading go.opentelemetry.io/otel/metric v1.43.0
+go: downloading github.com/cespare/xxhash/v2 v2.3.0
+go: downloading github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f
+go: downloading github.com/go-logr/logr v1.4.3
+go: downloading golang.org/x/sys v0.42.0
+go: downloading go.opentelemetry.io/proto/otlp v1.10.0
+go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9
+go: downloading google.golang.org/grpc v1.80.0
+go: downloading google.golang.org/genproto v0.0.0-20260330182312-d5a96adf58d8
+go: downloading go.uber.org/atomic v1.11.0
+go: downloading github.com/go-logr/stdr v1.2.2
+go: downloading go.opentelemetry.io/auto/sdk v1.2.1
+go: downloading golang.org/x/text v0.35.0
+go: downloading github.com/redis/go-redis/extra/rediscmd/v9 v9.18.0
+go: downloading github.com/cenkalti/backoff/v5 v5.0.3
+go: downloading github.com/klauspost/compress v1.18.5
+go: downloading github.com/nats-io/nkeys v0.4.15
+go: downloading github.com/nats-io/nuid v1.0.1
+go: downloading go.uber.org/multierr v1.11.0
+go: downloading github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78
+go: downloading github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0
+go: downloading google.golang.org/protobuf v1.36.11
+go: downloading golang.org/x/net v0.52.0
+go: downloading github.com/xdg-go/scram v1.2.0
+go: downloading github.com/golang/snappy v1.0.0
+go: downloading github.com/xdg-go/stringprep v1.0.4
+go: downloading github.com/montanaflynn/stats v0.9.0
+go: downloading golang.org/x/crypto v0.49.0
+go: downloading golang.org/x/sync v0.20.0
+go: downloading google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9
+=== RUN   TestRealtimeThroughputMongoToWebSocket
+    realtime_throughput_test.go:137: THROUGHPUT_START_CHANGESTREAM=0: assuming another process publishes changestream → NATS
+    realtime_throughput_test.go:167: OTLP metrics enabled (endpoint=otel-collector:4317)
+    realtime_throughput_test.go:179: seeding mongo for 2048 accounts (pool=96 per account)…
+{"level":"warn","ts":"2026-04-22T20:13:02.793Z","caller":"logs/logger.go:234","msg":"MongoDB connection health check failed, attempting reconnect","host_name":"0d2661a79e15","ctx":"context.Background","error":"timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 10, maxPoolSize: 10, idle connections: 0, wait duration: 4.612495955s"}
+2026/04/22 20:13:22 context deadline exceeded: rpc error: code = DeadlineExceeded desc = context deadline exceeded
+2026/04/22 20:13:26 failed to upload metrics: context deadline exceeded: rpc error: code = DeadlineExceeded desc = context deadline exceeded
+{"level":"warn","ts":"2026-04-22T20:13:31.412Z","caller":"logs/logger.go:234","msg":"MongoDB connection health check failed, attempting reconnect","host_name":"0d2661a79e15","ctx":"context.Background","error":"connection pool for mongo:27017 was cleared because another operation failed with: connection() error occurred during connection handshake: dial tcp: lookup mongo: i/o timeout"}
+2026/04/22 20:13:43 failed to upload metrics: context deadline exceeded: rpc error: code = DeadlineExceeded desc = context deadline exceeded
+{"level":"info","ts":"2026-04-22T20:13:45.865Z","caller":"logs/logger.go:229","msg":"MongoDB reconnected successfully","host_name":"0d2661a79e15","ctx":"context.Background"}
+{"level":"warn","ts":"2026-04-22T20:14:32.086Z","caller":"logs/logger.go:234","msg":"MongoDB connection health check failed, attempting reconnect","host_name":"0d2661a79e15","ctx":"context.Background","error":"timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 10, maxPoolSize: 10, idle connections: 0, wait duration: 4.503171402s"}
+2026/04/22 20:15:24 context deadline exceeded: rpc error: code = DeadlineExceeded desc = context deadline exceeded
+{"level":"warn","ts":"2026-04-22T20:17:38.213Z","caller":"logs/logger.go:234","msg":"MongoDB connection health check failed, attempting reconnect","host_name":"0d2661a79e15","ctx":"context.Background","error":"server selection error: server selection timeout, current topology: { Type: ReplicaSetNoPrimary, Servers: [{ Addr: mongo:27017, Type: Unknown, Last error: dial tcp: lookup mongo: i/o timeout }, ] }"}
+{"level":"warn","ts":"2026-04-22T20:17:38.282Z","caller":"logs/logger.go:234","msg":"NATS disconnected","host_name":"0d2661a79e15","ctx":"context.Background","error":"EOF"}
+2026/04/22 20:17:38 failed to upload metrics: context deadline exceeded: rpc error: code = DeadlineExceeded desc = context deadline exceeded
+{"level":"info","ts":"2026-04-22T20:17:40.727Z","caller":"logs/logger.go:229","msg":"NATS reconnected","host_name":"0d2661a79e15","ctx":"context.Background","url":"nats://nats:4222"}
+{"level":"info","ts":"2026-04-22T20:17:40.764Z","caller":"logs/logger.go:229","msg":"MongoDB reconnected successfully","host_name":"0d2661a79e15","ctx":"context.Background"}
+    realtime_throughput_test.go:181: seed: account tpacc000370: user_job_documents: connection() error occurred during connection handshake: dial tcp: lookup mongo: i/o timeout
+--- FAIL: TestRealtimeThroughputMongoToWebSocket (420.03s)
+FAIL
+FAIL	eve-industry-planner/integration	420.055s
+FAIL
+### exit_code=Level 4 accounts + WS → 1 — 2026-04-22T21:18:59+01:00
+
+#####################################################################
+### Level 5 heavy — 2026-04-22T21:19:59+01:00
+### -e THROUGHPUT_ACCOUNTS=3072 -e THROUGHPUT_POOL_PER_ACCOUNT=96 -e THROUGHPUT_WS_ACTIVE_MIN=5000 -e THROUGHPUT_WS_ACTIVE_MAX=45000 -e THROUGHPUT_WS_MAX_PER_ACCOUNT=1024 -e THROUGHPUT_MONGO_WRITERS=48
+#####################################################################
+go: downloading go1.26.1 (linux/amd64)
+go: downloading github.com/google/uuid v1.6.0
+go: downloading go.mongodb.org/mongo-driver v1.17.9
+go: downloading github.com/gorilla/websocket v1.5.3
+go: downloading github.com/nats-io/nats.go v1.50.0
+go: downloading github.com/redis/go-redis/v9 v9.18.0
+go: downloading github.com/golang-jwt/jwt/v5 v5.3.1
+go: downloading github.com/getsentry/sentry-go v0.44.1
+go: downloading github.com/getsentry/sentry-go/otel v0.44.1
+go: downloading go.opentelemetry.io/otel v1.43.0
+go: downloading go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.19.0
+go: downloading go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.43.0
+go: downloading go.opentelemetry.io/otel/log v0.19.0
+go: downloading go.opentelemetry.io/otel/sdk/log v0.19.0
+go: downloading go.opentelemetry.io/otel/sdk/metric v1.43.0
+go: downloading go.opentelemetry.io/otel/sdk v1.43.0
+go: downloading go.opentelemetry.io/otel/trace v1.43.0
+go: downloading go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/mongo/otelmongo v0.67.0
+go: downloading go.opentelemetry.io/contrib/bridges/otelzap v0.17.0
+go: downloading go.uber.org/zap v1.27.1
+go: downloading github.com/redis/go-redis/extra/redisotel/v9 v9.18.0
+go: downloading github.com/alitto/pond/v2 v2.7.0
+go: downloading go.opentelemetry.io/otel/metric v1.43.0
+go: downloading golang.org/x/sys v0.42.0
+go: downloading github.com/klauspost/compress v1.18.5
+go: downloading github.com/nats-io/nkeys v0.4.15
+go: downloading github.com/nats-io/nuid v1.0.1
+go: downloading github.com/cespare/xxhash/v2 v2.3.0
+go: downloading github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f
+go: downloading github.com/go-logr/logr v1.4.3
+go: downloading go.opentelemetry.io/proto/otlp v1.10.0
+go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9
+go: downloading google.golang.org/grpc v1.80.0
+go: downloading google.golang.org/genproto v0.0.0-20260330182312-d5a96adf58d8
+go: downloading golang.org/x/text v0.35.0
+go: downloading go.uber.org/atomic v1.11.0
+go: downloading github.com/redis/go-redis/extra/rediscmd/v9 v9.18.0
+go: downloading golang.org/x/crypto v0.49.0
+go: downloading github.com/go-logr/stdr v1.2.2
+go: downloading go.opentelemetry.io/auto/sdk v1.2.1
+go: downloading github.com/cenkalti/backoff/v5 v5.0.3
+go: downloading github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78
+go: downloading go.uber.org/multierr v1.11.0
+go: downloading github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0
+go: downloading google.golang.org/protobuf v1.36.11
+go: downloading golang.org/x/net v0.52.0
+go: downloading github.com/golang/snappy v1.0.0
+go: downloading github.com/xdg-go/scram v1.2.0
+go: downloading github.com/xdg-go/stringprep v1.0.4
+go: downloading github.com/montanaflynn/stats v0.9.0
+go: downloading golang.org/x/sync v0.20.0
+go: downloading google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9
+=== RUN   TestRealtimeThroughputMongoToWebSocket
+    realtime_throughput_test.go:137: THROUGHPUT_START_CHANGESTREAM=0: assuming another process publishes changestream → NATS
+    realtime_throughput_test.go:167: OTLP metrics enabled (endpoint=otel-collector:4317)
+    realtime_throughput_test.go:179: seeding mongo for 3072 accounts (pool=96 per account)…
+    realtime_throughput_test.go:199: compose websocket replicas (2): [ws://eve-industry-planner-websocket-1:4001/ws ws://eve-industry-planner-websocket-2:4001/ws]
+    realtime_throughput_test.go:341: warm-up done: active_ws≈5000 (target min=5000)
+    realtime_throughput_test.go:446: progress elapsed=15s writes=8986 ws_delivery_msgs=3269 active_ws≈5005 accounts=3072 rate_writes/s=598.7 rate_ws_deliveries/s=217.8
+    realtime_throughput_test.go:446: progress elapsed=30s writes=8986 ws_delivery_msgs=3269 active_ws≈5005 accounts=3072 rate_writes/s=298.7 rate_ws_deliveries/s=108.6
+2026/04/22 20:27:59 failed to upload metrics: context deadline exceeded: rpc error: code = DeadlineExceeded desc = context deadline exceeded
+{"level":"warn","ts":"2026-04-22T20:28:02.296Z","caller":"logs/logger.go:234","msg":"MongoDB connection health check failed, attempting reconnect","host_name":"33ea898ddff6","ctx":"context.Background","error":"server selection error: context deadline exceeded, current topology: { Type: ReplicaSetNoPrimary, Servers: [{ Addr: mongo:27017, Type: Unknown, Last error: dial tcp: lookup mongo: i/o timeout }, ] }"}
+2026/04/22 20:28:19 failed to upload metrics: context deadline exceeded: rpc error: code = DeadlineExceeded desc = context deadline exceeded
+redis: 2026/04/22 20:28:29 pool.go:617: redis: connection pool: failed to dial after 2 attempts: dial tcp: lookup redis: i/o timeout
+{"level":"warn","ts":"2026-04-22T20:28:51.586Z","caller":"logs/logger.go:234","msg":"MongoDB connection health check failed, attempting reconnect","host_name":"33ea898ddff6","ctx":"context.Background","error":"server selection error: context deadline exceeded, current topology: { Type: ReplicaSetNoPrimary, Servers: [{ Addr: mongo:27017, Type: Unknown, Last error: dial tcp: lookup mongo on 127.0.0.11:53: read udp 127.0.0.1:56005->127.0.0.11:53: i/o timeout }, ] }"}
+2026/04/22 20:29:38 failed to upload metrics: context deadline exceeded: rpc error: code = DeadlineExceeded desc = context deadline exceeded
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 25.570375592s
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-4]) incomplete read of message header: read tcp 172.18.0.19:54392->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-12]) incomplete read of message header: read tcp 172.18.0.19:54450->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 27.18000033s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 17.335074001s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 24.72335024s
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-3]) incomplete read of message header: read tcp 172.18.0.19:54368->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:418: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 24.670339146s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 17.043600608s
+    realtime_throughput_test.go:418: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 12.398224468s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 11.881924441s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 26.04175508s
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-6]) incomplete read of message header: read tcp 172.18.0.19:54400->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:392: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 26.010269096s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 27.212367332s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 26.493264347s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 26.561005362s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 24.784184046s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 26.56401106s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 26.209507034s
+    realtime_throughput_test.go:446: progress elapsed=45s writes=8986 ws_delivery_msgs=3269 active_ws≈5005 accounts=3072 rate_writes/s=199.5 rate_ws_deliveries/s=72.6
+    realtime_throughput_test.go:418: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 26.67444543s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 12.081569454s
+    realtime_throughput_test.go:418: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 26.26837346s
+    realtime_throughput_test.go:392: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 26.320329612s
+    realtime_throughput_test.go:446: progress elapsed=136s writes=8987 ws_delivery_msgs=3269 active_ws≈1 accounts=3072 rate_writes/s=65.9 rate_ws_deliveries/s=24.0
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 26.649426613s
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-13]) incomplete read of message header: read tcp 172.18.0.19:54446->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 26.678260673s
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-8]) incomplete read of message header: read tcp 172.18.0.19:54418->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 27.035351615s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 24.65390718s
+    realtime_throughput_test.go:295: dial failed (account=tpacc001096): read tcp 172.18.0.19:59762->172.18.0.2:4001: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-11]) incomplete read of message header: read tcp 172.18.0.19:54434->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 27.129194718s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 26.266157151s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 21.446417152s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 26.614676037s
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-7]) incomplete read of message header: read tcp 172.18.0.19:54398->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 25.222608112s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 27.11941877s
+    realtime_throughput_test.go:418: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 25.2791975s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 22.645805641s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 19.459442505s
+    realtime_throughput_test.go:418: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 26.890644196s
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-9]) incomplete read of message header: read tcp 172.18.0.19:54402->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: connection(mongo:27017[-10]) incomplete read of message header: read tcp 172.18.0.19:54438->172.18.0.4:27017: i/o timeout
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 18.15937397s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 26.560942445s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 25.312278773s
+    realtime_throughput_test.go:405: mongo write: timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 2, maxPoolSize: 10, idle connections: 0, wait duration: 22.467244645s
+{"level":"warn","ts":"2026-04-22T20:29:38.638Z","caller":"logs/logger.go:234","msg":"Redis connection health check failed, attempting reconnect","host_name":"33ea898ddff6","ctx":"context.Background","error":"dial tcp: lookup redis: i/o timeout"}
+2026/04/22 20:29:38 context deadline exceeded: rpc error: code = DeadlineExceeded desc = stream terminated by RST_STREAM with error code: CANCEL
+    realtime_throughput_test.go:392: mongo write: server selection error: context deadline exceeded, current topology: { Type: ReplicaSetNoPrimary, Servers: [{ Addr: mongo:27017, Type: Unknown, Last error: dial tcp: lookup mongo: i/o timeout }, ] }
+    realtime_throughput_test.go:392: mongo write: server selection error: context deadline exceeded, current topology: { Type: ReplicaSetNoPrimary, Servers: [{ Addr: mongo:27017, Type: Unknown, Last error: dial tcp: lookup mongo: i/o timeout }, ] }
+    realtime_throughput_test.go:392: mongo write: server selection error: context deadline exceeded, current topology: { Type: ReplicaSetNoPrimary, Servers: [{ Addr: mongo:27017, Type: Unknown, Last error: dial tcp: lookup mongo: i/o timeout }, ] }
+    realtime_throughput_test.go:392: mongo write: server selection error: context deadline exceeded, current topology: { Type: ReplicaSetNoPrimary, Servers: [{ Addr: mongo:27017, Type: Unknown, Last error: dial tcp: lookup mongo: i/o timeout }, ] }
+    realtime_throughput_test.go:487: final writes=8990 ws_delivery_msgs=3269 accounts=3072 active_ws_end=0 duration=2m0s writes/s=74.9 deliveries/s=27.2 avg_deliveries_per_write=0.36
+    realtime_throughput_test.go:499: latency mongo->ws (matched seq) n=13 p50=2.341242726s p95=4.639450325s p99=4.639450325s (subset capped at 200000 samples)
+{"level":"info","ts":"2026-04-22T20:29:40.717Z","caller":"logs/logger.go:229","msg":"Redis reconnected successfully","host_name":"33ea898ddff6","ctx":"context.Background"}
+{"level":"info","ts":"2026-04-22T20:29:45.367Z","caller":"logs/logger.go:229","msg":"MongoDB reconnected successfully","host_name":"33ea898ddff6","ctx":"context.Background"}
+--- PASS: TestRealtimeThroughputMongoToWebSocket (531.01s)
+PASS
+ok  	eve-industry-planner/integration	531.052s
+### exit_code=Level 5 heavy → 0 — 2026-04-22T21:29:52+01:00
+
+#####################################################################
+### Level 6 max ramp — 2026-04-22T21:30:52+01:00
+### -e THROUGHPUT_ACCOUNTS=4096 -e THROUGHPUT_POOL_PER_ACCOUNT=128 -e THROUGHPUT_WS_ACTIVE_MIN=6500 -e THROUGHPUT_WS_ACTIVE_MAX=55000 -e THROUGHPUT_WS_MAX_PER_ACCOUNT=1024 -e THROUGHPUT_MONGO_WRITERS=64
+#####################################################################
+go: downloading go1.26.1 (linux/amd64)
+go: downloading github.com/google/uuid v1.6.0
+go: downloading github.com/gorilla/websocket v1.5.3
+go: downloading go.mongodb.org/mongo-driver v1.17.9
+go: downloading github.com/nats-io/nats.go v1.50.0
+go: downloading github.com/redis/go-redis/v9 v9.18.0
+go: downloading github.com/golang-jwt/jwt/v5 v5.3.1
+go: downloading go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/mongo/otelmongo v0.67.0
+go: downloading github.com/getsentry/sentry-go v0.44.1
+go: downloading github.com/getsentry/sentry-go/otel v0.44.1
+go: downloading go.opentelemetry.io/otel v1.43.0
+go: downloading go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.19.0
+go: downloading go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.43.0
+go: downloading go.opentelemetry.io/otel/log v0.19.0
+go: downloading go.opentelemetry.io/otel/sdk/log v0.19.0
+go: downloading go.opentelemetry.io/otel/sdk/metric v1.43.0
+go: downloading go.opentelemetry.io/otel/sdk v1.43.0
+go: downloading go.opentelemetry.io/otel/trace v1.43.0
+go: downloading go.opentelemetry.io/contrib/bridges/otelzap v0.17.0
+go: downloading go.uber.org/zap v1.27.1
+go: downloading github.com/redis/go-redis/extra/redisotel/v9 v9.18.0
+go: downloading github.com/alitto/pond/v2 v2.7.0
+go: downloading go.opentelemetry.io/otel/metric v1.43.0
+go: downloading golang.org/x/sys v0.42.0
+go: downloading github.com/klauspost/compress v1.18.5
+go: downloading github.com/nats-io/nkeys v0.4.15
+go: downloading github.com/nats-io/nuid v1.0.1
+go: downloading github.com/cespare/xxhash/v2 v2.3.0
+go: downloading github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f
+go: downloading go.uber.org/multierr v1.11.0
+go: downloading github.com/redis/go-redis/extra/rediscmd/v9 v9.18.0
+go: downloading github.com/go-logr/logr v1.4.3
+go: downloading go.opentelemetry.io/proto/otlp v1.10.0
+go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9
+go: downloading google.golang.org/grpc v1.80.0
+go: downloading google.golang.org/genproto v0.0.0-20260330182312-d5a96adf58d8
+go: downloading golang.org/x/text v0.35.0
+go: downloading go.uber.org/atomic v1.11.0
+go: downloading github.com/go-logr/stdr v1.2.2
+go: downloading go.opentelemetry.io/auto/sdk v1.2.1
+go: downloading github.com/cenkalti/backoff/v5 v5.0.3
+go: downloading golang.org/x/crypto v0.49.0
+go: downloading github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0
+go: downloading google.golang.org/protobuf v1.36.11
+go: downloading github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78
+go: downloading golang.org/x/net v0.52.0
+go: downloading github.com/golang/snappy v1.0.0
+go: downloading github.com/xdg-go/scram v1.2.0
+go: downloading github.com/xdg-go/stringprep v1.0.4
+go: downloading github.com/montanaflynn/stats v0.9.0
+go: downloading golang.org/x/sync v0.20.0
+go: downloading google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9
+=== RUN   TestRealtimeThroughputMongoToWebSocket
+    realtime_throughput_test.go:137: THROUGHPUT_START_CHANGESTREAM=0: assuming another process publishes changestream → NATS
+    realtime_throughput_test.go:167: OTLP metrics enabled (endpoint=otel-collector:4317)
+    realtime_throughput_test.go:179: seeding mongo for 4096 accounts (pool=128 per account)…
+{"level":"warn","ts":"2026-04-22T20:35:00.923Z","caller":"logs/logger.go:234","msg":"MongoDB connection health check failed, attempting reconnect","host_name":"6f9a856e2045","ctx":"context.Background","error":"timed out while checking out a connection from connection pool: context deadline exceeded; total connections: 10, maxPoolSize: 10, idle connections: 0, wait duration: 14.71447ms"}
+redis: 2026/04/22 20:35:43 pool.go:617: redis: connection pool: failed to dial after 1 attempts: dial tcp: lookup redis: i/o timeout
+2026/04/22 20:35:49 failed to upload metrics: context deadline exceeded: rpc error: code = DeadlineExceeded desc = stream terminated by RST_STREAM with error code: CANCEL
+{"level":"warn","ts":"2026-04-22T20:35:50.732Z","caller":"logs/logger.go:234","msg":"Redis connection health check failed, attempting reconnect","host_name":"6f9a856e2045","ctx":"context.Background","error":"dial tcp: lookup redis: i/o timeout"}
+{"level":"info","ts":"2026-04-22T20:36:04.927Z","caller":"logs/logger.go:229","msg":"Redis reconnected successfully","host_name":"6f9a856e2045","ctx":"context.Background"}
+{"level":"warn","ts":"2026-04-22T20:36:05.080Z","caller":"logs/logger.go:234","msg":"MongoDB connection health check failed, attempting reconnect","host_name":"6f9a856e2045","ctx":"context.Background","error":"connection pool for mongo:27017 was cleared because another operation failed with:  connection(mongo:27017[-19]) incomplete read of message header: read tcp 172.18.0.19:35936->172.18.0.4:27017: read: connection reset by peer: connection(mongo:27017[-19]) incomplete read of message header: read tcp 172.18.0.19:35936->172.18.0.4:27017: read: connection reset by peer"}
+{"level":"warn","ts":"2026-04-22T20:36:21.770Z","caller":"logs/logger.go:234","msg":"MongoDB connection health check failed, attempting reconnect","host_name":"6f9a856e2045","ctx":"context.Background","error":"(KeyNotFound) No keys found for HMAC that is valid for time: { ts: Timestamp(1776890179, 308) } with id: 0"}
+{"level":"info","ts":"2026-04-22T20:36:23.781Z","caller":"logs/logger.go:229","msg":"MongoDB reconnected successfully","host_name":"6f9a856e2045","ctx":"context.Background"}
+    realtime_throughput_test.go:181: seed: account tpacc001244: user_job_documents: connection() error occurred during connection handshake: dial tcp: lookup mongo: i/o timeout
+2026/04/22 20:38:51 failed to upload metrics: context canceled: rpc error: code = Canceled desc = context canceled
+--- FAIL: TestRealtimeThroughputMongoToWebSocket (420.10s)
+FAIL
+FAIL	eve-industry-planner/integration	420.136s
+FAIL
+### exit_code=Level 6 max ramp → 1 — 2026-04-22T21:38:55+01:00
+Continuation finished 2026-04-22T21:39:55+01:00

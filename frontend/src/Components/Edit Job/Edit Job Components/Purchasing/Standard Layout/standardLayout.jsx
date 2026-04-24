@@ -15,7 +15,7 @@ export function Purchasing_StandardLayout_EditJob(props) {
   const hideCompleteMaterials = useUsersStore(
     (state) => state.applicationSettings.hideCompleteMaterials
   );
-  const { userJobSnapshot, jobArray } = useUsersStore((state) => state.jobData);
+  const { jobArray } = useUsersStore((state) => state.jobData);
 
   // Helper function to calculate child job data for a material
   const calculateChildJobData = (material) => {
@@ -35,9 +35,9 @@ export function Purchasing_StandardLayout_EditJob(props) {
       }
 
       if (!state.activeJob.includedInGroup) {
-        childJobs = filterJobs(userJobSnapshot);
+        childJobs = filterJobs(jobArray);
         childJobProductionTotal = childJobs.reduce(
-          (total, job) => total + job.itemQuantity,
+          (total, job) => total + job.build.products.totalQuantity,
           0
         );
         remainingTotalToBeImported = childJobs.reduce((total, job) => {
@@ -46,7 +46,7 @@ export function Purchasing_StandardLayout_EditJob(props) {
           );
 
           if (!matchingCostImport) {
-            return (total += job.itemQuantity);
+            return (total += job.build.products.totalQuantity);
           }
           return total;
         }, 0);
@@ -175,7 +175,6 @@ export function Purchasing_StandardLayout_EditJob(props) {
     state.temporaryChildJobs,
     state.parentChildToEdit,
     hideCompleteMaterials,
-    userJobSnapshot,
     jobArray,
   ]);
 

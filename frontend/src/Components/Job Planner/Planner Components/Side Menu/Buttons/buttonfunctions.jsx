@@ -10,9 +10,11 @@ import DeselectIcon from "@mui/icons-material/Deselect";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import CreateNewFolderIcon from "@mui/icons-material/CreateNewFolder";
 import PostAddIcon from "@mui/icons-material/PostAdd";
-import { useJobManagement } from "../../../../../Hooks/useJobManagement";
 import deleteJobsFromPlanner from "../../../../../Functions/JobPlanner/deleteMultipleJobs";
+import mergeJobs from "../../../../../Functions/JobPlanner/mergeJobs";
+import massBuildMaterials from "../../../../../Functions/JobPlanner/massBuildMaterials";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { displayNotificationDialog } from "../../../../../Events/notificationDialogEvents";
 import toggleRightDrawerColapse from "../../../../SideMenu/Functions/toggleRightMenuDrawerColapse";
 import { shouldExpandRightDrawer } from "../../../../Tutorials/Functions/checkDisplayTutorials";
@@ -20,13 +22,15 @@ import { showShoppingList } from "../../../../../Events/shoppingListEvents";
 import { showPriceEntryDialog } from "../../../../../Events/priceEntryEvents";
 import useUsersStore from "../../../../../Zustand/usersStore";
 import moveItemsOnPlanner from "../../../../../Functions/JobPlanner/moveItemsOnPlanner";
+import { buildJob } from "../../../../../Functions/JobPlanner/buildJob";
 
 export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
-  const { multiSelect, userJobSnapshot } = useUsersStore((state) => state.jobData);
+  const { multiSelect, jobArray } = useUsersStore((state) => state.jobData);
   const { addToMultiSelect, clearMultiSelect } =
     useUsersStore.getState().jobData.actions;
-  const { massBuildMaterials, mergeJobsNew } =
-    useJobManagement();
+  const queryClient = useQueryClient();
+  const buildJobWithContext = (buildRequest) =>
+    buildJob(buildRequest, { queryClient });
   const navigate = useNavigate({ from: '/jobplanner' });
 
   const standardDialogError =
@@ -85,12 +89,17 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
         icon: <AccountTreeIcon />,
         tooltip:
           "Sets up new jobs to build the combined ingredient totals of each selected job cards.",
-        onClick: () => {
+        onClick: async () => {
           if (multiSelect.length === 0) {
             throwDialogError();
             return;
           }
-          massBuildMaterials(multiSelect);
+          await massBuildMaterials(multiSelect, {
+            buildJob: buildJobWithContext,
+            queryClient,
+            setNumberOfVisibleSkeletonElements:
+              pageActions.setSkeletonElementsToDisplay,
+          });
           clearMultiSelect();
         },
       },
@@ -134,12 +143,12 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
         displayText: "Merge Jobs",
         icon: <CallMergeIcon />,
         tooltip: "Merges the selected jobs into one.",
-        onClick: () => {
+        onClick: async () => {
           if (multiSelect.length === 0) {
             throwDialogError();
             return;
           }
-          mergeJobsNew(multiSelect);
+          await mergeJobs(multiSelect, { buildJob: buildJobWithContext });
           clearMultiSelect();
         },
       },
@@ -148,7 +157,11 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
         icon: <SelectAllIcon />,
         tooltip: "Selects all jobs on the planner.",
         onClick: () => {
-          addToMultiSelect(userJobSnapshot.map((job) => job.jobID));
+          addToMultiSelect(
+            jobArray
+              .filter((j) => j.displayOnPlanner)
+              .map((job) => job.jobID)
+          );
         },
       },
       {
@@ -176,9 +189,10 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
     ];
   }, [
     multiSelect,
-    userJobSnapshot,
+    jobArray,
     toggleRightDrawerColapse,
-    massBuildMaterials,
+    buildJobWithContext,
+    queryClient,
     moveItemsOnPlanner,
     standardDialogError,
   ]);

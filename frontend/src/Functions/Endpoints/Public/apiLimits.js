@@ -9,3 +9,6 @@ export const MAX_FRONTEND_ANALYTICS_EVENT_COUNT = 1000;
 
 /** Matches `maxFrontendByTypeKeys` in services/api/v1endpoints/frontend_analytics.go (new_job by_type map). */
 export const MAX_FRONTEND_ANALYTICS_BY_TYPE_KEYS = 500;
+
+/** Matches `maxFrontendBatchEvents` in services/api/v1endpoints/frontend_analytics.go */
+export const MAX_FRONTEND_ANALYTICS_BATCH_EVENTS = 60;

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"eve-industry-planner/api/helper/auth"
+	"eve-industry-planner/shared/core/internaljwt"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
@@ -54,7 +54,7 @@ func JWKSHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Load the private key first to get current key ID
 	// Loading priority: 1) Persistent file, 2) Environment variable, 3) Auto-generate new key
-	cachedKey, err := auth.GetOrLoadPrivateKey()
+	cachedKey, err := internaljwt.GetOrLoadPrivateKey()
 	if err != nil {
 		m.Errors.WithLabelValues("key_load_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to load private key for JWKS", "error", err)
@@ -103,7 +103,7 @@ func JWKSHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Cache expired or key rotated, regenerate
 	// Generate JWKS response
-	jwks, err := auth.GenerateRS256JWKS(cachedKey.Key, cachedKey.Kid)
+	jwks, err := internaljwt.GenerateRS256JWKS(cachedKey.Key, cachedKey.Kid)
 	if err != nil {
 		m.Errors.WithLabelValues("jwks_generation_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to generate JWKS", "error", err)

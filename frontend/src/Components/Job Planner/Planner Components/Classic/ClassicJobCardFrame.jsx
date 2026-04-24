@@ -20,7 +20,7 @@ import Step5JobCard from "./Job Cards/step5";
 import {
   plannerDragPassThroughSx,
   usePlannerJobCardDrag,
-} from "../../../../Hooks/usePlannerCardDrag";
+} from "../../Hooks/useDnD";
 import { useNavigate } from "@tanstack/react-router";
 import GLOBAL_CONFIG from "../../../../global-config-app";
 import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
@@ -28,6 +28,8 @@ import useUsersStore from "../../../../Zustand/usersStore";
 import ContentPanel from "../../../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../../../Context/defaultValues";
 import { getJobTypeAccentColor } from "../../../../Functions/Helper/jobTypeDividerColor";
+import { selectDocumentLockReadOnly } from "../../../../Functions/DocumentLock/documentLockSelectors.js";
+import { USER_JOBS_COLLECTION } from "../../../../Functions/DocumentLock/documentLockCollections.js";
 
 function DisplaySwitch({ job }) {
   switch (job.jobStatus) {
@@ -48,6 +50,9 @@ function DisplaySwitch({ job }) {
 
 export function JobCardFrame({ job }) {
   const multiSelect = useUsersStore((state) => state.jobData.multiSelect);
+  const jobLockReadOnly = useUsersStore((s) =>
+    selectDocumentLockReadOnly(s, USER_JOBS_COLLECTION, job.jobID)
+  );
   const { addToMultiSelect, removeFromMultiSelect } =
     useUsersStore.getState().jobData.actions;
   const {
@@ -122,7 +127,7 @@ export function JobCardFrame({ job }) {
           <Box sx={{ display: "flex", flexDirection: "row", width: "100%" }}>
             <Box sx={{ flex: "0 0 auto" }}>
               <Checkbox
-                disabled={job.isLocked}
+                disabled={jobLockReadOnly}
                 checked={jobCardChecked}
                 sx={{
                   color: (theme) =>
@@ -142,7 +147,7 @@ export function JobCardFrame({ job }) {
             <Box sx={{ flex: 1 }} />
             <Box sx={{ flex: "0 0 auto" }}>
               <IconButton
-                disabled={job.isLocked}
+                disabled={jobLockReadOnly}
                 sx={{
                   color: (theme) =>
                     theme.palette.mode === PRIMARY_THEME
@@ -201,7 +206,7 @@ export function JobCardFrame({ job }) {
               <Button
                 variant="outlined"
                 color="primary"
-                disabled={job.isLocked}
+                disabled={jobLockReadOnly}
                 onClick={() => {
                   navigate({
                     to: '/editjob/$jobID',
@@ -210,7 +215,7 @@ export function JobCardFrame({ job }) {
                 }}
                 sx={{ height: 25, width: 100 }}
               >
-                {job.isLocked ? "Locked" : "Edit"}
+                {jobLockReadOnly ? "Locked" : "Edit"}
               </Button>
             </Box>
             <Box

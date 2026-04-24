@@ -1,9 +1,9 @@
 import { Paper, Grid } from "@mui/material";
-
-import { useJobBuild } from "../../Hooks/useJobBuild";
+import { useQueryClient } from "@tanstack/react-query";
 import getMarketData from "../../Functions/MarketData/findMarketData";
 import VirtualisedRecipeSearch from "../../Styled Components/autocomplete/virtualisedRecipeSearch";
 import useUsersStore from "../../Zustand/usersStore"
+import { buildJob } from "../../Functions/JobPlanner/buildJob";
 
 export function UpcomingChangesSearch({
   updateTranqItem,
@@ -11,7 +11,7 @@ export function UpcomingChangesSearch({
   updateItemLoad,
   updateLoadComplete,
 }) {
-  const { buildJob } = useJobBuild();
+  const queryClient = useQueryClient();
 
   return (
     <Paper
@@ -32,17 +32,23 @@ export function UpcomingChangesSearch({
           <VirtualisedRecipeSearch
             onSelect={async (value) => {
               updateItemLoad(true);
-              let newTranqJob = await buildJob({
-                itemID: value.itemID,
-                throwError: false,
-                skipJobCreateAnalytics: true,
-              });
-              let newSisiJob = await buildJob({
-                itemID: value.itemID,
-                sisiData: true,
-                throwError: false,
-                skipJobCreateAnalytics: true,
-              });
+              let newTranqJob = await buildJob(
+                {
+                  itemID: value.itemID,
+                  throwError: false,
+                  skipJobCreateAnalytics: true,
+                },
+                { queryClient }
+              );
+              let newSisiJob = await buildJob(
+                {
+                  itemID: value.itemID,
+                  sisiData: true,
+                  throwError: false,
+                  skipJobCreateAnalytics: true,
+                },
+                { queryClient }
+              );
               let priceIDRequest = new Set();
               priceIDRequest.add(value.itemID);
               if (newTranqJob !== undefined) {

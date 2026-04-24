@@ -3,6 +3,7 @@ import {
   CACHED_DATA_FILES,
 } from "../../Context/defaultValues";
 import { captureException } from "@sentry/react";
+import { fetchWithPublicHeaders } from "../Endpoints/Public/applyPublicHeaders.js";
 import { sentryIsDevelopmentEnvironment } from "../Sentry/sentryEnvironment";
 
 const STATIC_DATA_META_URL = "/api/static-data/meta";
@@ -29,10 +30,14 @@ async function fetchStaticMeta(force = false, allowNetwork = true) {
   }
 
   staticMetaInFlight = (async () => {
-    const response = await fetch(STATIC_DATA_META_URL, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
+    const response = await fetchWithPublicHeaders(
+      STATIC_DATA_META_URL,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      },
+      { requestName: "staticDataMeta" }
+    );
     if (!response.ok) {
       throw new Error(`Failed to fetch static data metadata: ${response.status} ${response.statusText}`);
     }
@@ -105,10 +110,14 @@ async function parseJSONResponse(response) {
 }
 
 async function fetchAndCacheByURL(cache, cacheURL) {
-  const response = await fetch(cacheURL, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-  });
+  const response = await fetchWithPublicHeaders(
+    cacheURL,
+    {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    },
+    { requestName: "staticDataFile" }
+  );
   if (!response.ok) {
     throw new Error(`Failed to fetch ${cacheURL}: ${response.status} ${response.statusText}`);
   }

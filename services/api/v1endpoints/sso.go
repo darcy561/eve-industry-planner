@@ -79,22 +79,6 @@ func (e eveSSORetryableError) Unwrap() error {
 	return e.err
 }
 
-// eveSSOOAuthTokenEndpointClientError reports EVE token-endpoint failures that should be HTTP 400.
-// EVE sometimes returns only a human error_description (no OAuth "error" code in the message string),
-// so we match common description text as well as standard OAuth error names (case-insensitive).
-func eveSSOOAuthTokenEndpointClientError(err error) bool {
-	s := strings.ToLower(err.Error())
-	if strings.Contains(s, "invalid_grant") ||
-		strings.Contains(s, "invalid_request") ||
-		strings.Contains(s, "unauthorized_client") ||
-		strings.Contains(s, "unsupported_grant_type") {
-		return true
-	}
-	return strings.Contains(s, "invalid refresh token") ||
-		strings.Contains(s, "missing/expired") ||
-		strings.Contains(s, "invalid authorization code")
-}
-
 // SSOExchangeHandler handles SSO authorization code exchange for access token
 func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
@@ -170,7 +154,7 @@ func SSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.
 		logs.WarnCtx(ctx, "failed to exchange auth code for token", "error", err)
 
 		// Return appropriate error based on SSO response
-		if eveSSOOAuthTokenEndpointClientError(err) {
+		if strings.Contains(err.Error(), "invalid_grant") || strings.Contains(err.Error(), "invalid_request") {
 			http.Error(w, "Invalid authorization code", http.StatusBadRequest)
 		} else if strings.Contains(err.Error(), "server error") {
 			logs.RespondHTTPError(w, r, http.StatusBadGateway, "EVE SSO server error", err)
@@ -315,7 +299,7 @@ func SSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 		logs.WarnCtx(ctx, "failed to refresh access token", "error", err)
 
 		// Return appropriate error based on SSO response
-		if eveSSOOAuthTokenEndpointClientError(err) {
+		if strings.Contains(err.Error(), "invalid_grant") || strings.Contains(err.Error(), "invalid_request") {
 			http.Error(w, "Invalid refresh token", http.StatusBadRequest)
 		} else if strings.Contains(err.Error(), "server error") {
 			logs.RespondHTTPError(w, r, http.StatusBadGateway, "EVE SSO server error", err)
@@ -456,15 +440,8 @@ func performEveSSOTokenRequestWithRetry(ctx context.Context, req *http.Request) 
 
 		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
 			var errorResp EveSSOErrorResponse
-			if err := json.Unmarshal(body, &errorResp); err == nil {
-				switch {
-				case errorResp.Error != "" && errorResp.ErrorDescription != "":
-					return fmt.Errorf("EVE SSO Error [%s]: %s", errorResp.Error, errorResp.ErrorDescription)
-				case errorResp.Error != "":
-					return fmt.Errorf("EVE SSO Error: %s", errorResp.Error)
-				case errorResp.ErrorDescription != "":
-					return fmt.Errorf("EVE SSO Error: %s", errorResp.ErrorDescription)
-				}
+			if err := json.Unmarshal(body, &errorResp); err == nil && errorResp.ErrorDescription != "" {
+				return fmt.Errorf("EVE SSO Error: %s", errorResp.ErrorDescription)
 			}
 			return fmt.Errorf("EVE SSO Error: Unknown error (status %d)", resp.StatusCode)
 		}

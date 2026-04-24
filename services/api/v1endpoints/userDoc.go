@@ -74,24 +74,6 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 		return
 	}
 
-	// Handle autosubscription - publish subscription request to NATS
-	autoSubscribeHeader := r.Header.Get("AutoSubscribe")
-	autoSubscribeQuery := r.URL.Query().Get("autoSubscribe")
-	if autoSubscribeHeader == "true" || autoSubscribeQuery == "true" {
-		if clients.JetStream != nil {
-			// User document ID is the accountID itself, collection is "users"
-			if err := publishSubscriptionRequest(ctx, clients.JetStream, accountID, mongocore.CollectionUsers, []string{accountID}); err != nil {
-				logs.WarnCtx(ctx, "failed to publish subscription request", "account_id", accountID, "error", err)
-			} else {
-				logs.InfoCtx(ctx, "published subscription request for user document", "account_id", accountID)
-			}
-		} else {
-			logs.WarnCtx(ctx, "JetStream not available for autosubscription", "account_id", accountID)
-		}
-	} else {
-		logs.DebugCtx(ctx, "autosubscription not requested", "account_id", accountID, "header", autoSubscribeHeader, "query", autoSubscribeQuery)
-	}
-
 	if err := helper.EncodeJSON(w, userDoc); err != nil {
 		logs.ErrorCtx(ctx, "failed to encode user document response", "error", err, "account_id", accountID)
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
@@ -138,6 +120,14 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 		http.Error(w, "Account ID in document must match authenticated account", http.StatusForbidden)
 		return
 	}
+	userDoc.MetaData.AccountID = accountID
+	if sessionID, sErr := auth.ExtractSessionID(r); sErr == nil && sessionID != "" {
+		userDoc.MetaData.SessionID = sessionID
+	}
+	wsClientID := helper.ExtractWSClientID(r)
+	if wsClientID != "" {
+		userDoc.MetaData.ClientID = wsClientID
+	}
 
 	database := clients.Mongo.Database(mongocore.DatabaseName)
 	collection := database.Collection(mongocore.CollectionUsers)
@@ -151,29 +141,23 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 		result, upsertErr = mongocore.UpsertStructByIDPreservingMeta(ctx, collection, userDoc, accountID)
 		return upsertErr
 	})
+	if err != nil && wsClientID != "" {
+		logs.WarnCtx(ctx, "user document upsert with websocket client id failed, retrying without client id",
+			"account_id", accountID,
+			"ws_client_id", wsClientID,
+			"error", err)
+		userDoc.MetaData.ClientID = ""
+		err = mongocore.RetryMongoOperation(ctx, retryConfigUpdate, func() error {
+			var upsertErr error
+			result, upsertErr = mongocore.UpsertStructByIDPreservingMeta(ctx, collection, userDoc, accountID)
+			return upsertErr
+		})
+	}
 	if err != nil {
 		m.Errors.WithLabelValues("database_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to upsert user document", "error", err, "account_id", accountID)
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to save user document", err)
 		return
-	}
-
-	// Handle autosubscription - publish subscription request to NATS
-	autoSubscribeHeader := r.Header.Get("AutoSubscribe")
-	autoSubscribeQuery := r.URL.Query().Get("autoSubscribe")
-	if autoSubscribeHeader == "true" || autoSubscribeQuery == "true" {
-		if clients.JetStream != nil {
-			// User document ID is the accountID itself, collection is "users"
-			if err := publishSubscriptionRequest(ctx, clients.JetStream, accountID, mongocore.CollectionUsers, []string{accountID}); err != nil {
-				logs.WarnCtx(ctx, "failed to publish subscription request", "account_id", accountID, "error", err)
-			} else {
-				logs.InfoCtx(ctx, "published subscription request for user document", "account_id", accountID)
-			}
-		} else {
-			logs.WarnCtx(ctx, "JetStream not available for autosubscription", "account_id", accountID)
-		}
-	} else {
-		logs.DebugCtx(ctx, "autosubscription not requested", "account_id", accountID, "header", autoSubscribeHeader, "query", autoSubscribeQuery)
 	}
 
 	w.WriteHeader(http.StatusNoContent)

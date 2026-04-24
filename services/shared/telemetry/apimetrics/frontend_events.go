@@ -32,7 +32,7 @@ var (
 	webFrontendEventsHolder *WebFrontendEventsMetrics
 )
 
-// GetWebFrontendEvents returns metrics for POST /api/v1/analytics/event.
+// GetWebFrontendEvents returns metrics for POST /api/v1/analytics/events.
 func GetWebFrontendEvents() *WebFrontendEventsMetrics {
 	webFrontendEventsOnce.Do(func() {
 		m := webMeter()

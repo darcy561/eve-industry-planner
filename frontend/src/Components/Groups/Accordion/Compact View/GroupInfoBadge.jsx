@@ -5,12 +5,7 @@ import { formatNumberForLocale, formatTimeRemaining } from "../../../../Function
 function getTooltipContent(job) {
   switch (job.jobStatus) {
     case 0:
-      const totalSetupCount = Object.values(job.build.setup).reduce(
-        (prev, setup) => {
-          return prev + 1;
-        },
-        0
-      );
+      const totalSetupCount = job.setupCount();
       return (
         <span>
           <p>
@@ -25,19 +20,15 @@ function getTooltipContent(job) {
         </span>
       );
     case 1:
-      const totalComplete = job.build.materials.reduce((res, mat) => {
-        if (mat.purchaseComplete) {
-          res++;
-        }
-        return res;
-      }, 0);
+      const totalComplete = job.totalCompletedMaterials();
+      const totalMaterials = job.build.materials.length;
 
-      if (totalComplete < job.totalMaterials) {
+      if (totalComplete < totalMaterials) {
         return (
           <span>
             <p>
-              Awaiting Materials: {job.totalMaterials - totalComplete}/
-              {job.totalMaterials}
+              Awaiting Materials: {totalMaterials - totalComplete}/
+              {totalMaterials}
             </p>
           </span>
         );
@@ -52,7 +43,7 @@ function getTooltipContent(job) {
             ESI Jobs Linked:{" "}
             {formatNumberForLocale(job.apiJobs.size, { max: 0 })}
           </p>
-          {job.apiJobs.length > 0 && (
+          {job.apiJobs.size > 0 && (
             <p>
               {timeRemaining === "Complete"
                 ? "Complete"

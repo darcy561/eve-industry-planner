@@ -6,7 +6,7 @@ import {
   TextField,
 } from "@mui/material";
 import { useState } from "react";
-import { useFirebase } from "../../../../Hooks/useFirebase";
+import { putWatchlistDeprecatedToApi } from "../../../../Functions/Endpoints/Pirivate/watchlistDeprecated.js";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { AppEvent } from "../../../../analytics/appEventNames";
 import { trackAppEvent } from "../../../../analytics/trackAppEvent";
@@ -19,7 +19,6 @@ export function AddGroupDialog({
   const { userWatchlist } = useUsersStore((state) => state.jobData);
   const { setUserWatchlistGroups } = useUsersStore.getState().jobData.actions;
   const [setName, updateSetName] = useState("");
-  const { uploadUserWatchlist } = useFirebase();
   const handleClose = () => {
     updateSetName("");
     updateAddNewGroupTrigger((prev) => !prev);
@@ -54,7 +53,7 @@ export function AddGroupDialog({
         <Button
           variant="contained"
           size="small"
-          onClick={() => {
+          onClick={async () => {
             let newUserWatchlistGroups = [...userWatchlist.groups];
             newUserWatchlistGroups.push({
               id: Date.now(),
@@ -74,7 +73,10 @@ export function AddGroupDialog({
               return 0;
             });
             setUserWatchlistGroups(newUserWatchlistGroups);
-            uploadUserWatchlist(newUserWatchlistGroups, userWatchlist.items);
+            await putWatchlistDeprecatedToApi(
+              newUserWatchlistGroups,
+              userWatchlist.items
+            );
             trackAppEvent(AppEvent.NEW_WATCHLIST_GROUP);
             handleClose();
           }}

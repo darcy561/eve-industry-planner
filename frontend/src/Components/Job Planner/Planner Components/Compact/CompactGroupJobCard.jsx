@@ -1,30 +1,38 @@
 import {
   plannerDragPassThroughSx,
   usePlannerGroupCardDrag,
-} from "../../../../Hooks/usePlannerCardDrag";
+} from "../../Hooks/useDnD";
 import {
   Button,
   Card,
   Checkbox,
+  Chip,
   Grid,
   IconButton,
+  Tooltip,
   Typography,
 } from "@mui/material";
+import LockOutlined from "@mui/icons-material/LockOutlined";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useMemo } from "react";
 import { grey, yellow } from "@mui/material/colors";
-import { useGroupManagement } from "../../../../Hooks/useGroupManagement";
+import { deleteGroupWithoutJobs } from "../../../../Functions/Groups/deleteGroupWithoutJobs.js";
 import GLOBAL_CONFIG from "../../../../global-config-app";
 import { useNavigate } from "@tanstack/react-router";
 import { useMediaQuery } from "@mui/material";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { STANDARD_TEXT_FORMAT } from "../../../../Context/defaultValues";
+import { USER_JOB_GROUPS_COLLECTION } from "../../../../Functions/DocumentLock/documentLockCollections.js";
+import { selectDocumentLockReadOnly } from "../../../../Functions/DocumentLock/documentLockSelectors.js";
 
 export function CompactGroupJobCard({ group }) {
+  const groupLockReadOnly = useUsersStore((s) =>
+    selectDocumentLockReadOnly(s, USER_JOB_GROUPS_COLLECTION, group.groupID)
+  );
+
   const multiSelect = useUsersStore((state) => state.jobData.multiSelect);
   const { addToMultiSelect, removeFromMultiSelect } =
     useUsersStore.getState().jobData.actions;
-  const { deleteGroupWithoutJobs } = useGroupManagement();
   const {
     setNodeRef,
     attributes,
@@ -65,6 +73,7 @@ export function CompactGroupJobCard({ group }) {
           backgroundColor,
           transition: "border 0.3s ease",
           border: `2px solid transparent`,
+          opacity: groupLockReadOnly ? 0.94 : undefined,
           "&:hover": {
             border: `2px solid ${borderColor}`,
           },
@@ -100,15 +109,58 @@ export function CompactGroupJobCard({ group }) {
           container
           size={{
             xs: 7,
-            sm: 9
+            sm: 8
           }}
           sx={{
-            alignItems: "center"
+            alignItems: "center",
+            minWidth: 0,
+            flexWrap: "nowrap",
+            gap: 1,
           }}>
-          <Typography sx={{ typography: STANDARD_TEXT_FORMAT  }}>
+          <Typography
+            sx={{
+              typography: STANDARD_TEXT_FORMAT,
+              flex: 1,
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
             {group.groupName}
           </Typography>
+          {isMobile && groupLockReadOnly ? (
+            <Chip
+              icon={<LockOutlined sx={{ fontSize: 18 }} />}
+              label="Read-only"
+              size="small"
+              color="warning"
+              variant="outlined"
+              sx={{ maxHeight: 22, flexShrink: 0 }}
+            />
+          ) : null}
         </Grid>
+        {!isMobile ? (
+          <Grid
+            size={1}
+            sx={{
+              alignItems: "center",
+              justifyContent: "center",
+              display: "flex",
+              minHeight: "100%",
+            }}>
+            {groupLockReadOnly ? (
+              <Chip
+                icon={<LockOutlined sx={{ fontSize: 18 }} />}
+                label="Read-only"
+                size="small"
+                color="warning"
+                variant="outlined"
+                sx={{ maxHeight: 22, maxWidth: "100%" }}
+              />
+            ) : null}
+          </Grid>
+        ) : null}
         <Grid
           container
           align="center"
@@ -140,22 +192,33 @@ export function CompactGroupJobCard({ group }) {
             sx={{
               alignItems: "center"
             }}>
-            <IconButton
-              sx={{
-                color: (theme) =>
-                  theme.palette.mode === PRIMARY_THEME
-                    ? theme.palette.primary.main
-                    : theme.palette.secondary.main,
-                "&:Hover": {
-                  color: "error.main",
-                },
-              }}
-              onClick={() => {
-                deleteGroupWithoutJobs(group.groupID);
-              }}
+            <Tooltip
+              title={
+                groupLockReadOnly
+                  ? "Another session holds the edit lock — delete is disabled"
+                  : "Remove group from planner"
+              }
             >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
+              <span>
+                <IconButton
+                  disabled={groupLockReadOnly}
+                  sx={{
+                    color: (theme) =>
+                      theme.palette.mode === PRIMARY_THEME
+                        ? theme.palette.primary.main
+                        : theme.palette.secondary.main,
+                    "&:Hover": {
+                      color: "error.main",
+                    },
+                  }}
+                  onClick={() => {
+                    deleteGroupWithoutJobs(group.groupID);
+                  }}
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
           </Grid>
         )}
         <Grid

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	clicommands "eve-industry-planner/core/commands/cli"
+	firestoreimport "eve-industry-planner/core/migration/firestoreimport"
 	archivedjobsched "eve-industry-planner/core/scheduler/archivedjobs"
 	"eve-industry-planner/core/scheduler/contract"
 	natscore "eve-industry-planner/shared/core/nats"
@@ -31,6 +32,9 @@ const usage = `Usage:
   tasks forceSdeRebuild
   tasks importArchivedJobsFromFirestore [flags]
   tasks importUserAccountsFromFirestore [flags]
+  tasks importWatchlistFromFirestore [flags]
+  tasks importJobGroupsFromFirestore [flags]
+  tasks importUserJobDocumentsFromFirestore [flags]
   tasks markArchivedJobsUnprocessed [-all] [-account id] [-dry-run]
   tasks resetBuildStats [-account id] [-dry-run]
   tasks <task-name> [--priority=<priority_queue>] [--version=<int>] [--data='<json>']
@@ -50,6 +54,16 @@ Examples:
   tasks importArchivedJobsFromFirestore -reprocess -credentials /app/adminSDK.json
   tasks importUserAccountsFromFirestore -dry-run -dev
   tasks importUserAccountsFromFirestore -account <firebase_uid> -live
+  tasks importWatchlistFromFirestore -dry-run -dev
+  tasks importWatchlistFromFirestore -account <firebase_uid> -live
+  tasks importJobGroupsFromFirestore -dry-run -dev
+  tasks importJobGroupsFromFirestore -account <firebase_uid> -live
+  tasks importUserJobDocumentsFromFirestore -dry-run -dev
+  tasks importUserJobDocumentsFromFirestore -live
+  tasks importUserJobDocumentsFromFirestore -live -skip-auth-recency
+  tasks importUserJobDocumentsFromFirestore -account <firebase_uid> -live
+  tasks importUserJobDocumentsFromFirestore -account <firebase_uid> -enqueue -live
+  tasks importUserJobDocumentsFromFirestore -inline -live
   tasks markArchivedJobsUnprocessed -all -dry-run
   tasks markArchivedJobsUnprocessed -account <firebase_uid> -dry-run
   tasks resetBuildStats -dry-run
@@ -134,6 +148,12 @@ func Handle(ctx context.Context, args []string) (bool, error) {
 		return true, runImportArchivedJobsFromFirestoreScan(ctx, args[2:])
 	case "importUserAccountsFromFirestore":
 		return true, runImportUserAccountsFromFirestoreScan(ctx, args[2:])
+	case "importWatchlistFromFirestore":
+		return true, firestoreimport.RunImportWatchlistFromFirestore(ctx, args[2:])
+	case "importJobGroupsFromFirestore":
+		return true, firestoreimport.RunImportJobGroupsFromFirestore(ctx, args[2:])
+	case "importUserJobDocumentsFromFirestore", "importUserJobDocuementsFromFirestore":
+		return true, firestoreimport.RunImportUserJobDocumentsFromFirestore(ctx, args[2:])
 	case "markArchivedJobsUnprocessed":
 		return true, runMarkArchivedJobsUnprocessed(ctx, args[2:])
 	case "resetBuildStats":
@@ -161,7 +181,10 @@ func runList() error {
 	fmt.Println("  - purgeWorkerQueues")
 	fmt.Println("  - unlockSdeVersion")
 	fmt.Println("  - importArchivedJobsFromFirestore [-unprocessed-only] [-reprocess] [-credentials path] [-firebase-project-id id]")
-	fmt.Println("  - importUserAccountsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run]")
+	fmt.Println("  - importUserAccountsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-login-within duration]")
+	fmt.Println("  - importWatchlistFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-login-within duration]")
+	fmt.Println("  - importJobGroupsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-login-within duration]")
+	fmt.Println("  - importUserJobDocumentsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-inline] [-enqueue] [-skip-auth-recency]")
 	fmt.Println("  - markArchivedJobsUnprocessed [-all] [-account id] [-dry-run]")
 	fmt.Println("  - resetBuildStats [-account id] [-dry-run]")
 	fmt.Println("  - startArchivedJobProcessing (same fan-out as hourly cron; enqueue per-account build_stats work now)")

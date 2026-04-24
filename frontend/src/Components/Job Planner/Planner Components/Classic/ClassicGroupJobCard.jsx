@@ -4,28 +4,36 @@ import {
   Box,
   Button,
   Checkbox,
+  Chip,
   Grid,
   Grow,
   IconButton,
+  Tooltip,
   Typography,
   useTheme,
 } from "@mui/material";
+import LockOutlined from "@mui/icons-material/LockOutlined";
 import { useMemo } from "react";
-import { useGroupManagement } from "../../../../Hooks/useGroupManagement";
+import { deleteGroupWithoutJobs } from "../../../../Functions/Groups/deleteGroupWithoutJobs.js";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { grey } from "@mui/material/colors";
 import {
   plannerDragPassThroughSx,
   usePlannerGroupCardDrag,
-} from "../../../../Hooks/usePlannerCardDrag";
+} from "../../Hooks/useDnD";
 import GLOBAL_CONFIG from "../../../../global-config-app";
 import { useNavigate } from "@tanstack/react-router";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { STANDARD_TEXT_FORMAT } from "../../../../Context/defaultValues";
 import ContentPanel from "../../../../Styled Components/Paper/ContentPanel";
+import { USER_JOB_GROUPS_COLLECTION } from "../../../../Functions/DocumentLock/documentLockCollections.js";
+import { selectDocumentLockReadOnly } from "../../../../Functions/DocumentLock/documentLockSelectors.js";
 
 export function ClassicGroupJobCard({ group }) {
-  const { deleteGroupWithoutJobs } = useGroupManagement();
+  const groupLockReadOnly = useUsersStore((s) =>
+    selectDocumentLockReadOnly(s, USER_JOB_GROUPS_COLLECTION, group.groupID)
+  );
+
   const multiSelect = useUsersStore((state) => state.jobData.multiSelect);
   const { addToMultiSelect, removeFromMultiSelect } =
     useUsersStore.getState().jobData.actions;
@@ -59,11 +67,12 @@ export function ClassicGroupJobCard({ group }) {
       backgroundColor,
       transition: "border 0.3s ease",
       border: `2px solid transparent`,
+      opacity: groupLockReadOnly ? 0.94 : undefined,
       "&:hover": {
-        border: `2px solid ${borderColor}`, 
+        border: `2px solid ${borderColor}`,
       },
     };
-  }, [theme, groupCardChecked, isDragging, PRIMARY_THEME]);
+  }, [theme, groupCardChecked, isDragging, PRIMARY_THEME, groupLockReadOnly]);
 
   return (
     <Grid
@@ -119,25 +128,55 @@ export function ClassicGroupJobCard({ group }) {
               </Box>
               <Box sx={{ flex: 1 }} />
               <Box sx={{ flex: "0 0 auto" }}>
-                <IconButton
-                  sx={{
-                    color: (theme) =>
-                      theme.palette.mode === PRIMARY_THEME
-                        ? theme.palette.primary.main
-                        : theme.palette.secondary.main,
-                    "&:Hover": {
-                      color: "error.main",
-                    },
-                  }}
-                  onClick={() => {
-                    deleteGroupWithoutJobs(group.groupID);
-                  }}
+                <Tooltip
+                  title={
+                    groupLockReadOnly
+                      ? "Another session holds the edit lock — delete is disabled"
+                      : "Remove group from planner"
+                  }
                 >
-                  <DeleteIcon />
-                </IconButton>
+                  <span>
+                    <IconButton
+                      disabled={groupLockReadOnly}
+                      sx={{
+                        color: (theme) =>
+                          theme.palette.mode === PRIMARY_THEME
+                            ? theme.palette.primary.main
+                            : theme.palette.secondary.main,
+                        "&:Hover": {
+                          color: "error.main",
+                        },
+                      }}
+                      onClick={() => {
+                        deleteGroupWithoutJobs(group.groupID);
+                      }}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </span>
+                </Tooltip>
               </Box>
             </Box>
-            <Box sx={{ marginBottom: { xs: 0.5, sm: 1 }, width: "100%" }}>
+            <Box
+              sx={{
+                marginBottom: { xs: 0.5, sm: 1 },
+                width: "100%",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 0.5,
+              }}
+            >
+              {groupLockReadOnly ? (
+                <Chip
+                  icon={<LockOutlined sx={{ fontSize: 18 }} />}
+                  label="Read-only"
+                  size="small"
+                  color="warning"
+                  variant="outlined"
+                  sx={{ maxHeight: 24 }}
+                />
+              ) : null}
               <Typography color="secondary" align="center" variant="body1">
                 {group.groupName}
               </Typography>

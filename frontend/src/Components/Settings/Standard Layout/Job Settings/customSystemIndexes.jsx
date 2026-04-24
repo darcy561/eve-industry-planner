@@ -10,9 +10,7 @@ import useUsersStore from "../../../../Zustand/usersStore";
 import getSystemNameFromID from "../../../../Functions/Helper/getSystemName";
 import CloseIcon from "@mui/icons-material/Close";
 import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser";
-import { saveApplicationSettings } from "../../../../Functions/Endpoints/Pirivate/userDocument";
-import { useGlobalDebounce } from "../../../../Hooks/GeneralHooks/useGlobalDebounce";
-import { DEBOUNCE_KEYS } from "../../../../Context/debounceKeys";
+import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 
 export default function CustomSystemIndexes() {
     const [selectedSystem, setSelectedSystem] = useState(DEFAULT_SYSTEM);
@@ -21,14 +19,6 @@ export default function CustomSystemIndexes() {
     const [valueError, setValueError] = useState("");
     const { predefinedSystemIndexes } = useUsersStore((state) => state.applicationSettings);
     const { updatePredefinedSystemIndexes, deletePredefinedSystemIndexType } = useUsersStore.getState().applicationSettings.actions;
-
-    const debouncedSaveSettings = useGlobalDebounce(
-        DEBOUNCE_KEYS.APP_SETTINGS_SAVE,
-        async () => {
-            await saveApplicationSettings();
-        },
-        2000
-    );
 
     const handleSystemChange = (systemID) => {
         setSelectedSystem(systemID);
@@ -82,7 +72,7 @@ export default function CustomSystemIndexes() {
         updatePredefinedSystemIndexes(newIndex);
         setSelectedIndexType("");
         setIndexValue("");
-        debouncedSaveSettings();
+        scheduleDebouncedApplicationSettingsSave();
     };
 
     return (
@@ -219,7 +209,7 @@ export default function CustomSystemIndexes() {
                                                     size="small"
                                                     onClick={async () => {
                                                         deletePredefinedSystemIndexType(Number(systemID), indexType);
-                                                        debouncedSaveSettings();
+                                                        scheduleDebouncedApplicationSettingsSave();
                                                     }}
                                                     sx={{ padding: "2px" }}
                                                 >

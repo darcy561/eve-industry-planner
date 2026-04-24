@@ -11,15 +11,28 @@ import CloseIcon from "@mui/icons-material/Close";
 import SaveIcon from "@mui/icons-material/Save";
 import useUsersStore from "../../../Zustand/usersStore";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
+import { flushPendingGroupSave } from "../../../Functions/Debounce/jobGroupsPersistSchedule.js";
+import { USER_JOB_GROUPS_COLLECTION } from "../../../Functions/DocumentLock/documentLockCollections.js";
+import { selectDocumentLockReadOnly } from "../../../Functions/DocumentLock/documentLockSelectors.js";
 
 function GroupNameFrame({}) {
-  const { groupArray } = useUsersStore((state) => state.jobData);
-  const { replaceGroupArray, getActiveGroupObject } =
+  const readOnly = useUsersStore((s) => {
+    const gid = s.jobData.activeGroupID;
+    if (!gid) return false;
+    return selectDocumentLockReadOnly(s, USER_JOB_GROUPS_COLLECTION, gid);
+  });
+  const { updateModifiedGroups, getActiveGroupObject } =
     useUsersStore.getState().jobData.actions;
   const [allowEditGroupName, updateAllowEditGroupName] = useState(false);
   const [editGroupNameText, updateEditGroupNameText] = useState("");
 
   const selectedGroup = getActiveGroupObject();
+
+  useEffect(() => {
+    if (readOnly) {
+      updateAllowEditGroupName(false);
+    }
+  }, [readOnly]);
 
   useEffect(() => {
     if (selectedGroup) {
@@ -29,10 +42,13 @@ function GroupNameFrame({}) {
 
   if (!selectedGroup) return null;
 
-  function handleSave() {
+  async function handleSave() {
     selectedGroup.setGroupName(editGroupNameText);
-    replaceGroupArray([...groupArray]);
+    updateModifiedGroups(selectedGroup);
     updateAllowEditGroupName((prev) => !prev);
+    /* Same as new group flow: PUT must reach Mongo promptly or changestream/WS never
+     * notifies other tabs — `updateModifiedGroups` alone only schedules a 2s debounced save. */
+    await flushPendingGroupSave();
   }
   
   function handleClose() {
@@ -51,12 +67,15 @@ function GroupNameFrame({}) {
           </Grid>
           <Grid align="center" size={1}>
             <Tooltip title="Edit Group Name" arrow placement="bottom">
-              <IconButton
-                size="small"
-                onClick={() => updateAllowEditGroupName((prev) => !prev)}
-              >
-                <EditIcon color="primary" />
-              </IconButton>
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={readOnly}
+                  onClick={() => updateAllowEditGroupName((prev) => !prev)}
+                >
+                  <EditIcon color="primary" />
+                </IconButton>
+              </span>
             </Tooltip>
           </Grid>
         </Grid>

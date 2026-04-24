@@ -1,11 +1,10 @@
 import { Avatar, Box, Typography, Grid } from "@mui/material";
 
-import { useAssetHelperHooks } from "../../../../Hooks/AssetHooks/useAssetHelper";
+import { findAssetImageURL } from "../../../../Functions/Assets/assetHelpers";
 import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser";
 
 export default function AssetTemplate_AssetDialogWindow(props) {
   const { state, assetObject } = props;
-  const { findAssetImageURL } = useAssetHelperHooks();
   if (!assetObject) return null;
 
   const itemName =

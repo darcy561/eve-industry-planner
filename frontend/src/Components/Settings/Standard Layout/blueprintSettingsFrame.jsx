@@ -12,12 +12,11 @@ import {
   Switch,
   Typography,
 } from "@mui/material";
-import { useState, useCallback } from "react";
 import { saveApplicationSettings } from "../../../Functions/Endpoints/Pirivate/userDocument";
 import { blueprintOptions } from "../../../Context/defaultValues";
 import uuid from "react-uuid";
 import VirtualisedRecipeSearch from "../../../Styled Components/autocomplete/virtualisedRecipeSearch";
-import { useCachedData } from "../../../Hooks/useCachedData";
+import { useCachedData } from "../../../Hooks/App/useCachedData";
 import { CACHED_DATA_FILES } from "../../../Context/defaultValues";
 import ClearIcon from "@mui/icons-material/Clear";
 import useUsersStore from "../../../Zustand/usersStore";
@@ -64,8 +63,9 @@ function BlueprintSettingsFrame() {
               value={defaultMaterialEfficiencyValue}
               variant="standard"
               onChange={async (e) => {
-                if (!e.target.value) return;
-                updateDefaultMaterialEfficiencyValue(e.target.value);
+                const v = e.target.value;
+                if (v === "" || v == null) return;
+                updateDefaultMaterialEfficiencyValue(v);
                 await saveApplicationSettings();
               }}
             >

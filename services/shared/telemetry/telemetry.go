@@ -21,6 +21,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
+	"eve-industry-planner/shared/core/instanceid"
 	"eve-industry-planner/shared/logs"
 )
 
@@ -83,6 +84,9 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 	if version == "" {
 		version = "unknown"
 	}
+	// Align Prometheus/Grafana "instance" / exported_instance with JetStream suffix + ws_instance_id
+	// (same rules as instanceid.Replica: DOCKER_CONTAINER_NAME, HOSTNAME, … — not raw os.Hostname only).
+	instanceID := instanceid.Replica()
 
 	res, err := resource.New(ctx,
 		resource.WithTelemetrySDK(),
@@ -90,6 +94,7 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 		resource.WithAttributes(
 			attribute.String("service.name", cfg.ServiceName),
 			attribute.String("service.version", version),
+			attribute.String("service.instance.id", instanceID),
 		),
 	)
 	if err != nil {

@@ -165,23 +165,25 @@ type UserAccountDocument struct {
 }
 
 type ApplicationSettings struct {
-	UseCloudAccounts                 bool                          `bson:"userCloudAccounts" json:"userCloudAccounts"`
-	DisplayHelpCards                 bool                          `bson:"displayHelpCards" json:"displayHelpCards"`
-	DefaultMarketLocation            string                        `bson:"defaultMarketLocation" json:"defaultMarketLocation"`
-	DefaultOrderType                 string                        `bson:"defaultOrderType" json:"defaultOrderType"`
-	EsiJobTab                        *string                       `bson:"esiJobTab,omitempty" json:"esiJobTab,omitempty"`
-	EnableCompactLayoutView          bool                          `bson:"enableCompactLayoutView" json:"enableCompactLayoutView"`
-	EnableAutomaticJobRecalculation  bool                          `bson:"enableAutomaticJobRecalculation" json:"enableAutomaticJobRecalculation"`
-	EnableSkipMissingBlueprints      bool                          `bson:"enableSkipMissingBlueprints" json:"enableSkipMissingBlueprints"`
-	HideCompleteMaterialsFromEditJob bool                          `bson:"hideCompleteMaterials" json:"hideCompleteMaterials"`
-	DefaultStationIDForAssets        int64                         `bson:"defaultStationIDForAssets" json:"defaultStationIDForAssets"`
-	DefaultCitadelBrokersFee         float64                       `bson:"defaultCitadelBrokersFee" json:"defaultCitadelBrokersFee"`
-	DefaultMaterialEfficiencyValue   int                           `bson:"defaultMaterialEfficiencyValue" json:"defaultMaterialEfficiencyValue"`
-	CustomStructures                 CustomStructures              `bson:"customStructures" json:"customStructures"`
-	ExemptTypeIDs                    []int                         `bson:"exemptTypeIDs,omitempty" json:"exemptTypeIDs,omitempty"`
-	ReprocessingSettings             ReprocessingSettings          `bson:"reprocessingSettings" json:"reprocessingSettings"`
-	ExtrasCategories                 []ExtraCategory               `bson:"extrasCategories,omitempty" json:"extrasCategories,omitempty"`
-	PredefinedSystemIndexes          map[string]map[string]float64 `bson:"predefinedSystemIndexes,omitempty" json:"predefinedSystemIndexes,omitempty"`
-	JobStatuses                      map[string]JobStatusEntry     `bson:"jobStatuses,omitempty" json:"jobStatuses,omitempty"`
-	MetaData                         ApplicationSettingsMeta       `bson:"_meta" json:"_meta"`
+	UseCloudAccounts                 bool             `bson:"userCloudAccounts" json:"userCloudAccounts"`
+	DisplayHelpCards                 bool             `bson:"displayHelpCards" json:"displayHelpCards"`
+	DefaultMarketLocation            string           `bson:"defaultMarketLocation" json:"defaultMarketLocation"`
+	DefaultOrderType                 string           `bson:"defaultOrderType" json:"defaultOrderType"`
+	EsiJobTab                        *string          `bson:"esiJobTab,omitempty" json:"esiJobTab,omitempty"`
+	EnableCompactLayoutView          bool             `bson:"enableCompactLayoutView" json:"enableCompactLayoutView"`
+	EnableAutomaticJobRecalculation  bool             `bson:"enableAutomaticJobRecalculation" json:"enableAutomaticJobRecalculation"`
+	EnableSkipMissingBlueprints      bool             `bson:"enableSkipMissingBlueprints" json:"enableSkipMissingBlueprints"`
+	HideCompleteMaterialsFromEditJob bool             `bson:"hideCompleteMaterials" json:"hideCompleteMaterials"`
+	DefaultStationIDForAssets        int64            `bson:"defaultStationIDForAssets" json:"defaultStationIDForAssets"`
+	DefaultCitadelBrokersFee         float64          `bson:"defaultCitadelBrokersFee" json:"defaultCitadelBrokersFee"`
+	DefaultMaterialEfficiencyValue   int              `bson:"defaultMaterialEfficiencyValue" json:"defaultMaterialEfficiencyValue"`
+	CustomStructures                 CustomStructures `bson:"customStructures" json:"customStructures"`
+	// BSON must not use omitempty on replaceable slices/maps: UpsertStructByIDPreservingMeta uses $set;
+	// omitted fields leave stale values in Mongo (e.g. clearing exemptTypeIDs).
+	ExemptTypeIDs           []int                         `bson:"exemptTypeIDs" json:"exemptTypeIDs,omitempty"`
+	ReprocessingSettings    ReprocessingSettings          `bson:"reprocessingSettings" json:"reprocessingSettings"`
+	ExtrasCategories        []ExtraCategory               `bson:"extrasCategories" json:"extrasCategories,omitempty"`
+	PredefinedSystemIndexes map[string]map[string]float64 `bson:"predefinedSystemIndexes" json:"predefinedSystemIndexes,omitempty"`
+	JobStatuses             map[string]JobStatusEntry     `bson:"jobStatuses" json:"jobStatuses,omitempty"`
+	MetaData                ApplicationSettingsMeta       `bson:"_meta" json:"_meta"`
 }

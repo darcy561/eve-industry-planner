@@ -1,21 +1,25 @@
 import { IconButton, TextField, Tooltip, Box, CircularProgress } from "@mui/material";
 import { useFormStatus } from "react-dom";
-
 import AddIcon from "@mui/icons-material/Add";
-import { useAddMaterialCostsToJob } from "../../../../../../Hooks/JobHooks/useAddMaterialCosts";
 import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
-import { materialPriceObjectFactory } from "../../../../../../Functions/JobPlanner/materialCosts";
+import {
+  addMaterialCostsToJob,
+  materialPriceObjectFactory,
+} from "../../../../../../Functions/JobPlanner/materialCosts";
+import { useEffectiveMarketHubFromLayout } from "../../../../../../Hooks/Planner/useEffectiveMarketHubFromLayout.js";
 
 export function AddMaterialCost_Purchasing({
   state,
   actions,
   material,
-  marketDisplay,
-  orderDisplay,
   childJobProductionTotal,
   childJobs,
 }) {
+  const { marketDisplay, orderDisplay } = useEffectiveMarketHubFromLayout(
+    state.activeJob.layout
+  );
+
   const materialPrice = useUsersStore
     .getState()
     .worldData.actions.findMarketData(material.typeID);
@@ -49,7 +53,7 @@ export function AddMaterialCost_Purchasing({
     ) {
       return;
     }
-    const { newMaterialArray, newTotalPurchaseCost } = useAddMaterialCostsToJob(
+    const { newMaterialArray, newTotalPurchaseCost } = addMaterialCostsToJob(
       state.activeJob,
       [
         materialPriceObjectFactory(

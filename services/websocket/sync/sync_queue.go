@@ -83,7 +83,7 @@ func EnqueueSyncMessage(ctx context.Context, s SyncServer, clientID string, msg 
 				"client_id", clientID)
 		}
 
-		logs.InfoCtx(ctx, "sync message enqueued",
+		logs.DebugCtx(ctx, "sync message enqueued",
 			"client_id", clientID,
 			"account_id", msg.AccountID,
 			"sync_type", msg.Type)

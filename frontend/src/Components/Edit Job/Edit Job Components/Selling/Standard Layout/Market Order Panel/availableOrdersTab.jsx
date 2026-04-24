@@ -1,7 +1,6 @@
 import { Avatar, IconButton, Tooltip, Typography, Grid } from "@mui/material";
 
 import AddLinkIcon from "@mui/icons-material/AddLink";
-import { useJobManagement } from "../../../../../../Hooks/useJobManagement";
 import {
   LARGE_TEXT_FORMAT,
   STANDARD_TEXT_FORMAT,
@@ -13,6 +12,7 @@ import {
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
 import findBrokersFeeEntry from "../../../../../../Functions/MarketOrders/findBrokersFeeEntry";
+import calcBrokersFee from "../../../../../../Functions/MarketOrders/calcBrokersFee";
 import {
   formatDateForLocale,
   formatNumberForLocale,
@@ -24,9 +24,11 @@ export function AvailableMarketOrdersTab({
   itemOrderMatch
 }) {
   const queryClient = useQueryClient();
+  const citadelBrokersFee = useUsersStore(
+    (state) => state.applicationSettings.defaultCitadelBrokersFee
+  );
   const getCorporation =
     useUsersStore.getState().account.actions.getCorporation;
-  const { calcBrokersFee } = useJobManagement();
   return (
     <Grid container>
       <Grid
@@ -141,7 +143,11 @@ export function AvailableMarketOrdersTab({
                         size="small"
                         onClick={async () => {
                           try {
-                            const brokersFee = await calcBrokersFee(order);
+                            const brokersFee = await calcBrokersFee(
+                              order,
+                              queryClient,
+                              citadelBrokersFee
+                            );
                             const brokersFeeObject = findBrokersFeeEntry(
                               order,
                               brokersFee,

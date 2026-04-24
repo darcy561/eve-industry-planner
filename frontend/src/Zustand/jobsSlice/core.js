@@ -8,7 +8,9 @@
  * @author EVE Industry Planner Team
  */
 
-import JobSnapshot from "../../Classes/jobSnapshot";
+import { requestJobDocumentsByIdsFromApi } from "../../Functions/Endpoints/Pirivate/requestJobDocumentsByIds.js";
+import retrieveJobIDsFromGroupObjects from "../../Functions/Helper/getJobIDsFromGroupObjects";
+import seperateGroupAndJobIDs from "../../Functions/Helper/seperateGroupAndJobIDs";
 
 /**
  * Default state configuration for jobs data.
@@ -20,9 +22,9 @@ import JobSnapshot from "../../Classes/jobSnapshot";
  * @property {Array} multiSelect - Array of selected job/group IDs
  * @property {Array} jobArray - Array of job objects
  * @property {Array} groupArray - Array of group objects
+ * @property {string[]} pendingJobGroupWrites - Group IDs waiting to be persisted to the API
  * @property {string|null} activeJobID - Currently active job ID
  * @property {string|null} activeGroupID - Currently active group ID
- * @property {Array} userJobSnapshot - Array of job snapshot objects
  * @property {Object} userWatchlist - User's watchlist data
  * @property {Array} userWatchlist.groups - Watchlist group objects
  * @property {Array} userWatchlist.items - Watchlist item objects
@@ -30,10 +32,18 @@ import JobSnapshot from "../../Classes/jobSnapshot";
 export const stateDefault = () => ({
   multiSelect: [],
   jobArray: [],
+  /**
+   * Inbound WS jobs not yet flushed into `jobArray`: jobID -> { stageId, groupID }.
+   * Used for per-stage skeleton tiles until inbound job-document coalesce (`Functions/Debounce/inboundJobDocumentsCoalesce.js`) applies.
+   */
+  pendingInboundNewJobSkeletonByJobId: {},
   groupArray: [],
+  /** Group IDs with a pending write to the API (`PUT /api/v1/groups`; keeps WS fan-out to touched docs only). */
+  pendingJobGroupWrites: [],
+  /** Job IDs with a pending write to the API (`PUT /api/v1/job-documents`). */
+  pendingJobDocumentWrites: [],
   activeJobID: null,
   activeGroupID: null,
-  userJobSnapshot: [],
   userWatchlist: {
     groups: [],
     items: [],
@@ -101,17 +111,20 @@ export const coreActions = (set, get) => ({
    * Replaces the entire job array.
    *
    * @param {Array} jobArray - New job array
+   * @param {{ fromServer?: boolean }} [opts] - `fromServer`: full REST sync (clears pending job-document writes).
    *
    * @example
    * store.getState().jobData.actions.replaceJobArray(newJobArray);
    */
-  replaceJobArray: (jobArray) => {
+  replaceJobArray: (jobArray, opts = {}) => {
+    const fromServer = opts.fromServer === true;
     set(
       (state) => ({
         ...state,
         jobData: {
           ...state.jobData,
           jobArray: jobArray || [],
+          ...(fromServer ? { pendingJobDocumentWrites: [] } : {}),
         },
       }),
       false,
@@ -294,5 +307,103 @@ export const coreActions = (set, get) => ({
   findJobInJobArray: (jobID) => {
     const state = get().jobData;
     return state.jobArray.find((i) => i.jobID === jobID);
+  },
+
+  /**
+   * Resolves job IDs and/or Job instances to Job objects: reads from `jobArray`, then
+   * POSTs missing IDs (`requestJobDocumentsByIdsFromApi` + merge) when logged in.
+   *
+   * @param {Array|Set|string|Object|null|undefined} inputItem - IDs, Job objects, or mixed
+   * @returns {Promise<Array<Object>>} Jobs found or fetched (deduped by `jobID`, iterable order preserved)
+   */
+  jobsFromIdsOrObjects: async (inputItem) => {
+    const findJobInJobArray = (id) =>
+      get().jobData.actions.findJobInJobArray(id);
+
+    const collectStringIdsFromIterable = (iterable) => {
+      const ids = new Set();
+      for (const item of iterable) {
+        if (typeof item === "string" && item.includes("job")) {
+          ids.add(item);
+        }
+      }
+      return ids;
+    };
+
+    const resolveMissingIds = async (stringIds) => {
+      if (!get().account.actions.getIsLoggedIn()) return;
+      const missing = [...stringIds].filter((id) => !findJobInJobArray(id));
+      if (missing.length === 0) return;
+      try {
+        const jobs = await requestJobDocumentsByIdsFromApi(missing);
+        get().jobData.actions.updateOrAddJobsToJobArray(jobs);
+      } catch (err) {
+        console.error("jobsFromIdsOrObjects:", err);
+      }
+    };
+
+    const seen = new Set();
+    /** @type {Array<Object>} */
+    const out = [];
+
+    const pushJob = (job) => {
+      if (!job?.jobID || seen.has(job.jobID)) return;
+      seen.add(job.jobID);
+      out.push(job);
+    };
+
+    const collectJobsFromInputIterable = (iterable) => {
+      for (const item of iterable) {
+        if (item == null) continue;
+        if (typeof item === "object" && typeof item.jobID === "string") {
+          pushJob(item);
+        } else if (typeof item === "string") {
+          if (!item.includes("job")) continue;
+          const job = findJobInJobArray(item);
+          if (job) pushJob(job);
+        }
+      }
+    };
+
+    if (inputItem == null) return [];
+
+    if (Array.isArray(inputItem) || inputItem instanceof Set) {
+      const stringIds = collectStringIdsFromIterable(inputItem);
+      await resolveMissingIds(stringIds);
+      collectJobsFromInputIterable(inputItem);
+      return out;
+    }
+
+    if (typeof inputItem === "string") {
+      if (!inputItem.includes("job")) return [];
+      await resolveMissingIds(new Set([inputItem]));
+      const job = findJobInJobArray(inputItem);
+      return job ? [job] : [];
+    }
+
+    if (
+      typeof inputItem === "object" &&
+      typeof inputItem.jobID === "string" &&
+      !Array.isArray(inputItem) &&
+      !(inputItem instanceof Set)
+    ) {
+      return [inputItem];
+    }
+
+    return [];
+  },
+
+  /**
+   * Resolves full job objects from mixed job + group id strings: expands groups, then
+   * {@link jobsFromIdsOrObjects} (local `jobArray` + API for missing when logged in).
+   * Used by shopping list, price entry, and similar selection flows.
+   *
+   * @param {string|string[]} inputJobIDs
+   * @returns {Promise<Array<Object>>}
+   */
+  resolveJobObjectsForMixedSelection: async (inputJobIDs) => {
+    const { groupIDs, jobIDs } = seperateGroupAndJobIDs(inputJobIDs);
+    const groupJobIDs = retrieveJobIDsFromGroupObjects(groupIDs);
+    return get().jobData.actions.jobsFromIdsOrObjects([...jobIDs, ...groupJobIDs]);
   },
 });

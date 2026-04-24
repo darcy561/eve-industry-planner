@@ -2,7 +2,7 @@ import { Typography, Grid } from "@mui/material";
 
 import { useMemo } from "react";
 import { STANDARD_TEXT_FORMAT } from "../../../Context/defaultValues";
-import { useCachedData } from "../../../Hooks/useCachedData";
+import { useCachedData } from "../../../Hooks/App/useCachedData";
 import { CACHED_DATA_FILES } from "../../../Context/defaultValues";
 import useUsersStore from "../../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
@@ -31,7 +31,7 @@ import { formatDateForLocale, formatNumberForLocale } from "../../../Functions/H
 import { LAST_JOB_STATUS_ID } from "../../../Context/defaultValues";
 
 export function NewTransactions() {
-  const { userJobSnapshot } = useUsersStore((state) => state.jobData);
+  const { jobArray } = useUsersStore((state) => state.jobData);
   const queryClient = useQueryClient();
   const linkedOrders = useUsersStore((state) => state.account.linkedOrders);
   const { data: itemData } = useCachedData(CACHED_DATA_FILES.SEARCH_INDEX);
@@ -87,12 +87,12 @@ export function NewTransactions() {
         getAllCachedCorporationHistoricMarketOrders(queryClient)?.data || {};
 
       // Validate required data
-      if (!userJobSnapshot || !Array.isArray(userJobSnapshot)) {
+      if (!jobArray || !Array.isArray(jobArray)) {
         return [];
       }
 
       // Get filtered jobs
-      const filteredJobs = userJobSnapshot.filter(
+      const filteredJobs = jobArray.filter(
         (job) => job?.jobStatus === LAST_JOB_STATUS_ID
       );
 
@@ -170,7 +170,7 @@ export function NewTransactions() {
   }, [
     isLoading,
     isError,
-    userJobSnapshot,
+    jobArray,
     linkedOrders,
     queryClient,
   ]);

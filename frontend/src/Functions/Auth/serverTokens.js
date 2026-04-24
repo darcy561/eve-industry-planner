@@ -12,7 +12,7 @@ function getAppVersionHeaderValue() {
  * Auth token HTTP calls use {@link withRequestRetries} (408 / 429 / 5xx; default 3 attempts).
  *
  * Call sites (use these helpers only — do not duplicate `fetch` to `/api/v1/auth/*`):
- * - {@link fetchServerJWT} — `MainUserAuth.jsx`, `useRefreshUser.jsx` (`reloadMainUser`)
+ * - {@link fetchServerJWT} — `MainUserAuth.jsx` via `appLoginFlow.js` (`runAppLogin` / `resolveLoginWith*`)
  * - {@link refreshServerJWT} — `account.actions.refreshServerToken` in `Zustand/account/tokenActions.js`
  */
 
@@ -28,8 +28,6 @@ function getAppVersionHeaderValue() {
  *   @property {string} refresh_token - The refresh token for obtaining new access tokens
  *   @property {number} expires_at - Token expiration time as Unix timestamp (seconds since epoch)
  *   @property {boolean} [first_login] - Whether this was the user's first login (Mongo)
- *   @property {string} firebase_token - Firebase custom token for signInWithCustomToken (always set by /api/v1/auth/login)
- *   @property {boolean} [firebase_first_login] - Whether the user was new in Firebase Auth
  * @throws {Error} Throws an error if the request fails or the response is not OK
  * 
  * @example

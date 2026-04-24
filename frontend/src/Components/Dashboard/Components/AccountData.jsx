@@ -2,14 +2,14 @@ import { Avatar, AvatarGroup, Typography, Grid } from "@mui/material";
 
 import { useEffect, useState } from "react";
 import useUsersStore from "../../../Zustand/usersStore";
-import { useJobStatuses } from "../../../Hooks/useJobStatuses";
+import { useJobStatuses } from "../../Job Planner/Hooks/useJobStatuses";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
 
 export function AccountData() {
   const { jobStatuses } = useJobStatuses();
   const characters = useUsersStore((state) => state.account.characters);
-  const { userJobSnapshot } = useUsersStore((state) => state.jobData);
+  const { jobArray } = useUsersStore((state) => state.jobData);
   const [dataCount, updateDataCount] = useState({
     openMOrders: 0,
     histMOrders: 0,
@@ -104,13 +104,13 @@ export function AccountData() {
           </Grid>
           <Grid size={4}>
             <Typography sx={{ typography: { xs: "caption", sm: "subtitle1" } }}>
-              Total Jobs: {userJobSnapshot.length}
+              Total Jobs: {jobArray.length}
             </Typography>
           </Grid>
         </Grid>
         <Grid container sx={{ marginTop: "5px" }} size={12}>
           {jobStatuses.map((step) => {
-            const jobs = userJobSnapshot.filter(
+            const jobs = jobArray.filter(
               (job) => job.jobStatus === step.id
             );
             return (

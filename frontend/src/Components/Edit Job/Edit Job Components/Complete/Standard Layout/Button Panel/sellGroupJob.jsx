@@ -3,16 +3,12 @@ import useUsersStore from "../../../../../../Zustand/usersStore";
 
 export function SellGroupJobButton({ state, actions }) {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
-  const { removeJobsFromUserJobSnapshotArray } = useUsersStore.getState().jobData.actions;
-
-  const toggleMarkForSell = async () => {
+  
+  const toggleMarkForSell = () => {
     if (!state.activeJob.isReadyToSell) {
       state.activeJob.jobStatus += 1;
-      state.activeJob.isReadyToSell = !state.activeJob.isReadyToSell;
-    } else {
-      state.activeJob.isReadyToSell = !state.activeJob.isReadyToSell;
-      removeJobsFromUserJobSnapshotArray(state.activeJob.jobID);
     }
+    state.activeJob.toggleGroupJobReadyForSale();
     actions.updateActiveJob(state.activeJob);
   };
 

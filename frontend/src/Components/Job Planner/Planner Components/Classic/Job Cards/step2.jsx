@@ -3,7 +3,9 @@ import { Typography, Box } from "@mui/material";
 import { STANDARD_TEXT_FORMAT } from "../../../../../Context/defaultValues";
 
 export default function Step2JobCard({ job }) {
-  const isNotReadyToBuild = job.totalComplete - job.totalMaterials !== 0;
+  const totalMaterials = job.build.materials.length;
+  const totalComplete = job.totalCompletedMaterials();
+  const isNotReadyToBuild = totalComplete !== totalMaterials;
 
   return (
     <Box
@@ -25,7 +27,7 @@ export default function Step2JobCard({ job }) {
           </Box>
           <Box sx={{ flex: "0 0 16.666%", textAlign: "right", paddingRight: { xs: 2, md: 3 } }}>
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-              {job.totalMaterials - job.totalComplete}/{job.totalMaterials}
+              {totalMaterials - totalComplete}/{totalMaterials}
             </Typography>
           </Box>
         </Box>

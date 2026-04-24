@@ -7,9 +7,9 @@ type Group struct {
 	AccountID       string        `json:"accountID" bson:"accountID"`
 	GroupName       string        `json:"groupName" bson:"groupName"`
 	GroupID         string        `json:"groupID" bson:"groupID"`
-	IncludedJobIDs  []string      `json:"includedJobIDs" bson:"includedJobIDs"`
-	IncludedTypeIDs []int         `json:"includedTypeIDs" bson:"includedTypeIDs"`
-	MaterialIDs     []int         `json:"materialIDs" bson:"materialIDs"`
+	IncludedJobIDs  []string `json:"includedJobIDs" bson:"includedJobIDs"`
+	IncludedTypeIDs []int    `json:"includedTypeIDs" bson:"includedTypeIDs"`
+	MaterialIDs     []int    `json:"materialIDs" bson:"materialIDs"`
 	OutputJobCount  int           `json:"outputJobCount" bson:"outputJobCount"`
 	AreComplete     []string      `json:"areComplete" bson:"areComplete"`
 	ShowComplete    bool          `json:"showComplete" bson:"showComplete"`
@@ -21,10 +21,9 @@ type Group struct {
 	MetaData        GroupMetaData `json:"_meta" bson:"_meta"`
 }
 
-// GroupMetaData represents metadata for group documents (stored as _meta in MongoDB)
+// GroupMetaData is document metadata under `_meta` (shared MetaData + group lifecycle).
 type GroupMetaData struct {
-	MetaData    `json:",inline" bson:",inline"`
-	BuildVer      string     `json:"buildVer" bson:"buildVer"`
+	MetaData      `json:",inline" bson:",inline"`
 	CreatedAt     time.Time  `json:"createdAt" bson:"createdAt"`
 	LastUpdatedBy string     `json:"lastUpdatedBy" bson:"lastUpdatedBy"`
 	ArchivedAt    *time.Time `json:"archivedAt" bson:"archivedAt"`

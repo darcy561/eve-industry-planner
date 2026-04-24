@@ -33,7 +33,7 @@ function buildShimUserDataFromMongo(userDocument) {
 }
 
 /**
- * Runs post-login async work (characters, indexes) after `applyLoginAuthResponse`
+ * Runs post-login async work (characters, system indexes) after `applyLoginAuthResponse`
  * has already applied the login payload to the store.
  *
  * Job stage labels come from merged `application_settings.jobStatuses`; accordion expansion

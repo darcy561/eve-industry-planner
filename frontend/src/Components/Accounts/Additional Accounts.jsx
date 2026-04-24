@@ -7,7 +7,7 @@ import {
   Switch,
   Typography,
 } from "@mui/material";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AccountEntry } from "./AccountEntry";
 import getEveOauthToken from "../../Functions/EveESI/Character/getEveSSOToken";
 import {
@@ -16,15 +16,29 @@ import {
 } from "../../Events/snackbarEvents";
 import checkUserClaims from "../../Functions/Auth/checkUserClaims";
 import useUsersStore from "../../Zustand/usersStore";
-import { saveUserAccountAndApplicationSettings } from "../../Functions/Endpoints/Pirivate/userDocument";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCharacterHooks } from "../../Hooks/React Query/useCharacterHooks";
 import { buildCorporationObjectFromUserObject } from "../../Functions/Corporations/buildCorporationObject";
-import { useGlobalDebounce } from "../../Hooks/GeneralHooks/useGlobalDebounce";
-import { DEBOUNCE_KEYS } from "../../Context/debounceKeys";
+import {
+  flushPendingUserDocumentSaves,
+  scheduleDebouncedUserAccountAndApplicationSettingsSave,
+} from "../../Functions/Debounce/userDocumentsPersistSchedule.js";
+import {
+  clearAdditionalUserAuthCode,
+  EVE_SSO_ADDITIONAL_ACCOUNT_STATE,
+  subscribeToAdditionalUserAuthCodeFromStorage,
+} from "../Auth/authCallbackParams.js";
+import { getEveSsoAuthorizeUrl } from "../Auth/Functions/eveSSORedirect";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../Context/defaultValues";
-import { updateLocalRefreshTokens } from "../../Functions/Auth/buildAccountData";
+import {
+  canonicalCharacterHashKey,
+  isCharacterInListByHash,
+} from "../../Functions/Auth/characterHashCanonical.js";
+import {
+  getLocalAdditionalAccountsStorageKey,
+  updateLocalRefreshTokens,
+} from "../../Functions/Auth/buildAccountData";
 import { AppEvent } from "../../analytics/appEventNames";
 import { trackAppEvent } from "../../analytics/trackAppEvent";
 
@@ -44,106 +58,104 @@ export function AdditionalAccounts() {
   const [skeletonVisible, toggleSkeleton] = useState(false);
   const queryClient = useQueryClient();
   const { triggerCharacterDataPrefetch } = useCharacterHooks();
+  const detachStorageListenerRef = useRef(null);
 
-  const debouncedSaveSettings = useGlobalDebounce(
-    DEBOUNCE_KEYS.APP_SETTINGS_SAVE,
-    async () => {
-      await saveUserAccountAndApplicationSettings();
+  useEffect(
+    () => () => {
+      const d = detachStorageListenerRef.current;
+      if (typeof d === "function") d();
     },
-    2000
+    []
   );
 
-  const handleAdd = async () => {
-    if (isProcessing) return;
-    setIsProcessing(true);
-    toggleSkeleton(true);
+  const applyImportedAdditionalUser = async (newUser) => {
+    const cloudNow = !!useUsersStore.getState().applicationSettings
+      .userCloudAccounts;
 
-    // Remove any existing listener first
-    window.removeEventListener("storage", importNewAccount);
+    if (cloudNow) {
+      addLinkedCharacterRefreshToken({
+        CharacterHash: newUser.CharacterHash,
+        rToken: newUser.esiRefreshToken,
+      });
+    } else {
+      const characters = useUsersStore.getState().account.characters;
+      const toPersist = isCharacterInListByHash(characters, newUser.CharacterHash)
+        ? characters
+        : [...characters, newUser];
+      updateLocalRefreshTokens(toPersist);
+    }
 
-    // Add new listener
-    window.addEventListener("storage", importNewAccount);
-
-    const { getRuntimeEnv } = await import("../../utils/runtime-config");
-    window.open(
-      `https://login.eveonline.com/v2/oauth/authorize/?response_type=code&redirect_uri=${encodeURIComponent(
-        getRuntimeEnv("EVE_CALLBACK_URL")
-      )}&client_id=${getRuntimeEnv("EVE_CLIENT_ID")}&scope=${getRuntimeEnv("EVE_SCOPE")
-      }&state=additional`,
-      "_blank"
+    await checkUserClaims();
+    if (cloudNow) {
+      scheduleDebouncedUserAccountAndApplicationSettingsSave();
+      await flushPendingUserDocumentSaves();
+    }
+    trackAppEvent(
+      cloudNow
+        ? AppEvent.ADD_ADDITIONAL_CHARACTER_CLOUD
+        : AppEvent.ADD_ADDITIONAL_CHARACTER_LOCAL
     );
-
-    // Set a timeout to clean up if no response
-    setTimeout(() => {
-      if (!localStorage.getItem("AdditionalUser")) {
-        window.removeEventListener("storage", importNewAccount);
-        toggleSkeleton(false);
-        setIsProcessing(false);
-      }
-    }, 180000);
+    triggerCharacterDataPrefetch(queryClient, newUser.CharacterHash);
+    showSnackbarSuccess(`${newUser.CharacterName} Imported`, 3);
   };
 
-  const importNewAccount = async (event) => {
-    // Only proceed if the event is for AdditionalUser
-    if (event.key !== "AdditionalUser") return;
-    if (isProcessing) return;
-
+  const importAdditionalAccountFromAuthCode = async (authCode) => {
     try {
-      const authCode = localStorage.getItem("AdditionalUser");
-      if (!authCode) return;
-
-      // Remove the listener immediately to prevent multiple executions
-      window.removeEventListener("storage", importNewAccount);
-
       const newUser = await getEveOauthToken(authCode, false);
-
       if (newUser instanceof Error) {
         throw newUser;
       }
 
-      if (characters.some((u) => u.CharacterHash === newUser.CharacterHash)) {
-        localStorage.removeItem("AdditionalUser");
-        showSnackbarError(`Duplicate Account`, 3);
-        toggleSkeleton(false);
-        setIsProcessing(false);
+      if (
+        isCharacterInListByHash(
+          useUsersStore.getState().account.characters,
+          newUser.CharacterHash
+        )
+      ) {
+        clearAdditionalUserAuthCode();
+        showSnackbarError("Duplicate Account", 3);
         return;
       }
 
       await newUser.getPublicCharacterData();
       await buildCorporationObjectFromUserObject(newUser);
       addCharacter(newUser);
+      clearAdditionalUserAuthCode();
 
-      localStorage.removeItem("AdditionalUser");
-
-      if (cloudAccounts) {
-        addLinkedCharacterRefreshToken({
-          CharacterHash: newUser.CharacterHash,
-          rToken: newUser.esiRefreshToken,
-        });
-      } else {
-        updateLocalRefreshTokens(characters);
-      }
-
-      await checkUserClaims(characters);
-      if (cloudAccounts) {
-        debouncedSaveSettings();
-      }
-      trackAppEvent(
-        cloudAccounts
-          ? AppEvent.ADD_ADDITIONAL_CHARACTER_CLOUD
-          : AppEvent.ADD_ADDITIONAL_CHARACTER_LOCAL
-      );
-      triggerCharacterDataPrefetch(queryClient, newUser.CharacterHash);
-      showSnackbarSuccess(`${newUser.CharacterName} Imported`, 3);
-      toggleSkeleton(false);
-      setIsProcessing(false);
+      await applyImportedAdditionalUser(newUser);
     } catch (err) {
-      localStorage.removeItem("AdditionalUser");
+      clearAdditionalUserAuthCode();
       console.error(err);
       showSnackbarError(`${err.message}`, 3);
+    } finally {
       toggleSkeleton(false);
       setIsProcessing(false);
     }
+  };
+
+  const handleAdd = () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    toggleSkeleton(true);
+    const prevDetach = detachStorageListenerRef.current;
+    if (typeof prevDetach === "function") {
+      prevDetach();
+    }
+    detachStorageListenerRef.current = subscribeToAdditionalUserAuthCodeFromStorage(
+      {
+        onAuthCode: (code) => {
+          void importAdditionalAccountFromAuthCode(code);
+        },
+        onTimeout: () => {
+          toggleSkeleton(false);
+          setIsProcessing(false);
+        },
+      }
+    );
+    window.open(
+      getEveSsoAuthorizeUrl(EVE_SSO_ADDITIONAL_ACCOUNT_STATE),
+      "_blank"
+    );
   };
 
   return (
@@ -188,10 +200,11 @@ export function AdditionalAccounts() {
                         .account.actions.getMainCharacterHash();
                       if (!mainCharacterHash) {
                         toggleCloudAccounts();
-                        debouncedSaveSettings();
+                        scheduleDebouncedUserAccountAndApplicationSettingsSave();
                         return;
                       }
-                      const localStorageKey = `${mainCharacterHash} AdditionalAccounts`;
+                      const localStorageKey =
+                        getLocalAdditionalAccountsStorageKey(mainCharacterHash);
                       if (e.target.checked) {
                         const storedAccounts = JSON.parse(
                           localStorage.getItem(localStorageKey) || "[]"
@@ -203,7 +216,7 @@ export function AdditionalAccounts() {
                         setLinkedCharacterRefreshTokens([]);
                       }
                       toggleCloudAccounts();
-                      debouncedSaveSettings();
+                      scheduleDebouncedUserAccountAndApplicationSettingsSave();
                     }}
                   />
                 }
@@ -283,11 +296,11 @@ export function AdditionalAccounts() {
               </Grid>
             </Grid>
           ) : (
-            characters.map((character) => {
+            characters.map((character, index) => {
               if (character.isMainCharacter) return null;
               return (
                 <AccountEntry
-                  key={character.CharacterHash}
+                  key={`${canonicalCharacterHashKey(character.CharacterHash)}-${index}`}
                   character={character}
                 />
               );

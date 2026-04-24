@@ -10,66 +10,66 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
+// subjectsAsSetEqual returns true when a and b contain the same subject tokens
+// with the same multiplicities (order ignored). Used so we can prune obsolete
+// JetStream bindings when code drops a pattern (e.g. removed doc.subscribe.>).
+func subjectsAsSetEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	counts := make(map[string]int, len(a))
+	for _, s := range a {
+		counts[s]++
+	}
+	for _, s := range b {
+		counts[s]--
+		if counts[s] < 0 {
+			return false
+		}
+	}
+	for _, n := range counts {
+		if n != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // EnsureStreams creates JetStream streams for the given subjects if they don't exist,
-// or updates them if they exist but are missing subjects.
+// or reconciles existing streams so their Subjects match the configured slice exactly
+// (adds missing patterns and prunes obsolete ones no longer listed in code).
 func EnsureStreams(js jetstream.JetStream, streams []StreamConfig) error {
 	ctx := context.Background()
 	for _, streamConfig := range streams {
 		stream, err := js.Stream(ctx, streamConfig.Name)
 		if err == nil && stream != nil {
-			// Stream already exists, check if subjects need updating
 			info := stream.CachedInfo()
-			if info != nil && info.Config.Subjects != nil {
-				existingSubjects := make(map[string]bool)
-				for _, subj := range info.Config.Subjects {
-					existingSubjects[subj] = true
-				}
-
-				// Check if all new subjects are already in the stream
-				needsUpdate := false
-				for _, newSubj := range streamConfig.Subjects {
-					if !existingSubjects[newSubj] {
-						needsUpdate = true
-						break
-					}
-				}
-
-				if needsUpdate {
-					// Merge existing and new subjects
-					allSubjects := make(map[string]bool)
-					for _, subj := range info.Config.Subjects {
-						allSubjects[subj] = true
-					}
-					for _, newSubj := range streamConfig.Subjects {
-						allSubjects[newSubj] = true
-					}
-
-					// Convert back to slice
-					mergedSubjects := make([]string, 0, len(allSubjects))
-					for subj := range allSubjects {
-						mergedSubjects = append(mergedSubjects, subj)
-					}
-
-					// Update stream with merged subjects
-					updateCfg := jetstream.StreamConfig{
-						Name:      streamConfig.Name,
-						Subjects:  mergedSubjects,
-						Retention: info.Config.Retention,
-						Storage:   info.Config.Storage,
-						MaxAge:    streamConfig.MaxAge,
-					}
-
-					_, err = js.UpdateStream(ctx, updateCfg)
-					if err != nil {
-						logs.WarnCtx(ctx, "failed to update stream subjects", "stream", streamConfig.Name, "error", err)
-						// Continue - stream exists, just might be missing some subjects
-					} else {
-						logs.DebugCtx(ctx, "updated JetStream stream subjects", "name", streamConfig.Name, "subjects", mergedSubjects)
-					}
-				} else {
-					logs.DebugCtx(ctx, "stream already exists with all subjects", "name", streamConfig.Name)
-				}
+			if info == nil {
+				continue
 			}
+
+			existing := info.Config.Subjects
+			desired := streamConfig.Subjects
+			if subjectsAsSetEqual(existing, desired) {
+				logs.DebugCtx(ctx, "JetStream stream subjects already match config", "name", streamConfig.Name)
+				continue
+			}
+
+			// Preserve stream limits/placement/etc.; only swap subject bindings (and MaxAge when set).
+			updateCfg := info.Config
+			updateCfg.Subjects = append([]string(nil), desired...)
+			if streamConfig.MaxAge > 0 {
+				updateCfg.MaxAge = streamConfig.MaxAge
+			}
+
+			_, err = js.UpdateStream(ctx, updateCfg)
+			if err != nil {
+				logs.WarnCtx(ctx, "failed to reconcile JetStream stream subjects (prune or add failed); stale consumers may block subject removal — delete obsolete durables if needed",
+					"stream", streamConfig.Name, "from", existing, "to", desired, "error", err)
+				continue
+			}
+			logs.InfoCtx(ctx, "reconciled JetStream stream subjects to match code config",
+				"name", streamConfig.Name, "from", existing, "to", desired)
 			continue
 		}
 
@@ -128,7 +128,6 @@ func EnsureSchedulerStream(js jetstream.JetStream) error {
 
 // EnsureDocUpdateStream ensures the document update stream exists with its configured subjects.
 // This is a convenience function that automatically uses DocUpdateStreamSubjects.
-// The stream accepts all subjects matching "doc.update.>" and "doc.subscribe.>" - consumers filter to specific patterns.
 func EnsureDocUpdateStream(js jetstream.JetStream) error {
 	streamConfigs := []StreamConfig{
 		{

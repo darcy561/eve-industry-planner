@@ -6,11 +6,10 @@ import Autocomplete, {
 import TextField from "@mui/material/TextField";
 import { useTheme } from "@mui/material";
 import { getAvailableBlueprintByBlueprintID } from "../../Functions/Helper/getAvailableBlueprints";
-import { useCachedData } from "../../Hooks/useCachedData";
+import { useCachedData } from "../../Hooks/App/useCachedData";
 import { CACHED_DATA_FILES } from "../../Context/defaultValues";
 import useUsersStore from "../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
-import { useQueryEnabled } from "../../Hooks/useQueryEnabled";
 import { useGetAllCharacterBlueprints } from "../../Hooks/EveEsi/Character/useGetAllCharacterBlueprints";
 import { useGetAllCorporationBlueprints } from "../../Hooks/EveEsi/Corporation/useGetAllCorporationBlueprints";
 import PanelFallBack from "../Paper/panelStates";
@@ -107,6 +106,9 @@ function RecipeSearchAutocomplete({
   esiError,
   isListFiltered,
 }) {
+  const skipMissingBpSetting = useUsersStore(
+    (state) => state.applicationSettings.enableSkipMissingBlueprints
+  );
   const [selectedValue, setSelectedValue] = useState(null);
   const [inputValue, setInputValue] = useState("");
   const theme = useTheme();
@@ -151,6 +153,7 @@ function RecipeSearchAutocomplete({
 
   return (
     <Autocomplete
+      key={`recipe-search-${skipMissingBpSetting}-${isListFiltered}`}
       fullWidth
       id="Recipe Search"
       value={selectedValue}
@@ -198,11 +201,17 @@ function RecipeSearchAutocomplete({
   );
 }
 
-function VirtualisedRecipeSearchWithEsiFiltering({
+/**
+ * Only mounted when blueprint filtering is required — subscribes to ESI blueprint queries.
+ * When "ignore items without blueprints" is off, this tree is not mounted so blueprint refetches
+ * do not drive loading spinners or extra work.
+ */
+function RecipeSearchWithBlueprintQueries({
   onSelect,
   itemList,
   isLoadingItemList,
   itemListError,
+  ignoreSelectionOverides,
 }) {
   const queryClient = useQueryClient();
   const {
@@ -217,10 +226,20 @@ function VirtualisedRecipeSearchWithEsiFiltering({
   const listToDisplay = useMemo(() => {
     if (isLoadingItemList) return [];
     if (itemListError) return [];
-
+    if (ignoreSelectionOverides) return itemList;
     const idSet = getAvailableBlueprintByBlueprintID(queryClient);
     return itemList.filter(({ blueprintID }) => idSet.has(blueprintID));
-  }, [itemList, isLoadingItemList, itemListError, queryClient]);
+  }, [
+    itemList,
+    isLoadingItemList,
+    itemListError,
+    ignoreSelectionOverides,
+    queryClient,
+  ]);
+
+  const esiLoading =
+    isLoadingCharacterBlueprints || isLoadingCorporationBlueprints;
+  const esiError = isErrorCharacterBlueprints || isErrorCorporationBlueprints;
 
   return (
     <RecipeSearchAutocomplete
@@ -228,10 +247,8 @@ function VirtualisedRecipeSearchWithEsiFiltering({
       listToDisplay={listToDisplay}
       isLoadingItemList={isLoadingItemList}
       itemListError={itemListError}
-      esiLoading={
-        isLoadingCharacterBlueprints || isLoadingCorporationBlueprints
-      }
-      esiError={isErrorCharacterBlueprints || isErrorCorporationBlueprints}
+      esiLoading={esiLoading}
+      esiError={esiError}
       isListFiltered
     />
   );
@@ -260,7 +277,9 @@ function VirtualisedRecipeSearch({
     (state) => state.applicationSettings.enableSkipMissingBlueprints
   );
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
-  const queryEnabled = useQueryEnabled();
+  const queryEnabled = useUsersStore(
+    (state) => state.account.isLoggedIn && state.worldData.eveServerStatus
+  );
 
   const {
     data: itemList,
@@ -268,39 +287,40 @@ function VirtualisedRecipeSearch({
     error: itemListError,
   } = useCachedData(CACHED_DATA_FILES.SEARCH_INDEX);
 
-  const useEsiBlueprintFilter =
+  const shouldApplyBlueprintFilter =
     !ignoreSelectionOverides &&
     ignoreItemsWithoutBlueprints &&
     isLoggedIn &&
     queryEnabled;
 
-  const listToDisplay = useMemo(() => {
+  const listToDisplayUnfiltered = useMemo(() => {
     if (isLoadingItemList) return [];
     if (itemListError) return [];
     if (ignoreSelectionOverides) return itemList;
     return itemList;
   }, [itemList, isLoadingItemList, itemListError, ignoreSelectionOverides]);
 
-  if (useEsiBlueprintFilter) {
+  if (!shouldApplyBlueprintFilter) {
     return (
-      <VirtualisedRecipeSearchWithEsiFiltering
+      <RecipeSearchAutocomplete
         onSelect={onSelect}
-        itemList={itemList}
+        listToDisplay={listToDisplayUnfiltered}
         isLoadingItemList={isLoadingItemList}
         itemListError={itemListError}
+        esiLoading={false}
+        esiError={false}
+        isListFiltered={false}
       />
     );
   }
 
   return (
-    <RecipeSearchAutocomplete
+    <RecipeSearchWithBlueprintQueries
       onSelect={onSelect}
-      listToDisplay={listToDisplay}
+      itemList={itemList}
       isLoadingItemList={isLoadingItemList}
       itemListError={itemListError}
-      esiLoading={false}
-      esiError={false}
-      isListFiltered={false}
+      ignoreSelectionOverides={ignoreSelectionOverides}
     />
   );
 }

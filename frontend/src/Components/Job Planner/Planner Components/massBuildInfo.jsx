@@ -12,7 +12,7 @@ export function MassBuildFeedback() {
     open: false,
     currentJob: 0,
     totalJob: 0,
-    totalPrice: 0,
+    totalItems: 0,
   });
 
   useEffect(() => {
@@ -110,7 +110,7 @@ export function MassBuildFeedback() {
                       letterSpacing: '0.5px'
                     }}
                   >
-                    Calculating Costs for {feedbackData.totalPrice} Materials
+                    Calculating Costs for {feedbackData.totalItems} Materials
                   </Typography>
                 )}
               </Fade>

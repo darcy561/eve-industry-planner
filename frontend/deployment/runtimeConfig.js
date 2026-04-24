@@ -11,13 +11,7 @@ export function generateRuntimeConfig(distDir) {
     const configContent = `// Runtime configuration - injected at container startup
 window.env = {
   ENVIRONMENT: "${escapeJsString(process.env.ENVIRONMENT || "production")}",
-  FIREBASE_API_KEY: "${escapeJsString(process.env.FIREBASE_API_KEY || "")}",
-  FIREBASE_AUTH_DOMAIN: "${escapeJsString(process.env.FIREBASE_AUTH_DOMAIN || "")}",
-  FIREBASE_DATABASE_URL: "${escapeJsString(process.env.FIREBASE_DATABASE_URL || "")}",
-  FIREBASE_PROJECT_ID: "${escapeJsString(process.env.FIREBASE_PROJECT_ID || "")}",
-  FIREBASE_APP_ID: "${escapeJsString(process.env.FIREBASE_APP_ID || "")}",
-  RECAPTCHA_KEY: "${escapeJsString(process.env.RECAPTCHA_KEY || "")}",
-  GA4_MEASUREMENT_ID: "${escapeJsString(process.env.GA4_MEASUREMENT_ID || process.env.FIREBASE_MEASUREMENT_ID || "")}",
+  GA4_MEASUREMENT_ID: "${escapeJsString(process.env.GA4_MEASUREMENT_ID || "")}",
   EVE_CLIENT_ID: "${escapeJsString(process.env.EVE_CLIENT_ID || "")}",
   EVE_CALLBACK_URL: "${escapeJsString(process.env.EVE_CALLBACK_URL || "")}",
   EVE_SCOPE: "${escapeJsString(process.env.EVE_SCOPE || "")}"

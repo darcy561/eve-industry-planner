@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/websocket/server/config"
 
 	"github.com/gorilla/websocket"
 )
@@ -21,17 +22,17 @@ func (s *Server) writer(c *Client) {
 		}
 	}()
 
-	logs.InfoCtx(ctx, "websocket writer goroutine started",
+	logs.DebugCtx(ctx, "websocket writer goroutine started",
 		"client_id", c.id,
 		"account_id", c.AccountID,
-		"ping_period", pingPeriod)
+		"ping_period", config.PingPeriod)
 
 	// Create a ticker for sending pings
-	pingTicker := time.NewTicker(pingPeriod)
+	pingTicker := time.NewTicker(config.PingPeriod)
 	defer func() {
 		pingTicker.Stop()
 		c.conn.Close()
-		logs.InfoCtx(ctx, "websocket writer goroutine exited",
+		logs.DebugCtx(ctx, "websocket writer goroutine exited",
 			"client_id", c.id,
 			"account_id", c.AccountID)
 	}()
@@ -39,7 +40,7 @@ func (s *Server) writer(c *Client) {
 	for {
 		select {
 		case msg, ok := <-c.Send:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			c.conn.SetWriteDeadline(time.Now().Add(config.WriteWait))
 			if !ok {
 				// Channel closed - this is the signal to exit
 				// Try to send close message (best effort, may fail if connection already closed)
@@ -49,7 +50,7 @@ func (s *Server) writer(c *Client) {
 
 			// Log pong messages being written
 			if string(msg) == "pong" {
-				logs.InfoCtx(ctx, "websocket writer: writing pong message",
+				logs.DebugCtx(ctx, "websocket writer: writing pong message",
 					"client_id", c.id,
 					"account_id", c.AccountID)
 			}
@@ -63,7 +64,7 @@ func (s *Server) writer(c *Client) {
 			} else {
 				// Log successful pong writes
 				if string(msg) == "pong" {
-					logs.InfoCtx(ctx, "websocket writer: pong message written successfully",
+					logs.DebugCtx(ctx, "websocket writer: pong written",
 						"client_id", c.id,
 						"account_id", c.AccountID)
 				}
@@ -71,12 +72,12 @@ func (s *Server) writer(c *Client) {
 
 		case <-pingTicker.C:
 			// Send ping to client
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			c.conn.SetWriteDeadline(time.Now().Add(config.WriteWait))
 			// Log heartbeat (ping sent)
-			logs.InfoCtx(ctx, "websocket heartbeat: ping sent",
+			logs.DebugCtx(ctx, "websocket heartbeat: ping sent",
 				"client_id", c.id,
 				"account_id", c.AccountID,
-				"ping_period", pingPeriod)
+				"ping_period", config.PingPeriod)
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				// Check if error is due to connection already closed (expected when client disconnects)
 				errStr := err.Error()

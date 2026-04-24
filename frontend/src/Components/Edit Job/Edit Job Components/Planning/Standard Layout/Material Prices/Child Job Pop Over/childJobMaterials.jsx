@@ -1,6 +1,5 @@
 import { Typography, Grid } from "@mui/material";
-
-import { useMaterialCostCalculations } from "../../../../../../../Hooks/GroupHooks/useMaterialCostCalculations";
+import { calculateMaterialCostFromChildJobs } from "../../../../../../../Functions/Groups/materialCostFromChildJobs.js";
 import { SMALL_TEXT_FORMAT } from "../../../../../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../../../../../Functions/Helper/numberParser";
 
@@ -12,8 +11,6 @@ export function ChildJobMaterials_ChildJobPopoverFrame({
   marketSelect,
   listingSelect,
 }) {
-  const { calculateMaterialCostFromChildJobs } = useMaterialCostCalculations();
-
   return childJobObjects[jobDisplay].build.materials.map((material) => {
     const childJobs =
       childJobObjects[jobDisplay].build.childJobs[material.typeID];

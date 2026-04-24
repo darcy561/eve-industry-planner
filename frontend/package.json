@@ -1,6 +1,6 @@
 {
   "name": "eve-industry-planner-react",
-  "version": "0.8.11",
+  "version": "0.8.10",
   "private": true,
   "type": "module",
   "dependencies": {
@@ -22,7 +22,6 @@
     "date-fns": "^4.1.0",
     "dompurify": "^3.2.7",
     "eventemitter3": "^5.0.1",
-    "firebase": "^12.2.1",
     "jose": "^6.1.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
@@ -43,7 +42,6 @@
     "@testing-library/user-event": "^14.6.1",
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/coverage-v8": "^4.0.4",
-    "firebase-tools": "^15.0.0",
     "jsdom": "^29.0.2",
     "rollup-plugin-visualizer": "^7.0.1",
     "vite": "^8.0.0",
@@ -54,8 +52,6 @@
     "build": "vite build",
     "build:analyze": "ANALYZE=1 vite build",
     "build-dev": "vite build --mode dev",
-    "deploy-hosting": "firebase deploy --only hosting",
-    "deploy-function": "firebase deploy --only functions",
     "test": "vitest",
     "coverage": "vitest run --coverage"
   },

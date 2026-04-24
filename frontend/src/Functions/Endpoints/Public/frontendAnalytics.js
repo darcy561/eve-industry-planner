@@ -1,17 +1,27 @@
 import { fetchWithPublicHeaders } from "./applyPublicHeaders.js";
 import {
+  MAX_FRONTEND_ANALYTICS_BATCH_EVENTS,
   MAX_FRONTEND_ANALYTICS_BY_TYPE_KEYS,
   MAX_FRONTEND_ANALYTICS_EVENT_COUNT,
 } from "./apiLimits.js";
 import useUserStore from "../../../Zustand/usersStore";
 
-/** Path for POST body `{ event, count? }` — server allowlist and OTel metrics. */
-export const FRONTEND_ANALYTICS_EVENT_URL = "/api/v1/analytics/event";
+/** Batched analytics only; server no longer exposes a single-event route. */
+export const FRONTEND_ANALYTICS_EVENTS_BATCH_URL = "/api/v1/analytics/events";
 
 const NEW_JOB_EVENT = "new_job";
 
 /** Matches `MaxFrontendJobCreatesPerType` in services/shared/telemetry/apimetrics/frontend_events.go */
 const MAX_JOBS_PER_TYPE_IN_PAYLOAD = 100000;
+
+/** Debounce after last enqueue before flushing to the API. */
+const FLUSH_DEBOUNCE_MS = 2500;
+
+/** Force a flush if the oldest queued item has waited this long (background tabs). */
+const FLUSH_MAX_WAIT_MS = 12000;
+
+/** Approximate queue weight (simple events + new_job type keys) to flush without waiting full debounce. */
+const FLUSH_IMMEDIATE_WEIGHT = 48;
 
 /**
  * @param {Record<string, number> | undefined} byType
@@ -43,6 +53,7 @@ function sanitizeByTypeMap(byType) {
 
 /**
  * @param {Record<string, number>} obj
+ * @param {number} chunkSize
  * @returns {Record<string, number>[]}
  */
 function chunkByTypeObject(obj, chunkSize) {
@@ -54,43 +65,248 @@ function chunkByTypeObject(obj, chunkSize) {
   return chunks;
 }
 
-async function postAnalyticsBody(body) {
+function getAuthHeadersBase() {
+  const options = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  };
   let serverToken = null;
   try {
     serverToken = useUserStore.getState().account.actions.getServerAccessToken();
   } catch {
-    // logged out or store unavailable
+    /* logged out */
   }
-
-  const options = {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  };
   if (serverToken) {
     options.headers.Authorization = `Bearer ${serverToken}`;
   }
+  return options;
+}
 
+/**
+ * @param {unknown} body
+ * @param {{ keepalive?: boolean, requestName: string }} opts - `keepalive` and default retries can both be set; each retry issues a new fetch with the same options.
+ */
+async function postAnalyticsBatchRequest(body, opts) {
+  const base = getAuthHeadersBase();
   const response = await fetchWithPublicHeaders(
-    FRONTEND_ANALYTICS_EVENT_URL,
-    options,
+    FRONTEND_ANALYTICS_EVENTS_BATCH_URL,
     {
-      requestName: "submitFrontendAnalyticsEvent",
+      ...base,
+      body: JSON.stringify(body),
+      keepalive: !!opts.keepalive,
+    },
+    {
+      requestName: opts.requestName,
     }
   );
   return response.ok;
 }
 
 /**
- * Submits one product event for server-side OTel metrics (no per-user payload in the body).
- * Uses public headers; optional Bearer JWT when logged in (audience label only on server).
- *
- * Retries: enabled via default `withRequestRetries` policy in `fetchWithPublicHeaders`.
+ * Best-effort flush for page lifecycle: `keepalive: true` so the browser may still send
+ * the request as the page goes away, plus default public-fetch retries (408/429/5xx) on
+ * each attempt. Fire-and-forget — unload may end before all retries finish.
+ * @param {unknown} body
+ */
+function postAnalyticsBatchRequestSync(body) {
+  const base = getAuthHeadersBase();
+  try {
+    void fetchWithPublicHeaders(
+      FRONTEND_ANALYTICS_EVENTS_BATCH_URL,
+      {
+        ...base,
+        body: JSON.stringify(body),
+        keepalive: true,
+      },
+      { requestName: "submitFrontendAnalyticsBatchUnload" }
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+/** @typedef {{ simple: Map<string, number>, newJobByType: Record<string, number> | null }} PendingState */
+
+/** @type {PendingState} */
+let pending = { simple: new Map(), newJobByType: null };
+
+/** @type {ReturnType<typeof setTimeout> | null} */
+let flushTimer = null;
+
+/** @type {number | null} */
+let queueSince = null;
+
+/** @type {Promise<void> | null} */
+let flushChain = Promise.resolve();
+
+function newEmptyPending() {
+  return { simple: new Map(), newJobByType: null };
+}
+
+function swapPending() {
+  const cur = pending;
+  pending = newEmptyPending();
+  queueSince = null;
+  if (flushTimer != null) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+  return cur;
+}
+
+function mergeIntoPending(eventKey, count, options) {
+  const trimmed = eventKey.trim();
+  if (trimmed === NEW_JOB_EVENT) {
+    const byType = sanitizeByTypeMap(options.byType);
+    if (!byType) {
+      return false;
+    }
+    if (!pending.newJobByType) {
+      pending.newJobByType = {};
+    }
+    const acc = pending.newJobByType;
+    for (const [k, v] of Object.entries(byType)) {
+      acc[k] = Math.min(
+        MAX_JOBS_PER_TYPE_IN_PAYLOAD,
+        (acc[k] || 0) + Math.floor(v)
+      );
+    }
+    return true;
+  }
+
+  const n = Math.min(
+    MAX_FRONTEND_ANALYTICS_EVENT_COUNT,
+    Math.max(1, Math.floor(Number(count)) || 1)
+  );
+  pending.simple.set(
+    trimmed,
+    Math.min(
+      MAX_FRONTEND_ANALYTICS_EVENT_COUNT,
+      (pending.simple.get(trimmed) || 0) + n
+    )
+  );
+  return true;
+}
+
+function approximateQueueWeight() {
+  const njKeys = pending.newJobByType
+    ? Object.keys(pending.newJobByType).length
+    : 0;
+  return pending.simple.size + njKeys;
+}
+
+/**
+ * @param {PendingState} merged
+ * @returns {object[]}
+ */
+function buildBatchBodies(merged) {
+  /** @type {object[]} */
+  const events = [];
+  for (const [event, count] of merged.simple) {
+    const o = { event };
+    if (count !== 1) {
+      o.count = count;
+    }
+    events.push(o);
+  }
+  if (merged.newJobByType && Object.keys(merged.newJobByType).length > 0) {
+    const chunks = chunkByTypeObject(
+      merged.newJobByType,
+      MAX_FRONTEND_ANALYTICS_BY_TYPE_KEYS
+    );
+    for (const chunk of chunks) {
+      events.push({ event: NEW_JOB_EVENT, by_type: chunk });
+    }
+  }
+  /** @type {object[]} */
+  const bodies = [];
+  for (let i = 0; i < events.length; i += MAX_FRONTEND_ANALYTICS_BATCH_EVENTS) {
+    bodies.push({
+      events: events.slice(i, i + MAX_FRONTEND_ANALYTICS_BATCH_EVENTS),
+    });
+  }
+  return bodies;
+}
+
+async function flushMergedState(merged) {
+  const bodies = buildBatchBodies(merged);
+  let ok = true;
+  for (const body of bodies) {
+    try {
+      ok = ok && (await postAnalyticsBatchRequest(body, { requestName: "submitFrontendAnalyticsBatch" }));
+    } catch {
+      ok = false;
+    }
+  }
+  return ok;
+}
+
+function scheduleFlush() {
+  if (queueSince == null) {
+    queueSince = Date.now();
+  }
+  if (flushTimer != null) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+
+  const waited = Date.now() - queueSince;
+  const maxWaitElapsed = waited >= FLUSH_MAX_WAIT_MS;
+  const heavy = approximateQueueWeight() >= FLUSH_IMMEDIATE_WEIGHT;
+
+  if (maxWaitElapsed || heavy) {
+    flushChain = flushChain.then(() => runFlush().catch(() => {}));
+    return;
+  }
+
+  flushTimer = window.setTimeout(() => {
+    flushTimer = null;
+    queueSince = null;
+    flushChain = flushChain.then(() => runFlush().catch(() => {}));
+  }, FLUSH_DEBOUNCE_MS);
+}
+
+async function runFlush() {
+  const merged = swapPending();
+  if (
+    merged.simple.size === 0 &&
+    (!merged.newJobByType || Object.keys(merged.newJobByType).length === 0)
+  ) {
+    return;
+  }
+  await flushMergedState(merged);
+}
+
+/**
+ * Drains the queue synchronously (pagehide). Best-effort; drops on failure.
+ */
+export function flushFrontendAnalyticsQueueForUnload() {
+  const merged = swapPending();
+  if (
+    merged.simple.size === 0 &&
+    (!merged.newJobByType || Object.keys(merged.newJobByType).length === 0)
+  ) {
+    return;
+  }
+  const bodies = buildBatchBodies(merged);
+  for (const body of bodies) {
+    postAnalyticsBatchRequestSync(body);
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", () => {
+    flushFrontendAnalyticsQueueForUnload();
+  });
+}
+
+/**
+ * Submits one product event for server-side OTel metrics (debounced + batched with other events).
  *
  * @param {string} eventKey - Allowlisted snake_case event name
- * @param {number} [count=1] - Metric increment, clamped to 1..MAX_FRONTEND_ANALYTICS_EVENT_COUNT (ignored for `new_job`)
- * @param {{ byType?: Record<string, number> }} [options] - For `new_job` only: `{ byType: { "1206": 3 } }` (string keys = type IDs)
- * @returns {Promise<boolean>} true if every request completed with a successful HTTP status
+ * @param {number} [count=1] - Metric increment, clamped (ignored for `new_job`)
+ * @param {{ byType?: Record<string, number> }} [options] - For `new_job` only
+ * @returns {Promise<boolean>} true if accepted into the outbound queue (or flushed for sync path); false if rejected before queue (e.g. bad new_job payload)
  */
 export async function submitFrontendAnalyticsEvent(
   eventKey,
@@ -108,29 +324,12 @@ export async function submitFrontendAnalyticsEvent(
     if (!byType) {
       return false;
     }
-    const chunks = chunkByTypeObject(byType, MAX_FRONTEND_ANALYTICS_BY_TYPE_KEYS);
-    let ok = true;
-    for (const chunk of chunks) {
-      try {
-        ok = ok && (await postAnalyticsBody({ event: trimmed, by_type: chunk }));
-      } catch {
-        ok = false;
-      }
-    }
-    return ok;
   }
 
-  const body = { event: trimmed };
-  if (typeof count === "number" && Number.isFinite(count) && count !== 1) {
-    body.count = Math.min(
-      MAX_FRONTEND_ANALYTICS_EVENT_COUNT,
-      Math.max(1, Math.floor(count))
-    );
-  }
-
-  try {
-    return await postAnalyticsBody(body);
-  } catch {
+  if (!mergeIntoPending(trimmed, count, options)) {
     return false;
   }
+
+  scheduleFlush();
+  return true;
 }

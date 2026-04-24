@@ -8,8 +8,8 @@ import (
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
 	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
@@ -66,6 +66,7 @@ func PutJobsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 
 	database := clients.Mongo.Database(mongocore.DatabaseName)
 	collection := database.Collection(mongocore.CollectionJobs)
+	sessionID, _ := auth.ExtractSessionID(r)
 
 	now := time.Now()
 	var bulkOps []mongo.WriteModel
@@ -82,18 +83,21 @@ func PutJobsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		job.MetaData.LastModified = now
 		job.MetaData.LastUpdatedBy = accountID
 		job.MetaData.AccountID = accountID
+		if sessionID != "" {
+			job.MetaData.SessionID = sessionID
+		}
 
 		bulkOps = append(bulkOps, mongo.NewUpdateOneModel().
 			SetFilter(bson.M{"_id": job.JobID, "_meta.accountID": accountID}).
 			SetUpdate(bson.M{
 				"$set": job,
 				"$unset": bson.M{
-					"accountID":        "",
-					"deleted":          "",
-					"deletedTimeStamp": "",
-					"archived":         "",
-					"archiveTimeStamp": "",
-					"archiveProcessed": "",
+					"accountID":              "",
+					"deleted":                "",
+					"deletedTimeStamp":       "",
+					"archived":               "",
+					"archiveTimeStamp":       "",
+					"archiveProcessed":       "",
 					"_meta.deleted":          "",
 					"_meta.deletedTimeStamp": "",
 				},
@@ -126,26 +130,6 @@ func PutJobsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	}
 
 	savedCount = int(result.UpsertedCount + result.ModifiedCount)
-
-	// Handle autosubscription - publish subscription request to NATS
-	if r.Header.Get("AutoSubscribe") == "true" {
-		if clients.JetStream != nil {
-			// Collect all jobIDs from the batch
-			jobIDs := make([]string, 0, len(reqBody.Jobs))
-			for _, job := range reqBody.Jobs {
-				if job.JobID != "" {
-					jobIDs = append(jobIDs, job.JobID)
-				}
-			}
-			if len(jobIDs) > 0 {
-				if err := helper.PublishSubscriptionRequest(ctx, clients.JetStream, accountID, mongocore.CollectionJobs, jobIDs); err != nil {
-					logs.WarnCtx(ctx, "failed to publish subscription request", "account_id", accountID, "error", err)
-				}
-			}
-		} else {
-			logs.WarnCtx(ctx, "JetStream not available for autosubscription", "account_id", accountID)
-		}
-	}
 
 	w.WriteHeader(http.StatusNoContent)
 

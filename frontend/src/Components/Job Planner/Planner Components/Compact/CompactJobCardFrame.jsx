@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import {
   plannerDragPassThroughSx,
   usePlannerJobCardDrag,
-} from "../../../../Hooks/usePlannerCardDrag";
+} from "../../Hooks/useDnD";
 import { jobTypes, STANDARD_TEXT_FORMAT } from "../../../../Context/defaultValues";
 import InfoIcon from "@mui/icons-material/Info";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -24,9 +24,14 @@ import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultip
 import { useMediaQuery } from "@mui/material";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { getJobTypeAccentColor } from "../../../../Functions/Helper/jobTypeDividerColor";
+import { selectDocumentLockReadOnly } from "../../../../Functions/DocumentLock/documentLockSelectors.js";
+import { USER_JOBS_COLLECTION } from "../../../../Functions/DocumentLock/documentLockCollections.js";
 
 export function CompactJobCardFrame({ job }) {
   const multiSelect = useUsersStore((state) => state.jobData.multiSelect);
+  const jobLockReadOnly = useUsersStore((s) =>
+    selectDocumentLockReadOnly(s, USER_JOBS_COLLECTION, job.jobID)
+  );
   const { addToMultiSelect, removeFromMultiSelect } =
     useUsersStore.getState().jobData.actions;
   const tooltipContent = getTooltipContent(job);
@@ -100,6 +105,7 @@ export function CompactJobCardFrame({ job }) {
             sm: 1
           }}>
           <Checkbox
+            disabled={jobLockReadOnly}
             checked={jobCardChecked}
             sx={{
               color: (theme) =>
@@ -157,6 +163,7 @@ export function CompactJobCardFrame({ job }) {
           }}>
           <Button
             color="primary"
+            disabled={jobLockReadOnly}
             onClick={() => {
               navigate({
                 to: '/editjob/$jobID',
@@ -164,7 +171,7 @@ export function CompactJobCardFrame({ job }) {
               });
             }}
           >
-            Edit
+            {jobLockReadOnly ? "Locked" : "Edit"}
           </Button>
         </Grid>
         {!isMobile && (
@@ -172,6 +179,7 @@ export function CompactJobCardFrame({ job }) {
             alignItems: "center"
           }}>
             <IconButton
+              disabled={jobLockReadOnly}
               sx={{
                 color: (theme) =>
                   theme.palette.mode === PRIMARY_THEME

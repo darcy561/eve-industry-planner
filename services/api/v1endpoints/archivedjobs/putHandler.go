@@ -63,6 +63,7 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	sessionID, _ := auth.ExtractSessionID(r)
 
 	var reqBody struct {
 		Jobs []models.Job `json:"jobs"`
@@ -120,6 +121,9 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	for i := range reqBody.Jobs {
 		job := &reqBody.Jobs[i]
 		job.MetaData.AccountID = accountID
+		if sessionID != "" {
+			job.MetaData.SessionID = sessionID
+		}
 		job.MetaData.LastModified = now
 		job.MetaData.LastUpdatedBy = accountID
 		if job.MetaData.CreatedAt.IsZero() {

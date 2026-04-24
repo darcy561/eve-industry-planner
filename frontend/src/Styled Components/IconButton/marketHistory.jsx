@@ -12,7 +12,7 @@ const { MARKET_OPTIONS, DEFAULT_REGION } = GLOBAL_CONFIG;
  * 
  * @param {Object} props - Component props
  * @param {number} props.itemTypeID - EVE Online type ID of the item to view price history for
- * @param {string|Object} [props.regionID] - Market region ID or object. If not provided, uses user's default market or DEFAULT_REGION.
+ * @param {string|Object} [props.regionID] - Market hub `id` from `MARKET_OPTIONS` or row object. If not provided, uses default market or `MARKET_OPTIONS` row where `regionID` is `DEFAULT_REGION` (The Forge).
  * @param {Object} [props.iconButtonStyle] - Custom styling for the icon button
  * @param {Object} [props.iconStyle] - Custom styling for the timeline icon
  * @param {string} [props.tooltipText="Item Price History"] - Text to display in the tooltip
@@ -40,7 +40,7 @@ function MarketHistoryIconButton({
         (i) =>
           i.id ===
           useUsersStore.getState().applicationSettings.defaultMarketLocation
-      ) ?? MARKET_OPTIONS.find((i) => i.id === DEFAULT_REGION);
+      ) ?? MARKET_OPTIONS.find((i) => i.regionID === DEFAULT_REGION);
   }
 
   if (typeof regionID === "string") {

@@ -69,7 +69,7 @@ func GetDeliveryCount(msg jetstream.Msg) uint64 {
 }
 
 // UnmarshalMessagePayload extracts and unmarshals the payload from a jetstream.Msg.
-// This function expects messages to be wrapped in a Message structure with type and data fields.
+// Messages use a [Message] envelope with type and data fields.
 // For task messages (Message.Type == "task"), the Message.Data contains a TaskMessage JSON,
 // which is then parsed to extract the actual payload from TaskMessage.Data.
 //
@@ -99,43 +99,41 @@ func parseTaskMessageData[T any](taskMsgData json.RawMessage, result *T) error {
 	return nil
 }
 
-func UnmarshalMessagePayload[T any](msg jetstream.Msg) (T, error) {
+// UnmarshalMessagePayloadBytes parses the same [Message] envelope as [UnmarshalMessagePayload] from raw bytes
+// (e.g. core NATS subscription callbacks).
+func UnmarshalMessagePayloadBytes[T any](data []byte) (T, error) {
 	var result T
-	data := msg.Data()
 	if len(data) == 0 {
 		return result, fmt.Errorf("message has no data")
 	}
 
-	// Determine expected type from the generic type if it implements MessageType
 	var expectedType string
 	if mt, ok := any(result).(MessageType); ok {
 		expectedType = mt.MessageType()
 	}
 
-	// Try to parse as Message wrapper first (with type and data fields)
 	var msgWrapper Message
 	if err := json.Unmarshal(data, &msgWrapper); err == nil && msgWrapper.Data != nil {
-		// If expectedType is determined, validate it matches
 		if expectedType != "" && msgWrapper.Type != expectedType {
 			return result, fmt.Errorf("message type mismatch: expected %s, got %s", expectedType, msgWrapper.Type)
 		}
-		// If Message.Type is "task", the Data field contains a TaskMessage JSON
-		// We need to parse it as TaskMessage first, then extract TaskMessage.Data
 		if msgWrapper.Type == MessageTypeTask {
 			if err := parseTaskMessageData(msgWrapper.Data, &result); err != nil {
 				return result, err
 			}
 			return result, nil
 		}
-		// For other message types, parse Message.Data directly as the target type
 		if err := json.Unmarshal(msgWrapper.Data, &result); err != nil {
 			return result, fmt.Errorf("failed to unmarshal message payload: %w", err)
 		}
 		return result, nil
 	}
 
-	// If we get here, the message doesn't match the expected Message wrapper format
 	return result, fmt.Errorf("message does not match expected Message wrapper format")
+}
+
+func UnmarshalMessagePayload[T any](msg jetstream.Msg) (T, error) {
+	return UnmarshalMessagePayloadBytes[T](msg.Data())
 }
 
 // GetMessageMetadata returns message metadata for logging purposes.

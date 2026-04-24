@@ -1,11 +1,18 @@
 import getCharacterFromRefreshToken from "../../Components/Auth/RefreshToken";
+import { canonicalCharacterHashKey } from "./characterHashCanonical.js";
 import { buildCorporationObjectFromUserObject } from "../Corporations/buildCorporationObject";
 import { emitUserDataUpdate } from "../../Events/loginEvents";
 import useUsersStore from "../../Zustand/usersStore";
 import getSystemIndexes from "../System Indexes/findSystemIndex";
 
-function getLocalStorageKey(characterHash) {
-    return `${characterHash} AdditionalAccounts`;
+export { canonicalCharacterHashKey };
+
+/**
+ * `localStorage` key for per-main-character additional-account refresh token JSON.
+ * @param {string} mainCharacterHash
+ */
+export function getLocalAdditionalAccountsStorageKey(mainCharacterHash) {
+    return `${mainCharacterHash} AdditionalAccounts`;
 }
 
 /**
@@ -42,6 +49,67 @@ export async function buildAccountDataFromRefreshToken(refreshToken) {
     }
 }
 
+/** @param {string[]} strings */
+function orderedUniqueStrings(strings) {
+    const seen = new Set();
+    const out = [];
+    for (const s of strings) {
+        if (seen.has(s)) continue;
+        seen.add(s);
+        out.push(s);
+    }
+    return out;
+}
+
+/**
+ * Groups refresh token rows by canonical CharacterHash (case-insensitive). Order is preserved;
+ * duplicate rToken strings for the same character are collapsed while keeping first-seen order.
+ *
+ * Map keys are canonical (`canonicalCharacterHashKey`). `representativeCharacterHash` is the
+ * first-seen raw hash string for persistence rows (Mongo/local).
+ *
+ * @param {{ CharacterHash: string, rToken: string }[]} tokens
+ * @returns {Map<string, { rTokens: string[], representativeCharacterHash: string }>}
+ */
+export function groupRefreshTokensByCharacterHash(tokens) {
+    const pending = new Map();
+    for (const t of tokens) {
+        if (!t?.CharacterHash || !t?.rToken) continue;
+        const key = canonicalCharacterHashKey(t.CharacterHash);
+        if (!key) continue;
+        if (!pending.has(key)) {
+            pending.set(key, {
+                rTokens: [],
+                representativeCharacterHash: t.CharacterHash,
+            });
+        }
+        pending.get(key).rTokens.push(t.rToken);
+    }
+    const result = new Map();
+    for (const [key, entry] of pending) {
+        result.set(key, {
+            rTokens: orderedUniqueStrings(entry.rTokens),
+            representativeCharacterHash: entry.representativeCharacterHash,
+        });
+    }
+    return result;
+}
+
+/**
+ * Tries refresh tokens in order until one successfully builds a Character (ESI refresh + data load).
+ *
+ * @param {string[]} rTokens
+ * @returns {Promise<import("../../Classes/character").default | null>}
+ */
+export async function buildAccountDataFromRefreshTokenCandidates(rTokens) {
+    if (!Array.isArray(rTokens) || rTokens.length === 0) return null;
+    for (const rToken of rTokens) {
+        const user = await buildAccountDataFromRefreshToken(rToken);
+        if (!(user instanceof Error)) return user;
+    }
+    return null;
+}
+
 export async function buildUsersFromRefreshTokens(userData) {
     const cloudAccountsActive =
         userData.settings?.userCloudAccounts ??
@@ -53,35 +121,49 @@ export async function buildUsersFromRefreshTokens(userData) {
         rToken: token.rToken,
     }));
     const newUsers = [];
-    const userPromises = [];
     try {
-        refreshTokens.push(...extractLocalRefreshTokens(userData))
+        refreshTokens.push(...extractLocalRefreshTokens(userData));
 
-        // Filter out duplicate CharacterHash values, keeping the first occurrence
-        const seenHashes = new Set();
-        const uniqueRefreshTokens = refreshTokens.filter((token) => {
-            if (seenHashes.has(token.CharacterHash)) {
-                return false;
-            }
-            seenHashes.add(token.CharacterHash);
-            return true;
-        });
+        const groups = groupRefreshTokensByCharacterHash(refreshTokens);
+        const existingCharacters = useUsersStore.getState().account.characters;
+        const existingHashes = new Set(
+            existingCharacters.map((c) =>
+                canonicalCharacterHashKey(c.CharacterHash)
+            )
+        );
 
-        for (let token of uniqueRefreshTokens) {
-            if (useUsersStore.getState().account.characters.some((i) => i.CharacterHash === token.CharacterHash)) continue;
-            userPromises.push(buildAccountDataFromRefreshToken(token.rToken));
+        const buildTasks = [];
+        for (const [canonicalHash, group] of groups) {
+            if (existingHashes.has(canonicalHash)) continue;
+            buildTasks.push(
+                buildAccountDataFromRefreshTokenCandidates(group.rTokens)
+            );
         }
 
-        const userResults = await Promise.all(userPromises);
+        const userResults = await Promise.all(buildTasks);
 
-        for (let user of userResults) {
-            if (user instanceof Error) continue;
+        const seenBuiltHashes = new Set();
+        for (const user of userResults) {
+            if (!user || user instanceof Error) continue;
+            const canon = canonicalCharacterHashKey(user.CharacterHash);
+            if (!canon || seenBuiltHashes.has(canon)) continue;
+            seenBuiltHashes.add(canon);
             newUsers.push(user);
         }
 
+        const canonicalRefreshTokens = [...groups.entries()].map(
+            ([, group]) => ({
+                CharacterHash: group.representativeCharacterHash,
+                rToken: group.rTokens[0] ?? "",
+            })
+        ).filter((row) => row.rToken);
+
         if (cloudAccountsActive) {
-            userData.refreshTokens = updateCloudRefreshTokens(uniqueRefreshTokens, newUsers);
-        } else {
+            userData.refreshTokens = updateCloudRefreshTokens(
+                canonicalRefreshTokens,
+                newUsers
+            );
+        } else if (newUsers.length > 0) {
             updateLocalRefreshTokens(newUsers);
         }
 
@@ -116,7 +198,7 @@ function extractLocalRefreshTokens(userSettings) {
         return [];
     }
 
-    const storageKey = getLocalStorageKey(characterHash);
+    const storageKey = getLocalAdditionalAccountsStorageKey(characterHash);
 
     try {
         const storedAccounts = localStorage.getItem(storageKey);
@@ -145,31 +227,36 @@ function extractLocalRefreshTokens(userSettings) {
  * @returns {Array} Filtered and updated array of refresh tokens
  */
 function updateCloudRefreshTokens(refreshTokens, newUsers) {
-    // Create a Map for O(1) token lookups by CharacterHash
     const tokenMap = new Map(
-        refreshTokens.map(token => [token.CharacterHash, token])
+        refreshTokens.map((token) => [
+            canonicalCharacterHashKey(token.CharacterHash),
+            token,
+        ])
     );
 
-    // Create a Set of valid CharacterHashes for efficient filtering
-    const validCharacterHashes = new Set(
+    const validCanonicalHashes = new Set(
         newUsers
-            .filter(character => !character.isMainCharacter)
-            .map(character => character.CharacterHash)
+            .filter((character) => !character.isMainCharacter)
+            .map((character) =>
+                canonicalCharacterHashKey(character.CharacterHash)
+            )
     );
 
-    // Update tokens with new refresh token values
     for (const character of newUsers) {
         if (character.isMainCharacter) continue;
 
-        const token = tokenMap.get(character.CharacterHash);
+        const token = tokenMap.get(
+            canonicalCharacterHashKey(character.CharacterHash)
+        );
         if (token && character.esiRefreshToken !== token.rToken) {
             token.rToken = character.esiRefreshToken;
         }
     }
 
-    // Filter to only include tokens for successfully built additional characters (not main)
-    return refreshTokens.filter(
-        token => validCharacterHashes.has(token.CharacterHash)
+    return refreshTokens.filter((token) =>
+        validCanonicalHashes.has(
+            canonicalCharacterHashKey(token.CharacterHash)
+        )
     );
 }
 
@@ -201,11 +288,42 @@ export function updateLocalRefreshTokens(newUsers) {
 
     try {
         localStorage.setItem(
-            getLocalStorageKey(primaryHash),
+            getLocalAdditionalAccountsStorageKey(primaryHash),
             JSON.stringify(tokenArray)
         );
     } catch (err) {
         console.error("Failed to save refresh tokens to localStorage:", err);
+    }
+}
+
+/**
+ * Persists linked alts to `${mainHash} AdditionalAccounts` from the current Zustand
+ * `account.characters` list. **No-ops** when the store has no non-main rows so we do
+ * not write `[]` while the list is still main-only (e.g. a users-doc reconcile or
+ * settings event before `runPostLoginAccountSync` has finished building alts).
+ */
+export function updateLocalRefreshTokensIfAccountHasAdditionalCharacters() {
+    const characters = useUsersStore.getState().account.characters;
+    if (!characters.some((c) => c && !c.isMainCharacter)) {
+        return;
+    }
+    updateLocalRefreshTokens(characters);
+}
+
+/**
+ * Removes `${mainCharacterHash} AdditionalAccounts` from localStorage (same key as
+ * Additional Accounts toggle when switching to cloud — avoids duplicate/stale local copies).
+ */
+export function clearLocalAdditionalAccountsStorage() {
+    if (typeof localStorage === "undefined") return;
+    const primaryHash = useUsersStore
+        .getState()
+        .account.actions.getMainCharacterHash();
+    if (!primaryHash) return;
+    try {
+        localStorage.removeItem(getLocalAdditionalAccountsStorageKey(primaryHash));
+    } catch (err) {
+        console.warn("Failed to clear additional accounts localStorage:", err);
     }
 }
 

@@ -1,6 +1,7 @@
 import uuid from "react-uuid";
 import DOMPurify from "dompurify";
 import getAllRelatedJobs from "../Functions/Helper/getAllRelatedJobs";
+import { getRealtimeClientID } from "../Realtime/wsClientIdentity.js";
 
 /**
  * Group class for organizing and managing EVE Online industry jobs.
@@ -67,79 +68,68 @@ class Group {
     this.groupName = data?.groupName || "Untitled Group";
     this.groupID = data?.groupID || `group-${uuid()}`;
     this.includedJobIDs = new Set(data?.includedJobIDs?.map(String) || []);
-    this.includedTypeIDs = new Set(data?.includedTypeIDs?.map(String) || []);
-    this.materialIDs = new Set(data?.materialIDs || []);
+    this.includedTypeIDs = this._newSet(data?.includedTypeIDs ?? [], this._convertToNumber);
+    this.materialIDs = this._newSet(data?.materialIDs ?? [], this._convertToNumber);
     this.outputJobCount = data?.outputJobCount || 0;
     this.areComplete = new Set(data?.areComplete?.map(String) || []);
     this.showComplete = data?.showComplete || true;
     this.groupStatus = data?.groupStatus || 0;
     this.groupType = data?.groupType || 1;
-    this.linkedJobIDs = new Set(data?.linkedJobIDs || []);
-    this.linkedOrderIDs = new Set(data?.linkedOrderIDs || []);
-    this.linkedTransIDs = new Set(data?.linkedTransIDs || []);
-
-    this.toDocument = this.toDocument.bind(this);
-
-    this._convertToNumber = this._convertToNumber.bind(this);
-    this._convertToString = this._convertToString.bind(this);
-    this._toSet = this._toSet.bind(this);
-    this._newSet = this._newSet.bind(this);
-    this._buildNewGroupData = this._buildNewGroupData.bind(this);
-
-    this.setGroupName = this.setGroupName.bind(this);
-    this.setGroupID = this.setGroupID.bind(this);
-    this.addIncludedJobIDs = this.addIncludedJobIDs.bind(this);
-    this.setIncludedJobIDs = this.setIncludedJobIDs.bind(this);
-    this.removeIncludedJobIDs = this.removeIncludedJobIDs.bind(this);
-    this.addIncludedTypeIDs = this.addIncludedTypeIDs.bind(this);
-    this.setIncludedTypeIDs = this.setIncludedTypeIDs.bind(this);
-    this.removeIncludedTypeIDs = this.removeIncludedTypeIDs.bind(this);
-    this.addMaterialIDs = this.addMaterialIDs.bind(this);
-    this.setMaterialIDs = this.setMaterialIDs.bind(this);
-    this.removeMaterialIDs = this.removeMaterialIDs.bind(this);
-    this.updateOutputJobCount = this.updateOutputJobCount.bind(this);
-    this.addOutputJobCount = this.addOutputJobCount.bind(this);
-    this.setAreComplete = this.setAreComplete.bind(this);
-    this.addAreComplete = this.addAreComplete.bind(this);
-    this.removeAreComplete = this.removeAreComplete.bind(this);
-    this.toggleShowComplete = this.toggleShowComplete.bind(this);
-    this.setGroupStatus = this.setGroupStatus.bind(this);
-    this.moveGroupStatusForward = this.moveGroupStatusForward.bind(this);
-    this.moveGroupStatusBackward = this.moveGroupStatusBackward.bind(this);
-    this.addLinkedOrderIDs = this.addLinkedOrderIDs.bind(this);
-    this.setLinkedOrderIDs = this.setLinkedOrderIDs.bind(this);
-    this.removeLinkedOrderIDs = this.removeLinkedOrderIDs.bind(this);
-    this.addLinkedJobIDs = this.addLinkedJobIDs.bind(this);
-    this.setLinkedJobIDs = this.setLinkedJobIDs.bind(this);
-    this.removeLinkedJobIDs = this.removeLinkedJobIDs.bind(this);
-    this.addLinkedTransIDs = this.addLinkedTransIDs.bind(this);
-    this.setLinkedTransIDs = this.setLinkedTransIDs.bind(this);
-    this.removeLinkedTransIDs = this.removeLinkedTransIDs.bind(this);
-    this.updateGroupData = this.updateGroupData.bind(this);
-    this.addJobsToGroup = this.addJobsToGroup.bind(this);
-    this.removeJobsFromGroup = this.removeJobsFromGroup.bind(this);
+    this.linkedJobIDs = this._newSet(data?.linkedJobIDs ?? [], this._convertToNumber);
+    this.linkedOrderIDs = this._newSet(data?.linkedOrderIDs ?? [], this._convertToNumber);
+    this.linkedTransIDs = this._newSet(data?.linkedTransIDs ?? [], this._convertToNumber);
+    const rawMeta = data?._meta;
+    this._meta =
+      rawMeta && typeof rawMeta === "object"
+        ? { ...rawMeta }
+        : {};
+    delete this._meta.buildVer;
   }
 
   /**
-   * Converts the group to a document object for storage.
-   * 
+   * Whether this group includes an output job for the given EVE type ID (number-normalized).
+   *
+   * @param {number|string} typeID
+   * @returns {boolean}
+   */
+  hasIncludedTypeId(typeID) {
+    const n = this._convertToNumber(typeID);
+    return n !== null && this.includedTypeIDs.has(n);
+  }
+
+  /**
+   * Converts the group to a document object for storage (`[]int` / `[]int64` JSON numbers).
+   *
    * @returns {Object} Document object ready for storage
    */
   toDocument() {
-    return {
+    const intArrayFromSet = (set) =>
+      [...set].filter((id) => Number.isFinite(Number(id)));
+    const doc = {
       groupName: this.groupName,
       groupID: this.groupID,
       includedJobIDs: [...this.includedJobIDs],
-      includedTypeIDs: [...this.includedTypeIDs],
+      includedTypeIDs: intArrayFromSet(this.includedTypeIDs),
+      materialIDs: intArrayFromSet(this.materialIDs),
       outputJobCount: this.outputJobCount,
       areComplete: [...this.areComplete],
       showComplete: this.showComplete,
       groupStatus: this.groupStatus,
       groupType: this.groupType,
-      linkedJobIDs: [...this.linkedJobIDs],
-      linkedOrderIDs: [...this.linkedOrderIDs],
-      linkedTransIDs: [...this.linkedTransIDs],
+      linkedJobIDs: intArrayFromSet(this.linkedJobIDs),
+      linkedOrderIDs: intArrayFromSet(this.linkedOrderIDs),
+      linkedTransIDs: intArrayFromSet(this.linkedTransIDs),
     };
+    const meta = { ...this._meta };
+    delete meta.buildVer;
+    const cid = getRealtimeClientID();
+    if (cid) {
+      meta.clientID = cid;
+    }
+    if (Object.keys(meta).length > 0) {
+      doc._meta = meta;
+    }
+    return doc;
   }
 
   /**
@@ -786,10 +776,10 @@ class Group {
     return outputJobs;
   }
 
-  async getJobIDsForOutputJob(outputJob) {
+  getJobIDsForOutputJob(outputJob) {
     if (!outputJob) return [];
 
-    return await getAllRelatedJobs(outputJob.jobID);
+    return getAllRelatedJobs(outputJob.jobID);
   }
 
 }

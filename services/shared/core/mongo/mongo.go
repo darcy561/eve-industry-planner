@@ -23,9 +23,13 @@ var (
 	// CollectionUsers is the name of the users collection
 	CollectionUsers = "users"
 
-	// CollectionJobs is the name of the live planner jobs collection.
+	// CollectionJobs is the name of the live planner jobs collection (legacy).
 	// Documents are scoped by Job.MetaData.AccountID (BSON _meta.accountID), not top-level accountID.
 	CollectionJobs = "jobs"
+
+	// CollectionUserJobDocuments is the canonical per-account live job documents collection (API + realtime).
+	// Same models.Job shape as CollectionJobs; _id is jobID string.
+	CollectionUserJobDocuments = "user_job_documents"
 
 	// CollectionArchivedJobs holds jobs imported from Firestore ArchivedJobs (distinct from live planner jobs).
 	// Ownership is keyed by Job.MetaData.AccountID (BSON _meta.accountID), not top-level accountID.
@@ -34,11 +38,18 @@ var (
 	// CollectionBuildStats holds per-account, per-type aggregated stats from processed archived jobs (was Firestore BuildStats).
 	CollectionBuildStats = "build_stats"
 
-	// CollectionGroups is the name of the groups collection
-	CollectionGroups = "groups"
+	// CollectionUserJobGroups is the per-account job groups collection (planner UI).
+	CollectionUserJobGroups = "user_job_groups"
+
+	// CollectionUserWatchlistDeprecated is the legacy Firestore-shaped watchlist (groups + items JSON blob per account).
+	CollectionUserWatchlistDeprecated = "user_watchlist_deprecated"
 
 	// CollectionApplicationSettings is the name of the application settings collection (per-account settings document)
 	CollectionApplicationSettings = "application_settings"
+
+	// CollectionAccountSync is a virtual collection name used only for NATS/WebSocket fan-in:
+	// one notification when either users or application_settings changes for an account.
+	CollectionAccountSync = "account_sync"
 
 	// CollectionBlueprints is the static SDE blueprint recipes collection.
 	CollectionBlueprints = "blueprints"
@@ -52,6 +63,16 @@ var ArchivedJobsUpsertUnset = bson.M{
 	"archiveProcessed": "",
 	"archived":         "",
 	"archiveTimeStamp": "",
+	"deleted":          "",
+	"deletedTimeStamp": "",
+}
+
+// UserJobDocumentsUpsertUnset clears legacy top-level keys on user_job_documents (same as PUT /api/v1/job-documents).
+var UserJobDocumentsUpsertUnset = bson.M{
+	"accountID":        "",
+	"archived":         "",
+	"archiveTimeStamp": "",
+	"archiveProcessed": "",
 	"deleted":          "",
 	"deletedTimeStamp": "",
 }

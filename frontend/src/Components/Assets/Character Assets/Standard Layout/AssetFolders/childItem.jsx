@@ -1,6 +1,6 @@
 import { Avatar, Box, Typography, useMediaQuery, Grid } from "@mui/material";
 
-import { useAssetHelperHooks } from "../../../../../Hooks/AssetHooks/useAssetHelper";
+import { findAssetImageURL } from "../../../../../Functions/Assets/assetHelpers";
 import { useTheme } from "@emotion/react";
 import GLOBAL_CONFIG from "../../../../../global-config-app";
 import { formatNumberForLocale } from "../../../../../Functions/Helper/numberParser";
@@ -15,7 +15,6 @@ export function AssetEntry_Child({
   index,
   fullItemList,
 }) {
-  const { findAssetImageURL } = useAssetHelperHooks();
   const theme = useTheme();
   const { PRIMARY_THEME, SECONDARY_THEME } = GLOBAL_CONFIG;
   const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("sm"));

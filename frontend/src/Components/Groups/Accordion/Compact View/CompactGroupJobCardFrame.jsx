@@ -3,7 +3,7 @@ import { JobCardUiSource } from "../../../../Context/DnDTypes";
 import {
   plannerDragPassThroughSx,
   usePlannerJobCardDrag,
-} from "../../../../Hooks/usePlannerCardDrag";
+} from "../../../Job Planner/Hooks/useDnD";
 import { jobTypes } from "../../../../Context/defaultValues";
 import DeleteIcon from "@mui/icons-material/Delete";
 import {
@@ -25,10 +25,19 @@ import getTooltipContent from "./jobCardTooltips";
 import useUsersStore from "../../../../Zustand/usersStore";
 import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
 import { getJobTypeAccentColor } from "../../../../Functions/Helper/jobTypeDividerColor";
+import { selectDocumentLockReadOnly } from "../../../../Functions/DocumentLock/documentLockSelectors.js";
+import { USER_JOBS_COLLECTION } from "../../../../Functions/DocumentLock/documentLockCollections.js";
 
-export function CompactGroupJobCardFrame({ job, highlightedItems }) {
+export function CompactGroupJobCardFrame({
+  job,
+  highlightedItems,
+  groupReadOnly = false,
+}) {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
   const { multiSelect } = useUsersStore((state) => state.jobData);
+  const jobLockReadOnly = useUsersStore((s) =>
+    selectDocumentLockReadOnly(s, USER_JOBS_COLLECTION, job.jobID)
+  );
   const { addToMultiSelect, removeFromMultiSelect } =
     useUsersStore.getState().jobData.actions;
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down("sm"));
@@ -115,6 +124,7 @@ export function CompactGroupJobCardFrame({ job, highlightedItems }) {
           }}
         >
           <Checkbox
+            disabled={jobLockReadOnly}
             sx={{
               color: (theme) =>
                 theme.palette.mode === PRIMARY_THEME
@@ -170,8 +180,12 @@ export function CompactGroupJobCardFrame({ job, highlightedItems }) {
             alignItems: "center",
             justifyContent: "center"
           }}>
-          <Button color="primary" onClick={onJobClick}>
-            Edit
+          <Button
+            color="primary"
+            disabled={jobLockReadOnly}
+            onClick={onJobClick}
+          >
+            {jobLockReadOnly ? "Locked" : "Edit"}
           </Button>
         </Grid>
         {!isMobile && (
@@ -179,6 +193,7 @@ export function CompactGroupJobCardFrame({ job, highlightedItems }) {
             alignItems: "center"
           }}>
             <IconButton
+              disabled={jobLockReadOnly || groupReadOnly}
               sx={{
                 color: (theme) =>
                   theme.palette.mode === PRIMARY_THEME

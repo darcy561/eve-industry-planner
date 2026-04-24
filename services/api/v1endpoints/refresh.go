@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper/auth"
-	"eve-industry-planner/api/migration"
 	"eve-industry-planner/shared/core/config"
+	"eve-industry-planner/shared/core/internaljwt"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
@@ -27,12 +27,10 @@ type RefreshRequest struct {
 
 // RefreshResponse represents the response sent to the client
 type RefreshResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresAt    int64  `json:"expires_at"` // Unix timestamp (seconds since epoch)
+	AccessToken         string                     `json:"access_token"`
+	RefreshToken        string                     `json:"refresh_token"`
+	ExpiresAt           int64                      `json:"expires_at"` // Unix timestamp (seconds since epoch)
 	FirstLogin          bool                       `json:"first_login,omitempty"`
-	FirebaseToken       string                     `json:"firebase_token,omitempty"`
-	FirebaseFirstLogin  bool                       `json:"firebase_first_login,omitempty"`
 	UserDocument        models.UserAccountDocument `json:"user_document,omitempty"`
 	ApplicationSettings models.ApplicationSettings `json:"application_settings,omitempty"`
 }
@@ -143,7 +141,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	}
 
 	// Load or get cached RSA private key for JWT signing
-	cachedKey, err := auth.GetOrLoadPrivateKey()
+	cachedKey, err := internaljwt.GetOrLoadPrivateKey()
 	if err != nil {
 		m.Errors.WithLabelValues("key_load_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to load RSA private key for JWT signing", "error", err, "account_id", tokenData.AccountID)
@@ -154,21 +152,6 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	// Always load corporations from Redis (keyed by AccountID)
 	// Corporations are stored by AccountID (aggregated from all characters)
 	corporations := auth.GetCorporations(ctx, clients.Redis, tokenData.AccountID)
-
-	// Generate new access token with stored user data and corporations
-	internalToken, _, err := auth.GenerateInternalJWT(
-		cachedKey.Key,
-		tokenData.CharacterHash,
-		cachedKey.Kid,
-		corporations,
-	)
-	if err != nil {
-		m.Errors.WithLabelValues("jwt_generation_error").Inc(ctx)
-		logs.ErrorCtx(ctx, "failed to generate internal JWT", "error", err,
-			"account_id", tokenData.AccountID, "character_hash", tokenData.CharacterHash)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
-		return
-	}
 
 	// Generate new refresh token (rotate refresh token for security)
 	newRefreshToken, err := auth.GenerateRefreshToken()
@@ -182,7 +165,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 
 	// Update token data with fresh corporations from Redis
 	updatedTokenData := *tokenData
-	updatedTokenData.Corporations = auth.CorporationIDs(corporations)
+	updatedTokenData.Corporations = internaljwt.CorporationIDs(corporations)
 	now := time.Now().UTC()
 	sessionFlow := "refresh"
 	startedSession := false
@@ -210,6 +193,24 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	updatedTokenData.SessionSeenAt = now
 	if appVersion != "" && appVersion != "unknown" {
 		updatedTokenData.AppVersion = appVersion
+	}
+
+	// Generate new access token with stored user data and corporations.
+	// SessionID is embedded in the claim and persists across normal refreshes.
+	internalToken, _, err := internaljwt.GenerateInternalJWT(
+		cachedKey.Key,
+		tokenData.CharacterHash,
+		cachedKey.Kid,
+		updatedTokenData.SessionID,
+		corporations,
+		nil,
+	)
+	if err != nil {
+		m.Errors.WithLabelValues("jwt_generation_error").Inc(ctx)
+		logs.ErrorCtx(ctx, "failed to generate internal JWT", "error", err,
+			"account_id", tokenData.AccountID, "character_hash", tokenData.CharacterHash)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		return
 	}
 
 	// Store new refresh token in Redis with updated user data
@@ -255,7 +256,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 
 	// Return new access token and new refresh token
 	// Calculate expiration timestamp using the same duration as token generation (Unix timestamp in seconds)
-	expiresAt := now.Add(auth.TokenExpirationDuration).Unix()
+	expiresAt := now.Add(internaljwt.TokenExpirationDuration).Unix()
 
 	response := RefreshResponse{
 		AccessToken:  internalToken,
@@ -263,13 +264,6 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		ExpiresAt:    expiresAt,
 	}
 	if touchLastLogin {
-		firebaseToken, firebaseFirstLogin, err := migration.GenerateFirebaseCustomToken(ctx, tokenData.AccountID)
-		if err != nil {
-			m.Errors.WithLabelValues("firebase_token_error").Inc(ctx)
-			logs.ErrorCtx(ctx, "failed to generate firebase custom token (login refresh)", "error", err, "account_id", tokenData.AccountID)
-			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
-			return
-		}
 		loginDocs, err := mongocore.ResolveUserDocumentsForLogin(ctx, clients.Mongo, tokenData.AccountID)
 		if err != nil {
 			m.Errors.WithLabelValues("mongo_error").Inc(ctx)
@@ -277,8 +271,6 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 			return
 		}
-		response.FirebaseToken = firebaseToken
-		response.FirebaseFirstLogin = firebaseFirstLogin
 		response.FirstLogin = loginDocs.FirstLogin
 		response.UserDocument = loginDocs.User
 		response.ApplicationSettings = loginDocs.Settings

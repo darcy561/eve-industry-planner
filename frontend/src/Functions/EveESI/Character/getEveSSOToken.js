@@ -1,5 +1,6 @@
 import { decodeJwt } from "jose";
 import Character from "../../../Classes/character";
+import { fetchWithPublicHeaders } from "../../Endpoints/Public/applyPublicHeaders.js";
 
 /**
  * Exchanges EVE SSO authorization code for access token and builds a {@link Character} instance.
@@ -23,16 +24,20 @@ async function getEveOauthToken(authCode, accountType = false) {
       throw new Error("Missing Auth Code");
     }
 
-    const response = await fetch("/api/v1/sso/exchange", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    const response = await fetchWithPublicHeaders(
+      "/api/v1/sso/exchange",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          auth_code: authCode,
+          account_type: accountType,
+        }),
       },
-      body: JSON.stringify({
-        auth_code: authCode,
-        account_type: accountType,
-      }),
-    });
+      { requestName: "exchangeEsiSsoCode" }
+    );
 
     // Handle client errors (4xx)
     if (response.status >= 400 && response.status < 500) {

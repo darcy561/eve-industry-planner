@@ -15,28 +15,17 @@ func (s *Server) Shutdown() {
 	// Signal shutdown to all coordinators
 	close(s.shutdownChan)
 
-	// Stop pools and get done channels
-	stopperIncoming := s.incomingPool.Stop()
-	stopperOutgoing := s.outgoingPool.Stop()
-
-	// Wait for pools to finish (with timeout)
+	stopperSync := s.SyncPool.Stop()
 	shutdownTimeout := 30 * time.Second
 	shutdownTimer := time.NewTimer(shutdownTimeout)
 	defer shutdownTimer.Stop()
 
 	select {
-	case <-stopperIncoming.Done():
-		logs.InfoCtx(shutdownCtx, "incoming pool stopped")
+	case <-stopperSync.Done():
+		logs.DebugCtx(shutdownCtx, "sync pool stopped")
 	case <-shutdownTimer.C:
-		logs.WarnCtx(shutdownCtx, "incoming pool shutdown timeout")
+		logs.WarnCtx(shutdownCtx, "sync pool shutdown timeout")
 	}
 
-	select {
-	case <-stopperOutgoing.Done():
-		logs.InfoCtx(shutdownCtx, "outgoing pool stopped")
-	case <-shutdownTimer.C:
-		logs.WarnCtx(shutdownCtx, "outgoing pool shutdown timeout")
-	}
-
-	logs.InfoCtx(shutdownCtx, "websocket server shutdown complete")
+	logs.DebugCtx(shutdownCtx, "websocket server shutdown complete")
 }

@@ -1,21 +1,27 @@
 package middleware
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"eve-industry-planner/shared/logs"
 
 	"github.com/getsentry/sentry-go"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
-// RequestLoggingConstructor attaches a request-scoped *zap.Logger (trace_id/span_id, method, path, ip)
-// under LoggerKey and emits access logs. It expects r.Context() to already carry the server span (otelhttp)
-// and optional deadline from RequestTimeoutConstructor and start time from RequestStartTimeConstructor.
+// RequestLoggingConstructor attaches a request-scoped *zap.Logger (trace_id/span_id, request_id, method, path, ip)
+// under LoggerKey and emits access logs. request_id is taken from X-Request-ID when present, otherwise a new UUID.
+// It expects start time from RequestStartTimeConstructor. Optional trace/span fields appear when the
+// context already carries an OpenTelemetry span (e.g. otelhttp on the API); the websocket service does not
+// wrap /ws with otelhttp because WebSocket upgrades require http.Hijacker on the ResponseWriter.
 // In the server chain it runs before CompressionConstructor, which adds content_encoding to the scoped logger for handlers.
 func RequestLoggingConstructor() MiddlewareConstructor {
 	return func(next http.Handler) http.Handler {
@@ -27,7 +33,12 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 				startTime = st
 			}
 
+			rid := strings.TrimSpace(r.Header.Get("X-Request-ID"))
+			if rid == "" {
+				rid = uuid.NewString()
+			}
 			reqFields := append(logs.TraceLogFields(ctx),
+				zap.String("request_id", rid),
 				zap.String("method", r.Method),
 				zap.String("path", r.URL.Path),
 				zap.String("ip", r.RemoteAddr),
@@ -102,4 +113,19 @@ type responseWriter struct {
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.statusCode = code
 	rw.ResponseWriter.WriteHeader(code)
+}
+
+// Hijack delegates to the underlying ResponseWriter so handlers like WebSocket upgrades work.
+func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if h, ok := rw.ResponseWriter.(http.Hijacker); ok {
+		return h.Hijack()
+	}
+	return nil, nil, fmt.Errorf("response writer does not implement http.Hijacker")
+}
+
+// Flush delegates when the underlying writer supports it (streaming / compression).
+func (rw *responseWriter) Flush() {
+	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }

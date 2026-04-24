@@ -1,6 +1,6 @@
 import getCharacterAssets from "../../../Functions/EveESI/Character/getAssets";
 import useUsersStore from "../../../Zustand/usersStore";
-import { getQueryEnabled } from "../../useQueryEnabled";
+import { isQueryExecutionEnabled } from "../../../Functions/Shared/queryExecutionEnabled";
 import { getESIRateLimitStatus } from "../../../Functions/EveESI/fetchWithCustomHeaders";
 import fetchPaginatedDataParallel from "../../../Functions/Helper/fetchPaginatedDataParallel";
 
@@ -81,7 +81,7 @@ function characterAssetsQuery(characterHash) {
         throw new Error(`Failed to fetch character assets: ${error.message}`);
       }
     },
-    enabled: getQueryEnabled(),
+    enabled: isQueryExecutionEnabled(),
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes
     retry: 3,

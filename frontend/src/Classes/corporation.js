@@ -1,3 +1,5 @@
+import { canonicalCharacterHashKey } from "../Functions/Auth/characterHashCanonical.js";
+
 /**
  * Corporation class for EVE Online corporation data management.
  * 
@@ -63,12 +65,34 @@ class Corporation {
     }
 
     /**
+     * Collapses duplicate member entries (e.g. from multiple `addMember` calls for the same character).
+     * Order is preserved; first-seen hash string is kept per canonical key.
+     */
+    dedupeMembers() {
+        if (!Array.isArray(this.members) || this.members.length === 0) return;
+        const seen = new Set();
+        this.members = this.members.filter((m) => {
+            const k = canonicalCharacterHashKey(m);
+            if (!k) return false;
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+        });
+    }
+
+    /**
      * Adds a member to the corporation.
-     * 
+     * Idempotent: same character (by canonical hash) is not added twice.
+     *
      * @param {string} characterHash - Character hash of the member to add
      */
     addMember(characterHash) {
-        this.members.push(characterHash)
+        const key = canonicalCharacterHashKey(characterHash);
+        if (!key) return;
+        if (this.members.some((m) => canonicalCharacterHashKey(m) === key)) {
+            return;
+        }
+        this.members.push(characterHash);
     }
 
     /**

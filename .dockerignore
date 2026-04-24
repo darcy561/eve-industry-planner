@@ -11,9 +11,6 @@ frontend/node_modules/
 dist/
 frontend/dist/
 
-# Exclude frontend functions/ directory (Firebase functions, not needed for React build)
-frontend/functions/
-
 # Exclude frontend test files
 frontend/tests/
 frontend/**/*.test.js
@@ -21,11 +18,7 @@ frontend/**/*.test.jsx
 frontend/**/*.spec.js
 frontend/**/*.spec.jsx
 
-# Exclude Firebase config files (not needed for build)
-frontend/firebase*.json
-frontend/firestore.*
-frontend/database.rules.json
-frontend/storage.rules
+# Optional project-only files
 frontend/cors.json
 
 # Exclude logs

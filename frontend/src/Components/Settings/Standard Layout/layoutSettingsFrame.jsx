@@ -9,14 +9,12 @@ import {
 } from "@mui/material";
 import { startTransition, useOptimistic } from "react";
 
-import { useGlobalDebounce } from "../../../Hooks/GeneralHooks/useGlobalDebounce";
-import { DEBOUNCE_KEYS } from "../../../Context/debounceKeys";
+import { scheduleDebouncedApplicationSettingsSave } from "../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 import {
   JOB_STATUS_CATALOG,
   STANDARD_TEXT_FORMAT,
 } from "../../../Context/defaultValues";
 import useUsersStore from "../../../Zustand/usersStore";
-import { saveApplicationSettings } from "../../../Functions/Endpoints/Pirivate/userDocument";
 
 const textFieldSettingsSx = {
   "& .MuiFormHelperText-root": {
@@ -39,20 +37,12 @@ function LayoutSettingsFrame() {
     })
   );
 
-  const debouncedSaveSettings = useGlobalDebounce(
-    DEBOUNCE_KEYS.APP_SETTINGS_SAVE,
-    async () => {
-      await saveApplicationSettings();
-    },
-    2000
-  );
-
   function handleJobStatusNameChange(id, raw) {
     const name = typeof raw === "string" ? raw : "";
+    addOptimisticJobStatusName({ id, name });
     startTransition(() => {
-      addOptimisticJobStatusName({ id, name });
       setJobStatusLabel(id, name);
-      debouncedSaveSettings();
+      scheduleDebouncedApplicationSettingsSave();
     });
   }
 
@@ -76,7 +66,7 @@ function LayoutSettingsFrame() {
                 color="primary"
                 onChange={() => {
                   toggleHideTutorials();
-                  debouncedSaveSettings();
+                  scheduleDebouncedApplicationSettingsSave();
                 }}
               />
             }
@@ -99,7 +89,7 @@ function LayoutSettingsFrame() {
                 color="primary"
                 onChange={() => {
                   toggleEnableCompactView();
-                  debouncedSaveSettings();
+                  scheduleDebouncedApplicationSettingsSave();
                 }}
               />
             }

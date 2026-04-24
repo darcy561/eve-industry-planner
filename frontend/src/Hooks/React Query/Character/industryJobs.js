@@ -1,6 +1,6 @@
 import getCharacterIndustryJobs from "../../../Functions/EveESI/Character/getIndustryJobs";
 import useUsersStore from "../../../Zustand/usersStore";
-import { getQueryEnabled } from "../../useQueryEnabled";
+import { isQueryExecutionEnabled } from "../../../Functions/Shared/queryExecutionEnabled";
 import { getESIRateLimitStatus } from "../../../Functions/EveESI/fetchWithCustomHeaders";
 
 const characterIndustryJobsQueryKey = "characterIndustryJobs";
@@ -80,7 +80,7 @@ function characterIndustryJobsQuery(characterHash) {
         throw new Error(`Failed to fetch character industry jobs: ${error.message}`);
       }
     },
-    enabled: getQueryEnabled(),
+    enabled: isQueryExecutionEnabled(),
     staleTime: 30 * 60 * 1000, // 30 minutes
     gcTime: 60 * 60 * 1000, // 1 hour
     retry: 3,

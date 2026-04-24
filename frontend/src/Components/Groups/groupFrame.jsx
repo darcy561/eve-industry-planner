@@ -1,24 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Box,
-  useMediaQuery,
-  ToggleButtonGroup,
-  ToggleButton,
-} from "@mui/material";
-import useSetupUnmountEventListeners from "../../Hooks/GeneralHooks/useSetupUnmountEventListeners";
+import { Box, useMediaQuery, ToggleButtonGroup, ToggleButton } from "@mui/material";
+import useWarnBeforeUnload from "../../Hooks/GeneralHooks/useWarnBeforeUnload";
 import { SearchBar } from "../Job Planner/Planner Components/searchbar";
 import { ShoppingListDialog } from "../Dialogues/Shopping List/ShoppingList";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import LeftCollapseableMenuDrawer from "../SideMenu/leftMenuDrawer";
 import CollapseableContentDrawer_Right from "../SideMenu/rightContentDrawer";
 import RightSideMenuContent_GroupPage from "./Side Menu/rightSideMenuContent";
-import GroupAccordionFrame from "./Accordion/AccordionFrame";
-import manageListenerRequests from "../../Functions/Firebase/manageListenerRequests";
 import GroupNameFrame from "./Group Name/groupNameFrame";
 import { useGroupPageSideMenuFunctions } from "./Side Menu/Buttons/buttonFunctions";
 import getMissingJobObjects from "../../Functions/Helper/getMissingJobObjects";
 import { PriceEntryDialog } from "../Dialogues/Price Entry/PriceEntry";
-import convertJobIDsToObjects from "../../Functions/Helper/convertJobIDsToObjects";
 import recalculateInstallCostsWithNewData from "../../Functions/Installation Costs/recalculateInstallCostsWithNewData";
 import getMissingESIData from "../../Functions/Shared/getMissingESIData";
 import PriceHistoryDialog from "../Dialogues/Price History/dialogFrame";
@@ -28,6 +20,11 @@ import useUsersStore from "../../Zustand/usersStore";
 import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
 import { LoadingPage } from "../loadingPage";
 import GroupPageViewSelector from "./pageViewSelector";
+import { useDocumentLock } from "../../Hooks/DocumentLock/useDocumentLock.js";
+import { USER_JOB_GROUPS_COLLECTION } from "../../Functions/DocumentLock/documentLockCollections.js";
+import { useRegisterHeaderDocumentLockUI } from "../../Hooks/DocumentLock/useRegisterHeaderDocumentLockUI.js";
+import { selectDocumentLockReadOnly } from "../../Functions/DocumentLock/documentLockSelectors.js";
+import { useJobPlannerJobLockSync } from "../../Hooks/DocumentLock/useJobPlannerJobLockSync.js";
 
 function GroupPageFrame() {
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
@@ -37,12 +34,17 @@ function GroupPageFrame() {
   const {
     setActiveGroupID,
     getGroupObject,
-    addRetrievedJobsToJobArray,
     clearMultiSelect,
   } = useUsersStore.getState().jobData.actions;
   const { state, actions } = useGroupPageReducer();
   const params = useParams({ from: "/group/$groupID" });
   const { groupID } = params;
+
+  const groupReadOnly = useUsersStore((s) =>
+    selectDocumentLockReadOnly(s, USER_JOB_GROUPS_COLLECTION, groupID ?? "")
+  );
+
+  useJobPlannerJobLockSync();
 
   const navigate = useNavigate();
   const activeGroupObject = getGroupObject(groupID);
@@ -59,6 +61,18 @@ function GroupPageFrame() {
 
     return groupJobs;
   }, [jobArray, activeGroupObject]);
+
+  useEffect(() => {
+    function onRemoteGroupDeleted(/** @type {CustomEvent<{ groupID?: string }>} */ ev) {
+      if (ev?.detail?.groupID === groupID) {
+        navigate({ to: "/jobplanner" });
+      }
+    }
+    window.addEventListener("eip-group-deleted-remotely", onRemoteGroupDeleted);
+    return () => {
+      window.removeEventListener("eip-group-deleted-remotely", onRemoteGroupDeleted);
+    };
+  }, [groupID, navigate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,15 +100,14 @@ function GroupPageFrame() {
         }
 
         hint("Loading jobs…");
-        const retrievedJobs = await getMissingJobObjects(
-          currentActiveGroupObject.includedJobIDs
-        );
+        await getMissingJobObjects(currentActiveGroupObject.includedJobIDs);
 
         hint("Preparing job data…");
-        const allJobObjects = await convertJobIDsToObjects(
-          currentActiveGroupObject.includedJobIDs,
-          retrievedJobs
-        );
+        const allJobObjects = await useUsersStore
+          .getState()
+          .jobData.actions.jobsFromIdsOrObjects(
+            currentActiveGroupObject.includedJobIDs
+          );
 
         hint("Gathering market data…");
         const { requestedMarketData, requestedSystemIndexes } =
@@ -119,8 +132,6 @@ function GroupPageFrame() {
           setActiveGroupID(currentActiveGroupObject.groupID);
         }
         clearMultiSelect();
-        addRetrievedJobsToJobArray(retrievedJobs);
-        manageListenerRequests(currentActiveGroupObject.includedJobIDs);
       } catch (err) {
         console.error(err);
         navigate({ to: "/jobplanner" });
@@ -135,16 +146,30 @@ function GroupPageFrame() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupID]);
 
-  useSetupUnmountEventListeners();
+  useWarnBeforeUnload();
 
   const buttonOptions = useGroupPageSideMenuFunctions(
     state,
     actions,
     groupJobs,
-    pageRequiresRightDrawerOpen
+    pageRequiresRightDrawerOpen,
+    groupReadOnly
   );
 
   const isGroupReady = activeGroupID === groupID;
+
+  useDocumentLock(USER_JOB_GROUPS_COLLECTION, groupID, Boolean(isLoggedIn && isGroupReady), {
+    pendingAccessRequestMessage:
+      "Another tab requested edit access for this group.",
+  });
+
+  useRegisterHeaderDocumentLockUI({
+    collection: USER_JOB_GROUPS_COLLECTION,
+    docID: groupID,
+    enabled: Boolean(isLoggedIn && isGroupReady),
+    readOnlyMessage:
+      "This group is being edited in another session (read-only).",
+  });
 
   return (
     <DefaultPageLayout>
@@ -216,6 +241,7 @@ function GroupPageFrame() {
                 state={state}
                 actions={actions}
                 groupJobs={groupJobs}
+                groupReadOnly={groupReadOnly}
               />
             </Box>
           </Box>

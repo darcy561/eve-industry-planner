@@ -14,27 +14,20 @@ import { useCallback, useState } from "react";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ClearIcon from "@mui/icons-material/Clear";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import { useFirebase } from "../../../../Hooks/useFirebase";
+import { putWatchlistDeprecatedToApi } from "../../../../Functions/Endpoints/Pirivate/watchlistDeprecated.js";
 import { AppEvent } from "../../../../analytics/appEventNames";
 import { trackAppEvent } from "../../../../analytics/trackAppEvent";
 import { ExpandedWatchlistRow } from "./ItemRowExpanded";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import { useJobBuild } from "../../../../Hooks/useJobBuild";
-import JobSnapshot from "../../../../Classes/jobSnapshot";
-import addNewJobToFirebase from "../../../../Functions/Firebase/addNewJob";
-import uploadJobSnapshotsToFirebase from "../../../../Functions/Firebase/uploadJobSnapshots";
-import getMissingESIData from "../../../../Functions/Shared/getMissingESIData";
-import recalculateInstallCostsWithNewData from "../../../../Functions/Installation Costs/recalculateInstallCostsWithNewData";
-import {
-  showSnackbarSuccess,
-  showSnackbarError,
-} from "../../../../Events/snackbarEvents";
+import { useQueryClient } from "@tanstack/react-query";
+import { showSnackbarError } from "../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../Zustand/usersStore";
 import MaterialPopoverIconButtons from "../../../../Styled Components/Popover/iconButtons";
 import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser";
 import calculateInstallCostfromSetup from "../../../../Functions/Helper/calculateInstallCostfromSetup";
+import addNewJobsToPlanner from "../../../../Functions/JobPlanner/addNewJobsToPlanner";
 
 export function WatchListRow({
   item,
@@ -43,14 +36,8 @@ export function WatchListRow({
   updateWatchlistItemToEdit,
 }) {
   const [expanded, setExpanded] = useState(false);
-  const { userWatchlist, userJobSnapshot } = useUsersStore(
-    (state) => state.jobData
-  );
-  const {
-    setUserWatchlistItems,
-    replaceUserJobSnapshotArray,
-    addJobsToJobArray,
-  } = useUsersStore.getState().jobData.actions;
+  const { userWatchlist } = useUsersStore((state) => state.jobData);
+  const { setUserWatchlistItems } = useUsersStore.getState().jobData.actions;
 
   const defaultMarket = useUsersStore(
     (state) => state.applicationSettings.defaultMarketLocation
@@ -65,51 +52,18 @@ export function WatchListRow({
 
   const { findMarketData } = useUsersStore.getState().worldData.actions;
 
-  const { uploadUserWatchlist } = useFirebase();
-  const { buildJob } = useJobBuild();
+  const queryClient = useQueryClient();
   async function handleRemove() {
     let newUserWatchlistItems = [...userWatchlist.items];
     newUserWatchlistItems.splice(index, 1);
     setUserWatchlistItems(newUserWatchlistItems);
-    await uploadUserWatchlist(userWatchlist.groups, newUserWatchlistItems);
+    await putWatchlistDeprecatedToApi(userWatchlist.groups, newUserWatchlistItems);
     trackAppEvent(AppEvent.REMOVE_WATCHLIST_ITEM);
     showSnackbarError(`${item.name} Removed`, 3);
   }
 
   async function handleAdd() {
-    const newSnapshotArray = [...userJobSnapshot];
-
-    let newJob = await buildJob({
-      itemID: item.typeID,
-    });
-
-    if (!newJob) return;
-
-    const jobSnapshot = new JobSnapshot(newJob);
-
-    newSnapshotArray.push(jobSnapshot);
-
-    await addNewJobToFirebase(newJob);
-    await uploadJobSnapshotsToFirebase(newSnapshotArray);
-
-    const { requestedMarketData, requestedSystemIndexes } =
-      await getMissingESIData(newJob);
-
-    recalculateInstallCostsWithNewData(
-      newJob,
-      requestedMarketData,
-      requestedSystemIndexes
-    );
-    useUsersStore
-      .getState()
-      .worldData.actions.addMarketData(requestedMarketData);
-    useUsersStore
-      .getState()
-      .worldData.actions.addSystemIndex(requestedSystemIndexes);
-
-    replaceUserJobSnapshotArray(newSnapshotArray);
-    addJobsToJobArray(newJob);
-    showSnackbarSuccess(`${newJob.name} Added`, 3);
+    await addNewJobsToPlanner([{ itemID: item.typeID }], queryClient);
   }
 
   const buildCosts = useCallback(() => {
@@ -480,7 +434,7 @@ export function WatchListRow({
 
                         newUserWatchlistItems[index].group = e.target.value;
                         setUserWatchlistItems(newUserWatchlistItems);
-                        uploadUserWatchlist(
+                        void putWatchlistDeprecatedToApi(
                           userWatchlist.groups,
                           newUserWatchlistItems
                         );

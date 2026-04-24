@@ -1,5 +1,9 @@
 import { FormControl, FormHelperText, MenuItem, Select } from "@mui/material";
 import GLOBAL_CONFIG from "../../global-config-app";
+import useUsersStore from "../../Zustand/usersStore.js";
+import { normalizedOverrideWhenMatchesDefault } from "./applicationSettingsMarketUtils.js";
+
+const { DEFAULT_MARKET_OPTION } = GLOBAL_CONFIG;
 
 /**
  * A select component for choosing market locations.
@@ -100,3 +104,43 @@ function MarketLocationSelect({
 }
 
 export default MarketLocationSelect;
+
+/**
+ * Chooses a market hub using live `applicationSettings.defaultMarketLocation`, with an optional per-job override
+ * (same field shape as persisted `layout.localMarketDisplay`).
+ *
+ * @param {Object} props
+ * @param {string | null | undefined} props.overrideMarketLocation — when set, overrides application default for display/commit
+ * @param {(marketLocationId: string | undefined) => void} props.onMarketLocationCommit — `undefined` clears override when choice matches default
+ * @param {string | undefined} [props.alternativeDefaultMarketLocation] — optional substitute for store default (tests / special flows)
+ */
+export function MarketLocationSelectApplicationSettings({
+  overrideMarketLocation,
+  onMarketLocationCommit,
+  alternativeDefaultMarketLocation,
+  ...rest
+}) {
+  const storeDefault = useUsersStore(
+    (s) => s.applicationSettings.defaultMarketLocation
+  );
+  const applicationDefault =
+    alternativeDefaultMarketLocation ?? storeDefault;
+  const value =
+    overrideMarketLocation ?? applicationDefault ?? DEFAULT_MARKET_OPTION;
+
+  return (
+    <MarketLocationSelect
+      {...rest}
+      value={value}
+      onChange={(location) =>
+        onMarketLocationCommit(
+          normalizedOverrideWhenMatchesDefault(
+            location.id,
+            applicationDefault,
+            DEFAULT_MARKET_OPTION
+          )
+        )
+      }
+    />
+  );
+}

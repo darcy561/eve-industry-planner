@@ -23,9 +23,10 @@ export const accountStateDefault = () => ({
   mainCharacterHash: null,
   accessToken: null,
   accessTokenEXP: 0,
+  sessionID: null,
   refreshToken: null,
   refreshTokenEXP: null,
-  /** From login response: Firebase and/or Mongo first-login flags. */
+  /** From login response: Mongo first-login (new account) flag. */
   isFirstTimeLogin: false,
   /** ESI IDs for real-time linking (from login `user_document` linked* arrays when present). */
   linkedOrders: new Set(),
@@ -44,9 +45,14 @@ export const accountStateDefault = () => ({
 
 export const accountActions = (set, get) => ({
   /**
-   * @returns {string|null} Mongo / Firebase account id from the login response.
+   * @returns {string|null} Mongo account id from the login response.
    */
   getAccountID: () => get().account.accountID ?? null,
+
+  /**
+   * @returns {boolean} Client session is active (same flag as `account.isLoggedIn`).
+   */
+  getIsLoggedIn: () => Boolean(get().account.isLoggedIn),
 
   /**
    * EVE character hash for the login / main character. Empty string when logged out or unset.
@@ -57,6 +63,7 @@ export const accountActions = (set, get) => ({
   ...tokenActions(set, get),
 
   resetAccountStore: () => {
+    get().realtimeSync?.actions?.reset?.();
     set(
       (state) => ({
         ...state,
@@ -71,7 +78,7 @@ export const accountActions = (set, get) => ({
   },
 
   /**
-   * Client logged-in flag (true after Firebase custom-token sign-in succeeds; sign-out uses resetAccountStore).
+   * Client logged-in flag (true after successful JWT login; cleared by sign-out / resetAccountStore).
    */
   setLoggedIn: (value) => {
     set(
@@ -89,7 +96,7 @@ export const accountActions = (set, get) => ({
   },
 
   /**
-   * Add/remove linked ESI order/job/transaction IDs (Firebase snapshot sync, job lifecycle).
+   * Add/remove linked ESI order/job/transaction IDs (realtime sync, job lifecycle).
    */
   addLinkedEsiData: (esiData) => {
     if (!esiData) return;

@@ -2,6 +2,7 @@ package archiveimport
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -314,6 +315,41 @@ func TestJobFromFirestoreMap_modernShapeRoundTripMeta(t *testing.T) {
 	}
 	if job.GroupID != "" || job.IncludedInGroup || !job.DisplayOnPlanner {
 		t.Fatalf("nil groupID doc: groupID=%q includedInGroup=%v displayOnPlanner=%v", job.GroupID, job.IncludedInGroup, job.DisplayOnPlanner)
+	}
+}
+
+// Firestore can persist NaN in double fields; json.Marshal in cloneMap used to fail until we sanitize.
+func TestJobFromFirestoreMap_nestedNaNIsSanitized(t *testing.T) {
+	doc := map[string]any{
+		"jobID":               "job-uuid-nan",
+		"jobType":             float64(1),
+		"name":                "N",
+		"itemID":              float64(2420),
+		"maxProductionLimit":  float64(10),
+		"jobStatus":           float64(4),
+		"volume":              float64(20),
+		"archived":            true,
+		"itemsProducedPerRun": float64(1),
+		"buildVer":            "0.7.65",
+		"groupID":             nil,
+		"badFloat":            math.NaN(),
+		"build": map[string]any{
+			"childJobs": map[string]any{},
+			"setup":     map[string]any{},
+			"products":  map[string]any{"totalQuantity": float64(1)},
+			"costs": map[string]any{
+				"extrasCosts": []any{}, "linkedJobs": []any{},
+			},
+			"materials": []any{},
+			"sale":      map[string]any{"marketOrders": []any{}, "transactions": []any{}, "brokersFee": []any{}},
+		},
+		"rawData":   map[string]any{"materials": []any{}, "products": []any{}, "time": float64(0)},
+		"skills":    []any{},
+		"parentJob": []any{},
+	}
+	_, err := JobFromFirestoreMap(doc, "acc")
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

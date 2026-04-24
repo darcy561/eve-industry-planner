@@ -75,8 +75,11 @@ func main() {
 	}
 	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) { schedulerStop() })
 
-	// Start change stream watcher (runs in background goroutine)
-	changestreamStop := changestream.StartService(clients.Mongo, clients.JetStream)
+	changestreamStop, err := changestream.StartService(clients.Mongo, clients.JetStream, clients.NATS)
+	if err != nil {
+		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
+		return
+	}
 	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) { changestreamStop() })
 
 	// Mark core as healthy/ready for dependent services (e.g. api) via docker healthcheck.

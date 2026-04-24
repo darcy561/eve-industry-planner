@@ -3,7 +3,10 @@ import { Box, Button } from "@mui/material";
 import { useQueryClient } from "@tanstack/react-query";
 import { getAllCachedCharacterAssets } from "../../../Hooks/EveEsi/Character/useGetAllCharacterAssets";
 import { getFullItemList } from "../../../Functions/Helper/getCachedData";
-import { useAssetHelperHooks } from "../../../Hooks/AssetHooks/useAssetHelper";
+import {
+  buildAssetTypeIDMaps,
+  sortLocationMapsAlphabetically,
+} from "../../../Functions/Assets/assetHelpers";
 import useUsersStore from "../../../Zustand/usersStore";
 import getAssetLocationNames from "../../../Functions/EveESI/World/getAssetLocationNames";
 import getWorldData from "../../../Functions/EveESI/World/getWorldData";
@@ -25,8 +28,6 @@ export default function AssetsDialogContent(props) {
     characterAssetsError,
     corporationAssetsError,
   } = props;
-  const { buildAssetTypeIDMaps, sortLocationMapsAlphabetically } =
-    useAssetHelperHooks();
   const queryClient = useQueryClient();
 
   useEffect(() => {

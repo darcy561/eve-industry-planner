@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/firebaseadmin"
@@ -31,6 +32,7 @@ func runImportUserAccountsFromFirestoreScan(ctx context.Context, args []string) 
 	firebaseProjectID := fs.String("firebase-project-id", "", "optional FIREBASE_PROJECT_ID override; if credentials are set and this is omitted, project_id is read from that JSON")
 	accountIDFlag := fs.String("account", "", "optional Firebase UID; enqueue only this user (Users/{uid} must exist)")
 	dryRun := fs.Bool("dry-run", false, "print how many tasks would be published without enqueuing")
+	loginWithin := fs.Duration("login-within", firebaseadmin.DefaultRecencyForActiveAccounts, "scan-all only: only enqueue for Auth users whose last sign-in or account creation is within this window (0=all Firestore users)")
 	useLive := fs.Bool("live", false, "use live Firebase service account (compose: /app/adminSDKLive.json); mutually exclusive with -dev and -credentials")
 	useDev := fs.Bool("dev", false, "use dev Firebase service account (compose: /app/adminSDK.json); mutually exclusive with -live and -credentials")
 	if err := fs.Parse(args); err != nil {
@@ -99,7 +101,7 @@ func runImportUserAccountsFromFirestoreScan(ctx context.Context, args []string) 
 	if accountTrim != "" {
 		return publishMigrateUserTasksSingle(ctx, clients, fsClient, taskDef, accountTrim, *dryRun)
 	}
-	return publishMigrateUserTasksScanAll(ctx, clients, fsClient, taskDef, *dryRun)
+	return publishMigrateUserTasksScanAll(ctx, clients, fsClient, taskDef, *dryRun, *loginWithin)
 }
 
 func publishMigrateUserTasksSingle(
@@ -136,10 +138,11 @@ func publishMigrateUserTasksScanAll(
 	fsClient *firestore.Client,
 	taskDef taskscore.Task,
 	dryRun bool,
+	loginWithin time.Duration,
 ) error {
 	iter := fsClient.Collection(firestoreUsersTopCollection).Documents(ctx)
 
-	var wouldEnqueue, published, errorsN int
+	var wouldEnqueue, published, errorsN, skippedAuthWindow int
 	for {
 		snap, err := iter.Next()
 		if err == iterator.Done {
@@ -153,6 +156,17 @@ func publishMigrateUserTasksScanAll(
 		if accountID == "" {
 			logs.WarnCtx(ctx, "user accounts scan: empty document id", "firestore_path", snap.Ref.Path)
 			errorsN++
+			continue
+		}
+
+		include, err := firebaseadmin.AccountHasAuthActivitySince(ctx, accountID, loginWithin)
+		if err != nil {
+			logs.ErrorCtx(ctx, "user accounts scan: auth recency", "account_id", accountID, "error", err)
+			errorsN++
+			continue
+		}
+		if !include {
+			skippedAuthWindow++
 			continue
 		}
 
@@ -171,15 +185,15 @@ func publishMigrateUserTasksScanAll(
 	}
 
 	if dryRun {
-		logs.InfoCtx(ctx, "user accounts scan dry-run finished", "would_enqueue", wouldEnqueue)
-		fmt.Printf("Dry-run: would enqueue %d migrate task(s) on subject %q (worker skips accounts already complete in Mongo)\n", wouldEnqueue, taskDef.Subject)
+		logs.InfoCtx(ctx, "user accounts scan dry-run finished", "would_enqueue", wouldEnqueue, "skipped_outside_login_window", skippedAuthWindow)
+		fmt.Printf("Dry-run: would enqueue %d migrate task(s) on subject %q; skipped %d account(s) outside -login-within (worker skips accounts already complete in Mongo)\n", wouldEnqueue, taskDef.Subject, skippedAuthWindow)
 		return nil
 	}
 
-	logs.InfoCtx(ctx, "user accounts scan finished", "published_tasks", published, "skipped_or_failed", errorsN)
+	logs.InfoCtx(ctx, "user accounts scan finished", "published_tasks", published, "skipped_or_failed", errorsN, "skipped_outside_login_window", skippedAuthWindow)
 	if errorsN > 0 {
 		return fmt.Errorf("enqueue completed with %d publication errors (published=%d)", errorsN, published)
 	}
-	fmt.Printf("Enqueued %d migrate task(s) on subject %q (worker skips accounts already complete in Mongo)\n", published, taskDef.Subject)
+	fmt.Printf("Enqueued %d migrate task(s) on subject %q; skipped %d account(s) outside -login-within (worker skips accounts already complete in Mongo)\n", published, taskDef.Subject, skippedAuthWindow)
 	return nil
 }

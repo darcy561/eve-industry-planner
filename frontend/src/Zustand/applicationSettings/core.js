@@ -25,6 +25,43 @@ function defaultReprocessingSettings() {
 }
 
 /**
+ * Go `json` omits empty optional fields; Mongo full documents may also omit keys.
+ * For authoritative GET / change-stream payloads, missing key means "empty / default",
+ * not "preserve local Zustand". Without this, reverts that clear optional state never apply on other sessions.
+ *
+ * @param {object} incoming
+ * @returns {object}
+ */
+function normalizeServerApplicationSettingsPayload(incoming) {
+  const base = /** @type {Record<string, unknown>} */ ({ ...incoming });
+  if (!("esiJobTab" in base)) base.esiJobTab = null;
+  if (!("exemptTypeIDs" in base)) base.exemptTypeIDs = [];
+  if (!("extrasCategories" in base)) base.extrasCategories = [...extrasCategoriesDefault];
+  if (!("predefinedSystemIndexes" in base)) base.predefinedSystemIndexes = {};
+  if (!("jobStatuses" in base)) base.jobStatuses = {};
+  return base;
+}
+
+/**
+ * Prefer root `userCloudAccounts` (Mongo / API); support legacy nested
+ * `account.cloudAccounts` (Firebase-shaped or older payloads) so realtime merges
+ * still drive the UI.
+ *
+ * @param {Record<string, unknown>} incoming
+ * @returns {boolean|undefined} `undefined` if neither form is present
+ */
+function incomingUserCloudAccountsFlag(incoming) {
+  if (incoming.userCloudAccounts !== undefined) {
+    return !!incoming.userCloudAccounts;
+  }
+  const account = incoming.account;
+  if (account && typeof account === "object" && "cloudAccounts" in account) {
+    return !!(/** @type {Record<string, unknown>} */ (account).cloudAccounts);
+  }
+  return undefined;
+}
+
+/**
  * @returns {Object} Default application settings (API field names)
  */
 export const stateDefault = () => ({
@@ -59,18 +96,50 @@ export const stateDefault = () => ({
  *
  * @param {object} prev - `state.applicationSettings` including `actions`
  * @param {object} incoming - partial API `application_settings`
- * @param {string|undefined} mainCharacterHashFallback - fallback for default reprocessing character
+ * @param {string|undefined} mainCharacterHashFallback - fallback for default reprocessing character when server omits it
+ * @param {{ authoritativeFullDocument?: boolean }} [options] - When true (GET / realtime full doc), missing optional keys mean cleared defaults, not “keep local”. Login payloads stay false/partial.
  * @returns {object} merged application settings (including `actions`)
  */
 export function mergeApplicationSettingsState(
   prev,
   incoming,
-  mainCharacterHashFallback
+  mainCharacterHashFallback,
+  options = {}
 ) {
+  const { authoritativeFullDocument = false } = options;
+
   if (!incoming || typeof incoming !== "object") return prev;
 
-  const cs = incoming.customStructures;
+  if (authoritativeFullDocument) {
+    incoming = normalizeServerApplicationSettingsPayload(incoming);
+  }
+
   const rsIn = incoming.reprocessingSettings;
+
+  /** When server sends `customStructures`, replace wholesale (missing lane = empty — Go omits empty slices). */
+  let nextCustomStructures = prev.customStructures;
+  if (incoming.customStructures !== undefined) {
+    if (incoming.customStructures === null) {
+      nextCustomStructures = {
+        manufacturing: [],
+        reaction: [],
+        reprocessing: [],
+      };
+    } else if (typeof incoming.customStructures === "object") {
+      const cs = incoming.customStructures;
+      nextCustomStructures = {
+        manufacturing: Array.isArray(cs.manufacturing)
+          ? cs.manufacturing.map((x) => new CustomStructure(x))
+          : [],
+        reaction: Array.isArray(cs.reaction)
+          ? cs.reaction.map((x) => new CustomStructure(x))
+          : [],
+        reprocessing: Array.isArray(cs.reprocessing)
+          ? cs.reprocessing.map((x) => new ReprocessingStructure(x))
+          : [],
+      };
+    }
+  }
 
   let mergedRs = prev.reprocessingSettings;
   if (rsIn && typeof rsIn === "object") {
@@ -99,10 +168,12 @@ export function mergeApplicationSettingsState(
         ? incoming.localOrderDisplay
         : prev.defaultOrderType;
 
+  const mergedCloudAccounts = incomingUserCloudAccountsFlag(incoming);
+
   return {
     ...prev,
-    ...(incoming.userCloudAccounts !== undefined && {
-      userCloudAccounts: incoming.userCloudAccounts,
+    ...(mergedCloudAccounts !== undefined && {
+      userCloudAccounts: mergedCloudAccounts,
     }),
     ...(incoming.displayHelpCards !== undefined && {
       displayHelpCards: incoming.displayHelpCards,
@@ -127,20 +198,7 @@ export function mergeApplicationSettingsState(
     ...(incoming.defaultCitadelBrokersFee !== undefined && {
       defaultCitadelBrokersFee: incoming.defaultCitadelBrokersFee,
     }),
-    customStructures: {
-      manufacturing:
-        cs?.manufacturing != null
-          ? cs.manufacturing.map((x) => new CustomStructure(x))
-          : prev.customStructures.manufacturing,
-      reaction:
-        cs?.reaction != null
-          ? cs.reaction.map((x) => new CustomStructure(x))
-          : prev.customStructures.reaction,
-      reprocessing:
-        cs?.reprocessing != null
-          ? cs.reprocessing.map((x) => new ReprocessingStructure(x))
-          : prev.customStructures.reprocessing,
-    },
+    customStructures: nextCustomStructures,
     exemptTypeIDs:
       incoming.exemptTypeIDs != null
         ? new Set(incoming.exemptTypeIDs)
@@ -160,8 +218,8 @@ export function mergeApplicationSettingsState(
       predefinedSystemIndexes: incoming.predefinedSystemIndexes,
     }),
     jobStatuses:
-      incoming.jobStatuses != null
-        ? { ...prev.jobStatuses, ...incoming.jobStatuses }
+      incoming.jobStatuses != null && typeof incoming.jobStatuses === "object"
+        ? { ...incoming.jobStatuses }
         : prev.jobStatuses,
     actions: prev.actions,
   };
@@ -182,7 +240,8 @@ export const coreActions = (set, get) => ({
         applicationSettings: mergeApplicationSettingsState(
           state.applicationSettings,
           incoming,
-          mainCharacterHashFallback
+          mainCharacterHashFallback,
+          { authoritativeFullDocument: true }
         ),
       }),
       false,

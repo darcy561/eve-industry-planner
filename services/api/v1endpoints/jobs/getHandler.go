@@ -75,26 +75,6 @@ func GetJobsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		return
 	}
 
-	// Handle autosubscription - publish subscription request to NATS
-	if r.Header.Get("Subscribe") == "true" || r.URL.Query().Get("subscribe") == "true" {
-		if clients.JetStream != nil {
-			// Collect all jobIDs from the retrieved jobs
-			jobIDs := make([]string, 0, len(jobs))
-			for _, job := range jobs {
-				if job.JobID != "" {
-					jobIDs = append(jobIDs, job.JobID)
-				}
-			}
-			if len(jobIDs) > 0 {
-				if err := helper.PublishSubscriptionRequest(ctx, clients.JetStream, accountID, mongocore.CollectionJobs, jobIDs); err != nil {
-					logs.WarnCtx(ctx, "failed to publish subscription request", "account_id", accountID, "error", err)
-				}
-			}
-		} else {
-			logs.WarnCtx(ctx, "JetStream not available for autosubscription", "account_id", accountID)
-		}
-	}
-
 	if err := helper.EncodeJSON(w, jobs); err != nil {
 		m.Errors.WithLabelValues("encode_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to encode jobs response", "error", err, "account_id", accountID)

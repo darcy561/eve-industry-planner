@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -78,7 +79,14 @@ func JobFromFirestoreMap(doc map[string]any, accountID string) (models.Job, erro
 }
 
 func cloneMap(m map[string]any) (map[string]any, error) {
-	b, err := json.Marshal(m)
+	// json.Marshal rejects NaN/±Inf. Firestore can store NaN in numeric fields; normalize to 0
+	// before cloning so the rest of the pipeline and BSON upserts stay valid.
+	cleaned := deepCloneReplaceNonFiniteFloats(m)
+	m2, ok := cleaned.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("clone map: expected map after sanitize, got %T", cleaned)
+	}
+	b, err := json.Marshal(m2)
 	if err != nil {
 		return nil, fmt.Errorf("clone map: %w", err)
 	}
@@ -87,6 +95,66 @@ func cloneMap(m map[string]any) (map[string]any, error) {
 		return nil, fmt.Errorf("clone map: %w", err)
 	}
 	return out, nil
+}
+
+// deepCloneReplaceNonFiniteFloats returns a deep copy of v with float32/float64 NaN and ±Inf replaced by 0.
+// Does not mutate the input. Unsupported shapes are returned as-is.
+func deepCloneReplaceNonFiniteFloats(v any) any {
+	if v == nil {
+		return nil
+	}
+	switch t := v.(type) {
+	case float32:
+		f := float64(t)
+		if math.IsNaN(f) || math.IsInf(f, 0) {
+			return float32(0)
+		}
+		return t
+	case float64:
+		if math.IsNaN(t) || math.IsInf(t, 0) {
+			return float64(0)
+		}
+		return t
+	case map[string]any:
+		out := make(map[string]any, len(t))
+		for k, vv := range t {
+			out[k] = deepCloneReplaceNonFiniteFloats(vv)
+		}
+		return out
+	case []any:
+		out := make([]any, len(t))
+		for i, vv := range t {
+			out[i] = deepCloneReplaceNonFiniteFloats(vv)
+		}
+		return out
+	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Map:
+		if rv.Type().Key().Kind() != reflect.String {
+			return v
+		}
+		if rv.IsNil() {
+			return v
+		}
+		out := make(map[string]any, rv.Len())
+		for _, key := range rv.MapKeys() {
+			out[key.String()] = deepCloneReplaceNonFiniteFloats(rv.MapIndex(key).Interface())
+		}
+		return out
+	case reflect.Slice, reflect.Array:
+		n := rv.Len()
+		if rv.Kind() == reflect.Slice && rv.IsNil() {
+			return v
+		}
+		out := make([]any, n)
+		for i := 0; i < n; i++ {
+			out[i] = deepCloneReplaceNonFiniteFloats(rv.Index(i).Interface())
+		}
+		return out
+	default:
+		return v
+	}
 }
 
 func normalizeJobID(m map[string]any) {
