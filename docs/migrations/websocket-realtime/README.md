@@ -27,7 +27,6 @@ This README is the pointer; [INTERACTIONS.md](./INTERACTIONS.md) is the living l
 
 | What changed | Where to reflect it |
 |----------------|---------------------|
-| Throughput integration test (`//go:build throughput`), env vars, ramp script | [THROUGHPUT-INTEGRATION-TEST.md](./THROUGHPUT-INTEGRATION-TEST.md) |
 | Org routing, `scopes`, `upgrade_scopes`, JWT org claims | [ROUTING-AND-SCOPES.md](./ROUTING-AND-SCOPES.md) + [IMPLEMENTATION.md](./IMPLEMENTATION.md) |
 | Behavior, paths, env vars, security rules | [IMPLEMENTATION.md](./IMPLEMENTATION.md) |
 | Document lock HTTP routes and session-based identity semantics (`session_id`, `eip-document-lock`) | [IMPLEMENTATION.md](./IMPLEMENTATION.md) § Document locks; [INTERACTIONS.md](./INTERACTIONS.md) dated entry |
@@ -49,7 +48,6 @@ This requirement is recorded in [INTERACTIONS.md](./INTERACTIONS.md) (dated entr
 | [PLAN-TODO-TRACKER.md](./PLAN-TODO-TRACKER.md) | Checklist aligned to plan todos (sync status here + in your issue tracker if you use one). |
 | [SCOPED-REALTIME-ROUTING-PLAN.md](./SCOPED-REALTIME-ROUTING-PLAN.md) | Design history and phased plan; **implementation contract** for shipped routing lives in [ROUTING-AND-SCOPES.md](./ROUTING-AND-SCOPES.md). |
 | [ROUTING-AND-SCOPES.md](./ROUTING-AND-SCOPES.md) | **Canonical:** `doc.update` routing precedence, `scopes`, JWT ceilings, **`upgrade_scopes` / `scopes_ack`**, changestream fields, session handoff org fields. |
-| [THROUGHPUT-INTEGRATION-TEST.md](./THROUGHPUT-INTEGRATION-TEST.md) | **Load test:** `TestRealtimeThroughputMongoToWebSocket`, env vars, Docker Compose runbook, metric meanings, limitations (account-only JWT), [`scripts/run-throughput-load-ramp.sh`](../../../scripts/run-throughput-load-ramp.sh). |
 
 ## How to keep in sync (checklist)
 

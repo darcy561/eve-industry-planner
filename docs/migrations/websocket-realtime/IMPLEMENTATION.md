@@ -239,7 +239,6 @@ If Mongo is unavailable, Mongo-backed subscriptions are denied. **Adding a new r
 | File | `go test` path |
 |------|----------------|
 | [`subscribe_auth_test.go`](../../../services/websocket/server/subscribe_auth_test.go) | `./websocket/server/...` |
-| **`realtime_throughput_test.go`** (`//go:build throughput`) | `./integration` with **`-tags throughput`** — pipeline load test (Mongo → NATS → WS). **Doc:** [THROUGHPUT-INTEGRATION-TEST.md](./THROUGHPUT-INTEGRATION-TEST.md). |
 
 ## Frontend
 

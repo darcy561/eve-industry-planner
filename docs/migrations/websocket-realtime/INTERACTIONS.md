@@ -35,7 +35,7 @@
 
 ## 2026-04-21 — Remove `userJobSnapshot` store + Firebase `uploadJobSnapshots`
 
-- **SPA:** Deleted Zustand `userJobSnapshot`, [`jobSnapshots.js`](../../../frontend/src/Zustand/jobsSlice/jobSnapshots.js), and [`uploadJobSnapshots.js`](../../../frontend/src/Functions/Firebase/uploadJobSnapshots.js). Planner and dashboard derive lists from **`jobArray`** (e.g. `displayOnPlanner` where relevant). [`useFirebase.jsx`](../../../frontend/src/Hooks/useFirebase.jsx) no longer exposes **`userJobSnapshotListener`** (Firestore `ProfileInfo/JobSnapshot`).
+- **SPA:** Deleted Zustand `userJobSnapshot`, former `frontend/src/Zustand/jobsSlice/jobSnapshots.js`, and `frontend/src/Functions/Firebase/uploadJobSnapshots.js`. Planner and dashboard derive lists from **`jobArray`** (e.g. `displayOnPlanner` where relevant). Former `frontend/src/Hooks/useFirebase.jsx` no longer exposed **`userJobSnapshotListener`** (Firestore `ProfileInfo/JobSnapshot`).
 - **Persistence:** Call sites use **`saveJobsViaApi`** / **`updateOrAddJobsToJobArray`** instead of snapshot mirror + Firestore snapshot doc.
 
 ---

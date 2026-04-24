@@ -7,8 +7,8 @@ services:
       context: ./services
       dockerfile: api/Dockerfile
       args:
-        APP_VERSION: 0.8.10
-        FRONTEND_APP_VERSION: 0.8.10
+        APP_VERSION: 0.8.13
+        FRONTEND_APP_VERSION: 0.8.13
         APP_FEATURE_FLAGS_JSON: '{"enable_upcoming_changes_page":false}'
         # Same pattern as CI: bake from repo-root .env (Compose interpolates ${VAR} from .env).
         ENVIRONMENT: ${ENVIRONMENT:-development}
@@ -25,7 +25,7 @@ services:
       context: ./services
       dockerfile: websocket/Dockerfile
       args:
-        APP_VERSION: 0.8.10
+        APP_VERSION: 0.8.13
         ENVIRONMENT: ${ENVIRONMENT:-development}
         SENTRY_DSN: ${SENTRY_DSN:-}
         SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-}
@@ -39,7 +39,7 @@ services:
       context: ./services
       dockerfile: worker/Dockerfile
       args:
-        APP_VERSION: 0.8.10
+        APP_VERSION: 0.8.13
         ENVIRONMENT: ${ENVIRONMENT:-development}
         SENTRY_DSN: ${SENTRY_DSN:-}
         SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-}
@@ -52,8 +52,8 @@ services:
       context: ./services
       dockerfile: core/Dockerfile
       args:
-        APP_VERSION: 0.8.10
-        FRONTEND_APP_VERSION: 0.8.10
+        APP_VERSION: 0.8.13
+        FRONTEND_APP_VERSION: 0.8.13
         APP_FEATURE_FLAGS_JSON: '{"enable_upcoming_changes_page":false}'
         ENVIRONMENT: ${ENVIRONMENT:-development}
         SENTRY_DSN: ${SENTRY_DSN:-}
@@ -90,7 +90,7 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         ENVIRONMENT: ${ENVIRONMENT:-development}
-        FRONTEND_APP_VERSION: 0.8.10
+        FRONTEND_APP_VERSION: 0.8.13
         SENTRY_ORG: ${SENTRY_ORG:-}
         SENTRY_PROJECT_ID: ${SENTRY_PROJECT_ID:-}
         SENTRY_DSN: ${SENTRY_DSN:-}
