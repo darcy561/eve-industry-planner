@@ -1,19 +1,17 @@
-import { useEffect, useMemo, useRef, lazy, Suspense } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "@tanstack/react-router";
 import {
   Avatar,
   Divider,
   Grid,
   IconButton,
   Step,
+  StepButton,
   StepContent,
-  StepLabel,
   Stepper,
   Tooltip,
   Typography,
   Box,
-  CircularProgress,
 } from "@mui/material";
 import { CloseJobIcon } from "./closeIcon";
 import { SaveJobIcon } from "./saveIcon";
@@ -22,12 +20,8 @@ import { LinkedJobBadge } from "./Linked Job Badge";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import SchemaIcon from "@mui/icons-material/Schema";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-import calculateInstallCostfromSetup from "../../Functions/Helper/calculateInstallCostfromSetup";
 import { ShoppingListDialog } from "../Dialogues/Shopping List/ShoppingList";
-import Job from "../../Classes/job";
-import { prefetchBuildStatsQuery } from "../../Hooks/React Query/Backend/buildStats";
 import useWarnBeforeUnload from "../../Hooks/GeneralHooks/useWarnBeforeUnload";
-import getMissingESIData from "../../Functions/Shared/getMissingESIData";
 import StepErrorBoundary from "./StepErrorBoundary";
 import PriceHistoryDialog from "../Dialogues/Price History/dialogFrame";
 import MarketDataDialog from "../Dialogues/Market Data/dialogFrame";
@@ -37,268 +31,129 @@ import { useJobStatuses } from "../Job Planner/Hooks/useJobStatuses";
 import AssetsDialogue from "../Dialogues/Assets/dialogFrame";
 import useEditJobReducer from "./Edit Job Hooks/useEditJobReducer";
 import { useStripRedundantJobMarketHubOverrides } from "../../Hooks/Planner/useStripRedundantJobMarketHubOverrides.js";
-import { useDocumentLock } from "../../Hooks/DocumentLock/useDocumentLock.js";
-import { useRegisterHeaderDocumentLockUI } from "../../Hooks/DocumentLock/useRegisterHeaderDocumentLockUI.js";
-import {
-  USER_JOB_GROUPS_COLLECTION,
-  USER_JOBS_COLLECTION,
-} from "../../Functions/DocumentLock/documentLockCollections.js";
 import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
 import EditJobLeaveConfirmDialog from "./EditJobLeaveConfirmDialog";
 import { useEditJobLeaveConfirm } from "./Edit Job Hooks/useEditJobLeaveConfirm";
+import EditJobStepContentSelector from "./EditJobStepContentSelector";
+import { useEditJobInitialState } from "./Edit Job Hooks/useEditJobInitialState";
+import { useEditJobDocumentLocks } from "./Edit Job Hooks/useEditJobDocumentLocks";
+import {
+  canJumpToJobStep,
+  canMoveJobBackward,
+  canMoveJobForward,
+  getLastStepIndex,
+  isFinalStepLockedForJob,
+} from "../../Functions/Job/jobStepNavigation";
 
-/**
- * Read `/editjob/$id` query params at call time (e.g. link-tree button) — avoids subscribing
- * to search on every render when the dialog is rarely opened.
- * @returns {{ activeGroup: string|undefined, pageView: string|undefined }}
- */
-function readEditJobUrlSearch() {
-  if (typeof window === "undefined") {
-    return { activeGroup: undefined, pageView: undefined };
-  }
-  const p = new URLSearchParams(window.location.search);
-  const ag = p.get("activeGroup");
-  const pageView = p.get("pageView");
-  return {
-    activeGroup: ag && ag.trim() !== "" ? ag : undefined,
-    pageView: pageView && pageView.trim() !== "" ? pageView : undefined,
-  };
-}
 
-// Lazy-loaded layout selector components
-const LayoutSelector_EditJob_Planning = lazy(() =>
-  import("./Edit Job Components/Planning/layoutSelector").then((module) => ({
-    default: module.LayoutSelector_EditJob_Planning,
-  }))
-);
-const LayoutSelector_EditJob_Purchasing = lazy(() =>
-  import("./Edit Job Components/Purchasing/layoutSelector").then((module) => ({
-    default: module.LayoutSelector_EditJob_Purchasing,
-  }))
-);
-const LayoutSelector_EditJob_Building = lazy(() =>
-  import("./Edit Job Components/Building/layoutSelector").then((module) => ({
-    default: module.LayoutSelector_EditJob_Building,
-  }))
-);
-const LayoutSelector_EditJob_Complete = lazy(() =>
-  import("./Edit Job Components/Complete/LayoutSelector").then((module) => ({
-    default: module.LayoutSelector_EditJob_Complete,
-  }))
-);
-const LayoutSelector_EditJob_Selling = lazy(() =>
-  import("./Edit Job Components/Selling/LayoutSelector").then((module) => ({
-    default: module.LayoutSelector_EditJob_Selling,
-  }))
-);
 
 export default function EditJob_New() {
   const { state, actions } = useEditJobReducer();
   const { setActiveJobID } = useUsersStore.getState().jobData.actions;
   const { jobStatuses } = useJobStatuses();
-  const queryClient = useQueryClient();
   const params = useParams({ from: "/editjob/$jobID" });
   const { jobID } = params;
-  const isLoggedIn = useUsersStore((s) => s.account.isLoggedIn);
-  const activeGroupID = useUsersStore((s) => s.jobData.activeGroupID);
-  
+  let backupJob = useRef(null);
+  const prevStepButtonContainerRef = useRef(null);
+  const nextStepButtonContainerRef = useRef(null);
+  const [showFloatingPrevStep, setShowFloatingPrevStep] = useState(false);
+  const [showFloatingNextStep, setShowFloatingNextStep] = useState(false);
+
   useStripRedundantJobMarketHubOverrides(
     state.activeJob,
     actions.updateActiveJob
   );
-  const documentLockReady = Boolean(
-    isLoggedIn &&
-    jobID &&
-    state.activeJob &&
-    state.activeJob.jobID === jobID &&
-    !state.isLoading
-  );
-  
-  const groupLockReady = Boolean(
-    documentLockReady &&
-      activeGroupID &&
-      state.activeJob?.groupID === activeGroupID
-  );
-
-  useDocumentLock(USER_JOBS_COLLECTION, jobID ?? "", documentLockReady, {
-    pendingAccessRequestMessage:
-      "Another tab requested edit access for this job.",
+  useEditJobDocumentLocks({
+    jobID,
+    activeJob: state.activeJob,
+    isLoading: state.isLoading,
   });
 
-  useDocumentLock(
-    USER_JOB_GROUPS_COLLECTION,
-    activeGroupID ?? "",
-    groupLockReady,
-    {
-      pendingAccessRequestMessage:
-        "Another tab requested edit access for this group.",
-    }
-  );
-
-  const headerLockRegistrations = useMemo(() => {
-    const jobReg = {
-      collection: USER_JOBS_COLLECTION,
-      docID: jobID ?? "",
-      enabled: documentLockReady,
-      label: "Job",
-      readOnlyMessage:
-        "This job is being edited in another session (read-only).",
-      treeOwnership: "full",
-    };
-    if (!groupLockReady || !activeGroupID) {
-      return [jobReg];
-    }
-    return [
-      jobReg,
-      {
-        collection: USER_JOB_GROUPS_COLLECTION,
-        docID: activeGroupID,
-        enabled: documentLockReady,
-        label: "Group",
-        readOnlyMessage:
-          "This group is being edited in another session (read-only).",
-        treeOwnership: "limited",
-      },
-    ];
-  }, [jobID, documentLockReady, groupLockReady, activeGroupID]);
-
-  useRegisterHeaderDocumentLockUI({
-    registrations: headerLockRegistrations,
-  });
-
-  let backupJob = useRef(null);
-  const navigate = useNavigate({ from: "/editjob/$jobID" });
   useWarnBeforeUnload();
 
   const { leaveConfirmDialogProps } = useEditJobLeaveConfirm({
     backupJobRef: backupJob,
     state,
   });
+  useEditJobInitialState({
+    jobID,
+    currentActiveJobID: state.activeJob?.jobID,
+    actions,
+    backupJobRef: backupJob,
+    setActiveJobID,
+  });
+
+  const currentStep = state.activeJob?.jobStatus ?? 0;
+  const lastStepIndex = getLastStepIndex(jobStatuses.length);
+  const finalStepGateActive = isFinalStepLockedForJob(state.activeJob);
+  const canMoveBackward = canMoveJobBackward(state.activeJob);
+  const canMoveForward = canMoveJobForward(state.activeJob, {
+    lastStepIndex,
+    lockFinalStep: false,
+  });
+  const disableMoveForward = !canMoveJobForward(state.activeJob, {
+    lastStepIndex,
+    lockFinalStep: finalStepGateActive,
+  });
+
+  function jumpToJobStep(targetStep) {
+    if (
+      !canJumpToJobStep(state.activeJob, targetStep, {
+        lastStepIndex,
+        lockFinalStep: finalStepGateActive,
+      })
+    ) {
+      return;
+    }
+
+    actions.updateActiveJob({
+      ...state.activeJob,
+      jobStatus: targetStep,
+    });
+  }
 
   useEffect(() => {
-    async function setInitialState() {
-      if (jobID === state.activeJob?.jobID) return;
-
-      const matchedJob = useUsersStore.getState().jobData.actions.findJobInJobArray(jobID);
-
-      if (!matchedJob) {
-        console.error("Unable to find job document");
-        navigate({ to: "/jobplanner" });
-        return;
-      }
-
-      try {
-        const linkedJobs = await useUsersStore
-          .getState()
-          .jobData.actions.jobsFromIdsOrObjects([
-            ...matchedJob.getRelatedJobs(),
-            jobID,
-          ]);
-
-        if (useUsersStore.getState().account.isLoggedIn) {
-          await prefetchBuildStatsQuery(queryClient, matchedJob.itemID);
-        }
-
-        const { requestedMarketData, requestedSystemIndexes } =
-          await getMissingESIData(linkedJobs);
-
-        for (let setup of Object.values(matchedJob.build.setup)) {
-          setup.estimatedInstallCost = calculateInstallCostfromSetup(
-            setup,
-            requestedMarketData,
-            requestedSystemIndexes
-          );
-        }
-
-        if (!matchedJob.layout.setupToEdit) {
-          matchedJob.layout.setupToEdit =
-            Object.keys(matchedJob.build.setup)[0] || null;
-        }
-
-        if (!matchedJob.layout.setupToEdit) {
-          matchedJob.layout.setupToEdit =
-            Object.keys(matchedJob.build.setup)[0] || null;
-        }
-
-        useUsersStore
-          .getState()
-          .worldData.actions.addMarketData(requestedMarketData);
-        useUsersStore
-          .getState()
-          .worldData.actions.addSystemIndex(requestedSystemIndexes);
-
-        backupJob.current = new Job(matchedJob);
-
-        const activeJobObject = new Job(matchedJob);
-
-        actions.setActiveJob(activeJobObject);
-
-        setActiveJobID(activeJobObject.jobID);
-        actions.setIsLoading(false);
-      } catch (err) {
-        console.error("Error importing job data:", err);
-        navigate({ to: "/jobplanner" });
-      }
+    if (!canMoveBackward) {
+      setShowFloatingPrevStep(false);
+      return;
     }
-    setInitialState();
-  }, [jobID]);
 
-  function StepContentSelector(props) {
-    const { state, actions } = props;
+    const element = prevStepButtonContainerRef.current;
+    if (!element) {
+      setShowFloatingPrevStep(true);
+      return;
+    }
 
-    const LoadingFallback = () => (
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          minHeight: 200,
-        }}
-      >
-        <CircularProgress />
-      </Box>
+    const observer = new IntersectionObserver(
+      ([entry]) => setShowFloatingPrevStep(!entry.isIntersecting),
+      { threshold: 0.15 }
     );
 
-    switch (state.activeJob.jobStatus) {
-      case 0:
-        return (
-          <Suspense fallback={<LoadingFallback />}>
-            <LayoutSelector_EditJob_Planning {...props} />
-          </Suspense>
-        );
-      case 1:
-        return (
-          <Suspense fallback={<LoadingFallback />}>
-            <LayoutSelector_EditJob_Purchasing {...props} />
-          </Suspense>
-        );
-      case 2:
-        return (
-          <Suspense fallback={<LoadingFallback />}>
-            <LayoutSelector_EditJob_Building {...props} />
-          </Suspense>
-        );
-      case 3:
-        return (
-          <Suspense fallback={<LoadingFallback />}>
-            <LayoutSelector_EditJob_Complete {...props} />
-          </Suspense>
-        );
-      case 4:
-        return (
-          <Suspense fallback={<LoadingFallback />}>
-            <LayoutSelector_EditJob_Selling {...props} />
-          </Suspense>
-        );
-      default:
-        return (
-          <Suspense fallback={<LoadingFallback />}>
-            <LayoutSelector_EditJob_Planning {...props} />
-          </Suspense>
-        );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [canMoveBackward, state.activeJob?.jobStatus]);
+
+  useEffect(() => {
+    if (!canMoveForward) {
+      setShowFloatingNextStep(false);
+      return;
     }
-  }
+
+    const element = nextStepButtonContainerRef.current;
+    if (!element) {
+      setShowFloatingNextStep(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setShowFloatingNextStep(!entry.isIntersecting),
+      { threshold: 0.15 }
+    );
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [canMoveForward, state.activeJob?.jobStatus]);
 
   return (
     <DefaultPageLayout>
@@ -307,115 +162,186 @@ export default function EditJob_New() {
         isLoading={state.isLoading || !state.activeJob}
         loadingMessage={state.loadingMessage}
         loadingVariant="simple"
+        contentGridSx={{ overflow: "visible" }}
       >
         {state.activeJob && (
           <Grid container sx={{ width: "100%" }}>
             <Grid
-              size={{
-                xs: 8,
-                sm: 8,
-                md: 9,
-                lg: 10,
-              }}
+              size={12}
               sx={{
-                display: "flex",
-                alignItems: "center",
-                overflow: "hidden",
+                position: "sticky",
+                top: { xs: 56, sm: 64 },
+                zIndex: (theme) => theme.zIndex.appBar - 3,
+                backgroundColor: "background.paper",
+                backgroundImage: (theme) =>
+                  theme.palette.mode === "dark"
+                    ? "linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08))"
+                    : "none",
+                boxShadow: (theme) => theme.shadows[3],
+                borderBottom: 1,
+                borderColor: "divider",
+                mb: { xs: 1 },
+                py: 1,
               }}
             >
-              <Typography
-                variant="h3"
-                color="primary"
-                align="left"
+              <Grid container sx={{ width: "100%" }}>
+                <Grid
+                  size={{
+                    xs: 8,
+                    sm: 8,
+                    md: 9,
+                    lg: 10,
+                  }}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    overflow: "hidden",
+                    gap: { sm: 1.5, md: 2 },
+                  }}
+                >
+                  <Avatar
+                    src={`https://images.evetech.net/types/${state.activeJob.itemID}/icon?size=32`}
+                    alt={state.activeJob.name}
+                    variant="square"
+                    sx={{
+                      display: { xs: "none", sm: "block" },
+                      height: { sm: "36px", md: "42px" },
+                      width: { sm: "36px", md: "42px" },
+                      flexShrink: 0,
+                    }}
+                  />
+                  <Typography
+                    variant="h3"
+                    color="primary"
+                    align="left"
+                    sx={{
+                      width: "100%",
+                      fontSize: {
+                        xs: "1.5rem",
+                        sm: "2rem",
+                        md: "3rem",
+                      },
+                      lineHeight: {
+                        xs: 1.2,
+                        sm: 1.3,
+                        md: 1.4,
+                      },
+                      wordBreak: "break-word",
+                      overflowWrap: "break-word",
+                    }}
+                  >
+                    {state.activeJob.name}
+                  </Typography>
+                </Grid>
+                <Grid
+                  align="right"
+                  size={{
+                    xs: 4,
+                    sm: 4,
+                    md: 3,
+                    lg: 2,
+                  }}
+                  sx={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    alignItems: "center",
+                    flexWrap: "nowrap",
+                    gap: {
+                      xs: 0.5,
+                      sm: 0.75,
+                      md: 1,
+                    },
+                    flexShrink: 0,
+                  }}
+                >
+                  <Tooltip title="View this jobs item tree">
+                    <span>
+                      <IconButton
+                        color="primary"
+                        onClick={() => {
+                          if (!state.activeJob) return;
+                          const { activeGroup, pageView } = readEditJobUrlSearch();
+                          openJobLinkTreeFromEditPage({
+                            jobId: state.activeJob.jobID,
+                            activeGroup,
+                            pageView,
+                          });
+                        }}
+                        size="small"
+                        aria-label="View this jobs item tree"
+                        disabled={!state.activeJob}
+                        sx={{
+                          paddingRight: 2
+                        }}
+                      >
+                        <SchemaIcon />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <DeleteJobIcon state={state} />
+                  <CloseJobIcon backupJob={backupJob.current} />
+                  <SaveJobIcon state={state} />
+                </Grid>
+              </Grid>
+            </Grid>
+            {showFloatingPrevStep && (
+              <Box
                 sx={{
-                  width: "100%",
-                  fontSize: {
-                    xs: "1.5rem",
-                    sm: "2rem",
-                    md: "3rem",
-                  },
-                  lineHeight: {
-                    xs: 1.2,
-                    sm: 1.3,
-                    md: 1.4,
-                  },
-                  wordBreak: "break-word",
-                  overflowWrap: "break-word",
+                  position: "fixed",
+                  top: { xs: 136, sm: 156 },
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  zIndex: (theme) => theme.zIndex.appBar - 2,
+                  backgroundColor: "background.paper",
+                  borderRadius: "50%",
+                  boxShadow: (theme) => theme.shadows[3],
                 }}
               >
-                {state.activeJob.name}
-              </Typography>
-            </Grid>
-            <Grid
-              align="right"
-              size={{
-                xs: 4,
-                sm: 4,
-                md: 3,
-                lg: 2,
-              }}
-              sx={{
-                display: "flex",
-                justifyContent: "flex-end",
-                alignItems: "center",
-                flexWrap: "nowrap",
-                gap: {
-                  xs: 0.5,
-                  sm: 0.75,
-                  md: 1,
-                },
-                flexShrink: 0,
-              }}
-            >
-              <Tooltip title="Show this job in the link tree (parents and children)">
-                <span>
-                  <IconButton
-                    color="primary"
-                    onClick={() => {
-                      if (!state.activeJob) return;
-                      const { activeGroup, pageView } = readEditJobUrlSearch();
-                      openJobLinkTreeFromEditPage({
-                        jobId: state.activeJob.jobID,
-                        activeGroup,
-                        pageView,
-                      });
-                    }}
-                    size="small"
-                    aria-label="Open job link tree"
-                    disabled={!state.activeJob}
-                  >
-                    <SchemaIcon />
-                  </IconButton>
-                </span>
-              </Tooltip>
-              <DeleteJobIcon state={state} />
-              <CloseJobIcon backupJob={backupJob.current} />
-              <SaveJobIcon state={state} />
-            </Grid>
-            <Grid size={2} />
-            <Grid
-              align="center"
-              sx={{ marginTop: { xs: "20px", md: "30px" } }}
-              size={{
-                xs: 12,
-                sm: 5,
-              }}
-            >
-              <Avatar
-                src={`https://images.evetech.net/types/${state.activeJob.itemID}/icon?size=32`}
-                alt={state.activeJob.name}
-                variant="square"
+                <Tooltip title="Move to previous step" arrow placement="right">
+                  <span>
+                    <IconButton
+                      color="primary"
+                      onClick={actions.stepActiveJobBackward}
+                      size="large"
+                    >
+                      <ArrowUpwardIcon />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Box>
+            )}
+            {showFloatingNextStep && (
+              <Box
                 sx={{
-                  height: { xs: "32px", sm: "64px" },
-                  width: { xs: "32px", sm: "64px" },
+                  position: "fixed",
+                  bottom: 16,
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  zIndex: (theme) => theme.zIndex.appBar - 2,
+                  backgroundColor: "background.paper",
+                  borderRadius: "50%",
+                  boxShadow: (theme) => theme.shadows[3],
                 }}
-              />
-            </Grid>
+              >
+                <Tooltip title="Move to next step" arrow placement="right">
+                  <span>
+                    <IconButton
+                      color="primary"
+                      onClick={actions.stepActiveJobForward}
+                      size="large"
+                      disabled={disableMoveForward}
+                    >
+                      <ArrowDownwardIcon />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Box>
+            )}
             <Grid
-              sx={{ marginTop: { xs: "10px", sm: "0px" } }}
+              sx={{ marginTop: { xs: "14px", sm: "10px" } }}
               size={{
                 xs: 12,
-                sm: 5,
+                sm: 10,
               }}
             >
               <LinkedJobBadge state={state} actions={actions} />
@@ -435,11 +361,28 @@ export default function EditJob_New() {
                         },
                       }}
                     >
-                      <StepLabel>{status.name}</StepLabel>
+                      <StepButton
+                        onClick={() => jumpToJobStep(status.id)}
+                        disabled={
+                          status.id === currentStep ||
+                          (status.id === lastStepIndex && finalStepGateActive)
+                        }
+                        sx={{
+                          "& .MuiStepLabel-label": {
+                            textAlign: "left",
+                          },
+                        }}
+                      >
+                        {status.name}
+                      </StepButton>
                       <StepContent sx={{ width: "100%" }}>
                         <Divider />
-                        {state.activeJob.jobStatus !== 0 && (
-                          <Grid align="center" size={12}>
+                        {canMoveBackward && (
+                          <Grid
+                            align="center"
+                            size={12}
+                            ref={prevStepButtonContainerRef}
+                          >
                             <Tooltip
                               title="Move to previous step"
                               arrow
@@ -463,14 +406,18 @@ export default function EditJob_New() {
                           state={state}
                         >
                           <Box sx={{ width: "100%" }}>
-                            <StepContentSelector
+                            <EditJobStepContentSelector
                               state={state}
                               actions={actions}
                             />
                           </Box>
                         </StepErrorBoundary>
-                        {state.activeJob.jobStatus !== jobStatuses.length - 1 && (
-                          <Grid align="center" size={12}>
+                        {canMoveForward && (
+                          <Grid
+                            align="center"
+                            size={12}
+                            ref={nextStepButtonContainerRef}
+                          >
                             <Tooltip
                               title="Move to next step"
                               arrow
@@ -480,12 +427,7 @@ export default function EditJob_New() {
                                 color="primary"
                                 onClick={actions.stepActiveJobForward}
                                 size="large"
-                                disabled={
-                                  state.activeJob.includedInGroup &&
-                                  !state.activeJob.isReadyToSell &&
-                                  state.activeJob.jobStatus ===
-                                    jobStatuses.length - 2
-                                }
+                                disabled={disableMoveForward}
                               >
                                 <ArrowDownwardIcon />
                               </IconButton>
@@ -509,4 +451,24 @@ export default function EditJob_New() {
       <EditJobLeaveConfirmDialog {...leaveConfirmDialogProps} />
     </DefaultPageLayout>
   );
+
+  /**
+ * Read `/editjob/$id` query params at call time (e.g. link-tree button) - avoids subscribing
+ * to search on every render when the dialog is rarely opened.
+ * @returns {{ activeGroup: string|undefined, pageView: string|undefined }}
+ */
+  function readEditJobUrlSearch() {
+    if (typeof window === "undefined") {
+      return { activeGroup: undefined, pageView: undefined };
+    }
+    const p = new URLSearchParams(window.location.search);
+    const ag = p.get("activeGroup");
+    const pageView = p.get("pageView");
+    return {
+      activeGroup: ag && ag.trim() !== "" ? ag : undefined,
+      pageView: pageView && pageView.trim() !== "" ? pageView : undefined,
+    };
+  }
 }
+
+

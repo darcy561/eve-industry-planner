@@ -7,6 +7,7 @@ import {
   UnlinkExistingChildJobButton_ChildJobPopoverFrame,
 } from "./linkExistingJobButton";
 import { OpenChildJobButon_ChildJobPopoverFrame } from "./openChildJobButton";
+import { resolveMaterialChildJobStatus } from "../Helpers/materialChildJobs";
 
 export function ButtonSelectionLogic_ChildJobPopoverFrame(props) {
   const { state, childJobsLocation, isExistingJobInGroup, material } = props;
@@ -27,47 +28,24 @@ export function ButtonSelectionLogic_ChildJobPopoverFrame(props) {
     <UnlinkExistingChildJobButton_ChildJobPopoverFrame {...props} />
   );
 
-  if (state.activeJob.includedInGroup) {
-    if (childJobsLocation.length === 0) {
-      if (!state.temporaryChildJobs[material.typeID]) {
-        if (
-          !state.parentChildToEdit.childJobs[material.typeID]?.add ||
-          state.parentChildToEdit.childJobs[material.typeID]?.add.length === 0
-        ) {
-          if (!isExistingJobInGroup.current) {
-            return createChildJobButton;
-          } else {
-            return linkExistingGroupJobButton;
-          }
-        } else {
-          if (!isExistingJobInGroup) {
-            return openChildJobButton;
-          } else {
-            return unlinkExistingGroupJobButton;
-          }
-        }
-      } else {
-        return cancelCreateChildJobButton;
-      }
-    } else {
-      return openChildJobButton;
-    }
+  const { inGroup, hasLinked, hasTemp, hasPendingAdd, hasGroupMatch } =
+    resolveMaterialChildJobStatus({
+      state,
+      materialTypeID: material.typeID,
+      childJobsLocation,
+      isExistingJobInGroup: isExistingJobInGroup.current,
+    });
+
+  if (hasLinked) return openChildJobButton;
+  if (hasTemp) return cancelCreateChildJobButton;
+
+  if (!inGroup) {
+    return hasPendingAdd ? openChildJobButton : createChildJobButton;
   } else {
-    if (childJobsLocation.length === 0) {
-      if (!state.temporaryChildJobs[material.typeID]) {
-        if (
-          !state.parentChildToEdit.childJobs[material.typeID]?.add ||
-          state.parentChildToEdit.childJobs[material.typeID]?.add.length === 0
-        ) {
-          return createChildJobButton;
-        } else {
-          return openChildJobButton;
-        }
-      } else {
-        return cancelCreateChildJobButton;
-      }
-    } else {
-      return openChildJobButton;
+    if (hasPendingAdd) {
+      return hasGroupMatch ? unlinkExistingGroupJobButton : openChildJobButton;
     }
+
+    return hasGroupMatch ? linkExistingGroupJobButton : createChildJobButton;
   }
 }

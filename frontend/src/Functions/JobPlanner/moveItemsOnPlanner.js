@@ -2,6 +2,10 @@ import Job from "../../Classes/job";
 import Group from "../../Classes/group";
 import { scheduleSaveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import useUsersStore from "../../Zustand/usersStore";
+import {
+  canMoveJobBackward,
+  canMoveJobForward,
+} from "../Job/jobStepNavigation";
 
 /**
  * Moves jobs or groups forward/backward in the planner workflow.
@@ -153,9 +157,10 @@ export default async function moveItemsOnPlanner(inputIDs, direction) {
    * @private
    */
   function canMoveForward(job) {
-    if (job.jobStatus >= 4) return false;
-    if (job.includedInGroup && job.jobStatus >= 3) return false;
-    return true;
+    return canMoveJobForward(job, {
+      lastStepIndex: 4,
+      lockFinalStep: true,
+    });
   }
 
   /**
@@ -167,8 +172,7 @@ export default async function moveItemsOnPlanner(inputIDs, direction) {
    * @private
    */
   function canMoveBackward(job) {
-    if (job.jobStatus === 0) return false;
-    return true;
+    return canMoveJobBackward(job);
   }
 
   /**

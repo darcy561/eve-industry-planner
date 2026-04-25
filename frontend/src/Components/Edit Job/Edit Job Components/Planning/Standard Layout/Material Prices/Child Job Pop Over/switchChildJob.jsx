@@ -35,7 +35,7 @@ export function ChildJobSwitcher_ChildJobPopoverFrame({
         </Grid>
         <Grid size={1}>
           <IconButton
-            disabled={jobDisplay === childJobObjects.length}
+            disabled={jobDisplay >= childJobObjects.length - 1}
             onClick={() => {
               setJobDisplay((prev) => prev + 1);
             }}

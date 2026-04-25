@@ -1,79 +1,114 @@
-import { Typography, Grid } from "@mui/material";
+import { Grid } from "@mui/material";
+import { useState } from "react";
 import { CurrentMaterialHeader } from "./currentMaterialHeader";
 import { MaterialCostRow_MaterialPricePanel } from "./itemRow";
 import { MaterialTotals_MaterialPricesPanel } from "./materialTotals";
-import { MarketLocationSelectApplicationSettings } from "../../../../../../Styled Components/Select/marketLocation.jsx";
-import { MarketListingSelectApplicationSettings } from "../../../../../../Styled Components/Select/marketListing.jsx";
-import { useEffectiveMarketHubFromLayout } from "../../../../../../Hooks/Planner/useEffectiveMarketHubFromLayout.js";
+import { MaterialSourcesPopover } from "./materialSourcesPopover";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
+import { useMaterialPricingModel } from "./Hooks/useMaterialPricingModel";
+import { useMaterialOverrides } from "./Hooks/useMaterialOverrides";
+import { useChildJobBuildActions } from "./Hooks/useChildJobBuildActions";
 
 export function MaterialCostPanel(props) {
   const { state, actions } = props;
+  const {
+    activeJob,
+    layout,
+    marketSelect,
+    listingSelect,
+    materials,
+    materialPriceOverrides,
+    hasSetupToEdit,
+    resolvedMaterials,
+    totals,
+  } = useMaterialPricingModel({ state, actions });
+  const {
+    updateLayoutPreference,
+    updateMaterialLayoutPreference,
+    clearAllMaterialLayoutPreferences,
+    resetMaterialLayoutPreference,
+    applyAllMaterialLayoutPreferences,
+  } = useMaterialOverrides({
+    activeJob,
+    layout,
+    materials,
+    updateActiveJob: actions.updateActiveJob,
+  });
+  const { buildAllChildJobs } = useChildJobBuildActions({ state, actions });
+  const [isMaterialSourcesOpen, setIsMaterialSourcesOpen] = useState(false);
 
-  const { marketDisplay: marketSelect, orderDisplay: listingSelect } =
-    useEffectiveMarketHubFromLayout(state.activeJob.layout);
-
-  if (!state.activeJob.build.setup[state.activeJob.layout.setupToEdit])
-    return null;
+  if (!hasSetupToEdit) return null;
 
   return (
     <ContentPanel
       title="Estimated Market Costs"
       paperSx={{ position: "relative", height: "auto" }}
       titleMarginBottom={6}
+      enableMenu
+      menuItems={[
+        {
+          label: "Manage Material Sources",
+          onClick: () => {
+            setIsMaterialSourcesOpen(true);
+          },
+        },
+        {
+          label: "Create All Child Jobs",
+          onClick: buildAllChildJobs,
+        },
+      ]}
     >
-      <MarketListingSelectApplicationSettings
-        overrideOrderType={
-          state.activeJob.layout.localOrderDisplay ?? undefined
-        }
-        onOrderTypeCommit={(id) => {
-          state.activeJob.layout.localOrderDisplay =
-            id === undefined ? null : id;
-          actions.updateActiveJob(state.activeJob);
-        }}
-        customFormStyling={{
-          width: "120px",
-          position: "absolute",
-          top: { xs: "55px", sm: "20px" },
-          left: { xs: "10%", sm: "30px" },
-        }}
-      />
-      <MarketLocationSelectApplicationSettings
-        overrideMarketLocation={
-          state.activeJob.layout.localMarketDisplay ?? undefined
-        }
-        onMarketLocationCommit={(id) => {
-          state.activeJob.layout.localMarketDisplay =
-            id === undefined ? null : id;
-          actions.updateActiveJob(state.activeJob);
-        }}
-        customFormStyling={{
-          width: "90px",
-          position: "absolute",
-          top: { xs: "55px", sm: "20px" },
-          right: { xs: "10%", sm: "30px" },
-        }}
-      />
       <CurrentMaterialHeader
         {...props}
         marketSelect={marketSelect}
         listingSelect={listingSelect}
       />
+      <MaterialSourcesPopover
+        marketSelect={marketSelect}
+        listingSelect={listingSelect}
+        marketOverride={layout.localMarketDisplay ?? null}
+        listingOverride={layout.localOrderDisplay ?? null}
+        onMarketLocationCommit={(id) => {
+          updateLayoutPreference("localMarketDisplay", id ?? null);
+        }}
+        onOrderTypeCommit={(id) => {
+          updateLayoutPreference("localOrderDisplay", id ?? null);
+        }}
+        materials={materials}
+        materialPriceOverrides={materialPriceOverrides}
+        onMaterialMarketCommit={(materialTypeID, id) =>
+          updateMaterialLayoutPreference(materialTypeID, "marketDisplay", id ?? null)
+        }
+        onMaterialListingCommit={(materialTypeID, id) =>
+          updateMaterialLayoutPreference(materialTypeID, "orderDisplay", id ?? null)
+        }
+        onResetMaterialOverride={resetMaterialLayoutPreference}
+        onApplyAllMaterialsMarket={(id) =>
+          applyAllMaterialLayoutPreferences("marketDisplay", id ?? null)
+        }
+        onApplyAllMaterialsListing={(id) =>
+          applyAllMaterialLayoutPreferences("orderDisplay", id ?? null)
+        }
+        onClearAllMaterialOverrides={clearAllMaterialLayoutPreferences}
+        materialSourcesAnchor={isMaterialSourcesOpen}
+        onCloseMaterialSources={() => setIsMaterialSourcesOpen(false)}
+      />
       <Grid container size={12}>
-        {state.activeJob.build.materials.map((material) => {
+        {resolvedMaterials.map(
+          ({ material, marketSelect: materialMarketSelect, listingSelect: materialListingSelect }) => {
           return (
             <MaterialCostRow_MaterialPricePanel
               {...props}
               key={material.typeID}
               material={material}
-              marketSelect={marketSelect}
-              listingSelect={listingSelect}
+              marketSelect={materialMarketSelect}
+              listingSelect={materialListingSelect}
             />
           );
         })}
         <MaterialTotals_MaterialPricesPanel
-          {...props}
-          marketSelect={marketSelect}
+          state={state}
+          totals={totals}
           listingSelect={listingSelect}
         />
       </Grid>

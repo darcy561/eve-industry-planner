@@ -1,4 +1,6 @@
-import { Paper, Typography, Grid } from "@mui/material";
+import { Paper, Typography, Grid, IconButton, Menu, MenuItem } from "@mui/material";
+import { useState } from "react";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
 
 import ContentErrorBoundary from "./ContentErrorBoundary";
 import PanelFallBack from "./panelStates";
@@ -29,6 +31,11 @@ import { LoadingPage } from "../../Components/loadingPage";
  * @param {Object} [props.paperSx] - Additional styles for the Paper component
  * @param {Object} [props.contentGridSx] - Additional styles merged into the inner content Grid (e.g. overflow: "visible" for panels that size to content)
  * @param {boolean} [props.visible=true] - When false, the panel is not rendered
+ * @param {boolean} [props.enableMenu=false] - Whether to show top-right 3-dot menu
+ * @param {Array<Object>} [props.menuItems=[]] - Menu item configs
+ * @param {string} props.menuItems[].label - Menu item label text
+ * @param {Function} [props.menuItems[].onClick] - Click callback receiving { closeMenu, anchorEl }
+ * @param {boolean} [props.menuItems[].disabled=false] - Disable menu item
  * @param {Object} props.otherProps - Additional props passed to the Paper component
  * @returns {JSX.Element|null} Content panel component
  *
@@ -59,8 +66,11 @@ export default function ContentPanel({
   paperSx,
   contentGridSx,
   visible = true,
+  enableMenu = false,
+  menuItems = [],
   ...otherProps
 }) {
+  const [menuAnchor, setMenuAnchor] = useState(null);
   if (!visible) {
     return null;
   }
@@ -84,6 +94,47 @@ export default function ContentPanel({
       square={square}
       {...otherProps}
     >
+      {enableMenu && menuItems.length > 0 && (
+        <>
+          <IconButton
+            id="contentPanel_menu_button"
+            onClick={(event) => setMenuAnchor(event.currentTarget)}
+            aria-controls={Boolean(menuAnchor) ? "contentPanel_menu" : undefined}
+            aria-haspopup="true"
+            aria-expanded={Boolean(menuAnchor) ? "true" : undefined}
+            sx={{ position: "absolute", top: "10px", right: "10px" }}
+          >
+            <MoreVertIcon size="small" color="primary" />
+          </IconButton>
+          <Menu
+            id="contentPanel_menu"
+            anchorEl={menuAnchor}
+            open={Boolean(menuAnchor)}
+            onClose={() => setMenuAnchor(null)}
+            slotProps={{
+              list: {
+                "aria-labelledby": "contentPanel_menu_button",
+              },
+            }}
+          >
+            {menuItems.map((item) => (
+              <MenuItem
+                key={item.label}
+                disabled={item.disabled || false}
+                onClick={() => {
+                  item.onClick?.({
+                    closeMenu: () => setMenuAnchor(null),
+                    anchorEl: menuAnchor,
+                  });
+                  setMenuAnchor(null);
+                }}
+              >
+                {item.label}
+              </MenuItem>
+            ))}
+          </Menu>
+        </>
+      )}
       <Grid 
         container 
         sx={{ 

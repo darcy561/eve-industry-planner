@@ -153,6 +153,13 @@ class Job {
     this.rawData = itemJson?.rawData || {};
     this.skills = itemJson?.skills || [];
     this.itemsProducedPerRun = itemJson?.itemsProducedPerRun || 0;
+    const materialPriceOverrides =
+      itemJson?.layout?.materialPriceOverrides &&
+      typeof itemJson.layout.materialPriceOverrides === "object" &&
+      !Array.isArray(itemJson.layout.materialPriceOverrides)
+        ? itemJson.layout.materialPriceOverrides
+        : {};
+
     this.layout = {
       localMarketDisplay:
         itemJson?.layout?.localMarketDisplay ??
@@ -165,6 +172,7 @@ class Job {
       esiJobTab: itemJson?.layout?.esiJobTab || null,
       setupToEdit: itemJson?.layout?.setupToEdit || null,
       resourceDisplayType: itemJson?.layout?.resourceDisplayType || null,
+      materialPriceOverrides,
     };
     const accountID =
       itemJson?._meta?.accountID ||
@@ -310,6 +318,7 @@ class Job {
         esiJobTab: this.layout.esiJobTab,
         setupToEdit: this.layout.setupToEdit,
         resourceDisplayType: this.layout.resourceDisplayType,
+        materialPriceOverrides: this.layout.materialPriceOverrides || {},
       },
       _meta: { ...this._meta },
     };

@@ -1,18 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useMemo } from "react";
 import { Paper, Popover, Typography, Grid } from "@mui/material";
-import { useQueryClient } from "@tanstack/react-query";
 import { ImportingStateLayout_ChildJobPopoverFrame } from "./fetchState";
 import { ChildJobMaterials_ChildJobPopoverFrame } from "./childJobMaterials";
 import { ChildJobSwitcher_ChildJobPopoverFrame } from "./switchChildJob";
 import { DisplayMismatchedChildTotals_ChildJobPopoverFrame } from "./misMatchedTotals";
 import { ChildJobMaterialTotalCosts_ChildJobPopoverFrame } from "./childJobTotalCosts";
 import { calculateMaterialCostFromChildJobs } from "../../../../../../../Functions/Groups/materialCostFromChildJobs.js";
-import { findMaterialJobInGroup } from "../../../../../../../Functions/Groups/findMaterialJobInGroup.js";
 import { ButtonSelectionLogic_ChildJobPopoverFrame } from "./buttonSelectionLogic";
 import { STANDARD_TEXT_FORMAT } from "../../../../../../../Context/defaultValues";
-import getMarketData from "../../../../../../../Functions/MarketData/findMarketData";
 import useUsersStore from "../../../../../../../Zustand/usersStore";
-import { buildJob } from "../../../../../../../Functions/JobPlanner/buildJob";
+import { useChildJobBuildActions } from "../Hooks/useChildJobBuildActions";
+import { useChildJobPopoverData } from "../Hooks/useChildJobPopoverData";
 
 export function ChildJobPopoverFrame(props) {
   const {
@@ -27,75 +25,64 @@ export function ChildJobPopoverFrame(props) {
   } = props;
   const checkTypeIDisExempt =
     useUsersStore.getState().applicationSettings.actions.checkTypeIDisExempt;
-  const [tempPrices, updateTempPrices] = useState([]);
-  const [jobImportState, updateJobImportState] = useState(false);
-  const [jobDisplay, setJobDisplay] = useState(0);
-  const [childJobObjects, updateChildJobObjects] = useState([]);
-  const [fetchError, updateFetchError] = useState(false);
-  const queryClient = useQueryClient();
+  const worldMarketData = useUsersStore((state) => state.worldData.marketData);
+  const { buildSingleChildJobPreview } = useChildJobBuildActions({
+    state,
+    actions: props.actions,
+  });
 
-  const childJobsLocation = state.activeJob.build.childJobs[material.typeID];
+  const childJobsLocation = state.activeJob.build.childJobs[material.typeID] || [];
+  const {
+    jobImportState,
+    jobDisplay,
+    setJobDisplay,
+    childJobObjects,
+    fetchError,
+    isExistingJobInGroup,
+  } = useChildJobPopoverData({
+    state,
+    displayPopover,
+    material,
+    matchedChildJobs,
+    childJobsLocation,
+    buildSingleChildJobPreview,
+  });
   const currentJob = childJobObjects[jobDisplay];
-  const isExistingJobInGroup = useRef(false);
-
-  useEffect(() => {
-    async function fetchData() {
-      if (!displayPopover) return;
-      const matchedGroupJob = findMaterialJobInGroup(
-        material.typeID,
-        state.activeJob.groupID
-      );
-      if (matchedGroupJob && matchedChildJobs.length === 0) {
-        matchedChildJobs.push(matchedGroupJob);
-        isExistingJobInGroup.current = true;
-      } else if (matchedChildJobs.length === 0) {
-        const newJob = await buildJob(
-          {
-            itemID: material.typeID,
-            itemQty: material.quantity,
-            parentJobs: [state.activeJob.jobID],
-            groupID: state.activeJob.groupID,
-            systemID:
-              state.activeJob.build.setup[state.activeJob.layout.setupToEdit]
-                .systemID,
-            skipJobCreateAnalytics: true,
-          },
-          { queryClient }
-        );
-        if (!newJob) {
-          updateFetchError(true);
-        }
-
-        const itemPriceResult = await getMarketData(newJob.getMaterialIDs());
-
-        updateTempPrices((prev) => ({ ...prev, ...itemPriceResult }));
-        matchedChildJobs.push(newJob);
-      }
-
-      if (matchedChildJobs.length > 0) {
-        updateChildJobObjects(matchedChildJobs);
-      }
-      updateJobImportState(true);
+  const handleClosePopover = () => {
+    const activeElement = document.activeElement;
+    if (activeElement && typeof activeElement.blur === "function") {
+      activeElement.blur();
     }
-    fetchData();
 
-    return;
-  }, [displayPopover]);
+    if (displayPopover && typeof displayPopover.focus === "function") {
+      displayPopover.focus();
+    }
 
-  const totalCostOfMaterials = (currentJob?.build?.materials || []).reduce(
-    (prev, material) => {
-      const childJobs = currentJob.build.childJobs[material.typeID];
-      return (prev += calculateMaterialCostFromChildJobs(
-        material,
-        childJobs,
-        state.temporaryChildJobs[material.typeID],
-        tempPrices,
-        marketSelect,
-        listingSelect
-      ));
-    },
-    0
-  );
+    updateDisplayPopover(null);
+  };
+
+  const totalCostOfMaterials = useMemo(() => {
+    return (currentJob?.build?.materials || []).reduce((prev, rowMaterial) => {
+      const childJobs = currentJob.build.childJobs[rowMaterial.typeID];
+      return (
+        prev +
+        calculateMaterialCostFromChildJobs(
+          rowMaterial,
+          childJobs,
+          state.temporaryChildJobs[rowMaterial.typeID],
+          {},
+          marketSelect,
+          listingSelect
+        )
+      );
+    }, 0);
+  }, [
+    currentJob,
+    listingSelect,
+    marketSelect,
+    state.temporaryChildJobs,
+    worldMarketData,
+  ]);
 
   const totalInstallCosts = Object.values(
     currentJob?.build?.setup || []
@@ -119,9 +106,7 @@ export function ChildJobPopoverFrame(props) {
         vertical: "bottom",
         horizontal: "right",
       }}
-      onClose={() => {
-        updateDisplayPopover(null);
-      }}
+      onClose={handleClosePopover}
     >
       <Paper
         square
@@ -160,7 +145,6 @@ export function ChildJobPopoverFrame(props) {
                 {...props}
                 childJobObjects={childJobObjects}
                 jobDisplay={jobDisplay}
-                tempPrices={tempPrices}
               />
             </Grid>
             <ChildJobMaterialTotalCosts_ChildJobPopoverFrame
@@ -188,7 +172,6 @@ export function ChildJobPopoverFrame(props) {
                 childJobsLocation={childJobsLocation}
                 childJobObjects={childJobObjects}
                 jobDisplay={jobDisplay}
-                tempPrices={tempPrices}
                 isExistingJobInGroup={isExistingJobInGroup}
               />
             </Grid>

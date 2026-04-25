@@ -229,8 +229,9 @@ export function editJobReducer(state, action) {
             add: [],
             remove: [jobToRemove.jobID],
           };
-          delete newTemporaryChildJobs[jobToRemove.itemID];
         }
+        // Always clear temporary child job when cancelling/removing this link.
+        delete newTemporaryChildJobs[jobToRemove.itemID];
       }
       return {
         ...state,

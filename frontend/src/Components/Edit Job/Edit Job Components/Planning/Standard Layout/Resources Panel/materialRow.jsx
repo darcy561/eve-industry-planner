@@ -6,9 +6,16 @@ import LensIcon from "@mui/icons-material/Lens";
 import MaterialPopoverIconButtons from "../../../../../../Styled Components/Popover/iconButtons";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import { getJobTypeAccentColor } from "../../../../../../Functions/Helper/jobTypeDividerColor";
+import { resolveMaterialChildJobStatus } from "../Material Prices/Helpers/materialChildJobs";
 
 export function MaterialRow({ state, material, displayType }) {
   const theme = useTheme();
+  const childJobsLocation = state.activeJob.build.childJobs[material.typeID] || [];
+  const { hasLinked, hasTemp, hasPendingAdd } = resolveMaterialChildJobStatus({
+    state,
+    materialTypeID: material.typeID,
+    childJobsLocation,
+  });
 
   const quantityToUse =
     displayType === "active"
@@ -29,9 +36,7 @@ export function MaterialRow({ state, material, displayType }) {
 
     if (jobType === jobTypes.manufacturing || jobType === jobTypes.reaction) {
       const hasLinkedChildren = childJobs[typeID].length > 0;
-      const hasPendingChild =
-        state.temporaryChildJobs[typeID] ||
-        state.parentChildToEdit.childJobs[typeID]?.add.length > 0;
+      const hasPendingChild = hasTemp || hasPendingAdd;
       if (!hasLinkedChildren && hasPendingChild) {
         return theme.palette.warning.main;
       }
@@ -52,11 +57,7 @@ export function MaterialRow({ state, material, displayType }) {
           justifyContent: "center",
           alignItems: "center"
         }}>
-        {state.activeJob.build.childJobs[material.typeID].length === 0 &&
-        !state.temporaryChildJobs[material.typeID] &&
-        (!state.parentChildToEdit.childJobs[material.typeID]?.add ||
-          state.parentChildToEdit.childJobs[material.typeID].add.length ===
-            0) ? (
+        {!hasLinked && !hasTemp && !hasPendingAdd ? (
           <Tooltip
             title={jobTypeTextMap[material.jobType]}
             placement="left-start"
@@ -73,8 +74,7 @@ export function MaterialRow({ state, material, displayType }) {
         ) : (
           <Tooltip
             title={
-              state.temporaryChildJobs[material.typeID] ||
-              state.parentChildToEdit.childJobs[material.typeID]?.add.length > 0
+              hasTemp || hasPendingAdd
                 ? `${jobTypeTextMap[material.jobType]} Pending`
                 : `${jobTypeTextMap[material.jobType]} Linked`
             }

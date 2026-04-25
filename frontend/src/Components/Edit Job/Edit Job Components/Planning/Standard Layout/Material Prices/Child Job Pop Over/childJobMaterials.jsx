@@ -7,7 +7,6 @@ export function ChildJobMaterials_ChildJobPopoverFrame({
   state,
   jobDisplay,
   childJobObjects,
-  tempPrices,
   marketSelect,
   listingSelect,
 }) {
@@ -19,7 +18,7 @@ export function ChildJobMaterials_ChildJobPopoverFrame({
       material,
       childJobs,
       state.temporaryChildJobs[material.typeID],
-      tempPrices,
+      {},
       marketSelect,
       listingSelect
     );

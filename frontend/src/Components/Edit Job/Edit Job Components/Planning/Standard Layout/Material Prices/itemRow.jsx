@@ -5,56 +5,56 @@ import {
   LARGE_TEXT_FORMAT,
   STANDARD_TEXT_FORMAT,
 } from "../../../../../../Context/defaultValues";
-import GLOBAL_CONFIG from "../../../../../../global-config-app";
 import { ChildJobPopoverFrame } from "./Child Job Pop Over/childJobPopoverFrame";
 import { calculateMaterialCostFromChildJobs } from "../../../../../../Functions/Groups/materialCostFromChildJobs.js";
 import checkJobTypeIsBuildable from "../../../../../../Functions/Helper/checkJobTypeIsBuildable";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import MaterialPopoverIconButtons from "../../../../../../Styled Components/Popover/iconButtons";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
-
-const { PRIMARY_THEME, SECONDARY_THEME } = GLOBAL_CONFIG;
+import { getMarketPriceForType } from "./marketPriceHelpers";
+import { resolveMaterialChildJobs } from "./Helpers/materialChildJobs";
+import {
+  buildRowSourceText,
+  getListingOrdersLabel,
+} from "./Helpers/marketLabelHelpers";
+import {
+  selectChildBuildPriceColor,
+  selectMarketPriceColor,
+  selectRowHighlightColor,
+} from "./Helpers/itemRowPriceHelpers";
 
 export function MaterialCostRow_MaterialPricePanel(props) {
-  const { state, actions, material, marketSelect, listingSelect } = props;
+  const {
+    state,
+    actions,
+    material,
+    marketSelect,
+    listingSelect,
+  } = props;
   const { jobArray } = useUsersStore((state) => state.jobData);
   const checkTypeIDisExempt = useUsersStore.getState().applicationSettings.actions.checkTypeIDisExempt;
   const [displayPopover, updateDisplayPopover] = useState(null);
 
-  const itemPriceObject = useUsersStore
-    .getState()
-    .worldData.actions.findMarketData(material.typeID);
-
-  const currentMaterialPrice = itemPriceObject[marketSelect][listingSelect];
-
-  const matchedChildJobs = jobArray.filter((i) =>
-    state.activeJob.build.childJobs[material.typeID].includes(i.jobID)
+  const currentMaterialPrice = getMarketPriceForType(
+    material.typeID,
+    marketSelect,
+    listingSelect
   );
-  if (state.temporaryChildJobs[material.typeID]) {
-    const tempJobID = state.temporaryChildJobs[material.typeID].jobID;
-
-    if (!matchedChildJobs.some((i) => i.jobID === tempJobID)) {
-      matchedChildJobs.push(state.temporaryChildJobs[material.typeID]);
-    }
-  }
-  if (state.parentChildToEdit.childJobs[material.typeID]?.add) {
-    for (let id of state.parentChildToEdit.childJobs[material.typeID].add) {
-      const match = jobArray.find((i) => i.jobID === id);
-      if (!match) continue;
-      matchedChildJobs.push(match);
-    }
-  }
-
-  const matchedChildJobIDs = actions.getCurrentMaterialChildJobs(
-    material.typeID
-  );
+  const { childJobsById, childJobIDs, hasChildJobs } = resolveMaterialChildJobs({
+    state,
+    actions,
+    materialTypeID: material.typeID,
+    jobArray,
+  });
+  const matchedChildJobs = Array.from(childJobsById.values());
+  const rowSourceText = buildRowSourceText(marketSelect, listingSelect);
 
   const totalPurchaseCost = currentMaterialPrice * material.quantity;
   const productionCostPerItem =
     Math.round(
       (calculateMaterialCostFromChildJobs(
         material,
-        matchedChildJobIDs,
+        childJobIDs,
         matchedChildJobs,
         [],
         marketSelect,
@@ -81,6 +81,7 @@ export function MaterialCostRow_MaterialPricePanel(props) {
         }}
         sx={{
           justifyContent: "center",
+          alignItems: "center",
           display: { xs: "flex", md: "flex" },
           paddingRight: "5px"
         }}>
@@ -100,7 +101,8 @@ export function MaterialCostRow_MaterialPricePanel(props) {
           size={11}
           sx={{
             alignItems: "center",
-            display: "flex"
+            display: "flex",
+            gap: 1.5,
           }}>
           <MaterialPopoverIconButtons
             typeID={material.typeID}
@@ -116,7 +118,7 @@ export function MaterialCostRow_MaterialPricePanel(props) {
           sx={{
             alignItems: "center",
             justifyContent: "center",
-            display: "flex"
+            display: "flex",
           }}>
           {checkJobTypeIsBuildable(material.jobType) ? (
             <>
@@ -162,22 +164,37 @@ export function MaterialCostRow_MaterialPricePanel(props) {
           display: "flex"
         }}>
         <Grid size={12}>
-          <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
+          <Typography sx={{ typography: { xs: "caption", sm: "caption" } }}>
+            {rowSourceText}
+          </Typography>
+          <Typography
+            sx={{
+              typography: STANDARD_TEXT_FORMAT,
+              color: selectMarketPriceColor(
+                currentMaterialPrice,
+                productionCostPerItem
+              ),
+            }}
+          >
             {formatNumberForLocale(currentMaterialPrice)}
           </Typography>
         </Grid>
         {checkJobTypeIsBuildable(material.jobType) && (
           <Grid sx={{ marginTop: 1 }} size={12}>
+            <Typography sx={{ typography: { xs: "caption", sm: "caption" } }}>
+              Child Build Unit Cost
+            </Typography>
             <Typography
-              sx={{ typography: STANDARD_TEXT_FORMAT }}
-              color={selectTextHighlight(
-                currentMaterialPrice,
-                productionCostPerItem,
-                false
-              )}
+              sx={{
+                typography: STANDARD_TEXT_FORMAT,
+                color: selectChildBuildPriceColor(
+                  currentMaterialPrice,
+                  productionCostPerItem
+                ),
+              }}
             >
               <i>
-                {matchedChildJobs.length > 0
+                {hasChildJobs
                   ? formatNumberForLocale(productionCostPerItem)
                   : "-"}
               </i>
@@ -199,29 +216,37 @@ export function MaterialCostRow_MaterialPricePanel(props) {
           display: "flex"
         }}>
         <Grid size={12}>
+          <Typography sx={{ typography: { xs: "caption", sm: "caption" } }}>
+            {`Market ${getListingOrdersLabel(listingSelect)} Total`}
+          </Typography>
           <Typography
-            sx={{ typography: STANDARD_TEXT_FORMAT }}
-            color={selectTextHighlight(
-              currentMaterialPrice,
-              productionCostPerItem,
-              true
-            )}
+            sx={{
+              typography: STANDARD_TEXT_FORMAT,
+              color: selectMarketPriceColor(
+                currentMaterialPrice,
+                productionCostPerItem
+              ),
+            }}
           >
             {formatNumberForLocale(totalPurchaseCost)}
           </Typography>
         </Grid>
         {checkJobTypeIsBuildable(material.jobType) && (
           <Grid size={12}>
+            <Typography sx={{ typography: { xs: "caption", sm: "caption" } }}>
+              Child Build Total
+            </Typography>
             <Typography
-              sx={{ typography: { xs: "caption", sm: "body2" } }}
-              color={selectTextHighlight(
-                currentMaterialPrice,
-                productionCostPerItem,
-                false
-              )}
+              sx={{
+                typography: { xs: "caption", sm: "body2" },
+                color: selectChildBuildPriceColor(
+                  currentMaterialPrice,
+                  productionCostPerItem
+                ),
+              }}
             >
               <i>
-                {matchedChildJobIDs.length > 0
+                {hasChildJobs
                   ? formatNumberForLocale(
                       productionCostPerItem * material.quantity
                     )
@@ -233,38 +258,4 @@ export function MaterialCostRow_MaterialPricePanel(props) {
       </Grid>
     </Grid>
   );
-}
-
-function selectRowHighlightColor(theme, displayPopover) {
-  if (!displayPopover) return null;
-
-  switch (theme.palette.mode) {
-    case PRIMARY_THEME:
-      return theme.palette.secondary.highlight;
-
-    case SECONDARY_THEME:
-      return theme.palette.secondary.highlight;
-
-    default:
-      return theme.palette.secondary.main;
-  }
-}
-
-function selectTextHighlight(
-  currentMaterialPrice,
-  calculatedChildPrice,
-  highlightIfGreater
-) {
-  if (calculatedChildPrice === 0) return null;
-
-  if (currentMaterialPrice == calculatedChildPrice) return null;
-
-  if (
-    (highlightIfGreater && currentMaterialPrice >= calculatedChildPrice) ||
-    (!highlightIfGreater && currentMaterialPrice <= calculatedChildPrice)
-  ) {
-    return "error.main";
-  } else {
-    return "success.main";
-  }
 }

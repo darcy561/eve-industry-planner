@@ -1,7 +1,75 @@
 import useUsersStore from "../../Zustand/usersStore.js";
 
 /**
- * Material cost from child jobs (recursive). Uses `jobData.jobArray` from Zustand.
+ * First matching job per ID (same as repeated `.find()` on a concatenated list).
+ * @param {Array<{ jobID: unknown } | null | undefined>} jobs
+ * @returns {Map<unknown, any>}
+ */
+function buildJobsByIdMap(jobs) {
+  const map = new Map();
+  for (const job of jobs) {
+    if (job != null && job.jobID != null && !map.has(job.jobID)) {
+      map.set(job.jobID, job);
+    }
+  }
+  return map;
+}
+
+/** @param {{ jobsById: Map<unknown, any>, getMaterialPrice: (m: any) => number, visiting: Set<unknown> }} ctx */
+function calculateJobUnitCost(inputJob, ctx) {
+  const { jobsById, getMaterialPrice, visiting } = ctx;
+  if (inputJob == null || !inputJob.build) {
+    return 0;
+  }
+
+  const { jobID } = inputJob;
+  if (jobID != null) {
+    if (visiting.has(jobID)) {
+      return 0;
+    }
+    visiting.add(jobID);
+  }
+
+  try {
+    let jobCost = inputJob.build.costs.extrasTotal;
+
+    const { installCosts } = inputJob.build.costs;
+    if (installCosts == null) {
+      jobCost += Object.values(inputJob.build.setup).reduce(
+        (prev, { estimatedInstallCost }) => prev + estimatedInstallCost,
+        0
+      );
+    } else {
+      jobCost += installCosts;
+    }
+
+    for (const material of inputJob.build.materials) {
+      const childJobLocation = inputJob.build.childJobs[material.typeID];
+      const materialPriceInner = getMaterialPrice(material);
+
+      if (material.purchaseComplete) {
+        jobCost += material.purchasedCost;
+      } else if (Array.isArray(childJobLocation) && childJobLocation.length > 0) {
+        for (const childJobID of childJobLocation) {
+          const matchedJob = jobsById.get(childJobID);
+          if (!matchedJob) continue;
+          jobCost += calculateJobUnitCost(matchedJob, ctx) * material.quantity;
+        }
+      } else {
+        jobCost += materialPriceInner * material.quantity;
+      }
+    }
+
+    return jobCost / inputJob.build.products.totalQuantity;
+  } finally {
+    if (jobID != null) {
+      visiting.delete(jobID);
+    }
+  }
+}
+
+/**
+ * Recursively prices materials using linked child job builds. Uses `jobData.jobArray` from Zustand.
  *
  * @param {*} inputMaterial
  * @param {string[]} childJobs
@@ -19,74 +87,38 @@ export function calculateMaterialCostFromChildJobs(
   defaultOrderType
 ) {
   const jobArray = useUsersStore.getState().jobData.jobArray || [];
-  if (!Array.isArray(alternativeJobLocation)) {
-    alternativeJobLocation = [alternativeJobLocation];
-  }
+  const altLocs = Array.isArray(alternativeJobLocation)
+    ? alternativeJobLocation
+    : [alternativeJobLocation];
 
-  const availableJobSelection = [...jobArray, ...alternativeJobLocation];
+  const availableJobSelection = [...jobArray, ...altLocs];
+  const jobsById = buildJobsByIdMap(availableJobSelection);
+  const visiting = new Set();
 
-  const materialPrice = getMaterialPrice(inputMaterial);
+  const getMaterialPrice = (materialObject) =>
+    useUsersStore
+      .getState()
+      .worldData.actions.findMarketData(
+        materialObject.typeID,
+        alternativePriceLocation
+      )?.[defaultMarketLocation]?.[defaultOrderType] ||
+    materialObject.purchasedCost;
 
   if (inputMaterial.purchaseComplete) {
     return inputMaterial.purchasedCost;
   }
+
   if (childJobs.length > 0) {
     let jobCost = 0;
-    for (let childJobID of childJobs) {
-      const matchedJob = availableJobSelection.find(
-        (i) => i.jobID === childJobID
-      );
+    for (const childJobID of childJobs) {
+      const matchedJob = jobsById.get(childJobID);
       if (!matchedJob) continue;
-
-      jobCost += jobCostCalculation(matchedJob) * inputMaterial.quantity;
+      jobCost +=
+        calculateJobUnitCost(matchedJob, { jobsById, getMaterialPrice, visiting }) *
+        inputMaterial.quantity;
     }
-
     return jobCost;
   }
 
-  return materialPrice * inputMaterial.quantity;
-
-  function jobCostCalculation(inputJob) {
-    let jobCost = inputJob.build.costs.extrasTotal;
-
-    if (!inputJob.build.costs.installCosts) {
-      jobCost += Object.values(inputJob.build.setup).reduce(
-        (prev, { estimatedInstallCost }) => {
-          return (prev += estimatedInstallCost);
-        },
-        0
-      );
-    } else {
-      jobCost += inputJob.build.costs.installCosts;
-    }
-    for (let material of inputJob.build.materials) {
-      const childJobLocation = inputJob.build.childJobs[material.typeID];
-      const materialPriceInner = getMaterialPrice(material);
-      if (material.purchaseComplete) {
-        jobCost += material.purchasedCost;
-      } else if (childJobLocation.length > 0) {
-        for (let childJobID of childJobLocation) {
-          const matchedJob = availableJobSelection.find(
-            (i) => i.jobID === childJobID
-          );
-          if (!matchedJob) continue;
-
-          jobCost += jobCostCalculation(matchedJob) * material.quantity;
-        }
-      } else {
-        jobCost += materialPriceInner * material.quantity;
-      }
-    }
-    return jobCost / inputJob.build.products.totalQuantity;
-  }
-
-  function getMaterialPrice(materialObject) {
-    return (
-      useUsersStore
-        .getState()
-        .worldData.actions.findMarketData(materialObject.typeID, alternativePriceLocation)?.[
-        defaultMarketLocation
-      ]?.[defaultOrderType] || materialObject.purchasedCost
-    );
-  }
+  return getMaterialPrice(inputMaterial) * inputMaterial.quantity;
 }

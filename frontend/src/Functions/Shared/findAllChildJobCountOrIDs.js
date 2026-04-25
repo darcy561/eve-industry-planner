@@ -14,7 +14,15 @@ export default function findAllChildJobCountOrIDs(
 ) {
   const persistedChildIDs = Object.values(childJobsFromJobObject).flat();
   const temporaryChildIDs = Object.values(temporaryChildJobObject).flatMap(
-    (entries) => entries.map(({ jobID }) => jobID)
+    (entries) => {
+      if (Array.isArray(entries)) {
+        return entries
+          .map((entry) => entry?.jobID)
+          .filter((id) => id !== undefined && id !== null);
+      }
+      const singleID = entries?.jobID;
+      return singleID !== undefined && singleID !== null ? [singleID] : [];
+    }
   );
 
   const parentCacheIDsToAdd = new Set();

@@ -3,13 +3,10 @@ import {
   Avatar,
   Grid,
   IconButton,
-  Menu,
-  MenuItem,
   Tooltip,
   Typography,
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
-import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { AddCustomTransactionDialog } from "./addCustomTransaction";
 import { showSnackbarError } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
@@ -20,59 +17,27 @@ import { STANDARD_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 export function LinkedTransactionPanel(props) {
   const { state, actions, activeOrder } = props;
   const [newTransactionTrigger, updateNewTransactionTrigger] = useState(false);
-  const [anchorEl, setAnchorEl] = useState(null);
   const getCorporation =
     useUsersStore.getState().account.actions.getCorporation;
-
-  const handleMenuClick = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
 
   return (
     <ContentPanel
       title="Linked Transactions"
       componentName="Linked Transaction Panel"
       paperSx={{ position: "relative" }}
+      enableMenu
+      menuItems={[
+        {
+          label: "Add Manual Transaction",
+          onClick: () => {
+            updateNewTransactionTrigger(true);
+          },
+        },
+      ]}
     >
       <Grid container sx={{
         width: "100%"
       }}>
-        <IconButton
-          id="linkedTransactions_menu_button"
-          onClick={handleMenuClick}
-          aria-controls={
-            Boolean(anchorEl) ? "linkedTransactions_menu" : undefined
-          }
-          aria-haspopup="true"
-          aria-expanded={Boolean(anchorEl) ? "true" : undefined}
-          sx={{ position: "absolute", top: "10px", right: "10px" }}
-        >
-          <MoreVertIcon size="small" color="primary" />
-        </IconButton>
-        <Menu
-          id="linkedTransactions_menu"
-          anchorEl={anchorEl}
-          open={Boolean(anchorEl)}
-          onClose={handleMenuClose}
-          slotProps={{
-            list: {
-              "aria-labelledby": "linkedTransactions_menu_button",
-            }
-          }}
-        >
-          <MenuItem
-            onClick={() => {
-              updateNewTransactionTrigger(true);
-              setAnchorEl(null);
-            }}
-          >
-            Add Manual Transaction
-          </MenuItem>
-        </Menu>
         <Grid
           container
           sx={{
