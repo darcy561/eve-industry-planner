@@ -13,6 +13,7 @@ import { Route as UpcomingchangesRouteImport } from './routes/upcomingchanges'
 import { Route as SignoutRouteImport } from './routes/signout'
 import { Route as ReprocessingRouteImport } from './routes/reprocessing'
 import { Route as JobplannerRouteImport } from './routes/jobplanner'
+import { Route as ItemtreesRouteImport } from './routes/itemtrees'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as IndexRouteImport } from './routes/index'
@@ -43,6 +44,11 @@ const ReprocessingRoute = ReprocessingRouteImport.update({
 const JobplannerRoute = JobplannerRouteImport.update({
   id: '/jobplanner',
   path: '/jobplanner',
+  getParentRoute: () => rootRouteImport,
+})
+const ItemtreesRoute = ItemtreesRouteImport.update({
+  id: '/itemtrees',
+  path: '/itemtrees',
   getParentRoute: () => rootRouteImport,
 })
 const AuthRoute = AuthRouteImport.update({
@@ -117,6 +123,7 @@ const rootRouteChildren = {
   IndexRoute: IndexRoute,
   ProtectedRoute: ProtectedRouteWithChildren,
   AuthRoute: AuthRoute,
+  ItemtreesRoute: ItemtreesRoute,
   JobplannerRoute: JobplannerRoute,
   ReprocessingRoute: ReprocessingRoute,
   SignoutRoute: SignoutRoute,

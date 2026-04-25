@@ -12,17 +12,16 @@ import AddIcon from "@mui/icons-material/Add";
 import ClearIcon from "@mui/icons-material/Clear";
 import { ParentJobDialog } from "./parentJobDialog";
 import useUsersStore from "../../Zustand/usersStore";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { showSnackbarError } from "../../Events/snackbarEvents";
-import { useQueryClient } from "@tanstack/react-query";
-import closeActiveJob from "../../Functions/JobPlanner/closeActiveJob";
+import { requestEditJobNavigation } from "../../Events/editJobNavigationEvents";
 
 export function LinkedJobBadge(props) {
   const { state, actions } = props;
   const { findJobInJobArray } = useUsersStore.getState().jobData.actions;
   const [dialogTrigger, updateDialogTrigger] = useState(false);
-  const queryClient = useQueryClient();
   const navigate = useNavigate({ from: '/editjob/$jobID' });
+  const search = useSearch({ from: '/editjob/$jobID' });
 
   const parentJobSelection = actions.getCurrentParentJobs();
 
@@ -83,18 +82,30 @@ export function LinkedJobBadge(props) {
                     }
                     clickable
                     onClick={async () => {
-                      await closeActiveJob(
-                        state.activeJob,
-                        state.jobModified,
-                        state.temporaryChildJobs,
-                        state.esiDataToLink,
-                        state.parentChildToEdit,
-                        queryClient
-                      );
-                      navigate({
-                        to: '/editjob/$jobID',
-                        params: { jobID: parent.jobID }
+                      const navSearch = {};
+                      if (
+                        search.activeGroup != null &&
+                        String(search.activeGroup) !== ""
+                      ) {
+                        navSearch.activeGroup = search.activeGroup;
+                      }
+                      if (
+                        search.pageView != null &&
+                        String(search.pageView) !== ""
+                      ) {
+                        navSearch.pageView = search.pageView;
+                      }
+                      const outcome = await requestEditJobNavigation({
+                        jobID: parent.jobID,
+                        search: navSearch,
                       });
+                      if (outcome === "not-handled") {
+                        navigate({
+                          to: "/editjob/$jobID",
+                          params: { jobID: parent.jobID },
+                          search: navSearch,
+                        });
+                      }
                     }}
                     variant="outlined"
                     sx={{

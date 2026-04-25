@@ -5,7 +5,7 @@ import { STANDARD_TEXT_FORMAT } from "../../../../../Context/defaultValues";
 export default function Step2JobCard({ job }) {
   const totalMaterials = job.build.materials.length;
   const totalComplete = job.totalCompletedMaterials();
-  const isNotReadyToBuild = totalComplete !== totalMaterials;
+  const isNotReadyToBuild = !job.isReadyToBuild();
 
   return (
     <Box

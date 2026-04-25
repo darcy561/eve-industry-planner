@@ -3,6 +3,7 @@ import SaveIcon from "@mui/icons-material/Save";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import closeActiveJob from "../../Functions/JobPlanner/closeActiveJob";
+import { buildGroupSearchAfterEditClose } from "../../Functions/Groups/groupPageViewSearch";
 
 export function SaveJobIcon({ state }) {
   const queryClient = useQueryClient();
@@ -21,9 +22,10 @@ export function SaveJobIcon({ state }) {
     const groupIDFromParams = search.activeGroup;
     
     if (groupIDFromParams) {
-      navigate({ 
-        to: '/group/$groupID', 
-        params: { groupID: groupIDFromParams } 
+      navigate({
+        to: "/group/$groupID",
+        params: { groupID: groupIDFromParams },
+        search: buildGroupSearchAfterEditClose(search, state.activeJob?.jobID),
       });
     } else {
       navigate({ to: "/jobplanner" });

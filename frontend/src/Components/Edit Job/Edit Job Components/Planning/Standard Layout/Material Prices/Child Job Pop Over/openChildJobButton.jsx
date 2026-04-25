@@ -1,14 +1,12 @@
 import { Button } from "@mui/material";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
-import closeActiveJob from "../../../../../../../Functions/JobPlanner/closeActiveJob";
+import { requestEditJobNavigation } from "../../../../../../../Events/editJobNavigationEvents";
 
 export function OpenChildJobButon_ChildJobPopoverFrame({
   state,
   childJobObjects,
   jobDisplay,
 }) {
-  const queryClient = useQueryClient();
   const navigate = useNavigate({ from: '/editjob/$jobID' });
   const search = useSearch({ from: '/editjob/$jobID' });
 
@@ -16,26 +14,24 @@ export function OpenChildJobButon_ChildJobPopoverFrame({
     <Button
       size="small"
       onClick={async () => {
-        await closeActiveJob(
-          state.activeJob,
-          state.jobModified,
-          state.temporaryChildJobs,
-          state.esiDataToLink,
-          state.parentChildToEdit,
-          queryClient
-        );
+        const childId = childJobObjects[jobDisplay].jobID;
         const groupIDFromParams = search.activeGroup;
-        
-        if (groupIDFromParams) {
-          navigate({ 
-            to: '/editjob/$jobID', 
-            params: { jobID: childJobObjects[jobDisplay].jobID },
-            search: { activeGroup: groupIDFromParams }
-          });
-        } else {
-          navigate({ 
-            to: '/editjob/$jobID', 
-            params: { jobID: childJobObjects[jobDisplay].jobID }
+        const navSearch = {};
+        if (groupIDFromParams != null && String(groupIDFromParams) !== "") {
+          navSearch.activeGroup = groupIDFromParams;
+        }
+        if (search.pageView != null && String(search.pageView) !== "") {
+          navSearch.pageView = search.pageView;
+        }
+        const outcome = await requestEditJobNavigation({
+          jobID: childId,
+          search: navSearch,
+        });
+        if (outcome === "not-handled") {
+          navigate({
+            to: "/editjob/$jobID",
+            params: { jobID: childId },
+            search: navSearch,
           });
         }
       }}

@@ -4,7 +4,7 @@ import { STANDARD_TEXT_FORMAT } from "../../../../../Context/defaultValues";
 
 export default function GroupStep2JobCard({ job }) {
   const totalComplete = job.totalCompletedMaterials();
-  const isNotReadyToBuild = totalComplete - job.build.materials.length !== 0;
+  const isNotReadyToBuild = !job.isReadyToBuild();
 
   return (
     <Box

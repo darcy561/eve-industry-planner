@@ -10,6 +10,7 @@ import useUserStore from "../../../Zustand/usersStore";
 export const FRONTEND_ANALYTICS_EVENTS_BATCH_URL = "/api/v1/analytics/events";
 
 const NEW_JOB_EVENT = "new_job";
+const ITEM_TREE_VIEW_ITEM_EVENT = "view_item_tree_item";
 
 /** Matches `MaxFrontendJobCreatesPerType` in services/shared/telemetry/apimetrics/frontend_events.go */
 const MAX_JOBS_PER_TYPE_IN_PAYLOAD = 100000;
@@ -156,7 +157,7 @@ function swapPending() {
 
 function mergeIntoPending(eventKey, count, options) {
   const trimmed = eventKey.trim();
-  if (trimmed === NEW_JOB_EVENT) {
+  if (trimmed === NEW_JOB_EVENT || trimmed === ITEM_TREE_VIEW_ITEM_EVENT) {
     const byType = sanitizeByTypeMap(options.byType);
     if (!byType) {
       return false;
@@ -305,7 +306,7 @@ if (typeof window !== "undefined") {
  *
  * @param {string} eventKey - Allowlisted snake_case event name
  * @param {number} [count=1] - Metric increment, clamped (ignored for `new_job`)
- * @param {{ byType?: Record<string, number> }} [options] - For `new_job` only
+ * @param {{ byType?: Record<string, number> }} [options] - For `new_job` and `view_item_tree_item`
  * @returns {Promise<boolean>} true if accepted into the outbound queue (or flushed for sync path); false if rejected before queue (e.g. bad new_job payload)
  */
 export async function submitFrontendAnalyticsEvent(
@@ -319,7 +320,7 @@ export async function submitFrontendAnalyticsEvent(
 
   const trimmed = eventKey.trim();
 
-  if (trimmed === NEW_JOB_EVENT) {
+  if (trimmed === NEW_JOB_EVENT || trimmed === ITEM_TREE_VIEW_ITEM_EVENT) {
     const byType = sanitizeByTypeMap(options.byType);
     if (!byType) {
       return false;

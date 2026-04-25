@@ -20,6 +20,7 @@ import { SaveJobIcon } from "./saveIcon";
 import { DeleteJobIcon } from "./deleteIcon";
 import { LinkedJobBadge } from "./Linked Job Badge";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
+import SchemaIcon from "@mui/icons-material/Schema";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import calculateInstallCostfromSetup from "../../Functions/Helper/calculateInstallCostfromSetup";
 import { ShoppingListDialog } from "../Dialogues/Shopping List/ShoppingList";
@@ -31,6 +32,7 @@ import StepErrorBoundary from "./StepErrorBoundary";
 import PriceHistoryDialog from "../Dialogues/Price History/dialogFrame";
 import MarketDataDialog from "../Dialogues/Market Data/dialogFrame";
 import useUsersStore from "../../Zustand/usersStore";
+import { openJobLinkTreeFromEditPage } from "../../Events/jobDependencyTreeDialogEvents";
 import { useJobStatuses } from "../Job Planner/Hooks/useJobStatuses";
 import AssetsDialogue from "../Dialogues/Assets/dialogFrame";
 import useEditJobReducer from "./Edit Job Hooks/useEditJobReducer";
@@ -43,6 +45,26 @@ import {
 } from "../../Functions/DocumentLock/documentLockCollections.js";
 import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
+import EditJobLeaveConfirmDialog from "./EditJobLeaveConfirmDialog";
+import { useEditJobLeaveConfirm } from "./Edit Job Hooks/useEditJobLeaveConfirm";
+
+/**
+ * Read `/editjob/$id` query params at call time (e.g. link-tree button) — avoids subscribing
+ * to search on every render when the dialog is rarely opened.
+ * @returns {{ activeGroup: string|undefined, pageView: string|undefined }}
+ */
+function readEditJobUrlSearch() {
+  if (typeof window === "undefined") {
+    return { activeGroup: undefined, pageView: undefined };
+  }
+  const p = new URLSearchParams(window.location.search);
+  const ag = p.get("activeGroup");
+  const pageView = p.get("pageView");
+  return {
+    activeGroup: ag && ag.trim() !== "" ? ag : undefined,
+    pageView: pageView && pageView.trim() !== "" ? pageView : undefined,
+  };
+}
 
 // Lazy-loaded layout selector components
 const LayoutSelector_EditJob_Planning = lazy(() =>
@@ -148,6 +170,11 @@ export default function EditJob_New() {
   let backupJob = useRef(null);
   const navigate = useNavigate({ from: "/editjob/$jobID" });
   useWarnBeforeUnload();
+
+  const { leaveConfirmDialogProps } = useEditJobLeaveConfirm({
+    backupJobRef: backupJob,
+    state,
+  });
 
   useEffect(() => {
     async function setInitialState() {
@@ -340,6 +367,27 @@ export default function EditJob_New() {
                 flexShrink: 0,
               }}
             >
+              <Tooltip title="Show this job in the link tree (parents and children)">
+                <span>
+                  <IconButton
+                    color="primary"
+                    onClick={() => {
+                      if (!state.activeJob) return;
+                      const { activeGroup, pageView } = readEditJobUrlSearch();
+                      openJobLinkTreeFromEditPage({
+                        jobId: state.activeJob.jobID,
+                        activeGroup,
+                        pageView,
+                      });
+                    }}
+                    size="small"
+                    aria-label="Open job link tree"
+                    disabled={!state.activeJob}
+                  >
+                    <SchemaIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
               <DeleteJobIcon state={state} />
               <CloseJobIcon backupJob={backupJob.current} />
               <SaveJobIcon state={state} />
@@ -458,6 +506,7 @@ export default function EditJob_New() {
       <PriceHistoryDialog />
       <MarketDataDialog />
       <AssetsDialogue />
+      <EditJobLeaveConfirmDialog {...leaveConfirmDialogProps} />
     </DefaultPageLayout>
   );
 }

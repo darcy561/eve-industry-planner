@@ -316,12 +316,24 @@ class Job {
   }
 
   /**
+   * Parent job IDs (canonical planner links), each as a string.
+   * Normalizes legacy `parentJob` singular shapes that may not be arrays on hydrated docs.
+   *
+   * @returns {string[]}
+   */
+  getParentJobIds() {
+    const raw = this.parentJobs;
+    if (raw == null) return [];
+    return (Array.isArray(raw) ? raw : [raw]).map((id) => String(id));
+  }
+
+  /**
    * Gets all related job IDs (parent and child jobs).
    *
    * @returns {Array<string>} Array of related job IDs
    */
   getRelatedJobs() {
-    return [...this.parentJobs, ...Object.values(this.build.childJobs).flat()];
+    return [...this.getParentJobIds(), ...this.getAllChildJobs()];
   }
 
   /**
@@ -543,6 +555,35 @@ class Job {
   totalCompletedMaterials() {
     return this.build.materials.filter((material) => material.purchaseComplete)
       .length;
+  }
+
+  /**
+   * True when the job has at least one material and every material is purchase-complete.
+   * Stage-independent (Planning / Purchasing / Building can all match once mats are bought).
+   *
+   * @returns {boolean}
+   */
+  isReadyToBuild() {
+    const materials = this.build?.materials ?? [];
+    if (materials.length === 0) return false;
+    return materials.length === this.totalCompletedMaterials();
+  }
+
+  /**
+   * Group job tree “Ready” chip: all materials bought and no linked ESI industry jobs yet
+   * (link runs → Building / progress). Hidden on Complete and For Sale.
+   *
+   * @returns {boolean}
+   */
+  isJobTreeReadyToStartIndicator() {
+    const st = Number(this.jobStatus);
+    if (st === 3 || st === 4) return false; // Complete / For Sale (persisted ids)
+    if (!this.isReadyToBuild()) return false;
+    const esi =
+      this.apiJobs && typeof this.apiJobs.size === "number"
+        ? this.apiJobs.size
+        : 0;
+    return esi === 0;
   }
 
   /**

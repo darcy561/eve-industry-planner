@@ -31,6 +31,12 @@ type frontendAnalyticsBatchBody struct {
 // allowedFrontendAnalyticsEvents is the allowlist of event keys (lowercase snake_case).
 // Keep in sync with frontend/src/analytics/appEventNames.js.
 var allowedFrontendAnalyticsEvents = map[string]struct{}{
+	"view_job_tree_dialog":                    {},
+	"view_item_tree_item":                     {},
+	"group_tab_planner":                       {},
+	"group_tab_job_tree":                      {},
+	"group_tab_breakdown":                     {},
+	"group_tab_scheduler":                     {},
 	"build_shopping_list":                    {},
 	"add_custom_structure":                   {},
 	"reprocessing_calculation_to_minerals":   {},
@@ -75,7 +81,7 @@ func validateFrontendAnalyticsBody(body *frontendAnalyticsBody) string {
 	if _, ok := allowedFrontendAnalyticsEvents[key]; !ok {
 		return "unknown_event"
 	}
-	if key == "new_job" {
+	if key == "new_job" || key == "view_item_tree_item" {
 		if _, err := normalizeJobCreatesByType(body.ByType); err != "" {
 			return err
 		}
@@ -92,6 +98,11 @@ func recordValidatedFrontendAnalytics(ctx context.Context, met *apimetrics.WebFr
 	if key == "new_job" {
 		byType, _ := normalizeJobCreatesByType(body.ByType)
 		met.RecordJobCreates(ctx, audience, byType)
+		return
+	}
+	if key == "view_item_tree_item" {
+		byType, _ := normalizeJobCreatesByType(body.ByType)
+		met.RecordItemTreeViews(ctx, audience, byType)
 		return
 	}
 	n := body.Count
