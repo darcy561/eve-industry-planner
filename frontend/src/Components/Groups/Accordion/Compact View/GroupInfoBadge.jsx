@@ -23,7 +23,7 @@ function getTooltipContent(job) {
       const totalComplete = job.totalCompletedMaterials();
       const totalMaterials = job.build.materials.length;
 
-      if (totalComplete < totalMaterials) {
+      if (!job.isReadyToBuild()) {
         return (
           <span>
             <p>

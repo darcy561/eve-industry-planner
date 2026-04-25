@@ -4,14 +4,6 @@
  * Sorting compares canonical `Job` instances the same way in both surfaces.
  */
 
-/**
- * @param {Object} job - Canonical `Job`
- * @returns {boolean}
- */
-const areAllMaterialsPurchased = (job) => {
-  const totalMaterials = job?.build?.materials?.length ?? 0;
-  return job.totalCompletedMaterials() === totalMaterials;
-};
 
 /**
  * Purchasing stage: all materials purchased first, then alphabetical by name.
@@ -21,8 +13,8 @@ const areAllMaterialsPurchased = (job) => {
  * @returns {number}
  */
 const purchasingStageSort = (a, b) => {
-  const aAll = areAllMaterialsPurchased(a);
-  const bAll = areAllMaterialsPurchased(b);
+  const aAll = a.isReadyToBuild();
+  const bAll = b.isReadyToBuild();
   if (aAll !== bAll) {
     return aAll ? -1 : 1;
   }

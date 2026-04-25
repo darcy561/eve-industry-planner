@@ -1,5 +1,6 @@
 import { SnackBarNotification } from "./Components/snackbar";
 import GeneralDialog from "./Components/Dialogues/General/generalDialog";
+import JobDependencyTreeDialog from "./Components/Dialogues/Job Tree/JobDependencyTreeDialog";
 import CssBaseline from "@mui/material/CssBaseline";
 import { Outlet } from "@tanstack/react-router";
 import { FeedbackIcon } from "./Components/Dialogues/Feedback/feedback";
@@ -35,6 +36,7 @@ export default function App() {
         <ErrorBoundary>
           <SnackBarNotification />
           <GeneralDialog />
+          <JobDependencyTreeDialog />
           {isMaintenanceMode ? <MaintenanceMode /> : <Outlet />}
           {ENABLE_FEEDBACK_ICON && !isMaintenanceMode && <FeedbackIcon />}
         </ErrorBoundary>

@@ -121,6 +121,15 @@ export function SideMenu({ open, setOpen }) {
               <ListItemText primary={"Reprocessing Calculator"} />
             </ListItemButton>
             <Divider />
+            <ListItemButton
+              onClick={() => {
+                navigate({ to: "/itemtrees" });
+                setOpen(false);
+              }}
+            >
+              <ListItemText primary={"Item Tree"} />
+            </ListItemButton>
+            <Divider />
             {enableUpcomingChanges && (
               <>
                 <ListItemButton

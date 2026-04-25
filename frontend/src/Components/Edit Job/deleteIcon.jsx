@@ -3,10 +3,11 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 
 import deleteJobsFromPlanner from "../../Functions/JobPlanner/deleteMultipleJobs";
+import { buildGroupSearchAfterEditClose } from "../../Functions/Groups/groupPageViewSearch";
 
 export function DeleteJobIcon({ state }) {
-  const navigate = useNavigate();
-  const search = useSearch({ from: '/editjob/$jobID' });
+  const navigate = useNavigate({ from: "/editjob/$jobID" });
+  const search = useSearch({ from: "/editjob/$jobID" });
 
   return (
     <Tooltip
@@ -20,10 +21,18 @@ export function DeleteJobIcon({ state }) {
         onClick={async () => {
           await deleteJobsFromPlanner(state.activeJob.jobID);
           const groupIDFromParams = search.activeGroup;
-          const returnURL = groupIDFromParams
-            ? `/group/${groupIDFromParams}`
-            : "/jobplanner";
-          navigate({ to: returnURL });
+          if (groupIDFromParams) {
+            navigate({
+              to: "/group/$groupID",
+              params: { groupID: groupIDFromParams },
+              search: buildGroupSearchAfterEditClose(
+                search,
+                state.activeJob?.jobID
+              ),
+            });
+          } else {
+            navigate({ to: "/jobplanner" });
+          }
         }}
         size="medium"
       >

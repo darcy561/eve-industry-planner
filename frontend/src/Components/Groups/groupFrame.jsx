@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Box, useMediaQuery, ToggleButtonGroup, ToggleButton } from "@mui/material";
 import useWarnBeforeUnload from "../../Hooks/GeneralHooks/useWarnBeforeUnload";
 import { SearchBar } from "../Job Planner/Planner Components/searchbar";
 import { ShoppingListDialog } from "../Dialogues/Shopping List/ShoppingList";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import LeftCollapseableMenuDrawer from "../SideMenu/leftMenuDrawer";
 import CollapseableContentDrawer_Right from "../SideMenu/rightContentDrawer";
 import RightSideMenuContent_GroupPage from "./Side Menu/rightSideMenuContent";
@@ -25,6 +25,9 @@ import { USER_JOB_GROUPS_COLLECTION } from "../../Functions/DocumentLock/documen
 import { useRegisterHeaderDocumentLockUI } from "../../Hooks/DocumentLock/useRegisterHeaderDocumentLockUI.js";
 import { selectDocumentLockReadOnly } from "../../Functions/DocumentLock/documentLockSelectors.js";
 import { useJobPlannerJobLockSync } from "../../Hooks/DocumentLock/useJobPlannerJobLockSync.js";
+import { parseGroupPageViewSearchParam } from "../../Functions/Groups/groupPageViewSearch";
+import { trackAppEvent } from "../../analytics/trackAppEvent";
+import { AppEvent } from "../../analytics/appEventNames";
 
 function GroupPageFrame() {
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
@@ -36,9 +39,18 @@ function GroupPageFrame() {
     getGroupObject,
     clearMultiSelect,
   } = useUsersStore.getState().jobData.actions;
-  const { state, actions } = useGroupPageReducer();
   const params = useParams({ from: "/group/$groupID" });
   const { groupID } = params;
+  const search = useSearch({ from: "/group/$groupID" });
+  const { state, actions } = useGroupPageReducer(search.pageView);
+
+  useEffect(() => {
+    const pv = parseGroupPageViewSearchParam(search.pageView);
+    if (pv && pv !== state.pageView) {
+      actions.setPageView(pv);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- actions object is recreated each render
+  }, [search.pageView, state.pageView]);
 
   const groupReadOnly = useUsersStore((s) =>
     selectDocumentLockReadOnly(s, USER_JOB_GROUPS_COLLECTION, groupID ?? "")
@@ -46,10 +58,11 @@ function GroupPageFrame() {
 
   useJobPlannerJobLockSync();
 
-  const navigate = useNavigate();
+  const navigate = useNavigate({ from: "/group/$groupID" });
   const activeGroupObject = getGroupObject(groupID);
   const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("sm"));
   const [loadHelperText, setLoadHelperText] = useState("Loading group…");
+  const lastTrackedPageView = useRef(null);
 
   const pageRequiresRightDrawerOpen = true;
 
@@ -158,6 +171,27 @@ function GroupPageFrame() {
 
   const isGroupReady = activeGroupID === groupID;
 
+  useEffect(() => {
+    if (!isGroupReady) return;
+    if (lastTrackedPageView.current === state.pageView) return;
+    lastTrackedPageView.current = state.pageView;
+    if (state.pageView === "planner") {
+      trackAppEvent(AppEvent.GROUP_TAB_PLANNER);
+      return;
+    }
+    if (state.pageView === "jobTree") {
+      trackAppEvent(AppEvent.GROUP_TAB_JOB_TREE);
+      return;
+    }
+    if (state.pageView === "breakdown") {
+      trackAppEvent(AppEvent.GROUP_TAB_BREAKDOWN);
+      return;
+    }
+    if (state.pageView === "scheduler") {
+      trackAppEvent(AppEvent.GROUP_TAB_SCHEDULER);
+    }
+  }, [isGroupReady, state.pageView]);
+
   useDocumentLock(USER_JOB_GROUPS_COLLECTION, groupID, Boolean(isLoggedIn && isGroupReady), {
     pendingAccessRequestMessage:
       "Another tab requested edit access for this group.",
@@ -215,10 +249,17 @@ function GroupPageFrame() {
                   onChange={(e, value) => {
                     if (value !== null) {
                       actions.setPageView(value);
+                      navigate({
+                        to: "/group/$groupID",
+                        params: { groupID },
+                        search: { pageView: value },
+                        replace: true,
+                      });
                     }
                   }}
                 >
-                  <ToggleButton value="planner">Plannner</ToggleButton>
+                  <ToggleButton value="planner">Planner</ToggleButton>
+                  <ToggleButton value="jobTree">Job tree</ToggleButton>
                   <ToggleButton value="breakdown">Breakdown</ToggleButton>
                   <ToggleButton value="scheduler">Scheduler</ToggleButton>
                 </ToggleButtonGroup>
@@ -242,6 +283,8 @@ function GroupPageFrame() {
                 actions={actions}
                 groupJobs={groupJobs}
                 groupReadOnly={groupReadOnly}
+                routeGroupID={groupID}
+                focusJobId={search.focusJobId}
               />
             </Box>
           </Box>

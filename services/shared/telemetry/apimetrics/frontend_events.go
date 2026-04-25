@@ -24,6 +24,7 @@ var webMeter = sync.OnceValue(func() metric.Meter {
 type WebFrontendEventsMetrics struct {
 	events        metric.Int64Counter
 	jobCreates    metric.Int64Counter
+	itemTreeViews metric.Int64Counter
 	invalidEvents metric.Int64Counter
 }
 
@@ -43,12 +44,33 @@ func GetWebFrontendEvents() *WebFrontendEventsMetrics {
 			jobCreates: mustCounter(m.Int64Counter("web.frontend_job_creates_total",
 				metric.WithDescription("Jobs created from the web app by output item type ID (EVE type_id); audience is authenticated vs anonymous only"),
 			)),
+			itemTreeViews: mustCounter(m.Int64Counter("web.frontend_item_tree_item_views_total",
+				metric.WithDescription("Item tree item views from the web app by item type ID (EVE type_id); audience is authenticated vs anonymous only"),
+			)),
 			invalidEvents: mustCounter(m.Int64Counter("web.frontend_analytics_invalid_total",
 				metric.WithDescription("Rejected analytics event requests by reason"),
 			)),
 		}
 	})
 	return webFrontendEventsHolder
+}
+
+// RecordItemTreeViews increments web.frontend_item_tree_item_views_total once per (audience, type_id) with n views.
+func (w *WebFrontendEventsMetrics) RecordItemTreeViews(ctx context.Context, audience string, byType map[int64]int64) {
+	for typeID, n := range byType {
+		if n < 1 {
+			continue
+		}
+		if n > MaxFrontendJobCreatesPerType {
+			n = MaxFrontendJobCreatesPerType
+		}
+		w.itemTreeViews.Add(ctx, n,
+			metric.WithAttributes(
+				attribute.String("audience", audience),
+				attribute.Int64("type_id", typeID),
+			),
+		)
+	}
 }
 
 const maxFrontendEventCount int64 = 1000

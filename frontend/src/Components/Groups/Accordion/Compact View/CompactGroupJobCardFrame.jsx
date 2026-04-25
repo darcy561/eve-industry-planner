@@ -32,6 +32,7 @@ export function CompactGroupJobCardFrame({
   job,
   highlightedItems,
   groupReadOnly = false,
+  editReturnPageView,
 }) {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
   const { multiSelect } = useUsersStore((state) => state.jobData);
@@ -78,9 +79,12 @@ export function CompactGroupJobCardFrame({
 
   function onJobClick() {
     navigate({
-      to: '/editjob/$jobID',
+      to: "/editjob/$jobID",
       params: { jobID: job.jobID },
-      search: { activeGroup: activeGroupID }
+      search: {
+        activeGroup: activeGroupID,
+        ...(editReturnPageView ? { pageView: editReturnPageView } : {}),
+      },
     });
   }
 

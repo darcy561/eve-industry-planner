@@ -11,6 +11,7 @@ export function ClassicGroupAccordionContent({
   skeletonElementsToDisplay,
   highlightedItems,
   groupReadOnly = false,
+  editReturnPageView,
 }) {
   const sortedJobs = useGroupPlannerAccordionJobs(plannerJobs, status.id);
   const { skeletonCount } = useGroupPlannerStageSkeletonCount(
@@ -26,6 +27,7 @@ export function ClassicGroupAccordionContent({
           job={job}
           highlightedItems={highlightedItems}
           groupReadOnly={groupReadOnly}
+          editReturnPageView={editReturnPageView}
         />
       ))}
       {skeletonCount > 0 && (

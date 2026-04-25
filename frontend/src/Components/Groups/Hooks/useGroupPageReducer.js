@@ -12,6 +12,7 @@
 import { useReducer } from "react";
 import { groupPageReducer, GROUP_PAGE_ACTION_TYPES } from "./groupPageReducer";
 import { shouldExpandRightDrawer } from "../../Tutorials/Functions/checkDisplayTutorials";
+import { parseGroupPageViewSearchParam } from "../../../Functions/Groups/groupPageViewSearch";
 
 /**
  * Custom hook for managing group page state.
@@ -37,7 +38,7 @@ import { shouldExpandRightDrawer } from "../../Tutorials/Functions/checkDisplayT
  * 
  * @example
  * function GroupPage() {
- *   const { state, actions } = useGroupPageReducer();
+ *   const { state, actions } = useGroupPageReducer(search.pageView);
  *   
  *   const handleOpenDrawer = (contentID) => {
  *     actions.setRightDrawerContentID(contentID);
@@ -57,28 +58,20 @@ import { shouldExpandRightDrawer } from "../../Tutorials/Functions/checkDisplayT
  *   );
  * }
  */
-export default function useGroupPageReducer() {
-  // Calculate initial state inside the hook so store is available
-  /**
-   * Initial state for the group page reducer.
-   * 
-   * Creates the initial state object with default values, including
-   * tutorial-based drawer expansion settings and empty collections.
-   * 
-   * @constant {Object} initialState
-   * @property {string|null} initialState.rightDrawerContentID - No content initially
-   * @property {boolean} initialState.expandRightDrawer - Based on tutorial settings
-   * @property {number} initialState.skeletonElementsToDisplay - No skeleton elements initially
-   * @property {boolean} initialState.pageRequiresDrawerToBeOpen - Drawer required by default
-   * @property {Set} initialState.highlightedItems - Empty set of highlighted items
-   */
+/**
+ * @param {string | undefined} [initialPageViewFromSearch] — optional `pageView` from `/group/$groupID` search
+ */
+export default function useGroupPageReducer(initialPageViewFromSearch) {
+  const pageView =
+    parseGroupPageViewSearchParam(initialPageViewFromSearch) ?? "planner";
+
   const initialState = {
     rightDrawerContentID: null,
     expandRightDrawer: shouldExpandRightDrawer(true),
     skeletonElementsToDisplay: 0,
     pageRequiresDrawerToBeOpen: true,
     highlightedItems: new Set(),
-    pageView: "planner",
+    pageView,
   };
 
   const [state, dispatch] = useReducer(groupPageReducer, initialState);

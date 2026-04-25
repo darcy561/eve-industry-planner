@@ -44,9 +44,12 @@ function OutputJobCard({ inputJob, state, actions }) {
       <CardActionArea
         onClick={() => {
           navigate({
-            to: '/editjob/$jobID',
+            to: "/editjob/$jobID",
             params: { jobID: inputJob.jobID },
-            search: { activeGroup: activeGroupID }
+            search: {
+              activeGroup: activeGroupID,
+              ...(state.pageView ? { pageView: state.pageView } : {}),
+            },
           });
         }}
       >

@@ -53,6 +53,7 @@ export function ClassicGroupJobCardFrame({
   job,
   highlightedItems,
   groupReadOnly = false,
+  editReturnPageView,
 }) {
   const { multiSelect, activeGroupID } = useUsersStore((state) => state.jobData);
   const jobLockReadOnly = useUsersStore((s) =>
@@ -88,9 +89,12 @@ export function ClassicGroupJobCardFrame({
 
   function onJobClick() {
     navigate({
-      to: '/editjob/$jobID',
+      to: "/editjob/$jobID",
       params: { jobID: job.jobID },
-      search: { activeGroup: activeGroupID }
+      search: {
+        activeGroup: activeGroupID,
+        ...(editReturnPageView ? { pageView: editReturnPageView } : {}),
+      },
     });
   }
 

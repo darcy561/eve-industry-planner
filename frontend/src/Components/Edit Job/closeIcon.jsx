@@ -2,6 +2,7 @@ import { IconButton, Tooltip } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import useUsersStore from "../../Zustand/usersStore";
+import { buildGroupSearchAfterEditClose } from "../../Functions/Groups/groupPageViewSearch";
 
 export function CloseJobIcon({ backupJob }) {
   const { setActiveJobID, updateOrAddJobsToJobArray } = useUsersStore.getState().jobData.actions;
@@ -15,9 +16,10 @@ export function CloseJobIcon({ backupJob }) {
     setActiveJobID(null);
     
     if (isGroupPage) {
-      navigate({ 
-        to: '/group/$groupID', 
-        params: { groupID: groupID } 
+      navigate({
+        to: "/group/$groupID",
+        params: { groupID },
+        search: buildGroupSearchAfterEditClose(search, backupJob?.jobID),
       });
     } else {
       navigate({ to: '/jobplanner' });

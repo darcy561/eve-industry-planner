@@ -13,8 +13,9 @@ import { PlannerStageAccordionShell } from "../../../Styled Components/PlannerSt
  * (`planner-stage-{n}`) so @dnd-kit collision detection can resolve drops when dragging group job cards.
  */
 function PlannerStageAccordionRow(props) {
-  const { status, toggleExpanded, ...restContentsProps } = props;
-  const contentsProps = { status, ...restContentsProps };
+  const { status, toggleExpanded, editReturnPageView, ...restContentsProps } =
+    props;
+  const contentsProps = { status, editReturnPageView, ...restContentsProps };
   const { plannerJobs } = contentsProps;
   const addToMultiSelect =
     useUsersStore.getState().jobData.actions.addToMultiSelect;
@@ -40,6 +41,7 @@ export default function GroupPlannerAccordion({
   groupReadOnly = false,
   skeletonElementsToDisplay,
   highlightedItems,
+  editReturnPageView,
 }) {
   const { jobStatuses } = useJobStatuses();
   const [collapsedStageIds, setCollapsedStageIds] = useState([]);
@@ -87,6 +89,7 @@ export default function GroupPlannerAccordion({
               skeletonElementsToDisplay={skeletonElementsToDisplay}
               highlightedItems={highlightedItems}
               groupReadOnly={groupReadOnly}
+              editReturnPageView={editReturnPageView}
             />
           );
         })}
