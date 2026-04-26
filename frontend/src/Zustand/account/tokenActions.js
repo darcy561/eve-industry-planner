@@ -82,6 +82,26 @@ function linkedSetsFromUserDocument(userDoc) {
 /** @param {Function} set @param {Function} get */
 export const tokenActions = (set, get) => ({
   /**
+   * Sets session-level first-login requirement flag.
+   *
+   * @param {boolean} value
+   */
+  setIsFirstTimeLogin: (value) => {
+    set(
+      (state) => ({
+        ...state,
+        account: {
+          ...state.account,
+          isFirstTimeLogin: Boolean(value),
+          actions: state.account.actions,
+        },
+      }),
+      false,
+      "account/setIsFirstTimeLogin"
+    );
+  },
+
+  /**
    * Decodes the app JWT (`account.accessToken`) via jose; returns `null` if missing or invalid.
    *
    * @returns {import("jose").JWTPayload|null}

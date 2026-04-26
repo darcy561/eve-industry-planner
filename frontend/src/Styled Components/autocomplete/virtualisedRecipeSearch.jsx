@@ -4,7 +4,13 @@ import Autocomplete, {
   createFilterOptions,
 } from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
-import { useTheme } from "@mui/material";
+import { FormControl, useTheme } from "@mui/material";
+import {
+  appShellAutocompleteListboxSx,
+  appShellOutlinedFormControl,
+  appShellSelectMenuPaperSx,
+  appShellTextFieldOutlinedSx,
+} from "../../Context/appShell";
 import { getAvailableBlueprintByBlueprintID } from "../../Functions/Helper/getAvailableBlueprints";
 import { useCachedData } from "../../Hooks/App/useCachedData";
 import { CACHED_DATA_FILES } from "../../Context/defaultValues";
@@ -96,6 +102,7 @@ function ListboxComponent({ children, virtualizerControlRef, ref, ...other }) {
  * @param {boolean} props.esiLoading
  * @param {boolean} props.esiError
  * @param {boolean} props.isListFiltered
+ * @param {boolean} [props.appShellStyled=false]
  */
 function RecipeSearchAutocomplete({
   onSelect,
@@ -105,6 +112,7 @@ function RecipeSearchAutocomplete({
   esiLoading,
   esiError,
   isListFiltered,
+  appShellStyled = false,
 }) {
   const skipMissingBpSetting = useUsersStore(
     (state) => state.applicationSettings.enableSkipMissingBlueprints
@@ -151,7 +159,28 @@ function RecipeSearchAutocomplete({
     return <PanelFallBack isLoading={isLoading} isError={isError} />;
   }
 
-  return (
+  const autocompleteSlotProps = {
+    listbox: {
+      component: ListboxComponent,
+      virtualizerControlRef,
+      ...(appShellStyled
+        ? { sx: appShellAutocompleteListboxSx(theme) }
+        : {}),
+    },
+    ...(appShellStyled
+      ? {
+          paper: {
+            sx: appShellSelectMenuPaperSx(theme),
+          },
+          popper: {
+            placement: "bottom-start",
+            sx: { mt: 0.5 },
+          },
+        }
+      : {}),
+  };
+
+  const autocomplete = (
     <Autocomplete
       key={`recipe-search-${skipMissingBpSetting}-${isListFiltered}`}
       fullWidth
@@ -179,25 +208,48 @@ function RecipeSearchAutocomplete({
         <TextField
           {...params}
           fullWidth
-          label="Search"
+          label="Search recipes"
           placeholder="Select an item"
           margin="none"
-          variant="standard"
-          helperText={isListFiltered ? "Filtered By Available Blueprints" : ""}
-          sx={{
-            "& .MuiFormHelperText-root": {
-              color: isListFiltered ? theme.palette.primary.main : "inherit",
-            },
-          }}
+          variant={appShellStyled ? "outlined" : "standard"}
+          helperText={isListFiltered ? "Filtered by available blueprints" : ""}
+          sx={
+            appShellStyled
+              ? (t) => ({
+                  ...appShellTextFieldOutlinedSx(t),
+                  "& .MuiFormHelperText-root": {
+                    color: isListFiltered
+                      ? theme.palette.primary.main
+                      : t.palette.text.secondary,
+                    mt: 0.75,
+                  },
+                })
+              : {
+                  "& .MuiFormHelperText-root": {
+                    color: isListFiltered ? theme.palette.primary.main : "inherit",
+                  },
+                }
+          }
         />
       )}
-      slotProps={{
-        listbox: {
-          component: ListboxComponent,
-          virtualizerControlRef,
-        },
-      }}
+      slotProps={autocompleteSlotProps}
     />
+  );
+
+  if (!appShellStyled) {
+    return autocomplete;
+  }
+
+  return (
+    <FormControl
+      fullWidth
+      sx={(t) => ({
+        ...appShellOutlinedFormControl(t),
+        paddingX: 0,
+      })}
+    >
+      {autocomplete}
+    </FormControl>
   );
 }
 
@@ -212,6 +264,7 @@ function RecipeSearchWithBlueprintQueries({
   isLoadingItemList,
   itemListError,
   ignoreSelectionOverides,
+  appShellStyled = false,
 }) {
   const queryClient = useQueryClient();
   const {
@@ -250,6 +303,7 @@ function RecipeSearchWithBlueprintQueries({
       esiLoading={esiLoading}
       esiError={esiError}
       isListFiltered
+      appShellStyled={appShellStyled}
     />
   );
 }
@@ -261,6 +315,7 @@ function RecipeSearchWithBlueprintQueries({
  * @param {Object} props - Component props
  * @param {Function} props.onSelect - Callback function called when a recipe is selected. Receives the selected recipe object.
  * @param {boolean} [props.ignoreSelectionOverides=false] - If true, ignores blueprint availability filtering and shows all items
+ * @param {boolean} [props.appShellStyled=false] - Outlined field + app-shell dropdown styling
  * @returns {JSX.Element} Virtualized recipe search autocomplete component
  *
  * @example
@@ -272,6 +327,7 @@ function RecipeSearchWithBlueprintQueries({
 function VirtualisedRecipeSearch({
   onSelect,
   ignoreSelectionOverides = false,
+  appShellStyled = false,
 }) {
   const ignoreItemsWithoutBlueprints = useUsersStore(
     (state) => state.applicationSettings.enableSkipMissingBlueprints
@@ -310,6 +366,7 @@ function VirtualisedRecipeSearch({
         esiLoading={false}
         esiError={false}
         isListFiltered={false}
+        appShellStyled={appShellStyled}
       />
     );
   }
@@ -321,6 +378,7 @@ function VirtualisedRecipeSearch({
       isLoadingItemList={isLoadingItemList}
       itemListError={itemListError}
       ignoreSelectionOverides={ignoreSelectionOverides}
+      appShellStyled={appShellStyled}
     />
   );
 }

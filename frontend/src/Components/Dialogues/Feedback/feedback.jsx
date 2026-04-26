@@ -53,6 +53,7 @@ export function FeedbackIcon() {
     resetDialog();
     setFeedbackText("");
     clearScreenshots();
+    setFormKey((k) => k + 1);
   }
 
   async function feedbackFormAction(formData) {
@@ -128,12 +129,7 @@ export function FeedbackIcon() {
           right: "5px",
           zIndex: (theme) => theme.zIndex.drawer + 1,
         }}
-        onClick={() => {
-          setFormKey((k) => k + 1);
-          setFeedbackText("");
-          clearScreenshots();
-          openFeedbackDialog();
-        }}
+        onClick={() => openFeedbackDialog()}
       >
         Feedback
       </Fab>

@@ -36,6 +36,8 @@ function MarketListingSelect({
   customSelectStyling = {},
   customHelperTextStyling = {},
   labelText = "Listing",
+  selectVariant = "standard",
+  menuProps = {},
 }) {
   return (
     <FormControl
@@ -55,9 +57,10 @@ function MarketListingSelect({
       <Select
         id="market-listing-select"
         aria-describedby="market-listing-helper"
-        variant="standard"
+        variant={selectVariant}
         size="small"
         value={value}
+        MenuProps={menuProps}
         error={error.isError}
         onChange={(e) => {
           if (onChange) {

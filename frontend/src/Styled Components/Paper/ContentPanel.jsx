@@ -27,7 +27,7 @@ import { LoadingPage } from "../../Components/loadingPage";
  * @param {boolean} [props.isError=false] - Whether to show error state
  * @param {Error} [props.error] - Error object to display if isError is true
  * @param {string} [props.loadingMessage] - Optional caption for the loading fallback (default in PanelFallBack or "Loading…" for simple)
- * @param {'minimal' | 'simple'} [props.loadingVariant='minimal'] - `simple` uses shared LoadingPage (spinner + caption), e.g. Edit Job initial load after route chunk
+ * @param {'minimal' | 'simple'} [props.loadingVariant='minimal'] - `simple` uses shared LoadingPage (spinner + caption in app-shell surface), e.g. Edit Job step Suspense
  * @param {Object} [props.paperSx] - Additional styles for the Paper component
  * @param {Object} [props.contentGridSx] - Additional styles merged into the inner content Grid (e.g. overflow: "visible" for panels that size to content)
  * @param {boolean} [props.visible=true] - When false, the panel is not rendered

@@ -1,4 +1,5 @@
-import { Box, CircularProgress, Typography } from "@mui/material";
+import { Box, CircularProgress, Paper, Typography } from "@mui/material";
+import { appShellSimpleLoadingSurfaceSx } from "../Context/appShell";
 import {
   LoadingBrandBackdrop,
   LoadingBrandScene,
@@ -7,9 +8,9 @@ import {
 /**
  * @param {Object} props
  * @param {'embedded' | 'route' | 'simple'} [props.variant]
- *   - `route`: full-viewport branded lazy-route Suspense.
- *   - `embedded`: branded, grows within layout parents (default).
- *   - `simple`: ContentPanel-style spinner + caption (no brand backdrop).
+ *   - `route` / `embedded`: branded full scene (`LoadingBrand*` — logo, glow, dots).
+ *   - `simple`: compact spinner + caption inside an app-shell surface (bordered
+ *     tinted panel), for in-panel Suspense (e.g. Edit Job steps) — not the branded route loader.
  * @param {string} [props.helperText] — Caption under the spinner when `variant="simple"` (updates when the prop changes).
  */
 export function LoadingPage({
@@ -34,19 +35,25 @@ export function LoadingPage({
           minHeight: 200,
         }}
       >
-        <Box
+        <Paper
+          variant="outlined"
+          elevation={0}
           sx={{
+            ...appShellSimpleLoadingSurfaceSx,
+            p: 3,
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             gap: 2,
+            minWidth: 200,
+            maxWidth: "100%",
           }}
         >
           <CircularProgress />
           <Typography variant="caption" color="text.secondary" align="center">
             {helperText}
           </Typography>
-        </Box>
+        </Paper>
       </Box>
     );
   }

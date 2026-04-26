@@ -36,6 +36,8 @@ function MarketLocationSelect({
   customSelectStyling = {},
   customHelperTextStyling = {},
   labelText = "Market",
+  selectVariant = "standard",
+  menuProps = {},
 }) {
   const { MARKET_OPTIONS } = GLOBAL_CONFIG;
   
@@ -60,7 +62,7 @@ function MarketLocationSelect({
       <Select
         id="market-location-select"
         aria-describedby="market-location-helper"
-        variant="standard"
+        variant={selectVariant}
         size="small"
         value={validValue}
         error={error.isError}
@@ -73,6 +75,7 @@ function MarketLocationSelect({
             );
           }
         }}
+        MenuProps={menuProps}
         sx={{
           color: error.isError ? "error.main" : "inherit",
           "& .MuiSelect-icon": {

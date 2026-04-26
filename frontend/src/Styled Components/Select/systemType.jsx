@@ -19,7 +19,16 @@ import { getSystemTypeFromID } from "../../Functions/Helper/getStructureInfo";
  *   onChange={(systemType) => setSystemType(systemType)}
  * />
  */
-function SystemTypeSelect({ value = 0, jobType = 1, onChange }) {
+function SystemTypeSelect({
+  value = 0,
+  jobType = 1,
+  onChange,
+  selectVariant = "standard",
+  menuProps = {},
+  customFormStyling = {},
+  customSelectStyling = {},
+  customHelperTextStyling = {},
+}) {
   return (
     <FormControl
       sx={{
@@ -30,15 +39,17 @@ function SystemTypeSelect({ value = 0, jobType = 1, onChange }) {
           {
             display: "none",
           },
+        ...customFormStyling,
       }}
       fullWidth
     >
       <Select
         id="system-type-select"
         aria-describedby="system-type-helper"
-        variant="standard"
+        variant={selectVariant}
         size="small"
         value={value}
+        MenuProps={menuProps}
         onChange={(e) => {
           if (onChange) {
             onChange(getSystemTypeFromID(jobType, e.target.value));
@@ -46,6 +57,7 @@ function SystemTypeSelect({ value = 0, jobType = 1, onChange }) {
             console.error("System Type Select is missing an onChange Function");
           }
         }}
+        sx={customSelectStyling}
       >
         {Object.values(systemTypeMap[jobType]).map((entry) => {
           return (
@@ -55,7 +67,11 @@ function SystemTypeSelect({ value = 0, jobType = 1, onChange }) {
           );
         })}
       </Select>
-      <FormHelperText id="system-type-helper" variant="standard">
+      <FormHelperText
+        id="system-type-helper"
+        variant="standard"
+        sx={customHelperTextStyling}
+      >
         System Type
       </FormHelperText>
     </FormControl>

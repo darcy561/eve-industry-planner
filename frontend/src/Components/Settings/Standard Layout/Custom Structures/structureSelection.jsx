@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Box, Button, FormControl, TextField, Grid } from "@mui/material";
+import { useState, useMemo } from "react";
+import { Box, Button, TextField, Grid, Stack } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 
 import DOMPurify from "dompurify";
 import {
@@ -20,12 +21,27 @@ import { addCustomStructure as addCustomStructureFunction } from "../../../../Fu
 import { showSnackbarSuccess } from "../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
+import {
+  appShellTextFieldOutlinedSx,
+  getAppShellMarketSelectProps,
+} from "../../../../Context/appShell";
+import { FirstLoginStructureFormField } from "../../../First Login/shared/FirstLoginStructureFormField";
 const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
 
 function StructureOptionsSelection_CustomStructures({
   selectedJobType,
   setIsLoading,
+  appearance = "default",
 }) {
+  const theme = useTheme();
+  const appShellFieldProps = useMemo(
+    () =>
+      appearance === "firstLogin" ? getAppShellMarketSelectProps(theme) : {},
+    [appearance, theme],
+  );
+
+  const gridPadSx =
+    appearance === "firstLogin" ? { px: 0 } : { paddingX: "20px" };
   const { addCustomStructure } =
     useUsersStore.getState().applicationSettings.actions;
 
@@ -38,14 +54,16 @@ function StructureOptionsSelection_CustomStructures({
       systemType: systemTypeMap[selectedJobType][0].id,
       systemID: DEFAULT_SYSTEM,
       tax: 0,
-    })
+    }),
   );
 
   const handleNameChange = (e) => {
-    currentStructure.setName(DOMPurify.sanitize(e.target.value, {
-      ALLOWED_TAGS: [],
-      ALLOWED_ATTR: [],
-    }));
+    currentStructure.setName(
+      DOMPurify.sanitize(e.target.value, {
+        ALLOWED_TAGS: [],
+        ALLOWED_ATTR: [],
+      }),
+    );
     setCurrentStructure(new CustomStructure(currentStructure));
   };
 
@@ -53,7 +71,7 @@ function StructureOptionsSelection_CustomStructures({
     currentStructure.setStructureType(selectedEntry.id);
     setCurrentStructure(new CustomStructure(currentStructure));
     handleStructureStateRequirements(
-      getRequirements(selectedEntry.requirementID)
+      getRequirements(selectedEntry.requirementID),
     );
   };
 
@@ -61,7 +79,7 @@ function StructureOptionsSelection_CustomStructures({
     currentStructure.setRigType(selectedEntry.id);
     setCurrentStructure(new CustomStructure(currentStructure));
     handleStructureStateRequirements(
-      getRequirements(selectedEntry.requirementID)
+      getRequirements(selectedEntry.requirementID),
     );
   };
 
@@ -69,7 +87,7 @@ function StructureOptionsSelection_CustomStructures({
     currentStructure.setSystemType(selectedEntry.id);
     setCurrentStructure(new CustomStructure(currentStructure));
     handleStructureStateRequirements(
-      getRequirements(selectedEntry.requirementID)
+      getRequirements(selectedEntry.requirementID),
     );
   };
 
@@ -120,7 +138,11 @@ function StructureOptionsSelection_CustomStructures({
   }
 
   function getRequirements(requirementID) {
-    if (requirementID == -1 || requirementID == null || requirementID == undefined) {
+    if (
+      requirementID == -1 ||
+      requirementID == null ||
+      requirementID == undefined
+    ) {
       return {};
     }
 
@@ -130,17 +152,6 @@ function StructureOptionsSelection_CustomStructures({
 
     return matchedRequirements;
   }
-
-  const styling = {
-    "& .MuiFormHelperText-root": {
-      color: (theme) => theme.palette.secondary.main,
-    },
-    "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-    {
-      display: "none",
-    },
-    paddingX: "20px",
-  };
 
   const handleAdd = async () => {
     try {
@@ -159,7 +170,7 @@ function StructureOptionsSelection_CustomStructures({
           systemType: systemTypeMap[selectedJobType][0].id,
           systemID: DEFAULT_SYSTEM,
           tax: 0,
-        })
+        }),
       );
       scheduleDebouncedApplicationSettingsSave();
       showSnackbarSuccess(`${currentStructure.name} Added`);
@@ -168,83 +179,151 @@ function StructureOptionsSelection_CustomStructures({
     }
   };
 
+  const isFirstLogin = appearance === "firstLogin";
+
+  const wrapFirstLogin = (title, description, node) =>
+    isFirstLogin ? (
+      <FirstLoginStructureFormField title={title} description={description}>
+        {node}
+      </FirstLoginStructureFormField>
+    ) : (
+      node
+    );
+
   return (
     <Box>
-      <Grid container>
-        <Grid size={12}>
-          <FormControl fullWidth sx={styling}>
+      <Grid container spacing={isFirstLogin ? 2 : 0} alignItems="flex-start">
+        <Grid size={12} sx={gridPadSx}>
+          {wrapFirstLogin(
+            "Display name",
+            "A label you will see in structure lists to help you identify the structure. It does not need to match an in-game name.",
             <TextField
+              fullWidth
               placeholder="Display Name"
               value={currentStructure.name}
               size="small"
-              variant="standard"
-              helperText="Structure Name"
+              variant={isFirstLogin ? "outlined" : "standard"}
+              label={isFirstLogin ? "Structure name" : undefined}
+              helperText={
+                isFirstLogin
+                  ? "Shown in lists only; used to tell structures apart."
+                  : "Structure Name"
+              }
+              sx={
+                isFirstLogin ? (t) => appShellTextFieldOutlinedSx(t) : undefined
+              }
               onChange={handleNameChange}
               onBlur={handleNameChange}
-            />
-          </FormControl>
+            />,
+          )}
         </Grid>
         <Grid
-          sx={{ paddingX: "20px" }}
+          sx={gridPadSx}
           size={{
             xs: 12,
-            sm: 6
-          }}>
-          <StructureTypeSelect
-            value={currentStructure.structureType}
-            jobType={selectedJobType}
-            onChange={handleStructureTypeChange}
-          />
+            sm: 6,
+          }}
+        >
+          {wrapFirstLogin(
+            "Structure Type",
+            "The structure type determines the bonuses and available rigs.",
+            <StructureTypeSelect
+              {...appShellFieldProps}
+              value={currentStructure.structureType}
+              jobType={selectedJobType}
+              onChange={handleStructureTypeChange}
+            />,
+          )}
         </Grid>
         <Grid
-          sx={{ paddingX: "20px" }}
+          sx={gridPadSx}
           size={{
             xs: 12,
-            sm: 6
-          }}>
-          <RigTypeSelect
-            value={currentStructure.rigType}
-            jobType={selectedJobType}
-            onChange={handleRigTypeChange}
-          />
+            sm: 6,
+          }}
+        >
+          {wrapFirstLogin(
+            "Structure rigs",
+            "Rig bonuses are the same for each tech level regardless of type of items they are applied to. The application does differenciate between the different rigs that apply to specific items. For structures that have rigs that only apply to specific item types just select the tech level for this and use an additional custom structure for items that the bonus does not apply to. ",
+            <RigTypeSelect
+              {...appShellFieldProps}
+              value={currentStructure.rigType}
+              jobType={selectedJobType}
+              onChange={handleRigTypeChange}
+            />,
+          )}
         </Grid>
         <Grid
-          sx={{ paddingX: "20px" }}
+          sx={gridPadSx}
           size={{
             xs: 12,
-            sm: 6
-          }}>
-          <SystemTypeSelect
-            value={currentStructure.systemType}
-            jobType={selectedJobType}
-            onChange={handleSystemTypeChange}
-          />
+            sm: 6,
+          }}
+        >
+          {wrapFirstLogin(
+            "Security Status",
+            "The security status of the system determines the effectiveness of the rigs that are fitted to the structure.",
+            <SystemTypeSelect
+              {...appShellFieldProps}
+              value={currentStructure.systemType}
+              jobType={selectedJobType}
+              onChange={handleSystemTypeChange}
+            />,
+          )}
         </Grid>
         <Grid
-          sx={{ paddingX: "20px" }}
+          sx={gridPadSx}
           size={{
             xs: 12,
-            sm: 6
-          }}>
-          <TaxPercentageTextField
-            initialState={currentStructure.tax}
-            jobType={selectedJobType}
-            onBlur={handleTaxChange}
-          />
+            sm: 6,
+          }}
+        >
+          {wrapFirstLogin(
+            "Structure Tax",
+            "Facility tax percentage for using the services at this structure. This is applied when calculating install costs for jobs.",
+            <TaxPercentageTextField
+              initialState={currentStructure.tax}
+              onBlur={handleTaxChange}
+              variant={isFirstLogin ? "outlined" : "standard"}
+              label={isFirstLogin ? "Tax %" : undefined}
+              helperText={"Tax Percentage"}
+              sx={
+                isFirstLogin ? (t) => appShellTextFieldOutlinedSx(t) : undefined
+              }
+            />,
+          )}
         </Grid>
         <Grid
+          sx={gridPadSx}
           size={{
             xs: 12,
-            sm: 6
-          }}>
-          <VirtualisedSystemSearch
-            selectedValue={currentStructure.systemID}
-            jobType={selectedJobType}
-            updateSelectedValue={handleSystemChange}
-          />
+            sm: 6,
+          }}
+        >
+          {wrapFirstLogin(
+            "Solar System",
+            "Where this structure is situated. This is used to fetch the system indexes of the system.",
+            <VirtualisedSystemSearch
+              selectedValue={currentStructure.systemID}
+              jobType={selectedJobType}
+              updateSelectedValue={handleSystemChange}
+              appShellStyled={isFirstLogin}
+            />,
+          )}
         </Grid>
-        <Grid size={12}>
-          <Button onClick={handleAdd}>Add</Button>
+        <Grid size={12} sx={gridPadSx}>
+          <Stack
+            direction="row"
+            justifyContent={isFirstLogin ? "flex-end" : "flex-start"}
+            sx={{ pt: isFirstLogin ? 0.5 : 0 }}
+          >
+            <Button
+              variant={isFirstLogin ? "contained" : "text"}
+              onClick={handleAdd}
+            >
+              Add structure
+            </Button>
+          </Stack>
         </Grid>
       </Grid>
     </Box>

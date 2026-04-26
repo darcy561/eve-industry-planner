@@ -1,6 +1,6 @@
 import { Grid } from "@mui/material";
 import { AccountInfo } from "./accountInfo";
-import { AdditionalAccounts } from "./Additional Accounts";
+import { AdditionalAccounts } from "./AdditionalAccounts";
 import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
 
 export default function AccountsPage() {

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { emitLoginComplete, LOGIN_STEPS } from "../../../Events/loginEvents";
 import { getRedirectPathAfterAuth } from "../../../utils/routeUtils";
+import useUsersStore from "../../../Zustand/usersStore";
 
 /**
  * When every {@link LOGIN_STEPS} has completed, emit login complete, consume `originalPath` once, and navigate away from `/auth`.
@@ -23,7 +24,12 @@ export function useAfterLoginStepNavigation({ completedSteps, navigate }) {
       if (originalPath) {
         localStorage.removeItem("originalPath");
       }
-      const redirectPath = getRedirectPathAfterAuth(originalPath, "/dashboard");
+      const state = useUsersStore.getState();
+      const needsFirstLoginFlow =
+        state.account.actions.getRequiresFirstLoginFlow();
+      const redirectPath = needsFirstLoginFlow
+        ? "/first-login"
+        : getRedirectPathAfterAuth(originalPath, "/dashboard");
       navigate({ to: redirectPath });
     }
   }, [completedSteps, navigate]);

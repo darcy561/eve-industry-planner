@@ -11,8 +11,17 @@ import Autocomplete, {
 import TextField from "@mui/material/TextField";
 import systemIDsJSON from "../../RawData/systems.json";
 import { FormControl, FormHelperText } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import { systemStructureRequirements } from "../../Context/defaultValues";
 import GLOBAL_CONFIG from "../../global-config-app";
+import {
+  appShellAutocompleteListboxSx,
+  appShellHelperTextSx,
+  appShellOutlinedFormControl,
+  appShellSelectMenuPaperSx,
+  appShellTextFieldOutlinedSx,
+} from "../../Context/appShell";
+
 const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
 
 const defaultAutocompleteFilter = createFilterOptions();
@@ -96,20 +105,16 @@ function ListboxComponent({ children, virtualizerControlRef, ref, ...other }) {
  * @param {number} [props.selectedValue=0] - Currently selected system ID
  * @param {Function} props.updateSelectedValue - Callback function called when a system is selected. Receives the system ID.
  * @param {number|null} [props.jobType=null] - Job type to filter systems by. If null, shows all systems.
+ * @param {boolean} [props.appShellStyled=false] - Use outlined field + app-shell dropdown styling.
  * @returns {JSX.Element} Virtualized system search autocomplete component
- *
- * @example
- * <VirtualisedSystemSearch
- *   selectedValue={30000142}
- *   updateSelectedValue={(systemId) => console.log('Selected system:', systemId)}
- *   jobType={1}
- * />
  */
 function VirtualisedSystemSearch({
   selectedValue = 0,
   updateSelectedValue,
   jobType = null,
+  appShellStyled = false,
 }) {
+  const theme = useTheme();
   const [inputValue, setInputValue] = useState("");
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("Error");
@@ -173,20 +178,48 @@ function VirtualisedSystemSearch({
     }
   };
 
+  const autocompleteSlotProps = {
+    listbox: {
+      component: ListboxComponent,
+      virtualizerControlRef,
+      ...(appShellStyled
+        ? { sx: appShellAutocompleteListboxSx(theme) }
+        : {}),
+    },
+    ...(appShellStyled
+      ? {
+          paper: {
+            sx: appShellSelectMenuPaperSx(theme),
+          },
+          popper: {
+            placement: "bottom-start",
+            sx: { mt: 0.5 },
+          },
+        }
+      : {}),
+  };
+
   return (
     <FormControl
       fullWidth
-      sx={{
-        "& .MuiFormHelperText-root": {
-          color: (theme) => theme.palette.secondary.main,
-        },
-
-        "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-          {
-            display: "none",
-          },
-        paddingX: "20px",
-      }}
+      sx={
+        appShellStyled
+          ? (t) => ({
+              ...appShellOutlinedFormControl(t),
+              "& .MuiFormHelperText-root": appShellHelperTextSx,
+              paddingX: 0,
+            })
+          : {
+              "& .MuiFormHelperText-root": {
+                color: (t) => t.palette.secondary.main,
+              },
+              "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
+                {
+                  display: "none",
+                },
+              paddingX: "20px",
+            }
+      }
     >
       <Autocomplete
         id="System Search"
@@ -216,20 +249,29 @@ function VirtualisedSystemSearch({
             fullWidth
             placeholder="Select a system"
             margin="none"
-            variant="standard"
+            variant={appShellStyled ? "outlined" : "standard"}
+            size="small"
             error={hasError}
-            helperText={hasError ? errorMessage : null}
+            sx={
+              appShellStyled
+                ? (t) => appShellTextFieldOutlinedSx(t)
+                : undefined
+            }
           />
         )}
-        slotProps={{
-          listbox: {
-            component: ListboxComponent,
-            virtualizerControlRef,
-          },
-        }}
+        slotProps={autocompleteSlotProps}
       />
-      <FormHelperText variant="standard" id="system-search-label">
-        System Search
+      <FormHelperText
+        variant="standard"
+        id="system-search-label"
+        error={hasError}
+        sx={appShellStyled ? appShellHelperTextSx : undefined}
+      >
+        {hasError
+          ? errorMessage
+          : appShellStyled
+            ? "Solar system"
+            : "System Search"}
       </FormHelperText>
     </FormControl>
   );

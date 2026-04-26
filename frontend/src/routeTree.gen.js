@@ -21,6 +21,7 @@ import { Route as GroupNewRouteImport } from './routes/group/new'
 import { Route as GroupGroupIDRouteImport } from './routes/group/$groupID'
 import { Route as EditjobJobIDRouteImport } from './routes/editjob/$jobID'
 import { Route as ProtectedSettingsRouteImport } from './routes/_protected/settings'
+import { Route as ProtectedFirstLoginRouteImport } from './routes/_protected/first-login'
 import { Route as ProtectedDashboardRouteImport } from './routes/_protected/dashboard'
 import { Route as ProtectedBlueprintLibraryRouteImport } from './routes/_protected/blueprint-library'
 import { Route as ProtectedAssetLibraryRouteImport } from './routes/_protected/asset-library'
@@ -85,6 +86,11 @@ const ProtectedSettingsRoute = ProtectedSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => ProtectedRoute,
 })
+const ProtectedFirstLoginRoute = ProtectedFirstLoginRouteImport.update({
+  id: '/first-login',
+  path: '/first-login',
+  getParentRoute: () => ProtectedRoute,
+})
 const ProtectedDashboardRoute = ProtectedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -112,6 +118,7 @@ const ProtectedRouteChildren = {
   ProtectedAssetLibraryRoute: ProtectedAssetLibraryRoute,
   ProtectedBlueprintLibraryRoute: ProtectedBlueprintLibraryRoute,
   ProtectedDashboardRoute: ProtectedDashboardRoute,
+  ProtectedFirstLoginRoute: ProtectedFirstLoginRoute,
   ProtectedSettingsRoute: ProtectedSettingsRoute,
 }
 

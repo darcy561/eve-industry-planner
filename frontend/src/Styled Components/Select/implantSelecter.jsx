@@ -19,7 +19,16 @@ import { getSystemTypeFromID } from "../../Functions/Helper/getStructureInfo";
  *   onChange={(implant) => setImplant(implant)}
  * />
  */
-function ImplantSelect({ value = 0, jobType = 1, onChange }) {
+function ImplantSelect({
+  value = 0,
+  jobType = 1,
+  onChange,
+  selectVariant = "standard",
+  menuProps = {},
+  customFormStyling = {},
+  customSelectStyling = {},
+  customHelperTextStyling = {},
+}) {
   return (
     <FormControl
       sx={{
@@ -30,15 +39,17 @@ function ImplantSelect({ value = 0, jobType = 1, onChange }) {
           {
             display: "none",
           },
+        ...customFormStyling,
       }}
       fullWidth
     >
       <Select
         id="implant-type-select"
         aria-describedby="implant-type-helper"
-        variant="standard"
+        variant={selectVariant}
         size="small"
         value={value}
+        MenuProps={menuProps}
         onChange={(e) => {
           if (onChange) {
             onChange(Implants[jobType][e.target.value]);
@@ -48,6 +59,7 @@ function ImplantSelect({ value = 0, jobType = 1, onChange }) {
             );
           }
         }}
+        sx={customSelectStyling}
       >
         {Object.values(Implants[jobType]).map((entry) => {
           return (
@@ -57,7 +69,11 @@ function ImplantSelect({ value = 0, jobType = 1, onChange }) {
           );
         })}
       </Select>
-      <FormHelperText id="implant-type-helper" variant="standard">
+      <FormHelperText
+        id="implant-type-helper"
+        variant="standard"
+        sx={customHelperTextStyling}
+      >
         Implant Type
       </FormHelperText>
     </FormControl>

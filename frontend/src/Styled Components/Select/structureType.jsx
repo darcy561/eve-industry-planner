@@ -28,7 +28,16 @@ import { getStructureInfoFromID } from "../../Functions/Helper/getStructureInfo"
  *   onChange={(structure) => setStructureType(structure)}
  * />
  */
-function StructureTypeSelect({ value = 0, jobType = 1, onChange }) {
+function StructureTypeSelect({
+  value = 0,
+  jobType = 1,
+  onChange,
+  selectVariant = "standard",
+  menuProps = {},
+  customFormStyling = {},
+  customSelectStyling = {},
+  customHelperTextStyling = {},
+}) {
   return (
     <Tooltip title={structureTypeTooltip} arrow placement="top">
       <FormControl
@@ -40,15 +49,17 @@ function StructureTypeSelect({ value = 0, jobType = 1, onChange }) {
             {
               display: "none",
             },
+          ...customFormStyling,
         }}
         fullWidth
       >
         <Select
           id="structure-type-select"
           aria-describedby="structure-type-helper"
-          variant="standard"
+          variant={selectVariant}
           size="small"
           value={value}
+          MenuProps={menuProps}
           onChange={(e) => {
             if (onChange) {
               onChange(getStructureInfoFromID(jobType, e.target.value));
@@ -58,6 +69,7 @@ function StructureTypeSelect({ value = 0, jobType = 1, onChange }) {
               );
             }
           }}
+          sx={customSelectStyling}
         >
           {Object.values(structureTypeMap[jobType]).map((entry) => {
             return (
@@ -67,7 +79,11 @@ function StructureTypeSelect({ value = 0, jobType = 1, onChange }) {
             );
           })}
         </Select>
-        <FormHelperText id="structure-type-helper" variant="standard">
+        <FormHelperText
+          id="structure-type-helper"
+          variant="standard"
+          sx={customHelperTextStyling}
+        >
           Structure Type
         </FormHelperText>
       </FormControl>

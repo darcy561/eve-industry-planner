@@ -60,6 +60,20 @@ export const accountActions = (set, get) => ({
    */
   getMainCharacterHash: () => get().account.mainCharacterHash ?? "",
 
+  /**
+   * True when this logged-in account must complete the first-login guided flow.
+   * Combines session-level first-login flag with persisted completion state.
+   * @returns {boolean}
+   */
+  getRequiresFirstLoginFlow: () => {
+    const state = get();
+    return (
+      Boolean(state.account.isLoggedIn) &&
+      (Boolean(state.account.isFirstTimeLogin) ||
+        !Boolean(state.applicationSettings.hasCompletedFirstLoginFlow))
+    );
+  },
+
   ...tokenActions(set, get),
 
   resetAccountStore: () => {

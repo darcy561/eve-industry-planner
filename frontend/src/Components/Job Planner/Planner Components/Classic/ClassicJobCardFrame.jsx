@@ -48,7 +48,7 @@ function DisplaySwitch({ job }) {
   }
 }
 
-export function JobCardFrame({ job }) {
+export function JobCardFrame({ job, previewStandalone = false }) {
   const multiSelect = useUsersStore((state) => state.jobData.multiSelect);
   const jobLockReadOnly = useUsersStore((s) =>
     selectDocumentLockReadOnly(s, USER_JOBS_COLLECTION, job.jobID)
@@ -91,6 +91,10 @@ export function JobCardFrame({ job }) {
     };
   }, [theme, jobCardChecked, isDragging, PRIMARY_THEME]);
 
+  const gridSize = previewStandalone
+    ? { xs: 12, sm: 12, md: 12, lg: 12 }
+    : { xs: 12, sm: 6, md: 4, lg: 3 };
+
   return (
     <Grid
       ref={setNodeRef}
@@ -98,12 +102,7 @@ export function JobCardFrame({ job }) {
       {...listeners}
       {...attributes}
       sx={plannerDragPassThroughSx(isDragging)}
-      size={{
-        xs: 12,
-        sm: 6,
-        md: 4,
-        lg: 3
-      }}
+      size={gridSize}
     >
       <ContentPanel
         componentName="ClassicJobCardFrame"

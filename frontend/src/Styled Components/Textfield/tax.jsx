@@ -29,7 +29,14 @@ function coercePercentToNumber(value) {
  *   onBlur={(tax) => setTaxPercentage(tax)}
  * />
  */
-function TaxPercentageTextField({ initialState, onBlur }) {
+function TaxPercentageTextField({
+  initialState,
+  onBlur,
+  variant = "standard",
+  label,
+  helperText = "Tax Percentage",
+  sx: sxProp,
+}) {
   const [inputValue, updateInputValue] = useState(() =>
     formatTaxFieldInitial(initialState)
   );
@@ -44,18 +51,22 @@ function TaxPercentageTextField({ initialState, onBlur }) {
       aria-label="job-percentage-textfield"
       value={inputValue}
       size="small"
-      variant="standard"
-      helperText="Tax Percentage"
+      variant={variant}
+      label={label}
+      helperText={helperText}
       type="number"
-      sx={{
-        "& .MuiFormHelperText-root": {
-          color: (theme) => theme.palette.secondary.main,
-        },
-        "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
-          {
-            display: "none",
+      sx={[
+        {
+          "& .MuiFormHelperText-root": {
+            color: (theme) => theme.palette.secondary.main,
           },
-      }}
+          "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
+            {
+              display: "none",
+            },
+        },
+        ...(sxProp ? [sxProp] : []),
+      ]}
       onChange={(e) => {
         const value = e.target.value;
         if (!isNaN(value) && Number(value) >= 0) {

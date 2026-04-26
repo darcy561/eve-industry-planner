@@ -1,13 +1,17 @@
 import GLOBAL_CONFIG from "../../../global-config-app";
 import withRequestRetries, { splitRetryConfig } from "../withRequestRetries.js";
 
-const { DEFAULT_DISCORD_INVITE, DEFAULT_GITHUB_LINK } = GLOBAL_CONFIG;
+const {
+  DEFAULT_DISCORD_INVITE,
+  DEFAULT_GITHUB_LINK,
+  DEFAULT_INGAME_SUPPORT_MAIL_CHARACTER,
+} = GLOBAL_CONFIG;
 
 /**
  * Default headers for all API requests (public headers)
  */
 const defaultHeaders = {
-  "X-User-Agent": `Eve Industry Planner/client/V${__APP_VERSION__} (eve: Oswold Saraki/Reginal Shardani; discordID: darcy561; discordURL: ${DEFAULT_DISCORD_INVITE}; Github: ${DEFAULT_GITHUB_LINK})`,
+  "X-User-Agent": `Eve Industry Planner/client/V${__APP_VERSION__} (eve: Oswold Saraki/${DEFAULT_INGAME_SUPPORT_MAIL_CHARACTER}; discordID: darcy561; discordURL: ${DEFAULT_DISCORD_INVITE}; Github: ${DEFAULT_GITHUB_LINK})`,
 };
 
 /**

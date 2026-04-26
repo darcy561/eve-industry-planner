@@ -4,7 +4,11 @@ import { FaDiscord } from "react-icons/fa";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
 import GLOBAL_CONFIG from "../../global-config-app";
 
-const { DEFAULT_DISCORD_INVITE, DEFAULT_GITHUB_LINK } = GLOBAL_CONFIG;
+const {
+  DEFAULT_DISCORD_INVITE,
+  DEFAULT_GITHUB_LINK,
+  DEFAULT_INGAME_SUPPORT_MAIL_CHARACTER,
+} = GLOBAL_CONFIG;
 
 const SOCIAL_LINKS = [
   {
@@ -75,7 +79,7 @@ export function Footer() {
             All EVE related materials are property of CCP Games.
           </Typography>
           <Typography variant="caption" align="center">
-            Produced and maintained by Reginal Shardani
+            Produced and maintained by {DEFAULT_INGAME_SUPPORT_MAIL_CHARACTER}
           </Typography>
           <Typography variant="caption" align="center">
             Version: {__APP_VERSION__}

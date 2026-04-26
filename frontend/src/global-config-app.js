@@ -46,6 +46,30 @@ const GLOBAL_CONFIG = Object.freeze({
   DEFAULT_GITHUB_LINK: "https://github.com/darcy561/Eve-Industry-Planner-React",
 
   /**
+   * EVE forum thread URL for help/news. Leave blank until published.
+   *
+   * @type {string}
+   * @default ""
+   */
+  DEFAULT_EVE_FORUM_THREAD_LINK: "https://forums.eveonline.com/t/eve-industry-planner-industry-job-management-application-v0-8-0-resource-reprocessing",
+
+  /**
+   * In-game channel name for support.
+   *
+   * @type {string}
+   * @default "EVE Industry Planner"
+   */
+  DEFAULT_INGAME_SUPPORT_CHANNEL: "EVE Industry Planner",
+
+  /**
+   * In-game mail contact character name for support.
+   *
+   * @type {string}
+   * @default "Reginal Shardani"
+   */
+  DEFAULT_INGAME_SUPPORT_MAIL_CHARACTER: "Reginal Shardani",
+
+  /**
    * Primary application theme.
    * 
    * Specifies the default theme used throughout the application.

@@ -26,6 +26,11 @@ function RigTypeSelect({
   jobType = 1,
   onChange,
   error = { isError: false, errorText: "" },
+  selectVariant = "standard",
+  menuProps = {},
+  customFormStyling = {},
+  customSelectStyling = {},
+  customHelperTextStyling = {},
 }) {
   return (
     <FormControl
@@ -37,6 +42,7 @@ function RigTypeSelect({
           {
             display: "none",
           },
+        ...customFormStyling,
       }}
       error={error.isError}
       fullWidth
@@ -44,10 +50,11 @@ function RigTypeSelect({
       <Select
         id="rig-type-select"
         aria-describedby="rig-type-helper"
-        variant="standard"
+        variant={selectVariant}
         size="small"
         value={value}
         error={error.isError}
+        MenuProps={menuProps}
         onChange={(e) => {
           if (onChange) {
             onChange(getRigInfoFromID(jobType, e.target.value));
@@ -60,6 +67,7 @@ function RigTypeSelect({
           "& .MuiSelect-icon": {
             color: error.isError ? "error.main" : "inherit",
           },
+          ...customSelectStyling,
         }}
       >
         {Object.values(rigTypeMap[jobType]).map((entry) => {
@@ -75,6 +83,7 @@ function RigTypeSelect({
         variant="standard"
         sx={{
           color: error.isError ? "error.main" : "secondary.main",
+          ...customHelperTextStyling,
         }}
       >
         {error.isError ? error.errorText : "Rig Type"}

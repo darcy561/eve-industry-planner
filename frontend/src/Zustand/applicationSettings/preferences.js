@@ -26,6 +26,24 @@ import {
  */
 export const preferencesActions = (set, get) => ({
   /**
+   * Marks the first-login guided flow as completed/incomplete.
+   *
+   * @param {boolean} value
+   */
+  setHasCompletedFirstLoginFlow: (value) =>
+    set(
+      (state) => ({
+        ...state,
+        applicationSettings: {
+          ...state.applicationSettings,
+          hasCompletedFirstLoginFlow: Boolean(value),
+        },
+      }),
+      false,
+      "setHasCompletedFirstLoginFlow"
+    ),
+
+  /**
    * Toggles the cloud accounts setting.
    * 
    * Switches between enabled and disabled states for cloud account storage.
@@ -87,6 +105,24 @@ export const preferencesActions = (set, get) => ({
       }),
       false,
       "toggleEnableCompactView"
+    ),
+
+  /**
+   * Sets planner job card layout (classic vs compact).
+   *
+   * @param {boolean} compact - true for compact cards, false for classic
+   */
+  setEnableCompactLayoutView: (compact) =>
+    set(
+      (state) => ({
+        ...state,
+        applicationSettings: {
+          ...state.applicationSettings,
+          enableCompactLayoutView: Boolean(compact),
+        },
+      }),
+      false,
+      "setEnableCompactLayoutView"
     ),
 
   /**

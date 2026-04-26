@@ -32,7 +32,12 @@ async function getCorpDivisions(character, config = {}) {
       return {};
     }
 
-    // Handle client errors (4xx)
+    // Most characters cannot read corp divisions (ESI returns 403); treat as optional.
+    if (response.status === 403) {
+      return {};
+    }
+
+    // Handle other client errors (4xx)
     if (response.status >= 400 && response.status < 500) {
       throw new Error(
         `API request failed with status ${response.status}: ${response.statusText}`
@@ -51,7 +56,7 @@ async function getCorpDivisions(character, config = {}) {
 
     return data;
   } catch (err) {
-    console.error(`Error fetching corporation divisions: ${err}`);
+    console.error(`Error fetching corporation divisions:`, err);
     return {};
   }
 }
