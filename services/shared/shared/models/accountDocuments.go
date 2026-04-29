@@ -56,8 +56,7 @@ func DefaultExtrasCategories() []ExtraCategory {
 // and as the base for Firebase → Mongo mapping (overlaid with Firestore data when present).
 func DefaultApplicationSettings(accountID string, now time.Time) ApplicationSettings {
 	return ApplicationSettings{
-		UseCloudAccounts:                 false,
-		HasCompletedFirstLoginFlow:       false,
+		SchemaVersion:                    ApplicationSettingsSchemaCurrent,
 		DisplayHelpCards:                 false,
 		DefaultMarketLocation:            "jita",
 		DefaultOrderType:                 "sell",
@@ -136,19 +135,13 @@ type ReprocessingSettings struct {
 	SellExcessMineralTypes       bool    `bson:"sellExcessMineralTypes" json:"sellExcessMineralTypes"`
 }
 
-// RefreshToken represents a refresh token for a character
-type RefreshToken struct {
-	CharacterHash string `bson:"CharacterHash" json:"characterHash"`
-	RToken        string `bson:"rToken" json:"rToken"`
-}
-
-// UserMeta is user document metadata stored under BSON/JSON `_meta`, aligned with Job.JobMetaData
-// (shared MetaData for accountID + lastModified; additional lifecycle fields on the struct).
-type UserMeta struct {
-	MetaData    `json:",inline" bson:",inline"`
-	CreatedAt   time.Time  `json:"createdAt" bson:"createdAt"`
-	LastLoginAt time.Time  `json:"lastLoginAt" bson:"lastLoginAt"`
-	DeletedAt   *time.Time `json:"deletedAt,omitempty" bson:"deletedAt,omitempty"`
+// LinkedCharacterSession is returned at login / auth refresh for cloud-mode additional characters
+// (short-lived access session material only; no refresh token).
+type LinkedCharacterSession struct {
+	CharacterHash string `json:"characterHash"`
+	AccessToken   string `json:"access_token"`
+	TokenType     string `json:"token_type"`
+	ExpiresIn     int    `json:"expires_in"`
 }
 
 // ApplicationSettingsMeta holds document metadata under `_meta` (same pattern as Job ownership metadata).
@@ -156,18 +149,8 @@ type ApplicationSettingsMeta struct {
 	MetaData `json:",inline" bson:",inline"`
 }
 
-// UserAccountDocument represents a user document in the users collection
-type UserAccountDocument struct {
-	LinkedJobs    []int64        `bson:"linkedJobs" json:"linkedJobs"`
-	LinkedTrans   []int64        `bson:"linkedTrans" json:"linkedTrans"`
-	LinkedOrders  []int64        `bson:"linkedOrders" json:"linkedOrders"`
-	RefreshTokens []RefreshToken `bson:"refreshTokens" json:"refreshTokens"`
-	MetaData      UserMeta       `bson:"_meta" json:"_meta"`
-}
-
 type ApplicationSettings struct {
-	UseCloudAccounts                 bool                          `bson:"userCloudAccounts" json:"userCloudAccounts"`
-	HasCompletedFirstLoginFlow       bool                          `bson:"hasCompletedFirstLoginFlow" json:"hasCompletedFirstLoginFlow"`
+	SchemaVersion                    int                           `bson:"schemaVersion,omitempty" json:"schemaVersion,omitempty"`
 	DisplayHelpCards                 bool                          `bson:"displayHelpCards" json:"displayHelpCards"`
 	DefaultMarketLocation            string                        `bson:"defaultMarketLocation" json:"defaultMarketLocation"`
 	DefaultOrderType                 string                        `bson:"defaultOrderType" json:"defaultOrderType"`

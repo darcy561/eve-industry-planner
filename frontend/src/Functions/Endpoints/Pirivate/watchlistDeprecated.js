@@ -13,7 +13,7 @@ export const USER_WATCHLIST_DEPRECATED_COLLECTION = "user_watchlist_deprecated";
  */
 export async function fetchWatchlistDeprecatedFromApi() {
   const url = new URL(
-    "/api/v1/user/watchlist-deprecated",
+    "/api/v1/user/watchlist",
     window.location.origin
   );
   const res = await requestWithPrivateHeaders(
@@ -40,7 +40,7 @@ export async function fetchWatchlistDeprecatedFromApi() {
  */
 export async function putWatchlistDeprecatedToApi(groups, items) {
   const res = await requestWithPrivateHeaders(
-    "/api/v1/user/watchlist-deprecated",
+    "/api/v1/user/watchlist",
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },

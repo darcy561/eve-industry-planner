@@ -13,8 +13,10 @@ import { CSSTransition, SwitchTransition } from "react-transition-group";
 import { useNavigate } from "@tanstack/react-router";
 import useUsersStore from "../../../Zustand/usersStore";
 import DefaultPageLayout from "../../../Styled Components/defaultPageLayout";
-import { scheduleDebouncedApplicationSettingsSave } from "../../../Functions/Debounce/userDocumentsPersistSchedule";
-import { saveApplicationSettings } from "../../../Functions/Endpoints/Pirivate/userDocument";
+import {
+  flushPendingUserDocumentSaves,
+} from "../../../Functions/Debounce/userDocumentsPersistSchedule";
+import { saveUserAccountDocument } from "../../../Functions/Endpoints/Pirivate/userDocument";
 import { LoadingBrandBackdrop } from "../../loadingBrand";
 import { FIRST_LOGIN_STEPS } from "./firstLoginConstants";
 import { FirstLoginWelcomeBanner } from "../welcome/FirstLoginWelcomeBanner";
@@ -103,10 +105,14 @@ export default function FirstLoginPage() {
     if (isFinishing) return;
     setIsFinishing(true);
     const state = useUsersStore.getState();
-    state.applicationSettings.actions.setHasCompletedFirstLoginFlow(true);
+    state.account.actions.setHasCompletedFirstLoginFlow(true);
     state.account.actions.setIsFirstTimeLogin(false);
-    scheduleDebouncedApplicationSettingsSave();
-    await saveApplicationSettings();
+    await flushPendingUserDocumentSaves();
+    const saved = await saveUserAccountDocument();
+    if (!saved) {
+      setIsFinishing(false);
+      return;
+    }
     navigate({ to: "/dashboard" });
   };
 

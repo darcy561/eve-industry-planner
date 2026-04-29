@@ -5,6 +5,9 @@ import (
 	"net/url"
 	"os"
 	"strings"
+
+	corecrypto "eve-industry-planner/shared/core/crypto"
+	"eve-industry-planner/shared/core/crypto/keyrings"
 )
 
 type Config struct {
@@ -24,6 +27,11 @@ type Config struct {
 	EveSSOClientID            string
 	EveSSOClientSecret        string
 	FeedbackDiscordWebhookURL string
+	// RefreshTokenKeyring encrypts persisted cloud additional-character ESI refresh tokens (AES-GCM).
+	RefreshTokenKeyring *corecrypto.Keyring `json:"-"`
+	// Refresh token key metadata derived from keyring config.
+	RefreshTokenActiveVersion     string              `json:"-"`
+	RefreshTokenSupportedVersions map[string]struct{} `json:"-"`
 }
 
 // MongoURLFromEnv returns the MongoDB connection URI from environment variables.
@@ -70,22 +78,30 @@ func LoadConfig() (Config, error) {
 	redisPort := getEnv("REDIS_PORT", "6379")
 	redisURL := "redis://:" + redisPassword + "@" + redisHost + ":" + redisPort
 
+	rtSpec, err := keyrings.NewRefreshTokenKeyringSpec()
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
-		MONGO_URL:                 mongoURL,
-		REDIS_URL:                 redisURL,
-		NATS_URL:                  getEnv("NATS_URL", "nats://nats:4222"),
-		MINIO_URL:                 getEnv("MINIO_URL", "http://minio:9000"),
-		API_PORT:                  getEnv("API_PORT", "4000"),
-		WS_PORT:                   getEnv("WS_PORT", "4001"),
-		AuthSecret:                getEnv("AUTH_SECRET", "dev-secret-change"),
-		JWTPrivateKeyEnvVar:       getEnv("JWT_PRIVATE_KEY_ENV_VAR", "JWT_PRIVATE_KEY"), // Environment variable name containing the key
-		JWTKeyID:                  getEnv("JWT_KEY_ID", "default-key-id"),
-		ExternalJWTSecret:         getEnv("EXTERNAL_JWT_SECRET", "dev-external-secret"),
-		ExternalJWTIssuer:         getEnv("EXTERNAL_JWT_ISSUER", ""),
-		ExternalJWTAudience:       getEnv("EXTERNAL_JWT_AUDIENCE", ""),
-		EveSSOClientID:            getEnv("EVE_CLIENT_ID", ""),
-		EveSSOClientSecret:        getEnv("EVE_CLIENT_SECRET", ""),
-		FeedbackDiscordWebhookURL: getEnv("FEEDBACK_DISCORD_WEBHOOK_URL", ""),
+		MONGO_URL:                     mongoURL,
+		REDIS_URL:                     redisURL,
+		NATS_URL:                      getEnv("NATS_URL", "nats://nats:4222"),
+		MINIO_URL:                     getEnv("MINIO_URL", "http://minio:9000"),
+		API_PORT:                      getEnv("API_PORT", "4000"),
+		WS_PORT:                       getEnv("WS_PORT", "4001"),
+		AuthSecret:                    getEnv("AUTH_SECRET", "dev-secret-change"),
+		JWTPrivateKeyEnvVar:           getEnv("JWT_PRIVATE_KEY_ENV_VAR", "JWT_PRIVATE_KEY"), // Environment variable name containing the key
+		JWTKeyID:                      getEnv("JWT_KEY_ID", "default-key-id"),
+		ExternalJWTSecret:             getEnv("EXTERNAL_JWT_SECRET", "dev-external-secret"),
+		ExternalJWTIssuer:             getEnv("EXTERNAL_JWT_ISSUER", ""),
+		ExternalJWTAudience:           getEnv("EXTERNAL_JWT_AUDIENCE", ""),
+		EveSSOClientID:                getEnv("EVE_CLIENT_ID", ""),
+		EveSSOClientSecret:            getEnv("EVE_CLIENT_SECRET", ""),
+		FeedbackDiscordWebhookURL:     getEnv("FEEDBACK_DISCORD_WEBHOOK_URL", ""),
+		RefreshTokenKeyring:           rtSpec.Keyring,
+		RefreshTokenActiveVersion:     rtSpec.ActiveVersion,
+		RefreshTokenSupportedVersions: rtSpec.SupportedVersions,
 	}, nil
 }
 

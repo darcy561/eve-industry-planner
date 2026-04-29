@@ -43,10 +43,7 @@ func BlueprintsHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 
 func BlueprintGetHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
-	start, ok := logs.RequestStartTime(ctx)
-	if !ok {
-		start = time.Now()
-	}
+	start := helper.RequestStartOrNow(ctx)
 
 	blueprintID := r.PathValue("blueprintID")
 	if blueprintID == "" {
@@ -96,10 +93,7 @@ type BlueprintsPostBody struct {
 // helper.DefaultMaxBodySize (1MB JSON) and Mongo query timeout.
 func BlueprintsPostHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
-	start, ok := logs.RequestStartTime(ctx)
-	if !ok {
-		start = time.Now()
-	}
+	start := helper.RequestStartOrNow(ctx)
 
 	var body BlueprintsPostBody
 	if err := helper.DecodeJSONRequest(r, &body, helper.DefaultMaxBodySize); err != nil {

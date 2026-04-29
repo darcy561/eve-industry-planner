@@ -3,6 +3,7 @@ package apimetrics
 import (
 	"context"
 	"sync"
+	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -22,6 +23,9 @@ var webMeter = sync.OnceValue(func() metric.Meter {
 
 // WebFrontendEventsMetrics holds OTel counters for browser-originated product events (no per-user labels).
 type WebFrontendEventsMetrics struct {
+	requests      metric.Float64Histogram
+	requestsCount metric.Int64Counter
+	successes     metric.Int64Counter
 	events        metric.Int64Counter
 	jobCreates    metric.Int64Counter
 	itemTreeViews metric.Int64Counter
@@ -38,6 +42,16 @@ func GetWebFrontendEvents() *WebFrontendEventsMetrics {
 	webFrontendEventsOnce.Do(func() {
 		m := webMeter()
 		webFrontendEventsHolder = &WebFrontendEventsMetrics{
+			requests: mustHist(m.Float64Histogram("web.frontend_analytics.duration_milliseconds",
+				metric.WithUnit("ms"),
+				metric.WithDescription("Latency of POST /api/v1/analytics/events requests in milliseconds"),
+			)),
+			requestsCount: mustCounter(m.Int64Counter("web.frontend_analytics.requests_total",
+				metric.WithDescription("Total POST /api/v1/analytics/events requests"),
+			)),
+			successes: mustCounter(m.Int64Counter("web.frontend_analytics.successes_total",
+				metric.WithDescription("Successful POST /api/v1/analytics/events requests"),
+			)),
 			events: mustCounter(m.Int64Counter("web.frontend_events_total",
 				metric.WithDescription("Product events submitted from the web app (allowlisted event keys; audience is authenticated vs anonymous only)"),
 			)),
@@ -71,6 +85,22 @@ func (w *WebFrontendEventsMetrics) RecordItemTreeViews(ctx context.Context, audi
 			),
 		)
 	}
+}
+
+// RecordRequest observes one analytics request duration and increments request count.
+func (w *WebFrontendEventsMetrics) RecordRequest(ctx context.Context, duration time.Duration) {
+	w.RecordRequestMilliseconds(ctx, duration.Seconds()*1000.0)
+}
+
+// RecordRequestMilliseconds observes analytics request duration in milliseconds and increments request count.
+func (w *WebFrontendEventsMetrics) RecordRequestMilliseconds(ctx context.Context, ms float64) {
+	w.requests.Record(ctx, ms)
+	w.requestsCount.Add(ctx, 1)
+}
+
+// RecordSuccess increments successful analytics batch requests.
+func (w *WebFrontendEventsMetrics) RecordSuccess(ctx context.Context) {
+	w.successes.Add(ctx, 1)
 }
 
 const maxFrontendEventCount int64 = 1000

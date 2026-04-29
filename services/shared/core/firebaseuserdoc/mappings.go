@@ -47,10 +47,11 @@ func buildUserAccountDocumentBase(fb *UserDoc, accountID string) models.UserAcco
 	linkedTrans := withDefaultInt64Slice(fb.LinkedTrans)
 	linkedOrders := withDefaultInt64Slice(fb.LinkedOrders)
 	return models.UserAccountDocument{
-		LinkedJobs: linkedJobs,
-		LinkedTrans:    linkedTrans,
-		LinkedOrders:   linkedOrders,
-		RefreshTokens:  tokens,
+		LinkedJobs:        linkedJobs,
+		LinkedTrans:       linkedTrans,
+		LinkedOrders:      linkedOrders,
+		UserCloudAccounts: fbCloudAccountsEnabled(fb),
+		RefreshTokens:     tokens,
 		MetaData: models.UserMeta{
 			MetaData: models.MetaData{
 				AccountID: accountID,
@@ -59,6 +60,13 @@ func buildUserAccountDocumentBase(fb *UserDoc, accountID string) models.UserAcco
 			DeletedAt: nil,
 		},
 	}
+}
+
+func fbCloudAccountsEnabled(fb *UserDoc) bool {
+	if fb == nil || fb.Settings == nil || fb.Settings.Account == nil {
+		return false
+	}
+	return fb.Settings.Account.CloudAccounts
 }
 
 func jobStatusesForApplicationSettings(fb *UserDoc) map[string]models.JobStatusEntry {
@@ -114,9 +122,6 @@ func buildApplicationSettingsBase(fb *UserDoc, accountID string) models.Applicat
 	now := time.Now().UTC()
 	s := models.DefaultApplicationSettings(accountID, now)
 	if fb.Settings != nil {
-		if a := fb.Settings.Account; a != nil {
-			s.UseCloudAccounts = a.CloudAccounts
-		}
 		if l := fb.Settings.Layout; l != nil {
 			s.EsiJobTab = l.EsiJobTab
 			s.EnableCompactLayoutView = l.EnableCompactView

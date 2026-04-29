@@ -1,6 +1,7 @@
 import useUsersStore from "../../Zustand/usersStore";
 import checkUserClaims from "../../Functions/Auth/checkUserClaims";
 import {
+  hydrateLinkedCharactersFromAccessSessions,
   buildUsersFromRefreshTokens,
   getSystemIndexDataFromUserStructures,
 } from "../../Functions/Auth/buildAccountData";
@@ -19,16 +20,21 @@ import {
  */
 function buildShimUserDataFromMongo(userDocument) {
   const app = useUsersStore.getState().applicationSettings;
+  const cloudFromUserDoc =
+    userDocument &&
+    typeof userDocument === "object" &&
+    "userCloudAccounts" in userDocument
+      ? !!userDocument.userCloudAccounts
+      : app.userCloudAccounts;
   return {
-    userCloudAccounts: app.userCloudAccounts,
+    userCloudAccounts: cloudFromUserDoc,
     settings: {
-      userCloudAccounts: app.userCloudAccounts,
+      userCloudAccounts: cloudFromUserDoc,
       customStructures: {
         manufacturing: app.customStructures.manufacturing,
         reaction: app.customStructures.reaction,
       },
     },
-    refreshTokens: userDocument?.refreshTokens ?? [],
   };
 }
 
@@ -43,11 +49,13 @@ function buildShimUserDataFromMongo(userDocument) {
  * @param {import("@tanstack/react-query").QueryClient} options.queryClient
  * @param {Function} options.prefetchMultipleCharacters
  * @param {object|null|undefined} [options.userDocument] - `user_document` from the same login response (not read from the store)
+ * @param {object[]|null|undefined} [options.linkedCharacters] - `linked_characters` from auth/login when cloud mode
  */
 export async function runPostLoginAccountSync({
   queryClient,
   prefetchMultipleCharacters,
   userDocument,
+  linkedCharacters,
 }) {
   if (!userDocument) {
     emitLoginStepComplete(LOGIN_STEPS.CHARACTER_DATA);
@@ -56,7 +64,13 @@ export async function runPostLoginAccountSync({
 
   try {
     const userData = buildShimUserDataFromMongo(userDocument);
-    const newUserArray = await buildUsersFromRefreshTokens(userData);
+    const cloudNow = !!userData.userCloudAccounts;
+    const newUserArray =
+      cloudNow &&
+      Array.isArray(linkedCharacters) &&
+      linkedCharacters.length > 0
+        ? await hydrateLinkedCharactersFromAccessSessions(linkedCharacters)
+        : await buildUsersFromRefreshTokens(userData);
 
     const systemIndexResults = await getSystemIndexDataFromUserStructures(
       userData.settings
@@ -75,16 +89,6 @@ export async function runPostLoginAccountSync({
     });
 
     await checkUserClaims();
-
-    if (userData.userCloudAccounts && newUserArray.length > 0) {
-      const normalizedTokens = (userData.refreshTokens || []).map((token) => ({
-        CharacterHash: token.CharacterHash || token.characterHash,
-        rToken: token.rToken,
-      }));
-      useUsersStore
-        .getState()
-        .account.actions.updateLinkedCharacterRefreshTokens(normalizedTokens);
-    }
 
     emitLoginStepComplete(LOGIN_STEPS.CHARACTER_DATA);
   } catch (err) {

@@ -13,10 +13,15 @@ import (
 	"eve-industry-planner/api/v1endpoints"
 	"eve-industry-planner/api/v1endpoints/archivedjobs"
 	"eve-industry-planner/api/v1endpoints/documentlocks"
+	"eve-industry-planner/api/v1endpoints/groups"
+	"eve-industry-planner/api/v1endpoints/jobdocuments"
+	ssoendpoints "eve-industry-planner/api/v1endpoints/sso"
 	"eve-industry-planner/api/v1endpoints/statistics"
+	userendpoints "eve-industry-planner/api/v1endpoints/user"
+	"eve-industry-planner/api/v1endpoints/watchlist"
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/shared"
 
 	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/ulule/limiter/v3"
@@ -86,19 +91,19 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 	// Define public routes (v1)
 	publicRoutes := []route{
 		{
-			Path: "/api/v1/auth/login",
+			Path: "/api/v1/auth/sessions",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.AuthHandler(w, r, clients)
 			},
 		},
 		{
-			Path: "/api/v1/auth/refresh",
+			Path: "/api/v1/auth/sessions/refresh",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.RefreshHandler(w, r, clients)
 			},
 		},
 		{
-			Path: "/api/v1/auth/login-refresh",
+			Path: "/api/v1/auth/sessions/login-refresh",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.LoginRefreshHandler(w, r, clients)
 			},
@@ -110,23 +115,23 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 			},
 		},
 		{
-			Path: "/api/v1/sso/exchange",
+			Path: "/api/v1/eve-sso/tokens/exchange",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.SSOExchangeHandler(w, r, clients)
+				ssoendpoints.EveSSOExchangeHandler(w, r, clients)
 			},
 		},
 		{
-			Path: "/api/v1/sso/refresh",
+			Path: "/api/v1/eve-sso/tokens/refresh",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.SSORefreshHandler(w, r, clients)
+				ssoendpoints.EveSSORefreshHandler(w, r, clients)
 			},
 		},
-		{Path: "/api/v1/systemindexes/query",
+		{Path: "/api/v1/system-indexes",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.SystemIndexesHandler(w, r, clients)
 			},
 		},
-		{Path: "/api/v1/marketprices/query",
+		{Path: "/api/v1/market-prices",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.MarketPricesHandler(w, r, clients)
 			},
@@ -200,57 +205,57 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 	// Define private routes (v1)
 	privateRoutes := []route{
 		{
-			Path: "/api/v1/auth/claims/corporations",
+			Path: "/api/v1/eve-sso/additional-characters/refresh",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				userendpoints.CloudAdditionalCharacterEsiRefreshHandler(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/v1/corporation-claims",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.CorporationsHandler(w, r, clients)
 			},
 		},
 		{
-			Path: "/api/v1/auth/logout",
+			Path: "/api/v1/auth/sessions/logout",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.LogoutHandler(w, r, clients)
 			},
 		},
 		{
-			Path: "/api/v1/user/main",
+			Path: "/api/v1/user/document",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.UserMainDocumentHandler(w, r, clients)
+				userendpoints.DocumentHandler(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/v1/user/additional-character-refresh-tokens",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				userendpoints.AdditionalCharacterRefreshTokensHandler(w, r, clients)
 			},
 		},
 		{
 			Path: "/api/v1/user/application-settings",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.ApplicationSettingsDocumentHandler(w, r, clients)
+				userendpoints.ApplicationSettingsHandler(w, r, clients)
 			},
 		},
 		{
-			Path: "/api/v1/user/watchlist-deprecated",
+			Path: "/api/v1/user/watchlist",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.WatchlistDeprecatedDocumentHandler(w, r, clients)
-			},
-		},
-		{
-			Path: "/api/v1/jobs",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.JobsRouter(w, r, clients)
-			},
-		},
-		{
-			Path: "/api/v1/jobs/",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.JobsRouter(w, r, clients)
+				watchlist.Router(w, r, clients)
 			},
 		},
 		{
 			Path: "/api/v1/job-documents",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.JobDocumentsRouter(w, r, clients)
+				jobdocuments.JobDocumentsRouter(w, r, clients)
 			},
 		},
 		{
 			Path: "/api/v1/job-documents/",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.JobDocumentsRouter(w, r, clients)
+				jobdocuments.JobDocumentsRouter(w, r, clients)
 			},
 		},
 		{
@@ -280,13 +285,13 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 		{
 			Path: "/api/v1/groups",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.GroupsRouter(w, r, clients)
+				groups.Router(w, r, clients)
 			},
 		},
 		{
 			Path: "/api/v1/groups/",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.GroupsRouter(w, r, clients)
+				groups.Router(w, r, clients)
 			},
 		},
 		{

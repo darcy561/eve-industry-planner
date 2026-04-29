@@ -35,9 +35,6 @@ function defaultReprocessingSettings() {
 function normalizeServerApplicationSettingsPayload(incoming) {
   const base = /** @type {Record<string, unknown>} */ ({ ...incoming });
   if (!("esiJobTab" in base)) base.esiJobTab = null;
-  if (!("hasCompletedFirstLoginFlow" in base)) {
-    base.hasCompletedFirstLoginFlow = false;
-  }
   if (!("exemptTypeIDs" in base)) base.exemptTypeIDs = [];
   if (!("extrasCategories" in base)) base.extrasCategories = [...extrasCategoriesDefault];
   if (!("predefinedSystemIndexes" in base)) base.predefinedSystemIndexes = {};
@@ -46,30 +43,10 @@ function normalizeServerApplicationSettingsPayload(incoming) {
 }
 
 /**
- * Prefer root `userCloudAccounts` (Mongo / API); support legacy nested
- * `account.cloudAccounts` (Firebase-shaped or older payloads) so realtime merges
- * still drive the UI.
- *
- * @param {Record<string, unknown>} incoming
- * @returns {boolean|undefined} `undefined` if neither form is present
- */
-function incomingUserCloudAccountsFlag(incoming) {
-  if (incoming.userCloudAccounts !== undefined) {
-    return !!incoming.userCloudAccounts;
-  }
-  const account = incoming.account;
-  if (account && typeof account === "object" && "cloudAccounts" in account) {
-    return !!(/** @type {Record<string, unknown>} */ (account).cloudAccounts);
-  }
-  return undefined;
-}
-
-/**
  * @returns {Object} Default application settings (API field names)
  */
 export const stateDefault = () => ({
   userCloudAccounts: false,
-  hasCompletedFirstLoginFlow: false,
   displayHelpCards: false,
   enableCompactLayoutView: false,
   esiJobTab: null,
@@ -172,16 +149,8 @@ export function mergeApplicationSettingsState(
         ? incoming.localOrderDisplay
         : prev.defaultOrderType;
 
-  const mergedCloudAccounts = incomingUserCloudAccountsFlag(incoming);
-
   return {
     ...prev,
-    ...(mergedCloudAccounts !== undefined && {
-      userCloudAccounts: mergedCloudAccounts,
-    }),
-    ...(incoming.hasCompletedFirstLoginFlow !== undefined && {
-      hasCompletedFirstLoginFlow: Boolean(incoming.hasCompletedFirstLoginFlow),
-    }),
     ...(incoming.displayHelpCards !== undefined && {
       displayHelpCards: incoming.displayHelpCards,
     }),
@@ -280,8 +249,6 @@ export const coreActions = (set, get) => ({
     const rs = state.reprocessingSettings;
 
     return {
-      userCloudAccounts: state.userCloudAccounts,
-      hasCompletedFirstLoginFlow: state.hasCompletedFirstLoginFlow,
       displayHelpCards: state.displayHelpCards,
       defaultMarketLocation: state.defaultMarketLocation,
       defaultOrderType: state.defaultOrderType,

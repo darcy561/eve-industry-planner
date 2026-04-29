@@ -30,6 +30,9 @@ const usage = `Usage:
   tasks processArchivedBuildStats
   tasks startArchivedJobProcessing
   tasks forceSdeRebuild
+  tasks rotateRefreshTokenKeys [--from=<version>] [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]
+  tasks migrateEncryptedCloudRefreshTokens [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]
+  tasks migrateUserCloudAccountsToUserDoc [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]
   tasks importArchivedJobsFromFirestore [flags]
   tasks importUserAccountsFromFirestore [flags]
   tasks importWatchlistFromFirestore [flags]
@@ -75,6 +78,9 @@ Examples:
   tasks startArchivedJobProcessing
   tasks processArchivedBuildStats --data='{"account_id":"<firebase_uid>"}'
   tasks forceSdeRebuild
+  tasks rotateRefreshTokenKeys --from=v1 --scan-batch-size=500
+  tasks migrateEncryptedCloudRefreshTokens --scan-batch-size=500
+  tasks migrateUserCloudAccountsToUserDoc --scan-batch-size=500
 `
 
 // Enabled task allowlist.
@@ -163,6 +169,12 @@ func Handle(ctx context.Context, args []string) (bool, error) {
 			return true, fmt.Errorf("startArchivedJobProcessing: takes no arguments (remove %q)\n\n%s", strings.Join(args[2:], " "), usage)
 		}
 		return true, runFanOutArchivedBuildStats(ctx)
+	case "rotateRefreshTokenKeys":
+		return true, runRotateRefreshTokenKeys(ctx, args[2:])
+	case "migrateEncryptedCloudRefreshTokens":
+		return true, runEncryptCloudRefreshTokensMigration(ctx, args[2:])
+	case "migrateUserCloudAccountsToUserDoc":
+		return true, runMigrateUserCloudAccountsToUserDoc(ctx, args[2:])
 	default:
 		return true, runTrigger(ctx, args[1:])
 	}
@@ -188,6 +200,9 @@ func runList() error {
 	fmt.Println("  - markArchivedJobsUnprocessed [-all] [-account id] [-dry-run]")
 	fmt.Println("  - resetBuildStats [-account id] [-dry-run]")
 	fmt.Println("  - startArchivedJobProcessing (same fan-out as hourly cron; enqueue per-account build_stats work now)")
+	fmt.Println("  - rotateRefreshTokenKeys [--from=<version>] [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
+	fmt.Println("  - migrateEncryptedCloudRefreshTokens [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
+	fmt.Println("  - migrateUserCloudAccountsToUserDoc [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
 	fmt.Println()
 	fmt.Println("  Triggerable tasks:")
 	for _, task := range allTasks() {

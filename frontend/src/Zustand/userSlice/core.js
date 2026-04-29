@@ -61,26 +61,14 @@ export const coreActions = (set, get) => ({
 
   /**
    * Converts user state to document format for storage.
-   * 
-   * Creates a document object containing all user data that needs to be
-   * persisted to the server or other storage systems.
-   * 
+   *
+   * Additional-character refresh tokens are now handled by the dedicated
+   * `/api/v1/user/additional-character-refresh-tokens` endpoint, so this payload
+   * intentionally excludes refresh token fields.
+   *
    * @returns {Object} Document object for storage
-   * @returns {Array} returns.refreshTokens - From `account.linkedCharacterRefreshTokens` (cloud-linked ESI tokens)
-   * Linked ESI IDs are serialized via `account.actions.linkedEsiToDocument()`.
-   * Job status labels are persisted via application settings (settings.jobStatuses).
-   * 
-   * @example
-   * const document = store.getState().users.actions.toDocument();
-   * await saveUserDocument(...);
    */
   toDocument: () => {
-    const account = get().account;
-    return {
-      refreshTokens: (account.linkedCharacterRefreshTokens || []).map((token) => ({
-        characterHash: token.CharacterHash || token.characterHash,
-        rToken: token.rToken,
-      })),
-    };
+    return {};
   },
 });

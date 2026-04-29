@@ -1,13 +1,11 @@
 package v1endpoints
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
+	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
@@ -23,16 +21,14 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 	ctx := r.Context()
 	sessionMetrics := apimetrics.GetAPIAuthSessionLifecycle()
 
-	if r.Method != http.MethodPost {
+	if !helper.RequireMethod(w, r, http.MethodPost) {
 		logs.WarnCtx(ctx, "invalid method for logout endpoint")
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	requestedAccountID, err := auth.ExtractAccountID(r)
-	if err != nil {
-		logs.WarnCtx(ctx, "failed to extract account id for logout", "error", err)
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	requestedAccountID, ok := helper.RequireAccountID(w, r)
+	if !ok {
+		logs.WarnCtx(ctx, "failed to extract account id for logout")
 		return
 	}
 
@@ -71,23 +67,9 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 }
 
 func extractLogoutRefreshTokenFromRequest(r *http.Request) (string, error) {
-	r.Body = http.MaxBytesReader(nil, r.Body, maxRefreshTokenLength+1024)
 	var reqBody LogoutRequest
-
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-
-	if err := decoder.Decode(&reqBody); err != nil {
-		if err == io.EOF {
-			return "", errors.New("request body is required")
-		}
-		if strings.Contains(err.Error(), "request body too large") {
-			return "", errors.New("request body too large")
-		}
-		return "", fmt.Errorf("invalid request body: %w", err)
-	}
-	if _, err := decoder.Token(); err != io.EOF {
-		return "", errors.New("request body contains extra data")
+	if err := helper.DecodeJSONRequest(r, &reqBody, maxRefreshTokenLength+1024); err != nil {
+		return "", err
 	}
 
 	token := strings.TrimSpace(reqBody.RefreshToken)

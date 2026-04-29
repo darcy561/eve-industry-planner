@@ -76,15 +76,11 @@ type DiscordWebhookPayload struct {
 //	200 — success (including when webhook URL is unset)
 func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
-	start, ok := logs.RequestStartTime(ctx)
-	if !ok {
-		start = time.Now()
-	}
+	start := helper.RequestStartOrNow(ctx)
 
 	// Only accept POST requests
-	if r.Method != http.MethodPost {
+	if !helper.RequireMethod(w, r, http.MethodPost) {
 		logs.WarnCtx(ctx, "invalid method for feedback endpoint")
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 

@@ -26,24 +26,6 @@ import {
  */
 export const preferencesActions = (set, get) => ({
   /**
-   * Marks the first-login guided flow as completed/incomplete.
-   *
-   * @param {boolean} value
-   */
-  setHasCompletedFirstLoginFlow: (value) =>
-    set(
-      (state) => ({
-        ...state,
-        applicationSettings: {
-          ...state.applicationSettings,
-          hasCompletedFirstLoginFlow: Boolean(value),
-        },
-      }),
-      false,
-      "setHasCompletedFirstLoginFlow"
-    ),
-
-  /**
    * Toggles the cloud accounts setting.
    * 
    * Switches between enabled and disabled states for cloud account storage.
@@ -62,6 +44,27 @@ export const preferencesActions = (set, get) => ({
       }),
       false,
       "toggleCloudAccounts"
+    ),
+
+  /**
+   * Sets cloud accounts mode to an explicit value.
+   *
+   * Prefer this over `toggleCloudAccounts` when the target state is known
+   * (e.g. accounts panel / first-login radio choices) to avoid stale-toggle drift.
+   *
+   * @param {boolean} enabled
+   */
+  setCloudAccountsEnabled: (enabled) =>
+    set(
+      (state) => ({
+        ...state,
+        applicationSettings: {
+          ...state.applicationSettings,
+          userCloudAccounts: Boolean(enabled),
+        },
+      }),
+      false,
+      "setCloudAccountsEnabled"
     ),
 
   /**

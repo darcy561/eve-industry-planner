@@ -44,46 +44,45 @@ import (
 // to _meta.archivedAt, accountID, lastModified, and lastUpdatedBy.
 func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	obsCtx := r.Context()
-	start, ok := logs.RequestStartTime(obsCtx)
-	if !ok {
-		start = time.Now()
-	}
+	start := helper.RequestStartOrNow(obsCtx)
 	m := apimetrics.GetAPIArchivedJobs()
-	defer func() {
-		duration := time.Since(start)
-		m.Requests.Observe(obsCtx, apimetrics.DurationMilliseconds(duration))
-		m.RequestsCount.Inc(obsCtx)
-	}()
+	metrics := helper.BeginRequestMetrics(obsCtx, helper.RequestMetricsHooks{
+		ObserveDuration: func(ctx context.Context, ms float64) { m.Requests.Observe(ctx, ms) },
+		IncRequests:     func(ctx context.Context) { m.RequestsCount.Inc(ctx) },
+		IncSuccesses:    func(ctx context.Context) { m.Successes.Inc(ctx) },
+		IncErrors:       func(ctx context.Context, reason string) { m.Errors.WithLabelValues(reason).Inc(ctx) },
+	})
+	defer metrics.Finish()
 
 	ctx := obsCtx
-	accountID, err := auth.ExtractAccountID(r)
-	if err != nil {
-		m.Errors.WithLabelValues("auth_error").Inc(obsCtx)
-		logs.WarnCtx(ctx, "archived jobs put: auth failed", "error", err, "ip", r.RemoteAddr)
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	accountID, ok := helper.RequireAccountID(w, r)
+	if !ok {
+		metrics.Error("auth_error")
+		logs.WarnCtx(ctx, "archived jobs put: auth failed", "ip", r.RemoteAddr)
 		return
 	}
+	var err error
 	sessionID, _ := auth.ExtractSessionID(r)
 
 	var reqBody struct {
 		Jobs []models.Job `json:"jobs"`
 	}
 	if err := helper.DecodeJSONRequest(r, &reqBody, helper.DefaultMaxBodySize); err != nil {
-		m.Errors.WithLabelValues("invalid_json").Inc(obsCtx)
+		metrics.Error("invalid_json")
 		logs.WarnCtx(ctx, "archived jobs put: bad JSON", "error", err, "account_id", accountID)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	if len(reqBody.Jobs) == 0 {
-		m.Errors.WithLabelValues("no_jobs").Inc(obsCtx)
+		metrics.Error("no_jobs")
 		http.Error(w, "No jobs provided", http.StatusBadRequest)
 		return
 	}
 
 	const maxBatchSize = 100
 	if len(reqBody.Jobs) > maxBatchSize {
-		m.Errors.WithLabelValues("batch_too_large").Inc(obsCtx)
+		metrics.Error("batch_too_large")
 		http.Error(w, fmt.Sprintf("Batch too large (max %d jobs)", maxBatchSize), http.StatusBadRequest)
 		return
 	}
@@ -95,19 +94,19 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	for i := range reqBody.Jobs {
 		job := &reqBody.Jobs[i]
 		if job.JobID == "" {
-			m.Errors.WithLabelValues("empty_job_id").Inc(obsCtx)
+			metrics.Error("empty_job_id")
 			logs.WarnCtx(ctx, "archived jobs put: batch rejected (empty jobID)", "index", i, "account_id", accountID)
 			http.Error(w, fmt.Sprintf("Invalid job at index %d: jobID is required", i), http.StatusBadRequest)
 			return
 		}
 		if _, dup := seenJobID[job.JobID]; dup {
-			m.Errors.WithLabelValues("duplicate_job_id").Inc(obsCtx)
+			metrics.Error("duplicate_job_id")
 			logs.WarnCtx(ctx, "archived jobs put: batch rejected (duplicate jobID)", "index", i, "job_id", job.JobID, "account_id", accountID)
 			http.Error(w, fmt.Sprintf("Invalid batch: duplicate jobID %q", job.JobID), http.StatusBadRequest)
 			return
 		}
 		if job.MetaData.AccountID != "" && job.MetaData.AccountID != accountID {
-			m.Errors.WithLabelValues("account_mismatch").Inc(obsCtx)
+			metrics.Error("account_mismatch")
 			logs.WarnCtx(ctx, "archived jobs put: _meta.accountID does not match token",
 				"index", i, "job_id", job.JobID, "account_id", accountID, "job_meta_account_id", job.MetaData.AccountID)
 			http.Error(w, fmt.Sprintf("Invalid job at index %d: _meta.accountID does not match the authenticated account", i), http.StatusForbidden)
@@ -149,7 +148,7 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 		return e
 	})
 	if err != nil {
-		m.Errors.WithLabelValues("database_error").Inc(obsCtx)
+		metrics.Error("database_error")
 		logs.ErrorCtx(ctx, "archived jobs put: bulk write", "error", err, "account_id", accountID)
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to save archived jobs", err)
 		return
@@ -163,7 +162,7 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-	m.Successes.Inc(obsCtx)
+	metrics.Success()
 	m.JobsSaved.Add(obsCtx, float64(savedCount))
 	m.IndividualJobsArchived.Add(obsCtx, float64(nJobs))
 	m.JobsRequested.Observe(obsCtx, float64(nJobs))

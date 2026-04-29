@@ -13,8 +13,8 @@ import (
 	esitypes "eve-industry-planner/shared/core/esi/types"
 	natscore "eve-industry-planner/shared/core/nats"
 	rediscore "eve-industry-planner/shared/core/redis"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/shared"
 	taskscore "eve-industry-planner/shared/tasks"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
@@ -71,19 +71,21 @@ func (r MarketPriceResponse) MarshalJSON() ([]byte, error) {
 //	200 — JSON map of typeID → price rows; missing keys appear as empty arrays
 func MarketPricesHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
-	start, ok := logs.RequestStartTime(ctx)
-	if !ok {
-		start = time.Now()
-	}
+	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIMarketPrices()
+	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
+		ObserveDuration: func(ctx context.Context, ms float64) { m.Requests.Observe(ctx, ms) },
+		IncRequests:     func(ctx context.Context) { m.RequestsCount.Inc(ctx) },
+		IncErrors:       func(ctx context.Context, reason string) { m.Errors.WithLabelValues(reason).Inc(ctx) },
+	})
+	defer metrics.Finish()
 
 	// Only accept POST requests
-	if r.Method != http.MethodPost {
+	if !helper.RequireMethod(w, r, http.MethodPost) {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
+		metrics.Error("method_not_allowed")
 		apimetrics.LogRequestMetrics(ctx, "market_prices", duration, "method_not_allowed")
 		logs.WarnCtx(ctx, "invalid method for market prices endpoint")
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -91,7 +93,7 @@ func MarketPricesHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	reqBody, err := helper.ExtractRequestBody[MarketPricesBody](r)
 	if err != nil {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("extraction_error").Inc(ctx)
+		metrics.Error("extraction_error")
 		apimetrics.LogRequestMetrics(ctx, "market_prices", duration, "extraction_error",
 			"error", err)
 		logs.WarnCtx(ctx, "failed to extract type IDs", "error", err)
@@ -103,7 +105,7 @@ func MarketPricesHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	validatedIDs, invalidCount := helper.ValidateIDs(reqBody.RequestedIDs)
 	if len(validatedIDs) == 0 {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("no_valid_ids").Inc(ctx)
+		metrics.Error("no_valid_ids")
 		apimetrics.LogRequestMetrics(ctx, "market_prices", duration, "no_valid_ids",
 			"total_ids", len(reqBody.RequestedIDs), "invalid_ids", invalidCount)
 		logs.WarnCtx(ctx, "no valid type IDs provided", "total_ids", len(reqBody.RequestedIDs), "invalid_ids", invalidCount)
@@ -114,7 +116,7 @@ func MarketPricesHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	// Check if the number of type IDs is too many
 	if len(validatedIDs) > maxTypeIDs {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("too_many_ids").Inc(ctx)
+		metrics.Error("too_many_ids")
 		apimetrics.LogRequestMetrics(ctx, "market_prices", duration, "too_many_ids",
 			"count", len(validatedIDs), "max", maxTypeIDs)
 		logs.WarnCtx(ctx, "too many type IDs requested", "count", len(validatedIDs), "max", maxTypeIDs)
@@ -137,7 +139,7 @@ func MarketPricesHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 		response, found, err := fetchMarketPricesForType(ctx, clients.Redis, clients.JetStream, clients.NATS, int32(typeID))
 		if err != nil {
-			m.Errors.WithLabelValues("redis_error").Inc(ctx)
+			metrics.Error("redis_error")
 			logs.WarnCtx(ctx, "redis error retrieving market prices", "error", err, "type_id", typeID)
 		}
 
@@ -153,7 +155,7 @@ func MarketPricesHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	// Encode response (nginx handles compression); only record success metrics/logs after body is written
 	if err := helper.EncodeJSON(w, result); err != nil {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("encode_error").Inc(ctx)
+		metrics.Error("encode_error")
 		apimetrics.LogRequestMetrics(ctx, "market_prices", duration, "encode_error",
 			"error", err)
 		logs.ErrorCtx(ctx, "failed to encode response", "error", err)
@@ -162,8 +164,6 @@ func MarketPricesHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	}
 
 	duration := time.Since(start)
-	m.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
-	m.RequestsCount.Inc(ctx)
 	m.TypesRequested.Observe(ctx, float64(len(validatedIDs)))
 	m.TypeIDsRequestedTotal.Add(ctx, float64(len(validatedIDs)))
 	if typesNotFound > 0 {

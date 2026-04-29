@@ -11,6 +11,7 @@ import (
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 	archivedjobtasks "eve-industry-planner/worker/tasks/archivedjobs"
 	esitasks "eve-industry-planner/worker/tasks/esi"
+	maintenancetasks "eve-industry-planner/worker/tasks/maintenance"
 	migrationtasks "eve-industry-planner/worker/tasks/migration"
 	sderollbacktasks "eve-industry-planner/worker/tasks/sde/rollback"
 	sdetasks "eve-industry-planner/worker/tasks/sde/update"
@@ -112,6 +113,13 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 		return migrationtasks.MigrateUserDocumentToMongo(ctx, t, taskDeps)
 	})
 
+	mux.HandleFunc("encryptCloudRefreshTokensBatch", func(ctx context.Context, t *asynq.Task) error {
+		return migrationtasks.EncryptCloudRefreshTokensBatch(ctx, t, taskDeps)
+	})
+	mux.HandleFunc("migrateUserCloudAccountsToUserDoc", func(ctx context.Context, t *asynq.Task) error {
+		return migrationtasks.MigrateUserCloudAccountsToUserDoc(ctx, t, taskDeps)
+	})
+
 	mux.HandleFunc("migrateFirestoreWatchlistToMongo", func(ctx context.Context, t *asynq.Task) error {
 		return migrationtasks.MigrateFirestoreWatchlistToMongo(ctx, t, taskDeps)
 	})
@@ -126,5 +134,11 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 
 	mux.HandleFunc("processArchivedBuildStats", func(ctx context.Context, t *asynq.Task) error {
 		return archivedjobtasks.ProcessBuildStats(ctx, t, taskDeps)
+	})
+	mux.HandleFunc("rotateRefreshTokenKeys", func(ctx context.Context, t *asynq.Task) error {
+		return maintenancetasks.RotateRefreshTokenKeys(ctx, t, taskDeps)
+	})
+	mux.HandleFunc("schemaVersionMaintenanceBatch", func(ctx context.Context, t *asynq.Task) error {
+		return maintenancetasks.SchemaVersionMaintenanceBatch(ctx, t, taskDeps)
 	})
 }

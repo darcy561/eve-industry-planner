@@ -11,8 +11,11 @@ import { fetchWithPublicHeaders } from "../../Endpoints/Public/applyPublicHeader
  */
 async function refreshAccessTokenESICall(refreshToken) {
   try {
+    if (!refreshToken || !String(refreshToken).trim()) {
+      throw new Error("Refresh token is required for /api/v1/sso/refresh");
+    }
     const response = await fetchWithPublicHeaders(
-      "/api/v1/sso/refresh",
+      "/api/v1/eve-sso/tokens/refresh",
       {
         method: "POST",
         headers: {

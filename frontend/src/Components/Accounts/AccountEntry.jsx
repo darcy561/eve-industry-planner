@@ -8,6 +8,7 @@ import useUsersStore from "../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { scheduleDebouncedUserAccountDocumentSave } from "../../Functions/Debounce/userDocumentsPersistSchedule.js";
 import { updateLocalRefreshTokens } from "../../Functions/Auth/buildAccountData.js";
+import { deleteAdditionalCharacterRefreshTokens } from "../../Functions/Endpoints/Pirivate/additionalCharacterRefreshTokens.js";
 
 export function AccountEntry({ character, appearance = "default" }) {
   const cloudAccounts = useUsersStore(
@@ -17,27 +18,30 @@ export function AccountEntry({ character, appearance = "default" }) {
   const { removeCharacter } = useUsersStore.getState().account.actions;
   const { removeCharacterFromCorporations } =
     useUsersStore.getState().account.actions;
-  const { removeLinkedCharacterRefreshToken } =
-    useUsersStore.getState().account.actions;
   const queryClient = useQueryClient();
 
   async function handleRemoveUser(character) {
+    const characterHash = character?.CharacterHash || "";
+    const characterName = character?.CharacterName || "Character";
     removeCharacter(character);
-    removeLinkedCharacterRefreshToken(character.CharacterHash);
-    removeCharacterFromCorporations(character.CharacterHash);
+    removeCharacterFromCorporations(characterHash);
 
     queryClient.removeQueries({
-      predicate: (query) => query.queryKey.includes(character.CharacterHash),
+      predicate: (query) => query.queryKey.includes(characterHash),
     });
 
     if (cloudAccounts) {
+      const saved = await deleteAdditionalCharacterRefreshTokens([characterHash]);
+      if (!saved) {
+        showSnackbarError("Failed to update linked character tokens on server");
+      }
       scheduleDebouncedUserAccountDocumentSave();
     } else {
       updateLocalRefreshTokens(useUsersStore.getState().account.characters);
     }
     await checkUserClaims();
 
-    showSnackbarError(`${character.CharacterName} Removed`);
+    showSnackbarError(`${characterName} Removed`);
   }
 
   const corporation =

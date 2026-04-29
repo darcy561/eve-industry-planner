@@ -10,21 +10,28 @@ export function FirstLoginChoiceRow({
   title,
   body,
   checkboxChecked,
+  disabled = false,
   sx,
 }) {
   const checked = checkboxChecked ?? selected;
+
+  const handleActivate = () => {
+    if (disabled) return;
+    onSelect();
+  };
 
   return (
     <Paper
       variant="outlined"
       role="radio"
       aria-checked={selected}
-      tabIndex={0}
-      onClick={onSelect}
+      aria-disabled={disabled || undefined}
+      tabIndex={disabled ? -1 : 0}
+      onClick={handleActivate}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          onSelect();
+          handleActivate();
         }
       }}
       sx={(theme) => ({
@@ -33,7 +40,9 @@ export function FirstLoginChoiceRow({
         gap: 1.5,
         p: 1.5,
         borderRadius: 2,
-        cursor: "pointer",
+        cursor: disabled ? "default" : "pointer",
+        opacity: disabled ? 0.55 : 1,
+        pointerEvents: disabled ? "none" : "auto",
         outline: "none",
         borderColor: alpha(theme.palette.primary.main, selected ? 0.42 : 0.16),
         bgcolor: selected

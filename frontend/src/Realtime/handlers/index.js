@@ -5,8 +5,6 @@
 
 export {
   normalizeRefreshTokens,
-  refreshTokenMap,
-  refreshTokensDiffer,
   enqueueReconcile,
   scheduleSystemIndexRefresh,
   reconcileAfterRemoteUserDoc,

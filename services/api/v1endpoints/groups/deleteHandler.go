@@ -1,6 +1,7 @@
 package groups
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -21,26 +22,27 @@ import (
 // DeleteGroupsHandler handles DELETE /v1/groups - delete specific groups by IDs for the authenticated user
 func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
-	start, ok := logs.RequestStartTime(ctx)
-	if !ok {
-		start = time.Now()
-	}
+	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIGroups()
+	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
+		ObserveDuration: func(ctx context.Context, ms float64) { m.Requests.Observe(ctx, ms) },
+		IncRequests:     func(ctx context.Context) { m.RequestsCount.Inc(ctx) },
+		IncSuccesses:    func(ctx context.Context) { m.Successes.Inc(ctx) },
+		IncErrors:       func(ctx context.Context, reason string) { m.Errors.WithLabelValues(reason).Inc(ctx) },
+	})
+	defer metrics.Finish()
 
 	// Only allow DELETE requests
-	if r.Method != http.MethodDelete {
-		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
+	if !helper.RequireMethod(w, r, http.MethodDelete) {
+		metrics.Error("method_not_allowed")
 		logs.WarnCtx(ctx, "invalid method for deleteGroups endpoint")
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Extract accountID from JWT token
-	accountID, err := auth.ExtractAccountID(r)
-	if err != nil {
-		m.Errors.WithLabelValues("auth_error").Inc(ctx)
-		logs.WarnCtx(ctx, "failed to extract accountID", "error", err)
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	accountID, ok := helper.RequireAccountID(w, r)
+	if !ok {
+		metrics.Error("auth_error")
+		logs.WarnCtx(ctx, "failed to extract accountID")
 		return
 	}
 
@@ -51,7 +53,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 	// Decode request body - groupIDs are required
 	if err := helper.DecodeJSONRequest(r, &reqBody, helper.DefaultMaxBodySize); err != nil {
-		m.Errors.WithLabelValues("invalid_json").Inc(ctx)
+		metrics.Error("invalid_json")
 		logs.WarnCtx(ctx, "failed to decode delete groups JSON", "error", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -59,7 +61,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 	// Validate that at least one groupID is provided
 	if len(reqBody.GroupIDs) == 0 {
-		m.Errors.WithLabelValues("no_group_ids").Inc(ctx)
+		metrics.Error("no_group_ids")
 		logs.WarnCtx(ctx, "no group IDs provided for deletion")
 		http.Error(w, "At least one group ID is required", http.StatusBadRequest)
 		return
@@ -98,7 +100,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		return cur.Err()
 	})
 	if findErr != nil {
-		m.Errors.WithLabelValues("database_error").Inc(ctx)
+		metrics.Error("database_error")
 		logs.ErrorCtx(ctx, "failed to resolve groups before delete", "error", findErr, "account_id", accountID)
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to delete groups", findErr)
 		return
@@ -106,7 +108,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 	if len(resolvedIDs) == 0 {
 		w.WriteHeader(http.StatusNoContent)
-		m.Successes.Inc(ctx)
+		metrics.Success()
 		m.GroupsDeleted.Add(ctx, 0)
 		m.GroupsRequested.Observe(ctx, float64(len(reqBody.GroupIDs)))
 		logs.InfoCtx(ctx, "groups delete: nothing matched filter", "account_id", accountID, "requested_count", len(reqBody.GroupIDs), "duration_ms", time.Since(start).Milliseconds())
@@ -115,7 +117,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 	sessionID, serr := auth.ExtractSessionID(r)
 	if serr != nil {
-		m.Errors.WithLabelValues("auth_error").Inc(ctx)
+		metrics.Error("auth_error")
 		logs.WarnCtx(ctx, "missing session_id claim for group delete lock check", "error", serr)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -124,13 +126,13 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		for _, gid := range resolvedIDs {
 			blocked, lerr := documentlocks.LockHeldByOther(ctx, clients.Redis, accountID, mongocore.CollectionUserJobGroups, gid, sessionID)
 			if lerr != nil {
-				m.Errors.WithLabelValues("lock_error").Inc(ctx)
+				metrics.Error("lock_error")
 				logs.ErrorCtx(ctx, "failed to check group doc lock before delete", "error", lerr, "account_id", accountID, "group_id", gid)
 				logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to verify document lock", lerr)
 				return
 			}
 			if blocked {
-				m.Errors.WithLabelValues("lock_conflict").Inc(ctx)
+				metrics.Error("lock_conflict")
 				logs.WarnCtx(ctx, "group delete blocked: locked by another session", "account_id", accountID, "group_id", gid)
 				http.Error(w, "Cannot delete group: another session holds the edit lock", http.StatusConflict)
 				return
@@ -147,7 +149,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		result, err = collection.DeleteMany(ctx, filter)
 		return err
 	}); err != nil {
-		m.Errors.WithLabelValues("database_error").Inc(ctx)
+		metrics.Error("database_error")
 		logs.ErrorCtx(ctx, "failed to delete groups", "error", err, "account_id", accountID)
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to delete groups", err)
 		return
@@ -163,7 +165,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 	w.WriteHeader(http.StatusNoContent)
 
-	m.Successes.Inc(ctx)
+	metrics.Success()
 	m.GroupsDeleted.Add(ctx, float64(deletedCount))
 	m.GroupsRequested.Observe(ctx, float64(len(reqBody.GroupIDs)))
 	logs.InfoCtx(ctx, "groups deleted", "account_id", accountID, "requested_count", len(reqBody.GroupIDs), "deleted_count", deletedCount, "duration_ms", time.Since(start).Milliseconds())

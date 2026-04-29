@@ -1,8 +1,8 @@
 package v1endpoints
 
 import (
+	"context"
 	"net/http"
-	"time"
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/appconfig"
@@ -20,16 +20,17 @@ type AppConfigResponse struct {
 // AppConfigHandler returns lightweight client config without Firebase Remote Config.
 func AppConfigHandler(w http.ResponseWriter, r *http.Request, _ *shared.ServiceClients) {
 	ctx := r.Context()
-	start, ok := logs.RequestStartTime(ctx)
-	if !ok {
-		start = time.Now()
-	}
 	m := apimetrics.GetAPIAppConfig()
+	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
+		ObserveDuration: func(ctx context.Context, ms float64) { m.Requests.Observe(ctx, ms) },
+		IncRequests:     func(ctx context.Context) { m.RequestsCount.Inc(ctx) },
+		IncErrors:       func(ctx context.Context, reason string) { m.Errors.WithLabelValues(reason).Inc(ctx) },
+	})
+	defer metrics.Finish()
 
-	if r.Method != http.MethodGet {
-		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
+	if !helper.RequireMethod(w, r, http.MethodGet) {
+		metrics.Error("method_not_allowed")
 		logs.WarnCtx(ctx, "invalid method for app-config endpoint")
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -43,7 +44,7 @@ func AppConfigHandler(w http.ResponseWriter, r *http.Request, _ *shared.ServiceC
 
 	payload, etag, err := helper.BuildJSONPayloadAndWeakETag(response)
 	if err != nil {
-		m.Errors.WithLabelValues("json_build_error").Inc(ctx)
+		metrics.Error("json_build_error")
 		logs.ErrorCtx(ctx, "app-config: build JSON payload", "error", err)
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
@@ -53,21 +54,14 @@ func AppConfigHandler(w http.ResponseWriter, r *http.Request, _ *shared.ServiceC
 	w.Header().Set("ETag", etag)
 	if helper.IfNoneMatchSatisfied(r.Header.Get("If-None-Match"), etag) {
 		w.WriteHeader(http.StatusNotModified)
-		duration := time.Since(start)
-		m.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
-		m.RequestsCount.Inc(ctx)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(append(payload, '\n')); err != nil {
-		m.Errors.WithLabelValues("write_error").Inc(ctx)
+		metrics.Error("write_error")
 		logs.ErrorCtx(ctx, "app-config: write response", "error", err)
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
-
-	duration := time.Since(start)
-	m.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
-	m.RequestsCount.Inc(ctx)
 }

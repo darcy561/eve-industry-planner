@@ -24,8 +24,13 @@ import { useCharacterHooks } from "../../Hooks/React Query/useCharacterHooks";
 import { buildCorporationObjectFromUserObject } from "../../Functions/Corporations/buildCorporationObject";
 import {
   flushPendingUserDocumentSaves,
-  scheduleDebouncedUserAccountAndApplicationSettingsSave,
+  scheduleDebouncedUserAccountDocumentSave,
 } from "../../Functions/Debounce/userDocumentsPersistSchedule.js";
+import {
+  deleteAdditionalCharacterRefreshTokens,
+  getAdditionalCharacterRefreshTokens,
+  upsertAdditionalCharacterRefreshTokens,
+} from "../../Functions/Endpoints/Pirivate/additionalCharacterRefreshTokens.js";
 import {
   clearAdditionalUserAuthCode,
   EVE_SSO_ADDITIONAL_ACCOUNT_STATE,
@@ -66,15 +71,14 @@ export function AdditionalAccounts({ appearance = "default" } = {}) {
   const isFirstLogin = appearance === "firstLogin";
   const characters = useUsersStore((state) => state.account.characters);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [cloudModeChanging, setCloudModeChanging] = useState(false);
 
   const cloudAccounts = useUsersStore(
     (state) => state.applicationSettings.userCloudAccounts,
   );
-  const { toggleCloudAccounts } =
+  const { setCloudAccountsEnabled } =
     useUsersStore.getState().applicationSettings.actions;
   const { addCharacter } = useUsersStore((state) => state.account.actions);
-  const { setLinkedCharacterRefreshTokens, addLinkedCharacterRefreshToken } =
-    useUsersStore((state) => state.account.actions);
 
   const [skeletonVisible, toggleSkeleton] = useState(false);
   const queryClient = useQueryClient();
@@ -89,15 +93,48 @@ export function AdditionalAccounts({ appearance = "default" } = {}) {
     [],
   );
 
+  const submitCloudLinkedCharacterRefreshTokens = async (tokenOverrides = new Map()) => {
+    const payload = [];
+    for (const [hash, token] of tokenOverrides.entries()) {
+      const characterHash = typeof hash === "string" ? hash.trim() : "";
+      if (!characterHash || !token) continue;
+      payload.push({
+        CharacterHash: characterHash,
+        rToken: token,
+      });
+    }
+    if (payload.length === 0) return;
+    const ok = await upsertAdditionalCharacterRefreshTokens(payload);
+    if (!ok) {
+      throw new Error("Failed to submit linked character token to server");
+    }
+  };
+
+  const buildTokenOverridesFromCharacters = (characterRows = []) => {
+    const overrides = new Map();
+    for (const row of characterRows) {
+      if (!row || row.isMainCharacter) continue;
+      const characterHash = typeof row.CharacterHash === "string"
+        ? row.CharacterHash.trim()
+        : "";
+      const token = typeof row.esiRefreshToken === "string"
+        ? row.esiRefreshToken.trim()
+        : "";
+      if (!characterHash || !token) continue;
+      overrides.set(characterHash, token);
+    }
+    return overrides;
+  };
+
   const applyImportedAdditionalUser = async (newUser) => {
     const cloudNow =
       !!useUsersStore.getState().applicationSettings.userCloudAccounts;
 
     if (cloudNow) {
-      addLinkedCharacterRefreshToken({
-        CharacterHash: newUser.CharacterHash,
-        rToken: newUser.esiRefreshToken,
-      });
+      const overrides = new Map([
+        [newUser.CharacterHash, newUser.esiRefreshToken],
+      ]);
+      await submitCloudLinkedCharacterRefreshTokens(overrides);
     } else {
       const characters = useUsersStore.getState().account.characters;
       const toPersist = isCharacterInListByHash(
@@ -111,7 +148,7 @@ export function AdditionalAccounts({ appearance = "default" } = {}) {
 
     await checkUserClaims();
     if (cloudNow) {
-      scheduleDebouncedUserAccountAndApplicationSettingsSave();
+      scheduleDebouncedUserAccountDocumentSave();
       await flushPendingUserDocumentSaves();
     }
     trackAppEvent(
@@ -183,28 +220,84 @@ export function AdditionalAccounts({ appearance = "default" } = {}) {
 
   const setCloudMode = async (nextCloudEnabled) => {
     if (nextCloudEnabled === cloudAccounts) return;
-    const mainCharacterHash = useUsersStore
-      .getState()
-      .account.actions.getMainCharacterHash();
-    if (!mainCharacterHash) {
-      toggleCloudAccounts();
-      scheduleDebouncedUserAccountAndApplicationSettingsSave();
-      return;
-    }
-    const localStorageKey =
-      getLocalAdditionalAccountsStorageKey(mainCharacterHash);
-    if (nextCloudEnabled) {
-      const storedAccounts = JSON.parse(
-        localStorage.getItem(localStorageKey) || "[]",
+    if (cloudModeChanging) return;
+    setCloudModeChanging(true);
+    try {
+      const mainCharacterHash = useUsersStore
+        .getState()
+        .account.actions.getMainCharacterHash();
+      if (!mainCharacterHash) {
+        setCloudAccountsEnabled(nextCloudEnabled);
+        scheduleDebouncedUserAccountDocumentSave();
+        return;
+      }
+      const localStorageKey =
+        getLocalAdditionalAccountsStorageKey(mainCharacterHash);
+      if (nextCloudEnabled) {
+        const storedAccounts = JSON.parse(
+          localStorage.getItem(localStorageKey) || "[]",
+        );
+        const overrides = new Map();
+        for (const row of storedAccounts) {
+          const hash = row?.CharacterHash || row?.characterHash;
+          const token = row?.rToken || "";
+          const characterHash = typeof hash === "string" ? hash.trim() : "";
+          if (!characterHash || !token) continue;
+          overrides.set(characterHash, token);
+        }
+        if (overrides.size === 0) {
+          const fallbackOverrides = buildTokenOverridesFromCharacters(
+            useUsersStore.getState().account.characters,
+          );
+          for (const [hash, token] of fallbackOverrides.entries()) {
+            overrides.set(hash, token);
+          }
+        }
+        if (overrides.size > 0) {
+          await submitCloudLinkedCharacterRefreshTokens(overrides);
+          localStorage.removeItem(localStorageKey);
+        }
+      } else {
+        const tokenDoc = await getAdditionalCharacterRefreshTokens();
+        const persistedRefreshTokens = Array.isArray(tokenDoc?.refreshTokens)
+          ? tokenDoc.refreshTokens
+              .map((row) => ({
+                CharacterHash: row?.CharacterHash || row?.characterHash || "",
+                rToken: row?.rToken || "",
+              }))
+              .filter((row) => row.CharacterHash && row.rToken)
+          : [];
+        if (persistedRefreshTokens.length > 0) {
+          const localStorageKey =
+            getLocalAdditionalAccountsStorageKey(mainCharacterHash);
+          localStorage.setItem(localStorageKey, JSON.stringify(persistedRefreshTokens));
+          const storedEcho = JSON.parse(localStorage.getItem(localStorageKey) || "[]");
+          const localPersisted =
+            Array.isArray(storedEcho) &&
+            storedEcho.length === persistedRefreshTokens.length;
+          if (!localPersisted) {
+            throw new Error("Failed to persist linked character tokens locally");
+          }
+          const hashesToDelete = persistedRefreshTokens.map((row) => row.CharacterHash);
+          const deleted = await deleteAdditionalCharacterRefreshTokens(hashesToDelete);
+          if (!deleted) {
+            throw new Error("Failed to remove cloud-linked character tokens");
+          }
+        } else {
+          updateLocalRefreshTokens(characters);
+        }
+      }
+      setCloudAccountsEnabled(nextCloudEnabled);
+      scheduleDebouncedUserAccountDocumentSave();
+    } catch (err) {
+      console.error(err);
+      showSnackbarError(
+        err instanceof Error ? err.message : "Could not change storage mode",
+        4,
       );
-      localStorage.removeItem(localStorageKey);
-      setLinkedCharacterRefreshTokens(storedAccounts);
-    } else {
-      updateLocalRefreshTokens(characters);
-      setLinkedCharacterRefreshTokens([]);
+    } finally {
+      setCloudModeChanging(false);
     }
-    toggleCloudAccounts();
-    scheduleDebouncedUserAccountAndApplicationSettingsSave();
   };
 
   const inner = (
@@ -268,6 +361,7 @@ export function AdditionalAccounts({ appearance = "default" } = {}) {
                 <Grid size={{ xs: 12, md: 6 }}>
                   <FirstLoginChoiceRow
                     selected={!cloudAccounts}
+                    disabled={cloudModeChanging}
                     onSelect={() => {
                       void setCloudMode(false);
                     }}
@@ -279,11 +373,12 @@ export function AdditionalAccounts({ appearance = "default" } = {}) {
                 <Grid size={{ xs: 12, md: 6 }}>
                   <FirstLoginChoiceRow
                     selected={cloudAccounts}
+                    disabled={cloudModeChanging}
                     onSelect={() => {
                       void setCloudMode(true);
                     }}
                     title="Cloud"
-                    body="Storest the additional character tokens in the cloud. This allows you to login to this account on another device without having to re add the characters again."
+                    body="Stores the additional character tokens in the cloud. This allows you to login to this account on another device without having to re add the characters again."
                     sx={{ height: "100%" }}
                   />
                 </Grid>
@@ -312,6 +407,7 @@ export function AdditionalAccounts({ appearance = "default" } = {}) {
                     <Switch
                       checked={cloudAccounts}
                       color="primary"
+                      disabled={cloudModeChanging || skeletonVisible}
                       onChange={(e) => {
                         void setCloudMode(e.target.checked);
                       }}

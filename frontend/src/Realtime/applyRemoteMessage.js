@@ -8,7 +8,6 @@
 
 import useUsersStore from "../Zustand/usersStore.js";
 import { metaLastModifiedMs } from "../Zustand/realtimeSyncSlice.js";
-import { scheduleDebouncedAccountDocumentsSync } from "../Functions/Debounce/accountSingletonsSyncSchedule.js";
 import { enqueueInboundJobDocumentChange } from "../Functions/Debounce/inboundJobDocumentsCoalesce.js";
 import {
   handleApplicationSettingsDocumentDelete,
@@ -50,20 +49,23 @@ export async function applyRemoteMessage(raw) {
   const previousDocument = /** @type {Record<string, unknown>|undefined} */ (
     msg.previousDocument
   );
+  const refreshTokensChanged =
+    typeof msg.refreshTokensChanged === "boolean"
+      ? msg.refreshTokensChanged
+      : typeof msg.refresh_tokens_changed === "boolean"
+        ? msg.refresh_tokens_changed
+        : false;
+  const linkedCharactersChanged =
+    typeof msg.linkedCharactersChanged === "boolean"
+      ? msg.linkedCharactersChanged
+      : typeof msg.linked_characters_changed === "boolean"
+        ? msg.linked_characters_changed
+        : refreshTokensChanged;
 
   if (!collection || !docID) return;
 
   const accountId = useUsersStore.getState().account.accountID;
   if (!accountId) return;
-
-  /**
-   * Backend fan-in: `doc.update.account_sync.{accountId}` — refetch both singletons together
-   * (debounced so paired saves only hit the API once).
-   */
-  if (collection === "account_sync" && docID === accountId) {
-    scheduleDebouncedAccountDocumentsSync();
-    return;
-  }
 
   const docKey = `${collection}.${docID}`;
   const rs = useUsersStore.getState().realtimeSync.actions;
@@ -107,7 +109,14 @@ export async function applyRemoteMessage(raw) {
     return;
   }
 
-  const upsertCtx = { ...ctxBase, document, remoteMs, previousDocument };
+  const upsertCtx = {
+    ...ctxBase,
+    document,
+    remoteMs,
+    previousDocument,
+    refreshTokensChanged,
+    linkedCharactersChanged,
+  };
 
   if (collection === "users") {
     handleUsersDocumentUpsert(upsertCtx);

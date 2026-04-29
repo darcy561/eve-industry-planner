@@ -1,0 +1,88 @@
+package jobdocuments
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"eve-industry-planner/api/helper"
+	"eve-industry-planner/api/helper/auth"
+	mongoput "eve-industry-planner/shared/core/mongo/put"
+	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/telemetry/apimetrics"
+)
+
+// PutJobDocumentsHandler handles PUT /api/v1/job-documents — batch upsert into user_job_documents.
+func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+	ctx := r.Context()
+	start := helper.RequestStartOrNow(ctx)
+	m := apimetrics.GetAPIJobs()
+	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
+		ObserveDuration: func(ctx context.Context, ms float64) { m.Requests.Observe(ctx, ms) },
+		IncRequests:     func(ctx context.Context) { m.RequestsCount.Inc(ctx) },
+		IncSuccesses:    func(ctx context.Context) { m.Successes.Inc(ctx) },
+		IncErrors:       func(ctx context.Context, reason string) { m.Errors.WithLabelValues(reason).Inc(ctx) },
+	})
+	defer metrics.Finish()
+
+	accountID, ok := helper.RequireAccountID(w, r)
+	if !ok {
+		metrics.Error("auth_error")
+		return
+	}
+
+	var reqBody struct {
+		Jobs []models.Job `json:"jobs"`
+	}
+
+	if err := helper.DecodeJSONRequest(r, &reqBody, helper.DefaultMaxBodySize); err != nil {
+		metrics.Error("invalid_json")
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if len(reqBody.Jobs) == 0 {
+		metrics.Error("no_jobs")
+		http.Error(w, "No jobs provided", http.StatusBadRequest)
+		return
+	}
+
+	const maxBatchSize = 100
+	if len(reqBody.Jobs) > maxBatchSize {
+		metrics.Error("batch_too_large")
+		http.Error(w, fmt.Sprintf("Batch too large (max %d jobs)", maxBatchSize), http.StatusBadRequest)
+		return
+	}
+
+	collection := collJobDocuments(clients)
+	sessionID, _ := auth.ExtractSessionID(r)
+	now := time.Now()
+	result, failedCount, err := mongoput.BulkUpsertJobDocuments(ctx, collection, accountID, reqBody.Jobs, now, sessionID)
+	if err != nil {
+		metrics.Error("database_error")
+		logs.ErrorCtx(ctx, "failed to bulk upsert job documents", "error", err, "account_id", accountID)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to save jobs", err)
+		return
+	}
+	if result == nil {
+		metrics.Error("no_valid_jobs")
+		http.Error(w, "No valid jobs to save", http.StatusBadRequest)
+		return
+	}
+	savedCount := int(result.UpsertedCount + result.ModifiedCount)
+	w.WriteHeader(http.StatusNoContent)
+
+	metrics.Success()
+	m.JobsSaved.Add(ctx, float64(savedCount))
+	m.JobsRequested.Observe(ctx, float64(len(reqBody.Jobs)))
+
+	logs.InfoCtx(ctx, "batch job documents upserted",
+		"account_id", accountID,
+		"total", len(reqBody.Jobs),
+		"saved", savedCount,
+		"failed", failedCount,
+		"duration_ms", time.Since(start).Milliseconds())
+}

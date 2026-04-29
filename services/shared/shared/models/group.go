@@ -4,12 +4,13 @@ import "time"
 
 // Group represents a group of jobs for organization and management
 type Group struct {
+	SchemaVersion   int           `json:"schemaVersion,omitempty" bson:"schemaVersion,omitempty"`
 	AccountID       string        `json:"accountID" bson:"accountID"`
 	GroupName       string        `json:"groupName" bson:"groupName"`
 	GroupID         string        `json:"groupID" bson:"groupID"`
-	IncludedJobIDs  []string `json:"includedJobIDs" bson:"includedJobIDs"`
-	IncludedTypeIDs []int    `json:"includedTypeIDs" bson:"includedTypeIDs"`
-	MaterialIDs     []int    `json:"materialIDs" bson:"materialIDs"`
+	IncludedJobIDs  []string      `json:"includedJobIDs" bson:"includedJobIDs"`
+	IncludedTypeIDs []int         `json:"includedTypeIDs" bson:"includedTypeIDs"`
+	MaterialIDs     []int         `json:"materialIDs" bson:"materialIDs"`
 	OutputJobCount  int           `json:"outputJobCount" bson:"outputJobCount"`
 	AreComplete     []string      `json:"areComplete" bson:"areComplete"`
 	ShowComplete    bool          `json:"showComplete" bson:"showComplete"`

@@ -58,15 +58,16 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		if err := cursor.All(ctx, &users); err != nil {
 			return nil, fmt.Errorf("failed to decode users: %w", err)
 		}
-		for _, user := range users {
-			userMap, err := structToMap(user)
+		for i := range users {
+			users[i].StripRefreshTokenSecretsForTransport()
+			userMap, err := structToMap(users[i])
 			if err != nil {
 				logs.WarnCtx(ctx, "failed to convert user to map",
-					"account_id", user.MetaData.AccountID,
+					"account_id", users[i].MetaData.AccountID,
 					"error", err)
 				continue
 			}
-			results[user.MetaData.AccountID] = userMap
+			results[users[i].MetaData.AccountID] = userMap
 		}
 		return results, cursor.Err()
 

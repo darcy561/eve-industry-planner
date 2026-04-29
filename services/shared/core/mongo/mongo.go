@@ -47,10 +47,6 @@ var (
 	// CollectionApplicationSettings is the name of the application settings collection (per-account settings document)
 	CollectionApplicationSettings = "application_settings"
 
-	// CollectionAccountSync is a virtual collection name used only for NATS/WebSocket fan-in:
-	// one notification when either users or application_settings changes for an account.
-	CollectionAccountSync = "account_sync"
-
 	// CollectionBlueprints is the static SDE blueprint recipes collection.
 	CollectionBlueprints = "blueprints"
 )

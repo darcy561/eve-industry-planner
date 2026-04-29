@@ -51,6 +51,18 @@ var (
 		DefaultPriority: Priority5,
 		DefaultTimeout:  15 * time.Minute,
 	}
+	EncryptCloudRefreshTokensBatch = Task{
+		Name:            "encryptCloudRefreshTokensBatch",
+		Subject:         "task.migration.encryptCloudRefreshTokensBatch",
+		DefaultPriority: Priority5,
+		DefaultTimeout:  15 * time.Minute,
+	}
+	MigrateUserCloudAccountsToUserDoc = Task{
+		Name:            "migrateUserCloudAccountsToUserDoc",
+		Subject:         "task.migration.migrateUserCloudAccountsToUserDoc",
+		DefaultPriority: Priority5,
+		DefaultTimeout:  10 * time.Minute,
+	}
 	// ProcessArchivedBuildStats aggregates unprocessed archived Mongo jobs into build_stats (worker: tasks/archivedjobs; Firebase archievedJobs.js replacement).
 	ProcessArchivedBuildStats = Task{
 		Name:            "processArchivedBuildStats",
@@ -118,23 +130,39 @@ var (
 		DefaultPriority: Priority5,
 		DefaultTimeout:  15 * time.Minute,
 	}
+	RotateRefreshTokenKeys = Task{
+		Name:            "rotateRefreshTokenKeys",
+		Subject:         "task.maintenance.rotateRefreshTokenKeys",
+		DefaultPriority: Priority5,
+		DefaultTimeout:  20 * time.Minute,
+	}
+	SchemaVersionMaintenanceBatch = Task{
+		Name:            "schemaVersionMaintenanceBatch",
+		Subject:         "task.maintenance.schemaVersionMaintenanceBatch",
+		DefaultPriority: Priority5,
+		DefaultTimeout:  3 * time.Minute,
+	}
 )
 
 // ByName maps task name (handler key) to task definition for lookup (e.g. worker default priority).
 var ByName = map[string]Task{
-	MigrateUserDocumentToMongo.Name:            MigrateUserDocumentToMongo,
-	MigrateFirestoreWatchlistToMongo.Name:      MigrateFirestoreWatchlistToMongo,
-	ImportArchivedJobToMongo.Name:              ImportArchivedJobToMongo,
-	ImportUserJobDocumentsForAccount.Name:      ImportUserJobDocumentsForAccount,
-	ProcessArchivedBuildStats.Name:    ProcessArchivedBuildStats,
-	RefreshSystemIndexes.Name:       RefreshSystemIndexes,
-	RefreshAdjustedPrices.Name:      RefreshAdjustedPrices,
-	RefreshMarketPrices.Name:        RefreshMarketPrices,
-	CountMarketPricesItems.Name:     CountMarketPricesItems,
-	FetchMissingMarketPrices.Name:   FetchMissingMarketPrices,
-	FetchCorporations.Name:          FetchCorporations,
-	CheckSDEUpdates.Name:            CheckSDEUpdates,
-	RollbackSDEVersion.Name:         RollbackSDEVersion,
-	ApplySDEVersion.Name:            ApplySDEVersion,
-	RebuildCurrentSDEVersion.Name:   RebuildCurrentSDEVersion,
+	MigrateUserDocumentToMongo.Name:        MigrateUserDocumentToMongo,
+	MigrateFirestoreWatchlistToMongo.Name:  MigrateFirestoreWatchlistToMongo,
+	ImportArchivedJobToMongo.Name:          ImportArchivedJobToMongo,
+	ImportUserJobDocumentsForAccount.Name:  ImportUserJobDocumentsForAccount,
+	EncryptCloudRefreshTokensBatch.Name:    EncryptCloudRefreshTokensBatch,
+	MigrateUserCloudAccountsToUserDoc.Name: MigrateUserCloudAccountsToUserDoc,
+	ProcessArchivedBuildStats.Name:         ProcessArchivedBuildStats,
+	RefreshSystemIndexes.Name:              RefreshSystemIndexes,
+	RefreshAdjustedPrices.Name:             RefreshAdjustedPrices,
+	RefreshMarketPrices.Name:               RefreshMarketPrices,
+	CountMarketPricesItems.Name:            CountMarketPricesItems,
+	FetchMissingMarketPrices.Name:          FetchMissingMarketPrices,
+	FetchCorporations.Name:                 FetchCorporations,
+	CheckSDEUpdates.Name:                   CheckSDEUpdates,
+	RollbackSDEVersion.Name:                RollbackSDEVersion,
+	ApplySDEVersion.Name:                   ApplySDEVersion,
+	RebuildCurrentSDEVersion.Name:          RebuildCurrentSDEVersion,
+	RotateRefreshTokenKeys.Name:            RotateRefreshTokenKeys,
+	SchemaVersionMaintenanceBatch.Name:     SchemaVersionMaintenanceBatch,
 }

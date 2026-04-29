@@ -1,6 +1,6 @@
 import requestWithPrivateHeaders from "./applyPrivateHeaders.js";
 
-const CLAIMS_URL = "/api/v1/auth/claims/corporations";
+const CLAIMS_URL = "/api/v1/corporation-claims";
 
 /**
  * Requests corporation claims update for the provided EVE SSO tokens.

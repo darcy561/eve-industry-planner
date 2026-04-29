@@ -16,8 +16,6 @@ const docSubscribeMongoTimeout = 3 * time.Second
 //
 // Token-only proof (JWT account_id must equal the document key suffix):
 //   - users, application_settings, user_watchlist_deprecated — singleton per account; _id matches JWT account_id (same invariant as login).
-//   - account_sync — virtual fan-in doc id account_sync.{accountId}; same suffix check.
-//
 // Mongo ownership (_id + _meta.accountID == JWT account_id):
 //   - jobs, user_job_documents, archivedJobs, groups, build_stats
 //
@@ -35,9 +33,6 @@ func (s *Server) docSubscribeAuthorized(ctx context.Context, docID, jwtAccountID
 
 	switch collection {
 	case mongocore.CollectionUsers, mongocore.CollectionApplicationSettings, mongocore.CollectionUserWatchlistDeprecated:
-		return id == jwtAccountID
-
-	case mongocore.CollectionAccountSync:
 		return id == jwtAccountID
 
 	case mongocore.CollectionJobs, mongocore.CollectionUserJobDocuments, mongocore.CollectionArchivedJobs, mongocore.CollectionUserJobGroups, mongocore.CollectionBuildStats:

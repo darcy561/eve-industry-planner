@@ -29,7 +29,7 @@ async function fetchMarketPrices(inputArray) {
     return returnObject;
   }
 
-  const URL = `/api/v1/marketprices/query`;
+  const URL = `/api/v1/market-prices`;
 
   try {
     const chunks = [];

@@ -1,3 +1,5 @@
+import { decodeJwt } from "jose";
+import Character from "../../Classes/character";
 import getCharacterFromRefreshToken from "../../Components/Auth/RefreshToken";
 import { canonicalCharacterHashKey } from "./characterHashCanonical.js";
 import { buildCorporationObjectFromUserObject } from "../Corporations/buildCorporationObject";
@@ -6,6 +8,37 @@ import useUsersStore from "../../Zustand/usersStore";
 import getSystemIndexes from "../System Indexes/findSystemIndex";
 
 export { canonicalCharacterHashKey };
+
+/**
+ * Hydrates additional `Character` rows from server-issued ESI access sessions (cloud mode login).
+ *
+ * @param {{ characterHash?: string, CharacterHash?: string, access_token: string, token_type?: string, expires_in?: number }[]} linkedCharacters
+ * @returns {Promise<import("../../Classes/character").default[]>}
+ */
+export async function hydrateLinkedCharactersFromAccessSessions(
+  linkedCharacters
+) {
+  const out = [];
+  if (!Array.isArray(linkedCharacters)) return out;
+  for (const s of linkedCharacters) {
+    const hash = s.characterHash ?? s.CharacterHash;
+    if (!s?.access_token || !hash) continue;
+    try {
+      const jwtPayload = decodeJwt(s.access_token);
+      const ch = new Character({
+        jwtPayload,
+        tokenResponse: { access_token: s.access_token, refresh_token: "" },
+        isMainCharacter: false,
+      });
+      await ch.getPublicCharacterData();
+      await buildCorporationObjectFromUserObject(ch);
+      out.push(ch);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  return out;
+}
 
 /**
  * `localStorage` key for per-main-character additional-account refresh token JSON.

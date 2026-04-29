@@ -1,21 +1,21 @@
 package v1endpoints
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
+	"eve-industry-planner/api/helper"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/api/helper/sso"
-	"eve-industry-planner/shared/core/internaljwt"
 	"eve-industry-planner/shared/core/config"
+	"eve-industry-planner/shared/core/internaljwt"
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/shared"
 	taskscore "eve-industry-planner/shared/tasks"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
@@ -45,24 +45,27 @@ type CorporationsRequest struct {
 // Accepts multiple EVE SSO tokens, validates them, and publishes one worker task.
 func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
-	start, ok := logs.RequestStartTime(ctx)
-	if !ok {
-		start = time.Now()
-	}
+	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin() // Reuse auth metrics for now
+	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
+		ObserveDuration: func(ctx context.Context, ms float64) { m.Requests.Observe(ctx, ms) },
+		IncRequests:     func(ctx context.Context) { m.RequestsCount.Inc(ctx) },
+		IncSuccesses:    func(ctx context.Context) { m.Successes.Inc(ctx) },
+		IncErrors:       func(ctx context.Context, reason string) { m.Errors.WithLabelValues(reason).Inc(ctx) },
+	})
+	defer metrics.Finish()
 
 	// Only allow POST requests
-	if r.Method != http.MethodPost {
-		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
+	if !helper.RequireMethod(w, r, http.MethodPost) {
+		metrics.Error("method_not_allowed")
 		logs.WarnCtx(ctx, "invalid method for corporations endpoint")
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	// Extract and validate internal JWT token from Authorization header
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
-		m.Errors.WithLabelValues("missing_auth").Inc(ctx)
+		metrics.Error("missing_auth")
 		logs.WarnCtx(ctx, "missing Authorization header")
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -71,7 +74,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	// Extract Bearer token
 	const bearerPrefix = "Bearer "
 	if !strings.HasPrefix(authHeader, bearerPrefix) {
-		m.Errors.WithLabelValues("invalid_auth_format").Inc(ctx)
+		metrics.Error("invalid_auth_format")
 		logs.WarnCtx(ctx, "invalid Authorization header format")
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -79,7 +82,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 	internalTokenString := strings.TrimSpace(authHeader[len(bearerPrefix):])
 	if internalTokenString == "" {
-		m.Errors.WithLabelValues("empty_token").Inc(ctx)
+		metrics.Error("empty_token")
 		logs.WarnCtx(ctx, "empty token in Authorization header")
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -88,7 +91,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	// Validate internal JWT token and extract AccountID
 	internalClaims, err := internaljwt.ValidateInternalJWT(internalTokenString)
 	if err != nil {
-		m.Errors.WithLabelValues("invalid_token").Inc(ctx)
+		metrics.Error("invalid_token")
 		logs.WarnCtx(ctx, "failed to validate internal JWT token", "error", err)
 		http.Error(w, auth.GetAuthErrorMessage(err), http.StatusUnauthorized)
 		return
@@ -97,7 +100,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	// Use AccountID from the internal token
 	accountID := internalClaims.AccountID
 	if accountID == "" {
-		m.Errors.WithLabelValues("missing_account_id").Inc(ctx)
+		metrics.Error("missing_account_id")
 		logs.WarnCtx(ctx, "AccountID missing from internal token")
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -106,14 +109,14 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	// Extract tokens from request body
 	reqBody, err := extractCorporationsRequest(r)
 	if err != nil {
-		m.Errors.WithLabelValues("extraction_error").Inc(ctx)
+		metrics.Error("extraction_error")
 		logs.WarnCtx(ctx, "failed to extract tokens from request body", "error", err, "account_id", accountID)
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
 	if len(reqBody.Tokens) == 0 {
-		m.Errors.WithLabelValues("no_tokens").Inc(ctx)
+		metrics.Error("no_tokens")
 		logs.WarnCtx(ctx, "no tokens provided in request", "account_id", accountID)
 		http.Error(w, "No tokens provided", http.StatusBadRequest)
 		return
@@ -122,7 +125,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	// Limit the number of tokens to prevent abuse
 	const maxTokens = 50
 	if len(reqBody.Tokens) > maxTokens {
-		m.Errors.WithLabelValues("too_many_tokens").Inc(ctx)
+		metrics.Error("too_many_tokens")
 		logs.WarnCtx(ctx, "too many tokens provided", "account_id", accountID, "count", len(reqBody.Tokens), "max", maxTokens)
 		http.Error(w, fmt.Sprintf("Too many tokens (max %d)", maxTokens), http.StatusBadRequest)
 		return
@@ -130,7 +133,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		m.Errors.WithLabelValues("config_error").Inc(ctx)
+		metrics.Error("config_error")
 		logs.ErrorCtx(ctx, "failed to load config for corporations endpoint", "error", err, "account_id", accountID)
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
@@ -162,7 +165,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	}
 
 	if len(validTokens) == 0 {
-		m.Errors.WithLabelValues("no_valid_tokens").Inc(ctx)
+		metrics.Error("no_valid_tokens")
 		logs.WarnCtx(ctx, "no valid tokens found in request", "account_id", accountID)
 		http.Error(w, "No valid tokens provided", http.StatusBadRequest)
 		return
@@ -175,7 +178,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	}
 
 	if err := natscore.PublishTask(ctx, clients.JetStream, taskscore.FetchCorporations.Subject, taskscore.FetchCorporations.Name, taskRequest, clients.NATS); err != nil {
-		m.Errors.WithLabelValues("publish_error").Inc(ctx)
+		metrics.Error("publish_error")
 		logs.ErrorCtx(ctx, "failed to publish corporation lookup task",
 			"account_id", accountID,
 			"token_count", len(validTokens),
@@ -186,46 +189,23 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 	// Return 204 No Content - task queued successfully, no response body needed
 	w.WriteHeader(http.StatusNoContent)
-
-	// Update metrics
-	duration := time.Since(start)
-	m.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
-	m.RequestsCount.Inc(ctx)
-	m.Successes.Inc(ctx)
+	metrics.Success()
 
 	logs.InfoCtx(ctx, "successfully queued corporation lookup task",
 		"account_id", accountID,
 		"valid_tokens", len(validTokens),
 		"total_tokens", len(reqBody.Tokens),
-		"duration_ms", duration.Milliseconds(),
+		"duration_ms", time.Since(start).Milliseconds(),
 	)
 }
 
 // extractCorporationsRequest extracts the tokens array from the request body
 func extractCorporationsRequest(r *http.Request) (*CorporationsRequest, error) {
-	// Limit request body size to prevent DoS attacks
-	// maxTokens * maxTokenLength + JSON overhead
 	const maxBodySize = 50*maxTokenLength + 1024
-	r.Body = http.MaxBytesReader(nil, r.Body, maxBodySize)
 
 	var reqBody CorporationsRequest
-
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-
-	if err := decoder.Decode(&reqBody); err != nil {
-		if err == io.EOF {
-			return nil, errors.New("request body is required")
-		}
-		if strings.Contains(err.Error(), "request body too large") {
-			return nil, errors.New("request body too large")
-		}
-		return nil, fmt.Errorf("invalid request body: %w", err)
-	}
-
-	// Ensure body was fully consumed (prevents extra data attacks)
-	if _, err := decoder.Token(); err != io.EOF {
-		return nil, errors.New("request body contains extra data")
+	if err := helper.DecodeJSONRequest(r, &reqBody, maxBodySize); err != nil {
+		return nil, err
 	}
 
 	// Validate tokens array

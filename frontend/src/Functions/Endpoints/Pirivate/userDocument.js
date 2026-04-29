@@ -1,7 +1,7 @@
 import requestWithPrivateHeaders from "./applyPrivateHeaders.js";
 import useUsersStore from "../../../Zustand/usersStore";
 
-const USER_MAIN_URL = "/api/v1/user/main";
+const USER_MAIN_URL = "/api/v1/user/document";
 const APPLICATION_SETTINGS_URL = "/api/v1/user/application-settings";
 
 /**

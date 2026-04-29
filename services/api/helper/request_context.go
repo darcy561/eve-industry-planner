@@ -1,0 +1,44 @@
+package helper
+
+import (
+	"context"
+	"net/http"
+	"time"
+
+	"eve-industry-planner/api/helper/auth"
+	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/shared/models"
+)
+
+// RequestStartOrNow returns middleware request start time or current time.
+func RequestStartOrNow(ctx context.Context) time.Time {
+	start, ok := logs.RequestStartTime(ctx)
+	if !ok {
+		return time.Now()
+	}
+	return start
+}
+
+// PopulateRequestMeta fills common request-derived metadata fields.
+func PopulateRequestMeta(r *http.Request, meta *models.MetaData, accountID string) {
+	if meta == nil {
+		return
+	}
+	meta.AccountID = accountID
+	if sessionID, err := auth.ExtractSessionID(r); err == nil && sessionID != "" {
+		meta.SessionID = sessionID
+	}
+	if wsClientID := ExtractWSClientID(r); wsClientID != "" {
+		meta.ClientID = wsClientID
+	}
+}
+
+// RetryWithoutWSClientID retries once after clearing ws client metadata.
+func RetryWithoutWSClientID(wsClientID string, clearWSClientID func(), op func() error) error {
+	err := op()
+	if err == nil || wsClientID == "" {
+		return err
+	}
+	clearWSClientID()
+	return op()
+}

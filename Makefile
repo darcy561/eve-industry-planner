@@ -60,7 +60,7 @@ DC_DEV = $(DC_BIN_RAW) -f $(COMPOSE_BASE) -f $(COMPOSE_DEV)
 endif
 
 # ---------- Phony targets ----------
-.PHONY: help up dev ensure-keyfile ensure-env download-setup-scripts bootstrap-download-script bootstrap-version-tracker update-files sync-dev-compose-versions
+.PHONY: help up dev ensure-keyfile ensure-env ensure-refresh-token-key download-setup-scripts bootstrap-download-script bootstrap-version-tracker update-files sync-dev-compose-versions
 
 # ---------- Help ----------
 help:
@@ -108,8 +108,11 @@ ensure-keyfile:
 ensure-env:
 	@"$(BASH)" ./scripts/ensure-env.sh
 
+ensure-refresh-token-key:
+	@"$(BASH)" ./scripts/ensure-refresh-token-key.sh
+
 # ---------- User / live ----------
-up: download-setup-scripts ensure-keyfile ensure-env
+up: download-setup-scripts ensure-keyfile ensure-env ensure-refresh-token-key
 ifeq ($(OS),Windows_NT)
 	@"$(BASH)" -c 'DC_CMD=$$(if [ -f ./bin/docker-compose ] && [ -x ./bin/docker-compose ]; then echo "./bin/docker-compose"; elif [ -f ./docker-compose ] && [ -x ./docker-compose ]; then echo "./docker-compose"; elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi); eval "$$DC_CMD -f $(COMPOSE_BASE) up -d"'
 else
@@ -120,7 +123,7 @@ endif
 sync-dev-compose-versions:
 	@"$(BASH)" ./scripts/sync-dev-compose-versions.sh
 
-dev: download-setup-scripts ensure-keyfile ensure-env sync-dev-compose-versions
+dev: download-setup-scripts ensure-keyfile ensure-env ensure-refresh-token-key sync-dev-compose-versions
 ifeq ($(OS),Windows_NT)
 	@"$(BASH)" -c 'DC_CMD=$$(if [ -f ./bin/docker-compose ] && [ -x ./bin/docker-compose ]; then echo "./bin/docker-compose"; elif [ -f ./docker-compose ] && [ -x ./docker-compose ]; then echo "./docker-compose"; elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi); eval "$$DC_CMD -f $(COMPOSE_BASE) -f $(COMPOSE_DEV) up -d --build"'
 else

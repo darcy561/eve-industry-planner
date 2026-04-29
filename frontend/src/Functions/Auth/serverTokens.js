@@ -37,7 +37,7 @@ function getAppVersionHeaderValue() {
 export async function fetchServerJWT(eveSSOToken) {
     try {
         const response = await withRequestRetries(() =>
-            fetch("/api/v1/auth/login", {
+            fetch("/api/v1/auth/sessions", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -83,7 +83,7 @@ export async function fetchServerJWT(eveSSOToken) {
 export async function refreshServerJWT(refreshToken, eveSSOToken) {
     try {
         const response = await withRequestRetries(() =>
-            fetch("/api/v1/auth/refresh", {
+            fetch("/api/v1/auth/sessions/refresh", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -125,7 +125,7 @@ export async function refreshServerJWT(refreshToken, eveSSOToken) {
 export async function refreshServerJWTForLogin(refreshToken, eveSSOToken) {
     try {
         const response = await withRequestRetries(() =>
-            fetch("/api/v1/auth/login-refresh", {
+            fetch("/api/v1/auth/sessions/login-refresh", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -163,7 +163,7 @@ export async function logoutServerSession(refreshToken) {
         return false;
     }
     try {
-        const response = await requestWithPrivateHeaders("/api/v1/auth/logout", {
+        const response = await requestWithPrivateHeaders("/api/v1/auth/sessions/logout", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",

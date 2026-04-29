@@ -99,14 +99,17 @@ export const characterActions = (set, get) => ({
   },
 
   removeCharacter: (character) => {
-    const drop = canonicalCharacterHashKey(character.CharacterHash);
+    const drop = canonicalCharacterHashKey(character?.CharacterHash || "");
+    if (!drop) {
+      return;
+    }
     set(
       (state) => ({
         ...state,
         account: {
           ...state.account,
           characters: state.account.characters.filter(
-            (ch) => canonicalCharacterHashKey(ch.CharacterHash) !== drop
+            (ch) => canonicalCharacterHashKey(ch?.CharacterHash || "") !== drop
           ),
           actions: state.account.actions,
         },

@@ -1,6 +1,7 @@
 package v1endpoints
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -9,8 +10,8 @@ import (
 	"eve-industry-planner/api/helper"
 	esitypes "eve-industry-planner/shared/core/esi/types"
 	rediscore "eve-industry-planner/shared/core/redis"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"github.com/redis/go-redis/v9"
@@ -32,19 +33,21 @@ type SystemIndexesBody struct {
 //	200 — JSON map of systemID → index rows; missing Redis keys appear as empty arrays (no per-id 404)
 func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
-	start, ok := logs.RequestStartTime(ctx)
-	if !ok {
-		start = time.Now()
-	}
+	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPISystemIndexes()
+	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
+		ObserveDuration: func(ctx context.Context, ms float64) { m.Requests.Observe(ctx, ms) },
+		IncRequests:     func(ctx context.Context) { m.RequestsCount.Inc(ctx) },
+		IncErrors:       func(ctx context.Context, reason string) { m.Errors.WithLabelValues(reason).Inc(ctx) },
+	})
+	defer metrics.Finish()
 
 	// Only accept POST requests
-	if r.Method != http.MethodPost {
+	if !helper.RequireMethod(w, r, http.MethodPost) {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
+		metrics.Error("method_not_allowed")
 		apimetrics.LogRequestMetrics(ctx, "system_indexes", duration, "method_not_allowed")
 		logs.WarnCtx(ctx, "invalid method for system indexes endpoint")
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -52,7 +55,7 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *share
 	reqBody, err := helper.ExtractRequestBody[SystemIndexesBody](r)
 	if err != nil {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("extraction_error").Inc(ctx)
+		metrics.Error("extraction_error")
 		apimetrics.LogRequestMetrics(ctx, "system_indexes", duration, "extraction_error",
 			"error", err)
 		logs.WarnCtx(ctx, "failed to extract system IDs", "error", err)
@@ -64,7 +67,7 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *share
 	validatedIDs, invalidCount := helper.ValidateIDs(reqBody.RequestedIDs)
 	if len(validatedIDs) == 0 {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("no_valid_ids").Inc(ctx)
+		metrics.Error("no_valid_ids")
 		apimetrics.LogRequestMetrics(ctx, "system_indexes", duration, "no_valid_ids",
 			"total_ids", len(reqBody.RequestedIDs), "invalid_ids", invalidCount)
 		logs.WarnCtx(ctx, "no valid system IDs provided", "total_ids", len(reqBody.RequestedIDs), "invalid_ids", invalidCount)
@@ -75,7 +78,7 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *share
 	// Check if the number of system IDs is too many
 	if len(validatedIDs) > maxSystemIDs {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("too_many_ids").Inc(ctx)
+		metrics.Error("too_many_ids")
 		apimetrics.LogRequestMetrics(ctx, "system_indexes", duration, "too_many_ids",
 			"count", len(validatedIDs), "max", maxSystemIDs)
 		logs.WarnCtx(ctx, "too many system IDs requested", "count", len(validatedIDs), "max", maxSystemIDs)
@@ -114,7 +117,7 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *share
 
 			// Log error if it's not just a missing entry
 			if err != redis.Nil {
-				m.Errors.WithLabelValues("redis_error").Inc(ctx)
+				metrics.Error("redis_error")
 				logs.WarnCtx(ctx, "redis error retrieving system index", "error", err, "system_id", systemID)
 			}
 		} else {
@@ -126,7 +129,7 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *share
 	// Encode response (nginx handles compression); only record success metrics/logs after body is written
 	if err := helper.EncodeJSON(w, result); err != nil {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("encode_error").Inc(ctx)
+		metrics.Error("encode_error")
 		apimetrics.LogRequestMetrics(ctx, "system_indexes", duration, "encode_error",
 			"error", err)
 		logs.ErrorCtx(ctx, "failed to encode response", "error", err)
@@ -135,8 +138,6 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *share
 	}
 
 	duration := time.Since(start)
-	m.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
-	m.RequestsCount.Inc(ctx)
 	m.SystemsRequested.Observe(ctx, float64(len(validatedIDs)))
 	m.SystemIDsRequestedTotal.Add(ctx, float64(len(validatedIDs)))
 

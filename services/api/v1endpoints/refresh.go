@@ -3,16 +3,15 @@ package v1endpoints
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
+	userendpoints "eve-industry-planner/api/v1endpoints/user"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/core/internaljwt"
-	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/shared/models"
@@ -27,12 +26,13 @@ type RefreshRequest struct {
 
 // RefreshResponse represents the response sent to the client
 type RefreshResponse struct {
-	AccessToken         string                     `json:"access_token"`
-	RefreshToken        string                     `json:"refresh_token"`
-	ExpiresAt           int64                      `json:"expires_at"` // Unix timestamp (seconds since epoch)
-	FirstLogin          bool                       `json:"first_login,omitempty"`
-	UserDocument        models.UserAccountDocument `json:"user_document,omitempty"`
-	ApplicationSettings models.ApplicationSettings `json:"application_settings,omitempty"`
+	AccessToken         string                          `json:"access_token"`
+	RefreshToken        string                          `json:"refresh_token"`
+	ExpiresAt           int64                           `json:"expires_at"` // Unix timestamp (seconds since epoch)
+	FirstLogin          bool                            `json:"first_login,omitempty"`
+	UserDocument        models.UserAccountDocument      `json:"user_document,omitempty"`
+	ApplicationSettings models.ApplicationSettings      `json:"application_settings,omitempty"`
+	LinkedCharacters    []models.LinkedCharacterSession `json:"linked_characters,omitempty"`
 }
 
 // RefreshHandler handles token refresh requests
@@ -47,19 +47,15 @@ func LoginRefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients, touchLastLogin bool) {
 	ctx := r.Context()
-	start, ok := logs.RequestStartTime(ctx)
-	if !ok {
-		start = time.Now()
-	}
+	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPISessionRefresh()
 	sessionMetrics := apimetrics.GetAPIAuthSessionLifecycle()
 	appVersion := extractAppVersion(r)
 
 	// Only allow POST requests
-	if r.Method != http.MethodPost {
+	if !helper.RequireMethod(w, r, http.MethodPost) {
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
 		logs.WarnCtx(ctx, "invalid method for refresh endpoint")
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -129,15 +125,6 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		)
 		http.Error(w, "Invalid token", http.StatusUnauthorized)
 		return
-	}
-
-	if touchLastLogin {
-		if err := mongocore.TouchUserLastLogin(ctx, clients.Mongo, tokenData.AccountID); err != nil {
-			m.Errors.WithLabelValues("mongo_error").Inc(ctx)
-			logs.ErrorCtx(ctx, "failed to touch last login from refresh login flow", "error", err, "account_id", tokenData.AccountID)
-			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
-			return
-		}
 	}
 
 	// Load or get cached RSA private key for JWT signing
@@ -252,6 +239,8 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
 	w.WriteHeader(http.StatusOK)
 
 	// Return new access token and new refresh token
@@ -264,7 +253,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		ExpiresAt:    expiresAt,
 	}
 	if touchLastLogin {
-		loginDocs, err := mongocore.ResolveUserDocumentsForLogin(ctx, clients.Mongo, tokenData.AccountID)
+		loginDocs, err := helper.ResolveUserDocumentsForLogin(ctx, clients.Mongo, tokenData.AccountID)
 		if err != nil {
 			m.Errors.WithLabelValues("mongo_error").Inc(ctx)
 			logs.ErrorCtx(ctx, "failed to resolve user documents for login refresh", "error", err, "account_id", tokenData.AccountID)
@@ -272,8 +261,26 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 			return
 		}
 		response.FirstLogin = loginDocs.FirstLogin
-		response.UserDocument = loginDocs.User
+		userOut := loginDocs.User
+		var linkedCharacters []models.LinkedCharacterSession
+		if userOut.UserCloudAccounts && cfg.RefreshTokenKeyring != nil {
+			if len(userOut.RefreshTokens) > 0 {
+				linkedCharacterSessions, err := userendpoints.BuildCloudLinkedCharactersForLogin(
+					ctx, clients.Mongo, tokenData.AccountID, &userOut,
+					cfg.EveSSOClientID, cfg.EveSSOClientSecret, cfg.RefreshTokenKeyring,
+				)
+				if err != nil {
+					logs.WarnCtx(ctx, "cloud linked-character ESI session bundle failed (login-refresh)",
+						"error", err, "account_id", tokenData.AccountID)
+				} else {
+					linkedCharacters = linkedCharacterSessions
+				}
+			}
+			userendpoints.StripRefreshTokensFromUserDocumentForClient(&userOut)
+		}
+		response.UserDocument = userOut
 		response.ApplicationSettings = loginDocs.Settings
+		response.LinkedCharacters = linkedCharacters
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
@@ -300,28 +307,9 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 // We use POST with body (not GET with header) to avoid tokens appearing in logs/URLs
 // Implements security measures: body size limits and input validation
 func extractRefreshTokenFromRequest(r *http.Request) (string, string, error) {
-	// Limit request body size to prevent DoS attacks
-	// Refresh token (max 512) + EVE token (max 8192) + JSON overhead
-	r.Body = http.MaxBytesReader(nil, r.Body, maxRefreshTokenLength+maxTokenLength+1024)
-
 	var reqBody RefreshRequest
-
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-
-	if err := decoder.Decode(&reqBody); err != nil {
-		if err == io.EOF {
-			return "", "", errors.New("request body is required")
-		}
-		if strings.Contains(err.Error(), "request body too large") {
-			return "", "", errors.New("request body too large")
-		}
-		return "", "", fmt.Errorf("invalid request body: %w", err)
-	}
-
-	// Ensure body was fully consumed
-	if _, err := decoder.Token(); err != io.EOF {
-		return "", "", errors.New("request body contains extra data")
+	if err := helper.DecodeJSONRequest(r, &reqBody, maxRefreshTokenLength+maxTokenLength+1024); err != nil {
+		return "", "", err
 	}
 
 	if reqBody.RefreshToken == "" {

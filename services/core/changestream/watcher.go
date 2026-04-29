@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -29,19 +30,21 @@ type ScopesPayload struct {
 
 // ChangeStreamMessage represents the message payload sent to NATS
 type ChangeStreamMessage struct {
-	Subject          string                 `json:"subject"`
-	Collection       string                 `json:"collection"`
-	DocID            string                 `json:"docID"`
-	OperationType    string                 `json:"operationType"`
-	SourceClientID   string                 `json:"sourceClientID,omitempty"`  // ClientID that originated the change (for filtering)
-	SourceSessionID  string                 `json:"sourceSessionID,omitempty"` // SessionID that originated the change (stable across client reconnects)
-	AccountID        string                 `json:"accountID,omitempty"`       // AccountID for INSERT operations (broadcast to all account clients)
-	CorporationID    string                 `json:"corporationID,omitempty"`   // Org routing when accountID is absent (see websocket dispatch)
-	AllianceID       string                 `json:"allianceID,omitempty"`
-	Scopes           *ScopesPayload         `json:"scopes,omitempty"`
-	Document         map[string]interface{} `json:"document,omitempty"`
-	PreviousDocument map[string]interface{} `json:"previousDocument,omitempty"`
-	ChangeEvent      map[string]interface{} `json:"changeEvent,omitempty"`
+	Subject                 string                 `json:"subject"`
+	Collection              string                 `json:"collection"`
+	DocID                   string                 `json:"docID"`
+	OperationType           string                 `json:"operationType"`
+	SourceClientID          string                 `json:"sourceClientID,omitempty"`  // ClientID that originated the change (for filtering)
+	SourceSessionID         string                 `json:"sourceSessionID,omitempty"` // SessionID that originated the change (stable across client reconnects)
+	AccountID               string                 `json:"accountID,omitempty"`       // AccountID for INSERT operations (broadcast to all account clients)
+	CorporationID           string                 `json:"corporationID,omitempty"`   // Org routing when accountID is absent (see websocket dispatch)
+	AllianceID              string                 `json:"allianceID,omitempty"`
+	Scopes                  *ScopesPayload         `json:"scopes,omitempty"`
+	Document                map[string]interface{} `json:"document,omitempty"`
+	PreviousDocument        map[string]interface{} `json:"previousDocument,omitempty"`
+	RefreshTokensChanged    bool                   `json:"refreshTokensChanged,omitempty"`
+	LinkedCharactersChanged bool                   `json:"linkedCharactersChanged,omitempty"`
+	ChangeEvent             map[string]interface{} `json:"changeEvent,omitempty"`
 }
 
 // Watcher watches MongoDB change streams and publishes changes to NATS
@@ -207,6 +210,14 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		return fmt.Errorf("missing collection name in namespace")
 	}
 
+	if isSchemaMaintenanceOnlyUpdate(changeEvent, operationType) {
+		logs.DebugCtx(ctx, "skipping schema-version-only maintenance change event",
+			"component", changestreamLogComponent,
+			"collection", collection,
+			"operation", operationType)
+		return nil
+	}
+
 	// Extract document key (_id)
 	documentKey, ok := changeEvent["documentKey"].(bson.M)
 	if !ok {
@@ -296,16 +307,35 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	}
 
 	var previousDocument map[string]interface{}
+	var previousDocToExtract bson.M
+	if operationType == "update" || operationType == "replace" {
+		previousDocToExtract = subDocumentToMap(changeEvent["fullDocumentBeforeChange"])
+	}
+
 	switch collection {
 	case mongocore.CollectionUsers, mongocore.CollectionApplicationSettings, mongocore.CollectionUserWatchlistDeprecated:
 		if operationType == "update" || operationType == "replace" {
-			if prevM := subDocumentToMap(changeEvent["fullDocumentBeforeChange"]); prevM != nil {
-				previousDocument = make(map[string]interface{}, len(prevM))
-				for k, v := range prevM {
+			if previousDocToExtract != nil {
+				previousDocument = make(map[string]interface{}, len(previousDocToExtract))
+				for k, v := range previousDocToExtract {
 					previousDocument[k] = v
 				}
 			}
 		}
+	}
+	refreshTokensChanged := false
+	linkedCharactersChanged := false
+	if collection == mongocore.CollectionUsers {
+		refreshTokensChanged = usersRefreshTokensChanged(operationType, docToExtract, previousDocToExtract)
+		linkedCharactersChanged = usersRefreshTokenCharacterHashesChanged(operationType, docToExtract, previousDocToExtract)
+		stripUsersRefreshTokenFields(document)
+		stripUsersRefreshTokenFields(previousDocument)
+		// Client no longer needs previous users-doc payload; it relies on change flags
+		// plus dedicated token endpoint reads for linked-character reconciliation.
+		previousDocument = nil
+	} else if collection == mongocore.CollectionApplicationSettings {
+		// Application settings reconcile uses the current authoritative document only.
+		previousDocument = nil
 	}
 
 	// Create NATS subject: doc.update.{collection}.{docID}
@@ -315,18 +345,20 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 
 	// Create message payload
 	message := ChangeStreamMessage{
-		Subject:          subject,
-		Collection:       collection,
-		DocID:            docID,
-		OperationType:    operationType,
-		SourceClientID:   sourceClientID,
-		SourceSessionID:  sourceSessionID,
-		AccountID:        accountID,
-		CorporationID:    corpID,
-		AllianceID:       allianceID,
-		Scopes:           scopePayload,
-		Document:         document,
-		PreviousDocument: previousDocument,
+		Subject:                 subject,
+		Collection:              collection,
+		DocID:                   docID,
+		OperationType:           operationType,
+		SourceClientID:          sourceClientID,
+		SourceSessionID:         sourceSessionID,
+		AccountID:               accountID,
+		CorporationID:           corpID,
+		AllianceID:              allianceID,
+		Scopes:                  scopePayload,
+		Document:                document,
+		PreviousDocument:        previousDocument,
+		RefreshTokensChanged:    refreshTokensChanged,
+		LinkedCharactersChanged: linkedCharactersChanged,
 	}
 
 	// Marshal to JSON
@@ -359,35 +391,153 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		"has_document", document != nil,
 		"has_previous_document", previousDocument != nil)
 
-	// Fan-in: single doc.update.account_sync.{accountID} so clients can subscribe once and refetch both singletons.
-	if collection == mongocore.CollectionUsers || collection == mongocore.CollectionApplicationSettings {
-		syncSubject := fmt.Sprintf("%s.%s.%s", natscore.SubjectDocUpdate, mongocore.CollectionAccountSync, docID)
-		syncMsg := ChangeStreamMessage{
-			Subject:         syncSubject,
-			Collection:      mongocore.CollectionAccountSync,
-			DocID:           docID,
-			OperationType:   operationType,
-			SourceClientID:  sourceClientID,
-			SourceSessionID: sourceSessionID,
-			AccountID:       docID,
-			Document:        nil,
-			ChangeEvent:     nil,
-		}
-		syncData, syncErr := json.Marshal(syncMsg)
-		if syncErr != nil {
-			logs.WarnCtx(ctx, "failed to marshal account sync fan-in message",
-				"component", changestreamLogComponent,
-				"error", syncErr,
-				"doc_id", docID)
-		} else if pubErr := natscore.PublishMessage(ctx, w.jsContext, syncSubject, syncData, w.natsConn); pubErr != nil {
-			logs.WarnCtx(ctx, "failed to publish account sync fan-in to NATS",
-				"component", changestreamLogComponent,
-				"subject", syncSubject,
-				"error", pubErr)
+	return nil
+}
+
+func isSchemaMaintenanceOnlyUpdate(changeEvent bson.M, operationType string) bool {
+	if operationType != "update" {
+		return false
+	}
+	updateDescription := subDocumentToMap(changeEvent["updateDescription"])
+	if updateDescription == nil {
+		return false
+	}
+	updatedFields := subDocumentToMap(updateDescription["updatedFields"])
+	if len(updatedFields) == 0 {
+		return false
+	}
+	if hasRemovedFields(updateDescription["removedFields"]) {
+		return false
+	}
+	for field := range updatedFields {
+		if !isAllowedSchemaMaintenanceField(field) {
+			return false
 		}
 	}
+	_, hasSchemaVersion := updatedFields["schemaVersion"]
+	_, hasSnakeSchemaVersion := updatedFields["schema_version"]
+	return hasSchemaVersion || hasSnakeSchemaVersion
+}
 
+func hasRemovedFields(raw interface{}) bool {
+	if raw == nil {
+		return false
+	}
+	switch v := raw.(type) {
+	case bson.A:
+		return len(v) > 0
+	case []interface{}:
+		return len(v) > 0
+	default:
+		return true
+	}
+}
+
+func isAllowedSchemaMaintenanceField(field string) bool {
+	switch field {
+	case "schemaVersion",
+		"schema_version",
+		"_meta.lastModified",
+		"_meta.last_modified",
+		"lastModified",
+		"last_modified":
+		return true
+	default:
+		return false
+	}
+}
+
+func usersRefreshTokenCharacterHashesChanged(operationType string, currentDoc bson.M, previousDoc bson.M) bool {
+	switch operationType {
+	case "insert":
+		return len(usersRefreshTokenCharacterHashSet(currentDoc)) > 0
+	case "delete":
+		return len(usersRefreshTokenCharacterHashSet(previousDoc)) > 0
+	case "update", "replace":
+		return !equalStringSets(
+			usersRefreshTokenCharacterHashSet(currentDoc),
+			usersRefreshTokenCharacterHashSet(previousDoc),
+		)
+	default:
+		return false
+	}
+}
+
+func usersRefreshTokensChanged(operationType string, currentDoc bson.M, previousDoc bson.M) bool {
+	switch operationType {
+	case "insert":
+		return usersRefreshTokensField(currentDoc) != nil
+	case "delete":
+		return usersRefreshTokensField(previousDoc) != nil
+	case "update", "replace":
+		return !reflect.DeepEqual(usersRefreshTokensField(currentDoc), usersRefreshTokensField(previousDoc))
+	default:
+		return false
+	}
+}
+
+func usersRefreshTokenCharacterHashSet(doc bson.M) map[string]struct{} {
+	field := usersRefreshTokensField(doc)
+	if field == nil {
+		return map[string]struct{}{}
+	}
+
+	var rows []interface{}
+	switch v := field.(type) {
+	case bson.A:
+		rows = []interface{}(v)
+	case []interface{}:
+		rows = v
+	default:
+		return map[string]struct{}{}
+	}
+
+	out := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		m := subDocumentToMap(row)
+		if m == nil {
+			continue
+		}
+		hash := strings.TrimSpace(docFieldString(m, nil, "characterHash", "CharacterHash", "character_hash"))
+		if hash == "" {
+			continue
+		}
+		out[strings.ToLower(hash)] = struct{}{}
+	}
+	return out
+}
+
+func equalStringSets(a, b map[string]struct{}) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k := range a {
+		if _, ok := b[k]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func usersRefreshTokensField(doc bson.M) interface{} {
+	if doc == nil {
+		return nil
+	}
+	if v, ok := doc["refreshTokens"]; ok {
+		return v
+	}
+	if v, ok := doc["refresh_tokens"]; ok {
+		return v
+	}
 	return nil
+}
+
+func stripUsersRefreshTokenFields(doc map[string]interface{}) {
+	if doc == nil {
+		return
+	}
+	delete(doc, "refreshTokens")
+	delete(doc, "refresh_tokens")
 }
 
 func extractOrgRoutingFromDocument(doc bson.M) (corpID, allianceID string, scopes *ScopesPayload) {

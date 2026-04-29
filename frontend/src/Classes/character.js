@@ -1,6 +1,8 @@
 import { decodeJwt } from "jose";
 import refreshAccessTokenESICall from "../Functions/EveESI/Character/refreshAccessToken";
+import refreshCloudAdditionalCharacterAccessToken from "../Functions/EveESI/Character/refreshCloudAdditionalCharacterAccessToken";
 import getCharacterPublicInfo from "../Functions/EveESI/Character/getPublicData";
+import useUsersStore from "../Zustand/usersStore";
 
 /**
  * @typedef {Object} CharacterFromSSOOptions
@@ -141,7 +143,15 @@ class Character {
 
       if (this.esiAccessTokenEXP >= currentTimeStamp + bufferTime) return 0;
       this.refreshState = 2;
-      const JWT = await refreshAccessTokenESICall(this.esiRefreshToken);
+      const cloudAccounts =
+        !!useUsersStore.getState().applicationSettings.userCloudAccounts;
+      // Additional characters loaded from cloud sessions intentionally do not
+      // carry refresh tokens client-side, so they must refresh via the cloud endpoint.
+      const shouldUseCloudAdditionalRefresh =
+        !this.isMainCharacter && (cloudAccounts || !this.esiRefreshToken);
+      const JWT = shouldUseCloudAdditionalRefresh
+        ? await refreshCloudAdditionalCharacterAccessToken(this.CharacterHash)
+        : await refreshAccessTokenESICall(this.esiRefreshToken);
       if (JWT instanceof Error) {
         throw JWT;
       }
@@ -149,7 +159,9 @@ class Character {
 
       this.esiAccessToken = JWT.access_token;
       this.esiAccessTokenEXP = Number(exp);
-      this.esiRefreshToken = JWT.refresh_token;
+      if (!cloudAccounts || this.isMainCharacter) {
+        this.esiRefreshToken = JWT.refresh_token;
+      }
       this.refreshState = 3;
       if (this.isMainCharacter) {
         localStorage.setItem("Auth", JWT.refresh_token);

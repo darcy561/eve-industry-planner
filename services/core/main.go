@@ -11,8 +11,8 @@ import (
 	"eve-industry-planner/core/scheduler"
 	"eve-industry-planner/core/startup"
 	mongoindex "eve-industry-planner/shared/core/mongo/indexing"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry"
 )
 
@@ -65,6 +65,16 @@ func main() {
 		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
 		return
 	}
+	if err := startup.CheckRefreshTokenKeyringCoverage(ctx, clients); err != nil {
+		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
+		return
+	}
+
+	// Log schema lag per collection (non-blocking; does not affect readiness).
+	go func() {
+		startup.ReportSchemaVersionLag(context.Background(), clients.Mongo)
+	}()
+
 	logs.InfoCtx(ctx, "core service running")
 
 	// Start scheduler service (runs in background goroutines)

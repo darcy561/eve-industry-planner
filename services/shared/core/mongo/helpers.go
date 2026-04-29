@@ -200,6 +200,28 @@ func UpsertStructByIDPreservingMeta(ctx context.Context, collection *mongo.Colle
 	return result, nil
 }
 
+// UpsertStructByIDPreservingMetaWithRetry wraps UpsertStructByIDPreservingMeta with
+// standard mongo retry behavior for a named operation.
+func UpsertStructByIDPreservingMetaWithRetry(
+	ctx context.Context,
+	collection *mongo.Collection,
+	v interface{},
+	docID string,
+	operationName string,
+) (*mongo.UpdateResult, error) {
+	retryCfg := DefaultRetryConfig()
+	retryCfg.OperationName = operationName
+	var out *mongo.UpdateResult
+	if err := RetryMongoOperation(ctx, retryCfg, func() error {
+		var upsertErr error
+		out, upsertErr = UpsertStructByIDPreservingMeta(ctx, collection, v, docID)
+		return upsertErr
+	}); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UpsertStructsByIDPreservingMetaBulk upserts many structs by _id using unordered bulk writes.
 // It preserves existing _meta fields and updates _meta.lastModified.
 // Invalid items (missing docID or marshal errors) are counted as failures and skipped.

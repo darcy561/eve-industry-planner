@@ -194,11 +194,11 @@ func GetAPISessionRefresh() *APISessionRefreshMetrics {
 
 // APIAuthSessionLifecycleMetrics holds OTel metrics for auth session lifecycle events.
 type APIAuthSessionLifecycleMetrics struct {
-	Started      *counterVec
-	Continued    *counterVec
-	Ended        *counterVec
-	Stored       *counterVec
-	StoreErrors  *counterVec
+	Started     *counterVec
+	Continued   *counterVec
+	Ended       *counterVec
+	Stored      *counterVec
+	StoreErrors *counterVec
 }
 
 var (
@@ -549,6 +549,45 @@ func GetAPIGroups() *APIGroupsMetrics {
 		}
 	})
 	return apiGroupsHolder
+}
+
+// APIStatisticsMetrics holds OpenTelemetry metrics for statistics endpoints.
+type APIStatisticsMetrics struct {
+	Requests      *floatHist
+	RequestsCount *intCounter
+	Successes     *intCounter
+	Errors        *counterVec
+}
+
+var (
+	apiStatisticsOnce   sync.Once
+	apiStatisticsHolder *APIStatisticsMetrics
+)
+
+// GetAPIStatistics returns statistics API metrics.
+func GetAPIStatistics() *APIStatisticsMetrics {
+	apiStatisticsOnce.Do(func() {
+		m := apiMeter()
+		apiStatisticsHolder = &APIStatisticsMetrics{
+			Requests: &floatHist{h: mustHist(m.Float64Histogram("api.statistics.duration_milliseconds",
+				metric.WithUnit("ms"),
+				metric.WithDescription("Latency of statistics API requests (milliseconds)"),
+			))},
+			RequestsCount: &intCounter{c: mustCounter(m.Int64Counter("api.statistics.requests_total",
+				metric.WithDescription("Total statistics API requests"),
+			))},
+			Successes: &intCounter{c: mustCounter(m.Int64Counter("api.statistics.successes_total",
+				metric.WithDescription("Successful statistics API requests"),
+			))},
+			Errors: &counterVec{
+				c: mustCounter(m.Int64Counter("api.statistics.errors_total",
+					metric.WithDescription("Statistics API errors by reason"),
+				)),
+				attrKey: "reason",
+			},
+		}
+	})
+	return apiStatisticsHolder
 }
 
 // StaticDataFileMetrics holds duration + request count for one /api/static-data file endpoint.

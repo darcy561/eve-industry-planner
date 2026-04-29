@@ -13,8 +13,8 @@ import (
 	"eve-industry-planner/shared/telemetry/natsprop"
 
 	natslib "github.com/nats-io/nats.go"
-	"go.opentelemetry.io/otel/codes"
 	"github.com/nats-io/nats.go/jetstream"
+	"go.opentelemetry.io/otel/codes"
 )
 
 // Connect establishes a connection and returns it.

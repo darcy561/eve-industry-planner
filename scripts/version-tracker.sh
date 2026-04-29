@@ -37,6 +37,13 @@ get_stored_sync_commit() {
     fi
 }
 
+required_bundle_files_missing() {
+    [ ! -f "$RUN_DIR/docker-compose.yml" ] && return 0
+    [ ! -f "$RUN_DIR/scripts/mongo-setup.sh" ] && return 0
+    [ ! -f "$RUN_DIR/scripts/ensure-refresh-token-key.sh" ] && return 0
+    return 1
+}
+
 apply_public_archive() {
     local commit_sha="$1"
 
@@ -127,6 +134,11 @@ update_files() {
     stored=$(get_stored_sync_commit)
 
     if [ -n "$stored" ] && [ -n "$latest_commit" ] && [ "$latest_commit" != "unknown" ] && [ "$stored" = "$latest_commit" ]; then
+        if required_bundle_files_missing; then
+            echo "Tracked bundle file(s) missing locally; forcing re-sync..."
+            apply_public_archive "$latest_commit"
+            return 0
+        fi
         echo "All files are up to date (Public @ ${latest_commit:0:8})"
         return 0
     fi

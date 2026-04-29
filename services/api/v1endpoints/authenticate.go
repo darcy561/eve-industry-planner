@@ -3,16 +3,15 @@ package v1endpoints
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
+	userendpoints "eve-industry-planner/api/v1endpoints/user"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/core/internaljwt"
-	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/shared/models"
@@ -27,21 +26,19 @@ const (
 
 // AuthResponse represents the response sent to the client
 type AuthResponse struct {
-	AccountID           string                     `json:"account_id"`
-	AccessToken         string                     `json:"access_token"`
-	RefreshToken        string                     `json:"refresh_token"`
-	ExpiresAt           int64                      `json:"expires_at"` // Unix timestamp (seconds since epoch)
-	FirstLogin          bool                       `json:"first_login"`
-	UserDocument        models.UserAccountDocument `json:"user_document"`
-	ApplicationSettings models.ApplicationSettings `json:"application_settings"`
+	AccountID           string                          `json:"account_id"`
+	AccessToken         string                          `json:"access_token"`
+	RefreshToken        string                          `json:"refresh_token"`
+	ExpiresAt           int64                           `json:"expires_at"` // Unix timestamp (seconds since epoch)
+	FirstLogin          bool                            `json:"first_login"`
+	UserDocument        models.UserAccountDocument      `json:"user_document"`
+	ApplicationSettings models.ApplicationSettings      `json:"application_settings"`
+	LinkedCharacters    []models.LinkedCharacterSession `json:"linked_characters,omitempty"`
 }
 
 func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
-	start, ok := logs.RequestStartTime(ctx)
-	if !ok {
-		start = time.Now()
-	}
+	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
 	sessionMetrics := apimetrics.GetAPIAuthSessionLifecycle()
 	cfg, err := config.LoadConfig()
@@ -55,12 +52,11 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 	}
 
 	// Only allow POST requests
-	if r.Method != http.MethodPost {
+	if !helper.RequireMethod(w, r, http.MethodPost) {
 		duration := time.Since(start)
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "method_not_allowed")
 		logs.WarnCtx(ctx, "invalid method for auth endpoint")
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -214,7 +210,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 	sessionMetrics.Stored.WithLabelValues("login").Inc(ctx)
 	apimetrics.RecordAuthSessionDistinctAccount(ctx, clients.Redis, internalClaims.AccountID)
 
-	loginDocs, err := mongocore.ResolveUserDocumentsForLogin(ctx, clients.Mongo, accountID)
+	loginDocs, err := helper.ResolveUserDocumentsForLogin(ctx, clients.Mongo, accountID)
 	if err != nil {
 		duration := time.Since(start)
 		m.Errors.WithLabelValues("mongo_error").Inc(ctx)
@@ -228,17 +224,38 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 	// Calculate expiration timestamp using the same duration as token generation (Unix timestamp in seconds)
 	expiresAt := time.Now().Add(internaljwt.TokenExpirationDuration).Unix()
 
+	userOut := loginDocs.User
+	var linkedCharacters []models.LinkedCharacterSession
+	if userOut.UserCloudAccounts && cfg.RefreshTokenKeyring != nil {
+		if len(userOut.RefreshTokens) > 0 {
+			linkedCharacterSessions, err := userendpoints.BuildCloudLinkedCharactersForLogin(
+				ctx, clients.Mongo, accountID, &userOut,
+				cfg.EveSSOClientID, cfg.EveSSOClientSecret, cfg.RefreshTokenKeyring,
+			)
+			if err != nil {
+				logs.WarnCtx(ctx, "cloud linked-character ESI session bundle failed",
+					"error", err, "account_id", accountID)
+			} else {
+				linkedCharacters = linkedCharacterSessions
+			}
+		}
+		userendpoints.StripRefreshTokensFromUserDocumentForClient(&userOut)
+	}
+
 	response := AuthResponse{
 		AccountID:           accountID,
 		AccessToken:         internalToken,
 		RefreshToken:        refreshToken,
 		ExpiresAt:           expiresAt,
-		FirstLogin:   loginDocs.FirstLogin,
-		UserDocument: loginDocs.User,
+		FirstLogin:          loginDocs.FirstLogin,
+		UserDocument:        userOut,
 		ApplicationSettings: loginDocs.Settings,
+		LinkedCharacters:    linkedCharacters,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
 	w.WriteHeader(http.StatusOK)
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
@@ -284,31 +301,11 @@ func extractAppVersion(r *http.Request) string {
 // We use POST with body (not GET with header) to avoid tokens appearing in logs/URLs
 // Implements security measures: body size limits and input validation
 func extractTokenFromRequest(r *http.Request) (string, error) {
-	// Limit request body size to prevent DoS attacks
-	// Add buffer for JSON structure (maxTokenLength + JSON overhead)
-	r.Body = http.MaxBytesReader(nil, r.Body, maxTokenLength+1024)
-
 	var reqBody struct {
 		Token string `json:"token"`
 	}
-
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields() // Reject requests with unexpected fields
-
-	if err := decoder.Decode(&reqBody); err != nil {
-		if err == io.EOF {
-			return "", errors.New("request body is required")
-		}
-		// Check for body size exceeded error
-		if strings.Contains(err.Error(), "request body too large") {
-			return "", errors.New("request body too large")
-		}
-		return "", fmt.Errorf("invalid request body: %w", err)
-	}
-
-	// Ensure body was fully consumed (prevents extra data attacks)
-	if _, err := decoder.Token(); err != io.EOF {
-		return "", errors.New("request body contains extra data")
+	if err := helper.DecodeJSONRequest(r, &reqBody, maxTokenLength+1024); err != nil {
+		return "", err
 	}
 
 	if reqBody.Token == "" {

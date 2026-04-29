@@ -28,20 +28,6 @@ export function handleApplicationSettingsDocumentDelete(ctx) {
 }
 
 /**
- * @param {Record<string, unknown>|undefined} doc
- * @returns {boolean|undefined}
- */
-function userCloudAccountsFromRemoteDoc(doc) {
-  if (!doc || typeof doc !== "object") return undefined;
-  if ("userCloudAccounts" in doc) return !!doc.userCloudAccounts;
-  const account = doc.account;
-  if (account && typeof account === "object" && "cloudAccounts" in account) {
-    return !!(/** @type {Record<string, unknown>} */ (account).cloudAccounts);
-  }
-  return undefined;
-}
-
-/**
  * @param {{
  *   accountId: string;
  *   docKey: string;
@@ -58,11 +44,7 @@ export function handleApplicationSettingsDocumentUpsert(ctx) {
     ctx;
   if (docID !== accountId) return false;
 
-  const fromServerPrev = userCloudAccountsFromRemoteDoc(previousDocument);
-  const prevCloudAccounts =
-    fromServerPrev !== undefined
-      ? fromServerPrev
-      : !!useUsersStore.getState().applicationSettings.userCloudAccounts;
+  const prevCloudAccounts = !!useUsersStore.getState().applicationSettings.userCloudAccounts;
 
   const mainHash =
     useUsersStore.getState().account.mainCharacterHash ?? undefined;

@@ -25,7 +25,7 @@ async function getEveOauthToken(authCode, accountType = false) {
     }
 
     const response = await fetchWithPublicHeaders(
-      "/api/v1/sso/exchange",
+      "/api/v1/eve-sso/tokens/exchange",
       {
         method: "POST",
         headers: {

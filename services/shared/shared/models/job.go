@@ -11,6 +11,7 @@ import (
 // This model is shared across services for job data consistency.
 // Ownership and lifecycle (account, archive, delete flags) live on MetaData (`_meta`), not root fields.
 type Job struct {
+	SchemaVersion       int         `json:"schemaVersion,omitempty" bson:"schemaVersion,omitempty"`
 	DisplayOnPlanner    bool        `json:"displayOnPlanner" bson:"displayOnPlanner"`
 	IncludedInGroup     bool        `json:"includedInGroup" bson:"includedInGroup"`
 	MetaLevel           *int        `json:"metaLevel" bson:"metaLevel"`
@@ -209,7 +210,7 @@ type JobMaterial struct {
 // Purchase represents a material purchase transaction.
 // Matches useBuildMaterialPriceObject / material purchasing rows in frontend Classes/job.js (typeID duplicates parent material for UI).
 type Purchase struct {
-	TypeID         int     `json:"typeID" bson:"typeID"` // EVE type id (frontend includes on each row); zero encodes as 0 when unknown
+	TypeID         int     `json:"typeID" bson:"typeID"`                       // EVE type id (frontend includes on each row); zero encodes as 0 when unknown
 	ID             string  `json:"id" bson:"id"`                               // UUID identifier
 	ChildID        string  `json:"childID,omitempty" bson:"childID,omitempty"` // Child job id; empty if none; normalized in archiveimport.normalizePurchasing
 	ChildJobImport bool    `json:"childJobImport" bson:"childJobImport"`       // Whether this purchase is imported from a child job

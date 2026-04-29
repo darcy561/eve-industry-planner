@@ -6,6 +6,7 @@ import (
 	"eve-industry-planner/core/scheduler/archivedjobs"
 	"eve-industry-planner/core/scheduler/contract"
 	"eve-industry-planner/core/scheduler/esi"
+	"eve-industry-planner/core/scheduler/maintenance"
 	"eve-industry-planner/core/scheduler/sde"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
@@ -116,6 +117,7 @@ func StartService(logComponent string, natsConn *natslib.Conn, jsContext jetstre
 	registry.Register(esi.ScheduleMarketPricesCount)
 	registry.Register(sde.ScheduleCheckSDEUpdates)
 	registry.Register(archivedjobs.ScheduleProcessArchivedBuildStats)
+	registry.Register(maintenance.ScheduleSchemaVersionMaintenance)
 	// Add more schedulers here:
 	// registry.Register(market.ScheduleMarketHistoryRefresh)
 

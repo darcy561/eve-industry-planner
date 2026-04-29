@@ -1,12 +1,11 @@
 /**
  * Pulls latest `users` + `application_settings` from the API and applies reconcile logic.
- * Used after WebSocket (re)connect and after `account_sync` fan-in notifications.
+ * Used after WebSocket (re)connect and visibility wakeups.
  */
 
 import useUsersStore from "../Zustand/usersStore.js";
 import { metaLastModifiedMs } from "../Zustand/realtimeSyncSlice.js";
 import {
-  normalizeRefreshTokens,
   reconcileAfterRemoteApplicationSettings,
   reconcileAfterRemoteUserDoc,
 } from "./handlers/accountReconcile.js";
@@ -28,9 +27,9 @@ export async function syncAccountDocumentsFromServer() {
     if (!rs) return;
 
     const snap = {
-      prevLinkedTokens: normalizeRefreshTokens(
-        useUsersStore.getState().account.linkedCharacterRefreshTokens
-      ),
+      prevLinkedTokens: [],
+      refreshTokensChanged: true,
+      linkedCharactersChanged: true,
     };
     const prevCloudAccounts = !!useUsersStore.getState().applicationSettings
       .userCloudAccounts;

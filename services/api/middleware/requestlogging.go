@@ -84,7 +84,9 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 						"content_encoding": contentEncoding,
 					})
 					// Attach local call stack so non-panic 5xx events still provide source hints.
-					scope.SetExtra("capture_stack", string(debug.Stack()))
+					scope.SetContext("debug", map[string]interface{}{
+						"capture_stack": string(debug.Stack()),
+					})
 					if herr := logs.HandlerErrorFromRequest(r); herr != nil {
 						scope.SetTag("handler_error", "true")
 						sentry.CaptureException(herr)

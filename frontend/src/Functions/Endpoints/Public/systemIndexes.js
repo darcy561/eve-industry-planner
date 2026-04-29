@@ -29,7 +29,7 @@ async function fetchSystemIndexes(inputArray) {
     return returnObject;
   }
 
-  const URL = `/api/v1/systemindexes/query`;
+  const URL = `/api/v1/system-indexes`;
 
   try {
     const chunks = [];

@@ -107,6 +107,7 @@ deployment_incomplete() {
     [ ! -f "$RUN_DIR/docker-compose.yml" ] && return 0
     [ ! -f "$RUN_DIR/observability/prometheus/prometheus.yml" ] && return 0
     [ ! -f "$RUN_DIR/scripts/mongo-setup.sh" ] && return 0
+    [ ! -f "$RUN_DIR/scripts/ensure-refresh-token-key.sh" ] && return 0
     return 1
 }
 

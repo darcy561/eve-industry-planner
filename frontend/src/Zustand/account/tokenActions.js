@@ -5,7 +5,6 @@
  * @fileoverview Token and session credential actions on the account slice
  */
 
-import { canonicalCharacterHashKey } from "../../Functions/Auth/characterHashCanonical.js";
 import {
   decodeAppJwt,
   getEffectiveAppAccessExpiryUnix,
@@ -79,6 +78,42 @@ function linkedSetsFromUserDocument(userDoc) {
   };
 }
 
+/**
+ * @param {object|null|undefined} userDoc
+ * @returns {boolean|undefined}
+ */
+function userCloudAccountsFromUserDocument(userDoc) {
+  if (!userDoc || typeof userDoc !== "object" || Array.isArray(userDoc)) {
+    return undefined;
+  }
+  if (userDoc.userCloudAccounts !== undefined) {
+    return !!userDoc.userCloudAccounts;
+  }
+  if (userDoc.user_cloud_accounts !== undefined) {
+    return !!userDoc.user_cloud_accounts;
+  }
+  return undefined;
+}
+
+/**
+ * Mongo `users.hasCompletedFirstLoginFlow` from login / realtime `user_document`.
+ *
+ * @param {object|null|undefined} userDoc
+ * @returns {boolean|undefined}
+ */
+function hasCompletedFirstLoginFlowFromUserDocument(userDoc) {
+  if (!userDoc || typeof userDoc !== "object" || Array.isArray(userDoc)) {
+    return undefined;
+  }
+  if ("hasCompletedFirstLoginFlow" in userDoc) {
+    return Boolean(userDoc.hasCompletedFirstLoginFlow);
+  }
+  if ("has_completed_first_login_flow" in userDoc) {
+    return Boolean(userDoc.has_completed_first_login_flow);
+  }
+  return undefined;
+}
+
 /** @param {Function} set @param {Function} get */
 export const tokenActions = (set, get) => ({
   /**
@@ -148,6 +183,13 @@ export const tokenActions = (set, get) => ({
           response.user_document
         );
 
+        const ud = response.user_document;
+        let nextHasCompletedFirstLogin;
+        if (ud && typeof ud === "object" && !Array.isArray(ud)) {
+          nextHasCompletedFirstLogin =
+            hasCompletedFirstLoginFlowFromUserDocument(ud) ?? false;
+        }
+
         const mainCharacterHashForMerge =
           mainCharacterHash !== undefined
             ? mainCharacterHash || undefined
@@ -163,6 +205,16 @@ export const tokenActions = (set, get) => ({
             response.application_settings,
             mainCharacterHashForMerge
           );
+        }
+        const userCloudAccounts = userCloudAccountsFromUserDocument(
+          response.user_document
+        );
+        if (userCloudAccounts !== undefined) {
+          nextApplicationSettings = {
+            ...nextApplicationSettings,
+            userCloudAccounts,
+            actions: nextApplicationSettings.actions,
+          };
         }
 
         return {
@@ -181,6 +233,9 @@ export const tokenActions = (set, get) => ({
               response.refresh_token_exp ?? response.refresh_token_expires_at,
             isFirstTimeLogin,
             ...linkedPatch,
+            ...(nextHasCompletedFirstLogin !== undefined && {
+              hasCompletedFirstLoginFlow: nextHasCompletedFirstLogin,
+            }),
             actions: state.account.actions,
           },
           applicationSettings: nextApplicationSettings,
@@ -209,14 +264,27 @@ export const tokenActions = (set, get) => ({
   applyUserDocumentFromRemote: (doc) => {
     if (!doc || typeof doc !== "object") return;
     const linkedPatch = linkedSetsFromUserDocument(doc);
+    const userCloudAccounts = userCloudAccountsFromUserDocument(doc);
+    const completedFirstLogin =
+      hasCompletedFirstLoginFlowFromUserDocument(doc);
     set(
       (state) => ({
         ...state,
         account: {
           ...state.account,
           ...linkedPatch,
+          ...(completedFirstLogin !== undefined && {
+            hasCompletedFirstLoginFlow: completedFirstLogin,
+          }),
           actions: state.account.actions,
         },
+        ...(userCloudAccounts !== undefined && {
+          applicationSettings: {
+            ...state.applicationSettings,
+            userCloudAccounts,
+            actions: state.applicationSettings.actions,
+          },
+        }),
       }),
       false,
       "account/applyUserDocumentFromRemote"
@@ -409,114 +477,4 @@ export const tokenActions = (set, get) => ({
     get().account.actions.updateCharacters([...get().account.characters]);
   },
 
-  /**
-   * Replaces the cloud-linked ESI refresh token list (Mongo / migration).
-   */
-  updateLinkedCharacterRefreshTokens: (array) => {
-    set(
-      (state) => ({
-        ...state,
-        account: {
-          ...state.account,
-          linkedCharacterRefreshTokens: array,
-          actions: state.account.actions,
-        },
-      }),
-      false,
-      "account/updateLinkedCharacterRefreshTokens"
-    );
-  },
-
-  /**
-   * Appends one `{ CharacterHash, rToken }` entry for cloud-linked characters.
-   */
-  addLinkedCharacterRefreshToken: (token) => {
-    set(
-      (state) => {
-        const row = /** @type {{ CharacterHash?: string, characterHash?: string }} */ (
-          token
-        );
-        const raw =
-          typeof row.CharacterHash === "string"
-            ? row.CharacterHash
-            : typeof row.characterHash === "string"
-              ? row.characterHash
-              : "";
-        const canon = canonicalCharacterHashKey(raw);
-        const list = [...state.account.linkedCharacterRefreshTokens];
-        const idx = list.findIndex((t) => {
-          const tr = /** @type {{ CharacterHash?: string, characterHash?: string }} */ (t);
-          const h =
-            typeof tr.CharacterHash === "string"
-              ? tr.CharacterHash
-              : typeof tr.characterHash === "string"
-                ? tr.characterHash
-                : "";
-          return canonicalCharacterHashKey(h) === canon;
-        });
-        if (idx >= 0) list[idx] = token;
-        else list.push(token);
-        return {
-          ...state,
-          account: {
-            ...state.account,
-            linkedCharacterRefreshTokens: list,
-            actions: state.account.actions,
-          },
-        };
-      },
-      false,
-      "account/addLinkedCharacterRefreshToken"
-    );
-  },
-
-  /**
-   * Sets the full cloud-linked ESI refresh token list.
-   */
-  setLinkedCharacterRefreshTokens: (array) => {
-    set(
-      (state) => ({
-        ...state,
-        account: {
-          ...state.account,
-          linkedCharacterRefreshTokens: array,
-          actions: state.account.actions,
-        },
-      }),
-      false,
-      "account/setLinkedCharacterRefreshTokens"
-    );
-  },
-
-  /**
-   * Removes a cloud-linked token by character hash (`CharacterHash` or `characterHash`).
-   */
-  removeLinkedCharacterRefreshToken: (characterHash) => {
-    const drop = canonicalCharacterHashKey(characterHash);
-    set(
-      (state) => ({
-        ...state,
-        account: {
-          ...state.account,
-          linkedCharacterRefreshTokens:
-            state.account.linkedCharacterRefreshTokens.filter((token) => {
-              const row =
-                /** @type {{ CharacterHash?: string, characterHash?: string }} */ (
-                  token
-                );
-              const h =
-                typeof row.CharacterHash === "string"
-                  ? row.CharacterHash
-                  : typeof row.characterHash === "string"
-                    ? row.characterHash
-                    : "";
-              return canonicalCharacterHashKey(h) !== drop;
-            }),
-          actions: state.account.actions,
-        },
-      }),
-      false,
-      "account/removeLinkedCharacterRefreshToken"
-    );
-  },
 });

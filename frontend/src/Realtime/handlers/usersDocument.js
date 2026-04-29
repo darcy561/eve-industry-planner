@@ -34,14 +34,25 @@ export function handleUsersDocumentDelete(ctx) {
  *   docID: string;
  *   document: Record<string, unknown>;
  *   previousDocument?: Record<string, unknown>;
+ *   refreshTokensChanged?: boolean;
+ *   linkedCharactersChanged?: boolean;
  *   rs: { setCursorMs: (k: string, ms: number) => void };
  *   remoteMs: number;
  * }} ctx
  * @returns {boolean}
  */
 export function handleUsersDocumentUpsert(ctx) {
-  const { accountId, docID, docKey, document, previousDocument, rs, remoteMs } =
-    ctx;
+  const {
+    accountId,
+    docID,
+    docKey,
+    document,
+    previousDocument,
+    refreshTokensChanged = false,
+    linkedCharactersChanged = false,
+    rs,
+    remoteMs,
+  } = ctx;
   if (docID !== accountId) return false;
 
   let snap;
@@ -54,10 +65,16 @@ export function handleUsersDocumentUpsert(ctx) {
   }
   if (!snap) {
     snap = {
-      prevLinkedTokens: normalizeRefreshTokens(
-        useUsersStore.getState().account.linkedCharacterRefreshTokens
-      ),
+      prevLinkedTokens: [],
+      refreshTokensChanged,
+      linkedCharactersChanged,
     };
+  }
+  if (snap.refreshTokensChanged == null) {
+    snap.refreshTokensChanged = refreshTokensChanged;
+  }
+  if (snap.linkedCharactersChanged == null) {
+    snap.linkedCharactersChanged = linkedCharactersChanged;
   }
 
   useUsersStore.getState().account.actions.applyUserDocumentFromRemote(document);

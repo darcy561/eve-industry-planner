@@ -109,6 +109,7 @@ export async function applyClientSessionAfterAppTokens(input) {
     queryClient,
     prefetchMultipleCharacters,
     userDocument: tokenResponse.user_document,
+    linkedCharacters: tokenResponse.linked_characters,
   });
 
   bootstrapWatchlistLoginStep();

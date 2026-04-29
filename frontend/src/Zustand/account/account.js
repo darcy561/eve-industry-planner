@@ -28,15 +28,12 @@ export const accountStateDefault = () => ({
   refreshTokenEXP: null,
   /** From login response: Mongo first-login (new account) flag. */
   isFirstTimeLogin: false,
+  /** Persisted on Mongo `users`: first-login guided flow completed (`user_document.hasCompletedFirstLoginFlow`). */
+  hasCompletedFirstLoginFlow: false,
   /** ESI IDs for real-time linking (from login `user_document` linked* arrays when present). */
   linkedOrders: new Set(),
   linkedJobs: new Set(),
   linkedTrans: new Set(),
-  /**
-   * ESI refresh tokens for linked characters (`CharacterHash` + `rToken`), distinct from
-   * session `refreshToken` / `refreshTokenEXP` for the app JWT.
-   */
-  linkedCharacterRefreshTokens: [],
   /** Logged-in EVE characters (`Character` instances); main character is flagged with `isMainCharacter`. */
   characters: [Character.placeholder()],
   /** Loaded `Corporation` instances for the account (see `corporationsActions`). */
@@ -70,7 +67,7 @@ export const accountActions = (set, get) => ({
     return (
       Boolean(state.account.isLoggedIn) &&
       (Boolean(state.account.isFirstTimeLogin) ||
-        !Boolean(state.applicationSettings.hasCompletedFirstLoginFlow))
+        !Boolean(state.account.hasCompletedFirstLoginFlow))
     );
   },
 
@@ -192,11 +189,34 @@ export const accountActions = (set, get) => ({
    */
   linkedEsiToDocument: () => {
     const a = get().account;
+    const cloudAccounts = !!get().applicationSettings.userCloudAccounts;
     return {
       linkedOrders: [...(a.linkedOrders || [])],
       linkedJobs: [...(a.linkedJobs || [])],
       linkedTrans: [...(a.linkedTrans || [])],
+      userCloudAccounts: cloudAccounts,
+      hasCompletedFirstLoginFlow: Boolean(a.hasCompletedFirstLoginFlow),
     };
+  },
+
+  /**
+   * Mirrors Mongo `users.hasCompletedFirstLoginFlow`; persisted via {@link linkedEsiToDocument} PUT.
+   *
+   * @param {boolean} value
+   */
+  setHasCompletedFirstLoginFlow: (value) => {
+    set(
+      (state) => ({
+        ...state,
+        account: {
+          ...state.account,
+          hasCompletedFirstLoginFlow: Boolean(value),
+          actions: state.account.actions,
+        },
+      }),
+      false,
+      "account/setHasCompletedFirstLoginFlow"
+    );
   },
 
   ...characterActions(set, get),

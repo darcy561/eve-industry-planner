@@ -10,10 +10,10 @@ import (
 
 // Message type constants for the Message.Type field
 const (
-	MessageTypeTask          = "task"          // Task message type
-	MessageTypeSchedule      = "schedule"      // Schedule message type
-	MessageTypeEmpty         = "empty"         // Empty message type
-	MessageTypeSubscription  = "subscription"  // Legacy envelope type (historic doc.subscribe payloads)
+	MessageTypeTask         = "task"         // Task message type
+	MessageTypeSchedule     = "schedule"     // Schedule message type
+	MessageTypeEmpty        = "empty"        // Empty message type
+	MessageTypeSubscription = "subscription" // Legacy envelope type (historic doc.subscribe payloads)
 )
 
 const (
@@ -103,9 +103,9 @@ func (ScheduleRequest) MessageType() string {
 //   - Omit the field or use 0 to keep the per-task-type default from shared/tasks (Go time.Duration there).
 //   - Values are clamped server-side (see worker asynq GetTaskTimeout).
 type TaskMessage struct {
-	TaskType       string          `json:"task_type"`          // Task type identifier
-	Data           json.RawMessage `json:"data,omitempty"`     // Optional task-specific data
-	Priority       string          `json:"priority,omitempty"` // Optional queue name override (e.g. "priority_5"); empty uses task default
+	TaskType       string          `json:"task_type"`                 // Task type identifier
+	Data           json.RawMessage `json:"data,omitempty"`            // Optional task-specific data
+	Priority       string          `json:"priority,omitempty"`        // Optional queue name override (e.g. "priority_5"); empty uses task default
 	TimeoutSeconds int             `json:"timeout_seconds,omitempty"` // NATS override: asynq handler timeout as a count of seconds (int only; not minutes/ms)
 }
 
@@ -191,6 +191,33 @@ type ProcessArchivedBuildStatsRequest struct {
 type ImportUserJobDocumentsForAccountRequest struct {
 	AccountID                 string `json:"account_id"`
 	LoginRecencyMaxAgeSeconds int64  `json:"login_recency_max_age_seconds,omitempty"`
+}
+
+// RotateRefreshTokenKeysRequest is the per-account maintenance task payload for key rotation.
+type RotateRefreshTokenKeysRequest struct {
+	AccountID   string `json:"account_id"`
+	FromVersion string `json:"from_version,omitempty"`
+	DryRun      bool   `json:"dry_run,omitempty"`
+}
+
+// SchemaVersionMaintenanceBatchRequest scopes one schema-maintenance batch run.
+type SchemaVersionMaintenanceBatchRequest struct {
+	Collection string `json:"collection"`
+	BatchSize  int    `json:"batch_size,omitempty"`
+}
+
+// EncryptCloudRefreshTokensRequest is the per-account migration task payload for
+// encrypting legacy plaintext refreshTokens[].rToken rows.
+type EncryptCloudRefreshTokensRequest struct {
+	AccountID string `json:"account_id"`
+	DryRun    bool   `json:"dry_run,omitempty"`
+}
+
+// MigrateUserCloudAccountsToUserDocRequest is the per-account migration payload
+// for moving userCloudAccounts from application_settings to users.
+type MigrateUserCloudAccountsToUserDocRequest struct {
+	AccountID string `json:"account_id"`
+	DryRun    bool   `json:"dry_run,omitempty"`
 }
 
 // SubscriptionRequest is retained for decoding legacy JetStream payloads (MessageTypeSubscription).
