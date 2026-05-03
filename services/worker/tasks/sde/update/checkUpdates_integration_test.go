@@ -138,6 +138,7 @@ func TestSDEUpdateWorkflowIntegration_buildsLatestSDEAndWritesDataFiles(t *testi
 	assertFileJSON(t, filepath.Join(liveDir, "searchIndex.json"), true)
 	assertFileJSON(t, filepath.Join(liveDir, "fullItemList.json"), true)
 	assertFileJSON(t, filepath.Join(liveDir, "reprocessingData.json"), true)
+	assertFileJSON(t, filepath.Join(liveDir, "inventionModifiers.json"), true)
 
 	rootVersionPath := filepath.Join(dataDir, "version.json")
 	rootB, err := os.ReadFile(rootVersionPath)
@@ -241,6 +242,7 @@ func TestSDEUpdateWorkflowIntegration_generatesAndVersionFiles(t *testing.T) {
 	assertFileJSON(t, filepath.Join(liveDir, "searchIndex.json"), true)
 	assertFileJSON(t, filepath.Join(liveDir, "fullItemList.json"), true)
 	assertFileJSON(t, filepath.Join(liveDir, "reprocessingData.json"), true)
+	assertFileJSON(t, filepath.Join(liveDir, "inventionModifiers.json"), true)
 
 	// Validate root version.json build_number matches the last synthetic update.
 	rootVersionPath := filepath.Join(dataDir, "version.json")

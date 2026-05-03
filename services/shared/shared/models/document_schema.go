@@ -19,13 +19,12 @@ func UpgradeUserAccountDocument(doc *UserAccountDocument) {
 		return
 	}
 	// Missing BSON field decodes to zero-value int.
-	if doc.SchemaVersion < 0 {
+	if doc.SchemaVersion <= 0 {
 		doc.SchemaVersion = 0
 	}
-	// v0 -> v1: introduce hasCompletedFirstLoginFlow on users.
-	// Do not overwrite HasCompletedFirstLoginFlow here: request payloads may omit
-	// schemaVersion while explicitly setting this flag.
 	if doc.SchemaVersion < 1 {
+		doc.HasCompletedFirstLoginFlow = false
+		doc.ShareCitadelNames = true
 		doc.SchemaVersion = 1
 	}
 	if doc.SchemaVersion > UserAccountDocumentSchemaCurrent {
@@ -43,8 +42,11 @@ func UpgradeApplicationSettings(doc *ApplicationSettings, accountID string, now 
 	if doc.SchemaVersion <= 0 {
 		doc.SchemaVersion = ApplicationSettingsSchemaCurrent
 	}
-	_ = accountID
-	_ = now
+
+	if doc.SchemaVersion < 1 {
+		doc.CustomStructures.Invention = []InventionStructure{}
+		doc.SchemaVersion = 1
+	}
 	if doc.SchemaVersion > ApplicationSettingsSchemaCurrent {
 		doc.SchemaVersion = ApplicationSettingsSchemaCurrent
 	}

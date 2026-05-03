@@ -35,12 +35,12 @@ func ResolveUserDocumentsForLogin(ctx context.Context, dbClient *mongo.Client, a
 	usersCol := db.Collection(mongocore.CollectionUsers)
 	settingsCol := db.Collection(mongocore.CollectionApplicationSettings)
 
-	userDoc, _, userErr := mongoget.LoadUserAccountDocument(ctx, usersCol, accountID)
+	userDoc, userErr := mongoget.LoadUserAccountDocument(ctx, usersCol, accountID)
 	userExists := userErr == nil
 	if userErr != nil && !errors.Is(userErr, mongo.ErrNoDocuments) {
 		return nil, fmt.Errorf("load user document: %w", userErr)
 	}
-	settingsDoc, _, settingsErr := mongoget.LoadApplicationSettingsDocument(ctx, settingsCol, accountID, now)
+	settingsDoc, settingsErr := mongoget.LoadApplicationSettingsDocument(ctx, settingsCol, accountID, now)
 	settingsExist := settingsErr == nil
 	if settingsErr != nil && !errors.Is(settingsErr, mongo.ErrNoDocuments) {
 		return nil, fmt.Errorf("load application settings document: %w", settingsErr)

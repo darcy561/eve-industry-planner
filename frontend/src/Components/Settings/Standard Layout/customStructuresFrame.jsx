@@ -4,6 +4,7 @@ import JobTypeSelection_CustomStructures from "./Custom Structures/jobTypeSelect
 import StructureOptionsSelection_CustomStructures from "./Custom Structures/structureSelection";
 import ReprocessingStructureSelection from "./Custom Structures/reprocessingStructureSelection";
 import CurrentStructuresFrame from "./Custom Structures/currentStructures";
+import InventionStructureSelection from "./Custom Structures/inventionStructureSelection";
 import { jobTypes } from "../../../Context/defaultValues";
 
 function CustomStructuresFrame() {
@@ -30,13 +31,21 @@ function CustomStructuresFrame() {
 
       {initialSelectionMade && (
         <Box sx={{ flexShrink: 0 }}>
-          {selectedJobType === jobTypes.reprocessing ? (
+          {selectedJobType === jobTypes.invention && (
+            <InventionStructureSelection
+              key={selectedJobType}
+              selectedJobType={selectedJobType}
+              setIsLoading={setIsLoading}
+            />
+          )}
+          {selectedJobType === jobTypes.reprocessing && (
             <ReprocessingStructureSelection
               key={selectedJobType}
               selectedJobType={selectedJobType}
               setIsLoading={setIsLoading}
             />
-          ) : (
+          )}
+          {selectedJobType === jobTypes.manufacturing || selectedJobType === jobTypes.reaction && (
             <StructureOptionsSelection_CustomStructures
               key={selectedJobType}
               selectedJobType={selectedJobType}

@@ -2,7 +2,7 @@
  * Account slice: server session (JWT), linked ESI ID sets, and client `isLoggedIn`
  * (cleared by `resetAccountStore`). The full Mongo user row is not stored here — pass
  * `user_document` from the login response into `runPostLoginAccountSync` when needed.
- * Application prefs live on `applicationSettings`.
+ * Citadel-name sharing preference lives on Mongo `users` (`shareCitadelNames`); other application prefs on `applicationSettings`.
  *
  * Session field names align with the Go `Account` / API contract for the logged-in account.
  *
@@ -30,6 +30,8 @@ export const accountStateDefault = () => ({
   isFirstTimeLogin: false,
   /** Persisted on Mongo `users`: first-login guided flow completed (`user_document.hasCompletedFirstLoginFlow`). */
   hasCompletedFirstLoginFlow: false,
+  /** Persisted on Mongo `users` (`user_document.shareCitadelNames`). */
+  shareCitadelNames: true,
   /** ESI IDs for real-time linking (from login `user_document` linked* arrays when present). */
   linkedOrders: new Set(),
   linkedJobs: new Set(),
@@ -196,7 +198,26 @@ export const accountActions = (set, get) => ({
       linkedTrans: [...(a.linkedTrans || [])],
       userCloudAccounts: cloudAccounts,
       hasCompletedFirstLoginFlow: Boolean(a.hasCompletedFirstLoginFlow),
+      shareCitadelNames: Boolean(a.shareCitadelNames),
     };
+  },
+
+  /**
+   * Mirrors Mongo `users.shareCitadelNames`; persisted via {@link linkedEsiToDocument} PUT.
+   */
+  toggleShareCitadelNames: () => {
+    set(
+      (state) => ({
+        ...state,
+        account: {
+          ...state.account,
+          shareCitadelNames: !state.account.shareCitadelNames,
+          actions: state.account.actions,
+        },
+      }),
+      false,
+      "account/toggleShareCitadelNames"
+    );
   },
 
   /**

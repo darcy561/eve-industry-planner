@@ -120,12 +120,15 @@ export function getAppShellSelectMenuProps(theme) {
     anchorOrigin: { vertical: "bottom", horizontal: "left" },
     transformOrigin: { vertical: "top", horizontal: "left" },
     marginThreshold: 8,
-    PaperProps: {
-      sx: appShellSelectMenuPaperSx(theme),
-    },
-    MenuListProps: {
-      dense: true,
-      sx: appShellSelectMenuListSx(theme),
+    // MUI v9 Menu uses slots; legacy PaperProps/MenuListProps on MenuProps leak to Modal/DOM.
+    slotProps: {
+      paper: {
+        sx: appShellSelectMenuPaperSx(theme),
+      },
+      list: {
+        dense: true,
+        sx: appShellSelectMenuListSx(theme),
+      },
     },
   };
 }

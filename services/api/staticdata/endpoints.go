@@ -49,6 +49,11 @@ func ReprocessingDataHandler(w http.ResponseWriter, r *http.Request) {
 	serveStaticDataFile(w, r, sdecore.ReprocessingFile, m.Reprocessing, "reprocessing")
 }
 
+func InventionModifiersHandler(w http.ResponseWriter, r *http.Request) {
+	m := apimetrics.GetAPIStaticData()
+	serveStaticDataFile(w, r, sdecore.InventionModifiersFile, m.InventionModifiers, "invention_modifiers")
+}
+
 func MetaHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start, ok := logs.RequestStartTime(ctx)

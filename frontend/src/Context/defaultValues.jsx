@@ -268,6 +268,9 @@ export const blueprintOptions = {
  * @property {Object} reprocessingSystem - Reprocessing system security modifiers
  * @property {Object} reprocessingStructure - Reprocessing structure options
  * @property {Object} reprocessingRigs - Reprocessing rig options
+ * @property {Object} inventionStructure - Invention structure options
+ * @property {Object} inventionRigs - Invention rig options
+ * @property {Object} inventionSystem - Invention system security modifiers
  *
  * @example
  * {
@@ -443,6 +446,30 @@ export const structureOptions = {
       ],
     },
   },
+  inventionStructure: {
+    0: { id: 0, label: "NPC Station", time: 0, cost: 0 },
+    1: { id: 1, label: "Medium - Engineering Complex", time: 0.15, cost: 0.03 },
+    2: { id: 2, label: "Medium - Other", time: 0, cost: 0 },
+    3: { id: 3, label: "Large - Engineering Complex", time: 0.2, cost: 0.04 },
+    4: { id: 4, label: "Large - Other", time: 0, cost: 0 },
+    5: { id: 5, label: "X-Large - Engineering Complex", time: 0.3, cost: 0.05 },
+    6: { id: 6, label: "X-Large - Other", time: 0, cost: 0 },
+  },
+  inventionRigs: {
+    0: { id: 0, label: "None", cost: 0, time: 0 },
+    1: { id: 1, label: "T1 - Cost Optimization", cost: 0, time: 0.1, relatedTo: [2, 5, 6] },
+    2: { id: 2, label: "T2 - Cost Optimization", cost: 0, time: 0.12, relatedTo: [1, 5, 6] },
+    3: { id: 3, label: "T1 - Invention Accelerator", cost: 0.2, time: 0, relatedTo: [4, 5, 6] },
+    4: { id: 4, label: "T2 - Invention Accelerator", cost: 0.24, time: 0, relatedTo: [3, 5, 6] },
+    5: { id: 5, label: "T1 - All", cost: 0.2, time: 0.1, relatedTo: [1, 2, 3, 4, 5, 6] },
+    6: { id: 6, label: "T2 - All", cost: 0.24, time: 0.12, relatedTo: [1, 2, 3, 4, 5, 6] },
+  },
+  inventionSystem: {
+    0: { id: 0, label: "High Sec", value: 1 },
+    1: { id: 1, label: "Low Sec", value: 1.9 },
+    2: { id: 2, label: "Null Sec / WH", value: 2.1 },
+  },
+
 };
 
 /**
@@ -455,11 +482,13 @@ export const structureOptions = {
  * @property {Object} 1 - Manufacturing structure options
  * @property {Object} 2 - Reaction structure options
  * @property {Object} 5 - Reprocessing structure options
+ * @property {Object} 4 - Invention structure options
  */
 export const structureTypeMap = {
   [jobTypes.manufacturing]: structureOptions.manStructure,
   [jobTypes.reaction]: structureOptions.reactionStructure,
   [jobTypes.reprocessing]: structureOptions.reprocessingStructure,
+  [jobTypes.invention]: structureOptions.inventionStructure,
 };
 /**
  * Mapping of job types to their corresponding rig options.
@@ -471,11 +500,13 @@ export const structureTypeMap = {
  * @property {Object} 1 - Manufacturing rig options
  * @property {Object} 2 - Reaction rig options
  * @property {Object} 5 - Reprocessing rig options
+ * @property {Object} 4 - Invention rig options
  */
 export const rigTypeMap = {
   [jobTypes.manufacturing]: structureOptions.manRigs,
   [jobTypes.reaction]: structureOptions.reactionRigs,
   [jobTypes.reprocessing]: structureOptions.reprocessingRigs,
+  [jobTypes.invention]: structureOptions.inventionRigs,
 };
 /**
  * Mapping of job types to their corresponding system security modifiers.
@@ -487,11 +518,13 @@ export const rigTypeMap = {
  * @property {Object} 1 - Manufacturing system modifiers
  * @property {Object} 2 - Reaction system modifiers
  * @property {Object} 5 - Reprocessing system modifiers
+ * @property {Object} 4 - Invention system modifiers
  */
 export const systemTypeMap = {
   [jobTypes.manufacturing]: structureOptions.manSystem,
   [jobTypes.reaction]: structureOptions.reactionSystem,
   [jobTypes.reprocessing]: structureOptions.reprocessingSystem,
+  [jobTypes.invention]: structureOptions.inventionSystem,
 };
 
 /**
@@ -504,11 +537,13 @@ export const systemTypeMap = {
  * @property {string} 1 - "manufacturing" (under `customStructures`)
  * @property {string} 2 - "reaction"
  * @property {string} 5 - "reprocessing"
+ * @property {string} 4 - "invention"
  */
 export const customStructureMap = {
   [jobTypes.manufacturing]: "manufacturing",
   [jobTypes.reaction]: "reaction",
   [jobTypes.reprocessing]: "reprocessing",
+  [jobTypes.invention]: "invention",
 };
 
 /**
@@ -521,11 +556,13 @@ export const customStructureMap = {
  * @property {string} 1 - "manStruct"
  * @property {string} 2 - "reacStruct"
  * @property {string} 5 - "reprocessingStruct"
+ * @property {string} 4 - "inventionStruct"
  */
 export const customStructureLocationMap = {
   [jobTypes.manufacturing]: "manStruct",
   [jobTypes.reaction]: "reacStruct",
   [jobTypes.reprocessing]: "reprocessingStruct",
+  [jobTypes.invention]: "inventionStruct",
 };
 
 /**
@@ -728,63 +765,46 @@ export const META_LEVELS_THAT_REQUIRE_INVENTION_COSTS = new Set([2, 14, 53]);
  */
 export const TYPE_IDS_TO_IGNORE_FOR_INVENTION_COSTS = new Set([]);
 
+
 /**
- * Default values for Firebase Remote Config.
+ * Reprocessing implant options (RX series).
  *
- * Defines the default configuration values used by Firebase Remote Config
- * for application settings and feature flags.
- *
- * @type {Object}
- * @property {string} app_version_number - Application version number
- * @property {boolean} maintenance_mode - Whether maintenance mode is enabled
- * @property {boolean} enable_upcoming_changes_page - Whether to show upcoming changes page
+ * @type {Object<number, { id: number, typeID: number, label: string, value: number }>}
  */
-export const REMOTE_CONFIG_DEFAULT_VALUES = {
-  app_version_number: __APP_VERSION__,
-  maintenance_mode: false,
-  enable_upcoming_changes_page: false,
+export const reprocessingImplants = {
+  0: {
+    id: 0,
+    typeID: 0,
+    label: "None",
+    value: 0,
+  },
+  1: {
+    id: 1,
+    typeID: 0,
+    label: "RX-001",
+    value: 0.01,
+  },
+  2: {
+    id: 2,
+    typeID: 0,
+    label: "RX-002",
+    value: 0.02,
+  },
+  3: {
+    id: 3,
+    typeID: 0,
+    label: "RX-004",
+    value: 0.04,
+  },
 };
 
 /**
- * Implants configuration for EVE Online industry activities.
- *
- * Defines the available implants and their bonuses for different
- * industry activities, particularly reprocessing.
+ * Per-job-type implant lookup (reprocessing only).
  *
  * @type {Object}
- * @property {Object} 5 - Reprocessing implants (keyed by jobTypes.reprocessing)
- * @property {Object} 5.0 - No implant option
- * @property {Object} 5.1 - RX-001 implant (+1% bonus)
- * @property {Object} 5.2 - RX-002 implant (+2% bonus)
- * @property {Object} 5.3 - RX-004 implant (+4% bonus)
  */
 export const Implants = {
-  [jobTypes.reprocessing]: {
-    0: {
-      id: 0,
-      typeID: 0,
-      label: "None",
-      value: 0,
-    },
-    1: {
-      id: 1,
-      typeID: 0,
-      label: "RX-001",
-      value: 0.01,
-    },
-    2: {
-      id: 2,
-      typeID: 0,
-      label: "RX-002",
-      value: 0.02,
-    },
-    3: {
-      id: 3,
-      typeID: 0,
-      label: "RX-004",
-      value: 0.04,
-    },
-  },
+  [jobTypes.reprocessing]: reprocessingImplants,
 };
 
 /**
@@ -809,12 +829,14 @@ export const STATIC_DATA_CACHE = "static-data-cache-v2";
  * @property {string} FULL_ITEM_LIST - Complete item list file name
  * @property {string} REPROCESSING_DATA - Reprocessing data file name
  * @property {string} RECIPE_LIST - Recipe list file name
+ * @property {string} INVENTION_DATA - Invention data file name
  */
 export const CACHED_DATA_FILES = {
   SEARCH_INDEX: "SEARCH_INDEX",
   FULL_ITEM_LIST: "FULL_ITEM_LIST",
   REPROCESSING_DATA: "REPROCESSING_DATA",
   RECIPE_LIST: "RECIPE_LIST",
+  INVENTION_DATA: "INVENTION_DATA",
 };
 
 /**
@@ -1032,6 +1054,7 @@ export const ESI_RATE_LIMIT_GROUPS = {
  * {
  *   1: { id: 1, label: "Manufacturing" },
  *   2: { id: 2, label: "Reaction" }
+ *   4: { id: 4, label: "Invention" }
  * }
  */
 export const systemIndexTypes = {
@@ -1042,5 +1065,9 @@ export const systemIndexTypes = {
   [jobTypeMapping[jobTypes.reaction]]: {
     id: jobTypeMapping[jobTypes.reaction],
     label: "Reaction",
+  },
+  [jobTypeMapping[jobTypes.invention]]: {
+    id: jobTypeMapping[jobTypes.invention],
+    label: "Invention",
   },
 };

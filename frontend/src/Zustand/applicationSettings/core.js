@@ -13,6 +13,7 @@ import CustomStructure from "../../Classes/customStructure";
 import ReprocessingStructure from "../../Classes/reprocessingStructure";
 import { detectUserLocale } from "../../Functions/Helper/localeDetection";
 import { jobStatusesForPersist } from "../../Functions/Helper/jobStatuses";
+import InventionStructure from "../../Classes/inventionStructure";
 
 const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION, DEFAULT_ASSET_LOCATION } =
   GLOBAL_CONFIG;
@@ -60,6 +61,7 @@ export const stateDefault = () => ({
     manufacturing: [],
     reaction: [],
     reprocessing: [],
+    invention: [],
   },
   exemptTypeIDs: new Set(),
   enableAutomaticJobRecalculation: true,
@@ -68,8 +70,8 @@ export const stateDefault = () => ({
   locale: detectUserLocale(),
   extrasCategories: extrasCategoriesDefault,
   predefinedSystemIndexes: {},
-  /** @type {Record<string, { name?: string }>} */
   jobStatuses: {},
+
 });
 
 /**
@@ -117,6 +119,9 @@ export function mergeApplicationSettingsState(
           : [],
         reprocessing: Array.isArray(cs.reprocessing)
           ? cs.reprocessing.map((x) => new ReprocessingStructure(x))
+          : [],
+        invention: Array.isArray(cs.invention)
+          ? cs.invention.map((x) => new InventionStructure(x))
           : [],
       };
     }
@@ -268,6 +273,7 @@ export const coreActions = (set, get) => ({
         reprocessing: cs.reprocessing.map((structure) =>
           structure.toDocument()
         ),
+        invention: cs.invention.map((structure) => structure.toDocument()),
       },
       exemptTypeIDs: [...(state.exemptTypeIDs || [])],
       reprocessingSettings: {

@@ -1,6 +1,6 @@
 import { useGetAllCharacterAssets } from "../../../Hooks/EveEsi/Character/useGetAllCharacterAssets";
 import { useGetSingleCorporationAssets } from "../../../Hooks/EveEsi/useGetSingleCorporationAssets";
-import AssetsDialogContent from "./diaglogContent";
+import AssetsDialogContent from "./dialogContent";
 
 export function CharacterAssetsDataProvider({ state, actions, children }) {
   const {

@@ -8,13 +8,14 @@ import (
 )
 
 const (
-	DefaultDataDir   = "/static-data"
-	LiveDataDirName  = "live_data"
-	VersionFileName  = "version.json"
-	RecipeListFile   = "recipeList.json"
-	SearchIndexFile  = "searchIndex.json"
-	FullItemListFile = "fullItemList.json"
-	ReprocessingFile = "reprocessingData.json"
+	DefaultDataDir         = "/static-data"
+	LiveDataDirName        = "live_data"
+	VersionFileName        = "version.json"
+	RecipeListFile         = "recipeList.json"
+	SearchIndexFile        = "searchIndex.json"
+	FullItemListFile       = "fullItemList.json"
+	ReprocessingFile       = "reprocessingData.json"
+	InventionModifiersFile = "inventionModifiers.json"
 )
 
 type StaticDataFileDef struct {
@@ -27,6 +28,7 @@ var staticDataFileDefs = []StaticDataFileDef{
 	{Key: "FULL_ITEM_LIST", FileName: FullItemListFile},
 	{Key: "REPROCESSING_DATA", FileName: ReprocessingFile},
 	{Key: "RECIPE_LIST", FileName: RecipeListFile},
+	{Key: "INVENTION_MODIFIERS", FileName: InventionModifiersFile},
 }
 
 type VersionJSON struct {

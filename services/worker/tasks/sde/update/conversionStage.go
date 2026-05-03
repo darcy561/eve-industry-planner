@@ -24,16 +24,25 @@ func runSDEConversionStage(mapResult *sdeMapBuildResult) (*sdeConversionResult, 
 	typesData := mapResult.StructuredData["Types"]
 	typeMaterialsData := mapResult.StructuredData["TypeMaterials"]
 	marketGroupsData := mapResult.StructuredData["MarketGroups"]
-	if blueprintsData == nil || typesData == nil || typeMaterialsData == nil || marketGroupsData == nil {
+	dogmaAttributesData := mapResult.StructuredData["DogmaAttributes"]
+	typeDogmaData := mapResult.StructuredData["TypeDogma"]
+	if blueprintsData == nil || typesData == nil || typeMaterialsData == nil || marketGroupsData == nil ||
+		dogmaAttributesData == nil || typeDogmaData == nil {
 		return nil, fmt.Errorf("missing one or more required structured data maps")
 	}
 
 	blueprintTypeIDMap := conversion.ConvertBlueprintDataToTypeIDMap(blueprintsData)
 	combinedItemMap := conversion.BuildCombinedItemMap(typesData, blueprintTypeIDMap)
+	conversion.ApplyInventionToOutputItems(blueprintsData, combinedItemMap)
+	conversion.MergeInventionOntManufacturedProduct(combinedItemMap, conversion.BuildManufacturedProductByBlueprintTypeID(blueprintsData))
 	recipeList := conversion.GenerateRecipeListOutput(combinedItemMap)
 	searchIndex := conversion.GenerateSearchIndexOutput(recipeList)
 	fullItemList := conversion.GenerateFullItemListOutput(combinedItemMap, marketGroupsData)
 	reprocessingObjects := conversion.GenerateReprocessingDataOutput(typeMaterialsData, combinedItemMap, marketGroupsData)
+	inventionModifiers, err := conversion.GenerateInventionModifiersOutput(typesData, dogmaAttributesData, typeDogmaData)
+	if err != nil {
+		return nil, err
+	}
 
 	files := make(map[string][]byte)
 	if err := addJSONFile(files, "output/searchIndex", searchIndex); err != nil {
@@ -48,6 +57,9 @@ func runSDEConversionStage(mapResult *sdeMapBuildResult) (*sdeConversionResult, 
 	if err := addJSONFile(files, "output/reprocessingData", reprocessingObjects); err != nil {
 		return nil, err
 	}
+	if err := addJSONFile(files, "output/inventionModifiers", inventionModifiers); err != nil {
+		return nil, err
+	}
 
 	logs.DebugCtx(context.Background(), "SDE conversion stage completed (in-memory files ready)",
 		"files_generated", len(files),
@@ -55,6 +67,7 @@ func runSDEConversionStage(mapResult *sdeMapBuildResult) (*sdeConversionResult, 
 		"search_items", len(searchIndex),
 		"full_item_list", len(fullItemList),
 		"reprocessing_items", len(reprocessingObjects),
+		"invention_modifier_items", len(inventionModifiers.Items),
 	)
 	return &sdeConversionResult{
 		Files:      files,

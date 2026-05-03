@@ -54,7 +54,7 @@ func handleGetApplicationSettings(w http.ResponseWriter, r *http.Request, client
 	database := clients.Mongo.Database(mongocore.DatabaseName)
 	collection := database.Collection(mongocore.CollectionApplicationSettings)
 
-	settingsDoc, _, err := mongoget.LoadApplicationSettingsDocument(ctx, collection, accountID, time.Now().UTC())
+	settingsDoc, err := mongoget.LoadApplicationSettingsDocument(ctx, collection, accountID, time.Now().UTC())
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			metrics.Error("not_found")

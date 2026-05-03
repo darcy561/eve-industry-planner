@@ -37,6 +37,8 @@ database-debug.log
 .firebaserc
 adminSDK.json
 adminSDKLive.json
+/.tmp/
+/temp/
 
 # Firestore ArchivedJobs sample exports (see migration/README.md)
 archivejobs_firestore_samples/

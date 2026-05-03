@@ -316,6 +316,45 @@ func GetAPIAppConfig() *APIAppConfigMetrics {
 	return apiAppConfigHolder
 }
 
+// APICitadelNamesMetrics holds OpenTelemetry metrics for community citadel names endpoints.
+type APICitadelNamesMetrics struct {
+	Requests      *floatHist
+	RequestsCount *intCounter
+	Successes     *intCounter
+	Errors        *counterVec
+}
+
+var (
+	apiCitadelNamesOnce   sync.Once
+	apiCitadelNamesHolder *APICitadelNamesMetrics
+)
+
+// GetAPICitadelNames returns metrics for citadel name submit/lookup endpoints.
+func GetAPICitadelNames() *APICitadelNamesMetrics {
+	apiCitadelNamesOnce.Do(func() {
+		m := apiMeter()
+		apiCitadelNamesHolder = &APICitadelNamesMetrics{
+			Requests: &floatHist{h: mustHist(m.Float64Histogram("api.citadel_names.duration_milliseconds",
+				metric.WithUnit("ms"),
+				metric.WithDescription("Latency of community citadel name endpoint requests (milliseconds)"),
+			))},
+			RequestsCount: &intCounter{c: mustCounter(m.Int64Counter("api.citadel_names.requests_total",
+				metric.WithDescription("Total community citadel name endpoint requests"),
+			))},
+			Successes: &intCounter{c: mustCounter(m.Int64Counter("api.citadel_names.successes_total",
+				metric.WithDescription("Successful community citadel name endpoint requests"),
+			))},
+			Errors: &counterVec{
+				c: mustCounter(m.Int64Counter("api.citadel_names.errors_total",
+					metric.WithDescription("Community citadel name endpoint errors by reason"),
+				)),
+				attrKey: "reason",
+			},
+		}
+	})
+	return apiCitadelNamesHolder
+}
+
 // APIEveSSOCodeExchangeMetrics holds OTel metrics for EVE OAuth authorization code exchange (auth code → EVE tokens).
 type APIEveSSOCodeExchangeMetrics struct {
 	Requests      *floatHist
@@ -598,12 +637,13 @@ type StaticDataFileMetrics struct {
 
 // APIStaticDataMetrics holds OpenTelemetry metrics for public static JSON and meta endpoints.
 type APIStaticDataMetrics struct {
-	RecipeList   *StaticDataFileMetrics
-	SearchIndex  *StaticDataFileMetrics
-	FullItemList *StaticDataFileMetrics
-	Reprocessing *StaticDataFileMetrics
-	Meta         *StaticDataFileMetrics
-	Errors       *counterVec
+	RecipeList         *StaticDataFileMetrics
+	SearchIndex        *StaticDataFileMetrics
+	FullItemList       *StaticDataFileMetrics
+	Reprocessing       *StaticDataFileMetrics
+	InventionModifiers *StaticDataFileMetrics
+	Meta               *StaticDataFileMetrics
+	Errors             *counterVec
 }
 
 var (
@@ -627,11 +667,12 @@ func GetAPIStaticData() *APIStaticDataMetrics {
 			}
 		}
 		apiStaticDataHolder = &APIStaticDataMetrics{
-			RecipeList:   newFile("recipe_list", "recipeList.json"),
-			SearchIndex:  newFile("search_index", "searchIndex.json"),
-			FullItemList: newFile("full_item_list", "fullItemList.json"),
-			Reprocessing: newFile("reprocessing", "reprocessingData.json"),
-			Meta:         newFile("meta", "static-data meta"),
+			RecipeList:         newFile("recipe_list", "recipeList.json"),
+			SearchIndex:        newFile("search_index", "searchIndex.json"),
+			FullItemList:       newFile("full_item_list", "fullItemList.json"),
+			Reprocessing:       newFile("reprocessing", "reprocessingData.json"),
+			InventionModifiers: newFile("invention_modifiers", "inventionModifiers.json"),
+			Meta:               newFile("meta", "static-data meta"),
 			Errors: &counterVec{
 				c: mustCounter(m.Int64Counter("api.static_data.errors_total",
 					metric.WithDescription("Static data handler errors by reason"),

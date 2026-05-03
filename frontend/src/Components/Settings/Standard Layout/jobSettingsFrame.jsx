@@ -19,6 +19,7 @@ import { useGetAllCharacterAssets } from "../../../Hooks/EveEsi/Character/useGet
 import CustomSystemIndexes from "./Job Settings/customSystemIndexes";
 import CustomExtrasFrame from "./Job Settings/customExtrasFrame";
 import { getAssetLocationList } from "../../../Functions/Assets/getAssetLocations";
+import { isNoAccessLocation } from "../../../Functions/Assets/assetLocationConstants";
 
 function JobSettingsFrame() {
   const [userAssetLocationResults, updateUserAssetLocationResults] = useState(
@@ -139,7 +140,7 @@ function JobSettingsFrame() {
                   const locationNameData = useUsersStore.getState().worldData.actions.findUniverseData(entry);
                   if (
                     !locationNameData ||
-                    locationNameData.name === "No Acces To Location"
+                    isNoAccessLocation(locationNameData)
                   )
                     return null;
 

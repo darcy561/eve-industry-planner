@@ -25,6 +25,7 @@ func EmptyCustomStructures() CustomStructures {
 		Manufacturing: []CustomStructure{},
 		Reaction:      []CustomStructure{},
 		Reprocessing:  []ReprocessingStructure{},
+		Invention:     []InventionStructure{},
 	}
 }
 
@@ -68,6 +69,7 @@ func DefaultApplicationSettings(accountID string, now time.Time) ApplicationSett
 		DefaultStationIDForAssets:        60003760,
 		DefaultCitadelBrokersFee:         1,
 		DefaultMaterialEfficiencyValue:   0,
+		ShareCitadelNames:                true,
 		CustomStructures:                 EmptyCustomStructures(),
 		ExemptTypeIDs:                    []int{},
 		ReprocessingSettings:             DefaultReprocessingSettings(),
@@ -110,11 +112,25 @@ type ReprocessingStructure struct {
 	Tax           float64 `bson:"tax" json:"tax"`
 }
 
+// InventionStructure represents an invention structure configuration
+type InventionStructure struct {
+	ID            string  `bson:"id" json:"id"`
+	JobType       int     `bson:"jobType" json:"jobType"`
+	Name          string  `bson:"name" json:"name"`
+	StructureType int     `bson:"structureType" json:"structureType"`
+	SystemType    int     `bson:"systemType" json:"systemType"`
+	RigSlot1      int     `bson:"rigSlot1" json:"rigSlot1"`
+	RigSlot2      int     `bson:"rigSlot2" json:"rigSlot2"`
+	Default       bool    `bson:"default" json:"default"`
+	Tax           float64 `bson:"tax" json:"tax"`
+}
+
 // CustomStructures represents the custom structures settings
 type CustomStructures struct {
 	Manufacturing []CustomStructure       `bson:"manufacturing" json:"manufacturing"`
 	Reaction      []CustomStructure       `bson:"reaction" json:"reaction"`
 	Reprocessing  []ReprocessingStructure `bson:"reprocessing" json:"reprocessing"`
+	Invention     []InventionStructure    `bson:"invention" json:"invention"`
 }
 
 // ExtraCategory represents an extra cost category
@@ -162,6 +178,7 @@ type ApplicationSettings struct {
 	DefaultStationIDForAssets        int64                         `bson:"defaultStationIDForAssets" json:"defaultStationIDForAssets"`
 	DefaultCitadelBrokersFee         float64                       `bson:"defaultCitadelBrokersFee" json:"defaultCitadelBrokersFee"`
 	DefaultMaterialEfficiencyValue   int                           `bson:"defaultMaterialEfficiencyValue" json:"defaultMaterialEfficiencyValue"`
+	ShareCitadelNames                bool                          `bson:"shareCitadelNames" json:"shareCitadelNames"`
 	CustomStructures                 CustomStructures              `bson:"customStructures" json:"customStructures"`
 	ExemptTypeIDs                    []int                         `bson:"exemptTypeIDs" json:"exemptTypeIDs,omitempty"`
 	ReprocessingSettings             ReprocessingSettings          `bson:"reprocessingSettings" json:"reprocessingSettings"`

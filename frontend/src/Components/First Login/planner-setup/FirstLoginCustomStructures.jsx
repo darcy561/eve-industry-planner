@@ -3,6 +3,7 @@ import { Paper, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import JobTypeSelection_CustomStructures from "../../Settings/Standard Layout/Custom Structures/jobTypeSelection";
 import StructureOptionsSelection_CustomStructures from "../../Settings/Standard Layout/Custom Structures/structureSelection";
+import InventionStructureSelection from "../../Settings/Standard Layout/Custom Structures/inventionStructureSelection";
 import ReprocessingStructureSelection from "../../Settings/Standard Layout/Custom Structures/reprocessingStructureSelection";
 import CurrentStructuresFrame from "../../Settings/Standard Layout/Custom Structures/currentStructures";
 import { jobTypes } from "../../../Context/defaultValues";
@@ -58,6 +59,13 @@ export default function FirstLoginCustomStructures() {
             </Typography>
             {selectedJobType === jobTypes.reprocessing ? (
               <ReprocessingStructureSelection
+                key={selectedJobType}
+                selectedJobType={selectedJobType}
+                setIsLoading={setIsLoading}
+                appearance="firstLogin"
+              />
+            ) : selectedJobType === jobTypes.invention ? (
+              <InventionStructureSelection
                 key={selectedJobType}
                 selectedJobType={selectedJobType}
                 setIsLoading={setIsLoading}

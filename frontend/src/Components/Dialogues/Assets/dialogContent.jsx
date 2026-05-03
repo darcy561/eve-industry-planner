@@ -18,6 +18,7 @@ import CorporationSelect from "../../../Styled Components/Select/corporations";
 import UseCorporationSelector_AssetsDialog from "./useCoporation";
 import { getCachedSingleCorporationAssets } from "../../../Hooks/EveEsi/useGetSingleCorporationAssets";
 import ContentDialog from "../../../Styled Components/Dialog/ContentDialog";
+import { isNoAccessLocation } from "../../../Functions/Assets/assetLocationConstants";
 
 export default function AssetsDialogContent(props) {
   const {
@@ -66,7 +67,7 @@ export default function AssetsDialogContent(props) {
             if (!matchedID) {
               prev.add(locationID);
             } else {
-              if (matchedID.unResolvedLocation) {
+              if (isNoAccessLocation(matchedID)) {
                 prev.add(locationID);
               }
             }
@@ -152,7 +153,7 @@ export default function AssetsDialogContent(props) {
             if (!matchedID) {
               prev.add(locationID);
             } else {
-              if (matchedID.unResolvedLocation) {
+              if (isNoAccessLocation(matchedID)) {
                 prev.add(locationID);
               }
             }

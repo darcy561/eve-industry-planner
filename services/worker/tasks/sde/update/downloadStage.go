@@ -21,10 +21,12 @@ const (
 )
 
 var requiredFiles = map[string]string{
-	"blueprints.jsonl":    "Blueprints",
-	"types.jsonl":         "Types",
-	"typeMaterials.jsonl": "TypeMaterials",
-	"marketGroups.jsonl":  "MarketGroups",
+	"blueprints.jsonl":      "Blueprints",
+	"types.jsonl":           "Types",
+	"typeMaterials.jsonl":   "TypeMaterials",
+	"marketGroups.jsonl":    "MarketGroups",
+	"dogmaAttributes.jsonl": "DogmaAttributes",
+	"typeDogma.jsonl":       "TypeDogma",
 }
 
 type sdeDownloadResult struct {

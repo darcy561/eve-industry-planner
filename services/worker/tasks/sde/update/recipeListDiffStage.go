@@ -204,9 +204,25 @@ func addRecipeTypeIDs(typeIDs map[int32]struct{}, r *conversion.EVEType) {
 		// Try both activity paths if job type is unknown to maximize coverage.
 		addMaterialsTypeIDs(typeIDs, r, "manufacturing")
 		addMaterialsTypeIDs(typeIDs, r, "reaction")
+		addInventionMaterialTypeIDs(typeIDs, r)
 		return
 	}
 	addMaterialsTypeIDs(typeIDs, r, activityKey)
+	addInventionMaterialTypeIDs(typeIDs, r)
+}
+
+func addInventionMaterialTypeIDs(typeIDs map[int32]struct{}, r *conversion.EVEType) {
+	if r == nil || r.Activities == nil || r.Activities.Invention == nil {
+		return
+	}
+	for _, src := range r.Activities.Invention {
+		for _, m := range src.Materials {
+			if m.TypeID <= 0 {
+				continue
+			}
+			typeIDs[int32(m.TypeID)] = struct{}{}
+		}
+	}
 }
 
 func addMaterialsTypeIDs(typeIDs map[int32]struct{}, r *conversion.EVEType, activityKey string) {
@@ -214,7 +230,7 @@ func addMaterialsTypeIDs(typeIDs map[int32]struct{}, r *conversion.EVEType, acti
 		return
 	}
 
-	activity, ok := r.Activities[activityKey].(map[string]interface{})
+	activity, ok := r.Activities.ActivityMap(activityKey)
 	if !ok {
 		return
 	}

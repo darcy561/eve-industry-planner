@@ -2,6 +2,7 @@ import { STATIONID_RANGE } from "../../../Context/defaultValues";
 import getCitadelData from "./getCitadelData";
 import getUniverseNames from "./getUniverseNames";
 import useUsersStore from "../../../Zustand/usersStore";
+import { LOCATION_RESOLUTION_STATUS } from "../../Assets/assetLocationConstants";
 
 async function getWorldData(inputIDs, userObj, config = {}) {
   try {
@@ -54,7 +55,11 @@ async function getWorldData(inputIDs, userObj, config = {}) {
 
     responses.forEach((obj) => {
       if (!obj) return;
-      returnObject[obj.id] = obj;
+      returnObject[obj.id] = {
+        ...obj,
+        resolutionStatus:
+          obj.resolutionStatus || LOCATION_RESOLUTION_STATUS.RESOLVED,
+      };
     });
     return returnObject;
   } catch (err) {

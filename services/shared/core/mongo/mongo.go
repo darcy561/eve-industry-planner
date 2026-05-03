@@ -49,6 +49,9 @@ var (
 
 	// CollectionBlueprints is the static SDE blueprint recipes collection.
 	CollectionBlueprints = "blueprints"
+
+	// CollectionCitadelNames stores community-submitted citadel names keyed by structure ID.
+	CollectionCitadelNames = "citadel_names"
 )
 
 // ArchivedJobsUpsertUnset clears legacy top-level keys on archivedJobs upserts. Lifecycle and

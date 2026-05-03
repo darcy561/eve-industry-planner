@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"eve-industry-planner/api/middleware"
@@ -80,8 +81,16 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 	)(mux)
 
 	// Public and private groups for v1
+	// Per-ID citadel name GETs are cacheable (browser + CDN); a single page can request many
+	// structure IDs in parallel on a cold cache. Exempt that prefix from the default public
+	// rate limit so we do not need a non-cacheable batch lookup.
 	publicGroup := middleware.NewGroup(mux,
-		middleware.RateLimiterConstructor(store, publicRateLimit, "public"),
+		middleware.ApplyIf(
+			func(r *http.Request) bool {
+				return !strings.HasPrefix(r.URL.Path, "/api/v1/citadel-names")
+			},
+			middleware.RateLimiterConstructor(store, publicRateLimit, "public"),
+		),
 	)
 	privateGroup := middleware.NewGroup(mux,
 		middleware.RateLimiterConstructor(store, privateRateLimit, "private"),
@@ -155,6 +164,12 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 			},
 		},
 		{
+			Path: "/api/v1/citadel-names/{citadelID}",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				userendpoints.CitadelNameByIDHandler(w, r, clients)
+			},
+		},
+		{
 			Path: "/api/v1/blueprints/{blueprintID}",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.BlueprintsHandler(w, r, clients)
@@ -188,6 +203,12 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 			Path: "/api/static-data/reprocessingData.json",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				staticdata.ReprocessingDataHandler(w, r)
+			},
+		},
+		{
+			Path: "/api/static-data/inventionModifiers.json",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				staticdata.InventionModifiersHandler(w, r)
 			},
 		},
 		{
@@ -238,6 +259,12 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 			Path: "/api/v1/user/application-settings",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				userendpoints.ApplicationSettingsHandler(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/v1/user/citadel-names",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				userendpoints.CitadelNamesHandler(w, r, clients)
 			},
 		},
 		{

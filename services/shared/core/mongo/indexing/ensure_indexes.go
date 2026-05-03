@@ -29,5 +29,8 @@ func EnsureIndexes(ctx context.Context, client *mongo.Client) error {
 	if err := EnsureUserJobDocumentsIndexes(ctx, client); err != nil {
 		return err
 	}
+	if err := EnsureCitadelNamesIndexes(ctx, client); err != nil {
+		return err
+	}
 	return nil
 }

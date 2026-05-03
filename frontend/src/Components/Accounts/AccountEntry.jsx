@@ -63,7 +63,7 @@ export function AccountEntry({ character, appearance = "default" }) {
             p: 1.25,
           }}
         >
-          <Stack direction="row" spacing={1.5} alignItems="center">
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
             <Avatar
               alt={`${character.CharacterName} portrait`}
               src={`https://images.evetech.net/characters/${character.CharacterID}/portrait?size=128`}
@@ -76,7 +76,7 @@ export function AccountEntry({ character, appearance = "default" }) {
               >
                 {character.CharacterName}
               </Typography>
-              <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
+              <Stack direction="row" spacing={0.75} sx={{ minWidth: 0, alignItems: "center" }}>
                 {corporationId ? (
                   <Avatar
                     alt={`${corporationName} logo`}

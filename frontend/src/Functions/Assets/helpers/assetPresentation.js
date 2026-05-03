@@ -1,4 +1,5 @@
 import { ancientRelicIDs } from "../../../Context/defaultValues";
+import { isNoAccessLocation } from "../assetLocationConstants";
 import useUsersStore from "../../../Zustand/usersStore";
 
 export function formatAssetLocation(locationFlag) {
@@ -21,11 +22,12 @@ export function sortLocationMapsAlphabetically(inputLocationMap, inputLocationNa
       const nameA = inputLocationNames[a[0]]?.name || universeIDs[a[0]]?.name || "";
       const nameB = inputLocationNames[b[0]]?.name || universeIDs[b[0]]?.name || "";
 
-      const noAccessName = "No Access To Location";
-      if (nameA.includes(noAccessName) || nameB.includes(noAccessName)) {
-        if (nameA.includes(noAccessName) && nameB.includes(noAccessName)) return 0;
-        if (nameA.includes(noAccessName)) return 1;
-        if (nameB.includes(noAccessName)) return -1;
+      const locationA = inputLocationNames[a[0]] || universeIDs[a[0]];
+      const locationB = inputLocationNames[b[0]] || universeIDs[b[0]];
+      if (isNoAccessLocation(locationA) || isNoAccessLocation(locationB)) {
+        if (isNoAccessLocation(locationA) && isNoAccessLocation(locationB)) return 0;
+        if (isNoAccessLocation(locationA)) return 1;
+        if (isNoAccessLocation(locationB)) return -1;
       }
 
       if (!nameA && !nameB) return 0;

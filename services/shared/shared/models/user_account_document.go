@@ -19,6 +19,7 @@ type UserAccountDocument struct {
 	LinkedOrders               []int64        `bson:"linkedOrders" json:"linkedOrders"`
 	UserCloudAccounts          bool           `bson:"userCloudAccounts" json:"userCloudAccounts"`
 	HasCompletedFirstLoginFlow bool           `bson:"hasCompletedFirstLoginFlow" json:"hasCompletedFirstLoginFlow"`
+	ShareCitadelNames          bool           `bson:"shareCitadelNames" json:"shareCitadelNames"`
 	RefreshTokens              []RefreshToken `bson:"refreshTokens" json:"refreshTokens"`
 	MetaData                   UserMeta       `bson:"_meta" json:"_meta"`
 }
@@ -32,6 +33,7 @@ func DefaultUserAccountDocument(accountID string, now time.Time) UserAccountDocu
 		LinkedOrders:               []int64{},
 		UserCloudAccounts:          false,
 		HasCompletedFirstLoginFlow: false,
+		ShareCitadelNames:          true,
 		RefreshTokens:              []RefreshToken{},
 		MetaData: UserMeta{
 			MetaData: MetaData{

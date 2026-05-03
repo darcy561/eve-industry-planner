@@ -1,6 +1,7 @@
 import { FormControl, Select, MenuItem, FormHelperText } from "@mui/material";
 import useUsersStore from "../../Zustand/usersStore";
 import { useMemo } from "react";
+import { isNoAccessLocation } from "../../Functions/Assets/assetLocationConstants";
 
 export default function CorporationOfficesSelect({ selectedCorporation, value, onChange }) {
     const corporations = useUsersStore(
@@ -42,7 +43,7 @@ export default function CorporationOfficesSelect({ selectedCorporation, value, o
                 const locationNameData = worldData.actions.findUniverseData(locationID);
                 if (
                     !locationNameData ||
-                    locationNameData.name === "No Access To Location"
+                    isNoAccessLocation(locationNameData)
                 ) {
                     return null;
                 }

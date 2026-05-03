@@ -57,7 +57,7 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 	database := clients.Mongo.Database(mongocore.DatabaseName)
 	collection := database.Collection(mongocore.CollectionUsers)
 
-	userDoc, _, err := mongoget.LoadUserAccountDocument(ctx, collection, accountID)
+	userDoc, err := mongoget.LoadUserAccountDocument(ctx, collection, accountID)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			metrics.Error("not_found")
@@ -81,6 +81,7 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 		LinkedOrders               []int64         `json:"linkedOrders"`
 		UserCloudAccounts          bool            `json:"userCloudAccounts"`
 		HasCompletedFirstLoginFlow bool            `json:"hasCompletedFirstLoginFlow"`
+		ShareCitadelNames          bool            `json:"shareCitadelNames"`
 		MetaData                   models.UserMeta `json:"_meta"`
 	}{
 		LinkedJobs:                 userDoc.LinkedJobs,
@@ -88,6 +89,7 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 		LinkedOrders:               userDoc.LinkedOrders,
 		UserCloudAccounts:          userDoc.UserCloudAccounts,
 		HasCompletedFirstLoginFlow: userDoc.HasCompletedFirstLoginFlow,
+		ShareCitadelNames:          userDoc.ShareCitadelNames,
 		MetaData:                   userDoc.MetaData,
 	}
 
@@ -143,7 +145,7 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 	usersCol := database.Collection(mongocore.CollectionUsers)
 
 	var existingDoc models.UserAccountDocument
-	existingDoc, _, loadErr := mongoget.LoadUserAccountDocument(ctx, usersCol, accountID)
+	existingDoc, loadErr := mongoget.LoadUserAccountDocument(ctx, usersCol, accountID)
 	if loadErr != nil {
 		if !errors.Is(loadErr, mongo.ErrNoDocuments) {
 			metrics.Error("database_error")

@@ -8,6 +8,7 @@ import useUsersStore from "../../../Zustand/usersStore";
 import CorporationSelect from "../../../Styled Components/Select/corporations";
 import CorporationOfficesSelect from "../../../Styled Components/Select/corporationOffices";
 import CorporationHangarsSelect from "../../../Styled Components/Select/coporationHangars";
+import { isNoAccessLocation } from "../../../Functions/Assets/assetLocationConstants";
 
 export default function SelectAssetLocation_ShoppingListDialog({
   state,
@@ -78,7 +79,7 @@ export default function SelectAssetLocation_ShoppingListDialog({
 
                 if (
                   !locationNameData ||
-                  locationNameData.name === "No Access To Location"
+                  isNoAccessLocation(locationNameData)
                 ) {
                   return null;
                 }

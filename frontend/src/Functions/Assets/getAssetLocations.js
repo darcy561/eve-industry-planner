@@ -1,4 +1,8 @@
-import { acceptedDirectLocationTypes, acceptedExtendedLocationTypes } from "./assetLocationConstants";
+import {
+  acceptedDirectLocationTypes,
+  acceptedExtendedLocationTypes,
+  isNoAccessLocation,
+} from "./assetLocationConstants";
 import getWorldData from "../EveESI/World/getWorldData";
 import useUsersStore from "../../Zustand/usersStore";
 /**
@@ -102,7 +106,7 @@ export async function getAssetLocationList(userAssets = []) {
     // Filter out invalid or inaccessible locations
     itemLocations = itemLocations.filter((locationID) => {
       const itemData = newEveIDs[locationID] || universeIDs[locationID];
-      return itemData && itemData.name !== "No Access To Location";
+      return itemData && !isNoAccessLocation(itemData);
     });
 
     // Sort alphabetically by name (simplified comparator)

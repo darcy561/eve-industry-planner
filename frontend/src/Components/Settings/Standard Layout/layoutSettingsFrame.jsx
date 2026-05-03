@@ -9,7 +9,10 @@ import {
 } from "@mui/material";
 import { startTransition, useOptimistic } from "react";
 
-import { scheduleDebouncedApplicationSettingsSave } from "../../../Functions/Debounce/userDocumentsPersistSchedule.js";
+import {
+  scheduleDebouncedApplicationSettingsSave,
+  scheduleDebouncedUserAccountDocumentSave,
+} from "../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 import {
   JOB_STATUS_CATALOG,
   STANDARD_TEXT_FORMAT,
@@ -26,8 +29,16 @@ function LayoutSettingsFrame() {
   const { displayHelpCards, enableCompactLayoutView, jobStatuses } =
     useUsersStore((state) => state.applicationSettings);
 
+  const shareCitadelNames = useUsersStore(
+    (state) => state.account.shareCitadelNames,
+  );
+
   const { toggleHideTutorials, toggleEnableCompactView, setJobStatusLabel } =
     useUsersStore((state) => state.applicationSettings.actions);
+
+  const toggleShareCitadelNames = useUsersStore(
+    (state) => state.account.actions.toggleShareCitadelNames,
+  );
 
   const [optimisticJobStatuses, addOptimisticJobStatusName] = useOptimistic(
     jobStatuses,
@@ -90,6 +101,29 @@ function LayoutSettingsFrame() {
                 onChange={() => {
                   toggleEnableCompactView();
                   scheduleDebouncedApplicationSettingsSave();
+                }}
+              />
+            }
+          />
+        </Grid>
+        <Grid
+          align="center"
+          sx={{ paddingX: "20px" }}
+          size={{
+            xs: 12,
+            sm: 6,
+          }}
+        >
+          <FormControlLabel
+            label={"Share discovered citadel names"}
+            labelPlacement="start"
+            control={
+              <Switch
+                checked={shareCitadelNames}
+                color="primary"
+                onChange={() => {
+                  toggleShareCitadelNames();
+                  scheduleDebouncedUserAccountDocumentSave();
                 }}
               />
             }

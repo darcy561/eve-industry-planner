@@ -1,6 +1,7 @@
 package conversion
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -132,7 +133,7 @@ func createEVETypeFromData(itemData map[string]interface{}) *EVEType {
 
 func mergeBlueprintData(newItem *EVEType, blueprintData map[string]interface{}) {
 	if activities, ok := blueprintData["activities"].(map[string]interface{}); ok {
-		newItem.Activities = activities
+		newItem.Activities = recipeActivitiesFromSDE(activities, blueprintData)
 	}
 	if blueprintTypeID, ok := blueprintData["blueprintTypeID"].(float64); ok {
 		newItem.BlueprintTypeID = int(blueprintTypeID)
@@ -140,4 +141,48 @@ func mergeBlueprintData(newItem *EVEType, blueprintData map[string]interface{}) 
 	if maxProductionLimit, ok := blueprintData["maxProductionLimit"].(float64); ok {
 		newItem.MaxProductionLimit = int(maxProductionLimit)
 	}
+}
+
+// recipeActivitiesFromSDE converts raw SDE activities onto RecipeActivities.
+// SDE uses a single invention object per blueprint row; static output nests it under invention[sourceBlueprintTypeID] (Option B).
+func recipeActivitiesFromSDE(activities map[string]interface{}, blueprintRow map[string]interface{}) *RecipeActivities {
+	out := &RecipeActivities{}
+	if m, ok := activities["manufacturing"].(map[string]interface{}); ok {
+		out.Manufacturing = m
+	}
+	if m, ok := activities["reaction"].(map[string]interface{}); ok {
+		out.Reaction = m
+	}
+	if m, ok := activities["copying"].(map[string]interface{}); ok {
+		out.Copying = m
+	}
+	if m, ok := activities["research_material"].(map[string]interface{}); ok {
+		out.ResearchMaterial = m
+	}
+	if m, ok := activities["research_time"].(map[string]interface{}); ok {
+		out.ResearchTime = m
+	}
+
+	// Invention is attached only to invention *output* types (T2/T3 BPCs, etc.) via ApplyInventionToOutputItems, not on T1 manufacture rows.
+	return out
+}
+
+func blueprintTypeIDKey(blueprintRow map[string]interface{}) string {
+	v, ok := blueprintRow["blueprintTypeID"].(float64)
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("%.0f", v)
+}
+
+func inventionSourceFromSDEMap(m map[string]interface{}) InventionSource {
+	b, err := json.Marshal(m)
+	if err != nil {
+		return InventionSource{}
+	}
+	var s InventionSource
+	if err := json.Unmarshal(b, &s); err != nil {
+		return InventionSource{}
+	}
+	return s
 }

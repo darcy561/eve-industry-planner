@@ -38,3 +38,40 @@ export const acceptedLocationFlags = new Set([
   "CorporationGoalDeliveries",
 ]);
 
+/**
+ * Prefix used for unresolved/inaccessible location names.
+ * Some values include a suffix (e.g. " - <id>"), so callers should use the helper below.
+ * @type {string}
+ */
+export const NO_ACCESS_LOCATION_NAME_PREFIX = "No Access To Location";
+export const LOCATION_RESOLUTION_STATUS = {
+  RESOLVED: "resolved",
+  COMMUNITY: "community",
+  NO_ACCESS: "no_access",
+};
+
+/**
+ * Returns true when a location name represents an inaccessible location.
+ * @param {string | undefined | null} name
+ * @returns {boolean}
+ */
+export function isNoAccessLocationName(name) {
+  return (
+    typeof name === "string" && name.startsWith(NO_ACCESS_LOCATION_NAME_PREFIX)
+  );
+}
+
+/**
+ * Returns true when the location object represents an inaccessible location.
+ * Supports both new structured fields and legacy name-only entries.
+ * @param {{ name?: string, resolutionStatus?: string } | null | undefined} location
+ * @returns {boolean}
+ */
+export function isNoAccessLocation(location) {
+  if (!location || typeof location !== "object") return false;
+  if (location.resolutionStatus === LOCATION_RESOLUTION_STATUS.NO_ACCESS) {
+    return true;
+  }
+  return isNoAccessLocationName(location.name);
+}
+

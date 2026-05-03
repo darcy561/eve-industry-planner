@@ -246,8 +246,34 @@ function CurrentStructuresFrame({
                             ]?.label || "—"}
                           </FirstLoginPair>
                           <FirstLoginPair label="Implant">
-                            {Implants[selectedJobType][structure.implant]
+                            {Implants[selectedJobType]?.[structure.implant]
                               ?.label || "—"}
+                          </FirstLoginPair>
+                        </>
+                      ) : selectedJobType === jobTypes.invention ? (
+                        <>
+                          <FirstLoginPair label="Structure type">
+                            {structureTypeMap[selectedJobType][
+                              structure.structureType
+                            ]?.label || "—"}
+                          </FirstLoginPair>
+                          <FirstLoginPair label="Rigs">
+                            {[
+                              rigTypeMap[selectedJobType][structure.rigSlot1]
+                                ?.label,
+                              rigTypeMap[selectedJobType][structure.rigSlot2]
+                                ?.label,
+                            ]
+                              .filter((label) => label && label !== "None")
+                              .join(" · ") || "—"}
+                          </FirstLoginPair>
+                          <FirstLoginPair label="Tax">
+                            {`${structure.tax || 0}%`}
+                          </FirstLoginPair>
+                          <FirstLoginPair label="Security">
+                            {systemTypeMap[selectedJobType][
+                              structure.systemType
+                            ]?.label || "—"}
                           </FirstLoginPair>
                         </>
                       ) : (
@@ -310,7 +336,8 @@ function CurrentStructuresFrame({
                         ]?.label || "Missing Structure Type"}
                       </Typography>
                     </Grid>
-                    {selectedJobType === jobTypes.reprocessing && (
+                    {(selectedJobType === jobTypes.reprocessing ||
+                      selectedJobType === jobTypes.invention) && (
                       <Grid size={8}>
                         <Typography variant="caption">
                           {[
@@ -324,7 +351,8 @@ function CurrentStructuresFrame({
                         </Typography>
                       </Grid>
                     )}
-                    {selectedJobType !== jobTypes.reprocessing && (
+                    {selectedJobType !== jobTypes.reprocessing &&
+                      selectedJobType !== jobTypes.invention && (
                       <Grid size={4}>
                         <Typography variant="caption">
                           {rigTypeMap[selectedJobType][structure.rigType]
@@ -343,7 +371,8 @@ function CurrentStructuresFrame({
                           ?.label || "Missing System Type"}
                       </Typography>
                     </Grid>
-                    {selectedJobType !== jobTypes.reprocessing && (
+                    {(selectedJobType === jobTypes.manufacturing ||
+                      selectedJobType === jobTypes.reaction) && (
                       <Grid size={6}>
                         <Box sx={{ display: "flex", flexDirection: "column" }}>
                           <Typography variant="caption">
@@ -365,7 +394,7 @@ function CurrentStructuresFrame({
                     {selectedJobType === jobTypes.reprocessing && (
                       <Grid size={4}>
                         <Typography variant="caption">
-                          {Implants[selectedJobType][structure.implant]
+                          {Implants[selectedJobType]?.[structure.implant]
                             ?.label || "Missing Implant Type"}
                         </Typography>
                       </Grid>

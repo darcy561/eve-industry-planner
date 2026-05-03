@@ -11,6 +11,7 @@ import {
   appShellOutlinedFormControl,
   getAppShellSelectMenuProps,
 } from "../../../Context/appShell";
+import { isNoAccessLocation } from "../../../Functions/Assets/assetLocationConstants";
 
 /**
  * Default asset location dropdown with the same outlined look as other first-login selects.
@@ -50,7 +51,7 @@ export function FirstLoginAssetLocationSelect({
             .worldData.actions.findUniverseData(entry);
           if (
             !locationNameData ||
-            locationNameData.name === "No Acces To Location"
+            isNoAccessLocation(locationNameData)
           ) {
             return null;
           }

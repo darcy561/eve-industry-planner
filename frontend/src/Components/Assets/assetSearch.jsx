@@ -8,6 +8,7 @@ import {
   Select,
 } from "@mui/material";
 import useUsersStore from "../../Zustand/usersStore";
+import { isNoAccessLocation } from "../../Functions/Assets/assetLocationConstants";
 
 export function AssetSearch({
   locationList,
@@ -49,11 +50,12 @@ export function AssetSearch({
                   }}
                 >
                   {locationList.map((entry) => {
-                    const name = useUsersStore
+                    const locationData = useUsersStore
                       .getState()
-                      .worldData.actions.findUniverseData(entry)?.name;
+                      .worldData.actions.findUniverseData(entry);
+                    const name = locationData?.name;
 
-                    if (!name || name === "No Access To Location") {
+                    if (!name || isNoAccessLocation(locationData)) {
                       return null;
                     }
                     return (

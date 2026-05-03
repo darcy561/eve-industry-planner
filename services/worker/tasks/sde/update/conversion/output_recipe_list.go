@@ -13,17 +13,21 @@ func GenerateRecipeListOutput(combinedItemMap map[string]*EVEType) []*EVEType {
 	}
 	blueprintList := make([]*EVEType, 0, len(combinedItemMap)/4)
 	for _, item := range combinedItemMap {
+		if item.ExcludeFromRecipeList {
+			continue
+		}
 		hasManufacturingMaterials := false
 		if item.Activities != nil {
-			if m, ok := item.Activities["manufacturing"].(map[string]interface{}); ok {
+			if m, ok := item.Activities.ActivityMap("manufacturing"); ok {
 				_, hasManufacturingMaterials = m["materials"]
 			}
 		}
 		hasReactionActivities := false
-		if item.Activities != nil {
-			_, hasReactionActivities = item.Activities["reaction"]
+		if item.Activities != nil && item.Activities.Reaction != nil {
+			hasReactionActivities = true
 		}
-		if (hasManufacturingMaterials || hasReactionActivities) && !excludedMarketGroupIDs[item.MarketGroupID] && !excludedMetaGroups[item.MetaGroupID] {
+		hasInvention := item.Activities != nil && item.Activities.HasInventionSources()
+		if (hasManufacturingMaterials || hasReactionActivities || hasInvention) && !excludedMarketGroupIDs[item.MarketGroupID] && !excludedMetaGroups[item.MetaGroupID] {
 			blueprintList = append(blueprintList, item)
 		}
 	}
@@ -40,6 +44,7 @@ func updateBlueprintMaterials(blueprintList []*EVEType, typeIDMap map[string]*EV
 		if item.JobType == ReactionID {
 			updateMaterials(item, "reaction", typeIDMap)
 		}
+		updateInventionMaterials(item, typeIDMap)
 	}
 }
 
@@ -47,7 +52,7 @@ func updateMaterials(item *EVEType, activityType string, typeIDMap map[string]*E
 	if item.Activities == nil {
 		return
 	}
-	activity, ok := item.Activities[activityType].(map[string]interface{})
+	activity, ok := item.Activities.ActivityMap(activityType)
 	if !ok {
 		return
 	}
@@ -71,5 +76,25 @@ func updateMaterials(item *EVEType, activityType string, typeIDMap map[string]*E
 		material["name"] = matchedType.Name
 		material["jobType"] = matchedType.JobType
 		material["volume"] = matchedType.Volume
+	}
+}
+
+func updateInventionMaterials(item *EVEType, typeIDMap map[string]*EVEType) {
+	if item.Activities == nil || item.Activities.Invention == nil {
+		return
+	}
+	for srcKey, src := range item.Activities.Invention {
+		mats := src.Materials
+		for i := range mats {
+			matchedType, exists := typeIDMap[fmt.Sprintf("%.0f", mats[i].TypeID)]
+			if !exists {
+				continue
+			}
+			mats[i].Name = matchedType.Name
+			mats[i].JobType = matchedType.JobType
+			mats[i].Volume = matchedType.Volume
+		}
+		src.Materials = mats
+		item.Activities.Invention[srcKey] = src
 	}
 }

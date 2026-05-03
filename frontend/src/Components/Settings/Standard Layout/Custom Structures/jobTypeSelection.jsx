@@ -39,6 +39,11 @@ function JobTypeSelection_CustomStructures({
             label="Reaction"
           />
           <FormControlLabel
+            value={jobTypes.invention}
+            control={<Radio />}
+            label="Invention"
+          />
+          <FormControlLabel
             value={jobTypes.reprocessing}
             control={<Radio />}
             label="Reprocessing"

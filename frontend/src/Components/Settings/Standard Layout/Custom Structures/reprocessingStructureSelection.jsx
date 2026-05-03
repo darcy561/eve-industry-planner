@@ -80,7 +80,11 @@ function ReprocessingStructureSelection({
 
   return (
     <Box>
-      <Grid container spacing={isFirstLogin ? 2 : 0} alignItems="flex-start">
+      <Grid
+        container
+        spacing={isFirstLogin ? 2 : 0}
+        sx={{ alignItems: "flex-start" }}
+      >
         <Grid size={12} sx={gridPadSx}>
           {wrapFirstLogin(
             "Display name",
@@ -271,8 +275,10 @@ function ReprocessingStructureSelection({
         <Grid size={12} sx={gridPadSx}>
           <Stack
             direction="row"
-            justifyContent={isFirstLogin ? "flex-end" : "flex-start"}
-            sx={{ pt: isFirstLogin ? 0.5 : 0 }}
+            sx={{
+              pt: isFirstLogin ? 0.5 : 0,
+              justifyContent: isFirstLogin ? "flex-end" : "flex-start",
+            }}
           >
             <Button
               variant={isFirstLogin ? "contained" : "text"}

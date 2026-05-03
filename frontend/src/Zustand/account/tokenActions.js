@@ -114,6 +114,25 @@ function hasCompletedFirstLoginFlowFromUserDocument(userDoc) {
   return undefined;
 }
 
+/**
+ * Mongo `users.shareCitadelNames` from login / realtime `user_document`.
+ *
+ * @param {object|null|undefined} userDoc
+ * @returns {boolean|undefined}
+ */
+function shareCitadelNamesFromUserDocument(userDoc) {
+  if (!userDoc || typeof userDoc !== "object" || Array.isArray(userDoc)) {
+    return undefined;
+  }
+  if ("shareCitadelNames" in userDoc) {
+    return Boolean(userDoc.shareCitadelNames);
+  }
+  if ("share_citadel_names" in userDoc) {
+    return Boolean(userDoc.share_citadel_names);
+  }
+  return undefined;
+}
+
 /** @param {Function} set @param {Function} get */
 export const tokenActions = (set, get) => ({
   /**
@@ -164,7 +183,8 @@ export const tokenActions = (set, get) => ({
 
   /**
    * One Zustand update for POST /api/v1/auth/login: JWT/session fields, optional
-   * `user_document` linked* → root `linkedOrders` / `linkedJobs` / `linkedTrans`, and optional `application_settings`.
+   * `user_document` linked* → root `linkedOrders` / `linkedJobs` / `linkedTrans`, `shareCitadelNames` on the account
+   * slice, and optional `application_settings` for other prefs.
    * The full `user_document` is not persisted on the account slice — pass it to `runPostLoginAccountSync` if needed.
    *
    * @param {object} response - Parsed JSON from auth/login
@@ -185,9 +205,12 @@ export const tokenActions = (set, get) => ({
 
         const ud = response.user_document;
         let nextHasCompletedFirstLogin;
+        let nextShareCitadelNames;
         if (ud && typeof ud === "object" && !Array.isArray(ud)) {
           nextHasCompletedFirstLogin =
             hasCompletedFirstLoginFlowFromUserDocument(ud) ?? false;
+          nextShareCitadelNames =
+            shareCitadelNamesFromUserDocument(ud) ?? true;
         }
 
         const mainCharacterHashForMerge =
@@ -236,6 +259,9 @@ export const tokenActions = (set, get) => ({
             ...(nextHasCompletedFirstLogin !== undefined && {
               hasCompletedFirstLoginFlow: nextHasCompletedFirstLogin,
             }),
+            ...(nextShareCitadelNames !== undefined && {
+              shareCitadelNames: nextShareCitadelNames,
+            }),
             actions: state.account.actions,
           },
           applicationSettings: nextApplicationSettings,
@@ -267,6 +293,7 @@ export const tokenActions = (set, get) => ({
     const userCloudAccounts = userCloudAccountsFromUserDocument(doc);
     const completedFirstLogin =
       hasCompletedFirstLoginFlowFromUserDocument(doc);
+    const shareCitadelNames = shareCitadelNamesFromUserDocument(doc);
     set(
       (state) => ({
         ...state,
@@ -275,6 +302,9 @@ export const tokenActions = (set, get) => ({
           ...linkedPatch,
           ...(completedFirstLogin !== undefined && {
             hasCompletedFirstLoginFlow: completedFirstLogin,
+          }),
+          ...(shareCitadelNames !== undefined && {
+            shareCitadelNames,
           }),
           actions: state.account.actions,
         },
