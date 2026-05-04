@@ -33,10 +33,12 @@ export function CitadelNamesCommunityPanel() {
       <Grid container size={12}>
         <Grid sx={{ marginTop: 1, marginBottom: 2 }} size={12}>
           <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            Citadel data is only available from the ESI whose character has docking access in-game.
-            By agreeing to share this data, you allow other players to see the names of structures you have resolved via ESI, and you can use community provided names when available to label structures you cannot query yourself.
-            All data is stored anonymously and is not linked to your account, all ESI queries are made with your character's access token locally in your browser.
-            To opt out of sharing/using community data, simply turn the switch off.
+            "reduce the number of missing names in the asset lists the
+            application is gathering name data from community submissions. All
+            name data is stored anonymously and is not linked to your account,
+            all ESI queries are made with your character's access token locally
+            in your browser. To opt out of sharing/using community data, simply
+            turn the switch off.
           </Typography>
         </Grid>
         <Grid size={12}>

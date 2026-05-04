@@ -23,13 +23,12 @@ export function FirstLoginAccountsStep() {
 
       <FirstLoginSetupSection
         title="Citadel names"
-        subtitle="Citadel data is only available from the ESI whose character has docking access in-game.
-            By agreeing to share this data, you allow other players to see the names of structures you have resolved via ESI, and you can use community provided names when available to label structures you cannot query yourself.
-            All data is stored anonymously and is not linked to your account, all ESI queries are made with your character's access token locally in your browser.
-            To opt out of sharing/using community data, simply turn the switch off."
+        subtitle="Citadel name data is only available from the ESI when a character has docking access to the structure in-game.
+        To reduce the number of missing names in the asset lists the application is gathering name data from community submissions.
+        All name data is stored anonymously and is not linked to your account, all ESI queries are made with your character's access token locally in your browser.
+        To opt out of sharing/using community data, simply turn the switch off."
       >
-        <FirstLoginStructureFormField
-        >
+        <FirstLoginStructureFormField>
           <FormControlLabel
             label="Share Citadel Names"
             labelPlacement="start"

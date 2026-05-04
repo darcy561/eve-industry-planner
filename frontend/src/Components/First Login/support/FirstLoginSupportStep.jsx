@@ -170,21 +170,19 @@ export function FirstLoginSupportStep() {
           </Typography>
         </SupportBookendCard>
 
-        <SupportBookendCard
-          title="Feedback & screenshots"
-          bookendIcon={
-            <FeedbackOutlinedIcon color="primary" sx={{ fontSize: 28 }} />
-          }
-          onAction={
-            ENABLE_FEEDBACK_ICON ? () => openFeedbackDialog() : undefined
-          }
-        >
-          <Typography variant="body2" color="text.secondary">
-            {ENABLE_FEEDBACK_ICON
-              ? "Send bug reports, suggestions, and screenshots."
-              : "In-app feedback is not enabled for this deployment."}
-          </Typography>
-        </SupportBookendCard>
+        {ENABLE_FEEDBACK_ICON ? (
+          <SupportBookendCard
+            title="Feedback & screenshots"
+            bookendIcon={
+              <FeedbackOutlinedIcon color="primary" sx={{ fontSize: 28 }} />
+            }
+            onAction={() => openFeedbackDialog()}
+          >
+            <Typography variant="body2" color="text.secondary">
+              Send bug reports, suggestions, and screenshots.
+            </Typography>
+          </SupportBookendCard>
+        ) : null}
 
         <SupportBookendCard
           title="In-game contact"
@@ -206,8 +204,8 @@ export function FirstLoginSupportStep() {
           }
         >
           <Typography variant="body2" color="text.secondary">
-            A full wiki for this site is under development and will be linked here once
-            ready.
+            A full wiki for this site is under development and will be linked
+            here and throughout the app once ready.
           </Typography>
         </SupportBookendCard>
 

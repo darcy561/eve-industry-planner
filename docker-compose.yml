@@ -27,7 +27,7 @@ x-common-depends-on-otel: &common-depends-on-otel
 
 x-common-service-config: &common-service-config
   restart: unless-stopped
-  env_file: [.env]
+  env_file: [ .env ]
   networks:
     - eip
   dns: *common-dns
@@ -39,7 +39,7 @@ services:
     environment:
       OTEL_SERVICE_NAME: api
       DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
-    image: ghcr.io/darcy561/eve-industry-planner-api:0.8.10
+    image: ghcr.io/darcy561/eve-industry-planner-api:0.8.13
     deploy:
       replicas: 1
     depends_on:
@@ -62,10 +62,14 @@ services:
       - "traefik.http.routers.api-secure.service=api"
       - "traefik.http.routers.api-secure.middlewares=cors"
       # CORS Middleware
-      - "traefik.http.middlewares.cors.headers.accessControlAllowMethods=GET,POST,PUT,DELETE,PATCH,OPTIONS"
-      - "traefik.http.middlewares.cors.headers.accessControlAllowHeaders=Content-Type,Authorization,X-Requested-With,Accept,Origin"
-      - "traefik.http.middlewares.cors.headers.accessControlAllowOriginListRegex=^https://eveindustryplanner.com$$"
-      - "traefik.http.middlewares.cors.headers.accessControlAllowCredentials=true"
+      - "traefik.http.middlewares.cors.headers.accessControlAllowMethods=GET,PO\
+        ST,PUT,DELETE,PATCH,OPTIONS"
+      - "traefik.http.middlewares.cors.headers.accessControlAllowHeaders=Conten\
+        t-Type,Authorization,X-Requested-With,Accept,Origin"
+      - "traefik.http.middlewares.cors.headers.accessControlAllowOriginListRege\
+        x=^https://eveindustryplanner.com$$"
+      - "traefik.http.middlewares.cors.headers.accessControlAllowCredentials=tr\
+        ue"
       - "traefik.http.middlewares.cors.headers.accessControlMaxAge=86400"
       - "traefik.http.middlewares.cors.headers.addVaryHeader=true"
       # API Service Load Balancer
@@ -85,10 +89,7 @@ services:
     environment:
       OTEL_SERVICE_NAME: websocket
       DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
-      # JetStream durable suffix + OTel ws_instance_id: optional DOCKER_CONTAINER_NAME if your runtime
-      # sets it to the container name; otherwise HOSTNAME (unique per container) is used — see
-      # services/websocket/server/jetstream_consumer_id.go
-    image: ghcr.io/darcy561/eve-industry-planner-websocket:0.8.10
+    image: ghcr.io/darcy561/eve-industry-planner-websocket:0.8.13
     build:
       context: ./services
       dockerfile: websocket/Dockerfile
@@ -116,7 +117,8 @@ services:
       - "traefik.http.services.ws.loadbalancer.server.port=4001"
       # Sticky cookie: pin each browser to one websocket replica (pairs with Redis session handoff when routing changes).
       - "traefik.http.services.ws.loadbalancer.sticky.cookie=true"
-      - "traefik.http.services.ws.loadbalancer.sticky.cookie.name=eip_ws_affinity"
+      - "traefik.http.services.ws.loadbalancer.sticky.cookie.name=eip_ws_affini\
+        ty"
       - "traefik.http.services.ws.loadbalancer.sticky.cookie.httpOnly=true"
     volumes:
       # Share JWT key material with API (both use /data/*jwt*.pem and /data/jwt-key-id.txt)
@@ -128,14 +130,9 @@ services:
     environment:
       OTEL_SERVICE_NAME: worker
       DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
-      # Live Firestore migration in dev: importUserAccountsFromFirestore -live enqueues UIDs from production
-      # Firestore, but migrateUserDocumentToMongo uses Firebase Admin here. Without matching credentials,
-      # GetUser returns not-found and tasks skip. Set in .env for the test window, then remove and recreate worker:
-      #   WORKER_GOOGLE_APPLICATION_CREDENTIALS=/app/adminSDKLive.json
-      #   WORKER_FIREBASE_PROJECT_ID=<project_id from adminSDKLive.json>
       GOOGLE_APPLICATION_CREDENTIALS: ${WORKER_GOOGLE_APPLICATION_CREDENTIALS:-${GOOGLE_APPLICATION_CREDENTIALS}}
       FIREBASE_PROJECT_ID: ${WORKER_FIREBASE_PROJECT_ID:-${FIREBASE_PROJECT_ID}}
-    image: ghcr.io/darcy561/eve-industry-planner-worker:0.8.10
+    image: ghcr.io/darcy561/eve-industry-planner-worker:0.8.13
     deploy:
       replicas: 1
     volumes:
@@ -151,9 +148,9 @@ services:
       OTEL_SERVICE_NAME: core
       DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
     container_name: core
-    image: ghcr.io/darcy561/eve-industry-planner-core:0.8.10
+    image: ghcr.io/darcy561/eve-industry-planner-core:0.8.13
     healthcheck:
-      test: ["CMD-SHELL", "test -f /data/core-ready"]
+      test: [ "CMD-SHELL", "test -f /data/core-ready" ]
       interval: 5s
       timeout: 3s
       retries: 180
@@ -168,7 +165,7 @@ services:
   frontend:
     <<: *common-service-config
     container_name: frontend
-    image: ghcr.io/darcy561/eve-industry-planner-frontend:0.8.10
+    image: ghcr.io/darcy561/eve-industry-planner-frontend:0.8.13
     depends_on:
       <<: *common-depends-on
       core:
@@ -179,7 +176,9 @@ services:
           "CMD",
           "node",
           "-e",
-          "require('http').get('http://127.0.0.1:80/health.json',r=>{r.resume();process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))",
+          "require('http').get('http://127.0.0.1:80/health.json',r=>{r.resume\
+            ();process.exit(r.statusCode===200?0:1)}).on('error',()=>process.ex\
+            it(1))",
         ]
       interval: 60s
       timeout: 10s
@@ -191,7 +190,8 @@ services:
       - "traefik.http.routers.frontend.service=frontend"
       # Frontend Service Load Balancer
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
-      - "traefik.http.services.frontend.loadbalancer.healthcheck.path=/health.json"
+      - "traefik.http.services.frontend.loadbalancer.healthcheck.path=/health.j\
+        son"
       - "traefik.http.services.frontend.loadbalancer.healthcheck.interval=10s"
       - "traefik.http.services.frontend.loadbalancer.healthcheck.timeout=3s"
       - "traefik.http.services.frontend.loadbalancer.healthcheck.scheme=http"
@@ -199,16 +199,19 @@ services:
       - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
       - "traefik.http.routers.frontend.priority=1"
       - "traefik.http.routers.frontend.entrypoints=web"
-      - "traefik.http.routers.frontend.middlewares=frontend-contenttype,security-headers"
+      - "traefik.http.routers.frontend.middlewares=frontend-contenttype,securit\
+        y-headers"
       # Frontend Router (HTTPS)
       - "traefik.http.routers.frontend-secure.rule=PathPrefix(`/`)"
       - "traefik.http.routers.frontend-secure.priority=1"
       - "traefik.http.routers.frontend-secure.entrypoints=websecure"
       - "traefik.http.routers.frontend-secure.service=frontend"
-      - "traefik.http.routers.frontend-secure.middlewares=frontend-contenttype,security-headers"
+      - "traefik.http.routers.frontend-secure.middlewares=frontend-contenttype,\
+        security-headers"
       - "traefik.http.middlewares.frontend-contenttype.contentType=true"
       # Security Headers Middleware
-      - "traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.security-headers.headers.contentTypeNosniff=t\
+        rue"
       - "traefik.http.middlewares.security-headers.headers.browserXssFilter=true"
       - "traefik.http.middlewares.security-headers.headers.frameDeny=true"
       - "traefik.http.middlewares.security-headers.headers.isDevelopment=false"
@@ -216,7 +219,7 @@ services:
   traefik:
     <<: *common-service-config
     container_name: traefik
-    image: traefik:v3.6.6
+    image: traefik:v3
     command:
       # Entrypoints
       - "--entrypoints.web.address=:80"
@@ -245,18 +248,18 @@ services:
 
   nats:
     container_name: nats
-    image: nats:2.12.3
+    image: nats:2
     restart: unless-stopped
     volumes:
       - nats_data:/data
-    command: ["-js", "-sd", "/data", "-m", "8222"]
+    command: [ "-js", "-sd", "/data", "-m", "8222" ]
     networks:
       - eip
 
   asynqmon:
     <<: *common-service-config
     container_name: asynqmon
-    image: hibiken/asynqmon
+    image: hibiken/asynqmon:latest
     ports:
       - "10.8.0.1:8080:8080"
     command:
@@ -269,9 +272,9 @@ services:
 
   redis:
     container_name: redisDB
-    image: redis:8.4.0
+    image: redis:8
     restart: unless-stopped
-    env_file: [.env]
+    env_file: [ .env ]
     command:
       [
         "redis-server",
@@ -297,9 +300,9 @@ services:
 
   mongo:
     container_name: mongoDB
-    image: mongo:8.2
+    image: mongo:8
     restart: unless-stopped
-    env_file: [.env]
+    env_file: [ .env ]
     environment:
       - MONGO_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
       - MONGO_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
@@ -309,12 +312,14 @@ services:
       - mongo_data:/data/db
       - ./scripts/mongo-setup.sh:/mongo-setup.sh:ro
       - ./mongo-keyfile:/etc/mongo-keyfile:ro
-    command: ["bash", "/mongo-setup.sh", "--bind_ip_all"]
+    command: [ "bash", "/mongo-setup.sh", "--bind_ip_all" ]
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "mongosh --quiet -u \"$MONGO_ROOT_USERNAME\" -p \"$MONGO_ROOT_PASSWORD\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" >/dev/null 2>&1 || exit 1"
+          "mongosh --quiet -u \"$MONGO_ROOT_USERNAME\" -p
+            \"$MONGO_ROOT_PASSWORD\" --authenticationDatabase admin --eval
+            \"db.adminCommand('ping').ok\" >/dev/null 2>&1 || exit 1",
         ]
       interval: 10s
       timeout: 10s
@@ -381,7 +386,7 @@ services:
     networks:
       - eip
     dns: *common-dns
-    command: ["--config=/etc/otelcol/config.yaml"]
+    command: [ "--config=/etc/otelcol/config.yaml" ]
     volumes:
       - ./observability/otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
 

@@ -16,7 +16,10 @@ import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
 import VirtualisedRecipeSearch from "../../Styled Components/autocomplete/virtualisedRecipeSearch";
 import { useCachedData } from "../../Hooks/App/useCachedData";
-import { CACHED_DATA_FILES } from "../../Context/defaultValues";
+import {
+  CACHED_DATA_FILES,
+  STANDARD_TEXT_FORMAT,
+} from "../../Context/defaultValues";
 import { appShellSetupSectionPaperSx } from "../../Context/appShell";
 import { buildJob } from "../../Functions/JobPlanner/buildJob";
 import JobDependencyTreeFlow from "../../Styled Components/JobTreeFlow/JobDependencyTreeFlow";
@@ -178,12 +181,10 @@ export function ItemTree() {
                     Item tree
                   </Typography>
                   <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    sx={{ mt: 0.75, maxWidth: "62ch" }}
+                    sx={{ mt: 0.75, typography: STANDARD_TEXT_FORMAT }}
                   >
                     Search for items to add to the viewer, multiple items can be
-                    added and their trees will be combined.
+                    added and their product trees will be combined.
                   </Typography>
                 </Box>
 
@@ -236,9 +237,7 @@ export function ItemTree() {
                     >
                       {selectedItems.length < 1 ? (
                         <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{ fontStyle: "italic" }}
+                          sx={{ typography: STANDARD_TEXT_FORMAT, fontStyle: "italic" }}
                         >
                           No items queued — pick from search above.
                         </Typography>

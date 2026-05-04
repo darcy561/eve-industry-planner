@@ -64,6 +64,7 @@ class Character {
     this.isOmega = other.isOmega;
     this.isMainCharacter = other.isMainCharacter;
     this.accountRefreshTokens = other.accountRefreshTokens;
+    this.isPlaceholder = other.isPlaceholder;
   }
 
   /**
@@ -73,7 +74,9 @@ class Character {
    */
   static placeholder(options = {}) {
     const { isMainCharacter = true } = options;
-    return new Character({ isMainCharacter });
+    const inst = new Character({ isMainCharacter });
+    inst.isPlaceholder = true;
+    return inst;
   }
 
   getRefreshTokenObject() {

@@ -55,7 +55,8 @@ export default function FirstLoginCustomStructures() {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
               You can add multiple custom structures for each job type but only
               one structure can be the default. The default structure is what is
-              used initially when creating new jobs of this job type.
+              used initially when creating new jobs of this job type, it can be
+              quickly changed in the job later if needed.
             </Typography>
             {selectedJobType === jobTypes.reprocessing ? (
               <ReprocessingStructureSelection
