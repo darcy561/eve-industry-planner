@@ -74,6 +74,35 @@ const realtimeSyncSlice = (set, get) => ({
         );
       },
 
+      /**
+       * One store update for many docs — avoids dozens of nested React updates when WS
+       * coalesce flushes bulk deletes (React max nested updates ≈ 50).
+       *
+       * @param {Array<[string, number]>} entries - `[docKey, ms]` pairs
+       */
+      setCursorMsBatch: (entries) => {
+        if (!entries?.length) return;
+        const patch = {};
+        for (const pair of entries) {
+          const docKey = pair?.[0];
+          const ms = pair?.[1];
+          if (docKey && Number.isFinite(ms)) patch[docKey] = ms;
+        }
+        if (Object.keys(patch).length === 0) return;
+        set(
+          (state) => ({
+            ...state,
+            realtimeSync: {
+              ...state.realtimeSync,
+              cursors: { ...state.realtimeSync.cursors, ...patch },
+              actions: state.realtimeSync.actions,
+            },
+          }),
+          false,
+          "realtimeSync/setCursorMsBatch"
+        );
+      },
+
       reset: () =>
         set(
           (state) => ({

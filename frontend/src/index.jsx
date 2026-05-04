@@ -1,6 +1,7 @@
 import ReactDOM from "react-dom/client";
 import { init, tanstackRouterBrowserTracingIntegration } from "@sentry/react";
 import { appRouter } from "./appRouter";
+import { subscribeGa4ToTanStackRouter } from "./analytics/googleAnalytics";
 import { AppWrapper } from "./AppWrapper";
 import {
   captureReactErrorOnce,
@@ -47,6 +48,8 @@ init({
     "Script error",
   ],
 });
+
+subscribeGa4ToTanStackRouter(appRouter);
 
 const root = ReactDOM.createRoot(document.getElementById("pageWrapper"), {
   onUncaughtError: (error, errorInfo) => {

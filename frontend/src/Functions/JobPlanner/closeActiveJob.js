@@ -35,10 +35,16 @@ export default async function closeActiveJob(
     return;
   }
 
+  if (!inputJob?.jobID) {
+    setActiveJobID(null);
+    return;
+  }
+
   let recalculatedJobIds = new Set();
-  const tempJobs = Object.values(tempJobsToAdd);
+  const tempJobsSource = tempJobsToAdd ?? {};
+  const tempJobs = Object.values(tempJobsSource);
   const IDsOfNewJobs = new Set(
-    Object.values(tempJobsToAdd).map(({ jobID }) => jobID)
+    Object.values(tempJobsSource).map(({ jobID }) => jobID)
   );
   const modifiedLinkedJobIDs = applyParentChildChanges(
     parentChildToEdit,
@@ -93,7 +99,7 @@ export default async function closeActiveJob(
   if (inputJob.includedInGroup) {
     const matchedGroup = getGroupObject(inputJob.groupID);
     if (matchedGroup) {
-      matchedGroup.addJobsToGroup(Object.values(tempJobsToAdd));
+      matchedGroup.addJobsToGroup(Object.values(tempJobsSource));
     }
   }
 
@@ -107,27 +113,28 @@ export default async function closeActiveJob(
   }
 
   if (isLoggedIn) {
-    await saveJobsViaApi([inputJob, ...Object.values(tempJobsToAdd), ...batchUpdates]);
+    await saveJobsViaApi([inputJob, ...Object.values(tempJobsSource), ...batchUpdates]);
   }
 
+  const esl = esiDataToLink ?? {};
+  const eslMo = esl.marketOrders ?? { add: [], remove: [] };
+  const eslIj = esl.industryJobs ?? { add: [], remove: [] };
+  const eslTr = esl.transactions ?? { add: [], remove: [] };
   const hasAnyChanges =
-    (esiDataToLink.marketOrders.add && esiDataToLink.marketOrders.add.length > 0) ||
-    (esiDataToLink.industryJobs.add && esiDataToLink.industryJobs.add.length > 0) ||
-    (esiDataToLink.transactions.add && esiDataToLink.transactions.add.length > 0) ||
-    (esiDataToLink.marketOrders.remove &&
-      esiDataToLink.marketOrders.remove.length > 0) ||
-    (esiDataToLink.industryJobs.remove &&
-      esiDataToLink.industryJobs.remove.length > 0) ||
-    (esiDataToLink.transactions.remove &&
-      esiDataToLink.transactions.remove.length > 0);
+    (eslMo.add?.length > 0) ||
+    (eslIj.add?.length > 0) ||
+    (eslTr.add?.length > 0) ||
+    (eslMo.remove?.length > 0) ||
+    (eslIj.remove?.length > 0) ||
+    (eslTr.remove?.length > 0);
 
   useUsersStore.getState().account.actions.addLinkedEsiData({
-    ordersToAdd: esiDataToLink.marketOrders.add,
-    jobsToAdd: esiDataToLink.industryJobs.add,
-    transactionsToAdd: esiDataToLink.transactions.add,
-    ordersToRemove: esiDataToLink.marketOrders.remove,
-    jobsToRemove: esiDataToLink.industryJobs.remove,
-    transactionsToRemove: esiDataToLink.transactions.remove,
+    ordersToAdd: eslMo.add,
+    jobsToAdd: eslIj.add,
+    transactionsToAdd: eslTr.add,
+    ordersToRemove: eslMo.remove,
+    jobsToRemove: eslIj.remove,
+    transactionsToRemove: eslTr.remove,
   });
 
   if (hasAnyChanges && isLoggedIn) {

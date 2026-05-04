@@ -61,6 +61,15 @@ async function getCitadelData(citadelID, character, config = {}) {
     return json;
   } catch (err) {
     console.error(`Error retrieving citadel data: ${err}`);
+    const optedOutOfCommunity =
+      useUsersStore.getState().account?.shareCitadelNames === false;
+    if (optedOutOfCommunity) {
+      return {
+        id: citadelID,
+        name: `${NO_ACCESS_LOCATION_NAME_PREFIX} - ${citadelID}`,
+        resolutionStatus: LOCATION_RESOLUTION_STATUS.NO_ACCESS,
+      };
+    }
     const fallback = await resolveCitadelName(citadelID);
     if (fallback?.name) {
       return {

@@ -54,10 +54,11 @@ function flush() {
     pendingDeletes = new Set();
     actions.removePendingInboundNewJobSkeletons(ids);
     actions.removeJobsFromJobArray(ids);
-    ids.forEach((jobID) => {
-      actions.clearPendingJobDocumentWrites(jobID);
-      rs.setCursorMs(`user_job_documents.${jobID}`, Date.now());
-    });
+    actions.clearPendingJobDocumentWrites(ids);
+    const now = Date.now();
+    rs.setCursorMsBatch(
+      ids.map((jobID) => [`user_job_documents.${jobID}`, now])
+    );
   }
 
   if (pendingUpserts.size > 0) {
@@ -66,13 +67,17 @@ function flush() {
     actions.removePendingInboundNewJobSkeletons(entries.map(([id]) => id));
     const jobs = entries.map(([, doc]) => new Job(doc));
     actions.updateOrAddJobsToJobArray(jobs);
-    entries.forEach(([jobID, doc]) => {
+    const cursorPairs = [];
+    for (const [jobID, doc] of entries) {
       const ms = metaLastModifiedMs(doc);
       if (ms != null) {
-        rs.setCursorMs(`user_job_documents.${jobID}`, ms);
+        cursorPairs.push([`user_job_documents.${jobID}`, ms]);
       }
-      actions.clearPendingJobDocumentWrites(jobID);
-    });
+    }
+    if (cursorPairs.length > 0) {
+      rs.setCursorMsBatch(cursorPairs);
+    }
+    actions.clearPendingJobDocumentWrites(entries.map(([id]) => id));
   }
 }
 

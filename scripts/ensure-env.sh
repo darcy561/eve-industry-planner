@@ -53,35 +53,24 @@ if [ ! -f .env ]; then
 			exit 1
 		fi
 	fi
-	for SECRET_KEY in MONGO_ROOT_PASSWORD MONGO_PASSWORD REDIS_PASSWORD; do
+	for SECRET_KEY in MONGO_ROOT_PASSWORD MONGO_PASSWORD REDIS_PASSWORD GRAFANA_ADMIN_PASSWORD; do
 		CURRENT_VAL="$(awk -F= -v k="${SECRET_KEY}" '$1 == k { sub(/^[^=]*=/, ""); print; exit }' .env)"
-		NEEDS_GEN=0
-		case "${SECRET_KEY}" in
-		MONGO_ROOT_PASSWORD)
-			{ [ -z "${CURRENT_VAL}" ] || [ "${CURRENT_VAL}" = "auto-generate-me" ] || [ "${CURRENT_VAL}" = "change-this-root-password" ]; } && NEEDS_GEN=1
-			;;
-		MONGO_PASSWORD)
-			{ [ -z "${CURRENT_VAL}" ] || [ "${CURRENT_VAL}" = "auto-generate-me" ] || [ "${CURRENT_VAL}" = "EXAMPLE_USERNAME" ]; } && NEEDS_GEN=1
-			;;
-		REDIS_PASSWORD)
-			{ [ -z "${CURRENT_VAL}" ] || [ "${CURRENT_VAL}" = "auto-generate-me" ] || [ "${CURRENT_VAL}" = "change-this-redis-password" ]; } && NEEDS_GEN=1
-			;;
-		esac
-		if [ "${NEEDS_GEN}" -eq 1 ]; then
-			GEN_SECRET="$(
-				if command -v openssl >/dev/null 2>&1; then
-					openssl rand -base64 36 | tr -d '\n' | tr '+/' '-_' | tr -d '='
-				else
-					LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 48
-				fi
-			)"
-			if grep -q "^${SECRET_KEY}=" .env; then
-				sed -i.bak "s|^${SECRET_KEY}=.*|${SECRET_KEY}=${GEN_SECRET}|" .env && rm -f .env.bak
-			else
-				printf '\n%s=%s\n' "${SECRET_KEY}" "${GEN_SECRET}" >>.env
-			fi
-			echo "Generated ${SECRET_KEY} in .env" >&2
+		if [ -n "${CURRENT_VAL}" ] && [ "${CURRENT_VAL}" != "auto-generate-me" ]; then
+			continue
 		fi
+		GEN_SECRET="$(
+			if command -v openssl >/dev/null 2>&1; then
+				openssl rand -base64 36 | tr -d '\n' | tr '+/' '-_' | tr -d '='
+			else
+				LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 48
+			fi
+		)"
+		if grep -q "^${SECRET_KEY}=" .env; then
+			sed -i.bak "s|^${SECRET_KEY}=.*|${SECRET_KEY}=${GEN_SECRET}|" .env && rm -f .env.bak
+		else
+			printf '\n%s=%s\n' "${SECRET_KEY}" "${GEN_SECRET}" >>.env
+		fi
+		echo "Generated ${SECRET_KEY} in .env" >&2
 	done
 	echo '' >&2
 	echo '.env file created from env.example' >&2

@@ -355,6 +355,46 @@ func GetAPICitadelNames() *APICitadelNamesMetrics {
 	return apiCitadelNamesHolder
 }
 
+// APIAdditionalCharacterRefreshTokensMetrics holds OTel metrics for GET/PUT/DELETE
+// /api/v1/user/additional-character-refresh-tokens (encrypted linked-character refresh material).
+type APIAdditionalCharacterRefreshTokensMetrics struct {
+	Requests      *floatHist
+	RequestsCount *intCounter
+	Successes     *intCounter
+	Errors        *counterVec
+}
+
+var (
+	apiAdditionalCharacterRefreshTokensOnce   sync.Once
+	apiAdditionalCharacterRefreshTokensHolder *APIAdditionalCharacterRefreshTokensMetrics
+)
+
+// GetAPIAdditionalCharacterRefreshTokens returns metrics for additional-character refresh token CRUD.
+func GetAPIAdditionalCharacterRefreshTokens() *APIAdditionalCharacterRefreshTokensMetrics {
+	apiAdditionalCharacterRefreshTokensOnce.Do(func() {
+		m := apiMeter()
+		apiAdditionalCharacterRefreshTokensHolder = &APIAdditionalCharacterRefreshTokensMetrics{
+			Requests: &floatHist{h: mustHist(m.Float64Histogram("api.additional_character_refresh_tokens.duration_milliseconds",
+				metric.WithUnit("ms"),
+				metric.WithDescription("Latency of /api/v1/user/additional-character-refresh-tokens (milliseconds)"),
+			))},
+			RequestsCount: &intCounter{c: mustCounter(m.Int64Counter("api.additional_character_refresh_tokens.requests_total",
+				metric.WithDescription("Total additional-character refresh token endpoint requests"),
+			))},
+			Successes: &intCounter{c: mustCounter(m.Int64Counter("api.additional_character_refresh_tokens.successes_total",
+				metric.WithDescription("Successful additional-character refresh token endpoint requests"),
+			))},
+			Errors: &counterVec{
+				c: mustCounter(m.Int64Counter("api.additional_character_refresh_tokens.errors_total",
+					metric.WithDescription("Additional-character refresh token endpoint errors by reason"),
+				)),
+				attrKey: "reason",
+			},
+		}
+	})
+	return apiAdditionalCharacterRefreshTokensHolder
+}
+
 // APIEveSSOCodeExchangeMetrics holds OTel metrics for EVE OAuth authorization code exchange (auth code → EVE tokens).
 type APIEveSSOCodeExchangeMetrics struct {
 	Requests      *floatHist

@@ -742,8 +742,8 @@
     ]
   },
   "timezone": "browser",
-  "title": "Asynq · queues",
+  "title": "Worker · queues",
   "uid": "asynq-queues",
-  "version": 6,
+  "version": 7,
   "weekStart": ""
 }

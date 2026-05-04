@@ -142,7 +142,7 @@
 ## 2026-04-18 — Add dedicated WebSocket metrics dashboard (Grafana)
 
 - **Request / context:** Logs dashboard existed (`WebSocket · logs`), but there was no dedicated websocket metrics dashboard.
-- **Decision:** Added a provisioned Prometheus dashboard (`WebSocket · OTel metrics`) for websocket metrics: connected clients/accounts, upgrade success/error rates, upgrade errors by reason, upgrade latency quantiles, connections open/close rates, autosubscribe/doc-update fanout rates, and per-account connected client counts.
+- **Decision:** Added a provisioned Prometheus dashboard (`WebSocket · metrics`) for websocket metrics: connected clients/accounts, upgrade success/error rates, upgrade errors by reason, upgrade latency quantiles, connections open/close rates, autosubscribe/doc-update fanout rates, and per-account connected client counts.
 - **Code / infra touched:** `observability/grafana/provisioning/dashboards/definitions/websocket-otel-metrics.json`; docs (`IMPLEMENTATION.md`, this log).
 - **Links:** (none)
 

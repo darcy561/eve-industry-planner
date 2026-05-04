@@ -220,7 +220,7 @@ Meter name: **`eve-industry-planner/websocket`** (initialized in websocket `main
 | `ws.client_subscribed_documents` | Observable gauge | **Explicit** subscribe count per connection (`explicitDocIDs`); **`client_id`**, `account_id`, **`ws_instance_id`**. |
 | `ws.document_subscribers` | Observable gauge | Inverse index for **explicit** subscriptions only (`explicitDocSubscribers`); **`doc_id`**, **`ws_instance_id`**. |
 
-Dashboard: `observability/grafana/provisioning/dashboards/definitions/websocket-otel-metrics.json` (Grafana title: **WebSocket · OTel metrics**, uid `websocket-otel-metrics`), including **Connected clients by websocket instance** (`ws_connected_clients` by `ws_instance_id`).
+Dashboard: `observability/grafana/provisioning/dashboards/definitions/websocket-otel-metrics.json` (Grafana title: **WebSocket · metrics**, uid `websocket-otel-metrics`), including **Connected clients by websocket instance** (`ws_connected_clients` by `ws_instance_id`).
 
 ### Subscribe authorization (`docID` = `{collection}.{mongoId}`)
 

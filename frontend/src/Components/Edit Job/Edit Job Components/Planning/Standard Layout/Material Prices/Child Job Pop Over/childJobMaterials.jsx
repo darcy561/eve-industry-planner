@@ -10,14 +10,20 @@ export function ChildJobMaterials_ChildJobPopoverFrame({
   marketSelect,
   listingSelect,
 }) {
-  return childJobObjects[jobDisplay].build.materials.map((material) => {
-    const childJobs =
-      childJobObjects[jobDisplay].build.childJobs[material.typeID];
+  const row = childJobObjects?.[jobDisplay];
+  const materials = row?.build?.materials;
+  if (!Array.isArray(materials)) {
+    return null;
+  }
+
+  return materials.map((material) => {
+    const childJobs = row.build?.childJobs?.[material.typeID];
+    const childJobIds = Array.isArray(childJobs) ? childJobs : [];
 
     const calculatedMaterialPrice = calculateMaterialCostFromChildJobs(
       material,
-      childJobs,
-      state.temporaryChildJobs[material.typeID],
+      childJobIds,
+      state.temporaryChildJobs?.[material.typeID],
       {},
       marketSelect,
       listingSelect

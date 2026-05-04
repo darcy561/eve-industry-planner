@@ -2,7 +2,7 @@ import { submitFrontendAnalyticsEvent } from "../Functions/Endpoints/Public/fron
 
 /**
  * Records one product event as server-side OTel metrics (fire-and-forget).
- * GA4 usage (page views only) is handled in `./googleAnalytics.js` + `AppWrapper`.
+ * GA4 usage (page views only) is handled in `./googleAnalytics.js` + `index.jsx` (subscribe before mount).
  *
  * @param {string} eventKey - Value from `./appEventNames` (`AppEvent`)
  * @param {number} [count=1] - Optional increment (e.g. batch size); ignored for `new_job` (handled inside `buildJob`)

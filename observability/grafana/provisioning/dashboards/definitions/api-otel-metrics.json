@@ -220,8 +220,17 @@
             "uid": "prometheus"
           },
           "expr": "sum(rate(api_archived_jobs_requests_total[$__rate_interval]))",
-          "legendFormat": "archived_jobs (PUT /api/v1/archived-jobs)",
+          "legendFormat": "archived_jobs (requests_total)",
           "refId": "P"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_additional_character_refresh_tokens_requests_total[$__rate_interval]))",
+          "legendFormat": "user additional_character_refresh_tokens (GET/PUT/DELETE)",
+          "refId": "Q"
         }
       ],
       "title": "Request rate (apimetrics · *_requests_total)",
@@ -440,6 +449,15 @@
           "expr": "histogram_quantile(0.96, sum(rate(api_archived_jobs_duration_milliseconds_bucket[$__rate_interval])) by (le))",
           "legendFormat": "archived_jobs p96",
           "refId": "P"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.96, sum(rate(api_additional_character_refresh_tokens_duration_milliseconds_bucket[$__rate_interval])) by (le))",
+          "legendFormat": "additional_character_refresh_tokens p96",
+          "refId": "Q"
         }
       ],
       "title": "Latency p96 (duration histograms · milliseconds)",
@@ -613,7 +631,7 @@
       },
       "gridPos": {
         "h": 9,
-        "w": 12,
+        "w": 8,
         "x": 0,
         "y": 31
       },
@@ -723,8 +741,8 @@
       },
       "gridPos": {
         "h": 9,
-        "w": 12,
-        "x": 12,
+        "w": 8,
+        "x": 8,
         "y": 31
       },
       "id": 8,
@@ -770,6 +788,15 @@
           "expr": "sum(rate(api_groups_deleted_total[$__rate_interval]))",
           "legendFormat": "groups deleted (count/s)",
           "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(api_groups_items_per_request_sum[$__rate_interval])) / sum(rate(api_groups_items_per_request_count[$__rate_interval]))",
+          "legendFormat": "groups avg items / request (histogram)",
+          "refId": "D"
         }
       ],
       "title": "Groups",
@@ -780,7 +807,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "`individual_jobs_archived_total` increases by **batch size** (one per job document) on each successful PUT, not by 1 per HTTP request.",
+      "description": "Same layout as **Jobs** / **Groups**. `individual_jobs_archived_total` increases by **batch size** (one per archived job document per batch row), not by 1 per HTTP request.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -825,9 +852,9 @@
       },
       "gridPos": {
         "h": 9,
-        "w": 24,
-        "x": 0,
-        "y": 40
+        "w": 8,
+        "x": 16,
+        "y": 31
       },
       "id": 15,
       "options": {
@@ -852,7 +879,7 @@
             "uid": "prometheus"
           },
           "expr": "sum(rate(api_archived_jobs_successes_total[$__rate_interval]))",
-          "legendFormat": "archived_jobs successful PUTs / s",
+          "legendFormat": "archived_jobs successes",
           "refId": "A"
         },
         {
@@ -860,8 +887,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(api_archived_jobs_individual_jobs_archived_total[$__rate_interval]))",
-          "legendFormat": "individual jobs archived / s",
+          "expr": "sum(rate(api_archived_jobs_saved_total[$__rate_interval]))",
+          "legendFormat": "archived_jobs saved (count/s)",
           "refId": "B"
         },
         {
@@ -869,8 +896,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(api_archived_jobs_saved_total[$__rate_interval]))",
-          "legendFormat": "Mongo modified+upserted ops / s",
+          "expr": "sum(rate(api_archived_jobs_individual_jobs_archived_total[$__rate_interval]))",
+          "legendFormat": "archived_jobs documents / s (batch rows)",
           "refId": "C"
         },
         {
@@ -879,11 +906,11 @@
             "uid": "prometheus"
           },
           "expr": "sum(rate(api_archived_jobs_items_per_request_sum[$__rate_interval])) / sum(rate(api_archived_jobs_items_per_request_count[$__rate_interval]))",
-          "legendFormat": "avg jobs per PUT (histogram)",
+          "legendFormat": "archived_jobs avg items / request (histogram)",
           "refId": "D"
         }
       ],
-      "title": "Archived jobs (PUT /api/v1/archived-jobs)",
+      "title": "Archived jobs",
       "type": "timeseries"
     },
     {
@@ -917,9 +944,9 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 8,
+        "w": 24,
         "x": 0,
-        "y": 49
+        "y": 40
       },
       "id": 9,
       "options": {
@@ -1004,7 +1031,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 54
+        "y": 45
       },
       "id": 12,
       "options": {
@@ -1028,7 +1055,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (reason, source) (\n  label_replace(rate(api_eve_token_login_errors_total[$__rate_interval]), \"source\", \"eve_token_login\", \"reason\", \".*\")\n  or label_replace(rate(api_session_refresh_errors_total[$__rate_interval]), \"source\", \"session_refresh\", \"reason\", \".*\")\n  or label_replace(rate(api_auth_jwks_errors_total[$__rate_interval]), \"source\", \"jwks\", \"reason\", \".*\")\n  or label_replace(rate(api_eve_sso_code_exchange_errors_total[$__rate_interval]), \"source\", \"eve_sso_code_exchange\", \"reason\", \".*\")\n  or label_replace(rate(api_eve_sso_token_refresh_errors_total[$__rate_interval]), \"source\", \"eve_sso_token_refresh\", \"reason\", \".*\")\n  or label_replace(rate(api_jobs_errors_total[$__rate_interval]), \"source\", \"jobs\", \"reason\", \".*\")\n  or label_replace(rate(api_groups_errors_total[$__rate_interval]), \"source\", \"groups\", \"reason\", \".*\")\n  or label_replace(rate(api_archived_jobs_errors_total[$__rate_interval]), \"source\", \"archived_jobs\", \"reason\", \".*\")\n  or label_replace(rate(api_system_indexes_errors_total[$__rate_interval]), \"source\", \"system_indexes\", \"reason\", \".*\")\n  or label_replace(rate(api_market_prices_errors_total[$__rate_interval]), \"source\", \"market_prices\", \"reason\", \".*\")\n  or label_replace(rate(api_static_data_errors_total[$__rate_interval]), \"source\", \"static_data\", \"reason\", \".*\")\n  or label_replace(rate(api_app_config_errors_total[$__rate_interval]), \"source\", \"app_config\", \"reason\", \".*\")\n) $err_source",
+          "expr": "sum by (reason, source) (\n  label_replace(rate(api_eve_token_login_errors_total[$__rate_interval]), \"source\", \"eve_token_login\", \"reason\", \".*\")\n  or label_replace(rate(api_session_refresh_errors_total[$__rate_interval]), \"source\", \"session_refresh\", \"reason\", \".*\")\n  or label_replace(rate(api_auth_jwks_errors_total[$__rate_interval]), \"source\", \"jwks\", \"reason\", \".*\")\n  or label_replace(rate(api_eve_sso_code_exchange_errors_total[$__rate_interval]), \"source\", \"eve_sso_code_exchange\", \"reason\", \".*\")\n  or label_replace(rate(api_eve_sso_token_refresh_errors_total[$__rate_interval]), \"source\", \"eve_sso_token_refresh\", \"reason\", \".*\")\n  or label_replace(rate(api_jobs_errors_total[$__rate_interval]), \"source\", \"jobs\", \"reason\", \".*\")\n  or label_replace(rate(api_groups_errors_total[$__rate_interval]), \"source\", \"groups\", \"reason\", \".*\")\n  or label_replace(rate(api_archived_jobs_errors_total[$__rate_interval]), \"source\", \"archived_jobs\", \"reason\", \".*\")\n  or label_replace(rate(api_system_indexes_errors_total[$__rate_interval]), \"source\", \"system_indexes\", \"reason\", \".*\")\n  or label_replace(rate(api_market_prices_errors_total[$__rate_interval]), \"source\", \"market_prices\", \"reason\", \".*\")\n  or label_replace(rate(api_static_data_errors_total[$__rate_interval]), \"source\", \"static_data\", \"reason\", \".*\")\n  or label_replace(rate(api_app_config_errors_total[$__rate_interval]), \"source\", \"app_config\", \"reason\", \".*\")\n  or label_replace(rate(api_additional_character_refresh_tokens_errors_total[$__rate_interval]), \"source\", \"additional_character_refresh_tokens\", \"reason\", \".*\")\n) $err_source",
           "legendFormat": "{{source}} · {{reason}}",
           "refId": "A"
         }
@@ -1118,6 +1145,11 @@
             "selected": false,
             "text": "app_config",
             "value": " * on(source) group_left() max by (source) (label_replace(rate(api_app_config_errors_total[$__rate_interval]), \"source\", \"app_config\", \"reason\", \".*\") * 0 + 1)"
+          },
+          {
+            "selected": false,
+            "text": "additional_character_refresh_tokens",
+            "value": " * on(source) group_left() max by (source) (label_replace(rate(api_additional_character_refresh_tokens_errors_total[$__rate_interval]), \"source\", \"additional_character_refresh_tokens\", \"reason\", \".*\") * 0 + 1)"
           }
         ],
         "skipUrlSync": false,
@@ -1145,8 +1177,8 @@
     ]
   },
   "timezone": "browser",
-  "title": "API · OTel metrics",
+  "title": "API · metrics",
   "uid": "api-otel-metrics",
-  "version": 9,
+  "version": 13,
   "weekStart": ""
 }

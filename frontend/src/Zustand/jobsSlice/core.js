@@ -279,17 +279,20 @@ export const coreActions = (set, get) => ({
    */
   removeJobsFromJobArray: (jobIDs) => {
     const jobIDsToRemove = Array.isArray(jobIDs) ? jobIDs : [jobIDs];
+    const removeSet = new Set(jobIDsToRemove);
 
     set(
-      (state) => ({
-        ...state,
-        jobData: {
-          ...state.jobData,
-          jobArray: state.jobData.jobArray.filter(
-            (i) => !jobIDsToRemove.includes(i.jobID)
-          ),
-        },
-      }),
+      (state) => {
+        const next = state.jobData.jobArray.filter((i) => !removeSet.has(i.jobID));
+        if (next.length === state.jobData.jobArray.length) return state;
+        return {
+          ...state,
+          jobData: {
+            ...state.jobData,
+            jobArray: next,
+          },
+        };
+      },
       false,
       "removeJobsFromJobArray"
     );

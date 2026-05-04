@@ -23,14 +23,15 @@ export function FirstLoginAccountsStep() {
 
       <FirstLoginSetupSection
         title="Citadel names"
-        subtitle="Optional — shared anonymously to help label structures when you no longer have in-game access."
+        subtitle="Citadel data is only available from the ESI whose character has docking access in-game.
+            By agreeing to share this data, you allow other players to see the names of structures you have resolved via ESI, and you can use community provided names when available to label structures you cannot query yourself.
+            All data is stored anonymously and is not linked to your account, all ESI queries are made with your character's access token locally in your browser.
+            To opt out of sharing/using community data, simply turn the switch off."
       >
         <FirstLoginStructureFormField
-          title="Community lookup"
-          description="When enabled, names for structures you successfully resolve via EVE can be stored so other players see labels for locations they cannot query themselves. Turn off to opt out."
         >
           <FormControlLabel
-            label="Share discovered citadel names"
+            label="Share Citadel Names"
             labelPlacement="start"
             sx={{
               width: "100%",

@@ -21,7 +21,8 @@ var webMeter = sync.OnceValue(func() metric.Meter {
 	return otel.Meter("eve-industry-planner/web")
 })
 
-// WebFrontendEventsMetrics holds OTel counters for browser-originated product events (no per-user labels).
+// WebFrontendEventsMetrics holds OTel counters for browser-originated product events (no per-user labels;
+// authenticated vs anonymous is recorded as label audience where applicable).
 type WebFrontendEventsMetrics struct {
 	requests      metric.Float64Histogram
 	requestsCount metric.Int64Counter
@@ -44,13 +45,13 @@ func GetWebFrontendEvents() *WebFrontendEventsMetrics {
 		webFrontendEventsHolder = &WebFrontendEventsMetrics{
 			requests: mustHist(m.Float64Histogram("web.frontend_analytics.duration_milliseconds",
 				metric.WithUnit("ms"),
-				metric.WithDescription("Latency of POST /api/v1/analytics/events requests in milliseconds"),
+				metric.WithDescription("Latency of POST /api/v1/analytics/events requests in milliseconds (label audience)"),
 			)),
 			requestsCount: mustCounter(m.Int64Counter("web.frontend_analytics.requests_total",
-				metric.WithDescription("Total POST /api/v1/analytics/events requests"),
+				metric.WithDescription("Total POST /api/v1/analytics/events requests (label audience)"),
 			)),
 			successes: mustCounter(m.Int64Counter("web.frontend_analytics.successes_total",
-				metric.WithDescription("Successful POST /api/v1/analytics/events requests"),
+				metric.WithDescription("Successful POST /api/v1/analytics/events requests (label audience)"),
 			)),
 			events: mustCounter(m.Int64Counter("web.frontend_events_total",
 				metric.WithDescription("Product events submitted from the web app (allowlisted event keys; audience is authenticated vs anonymous only)"),
@@ -62,7 +63,7 @@ func GetWebFrontendEvents() *WebFrontendEventsMetrics {
 				metric.WithDescription("Item tree item views from the web app by item type ID (EVE type_id); audience is authenticated vs anonymous only"),
 			)),
 			invalidEvents: mustCounter(m.Int64Counter("web.frontend_analytics_invalid_total",
-				metric.WithDescription("Rejected analytics event requests by reason"),
+				metric.WithDescription("Rejected analytics event requests by reason and audience"),
 			)),
 		}
 	})
@@ -88,19 +89,20 @@ func (w *WebFrontendEventsMetrics) RecordItemTreeViews(ctx context.Context, audi
 }
 
 // RecordRequest observes one analytics request duration and increments request count.
-func (w *WebFrontendEventsMetrics) RecordRequest(ctx context.Context, duration time.Duration) {
-	w.RecordRequestMilliseconds(ctx, duration.Seconds()*1000.0)
+func (w *WebFrontendEventsMetrics) RecordRequest(ctx context.Context, duration time.Duration, audience string) {
+	w.RecordRequestMilliseconds(ctx, duration.Seconds()*1000.0, audience)
 }
 
 // RecordRequestMilliseconds observes analytics request duration in milliseconds and increments request count.
-func (w *WebFrontendEventsMetrics) RecordRequestMilliseconds(ctx context.Context, ms float64) {
-	w.requests.Record(ctx, ms)
-	w.requestsCount.Add(ctx, 1)
+func (w *WebFrontendEventsMetrics) RecordRequestMilliseconds(ctx context.Context, ms float64, audience string) {
+	attr := metric.WithAttributes(attribute.String("audience", audience))
+	w.requests.Record(ctx, ms, attr)
+	w.requestsCount.Add(ctx, 1, attr)
 }
 
 // RecordSuccess increments successful analytics batch requests.
-func (w *WebFrontendEventsMetrics) RecordSuccess(ctx context.Context) {
-	w.successes.Add(ctx, 1)
+func (w *WebFrontendEventsMetrics) RecordSuccess(ctx context.Context, audience string) {
+	w.successes.Add(ctx, 1, metric.WithAttributes(attribute.String("audience", audience)))
 }
 
 const maxFrontendEventCount int64 = 1000
@@ -128,8 +130,13 @@ func (w *WebFrontendEventsMetrics) RecordEvent(ctx context.Context, eventKey, au
 }
 
 // RecordInvalid increments web.frontend_analytics_invalid_total (e.g. unknown_event, bad_json).
-func (w *WebFrontendEventsMetrics) RecordInvalid(ctx context.Context, reason string) {
-	w.invalidEvents.Add(ctx, 1, metric.WithAttributes(attribute.String("reason", reason)))
+func (w *WebFrontendEventsMetrics) RecordInvalid(ctx context.Context, reason, audience string) {
+	w.invalidEvents.Add(ctx, 1,
+		metric.WithAttributes(
+			attribute.String("reason", reason),
+			attribute.String("audience", audience),
+		),
+	)
 }
 
 // RecordJobCreates increments web.frontend_job_creates_total once per (audience, type_id) with n jobs.

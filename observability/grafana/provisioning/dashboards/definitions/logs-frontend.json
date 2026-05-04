@@ -8,13 +8,14 @@
   "id": null,
   "links": [],
   "liveNow": false,
+  "description": "Timed auto-refresh resets Grafana log panel scroll. Refresh is **manual** here—use the dashboard refresh control when you need newer logs.",
   "panels": [
     {
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
-      "description": "Docker Compose service `frontend` (all replicas).",
+      "description": "Scoped to the **`frontend`** container (`compose_service`). These logs are often **plain text** (e.g. nginx), not the same JSON shape as Go services. Use **search** and **line regex** to narrow; default line regex is **`.*`**. For HTTP path or status, use **search** or a regex. There is no shared `component` field here—use text filters instead.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -28,6 +29,7 @@
       "id": 2,
       "options": {
         "dedupStrategy": "none",
+        "enableInfiniteScrolling": true,
         "enableLogDetails": true,
         "maxLines": 1000,
         "prettifyLogMessage": true,
@@ -44,7 +46,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{compose_service=\"frontend\"}",
+          "expr": "{compose_service=\"frontend\"} |= \"${search}\" |~ \"${line_regex:raw}\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -53,7 +55,7 @@
       "type": "logs"
     }
   ],
-  "refresh": "15s",
+  "refresh": "",
   "schemaVersion": 39,
   "style": "dark",
   "tags": [
@@ -62,7 +64,38 @@
     "frontend"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "",
+          "value": ""
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "search text",
+        "name": "search",
+        "options": [],
+        "query": "",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": ".*",
+          "value": ".*"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "line regex (raw / nginx)",
+        "name": "line_regex",
+        "options": [],
+        "query": ".*",
+        "skipUrlSync": false,
+        "type": "textbox"
+      }
+    ]
   },
   "time": {
     "from": "now-6h",
@@ -86,6 +119,6 @@
   "timezone": "browser",
   "title": "Frontend · logs",
   "uid": "logs-frontend",
-  "version": 3,
+  "version": 5,
   "weekStart": ""
 }

@@ -8,13 +8,14 @@
   "id": null,
   "links": [],
   "liveNow": false,
+  "description": "Timed auto-refresh resets Grafana log panel scroll. Refresh is **manual** here—use the dashboard refresh control when you need newer logs.",
   "panels": [
     {
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
-      "description": "Docker Compose service `websocket` (all replicas).",
+      "description": "Scoped to the **`websocket`** container (`compose_service`). Filter **internal parts** with JSON **`component`** when handlers add it. Regex; default **`.*`**. OTEL **`service_name`** is the whole process (same idea as Core — use this filter for subsystems, not the deployment name).",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -28,6 +29,7 @@
       "id": 2,
       "options": {
         "dedupStrategy": "none",
+        "enableInfiniteScrolling": true,
         "enableLogDetails": true,
         "maxLines": 1000,
         "prettifyLogMessage": true,
@@ -44,7 +46,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{compose_service=\"websocket\"} |= \"${search}\" | json | level=~\"(?i)${level:raw}\"",
+          "expr": "{compose_service=\"websocket\"} |= \"${search}\" | json | level=~\"(?i)${level:raw}\" | component=~\"${component:raw}\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -53,7 +55,7 @@
       "type": "logs"
     }
   ],
-  "refresh": "15s",
+  "refresh": "",
   "schemaVersion": 39,
   "style": "dark",
   "tags": [
@@ -114,7 +116,7 @@
         },
         "hide": 0,
         "includeAll": false,
-        "label": "component (regex)",
+        "label": "WebSocket part — component (regex)",
         "name": "component",
         "options": [],
         "query": ".*",
@@ -160,6 +162,6 @@
   "timezone": "browser",
   "title": "WebSocket · logs",
   "uid": "logs-websocket",
-  "version": 4,
+  "version": 6,
   "weekStart": ""
 }

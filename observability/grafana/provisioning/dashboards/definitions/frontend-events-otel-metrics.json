@@ -14,36 +14,70 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "OTel scope `eve-industry-planner/web` (API process). **`audience`** is `authenticated` (valid app JWT Bearer) or `anonymous`. **`web.frontend_events_total` counts only allowlisted *simple* event keys** — it does **not** include `new_job` (see *Job creates*) or `view_item_tree_item` (see *Item tree views*); those are recorded on separate counters with `type_id` labels.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "decimals": 0,
-          "unit": "short"
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 2,
+          "unit": "reqps"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
-        "w": 6,
+        "h": 8,
+        "w": 24,
         "x": 0,
         "y": 0
       },
       "id": 1,
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
+        "legend": {
           "calcs": [
+            "mean",
             "lastNotNull"
           ],
-          "fields": "",
-          "values": false
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
         },
-        "textMode": "value_and_name"
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
@@ -52,15 +86,23 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(ws_connected_clients)",
-          "instant": true,
-          "legendFormat": "connected clients",
-          "range": false,
+          "expr": "sum by (audience) (rate(web_frontend_analytics_requests_total[$__rate_interval]))",
+          "legendFormat": "requests/s · {{audience}}",
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (audience) (rate(web_frontend_analytics_successes_total[$__rate_interval]))",
+          "legendFormat": "204 successes/s · {{audience}}",
+          "refId": "B"
         }
       ],
-      "title": "Connected clients",
-      "type": "stat"
+      "title": "Analytics batch endpoint (web.frontend_analytics.*)",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -72,31 +114,64 @@
           "color": {
             "mode": "palette-classic"
           },
-          "decimals": 0,
-          "unit": "short"
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 2,
+          "unit": "ms"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 6,
-        "y": 0
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 8
       },
       "id": 2,
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
+        "legend": {
           "calcs": [
+            "mean",
             "lastNotNull"
           ],
-          "fields": "",
-          "values": false
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
         },
-        "textMode": "value_and_name"
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
@@ -105,121 +180,23 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(ws_connected_accounts)",
-          "instant": true,
-          "legendFormat": "connected accounts",
-          "range": false,
+          "expr": "histogram_quantile(0.96, sum(rate(web_frontend_analytics_duration_milliseconds_bucket[$__rate_interval])) by (le, audience))",
+          "legendFormat": "p96 · {{audience}}",
           "refId": "A"
-        }
-      ],
-      "title": "Connected accounts",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "decimals": 3,
-          "unit": "ops"
         },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 12,
-        "y": 0
-      },
-      "id": 3,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "value_and_name"
-      },
-      "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(rate(ws_upgrade_successes_total[$__rate_interval]))",
-          "instant": true,
-          "legendFormat": "upgrades / s",
-          "range": false,
-          "refId": "A"
+          "expr": "histogram_quantile(0.50, sum(rate(web_frontend_analytics_duration_milliseconds_bucket[$__rate_interval])) by (le, audience))",
+          "legendFormat": "p50 · {{audience}}",
+          "refId": "B"
         }
       ],
-      "title": "Upgrade success rate",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "decimals": 3,
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 18,
-        "y": 0
-      },
-      "id": 4,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "value_and_name"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "sum(rate(ws_upgrade_errors_total[$__rate_interval]))",
-          "instant": true,
-          "legendFormat": "upgrade errors / s",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Upgrade error rate",
-      "type": "stat"
+      "title": "Analytics batch latency (web.frontend_analytics.duration_milliseconds)",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -270,9 +247,177 @@
       },
       "gridPos": {
         "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (event) (rate(web_frontend_events_total[$__rate_interval]))",
+          "legendFormat": "{{event}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Product events by key (web.frontend_events_total · sum over audience)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 3,
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (event, audience) (rate(web_frontend_events_total[$__rate_interval]))",
+          "legendFormat": "{{event}} · {{audience}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Product events by key + audience (authenticated vs anonymous)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 3,
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
         "w": 12,
         "x": 0,
-        "y": 5
+        "y": 36
       },
       "id": 5,
       "options": {
@@ -296,30 +441,13 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(ws_upgrade_requests_total[$__rate_interval]))",
-          "legendFormat": "requests_total",
+          "editorMode": "code",
+          "expr": "sum by (audience) (rate(web_frontend_job_creates_total[$__rate_interval]))",
+          "legendFormat": "{{audience}}",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(ws_upgrade_successes_total[$__rate_interval]))",
-          "legendFormat": "successes_total",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(ws_upgrade_errors_total[$__rate_interval]))",
-          "legendFormat": "errors_total",
-          "refId": "C"
         }
       ],
-      "title": "Upgrade request flow (rate)",
+      "title": "Job creates — total rate by audience (sum over type_id)",
       "type": "timeseries"
     },
     {
@@ -340,7 +468,7 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 10,
+            "fillOpacity": 15,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -358,7 +486,7 @@
             "spanNulls": false,
             "stacking": {
               "group": "A",
-              "mode": "none"
+              "mode": "normal"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -370,10 +498,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 10,
+        "h": 8,
         "w": 12,
         "x": 12,
-        "y": 5
+        "y": 36
       },
       "id": 6,
       "options": {
@@ -397,12 +525,13 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (reason) (rate(ws_upgrade_errors_total[$__rate_interval]))",
-          "legendFormat": "{{reason}}",
+          "editorMode": "code",
+          "expr": "sum by (audience) (rate(web_frontend_item_tree_item_views_total[$__rate_interval]))",
+          "legendFormat": "{{audience}}",
           "refId": "A"
         }
       ],
-      "title": "Upgrade errors by reason (rate)",
+      "title": "Item tree item views (total rate by audience)",
       "type": "timeseries"
     },
     {
@@ -410,6 +539,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "`topk` limits cardinality from many EVE `type_id` labels.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -447,16 +577,16 @@
               "mode": "off"
             }
           },
-          "decimals": 1,
-          "unit": "ms"
+          "decimals": 3,
+          "unit": "ops"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 10,
+        "h": 9,
         "w": 12,
         "x": 0,
-        "y": 15
+        "y": 44
       },
       "id": 7,
       "options": {
@@ -480,30 +610,13 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.50, sum(rate(ws_upgrade_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "p50",
+          "editorMode": "code",
+          "expr": "topk(20, sum by (type_id) (rate(web_frontend_job_creates_total[$__rate_interval])))",
+          "legendFormat": "type {{type_id}}",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.90, sum(rate(ws_upgrade_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "p90",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.99, sum(rate(ws_upgrade_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "p99",
-          "refId": "C"
         }
       ],
-      "title": "Upgrade latency (histogram quantiles)",
+      "title": "Job creates by output type_id (top 20 · web.frontend_job_creates_total)",
       "type": "timeseries"
     },
     {
@@ -511,6 +624,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "`topk` limits cardinality from many EVE `type_id` labels.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -554,10 +668,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 10,
+        "h": 9,
         "w": 12,
         "x": 12,
-        "y": 15
+        "y": 44
       },
       "id": 8,
       "options": {
@@ -581,112 +695,13 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(ws_connections_opened_total[$__rate_interval]))",
-          "legendFormat": "connections opened / s",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(ws_connections_closed_total[$__rate_interval]))",
-          "legendFormat": "connections closed / s",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(ws_document_updates_sent_total[$__rate_interval]))",
-          "legendFormat": "update recipients sent / s",
-          "refId": "C"
-        }
-      ],
-      "title": "Connection and fanout rates",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "decimals": 0,
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 25
-      },
-      "id": 9,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(ws_account_connected_clients) by (account_id)",
-          "legendFormat": "account {{account_id}}",
+          "editorMode": "code",
+          "expr": "topk(20, sum by (type_id) (rate(web_frontend_item_tree_item_views_total[$__rate_interval])))",
+          "legendFormat": "type {{type_id}}",
           "refId": "A"
         }
       ],
-      "title": "Connected clients per account",
+      "title": "Item tree views by type_id (top 20 · web.frontend_item_tree_item_views_total)",
       "type": "timeseries"
     },
     {
@@ -737,12 +752,12 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 10,
+        "h": 8,
         "w": 24,
         "x": 0,
-        "y": 35
+        "y": 53
       },
-      "id": 10,
+      "id": 9,
       "options": {
         "legend": {
           "calcs": [
@@ -764,106 +779,13 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(ws_document_updates_sent_total[$__rate_interval]))",
-          "legendFormat": "messages sent / s (total)",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (account_id) (rate(ws_document_updates_sent_total[$__rate_interval]))",
-          "legendFormat": "account {{account_id}}",
-          "refId": "B"
-        }
-      ],
-      "title": "Messages sent per second",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 15,
-            "gradientMode": "opacity",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "normal"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "decimals": 0,
-          "min": 0,
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 45
-      },
-      "id": 11,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
           "editorMode": "code",
-          "expr": "ws_connected_clients",
-          "legendFormat": "{{ws_instance_id}}",
-          "range": true,
+          "expr": "sum by (reason, audience) (rate(web_frontend_analytics_invalid_total[$__rate_interval]))",
+          "legendFormat": "{{reason}} · {{audience}}",
           "refId": "A"
         }
       ],
-      "title": "Connected clients by websocket instance (ws_instance_id)",
+      "title": "Rejected analytics batches / items (web.frontend_analytics_invalid_total)",
       "type": "timeseries"
     }
   ],
@@ -871,7 +793,9 @@
   "schemaVersion": 39,
   "style": "dark",
   "tags": [
-    "websocket",
+    "web",
+    "frontend",
+    "analytics",
     "otel",
     "prometheus"
   ],
@@ -879,7 +803,7 @@
     "list": []
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-6h",
     "to": "now"
   },
   "timepicker": {
@@ -898,8 +822,8 @@
     ]
   },
   "timezone": "browser",
-  "title": "WebSocket · metrics",
-  "uid": "websocket-otel-metrics",
-  "version": 4,
+  "title": "Web · Frontend metrics",
+  "uid": "frontend-events-otel-metrics",
+  "version": 3,
   "weekStart": ""
 }

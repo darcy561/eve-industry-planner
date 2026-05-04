@@ -501,8 +501,8 @@
     ]
   },
   "timezone": "browser",
-  "title": "Core · ESI rate limits",
+  "title": "Core · ESI limits",
   "uid": "core-esi-limits",
-  "version": 10,
+  "version": 11,
   "weekStart": ""
 }

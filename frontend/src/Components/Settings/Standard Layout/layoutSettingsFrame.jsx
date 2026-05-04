@@ -106,29 +106,6 @@ function LayoutSettingsFrame() {
             }
           />
         </Grid>
-        <Grid
-          align="center"
-          sx={{ paddingX: "20px" }}
-          size={{
-            xs: 12,
-            sm: 6,
-          }}
-        >
-          <FormControlLabel
-            label={"Share discovered citadel names"}
-            labelPlacement="start"
-            control={
-              <Switch
-                checked={shareCitadelNames}
-                color="primary"
-                onChange={() => {
-                  toggleShareCitadelNames();
-                  scheduleDebouncedUserAccountDocumentSave();
-                }}
-              />
-            }
-          />
-        </Grid>
       </Grid>
 
       <Divider sx={{ marginY: "20px" }} />

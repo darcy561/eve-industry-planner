@@ -6,7 +6,7 @@ import { useEffect, useMemo, lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { appRouter } from "./appRouter";
-import { enableGa4WebVitals, subscribeGa4ToTanStackRouter } from "./analytics/googleAnalytics";
+import { enableGa4WebVitals } from "./analytics/googleAnalytics";
 import useUsersStore from "./Zustand/usersStore";
 
 // Lazy load React Query DevTools when ENVIRONMENT=development (see vite.config define + root .env)
@@ -32,10 +32,6 @@ export function AppWrapper() {
       setUser(null);
     }
   }, [accountID]);
-
-  useEffect(() => {
-    return subscribeGa4ToTanStackRouter(appRouter);
-  }, []);
 
   useEffect(() => {
     enableGa4WebVitals();

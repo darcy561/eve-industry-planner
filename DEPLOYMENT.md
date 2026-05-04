@@ -4,18 +4,15 @@
 
 Before deploying, ensure you have the following:
 
-## Firebase Requirements
-
-- **Google Firebase**: This build still uses Firebase services and has not been migrated to be completely standalone as of yet. For information on setting this up, reach out via Discord.
 
 ### System Requirements
 
 - **Docker**: Version 20.10 or higher
 - **Docker Compose**: Version 2.0 or higher (or `docker compose` plugin)
-- **Operating System**: Linux
-- **Make**: Required for deployment commands (install with `sudo apt-get install make` or `sudo yum install make`)
+- **Operating System**: **Linux** is typical for production servers. **Windows** is supported for local installs using **Docker Desktop** (often with the WSL2 backend) and **Git Bash** from [Git for Windows](https://git-scm.com/download/win)—the repository `Makefile` explicitly targets `Git Bash` on Windows so `make up` / `make dev` work the same way. You still need a `make` binary available in that environment (e.g. install via [Chocolatey](https://chocolatey.org/) `choco install make`, [Scoop](https://scoop.sh/), or use **WSL2** and follow the Linux steps there). **macOS** usually works with Docker Desktop and the system or Homebrew `make`.
+- **Make**: Required for deployment commands. On Linux: `sudo apt-get install make` or `sudo yum install make` / `dnf install make`
 - **curl or wget**: Required for downloading files
-- **tar**: Required to extract the GitHub branch archive (standard on Linux)
+- **tar**: Required to extract the GitHub branch archive (standard on Linux/macOS; available in Git Bash on Windows)
 - **rsync** (optional): If present, `scripts/` and `observability/` are mirrored exactly with `--delete`; otherwise files are copied without removing extras upstream deleted
 - **Disk Space**: At least 5GB free (for images, volumes, and data)
 - **RAM**: Minimum 2GB, recommended 4GB+
@@ -29,98 +26,67 @@ Before deploying, ensure you have the following:
 - **Port 80**: Must be accessible from the internet (for HTTP traffic)
 - **Port 443**: Must be accessible from the internet (for HTTPS traffic, if SSL is configured)
 
-### Access Requirements
-
-- **SSH access**: To the server (for remote deployment)
-- **Root/sudo access**: To install Docker if not already installed
-- **Firewall**: Ports 80, 443 (and optionally 22 for SSH) must be open
-
-### Optional Requirements
-
-- None required
-
-### Verify Requirements
-
-```bash
-# Check Docker version
-docker --version
-
-# Check Docker Compose version
-docker compose version
-
-# Check if make is installed
-make --version
-
-# If make is not installed, install it:
-# Ubuntu/Debian:
-sudo apt-get update && sudo apt-get install -y make
-
-# CentOS/RHEL/Fedora:
-sudo yum install make
-# or for newer versions:
-sudo dnf install make
-
-```
-
 ## Overview
 
 This guide covers deploying the EVE Industry Planner application using Docker Compose. The application supports both localhost development and production deployment.
 
 ## Quick Start
 
-### Step 1: Create Directory and Download Makefile
+### Step 1: Create a directory and download the Makefile
 
 ```bash
-# Create a directory for deployment
 mkdir -p ~/your_chosen_directory
 cd ~/your_chosen_directory
 
-# Download the Makefile
 curl -L -f -o Makefile \
-    "https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Public/Makefile"
+  "https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Public/Makefile"
 ```
 
-### Step 2: Initial Setup
+On **Windows (Git Bash)** use a path you can write to (e.g. under your user profile) instead of `~` if that does not resolve as expected.
+
+### Step 2: Run `make up` (bootstrap)
 
 ```bash
 make up
 ```
 
-This automatically downloads all required files and creates `.env` from `env.example`.
+This target chains **`download-setup-scripts`** → **`ensure-keyfile`** → **`ensure-env`** → **`ensure-refresh-token-key`** → **`docker compose up -d`** (see the `Makefile`).
 
-### Step 3: Configure Environment
+**First-time deploy (no `.env` yet):** `scripts/ensure-env.sh` downloads **`env.example`** from the **Public** branch into `.env`, auto-generates database/redis secrets where needed, then **stops with a non-zero exit** and tells you to edit `.env` and run **`make up` again**. Docker containers **do not start** on that first successful bootstrap pass. You may be prompted to type **`YES`** after backing up **`AUTHZ_HMAC_KEY`**—use an **interactive** terminal for that step.
 
-Edit the `.env` file with your configuration values:
+**If `.env` already exists** (e.g. you restored a backup), `ensure-env` does nothing and **`make up` proceeds straight to `docker compose up -d`**.
 
-```bash
-nano .env
-```
+### Step 3: Configure `.env` and required files
 
-See `env.example` for all available options and descriptions.
+Edit `.env` with your real values (SSO, domains, optional Sentry, Grafana passwords, etc.). See the comments in `.env` / `env.example`.
 
-### Step 4: Start Services
+Place **Firebase Admin** JSON files where **`docker-compose.yml`** expects them (default: **`adminSDK.json`** and **`adminSDKLive.json`** in the same directory as the Makefile), or change the volume mounts.
 
-After configuring `.env`, start the services:
+### Step 4: Run `make up` again to start the stack
 
 ```bash
 make up
 ```
+
+With `.env` in place, this completes **`ensure-*`** and starts **all** services with **`docker compose up -d`**.
 
 ## Environment Configuration
 
-For detailed information about all environment variables, see the `env.example` file. It contains comprehensive documentation for each configuration option, including:
+For full variable documentation, see `env.example`. In practice you will configure:
 
-- Frontend configuration (Firebase, ReCaptcha, API URL, EVE Online SSO)
-- Backend configuration (MongoDB, Redis, NATS, authentication secrets)
+- **Frontend / client**: EVE Online SSO, optional Google Analytics, and build-time options described in that file
+- **Backend**: MongoDB and Redis credentials, NATS, auth and JWT settings, optional Sentry, optional Grafana admin user/password for the bundled stack
+- **Observability**: `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` (and similar) are documented under the Grafana section in `env.example`
 
-```
+`make up` runs `ensure-env` and related scripts so a starting `.env` is created from `env.example` when missing; always review and set secrets before production use.
 
-**Access:**
+**Mount files:** `docker-compose.yml` expects Firebase Admin JSON files in the deployment directory (e.g. `adminSDK.json` and `adminSDKLive.json` mounted into **api**, **worker**, and **core**). Provide those files or adjust the volume paths in your override/compose file.
 
-- Site: `http://yourdomain.com` (or `https://yourdomain.com` if SSL is configured)
+## Access
 
+- **Site:** `http://yourdomain.com` (or `https://yourdomain.com` if SSL is configured)
 
-**SSL Configuration:**
+**SSL configuration**
 
 If you want to use HTTPS, you must set up the domain and SSL certificates yourself. Traefik will route traffic on port 443 once certificates are configured, but no automatic certificate setup is performed.
 
@@ -147,28 +113,34 @@ You have two options:
 
 ## Architecture
 
-### Services
+### Application services
 
-Eve Industry Planner is broken down into smaller services that handle different tasks.
+- **frontend**: Serves the built SPA (static assets); Traefik routes `/` here
+- **api**: HTTP API on `/api` (port 4000 in the container)
+- **websocket**: Separate service for WebSocket traffic on `/ws` (port 4001 in the container), with optional sticky sessions for multiple replicas
+- **worker**: Background jobs (Asynq) consuming Redis queues
+- **core**: Central background processing (e.g. schedulers, change streams, shared data prep); **api** and **websocket** wait for **core** to be healthy before starting
 
-- **frontend**: React frontend application
-- **api**: API & Web Socket server
-- **worker**: Background job processor
-- **core**: Core business logic service
+### Data and messaging
 
-- **traefik**: Reverse proxy and load balancer
-- **mongo**: MongoDB database (single-node replica set)
-- **redis**: Redis cache
-- **nats**: NATS message broker
+- **mongo**: MongoDB (single-node replica set, `rs0` by default)
+- **redis**: Redis (password-protected; also used by Asynq and the WebSocket layer)
+- **nats**: NATS with JetStream enabled (`-js`) for internal messaging
 
-### Network
+### Edge and operations
 
-All services run on the `eip` Docker network. Traefik handles:
+- **traefik**: Reverse proxy and TLS entrypoints (80/443), Docker provider, per-service labels for routes and middlewares
+- **asynqmon** (optional UI): Asynq queue browser/metrics; see `docker-compose.yml` for how ports are published (default pattern binds to a specific host IP for internal/VPN access)
 
-- Routing based on path prefixes or hostname
-- Compression
-- Caching (frontend)
-- Load balancing
+### Observability stack
+
+These run on the same `eip` network and are defined in `docker-compose.yml`:
+
+- **otel-collector**: Receives OTLP from Go services and forwards metrics/logs/traces as configured under `observability/otel-collector/`
+- **prometheus**: Scrapes Prometheus-format metrics (including from the collector)
+- **loki** + **promtail**: Log aggregation; Promtail tails Docker container logs with `compose_service` labels for dashboards such as **Core · logs**, **API · logs**, etc.
+- **grafana**: Dashboards from `observability/grafana/provisioning`; login uses `GRAFANA_ADMIN_*` from `.env` (on first bootstrap, `ensure-env.sh` generates `GRAFANA_ADMIN_PASSWORD` like other secrets unless you set it explicitly)
+- **node_exporter**: Host/node metrics for Prometheus
 
 ### Ports
 
@@ -178,7 +150,7 @@ All services run on the `eip` Docker network. Traefik handles:
 
 ## Updating the Application
 
-To update the application to the latest version.
+To update the application to the latest version:
 
 ```bash
 # Step 1: Update all files from GitHub (Makefile, compose files, scripts, observability)
@@ -200,6 +172,8 @@ This will:
 ```bash
 docker compose logs -f
 ```
+
+Stream a single service (examples): `docker compose logs -f core` or `docker compose logs -f api`. For filterable JSON logs by container (`compose_service`) and other fields, use **Grafana → Loki** when Grafana/Promtail/Loki from `docker-compose.yml` are running.
 
 **Log Levels:**
 
@@ -254,7 +228,8 @@ For issues or questions:
 ## Quick Reference
 
 ```bash
-# Start services (downloads missing files, creates .env if needed)
+# Start services: downloads missing compose/scripts/observability if needed; creates .env on first run
+# (first run may exit after creating .env — edit .env, then run again)
 make up
 
 # Update all files from GitHub and restart

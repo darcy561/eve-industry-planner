@@ -116,12 +116,13 @@ func recordValidatedFrontendAnalytics(ctx context.Context, met *apimetrics.WebFr
 // Body: {"events":[{...},{...}]} - each object matches [frontendAnalyticsBody]. Max [maxFrontendBatchEvents] items.
 func FrontendAppEventsBatchHandler(w http.ResponseWriter, r *http.Request, _ *shared.ServiceClients) {
 	ctx := r.Context()
+	audience := frontendAnalyticsAudience(r)
 	met := apimetrics.GetWebFrontendEvents()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
-		ObserveDuration: func(ctx context.Context, ms float64) { met.RecordRequestMilliseconds(ctx, ms) },
+		ObserveDuration: func(ctx context.Context, ms float64) { met.RecordRequestMilliseconds(ctx, ms, audience) },
 		IncRequests:     func(context.Context) {},
-		IncSuccesses:    func(ctx context.Context) { met.RecordSuccess(ctx) },
-		IncErrors:       func(ctx context.Context, reason string) { met.RecordInvalid(ctx, reason) },
+		IncSuccesses:    func(ctx context.Context) { met.RecordSuccess(ctx, audience) },
+		IncErrors:       func(ctx context.Context, reason string) { met.RecordInvalid(ctx, reason, audience) },
 	})
 	defer metrics.Finish()
 
@@ -162,7 +163,6 @@ func FrontendAppEventsBatchHandler(w http.ResponseWriter, r *http.Request, _ *sh
 		}
 	}
 
-	audience := frontendAnalyticsAudience(r)
 	for i := range batch.Events {
 		recordValidatedFrontendAnalytics(ctx, met, &batch.Events[i], audience)
 	}

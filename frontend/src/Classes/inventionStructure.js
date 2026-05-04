@@ -23,7 +23,6 @@ export default class InventionStructure {
         });
     }
 
-
     setStructureType(structureType) {
         this.structureType = structureType;
     }

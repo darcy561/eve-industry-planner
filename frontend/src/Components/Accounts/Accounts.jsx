@@ -1,6 +1,7 @@
 import { Grid } from "@mui/material";
 import { AccountInfo } from "./accountInfo";
 import { AdditionalAccounts } from "./AdditionalAccounts";
+import { CitadelNamesCommunityPanel } from "./CitadelNamesCommunityPanel";
 import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
 
 export default function AccountsPage() {
@@ -9,6 +10,9 @@ export default function AccountsPage() {
       <Grid container spacing={2}>
         <Grid size={12}>
           <AccountInfo />
+        </Grid>
+        <Grid size={12}>
+          <CitadelNamesCommunityPanel />
         </Grid>
         <Grid size={12}>
           <AdditionalAccounts />

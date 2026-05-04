@@ -1,6 +1,7 @@
 package user
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -30,6 +32,8 @@ type additionalCharacterRefreshTokensResponse struct {
 }
 
 func AdditionalCharacterRefreshTokensHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+	ctx := r.Context()
+	m := apimetrics.GetAPIAdditionalCharacterRefreshTokens()
 	switch r.Method {
 	case http.MethodGet:
 		handleGetAdditionalCharacterRefreshTokens(w, r, clients)
@@ -38,23 +42,36 @@ func AdditionalCharacterRefreshTokensHandler(w http.ResponseWriter, r *http.Requ
 	case http.MethodDelete:
 		handleDeleteAdditionalCharacterRefreshTokens(w, r, clients)
 	default:
+		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
 		http.Error(w, "Method not allowed. Use GET, PUT, or DELETE.", http.StatusMethodNotAllowed)
 	}
 }
 
 func handleGetAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
+	m := apimetrics.GetAPIAdditionalCharacterRefreshTokens()
+	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
+		ObserveDuration: func(ctx context.Context, ms float64) { m.Requests.Observe(ctx, ms) },
+		IncRequests:     func(ctx context.Context) { m.RequestsCount.Inc(ctx) },
+		IncSuccesses:    func(ctx context.Context) { m.Successes.Inc(ctx) },
+		IncErrors:       func(ctx context.Context, reason string) { m.Errors.WithLabelValues(reason).Inc(ctx) },
+	})
+	defer metrics.Finish()
+
 	accountID, ok := helper.RequireAccountID(w, r)
 	if !ok {
+		metrics.Error("auth_error")
 		return
 	}
 
 	cfg, err := config.LoadConfig()
 	if err != nil {
+		metrics.Error("config_error")
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 	if cfg.RefreshTokenKeyring == nil {
+		metrics.Error("config_error")
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Refresh token keyring not configured", fmt.Errorf("refresh token keyring is nil"))
 		return
 	}
@@ -63,9 +80,11 @@ func handleGetAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http.Re
 	var userDoc models.UserAccountDocument
 	if err := col.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&userDoc); err != nil {
 		if err == mongo.ErrNoDocuments {
+			metrics.Error("not_found")
 			http.Error(w, "User document not found", http.StatusNotFound)
 			return
 		}
+		metrics.Error("database_error")
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to load user document", err)
 		return
 	}
@@ -93,30 +112,45 @@ func handleGetAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := helper.EncodeJSON(w, additionalCharacterRefreshTokensResponse{RefreshTokens: out}); err != nil {
+		metrics.Error("encode_error")
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
+	metrics.Success()
 }
 
 func handlePutAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
+	m := apimetrics.GetAPIAdditionalCharacterRefreshTokens()
+	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
+		ObserveDuration: func(ctx context.Context, ms float64) { m.Requests.Observe(ctx, ms) },
+		IncRequests:     func(ctx context.Context) { m.RequestsCount.Inc(ctx) },
+		IncSuccesses:    func(ctx context.Context) { m.Successes.Inc(ctx) },
+		IncErrors:       func(ctx context.Context, reason string) { m.Errors.WithLabelValues(reason).Inc(ctx) },
+	})
+	defer metrics.Finish()
+
 	accountID, ok := helper.RequireAccountID(w, r)
 	if !ok {
+		metrics.Error("auth_error")
 		return
 	}
 
 	cfg, err := config.LoadConfig()
 	if err != nil {
+		metrics.Error("config_error")
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 	if cfg.RefreshTokenKeyring == nil {
+		metrics.Error("config_error")
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Refresh token keyring not configured", fmt.Errorf("refresh token keyring is nil"))
 		return
 	}
 
 	var req additionalCharacterRefreshTokensRequest
 	if err := helper.DecodeJSONRequest(r, &req, helper.DefaultMaxBodySize); err != nil {
+		metrics.Error("invalid_json")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -125,9 +159,11 @@ func handlePutAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http.Re
 	var existingDoc models.UserAccountDocument
 	if err := col.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&existingDoc); err != nil {
 		if err == mongo.ErrNoDocuments {
+			metrics.Error("not_found")
 			http.Error(w, "User document not found", http.StatusNotFound)
 			return
 		}
+		metrics.Error("database_error")
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to load user document", err)
 		return
 	}
@@ -152,6 +188,7 @@ func handlePutAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http.Re
 		key := strings.ToLower(row.CharacterHash)
 		if strings.TrimSpace(row.RToken) != "" {
 			if err := row.EncryptRefreshAtRest(row.RToken, cfg.RefreshTokenKeyring); err != nil {
+				metrics.Error("validation_error")
 				http.Error(w, "Invalid refresh token payload", http.StatusBadRequest)
 				return
 			}
@@ -187,22 +224,35 @@ func handlePutAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http.Re
 		})
 		return err
 	}); err != nil {
+		metrics.Error("database_error")
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to save refresh tokens", err)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+	metrics.Success()
 }
 
 func handleDeleteAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
+	m := apimetrics.GetAPIAdditionalCharacterRefreshTokens()
+	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
+		ObserveDuration: func(ctx context.Context, ms float64) { m.Requests.Observe(ctx, ms) },
+		IncRequests:     func(ctx context.Context) { m.RequestsCount.Inc(ctx) },
+		IncSuccesses:    func(ctx context.Context) { m.Successes.Inc(ctx) },
+		IncErrors:       func(ctx context.Context, reason string) { m.Errors.WithLabelValues(reason).Inc(ctx) },
+	})
+	defer metrics.Finish()
+
 	accountID, ok := helper.RequireAccountID(w, r)
 	if !ok {
+		metrics.Error("auth_error")
 		return
 	}
 
 	var req additionalCharacterRefreshTokenDeleteRequest
 	if err := helper.DecodeJSONRequest(r, &req, helper.DefaultMaxBodySize); err != nil {
+		metrics.Error("invalid_json")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -216,6 +266,7 @@ func handleDeleteAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http
 		toRemove[key] = struct{}{}
 	}
 	if len(toRemove) == 0 {
+		metrics.Error("validation_error")
 		http.Error(w, "characterHashes must include at least one hash", http.StatusBadRequest)
 		return
 	}
@@ -224,9 +275,11 @@ func handleDeleteAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http
 	var existingDoc models.UserAccountDocument
 	if err := col.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&existingDoc); err != nil {
 		if err == mongo.ErrNoDocuments {
+			metrics.Error("not_found")
 			http.Error(w, "User document not found", http.StatusNotFound)
 			return
 		}
+		metrics.Error("database_error")
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to load user document", err)
 		return
 	}
@@ -254,9 +307,11 @@ func handleDeleteAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http
 		})
 		return err
 	}); err != nil {
+		metrics.Error("database_error")
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to delete refresh tokens", err)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+	metrics.Success()
 }
