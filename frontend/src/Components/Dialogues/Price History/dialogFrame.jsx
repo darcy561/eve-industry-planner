@@ -57,10 +57,12 @@ function PriceHistoryDialog() {
       componentName="PriceHistoryDialog"
       maxWidth="lg"
       fullWidth
-      isLoading={Boolean(isFetchActive && isLoading)}
-      isError={Boolean(isFetchActive && queryError)}
-      error={queryError}
-      loadingMessage="Loading market history…"
+      asyncState={{
+        isLoading: Boolean(isFetchActive && isLoading),
+        isError: Boolean(isFetchActive && queryError),
+        error: queryError,
+        loadingMessage: "Loading market history…",
+      }}
       dialogSx={{
         "& .MuiDialog-paper": {
           height: "90vh",

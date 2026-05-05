@@ -73,10 +73,12 @@ function BlueprintArchiveDialog() {
       componentName="BlueprintArchiveDialog"
       maxWidth="sm"
       fullWidth
-      isLoading={Boolean(isLoggedIn && normalizedId && isLoading)}
-      isError={Boolean(isLoggedIn && normalizedId && queryError)}
-      error={queryError}
-      loadingMessage="Loading archived statistics…"
+      asyncState={{
+        isLoading: Boolean(isLoggedIn && normalizedId && isLoading),
+        isError: Boolean(isLoggedIn && normalizedId && queryError),
+        error: queryError,
+        loadingMessage: "Loading archived statistics…",
+      }}
       actions={<DialogCloseAction onClose={handleClose} />}
       dialogContentSx={{
         padding: "20px",

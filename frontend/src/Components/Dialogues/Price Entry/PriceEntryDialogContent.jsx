@@ -218,10 +218,10 @@ export function PriceEntryDialogContent({ state, actions }) {
       componentName="PriceEntryDialog"
       maxWidth="lg"
       fullWidth
-      isLoading={state.isLoading}
-      loadingMessage={
-        state.loadingMessage ?? "Loading jobs and price entries…"
-      }
+      asyncState={{
+        isLoading: state.isLoading,
+        loadingMessage: state.loadingMessage ?? "Loading jobs and price entries…",
+      }}
       helperArea={helperArea}
       helperAreaSx={{ textAlign: "center", pb: 2 }}
       dialogSx={{

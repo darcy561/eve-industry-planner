@@ -82,10 +82,12 @@ function MarketDataDialog() {
       componentName="MarketDataDialog"
       maxWidth="lg"
       fullWidth
-      isLoading={Boolean(isFetchActive && isLoading)}
-      isError={Boolean(isFetchActive && queryError)}
-      error={queryError}
-      loadingMessage="Loading market data…"
+      asyncState={{
+        isLoading: Boolean(isFetchActive && isLoading),
+        isError: Boolean(isFetchActive && queryError),
+        error: queryError,
+        loadingMessage: "Loading market data…",
+      }}
       dialogSx={{
         "& .MuiDialog-paper": {
           height: "100vh",

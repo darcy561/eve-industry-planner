@@ -29,6 +29,7 @@ import { parseGroupPageViewSearchParam } from "../../Functions/Groups/groupPageV
 import { trackAppEvent } from "../../analytics/trackAppEvent";
 import { AppEvent } from "../../analytics/appEventNames";
 import SaveGroupTemplateDialog from "../Dialogues/Group Templates/SaveGroupTemplateDialog";
+import ApplyGroupTemplateDialog from "../Dialogues/Group Templates/ApplyGroupTemplateDialog";
 
 function GroupPageFrame() {
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
@@ -318,6 +319,7 @@ function GroupPageFrame() {
       <PriceEntryDialog />
       <PriceHistoryDialog />
       <MarketDataDialog />
+      <ApplyGroupTemplateDialog />
       <SaveGroupTemplateDialog
         open={saveTemplateOpen}
         onClose={() => setSaveTemplateOpen(false)}

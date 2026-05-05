@@ -132,12 +132,12 @@ export function ShoppingListDialogContent({
         height: "calc(90vh - 200px)",
         maxHeight: "calc(90vh - 200px)",
       }}
-      isLoading={isLoading}
-      isError={isError}
-      error={contentError}
-      loadingMessage={
-        state.loadingMessage ?? "Building shopping list and prices…"
-      }
+      asyncState={{
+        isLoading,
+        isError,
+        error: contentError,
+        loadingMessage: state.loadingMessage ?? "Building shopping list and prices…",
+      }}
     >
       <Grid
         container

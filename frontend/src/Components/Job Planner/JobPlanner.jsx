@@ -3,6 +3,7 @@ import { SearchBar } from "./Planner Components/searchbar";
 import { Box, useMediaQuery } from "@mui/material";
 import { ShoppingListDialog } from "../Dialogues/Shopping List/ShoppingList";
 import { PriceEntryDialog } from "../Dialogues/Price Entry/PriceEntry";
+import ApplyGroupTemplateDialog from "../Dialogues/Group Templates/ApplyGroupTemplateDialog";
 import { MassBuildFeedback } from "./Planner Components/massBuildInfo";
 import LeftCollapseableMenuDrawer from "../SideMenu/leftMenuDrawer";
 import CollapseableContentDrawer_Right from "../SideMenu/rightContentDrawer";
@@ -66,6 +67,7 @@ function JobPlanner() {
       <ShoppingListDialog />
       <MassBuildFeedback />
       <PriceEntryDialog />
+      <ApplyGroupTemplateDialog />
     </DefaultPageLayout>
   );
 }

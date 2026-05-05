@@ -257,12 +257,12 @@ export default function AssetsDialogContent(props) {
       componentName="AssetsDialog"
       maxWidth="lg"
       fullWidth
-      isLoading={isLoading}
-      isError={isError}
-      error={contentError}
-      loadingMessage={
-        state.loadingMessage ?? "Loading assets and locations…"
-      }
+      asyncState={{
+        isLoading,
+        isError,
+        error: contentError,
+        loadingMessage: state.loadingMessage ?? "Loading assets and locations…",
+      }}
       helperArea={
         <Box
           sx={{

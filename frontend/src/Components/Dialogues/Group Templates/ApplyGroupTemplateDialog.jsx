@@ -1,15 +1,22 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Autocomplete,
   Avatar,
   Box,
   Button,
   Divider,
+  Paper,
+  Stack,
   TextField,
   Typography,
 } from "@mui/material";
-import { useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  useQuery,
+} from "@tanstack/react-query";
 import ContentDialog, {
+  useDialogCloseReset,
   useDialogEventState,
 } from "../../../Styled Components/Dialog/ContentDialog";
 import {
@@ -18,17 +25,22 @@ import {
 } from "../../../Events/groupTemplatesDialogEvents";
 import {
   deleteGroupTemplate,
-  fetchTemplateCatalogSummaries,
   getGroupTemplateFull,
 } from "../../../Functions/Endpoints/Pirivate/groupTemplates";
 import { instantiateGroupTemplate } from "../../../Functions/GroupTemplates/instantiateGroupTemplate";
-import { getFullItemList } from "../../../Functions/Helper/getCachedData";
 import useUsersStore from "../../../Zustand/usersStore";
 import {
   showSnackbarError,
   showSnackbarSuccess,
 } from "../../../Events/snackbarEvents";
 import { useNavigate } from "@tanstack/react-router";
+import {
+  buildCatalogQueryOptions,
+  buildFullItemListQueryOptions,
+  invalidateTemplateCatalogQueries,
+} from "./helpers/templateDialogQueries";
+import { makeTemplateFilter } from "./helpers/templateDialogUtils";
+import { appShellSetupSectionPaperSx } from "../../../Context/appShell";
 
 const defaultState = () => ({
   isOpen: false,
@@ -39,7 +51,7 @@ const defaultState = () => ({
 /**
  * Global dialog: pick a saved group template and instantiate it into a new or existing group.
  */
-export default function ApplyGroupTemplateDialog() {
+function ApplyGroupTemplateDialogInner() {
   const [messageData, , resetDialog] = useDialogEventState(
     GROUP_TEMPLATES_APPLY_DIALOG_EVENT,
     defaultState
@@ -51,46 +63,41 @@ export default function ApplyGroupTemplateDialog() {
     (s) => s.jobData.actions.getActiveGroupObject
   );
 
-  const [catalog, setCatalog] = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [fullItemList, setFullItemList] = useState(null);
+  const [selectedBySession, setSelectedBySession] = useState({
+    session: 0,
+    templateID: null,
+  });
 
   const open = Boolean(messageData.isOpen);
+  const activeSession = Number(messageData.openSession || 0);
   const formatQty = (qty) =>
     new Intl.NumberFormat().format(Number(qty || 0));
+  const { data: catalog = [] } = useQuery(
+    buildCatalogQueryOptions(activeSession, open)
+  );
+  const { data: fullItemList = null } = useQuery(
+    buildFullItemListQueryOptions(open)
+  );
   const getItemName = (itemID) =>
     fullItemList?.[itemID]?.name || `Type ${itemID}`;
+  const filterTemplates = useMemo(
+    () =>
+      makeTemplateFilter({
+        getOutputSearchText: (o) =>
+          (o.rootOutputItemIDs || [])
+            .map((id) => fullItemList?.[id]?.name || "")
+            .join(" "),
+      }),
+    [fullItemList]
+  );
 
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const rows = await fetchTemplateCatalogSummaries();
-        if (!cancelled) setCatalog(rows);
-        const itemList = await getFullItemList();
-        if (!cancelled) setFullItemList(itemList || null);
-      } catch (e) {
-        if (!cancelled) {
-          showSnackbarError(
-            e instanceof Error ? e.message : "Failed to load templates",
-            5
-          );
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [open, messageData.openSession]);
-
-  useEffect(() => {
-    if (!open) {
-      setSelected(null);
-      setBusy(false);
-    }
-  }, [open]);
+  const selected = useMemo(() => {
+    if (selectedBySession.session !== activeSession) return null;
+    return (
+      catalog.find((row) => row.templateID === selectedBySession.templateID) ||
+      null
+    );
+  }, [catalog, selectedBySession, activeSession]);
 
   const resolvedActiveGroup = useMemo(() => {
     if (messageData.contextGroupId) {
@@ -103,49 +110,75 @@ export default function ApplyGroupTemplateDialog() {
     getActiveGroupObject,
   ]);
 
-  const handleClose = useCallback(() => {
-    resetDialog();
-  }, [resetDialog]);
+  const handleCloseWithReset = useDialogCloseReset({
+    resetFns: [() => setSelectedBySession({ session: activeSession, templateID: null })],
+    onClose: resetDialog,
+  });
 
-  const onApply = async () => {
-    if (!selected?.templateID) {
-      showSnackbarError("Select a template first.", 3);
-      return;
-    }
-    setBusy(true);
-    try {
+  const applyMutation = useMutation({
+    mutationFn: async () => {
+      if (!selected?.templateID) {
+        throw new Error("Select a template first.");
+      }
       const mode =
         messageData.contextGroupId && resolvedActiveGroup?.groupID
           ? "activeGroup"
           : "newGroup";
       const payload = await getGroupTemplateFull(selected.templateID);
-      const { jobs, group } = await instantiateGroupTemplate({
+      const result = await instantiateGroupTemplate({
         payload,
         mode,
         queryClient,
         activeGroupOverride: mode === "activeGroup" ? resolvedActiveGroup : null,
       });
+      return { mode, ...result };
+    },
+    onSuccess: ({ mode, jobs, group }) => {
       showSnackbarSuccess(
         mode === "newGroup"
           ? `Created ${jobs.length} job(s) in a new group.`
           : `Added ${jobs.length} job(s) to the group.`,
         4
       );
-      handleClose();
+      handleCloseWithReset();
       if (mode === "newGroup" && group?.groupID) {
         navigate({
           to: "/group/$groupID",
           params: { groupID: group.groupID },
         });
       }
-    } catch (e) {
+    },
+    onError: (e) => {
       showSnackbarError(
         e instanceof Error ? e.message : "Failed to apply template",
         6
       );
-    } finally {
-      setBusy(false);
-    }
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!selected?.templateID) {
+        throw new Error("Select a template to delete.");
+      }
+      await deleteGroupTemplate(selected.templateID);
+    },
+    onSuccess: () => {
+      showSnackbarSuccess("Template deleted.", 3);
+      invalidateTemplateCatalogQueries(queryClient);
+      setSelectedBySession({ session: activeSession, templateID: null });
+      closeGroupTemplatesApplyDialog();
+    },
+    onError: (e) => {
+      showSnackbarError(e instanceof Error ? e.message : "Delete failed", 5);
+    },
+  });
+
+  const busy = applyMutation.isPending || deleteMutation.isPending;
+
+  const onApply = async () => {
+    if (!selected?.templateID) return showSnackbarError("Select a template first.", 3);
+    await applyMutation.mutateAsync();
   };
 
   const onDelete = async () => {
@@ -157,24 +190,15 @@ export default function ApplyGroupTemplateDialog() {
       `Delete "${selected.name}"? This cannot be undone.`
     );
     if (!ok) return;
-    setBusy(true);
-    try {
-      await deleteGroupTemplate(selected.templateID);
-      setCatalog((c) => c.filter((t) => t.templateID !== selected.templateID));
-      setSelected(null);
-      showSnackbarSuccess("Template deleted.", 3);
-      closeGroupTemplatesApplyDialog();
-    } catch (e) {
-      showSnackbarError(e instanceof Error ? e.message : "Delete failed", 5);
-    } finally {
-      setBusy(false);
-    }
+    await deleteMutation.mutateAsync();
   };
 
   return (
     <ContentDialog
       open={open}
-      onClose={handleClose}
+      onClose={handleCloseWithReset}
+      loadingVariant="dense"
+      useAppShellDesign
       title="Apply group template"
       maxWidth="sm"
       fullWidth
@@ -184,6 +208,7 @@ export default function ApplyGroupTemplateDialog() {
           Apply a saved group template.
         </Typography>
       }
+      actionLayout="split"
       actions={
         <Box
           sx={{
@@ -198,7 +223,7 @@ export default function ApplyGroupTemplateDialog() {
             Delete
           </Button>
           <Box sx={{ display: "flex", gap: 1 }}>
-            <Button onClick={handleClose} disabled={busy}>
+            <Button onClick={handleCloseWithReset} disabled={busy}>
               Close
             </Button>
             <Button variant="contained" onClick={onApply} disabled={busy}>
@@ -208,74 +233,68 @@ export default function ApplyGroupTemplateDialog() {
         </Box>
       }
     >
-      <Autocomplete
-        options={catalog}
-        value={selected}
-        onChange={(_, v) => setSelected(v)}
-        getOptionLabel={(o) => o?.name || ""}
-        filterOptions={(options, state) => {
-          const q = state.inputValue.trim().toLowerCase();
-          if (!q) return options;
-          return options.filter((o) => {
-            const name = (o.name || "").toLowerCase();
-            const desc = (o.description || "").toLowerCase();
-            const outputNames = (o.rootOutputItemIDs || [])
-              .map((id) => fullItemList?.[id]?.name || "")
-              .join(" ")
-              .toLowerCase();
-            return (
-              name.includes(q) ||
-              desc.includes(q) ||
-              outputNames.includes(q) ||
-              (o.templateID || "").toLowerCase().includes(q)
-            );
-          });
-        }}
-        renderInput={(params) => (
-          <TextField
-            {...params}
-            label="Template"
-            placeholder="Search by name, description, output item name"
-          />
+      <Stack spacing={2}>
+        <Autocomplete
+          options={catalog}
+          value={selected}
+          onChange={(_, v) =>
+            setSelectedBySession({
+              session: activeSession,
+              templateID: v?.templateID || null,
+            })
+          }
+          getOptionLabel={(o) => o?.name || ""}
+          filterOptions={filterTemplates}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="Template"
+              placeholder="Search by name, description, output item name"
+            />
+          )}
+          isOptionEqualToValue={(a, b) => a?.templateID === b?.templateID}
+        />
+        {!!selected && (
+          <Paper variant="outlined" sx={appShellSetupSectionPaperSx}>
+            <Stack spacing={1}>
+              <Typography variant="body2" color="text.secondary">
+                {selected.description?.trim()
+                  ? selected.description
+                  : "No description for this template."}
+              </Typography>
+              <Divider />
+              <Typography variant="subtitle2">Outputs</Typography>
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                {(selected.outputsSummary || []).map((out) => {
+                  const itemName = getItemName(out.itemID);
+                  return (
+                    <Box
+                      key={`${selected.templateID}-${out.templateJobId}-${out.itemID}`}
+                      sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                    >
+                      <Avatar
+                        src={`https://images.evetech.net/types/${out.itemID}/icon?size=64`}
+                        alt={itemName}
+                        sx={{ width: 24, height: 24 }}
+                      />
+                      <Typography variant="body2" sx={{ flex: 1 }}>
+                        {itemName}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        x {formatQty(out.desiredTotalQuantity)}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+            </Stack>
+          </Paper>
         )}
-        isOptionEqualToValue={(a, b) => a?.templateID === b?.templateID}
-      />
-      {!!selected && (
-        <Box sx={{ mt: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            {selected.description?.trim()
-              ? selected.description
-              : "No description for this template."}
-          </Typography>
-          <Divider sx={{ my: 1 }} />
-          <Typography variant="subtitle2" sx={{ mb: 0.75 }}>
-            Outputs
-          </Typography>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-            {(selected.outputsSummary || []).map((out) => {
-              const itemName = getItemName(out.itemID);
-              return (
-                <Box
-                  key={`${selected.templateID}-${out.templateJobId}-${out.itemID}`}
-                  sx={{ display: "flex", alignItems: "center", gap: 1 }}
-                >
-                  <Avatar
-                    src={`https://images.evetech.net/types/${out.itemID}/icon?size=64`}
-                    alt={itemName}
-                    sx={{ width: 24, height: 24 }}
-                  />
-                  <Typography variant="body2" sx={{ flex: 1 }}>
-                    {itemName}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    x {formatQty(out.desiredTotalQuantity)}
-                  </Typography>
-                </Box>
-              );
-            })}
-          </Box>
-        </Box>
-      )}
+      </Stack>
     </ContentDialog>
   );
+}
+
+export default function ApplyGroupTemplateDialog() {
+  return <ApplyGroupTemplateDialogInner />;
 }

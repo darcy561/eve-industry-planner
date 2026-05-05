@@ -1,6 +1,30 @@
+import { Suspense } from "react";
 import { Box, Dialog, DialogActions, DialogContent, DialogTitle } from "@mui/material";
+import Skeleton from "@mui/material/Skeleton";
 import ContentErrorBoundary from "../Paper/ContentErrorBoundary";
 import PanelFallBack from "../Paper/panelStates";
+import { appShellSetupSectionPaperSx } from "../../Context/appShell";
+
+function DefaultDialogLoadingSkeleton({ loadingVariant = "default" }) {
+  if (loadingVariant === "dense") {
+    return (
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+        <Skeleton variant="rounded" height={40} />
+        <Skeleton variant="rounded" height={40} />
+        <Skeleton variant="rounded" height={40} />
+      </Box>
+    );
+  }
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+      <Skeleton variant="text" width="55%" />
+      <Skeleton variant="rounded" height={56} />
+      <Skeleton variant="rounded" height={56} />
+      <Skeleton variant="rounded" height={84} />
+      <Skeleton variant="text" width="90%" />
+    </Box>
+  );
+}
 
 /**
  * Reusable MUI dialog shell with the same building blocks as `ContentPanel` (see `Styled Components/Paper/ContentPanel.jsx`):
@@ -50,10 +74,17 @@ export default function ContentDialog({
   formProps,
   formKey,
   componentName,
+  asyncState,
   isLoading = false,
   isError = false,
   error = null,
   loadingMessage,
+  loadingVariant = "default",
+  loadingSkeleton,
+  actionLayout = "end",
+  withSuspense = false,
+  suspenseFallback,
+  useAppShellDesign = false,
   maxWidth = "sm",
   fullWidth = false,
   dialogSx,
@@ -62,8 +93,49 @@ export default function ContentDialog({
   dialogContentSx,
   ...rest
 }) {
+  const resolvedIsLoading = asyncState?.isLoading ?? isLoading;
+  const resolvedIsError = asyncState?.isError ?? isError;
+  const resolvedError = asyncState?.error ?? error;
+  const resolvedLoadingMessage = asyncState?.loadingMessage ?? loadingMessage;
   const boundaryName =
     componentName || (typeof title === "string" ? title : "ContentDialog");
+  const mergedSlotProps = {
+    ...slotProps,
+    paper: {
+      ...(slotProps?.paper || {}),
+      ...(useAppShellDesign
+        ? {
+            elevation:
+              slotProps?.paper?.elevation != null
+                ? slotProps.paper.elevation
+                : 0,
+          }
+        : {}),
+      sx: {
+        ...(useAppShellDesign ? appShellSetupSectionPaperSx : {}),
+        ...(useAppShellDesign
+          ? {
+              // Dialogs should be opaque in the new design.
+              backgroundColor: (theme) => theme.palette.background.paper,
+              backdropFilter: "none",
+            }
+          : {}),
+        ...(slotProps?.paper?.sx || {}),
+      },
+    },
+  };
+
+  const contentSuspenseFallback = useAppShellDesign ? (
+    loadingSkeleton || (
+      <DefaultDialogLoadingSkeleton loadingVariant={loadingVariant} />
+    )
+  ) : (
+    <PanelFallBack
+      isLoading
+      isError={false}
+      loadingMessage={resolvedLoadingMessage}
+    />
+  );
 
   const dialogContent = (
     <DialogContent
@@ -71,20 +143,40 @@ export default function ContentDialog({
         display: "flex",
         flexDirection: "column",
         minHeight: 0,
+        ...(useAppShellDesign
+          ? {
+              px: { xs: 2, md: 3 },
+              py: 2,
+            }
+          : {}),
         ...dialogContentSx,
       }}
       {...dialogContentProps}
     >
       <ContentErrorBoundary componentName={boundaryName}>
-        {isLoading || isError ? (
-          <PanelFallBack
-            isLoading={isLoading}
-            isError={isError}
-            error={error}
-            loadingMessage={loadingMessage}
-          />
+        {resolvedIsLoading || resolvedIsError ? (
+          resolvedIsLoading ? (
+            useAppShellDesign ? (
+              loadingSkeleton || (
+                <DefaultDialogLoadingSkeleton loadingVariant={loadingVariant} />
+              )
+            ) : (
+              <PanelFallBack
+                isLoading
+                isError={false}
+                loadingMessage={resolvedLoadingMessage}
+              />
+            )
+          ) : (
+            <PanelFallBack
+              isLoading={false}
+              isError={resolvedIsError}
+              error={resolvedError}
+              loadingMessage={resolvedLoadingMessage}
+            />
+          )
         ) : (
-          children
+          <Suspense fallback={contentSuspenseFallback}>{children}</Suspense>
         )}
       </ContentErrorBoundary>
     </DialogContent>
@@ -92,7 +184,28 @@ export default function ContentDialog({
 
   const dialogActions =
     actions != null && actions !== false ? (
-      <DialogActions {...dialogActionsProps}>{actions}</DialogActions>
+      <DialogActions
+        {...dialogActionsProps}
+        sx={{
+          ...(useAppShellDesign
+            ? {
+                px: { xs: 2, md: 3 },
+                py: 1.5,
+                borderTop: (theme) =>
+                  `1px solid ${theme.palette.divider}`,
+              }
+            : {}),
+          justifyContent:
+            actionLayout === "split"
+              ? "space-between"
+              : actionLayout === "start"
+                ? "flex-start"
+                : "flex-end",
+          ...dialogActionsProps?.sx,
+        }}
+      >
+        {actions}
+      </DialogActions>
     ) : null;
 
   let body;
@@ -130,9 +243,9 @@ export default function ContentDialog({
         component="div"
         {...helperAreaProps}
         sx={{
-          px: 2,
+          px: useAppShellDesign ? { xs: 2, md: 3 } : 2,
           pt: 0,
-          pb: 1,
+          pb: useAppShellDesign ? 1.5 : 1,
           ...helperAreaSx,
         }}
       >
@@ -140,20 +253,31 @@ export default function ContentDialog({
       </Box>
     ) : null;
 
-  return (
+  const dialogNode = (
     <Dialog
       open={open}
       onClose={onClose}
       maxWidth={maxWidth}
       fullWidth={fullWidth}
       sx={dialogSx}
-      slotProps={slotProps}
+      slotProps={mergedSlotProps}
       {...rest}
     >
       {title ? (
         <DialogTitle
-          color="primary"
+          color={useAppShellDesign ? "text.primary" : "primary"}
           align="center"
+          sx={{
+            ...(useAppShellDesign
+              ? {
+                  px: { xs: 2, md: 3 },
+                  py: 2,
+                  borderBottom: (theme) =>
+                    `1px solid ${theme.palette.divider}`,
+                }
+              : {}),
+            ...dialogTitleProps?.sx,
+          }}
           {...dialogTitleProps}
         >
           {title}
@@ -163,8 +287,64 @@ export default function ContentDialog({
       {body}
     </Dialog>
   );
+
+  if (withSuspense) {
+    const defaultSuspenseFallback = (
+      <Dialog
+        open={open}
+        onClose={onClose}
+        maxWidth={maxWidth}
+        fullWidth={fullWidth}
+        sx={dialogSx}
+        slotProps={mergedSlotProps}
+        {...rest}
+      >
+        {title ? (
+          <DialogTitle color="primary" align="center" {...dialogTitleProps}>
+            {title}
+          </DialogTitle>
+        ) : null}
+        {helper}
+        <DialogContent
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            ...(useAppShellDesign
+              ? {
+                  px: { xs: 2, md: 3 },
+                  py: 2,
+                }
+              : {}),
+            ...dialogContentSx,
+          }}
+          {...dialogContentProps}
+        >
+          {useAppShellDesign ? (
+            loadingSkeleton || (
+              <DefaultDialogLoadingSkeleton loadingVariant={loadingVariant} />
+            )
+          ) : (
+            <PanelFallBack
+              isLoading
+              isError={false}
+              loadingMessage={resolvedLoadingMessage}
+            />
+          )}
+        </DialogContent>
+        {dialogActions}
+      </Dialog>
+    );
+    return (
+      <Suspense fallback={suspenseFallback ?? defaultSuspenseFallback}>
+        {dialogNode}
+      </Suspense>
+    );
+  }
+  return dialogNode;
 }
 
 export { useDialogEventState } from "./useDialogEventState";
 export { useSyncedDialogEventState } from "./useSyncedDialogEventState";
 export { DialogCloseAction } from "./DialogCloseAction";
+export { useDialogCloseReset } from "./useDialogCloseReset";
