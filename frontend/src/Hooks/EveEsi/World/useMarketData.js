@@ -1,5 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import getMarketData from "../../../Functions/EveESI/World/getMarketData";
+import getWorldData from "../../../Functions/EveESI/World/getWorldData";
+import useUsersStore from "../../../Zustand/usersStore";
 import useESIRateLimiting from "../../App/useESIRateLimiting";
 
 /**
@@ -46,7 +49,12 @@ import useESIRateLimiting from "../../App/useESIRateLimiting";
 export function useMarketData(typeID, location) {
   const { isRateLimited, getWaitTime } = useESIRateLimiting();
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const {
+    data,
+    isLoading: isMarketDataLoading,
+    error: marketDataError,
+    refetch,
+  } = useQuery({
     queryKey: ["marketData", typeID, location?.regionID],
     queryFn: async () => {
       // Check if market group is rate limited
@@ -97,10 +105,49 @@ export function useMarketData(typeID, location) {
     refetchOnReconnect: true,
   });
 
+  const marketData = data || [];
+  const worldDataIDs = useMemo(() => {
+    if (marketData.length === 0 || !location) return [];
+
+    const locations = new Set();
+    marketData.forEach((item) => {
+      locations.add(item.location_id);
+      locations.add(item.system_id);
+    });
+    locations.add(location.regionID);
+    locations.add(location.stationID);
+
+    return Array.from(locations)
+      .filter(Boolean)
+      .sort((a, b) => Number(a) - Number(b));
+  }, [marketData, location?.regionID, location?.stationID]);
+
+  const {
+    data: worldData,
+    isLoading: isWorldDataLoading,
+    error: worldDataError,
+  } = useQuery({
+    queryKey: ["marketDataWorldData", typeID, ...worldDataIDs],
+    queryFn: () =>
+      getWorldData(
+        worldDataIDs,
+        useUsersStore.getState().account.actions.getMainCharacter(),
+      ),
+    enabled: Boolean(location?.regionID && worldDataIDs.length > 0),
+    staleTime: 5 * 60 * 1000,
+  });
+
   return {
-    marketData: data || [],
-    isLoading,
-    error,
+    marketData,
+    worldData: worldData || {},
+    isLoading: isMarketDataLoading,
+    isEnriching: isWorldDataLoading,
+    isMarketDataLoading,
+    isWorldDataLoading,
+    error: marketDataError || null,
+    marketDataError: marketDataError || null,
+    worldDataError: worldDataError || null,
+    combinedError: marketDataError || worldDataError || null,
     refetch,
   };
 }

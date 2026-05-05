@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { DataGrid } from "@mui/x-data-grid";
 import { Box, Typography } from "@mui/material";
-import useUsersStore from "../../Zustand/usersStore"
+import { alpha } from "@mui/material/styles";
+import { appShellMarketDataGridSx } from "../../Context/appShell";
+import useUsersStore from "../../Zustand/usersStore";
 
 /**
  * A data grid component for displaying EVE Online market order data.
@@ -37,8 +39,12 @@ function MarketDataDisplayGrid({
   const buyOrders = marketData.filter((order) => order.is_buy_order);
 
   const maxPrice = useMemo(() => {
+    if (!marketData.length) return 0;
     return Math.max(...marketData.map((order) => order.price));
   }, [marketData]);
+
+  const stripeClassName = (params) =>
+    params.indexRelativeToCurrentPage % 2 === 0 ? "market-grid-stripe" : "";
 
   const handleSellSortChange = (newSortModel) => {
     setSellSortModel(newSortModel);
@@ -141,27 +147,47 @@ function MarketDataDisplayGrid({
         display: "flex",
         flexDirection: "column",
         height: "100%",
-        width: "100%"
-      }}>
+        width: "100%",
+        minHeight: 0,
+        gap: 2,
+      }}
+    >
       <Box
         sx={{
           display: "flex",
           flexDirection: "column",
-          height: "45%"
-        }}>
-        <Typography variant="h6" color="primary" component="h3" gutterBottom>
-          Sell Orders
+          flex: 1,
+          minHeight: 0,
+          minWidth: 0,
+        }}
+      >
+        <Typography
+          variant="subtitle1"
+          component="h3"
+          sx={(t) => ({
+            mb: 1,
+            pl: 1.25,
+            fontWeight: 600,
+            color: "text.primary",
+            borderLeft: `3px solid ${alpha(t.palette.primary.main, 0.85)}`,
+          })}
+        >
+          Sell orders
         </Typography>
         <Box
           sx={{
             display: "flex",
-            overflow: "hidden"
-          }}>
+            overflow: "hidden",
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
           <DataGrid
             loading={isLoading}
             rows={sellOrders}
             columns={sellColumns}
             getRowId={(row) => row.order_id}
+            getRowClassName={stripeClassName}
             columnHeaderHeight={25}
             disableColumnMenu
             scrollbarSize={8}
@@ -171,11 +197,14 @@ function MarketDataDisplayGrid({
             disableRowSelectionOnClick
             sortModel={sellSortModel}
             onSortModelChange={handleSellSortChange}
-            sx={{
+            sx={(theme) => ({
+              ...appShellMarketDataGridSx(theme),
               height: "100%",
               width: "100%",
-              border: "1px solid lightgray",
-            }}
+              "& .MuiDataGrid-row.market-grid-stripe": {
+                backgroundColor: alpha(theme.palette.primary.main, 0.04),
+              },
+            })}
           />
         </Box>
       </Box>
@@ -183,21 +212,38 @@ function MarketDataDisplayGrid({
         sx={{
           display: "flex",
           flexDirection: "column",
-          height: "45%"
-        }}>
-        <Typography variant="h6" color="primary" component="h3" gutterBottom>
-          Buy Orders
+          flex: 1,
+          minHeight: 0,
+          minWidth: 0,
+        }}
+      >
+        <Typography
+          variant="subtitle1"
+          component="h3"
+          sx={(t) => ({
+            mb: 1,
+            pl: 1.25,
+            fontWeight: 600,
+            color: "text.primary",
+            borderLeft: `3px solid ${alpha(t.palette.primary.main, 0.85)}`,
+          })}
+        >
+          Buy orders
         </Typography>
         <Box
           sx={{
             display: "flex",
-            overflow: "hidden"
-          }}>
+            overflow: "hidden",
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
           <DataGrid
             loading={isLoading}
             rows={buyOrders}
             columns={buyColumns}
             getRowId={(row) => row.order_id}
+            getRowClassName={stripeClassName}
             columnHeaderHeight={25}
             disableColumnMenu
             scrollbarSize={8}
@@ -207,12 +253,14 @@ function MarketDataDisplayGrid({
             disableRowSelectionOnClick
             sortModel={buySortModel}
             onSortModelChange={handleBuySortChange}
-            stripedRows
-            sx={{
+            sx={(theme) => ({
+              ...appShellMarketDataGridSx(theme),
               height: "100%",
               width: "100%",
-              border: "1px solid lightgray",
-            }}
+              "& .MuiDataGrid-row.market-grid-stripe": {
+                backgroundColor: alpha(theme.palette.primary.main, 0.04),
+              },
+            })}
           />
         </Box>
       </Box>

@@ -1,5 +1,6 @@
-import { FormControl, FormHelperText, MenuItem, Select } from "@mui/material";
+import { FormControl, FormHelperText, MenuItem, Select, useTheme } from "@mui/material";
 import GLOBAL_CONFIG from "../../global-config-app";
+import { getAppShellMarketSelectProps } from "../../Context/appShell";
 import useUsersStore from "../../Zustand/usersStore.js";
 import { normalizedOverrideWhenMatchesDefault } from "./applicationSettingsMarketUtils.js";
 
@@ -18,6 +19,7 @@ const { DEFAULT_MARKET_OPTION } = GLOBAL_CONFIG;
  * @param {Object} [props.customSelectStyling] - Custom styling for the select component
  * @param {Object} [props.customHelperTextStyling] - Custom styling for the helper text
  * @param {string} [props.labelText="Market"] - Label text to display in helper text
+ * @param {boolean} [props.useAppShellStyling=false] - Outlined control + menu styling from app shell
  * @returns {JSX.Element} Market location select component
  * 
  * @example
@@ -38,8 +40,13 @@ function MarketLocationSelect({
   labelText = "Market",
   selectVariant = "standard",
   menuProps = {},
+  useAppShellStyling = false,
 }) {
+  const theme = useTheme();
   const { MARKET_OPTIONS } = GLOBAL_CONFIG;
+  const appShell = useAppShellStyling ? getAppShellMarketSelectProps(theme) : null;
+  const resolvedSelectVariant = appShell?.selectVariant ?? selectVariant;
+  const resolvedMenuProps = { ...(appShell?.menuProps || {}), ...menuProps };
   
   // Ensure value is valid, fallback to "jita" if not
   const validValue = MARKET_OPTIONS.find(option => option.id === value) ? value : "jita";
@@ -47,9 +54,14 @@ function MarketLocationSelect({
   return (
     <FormControl
       sx={{
-        "& .MuiFormHelperText-root": {
-          color: (theme) => theme.palette.secondary.main,
-        },
+        ...(appShell?.customFormStyling || {}),
+        ...(!useAppShellStyling
+          ? {
+              "& .MuiFormHelperText-root": {
+                color: (theme) => theme.palette.secondary.main,
+              },
+            }
+          : {}),
         "& input::-webkit-clear-button, & input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
           {
             display: "none",
@@ -62,7 +74,7 @@ function MarketLocationSelect({
       <Select
         id="market-location-select"
         aria-describedby="market-location-helper"
-        variant={selectVariant}
+        variant={resolvedSelectVariant}
         size="small"
         value={validValue}
         error={error.isError}
@@ -75,11 +87,15 @@ function MarketLocationSelect({
             );
           }
         }}
-        MenuProps={menuProps}
+        MenuProps={resolvedMenuProps}
         sx={{
           color: error.isError ? "error.main" : "inherit",
           "& .MuiSelect-icon": {
-            color: error.isError ? "error.main" : "inherit",
+            color: error.isError
+              ? "error.main"
+              : useAppShellStyling
+                ? "primary.main"
+                : "inherit",
           },
           ...customSelectStyling,
         }}
@@ -96,7 +112,12 @@ function MarketLocationSelect({
         id="market-location-helper"
         variant="standard"
         sx={{
-          color: error.isError ? "error.main" : "secondary.main",
+          ...(appShell?.customHelperTextStyling || {}),
+          color: error.isError
+            ? "error.main"
+            : useAppShellStyling
+              ? "text.secondary"
+              : "secondary.main",
           ...customHelperTextStyling,
         }}
       >

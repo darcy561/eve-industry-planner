@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { Skeleton, Stack } from "@mui/material";
+import { useCallback } from "react";
 import PriceHistoryLineGraph from "../../../Styled Components/LineGraph/priceHistory";
-import getWorldData from "../../../Functions/EveESI/World/getWorldData";
 import ContentDialog, {
   DialogCloseAction,
   useDialogEventState,
@@ -17,17 +17,19 @@ function PriceHistoryDialog() {
       selectedLocation: null,
     }),
   );
-  const [worldData, setWorldData] = useState({});
+  const {
+    marketHistory,
+    worldData,
+    isLoading,
+    error,
+    isWorldDataLoading,
+    worldDataError,
+  } = useMarketHistoryData(messageData.selectedTypeID, messageData.selectedLocation);
 
   const handleClose = useCallback(() => {
     useUsersStore.getState().worldData.actions.addUniverseIDs(worldData);
     resetDialog();
   }, [worldData, resetDialog]);
-
-  const { marketHistory, isLoading, error } = useMarketHistoryData(
-    messageData.selectedTypeID,
-    messageData.selectedLocation,
-  );
 
   const isFetchActive =
     messageData.isOpen &&
@@ -41,19 +43,20 @@ function PriceHistoryDialog() {
         ? new Error(String(error?.message ?? error))
         : null;
 
-  useEffect(() => {
-    if (marketHistory?.length > 0 && messageData.selectedLocation) {
-      getWorldData(
-        [messageData.selectedLocation.regionID],
-        useUsersStore.getState().account.actions.getMainCharacter(),
-      ).then(setWorldData);
-    }
-  }, [marketHistory?.length, messageData.selectedLocation?.regionID]);
+  const loadingSkeleton = (
+    <Stack spacing={2}>
+      <Skeleton variant="text" width="40%" />
+      <Skeleton variant="rounded" height={48} />
+      <Skeleton variant="rounded" height={420} />
+    </Stack>
+  );
 
   return (
     <ContentDialog
       open={messageData.isOpen}
       onClose={handleClose}
+      loadingVariant="dense"
+      useAppShellDesign
       componentName="PriceHistoryDialog"
       maxWidth="lg"
       fullWidth
@@ -63,21 +66,37 @@ function PriceHistoryDialog() {
         error: queryError,
         loadingMessage: "Loading market history…",
       }}
+      loadingSkeleton={loadingSkeleton}
+      helperArea={
+        isFetchActive && isWorldDataLoading
+          ? "Resolving structure, system, and region names…"
+          : isFetchActive && worldDataError
+            ? "Some location names could not be resolved."
+            : null
+      }
       dialogSx={{
         "& .MuiDialog-paper": {
           height: "90vh",
           width: "90vw",
+          maxWidth: "100%",
+          display: "flex",
+          flexDirection: "column",
+          overflowX: "hidden",
         },
       }}
       dialogContentSx={{
-        height: "100%",
+        flex: 1,
+        minHeight: 0,
+        width: "100%",
+        maxWidth: "100%",
         display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
+        alignItems: "stretch",
         flexDirection: "column",
+        overflowX: "hidden",
         overflowY: "hidden",
       }}
       actions={<DialogCloseAction onClose={handleClose} />}
+      dialogActionsProps={{ sx: { display: "flex" } }}
     >
       <PriceHistoryLineGraph
         graphData={marketHistory}

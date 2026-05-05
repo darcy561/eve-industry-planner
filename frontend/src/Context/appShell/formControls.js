@@ -148,3 +148,135 @@ export function appShellTextFieldOutlinedSx(theme) {
     },
   };
 }
+
+/** Bordered inset surface (dialogs, dense tool panels). */
+export function appShellInsetSurfaceSx(theme) {
+  return {
+    borderRadius: 2,
+    border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+    backgroundColor: alpha(
+      theme.palette.background.paper,
+      theme.palette.mode === "dark" ? 0.55 : 0.96,
+    ),
+  };
+}
+
+/** MUI Slider accents aligned with app-shell primary outlines. */
+export function appShellSliderSx(theme) {
+  const primary = theme.palette.primary.main;
+  return {
+    color: primary,
+    height: 8,
+    py: 0.5,
+    "& .MuiSlider-rail": {
+      opacity: 1,
+      backgroundColor: alpha(primary, theme.palette.mode === "dark" ? 0.22 : 0.16),
+    },
+    "& .MuiSlider-track": {
+      border: "none",
+      backgroundColor: alpha(primary, theme.palette.mode === "dark" ? 0.55 : 0.42),
+    },
+    "& .MuiSlider-thumb": {
+      width: 18,
+      height: 18,
+      backgroundColor: primary,
+      border: `2px solid ${theme.palette.background.paper}`,
+      "&:hover, &.Mui-focusVisible": {
+        boxShadow: `0 0 0 6px ${alpha(primary, 0.22)}`,
+      },
+    },
+    "& .MuiSlider-mark": {
+      backgroundColor: alpha(primary, 0.48),
+      height: 4,
+      width: 2,
+      borderRadius: 1,
+    },
+    "& .MuiSlider-valueLabel": {
+      backgroundColor: alpha(theme.palette.background.paper, 0.98),
+      color: theme.palette.text.primary,
+      border: `1px solid ${alpha(primary, 0.28)}`,
+      borderRadius: 1,
+      boxShadow: theme.shadows[3],
+      fontSize: theme.typography.caption.fontSize,
+    },
+  };
+}
+
+/**
+ * Dense market order tables: app-shell primary (blue) trim — same for sell and buy sides.
+ * @param {import("@mui/material/styles").Theme} theme
+ */
+export function appShellMarketDataGridSx(theme) {
+  const edge = alpha(theme.palette.primary.main, 0.2);
+  const accent = theme.palette.primary.main;
+  const headerBg = alpha(
+    accent,
+    theme.palette.mode === "dark" ? 0.12 : 0.08,
+  );
+  const hover = alpha(accent, 0.085);
+  const paperFill = alpha(
+    theme.palette.background.paper,
+    theme.palette.mode === "dark" ? 0.72 : 0.97,
+  );
+
+  return {
+    border: `1px solid ${edge}`,
+    borderRadius: 2,
+    overflow: "hidden",
+    backgroundColor: paperFill,
+    color: theme.palette.text.primary,
+    "& .MuiDataGrid-columnHeaders": {
+      borderBottom: `1px solid ${alpha(accent, 0.35)}`,
+      backgroundColor: headerBg,
+    },
+    "& .MuiDataGrid-columnHeader": {
+      padding: theme.spacing(0.5, 1),
+      outline: "none",
+    },
+    "& .MuiDataGrid-columnHeaderTitle": {
+      fontWeight: 600,
+      fontSize: theme.typography.caption.fontSize,
+      letterSpacing: 0.02,
+      color: theme.palette.text.primary,
+    },
+    "& .MuiDataGrid-sortIcon": {
+      color: alpha(accent, 0.85),
+    },
+    "& .MuiDataGrid-cell": {
+      borderColor: alpha(theme.palette.divider, 0.45),
+      fontSize: theme.typography.caption.fontSize,
+      color: theme.palette.text.secondary,
+    },
+    "& .MuiDataGrid-cell--textRight": {
+      color: theme.palette.text.primary,
+      fontVariantNumeric: "tabular-nums",
+    },
+    "& .MuiDataGrid-row:hover": {
+      backgroundColor: hover,
+    },
+    "& .MuiDataGrid-row.Mui-selected": {
+      backgroundColor: alpha(accent, 0.14),
+      "&:hover": {
+        backgroundColor: alpha(accent, 0.18),
+      },
+    },
+    "& .MuiDataGrid-footerContainer": {
+      borderTop: `1px solid ${edge}`,
+    },
+    "& .MuiDataGrid-iconSeparator": {
+      color: alpha(accent, 0.4),
+    },
+    "& .MuiDataGrid-overlayWrapper": {
+      backgroundColor: alpha(theme.palette.background.paper, 0.65),
+    },
+    "& .MuiLinearProgress-root": {
+      backgroundColor: alpha(theme.palette.primary.main, 0.12),
+      "& .MuiLinearProgress-bar": {
+        backgroundColor: alpha(theme.palette.primary.main, 0.55),
+      },
+    },
+    "& .MuiSkeleton-root": {
+      bgcolor: alpha(theme.palette.primary.main, 0.08),
+    },
+  };
+}

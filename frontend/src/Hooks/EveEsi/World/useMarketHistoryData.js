@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import getMarketHistory from "../../../Functions/EveESI/World/getMarketHistory";
+import getWorldData from "../../../Functions/EveESI/World/getWorldData";
+import useUsersStore from "../../../Zustand/usersStore";
 import useESIRateLimiting from "../../App/useESIRateLimiting";
 
 /**
@@ -53,7 +55,12 @@ import useESIRateLimiting from "../../App/useESIRateLimiting";
 export function useMarketHistoryData(typeID, location) {
   const { isRateLimited, getWaitTime } = useESIRateLimiting();
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const {
+    data,
+    isLoading: isMarketHistoryLoading,
+    error: marketHistoryError,
+    refetch,
+  } = useQuery({
     queryKey: ["marketHistory", typeID, location?.regionID],
     queryFn: async () => {
       if (!typeID || !location?.regionID) return null;
@@ -107,10 +114,34 @@ export function useMarketHistoryData(typeID, location) {
     refetchOnMount: false,
   });
 
+  const marketHistory = data || [];
+
+  const {
+    data: worldData,
+    isLoading: isWorldDataLoading,
+    error: worldDataError,
+  } = useQuery({
+    queryKey: ["marketHistoryWorldData", typeID, location?.regionID],
+    queryFn: () =>
+      getWorldData(
+        [location.regionID],
+        useUsersStore.getState().account.actions.getMainCharacter(),
+      ),
+    enabled: Boolean(location?.regionID && marketHistory.length > 0),
+    staleTime: 5 * 60 * 1000,
+  });
+
   return {
-    marketHistory: data || [],
-    isLoading,
-    error,
+    marketHistory,
+    worldData: worldData || {},
+    isLoading: isMarketHistoryLoading,
+    isEnriching: isWorldDataLoading,
+    isMarketHistoryLoading,
+    isWorldDataLoading,
+    error: marketHistoryError || null,
+    marketHistoryError: marketHistoryError || null,
+    worldDataError: worldDataError || null,
+    combinedError: marketHistoryError || worldDataError || null,
     refetch,
   };
 }

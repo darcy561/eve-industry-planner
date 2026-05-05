@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import { Box, Dialog, DialogActions, DialogContent, DialogTitle } from "@mui/material";
 import Skeleton from "@mui/material/Skeleton";
+import { alpha } from "@mui/material/styles";
 import ContentErrorBoundary from "../Paper/ContentErrorBoundary";
 import PanelFallBack from "../Paper/panelStates";
-import { appShellSetupSectionPaperSx } from "../../Context/appShell";
 
 function DefaultDialogLoadingSkeleton({ loadingVariant = "default" }) {
   if (loadingVariant === "dense") {
@@ -112,11 +112,14 @@ export default function ContentDialog({
           }
         : {}),
       sx: {
-        ...(useAppShellDesign ? appShellSetupSectionPaperSx : {}),
         ...(useAppShellDesign
           ? {
-              // Dialogs should be opaque in the new design.
+              borderRadius: 3,
+              border: (theme) =>
+                `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+              // Solid theme paper (default dialog surface); keep border + outer glow only.
               backgroundColor: (theme) => theme.palette.background.paper,
+              backgroundImage: "none",
               backdropFilter: "none",
             }
           : {}),
@@ -192,7 +195,7 @@ export default function ContentDialog({
                 px: { xs: 2, md: 3 },
                 py: 1.5,
                 borderTop: (theme) =>
-                  `1px solid ${theme.palette.divider}`,
+                  `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
               }
             : {}),
           justifyContent:
@@ -246,6 +249,12 @@ export default function ContentDialog({
           px: useAppShellDesign ? { xs: 2, md: 3 } : 2,
           pt: 0,
           pb: useAppShellDesign ? 1.5 : 1,
+          ...(useAppShellDesign
+            ? {
+                borderBottom: (theme) =>
+                  `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+              }
+            : {}),
           ...helperAreaSx,
         }}
       >
@@ -253,13 +262,26 @@ export default function ContentDialog({
       </Box>
     ) : null;
 
+  const appShellDialogSx = useAppShellDesign
+    ? {
+        "& .MuiDialog-paper": {
+          boxShadow: (theme) =>
+            `0 18px 50px ${alpha(theme.palette.common.black, 0.35)}, 0 0 0 1px ${alpha(theme.palette.primary.main, 0.2)}, 0 0 30px ${alpha(theme.palette.primary.main, 0.18)}`,
+        },
+        "& .MuiBackdrop-root": {
+          backgroundImage: (theme) =>
+            `radial-gradient(circle at 50% 40%, ${alpha(theme.palette.primary.main, 0.12)}, transparent 65%)`,
+        },
+      }
+    : null;
+
   const dialogNode = (
     <Dialog
       open={open}
       onClose={onClose}
       maxWidth={maxWidth}
       fullWidth={fullWidth}
-      sx={dialogSx}
+      sx={[appShellDialogSx, dialogSx]}
       slotProps={mergedSlotProps}
       {...rest}
     >
@@ -273,7 +295,7 @@ export default function ContentDialog({
                   px: { xs: 2, md: 3 },
                   py: 2,
                   borderBottom: (theme) =>
-                    `1px solid ${theme.palette.divider}`,
+                    `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
                 }
               : {}),
             ...dialogTitleProps?.sx,
@@ -295,7 +317,7 @@ export default function ContentDialog({
         onClose={onClose}
         maxWidth={maxWidth}
         fullWidth={fullWidth}
-        sx={dialogSx}
+        sx={[appShellDialogSx, dialogSx]}
         slotProps={mergedSlotProps}
         {...rest}
       >

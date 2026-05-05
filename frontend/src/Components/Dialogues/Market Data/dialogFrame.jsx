@@ -1,5 +1,12 @@
-import { Box, Typography, useMediaQuery, useTheme } from "@mui/material";
-import { useCallback, useEffect, useState } from "react";
+import {
+  Box,
+  Skeleton,
+  Stack,
+  Typography,
+  useMediaQuery,
+  useTheme,
+} from "@mui/material";
+import { useCallback } from "react";
 import MarketDataDisplayGrid from "../../../Styled Components/DataGrid/marketbar";
 import MarketLocationSelect from "../../../Styled Components/Select/marketLocation";
 import ContentDialog, {
@@ -8,7 +15,6 @@ import ContentDialog, {
 } from "../../../Styled Components/Dialog/ContentDialog";
 import useUsersStore from "../../../Zustand/usersStore";
 import { useMarketData } from "../../../Hooks/EveEsi/World/useMarketData";
-import getWorldData from "../../../Functions/EveESI/World/getWorldData";
 
 function MarketDataDialog() {
   const theme = useTheme();
@@ -22,17 +28,19 @@ function MarketDataDialog() {
       selectedLocation: null,
     }),
   );
-  const [worldData, setWorldData] = useState({});
+  const {
+    marketData,
+    worldData,
+    isLoading,
+    error,
+    isWorldDataLoading,
+    worldDataError,
+  } = useMarketData(messageData.selectedTypeID, messageData.selectedLocation);
 
   const handleClose = useCallback(() => {
     useUsersStore.getState().worldData.actions.addUniverseIDs(worldData);
     resetDialog();
   }, [worldData, resetDialog]);
-
-  const { marketData, isLoading, error } = useMarketData(
-    messageData.selectedTypeID,
-    messageData.selectedLocation,
-  );
 
   const isFetchActive =
     messageData.isOpen &&
@@ -46,27 +54,6 @@ function MarketDataDialog() {
         ? new Error(String(error?.message ?? error))
         : null;
 
-  useEffect(() => {
-    if (marketData.length > 0 && messageData.selectedLocation) {
-      const locations = new Set();
-      marketData.forEach((item) => {
-        locations.add(item.location_id);
-        locations.add(item.system_id);
-      });
-      locations.add(messageData.selectedLocation.regionID);
-      locations.add(messageData.selectedLocation.stationID);
-
-      getWorldData(
-        locations,
-        useUsersStore.getState().account.actions.getMainCharacter(),
-      ).then(setWorldData);
-    }
-  }, [
-    marketData.length,
-    messageData.selectedLocation?.regionID,
-    messageData.selectedLocation?.stationID,
-  ]);
-
   const regionName =
     useUsersStore
       .getState()
@@ -75,10 +62,20 @@ function MarketDataDialog() {
         worldData,
       )?.name || "Unknown Region";
 
+  const loadingSkeleton = (
+    <Stack spacing={2}>
+      <Skeleton variant="text" width="50%" />
+      <Skeleton variant="rounded" height={44} />
+      <Skeleton variant="rounded" height={420} />
+    </Stack>
+  );
+
   return (
     <ContentDialog
       open={messageData.isOpen}
       onClose={handleClose}
+      loadingVariant="dense"
+      useAppShellDesign
       componentName="MarketDataDialog"
       maxWidth="lg"
       fullWidth
@@ -88,17 +85,28 @@ function MarketDataDialog() {
         error: queryError,
         loadingMessage: "Loading market data…",
       }}
+      loadingSkeleton={loadingSkeleton}
+      helperArea={
+        isFetchActive && isWorldDataLoading
+          ? "Resolving structure, system, and region names…"
+          : isFetchActive && worldDataError
+            ? "Some location names could not be resolved."
+            : null
+      }
       dialogSx={{
         "& .MuiDialog-paper": {
           height: "100vh",
           width: "90vw",
+          display: "flex",
+          flexDirection: "column",
         },
       }}
       dialogContentSx={{
-        height: "100%",
+        flex: 1,
+        minHeight: 0,
+        width: "100%",
         display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
+        alignItems: "stretch",
         flexDirection: "column",
         overflowY: "hidden",
       }}
@@ -109,7 +117,8 @@ function MarketDataDialog() {
         sx={{
           display: "flex",
           flexDirection: "column",
-          height: "100%",
+          flex: 1,
+          minHeight: 0,
           width: "100%",
         }}
       >
@@ -133,6 +142,7 @@ function MarketDataDialog() {
           </Box>
           <Box sx={{ width: isMobile ? "100%" : "200px" }}>
             <MarketLocationSelect
+              useAppShellStyling
               value={messageData.selectedLocation?.id}
               onChange={(location) =>
                 setMessageData((prev) => ({
@@ -150,6 +160,7 @@ function MarketDataDialog() {
               justifyContent: "center",
               alignItems: "center",
               height: "100%",
+              minHeight: 360,
             }}
           >
             <Typography
@@ -167,7 +178,7 @@ function MarketDataDialog() {
             typeID={messageData.selectedTypeID}
             regionID={messageData.selectedLocation?.regionID}
             alternativeRegionData={worldData}
-            isLoading={isLoading}
+            isLoading={Boolean(isFetchActive && isLoading)}
           />
         )}
       </Box>
