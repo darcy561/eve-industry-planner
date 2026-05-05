@@ -184,7 +184,7 @@ export default function EditJob_New() {
                 py: 1,
               }}
             >
-              <Grid container sx={{ width: "100%" }}>
+              <Grid container sx={{ width: "100%", minWidth: 0 }}>
                 <Grid
                   size={{
                     xs: 8,
@@ -196,6 +196,7 @@ export default function EditJob_New() {
                     display: "flex",
                     alignItems: "center",
                     overflow: "hidden",
+                    minWidth: 0,
                     gap: { sm: 1.5, md: 2 },
                   }}
                 >
@@ -215,7 +216,9 @@ export default function EditJob_New() {
                     color="primary"
                     align="left"
                     sx={{
-                      width: "100%",
+                      flex: "1 1 0%",
+                      minWidth: 0,
+                      maxWidth: "100%",
                       fontSize: {
                         xs: "1.5rem",
                         sm: "2rem",
@@ -227,7 +230,7 @@ export default function EditJob_New() {
                         md: 1.4,
                       },
                       wordBreak: "break-word",
-                      overflowWrap: "break-word",
+                      overflowWrap: "anywhere",
                     }}
                   >
                     {state.activeJob.name}

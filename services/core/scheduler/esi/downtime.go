@@ -22,6 +22,11 @@ const deferredFromDowntimeContextKey downtimeContextKey = "deferred_from_downtim
 var deferredTaskMu sync.Mutex
 var deferredTaskUntil = make(map[string]time.Time)
 
+// IsInEVEDowntime reports whether now falls in the daily EVE maintenance window (UTC).
+func IsInEVEDowntime(now time.Time) (bool, time.Time) {
+	return isInEVEDowntime(now)
+}
+
 func isInEVEDowntime(now time.Time) (bool, time.Time) {
 	utc := now.UTC()
 	start := time.Date(utc.Year(), utc.Month(), utc.Day(), eveDowntimeStartHourUTC, eveDowntimeStartMinUTC, 0, 0, time.UTC)
@@ -52,6 +57,11 @@ func computeRunsPer4Hours(now time.Time, deferred bool) float64 {
 		return downtimeAwareRunsPer4Hours
 	}
 	return baselineRunsPer4Hours
+}
+
+// DeferTaskPublicationUntilAfterDowntime skips publication during daily downtime and runs publish after the window.
+func DeferTaskPublicationUntilAfterDowntime(ctx context.Context, taskName string, subject string, publish func(context.Context) error) bool {
+	return deferTaskPublicationUntilAfterDowntime(ctx, taskName, subject, publish)
 }
 
 func deferTaskPublicationUntilAfterDowntime(ctx context.Context, taskName string, subject string, publish func(context.Context) error) bool {

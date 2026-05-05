@@ -16,7 +16,12 @@ type LogoutRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// LogoutHandler revokes the current server refresh token and records a session-end metric.
+// LogoutHandler ends the planner auth session: deletes Redis session:<session_id>, clears the HttpOnly
+// app session refresh cookie (eip_app_refresh), and records metrics.
+//
+// It does not delete the Redis key refresh_token:<planner_app_refresh_token> (planner session material)
+// or touch Mongo users.refreshTokens (encrypted ESI OAuth refresh secrets for cloud-linked characters).
+// Invalid planner or ESI credentials are handled when those flows run again (may require full EVE SSO).
 func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
 	sessionMetrics := apimetrics.GetAPIAuthSessionLifecycle()
@@ -56,13 +61,16 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 		return
 	}
 
-	if err := auth.RevokeRefreshToken(ctx, clients.Redis, refreshToken); err != nil {
-		logs.ErrorCtx(ctx, "failed to revoke refresh token on logout", "error", err, "account_id", requestedAccountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
-		return
+	if strings.TrimSpace(tokenData.SessionID) != "" {
+		if err := auth.DeleteSessionRecord(ctx, clients.Redis, tokenData.SessionID); err != nil {
+			logs.ErrorCtx(ctx, "failed to delete session record on logout", "error", err, "account_id", requestedAccountID)
+			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+			return
+		}
 	}
 
 	sessionMetrics.Ended.WithLabelValues("logout").Inc(ctx)
+	auth.ClearAppRefreshCookie(w, r)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -74,7 +82,10 @@ func extractLogoutRefreshTokenFromRequest(r *http.Request) (string, error) {
 
 	token := strings.TrimSpace(reqBody.RefreshToken)
 	if token == "" {
-		return "", errors.New("refresh_token is required in request body")
+		token = auth.ReadAppRefreshCookie(r)
+	}
+	if token == "" {
+		return "", errors.New("refresh_token is required in request body or cookie")
 	}
 	return token, nil
 }

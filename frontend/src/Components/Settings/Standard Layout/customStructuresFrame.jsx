@@ -45,7 +45,8 @@ function CustomStructuresFrame() {
               setIsLoading={setIsLoading}
             />
           )}
-          {selectedJobType === jobTypes.manufacturing || selectedJobType === jobTypes.reaction && (
+          {(selectedJobType === jobTypes.manufacturing ||
+            selectedJobType === jobTypes.reaction) && (
             <StructureOptionsSelection_CustomStructures
               key={selectedJobType}
               selectedJobType={selectedJobType}

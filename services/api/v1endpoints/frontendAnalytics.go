@@ -59,8 +59,8 @@ const maxFrontendByTypeKeys = 500
 // maxFrontendBatchEvents caps items per POST /api/v1/analytics/events (defensive; client debatches).
 const maxFrontendBatchEvents = 60
 
-func frontendAnalyticsAudience(r *http.Request) string {
-	if auth.BearerInternalJWTValid(r) {
+func frontendAnalyticsAudience(ctx context.Context, r *http.Request, clients *shared.ServiceClients) string {
+	if clients != nil && auth.BearerInternalJWTValid(ctx, r, clients.Redis) {
 		return apimetrics.FrontendAudienceAuthenticated
 	}
 	return apimetrics.FrontendAudienceAnonymous
@@ -114,9 +114,9 @@ func recordValidatedFrontendAnalytics(ctx context.Context, met *apimetrics.WebFr
 
 // FrontendAppEventsBatchHandler handles POST /api/v1/analytics/events (batched product analytics for OTel).
 // Body: {"events":[{...},{...}]} - each object matches [frontendAnalyticsBody]. Max [maxFrontendBatchEvents] items.
-func FrontendAppEventsBatchHandler(w http.ResponseWriter, r *http.Request, _ *shared.ServiceClients) {
+func FrontendAppEventsBatchHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
-	audience := frontendAnalyticsAudience(r)
+	audience := frontendAnalyticsAudience(ctx, r, clients)
 	met := apimetrics.GetWebFrontendEvents()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
 		ObserveDuration: func(ctx context.Context, ms float64) { met.RecordRequestMilliseconds(ctx, ms, audience) },

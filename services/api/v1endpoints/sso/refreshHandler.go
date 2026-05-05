@@ -52,7 +52,7 @@ func EveSSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *share
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	tokenResponse, err := refreshEveSSOAccessToken(ctx, cfg.EveSSOClientID, cfg.EveSSOClientSecret, refreshToken)
+	tokenResponse, err := RefreshEveSSOAccessToken(ctx, cfg.EveSSOClientID, cfg.EveSSOClientSecret, refreshToken)
 	var characterHash string
 	if err != nil {
 		duration := time.Since(start)

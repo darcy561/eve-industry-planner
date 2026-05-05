@@ -18,29 +18,50 @@ import (
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
-// RefreshRequest represents the request body for token refresh
+// App session refresh (this file): POST /api/v1/auth/sessions/refresh and /auth/sessions/login-refresh issue a new planner API JWT.
+//
+// Tokens involved here (do not confuse with ESI OAuth refresh secrets):
+//   - refresh_token / cookie "eip_app_refresh": planner app session refresh token; opaque value stored in Redis
+//     under refresh_token:<token> with metadata (account_id, character_hash, session_id, …). Each login/device
+//     chain uses its own opaque string. On successful refresh we mint a new token and revoke only the *presented*
+//     previous token — other devices keep their own Redis keys (multi-session safe).
+//   - eve_token (JSON body): current ESI access JWT from CCP (short-lived), proving the character matches the session.
+//     May be omitted when the client sends only the HttpOnly app refresh cookie AND the account has cloud-stored
+//     ESI refresh material in Mongo — the server then refreshes ESI from Mongo before issuing the planner JWT.
+//
+// ESI OAuth refresh material (long-lived, used to call login.eveonline.com for new ESI tokens) is separate:
+// local clients may send it to POST /api/v1/eve-sso/tokens/refresh; cloud accounts store it encrypted in
+// Mongo users.refreshTokens and refresh via POST /api/v1/eve-sso/cloud-stored-esi/refresh — neither path is this handler.
+
+// RefreshRequest is the JSON body for planner app session refresh (not EVE OAuth refresh_token grant to CCP).
 type RefreshRequest struct {
+	// RefreshToken is the current planner app session refresh token (Redis). Optional when the client sends the HttpOnly app refresh cookie instead.
 	RefreshToken string `json:"refresh_token"`
-	EveToken     string `json:"eve_token"` // EVE SSO token - must match the one stored with refresh token
+	// EveToken is the current ESI access JWT from CCP (optional for cloud cookie resume — server refreshes from Mongo).
+	EveToken string `json:"eve_token"`
 }
 
-// RefreshResponse represents the response sent to the client
+// RefreshResponse is returned after a successful app session refresh.
 type RefreshResponse struct {
-	AccessToken         string                          `json:"access_token"`
-	RefreshToken        string                          `json:"refresh_token"`
-	ExpiresAt           int64                           `json:"expires_at"` // Unix timestamp (seconds since epoch)
+	// AccessToken is a new planner API JWT (internal signing), not an ESI access token.
+	AccessToken string `json:"access_token"`
+	// RefreshToken is the new planner app session refresh token when the client is not on cookie-only rotation (see refreshFromCookie).
+	RefreshToken        string                          `json:"refresh_token,omitempty"`
+	ExpiresAt           int64                           `json:"expires_at"` // Planner JWT expiry (Unix seconds)
 	FirstLogin          bool                            `json:"first_login,omitempty"`
 	UserDocument        models.UserAccountDocument      `json:"user_document,omitempty"`
 	ApplicationSettings models.ApplicationSettings      `json:"application_settings,omitempty"`
 	LinkedCharacters    []models.LinkedCharacterSession `json:"linked_characters,omitempty"`
+	// MainCharacterEsiAccessToken is set on login-refresh when eve_token was omitted and the server refreshed ESI from Mongo (cloud cookie resume).
+	MainCharacterEsiAccessToken string `json:"main_character_esi_access_token,omitempty"`
 }
 
-// RefreshHandler handles token refresh requests
+// RefreshHandler handles planner app session refresh (POST /api/v1/auth/sessions/refresh).
 func RefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	refreshHandler(w, r, clients, false)
 }
 
-// LoginRefreshHandler handles login refresh requests (existing token login path).
+// LoginRefreshHandler handles planner app session refresh on the login path (POST /api/v1/auth/sessions/login-refresh).
 func LoginRefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	refreshHandler(w, r, clients, true)
 }
@@ -59,8 +80,8 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		return
 	}
 
-	// Extract refresh token and EVE token from request body
-	refreshToken, eveToken, err := extractRefreshTokenFromRequest(r)
+	// Planner app session refresh token: JSON body wins; else HttpOnly eip_app_refresh (typical for cloud).
+	refreshToken, eveToken, refreshFromCookie, err := extractRefreshCredentials(r)
 	if err != nil {
 		m.Errors.WithLabelValues("extraction_error").Inc(ctx)
 		logs.WarnCtx(ctx, "failed to extract tokens from request body", "error", err)
@@ -84,7 +105,9 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		return
 	}
 
-	// Get refresh token data from Redis first to get stored character hash
+	// Validate the cookie/body value against Redis refresh_token:<opaque> (planner app session material).
+	// Private API calls also use session:<session_id> (see middleware); refresh only requires this refresh row
+	// to exist and does not re-check session:<id> here.
 	tokenData, err := auth.GetRefreshTokenData(ctx, clients.Redis, refreshToken)
 	if err != nil {
 		m.Errors.WithLabelValues("refresh_token_not_found").Inc(ctx)
@@ -93,7 +116,6 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		return
 	}
 
-	// Validate the EVE SSO token and extract the owner field (character hash)
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		m.Errors.WithLabelValues("config_error").Inc(ctx)
@@ -101,30 +123,62 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
-	eveTokenInfo, err := auth.ValidateEveTokenAndExtractHash(r.Context(), eveToken, cfg.EveSSOClientID)
-	if err != nil {
-		contentType := r.Header.Get("Content-Type")
-		m.Errors.WithLabelValues("validation_error").Inc(ctx)
-		logs.WarnCtx(ctx, "EVE SSO token validation failed (refresh)",
-			"error", err,
-			"eve_token_length", len(eveToken),
-			"content_type", contentType,
-			"account_id", tokenData.AccountID,
-		)
-		http.Error(w, auth.GetEveTokenErrorMessage(err), http.StatusUnauthorized)
-		return
-	}
 
-	// Verify the EVE token's owner field (character hash) matches the one stored with refresh token
-	if tokenData.CharacterHash != eveTokenInfo.CharacterHash {
-		m.Errors.WithLabelValues("character_hash_mismatch").Inc(ctx)
-		logs.WarnCtx(ctx, "EVE token owner field (character hash) does not match refresh token",
-			"eve_hash", eveTokenInfo.CharacterHash,
-			"stored_hash", tokenData.CharacterHash,
-			"account_id", tokenData.AccountID,
-		)
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
-		return
+	var mainEsiAccessFromMongo string
+	if strings.TrimSpace(eveToken) == "" {
+		if !refreshFromCookie {
+			m.Errors.WithLabelValues("validation_error").Inc(ctx)
+			http.Error(w, "eve_token is required unless authenticating with the app refresh cookie as a cloud account with stored ESI material", http.StatusBadRequest)
+			return
+		}
+		esiAccess, err := userendpoints.RefreshStoredEsiFromMongoForCharacter(ctx, clients, tokenData.AccountID, tokenData.CharacterHash)
+		if err != nil {
+			switch {
+			case errors.Is(err, userendpoints.ErrMongoStoredEsiNotCloud):
+				m.Errors.WithLabelValues("validation_error").Inc(ctx)
+				http.Error(w, "eve_token is required for non-cloud sessions", http.StatusBadRequest)
+			case errors.Is(err, userendpoints.ErrMongoStoredEsiNoRow), errors.Is(err, userendpoints.ErrMongoStoredEsiUserNotFound):
+				m.Errors.WithLabelValues("refresh_token_not_found").Inc(ctx)
+				http.Error(w, "Invalid token", http.StatusUnauthorized)
+			case errors.Is(err, userendpoints.ErrMongoStoredEsiKeyring), errors.Is(err, userendpoints.ErrMongoStoredEsiDecrypt), errors.Is(err, userendpoints.ErrMongoStoredEsiPersist):
+				m.Errors.WithLabelValues("config_error").Inc(ctx)
+				logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+			case errors.Is(err, userendpoints.ErrMongoStoredEsiInvalidGrant):
+				m.Errors.WithLabelValues("validation_error").Inc(ctx)
+				http.Error(w, "Stored ESI refresh invalid — full EVE login required", http.StatusUnauthorized)
+			default:
+				m.Errors.WithLabelValues("validation_error").Inc(ctx)
+				logs.WarnCtx(ctx, "mongo stored ESI refresh failed (cookie resume)", "error", err, "account_id", tokenData.AccountID)
+				http.Error(w, "Invalid token", http.StatusUnauthorized)
+			}
+			return
+		}
+		mainEsiAccessFromMongo = esiAccess
+	} else {
+		eveTokenInfo, err := auth.ValidateEveTokenAndExtractHash(r.Context(), eveToken, cfg.EveSSOClientID)
+		if err != nil {
+			contentType := r.Header.Get("Content-Type")
+			m.Errors.WithLabelValues("validation_error").Inc(ctx)
+			logs.WarnCtx(ctx, "EVE SSO token validation failed (refresh)",
+				"error", err,
+				"eve_token_length", len(eveToken),
+				"content_type", contentType,
+				"account_id", tokenData.AccountID,
+			)
+			http.Error(w, auth.GetEveTokenErrorMessage(err), http.StatusUnauthorized)
+			return
+		}
+
+		if tokenData.CharacterHash != eveTokenInfo.CharacterHash {
+			m.Errors.WithLabelValues("character_hash_mismatch").Inc(ctx)
+			logs.WarnCtx(ctx, "EVE token owner field (character hash) does not match refresh token",
+				"eve_hash", eveTokenInfo.CharacterHash,
+				"stored_hash", tokenData.CharacterHash,
+				"account_id", tokenData.AccountID,
+			)
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			return
+		}
 	}
 
 	// Load or get cached RSA private key for JWT signing
@@ -200,7 +254,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		return
 	}
 
-	// Store new refresh token in Redis with updated user data
+	// Persist new planner app session refresh token (Redis).
 	if err := auth.StoreRefreshToken(ctx, clients.Redis, newRefreshToken, updatedTokenData); err != nil {
 		m.Errors.WithLabelValues("redis_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to store new refresh token", "error", err,
@@ -231,27 +285,23 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	}
 	sessionMetrics.Stored.WithLabelValues(sessionFlow).Inc(ctx)
 
-	// Revoke old refresh token (token rotation)
+	// Rotation: invalidate only the refresh token that authenticated this request (other devices hold different strings).
 	if err := auth.RevokeRefreshToken(ctx, clients.Redis, refreshToken); err != nil {
-		// Log but don't fail - old token will expire naturally
-		logs.WarnCtx(ctx, "failed to revoke old refresh token", "error", err,
+		logs.WarnCtx(ctx, "failed to revoke superseded planner app session refresh token", "error", err,
 			"account_id", tokenData.AccountID, "character_hash", tokenData.CharacterHash)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Pragma", "no-cache")
-	w.WriteHeader(http.StatusOK)
-
-	// Return new access token and new refresh token
 	// Calculate expiration timestamp using the same duration as token generation (Unix timestamp in seconds)
 	expiresAt := now.Add(internaljwt.TokenExpirationDuration).Unix()
 
 	response := RefreshResponse{
-		AccessToken:  internalToken,
-		RefreshToken: newRefreshToken,
-		ExpiresAt:    expiresAt,
+		AccessToken: internalToken,
+		ExpiresAt:   expiresAt,
 	}
+	if !refreshFromCookie {
+		response.RefreshToken = newRefreshToken
+	}
+
 	if touchLastLogin {
 		loginDocs, err := helper.ResolveUserDocumentsForLogin(ctx, clients.Mongo, tokenData.AccountID)
 		if err != nil {
@@ -261,6 +311,9 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 			return
 		}
 		response.FirstLogin = loginDocs.FirstLogin
+		if strings.TrimSpace(mainEsiAccessFromMongo) != "" {
+			response.MainCharacterEsiAccessToken = mainEsiAccessFromMongo
+		}
 		userOut := loginDocs.User
 		var linkedCharacters []models.LinkedCharacterSession
 		if userOut.UserCloudAccounts && cfg.RefreshTokenKeyring != nil {
@@ -283,6 +336,15 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		response.LinkedCharacters = linkedCharacters
 	}
 
+	if refreshFromCookie {
+		auth.SetAppRefreshCookie(w, r, newRefreshToken)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	w.WriteHeader(http.StatusOK)
+
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		m.Errors.WithLabelValues("encode_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to encode response", "error", err, "account_id", tokenData.AccountID)
@@ -303,32 +365,24 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	)
 }
 
-// extractRefreshTokenFromRequest extracts the refresh token and EVE token from the request body
-// We use POST with body (not GET with header) to avoid tokens appearing in logs/URLs
-// Implements security measures: body size limits and input validation
-func extractRefreshTokenFromRequest(r *http.Request) (string, string, error) {
+// extractRefreshCredentials reads eve_token (ESI access JWT) from JSON; planner app refresh from body or HttpOnly cookie.
+// Body refresh_token wins over cookie when both are set.
+func extractRefreshCredentials(r *http.Request) (refreshToken string, eveToken string, refreshFromCookie bool, err error) {
 	var reqBody RefreshRequest
 	if err := helper.DecodeJSONRequest(r, &reqBody, maxRefreshTokenLength+maxTokenLength+1024); err != nil {
-		return "", "", err
+		return "", "", false, err
 	}
 
-	if reqBody.RefreshToken == "" {
-		return "", "", errors.New("refresh_token is required in request body")
-	}
+	eveToken = strings.TrimSpace(reqBody.EveToken)
 
-	if reqBody.EveToken == "" {
-		return "", "", errors.New("eve_token is required in request body")
-	}
+	bodyRT := strings.TrimSpace(reqBody.RefreshToken)
+	cookieRT := auth.ReadAppRefreshCookie(r)
 
-	refreshToken := strings.TrimSpace(reqBody.RefreshToken)
-	if refreshToken == "" {
-		return "", "", errors.New("refresh_token cannot be empty")
+	if bodyRT != "" {
+		return bodyRT, eveToken, false, nil
 	}
-
-	eveToken := strings.TrimSpace(reqBody.EveToken)
-	if eveToken == "" {
-		return "", "", errors.New("eve_token cannot be empty")
+	if cookieRT != "" {
+		return cookieRT, eveToken, true, nil
 	}
-
-	return refreshToken, eveToken, nil
+	return "", "", false, errors.New("refresh_token is required in body or app refresh cookie")
 }

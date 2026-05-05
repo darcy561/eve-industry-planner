@@ -9,6 +9,7 @@ import (
 
 	"eve-industry-planner/shared/core/config"
 	mongocore "eve-industry-planner/shared/core/mongo"
+	mongoput "eve-industry-planner/shared/core/mongo/put"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared/models"
@@ -50,10 +51,8 @@ func RotateRefreshTokenKeys(ctx context.Context, task *asynq.Task, deps *esitask
 		return fmt.Errorf("refresh token keyring is not configured")
 	}
 
-	activeVersion := strings.TrimSpace(cfg.RefreshTokenActiveVersion)
-	if activeVersion == "" {
-		activeVersion = "v1"
-	}
+	kr := cfg.RefreshTokenKeyring
+	activeVer := kr.NormalizedActiveVersion()
 
 	col := deps.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUsers)
 	var userDoc models.UserAccountDocument
@@ -79,15 +78,15 @@ func RotateRefreshTokenKeys(ctx context.Context, task *asynq.Task, deps *esitask
 			rowsSkipped++
 			continue
 		}
-		if p.FromVersion == "" && version == activeVersion {
+		if p.FromVersion == "" && version == activeVer {
 			rowsSkipped++
 			continue
 		}
 
-		plain, err := rt.PlainRefreshMaterial(cfg.RefreshTokenKeyring)
+		rotated, err := rt.ReencryptTowardActiveVersion(kr, false)
 		if err != nil {
 			rowsFailed++
-			logs.WarnCtx(ctx, "rotate refresh tokens: decrypt failed",
+			logs.WarnCtx(ctx, "rotate refresh tokens: re-wrap failed",
 				"account_id", p.AccountID,
 				"character_hash", rt.CharacterHash,
 				"from_version", version,
@@ -95,31 +94,17 @@ func RotateRefreshTokenKeys(ctx context.Context, task *asynq.Task, deps *esitask
 			)
 			continue
 		}
-		if err := rt.EncryptRefreshAtRest(plain, cfg.RefreshTokenKeyring); err != nil {
-			rowsFailed++
-			logs.WarnCtx(ctx, "rotate refresh tokens: encrypt failed",
-				"account_id", p.AccountID,
-				"character_hash", rt.CharacterHash,
-				"error", err,
-			)
-			continue
+		if rotated {
+			rowsRotated++
+			changed = true
 		}
-		rowsRotated++
-		changed = true
 	}
 
 	if changed && !p.DryRun {
-		retryCfg := mongocore.DefaultRetryConfig()
-		retryCfg.OperationName = fmt.Sprintf("rotate refresh token keys %s", p.AccountID)
-		if err := mongocore.RetryMongoOperation(ctx, retryCfg, func() error {
-			_, err := col.UpdateOne(ctx, bson.M{"_id": p.AccountID, "_meta.accountID": p.AccountID}, bson.M{
-				"$set": bson.M{
-					"refreshTokens":      userDoc.RefreshTokens,
-					"_meta.lastModified": time.Now().UTC(),
-				},
-			})
-			return err
-		}); err != nil {
+		if err := mongoput.PatchUserAccountFields(ctx, col, p.AccountID, bson.M{
+			"refreshTokens":      userDoc.RefreshTokens,
+			"_meta.lastModified": time.Now().UTC(),
+		}, fmt.Sprintf("rotate refresh token keys %s", p.AccountID)); err != nil {
 			return fmt.Errorf("persist rotated refresh tokens for %s: %w", p.AccountID, err)
 		}
 	}
@@ -130,7 +115,7 @@ func RotateRefreshTokenKeys(ctx context.Context, task *asynq.Task, deps *esitask
 		"skipped_rows", rowsSkipped,
 		"failed_rows", rowsFailed,
 		"dry_run", p.DryRun,
-		"active_version", activeVersion,
+		"active_version", activeVer,
 		"from_version", p.FromVersion,
 	)
 	return nil

@@ -240,6 +240,11 @@ export const tokenActions = (set, get) => ({
           };
         }
 
+        const cloudResolved =
+          userCloudAccounts !== undefined
+            ? !!userCloudAccounts
+            : !!state.applicationSettings.userCloudAccounts;
+
         return {
           ...state,
           account: {
@@ -251,9 +256,12 @@ export const tokenActions = (set, get) => ({
             accessToken: response.access_token,
             accessTokenEXP: response.expires_at,
             sessionID,
-            refreshToken: response.refresh_token,
-            refreshTokenEXP:
-              response.refresh_token_exp ?? response.refresh_token_expires_at,
+            refreshToken: cloudResolved
+              ? null
+              : response.refresh_token ?? null,
+            refreshTokenEXP: cloudResolved
+              ? null
+              : response.refresh_token_exp ?? response.refresh_token_expires_at,
             isFirstTimeLogin,
             ...linkedPatch,
             ...(nextHasCompletedFirstLogin !== undefined && {
@@ -377,7 +385,8 @@ export const tokenActions = (set, get) => ({
 
     try {
       const { refreshToken, accessToken, accessTokenEXP } = state.account;
-      if (!refreshToken) {
+      const cloud = !!state.applicationSettings?.userCloudAccounts;
+      if (!refreshToken && !cloud) {
         return;
       }
       const exp = getEffectiveAppAccessExpiryUnix(accessToken, accessTokenEXP);
@@ -388,17 +397,23 @@ export const tokenActions = (set, get) => ({
       const bufferTime = 900; // 15 minutes in seconds
       if (exp >= currentTimeStamp + bufferTime) return;
 
-      const response = await refreshServerJWT(refreshToken, mainCharacter.esiAccessToken);
+      const response = await refreshServerJWT(
+        refreshToken || null,
+        mainCharacter.esiAccessToken
+      );
 
       await verifyAppAccessTokenWithJwks(response.access_token);
 
-      get().account.actions.setSessionTokens({
+      const tokenPatch = {
         accessToken: response.access_token,
         accessTokenEXP: response.expires_at,
-        refreshToken: response.refresh_token,
-        refreshTokenEXP:
-          response.refresh_token_exp ?? response.refresh_token_expires_at,
-      });
+      };
+      if (response.refresh_token) {
+        tokenPatch.refreshToken = response.refresh_token;
+        tokenPatch.refreshTokenEXP =
+          response.refresh_token_exp ?? response.refresh_token_expires_at;
+      }
+      get().account.actions.setSessionTokens(tokenPatch);
     } catch (err) {
       console.error(err.message);
     }
@@ -414,7 +429,10 @@ export const tokenActions = (set, get) => ({
     const state = get();
     if (!state.account.isLoggedIn) return;
     const characters = state.account.characters.filter(
-      (c) => c && typeof c.refreshESIToken === "function"
+      (c) =>
+        c &&
+        !c.isPlaceholder &&
+        typeof c.refreshESIToken === "function"
     );
     if (characters.length === 0) return;
 
@@ -463,7 +481,7 @@ export const tokenActions = (set, get) => ({
   runScheduledTokenRefresh: async () => {
     const state = get();
     if (!state.account.isLoggedIn) return;
-    const characters = state.account.characters;
+    const characters = state.account.characters.filter((u) => u && !u.isPlaceholder);
 
     const mainCharacter = characters.find((u) => u?.isMainCharacter);
     const others = characters.filter((u) => u && !u.isMainCharacter);

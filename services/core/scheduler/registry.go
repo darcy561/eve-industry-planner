@@ -118,6 +118,8 @@ func StartService(logComponent string, natsConn *natslib.Conn, jsContext jetstre
 	registry.Register(sde.ScheduleCheckSDEUpdates)
 	registry.Register(archivedjobs.ScheduleProcessArchivedBuildStats)
 	registry.Register(maintenance.ScheduleSchemaVersionMaintenance)
+	registry.Register(maintenance.ScheduleInactiveAccountPlannerCleanup)
+	registry.Register(maintenance.ScheduleCloudStoredEsiRefreshMaintenance)
 	// Add more schedulers here:
 	// registry.Register(market.ScheduleMarketHistoryRefresh)
 

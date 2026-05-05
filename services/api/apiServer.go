@@ -95,7 +95,7 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 	)
 	privateGroup := middleware.NewGroup(mux,
 		middleware.RateLimiterConstructor(store, privateRateLimit, "private"),
-		middleware.AuthConstructor(),
+		middleware.AuthConstructor(clients.Redis),
 	)
 
 	// Define public routes (v1)
@@ -227,9 +227,9 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 	// Define private routes (v1)
 	privateRoutes := []route{
 		{
-			Path: "/api/v1/eve-sso/additional-characters/refresh",
+			Path: "/api/v1/eve-sso/cloud-stored-esi/refresh",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				userendpoints.CloudAdditionalCharacterEsiRefreshHandler(w, r, clients)
+				userendpoints.CloudStoredEsiRefreshHandler(w, r, clients)
 			},
 		},
 		{
@@ -251,9 +251,9 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 			},
 		},
 		{
-			Path: "/api/v1/user/additional-character-refresh-tokens",
+			Path: "/api/v1/user/cloud-stored-esi-refresh-tokens",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				userendpoints.AdditionalCharacterRefreshTokensHandler(w, r, clients)
+				userendpoints.CloudStoredEsiRefreshTokensHandler(w, r, clients)
 			},
 		},
 		{

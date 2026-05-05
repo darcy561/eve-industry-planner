@@ -8,7 +8,7 @@ import useUsersStore from "../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { scheduleDebouncedUserAccountDocumentSave } from "../../Functions/Debounce/userDocumentsPersistSchedule.js";
 import { updateLocalRefreshTokens } from "../../Functions/Auth/buildAccountData.js";
-import { deleteAdditionalCharacterRefreshTokens } from "../../Functions/Endpoints/Pirivate/additionalCharacterRefreshTokens.js";
+import { deleteCloudStoredEsiRefreshTokens } from "../../Functions/Endpoints/Pirivate/cloudStoredEsiRefreshTokens.js";
 
 export function AccountEntry({ character, appearance = "default" }) {
   const cloudAccounts = useUsersStore(
@@ -31,7 +31,7 @@ export function AccountEntry({ character, appearance = "default" }) {
     });
 
     if (cloudAccounts) {
-      const saved = await deleteAdditionalCharacterRefreshTokens([characterHash]);
+      const saved = await deleteCloudStoredEsiRefreshTokens([characterHash]);
       if (!saved) {
         showSnackbarError("Failed to update linked character tokens on server");
       }

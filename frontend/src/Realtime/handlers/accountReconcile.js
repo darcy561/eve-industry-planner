@@ -14,8 +14,8 @@ import {
   updateLocalRefreshTokensIfAccountHasAdditionalCharacters,
 } from "../../Functions/Auth/buildAccountData.js";
 import {
-  getAdditionalCharacterRefreshTokens,
-} from "../../Functions/Endpoints/Pirivate/additionalCharacterRefreshTokens.js";
+  getCloudStoredEsiRefreshTokens,
+} from "../../Functions/Endpoints/Pirivate/cloudStoredEsiRefreshTokens.js";
 import { isCombinedUserAccountSaveDebouncePending } from "../../Functions/Debounce/userDocumentsPersistSchedule.js";
 
 /**
@@ -208,8 +208,8 @@ export async function reconcileAfterRemoteUserDoc(snap, incomingUserDoc) {
     (effective.length === 0 || !hasUsableRefreshTokenMaterial) &&
     linkedCharactersMayHaveChanged
   ) {
-    // Main user doc no longer carries additional-character refresh tokens.
-    const tokenDoc = await getAdditionalCharacterRefreshTokens();
+    // Main user doc no longer carries cloud-stored ESI refresh rows (dedicated endpoint instead).
+    const tokenDoc = await getCloudStoredEsiRefreshTokens();
     if (accountSessionBecameStale(accountId)) {
       return;
     }

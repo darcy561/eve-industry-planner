@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 )
 
 // CiphertextFormatVersion is bumped when envelope layout or semantics change.
@@ -44,6 +45,26 @@ func NewKeyring(activeVersion string, activeKey []byte, legacy map[string][]byte
 		kr.legacyKeys[v] = append([]byte(nil), b...)
 	}
 	return kr, nil
+}
+
+// ActiveVersion returns the label used for new ciphertext (Encrypt output).
+func (k *Keyring) ActiveVersion() string {
+	if k == nil {
+		return ""
+	}
+	return k.activeVersion
+}
+
+// NormalizedActiveVersion returns ActiveVersion trimmed, or "v1" when unset (matches envelope defaults).
+func (k *Keyring) NormalizedActiveVersion() string {
+	if k == nil {
+		return "v1"
+	}
+	v := strings.TrimSpace(k.activeVersion)
+	if v == "" {
+		return "v1"
+	}
+	return v
 }
 
 func (k *Keyring) keyForVersion(version string) ([]byte, error) {
@@ -107,4 +128,26 @@ func (k *Keyring) Decrypt(ciphertextB64, nonceB64, keyVersion string, aad []byte
 		return "", err
 	}
 	return string(pt), nil
+}
+
+// RotateToActive decrypts ciphertext sealed with keyVersion (active or legacy) and re-seals it with the active key.
+// aad must match the value used for the original Encrypt. If keyVersion already matches the active version
+// (after trimming whitespace), returns the inputs unchanged with didRotate false.
+func (k *Keyring) RotateToActive(ciphertextB64, nonceB64, keyVersion string, aad []byte) (nonceOut, ciphertextOut, keyVersionOut string, didRotate bool, err error) {
+	if k == nil {
+		return "", "", "", false, errors.New("keyring is nil")
+	}
+	kv := strings.TrimSpace(keyVersion)
+	if strings.TrimSpace(kv) == strings.TrimSpace(k.activeVersion) {
+		return nonceB64, ciphertextB64, keyVersion, false, nil
+	}
+	plaintext, err := k.Decrypt(ciphertextB64, nonceB64, kv, aad)
+	if err != nil {
+		return "", "", "", false, err
+	}
+	nonceOut, ciphertextOut, keyVersionOut, err = k.Encrypt(plaintext, aad)
+	if err != nil {
+		return "", "", "", false, err
+	}
+	return nonceOut, ciphertextOut, keyVersionOut, true, nil
 }

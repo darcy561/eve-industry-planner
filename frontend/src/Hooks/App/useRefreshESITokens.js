@@ -27,7 +27,10 @@ function computeEsiStaggerIntervalMs(refreshableCharacterCount) {
 function selectRefreshableCharacterCount(state) {
   if (!state.account.isLoggedIn) return 0;
   return state.account.characters.filter(
-    (c) => c && typeof c.refreshESIToken === "function"
+    (c) =>
+      c &&
+      !c.isPlaceholder &&
+      typeof c.refreshESIToken === "function"
   ).length;
 }
 

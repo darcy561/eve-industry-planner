@@ -3,6 +3,7 @@ package models
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	corecrypto "eve-industry-planner/shared/core/crypto"
 )
@@ -16,6 +17,9 @@ type RefreshToken struct {
 	RTokenNonce        string `bson:"rTokenNonce,omitempty" json:"rTokenNonce,omitempty"`
 	RTokenKeyVersion   string `bson:"rTokenKeyVersion,omitempty" json:"rTokenKeyVersion,omitempty"`
 	TokenFormatVersion int    `bson:"tokenFormatVersion,omitempty" json:"tokenFormatVersion,omitempty"`
+	// CloudMaintRefreshFailures counts consecutive failed cloud-maintenance SSO refreshes for this row.
+	// Reset on success. At 2 the row is removed. OAuth invalid_grant removes the row immediately.
+	CloudMaintRefreshFailures int `bson:"cloudMaintRefreshFailures,omitempty" json:"cloudMaintRefreshFailures,omitempty"`
 }
 
 // PlainRefreshMaterial returns the refresh token plaintext, preferring encrypted-at-rest fields
@@ -60,4 +64,51 @@ func (r *RefreshToken) EncryptRefreshAtRest(plaintext string, kr *corecrypto.Key
 	r.TokenFormatVersion = corecrypto.CiphertextFormatVersion
 	r.RToken = ""
 	return nil
+}
+
+// ReencryptTowardActiveVersion re-wraps toward the keyring active version (kr.NormalizedActiveVersion).
+// Uses Keyring.RotateToActive for full ciphertext rows; otherwise PlainRefreshMaterial + EncryptRefreshAtRest.
+//
+// If skipUntagged is true, rows with no stored key version are left unchanged (cloud ESI maintenance).
+// If false, legacy plaintext-only rows are encrypted too (dedicated key-rotation tasks).
+func (r *RefreshToken) ReencryptTowardActiveVersion(kr *corecrypto.Keyring, skipUntagged bool) (didRotate bool, err error) {
+	if kr == nil {
+		return false, errors.New("refresh token keyring is nil")
+	}
+	if r == nil {
+		return false, errors.New("refresh token row is nil")
+	}
+	activeVersion := kr.NormalizedActiveVersion()
+	v := strings.TrimSpace(r.RTokenKeyVersion)
+	if skipUntagged {
+		if v == "" || v == activeVersion {
+			return false, nil
+		}
+	} else if v == activeVersion {
+		return false, nil
+	}
+
+	if r.RTokenCiphertext != "" && r.RTokenNonce != "" && r.RTokenKeyVersion != "" {
+		nn, ct, ver, rotated, err := kr.RotateToActive(r.RTokenCiphertext, r.RTokenNonce, r.RTokenKeyVersion, []byte(r.CharacterHash))
+		if err != nil {
+			return false, err
+		}
+		if rotated {
+			r.RTokenNonce = nn
+			r.RTokenCiphertext = ct
+			r.RTokenKeyVersion = ver
+			r.TokenFormatVersion = corecrypto.CiphertextFormatVersion
+			r.RToken = ""
+		}
+		return rotated, nil
+	}
+
+	plain, err := r.PlainRefreshMaterial(kr)
+	if err != nil {
+		return false, err
+	}
+	if err := r.EncryptRefreshAtRest(plain, kr); err != nil {
+		return false, err
+	}
+	return true, nil
 }

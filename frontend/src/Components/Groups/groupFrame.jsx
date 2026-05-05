@@ -249,15 +249,21 @@ function GroupPageFrame() {
               <Box
                 sx={{
                   display: "flex",
-                  justifyContent: "right",
+                  justifyContent: { xs: "flex-start", sm: "flex-end" },
                   alignItems: "center",
                   paddingX: 1,
+                  width: "100%",
+                  minWidth: 0,
+                  overflowX: "auto",
+                  overflowY: "hidden",
+                  WebkitOverflowScrolling: "touch",
                 }}
               >
                 <ToggleButtonGroup
                   value={state.pageView}
                   exclusive
                   size="small"
+                  sx={{ flexShrink: 0 }}
                   onChange={(e, value) => {
                     if (value !== null) {
                       actions.setPageView(value);

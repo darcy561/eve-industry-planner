@@ -1,4 +1,5 @@
 import { fetchWithPublicHeaders } from "./applyPublicHeaders.js";
+import { getSessionIDFromStoreOrToken } from "../Pirivate/applyPrivateHeaders.js";
 import {
   MAX_FRONTEND_ANALYTICS_BATCH_EVENTS,
   MAX_FRONTEND_ANALYTICS_BY_TYPE_KEYS,
@@ -79,6 +80,10 @@ function getAuthHeadersBase() {
   }
   if (serverToken) {
     options.headers.Authorization = `Bearer ${serverToken}`;
+    const sid = getSessionIDFromStoreOrToken(serverToken);
+    if (sid) {
+      options.headers["X-Session-ID"] = sid;
+    }
   }
   return options;
 }

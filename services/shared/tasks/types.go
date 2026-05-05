@@ -142,6 +142,18 @@ var (
 		DefaultPriority: Priority5,
 		DefaultTimeout:  3 * time.Minute,
 	}
+	InactiveAccountPlannerCleanup = Task{
+		Name:            "inactiveAccountPlannerCleanup",
+		Subject:         "task.maintenance.inactiveAccountPlannerCleanup",
+		DefaultPriority: Priority5,
+		DefaultTimeout:  5 * time.Minute,
+	}
+	CloudStoredEsiRefreshMaintenance = Task{
+		Name:            "cloudStoredEsiRefreshMaintenance",
+		Subject:         "task.maintenance.cloudStoredEsiRefreshMaintenance",
+		DefaultPriority: Priority5,
+		DefaultTimeout:  10 * time.Minute,
+	}
 )
 
 // ByName maps task name (handler key) to task definition for lookup (e.g. worker default priority).
@@ -165,4 +177,6 @@ var ByName = map[string]Task{
 	RebuildCurrentSDEVersion.Name:          RebuildCurrentSDEVersion,
 	RotateRefreshTokenKeys.Name:            RotateRefreshTokenKeys,
 	SchemaVersionMaintenanceBatch.Name:     SchemaVersionMaintenanceBatch,
+	InactiveAccountPlannerCleanup.Name:     InactiveAccountPlannerCleanup,
+	CloudStoredEsiRefreshMaintenance.Name:  CloudStoredEsiRefreshMaintenance,
 }

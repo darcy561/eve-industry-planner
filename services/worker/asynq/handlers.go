@@ -141,4 +141,10 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	mux.HandleFunc("schemaVersionMaintenanceBatch", func(ctx context.Context, t *asynq.Task) error {
 		return maintenancetasks.SchemaVersionMaintenanceBatch(ctx, t, taskDeps)
 	})
+	mux.HandleFunc("inactiveAccountPlannerCleanup", func(ctx context.Context, t *asynq.Task) error {
+		return maintenancetasks.InactiveAccountPlannerCleanup(ctx, t, taskDeps)
+	})
+	mux.HandleFunc("cloudStoredEsiRefreshMaintenance", func(ctx context.Context, t *asynq.Task) error {
+		return maintenancetasks.CloudStoredEsiRefreshMaintenance(ctx, t, taskDeps)
+	})
 }

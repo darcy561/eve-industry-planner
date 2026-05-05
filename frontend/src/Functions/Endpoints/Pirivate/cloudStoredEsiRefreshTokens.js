@@ -1,15 +1,15 @@
 import requestWithPrivateHeaders from "./applyPrivateHeaders.js";
 
-const ADDITIONAL_CHARACTER_REFRESH_TOKENS_URL =
-  "/api/v1/user/additional-character-refresh-tokens";
+const CLOUD_STORED_ESI_REFRESH_TOKENS_URL =
+  "/api/v1/user/cloud-stored-esi-refresh-tokens";
 
 /**
- * Upserts additional-character refresh tokens via the dedicated private endpoint.
+ * Upserts encrypted cloud-stored ESI refresh rows for linked characters (GET/PUT/DELETE via dedicated endpoint).
  *
  * @param {{ characterHash?: string, CharacterHash?: string, rToken?: string }[]} refreshTokens
  * @returns {Promise<boolean>}
  */
-async function upsertAdditionalCharacterRefreshTokens(refreshTokens) {
+async function upsertCloudStoredEsiRefreshTokens(refreshTokens) {
   try {
     const payload = {
       refreshTokens: Array.isArray(refreshTokens)
@@ -21,7 +21,7 @@ async function upsertAdditionalCharacterRefreshTokens(refreshTokens) {
     };
 
     const response = await requestWithPrivateHeaders(
-      ADDITIONAL_CHARACTER_REFRESH_TOKENS_URL,
+      CLOUD_STORED_ESI_REFRESH_TOKENS_URL,
       {
         method: "PUT",
         headers: {
@@ -29,13 +29,13 @@ async function upsertAdditionalCharacterRefreshTokens(refreshTokens) {
         },
         body: JSON.stringify(payload),
       },
-      { requestName: "upsertAdditionalCharacterRefreshTokens" }
+      { requestName: "upsertCloudStoredEsiRefreshTokens" }
     );
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error(
-        `Failed to upsert additional character refresh tokens: ${response.status} ${response.statusText}`,
+        `Failed to upsert cloud-stored ESI refresh tokens: ${response.status} ${response.statusText}`,
         errorText
       );
       return false;
@@ -43,18 +43,18 @@ async function upsertAdditionalCharacterRefreshTokens(refreshTokens) {
 
     return true;
   } catch (error) {
-    console.error("Error upserting additional character refresh tokens:", error);
+    console.error("Error upserting cloud-stored ESI refresh tokens:", error);
     return false;
   }
 }
 
 /**
- * Removes specific additional-character refresh tokens from the dedicated private endpoint.
+ * Removes cloud-stored ESI refresh rows for the given character hashes.
  *
  * @param {string[]} characterHashes
  * @returns {Promise<boolean>}
  */
-async function deleteAdditionalCharacterRefreshTokens(characterHashes) {
+async function deleteCloudStoredEsiRefreshTokens(characterHashes) {
   try {
     const payload = {
       characterHashes: Array.isArray(characterHashes)
@@ -63,7 +63,7 @@ async function deleteAdditionalCharacterRefreshTokens(characterHashes) {
     };
 
     const response = await requestWithPrivateHeaders(
-      ADDITIONAL_CHARACTER_REFRESH_TOKENS_URL,
+      CLOUD_STORED_ESI_REFRESH_TOKENS_URL,
       {
         method: "DELETE",
         headers: {
@@ -71,13 +71,13 @@ async function deleteAdditionalCharacterRefreshTokens(characterHashes) {
         },
         body: JSON.stringify(payload),
       },
-      { requestName: "deleteAdditionalCharacterRefreshTokens" }
+      { requestName: "deleteCloudStoredEsiRefreshTokens" }
     );
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error(
-        `Failed to delete additional character refresh tokens: ${response.status} ${response.statusText}`,
+        `Failed to delete cloud-stored ESI refresh tokens: ${response.status} ${response.statusText}`,
         errorText
       );
       return false;
@@ -85,24 +85,24 @@ async function deleteAdditionalCharacterRefreshTokens(characterHashes) {
 
     return true;
   } catch (error) {
-    console.error("Error deleting additional character refresh tokens:", error);
+    console.error("Error deleting cloud-stored ESI refresh tokens:", error);
     return false;
   }
 }
 
 /**
- * Loads additional-character refresh tokens from dedicated private endpoint.
+ * Loads cloud-stored ESI refresh metadata from the dedicated private endpoint.
  * @returns {Promise<{refreshTokens: Array}|null>}
  */
-async function getAdditionalCharacterRefreshTokens() {
+async function getCloudStoredEsiRefreshTokens() {
   try {
     const response = await requestWithPrivateHeaders(
-      ADDITIONAL_CHARACTER_REFRESH_TOKENS_URL,
+      CLOUD_STORED_ESI_REFRESH_TOKENS_URL,
       {
         method: "GET",
         cache: "no-store",
       },
-      { requestName: "getAdditionalCharacterRefreshTokens" }
+      { requestName: "getCloudStoredEsiRefreshTokens" }
     );
 
     if (!response.ok) {
@@ -111,7 +111,7 @@ async function getAdditionalCharacterRefreshTokens() {
       }
       const errorText = await response.text();
       console.error(
-        `Failed to get additional character refresh tokens: ${response.status} ${response.statusText}`,
+        `Failed to get cloud-stored ESI refresh tokens: ${response.status} ${response.statusText}`,
         errorText
       );
       return null;
@@ -119,13 +119,13 @@ async function getAdditionalCharacterRefreshTokens() {
 
     return await response.json();
   } catch (error) {
-    console.error("Error getting additional character refresh tokens:", error);
+    console.error("Error getting cloud-stored ESI refresh tokens:", error);
     return null;
   }
 }
 
 export {
-  upsertAdditionalCharacterRefreshTokens,
-  deleteAdditionalCharacterRefreshTokens,
-  getAdditionalCharacterRefreshTokens,
+  upsertCloudStoredEsiRefreshTokens,
+  deleteCloudStoredEsiRefreshTokens,
+  getCloudStoredEsiRefreshTokens,
 };

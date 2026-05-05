@@ -9,6 +9,8 @@ import (
 	"eve-industry-planner/api/helper/sso"
 	"eve-industry-planner/shared/core/internaljwt"
 	"eve-industry-planner/shared/logs"
+
+	"github.com/redis/go-redis/v9"
 )
 
 // Authentication error messages
@@ -135,9 +137,70 @@ func ExtractInternalClaims(r *http.Request) (*internaljwt.InternalClaims, error)
 	return claims, nil
 }
 
-// BearerInternalJWTValid reports whether the request carries a valid, non-expired internal JWT in Authorization.
-// Invalid, missing, or malformed tokens yield false without logging claims (for privacy-sensitive paths).
-func BearerInternalJWTValid(r *http.Request) bool {
+// sessionIDHTTPHeader must match api/helper.SessionIDHeader ("X-Session-ID").
+func sessionIDFromRequestHeader(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	return strings.TrimSpace(r.Header.Get("X-Session-ID"))
+}
+
+// SessionHeaderMatchesJWTClaims reports whether X-Session-ID matches the JWT session_id claim.
+// Both values must be non-empty after trim (binding JWT to the caller-declared session).
+func SessionHeaderMatchesJWTClaims(r *http.Request, claims *internaljwt.InternalClaims) bool {
+	if claims == nil {
+		return false
+	}
+	want := strings.TrimSpace(claims.SessionID)
+	if want == "" {
+		return false
+	}
+	got := sessionIDFromRequestHeader(r)
+	return got != "" && got == want
+}
+
+// SessionUpgradeMatchesJWTClaims reports whether the upgrade request carries the same session id as the JWT:
+// prefers X-Session-ID when set; otherwise URL query session_id (browser WebSockets cannot set custom headers).
+func SessionUpgradeMatchesJWTClaims(r *http.Request, claims *internaljwt.InternalClaims) bool {
+	if claims == nil || r == nil {
+		return false
+	}
+	want := strings.TrimSpace(claims.SessionID)
+	if want == "" {
+		return false
+	}
+	if got := sessionIDFromRequestHeader(r); got != "" {
+		return got == want
+	}
+	got := strings.TrimSpace(r.URL.Query().Get("session_id"))
+	return got != "" && got == want
+}
+
+// SessionRedisMatchesJWTClaims reports whether Redis session:<session_id> exists, its session_id
+// matches the JWT claim, and its account_id matches the JWT account_id claim.
+func SessionRedisMatchesJWTClaims(ctx context.Context, redisClient *redis.Client, claims *internaljwt.InternalClaims) bool {
+	if claims == nil || redisClient == nil {
+		return false
+	}
+	jwtAccount := strings.TrimSpace(claims.AccountID)
+	sid := strings.TrimSpace(claims.SessionID)
+	if jwtAccount == "" || sid == "" {
+		return false
+	}
+	rec, err := GetSessionRecord(ctx, redisClient, sid)
+	if err != nil || rec == nil {
+		return false
+	}
+	if strings.TrimSpace(rec.SessionID) != sid {
+		return false
+	}
+	return strings.TrimSpace(rec.AccountID) == jwtAccount
+}
+
+// BearerInternalJWTValid reports whether the request carries a valid internal JWT, the
+// X-Session-ID header matches the JWT session_id claim, and Redis session record account_id
+// matches the JWT (same binding as private-route middleware).
+func BearerInternalJWTValid(ctx context.Context, r *http.Request, redisClient *redis.Client) bool {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
 		return false
@@ -153,6 +216,12 @@ func BearerInternalJWTValid(r *http.Request) bool {
 		return false
 	}
 
-	_, err := internaljwt.ValidateInternalJWT(tokenString)
-	return err == nil
+	claims, err := internaljwt.ValidateInternalJWT(tokenString)
+	if err != nil {
+		return false
+	}
+	if !SessionHeaderMatchesJWTClaims(r, claims) {
+		return false
+	}
+	return SessionRedisMatchesJWTClaims(ctx, redisClient, claims)
 }

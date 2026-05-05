@@ -39,6 +39,7 @@ export async function fetchServerJWT(eveSSOToken) {
         const response = await withRequestRetries(() =>
             fetch("/api/v1/auth/sessions", {
                 method: "POST",
+                credentials: "same-origin",
                 headers: {
                     "Content-Type": "application/json",
                     "X-App-Version": getAppVersionHeaderValue(),
@@ -82,17 +83,19 @@ export async function fetchServerJWT(eveSSOToken) {
  */
 export async function refreshServerJWT(refreshToken, eveSSOToken) {
     try {
+        const body = { eve_token: eveSSOToken };
+        if (refreshToken) {
+            body.refresh_token = refreshToken;
+        }
         const response = await withRequestRetries(() =>
             fetch("/api/v1/auth/sessions/refresh", {
                 method: "POST",
+                credentials: "same-origin",
                 headers: {
                     "Content-Type": "application/json",
                     "X-App-Version": getAppVersionHeaderValue(),
                 },
-                body: JSON.stringify({
-                    refresh_token: refreshToken,
-                    eve_token: eveSSOToken,
-                }),
+                body: JSON.stringify(body),
             })
         );
 
@@ -124,17 +127,19 @@ export async function refreshServerJWT(refreshToken, eveSSOToken) {
  */
 export async function refreshServerJWTForLogin(refreshToken, eveSSOToken) {
     try {
+        const body = { eve_token: eveSSOToken };
+        if (refreshToken) {
+            body.refresh_token = refreshToken;
+        }
         const response = await withRequestRetries(() =>
             fetch("/api/v1/auth/sessions/login-refresh", {
                 method: "POST",
+                credentials: "same-origin",
                 headers: {
                     "Content-Type": "application/json",
                     "X-App-Version": getAppVersionHeaderValue(),
                 },
-                body: JSON.stringify({
-                    refresh_token: refreshToken,
-                    eve_token: eveSSOToken,
-                }),
+                body: JSON.stringify(body),
             })
         );
 
@@ -154,24 +159,23 @@ export async function refreshServerJWTForLogin(refreshToken, eveSSOToken) {
 
 /**
  * Revokes the current app session refresh token on the backend.
+ * Pass null when the refresh token is HttpOnly (cloud accounts); the cookie is sent automatically.
  *
- * @param {string} refreshToken - Server refresh token to revoke
+ * @param {string|null} refreshToken - Server refresh token, or null for cookie-based session
  * @returns {Promise<boolean>} true when logout token revocation succeeded
  */
 export async function logoutServerSession(refreshToken) {
-    if (!refreshToken) {
-        return false;
-    }
     try {
         const response = await requestWithPrivateHeaders("/api/v1/auth/sessions/logout", {
             method: "POST",
+            credentials: "same-origin",
             headers: {
                 "Content-Type": "application/json",
                 "X-App-Version": getAppVersionHeaderValue(),
             },
-            body: JSON.stringify({
-                refresh_token: refreshToken,
-            }),
+            body: JSON.stringify(
+                refreshToken ? { refresh_token: refreshToken } : {}
+            ),
         }, {
             requestName: "logoutServerSession",
         });

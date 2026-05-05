@@ -28,7 +28,7 @@ const (
 type AuthResponse struct {
 	AccountID           string                          `json:"account_id"`
 	AccessToken         string                          `json:"access_token"`
-	RefreshToken        string                          `json:"refresh_token"`
+	RefreshToken        string                          `json:"refresh_token,omitempty"` // Omitted when HttpOnly cookie is used (cloud accounts)
 	ExpiresAt           int64                           `json:"expires_at"` // Unix timestamp (seconds since epoch)
 	FirstLogin          bool                            `json:"first_login"`
 	UserDocument        models.UserAccountDocument      `json:"user_document"`
@@ -251,6 +251,10 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		UserDocument:        userOut,
 		ApplicationSettings: loginDocs.Settings,
 		LinkedCharacters:    linkedCharacters,
+	}
+	if userOut.UserCloudAccounts {
+		auth.SetAppRefreshCookie(w, r, refreshToken)
+		response.RefreshToken = ""
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -8,8 +8,8 @@ import (
 const (
 	// WSClientIDHeader is the request header carrying the websocket client ID.
 	WSClientIDHeader = "X-WS-Client-ID"
-	// SessionIDHeader carries the authenticated JWT session id from frontend callers.
-	// Handlers should prefer JWT claims as source of truth.
+	// SessionIDHeader carries the JWT session_id claim; private HTTP routes require it to match the JWT (middleware).
+	// WebSocket upgrades use query param session_id when the header is absent (browser limitation).
 	SessionIDHeader = "X-Session-ID"
 )
 

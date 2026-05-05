@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	apihelperauth "eve-industry-planner/api/helper/auth"
 	sharedcompression "eve-industry-planner/shared/compression"
 	"eve-industry-planner/shared/core/internaljwt"
 	"eve-industry-planner/shared/logs"
@@ -93,6 +94,39 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 			"ip", r.RemoteAddr,
 			"duration_ms", duration.Milliseconds())
 		http.Error(w, "Unauthorized: session claim required", http.StatusUnauthorized)
+		return
+	}
+
+	if !apihelperauth.SessionUpgradeMatchesJWTClaims(r, claims) {
+		duration := time.Since(upgradeStart)
+		s.recordUpgradeError(reqCtx, "session_binding_mismatch", duration)
+		logs.WarnCtx(reqCtx, "websocket connection rejected: session binding does not match JWT",
+			"account_id", claims.AccountID,
+			"ip", r.RemoteAddr,
+			"duration_ms", duration.Milliseconds())
+		http.Error(w, "Unauthorized: invalid session binding", http.StatusUnauthorized)
+		return
+	}
+
+	if s.ServiceClients == nil || s.ServiceClients.Redis == nil {
+		duration := time.Since(upgradeStart)
+		s.recordUpgradeError(reqCtx, "redis_unavailable", duration)
+		logs.ErrorCtx(reqCtx, "websocket connection rejected: Redis unavailable for session validation",
+			"account_id", claims.AccountID,
+			"ip", r.RemoteAddr,
+			"duration_ms", duration.Milliseconds())
+		http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	if !apihelperauth.SessionRedisMatchesJWTClaims(reqCtx, s.ServiceClients.Redis, claims) {
+		duration := time.Since(upgradeStart)
+		s.recordUpgradeError(reqCtx, "redis_session_invalid", duration)
+		logs.WarnCtx(reqCtx, "websocket connection rejected: Redis session missing or account mismatch",
+			"account_id", claims.AccountID,
+			"ip", r.RemoteAddr,
+			"duration_ms", duration.Milliseconds())
+		http.Error(w, "Unauthorized: invalid session", http.StatusUnauthorized)
 		return
 	}
 

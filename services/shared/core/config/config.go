@@ -27,7 +27,7 @@ type Config struct {
 	EveSSOClientID            string
 	EveSSOClientSecret        string
 	FeedbackDiscordWebhookURL string
-	// RefreshTokenKeyring encrypts persisted cloud additional-character ESI refresh tokens (AES-GCM).
+	// RefreshTokenKeyring encrypts persisted cloud-stored ESI refresh tokens (AES-GCM; users.refreshTokens).
 	RefreshTokenKeyring *corecrypto.Keyring `json:"-"`
 	// Refresh token key metadata derived from keyring config.
 	RefreshTokenActiveVersion     string              `json:"-"`

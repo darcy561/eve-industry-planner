@@ -7,10 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
-	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/core/internaljwt"
+	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/logs"
 
 	"github.com/google/uuid"
@@ -18,9 +19,10 @@ import (
 )
 
 const (
-	// RefreshTokenTTL is how long refresh tokens are valid (7 days)
+	// RefreshTokenTTL is how long planner app session refresh-token keys live in Redis (also the basis for SessionTTL).
+	// This TTL applies to opaque planner tokens only — not ESI OAuth refresh secrets (those live in Mongo / client).
 	RefreshTokenTTL = 7 * 24 * time.Hour
-	// RefreshTokenKeyPrefix is the Redis key prefix for refresh tokens
+	// RefreshTokenKeyPrefix is the Redis key prefix for planner app session refresh tokens (refresh_token:<token>).
 	RefreshTokenKeyPrefix = "refresh_token:"
 	// CorporationKeyPrefix is the Redis key prefix for storing corporation IDs by account ID
 	CorporationKeyPrefix = "custom_claims_corporations:"
@@ -28,20 +30,20 @@ const (
 	CorporationTTL = 30 * 24 * time.Hour
 	// SessionKeyPrefix is the Redis key prefix for session records.
 	SessionKeyPrefix = "session:"
-	// SessionTTL is how long session records are retained.
-	SessionTTL = 30 * 24 * time.Hour
+	// SessionTTL matches RefreshTokenTTL so session:<id> ages out with the refresh-token window.
+	SessionTTL = RefreshTokenTTL
 )
 
-// RefreshTokenData stores the metadata associated with a refresh token
+// RefreshTokenData is metadata bound to a planner app session refresh token in Redis (not ESI OAuth refresh material).
 type RefreshTokenData struct {
-	CharacterHash string         `json:"character_hash"`
-	AccountID     string         `json:"account_id"`
-	Scopes        []string       `json:"scopes"`
+	CharacterHash string                     `json:"character_hash"`
+	AccountID     string                     `json:"account_id"`
+	Scopes        []string                   `json:"scopes"`
 	Corporations  internaljwt.CorporationIDs `json:"corporations,omitempty"` // Corporation IDs the user can access
-	SessionID     string         `json:"session_id,omitempty"`
-	SessionStart  time.Time      `json:"session_start,omitempty"`
-	SessionSeenAt time.Time      `json:"session_seen_at,omitempty"`
-	AppVersion    string         `json:"app_version,omitempty"`
+	SessionID     string                     `json:"session_id,omitempty"`
+	SessionStart  time.Time                  `json:"session_start,omitempty"`
+	SessionSeenAt time.Time                  `json:"session_seen_at,omitempty"`
+	AppVersion    string                     `json:"app_version,omitempty"`
 }
 
 // SessionRecord stores a lightweight auth session timeline in Redis.
@@ -93,6 +95,40 @@ func UpsertSessionRecord(ctx context.Context, redisClient *redis.Client, record 
 		return fmt.Errorf("failed to store session record: %w", err)
 	}
 	return nil
+}
+
+// GetSessionRecord loads session:<sessionID> from Redis.
+func GetSessionRecord(ctx context.Context, redisClient *redis.Client, sessionID string) (*SessionRecord, error) {
+	sid := strings.TrimSpace(sessionID)
+	if sid == "" {
+		return nil, errors.New("session_id is required")
+	}
+	if redisClient == nil {
+		return nil, errors.New("redis client is nil")
+	}
+	key := SessionKeyPrefix + sid
+	var rec SessionRecord
+	err := rediscore.GetJSON(ctx, redisClient, key, &rec)
+	if err == redis.Nil {
+		return nil, errors.New("session record not found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get session record: %w", err)
+	}
+	return &rec, nil
+}
+
+// DeleteSessionRecord removes session:<sessionID> from Redis. Empty sessionID is a no-op.
+func DeleteSessionRecord(ctx context.Context, redisClient *redis.Client, sessionID string) error {
+	sid := strings.TrimSpace(sessionID)
+	if sid == "" {
+		return nil
+	}
+	if redisClient == nil {
+		return errors.New("redis client is nil")
+	}
+	key := SessionKeyPrefix + sid
+	return redisClient.Del(ctx, key).Err()
 }
 
 // GetRefreshTokenData retrieves refresh token data from Redis

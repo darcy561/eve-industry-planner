@@ -6,6 +6,7 @@ import (
 	"time"
 
 	corecrypto "eve-industry-planner/shared/core/crypto"
+	evesso "eve-industry-planner/shared/core/evesso"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared/models"
@@ -53,7 +54,7 @@ func BuildCloudLinkedCharactersForLogin(
 			continue
 		}
 
-		tok, err := refreshEveSSOAccessToken(ctx, clientID, clientSecret, plain)
+		tok, err := evesso.RefreshEveSSOAccessToken(ctx, clientID, clientSecret, plain)
 		if err != nil {
 			logs.WarnCtx(ctx, "cloud login session ESI refresh failed",
 				"account_id", accountID,

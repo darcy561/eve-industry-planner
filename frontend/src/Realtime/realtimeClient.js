@@ -4,6 +4,7 @@
  */
 
 import { isAppJwtExpired } from "../Functions/Auth/appJwt.js";
+import { getSessionIDFromStoreOrToken } from "../Functions/Endpoints/Pirivate/applyPrivateHeaders.js";
 import { fetchPlannerJobDocumentsFromApi } from "../Functions/Endpoints/Pirivate/jobDocuments.js";
 import { applyRemoteMessage } from "./applyRemoteMessage.js";
 import { syncAccountDocumentsFromServer } from "./resyncRealtimeDocumentsFromServer.js";
@@ -84,8 +85,19 @@ export function stashRealtimeSessionResumeHint() {
   resumeHint = { accountId: accountID, clientId: cid };
 }
 
-function wsUrl() {
+/**
+ * Same-origin WS URL. `session_id` query pairs with JWT for upgrade validation (browsers cannot set X-Session-ID on WebSocket).
+ * @param {string} [sessionId]
+ */
+function wsUrl(sessionId) {
   const u = new URL("/ws", window.location.origin);
+  const sid =
+    typeof sessionId === "string" && sessionId.trim().length > 0
+      ? sessionId.trim()
+      : "";
+  if (sid) {
+    u.searchParams.set("session_id", sid);
+  }
   return u.toString().replace(/^http/, "ws");
 }
 
@@ -165,8 +177,16 @@ export function connectRealtime(params) {
   const forceBaselineResync = haltedForExpiredToken;
   haltedForExpiredToken = false;
 
+  const sessionIdForWs = getSessionIDFromStoreOrToken(accessToken);
+  if (!sessionIdForWs) {
+    console.warn("[realtime] WebSocket blocked: missing session id for upgrade validation", {
+      accountId,
+    });
+    return;
+  }
+
   lastConnectParams = params;
-  const nextKey = `${accessToken}:${accountId}`;
+  const nextKey = `${accessToken}:${accountId}:${sessionIdForWs}`;
   if (
     socket &&
     socket.readyState === WebSocket.OPEN &&
@@ -202,7 +222,7 @@ export function connectRealtime(params) {
   /** Guard listeners so a lagging close from a replaced socket cannot clear the active connection or its timers. */
   let ws;
   try {
-    ws = new WebSocket(wsUrl(), [proto]);
+    ws = new WebSocket(wsUrl(sessionIdForWs), [proto]);
     socket = ws;
   } catch (e) {
     console.error("[realtime] WebSocket construct failed", e);

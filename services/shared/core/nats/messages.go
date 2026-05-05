@@ -206,6 +206,19 @@ type SchemaVersionMaintenanceBatchRequest struct {
 	BatchSize  int    `json:"batch_size,omitempty"`
 }
 
+// InactiveAccountPlannerCleanupRequest removes planner jobs/groups for one account (worker task).
+type InactiveAccountPlannerCleanupRequest struct {
+	AccountID     string `json:"account_id"`
+	StaleAgeYears int    `json:"stale_age_years,omitempty"` // default 2 when 0 or unset; worker recomputes cutoff from this
+}
+
+// CloudStoredEsiRefreshMaintenanceRequest rotates encrypted cloud ESI refresh tokens for one account.
+type CloudStoredEsiRefreshMaintenanceRequest struct {
+	AccountID               string `json:"account_id"`
+	RotateAfterLoginDays    int    `json:"rotate_after_login_days,omitempty"`    // default 25
+	AbandonAfterLoginMonths int    `json:"abandon_after_login_months,omitempty"` // default 6
+}
+
 // EncryptCloudRefreshTokensRequest is the per-account migration task payload for
 // encrypting legacy plaintext refreshTokens[].rToken rows.
 type EncryptCloudRefreshTokensRequest struct {

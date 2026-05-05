@@ -19,37 +19,37 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type additionalCharacterRefreshTokensRequest struct {
+type cloudStoredEsiRefreshTokensRequest struct {
 	RefreshTokens []models.RefreshToken `json:"refreshTokens"`
 }
 
-type additionalCharacterRefreshTokenDeleteRequest struct {
+type cloudStoredEsiRefreshTokenDeleteRequest struct {
 	CharacterHashes []string `json:"characterHashes"`
 }
 
-type additionalCharacterRefreshTokensResponse struct {
+type cloudStoredEsiRefreshTokensResponse struct {
 	RefreshTokens []models.RefreshToken `json:"refreshTokens"`
 }
 
-func AdditionalCharacterRefreshTokensHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func CloudStoredEsiRefreshTokensHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
-	m := apimetrics.GetAPIAdditionalCharacterRefreshTokens()
+	m := apimetrics.GetAPICloudStoredEsiRefreshTokens()
 	switch r.Method {
 	case http.MethodGet:
-		handleGetAdditionalCharacterRefreshTokens(w, r, clients)
+		handleGetCloudStoredEsiRefreshTokens(w, r, clients)
 	case http.MethodPut:
-		handlePutAdditionalCharacterRefreshTokens(w, r, clients)
+		handlePutCloudStoredEsiRefreshTokens(w, r, clients)
 	case http.MethodDelete:
-		handleDeleteAdditionalCharacterRefreshTokens(w, r, clients)
+		handleDeleteCloudStoredEsiRefreshTokens(w, r, clients)
 	default:
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
 		http.Error(w, "Method not allowed. Use GET, PUT, or DELETE.", http.StatusMethodNotAllowed)
 	}
 }
 
-func handleGetAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleGetCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
-	m := apimetrics.GetAPIAdditionalCharacterRefreshTokens()
+	m := apimetrics.GetAPICloudStoredEsiRefreshTokens()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
 		ObserveDuration: func(ctx context.Context, ms float64) { m.Requests.Observe(ctx, ms) },
 		IncRequests:     func(ctx context.Context) { m.RequestsCount.Inc(ctx) },
@@ -98,7 +98,7 @@ func handleGetAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http.Re
 		}
 		plain, err := row.PlainRefreshMaterial(cfg.RefreshTokenKeyring)
 		if err != nil {
-			logs.WarnCtx(ctx, "skip additional-character refresh token row",
+			logs.WarnCtx(ctx, "skip cloud-stored ESI refresh token row",
 				"account_id", accountID,
 				"character_hash", hash,
 				"error", err,
@@ -111,7 +111,7 @@ func handleGetAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http.Re
 		})
 	}
 
-	if err := helper.EncodeJSON(w, additionalCharacterRefreshTokensResponse{RefreshTokens: out}); err != nil {
+	if err := helper.EncodeJSON(w, cloudStoredEsiRefreshTokensResponse{RefreshTokens: out}); err != nil {
 		metrics.Error("encode_error")
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
@@ -119,9 +119,9 @@ func handleGetAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http.Re
 	metrics.Success()
 }
 
-func handlePutAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
-	m := apimetrics.GetAPIAdditionalCharacterRefreshTokens()
+	m := apimetrics.GetAPICloudStoredEsiRefreshTokens()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
 		ObserveDuration: func(ctx context.Context, ms float64) { m.Requests.Observe(ctx, ms) },
 		IncRequests:     func(ctx context.Context) { m.RequestsCount.Inc(ctx) },
@@ -148,7 +148,7 @@ func handlePutAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	var req additionalCharacterRefreshTokensRequest
+	var req cloudStoredEsiRefreshTokensRequest
 	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &req) {
 		return
 	}
@@ -212,7 +212,7 @@ func handlePutAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http.Re
 	}
 
 	retryCfg := mongocore.DefaultRetryConfig()
-	retryCfg.OperationName = fmt.Sprintf("update additional character refresh tokens %s", accountID)
+	retryCfg.OperationName = fmt.Sprintf("update cloud-stored ESI refresh tokens %s", accountID)
 	if err := mongocore.RetryMongoOperation(ctx, retryCfg, func() error {
 		_, err := col.UpdateOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}, bson.M{
 			"$set": bson.M{
@@ -231,9 +231,9 @@ func handlePutAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http.Re
 	metrics.Success()
 }
 
-func handleDeleteAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleDeleteCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
-	m := apimetrics.GetAPIAdditionalCharacterRefreshTokens()
+	m := apimetrics.GetAPICloudStoredEsiRefreshTokens()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
 		ObserveDuration: func(ctx context.Context, ms float64) { m.Requests.Observe(ctx, ms) },
 		IncRequests:     func(ctx context.Context) { m.RequestsCount.Inc(ctx) },
@@ -248,7 +248,7 @@ func handleDeleteAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http
 		return
 	}
 
-	var req additionalCharacterRefreshTokenDeleteRequest
+	var req cloudStoredEsiRefreshTokenDeleteRequest
 	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &req) {
 		return
 	}
@@ -293,7 +293,7 @@ func handleDeleteAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http
 	}
 
 	retryCfg := mongocore.DefaultRetryConfig()
-	retryCfg.OperationName = fmt.Sprintf("delete additional character refresh tokens %s", accountID)
+	retryCfg.OperationName = fmt.Sprintf("delete cloud-stored ESI refresh tokens %s", accountID)
 	if err := mongocore.RetryMongoOperation(ctx, retryCfg, func() error {
 		_, err := col.UpdateOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}, bson.M{
 			"$set": bson.M{

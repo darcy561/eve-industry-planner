@@ -90,7 +90,8 @@ function getServerToken() {
   }
 }
 
-function getSessionIDFromStoreOrToken(serverToken) {
+/** Resolves session id for private API headers (Zustand, then JWT payload). */
+export function getSessionIDFromStoreOrToken(serverToken) {
   const fromStore = useUserStore.getState()?.account?.sessionID;
   if (typeof fromStore === "string" && fromStore.trim().length > 0) {
     return fromStore.trim();
@@ -353,4 +354,8 @@ async function requestWithPrivateHeaders(URL, options = {}, config = {}) {
 }
 
 export default requestWithPrivateHeaders;
-export { requestWithPrivateHeaders, applyPrivateHeaders, chunkArray };
+export {
+  requestWithPrivateHeaders,
+  applyPrivateHeaders,
+  chunkArray,
+};

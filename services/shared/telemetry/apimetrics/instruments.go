@@ -355,9 +355,9 @@ func GetAPICitadelNames() *APICitadelNamesMetrics {
 	return apiCitadelNamesHolder
 }
 
-// APIAdditionalCharacterRefreshTokensMetrics holds OTel metrics for GET/PUT/DELETE
-// /api/v1/user/additional-character-refresh-tokens (encrypted linked-character refresh material).
-type APIAdditionalCharacterRefreshTokensMetrics struct {
+// APICloudStoredEsiRefreshTokensMetrics holds OTel metrics for GET/PUT/DELETE
+// /api/v1/user/cloud-stored-esi-refresh-tokens (encrypted ESI refresh material for cloud-linked characters).
+type APICloudStoredEsiRefreshTokensMetrics struct {
 	Requests      *floatHist
 	RequestsCount *intCounter
 	Successes     *intCounter
@@ -365,34 +365,34 @@ type APIAdditionalCharacterRefreshTokensMetrics struct {
 }
 
 var (
-	apiAdditionalCharacterRefreshTokensOnce   sync.Once
-	apiAdditionalCharacterRefreshTokensHolder *APIAdditionalCharacterRefreshTokensMetrics
+	apiCloudStoredEsiRefreshTokensOnce   sync.Once
+	apiCloudStoredEsiRefreshTokensHolder *APICloudStoredEsiRefreshTokensMetrics
 )
 
-// GetAPIAdditionalCharacterRefreshTokens returns metrics for additional-character refresh token CRUD.
-func GetAPIAdditionalCharacterRefreshTokens() *APIAdditionalCharacterRefreshTokensMetrics {
-	apiAdditionalCharacterRefreshTokensOnce.Do(func() {
+// GetAPICloudStoredEsiRefreshTokens returns metrics for cloud-stored ESI refresh token CRUD.
+func GetAPICloudStoredEsiRefreshTokens() *APICloudStoredEsiRefreshTokensMetrics {
+	apiCloudStoredEsiRefreshTokensOnce.Do(func() {
 		m := apiMeter()
-		apiAdditionalCharacterRefreshTokensHolder = &APIAdditionalCharacterRefreshTokensMetrics{
-			Requests: &floatHist{h: mustHist(m.Float64Histogram("api.additional_character_refresh_tokens.duration_milliseconds",
+		apiCloudStoredEsiRefreshTokensHolder = &APICloudStoredEsiRefreshTokensMetrics{
+			Requests: &floatHist{h: mustHist(m.Float64Histogram("api.cloud_stored_esi_refresh_tokens.duration_milliseconds",
 				metric.WithUnit("ms"),
-				metric.WithDescription("Latency of /api/v1/user/additional-character-refresh-tokens (milliseconds)"),
+				metric.WithDescription("Latency of /api/v1/user/cloud-stored-esi-refresh-tokens (milliseconds)"),
 			))},
-			RequestsCount: &intCounter{c: mustCounter(m.Int64Counter("api.additional_character_refresh_tokens.requests_total",
-				metric.WithDescription("Total additional-character refresh token endpoint requests"),
+			RequestsCount: &intCounter{c: mustCounter(m.Int64Counter("api.cloud_stored_esi_refresh_tokens.requests_total",
+				metric.WithDescription("Total cloud-stored ESI refresh token endpoint requests"),
 			))},
-			Successes: &intCounter{c: mustCounter(m.Int64Counter("api.additional_character_refresh_tokens.successes_total",
-				metric.WithDescription("Successful additional-character refresh token endpoint requests"),
+			Successes: &intCounter{c: mustCounter(m.Int64Counter("api.cloud_stored_esi_refresh_tokens.successes_total",
+				metric.WithDescription("Successful cloud-stored ESI refresh token endpoint requests"),
 			))},
 			Errors: &counterVec{
-				c: mustCounter(m.Int64Counter("api.additional_character_refresh_tokens.errors_total",
-					metric.WithDescription("Additional-character refresh token endpoint errors by reason"),
+				c: mustCounter(m.Int64Counter("api.cloud_stored_esi_refresh_tokens.errors_total",
+					metric.WithDescription("Cloud-stored ESI refresh token endpoint errors by reason"),
 				)),
 				attrKey: "reason",
 			},
 		}
 	})
-	return apiAdditionalCharacterRefreshTokensHolder
+	return apiCloudStoredEsiRefreshTokensHolder
 }
 
 // APIEveSSOCodeExchangeMetrics holds OTel metrics for EVE OAuth authorization code exchange (auth code → EVE tokens).

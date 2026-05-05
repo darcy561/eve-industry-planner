@@ -10,7 +10,8 @@ import {
 } from "../authCallbackParams.js";
 
 /**
- * One-shot: process `/auth?code=…` (new login) or existing `Auth` localStorage (session refresh), or send user to EVE SSO.
+ * One-shot: OAuth `code`, localStorage `Auth`, HttpOnly app refresh cookie + server-side Mongo ESI (cloud reload),
+ * or EVE SSO redirect.
  */
 export function useAuthUrlLogin() {
   const queryClient = useQueryClient();
@@ -24,6 +25,21 @@ export function useAuthUrlLogin() {
         return;
       }
       storeOriginalPathFromOAuthState(state);
+
+      if (authCode) {
+        try {
+          await runAppLogin({
+            queryClient,
+            prefetchMultipleCharacters,
+            triggerCharacterDataPrefetch,
+            mode: { type: "oauthCode", authCode },
+          });
+        } catch (err) {
+          console.error(err?.message ?? err);
+          redirectToEveSSO();
+        }
+        return;
+      }
 
       const existingAuth = localStorage.getItem("Auth");
       if (existingAuth) {
@@ -43,20 +59,19 @@ export function useAuthUrlLogin() {
         }
         return;
       }
-      if (authCode) {
-        try {
-          await runAppLogin({
-            queryClient,
-            prefetchMultipleCharacters,
-            triggerCharacterDataPrefetch,
-            mode: { type: "oauthCode", authCode },
-          });
-        } catch (err) {
-          console.error(err?.message ?? err);
-          redirectToEveSSO();
-        }
+
+      try {
+        await runAppLogin({
+          queryClient,
+          prefetchMultipleCharacters,
+          triggerCharacterDataPrefetch,
+          mode: { type: "cookieCloudResume" },
+        });
         return;
+      } catch {
+        /* No cookie session or not cloud / Mongo ESI missing — full SSO */
       }
+
       redirectToEveSSO();
     }
     void run();

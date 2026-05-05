@@ -1,5 +1,6 @@
 import useUsersStore from "../../Zustand/usersStore";
 import checkUserClaims from "../../Functions/Auth/checkUserClaims";
+import { canonicalCharacterHashKey } from "../../Functions/Auth/characterHashCanonical.js";
 import {
   hydrateLinkedCharactersFromAccessSessions,
   buildUsersFromRefreshTokens,
@@ -65,11 +66,32 @@ export async function runPostLoginAccountSync({
   try {
     const userData = buildShimUserDataFromMongo(userDocument);
     const cloudNow = !!userData.userCloudAccounts;
+    // Cloud login bundles every Mongo refresh row (including main). Hydrating the main hash
+    // here would upsert over `updateCharacters([main])` with `isMainCharacter: false`, leaving
+    // no main row and the header avatar stuck on the skeleton.
+    let linkedSessionsForHydrate = linkedCharacters;
+    if (
+      cloudNow &&
+      Array.isArray(linkedCharacters) &&
+      linkedCharacters.length > 0
+    ) {
+      const mainCanon = canonicalCharacterHashKey(
+        useUsersStore.getState().account.mainCharacterHash
+      );
+      if (mainCanon) {
+        linkedSessionsForHydrate = linkedCharacters.filter((s) => {
+          const h = s?.characterHash ?? s?.CharacterHash;
+          return canonicalCharacterHashKey(h) !== mainCanon;
+        });
+      }
+    }
     const newUserArray =
       cloudNow &&
       Array.isArray(linkedCharacters) &&
       linkedCharacters.length > 0
-        ? await hydrateLinkedCharactersFromAccessSessions(linkedCharacters)
+        ? await hydrateLinkedCharactersFromAccessSessions(
+            linkedSessionsForHydrate
+          )
         : await buildUsersFromRefreshTokens(userData);
 
     const systemIndexResults = await getSystemIndexDataFromUserStructures(

@@ -7,6 +7,7 @@ import (
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/shared/models"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -36,4 +37,23 @@ func UpsertUserAccountDocument(ctx context.Context, collection *mongo.Collection
 			return true
 		},
 	)
+}
+
+// PatchUserAccountFields applies $set on the users row matching _id and _meta.accountID (no upsert).
+func PatchUserAccountFields(ctx context.Context, collection *mongo.Collection, accountID string, set bson.M, operationName string) error {
+	if collection == nil || accountID == "" {
+		return fmt.Errorf("PatchUserAccountFields: collection and accountID are required")
+	}
+	if len(set) == 0 {
+		return fmt.Errorf("PatchUserAccountFields: set is empty")
+	}
+	retryCfg := mongocore.DefaultRetryConfig()
+	retryCfg.OperationName = operationName
+	return mongocore.RetryMongoOperation(ctx, retryCfg, func() error {
+		_, err := collection.UpdateOne(ctx,
+			bson.M{"_id": accountID, "_meta.accountID": accountID},
+			bson.M{"$set": set},
+		)
+		return err
+	})
 }

@@ -27,10 +27,10 @@ import {
   scheduleDebouncedUserAccountDocumentSave,
 } from "../../Functions/Debounce/userDocumentsPersistSchedule.js";
 import {
-  deleteAdditionalCharacterRefreshTokens,
-  getAdditionalCharacterRefreshTokens,
-  upsertAdditionalCharacterRefreshTokens,
-} from "../../Functions/Endpoints/Pirivate/additionalCharacterRefreshTokens.js";
+  deleteCloudStoredEsiRefreshTokens,
+  getCloudStoredEsiRefreshTokens,
+  upsertCloudStoredEsiRefreshTokens,
+} from "../../Functions/Endpoints/Pirivate/cloudStoredEsiRefreshTokens.js";
 import {
   clearAdditionalUserAuthCode,
   EVE_SSO_ADDITIONAL_ACCOUNT_STATE,
@@ -104,7 +104,7 @@ export function AdditionalAccounts({ appearance = "default" } = {}) {
       });
     }
     if (payload.length === 0) return;
-    const ok = await upsertAdditionalCharacterRefreshTokens(payload);
+    const ok = await upsertCloudStoredEsiRefreshTokens(payload);
     if (!ok) {
       throw new Error("Failed to submit linked character token to server");
     }
@@ -258,7 +258,7 @@ export function AdditionalAccounts({ appearance = "default" } = {}) {
           localStorage.removeItem(localStorageKey);
         }
       } else {
-        const tokenDoc = await getAdditionalCharacterRefreshTokens();
+        const tokenDoc = await getCloudStoredEsiRefreshTokens();
         const persistedRefreshTokens = Array.isArray(tokenDoc?.refreshTokens)
           ? tokenDoc.refreshTokens
               .map((row) => ({
@@ -279,7 +279,7 @@ export function AdditionalAccounts({ appearance = "default" } = {}) {
             throw new Error("Failed to persist linked character tokens locally");
           }
           const hashesToDelete = persistedRefreshTokens.map((row) => row.CharacterHash);
-          const deleted = await deleteAdditionalCharacterRefreshTokens(hashesToDelete);
+          const deleted = await deleteCloudStoredEsiRefreshTokens(hashesToDelete);
           if (!deleted) {
             throw new Error("Failed to remove cloud-linked character tokens");
           }
