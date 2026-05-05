@@ -8,6 +8,97 @@ import {
   USER_JOB_GROUPS_COLLECTION,
 } from "../../DocumentLock/documentLockCollections.js";
 
+/** Kept in sync with `documentlocks.MaxStatusBatchDocs` (`status_batch.go`). */
+export const MAX_STATUS_BATCH_DOC_IDS = 500;
+
+const STATUS_BATCH_HTTP_URL = new URL(
+  `/api/v1/document-locks/status-batch`,
+  window.location.origin
+).toString();
+
+/**
+ * @param {unknown} arr
+ * @returns {string[]}
+ */
+function normalizeDocIdList(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr.filter((id) => typeof id === "string" && id.trim() !== "");
+}
+
+/**
+ * POST `/status-batch` in chunks so each of `jobDocIDs` and `groupDocIDs` stays ≤ {@link MAX_STATUS_BATCH_DOC_IDS}.
+ *
+ * @param {string[]} jobsNorm
+ * @param {string[]} groupsNorm
+ * @returns {Promise<Response>}
+ */
+async function mergeLockStatusBatchOverHttp(jobsNorm, groupsNorm) {
+  let jobs = [...jobsNorm];
+  let groups = [...groupsNorm];
+  const mergedJob = {};
+  const mergedGroup = {};
+
+  while (jobs.length > 0 || groups.length > 0) {
+    const jobChunk = jobs.splice(0, MAX_STATUS_BATCH_DOC_IDS);
+    const groupChunk = groups.splice(0, MAX_STATUS_BATCH_DOC_IDS);
+    const res = await requestWithPrivateHeaders(
+      STATUS_BATCH_HTTP_URL,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobDocIDs: jobChunk,
+          groupDocIDs: groupChunk,
+        }),
+      },
+      { requestName: "documentLockStatusBatch", retry: false }
+    );
+    if (!res.ok) return res;
+    const body = await res.json().catch(() => ({}));
+    if (body.jobResults && typeof body.jobResults === "object") {
+      Object.assign(mergedJob, body.jobResults);
+    }
+    if (body.groupResults && typeof body.groupResults === "object") {
+      Object.assign(mergedGroup, body.groupResults);
+    }
+  }
+
+  return new Response(
+    JSON.stringify({ jobResults: mergedJob, groupResults: mergedGroup }),
+    {
+      status: 200,
+      statusText: "OK",
+      headers: { "Content-Type": "application/json" },
+    }
+  );
+}
+
+/**
+ * Same chunking as HTTP; merges WS payloads into one logical result.
+ *
+ * @param {string[]} jobsNorm
+ * @param {string[]} groupsNorm
+ */
+async function mergeLockStatusBatchOverWs(jobsNorm, groupsNorm) {
+  let jobs = [...jobsNorm];
+  let groups = [...groupsNorm];
+  const mergedJob = {};
+  const mergedGroup = {};
+
+  while (jobs.length > 0 || groups.length > 0) {
+    const jobChunk = jobs.splice(0, MAX_STATUS_BATCH_DOC_IDS);
+    const groupChunk = groups.splice(0, MAX_STATUS_BATCH_DOC_IDS);
+    const { jobResults, groupResults } =
+      await requestDocumentLockStatusBatchOverRealtime({
+        jobDocIDs: jobChunk,
+        groupDocIDs: groupChunk,
+      });
+    Object.assign(mergedJob, jobResults);
+    Object.assign(mergedGroup, groupResults);
+  }
+  return { jobResults: mergedJob, groupResults: mergedGroup };
+}
+
 function lockUrl(action) {
   return new URL(`/api/v1/document-locks/${action}`, window.location.origin).toString();
 }
@@ -143,13 +234,26 @@ export async function getDocumentLockStatusBatch({
   jobDocIDs = [],
   groupDocIDs = [],
 } = {}) {
+  const jobs = normalizeDocIdList(jobDocIDs);
+  const groups = normalizeDocIdList(groupDocIDs);
+
+  if (jobs.length === 0 && groups.length === 0) {
+    return new Response(
+      JSON.stringify({ jobResults: {}, groupResults: {} }),
+      {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+
   if (isRealtimeSocketOpen()) {
     try {
-      const { jobResults, groupResults } =
-        await requestDocumentLockStatusBatchOverRealtime({
-          jobDocIDs,
-          groupDocIDs,
-        });
+      const { jobResults, groupResults } = await mergeLockStatusBatchOverWs(
+        jobs,
+        groups
+      );
       return new Response(JSON.stringify({ jobResults, groupResults }), {
         status: 200,
         statusText: "OK",
@@ -159,15 +263,7 @@ export async function getDocumentLockStatusBatch({
       /* fall through to HTTP */
     }
   }
-  return requestWithPrivateHeaders(
-    new URL(`/api/v1/document-locks/status-batch`, window.location.origin).toString(),
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jobDocIDs, groupDocIDs }),
-    },
-    { requestName: "documentLockStatusBatch", retry: false }
-  );
+  return mergeLockStatusBatchOverHttp(jobs, groups);
 }
 
 /**

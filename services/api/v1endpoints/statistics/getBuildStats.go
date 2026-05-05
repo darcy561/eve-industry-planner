@@ -31,21 +31,15 @@ func GetBuildStatsHandler(w http.ResponseWriter, r *http.Request, clients *share
 		IncErrors:       func(ctx context.Context, reason string) { m.Errors.WithLabelValues(reason).Inc(ctx) },
 	})
 	defer metrics.Finish()
-	if !helper.RequireMethod(w, r, http.MethodGet) {
-		metrics.Error("method_not_allowed")
+	accountID, ok := helper.RequireMethodAndAccountID(w, r, metrics, http.MethodGet)
+	if !ok {
+		logs.WarnCtx(ctx, "build stats get: auth or method check failed")
 		return
 	}
 	if clients == nil || clients.Mongo == nil {
 		metrics.Error("mongo_client_missing")
 		logs.ErrorCtx(ctx, "build stats get: mongo client missing")
 		logs.RespondHTTPError(w, r, http.StatusServiceUnavailable, "Service unavailable", errors.New("mongo client missing"))
-		return
-	}
-
-	accountID, ok := helper.RequireAccountID(w, r)
-	if !ok {
-		metrics.Error("auth_error")
-		logs.WarnCtx(ctx, "build stats get: auth failed")
 		return
 	}
 

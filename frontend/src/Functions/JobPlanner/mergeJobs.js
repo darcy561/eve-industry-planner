@@ -29,6 +29,8 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
     findJobInJobArray,
     mergeAndRemoveJobsFromJobArray,
     updateOrAddJobsToJobArray,
+    getGroupObject,
+    updateModifiedGroups,
   } = useUsersStore.getState().jobData.actions;
   const { isLoggedIn } = useUsersStore.getState().account;
   const { addLinkedEsiData } = useUsersStore.getState().account.actions;
@@ -43,6 +45,9 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
   const selectedJobs = selectedIDs
     .map((id) => findJobInJobArray(id))
     .filter(Boolean);
+  const touchedGroupIDs = new Set(
+    selectedJobs.map((j) => j.groupID).filter((id) => Boolean(id && String(id).trim()))
+  );
 
   const jobsByTypeID = new Map();
   for (const job of selectedJobs) {
@@ -90,6 +95,7 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
     const newJob = await buildJob({
       itemID: group[0].itemID,
       itemQty: totalItemQuantity,
+      groupID: group[0].groupID || "",
       parentJobs: [...parentJobs],
       childJobs: [...childJobsByType.entries()].map(([typeID, childJobs]) => ({
         typeID,
@@ -216,6 +222,17 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
 
   mergeAndRemoveJobsFromJobArray(replacementJobs, [...oldJobIDsToRemove]);
   updateOrAddJobsToJobArray([...workingJobsByID.values()]);
+
+  if (touchedGroupIDs.size > 0) {
+    const allJobs = useUsersStore.getState().jobData.jobArray;
+    for (const gid of touchedGroupIDs) {
+      const group = getGroupObject(gid);
+      if (!group) continue;
+      const groupJobs = allJobs.filter((j) => j.groupID === gid);
+      group.updateGroupData(groupJobs);
+      updateModifiedGroups(group);
+    }
+  }
 
   addLinkedEsiData({
     ordersToRemove: linkedOrderIdsToRemove,

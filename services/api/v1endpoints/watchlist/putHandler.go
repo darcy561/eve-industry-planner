@@ -29,10 +29,8 @@ func PutHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceC
 	})
 	defer metrics.Finish()
 
-	accountID, ok := helper.RequireAccountID(w, r)
+	accountID, ok := helper.RequireMethodAndAccountID(w, r, metrics, http.MethodPut)
 	if !ok {
-		metrics.Error("auth_error")
-		logs.WarnCtx(ctx, "failed to extract accountID")
 		return
 	}
 
@@ -40,10 +38,8 @@ func PutHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceC
 		Groups any `json:"groups"`
 		Items  any `json:"items"`
 	}
-	if err := helper.DecodeJSONRequest(r, &body, helper.DefaultMaxBodySize); err != nil {
-		metrics.Error("invalid_json")
-		logs.WarnCtx(ctx, "failed to decode watchlist JSON", "error", err, "account_id", accountID)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &body) {
+		logs.WarnCtx(ctx, "failed to decode watchlist JSON", "account_id", accountID)
 		return
 	}
 

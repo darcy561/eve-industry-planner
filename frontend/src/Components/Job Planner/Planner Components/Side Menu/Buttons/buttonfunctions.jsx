@@ -10,6 +10,7 @@ import DeselectIcon from "@mui/icons-material/Deselect";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import CreateNewFolderIcon from "@mui/icons-material/CreateNewFolder";
 import PostAddIcon from "@mui/icons-material/PostAdd";
+import LibraryBooksOutlinedIcon from "@mui/icons-material/LibraryBooksOutlined";
 import deleteJobsFromPlanner from "../../../../../Functions/JobPlanner/deleteMultipleJobs";
 import mergeJobs from "../../../../../Functions/JobPlanner/mergeJobs";
 import massBuildMaterials from "../../../../../Functions/JobPlanner/massBuildMaterials";
@@ -23,9 +24,11 @@ import { showPriceEntryDialog } from "../../../../../Events/priceEntryEvents";
 import useUsersStore from "../../../../../Zustand/usersStore";
 import moveItemsOnPlanner from "../../../../../Functions/JobPlanner/moveItemsOnPlanner";
 import { buildJob } from "../../../../../Functions/JobPlanner/buildJob";
+import { openGroupTemplatesApplyDialog } from "../../../../../Events/groupTemplatesDialogEvents";
 
 export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
   const { multiSelect, jobArray } = useUsersStore((state) => state.jobData);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const { addToMultiSelect, clearMultiSelect } =
     useUsersStore.getState().jobData.actions;
   const queryClient = useQueryClient();
@@ -61,7 +64,7 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
       {
         displayText: "New Group",
         icon: <CreateNewFolderIcon />,
-        divider: true,
+        divider: false,
         tooltip:
           "Creates a new job group from the job selection you have or an empty group.",
         onClick: async () => {
@@ -71,6 +74,18 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
           });
         },
       },
+      ...(isLoggedIn
+        ? [
+            {
+              displayText: "New Group from Template",
+              icon: <LibraryBooksOutlinedIcon />,
+              divider: true,
+              tooltip:
+                "Create a new group from a saved group template.",
+              onClick: () => openGroupTemplatesApplyDialog({}),
+            },
+          ]
+        : []),
       {
         displayText: "Shopping List",
         icon: <ShoppingCartIcon />,
@@ -195,6 +210,7 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
     queryClient,
     moveItemsOnPlanner,
     standardDialogError,
+    isLoggedIn,
   ]);
 
   function throwDialogError(inputText = standardDialogError) {

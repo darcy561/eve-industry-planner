@@ -28,6 +28,7 @@ import { useJobPlannerJobLockSync } from "../../Hooks/DocumentLock/useJobPlanner
 import { parseGroupPageViewSearchParam } from "../../Functions/Groups/groupPageViewSearch";
 import { trackAppEvent } from "../../analytics/trackAppEvent";
 import { AppEvent } from "../../analytics/appEventNames";
+import SaveGroupTemplateDialog from "../Dialogues/Group Templates/SaveGroupTemplateDialog";
 
 function GroupPageFrame() {
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
@@ -65,6 +66,15 @@ function GroupPageFrame() {
   const lastTrackedPageView = useRef(null);
 
   const pageRequiresRightDrawerOpen = true;
+
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const templateActions = useMemo(
+    () => ({
+      openSaveTemplate: () => setSaveTemplateOpen(true),
+      contextGroupId: groupID,
+    }),
+    [groupID]
+  );
 
   const groupJobs = useMemo(() => {
     if (!activeGroupObject) return [];
@@ -166,7 +176,8 @@ function GroupPageFrame() {
     actions,
     groupJobs,
     pageRequiresRightDrawerOpen,
-    groupReadOnly
+    groupReadOnly,
+    templateActions
   );
 
   const isGroupReady = activeGroupID === groupID;
@@ -307,6 +318,12 @@ function GroupPageFrame() {
       <PriceEntryDialog />
       <PriceHistoryDialog />
       <MarketDataDialog />
+      <SaveGroupTemplateDialog
+        open={saveTemplateOpen}
+        onClose={() => setSaveTemplateOpen(false)}
+        groupID={groupID}
+        groupJobs={groupJobs}
+      />
     </DefaultPageLayout>
   );
 }

@@ -33,16 +33,8 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	defer metrics.Finish()
 
 	// Only allow DELETE requests
-	if !helper.RequireMethod(w, r, http.MethodDelete) {
-		metrics.Error("method_not_allowed")
-		logs.WarnCtx(ctx, "invalid method for deleteGroups endpoint")
-		return
-	}
-
-	accountID, ok := helper.RequireAccountID(w, r)
+	accountID, ok := helper.RequireMethodAndAccountID(w, r, metrics, http.MethodDelete)
 	if !ok {
-		metrics.Error("auth_error")
-		logs.WarnCtx(ctx, "failed to extract accountID")
 		return
 	}
 
@@ -52,10 +44,8 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	}
 
 	// Decode request body - groupIDs are required
-	if err := helper.DecodeJSONRequest(r, &reqBody, helper.DefaultMaxBodySize); err != nil {
-		metrics.Error("invalid_json")
-		logs.WarnCtx(ctx, "failed to decode delete groups JSON", "error", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &reqBody) {
+		logs.WarnCtx(ctx, "failed to decode delete groups JSON", "account_id", accountID)
 		return
 	}
 
@@ -64,6 +54,14 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		metrics.Error("no_group_ids")
 		logs.WarnCtx(ctx, "no group IDs provided for deletion")
 		http.Error(w, "At least one group ID is required", http.StatusBadRequest)
+		return
+	}
+
+	const maxBatchSize = 200
+	if len(reqBody.GroupIDs) > maxBatchSize {
+		metrics.Error("batch_too_large")
+		logs.WarnCtx(ctx, "batch too large for group delete", "count", len(reqBody.GroupIDs), "max", maxBatchSize)
+		http.Error(w, fmt.Sprintf("Batch too large (max %d group IDs)", maxBatchSize), http.StatusBadRequest)
 		return
 	}
 

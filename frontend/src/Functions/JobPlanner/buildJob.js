@@ -6,7 +6,9 @@ import { trackNewJobsCreated } from "../../analytics/trackNewJobsCreated";
 import {
   buildSetupContextForJob,
   buildSetupFromQuantity,
+  buildSetupFromPresetRow,
 } from "./setupBuildHelpers";
+import recalculateJobForNewTotal from "./recalculateJobForNewTotal";
 
 export async function buildJob(buildRequest, options = {}) {
   const { queryClient } = options;
@@ -100,7 +102,41 @@ async function buildJobObject(itemJson, buildRequest, queryClient) {
 
 async function buildSetupOptions(inputJobObject, buildRequestObject, queryClient) {
   const requiredQuantity =
-    buildRequestObject?.itemQty || inputJobObject.rawData.products[0].quantity;
+    buildRequestObject?.requiredQuantity ??
+    buildRequestObject?.itemQty ??
+    inputJobObject.rawData.products[0].quantity;
+
+  const presets = buildRequestObject?.presetSetups;
+  if (Array.isArray(presets) && presets.length > 0) {
+    inputJobObject.build.setup = {};
+    const rawTimeValue = inputJobObject.rawData.time;
+    for (const row of presets) {
+      const newSetup = buildSetupFromPresetRow(
+        inputJobObject,
+        row,
+        queryClient,
+        rawTimeValue
+      );
+      inputJobObject.build.setup[newSetup.id] = newSetup;
+    }
+    const keys = Object.keys(inputJobObject.build.setup);
+    inputJobObject.layout.setupToEdit = keys[0];
+    inputJobObject.recalculateTotalQuantityProduced();
+    inputJobObject.recalculateTotalMaterialQuantities();
+
+    const target =
+      typeof requiredQuantity === "number" && requiredQuantity > 0
+        ? requiredQuantity
+        : null;
+    if (
+      target != null &&
+      inputJobObject.build.products.totalQuantity !== target
+    ) {
+      recalculateJobForNewTotal(inputJobObject, target, queryClient);
+    }
+    return;
+  }
+
   const context = buildSetupContextForJob(
     inputJobObject,
     requiredQuantity,

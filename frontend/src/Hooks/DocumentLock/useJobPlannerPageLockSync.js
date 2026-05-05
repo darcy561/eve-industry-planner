@@ -1,5 +1,8 @@
 import { useEffect, useMemo } from "react";
-import { getDocumentLockStatusBatch } from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
+import {
+  getDocumentLockStatusBatch,
+  MAX_STATUS_BATCH_DOC_IDS,
+} from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
 import { applyDocumentLockStatusFromPayload } from "../../Functions/DocumentLock/applyDocumentLockStatusFromPayload.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 import {
@@ -11,8 +14,8 @@ import {
   patchPlannerJobLockScopeFromApi,
 } from "./useJobPlannerJobLockSync.js";
 
-/** Stay below server max (500) per array; include groups only on the first chunk. */
-const PLANNER_PAGE_JOB_CHUNK = 450;
+/** Stay below {@link MAX_STATUS_BATCH_DOC_IDS} per array; include groups only on the first chunk. */
+const PLANNER_PAGE_JOB_CHUNK = Math.min(450, MAX_STATUS_BATCH_DOC_IDS - 50);
 
 /** Coalesce rapid job/group list churn into one lock sync (WS or HTTP batch). */
 const LOCK_SCOPE_SYNC_DEBOUNCE_MS = 200;

@@ -29,8 +29,8 @@ func GetGroupByIDHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	})
 	defer metrics.Finish()
 
-	if !helper.RequireMethod(w, r, http.MethodGet) {
-		metrics.Error("method_not_allowed")
+	accountID, ok := helper.RequireMethodAndAccountID(w, r, metrics, http.MethodGet)
+	if !ok {
 		return
 	}
 
@@ -41,20 +41,13 @@ func GetGroupByIDHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		return
 	}
 
-	accountID, ok := helper.RequireAccountID(w, r)
-	if !ok {
-		metrics.Error("auth_error")
-		return
-	}
-
 	database := clients.Mongo.Database(mongocore.DatabaseName)
 	collection := database.Collection(mongocore.CollectionUserJobGroups)
 
 	group, err := mongoget.LoadGroupByID(ctx, collection, accountID, groupID)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			metrics.Error("not_found")
-			http.Error(w, "Not found", http.StatusNotFound)
+			helper.RespondNotFound(w, r, metrics)
 			return
 		}
 		metrics.Error("database_error")

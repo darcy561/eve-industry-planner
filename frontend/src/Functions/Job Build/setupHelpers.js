@@ -112,3 +112,149 @@ export function calculateSetupQuantitiesFromRequiredQuantity(
 
   return jobs;
 }
+
+/**
+ * ESI uses quantity -2 for blueprint copies; anything else is treated as an original here
+ * (same rule as {@link ../Shared/findBlueprintType.js}).
+ *
+ * @param {{ quantity?: number }} entry
+ * @returns {boolean}
+ */
+function isBlueprintOriginalEntry(entry) {
+  return entry?.quantity !== -2;
+}
+
+/**
+ * Split a positive integer total across `parts` buckets as evenly as possible (largest remainders).
+ *
+ * @param {number} total
+ * @param {number} parts
+ * @returns {number[]}
+ */
+function splitIntegerEvenlyAcrossParts(total, parts) {
+  if (parts <= 0 || total <= 0) {
+    return [];
+  }
+  const base = Math.floor(total / parts);
+  const remainder = total % parts;
+  /** @type {number[]} */
+  const out = [];
+  for (let i = 0; i < parts; i++) {
+    out.push(base + (i < remainder ? 1 : 0));
+  }
+  return out;
+}
+
+/**
+ * Groups per-slot run counts that are equal into planner segments (`jobCount` = BPOs with that run count).
+ *
+ * @param {number[]} runsPerSlot — one run count per original blueprint; zeros are ignored
+ * @returns {Array<{ runCount: number, jobCount: number }>}
+ */
+function groupIdenticalRunCountsIntoSegments(runsPerSlot) {
+  /** @type {Map<number, number>} */
+  const runCountToSlots = new Map();
+  for (const r of runsPerSlot) {
+    if (r <= 0) continue;
+    runCountToSlots.set(r, (runCountToSlots.get(r) ?? 0) + 1);
+  }
+  /** @type {Array<{ runCount: number, jobCount: number }>} */
+  const segments = [];
+  for (const [runCount, jobCount] of runCountToSlots) {
+    segments.push({ runCount, jobCount });
+  }
+  segments.sort((a, b) => b.runCount - a.runCount);
+  return segments;
+}
+
+/**
+ * Distributes **manufacturing runs** across owned **original** blueprints for `blueprintTypeID`
+ * (personal + corporation caches). Uses the minimum total runs `ceil(requiredQuantity / baseQuantity)`
+ * and splits those runs across originals (largest remainder), so total output is
+ * `baseQuantity × ceil(requiredQuantity / baseQuantity)` — no extra runs from per-blueprint
+ * `ceil(share / baseQuantity)` when shares are split by item count.
+ * Blueprint rows are deduped by `item_id`. Not capped by `maxProductionLimit`.
+ *
+ * For a single original or bad cache, falls back to {@link calculateSetupQuantitiesFromRequiredQuantity}.
+ *
+ * @param {number} blueprintTypeID
+ * @param {number} maxProductionLimit — unused for the multi-blueprint path; kept for call-site compatibility.
+ * @param {number} requiredQuantity — total **finished output items** to build (product units).
+ * @param {number} baseQuantity — output items per **single** manufacturing run (recipe batch size).
+ * @param {import("@tanstack/react-query").QueryClient} queryClient
+ * @returns {Array<{ runCount: number, jobCount: number }>}
+ */
+export function calculateSetupQuantitiesAcrossOwnedBlueprintOriginals(
+  blueprintTypeID,
+  maxProductionLimit,
+  requiredQuantity,
+  baseQuantity,
+  queryClient
+) {
+  const characterBlueprints = getAllCachedCharacterBlueprints(queryClient);
+  const corporationBlueprints = getAllCachedCorporationBlueprints(queryClient);
+
+  const cacheReady =
+    !characterBlueprints.isLoading &&
+    !characterBlueprints.isError &&
+    !corporationBlueprints.isLoading &&
+    !corporationBlueprints.isError;
+
+  if (!cacheReady || requiredQuantity <= 0) {
+    return calculateSetupQuantitiesFromRequiredQuantity(
+      maxProductionLimit,
+      baseQuantity,
+      requiredQuantity
+    );
+  }
+
+  const merged = [
+    ...Object.values(characterBlueprints.data ?? {}).flat(),
+    ...Object.values(corporationBlueprints.data ?? {}).flat(),
+  ];
+
+  const seenItemIds = new Set();
+  /** @type {unknown[]} */
+  const matchingOriginals = [];
+  for (const entry of merged) {
+    if (
+      !entry ||
+      entry.type_id !== blueprintTypeID ||
+      !isBlueprintOriginalEntry(entry)
+    ) {
+      continue;
+    }
+    const itemId = entry.item_id;
+    if (itemId != null) {
+      if (seenItemIds.has(itemId)) continue;
+      seenItemIds.add(itemId);
+    }
+    matchingOriginals.push(entry);
+  }
+
+  const originalCount = matchingOriginals.length;
+
+  if (originalCount <= 1) {
+    return calculateSetupQuantitiesFromRequiredQuantity(
+      maxProductionLimit,
+      baseQuantity,
+      requiredQuantity
+    );
+  }
+
+  const itemsPerRun = baseQuantity > 0 ? baseQuantity : 1;
+  const totalRunsNeeded = Math.ceil(requiredQuantity / itemsPerRun);
+  const runsPerSlot = splitIntegerEvenlyAcrossParts(
+    totalRunsNeeded,
+    originalCount
+  );
+  const segments = groupIdenticalRunCountsIntoSegments(runsPerSlot);
+
+  return segments.length > 0
+    ? segments
+    : calculateSetupQuantitiesFromRequiredQuantity(
+        maxProductionLimit,
+        baseQuantity,
+        requiredQuantity
+      );
+}

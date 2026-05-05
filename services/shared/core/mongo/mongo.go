@@ -41,6 +41,12 @@ var (
 	// CollectionUserJobGroups is the per-account job groups collection (planner UI).
 	CollectionUserJobGroups = "user_job_groups"
 
+	// CollectionUserGroupTemplateCatalog is one document per account listing template summaries.
+	CollectionUserGroupTemplateCatalog = "user_group_template_catalog"
+
+	// CollectionUserGroupTemplatePayloads stores full template graphs (one document per templateID).
+	CollectionUserGroupTemplatePayloads = "user_group_template_payloads"
+
 	// CollectionUserWatchlistDeprecated is the legacy Firestore-shaped watchlist (groups + items JSON blob per account).
 	CollectionUserWatchlistDeprecated = "user_watchlist_deprecated"
 

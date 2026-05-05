@@ -29,11 +29,8 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 	})
 	defer metrics.Finish()
 
-	// Extract accountID from JWT token
-	accountID, ok := helper.RequireAccountID(w, r)
+	accountID, ok := helper.RequireMethodAndAccountID(w, r, metrics, http.MethodPut)
 	if !ok {
-		metrics.Error("auth_error")
-		logs.WarnCtx(ctx, "failed to extract accountID")
 		return
 	}
 
@@ -42,10 +39,8 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 		Groups []models.Group `json:"groups"`
 	}
 
-	if err := helper.DecodeJSONRequest(r, &reqBody, helper.DefaultMaxBodySize); err != nil {
-		metrics.Error("invalid_json")
-		logs.WarnCtx(ctx, "failed to decode batch groups JSON", "error", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &reqBody) {
+		logs.WarnCtx(ctx, "failed to decode batch groups JSON", "account_id", accountID)
 		return
 	}
 

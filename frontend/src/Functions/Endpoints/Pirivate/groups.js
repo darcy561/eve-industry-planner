@@ -3,10 +3,19 @@
  */
 import Group from "../../../Classes/group.js";
 import useUsersStore from "../../../Zustand/usersStore.js";
-import { requestWithPrivateHeaders } from "./applyPrivateHeaders.js";
+import {
+  requestWithPrivateHeaders,
+  privateBatchRetryConfig,
+} from "./applyPrivateHeaders.js";
 
 /** Must match `mongocore.CollectionUserJobGroups` / changestream `collection` field. */
 export const USER_JOB_GROUPS_COLLECTION = "user_job_groups";
+
+/** Kept in sync with Go `PutGroupsHandler` (`maxBatchSize`). */
+const MAX_PUT_JOB_GROUPS_BATCH = 100;
+
+/** Kept in sync with Go `DeleteGroupsHandler` (`maxBatchSize`). */
+const MAX_DELETE_JOB_GROUPS_BATCH = 200;
 
 /**
  * Fetches all job groups for the account and replaces `jobData.groupArray`.
@@ -72,25 +81,23 @@ export async function deleteJobGroupsFromApi(groupIDs) {
   const ids = [...new Set(groupIDs.filter(Boolean))];
   if (ids.length === 0) return;
 
-  const res = await requestWithPrivateHeaders(
+  await requestWithPrivateHeaders(
     "/api/v1/groups",
     {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ groupIDs: ids }),
     },
-    { requestName: "deleteJobGroups", retry: false }
+    {
+      requestName: "deleteJobGroups",
+      retry: privateBatchRetryConfig,
+      batch: {
+        size: MAX_DELETE_JOB_GROUPS_BATCH,
+        arrayKey: "groupIDs",
+        failure: "first",
+      },
+    }
   );
-
-  if (res.status === 204 || res.status === 200) return;
-
-  const text = await res.text().catch(() => "");
-  /** @type {Error & { status?: number }} */
-  const err = new Error(
-    `DELETE /api/v1/groups failed: ${res.status} ${text || res.statusText}`
-  );
-  err.status = res.status;
-  throw err;
 }
 
 /**
@@ -98,19 +105,23 @@ export async function deleteJobGroupsFromApi(groupIDs) {
  * @param {unknown[]} groupsPayload
  */
 export async function putJobGroupsBatch(groupsPayload) {
-  const res = await requestWithPrivateHeaders(
+  if (!groupsPayload || groupsPayload.length === 0) return;
+
+  await requestWithPrivateHeaders(
     "/api/v1/groups",
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ groups: groupsPayload }),
     },
-    { requestName: "putJobGroups" }
+    {
+      requestName: "putJobGroups",
+      retry: privateBatchRetryConfig,
+      batch: {
+        size: MAX_PUT_JOB_GROUPS_BATCH,
+        arrayKey: "groups",
+        errorLabel: "PUT /api/v1/groups",
+      },
+    }
   );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `PUT /api/v1/groups failed: ${res.status} ${text || res.statusText}`
-    );
-  }
 }

@@ -38,9 +38,7 @@ func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 		Jobs []models.Job `json:"jobs"`
 	}
 
-	if err := helper.DecodeJSONRequest(r, &reqBody, helper.DefaultMaxBodySize); err != nil {
-		metrics.Error("invalid_json")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &reqBody) {
 		return
 	}
 

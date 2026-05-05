@@ -37,9 +37,7 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 	var reqBody struct {
 		JobIDs []string `json:"jobIDs"`
 	}
-	if err := helper.DecodeJSONRequest(r, &reqBody, helper.DefaultMaxBodySize); err != nil {
-		metrics.Error("invalid_json")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &reqBody) {
 		return
 	}
 

@@ -630,6 +630,45 @@ func GetAPIGroups() *APIGroupsMetrics {
 	return apiGroupsHolder
 }
 
+// APIGroupTemplatesMetrics holds OpenTelemetry metrics for group-templates endpoints.
+type APIGroupTemplatesMetrics struct {
+	Requests      *floatHist
+	RequestsCount *intCounter
+	Successes     *intCounter
+	Errors        *counterVec
+}
+
+var (
+	apiGroupTemplatesOnce   sync.Once
+	apiGroupTemplatesHolder *APIGroupTemplatesMetrics
+)
+
+// GetAPIGroupTemplates returns group-templates API metrics.
+func GetAPIGroupTemplates() *APIGroupTemplatesMetrics {
+	apiGroupTemplatesOnce.Do(func() {
+		m := apiMeter()
+		apiGroupTemplatesHolder = &APIGroupTemplatesMetrics{
+			Requests: &floatHist{h: mustHist(m.Float64Histogram("api.group_templates.duration_milliseconds",
+				metric.WithUnit("ms"),
+				metric.WithDescription("Latency of group templates operations (milliseconds)"),
+			))},
+			RequestsCount: &intCounter{c: mustCounter(m.Int64Counter("api.group_templates.requests_total",
+				metric.WithDescription("Total group templates API requests"),
+			))},
+			Successes: &intCounter{c: mustCounter(m.Int64Counter("api.group_templates.successes_total",
+				metric.WithDescription("Successful group templates operations"),
+			))},
+			Errors: &counterVec{
+				c: mustCounter(m.Int64Counter("api.group_templates.errors_total",
+					metric.WithDescription("Group templates handler errors"),
+				)),
+				attrKey: "reason",
+			},
+		}
+	})
+	return apiGroupTemplatesHolder
+}
+
 // APIStatisticsMetrics holds OpenTelemetry metrics for statistics endpoints.
 type APIStatisticsMetrics struct {
 	Requests      *floatHist

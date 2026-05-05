@@ -119,9 +119,7 @@ func handleSubmitCitadelName(w http.ResponseWriter, r *http.Request, clients *sh
 	}
 
 	var body citadelNamesSubmitRequest
-	if err := helper.DecodeJSONRequest(r, &body, helper.DefaultMaxBodySize); err != nil {
-		metrics.Error("invalid_json")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &body) {
 		return
 	}
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import {
   getDocumentLockStatus,
   getDocumentLockStatusBatch,
+  MAX_STATUS_BATCH_DOC_IDS,
 } from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
 import { applyDocumentLockStatusFromPayload } from "../../Functions/DocumentLock/applyDocumentLockStatusFromPayload.js";
 import useUsersStore from "../../Zustand/usersStore.js";
@@ -10,8 +11,8 @@ import {
   USER_JOB_GROUPS_COLLECTION,
 } from "../../Functions/DocumentLock/documentLockCollections.js";
 
-/** Must stay at or below server `maxStatusBatchDocs`. */
-const STATUS_BATCH_MAX = 400;
+/** Must stay at or below server `maxStatusBatchDocs` ({@link MAX_STATUS_BATCH_DOC_IDS}). */
+const STATUS_BATCH_MAX = MAX_STATUS_BATCH_DOC_IDS;
 
 const LOCK_SCOPE_SYNC_DEBOUNCE_MS = 200;
 

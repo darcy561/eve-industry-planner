@@ -14,6 +14,8 @@ import PostAddIcon from "@mui/icons-material/PostAdd";
 import { useNavigate } from "@tanstack/react-router";
 import ArchiveOutlinedIcon from "@mui/icons-material/ArchiveOutlined";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
+import BookmarkAddOutlinedIcon from "@mui/icons-material/BookmarkAddOutlined";
+import LibraryBooksOutlinedIcon from "@mui/icons-material/LibraryBooksOutlined";
 import { passBuildCostsToParentJobs } from "../../../../Functions/Shared/passBuildCosts";
 import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
 import buildNextMaterialsTree from "../../../../Functions/JobPlanner/buildNextMaterialsTree";
@@ -31,6 +33,7 @@ import { showShoppingList } from "../../../../Events/shoppingListEvents";
 import { showPriceEntryDialog } from "../../../../Events/priceEntryEvents";
 import moveItemsOnPlanner from "../../../../Functions/JobPlanner/moveItemsOnPlanner";
 import closeActiveGroup from "../../../../Functions/Groups/closeGroup";
+import { openGroupTemplatesApplyDialog } from "../../../../Events/groupTemplatesDialogEvents";
 
 /** Left drawer actions still allowed when the group doc lock is read-only. */
 const GROUP_LEFT_PANEL_READONLY_ALLOWED = new Set([
@@ -45,9 +48,11 @@ export function useGroupPageSideMenuFunctions(
   actions,
   groupJobs,
   pageRequiresDrawerToBeOpen,
-  groupReadOnly = false
+  groupReadOnly = false,
+  templateActions = null
 ) {
   const { multiSelect } = useUsersStore((state) => state.jobData);
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const {
     addToMultiSelect,
     clearMultiSelect,
@@ -100,6 +105,38 @@ export function useGroupPageSideMenuFunctions(
           }
         },
       },
+      ...(templateActions && isLoggedIn
+        ? [
+            {
+              displayText: "Save as template",
+              icon: <BookmarkAddOutlinedIcon />,
+              tooltip:
+                "Save this group's job graph and setups as a reusable template.",
+              disabled: roOff("Save as template"),
+              onClick: () => {
+                if (!groupJobs?.length) {
+                  displayNotificationDialog(
+                    "No jobs",
+                    "Add jobs to this group before saving a template."
+                  );
+                  return;
+                }
+                templateActions.openSaveTemplate?.();
+              },
+            },
+            {
+              displayText: "Apply template…",
+              icon: <LibraryBooksOutlinedIcon />,
+              tooltip: "Create jobs from a saved group template.",
+              disabled: roOff("Apply template…"),
+              onClick: () => {
+                openGroupTemplatesApplyDialog({
+                  contextGroupId: templateActions.contextGroupId,
+                });
+              },
+            },
+          ]
+        : []),
       {
         displayText: "Shopping List",
         icon: <ShoppingCartIcon />,
@@ -274,6 +311,8 @@ export function useGroupPageSideMenuFunctions(
     queryClient,
     toggleRightDrawerColapse,
     groupReadOnly,
+    templateActions,
+    isLoggedIn,
   ]);
 
   function throwDialogError(inputText = standardDialogError) {

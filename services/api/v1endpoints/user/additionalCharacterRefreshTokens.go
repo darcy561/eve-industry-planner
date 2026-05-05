@@ -149,9 +149,7 @@ func handlePutAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http.Re
 	}
 
 	var req additionalCharacterRefreshTokensRequest
-	if err := helper.DecodeJSONRequest(r, &req, helper.DefaultMaxBodySize); err != nil {
-		metrics.Error("invalid_json")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &req) {
 		return
 	}
 
@@ -251,9 +249,7 @@ func handleDeleteAdditionalCharacterRefreshTokens(w http.ResponseWriter, r *http
 	}
 
 	var req additionalCharacterRefreshTokenDeleteRequest
-	if err := helper.DecodeJSONRequest(r, &req, helper.DefaultMaxBodySize); err != nil {
-		metrics.Error("invalid_json")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &req) {
 		return
 	}
 

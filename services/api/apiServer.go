@@ -15,6 +15,7 @@ import (
 	"eve-industry-planner/api/v1endpoints/archivedjobs"
 	"eve-industry-planner/api/v1endpoints/documentlocks"
 	"eve-industry-planner/api/v1endpoints/groups"
+	"eve-industry-planner/api/v1endpoints/grouptemplates"
 	"eve-industry-planner/api/v1endpoints/jobdocuments"
 	ssoendpoints "eve-industry-planner/api/v1endpoints/sso"
 	"eve-industry-planner/api/v1endpoints/statistics"
@@ -319,6 +320,18 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 			Path: "/api/v1/groups/",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				groups.Router(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/v1/group-templates",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				grouptemplates.Router(w, r, clients)
+			},
+		},
+		{
+			Path: "/api/v1/group-templates/",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				grouptemplates.Router(w, r, clients)
 			},
 		},
 		{

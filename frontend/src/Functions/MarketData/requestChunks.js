@@ -1,28 +1,15 @@
 import fetchMarketPrices from "../Endpoints/Public/marketPrices";
 
 /**
- * Splits a large array of item IDs into smaller chunks for efficient API requests.
- * Creates Firebase performance traces and returns an array of promises for parallel processing.
- * 
- * @param {Array<string|number>} requestArray - Array of item IDs to request market data for
- * @returns {Array<Promise>} Array of promises for market data requests
- * 
- * @example
- * const itemIDs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
- * const promises = splitMarketDataRequestIntoChuncks(itemIDs);
- * const results = await Promise.allSettled(promises);
+ * Returns a single promise that loads all prices; chunking is handled inside
+ * {@link fetchMarketPrices} via `fetchWithPublicHeaders` batching (≤500 type IDs per HTTP request).
+ *
+ * @param {Array<string|number>} requestArray - Item type IDs to request market data for
+ * @returns {Array<Promise<object>>} One-element array for callers that merge with `Promise.all`
  */
 function splitMarketDataRequestIntoChuncks(requestArray) {
-  const MAX_CHUNK_SIZE = 500;
-  const promises = [];
-
-  if (!requestArray || requestArray.length === 0) return promises;
-
-  for (let x = 0; x < requestArray.length; x += MAX_CHUNK_SIZE) {
-    const chunk = requestArray.slice(x, x + MAX_CHUNK_SIZE);
-    promises.push(fetchMarketPrices(chunk));
-  }
-  return promises;
+  if (!requestArray || requestArray.length === 0) return [];
+  return [fetchMarketPrices(requestArray)];
 }
 
 export default splitMarketDataRequestIntoChuncks;

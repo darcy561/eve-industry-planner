@@ -81,7 +81,22 @@ async function getCache() {
   if (typeof caches === "undefined") {
     return null;
   }
-  return caches.open(STATIC_DATA_CACHE);
+  try {
+    return await caches.open(STATIC_DATA_CACHE);
+  } catch (error) {
+    // Firefox Mobile (strict privacy / some contexts): `caches` exists but
+    // `open()` throws SecurityError (DOMException 18) — fall back to network-only loads.
+    const isSecurity =
+      error?.name === "SecurityError" || error?.code === 18;
+    if (isSecurity) {
+      console.warn(
+        "[App] Cache API blocked (SecurityError); static data will load over the network.",
+        error
+      );
+      return null;
+    }
+    throw error;
+  }
 }
 
 async function migrateAndCleanupStaticCaches() {

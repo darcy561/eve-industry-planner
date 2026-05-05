@@ -30,10 +30,8 @@ func GetHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceC
 	})
 	defer metrics.Finish()
 
-	accountID, ok := helper.RequireAccountID(w, r)
+	accountID, ok := helper.RequireMethodAndAccountID(w, r, metrics, http.MethodGet)
 	if !ok {
-		metrics.Error("auth_error")
-		logs.WarnCtx(ctx, "failed to extract accountID")
 		return
 	}
 

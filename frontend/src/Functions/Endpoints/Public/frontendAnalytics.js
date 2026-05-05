@@ -98,6 +98,10 @@ async function postAnalyticsBatchRequest(body, opts) {
     },
     {
       requestName: opts.requestName,
+      batch: {
+        size: MAX_FRONTEND_ANALYTICS_BATCH_EVENTS,
+        arrayKey: "events",
+      },
     }
   );
   return response.ok;
@@ -119,7 +123,13 @@ function postAnalyticsBatchRequestSync(body) {
         body: JSON.stringify(body),
         keepalive: true,
       },
-      { requestName: "submitFrontendAnalyticsBatchUnload" }
+      {
+        requestName: "submitFrontendAnalyticsBatchUnload",
+        batch: {
+          size: MAX_FRONTEND_ANALYTICS_BATCH_EVENTS,
+          arrayKey: "events",
+        },
+      }
     );
   } catch {
     /* ignore */
@@ -198,9 +208,9 @@ function approximateQueueWeight() {
 
 /**
  * @param {PendingState} merged
- * @returns {object[]}
+ * @returns {{ events: object[] }}
  */
-function buildBatchBodies(merged) {
+function buildAnalyticsRequestBody(merged) {
   /** @type {object[]} */
   const events = [];
   for (const [event, count] of merged.simple) {
@@ -219,27 +229,21 @@ function buildBatchBodies(merged) {
       events.push({ event: NEW_JOB_EVENT, by_type: chunk });
     }
   }
-  /** @type {object[]} */
-  const bodies = [];
-  for (let i = 0; i < events.length; i += MAX_FRONTEND_ANALYTICS_BATCH_EVENTS) {
-    bodies.push({
-      events: events.slice(i, i + MAX_FRONTEND_ANALYTICS_BATCH_EVENTS),
-    });
-  }
-  return bodies;
+  return { events };
 }
 
 async function flushMergedState(merged) {
-  const bodies = buildBatchBodies(merged);
-  let ok = true;
-  for (const body of bodies) {
-    try {
-      ok = ok && (await postAnalyticsBatchRequest(body, { requestName: "submitFrontendAnalyticsBatch" }));
-    } catch {
-      ok = false;
-    }
+  const body = buildAnalyticsRequestBody(merged);
+  if (body.events.length === 0) {
+    return true;
   }
-  return ok;
+  try {
+    return await postAnalyticsBatchRequest(body, {
+      requestName: "submitFrontendAnalyticsBatch",
+    });
+  } catch {
+    return false;
+  }
 }
 
 function scheduleFlush() {
@@ -289,8 +293,8 @@ export function flushFrontendAnalyticsQueueForUnload() {
   ) {
     return;
   }
-  const bodies = buildBatchBodies(merged);
-  for (const body of bodies) {
+  const body = buildAnalyticsRequestBody(merged);
+  if (body.events.length > 0) {
     postAnalyticsBatchRequestSync(body);
   }
 }

@@ -4,12 +4,21 @@
  */
 import Job from "../../../Classes/job.js";
 import useUsersStore from "../../../Zustand/usersStore.js";
-import { requestWithPrivateHeaders } from "./applyPrivateHeaders.js";
+import {
+  requestWithPrivateHeaders,
+  privateBatchRetryConfig,
+} from "./applyPrivateHeaders.js";
 import { requestJobDocumentsByIdsFromApi } from "./requestJobDocumentsByIds.js";
 
 export const USER_JOB_DOCUMENTS_COLLECTION = "user_job_documents";
 
 const jsonHeaders = { "Content-Type": "application/json" };
+
+/** Kept in sync with Go `PutJobDocumentsHandler` (`maxBatchSize`). */
+const MAX_PUT_JOB_DOCUMENTS_BATCH = 100;
+
+/** Kept in sync with Go `DeleteJobDocumentsHandler` (`maxBatchSize`). */
+const MAX_DELETE_JOB_DOCUMENTS_BATCH = 200;
 
 /**
  * Fetches jobs with `displayOnPlanner: true` and merges into `jobArray` (planner + login bootstrap).
@@ -102,21 +111,25 @@ export async function fetchJobDocumentsByIdsFromApi(jobIDs) {
  */
 export async function putJobDocumentsBatch(jobs) {
   const payload = jobs.map((j) => (typeof j.toDocument === "function" ? j.toDocument() : j));
-  const res = await requestWithPrivateHeaders(
+  if (payload.length === 0) return;
+
+  await requestWithPrivateHeaders(
     "/api/v1/job-documents",
     {
       method: "PUT",
       headers: jsonHeaders,
       body: JSON.stringify({ jobs: payload }),
     },
-    { requestName: "putJobDocuments" }
+    {
+      requestName: "putJobDocuments",
+      retry: privateBatchRetryConfig,
+      batch: {
+        size: MAX_PUT_JOB_DOCUMENTS_BATCH,
+        arrayKey: "jobs",
+        errorLabel: "PUT /api/v1/job-documents",
+      },
+    }
   );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `PUT /api/v1/job-documents failed: ${res.status} ${text || res.statusText}`
-    );
-  }
 }
 
 /**
@@ -126,19 +139,21 @@ export async function deleteJobDocumentsFromApi(jobIDs) {
   const ids = [...new Set(jobIDs.filter(Boolean))];
   if (ids.length === 0) return;
 
-  const res = await requestWithPrivateHeaders(
+  await requestWithPrivateHeaders(
     "/api/v1/job-documents",
     {
       method: "DELETE",
       headers: jsonHeaders,
       body: JSON.stringify({ jobIDs: ids }),
     },
-    { requestName: "deleteJobDocuments" }
+    {
+      requestName: "deleteJobDocuments",
+      retry: privateBatchRetryConfig,
+      batch: {
+        size: MAX_DELETE_JOB_DOCUMENTS_BATCH,
+        arrayKey: "jobIDs",
+        errorLabel: "DELETE /api/v1/job-documents",
+      },
+    }
   );
-  if (!res.ok && res.status !== 204) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `DELETE /api/v1/job-documents failed: ${res.status} ${text || res.statusText}`
-    );
-  }
 }
