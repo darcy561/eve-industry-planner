@@ -26,6 +26,7 @@ var schemaMaintenanceCollections = []string{
 	mongocore.CollectionApplicationSettings,
 	mongocore.CollectionUserJobDocuments,
 	mongocore.CollectionUserJobGroups,
+	mongocore.CollectionArchivedJobs,
 }
 
 // ScheduleSchemaVersionMaintenance schedules a low-frequency maintenance task that

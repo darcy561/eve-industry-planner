@@ -137,6 +137,10 @@ export function ThemeProvider({ children }) {
       components: {
         MuiCssBaseline: {
           styleOverrides: {
+            /** Avoid horizontal layout shift when the vertical scrollbar appears (tall lists / filter changes). */
+            html: {
+              scrollbarGutter: "stable",
+            },
             "*": {
               "&::-webkit-scrollbar": {
                 width: "8px",

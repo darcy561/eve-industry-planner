@@ -54,8 +54,10 @@ export default function ArchiveStatsSummary({ data }) {
             {formatNumberForLocale(data.transactionFeeTotal)}
           </Typography>
         </StatRow>
-        <StatRow label="Profit/Loss:">
-          <Typography color={data.profitLoss >= 0 ? "primary" : "error"}>
+        <StatRow label="Profit / loss:">
+          <Typography
+            color={(data.profitLoss ?? 0) >= 0 ? "primary" : "error"}
+          >
             {formatNumberForLocale(data.profitLoss)}
           </Typography>
         </StatRow>

@@ -132,8 +132,20 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 		return migrationtasks.ImportUserJobDocumentsForAccount(ctx, t, taskDeps)
 	})
 
+	mux.HandleFunc("processArchivedJobSnapshots", func(ctx context.Context, t *asynq.Task) error {
+		return archivedjobtasks.ProcessArchivedJobSnapshots(ctx, t, taskDeps)
+	})
 	mux.HandleFunc("processArchivedBuildStats", func(ctx context.Context, t *asynq.Task) error {
-		return archivedjobtasks.ProcessBuildStats(ctx, t, taskDeps)
+		return archivedjobtasks.ProcessArchivedJobSnapshots(ctx, t, taskDeps)
+	})
+	mux.HandleFunc("processCorpArchivedJobSnapshots", func(ctx context.Context, t *asynq.Task) error {
+		return archivedjobtasks.ProcessCorpArchivedJobSnapshots(ctx, t, taskDeps)
+	})
+	mux.HandleFunc("processDirtyAccountBuildStats", func(ctx context.Context, t *asynq.Task) error {
+		return archivedjobtasks.ProcessDirtyAccountBuildStats(ctx, t, taskDeps)
+	})
+	mux.HandleFunc("processDirtyCorpBuildStats", func(ctx context.Context, t *asynq.Task) error {
+		return archivedjobtasks.ProcessDirtyCorpBuildStats(ctx, t, taskDeps)
 	})
 	mux.HandleFunc("rotateRefreshTokenKeys", func(ctx context.Context, t *asynq.Task) error {
 		return maintenancetasks.RotateRefreshTokenKeys(ctx, t, taskDeps)

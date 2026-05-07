@@ -8,6 +8,8 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
+	"eve-industry-planner/shared/core/config"
+	"eve-industry-planner/shared/core/sealedfields/entityids"
 	mongoput "eve-industry-planner/shared/core/mongo/put"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
@@ -53,6 +55,25 @@ func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 		metrics.Error("batch_too_large")
 		http.Error(w, fmt.Sprintf("Batch too large (max %d jobs)", maxBatchSize), http.StatusBadRequest)
 		return
+	}
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		metrics.Error("config_error")
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to load identity encryption config", err)
+		return
+	}
+	if cfg.RefreshTokenKeyring == nil {
+		metrics.Error("config_error")
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Identity encryption keyring is not configured", fmt.Errorf("refresh token keyring is nil"))
+		return
+	}
+	jobSealer := entityids.NewJobIdentitySealer(cfg.RefreshTokenKeyring)
+	for i := range reqBody.Jobs {
+		if err := models.UpgradeJob(&reqBody.Jobs[i], jobSealer); err != nil {
+			metrics.Error("job_upgrade_failed")
+			http.Error(w, fmt.Sprintf("Invalid job at index %d for schema upgrade", i), http.StatusBadRequest)
+			return
+		}
 	}
 
 	collection := collJobDocuments(clients)

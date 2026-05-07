@@ -27,8 +27,15 @@ const usage = `Usage:
   tasks workerQueues
   tasks purgeWorkerQueues
   tasks unlockSdeVersion
-  tasks processArchivedBuildStats
+  tasks processArchivedJobSnapshots
+  tasks processCorpArchivedJobSnapshots
+  tasks processArchivedJobSnapshotsAll
+  tasks processDirtyAccountBuildStats
+  tasks processDirtyCorpBuildStats
+  tasks processDirtyBuildStatsAll
   tasks startArchivedJobProcessing
+  tasks startCorpArchivedJobSnapshots
+  tasks rebuildArchivedJobStats [-all] [-account id] [-dry-run]
   tasks forceSdeRebuild
   tasks rotateRefreshTokenKeys [--from=<version>] [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]
   tasks migrateEncryptedCloudRefreshTokens [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]
@@ -40,6 +47,9 @@ const usage = `Usage:
   tasks importUserJobDocumentsFromFirestore [flags]
   tasks markArchivedJobsUnprocessed [-all] [-account id] [-dry-run]
   tasks resetBuildStats [-account id] [-dry-run]
+  tasks restoreArchivedJob -account <id> -job <jobID> [-dry-run]
+  tasks inspectCorpBuildStats -corp <corporation_id> [-type-id <id>] [-bucket-limit <n>]
+  tasks dumpBuildStatsItem -account <firebase_uid> -type-id <itemTypeID> -corp <corporation_id>
   tasks <task-name> [--priority=<priority_queue>] [--version=<int>] [--data='<json>']
 
 Examples:
@@ -53,7 +63,8 @@ Examples:
   tasks purgeWorkerQueues
   tasks unlockSdeVersion
   tasks importArchivedJobsFromFirestore
-  tasks importArchivedJobsFromFirestore -credentials /app/adminSDK.json
+  tasks importArchivedJobsFromFirestore -dev
+  tasks importArchivedJobsFromFirestore -live
   tasks importArchivedJobsFromFirestore -reprocess -credentials /app/adminSDK.json
   tasks importUserAccountsFromFirestore -dry-run -dev
   tasks importUserAccountsFromFirestore -account <firebase_uid> -live
@@ -71,12 +82,29 @@ Examples:
   tasks markArchivedJobsUnprocessed -account <firebase_uid> -dry-run
   tasks resetBuildStats -dry-run
   tasks resetBuildStats -account <firebase_uid>
+  tasks restoreArchivedJob -account <firebase_uid> -job <job_id>
+  tasks inspectCorpBuildStats -corp 1000169
+  tasks inspectCorpBuildStats -corp 1000169 -type-id 34 -bucket-limit 12
+  tasks dumpBuildStatsItem -account <firebase_uid> -type-id 12345 -corp 1000169
   tasks checkSdeUpdates
   tasks applySdeVersion --version=12345
   tasks recountMarketPrices
-  tasks processArchivedBuildStats
+  tasks processArchivedJobSnapshots
+  tasks processArchivedJobSnapshotsAll
   tasks startArchivedJobProcessing
-  tasks processArchivedBuildStats --data='{"account_id":"<firebase_uid>"}'
+  tasks processArchivedJobSnapshots --data='{"account_id":"<firebase_uid>"}'
+  tasks processCorpArchivedJobSnapshots
+  tasks startCorpArchivedJobSnapshots
+  tasks processCorpArchivedJobSnapshots --data='{"corp_ref":"<opaque_ref>"}'
+  tasks processDirtyAccountBuildStats
+  tasks processDirtyAccountBuildStats --data='{"account_id":"<firebase_uid>"}'
+  tasks processDirtyAccountBuildStats --data='{"max_accounts":300}'
+  tasks processDirtyCorpBuildStats
+  tasks processDirtyCorpBuildStats --data='{"corp_ref":"<opaque_ref>"}'
+  tasks processDirtyCorpBuildStats --data='{"max_refs":250}'
+  tasks processDirtyBuildStatsAll
+  tasks rebuildArchivedJobStats -all
+  tasks rebuildArchivedJobStats -account <firebase_uid>
   tasks forceSdeRebuild
   tasks rotateRefreshTokenKeys --from=v1 --scan-batch-size=500
   tasks migrateEncryptedCloudRefreshTokens --scan-batch-size=500
@@ -91,7 +119,10 @@ var enabledTasks = []taskscore.Task{
 	taskscore.ApplySDEVersion,
 	taskscore.RebuildCurrentSDEVersion,
 	taskscore.CountMarketPricesItems,
-	taskscore.ProcessArchivedBuildStats,
+	taskscore.ProcessArchivedJobSnapshots,
+	taskscore.ProcessCorpArchivedJobSnapshots,
+	taskscore.ProcessDirtyAccountBuildStats,
+	taskscore.ProcessDirtyCorpBuildStats,
 }
 
 func enabledTasksLowerLookup() map[string]taskscore.Task {
@@ -100,7 +131,11 @@ func enabledTasksLowerLookup() map[string]taskscore.Task {
 		"applysdeversion":           taskscore.ApplySDEVersion,
 		"forcesderebuild":           taskscore.RebuildCurrentSDEVersion,
 		"recountmarketprices":       taskscore.CountMarketPricesItems,
-		"processarchivedbuildstats": taskscore.ProcessArchivedBuildStats,
+		"processarchivedjobsnapshots":      taskscore.ProcessArchivedJobSnapshots,
+		"processarchivedbuildstats":        taskscore.ProcessArchivedJobSnapshots,
+		"processcorparchivedjobsnapshots":  taskscore.ProcessCorpArchivedJobSnapshots,
+		"processdirtyaccountbuildstats":    taskscore.ProcessDirtyAccountBuildStats,
+		"processdirtycorpbuildstats":       taskscore.ProcessDirtyCorpBuildStats,
 	}
 }
 
@@ -114,8 +149,14 @@ func commandTaskName(task taskscore.Task) string {
 		return "forceSdeRebuild"
 	case taskscore.CountMarketPricesItems.Name:
 		return "recountMarketPrices"
-	case taskscore.ProcessArchivedBuildStats.Name:
-		return "processArchivedBuildStats"
+	case taskscore.ProcessArchivedJobSnapshots.Name:
+		return "processArchivedJobSnapshots"
+	case taskscore.ProcessCorpArchivedJobSnapshots.Name:
+		return "processCorpArchivedJobSnapshots"
+	case taskscore.ProcessDirtyAccountBuildStats.Name:
+		return "processDirtyAccountBuildStats"
+	case taskscore.ProcessDirtyCorpBuildStats.Name:
+		return "processDirtyCorpBuildStats"
 	default:
 		return task.Name
 	}
@@ -164,11 +205,34 @@ func Handle(ctx context.Context, args []string) (bool, error) {
 		return true, runMarkArchivedJobsUnprocessed(ctx, args[2:])
 	case "resetBuildStats":
 		return true, runResetBuildStats(ctx, args[2:])
+	case "rebuildArchivedJobStats":
+		return true, runRebuildArchivedJobStats(ctx, args[2:])
+	case "restoreArchivedJob":
+		return true, runRestoreArchivedJob(ctx, args[2:])
+	case "inspectCorpBuildStats":
+		return true, runInspectCorpBuildStats(ctx, args[2:])
+	case "dumpBuildStatsItem":
+		return true, runDumpBuildStatsItem(ctx, args[2:])
 	case "startArchivedJobProcessing":
 		if len(args) > 2 {
 			return true, fmt.Errorf("startArchivedJobProcessing: takes no arguments (remove %q)\n\n%s", strings.Join(args[2:], " "), usage)
 		}
 		return true, runFanOutArchivedBuildStats(ctx)
+	case "startCorpArchivedJobSnapshots":
+		if len(args) > 2 {
+			return true, fmt.Errorf("startCorpArchivedJobSnapshots: takes no arguments (remove %q)\n\n%s", strings.Join(args[2:], " "), usage)
+		}
+		return true, runFanOutCorpArchivedJobSnapshots(ctx)
+	case "processArchivedJobSnapshotsAll":
+		if len(args) > 2 {
+			return true, fmt.Errorf("processArchivedJobSnapshotsAll: takes no arguments (remove %q)\n\n%s", strings.Join(args[2:], " "), usage)
+		}
+		return true, runFanOutAllArchivedSnapshots(ctx)
+	case "processDirtyBuildStatsAll":
+		if len(args) > 2 {
+			return true, fmt.Errorf("processDirtyBuildStatsAll: takes no arguments (remove %q)\n\n%s", strings.Join(args[2:], " "), usage)
+		}
+		return true, runFanOutAllDirtyBuildStats(ctx)
 	case "rotateRefreshTokenKeys":
 		return true, runRotateRefreshTokenKeys(ctx, args[2:])
 	case "migrateEncryptedCloudRefreshTokens":
@@ -192,14 +256,23 @@ func runList() error {
 	fmt.Println("  - workerQueues")
 	fmt.Println("  - purgeWorkerQueues")
 	fmt.Println("  - unlockSdeVersion")
-	fmt.Println("  - importArchivedJobsFromFirestore [-unprocessed-only] [-reprocess] [-credentials path] [-firebase-project-id id]")
+	fmt.Println("  - importArchivedJobsFromFirestore [-unprocessed-only] [-reprocess] [-dev|-live|-credentials path] [-firebase-project-id id]")
 	fmt.Println("  - importUserAccountsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-login-within duration]")
 	fmt.Println("  - importWatchlistFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-login-within duration]")
 	fmt.Println("  - importJobGroupsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-login-within duration]")
 	fmt.Println("  - importUserJobDocumentsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-inline] [-enqueue] [-skip-auth-recency]")
 	fmt.Println("  - markArchivedJobsUnprocessed [-all] [-account id] [-dry-run]")
-	fmt.Println("  - resetBuildStats [-account id] [-dry-run]")
-	fmt.Println("  - startArchivedJobProcessing (same fan-out as hourly cron; enqueue per-account build_stats work now)")
+	fmt.Println("  - rebuildArchivedJobStats [-all] [-account id] [-dry-run] (mark archived jobs unprocessed + reset build stats in one command)")
+	fmt.Println("  - resetBuildStats [-account id] [-dry-run] (drops build stats, snapshots, rollup buckets, corp precomp stats)")
+	fmt.Println("  - restoreArchivedJob -account <id> -job <jobID> [-dry-run]")
+	fmt.Println("  - inspectCorpBuildStats -corp <corporation_id> [-type-id <id>] [-bucket-limit <n>]")
+	fmt.Println("  - dumpBuildStatsItem -account <firebase_uid> -type-id <itemTypeID> -corp <corporation_id> (Mongo snapshots vs build_stats/corp_build_stats)")
+	fmt.Println("  - startArchivedJobProcessing (hourly snapshot fan-out: unprocessed archivedJobs per account)")
+	fmt.Println("  - startCorpArchivedJobSnapshots (corp archivedJobs snapshot fan-out; staggered cron times live in core scheduler)")
+	fmt.Println("  - processArchivedJobSnapshotsAll (run both personal + corp archived snapshot fan-out)")
+	fmt.Println("  - processDirtyAccountBuildStats [omit --data to fan out one task per queued account; or --data='{\"account_id\":\"...\"}' / '{\"max_accounts\":300}' for batch]")
+	fmt.Println("  - processDirtyCorpBuildStats [omit --data to fan out one task per queued corp ref; or --data='{\"corp_ref\":\"...\"}' / '{\"max_refs\":500}' for batch]")
+	fmt.Println("  - processDirtyBuildStatsAll (run both dirty-account + dirty-corp fan-out)")
 	fmt.Println("  - rotateRefreshTokenKeys [--from=<version>] [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
 	fmt.Println("  - migrateEncryptedCloudRefreshTokens [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
 	fmt.Println("  - migrateUserCloudAccountsToUserDoc [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
@@ -211,8 +284,7 @@ func runList() error {
 	return nil
 }
 
-// runFanOutArchivedBuildStats enqueues one ProcessArchivedBuildStats worker task per account that has
-// unprocessed archivedJobs rows (same behavior as the core hourly cron).
+// runFanOutArchivedBuildStats enqueues ProcessArchivedJobSnapshots per account with unprocessed archivedJobs (same as hourly cron).
 func runFanOutArchivedBuildStats(ctx context.Context) error {
 	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo, shared.ServiceNATS)
 	if err != nil {
@@ -227,10 +299,98 @@ func runFanOutArchivedBuildStats(ctx context.Context) error {
 		NATS:      clients.NATS,
 		Mongo:     clients.Mongo,
 	}
-	if err := archivedjobsched.PublishProcessArchivedBuildStatsPerAccount(ctx, deps); err != nil {
+	if err := archivedjobsched.PublishProcessArchivedJobSnapshotsPerAccount(ctx, deps); err != nil {
 		return err
 	}
-	fmt.Println("Triggered archived build stats fan-out (per-account worker tasks published)")
+	fmt.Println("Triggered archived job snapshots fan-out (per-account snapshot tasks published)")
+	return nil
+}
+
+// runFanOutCorpArchivedJobSnapshots enqueues ProcessCorpArchivedJobSnapshots per corp ref with unprocessed corp_archivedJobs (same as hourly corp cron).
+func runFanOutCorpArchivedJobSnapshots(ctx context.Context) error {
+	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo, shared.ServiceNATS)
+	if err != nil {
+		return err
+	}
+	defer runImmediateCleanups(clients.CleanupFns...)
+	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
+		return fmt.Errorf("failed to ensure worker task stream: %w", err)
+	}
+	deps := contract.Dependencies{
+		JSContext: clients.JetStream,
+		NATS:      clients.NATS,
+		Mongo:     clients.Mongo,
+	}
+	if err := archivedjobsched.PublishProcessCorpArchivedJobSnapshotsPerCorpRef(ctx, deps); err != nil {
+		return err
+	}
+	fmt.Println("Triggered corp archived job snapshots fan-out (per-corp_ref snapshot tasks published)")
+	return nil
+}
+
+// runFanOutDirtyAccountBuildStats enqueues ProcessDirtyAccountBuildStats per queued account (same as hourly dirty-account cron).
+func runFanOutDirtyAccountBuildStats(ctx context.Context) error {
+	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo, shared.ServiceNATS)
+	if err != nil {
+		return err
+	}
+	defer runImmediateCleanups(clients.CleanupFns...)
+	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
+		return fmt.Errorf("failed to ensure worker task stream: %w", err)
+	}
+	deps := contract.Dependencies{
+		JSContext: clients.JetStream,
+		NATS:      clients.NATS,
+		Mongo:     clients.Mongo,
+	}
+	if err := archivedjobsched.PublishProcessDirtyAccountBuildStats(ctx, deps); err != nil {
+		return err
+	}
+	fmt.Println("Triggered dirty account build stats fan-out (one worker task per queued account)")
+	return nil
+}
+
+// runFanOutDirtyCorpBuildStats enqueues ProcessDirtyCorpBuildStats per queued corp ref (same as hourly dirty-corp cron).
+func runFanOutDirtyCorpBuildStats(ctx context.Context) error {
+	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo, shared.ServiceNATS)
+	if err != nil {
+		return err
+	}
+	defer runImmediateCleanups(clients.CleanupFns...)
+	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
+		return fmt.Errorf("failed to ensure worker task stream: %w", err)
+	}
+	deps := contract.Dependencies{
+		JSContext: clients.JetStream,
+		NATS:      clients.NATS,
+		Mongo:     clients.Mongo,
+	}
+	if err := archivedjobsched.PublishProcessDirtyCorpBuildStats(ctx, deps); err != nil {
+		return err
+	}
+	fmt.Println("Triggered dirty corp build stats fan-out (one worker task per queued corp ref)")
+	return nil
+}
+
+func runFanOutAllArchivedSnapshots(ctx context.Context) error {
+	if err := runFanOutArchivedBuildStats(ctx); err != nil {
+		return err
+	}
+	if err := runFanOutCorpArchivedJobSnapshots(ctx); err != nil {
+		return err
+	}
+	fmt.Println("Triggered all archived snapshot fan-outs (personal + corp)")
+	return nil
+}
+
+func runFanOutAllDirtyBuildStats(ctx context.Context) error {
+	if err := runFanOutDirtyAccountBuildStats(ctx); err != nil {
+		return err
+	}
+	if err := runFanOutDirtyCorpBuildStats(ctx); err != nil {
+		return err
+	}
+	fmt.Println("Triggered all dirty build-stats fan-outs (account + corp)")
 	return nil
 }
 
@@ -347,8 +507,20 @@ func runTrigger(ctx context.Context, args []string) error {
 	}
 
 	// Fan-out: one worker task per account with unprocessed archived jobs (same as core cron).
-	if task.Name == taskscore.ProcessArchivedBuildStats.Name && payload == nil {
+	if task.Name == taskscore.ProcessArchivedJobSnapshots.Name && payload == nil {
 		return runFanOutArchivedBuildStats(ctx)
+	}
+	// Fan-out: one worker task per corp ref with unprocessed corp_archivedJobs.
+	if task.Name == taskscore.ProcessCorpArchivedJobSnapshots.Name && payload == nil {
+		return runFanOutCorpArchivedJobSnapshots(ctx)
+	}
+	// Fan-out: one dirty-account rebuild task per queued account (omit --data).
+	if task.Name == taskscore.ProcessDirtyAccountBuildStats.Name && payload == nil {
+		return runFanOutDirtyAccountBuildStats(ctx)
+	}
+	// Fan-out: one dirty-corp rebuild task per queued corp ref (omit --data).
+	if task.Name == taskscore.ProcessDirtyCorpBuildStats.Name && payload == nil {
+		return runFanOutDirtyCorpBuildStats(ctx)
 	}
 
 	clients, err := shared.ConnectServices(ctx, shared.ServiceNATS)
@@ -362,10 +534,31 @@ func runTrigger(ctx context.Context, args []string) error {
 	}
 
 	publishPayload := payloadToInterface(payload)
-	if task.Name == taskscore.ProcessArchivedBuildStats.Name {
-		var req natscore.ProcessArchivedBuildStatsRequest
+	if task.Name == taskscore.ProcessArchivedJobSnapshots.Name {
+		var req natscore.ProcessArchivedJobSnapshotsRequest
 		if err := json.Unmarshal(payload, &req); err != nil || req.AccountID == "" {
-			return fmt.Errorf("task %q requires --data='{\"account_id\":\"...\"}' or omit --data to fan out all accounts", commandTaskName(task))
+			return fmt.Errorf("task %q requires --data='{\"account_id\":\"...\"}' or omit --data to fan out accounts with unprocessed archived jobs", commandTaskName(task))
+		}
+		publishPayload = req
+	}
+	if task.Name == taskscore.ProcessCorpArchivedJobSnapshots.Name {
+		var req natscore.ProcessCorpArchivedJobSnapshotsRequest
+		if err := json.Unmarshal(payload, &req); err != nil || req.CorpRef == "" {
+			return fmt.Errorf("task %q requires --data='{\"corp_ref\":\"...\"}' or omit --data to fan out corp refs with unprocessed corp_archivedJobs", commandTaskName(task))
+		}
+		publishPayload = req
+	}
+	if task.Name == taskscore.ProcessDirtyAccountBuildStats.Name {
+		var req natscore.ProcessDirtyAccountBuildStatsRequest
+		if err := json.Unmarshal(payload, &req); err != nil {
+			return fmt.Errorf("task %q: invalid --data JSON: %w", commandTaskName(task), err)
+		}
+		publishPayload = req
+	}
+	if task.Name == taskscore.ProcessDirtyCorpBuildStats.Name {
+		var req natscore.ProcessDirtyCorpBuildStatsRequest
+		if err := json.Unmarshal(payload, &req); err != nil {
+			return fmt.Errorf("task %q: invalid --data JSON: %w", commandTaskName(task), err)
 		}
 		publishPayload = req
 	}

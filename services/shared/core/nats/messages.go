@@ -181,9 +181,33 @@ type ImportArchivedJobToMongoRequest struct {
 	CanonicalBuildVer   string          `json:"canonical_build_ver,omitempty"`
 }
 
-// ProcessArchivedBuildStatsRequest scopes build_stats aggregation to one account's archived jobs.
-type ProcessArchivedBuildStatsRequest struct {
+// ProcessArchivedJobSnapshotsRequest scopes archivedJobs → per-job snapshot upserts for one account.
+type ProcessArchivedJobSnapshotsRequest struct {
 	AccountID string `json:"account_id"`
+}
+
+// ProcessArchivedBuildStatsRequest is a legacy alias for NATS/CLI payloads (same JSON shape).
+type ProcessArchivedBuildStatsRequest = ProcessArchivedJobSnapshotsRequest
+
+// ProcessCorpArchivedJobSnapshotsRequest scopes corp_archivedJobs → corp_archived_job_stats for one opaque corp ref.
+type ProcessCorpArchivedJobSnapshotsRequest struct {
+	CorpRef string `json:"corp_ref"`
+}
+
+// ProcessDirtyAccountBuildStatsRequest rebuilds account aggregates from snapshots.
+// When account_id is set, only that account is processed (one worker task).
+// When account_id is empty, the worker drains up to max_accounts rows from user_build_stats_dirty_accounts (legacy batch).
+type ProcessDirtyAccountBuildStatsRequest struct {
+	AccountID   string `json:"account_id,omitempty"`
+	MaxAccounts int    `json:"max_accounts,omitempty"`
+}
+
+// ProcessDirtyCorpBuildStatsRequest rebuilds corp aggregates for dirty refs.
+// When corp_ref is set, only that ref is processed (one worker task; no global Redis lock).
+// When corp_ref is empty, the worker drains up to max_refs rows using the global rebuild lock (legacy batch).
+type ProcessDirtyCorpBuildStatsRequest struct {
+	CorpRef string `json:"corp_ref,omitempty"`
+	MaxRefs int    `json:"max_refs,omitempty"`
 }
 
 // ImportUserJobDocumentsForAccountRequest runs firestoremig.ImportAllReferencedUserJobDocumentsForAccount in the worker.

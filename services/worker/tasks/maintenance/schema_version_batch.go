@@ -6,8 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"eve-industry-planner/shared/core/config"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
+	"eve-industry-planner/shared/core/sealedfields/entityids"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared/models"
 	esitasks "eve-industry-planner/worker/tasks/esi"
@@ -46,6 +48,14 @@ func SchemaVersionMaintenanceBatch(ctx context.Context, task *asynq.Task, deps *
 	if batchSize > maxSchemaMaintenanceBatchSize {
 		batchSize = maxSchemaMaintenanceBatchSize
 	}
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return err
+	}
+	if cfg.RefreshTokenKeyring == nil {
+		return fmt.Errorf("refresh token keyring is not configured")
+	}
+	jobSealer := entityids.NewJobIdentitySealer(cfg.RefreshTokenKeyring)
 
 	db := deps.Mongo.Database(mongocore.DatabaseName)
 	switch payload.Collection {
@@ -53,8 +63,8 @@ func SchemaVersionMaintenanceBatch(ctx context.Context, task *asynq.Task, deps *
 		return maintainUsersSchemaVersionBatch(ctx, db.Collection(payload.Collection), batchSize)
 	case mongocore.CollectionApplicationSettings:
 		return maintainApplicationSettingsSchemaVersionBatch(ctx, db.Collection(payload.Collection), batchSize)
-	case mongocore.CollectionUserJobDocuments, mongocore.CollectionJobs:
-		return maintainJobSchemaVersionBatch(ctx, db.Collection(payload.Collection), batchSize)
+	case mongocore.CollectionUserJobDocuments, mongocore.CollectionJobs, mongocore.CollectionArchivedJobs:
+		return maintainJobSchemaVersionBatch(ctx, db.Collection(payload.Collection), batchSize, jobSealer)
 	case mongocore.CollectionUserJobGroups:
 		return maintainGroupSchemaVersionBatch(ctx, db.Collection(payload.Collection), batchSize)
 	default:
@@ -193,7 +203,7 @@ func maintainApplicationSettingsSchemaVersionBatch(ctx context.Context, col *mon
 	return nil
 }
 
-func maintainJobSchemaVersionBatch(ctx context.Context, col *mongo.Collection, batchSize int) error {
+func maintainJobSchemaVersionBatch(ctx context.Context, col *mongo.Collection, batchSize int, jobSealer models.JobIdentitySealer) error {
 	filter := bson.M{
 		"$or": []bson.M{
 			{"schemaVersion": bson.M{"$lt": models.JobSchemaCurrent}},
@@ -220,7 +230,10 @@ func maintainJobSchemaVersionBatch(ctx context.Context, col *mongo.Collection, b
 		}
 		scanned++
 		beforeSchema := doc.SchemaVersion
-		models.UpgradeJob(&doc)
+		if err := models.UpgradeJob(&doc, jobSealer); err != nil {
+			logs.WarnCtx(ctx, "schema maintenance jobs: upgrade failed", "error", err, "job_id", doc.JobID, "collection", col.Name())
+			continue
+		}
 		if beforeSchema == doc.SchemaVersion {
 			continue
 		}

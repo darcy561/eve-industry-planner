@@ -8,7 +8,9 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
+	"eve-industry-planner/shared/core/config"
 	mongocore "eve-industry-planner/shared/core/mongo"
+	"eve-industry-planner/shared/core/sealedfields/entityids"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/shared/models"
@@ -116,9 +118,26 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	}
 
 	now := time.Now().UTC()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		metrics.Error("config_error")
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to load identity encryption config", err)
+		return
+	}
+	if cfg.RefreshTokenKeyring == nil {
+		metrics.Error("config_error")
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Identity encryption keyring is not configured", fmt.Errorf("refresh token keyring is nil"))
+		return
+	}
+	jobSealer := entityids.NewJobIdentitySealer(cfg.RefreshTokenKeyring)
 	bulkOps := make([]mongo.WriteModel, 0, len(reqBody.Jobs))
 	for i := range reqBody.Jobs {
 		job := &reqBody.Jobs[i]
+		if err := models.UpgradeJob(job, jobSealer); err != nil {
+			metrics.Error("job_upgrade_failed")
+			http.Error(w, fmt.Sprintf("Invalid job at index %d for schema upgrade", i), http.StatusBadRequest)
+			return
+		}
 		job.MetaData.AccountID = accountID
 		if sessionID != "" {
 			job.MetaData.SessionID = sessionID

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"eve-industry-planner/shared/core/authzhmac"
 	mongoindex "eve-industry-planner/shared/core/mongo/indexing"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
@@ -54,6 +55,12 @@ func main() {
 	}
 	ts := teleShutdown
 	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) { _ = ts(c) })
+
+	if _, err := authzhmac.NewFromEnv(); err != nil {
+		logs.ErrorCtx(ctx, "authz hmac startup check failed", "err", err)
+		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
+		return
+	}
 
 	if err := mongoindex.EnsureIndexes(ctx, clients.Mongo); err != nil {
 		logs.ErrorCtx(ctx, "mongo ensure indexes failed", "err", err)

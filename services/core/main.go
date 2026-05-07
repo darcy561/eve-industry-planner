@@ -10,6 +10,7 @@ import (
 	"eve-industry-planner/core/metrics"
 	"eve-industry-planner/core/scheduler"
 	"eve-industry-planner/core/startup"
+	"eve-industry-planner/shared/core/authzhmac"
 	mongoindex "eve-industry-planner/shared/core/mongo/indexing"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
@@ -53,6 +54,11 @@ func main() {
 	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) { _ = ts(c) })
 
 	clients.CleanupFns = append(clients.CleanupFns, metrics.RegisterAll(clients.Redis, clients.Mongo, clients.NATS)...)
+
+	if _, err := authzhmac.NewFromEnv(); err != nil {
+		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
+		return
+	}
 
 	if err := mongoindex.EnsureIndexes(ctx, clients.Mongo); err != nil {
 		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)

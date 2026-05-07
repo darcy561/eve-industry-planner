@@ -2,19 +2,13 @@ package archivedjobs
 
 import (
 	"fmt"
-	"math"
 	"time"
 
+	"eve-industry-planner/shared/core/moneyutil"
 	"eve-industry-planner/shared/shared/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 )
-
-const buildStatRoundEps = 1e-9
-
-func roundBuildStatMoney(x float64) float64 {
-	return math.Round((x+buildStatRoundEps)*100) / 100
-}
 
 // computeBuildStatSnapshot mirrors frontend/functions archievedJobs.js reducers and arithmetic.
 func computeBuildStatSnapshot(job models.Job) (models.BuildStatSnapshot, error) {
@@ -44,11 +38,11 @@ func computeBuildStatSnapshot(job models.Job) (models.BuildStatSnapshot, error) 
 	totalExtras := job.Build.Costs.ExtrasTotal
 	totalBuildCosts := totalMaterialCost + totalInstallCost + totalExtras
 	totalJobCost := totalBuildCosts + brokersFeesTotal + transactionFeeTotal
-	totalCostPerItem := roundBuildStatMoney(totalJobCost / totalProduced)
+	totalCostPerItem := moneyutil.Round2(totalJobCost / totalProduced)
 
 	averageSalePrice := 0.0
 	if averageQuantity > 0 {
-		averageSalePrice = roundBuildStatMoney(totalSale / averageQuantity)
+		averageSalePrice = moneyutil.Round2(totalSale / averageQuantity)
 	}
 
 	profitLoss := 0.0

@@ -63,12 +63,33 @@ var (
 		DefaultPriority: Priority5,
 		DefaultTimeout:  10 * time.Minute,
 	}
-	// ProcessArchivedBuildStats aggregates unprocessed archived Mongo jobs into build_stats (worker: tasks/archivedjobs; Firebase archievedJobs.js replacement).
-	ProcessArchivedBuildStats = Task{
-		Name:            "processArchivedBuildStats",
-		Subject:         "task.scheduled.processArchivedBuildStats",
+	// ProcessArchivedJobSnapshots reads archivedJobs and upserts corp_archived_job_stats / user_archived_job_stats only.
+	ProcessArchivedJobSnapshots = Task{
+		Name:            "processArchivedJobSnapshots",
+		Subject:         "task.scheduled.processArchivedJobSnapshots",
 		DefaultPriority: Priority4,
 		DefaultTimeout:  15 * time.Minute,
+	}
+	// ProcessCorpArchivedJobSnapshots reads corp_archivedJobs and upserts corp_archived_job_stats only.
+	ProcessCorpArchivedJobSnapshots = Task{
+		Name:            "processCorpArchivedJobSnapshots",
+		Subject:         "task.scheduled.processCorpArchivedJobSnapshots",
+		DefaultPriority: Priority4,
+		DefaultTimeout:  15 * time.Minute,
+	}
+	// ProcessDirtyAccountBuildStats rebuilds build_stats / user_build_stats (cron publishes one task per queued account).
+	ProcessDirtyAccountBuildStats = Task{
+		Name:            "processDirtyAccountBuildStats",
+		Subject:         "task.scheduled.processDirtyAccountBuildStats",
+		DefaultPriority: Priority4,
+		DefaultTimeout:  15 * time.Minute,
+	}
+	// ProcessDirtyCorpBuildStats rebuilds corp_build_stats for dirty refs (cron publishes one task per queued corp ref).
+	ProcessDirtyCorpBuildStats = Task{
+		Name:            "processDirtyCorpBuildStats",
+		Subject:         "task.scheduled.processDirtyCorpBuildStats",
+		DefaultPriority: Priority4,
+		DefaultTimeout:  20 * time.Minute,
 	}
 	RefreshSystemIndexes = Task{
 		Name:            "refreshSystemIndexes",
@@ -164,7 +185,10 @@ var ByName = map[string]Task{
 	ImportUserJobDocumentsForAccount.Name:  ImportUserJobDocumentsForAccount,
 	EncryptCloudRefreshTokensBatch.Name:    EncryptCloudRefreshTokensBatch,
 	MigrateUserCloudAccountsToUserDoc.Name: MigrateUserCloudAccountsToUserDoc,
-	ProcessArchivedBuildStats.Name:         ProcessArchivedBuildStats,
+	ProcessArchivedJobSnapshots.Name:       ProcessArchivedJobSnapshots,
+	ProcessCorpArchivedJobSnapshots.Name:    ProcessCorpArchivedJobSnapshots,
+	ProcessDirtyAccountBuildStats.Name:     ProcessDirtyAccountBuildStats,
+	ProcessDirtyCorpBuildStats.Name:        ProcessDirtyCorpBuildStats,
 	RefreshSystemIndexes.Name:              RefreshSystemIndexes,
 	RefreshAdjustedPrices.Name:             RefreshAdjustedPrices,
 	RefreshMarketPrices.Name:               RefreshMarketPrices,

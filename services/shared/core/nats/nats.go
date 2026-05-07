@@ -139,6 +139,9 @@ func PublishTask(ctx context.Context, js jetstream.JetStream, subject string, ta
 			return err
 		}
 	}
+	if len(payloadJSON) == 0 {
+		payloadJSON = json.RawMessage("{}")
+	}
 	taskDataAttrs := taskDataAttrsFromJSON(taskType, payloadJSON)
 	ctx, span := startPublishTaskSpan(ctx, subject, taskType, taskDataAttrs)
 	defer func() {
@@ -153,12 +156,10 @@ func PublishTask(ctx context.Context, js jetstream.JetStream, subject string, ta
 
 	taskMsg := TaskMessage{
 		TaskType: taskType,
+		Data:     payloadJSON,
 	}
 	if priority != "" {
 		taskMsg.Priority = priority
-	}
-	if len(payloadJSON) > 0 {
-		taskMsg.Data = payloadJSON
 	}
 	var taskMsgData []byte
 	taskMsgData, err = json.Marshal(taskMsg)

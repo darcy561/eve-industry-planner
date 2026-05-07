@@ -25,9 +25,15 @@
  * console.log(esiOrder.order_id); // 123
  */
 export default function createESIMarketOrder(order) {
+  const isCorporation = Boolean(order.is_corporation);
+  const corporationID = Number(order.corporation_id) || undefined;
+  const characterID =
+    Number(order.character_id || order.characterID || order.issuer_id) ||
+    undefined;
+
   return {
     duration: order.duration,
-    is_corporation: order.is_corporation,
+    is_corporation: isCorporation,
     issued: order.issued,
     location_id: order.location_id,
     order_id: order.order_id,
@@ -39,6 +45,8 @@ export default function createESIMarketOrder(order) {
     volume_total: order.volume_total,
     timeStamps: [order.issued],
     CharacterHash: order.CharacterHash,
+    corporation_id: isCorporation ? corporationID : undefined,
+    character_id: isCorporation ? characterID : undefined,
     complete: order.complete || false,
     state: order.state || "active",
   };

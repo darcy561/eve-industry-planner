@@ -17,7 +17,7 @@ const docSubscribeMongoTimeout = 3 * time.Second
 // Token-only proof (JWT account_id must equal the document key suffix):
 //   - users, application_settings, user_watchlist_deprecated — singleton per account; _id matches JWT account_id (same invariant as login).
 // Mongo ownership (_id + _meta.accountID == JWT account_id):
-//   - jobs, user_job_documents, archivedJobs, groups, build_stats
+//   - jobs, user_job_documents, archivedJobs, groups, build_stats, user_build_stats
 //
 // All other collection names are denied (fail closed). Public/static collections (e.g. blueprints) must not
 // be subscribed via this realtime channel.
@@ -35,7 +35,7 @@ func (s *Server) docSubscribeAuthorized(ctx context.Context, docID, jwtAccountID
 	case mongocore.CollectionUsers, mongocore.CollectionApplicationSettings, mongocore.CollectionUserWatchlistDeprecated:
 		return id == jwtAccountID
 
-	case mongocore.CollectionJobs, mongocore.CollectionUserJobDocuments, mongocore.CollectionArchivedJobs, mongocore.CollectionUserJobGroups, mongocore.CollectionBuildStats:
+	case mongocore.CollectionJobs, mongocore.CollectionUserJobDocuments, mongocore.CollectionArchivedJobs, mongocore.CollectionUserJobGroups, mongocore.CollectionBuildStats, mongocore.CollectionUserBuildStats:
 		if s.ServiceClients == nil || s.ServiceClients.Mongo == nil {
 			logs.WarnCtx(context.Background(), "subscribe auth denied: mongo client unavailable",
 				"collection", collection, "doc_id", id)

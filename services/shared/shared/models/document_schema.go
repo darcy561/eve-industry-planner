@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // Document schema versions for Mongo singletons (users, application_settings).
 // When you add fields or change shape: bump *SchemaCurrent and add a new "vN -> vN+1"
@@ -9,9 +12,13 @@ import "time"
 const (
 	UserAccountDocumentSchemaCurrent = 1
 	ApplicationSettingsSchemaCurrent = 1
-	JobSchemaCurrent                 = 1
+	JobSchemaCurrent                 = 2
 	GroupSchemaCurrent               = 1
 )
+
+type JobIdentitySealer interface {
+	SealJobIdentity(doc *Job) error
+}
 
 // UpgradeUserAccountDocument normalizes legacy rows in memory. Idempotent.
 func UpgradeUserAccountDocument(doc *UserAccountDocument) {
@@ -53,16 +60,26 @@ func UpgradeApplicationSettings(doc *ApplicationSettings, accountID string, now 
 }
 
 // UpgradeJob normalizes legacy job documents in memory. Idempotent.
-func UpgradeJob(doc *Job) {
+func UpgradeJob(doc *Job, sealer JobIdentitySealer) error {
 	if doc == nil {
-		return
+		return nil
 	}
 	if doc.SchemaVersion <= 0 {
-		doc.SchemaVersion = JobSchemaCurrent
+		doc.SchemaVersion = 1
+	}
+	if doc.SchemaVersion < 2 {
+		if sealer == nil {
+			return fmt.Errorf("job identity sealer is required for schema v2 upgrade")
+		}
+		if err := sealer.SealJobIdentity(doc); err != nil {
+			return err
+		}
+		doc.SchemaVersion = 2
 	}
 	if doc.SchemaVersion > JobSchemaCurrent {
 		doc.SchemaVersion = JobSchemaCurrent
 	}
+	return nil
 }
 
 // UpgradeGroup normalizes legacy user_job_groups documents in memory. Idempotent.

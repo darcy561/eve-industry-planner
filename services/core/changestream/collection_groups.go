@@ -46,6 +46,7 @@ func CollectionGroups() []CollectionGroup {
 		Group("archive_and_stats",
 			mongocore.CollectionArchivedJobs,
 			mongocore.CollectionBuildStats,
+			mongocore.CollectionUserBuildStats,
 		),
 		Group("blueprints",
 			mongocore.CollectionBlueprints,

@@ -37,7 +37,11 @@ export default function findOrderTransactins(
           descriptionTrim[0],
           journalEntry,
           transactionTax,
-          order.CharacterHash
+          order.CharacterHash,
+          {
+            corporation_id: order.corporation_id,
+            character_id: order.character_id || order.characterID || order.issuer_id,
+          }
         )
       );
       matchedTransactionIDs.add(itemTrans.transaction_id);

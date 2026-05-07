@@ -60,6 +60,33 @@ func taskDataAttrsFromJSON(taskType string, raw []byte) []attribute.KeyValue {
 			return nil
 		}
 		return []attribute.KeyValue{attribute.String("task.data.account_id", req.AccountID)}
+	case "processCorpArchivedJobSnapshots":
+		var req ProcessCorpArchivedJobSnapshotsRequest
+		if err := json.Unmarshal(raw, &req); err != nil {
+			return nil
+		}
+		if req.CorpRef == "" {
+			return nil
+		}
+		return []attribute.KeyValue{attribute.String("task.data.corp_ref", req.CorpRef)}
+	case "processDirtyAccountBuildStats":
+		var req ProcessDirtyAccountBuildStatsRequest
+		if err := json.Unmarshal(raw, &req); err != nil {
+			return nil
+		}
+		if req.AccountID == "" {
+			return nil
+		}
+		return []attribute.KeyValue{attribute.String("task.data.account_id", req.AccountID)}
+	case "processDirtyCorpBuildStats":
+		var req ProcessDirtyCorpBuildStatsRequest
+		if err := json.Unmarshal(raw, &req); err != nil {
+			return nil
+		}
+		if req.CorpRef == "" {
+			return nil
+		}
+		return []attribute.KeyValue{attribute.String("task.data.corp_ref", req.CorpRef)}
 	default:
 		return nil
 	}

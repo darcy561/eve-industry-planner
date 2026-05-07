@@ -7,10 +7,15 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
+	"eve-industry-planner/shared/core/config"
+	corecrypto "eve-industry-planner/shared/core/crypto"
+	"eve-industry-planner/shared/core/sealedfields"
+	"eve-industry-planner/shared/core/sealedfields/entityids"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	mongoget "eve-industry-planner/shared/core/mongo/get"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -104,6 +109,15 @@ func GetJobDocumentByIDHandler(w http.ResponseWriter, r *http.Request, clients *
 		logs.ErrorCtx(ctx, "failed to query job document", "error", err, "account_id", accountID)
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to retrieve job", err)
 		return
+	}
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		metrics.Error("identity_stitch_config_error")
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to prepare job response", err)
+		return
+	}
+	if err := stitchSingleJobIdentity(ctx, cfg.RefreshTokenKeyring, &doc); err != nil {
+		logs.WarnCtx(ctx, "job identity stitch failed", "job_id", doc.JobID, "error", err)
 	}
 
 	if err := helper.EncodeJSON(w, doc); err != nil {
@@ -200,6 +214,11 @@ func findJobs(
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to retrieve jobs", err)
 		return
 	}
+	if err := stitchJobsIdentity(ctx, jobs); err != nil {
+		metrics.Error("identity_stitch_config_error")
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to prepare jobs response", err)
+		return
+	}
 
 	if err := helper.EncodeJSON(w, jobs); err != nil {
 		metrics.Error("encode_error")
@@ -214,4 +233,41 @@ func findJobs(
 		"kind", label,
 		"job_count", len(jobs),
 		"duration_ms", time.Since(start).Milliseconds())
+}
+
+func stitchJobsIdentity(ctx context.Context, jobs []models.Job) error {
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return err
+	}
+	for i := range jobs {
+		if err := stitchSingleJobIdentity(ctx, cfg.RefreshTokenKeyring, &jobs[i]); err != nil {
+			logs.WarnCtx(ctx, "job identity stitch failed", "job_id", jobs[i].JobID, "error", err)
+		}
+	}
+	return nil
+}
+
+func stitchSingleJobIdentity(ctx context.Context, keyring *corecrypto.Keyring, job *models.Job) error {
+	if job == nil {
+		return nil
+	}
+	defer func() {
+		// Never expose sealed payload to API clients.
+		job.Sealed = nil
+	}()
+	if job.Sealed == nil {
+		return nil
+	}
+	if keyring == nil {
+		return fmt.Errorf("identity keyring is nil")
+	}
+	plaintext, err := sealedfields.Open(keyring, job.Sealed)
+	if err != nil {
+		return err
+	}
+	if err := entityids.Apply(plaintext, job); err != nil {
+		return err
+	}
+	return nil
 }

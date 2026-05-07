@@ -18,6 +18,7 @@ import (
 // Older deployments may still have index "accountID_1__id_1_unprocessed_archived_jobs"; drop it manually after
 // documents use _meta.accountID (this code only ensures the new index exists).
 const archivedJobsUnprocessedIdxName = "meta_accountID_1__id_1_unprocessed_archived_jobs"
+const archivedJobsByAccountArchivedAtIdxName = "meta_accountID_1_meta_archivedAt_-1__id_-1"
 
 // EnsureArchivedJobsIndexes creates indexes used by the archived-jobs → build_stats pipeline.
 // Safe to call on every startup (idempotent).
@@ -34,6 +35,17 @@ func EnsureArchivedJobsIndexes(ctx context.Context, client *mongo.Client) error 
 	})
 	if err != nil && !isMongoIndexAlreadyCompatible(err) {
 		return fmt.Errorf("create archivedJobs partial index: %w", err)
+	}
+	_, err = coll.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "_meta.accountID", Value: 1},
+			{Key: "_meta.archivedAt", Value: -1},
+			{Key: "_id", Value: -1},
+		},
+		Options: options.Index().SetName(archivedJobsByAccountArchivedAtIdxName),
+	})
+	if err != nil && !isMongoIndexAlreadyCompatible(err) {
+		return fmt.Errorf("create archivedJobs listing index: %w", err)
 	}
 	return nil
 }

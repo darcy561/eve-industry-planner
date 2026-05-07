@@ -1,8 +1,7 @@
-import { Grid } from "@mui/material";
+import { Grid, Stack } from "@mui/material";
 import { RawResourceList } from "./Resources Panel/ResourcePanel";
 import { ProductionStats } from "./Production Stats Panel/productionStats";
 import { TutorialStep1 } from "../tutorialStep1";
-import { Masonry } from "@mui/lab";
 import { JobSetupPanel } from "./Setup Panel/jobSetups";
 import { EditJobSetup } from "./Edit Setup Panel/editJobSetup";
 import { AvailableBlueprintsPanel } from "./Blueprint Options/blueprintPanel";
@@ -20,21 +19,21 @@ export function Planning_StandardLayout_EditJob(props) {
         <TutorialTemplate TutorialContent={<TutorialStep1 state={state} />} />
       </Grid>
       <Grid size={3}>
-        <Masonry columns={1} spacing={2}>
+        <Stack spacing={2}>
           <ProductionStats {...props} />
           <EditJobSetup {...props} />
           <AvailableBlueprintsPanel {...props} />
           <SkillsPanel {...props} />
-        </Masonry>
+        </Stack>
       </Grid>
       <Grid size={9}>
-        <Masonry columns={1} spacing={2}>
+        <Stack spacing={2}>
           <JobSetupPanel {...props} />
           <RawResourceList {...props} />
           <MaterialCostPanel {...props} />
           <ExtrasPanel {...props} />
           <ArchiveJobsPanel {...props} />
-        </Masonry>
+        </Stack>
       </Grid>
     </Grid>
   );

@@ -30,21 +30,41 @@ func runImportArchivedJobsFromFirestoreScan(ctx context.Context, args []string) 
 	}
 	unprocessedOnly := fs.Bool("unprocessed-only", false, "only documents where archiveProcessed==false (may require a Firestore index); ignored if -reprocess is set")
 	reprocess := fs.Bool("reprocess", false, "enqueue all ArchivedJobs docs including archiveProcessed==true (full re-import); overrides -unprocessed-only")
-	credentialsPath := fs.String("credentials", "", "optional service account JSON path for this run only (sets GOOGLE_APPLICATION_CREDENTIALS); default in compose is /app/adminSDK.json")
+	credentialsPath := fs.String("credentials", "", "optional service account JSON path for this run only (sets GOOGLE_APPLICATION_CREDENTIALS); mutually exclusive with -live and -dev")
 	firebaseProjectID := fs.String("firebase-project-id", "", "optional FIREBASE_PROJECT_ID override; if -credentials is set and this is omitted, project_id is read from that JSON")
+	useLive := fs.Bool("live", false, "use live Firebase service account (compose: /app/adminSDKLive.json); mutually exclusive with -dev and -credentials")
+	useDev := fs.Bool("dev", false, "use dev Firebase service account (compose: /app/adminSDK.json); mutually exclusive with -live and -credentials")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if *credentialsPath != "" {
-		if err := os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", *credentialsPath); err != nil {
+	if *useLive && *useDev {
+		return fmt.Errorf("-live and -dev are mutually exclusive")
+	}
+	credPath := strings.TrimSpace(*credentialsPath)
+	if credPath != "" && (*useLive || *useDev) {
+		return fmt.Errorf("-credentials cannot be used with -live or -dev")
+	}
+	switch {
+	case *useLive:
+		credPath = "/app/adminSDKLive.json"
+	case *useDev:
+		credPath = "/app/adminSDK.json"
+	}
+	if credPath != "" {
+		if err := os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", credPath); err != nil {
 			return fmt.Errorf("credentials: %w", err)
+		}
+		if *useLive {
+			logs.InfoCtx(ctx, "archived job scan: using live Firebase credentials", "path", credPath)
+		} else if *useDev {
+			logs.InfoCtx(ctx, "archived job scan: using dev Firebase credentials", "path", credPath)
 		}
 	}
 
 	projectID := strings.TrimSpace(*firebaseProjectID)
-	if projectID == "" && *credentialsPath != "" {
+	if projectID == "" && credPath != "" {
 		var err error
-		projectID, err = projectIDFromServiceAccountJSON(*credentialsPath)
+		projectID, err = projectIDFromServiceAccountJSON(credPath)
 		if err != nil {
 			return fmt.Errorf("firebase project: %w", err)
 		}

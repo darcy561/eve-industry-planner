@@ -34,8 +34,12 @@ func UnmarshalTaskPayload[T any](task *asynq.Task) (T, error) {
 		return result, nil
 	}
 
-	// Parse TaskMessage.Data as the target type
-	if err := json.Unmarshal(taskMsg.Data, &result); err != nil {
+	// Parse TaskMessage.Data as the target type (omit empty/missing → "{}")
+	inner := taskMsg.Data
+	if len(inner) == 0 {
+		inner = json.RawMessage("{}")
+	}
+	if err := json.Unmarshal(inner, &result); err != nil {
 		return result, fmt.Errorf("failed to unmarshal task message payload: %w", err)
 	}
 

@@ -17,18 +17,18 @@ function buildStatsURL(typeID) {
 
 /**
  * Fetches aggregated build statistics for one item type from Mongo (`build_stats`).
- * Response shape matches legacy Firestore `Users/{uid}/BuildStats/{typeID}` (totals + `dataSnapshots`).
+ * Response shape is totals-only (no `dataSnapshots`).
  *
  * GET `/api/v1/statistics/build-stats?typeID=…` (private JWT). Retries **408 / 429 / 5xx** only
  * (via `requestWithPrivateHeaders`); **401**, **403**, etc. are not retried. Missing Mongo rows return **200**
  * with a zeroed aggregate (not 404).
  *
  * @param {string|number} typeID - EVE item type ID
- * @returns {Promise<Object|null>} Stats object (`jobType`, `typeID`, running totals, `dataSnapshots`) or `null` if unauthenticated or request failed
+ * @returns {Promise<Object|null>} Stats object (`jobType`, `typeID`, running totals) or `null` if unauthenticated or request failed
  *
  * @example
  * const stats = await getBuildStatsByTypeID(activeJob.itemID);
- * if (stats?.dataSnapshots?.length) { ... }
+ * if ((stats?.totalJobs ?? 0) > 0) { ... }
  */
 async function getBuildStatsByTypeID(typeID) {
   if (typeID == null || typeID === "") {

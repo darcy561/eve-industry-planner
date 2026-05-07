@@ -35,8 +35,45 @@ var (
 	// Ownership is keyed by Job.MetaData.AccountID (BSON _meta.accountID), not top-level accountID.
 	CollectionArchivedJobs = "archivedJobs"
 
-	// CollectionBuildStats holds per-account, per-type aggregated stats from processed archived jobs (was Firestore BuildStats).
+	// CollectionCorpArchivedJobs holds corporation-owned archived jobs (same models.Job shape; scoped by _meta.corpRef / _meta.corporationID).
+	CollectionCorpArchivedJobs = "corp_archivedJobs"
+
+	// CollectionBuildStats holds per-account aggregates for archived jobs that contribute to corp-linked stats.
 	CollectionBuildStats = "build_stats"
+
+	// CollectionCorpArchivedJobStats holds snapshots for archived jobs that contribute to corp-level stats
+	// (pairs with corp_build_stats; former collection name: archived_job_stats).
+	CollectionCorpArchivedJobStats = "corp_archived_job_stats"
+
+	// CollectionUserArchivedJobStats holds snapshots for personal-only archived jobs (parallel to corp_* split).
+	CollectionUserArchivedJobStats = "user_archived_job_stats"
+
+	// CollectionUserBuildStats holds per-account aggregates from personal-only snapshots (parallel naming to corp_build_stats).
+	CollectionUserBuildStats = "user_build_stats"
+
+	// CollectionBuildStatsBuckets holds per-account monthly timeline buckets.
+	CollectionBuildStatsBuckets = "build_stats_buckets"
+
+	// CollectionUserBuildStatsBuckets mirrors CollectionBuildStatsBuckets for personal-only aggregates when populated.
+	CollectionUserBuildStatsBuckets = "user_build_stats_buckets"
+
+	// CollectionCorpRollupBuckets holds pre-aggregated monthly rows for corp-scoped rollup API (see models.CorpRollupMonthlyBucket).
+	CollectionCorpRollupBuckets = "corp_rollup_buckets"
+
+	// CollectionCorpBuildStats holds per-corporation lifetime aggregate rows.
+	CollectionCorpBuildStats = "corp_build_stats"
+
+	// CollectionCorpBuildStatsBuckets holds per-corporation monthly timeline buckets.
+	CollectionCorpBuildStatsBuckets = "corp_build_stats_buckets"
+
+	// CollectionCorpBuildStatsDirtyRefs tracks corp refs needing aggregate rebuild (mirror: user_build_stats_dirty_accounts).
+	CollectionCorpBuildStatsDirtyRefs = "corp_build_stats_dirty_refs"
+
+	// CollectionUserBuildStatsDirtyAccounts tracks user account IDs needing build_stats / user_build_stats rebuild from snapshots.
+	CollectionUserBuildStatsDirtyAccounts = "user_build_stats_dirty_accounts"
+
+	// CollectionCorpBuildStatsAccountRefs legacy index/cleanup only; worker no longer writes account→corp rows.
+	CollectionCorpBuildStatsAccountRefs = "corp_build_stats_account_refs"
 
 	// CollectionUserJobGroups is the per-account job groups collection (planner UI).
 	CollectionUserJobGroups = "user_job_groups"
@@ -63,6 +100,16 @@ var (
 // ArchivedJobsUpsertUnset clears legacy top-level keys on archivedJobs upserts. Lifecycle and
 // archiveProcessed belong under _meta only; $set with models.Job does not include these roots,
 // so stale values from Firestore-era documents would otherwise remain.
+// CorpArchivedJobsUpsertUnset clears legacy roots on corp_archivedJobs upserts (mirror ArchivedJobsUpsertUnset).
+var CorpArchivedJobsUpsertUnset = bson.M{
+	"accountID":        "",
+	"archiveProcessed": "",
+	"archived":         "",
+	"archiveTimeStamp": "",
+	"deleted":          "",
+	"deletedTimeStamp": "",
+}
+
 var ArchivedJobsUpsertUnset = bson.M{
 	"accountID":        "",
 	"archiveProcessed": "",

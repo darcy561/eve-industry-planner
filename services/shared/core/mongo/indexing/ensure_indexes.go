@@ -17,6 +17,9 @@ func EnsureIndexes(ctx context.Context, client *mongo.Client) error {
 	if err := EnsureArchivedJobsIndexes(ctx, client); err != nil {
 		return err
 	}
+	if err := EnsureArchivedJobStatsIndexes(ctx, client); err != nil {
+		return err
+	}
 	if err := EnsureUserAccountDocumentsIndexes(ctx, client); err != nil {
 		return err
 	}
@@ -30,6 +33,9 @@ func EnsureIndexes(ctx context.Context, client *mongo.Client) error {
 		return err
 	}
 	if err := EnsureCitadelNamesIndexes(ctx, client); err != nil {
+		return err
+	}
+	if err := EnsureRollupBucketIndexes(ctx, client); err != nil {
 		return err
 	}
 	return nil

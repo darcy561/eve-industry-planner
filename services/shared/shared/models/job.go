@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"time"
 
+	"eve-industry-planner/shared/core/sealedfields"
+
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -34,6 +36,7 @@ type Job struct {
 	Skills              []Skill     `json:"skills" bson:"skills"`
 	ItemsProducedPerRun int         `json:"itemsProducedPerRun" bson:"itemsProducedPerRun"`
 	Layout              JobLayout   `json:"layout" bson:"layout"`
+	Sealed              *sealedfields.SealedFields `json:"-" bson:"sealed,omitempty"`
 	MetaData            JobMetaData `json:"_meta" bson:"_meta"`
 }
 
@@ -125,6 +128,7 @@ type LinkedESIJob struct {
 	BlueprintID     int     `json:"blueprint_id" bson:"blueprint_id"`                         // Blueprint ID
 	IsCorporation   bool    `json:"is_corporation" bson:"is_corporation"`                     // Whether it's a corporation job
 	CorporationID   int     `json:"corporation_id,omitempty" bson:"corporation_id,omitempty"` // zero = none; legacy null/string normalized in archiveimport
+	CharacterID     int     `json:"character_id,omitempty" bson:"-"`
 	JobType         int     `json:"job_type" bson:"job_type"`                                 // Job type
 }
 
@@ -161,6 +165,8 @@ type MarketOrder struct {
 	VolumeTotal   int      `json:"volume_total" bson:"volume_total"`                       // Total volume
 	TimeStamps    []string `json:"timeStamps" bson:"timeStamps"`                           // Array of timestamp history
 	CharacterHash string   `json:"CharacterHash,omitempty" bson:"CharacterHash,omitempty"` // Character hash for identification
+	CorporationID int      `json:"corporation_id,omitempty" bson:"-"`
+	CharacterID   int      `json:"character_id,omitempty" bson:"-"`
 	Complete      bool     `json:"complete" bson:"complete"`                               // Whether order is complete
 	State         string   `json:"state" bson:"state"`                                     // Order state (active, etc.)
 }
@@ -181,6 +187,8 @@ type Transaction struct {
 	TypeID        int     `json:"type_id" bson:"type_id"`                                 // Item type ID
 	Description   string  `json:"description" bson:"description"`                         // Transaction description
 	CharacterHash string  `json:"CharacterHash,omitempty" bson:"CharacterHash,omitempty"` // Character hash for identification
+	CorporationID int     `json:"corporation_id,omitempty" bson:"-"`
+	CharacterID   int     `json:"character_id,omitempty" bson:"-"`
 }
 
 // BrokerFee represents broker fees for market orders
@@ -192,6 +200,8 @@ type BrokerFee struct {
 	Date          string  `json:"date" bson:"date"`                                       // Fee date
 	Amount        float64 `json:"amount" bson:"amount"`                                   // Fee amount
 	CharacterHash string  `json:"CharacterHash,omitempty" bson:"CharacterHash,omitempty"` // Character hash for identification
+	CorporationID int     `json:"corporation_id,omitempty" bson:"-"`
+	CharacterID   int     `json:"character_id,omitempty" bson:"-"`
 }
 
 // JobMaterial represents a material required for the job
@@ -318,7 +328,13 @@ type JobMetaData struct {
 	LastUpdatedBy    string    `json:"lastUpdatedBy" bson:"lastUpdatedBy"`
 	ArchivedAt       time.Time `json:"archivedAt,omitzero" bson:"archivedAt,omitzero"`
 	ArchivedBy       string    `json:"archivedBy,omitempty" bson:"archivedBy,omitempty"`
-	ArchiveProcessed bool      `json:"archiveProcessed,omitempty" bson:"archiveProcessed,omitempty"`
-	DeletedAt        time.Time `json:"deletedAt,omitzero" bson:"deletedAt,omitzero"`
+	ArchiveProcessed bool `json:"archiveProcessed,omitempty" bson:"archiveProcessed,omitempty"`
+	// RetainedStockBuild — when true, archived stats treat this job as retained / full-stock output (explicit segment).
+	RetainedStockBuild bool `json:"retainedStockBuild,omitempty" bson:"retainedStockBuild,omitempty"`
+	DeletedAt          time.Time `json:"deletedAt,omitzero" bson:"deletedAt,omitzero"`
 	DeletedBy        string    `json:"deletedBy,omitempty" bson:"deletedBy,omitempty"`
+	// CorporationID is the numeric EVE corp when this job is archived under corp_archivedJobs (no user account owner).
+	CorporationID int `json:"corporationID,omitempty" bson:"corporationID,omitempty"`
+	// CorpRef is the HMAC opaque ref for CorporationID (same family as corp_build_stats); used as ownership key for corp archived jobs.
+	CorpRef string `json:"corpRef,omitempty" bson:"corpRef,omitempty"`
 }
