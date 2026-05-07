@@ -51,7 +51,7 @@ export function getAppJwtRemoteJWKSet() {
  * Verifies the app JWT signature and standard time claims using keys from {@link APP_JWT_JWKS_PATH}.
  * Call after login/refresh before storing `access_token` in client state.
  *
- * @param {string} accessToken - raw JWT from `/api/v1/auth/login` or `/api/v1/auth/refresh`
+ * @param {string} accessToken - raw JWT from `/api/v1/auth/sessions` or `/api/v1/auth/sessions/refresh`
  * @returns {Promise<import("jose").JWTPayload>}
  */
 export async function verifyAppAccessTokenWithJwks(accessToken) {

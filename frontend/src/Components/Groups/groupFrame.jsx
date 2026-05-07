@@ -68,15 +68,6 @@ function GroupPageFrame() {
 
   const pageRequiresRightDrawerOpen = true;
 
-  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
-  const templateActions = useMemo(
-    () => ({
-      openSaveTemplate: () => setSaveTemplateOpen(true),
-      contextGroupId: groupID,
-    }),
-    [groupID]
-  );
-
   const groupJobs = useMemo(() => {
     if (!activeGroupObject) return [];
     const groupJobs = [...jobArray]
@@ -177,8 +168,7 @@ function GroupPageFrame() {
     actions,
     groupJobs,
     pageRequiresRightDrawerOpen,
-    groupReadOnly,
-    templateActions
+    groupReadOnly
   );
 
   const isGroupReady = activeGroupID === groupID;
@@ -326,12 +316,7 @@ function GroupPageFrame() {
       <PriceHistoryDialog />
       <MarketDataDialog />
       <ApplyGroupTemplateDialog />
-      <SaveGroupTemplateDialog
-        open={saveTemplateOpen}
-        onClose={() => setSaveTemplateOpen(false)}
-        groupID={groupID}
-        groupJobs={groupJobs}
-      />
+      <SaveGroupTemplateDialog />
     </DefaultPageLayout>
   );
 }

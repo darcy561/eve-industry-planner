@@ -1,5 +1,15 @@
 import { redirect } from '@tanstack/react-router'
 import useUsersStore from '../Zustand/usersStore'
+import { refreshServerJWTForLogin } from '../Functions/Auth/serverTokens'
+
+async function hasCookieCloudSession() {
+  try {
+    await refreshServerJWTForLogin(null, '')
+    return true
+  } catch {
+    return false
+  }
+}
 
 /**
  * Authentication guard function for TanStack Router routes.
@@ -42,14 +52,15 @@ export function requireAuth({ location }) {
  *   component: PublicComponent,
  * })
  */
-export function allowPublicAccess({ location }) {
+export async function allowPublicAccess({ location }) {
   const isLoggedIn = useUsersStore.getState().account.isLoggedIn
   
   if (!isLoggedIn) {
     const existingAuth = localStorage.getItem("Auth");
-    if (existingAuth) {
+    if (existingAuth || (await hasCookieCloudSession())) {
       // If there's an auth token but user isn't logged in, 
-      // redirect to auth to refresh the session and return to this page
+      // or a valid HttpOnly cloud cookie session exists, redirect to auth
+      // to rebuild client state and then return to this page.
       throw redirect({
         to: '/auth',
         search: {

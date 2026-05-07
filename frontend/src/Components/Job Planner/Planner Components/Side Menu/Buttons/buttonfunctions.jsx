@@ -10,7 +10,7 @@ import DeselectIcon from "@mui/icons-material/Deselect";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import CreateNewFolderIcon from "@mui/icons-material/CreateNewFolder";
 import PostAddIcon from "@mui/icons-material/PostAdd";
-import LibraryBooksOutlinedIcon from "@mui/icons-material/LibraryBooksOutlined";
+import LibraryBooksIcon from "@mui/icons-material/LibraryBooks";
 import deleteJobsFromPlanner from "../../../../../Functions/JobPlanner/deleteMultipleJobs";
 import mergeJobs from "../../../../../Functions/JobPlanner/mergeJobs";
 import massBuildMaterials from "../../../../../Functions/JobPlanner/massBuildMaterials";
@@ -66,7 +66,7 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
         icon: <CreateNewFolderIcon />,
         divider: false,
         tooltip:
-          "Creates a new job group from the job selection you have or an empty group.",
+          "Creates a new job group from the current job selection or an empty group.",
         onClick: async () => {
           navigate({
             to: '/group/new',
@@ -77,11 +77,11 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
       ...(isLoggedIn
         ? [
             {
-              displayText: "New Group from Template",
-              icon: <LibraryBooksOutlinedIcon />,
+              displayText: "Group Templates",
+              icon: <LibraryBooksIcon />,
               divider: true,
               tooltip:
-                "Create a new group from a saved group template.",
+                "Creates a new group from a saved group template.",
               onClick: () => openGroupTemplatesApplyDialog({}),
             },
           ]

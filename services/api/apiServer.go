@@ -106,14 +106,35 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 				v1endpoints.AuthHandler(w, r, clients)
 			},
 		},
+		// Backward-compat alias for older clients still calling the pre-sessions auth route.
+		{
+			Path: "/api/v1/auth",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				v1endpoints.AuthHandler(w, r, clients)
+			},
+		},
 		{
 			Path: "/api/v1/auth/sessions/refresh",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.RefreshHandler(w, r, clients)
 			},
 		},
+		// Backward-compat alias for older clients still calling the pre-sessions refresh route.
+		{
+			Path: "/api/v1/auth/refresh",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				v1endpoints.RefreshHandler(w, r, clients)
+			},
+		},
 		{
 			Path: "/api/v1/auth/sessions/login-refresh",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				v1endpoints.LoginRefreshHandler(w, r, clients)
+			},
+		},
+		// Backward-compat alias for older clients still calling the pre-sessions login-refresh route.
+		{
+			Path: "/api/v1/auth/login-refresh",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				v1endpoints.LoginRefreshHandler(w, r, clients)
 			},

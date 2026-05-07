@@ -5,7 +5,7 @@ const CLAIMS_URL = "/api/v1/corporation-claims";
 /**
  * Requests corporation claims update for the provided EVE SSO tokens.
  *
- * POST `/api/v1/auth/claims/corporations`. Submits tokens; server validates SSO JWTs and queues a worker task.
+ * POST `/api/v1/corporation-claims`. Submits tokens; server validates SSO JWTs and queues a worker task.
  * Uses the same private-route stack as other authenticated APIs (rate limit → auth → handler).
  *
  * Retries (via `requestWithPrivateHeaders`): **408 / 429 / 5xx** only — not **400**, **401**, **405**.

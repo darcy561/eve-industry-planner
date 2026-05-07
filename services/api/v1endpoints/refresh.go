@@ -110,9 +110,15 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	// to exist and does not re-check session:<id> here.
 	tokenData, err := auth.GetRefreshTokenData(ctx, clients.Redis, refreshToken)
 	if err != nil {
-		m.Errors.WithLabelValues("refresh_token_not_found").Inc(ctx)
-		logs.WarnCtx(ctx, "invalid or expired refresh token", "error", err)
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		if errors.Is(err, auth.ErrRefreshTokenNotFound) {
+			m.Errors.WithLabelValues("refresh_token_not_found").Inc(ctx)
+			logs.WarnCtx(ctx, "invalid or expired refresh token")
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			return
+		}
+		m.Errors.WithLabelValues("redis_error").Inc(ctx)
+		logs.ErrorCtx(ctx, "failed to load refresh token data", "error", err)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -138,7 +144,10 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 				m.Errors.WithLabelValues("validation_error").Inc(ctx)
 				http.Error(w, "eve_token is required for non-cloud sessions", http.StatusBadRequest)
 			case errors.Is(err, userendpoints.ErrMongoStoredEsiNoRow), errors.Is(err, userendpoints.ErrMongoStoredEsiUserNotFound):
-				m.Errors.WithLabelValues("refresh_token_not_found").Inc(ctx)
+				m.Errors.WithLabelValues("cloud_esi_not_found").Inc(ctx)
+				logs.WarnCtx(ctx, "cloud ESI material not found for refresh session",
+					"account_id", tokenData.AccountID,
+					"character_hash", tokenData.CharacterHash)
 				http.Error(w, "Invalid token", http.StatusUnauthorized)
 			case errors.Is(err, userendpoints.ErrMongoStoredEsiKeyring), errors.Is(err, userendpoints.ErrMongoStoredEsiDecrypt), errors.Is(err, userendpoints.ErrMongoStoredEsiPersist):
 				m.Errors.WithLabelValues("config_error").Inc(ctx)

@@ -32,6 +32,17 @@ export async function hydrateLinkedCharactersFromAccessSessions(
       });
       await ch.getPublicCharacterData();
       await buildCorporationObjectFromUserObject(ch);
+      // Keep login progress UI behavior consistent with refresh-token hydration:
+      // surface each linked character as it finishes loading.
+      emitUserDataUpdate({
+        eveLoginComplete: true,
+        userArray: [
+          {
+            CharacterID: ch.CharacterID,
+            CharacterName: ch.CharacterName,
+          },
+        ],
+      });
       out.push(ch);
     } catch (e) {
       console.error(e);
