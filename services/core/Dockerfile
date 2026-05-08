@@ -16,7 +16,7 @@ COPY . .
 
 ARG SENTRY_DSN=""
 ARG ENVIRONMENT=production
-ARG APP_VERSION=development
+ARG APP_VERSION
 # Optional: omit or set at build time; runtime SENTRY_TRACES_SAMPLE_RATE in .env overrides when non-empty.
 ARG SENTRY_TRACES_SAMPLE_RATE=
 
@@ -64,8 +64,8 @@ RUN mkdir -p /data && \
 LABEL org.opencontainers.image.source=${IMAGE_SOURCE}
 
 # Same app-config env as API (metrics + parity with GET /api/v1/app-config); override at runtime via .env if needed.
-ARG APP_VERSION=development
-ARG FRONTEND_APP_VERSION=development
+ARG APP_VERSION
+ARG FRONTEND_APP_VERSION
 ARG APP_FEATURE_FLAGS_JSON="{}"
 ENV APP_VERSION_NUMBER=${APP_VERSION}
 ENV FRONTEND_APP_VERSION=${FRONTEND_APP_VERSION}
