@@ -11,10 +11,11 @@ import {
 import {
   useMutation,
   useQueryClient,
-  useSuspenseQuery,
+  useQuery,
 } from "@tanstack/react-query";
 import ContentDialog, {
   useDialogCloseReset,
+  useDialogEventState,
 } from "../../../Styled Components/Dialog/ContentDialog";
 import {
   deleteGroupTemplate,
@@ -26,6 +27,7 @@ import {
   showSnackbarError,
   showSnackbarSuccess,
 } from "../../../Events/snackbarEvents";
+import useUsersStore from "../../../Zustand/usersStore";
 import {
   buildCatalogQueryOptions,
   invalidateTemplateCatalogQueries,
@@ -35,28 +37,47 @@ import {
   sanitizeTemplateText,
 } from "./helpers/templateDialogUtils";
 import { appShellSetupSectionPaperSx } from "../../../Context/appShell";
+import {
+  GROUP_TEMPLATES_SAVE_DIALOG_EVENT,
+} from "../../../Events/groupTemplatesDialogEvents";
 
-/**
- * Save the current group’s jobs as an account-scoped template.
- *
- * @param {object} props
- * @param {boolean} props.open
- * @param {() => void} props.onClose
- * @param {string} props.groupID
- * @param {import("../../../Classes/job").default[]} props.groupJobs
- */
-function SaveGroupTemplateDialogInner({
-  open,
-  onClose,
-  groupID,
-  groupJobs,
-}) {
+const defaultState = () => ({
+  isOpen: false,
+  openSession: 0,
+  contextGroupId: null,
+});
+
+/** Save the current group's jobs as an account-scoped template (event-driven global dialog). */
+function SaveGroupTemplateDialogInner() {
+  const [messageData, , resetDialog] = useDialogEventState(
+    GROUP_TEMPLATES_SAVE_DIALOG_EVENT,
+    defaultState
+  );
   const queryClient = useQueryClient();
+  const groupArray = useUsersStore((s) => s.jobData.groupArray);
+  const jobArray = useUsersStore((s) => s.jobData.jobArray);
+  const getGroupObject = useUsersStore((s) => s.jobData.actions.getGroupObject);
+  const getActiveGroupObject = useUsersStore(
+    (s) => s.jobData.actions.getActiveGroupObject
+  );
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const { data: catalog = [] } = useSuspenseQuery(
-    buildCatalogQueryOptions("save-dialog", open)
+  const open = Boolean(messageData.isOpen);
+  const activeSession = Number(messageData.openSession || 0);
+  const resolvedGroup = useMemo(() => {
+    if (messageData.contextGroupId) {
+      return getGroupObject(messageData.contextGroupId);
+    }
+    return getActiveGroupObject();
+  }, [messageData.contextGroupId, getGroupObject, getActiveGroupObject, groupArray]);
+  const groupID = resolvedGroup?.groupID ?? "";
+  const groupJobs = useMemo(() => {
+    if (!resolvedGroup?.includedJobIDs) return [];
+    return jobArray.filter((job) => resolvedGroup.includedJobIDs.has(job.jobID));
+  }, [resolvedGroup, jobArray]);
+  const { data: catalog = [] } = useQuery(
+    buildCatalogQueryOptions(activeSession, open)
   );
 
   const normalizedName = useMemo(
@@ -82,7 +103,7 @@ function SaveGroupTemplateDialogInner({
 
   const handleClose = useDialogCloseReset({
     resetFns: [() => setName(""), () => setDescription(""), () => setSelectedTemplate(null)],
-    onClose,
+    onClose: resetDialog,
   });
 
   const saveNewMutation = useMutation({
@@ -297,6 +318,6 @@ function SaveGroupTemplateDialogFrame({
   );
 }
 
-export default function SaveGroupTemplateDialog(props) {
-  return <SaveGroupTemplateDialogInner {...props} />;
+export default function SaveGroupTemplateDialog() {
+  return <SaveGroupTemplateDialogInner />;
 }

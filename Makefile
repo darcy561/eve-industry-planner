@@ -60,7 +60,7 @@ DC_DEV = $(DC_BIN_RAW) -f $(COMPOSE_BASE) -f $(COMPOSE_DEV)
 endif
 
 # ---------- Phony targets ----------
-.PHONY: help up dev ensure-keyfile ensure-env ensure-refresh-token-key download-setup-scripts bootstrap-download-script bootstrap-version-tracker update-files sync-dev-compose-versions
+.PHONY: help up dev ensure-keyfile ensure-env ensure-app-version ensure-refresh-token-key download-setup-scripts bootstrap-download-script bootstrap-version-tracker update-files
 
 # ---------- Help ----------
 help:
@@ -69,7 +69,7 @@ help:
 	@echo "  make up               - Start app (users / live images)"
 	@echo "  make update-files     - Updates all necessary files from GitHub"
 	@echo "  make dev              - Dev mode: local builds + docker-compose.dev.yml (needs git clone; not downloaded by make up)"
-	@echo "                        Optional in .env for baked-in feedback/Sentry (same as CI build-args):"
+	@echo "                        Required in .env: APP_VERSION (semver X.Y.Z). Optional baked-in feedback/Sentry:"
 	@echo "                        FEEDBACK_DISCORD_WEBHOOK_URL, SENTRY_DSN, SENTRY_ORG, SENTRY_PROJECT_ID,"
 	@echo "                        SENTRY_AUTH_TOKEN (source maps), SENTRY_TRACES_SAMPLE_RATE, ENVIRONMENT"
 	@echo "  make help            - Show this help message"
@@ -111,8 +111,11 @@ ensure-env:
 ensure-refresh-token-key:
 	@"$(BASH)" ./scripts/ensure-refresh-token-key.sh
 
+ensure-app-version:
+	@"$(BASH)" ./scripts/ensure-app-version.sh
+
 # ---------- User / live ----------
-up: download-setup-scripts ensure-keyfile ensure-env ensure-refresh-token-key
+up: download-setup-scripts ensure-keyfile ensure-env ensure-app-version ensure-refresh-token-key
 ifeq ($(OS),Windows_NT)
 	@"$(BASH)" -c 'DC_CMD=$$(if [ -f ./bin/docker-compose ] && [ -x ./bin/docker-compose ]; then echo "./bin/docker-compose"; elif [ -f ./docker-compose ] && [ -x ./docker-compose ]; then echo "./docker-compose"; elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi); eval "$$DC_CMD -f $(COMPOSE_BASE) up -d"'
 else
@@ -120,10 +123,7 @@ else
 endif
 
 # ---------- Dev ----------
-sync-dev-compose-versions:
-	@"$(BASH)" ./scripts/sync-dev-compose-versions.sh
-
-dev: download-setup-scripts ensure-keyfile ensure-env ensure-refresh-token-key sync-dev-compose-versions
+dev: download-setup-scripts ensure-keyfile ensure-env ensure-app-version ensure-refresh-token-key
 ifeq ($(OS),Windows_NT)
 	@"$(BASH)" -c 'DC_CMD=$$(if [ -f ./bin/docker-compose ] && [ -x ./bin/docker-compose ]; then echo "./bin/docker-compose"; elif [ -f ./docker-compose ] && [ -x ./docker-compose ]; then echo "./docker-compose"; elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi); eval "$$DC_CMD -f $(COMPOSE_BASE) -f $(COMPOSE_DEV) up -d --build"'
 else

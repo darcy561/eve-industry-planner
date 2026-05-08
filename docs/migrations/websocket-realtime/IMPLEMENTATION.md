@@ -1,6 +1,6 @@
 # WebSocket realtime — implementation reference
 
-Single place for **what shipped in the repo** (paths, contracts, env, behavior). The Cursor plan remains the narrative design doc; this file tracks **code reality**. **Org routing, `scopes`, JWT ceilings, and `upgrade_scopes`:** see [ROUTING-AND-SCOPES.md](./ROUTING-AND-SCOPES.md).
+Single place for **what shipped in the repo** (paths, contracts, env, behavior). [`PLAN-SNAPSHOT.md`](./PLAN-SNAPSHOT.md) holds the longer narrative plan draft; this file tracks **code reality**. **Org routing, `scopes`, JWT ceilings, and `upgrade_scopes`:** see [ROUTING-AND-SCOPES.md](./ROUTING-AND-SCOPES.md).
 
 ## Keeping this document accurate (project rule)
 
@@ -273,7 +273,7 @@ The **router** is [`frontend/src/Realtime/applyRemoteMessage.js`](../../../front
    - **Async reconcile:** if cloud mode **toggled**, run the same cloud vs local branch as above (using current store tokens when enabling cloud). **Debounced** `getSystemIndexDataFromUserStructures` → `worldData.actions.addSystemIndex` when structures may have changed (coalesces bursts).
 4. **`user_job_groups`:** Upserts/deletes update the in-memory [`Group`](../../../frontend/src/Classes/group.js) graph + Zustand (`handlers/userJobGroupsDocument.js`) with the same cursor rules.
 
-5. **`user_job_documents`:** Same stale guard as above; debounced merge updates [`Job`](../../../frontend/src/Classes/job.js) rows in `jobArray`. Cursor key `user_job_documents.{jobID}`.
+5. **`user_job_documents`:** Same stale guard as above; debounced merge updates [`Job`](../../../frontend/src/Classes/job.js) rows in `jobArray`. Sync cursor key `user_job_documents.{jobID}`.
 
 6. **Deletes:** `application_settings` reset store; `users` delete logs a session warning (same as prior behavior).
 
@@ -345,7 +345,7 @@ Browsers cannot refresh the JWT on an **open** WebSocket; the client must **clos
 1. **Multiple websocket replicas:** each pod must use a **different** JetStream durable suffix (**`doc-live-updates-*`**, **`doc-lock-*`**) via distinct **`HOSTNAME`** / container name / **`OTEL_SERVICE_INSTANCE_ID`**. That guarantees every replica pulls **all** `doc.update.*` messages. Prefer **`DOCKER_CONTAINER_NAME`** / **`CONTAINER_NAME`** when available so Grafana **`ws_instance_id`** matches `docker ps`. Compose does **not** inject container names per replica automatically unless you set them.
 2. **Traefik sticky + Redis:** VPS stack uses **sticky cookie `eip_ws_affinity`** on service **`ws`** plus **Redis session handoff** keys (`ws:session_handoff:v1:…`). After changing labels or Redis, redeploy Traefik / websocket as needed.
 3. **Stale JetStream consumers:** older deployments may have obsolete consumer names from prior designs; **`doc-live-updates-<suffix>`** and **`doc-lock-<suffix>`** are the active websocket durables today.
-4. **Plan snapshot:** `./scripts/sync-websocket-migration-plan.sh` after editing the Cursor plan file.
+4. **Plan snapshot:** `./scripts/sync-websocket-migration-plan.sh <path-to-plan.md>` when replacing `PLAN-SNAPSHOT.md` from an external file.
 5. **Log correlation:** API and WS access logs include `request_id` (from `X-Request-ID` or generated UUID) plus OpenTelemetry trace fields when a span is present (`LOG_LEVEL=debug` for per-request “started/completed” lines).
 
 ## Verification (manual)
@@ -362,4 +362,4 @@ Browsers cannot refresh the JWT on an **open** WebSocket; the client must **clos
 
 | Script | Purpose |
 |--------|---------|
-| [`scripts/sync-websocket-migration-plan.sh`](../../../scripts/sync-websocket-migration-plan.sh) | Refresh `PLAN-SNAPSHOT.md` from the canonical Cursor plan. |
+| [`scripts/sync-websocket-migration-plan.sh`](../../../scripts/sync-websocket-migration-plan.sh) | Copy a local plan file over `PLAN-SNAPSHOT.md`. |

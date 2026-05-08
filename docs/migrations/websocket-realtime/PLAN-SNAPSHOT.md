@@ -26,9 +26,9 @@ todos:
 isProject: false
 ---
 
-> **Repository mirror** of the Cursor plan `websocket_realtime_migration_3239c62b`. **Canonical (editable) copy:** `~/.cursor/plans/websocket_realtime_migration_3239c62b.plan.md`. Whenever that plan changes, refresh this file by running **`./scripts/sync-websocket-migration-plan.sh`** from the repo root (script overwrites `PLAN-SNAPSHOT.md`).
+> **In-repo snapshot:** this file is the version-controlled plan draft. To replace it from another markdown file, run **`./scripts/sync-websocket-migration-plan.sh <path-to-plan.md>`** from the repository root.
 
-> **Update (2026-04-19):** The JetStream **`doc.subscribe`** consumer, API **`AutoSubscribe`**, and changestream subscription publishes were **removed**. Per-document interest is **WebSocket `subscribe` / `unsubscribe` only**. The YAML todos / body below may still describe the old dual-path design until the Cursor plan is edited and this snapshot is re-synced—see **[INTERACTIONS.md](./INTERACTIONS.md)** and **[IMPLEMENTATION.md](./IMPLEMENTATION.md)** for current behavior.
+> **Update (2026-04-19):** The JetStream **`doc.subscribe`** consumer, API **`AutoSubscribe`**, and changestream subscription publishes were **removed**. Per-document interest is **WebSocket `subscribe` / `unsubscribe` only**. The YAML todos / body below may still describe the old dual-path design until this snapshot is updated—see **[INTERACTIONS.md](./INTERACTIONS.md)** and **[IMPLEMENTATION.md](./IMPLEMENTATION.md)** for current behavior.
 
 # WebSocket realtime: users + application_settings
 

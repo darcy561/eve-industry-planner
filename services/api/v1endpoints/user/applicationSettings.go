@@ -101,10 +101,8 @@ func handleSaveApplicationSettings(w http.ResponseWriter, r *http.Request, clien
 	}
 
 	var settingsDoc models.ApplicationSettings
-	if err := helper.DecodeJSONRequest(r, &settingsDoc, helper.DefaultMaxBodySize); err != nil {
-		metrics.Error("invalid_json")
-		logs.WarnCtx(ctx, "failed to decode application settings JSON", "error", err, "account_id", accountID)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &settingsDoc) {
+		logs.WarnCtx(ctx, "failed to decode application settings JSON", "account_id", accountID)
 		return
 	}
 

@@ -7,7 +7,7 @@ FROM node:24-alpine AS frontend-builder
 
 # Build arguments
 ARG ENVIRONMENT=production
-ARG FRONTEND_APP_VERSION=development
+ARG FRONTEND_APP_VERSION
 ARG SENTRY_ORG
 ARG SENTRY_PROJECT_ID
 ARG SENTRY_DSN

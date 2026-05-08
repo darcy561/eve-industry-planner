@@ -17,7 +17,7 @@ COPY . .
 # Sentry: same model as frontend (Dockerfile ARG → baked into binary). Empty/unset for local dev.
 ARG SENTRY_DSN=""
 ARG ENVIRONMENT=production
-ARG APP_VERSION=development
+ARG APP_VERSION
 # Optional: omit or set at build time; runtime SENTRY_TRACES_SAMPLE_RATE in .env overrides when non-empty.
 ARG SENTRY_TRACES_SAMPLE_RATE=
 
@@ -38,8 +38,8 @@ FROM alpine:3.20
 
 # Build arguments (only non-secret values)
 ARG IMAGE_SOURCE=https://github.com/darcy561/eve-industry-planner
-ARG APP_VERSION=development
-ARG FRONTEND_APP_VERSION=development
+ARG APP_VERSION
+ARG FRONTEND_APP_VERSION
 ARG APP_FEATURE_FLAGS_JSON="{}"
 # FEEDBACK_DISCORD_WEBHOOK_URL: Optional Discord webhook URL for feedback notifications
 # Defaults to empty string for local builds. Can be set via build arg or overridden at runtime via env var

@@ -21,7 +21,7 @@ init({
   dsn: sentryDsn,
   enabled: Boolean(sentryDsn),
   environment: getSentryAppEnvironment(),
-  release: __APP_VERSION__ || "development",
+  release: __APP_VERSION__,
   integrations: sentryDsn
     ? [tanstackRouterBrowserTracingIntegration(appRouter)]
     : [],

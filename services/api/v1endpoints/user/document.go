@@ -126,10 +126,8 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 	}
 
 	var userDoc models.UserAccountDocument
-	if err := helper.DecodeJSONRequest(r, &userDoc, helper.DefaultMaxBodySize); err != nil {
-		metrics.Error("invalid_json")
-		logs.WarnCtx(ctx, "failed to decode user document JSON", "error", err, "account_id", accountID)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &userDoc) {
+		logs.WarnCtx(ctx, "failed to decode user document JSON", "account_id", accountID)
 		return
 	}
 

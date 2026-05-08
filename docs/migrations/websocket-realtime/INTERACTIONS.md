@@ -230,8 +230,8 @@
 
 ## 2026-04-18 — Plan snapshot + sync script
 
-- **Request / context:** Keep a full-text copy of the Cursor plan in the repo and refresh it whenever the plan changes.
-- **Decision:** Add [`PLAN-SNAPSHOT.md`](./PLAN-SNAPSHOT.md) (mirror of `~/.cursor/plans/websocket_realtime_migration_3239c62b.plan.md`) with a short banner; add [`scripts/sync-websocket-migration-plan.sh`](../../../scripts/sync-websocket-migration-plan.sh) to overwrite the snapshot from the canonical path.
+- **Request / context:** Keep a full-text copy of the migration plan in the repo and refresh it whenever the plan changes.
+- **Decision:** Add [`PLAN-SNAPSHOT.md`](./PLAN-SNAPSHOT.md) with a short banner; add [`scripts/sync-websocket-migration-plan.sh`](../../../scripts/sync-websocket-migration-plan.sh) to copy a local plan file over the snapshot when needed.
 - **Code / infra touched:** `docs/migrations/websocket-realtime/PLAN-SNAPSHOT.md`, `scripts/sync-websocket-migration-plan.sh`, `docs/migrations/websocket-realtime/README.md`.
 - **Links:** (none)
 
@@ -240,7 +240,7 @@
 ## 2026-04-18 — Migration documentation folder created
 
 - **Request / context:** Add a repo-local migration folder to track the WebSocket realtime plan, store interactions/requests, and keep a full picture in sync with implementation.
-- **Decision:** Use `docs/migrations/websocket-realtime/` with `README.md` (pointer to Cursor plan path), `INTERACTIONS.md` (this log), and `PLAN-TODO-TRACKER.md` (todo checklist).
+- **Decision:** Use `docs/migrations/websocket-realtime/` with `README.md` (overview + maintenance rules), `INTERACTIONS.md` (this log), and `PLAN-TODO-TRACKER.md` (todo checklist).
 - **Code / infra touched:** Docs only (`docs/migrations/*`).
 - **Links:** (none)
 
@@ -299,6 +299,6 @@ _Move items into dated sections above when work starts or completes._
 
 ## Decisions log (non-dated bullets OK)
 
-- **Canonical plan:** `~/.cursor/plans/websocket_realtime_migration_3239c62b.plan.md` (Cursor). **Repo mirror:** [`PLAN-SNAPSHOT.md`](./PLAN-SNAPSHOT.md)—run `./scripts/sync-websocket-migration-plan.sh` after every plan change so git stays aligned.
+- **Plan snapshot:** [`PLAN-SNAPSHOT.md`](./PLAN-SNAPSHOT.md) is the in-repo draft. Run `./scripts/sync-websocket-migration-plan.sh <path-to-plan.md>` when replacing it from an external file so git stays aligned.
 - **Implementation doc:** [`IMPLEMENTATION.md`](./IMPLEMENTATION.md) is the source of truth for shipped code paths, subscribe authorization rules, JWT/WebSocket lifecycle, and operations env vars.
 - **Docs track code:** Any edit to migration-related code or contracts must update `IMPLEMENTATION.md` / `INTERACTIONS.md` (and tracker or plan snapshot as applicable)—see [README.md](./README.md#documentation-maintenance-required) and the dated entries above (including **2026-04-18** account-scoped / JetStream refresh).
