@@ -136,7 +136,17 @@ class Character {
   };
 
   /**
-   * Refreshes the ESI access token (15 min expiry buffer; updates local `Auth` when main).
+   * Refreshes the ESI access token (updates local `Auth` when main).
+   *
+   * Buffer is **660 s (11 min)**, intentionally smaller than the 15-min app-JWT
+   * lifetime margin: the staggered loop visits each character every
+   * `ESI_STAGGER_TICK_MAX_SECONDS × n` seconds, so for typical roster sizes (n ≤ 3)
+   * the previous 15-min buffer fired a refresh on *every* per-character tick
+   * (lifetime 20 min − per-char tick ≤ 14 min < 15 min). 11 min is the largest
+   * value that lets at least one staggered visit skip after a refresh while still
+   * staying comfortably above the per-character tick interval for n ≤ 3. See also
+   * `tokenActions.refreshServerToken` which mirrors this value.
+   *
    * @returns {Promise<number>} 1 if refreshed, 0 if skipped or failed
    */
   refreshESIToken = async () => {
@@ -145,7 +155,7 @@ class Character {
         return 0;
       }
       const currentTimeStamp = Math.floor(Date.now() / 1000);
-      const bufferTime = 900;
+      const bufferTime = 660;
 
       if (this.esiAccessTokenEXP >= currentTimeStamp + bufferTime) return 0;
       this.refreshState = 2;

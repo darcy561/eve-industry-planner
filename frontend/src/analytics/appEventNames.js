@@ -22,4 +22,8 @@ export const AppEvent = Object.freeze({
   NEW_JOB_GROUP: "new_job_group",
   REMOVE_WATCHLIST_ITEM: "remove_watchlist_item",
   NEW_WATCHLIST_ITEM: "new_watchlist_item",
+  GROUP_TEMPLATE_ADD: "group_template_add",
+  GROUP_TEMPLATE_DELETE: "group_template_delete",
+  GROUP_TEMPLATE_REPLACE: "group_template_replace",
+  GROUP_TEMPLATE_APPLY: "group_template_apply",
 });

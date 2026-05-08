@@ -41,6 +41,8 @@ import {
 } from "./helpers/templateDialogQueries";
 import { makeTemplateFilter } from "./helpers/templateDialogUtils";
 import { appShellSetupSectionPaperSx } from "../../../Context/appShell";
+import { trackAppEvent } from "../../../analytics/trackAppEvent";
+import { AppEvent } from "../../../analytics/appEventNames";
 
 const defaultState = () => ({
   isOpen: false,
@@ -134,6 +136,7 @@ function ApplyGroupTemplateDialogInner() {
       return { mode, ...result };
     },
     onSuccess: ({ mode, jobs, group }) => {
+      trackAppEvent(AppEvent.GROUP_TEMPLATE_APPLY);
       showSnackbarSuccess(
         mode === "newGroup"
           ? `Created ${jobs.length} job(s) in a new group.`
@@ -164,6 +167,7 @@ function ApplyGroupTemplateDialogInner() {
       await deleteGroupTemplate(selected.templateID);
     },
     onSuccess: () => {
+      trackAppEvent(AppEvent.GROUP_TEMPLATE_DELETE);
       showSnackbarSuccess("Template deleted.", 3);
       invalidateTemplateCatalogQueries(queryClient);
       setSelectedBySession({ session: activeSession, templateID: null });
