@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"errors"
 	"net/http"
 
 	"eve-industry-planner/shared/logs"
@@ -40,6 +41,22 @@ func DecodeJSONOrBadRequest(
 	if err := DecodeJSONRequest(r, target, DefaultMaxBodySize); err != nil {
 		if metrics != nil {
 			metrics.Error("invalid_json")
+		}
+		var jsonErr *JSONRequestError
+		if errors.As(err, &jsonErr) {
+			logs.WarnCtx(r.Context(), "invalid JSON request body",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"reason", jsonErr.Detail,
+				"field", jsonErr.Field,
+				"offset", jsonErr.Offset,
+				"json_preview", jsonErr.BodyPreview,
+				"error", err)
+		} else {
+			logs.WarnCtx(r.Context(), "invalid JSON request body",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"error", err)
 		}
 		logs.RespondHTTPError(w, r, http.StatusBadRequest, err.Error(), err)
 		return false

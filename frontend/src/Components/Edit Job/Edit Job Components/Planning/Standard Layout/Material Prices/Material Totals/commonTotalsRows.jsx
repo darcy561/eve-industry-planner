@@ -15,14 +15,16 @@ export function CommonTotalsRows_MaterialPrices({
     <>
       <Grid sx={{ marginTop: 1 }} size={12}>
         <Typography sx={{ typography: textStyle }}>
-          Total Install Costs
+          Estimated Install Cost{" "}
         </Typography>
         <Typography sx={{ typography: textStyle }}>
           {formatNumberForLocale(totalInstallCosts)}
         </Typography>
       </Grid>
       <Grid sx={{ marginTop: 1 }} size={12}>
-        <Typography sx={{ typography: textStyle }}>{totalPriceLabel}</Typography>
+        <Typography sx={{ typography: textStyle }}>
+          {totalPriceLabel}
+        </Typography>
         <Typography sx={{ typography: textStyle, color: displayColor }}>
           {formatNumberForLocale(totalPrice)}
         </Typography>

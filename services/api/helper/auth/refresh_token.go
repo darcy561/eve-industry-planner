@@ -18,6 +18,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+var ErrRefreshTokenNotFound = errors.New("refresh token not found")
+
 const (
 	// RefreshTokenTTL is how long planner app session refresh-token keys live in Redis (also the basis for SessionTTL).
 	// This TTL applies to opaque planner tokens only — not ESI OAuth refresh secrets (those live in Mongo / client).
@@ -138,7 +140,7 @@ func GetRefreshTokenData(ctx context.Context, redisClient *redis.Client, token s
 	var data RefreshTokenData
 	err := rediscore.GetJSON(ctx, redisClient, key, &data)
 	if err == redis.Nil {
-		return nil, errors.New("refresh token not found")
+		return nil, ErrRefreshTokenNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get refresh token: %w", err)

@@ -69,10 +69,8 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	var reqBody struct {
 		Jobs []models.Job `json:"jobs"`
 	}
-	if err := helper.DecodeJSONRequest(r, &reqBody, helper.DefaultMaxBodySize); err != nil {
-		metrics.Error("invalid_json")
-		logs.WarnCtx(ctx, "archived jobs put: bad JSON", "error", err, "account_id", accountID)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &reqBody) {
+		logs.WarnCtx(ctx, "archived jobs put: bad JSON", "account_id", accountID)
 		return
 	}
 

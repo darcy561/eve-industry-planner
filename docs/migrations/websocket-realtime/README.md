@@ -1,23 +1,20 @@
 # Migration: WebSocket realtime (users + application_settings + job groups)
 
-This folder is the **workspace home** for everything tied to the WebSocket / Mongo change-stream / NATS realtime work. Keep it **updated as you implement** so anyone can see the full picture without replaying chat or Cursor threads.
+This folder is the **workspace home** for everything tied to the WebSocket / Mongo change-stream / NATS realtime work. Keep it **updated as you implement** so anyone can see the full picture without replaying ad-hoc design discussions.
 
 **Implementation reference (code paths, subscribe ACL, JWT lifecycle, ops):** [IMPLEMENTATION.md](./IMPLEMENTATION.md).
 
-## Canonical plan + repo snapshot
+## Plan snapshot in the repo
 
 | Location | Role |
 |----------|------|
-| **`~/.cursor/plans/websocket_realtime_migration_3239c62b.plan.md`** | **Canonical** plan in Cursor (edit here when iterating the plan). |
-| **[`PLAN-SNAPSHOT.md`](./PLAN-SNAPSHOT.md)** | **Git-tracked mirror** of that file—refresh whenever the Cursor plan changes. |
+| **[`PLAN-SNAPSHOT.md`](./PLAN-SNAPSHOT.md)** | **Working snapshot** of the migration plan—edit in place in git, or overwrite from another file when needed. |
 
-**Refresh the snapshot** from the repo root:
+**Optional:** replace the snapshot from a plan file you maintain locally:
 
 ```bash
-./scripts/sync-websocket-migration-plan.sh
+./scripts/sync-websocket-migration-plan.sh /path/to/plan.md
 ```
-
-Optional first argument: path to a plan file if it is not in the default location.
 
 This README is the pointer; [INTERACTIONS.md](./INTERACTIONS.md) is the living log.
 
@@ -34,7 +31,7 @@ This README is the pointer; [INTERACTIONS.md](./INTERACTIONS.md) is the living l
 | **Docker / Traefik / Redis handoff / sticky `/ws`** | [IMPLEMENTATION.md](./IMPLEMENTATION.md) (**Deployment** + **Session resume**) |
 | Decisions, API/WS/NATS contract tweaks, session context | [INTERACTIONS.md](./INTERACTIONS.md) (append a dated entry at the top) |
 | Todo / checklist state | [PLAN-TODO-TRACKER.md](./PLAN-TODO-TRACKER.md) |
-| Cursor plan file only | [PLAN-SNAPSHOT.md](./PLAN-SNAPSHOT.md) via `./scripts/sync-websocket-migration-plan.sh` |
+| Plan snapshot only | [PLAN-SNAPSHOT.md](./PLAN-SNAPSHOT.md) via `./scripts/sync-websocket-migration-plan.sh <path>` |
 
 This requirement is recorded in [INTERACTIONS.md](./INTERACTIONS.md) (dated entry) so future contributors inherit the same rule.
 
@@ -43,7 +40,7 @@ This requirement is recorded in [INTERACTIONS.md](./INTERACTIONS.md) (dated entr
 | File | Purpose |
 |------|---------|
 | [IMPLEMENTATION.md](./IMPLEMENTATION.md) | **Code reference:** shipped paths, subscribe ACL, JWT lifecycle, **session resume**, **Docker/Traefik/Redis deployment**, env vars, verification. |
-| [PLAN-SNAPSHOT.md](./PLAN-SNAPSHOT.md) | Full plan text mirrored from Cursor; run [`scripts/sync-websocket-migration-plan.sh`](../../../scripts/sync-websocket-migration-plan.sh) after plan edits. |
+| [PLAN-SNAPSHOT.md](./PLAN-SNAPSHOT.md) | Full plan text; optionally refresh via [`scripts/sync-websocket-migration-plan.sh`](../../../scripts/sync-websocket-migration-plan.sh). |
 | [INTERACTIONS.md](./INTERACTIONS.md) | **Append-only log**: requests, decisions, PRs, endpoints, WS message shapes, dates. Update with every meaningful change. |
 | [PLAN-TODO-TRACKER.md](./PLAN-TODO-TRACKER.md) | Checklist aligned to plan todos (sync status here + in your issue tracker if you use one). |
 | [SCOPED-REALTIME-ROUTING-PLAN.md](./SCOPED-REALTIME-ROUTING-PLAN.md) | Design history and phased plan; **implementation contract** for shipped routing lives in [ROUTING-AND-SCOPES.md](./ROUTING-AND-SCOPES.md). |
@@ -53,9 +50,9 @@ This requirement is recorded in [INTERACTIONS.md](./INTERACTIONS.md) (dated entr
 
 1. **Same change as code:** apply the table in **Documentation maintenance (required)** above.
 2. **Before / after a work session:** append a short entry to `INTERACTIONS.md` (date, what changed, links to commits or PRs).
-3. **When scope shifts:** note the decision and any plan delta (even if the Cursor plan file is not edited).
+3. **When scope shifts:** note the decision and any plan delta (even if `PLAN-SNAPSHOT.md` is not edited yet).
 4. **New HTTP routes, NATS subjects, or WS JSON types:** update the quick-reference in `INTERACTIONS.md` and any tables in `IMPLEMENTATION.md`.
-5. **After any Cursor plan edit:** run `./scripts/sync-websocket-migration-plan.sh` so [`PLAN-SNAPSHOT.md`](./PLAN-SNAPSHOT.md) matches the canonical plan, then commit if the diff is meaningful.
+5. **After replacing the plan from an external file:** run `./scripts/sync-websocket-migration-plan.sh <path>` so [`PLAN-SNAPSHOT.md`](./PLAN-SNAPSHOT.md) matches, then commit if the diff is meaningful.
 
 ## High-level scope (from plan)
 

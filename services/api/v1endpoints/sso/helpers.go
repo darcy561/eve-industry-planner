@@ -50,15 +50,29 @@ func validateSSOCredentialsOrRespond(w http.ResponseWriter, r *http.Request, met
 }
 
 func handleSSOProviderError(w http.ResponseWriter, r *http.Request, err error, defaultMessage string) {
-	if strings.Contains(err.Error(), "invalid_grant") || strings.Contains(err.Error(), "invalid_request") {
+	msg := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(msg, "invalid_grant"), strings.Contains(msg, "invalid_request"):
+		logs.WarnCtx(r.Context(), "SSO provider rejected request",
+			"reason", "invalid_grant_or_request",
+			"status_code", http.StatusBadRequest,
+			"error", err)
 		http.Error(w, defaultMessage, http.StatusBadRequest)
 		return
-	}
-	if strings.Contains(err.Error(), "server error") {
+	case strings.Contains(msg, "server error"):
+		logs.ErrorCtx(r.Context(), "SSO provider upstream server error",
+			"reason", "upstream_server_error",
+			"status_code", http.StatusBadGateway,
+			"error", err)
 		logs.RespondHTTPError(w, r, http.StatusBadGateway, "EVE SSO server error", err)
 		return
+	default:
+		logs.ErrorCtx(r.Context(), "SSO provider exchange failed with unexpected error",
+			"reason", "unexpected_sso_exchange_error",
+			"status_code", http.StatusInternalServerError,
+			"error", err)
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, defaultMessage, err)
 	}
-	logs.RespondHTTPError(w, r, http.StatusInternalServerError, defaultMessage, err)
 }
 
 func writeTokenPayload(w http.ResponseWriter, payload EveSSOTokenPayload) error {
