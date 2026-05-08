@@ -22,7 +22,7 @@
 
 - **Request / context:** Detach document-lock and change-origin identity from websocket `clientID` churn during JWT refresh/reconnect; enforce single active client per auth session and keep realtime fan-out stable.
 - **Decision:**
-  - **JWT/auth:** internal JWT claim now includes **`session_id`** (login + login-refresh mint; refresh preserves; refresh backfills when missing on legacy refresh-token rows).
+  - **JWT/auth:** internal JWT claim now includes **`session_id`** (login + bootstrap mint; rotate preserves; rotate backfills when missing on legacy refresh-token rows).
   - **Locks:** API `document-locks` routes now derive identity from JWT `session_id`; lock Redis fields/events/status switched to session-based names (`holderSessionID`, `requesterSessionID`, `probeTargetSessionID`); `rebind` removed.
   - **SPA locks:** `useDocumentLock`, planner lock sync, and delete-group guard compare session IDs (no `eip-ws-client-id-changed` rebind path).
   - **Metadata + headers:** write paths stamp `_meta.sessionID`; private requests include `X-Session-ID` (observability/debug), while lock auth still trusts JWT claims.

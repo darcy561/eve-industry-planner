@@ -11,14 +11,13 @@ import (
 	"eve-industry-planner/api/helper/auth"
 	userendpoints "eve-industry-planner/api/v1endpoints/user"
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/core/internaljwt"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
-// App session refresh (this file): POST /api/v1/auth/sessions/refresh and /auth/sessions/login-refresh issue a new planner API JWT.
+// App session refresh (this file): POST /api/v1/auth/sessions/rotate and /auth/sessions/bootstrap rotate refresh cookies and session cookie.
 //
 // Tokens involved here (do not confuse with ESI OAuth refresh secrets):
 //   - refresh_token / cookie "eip_app_refresh": planner app session refresh token; opaque value stored in Redis
@@ -31,7 +30,7 @@ import (
 //
 // ESI OAuth refresh material (long-lived, used to call login.eveonline.com for new ESI tokens) is separate:
 // local clients may send it to POST /api/v1/eve-sso/tokens/refresh; cloud accounts store it encrypted in
-// Mongo users.refreshTokens and refresh via POST /api/v1/eve-sso/cloud-stored-esi/refresh — neither path is this handler.
+// Mongo users.refreshTokens and refresh via POST /api/v1/esi/characters/access-token/server — neither path is this handler.
 
 // RefreshRequest is the JSON body for planner app session refresh (not EVE OAuth refresh_token grant to CCP).
 type RefreshRequest struct {
@@ -41,28 +40,13 @@ type RefreshRequest struct {
 	EveToken string `json:"eve_token"`
 }
 
-// RefreshResponse is returned after a successful app session refresh.
-type RefreshResponse struct {
-	// AccessToken is a new planner API JWT (internal signing), not an ESI access token.
-	AccessToken string `json:"access_token"`
-	// RefreshToken is the new planner app session refresh token when the client is not on cookie-only rotation (see refreshFromCookie).
-	RefreshToken        string                          `json:"refresh_token,omitempty"`
-	ExpiresAt           int64                           `json:"expires_at"` // Planner JWT expiry (Unix seconds)
-	FirstLogin          bool                            `json:"first_login,omitempty"`
-	UserDocument        models.UserAccountDocument      `json:"user_document,omitempty"`
-	ApplicationSettings models.ApplicationSettings      `json:"application_settings,omitempty"`
-	LinkedCharacters    []models.LinkedCharacterSession `json:"linked_characters,omitempty"`
-	// MainCharacterEsiAccessToken is set on login-refresh when eve_token was omitted and the server refreshed ESI from Mongo (cloud cookie resume).
-	MainCharacterEsiAccessToken string `json:"main_character_esi_access_token,omitempty"`
-}
-
-// RefreshHandler handles planner app session refresh (POST /api/v1/auth/sessions/refresh).
-func RefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+// RotateHandler handles periodic planner session rotation (POST /api/v1/auth/sessions/rotate).
+func RotateHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	refreshHandler(w, r, clients, false)
 }
 
-// LoginRefreshHandler handles planner app session refresh on the login path (POST /api/v1/auth/sessions/login-refresh).
-func LoginRefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+// BootstrapHandler handles planner session bootstrap after login flows (POST /api/v1/auth/sessions/bootstrap).
+func BootstrapHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	refreshHandler(w, r, clients, true)
 }
 
@@ -130,14 +114,13 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		return
 	}
 
-	var mainEsiAccessFromMongo string
 	if strings.TrimSpace(eveToken) == "" {
 		if !refreshFromCookie {
 			m.Errors.WithLabelValues("validation_error").Inc(ctx)
 			http.Error(w, "eve_token is required unless authenticating with the app refresh cookie as a cloud account with stored ESI material", http.StatusBadRequest)
 			return
 		}
-		esiAccess, err := userendpoints.RefreshStoredEsiFromMongoForCharacter(ctx, clients, tokenData.AccountID, tokenData.CharacterHash)
+		_, err := userendpoints.RefreshStoredEsiFromMongoForCharacter(ctx, clients, tokenData.AccountID, tokenData.CharacterHash)
 		if err != nil {
 			switch {
 			case errors.Is(err, userendpoints.ErrMongoStoredEsiNotCloud):
@@ -162,7 +145,6 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 			}
 			return
 		}
-		mainEsiAccessFromMongo = esiAccess
 	} else {
 		eveTokenInfo, err := auth.ValidateEveTokenAndExtractHash(r.Context(), eveToken, cfg.EveSSOClientID)
 		if err != nil {
@@ -190,18 +172,9 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		}
 	}
 
-	// Load or get cached RSA private key for JWT signing
-	cachedKey, err := internaljwt.GetOrLoadPrivateKey()
-	if err != nil {
-		m.Errors.WithLabelValues("key_load_error").Inc(ctx)
-		logs.ErrorCtx(ctx, "failed to load RSA private key for JWT signing", "error", err, "account_id", tokenData.AccountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
-		return
-	}
-
-	// Always load corporations from Redis (keyed by AccountID)
-	// Corporations are stored by AccountID (aggregated from all characters)
+	// Load corporation/alliance caches from Redis (aggregated from all characters on the account)
 	corporations := auth.GetCorporations(ctx, clients.Redis, tokenData.AccountID)
+	alliances := auth.GetAlliances(ctx, clients.Redis, tokenData.AccountID)
 
 	// Generate new refresh token (rotate refresh token for security)
 	newRefreshToken, err := auth.GenerateRefreshToken()
@@ -213,9 +186,10 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		return
 	}
 
-	// Update token data with fresh corporations from Redis
+	// Update token data with fresh corporation/alliance lists from Redis
 	updatedTokenData := *tokenData
-	updatedTokenData.Corporations = internaljwt.CorporationIDs(corporations)
+	updatedTokenData.Corporations = corporations
+	updatedTokenData.Alliances = alliances
 	now := time.Now().UTC()
 	sessionFlow := "refresh"
 	startedSession := false
@@ -243,24 +217,6 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	updatedTokenData.SessionSeenAt = now
 	if appVersion != "" && appVersion != "unknown" {
 		updatedTokenData.AppVersion = appVersion
-	}
-
-	// Generate new access token with stored user data and corporations.
-	// SessionID is embedded in the claim and persists across normal refreshes.
-	internalToken, _, err := internaljwt.GenerateInternalJWT(
-		cachedKey.Key,
-		tokenData.CharacterHash,
-		cachedKey.Kid,
-		updatedTokenData.SessionID,
-		corporations,
-		nil,
-	)
-	if err != nil {
-		m.Errors.WithLabelValues("jwt_generation_error").Inc(ctx)
-		logs.ErrorCtx(ctx, "failed to generate internal JWT", "error", err,
-			"account_id", tokenData.AccountID, "character_hash", tokenData.CharacterHash)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
-		return
 	}
 
 	// Persist new planner app session refresh token (Redis).
@@ -293,22 +249,14 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		sessionMetrics.Continued.WithLabelValues(sessionFlow).Inc(ctx)
 	}
 	sessionMetrics.Stored.WithLabelValues(sessionFlow).Inc(ctx)
+	if err := auth.UpdateAccountSessionGrants(ctx, clients.Redis, tokenData.AccountID, corporations, alliances); err != nil {
+		logs.WarnCtx(ctx, "failed to update account session grants", "error", err, "account_id", tokenData.AccountID)
+	}
 
 	// Rotation: invalidate only the refresh token that authenticated this request (other devices hold different strings).
 	if err := auth.RevokeRefreshToken(ctx, clients.Redis, refreshToken); err != nil {
 		logs.WarnCtx(ctx, "failed to revoke superseded planner app session refresh token", "error", err,
 			"account_id", tokenData.AccountID, "character_hash", tokenData.CharacterHash)
-	}
-
-	// Calculate expiration timestamp using the same duration as token generation (Unix timestamp in seconds)
-	expiresAt := now.Add(internaljwt.TokenExpirationDuration).Unix()
-
-	response := RefreshResponse{
-		AccessToken: internalToken,
-		ExpiresAt:   expiresAt,
-	}
-	if !refreshFromCookie {
-		response.RefreshToken = newRefreshToken
 	}
 
 	if touchLastLogin {
@@ -319,10 +267,6 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 			return
 		}
-		response.FirstLogin = loginDocs.FirstLogin
-		if strings.TrimSpace(mainEsiAccessFromMongo) != "" {
-			response.MainCharacterEsiAccessToken = mainEsiAccessFromMongo
-		}
 		userOut := loginDocs.User
 		var linkedCharacters []models.LinkedCharacterSession
 		if userOut.UserCloudAccounts && cfg.RefreshTokenKeyring != nil {
@@ -332,29 +276,79 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 					cfg.EveSSOClientID, cfg.EveSSOClientSecret, cfg.RefreshTokenKeyring,
 				)
 				if err != nil {
-					logs.WarnCtx(ctx, "cloud linked-character ESI session bundle failed (login-refresh)",
+					logs.WarnCtx(ctx, "cloud linked-character ESI session bundle failed (bootstrap)",
 						"error", err, "account_id", tokenData.AccountID)
 				} else {
 					linkedCharacters = linkedCharacterSessions
 				}
 			}
-			userendpoints.StripRefreshTokensFromUserDocumentForClient(&userOut)
 		}
-		response.UserDocument = userOut
-		response.ApplicationSettings = loginDocs.Settings
-		response.LinkedCharacters = linkedCharacters
+		userendpoints.StripRefreshTokensFromUserDocumentForClient(&userOut)
+		bootstrap := SessionBootstrapResponse{
+			Kind:                sessionKindBootstrap,
+			EsiOAuthStorage:     esiOAuthStorageFromUserCloud(userOut.UserCloudAccounts),
+			AccountID:           tokenData.AccountID,
+			SessionID:           updatedTokenData.SessionID,
+			MainCharacterHash:   tokenData.CharacterHash,
+			ReauthRequiredAt:    updatedTokenData.SessionStart.Add(auth.RefreshTokenTTL).Unix(),
+			FirstLogin:          loginDocs.FirstLogin,
+			UserDocument:        userOut,
+			ApplicationSettings: loginDocs.Settings,
+			LinkedCharacters:    linkedCharacters,
+		}
+		if !refreshFromCookie {
+			bootstrap.RefreshToken = newRefreshToken
+		}
+		if refreshFromCookie {
+			auth.SetAppRefreshCookie(w, r, newRefreshToken)
+		}
+		auth.SetAppSessionCookie(w, updatedTokenData.SessionID)
+		auth.SetEsiOAuthStorageCookieFromUserCloud(w, r, userOut.UserCloudAccounts)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Pragma", "no-cache")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(bootstrap); err != nil {
+			m.Errors.WithLabelValues("encode_error").Inc(ctx)
+			logs.ErrorCtx(ctx, "failed to encode response", "error", err, "account_id", tokenData.AccountID)
+			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+			return
+		}
+		duration := time.Since(start)
+		m.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
+		m.RequestsCount.Inc(ctx)
+		m.Successes.Inc(ctx)
+		logs.InfoCtx(ctx, "successfully refreshed token",
+			"account_id", tokenData.AccountID,
+			"character_hash", tokenData.CharacterHash,
+			"duration_ms", duration.Milliseconds(),
+		)
+		return
+	}
+
+	rotate := SessionRotateResponse{
+		Kind:              sessionKindRotate,
+		AccountID:         tokenData.AccountID,
+		SessionID:         updatedTokenData.SessionID,
+		MainCharacterHash: tokenData.CharacterHash,
+		ReauthRequiredAt:  updatedTokenData.SessionStart.Add(auth.RefreshTokenTTL).Unix(),
+	}
+	if !refreshFromCookie {
+		rotate.RefreshToken = newRefreshToken
 	}
 
 	if refreshFromCookie {
 		auth.SetAppRefreshCookie(w, r, newRefreshToken)
 	}
+	auth.SetAppSessionCookie(w, updatedTokenData.SessionID)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
 	w.WriteHeader(http.StatusOK)
 
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	if err := json.NewEncoder(w).Encode(rotate); err != nil {
 		m.Errors.WithLabelValues("encode_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to encode response", "error", err, "account_id", tokenData.AccountID)
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)

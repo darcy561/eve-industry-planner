@@ -2,9 +2,11 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"eve-industry-planner/api/helper/sso"
 	"eve-industry-planner/shared/core/internaljwt"
@@ -12,6 +14,44 @@ import (
 
 	"github.com/redis/go-redis/v9"
 )
+
+type requestContextKey string
+
+const (
+	accountIDContextKey requestContextKey = "auth.account_id"
+	sessionIDContextKey requestContextKey = "auth.session_id"
+)
+
+type AccountSessionIdentity struct {
+	AccountID string
+	SessionID string
+	Session   AccountSession
+}
+
+func WithAuthIdentity(ctx context.Context, accountID, sessionID string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx = context.WithValue(ctx, accountIDContextKey, strings.TrimSpace(accountID))
+	ctx = context.WithValue(ctx, sessionIDContextKey, strings.TrimSpace(sessionID))
+	return ctx
+}
+
+func AccountIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	v, _ := ctx.Value(accountIDContextKey).(string)
+	return strings.TrimSpace(v)
+}
+
+func SessionIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	v, _ := ctx.Value(sessionIDContextKey).(string)
+	return strings.TrimSpace(v)
+}
 
 // Authentication error messages
 const (
@@ -94,6 +134,11 @@ func GetEveTokenErrorMessage(err error) string {
 
 // ExtractAccountID extracts accountID from the JWT token in Authorization header
 func ExtractAccountID(r *http.Request) (string, error) {
+	if r != nil {
+		if fromCtx := AccountIDFromContext(r.Context()); fromCtx != "" {
+			return fromCtx, nil
+		}
+	}
 	claims, err := ExtractInternalClaims(r)
 	if err != nil {
 		return "", err
@@ -103,6 +148,11 @@ func ExtractAccountID(r *http.Request) (string, error) {
 
 // ExtractSessionID extracts sessionID from the validated internal JWT in Authorization header.
 func ExtractSessionID(r *http.Request) (string, error) {
+	if r != nil {
+		if fromCtx := SessionIDFromContext(r.Context()); fromCtx != "" {
+			return fromCtx, nil
+		}
+	}
 	claims, err := ExtractInternalClaims(r)
 	if err != nil {
 		return "", err
@@ -187,14 +237,14 @@ func SessionRedisMatchesJWTClaims(ctx context.Context, redisClient *redis.Client
 	if jwtAccount == "" || sid == "" {
 		return false
 	}
-	rec, err := GetSessionRecord(ctx, redisClient, sid)
-	if err != nil || rec == nil {
+	accountID, session, err := ResolveAccountSessionBySessionID(ctx, redisClient, sid)
+	if err != nil || session == nil {
 		return false
 	}
-	if strings.TrimSpace(rec.SessionID) != sid {
+	if strings.TrimSpace(session.SessionID) != sid {
 		return false
 	}
-	return strings.TrimSpace(rec.AccountID) == jwtAccount
+	return strings.TrimSpace(accountID) == jwtAccount
 }
 
 // BearerInternalJWTValid reports whether the request carries a valid internal JWT, the
@@ -224,4 +274,61 @@ func BearerInternalJWTValid(ctx context.Context, r *http.Request, redisClient *r
 		return false
 	}
 	return SessionRedisMatchesJWTClaims(ctx, redisClient, claims)
+}
+
+func ExtractAccountSession(ctx context.Context, r *http.Request, redisClient *redis.Client) (*AccountSessionIdentity, error) {
+	if redisClient == nil {
+		return nil, errors.New("redis client is nil")
+	}
+	sessionID := strings.TrimSpace(ReadAppSessionCookie(r))
+	if sessionID == "" {
+		return nil, errors.New("session_missing")
+	}
+	accountID, session, err := ResolveAccountSessionBySessionID(ctx, redisClient, sessionID)
+	if err != nil || session == nil {
+		return nil, errors.New("session_missing")
+	}
+	if session.RevokedAt != nil {
+		return nil, errors.New("session_revoked")
+	}
+	if !session.ReauthRequiredAt.IsZero() && time.Now().UTC().After(session.ReauthRequiredAt) {
+		return nil, errors.New("reauth_required")
+	}
+	return &AccountSessionIdentity{
+		AccountID: accountID,
+		SessionID: sessionID,
+		Session:   *session,
+	}, nil
+}
+
+func TryExtractAccountSession(ctx context.Context, r *http.Request, redisClient *redis.Client) (*AccountSessionIdentity, bool) {
+	identity, err := ExtractAccountSession(ctx, r, redisClient)
+	if err != nil || identity == nil {
+		return nil, false
+	}
+	return identity, true
+}
+
+func ExtractAccountIDFromSession(ctx context.Context, r *http.Request, redisClient *redis.Client) (string, error) {
+	identity, err := ExtractAccountSession(ctx, r, redisClient)
+	if err != nil {
+		return "", err
+	}
+	return identity.AccountID, nil
+}
+
+func ExtractSessionIDFromSession(ctx context.Context, r *http.Request, redisClient *redis.Client) (string, error) {
+	identity, err := ExtractAccountSession(ctx, r, redisClient)
+	if err != nil {
+		return "", err
+	}
+	return identity.SessionID, nil
+}
+
+func ExtractSessionGrants(ctx context.Context, r *http.Request, redisClient *redis.Client) ([]int64, []int64, error) {
+	identity, err := ExtractAccountSession(ctx, r, redisClient)
+	if err != nil {
+		return nil, nil, err
+	}
+	return identity.Session.Grants.CorporationIDs, identity.Session.Grants.AllianceIDs, nil
 }

@@ -156,13 +156,6 @@ async function submitFeedback(input) {
       : {}),
   });
 
-  let serverToken = null;
-  try {
-    serverToken = useUserStore.getState().account.actions.getServerAccessToken();
-  } catch {
-    console.debug("No server token available, submitting as logged out user");
-  }
-
   const URL = `/api/v1/feedback`;
 
   try {
@@ -177,15 +170,12 @@ async function submitFeedback(input) {
 
     const requestOptions = {
       method: "POST",
+      credentials: "same-origin",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
     };
-
-    if (serverToken) {
-      requestOptions.headers["Authorization"] = `Bearer ${serverToken}`;
-    }
 
     const response = await fetchWithPublicHeaders(URL, requestOptions, {
       requestName: "submitFeedback",

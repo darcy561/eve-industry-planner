@@ -356,7 +356,7 @@ func GetAPICitadelNames() *APICitadelNamesMetrics {
 }
 
 // APICloudStoredEsiRefreshTokensMetrics holds OTel metrics for GET/PUT/DELETE
-// /api/v1/user/cloud-stored-esi-refresh-tokens (encrypted ESI refresh material for cloud-linked characters).
+// /api/v1/user/linked-characters/oauth-credentials (encrypted ESI refresh material for cloud-linked characters).
 type APICloudStoredEsiRefreshTokensMetrics struct {
 	Requests      *floatHist
 	RequestsCount *intCounter
@@ -376,7 +376,7 @@ func GetAPICloudStoredEsiRefreshTokens() *APICloudStoredEsiRefreshTokensMetrics 
 		apiCloudStoredEsiRefreshTokensHolder = &APICloudStoredEsiRefreshTokensMetrics{
 			Requests: &floatHist{h: mustHist(m.Float64Histogram("api.cloud_stored_esi_refresh_tokens.duration_milliseconds",
 				metric.WithUnit("ms"),
-				metric.WithDescription("Latency of /api/v1/user/cloud-stored-esi-refresh-tokens (milliseconds)"),
+				metric.WithDescription("Latency of /api/v1/user/linked-characters/oauth-credentials (milliseconds)"),
 			))},
 			RequestsCount: &intCounter{c: mustCounter(m.Int64Counter("api.cloud_stored_esi_refresh_tokens.requests_total",
 				metric.WithDescription("Total cloud-stored ESI refresh token endpoint requests"),

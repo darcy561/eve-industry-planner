@@ -16,6 +16,7 @@ import getEveOauthToken from "../../Functions/EveESI/Character/getEveSSOToken";
 import {
   showSnackbarSuccess,
   showSnackbarError,
+  showSnackbarInfo,
 } from "../../Events/snackbarEvents";
 import checkUserClaims from "../../Functions/Auth/checkUserClaims";
 import useUsersStore from "../../Zustand/usersStore";
@@ -27,8 +28,6 @@ import {
   scheduleDebouncedUserAccountDocumentSave,
 } from "../../Functions/Debounce/userDocumentsPersistSchedule.js";
 import {
-  deleteCloudStoredEsiRefreshTokens,
-  getCloudStoredEsiRefreshTokens,
   upsertCloudStoredEsiRefreshTokens,
 } from "../../Functions/Endpoints/Pirivate/cloudStoredEsiRefreshTokens.js";
 import {
@@ -258,34 +257,12 @@ export function AdditionalAccounts({ appearance = "default" } = {}) {
           localStorage.removeItem(localStorageKey);
         }
       } else {
-        const tokenDoc = await getCloudStoredEsiRefreshTokens();
-        const persistedRefreshTokens = Array.isArray(tokenDoc?.refreshTokens)
-          ? tokenDoc.refreshTokens
-              .map((row) => ({
-                CharacterHash: row?.CharacterHash || row?.characterHash || "",
-                rToken: row?.rToken || "",
-              }))
-              .filter((row) => row.CharacterHash && row.rToken)
-          : [];
-        if (persistedRefreshTokens.length > 0) {
-          const localStorageKey =
-            getLocalAdditionalAccountsStorageKey(mainCharacterHash);
-          localStorage.setItem(localStorageKey, JSON.stringify(persistedRefreshTokens));
-          const storedEcho = JSON.parse(localStorage.getItem(localStorageKey) || "[]");
-          const localPersisted =
-            Array.isArray(storedEcho) &&
-            storedEcho.length === persistedRefreshTokens.length;
-          if (!localPersisted) {
-            throw new Error("Failed to persist linked character tokens locally");
-          }
-          const hashesToDelete = persistedRefreshTokens.map((row) => row.CharacterHash);
-          const deleted = await deleteCloudStoredEsiRefreshTokens(hashesToDelete);
-          if (!deleted) {
-            throw new Error("Failed to remove cloud-linked character tokens");
-          }
-        } else {
-          updateLocalRefreshTokens(characters);
-        }
+        // OAuth refresh secrets remain server-side in cloud mode; we cannot copy them into localStorage.
+        updateLocalRefreshTokens(useUsersStore.getState().account.characters);
+        showSnackbarInfo(
+          "Switched to local storage. Link additional accounts again if you want OAuth refresh tokens saved only in this browser.",
+          5,
+        );
       }
       setCloudAccountsEnabled(nextCloudEnabled);
       scheduleDebouncedUserAccountDocumentSave();

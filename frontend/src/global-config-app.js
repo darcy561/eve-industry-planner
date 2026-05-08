@@ -351,6 +351,18 @@ const GLOBAL_CONFIG = Object.freeze({
    */
   DEFAULT_CHARACTER_REFRESH_INTERVAL: 15,
 
+  /**
+   * Minimum gap between redundant `POST .../auth/sessions/rotate` calls when the
+   * planner session is already valid (throttles pre-flight refresh before private API).
+   * Align with typical EVE SSO **access** JWT lifetime (~20m); login/bootstrap still
+   * sets `lastPlannerSessionValidatedAt` on the account slice immediately.
+   *
+   * @type {number}
+   * @default 20
+   * @unit minutes
+   */
+  PLANNER_SESSION_ROTATE_COOLDOWN_MINUTES: 20,
+
   //Default version check interval in minutes
   //(Number)
   //Default: 30

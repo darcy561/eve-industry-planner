@@ -88,15 +88,6 @@ func (s *Server) reader(client *Client) {
 		}
 		s.userConnMu.Unlock()
 
-		// Remove session -> client mapping only if this client is still the active one.
-		s.sessionConnMu.Lock()
-		wasActiveSessionClient := false
-		if activeClientID, ok := s.sessionConnections[client.SessionID]; ok && activeClientID == client.id {
-			delete(s.sessionConnections, client.SessionID)
-			wasActiveSessionClient = true
-		}
-		s.sessionConnMu.Unlock()
-
 		// Close connection if not already closed
 		client.conn.Close()
 
@@ -111,8 +102,7 @@ func (s *Server) reader(client *Client) {
 			"remaining_clients", clientCount,
 			"remaining_user_connections", userConnCount,
 			"was_in_clients", wasInClients,
-			"was_in_user_conns", wasInUserConns,
-			"was_active_session_client", wasActiveSessionClient)
+			"was_in_user_conns", wasInUserConns)
 	}()
 
 	// Set read deadline to enable timeout detection for stale connections

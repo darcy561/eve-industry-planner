@@ -1,7 +1,9 @@
 package tasks
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -11,6 +13,7 @@ import (
 	"eve-industry-planner/shared/shared"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"
 )
@@ -31,9 +34,28 @@ func (m *mockESIClient) DoRequest(ctx context.Context, method, path string, head
 	return nil, errors.New("not implemented")
 }
 
-// Helper to create a test affiliation POST response (array of {character_id, corporation_id}).
-func createAffiliationJSON(corporationID int) []byte {
-	row := CharacterAffiliation{CharacterID: 1, CorporationID: corporationID}
+// setupAccountSessionGrantsTestEnv configures env vars required by [config.LoadConfig] and returns
+// an in-memory Redis client so [RefreshAccountSessionGrants] can persist grants without a real Redis.
+func setupAccountSessionGrantsTestEnv(t *testing.T) *redis.Client {
+	t.Helper()
+	t.Setenv("MONGO_URL", "mongodb://127.0.0.1:27017/eve_industry_planner")
+	t.Setenv("REDIS_PASSWORD", "test-redis-password")
+	t.Setenv("REFRESH_TOKEN_AES_KEY", base64.StdEncoding.EncodeToString(bytes.Repeat([]byte("x"), 32)))
+	t.Setenv("EVE_CLIENT_ID", "test-eve-client-id")
+
+	srv, err := miniredis.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { srv.Close() })
+	rdb := redis.NewClient(&redis.Options{Addr: srv.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	return rdb
+}
+
+// Helper to create a test affiliation POST response (character_id, corporation_id, alliance_id).
+func createAffiliationJSON(corporationID, allianceID int) []byte {
+	row := CharacterAffiliation{CharacterID: 1, CorporationID: corporationID, AllianceID: allianceID}
 	data, _ := json.Marshal([]CharacterAffiliation{row})
 	return data
 }
@@ -66,135 +88,127 @@ func createMockTask(taskType string, data interface{}) *asynq.Task {
 	return asynq.NewTask(taskType, payloadBytes)
 }
 
-func TestUpdateCustomCorporationClaims_NilTask(t *testing.T) {
+func TestRefreshAccountSessionGrants_NilTask(t *testing.T) {
 	ctx := context.Background()
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      &mockESIClient{},
 	}
 
-	err := UpdateCustomCorporationClaims(ctx, nil, deps)
+	err := RefreshAccountSessionGrants(ctx, nil, deps)
 	if err == nil {
 		t.Error("expected error when task is nil")
 	}
 }
 
-func TestUpdateCustomCorporationClaims_InvalidJSON(t *testing.T) {
+func TestRefreshAccountSessionGrants_InvalidJSON(t *testing.T) {
 	ctx := context.Background()
 	// Create a task with invalid JSON payload
 	invalidPayload := struct {
 		TaskType string          `json:"task_type"`
 		Data     json.RawMessage `json:"data"`
 	}{
-		TaskType: "fetchCorporations",
+		TaskType: "updateAccountSessionGrants",
 		Data:     []byte("invalid json"),
 	}
 	payloadBytes, _ := json.Marshal(invalidPayload)
-	task := asynq.NewTask("fetchCorporations", payloadBytes)
+	task := asynq.NewTask("updateAccountSessionGrants", payloadBytes)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      &mockESIClient{},
 	}
 
-	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	err := RefreshAccountSessionGrants(ctx, task, deps)
 	if err == nil {
 		t.Error("expected error when JSON is invalid")
 	}
 }
 
-func TestUpdateCustomCorporationClaims_MissingAccountID(t *testing.T) {
+func TestRefreshAccountSessionGrants_MissingAccountID(t *testing.T) {
 	ctx := context.Background()
-	request := natscore.CorporationClaimsRequest{
+	request := natscore.AccountSessionGrantsRequest{
 		AccountID: "",
 		Tokens:    []string{"token1"},
 	}
-	task := createMockTask("fetchCorporations", request)
+	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      &mockESIClient{},
 	}
 
-	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	err := RefreshAccountSessionGrants(ctx, task, deps)
 	if err == nil {
-		t.Error("expected error when account_id is missing")
+		t.Fatal("expected error when account_id is missing")
 	}
-	if !errors.Is(err, errors.New("missing account_id")) && err.Error() != "missing account_id" {
-		t.Errorf("expected 'missing account_id' error, got: %v", err)
+	if err.Error() != "missing account_id" {
+		t.Fatalf("expected missing account_id error, got: %v", err)
 	}
 }
 
-func TestUpdateCustomCorporationClaims_EmptyTokens(t *testing.T) {
+func TestRefreshAccountSessionGrants_EmptyTokens(t *testing.T) {
 	ctx := context.Background()
-	request := natscore.CorporationClaimsRequest{
+	request := natscore.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{},
 	}
-	task := createMockTask("fetchCorporations", request)
+	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      &mockESIClient{},
 	}
 
-	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	err := RefreshAccountSessionGrants(ctx, task, deps)
 	if err == nil {
-		t.Error("expected error when no tokens provided")
+		t.Fatal("expected error when no tokens provided")
 	}
-	if !errors.Is(err, errors.New("no tokens provided")) && err.Error() != "no tokens provided" {
-		t.Errorf("expected 'no tokens provided' error, got: %v", err)
+	if err.Error() != "no tokens provided" {
+		t.Fatalf("expected no tokens provided error, got: %v", err)
 	}
 }
 
-func TestUpdateCustomCorporationClaims_TokenValidationFailure(t *testing.T) {
-	// Note: This test uses an invalid token which will naturally fail SSO validation.
-	// Since we can't mock sso.ValidateEveSSOToken directly, we test with invalid tokens
-	// that will fail validation as expected.
+func TestRefreshAccountSessionGrants_TokenValidationFailure(t *testing.T) {
+	// Invalid tokens yield no character IDs; the task still stores empty corp/alliance lists and exits cleanly.
 	ctx := context.Background()
-	request := natscore.CorporationClaimsRequest{
+	request := natscore.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"invalid-token-that-will-fail-validation"},
 	}
-	task := createMockTask("fetchCorporations", request)
-
-	// Create a Redis client that will fail on operations but won't cause nil pointer panic
-	// Using an invalid address so it won't actually connect, but the client object exists
-	redisClient := redis.NewClient(&redis.Options{
-		Addr: "invalid:6379", // Invalid address - operations will fail but client is not nil
-	})
+	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{
-			Redis: redisClient,
+			Redis: setupAccountSessionGrantsTestEnv(t),
 		},
 		ESIClient: &mockESIClient{},
 	}
 
-	err := UpdateCustomCorporationClaims(ctx, task, deps)
-	// Should return error if storage fails, or succeed if tokens fail validation but storage succeeds
-	// The exact behavior depends on whether Redis connection fails or token validation fails first
-	_ = err // Error may or may not occur depending on Redis connection timing
+	err := RefreshAccountSessionGrants(ctx, task, deps)
+	if err != nil {
+		t.Fatalf("expected nil after skipping invalid tokens (empty grants persisted): %v", err)
+	}
 }
 
-// TestUpdateCustomCorporationClaims_MissingCharacterID tests the case where
+// TestRefreshAccountSessionGrants_MissingCharacterID tests the case where
 // a token validates but has no character ID. This requires a valid token structure
 // which is difficult to create without proper JWT signing, so this test is
 // more suited for integration testing with real tokens.
 // For unit testing, we verify the logic path exists in the code.
-func TestUpdateCustomCorporationClaims_MissingCharacterID(t *testing.T) {
+func TestRefreshAccountSessionGrants_MissingCharacterID(t *testing.T) {
 	t.Skip("Requires valid JWT token structure - better suited for integration tests")
 }
 
-// TestUpdateCustomCorporationClaims_InvalidCharacterIDFormat tests the case where
+// TestRefreshAccountSessionGrants_InvalidCharacterIDFormat tests the case where
 // character ID is not a valid integer. This requires a valid token structure
 // which is difficult to create without proper JWT signing, so this test is
 // more suited for integration testing with real tokens.
-func TestUpdateCustomCorporationClaims_InvalidCharacterIDFormat(t *testing.T) {
+func TestRefreshAccountSessionGrants_InvalidCharacterIDFormat(t *testing.T) {
 	t.Skip("Requires valid JWT token structure - better suited for integration tests")
 }
 
-func TestUpdateCustomCorporationClaims_ESIRetryableRateLimitError(t *testing.T) {
+func TestRefreshAccountSessionGrants_ESIRetryableRateLimitError(t *testing.T) {
 	// Note: This test would require a valid SSO token to pass validation.
 	// For unit testing purposes, we test the ESI error handling path.
 	// In a real scenario, you'd use integration tests with valid tokens.
@@ -203,7 +217,7 @@ func TestUpdateCustomCorporationClaims_ESIRetryableRateLimitError(t *testing.T) 
 	// The following code shows the expected behavior:
 	// When ESI returns a retryable rate limit error, the message should be nacked
 	/*
-		request := natscore.CorporationClaimsRequest{
+		request := natscore.AccountSessionGrantsRequest{
 			AccountID: "test-account-123",
 			Tokens:    []string{"valid-token"},
 		}
@@ -229,7 +243,7 @@ func TestUpdateCustomCorporationClaims_ESIRetryableRateLimitError(t *testing.T) 
 			ESIClient:      esiClient,
 		}
 
-		UpdateCustomCorporationClaims(msg, deps)
+		RefreshAccountSessionGrants(msg, deps)
 
 		if !msg.nakCalled {
 			t.Error("expected message to be nacked for retryable rate limit error")
@@ -237,7 +251,7 @@ func TestUpdateCustomCorporationClaims_ESIRetryableRateLimitError(t *testing.T) 
 	*/
 }
 
-func TestUpdateCustomCorporationClaims_ESINonRetryableError(t *testing.T) {
+func TestRefreshAccountSessionGrants_ESINonRetryableError(t *testing.T) {
 	// Note: This test would require a valid SSO token to pass validation.
 	// For unit testing purposes, we test the ESI error handling path.
 	t.Skip("Requires valid SSO token - testing ESI error handling is better done in integration tests")
@@ -250,23 +264,23 @@ func TestUpdateCustomCorporationClaims_ESINonRetryableError(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	request := natscore.CorporationClaimsRequest{
+	request := natscore.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1"},
 	}
-	task := createMockTask("fetchCorporations", request)
+	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      esiClient,
 	}
 
-	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	err := RefreshAccountSessionGrants(ctx, task, deps)
 	// Should succeed even if ESI call fails (non-retryable) - continues with other tokens
 	_ = err // May succeed or fail depending on token validation
 }
 
-func TestUpdateCustomCorporationClaims_ESINon200Status(t *testing.T) {
+func TestRefreshAccountSessionGrants_ESINon200Status(t *testing.T) {
 	// Note: This test would require a valid SSO token to pass validation.
 	t.Skip("Requires valid SSO token - testing ESI status codes is better done in integration tests")
 
@@ -282,23 +296,23 @@ func TestUpdateCustomCorporationClaims_ESINon200Status(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	request := natscore.CorporationClaimsRequest{
+	request := natscore.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1"},
 	}
-	task := createMockTask("fetchCorporations", request)
+	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      esiClient,
 	}
 
-	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	err := RefreshAccountSessionGrants(ctx, task, deps)
 	// Should succeed even if ESI returns non-200 - continues with other tokens
 	_ = err // May succeed or fail depending on token validation
 }
 
-func TestUpdateCustomCorporationClaims_InvalidJSONResponse(t *testing.T) {
+func TestRefreshAccountSessionGrants_InvalidJSONResponse(t *testing.T) {
 	// Note: This test would require a valid SSO token to pass validation.
 	t.Skip("Requires valid SSO token - testing JSON parsing is better done in integration tests")
 
@@ -314,23 +328,23 @@ func TestUpdateCustomCorporationClaims_InvalidJSONResponse(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	request := natscore.CorporationClaimsRequest{
+	request := natscore.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1"},
 	}
-	task := createMockTask("fetchCorporations", request)
+	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      esiClient,
 	}
 
-	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	err := RefreshAccountSessionGrants(ctx, task, deps)
 	// Should succeed even if JSON parsing fails - continues with other tokens
 	_ = err // May succeed or fail depending on token validation
 }
 
-func TestUpdateCustomCorporationClaims_SuccessfulProcessing(t *testing.T) {
+func TestRefreshAccountSessionGrants_SuccessfulProcessing(t *testing.T) {
 	// Note: This test requires valid SSO tokens which is complex to create in unit tests.
 	// This is better suited for integration tests with real tokens.
 	t.Skip("Requires valid SSO tokens - better suited for integration tests")
@@ -353,15 +367,15 @@ func TestUpdateCustomCorporationClaims_SuccessfulProcessing(t *testing.T) {
 				StatusCode: 200,
 				Status:     "200 OK",
 			}
-			return createAffiliationJSON(corpID), resp, nil
+			return createAffiliationJSON(corpID, 0), resp, nil
 		},
 	}
 
-	request := natscore.CorporationClaimsRequest{
+	request := natscore.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1", "token2", "token3"},
 	}
-	task := createMockTask("fetchCorporations", request)
+	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
@@ -372,14 +386,14 @@ func TestUpdateCustomCorporationClaims_SuccessfulProcessing(t *testing.T) {
 	// For now, we'll test that the function completes successfully
 	// In a real scenario, you might want to use dependency injection or a test helper
 
-	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	err := RefreshAccountSessionGrants(ctx, task, deps)
 	// Should succeed on success
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
 
-func TestUpdateCustomCorporationClaims_DuplicateCorporations(t *testing.T) {
+func TestRefreshAccountSessionGrants_DuplicateCorporations(t *testing.T) {
 	// Note: This test requires valid SSO tokens.
 	t.Skip("Requires valid SSO tokens - better suited for integration tests")
 
@@ -390,30 +404,30 @@ func TestUpdateCustomCorporationClaims_DuplicateCorporations(t *testing.T) {
 				StatusCode: 200,
 				Status:     "200 OK",
 			}
-			return createAffiliationJSON(1001), resp, nil
+			return createAffiliationJSON(1001, 0), resp, nil
 		},
 	}
 
 	ctx := context.Background()
-	request := natscore.CorporationClaimsRequest{
+	request := natscore.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1", "token2", "token3"}, // All same character
 	}
-	task := createMockTask("fetchCorporations", request)
+	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      esiClient,
 	}
 
-	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	err := RefreshAccountSessionGrants(ctx, task, deps)
 	// Should succeed (deduplication happens in the function)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
 
-func TestUpdateCustomCorporationClaims_ZeroCorporationID(t *testing.T) {
+func TestRefreshAccountSessionGrants_ZeroCorporationID(t *testing.T) {
 	// Note: This test requires valid SSO tokens.
 	t.Skip("Requires valid SSO tokens - better suited for integration tests")
 
@@ -424,30 +438,30 @@ func TestUpdateCustomCorporationClaims_ZeroCorporationID(t *testing.T) {
 				StatusCode: 200,
 				Status:     "200 OK",
 			}
-			return createAffiliationJSON(0), resp, nil
+			return createAffiliationJSON(0, 0), resp, nil
 		},
 	}
 
 	ctx := context.Background()
-	request := natscore.CorporationClaimsRequest{
+	request := natscore.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1"},
 	}
-	task := createMockTask("fetchCorporations", request)
+	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      esiClient,
 	}
 
-	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	err := RefreshAccountSessionGrants(ctx, task, deps)
 	// Should succeed (zero corp ID is skipped)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
 
-func TestUpdateCustomCorporationClaims_MixedSuccessAndFailure(t *testing.T) {
+func TestRefreshAccountSessionGrants_MixedSuccessAndFailure(t *testing.T) {
 	// Note: This test requires valid SSO tokens.
 	t.Skip("Requires valid SSO tokens - better suited for integration tests")
 
@@ -458,23 +472,23 @@ func TestUpdateCustomCorporationClaims_MixedSuccessAndFailure(t *testing.T) {
 				StatusCode: 200,
 				Status:     "200 OK",
 			}
-			return createAffiliationJSON(1001), resp, nil
+			return createAffiliationJSON(1001, 0), resp, nil
 		},
 	}
 
 	ctx := context.Background()
-	request := natscore.CorporationClaimsRequest{
+	request := natscore.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1", "token2"},
 	}
-	task := createMockTask("fetchCorporations", request)
+	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      esiClient,
 	}
 
-	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	err := RefreshAccountSessionGrants(ctx, task, deps)
 	// Should succeed even if some tokens fail (partial success)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -483,7 +497,7 @@ func TestUpdateCustomCorporationClaims_MixedSuccessAndFailure(t *testing.T) {
 
 // Integration-style test with real Redis mock (if needed)
 // This would require a more sophisticated Redis mock or testcontainers
-func TestUpdateCustomCorporationClaims_RedisStorageFailure(t *testing.T) {
+func TestRefreshAccountSessionGrants_RedisStorageFailure(t *testing.T) {
 	// This test would require mocking StoreCorporations or using dependency injection.
 	// Since StoreCorporations is in a different package and uses Redis directly,
 	// this is better tested with integration tests or by refactoring to use an interface.
@@ -497,15 +511,15 @@ func TestUpdateCustomCorporationClaims_RedisStorageFailure(t *testing.T) {
 				StatusCode: 200,
 				Status:     "200 OK",
 			}
-			return createAffiliationJSON(1001), resp, nil
+			return createAffiliationJSON(1001, 0), resp, nil
 		},
 	}
 
-	request := natscore.CorporationClaimsRequest{
+	request := natscore.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1"},
 	}
-	task := createMockTask("fetchCorporations", request)
+	task := createMockTask("updateAccountSessionGrants", request)
 
 	// Use nil Redis to trigger storage error
 	deps := &TaskDependencies{
@@ -515,7 +529,7 @@ func TestUpdateCustomCorporationClaims_RedisStorageFailure(t *testing.T) {
 		ESIClient: esiClient,
 	}
 
-	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	err := RefreshAccountSessionGrants(ctx, task, deps)
 	// Should return error if storage fails
 	if err == nil {
 		t.Error("expected error when Redis storage fails")
@@ -523,7 +537,7 @@ func TestUpdateCustomCorporationClaims_RedisStorageFailure(t *testing.T) {
 }
 
 // Test helper to verify the function handles nil response
-func TestUpdateCustomCorporationClaims_NilResponse(t *testing.T) {
+func TestRefreshAccountSessionGrants_NilResponse(t *testing.T) {
 	// Note: This test requires valid SSO tokens.
 	t.Skip("Requires valid SSO tokens - better suited for integration tests")
 
@@ -535,18 +549,18 @@ func TestUpdateCustomCorporationClaims_NilResponse(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	request := natscore.CorporationClaimsRequest{
+	request := natscore.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1"},
 	}
-	task := createMockTask("fetchCorporations", request)
+	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
 		ServiceClients: &shared.ServiceClients{},
 		ESIClient:      esiClient,
 	}
 
-	err := UpdateCustomCorporationClaims(ctx, task, deps)
+	err := RefreshAccountSessionGrants(ctx, task, deps)
 	// Should succeed when response is nil - continues with other tokens
 	_ = err // May succeed or fail depending on token validation
 }

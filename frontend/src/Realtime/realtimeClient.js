@@ -1,9 +1,8 @@
 /**
- * Module singleton WebSocket client for same-origin `/ws` (JWT subprotocol auth).
+ * Module singleton WebSocket client for same-origin `/ws` (cookie-backed session auth).
  * Does not live in Zustand — connect/disconnect are explicit from auth lifecycle.
  */
 
-import { isAppJwtExpired } from "../Functions/Auth/appJwt.js";
 import { getSessionIDFromStoreOrToken } from "../Functions/Endpoints/Pirivate/applyPrivateHeaders.js";
 import { fetchPlannerJobDocumentsFromApi } from "../Functions/Endpoints/Pirivate/jobDocuments.js";
 import { applyRemoteMessage } from "./applyRemoteMessage.js";
@@ -20,7 +19,7 @@ import {
 let socket = null;
 /** @type {string|null} */
 let connectKey = null;
-/** @type {{ accessToken: string, accountId: string }|null} */
+/** @type {{ accountId: string }|null} */
 let lastConnectParams = null;
 let reconnectTimer = null;
 let pingTimer = null;
@@ -61,21 +60,21 @@ export const WS_SESSION_HANDOFF_MS =
 
 let reconnectAttempt = 0;
 
-/** After JWT `exp`, do not open or backoff-reconnect until the store supplies a fresh token. */
+/** Transient gate used while session identity is being refreshed/replaced. */
 let haltedForExpiredToken = false;
 /** Last access token string we successfully opened on (for rotation + resync detection). */
 let lastSuccessfulOpenToken = null;
 
-/** One-shot hint for JWT rotation: previous server client_id before intentional disconnect. */
+/** One-shot hint for session-identity rotation: previous server client_id before intentional disconnect. */
 /** @type {{ accountId: string, clientId: string } | null} */
 let resumeHint = null;
 
-/** Resolves when `resume_ack` arrives after `session_resume` (JWT handoff). */
+/** Resolves when `resume_ack` arrives after `session_resume` handoff. */
 /** @type {{ resolve: (v: { skipBaselineSync: boolean, restoredDocIDs?: string[] }) => void } | null} */
 let resumeBootstrap = null;
 
 /**
- * Call immediately before `disconnectRealtime()` when the hook will reconnect with a new JWT
+ * Call immediately before `disconnectRealtime()` when the hook will reconnect with a new session identity
  * (same logged-in account). Uses current store + live client id so logout cleanup does not stash.
  */
 export function stashRealtimeSessionResumeHint() {
@@ -86,7 +85,8 @@ export function stashRealtimeSessionResumeHint() {
 }
 
 /**
- * Same-origin WS URL. `session_id` query pairs with JWT for upgrade validation (browsers cannot set X-Session-ID on WebSocket).
+ * Same-origin WS URL. `session_id` query is optional and used only for
+ * reconnect/session diagnostics; websocket auth is cookie-backed.
  * @param {string} [sessionId]
  */
 function wsUrl(sessionId) {
@@ -98,13 +98,12 @@ function wsUrl(sessionId) {
   if (sid) {
     u.searchParams.set("session_id", sid);
   }
-  return u.toString().replace(/^http/, "ws");
-}
-
-/** @param {string} token */
-function base64UrlFromJwt(token) {
-  const b64 = btoa(token);
-  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  if (u.protocol === "https:") {
+    u.protocol = "wss:";
+  } else if (u.protocol === "http:") {
+    u.protocol = "ws:";
+  }
+  return u.toString();
 }
 
 function clearTimers() {
@@ -121,8 +120,7 @@ function clearTimers() {
 function scheduleReconnect(connectFn) {
   if (manualClose) return;
   const p = lastConnectParams;
-  if (!p || isAppJwtExpired(p.accessToken)) {
-    haltedForExpiredToken = true;
+  if (!p) {
     return;
   }
   const delay = Math.min(
@@ -138,7 +136,7 @@ function scheduleReconnect(connectFn) {
 }
 
 /**
- * Account-scoped realtime: the server fans out all `accountID`-tagged doc updates after JWT upgrade.
+ * Account-scoped realtime: the server fans out all `accountID`-tagged doc updates after session upgrade.
  * Optional explicit `subscribe` messages are only for escape-hatch doc ids (see `subscribeDocIDs`).
  */
 function sendBaselineSubscriptionsForOpen(_accountId, _attemptedSessionResume, _resumeAck) {
@@ -146,47 +144,24 @@ function sendBaselineSubscriptionsForOpen(_accountId, _attemptedSessionResume, _
 }
 
 /**
- * @param {{ accessToken: string, accountId: string }} params
+ * @param {{ accountId: string }} params
  */
 export function connectRealtime(params) {
-  const { accessToken, accountId } = params;
-  if (!accessToken || !accountId) return;
-
-  if (isAppJwtExpired(accessToken)) {
-    console.warn("[realtime] reconnect blocked: access token expired", {
-      accountId,
-      reason: "token_expired",
-    });
-    haltedForExpiredToken = true;
-    clearTimers();
-    if (socket) {
-      try {
-        socket.close(WS_CLOSE_NORMAL, "token_expired");
-      } catch {
-        /* ignore */
-      }
-      socket = null;
-    }
-    connectKey = null;
-    lastConnectParams = null;
-    clearRealtimeClientIdentityHard();
-    reconnectAttempt = 0;
-    return;
-  }
+  const { accountId } = params;
+  if (!accountId) return;
 
   const forceBaselineResync = haltedForExpiredToken;
   haltedForExpiredToken = false;
 
-  const sessionIdForWs = getSessionIDFromStoreOrToken(accessToken);
+  const sessionIdForWs = getSessionIDFromStoreOrToken();
   if (!sessionIdForWs) {
-    console.warn("[realtime] WebSocket blocked: missing session id for upgrade validation", {
+    console.warn("[realtime] WebSocket connecting without session_id query param; relying on cookie auth", {
       accountId,
     });
-    return;
   }
 
   lastConnectParams = params;
-  const nextKey = `${accessToken}:${accountId}:${sessionIdForWs}`;
+  const nextKey = accountId;
   if (
     socket &&
     socket.readyState === WebSocket.OPEN &&
@@ -218,11 +193,10 @@ export function connectRealtime(params) {
     clearRealtimeClientID();
   }
 
-  const proto = `auth.${base64UrlFromJwt(accessToken)}`;
   /** Guard listeners so a lagging close from a replaced socket cannot clear the active connection or its timers. */
   let ws;
   try {
-    ws = new WebSocket(wsUrl(sessionIdForWs), [proto]);
+    ws = new WebSocket(wsUrl(sessionIdForWs));
     socket = ws;
   } catch (e) {
     console.error("[realtime] WebSocket construct failed", e);
@@ -236,7 +210,7 @@ export function connectRealtime(params) {
     if (socket !== ws) return;
     reconnectAttempt = 0;
     const prevOpenToken = lastSuccessfulOpenToken;
-    lastSuccessfulOpenToken = accessToken;
+    lastSuccessfulOpenToken = sessionIdForWs;
 
     void (async () => {
       const attemptedSessionResume = Boolean(
@@ -279,7 +253,7 @@ export function connectRealtime(params) {
        * can miss WS frames during refresh — always pull singletons when the JWT string changed.
        */
       const tokenChanged =
-        prevOpenToken == null || prevOpenToken !== accessToken;
+        prevOpenToken == null || prevOpenToken !== sessionIdForWs;
       const shouldSync =
         tokenChanged ||
         (!resumeSkippedBaseline && forceBaselineResync);
@@ -293,7 +267,7 @@ export function connectRealtime(params) {
        */
       const shouldRefetchPlannerJobs =
         forceBaselineResync ||
-        (prevOpenToken != null && prevOpenToken !== accessToken);
+        (prevOpenToken != null && prevOpenToken !== sessionIdForWs);
       if (shouldRefetchPlannerJobs) {
         void fetchPlannerJobDocumentsFromApi().catch((e) => {
           console.warn(
@@ -389,12 +363,7 @@ export function connectRealtime(params) {
     clearRealtimeClientID();
     if (!manualClose && connectKey === nextKey) {
       const p = lastConnectParams;
-      if (!p || isAppJwtExpired(p.accessToken)) {
-        console.warn("[realtime] reconnect blocked after socket close: token expired", {
-          accountId,
-          reason: "token_expired",
-        });
-        haltedForExpiredToken = true;
+      if (!p) {
         return;
       }
       scheduleReconnect(() => {
@@ -408,7 +377,7 @@ export function connectRealtime(params) {
   });
 }
 
-/** @param {{ accessToken: string, accountId: string }} params */
+/** @param {{ accountId: string }} params */
 export function reconnectRealtime(params) {
   connectRealtime(params);
 }

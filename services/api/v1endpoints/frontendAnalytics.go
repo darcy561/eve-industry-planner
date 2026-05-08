@@ -64,8 +64,10 @@ const maxFrontendByTypeKeys = 500
 const maxFrontendBatchEvents = 60
 
 func frontendAnalyticsAudience(ctx context.Context, r *http.Request, clients *shared.ServiceClients) string {
-	if clients != nil && auth.BearerInternalJWTValid(ctx, r, clients.Redis) {
-		return apimetrics.FrontendAudienceAuthenticated
+	if clients != nil {
+		if _, ok := auth.TryExtractAccountSession(ctx, r, clients.Redis); ok {
+			return apimetrics.FrontendAudienceAuthenticated
+		}
 	}
 	return apimetrics.FrontendAudienceAnonymous
 }

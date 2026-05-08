@@ -2,7 +2,6 @@ import useUserStore from "../../../Zustand/usersStore";
 import { chunkArray } from "../chunkArray.js";
 import withRequestRetries, { splitRetryConfig } from "../withRequestRetries.js";
 import { getRealtimeClientID } from "../../../Realtime/wsClientIdentity.js";
-import { getAppJwtSessionID } from "../../Auth/appJwt.js";
 
 /**
  * Shared `retry` options for batched private calls (same as `withRequestRetries` defaults).
@@ -33,7 +32,7 @@ function throwIfAnySettledFailed(settled, label) {
  * @type {string}
  */
 export const PRIVATE_AUTH_TOKEN_UNAVAILABLE =
-  "Authentication required but no server token available";
+  "Authentication required but no session available";
 
 /**
  * @typedef {object} PrivateRequestBatchOptions
@@ -45,10 +44,11 @@ export const PRIVATE_AUTH_TOKEN_UNAVAILABLE =
  */
 
 /**
- * Private API helpers: Bearer app JWT (`account.accessToken`).
+ * Private API helpers: cookie-backed session auth.
  *
- * {@link requestWithPrivateHeaders} awaits `account.actions.refreshServerToken` first when the token
- * is near expiry (same buffer as elsewhere), then attaches the current Bearer token and `fetch`es.
+ * {@link requestWithPrivateHeaders} awaits `account.actions.refreshServerToken` first (often a no-op
+ * when the planner session was validated recently — see cooldown in `tokenActions.refreshServerToken`),
+ * then performs `fetch` with browser-managed same-origin cookies.
  * **Retries** (408 / 429 / 5xx by default) are applied automatically unless `config.retry === false`.
  *
  * **Batching:** pass `config.batch` with `size` and `arrayKey`. The request `body` must be a JSON
@@ -74,29 +74,13 @@ function stripBatchFromConfig(config) {
   return { inner, batch };
 }
 
-/**
- * Get server access token from Zustand store
- * @returns {string|null} Server access token or null if not available
- */
-function getServerToken() {
-  try {
-    const serverToken = useUserStore
-      .getState()
-      .account.actions.getServerAccessToken();
-    return serverToken;
-  } catch (error) {
-    console.error("Failed to get server token:", error);
-    return null;
-  }
-}
-
-/** Resolves session id for private API headers (Zustand, then JWT payload). */
-export function getSessionIDFromStoreOrToken(serverToken) {
+/** Resolves session id for private API headers. */
+export function getSessionIDFromStoreOrToken() {
   const fromStore = useUserStore.getState()?.account?.sessionID;
   if (typeof fromStore === "string" && fromStore.trim().length > 0) {
     return fromStore.trim();
   }
-  return getAppJwtSessionID(serverToken);
+  return null;
 }
 
 /**
@@ -114,19 +98,11 @@ export function getSessionIDFromStoreOrToken(serverToken) {
  * });
  */
 function applyPrivateHeaders(options = {}, config = {}) {
-  const serverToken = getServerToken();
-
-  if (!serverToken) {
-    console.error("No server access token available - authentication required for private endpoints");
-    return null;
-  }
-
   const headers = {
     ...options.headers,
-    Authorization: `Bearer ${serverToken}`,
     ...(config.requestName && { "X-Request-Name": config.requestName }),
-    ...(getSessionIDFromStoreOrToken(serverToken) && {
-      "X-Session-ID": getSessionIDFromStoreOrToken(serverToken),
+    ...(getSessionIDFromStoreOrToken() && {
+      "X-Session-ID": getSessionIDFromStoreOrToken(),
     }),
     ...(getRealtimeClientID() && {
       "X-WS-Client-ID": getRealtimeClientID(),
@@ -135,6 +111,7 @@ function applyPrivateHeaders(options = {}, config = {}) {
 
   return {
     ...options,
+    credentials: options.credentials ?? "same-origin",
     headers,
   };
 }
@@ -152,10 +129,6 @@ async function executePrivateFetchOnce(URL, options, headerConfig) {
   }
 
   const enhancedOptions = applyPrivateHeaders(options, headerConfig);
-
-  if (!enhancedOptions) {
-    throw new Error(PRIVATE_AUTH_TOKEN_UNAVAILABLE);
-  }
 
   return fetch(URL, enhancedOptions);
 }
@@ -305,8 +278,8 @@ async function executeBatchedPrivateRequest(URL, options, innerConfig, batch) {
 }
 
 /**
- * Authenticated `fetch` for private routes: refreshes the app JWT when inside the expiry buffer,
- * then sends the request with `Authorization: Bearer`.
+ * Authenticated `fetch` for private routes: refreshes app session state then sends request
+ * with `credentials: "same-origin"` so browser attaches session cookie.
  *
  * Retries transient failures by default (same policy as `withRequestRetries`: 408 / 429 / 5xx).
  * Set `config.retry` to `false` to disable. Pass `config.retry: { maxAttempts, baseDelayMs, … }` to

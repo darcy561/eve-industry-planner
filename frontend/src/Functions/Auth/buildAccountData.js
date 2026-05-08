@@ -1,6 +1,7 @@
 import { decodeJwt } from "jose";
 import Character from "../../Classes/character";
 import getCharacterFromRefreshToken from "../../Components/Auth/RefreshToken";
+import refreshCloudStoredEsiAccessToken from "../EveESI/Character/refreshCloudStoredEsiAccessToken.js";
 import { canonicalCharacterHashKey } from "./characterHashCanonical.js";
 import { buildCorporationObjectFromUserObject } from "../Corporations/buildCorporationObject";
 import { emitUserDataUpdate } from "../../Events/loginEvents";
@@ -118,7 +119,7 @@ function orderedUniqueStrings(strings) {
 export function groupRefreshTokensByCharacterHash(tokens) {
     const pending = new Map();
     for (const t of tokens) {
-        if (!t?.CharacterHash || !t?.rToken) continue;
+        if (!t?.CharacterHash) continue;
         const key = canonicalCharacterHashKey(t.CharacterHash);
         if (!key) continue;
         if (!pending.has(key)) {
@@ -127,7 +128,10 @@ export function groupRefreshTokensByCharacterHash(tokens) {
                 representativeCharacterHash: t.CharacterHash,
             });
         }
-        pending.get(key).rTokens.push(t.rToken);
+        const rTok = typeof t.rToken === "string" ? t.rToken.trim() : "";
+        if (rTok) {
+            pending.get(key).rTokens.push(rTok);
+        }
     }
     const result = new Map();
     for (const [key, entry] of pending) {
@@ -152,6 +156,42 @@ export async function buildAccountDataFromRefreshTokenCandidates(rTokens) {
         if (!(user instanceof Error)) return user;
     }
     return null;
+}
+
+/**
+ * Hydrates a linked (non-main) character in cloud mode using server-held OAuth refresh only.
+ * No ESI refresh token is kept on the client.
+ *
+ * @param {string} characterHash
+ * @returns {Promise<import("../../Classes/character").default | null>}
+ */
+export async function buildCharacterFromCloudStoredAccess(characterHash) {
+    const hash = typeof characterHash === "string" ? characterHash.trim() : "";
+    if (!hash) return null;
+    const tok = await refreshCloudStoredEsiAccessToken(hash);
+    if (tok instanceof Error || !tok?.access_token) {
+        console.warn("Cloud-stored ESI access failed for linked character", hash, tok);
+        return null;
+    }
+    try {
+        const jwtPayload = decodeJwt(tok.access_token);
+        const ch = new Character({
+            jwtPayload,
+            tokenResponse: {
+                access_token: tok.access_token,
+                token_type: tok.token_type,
+                expires_in: tok.expires_in,
+                refresh_token: "",
+            },
+            isMainCharacter: false,
+        });
+        await ch.getPublicCharacterData();
+        await buildCorporationObjectFromUserObject(ch);
+        return ch;
+    } catch (e) {
+        console.error(e);
+        return null;
+    }
 }
 
 export async function buildUsersFromRefreshTokens(userData) {
@@ -179,9 +219,20 @@ export async function buildUsersFromRefreshTokens(userData) {
         const buildTasks = [];
         for (const [canonicalHash, group] of groups) {
             if (existingHashes.has(canonicalHash)) continue;
-            buildTasks.push(
-                buildAccountDataFromRefreshTokenCandidates(group.rTokens)
-            );
+            if (
+                cloudAccountsActive &&
+                (!group.rTokens || group.rTokens.length === 0)
+            ) {
+                buildTasks.push(
+                    buildCharacterFromCloudStoredAccess(
+                        group.representativeCharacterHash
+                    )
+                );
+            } else {
+                buildTasks.push(
+                    buildAccountDataFromRefreshTokenCandidates(group.rTokens)
+                );
+            }
         }
 
         const userResults = await Promise.all(buildTasks);

@@ -64,18 +64,8 @@ func handleGetCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		metrics.Error("config_error")
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
-		return
-	}
-	if cfg.RefreshTokenKeyring == nil {
-		metrics.Error("config_error")
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Refresh token keyring not configured", fmt.Errorf("refresh token keyring is nil"))
-		return
-	}
-
+	// GET returns linked-character hashes only. OAuth refresh material stays encrypted server-side;
+	// clients obtain ESI access via POST /api/v1/esi/characters/access-token/server.
 	col := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUsers)
 	var userDoc models.UserAccountDocument
 	if err := col.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&userDoc); err != nil {
@@ -96,18 +86,8 @@ func handleGetCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 		if hash == "" {
 			continue
 		}
-		plain, err := row.PlainRefreshMaterial(cfg.RefreshTokenKeyring)
-		if err != nil {
-			logs.WarnCtx(ctx, "skip cloud-stored ESI refresh token row",
-				"account_id", accountID,
-				"character_hash", hash,
-				"error", err,
-			)
-			continue
-		}
 		out = append(out, models.RefreshToken{
 			CharacterHash: hash,
-			RToken:        plain,
 		})
 	}
 

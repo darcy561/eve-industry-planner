@@ -1,37 +1,19 @@
-import { requestWithPrivateHeaders } from "../../Endpoints/Pirivate/applyPrivateHeaders.js";
+import { requestEsiAccessFromServerStorage } from "../../Endpoints/esiAccessClient.js";
 
 /**
- * Server-side ESI access-token refresh for cloud-linked characters (main or alt).
- * Uses Mongo-stored ESI refresh material; no ESI refresh token is returned to the client.
+ * Server-held OAuth refresh (Mongo) → ESI access JWT via
+ * `POST /api/v1/esi/characters/access-token/server`.
+ *
  * @param {string} characterHash
- * @returns {Promise<{ access_token: string, token_type: string, expires_in: number }|Error>}
+ * @returns {Promise<object|Error>}
  */
-export default async function refreshCloudStoredEsiAccessToken(characterHash) {
+async function refreshEsiAccessTokenFromServerStoredCredential(characterHash) {
   try {
-    const response = await requestWithPrivateHeaders(
-      "/api/v1/eve-sso/cloud-stored-esi/refresh",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          character_hash: characterHash,
-        }),
-      },
-      { requestName: "refreshCloudStoredEsiAccessToken" }
-    );
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => "");
-      return new Error(
-        errText || `Cloud stored ESI refresh failed: ${response.status} ${response.statusText}`
-      );
-    }
-
-    return await response.json();
+    return await requestEsiAccessFromServerStorage(characterHash);
   } catch (err) {
-    console.error(`Error refreshing cloud stored ESI access token: ${err}`);
+    console.error(err.message);
     return err instanceof Error ? err : new Error(String(err));
   }
 }
+
+export default refreshEsiAccessTokenFromServerStoredCredential;
