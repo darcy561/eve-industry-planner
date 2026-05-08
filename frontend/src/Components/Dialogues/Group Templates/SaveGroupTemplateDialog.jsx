@@ -40,6 +40,8 @@ import { appShellSetupSectionPaperSx } from "../../../Context/appShell";
 import {
   GROUP_TEMPLATES_SAVE_DIALOG_EVENT,
 } from "../../../Events/groupTemplatesDialogEvents";
+import { trackAppEvent } from "../../../analytics/trackAppEvent";
+import { AppEvent } from "../../../analytics/appEventNames";
 
 const defaultState = () => ({
   isOpen: false,
@@ -112,6 +114,7 @@ function SaveGroupTemplateDialogInner() {
       await postGroupTemplate(body);
     },
     onSuccess: () => {
+      trackAppEvent(AppEvent.GROUP_TEMPLATE_ADD);
       showSnackbarSuccess("Template saved.", 3);
       invalidateTemplateCatalogQueries(queryClient);
       handleClose();
@@ -134,6 +137,7 @@ function SaveGroupTemplateDialogInner() {
       });
     },
     onSuccess: () => {
+      trackAppEvent(AppEvent.GROUP_TEMPLATE_REPLACE);
       showSnackbarSuccess("Template replaced.", 3);
       invalidateTemplateCatalogQueries(queryClient);
       handleClose();
@@ -151,6 +155,7 @@ function SaveGroupTemplateDialogInner() {
       await deleteGroupTemplate(selectedTemplate.templateID);
     },
     onSuccess: () => {
+      trackAppEvent(AppEvent.GROUP_TEMPLATE_DELETE);
       showSnackbarSuccess("Template deleted.", 3);
       invalidateTemplateCatalogQueries(queryClient);
       setSelectedTemplate(null);

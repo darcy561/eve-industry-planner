@@ -10,6 +10,29 @@ import {
   buildSetupFromQuantity,
 } from "../Functions/JobPlanner/setupBuildHelpers";
 
+/** @param {unknown} category */
+function normalizeExtrasCostCategoryString(category) {
+  if (category == null || category === "") return "0";
+  return String(category);
+}
+
+/**
+ * Ensures each extras row's `category` matches API/Go `ExtraCost.category` (string).
+ * @param {Array<Record<string, unknown>>} rows
+ */
+function normalizeExtrasCostsIncoming(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return Array.isArray(rows) ? rows : [];
+  }
+  return rows.map((row) => {
+    if (!row || typeof row !== "object") return row;
+    return {
+      ...row,
+      category: normalizeExtrasCostCategoryString(row.category),
+    };
+  });
+}
+
 /**
  * Main Job class for EVE Online industry planning and management.
  *
@@ -128,7 +151,9 @@ class Job {
       childJobs: itemJson?.build?.childJobs || {},
       costs: {
         totalPurchaseCost: itemJson?.build?.costs?.totalPurchaseCost || 0,
-        extrasCosts: itemJson?.build?.costs?.extrasCosts || [],
+        extrasCosts: normalizeExtrasCostsIncoming(
+          itemJson?.build?.costs?.extrasCosts || []
+        ),
         extrasTotal: itemJson?.build?.costs?.extrasTotal || 0,
         linkedJobs: itemJson?.build?.costs?.linkedJobs || [],
         installCosts: itemJson?.build?.costs?.installCosts || 0,
@@ -272,7 +297,7 @@ class Job {
    * This method serializes the job data for persistence:
    * - Converts Sets to Arrays for JSON serialization
    * - Recursively converts Setup objects to documents
-   * - `build.costs.extrasCosts[]` stays in SPA form: `{ id, category, extraText, extraValue }` (see Extras panel)
+   * - `build.costs.extrasCosts[]` stays in SPA form: `{ id, category, extraText, extraValue }` (see Extras panel; `category` is string id, e.g. `"0"`…`"5"`)
    * - Preserves all job configuration and state data
    * - Maintains data integrity for storage and retrieval
    *
@@ -483,19 +508,22 @@ class Job {
    *
    * Canonical row shape (same as Extras panel): `{ id, category, extraText, extraValue }`.
    * - `id` — string UUID (e.g. react-uuid)
-   * - `category` — extras category id (number; 0 = unassigned)
+   * - `category` — extras category id as string (`"0"` = unassigned; matches `ExtraCategory.id`)
    * - `extraText` — label / description (HTML sanitized in UI before add)
    * - `extraValue` — ISK amount (number)
    *
    * @param {Object} newItem - Extra cost row
    * @param {string} newItem.id
-   * @param {number} newItem.category
+   * @param {string|number} newItem.category - coerced to string before store
    * @param {string} newItem.extraText
    * @param {number} newItem.extraValue
    */
   addExtrasCost(newItem) {
     if (!newItem) return;
-    this.build.costs.extrasCosts.push(newItem);
+    this.build.costs.extrasCosts.push({
+      ...newItem,
+      category: normalizeExtrasCostCategoryString(newItem.category),
+    });
     this.build.costs.extrasTotal = this.build.costs.extrasCosts.reduce(
       (prev, curr) => prev + curr.extraValue,
       0
