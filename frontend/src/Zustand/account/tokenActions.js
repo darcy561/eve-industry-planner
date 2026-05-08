@@ -24,6 +24,24 @@ import { metaLastModifiedMs } from "../realtimeSyncSlice.js";
  */
 let esStaggerIndex = 0;
 
+/**
+ * Single-flight guard for {@link tokenActions.refreshServerToken}. Concurrent
+ * private API calls + the staggered ESI step + maintenance can all hit the
+ * refresh path at once; each parallel call rotates the planner refresh row in
+ * Redis (and the HttpOnly cookie for cloud users), orphaning the losers' tokens.
+ * While a refresh is in flight, additional callers await the same promise.
+ *
+ * @type {Promise<void>|null}
+ */
+let inflightRefreshServerTokenPromise = null;
+
+/**
+ * Clock skew (seconds) used when deciding whether `mainCharacter.esiAccessToken`
+ * is safe to send to `/auth/sessions/refresh` as `eve_token`. Matches the skew
+ * used elsewhere for app JWT expiry checks (`APP_JWT_EXPIRY_SKEW_SEC`).
+ */
+const ESI_ACCESS_TOKEN_REFRESH_SKEW_SEC = 60;
+
 /** @param {unknown} value */
 function toLinkedSet(value) {
   if (value == null) return new Set();
@@ -376,46 +394,93 @@ export const tokenActions = (set, get) => ({
 
   /**
    * Refreshes the app JWT when access is within 15 minutes of expiry.
-   * Uses the main character's ESI access token with the server refresh token.
+   *
+   * In **cloud mode** (HttpOnly `eip_app_refresh` cookie + Mongo-stored ESI material)
+   * the `eve_token` body field is omitted whenever the in-memory main ESI access
+   * token is missing/expired — the server then validates via the cookie and refreshes
+   * ESI from Mongo. This breaks the chicken-and-egg between the planner JWT and the
+   * main character's ESI access token (see `services/api/v1endpoints/refresh.go`,
+   * the `eveToken == ""` branch).
+   *
+   * Concurrent callers (every private fetch, the staggered ESI step, and the 15m
+   * maintenance interval all funnel here) share one in-flight refresh via
+   * {@link inflightRefreshServerTokenPromise} so we don't fan out N parallel
+   * rotations against the same refresh row in Redis.
    */
   refreshServerToken: async () => {
-    const state = get();
-    const mainCharacter = state.account.characters?.find((ch) => ch?.isMainCharacter);
-    if (!mainCharacter) return;
+    if (inflightRefreshServerTokenPromise) {
+      return inflightRefreshServerTokenPromise;
+    }
 
+    const promise = (async () => {
+      const state = get();
+      const mainCharacter = state.account.characters?.find((ch) => ch?.isMainCharacter);
+      if (!mainCharacter) return;
+
+      try {
+        const { refreshToken, accessToken, accessTokenEXP } = state.account;
+        const cloud = !!state.applicationSettings?.userCloudAccounts;
+        if (!refreshToken && !cloud) {
+          return;
+        }
+        const exp = getEffectiveAppAccessExpiryUnix(accessToken, accessTokenEXP);
+        if (exp == null || exp <= 0) {
+          return;
+        }
+        const currentTimeStamp = Math.floor(Date.now() / 1000);
+        // 11 min — mirrors `Character.refreshESIToken` so the planner JWT refresh
+        // doesn't fire on every staggered ESI visit (the previous 15-min buffer +
+        // 20-min JWT lifetime caused a refresh on every per-character tick when
+        // n ≤ 3, because lifetime − per-char tick was always < buffer).
+        // Maintenance (every 15 min) still reliably refreshes the JWT — at that
+        // point ~5 min remain, well inside the 11-min buffer.
+        const bufferTime = 660;
+        if (exp >= currentTimeStamp + bufferTime) return;
+
+        // Cloud mode: prefer the Mongo fallback (empty eve_token + cookie) when the
+        // in-memory main ESI access token is missing or within the skew window of
+        // expiry; otherwise the server would reject the refresh with 401 even though
+        // the cookie + stored ESI material would have worked.
+        let eveTokenForRefresh = mainCharacter.esiAccessToken || "";
+        if (cloud) {
+          const esiExp = Number(mainCharacter.esiAccessTokenEXP) || 0;
+          if (
+            !eveTokenForRefresh ||
+            esiExp <= currentTimeStamp + ESI_ACCESS_TOKEN_REFRESH_SKEW_SEC
+          ) {
+            eveTokenForRefresh = "";
+          }
+        }
+
+        const response = await refreshServerJWT(
+          refreshToken || null,
+          eveTokenForRefresh
+        );
+
+        await verifyAppAccessTokenWithJwks(response.access_token);
+
+        const tokenPatch = {
+          accessToken: response.access_token,
+          accessTokenEXP: response.expires_at,
+        };
+        if (response.refresh_token) {
+          tokenPatch.refreshToken = response.refresh_token;
+          tokenPatch.refreshTokenEXP =
+            response.refresh_token_exp ?? response.refresh_token_expires_at;
+        }
+        get().account.actions.setSessionTokens(tokenPatch);
+      } catch (err) {
+        console.error(err.message);
+      }
+    })();
+
+    inflightRefreshServerTokenPromise = promise;
     try {
-      const { refreshToken, accessToken, accessTokenEXP } = state.account;
-      const cloud = !!state.applicationSettings?.userCloudAccounts;
-      if (!refreshToken && !cloud) {
-        return;
+      await promise;
+    } finally {
+      if (inflightRefreshServerTokenPromise === promise) {
+        inflightRefreshServerTokenPromise = null;
       }
-      const exp = getEffectiveAppAccessExpiryUnix(accessToken, accessTokenEXP);
-      if (exp == null || exp <= 0) {
-        return;
-      }
-      const currentTimeStamp = Math.floor(Date.now() / 1000);
-      const bufferTime = 900; // 15 minutes in seconds
-      if (exp >= currentTimeStamp + bufferTime) return;
-
-      const response = await refreshServerJWT(
-        refreshToken || null,
-        mainCharacter.esiAccessToken
-      );
-
-      await verifyAppAccessTokenWithJwks(response.access_token);
-
-      const tokenPatch = {
-        accessToken: response.access_token,
-        accessTokenEXP: response.expires_at,
-      };
-      if (response.refresh_token) {
-        tokenPatch.refreshToken = response.refresh_token;
-        tokenPatch.refreshTokenEXP =
-          response.refresh_token_exp ?? response.refresh_token_expires_at;
-      }
-      get().account.actions.setSessionTokens(tokenPatch);
-    } catch (err) {
-      console.error(err.message);
     }
   },
 

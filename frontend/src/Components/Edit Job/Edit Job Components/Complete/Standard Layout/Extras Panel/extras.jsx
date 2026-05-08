@@ -25,11 +25,11 @@ import DOMPurify from "dompurify";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 
 export function ExtrasPanel({ state, actions }) {
-  const [extrasCategory, setExtrasCategory] = useState(0);
+  const [extrasCategory, setExtrasCategory] = useState("0");
   const extrasCategories = useUsersStore((state) => state.applicationSettings.extrasCategories);
 
   const getCategoryLabel = (categoryId) => {
-    // Category may be number (new row) or string (e.g. from Mongo after import).
+    // Category id is string in API and UI; tolerate legacy numeric rows until re-saved.
     const n =
       categoryId == null || categoryId === ""
         ? 0
@@ -44,9 +44,11 @@ export function ExtrasPanel({ state, actions }) {
   function handleAddAction(formData) {
     const extraText = String(formData.get("extraText") ?? "");
     const extraValue = Number(formData.get("extraValue") ?? 0);
-    const category = Number(formData.get("extrasCategory") ?? 0);
+    const rawCategory = formData.get("extrasCategory");
+    const category =
+      rawCategory == null || rawCategory === "" ? "0" : String(rawCategory);
 
-    if (category === 0 && !extraText.trim()) {
+    if (category === "0" && !extraText.trim()) {
       showSnackbarError("Please enter a description");
       return;
     }
@@ -64,7 +66,7 @@ export function ExtrasPanel({ state, actions }) {
     // Persisted shape for each row: { id, category, extraText, extraValue } (see Job.addExtrasCost, models.ExtraCost).
     state.activeJob.addExtrasCost({
       id: uuid(),
-      category: category || 0,
+      category,
       extraText: sanitizedText,
       extraValue,
     });
@@ -153,8 +155,10 @@ export function ExtrasPanel({ state, actions }) {
               }}>
               <ExtrasCategoriesSelect
                 value={extrasCategory}
-                onChange={(e) => {
-                  setExtrasCategory(Number(e) || 0);
+                onChange={(id) => {
+                  setExtrasCategory(
+                    id == null || id === "" ? "0" : String(id)
+                  );
                 }}
               />
             </Grid>
