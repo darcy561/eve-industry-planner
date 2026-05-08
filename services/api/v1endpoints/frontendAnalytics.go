@@ -48,6 +48,10 @@ var allowedFrontendAnalyticsEvents = map[string]struct{}{
 	"new_job_group":                          {},
 	"remove_watchlist_item":                  {},
 	"new_watchlist_item":                     {},
+	"group_template_add":                     {},
+	"group_template_delete":                  {},
+	"group_template_replace":                 {},
+	"group_template_apply":                   {},
 	"new_job":                                {},
 }
 
