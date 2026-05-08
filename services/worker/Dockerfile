@@ -16,7 +16,7 @@ COPY . .
 
 ARG SENTRY_DSN=""
 ARG ENVIRONMENT=production
-ARG APP_VERSION=development
+ARG APP_VERSION
 # Optional: omit or set at build time; runtime SENTRY_TRACES_SAMPLE_RATE in .env overrides when non-empty.
 ARG SENTRY_TRACES_SAMPLE_RATE=
 

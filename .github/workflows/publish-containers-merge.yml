@@ -1,9 +1,5 @@
 name: Publish containers
 on:
-    push:
-        branches:
-            - Public
-            - migration
     workflow_dispatch:
         inputs:
             branch:
@@ -14,114 +10,42 @@ on:
                 options:
                     - Public
                     - migration
+            app_version:
+                description: 'Semver X.Y.Z for image tags (required)'
+                required: true
+                type: string
 
 jobs:
-    detect_changes:
-        runs-on: ubuntu-latest
-        timeout-minutes: 5
-        permissions:
-            contents: read
-        outputs:
-            api: ${{ steps.filter.outputs.api }}
-            websocket: ${{ steps.filter.outputs.websocket }}
-            worker: ${{ steps.filter.outputs.worker }}
-            core: ${{ steps.filter.outputs.core }}
-            frontend: ${{ steps.filter.outputs.frontend }}
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v6
-              with:
-                  ref: ${{ github.event.inputs.branch || github.ref || github.ref_name }}
-                  # Shallow history breaks merge-base for workflow_dispatch; depth 0 is reliable for paths-filter
-                  fetch-depth: 0
-
-            - name: Detect changes
-              uses: dorny/paths-filter@v4
-              id: filter
-              with:
-                  # before is empty on workflow_dispatch and can be 000… on new branches — that causes git exit 128.
-                  # Push to long-lived branches: same as https://github.com/dorny/paths-filter#examples (base = ref).
-                  # Manual run: compare checked-out branch to the repo default branch (paths-filter default behavior).
-                  ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || github.ref }}
-                  base: ${{ github.event_name == 'push' && github.ref || github.event.repository.default_branch }}
-                  filters: |
-                      api:
-                        - 'services/api/**'
-                        - 'services/shared/**'
-                        - 'services/go.mod'
-                        - 'services/go.sum'
-                        - 'VERSION.json'
-                      websocket:
-                        - 'services/websocket/**'
-                        - 'services/shared/**'
-                        - 'services/go.mod'
-                        - 'services/go.sum'
-                        - 'VERSION.json'
-                      worker:
-                        - 'services/worker/**'
-                        - 'services/shared/**'
-                        - 'services/go.mod'
-                        - 'services/go.sum'
-                        - 'VERSION.json'
-                      core:
-                        - 'services/core/**'
-                        - 'services/shared/**'
-                        - 'services/go.mod'
-                        - 'services/go.sum'
-                        - 'VERSION.json'
-                      frontend:
-                        - 'frontend/**'
-                        - 'VERSION.json'
-
     read_versions:
         runs-on: ubuntu-latest
         timeout-minutes: 5
         permissions:
             contents: read
         outputs:
-            frontend: ${{ steps.versions.outputs.frontend }}
-            backend: ${{ steps.versions.outputs.backend }}
+            version: ${{ steps.versions.outputs.version }}
         steps:
             - name: Checkout repository
               uses: actions/checkout@v6
               with:
-                  ref: ${{ github.event.inputs.branch || github.ref || github.ref_name }}
+                  ref: ${{ github.event.inputs.branch }}
                   fetch-depth: 1
 
-            - name: Read split versions
+            - name: Validate app_version input
               id: versions
               run: |
-                  if [ ! -f VERSION.json ]; then
-                      echo "::error::VERSION.json is required"
+                  V="${{ github.event.inputs.app_version }}"
+                  echo "Using workflow_dispatch app_version=${V}"
+                  if ! echo "${V}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+                      echo "::error::app_version must match X.Y.Z (got: ${V})"
                       exit 1
                   fi
-
-                  FRONTEND_VERSION=$(jq -r '.frontend // empty' VERSION.json)
-                  BACKEND_VERSION=$(jq -r '.backend // empty' VERSION.json)
-
-                  if [ -z "${FRONTEND_VERSION}" ] || [ -z "${BACKEND_VERSION}" ]; then
-                      echo "::error::VERSION.json must contain frontend and backend fields"
-                      exit 1
-                  fi
-
-                  if ! echo "${FRONTEND_VERSION}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
-                      echo "::error::Invalid frontend version format: ${FRONTEND_VERSION}"
-                      exit 1
-                  fi
-                  if ! echo "${BACKEND_VERSION}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
-                      echo "::error::Invalid backend version format: ${BACKEND_VERSION}"
-                      exit 1
-                  fi
-
-                  echo "frontend=${FRONTEND_VERSION}" >> $GITHUB_OUTPUT
-                  echo "backend=${BACKEND_VERSION}" >> $GITHUB_OUTPUT
+                  echo "version=${V}" >> "$GITHUB_OUTPUT"
 
     publish_containers:
         runs-on: ubuntu-latest
         timeout-minutes: 20
-        needs: [detect_changes, read_versions]
-        if: github.event.inputs.branch == 'Public' || github.event.inputs.branch == 'migration' || github.ref_name == 'Public' || github.ref_name == 'migration'
-        environment: ${{ (github.event.inputs.branch || github.ref_name) == 'Public' && 'Public' || 'migration' }}
+        needs: [read_versions]
+        environment: ${{ github.event.inputs.branch == 'Public' && 'Public' || 'migration' }}
         permissions:
             contents: read
             packages: write
@@ -134,7 +58,7 @@ jobs:
             - name: Determine branch name
               id: branch-info
               run: |
-                  BRANCH_NAME="${{ github.event.inputs.branch || github.ref_name }}"
+                  BRANCH_NAME="${{ github.event.inputs.branch }}"
                   echo "branch=${BRANCH_NAME}" >> $GITHUB_OUTPUT
                   echo "Building for branch: ${BRANCH_NAME}"
                   if [ "${BRANCH_NAME}" != "Public" ] && [ "${BRANCH_NAME}" != "migration" ]; then
@@ -142,52 +66,17 @@ jobs:
                       exit 1
                   fi
 
-            - name: Check if ${{ matrix.service }} should be built
-              id: should-build
-              run: |
-                  SERVICE="${{ matrix.service }}"
-                  case "$SERVICE" in
-                      api)
-                          CHANGED="${{ needs.detect_changes.outputs.api }}"
-                          ;;
-                      websocket)
-                          CHANGED="${{ needs.detect_changes.outputs.websocket }}"
-                          ;;
-                      worker)
-                          CHANGED="${{ needs.detect_changes.outputs.worker }}"
-                          ;;
-                      core)
-                          CHANGED="${{ needs.detect_changes.outputs.core }}"
-                          ;;
-                      frontend)
-                          CHANGED="${{ needs.detect_changes.outputs.frontend }}"
-                          ;;
-                      *)
-                          CHANGED="false"
-                          ;;
-                  esac
-                  if [ "$CHANGED" = "true" ]; then
-                      echo "should_build=true" >> $GITHUB_OUTPUT
-                      echo "Building $SERVICE - relevant files changed"
-                  else
-                      echo "should_build=false" >> $GITHUB_OUTPUT
-                      echo "Skipping $SERVICE - no relevant files changed"
-                  fi
-
             - name: Checkout repository
-              if: steps.should-build.outputs.should_build == 'true'
               uses: actions/checkout@v6
               with:
-                  ref: ${{ github.event.inputs.branch || github.ref || github.ref_name }}
+                  ref: ${{ github.event.inputs.branch }}
                   fetch-depth: 0
                   fetch-tags: true
 
             - name: Set up Docker Buildx
-              if: steps.should-build.outputs.should_build == 'true'
               uses: docker/setup-buildx-action@v4
 
             - name: Log in to GitHub Container Registry
-              if: steps.should-build.outputs.should_build == 'true'
               uses: docker/login-action@v4
               with:
                   registry: ghcr.io
@@ -195,7 +84,6 @@ jobs:
                   password: ${{ secrets.GHCR_TOKEN }}
 
             - name: Set package name
-              if: steps.should-build.outputs.should_build == 'true'
               id: package-name
               run: |
                   # Use repository name with service suffix for better linking
@@ -208,16 +96,10 @@ jobs:
                   echo "Owner: ${{ github.repository_owner }}"
 
             - name: Determine version
-              if: steps.should-build.outputs.should_build == 'true'
               id: version
               run: |
-                  if [ "${{ matrix.service }}" == "frontend" ]; then
-                      VERSION="${{ needs.read_versions.outputs.frontend }}"
-                      echo "Using root frontend version: ${VERSION}"
-                  else
-                      VERSION="${{ needs.read_versions.outputs.backend }}"
-                      echo "Using root backend version: ${VERSION}"
-                  fi
+                  VERSION="${{ needs.read_versions.outputs.version }}"
+                  echo "Using APP_VERSION: ${VERSION}"
                   
                   # Validate version format (should be X.Y.Z)
                   if ! echo "${VERSION}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
@@ -237,7 +119,6 @@ jobs:
                   echo "Version: ${VERSION} (${MAJOR}.${MINOR}.${PATCH})"
 
             - name: Guard against duplicate version tag
-              if: steps.should-build.outputs.should_build == 'true'
               run: |
                   IMAGE="ghcr.io/${{ github.repository_owner }}/${{ steps.package-name.outputs.name }}"
                   VERSION_TAG="${{ steps.version.outputs.version }}"
@@ -254,7 +135,6 @@ jobs:
                   fi
 
             - name: Extract metadata for ${{ matrix.service }}
-              if: steps.should-build.outputs.should_build == 'true' && steps.branch-info.outputs.branch != ''
               id: meta
               uses: docker/metadata-action@v6
               with:
@@ -278,7 +158,6 @@ jobs:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Set build context and dockerfile
-              if: steps.should-build.outputs.should_build == 'true'
               id: build-config
               run: |
                   if [ "${{ matrix.service }}" == "frontend" ]; then
@@ -294,7 +173,7 @@ jobs:
             # - Optional repo/org variable vars.SENTRY_DSN if you duplicate it as a variable
             # Using only an environment variable named SENTRY_DSN does NOT populate secrets.SENTRY_DSN.
             - name: Verify Sentry DSN for Public builds
-              if: steps.should-build.outputs.should_build == 'true' && steps.branch-info.outputs.branch == 'Public'
+              if: steps.branch-info.outputs.branch == 'Public'
               env:
                   SENTRY_DSN_VAR: ${{ vars.SENTRY_DSN }}
                   SENTRY_DSN_SECRET: ${{ secrets.SENTRY_DSN }}
@@ -307,7 +186,6 @@ jobs:
                   fi
 
             - name: Prepare build args
-              if: steps.should-build.outputs.should_build == 'true'
               id: build-args
               env:
                   SENTRY_DSN_VAR: ${{ vars.SENTRY_DSN }}
@@ -331,7 +209,7 @@ jobs:
                               ENVIRONMENT="production"
                           fi
                           echo "ENVIRONMENT=${ENVIRONMENT}"
-                          echo "FRONTEND_APP_VERSION=${{ needs.read_versions.outputs.frontend }}"
+                          echo "FRONTEND_APP_VERSION=${{ needs.read_versions.outputs.version }}"
                           
                           # Sentry: Vite plugin + DSN baked into bundle (same DSN as Go services).
                           # SENTRY_PROJECT_ID must be the project slug from Sentry (e.g. eip-live), not the numeric "Project ID".
@@ -352,7 +230,7 @@ jobs:
                           echo "ENVIRONMENT=${ENVIRONMENT}"
                           echo "SENTRY_DSN=${SENTRY_DSN_VAL}"
                           echo "APP_VERSION=${{ steps.version.outputs.version }}"
-                          echo "FRONTEND_APP_VERSION=${{ needs.read_versions.outputs.frontend }}"
+                          echo "FRONTEND_APP_VERSION=${{ needs.read_versions.outputs.version }}"
                           # Optional: set SENTRY_TRACES_SAMPLE_RATE on the host (.env) for performance traces; omit here → baked empty → 0 unless env set at runtime.
                       fi
                       
@@ -361,21 +239,19 @@ jobs:
                       if [ "${{ matrix.service }}" == "api" ]; then
                           echo "FEEDBACK_DISCORD_WEBHOOK_URL=${{ vars.FEEDBACK_DISCORD_WEBHOOK_URL }}"
                       fi
-                      # API + core: bake feature flags (core exposes core_app_config_* metrics / app-config parity)
+                      # API + core: bake feature flags (optional repository variable APP_FEATURE_FLAGS_JSON, JSON object)
                       if [ "${{ matrix.service }}" == "api" ] || [ "${{ matrix.service }}" == "core" ]; then
-                          if [ -f VERSION.json ]; then
-                              FEATURE_FLAGS_JSON=$(jq -c '.feature_flags // {}' VERSION.json)
-                              echo "APP_FEATURE_FLAGS_JSON=${FEATURE_FLAGS_JSON}"
-                          else
-                              echo "APP_FEATURE_FLAGS_JSON={}"
+                          FFLAGS='${{ vars.APP_FEATURE_FLAGS_JSON }}'
+                          if [ -z "${FFLAGS}" ] || [ "${FFLAGS}" = "null" ]; then
+                              FFLAGS='{}'
                           fi
+                          echo "APP_FEATURE_FLAGS_JSON=${FFLAGS}"
                       fi
                       
                       echo "EOF"
                   } >> $GITHUB_OUTPUT
 
             - name: Build and push ${{ matrix.service }} container
-              if: steps.should-build.outputs.should_build == 'true'
               uses: docker/build-push-action@v7
               with:
                   context: ${{ steps.build-config.outputs.context }}
@@ -389,7 +265,6 @@ jobs:
               continue-on-error: false
 
             - name: Set package visibility to public
-              if: steps.should-build.outputs.should_build == 'true'
               run: |
                   PACKAGE_NAME="${{ steps.package-name.outputs.name }}"
                   OWNER="${{ github.repository_owner }}"

@@ -14,11 +14,18 @@ export default defineConfig(({ command, mode }) => {
   // Read ENVIRONMENT from merged .env, process (Dockerfile / CI), or default to production
   const environment = env.ENVIRONMENT || process.env.ENVIRONMENT || process.env.NODE_ENV || "production";
 
-  const frontendAppVersion =
+  const frontendAppVersion = (
     env.FRONTEND_APP_VERSION ||
+    env.APP_VERSION ||
     process.env.FRONTEND_APP_VERSION ||
-    process.env.npm_package_version ||
-    "development";
+    process.env.APP_VERSION ||
+    ""
+  ).trim();
+  if (!frontendAppVersion) {
+    throw new Error(
+      "FRONTEND_APP_VERSION or APP_VERSION must be set (repo-root .env for local dev; Docker/CI build args for images)."
+    );
+  }
 
   const analyzeBundle =
     process.env.ANALYZE === "1" ||

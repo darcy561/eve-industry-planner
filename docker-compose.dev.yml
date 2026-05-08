@@ -1,16 +1,13 @@
 services:
-  # Dev builds use explicit manual versions.
-  # Docker Compose does not natively import values from VERSION.json.
   api:
     image: eve-industry-planner-api:local
     build:
       context: ./services
       dockerfile: api/Dockerfile
       args:
-        APP_VERSION: 0.8.15
-        FRONTEND_APP_VERSION: 0.8.15
+        APP_VERSION: ${APP_VERSION}
+        FRONTEND_APP_VERSION: ${APP_VERSION}
         APP_FEATURE_FLAGS_JSON: '{"enable_upcoming_changes_page":false}'
-        # Same pattern as CI: bake from repo-root .env (Compose interpolates ${VAR} from .env).
         ENVIRONMENT: ${ENVIRONMENT:-development}
         SENTRY_DSN: ${SENTRY_DSN:-}
         SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-}
@@ -25,7 +22,7 @@ services:
       context: ./services
       dockerfile: websocket/Dockerfile
       args:
-        APP_VERSION: 0.8.15
+        APP_VERSION: ${APP_VERSION}
         ENVIRONMENT: ${ENVIRONMENT:-development}
         SENTRY_DSN: ${SENTRY_DSN:-}
         SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-}
@@ -39,7 +36,7 @@ services:
       context: ./services
       dockerfile: worker/Dockerfile
       args:
-        APP_VERSION: 0.8.15
+        APP_VERSION: ${APP_VERSION}
         ENVIRONMENT: ${ENVIRONMENT:-development}
         SENTRY_DSN: ${SENTRY_DSN:-}
         SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-}
@@ -52,8 +49,8 @@ services:
       context: ./services
       dockerfile: core/Dockerfile
       args:
-        APP_VERSION: 0.8.15
-        FRONTEND_APP_VERSION: 0.8.15
+        APP_VERSION: ${APP_VERSION}
+        FRONTEND_APP_VERSION: ${APP_VERSION}
         APP_FEATURE_FLAGS_JSON: '{"enable_upcoming_changes_page":false}'
         ENVIRONMENT: ${ENVIRONMENT:-development}
         SENTRY_DSN: ${SENTRY_DSN:-}
@@ -90,7 +87,7 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         ENVIRONMENT: ${ENVIRONMENT:-development}
-        FRONTEND_APP_VERSION: 0.8.15
+        FRONTEND_APP_VERSION: ${APP_VERSION}
         SENTRY_ORG: ${SENTRY_ORG:-}
         SENTRY_PROJECT_ID: ${SENTRY_PROJECT_ID:-}
         SENTRY_DSN: ${SENTRY_DSN:-}
