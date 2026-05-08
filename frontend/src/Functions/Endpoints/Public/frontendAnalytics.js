@@ -1,11 +1,9 @@
 import { fetchWithPublicHeaders } from "./applyPublicHeaders.js";
-import { getSessionIDFromStoreOrToken } from "../Pirivate/applyPrivateHeaders.js";
 import {
   MAX_FRONTEND_ANALYTICS_BATCH_EVENTS,
   MAX_FRONTEND_ANALYTICS_BY_TYPE_KEYS,
   MAX_FRONTEND_ANALYTICS_EVENT_COUNT,
 } from "./apiLimits.js";
-import useUserStore from "../../../Zustand/usersStore";
 
 /** Batched analytics only; server no longer exposes a single-event route. */
 export const FRONTEND_ANALYTICS_EVENTS_BATCH_URL = "/api/v1/analytics/events";
@@ -70,21 +68,9 @@ function chunkByTypeObject(obj, chunkSize) {
 function getAuthHeadersBase() {
   const options = {
     method: "POST",
+    credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
   };
-  let serverToken = null;
-  try {
-    serverToken = useUserStore.getState().account.actions.getServerAccessToken();
-  } catch {
-    /* logged out */
-  }
-  if (serverToken) {
-    options.headers.Authorization = `Bearer ${serverToken}`;
-    const sid = getSessionIDFromStoreOrToken(serverToken);
-    if (sid) {
-      options.headers["X-Session-ID"] = sid;
-    }
-  }
   return options;
 }
 

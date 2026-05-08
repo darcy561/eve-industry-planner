@@ -6,6 +6,7 @@
 import useUsersStore from "../../Zustand/usersStore.js";
 import {
   buildAccountDataFromRefreshTokenCandidates,
+  buildCharacterFromCloudStoredAccess,
   canonicalCharacterHashKey,
   clearLocalAdditionalAccountsStorage,
   getSystemIndexDataFromUserStructures,
@@ -107,7 +108,14 @@ function syncExistingCharacterRefreshTokens(tokenByHash) {
     const key = canonicalCharacterHashKey(ch.CharacterHash);
     const group = tokenByHash.get(key);
     const nextRt = group?.rTokens?.[0];
-    if (!nextRt || ch.esiRefreshToken === nextRt) continue;
+    if (!nextRt) {
+      if (ch.esiRefreshToken) {
+        ch.esiRefreshToken = "";
+        changed = true;
+      }
+      continue;
+    }
+    if (ch.esiRefreshToken === nextRt) continue;
     ch.esiRefreshToken = nextRt;
     changed = true;
   }
@@ -127,6 +135,10 @@ function syncExistingCharacterRefreshTokens(tokenByHash) {
 async function reconcileCloudCharactersFromTokenMap(tokenCandidatesByHash) {
   const accountIdAtStart = useUsersStore.getState().account.accountID;
   if (accountIdAtStart == null) return;
+
+  if (useUsersStore.getState().account.linkedBootstrapHydrationPending) {
+    return;
+  }
 
   syncExistingCharacterRefreshTokens(tokenCandidatesByHash);
 
@@ -153,9 +165,14 @@ async function reconcileCloudCharactersFromTokenMap(tokenCandidatesByHash) {
   );
   for (const [canonicalHash, group] of tokenCandidatesByHash.entries()) {
     if (existingHashes.has(canonicalHash)) continue;
-    const built = await buildAccountDataFromRefreshTokenCandidates(
-      group.rTokens
-    );
+    let built = null;
+    if (group.rTokens && group.rTokens.length > 0) {
+      built = await buildAccountDataFromRefreshTokenCandidates(group.rTokens);
+    } else if (group.representativeCharacterHash) {
+      built = await buildCharacterFromCloudStoredAccess(
+        group.representativeCharacterHash
+      );
+    }
     if (accountSessionBecameStale(accountIdAtStart)) {
       return;
     }
@@ -201,21 +218,47 @@ export async function reconcileAfterRemoteUserDoc(snap, incomingUserDoc) {
   const linkedCharactersMayHaveChanged =
     !!snap?.linkedCharactersChanged || !!snap?.refreshTokensChanged;
   let effective = incomingTokens ?? [];
-  const hasUsableRefreshTokenMaterial = effective.some(
-    (row) => !!row?.rToken && row.rToken.trim().length > 0
-  );
+
+  const hydrationPending =
+    !!useUsersStore.getState().account.linkedBootstrapHydrationPending;
+
+  // Only substitute bootstrap / GET when the doc omitted `refreshTokens` entirely. Hash-only rows
+  // from WS/HTTP are already an authoritative roster — do not replace them (avoids redundant GET).
   if (
-    (effective.length === 0 || !hasUsableRefreshTokenMaterial) &&
+    effective.length === 0 &&
+    linkedCharactersMayHaveChanged &&
+    !hydrationPending
+  ) {
+    const bootstrapHashes =
+      useUsersStore.getState().account
+        .linkedCharacterHashesFromBootstrapSession;
+    if (Array.isArray(bootstrapHashes) && bootstrapHashes.length > 0) {
+      // Same hash-only set as GET `/oauth-credentials`; kept for the session (resync/reconnect).
+      effective = bootstrapHashes.map((h) => ({
+        CharacterHash: h,
+        rToken: "",
+      }));
+    } else {
+      // User doc may omit refresh rows; GET returns character hashes only (secrets stay server-side).
+      const tokenDoc = await getCloudStoredEsiRefreshTokens();
+      if (accountSessionBecameStale(accountId)) {
+        return;
+      }
+      const rawRt = tokenDoc?.refreshTokens;
+      effective = Array.isArray(rawRt) ? normalizeRefreshTokens(rawRt) : [];
+    }
+  }
+
+  // Login is hydrating linked chars from bootstrap sessions — skip roster reconcile until effective
+  // can be derived or hydration completes (empty map would drop additional characters).
+  if (
+    hydrationPending &&
+    effective.length === 0 &&
     linkedCharactersMayHaveChanged
   ) {
-    // Main user doc no longer carries cloud-stored ESI refresh rows (dedicated endpoint instead).
-    const tokenDoc = await getCloudStoredEsiRefreshTokens();
-    if (accountSessionBecameStale(accountId)) {
-      return;
-    }
-    const rawRt = tokenDoc?.refreshTokens;
-    effective = Array.isArray(rawRt) ? normalizeRefreshTokens(rawRt) : [];
+    return;
   }
+
   if (effective.length === 0 && !linkedCharactersMayHaveChanged) {
     // No linked-character signal and no token payload means this users-doc update
     // is unrelated to additional accounts; keep the current character list.

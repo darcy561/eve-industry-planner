@@ -1,5 +1,5 @@
 /**
- * Account slice: server session (JWT), linked ESI ID sets, and client `isLoggedIn`
+ * Account slice: server session, linked ESI ID sets, and client `isLoggedIn`
  * (cleared by `resetAccountStore`). The full Mongo user row is not stored here — pass
  * `user_document` from the login response into `runPostLoginAccountSync` when needed.
  * Citadel-name sharing preference lives on Mongo `users` (`shareCitadelNames`); other application prefs on `applicationSettings`.
@@ -7,7 +7,7 @@
  * Session field names align with the Go `Account` / API contract for the logged-in account.
  *
  * @fileoverview Account session, linked ESI, `characters`, and `corporations` for Zustand.
- * JWT / SSO session and linked refresh-token actions live in `tokenActions.js`.
+ * Session and linked refresh-token actions live in `tokenActions.js`.
  */
 
 import Character from "../../Classes/character.js";
@@ -21,9 +21,9 @@ export const accountStateDefault = () => ({
   isLoggedIn: false,
   /** EVE `CharacterHash` of the character used for SSO login (main planner character). */
   mainCharacterHash: null,
-  accessToken: null,
-  accessTokenEXP: 0,
   sessionID: null,
+  /** Ms since epoch when POST /auth/sessions or /rotate last confirmed the planner session; throttles redundant rotates before private API calls. */
+  lastPlannerSessionValidatedAt: null,
   refreshToken: null,
   refreshTokenEXP: null,
   /** From login response: Mongo first-login (new account) flag. */
@@ -38,6 +38,16 @@ export const accountStateDefault = () => ({
   linkedTrans: new Set(),
   /** Logged-in EVE characters (`Character` instances); main character is flagged with `isMainCharacter`. */
   characters: [Character.placeholder()],
+  /**
+   * Cloud login/bootstrap `linked_characters` hashes (deduped); reconcile uses these instead of GET
+   * `/oauth-credentials` when the users doc omits refresh rows (cleared on logout / next login).
+   */
+  linkedCharacterHashesFromBootstrapSession: null,
+  /**
+   * True while `runPostLoginAccountSync` hydrates cloud `linked_characters` — realtime reconcile
+   * must not mint duplicate ESI access or strip alts from an empty effective roster mid-flight.
+   */
+  linkedBootstrapHydrationPending: false,
   /** Loaded `Corporation` instances for the account (see `corporationsActions`). */
   corporations: [],
 });
@@ -91,7 +101,7 @@ export const accountActions = (set, get) => ({
   },
 
   /**
-   * Client logged-in flag (true after successful JWT login; cleared by sign-out / resetAccountStore).
+   * Client logged-in flag (true after successful login; cleared by sign-out / resetAccountStore).
    */
   setLoggedIn: (value) => {
     set(

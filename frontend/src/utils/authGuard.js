@@ -1,10 +1,10 @@
 import { redirect } from '@tanstack/react-router'
 import useUsersStore from '../Zustand/usersStore'
-import { refreshServerJWTForLogin } from '../Functions/Auth/serverTokens'
+import { refreshServerSessionForLogin } from '../Functions/Auth/serverTokens'
 
 async function hasCookieCloudSession() {
   try {
-    await refreshServerJWTForLogin(null, '')
+    await refreshServerSessionForLogin(null, '')
     return true
   } catch {
     return false

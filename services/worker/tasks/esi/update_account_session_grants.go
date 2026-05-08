@@ -28,31 +28,28 @@ const maxCharacterAffiliationBatch = 1000
 type CharacterAffiliation struct {
 	CharacterID   int `json:"character_id"`
 	CorporationID int `json:"corporation_id"`
+	AllianceID    int `json:"alliance_id"`
 }
 
-// UpdateCustomCorporationClaims processes a batch of EVE SSO tokens, extracts character IDs,
-// queries ESI in one POST per batch of up to 1000 character IDs for corporation IDs, and stores
-// the aggregated unique set in Redis. This task respects ESI rate limiting through the
-// rate-limited ESI client.
-// Returns an error if processing fails - asynq will automatically retry on error.
-func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *TaskDependencies) error {
+// RefreshAccountSessionGrants validates a batch of EVE SSO tokens, resolves character IDs,
+// queries ESI POST /characters/affiliation/ (batched), aggregates unique corporation and
+// alliance IDs, persists them to Redis, and updates account session grants for all sessions.
+func RefreshAccountSessionGrants(ctx context.Context, task *asynq.Task, deps *TaskDependencies) error {
 	if task == nil {
 		return fmt.Errorf("task is nil")
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 300*time.Second) // Longer timeout for batch processing
+	ctx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
 
-	logs.InfoCtx(ctx, "fetch corporations task received")
+	logs.InfoCtx(ctx, "account session grants refresh task received")
 
-	// Parse JSON data from task payload
-	request, err := UnmarshalTaskPayload[natscore.CorporationClaimsRequest](task)
+	request, err := UnmarshalTaskPayload[natscore.AccountSessionGrantsRequest](task)
 	if err != nil {
 		logs.WarnCtx(ctx, "failed to parse task data", "error", err)
 		return fmt.Errorf("invalid task data: %w", err)
 	}
 
-	// Validate request data
 	if request.AccountID == "" {
 		logs.WarnCtx(ctx, "missing required parameter (account_id)")
 		return fmt.Errorf("missing account_id")
@@ -78,6 +75,7 @@ func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *
 	}
 
 	corpSet := make(map[int64]bool)
+	allianceSet := make(map[int64]bool)
 	failedCount := 0
 	seenChar := make(map[int]struct{})
 	characterIDs := make([]int, 0, len(request.Tokens))
@@ -193,6 +191,10 @@ func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *
 					corpSet[int64(row.CorporationID)] = true
 					processedCount++
 				}
+				if row.AllianceID > 0 {
+					allianceSet[int64(row.AllianceID)] = true
+					processedCount++
+				}
 			}
 		}
 	}
@@ -200,6 +202,10 @@ func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *
 	allCorporations := make([]int64, 0, len(corpSet))
 	for corpID := range corpSet {
 		allCorporations = append(allCorporations, corpID)
+	}
+	allAlliances := make([]int64, 0, len(allianceSet))
+	for aid := range allianceSet {
+		allAlliances = append(allAlliances, aid)
 	}
 
 	if err := auth.StoreCorporations(ctx, deps.Redis, request.AccountID, allCorporations); err != nil {
@@ -209,12 +215,25 @@ func UpdateCustomCorporationClaims(ctx context.Context, task *asynq.Task, deps *
 			"error", err)
 		return fmt.Errorf("failed to store corporations: %w", err)
 	}
+	if err := auth.StoreAlliances(ctx, deps.Redis, request.AccountID, allAlliances); err != nil {
+		logs.ErrorCtx(ctx, "failed to store alliance IDs in Redis",
+			"account_id", request.AccountID,
+			"alliance_count", len(allAlliances),
+			"error", err)
+		return fmt.Errorf("failed to store alliances: %w", err)
+	}
+	if err := auth.UpdateAccountSessionGrants(ctx, deps.Redis, request.AccountID, allCorporations, allAlliances); err != nil {
+		logs.WarnCtx(ctx, "failed to update account session grants from affiliation lookup",
+			"account_id", request.AccountID,
+			"error", err)
+	}
 
-	logs.InfoCtx(ctx, "successfully processed corporation lookup task",
+	logs.InfoCtx(ctx, "successfully processed account session grants refresh task",
 		"account_id", request.AccountID,
 		"total_tokens", len(request.Tokens),
-		"processed", processedCount,
+		"affiliation_cells", processedCount,
 		"failed", failedCount,
-		"unique_corporations", len(allCorporations))
+		"unique_corporations", len(allCorporations),
+		"unique_alliances", len(allAlliances))
 	return nil
 }

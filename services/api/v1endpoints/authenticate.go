@@ -10,11 +10,12 @@ import (
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
 	userendpoints "eve-industry-planner/api/v1endpoints/user"
+	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/core/internaljwt"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/shared/models"
+	taskscore "eve-industry-planner/shared/tasks"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
@@ -24,17 +25,6 @@ const (
 	maxRefreshTokenLength = 512 // Maximum refresh token length in bytes (UUID format is 36 chars, but allow buffer)
 )
 
-// AuthResponse represents the response sent to the client
-type AuthResponse struct {
-	AccountID           string                          `json:"account_id"`
-	AccessToken         string                          `json:"access_token"`
-	RefreshToken        string                          `json:"refresh_token,omitempty"` // Omitted when HttpOnly cookie is used (cloud accounts)
-	ExpiresAt           int64                           `json:"expires_at"` // Unix timestamp (seconds since epoch)
-	FirstLogin          bool                            `json:"first_login"`
-	UserDocument        models.UserAccountDocument      `json:"user_document"`
-	ApplicationSettings models.ApplicationSettings      `json:"application_settings"`
-	LinkedCharacters    []models.LinkedCharacterSession `json:"linked_characters,omitempty"`
-}
 
 func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
@@ -109,21 +99,9 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 	accountID := auth.GetAccountIDFromCharacterHash(characterHash)
 	appVersion := extractAppVersion(r)
 
-	// Load or get cached RSA private key for JWT signing
-	// Loading priority: 1) Persistent file, 2) Environment variable, 3) Auto-generate new key
-	cachedKey, err := internaljwt.GetOrLoadPrivateKey()
-	if err != nil {
-		duration := time.Since(start)
-		m.Errors.WithLabelValues("key_load_error").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "key_load_error",
-			"error", err, "account_id", accountID)
-		logs.ErrorCtx(ctx, "failed to load RSA private key for JWT signing", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
-		return
-	}
-
-	// Load corporations from Redis if available (keyed by AccountID)
+	// Load corporation/alliance ID caches from Redis if available (keyed by AccountID)
 	corporations := auth.GetCorporations(ctx, clients.Redis, accountID)
+	alliances := auth.GetAlliances(ctx, clients.Redis, accountID)
 
 	// Generate refresh token
 	refreshToken, err := auth.GenerateRefreshToken()
@@ -149,32 +127,13 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 	}
 	sessionNow := time.Now().UTC()
 
-	// Generate our internal JWT token using RS256 (RSA signature)
-	// Token expires in 20 minutes, includes corporations if available.
-	internalToken, internalClaims, err := internaljwt.GenerateInternalJWT(
-		cachedKey.Key,
-		characterHash,
-		cachedKey.Kid,
-		sessionID,
-		corporations,
-		nil,
-	)
-	if err != nil {
-		duration := time.Since(start)
-		m.Errors.WithLabelValues("jwt_generation_error").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "jwt_generation_error",
-			"error", err, "account_id", accountID, "character_hash", characterHash)
-		logs.ErrorCtx(ctx, "failed to generate internal JWT", "error", err, "account_id", accountID, "character_hash", characterHash)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
-		return
-	}
-
 	// Store refresh token in Redis with user data (including corporations)
 	refreshTokenData := auth.RefreshTokenData{
 		CharacterHash: characterHash,
-		AccountID:     internalClaims.AccountID,
+		AccountID:     accountID,
 		Scopes:        scopes,
 		Corporations:  corporations,
+		Alliances:     alliances,
 		SessionID:     sessionID,
 		SessionStart:  sessionNow,
 		SessionSeenAt: sessionNow,
@@ -191,7 +150,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 	}
 	if err := auth.UpsertSessionRecord(ctx, clients.Redis, auth.SessionRecord{
 		SessionID:     sessionID,
-		AccountID:     internalClaims.AccountID,
+		AccountID:     accountID,
 		CharacterHash: characterHash,
 		AppVersion:    appVersion,
 		StartedAt:     sessionNow,
@@ -208,7 +167,10 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 	}
 	sessionMetrics.Started.WithLabelValues("login").Inc(ctx)
 	sessionMetrics.Stored.WithLabelValues("login").Inc(ctx)
-	apimetrics.RecordAuthSessionDistinctAccount(ctx, clients.Redis, internalClaims.AccountID)
+	apimetrics.RecordAuthSessionDistinctAccount(ctx, clients.Redis, accountID)
+	if err := auth.UpdateAccountSessionGrants(ctx, clients.Redis, accountID, corporations, alliances); err != nil {
+		logs.WarnCtx(ctx, "failed to update account session grants", "error", err, "account_id", accountID)
+	}
 
 	loginDocs, err := helper.ResolveUserDocumentsForLogin(ctx, clients.Mongo, accountID)
 	if err != nil {
@@ -221,8 +183,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		return
 	}
 
-	// Calculate expiration timestamp using the same duration as token generation (Unix timestamp in seconds)
-	expiresAt := time.Now().Add(internaljwt.TokenExpirationDuration).Unix()
+	reauthRequiredAt := sessionNow.Add(auth.RefreshTokenTTL).Unix()
 
 	userOut := loginDocs.User
 	var linkedCharacters []models.LinkedCharacterSession
@@ -239,23 +200,44 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 				linkedCharacters = linkedCharacterSessions
 			}
 		}
-		userendpoints.StripRefreshTokensFromUserDocumentForClient(&userOut)
+	}
+	userendpoints.StripRefreshTokensFromUserDocumentForClient(&userOut)
+	if clients != nil && clients.JetStream != nil && len(linkedCharacters) > 0 {
+		tokens := make([]string, 0, len(linkedCharacters)+1)
+		tokens = append(tokens, tokenString)
+		for _, linked := range linkedCharacters {
+			if strings.TrimSpace(linked.AccessToken) != "" {
+				tokens = append(tokens, strings.TrimSpace(linked.AccessToken))
+			}
+		}
+		taskRequest := natscore.AccountSessionGrantsRequest{
+			AccountID: accountID,
+			Tokens:    tokens,
+		}
+		if err := natscore.PublishTask(ctx, clients.JetStream, taskscore.UpdateAccountSessionGrants.Subject, taskscore.UpdateAccountSessionGrants.Name, taskRequest, clients.NATS); err != nil {
+			logs.WarnCtx(ctx, "failed to publish account access grants refresh task on login", "account_id", accountID, "error", err)
+		}
 	}
 
-	response := AuthResponse{
+	response := SessionBootstrapResponse{
+		Kind:                sessionKindBootstrap,
+		EsiOAuthStorage:     esiOAuthStorageFromUserCloud(userOut.UserCloudAccounts),
 		AccountID:           accountID,
-		AccessToken:         internalToken,
+		SessionID:           sessionID,
+		MainCharacterHash:   characterHash,
 		RefreshToken:        refreshToken,
-		ExpiresAt:           expiresAt,
+		ReauthRequiredAt:    reauthRequiredAt,
 		FirstLogin:          loginDocs.FirstLogin,
 		UserDocument:        userOut,
 		ApplicationSettings: loginDocs.Settings,
 		LinkedCharacters:    linkedCharacters,
 	}
+	auth.SetAppSessionCookie(w, sessionID)
 	if userOut.UserCloudAccounts {
 		auth.SetAppRefreshCookie(w, r, refreshToken)
 		response.RefreshToken = ""
 	}
+	auth.SetEsiOAuthStorageCookieFromUserCloud(w, r, userOut.UserCloudAccounts)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")

@@ -34,7 +34,7 @@ var (
 // RefreshStoredEsiFromMongoForCharacter refreshes EVE OAuth tokens using encrypted Mongo users.refreshTokens
 // material for the given character hash, then persists rotation. Used when the planner session refresh
 // request has no client eve_token but a valid HttpOnly app refresh cookie (cloud cookie resume).
-// Returns the new ESI access token string for optional inclusion in the login-refresh JSON (avoids a second CCP round-trip).
+// Returns the new ESI access token string for optional inclusion in the bootstrap session JSON (avoids a second CCP round-trip).
 func RefreshStoredEsiFromMongoForCharacter(ctx context.Context, clients *shared.ServiceClients, accountID, characterHash string) (esiAccessToken string, err error) {
 	tok, err := refreshStoredEsiFromMongo(ctx, clients, accountID, strings.TrimSpace(characterHash))
 	if err != nil {
@@ -57,10 +57,10 @@ func refreshStoredEsiFromMongo(ctx context.Context, clients *shared.ServiceClien
 	return cloudstoredesi.RefreshStoredEsiForCharacter(ctx, usersCol, accountID, targetHash, &cfg)
 }
 
-// CloudStoredEsiRefreshHandler refreshes a cloud-stored character's ESI access token server-side
-// (Mongo users.refreshTokens row by CharacterHash — main or linked alt when present).
-// No ESI refresh token is returned to the client.
-func CloudStoredEsiRefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+// ServerStoredEsiAccessTokenHandler handles POST /api/v1/esi/characters/access-token/server:
+// refreshes ESI access using Mongo-held OAuth refresh for the character hash (cloud / server storage mode).
+// No long-lived refresh secret is returned to the client.
+func ServerStoredEsiAccessTokenHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveSSOTokenRefresh()
@@ -70,13 +70,12 @@ func CloudStoredEsiRefreshHandler(w http.ResponseWriter, r *http.Request, client
 		return
 	}
 
-	claims, err := auth.ExtractInternalClaims(r)
+	accountID, err := auth.ExtractAccountIDFromSession(ctx, r, clients.Redis)
 	if err != nil {
 		m.Errors.WithLabelValues("auth_error").Inc(ctx)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	accountID := claims.AccountID
 
 	var req struct {
 		CharacterHash        string `json:"character_hash"`

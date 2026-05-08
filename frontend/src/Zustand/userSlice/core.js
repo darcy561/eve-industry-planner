@@ -63,7 +63,7 @@ export const coreActions = (set, get) => ({
    * Converts user state to document format for storage.
    *
    * Additional-character refresh tokens are now handled by the dedicated
-   * `/api/v1/user/cloud-stored-esi-refresh-tokens` endpoint, so this payload
+   * `/api/v1/user/linked-characters/oauth-credentials` endpoint, so this payload
    * intentionally excludes refresh token fields.
    *
    * @returns {Object} Document object for storage
