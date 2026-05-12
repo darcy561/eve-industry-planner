@@ -335,7 +335,7 @@ fetch wrappers around `/api/v1/document-locks/*`. Notable details:
 place that translates the WS envelope:
 
 ```js
-if (parsed.type === DOCUMENT_LOCK_WS_TYPES.ENVELOPE) {
+if (parsed.type === DOCUMENT_LOCK_FRAME_TYPES.CHANNEL) {
   window.dispatchEvent(
     new CustomEvent(DOCUMENT_LOCK_CUSTOM_EVENT, { detail: parsed.payload })
   );
@@ -389,6 +389,6 @@ The full Edit Job page mounts both the job scope and the group scope this way
   events; per-scope polling on top is wasted load. The sync hooks listen on
   `eip-document-lock` already.
 - **Adding new event types.** Add the string to *both*
-  `documentLockEvents.js` (frontend) *and* `events.go` (backend) and handle
+  `documentLockEvents.js` (frontend) *and* `documentlock/events.go` (backend) and handle
   it in `useDocumentLock`'s listener. The contract table in
   [README.md](./README.md#wire-contract-frontend--backend) must stay current.

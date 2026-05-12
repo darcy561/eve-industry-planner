@@ -1,27 +1,17 @@
-package documentlocks
+package documentlock
 
 import "testing"
 
-// TestBuildHandoffCompletedPayload locks in the variance the frontend already
-// tolerates across the three publish sites:
-//   - claim-handoff: previousHolderSessionID set, reason omitted.
-//   - hand-over: both previousHolderSessionID and reason set.
-//   - TTL promotion: reason set, previousHolderSessionID omitted (server has
-//     already lost the previous-holder identity to Redis eviction).
-//
-// Optional fields must only appear in the resulting map when their option is
-// non-empty so the wire shape matches exactly what the old inline literals
-// produced.
 func TestBuildHandoffCompletedPayload(t *testing.T) {
 	t.Parallel()
 
 	t.Run("claim_handoff_shape_omits_reason", func(t *testing.T) {
-		p := buildHandoffCompletedPayload(
+		p := BuildHandoffCompletedPayload(
 			"user_job_documents", "doc-1", "sess-new", 999,
 			HandoffCompletedOpts{PreviousHolderSessionID: "sess-old"},
 		)
-		if p["type"] != LockEventHandoffCompleted {
-			t.Fatalf("expected type=%s, got %v", LockEventHandoffCompleted, p["type"])
+		if p[LockPayloadEventKey] != LockEventHandoffCompleted {
+			t.Fatalf("expected event=%s, got %v", LockEventHandoffCompleted, p[LockPayloadEventKey])
 		}
 		if p["collection"] != "user_job_documents" || p["docID"] != "doc-1" {
 			t.Fatalf("expected collection/docID round-trip, got %+v", p)
@@ -38,7 +28,7 @@ func TestBuildHandoffCompletedPayload(t *testing.T) {
 	})
 
 	t.Run("hand_over_shape_has_both", func(t *testing.T) {
-		p := buildHandoffCompletedPayload(
+		p := BuildHandoffCompletedPayload(
 			"user_job_groups", "group-7", "sess-new", 1234,
 			HandoffCompletedOpts{
 				PreviousHolderSessionID: "sess-old",
@@ -54,7 +44,7 @@ func TestBuildHandoffCompletedPayload(t *testing.T) {
 	})
 
 	t.Run("ttl_promotion_shape_omits_previous_holder", func(t *testing.T) {
-		p := buildHandoffCompletedPayload(
+		p := BuildHandoffCompletedPayload(
 			"user_job_groups", "group-9", "sess-promoted", 4242,
 			HandoffCompletedOpts{Reason: LockHandoffReasonTTLPromotion},
 		)
@@ -67,7 +57,7 @@ func TestBuildHandoffCompletedPayload(t *testing.T) {
 	})
 
 	t.Run("no_opts_only_required_fields", func(t *testing.T) {
-		p := buildHandoffCompletedPayload(
+		p := BuildHandoffCompletedPayload(
 			"user_job_documents", "doc-empty", "sess-new", 0,
 			HandoffCompletedOpts{},
 		)

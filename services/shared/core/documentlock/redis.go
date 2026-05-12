@@ -1,4 +1,4 @@
-package documentlocks
+package documentlock
 
 import (
 	"context"
@@ -11,12 +11,12 @@ import (
 )
 
 const (
-	keyPrefixV1  = "doc_lock:v1:"
-	keyPrefixV2  = "doc_lock:v2:"
-	waitPrefix   = "doc_lock_wait:v2:"
-	pulsePrefix  = "doc_lock_pulse:v2:"
-	// keyPartSep cannot appear in Mongo collection names / ids used by the app (same as frontend doc lock key).
-	keyPartSep = "\x1e"
+	keyPrefixV1 = "doc_lock:v1:"
+	keyPrefixV2 = "doc_lock:v2:"
+	waitPrefix  = "doc_lock_wait:v2:"
+	pulsePrefix = "doc_lock_pulse:v2:"
+	// KeyPartSep cannot appear in Mongo collection names / ids used by the app (same as frontend doc lock key).
+	KeyPartSep = "\x1e"
 )
 
 // DefaultLockTTL is the Redis key TTL and default extension window.
@@ -31,7 +31,8 @@ const ProbeAckWaitSeconds int64 = 20
 // WaitlistPulseTTL — keys proving this session is still waiting on this doc (refreshed by heartbeat + enqueue + probe).
 const WaitlistPulseTTL = 2 * time.Minute
 
-type lockRecord struct {
+// LockRecord is the JSON shape stored in Redis for a document lock.
+type LockRecord struct {
 	HolderSessionID      string `json:"holderSessionID"`
 	AccountID            string `json:"accountID"`
 	ExpiresAtUnix        int64  `json:"expiresAtUnix"`
@@ -46,19 +47,19 @@ func lockKeyV1(collection, docID string) string {
 
 // LockKeyV2 builds the Redis key including account id (used for keyspace expiry notifications).
 func LockKeyV2(accountID, collection, docID string) string {
-	return keyPrefixV2 + accountID + keyPartSep + collection + keyPartSep + docID
+	return keyPrefixV2 + accountID + KeyPartSep + collection + KeyPartSep + docID
 }
 
 func waitlistKey(accountID, collection, docID string) string {
-	return waitPrefix + accountID + keyPartSep + collection + keyPartSep + docID
+	return waitPrefix + accountID + KeyPartSep + collection + KeyPartSep + docID
 }
 
 func waitlistPulseKey(accountID, collection, docID, sessionID string) string {
-	return pulsePrefix + accountID + keyPartSep + collection + keyPartSep + docID + keyPartSep + sessionID
+	return pulsePrefix + accountID + KeyPartSep + collection + KeyPartSep + docID + KeyPartSep + sessionID
 }
 
-// touchWaitlistPulse marks this session as actively waiting (must be refreshed while they remain in queue).
-func touchWaitlistPulse(ctx context.Context, rdb *redis.Client, accountID, collection, docID, sessionID string) error {
+// TouchWaitlistPulse marks this session as actively waiting (must be refreshed while they remain in queue).
+func TouchWaitlistPulse(ctx context.Context, rdb *redis.Client, accountID, collection, docID, sessionID string) error {
 	if sessionID == "" || rdb == nil {
 		return nil
 	}
@@ -73,8 +74,8 @@ func hasWaitlistPulse(ctx context.Context, rdb *redis.Client, accountID, collect
 	return n > 0, err
 }
 
-// peekWaitlistHeadAlive returns the first queue entry that still has a recent pulse; stale heads are removed.
-func peekWaitlistHeadAlive(ctx context.Context, rdb *redis.Client, accountID, collection, docID string) (string, error) {
+// PeekWaitlistHeadAlive returns the first queue entry that still has a recent pulse; stale heads are removed.
+func PeekWaitlistHeadAlive(ctx context.Context, rdb *redis.Client, accountID, collection, docID string) (string, error) {
 	k := waitlistKey(accountID, collection, docID)
 	for i := 0; i < 256; i++ {
 		head, err := rdb.LIndex(ctx, k, 0).Result()
@@ -98,7 +99,8 @@ func peekWaitlistHeadAlive(ctx context.Context, rdb *redis.Client, accountID, co
 	return "", fmt.Errorf("peek waitlist alive: loop exceeded")
 }
 
-func enqueueWaitlistUnique(ctx context.Context, rdb *redis.Client, accountID, collection, docID, sessionID string) error {
+// EnqueueWaitlistUnique enqueues sessionID on the waitlist (deduped).
+func EnqueueWaitlistUnique(ctx context.Context, rdb *redis.Client, accountID, collection, docID, sessionID string) error {
 	k := waitlistKey(accountID, collection, docID)
 	pipe := rdb.Pipeline()
 	_ = pipe.LRem(ctx, k, 1, sessionID)
@@ -107,7 +109,8 @@ func enqueueWaitlistUnique(ctx context.Context, rdb *redis.Client, accountID, co
 	return err
 }
 
-func peekWaitlistHead(ctx context.Context, rdb *redis.Client, accountID, collection, docID string) (string, error) {
+// PeekWaitlistHead returns the raw head of the waitlist without pulse checks.
+func PeekWaitlistHead(ctx context.Context, rdb *redis.Client, accountID, collection, docID string) (string, error) {
 	k := waitlistKey(accountID, collection, docID)
 	s, err := rdb.LIndex(ctx, k, 0).Result()
 	if err == redis.Nil {
@@ -116,11 +119,13 @@ func peekWaitlistHead(ctx context.Context, rdb *redis.Client, accountID, collect
 	return s, err
 }
 
-func removeFromWaitlist(ctx context.Context, rdb *redis.Client, accountID, collection, docID, sessionID string) error {
+// RemoveFromWaitlist removes one occurrence of sessionID from the waitlist.
+func RemoveFromWaitlist(ctx context.Context, rdb *redis.Client, accountID, collection, docID, sessionID string) error {
 	return rdb.LRem(ctx, waitlistKey(accountID, collection, docID), 1, sessionID).Err()
 }
 
-func waitlistLen(ctx context.Context, rdb *redis.Client, accountID, collection, docID string) (int64, error) {
+// WaitlistLen returns the length of the waitlist list.
+func WaitlistLen(ctx context.Context, rdb *redis.Client, accountID, collection, docID string) (int64, error) {
 	return rdb.LLen(ctx, waitlistKey(accountID, collection, docID)).Result()
 }
 
@@ -130,14 +135,15 @@ func ParseExpiredLockKey(key string) (accountID, collection, docID string, ok bo
 		return "", "", "", false
 	}
 	rest := key[len(keyPrefixV2):]
-	parts := strings.Split(rest, keyPartSep)
+	parts := strings.Split(rest, KeyPartSep)
 	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
 		return "", "", "", false
 	}
 	return parts[0], parts[1], parts[2], true
 }
 
-func getLock(ctx context.Context, rdb *redis.Client, accountID, collection, docID string) (*lockRecord, error) {
+// GetLock returns the active lock record or nil if none / expired.
+func GetLock(ctx context.Context, rdb *redis.Client, accountID, collection, docID string) (*LockRecord, error) {
 	if rdb == nil {
 		return nil, fmt.Errorf("redis unavailable")
 	}
@@ -155,7 +161,7 @@ func getLock(ctx context.Context, rdb *redis.Client, accountID, collection, docI
 			return nil, err
 		}
 	}
-	var rec lockRecord
+	var rec LockRecord
 	if err := json.Unmarshal([]byte(s), &rec); err != nil {
 		return nil, err
 	}
@@ -167,7 +173,8 @@ func getLock(ctx context.Context, rdb *redis.Client, accountID, collection, docI
 	return &rec, nil
 }
 
-func setLock(ctx context.Context, rdb *redis.Client, accountID, collection, docID string, rec lockRecord) error {
+// SetLock writes the lock record with DefaultLockTTL and clears legacy v1 key.
+func SetLock(ctx context.Context, rdb *redis.Client, accountID, collection, docID string, rec LockRecord) error {
 	b, err := json.Marshal(rec)
 	if err != nil {
 		return err
@@ -187,15 +194,7 @@ func deleteLock(ctx context.Context, rdb *redis.Client, accountID, collection, d
 	return rdb.Del(ctx, k2, k1).Err()
 }
 
-// DeleteDocLock removes the Redis lock for a document (e.g. after the backing document is deleted).
-func DeleteDocLock(ctx context.Context, rdb *redis.Client, accountID, collection, docID string) error {
-	if rdb == nil {
-		return nil
-	}
-	return deleteLock(ctx, rdb, accountID, collection, docID)
-}
-
-// promoteWaitlistHead atomically transfers ownership of the lock for
+// PromoteWaitlistHead atomically transfers ownership of the lock for
 // (accountID, collection, docID) to the alive head of the waitlist.
 //
 // Used by /hand-over (interactive holder accept) and the TTL expiry
@@ -210,16 +209,16 @@ func DeleteDocLock(ctx context.Context, rdb *redis.Client, accountID, collection
 //
 // The new record clears extend/probe state so it reads back as a clean lease.
 // Dequeue failures are non-fatal (the head will be filtered next time
-// `peekWaitlistHeadAlive` runs against them).
-func promoteWaitlistHead(
+// `PeekWaitlistHeadAlive` runs against them).
+func PromoteWaitlistHead(
 	ctx context.Context,
 	rdb *redis.Client,
 	accountID, collection, docID string,
-) (newHolder string, record *lockRecord, promoted bool, err error) {
+) (newHolder string, record *LockRecord, promoted bool, err error) {
 	if rdb == nil {
 		return "", nil, false, nil
 	}
-	head, err := peekWaitlistHeadAlive(ctx, rdb, accountID, collection, docID)
+	head, err := PeekWaitlistHeadAlive(ctx, rdb, accountID, collection, docID)
 	if err != nil {
 		return "", nil, false, err
 	}
@@ -227,18 +226,15 @@ func promoteWaitlistHead(
 		return "", nil, false, nil
 	}
 	exp := time.Now().Unix() + int64(DefaultLockTTL/time.Second)
-	rec := lockRecord{
+	rec := LockRecord{
 		HolderSessionID: head,
 		AccountID:       accountID,
 		ExpiresAtUnix:   exp,
 	}
-	if err := setLock(ctx, rdb, accountID, collection, docID, rec); err != nil {
+	if err := SetLock(ctx, rdb, accountID, collection, docID, rec); err != nil {
 		return "", nil, false, err
 	}
-	if err := removeFromWaitlist(ctx, rdb, accountID, collection, docID, head); err != nil {
-		// Lock is already promoted; failing to dequeue is non-fatal because
-		// `peekWaitlistHeadAlive`'s pulse check will filter the stale entry the
-		// next time a caller asks.
+	if err := RemoveFromWaitlist(ctx, rdb, accountID, collection, docID, head); err != nil {
 		_ = err
 	}
 	return head, &rec, true, nil
@@ -250,7 +246,7 @@ func LockHeldByOther(ctx context.Context, rdb *redis.Client, accountID, collecti
 	if rdb == nil {
 		return false, nil
 	}
-	rec, err := getLock(ctx, rdb, accountID, collection, docID)
+	rec, err := GetLock(ctx, rdb, accountID, collection, docID)
 	if err != nil {
 		return false, err
 	}
@@ -261,4 +257,17 @@ func LockHeldByOther(ctx context.Context, rdb *redis.Client, accountID, collecti
 		return true, nil
 	}
 	return rec.HolderSessionID != requesterSessionID, nil
+}
+
+// DeleteLock removes lock keys (v1 and v2).
+func DeleteLock(ctx context.Context, rdb *redis.Client, accountID, collection, docID string) error {
+	if rdb == nil {
+		return nil
+	}
+	return deleteLock(ctx, rdb, accountID, collection, docID)
+}
+
+// DeleteDocLock removes the Redis lock for a document (e.g. after the backing document is deleted).
+func DeleteDocLock(ctx context.Context, rdb *redis.Client, accountID, collection, docID string) error {
+	return DeleteLock(ctx, rdb, accountID, collection, docID)
 }

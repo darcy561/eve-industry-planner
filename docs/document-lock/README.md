@@ -7,8 +7,11 @@ holder leaves or their lease expires.
 
 The system spans three services and the SPA:
 
-- **`services/api/v1endpoints/documentlocks`** — authoritative state in Redis,
-  REST endpoints, cascade helpers, TTL-expiry subscriber.
+- **`services/shared/core/documentlock`** — Redis-backed lock state, transitions,
+  cascade, TTL-expiry subscriber, JetStream publish helpers, and `Service` API
+  used by the HTTP layer and API `main`.
+- **`services/api/v1endpoints/documentlocks`** — REST routes and thin HTTP handlers
+  (auth, JSON encode/decode) delegating to `documentlock`.
 - **`services/websocket`** — receives lock events on JetStream subject
   **`doc.lock.{accountID}`** and fans them out to every connected tab.
 - **`services/core`** — not involved (locks are not Mongo documents).
@@ -28,7 +31,7 @@ This README is the cross-stack overview. Implementation detail lives in:
 | **`collection`** | Mongo logical collection the lock guards: `user_job_documents` or `user_job_groups`. |
 | **`docID`** | Document id within `collection` (jobID or groupID). |
 | **`sessionID`** | JWT `session_id` claim. Identifies *one tab*; not the user, not the device. Two tabs of the same account have different sessionIDs and can fight for the same lock. |
-| **Holder** | The session in `lockRecord.HolderSessionID`. Has exclusive write access. |
+| **Holder** | The session in `LockRecord.HolderSessionID`. Has exclusive write access. |
 | **Viewer** | A session showing the doc in read-only mode (lock held by someone else). Registered in a Redis ZSET; the holder gets a contention affordance when `viewerCount > 0`. |
 | **Waitlist** | Redis list of sessions queued to take over via the "Request access" flow. The head is promoted on holder-handover and on TTL expiry. |
 | **Lease** | A holder's TTL window (`DefaultLockTTL` = 5 min). Renewed by `/extend` while the tab is visible. After 3 consecutive renewals the holder consults the waitlist (handoff probe). |
@@ -51,11 +54,10 @@ flowchart LR
     Slice --> Cards
   end
 
-  subgraph API["services/api"]
+  subgraph API["services/api (documentlocks + main)"]
     direction TB
     Routes["/api/v1/document-locks/*"]
-    Cascade["cascade.go"]
-    Expiry["expiry_subscriber.go"]
+    Core["shared/core/documentlock<br/>Service + cascade + expiry"]
   end
 
   Redis[("Redis<br/>doc_lock:v2:*<br/>doc_lock_wait:v2:*<br/>doc_lock_pulse:v2:*<br/>doc_lock_viewers:v2:*")]
@@ -70,18 +72,15 @@ flowchart LR
 
   Hook -->|"POST /acquire /extend<br/>/release /request<br/>/hand-over /claim-handoff<br/>/viewer-arrived /viewer-departed<br/>/waitlist-pulse"| Routes
   Slice -->|"POST /status-batch<br/>GET /status"| Routes
-  Routes <-->|"GET/SET/DEL<br/>LIST/ZSET"| Redis
-  Routes -->|"PublishDocLockNotification"| JS
-  Cascade -->|"force release"| Redis
-  Cascade -->|"publish released"| JS
-  Expiry -->|"keyspace __keyevent@*__:expired"| Redis
-  Expiry -->|"promote/expired"| JS
+  Routes --> Core
+  Core <-->|"GET/SET/DEL<br/>LIST/ZSET"| Redis
+  Core -->|"PublishLockEvent"| JS
   JS --> DocLockConsumer
   Fanout -->|"{type: 'document_lock', payload}"| SPA
   SPA -->|"CustomEvent eip-document-lock"| Hook
 ```
 
-**One sentence:** Redis is the source of truth, the API enforces transitions,
+**One sentence:** Redis is the source of truth, **`documentlock`** enforces transitions,
 JetStream broadcasts every transition through the websocket service to every
 tab on the same account, and each tab mirrors what it cares about into
 Zustand.
@@ -90,16 +89,16 @@ Zustand.
 
 Inner-payload `type` strings every fan-out wraps:
 
-| Frontend constant (`documentLockEvents.js`) | Backend constant (`events.go` / `viewer_presence.go` / `expiry_subscriber.go`) | Emitted by |
+| Frontend constant (`documentLockEvents.js`) | Backend constant (`documentlock/events.go` / HTTP viewer handlers / `documentlock/expiry.go`) | Emitted by |
 |---|---|---|
-| `DOCUMENT_LOCK_EVENTS.ACQUIRED` (`document_lock_acquired`) | `LockEventAcquired` | `/acquire`, `/request` auto-grant |
-| `DOCUMENT_LOCK_EVENTS.RELEASED` (`document_lock_released`) | `LockEventReleased` | `/release`, `/hand-over` fallback, cascade |
-| `DOCUMENT_LOCK_EVENTS.REQUESTED` (`document_lock_requested`) | `LockEventRequested` | `/request` (lock contended) |
-| `DOCUMENT_LOCK_EVENTS.EXPIRED` (`document_lock_expired`) | `LockEventExpired` | TTL with no live waitlist head |
-| `DOCUMENT_LOCK_EVENTS.HANDOFF_PROBE` (`document_lock_handoff_probe`) | `LockEventHandoffProbe` | `/extend` after 3 renewals while waitlist is alive |
-| `DOCUMENT_LOCK_EVENTS.HANDOFF_COMPLETED` (`document_lock_handoff_completed`) | `LockEventHandoffCompleted` | `/hand-over`, `/claim-handoff`, TTL promotion |
-| `DOCUMENT_LOCK_EVENTS.VIEWER_JOINED` (`document_lock_viewer_joined`) | `LockViewerEventJoined` | `/viewer-arrived` (newly added) |
-| `DOCUMENT_LOCK_EVENTS.VIEWER_LEFT` (`document_lock_viewer_left`) | `LockViewerEventLeft` | `/viewer-departed` (removal hit) |
+| `DOCUMENT_LOCK_DOMAIN_EVENTS.ACQUIRED` (`document_lock_acquired`) | `LockEventAcquired` | `/acquire`, `/request` auto-grant |
+| `DOCUMENT_LOCK_DOMAIN_EVENTS.RELEASED` (`document_lock_released`) | `LockEventReleased` | `/release`, `/hand-over` fallback, cascade |
+| `DOCUMENT_LOCK_DOMAIN_EVENTS.REQUESTED` (`document_lock_requested`) | `LockEventRequested` | `/request` (lock contended) |
+| `DOCUMENT_LOCK_DOMAIN_EVENTS.EXPIRED` (`document_lock_expired`) | `LockEventExpired` | TTL with no live waitlist head |
+| `DOCUMENT_LOCK_DOMAIN_EVENTS.HANDOFF_PROBE` (`document_lock_handoff_probe`) | `LockEventHandoffProbe` | `/extend` after 3 renewals while waitlist is alive |
+| `DOCUMENT_LOCK_DOMAIN_EVENTS.HANDOFF_COMPLETED` (`document_lock_handoff_completed`) | `LockEventHandoffCompleted` | `/hand-over`, `/claim-handoff`, TTL promotion |
+| `DOCUMENT_LOCK_DOMAIN_EVENTS.VIEWER_JOINED` (`document_lock_viewer_joined`) | `LockViewerEventJoined` | `/viewer-arrived` (newly added) |
+| `DOCUMENT_LOCK_DOMAIN_EVENTS.VIEWER_LEFT` (`document_lock_viewer_left`) | `LockViewerEventLeft` | `/viewer-departed` (removal hit) |
 
 Each payload also includes `accountID`, `collection`, `docID`, plus a subset of
 `sessionID`, `holderSessionID`, `requesterSessionID`, `probeTargetSessionID`,
@@ -115,11 +114,11 @@ See `services/websocket/server/natslogic/locks.go::BuildDocumentLockWire`.
 
 | Reason | Emitted on | Frontend constant |
 |---|---|---|
-| `group_handoff_cascade` | `released` from `cascade.go` | `DOCUMENT_LOCK_RELEASE_REASONS.GROUP_HANDOFF_CASCADE` |
+| `group_handoff_cascade` | `released` from `documentlock/cascade.go` | `DOCUMENT_LOCK_RELEASE_REASONS.GROUP_HANDOFF_CASCADE` |
 | `hand_over_no_queue` | `released` from `/hand-over` (requester gone) | `DOCUMENT_LOCK_RELEASE_REASONS.HAND_OVER_NO_QUEUE` |
 | `ttl` | `expired` from TTL keyspace event | `DOCUMENT_LOCK_EXPIRY_REASONS.TTL` |
 | `holder_handover` | `handoff_completed` from `/hand-over` | `DOCUMENT_LOCK_HANDOFF_REASONS.HOLDER_HANDOVER` |
-| `ttl_promotion` | `handoff_completed` from expiry subscriber | `DOCUMENT_LOCK_HANDOFF_REASONS.TTL_PROMOTION` |
+| `ttl_promotion` | `handoff_completed` from `documentlock/expiry.go` | `DOCUMENT_LOCK_HANDOFF_REASONS.TTL_PROMOTION` |
 
 ## End-to-end flows
 
@@ -257,8 +256,8 @@ awareness UI.
 
 Frontend timings live in
 `frontend/src/Functions/DocumentLock/documentLockTimings.js`. Backend lease /
-TTL values live in `services/api/v1endpoints/documentlocks/lock_redis.go` and
-`services/api/v1endpoints/documentlocks/viewer_presence.go`.
+TTL values live in `services/shared/core/documentlock/redis.go` and
+`services/shared/core/documentlock/viewer.go`.
 
 | Concept | Frontend | Backend | Notes |
 |---|---|---|---|
@@ -281,19 +280,28 @@ TTL values live in `services/api/v1endpoints/documentlocks/lock_redis.go` and
 ### Backend
 
 ```
+services/shared/core/documentlock/
+  deps.go                 — Deps + DepsFromServiceClients (Redis, Mongo, JetStream)
+  redis.go                — Redis key layout, LockRecord, waitlist + promote helpers
+  viewer.go               — viewer ZSET (AddViewer / RemoveViewer / PruneAndCountViewers)
+  status.go               — StatusPayloadForDoc, StatusBatchResults
+  payload.go              — LockPayload, ExtendExtras (HTTP JSON fragments)
+  events.go               — wire type/reason constants + BuildHandoffCompletedPayload
+  publish.go / notify.go  — JetStream doc.lock publish + PublishLockEvent
+  cascade.go              — group → per-job cascade + ReleaseStale* / ReleaseDependent*
+  expiry.go               — Redis __keyevent@*__:expired listener + waitlist promotion
+  service.go / service_ops.go — Service (Acquire, Extend, Release, RequestAccess, …)
+  *_test.go               — redis, events, cascade predicates
+
 services/api/v1endpoints/documentlocks/
-  router.go            — HTTP route table
-  request_context.go   — auth + body parse preamble
-  handlers.go          — acquire / extend / release / hand-over / request / status / claim-handoff / waitlist-pulse
-  status_batch.go      — POST /status-batch
-  viewer_presence.go   — /viewer-arrived /viewer-departed + ZSET helpers
-  lock_redis.go        — Redis key layout, lockRecord, promoteWaitlistHead, waitlist helpers
-  lock_json.go         — shared JSON response shape (lockPayload, writeExtendJSON)
-  events.go            — event type + reason constants + buildHandoffCompletedPayload
-  cascade.go           — group handoff cascade (decideHandoffCascadeRelease, decideStaleAfterGrantRelease)
-  expiry_subscriber.go — Redis __keyevent@*__:expired listener + waitlist promotion
-  *_test.go            — unit tests (events, lock_redis, cascade)
-services/api/helper/doclock/publish.go    — JetStream PublishDocLockNotification
+  router.go               — HTTP route table
+  request_context.go      — auth + body parse preamble
+  handlers.go             — thin HTTP → documentlock.Service
+  lock_json.go            — writeExtendJSON for /extend responses
+  viewer_presence.go      — /viewer-arrived / viewer-departed HTTP handlers
+
+services/api/main.go      — documentlock.StartExpirySubscriber on API startup
+
 services/websocket/server/nats_doc_lock.go — doc.lock consumer
 services/websocket/server/natslogic/locks.go — BuildDocumentLockWire wrapper
 ```
