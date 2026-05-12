@@ -246,41 +246,6 @@ func GetAPIAuthSessionLifecycle() *APIAuthSessionLifecycleMetrics {
 	return authSessionLifecycleHolder
 }
 
-// APIAuthJWKSMetrics holds OpenTelemetry metrics for JWKS.
-type APIAuthJWKSMetrics struct {
-	Requests      *floatHist
-	RequestsCount *intCounter
-	Errors        *counterVec
-}
-
-var (
-	authJWKSOnce   sync.Once
-	authJWKSHolder *APIAuthJWKSMetrics
-)
-
-// GetAPIAuthJWKS returns JWKS metrics.
-func GetAPIAuthJWKS() *APIAuthJWKSMetrics {
-	authJWKSOnce.Do(func() {
-		m := apiMeter()
-		authJWKSHolder = &APIAuthJWKSMetrics{
-			Requests: &floatHist{h: mustHist(m.Float64Histogram("api.auth_jwks.duration_milliseconds",
-				metric.WithUnit("ms"),
-				metric.WithDescription("Latency of JWKS requests (milliseconds)"),
-			))},
-			RequestsCount: &intCounter{c: mustCounter(m.Int64Counter("api.auth_jwks.requests_total",
-				metric.WithDescription("Total JWKS requests"),
-			))},
-			Errors: &counterVec{
-				c: mustCounter(m.Int64Counter("api.auth_jwks.errors_total",
-					metric.WithDescription("JWKS errors"),
-				)),
-				attrKey: "reason",
-			},
-		}
-	})
-	return authJWKSHolder
-}
-
 // APIAppConfigMetrics holds OpenTelemetry metrics for GET /api/v1/app-config.
 type APIAppConfigMetrics struct {
 	Requests      *floatHist

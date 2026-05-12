@@ -6,6 +6,7 @@
  */
 
 import { refreshServerSession } from "../../Functions/Auth/serverTokens.js";
+import { shouldDeferAuthRefreshDueToTranquilityOffline } from "../../Functions/Auth/authRefreshTranquilityGate.js";
 import updateCorporationClaims from "../../Functions/Endpoints/Pirivate/corporationClaims.js";
 import GLOBAL_CONFIG from "../../global-config-app.js";
 import { dedupeLinkedCharacterHashStrings } from "../../Functions/Auth/characterHashCanonical.js";
@@ -409,6 +410,9 @@ export const tokenActions = (set, get) => ({
    * Concurrent callers share one in-flight promise via {@link inflightRefreshServerTokenPromise}.
    */
   refreshServerToken: async () => {
+    if (shouldDeferAuthRefreshDueToTranquilityOffline(get)) {
+      return;
+    }
     if (inflightRefreshServerTokenPromise) {
       return inflightRefreshServerTokenPromise;
     }
@@ -525,6 +529,10 @@ export const tokenActions = (set, get) => ({
     const character = chain[esStaggerIndex % n];
     esStaggerIndex++;
 
+    if (shouldDeferAuthRefreshDueToTranquilityOffline(get)) {
+      return;
+    }
+
     try {
       await character.refreshEsiAccessTokenIfNeeded();
       await character.getPublicCharacterData();
@@ -541,6 +549,9 @@ export const tokenActions = (set, get) => ({
    * refresh. Used by `useRefreshESITokens`.
    */
   runEsiTokenIntervalMaintenance: async () => {
+    if (shouldDeferAuthRefreshDueToTranquilityOffline(get)) {
+      return;
+    }
     if (!get().account.isLoggedIn) return;
     const characters = get().account.characters;
     const esiTokens = characters
@@ -559,6 +570,9 @@ export const tokenActions = (set, get) => ({
    * exceptional cases (e.g. a forced refresh after a bulk import).
    */
   runScheduledTokenRefresh: async () => {
+    if (shouldDeferAuthRefreshDueToTranquilityOffline(get)) {
+      return;
+    }
     const state = get();
     if (!state.account.isLoggedIn) return;
     const characters = state.account.characters.filter((u) => u && !u.isPlaceholder);

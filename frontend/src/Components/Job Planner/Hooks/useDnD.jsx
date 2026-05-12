@@ -1,9 +1,8 @@
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { ItemTypes, JobCardUiSource } from "../../../Context/DnDTypes";
-import { USER_JOBS_COLLECTION } from "../../../Functions/DocumentLock/documentLockCollections.js";
 import { saveJobsViaApi } from "../../../Functions/JobDocuments/saveJobsViaApi.js";
-import { selectDocumentLockReadOnly } from "../../../Functions/DocumentLock/documentLockSelectors.js";
+import { useJobLockReadOnly } from "../../../Hooks/DocumentLock/useDocumentLockState";
 import useUsersStore from "../../../Zustand/usersStore";
 
 function sameWorkflowStage(a, b) {
@@ -27,11 +26,7 @@ export function plannerDragPassThroughSx(isDragging) {
 }
 
 export function usePlannerJobCardDrag(job, opts = {}) {
-  const lockReadOnly = useUsersStore((s) =>
-    job?.jobID
-      ? selectDocumentLockReadOnly(s, USER_JOBS_COLLECTION, job.jobID)
-      : false
-  );
+  const lockReadOnly = useJobLockReadOnly(job?.jobID);
   const disabled = opts.disabled ?? Boolean(lockReadOnly);
   const uiListSource = opts.uiListSource ?? JobCardUiSource.jobPlannerSnapshots;
 

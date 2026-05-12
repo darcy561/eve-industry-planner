@@ -60,6 +60,13 @@ func EveSSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shar
 		m.Errors.WithLabelValues("sso_exchange_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "sso_exchange_error", "error", err)
 		logs.WarnCtx(ctx, "failed to exchange auth code for token", "error", err)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":   "sso_upstream_token_request",
+			"sso_endpoint":    "token_exchange",
+			"auth_code_len":   len(authCode),
+			"account_type":    accountType,
+			"metric":          "eve_sso_code_exchange",
+		})
 		handleSSOProviderError(w, r, err, "Invalid authorization code")
 		return
 	}
@@ -69,6 +76,12 @@ func EveSSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shar
 		m.Errors.WithLabelValues("no_access_token").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "no_access_token")
 		logs.WarnCtx(ctx, "no access token received from EVE SSO")
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class": "sso_empty_access_token",
+			"sso_endpoint":  "token_exchange",
+			"metric":        "eve_sso_code_exchange",
+			"expires_in":    tokenResponse.ExpiresIn,
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "No access token received from EVE SSO", errors.New("empty access token from EVE SSO"))
 		return
 	}
@@ -91,6 +104,11 @@ func EveSSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shar
 		m.Errors.WithLabelValues("encode_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "encode_error", "error", err)
 		logs.ErrorCtx(ctx, "failed to encode response", "error", err)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class": "sso_response_encode",
+			"sso_endpoint":  "token_exchange",
+			"metric":        "eve_sso_code_exchange",
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}

@@ -15,6 +15,7 @@ import { getAvailableBlueprintByBlueprintID } from "../../Functions/Helper/getAv
 import { useCachedData } from "../../Hooks/App/useCachedData";
 import { CACHED_DATA_FILES } from "../../Context/defaultValues";
 import useUsersStore from "../../Zustand/usersStore";
+import { useTranquilityServerStatusQuery } from "../../Hooks/React Query/tranquilityServerStatus.js";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGetAllCharacterBlueprints } from "../../Hooks/EveEsi/Character/useGetAllCharacterBlueprints";
 import { useGetAllCorporationBlueprints } from "../../Hooks/EveEsi/Corporation/useGetAllCorporationBlueprints";
@@ -333,9 +334,9 @@ function VirtualisedRecipeSearch({
     (state) => state.applicationSettings.enableSkipMissingBlueprints
   );
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
-  const queryEnabled = useUsersStore(
-    (state) => state.account.isLoggedIn && state.worldData.eveServerStatus
-  );
+  const { data: tranquilityStatus } = useTranquilityServerStatusQuery();
+  const queryEnabled =
+    isLoggedIn && !!tranquilityStatus?.online;
 
   const {
     data: itemList,

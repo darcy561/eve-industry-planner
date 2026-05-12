@@ -27,16 +27,11 @@ func BulkUpsertGroups(ctx context.Context, collection *mongo.Collection, account
 		group.MetaData.LastModified = now
 		group.MetaData.LastUpdatedBy = accountID
 		group.MetaData.AccountID = accountID
-		if sessionID != "" {
-			group.MetaData.SessionID = sessionID
-		}
+		ApplyMetaSessionClient(&group.MetaData.MetaData, sessionID, wsClientID)
 		if group.MetaData.CreatedAt.IsZero() {
 			group.MetaData.CreatedAt = now
 		}
 		group.AccountID = accountID
-		if wsClientID != "" {
-			group.MetaData.ClientID = wsClientID
-		}
 		bulkOps = append(bulkOps, mongo.NewUpdateOneModel().
 			SetFilter(bson.M{"_id": group.GroupID, "_meta.accountID": accountID}).
 			SetUpdate(bson.M{"$set": group}).

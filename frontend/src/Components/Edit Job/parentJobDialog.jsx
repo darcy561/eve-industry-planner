@@ -7,11 +7,14 @@ import {
   DialogTitle,
   Grid,
   IconButton,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import useUsersStore from "../../Zustand/usersStore";
 import { showSnackbarSuccess } from "../../Events/snackbarEvents";
+import { useActiveJobReadOnly } from "./Edit Job Hooks/useActiveJobDocumentLock";
+import { lockReasonText } from "../DocumentLock/LockGatedTooltip";
 
 export function ParentJobDialog({
   state,
@@ -19,8 +22,9 @@ export function ParentJobDialog({
   dialogTrigger,
   updateDialogTrigger,
 }) {
-  const { jobArray } = useUsersStore((state) => state.jobData);
+  const { jobArray } = useUsersStore((rootState) => rootState.jobData);
   const [matches, updateMatches] = useState([]);
+  const jobLockReadOnly = useActiveJobReadOnly(state);
 
   const handleClose = () => {
     updateDialogTrigger(false);
@@ -114,17 +118,30 @@ export function ParentJobDialog({
                     </Typography>
                   </Grid>
                   <Grid size={1}>
-                    <IconButton
-                      size="small"
-                      color="primary"
-                      onClick={() => {
-                        actions.markParentJobForAddition(job.jobID);
-                        showSnackbarSuccess(`${job.name} Linked`);
-                        handleClose();
-                      }}
+                    <Tooltip
+                      title={
+                        jobLockReadOnly
+                          ? lockReasonText({ action: "linking is disabled" })
+                          : ""
+                      }
+                      arrow
+                      disableHoverListener={!jobLockReadOnly}
                     >
-                      <AddIcon />
-                    </IconButton>
+                      <span>
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          disabled={jobLockReadOnly}
+                          onClick={() => {
+                            actions.markParentJobForAddition(job.jobID);
+                            showSnackbarSuccess(`${job.name} Linked`);
+                            handleClose();
+                          }}
+                        >
+                          <AddIcon />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                   </Grid>
                 </Grid>
               );

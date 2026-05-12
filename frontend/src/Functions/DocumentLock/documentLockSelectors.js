@@ -1,7 +1,4 @@
-import {
-  docLockScopeKey,
-  mergeScopedDocumentLockState,
-} from "./documentLockScope.js";
+import { mergeScopedDocumentLockState } from "./documentLockScope.js";
 
 /**
  * Full merged UI state for one Redis-backed document lock scope.
@@ -19,19 +16,6 @@ export function selectScopedDocumentLock(state, collection, docID) {
 }
 
 /**
- * Whether this scope row exists in the store (first patch created it).
- *
- * @param {*} state
- * @param {string} collection
- * @param {string} docID
- */
-export function isDocumentLockScopeTracked(state, collection, docID) {
-  if (!collection || !docID) return false;
-  const key = docLockScopeKey(collection, docID);
-  return Object.hasOwn(state.documentLock.scopes, key);
-}
-
-/**
  * Read-only because another session holds the lock for this collection/doc pair.
  *
  * @param {*} state — root `usersStore` state
@@ -40,4 +24,25 @@ export function isDocumentLockScopeTracked(state, collection, docID) {
  */
 export function selectDocumentLockReadOnly(state, collection, docID) {
   return selectScopedDocumentLock(state, collection, docID).readOnly;
+}
+
+/**
+ * Drop IDs that are read-only for `collection` (held by another session). Used by
+ * "Select All" affordances on the job planner so locked job cards can't be pulled
+ * into bulk operations even when the user can still passively view them.
+ *
+ * @param {*} state — root `usersStore` state
+ * @param {string} collection
+ * @param {Iterable<string>} docIDs
+ * @returns {string[]}
+ */
+export function filterUnlockedDocumentIDs(state, collection, docIDs) {
+  if (!collection || !docIDs) return [];
+  const result = [];
+  for (const docID of docIDs) {
+    if (!docID) continue;
+    if (selectDocumentLockReadOnly(state, collection, docID)) continue;
+    result.push(docID);
+  }
+  return result;
 }

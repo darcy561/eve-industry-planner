@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	keyPrefixV1 = "doc_lock:v1:"
-	keyPrefixV2 = "doc_lock:v2:"
-	waitPrefix  = "doc_lock_wait:v2:"
+	keyPrefixV1  = "doc_lock:v1:"
+	keyPrefixV2  = "doc_lock:v2:"
+	waitPrefix   = "doc_lock_wait:v2:"
+	pulsePrefix  = "doc_lock_pulse:v2:"
 	// keyPartSep cannot appear in Mongo collection names / ids used by the app (same as frontend doc lock key).
 	keyPartSep = "\x1e"
 )
@@ -53,7 +54,7 @@ func waitlistKey(accountID, collection, docID string) string {
 }
 
 func waitlistPulseKey(accountID, collection, docID, sessionID string) string {
-	return "doc_lock_pulse:v2:" + accountID + keyPartSep + collection + keyPartSep + docID + keyPartSep + sessionID
+	return pulsePrefix + accountID + keyPartSep + collection + keyPartSep + docID + keyPartSep + sessionID
 }
 
 // touchWaitlistPulse marks this session as actively waiting (must be refreshed while they remain in queue).
@@ -192,6 +193,55 @@ func DeleteDocLock(ctx context.Context, rdb *redis.Client, accountID, collection
 		return nil
 	}
 	return deleteLock(ctx, rdb, accountID, collection, docID)
+}
+
+// promoteWaitlistHead atomically transfers ownership of the lock for
+// (accountID, collection, docID) to the alive head of the waitlist.
+//
+// Used by /hand-over (interactive holder accept) and the TTL expiry
+// subscriber. Returns:
+//   - (head, &rec, true, nil)  — a live waitlist head was found, the lock now
+//     points at them, the waitlist has been dequeued, and the caller should
+//     publish the appropriate `document_lock_handoff_completed` event.
+//   - ("",   nil,  false, nil) — no live waitlist head; caller decides whether
+//     to /release outright (handover) or publish `document_lock_expired`
+//     (expiry subscriber).
+//   - ("",   nil,  false, err) — fatal Redis error, caller should bail.
+//
+// The new record clears extend/probe state so it reads back as a clean lease.
+// Dequeue failures are non-fatal (the head will be filtered next time
+// `peekWaitlistHeadAlive` runs against them).
+func promoteWaitlistHead(
+	ctx context.Context,
+	rdb *redis.Client,
+	accountID, collection, docID string,
+) (newHolder string, record *lockRecord, promoted bool, err error) {
+	if rdb == nil {
+		return "", nil, false, nil
+	}
+	head, err := peekWaitlistHeadAlive(ctx, rdb, accountID, collection, docID)
+	if err != nil {
+		return "", nil, false, err
+	}
+	if head == "" {
+		return "", nil, false, nil
+	}
+	exp := time.Now().Unix() + int64(DefaultLockTTL/time.Second)
+	rec := lockRecord{
+		HolderSessionID: head,
+		AccountID:       accountID,
+		ExpiresAtUnix:   exp,
+	}
+	if err := setLock(ctx, rdb, accountID, collection, docID, rec); err != nil {
+		return "", nil, false, err
+	}
+	if err := removeFromWaitlist(ctx, rdb, accountID, collection, docID, head); err != nil {
+		// Lock is already promoted; failing to dequeue is non-fatal because
+		// `peekWaitlistHeadAlive`'s pulse check will filter the stale entry the
+		// next time a caller asks.
+		_ = err
+	}
+	return head, &rec, true, nil
 }
 
 // LockHeldByOther reports whether a non-expired lock is held by a session other than requesterSessionID.

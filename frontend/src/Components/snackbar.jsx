@@ -119,7 +119,7 @@ export function SnackBarNotification() {
               if (collection && docID) {
                 void useUsersStore
                   .getState()
-                  .documentLock.actions.handOverEditAccess(collection, docID);
+                  .documentLock.actions.acceptAccessRequest(collection, docID);
               }
               handleSnackbarClose({}, "handover");
             }}

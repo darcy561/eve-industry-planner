@@ -22,6 +22,13 @@ export function initialScopedDocumentLockState() {
     pendingHandoffExpiresAtUnix: null,
     handoffOfferForMe: false,
     waitingInHandoffQueue: false,
+    /**
+     * Number of passive-viewer sessions currently registered on this doc. Driven by
+     * `document_lock_viewer_joined` / `document_lock_viewer_left` events and refreshed
+     * authoritatively by every `/status` response — the holder shows their header
+     * affordance when this is > 0 even if nobody has clicked "Request access".
+     */
+    viewerCount: 0,
   };
 }
 

@@ -120,15 +120,6 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(api_auth_jwks_requests_total[$__rate_interval]))",
-          "legendFormat": "jwks",
-          "refId": "E"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
           "expr": "sum(rate(api_eve_sso_code_exchange_requests_total[$__rate_interval]))",
           "legendFormat": "eve_sso_code_exchange",
           "refId": "F"
@@ -323,15 +314,6 @@
           "expr": "histogram_quantile(0.96, sum(rate(api_session_refresh_duration_milliseconds_bucket[$__rate_interval])) by (le))",
           "legendFormat": "session_refresh p96",
           "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.96, sum(rate(api_auth_jwks_duration_milliseconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "jwks p96",
-          "refId": "C"
         },
         {
           "datasource": {
@@ -1055,7 +1037,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (reason, source) (\n  label_replace(rate(api_eve_token_login_errors_total[$__rate_interval]), \"source\", \"eve_token_login\", \"reason\", \".*\")\n  or label_replace(rate(api_session_refresh_errors_total[$__rate_interval]), \"source\", \"session_refresh\", \"reason\", \".*\")\n  or label_replace(rate(api_auth_jwks_errors_total[$__rate_interval]), \"source\", \"jwks\", \"reason\", \".*\")\n  or label_replace(rate(api_eve_sso_code_exchange_errors_total[$__rate_interval]), \"source\", \"eve_sso_code_exchange\", \"reason\", \".*\")\n  or label_replace(rate(api_eve_sso_token_refresh_errors_total[$__rate_interval]), \"source\", \"eve_sso_token_refresh\", \"reason\", \".*\")\n  or label_replace(rate(api_jobs_errors_total[$__rate_interval]), \"source\", \"jobs\", \"reason\", \".*\")\n  or label_replace(rate(api_groups_errors_total[$__rate_interval]), \"source\", \"groups\", \"reason\", \".*\")\n  or label_replace(rate(api_archived_jobs_errors_total[$__rate_interval]), \"source\", \"archived_jobs\", \"reason\", \".*\")\n  or label_replace(rate(api_system_indexes_errors_total[$__rate_interval]), \"source\", \"system_indexes\", \"reason\", \".*\")\n  or label_replace(rate(api_market_prices_errors_total[$__rate_interval]), \"source\", \"market_prices\", \"reason\", \".*\")\n  or label_replace(rate(api_static_data_errors_total[$__rate_interval]), \"source\", \"static_data\", \"reason\", \".*\")\n  or label_replace(rate(api_app_config_errors_total[$__rate_interval]), \"source\", \"app_config\", \"reason\", \".*\")\n  or label_replace(rate(api_cloud_stored_esi_refresh_tokens_errors_total[$__rate_interval]), \"source\", \"additional_character_refresh_tokens\", \"reason\", \".*\")\n) $err_source",
+          "expr": "sum by (reason, source) (\n  label_replace(rate(api_eve_token_login_errors_total[$__rate_interval]), \"source\", \"eve_token_login\", \"reason\", \".*\")\n  or label_replace(rate(api_session_refresh_errors_total[$__rate_interval]), \"source\", \"session_refresh\", \"reason\", \".*\")\n  or label_replace(rate(api_eve_sso_code_exchange_errors_total[$__rate_interval]), \"source\", \"eve_sso_code_exchange\", \"reason\", \".*\")\n  or label_replace(rate(api_eve_sso_token_refresh_errors_total[$__rate_interval]), \"source\", \"eve_sso_token_refresh\", \"reason\", \".*\")\n  or label_replace(rate(api_jobs_errors_total[$__rate_interval]), \"source\", \"jobs\", \"reason\", \".*\")\n  or label_replace(rate(api_groups_errors_total[$__rate_interval]), \"source\", \"groups\", \"reason\", \".*\")\n  or label_replace(rate(api_archived_jobs_errors_total[$__rate_interval]), \"source\", \"archived_jobs\", \"reason\", \".*\")\n  or label_replace(rate(api_system_indexes_errors_total[$__rate_interval]), \"source\", \"system_indexes\", \"reason\", \".*\")\n  or label_replace(rate(api_market_prices_errors_total[$__rate_interval]), \"source\", \"market_prices\", \"reason\", \".*\")\n  or label_replace(rate(api_static_data_errors_total[$__rate_interval]), \"source\", \"static_data\", \"reason\", \".*\")\n  or label_replace(rate(api_app_config_errors_total[$__rate_interval]), \"source\", \"app_config\", \"reason\", \".*\")\n  or label_replace(rate(api_cloud_stored_esi_refresh_tokens_errors_total[$__rate_interval]), \"source\", \"additional_character_refresh_tokens\", \"reason\", \".*\")\n) $err_source",
           "legendFormat": "{{source}} · {{reason}}",
           "refId": "A"
         }
@@ -1100,11 +1082,6 @@
             "selected": false,
             "text": "session_refresh",
             "value": " * on(source) group_left() max by (source) (label_replace(rate(api_session_refresh_errors_total[$__rate_interval]), \"source\", \"session_refresh\", \"reason\", \".*\") * 0 + 1)"
-          },
-          {
-            "selected": false,
-            "text": "jwks",
-            "value": " * on(source) group_left() max by (source) (label_replace(rate(api_auth_jwks_errors_total[$__rate_interval]), \"source\", \"jwks\", \"reason\", \".*\") * 0 + 1)"
           },
           {
             "selected": false,

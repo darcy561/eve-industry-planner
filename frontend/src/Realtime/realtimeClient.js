@@ -14,6 +14,10 @@ import {
   getRealtimeClientID,
   setRealtimeClientID,
 } from "./wsClientIdentity.js";
+import {
+  DOCUMENT_LOCK_CUSTOM_EVENT,
+  DOCUMENT_LOCK_WS_TYPES,
+} from "../Functions/DocumentLock/documentLockEvents.js";
 
 /** @type {WebSocket|null} */
 let socket = null;
@@ -84,20 +88,9 @@ export function stashRealtimeSessionResumeHint() {
   resumeHint = { accountId: accountID, clientId: cid };
 }
 
-/**
- * Same-origin WS URL. `session_id` query is optional and used only for
- * reconnect/session diagnostics; websocket auth is cookie-backed.
- * @param {string} [sessionId]
- */
-function wsUrl(sessionId) {
+/** Same-origin `/ws`; auth is HttpOnly session cookie only (no query params). */
+function wsUrl() {
   const u = new URL("/ws", window.location.origin);
-  const sid =
-    typeof sessionId === "string" && sessionId.trim().length > 0
-      ? sessionId.trim()
-      : "";
-  if (sid) {
-    u.searchParams.set("session_id", sid);
-  }
   if (u.protocol === "https:") {
     u.protocol = "wss:";
   } else if (u.protocol === "http:") {
@@ -154,11 +147,6 @@ export function connectRealtime(params) {
   haltedForExpiredToken = false;
 
   const sessionIdForWs = getSessionIDFromStoreOrToken();
-  if (!sessionIdForWs) {
-    console.warn("[realtime] WebSocket connecting without session_id query param; relying on cookie auth", {
-      accountId,
-    });
-  }
 
   lastConnectParams = params;
   const nextKey = accountId;
@@ -196,7 +184,7 @@ export function connectRealtime(params) {
   /** Guard listeners so a lagging close from a replaced socket cannot clear the active connection or its timers. */
   let ws;
   try {
-    ws = new WebSocket(wsUrl(sessionIdForWs));
+    ws = new WebSocket(wsUrl());
     socket = ws;
   } catch (e) {
     console.error("[realtime] WebSocket construct failed", e);
@@ -320,15 +308,15 @@ export function connectRealtime(params) {
           return;
         }
       }
-      if (parsed.type === "document_lock") {
+      if (parsed.type === DOCUMENT_LOCK_WS_TYPES.ENVELOPE) {
         window.dispatchEvent(
-          new CustomEvent("eip-document-lock", {
+          new CustomEvent(DOCUMENT_LOCK_CUSTOM_EVENT, {
             detail: parsed.payload,
           })
         );
         return;
       }
-      if (parsed.type === "document_lock_status_batch_ack") {
+      if (parsed.type === DOCUMENT_LOCK_WS_TYPES.STATUS_BATCH_ACK) {
         const id =
           typeof parsed.requestId === "string" ? parsed.requestId : "";
         const pending = id
@@ -479,7 +467,7 @@ export function requestDocumentLockStatusBatchOverRealtime(params = {}) {
     try {
       socket.send(
         JSON.stringify({
-          type: "document_lock_status_batch",
+          type: DOCUMENT_LOCK_WS_TYPES.STATUS_BATCH,
           requestId,
           jobDocIDs,
           groupDocIDs,

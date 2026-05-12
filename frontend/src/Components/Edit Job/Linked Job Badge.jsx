@@ -15,6 +15,7 @@ import useUsersStore from "../../Zustand/usersStore";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { showSnackbarError } from "../../Events/snackbarEvents";
 import { requestEditJobNavigation } from "../../Events/editJobNavigationEvents";
+import { useActiveJobReadOnly } from "./Edit Job Hooks/useActiveJobDocumentLock";
 
 export function LinkedJobBadge(props) {
   const { state, actions } = props;
@@ -22,6 +23,7 @@ export function LinkedJobBadge(props) {
   const [dialogTrigger, updateDialogTrigger] = useState(false);
   const navigate = useNavigate({ from: '/editjob/$jobID' });
   const search = useSearch({ from: '/editjob/$jobID' });
+  const jobLockReadOnly = useActiveJobReadOnly(state);
 
   const parentJobSelection = actions.getCurrentParentJobs();
 
@@ -74,7 +76,7 @@ export function LinkedJobBadge(props) {
                     key={parent.jobID}
                     label={parent.name}
                     size="large"
-                    deleteIcon={<ClearIcon />}
+                    deleteIcon={jobLockReadOnly ? undefined : <ClearIcon />}
                     avatar={
                       <Avatar
                         src={`https://image.eveonline.com/Type/${parent.itemID}_32.png`}
@@ -115,10 +117,14 @@ export function LinkedJobBadge(props) {
                       boxShadow: 3,
                       flexShrink: 0,
                     }}
-                    onDelete={() => {
-                      actions.markParentJobForRemoval(jobID);
-                      showSnackbarError(`${parent.name} Unlinked`);
-                    }}
+                    onDelete={
+                      jobLockReadOnly
+                        ? undefined
+                        : () => {
+                            actions.markParentJobForRemoval(jobID);
+                            showSnackbarError(`${parent.name} Unlinked`);
+                          }
+                    }
                   />
                 );
               })}

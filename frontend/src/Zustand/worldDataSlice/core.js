@@ -16,21 +16,17 @@ const { MARKET_OPTIONS } = GLOBAL_CONFIG;
  * Default state configuration for world data.
  * 
  * Defines the initial state values for all world-related data including
- * market data, universe IDs, system indexes, and server status.
+ * market data, universe IDs, and system indexes.
  * 
  * @returns {Object} Default world data state
  * @property {Object} marketData - Market price data by type ID
  * @property {Object} universeIDs - Universe ID mappings (systems, stations, etc.)
  * @property {Object} systemIndexes - System cost index data
- * @property {boolean} eveServerStatus - EVE Online server status
- * @property {number} evePlayerCount - Current EVE Online player count
  */
 export const stateDefault = () => ({
   marketData: {},
   universeIDs: {},
   systemIndexes: {},
-  eveServerStatus: false,
-  evePlayerCount: 0,
 });
 
 /**
@@ -46,8 +42,8 @@ export const coreActions = (set, get) => ({
   /**
    * Resets the world data store to its default state.
    * 
-   * Clears all world data including market data, universe IDs, system indexes,
-   * and server status, while preserving the actions object.
+   * Clears all world data including market data, universe IDs, and system indexes,
+   * while preserving the actions object.
    * 
    * @example
    * store.getState().worldData.actions.resetWorldDataStore();

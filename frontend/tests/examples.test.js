@@ -1,5 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { createTestStore, createMockStore, createTestData, waitForStoreCondition } from './utils.js';
 import store from '../src/Zustand/usersStore';
 
@@ -15,7 +14,7 @@ describe('Zustand Store Testing Examples', () => {
       expect(initialState).toBeDefined();
       
       // Test that actions exist
-      expect(initialState.users?.actions).toBeDefined();
+      expect(initialState.account?.actions).toBeDefined();
       expect(initialState.applicationSettings?.actions).toBeDefined();
       expect(initialState.jobData?.actions).toBeDefined();
     });
@@ -31,17 +30,14 @@ describe('Zustand Store Testing Examples', () => {
         account: {
           ...initialState.account,
           isLoggedIn: true,
+          mainCharacterHash: 'abc123',
         },
-        users: {
-          ...initialState.users,
-          user: createTestData().user()
-        }
       });
       
       // Verify state was updated
       const updatedState = testStore.getState();
       expect(updatedState.account.isLoggedIn).toBe(true);
-      expect(updatedState.users.user.email).toBe('test@example.com');
+      expect(updatedState.account.mainCharacterHash).toBe('abc123');
     });
   });
 
@@ -51,10 +47,7 @@ describe('Zustand Store Testing Examples', () => {
       const mockStore = createMockStore({
         account: {
           isLoggedIn: true,
-        },
-        users: {
-          user: createTestData().user({ displayName: 'Mock User' }),
-          isLoading: false
+          mainCharacterHash: 'main-hash',
         },
         applicationSettings: {
           theme: 'dark',
@@ -65,7 +58,7 @@ describe('Zustand Store Testing Examples', () => {
       // Test that mock store works
       const state = mockStore.getState();
       expect(state.account.isLoggedIn).toBe(true);
-      expect(state.users.user.displayName).toBe('Mock User');
+      expect(state.account.mainCharacterHash).toBe('main-hash');
       expect(state.applicationSettings.theme).toBe('dark');
     });
   });
@@ -76,41 +69,36 @@ describe('Zustand Store Testing Examples', () => {
       
       // Simulate async operation
       const asyncOperation = async () => {
-        // Simulate loading state
         testStore.setState({
-          users: { ...testStore.getState().users, isLoading: true }
+          account: {
+            ...testStore.getState().account,
+            isLoggedIn: false,
+          },
         });
         
         // Simulate API call delay
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        // Simulate success
         testStore.setState({
           account: {
             ...testStore.getState().account,
             isLoggedIn: true,
           },
-          users: { 
-            ...testStore.getState().users, 
-            isLoading: false,
-            user: createTestData().user()
-          }
         });
       };
 
       // Start async operation
       const operationPromise = asyncOperation();
       
-      // Wait for loading to complete
+      // Wait for login flag after simulated API
       await waitForStoreCondition(
         testStore, 
-        (state) => state.users.isLoading === false,
+        (state) => state.account.isLoggedIn === true,
         1000
       );
       
       // Verify final state
       const finalState = testStore.getState();
-      expect(finalState.users.isLoading).toBe(false);
       expect(finalState.account.isLoggedIn).toBe(true);
       
       // Wait for operation to complete
@@ -119,8 +107,8 @@ describe('Zustand Store Testing Examples', () => {
   });
 });
 
-// Example test for a specific store slice
-describe('User Store Slice', () => {
+// Example test for account slice
+describe('Account store slice', () => {
   let testStore;
 
   beforeEach(() => {
@@ -130,35 +118,27 @@ describe('User Store Slice', () => {
   it('should have correct initial state structure', () => {
     const state = testStore.getState();
     
-    expect(state.users).toBeDefined();
-    expect(state.users.actions).toBeDefined();
-    expect(state.account?.actions).toBeDefined();
-    expect(typeof state.users.actions.resetUsersSettingsStore).toBe('function');
+    expect(state.account).toBeDefined();
+    expect(state.account.actions).toBeDefined();
     expect(typeof state.account.actions.setLoggedIn).toBe('function');
     expect(typeof state.account.actions.addCharacter).toBe('function');
   });
 
-  it('should handle login action', () => {
+  it('should handle login-related account fields', () => {
     const state = testStore.getState();
     const testUser = createTestData().user();
     
-    // Mock the login action (you'd need to implement this based on your actual actions)
-    // This is just an example of how you might test it
     testStore.setState({
       account: {
         ...state.account,
         isLoggedIn: true,
+        mainCharacterHash: testUser.uid,
       },
-      users: {
-        ...state.users,
-        user: testUser,
-        isLoading: false
-      }
     });
 
     const updatedState = testStore.getState();
     expect(updatedState.account.isLoggedIn).toBe(true);
-    expect(updatedState.users.user.email).toBe(testUser.email);
+    expect(updatedState.account.mainCharacterHash).toBe(testUser.uid);
   });
 });
 

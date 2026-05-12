@@ -25,6 +25,8 @@ import useUsersStore from "../../../../../Zustand/usersStore";
 import moveItemsOnPlanner from "../../../../../Functions/JobPlanner/moveItemsOnPlanner";
 import { buildJob } from "../../../../../Functions/JobPlanner/buildJob";
 import { openGroupTemplatesApplyDialog } from "../../../../../Events/groupTemplatesDialogEvents";
+import { filterUnlockedDocumentIDs } from "../../../../../Functions/DocumentLock/documentLockSelectors";
+import { USER_JOBS_COLLECTION } from "../../../../../Functions/DocumentLock/documentLockCollections";
 
 export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
   const { multiSelect, jobArray } = useUsersStore((state) => state.jobData);
@@ -172,10 +174,15 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
         icon: <SelectAllIcon />,
         tooltip: "Selects all jobs on the planner.",
         onClick: () => {
+          const eligibleJobIDs = jobArray
+            .filter((j) => j.displayOnPlanner)
+            .map((job) => job.jobID);
           addToMultiSelect(
-            jobArray
-              .filter((j) => j.displayOnPlanner)
-              .map((job) => job.jobID)
+            filterUnlockedDocumentIDs(
+              useUsersStore.getState(),
+              USER_JOBS_COLLECTION,
+              eligibleJobIDs
+            )
           );
         },
       },

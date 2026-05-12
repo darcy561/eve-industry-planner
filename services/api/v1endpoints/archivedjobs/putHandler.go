@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/api/helper/auth"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
@@ -62,7 +61,6 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 		return
 	}
 	var err error
-	sessionID, _ := auth.ExtractSessionID(r)
 
 	var reqBody struct {
 		Jobs []models.Job `json:"jobs"`
@@ -117,10 +115,7 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	bulkOps := make([]mongo.WriteModel, 0, len(reqBody.Jobs))
 	for i := range reqBody.Jobs {
 		job := &reqBody.Jobs[i]
-		job.MetaData.AccountID = accountID
-		if sessionID != "" {
-			job.MetaData.SessionID = sessionID
-		}
+		helper.PopulateRequestMeta(r, &job.MetaData.MetaData, accountID)
 		job.MetaData.LastModified = now
 		job.MetaData.LastUpdatedBy = accountID
 		if job.MetaData.CreatedAt.IsZero() {

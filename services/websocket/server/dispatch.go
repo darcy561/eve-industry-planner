@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"strings"
 
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/websocket/server/outgoinglogic"
@@ -9,7 +10,7 @@ import (
 
 // deliverOutboundDocUpdate routes a NATS doc.update payload to local WebSocket clients.
 // Precedence: accountID → corporationID → allianceID → explicit doc subscribers.
-// Corporation/alliance paths use reverse indexes filled by upgrade_scopes (JWT ceiling).
+// Corporation/alliance paths use reverse indexes filled by upgrade_scopes (session grant ceiling).
 func (s *Server) deliverOutboundDocUpdate(collectionScopedDocID string, messageData []byte) {
 	ctx := context.Background()
 	decoded, err := outgoinglogic.DecodeOutboundMessage(messageData)
@@ -65,14 +66,22 @@ func (s *Server) broadcastToAccountClients(docID string, messageData []byte, rou
 	}
 	s.userConnMu.RUnlock()
 
+	var (
+		recipientClientIDs  []string
+		skippedEcho         []string
+		skippedSync         []string
+		skippedNotConnected []string
+	)
 	broadcastCount := 0
 	s.ClientsMu.RLock()
 	for _, clientID := range clientsToNotify {
 		client, exists := s.Clients[clientID]
 		if !exists {
+			skippedNotConnected = append(skippedNotConnected, clientID)
 			continue
 		}
 		if outgoinglogic.ShouldSuppressRecipient(sourceSessionID, sourceClientID, client.SessionID, clientID) {
+			skippedEcho = append(skippedEcho, clientID)
 			continue
 		}
 
@@ -87,12 +96,14 @@ func (s *Server) broadcastToAccountClients(docID string, messageData []byte, rou
 		client.SyncMu.Lock()
 		if client.SyncInProgress {
 			client.SyncMu.Unlock()
+			skippedSync = append(skippedSync, clientID)
 			continue
 		}
 		client.SyncMu.Unlock()
 
 		if outgoinglogic.TrySendNonBlocking(client.Send, messageData) {
 			broadcastCount++
+			recipientClientIDs = append(recipientClientIDs, clientID)
 		} else {
 			logs.WarnCtx(client.LogContext(), "client send buffer full, dropping message",
 				"client_id", clientID,
@@ -107,7 +118,21 @@ func (s *Server) broadcastToAccountClients(docID string, messageData []byte, rou
 			"account_id", accountID,
 			"doc_id", docID,
 			"recipients", broadcastCount,
-			"total_clients", len(clientsToNotify),
+			"candidate_client_ids", strings.Join(clientsToNotify, ","),
+			"recipient_client_ids", strings.Join(recipientClientIDs, ","),
+			"skipped_echo_suppression_client_ids", strings.Join(skippedEcho, ","),
+			"skipped_sync_in_progress_client_ids", strings.Join(skippedSync, ","),
+			"skipped_not_connected_client_ids", strings.Join(skippedNotConnected, ","),
+			"source_client_id", sourceClientID,
+			"source_session_id", sourceSessionID)
+	} else if len(clientsToNotify) > 0 {
+		logs.DebugCtx(bcCtx, "account doc update: no recipients on this replica",
+			"account_id", accountID,
+			"doc_id", docID,
+			"candidate_client_ids", strings.Join(clientsToNotify, ","),
+			"skipped_echo_suppression_client_ids", strings.Join(skippedEcho, ","),
+			"skipped_sync_in_progress_client_ids", strings.Join(skippedSync, ","),
+			"skipped_not_connected_client_ids", strings.Join(skippedNotConnected, ","),
 			"source_client_id", sourceClientID,
 			"source_session_id", sourceSessionID)
 	}
@@ -143,6 +168,7 @@ func (s *Server) broadcastToCorporationScope(docID string, messageData []byte, d
 		return
 	}
 
+	var recipientIDs []string
 	sent := 0
 	s.ClientsMu.RLock()
 	for _, clientID := range clientIDs {
@@ -166,6 +192,7 @@ func (s *Server) broadcastToCorporationScope(docID string, messageData []byte, d
 		}
 		if outgoinglogic.TrySendNonBlocking(client.Send, messageData) {
 			sent++
+			recipientIDs = append(recipientIDs, clientID)
 		} else {
 			logs.WarnCtx(client.LogContext(), "corporation scope: send buffer full",
 				"client_id", client.id,
@@ -178,7 +205,18 @@ func (s *Server) broadcastToCorporationScope(docID string, messageData []byte, d
 		logs.DebugCtx(ctx, "corporation scope broadcast",
 			"doc_id", docID,
 			"corporation_id", corporationID,
-			"recipients", sent)
+			"recipients", sent,
+			"candidate_pool_client_ids", strings.Join(clientIDs, ","),
+			"recipient_client_ids", strings.Join(recipientIDs, ","),
+			"source_client_id", sourceClientID,
+			"source_session_id", sourceSessionID)
+	} else if len(clientIDs) > 0 {
+		logs.DebugCtx(ctx, "corporation scope: no recipients on this replica",
+			"doc_id", docID,
+			"corporation_id", corporationID,
+			"candidate_pool_client_ids", strings.Join(clientIDs, ","),
+			"source_client_id", sourceClientID,
+			"source_session_id", sourceSessionID)
 	}
 }
 
@@ -201,6 +239,7 @@ func (s *Server) broadcastToAllianceScope(docID string, messageData []byte, deco
 		return
 	}
 
+	var recipientIDs []string
 	sent := 0
 	s.ClientsMu.RLock()
 	for _, clientID := range clientIDs {
@@ -225,6 +264,7 @@ func (s *Server) broadcastToAllianceScope(docID string, messageData []byte, deco
 		}
 		if outgoinglogic.TrySendNonBlocking(client.Send, messageData) {
 			sent++
+			recipientIDs = append(recipientIDs, clientID)
 		} else {
 			logs.WarnCtx(client.LogContext(), "alliance scope: send buffer full",
 				"client_id", client.id,
@@ -237,7 +277,18 @@ func (s *Server) broadcastToAllianceScope(docID string, messageData []byte, deco
 		logs.DebugCtx(ctx, "alliance scope broadcast",
 			"doc_id", docID,
 			"alliance_id", allianceID,
-			"recipients", sent)
+			"recipients", sent,
+			"candidate_pool_client_ids", strings.Join(clientIDs, ","),
+			"recipient_client_ids", strings.Join(recipientIDs, ","),
+			"source_client_id", sourceClientID,
+			"source_session_id", sourceSessionID)
+	} else if len(clientIDs) > 0 {
+		logs.DebugCtx(ctx, "alliance scope: no recipients on this replica",
+			"doc_id", docID,
+			"alliance_id", allianceID,
+			"candidate_pool_client_ids", strings.Join(clientIDs, ","),
+			"source_client_id", sourceClientID,
+			"source_session_id", sourceSessionID)
 	}
 }
 
@@ -259,6 +310,7 @@ func (s *Server) deliverToExplicitDocSubscribers(docID string, messageData []byt
 	}
 	s.explicitDocSubMu.RUnlock()
 
+	var recipientIDs []string
 	sent := 0
 	s.ClientsMu.RLock()
 	for _, clientID := range clientIDs {
@@ -280,6 +332,7 @@ func (s *Server) deliverToExplicitDocSubscribers(docID string, messageData []byt
 		}
 		if outgoinglogic.TrySendNonBlocking(client.Send, messageData) {
 			sent++
+			recipientIDs = append(recipientIDs, clientID)
 		} else {
 			logs.WarnCtx(client.LogContext(), "explicit doc: send buffer full",
 				"client_id", clientID,
@@ -291,6 +344,16 @@ func (s *Server) deliverToExplicitDocSubscribers(docID string, messageData []byt
 	if sent > 0 {
 		logs.DebugCtx(ctx, "doc update delivered to explicit subscribers",
 			"doc_id", docID,
-			"recipients", sent)
+			"recipients", sent,
+			"candidate_explicit_client_ids", strings.Join(clientIDs, ","),
+			"recipient_client_ids", strings.Join(recipientIDs, ","),
+			"source_client_id", sourceClientID,
+			"source_session_id", sourceSessionID)
+	} else if len(clientIDs) > 0 {
+		logs.DebugCtx(ctx, "explicit doc update: no recipients on this replica",
+			"doc_id", docID,
+			"candidate_explicit_client_ids", strings.Join(clientIDs, ","),
+			"source_client_id", sourceClientID,
+			"source_session_id", sourceSessionID)
 	}
 }

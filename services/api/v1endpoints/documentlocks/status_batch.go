@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/shared"
 )
 
@@ -31,15 +32,12 @@ func StatusBatchResults(ctx context.Context, clients *shared.ServiceClients, acc
 		return nil, nil, ErrStatusBatchTooMany
 	}
 
-	const collJobs = "user_job_documents"
-	const collGroups = "user_job_groups"
-
 	jobResults = make(map[string]any, len(jobDocIDs))
 	for _, docID := range jobDocIDs {
 		if docID == "" {
 			continue
 		}
-		payload, e := statusPayloadForDoc(ctx, clients, accountID, collJobs, docID)
+		payload, e := statusPayloadForDoc(ctx, clients, accountID, mongocore.CollectionUserJobDocuments, docID)
 		if e != nil {
 			return nil, nil, e
 		}
@@ -50,7 +48,7 @@ func StatusBatchResults(ctx context.Context, clients *shared.ServiceClients, acc
 		if docID == "" {
 			continue
 		}
-		payload, e := statusPayloadForDoc(ctx, clients, accountID, collGroups, docID)
+		payload, e := statusPayloadForDoc(ctx, clients, accountID, mongocore.CollectionUserJobGroups, docID)
 		if e != nil {
 			return nil, nil, e
 		}

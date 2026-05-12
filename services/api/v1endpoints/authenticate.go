@@ -37,6 +37,11 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		m.Errors.WithLabelValues("config_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "config_error", "error", err)
 		logs.ErrorCtx(ctx, "failed to load config for auth login", "error", err)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":    "auth_config_load",
+			"session_endpoint": "auth_sessions",
+			"metric":           "eve_token_login",
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
@@ -111,6 +116,12 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "refresh_token_generation_error",
 			"error", err, "account_id", accountID, "character_hash", characterHash)
 		logs.ErrorCtx(ctx, "failed to generate refresh token", "error", err, "account_id", accountID, "character_hash", characterHash)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":    "auth_refresh_token_gen",
+			"session_endpoint": "auth_sessions",
+			"metric":           "eve_token_login",
+			"account_id":       accountID,
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
@@ -122,6 +133,12 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "session_generation_error",
 			"error", err, "account_id", accountID, "character_hash", characterHash)
 		logs.ErrorCtx(ctx, "failed to generate session id", "error", err, "account_id", accountID, "character_hash", characterHash)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":    "auth_session_id_gen",
+			"session_endpoint": "auth_sessions",
+			"metric":           "eve_token_login",
+			"account_id":       accountID,
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
@@ -145,6 +162,12 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "redis_error",
 			"error", err, "account_id", accountID, "character_hash", characterHash)
 		logs.ErrorCtx(ctx, "failed to store refresh token", "error", err, "account_id", accountID, "character_hash", characterHash)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":    "auth_redis_store_refresh",
+			"session_endpoint": "auth_sessions",
+			"metric":           "eve_token_login",
+			"account_id":       accountID,
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
@@ -162,6 +185,12 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "session_store_error",
 			"error", err, "account_id", accountID, "character_hash", characterHash)
 		logs.ErrorCtx(ctx, "failed to store session record", "error", err, "account_id", accountID, "character_hash", characterHash)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":    "auth_redis_session_record",
+			"session_endpoint": "auth_sessions",
+			"metric":           "eve_token_login",
+			"account_id":       accountID,
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
@@ -179,6 +208,12 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "mongo_error",
 			"error", err, "account_id", accountID)
 		logs.ErrorCtx(ctx, "failed to resolve user documents for login", "error", err, "account_id", accountID)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":    "auth_mongo_user_docs",
+			"session_endpoint": "auth_sessions",
+			"metric":           "eve_token_login",
+			"account_id":       accountID,
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
@@ -250,6 +285,12 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "encode_error",
 			"error", err, "account_id", accountID)
 		logs.ErrorCtx(ctx, "failed to encode response", "error", err, "account_id", accountID)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":    "auth_response_encode",
+			"session_endpoint": "auth_sessions",
+			"metric":           "eve_token_login",
+			"account_id":       accountID,
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}

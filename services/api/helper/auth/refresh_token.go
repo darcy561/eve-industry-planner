@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -11,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"eve-industry-planner/shared/core/internaljwt"
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/logs"
 
@@ -20,6 +20,32 @@ import (
 )
 
 var ErrRefreshTokenNotFound = errors.New("refresh token not found")
+
+// CorporationIDs unmarshals JSON number arrays for refresh-token metadata; invalid shapes become empty.
+type CorporationIDs []int64
+
+func (c *CorporationIDs) UnmarshalJSON(data []byte) error {
+	var ints []int64
+	if err := json.Unmarshal(data, &ints); err != nil {
+		*c = CorporationIDs{}
+		return nil
+	}
+	*c = CorporationIDs(ints)
+	return nil
+}
+
+// AllianceIDs unmarshals like CorporationIDs (numeric EVE alliance ids).
+type AllianceIDs []int64
+
+func (a *AllianceIDs) UnmarshalJSON(data []byte) error {
+	var ints []int64
+	if err := json.Unmarshal(data, &ints); err != nil {
+		*a = AllianceIDs{}
+		return nil
+	}
+	*a = AllianceIDs(ints)
+	return nil
+}
 
 const (
 	// RefreshTokenTTL is how long planner app session refresh-token keys live in Redis (also the basis for SessionTTL).
@@ -48,8 +74,8 @@ type RefreshTokenData struct {
 	CharacterHash string                     `json:"character_hash"`
 	AccountID     string                     `json:"account_id"`
 	Scopes        []string                   `json:"scopes"`
-	Corporations  internaljwt.CorporationIDs `json:"corporations,omitempty"` // Corporation IDs the user can access
-	Alliances     internaljwt.AllianceIDs    `json:"alliances,omitempty"`    // Alliance IDs derived from character affiliation
+	Corporations  CorporationIDs `json:"corporations,omitempty"` // Corporation IDs the user can access
+	Alliances     AllianceIDs    `json:"alliances,omitempty"`    // Alliance IDs derived from character affiliation
 	SessionID     string                     `json:"session_id,omitempty"`
 	SessionStart  time.Time                  `json:"session_start,omitempty"`
 	SessionSeenAt time.Time                  `json:"session_seen_at,omitempty"`
@@ -280,8 +306,7 @@ func GetAlliances(ctx context.Context, redisClient *redis.Client, accountID stri
 	return allianceIDs
 }
 
-// GetAccountIDFromCharacterHash extracts AccountID from a character hash
-// This is the same logic used in GenerateInternalJWT
+// GetAccountIDFromCharacterHash extracts AccountID from a character hash (alphanumeric only).
 func GetAccountIDFromCharacterHash(characterHash string) string {
 	alphanumericRegex := regexp.MustCompile(`[^a-zA-Z0-9]`)
 	return alphanumericRegex.ReplaceAllString(characterHash, "")

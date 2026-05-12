@@ -11,7 +11,7 @@ import MaintenanceMode from "./MaintenanceMode";
 import { ThemeProvider } from "./Context/ThemeContext";
 import ErrorBoundary from "./Components/ErrorBoundary";
 import useRefreshESITokens from "./Hooks/App/useRefreshESITokens";
-import useCheckEveServerStatus from "./Hooks/App/useCheckEveServerStatus";
+import { useTranquilityServerStatusQuery } from "./Hooks/React Query/tranquilityServerStatus.js";
 import useFetchStaticDataFiles from "./Hooks/App/useFetchStaticDataFiles";
 import useAppConfig from "./Hooks/App/useAppConfig";
 import { useAccountWebSocket } from "./Realtime/useAccountWebSocket.js";
@@ -25,7 +25,7 @@ export default function App() {
 
   useRefreshESITokens();
   useAccountWebSocket();
-  useCheckEveServerStatus();
+  useTranquilityServerStatusQuery();
   useFetchStaticDataFiles();
 
   return (

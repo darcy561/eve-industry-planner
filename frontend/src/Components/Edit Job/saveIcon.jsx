@@ -4,11 +4,14 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import closeActiveJob from "../../Functions/JobPlanner/closeActiveJob";
 import { buildGroupSearchAfterEditClose } from "../../Functions/Groups/groupPageViewSearch";
+import { useActiveJobReadOnly } from "./Edit Job Hooks/useActiveJobDocumentLock";
+import { lockReasonText } from "../DocumentLock/LockGatedTooltip";
 
 export function SaveJobIcon({ state }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate({ from: '/editjob/$jobID' });
   const search = useSearch({ from: '/editjob/$jobID' });
+  const jobLockReadOnly = useActiveJobReadOnly(state);
 
   async function onClick() {
     await closeActiveJob(
@@ -33,13 +36,24 @@ export function SaveJobIcon({ state }) {
   }
   return (
     <Tooltip
-      title="Saves all changes and returns to the job planner page."
+      title={
+        jobLockReadOnly
+          ? lockReasonText({ action: "save is disabled" })
+          : "Saves all changes and returns to the job planner page."
+      }
       arrow
       placement="bottom"
     >
-      <IconButton color="primary" size="medium" onClick={onClick}>
-        <SaveIcon />
-      </IconButton>
+      <span>
+        <IconButton
+          color="primary"
+          size="medium"
+          onClick={onClick}
+          disabled={jobLockReadOnly}
+        >
+          <SaveIcon />
+        </IconButton>
+      </span>
     </Tooltip>
   );
 }

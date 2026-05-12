@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
+	"eve-industry-planner/api/helper/auth"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
@@ -60,18 +61,15 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 		"_id":             bson.M{"$in": reqBody.JobIDs},
 	}
 
+	now := time.Now().UTC()
+	sessionID, _ := auth.ExtractSessionID(r)
+	wsClientID := helper.ExtractWSClientID(r)
+
 	retryConfig := mongocore.DefaultRetryConfig()
 	retryConfig.OperationName = fmt.Sprintf("delete %d job documents", len(reqBody.JobIDs))
 
-	var deletedCount int64
-	err := mongocore.RetryMongoOperation(ctx, retryConfig, func() error {
-		result, err := collection.DeleteMany(ctx, filter)
-		if err != nil {
-			return err
-		}
-		deletedCount = result.DeletedCount
-		return nil
-	})
+	deletedCount, err := mongocore.DeleteManyAfterStampingMeta(ctx, retryConfig, collection, filter, now, sessionID, wsClientID)
+
 	if err != nil {
 		metrics.Error("database_error")
 		logs.ErrorCtx(ctx, "failed to delete job documents", "error", err, "account_id", accountID)

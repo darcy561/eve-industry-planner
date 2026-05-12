@@ -155,6 +155,29 @@ export function releaseDocumentLock(collection, docID) {
 }
 
 /**
+ * Holder accepts another session's access request. Server-side this atomically
+ * transfers ownership to the alive head of the waitlist (same transition as a
+ * post-probe handoff) so the lock cannot leak to a neutral state where any
+ * session could race in. Falls back to a plain release with no recipient when
+ * the requester is no longer alive in the queue.
+ *
+ * @param {string} collection
+ * @param {string} docID
+ * @returns {Promise<Response>}
+ */
+export function handOverDocumentLock(collection, docID) {
+  return requestWithPrivateHeaders(
+    lockUrl("hand-over"),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ collection, docID }),
+    },
+    { requestName: "documentLockHandOver", retry: false }
+  );
+}
+
+/**
  * @param {string} collection
  * @param {string} docID
  * @returns {Promise<Response>}
@@ -302,4 +325,74 @@ export function pulseDocumentLockWaitlist(collection, docID) {
     },
     { requestName: "documentLockWaitlistPulse", retry: false }
   );
+}
+
+/**
+ * Announce this tab as a passive viewer of `(collection, docID)`. Triggers a
+ * `document_lock_viewer_joined` event on the server so the current lock holder sees
+ * the contention affordance even without an explicit Request access click.
+ *
+ * @param {string} collection
+ * @param {string} docID
+ * @returns {Promise<Response>}
+ */
+export function postDocumentLockViewerArrived(collection, docID) {
+  return requestWithPrivateHeaders(
+    lockUrl("viewer-arrived"),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ collection, docID }),
+    },
+    { requestName: "documentLockViewerArrived", retry: false }
+  );
+}
+
+/**
+ * Clear this tab's viewer-presence entry on the server. Triggers a
+ * `document_lock_viewer_left` event so the holder's icon updates promptly instead
+ * of waiting for the server-side `ViewerPresenceTTL` defensive sweep.
+ *
+ * @param {string} collection
+ * @param {string} docID
+ * @returns {Promise<Response>}
+ */
+export function postDocumentLockViewerDeparted(collection, docID) {
+  return requestWithPrivateHeaders(
+    lockUrl("viewer-departed"),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ collection, docID }),
+    },
+    { requestName: "documentLockViewerDeparted", retry: false }
+  );
+}
+
+/**
+ * Best-effort viewer-departed via `navigator.sendBeacon` so the request still leaves
+ * the browser during `pagehide` / `beforeunload`. Falls back to the fetch-based path
+ * when sendBeacon is unavailable. Body matches the `/viewer-departed` endpoint.
+ *
+ * @param {string} collection
+ * @param {string} docID
+ * @returns {boolean} true when a beacon was queued, false to indicate caller should fall back
+ */
+export function sendDocumentLockViewerDepartedBeacon(collection, docID) {
+  if (
+    typeof navigator === "undefined" ||
+    typeof navigator.sendBeacon !== "function" ||
+    !collection ||
+    !docID
+  ) {
+    return false;
+  }
+  try {
+    const blob = new Blob([JSON.stringify({ collection, docID })], {
+      type: "application/json",
+    });
+    return navigator.sendBeacon(lockUrl("viewer-departed"), blob);
+  } catch {
+    return false;
+  }
 }
