@@ -11,6 +11,8 @@ import {
 } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { invalidateBuildStatsQuery } from "../../../../../../Hooks/React Query/Backend/buildStats";
+import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
+import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 
 export function ArchiveJobButton({ state }) {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
@@ -18,8 +20,10 @@ export function ArchiveJobButton({ state }) {
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const navigate = useNavigate({ from: '/editjob/$jobID' });
   const queryClient = useQueryClient();
+  const jobLockReadOnly = useActiveJobReadOnly(state);
 
   const archiveJobProcess = async () => {
+    if (jobLockReadOnly) return;
     useUsersStore.getState().account.actions.addLinkedEsiData({
       ordersToAdd: new Set(),
       jobsToAdd: new Set(),
@@ -63,17 +67,24 @@ export function ArchiveJobButton({ state }) {
   return (
     <Tooltip
       arrow
-      title="Removes the job from your planner but stores the data for later use in reporting and cost calculations. If you do not wish to store this job data then simply delete the job."
+      title={
+        jobLockReadOnly
+          ? lockReasonText({ action: "archiving is disabled" })
+          : "Removes the job from your planner but stores the data for later use in reporting and cost calculations. If you do not wish to store this job data then simply delete the job."
+      }
     >
-      <Button
-        color="primary"
-        variant="contained"
-        size="small"
-        onClick={archiveJobProcess}
-        sx={{ margin: 1 }}
-      >
-        Archive Job
-      </Button>
+      <span>
+        <Button
+          color="primary"
+          variant="contained"
+          size="small"
+          onClick={archiveJobProcess}
+          disabled={jobLockReadOnly}
+          sx={{ margin: 1 }}
+        >
+          Archive Job
+        </Button>
+      </span>
     </Tooltip>
   );
 }

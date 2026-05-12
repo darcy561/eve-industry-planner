@@ -6,6 +6,7 @@ import {
   Checkbox,
   Grid,
   IconButton,
+  Tooltip,
   Typography,
   useTheme,
 } from "@mui/material";
@@ -28,8 +29,7 @@ import useUsersStore from "../../../../Zustand/usersStore";
 import ContentPanel from "../../../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../../../Context/defaultValues";
 import { getJobTypeAccentColor } from "../../../../Functions/Helper/jobTypeDividerColor";
-import { selectDocumentLockReadOnly } from "../../../../Functions/DocumentLock/documentLockSelectors.js";
-import { USER_JOBS_COLLECTION } from "../../../../Functions/DocumentLock/documentLockCollections.js";
+import { useJobCardLockState } from "../../../../Hooks/DocumentLock/useDocumentLockState";
 
 function DisplaySwitch({ job }) {
   switch (job.jobStatus) {
@@ -50,9 +50,8 @@ function DisplaySwitch({ job }) {
 
 export function JobCardFrame({ job, previewStandalone = false }) {
   const multiSelect = useUsersStore((state) => state.jobData.multiSelect);
-  const jobLockReadOnly = useUsersStore((s) =>
-    selectDocumentLockReadOnly(s, USER_JOBS_COLLECTION, job.jobID)
-  );
+  const { cardLocked: jobLockReadOnly, reason: jobLockReason } =
+    useJobCardLockState({ jobID: job.jobID });
   const { addToMultiSelect, removeFromMultiSelect } =
     useUsersStore.getState().jobData.actions;
   const {
@@ -81,7 +80,7 @@ export function JobCardFrame({ job, previewStandalone = false }) {
     const borderColor = isDarkMode ? grey[700] : grey[400];
     return {
       padding: 0,
-      cursor: "grab",
+      cursor: jobLockReadOnly ? "not-allowed" : "grab",
       backgroundColor,
       transition: "border 0.3s ease",
       border: `2px solid transparent`,
@@ -89,7 +88,7 @@ export function JobCardFrame({ job, previewStandalone = false }) {
         border: `2px solid ${borderColor}`,
       },
     };
-  }, [theme, jobCardChecked, isDragging, PRIMARY_THEME]);
+  }, [theme, jobCardChecked, isDragging, PRIMARY_THEME, jobLockReadOnly]);
 
   const gridSize = previewStandalone
     ? { xs: 12, sm: 12, md: 12, lg: 12 }
@@ -202,20 +201,25 @@ export function JobCardFrame({ job, previewStandalone = false }) {
           </Box>
           <Box sx={{ display: "flex", flexDirection: "column", marginTop: "auto", width: "100%" }}>
             <Box sx={{ display: "flex", justifyContent: "center", marginTop: 0.5 }}>
-              <Button
-                variant="outlined"
-                color="primary"
-                disabled={jobLockReadOnly}
-                onClick={() => {
-                  navigate({
-                    to: '/editjob/$jobID',
-                    params: { jobID: job.jobID }
-                  });
-                }}
-                sx={{ height: 25, width: 100 }}
+              <Tooltip
+                title={jobLockReason}
+                arrow
+                disableHoverListener={!jobLockReadOnly}
               >
-                {jobLockReadOnly ? "Locked" : "Edit"}
-              </Button>
+                <Button
+                  variant="outlined"
+                  color={jobLockReadOnly ? "warning" : "primary"}
+                  onClick={() => {
+                    navigate({
+                      to: '/editjob/$jobID',
+                      params: { jobID: job.jobID }
+                    });
+                  }}
+                  sx={{ height: 25, width: 100 }}
+                >
+                  {jobLockReadOnly ? "View" : "Edit"}
+                </Button>
+              </Tooltip>
             </Box>
             <Box
               sx={{

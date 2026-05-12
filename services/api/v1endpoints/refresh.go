@@ -56,6 +56,10 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	m := apimetrics.GetAPISessionRefresh()
 	sessionMetrics := apimetrics.GetAPIAuthSessionLifecycle()
 	appVersion := extractAppVersion(r)
+	sessionEndpoint := "sessions_rotate"
+	if touchLastLogin {
+		sessionEndpoint = "sessions_bootstrap"
+	}
 
 	// Only allow POST requests
 	if !helper.RequireMethod(w, r, http.MethodPost) {
@@ -102,6 +106,11 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		}
 		m.Errors.WithLabelValues("redis_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to load refresh token data", "error", err)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":    "auth_redis_load_refresh",
+			"session_endpoint": sessionEndpoint,
+			"metric":           "session_refresh",
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
@@ -110,6 +119,11 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	if err != nil {
 		m.Errors.WithLabelValues("config_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to load config for auth refresh", "error", err)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":    "auth_config_load",
+			"session_endpoint": sessionEndpoint,
+			"metric":           "session_refresh",
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
@@ -134,6 +148,13 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 				http.Error(w, "Invalid token", http.StatusUnauthorized)
 			case errors.Is(err, userendpoints.ErrMongoStoredEsiKeyring), errors.Is(err, userendpoints.ErrMongoStoredEsiDecrypt), errors.Is(err, userendpoints.ErrMongoStoredEsiPersist):
 				m.Errors.WithLabelValues("config_error").Inc(ctx)
+				logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+					"failure_class":    "cloud_stored_esi_internal",
+					"session_endpoint": sessionEndpoint,
+					"metric":           "session_refresh",
+					"account_id":       tokenData.AccountID,
+					"character_hash":   tokenData.CharacterHash,
+				})
 				logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 			case errors.Is(err, userendpoints.ErrMongoStoredEsiInvalidGrant):
 				m.Errors.WithLabelValues("validation_error").Inc(ctx)
@@ -182,6 +203,12 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		m.Errors.WithLabelValues("refresh_token_generation_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to generate new refresh token", "error", err,
 			"account_id", tokenData.AccountID, "character_hash", tokenData.CharacterHash)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":    "auth_refresh_token_gen",
+			"session_endpoint": sessionEndpoint,
+			"metric":           "session_refresh",
+			"account_id":       tokenData.AccountID,
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
@@ -193,12 +220,19 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	now := time.Now().UTC()
 	sessionFlow := "refresh"
 	startedSession := false
-	if touchLastLogin || updatedTokenData.SessionID == "" {
+	needNewSessionID := strings.TrimSpace(updatedTokenData.SessionID) == ""
+	if needNewSessionID {
 		sessionID, err := auth.GenerateSessionID()
 		if err != nil {
 			m.Errors.WithLabelValues("session_generation_error").Inc(ctx)
 			logs.ErrorCtx(ctx, "failed to generate session id", "error", err,
 				"account_id", tokenData.AccountID, "character_hash", tokenData.CharacterHash)
+			logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+				"failure_class":    "auth_session_id_gen",
+				"session_endpoint": sessionEndpoint,
+				"metric":           "session_refresh",
+				"account_id":       tokenData.AccountID,
+			})
 			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 			return
 		}
@@ -210,6 +244,8 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		} else {
 			sessionFlow = "refresh_backfill"
 		}
+	} else if touchLastLogin {
+		sessionFlow = "login_refresh"
 	}
 	if updatedTokenData.SessionStart.IsZero() {
 		updatedTokenData.SessionStart = now
@@ -224,6 +260,12 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		m.Errors.WithLabelValues("redis_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to store new refresh token", "error", err,
 			"account_id", tokenData.AccountID, "character_hash", tokenData.CharacterHash)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":    "auth_redis_store_refresh",
+			"session_endpoint": sessionEndpoint,
+			"metric":           "session_refresh",
+			"account_id":       tokenData.AccountID,
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
@@ -239,6 +281,13 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		sessionMetrics.StoreErrors.WithLabelValues(sessionFlow).Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to store session record", "error", err,
 			"account_id", tokenData.AccountID, "character_hash", tokenData.CharacterHash)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":    "auth_redis_session_record",
+			"session_endpoint": sessionEndpoint,
+			"metric":           "session_refresh",
+			"session_flow":     sessionFlow,
+			"account_id":       tokenData.AccountID,
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
@@ -264,6 +313,12 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		if err != nil {
 			m.Errors.WithLabelValues("mongo_error").Inc(ctx)
 			logs.ErrorCtx(ctx, "failed to resolve user documents for login refresh", "error", err, "account_id", tokenData.AccountID)
+			logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+				"failure_class":    "auth_mongo_user_docs",
+				"session_endpoint": sessionEndpoint,
+				"metric":           "session_refresh",
+				"account_id":       tokenData.AccountID,
+			})
 			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 			return
 		}
@@ -312,6 +367,12 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		if err := json.NewEncoder(w).Encode(bootstrap); err != nil {
 			m.Errors.WithLabelValues("encode_error").Inc(ctx)
 			logs.ErrorCtx(ctx, "failed to encode response", "error", err, "account_id", tokenData.AccountID)
+			logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+				"failure_class":    "auth_response_encode",
+				"session_endpoint": sessionEndpoint,
+				"metric":           "session_refresh",
+				"account_id":       tokenData.AccountID,
+			})
 			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 			return
 		}
@@ -351,6 +412,12 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	if err := json.NewEncoder(w).Encode(rotate); err != nil {
 		m.Errors.WithLabelValues("encode_error").Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to encode response", "error", err, "account_id", tokenData.AccountID)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":    "auth_response_encode",
+			"session_endpoint": sessionEndpoint,
+			"metric":           "session_refresh",
+			"account_id":       tokenData.AccountID,
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}

@@ -10,9 +10,18 @@ import {
   TextField,
 } from "@mui/material";
 import { DateTimePicker } from "@mui/x-date-pickers";
+import { Tooltip } from "@mui/material";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import DOMPurify from "dompurify";
+import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
+import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 
+/**
+ * The trigger for this dialog already gates on the active job lock, but we
+ * keep a defensive guard on the Add button (mirrors how `parentJobDialog`
+ * locks its internal AddIcon rows): if the dialog is mounted while the lock
+ * flips to read-only, we still refuse to mutate the persisted job.
+ */
 export function AddCustomTransactionDialog({
   state,
   actions,
@@ -21,6 +30,7 @@ export function AddCustomTransactionDialog({
 }) {
   const CharacterHash =
     useUsersStore.getState().account.actions.getMainCharacterHash();
+  const jobLockReadOnly = useActiveJobReadOnly(state);
   const [transactionData, setTransactionData] = useState({
     order_id: null,
     journal_ref_id: null,
@@ -191,16 +201,30 @@ export function AddCustomTransactionDialog({
         <Button size="large" onClick={handleClose} sx={{ marginRight: 2 }}>
           Close
         </Button>
-        <Button
-          size="large"
-          variant="contained"
-          onClick={() => {
-            state.activeJob.build.sale.transactions.push(transactionData);
-            actions.updateActiveJob(state.activeJob);
-          }}
+        <Tooltip
+          title={
+            jobLockReadOnly
+              ? lockReasonText({ action: "manual transactions are disabled" })
+              : ""
+          }
+          arrow
+          disableHoverListener={!jobLockReadOnly}
         >
-          Add
-        </Button>
+          <span>
+            <Button
+              size="large"
+              variant="contained"
+              disabled={jobLockReadOnly}
+              onClick={() => {
+                if (jobLockReadOnly) return;
+                state.activeJob.build.sale.transactions.push(transactionData);
+                actions.updateActiveJob(state.activeJob);
+              }}
+            >
+              Add
+            </Button>
+          </span>
+        </Tooltip>
       </DialogActions>
     </Dialog>
   );

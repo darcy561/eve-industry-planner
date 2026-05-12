@@ -197,7 +197,7 @@ export const accountActions = (set, get) => ({
   },
 
   /**
-   * Serializable linked ESI IDs for `PUT /api/v1/user/main` (with `users.actions.toDocument()` for refresh tokens).
+   * Serializable linked ESI IDs and user flags for `PUT /api/v1/user/main` (merged with refresh-token payload from token actions as needed).
    */
   linkedEsiToDocument: () => {
     const a = get().account;

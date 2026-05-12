@@ -122,18 +122,18 @@ func (s *Server) unregisterClientFromOrgPools(client *Client) {
 	s.unregisterAlliancePoolsLocked(client)
 }
 
-// replaceScopesFromJWT returns org scopes filtered to ids present on the JWT ceiling for this connection.
-func replaceScopesFromJWT(client *Client, corps, alliances []string) model.RealtimeScopes {
+// replaceScopesWithinSessionGrants returns org scopes filtered to ids allowed by this connection's session grants.
+func replaceScopesWithinSessionGrants(client *Client, corps, alliances []string) model.RealtimeScopes {
 	next := model.RealtimeScopes{}
 	for _, c := range corps {
 		c = strings.TrimSpace(c)
 		if c == "" {
 			continue
 		}
-		if client.allowedCorpJWT == nil {
+		if client.grantedCorpIDs == nil {
 			continue
 		}
-		if _, ok := client.allowedCorpJWT[c]; !ok {
+		if _, ok := client.grantedCorpIDs[c]; !ok {
 			continue
 		}
 		next.CorporationIDs = append(next.CorporationIDs, c)
@@ -143,10 +143,10 @@ func replaceScopesFromJWT(client *Client, corps, alliances []string) model.Realt
 		if a == "" {
 			continue
 		}
-		if client.allowedAllianceJWT == nil {
+		if client.grantedAllianceIDs == nil {
 			continue
 		}
-		if _, ok := client.allowedAllianceJWT[a]; !ok {
+		if _, ok := client.grantedAllianceIDs[a]; !ok {
 			continue
 		}
 		next.AllianceIDs = append(next.AllianceIDs, a)

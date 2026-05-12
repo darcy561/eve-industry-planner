@@ -1,12 +1,15 @@
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import useUsersStore from '../../../Zustand/usersStore';
 import { Tooltip, Box } from '@mui/material';
+import { useTranquilityServerStatusQuery } from '../../../Hooks/React Query/tranquilityServerStatus.js';
 
 export default function OfflineNotificationIcon() {
-  const eveServerStatus = useUsersStore((state) => state.worldData.eveServerStatus);
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
+  const { isSuccess, data } = useTranquilityServerStatusQuery();
+  const showOffline =
+    isLoggedIn && isSuccess && data && data.online === false;
 
-  if (isLoggedIn && !eveServerStatus) {
+  if (showOffline) {
     return (
       <Tooltip
         title={

@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/api/helper/doclock"
+	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
 )
@@ -32,101 +32,85 @@ func parseLockBody(r *http.Request) (lockBody, error) {
 }
 
 func handleAcquire(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	ctx := r.Context()
-	accountID, ok := helper.RequireAccountID(w, r)
+	hc, ok := lockHandlerContextOK(w, r, clients.Redis)
 	if !ok {
 		return
 	}
-	var err error
-	sessionID, err := auth.ExtractSessionID(r)
-	if err != nil {
-		http.Error(w, "session_id claim required", http.StatusBadRequest)
-		return
-	}
-	b, err := parseLockBody(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if clients.Redis == nil {
-		http.Error(w, "Locks unavailable", http.StatusServiceUnavailable)
-		return
-	}
 
-	existing, err := getLock(ctx, clients.Redis, accountID, b.Collection, b.DocID)
+	existing, err := getLock(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID)
 	if err != nil {
-		logs.ErrorCtx(ctx, "doc lock get failed", "error", err)
+		logs.ErrorCtx(hc.Ctx, "doc lock get failed", "error", err)
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
 	now := time.Now().Unix()
-	if existing != nil && existing.HolderSessionID != "" && existing.HolderSessionID != sessionID {
+	if existing != nil && existing.HolderSessionID != "" && existing.HolderSessionID != hc.SessionID {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		payload := lockPayload(existing.ExpiresAtUnix)
 		payload["held"] = true
 		payload["acquired"] = false
 		payload["holderSessionID"] = existing.HolderSessionID
+		// Seed the viewer count so the requester (now a passive viewer) doesn't
+		// have to wait for the 45 s status sync to learn how many other tabs are
+		// already on this doc — irrelevant to them, but consistent with /status.
+		if vc, err := pruneAndCountViewers(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID); err == nil {
+			payload["viewerCount"] = vc
+		}
 		_ = json.NewEncoder(w).Encode(payload)
 		return
 	}
 
 	exp := now + int64(DefaultLockTTL/time.Second)
 	rec := lockRecord{
-		HolderSessionID: sessionID,
-		AccountID:       accountID,
+		HolderSessionID: hc.SessionID,
+		AccountID:       hc.AccountID,
 		ExpiresAtUnix:   exp,
 	}
-	if err := setLock(ctx, clients.Redis, accountID, b.Collection, b.DocID, rec); err != nil {
-		logs.ErrorCtx(ctx, "doc lock set failed", "error", err)
+	if err := setLock(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID, rec); err != nil {
+		logs.ErrorCtx(hc.Ctx, "doc lock set failed", "error", err)
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
 
-	_ = publishLockEvent(ctx, clients, accountID, map[string]any{
-		"type":          "document_lock_acquired",
-		"collection":    b.Collection,
-		"docID":         b.DocID,
-		"sessionID":     sessionID,
+	_ = publishLockEvent(hc.Ctx, clients, hc.AccountID, map[string]any{
+		"type":          LockEventAcquired,
+		"collection":    hc.Collection,
+		"docID":         hc.DocID,
+		"sessionID":     hc.SessionID,
 		"expiresAtUnix": exp,
 	})
+
+	// Mounting a tab onto a group page right after the previous holder's lease
+	// expired lands here (existing was nil → granted to us). The previous holder's
+	// per-job locks may still be alive; cascade them so the cards align with the
+	// new group holder. No-op when there are no stale per-job locks.
+	if hc.Collection == mongocore.CollectionUserJobGroups {
+		ReleaseStaleDependentJobLocksAfterGroupGrant(
+			hc.Ctx, clients, hc.AccountID, hc.DocID, hc.SessionID,
+		)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	acquiredPayload := lockPayload(exp)
 	acquiredPayload["acquired"] = true
 	acquiredPayload["held"] = true
-	acquiredPayload["holderSessionID"] = sessionID
+	acquiredPayload["holderSessionID"] = hc.SessionID
 	_ = json.NewEncoder(w).Encode(acquiredPayload)
 }
 
 func handleExtend(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	ctx := r.Context()
-	accountID, ok := helper.RequireAccountID(w, r)
+	hc, ok := lockHandlerContextOK(w, r, clients.Redis)
 	if !ok {
 		return
 	}
-	var err error
-	sessionID, err := auth.ExtractSessionID(r)
-	if err != nil {
-		http.Error(w, "session_id claim required", http.StatusBadRequest)
-		return
-	}
-	b, err := parseLockBody(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if clients.Redis == nil {
-		http.Error(w, "Locks unavailable", http.StatusServiceUnavailable)
-		return
-	}
-	existing, err := getLock(ctx, clients.Redis, accountID, b.Collection, b.DocID)
+	existing, err := getLock(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID)
 	if err != nil {
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
-	if existing == nil || existing.HolderSessionID != sessionID {
+	if existing == nil || existing.HolderSessionID != hc.SessionID {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		if existing == nil {
@@ -148,14 +132,14 @@ func handleExtend(w http.ResponseWriter, r *http.Request, clients *shared.Servic
 	exp := now + int64(DefaultLockTTL/time.Second)
 
 	if existing.ProbeTargetSessionID != "" && now >= existing.ProbeExpiresAtUnix {
-		_ = removeFromWaitlist(ctx, clients.Redis, accountID, b.Collection, b.DocID, existing.ProbeTargetSessionID)
+		_ = removeFromWaitlist(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID, existing.ProbeTargetSessionID)
 		existing.ProbeTargetSessionID = ""
 		existing.ProbeExpiresAtUnix = 0
 	}
 
 	if existing.ProbeTargetSessionID != "" && now < existing.ProbeExpiresAtUnix {
 		existing.ExpiresAtUnix = exp
-		if err := setLock(ctx, clients.Redis, accountID, b.Collection, b.DocID, *existing); err != nil {
+		if err := setLock(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID, *existing); err != nil {
 			http.Error(w, "Internal error", http.StatusInternalServerError)
 			return
 		}
@@ -170,7 +154,7 @@ func handleExtend(w http.ResponseWriter, r *http.Request, clients *shared.Servic
 	if existing.ExtendCount < MaxExtensionsBeforeHandoffConsult {
 		existing.ExtendCount++
 		existing.ExpiresAtUnix = exp
-		if err := setLock(ctx, clients.Redis, accountID, b.Collection, b.DocID, *existing); err != nil {
+		if err := setLock(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID, *existing); err != nil {
 			http.Error(w, "Internal error", http.StatusInternalServerError)
 			return
 		}
@@ -179,15 +163,15 @@ func handleExtend(w http.ResponseWriter, r *http.Request, clients *shared.Servic
 	}
 
 	existing.ExpiresAtUnix = exp
-	head, err := peekWaitlistHeadAlive(ctx, clients.Redis, accountID, b.Collection, b.DocID)
+	head, err := peekWaitlistHeadAlive(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID)
 	if err != nil {
-		logs.ErrorCtx(ctx, "doc lock waitlist peek failed", "error", err)
+		logs.ErrorCtx(hc.Ctx, "doc lock waitlist peek failed", "error", err)
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
 	if head == "" {
 		existing.ExtendCount = 0
-		if err := setLock(ctx, clients.Redis, accountID, b.Collection, b.DocID, *existing); err != nil {
+		if err := setLock(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID, *existing); err != nil {
 			http.Error(w, "Internal error", http.StatusInternalServerError)
 			return
 		}
@@ -195,20 +179,20 @@ func handleExtend(w http.ResponseWriter, r *http.Request, clients *shared.Servic
 		return
 	}
 
-	_ = touchWaitlistPulse(ctx, clients.Redis, accountID, b.Collection, b.DocID, head)
+	_ = touchWaitlistPulse(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID, head)
 
 	existing.ProbeTargetSessionID = head
 	existing.ProbeExpiresAtUnix = now + ProbeAckWaitSeconds
-	if err := setLock(ctx, clients.Redis, accountID, b.Collection, b.DocID, *existing); err != nil {
+	if err := setLock(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID, *existing); err != nil {
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
-	_ = publishLockEvent(ctx, clients, accountID, map[string]any{
-		"type":                 "document_lock_handoff_probe",
-		"collection":           b.Collection,
-		"docID":                b.DocID,
+	_ = publishLockEvent(hc.Ctx, clients, hc.AccountID, map[string]any{
+		"type":                 LockEventHandoffProbe,
+		"collection":           hc.Collection,
+		"docID":                hc.DocID,
 		"probeTargetSessionID": head,
-		"holderSessionID":      sessionID,
+		"holderSessionID":      hc.SessionID,
 		"probeExpiresAtUnix":   existing.ProbeExpiresAtUnix,
 	})
 	writeExtendJSON(w, http.StatusOK, exp, existing.ExtendCount, extendExtras{
@@ -219,70 +203,121 @@ func handleExtend(w http.ResponseWriter, r *http.Request, clients *shared.Servic
 }
 
 func handleRelease(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	ctx := r.Context()
-	accountID, ok := helper.RequireAccountID(w, r)
+	hc, ok := lockHandlerContextOK(w, r, clients.Redis)
 	if !ok {
 		return
 	}
-	var err error
-	sessionID, err := auth.ExtractSessionID(r)
-	if err != nil {
-		http.Error(w, "session_id claim required", http.StatusBadRequest)
-		return
-	}
-	b, err := parseLockBody(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if clients.Redis == nil {
-		http.Error(w, "Locks unavailable", http.StatusServiceUnavailable)
-		return
-	}
-	existing, err := getLock(ctx, clients.Redis, accountID, b.Collection, b.DocID)
+	existing, err := getLock(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID)
 	if err != nil {
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
-	if existing == nil || existing.HolderSessionID != sessionID {
+	if existing == nil || existing.HolderSessionID != hc.SessionID {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	_ = deleteLock(ctx, clients.Redis, accountID, b.Collection, b.DocID)
-	_ = publishLockEvent(ctx, clients, accountID, map[string]any{
-		"type":       "document_lock_released",
-		"collection": b.Collection,
-		"docID":      b.DocID,
-		"sessionID":  sessionID,
+	_ = deleteLock(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID)
+	_ = publishLockEvent(hc.Ctx, clients, hc.AccountID, map[string]any{
+		"type":       LockEventReleased,
+		"collection": hc.Collection,
+		"docID":      hc.DocID,
+		"sessionID":  hc.SessionID,
 	})
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func handleRequest(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	ctx := r.Context()
-	accountID, ok := helper.RequireAccountID(w, r)
+// handleHandOver is the server side of the holder's "accept" action on the
+// access-request snackbar. Instead of dropping the lock to neutral (which
+// `handleRelease` does) we atomically transfer ownership to the alive waitlist
+// head — this is the same state transition `handleClaimHandoff` performs after
+// a probe ack, except triggered by the holder instead of the queued session.
+//
+// Falls back to a plain release when the waitlist has no live pulse (the
+// requester already left); in that path the cascade and grant are skipped and
+// the lock becomes orphaned, matching the previous behaviour for that edge.
+func handleHandOver(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+	hc, ok := lockHandlerContextOK(w, r, clients.Redis)
 	if !ok {
 		return
 	}
-	var err error
-	requester, err := auth.ExtractSessionID(r)
+	holder := hc.SessionID
+
+	existing, err := getLock(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID)
 	if err != nil {
-		http.Error(w, "session_id claim required", http.StatusBadRequest)
+		logs.ErrorCtx(hc.Ctx, "doc lock get failed", "error", err)
+		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
-	b, err := parseLockBody(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if clients.Redis == nil {
-		http.Error(w, "Locks unavailable", http.StatusServiceUnavailable)
+	if existing == nil || existing.HolderSessionID != holder {
+		// Lock vanished or someone else owns it (server-side handoff already
+		// ran, or our session lost the lock to a TTL race). Nothing to hand
+		// over — keep the response uniform with /release so the client's
+		// optimistic state still settles.
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
-	existing, err := getLock(ctx, clients.Redis, accountID, b.Collection, b.DocID)
+	newHolder, rec, promoted, err := promoteWaitlistHead(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID)
 	if err != nil {
-		logs.ErrorCtx(ctx, "doc lock get failed", "error", err)
+		logs.ErrorCtx(hc.Ctx, "doc lock waitlist peek failed", "error", err)
+		http.Error(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+
+	if !promoted {
+		// The requester is no longer alive (closed tab between request and
+		// accept). Match the existing /release semantics: drop the lock so
+		// anyone can take it, no `handoff_completed`.
+		_ = deleteLock(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID)
+		_ = publishLockEvent(hc.Ctx, clients, hc.AccountID, map[string]any{
+			"type":       LockEventReleased,
+			"collection": hc.Collection,
+			"docID":      hc.DocID,
+			"sessionID":  holder,
+			"reason":     LockReleaseReasonHandOverNoQueue,
+		})
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	oldHolder := holder
+
+	_ = publishLockEvent(hc.Ctx, clients, hc.AccountID, buildHandoffCompletedPayload(
+		hc.Collection,
+		hc.DocID,
+		newHolder,
+		rec.ExpiresAtUnix,
+		HandoffCompletedOpts{
+			PreviousHolderSessionID: oldHolder,
+			Reason:                  LockHandoffReasonHolderHandover,
+		},
+	))
+
+	// Group handoffs orphan the old holder's per-job locks — mirror
+	// handleClaimHandoff's cascade so the new owner's cards align immediately.
+	if hc.Collection == mongocore.CollectionUserJobGroups {
+		releaseDependentJobLocksOnGroupHandoff(hc.Ctx, clients, hc.AccountID, hc.DocID, oldHolder)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	payload := lockPayload(rec.ExpiresAtUnix)
+	payload["held"] = true
+	payload["holderSessionID"] = newHolder
+	payload["handoffGranted"] = true
+	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func handleRequest(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+	hc, ok := lockHandlerContextOK(w, r, clients.Redis)
+	if !ok {
+		return
+	}
+	requester := hc.SessionID
+
+	existing, err := getLock(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID)
+	if err != nil {
+		logs.ErrorCtx(hc.Ctx, "doc lock get failed", "error", err)
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
@@ -294,22 +329,33 @@ func handleRequest(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 		exp := now + int64(DefaultLockTTL/time.Second)
 		rec := lockRecord{
 			HolderSessionID: requester,
-			AccountID:       accountID,
+			AccountID:       hc.AccountID,
 			ExpiresAtUnix:   exp,
 		}
-		if err := setLock(ctx, clients.Redis, accountID, b.Collection, b.DocID, rec); err != nil {
-			logs.ErrorCtx(ctx, "doc lock set failed (request auto-grant)", "error", err)
+		if err := setLock(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID, rec); err != nil {
+			logs.ErrorCtx(hc.Ctx, "doc lock set failed (request auto-grant)", "error", err)
 			http.Error(w, "Internal error", http.StatusInternalServerError)
 			return
 		}
-		_ = publishLockEvent(ctx, clients, accountID, map[string]any{
-			"type":                 "document_lock_acquired",
-			"collection":           b.Collection,
-			"docID":                b.DocID,
+		_ = publishLockEvent(hc.Ctx, clients, hc.AccountID, map[string]any{
+			"type":                 LockEventAcquired,
+			"collection":           hc.Collection,
+			"docID":                hc.DocID,
 			"sessionID":            requester,
 			"expiresAtUnix":        exp,
 			"accessRequestGranted": true,
 		})
+
+		// "Take over" an orphaned group from the header popover lands here: the
+		// previous holder's per-job locks may still be lingering until their own
+		// TTL fires. Clear them so the new holder's cards reflect the take-over
+		// immediately, the same way `handleClaimHandoff` does for manual handoff.
+		if hc.Collection == mongocore.CollectionUserJobGroups {
+			ReleaseStaleDependentJobLocksAfterGroupGrant(
+				hc.Ctx, clients, hc.AccountID, hc.DocID, requester,
+			)
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		acquiredPayload := lockPayload(exp)
@@ -333,17 +379,17 @@ func handleRequest(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 		return
 	}
 
-	if err := enqueueWaitlistUnique(ctx, clients.Redis, accountID, b.Collection, b.DocID, requester); err != nil {
-		logs.ErrorCtx(ctx, "doc lock waitlist enqueue failed", "error", err)
+	if err := enqueueWaitlistUnique(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID, requester); err != nil {
+		logs.ErrorCtx(hc.Ctx, "doc lock waitlist enqueue failed", "error", err)
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
-	_ = touchWaitlistPulse(ctx, clients.Redis, accountID, b.Collection, b.DocID, requester)
+	_ = touchWaitlistPulse(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID, requester)
 
-	_ = publishLockEvent(ctx, clients, accountID, map[string]any{
-		"type":               "document_lock_requested",
-		"collection":         b.Collection,
-		"docID":              b.DocID,
+	_ = publishLockEvent(hc.Ctx, clients, hc.AccountID, map[string]any{
+		"type":               LockEventRequested,
+		"collection":         hc.Collection,
+		"docID":              hc.DocID,
 		"requesterSessionID": requester,
 	})
 	w.WriteHeader(http.StatusAccepted)
@@ -354,13 +400,27 @@ func statusPayloadForDoc(ctx context.Context, clients *shared.ServiceClients, ac
 	if err != nil {
 		return nil, err
 	}
+	// Prune+count viewers on every read so the returned payload is always fresh.
+	// Calling this for both held and unheld locks keeps the API surface uniform —
+	// a non-held doc with stranded viewers (rare race) still self-cleans.
+	viewerCount, vcErr := pruneAndCountViewers(ctx, clients.Redis, accountID, collection, docID)
+	if vcErr != nil {
+		logs.WarnCtx(ctx, "doc lock viewer count failed", "error", vcErr)
+	}
 	if rec == nil {
-		return map[string]any{"held": false}, nil
+		payload := map[string]any{"held": false}
+		if vcErr == nil {
+			payload["viewerCount"] = viewerCount
+		}
+		return payload, nil
 	}
 	payload := lockPayload(rec.ExpiresAtUnix)
 	payload["held"] = true
 	payload["holderSessionID"] = rec.HolderSessionID
 	payload["extendCount"] = rec.ExtendCount
+	if vcErr == nil {
+		payload["viewerCount"] = viewerCount
+	}
 	wl, err := waitlistLen(ctx, clients.Redis, accountID, collection, docID)
 	if err != nil {
 		logs.WarnCtx(ctx, "doc lock waitlist len failed", "error", err)
@@ -440,28 +500,13 @@ func handleStatusBatch(w http.ResponseWriter, r *http.Request, clients *shared.S
 }
 
 func handleClaimHandoff(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	ctx := r.Context()
-	accountID, ok := helper.RequireAccountID(w, r)
+	hc, ok := lockHandlerContextOK(w, r, clients.Redis)
 	if !ok {
 		return
 	}
-	var err error
-	requester, err := auth.ExtractSessionID(r)
-	if err != nil {
-		http.Error(w, "session_id claim required", http.StatusBadRequest)
-		return
-	}
-	b, err := parseLockBody(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if clients.Redis == nil {
-		http.Error(w, "Locks unavailable", http.StatusServiceUnavailable)
-		return
-	}
+	requester := hc.SessionID
 
-	rec, err := getLock(ctx, clients.Redis, accountID, b.Collection, b.DocID)
+	rec, err := getLock(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID)
 	if err != nil {
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
@@ -481,9 +526,9 @@ func handleClaimHandoff(w http.ResponseWriter, r *http.Request, clients *shared.
 		return
 	}
 
-	_ = touchWaitlistPulse(ctx, clients.Redis, accountID, b.Collection, b.DocID, requester)
+	_ = touchWaitlistPulse(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID, requester)
 
-	head, err := peekWaitlistHead(ctx, clients.Redis, accountID, b.Collection, b.DocID)
+	head, err := peekWaitlistHead(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID)
 	if err != nil || head != requester {
 		http.Error(w, "No longer next in queue", http.StatusConflict)
 		return
@@ -496,20 +541,25 @@ func handleClaimHandoff(w http.ResponseWriter, r *http.Request, clients *shared.
 	rec.ExtendCount = 0
 	rec.ProbeTargetSessionID = ""
 	rec.ProbeExpiresAtUnix = 0
-	_ = removeFromWaitlist(ctx, clients.Redis, accountID, b.Collection, b.DocID, requester)
-	if err := setLock(ctx, clients.Redis, accountID, b.Collection, b.DocID, *rec); err != nil {
+	_ = removeFromWaitlist(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID, requester)
+	if err := setLock(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID, *rec); err != nil {
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
 
-	_ = publishLockEvent(ctx, clients, accountID, map[string]any{
-		"type":                    "document_lock_handoff_completed",
-		"collection":              b.Collection,
-		"docID":                   b.DocID,
-		"sessionID":               requester,
-		"previousHolderSessionID": oldHolder,
-		"expiresAtUnix":           exp,
-	})
+	_ = publishLockEvent(hc.Ctx, clients, hc.AccountID, buildHandoffCompletedPayload(
+		hc.Collection,
+		hc.DocID,
+		requester,
+		exp,
+		HandoffCompletedOpts{PreviousHolderSessionID: oldHolder},
+	))
+
+	// A group handoff leaves the old holder's per-job locks orphaned; clear them
+	// before responding so the new holder's status batch reads a consistent state.
+	if hc.Collection == mongocore.CollectionUserJobGroups {
+		releaseDependentJobLocksOnGroupHandoff(hc.Ctx, clients, hc.AccountID, hc.DocID, oldHolder)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -522,28 +572,12 @@ func handleClaimHandoff(w http.ResponseWriter, r *http.Request, clients *shared.
 }
 
 func handleWaitlistPulse(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	ctx := r.Context()
-	accountID, ok := helper.RequireAccountID(w, r)
+	hc, ok := lockHandlerContextOK(w, r, clients.Redis)
 	if !ok {
 		return
 	}
-	var err error
-	sessionID, err := auth.ExtractSessionID(r)
-	if err != nil {
-		http.Error(w, "session_id claim required", http.StatusBadRequest)
-		return
-	}
-	b, err := parseLockBody(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if clients.Redis == nil {
-		http.Error(w, "Locks unavailable", http.StatusServiceUnavailable)
-		return
-	}
-	if err := touchWaitlistPulse(ctx, clients.Redis, accountID, b.Collection, b.DocID, sessionID); err != nil {
-		logs.ErrorCtx(ctx, "doc lock waitlist pulse failed", "error", err)
+	if err := touchWaitlistPulse(hc.Ctx, hc.Redis, hc.AccountID, hc.Collection, hc.DocID, hc.SessionID); err != nil {
+		logs.ErrorCtx(hc.Ctx, "doc lock waitlist pulse failed", "error", err)
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}

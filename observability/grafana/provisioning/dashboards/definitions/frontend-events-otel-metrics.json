@@ -14,7 +14,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "OTel scope `eve-industry-planner/web` (API process). **`audience`** is `authenticated` (valid app JWT Bearer) or `anonymous`. **`web.frontend_events_total` counts only allowlisted *simple* event keys** — it does **not** include `new_job` (see *Job creates*) or `view_item_tree_item` (see *Item tree views*); those are recorded on separate counters with `type_id` labels.",
+      "description": "OTel scope `eve-industry-planner/web` (API process). **`audience`** is `authenticated` (valid app JWT Bearer) or `anonymous`. **`web.frontend_events_total` counts only allowlisted *simple* event keys** — it does **not** include `new_job` (see *Job creates*) or `view_item_tree_item` (see *Item tree views*); those are recorded on separate counters with `type_id` labels. Each analytics batch item uses **`event`** + optional **`by_type`**; the SPA emits **`new_job`** and **`view_item_tree_item`** as separate batch rows so Prometheus rates below match backend `RecordJobCreates` vs `RecordItemTreeViews`.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -371,6 +371,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "OTel **`web.frontend_job_creates_total`** (`RecordJobCreates`). Increments only when a **`POST /api/v1/analytics/events`** batch element has **`event`: `new_job`** and **`by_type`**. Does **not** include item-tree picker metrics (`view_item_tree_item` → separate counter beside this row). Label **`type_id`** is the job output item.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -447,7 +448,7 @@
           "refId": "A"
         }
       ],
-      "title": "Job creates — total rate by audience (sum over type_id)",
+      "title": "Job creates — total rate by audience (`new_job` · sum over type_id)",
       "type": "timeseries"
     },
     {
@@ -455,6 +456,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "OTel **`web.frontend_item_tree_item_views_total`** (`RecordItemTreeViews`). Increments only when a batch element has **`event`: `view_item_tree_item`** and **`by_type`**. Same **`audience`** and **`type_id`** label semantics as job creates, but a separate instrument — compare with the left column in this row.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -531,7 +533,7 @@
           "refId": "A"
         }
       ],
-      "title": "Item tree item views (total rate by audience)",
+      "title": "Item tree views — total rate by audience (`view_item_tree_item` · sum over type_id)",
       "type": "timeseries"
     },
     {
@@ -539,7 +541,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "`topk` limits cardinality from many EVE `type_id` labels.",
+      "description": "`topk` limits cardinality from many EVE **`type_id`** labels. Same source as *Job creates — total rate*: **`event`: `new_job`** batch payloads only (`frontendAnalytics.go` → `RecordJobCreates`).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -616,7 +618,7 @@
           "refId": "A"
         }
       ],
-      "title": "Job creates by output type_id (top 20 · web.frontend_job_creates_total)",
+      "title": "Job creates by output type_id (top 20 · `new_job`)",
       "type": "timeseries"
     },
     {
@@ -624,7 +626,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "`topk` limits cardinality from many EVE `type_id` labels.",
+      "description": "`topk` limits cardinality from many EVE **`type_id`** labels. Same source as *Item tree views — total rate*: **`event`: `view_item_tree_item`** only (`RecordItemTreeViews`).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -701,7 +703,7 @@
           "refId": "A"
         }
       ],
-      "title": "Item tree views by type_id (top 20 · web.frontend_item_tree_item_views_total)",
+      "title": "Item tree views by type_id (top 20 · `view_item_tree_item`)",
       "type": "timeseries"
     },
     {

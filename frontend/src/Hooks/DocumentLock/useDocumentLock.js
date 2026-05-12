@@ -4,7 +4,10 @@ import {
   acquireDocumentLock,
   extendDocumentLock,
   getDocumentLockStatus,
+  postDocumentLockViewerArrived,
+  postDocumentLockViewerDeparted,
   releaseDocumentLock,
+  sendDocumentLockViewerDepartedBeacon,
 } from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
 import {
   showDocumentLockAccessRequestSnackbar,
@@ -13,12 +16,27 @@ import {
 import { shouldSuppressDocumentLockVacancyNotice } from "../../Functions/DocumentLock/documentLockAcquireFeedback.js";
 import { selectScopedDocumentLock } from "../../Functions/DocumentLock/documentLockSelectors.js";
 import { docLockScopeKey } from "../../Functions/DocumentLock/documentLockScope.js";
+import {
+  DOCUMENT_LOCK_CUSTOM_EVENT,
+  DOCUMENT_LOCK_EVENTS,
+  DOCUMENT_LOCK_RELEASE_REASONS,
+} from "../../Functions/DocumentLock/documentLockEvents.js";
+import {
+  LOCK_EXPIRY_RESYNC_INTERVAL_MS,
+  LOCK_EXPIRY_SLACK_SECONDS,
+  LOCK_EXTEND_INTERVAL_MS,
+  LOCK_READONLY_GRACE_MS,
+  LOCK_STATUS_SYNC_INTERVAL_MS,
+  LOCK_WAITLIST_PULSE_INTERVAL_MS,
+} from "../../Functions/DocumentLock/documentLockTimings.js";
+import { endReadOnlyGraceIfApplicable } from "../../Functions/DocumentLock/readOnlyGrace.js";
+import {
+  buildGrantedHolderPatch,
+  numberOrNull,
+} from "../../Functions/DocumentLock/documentLockStatusFields.js";
 
 const DEFAULT_PENDING_ACCESS_SNACKBAR =
   "Another tab requested edit access for this document.";
-const EXTEND_MS = 5 * 60 * 1000;
-const SYNC_INTERVAL_MS = 45 * 1000;
-const EXPIRY_RESYNC_MS = 15 * 1000;
 
 function mergeHandoffFieldsFromExtendPayload(data) {
   const partial = {};
@@ -85,6 +103,7 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
 
   const heldRef = useRef(false);
   const keyRef = useRef({ collection: "", docID: "" });
+  const readOnlyGraceRef = useRef(null);
   const prevHolderUiRef = useRef({
     scopeKey: "",
     readOnly: false,
@@ -125,6 +144,26 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
     heldRef.current = lockHeld;
   }, [lockHeld]);
 
+  const cancelReadOnlyGrace = useCallback(() => {
+    if (readOnlyGraceRef.current != null) {
+      window.clearTimeout(readOnlyGraceRef.current);
+      readOnlyGraceRef.current = null;
+    }
+  }, []);
+
+  const startReadOnlyGrace = useCallback(() => {
+    cancelReadOnlyGrace();
+    readOnlyGraceRef.current = window.setTimeout(() => {
+      readOnlyGraceRef.current = null;
+      /**
+       * Predicate + patch live in {@link endReadOnlyGraceIfApplicable} so this
+       * hook and the planner-only path in `applyDocumentLockStatusFromPayload`
+       * can't drift. We just own the timer storage (per-hook ref) here.
+       */
+      endReadOnlyGraceIfApplicable(collection, docID);
+    }, LOCK_READONLY_GRACE_MS);
+  }, [cancelReadOnlyGrace, collection, docID]);
+
   const release = useCallback(async () => {
     const { collection: c, docID: d } = keyRef.current;
     if (!c || !d || !heldRef.current) return;
@@ -150,16 +189,7 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
       const data = await res.json().catch(() => ({}));
       if (res.status === 201) {
         heldRef.current = true;
-        patch({
-          lockHeld: true,
-          readOnly: false,
-          lockExpiresAtUnix:
-            typeof data.expiresAtUnix === "number" ? data.expiresAtUnix : null,
-          lockTtlSeconds:
-            typeof data.ttlSeconds === "number" ? data.ttlSeconds : null,
-          ...clearedHandoffState(),
-          extendSegmentCount: 0,
-        });
+        patch(buildGrantedHolderPatch(data, { withClearedHandoff: true }));
         return;
       }
       if (
@@ -169,14 +199,16 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
         res.status === 409
       ) {
         heldRef.current = false;
-        patch({
+        const readOnlyPatch = {
           readOnly: true,
           lockHeld: false,
-          lockExpiresAtUnix:
-            typeof data.expiresAtUnix === "number" ? data.expiresAtUnix : null,
-          lockTtlSeconds:
-            typeof data.ttlSeconds === "number" ? data.ttlSeconds : null,
-        });
+          lockExpiresAtUnix: numberOrNull(data, "expiresAtUnix"),
+          lockTtlSeconds: numberOrNull(data, "ttlSeconds"),
+        };
+        if (typeof data.viewerCount === "number") {
+          readOnlyPatch.viewerCount = data.viewerCount;
+        }
+        patch(readOnlyPatch);
         return;
       }
       patch({
@@ -194,7 +226,7 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
   }, [collection, docID, enabled, patch]);
 
   const syncLockFromServer = useCallback(
-    async (opts = {}) => {
+    async () => {
       if (!enabled || !collection || !docID) return;
 
       const mySessionID = useUsersStore.getState()?.account?.sessionID;
@@ -209,10 +241,55 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
             collection,
             docID
           );
-          const shouldTryReacquire =
-            opts.onlyFormerLeaseHolder === true
-              ? prev.lockHeld
-              : prev.lockHeld || prev.readOnly;
+          /**
+           * Lock is gone. Three cases:
+           *  - We were the holder: drop our state and auto-reacquire (slow extend
+           *    / focus race / network blip). If a waitlist head was waiting the
+           *    server-side expiry promotion already installed them, so our
+           *    `tryAcquire` here will just 200 with held:true → readOnly:true.
+           *  - We were a viewer: keep `readOnly: true` and start the grace
+           *    timer. A TTL expiry is typically followed within ~ms by either a
+           *    `handoff_completed` (waitlist promotion) or `acquired` (former
+           *    holder reacquire); cancelling the grace as soon as one of those
+           *    lands keeps the lock icon visible without a flash of editable UI.
+           *    If nothing arrives within the grace window the timer drops
+           *    `readOnly` so the user isn't permanently stuck on a dead lock.
+           *  - We were neutral: nothing to do beyond clearing stale fields.
+           */
+          // `viewerCount` is authoritative from the server even when the lock
+          // is gone (zombie viewer entries are pruned by the server on read),
+          // so threading it through all three cases keeps the count fresh.
+          const viewerCountPatch =
+            typeof data.viewerCount === "number"
+              ? { viewerCount: data.viewerCount }
+              : {};
+          if (prev.lockHeld) {
+            patch({
+              lockHeld: false,
+              readOnly: false,
+              pendingAccessRequest: false,
+              lockExpiresAtUnix: null,
+              lockTtlSeconds: null,
+              ...clearedHandoffState(),
+              ...viewerCountPatch,
+            });
+            heldRef.current = false;
+            void tryAcquire();
+            return;
+          }
+          if (prev.readOnly) {
+            patch({
+              lockHeld: false,
+              pendingAccessRequest: false,
+              lockExpiresAtUnix: null,
+              lockTtlSeconds: null,
+              ...clearedHandoffState(),
+              ...viewerCountPatch,
+            });
+            heldRef.current = false;
+            startReadOnlyGrace();
+            return;
+          }
           patch({
             lockHeld: false,
             readOnly: false,
@@ -220,11 +297,9 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
             lockExpiresAtUnix: null,
             lockTtlSeconds: null,
             ...clearedHandoffState(),
+            ...viewerCountPatch,
           });
           heldRef.current = false;
-          if (shouldTryReacquire) {
-            void tryAcquire();
-          }
           return;
         }
 
@@ -235,60 +310,53 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
             : typeof data.pendingHandoffTargetSessionID === "string"
               ? data.pendingHandoffTargetSessionID
               : null;
+        const pendingExpires =
+          numberOrNull(data, "probeExpiresAtUnix") ??
+          numberOrNull(data, "pendingHandoffExpiresAtUnix");
         if (mySessionID && holder === mySessionID) {
           heldRef.current = true;
-          patch({
+          const holderPatch = {
             lockHeld: true,
             readOnly: false,
             waitingInHandoffQueue: false,
-            lockExpiresAtUnix:
-              typeof data.expiresAtUnix === "number" ? data.expiresAtUnix : null,
-            lockTtlSeconds:
-              typeof data.ttlSeconds === "number" ? data.ttlSeconds : null,
-            extendSegmentCount:
-              typeof data.extendCount === "number" ? data.extendCount : null,
-            waitlistLen:
-              typeof data.waitlistLen === "number" ? data.waitlistLen : null,
+            lockExpiresAtUnix: numberOrNull(data, "expiresAtUnix"),
+            lockTtlSeconds: numberOrNull(data, "ttlSeconds"),
+            extendSegmentCount: numberOrNull(data, "extendCount"),
+            waitlistLen: numberOrNull(data, "waitlistLen"),
             handoffPendingHolder: pendingTarget != null && pendingTarget !== "",
             pendingHandoffOfferClientID: pendingTarget,
-            pendingHandoffExpiresAtUnix:
-              typeof data.probeExpiresAtUnix === "number"
-                ? data.probeExpiresAtUnix
-                : typeof data.pendingHandoffExpiresAtUnix === "number"
-                  ? data.pendingHandoffExpiresAtUnix
-                  : null,
+            pendingHandoffExpiresAtUnix: pendingExpires,
             handoffOfferForMe: false,
-          });
+          };
+          if (typeof data.viewerCount === "number") {
+            holderPatch.viewerCount = data.viewerCount;
+          }
+          patch(holderPatch);
           return;
         }
 
         heldRef.current = false;
-        patch({
+        const viewerPatch = {
           readOnly: true,
           lockHeld: false,
-          lockExpiresAtUnix:
-            typeof data.expiresAtUnix === "number" ? data.expiresAtUnix : null,
-          lockTtlSeconds:
-            typeof data.ttlSeconds === "number" ? data.ttlSeconds : null,
-          extendSegmentCount:
-            typeof data.extendCount === "number" ? data.extendCount : null,
-          waitlistLen:
-            typeof data.waitlistLen === "number" ? data.waitlistLen : null,
+          lockExpiresAtUnix: numberOrNull(data, "expiresAtUnix"),
+          lockTtlSeconds: numberOrNull(data, "ttlSeconds"),
+          extendSegmentCount: numberOrNull(data, "extendCount"),
+          waitlistLen: numberOrNull(data, "waitlistLen"),
           handoffPendingHolder: false,
           pendingHandoffOfferClientID: pendingTarget,
-          pendingHandoffExpiresAtUnix:
-            typeof data.probeExpiresAtUnix === "number"
-              ? data.probeExpiresAtUnix
-              : typeof data.pendingHandoffExpiresAtUnix === "number"
-                ? data.pendingHandoffExpiresAtUnix
-                : null,
+          pendingHandoffExpiresAtUnix: pendingExpires,
           handoffOfferForMe: false,
-        });
+        };
+        if (typeof data.viewerCount === "number") {
+          viewerPatch.viewerCount = data.viewerCount;
+        }
+        patch(viewerPatch);
       } catch {
         /* ignore */
       }
     },
-    [collection, docID, enabled, patch, tryAcquire]
+    [collection, docID, enabled, patch, startReadOnlyGrace, tryAcquire]
   );
 
   const applyExtendResponse = useCallback(
@@ -311,12 +379,8 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
       }
       if (data.holding === true || (res.ok && typeof data.expiresAtUnix === "number")) {
         patch({
-          lockExpiresAtUnix:
-            typeof data.expiresAtUnix === "number"
-              ? data.expiresAtUnix
-              : null,
-          lockTtlSeconds:
-            typeof data.ttlSeconds === "number" ? data.ttlSeconds : null,
+          lockExpiresAtUnix: numberOrNull(data, "expiresAtUnix"),
+          lockTtlSeconds: numberOrNull(data, "ttlSeconds"),
           ...mergeHandoffFieldsFromExtendPayload(data),
         });
       }
@@ -342,12 +406,13 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
         .documentLock.actions.pulseWaitlist(collection, docID);
     };
     pulse();
-    const id = window.setInterval(pulse, 35000);
+    const id = window.setInterval(pulse, LOCK_WAITLIST_PULSE_INTERVAL_MS);
     return () => clearInterval(id);
   }, [enabled, waitingInHandoffQueue, collection, docID]);
 
   useEffect(() => {
     if (!enabled || !docID) {
+      cancelReadOnlyGrace();
       resetScope();
       heldRef.current = false;
       keyRef.current = { collection: "", docID: "" };
@@ -361,19 +426,28 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
 
     return () => {
       cancelled = true;
+      cancelReadOnlyGrace();
       void release();
       resetScope();
       heldRef.current = false;
       keyRef.current = { collection: "", docID: "" };
     };
-  }, [enabled, docID, collection, tryAcquire, release, resetScope]);
+  }, [
+    enabled,
+    docID,
+    collection,
+    tryAcquire,
+    release,
+    resetScope,
+    cancelReadOnlyGrace,
+  ]);
 
   useEffect(() => {
     if (!enabled || !lockHeld || readOnly) return;
     const id = window.setInterval(() => {
       if (document.visibilityState !== "visible") return;
       flushExtendLease();
-    }, EXTEND_MS);
+    }, LOCK_EXTEND_INTERVAL_MS);
     return () => clearInterval(id);
   }, [enabled, lockHeld, readOnly, flushExtendLease]);
 
@@ -406,7 +480,7 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
     if (!enabled || !docID) return;
     const id = window.setInterval(() => {
       void syncLockFromServer();
-    }, SYNC_INTERVAL_MS);
+    }, LOCK_STATUS_SYNC_INTERVAL_MS);
     return () => clearInterval(id);
   }, [enabled, docID, syncLockFromServer]);
 
@@ -420,11 +494,35 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
       ).lockExpiresAtUnix;
       if (exp == null || typeof exp !== "number") return;
       const now = Math.floor(Date.now() / 1000);
-      if (now <= exp + 2) return;
+      if (now <= exp + LOCK_EXPIRY_SLACK_SECONDS) return;
       void syncLockFromServer();
-    }, EXPIRY_RESYNC_MS);
+    }, LOCK_EXPIRY_RESYNC_INTERVAL_MS);
     return () => clearInterval(id);
   }, [enabled, docID, syncLockFromServer, collection]);
+
+  /**
+   * Passive-viewer presence. When this scope enters `readOnly: true` we announce
+   * our presence to the server — the holder receives `document_lock_viewer_joined`
+   * and surfaces their contention affordance. Effect cleanup runs whenever we
+   * exit readOnly (became holder / lock released / doc change / unmount) and
+   * sends `viewer-departed` so the holder's icon clears promptly. `pagehide`
+   * adds a `sendBeacon` fallback for tab close where React cleanup wouldn't get
+   * a chance to issue a normal fetch. The server idempotently ZADD/ZREMs, so
+   * occasional duplicates (transient readOnly oscillations during a handoff)
+   * are harmless.
+   */
+  useEffect(() => {
+    if (!enabled || !collection || !docID || !readOnly) return undefined;
+    void postDocumentLockViewerArrived(collection, docID).catch(() => {});
+    function onPageHide() {
+      sendDocumentLockViewerDepartedBeacon(collection, docID);
+    }
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      void postDocumentLockViewerDeparted(collection, docID).catch(() => {});
+    };
+  }, [enabled, collection, docID, readOnly]);
 
   useEffect(() => {
     if (!enabled || !collection || !docID) {
@@ -492,7 +590,7 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
       if (payload.collection !== collection || payload.docID !== docID) return;
 
       const t = payload.type;
-      if (t === "document_lock_requested") {
+      if (t === DOCUMENT_LOCK_EVENTS.REQUESTED) {
         const mySessionID = useUsersStore.getState()?.account?.sessionID;
         if (
           heldRef.current &&
@@ -508,11 +606,14 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
         return;
       }
 
-      if (t === "document_lock_expired") {
-        void syncLockFromServer({ onlyFormerLeaseHolder: true });
+      if (t === DOCUMENT_LOCK_EVENTS.EXPIRED) {
+        // Grace timer (if started by the resync) is the right state to leave
+        // in place — it'll auto-cancel below when an acquired/handoff event
+        // confirms the new holder.
+        void syncLockFromServer();
         return;
       }
-      if (t === "document_lock_handoff_probe") {
+      if (t === DOCUMENT_LOCK_EVENTS.HANDOFF_PROBE) {
         const mySessionID = useUsersStore.getState()?.account?.sessionID;
         const target =
           typeof payload.probeTargetSessionID === "string"
@@ -525,24 +626,89 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
         }
         return;
       }
-      if (t === "document_lock_handoff_completed") {
+      if (t === DOCUMENT_LOCK_EVENTS.HANDOFF_COMPLETED) {
+        // Definitive new holder — kill any pending readOnly grace; the sync
+        // below will install the new holder's expiry on viewer scopes.
+        cancelReadOnlyGrace();
+        void syncLockFromServer();
+        return;
+      }
+      if (t === DOCUMENT_LOCK_EVENTS.RELEASED) {
+        cancelReadOnlyGrace();
+        /**
+         * Server-side group handoff cascade evicted our per-job lock so the new group
+         * holder's cards reflect immediately. Patch directly instead of resyncing —
+         * `syncLockFromServer` would see `held: false` and trigger its auto-reacquire
+         * path on the former holder, grabbing the lock back and defeating the cascade.
+         */
+        if (payload.reason === DOCUMENT_LOCK_RELEASE_REASONS.GROUP_HANDOFF_CASCADE) {
+          patch({
+            lockHeld: false,
+            readOnly: false,
+            pendingAccessRequest: false,
+            lockExpiresAtUnix: null,
+            lockTtlSeconds: null,
+            ...clearedHandoffState(),
+          });
+          heldRef.current = false;
+          return;
+        }
+        /**
+         * Voluntary release — the previous holder explicitly let go (closed
+         * the page, handed over, etc). Drop readOnly immediately instead of
+         * going through syncLockFromServer (which would preserve readOnly +
+         * start the grace timer, applying TTL-expiry semantics that don't fit
+         * here). Anyone can edit.
+         */
+        patch({
+          lockHeld: false,
+          readOnly: false,
+          pendingAccessRequest: false,
+          lockExpiresAtUnix: null,
+          lockTtlSeconds: null,
+          ...clearedHandoffState(),
+        });
+        heldRef.current = false;
+        return;
+      }
+      if (t === DOCUMENT_LOCK_EVENTS.ACQUIRED) {
+        // Confirmed new holder (could be us, could be the former holder
+        // reacquiring after a TTL blip). Cancel any pending grace; sync will
+        // install lockHeld:true or readOnly:true with a real expiry.
+        cancelReadOnlyGrace();
         void syncLockFromServer();
         return;
       }
       if (
-        t === "document_lock_released" ||
-        t === "document_lock_acquired"
+        t === DOCUMENT_LOCK_EVENTS.VIEWER_JOINED ||
+        t === DOCUMENT_LOCK_EVENTS.VIEWER_LEFT
       ) {
-        void syncLockFromServer();
+        const mySessionID = useUsersStore.getState()?.account?.sessionID;
+        // Our own join/leave already drove the local state via the
+        // readOnly-transition effect — ignore the echo so we don't double-count.
+        if (payload.sessionID && payload.sessionID === mySessionID) return;
+        const cur = selectScopedDocumentLock(
+          useUsersStore.getState(),
+          collection,
+          docID
+        );
+        const prev = typeof cur.viewerCount === "number" ? cur.viewerCount : 0;
+        const next =
+          t === DOCUMENT_LOCK_EVENTS.VIEWER_JOINED
+            ? prev + 1
+            : Math.max(0, prev - 1);
+        patch({ viewerCount: next });
       }
     }
-    window.addEventListener("eip-document-lock", onLockEvent);
-    return () => window.removeEventListener("eip-document-lock", onLockEvent);
+    window.addEventListener(DOCUMENT_LOCK_CUSTOM_EVENT, onLockEvent);
+    return () =>
+      window.removeEventListener(DOCUMENT_LOCK_CUSTOM_EVENT, onLockEvent);
   }, [
     collection,
     docID,
     syncLockFromServer,
     patch,
+    cancelReadOnlyGrace,
     pendingAccessRequestMessage,
     sessionID,
   ]);

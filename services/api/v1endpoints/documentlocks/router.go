@@ -25,6 +25,11 @@ func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClien
 			handleRelease(w, r, clients)
 			return
 		}
+	case path == "/api/v1/document-locks/hand-over" || path == "/api/v1/document-locks/hand-over/":
+		if r.Method == http.MethodPost {
+			handleHandOver(w, r, clients)
+			return
+		}
 	case path == "/api/v1/document-locks/request" || path == "/api/v1/document-locks/request/":
 		if r.Method == http.MethodPost {
 			handleRequest(w, r, clients)
@@ -48,6 +53,16 @@ func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClien
 	case path == "/api/v1/document-locks/waitlist-pulse" || path == "/api/v1/document-locks/waitlist-pulse/":
 		if r.Method == http.MethodPost {
 			handleWaitlistPulse(w, r, clients)
+			return
+		}
+	case path == "/api/v1/document-locks/viewer-arrived" || path == "/api/v1/document-locks/viewer-arrived/":
+		if r.Method == http.MethodPost {
+			handleViewerArrived(w, r, clients)
+			return
+		}
+	case path == "/api/v1/document-locks/viewer-departed" || path == "/api/v1/document-locks/viewer-departed/":
+		if r.Method == http.MethodPost {
+			handleViewerDeparted(w, r, clients)
 			return
 		}
 	}

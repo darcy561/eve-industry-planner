@@ -58,8 +58,9 @@ func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 
 	collection := collJobDocuments(clients)
 	sessionID, _ := auth.ExtractSessionID(r)
+	wsClientID := helper.ExtractWSClientID(r)
 	now := time.Now()
-	result, failedCount, err := mongoput.BulkUpsertJobDocuments(ctx, collection, accountID, reqBody.Jobs, now, sessionID)
+	result, failedCount, err := mongoput.BulkUpsertJobDocuments(ctx, collection, accountID, reqBody.Jobs, now, sessionID, wsClientID)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			metrics.Error("request_canceled")

@@ -23,7 +23,7 @@ import GroupPageViewSelector from "./pageViewSelector";
 import { useDocumentLock } from "../../Hooks/DocumentLock/useDocumentLock.js";
 import { USER_JOB_GROUPS_COLLECTION } from "../../Functions/DocumentLock/documentLockCollections.js";
 import { useRegisterHeaderDocumentLockUI } from "../../Hooks/DocumentLock/useRegisterHeaderDocumentLockUI.js";
-import { selectDocumentLockReadOnly } from "../../Functions/DocumentLock/documentLockSelectors.js";
+import { useGroupLockReadOnly } from "../../Hooks/DocumentLock/useDocumentLockState.js";
 import { useJobPlannerJobLockSync } from "../../Hooks/DocumentLock/useJobPlannerJobLockSync.js";
 import { parseGroupPageViewSearchParam } from "../../Functions/Groups/groupPageViewSearch";
 import { trackAppEvent } from "../../analytics/trackAppEvent";
@@ -54,9 +54,7 @@ function GroupPageFrame() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- actions object is recreated each render
   }, [search.pageView, state.pageView]);
 
-  const groupReadOnly = useUsersStore((s) =>
-    selectDocumentLockReadOnly(s, USER_JOB_GROUPS_COLLECTION, groupID ?? "")
-  );
+  const groupReadOnly = useGroupLockReadOnly(groupID);
 
   useJobPlannerJobLockSync();
 

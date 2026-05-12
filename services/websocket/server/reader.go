@@ -58,7 +58,7 @@ func (s *Server) reader(client *Client) {
 	}()
 
 	defer func() {
-		// Snapshot subscription keys so a quick JWT re-handshake can move NATS subscriber slots to the new client_id.
+		// Snapshot subscription keys so a quick reconnect can move NATS subscriber slots to the new client_id.
 		s.snapshotSessionHandoff(ctx, client)
 
 		s.unregisterClientFromOrgPools(client)
@@ -143,7 +143,7 @@ func (s *Server) reader(client *Client) {
 					"idle_duration", idleDuration,
 					"pong_wait", config.PongWait,
 					"error", err,
-					"note", "This suggests old connections aren't being closed when token refreshes")
+					"note", "This suggests old connections aren't being closed when the client reconnects")
 			} else if isBenignWebSocketDisconnect(err) {
 				logs.DebugCtx(ctx, "websocket read ended (peer closed or network reset)",
 					"client_id", client.id,
@@ -320,7 +320,7 @@ func (s *Server) reader(client *Client) {
 				if s.ApplyRealtimeScopeUpgrade(client, upgrade.CorporationIDs, upgrade.AllianceIDs) {
 					s.queueScopesAck(client)
 				} else {
-					logs.DebugCtx(ctx, "upgrade_scopes: no valid corporation/alliance ids for this JWT",
+					logs.DebugCtx(ctx, "upgrade_scopes: no valid corporation/alliance ids for this session",
 						"client_id", client.id,
 						"account_id", client.AccountID)
 				}

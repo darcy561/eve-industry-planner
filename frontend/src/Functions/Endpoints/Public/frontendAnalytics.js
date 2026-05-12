@@ -127,10 +127,10 @@ function postAnalyticsBatchRequestSync(body) {
   }
 }
 
-/** @typedef {{ simple: Map<string, number>, newJobByType: Record<string, number> | null }} PendingState */
+/** @typedef {{ simple: Map<string, number>, newJobByType: Record<string, number> | null, itemTreeViewByType: Record<string, number> | null }} PendingState */
 
 /** @type {PendingState} */
-let pending = { simple: new Map(), newJobByType: null };
+let pending = { simple: new Map(), newJobByType: null, itemTreeViewByType: null };
 
 /** @type {ReturnType<typeof setTimeout> | null} */
 let flushTimer = null;
@@ -142,7 +142,7 @@ let queueSince = null;
 let flushChain = Promise.resolve();
 
 function newEmptyPending() {
-  return { simple: new Map(), newJobByType: null };
+  return { simple: new Map(), newJobByType: null, itemTreeViewByType: null };
 }
 
 function swapPending() {
@@ -163,10 +163,12 @@ function mergeIntoPending(eventKey, count, options) {
     if (!byType) {
       return false;
     }
-    if (!pending.newJobByType) {
-      pending.newJobByType = {};
+    const accField =
+      trimmed === NEW_JOB_EVENT ? "newJobByType" : "itemTreeViewByType";
+    if (!pending[accField]) {
+      pending[accField] = {};
     }
-    const acc = pending.newJobByType;
+    const acc = pending[accField];
     for (const [k, v] of Object.entries(byType)) {
       acc[k] = Math.min(
         MAX_JOBS_PER_TYPE_IN_PAYLOAD,
@@ -194,7 +196,10 @@ function approximateQueueWeight() {
   const njKeys = pending.newJobByType
     ? Object.keys(pending.newJobByType).length
     : 0;
-  return pending.simple.size + njKeys;
+  const tvKeys = pending.itemTreeViewByType
+    ? Object.keys(pending.itemTreeViewByType).length
+    : 0;
+  return pending.simple.size + njKeys + tvKeys;
 }
 
 /**
@@ -218,6 +223,18 @@ function buildAnalyticsRequestBody(merged) {
     );
     for (const chunk of chunks) {
       events.push({ event: NEW_JOB_EVENT, by_type: chunk });
+    }
+  }
+  if (
+    merged.itemTreeViewByType &&
+    Object.keys(merged.itemTreeViewByType).length > 0
+  ) {
+    const chunks = chunkByTypeObject(
+      merged.itemTreeViewByType,
+      MAX_FRONTEND_ANALYTICS_BY_TYPE_KEYS
+    );
+    for (const chunk of chunks) {
+      events.push({ event: ITEM_TREE_VIEW_ITEM_EVENT, by_type: chunk });
     }
   }
   return { events };
@@ -266,7 +283,9 @@ async function runFlush() {
   const merged = swapPending();
   if (
     merged.simple.size === 0 &&
-    (!merged.newJobByType || Object.keys(merged.newJobByType).length === 0)
+    (!merged.newJobByType || Object.keys(merged.newJobByType).length === 0) &&
+    (!merged.itemTreeViewByType ||
+      Object.keys(merged.itemTreeViewByType).length === 0)
   ) {
     return;
   }
@@ -280,7 +299,9 @@ export function flushFrontendAnalyticsQueueForUnload() {
   const merged = swapPending();
   if (
     merged.simple.size === 0 &&
-    (!merged.newJobByType || Object.keys(merged.newJobByType).length === 0)
+    (!merged.newJobByType || Object.keys(merged.newJobByType).length === 0) &&
+    (!merged.itemTreeViewByType ||
+      Object.keys(merged.itemTreeViewByType).length === 0)
   ) {
     return;
   }

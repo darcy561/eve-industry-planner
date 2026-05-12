@@ -2,8 +2,9 @@ import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { PlannerDnDProvider } from "./Context/PlannerDnDProvider";
 import { setUser } from "@sentry/react";
-import { useEffect, useMemo, lazy, Suspense } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect, lazy, Suspense } from "react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "./queryClient.js";
 import { RouterProvider } from "@tanstack/react-router";
 import { appRouter } from "./appRouter";
 import { enableGa4WebVitals } from "./analytics/googleAnalytics";
@@ -20,7 +21,6 @@ const ReactQueryDevtools =
     : null;
 
 export function AppWrapper() {
-  const queryClient = useMemo(() => new QueryClient(), []);
   const accountID = useUsersStore((state) => state.account.accountID);
 
   useEffect(() => {

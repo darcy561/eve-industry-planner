@@ -53,15 +53,6 @@ func stringFieldOrNumber(m map[string]interface{}, keys ...string) string {
 	return ""
 }
 
-// DecodeRouteInfo parses routing fields only (backwards compatible; prefer DecodeOutboundMessage on hot paths).
-func DecodeRouteInfo(messageData []byte) (RouteInfo, error) {
-	d, err := DecodeOutboundMessage(messageData)
-	if err != nil {
-		return RouteInfo{}, err
-	}
-	return d.Route, nil
-}
-
 func parseScopes(v interface{}) DownwardScopes {
 	m, ok := v.(map[string]interface{})
 	if !ok || m == nil {

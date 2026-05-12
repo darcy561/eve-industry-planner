@@ -24,14 +24,12 @@ import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultip
 import { useMediaQuery } from "@mui/material";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { getJobTypeAccentColor } from "../../../../Functions/Helper/jobTypeDividerColor";
-import { selectDocumentLockReadOnly } from "../../../../Functions/DocumentLock/documentLockSelectors.js";
-import { USER_JOBS_COLLECTION } from "../../../../Functions/DocumentLock/documentLockCollections.js";
+import { useJobCardLockState } from "../../../../Hooks/DocumentLock/useDocumentLockState";
 
 export function CompactJobCardFrame({ job }) {
   const multiSelect = useUsersStore((state) => state.jobData.multiSelect);
-  const jobLockReadOnly = useUsersStore((s) =>
-    selectDocumentLockReadOnly(s, USER_JOBS_COLLECTION, job.jobID)
-  );
+  const { cardLocked: jobLockReadOnly, reason: jobLockReason } =
+    useJobCardLockState({ jobID: job.jobID });
   const { addToMultiSelect, removeFromMultiSelect } =
     useUsersStore.getState().jobData.actions;
   const tooltipContent = getTooltipContent(job);
@@ -86,7 +84,7 @@ export function CompactJobCardFrame({ job }) {
         return {
           marginTop: 0.5,
           marginBottom: 0.5,
-          cursor: "grab",
+          cursor: jobLockReadOnly ? "not-allowed" : "grab",
           backgroundColor,
           transition: "border 0.3s ease",
           border: `2px solid transparent`,
@@ -161,18 +159,23 @@ export function CompactJobCardFrame({ job }) {
             alignItems: "center",
             justifyContent: "center"
           }}>
-          <Button
-            color="primary"
-            disabled={jobLockReadOnly}
-            onClick={() => {
-              navigate({
-                to: '/editjob/$jobID',
-                params: { jobID: job.jobID }
-              });
-            }}
+          <Tooltip
+            title={jobLockReason}
+            arrow
+            disableHoverListener={!jobLockReadOnly}
           >
-            {jobLockReadOnly ? "Locked" : "Edit"}
-          </Button>
+            <Button
+              color={jobLockReadOnly ? "warning" : "primary"}
+              onClick={() => {
+                navigate({
+                  to: '/editjob/$jobID',
+                  params: { jobID: job.jobID }
+                });
+              }}
+            >
+              {jobLockReadOnly ? "View" : "Edit"}
+            </Button>
+          </Tooltip>
         </Grid>
         {!isMobile && (
           <Grid container align="center" size={1} sx={{

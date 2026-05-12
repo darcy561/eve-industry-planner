@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   Box,
   Button,
@@ -24,6 +24,7 @@ import {
   selectActiveDlLockTtlSeconds,
   selectActiveDlPendingAccessRequest,
   selectActiveDlReadOnly,
+  selectActiveDlViewerCount,
   selectActiveDlWaitlistLen,
   selectActiveDlWaitingInHandoffQueue,
   selectHeaderDocumentLockActive,
@@ -50,6 +51,21 @@ function secondaryScopeSummary(reg, st) {
   return `${title}: ${status}${limited}`;
 }
 
+/** True when a scope shows any signal that requires user attention (other tab involved). */
+function scopeContended(st) {
+  if (!st) return false;
+  if (st.readOnly) return true;
+  if (st.handoffPendingHolder) return true;
+  if (st.pendingAccessRequest) return true;
+  if (typeof st.waitlistLen === "number" && st.waitlistLen > 0) return true;
+  if (st.waitingInHandoffQueue) return true;
+  if (st.handoffOfferForMe) return true;
+  // A passive viewer on another tab counts as contention — it's how the holder
+  // learns someone else is watching, even without an explicit Request access.
+  if (typeof st.viewerCount === "number" && st.viewerCount > 0) return true;
+  return false;
+}
+
 /** Seconds remaining before lock segment ends — flash icon when at or below this */
 const FLASH_THRESHOLD_SEC = 30;
 /** Brief success icon after lease expiry moves forward (renewed) */
@@ -73,8 +89,16 @@ function formatLockRemaining(expiresAtUnix) {
  * Target `collection` / `docID` come from {@link ../../Zustand/headerDocumentLockUISlice.js}
  * via {@link ../../Hooks/useRegisterHeaderDocumentLockUI.js} or {@link ../../Events/headerDocumentLockEvents.js}.
  *
- * The icon appears only when another session is involved (you are read-only, someone is queued,
- * access was requested, handoff is in progress, etc.). Sole holder with no contention sees no icon.
+ * Visibility: uncontested holder sees no icon (quiet UI). The icon surfaces as soon as
+ * another session is involved — request access, queued waitlist, handoff probe, you are
+ * read-only — or when the lock has orphaned (TTLed with no successor) so the user has a
+ * path to take it over.
+ *
+ * Visuals:
+ *   - You hold the lock (contention — pending request / handoff probe / waitlist): warning-coloured.
+ *   - Another session holds it (you are read-only): warning-coloured open padlock.
+ *   - Lock orphaned: disabled-coloured open padlock, "Take over" button in the popover.
+ *   - Lease just renewed: short-lived success tick (`extendAck`).
  */
 export default function DocumentLockHeaderControl() {
   const scopes = useUsersStore((s) => s.documentLock.scopes);
@@ -90,6 +114,7 @@ export default function DocumentLockHeaderControl() {
   const [tick, setTick] = useState(0);
   const prevExpiresRef = useRef(null);
   const [extendAck, setExtendAck] = useState(false);
+  const [requestAccessPending, startRequestAccess] = useTransition();
 
   const active = useUsersStore(selectHeaderDocumentLockActive);
   const readOnly = useUsersStore(selectActiveDlReadOnly);
@@ -102,6 +127,7 @@ export default function DocumentLockHeaderControl() {
   const waitlistLen = useUsersStore(selectActiveDlWaitlistLen);
   const waitingInHandoffQueue = useUsersStore(selectActiveDlWaitingInHandoffQueue);
   const handoffOfferForMe = useUsersStore(selectActiveDlHandoffOfferForMe);
+  const viewerCount = useUsersStore(selectActiveDlViewerCount);
 
   useEffect(() => {
     if (!active) return undefined;
@@ -148,8 +174,43 @@ export default function DocumentLockHeaderControl() {
   const viewerReadOnly = readOnly && !lockHeld;
   /** Stale UI: Redis/client disagree — prefer closed lock + warning until sync settles. */
   const inconsistentHolderReadOnly = readOnly && lockHeld;
+  /**
+   * Lock has expired / been released and no successor was promoted. We still show
+   * a header affordance so the user has a path to take over instead of silently
+   * becoming editable with no signal — pair with the popover "Take over" button.
+   */
+  const orphanedAvailable =
+    !lockHeld &&
+    !readOnly &&
+    !handoffPendingHolder &&
+    !pendingAccessRequest &&
+    !waitingInHandoffQueue &&
+    !handoffOfferForMe &&
+    !(typeof waitlistLen === "number" && waitlistLen > 0);
 
-  /** Only surface the header control when someone else is in play (not when you are the uncontested holder). */
+  /**
+   * Surface contention from any secondary registration (e.g. on /editjob the group lock
+   * is secondary to the job lock — without this, you could hold the job uncontested
+   * while another session queues for the parent group and never see the affordance).
+   */
+  const secondaryContended = useMemo(() => {
+    if (!Array.isArray(registrations) || registrations.length <= 1) return false;
+    for (let i = 1; i < registrations.length; i += 1) {
+      const r = registrations[i];
+      if (!r?.collection || !r?.docID || r.enabled === false) continue;
+      const st = mergeScopedDocumentLockState(scopes, r.collection, r.docID);
+      if (scopeContended(st)) return true;
+    }
+    return false;
+  }, [registrations, scopes]);
+
+  /**
+   * Holder with no contention sees nothing — quiet UI when they're uncontested editor.
+   * As soon as any registered scope shows contention (primary or secondary), or the
+   * primary lock orphans, surface the affordance.
+   */
+  const hasPassiveViewers = typeof viewerCount === "number" && viewerCount > 0;
+
   const showHeaderLockIcon =
     viewerReadOnly ||
     inconsistentHolderReadOnly ||
@@ -157,7 +218,10 @@ export default function DocumentLockHeaderControl() {
     pendingAccessRequest ||
     (typeof waitlistLen === "number" && waitlistLen > 0) ||
     waitingInHandoffQueue ||
-    handoffOfferForMe;
+    handoffOfferForMe ||
+    orphanedAvailable ||
+    secondaryContended ||
+    hasPassiveViewers;
 
   const tooltipTitle = useMemo(() => {
     if (handoffPendingHolder) return HANDOFF_PENDING_HOLDER;
@@ -174,6 +238,16 @@ export default function DocumentLockHeaderControl() {
     }
     if (waitingInHandoffQueue) return "Waiting for edit access.";
     if (handoffOfferForMe) return "You have been offered edit access — respond to continue.";
+    if (orphanedAvailable) return "No active editor — click to take over.";
+    if (secondaryContended) {
+      return "Another scope tied to this page has contention — see details.";
+    }
+    if (hasPassiveViewers) {
+      // Quiet awareness signal — count only, no holder identity (matches the
+      // "no change to popover holder identity" decision).
+      const noun = viewerCount === 1 ? "session" : "sessions";
+      return `Another ${noun} is viewing this document (${viewerCount}).`;
+    }
     if (remainingLabel) return `Edit lock · ~${remainingLabel} remaining`;
     return "Edit lock";
   }, [
@@ -186,28 +260,30 @@ export default function DocumentLockHeaderControl() {
     waitlistLen,
     waitingInHandoffQueue,
     handoffOfferForMe,
+    orphanedAvailable,
+    secondaryContended,
+    hasPassiveViewers,
+    viewerCount,
   ]);
 
-  /** Popover must not keep an anchor ref after the icon unmounts or after lock mode changes (e.g. read-only → holder). */
-  useEffect(() => {
-    if (!active) setAnchorEl(null);
-  }, [active]);
-
-  useEffect(() => {
+  /**
+   * Popover must not keep an anchor ref after the icon unmounts or after lock mode changes
+   * (e.g. read-only → holder). Adjusting state during render avoids the one-frame flash
+   * where the popover paints against stale lock state before a useEffect runs.
+   */
+  const lockSignature =
+    `${active ? 1 : 0}|${readOnly ? 1 : 0}|${lockHeld ? 1 : 0}` +
+    `|${handoffPendingHolder ? 1 : 0}|${pendingAccessRequest ? 1 : 0}` +
+    `|${waitlistLen ?? ""}|${waitingInHandoffQueue ? 1 : 0}` +
+    `|${handoffOfferForMe ? 1 : 0}|${orphanedAvailable ? 1 : 0}` +
+    `|${secondaryContended ? 1 : 0}|${hasPassiveViewers ? 1 : 0}`;
+  const [prevLockSignature, setPrevLockSignature] = useState(lockSignature);
+  if (prevLockSignature !== lockSignature) {
+    setPrevLockSignature(lockSignature);
+    if (anchorEl !== null) setAnchorEl(null);
+  } else if (anchorEl != null && !anchorEl.isConnected) {
     setAnchorEl(null);
-  }, [
-    readOnly,
-    lockHeld,
-    handoffPendingHolder,
-    pendingAccessRequest,
-    waitlistLen,
-    waitingInHandoffQueue,
-    handoffOfferForMe,
-  ]);
-
-  useLayoutEffect(() => {
-    if (anchorEl != null && !anchorEl.isConnected) setAnchorEl(null);
-  }, [anchorEl]);
+  }
 
   const anchorValid =
     anchorEl != null && anchorEl.isConnected;
@@ -233,7 +309,11 @@ export default function DocumentLockHeaderControl() {
         ? theme.palette.warning.main
         : viewerReadOnly
           ? theme.palette.warning.main
-          : theme.palette.primary.main;
+          : orphanedAvailable
+            ? theme.palette.text.disabled
+            : secondaryContended
+              ? theme.palette.warning.main
+              : theme.palette.primary.main;
 
   const iconNode = extendAck ? (
     <CheckCircleOutlined sx={{ fontSize: 26 }} htmlColor={iconColor} />
@@ -242,6 +322,8 @@ export default function DocumentLockHeaderControl() {
   ) : lockHeld ? (
     <LockOutlined sx={{ fontSize: 26 }} htmlColor={iconColor} />
   ) : viewerReadOnly ? (
+    <LockOpenOutlined sx={{ fontSize: 26 }} htmlColor={iconColor} />
+  ) : orphanedAvailable ? (
     <LockOpenOutlined sx={{ fontSize: 26 }} htmlColor={iconColor} />
   ) : (
     <LockOutlined sx={{ fontSize: 26 }} htmlColor={iconColor} />
@@ -349,20 +431,56 @@ export default function DocumentLockHeaderControl() {
               <Button
                 variant="contained"
                 size="small"
+                disabled={requestAccessPending}
+                aria-busy={requestAccessPending}
                 onClick={() => {
                   const p = primaryHeaderRegistration(
                     useUsersStore.getState()
                   );
                   if (!p?.collection || !p?.docID) return;
-                  void useUsersStore
-                    .getState()
-                    .documentLock.actions.requestAccess(
-                      p.collection,
-                      p.docID
-                    );
+                  startRequestAccess(async () => {
+                    await useUsersStore
+                      .getState()
+                      .documentLock.actions.requestAccess(
+                        p.collection,
+                        p.docID
+                      );
+                  });
                 }}
               >
-                Request access
+                {requestAccessPending ? "Requesting…" : "Request access"}
+              </Button>
+            </>
+          )}
+
+          {orphanedAvailable && (
+            <>
+              <Typography variant="body2" color="text.secondary">
+                No active editor — the previous lock expired with no successor.
+                You can take over to start editing.
+              </Typography>
+              <Button
+                variant="contained"
+                size="small"
+                disabled={requestAccessPending}
+                aria-busy={requestAccessPending}
+                onClick={() => {
+                  const p = primaryHeaderRegistration(
+                    useUsersStore.getState()
+                  );
+                  if (!p?.collection || !p?.docID) return;
+                  startRequestAccess(async () => {
+                    await useUsersStore
+                      .getState()
+                      .documentLock.actions.requestAccess(
+                        p.collection,
+                        p.docID
+                      );
+                    setAnchorEl(null);
+                  });
+                }}
+              >
+                {requestAccessPending ? "Taking over…" : "Take over"}
               </Button>
             </>
           )}

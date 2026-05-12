@@ -19,8 +19,6 @@ type Config struct {
 	API_PORT                  string
 	WS_PORT                   string
 	AuthSecret                string
-	JWTPrivateKeyEnvVar       string // Environment variable name containing the RSA private key (e.g., "JWT_PRIVATE_KEY")
-	JWTKeyID                  string // Key ID for JWKS (kid)
 	ExternalJWTSecret         string
 	ExternalJWTIssuer         string
 	ExternalJWTAudience       string
@@ -91,8 +89,6 @@ func LoadConfig() (Config, error) {
 		API_PORT:                      getEnv("API_PORT", "4000"),
 		WS_PORT:                       getEnv("WS_PORT", "4001"),
 		AuthSecret:                    getEnv("AUTH_SECRET", "dev-secret-change"),
-		JWTPrivateKeyEnvVar:           getEnv("JWT_PRIVATE_KEY_ENV_VAR", "JWT_PRIVATE_KEY"), // Environment variable name containing the key
-		JWTKeyID:                      getEnv("JWT_KEY_ID", "default-key-id"),
 		ExternalJWTSecret:             getEnv("EXTERNAL_JWT_SECRET", "dev-external-secret"),
 		ExternalJWTIssuer:             getEnv("EXTERNAL_JWT_ISSUER", ""),
 		ExternalJWTAudience:           getEnv("EXTERNAL_JWT_AUDIENCE", ""),

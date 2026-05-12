@@ -15,7 +15,6 @@ import (
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
@@ -138,22 +137,21 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		}
 	}
 
+	now := time.Now().UTC()
+	wsClientID := helper.ExtractWSClientID(r)
+
 	retryConfig := mongocore.DefaultRetryConfig()
 	retryConfig.OperationName = fmt.Sprintf("delete %d groups for account %s", len(resolvedIDs), accountID)
 
-	var result *mongo.DeleteResult
-	if err := mongocore.RetryMongoOperation(ctx, retryConfig, func() error {
-		var err error
-		result, err = collection.DeleteMany(ctx, filter)
-		return err
-	}); err != nil {
+	deletedCount64, err := mongocore.DeleteManyAfterStampingMeta(ctx, retryConfig, collection, filter, now, sessionID, wsClientID)
+	if err != nil {
 		metrics.Error("database_error")
 		logs.ErrorCtx(ctx, "failed to delete groups", "error", err, "account_id", accountID)
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to delete groups", err)
 		return
 	}
 
-	deletedCount := int(result.DeletedCount)
+	deletedCount := int(deletedCount64)
 
 	if clients.Redis != nil {
 		for _, gid := range resolvedIDs {

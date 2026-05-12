@@ -96,7 +96,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 					"current_connections", connCount,
 					"max_connections", config.MaxConnectionsPerUser(),
 					"ip", r.RemoteAddr,
-					"note", "This suggests old connections aren't being closed when token refreshes")
+					"note", "This suggests old connections aren't being closed when the client reconnects")
 
 				// Send close message to client (non-blocking, best effort)
 				// Use a short deadline to avoid blocking
@@ -157,8 +157,8 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		AccountID:          identity.AccountID,
 		SessionID:          identity.SessionID,
 		Scopes:             model.RealtimeScopes{},
-		allowedCorpJWT:     stringSetFromSlice(int64SliceToStringIDs(identity.Session.Grants.CorporationIDs)),
-		allowedAllianceJWT: stringSetFromSlice(int64SliceToStringIDs(identity.Session.Grants.AllianceIDs)),
+		grantedCorpIDs:     stringSetFromSlice(int64SliceToStringIDs(identity.Session.Grants.CorporationIDs)),
+		grantedAllianceIDs: stringSetFromSlice(int64SliceToStringIDs(identity.Session.Grants.AllianceIDs)),
 		lastReset:          now,
 		connectedAt:        now,
 		lastActivity:       now,

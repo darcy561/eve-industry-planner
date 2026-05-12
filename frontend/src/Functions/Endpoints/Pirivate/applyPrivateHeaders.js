@@ -49,6 +49,8 @@ export const PRIVATE_AUTH_TOKEN_UNAVAILABLE =
  * {@link requestWithPrivateHeaders} awaits `account.actions.refreshServerToken` first (often a no-op
  * when the planner session was validated recently — see cooldown in `tokenActions.refreshServerToken`),
  * then performs `fetch` with browser-managed same-origin cookies.
+ * Session identity comes from the session cookie server-side; **`X-WS-Client-ID`** is sent when the
+ * realtime layer has assigned a tab id (echo suppression / locks).
  * **Retries** (408 / 429 / 5xx by default) are applied automatically unless `config.retry === false`.
  *
  * **Batching:** pass `config.batch` with `size` and `arrayKey`. The request `body` must be a JSON
@@ -101,9 +103,6 @@ function applyPrivateHeaders(options = {}, config = {}) {
   const headers = {
     ...options.headers,
     ...(config.requestName && { "X-Request-Name": config.requestName }),
-    ...(getSessionIDFromStoreOrToken() && {
-      "X-Session-ID": getSessionIDFromStoreOrToken(),
-    }),
     ...(getRealtimeClientID() && {
       "X-WS-Client-ID": getRealtimeClientID(),
     }),

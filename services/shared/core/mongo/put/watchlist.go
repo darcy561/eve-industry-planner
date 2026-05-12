@@ -12,18 +12,25 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func UpsertWatchlistDeprecated(ctx context.Context, collection *mongo.Collection, accountID string, groups any, items any, now time.Time) (*mongo.UpdateResult, error) {
+func UpsertWatchlistDeprecated(ctx context.Context, collection *mongo.Collection, accountID string, groups any, items any, now time.Time, sessionID, wsClientID string) (*mongo.UpdateResult, error) {
 	if collection == nil || accountID == "" {
 		return nil, fmt.Errorf("UpsertWatchlistDeprecated: invalid arguments")
+	}
+	meta := bson.M{
+		"accountID":    accountID,
+		"lastModified": now,
+	}
+	if sessionID != "" {
+		meta["sessionID"] = sessionID
+	}
+	if wsClientID != "" {
+		meta["clientID"] = wsClientID
 	}
 	doc := bson.M{
 		"_id":    accountID,
 		"groups": groups,
 		"items":  items,
-		"_meta": bson.M{
-			"accountID":    accountID,
-			"lastModified": now,
-		},
+		"_meta":  meta,
 	}
 	retryCfg := mongocore.DefaultRetryConfig()
 	retryCfg.OperationName = fmt.Sprintf("upsert watchlist deprecated %s", accountID)

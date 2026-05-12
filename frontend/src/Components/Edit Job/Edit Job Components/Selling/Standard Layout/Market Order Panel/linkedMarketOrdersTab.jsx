@@ -16,6 +16,8 @@ import {
 import { showSnackbarError } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
+import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
+import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 
 export function LinkedMarketOrdersTab({
   state,
@@ -25,6 +27,7 @@ export function LinkedMarketOrdersTab({
 }) {
   const getCorporation =
     useUsersStore.getState().account.actions.getCorporation;
+  const jobLockReadOnly = useActiveJobReadOnly(state);
 
   return (
     <Grid container>
@@ -235,27 +238,37 @@ export function LinkedMarketOrdersTab({
                     </Tooltip>
                   )}
                   <Tooltip
-                    title="Unlink Order From Job."
+                    title={
+                      jobLockReadOnly
+                        ? lockReasonText({
+                            action: "unlinking market orders is disabled",
+                          })
+                        : "Unlink Order From Job."
+                    }
                     arrow
                     placemnet="bottom"
                   >
-                    <IconButton
-                      color="error"
-                      size="small"
-                      onClick={() => {
-                        state.activeJob.removeMarketOrder(order);
-                        actions.addMarketOrdersForRemoval(
-                          order.order_id,
-                          state.activeJob.build.sale.transactions.filter(
-                            (item) => item.location_id === order.location_id
-                          )
-                        );
-                        actions.updateActiveJob(state.activeJob);
-                        showSnackbarError("Unlinked");
-                      }}
-                    >
-                      <MdOutlineLinkOff />
-                    </IconButton>
+                    <span>
+                      <IconButton
+                        color="error"
+                        size="small"
+                        disabled={jobLockReadOnly}
+                        onClick={() => {
+                          if (jobLockReadOnly) return;
+                          state.activeJob.removeMarketOrder(order);
+                          actions.addMarketOrdersForRemoval(
+                            order.order_id,
+                            state.activeJob.build.sale.transactions.filter(
+                              (item) => item.location_id === order.location_id
+                            )
+                          );
+                          actions.updateActiveJob(state.activeJob);
+                          showSnackbarError("Unlinked");
+                        }}
+                      >
+                        <MdOutlineLinkOff />
+                      </IconButton>
+                    </span>
                   </Tooltip>
                 </Grid>
               </Grid>
