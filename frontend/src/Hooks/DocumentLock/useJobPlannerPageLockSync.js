@@ -12,7 +12,7 @@ const PLANNER_PAGE_JOB_CHUNK = Math.min(
 
 /**
  * Fetches lock state for all planner jobs **and groups** in one
- * `status-batch` call per chunk (Job Planner route only). Group rows ride
+ * `lock-state-batch` call per chunk (Job Planner route only). Group rows ride
  * along on the first chunk; further chunks are jobs only.
  */
 export function useJobPlannerPageLockSync() {

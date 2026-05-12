@@ -363,8 +363,20 @@ func (s *Server) reader(client *Client) {
 				}
 				continue
 
-			case "document_lock_status_batch":
-				s.handleDocumentLockStatusBatch(client, msg)
+			case "document_lock_lock_state_batch":
+				s.handleDocumentLockLockStateBatch(client, msg)
+				continue
+
+			case "document_lock_waitlist_pulse":
+				s.handleDocumentLockWaitlistPulseWS(client, msg)
+				continue
+
+			case "document_lock_viewer_arrived":
+				s.handleDocumentLockViewerArrivedWS(client, msg)
+				continue
+
+			case "document_lock_viewer_departed":
+				s.handleDocumentLockViewerDepartedWS(client, msg)
 				continue
 
 			default:

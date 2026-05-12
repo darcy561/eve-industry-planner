@@ -1,11 +1,11 @@
-package documentlocks
+package documentlock
 
-// Document-lock event-type constants.
+// Document-lock event-type constants (values on the wire).
 //
 // These strings are part of the wire contract with the frontend — every
-// `publishLockEvent` site embeds one of them as the `type` field, and the
-// browser CustomEvent dispatch in `useDocumentLock.js` branches on the same
-// strings.
+// publish site embeds one of them as the `event` field (see LockPayloadEventKey),
+// and the browser CustomEvent dispatch in `useDocumentLock.js` branches on the
+// same strings (also aliased as `type` on the detail object for compatibility).
 //
 // Keep in sync with `frontend/src/Functions/DocumentLock/documentLockEvents.js`.
 const (
@@ -43,10 +43,22 @@ const (
 	// LockHandoffReasonHolderHandover marks transfers driven by the holder
 	// pressing the "Hand over editing" snackbar action (see handleHandOver).
 	LockHandoffReasonHolderHandover = "holder_handover"
+
+	// LockHandoffReasonTTLPromotion tags `document_lock_handoff_completed` events
+	// that originate from the expiry subscriber promoting the waitlist head when
+	// the lease TTL fires — distinguishes them from interactive claim-handoff.
+	LockHandoffReasonTTLPromotion = "ttl_promotion"
 )
+
+// LockExpiryReasonTTL tags TTL-driven `document_lock_expired` events.
+const LockExpiryReasonTTL = "ttl"
 
 // LockReleaseReason* tag the `reason` field on `LockEventReleased`.
 const (
+	// LockReleaseReasonGroupHandoffCascade tags `document_lock_released` events produced by
+	// the group handoff cascade so clients can distinguish them from voluntary releases.
+	LockReleaseReasonGroupHandoffCascade = "group_handoff_cascade"
+
 	// LockReleaseReasonHandOverNoQueue marks the fallback release path inside
 	// /hand-over when the requester is no longer alive (waitlist empty after
 	// pulse pruning). Distinct from a normal voluntary release because the
@@ -54,37 +66,36 @@ const (
 	LockReleaseReasonHandOverNoQueue = "hand_over_no_queue"
 )
 
+// LockViewerEventJoined / LockViewerEventLeft tag the published presence events so
+// clients can distinguish them from other `document_lock_*` notifications.
+const (
+	LockViewerEventJoined = "document_lock_viewer_joined"
+	LockViewerEventLeft   = "document_lock_viewer_left"
+)
+
+// LockPayloadEventKey is the JSON field name for the document-lock domain
+// discriminator on JetStream messages and on WebSocket fan-out (distinct from
+// the outer WebSocket frame `type` channel tag, which is always "document_lock").
+// Frontend equivalent: DOCUMENT_LOCK_DOMAIN_EVENT_KEY.
+const LockPayloadEventKey = "event"
+
 // HandoffCompletedOpts captures the optional fields for the
-// `document_lock_handoff_completed` payload. Both fields are emitted only when
-// non-empty so the wire shape across the three publish sites
-// (claim-handoff / hand-over / TTL promotion) stays exactly as the frontend
-// already tolerates.
+// `document_lock_handoff_completed` payload.
 type HandoffCompletedOpts struct {
-	// PreviousHolderSessionID is the session that lost the lock. Known by the
-	// interactive paths (claim-handoff and hand-over) but unset by the expiry
-	// subscriber (the previous holder's record has already been evicted by
-	// Redis before this code runs).
 	PreviousHolderSessionID string
-	// Reason tags the cause of the transfer. Empty by default; the holder
-	// hand-over path sets `LockHandoffReasonHolderHandover` and the expiry
-	// subscriber sets `LockHandoffReasonTTLPromotion`. Claim-handoff omits it
-	// because the cause is implied by the endpoint.
-	Reason string
+	Reason                  string
 }
 
-// buildHandoffCompletedPayload assembles the `document_lock_handoff_completed`
-// payload that gets published on a successful ownership transfer. Centralising
-// the shape here means the three call sites (claim-handoff, hand-over, TTL
-// promotion) share one schema while keeping their existing wire shapes:
-// optional fields are emitted only when their counterpart in `opts` is set.
-func buildHandoffCompletedPayload(
+// BuildHandoffCompletedPayload assembles the `document_lock_handoff_completed`
+// payload that gets published on a successful ownership transfer.
+func BuildHandoffCompletedPayload(
 	collection, docID, newHolderSessionID string,
 	expiresAtUnix int64,
 	opts HandoffCompletedOpts,
 ) map[string]any {
 	payload := map[string]any{
-		"type":          LockEventHandoffCompleted,
-		"collection":    collection,
+		LockPayloadEventKey: LockEventHandoffCompleted,
+		"collection":        collection,
 		"docID":         docID,
 		"sessionID":     newHolderSessionID,
 		"expiresAtUnix": expiresAtUnix,

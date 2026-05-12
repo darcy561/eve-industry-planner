@@ -29,7 +29,7 @@ function startLockGrace(collection, docID) {
 }
 
 /**
- * Maps a single `/document-locks/status` (or batch row) JSON payload into Zustand document-lock scope state.
+ * Maps a single `/document-locks/lock-state` (or batch row) JSON payload into Zustand document-lock scope state.
  *
  * Lock-gone semantics: when `data.held` is false we PRESERVE the existing
  * scope's `readOnly` flag instead of forcing it to false, and arm a short

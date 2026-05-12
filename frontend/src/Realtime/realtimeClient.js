@@ -16,7 +16,7 @@ import {
 } from "./wsClientIdentity.js";
 import {
   DOCUMENT_LOCK_CUSTOM_EVENT,
-  DOCUMENT_LOCK_WS_TYPES,
+  DOCUMENT_LOCK_FRAME_TYPES,
 } from "../Functions/DocumentLock/documentLockEvents.js";
 
 /** @type {WebSocket|null} */
@@ -31,17 +31,40 @@ let manualClose = false;
 
 const PING_MS = 45_000;
 
-/** Pending `document_lock_status_batch` requests (correlate with `document_lock_status_batch_ack`). */
-const LOCK_STATUS_BATCH_WS_TIMEOUT_MS = 12_000;
-/** @type {Map<string, { resolve: (value: unknown) => void, reject: (reason?: unknown) => void, timer: ReturnType<typeof setTimeout> }>} */
-const documentLockStatusBatchPending = new Map();
+/**
+ * Normalizes doc.lock fan-out into the `eip-document-lock` detail shape.
+ * Supports flat `{ type: "document_lock", event, … }` and legacy `{ type, payload }`.
+ * @param {Record<string, unknown>} parsed
+ * @returns {Record<string, unknown>|null}
+ */
+function documentLockWireToDetail(parsed) {
+  if (parsed.payload != null && typeof parsed.payload === "object") {
+    const p = /** @type {Record<string, unknown>} */ (parsed.payload);
+    const name =
+      (typeof p.event === "string" && p.event) ||
+      (typeof p.type === "string" && p.type) ||
+      "";
+    if (!name) return null;
+    return { ...p, event: name, type: name };
+  }
+  const ev = parsed.event;
+  const name = typeof ev === "string" && ev.trim() !== "" ? ev.trim() : "";
+  if (!name) return null;
+  const { type: _outer, event: _ev, ...rest } = parsed;
+  return { ...rest, event: name, type: name };
+}
 
-function rejectAllDocumentLockStatusBatchPending(message) {
-  for (const [, pending] of documentLockStatusBatchPending) {
+/** Pending `document_lock_lock_state_batch` requests (correlate with `document_lock_lock_state_batch_ack`). */
+const LOCK_LOCK_STATE_BATCH_WS_TIMEOUT_MS = 12_000;
+/** @type {Map<string, { resolve: (value: unknown) => void, reject: (reason?: unknown) => void, timer: ReturnType<typeof setTimeout> }>} */
+const documentLockLockStateBatchPending = new Map();
+
+function rejectAllDocumentLockLockStateBatchPending(message) {
+  for (const [, pending] of documentLockLockStateBatchPending) {
     clearTimeout(pending.timer);
     pending.reject(new Error(message));
   }
-  documentLockStatusBatchPending.clear();
+  documentLockLockStateBatchPending.clear();
 }
 
 /** RFC normal closure — use when intentionally closing so the server does not log 1005 “no status”. */
@@ -308,30 +331,35 @@ export function connectRealtime(params) {
           return;
         }
       }
-      if (parsed.type === DOCUMENT_LOCK_WS_TYPES.ENVELOPE) {
-        window.dispatchEvent(
-          new CustomEvent(DOCUMENT_LOCK_CUSTOM_EVENT, {
-            detail: parsed.payload,
-          })
+      if (parsed.type === DOCUMENT_LOCK_FRAME_TYPES.CHANNEL) {
+        const detail = documentLockWireToDetail(
+          /** @type {Record<string, unknown>} */ (parsed)
         );
+        if (detail) {
+          window.dispatchEvent(
+            new CustomEvent(DOCUMENT_LOCK_CUSTOM_EVENT, {
+              detail,
+            })
+          );
+        }
         return;
       }
-      if (parsed.type === DOCUMENT_LOCK_WS_TYPES.STATUS_BATCH_ACK) {
+      if (parsed.type === DOCUMENT_LOCK_FRAME_TYPES.LOCK_STATE_BATCH_ACK) {
         const id =
           typeof parsed.requestId === "string" ? parsed.requestId : "";
         const pending = id
-          ? documentLockStatusBatchPending.get(id)
+          ? documentLockLockStateBatchPending.get(id)
           : undefined;
         if (pending) {
           clearTimeout(pending.timer);
-          documentLockStatusBatchPending.delete(id);
+          documentLockLockStateBatchPending.delete(id);
           if (parsed.ok) {
             pending.resolve(parsed);
           } else {
             const errMsg =
               typeof parsed.error === "string" && parsed.error.trim()
                 ? parsed.error
-                : "document_lock_status_batch failed";
+                : "document_lock_lock_state_batch failed";
             pending.reject(new Error(errMsg));
           }
         }
@@ -345,7 +373,7 @@ export function connectRealtime(params) {
 
   ws.addEventListener("close", () => {
     if (socket !== ws) return;
-    rejectAllDocumentLockStatusBatchPending("websocket closed");
+    rejectAllDocumentLockLockStateBatchPending("websocket closed");
     clearTimers();
     socket = null;
     clearRealtimeClientID();
@@ -371,7 +399,7 @@ export function reconnectRealtime(params) {
 }
 
 export function disconnectRealtime() {
-  rejectAllDocumentLockStatusBatchPending("realtime disconnected");
+  rejectAllDocumentLockLockStateBatchPending("realtime disconnected");
   if (resumeBootstrap) {
     resumeBootstrap.resolve({ skipBaselineSync: false });
     resumeBootstrap = null;
@@ -417,23 +445,45 @@ export function unsubscribeDocIDs(collection, docIds) {
   socket.send(JSON.stringify({ type: "unsubscribe", docIDs: scoped }));
 }
 
+/** @returns {boolean} true if the command was queued on the socket */
+export function sendDocumentLockEphemeralCommand(messageType, collection, docID) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    return false;
+  }
+  if (!messageType || !collection || !docID) {
+    return false;
+  }
+  try {
+    socket.send(
+      JSON.stringify({
+        type: messageType,
+        collection,
+        docID,
+      })
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** True when the singleton `/ws` connection is open (same-origin JWT subprotocol). */
 export function isRealtimeSocketOpen() {
   return socket !== null && socket.readyState === WebSocket.OPEN;
 }
 
 /**
- * Same lock rows as POST `/api/v1/document-locks/status-batch`, over WebSocket.
+ * Same lock rows as POST `/api/v1/document-locks/lock-state-batch`, over WebSocket.
  * Rejects when offline, on server error payload, or timeout — callers typically fall back to HTTP.
  *
  * @param {{ jobDocIDs?: string[], groupDocIDs?: string[], timeoutMs?: number }} params
  * @returns {Promise<{ jobResults: Record<string, unknown>, groupResults: Record<string, unknown> }>}
  */
-export function requestDocumentLockStatusBatchOverRealtime(params = {}) {
+export function requestDocumentLockLockStateBatchOverRealtime(params = {}) {
   const timeoutMs =
     typeof params.timeoutMs === "number" && params.timeoutMs > 0
       ? params.timeoutMs
-      : LOCK_STATUS_BATCH_WS_TIMEOUT_MS;
+      : LOCK_LOCK_STATE_BATCH_WS_TIMEOUT_MS;
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     return Promise.reject(new Error("websocket not connected"));
   }
@@ -444,12 +494,12 @@ export function requestDocumentLockStatusBatchOverRealtime(params = {}) {
   const requestId = crypto.randomUUID();
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      if (documentLockStatusBatchPending.has(requestId)) {
-        documentLockStatusBatchPending.delete(requestId);
-        reject(new Error("document_lock_status_batch timeout"));
+      if (documentLockLockStateBatchPending.has(requestId)) {
+        documentLockLockStateBatchPending.delete(requestId);
+        reject(new Error("document_lock_lock_state_batch timeout"));
       }
     }, timeoutMs);
-    documentLockStatusBatchPending.set(requestId, {
+    documentLockLockStateBatchPending.set(requestId, {
       resolve: (raw) => {
         const jobResults =
           raw?.jobResults && typeof raw.jobResults === "object"
@@ -467,7 +517,7 @@ export function requestDocumentLockStatusBatchOverRealtime(params = {}) {
     try {
       socket.send(
         JSON.stringify({
-          type: DOCUMENT_LOCK_WS_TYPES.STATUS_BATCH,
+          type: DOCUMENT_LOCK_FRAME_TYPES.LOCK_STATE_BATCH,
           requestId,
           jobDocIDs,
           groupDocIDs,
@@ -475,7 +525,7 @@ export function requestDocumentLockStatusBatchOverRealtime(params = {}) {
       );
     } catch (e) {
       clearTimeout(timer);
-      documentLockStatusBatchPending.delete(requestId);
+      documentLockLockStateBatchPending.delete(requestId);
       reject(e instanceof Error ? e : new Error(String(e)));
     }
   });

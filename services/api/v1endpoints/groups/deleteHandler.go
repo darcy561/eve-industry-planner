@@ -8,7 +8,7 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
-	"eve-industry-planner/api/v1endpoints/documentlocks"
+	"eve-industry-planner/shared/core/documentlock"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
@@ -121,7 +121,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	}
 	if clients.Redis != nil {
 		for _, gid := range resolvedIDs {
-			blocked, lerr := documentlocks.LockHeldByOther(ctx, clients.Redis, accountID, mongocore.CollectionUserJobGroups, gid, sessionID)
+			blocked, lerr := documentlock.LockHeldByOther(ctx, clients.Redis, accountID, mongocore.CollectionUserJobGroups, gid, sessionID)
 			if lerr != nil {
 				metrics.Error("lock_error")
 				logs.ErrorCtx(ctx, "failed to check group doc lock before delete", "error", lerr, "account_id", accountID, "group_id", gid)
@@ -155,7 +155,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 	if clients.Redis != nil {
 		for _, gid := range resolvedIDs {
-			_ = documentlocks.DeleteDocLock(ctx, clients.Redis, accountID, mongocore.CollectionUserJobGroups, gid)
+			_ = documentlock.DeleteDocLock(ctx, clients.Redis, accountID, mongocore.CollectionUserJobGroups, gid)
 		}
 	}
 

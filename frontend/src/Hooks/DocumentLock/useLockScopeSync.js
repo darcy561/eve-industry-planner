@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import {
-  getDocumentLockStatusBatch,
+  getDocumentLockStateBatch,
   MAX_STATUS_BATCH_DOC_IDS,
 } from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
 import { applyDocumentLockStatusFromPayload } from "../../Functions/DocumentLock/applyDocumentLockStatusFromPayload.js";
@@ -18,7 +18,7 @@ import {
 
 /**
  * Iterates the requested `(jobIDs, groupIDs)` arrays in `chunkSize`-sized
- * batches over `POST /document-locks/status-batch`, applying every row through
+ * batches over `POST /document-locks/lock-state-batch`, applying every row through
  * `applyDocumentLockStatusFromPayload`. Groups (when present) are only sent
  * with the first chunk because they are far fewer than jobs and one batch
  * always carries the entire group set.
@@ -49,7 +49,7 @@ async function syncLockScopesFromApi(jobIDs, groupIDs, isCancelled, chunkSize) {
     if (jobs.length === 0 && groups.length === 0) break;
 
     try {
-      const res = await getDocumentLockStatusBatch({
+      const res = await getDocumentLockStateBatch({
         jobDocIDs: jobs,
         groupDocIDs: groups,
       });

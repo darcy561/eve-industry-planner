@@ -35,14 +35,14 @@ func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClien
 			handleRequest(w, r, clients)
 			return
 		}
-	case path == "/api/v1/document-locks/status-batch" || path == "/api/v1/document-locks/status-batch/":
+	case path == "/api/v1/document-locks/lock-state-batch" || path == "/api/v1/document-locks/lock-state-batch/":
 		if r.Method == http.MethodPost {
-			handleStatusBatch(w, r, clients)
+			handleLockStateBatch(w, r, clients)
 			return
 		}
-	case path == "/api/v1/document-locks/status" || path == "/api/v1/document-locks/status/":
+	case path == "/api/v1/document-locks/lock-state" || path == "/api/v1/document-locks/lock-state/":
 		if r.Method == http.MethodGet {
-			handleStatus(w, r, clients)
+			handleLockState(w, r, clients)
 			return
 		}
 	case path == "/api/v1/document-locks/claim-handoff" || path == "/api/v1/document-locks/claim-handoff/":

@@ -1,26 +1,28 @@
 # Backend — document lock
 
 Authoritative lock state, transition enforcement, cascade handling and TTL
-promotion. Redis is the source of truth; the API package mediates every
-transition; JetStream is the broadcast pipe to the websocket service which
-fans out to the SPA.
+promotion live in **`services/shared/core/documentlock`**. Redis is the source
+of truth; the API HTTP package is a thin adapter; JetStream broadcasts to the
+websocket service which fans out to the SPA.
 
 Source tree:
 
 ```
+services/shared/core/documentlock/
+  deps.go, redis.go, viewer.go, status.go, payload.go, events.go
+  publish.go, notify.go, cascade.go, expiry.go
+  service.go, service_ops.go
+  *_test.go
+
 services/api/v1endpoints/documentlocks/
   router.go              HTTP route table
   request_context.go     auth + body parse preamble
-  handlers.go            acquire/extend/release/hand-over/request/status/claim-handoff/waitlist-pulse
-  status_batch.go        POST /status-batch
-  viewer_presence.go     /viewer-arrived /viewer-departed + ZSET helpers
-  lock_redis.go          Redis layout, lockRecord, promoteWaitlistHead, waitlist helpers
-  lock_json.go           shared JSON response helpers
-  events.go              event/reason constants + buildHandoffCompletedPayload
-  cascade.go             group handoff cascade decisions + driver
-  expiry_subscriber.go   Redis __keyevent@*__:expired listener
-  *_test.go              unit tests
-services/api/helper/doclock/publish.go             — PublishDocLockNotification
+  handlers.go            thin wrappers → documentlock.Service
+  lock_json.go           writeExtendJSON for /extend
+  viewer_presence.go     /viewer-arrived /viewer-departed
+
+services/api/main.go     documentlock.StartExpirySubscriber
+
 services/websocket/server/nats_doc_lock.go         — doc.lock consumer
 services/websocket/server/natslogic/locks.go       — BuildDocumentLockWire wrapper
 ```
@@ -37,29 +39,33 @@ flowchart LR
     Slice["documentLockSlice"]
   end
 
+  subgraph DL["services/shared/core/documentlock"]
+    direction TB
+    Svc["service_ops.go<br/>Acquire / Extend / …"]
+    LR["redis.go"]
+    St["status.go"]
+    Casc["cascade.go"]
+    Exp["expiry.go"]
+    Ev["events.go"]
+    Svc --> LR
+    Svc --> Casc
+    Svc --> Ev
+    Exp --> LR
+    Exp --> Casc
+    Casc --> LR
+  end
+
   subgraph API["services/api/v1endpoints/documentlocks"]
     direction TB
     R["router.go"]
     HC["request_context.go<br/>lockHandlerContextOK"]
-    H["handlers.go<br/>acquire / extend / release<br/>hand-over / request<br/>status / claim-handoff<br/>waitlist-pulse"]
-    VP["viewer_presence.go<br/>viewer-arrived<br/>viewer-departed"]
-    SB["status_batch.go<br/>POST /status-batch"]
-    Casc["cascade.go"]
-    Exp["expiry_subscriber.go"]
-    LR["lock_redis.go"]
-    Ev["events.go<br/>buildHandoffCompletedPayload"]
+    H["handlers.go"]
+    VP["viewer_presence.go"]
     R --> HC
     HC --> H
     HC --> VP
-    H --> LR
-    H --> Casc
-    H --> Ev
+    H --> Svc
     VP --> LR
-    SB --> LR
-    Exp --> LR
-    Exp --> Casc
-    Exp --> Ev
-    Casc --> LR
   end
 
   Redis[("Redis<br/>doc_lock:v2:*<br/>doc_lock_wait:v2:*<br/>doc_lock_pulse:v2:*<br/>doc_lock_viewers:v2:*")]
@@ -67,12 +73,13 @@ flowchart LR
   WS["services/websocket<br/>nats_doc_lock.go<br/>BuildDocumentLockWire"]
 
   SPA -->|"POST/GET /api/v1/document-locks/*"| R
+  H -->|"StatusBatchResults"| St
   LR <--> Redis
   Exp <-->|"PSUBSCRIBE __keyevent@*__:expired"| Redis
-  H -->|"publishLockEvent"| JS
-  VP -->|"publishLockEvent"| JS
-  Casc -->|"publishLockEvent"| JS
-  Exp -->|"publishLockEvent"| JS
+  Svc -->|"PublishLockEvent"| JS
+  VP -->|"PublishLockEvent"| JS
+  Casc -->|"PublishLockEvent"| JS
+  Exp -->|"PublishLockEvent"| JS
   JS --> WS
   WS -->|"{type:document_lock,payload}"| SPA
 ```
@@ -100,22 +107,22 @@ every mutating handler bails immediately if the helper writes a 4xx/5xx.
 
 ## Redis key layout
 
-`lock_redis.go` declares the prefixes; `keyPartSep = "\x1e"` keeps the parts
+`redis.go` declares the prefixes; `keyPartSep = "\x1e"` keeps the parts
 unambiguous (Mongo collection names and doc ids cannot contain this byte).
 
 | Key | Type | TTL | Purpose |
 |---|---|---|---|
-| `doc_lock:v1:{collection}:{docID}` | string (JSON `lockRecord`) | `DefaultLockTTL` | Legacy layout, still read on `GET` fallback. New writes target v2. |
-| `doc_lock:v2:{accountID}\x1e{collection}\x1e{docID}` | string (JSON `lockRecord`) | `DefaultLockTTL` (5 min) | Current canonical lock row. v2 includes the accountID so the expiry subscriber can route notifications. |
+| `doc_lock:v1:{collection}:{docID}` | string (JSON `LockRecord`) | `DefaultLockTTL` | Legacy layout, still read on `GET` fallback. New writes target v2. |
+| `doc_lock:v2:{accountID}\x1e{collection}\x1e{docID}` | string (JSON `LockRecord`) | `DefaultLockTTL` (5 min) | Current canonical lock row. v2 includes the accountID so the expiry subscriber can route notifications. |
 | `doc_lock_wait:v2:{accountID}\x1e{collection}\x1e{docID}` | list (`sessionID` strings) | — (managed by LREM) | Request queue. RPUSH on `/request`, peeked alive and LREM on grant. |
 | `doc_lock_pulse:v2:{accountID}\x1e{collection}\x1e{docID}\x1e{sessionID}` | string `"1"` | `WaitlistPulseTTL` (2 min) | Liveness check for a waitlist entry. Set by `/request`, refreshed by `/waitlist-pulse` (client) and `peekWaitlistHeadAlive` filters stale heads. |
 | `doc_lock_viewers:v2:{accountID}\x1e{collection}\x1e{docID}` | sorted set (member=`sessionID`, score=`now+TTL`) | per-member score sweep | Passive viewer registry. ZADD on `/viewer-arrived`, ZREM on `/viewer-departed`, `pruneAndCountViewers` ZREMRANGEBYSCORE on every `/status` read. |
 
-### `lockRecord`
+### `LockRecord`
 
 ```go
-// services/api/v1endpoints/documentlocks/lock_redis.go
-type lockRecord struct {
+// services/shared/core/documentlock/redis.go
+type LockRecord struct {
     HolderSessionID      string `json:"holderSessionID"`
     AccountID            string `json:"accountID"`
     ExpiresAtUnix        int64  `json:"expiresAtUnix"`
@@ -125,7 +132,7 @@ type lockRecord struct {
 }
 ```
 
-`getLock` defensively re-deletes the row if it reads a record with
+`GetLock` defensively re-deletes the row if it reads a record with
 `ExpiresAtUnix` already in the past (covers cases where Redis hasn't yet
 processed the TTL).
 
@@ -199,7 +206,7 @@ on the server.
 
 ## Handoff (`promoteWaitlistHead`)
 
-`lock_redis.go::promoteWaitlistHead` is the shared atomic transfer used by
+`redis.go::PromoteWaitlistHead` is the shared atomic transfer used by
 `/hand-over` (interactive holder accept) and the expiry subscriber. It:
 
 1. Peeks the alive waitlist head (`peekWaitlistHeadAlive` filters stale heads
@@ -212,14 +219,14 @@ on the server.
    whether to plain-`/release` (handover) or publish `expired` (subscriber).
 
 The returned record is what callers feed to `buildHandoffCompletedPayload` so
-all three publish sites emit a uniform shape (see [events.go](#events--reasons)).
+all three publish sites emit a uniform shape (see [events.go](#events--reasons) in `documentlock`).
 
 ## Cascade
 
 ```mermaid
 flowchart LR
   GroupHandoff["group lock rotates<br/>(handoff or TTL promotion)"]
-  CD["cascadeReleaseDependentJobLocks<br/>(driver in cascade.go)"]
+  CD["cascadeReleaseDependentJobLocks<br/>(driver in documentlock/cascade.go)"]
   Decide["decide(rec) → (release?, attribTo)"]
   PerJob["For each jobID in group.IncludedJobIDs"]
   Del["deleteLock"]
@@ -233,7 +240,7 @@ flowchart LR
   Decide -->|"release=false"| PerJob
 ```
 
-Two predicates live in `cascade.go`:
+Two predicates live in `documentlock/cascade.go`:
 
 - **`decideHandoffCascadeRelease(rec, oldHolderSessionID)`** — used by
   `/hand-over` and `/claim-handoff`. Releases per-job locks held by the *old
@@ -256,7 +263,7 @@ reconciles instead of being immediate.
 
 ## TTL expiry subscriber
 
-`expiry_subscriber.go` runs one goroutine per API replica:
+`expiry.go` runs one goroutine per API replica:
 
 ```go
 pubsub := rdb.PSubscribe(ctx, "__keyevent@*__:expired")
@@ -326,7 +333,7 @@ docID)` builds the row returned by both `/status` and each entry in
 Frontend mapping:
 `frontend/src/Functions/DocumentLock/applyDocumentLockStatusFromPayload.js`.
 
-`/status-batch` (`status_batch.go::StatusBatchResults`) iterates both arrays
+`/status-batch` (`documentlock/status.go::StatusBatchResults`) iterates both arrays
 and produces:
 
 ```json
@@ -340,7 +347,7 @@ cases use sentinel errors (`ErrStatusBatchEmpty`, `ErrStatusBatchTooMany`,
 
 ## Events / reasons
 
-`events.go` is the single declaration point. The websocket service does not
+`documentlock/events.go` is the single declaration point. The websocket service does not
 add or rename types; it only wraps the payload in
 `{type:document_lock,payload}` (see `BuildDocumentLockWire`).
 
@@ -357,10 +364,10 @@ LockViewerEventLeft       = "document_lock_viewer_left"
 
 // reasons (string field on the event):
 LockHandoffReasonHolderHandover = "holder_handover"
-LockHandoffReasonTTLPromotion   = "ttl_promotion"      // expiry_subscriber.go
+LockHandoffReasonTTLPromotion   = "ttl_promotion"      // documentlock/expiry.go
 LockReleaseReasonHandOverNoQueue   = "hand_over_no_queue"
-LockReleaseReasonGroupHandoffCascade = "group_handoff_cascade"  // cascade.go
-LockExpiryReasonTTL = "ttl"                            // expiry_subscriber.go
+LockReleaseReasonGroupHandoffCascade = "group_handoff_cascade"  // documentlock/cascade.go
+LockExpiryReasonTTL = "ttl"                            // documentlock/expiry.go
 ```
 
 `buildHandoffCompletedPayload(collection, docID, newHolderSessionID,
@@ -397,7 +404,7 @@ connected tab for that account.
 | Test file | Covers |
 |---|---|
 | `events_test.go` | `buildHandoffCompletedPayload` shape for the three call-site configurations (claim-handoff / hand-over / TTL promotion). |
-| `lock_redis_test.go` | `ParseExpiredLockKey`, `setLock`/`getLock`/`deleteLock` round-trips, waitlist helpers, pulse-driven alive-head filter, `promoteWaitlistHead`, `LockHeldByOther`. Uses `miniredis`. |
+| `documentlock/redis_test.go` | `ParseExpiredLockKey`, `SetLock`/`GetLock`/`DeleteLock` round-trips, waitlist helpers, pulse-driven alive-head filter, `PromoteWaitlistHead`, `LockHeldByOther`. Uses `miniredis`. |
 | `cascade_test.go` | `decideHandoffCascadeRelease` and `decideStaleAfterGrantRelease` predicate tables. |
 
 `miniredis` is used for any test touching key layout / TTL semantics so the
@@ -448,7 +455,7 @@ func handleNewThing(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 4. **Publish through `publishLockEvent`.** Any new event payload should
    carry `type`, `collection`, `docID` at minimum. If it's a handoff
    variation, use `buildHandoffCompletedPayload`. If it's a new
-   `type`/`reason`, add the constant to `events.go` *and*
+   `type`/`reason`, add the constant to `documentlock/events.go` *and*
    `frontend/src/Functions/DocumentLock/documentLockEvents.js` in the same
    change.
 5. **If it transfers group ownership**, call `releaseDependentJobLocksOnGroupHandoff`

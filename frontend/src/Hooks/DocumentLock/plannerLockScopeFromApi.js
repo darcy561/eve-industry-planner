@@ -1,4 +1,4 @@
-import { getDocumentLockStatus } from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
+import { getDocumentLockState } from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
 import { applyDocumentLockStatusFromPayload } from "../../Functions/DocumentLock/applyDocumentLockStatusFromPayload.js";
 import {
   USER_JOBS_COLLECTION,
@@ -15,7 +15,7 @@ import {
 export async function patchPlannerJobLockScopeFromApi(jobID) {
   if (!jobID) return;
   try {
-    const res = await getDocumentLockStatus(USER_JOBS_COLLECTION, jobID);
+    const res = await getDocumentLockState(USER_JOBS_COLLECTION, jobID);
     if (!res.ok) return;
     const data = await res.json().catch(() => ({}));
     applyDocumentLockStatusFromPayload(USER_JOBS_COLLECTION, jobID, data);
@@ -32,7 +32,7 @@ export async function patchPlannerJobLockScopeFromApi(jobID) {
 export async function patchPlannerGroupLockScopeFromApi(groupID) {
   if (!groupID) return;
   try {
-    const res = await getDocumentLockStatus(
+    const res = await getDocumentLockState(
       USER_JOB_GROUPS_COLLECTION,
       groupID
     );

@@ -1,20 +1,22 @@
 /**
- * Document-lock event-type constants.
+ * Document-lock wire naming (aligned with `shared/core/documentlock`):
  *
- * Three layers use these strings and have to agree exactly:
- *  - Backend NATS publishers (`services/api/v1endpoints/documentlocks/*`).
- *  - WebSocket fan-out wrapping each inner payload as `{ type: "document_lock", payload }`.
- *  - This frontend, which dispatches the inner `payload.type` onto the
- *    `eip-document-lock` CustomEvent and branches on it inside `useDocumentLock`.
+ * - **Domain events** — `DOCUMENT_LOCK_DOMAIN_EVENTS` string values. They are
+ *   stored under JSON key {@link DOCUMENT_LOCK_DOMAIN_EVENT_KEY} (`"event"`) on
+ *   JetStream `doc.lock.*` bodies and on WebSocket fan-out frames, and appear on
+ *   `eip-document-lock` CustomEvent `detail` (with `detail.type` set as an alias).
+ * - **Frame types** — `DOCUMENT_LOCK_FRAME_TYPES` string values for the WebSocket
+ *   JSON **`type`** field only: the doc-lock channel tag (`CHANNEL`), client→server
+ *   commands, and server acks. These are not domain events.
  *
- * Keep the values in sync with `services/api/v1endpoints/documentlocks/events.go`.
+ * Keep domain event values in sync with `services/shared/core/documentlock/events.go`.
  */
 
 /**
- * Inner-payload `type` strings dispatched onto the `eip-document-lock`
- * CustomEvent.
+ * Domain event name strings (`document_lock_*`) for JetStream `event`, WS fan-out
+ * `event`, and CustomEvent `detail.event` / `detail.type`.
  */
-export const DOCUMENT_LOCK_EVENTS = Object.freeze({
+export const DOCUMENT_LOCK_DOMAIN_EVENTS = Object.freeze({
   ACQUIRED: "document_lock_acquired",
   RELEASED: "document_lock_released",
   REQUESTED: "document_lock_requested",
@@ -25,17 +27,36 @@ export const DOCUMENT_LOCK_EVENTS = Object.freeze({
   VIEWER_LEFT: "document_lock_viewer_left",
 });
 
+/** JSON field name for domain events (`event`), matching `documentlock.LockPayloadEventKey`. */
+export const DOCUMENT_LOCK_DOMAIN_EVENT_KEY = "event";
+
 /**
- * Outer WebSocket envelope `type` strings (used by `realtimeClient.js`).
+ * WebSocket JSON **`type`** field values (frame discriminators, not domain events).
  */
-export const DOCUMENT_LOCK_WS_TYPES = Object.freeze({
-  /** Inner-payload-bearing frame (server → client). */
+export const DOCUMENT_LOCK_FRAME_TYPES = Object.freeze({
+  /** Server → client doc.lock fan-out (`event` + fields); legacy `{ payload }` still accepted. */
+  CHANNEL: "document_lock",
+  /**
+   * @deprecated Same as {@link DOCUMENT_LOCK_FRAME_TYPES.CHANNEL}. Prefer `CHANNEL`.
+   */
   ENVELOPE: "document_lock",
-  /** Frontend → server status batch request (round-trip). */
-  STATUS_BATCH: "document_lock_status_batch",
-  /** Server → frontend ack for `STATUS_BATCH`. */
-  STATUS_BATCH_ACK: "document_lock_status_batch_ack",
+  /** Client → server lock-state batch (HTTP backup: POST `/lock-state-batch`). */
+  LOCK_STATE_BATCH: "document_lock_lock_state_batch",
+  /** Server → client ack for `LOCK_STATE_BATCH`. */
+  LOCK_STATE_BATCH_ACK: "document_lock_lock_state_batch_ack",
+  /** Client → server waitlist pulse (HTTP backup: POST `/waitlist-pulse`). */
+  WAITLIST_PULSE: "document_lock_waitlist_pulse",
+  /** Client → server viewer arrived (HTTP backup: POST `/viewer-arrived`). */
+  VIEWER_ARRIVED: "document_lock_viewer_arrived",
+  /** Client → server viewer departed (HTTP backup: POST `/viewer-departed`). */
+  VIEWER_DEPARTED: "document_lock_viewer_departed",
 });
+
+/** @deprecated Use {@link DOCUMENT_LOCK_DOMAIN_EVENTS}. */
+export const DOCUMENT_LOCK_EVENTS = DOCUMENT_LOCK_DOMAIN_EVENTS;
+
+/** @deprecated Use {@link DOCUMENT_LOCK_FRAME_TYPES}. */
+export const DOCUMENT_LOCK_WS_TYPES = DOCUMENT_LOCK_FRAME_TYPES;
 
 /**
  * `reason` fields on `document_lock_released` / `document_lock_expired` /
@@ -65,6 +86,6 @@ export const DOCUMENT_LOCK_HANDOFF_REASONS = Object.freeze({
 });
 
 /**
- * Browser CustomEvent name carrying inner document-lock payloads.
+ * Browser CustomEvent name carrying document-lock domain payloads.
  */
 export const DOCUMENT_LOCK_CUSTOM_EVENT = "eip-document-lock";

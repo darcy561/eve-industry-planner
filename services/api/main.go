@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"eve-industry-planner/api/v1endpoints/documentlocks"
+	"eve-industry-planner/shared/core/documentlock"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry"
@@ -37,7 +37,7 @@ func main() {
 	apimetrics.RegisterSSORefreshDistinctGauges(clients.Redis)
 	apimetrics.RegisterAuthSessionDistinctGauges(clients.Redis)
 
-	documentlocks.StartExpirySubscriber(ctx, clients)
+	documentlock.StartExpirySubscriber(ctx, documentlock.DepsFromServiceClients(clients))
 
 	logs.DebugCtx(ctx, "api service running")
 

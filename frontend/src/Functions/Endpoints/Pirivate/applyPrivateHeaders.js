@@ -57,7 +57,7 @@ export const PRIVATE_AUTH_TOKEN_UNAVAILABLE =
  * string of an object containing `arrayKey` as an array; it is split into chunks of at most `size`.
  * Omit `batch` or use `size` &lt; 1 for a single request. Chunks run with `Promise.allSettled` in parallel.
  * Typical sizes (match Go handlers): job-documents PUT 100, POST/DELETE IDs 200; groups PUT 100,
- * DELETE group IDs 200; archived-jobs PUT 100. Document-lock `status-batch` uses two arrays and is
+ * DELETE group IDs 200; archived-jobs PUT 100. Document-lock `lock-state-batch` uses two arrays and is
  * chunked in {@link documentLockClient.js} (500 per list). Citadel names already debatches in-module.
  *
  * @module applyPrivateHeaders

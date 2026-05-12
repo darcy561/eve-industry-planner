@@ -3,7 +3,7 @@ import useUsersStore from "../../Zustand/usersStore.js";
 import {
   acquireDocumentLock,
   extendDocumentLock,
-  getDocumentLockStatus,
+  getDocumentLockState,
   postDocumentLockViewerArrived,
   postDocumentLockViewerDeparted,
   releaseDocumentLock,
@@ -18,7 +18,7 @@ import { selectScopedDocumentLock } from "../../Functions/DocumentLock/documentL
 import { docLockScopeKey } from "../../Functions/DocumentLock/documentLockScope.js";
 import {
   DOCUMENT_LOCK_CUSTOM_EVENT,
-  DOCUMENT_LOCK_EVENTS,
+  DOCUMENT_LOCK_DOMAIN_EVENTS,
   DOCUMENT_LOCK_RELEASE_REASONS,
 } from "../../Functions/DocumentLock/documentLockEvents.js";
 import {
@@ -231,7 +231,7 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
 
       const mySessionID = useUsersStore.getState()?.account?.sessionID;
       try {
-        const res = await getDocumentLockStatus(collection, docID);
+        const res = await getDocumentLockState(collection, docID);
         if (!res.ok) return;
         const data = await res.json().catch(() => ({}));
 
@@ -505,7 +505,10 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
    * our presence to the server — the holder receives `document_lock_viewer_joined`
    * and surfaces their contention affordance. Effect cleanup runs whenever we
    * exit readOnly (became holder / lock released / doc change / unmount) and
-   * sends `viewer-departed` so the holder's icon clears promptly. `pagehide`
+   * sends `viewer-departed` so the holder's icon clears promptly — except when
+   * we became the lock holder (same session): then we skip depart so the former
+   * holder does not get a misleading `viewer_left` while we are the new editor.
+   * `pagehide`
    * adds a `sendBeacon` fallback for tab close where React cleanup wouldn't get
    * a chance to issue a normal fetch. The server idempotently ZADD/ZREMs, so
    * occasional duplicates (transient readOnly oscillations during a handoff)
@@ -520,6 +523,14 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
     window.addEventListener("pagehide", onPageHide);
     return () => {
       window.removeEventListener("pagehide", onPageHide);
+      const scope = selectScopedDocumentLock(
+        useUsersStore.getState(),
+        collection,
+        docID
+      );
+      if (scope.lockHeld && !scope.readOnly) {
+        return;
+      }
       void postDocumentLockViewerDeparted(collection, docID).catch(() => {});
     };
   }, [enabled, collection, docID, readOnly]);
@@ -589,8 +600,8 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
       if (!payload || typeof payload !== "object") return;
       if (payload.collection !== collection || payload.docID !== docID) return;
 
-      const t = payload.type;
-      if (t === DOCUMENT_LOCK_EVENTS.REQUESTED) {
+      const t = payload.event ?? payload.type;
+      if (t === DOCUMENT_LOCK_DOMAIN_EVENTS.REQUESTED) {
         const mySessionID = useUsersStore.getState()?.account?.sessionID;
         if (
           heldRef.current &&
@@ -606,14 +617,14 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
         return;
       }
 
-      if (t === DOCUMENT_LOCK_EVENTS.EXPIRED) {
+      if (t === DOCUMENT_LOCK_DOMAIN_EVENTS.EXPIRED) {
         // Grace timer (if started by the resync) is the right state to leave
         // in place — it'll auto-cancel below when an acquired/handoff event
         // confirms the new holder.
         void syncLockFromServer();
         return;
       }
-      if (t === DOCUMENT_LOCK_EVENTS.HANDOFF_PROBE) {
+      if (t === DOCUMENT_LOCK_DOMAIN_EVENTS.HANDOFF_PROBE) {
         const mySessionID = useUsersStore.getState()?.account?.sessionID;
         const target =
           typeof payload.probeTargetSessionID === "string"
@@ -626,14 +637,14 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
         }
         return;
       }
-      if (t === DOCUMENT_LOCK_EVENTS.HANDOFF_COMPLETED) {
+      if (t === DOCUMENT_LOCK_DOMAIN_EVENTS.HANDOFF_COMPLETED) {
         // Definitive new holder — kill any pending readOnly grace; the sync
         // below will install the new holder's expiry on viewer scopes.
         cancelReadOnlyGrace();
         void syncLockFromServer();
         return;
       }
-      if (t === DOCUMENT_LOCK_EVENTS.RELEASED) {
+      if (t === DOCUMENT_LOCK_DOMAIN_EVENTS.RELEASED) {
         cancelReadOnlyGrace();
         /**
          * Server-side group handoff cascade evicted our per-job lock so the new group
@@ -671,7 +682,7 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
         heldRef.current = false;
         return;
       }
-      if (t === DOCUMENT_LOCK_EVENTS.ACQUIRED) {
+      if (t === DOCUMENT_LOCK_DOMAIN_EVENTS.ACQUIRED) {
         // Confirmed new holder (could be us, could be the former holder
         // reacquiring after a TTL blip). Cancel any pending grace; sync will
         // install lockHeld:true or readOnly:true with a real expiry.
@@ -680,8 +691,8 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
         return;
       }
       if (
-        t === DOCUMENT_LOCK_EVENTS.VIEWER_JOINED ||
-        t === DOCUMENT_LOCK_EVENTS.VIEWER_LEFT
+        t === DOCUMENT_LOCK_DOMAIN_EVENTS.VIEWER_JOINED ||
+        t === DOCUMENT_LOCK_DOMAIN_EVENTS.VIEWER_LEFT
       ) {
         const mySessionID = useUsersStore.getState()?.account?.sessionID;
         // Our own join/leave already drove the local state via the
@@ -694,7 +705,7 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
         );
         const prev = typeof cur.viewerCount === "number" ? cur.viewerCount : 0;
         const next =
-          t === DOCUMENT_LOCK_EVENTS.VIEWER_JOINED
+          t === DOCUMENT_LOCK_DOMAIN_EVENTS.VIEWER_JOINED
             ? prev + 1
             : Math.max(0, prev - 1);
         patch({ viewerCount: next });
