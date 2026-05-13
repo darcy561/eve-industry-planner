@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/logs"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -23,43 +22,24 @@ var (
 )
 
 // StatusPayloadForDoc builds one /lock-state row (same shape as HTTP lock-state-batch values).
+//
+// This is a thin wrapper over `statusBatchFetch` so the single-doc and
+// batch paths share one pipelined Redis read implementation.
 func StatusPayloadForDoc(ctx context.Context, rdb *redis.Client, accountID, collection, docID string) (map[string]any, error) {
-	rec, err := GetLock(ctx, rdb, accountID, collection, docID)
+	results, err := statusBatchFetch(ctx, rdb, accountID, []statusDocRef{{Collection: collection, DocID: docID}})
 	if err != nil {
 		return nil, err
 	}
-	viewerCount, vcErr := PruneAndCountViewers(ctx, rdb, accountID, collection, docID)
-	if vcErr != nil {
-		logs.WarnCtx(ctx, "doc lock viewer count failed", "error", vcErr)
+	if len(results) == 0 {
+		return map[string]any{"held": false}, nil
 	}
-	if rec == nil {
-		payload := map[string]any{"held": false}
-		if vcErr == nil {
-			payload["viewerCount"] = viewerCount
-		}
-		return payload, nil
-	}
-	payload := LockPayload(rec.ExpiresAtUnix)
-	payload["held"] = true
-	payload["holderSessionID"] = rec.HolderSessionID
-	payload["extendCount"] = rec.ExtendCount
-	if vcErr == nil {
-		payload["viewerCount"] = viewerCount
-	}
-	wl, err := WaitlistLen(ctx, rdb, accountID, collection, docID)
-	if err != nil {
-		logs.WarnCtx(ctx, "doc lock waitlist len failed", "error", err)
-	} else {
-		payload["waitlistLen"] = wl
-	}
-	if rec.ProbeTargetSessionID != "" {
-		payload["probeTargetSessionID"] = rec.ProbeTargetSessionID
-		payload["probeExpiresAtUnix"] = rec.ProbeExpiresAtUnix
-	}
-	return payload, nil
+	return results[0], nil
 }
 
 // StatusBatchResults builds jobResults and groupResults maps (same payload as POST /document-locks/lock-state-batch).
+//
+// All Redis reads for the entire batch run inside two pipelines (one per
+// collection bucket) so the round-trip cost is O(1) in the batch size.
 func StatusBatchResults(ctx context.Context, rdb *redis.Client, accountID string, jobDocIDs, groupDocIDs []string) (jobResults map[string]any, groupResults map[string]any, err error) {
 	if rdb == nil {
 		return nil, nil, ErrLocksUnavailable
@@ -71,27 +51,51 @@ func StatusBatchResults(ctx context.Context, rdb *redis.Client, accountID string
 		return nil, nil, ErrStatusBatchTooMany
 	}
 
-	jobResults = make(map[string]any, len(jobDocIDs))
-	for _, docID := range jobDocIDs {
-		if docID == "" {
-			continue
-		}
-		payload, e := StatusPayloadForDoc(ctx, rdb, accountID, mongocore.CollectionUserJobDocuments, docID)
-		if e != nil {
-			return nil, nil, e
-		}
-		jobResults[docID] = payload
+	jobResults, err = pipelinedStatusForCollection(ctx, rdb, accountID, mongocore.CollectionUserJobDocuments, jobDocIDs)
+	if err != nil {
+		return nil, nil, err
 	}
-	groupResults = make(map[string]any, len(groupDocIDs))
-	for _, docID := range groupDocIDs {
-		if docID == "" {
-			continue
-		}
-		payload, e := StatusPayloadForDoc(ctx, rdb, accountID, mongocore.CollectionUserJobGroups, docID)
-		if e != nil {
-			return nil, nil, e
-		}
-		groupResults[docID] = payload
+	groupResults, err = pipelinedStatusForCollection(ctx, rdb, accountID, mongocore.CollectionUserJobGroups, groupDocIDs)
+	if err != nil {
+		return nil, nil, err
 	}
 	return jobResults, groupResults, nil
+}
+
+// pipelinedStatusForCollection runs one `statusBatchFetch` for the given
+// collection bucket and rebuilds the docID→payload map the callers expect.
+// Empty / blank doc IDs are filtered before the pipeline so they don't
+// occupy slots in the response.
+func pipelinedStatusForCollection(
+	ctx context.Context,
+	rdb *redis.Client,
+	accountID, collection string,
+	docIDs []string,
+) (map[string]any, error) {
+	out := make(map[string]any, len(docIDs))
+	if len(docIDs) == 0 {
+		return out, nil
+	}
+
+	refs := make([]statusDocRef, 0, len(docIDs))
+	keep := make([]string, 0, len(docIDs))
+	for _, docID := range docIDs {
+		if docID == "" {
+			continue
+		}
+		refs = append(refs, statusDocRef{Collection: collection, DocID: docID})
+		keep = append(keep, docID)
+	}
+	if len(refs) == 0 {
+		return out, nil
+	}
+
+	payloads, err := statusBatchFetch(ctx, rdb, accountID, refs)
+	if err != nil {
+		return nil, err
+	}
+	for i, docID := range keep {
+		out[docID] = payloads[i]
+	}
+	return out, nil
 }

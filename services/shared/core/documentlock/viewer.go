@@ -12,7 +12,7 @@ import (
 // before it's evicted by PruneAndCountViewers.
 const ViewerPresenceTTL = 5 * time.Minute
 
-const viewerPresencePrefix = "doc_lock_viewers:v2:"
+const viewerPresencePrefix = "doc_lock_viewers:"
 
 func viewerPresenceKey(accountID, collection, docID string) string {
 	return viewerPresencePrefix + accountID + KeyPartSep + collection + KeyPartSep + docID

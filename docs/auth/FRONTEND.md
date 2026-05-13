@@ -247,8 +247,8 @@ The effect depends only on `[isLoggedIn, accountID]`. Rotating the planner `sess
 ### 6.2 `realtimeClient.js` essentials
 
 - Singleton WebSocket to `wss://<host>/ws` (or `ws://` on non-https). No query string; the browser attaches `eip_session` on the upgrade.
-- On `open`: reads `sessionIdForWs = getSessionIDFromStoreOrToken()`. Compares to `lastSuccessfulOpenToken`. If the session id changed (or `forceBaselineResync` is set), runs `syncAccountDocumentsFromServer()` + `fetchPlannerJobDocumentsFromApi()` after connection.
-- **Session resume**: on effect teardown the hook calls `stashRealtimeSessionResumeHint({ accountId, clientId })`. On the next `connectRealtime`, the client sends `{ type: "session_resume", previousClientID }` immediately after open and races a 400ms timeout against the server's `resume_ack` to decide whether to skip baseline sync.
+- On `open`: reads `sessionIdForWs = getSessionIDFromStore()`. Compares to `lastSuccessfulOpenSessionId`. Runs `syncAccountDocumentsFromServer()` when `sessionID` changed vs the last successful open, or when `session_resume` was sent but `resume_ack` did not set `skipBaselineSync`. Refetches planner job documents when `sessionID` changed and this is not the first open.
+- **Session resume**: on effect teardown the hook calls `stashRealtimeSessionResumeHint()` (no-op if already logged out). On the next `connectRealtime`, the client sends `{ type: "session_resume", previousClientID }` immediately after open and races a 400ms timeout against the server's `resume_ack`. Baseline singleton GETs also follow `sessionID` change vs the last successful open (see `realtimeClient.js`).
 - **Ping**: every `PING_MS = 45_000`ms.
 - **Reconnect**: exponential backoff `WS_RECONNECT_BASE_MS = 750` capped at `WS_RECONNECT_MAX_MS = 20_000`. `WS_SESSION_HANDOFF_MS = 25_000` matches the Go server's resume window.
 

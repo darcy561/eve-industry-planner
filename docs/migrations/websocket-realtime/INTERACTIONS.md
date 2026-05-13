@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-05-13 — SPA: remove dead realtime / group hooks
+
+- **Request / context:** Account-scoped websocket delivery makes prior “re-subscribe after group persist” paths no-ops; several exports were unused.
+- **Decision:** Delete `frontend/src/Realtime/syncJobGroupWebSocketSubscriptions.js`; remove dynamic imports from [`groupManagement.js`](../../../frontend/src/Zustand/jobsSlice/groupManagement.js) and [`handlers/userJobGroupsDocument.js`](../../../frontend/src/Realtime/handlers/userJobGroupsDocument.js). Drop **`replaceGroupArray`**’s unused **`skipRealtimeResync`** option. Remove empty **`sendBaselineSubscriptionsForOpen`** and unused **`reconnectRealtime`** from [`realtimeClient.js`](../../../frontend/src/Realtime/realtimeClient.js).
+- **Docs:** Session/cookie realtime behavior remains in [`docs/auth/FRONTEND.md`](../../auth/FRONTEND.md) §6.2 and [`IMPLEMENTATION.md`](./IMPLEMENTATION.md) (architecture + frontend table); this entry records the cleanup (no separate feature doc named the removed module).
+- **Links:** (none)
+
+---
+
 ## 2026-04-22 — Org-scoped realtime: `scopes`, indexes, `upgrade_scopes`, JWT `alliances`
 
 - **Request / context:** Implement alliance/corporation routing with downward **`scopes`**, progressive pools (account-first connect), reverse indexes per replica, and session resume / Redis handoff for upgraded scopes.

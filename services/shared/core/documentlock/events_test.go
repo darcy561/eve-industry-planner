@@ -1,6 +1,10 @@
 package documentlock
 
-import "testing"
+import (
+	"testing"
+
+	mongocore "eve-industry-planner/shared/core/mongo"
+)
 
 func TestBuildHandoffCompletedPayload(t *testing.T) {
 	t.Parallel()
@@ -72,3 +76,45 @@ func TestBuildHandoffCompletedPayload(t *testing.T) {
 		}
 	})
 }
+
+func TestBuildGroupCascadePayload(t *testing.T) {
+	t.Parallel()
+
+	releases := []CascadeRelease{
+		{JobID: "job-a", EvictedSessionID: "sess-old"},
+		{JobID: "job-b", EvictedSessionID: "sess-old"},
+	}
+	p := BuildGroupCascadePayload(
+		mongocore.CollectionUserJobGroups,
+		"group-1",
+		mongocore.CollectionUserJobDocuments,
+		releases,
+	)
+
+	if p[LockPayloadEventKey] != LockEventGroupCascade {
+		t.Fatalf("expected event=%s, got %v", LockEventGroupCascade, p[LockPayloadEventKey])
+	}
+	if p["groupCollection"] != mongocore.CollectionUserJobGroups {
+		t.Fatalf("groupCollection: got %v", p["groupCollection"])
+	}
+	if p["groupID"] != "group-1" {
+		t.Fatalf("groupID: got %v", p["groupID"])
+	}
+	if p["collection"] != mongocore.CollectionUserJobDocuments {
+		t.Fatalf("collection: got %v", p["collection"])
+	}
+	if p["reason"] != LockReleaseReasonGroupHandoffCascade {
+		t.Fatalf("reason: got %v", p["reason"])
+	}
+	items, _ := p["releases"].([]map[string]any)
+	if len(items) != 2 {
+		t.Fatalf("releases: want 2 entries, got %d (%v)", len(items), p["releases"])
+	}
+	if items[0]["docID"] != "job-a" || items[0]["sessionID"] != "sess-old" {
+		t.Fatalf("releases[0]: got %v", items[0])
+	}
+	if items[1]["docID"] != "job-b" || items[1]["sessionID"] != "sess-old" {
+		t.Fatalf("releases[1]: got %v", items[1])
+	}
+}
+

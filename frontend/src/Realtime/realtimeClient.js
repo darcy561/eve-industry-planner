@@ -3,7 +3,7 @@
  * Does not live in Zustand — connect/disconnect are explicit from auth lifecycle.
  */
 
-import { getSessionIDFromStoreOrToken } from "../Functions/Endpoints/Pirivate/applyPrivateHeaders.js";
+import { getSessionIDFromStore } from "../Functions/Endpoints/Pirivate/applyPrivateHeaders.js";
 import { fetchPlannerJobDocumentsFromApi } from "../Functions/Endpoints/Pirivate/jobDocuments.js";
 import { applyRemoteMessage } from "./applyRemoteMessage.js";
 import { syncAccountDocumentsFromServer } from "./resyncRealtimeDocumentsFromServer.js";
@@ -33,20 +33,12 @@ const PING_MS = 45_000;
 
 /**
  * Normalizes doc.lock fan-out into the `eip-document-lock` detail shape.
- * Supports flat `{ type: "document_lock", event, … }` and legacy `{ type, payload }`.
+ * The server always emits the flat envelope `{ type: "document_lock", event, …fields }`
+ * (see `services/websocket/server/natslogic/locks.go::BuildDocumentLockWire`).
  * @param {Record<string, unknown>} parsed
  * @returns {Record<string, unknown>|null}
  */
 function documentLockWireToDetail(parsed) {
-  if (parsed.payload != null && typeof parsed.payload === "object") {
-    const p = /** @type {Record<string, unknown>} */ (parsed.payload);
-    const name =
-      (typeof p.event === "string" && p.event) ||
-      (typeof p.type === "string" && p.type) ||
-      "";
-    if (!name) return null;
-    return { ...p, event: name, type: name };
-  }
   const ev = parsed.event;
   const name = typeof ev === "string" && ev.trim() !== "" ? ev.trim() : "";
   if (!name) return null;
@@ -87,10 +79,11 @@ export const WS_SESSION_HANDOFF_MS =
 
 let reconnectAttempt = 0;
 
-/** Transient gate used while session identity is being refreshed/replaced. */
-let haltedForExpiredToken = false;
-/** Last access token string we successfully opened on (for rotation + resync detection). */
-let lastSuccessfulOpenToken = null;
+/**
+ * Last planner `sessionID` from the client store at the last successful `open` (rotation / relog
+ * detection — compared to {@link getSessionIDFromStore} on each open).
+ */
+let lastSuccessfulOpenSessionId = null;
 
 /** One-shot hint for session-identity rotation: previous server client_id before intentional disconnect. */
 /** @type {{ accountId: string, clientId: string } | null} */
@@ -154,22 +147,14 @@ function scheduleReconnect(connectFn) {
 /**
  * Account-scoped realtime: the server fans out all `accountID`-tagged doc updates after session upgrade.
  * Optional explicit `subscribe` messages are only for escape-hatch doc ids (see `subscribeDocIDs`).
- */
-function sendBaselineSubscriptionsForOpen(_accountId, _attemptedSessionResume, _resumeAck) {
-  /* intentionally empty — connection + JWT implies full account stream */
-}
-
-/**
+ *
  * @param {{ accountId: string }} params
  */
 export function connectRealtime(params) {
   const { accountId } = params;
   if (!accountId) return;
 
-  const forceBaselineResync = haltedForExpiredToken;
-  haltedForExpiredToken = false;
-
-  const sessionIdForWs = getSessionIDFromStoreOrToken();
+  const sessionIdForWs = getSessionIDFromStore();
 
   lastConnectParams = params;
   const nextKey = accountId;
@@ -220,15 +205,13 @@ export function connectRealtime(params) {
   ws.addEventListener("open", () => {
     if (socket !== ws) return;
     reconnectAttempt = 0;
-    const prevOpenToken = lastSuccessfulOpenToken;
-    lastSuccessfulOpenToken = sessionIdForWs;
+    const prevOpenSessionId = lastSuccessfulOpenSessionId;
+    lastSuccessfulOpenSessionId = sessionIdForWs;
 
     void (async () => {
       const attemptedSessionResume = Boolean(
         sessionResumePreviousId && socket === ws
       );
-      /** @type {{ skipBaselineSync?: boolean, restoredDocIDs?: string[] } | null} */
-      let resumeAck = null;
       let resumeSkippedBaseline = false;
 
       if (attemptedSessionResume) {
@@ -239,7 +222,7 @@ export function connectRealtime(params) {
               previousClientID: sessionResumePreviousId,
             })
           );
-          resumeAck = await Promise.race([
+          const resumeAck = await Promise.race([
             new Promise((resolve) => {
               resumeBootstrap = { resolve };
             }),
@@ -250,7 +233,6 @@ export function connectRealtime(params) {
           resumeSkippedBaseline = !!resumeAck.skipBaselineSync;
         } catch {
           resumeSkippedBaseline = false;
-          resumeAck = { skipBaselineSync: false };
         } finally {
           resumeBootstrap = null;
         }
@@ -259,40 +241,34 @@ export function connectRealtime(params) {
       if (socket !== ws) return;
 
       /**
-       * Baseline GET for `users` + `application_settings` after (re)open.
-       * `resume_ack.skipBaselineSync` avoids duplicate GETs on clean JWT handoff, but background tabs
-       * can miss WS frames during refresh — always pull singletons when the JWT string changed.
+       * Baseline GET for `users` + `application_settings` after (re)open when the in-store `sessionID`
+       * changed, or when we attempted `session_resume` but did not receive `resume_ack.skipBaselineSync`
+       * (handoff uncertain). Same-session reconnect with a matched handoff skips duplicate GETs.
        */
-      const tokenChanged =
-        prevOpenToken == null || prevOpenToken !== sessionIdForWs;
+      const sessionIdentityChanged =
+        prevOpenSessionId == null || prevOpenSessionId !== sessionIdForWs;
       const shouldSync =
-        tokenChanged ||
-        (!resumeSkippedBaseline && forceBaselineResync);
+        sessionIdentityChanged ||
+        (attemptedSessionResume && !resumeSkippedBaseline);
       if (shouldSync) {
         void syncAccountDocumentsFromServer();
       }
 
       /**
-       * JWT rotation / reconnect: planner rows still rely on WS fan-out — events during the gap are
-       * lost. Re-merge from the API when the socket subprotocol token changes (not first open).
+       * Session rotation / reconnect: planner rows still rely on WS fan-out — events during the gap are
+       * lost. Re-merge from the API when the in-store `sessionID` changed (not first open).
        */
       const shouldRefetchPlannerJobs =
-        forceBaselineResync ||
-        (prevOpenToken != null && prevOpenToken !== sessionIdForWs);
+        prevOpenSessionId != null && prevOpenSessionId !== sessionIdForWs;
       if (shouldRefetchPlannerJobs) {
         void fetchPlannerJobDocumentsFromApi().catch((e) => {
           console.warn(
-            "[realtime] planner job documents refetch after WS token change failed",
+            "[realtime] planner job documents refetch after session identity change failed",
             e
           );
         });
       }
 
-      sendBaselineSubscriptionsForOpen(
-        accountId,
-        attemptedSessionResume,
-        resumeAck
-      );
       pingTimer = window.setInterval(() => {
         if (socket === ws && ws.readyState === WebSocket.OPEN) {
           try {
@@ -393,11 +369,6 @@ export function connectRealtime(params) {
   });
 }
 
-/** @param {{ accountId: string }} params */
-export function reconnectRealtime(params) {
-  connectRealtime(params);
-}
-
 export function disconnectRealtime() {
   rejectAllDocumentLockLockStateBatchPending("realtime disconnected");
   if (resumeBootstrap) {
@@ -407,9 +378,8 @@ export function disconnectRealtime() {
   manualClose = true;
   connectKey = null;
   lastConnectParams = null;
-  lastSuccessfulOpenToken = null;
-  haltedForExpiredToken = false;
-  /** New session / token rotation should not inherit exponential backoff from prior failures. */
+  lastSuccessfulOpenSessionId = null;
+  /** New session should not inherit exponential backoff from prior failures. */
   reconnectAttempt = 0;
   clearRealtimeClientIdentityHard();
   clearTimers();
@@ -467,7 +437,7 @@ export function sendDocumentLockEphemeralCommand(messageType, collection, docID)
   }
 }
 
-/** True when the singleton `/ws` connection is open (same-origin JWT subprotocol). */
+/** True when the singleton same-origin `/ws` connection is open (cookie session auth). */
 export function isRealtimeSocketOpen() {
   return socket !== null && socket.readyState === WebSocket.OPEN;
 }

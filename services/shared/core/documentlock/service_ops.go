@@ -2,6 +2,7 @@ package documentlock
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -14,55 +15,53 @@ type AcquireResult struct {
 	Payload    map[string]any
 }
 
-// Acquire grants the lock when uncontested or returns contended payload when another session holds it.
+// Acquire grants the lock when uncontested or returns contended payload when
+// another session holds it. The grant/contended decision happens inside a
+// single Redis EVAL so two simultaneous Acquires cannot both win.
 func (s *Service) Acquire(ctx context.Context, accountID, sessionID, collection, docID string) (*AcquireResult, error) {
 	rdb := s.Deps.Redis
 	if rdb == nil {
 		return nil, ErrLocksUnavailable
 	}
-	existing, err := GetLock(ctx, rdb, accountID, collection, docID)
+	now := time.Now().Unix()
+	ttlSeconds := int64(DefaultLockTTL / time.Second)
+
+	tx, err := runAcquireTx(ctx, rdb, accountID, sessionID, collection, docID, now, ttlSeconds)
 	if err != nil {
 		return nil, err
 	}
-	now := time.Now().Unix()
-	if existing != nil && existing.HolderSessionID != "" && existing.HolderSessionID != sessionID {
-		payload := LockPayload(existing.ExpiresAtUnix)
+
+	switch tx.Outcome {
+	case "contended":
+		payload := LockPayload(tx.Record.ExpiresAtUnix)
 		payload["held"] = true
 		payload["acquired"] = false
-		payload["holderSessionID"] = existing.HolderSessionID
-		if vc, err := PruneAndCountViewers(ctx, rdb, accountID, collection, docID); err == nil {
+		payload["holderSessionID"] = tx.Record.HolderSessionID
+		if vc, vcErr := PruneAndCountViewers(ctx, rdb, accountID, collection, docID); vcErr == nil {
 			payload["viewerCount"] = vc
 		}
 		return &AcquireResult{StatusCode: http.StatusOK, Payload: payload}, nil
-	}
 
-	exp := now + int64(DefaultLockTTL/time.Second)
-	rec := LockRecord{
-		HolderSessionID: sessionID,
-		AccountID:       accountID,
-		ExpiresAtUnix:   exp,
-	}
-	if err := SetLock(ctx, rdb, accountID, collection, docID, rec); err != nil {
-		return nil, err
-	}
+	case "granted":
+		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
+			LockPayloadEventKey: LockEventAcquired,
+			"collection":    collection,
+			"docID":         docID,
+			"sessionID":     sessionID,
+			"expiresAtUnix": tx.Record.ExpiresAtUnix,
+		})
+		if collection == mongocore.CollectionUserJobGroups {
+			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, s.Deps, accountID, docID, sessionID)
+		}
+		payload := LockPayload(tx.Record.ExpiresAtUnix)
+		payload["acquired"] = true
+		payload["held"] = true
+		payload["holderSessionID"] = sessionID
+		return &AcquireResult{StatusCode: http.StatusCreated, Payload: payload}, nil
 
-	_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
-		LockPayloadEventKey: LockEventAcquired,
-		"collection":         collection,
-		"docID":         docID,
-		"sessionID":     sessionID,
-		"expiresAtUnix": exp,
-	})
-
-	if collection == mongocore.CollectionUserJobGroups {
-		ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, s.Deps, accountID, docID, sessionID)
+	default:
+		return nil, fmt.Errorf("acquire tx: unexpected outcome %q", tx.Outcome)
 	}
-
-	acquiredPayload := LockPayload(exp)
-	acquiredPayload["acquired"] = true
-	acquiredPayload["held"] = true
-	acquiredPayload["holderSessionID"] = sessionID
-	return &AcquireResult{StatusCode: http.StatusCreated, Payload: acquiredPayload}, nil
 }
 
 // ExtendResult is returned by Extend for the holder renew / handoff-probe paths.
@@ -75,137 +74,125 @@ type ExtendResult struct {
 	NotHolderPayload map[string]any
 }
 
-// Extend renews the lease for the current holder or returns not-holder JSON.
+// Extend renews the lease for the current holder, runs the renew→probe cycle
+// state machine, or returns a not-holder JSON. Cycle decisions (extend count,
+// probe target selection, probe expiry sweep) all happen inside a single EVAL.
 func (s *Service) Extend(ctx context.Context, accountID, sessionID, collection, docID string) (*ExtendResult, error) {
 	rdb := s.Deps.Redis
 	if rdb == nil {
 		return nil, ErrLocksUnavailable
 	}
-	existing, err := GetLock(ctx, rdb, accountID, collection, docID)
+	now := time.Now().Unix()
+	ttlSeconds := int64(DefaultLockTTL / time.Second)
+	pulseTTLSeconds := int64(WaitlistPulseTTL / time.Second)
+
+	tx, err := runExtendTx(
+		ctx, rdb,
+		accountID, sessionID, collection, docID,
+		now, ttlSeconds,
+		int64(MaxExtensionsBeforeHandoffConsult),
+		ProbeAckWaitSeconds,
+		pulseTTLSeconds,
+	)
 	if err != nil {
 		return nil, err
 	}
-	if existing == nil || existing.HolderSessionID != sessionID {
-		if existing == nil {
-			return &ExtendResult{
-				StatusCode: http.StatusOK,
-				NotHolderPayload: map[string]any{
-					"holding": false,
-					"held":    false,
-				},
-			}, nil
-		}
-		payload := LockPayload(existing.ExpiresAtUnix)
-		payload["holding"] = false
-		payload["held"] = true
-		payload["holderSessionID"] = existing.HolderSessionID
-		return &ExtendResult{StatusCode: http.StatusOK, NotHolderPayload: payload}, nil
-	}
 
-	now := time.Now().Unix()
-	exp := now + int64(DefaultLockTTL/time.Second)
-
-	if existing.ProbeTargetSessionID != "" && now >= existing.ProbeExpiresAtUnix {
-		_ = RemoveFromWaitlist(ctx, rdb, accountID, collection, docID, existing.ProbeTargetSessionID)
-		existing.ProbeTargetSessionID = ""
-		existing.ProbeExpiresAtUnix = 0
-	}
-
-	if existing.ProbeTargetSessionID != "" && now < existing.ProbeExpiresAtUnix {
-		existing.ExpiresAtUnix = exp
-		if err := SetLock(ctx, rdb, accountID, collection, docID, *existing); err != nil {
-			return nil, err
-		}
+	switch tx.Outcome {
+	case "not_holder_absent":
 		return &ExtendResult{
-			StatusCode:    http.StatusOK,
-			ExpiresAtUnix: exp,
-			ExtendCount:   existing.ExtendCount,
-			Extras: ExtendExtras{
-				HandoffPending:       true,
-				ProbeTargetSessionID: existing.ProbeTargetSessionID,
-				ProbeExpiresAtUnix:   existing.ProbeExpiresAtUnix,
+			StatusCode: http.StatusOK,
+			NotHolderPayload: map[string]any{
+				"holding": false,
+				"held":    false,
 			},
 		}, nil
-	}
 
-	if existing.ExtendCount < MaxExtensionsBeforeHandoffConsult {
-		existing.ExtendCount++
-		existing.ExpiresAtUnix = exp
-		if err := SetLock(ctx, rdb, accountID, collection, docID, *existing); err != nil {
-			return nil, err
-		}
+	case "not_holder_other":
+		payload := LockPayload(tx.Record.ExpiresAtUnix)
+		payload["holding"] = false
+		payload["held"] = true
+		payload["holderSessionID"] = tx.Record.HolderSessionID
+		return &ExtendResult{StatusCode: http.StatusOK, NotHolderPayload: payload}, nil
+
+	case "extended":
 		return &ExtendResult{
 			StatusCode:    http.StatusOK,
-			ExpiresAtUnix: exp,
-			ExtendCount:   existing.ExtendCount,
+			ExpiresAtUnix: tx.ExpiresAtUnix,
+			ExtendCount:   tx.ExtendCount,
 			Extras:        ExtendExtras{HandoffPending: false},
 		}, nil
-	}
 
-	existing.ExpiresAtUnix = exp
-	head, err := PeekWaitlistHeadAlive(ctx, rdb, accountID, collection, docID)
-	if err != nil {
-		return nil, err
-	}
-	if head == "" {
-		existing.ExtendCount = 0
-		if err := SetLock(ctx, rdb, accountID, collection, docID, *existing); err != nil {
-			return nil, err
-		}
+	case "probe_pending":
 		return &ExtendResult{
 			StatusCode:    http.StatusOK,
-			ExpiresAtUnix: exp,
+			ExpiresAtUnix: tx.ExpiresAtUnix,
+			ExtendCount:   tx.ExtendCount,
+			Extras: ExtendExtras{
+				HandoffPending:       true,
+				ProbeTargetSessionID: tx.ProbeTargetSessionID,
+				ProbeExpiresAtUnix:   tx.ProbeExpiresAtUnix,
+			},
+		}, nil
+
+	case "cycle_reset":
+		return &ExtendResult{
+			StatusCode:    http.StatusOK,
+			ExpiresAtUnix: tx.ExpiresAtUnix,
 			ExtendCount:   0,
 			Extras:        ExtendExtras{HandoffPending: false, CycleReset: true},
 		}, nil
-	}
 
-	_ = TouchWaitlistPulse(ctx, rdb, accountID, collection, docID, head)
+	case "probe_set":
+		if tx.PublishProbe {
+			_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
+				LockPayloadEventKey:    LockEventHandoffProbe,
+				"collection":           collection,
+				"docID":                docID,
+				"probeTargetSessionID": tx.ProbeTargetSessionID,
+				"holderSessionID":      sessionID,
+				"probeExpiresAtUnix":   tx.ProbeExpiresAtUnix,
+			})
+		}
+		return &ExtendResult{
+			StatusCode:    http.StatusOK,
+			ExpiresAtUnix: tx.ExpiresAtUnix,
+			ExtendCount:   tx.ExtendCount,
+			Extras: ExtendExtras{
+				HandoffPending:       true,
+				ProbeTargetSessionID: tx.ProbeTargetSessionID,
+				ProbeExpiresAtUnix:   tx.ProbeExpiresAtUnix,
+			},
+		}, nil
 
-	existing.ProbeTargetSessionID = head
-	existing.ProbeExpiresAtUnix = now + ProbeAckWaitSeconds
-	if err := SetLock(ctx, rdb, accountID, collection, docID, *existing); err != nil {
-		return nil, err
+	default:
+		return nil, fmt.Errorf("extend tx: unexpected outcome %q", tx.Outcome)
 	}
-	_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
-		LockPayloadEventKey:    LockEventHandoffProbe,
-		"collection":           collection,
-		"docID":                docID,
-		"probeTargetSessionID": head,
-		"holderSessionID":      sessionID,
-		"probeExpiresAtUnix":   existing.ProbeExpiresAtUnix,
-	})
-	return &ExtendResult{
-		StatusCode:    http.StatusOK,
-		ExpiresAtUnix: exp,
-		ExtendCount:   existing.ExtendCount,
-		Extras: ExtendExtras{
-			HandoffPending:       true,
-			ProbeTargetSessionID: head,
-			ProbeExpiresAtUnix:   existing.ProbeExpiresAtUnix,
-		},
-	}, nil
 }
 
-// Release drops the lock when the caller is the holder (no-op 204 otherwise).
+// Release drops the lock when the caller is the holder (no-op otherwise).
+// The holder check and DEL happen inside a single EVAL so we never delete a
+// lock that has been rebound to a different session between the read and the
+// write.
 func (s *Service) Release(ctx context.Context, accountID, sessionID, collection, docID string) error {
 	rdb := s.Deps.Redis
 	if rdb == nil {
 		return ErrLocksUnavailable
 	}
-	existing, err := GetLock(ctx, rdb, accountID, collection, docID)
+	now := time.Now().Unix()
+
+	tx, err := runReleaseTx(ctx, rdb, accountID, sessionID, collection, docID, now)
 	if err != nil {
 		return err
 	}
-	if existing == nil || existing.HolderSessionID != sessionID {
+	if tx.Outcome != "released" {
 		return nil
 	}
-	_ = DeleteLock(ctx, rdb, accountID, collection, docID)
 	_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
 		LockPayloadEventKey: LockEventReleased,
-		"collection":       collection,
-		"docID":      docID,
-		"sessionID":  sessionID,
+		"collection":        collection,
+		"docID":             docID,
+		"sessionID":         sessionID,
 	})
 	return nil
 }
@@ -216,59 +203,60 @@ type HandOverResult struct {
 	Payload    map[string]any // nil for 204 responses
 }
 
-// HandOver transfers the lock to the alive waitlist head or releases when none.
+// HandOver atomically transfers the lock to the alive waitlist head, or
+// releases when no waitlist head is alive. Holder check + waitlist walk +
+// transfer all happen in a single EVAL so two concurrent HandOvers cannot
+// double-promote.
 func (s *Service) HandOver(ctx context.Context, accountID, holderSessionID, collection, docID string) (*HandOverResult, error) {
 	rdb := s.Deps.Redis
 	if rdb == nil {
 		return nil, ErrLocksUnavailable
 	}
-	existing, err := GetLock(ctx, rdb, accountID, collection, docID)
+	now := time.Now().Unix()
+	ttlSeconds := int64(DefaultLockTTL / time.Second)
+
+	tx, err := runHandOverTx(ctx, rdb, accountID, holderSessionID, collection, docID, now, ttlSeconds)
 	if err != nil {
 		return nil, err
 	}
-	if existing == nil || existing.HolderSessionID != holderSessionID {
+
+	switch tx.Outcome {
+	case "noop":
 		return &HandOverResult{StatusCode: http.StatusNoContent}, nil
-	}
 
-	newHolder, rec, promoted, err := PromoteWaitlistHead(ctx, rdb, accountID, collection, docID)
-	if err != nil {
-		return nil, err
-	}
-
-	if !promoted {
-		_ = DeleteLock(ctx, rdb, accountID, collection, docID)
+	case "released_no_queue":
 		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
 			LockPayloadEventKey: LockEventReleased,
-			"collection":         collection,
-			"docID":      docID,
-			"sessionID":  holderSessionID,
-			"reason":     LockReleaseReasonHandOverNoQueue,
+			"collection":        collection,
+			"docID":             docID,
+			"sessionID":         holderSessionID,
+			"reason":            LockReleaseReasonHandOverNoQueue,
 		})
 		return &HandOverResult{StatusCode: http.StatusNoContent}, nil
+
+	case "promoted":
+		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, BuildHandoffCompletedPayload(
+			collection,
+			docID,
+			tx.NewHolderSessionID,
+			tx.ExpiresAtUnix,
+			HandoffCompletedOpts{
+				PreviousHolderSessionID: tx.PreviousHolderSessionID,
+				Reason:                  LockHandoffReasonHolderHandover,
+			},
+		))
+		if collection == mongocore.CollectionUserJobGroups {
+			ReleaseDependentJobLocksOnGroupHandoff(ctx, s.Deps, accountID, docID, tx.PreviousHolderSessionID)
+		}
+		payload := LockPayload(tx.ExpiresAtUnix)
+		payload["held"] = true
+		payload["holderSessionID"] = tx.NewHolderSessionID
+		payload["handoffGranted"] = true
+		return &HandOverResult{StatusCode: http.StatusOK, Payload: payload}, nil
+
+	default:
+		return nil, fmt.Errorf("hand-over tx: unexpected outcome %q", tx.Outcome)
 	}
-
-	oldHolder := holderSessionID
-
-	_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, BuildHandoffCompletedPayload(
-		collection,
-		docID,
-		newHolder,
-		rec.ExpiresAtUnix,
-		HandoffCompletedOpts{
-			PreviousHolderSessionID: oldHolder,
-			Reason:                  LockHandoffReasonHolderHandover,
-		},
-	))
-
-	if collection == mongocore.CollectionUserJobGroups {
-		ReleaseDependentJobLocksOnGroupHandoff(ctx, s.Deps, accountID, docID, oldHolder)
-	}
-
-	payload := LockPayload(rec.ExpiresAtUnix)
-	payload["held"] = true
-	payload["holderSessionID"] = newHolder
-	payload["handoffGranted"] = true
-	return &HandOverResult{StatusCode: http.StatusOK, Payload: payload}, nil
 }
 
 // RequestLockResult is the outcome of POST /request (queue, auto-grant, or same-holder refresh).
@@ -277,71 +265,63 @@ type RequestLockResult struct {
 	Payload    map[string]any
 }
 
-// RequestAccess queues for the lock, auto-grants when empty, or returns same-holder payload.
+// RequestAccess auto-grants the lock when empty, returns same-holder when the
+// requester already holds it, or enqueues with a fresh pulse. All decisions
+// (auto-grant vs. enqueue vs. same-holder) are made inside a single EVAL.
 func (s *Service) RequestAccess(ctx context.Context, accountID, requesterSessionID, collection, docID string) (*RequestLockResult, error) {
 	rdb := s.Deps.Redis
 	if rdb == nil {
 		return nil, ErrLocksUnavailable
 	}
-	existing, err := GetLock(ctx, rdb, accountID, collection, docID)
+	now := time.Now().Unix()
+	ttlSeconds := int64(DefaultLockTTL / time.Second)
+	pulseTTLSeconds := int64(WaitlistPulseTTL / time.Second)
+
+	tx, err := runRequestAccessTx(ctx, rdb, accountID, requesterSessionID, collection, docID, now, ttlSeconds, pulseTTLSeconds)
 	if err != nil {
 		return nil, err
 	}
 
-	now := time.Now().Unix()
-
-	if existing == nil || existing.HolderSessionID == "" {
-		exp := now + int64(DefaultLockTTL/time.Second)
-		rec := LockRecord{
-			HolderSessionID: requesterSessionID,
-			AccountID:       accountID,
-			ExpiresAtUnix:   exp,
-		}
-		if err := SetLock(ctx, rdb, accountID, collection, docID, rec); err != nil {
-			return nil, err
-		}
+	switch tx.Outcome {
+	case "granted_empty":
 		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
-			LockPayloadEventKey: LockEventAcquired,
+			LockPayloadEventKey:    LockEventAcquired,
 			"collection":           collection,
 			"docID":                docID,
 			"sessionID":            requesterSessionID,
-			"expiresAtUnix":        exp,
+			"expiresAtUnix":        tx.ExpiresAtUnix,
 			"accessRequestGranted": true,
 		})
-
 		if collection == mongocore.CollectionUserJobGroups {
 			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, s.Deps, accountID, docID, requesterSessionID)
 		}
+		payload := LockPayload(tx.ExpiresAtUnix)
+		payload["acquired"] = true
+		payload["held"] = true
+		payload["holderSessionID"] = requesterSessionID
+		payload["accessRequestGranted"] = true
+		return &RequestLockResult{StatusCode: http.StatusCreated, Payload: payload}, nil
 
-		acquiredPayload := LockPayload(exp)
-		acquiredPayload["acquired"] = true
-		acquiredPayload["held"] = true
-		acquiredPayload["holderSessionID"] = requesterSessionID
-		acquiredPayload["accessRequestGranted"] = true
-		return &RequestLockResult{StatusCode: http.StatusCreated, Payload: acquiredPayload}, nil
-	}
-
-	if existing.HolderSessionID == requesterSessionID {
-		payload := LockPayload(existing.ExpiresAtUnix)
+	case "same_holder":
+		payload := LockPayload(tx.Record.ExpiresAtUnix)
 		payload["acquired"] = true
 		payload["held"] = true
 		payload["holderSessionID"] = requesterSessionID
 		payload["accessRequestGranted"] = true
 		return &RequestLockResult{StatusCode: http.StatusOK, Payload: payload}, nil
-	}
 
-	if err := EnqueueWaitlistUnique(ctx, rdb, accountID, collection, docID, requesterSessionID); err != nil {
-		return nil, err
-	}
-	_ = TouchWaitlistPulse(ctx, rdb, accountID, collection, docID, requesterSessionID)
+	case "queued":
+		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
+			LockPayloadEventKey:  LockEventRequested,
+			"collection":         collection,
+			"docID":              docID,
+			"requesterSessionID": requesterSessionID,
+		})
+		return &RequestLockResult{StatusCode: http.StatusAccepted, Payload: nil}, nil
 
-	_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
-		LockPayloadEventKey: LockEventRequested,
-		"collection":         collection,
-		"docID":              docID,
-		"requesterSessionID": requesterSessionID,
-	})
-	return &RequestLockResult{StatusCode: http.StatusAccepted, Payload: nil}, nil
+	default:
+		return nil, fmt.Errorf("request-access tx: unexpected outcome %q", tx.Outcome)
+	}
 }
 
 // ClaimHandoffOutput is the outcome of POST /claim-handoff.
@@ -351,65 +331,52 @@ type ClaimHandoffOutput struct {
 	ErrText string         // plain HTTP error body for non-200 (4xx)
 }
 
-// ClaimHandoff completes a probe-driven handoff for the queued session.
+// ClaimHandoff completes a probe-driven handoff for the queued session. The
+// probe validation (target == requester, probe not expired, waitlist head is
+// requester) plus the lock rewrite all happen inside a single EVAL.
 func (s *Service) ClaimHandoff(ctx context.Context, accountID, requesterSessionID, collection, docID string) (*ClaimHandoffOutput, error) {
 	rdb := s.Deps.Redis
 	if rdb == nil {
 		return nil, ErrLocksUnavailable
 	}
-	rec, err := GetLock(ctx, rdb, accountID, collection, docID)
+	now := time.Now().Unix()
+	ttlSeconds := int64(DefaultLockTTL / time.Second)
+	pulseTTLSeconds := int64(WaitlistPulseTTL / time.Second)
+
+	tx, err := runClaimHandoffTx(ctx, rdb, accountID, requesterSessionID, collection, docID, now, ttlSeconds, pulseTTLSeconds)
 	if err != nil {
 		return nil, err
 	}
-	if rec == nil {
+
+	switch tx.Outcome {
+	case "lock_inactive":
 		return &ClaimHandoffOutput{Status: http.StatusConflict, ErrText: "Lock inactive"}, nil
-	}
-
-	now := time.Now().Unix()
-	if rec.ProbeTargetSessionID != requesterSessionID || now >= rec.ProbeExpiresAtUnix {
+	case "no_active_probe":
 		return &ClaimHandoffOutput{Status: http.StatusConflict, ErrText: "No active probe for this session"}, nil
-	}
-	if rec.HolderSessionID == requesterSessionID {
+	case "already_editing":
 		return &ClaimHandoffOutput{Status: http.StatusBadRequest, ErrText: "Already editing"}, nil
-	}
-
-	_ = TouchWaitlistPulse(ctx, rdb, accountID, collection, docID, requesterSessionID)
-
-	head, err := PeekWaitlistHead(ctx, rdb, accountID, collection, docID)
-	if err != nil || head != requesterSessionID {
+	case "not_next_in_queue":
 		return &ClaimHandoffOutput{Status: http.StatusConflict, ErrText: "No longer next in queue"}, nil
+	case "granted":
+		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, BuildHandoffCompletedPayload(
+			collection,
+			docID,
+			tx.NewHolderSessionID,
+			tx.ExpiresAtUnix,
+			HandoffCompletedOpts{PreviousHolderSessionID: tx.PreviousHolderSessionID},
+		))
+		if collection == mongocore.CollectionUserJobGroups {
+			ReleaseDependentJobLocksOnGroupHandoff(ctx, s.Deps, accountID, docID, tx.PreviousHolderSessionID)
+		}
+		payload := LockPayload(tx.ExpiresAtUnix)
+		payload["acquired"] = true
+		payload["held"] = true
+		payload["holderSessionID"] = tx.NewHolderSessionID
+		payload["handoffGranted"] = true
+		return &ClaimHandoffOutput{Status: http.StatusOK, Payload: payload}, nil
+	default:
+		return nil, fmt.Errorf("claim-handoff tx: unexpected outcome %q", tx.Outcome)
 	}
-
-	exp := now + int64(DefaultLockTTL/time.Second)
-	oldHolder := rec.HolderSessionID
-	rec.HolderSessionID = requesterSessionID
-	rec.ExpiresAtUnix = exp
-	rec.ExtendCount = 0
-	rec.ProbeTargetSessionID = ""
-	rec.ProbeExpiresAtUnix = 0
-	_ = RemoveFromWaitlist(ctx, rdb, accountID, collection, docID, requesterSessionID)
-	if err := SetLock(ctx, rdb, accountID, collection, docID, *rec); err != nil {
-		return nil, err
-	}
-
-	_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, BuildHandoffCompletedPayload(
-		collection,
-		docID,
-		requesterSessionID,
-		exp,
-		HandoffCompletedOpts{PreviousHolderSessionID: oldHolder},
-	))
-
-	if collection == mongocore.CollectionUserJobGroups {
-		ReleaseDependentJobLocksOnGroupHandoff(ctx, s.Deps, accountID, docID, oldHolder)
-	}
-
-	acquiredPayload := LockPayload(exp)
-	acquiredPayload["acquired"] = true
-	acquiredPayload["held"] = true
-	acquiredPayload["holderSessionID"] = requesterSessionID
-	acquiredPayload["handoffGranted"] = true
-	return &ClaimHandoffOutput{Status: http.StatusOK, Payload: acquiredPayload}, nil
 }
 
 // WaitlistPulse refreshes the requester's waitlist pulse key.

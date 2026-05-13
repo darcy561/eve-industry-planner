@@ -89,38 +89,32 @@ func cascadeReleaseDependentJobLocks(
 		return
 	}
 
-	for _, jobID := range group.IncludedJobIDs {
-		if jobID == "" {
-			continue
+	// The pipelined helper does the GET-all → decide → DEL-chosen flow in
+	// two Redis round-trips regardless of how many jobs the group has.
+	// JetStream publishing stays here so partial DEL failures don't
+	// silently swallow events.
+	releases, err := pipelinedDecideAndReleaseJobLocks(ctx, d.Redis, accountID, group.IncludedJobIDs, decide)
+	if err != nil {
+		logs.WarnCtx(ctx, "doc lock cascade: redis pipeline failed",
+			"error", err,
+			"account_id", accountID,
+			"group_id", groupID,
+			"job_count", len(group.IncludedJobIDs))
+		if len(releases) == 0 {
+			return
 		}
-		rec, err := GetLock(ctx, d.Redis, accountID, mongocore.CollectionUserJobDocuments, jobID)
-		if err != nil {
-			logs.WarnCtx(ctx, "doc lock cascade: get job lock failed",
-				"error", err,
-				"account_id", accountID,
-				"group_id", groupID,
-				"job_id", jobID)
-			continue
-		}
-		release, evictedSessionID := decide(rec)
-		if !release {
-			continue
-		}
-		if err := DeleteLock(ctx, d.Redis, accountID, mongocore.CollectionUserJobDocuments, jobID); err != nil {
-			logs.WarnCtx(ctx, "doc lock cascade: delete job lock failed",
-				"error", err,
-				"account_id", accountID,
-				"group_id", groupID,
-				"job_id", jobID)
-			continue
-		}
-		_ = PublishLockEvent(ctx, d.JetStream, accountID, map[string]any{
-			LockPayloadEventKey: LockEventReleased,
-			"collection":         mongocore.CollectionUserJobDocuments,
-			"docID":               jobID,
-			"sessionID":           evictedSessionID,
-			"reason":              LockReleaseReasonGroupHandoffCascade,
-			"cascadedFromGroupID": groupID,
-		})
 	}
+
+	// One batched `document_lock_group_cascade` event carries every
+	// release; the frontend (`useLockScopeSync.js`) applies all N scope
+	// patches in a single store transaction. See BuildGroupCascadePayload.
+	if len(releases) == 0 {
+		return
+	}
+	_ = PublishLockEvent(ctx, d.JetStream, accountID, BuildGroupCascadePayload(
+		mongocore.CollectionUserJobGroups,
+		groupID,
+		mongocore.CollectionUserJobDocuments,
+		releases,
+	))
 }

@@ -36,6 +36,14 @@ const (
 	// claim-handoff success, /hand-over success, or expiry-driven waitlist
 	// promotion (cf. `LockHandoffReason*`).
 	LockEventHandoffCompleted = "document_lock_handoff_completed"
+
+	// LockEventGroupCascade is published once when a group lock rotates,
+	// carrying every per-job lock evicted by the cascade in a single
+	// JetStream message. The frontend applies N scope patches in one
+	// store transaction without N follow-up HTTP `/lock-state` fetches.
+	// Payload built by `BuildGroupCascadePayload`. Receivers must NOT
+	// auto-reacquire on this event.
+	LockEventGroupCascade = "document_lock_group_cascade"
 )
 
 // LockHandoffReason* tag the `reason` field on `LockEventHandoffCompleted`.
@@ -107,4 +115,34 @@ func BuildHandoffCompletedPayload(
 		payload["reason"] = opts.Reason
 	}
 	return payload
+}
+
+// BuildGroupCascadePayload assembles the JetStream body for the
+// `LockEventGroupCascade` event emitted once per group handoff. The
+// `releases` array carries one entry per evicted per-job lock; the
+// receiver applies all the scope patches in a single store transaction.
+//
+//   - `groupID`               — the parent group lock whose rotation
+//     triggered the cascade.
+//   - `releases`              — one entry per evicted per-job lock.
+//
+// The collection on every release is always `user_job_documents`; the
+// envelope's top-level `collection` field repeats it so receivers can
+// filter the event without scanning the array.
+func BuildGroupCascadePayload(groupCollection, groupID, cascadedCollection string, releases []CascadeRelease) map[string]any {
+	items := make([]map[string]any, 0, len(releases))
+	for _, r := range releases {
+		items = append(items, map[string]any{
+			"docID":     r.JobID,
+			"sessionID": r.EvictedSessionID,
+		})
+	}
+	return map[string]any{
+		LockPayloadEventKey: LockEventGroupCascade,
+		"groupCollection":   groupCollection,
+		"groupID":           groupID,
+		"collection":        cascadedCollection,
+		"reason":            LockReleaseReasonGroupHandoffCascade,
+		"releases":          items,
+	}
 }

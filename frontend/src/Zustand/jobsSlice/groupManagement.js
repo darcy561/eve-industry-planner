@@ -32,14 +32,12 @@ export const groupManagementActions = (set, get) => ({
    *
    * @param {Array} groupArray - New group array
    *
-   * @param {{ fromServer?: boolean; skipRealtimeResync?: boolean }} [opts] – `fromServer`: full REST sync (clears pending writes).
-   *   `skipRealtimeResync`: set when applying a WS/NATS doc so we do not re-send subscribe storms.
+   * @param {{ fromServer?: boolean }} [opts] – `fromServer`: full REST sync (clears pending writes).
    * @example
    * store.getState().jobData.actions.replaceGroupArray(newGroupArray);
    */
   replaceGroupArray: (groupArray, opts = {}) => {
     const fromServer = opts.fromServer === true;
-    const skipRealtimeResync = opts.skipRealtimeResync === true;
     set(
       (state) => ({
         ...state,
@@ -52,11 +50,6 @@ export const groupManagementActions = (set, get) => ({
       false,
       "replaceGroupArray"
     );
-    if (!fromServer && !skipRealtimeResync) {
-      void import("../../Realtime/syncJobGroupWebSocketSubscriptions.js").then(
-        (m) => m.syncJobGroupWebSocketSubscriptions()
-      );
-    }
   },
 
   /**
@@ -147,9 +140,6 @@ export const groupManagementActions = (set, get) => ({
       }),
       false,
       "addGroupToGroupArray"
-    );
-    void import("../../Realtime/syncJobGroupWebSocketSubscriptions.js").then(
-      (m) => m.syncJobGroupWebSocketSubscriptions()
     );
   },
 

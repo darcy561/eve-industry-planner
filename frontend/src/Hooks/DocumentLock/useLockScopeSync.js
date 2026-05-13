@@ -9,7 +9,10 @@ import {
   USER_JOBS_COLLECTION,
   USER_JOB_GROUPS_COLLECTION,
 } from "../../Functions/DocumentLock/documentLockCollections.js";
-import { DOCUMENT_LOCK_CUSTOM_EVENT } from "../../Functions/DocumentLock/documentLockEvents.js";
+import {
+  DOCUMENT_LOCK_CUSTOM_EVENT,
+  DOCUMENT_LOCK_DOMAIN_EVENTS,
+} from "../../Functions/DocumentLock/documentLockEvents.js";
 import { LOCK_SCOPE_SYNC_DEBOUNCE_MS } from "../../Functions/DocumentLock/documentLockTimings.js";
 import {
   patchPlannerGroupLockScopeFromApi,
@@ -165,7 +168,45 @@ export function useLockScopeSync({
 
     function onDocumentLockEvent(ev) {
       const p = ev?.detail;
-      if (!p || typeof p !== "object" || !p.docID) return;
+      if (!p || typeof p !== "object") return;
+
+      const t = typeof p.event === "string" ? p.event : p.type;
+
+      /**
+       * Group → jobs cascade event. Apply every release directly to the
+       * store in one `patchManyDocumentLockScopes` call instead of
+       * firing N `patchPlannerJobLockScopeFromApi` HTTP refetches. The
+       * server has already DEL-ed the lock keys (see
+       * `documentlock/cascade_pipeline.go`), so the payload's contents
+       * are authoritative.
+       */
+      if (t === DOCUMENT_LOCK_DOMAIN_EVENTS.GROUP_CASCADE) {
+        if (!Array.isArray(p.releases) || p.releases.length === 0) return;
+        if (p.collection !== USER_JOBS_COLLECTION) return;
+        const updates = [];
+        for (const r of p.releases) {
+          if (!r || typeof r.docID !== "string" || !r.docID) continue;
+          updates.push({
+            collection: USER_JOBS_COLLECTION,
+            docID: r.docID,
+            partial: {
+              lockHeld: false,
+              readOnly: false,
+              pendingAccessRequest: false,
+              lockExpiresAtUnix: null,
+              lockTtlSeconds: null,
+            },
+          });
+        }
+        if (updates.length > 0) {
+          useUsersStore
+            .getState()
+            .documentLock.actions.patchManyDocumentLockScopes(updates);
+        }
+        return;
+      }
+
+      if (!p.docID) return;
       if (p.collection === USER_JOBS_COLLECTION) {
         void patchPlannerJobLockScopeFromApi(p.docID);
         return;
