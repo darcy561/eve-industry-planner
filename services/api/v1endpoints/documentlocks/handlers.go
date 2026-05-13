@@ -92,6 +92,39 @@ func handleRelease(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func handleForceRelease(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+	hc, ok := lockHandlerContextOK(w, r, clients.Redis)
+	if !ok {
+		return
+	}
+	prevHolder, err := lockService(clients).ForceReleaseSameAccount(hc.Ctx, hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
+	if err != nil {
+		if errors.Is(err, documentlock.ErrLocksUnavailable) {
+			http.Error(w, "Locks unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		if errors.Is(err, documentlock.ErrForceReleaseNoLock) {
+			http.Error(w, "No active lock", http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, documentlock.ErrForceReleaseSameSession) {
+			http.Error(w, "Already holding lock; use POST /release", http.StatusBadRequest)
+			return
+		}
+		logs.ErrorCtx(hc.Ctx, "doc lock force-release failed", "error", err)
+		http.Error(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	logs.InfoCtx(hc.Ctx, "document_lock_force_release",
+		"accountID", hc.AccountID,
+		"collection", hc.Collection,
+		"docID", hc.DocID,
+		"requesterSessionID", hc.SessionID,
+		"previousHolderSessionID", prevHolder,
+	)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func handleHandOver(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	hc, ok := lockHandlerContextOK(w, r, clients.Redis)
 	if !ok {

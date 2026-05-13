@@ -2,6 +2,7 @@ package documentlock
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -476,5 +477,60 @@ func mustEnqueueWithPulse(t *testing.T, ctx context.Context, rdb *redis.Client, 
 	}
 	if err := TouchWaitlistPulse(ctx, rdb, testAccountID, testCollection, testDocID, sessionID); err != nil {
 		t.Fatalf("TouchWaitlistPulse(%s): %v", sessionID, err)
+	}
+}
+
+func TestForceReleaseSameAccount(t *testing.T) {
+	t.Parallel()
+	svc, rdb, _ := concurrencyTestService(t)
+	ctx := context.Background()
+	now := time.Now().Unix()
+	rec := LockRecord{
+		HolderSessionID: "holder-sess",
+		AccountID:       testAccountID,
+		ExpiresAtUnix:   now + 300,
+	}
+	if err := SetLock(ctx, rdb, testAccountID, testCollection, testDocID, rec); err != nil {
+		t.Fatal(err)
+	}
+	if err := EnqueueWaitlistUnique(ctx, rdb, testAccountID, testCollection, testDocID, "waiter"); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := svc.ForceReleaseSameAccount(ctx, testAccountID, "other-sess", testCollection, testDocID)
+	if err != nil {
+		t.Fatalf("ForceReleaseSameAccount: %v", err)
+	}
+	got, err := GetLock(ctx, rdb, testAccountID, testCollection, testDocID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != nil {
+		t.Fatalf("expected lock cleared, got %+v", got)
+	}
+	n, err := WaitlistLen(ctx, rdb, testAccountID, testCollection, testDocID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("waitlist not cleared, len=%d", n)
+	}
+
+	if err := SetLock(ctx, rdb, testAccountID, testCollection, testDocID, LockRecord{
+		HolderSessionID: "holder2",
+		AccountID:       testAccountID,
+		ExpiresAtUnix:   now + 300,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = svc.ForceReleaseSameAccount(ctx, testAccountID, "holder2", testCollection, testDocID)
+	if !errors.Is(err, ErrForceReleaseSameSession) {
+		t.Fatalf("want ErrForceReleaseSameSession, got %v", err)
+	}
+
+	_ = DeleteLock(ctx, rdb, testAccountID, testCollection, testDocID)
+	_, err = svc.ForceReleaseSameAccount(ctx, testAccountID, "x", testCollection, testDocID)
+	if !errors.Is(err, ErrForceReleaseNoLock) {
+		t.Fatalf("want ErrForceReleaseNoLock, got %v", err)
 	}
 }

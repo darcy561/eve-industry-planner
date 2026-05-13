@@ -193,8 +193,48 @@ func (s *Service) Release(ctx context.Context, accountID, sessionID, collection,
 		"collection":        collection,
 		"docID":             docID,
 		"sessionID":         sessionID,
+		"reason":            LockReleaseReasonHolderRelease,
 	})
 	return nil
+}
+
+// ForceReleaseSameAccount removes the lock when it is held by a *different*
+// session on the same account (JWT accountID). The caller must not already
+// be the holder — use Release instead. Publishes `document_lock_released` with
+// reason `force_released_same_account`. For group locks, runs the same
+// per-job cascade as a group handoff against the evicted holder.
+func (s *Service) ForceReleaseSameAccount(ctx context.Context, accountID, requesterSessionID, collection, docID string) (previousHolderSessionID string, err error) {
+	rdb := s.Deps.Redis
+	if rdb == nil {
+		return "", ErrLocksUnavailable
+	}
+	now := time.Now().Unix()
+	tx, err := runForceReleaseSameAccountTx(ctx, rdb, accountID, requesterSessionID, collection, docID, now)
+	if err != nil {
+		return "", err
+	}
+	switch tx.Outcome {
+	case "noop_no_lock":
+		return "", ErrForceReleaseNoLock
+	case "noop_same_holder":
+		return "", ErrForceReleaseSameSession
+	case "released":
+		prev := tx.PreviousHolderSessionID
+		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
+			LockPayloadEventKey:  LockEventReleased,
+			"collection":         collection,
+			"docID":              docID,
+			"sessionID":          prev,
+			"requesterSessionID": requesterSessionID,
+			"reason":             LockReleaseReasonForceReleasedSameAccount,
+		})
+		if collection == mongocore.CollectionUserJobGroups {
+			ReleaseDependentJobLocksOnGroupHandoff(ctx, s.Deps, accountID, docID, prev)
+		}
+		return prev, nil
+	default:
+		return "", fmt.Errorf("force-release same-account: unexpected outcome %q", tx.Outcome)
+	}
 }
 
 // HandOverResult is the outcome of the holder accepting the waitlist head.

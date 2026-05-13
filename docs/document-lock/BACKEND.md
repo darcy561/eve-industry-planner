@@ -112,6 +112,7 @@ Mounted from `router.go` at `/api/v1/document-locks/{action}`.
 | POST | `/acquire` | `{collection,docID}` | 201 granted / 200 contended | Returns `acquired`, `held`, `expiresAtUnix`, `ttlSeconds`, `viewerCount`. Group `/acquire` also runs `ReleaseStaleDependentJobLocksAfterGroupGrant`. |
 | POST | `/extend` | `{collection,docID}` | 200 | Cycle: 3 free renewals → 4th renewal probes alive waitlist head. Returns `holding`, `expiresAtUnix`, `extendCount`, `handoffPending`, `probeTargetSessionID`, `probeExpiresAtUnix`, `cycleReset`. |
 | POST | `/release` | `{collection,docID}` | 204 | Holder-only. Deletes the row + publishes `released`. |
+| POST | `/force-release` | `{collection,docID}` | 204 / 404 / 400 | Same `accountID` as holder, different session. Deletes lock + waitlist; publishes `released { reason: force_released_same_account }`. Group → `ReleaseDependentJobLocksOnGroupHandoff` for evicted holder. |
 | POST | `/hand-over` | `{collection,docID}` | 200 transferred / 204 noop / 204 released | Holder accepts request snackbar. Promotes alive waitlist head atomically; falls back to plain `released { reason: hand_over_no_queue }` when no live requester. Group → cascade. |
 | POST | `/request` | `{collection,docID}` | 201 auto-grant / 200 already mine / 202 queued | Returns `accessRequestGranted` on grant. Group auto-grant → `ReleaseStaleDependentJobLocksAfterGroupGrant`. |
 | POST | `/lock-state-batch` | `{jobDocIDs,groupDocIDs}` | 200 | Both arrays ≤ 500. Returns `jobResults`, `groupResults` maps. WebSocket alternate: `document_lock_lock_state_batch` frame (see § WebSocket frame alternates). |
@@ -470,8 +471,9 @@ LockPayloadEventKey = "event"
 // reasons (string field on the event):
 LockHandoffReasonHolderHandover = "holder_handover"
 LockHandoffReasonTTLPromotion   = "ttl_promotion"      // documentlock/expiry.go
+LockReleaseReasonHolderRelease = "holder_release"    // documentlock/service_ops.go Release
 LockReleaseReasonHandOverNoQueue   = "hand_over_no_queue"
-LockReleaseReasonGroupHandoffCascade = "group_handoff_cascade"  // documentlock/cascade.go
+LockReleaseReasonGroupHandoffCascade = "group_handoff_cascade"  // documentlock/cascade.go (GROUP_CASCADE payload)
 LockExpiryReasonTTL = "ttl"                            // documentlock/expiry.go
 ```
 

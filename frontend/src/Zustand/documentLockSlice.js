@@ -1,11 +1,13 @@
 import {
+  acquireDocumentLock,
   claimDocumentLockHandoff,
+  forceReleaseDocumentLockSameAccount,
   handOverDocumentLock,
   pulseDocumentLockWaitlist,
   requestDocumentLockAccess,
 } from "../Functions/Endpoints/Pirivate/documentLockClient.js";
 import { suppressDocumentLockVacancyNotice } from "../Functions/DocumentLock/documentLockAcquireFeedback.js";
-import { showSnackbarSuccess } from "../Events/snackbarEvents.js";
+import { showSnackbarSuccess, showSnackbarWarning } from "../Events/snackbarEvents.js";
 import { requestEditJobReleaseConfirmation } from "../Events/editJobReleaseRequestEvents.js";
 import {
   docLockScopeKey,
@@ -16,6 +18,23 @@ import { buildGrantedHolderPatch } from "../Functions/DocumentLock/documentLockS
 /**
  * @typedef {import("../Functions/DocumentLock/documentLockScope.js").ScopedDocumentLockState} ScopedDocumentLockState
  */
+
+/**
+ * Clears handoff / waitlist UI fields on the scope (matches
+ * `documentLockHookShared.clearedHandoffState` — inlined here to avoid a
+ * `usersStore` ↔ slice import cycle).
+ */
+function clearedHandoffFieldsForSlice() {
+  return {
+    extendSegmentCount: null,
+    waitlistLen: null,
+    handoffPendingHolder: false,
+    pendingHandoffOfferClientID: null,
+    pendingHandoffExpiresAtUnix: null,
+    handoffOfferForMe: false,
+    waitingInHandoffQueue: false,
+  };
+}
 
 const documentLockSlice = (set, get) => ({
   documentLock: {
@@ -167,6 +186,64 @@ const documentLockSlice = (set, get) => ({
             patchDocumentLockForScope(collection, docID, {
               waitingInHandoffQueue: true,
             });
+          }
+        } catch {
+          /* ignore */
+        }
+      },
+
+      /**
+       * Same-account emergency: POST `/force-release` then acquire. Confirms in
+       * the browser before calling the API.
+       *
+       * @param {string} collection
+       * @param {string} docID
+       */
+      forceReleaseSameAccountEditLock: async (collection, docID) => {
+        if (!collection || !docID) return;
+        const { patchDocumentLockForScope } = get().documentLock.actions;
+        const ok = window.confirm(
+          "Remove the edit lock from the other tab on this account? " +
+            "Only use if you are stuck (e.g. crashed editor). " +
+            "An active session may lose unsaved work."
+        );
+        if (!ok) return;
+        try {
+          const res = await forceReleaseDocumentLockSameAccount(collection, docID);
+          if (res.status === 204) {
+            suppressDocumentLockVacancyNotice();
+            patchDocumentLockForScope(collection, docID, {
+              lockHeld: false,
+              readOnly: false,
+              pendingAccessRequest: false,
+              lockExpiresAtUnix: null,
+              lockTtlSeconds: null,
+              ...clearedHandoffFieldsForSlice(),
+            });
+            const res2 = await acquireDocumentLock(collection, docID);
+            const data = await res2.json().catch(() => ({}));
+            if (res2.status === 201) {
+              patchDocumentLockForScope(
+                collection,
+                docID,
+                buildGrantedHolderPatch(data, { withClearedHandoff: true })
+              );
+              showSnackbarSuccess("Edit lock cleared — you now hold the lock.", 3);
+              return;
+            }
+            showSnackbarSuccess("Edit lock was cleared.", 3);
+            return;
+          }
+          if (res.status === 404) {
+            showSnackbarSuccess("No active lock to remove.", 3);
+            return;
+          }
+          if (res.status === 400) {
+            showSnackbarWarning(
+              "You already hold this lock — leave read-only or use the editor's release flow.",
+              4
+            );
+            return;
           }
         } catch {
           /* ignore */
