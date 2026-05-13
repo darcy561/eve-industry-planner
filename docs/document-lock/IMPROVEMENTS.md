@@ -15,6 +15,11 @@ picked up cold without re-deriving the rationale.
 - [x] **#3 — Pipelined per-doc Redis ops.** `status_pipeline.go` + `cascade_pipeline.go`; `/lock-state-batch` and group→jobs cascade are now 1–2 RTTs regardless of batch size (was `3N` / `2N`).
 - [x] **#5 — Batched group-handoff cascade event.** Single `document_lock_group_cascade` JetStream message carries every release; frontend applies all scope patches in one `patchManyDocumentLockScopes` Zustand transaction. No per-job `released` burst.
 - [x] **#7 — Single canonical key & wire shape.** v1 key path, dual-read fallback, and the legacy `inner["type"]` envelope deleted server- and client-side. One key prefix (`doc_lock:`), one Lua signature, one flat WS envelope. Lower bar for #4 (one set of counters, not two).
+- [x] **#10 — Decompose `useDocumentLock.js`.** Thin coordinator `frontend/src/Hooks/DocumentLock/useDocumentLock.js` plus `useLockAcquireRelease.js`, `useLockExtendLoop.js`, `useLockSyncFromServer.js`, `useLockSyncHeartbeat.js`, `useLockViewerPresence.js`, `useLockVacancySnackbar.js`, `useLockWsListener.js`, `useLockReadOnlyGrace.js`, `documentLockHookShared.js`. Public `useDocumentLock` API unchanged. Initial `renderHook` coverage for sub-hooks is in **#11**; optional follow-up: `useLockAcquireRelease`, `useLockExtendLoop`, `useLockSyncFromServer`, `useLockViewerPresence`, `useLockVacancySnackbar`, `useLockWsListener`.
+- [x] **#17 — Explicit `holder_release` on voluntary releases.** `LockReleaseReasonHolderRelease` in `documentlock/events.go`; `Service.Release` publishes `reason: holder_release`; `DOCUMENT_LOCK_RELEASE_REASONS.HOLDER_RELEASE` in `documentLockEvents.js`. Legacy clients omitting `reason` remain supported.
+- [x] **#16 — `held` mirror via `useReducer`.** `documentLockHeldReducer.js`, `useDocumentLockHeld.js`, and `dispatchHeld` plumbed through `useLockAcquireRelease`, `useLockSyncFromServer`, `useLockExtendLoop`, `useLockWsListener`. `heldRef` updates synchronously inside the functional `useReducer` updater so `/release` and WS holder checks stay race-safe. `keyRef`, `readOnlyGraceRef`, `prevHolderUiRef` unchanged. Pure reducer covered by `documentLockHeldReducer.test.js`.
+- [x] **#15 — Same-account force-release.** `POST /api/v1/document-locks/force-release` + `Service.ForceReleaseSameAccount` + Lua `forceReleaseSameAccountScript` in `documentlock/atomic.go`; `LockReleaseReasonForceReleasedSameAccount` in `events.go`; `ErrForceRelease*` in `status.go`; handler audit log in `handlers.go`; `TestForceReleaseSameAccount` in `atomic_concurrent_test.go`. Frontend: `forceReleaseDocumentLockSameAccount` in `documentLockClient.js`, `DOCUMENT_LOCK_RELEASE_REASONS.FORCE_RELEASED_SAME_ACCOUNT`, `forceReleaseSameAccountEditLock` in `documentLockSlice.js` (confirm → POST → clear scope handoff fields → `acquireDocumentLock`), viewer popover **Clear lock (same account)** in `DocumentLockHeaderControl.jsx`. Handoff-field reset inlined in the slice as `clearedHandoffFieldsForSlice()` to avoid importing `documentLockHookShared.js` (that module imports `usersStore` and would cycle the store).
+- [x] **#11 — Vitest coverage for the pure lock surface (initial).** `documentLockSlice.test.js` (`patchDocumentLockForScope`, `patchManyDocumentLockScopes`, `resetDocumentLockForScope`, `resetAllDocumentLocks`), `documentLockSelectors.test.js`, `documentLockHeaderSelectors.test.js`, `readOnlyGrace.test.js` (`shouldEndReadOnlyGrace`, `endReadOnlyGraceIfApplicable` with a shimmed `usersStore`), `applyDocumentLockStatusFromPayload.test.js` (holder / other-session / grace + fake timers), `useDocumentLockState.test.jsx` (`vi.hoisted` Zustand shim + `documentLockClient` mocks so Vitest does not hit a `usersStore`↔slice circular import via `realtimeClient`), `useLockReadOnlyGrace.test.jsx`, `useLockSyncHeartbeat.test.jsx`. No HTTP mocks; `documentLockClient` is stubbed only where importing the real slice would pull `realtimeClient` → `usersStore` mid-load. Follow-up: `renderHook` for `useLockAcquireRelease`, `useLockExtendLoop`, `useLockSyncFromServer`, `useLockViewerPresence`, `useLockVacancySnackbar`, `useLockWsListener` if desired.
 
 ## Remaining — Backend
 
@@ -55,32 +60,6 @@ picked up cold without re-deriving the rationale.
 
 ## Remaining — Frontend
 
-### #10 — Decompose `useDocumentLock.js`
-
-- **Status**: open · **Size**: L · **Where**: `frontend/src/Hooks/DocumentLock/useDocumentLock.js` (~700 lines, 4 refs, 8 effects).
-- **Why**: every read of the hook is a 700-line traversal. Each effect has subtle ordering / cleanup invariants that are hard to verify in isolation.
-- **How**: extract per-concern sub-hooks behind a thin facade:
-  - `useLockAcquireRelease` — owns the imperative acquire / release lifecycle.
-  - `useLockExtendLoop` — TTL-renewal interval + probe-pending state.
-  - `useLockSyncHeartbeat` — `/lock-state` sync timer + visibilitychange.
-  - `useLockViewerPresence` — `/viewer-arrived` / `/viewer-departed` + sendBeacon on pagehide.
-  - `useLockWsListener` — `eip-document-lock` listener that fans into the others.
-  - `useLockVacancySnackbar` — orphaned-lock pending-access snackbar logic.
-  - Parent `useDocumentLock` becomes a coordinator that calls these and exposes the same public return shape (preserves call sites).
-- **Acceptance**: existing call sites compile unchanged; each sub-hook has at least one `renderHook` test (lands as part of #11).
-
-### #11 — Vitest coverage for the pure lock surface
-
-- **Status**: open · **Size**: M · **Where**: new `frontend/src/...` tests next to the modules listed below.
-- **Why**: the only frontend lock test today is the implicit "it works in the planner" smoke. Pure functions and selector logic are easy wins.
-- **How**: tests for —
-  - `Zustand/documentLockSlice.js` — `patchDocumentLockForScope`, `patchManyDocumentLockScopes`, `clearDocumentLockScopes`.
-  - `Hooks/DocumentLock/selectors/*` (`documentLockSelectors.js`, `documentLockHeaderSelectors.js`).
-  - `Functions/DocumentLock/applyDocumentLockStatusFromPayload.js`.
-  - `Functions/DocumentLock/readOnlyGrace.js` — fake timers.
-  - `renderHook` tests for `useDocumentLockState.js`.
-- **Acceptance**: `vitest run` adds these and they pass against the current store wiring without mocking the network layer.
-
 ### #12 — Split `DocumentLockHeaderControl.jsx`
 
 - **Status**: open · **Size**: M · **Where**: `frontend/src/Components/Header/...` (~500 line component).
@@ -104,24 +83,6 @@ picked up cold without re-deriving the rationale.
 
 ## Remaining — Lower-impact polish
 
-### #15 — Same-account force-release
-
-- **Status**: open · **Size**: M · **Where**: new endpoint under `v1endpoints/documentlocks/`, new `Service.ForceRelease`, new frontend snackbar variant.
-- **Why**: today's "Take over" is only available when the lock looks orphaned (pulse stale). The crashed-tab scenario where the original session is gone but the lock isn't yet stale still leaves the user waiting up to 5 min.
-- **How**: explicit `POST /api/v1/document-locks/force-release` that requires the requester to be on the same `accountID` as the holder. Confirm dialog client-side; audit log line server-side; publish `document_lock_released { reason: "force_released_same_account" }`. New `LockReleaseReason*` constant on both sides.
-
-### #16 — `useReducer` for `useDocumentLock` state
-
-- **Status**: open (blocked by #10) · **Size**: M · **Where**: the new `useLockAcquireRelease` from #10.
-- **Why**: four `useRef`s (`heldRef`, `pendingHandoffRef`, `pendingAcquireRef`, `readOnlyGraceRef`) carry coupled state. A reducer makes the transitions auditable.
-- **How**: encode `{ held, readOnly, pendingAcquire, handoffStage, graceUntil }` as a single `useReducer` state; transitions become named actions (`ACQUIRED`, `HANDOFF_PROBED`, `RELEASED`, `GRACE_EXPIRED`, …) that close over the same JetStream events `useLockWsListener` dispatches.
-
-### #17 — Explicit `holder_release` reason on voluntary releases
-
-- **Status**: open · **Size**: S · **Where**: `documentlock/events.go` (+ wherever `BuildReleasedPayload`/equivalent lives) and `frontend/src/Functions/DocumentLock/documentLockEvents.js`.
-- **Why**: voluntary releases currently arrive with `reason` absent; the frontend has to discriminate by *missing* field instead of by value.
-- **How**: add `LockReleaseReasonHolderRelease = "holder_release"`, set it in every voluntary-release publish (the `Service.Release` happy path), and surface the constant in `DOCUMENT_LOCK_RELEASE_REASONS`. Frontend release handler can then switch on `reason` like every other event.
-
 ### #18 — `documentlock.logFields` helper
 
 - **Status**: open · **Size**: S · **Where**: new `documentlock/logfields.go` + replace ad-hoc field lists in every `logs.WarnCtx` / `ErrorCtx` call inside `documentlock` and `v1endpoints/documentlocks`.
@@ -136,8 +97,6 @@ picked up cold without re-deriving the rationale.
 2. **#13 (constant rename)** — trivial, gets `lock-state-batch` naming consistent end-to-end.
 3. **#6 (two missing race cases)** — small follow-up to #1, finishes off concurrency coverage.
 4. **#9 (viewer-aware probe selection)** — small UX win and uses infrastructure already in place from #1.
-5. **#11 (frontend vitest coverage)** — pre-requisite confidence for #10.
-6. **#10 (`useDocumentLock` decomposition)** — big refactor; do once #11 has a safety net.
-7. **#16, #12** — quality polish on the just-decomposed code.
-8. **#8 (Redis-materialised group→jobs)** — wait for #4 metrics to show whether Mongo is actually hot enough to matter.
-9. **#17, #14, #15, #18** — independent polish; pick when convenient.
+5. **#12** — header control split.
+6. **#8 (Redis-materialised group→jobs)** — wait for #4 metrics to show whether Mongo is actually hot enough to matter.
+7. **#14, #18** — independent polish; pick when convenient.

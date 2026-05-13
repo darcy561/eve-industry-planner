@@ -25,6 +25,11 @@ func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClien
 			handleRelease(w, r, clients)
 			return
 		}
+	case path == "/api/v1/document-locks/force-release" || path == "/api/v1/document-locks/force-release/":
+		if r.Method == http.MethodPost {
+			handleForceRelease(w, r, clients)
+			return
+		}
 	case path == "/api/v1/document-locks/hand-over" || path == "/api/v1/document-locks/hand-over/":
 		if r.Method == http.MethodPost {
 			handleHandOver(w, r, clients)

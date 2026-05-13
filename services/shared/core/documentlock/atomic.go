@@ -383,6 +383,79 @@ func runReleaseTx(ctx context.Context, rdb *redis.Client, accountID, sessionID, 
 	return &out, nil
 }
 
+// forceReleaseSameAccountScript clears a lock held by another session on the
+// same account (JWT accountID). Caller must not be the current holder — use
+// POST /release instead.
+//
+//	KEYS[1]  = lock key
+//	KEYS[2]  = waitlist key
+//	ARGV[1]  = caller sessionID (requester)
+//	ARGV[2]  = now (unix seconds)
+//	ARGV[3]  = accountID (must match record.accountID)
+//
+// Outcome JSON:
+//
+//	{
+//	  "outcome": "released" | "noop_no_lock" | "noop_same_holder",
+//	  "previousHolderSessionID": ""   // set only when outcome == released
+//	}
+var forceReleaseSameAccountScript = redis.NewScript(readLockLuaFn + `
+local k_lock = KEYS[1]
+local k_wait = KEYS[2]
+local caller_id = ARGV[1]
+local now = tonumber(ARGV[2])
+local account_id = ARGV[3]
+
+local existing = read_lock(k_lock, now)
+if not existing then
+  return cjson.encode({ outcome = "noop_no_lock" })
+end
+if existing.accountID ~= account_id then
+  return cjson.encode({ outcome = "noop_no_lock" })
+end
+if existing.holderSessionID == "" then
+  return cjson.encode({ outcome = "noop_no_lock" })
+end
+if existing.holderSessionID == caller_id then
+  return cjson.encode({ outcome = "noop_same_holder" })
+end
+
+local prev = existing.holderSessionID
+redis.call("DEL", k_lock)
+redis.call("DEL", k_wait)
+return cjson.encode({
+  outcome = "released",
+  previousHolderSessionID = prev,
+})
+`)
+
+type forceReleaseSameAccountTxResult struct {
+	Outcome                 string `json:"outcome"`
+	PreviousHolderSessionID string `json:"previousHolderSessionID,omitempty"`
+}
+
+func runForceReleaseSameAccountTx(ctx context.Context, rdb *redis.Client, accountID, callerSessionID, collection, docID string, now int64) (*forceReleaseSameAccountTxResult, error) {
+	raw, err := forceReleaseSameAccountScript.Run(
+		ctx,
+		rdb,
+		[]string{
+			LockKey(accountID, collection, docID),
+			waitlistKey(accountID, collection, docID),
+		},
+		callerSessionID,
+		now,
+		accountID,
+	).Text()
+	if err != nil {
+		return nil, fmt.Errorf("force-release same-account tx: %w", err)
+	}
+	var out forceReleaseSameAccountTxResult
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		return nil, fmt.Errorf("force-release same-account tx: decode: %w", err)
+	}
+	return &out, nil
+}
+
 // handOverLockScript implements `Service.HandOver` as one EVAL.
 //
 //	KEYS[1]  = lock key

@@ -157,6 +157,26 @@ export function releaseDocumentLock(collection, docID) {
 }
 
 /**
+ * Same-account emergency: clears the lock held by another session on this
+ * account (POST `/force-release`). Caller must not already be the holder.
+ *
+ * @param {string} collection
+ * @param {string} docID
+ * @returns {Promise<Response>}
+ */
+export function forceReleaseDocumentLockSameAccount(collection, docID) {
+  return requestWithPrivateHeaders(
+    lockUrl("force-release"),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ collection, docID }),
+    },
+    { requestName: "documentLockForceReleaseSameAccount", retry: false }
+  );
+}
+
+/**
  * Holder accepts another session's access request. Server-side this atomically
  * transfers ownership to the alive head of the waitlist (same transition as a
  * post-probe handoff) so the lock cannot leak to a neutral state where any

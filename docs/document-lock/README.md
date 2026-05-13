@@ -183,11 +183,13 @@ patches end up as one re-render, with no per-job `/lock-state` refetch.
 The cascade does NOT emit per-job `document_lock_released` events;
 this single batched event is the sole notification.
 
-`reason` strings for the four flagged events:
+`reason` strings for the main domain events:
 
 | Reason | Emitted on | Frontend constant |
 |---|---|---|
-| `group_handoff_cascade` | `released` from `documentlock/cascade.go` | `DOCUMENT_LOCK_RELEASE_REASONS.GROUP_HANDOFF_CASCADE` |
+| `group_handoff_cascade` | `document_lock_group_cascade` from `documentlock/cascade.go` | `DOCUMENT_LOCK_RELEASE_REASONS.GROUP_HANDOFF_CASCADE` |
+| `holder_release` | `released` from voluntary `POST /release` (`Service.Release`) | `DOCUMENT_LOCK_RELEASE_REASONS.HOLDER_RELEASE` |
+| `force_released_same_account` | `released` from `POST /force-release` (`Service.ForceReleaseSameAccount`) | `DOCUMENT_LOCK_RELEASE_REASONS.FORCE_RELEASED_SAME_ACCOUNT` |
 | `hand_over_no_queue` | `released` from `/hand-over` (requester gone) | `DOCUMENT_LOCK_RELEASE_REASONS.HAND_OVER_NO_QUEUE` |
 | `ttl` | `expired` from TTL keyspace event | `DOCUMENT_LOCK_EXPIRY_REASONS.TTL` |
 | `holder_handover` | `handoff_completed` from `/hand-over` | `DOCUMENT_LOCK_HANDOFF_REASONS.HOLDER_HANDOVER` |

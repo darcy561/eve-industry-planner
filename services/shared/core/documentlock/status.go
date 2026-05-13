@@ -19,6 +19,10 @@ var (
 	ErrStatusBatchTooMany = errors.New("status batch: too many doc ids")
 	// ErrLocksUnavailable is returned when Redis is not configured.
 	ErrLocksUnavailable = errors.New("locks unavailable")
+	// ErrForceReleaseNoLock is returned when POST /force-release finds no active lock.
+	ErrForceReleaseNoLock = errors.New("no active lock")
+	// ErrForceReleaseSameSession is returned when the caller already holds the lock (use POST /release).
+	ErrForceReleaseSameSession = errors.New("already holding lock; use release")
 )
 
 // StatusPayloadForDoc builds one /lock-state row (same shape as HTTP lock-state-batch values).

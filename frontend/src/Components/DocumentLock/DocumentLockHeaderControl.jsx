@@ -450,6 +450,34 @@ export default function DocumentLockHeaderControl() {
               >
                 {requestAccessPending ? "Requesting…" : "Request access"}
               </Button>
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                If another tab on your account crashed and you cannot get the lock, you can clear it
+                (confirms first — may disrupt an active editor).
+              </Typography>
+              <Button
+                variant="outlined"
+                size="small"
+                color="warning"
+                disabled={requestAccessPending}
+                aria-busy={requestAccessPending}
+                onClick={() => {
+                  const p = primaryHeaderRegistration(
+                    useUsersStore.getState()
+                  );
+                  if (!p?.collection || !p?.docID) return;
+                  startRequestAccess(async () => {
+                    await useUsersStore
+                      .getState()
+                      .documentLock.actions.forceReleaseSameAccountEditLock(
+                        p.collection,
+                        p.docID
+                      );
+                    setAnchorEl(null);
+                  });
+                }}
+              >
+                Clear lock (same account)
+              </Button>
             </>
           )}
 

@@ -80,6 +80,10 @@ export const DOCUMENT_LOCK_RELEASE_REASONS = Object.freeze({
    * receivers must NOT auto-reacquire — see `useDocumentLock.js` / `useLockScopeSync.js`.
    */
   GROUP_HANDOFF_CASCADE: "group_handoff_cascade",
+  /** Holder POST `/release` succeeded — voluntary drop of the edit lock. */
+  HOLDER_RELEASE: "holder_release",
+  /** Same-account `POST /force-release` cleared another tab's lock. */
+  FORCE_RELEASED_SAME_ACCOUNT: "force_released_same_account",
   /** Holder accepted a request snackbar and there was no live waitlist head. */
   HAND_OVER_NO_QUEUE: "hand_over_no_queue",
 });

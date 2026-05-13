@@ -13,9 +13,10 @@ const (
 	// (first /acquire, or /request auto-grant on an empty lock).
 	LockEventAcquired = "document_lock_acquired"
 
-	// LockEventReleased is published when a holder voluntarily releases the lock,
-	// or when the server-side cascade evicts a per-job lock after the parent group
-	// lock rotates (cf. `LockReleaseReasonGroupHandoffCascade`).
+	// LockEventReleased is published when a holder voluntarily releases the lock
+	// (cf. `LockReleaseReasonHolderRelease`), on the /hand-over fallback when no
+	// live requester remains (`LockReleaseReasonHandOverNoQueue`), or historically
+	// when the cascade emitted per-job releases (today use `LockEventGroupCascade`).
 	LockEventReleased = "document_lock_released"
 
 	// LockEventRequested is published when another session enters the waitlist
@@ -63,8 +64,12 @@ const LockExpiryReasonTTL = "ttl"
 
 // LockReleaseReason* tag the `reason` field on `LockEventReleased`.
 const (
-	// LockReleaseReasonGroupHandoffCascade tags `document_lock_released` events produced by
-	// the group handoff cascade so clients can distinguish them from voluntary releases.
+	// LockReleaseReasonHolderRelease tags voluntary `/release` publishes from the
+	// current holder (explicit close / navigation away after successful release).
+	LockReleaseReasonHolderRelease = "holder_release"
+
+	// LockReleaseReasonGroupHandoffCascade tags the batched `document_lock_group_cascade`
+	// event (per-job releases are no longer emitted as separate `document_lock_released`).
 	LockReleaseReasonGroupHandoffCascade = "group_handoff_cascade"
 
 	// LockReleaseReasonHandOverNoQueue marks the fallback release path inside
@@ -72,6 +77,10 @@ const (
 	// pulse pruning). Distinct from a normal voluntary release because the
 	// holder intent was a handover.
 	LockReleaseReasonHandOverNoQueue = "hand_over_no_queue"
+
+	// LockReleaseReasonForceReleasedSameAccount tags POST /force-release when another
+	// tab on the same account held the lock and the requester cleared it.
+	LockReleaseReasonForceReleasedSameAccount = "force_released_same_account"
 )
 
 // LockViewerEventJoined / LockViewerEventLeft tag the published presence events so
