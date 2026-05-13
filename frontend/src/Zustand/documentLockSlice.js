@@ -39,6 +39,51 @@ const documentLockSlice = (set, get) => ({
         ),
 
       /**
+       * Apply many `(collection, docID) → partial` patches inside a single
+       * `set` call so the store fires exactly one subscriber notification
+       * (and React 18 auto-batches the resulting re-renders into one
+       * commit). Used by the batched group→jobs cascade event handler in
+       * `useLockScopeSync.js` — replaces what used to be N independent
+       * `patchPlannerJobLockScopeFromApi` follow-up fetches.
+       *
+       * Entries with missing `collection` / `docID` / `partial` are
+       * silently skipped to keep the call-site simple.
+       *
+       * @param {ReadonlyArray<{
+       *   collection: string,
+       *   docID: string,
+       *   partial: Partial<ScopedDocumentLockState>
+       * }>} updates
+       */
+      patchManyDocumentLockScopes: (updates) => {
+        if (!Array.isArray(updates) || updates.length === 0) return;
+        set(
+          (state) => {
+            const nextScopes = { ...state.documentLock.scopes };
+            let changed = false;
+            for (const u of updates) {
+              if (!u || !u.collection || !u.docID || !u.partial) continue;
+              const k = docLockScopeKey(u.collection, u.docID);
+              const prev = nextScopes[k] ?? initialScopedDocumentLockState();
+              nextScopes[k] = { ...prev, ...u.partial };
+              changed = true;
+            }
+            if (!changed) return state;
+            return {
+              ...state,
+              documentLock: {
+                ...state.documentLock,
+                scopes: nextScopes,
+                actions: state.documentLock.actions,
+              },
+            };
+          },
+          false,
+          "documentLock/patchManyScopes"
+        );
+      },
+
+      /**
        * @param {string} collection
        * @param {string} docID
        * @param {Partial<ScopedDocumentLockState>} partial

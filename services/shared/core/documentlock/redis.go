@@ -11,10 +11,9 @@ import (
 )
 
 const (
-	keyPrefixV1 = "doc_lock:v1:"
-	keyPrefixV2 = "doc_lock:v2:"
-	waitPrefix  = "doc_lock_wait:v2:"
-	pulsePrefix = "doc_lock_pulse:v2:"
+	keyPrefix   = "doc_lock:"
+	waitPrefix  = "doc_lock_wait:"
+	pulsePrefix = "doc_lock_pulse:"
 	// KeyPartSep cannot appear in Mongo collection names / ids used by the app (same as frontend doc lock key).
 	KeyPartSep = "\x1e"
 )
@@ -41,13 +40,10 @@ type LockRecord struct {
 	ProbeExpiresAtUnix   int64  `json:"probeExpiresAtUnix,omitempty"`
 }
 
-func lockKeyV1(collection, docID string) string {
-	return keyPrefixV1 + collection + ":" + docID
-}
-
-// LockKeyV2 builds the Redis key including account id (used for keyspace expiry notifications).
-func LockKeyV2(accountID, collection, docID string) string {
-	return keyPrefixV2 + accountID + KeyPartSep + collection + KeyPartSep + docID
+// LockKey builds the Redis key for a per-document lock (account-scoped so
+// keyspace expiry notifications carry the account on the key itself).
+func LockKey(accountID, collection, docID string) string {
+	return keyPrefix + accountID + KeyPartSep + collection + KeyPartSep + docID
 }
 
 func waitlistKey(accountID, collection, docID string) string {
@@ -129,12 +125,12 @@ func WaitlistLen(ctx context.Context, rdb *redis.Client, accountID, collection, 
 	return rdb.LLen(ctx, waitlistKey(accountID, collection, docID)).Result()
 }
 
-// ParseExpiredLockKey extracts fields from an expired keyevent payload (doc_lock:v2 only).
+// ParseExpiredLockKey extracts fields from an expired keyevent payload.
 func ParseExpiredLockKey(key string) (accountID, collection, docID string, ok bool) {
-	if !strings.HasPrefix(key, keyPrefixV2) {
+	if !strings.HasPrefix(key, keyPrefix) {
 		return "", "", "", false
 	}
-	rest := key[len(keyPrefixV2):]
+	rest := key[len(keyPrefix):]
 	parts := strings.Split(rest, KeyPartSep)
 	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
 		return "", "", "", false
@@ -147,19 +143,13 @@ func GetLock(ctx context.Context, rdb *redis.Client, accountID, collection, docI
 	if rdb == nil {
 		return nil, fmt.Errorf("redis unavailable")
 	}
-	k2 := LockKeyV2(accountID, collection, docID)
-	s, err := rdb.Get(ctx, k2).Result()
-	if err != nil && err != redis.Nil {
-		return nil, err
-	}
+	k := LockKey(accountID, collection, docID)
+	s, err := rdb.Get(ctx, k).Result()
 	if err == redis.Nil {
-		s, err = rdb.Get(ctx, lockKeyV1(collection, docID)).Result()
-		if err == redis.Nil {
-			return nil, nil
-		}
-		if err != nil {
-			return nil, err
-		}
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
 	}
 	var rec LockRecord
 	if err := json.Unmarshal([]byte(s), &rec); err != nil {
@@ -167,38 +157,30 @@ func GetLock(ctx context.Context, rdb *redis.Client, accountID, collection, docI
 	}
 	now := time.Now().Unix()
 	if rec.ExpiresAtUnix > 0 && now > rec.ExpiresAtUnix {
-		_ = rdb.Del(ctx, k2, lockKeyV1(collection, docID)).Err()
+		_ = rdb.Del(ctx, k).Err()
 		return nil, nil
 	}
 	return &rec, nil
 }
 
-// SetLock writes the lock record with DefaultLockTTL and clears legacy v1 key.
+// SetLock writes the lock record with DefaultLockTTL.
 func SetLock(ctx context.Context, rdb *redis.Client, accountID, collection, docID string, rec LockRecord) error {
 	b, err := json.Marshal(rec)
 	if err != nil {
 		return err
 	}
-	k2 := LockKeyV2(accountID, collection, docID)
-	k1 := lockKeyV1(collection, docID)
-	pipe := rdb.Pipeline()
-	_ = pipe.Set(ctx, k2, b, DefaultLockTTL)
-	_ = pipe.Del(ctx, k1)
-	_, err = pipe.Exec(ctx)
-	return err
+	return rdb.Set(ctx, LockKey(accountID, collection, docID), b, DefaultLockTTL).Err()
 }
 
 func deleteLock(ctx context.Context, rdb *redis.Client, accountID, collection, docID string) error {
-	k2 := LockKeyV2(accountID, collection, docID)
-	k1 := lockKeyV1(collection, docID)
-	return rdb.Del(ctx, k2, k1).Err()
+	return rdb.Del(ctx, LockKey(accountID, collection, docID)).Err()
 }
 
 // PromoteWaitlistHead atomically transfers ownership of the lock for
 // (accountID, collection, docID) to the alive head of the waitlist.
 //
-// Used by /hand-over (interactive holder accept) and the TTL expiry
-// subscriber. Returns:
+// Used by the TTL expiry subscriber (HandOver has its own atomic script that
+// also enforces the prior-holder check). Returns:
 //   - (head, &rec, true, nil)  — a live waitlist head was found, the lock now
 //     points at them, the waitlist has been dequeued, and the caller should
 //     publish the appropriate `document_lock_handoff_completed` event.
@@ -208,8 +190,8 @@ func deleteLock(ctx context.Context, rdb *redis.Client, accountID, collection, d
 //   - ("",   nil,  false, err) — fatal Redis error, caller should bail.
 //
 // The new record clears extend/probe state so it reads back as a clean lease.
-// Dequeue failures are non-fatal (the head will be filtered next time
-// `PeekWaitlistHeadAlive` runs against them).
+// The peek-alive walk, lock rewrite and waitlist dequeue happen inside one
+// Redis EVAL so a second concurrent promotion cannot double-grant.
 func PromoteWaitlistHead(
 	ctx context.Context,
 	rdb *redis.Client,
@@ -218,26 +200,22 @@ func PromoteWaitlistHead(
 	if rdb == nil {
 		return "", nil, false, nil
 	}
-	head, err := PeekWaitlistHeadAlive(ctx, rdb, accountID, collection, docID)
+	now := time.Now().Unix()
+	ttlSeconds := int64(DefaultLockTTL / time.Second)
+
+	tx, err := runPromoteWaitlistTx(ctx, rdb, accountID, collection, docID, now, ttlSeconds)
 	if err != nil {
 		return "", nil, false, err
 	}
-	if head == "" {
+	if tx.Outcome != "promoted" {
 		return "", nil, false, nil
 	}
-	exp := time.Now().Unix() + int64(DefaultLockTTL/time.Second)
-	rec := LockRecord{
-		HolderSessionID: head,
+	rec := &LockRecord{
+		HolderSessionID: tx.NewHolderSessionID,
 		AccountID:       accountID,
-		ExpiresAtUnix:   exp,
+		ExpiresAtUnix:   tx.ExpiresAtUnix,
 	}
-	if err := SetLock(ctx, rdb, accountID, collection, docID, rec); err != nil {
-		return "", nil, false, err
-	}
-	if err := RemoveFromWaitlist(ctx, rdb, accountID, collection, docID, head); err != nil {
-		_ = err
-	}
-	return head, &rec, true, nil
+	return tx.NewHolderSessionID, rec, true, nil
 }
 
 // LockHeldByOther reports whether a non-expired lock is held by a session other than requesterSessionID.
@@ -259,7 +237,7 @@ func LockHeldByOther(ctx context.Context, rdb *redis.Client, accountID, collecti
 	return rec.HolderSessionID != requesterSessionID, nil
 }
 
-// DeleteLock removes lock keys (v1 and v2).
+// DeleteLock removes the lock key.
 func DeleteLock(ctx context.Context, rdb *redis.Client, accountID, collection, docID string) error {
 	if rdb == nil {
 		return nil

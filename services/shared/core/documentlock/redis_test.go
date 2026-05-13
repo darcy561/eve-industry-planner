@@ -30,8 +30,8 @@ const (
 func TestParseExpiredLockKey(t *testing.T) {
 	t.Parallel()
 
-	t.Run("v2_key_parses", func(t *testing.T) {
-		key := LockKeyV2(testAccountID, testCollection, testDocID)
+	t.Run("lock_key_parses", func(t *testing.T) {
+		key := LockKey(testAccountID, testCollection, testDocID)
 		acct, coll, doc, ok := ParseExpiredLockKey(key)
 		if !ok {
 			t.Fatalf("expected ok=true")
@@ -39,14 +39,6 @@ func TestParseExpiredLockKey(t *testing.T) {
 		if acct != testAccountID || coll != testCollection || doc != testDocID {
 			t.Fatalf("expected (%q,%q,%q), got (%q,%q,%q)",
 				testAccountID, testCollection, testDocID, acct, coll, doc)
-		}
-	})
-
-	t.Run("v1_key_rejected", func(t *testing.T) {
-		key := lockKeyV1(testCollection, testDocID)
-		_, _, _, ok := ParseExpiredLockKey(key)
-		if ok {
-			t.Fatalf("expected ok=false for v1 key")
 		}
 	})
 

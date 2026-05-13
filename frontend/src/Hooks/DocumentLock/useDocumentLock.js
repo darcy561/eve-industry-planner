@@ -19,7 +19,6 @@ import { docLockScopeKey } from "../../Functions/DocumentLock/documentLockScope.
 import {
   DOCUMENT_LOCK_CUSTOM_EVENT,
   DOCUMENT_LOCK_DOMAIN_EVENTS,
-  DOCUMENT_LOCK_RELEASE_REASONS,
 } from "../../Functions/DocumentLock/documentLockEvents.js";
 import {
   LOCK_EXPIRY_RESYNC_INTERVAL_MS,
@@ -598,9 +597,42 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
     function onLockEvent(ev) {
       const payload = ev?.detail;
       if (!payload || typeof payload !== "object") return;
-      if (payload.collection !== collection || payload.docID !== docID) return;
 
       const t = payload.event ?? payload.type;
+
+      /**
+       * Group → jobs cascade event. Doesn't carry a single `docID`
+       * (the releases live in `payload.releases[]`), so it gets handled
+       * before the per-scope filter below. If our scope's docID appears
+       * in the releases, patch the scope flat — no auto-reacquire, no
+       * `syncLockFromServer` (which would defeat the cascade by
+       * reacquiring on the former holder).
+       */
+      if (t === DOCUMENT_LOCK_DOMAIN_EVENTS.GROUP_CASCADE) {
+        if (
+          payload.collection !== collection ||
+          !Array.isArray(payload.releases)
+        ) {
+          return;
+        }
+        const hit = payload.releases.some(
+          (r) => r && r.docID === docID
+        );
+        if (!hit) return;
+        cancelReadOnlyGrace();
+        patch({
+          lockHeld: false,
+          readOnly: false,
+          pendingAccessRequest: false,
+          lockExpiresAtUnix: null,
+          lockTtlSeconds: null,
+          ...clearedHandoffState(),
+        });
+        heldRef.current = false;
+        return;
+      }
+
+      if (payload.collection !== collection || payload.docID !== docID) return;
       if (t === DOCUMENT_LOCK_DOMAIN_EVENTS.REQUESTED) {
         const mySessionID = useUsersStore.getState()?.account?.sessionID;
         if (
@@ -647,29 +679,14 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
       if (t === DOCUMENT_LOCK_DOMAIN_EVENTS.RELEASED) {
         cancelReadOnlyGrace();
         /**
-         * Server-side group handoff cascade evicted our per-job lock so the new group
-         * holder's cards reflect immediately. Patch directly instead of resyncing —
-         * `syncLockFromServer` would see `held: false` and trigger its auto-reacquire
-         * path on the former holder, grabbing the lock back and defeating the cascade.
-         */
-        if (payload.reason === DOCUMENT_LOCK_RELEASE_REASONS.GROUP_HANDOFF_CASCADE) {
-          patch({
-            lockHeld: false,
-            readOnly: false,
-            pendingAccessRequest: false,
-            lockExpiresAtUnix: null,
-            lockTtlSeconds: null,
-            ...clearedHandoffState(),
-          });
-          heldRef.current = false;
-          return;
-        }
-        /**
          * Voluntary release — the previous holder explicitly let go (closed
          * the page, handed over, etc). Drop readOnly immediately instead of
          * going through syncLockFromServer (which would preserve readOnly +
          * start the grace timer, applying TTL-expiry semantics that don't fit
          * here). Anyone can edit.
+         *
+         * The group → jobs cascade does NOT emit per-job released events;
+         * it uses the batched `GROUP_CASCADE` event handled above.
          */
         patch({
           lockHeld: false,

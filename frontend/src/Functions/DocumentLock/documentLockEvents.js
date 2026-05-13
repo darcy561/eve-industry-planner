@@ -23,6 +23,15 @@ export const DOCUMENT_LOCK_DOMAIN_EVENTS = Object.freeze({
   EXPIRED: "document_lock_expired",
   HANDOFF_PROBE: "document_lock_handoff_probe",
   HANDOFF_COMPLETED: "document_lock_handoff_completed",
+  /**
+   * Group → jobs cascade event. Emitted once when a group lock rotates
+   * (handoff, TTL promotion, or RequestAccess auto-grant on an orphaned
+   * group). `detail.releases` is an array of `{ docID, sessionID }` for
+   * every evicted per-job lock, applied in a single store transaction
+   * by `useLockScopeSync.js` / `useDocumentLock.js`. Receivers must NOT
+   * auto-reacquire.
+   */
+  GROUP_CASCADE: "document_lock_group_cascade",
   VIEWER_JOINED: "document_lock_viewer_joined",
   VIEWER_LEFT: "document_lock_viewer_left",
 });
@@ -60,14 +69,15 @@ export const DOCUMENT_LOCK_WS_TYPES = DOCUMENT_LOCK_FRAME_TYPES;
 
 /**
  * `reason` fields on `document_lock_released` / `document_lock_expired` /
- * `document_lock_handoff_completed` events. Keep matched to backend constants
- * `LockReleaseReason*`, `LockExpiryReason*`, `LockHandoffReason*`.
+ * `document_lock_handoff_completed` / `document_lock_group_cascade` events.
+ * Keep matched to backend constants `LockReleaseReason*`, `LockExpiryReason*`,
+ * `LockHandoffReason*`.
  */
 export const DOCUMENT_LOCK_RELEASE_REASONS = Object.freeze({
   /**
-   * Per-job lock force-released by the server because the parent group lock
-   * rotated. Receivers must NOT auto-reacquire on this — see the released
-   * handler in `useDocumentLock.js`.
+   * Reason tag carried on `GROUP_CASCADE` events. The cascade evicts per-job
+   * locks held by the previous group holder after the group lock rotates;
+   * receivers must NOT auto-reacquire — see `useDocumentLock.js` / `useLockScopeSync.js`.
    */
   GROUP_HANDOFF_CASCADE: "group_handoff_cascade",
   /** Holder accepted a request snackbar and there was no live waitlist head. */

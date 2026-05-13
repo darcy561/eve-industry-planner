@@ -31,17 +31,6 @@ func TestBuildDocumentLockWireFlatShape(t *testing.T) {
 	}
 }
 
-func TestBuildDocumentLockWireLegacyInnerTypeKey(t *testing.T) {
-	raw := []byte(`{"type":"` + documentlock.LockViewerEventLeft + `","sessionID":"sess-b","collection":"c","docID":"d"}`)
-	_, suppress, err := BuildDocumentLockWire(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if suppress != "sess-b" {
-		t.Fatalf("suppressSessionID = %q", suppress)
-	}
-}
-
 func TestBuildDocumentLockWireSuppressSessionRequested(t *testing.T) {
 	raw := []byte(`{"` + documentlock.LockPayloadEventKey + `":"` + documentlock.LockEventRequested + `","requesterSessionID":"req-sess-1","collection":"c","docID":"d"}`)
 	_, suppress, err := BuildDocumentLockWire(raw)

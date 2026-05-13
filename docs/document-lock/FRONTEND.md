@@ -89,7 +89,7 @@ Responsibilities, all driven from one mount/unmount:
 | **Mount / docID change** | `tryAcquire` → 201 (we hold), 200/409 with `held:true` (read-only viewer), or transient lock-vanished → patch cleared. |
 | **Unmount / docID change** | Cancel grace timer, `/release` (only if we held), clear our scope, reset internal refs. |
 | **Extend loop** | Every `LOCK_EXTEND_INTERVAL_MS` while we hold and tab is visible → `/extend` → patch new expiry. |
-| **Status sync heartbeat** | Every `LOCK_STATUS_SYNC_INTERVAL_MS` → `/status` (self-heal). |
+| **Status sync heartbeat** | Every `LOCK_STATUS_SYNC_INTERVAL_MS` → `/lock-state` (self-heal). |
 | **Post-expiry resync** | Every `LOCK_EXPIRY_RESYNC_INTERVAL_MS` while cached `expiresAtUnix` is already past. |
 | **Visibility / online** | On `visibilitychange` → resync + maybe `/extend`; on `online` → resync. |
 | **Waitlist pulse loop** | While `waitingInHandoffQueue` → `/waitlist-pulse` every `LOCK_WAITLIST_PULSE_INTERVAL_MS`. |
@@ -101,27 +101,39 @@ Responsibilities, all driven from one mount/unmount:
 
 ```mermaid
 flowchart TD
-  WS["WebSocket frame<br/>{type:document_lock, payload}"]
-  RT["realtimeClient.js"]
-  CE["window CustomEvent<br/>eip-document-lock"]
+  WS["WebSocket frame<br/>{type:'document_lock', event, …fields}"]
+  RT["realtimeClient.js<br/>documentLockWireToDetail"]
+  CE["window CustomEvent<br/>eip-document-lock<br/>detail.{event,type,…fields}"]
   HK["useDocumentLock listener"]
 
   WS --> RT --> CE --> HK
 
   HK -->|"REQUESTED"| Snack["patch pendingAccessRequest=true<br/>show access-request snackbar"]
   HK -->|"HANDOFF_PROBE"| Claim["if probeTarget == us<br/>→ /claim-handoff"]
-  HK -->|"HANDOFF_COMPLETED"| Sync1["cancelReadOnlyGrace<br/>→ /status sync"]
-  HK -->|"ACQUIRED"| Sync2["cancelReadOnlyGrace<br/>→ /status sync"]
-  HK -->|"RELEASED reason=group_handoff_cascade"| Cascade["patch lockHeld=false, readOnly=false<br/>(NO auto-reacquire)"]
-  HK -->|"RELEASED (any other)"| VolRel["patch lockHeld=false, readOnly=false"]
-  HK -->|"EXPIRED"| Sync3["/status sync<br/>(grace timer arms if we were viewer)"]
+  HK -->|"HANDOFF_COMPLETED"| Sync1["cancelReadOnlyGrace<br/>→ /lock-state sync"]
+  HK -->|"ACQUIRED"| Sync2["cancelReadOnlyGrace<br/>→ /lock-state sync"]
+  HK -->|"RELEASED"| VolRel["patch lockHeld=false, readOnly=false<br/>(voluntary release — anyone can edit)"]
+  HK -->|"GROUP_CASCADE (releases[] contains us)"| CascadeBatch["patch lockHeld=false, readOnly=false<br/>(NO auto-reacquire)"]
+  HK -->|"EXPIRED"| Sync3["/lock-state sync<br/>(grace timer arms if we were viewer)"]
   HK -->|"VIEWER_JOINED / VIEWER_LEFT"| VC["patch viewerCount±1<br/>(ignore our own echo)"]
 ```
 
-The `group_handoff_cascade` branch is the subtle one: we patch directly
-instead of going through `/status` because `/status` would see `held:false`
-and trigger our auto-reacquire path on the former group holder, defeating the
-server-side cascade.
+`realtimeClient.js::documentLockWireToDetail` normalises the flat
+`{type, event, …fields}` envelope and copies the discriminator onto both
+`detail.event` and `detail.type` so listeners can read either field. The
+listener inside `useDocumentLock` branches on the discriminator value (a
+`document_lock_*` string).
+
+`GROUP_CASCADE` is the only notification the server emits for a
+group → jobs cascade: one WS frame carries every release in
+`detail.releases[]`. The per-scope listener in `useDocumentLock` checks
+whether its `(collection, docID)` shows up in that array and patches
+itself directly — no `/lock-state` sync (which would trigger
+auto-reacquire on the former holder and defeat the cascade). The
+planner-wide listener in `useLockScopeSync.js` consumes the same event
+and applies *all* the releases at once through a single
+`patchManyDocumentLockScopes` store call, replacing what would otherwise
+be N per-job `patchPlannerJobLockScopeFromApi` HTTP refetches.
 
 ### `syncLockFromServer` — three branches
 
@@ -171,7 +183,7 @@ flowchart LR
   PageGrp["Group.jsx"] -->|"useJobPlannerJobLockSync()"| Core2["useLockScopeSync<br/>(getJobIDs only)"]
   Core -->|"jobArray/groupArray syncKey"| Debounce["200ms debounce"]
   Core2 --> Debounce
-  Debounce --> Batch["POST /status-batch in chunks"]
+  Debounce --> Batch["WS document_lock_lock_state_batch<br/>or POST /lock-state-batch in chunks"]
   Batch --> Apply["applyDocumentLockStatusFromPayload per row"]
   Core -->|"eip-document-lock listener"| Patch1["patchPlannerJobLockScopeFromApi"]
   Core -->|"eip-document-lock listener"| Patch2["patchPlannerGroupLockScopeFromApi"]
@@ -311,38 +323,63 @@ The Accept flow uses the **release-request handler registry** in
 handler that opens the unsaved-changes dialog; group page, archived jobs etc
 leave it `null` and the slice falls back to the direct hand-over path.
 
-## REST client surface
+## REST + WebSocket client surface
 
-`frontend/src/Functions/Endpoints/Pirivate/documentLockClient.js` — thin
-fetch wrappers around `/api/v1/document-locks/*`. Notable details:
+`frontend/src/Functions/Endpoints/Pirivate/documentLockClient.js` — fetch
+wrappers around `/api/v1/document-locks/*` plus WebSocket-frame shortcuts.
+Notable details:
 
-- `getDocumentLockStatusBatch({ jobDocIDs, groupDocIDs })` uses WebSocket
-  (`document_lock_status_batch` JSON frame) when the socket is open and falls
-  back to `POST /status-batch` otherwise. Same Redis rows both ways.
+- `getDocumentLockStatusBatch({ jobDocIDs, groupDocIDs })` uses
+  `DOCUMENT_LOCK_FRAME_TYPES.LOCK_STATE_BATCH`
+  (`document_lock_lock_state_batch` frame, correlated by `requestId` against
+  the `document_lock_lock_state_batch_ack` reply) when the socket is open,
+  and falls back to `POST /lock-state-batch` otherwise. Same Redis rows both
+  ways.
 - `getDocumentLockStatus(collection, docID)` is a single-scope wrapper that
   routes through the batch path so the WS shortcut applies to per-scope
   refreshes too. Returns a `Response` shape that mimics the legacy
   single-scope endpoint.
+- Viewer presence and waitlist pulses prefer the WS frames
+  (`document_lock_viewer_arrived` / `document_lock_viewer_departed` /
+  `document_lock_waitlist_pulse`) and fall back to their HTTP equivalents
+  when the socket is closed.
 - `sendDocumentLockViewerDepartedBeacon` uses `navigator.sendBeacon` so the
   departure still leaves the browser during `pagehide` / `beforeunload`.
-- Every fetch uses `requestWithPrivateHeaders` (adds session JWT) and
-  `retry: false` — these endpoints are stateful and idempotent only on the
-  server side, not at the transport level.
+- Every fetch uses `requestWithPrivateHeaders` (cookie session +
+  `X-WS-Client-ID`) and `retry: false` — these endpoints are stateful and
+  idempotent only on the server side, not at the transport level.
 
 ## Realtime envelope path
 
-`frontend/src/Realtime/realtimeClient.js` (lines around 311–318) is the only
-place that translates the WS envelope:
+`frontend/src/Realtime/realtimeClient.js` is the only place that translates
+the WS envelope into the `eip-document-lock` CustomEvent. The server always
+emits the flat `{type, event, …fields}` shape:
 
 ```js
+// Helper used inside the message handler
+function documentLockWireToDetail(parsed) {
+  // Flat: { type: "document_lock", event: "document_lock_*", ...fields }
+  const ev = parsed.event;
+  const name = typeof ev === "string" && ev.trim() !== "" ? ev.trim() : "";
+  if (!name) return null;
+  const { type: _outer, event: _ev, ...rest } = parsed;
+  return { ...rest, event: name, type: name };
+}
+
+// Dispatch site
 if (parsed.type === DOCUMENT_LOCK_FRAME_TYPES.CHANNEL) {
-  window.dispatchEvent(
-    new CustomEvent(DOCUMENT_LOCK_CUSTOM_EVENT, { detail: parsed.payload })
-  );
+  const detail = documentLockWireToDetail(parsed);
+  if (detail) {
+    window.dispatchEvent(
+      new CustomEvent(DOCUMENT_LOCK_CUSTOM_EVENT, { detail })
+    );
+  }
   return;
 }
 ```
 
+The dispatched `detail` always carries the domain event string on **both**
+`detail.event` and `detail.type` (alias) so listeners can read either.
 Everything downstream listens on `eip-document-lock`. There is no other
 in-process pub/sub for lock events.
 
@@ -378,16 +415,26 @@ The full Edit Job page mounts both the job scope and the group scope this way
   returns the cleanup; the imperative API in `headerDocumentLockEvents.js`
   requires manual `clearHeaderDocumentLockUI()`. Without cleanup the icon
   references a stale doc after route change.
-- **Resyncing on `released { reason: "group_handoff_cascade" }`.** Don't —
-  it triggers auto-reacquire on the former holder. Patch the scope directly;
-  this is the only event type where the hook does not go through `/status`.
+- **Resyncing on `GROUP_CASCADE`.** Don't — it triggers auto-reacquire on
+  the former holder. Patch the scope directly; this is the only event
+  type where `useDocumentLock` doesn't go through `/lock-state`.
+- **Reacting per-job to `GROUP_CASCADE`.** The event is meant to be
+  consumed *once* per planner page through
+  `patchManyDocumentLockScopes` (see `useLockScopeSync.js`). Adding a
+  second N-event loop that calls `patchPlannerJobLockScopeFromApi` per
+  release defeats the point of the batched payload — it puts N HTTP
+  requests back on the wire.
 - **Calling `releaseDocumentLock` directly to "hand over".** The lock will go
   neutral and any session can race in; the requester is not guaranteed to win.
   Always go through `documentLockSlice.handOverEditAccess` (POST `/hand-over`)
   — it atomically transfers ownership on the server.
-- **Polling `/status` while the WS is open.** The heartbeat handles missed
-  events; per-scope polling on top is wasted load. The sync hooks listen on
-  `eip-document-lock` already.
+- **Polling `/lock-state` while the WS is open.** The heartbeat handles
+  missed events; per-scope polling on top is wasted load. The sync hooks
+  listen on `eip-document-lock` already.
+- **Reading the domain event off `detail.type` only.** The dispatched
+  CustomEvent carries the discriminator on both `detail.event` *and*
+  `detail.type`. New code should prefer `detail.event` to mirror the wire's
+  `LockPayloadEventKey`; `detail.type` is kept for back-compat.
 - **Adding new event types.** Add the string to *both*
   `documentLockEvents.js` (frontend) *and* `documentlock/events.go` (backend) and handle
   it in `useDocumentLock`'s listener. The contract table in

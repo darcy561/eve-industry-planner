@@ -11,7 +11,7 @@ let wsClientID = null;
 
 /**
  * Last id before `wsClientID` became null due to transient disconnect (socket close /
- * reconnect). Lets us pair Redis doc-lock rebind after JWT refresh: old id → new id even
+ * reconnect). Lets us pair Redis doc-lock rebind after session refresh / reconnect: old id → new id even
  * when {@link setRealtimeClientID} runs with `prev === null` because the cookie was cleared first.
  */
 let lastWsClientIDBeforeDisconnect = null;

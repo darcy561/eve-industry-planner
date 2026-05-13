@@ -13,12 +13,6 @@ const wsDocumentLockChannel = "document_lock"
 
 func innerLockEventName(inner map[string]any) string {
 	if s, ok := inner[documentlock.LockPayloadEventKey].(string); ok {
-		if t := strings.TrimSpace(s); t != "" {
-			return t
-		}
-	}
-	// Legacy JetStream bodies used "type" before LockPayloadEventKey.
-	if s, ok := inner["type"].(string); ok {
 		return strings.TrimSpace(s)
 	}
 	return ""

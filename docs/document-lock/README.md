@@ -23,6 +23,9 @@ This README is the cross-stack overview. Implementation detail lives in:
 - [FRONTEND.md](./FRONTEND.md) — Zustand slices, hooks, components, event flow.
 - [BACKEND.md](./BACKEND.md) — HTTP endpoints, Redis key layout, handlers,
   cascade, expiry subscriber, viewer presence.
+- [IMPROVEMENTS.md](./IMPROVEMENTS.md) — tracked backlog of subsystem
+  improvements (shipped + open), sized and scoped so any item can be picked
+  up cold.
 
 ## Vocabulary
 
@@ -60,7 +63,7 @@ flowchart LR
     Core["shared/core/documentlock<br/>Service + cascade + expiry"]
   end
 
-  Redis[("Redis<br/>doc_lock:v2:*<br/>doc_lock_wait:v2:*<br/>doc_lock_pulse:v2:*<br/>doc_lock_viewers:v2:*")]
+  Redis[("Redis<br/>doc_lock:*<br/>doc_lock_wait:*<br/>doc_lock_pulse:*<br/>doc_lock_viewers:*")]
   JS["JetStream<br/>doc.lock.{accountID}"]
 
   subgraph WS["services/websocket"]
@@ -70,13 +73,13 @@ flowchart LR
     DocLockConsumer --> Fanout
   end
 
-  Hook -->|"POST /acquire /extend<br/>/release /request<br/>/hand-over /claim-handoff<br/>/viewer-arrived /viewer-departed<br/>/waitlist-pulse"| Routes
-  Slice -->|"POST /status-batch<br/>GET /status"| Routes
+  Hook -->|"POST /acquire /extend<br/>/release /request<br/>/hand-over /claim-handoff<br/>/viewer-arrived /viewer-departed<br/>/waitlist-pulse<br/>(WS alt: viewer-arrived/<br/>viewer-departed/waitlist-pulse)"| Routes
+  Slice -->|"POST /lock-state-batch<br/>GET /lock-state<br/>(WS alt: document_lock_lock_state_batch)"| Routes
   Routes --> Core
   Core <-->|"GET/SET/DEL<br/>LIST/ZSET"| Redis
   Core -->|"PublishLockEvent"| JS
   JS --> DocLockConsumer
-  Fanout -->|"{type: 'document_lock', payload}"| SPA
+  Fanout -->|"{type:'document_lock', event, …fields}"| SPA
   SPA -->|"CustomEvent eip-document-lock"| Hook
 ```
 
@@ -87,7 +90,11 @@ Zustand.
 
 ## Wire contract (frontend ↔ backend)
 
-Inner-payload `type` strings every fan-out wraps:
+### Domain event strings
+
+Domain discriminator lives on the JSON field **`event`** (constant
+`documentlock.LockPayloadEventKey` on the backend,
+`DOCUMENT_LOCK_DOMAIN_EVENT_KEY` on the frontend).
 
 | Frontend constant (`documentLockEvents.js`) | Backend constant (`documentlock/events.go` / HTTP viewer handlers / `documentlock/expiry.go`) | Emitted by |
 |---|---|---|
@@ -97,20 +104,86 @@ Inner-payload `type` strings every fan-out wraps:
 | `DOCUMENT_LOCK_DOMAIN_EVENTS.EXPIRED` (`document_lock_expired`) | `LockEventExpired` | TTL with no live waitlist head |
 | `DOCUMENT_LOCK_DOMAIN_EVENTS.HANDOFF_PROBE` (`document_lock_handoff_probe`) | `LockEventHandoffProbe` | `/extend` after 3 renewals while waitlist is alive |
 | `DOCUMENT_LOCK_DOMAIN_EVENTS.HANDOFF_COMPLETED` (`document_lock_handoff_completed`) | `LockEventHandoffCompleted` | `/hand-over`, `/claim-handoff`, TTL promotion |
+| `DOCUMENT_LOCK_DOMAIN_EVENTS.GROUP_CASCADE` (`document_lock_group_cascade`) | `LockEventGroupCascade` | One event per group→jobs cascade in `documentlock/cascade.go` — see [§ Group cascade event](#group-cascade-event). |
 | `DOCUMENT_LOCK_DOMAIN_EVENTS.VIEWER_JOINED` (`document_lock_viewer_joined`) | `LockViewerEventJoined` | `/viewer-arrived` (newly added) |
 | `DOCUMENT_LOCK_DOMAIN_EVENTS.VIEWER_LEFT` (`document_lock_viewer_left`) | `LockViewerEventLeft` | `/viewer-departed` (removal hit) |
 
 Each payload also includes `accountID`, `collection`, `docID`, plus a subset of
 `sessionID`, `holderSessionID`, `requesterSessionID`, `probeTargetSessionID`,
-`expiresAtUnix`, `previousHolderSessionID`, `reason`. The WS envelope wraps it:
+`expiresAtUnix`, `previousHolderSessionID`, `reason`.
+
+### Fan-out envelope (server → SPA)
+
+The websocket service emits one **flat** JSON object: the outer `type` is the
+realtime channel tag and the domain discriminator is `event` at the top level
+(there is **no nested `payload`**):
 
 ```json
-{ "type": "document_lock", "payload": { "type": "...", ...rest } }
+{
+  "type": "document_lock",
+  "event": "document_lock_handoff_completed",
+  "accountID": "…",
+  "collection": "user_job_documents",
+  "docID": "…",
+  "sessionID": "…",
+  "expiresAtUnix": 1731435678,
+  "previousHolderSessionID": "…",
+  "reason": "ttl_promotion"
+}
 ```
 
-See `services/websocket/server/natslogic/locks.go::BuildDocumentLockWire`.
+Wrapper: `services/websocket/server/natslogic/locks.go::BuildDocumentLockWire`.
+Frontend normalisation (`documentLockWireToDetail` in `realtimeClient.js`)
+sets both `detail.event` and `detail.type` on the dispatched
+`eip-document-lock` CustomEvent.
 
-`reason` strings for the three flagged events:
+### WebSocket frame types (client ↔ server)
+
+The frontend's `DOCUMENT_LOCK_FRAME_TYPES` (`documentLockEvents.js`) declares the
+non-domain frame discriminators that share the same `/ws` socket. Each
+client → server frame has an HTTP equivalent — the SPA prefers the WS form when
+the socket is open and falls back to HTTP otherwise.
+
+| Frame `type` | Direction | HTTP equivalent | Notes |
+|---|---|---|---|
+| `document_lock` (`CHANNEL`) | server → client | — | Fan-out envelope (table above). |
+| `document_lock_lock_state_batch` (`LOCK_STATE_BATCH`) | client → server | `POST /lock-state-batch` | Per-page batch refresh; correlated by `requestId`. |
+| `document_lock_lock_state_batch_ack` (`LOCK_STATE_BATCH_ACK`) | server → client | — | Reply to the batch above. |
+| `document_lock_waitlist_pulse` (`WAITLIST_PULSE`) | client → server | `POST /waitlist-pulse` | Refreshes `doc_lock_pulse:…:sessionID`. |
+| `document_lock_viewer_arrived` (`VIEWER_ARRIVED`) | client → server | `POST /viewer-arrived` | Passive viewer joins. |
+| `document_lock_viewer_departed` (`VIEWER_DEPARTED`) | client → server | `POST /viewer-departed` | Passive viewer leaves. |
+
+### Group cascade event
+
+When a group lock rotates (handoff, TTL-promotion, or `RequestAccess`
+auto-grant on an orphaned group), the cascade in
+`documentlock/cascade.go` evicts per-job locks held by the previous
+group holder and publishes **one** `document_lock_group_cascade` event
+carrying every release in a single payload:
+
+```json
+{
+  "type": "document_lock",
+  "event": "document_lock_group_cascade",
+  "accountID": "…",
+  "groupCollection": "user_job_groups",
+  "groupID": "group-1",
+  "collection": "user_job_documents",
+  "reason": "group_handoff_cascade",
+  "releases": [
+    { "docID": "job-a", "sessionID": "sess-old" },
+    { "docID": "job-b", "sessionID": "sess-old" }
+  ]
+}
+```
+
+The frontend handlers (`useLockScopeSync.js`, `useDocumentLock.js`)
+apply every entry in `releases` inside one Zustand transaction — N scope
+patches end up as one re-render, with no per-job `/lock-state` refetch.
+The cascade does NOT emit per-job `document_lock_released` events;
+this single batched event is the sole notification.
+
+`reason` strings for the four flagged events:
 
 | Reason | Emitted on | Frontend constant |
 |---|---|---|
@@ -136,7 +209,7 @@ sequenceDiagram
 
   T->>Slice: useDocumentLock mount → tryAcquire
   Slice->>API: { collection, docID }
-  API->>R: GET doc_lock:v2:{aid}:{coll}:{id}
+  API->>R: GET doc_lock:{aid}:{coll}:{id}
   R-->>API: nil
   API->>R: SET ... rec(HolderSessionID=A, exp=now+5m), TTL=5m
   API->>JS: publish doc.lock.{aid}<br/>(type=acquired, sessionID=A, exp)
@@ -167,12 +240,12 @@ sequenceDiagram
 
   B->>SB: click "Request access"
   SB->>API: POST /request
-  API->>R: RPUSH doc_lock_wait:v2:..., SET doc_lock_pulse:v2:...:B
+  API->>R: RPUSH doc_lock_wait:..., SET doc_lock_pulse:...:B
   API->>JS: type=requested, requesterSessionID=B
   JS-->>SA: requested → snackbar
   A->>SA: click "Accept"
   SA->>API: POST /hand-over
-  API->>R: peekWaitlistHeadAlive → B
+  API->>R: PeekWaitlistHeadAlive → B
   API->>R: SET ... rec(HolderSessionID=B, exp=now+5m), LREM B
   API->>JS: type=handoff_completed,<br/>previousHolderSessionID=A,<br/>sessionID=B,<br/>reason=holder_handover
   API->>R: (if group) cascade-release per-job locks held by A
@@ -185,15 +258,15 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   participant R as Redis
-  participant E as expiry_subscriber.go
+  participant E as documentlock/expiry.go
   participant API as documentlocks pkg
   participant JS as JetStream
   participant All as All tabs
 
-  Note over R: doc_lock:v2:... TTL fires
+  Note over R: doc_lock:... TTL fires
   R->>E: __keyevent@*__:expired
   E->>API: promoteWaitlistHeadOnExpiry
-  API->>R: peekWaitlistHeadAlive (pulse check)
+  API->>R: PeekWaitlistHeadAlive (pulse check)
   alt alive head found
     API->>R: SET ... rec(HolderSessionID=head, exp=now+5m)
     API->>R: LREM head from waitlist
@@ -234,7 +307,7 @@ sequenceDiagram
 
   Hook->>Hook: readOnly transitions true<br/>(effect)
   Hook->>API: { collection, docID }
-  API->>R: ZADD doc_lock_viewers:v2:..., B<br/>(score = now + ViewerPresenceTTL)
+  API->>R: ZADD doc_lock_viewers:..., B<br/>(score = now + ViewerPresenceTTL)
   alt newly added
     API->>JS: type=viewer_joined, sessionID=B
     JS-->>A: viewer_joined → patch viewerCount++
@@ -269,7 +342,7 @@ TTL values live in `services/shared/core/documentlock/redis.go` and
 | Waitlist pulse cadence | `LOCK_WAITLIST_PULSE_INTERVAL_MS` = 35 s | `WaitlistPulseTTL` = 2 min | Client must refresh below TTL. |
 | Read-only grace | `LOCK_READONLY_GRACE_MS` = 5 s | n/a | Bridges TTL-expiry races. |
 | Scope-sync debounce | `LOCK_SCOPE_SYNC_DEBOUNCE_MS` = 200 ms | n/a | Coalesces planner churn. |
-| Status batch ceiling | `MAX_STATUS_BATCH_DOC_IDS` = 500 | `MaxStatusBatchDocs` = 500 | Per-array cap (jobs + groups). |
+| Lock-state batch ceiling | `MAX_STATUS_BATCH_DOC_IDS` = 500 | `MaxStatusBatchDocs` = 500 | Per-array cap on `/lock-state-batch` (jobs + groups). Constant names predate the route rename and are kept for back-compat. |
 | Planner chunk | `PLANNER_PAGE_JOB_CHUNK_MAX` = 450 | n/a | Reserve slack for groups in first chunk. |
 | Probe ack window | n/a | `ProbeAckWaitSeconds` = 20 | Queued client must `/claim-handoff` in this window. |
 | Extends per cycle | n/a | `MaxExtensionsBeforeHandoffConsult` = 3 | After this many, `/extend` probes waitlist. |
@@ -282,28 +355,41 @@ TTL values live in `services/shared/core/documentlock/redis.go` and
 ```
 services/shared/core/documentlock/
   deps.go                 — Deps + DepsFromServiceClients (Redis, Mongo, JetStream)
-  redis.go                — Redis key layout, LockRecord, waitlist + promote helpers
+  redis.go                — Redis key layout, LockRecord, waitlist + PromoteWaitlistHead helpers
   viewer.go               — viewer ZSET (AddViewer / RemoveViewer / PruneAndCountViewers)
-  status.go               — StatusPayloadForDoc, StatusBatchResults
+  presence_ingress.go     — HandleViewerArrivedIngress / HandleViewerDepartedIngress (shared by HTTP + WS)
+  status.go               — StatusPayloadForDoc, StatusBatchResults (+ sentinel errors)
+  status_pipeline.go      — statusBatchFetch (one Redis pipeline per batch: GET, viewer ZREM/ZCARD, waitlist LLEN)
   payload.go              — LockPayload, ExtendExtras (HTTP JSON fragments)
-  events.go               — wire type/reason constants + BuildHandoffCompletedPayload
+  events.go               — domain event names, reason constants, LockPayloadEventKey ("event"), BuildHandoffCompletedPayload
   publish.go / notify.go  — JetStream doc.lock publish + PublishLockEvent
   cascade.go              — group → per-job cascade + ReleaseStale* / ReleaseDependent*
-  expiry.go               — Redis __keyevent@*__:expired listener + waitlist promotion
-  service.go / service_ops.go — Service (Acquire, Extend, Release, RequestAccess, …)
-  *_test.go               — redis, events, cascade predicates
+  cascade_pipeline.go     — pipelinedDecideAndReleaseJobLocks (two-pipeline GET-then-DEL for group→jobs cascade)
+  expiry.go               — Redis __keyevent@*__:expired listener + waitlist promotion (RunExpirySubscriber; lease-gated)
+  atomic.go               — Lua-script transitions (Acquire/Extend/Release/HandOver/Request/Claim/Promote)
+  service.go / service_ops.go — Service (Acquire, Extend, Release, HandOver, RequestAccess, ClaimHandoff, WaitlistPulse)
+  *_test.go               — redis, events, cascade predicates, atomic concurrency, status/cascade pipelines
+
+services/shared/core/redis/lease/
+  lease.go                — Reusable single-leader primitive (SET NX + CAS renew/release)
 
 services/api/v1endpoints/documentlocks/
-  router.go               — HTTP route table
-  request_context.go      — auth + body parse preamble
+  router.go               — HTTP route table (/lock-state, /lock-state-batch, /acquire, /extend, /release, /hand-over, /request, /claim-handoff, /waitlist-pulse, /viewer-arrived, /viewer-departed)
+  request_context.go      — auth + body parse preamble (lockHandlerContextOK)
   handlers.go             — thin HTTP → documentlock.Service
   lock_json.go            — writeExtendJSON for /extend responses
-  viewer_presence.go      — /viewer-arrived / viewer-departed HTTP handlers
+  viewer_presence.go      — /viewer-arrived / viewer-departed HTTP handlers (delegate to documentlock.Handle…Ingress)
 
-services/api/main.go      — documentlock.StartExpirySubscriber on API startup
+services/core/singleton/service.go      — generic singleton-job runner (Job + StartService)
+services/core/singleton/jobs.go         — catalog of singleton jobs (DoclockExpirySubscriberJob, Start)
+services/core/main.go                   — singleton.Start(clients) on core startup
 
-services/websocket/server/nats_doc_lock.go — doc.lock consumer
-services/websocket/server/natslogic/locks.go — BuildDocumentLockWire wrapper
+services/websocket/server/
+  nats_doc_lock.go              — doc.lock JetStream consumer
+  natslogic/locks.go            — BuildDocumentLockWire (flat-envelope wrapper)
+  doc_lock_lock_state_batch.go  — WS handler for `document_lock_lock_state_batch`
+  doc_lock_presence_ws.go       — WS handlers for waitlist-pulse / viewer-arrived / viewer-departed
+  reader.go                     — frame dispatcher for the above
 ```
 
 ### Frontend
@@ -312,14 +398,14 @@ services/websocket/server/natslogic/locks.go — BuildDocumentLockWire wrapper
 frontend/src/Functions/DocumentLock/
   documentLockKey.js                — (collection, docID) → scope key
   documentLockCollections.js        — USER_JOBS_COLLECTION / USER_JOB_GROUPS_COLLECTION
-  documentLockEvents.js             — wire-contract constants (type / reason)
+  documentLockEvents.js             — DOCUMENT_LOCK_DOMAIN_EVENTS + DOCUMENT_LOCK_FRAME_TYPES + reason/event-key constants
   documentLockTimings.js            — timing constants
   documentLockScope.js              — ScopedDocumentLockState initial + merge
   documentLockSelectors.js          — selectScopedDocumentLock / selectDocumentLockReadOnly / filterUnlockedDocumentIDs
   documentLockHeaderSelectors.js    — selectors for DocumentLockHeaderControl
   documentLockStatusFields.js       — numberOrNull, buildGrantedHolderPatch
   documentLockAcquireFeedback.js    — vacancy-notice suppression
-  applyDocumentLockStatusFromPayload.js — applies a /status row to Zustand
+  applyDocumentLockStatusFromPayload.js — applies a /lock-state row to Zustand
   readOnlyGrace.js                  — shared grace predicate + patch
 
 frontend/src/Hooks/DocumentLock/

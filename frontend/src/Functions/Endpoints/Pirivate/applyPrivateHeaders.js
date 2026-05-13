@@ -28,7 +28,7 @@ function throwIfAnySettledFailed(settled, label) {
 }
 
 /**
- * Thrown / rejected when no Bearer token exists for a private request (not retried).
+ * Thrown / rejected when no authenticated app session is available for a private request (not retried).
  * @type {string}
  */
 export const PRIVATE_AUTH_TOKEN_UNAVAILABLE =
@@ -76,8 +76,8 @@ function stripBatchFromConfig(config) {
   return { inner, batch };
 }
 
-/** Resolves session id for private API headers. */
-export function getSessionIDFromStoreOrToken() {
+/** Resolves planner session id from the client store (for correlation / identity hints). */
+export function getSessionIDFromStore() {
   const fromStore = useUserStore.getState()?.account?.sessionID;
   if (typeof fromStore === "string" && fromStore.trim().length > 0) {
     return fromStore.trim();
@@ -86,12 +86,13 @@ export function getSessionIDFromStoreOrToken() {
 }
 
 /**
- * Apply private headers (Authorization Bearer token) to options
- * Private endpoints always require authentication.
+ * Merge optional request metadata into fetch options. Private routes use **same-origin cookies**
+ * for auth; adds **`X-WS-Client-ID`** when the realtime layer has assigned a tab id.
+ *
  * @param {Object} options - Fetch options
  * @param {Object} config - Configuration
  * @param {string} [config.requestName] - Optional name for the request (appears in network tab headers)
- * @returns {Object|null} Options with private headers applied, or null if token not available
+ * @returns {Object} Options with headers merged (always returns an object — does not short-circuit on missing session)
  *
  * @example
  * const options = applyPrivateHeaders({
@@ -116,7 +117,7 @@ function applyPrivateHeaders(options = {}, config = {}) {
 }
 
 /**
- * One attempt: refresh token if configured, then fetch with private headers.
+ * One attempt: optional session refresh hook, then `fetch` with private headers (cookies + `X-WS-Client-ID`).
  * @param {string} URL
  * @param {Object} options
  * @param {Object} headerConfig - `requestName` only (retry stripped)
@@ -294,7 +295,7 @@ async function executeBatchedPrivateRequest(URL, options, innerConfig, batch) {
  * @param {false|true|object} [config.retry] - `false` = no retries; `true`/omit = default retries; object = `withRequestRetries` options
  * @param {PrivateRequestBatchOptions} [config.batch]
  * @returns {Promise<Response>} HTTP response (merged synthetic response when `mergeResponseJsonArrays`)
- * @throws {Error} When authentication token is not available (after refresh), or last network error after retries
+ * @throws {Error} When the session refresh hook fails, or last network error after retries
  *
  * @example
  * const response = await requestWithPrivateHeaders('/api/v1/jobs/add', {
