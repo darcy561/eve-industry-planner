@@ -41,6 +41,7 @@ func ReleaseDependentJobLocksOnGroupHandoff(
 		func(rec *LockRecord) (bool, string) {
 			return DecideHandoffCascadeRelease(rec, oldHolderSessionID)
 		},
+		LockReleaseReasonGroupHandoffCascade,
 	)
 }
 
@@ -58,7 +59,55 @@ func ReleaseStaleDependentJobLocksAfterGroupGrant(
 		func(rec *LockRecord) (bool, string) {
 			return DecideStaleAfterGrantRelease(rec, newGroupHolderSessionID)
 		},
+		LockReleaseReasonGroupHandoffCascade,
 	)
+}
+
+// ReleaseStaleDependentJobLocksOnGroupMembershipAdded evicts per-job locks on
+// newly added group members that are not held by groupHolderSessionID (interpretation A).
+// Does not load Mongo membership — caller passes explicit addedJobIDs from the group write.
+// Caller should ensure the requester holds the group lock before invoking.
+func ReleaseStaleDependentJobLocksOnGroupMembershipAdded(
+	ctx context.Context,
+	d Deps,
+	accountID, groupID string,
+	addedJobIDs []string,
+	groupHolderSessionID string,
+) {
+	if d.Redis == nil {
+		return
+	}
+	if accountID == "" || groupID == "" || groupHolderSessionID == "" || len(addedJobIDs) == 0 {
+		return
+	}
+
+	releases, err := pipelinedDecideAndReleaseJobLocks(ctx, d.Redis, accountID, addedJobIDs,
+		func(rec *LockRecord) (bool, string) {
+			return DecideStaleAfterGrantRelease(rec, groupHolderSessionID)
+		})
+	if err != nil {
+		logs.WarnCtx(ctx, "doc lock cascade: membership redis pipeline failed",
+			"error", err,
+			"account_id", accountID,
+			"group_id", groupID,
+			"added_jobs", len(addedJobIDs))
+		if len(releases) == 0 {
+			return
+		}
+	}
+	if len(releases) == 0 {
+		return
+	}
+	if d.JetStream == nil {
+		return
+	}
+	_ = PublishLockEvent(ctx, d.JetStream, accountID, BuildGroupCascadePayload(
+		mongocore.CollectionUserJobGroups,
+		groupID,
+		mongocore.CollectionUserJobDocuments,
+		releases,
+		LockReleaseReasonGroupMembershipAdded,
+	))
 }
 
 func cascadeReleaseDependentJobLocks(
@@ -66,8 +115,9 @@ func cascadeReleaseDependentJobLocks(
 	d Deps,
 	accountID, groupID string,
 	decide func(*LockRecord) (bool, string),
+	cascadeReason string,
 ) {
-	if d.Mongo == nil || d.Redis == nil {
+	if d.Mongo == nil || d.Redis == nil || d.JetStream == nil {
 		return
 	}
 	if accountID == "" || groupID == "" {
@@ -116,5 +166,6 @@ func cascadeReleaseDependentJobLocks(
 		groupID,
 		mongocore.CollectionUserJobDocuments,
 		releases,
+		cascadeReason,
 	))
 }

@@ -21,6 +21,7 @@ services/shared/core/documentlock/
   notify.go            PublishLockEvent (injects accountID, calls publish)
   cascade.go           Decide{HandoffCascade,StaleAfterGrant}Release + cascade driver + Release* helpers
   cascade_pipeline.go  pipelinedDecideAndReleaseJobLocks — batched GET → decide → DEL for group→jobs cascade
+  holder_require.go      RequireHolder, CollectLockHeldElsewhereRejects — API write-path holder checks (pipelined GET)
   expiry.go            RunExpirySubscriber + promoteWaitlistHeadOnExpiry (lease-gated)
   service.go           Service{Deps} + NewService
   service_ops.go       Acquire / Extend / Release / HandOver / RequestAccess / ClaimHandoff / WaitlistPulse
@@ -111,9 +112,9 @@ Mounted from `router.go` at `/api/v1/document-locks/{action}`.
 |---|---|---|---|---|
 | POST | `/acquire` | `{collection,docID}` | 201 granted / 200 contended | Returns `acquired`, `held`, `expiresAtUnix`, `ttlSeconds`, `viewerCount`. Group `/acquire` also runs `ReleaseStaleDependentJobLocksAfterGroupGrant`. |
 | POST | `/extend` | `{collection,docID}` | 200 | Cycle: 3 free renewals → 4th renewal probes alive waitlist head. Returns `holding`, `expiresAtUnix`, `extendCount`, `handoffPending`, `probeTargetSessionID`, `probeExpiresAtUnix`, `cycleReset`. |
-| POST | `/release` | `{collection,docID}` | 204 | Holder-only. Deletes the row + publishes `released`. |
+| POST | `/release` | `{collection,docID}` | 204 | Holder-only. Deletes the row + publishes `released` (`holder_release`). **Does not** promote waitlist or passive viewers (unlike TTL expiry or `/hand-over`). See roadmap **#38**. |
 | POST | `/force-release` | `{collection,docID}` | 204 / 404 / 400 | Same `accountID` as holder, different session. Deletes lock + waitlist; publishes `released { reason: force_released_same_account }`. Group → `ReleaseDependentJobLocksOnGroupHandoff` for evicted holder. |
-| POST | `/hand-over` | `{collection,docID}` | 200 transferred / 204 noop / 204 released | Holder accepts request snackbar. Promotes alive waitlist head atomically; falls back to plain `released { reason: hand_over_no_queue }` when no live requester. Group → cascade. |
+| POST | `/hand-over` | `{collection,docID}` | 200 transferred / **409** noop (not holder) / 204 released | Holder accepts request snackbar. Promotes alive waitlist head atomically; **409** + `{error: doc_lock_hand_over_noop}` when caller is not the Redis holder; falls back to plain `released { reason: hand_over_no_queue }` when no live requester (**204** empty body). Group → cascade. |
 | POST | `/request` | `{collection,docID}` | 201 auto-grant / 200 already mine / 202 queued | Returns `accessRequestGranted` on grant. Group auto-grant → `ReleaseStaleDependentJobLocksAfterGroupGrant`. |
 | POST | `/lock-state-batch` | `{jobDocIDs,groupDocIDs}` | 200 | Both arrays ≤ 500. Returns `jobResults`, `groupResults` maps. WebSocket alternate: `document_lock_lock_state_batch` frame (see § WebSocket frame alternates). |
 | GET | `/lock-state?collection=&docID=` | — | 200 | Per-doc lookup. Same shape as one row of `/lock-state-batch`. |
@@ -121,6 +122,26 @@ Mounted from `router.go` at `/api/v1/document-locks/{action}`.
 | POST | `/waitlist-pulse` | `{collection,docID}` | 204 | Refreshes `doc_lock_pulse:…:sessionID` (waitlist liveness). |
 | POST | `/viewer-arrived` | `{collection,docID}` | 204 | Viewer registers; ZADD + publish `viewer_joined` when newly added. Holder requests are no-op. WebSocket alternate: `document_lock_viewer_arrived` frame. |
 | POST | `/viewer-departed` | `{collection,docID}` | 204 | ZREM + publish `viewer_left` when removal hit. Also reachable via `navigator.sendBeacon`. WebSocket alternate: `document_lock_viewer_departed` frame. |
+
+### Lock-gated private resource writes
+
+Some cookie-authenticated JSON routes (not under `/document-locks/*`) call
+`documentlock.CollectLockHeldElsewhereRejects` before Mongo when Redis is
+configured: pipelined `GET` on each doc’s `LockKey`, compare holder to the
+requester’s session. Missing / empty session → **401**. Any doc in the batch
+held by another session → **409** with JSON
+`{ "error": "lock_held_elsewhere", "collection": "<mongo collection>", "rejected": [ { "docID", "holderSessionID", "lockExpiresAtUnix" }, … ] }`
+and **no** Mongo write for that request (atomic-on-rejection). When `Redis` is
+nil, enforcement is skipped (same as earlier advisory behaviour).
+
+| Route | Lock collection checked |
+|---|---|
+| `PUT` / `DELETE` `/api/v1/groups` | `user_job_groups` |
+| `PUT` / `DELETE` `/api/v1/job-documents` | `user_job_documents` |
+| `PUT` `/api/v1/archived-jobs` | `user_job_documents` (live per-job locks) |
+
+Intentionally not gated: `POST /api/v1/document-locks/force-release` and other
+admin-style bypasses.
 
 Auth + body parse share the `lockHandlerContextOK(w, r, redis)` helper —
 every mutating handler bails immediately if the helper writes a 4xx/5xx.

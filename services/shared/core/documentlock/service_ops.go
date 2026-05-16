@@ -262,7 +262,14 @@ func (s *Service) HandOver(ctx context.Context, accountID, holderSessionID, coll
 
 	switch tx.Outcome {
 	case "noop":
-		return &HandOverResult{StatusCode: http.StatusNoContent}, nil
+		// Distinguish from `released_no_queue` (also historically ambiguous with 204).
+		// SPA treats 409 as "still holder or race — do not optimistically drop edit state".
+		return &HandOverResult{
+			StatusCode: http.StatusConflict,
+			Payload: map[string]any{
+				"error": ErrCodeHandOverNoop,
+			},
+		}, nil
 
 	case "released_no_queue":
 		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{

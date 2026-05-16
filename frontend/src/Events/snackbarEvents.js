@@ -139,3 +139,20 @@ export const showDocumentLockAccessRequestSnackbar = (
     documentLockDocID: scope.docID,
   });
 };
+
+/**
+ * Holder-only: lease is almost up — "Renew now" dispatches `DOCUMENT_LOCK_RENEW_REQUEST_EVENT`
+ * (handled in `useLockExtendLoop`).
+ *
+ * @param {string} [message]
+ * @param {{ collection?: string, docID?: string }} [scope]
+ */
+export const showDocumentLockExtendNudgeSnackbar = (
+  message = "Your edit session is about to end — renew now while this tab is visible.",
+  scope = {}
+) => {
+  showSnackbar(message, "warning", null, "DOCUMENT_LOCK_EXTEND_NUDGE", {
+    documentLockCollection: scope.collection,
+    documentLockDocID: scope.docID,
+  });
+};

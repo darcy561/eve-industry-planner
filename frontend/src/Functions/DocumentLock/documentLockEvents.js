@@ -80,6 +80,8 @@ export const DOCUMENT_LOCK_RELEASE_REASONS = Object.freeze({
    * receivers must NOT auto-reacquire — see `useDocumentLock.js` / `useLockScopeSync.js`.
    */
   GROUP_HANDOFF_CASCADE: "group_handoff_cascade",
+  /** Per-job releases when the group lock holder saves new `includedJobIDs` (PUT /v1/groups). */
+  GROUP_MEMBERSHIP_ADDED: "group_membership_added",
   /** Holder POST `/release` succeeded — voluntary drop of the edit lock. */
   HOLDER_RELEASE: "holder_release",
   /** Same-account `POST /force-release` cleared another tab's lock. */
@@ -103,3 +105,23 @@ export const DOCUMENT_LOCK_HANDOFF_REASONS = Object.freeze({
  * Browser CustomEvent name carrying document-lock domain payloads.
  */
 export const DOCUMENT_LOCK_CUSTOM_EVENT = "eip-document-lock";
+
+/**
+ * Client-only: matching scope should flush `POST /extend` immediately
+ * (see `useLockExtendLoop`).
+ * `detail`: `{ collection: string, docID: string }`.
+ */
+export const DOCUMENT_LOCK_RENEW_REQUEST_EVENT = "eip-document-lock-renew-request";
+
+/**
+ * Private HTTP 409 body `{ error, collection, rejected }` when another session holds the lock.
+ * Matches Go `documentlock.ErrCodeLockHeldElsewhere`.
+ */
+export const DOCUMENT_LOCK_API_ERROR_LOCK_HELD_ELSEWHERE = "lock_held_elsewhere";
+
+/**
+ * `Error.code` after a structured 409 is parsed and Zustand scopes are patched
+ * (`applyPrivateHeaders` batched path). Compare with `err?.code === …`.
+ */
+export const DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE =
+  "LOCK_HELD_ELSEWHERE";

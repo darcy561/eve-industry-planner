@@ -2,12 +2,14 @@ package groups
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
+	"eve-industry-planner/shared/core/documentlock"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	mongoput "eve-industry-planner/shared/core/mongo/put"
 	"eve-industry-planner/shared/logs"
@@ -64,10 +66,46 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 	collection := database.Collection(mongocore.CollectionUserJobGroups)
 
 	wsClientID := helper.ExtractWSClientID(r)
-	sessionID, _ := auth.ExtractSessionID(r)
+	sessionID, sessErr := auth.ExtractSessionID(r)
+
+	if clients.Redis != nil {
+		if sessErr != nil || sessionID == "" {
+			metrics.Error("auth_error")
+			logs.WarnCtx(ctx, "groups put lock gate: missing session", "error", sessErr, "account_id", accountID)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		var groupIDs []string
+		for _, g := range reqBody.Groups {
+			if g.GroupID != "" {
+				groupIDs = append(groupIDs, g.GroupID)
+			}
+		}
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, mongocore.CollectionUserJobGroups, groupIDs)
+		if lerr != nil {
+			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
+				metrics.Error("auth_error")
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			metrics.Error("lock_error")
+			logs.ErrorCtx(ctx, "groups put lock gate failed", "error", lerr, "account_id", accountID)
+			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to verify document lock", lerr)
+			return
+		}
+		if len(rejects) > 0 {
+			metrics.Error("lock_conflict")
+			logs.WarnCtx(ctx, "groups put blocked: lock held elsewhere",
+				"account_id", accountID,
+				"requester_session_id", sessionID,
+				"rejected_count", len(rejects))
+			helper.RespondLockHeldElsewhereJSON(w, mongocore.CollectionUserJobGroups, rejects)
+			return
+		}
+	}
 
 	now := time.Now()
-	result, failedCount, err := mongoput.BulkUpsertGroups(ctx, collection, accountID, reqBody.Groups, now, sessionID, wsClientID)
+	result, err := mongoput.BulkUpsertGroups(ctx, collection, accountID, reqBody.Groups, now, sessionID, wsClientID)
 	if err != nil {
 		metrics.Error("database_error")
 		logs.ErrorCtx(ctx, "failed to bulk upsert groups", "error", err, "account_id", accountID)
@@ -80,7 +118,29 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 		http.Error(w, "No valid groups to save", http.StatusBadRequest)
 		return
 	}
+	failedCount := result.FailedCount
 	savedCount := int(result.UpsertedCount + result.ModifiedCount)
+
+	if sessionID != "" && clients.Redis != nil && len(result.Deltas) > 0 {
+		deps := documentlock.DepsFromServiceClients(clients)
+		for _, delta := range result.Deltas {
+			if len(delta.AddedJobIDs) == 0 {
+				continue
+			}
+			held, herr := documentlock.LockHeldBySession(ctx, clients.Redis, accountID, mongocore.CollectionUserJobGroups, delta.GroupID, sessionID)
+			if herr != nil {
+				logs.WarnCtx(ctx, "group membership cascade: group lock check failed",
+					"error", herr,
+					"account_id", accountID,
+					"group_id", delta.GroupID)
+				continue
+			}
+			if !held {
+				continue
+			}
+			documentlock.ReleaseStaleDependentJobLocksOnGroupMembershipAdded(ctx, deps, accountID, delta.GroupID, delta.AddedJobIDs, sessionID)
+		}
+	}
 
 	w.WriteHeader(http.StatusNoContent)
 

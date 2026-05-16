@@ -1,11 +1,14 @@
 import { useCallback } from "react";
 import useUsersStore from "../../../Zustand/usersStore";
-import { selectDocumentLockReadOnly } from "../../../Functions/DocumentLock/documentLockSelectors";
+import {
+  selectDocumentLockReadOnly,
+  selectScopedDocumentLock,
+} from "../../../Functions/DocumentLock/documentLockSelectors";
 import {
   USER_JOBS_COLLECTION,
   USER_JOB_GROUPS_COLLECTION,
 } from "../../../Functions/DocumentLock/documentLockCollections";
-import { lockReasonText } from "../../DocumentLock/LockGatedTooltip";
+import { persistAffordanceBlockedReason } from "../../DocumentLock/LockGatedTooltip";
 
 /**
  * Edit-job page hooks that surface the per-job and group document-lock state in
@@ -80,6 +83,71 @@ export function useActiveJobOrGroupReadOnly(state) {
 }
 
 /**
+ * Whether this tab holds the per-job edit lock for the active job.
+ *
+ * @param {{ activeJob?: { jobID?: string } } | undefined} state
+ * @returns {boolean}
+ */
+export function useActiveJobLockHeld(state) {
+  return useUsersStore((s) =>
+    state?.activeJob?.jobID
+      ? selectScopedDocumentLock(s, USER_JOBS_COLLECTION, state.activeJob.jobID)
+          .lockHeld
+      : false
+  );
+}
+
+/**
+ * Whether this tab holds the group edit lock (solo jobs report `true`).
+ *
+ * @param {{ activeJob?: { groupID?: string } } | undefined} state
+ * @returns {boolean}
+ */
+export function useActiveGroupLockHeld(state) {
+  return useUsersStore((s) => {
+    const gid = state?.activeJob?.groupID;
+    if (!gid) return true;
+    return selectScopedDocumentLock(s, USER_JOB_GROUPS_COLLECTION, gid).lockHeld;
+  });
+}
+
+/**
+ * Server-backed persist (job + optional group) requires holding each relevant
+ * lease, not merely `!readOnly` (#21 vacancy window).
+ *
+ * @param {{ activeJob?: { jobID?: string, groupID?: string } } | undefined} state
+ * @returns {{
+ *   canPersist: boolean,
+ *   readOnly: boolean,
+ *   jobReadOnly: boolean,
+ *   groupReadOnly: boolean,
+ *   jobLockHeld: boolean,
+ *   groupLockHeld: boolean,
+ *   hasGroup: boolean,
+ * }}
+ */
+export function useActiveJobPersistGate(state) {
+  const { readOnly, jobReadOnly, groupReadOnly } = useActiveJobOrGroupReadOnly(state);
+  const jobLockHeld = useActiveJobLockHeld(state);
+  const groupLockHeld = useActiveGroupLockHeld(state);
+  const hasGroup = Boolean(state?.activeJob?.groupID);
+  const jobID = state?.activeJob?.jobID;
+
+  const canPersist =
+    Boolean(jobID) && !readOnly && jobLockHeld && (!hasGroup || groupLockHeld);
+
+  return {
+    canPersist,
+    readOnly,
+    jobReadOnly,
+    groupReadOnly,
+    jobLockHeld,
+    groupLockHeld,
+    hasGroup,
+  };
+}
+
+/**
  * Gate + tooltip-ready reason for affordances that mutate child/sibling links
  * (link-to-existing-group-job, unlink, purchasing step's available/linked rows,
  * etc.). All of these touch a sibling under the same group lock cascade, so the
@@ -90,47 +158,44 @@ export function useActiveJobOrGroupReadOnly(state) {
  * @returns {{ readOnly: boolean, reason: string }}
  */
 export function useSiblingLinkLock(state) {
-  const { jobReadOnly, groupReadOnly } = useActiveJobOrGroupReadOnly(state);
-
-  if (groupReadOnly) {
-    return {
-      readOnly: true,
-      reason: lockReasonText({
-        scope: "group",
+  const gate = useActiveJobPersistGate(state);
+  const blocked = !gate.canPersist;
+  const reason = blocked
+    ? persistAffordanceBlockedReason({
+        readOnly: gate.readOnly,
+        jobReadOnly: gate.jobReadOnly,
+        groupReadOnly: gate.groupReadOnly,
+        jobLockHeld: gate.jobLockHeld,
+        groupLockHeld: gate.groupLockHeld,
+        hasGroup: gate.hasGroup,
         action: "sibling-job links can't change",
-      }),
-    };
-  }
-  if (jobReadOnly) {
-    return {
-      readOnly: true,
-      reason: lockReasonText({
-        action: "sibling-job links can't change",
-      }),
-    };
-  }
-  return { readOnly: false, reason: "" };
+      })
+    : "";
+  return { readOnly: blocked, reason };
 }
 
 /**
- * Wrap an event handler so it becomes a no-op while `readOnly` is true.
+ * Wrap an event handler so it becomes a no-op while the doc is not persistable.
  *
- * Mirrors the `if (readOnly) return; …actual body…` guard that every
- * lock-gated leaf inlines on its `onClick`. Memoised on the handler+gate pair
- * so passing the wrapped function as a prop to memo'd children does not churn
- * referential identity any more than the inline pattern already did.
+ * - `readOnly` — another session / viewer (unchanged UX).
+ * - `lockHeld` — when a boolean is passed (#21), also block while this tab is
+ *   not the holder (vacant-editable gap). Omit or pass `undefined` to gate on
+ *   `readOnly` only.
  *
  * @template {(...args: any[]) => any} F
  * @param {F} handler
  * @param {boolean} readOnly
+ * @param {boolean} [lockHeld]
  * @returns {F}
  */
-export function useLockGatedHandler(handler, readOnly) {
+export function useLockGatedHandler(handler, readOnly, lockHeld) {
+  const blocked =
+    readOnly || (typeof lockHeld === "boolean" && !lockHeld);
   return useCallback(
     /** @type {F} */ ((...args) => {
-      if (readOnly) return undefined;
+      if (blocked) return undefined;
       return handler(...args);
     }),
-    [handler, readOnly]
+    [handler, blocked]
   );
 }

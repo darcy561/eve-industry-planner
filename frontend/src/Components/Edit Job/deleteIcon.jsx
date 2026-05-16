@@ -4,20 +4,28 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 
 import deleteJobsFromPlanner from "../../Functions/JobPlanner/deleteMultipleJobs";
 import { buildGroupSearchAfterEditClose } from "../../Functions/Groups/groupPageViewSearch";
-import { useActiveJobReadOnly } from "./Edit Job Hooks/useActiveJobDocumentLock";
-import { lockReasonText } from "../DocumentLock/LockGatedTooltip";
+import { useActiveJobPersistGate } from "./Edit Job Hooks/useActiveJobDocumentLock";
+import { persistAffordanceBlockedReason } from "../DocumentLock/LockGatedTooltip";
 
 export function DeleteJobIcon({ state }) {
   const navigate = useNavigate({ from: "/editjob/$jobID" });
   const search = useSearch({ from: "/editjob/$jobID" });
-  const jobLockReadOnly = useActiveJobReadOnly(state);
+  const persist = useActiveJobPersistGate(state);
+
+  const deleteBlockedReason = persistAffordanceBlockedReason({
+    readOnly: persist.readOnly,
+    jobReadOnly: persist.jobReadOnly,
+    groupReadOnly: persist.groupReadOnly,
+    jobLockHeld: persist.jobLockHeld,
+    groupLockHeld: persist.groupLockHeld,
+    hasGroup: persist.hasGroup,
+    action: "delete is disabled",
+  });
 
   return (
     <Tooltip
       title={
-        jobLockReadOnly
-          ? lockReasonText({ action: "delete is disabled" })
-          : "Deletes the job from the job planner."
+        deleteBlockedReason || "Deletes the job from the job planner."
       }
       arrow
       placement="bottom"
@@ -26,8 +34,9 @@ export function DeleteJobIcon({ state }) {
         <IconButton
           variant="contained"
           color="error"
-          disabled={jobLockReadOnly}
+          disabled={!persist.canPersist}
           onClick={async () => {
+            if (!persist.canPersist) return;
             await deleteJobsFromPlanner(state.activeJob.jobID);
             const groupIDFromParams = search.activeGroup;
             if (groupIDFromParams) {

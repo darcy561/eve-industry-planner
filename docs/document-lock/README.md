@@ -23,9 +23,7 @@ This README is the cross-stack overview. Implementation detail lives in:
 - [FRONTEND.md](./FRONTEND.md) — Zustand slices, hooks, components, event flow.
 - [BACKEND.md](./BACKEND.md) — HTTP endpoints, Redis key layout, handlers,
   cascade, expiry subscriber, viewer presence.
-- [IMPROVEMENTS.md](./IMPROVEMENTS.md) — tracked backlog of subsystem
-  improvements (shipped + open), sized and scoped so any item can be picked
-  up cold.
+- [ROADMAP.md](./ROADMAP.md) — backlog and strategy: **multi-tenant** locks (account / corporation / alliance) plus **account-scoped** hardening (observability, tests, polish). Replaces the old `IMPROVEMENTS.md`.
 
 ## Vocabulary
 
@@ -41,6 +39,7 @@ This README is the cross-stack overview. Implementation detail lives in:
 | **Handoff probe** | `/extend` selects the next-in-line as `ProbeTargetSessionID`, publishes `document_lock_handoff_probe`; the targeted client auto-claims via `/claim-handoff`. |
 | **Cascade** | When a *group* lock rotates (handoff or TTL promotion), per-job locks held by the old session are force-released. See [BACKEND.md § Cascade](./BACKEND.md#cascade). |
 | **Read-only grace** | Client-side 5 s window after a held lock vanishes during which the UI stays read-only — bridges the gap until a `handoff_completed` / `acquired` event confirms the new owner. |
+| **Quiet solo UI** | Uncontested holder: no header icon, no “you gained ownership” toast on solo open, no grey vacant icon flash while acquire runs. Contention uses `scopeHasOtherSessionContention` (viewers, waitlist, read-only, etc.). See [FRONTEND.md § Snackbars](./FRONTEND.md#snackbars). |
 
 ## High-level architecture
 
@@ -327,6 +326,20 @@ A holder shows the header lock affordance whenever
 viewer" contention signal added so silent observers still trigger the holder's
 awareness UI.
 
+### Snackbars and solo quiet UI
+
+Beyond the header icon, the SPA uses snackbars for some lock transitions
+([FRONTEND.md § Snackbars](./FRONTEND.md#snackbars)):
+
+- **Holder** — non-dismissible access-request toast (WS `requested`) with hand-over actions.
+- **Holder** — lease nudge with **Renew now** when ≤ 30 s remain (`LOCK_LOW_REMAINING_NUDGE_SEC`).
+- **Holder** — one info toast when passive viewers go from none → at least one (`useLockPassiveViewerSnackbar`); not per additional viewer.
+- **Any tab** — gained/lost ownership toasts from `useLockVacancySnackbar` when another session was involved; solo acquire on open stays silent.
+- **User actions** — slice toasts for request/grant, force-release, hand-over errors, claim-handoff.
+
+`lockScopeBootstrapped` on the scope prevents a brief grey “vacant / take over”
+header icon while the first `POST /acquire` is still in flight.
+
 ## Constants — frontend / backend mapping
 
 Frontend timings live in
@@ -338,6 +351,8 @@ TTL values live in `services/shared/core/documentlock/redis.go` and
 |---|---|---|---|
 | Lease length | `LOCK_LEASE_MS` = 5 min | `DefaultLockTTL` = 5 min | Must match. |
 | Holder extend cadence | `LOCK_EXTEND_INTERVAL_MS` = 5 min | n/a | Triggered while tab visible + holder. |
+| Low-lease nudge / header pulse | `LOCK_LOW_REMAINING_NUDGE_SEC` = 30 s | n/a | Snackbar + icon pulse when segment is almost up. |
+| Passive-viewer header flash | `LOCK_PASSIVE_VIEWER_FLASH_MS` = 3.5 s | n/a | Icon pulse when holder’s `viewerCount` goes 0 → ≥1. |
 | Lock status sync heartbeat | `LOCK_STATUS_SYNC_INTERVAL_MS` = 45 s | n/a | Self-heal for any missed WS event. |
 | Post-expiry resync | `LOCK_EXPIRY_RESYNC_INTERVAL_MS` = 15 s | n/a | After cached `expiresAtUnix` passes. |
 | Expiry slack | `LOCK_EXPIRY_SLACK_SECONDS` = 2 | n/a | Absorbs client/server clock skew. |
@@ -402,16 +417,21 @@ frontend/src/Functions/DocumentLock/
   documentLockCollections.js        — USER_JOBS_COLLECTION / USER_JOB_GROUPS_COLLECTION
   documentLockEvents.js             — DOCUMENT_LOCK_DOMAIN_EVENTS + DOCUMENT_LOCK_FRAME_TYPES + reason/event-key constants
   documentLockTimings.js            — timing constants
-  documentLockScope.js              — ScopedDocumentLockState initial + merge
+  documentLockScope.js              — ScopedDocumentLockState, merge, scopeHasOtherSessionContention
+  documentLockAcquireFeedback.js    — suppressDocumentLockVacancyNotice (dedupe with slice grants)
   documentLockSelectors.js          — selectScopedDocumentLock / selectDocumentLockReadOnly / filterUnlockedDocumentIDs
   documentLockHeaderSelectors.js    — selectors for DocumentLockHeaderControl
   documentLockStatusFields.js       — numberOrNull, buildGrantedHolderPatch
-  documentLockAcquireFeedback.js    — vacancy-notice suppression
   applyDocumentLockStatusFromPayload.js — applies a /lock-state row to Zustand
   readOnlyGrace.js                  — shared grace predicate + patch
 
 frontend/src/Hooks/DocumentLock/
   useDocumentLock.js                — the engine (mount per scope)
+  useLockVacancySnackbar.js           — gained/lost ownership toasts (contention-gated)
+  useLockExtendNudgeSnackbar.js       — low-lease renew nudge
+  useLockPassiveViewerSnackbar.js     — solo → passive viewer info toast (0 → ≥1)
+  useLockAcquireRelease.js            — mount acquire, bootstrap flag, vacancy self-heal
+  useLockExtendLoop.js                — extend interval + renew-request listener
   useRegisterHeaderDocumentLockUI.js — page-level header context
   useLockScopeSync.js               — batch sync core for planner pages
   useJobPlannerJobLockSync.js       — planner job-only sync hook
@@ -428,6 +448,7 @@ frontend/src/Zustand/
   headerDocumentLockUISlice.js      — registrations array (which scope drives the header)
 
 frontend/src/Events/
+  snackbarEvents.js                 — showDocumentLockAccessRequestSnackbar, showDocumentLockExtendNudgeSnackbar
   headerDocumentLockEvents.js       — imperative API for the header slice
   editJobReleaseRequestEvents.js    — release-request handler registry (edit-job ↔ slice)
 

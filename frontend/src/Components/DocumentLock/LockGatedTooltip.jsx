@@ -23,6 +23,43 @@ export function lockReasonText({ scope = "job", action }) {
 }
 
 /**
+ * Tooltip when save/delete (or similar) is blocked by lock state on edit-job.
+ * Covers viewer/read-only (another session) and vacancy (#21: not holding the lease yet).
+ *
+ * @param {object} o
+ * @param {boolean} o.readOnly
+ * @param {boolean} o.jobReadOnly
+ * @param {boolean} o.groupReadOnly
+ * @param {boolean} o.jobLockHeld
+ * @param {boolean} o.groupLockHeld
+ * @param {boolean} o.hasGroup
+ * @param {string} o.action — e.g. `"save is disabled"` / `"delete is disabled"`
+ */
+export function persistAffordanceBlockedReason({
+  readOnly,
+  jobReadOnly,
+  groupReadOnly,
+  jobLockHeld,
+  groupLockHeld,
+  hasGroup,
+  action,
+}) {
+  if (readOnly) {
+    if (groupReadOnly) {
+      return lockReasonText({ scope: "group", action });
+    }
+    return lockReasonText({ action });
+  }
+  if (!jobLockHeld) {
+    return "Waiting for the edit lock on this job — try again in a moment.";
+  }
+  if (hasGroup && !groupLockHeld) {
+    return lockReasonText({ scope: "group", action });
+  }
+  return "";
+}
+
+/**
  * Span+tooltip wrapper for a disabled MUI interactive child.
  *
  * - When `readOnly` is `false` the children render unwrapped (zero overhead

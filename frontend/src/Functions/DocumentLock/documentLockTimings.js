@@ -22,6 +22,19 @@ export const LOCK_LEASE_MS = 5 * 60 * 1000;
 export const LOCK_EXTEND_INTERVAL_MS = 5 * 60 * 1000;
 
 /**
+ * When remaining lease time (seconds) is at or below this, the header lock
+ * icon pulses and the holder may see an extend nudge snackbar.
+ */
+export const LOCK_LOW_REMAINING_NUDGE_SEC = 30;
+
+/**
+ * How long the header lock icon pulses when passive viewers go from none → at
+ * least one (holder still owns the lease). Pairs with the snackbar in
+ * `useLockPassiveViewerSnackbar`.
+ */
+export const LOCK_PASSIVE_VIEWER_FLASH_MS = 3500;
+
+/**
  * Heartbeat status sync for any locked scope (holder or viewer). Self-heals
  * scopes that missed a WebSocket event (e.g. tab was just unbackgrounded).
  */

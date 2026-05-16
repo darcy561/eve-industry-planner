@@ -155,7 +155,7 @@ func TestAtomic_HandOverRace(t *testing.T) {
 
 	// Both HandOvers run as "sess-holder" — only one of them can find the
 	// record still owned by sess-holder; the second will see it has rotated
-	// and return noop. (No double-grant of sess-wait-1.)
+	// and return 409 noop. (No double-grant of sess-wait-1.)
 	var promotedTo atomic.Value // string
 	var noopCount int32
 	var wg sync.WaitGroup
@@ -172,7 +172,7 @@ func TestAtomic_HandOverRace(t *testing.T) {
 			case http.StatusOK:
 				holder, _ := out.Payload["holderSessionID"].(string)
 				promotedTo.Store(holder)
-			case http.StatusNoContent:
+			case http.StatusConflict:
 				atomic.AddInt32(&noopCount, 1)
 			default:
 				t.Errorf("HandOver: unexpected status=%d", out.StatusCode)
@@ -446,6 +446,27 @@ func TestAtomic_HandOverFallsBackToReleaseWhenNoLiveWaiter(t *testing.T) {
 	}
 	if n != 0 {
 		t.Fatalf("stale waiter must have been pruned during alive walk, got len=%d", n)
+	}
+}
+
+// TestHandOverNoopWhenCallerNotRedisHolder covers POST /hand-over when the
+// caller's session id does not match Redis holderSessionID: must be 409 with
+// ErrCodeHandOverNoop (distinct from released_no_queue 204 for the SPA).
+func TestHandOverNoopWhenCallerNotRedisHolder(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := concurrencyTestService(t)
+	ctx := context.Background()
+
+	mustAcquire(t, ctx, svc, "redis-holder")
+	out, err := svc.HandOver(ctx, testAccountID, "wrong-jwt-session", testCollection, testDocID)
+	if err != nil {
+		t.Fatalf("HandOver: %v", err)
+	}
+	if out.StatusCode != http.StatusConflict {
+		t.Fatalf("status=%d want 409 Conflict", out.StatusCode)
+	}
+	if out.Payload == nil || out.Payload["error"] != ErrCodeHandOverNoop {
+		t.Fatalf("payload=%v want error=%q", out.Payload, ErrCodeHandOverNoop)
 	}
 }
 

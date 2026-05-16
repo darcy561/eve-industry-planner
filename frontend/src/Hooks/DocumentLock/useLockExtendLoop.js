@@ -7,6 +7,7 @@ import {
   mergeHandoffFieldsFromExtendPayload,
 } from "./documentLockHookShared.js";
 import { DOCUMENT_LOCK_HELD_ACTIONS } from "./documentLockHeldReducer.js";
+import { DOCUMENT_LOCK_RENEW_REQUEST_EVENT } from "../../Functions/DocumentLock/documentLockEvents.js";
 
 /**
  * Holder `/extend` interval while visible + response handling (probe / 409 → sync).
@@ -66,6 +67,23 @@ export function useLockExtendLoop({
     }, LOCK_EXTEND_INTERVAL_MS);
     return () => clearInterval(id);
   }, [enabled, lockHeld, readOnly, flushExtendLease]);
+
+  useEffect(() => {
+    const onRenewRequest = (ev) => {
+      const d = ev.detail;
+      const { collection: c, docID: dKey } = keyRef.current;
+      if (!c || !dKey || !d?.collection || !d?.docID) return;
+      if (d.collection !== c || d.docID !== dKey) return;
+      if (!enabled || !lockHeld || readOnly) return;
+      flushExtendLease();
+    };
+    window.addEventListener(DOCUMENT_LOCK_RENEW_REQUEST_EVENT, onRenewRequest);
+    return () =>
+      window.removeEventListener(
+        DOCUMENT_LOCK_RENEW_REQUEST_EVENT,
+        onRenewRequest
+      );
+  }, [enabled, lockHeld, readOnly, flushExtendLease, keyRef]);
 
   return { flushExtendLease };
 }

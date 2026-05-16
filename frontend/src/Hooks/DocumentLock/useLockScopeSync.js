@@ -206,6 +206,14 @@ export function useLockScopeSync({
         return;
       }
 
+      // Edit-job / header UX handles `document_lock_requested` via
+      // `useLockWsListener` (snackbar + `pendingAccessRequest`). Refetching
+      // planner lock-state here does not drive planner cards and can reorder
+      // after the snackbar path; skip the extra GET.
+      if (t === DOCUMENT_LOCK_DOMAIN_EVENTS.REQUESTED) {
+        return;
+      }
+
       if (!p.docID) return;
       if (p.collection === USER_JOBS_COLLECTION) {
         void patchPlannerJobLockScopeFromApi(p.docID);
