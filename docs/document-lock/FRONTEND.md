@@ -8,8 +8,10 @@ Source tree:
 ```
 frontend/src/
   Functions/DocumentLock/      — pure helpers + Zustand selectors + constants
-  Hooks/DocumentLock/          — useDocumentLock + sync hooks + ID-shaped read hooks
+  Hooks/DocumentLock/          — useDocumentLock + sync / snackbar / extend hooks
   Components/DocumentLock/     — header control + LockGatedTooltip
+  Components/snackbar.jsx      — DOCUMENT_LOCK_ACCESS_REQUEST, DOCUMENT_LOCK_EXTEND_NUDGE actions
+  Events/snackbarEvents.js     — lock snackbar helpers
   Zustand/
     documentLockSlice.js       — scope state + actions
     headerDocumentLockUISlice.js — which scope drives the header
@@ -46,8 +48,15 @@ shape:
   handoffOfferForMe: false,              // probe target == us
   waitingInHandoffQueue: false,          // we POSTed /request, queued
   viewerCount: 0,                        // # passive viewers
+  lockScopeBootstrapped: false,          // first mount acquire finished (header orphan gating)
 }
 ```
+
+`scopeHasOtherSessionContention(st)` in `documentLockScope.js` is the shared
+predicate for “another session is involved” (read-only because someone else
+holds, waitlist, handoff probe, `viewerCount > 0`, etc.). The header
+`secondaryContended` check and ownership snackbars both use it so solo editors
+stay quiet.
 
 Two scopes can be alive at once (the Edit Job page registers both the job
 scope and the parent group scope). Each scope owns its own grace timer, extend
@@ -86,7 +95,8 @@ Responsibilities, all driven from one mount/unmount:
 
 | Effect | Behaviour |
 |---|---|
-| **Mount / docID change** | `tryAcquire` → 201 (we hold), 200/409 with `held:true` (read-only viewer), or transient lock-vanished → patch cleared. |
+| **Mount / docID change** | `runTryAcquireGuarded` → `tryAcquire` → 201 (we hold), 200/409 with `held:true` (read-only viewer), or transient lock-vanished → patch cleared. Guard dedupes overlapping mount + vacancy calls. |
+| **Vacant-editable self-heal (#21)** | While mounted, if `!lockHeld && !readOnly`, run `runTryAcquireGuarded` again (e.g. after read-only grace ends without a lease, or odd acquire responses). |
 | **Unmount / docID change** | Cancel grace timer, `/release` (only if we held), clear our scope, reset internal refs. |
 | **Extend loop** | Every `LOCK_EXTEND_INTERVAL_MS` while we hold and tab is visible → `/extend` → patch new expiry. |
 | **Status sync heartbeat** | Every `LOCK_STATUS_SYNC_INTERVAL_MS` → `/lock-state` (self-heal). |
@@ -94,8 +104,15 @@ Responsibilities, all driven from one mount/unmount:
 | **Visibility / online** | On `visibilitychange` → resync + maybe `/extend`; on `online` → resync. |
 | **Waitlist pulse loop** | While `waitingInHandoffQueue` → `/waitlist-pulse` every `LOCK_WAITLIST_PULSE_INTERVAL_MS`. |
 | **Viewer presence** | When `readOnly: true` becomes true → `/viewer-arrived`; cleanup → `/viewer-departed` (+ `sendBeacon` on `pagehide`). |
-| **Vacancy snackbar** | When `lockHeld` transitions to true after we were `readOnly`, show a snackbar (request fulfilled OR another session ended). Suppressed within 2 s of an explicit grant API (see `documentLockAcquireFeedback.js`). |
+| **Vacancy snackbars** | `useLockVacancySnackbar` — holder ↔ viewer transitions (see [Snackbars](#snackbars)). |
+| **Extend nudge snackbar** | `useLockExtendNudgeSnackbar` — holder warning + “Renew now” when lease ≤ `LOCK_LOW_REMAINING_NUDGE_SEC` (30 s). |
+| **Passive viewer snackbar** | `useLockPassiveViewerSnackbar` — one info toast when `viewerCount` goes 0 → ≥1 while you remain holder (not per extra viewer). |
+| **Mount bootstrap flag** | After the first guarded `tryAcquire` on mount, patch `lockScopeBootstrapped: true` so the header does not flash the grey vacant icon while acquire is in flight. |
 | **WS event listener** | Listens on `DOCUMENT_LOCK_CUSTOM_EVENT`; branches on inner `type` (see below). |
+
+### Edit-job: API persist affordances (#20 / #21)
+
+Server-gated writes (`PUT`/`DELETE` job-documents and groups, `PUT` archived-jobs) return **409** with `lock_held_elsewhere` when Redis is configured and another session holds the lock; `applyPrivateHeaders.js` surfaces `DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE` after patching scopes. On Edit Job, **save**, **delete**, **leave-dialog save**, and **sibling job linking** use **`useActiveJobPersistGate`** — `canPersist` requires `!readOnly`, **`lockHeld` on the job scope**, and (when the job has a group) **`lockHeld` on the group scope** aligned with `activeGroupID`. Other controls that already disable on **`useActiveJobReadOnly`** are the **documented gated set** for viewer lock (**ROADMAP.md** Done **#22** policy); holder-aware widening is **opportunistic** only if a gap is found later.
 
 ### CustomEvent → state mapping
 
@@ -164,11 +181,100 @@ Both share the *same predicate and patch* via
 strategy differs. The predicate is "we were a viewer (`readOnly:true,
 lockHeld:false, lockExpiresAtUnix:null`) and nothing has confirmed a new
 holder during the grace". If the predicate still applies when the timer
-fires, the scope is patched to `readOnly: false`.
+fires, the scope is patched to `readOnly: false`. **#21 (mounted scopes):**
+that transition to vacant-editable triggers `runTryAcquireGuarded` again so
+the tab re-attempts `acquire` without waiting for the next heartbeat.
 
 This is what makes the UI feel calm during a TTL/handoff race: the cards stay
 locked for the ~5 s window, then either the new holder arrives (cancel) or
 the user gets editable UI back (timer fires).
+
+### `useDocumentLock` options
+
+Optional third argument `options`:
+
+| Option | Default | Used by |
+|---|---|---|
+| `pendingAccessRequestMessage` | Generic “another tab requested…” | WS `REQUESTED` → holder snackbar |
+| `becameOwnerVacantMessage` | “You now hold the edit lock…” | Vacancy hook (contested only) |
+| `lostOwnerMessage` | “This tab is now read-only…” | Vacancy hook when holder → viewer |
+| `extendNudgeMessage` | “Your edit session is about to end…” | Extend nudge snackbar |
+| `passiveViewerMessage` | Default solo→watching copy (or `(count) => string`) | Passive viewer snackbar |
+
+Edit Job and Group pages pass job/group-specific strings via
+`useEditJobDocumentLocks.js` / `groupFrame.jsx`.
+
+## Snackbars
+
+Lock-related toasts use `frontend/src/Events/snackbarEvents.js` and
+`frontend/src/Components/snackbar.jsx` action types. They complement the header
+icon (easy to miss on the first ownership change).
+
+### Quiet solo policy
+
+**Uncontested solo editors** should not be nagged:
+
+- **Header** — no icon while `primaryUncontestedHolder` (bootstrapped holder with
+  no `scopeHasOtherSessionContention` on the primary scope).
+- **Gained ownership** — `useLockVacancySnackbar` only fires success toasts
+  when `scopeHasOtherSessionContention(...)` is true at transition time, **or**
+  you became holder from read-only (someone else held). Solo open → acquire
+  201 does **not** show “You now hold the edit lock…”.
+- **Vacant icon flash** — `orphanedAvailable` requires `lockScopeBootstrapped`
+  so the grey “Take over” padlock does not appear during the initial
+  `tryAcquire` window (default scope looks vacant before Redis responds).
+
+Explicit API grants still use slice snackbars (“Edit access granted.”, etc.).
+`suppressDocumentLockVacancyNotice()` (2 s window after those APIs) prevents
+duplicate success toasts from the vacancy hook.
+
+### Holder: access request (`DOCUMENT_LOCK_ACCESS_REQUEST`)
+
+`useLockWsListener` on `document_lock_requested` when this tab is the holder
+(`lockHeld` in Zustand or `heldRef`). Patches `pendingAccessRequest: true`;
+shows a non-auto-hiding info snackbar with **Hand over** (✓) and dismiss.
+`requesterSessionID` is **not** compared to our session (JWT session is shared
+across tabs). Custom copy via `options.pendingAccessRequestMessage`.
+
+### Holder: passive viewers (`useLockPassiveViewerSnackbar`)
+
+While you hold the lock (`lockHeld && !readOnly`), a single info snackbar
+when `viewerCount` transitions **0 → ≥1** (solo editing → someone is watching).
+Does **not** repeat for 1 → 2, 2 → 3, etc. Skipped on scope mount if viewers
+were already present. Requires `lockScopeBootstrapped` (same as orphan gating).
+WS `viewer_joined` / `viewer_left` and `/lock-state` both drive `viewerCount`.
+The header lock icon uses the same 0 → ≥1 edge: it **pulses** at holder primary
+colour for `LOCK_PASSIVE_VIEWER_FLASH_MS` (3.5 s), then stays static — same
+blue as owner; warning remains read-only / queue / handoff only.
+
+### Holder: lease nudge (`DOCUMENT_LOCK_EXTEND_NUDGE`)
+
+`useLockExtendNudgeSnackbar` while holder, not read-only, not
+`handoffPendingHolder`, and remaining lease ≤ 30 s. Fires once per “low”
+segment (resets when expiry moves out of the band). **Renew now** dispatches
+`DOCUMENT_LOCK_RENEW_REQUEST_EVENT`; `useLockExtendLoop` handles it and
+calls `flushExtendLease` when the event’s scope matches `keyRef`. Runs inside
+`useDocumentLock` so it still fires when the header icon is hidden.
+
+### Ownership transitions (`useLockVacancySnackbar`)
+
+| Transition | Toast | When suppressed |
+|---|---|---|
+| Holder → read-only viewer | Warning (`lostOwnerMessage`, 6 s) | Never (another session won) |
+| Read-only → holder (was queued) | Success: request fulfilled | `suppressDocumentLockVacancyNotice()` |
+| Read-only → holder (other session ended) | Success: another session ended | Same suppress window |
+| Vacant → holder (first acquire, etc.) | Success (`becameOwnerVacantMessage`) | Suppress **or** no `scopeHasOtherSessionContention` |
+
+### Slice-driven snackbars (`documentLockSlice.js`)
+
+User-initiated flows (not state-edge hooks):
+
+| Action / outcome | Toast |
+|---|---|
+| `requestAccess` → granted | Success: “Edit access granted.” (+ suppress vacancy) |
+| `forceReleaseSameAccountEditLock` → you win / race / errors | Success or warning copy per branch |
+| `handOverEditAccess` → 204 / 409 / errors | Warning |
+| `claimHandoffProbe` → 200 held | Success: “Edit access granted.” (+ suppress vacancy) |
 
 ## Sync hooks — keeping planner / group lists fresh
 
@@ -263,8 +369,11 @@ scopes map for the `secondaryContended` derivation.
 
 ### Visibility rule (`showHeaderLockIcon`)
 
-The header stays empty when an uncontested holder is editing alone. It surfaces
-when *any* of the following are true:
+The header stays empty when the **primary** scope is an uncontested holder
+(`primaryUncontestedHolder`: bootstrapped, `lockHeld`, not `readOnly`, and
+`scopeHasOtherSessionContention` is false — no viewers, queue, handoff, etc.).
+Secondary-scope contention still shows the icon. Otherwise it surfaces when
+*any* of the following are true on the primary scope:
 
 - `viewerReadOnly` — we are read-only on this scope;
 - `inconsistentHolderReadOnly` — held + readOnly (Redis/client disagree, sync settling);
@@ -273,13 +382,14 @@ when *any* of the following are true:
 - `waitlistLen > 0` — queue exists;
 - `waitingInHandoffQueue` — we are in the queue;
 - `handoffOfferForMe` — probe targets us;
-- `orphanedAvailable` — no holder, no queue, no pending probe — "Take over" available;
-- `secondaryContended` — any *secondary* registration shows contention;
+- `orphanedAvailable` — server reports no holder (`orphanedVacantOnServer`) **and**
+  `lockScopeBootstrapped` (avoids grey vacant flash during mount acquire);
+- `secondaryContended` — any *secondary* registration has
+  `scopeHasOtherSessionContention(st)`;
 - `hasPassiveViewers` — we hold and someone is silently watching.
 
-`scopeContended(st)` in the file is the predicate that decides whether a
-non-primary registration counts as "contended" (any of the above-style flags,
-or `viewerCount > 0`).
+`scopeHasOtherSessionContention` in `documentLockScope.js` is the shared
+predicate (read-only, waitlist, handoff, `viewerCount > 0`, etc.).
 
 ### Icons / colors
 
@@ -293,7 +403,10 @@ or `viewerCount > 0`).
 | Otherwise (we hold) | `LockOutlined` | `primary.main` |
 
 Low-time flash: when `remainingSec ≤ 30` and we are still on the lock (holder
-or viewer) the icon pulses 1 Hz.
+or viewer) the icon pulses 1 Hz at the same colour as the static icon (primary
+for holder, warning for read-only viewer). Passive-viewer flash uses the same
+pulse timing for `LOCK_PASSIVE_VIEWER_FLASH_MS` after `viewerCount` goes 0 → ≥1
+(holder only, primary throughout).
 
 ### Adjust-state-during-render anchor cleanup
 
@@ -314,7 +427,7 @@ listener. The slice exposes higher-level actions for snackbar-driven flows:
 | `requestAccess(collection, docID)` | Header popover → "Request access" / "Take over". Routes through `POST /request`, handles the 201 / 200-acquired / 202-queued branches. |
 | `pulseWaitlist(collection, docID)` | Driven by the `useDocumentLock` waitlist-pulse loop while `waitingInHandoffQueue`. |
 | `acceptAccessRequest(collection, docID)` | Snackbar "Accept" entry point. Routes through `requestEditJobReleaseConfirmation` so the Edit Job page can intercept and open its unsaved-changes dialog. Three outcomes: `proceed` (dialog already did the handover), `cancelled` (clear the notice locally), `not-handled` (no dialog handler → direct hand-over). |
-| `handOverEditAccess(collection, docID)` | Calls `POST /hand-over`. On success, patches `readOnly:true, lockHeld:false` so the UI rebases on the new holder before the server's `handoff_completed` even arrives. |
+| `handOverEditAccess(collection, docID)` | Calls `POST /hand-over`. **200** → patches former holder read-only. **204** → requester pulse gone; patches lock released locally + warning snackbar. **409** (`doc_lock_hand_over_noop`) → snackbar only (still holder or race). Requires `lockHeld` **or** `pendingAccessRequest` so snackbar accept works if store briefly disagrees. |
 | `claimHandoffProbe(collection, docID)` | Driven by `useDocumentLock`'s `HANDOFF_PROBE` branch when our session is the probe target. Calls `POST /claim-handoff`. |
 | `clearPendingAccessNotice` / `resetDocumentLockForScope` / `resetAllDocumentLocks` | Housekeeping. |
 
@@ -388,8 +501,9 @@ in-process pub/sub for lock events.
 To add another document type or page to the system:
 
 1. **Mount the engine.** `useDocumentLock(collection, docID, enabled,
-   options?)` once the doc is loaded and the user is logged in. Pass
-   `pendingAccessRequestMessage` if the default snackbar copy doesn't fit.
+   options?)` once the doc is loaded and the user is logged in. Pass custom
+   snackbar strings if the defaults don't fit (see
+   [`useDocumentLock` options](#usedocumentlock-options)).
 2. **Register the header context.**
    `useRegisterHeaderDocumentLockUI({ collection, docID, enabled,
    readOnlyMessage, label })` so the app bar shows the popover. For pages
@@ -439,3 +553,10 @@ The full Edit Job page mounts both the job scope and the group scope this way
   `documentLockEvents.js` (frontend) *and* `documentlock/events.go` (backend) and handle
   it in `useDocumentLock`'s listener. The contract table in
   [README.md](./README.md#wire-contract-frontend--backend) must stay current.
+- **Orphan icon on every navigation.** If you mount `useDocumentLock` but
+  skip acquire (or never patch `lockScopeBootstrapped`), the header may treat
+  the scope as orphaned. The engine sets the flag in `useLockAcquireRelease`
+  after the first mount attempt.
+- **Duplicate ownership toasts.** After an explicit grant API, call
+  `suppressDocumentLockVacancyNotice()` (the slice already does) or the
+  vacancy hook may also fire on the next `lockHeld` edge.

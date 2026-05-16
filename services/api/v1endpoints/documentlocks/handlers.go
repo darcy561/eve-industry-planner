@@ -137,12 +137,16 @@ func handleHandOver(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 			return
 		}
 		logs.ErrorCtx(hc.Ctx, "doc lock hand over failed", "error", err)
-		w.WriteHeader(res.StatusCode)
+		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
+	if res.Payload != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(res.StatusCode)
+		_ = json.NewEncoder(w).Encode(res.Payload)
+		return
+	}
 	w.WriteHeader(res.StatusCode)
-	_ = json.NewEncoder(w).Encode(res.Payload)
 }
 
 func handleRequest(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {

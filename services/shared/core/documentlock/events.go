@@ -38,7 +38,8 @@ const (
 	// promotion (cf. `LockHandoffReason*`).
 	LockEventHandoffCompleted = "document_lock_handoff_completed"
 
-	// LockEventGroupCascade is published once when a group lock rotates,
+	// LockEventGroupCascade is published once when a group lock rotates or when
+	// the group lock holder saves new members into IncludedJobIDs (PUT /v1/groups),
 	// carrying every per-job lock evicted by the cascade in a single
 	// JetStream message. The frontend applies N scope patches in one
 	// store transaction without N follow-up HTTP `/lock-state` fetches.
@@ -71,6 +72,10 @@ const (
 	// LockReleaseReasonGroupHandoffCascade tags the batched `document_lock_group_cascade`
 	// event (per-job releases are no longer emitted as separate `document_lock_released`).
 	LockReleaseReasonGroupHandoffCascade = "group_handoff_cascade"
+
+	// LockReleaseReasonGroupMembershipAdded tags a group_cascade emitted when the group
+	// lock holder saves new members into IncludedJobIDs (PUT /v1/groups).
+	LockReleaseReasonGroupMembershipAdded = "group_membership_added"
 
 	// LockReleaseReasonHandOverNoQueue marks the fallback release path inside
 	// /hand-over when the requester is no longer alive (waitlist empty after
@@ -113,9 +118,9 @@ func BuildHandoffCompletedPayload(
 	payload := map[string]any{
 		LockPayloadEventKey: LockEventHandoffCompleted,
 		"collection":        collection,
-		"docID":         docID,
-		"sessionID":     newHolderSessionID,
-		"expiresAtUnix": expiresAtUnix,
+		"docID":             docID,
+		"sessionID":         newHolderSessionID,
+		"expiresAtUnix":     expiresAtUnix,
 	}
 	if opts.PreviousHolderSessionID != "" {
 		payload["previousHolderSessionID"] = opts.PreviousHolderSessionID
@@ -127,18 +132,22 @@ func BuildHandoffCompletedPayload(
 }
 
 // BuildGroupCascadePayload assembles the JetStream body for the
-// `LockEventGroupCascade` event emitted once per group handoff. The
-// `releases` array carries one entry per evicted per-job lock; the
+// `LockEventGroupCascade` event (group lock handoff or membership-add cascade).
+// The `releases` array carries one entry per evicted per-job lock; the
 // receiver applies all the scope patches in a single store transaction.
 //
-//   - `groupID`               — the parent group lock whose rotation
-//     triggered the cascade.
-//   - `releases`              — one entry per evicted per-job lock.
+//   - `groupID`   — parent group document id.
+//   - `releases`  — one entry per evicted per-job lock.
+//   - `reason`    — wire tag (e.g. LockReleaseReasonGroupHandoffCascade,
+//     LockReleaseReasonGroupMembershipAdded); empty string defaults to handoff.
 //
 // The collection on every release is always `user_job_documents`; the
 // envelope's top-level `collection` field repeats it so receivers can
 // filter the event without scanning the array.
-func BuildGroupCascadePayload(groupCollection, groupID, cascadedCollection string, releases []CascadeRelease) map[string]any {
+func BuildGroupCascadePayload(groupCollection, groupID, cascadedCollection string, releases []CascadeRelease, reason string) map[string]any {
+	if reason == "" {
+		reason = LockReleaseReasonGroupHandoffCascade
+	}
 	items := make([]map[string]any, 0, len(releases))
 	for _, r := range releases {
 		items = append(items, map[string]any{
@@ -151,7 +160,7 @@ func BuildGroupCascadePayload(groupCollection, groupID, cascadedCollection strin
 		"groupCollection":   groupCollection,
 		"groupID":           groupID,
 		"collection":        cascadedCollection,
-		"reason":            LockReleaseReasonGroupHandoffCascade,
+		"reason":            reason,
 		"releases":          items,
 	}
 }

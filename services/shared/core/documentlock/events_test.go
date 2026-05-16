@@ -89,6 +89,7 @@ func TestBuildGroupCascadePayload(t *testing.T) {
 		"group-1",
 		mongocore.CollectionUserJobDocuments,
 		releases,
+		LockReleaseReasonGroupHandoffCascade,
 	)
 
 	if p[LockPayloadEventKey] != LockEventGroupCascade {
@@ -116,5 +117,36 @@ func TestBuildGroupCascadePayload(t *testing.T) {
 	if items[1]["docID"] != "job-b" || items[1]["sessionID"] != "sess-old" {
 		t.Fatalf("releases[1]: got %v", items[1])
 	}
+}
+
+func TestBuildGroupCascadePayload_reasonVariants(t *testing.T) {
+	t.Parallel()
+	releases := []CascadeRelease{{JobID: "j1", EvictedSessionID: "s1"}}
+
+	t.Run("membership_added", func(t *testing.T) {
+		p := BuildGroupCascadePayload(
+			mongocore.CollectionUserJobGroups,
+			"g99",
+			mongocore.CollectionUserJobDocuments,
+			releases,
+			LockReleaseReasonGroupMembershipAdded,
+		)
+		if p["reason"] != LockReleaseReasonGroupMembershipAdded {
+			t.Fatalf("reason: got %v", p["reason"])
+		}
+	})
+
+	t.Run("empty_reason_defaults_to_handoff_cascade", func(t *testing.T) {
+		p := BuildGroupCascadePayload(
+			mongocore.CollectionUserJobGroups,
+			"g98",
+			mongocore.CollectionUserJobDocuments,
+			releases,
+			"",
+		)
+		if p["reason"] != LockReleaseReasonGroupHandoffCascade {
+			t.Fatalf("reason: got %v", p["reason"])
+		}
+	})
 }
 

@@ -122,6 +122,16 @@ export function selectActiveDlHandoffOfferForMe(s) {
 }
 
 /** @param {*} s */
+export function selectActiveDlLockScopeBootstrapped(s) {
+  const p = primaryHeaderRegistration(s);
+  if (!p?.collection || !p?.docID) return false;
+  return (
+    selectScopedDocumentLock(s, p.collection, p.docID).lockScopeBootstrapped ===
+    true
+  );
+}
+
+/** @param {*} s */
 export function selectActiveDlViewerCount(s) {
   const p = primaryHeaderRegistration(s);
   if (!p?.collection || !p?.docID) return 0;

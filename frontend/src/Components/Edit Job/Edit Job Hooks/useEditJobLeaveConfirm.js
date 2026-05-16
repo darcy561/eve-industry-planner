@@ -14,7 +14,7 @@ import {
 import { closeJobDependencyTreeDialog } from "../../../Events/jobDependencyTreeDialogEvents";
 import { mergeEditJobNavigationSearch } from "./mergeEditJobNavigationSearch";
 import { buildGroupSearchAfterEditClose } from "../../../Functions/Groups/groupPageViewSearch";
-import { useActiveJobReadOnly } from "./useActiveJobDocumentLock";
+import { useActiveJobPersistGate } from "./useActiveJobDocumentLock";
 
 /**
  * Registers two handlers while the edit-job page is mounted:
@@ -48,9 +48,9 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
    * lands while it's already open; also guards the save handlers below from
    * firing `closeActiveJob` after the lock flipped to read-only.
    */
-  const jobLockReadOnly = useActiveJobReadOnly(state);
-  const jobLockReadOnlyRef = useRef(jobLockReadOnly);
-  jobLockReadOnlyRef.current = jobLockReadOnly;
+  const persistGate = useActiveJobPersistGate(state);
+  const canPersistRef = useRef(persistGate.canPersist);
+  canPersistRef.current = persistGate.canPersist;
 
   /** Navigation flow */
   const pendingNavigationResolveRef = useRef(null);
@@ -165,6 +165,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
       const resolve = pendingReleaseResolveRef.current;
       const target = pendingReleaseTargetRef.current;
       if (!resolve || !target) return;
+      if (!canPersistRef.current) return;
       setLeaveSaving(true);
       try {
         const s = stateRef.current;
@@ -200,7 +201,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
     // Belt-and-braces: even though the dialog disables Save when locked, the
     // lock can flip between dialog-open and the click (server-side cascade or
     // hand-over). Refuse to call `closeActiveJob` against a doc we don't own.
-    if (jobLockReadOnlyRef.current) return;
+    if (!canPersistRef.current) return;
     setLeaveSaving(true);
     try {
       const s = stateRef.current;
@@ -339,7 +340,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
       mode: dialogMode,
       // Navigation mode is the only path that can hit the dialog on a read-only
       // job (release_request implies we still hold the lock).
-      saveDisabled: dialogMode === "navigation" && jobLockReadOnly,
+      saveDisabled: dialogMode === "navigation" && !persistGate.canPersist,
     },
   };
 }

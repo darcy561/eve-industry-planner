@@ -1,3 +1,4 @@
+import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../../DocumentLock/documentLockEvents.js";
 import requestWithPrivateHeaders, {
   privateBatchRetryConfig,
 } from "./applyPrivateHeaders.js";
@@ -49,6 +50,9 @@ async function saveArchivedJobs(jobs) {
     );
     return true;
   } catch (error) {
+    if (error?.code === DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE) {
+      return false;
+    }
     console.error("Error saving archived jobs:", error);
     return false;
   }

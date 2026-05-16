@@ -195,6 +195,16 @@ function GroupPageFrame() {
   useDocumentLock(USER_JOB_GROUPS_COLLECTION, groupID, Boolean(isLoggedIn && isGroupReady), {
     pendingAccessRequestMessage:
       "Another tab requested edit access for this group.",
+    becameOwnerVacantMessage:
+      "You now hold the edit lock for this group — this tab is the editor.",
+    lostOwnerMessage:
+      "This tab is now read-only for this group — another session holds the edit lock.",
+    extendNudgeMessage:
+      "This group's edit session is about to end — renew now while this tab is visible.",
+    passiveViewerMessage: (count) =>
+      count === 1
+        ? "Another session is viewing this group — you still hold the edit lock."
+        : `${count} other sessions are viewing this group — you still hold the edit lock.`,
   });
 
   useRegisterHeaderDocumentLockUI({

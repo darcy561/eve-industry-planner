@@ -18,6 +18,7 @@ import {
   primaryHeaderRegistration,
   selectActiveDlExtendSegmentCount,
   selectActiveDlHandoffOfferForMe,
+  selectActiveDlLockScopeBootstrapped,
   selectActiveDlHandoffPendingHolder,
   selectActiveDlLockExpiresAtUnix,
   selectActiveDlLockHeld,
@@ -34,7 +35,12 @@ import {
 import {
   docLockScopeKey,
   mergeScopedDocumentLockState,
+  scopeHasOtherSessionContention,
 } from "../../Functions/DocumentLock/documentLockScope.js";
+import {
+  LOCK_LOW_REMAINING_NUDGE_SEC,
+  LOCK_PASSIVE_VIEWER_FLASH_MS,
+} from "../../Functions/DocumentLock/documentLockTimings.js";
 
 function secondaryScopeSummary(reg, st) {
   const title =
@@ -51,23 +57,6 @@ function secondaryScopeSummary(reg, st) {
   return `${title}: ${status}${limited}`;
 }
 
-/** True when a scope shows any signal that requires user attention (other tab involved). */
-function scopeContended(st) {
-  if (!st) return false;
-  if (st.readOnly) return true;
-  if (st.handoffPendingHolder) return true;
-  if (st.pendingAccessRequest) return true;
-  if (typeof st.waitlistLen === "number" && st.waitlistLen > 0) return true;
-  if (st.waitingInHandoffQueue) return true;
-  if (st.handoffOfferForMe) return true;
-  // A passive viewer on another tab counts as contention — it's how the holder
-  // learns someone else is watching, even without an explicit Request access.
-  if (typeof st.viewerCount === "number" && st.viewerCount > 0) return true;
-  return false;
-}
-
-/** Seconds remaining before lock segment ends — flash icon when at or below this */
-const FLASH_THRESHOLD_SEC = 30;
 /** Brief success icon after lease expiry moves forward (renewed) */
 const EXTEND_CONFIRM_MS = 1400;
 
@@ -114,6 +103,8 @@ export default function DocumentLockHeaderControl() {
   const [tick, setTick] = useState(0);
   const prevExpiresRef = useRef(null);
   const [extendAck, setExtendAck] = useState(false);
+  const [passiveViewerFlash, setPassiveViewerFlash] = useState(false);
+  const prevPassiveViewerTrackRef = useRef({ scopeKey: "", count: 0 });
   const [requestAccessPending, startRequestAccess] = useTransition();
 
   const active = useUsersStore(selectHeaderDocumentLockActive);
@@ -127,6 +118,7 @@ export default function DocumentLockHeaderControl() {
   const waitlistLen = useUsersStore(selectActiveDlWaitlistLen);
   const waitingInHandoffQueue = useUsersStore(selectActiveDlWaitingInHandoffQueue);
   const handoffOfferForMe = useUsersStore(selectActiveDlHandoffOfferForMe);
+  const lockScopeBootstrapped = useUsersStore(selectActiveDlLockScopeBootstrapped);
   const viewerCount = useUsersStore(selectActiveDlViewerCount);
 
   useEffect(() => {
@@ -158,6 +150,52 @@ export default function DocumentLockHeaderControl() {
     return undefined;
   }, [active, lockExpiresAtUnix, lockHeld, readOnly]);
 
+  useEffect(() => {
+    const p = primaryHeaderRegistration(useUsersStore.getState());
+    if (!active || !p?.collection || !p?.docID || !lockScopeBootstrapped) {
+      prevPassiveViewerTrackRef.current = { scopeKey: "", count: 0 };
+      setPassiveViewerFlash(false);
+      return undefined;
+    }
+
+    const scopeKey = docLockScopeKey(p.collection, p.docID);
+    const count =
+      typeof viewerCount === "number" && viewerCount > 0
+        ? Math.floor(viewerCount)
+        : 0;
+    const isHolder = lockHeld && !readOnly;
+    const prev = prevPassiveViewerTrackRef.current;
+
+    if (prev.scopeKey !== scopeKey) {
+      prevPassiveViewerTrackRef.current = { scopeKey, count };
+      setPassiveViewerFlash(false);
+      return undefined;
+    }
+
+    const prevCount = prev.count;
+    if (isHolder && prevCount === 0 && count > 0) {
+      setPassiveViewerFlash(true);
+      prevPassiveViewerTrackRef.current = { scopeKey, count };
+      const t = window.setTimeout(
+        () => setPassiveViewerFlash(false),
+        LOCK_PASSIVE_VIEWER_FLASH_MS
+      );
+      return () => window.clearTimeout(t);
+    }
+
+    prevPassiveViewerTrackRef.current = { scopeKey, count };
+    if (count === 0) {
+      setPassiveViewerFlash(false);
+    }
+    return undefined;
+  }, [
+    active,
+    lockHeld,
+    readOnly,
+    viewerCount,
+    lockScopeBootstrapped,
+  ]);
+
   const remainingSec = useMemo(() => {
     if (lockExpiresAtUnix == null || typeof lockExpiresAtUnix !== "number")
       return null;
@@ -179,7 +217,7 @@ export default function DocumentLockHeaderControl() {
    * a header affordance so the user has a path to take over instead of silently
    * becoming editable with no signal — pair with the popover "Take over" button.
    */
-  const orphanedAvailable =
+  const orphanedVacantOnServer =
     !lockHeld &&
     !readOnly &&
     !handoffPendingHolder &&
@@ -187,6 +225,9 @@ export default function DocumentLockHeaderControl() {
     !waitingInHandoffQueue &&
     !handoffOfferForMe &&
     !(typeof waitlistLen === "number" && waitlistLen > 0);
+  /** Avoid grey vacant flash while acquire is in flight on mount (solo open). */
+  const orphanedAvailable =
+    lockScopeBootstrapped && orphanedVacantOnServer;
 
   /**
    * Surface contention from any secondary registration (e.g. on /editjob the group lock
@@ -199,19 +240,33 @@ export default function DocumentLockHeaderControl() {
       const r = registrations[i];
       if (!r?.collection || !r?.docID || r.enabled === false) continue;
       const st = mergeScopedDocumentLockState(scopes, r.collection, r.docID);
-      if (scopeContended(st)) return true;
+      if (scopeHasOtherSessionContention(st)) return true;
     }
     return false;
   }, [registrations, scopes]);
 
   /**
    * Holder with no contention sees nothing — quiet UI when they're uncontested editor.
-   * As soon as any registered scope shows contention (primary or secondary), or the
-   * primary lock orphans, surface the affordance.
+   * Secondary-scope contention still surfaces the affordance (e.g. job holder, group queue).
    */
   const hasPassiveViewers = typeof viewerCount === "number" && viewerCount > 0;
 
-  const showHeaderLockIcon =
+  const primaryUncontestedHolder =
+    lockScopeBootstrapped &&
+    lockHeld &&
+    !readOnly &&
+    !scopeHasOtherSessionContention({
+      readOnly,
+      lockHeld,
+      waitingInHandoffQueue,
+      viewerCount,
+      waitlistLen,
+      pendingAccessRequest,
+      handoffPendingHolder,
+      handoffOfferForMe,
+    });
+
+  const hasPrimaryLockSignal =
     viewerReadOnly ||
     inconsistentHolderReadOnly ||
     handoffPendingHolder ||
@@ -220,8 +275,11 @@ export default function DocumentLockHeaderControl() {
     waitingInHandoffQueue ||
     handoffOfferForMe ||
     orphanedAvailable ||
-    secondaryContended ||
     hasPassiveViewers;
+
+  const showHeaderLockIcon =
+    secondaryContended ||
+    (hasPrimaryLockSignal && !primaryUncontestedHolder);
 
   const tooltipTitle = useMemo(() => {
     if (handoffPendingHolder) return HANDOFF_PENDING_HOLDER;
@@ -275,7 +333,8 @@ export default function DocumentLockHeaderControl() {
     `${active ? 1 : 0}|${readOnly ? 1 : 0}|${lockHeld ? 1 : 0}` +
     `|${handoffPendingHolder ? 1 : 0}|${pendingAccessRequest ? 1 : 0}` +
     `|${waitlistLen ?? ""}|${waitingInHandoffQueue ? 1 : 0}` +
-    `|${handoffOfferForMe ? 1 : 0}|${orphanedAvailable ? 1 : 0}` +
+    `|${handoffOfferForMe ? 1 : 0}|${lockScopeBootstrapped ? 1 : 0}` +
+    `|${orphanedAvailable ? 1 : 0}` +
     `|${secondaryContended ? 1 : 0}|${hasPassiveViewers ? 1 : 0}`;
   const [prevLockSignature, setPrevLockSignature] = useState(lockSignature);
   if (prevLockSignature !== lockSignature) {
@@ -291,13 +350,16 @@ export default function DocumentLockHeaderControl() {
   const lowTimeRemaining =
     remainingSec != null &&
     remainingSec > 0 &&
-    remainingSec <= FLASH_THRESHOLD_SEC;
+    remainingSec <= LOCK_LOW_REMAINING_NUDGE_SEC;
 
-  const shouldFlash =
+  const shouldFlashLowTime =
     active &&
     lowTimeRemaining &&
     !extendAck &&
     (lockHeld || viewerReadOnly);
+
+  const shouldPulseIcon =
+    active && !extendAck && (shouldFlashLowTime || passiveViewerFlash);
 
   const popoverOpen = anchorValid;
 
@@ -340,7 +402,7 @@ export default function DocumentLockHeaderControl() {
           alignItems: "center",
           justifyContent: "center",
           marginRight: { xs: "4px", sm: "8px" },
-          ...(shouldFlash && !extendAck
+          ...(shouldPulseIcon
             ? {
                 "@keyframes docLockPulse": {
                   "0%, 100%": { opacity: 1 },

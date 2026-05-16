@@ -2,12 +2,14 @@ package jobdocuments
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
+	"eve-industry-planner/shared/core/documentlock"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
@@ -62,8 +64,38 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 	}
 
 	now := time.Now().UTC()
-	sessionID, _ := auth.ExtractSessionID(r)
+	sessionID, sessErr := auth.ExtractSessionID(r)
 	wsClientID := helper.ExtractWSClientID(r)
+
+	if clients.Redis != nil {
+		if sessErr != nil || sessionID == "" {
+			metrics.Error("auth_error")
+			logs.WarnCtx(ctx, "job documents delete lock gate: missing session", "error", sessErr, "account_id", accountID)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, mongocore.CollectionUserJobDocuments, reqBody.JobIDs)
+		if lerr != nil {
+			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
+				metrics.Error("auth_error")
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			metrics.Error("lock_error")
+			logs.ErrorCtx(ctx, "job documents delete lock gate failed", "error", lerr, "account_id", accountID)
+			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to verify document lock", lerr)
+			return
+		}
+		if len(rejects) > 0 {
+			metrics.Error("lock_conflict")
+			logs.WarnCtx(ctx, "job documents delete blocked: lock held elsewhere",
+				"account_id", accountID,
+				"requester_session_id", sessionID,
+				"rejected_count", len(rejects))
+			helper.RespondLockHeldElsewhereJSON(w, mongocore.CollectionUserJobDocuments, rejects)
+			return
+		}
+	}
 
 	retryConfig := mongocore.DefaultRetryConfig()
 	retryConfig.OperationName = fmt.Sprintf("delete %d job documents", len(reqBody.JobIDs))

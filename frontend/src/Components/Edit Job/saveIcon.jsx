@@ -4,16 +4,17 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import closeActiveJob from "../../Functions/JobPlanner/closeActiveJob";
 import { buildGroupSearchAfterEditClose } from "../../Functions/Groups/groupPageViewSearch";
-import { useActiveJobReadOnly } from "./Edit Job Hooks/useActiveJobDocumentLock";
-import { lockReasonText } from "../DocumentLock/LockGatedTooltip";
+import { useActiveJobPersistGate } from "./Edit Job Hooks/useActiveJobDocumentLock";
+import { persistAffordanceBlockedReason } from "../DocumentLock/LockGatedTooltip";
 
 export function SaveJobIcon({ state }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate({ from: '/editjob/$jobID' });
   const search = useSearch({ from: '/editjob/$jobID' });
-  const jobLockReadOnly = useActiveJobReadOnly(state);
+  const persist = useActiveJobPersistGate(state);
 
   async function onClick() {
+    if (!persist.canPersist) return;
     await closeActiveJob(
       state.activeJob,
       state.jobModified,
@@ -34,12 +35,21 @@ export function SaveJobIcon({ state }) {
       navigate({ to: "/jobplanner" });
     }
   }
+  const saveBlockedReason = persistAffordanceBlockedReason({
+    readOnly: persist.readOnly,
+    jobReadOnly: persist.jobReadOnly,
+    groupReadOnly: persist.groupReadOnly,
+    jobLockHeld: persist.jobLockHeld,
+    groupLockHeld: persist.groupLockHeld,
+    hasGroup: persist.hasGroup,
+    action: "save is disabled",
+  });
+
   return (
     <Tooltip
       title={
-        jobLockReadOnly
-          ? lockReasonText({ action: "save is disabled" })
-          : "Saves all changes and returns to the job planner page."
+        saveBlockedReason ||
+        "Saves all changes and returns to the job planner page."
       }
       arrow
       placement="bottom"
@@ -49,7 +59,7 @@ export function SaveJobIcon({ state }) {
           color="primary"
           size="medium"
           onClick={onClick}
-          disabled={jobLockReadOnly}
+          disabled={!persist.canPersist}
         >
           <SaveIcon />
         </IconButton>

@@ -218,6 +218,21 @@ func PromoteWaitlistHead(
 	return tx.NewHolderSessionID, rec, true, nil
 }
 
+// LockHeldBySession reports whether a non-expired lock is actively held by requesterSessionID.
+func LockHeldBySession(ctx context.Context, rdb *redis.Client, accountID, collection, docID, requesterSessionID string) (bool, error) {
+	if rdb == nil || requesterSessionID == "" {
+		return false, nil
+	}
+	rec, err := GetLock(ctx, rdb, accountID, collection, docID)
+	if err != nil {
+		return false, err
+	}
+	if rec == nil || rec.HolderSessionID == "" {
+		return false, nil
+	}
+	return rec.HolderSessionID == requesterSessionID, nil
+}
+
 // LockHeldByOther reports whether a non-expired lock is held by a session other than requesterSessionID.
 // If requesterSessionID is empty, any active lock counts as blocking.
 func LockHeldByOther(ctx context.Context, rdb *redis.Client, accountID, collection, docID, requesterSessionID string) (bool, error) {

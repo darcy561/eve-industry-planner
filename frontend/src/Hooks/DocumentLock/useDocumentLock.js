@@ -4,9 +4,11 @@ import { selectScopedDocumentLock } from "../../Functions/DocumentLock/documentL
 import { useDocumentLockHeld } from "./useDocumentLockHeld.js";
 import { useLockAcquireRelease } from "./useLockAcquireRelease.js";
 import { useLockExtendLoop } from "./useLockExtendLoop.js";
+import { useLockExtendNudgeSnackbar } from "./useLockExtendNudgeSnackbar.js";
 import { useLockReadOnlyGrace } from "./useLockReadOnlyGrace.js";
 import { useLockSyncFromServer } from "./useLockSyncFromServer.js";
 import { useLockSyncHeartbeat } from "./useLockSyncHeartbeat.js";
+import { useLockPassiveViewerSnackbar } from "./useLockPassiveViewerSnackbar.js";
 import { useLockVacancySnackbar } from "./useLockVacancySnackbar.js";
 import { useLockViewerPresence } from "./useLockViewerPresence.js";
 import { useLockWsListener } from "./useLockWsListener.js";
@@ -22,6 +24,16 @@ const DEFAULT_PENDING_ACCESS_SNACKBAR =
 export function useDocumentLock(collection, docID, enabled, options = {}) {
   const pendingAccessRequestMessage =
     options.pendingAccessRequestMessage ?? DEFAULT_PENDING_ACCESS_SNACKBAR;
+  const becameOwnerVacantMessage =
+    options.becameOwnerVacantMessage ??
+    "You now hold the edit lock — this tab is the editor.";
+  const lostOwnerMessage =
+    options.lostOwnerMessage ??
+    "This tab is now read-only — another session holds the edit lock.";
+  const extendNudgeMessage =
+    options.extendNudgeMessage ??
+    "Your edit session is about to end — renew now while this tab is visible.";
+  const passiveViewerMessage = options.passiveViewerMessage;
   const lockHeld = useUsersStore((s) =>
     selectScopedDocumentLock(s, collection, docID).lockHeld
   );
@@ -30,6 +42,28 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
   );
   const waitingInHandoffQueue = useUsersStore((s) =>
     selectScopedDocumentLock(s, collection, docID).waitingInHandoffQueue
+  );
+  const lockExpiresAtUnix = useUsersStore((s) =>
+    selectScopedDocumentLock(s, collection, docID).lockExpiresAtUnix
+  );
+  const handoffPendingHolder = useUsersStore((s) =>
+    selectScopedDocumentLock(s, collection, docID).handoffPendingHolder
+  );
+  const viewerCount = useUsersStore((s) =>
+    selectScopedDocumentLock(s, collection, docID).viewerCount
+  );
+  const waitlistLen = useUsersStore((s) =>
+    selectScopedDocumentLock(s, collection, docID).waitlistLen
+  );
+  const pendingAccessRequest = useUsersStore((s) =>
+    selectScopedDocumentLock(s, collection, docID).pendingAccessRequest
+  );
+  const handoffOfferForMe = useUsersStore((s) =>
+    selectScopedDocumentLock(s, collection, docID).handoffOfferForMe
+  );
+  const lockScopeBootstrapped = useUsersStore((s) =>
+    selectScopedDocumentLock(s, collection, docID).lockScopeBootstrapped ===
+    true
   );
   const sessionID = useUsersStore((s) => s.account.sessionID);
 
@@ -41,6 +75,12 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
     readOnly: false,
     lockHeld: false,
     waitingInHandoffQueue: false,
+  });
+  const prevPassiveViewerRef = useRef({
+    scopeKey: "",
+    viewerCount: 0,
+    lockHeld: false,
+    readOnly: true,
   });
 
   const patch = useCallback(
@@ -74,6 +114,8 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
     collection,
     docID,
     enabled,
+    lockHeld,
+    readOnly,
     patch,
     resetScope,
     heldRef,
@@ -118,6 +160,29 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
     readOnly,
   });
 
+  useLockExtendNudgeSnackbar({
+    enabled,
+    collection,
+    docID,
+    lockHeld,
+    readOnly,
+    lockExpiresAtUnix,
+    handoffPendingHolder,
+    extendNudgeMessage,
+  });
+
+  useLockPassiveViewerSnackbar({
+    enabled,
+    collection,
+    docID,
+    lockHeld,
+    readOnly,
+    lockScopeBootstrapped,
+    viewerCount,
+    prevPassiveViewerRef,
+    passiveViewerMessage,
+  });
+
   useLockVacancySnackbar({
     enabled,
     collection,
@@ -125,7 +190,14 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
     lockHeld,
     readOnly,
     waitingInHandoffQueue,
+    viewerCount,
+    waitlistLen,
+    pendingAccessRequest,
+    handoffPendingHolder,
+    handoffOfferForMe,
     prevHolderUiRef,
+    becameOwnerVacantMessage,
+    lostOwnerMessage,
   });
 
   useLockWsListener({

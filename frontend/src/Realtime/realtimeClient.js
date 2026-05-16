@@ -38,7 +38,7 @@ const PING_MS = 45_000;
  * @param {Record<string, unknown>} parsed
  * @returns {Record<string, unknown>|null}
  */
-function documentLockWireToDetail(parsed) {
+export function documentLockWireToDetail(parsed) {
   const ev = parsed.event;
   const name = typeof ev === "string" && ev.trim() !== "" ? ev.trim() : "";
   if (!name) return null;

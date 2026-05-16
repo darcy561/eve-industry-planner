@@ -13,7 +13,7 @@ import {
   docLockScopeKey,
   initialScopedDocumentLockState,
 } from "../Functions/DocumentLock/documentLockScope.js";
-import { buildGrantedHolderPatch } from "../Functions/DocumentLock/documentLockStatusFields.js";
+import { buildGrantedHolderPatch, numberOrNull } from "../Functions/DocumentLock/documentLockStatusFields.js";
 
 /**
  * @typedef {import("../Functions/DocumentLock/documentLockScope.js").ScopedDocumentLockState} ScopedDocumentLockState
@@ -231,7 +231,52 @@ const documentLockSlice = (set, get) => ({
               showSnackbarSuccess("Edit lock cleared — you now hold the lock.", 3);
               return;
             }
-            showSnackbarSuccess("Edit lock was cleared.", 3);
+            // Same shape as POST /request auto-grant (defensive if API ever returns 200).
+            if (
+              res2.ok &&
+              res2.status === 200 &&
+              data.acquired === true &&
+              data.held === true
+            ) {
+              suppressDocumentLockVacancyNotice();
+              patchDocumentLockForScope(
+                collection,
+                docID,
+                buildGrantedHolderPatch(data, { withClearedHandoff: true })
+              );
+              showSnackbarSuccess("Edit lock cleared — you now hold the lock.", 3);
+              return;
+            }
+            // Another session (often the other tab on this account) won the race to POST /acquire.
+            if (
+              res2.ok &&
+              res2.status === 200 &&
+              data.held === true &&
+              data.acquired === false
+            ) {
+              const viewerPatch = {
+                readOnly: true,
+                lockHeld: false,
+                lockExpiresAtUnix: numberOrNull(data, "expiresAtUnix"),
+                lockTtlSeconds: numberOrNull(data, "ttlSeconds"),
+              };
+              if (typeof data.viewerCount === "number") {
+                viewerPatch.viewerCount = data.viewerCount;
+              }
+              patchDocumentLockForScope(collection, docID, {
+                ...viewerPatch,
+                ...clearedHandoffFieldsForSlice(),
+              });
+              showSnackbarWarning(
+                "The lock was cleared, but another session took the edit lease first — this tab is read-only. Try Request access or clear again if stuck.",
+                6
+              );
+              return; 
+            }
+            showSnackbarWarning(
+              `The lock was cleared, but this tab could not take ownership (${res2.status}). Try the lock control in the header.`,
+              5
+            );
             return;
           }
           if (res.status === 404) {
@@ -333,45 +378,67 @@ const documentLockSlice = (set, get) => ({
         const dl =
           get().documentLock.scopes[docLockScopeKey(collection, docID)] ??
           initialScopedDocumentLockState();
-        if (!dl.lockHeld || !collection || !docID) return;
+        const mayHandOver =
+          (dl.lockHeld === true || dl.pendingAccessRequest === true) &&
+          collection &&
+          docID;
+        if (!mayHandOver) return;
+
+        const { patchDocumentLockForScope } = get().documentLock.actions;
+        const readOnlyFormerHolderPatch = {
+          readOnly: true,
+          lockHeld: false,
+          pendingAccessRequest: false,
+          lockExpiresAtUnix: null,
+          lockTtlSeconds: null,
+          extendSegmentCount: null,
+          waitlistLen: null,
+          handoffPendingHolder: false,
+          pendingHandoffOfferClientID: null,
+          pendingHandoffExpiresAtUnix: null,
+          handoffOfferForMe: false,
+          waitingInHandoffQueue: false,
+        };
+        const releasedNoQueuePatch = {
+          lockHeld: false,
+          readOnly: false,
+          pendingAccessRequest: false,
+          lockExpiresAtUnix: null,
+          lockTtlSeconds: null,
+          ...clearedHandoffFieldsForSlice(),
+        };
+
         try {
-          await handOverDocumentLock(collection, docID);
-          const k = docLockScopeKey(collection, docID);
-          set(
-            (state) => {
-              const prev =
-                state.documentLock.scopes[k] ?? initialScopedDocumentLockState();
-              return {
-                ...state,
-                documentLock: {
-                  ...state.documentLock,
-                  scopes: {
-                    ...state.documentLock.scopes,
-                    [k]: {
-                      ...prev,
-                      readOnly: true,
-                      lockHeld: false,
-                      pendingAccessRequest: false,
-                      lockExpiresAtUnix: null,
-                      lockTtlSeconds: null,
-                      extendSegmentCount: null,
-                      waitlistLen: null,
-                      handoffPendingHolder: false,
-                      pendingHandoffOfferClientID: null,
-                      pendingHandoffExpiresAtUnix: null,
-                      handoffOfferForMe: false,
-                      waitingInHandoffQueue: false,
-                    },
-                  },
-                  actions: state.documentLock.actions,
-                },
-              };
-            },
-            false,
-            "documentLock/handOver"
+          const res = await handOverDocumentLock(collection, docID);
+          if (res.ok && res.status === 200) {
+            patchDocumentLockForScope(collection, docID, readOnlyFormerHolderPatch);
+            return;
+          }
+          if (res.ok && res.status === 204) {
+            patchDocumentLockForScope(collection, docID, releasedNoQueuePatch);
+            showSnackbarWarning(
+              "The other session is no longer waiting — the edit lock was released.",
+              5
+            );
+            return;
+          }
+          if (res.status === 409) {
+            showSnackbarWarning(
+              "Could not hand over from this tab (lock state changed). Refresh or try Request access on the other tab.",
+              6
+            );
+            return;
+          }
+          const errText = (await res.text().catch(() => "")).trim();
+          showSnackbarWarning(
+            errText || `Hand over failed (${res.status}). Try again.`,
+            5
           );
         } catch {
-          /* ignore */
+          showSnackbarWarning(
+            "Hand over failed (network). Check your connection and try again.",
+            5
+          );
         }
       },
 

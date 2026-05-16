@@ -31,14 +31,14 @@ func TestBuildDocumentLockWireFlatShape(t *testing.T) {
 	}
 }
 
-func TestBuildDocumentLockWireSuppressSessionRequested(t *testing.T) {
+func TestBuildDocumentLockWireNoSuppressRequested(t *testing.T) {
 	raw := []byte(`{"` + documentlock.LockPayloadEventKey + `":"` + documentlock.LockEventRequested + `","requesterSessionID":"req-sess-1","collection":"c","docID":"d"}`)
 	_, suppress, err := BuildDocumentLockWire(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if suppress != "req-sess-1" {
-		t.Fatalf("suppressSessionID = %q, want req-sess-1", suppress)
+	if suppress != "" {
+		t.Fatalf("suppressSessionID = %q, want empty (JWT session shared across tabs)", suppress)
 	}
 }
 

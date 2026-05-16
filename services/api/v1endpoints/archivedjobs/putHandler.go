@@ -2,11 +2,14 @@ package archivedjobs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"eve-industry-planner/api/helper"
+	"eve-industry-planner/api/helper/auth"
+	"eve-industry-planner/shared/core/documentlock"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
@@ -60,7 +63,6 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 		logs.WarnCtx(ctx, "archived jobs put: auth failed", "ip", r.RemoteAddr)
 		return
 	}
-	var err error
 
 	var reqBody struct {
 		Jobs []models.Job `json:"jobs"`
@@ -111,6 +113,41 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 		seenJobID[job.JobID] = struct{}{}
 	}
 
+	sessionID, sessErr := auth.ExtractSessionID(r)
+	if clients.Redis != nil {
+		if sessErr != nil || sessionID == "" {
+			metrics.Error("auth_error")
+			logs.WarnCtx(ctx, "archived jobs put lock gate: missing session", "error", sessErr, "account_id", accountID)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		jobIDs := make([]string, len(reqBody.Jobs))
+		for i := range reqBody.Jobs {
+			jobIDs[i] = reqBody.Jobs[i].JobID
+		}
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, mongocore.CollectionUserJobDocuments, jobIDs)
+		if lerr != nil {
+			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
+				metrics.Error("auth_error")
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			metrics.Error("lock_error")
+			logs.ErrorCtx(ctx, "archived jobs put lock gate failed", "error", lerr, "account_id", accountID)
+			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to verify document lock", lerr)
+			return
+		}
+		if len(rejects) > 0 {
+			metrics.Error("lock_conflict")
+			logs.WarnCtx(ctx, "archived jobs put blocked: lock held elsewhere",
+				"account_id", accountID,
+				"requester_session_id", sessionID,
+				"rejected_count", len(rejects))
+			helper.RespondLockHeldElsewhereJSON(w, mongocore.CollectionUserJobDocuments, rejects)
+			return
+		}
+	}
+
 	now := time.Now().UTC()
 	bulkOps := make([]mongo.WriteModel, 0, len(reqBody.Jobs))
 	for i := range reqBody.Jobs {
@@ -135,7 +172,7 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	retryConfig.OperationName = fmt.Sprintf("bulk upsert %d archived jobs", len(bulkOps))
 
 	var result *mongo.BulkWriteResult
-	err = mongocore.RetryMongoOperation(ctx, retryConfig, func() error {
+	err := mongocore.RetryMongoOperation(ctx, retryConfig, func() error {
 		var e error
 		result, e = collection.BulkWrite(ctx, bulkOps, options.BulkWrite().SetOrdered(false))
 		return e

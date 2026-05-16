@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import useUsersStore from "../../Zustand/usersStore.js";
 import {
   acquireDocumentLock,
@@ -13,11 +13,16 @@ import { DOCUMENT_LOCK_HELD_ACTIONS } from "./documentLockHeldReducer.js";
 
 /**
  * Mount acquire, unmount release, key tracking, waitlist pulse while queued.
+ *
+ * `lockHeld` / `readOnly` enable edge-triggered self-heal when the scope would
+ * otherwise be vacant-but-editable (#21).
  */
 export function useLockAcquireRelease({
   collection,
   docID,
   enabled,
+  lockHeld,
+  readOnly,
   patch,
   resetScope,
   heldRef,
@@ -26,6 +31,7 @@ export function useLockAcquireRelease({
   cancelReadOnlyGrace,
   waitingInHandoffQueue,
 }) {
+  const acquireInFlightRef = useRef(false);
   useEffect(() => {
     if (enabled && collection && docID) {
       keyRef.current = { collection, docID };
@@ -95,6 +101,16 @@ export function useLockAcquireRelease({
     }
   }, [collection, docID, enabled, patch, dispatchHeld]);
 
+  const runTryAcquireGuarded = useCallback(async () => {
+    if (acquireInFlightRef.current) return;
+    acquireInFlightRef.current = true;
+    try {
+      await tryAcquire();
+    } finally {
+      acquireInFlightRef.current = false;
+    }
+  }, [tryAcquire]);
+
   useEffect(() => {
     if (!enabled || !waitingInHandoffQueue) return undefined;
     const pulse = () => {
@@ -119,7 +135,13 @@ export function useLockAcquireRelease({
 
     let cancelled = false;
     void (async () => {
-      if (!cancelled) await tryAcquire();
+      try {
+        if (!cancelled) await runTryAcquireGuarded();
+      } finally {
+        if (!cancelled) {
+          patch({ lockScopeBootstrapped: true });
+        }
+      }
     })();
 
     return () => {
@@ -134,12 +156,26 @@ export function useLockAcquireRelease({
     enabled,
     docID,
     collection,
-    tryAcquire,
+    runTryAcquireGuarded,
     release,
     resetScope,
     cancelReadOnlyGrace,
     dispatchHeld,
     keyRef,
+  ]);
+
+  // #21 — never stay "editable" without either the lease or read-only viewer state.
+  useEffect(() => {
+    if (!enabled || !collection || !docID) return;
+    if (lockHeld || readOnly) return;
+    void runTryAcquireGuarded();
+  }, [
+    enabled,
+    collection,
+    docID,
+    lockHeld,
+    readOnly,
+    runTryAcquireGuarded,
   ]);
 
   return { tryAcquire, release };

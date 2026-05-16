@@ -2,6 +2,7 @@ package groups
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -120,20 +121,26 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		return
 	}
 	if clients.Redis != nil {
-		for _, gid := range resolvedIDs {
-			blocked, lerr := documentlock.LockHeldByOther(ctx, clients.Redis, accountID, mongocore.CollectionUserJobGroups, gid, sessionID)
-			if lerr != nil {
-				metrics.Error("lock_error")
-				logs.ErrorCtx(ctx, "failed to check group doc lock before delete", "error", lerr, "account_id", accountID, "group_id", gid)
-				logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to verify document lock", lerr)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, mongocore.CollectionUserJobGroups, resolvedIDs)
+		if lerr != nil {
+			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
+				metrics.Error("auth_error")
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
-			if blocked {
-				metrics.Error("lock_conflict")
-				logs.WarnCtx(ctx, "group delete blocked: locked by another session", "account_id", accountID, "group_id", gid)
-				http.Error(w, "Cannot delete group: another session holds the edit lock", http.StatusConflict)
-				return
-			}
+			metrics.Error("lock_error")
+			logs.ErrorCtx(ctx, "failed to check group doc lock before delete", "error", lerr, "account_id", accountID)
+			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to verify document lock", lerr)
+			return
+		}
+		if len(rejects) > 0 {
+			metrics.Error("lock_conflict")
+			logs.WarnCtx(ctx, "group delete blocked: locked by another session",
+				"account_id", accountID,
+				"requester_session_id", sessionID,
+				"rejected_count", len(rejects))
+			helper.RespondLockHeldElsewhereJSON(w, mongocore.CollectionUserJobGroups, rejects)
+			return
 		}
 	}
 

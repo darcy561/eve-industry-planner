@@ -56,18 +56,24 @@ export function useLockWsListener({
 
       if (payload.collection !== collection || payload.docID !== docID) return;
       if (t === DOCUMENT_LOCK_DOMAIN_EVENTS.REQUESTED) {
-        const mySessionID = useUsersStore.getState()?.account?.sessionID;
-        if (
-          heldRef.current &&
-          payload.requesterSessionID &&
-          payload.requesterSessionID !== mySessionID
-        ) {
-          patch({ pendingAccessRequest: true });
-          showDocumentLockAccessRequestSnackbar(pendingAccessRequestMessage, {
-            collection,
-            docID,
-          });
-        }
+        // `requesterSessionID` is the JWT session id — shared across tabs; do not
+        // compare to `mySessionID`. Holder detection must use Zustand `lockHeld`
+        // (not only `heldRef`): `heldRef` is synced from the store in `useEffect`,
+        // so it can still be false for a tick after acquire/sync while WS arrives.
+        if (!payload.requesterSessionID) return;
+        const scope = selectScopedDocumentLock(
+          useUsersStore.getState(),
+          collection,
+          docID
+        );
+        const isHolder =
+          scope.lockHeld === true || heldRef.current === true;
+        if (!isHolder) return;
+        patch({ pendingAccessRequest: true });
+        showDocumentLockAccessRequestSnackbar(pendingAccessRequestMessage, {
+          collection,
+          docID,
+        });
         return;
       }
 

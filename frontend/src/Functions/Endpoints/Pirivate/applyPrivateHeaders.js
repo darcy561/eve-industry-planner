@@ -2,6 +2,8 @@ import useUserStore from "../../../Zustand/usersStore";
 import { chunkArray } from "../chunkArray.js";
 import withRequestRetries, { splitRetryConfig } from "../withRequestRetries.js";
 import { getRealtimeClientID } from "../../../Realtime/wsClientIdentity.js";
+import { applyLockHeldElsewhereFromApiBody } from "../../DocumentLock/applyLockHeldElsewhereFromApiResponse.js";
+import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../../DocumentLock/documentLockEvents.js";
 
 /**
  * Shared `retry` options for batched private calls (same as `withRequestRetries` defaults).
@@ -25,6 +27,28 @@ function throwIfAnySettledFailed(settled, label) {
   throw new Error(
     `${label}: ${failed.length}/${settled.length} batch(es) failed — ${msg}`
   );
+}
+
+/**
+ * @param {Response} res
+ * @param {string} methodLabel
+ * @param {string} url
+ * @param {string} text
+ * @param {string} [errorLabel]
+ * @returns {never}
+ */
+function throwNonOkPrivateResponse(res, methodLabel, url, text, errorLabel) {
+  if (res.status === 409 && applyLockHeldElsewhereFromApiBody(text)) {
+    const label = errorLabel || `${methodLabel} ${url}`;
+    const err = new Error(`${label}: document lock held elsewhere (409)`);
+    err.code = LOCK_HELD_ELSEWHERE;
+    throw err;
+  }
+  const err = new Error(
+    `${methodLabel} ${url} failed: ${res.status} ${text || res.statusText}`
+  );
+  err.status = res.status;
+  throw err;
 }
 
 /**
@@ -225,12 +249,7 @@ async function executeBatchedPrivateRequest(URL, options, innerConfig, batch) {
       if (mergeResponseJsonArrays) {
         if (!res.ok) {
           const text = await res.text().catch(() => "");
-          /** @type {Error & { status?: number }} */
-          const err = new Error(
-            `${methodLabel} ${URL} failed: ${res.status} ${text || res.statusText}`
-          );
-          err.status = res.status;
-          throw err;
+          throwNonOkPrivateResponse(res, methodLabel, URL, text, errorLabel);
         }
         const data = await res.json();
         const rows = Array.isArray(data) ? data : [];
@@ -239,12 +258,7 @@ async function executeBatchedPrivateRequest(URL, options, innerConfig, batch) {
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
-        /** @type {Error & { status?: number }} */
-        const err = new Error(
-          `${methodLabel} ${URL} failed: ${res.status} ${text || res.statusText}`
-        );
-        err.status = res.status;
-        throw err;
+        throwNonOkPrivateResponse(res, methodLabel, URL, text, errorLabel);
       }
       return res;
     })
@@ -323,7 +337,16 @@ async function requestWithPrivateHeaders(URL, options = {}, config = {}) {
     return executeBatchedPrivateRequest(URL, options, innerConfig, batch);
   }
 
-  return executePrivateRequestSingle(URL, options, innerConfig);
+  const res = await executePrivateRequestSingle(URL, options, innerConfig);
+  if (!res.ok && res.status === 409) {
+    try {
+      const text = await res.clone().text();
+      applyLockHeldElsewhereFromApiBody(text);
+    } catch {
+      /* ignore */
+    }
+  }
+  return res;
 }
 
 export default requestWithPrivateHeaders;
