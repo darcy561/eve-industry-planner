@@ -1,4 +1,5 @@
 import { putJobDocumentsBatch } from "../Endpoints/Pirivate/jobDocuments.js";
+import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../DocumentLock/documentLockEvents.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 
 /**
@@ -27,6 +28,9 @@ export async function persistJobDocumentsToApi() {
     await putJobDocumentsBatch(jobs);
     clearPendingJobDocumentWrites(queuedIds);
   } catch (err) {
+    if (err?.code === DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE) {
+      return;
+    }
     console.error("Error saving job documents to API", err);
   }
 }

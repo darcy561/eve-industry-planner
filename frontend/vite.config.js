@@ -14,6 +14,14 @@ export default defineConfig(({ command, mode }) => {
   // Read ENVIRONMENT from merged .env, process (Dockerfile / CI), or default to production
   const environment = env.ENVIRONMENT || process.env.ENVIRONMENT || process.env.NODE_ENV || "production";
 
+  const sentryOrg = env.SENTRY_ORG || process.env.SENTRY_ORG;
+  const sentryProjectId = env.SENTRY_PROJECT_ID || process.env.SENTRY_PROJECT_ID;
+  const sentryDsn = env.SENTRY_DSN || process.env.SENTRY_DSN;
+  const sentryTracesSampleRate =
+    env.SENTRY_TRACES_SAMPLE_RATE ?? process.env.SENTRY_TRACES_SAMPLE_RATE ?? "";
+  const sentryErrorSampleRate =
+    env.SENTRY_ERROR_SAMPLE_RATE ?? process.env.SENTRY_ERROR_SAMPLE_RATE ?? "";
+
   const frontendAppVersion = (
     env.FRONTEND_APP_VERSION ||
     env.APP_VERSION ||
@@ -52,8 +60,8 @@ export default defineConfig(({ command, mode }) => {
         ? [
             sentryVitePlugin({
               // org = organization slug (…/organizations/<slug>/); project = project slug (…/projects/<slug>/).
-              org: env.SENTRY_ORG || "eve-industry-planner",
-              project: env.SENTRY_PROJECT_ID,
+              org: sentryOrg || "eve-industry-planner",
+              project: sentryProjectId,
               telemetry: false,
             }),
           ]
@@ -74,14 +82,10 @@ export default defineConfig(({ command, mode }) => {
     // objects do not reliably rewrite `process.env.ENVIRONMENT` in app + Zustand code).
     define: {
       __APP_VERSION__: JSON.stringify(frontendAppVersion),
-      "import.meta.env.SENTRY_PROJECT_ID": JSON.stringify(env.SENTRY_PROJECT_ID),
-      "import.meta.env.SENTRY_DSN": JSON.stringify(env.SENTRY_DSN),
-      "import.meta.env.SENTRY_TRACES_SAMPLE_RATE": JSON.stringify(
-        env.SENTRY_TRACES_SAMPLE_RATE ?? ""
-      ),
-      "import.meta.env.SENTRY_ERROR_SAMPLE_RATE": JSON.stringify(
-        env.SENTRY_ERROR_SAMPLE_RATE ?? ""
-      ),
+      "import.meta.env.SENTRY_PROJECT_ID": JSON.stringify(sentryProjectId),
+      "import.meta.env.SENTRY_DSN": JSON.stringify(sentryDsn),
+      "import.meta.env.SENTRY_TRACES_SAMPLE_RATE": JSON.stringify(sentryTracesSampleRate),
+      "import.meta.env.SENTRY_ERROR_SAMPLE_RATE": JSON.stringify(sentryErrorSampleRate),
       "import.meta.env.ENVIRONMENT": JSON.stringify(environment),
       "process.env.NODE_ENV": JSON.stringify(environment),
       "process.env.ENVIRONMENT": JSON.stringify(environment),

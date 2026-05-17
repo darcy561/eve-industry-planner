@@ -1,10 +1,9 @@
 /**
- * Module singleton WebSocket client for same-origin `/ws` (JWT subprotocol auth).
+ * Module singleton WebSocket client for same-origin `/ws` (cookie-backed session auth).
  * Does not live in Zustand — connect/disconnect are explicit from auth lifecycle.
  */
 
-import { isAppJwtExpired } from "../Functions/Auth/appJwt.js";
-import { getSessionIDFromStoreOrToken } from "../Functions/Endpoints/Pirivate/applyPrivateHeaders.js";
+import { getSessionIDFromStore } from "../Functions/Endpoints/Pirivate/applyPrivateHeaders.js";
 import { fetchPlannerJobDocumentsFromApi } from "../Functions/Endpoints/Pirivate/jobDocuments.js";
 import { applyRemoteMessage } from "./applyRemoteMessage.js";
 import { syncAccountDocumentsFromServer } from "./resyncRealtimeDocumentsFromServer.js";
@@ -15,12 +14,16 @@ import {
   getRealtimeClientID,
   setRealtimeClientID,
 } from "./wsClientIdentity.js";
+import {
+  DOCUMENT_LOCK_CUSTOM_EVENT,
+  DOCUMENT_LOCK_FRAME_TYPES,
+} from "../Functions/DocumentLock/documentLockEvents.js";
 
 /** @type {WebSocket|null} */
 let socket = null;
 /** @type {string|null} */
 let connectKey = null;
-/** @type {{ accessToken: string, accountId: string }|null} */
+/** @type {{ accountId: string }|null} */
 let lastConnectParams = null;
 let reconnectTimer = null;
 let pingTimer = null;
@@ -28,17 +31,32 @@ let manualClose = false;
 
 const PING_MS = 45_000;
 
-/** Pending `document_lock_status_batch` requests (correlate with `document_lock_status_batch_ack`). */
-const LOCK_STATUS_BATCH_WS_TIMEOUT_MS = 12_000;
-/** @type {Map<string, { resolve: (value: unknown) => void, reject: (reason?: unknown) => void, timer: ReturnType<typeof setTimeout> }>} */
-const documentLockStatusBatchPending = new Map();
+/**
+ * Normalizes doc.lock fan-out into the `eip-document-lock` detail shape.
+ * The server always emits the flat envelope `{ type: "document_lock", event, …fields }`
+ * (see `services/websocket/server/natslogic/locks.go::BuildDocumentLockWire`).
+ * @param {Record<string, unknown>} parsed
+ * @returns {Record<string, unknown>|null}
+ */
+export function documentLockWireToDetail(parsed) {
+  const ev = parsed.event;
+  const name = typeof ev === "string" && ev.trim() !== "" ? ev.trim() : "";
+  if (!name) return null;
+  const { type: _outer, event: _ev, ...rest } = parsed;
+  return { ...rest, event: name, type: name };
+}
 
-function rejectAllDocumentLockStatusBatchPending(message) {
-  for (const [, pending] of documentLockStatusBatchPending) {
+/** Pending `document_lock_lock_state_batch` requests (correlate with `document_lock_lock_state_batch_ack`). */
+const LOCK_LOCK_STATE_BATCH_WS_TIMEOUT_MS = 12_000;
+/** @type {Map<string, { resolve: (value: unknown) => void, reject: (reason?: unknown) => void, timer: ReturnType<typeof setTimeout> }>} */
+const documentLockLockStateBatchPending = new Map();
+
+function rejectAllDocumentLockLockStateBatchPending(message) {
+  for (const [, pending] of documentLockLockStateBatchPending) {
     clearTimeout(pending.timer);
     pending.reject(new Error(message));
   }
-  documentLockStatusBatchPending.clear();
+  documentLockLockStateBatchPending.clear();
 }
 
 /** RFC normal closure — use when intentionally closing so the server does not log 1005 “no status”. */
@@ -61,21 +79,22 @@ export const WS_SESSION_HANDOFF_MS =
 
 let reconnectAttempt = 0;
 
-/** After JWT `exp`, do not open or backoff-reconnect until the store supplies a fresh token. */
-let haltedForExpiredToken = false;
-/** Last access token string we successfully opened on (for rotation + resync detection). */
-let lastSuccessfulOpenToken = null;
+/**
+ * Last planner `sessionID` from the client store at the last successful `open` (rotation / relog
+ * detection — compared to {@link getSessionIDFromStore} on each open).
+ */
+let lastSuccessfulOpenSessionId = null;
 
-/** One-shot hint for JWT rotation: previous server client_id before intentional disconnect. */
+/** One-shot hint for session-identity rotation: previous server client_id before intentional disconnect. */
 /** @type {{ accountId: string, clientId: string } | null} */
 let resumeHint = null;
 
-/** Resolves when `resume_ack` arrives after `session_resume` (JWT handoff). */
+/** Resolves when `resume_ack` arrives after `session_resume` handoff. */
 /** @type {{ resolve: (v: { skipBaselineSync: boolean, restoredDocIDs?: string[] }) => void } | null} */
 let resumeBootstrap = null;
 
 /**
- * Call immediately before `disconnectRealtime()` when the hook will reconnect with a new JWT
+ * Call immediately before `disconnectRealtime()` when the hook will reconnect with a new session identity
  * (same logged-in account). Uses current store + live client id so logout cleanup does not stash.
  */
 export function stashRealtimeSessionResumeHint() {
@@ -85,26 +104,15 @@ export function stashRealtimeSessionResumeHint() {
   resumeHint = { accountId: accountID, clientId: cid };
 }
 
-/**
- * Same-origin WS URL. `session_id` query pairs with JWT for upgrade validation (browsers cannot set X-Session-ID on WebSocket).
- * @param {string} [sessionId]
- */
-function wsUrl(sessionId) {
+/** Same-origin `/ws`; auth is HttpOnly session cookie only (no query params). */
+function wsUrl() {
   const u = new URL("/ws", window.location.origin);
-  const sid =
-    typeof sessionId === "string" && sessionId.trim().length > 0
-      ? sessionId.trim()
-      : "";
-  if (sid) {
-    u.searchParams.set("session_id", sid);
+  if (u.protocol === "https:") {
+    u.protocol = "wss:";
+  } else if (u.protocol === "http:") {
+    u.protocol = "ws:";
   }
-  return u.toString().replace(/^http/, "ws");
-}
-
-/** @param {string} token */
-function base64UrlFromJwt(token) {
-  const b64 = btoa(token);
-  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return u.toString();
 }
 
 function clearTimers() {
@@ -121,8 +129,7 @@ function clearTimers() {
 function scheduleReconnect(connectFn) {
   if (manualClose) return;
   const p = lastConnectParams;
-  if (!p || isAppJwtExpired(p.accessToken)) {
-    haltedForExpiredToken = true;
+  if (!p) {
     return;
   }
   const delay = Math.min(
@@ -138,55 +145,19 @@ function scheduleReconnect(connectFn) {
 }
 
 /**
- * Account-scoped realtime: the server fans out all `accountID`-tagged doc updates after JWT upgrade.
+ * Account-scoped realtime: the server fans out all `accountID`-tagged doc updates after session upgrade.
  * Optional explicit `subscribe` messages are only for escape-hatch doc ids (see `subscribeDocIDs`).
- */
-function sendBaselineSubscriptionsForOpen(_accountId, _attemptedSessionResume, _resumeAck) {
-  /* intentionally empty — connection + JWT implies full account stream */
-}
-
-/**
- * @param {{ accessToken: string, accountId: string }} params
+ *
+ * @param {{ accountId: string }} params
  */
 export function connectRealtime(params) {
-  const { accessToken, accountId } = params;
-  if (!accessToken || !accountId) return;
+  const { accountId } = params;
+  if (!accountId) return;
 
-  if (isAppJwtExpired(accessToken)) {
-    console.warn("[realtime] reconnect blocked: access token expired", {
-      accountId,
-      reason: "token_expired",
-    });
-    haltedForExpiredToken = true;
-    clearTimers();
-    if (socket) {
-      try {
-        socket.close(WS_CLOSE_NORMAL, "token_expired");
-      } catch {
-        /* ignore */
-      }
-      socket = null;
-    }
-    connectKey = null;
-    lastConnectParams = null;
-    clearRealtimeClientIdentityHard();
-    reconnectAttempt = 0;
-    return;
-  }
-
-  const forceBaselineResync = haltedForExpiredToken;
-  haltedForExpiredToken = false;
-
-  const sessionIdForWs = getSessionIDFromStoreOrToken(accessToken);
-  if (!sessionIdForWs) {
-    console.warn("[realtime] WebSocket blocked: missing session id for upgrade validation", {
-      accountId,
-    });
-    return;
-  }
+  const sessionIdForWs = getSessionIDFromStore();
 
   lastConnectParams = params;
-  const nextKey = `${accessToken}:${accountId}:${sessionIdForWs}`;
+  const nextKey = accountId;
   if (
     socket &&
     socket.readyState === WebSocket.OPEN &&
@@ -218,11 +189,10 @@ export function connectRealtime(params) {
     clearRealtimeClientID();
   }
 
-  const proto = `auth.${base64UrlFromJwt(accessToken)}`;
   /** Guard listeners so a lagging close from a replaced socket cannot clear the active connection or its timers. */
   let ws;
   try {
-    ws = new WebSocket(wsUrl(sessionIdForWs), [proto]);
+    ws = new WebSocket(wsUrl());
     socket = ws;
   } catch (e) {
     console.error("[realtime] WebSocket construct failed", e);
@@ -235,15 +205,13 @@ export function connectRealtime(params) {
   ws.addEventListener("open", () => {
     if (socket !== ws) return;
     reconnectAttempt = 0;
-    const prevOpenToken = lastSuccessfulOpenToken;
-    lastSuccessfulOpenToken = accessToken;
+    const prevOpenSessionId = lastSuccessfulOpenSessionId;
+    lastSuccessfulOpenSessionId = sessionIdForWs;
 
     void (async () => {
       const attemptedSessionResume = Boolean(
         sessionResumePreviousId && socket === ws
       );
-      /** @type {{ skipBaselineSync?: boolean, restoredDocIDs?: string[] } | null} */
-      let resumeAck = null;
       let resumeSkippedBaseline = false;
 
       if (attemptedSessionResume) {
@@ -254,7 +222,7 @@ export function connectRealtime(params) {
               previousClientID: sessionResumePreviousId,
             })
           );
-          resumeAck = await Promise.race([
+          const resumeAck = await Promise.race([
             new Promise((resolve) => {
               resumeBootstrap = { resolve };
             }),
@@ -265,7 +233,6 @@ export function connectRealtime(params) {
           resumeSkippedBaseline = !!resumeAck.skipBaselineSync;
         } catch {
           resumeSkippedBaseline = false;
-          resumeAck = { skipBaselineSync: false };
         } finally {
           resumeBootstrap = null;
         }
@@ -274,40 +241,34 @@ export function connectRealtime(params) {
       if (socket !== ws) return;
 
       /**
-       * Baseline GET for `users` + `application_settings` after (re)open.
-       * `resume_ack.skipBaselineSync` avoids duplicate GETs on clean JWT handoff, but background tabs
-       * can miss WS frames during refresh — always pull singletons when the JWT string changed.
+       * Baseline GET for `users` + `application_settings` after (re)open when the in-store `sessionID`
+       * changed, or when we attempted `session_resume` but did not receive `resume_ack.skipBaselineSync`
+       * (handoff uncertain). Same-session reconnect with a matched handoff skips duplicate GETs.
        */
-      const tokenChanged =
-        prevOpenToken == null || prevOpenToken !== accessToken;
+      const sessionIdentityChanged =
+        prevOpenSessionId == null || prevOpenSessionId !== sessionIdForWs;
       const shouldSync =
-        tokenChanged ||
-        (!resumeSkippedBaseline && forceBaselineResync);
+        sessionIdentityChanged ||
+        (attemptedSessionResume && !resumeSkippedBaseline);
       if (shouldSync) {
         void syncAccountDocumentsFromServer();
       }
 
       /**
-       * JWT rotation / reconnect: planner rows still rely on WS fan-out — events during the gap are
-       * lost. Re-merge from the API when the socket subprotocol token changes (not first open).
+       * Session rotation / reconnect: planner rows still rely on WS fan-out — events during the gap are
+       * lost. Re-merge from the API when the in-store `sessionID` changed (not first open).
        */
       const shouldRefetchPlannerJobs =
-        forceBaselineResync ||
-        (prevOpenToken != null && prevOpenToken !== accessToken);
+        prevOpenSessionId != null && prevOpenSessionId !== sessionIdForWs;
       if (shouldRefetchPlannerJobs) {
         void fetchPlannerJobDocumentsFromApi().catch((e) => {
           console.warn(
-            "[realtime] planner job documents refetch after WS token change failed",
+            "[realtime] planner job documents refetch after session identity change failed",
             e
           );
         });
       }
 
-      sendBaselineSubscriptionsForOpen(
-        accountId,
-        attemptedSessionResume,
-        resumeAck
-      );
       pingTimer = window.setInterval(() => {
         if (socket === ws && ws.readyState === WebSocket.OPEN) {
           try {
@@ -346,30 +307,35 @@ export function connectRealtime(params) {
           return;
         }
       }
-      if (parsed.type === "document_lock") {
-        window.dispatchEvent(
-          new CustomEvent("eip-document-lock", {
-            detail: parsed.payload,
-          })
+      if (parsed.type === DOCUMENT_LOCK_FRAME_TYPES.CHANNEL) {
+        const detail = documentLockWireToDetail(
+          /** @type {Record<string, unknown>} */ (parsed)
         );
+        if (detail) {
+          window.dispatchEvent(
+            new CustomEvent(DOCUMENT_LOCK_CUSTOM_EVENT, {
+              detail,
+            })
+          );
+        }
         return;
       }
-      if (parsed.type === "document_lock_status_batch_ack") {
+      if (parsed.type === DOCUMENT_LOCK_FRAME_TYPES.LOCK_STATE_BATCH_ACK) {
         const id =
           typeof parsed.requestId === "string" ? parsed.requestId : "";
         const pending = id
-          ? documentLockStatusBatchPending.get(id)
+          ? documentLockLockStateBatchPending.get(id)
           : undefined;
         if (pending) {
           clearTimeout(pending.timer);
-          documentLockStatusBatchPending.delete(id);
+          documentLockLockStateBatchPending.delete(id);
           if (parsed.ok) {
             pending.resolve(parsed);
           } else {
             const errMsg =
               typeof parsed.error === "string" && parsed.error.trim()
                 ? parsed.error
-                : "document_lock_status_batch failed";
+                : "document_lock_lock_state_batch failed";
             pending.reject(new Error(errMsg));
           }
         }
@@ -383,18 +349,13 @@ export function connectRealtime(params) {
 
   ws.addEventListener("close", () => {
     if (socket !== ws) return;
-    rejectAllDocumentLockStatusBatchPending("websocket closed");
+    rejectAllDocumentLockLockStateBatchPending("websocket closed");
     clearTimers();
     socket = null;
     clearRealtimeClientID();
     if (!manualClose && connectKey === nextKey) {
       const p = lastConnectParams;
-      if (!p || isAppJwtExpired(p.accessToken)) {
-        console.warn("[realtime] reconnect blocked after socket close: token expired", {
-          accountId,
-          reason: "token_expired",
-        });
-        haltedForExpiredToken = true;
+      if (!p) {
         return;
       }
       scheduleReconnect(() => {
@@ -408,13 +369,8 @@ export function connectRealtime(params) {
   });
 }
 
-/** @param {{ accessToken: string, accountId: string }} params */
-export function reconnectRealtime(params) {
-  connectRealtime(params);
-}
-
 export function disconnectRealtime() {
-  rejectAllDocumentLockStatusBatchPending("realtime disconnected");
+  rejectAllDocumentLockLockStateBatchPending("realtime disconnected");
   if (resumeBootstrap) {
     resumeBootstrap.resolve({ skipBaselineSync: false });
     resumeBootstrap = null;
@@ -422,9 +378,8 @@ export function disconnectRealtime() {
   manualClose = true;
   connectKey = null;
   lastConnectParams = null;
-  lastSuccessfulOpenToken = null;
-  haltedForExpiredToken = false;
-  /** New session / token rotation should not inherit exponential backoff from prior failures. */
+  lastSuccessfulOpenSessionId = null;
+  /** New session should not inherit exponential backoff from prior failures. */
   reconnectAttempt = 0;
   clearRealtimeClientIdentityHard();
   clearTimers();
@@ -460,23 +415,45 @@ export function unsubscribeDocIDs(collection, docIds) {
   socket.send(JSON.stringify({ type: "unsubscribe", docIDs: scoped }));
 }
 
-/** True when the singleton `/ws` connection is open (same-origin JWT subprotocol). */
+/** @returns {boolean} true if the command was queued on the socket */
+export function sendDocumentLockEphemeralCommand(messageType, collection, docID) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    return false;
+  }
+  if (!messageType || !collection || !docID) {
+    return false;
+  }
+  try {
+    socket.send(
+      JSON.stringify({
+        type: messageType,
+        collection,
+        docID,
+      })
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** True when the singleton same-origin `/ws` connection is open (cookie session auth). */
 export function isRealtimeSocketOpen() {
   return socket !== null && socket.readyState === WebSocket.OPEN;
 }
 
 /**
- * Same lock rows as POST `/api/v1/document-locks/status-batch`, over WebSocket.
+ * Same lock rows as POST `/api/v1/document-locks/lock-state-batch`, over WebSocket.
  * Rejects when offline, on server error payload, or timeout — callers typically fall back to HTTP.
  *
  * @param {{ jobDocIDs?: string[], groupDocIDs?: string[], timeoutMs?: number }} params
  * @returns {Promise<{ jobResults: Record<string, unknown>, groupResults: Record<string, unknown> }>}
  */
-export function requestDocumentLockStatusBatchOverRealtime(params = {}) {
+export function requestDocumentLockLockStateBatchOverRealtime(params = {}) {
   const timeoutMs =
     typeof params.timeoutMs === "number" && params.timeoutMs > 0
       ? params.timeoutMs
-      : LOCK_STATUS_BATCH_WS_TIMEOUT_MS;
+      : LOCK_LOCK_STATE_BATCH_WS_TIMEOUT_MS;
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     return Promise.reject(new Error("websocket not connected"));
   }
@@ -487,12 +464,12 @@ export function requestDocumentLockStatusBatchOverRealtime(params = {}) {
   const requestId = crypto.randomUUID();
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      if (documentLockStatusBatchPending.has(requestId)) {
-        documentLockStatusBatchPending.delete(requestId);
-        reject(new Error("document_lock_status_batch timeout"));
+      if (documentLockLockStateBatchPending.has(requestId)) {
+        documentLockLockStateBatchPending.delete(requestId);
+        reject(new Error("document_lock_lock_state_batch timeout"));
       }
     }, timeoutMs);
-    documentLockStatusBatchPending.set(requestId, {
+    documentLockLockStateBatchPending.set(requestId, {
       resolve: (raw) => {
         const jobResults =
           raw?.jobResults && typeof raw.jobResults === "object"
@@ -510,7 +487,7 @@ export function requestDocumentLockStatusBatchOverRealtime(params = {}) {
     try {
       socket.send(
         JSON.stringify({
-          type: "document_lock_status_batch",
+          type: DOCUMENT_LOCK_FRAME_TYPES.LOCK_STATE_BATCH,
           requestId,
           jobDocIDs,
           groupDocIDs,
@@ -518,7 +495,7 @@ export function requestDocumentLockStatusBatchOverRealtime(params = {}) {
       );
     } catch (e) {
       clearTimeout(timer);
-      documentLockStatusBatchPending.delete(requestId);
+      documentLockLockStateBatchPending.delete(requestId);
       reject(e instanceof Error ? e : new Error(String(e)));
     }
   });

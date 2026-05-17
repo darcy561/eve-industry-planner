@@ -1038,7 +1038,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Approximate distinct account IDs that started a session in the rolling prior 24 UTC hours (login + login-refresh; Redis HyperLogLog merge).",
+      "description": "Approximate distinct account IDs that started a session in the rolling prior 24 UTC hours (login + bootstrap; Redis HyperLogLog merge).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1105,7 +1105,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Approximate distinct account IDs that started a session in the rolling prior 168 UTC hours (7d; login + login-refresh; Redis HyperLogLog merge).",
+      "description": "Approximate distinct account IDs that started a session in the rolling prior 168 UTC hours (7d; login + bootstrap; Redis HyperLogLog merge).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1172,7 +1172,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Approximate distinct account IDs that started a session in the rolling prior 720 UTC hours (30d; login + login-refresh; Redis HyperLogLog merge).",
+      "description": "Approximate distinct account IDs that started a session in the rolling prior 720 UTC hours (30d; login + bootstrap; Redis HyperLogLog merge).",
       "fieldConfig": {
         "defaults": {
           "color": {

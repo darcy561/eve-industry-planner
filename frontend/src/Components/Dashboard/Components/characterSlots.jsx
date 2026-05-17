@@ -1,23 +1,21 @@
-import { Paper, Typography, Grid } from "@mui/material";
-
+import { Typography, Grid } from "@mui/material";
+import { useQueryClient } from "@tanstack/react-query";
 import { useActiveSlotTotals } from "../../../Hooks/GeneralHooks/useActiveSlotTotals";
 import {
   LARGE_TEXT_FORMAT,
   STANDARD_TEXT_FORMAT,
 } from "../../../Context/defaultValues";
 import useUsersStore from "../../../Zustand/usersStore";
-import { useQueryClient } from "@tanstack/react-query";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
 
 export function ActiveCharacterSlots() {
+  const queryClient = useQueryClient();
   const {
     isLoading,
     isError,
     error,
     calculateActiveSlotsMultiple,
   } = useActiveSlotTotals();
-  const queryClient = useQueryClient();
-
   const activeCharSlots = calculateActiveSlotsMultiple(queryClient);
 
   return (

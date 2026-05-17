@@ -34,7 +34,7 @@ var (
 // RefreshStoredEsiFromMongoForCharacter refreshes EVE OAuth tokens using encrypted Mongo users.refreshTokens
 // material for the given character hash, then persists rotation. Used when the planner session refresh
 // request has no client eve_token but a valid HttpOnly app refresh cookie (cloud cookie resume).
-// Returns the new ESI access token string for optional inclusion in the login-refresh JSON (avoids a second CCP round-trip).
+// Returns the new ESI access token string for optional inclusion in the bootstrap session JSON (avoids a second CCP round-trip).
 func RefreshStoredEsiFromMongoForCharacter(ctx context.Context, clients *shared.ServiceClients, accountID, characterHash string) (esiAccessToken string, err error) {
 	tok, err := refreshStoredEsiFromMongo(ctx, clients, accountID, strings.TrimSpace(characterHash))
 	if err != nil {
@@ -57,10 +57,10 @@ func refreshStoredEsiFromMongo(ctx context.Context, clients *shared.ServiceClien
 	return cloudstoredesi.RefreshStoredEsiForCharacter(ctx, usersCol, accountID, targetHash, &cfg)
 }
 
-// CloudStoredEsiRefreshHandler refreshes a cloud-stored character's ESI access token server-side
-// (Mongo users.refreshTokens row by CharacterHash — main or linked alt when present).
-// No ESI refresh token is returned to the client.
-func CloudStoredEsiRefreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+// ServerStoredEsiAccessTokenHandler handles POST /api/v1/esi/characters/access-token/server:
+// refreshes ESI access using Mongo-held OAuth refresh for the character hash (cloud / server storage mode).
+// No long-lived refresh secret is returned to the client.
+func ServerStoredEsiAccessTokenHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveSSOTokenRefresh()
@@ -70,13 +70,12 @@ func CloudStoredEsiRefreshHandler(w http.ResponseWriter, r *http.Request, client
 		return
 	}
 
-	claims, err := auth.ExtractInternalClaims(r)
+	accountID, err := auth.ExtractAccountIDFromSession(ctx, r, clients.Redis)
 	if err != nil {
 		m.Errors.WithLabelValues("auth_error").Inc(ctx)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	accountID := claims.AccountID
 
 	var req struct {
 		CharacterHash        string `json:"character_hash"`
@@ -103,15 +102,36 @@ func CloudStoredEsiRefreshHandler(w http.ResponseWriter, r *http.Request, client
 			http.Error(w, "character not linked for this account", http.StatusForbidden)
 		case errors.Is(err, ErrMongoStoredEsiKeyring):
 			m.Errors.WithLabelValues("config_error").Inc(ctx)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+				"failure_class":             "linked_esi_keyring",
+				"additional_chars_endpoint": "esi_server_access_token",
+				"metric":                    "eve_sso_token_refresh",
+				"account_id":                accountID,
+				"character_hash":            targetHash,
+			})
+			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		case errors.Is(err, ErrMongoStoredEsiDecrypt):
 			m.Errors.WithLabelValues("extraction_error").Inc(ctx)
-			http.Error(w, "stored refresh token unavailable", http.StatusInternalServerError)
+			logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+				"failure_class":             "linked_esi_decrypt",
+				"additional_chars_endpoint": "esi_server_access_token",
+				"metric":                    "eve_sso_token_refresh",
+				"account_id":                accountID,
+				"character_hash":            targetHash,
+			})
+			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "stored refresh token unavailable", err)
 		case errors.Is(err, ErrMongoStoredEsiInvalidGrant):
 			m.Errors.WithLabelValues("sso_refresh_error").Inc(ctx)
 			http.Error(w, "Invalid refresh token", http.StatusBadRequest)
 		case errors.Is(err, ErrMongoStoredEsiPersist):
 			m.Errors.WithLabelValues("database_error").Inc(ctx)
+			logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+				"failure_class":             "linked_esi_persist_mongo",
+				"additional_chars_endpoint": "esi_server_access_token",
+				"metric":                    "eve_sso_token_refresh",
+				"account_id":                accountID,
+				"character_hash":            targetHash,
+			})
 			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		default:
 			if strings.Contains(err.Error(), "invalid_grant") || strings.Contains(err.Error(), "invalid_request") {
@@ -119,9 +139,23 @@ func CloudStoredEsiRefreshHandler(w http.ResponseWriter, r *http.Request, client
 				http.Error(w, "Invalid refresh token", http.StatusBadRequest)
 			} else if strings.Contains(err.Error(), "encrypt") {
 				m.Errors.WithLabelValues("encode_error").Inc(ctx)
+				logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+					"failure_class":             "linked_esi_encrypt_rotation",
+					"additional_chars_endpoint": "esi_server_access_token",
+					"metric":                    "eve_sso_token_refresh",
+					"account_id":                accountID,
+					"character_hash":            targetHash,
+				})
 				logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 			} else {
 				m.Errors.WithLabelValues("database_error").Inc(ctx)
+				logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+					"failure_class":             "linked_esi_upstream_refresh",
+					"additional_chars_endpoint": "esi_server_access_token",
+					"metric":                    "eve_sso_token_refresh",
+					"account_id":                accountID,
+					"character_hash":            targetHash,
+				})
 				logs.RespondHTTPError(w, r, http.StatusBadGateway, "Failed to refresh token", err)
 			}
 		}

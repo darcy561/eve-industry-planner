@@ -16,49 +16,36 @@ func AppRefreshCookieMaxAgeSeconds() int {
 	return int(RefreshTokenTTL.Seconds())
 }
 
-func isHTTPSRequest(r *http.Request) bool {
-	if r == nil {
-		return false
-	}
-	if r.TLS != nil {
-		return true
-	}
-	if proto := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")); proto != "" {
-		return strings.EqualFold(proto, "https")
-	}
-	return false
-}
-
 // SetAppRefreshCookie sets the HttpOnly app refresh cookie (cloud users).
 func SetAppRefreshCookie(w http.ResponseWriter, r *http.Request, refreshToken string) {
+	_ = r
 	if refreshToken == "" || w == nil {
 		return
 	}
-	secure := isHTTPSRequest(r)
 	http.SetCookie(w, &http.Cookie{
 		Name:     AppRefreshCookieName,
 		Value:    refreshToken,
 		Path:     appRefreshCookiePath,
 		MaxAge:   AppRefreshCookieMaxAgeSeconds(),
 		HttpOnly: true,
-		Secure:   secure,
+		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	})
 }
 
 // ClearAppRefreshCookie clears the app refresh cookie (e.g. logout).
 func ClearAppRefreshCookie(w http.ResponseWriter, r *http.Request) {
+	_ = r
 	if w == nil {
 		return
 	}
-	secure := isHTTPSRequest(r)
 	http.SetCookie(w, &http.Cookie{
 		Name:     AppRefreshCookieName,
 		Value:    "",
 		Path:     appRefreshCookiePath,
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   secure,
+		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	})
 }

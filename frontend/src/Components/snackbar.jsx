@@ -5,6 +5,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import { subscribeToEvent } from "../utils/EventSystem";
 import useUsersStore from "../Zustand/usersStore.js";
 import { primaryHeaderRegistration } from "../Functions/DocumentLock/documentLockHeaderSelectors.js";
+import { DOCUMENT_LOCK_RENEW_REQUEST_EVENT } from "../Functions/DocumentLock/documentLockEvents.js";
 
 /** Flat icon buttons — no filled hover chip */
 const plainIconBtnSx = {
@@ -100,6 +101,45 @@ export function SnackBarNotification() {
         </Box>
       );
     }
+    if (snackbarData.action === "DOCUMENT_LOCK_EXTEND_NUDGE") {
+      return (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
+          <Button
+            color="inherit"
+            size="small"
+            onClick={() => {
+              let collection = snackbarData.documentLockCollection;
+              let docID = snackbarData.documentLockDocID;
+              if (!collection || !docID) {
+                const p = primaryHeaderRegistration(useUsersStore.getState());
+                collection = p?.collection;
+                docID = p?.docID;
+              }
+              if (collection && docID) {
+                window.dispatchEvent(
+                  new CustomEvent(DOCUMENT_LOCK_RENEW_REQUEST_EVENT, {
+                    detail: { collection, docID },
+                  })
+                );
+              }
+              handleSnackbarClose({}, "renew");
+            }}
+          >
+            Renew now
+          </Button>
+          <IconButton
+            aria-label="Dismiss"
+            color="inherit"
+            size="small"
+            disableRipple
+            onClick={handleSnackbarClose}
+            sx={plainIconBtnSx}
+          >
+            <CloseIcon sx={{ fontSize: "1.25rem" }} />
+          </IconButton>
+        </Box>
+      );
+    }
     if (snackbarData.action === "DOCUMENT_LOCK_ACCESS_REQUEST") {
       return (
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
@@ -119,7 +159,7 @@ export function SnackBarNotification() {
               if (collection && docID) {
                 void useUsersStore
                   .getState()
-                  .documentLock.actions.handOverEditAccess(collection, docID);
+                  .documentLock.actions.acceptAccessRequest(collection, docID);
               }
               handleSnackbarClose({}, "handover");
             }}
@@ -165,6 +205,9 @@ export function SnackBarNotification() {
   const isDocLockAccess =
     snackbarData.action === "DOCUMENT_LOCK_ACCESS_REQUEST";
 
+  const hideAlertClose =
+    snackbarData.action === "DOCUMENT_LOCK_EXTEND_NUDGE";
+
   return (
     <Snackbar
       anchorOrigin={snackbarData.anchorOrigin}
@@ -179,7 +222,7 @@ export function SnackBarNotification() {
       <Alert
         icon={isDocLockAccess ? false : severityGlyph(snackbarData.severity)}
         onClose={
-          isDocLockAccess ? undefined : handleSnackbarClose
+          isDocLockAccess || hideAlertClose ? undefined : handleSnackbarClose
         }
         severity={snackbarData.severity}
         sx={{ width: "100%" }}

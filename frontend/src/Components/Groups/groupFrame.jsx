@@ -23,7 +23,7 @@ import GroupPageViewSelector from "./pageViewSelector";
 import { useDocumentLock } from "../../Hooks/DocumentLock/useDocumentLock.js";
 import { USER_JOB_GROUPS_COLLECTION } from "../../Functions/DocumentLock/documentLockCollections.js";
 import { useRegisterHeaderDocumentLockUI } from "../../Hooks/DocumentLock/useRegisterHeaderDocumentLockUI.js";
-import { selectDocumentLockReadOnly } from "../../Functions/DocumentLock/documentLockSelectors.js";
+import { useGroupLockReadOnly } from "../../Hooks/DocumentLock/useDocumentLockState.js";
 import { useJobPlannerJobLockSync } from "../../Hooks/DocumentLock/useJobPlannerJobLockSync.js";
 import { parseGroupPageViewSearchParam } from "../../Functions/Groups/groupPageViewSearch";
 import { trackAppEvent } from "../../analytics/trackAppEvent";
@@ -54,9 +54,7 @@ function GroupPageFrame() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- actions object is recreated each render
   }, [search.pageView, state.pageView]);
 
-  const groupReadOnly = useUsersStore((s) =>
-    selectDocumentLockReadOnly(s, USER_JOB_GROUPS_COLLECTION, groupID ?? "")
-  );
+  const groupReadOnly = useGroupLockReadOnly(groupID);
 
   useJobPlannerJobLockSync();
 
@@ -197,6 +195,16 @@ function GroupPageFrame() {
   useDocumentLock(USER_JOB_GROUPS_COLLECTION, groupID, Boolean(isLoggedIn && isGroupReady), {
     pendingAccessRequestMessage:
       "Another tab requested edit access for this group.",
+    becameOwnerVacantMessage:
+      "You now hold the edit lock for this group — this tab is the editor.",
+    lostOwnerMessage:
+      "This tab is now read-only for this group — another session holds the edit lock.",
+    extendNudgeMessage:
+      "This group's edit session is about to end — renew now while this tab is visible.",
+    passiveViewerMessage: (count) =>
+      count === 1
+        ? "Another session is viewing this group — you still hold the edit lock."
+        : `${count} other sessions are viewing this group — you still hold the edit lock.`,
   });
 
   useRegisterHeaderDocumentLockUI({

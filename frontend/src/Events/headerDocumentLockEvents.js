@@ -1,11 +1,4 @@
 import useUsersStore from "../Zustand/usersStore.js";
-import { eventEmitter } from "../utils/EventSystem.js";
-
-/**
- * Fired after any register / patch / clear of the app bar document lock context.
- * Payload: `{ action: 'register' | 'patch' | 'clear', payload?: object }`
- */
-export const HEADER_DOCUMENT_LOCK_UI_EVENT = "header-document-lock-ui";
 
 /**
  * @typedef {Object} HeaderDocumentLockUIRegistration
@@ -29,10 +22,6 @@ export function registerHeaderDocumentLockUI(config) {
   useUsersStore
     .getState()
     .headerDocumentLockUI.actions.registerHeaderDocumentLockUI(config);
-  eventEmitter.emit(HEADER_DOCUMENT_LOCK_UI_EVENT, {
-    action: "register",
-    payload: config,
-  });
 }
 
 /**
@@ -43,10 +32,6 @@ export function patchHeaderDocumentLockUI(partial) {
   useUsersStore
     .getState()
     .headerDocumentLockUI.actions.patchHeaderDocumentLockUI(partial);
-  eventEmitter.emit(HEADER_DOCUMENT_LOCK_UI_EVENT, {
-    action: "patch",
-    payload: partial,
-  });
 }
 
 /**
@@ -54,6 +39,7 @@ export function patchHeaderDocumentLockUI(partial) {
  * @returns {void}
  */
 export function clearHeaderDocumentLockUI() {
-  useUsersStore.getState().headerDocumentLockUI.actions.clearHeaderDocumentLockUI();
-  eventEmitter.emit(HEADER_DOCUMENT_LOCK_UI_EVENT, { action: "clear" });
+  useUsersStore
+    .getState()
+    .headerDocumentLockUI.actions.clearHeaderDocumentLockUI();
 }

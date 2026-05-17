@@ -68,3 +68,21 @@ func TestScheduleInactiveAccountPlannerCleanup_RegistersCron(t *testing.T) {
 		t.Fatal("handler not registered")
 	}
 }
+
+func TestSchedulePruneExpiredAccountSessions_RegistersCron(t *testing.T) {
+	t.Parallel()
+	s := newRecordingScheduler()
+	_, err := SchedulePruneExpiredAccountSessions(contract.Dependencies{}, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.crons) != 1 {
+		t.Fatalf("expected 1 cron, got %d", len(s.crons))
+	}
+	if s.crons[0].expr != "0 */4 * * *" || s.crons[0].jobName != "cron.pruneExpiredAccountSessions" {
+		t.Fatalf("unexpected cron: %+v", s.crons[0])
+	}
+	if _, ok := s.handlers["cron.pruneExpiredAccountSessions"]; !ok {
+		t.Fatal("handler not registered")
+	}
+}

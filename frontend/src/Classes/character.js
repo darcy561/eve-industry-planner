@@ -1,6 +1,6 @@
 import { decodeJwt } from "jose";
-import refreshAccessTokenESICall from "../Functions/EveESI/Character/refreshAccessToken";
-import refreshCloudStoredEsiAccessToken from "../Functions/EveESI/Character/refreshCloudStoredEsiAccessToken";
+import refreshEsiAccessTokenViaSsoRefreshEndpoint from "../Functions/EveESI/Character/refreshAccessToken";
+import refreshEsiAccessTokenFromServerStoredCredential from "../Functions/EveESI/Character/refreshCloudStoredEsiAccessToken";
 import getCharacterPublicInfo from "../Functions/EveESI/Character/getPublicData";
 import useUsersStore from "../Zustand/usersStore";
 
@@ -136,20 +136,14 @@ class Character {
   };
 
   /**
-   * Refreshes the ESI access token (updates local `Auth` when main).
+   * Refreshes the **ESI access JWT** (CCP), not the planner app session.
+   * Dispatches to server-stored vs client-held OAuth refresh (`esi_oauth_storage` / settings).
    *
-   * Buffer is **660 s (11 min)**, intentionally smaller than the 15-min app-JWT
-   * lifetime margin: the staggered loop visits each character every
-   * `ESI_STAGGER_TICK_MAX_SECONDS × n` seconds, so for typical roster sizes (n ≤ 3)
-   * the previous 15-min buffer fired a refresh on *every* per-character tick
-   * (lifetime 20 min − per-char tick ≤ 14 min < 15 min). 11 min is the largest
-   * value that lets at least one staggered visit skip after a refresh while still
-   * staying comfortably above the per-character tick interval for n ≤ 3. See also
-   * `tokenActions.refreshServerToken` which mirrors this value.
+   * Buffer is **660 s (11 min)** — see `tokenActions.refreshServerToken` for planner session cadence.
    *
    * @returns {Promise<number>} 1 if refreshed, 0 if skipped or failed
    */
-  refreshESIToken = async () => {
+  refreshEsiAccessTokenIfNeeded = async () => {
     try {
       if (this.isPlaceholder) {
         return 0;
@@ -161,14 +155,9 @@ class Character {
       this.refreshState = 2;
       const cloudAccounts =
         !!useUsersStore.getState().applicationSettings.userCloudAccounts;
-      // Cloud mode: ESI refresh tokens live in Mongo; server refreshes by CharacterHash (main + alts).
-      const shouldUseCloudEsiRefresh =
-        cloudAccounts &&
-        (this.isMainCharacter ||
-          (!this.isMainCharacter && !this.esiRefreshToken));
-      const JWT = shouldUseCloudEsiRefresh
-        ? await refreshCloudStoredEsiAccessToken(this.CharacterHash)
-        : await refreshAccessTokenESICall(this.esiRefreshToken);
+      const JWT = cloudAccounts
+        ? await refreshEsiAccessTokenFromServerStoredCredential(this.CharacterHash)
+        : await refreshEsiAccessTokenViaSsoRefreshEndpoint(this.esiRefreshToken);
       if (JWT instanceof Error) {
         throw JWT;
       }
@@ -178,8 +167,8 @@ class Character {
       this.esiAccessTokenEXP = Number(exp);
       if (!cloudAccounts) {
         this.esiRefreshToken = JWT.refresh_token ?? "";
-      } else if (!this.isMainCharacter && JWT.refresh_token) {
-        this.esiRefreshToken = JWT.refresh_token;
+      } else {
+        this.esiRefreshToken = "";
       }
       this.refreshState = 3;
       if (this.isMainCharacter && !cloudAccounts && JWT.refresh_token) {

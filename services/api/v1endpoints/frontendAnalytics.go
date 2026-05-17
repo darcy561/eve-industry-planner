@@ -19,7 +19,7 @@ type frontendAnalyticsBody struct {
 	Event string `json:"event"`
 	// Count is optional; when >1 it increments the metric by that amount (e.g. jobs in a batch). Omitted or 0 -> 1. Max 1000.
 	Count int64 `json:"count"`
-	// ByType is only used when Event is "new_job": EVE type_id (string key in JSON) -> number of jobs for that product type.
+	// ByType is used when Event is "new_job" or "view_item_tree_item": EVE type_id (string key) -> count (same validation for both).
 	ByType map[string]int64 `json:"by_type"`
 }
 
@@ -64,8 +64,10 @@ const maxFrontendByTypeKeys = 500
 const maxFrontendBatchEvents = 60
 
 func frontendAnalyticsAudience(ctx context.Context, r *http.Request, clients *shared.ServiceClients) string {
-	if clients != nil && auth.BearerInternalJWTValid(ctx, r, clients.Redis) {
-		return apimetrics.FrontendAudienceAuthenticated
+	if clients != nil {
+		if _, ok := auth.TryExtractAccountSession(ctx, r, clients.Redis); ok {
+			return apimetrics.FrontendAudienceAuthenticated
+		}
 	}
 	return apimetrics.FrontendAudienceAnonymous
 }

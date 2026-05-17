@@ -2,6 +2,7 @@ import { Avatar, IconButton, Typography, Grid } from "@mui/material";
 
 import AddIcon from "@mui/icons-material/Add";
 import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
+import { LockGatedTooltip } from "../../../../../DocumentLock/LockGatedTooltip";
 
 export function AvailableChildJobs_Purchasing(props) {
   const { availableChildJobs } = props;
@@ -24,7 +25,22 @@ export function AvailableChildJobs_Purchasing(props) {
   );
 }
 
-function AvailableJobEntry({ job, actions }) {
+function AvailableJobEntry({ job, actions, siblingLinkLock }) {
+  const { readOnly = false, reason = "" } = siblingLinkLock ?? {};
+  const linkButton = (
+    <IconButton
+      size="small"
+      color="primary"
+      disabled={readOnly}
+      onClick={() => {
+        actions.markChildJobsForAddition(job);
+        showSnackbarSuccess(`${job.name} Linked`);
+      }}
+    >
+      <AddIcon />
+    </IconButton>
+  );
+
   return (
     <Grid
       container
@@ -58,16 +74,9 @@ function AvailableJobEntry({ job, actions }) {
         </Typography>
       </Grid>
       <Grid size={1}>
-        <IconButton
-          size="small"
-          color="primary"
-          onClick={() => {
-            actions.markChildJobsForAddition(job);
-            showSnackbarSuccess(`${job.name} Linked`);
-          }}
-        >
-          <AddIcon />
-        </IconButton>
+        <LockGatedTooltip readOnly={readOnly} reason={reason}>
+          {linkButton}
+        </LockGatedTooltip>
       </Grid>
     </Grid>
   );

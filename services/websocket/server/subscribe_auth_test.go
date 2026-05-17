@@ -7,7 +7,7 @@ import (
 	"eve-industry-planner/shared/shared"
 )
 
-func TestDocSubscribeAuthorized_tokenSingleton(t *testing.T) {
+func TestDocSubscribeAuthorized_singletonAccountDocs(t *testing.T) {
 	s := &Server{ServiceClients: &shared.ServiceClients{}}
 
 	if !s.docSubscribeAuthorized(context.Background(), "users.acc123", "acc123") {

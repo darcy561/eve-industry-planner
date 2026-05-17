@@ -67,7 +67,7 @@ type DiscordWebhookPayload struct {
 }
 
 // FeedbackHandler handles POST /api/v1/feedback.
-// Public: rate limit → handler. Optional Authorization Bearer is parsed when present for account label in Discord embeds (invalid/expired JWT ignored, not 401).
+// Public: rate limit → handler. Optional session cookie is used when present for account label in Discord embeds.
 // Client retries: withRequestRetries (408, 429, 5xx).
 //
 //	405 — not POST
@@ -84,10 +84,12 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 		return
 	}
 
-	// Try to extract accountID from JWT token, use "loggedOutUser" if not available
+	// Optional auth: derive account id from session cookie when present.
 	accountID := "loggedOutUser"
-	if extractedID, err := auth.ExtractAccountID(r); err == nil {
-		accountID = extractedID
+	if clients != nil && clients.Redis != nil {
+		if identity, ok := auth.TryExtractAccountSession(ctx, r, clients.Redis); ok && identity != nil {
+			accountID = identity.AccountID
+		}
 	}
 
 	// Extract request body

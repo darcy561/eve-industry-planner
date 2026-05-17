@@ -58,7 +58,7 @@ func (s *Server) reader(client *Client) {
 	}()
 
 	defer func() {
-		// Snapshot subscription keys so a quick JWT re-handshake can move NATS subscriber slots to the new client_id.
+		// Snapshot subscription keys so a quick reconnect can move NATS subscriber slots to the new client_id.
 		s.snapshotSessionHandoff(ctx, client)
 
 		s.unregisterClientFromOrgPools(client)
@@ -88,15 +88,6 @@ func (s *Server) reader(client *Client) {
 		}
 		s.userConnMu.Unlock()
 
-		// Remove session -> client mapping only if this client is still the active one.
-		s.sessionConnMu.Lock()
-		wasActiveSessionClient := false
-		if activeClientID, ok := s.sessionConnections[client.SessionID]; ok && activeClientID == client.id {
-			delete(s.sessionConnections, client.SessionID)
-			wasActiveSessionClient = true
-		}
-		s.sessionConnMu.Unlock()
-
 		// Close connection if not already closed
 		client.conn.Close()
 
@@ -111,8 +102,7 @@ func (s *Server) reader(client *Client) {
 			"remaining_clients", clientCount,
 			"remaining_user_connections", userConnCount,
 			"was_in_clients", wasInClients,
-			"was_in_user_conns", wasInUserConns,
-			"was_active_session_client", wasActiveSessionClient)
+			"was_in_user_conns", wasInUserConns)
 	}()
 
 	// Set read deadline to enable timeout detection for stale connections
@@ -153,7 +143,7 @@ func (s *Server) reader(client *Client) {
 					"idle_duration", idleDuration,
 					"pong_wait", config.PongWait,
 					"error", err,
-					"note", "This suggests old connections aren't being closed when token refreshes")
+					"note", "This suggests old connections aren't being closed when the client reconnects")
 			} else if isBenignWebSocketDisconnect(err) {
 				logs.DebugCtx(ctx, "websocket read ended (peer closed or network reset)",
 					"client_id", client.id,
@@ -330,7 +320,7 @@ func (s *Server) reader(client *Client) {
 				if s.ApplyRealtimeScopeUpgrade(client, upgrade.CorporationIDs, upgrade.AllianceIDs) {
 					s.queueScopesAck(client)
 				} else {
-					logs.DebugCtx(ctx, "upgrade_scopes: no valid corporation/alliance ids for this JWT",
+					logs.DebugCtx(ctx, "upgrade_scopes: no valid corporation/alliance ids for this session",
 						"client_id", client.id,
 						"account_id", client.AccountID)
 				}
@@ -373,8 +363,20 @@ func (s *Server) reader(client *Client) {
 				}
 				continue
 
-			case "document_lock_status_batch":
-				s.handleDocumentLockStatusBatch(client, msg)
+			case "document_lock_lock_state_batch":
+				s.handleDocumentLockLockStateBatch(client, msg)
+				continue
+
+			case "document_lock_waitlist_pulse":
+				s.handleDocumentLockWaitlistPulseWS(client, msg)
+				continue
+
+			case "document_lock_viewer_arrived":
+				s.handleDocumentLockViewerArrivedWS(client, msg)
+				continue
+
+			case "document_lock_viewer_departed":
+				s.handleDocumentLockViewerDepartedWS(client, msg)
 				continue
 
 			default:

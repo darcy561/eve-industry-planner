@@ -183,7 +183,10 @@ func (s *Server) handleUnsubscribeRequest(clientID string, docID string) {
 }
 
 // broadcastRawToAccount delivers a pre-marshaled JSON message to every connection for the account.
-func (s *Server) broadcastRawToAccount(accountID string, data []byte) {
+// When suppressSessionID is non-empty, clients whose SessionID matches are skipped
+// (viewer joined/left echo only). Doc-lock `document_lock_requested` is not
+// suppressed here — JWT session is shared across tabs; see natslogic.BuildDocumentLockWire.
+func (s *Server) broadcastRawToAccount(accountID string, data []byte, suppressSessionID string) {
 	if accountID == "" || len(data) == 0 {
 		return
 	}
@@ -204,6 +207,9 @@ func (s *Server) broadcastRawToAccount(accountID string, data []byte) {
 	for _, cid := range ids {
 		client, exists := s.Clients[cid]
 		if !exists || !outgoinglogic.RawAccountRecipientDeliverable(accountID, client.AccountID) {
+			continue
+		}
+		if suppressSessionID != "" && client.SessionID == suppressSessionID {
 			continue
 		}
 		if !outgoinglogic.TrySendNonBlocking(client.Send, data) {

@@ -21,12 +21,19 @@ import useUsersStore from "../../../../../../Zustand/usersStore";
 import PanelFallBack from "../../../../panelStates";
 import { formatNumberForLocale, formatTimeRemaining } from "../../../../../../Functions/Helper/numberParser";
 import findBlueprintType from "../../../../../../Functions/Shared/findBlueprintType";
+import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
+import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 
+/**
+ * Unlinking an ESI job is a write against `activeJob.apiJobs` (persisted), so
+ * the gate is the active job lock (group locks cascade into it automatically).
+ */
 export function LinkedJobsTab(props) {
   const { state, actions, isLoading, isError, error } = props;
   const queryClient = useQueryClient();
   const [clickedJobs, setClickedJobs] = useState(new Set());
   const [removedJobs, setRemovedJobs] = useState(new Set());
+  const jobLockReadOnly = useActiveJobReadOnly(state);
 
   const getStatusColor = (status, isReadyToDeliver) => {
     if (isReadyToDeliver) {
@@ -45,6 +52,7 @@ export function LinkedJobsTab(props) {
   };
 
   const handleUnlinkJob = (job) => {
+    if (jobLockReadOnly) return;
     setClickedJobs((prev) => new Set([...prev, job.job_id]));
 
     setTimeout(() => {
@@ -124,16 +132,21 @@ export function LinkedJobsTab(props) {
                   lg: 3
                 }}>
                 <Tooltip
-                  title="Click anywhere on the card to unlink this job"
+                  title={
+                    jobLockReadOnly
+                      ? lockReasonText({ action: "unlinking is disabled" })
+                      : "Click anywhere on the card to unlink this job"
+                  }
                   placement="top"
                   arrow
                 >
                   <Card
                     sx={{
                       height: "100%",
-                      cursor: "pointer",
+                      cursor: jobLockReadOnly ? "not-allowed" : "pointer",
+                      opacity: jobLockReadOnly ? 0.6 : 1,
                       "&:hover": {
-                        boxShadow: 6,
+                        boxShadow: jobLockReadOnly ? 1 : 6,
                       },
                       position: "relative",
                       overflow: "visible",

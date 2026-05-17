@@ -11,7 +11,6 @@ const APPLICATION_SETTINGS_URL = "/api/v1/user/application-settings";
 async function saveUserAccountDocument() {
   try {
     const userData = {
-      ...useUsersStore.getState().users.actions.toDocument(),
       ...useUsersStore.getState().account.actions.linkedEsiToDocument(),
     };
 
