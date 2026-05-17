@@ -1,0 +1,237 @@
+name: Publish Public containers
+on:
+    workflow_dispatch:
+        inputs:
+            app_version:
+                description: 'Semver X.Y.Z for image tags (required)'
+                required: true
+                type: string
+            overwrite_existing_tags:
+                description: 'Confirm overwrite — required if ghcr.io tags for this version already exist'
+                required: false
+                type: boolean
+                default: false
+
+jobs:
+    preflight:
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        environment: Public
+        outputs:
+            version: ${{ steps.version.outputs.version }}
+            major: ${{ steps.version.outputs.major }}
+            minor: ${{ steps.version.outputs.minor }}
+            patch: ${{ steps.version.outputs.patch }}
+        steps:
+            - name: Validate app_version
+              id: version
+              run: |
+                  V="${{ github.event.inputs.app_version }}"
+                  echo "Publish Public @ ${V}"
+                  if ! echo "${V}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+                      echo "::error::app_version must match X.Y.Z (got: ${V})"
+                      exit 1
+                  fi
+                  echo "version=${V}" >> "$GITHUB_OUTPUT"
+                  echo "major=$(echo "${V}" | cut -d'.' -f1)" >> "$GITHUB_OUTPUT"
+                  echo "minor=$(echo "${V}" | cut -d'.' -f2)" >> "$GITHUB_OUTPUT"
+                  echo "patch=$(echo "${V}" | cut -d'.' -f3)" >> "$GITHUB_OUTPUT"
+
+            - name: Verify Sentry DSN
+              env:
+                  SENTRY_DSN_VAR: ${{ vars.SENTRY_DSN }}
+                  SENTRY_DSN_SECRET: ${{ secrets.SENTRY_DSN }}
+              run: |
+                  if [ -n "${SENTRY_DSN_VAR}" ] || [ -n "${SENTRY_DSN_SECRET}" ]; then
+                    echo "Sentry DSN is configured."
+                  else
+                    echo "::error::Add secret SENTRY_DSN to the Public environment, or set vars.SENTRY_DSN at repo/org level."
+                    exit 1
+                  fi
+
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@v4
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GHCR_TOKEN }}
+
+            - name: Check existing version tags
+              env:
+                  OVERWRITE: ${{ github.event.inputs.overwrite_existing_tags }}
+              run: |
+                  OWNER="${{ github.repository_owner }}"
+                  REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2 | tr '[:upper:]' '[:lower:]')
+                  VERSION="${{ steps.version.outputs.version }}"
+                  SERVICES="api websocket worker core frontend"
+                  EXISTING=()
+
+                  for svc in ${SERVICES}; do
+                    IMAGE="ghcr.io/${OWNER}/${REPO_NAME}-${svc}"
+                    if docker manifest inspect "${IMAGE}:${VERSION}" > /dev/null 2>&1; then
+                      EXISTING+=("${IMAGE}:${VERSION}")
+                    fi
+                  done
+
+                  if [ "${#EXISTING[@]}" -eq 0 ]; then
+                    echo "No existing ${VERSION} tags found — publishing new images."
+                    exit 0
+                  fi
+
+                  echo "::warning::The following ${VERSION} tags already exist on ghcr.io:"
+                  for ref in "${EXISTING[@]}"; do
+                    echo "::warning::  ${ref}"
+                  done
+                  echo "::warning::Pushing again will replace those images (and refresh :latest / major.minor aliases)."
+
+                  if [ "${OVERWRITE}" != "true" ]; then
+                    echo "::error::Aborting — enable the workflow input \"Confirm overwrite\" and re-run to regenerate this version."
+                    exit 1
+                  fi
+
+                  echo "::notice::Confirm overwrite is enabled — proceeding to rebuild and replace existing tags."
+
+    publish_containers:
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        needs: [preflight]
+        environment: Public
+        permissions:
+            contents: read
+            packages: write
+
+        strategy:
+            matrix:
+                service: [api, websocket, worker, core, frontend]
+
+        steps:
+            - name: Checkout Public branch
+              uses: actions/checkout@v6
+              with:
+                  ref: Public
+                  fetch-depth: 0
+                  fetch-tags: true
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v4
+
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@v4
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GHCR_TOKEN }}
+
+            - name: Set package name
+              id: package-name
+              run: |
+                  REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2 | tr '[:upper:]' '[:lower:]')
+                  PACKAGE_NAME="${REPO_NAME}-${{ matrix.service }}"
+                  echo "name=${PACKAGE_NAME}" >> "$GITHUB_OUTPUT"
+
+            - name: Extract metadata for ${{ matrix.service }}
+              id: meta
+              uses: docker/metadata-action@v6
+              with:
+                  images: ghcr.io/${{ github.repository_owner }}/${{ steps.package-name.outputs.name }}
+                  tags: |
+                      type=raw,value=${{ needs.preflight.outputs.version }}
+                      type=raw,value=${{ needs.preflight.outputs.major }}.${{ needs.preflight.outputs.minor }}.${{ needs.preflight.outputs.patch }}
+                      type=raw,value=${{ needs.preflight.outputs.major }}.${{ needs.preflight.outputs.minor }}
+                      type=raw,value=${{ needs.preflight.outputs.major }}
+                      type=raw,value=latest
+                  labels: |
+                      org.opencontainers.image.source=https://github.com/${{ github.repository }}
+                      org.opencontainers.image.revision=${{ github.sha }}
+                      org.opencontainers.image.version=${{ needs.preflight.outputs.version }}
+                      org.opencontainers.image.created=${{ github.run_started_at }}
+                      org.opencontainers.image.url=https://github.com/${{ github.repository }}
+                      org.opencontainers.image.title=eve-industry-planner-${{ matrix.service }}
+                      org.opencontainers.image.branch=Public
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Set build context and dockerfile
+              id: build-config
+              run: |
+                  if [ "${{ matrix.service }}" == "frontend" ]; then
+                      echo "context=." >> "$GITHUB_OUTPUT"
+                      echo "dockerfile=./frontend/Dockerfile" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "context=./services" >> "$GITHUB_OUTPUT"
+                      echo "dockerfile=./services/${{ matrix.service }}/Dockerfile" >> "$GITHUB_OUTPUT"
+                  fi
+
+            - name: Resolve Sentry DSN
+              env:
+                  SENTRY_DSN_VAR: ${{ vars.SENTRY_DSN }}
+                  SENTRY_DSN_SECRET: ${{ secrets.SENTRY_DSN }}
+              run: |
+                  SENTRY_DSN_VAL="${SENTRY_DSN_VAR}"
+                  if [ -z "${SENTRY_DSN_VAL}" ]; then
+                    SENTRY_DSN_VAL="${SENTRY_DSN_SECRET}"
+                  fi
+                  echo "SENTRY_DSN_VAL=${SENTRY_DSN_VAL}" >> "$GITHUB_ENV"
+
+            - name: Prepare Docker build args
+              env:
+                  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+              run: |
+                  IMAGE_SOURCE="https://github.com/${{ github.repository }}"
+                  APP_VERSION="${{ needs.preflight.outputs.version }}"
+
+                  {
+                      echo "DOCKER_BUILD_ARGS<<BUILD_ARGS_EOF"
+                      echo "IMAGE_SOURCE=${IMAGE_SOURCE}"
+                      echo "ENVIRONMENT=production"
+
+                      if [ "${{ matrix.service }}" == "frontend" ]; then
+                          echo "FRONTEND_APP_VERSION=${APP_VERSION}"
+                          echo "SENTRY_ORG=${{ vars.SENTRY_ORG }}"
+                          echo "SENTRY_PROJECT_ID=${{ vars.SENTRY_PROJECT_ID }}"
+                          echo "SENTRY_DSN=${SENTRY_DSN_VAL}"
+                          echo "SENTRY_AUTH_TOKEN=${SENTRY_AUTH_TOKEN}"
+                          echo "SENTRY_TRACES_SAMPLE_RATE=${{ vars.SENTRY_TRACES_SAMPLE_RATE }}"
+                          echo "SENTRY_ERROR_SAMPLE_RATE=${{ vars.SENTRY_ERROR_SAMPLE_RATE }}"
+                      else
+                          echo "SENTRY_DSN=${SENTRY_DSN_VAL}"
+                          echo "APP_VERSION=${APP_VERSION}"
+                          echo "FRONTEND_APP_VERSION=${APP_VERSION}"
+                      fi
+
+                      if [ "${{ matrix.service }}" == "api" ]; then
+                          echo "FEEDBACK_DISCORD_WEBHOOK_URL=${{ vars.FEEDBACK_DISCORD_WEBHOOK_URL }}"
+                      fi
+
+                      if [ "${{ matrix.service }}" == "api" ] || [ "${{ matrix.service }}" == "core" ]; then
+                          FFLAGS='${{ vars.APP_FEATURE_FLAGS_JSON }}'
+                          if [ -z "${FFLAGS}" ] || [ "${FFLAGS}" = "null" ]; then
+                              FFLAGS='{}'
+                          fi
+                          echo "APP_FEATURE_FLAGS_JSON=${FFLAGS}"
+                      fi
+
+                      echo "BUILD_ARGS_EOF"
+                  } >> "$GITHUB_ENV"
+
+            - name: Build and push ${{ matrix.service }} container
+              uses: docker/build-push-action@v7
+              with:
+                  context: ${{ steps.build-config.outputs.context }}
+                  file: ${{ steps.build-config.outputs.dockerfile }}
+                  push: true
+                  tags: ${{ steps.meta.outputs.tags }}
+                  labels: ${{ steps.meta.outputs.labels }}
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
+                  build-args: ${{ env.DOCKER_BUILD_ARGS }}
+
+            - name: Set package visibility to public
+              run: |
+                  PACKAGE_NAME="${{ steps.package-name.outputs.name }}"
+                  OWNER="${{ github.repository_owner }}"
+                  curl -X PATCH \
+                    -H "Accept: application/vnd.github+json" \
+                    -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                    -H "X-GitHub-Api-Version: 2022-11-28" \
+                    "https://api.github.com/users/${OWNER}/packages/container/${PACKAGE_NAME}" \
+                    -d '{"visibility":"public"}' || echo "Warning: Failed to set package visibility. Set manually in GitHub Package settings."

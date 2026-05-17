@@ -109,7 +109,7 @@ class ShoppingList {
      * This method calculates the total value by:
      * - Getting market data for each visible item
      * - Using default market and order settings
-     * - Calculating value based on quantity to purchase
+     * - Calculating value based on quantity still needed (after assets), matching volume
      * - Summing up the total value
      * 
      * @param {Object} [alternativePriceLocation={}] - Alternative price location for market data
@@ -120,7 +120,16 @@ class ShoppingList {
         this.totalValue = 0;
         this.items.forEach((item) => {
             if (!item.isVisible || !item.includeWhenCopying) return;
-            this.totalValue += item.quantityToPurchase * useUsersStore.getState().worldData.actions.findMarketData(item.typeID, alternativePriceLocation)[defaultMarketLocation][defaultOrderType];
+            const quantityAfterAssets = Math.max(
+                item.quantityToPurchase - item.assetQuantity,
+                0,
+            );
+            this.totalValue +=
+                quantityAfterAssets *
+                useUsersStore.getState().worldData.actions.findMarketData(
+                    item.typeID,
+                    alternativePriceLocation,
+                )[defaultMarketLocation][defaultOrderType];
         });
     }
 

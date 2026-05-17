@@ -64,18 +64,8 @@ func handleGetCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		metrics.Error("config_error")
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
-		return
-	}
-	if cfg.RefreshTokenKeyring == nil {
-		metrics.Error("config_error")
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Refresh token keyring not configured", fmt.Errorf("refresh token keyring is nil"))
-		return
-	}
-
+	// GET returns linked-character hashes only. OAuth refresh material stays encrypted server-side;
+	// clients obtain ESI access via POST /api/v1/esi/characters/access-token/server.
 	col := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUsers)
 	var userDoc models.UserAccountDocument
 	if err := col.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&userDoc); err != nil {
@@ -85,6 +75,13 @@ func handleGetCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 			return
 		}
 		metrics.Error("database_error")
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":               "linked_chars_user_doc_load",
+			"additional_chars_endpoint":   "linked_characters_oauth_credentials",
+			"metric":                      "cloud_stored_esi_refresh_tokens",
+			"operation":                   "get",
+			"account_id":                  accountID,
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to load user document", err)
 		return
 	}
@@ -96,23 +93,20 @@ func handleGetCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 		if hash == "" {
 			continue
 		}
-		plain, err := row.PlainRefreshMaterial(cfg.RefreshTokenKeyring)
-		if err != nil {
-			logs.WarnCtx(ctx, "skip cloud-stored ESI refresh token row",
-				"account_id", accountID,
-				"character_hash", hash,
-				"error", err,
-			)
-			continue
-		}
 		out = append(out, models.RefreshToken{
 			CharacterHash: hash,
-			RToken:        plain,
 		})
 	}
 
 	if err := helper.EncodeJSON(w, cloudStoredEsiRefreshTokensResponse{RefreshTokens: out}); err != nil {
 		metrics.Error("encode_error")
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":             "linked_chars_response_encode",
+			"additional_chars_endpoint": "linked_characters_oauth_credentials",
+			"metric":                    "cloud_stored_esi_refresh_tokens",
+			"operation":                 "get",
+			"account_id":                accountID,
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
@@ -139,11 +133,25 @@ func handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		metrics.Error("config_error")
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":             "linked_chars_config_load",
+			"additional_chars_endpoint": "linked_characters_oauth_credentials",
+			"metric":                    "cloud_stored_esi_refresh_tokens",
+			"operation":                 "put",
+			"account_id":                accountID,
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 	if cfg.RefreshTokenKeyring == nil {
 		metrics.Error("config_error")
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":             "linked_chars_keyring_missing",
+			"additional_chars_endpoint": "linked_characters_oauth_credentials",
+			"metric":                    "cloud_stored_esi_refresh_tokens",
+			"operation":                 "put",
+			"account_id":                accountID,
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Refresh token keyring not configured", fmt.Errorf("refresh token keyring is nil"))
 		return
 	}
@@ -162,6 +170,13 @@ func handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 			return
 		}
 		metrics.Error("database_error")
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":             "linked_chars_user_doc_load",
+			"additional_chars_endpoint": "linked_characters_oauth_credentials",
+			"metric":                    "cloud_stored_esi_refresh_tokens",
+			"operation":                 "put",
+			"account_id":                accountID,
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to load user document", err)
 		return
 	}
@@ -223,6 +238,13 @@ func handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 		return err
 	}); err != nil {
 		metrics.Error("database_error")
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":             "linked_chars_refresh_tokens_save",
+			"additional_chars_endpoint": "linked_characters_oauth_credentials",
+			"metric":                    "cloud_stored_esi_refresh_tokens",
+			"operation":                 "put",
+			"account_id":                accountID,
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to save refresh tokens", err)
 		return
 	}
@@ -276,6 +298,13 @@ func handleDeleteCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Requ
 			return
 		}
 		metrics.Error("database_error")
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":             "linked_chars_user_doc_load",
+			"additional_chars_endpoint": "linked_characters_oauth_credentials",
+			"metric":                    "cloud_stored_esi_refresh_tokens",
+			"operation":                 "delete",
+			"account_id":                accountID,
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to load user document", err)
 		return
 	}
@@ -304,6 +333,14 @@ func handleDeleteCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Requ
 		return err
 	}); err != nil {
 		metrics.Error("database_error")
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":             "linked_chars_refresh_tokens_delete",
+			"additional_chars_endpoint": "linked_characters_oauth_credentials",
+			"metric":                    "cloud_stored_esi_refresh_tokens",
+			"operation":                 "delete",
+			"account_id":                accountID,
+			"hashes_requested":          len(toRemove),
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to delete refresh tokens", err)
 		return
 	}

@@ -5,6 +5,36 @@ import (
 	"net/http"
 )
 
+// handlerFailureDetailKey stores structured fields for 5xx responses so middleware can log and
+// attach Sentry context when the captured exception alone is too generic.
+type handlerFailureDetailKey struct{}
+
+// AttachHandlerFailureDetail merges detail into request context (last key wins on collision).
+// Safe for nil r or empty detail.
+func AttachHandlerFailureDetail(r *http.Request, detail map[string]interface{}) {
+	if r == nil || len(detail) == 0 {
+		return
+	}
+	existing, _ := r.Context().Value(handlerFailureDetailKey{}).(map[string]interface{})
+	merged := make(map[string]interface{}, len(existing)+len(detail))
+	for k, v := range existing {
+		merged[k] = v
+	}
+	for k, v := range detail {
+		merged[k] = v
+	}
+	*r = *r.WithContext(context.WithValue(r.Context(), handlerFailureDetailKey{}, merged))
+}
+
+// HandlerFailureDetailFromRequest returns detail attached with [AttachHandlerFailureDetail], if any.
+func HandlerFailureDetailFromRequest(r *http.Request) map[string]interface{} {
+	if r == nil {
+		return nil
+	}
+	d, _ := r.Context().Value(handlerFailureDetailKey{}).(map[string]interface{})
+	return d
+}
+
 // handlerErrorKey stores the error that caused an HTTP 5xx so outer middleware (e.g. Sentry)
 // can capture the root cause. Prefer [RespondHTTPError] for responses; it calls [AttachHandlerError]
 // when status is a server error (>= 500) and err is non-nil.

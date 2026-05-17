@@ -14,6 +14,28 @@ export const USER_JOB_DOCUMENTS_COLLECTION = "user_job_documents";
 
 const jsonHeaders = { "Content-Type": "application/json" };
 
+/**
+ * @param {Response} res
+ * @param {string} label
+ */
+async function parseJsonBodyOrExplainHtml(res, label) {
+  const text = await res.text();
+  const trimmed = text.trim();
+  if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html")) {
+    throw new Error(
+      `${label}: API returned HTML instead of JSON (${res.status}). Usually the dev proxy is not forwarding /api to the Go server, or the route is missing.`
+    );
+  }
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    const preview = trimmed.replace(/\s+/g, " ").slice(0, 120);
+    throw new Error(
+      `${label}: response is not valid JSON (${res.status}): ${preview}`
+    );
+  }
+}
+
 /** Kept in sync with Go `PutJobDocumentsHandler` (`maxBatchSize`). */
 const MAX_PUT_JOB_DOCUMENTS_BATCH = 100;
 

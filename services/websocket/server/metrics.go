@@ -22,11 +22,9 @@ type websocketMetrics struct {
 	upgradeRequestsTotal         metric.Int64Counter
 	upgradeSuccessesTotal        metric.Int64Counter
 	upgradeErrorsTotal           metric.Int64Counter
-	expiredTokenRejectsTotal     metric.Int64Counter
 	connectionsOpenedTotal       metric.Int64Counter
 	connectionsClosedTotal       metric.Int64Counter
-	docUpdatesSentTotal          metric.Int64Counter
-	duplicateSessionClientsTotal metric.Int64Counter
+	docUpdatesSentTotal metric.Int64Counter
 }
 
 var (
@@ -51,9 +49,6 @@ func getWebsocketMetrics() *websocketMetrics {
 			upgradeErrorsTotal: mustWSCounter(m.Int64Counter("ws.upgrade.errors_total",
 				metric.WithDescription("Websocket upgrade errors by reason."),
 			)),
-			expiredTokenRejectsTotal: mustWSCounter(m.Int64Counter("ws.auth.expired_token_rejects_total",
-				metric.WithDescription("Websocket upgrades rejected because JWT is expired."),
-			)),
 			connectionsOpenedTotal: mustWSCounter(m.Int64Counter("ws.connections.opened_total",
 				metric.WithDescription("Websocket connections opened by account."),
 			)),
@@ -62,9 +57,6 @@ func getWebsocketMetrics() *websocketMetrics {
 			)),
 			docUpdatesSentTotal: mustWSCounter(m.Int64Counter("ws.document_updates.sent_total",
 				metric.WithDescription("Document updates sent to websocket clients by account/document."),
-			)),
-			duplicateSessionClientsTotal: mustWSCounter(m.Int64Counter("ws.session.duplicate_clients_total",
-				metric.WithDescription("Duplicate websocket clients detected for same session id."),
 			)),
 		}
 	})
@@ -233,13 +225,6 @@ func (s *Server) recordUpgradeError(ctx context.Context, reason string, d time.D
 	s.metrics.upgradeDurationMs.Record(ctx, float64(d.Nanoseconds())/1e6)
 }
 
-func (s *Server) recordExpiredTokenReject(ctx context.Context) {
-	if s.metrics == nil {
-		return
-	}
-	s.metrics.expiredTokenRejectsTotal.Add(ctx, 1)
-}
-
 func (s *Server) recordDocUpdateSent(ctx context.Context, accountID, docID string, recipients int) {
 	if s.metrics == nil || recipients <= 0 {
 		return
@@ -247,15 +232,5 @@ func (s *Server) recordDocUpdateSent(ctx context.Context, accountID, docID strin
 	s.metrics.docUpdatesSentTotal.Add(ctx, int64(recipients), metric.WithAttributes(
 		attribute.String("account_id", accountID),
 		attribute.String("doc_id", docID),
-	))
-}
-
-func (s *Server) recordDuplicateSessionClient(ctx context.Context, accountID, sessionID string) {
-	if s.metrics == nil {
-		return
-	}
-	s.metrics.duplicateSessionClientsTotal.Add(ctx, 1, metric.WithAttributes(
-		attribute.String("account_id", accountID),
-		attribute.String("session_id", sessionID),
 	))
 }

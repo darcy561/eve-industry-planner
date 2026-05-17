@@ -50,14 +50,14 @@ func (s *Server) subscribeToDocLockNotifications() {
 			return
 		}
 
-		wire, err := natslogic.BuildDocumentLockWire(msg.Data())
+		wire, suppressSessionID, err := natslogic.BuildDocumentLockWire(msg.Data())
 		if err != nil {
 			logs.WarnCtx(ctx, "doc lock: build wire payload failed", "error", err)
 			natscore.AcknowledgeMessage(msg, "marshal fail", natscore.GetDeliveryCount(msg))
 			return
 		}
 
-		s.broadcastRawToAccount(accountID, wire)
+		s.broadcastRawToAccount(accountID, wire, suppressSessionID)
 
 		deliveryCount := natscore.GetDeliveryCount(msg)
 		natscore.AcknowledgeMessage(msg, "doc lock delivered", deliveryCount)

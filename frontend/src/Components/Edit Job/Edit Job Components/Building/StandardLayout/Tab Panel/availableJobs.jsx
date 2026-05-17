@@ -21,12 +21,21 @@ import { useState } from "react";
 import PanelFallBack from "../../../../panelStates";
 import { formatNumberForLocale, formatTimeRemaining } from "../../../../../../Functions/Helper/numberParser";
 import findBlueprintType from "../../../../../../Functions/Shared/findBlueprintType";
+import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
+import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 
+/**
+ * ESI-job linking mutates `activeJob.apiJobs` (persisted on the job document),
+ * so it follows the active job lock. Group locks already cascade into the
+ * per-job lock, so `useActiveJobReadOnly` is the right single-source gate
+ * (matches the save/delete-icon pattern, no need for the composite hook).
+ */
 export function AvailableJobsTab(props) {
   const { state, actions, jobMatches, isLoading, isError, error } =
     props;
   const queryClient = useQueryClient();
   const [clickedJobs, setClickedJobs] = useState(new Set());
+  const jobLockReadOnly = useActiveJobReadOnly(state);
 
   const getStatusColor = (status, isReadyToDeliver) => {
     if (isReadyToDeliver) {
@@ -45,6 +54,7 @@ export function AvailableJobsTab(props) {
   };
 
   const handleLinkAll = () => {
+    if (jobLockReadOnly) return;
     for (let job of jobMatches) {
       const jobOwner = useUsersStore
         .getState()
@@ -58,6 +68,7 @@ export function AvailableJobsTab(props) {
   };
 
   const handleJobClick = (job) => {
+    if (jobLockReadOnly) return;
     const jobOwner = useUsersStore
       .getState()
       .account.actions.findCharacterById(job.installer_id);
@@ -149,21 +160,29 @@ export function AvailableJobsTab(props) {
                   lg: 3
                 }}>
                 <Tooltip
-                  title="Click anywhere on the card to link this job"
+                  title={
+                    jobLockReadOnly
+                      ? lockReasonText({ action: "linking is disabled" })
+                      : "Click anywhere on the card to link this job"
+                  }
                   placement="top"
                   arrow
                 >
                   <Card
                     sx={{
                       height: "100%",
-                      cursor: "pointer",
+                      cursor: jobLockReadOnly ? "not-allowed" : "pointer",
+                      opacity: jobLockReadOnly ? 0.6 : 1,
                       "&:hover": {
-                        boxShadow: 6,
+                        boxShadow: jobLockReadOnly ? 1 : 6,
                       },
                       position: "relative",
                       overflow: "visible",
                     }}
-                    onClick={() => handleJobClick(job)}
+                    onClick={() => {
+                      if (jobLockReadOnly) return;
+                      handleJobClick(job);
+                    }}
                   >
                     <Tooltip
                       title={`Progress: ${
@@ -320,9 +339,11 @@ export function AvailableJobsTab(props) {
             <Grid align="right" size={12}>
               <Tooltip
                 title={
-                  jobMatches.length > state.activeJob.jobCount
-                    ? "Cannot link all jobs: Not enough job slots available"
-                    : "Click to link all available jobs at once"
+                  jobLockReadOnly
+                    ? lockReasonText({ action: "bulk linking is disabled" })
+                    : jobMatches.length > state.activeJob.jobCount
+                      ? "Cannot link all jobs: Not enough job slots available"
+                      : "Click to link all available jobs at once"
                 }
                 arrow
               >
@@ -331,7 +352,10 @@ export function AvailableJobsTab(props) {
                     variant="contained"
                     color="primary"
                     onClick={handleLinkAll}
-                    disabled={jobMatches.length > state.activeJob.jobCount}
+                    disabled={
+                      jobLockReadOnly ||
+                      jobMatches.length > state.activeJob.jobCount
+                    }
                     startIcon={<MdOutlineAddLink />}
                   >
                     Link All Jobs

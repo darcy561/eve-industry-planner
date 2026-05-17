@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-05-13 — SPA: remove dead realtime / group hooks
+
+- **Request / context:** Account-scoped websocket delivery makes prior “re-subscribe after group persist” paths no-ops; several exports were unused.
+- **Decision:** Delete `frontend/src/Realtime/syncJobGroupWebSocketSubscriptions.js`; remove dynamic imports from [`groupManagement.js`](../../../frontend/src/Zustand/jobsSlice/groupManagement.js) and [`handlers/userJobGroupsDocument.js`](../../../frontend/src/Realtime/handlers/userJobGroupsDocument.js). Drop **`replaceGroupArray`**’s unused **`skipRealtimeResync`** option. Remove empty **`sendBaselineSubscriptionsForOpen`** and unused **`reconnectRealtime`** from [`realtimeClient.js`](../../../frontend/src/Realtime/realtimeClient.js).
+- **Docs:** Session/cookie realtime behavior remains in [`docs/auth/FRONTEND.md`](../../auth/FRONTEND.md) §6.2 and [`IMPLEMENTATION.md`](./IMPLEMENTATION.md) (architecture + frontend table); this entry records the cleanup (no separate feature doc named the removed module).
+- **Links:** (none)
+
+---
+
 ## 2026-04-22 — Org-scoped realtime: `scopes`, indexes, `upgrade_scopes`, JWT `alliances`
 
 - **Request / context:** Implement alliance/corporation routing with downward **`scopes`**, progressive pools (account-first connect), reverse indexes per replica, and session resume / Redis handoff for upgraded scopes.
@@ -22,7 +31,7 @@
 
 - **Request / context:** Detach document-lock and change-origin identity from websocket `clientID` churn during JWT refresh/reconnect; enforce single active client per auth session and keep realtime fan-out stable.
 - **Decision:**
-  - **JWT/auth:** internal JWT claim now includes **`session_id`** (login + login-refresh mint; refresh preserves; refresh backfills when missing on legacy refresh-token rows).
+  - **JWT/auth:** internal JWT claim now includes **`session_id`** (login + bootstrap mint; rotate preserves; rotate backfills when missing on legacy refresh-token rows).
   - **Locks:** API `document-locks` routes now derive identity from JWT `session_id`; lock Redis fields/events/status switched to session-based names (`holderSessionID`, `requesterSessionID`, `probeTargetSessionID`); `rebind` removed.
   - **SPA locks:** `useDocumentLock`, planner lock sync, and delete-group guard compare session IDs (no `eip-ws-client-id-changed` rebind path).
   - **Metadata + headers:** write paths stamp `_meta.sessionID`; private requests include `X-Session-ID` (observability/debug), while lock auth still trusts JWT claims.
@@ -58,7 +67,7 @@
   - **Frontend store:** `documentLockSlice` scopes by `(collection, docID)`; selectors for read-only vs holder (`documentLockSelectors.js`). **`useDocumentLock(collection, docID, enabled)`** drives acquire/sync/extend intervals and listens for `eip-document-lock`. On **`eip-ws-client-id-changed`**, POST rebind; if **`rebound`** is false but **`holderClientID`** equals **`getRealtimeClientID()`**, treat as holder; otherwise **`syncLockFromServer()`** reconciles (no pessimistic read-only-only patch). `wsClientIdentity.js` pairs old→new id via `sessionStorage` for rebind after transient disconnect.
   - **Header UI:** `useRegisterHeaderDocumentLockUI` / `DocumentLockHeaderControl` — primary scope is **job** before **group** on edit-job (`documentLockHeaderSelectors.primaryHeaderRegistration`). Group page (`groupFrame.jsx`) exposes **`groupReadOnly`** via `selectDocumentLockReadOnly` + `USER_JOB_GROUPS_COLLECTION`.
   - **Planner:** `useJobPlannerGroupLockSync` in `JobPlanner.jsx` — initial **`GET /api/v1/document-locks/status`** per visible group when `groupArray` changes; live updates from **`eip-document-lock`**. Compact/classic **group cards**: read-only chip (compact: column before View, mirroring job **info** slot); no left-edge warning stripe (bottom **Job Group** / gradient bar retained).
-- **Code / infra touched:** `services/api/v1endpoints/documentlocks/**`, `services/api/helper/doclock/publish.go`, `services/websocket/server/nats_doc_lock.go`, `frontend/src/Hooks/useDocumentLock.js`, `frontend/src/Hooks/useJobPlannerGroupLockSync.js`, `frontend/src/Zustand/documentLockSlice.js`, `frontend/src/Functions/DocumentLock/**`, `frontend/src/Components/DocumentLock/**`, `frontend/src/Components/Edit Job/editJob.jsx`, `frontend/src/Components/Groups/groupFrame.jsx`, `frontend/src/Components/Job Planner/**/ClassicGroupJobCard.jsx`, `CompactGroupJobCard.jsx`, `frontend/src/Realtime/realtimeClient.js`, `docs/migrations/**` (this pass).
+- **Code / infra touched:** `services/api/v1endpoints/documentlocks/**`, `services/shared/core/documentlock/**`, `services/websocket/server/nats_doc_lock.go`, `frontend/src/Hooks/useDocumentLock.js`, `frontend/src/Hooks/useJobPlannerGroupLockSync.js`, `frontend/src/Zustand/documentLockSlice.js`, `frontend/src/Functions/DocumentLock/**`, `frontend/src/Components/DocumentLock/**`, `frontend/src/Components/Edit Job/editJob.jsx`, `frontend/src/Components/Groups/groupFrame.jsx`, `frontend/src/Components/Job Planner/**/ClassicGroupJobCard.jsx`, `CompactGroupJobCard.jsx`, `frontend/src/Realtime/realtimeClient.js`, `docs/migrations/**` (this pass).
 - **Links:** (none)
 
 ---

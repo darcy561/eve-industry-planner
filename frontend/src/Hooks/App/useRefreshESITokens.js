@@ -30,13 +30,13 @@ function selectRefreshableCharacterCount(state) {
     (c) =>
       c &&
       !c.isPlaceholder &&
-      typeof c.refreshESIToken === "function"
+      typeof c.refreshEsiAccessTokenIfNeeded === "function"
   ).length;
 }
 
 /**
  * App-level: staggered ESI refresh (one character per tick) with a dynamic tick
- * from roster size, plus 15m corporation-claims + app JWT maintenance (login-gated
+ * from roster size, plus 15m corporation-claims + session maintenance (login-gated
  * only; that interval does not reset when the roster changes).
  */
 function useRefreshESITokens() {

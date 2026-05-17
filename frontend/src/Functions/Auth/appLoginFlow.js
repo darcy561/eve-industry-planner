@@ -1,12 +1,12 @@
 /**
- * EVE OAuth code vs stored EVE refresh token → app JWT, then a single post-login client path.
+ * EVE OAuth code or stored EVE refresh token -> planner session response, then
+ * a single post-login client path.
  * @fileoverview
  */
 import {
-  fetchServerJWT,
-  refreshServerJWTForLogin,
+  fetchServerSession,
+  refreshServerSessionForLogin,
 } from "./serverTokens.js";
-import { verifyAppAccessTokenWithJwks } from "./appJwt.js";
 import getEveOauthToken from "../EveESI/Character/getEveSSOToken";
 import getCharacterFromRefreshToken from "../../Components/Auth/RefreshToken";
 import useUsersStore from "../../Zustand/usersStore";
@@ -19,7 +19,6 @@ import { bootstrapWatchlistLoginStep } from "../../Components/Auth/bootstrapWatc
 import { upsertCloudStoredEsiRefreshTokens } from "../Endpoints/Pirivate/cloudStoredEsiRefreshTokens.js";
 import { decodeJwt } from "jose";
 import Character from "../../Classes/character";
-import refreshCloudStoredEsiAccessToken from "../EveESI/Character/refreshCloudStoredEsiAccessToken.js";
 
 /**
  * Stores main character ESI refresh in Mongo (encrypted) for cloud accounts and drops client-held material.
@@ -64,24 +63,23 @@ export async function resolveLoginWithEveOauthCode(authCode) {
   if (!character) {
     throw new Error("Unable to Authenticate SSO Token");
   }
-  const tokenResponse = await fetchServerJWT(character.esiAccessToken);
+  const tokenResponse = await fetchServerSession(character.esiAccessToken);
   return { character, tokenResponse };
 }
 
 /**
- * Cloud cold reload: HttpOnly app refresh cookie + POST …/login-refresh with empty eve_token.
+ * Cloud cold reload: HttpOnly app refresh cookie + POST …/auth/sessions/bootstrap with empty eve_token.
  * Server validates Redis session and refreshes stored ESI from Mongo; client then loads ESI access via cloud-stored endpoint.
  *
  * @returns {Promise<{ character: object, tokenResponse: object, loginAlreadyApplied: boolean }>}
  */
 export async function resolveLoginWithCookieCloudResume() {
-  const tokenResponse = await refreshServerJWTForLogin(null, "");
-  await verifyAppAccessTokenWithJwks(tokenResponse.access_token);
-  const plannerPayload = decodeJwt(tokenResponse.access_token);
+  const tokenResponse = await refreshServerSessionForLogin(null, "");
   const mainHash =
-    plannerPayload.character_hash ?? plannerPayload.characterHash;
+    tokenResponse.main_character_hash ??
+    tokenResponse?.user_document?.mainCharacterHash;
   if (!mainHash || typeof mainHash !== "string") {
-    throw new Error("App JWT missing character_hash");
+    throw new Error("Session response missing main character hash");
   }
 
   useUsersStore.getState().account.actions.applyLoginAuthResponse(
@@ -89,21 +87,29 @@ export async function resolveLoginWithCookieCloudResume() {
     mainHash
   );
 
-  let esiAccess = tokenResponse.main_character_esi_access_token;
-  let esiBundle = null;
-  if (!esiAccess || typeof esiAccess !== "string") {
-    esiBundle = await refreshCloudStoredEsiAccessToken(mainHash);
-    if (esiBundle instanceof Error) {
-      throw esiBundle;
-    }
-    esiAccess = esiBundle.access_token;
+  const linkedCharacters = Array.isArray(tokenResponse.linked_characters)
+    ? tokenResponse.linked_characters
+    : [];
+  const mainLinked = linkedCharacters.find(
+    (row) =>
+      row &&
+      typeof row.characterHash === "string" &&
+      row.characterHash === mainHash &&
+      typeof row.access_token === "string" &&
+      row.access_token.trim().length > 0
+  );
+  if (!mainLinked) {
+    throw new Error("Session response missing main character ESI access token");
   }
+  const esiAccess = mainLinked.access_token;
 
   const esiPayload = decodeJwt(esiAccess);
   const character = new Character({
     jwtPayload: esiPayload,
-    tokenResponse: esiBundle ?? {
-      access_token: esiAccess,
+    tokenResponse: {
+      access_token: mainLinked.access_token,
+      token_type: mainLinked.token_type,
+      expires_in: mainLinked.expires_in,
       refresh_token: "",
     },
     isMainCharacter: true,
@@ -119,7 +125,7 @@ export async function resolveLoginWithCookieCloudResume() {
 }
 
 /**
- * Returning user: EVE `Auth` localStorage refresh token → character, then app JWT (fetch or login-refresh).
+ * Returning user: EVE `Auth` localStorage refresh token -> character, then planner session fetch/bootstrap.
  *
  * @param {string} eveClientRefreshToken
  * @returns {Promise<{ character: object, tokenResponse: object }>}
@@ -141,27 +147,27 @@ export async function resolveLoginWithEveClientRefreshToken(
 
   let tokenResponse;
   if (existingServerRefreshToken) {
-    tokenResponse = await refreshServerJWTForLogin(
+    tokenResponse = await refreshServerSessionForLogin(
       existingServerRefreshToken,
       character.esiAccessToken
     );
   } else if (cloudAccounts) {
     try {
-      tokenResponse = await refreshServerJWTForLogin(
+      tokenResponse = await refreshServerSessionForLogin(
         null,
         character.esiAccessToken
       );
     } catch {
-      tokenResponse = await fetchServerJWT(character.esiAccessToken);
+      tokenResponse = await fetchServerSession(character.esiAccessToken);
     }
   } else {
-    tokenResponse = await fetchServerJWT(character.esiAccessToken);
+    tokenResponse = await fetchServerSession(character.esiAccessToken);
   }
   return { character, tokenResponse };
 }
 
 /**
- * Verify app JWT, hydrate Zustand, sync corporations, then async bootstrap (watchlist, groups, job docs).
+ * Apply server session response, hydrate Zustand, then async bootstrap.
  *
  * @param {object} input
  * @param {import("@tanstack/react-query").QueryClient} input.queryClient
@@ -182,7 +188,6 @@ export async function applyClientSessionAfterAppTokens(input) {
     loginAlreadyApplied = false,
   } = input;
 
-  await verifyAppAccessTokenWithJwks(tokenResponse.access_token);
   if (!loginAlreadyApplied) {
     useUsersStore
       .getState()

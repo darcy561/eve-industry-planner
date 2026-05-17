@@ -4,7 +4,7 @@ import {
   deleteJobGroupsFromApi,
   USER_JOB_GROUPS_COLLECTION,
 } from "../Endpoints/Pirivate/groups.js";
-import { getDocumentLockStatus } from "../Endpoints/Pirivate/documentLockClient.js";
+import { getDocumentLockState } from "../Endpoints/Pirivate/documentLockClient.js";
 import { showSnackbarError } from "../../Events/snackbarEvents.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 
@@ -23,7 +23,7 @@ export async function deleteGroupWithoutJobs(inputGroupID) {
   if (!chosenGroup) return;
 
   if (isLoggedIn) {
-    const lockRes = await getDocumentLockStatus(
+    const lockRes = await getDocumentLockState(
       USER_JOB_GROUPS_COLLECTION,
       inputGroupID
     );

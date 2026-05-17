@@ -2,6 +2,10 @@ import useUsersStore from "../../Zustand/usersStore";
 import checkUserClaims from "../../Functions/Auth/checkUserClaims";
 import { canonicalCharacterHashKey } from "../../Functions/Auth/characterHashCanonical.js";
 import {
+  enqueueReconcile,
+  reconcileAfterRemoteUserDoc,
+} from "../../Realtime/handlers/accountReconcile.js";
+import {
   hydrateLinkedCharactersFromAccessSessions,
   buildUsersFromRefreshTokens,
   getSystemIndexDataFromUserStructures,
@@ -58,7 +62,11 @@ export async function runPostLoginAccountSync({
   userDocument,
   linkedCharacters,
 }) {
+  const cloudHydrationQueued =
+    !!useUsersStore.getState().account.linkedBootstrapHydrationPending;
+
   if (!userDocument) {
+    useUsersStore.getState().account.actions.clearLinkedBootstrapHydrationPending();
     emitLoginStepComplete(LOGIN_STEPS.CHARACTER_DATA);
     return;
   }
@@ -116,5 +124,19 @@ export async function runPostLoginAccountSync({
   } catch (err) {
     emitLoginError(LOGIN_STEPS.CHARACTER_DATA, err);
     console.error(err);
+  } finally {
+    useUsersStore.getState().account.actions.clearLinkedBootstrapHydrationPending();
+    if (cloudHydrationQueued) {
+      enqueueReconcile(async () => {
+        await reconcileAfterRemoteUserDoc(
+          {
+            prevLinkedTokens: [],
+            refreshTokensChanged: true,
+            linkedCharactersChanged: true,
+          },
+          {}
+        );
+      });
+    }
   }
 }

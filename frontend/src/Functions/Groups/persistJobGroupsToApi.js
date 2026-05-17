@@ -1,3 +1,4 @@
+import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../DocumentLock/documentLockEvents.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 import { putJobGroupsBatch } from "../Endpoints/Pirivate/groups.js";
 
@@ -32,6 +33,9 @@ export async function persistJobGroupsToApi() {
     await putJobGroupsBatch(groupObjects);
     clearPendingJobGroupWrites(queuedIds);
   } catch (err) {
+    if (err?.code === DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE) {
+      return;
+    }
     console.error(`Error saving job groups to API ${err}`);
   }
 }

@@ -6,13 +6,11 @@ import {
   Button,
   Card,
   Checkbox,
-  Chip,
   Grid,
   IconButton,
   Tooltip,
   Typography,
 } from "@mui/material";
-import LockOutlined from "@mui/icons-material/LockOutlined";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useMemo } from "react";
 import { grey, yellow } from "@mui/material/colors";
@@ -22,13 +20,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { useMediaQuery } from "@mui/material";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { STANDARD_TEXT_FORMAT } from "../../../../Context/defaultValues";
-import { USER_JOB_GROUPS_COLLECTION } from "../../../../Functions/DocumentLock/documentLockCollections.js";
-import { selectDocumentLockReadOnly } from "../../../../Functions/DocumentLock/documentLockSelectors.js";
+import { useGroupLockReadOnly } from "../../../../Hooks/DocumentLock/useDocumentLockState";
+import { lockReasonText } from "../../../DocumentLock/LockGatedTooltip";
 
 export function CompactGroupJobCard({ group }) {
-  const groupLockReadOnly = useUsersStore((s) =>
-    selectDocumentLockReadOnly(s, USER_JOB_GROUPS_COLLECTION, group.groupID)
-  );
+  const groupLockReadOnly = useGroupLockReadOnly(group.groupID);
 
   const multiSelect = useUsersStore((state) => state.jobData.multiSelect);
   const { addToMultiSelect, removeFromMultiSelect } =
@@ -109,7 +105,7 @@ export function CompactGroupJobCard({ group }) {
           container
           size={{
             xs: 7,
-            sm: 8
+            sm: 9
           }}
           sx={{
             alignItems: "center",
@@ -129,38 +125,7 @@ export function CompactGroupJobCard({ group }) {
           >
             {group.groupName}
           </Typography>
-          {isMobile && groupLockReadOnly ? (
-            <Chip
-              icon={<LockOutlined sx={{ fontSize: 18 }} />}
-              label="Read-only"
-              size="small"
-              color="warning"
-              variant="outlined"
-              sx={{ maxHeight: 22, flexShrink: 0 }}
-            />
-          ) : null}
         </Grid>
-        {!isMobile ? (
-          <Grid
-            size={1}
-            sx={{
-              alignItems: "center",
-              justifyContent: "center",
-              display: "flex",
-              minHeight: "100%",
-            }}>
-            {groupLockReadOnly ? (
-              <Chip
-                icon={<LockOutlined sx={{ fontSize: 18 }} />}
-                label="Read-only"
-                size="small"
-                color="warning"
-                variant="outlined"
-                sx={{ maxHeight: 22, maxWidth: "100%" }}
-              />
-            ) : null}
-          </Grid>
-        ) : null}
         <Grid
           container
           align="center"
@@ -172,15 +137,28 @@ export function CompactGroupJobCard({ group }) {
             alignItems: "center",
             justifyContent: "center"
           }}>
-          <Button
-            color="primary"
-            onClick={() => navigate({ 
-              to: '/group/$groupID', 
-              params: { groupID: group.groupID } 
-            })}
+          <Tooltip
+            title={
+              groupLockReadOnly
+                ? lockReasonText({
+                    scope: "group",
+                    action: "opens in read-only view",
+                  })
+                : ""
+            }
+            arrow
+            disableHoverListener={!groupLockReadOnly}
           >
-            View
-          </Button>
+            <Button
+              color={groupLockReadOnly ? "warning" : "primary"}
+              onClick={() => navigate({
+                to: '/group/$groupID',
+                params: { groupID: group.groupID }
+              })}
+            >
+              View
+            </Button>
+          </Tooltip>
         </Grid>
         {!isMobile && (
           <Grid
@@ -195,7 +173,10 @@ export function CompactGroupJobCard({ group }) {
             <Tooltip
               title={
                 groupLockReadOnly
-                  ? "Another session holds the edit lock — delete is disabled"
+                  ? lockReasonText({
+                      scope: "group",
+                      action: "delete is disabled",
+                    })
                   : "Remove group from planner"
               }
             >

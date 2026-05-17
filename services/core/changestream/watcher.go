@@ -301,7 +301,8 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 					" (see scripts/mongo-setup.sh CHANGE_STREAM_PREIMAGE_COLLECTIONS or admin collMod)",
 					"component", changestreamLogComponent,
 					"collection", collection,
-					"doc_id", docID)
+					"doc_id", docID,
+					"full_document_before_change_status", changeStreamDocFieldStatus(changeEvent, "fullDocumentBeforeChange"))
 			}
 		}
 	}
@@ -389,7 +390,9 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		"source_session_id", sourceSessionID,
 		"account_id", accountID,
 		"has_document", document != nil,
-		"has_previous_document", previousDocument != nil)
+		"has_previous_document", previousDocument != nil,
+		"full_document_status", changeStreamDocFieldStatus(changeEvent, "fullDocument"),
+		"full_document_before_change_status", changeStreamDocFieldStatus(changeEvent, "fullDocumentBeforeChange"))
 
 	return nil
 }

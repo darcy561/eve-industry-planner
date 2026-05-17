@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
+	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/core/config"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	mongoget "eve-industry-planner/shared/core/mongo/get"
@@ -75,14 +76,20 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 		userDoc.StripRefreshTokenSecretsForTransport()
 	}
 
+	var cloudRefreshTokensOnly []models.RefreshToken
+	if userDoc.UserCloudAccounts {
+		cloudRefreshTokensOnly = userDoc.RefreshTokens
+	}
+
 	response := struct {
-		LinkedJobs                 []int64         `json:"linkedJobs"`
-		LinkedTrans                []int64         `json:"linkedTrans"`
-		LinkedOrders               []int64         `json:"linkedOrders"`
-		UserCloudAccounts          bool            `json:"userCloudAccounts"`
-		HasCompletedFirstLoginFlow bool            `json:"hasCompletedFirstLoginFlow"`
-		ShareCitadelNames          bool            `json:"shareCitadelNames"`
-		MetaData                   models.UserMeta `json:"_meta"`
+		LinkedJobs                 []int64               `json:"linkedJobs"`
+		LinkedTrans                []int64               `json:"linkedTrans"`
+		LinkedOrders               []int64               `json:"linkedOrders"`
+		UserCloudAccounts          bool                  `json:"userCloudAccounts"`
+		HasCompletedFirstLoginFlow bool                  `json:"hasCompletedFirstLoginFlow"`
+		ShareCitadelNames          bool                  `json:"shareCitadelNames"`
+		RefreshTokens              []models.RefreshToken `json:"refreshTokens,omitempty"`
+		MetaData                   models.UserMeta       `json:"_meta"`
 	}{
 		LinkedJobs:                 userDoc.LinkedJobs,
 		LinkedTrans:                userDoc.LinkedTrans,
@@ -90,6 +97,7 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 		UserCloudAccounts:          userDoc.UserCloudAccounts,
 		HasCompletedFirstLoginFlow: userDoc.HasCompletedFirstLoginFlow,
 		ShareCitadelNames:          userDoc.ShareCitadelNames,
+		RefreshTokens:              cloudRefreshTokensOnly,
 		MetaData:                   userDoc.MetaData,
 	}
 
@@ -211,6 +219,7 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 		return
 	}
 
+	auth.SetEsiOAuthStorageCookieFromUserCloud(w, r, userDoc.UserCloudAccounts)
 	w.WriteHeader(http.StatusNoContent)
 
 	metrics.Success()

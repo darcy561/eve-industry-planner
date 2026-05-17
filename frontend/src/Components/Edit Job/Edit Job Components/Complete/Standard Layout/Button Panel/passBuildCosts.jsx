@@ -5,15 +5,19 @@ import {
   showSnackbarError,
 } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
+import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
+import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 
 export function PassBuildCostsButton({ state }) {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
   const { getActiveGroupObject } = useUsersStore.getState().jobData.actions;
+  const jobLockReadOnly = useActiveJobReadOnly(state);
   const buttonText = activeGroupID
     ? "Send Build Costs & Complete"
     : "Send Build Costs";
 
   async function passCost() {
+    if (jobLockReadOnly) return;
     const { messageText } = await passBuildCostsToParentJobs(state.activeJob);
 
     if (activeGroupID) {
@@ -33,16 +37,26 @@ export function PassBuildCostsButton({ state }) {
   }
 
   return (
-    <Tooltip arrow title="Sends the item build cost to all parent jobs.">
-      <Button
-        color="primary"
-        variant="contained"
-        size="small"
-        onClick={passCost}
-        sx={{ margin: 1 }}
-      >
-        {buttonText}
-      </Button>
+    <Tooltip
+      arrow
+      title={
+        jobLockReadOnly
+          ? lockReasonText({ action: "sending build costs is disabled" })
+          : "Sends the item build cost to all parent jobs."
+      }
+    >
+      <span>
+        <Button
+          color="primary"
+          variant="contained"
+          size="small"
+          onClick={passCost}
+          disabled={jobLockReadOnly}
+          sx={{ margin: 1 }}
+        >
+          {buttonText}
+        </Button>
+      </span>
     </Tooltip>
   );
 }

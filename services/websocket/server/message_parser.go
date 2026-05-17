@@ -54,15 +54,6 @@ func (s *Server) parseEventFull(event Event) (string, string, *MessageFormat, er
 	return event.ClientID, action, &msgFormat, nil
 }
 
-// parseEventAction extracts (clientID, action) from an Event
-// This is a convenience wrapper around parseEventFull for cases where full data isn't needed
-// Returns: (clientID, action, error)
-// Returns error if action is missing or empty (incomplete message)
-func (s *Server) parseEventAction(event Event) (string, string, error) {
-	clientID, action, _, err := s.parseEventFull(event)
-	return clientID, action, err
-}
-
 // parseAllMessages parses all messages once and returns parsed results
 // This avoids parsing JSON multiple times - parses full message data upfront
 func (s *Server) parseAllMessages(messages []Event) []parsedMessage {

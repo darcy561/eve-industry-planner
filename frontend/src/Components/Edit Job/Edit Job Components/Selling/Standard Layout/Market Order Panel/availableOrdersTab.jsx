@@ -17,6 +17,8 @@ import {
   formatDateForLocale,
   formatNumberForLocale,
 } from "../../../../../../Functions/Helper/numberParser";
+import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
+import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 
 export function AvailableMarketOrdersTab({
   state,
@@ -29,6 +31,7 @@ export function AvailableMarketOrdersTab({
   );
   const getCorporation =
     useUsersStore.getState().account.actions.getCorporation;
+  const jobLockReadOnly = useActiveJobReadOnly(state);
   return (
     <Grid container>
       <Grid
@@ -134,43 +137,53 @@ export function AvailableMarketOrdersTab({
                   </Grid>
                   <Grid align="center" size={12}>
                     <Tooltip
-                      title="Link Order To Job."
+                      title={
+                        jobLockReadOnly
+                          ? lockReasonText({
+                              action: "linking market orders is disabled",
+                            })
+                          : "Link Order To Job."
+                      }
                       arrow
                       placement="bottom"
                     >
-                      <IconButton
-                        color="primary"
-                        size="small"
-                        onClick={async () => {
-                          try {
-                            const brokersFee = await calcBrokersFee(
-                              order,
-                              queryClient,
-                              citadelBrokersFee
-                            );
-                            const brokersFeeObject = findBrokersFeeEntry(
-                              order,
-                              brokersFee,
-                              queryClient
-                            );
-                            state.activeJob.addMarketOrder(
-                              order,
-                              brokersFeeObject
-                            );
-                            actions.addMarketOrdersForAddition(order.order_id);
-                            actions.updateActiveJob(state.activeJob);
-                            showSnackbarSuccess("Linked");
-                          } catch (error) {
-                            console.error(
-                              "Failed to link market order:",
-                              error
-                            );
-                            showSnackbarError("Failed to link market order");
-                          }
-                        }}
-                      >
-                        <AddLinkIcon />
-                      </IconButton>
+                      <span>
+                        <IconButton
+                          color="primary"
+                          size="small"
+                          disabled={jobLockReadOnly}
+                          onClick={async () => {
+                            if (jobLockReadOnly) return;
+                            try {
+                              const brokersFee = await calcBrokersFee(
+                                order,
+                                queryClient,
+                                citadelBrokersFee
+                              );
+                              const brokersFeeObject = findBrokersFeeEntry(
+                                order,
+                                brokersFee,
+                                queryClient
+                              );
+                              state.activeJob.addMarketOrder(
+                                order,
+                                brokersFeeObject
+                              );
+                              actions.addMarketOrdersForAddition(order.order_id);
+                              actions.updateActiveJob(state.activeJob);
+                              showSnackbarSuccess("Linked");
+                            } catch (error) {
+                              console.error(
+                                "Failed to link market order:",
+                                error
+                              );
+                              showSnackbarError("Failed to link market order");
+                            }
+                          }}
+                        >
+                          <AddLinkIcon />
+                        </IconButton>
+                      </span>
                     </Tooltip>
                   </Grid>
                 </Grid>

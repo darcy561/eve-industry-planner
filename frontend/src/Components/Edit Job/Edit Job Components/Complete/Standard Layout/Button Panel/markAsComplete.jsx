@@ -1,5 +1,10 @@
 import { Button } from "@mui/material";
 import useUsersStore from "../../../../../../Zustand/usersStore";
+import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
+import {
+  LockGatedTooltip,
+  lockReasonText,
+} from "../../../../../DocumentLock/LockGatedTooltip";
 
 export function MarkAsCompleteButton({ state, actions }) {
   const { groupArray } = useUsersStore((state) => state.jobData);
@@ -7,10 +12,12 @@ export function MarkAsCompleteButton({ state, actions }) {
     (state) => state.jobData.actions
   );
   const { activeGroupID } = useUsersStore((state) => state.jobData);
+  const jobLockReadOnly = useActiveJobReadOnly(state);
 
   const activeGroupObject = groupArray.find((i) => i.groupID === activeGroupID);
 
   function toggleMarkJobAsComplete() {
+    if (jobLockReadOnly) return;
     if (!activeGroupObject) return;
     if (activeGroupObject.areComplete.has(state.activeJob.jobID)) {
       activeGroupObject.removeAreComplete(state.activeJob.jobID);
@@ -30,16 +37,22 @@ export function MarkAsCompleteButton({ state, actions }) {
   }
 
   return (
-    <Button
-      color="primary"
-      variant="contained"
-      size="small"
-      onClick={toggleMarkJobAsComplete}
-      sx={{ margin: 1 }}
+    <LockGatedTooltip
+      readOnly={jobLockReadOnly}
+      reason={lockReasonText({ action: "completion state is disabled" })}
     >
-      {activeGroupObject.areComplete.has(state.activeJob.jobID)
-        ? "Mark As Incomplete"
-        : "Mark As Complete"}
-    </Button>
+      <Button
+        color="primary"
+        variant="contained"
+        size="small"
+        onClick={toggleMarkJobAsComplete}
+        disabled={jobLockReadOnly}
+        sx={{ margin: 1 }}
+      >
+        {activeGroupObject.areComplete.has(state.activeJob.jobID)
+          ? "Mark As Incomplete"
+          : "Mark As Complete"}
+      </Button>
+    </LockGatedTooltip>
   );
 }

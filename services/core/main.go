@@ -9,6 +9,7 @@ import (
 	"eve-industry-planner/core/commands"
 	"eve-industry-planner/core/metrics"
 	"eve-industry-planner/core/scheduler"
+	"eve-industry-planner/core/singleton"
 	"eve-industry-planner/core/startup"
 	mongoindex "eve-industry-planner/shared/core/mongo/indexing"
 	"eve-industry-planner/shared/logs"
@@ -91,6 +92,16 @@ func main() {
 		return
 	}
 	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) { changestreamStop() })
+
+	// Singleton workloads (e.g. doc-lock expiry subscriber). Each Job runs
+	// on exactly one core replica at a time via Redis-backed leader
+	// election. The catalog lives in `singleton/jobs.go`.
+	singletonStop, err := singleton.Start(clients)
+	if err != nil {
+		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
+		return
+	}
+	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) { singletonStop() })
 
 	// Mark core as healthy/ready for dependent services (e.g. api) via docker healthcheck.
 	if err := startup.WriteCoreReadyMarker(ctx); err != nil {

@@ -1,4 +1,5 @@
 import useUsersStore from "../../Zustand/usersStore";
+import { isTranquilityOnlineFromCache } from "../../Hooks/React Query/tranquilityServerStatus.js";
 
 /**
  * Get current query-enabled state without React subscriptions.
@@ -6,6 +7,5 @@ import useUsersStore from "../../Zustand/usersStore";
  */
 export function isQueryExecutionEnabled() {
   const isLoggedIn = useUsersStore.getState().account.isLoggedIn;
-  const eveServerStatus = useUsersStore.getState().worldData.eveServerStatus;
-  return isLoggedIn && eveServerStatus;
+  return isLoggedIn && isTranquilityOnlineFromCache();
 }

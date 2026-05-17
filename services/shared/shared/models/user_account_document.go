@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // UserMeta is user document metadata stored under BSON/JSON `_meta`, aligned with Job.JobMetaData
 // (shared MetaData for accountID + lastModified; additional lifecycle fields on the struct).
@@ -20,7 +23,7 @@ type UserAccountDocument struct {
 	UserCloudAccounts          bool           `bson:"userCloudAccounts" json:"userCloudAccounts"`
 	HasCompletedFirstLoginFlow bool           `bson:"hasCompletedFirstLoginFlow" json:"hasCompletedFirstLoginFlow"`
 	ShareCitadelNames          bool           `bson:"shareCitadelNames" json:"shareCitadelNames"`
-	RefreshTokens              []RefreshToken `bson:"refreshTokens" json:"refreshTokens"`
+	RefreshTokens              []RefreshToken `bson:"refreshTokens" json:"refreshTokens,omitempty"`
 	MetaData                   UserMeta       `bson:"_meta" json:"_meta"`
 }
 
@@ -46,19 +49,24 @@ func DefaultUserAccountDocument(accountID string, now time.Time) UserAccountDocu
 	}
 }
 
-// StripRefreshTokenSecretsForTransport removes all refresh-token material from the user
-// document while preserving CharacterHash entries so clients can reconcile linked alts
-// without receiving secrets over WebSocket or HTTP GET.
+// StripRefreshTokenSecretsForTransport removes OAuth secrets from transport payloads.
+// For cloud accounts it keeps one row per linked character with CharacterHash only (same roster signal as
+// GET /oauth-credentials); for non-cloud it drops refreshTokens entirely.
 func (u *UserAccountDocument) StripRefreshTokenSecretsForTransport() {
 	if u == nil {
 		return
 	}
+	if !u.UserCloudAccounts {
+		u.RefreshTokens = nil
+		return
+	}
 	out := make([]RefreshToken, 0, len(u.RefreshTokens))
 	for _, t := range u.RefreshTokens {
-		if t.CharacterHash == "" {
+		h := strings.TrimSpace(t.CharacterHash)
+		if h == "" {
 			continue
 		}
-		out = append(out, RefreshToken{CharacterHash: t.CharacterHash})
+		out = append(out, RefreshToken{CharacterHash: h})
 	}
 	u.RefreshTokens = out
 }

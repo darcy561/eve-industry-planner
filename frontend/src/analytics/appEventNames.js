@@ -1,7 +1,7 @@
 /**
  * Allowlisted event keys for POST /api/v1/analytics/events batch items (snake_case).
  * Prefer backend OTel (jobs, archived-jobs, auth/login, etc.) when the same action hits the API.
- * Keep in sync with allowedFrontendAnalyticsEvents in services/api/v1endpoints/frontend_analytics.go
+ * Keep in sync with allowedFrontendAnalyticsEvents in services/api/v1endpoints/frontendAnalytics.go
  */
 export const AppEvent = Object.freeze({
   NEW_JOB: "new_job",

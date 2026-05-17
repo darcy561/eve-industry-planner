@@ -2,6 +2,7 @@ package sso
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -59,7 +60,28 @@ func EveSSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *share
 		m.Errors.WithLabelValues("sso_refresh_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "sso_refresh_error", "error", err)
 		logs.WarnCtx(ctx, "failed to refresh access token", "error", err)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":     "sso_upstream_token_request",
+			"sso_endpoint":      "token_refresh",
+			"refresh_token_len": len(refreshToken),
+			"metric":            "eve_sso_token_refresh",
+		})
 		handleSSOProviderError(w, r, err, "Invalid refresh token")
+		return
+	}
+
+	if tokenResponse.AccessToken == "" {
+		duration := time.Since(start)
+		m.Errors.WithLabelValues("no_access_token").Inc(ctx)
+		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "no_access_token")
+		logs.WarnCtx(ctx, "no access token received from EVE SSO refresh")
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class": "sso_empty_access_token",
+			"sso_endpoint":  "token_refresh",
+			"metric":        "eve_sso_token_refresh",
+			"expires_in":    tokenResponse.ExpiresIn,
+		})
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "No access token received from EVE SSO", errors.New("empty access token from EVE SSO"))
 		return
 	}
 
@@ -81,6 +103,11 @@ func EveSSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *share
 		m.Errors.WithLabelValues("encode_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "encode_error", "error", err)
 		logs.ErrorCtx(ctx, "failed to encode response", "error", err)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class": "sso_response_encode",
+			"sso_endpoint":  "token_refresh",
+			"metric":        "eve_sso_token_refresh",
+		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}

@@ -29,9 +29,6 @@ export async function handleUserJobGroupDelete(ctx) {
       })
     );
     actions.clearPendingJobGroupWrites(docID);
-    void import("../syncJobGroupWebSocketSubscriptions.js").then((m) =>
-      m.syncJobGroupWebSocketSubscriptions()
-    );
     rs.setCursorMs(docKey, Date.now());
     return;
   }
@@ -52,11 +49,8 @@ export async function handleUserJobGroupDelete(ctx) {
     })
   );
 
-  actions.replaceGroupArray(next, { skipRealtimeResync: true });
+  actions.replaceGroupArray(next);
   actions.clearPendingJobGroupWrites(docID);
-  void import("../syncJobGroupWebSocketSubscriptions.js").then((m) =>
-    m.syncJobGroupWebSocketSubscriptions()
-  );
   rs.setCursorMs(docKey, Date.now());
 }
 
@@ -84,18 +78,12 @@ export function handleUserJobGroupUpsert(ctx) {
   const actions = useUsersStore.getState().jobData.actions;
   const idx = groupArray.findIndex((g) => g.groupID === gid);
   const copy = [...groupArray];
-  const wasNew = idx < 0;
   if (idx >= 0) {
     copy[idx] = instance;
   } else {
     copy.push(instance);
   }
-  actions.replaceGroupArray(copy, { skipRealtimeResync: true });
-  if (wasNew) {
-    void import("../syncJobGroupWebSocketSubscriptions.js").then((m) =>
-      m.syncJobGroupWebSocketSubscriptions()
-    );
-  }
+  actions.replaceGroupArray(copy);
   actions.clearPendingJobGroupWrites(gid);
   rs.setCursorMs(docKey, remoteMs);
 }

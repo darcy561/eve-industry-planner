@@ -4,7 +4,6 @@ import {
   Box,
   Button,
   Checkbox,
-  Chip,
   Grid,
   Grow,
   IconButton,
@@ -12,7 +11,6 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import LockOutlined from "@mui/icons-material/LockOutlined";
 import { useMemo } from "react";
 import { deleteGroupWithoutJobs } from "../../../../Functions/Groups/deleteGroupWithoutJobs.js";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -26,13 +24,11 @@ import { useNavigate } from "@tanstack/react-router";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { STANDARD_TEXT_FORMAT } from "../../../../Context/defaultValues";
 import ContentPanel from "../../../../Styled Components/Paper/ContentPanel";
-import { USER_JOB_GROUPS_COLLECTION } from "../../../../Functions/DocumentLock/documentLockCollections.js";
-import { selectDocumentLockReadOnly } from "../../../../Functions/DocumentLock/documentLockSelectors.js";
+import { useGroupLockReadOnly } from "../../../../Hooks/DocumentLock/useDocumentLockState";
+import { lockReasonText } from "../../../DocumentLock/LockGatedTooltip";
 
 export function ClassicGroupJobCard({ group }) {
-  const groupLockReadOnly = useUsersStore((s) =>
-    selectDocumentLockReadOnly(s, USER_JOB_GROUPS_COLLECTION, group.groupID)
-  );
+  const groupLockReadOnly = useGroupLockReadOnly(group.groupID);
 
   const multiSelect = useUsersStore((state) => state.jobData.multiSelect);
   const { addToMultiSelect, removeFromMultiSelect } =
@@ -131,7 +127,10 @@ export function ClassicGroupJobCard({ group }) {
                 <Tooltip
                   title={
                     groupLockReadOnly
-                      ? "Another session holds the edit lock — delete is disabled"
+                      ? lockReasonText({
+                          scope: "group",
+                          action: "delete is disabled",
+                        })
                       : "Remove group from planner"
                   }
                 >
@@ -167,16 +166,6 @@ export function ClassicGroupJobCard({ group }) {
                 gap: 0.5,
               }}
             >
-              {groupLockReadOnly ? (
-                <Chip
-                  icon={<LockOutlined sx={{ fontSize: 18 }} />}
-                  label="Read-only"
-                  size="small"
-                  color="warning"
-                  variant="outlined"
-                  sx={{ maxHeight: 24 }}
-                />
-              ) : null}
               <Typography color="secondary" align="center" variant="body1">
                 {group.groupName}
               </Typography>
@@ -202,17 +191,30 @@ export function ClassicGroupJobCard({ group }) {
             </Box>
             <Box sx={{ display: "flex", flexDirection: "column", marginTop: "auto", width: "100%" }}>
               <Box sx={{ display: "flex", justifyContent: "center", marginTop: 0.5 }}>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  onClick={() => navigate({
-                    to: '/group/$groupID',
-                    params: { groupID: group.groupID }
-                  })}
-                  sx={{ height: "25px", width: "100px" }}
+                <Tooltip
+                  title={
+                    groupLockReadOnly
+                      ? lockReasonText({
+                          scope: "group",
+                          action: "opens in read-only view",
+                        })
+                      : ""
+                  }
+                  arrow
+                  disableHoverListener={!groupLockReadOnly}
                 >
-                  View
-                </Button>
+                  <Button
+                    variant="outlined"
+                    color={groupLockReadOnly ? "warning" : "primary"}
+                    onClick={() => navigate({
+                      to: '/group/$groupID',
+                      params: { groupID: group.groupID }
+                    })}
+                    sx={{ height: "25px", width: "100px" }}
+                  >
+                    View
+                  </Button>
+                </Tooltip>
               </Box>
               <Box
                 sx={{

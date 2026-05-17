@@ -26,6 +26,8 @@ import { useGetAllCharacterMarketOrders } from "../../../../../../Hooks/EveEsi/C
 import { useGetAllCharacterHistoricMarketOrders } from "../../../../../../Hooks/EveEsi/Character/useGetAllCharacterHistoricMarketOrders";
 import { useGetAllCorporationMarketOrders } from "../../../../../../Hooks/EveEsi/Corporation/useGetAllCorporationMarketOrders";
 import { useGetAllCorporationHistoricMarketOrders } from "../../../../../../Hooks/EveEsi/Corporation/useGetAllCorporationHistoricMarketOrders";
+import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
+import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 
 export function AvailableTransactionsPanel({
   state,
@@ -38,6 +40,7 @@ export function AvailableTransactionsPanel({
   const getCorporation =
     useUsersStore.getState().account.actions.getCorporation;
   const queryClient = useQueryClient();
+  const jobLockReadOnly = useActiveJobReadOnly(state);
   // Subscribe to transaction and journal cache updates using React Query hooks
   // This ensures the component re-renders when transaction data updates
   const {
@@ -268,20 +271,36 @@ export function AvailableTransactionsPanel({
                       md: 1,
                     }}
                   >
-                    <IconButton
-                      size="small"
-                      color="primary"
-                      onClick={() => {
-                        state.activeJob.addTransaction(tData, activeOrder);
-                        actions.addTransactionsForAddition(
-                          tData.transaction_id
-                        );
-                        actions.updateActiveJob(state.activeJob);
-                        showSnackbarSuccess("Linked");
-                      }}
+                    <Tooltip
+                      title={
+                        jobLockReadOnly
+                          ? lockReasonText({
+                              action: "linking transactions is disabled",
+                            })
+                          : ""
+                      }
+                      arrow
+                      disableHoverListener={!jobLockReadOnly}
                     >
-                      <AddIcon />
-                    </IconButton>
+                      <span>
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          disabled={jobLockReadOnly}
+                          onClick={() => {
+                            if (jobLockReadOnly) return;
+                            state.activeJob.addTransaction(tData, activeOrder);
+                            actions.addTransactionsForAddition(
+                              tData.transaction_id
+                            );
+                            actions.updateActiveJob(state.activeJob);
+                            showSnackbarSuccess("Linked");
+                          }}
+                        >
+                          <AddIcon />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                   </Grid>
                 </Grid>
               );
@@ -297,20 +316,34 @@ export function AvailableTransactionsPanel({
         </Grid>
         {transactionData.length > 1 && (
           <Grid align="right" sx={{ marginTop: 1 }} size={12}>
-            <Button
-              variant="contained"
-              size="small"
-              onClick={() => {
-                state.activeJob.addTransaction(transactionData, activeOrder);
-                actions.addTransactionsForAddition(
-                  transactionData.map((trans) => trans.transaction_id)
-                );
-                actions.updateActiveJob(state.activeJob);
-                showSnackbarSuccess("All Transactions Linked");
-              }}
+            <Tooltip
+              title={
+                jobLockReadOnly
+                  ? lockReasonText({ action: "bulk linking is disabled" })
+                  : ""
+              }
+              arrow
+              disableHoverListener={!jobLockReadOnly}
             >
-              Link All
-            </Button>
+              <span>
+                <Button
+                  variant="contained"
+                  size="small"
+                  disabled={jobLockReadOnly}
+                  onClick={() => {
+                    if (jobLockReadOnly) return;
+                    state.activeJob.addTransaction(transactionData, activeOrder);
+                    actions.addTransactionsForAddition(
+                      transactionData.map((trans) => trans.transaction_id)
+                    );
+                    actions.updateActiveJob(state.activeJob);
+                    showSnackbarSuccess("All Transactions Linked");
+                  }}
+                >
+                  Link All
+                </Button>
+              </span>
+            </Tooltip>
           </Grid>
         )}
       </Grid>

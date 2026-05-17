@@ -13,12 +13,15 @@ import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatDateForLocale, formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
+import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
+import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 
 export function LinkedTransactionPanel(props) {
   const { state, actions, activeOrder } = props;
   const [newTransactionTrigger, updateNewTransactionTrigger] = useState(false);
   const getCorporation =
     useUsersStore.getState().account.actions.getCorporation;
+  const jobLockReadOnly = useActiveJobReadOnly(state);
 
   return (
     <ContentPanel
@@ -28,10 +31,14 @@ export function LinkedTransactionPanel(props) {
       enableMenu
       menuItems={[
         {
-          label: "Add Manual Transaction",
+          label: jobLockReadOnly
+            ? "Add Manual Transaction (locked)"
+            : "Add Manual Transaction",
           onClick: () => {
+            if (jobLockReadOnly) return;
             updateNewTransactionTrigger(true);
           },
+          disabled: jobLockReadOnly,
         },
       ]}
     >
@@ -169,20 +176,36 @@ export function LinkedTransactionPanel(props) {
                         xs: 12,
                         md: 1
                       }}>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => {
-                          state.activeJob.removeTransaction(tData);
-                          actions.addTransactionsForRemoval(
-                            tData.transaction_id
-                          );
-                          actions.updateActiveJob(state.activeJob);
-                          showSnackbarError("Unlinked");
-                        }}
+                      <Tooltip
+                        title={
+                          jobLockReadOnly
+                            ? lockReasonText({
+                                action: "unlinking transactions is disabled",
+                              })
+                            : ""
+                        }
+                        arrow
+                        disableHoverListener={!jobLockReadOnly}
                       >
-                        <ClearIcon />
-                      </IconButton>
+                        <span>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            disabled={jobLockReadOnly}
+                            onClick={() => {
+                              if (jobLockReadOnly) return;
+                              state.activeJob.removeTransaction(tData);
+                              actions.addTransactionsForRemoval(
+                                tData.transaction_id
+                              );
+                              actions.updateActiveJob(state.activeJob);
+                              showSnackbarError("Unlinked");
+                            }}
+                          >
+                            <ClearIcon />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
                     </Grid>
                   </Grid>
                 );
