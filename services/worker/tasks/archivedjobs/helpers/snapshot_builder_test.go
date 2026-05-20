@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 func TestParseLineDate(t *testing.T) {

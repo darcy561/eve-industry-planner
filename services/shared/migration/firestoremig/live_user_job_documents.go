@@ -9,8 +9,8 @@ import (
 	"time"
 
 	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/shared/archiveimport"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/migration/archiveimport"
+	"eve-industry-planner/shared/models"
 
 	"cloud.google.com/go/firestore"
 	"go.mongodb.org/mongo-driver/bson"

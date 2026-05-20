@@ -3,7 +3,7 @@ package statistics
 import (
 	"sort"
 
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 type rollupAcc struct {

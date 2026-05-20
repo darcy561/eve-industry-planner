@@ -5,7 +5,7 @@ import (
 	"time"
 
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 	"eve-industry-planner/shared/telemetry/natsprop"
 	"eve-industry-planner/shared/telemetry/workermetrics"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"

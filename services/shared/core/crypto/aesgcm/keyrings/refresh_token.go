@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	corecrypto "eve-industry-planner/shared/core/crypto"
+	corecrypto "eve-industry-planner/shared/core/crypto/aesgcm"
 
 	"go.mongodb.org/mongo-driver/bson"
 )

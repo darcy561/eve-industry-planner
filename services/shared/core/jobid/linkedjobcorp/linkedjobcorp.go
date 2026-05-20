@@ -1,10 +1,10 @@
 package linkedjobcorp
 
 import (
-	corecrypto "eve-industry-planner/shared/core/crypto"
+	corecrypto "eve-industry-planner/shared/core/crypto/aesgcm"
 	"eve-industry-planner/shared/core/sealedfields"
 	"eve-industry-planner/shared/core/sealedfields/entityids"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 // Resolve returns linked-job corporation IDs keyed by LinkedESIJob.JobID.

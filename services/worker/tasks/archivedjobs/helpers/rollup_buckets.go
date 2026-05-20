@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"eve-industry-planner/shared/core/authzhmac"
-	"eve-industry-planner/shared/shared/models"
+	authzhmac "eve-industry-planner/shared/core/crypto/authzhmac/helper"
+	"eve-industry-planner/shared/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"

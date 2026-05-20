@@ -9,7 +9,7 @@ import (
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/documentlock"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 )
 
 type lockBody struct {

@@ -8,7 +8,7 @@ import (
 	"eve-industry-planner/api/middleware"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 	"eve-industry-planner/shared/telemetry"
 	wsserver "eve-industry-planner/websocket/server"
 )

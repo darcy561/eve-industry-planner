@@ -3,7 +3,7 @@ package archivestats
 import (
 	"testing"
 
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 func TestMonthsInRollupPeriod(t *testing.T) {

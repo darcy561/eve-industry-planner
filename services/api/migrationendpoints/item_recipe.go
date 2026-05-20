@@ -8,7 +8,7 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/migration"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 	"eve-industry-planner/shared/logs"
 )
 

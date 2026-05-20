@@ -9,7 +9,7 @@ import (
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/core/evesso"
 	mongoput "eve-industry-planner/shared/core/mongo/put"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"

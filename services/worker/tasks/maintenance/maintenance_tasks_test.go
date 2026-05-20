@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"

@@ -8,7 +8,7 @@ import (
 	"eve-industry-planner/shared/core/jobid/corpinference"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/core/sealedfields/entityids"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 type orderIdentityMeta struct {

@@ -13,7 +13,7 @@ import (
 	"time"
 
 	esitypes "eve-industry-planner/shared/core/esi/types"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
 	"github.com/redis/go-redis/v9"

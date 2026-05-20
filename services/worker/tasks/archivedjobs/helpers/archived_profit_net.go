@@ -1,6 +1,6 @@
 package helpers
 
-import "eve-industry-planner/shared/shared/models"
+import "eve-industry-planner/shared/models"
 
 // NetArchivedProfitLoss is headline economics for Mongo build_stats / corp_build_stats lifetime rows
 // and segment breakdowns: sales − broker fees − transaction fees − total job cost (same basis as

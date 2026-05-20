@@ -16,7 +16,7 @@ import (
 	evesso "eve-industry-planner/shared/core/evesso"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 

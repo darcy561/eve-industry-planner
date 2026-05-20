@@ -3,12 +3,12 @@ package helpers
 import (
 	"sort"
 
-	"eve-industry-planner/shared/core/authzhmac"
-	corecrypto "eve-industry-planner/shared/core/crypto"
+	authzhmac "eve-industry-planner/shared/core/crypto/authzhmac/helper"
+	corecrypto "eve-industry-planner/shared/core/crypto/aesgcm"
 	"eve-industry-planner/shared/core/jobid/corpinference"
 	"eve-industry-planner/shared/core/sealedfields"
 	"eve-industry-planner/shared/core/sealedfields/entityids"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 type CorpLifetimeKey struct {

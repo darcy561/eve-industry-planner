@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 func TestComputeBuildStatSnapshot_matchesArchievedJobsMath(t *testing.T) {

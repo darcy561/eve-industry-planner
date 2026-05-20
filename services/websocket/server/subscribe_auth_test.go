@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 )
 
 func TestDocSubscribeAuthorized_singletonAccountDocs(t *testing.T) {

@@ -1,8 +1,10 @@
-package authzhmac
+package helper
 
 import (
 	"os"
 	"testing"
+
+	"eve-industry-planner/shared/core/crypto/authzhmac/ref"
 )
 
 func TestRefDeterminismAndKindSeparation(t *testing.T) {
@@ -29,30 +31,6 @@ func TestRefDeterminismAndKindSeparation(t *testing.T) {
 	}
 	if corp1 == charRef {
 		t.Fatalf("kind separation failed, corp and char refs should differ")
-	}
-}
-
-func TestParseAndValidateShape(t *testing.T) {
-	h, err := New("v2", []byte("0123456789abcdef0123456789abcdef"))
-	if err != nil {
-		t.Fatalf("new helper: %v", err)
-	}
-	ref, err := h.RefFromAllianceID(456)
-	if err != nil {
-		t.Fatalf("alliance ref: %v", err)
-	}
-	version, kind, ok := ParseRefVersion(ref)
-	if !ok {
-		t.Fatalf("ParseRefVersion returned !ok for %q", ref)
-	}
-	if version != "v2" || kind != "alliance" {
-		t.Fatalf("unexpected parse result: version=%q kind=%q", version, kind)
-	}
-	if !ValidateRefShape(ref) {
-		t.Fatalf("ValidateRefShape should accept %q", ref)
-	}
-	if ValidateRefShape("v2_alliance_bad+token") {
-		t.Fatal("ValidateRefShape should reject non-base64url token chars")
 	}
 }
 
@@ -88,11 +66,11 @@ func TestNewFromEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected NewFromEnv success, got err: %v", err)
 	}
-	ref, err := h.RefFromCorporationID(123)
+	refStr, err := h.RefFromCorporationID(123)
 	if err != nil {
 		t.Fatalf("RefFromCorporationID failed: %v", err)
 	}
-	if version, _, ok := ParseRefVersion(ref); !ok || version != "v9" {
-		t.Fatalf("unexpected version in ref %q", ref)
+	if version, _, ok := ref.ParseRefVersion(refStr); !ok || version != "v9" {
+		t.Fatalf("unexpected version in ref %q", refStr)
 	}
 }

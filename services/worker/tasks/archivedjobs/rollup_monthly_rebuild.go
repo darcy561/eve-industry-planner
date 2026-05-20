@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"eve-industry-planner/shared/core/authzhmac"
-	corecrypto "eve-industry-planner/shared/core/crypto"
+	authzhmac "eve-industry-planner/shared/core/crypto/authzhmac/helper"
+	corecrypto "eve-industry-planner/shared/core/crypto/aesgcm"
 	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	archivedjobshelpers "eve-industry-planner/worker/tasks/archivedjobs/helpers"
 
 	"go.mongodb.org/mongo-driver/bson"

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 )
 
 // Router handles all /api/v1/groups routes.

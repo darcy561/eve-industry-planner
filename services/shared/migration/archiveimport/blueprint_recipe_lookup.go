@@ -10,8 +10,8 @@ import (
 // worker SDE artifact live_data/recipeList.json (e.g. services/worker/tmp/sde/live_data/recipeList.json).
 // Regenerate, then replace data/product_blueprint_typeid.json:
 //
-//	python3 -c 'import json; r=json.load(open("services/worker/tmp/sde/live_data/recipeList.json")); m={str(x["itemID"]):int(x["blueprintTypeID"]) for x in r if x.get("blueprintTypeID") is not None}; json.dump(m, open("services/shared/shared/archiveimport/data/product_blueprint_typeid.json","w"), separators=(",",":"))'
-//	python3 -c 'import json; r=json.load(open("services/worker/tmp/sde/live_data/recipeList.json")); m={str(x["itemID"]):int(x["metaGroupID"]) for x in r if "metaGroupID" in x}; json.dump(m, open("services/shared/shared/archiveimport/data/product_meta_groupid.json","w"), separators=(",",":"))'
+//	python3 -c 'import json; r=json.load(open("services/worker/tmp/sde/live_data/recipeList.json")); m={str(x["itemID"]):int(x["blueprintTypeID"]) for x in r if x.get("blueprintTypeID") is not None}; json.dump(m, open("services/shared/migration/archiveimport/data/product_blueprint_typeid.json","w"), separators=(",",":"))'
+//	python3 -c 'import json; r=json.load(open("services/worker/tmp/sde/live_data/recipeList.json")); m={str(x["itemID"]):int(x["metaGroupID"]) for x in r if "metaGroupID" in x}; json.dump(m, open("services/shared/migration/archiveimport/data/product_meta_groupid.json","w"), separators=(",",":"))'
 //
 //go:embed data/product_blueprint_typeid.json
 var productBlueprintTypeIDJSON []byte

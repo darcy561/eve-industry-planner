@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 // YearMonth is a calendar month.

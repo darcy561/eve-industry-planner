@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"eve-industry-planner/shared/core/documentlock"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 )
 
 func handleViewerArrived(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {

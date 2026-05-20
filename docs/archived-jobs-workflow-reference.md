@@ -322,8 +322,8 @@ When changing archived-job logic, verify all of:
   - `services/api/v1endpoints/statistics/getBuildStatsRollup.go`
   - `services/api/v1endpoints/statistics/rollup_buckets_query.go`
 - Models:
-  - `services/shared/shared/models/archived_job_stats.go`
-  - `services/shared/shared/models/build_stats.go`
+  - `services/shared/models/archived_job_stats.go`
+  - `services/shared/models/build_stats.go`
 
 ## Maintenance Note
 

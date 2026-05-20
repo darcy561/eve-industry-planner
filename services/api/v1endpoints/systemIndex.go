@@ -11,7 +11,7 @@ import (
 	esitypes "eve-industry-planner/shared/core/esi/types"
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"github.com/redis/go-redis/v9"

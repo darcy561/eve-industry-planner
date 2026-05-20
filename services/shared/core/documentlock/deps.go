@@ -5,7 +5,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	mongodriver "go.mongodb.org/mongo-driver/mongo"
 
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 )
 
 // Deps holds infrastructure used by document-lock operations (HTTP, WebSocket, subscribers).

@@ -3,7 +3,7 @@ package documentlocks
 import (
 	"net/http"
 
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 )
 
 // Router serves /api/v1/document-locks/{action}

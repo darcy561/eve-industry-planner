@@ -7,7 +7,7 @@ import (
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/appconfig"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 

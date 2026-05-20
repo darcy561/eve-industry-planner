@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 )
 
 // RunPurgeWorkerQueues removes all Asynq keys from Redis (pattern: asynq:*).

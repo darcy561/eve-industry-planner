@@ -11,7 +11,7 @@ import (
 	natscore "eve-industry-planner/shared/core/nats"
 	sdemetrics "eve-industry-planner/core/metrics/sde"
 	sdecore "eve-industry-planner/shared/core/sde"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 	"eve-industry-planner/shared/logs"
 	taskscore "eve-industry-planner/shared/tasks"
 )

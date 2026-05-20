@@ -3,7 +3,7 @@ package archivedjobs
 import (
 	"net/http"
 
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 )
 
 // Router routes /api/v1/archived-jobs (batch upsert archived job payloads to Mongo).

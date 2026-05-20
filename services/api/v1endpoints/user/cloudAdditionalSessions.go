@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	corecrypto "eve-industry-planner/shared/core/crypto"
+	corecrypto "eve-industry-planner/shared/core/crypto/aesgcm"
 	evesso "eve-industry-planner/shared/core/evesso"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"

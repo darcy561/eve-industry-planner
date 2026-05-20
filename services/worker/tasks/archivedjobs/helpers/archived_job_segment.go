@@ -1,6 +1,6 @@
 package helpers
 
-import "eve-industry-planner/shared/shared/models"
+import "eve-industry-planner/shared/models"
 
 // ArchivedJobStatsSegment partitions archived snapshot rows for aggregate breakdown
 // (aligned with the Blueprint Archive dialog and Mongo build_stats.breakdown).

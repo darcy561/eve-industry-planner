@@ -10,7 +10,7 @@ import (
 
 // DefaultCanonicalBuildVer can be set at link time for minimal images, e.g.
 //
-//	-ldflags '-X eve-industry-planner/shared/shared/archiveimport.DefaultCanonicalBuildVer=0.8.05'
+//	-ldflags '-X eve-industry-planner/shared/migration/archiveimport.DefaultCanonicalBuildVer=0.8.05'
 var DefaultCanonicalBuildVer string
 
 // ResolveCanonicalBuildVer returns a migration/trace string for logs and CLI output.

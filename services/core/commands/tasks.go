@@ -13,7 +13,7 @@ import (
 	archivedjobsched "eve-industry-planner/core/scheduler/archivedjobs"
 	"eve-industry-planner/core/scheduler/contract"
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 	taskscore "eve-industry-planner/shared/tasks"
 )
 

@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"eve-industry-planner/shared/core/authzhmac"
+	authzhmac "eve-industry-planner/shared/core/crypto/authzhmac/helper"
 	mongoindex "eve-industry-planner/shared/core/mongo/indexing"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 	"eve-industry-planner/shared/telemetry"
 	asynqpkg "eve-industry-planner/worker/asynq"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"

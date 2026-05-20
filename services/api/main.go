@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
+	authzhmac "eve-industry-planner/shared/core/crypto/authzhmac/helper"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 	"eve-industry-planner/shared/telemetry"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
@@ -32,6 +33,11 @@ func main() {
 	}
 	ts := teleShutdown
 	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) { _ = ts(c) })
+
+	if _, err := authzhmac.NewFromEnv(); err != nil {
+		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
+		return
+	}
 
 	apimetrics.RegisterSSORefreshDistinctGauges(clients.Redis)
 	apimetrics.RegisterAuthSessionDistinctGauges(clients.Redis)

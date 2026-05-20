@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 func ym(y, m int) int { return y*12 + m }

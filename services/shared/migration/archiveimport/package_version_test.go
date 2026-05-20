@@ -11,7 +11,7 @@ func TestVersionFromPackageJSON(t *testing.T) {
 	if !ok {
 		t.Fatal("caller")
 	}
-	// .../services/shared/shared/archiveimport → repo root
+	// .../services/shared/migration/archiveimport → repo root
 	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", "..", ".."))
 	p := filepath.Join(repoRoot, "frontend", "package.json")
 	v, err := VersionFromPackageJSON(p)

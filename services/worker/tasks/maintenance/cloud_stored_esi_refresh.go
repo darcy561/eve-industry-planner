@@ -11,7 +11,7 @@ import (
 	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	esicore "eve-industry-planner/worker/esi"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 

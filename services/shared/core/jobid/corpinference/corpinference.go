@@ -1,6 +1,6 @@
 package corpinference
 
-import "eve-industry-planner/shared/shared/models"
+import "eve-industry-planner/shared/models"
 
 const (
 	StatusKnown     = "known"

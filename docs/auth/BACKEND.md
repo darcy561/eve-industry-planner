@@ -399,8 +399,7 @@ Multiple tabs share one `sessionID`; the WS layer does **not** evict by session 
 | **EVE ESI access JWT** | Verified with CCP's JWKS via `services/api/helper/sso` (`ValidateEveTokenAndExtractHash`). Audience claim is `cfg.EveSSOClientID`. | `auth_helpers.go` |
 | **Planner refresh token** | Opaque random UUID. Stored as plaintext JSON in Redis with a 7d TTL. **No** at-rest encryption — Redis is the trust boundary. | `refresh_token.go` |
 | **Planner session id** | Opaque random UUID. Stored inside `account_sessions:<accountID>`. Cookie value is the session id directly. | `refresh_token.go` |
-| **ESI refresh token at rest** (cloud accounts only) | AES-GCM via a keyring from env (`REFRESH_TOKEN_AES_KEY`, optional `REFRESH_TOKEN_AES_KEY_VERSION`, optional `REFRESH_TOKEN_AES_LEGACY_KEYS`). Lives in Mongo `users.refreshTokens`. | `services/shared/core/crypto/keyrings/refresh_token.go` |
-| **Internal JWT** | **REMOVED.** The old `services/shared/core/internaljwt/{jwt,key_cache,rsa_keys}.go` and `services/api/v1endpoints/jwks.go` are deleted. `Config` still has `AuthSecret` / `ExternalJWT*` fields, but no handler references them — they are reserved / legacy. | — |
+| **ESI refresh token at rest** (cloud accounts only) | AES-GCM via a keyring from env (`REFRESH_TOKEN_AES_KEY`, optional `REFRESH_TOKEN_AES_KEY_VERSION`, optional `REFRESH_TOKEN_AES_LEGACY_KEYS`). Lives in Mongo `users.refreshTokens`. | `services/shared/core/crypto/aesgcm/keyrings/refresh_token.go` |
 
 ---
 
@@ -414,8 +413,6 @@ File: `services/shared/core/config/config.go`. `LoadConfig` populates a `Config`
 | `EveSSOClientSecret` | `EVE_CLIENT_SECRET` | Required for SSO token requests. |
 | Redis | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | All auth state lives here. |
 | `RefreshTokenKeyring` | `REFRESH_TOKEN_AES_KEY` (+ optional `*_VERSION`, `*_LEGACY_KEYS`) | AES-GCM keyring for Mongo-stored ESI refresh; built by `keyrings.NewRefreshTokenKeyringSpec()`. |
-| `AuthSecret` | `AUTH_SECRET` | **Unused** by current handlers. |
-| `ExternalJWTSecret` / `Issuer` / `Audience` | `EXTERNAL_JWT_*` | **Unused** by current handlers. |
 
 ---
 
@@ -529,7 +526,7 @@ stateDiagram-v2
 | `services/api/apiServer.go` | Route table; wires public vs private groups |
 | `services/websocket/server/handler.go` | `HandleWS` — shared cookie+Redis auth on upgrade |
 | `services/shared/core/config/config.go` | Env loader |
-| `services/shared/core/crypto/keyrings/refresh_token.go` | AES-GCM keyring for Mongo-stored ESI refresh |
+| `services/shared/core/crypto/aesgcm/keyrings/refresh_token.go` | AES-GCM keyring for Mongo-stored ESI refresh |
 | `services/shared/firebaseadmin/client.go` / `auth_recency.go` / `client_test.go` | Firebase Admin SDK (migration / Firestore admin reads, not request auth) |
 
 ### Deleted (reference)

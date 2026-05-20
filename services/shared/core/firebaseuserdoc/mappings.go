@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 // ParseUserDoc unmarshals a Firebase user document (e.g. from Firestore or request body) into UserDoc.
