@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	corecrypto "eve-industry-planner/shared/core/crypto"
+	corecrypto "eve-industry-planner/shared/core/crypto/aesgcm"
 )
 
 // SealedFields is a reusable AES-GCM envelope for document-level field protection.

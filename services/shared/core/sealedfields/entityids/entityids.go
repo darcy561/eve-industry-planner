@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"strconv"
 
-	corecrypto "eve-industry-planner/shared/core/crypto"
+	corecrypto "eve-industry-planner/shared/core/crypto/aesgcm"
 	"eve-industry-planner/shared/core/sealedfields"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 const (

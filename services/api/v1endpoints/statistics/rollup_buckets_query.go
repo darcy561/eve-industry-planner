@@ -6,7 +6,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 
 	"eve-industry-planner/shared/archivestats"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 func mergeExtraCategoryTotals(dst map[string]float64, src map[string]float64) map[string]float64 {

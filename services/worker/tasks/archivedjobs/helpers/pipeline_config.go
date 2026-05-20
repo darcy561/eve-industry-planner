@@ -3,9 +3,9 @@ package helpers
 import (
 	"fmt"
 
-	"eve-industry-planner/shared/core/authzhmac"
+	authzhmac "eve-industry-planner/shared/core/crypto/authzhmac/helper"
 	"eve-industry-planner/shared/core/config"
-	corecrypto "eve-industry-planner/shared/core/crypto"
+	corecrypto "eve-industry-planner/shared/core/crypto/aesgcm"
 )
 
 // LoadPipelineCrypto loads config and HMAC helpers used across archived-job snapshot/rebuild/removal paths.

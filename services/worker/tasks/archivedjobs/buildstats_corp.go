@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 
-	"eve-industry-planner/shared/core/authzhmac"
-	corecrypto "eve-industry-planner/shared/core/crypto"
+	authzhmac "eve-industry-planner/shared/core/crypto/authzhmac/helper"
+	corecrypto "eve-industry-planner/shared/core/crypto/aesgcm"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	archivedjobshelpers "eve-industry-planner/worker/tasks/archivedjobs/helpers"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 

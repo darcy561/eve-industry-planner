@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	rediscore "eve-industry-planner/shared/core/redis"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 )
 
 // RunDisplayMarketPriceCount returns the current market prices item count.

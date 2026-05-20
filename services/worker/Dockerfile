@@ -50,7 +50,7 @@ WORKDIR /app
 # Copy the binary from builder stage
 COPY --from=builder /app/worker-service /app/worker-service
 
-# Plain-text build label for archive import normalization (see archiveimport.ResolveCanonicalBuildVer)
+# Plain-text build label for archive import normalization (see migration/archiveimport.ResolveCanonicalBuildVer)
 COPY --from=builder /app/worker/VERSION /app/worker/VERSION
 
 # Copy entrypoint script

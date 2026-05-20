@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 // EnsureJobIDPrefix aligns legacy IDs with the frontend convention `job-${uuid()}`

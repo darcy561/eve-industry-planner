@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	corecrypto "eve-industry-planner/shared/core/crypto"
-	"eve-industry-planner/shared/core/crypto/keyrings"
+	corecrypto "eve-industry-planner/shared/core/crypto/aesgcm"
+	"eve-industry-planner/shared/core/crypto/aesgcm/keyrings"
 )
 
 type Config struct {
@@ -18,10 +18,6 @@ type Config struct {
 	MINIO_URL                 string
 	API_PORT                  string
 	WS_PORT                   string
-	AuthSecret                string
-	ExternalJWTSecret         string
-	ExternalJWTIssuer         string
-	ExternalJWTAudience       string
 	EveSSOClientID            string
 	EveSSOClientSecret        string
 	FeedbackDiscordWebhookURL string
@@ -88,10 +84,6 @@ func LoadConfig() (Config, error) {
 		MINIO_URL:                     getEnv("MINIO_URL", "http://minio:9000"),
 		API_PORT:                      getEnv("API_PORT", "4000"),
 		WS_PORT:                       getEnv("WS_PORT", "4001"),
-		AuthSecret:                    getEnv("AUTH_SECRET", "dev-secret-change"),
-		ExternalJWTSecret:             getEnv("EXTERNAL_JWT_SECRET", "dev-external-secret"),
-		ExternalJWTIssuer:             getEnv("EXTERNAL_JWT_ISSUER", ""),
-		ExternalJWTAudience:           getEnv("EXTERNAL_JWT_AUDIENCE", ""),
 		EveSSOClientID:                getEnv("EVE_CLIENT_ID", ""),
 		EveSSOClientSecret:            getEnv("EVE_CLIENT_SECRET", ""),
 		FeedbackDiscordWebhookURL:     getEnv("FEEDBACK_DISCORD_WEBHOOK_URL", ""),

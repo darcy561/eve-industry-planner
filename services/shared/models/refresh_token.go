@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	corecrypto "eve-industry-planner/shared/core/crypto"
+	corecrypto "eve-industry-planner/shared/core/crypto/aesgcm"
 )
 
 // RefreshToken represents a refresh token for a character.

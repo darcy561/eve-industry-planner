@@ -4,7 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 func TestAggregateRollupFromArchivedDocs_FiltersByWindow(t *testing.T) {

@@ -1,6 +1,6 @@
 package mongoput
 
-import "eve-industry-planner/shared/shared/models"
+import "eve-industry-planner/shared/models"
 
 // ApplyMetaSessionClient stamps _meta.sessionID and _meta.clientID from handler inputs.
 // Session should come from auth context / cookie (auth.ExtractSessionID); clientID from X-WS-Client-ID.

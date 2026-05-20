@@ -3,7 +3,7 @@ package models
 import (
 	"testing"
 
-	corecrypto "eve-industry-planner/shared/core/crypto"
+	corecrypto "eve-industry-planner/shared/core/crypto/aesgcm"
 )
 
 func TestRefreshTokenEncryptAndPlainRoundTrip(t *testing.T) {

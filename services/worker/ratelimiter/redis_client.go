@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/httpclient"
+	"eve-industry-planner/shared/httpclient"
 
 	"github.com/redis/go-redis/v9"
 )

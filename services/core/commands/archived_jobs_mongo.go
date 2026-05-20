@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"eve-industry-planner/shared/core/authzhmac"
+	authzhmac "eve-industry-planner/shared/core/crypto/authzhmac/helper"
 	"eve-industry-planner/shared/core/config"
 	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared"
+	"eve-industry-planner/shared/models"
 	archivedjobtasks "eve-industry-planner/worker/tasks/archivedjobs"
 
 	"go.mongodb.org/mongo-driver/bson"

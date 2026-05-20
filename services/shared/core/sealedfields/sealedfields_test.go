@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	corecrypto "eve-industry-planner/shared/core/crypto"
+	corecrypto "eve-industry-planner/shared/core/crypto/aesgcm"
 )
 
 func testKeyring(t *testing.T) *corecrypto.Keyring {

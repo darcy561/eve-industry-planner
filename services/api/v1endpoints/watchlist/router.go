@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 

@@ -13,7 +13,7 @@ import (
 
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 
 	"github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"

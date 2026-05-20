@@ -3,7 +3,7 @@ package statistics
 import (
 	"testing"
 
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 func TestAggregateBuildStatsTimeline_SortsAndAggregates(t *testing.T) {

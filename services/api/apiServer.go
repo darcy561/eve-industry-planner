@@ -23,7 +23,7 @@ import (
 	"eve-industry-planner/api/v1endpoints/watchlist"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 
 	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/ulule/limiter/v3"

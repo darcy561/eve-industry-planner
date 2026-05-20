@@ -6,7 +6,7 @@ import (
 
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	archivedjobshelpers "eve-industry-planner/worker/tasks/archivedjobs/helpers"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 

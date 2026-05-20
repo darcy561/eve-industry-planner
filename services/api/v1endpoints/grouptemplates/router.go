@@ -6,7 +6,7 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 )
 
 // Router handles /api/v1/group-templates and subpaths.

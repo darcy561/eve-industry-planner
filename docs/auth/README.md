@@ -374,7 +374,6 @@ See [BACKEND.md §3](./BACKEND.md#3-redis-key-layout) for the full struct defini
 | `REFRESH_TOKEN_AES_LEGACY_KEYS` | no | JSON `{ "<version>": "<base64 key>" }` for legacy decryption. |
 | `GOOGLE_APPLICATION_CREDENTIALS` | no | Firebase Admin SDK service-account JSON path. Used **only** for migrations / Firestore admin reads, **not** for per-request auth. |
 | `FIREBASE_PROJECT_ID` | no | Override for Firebase project id; optional when embedded in the service-account JSON. |
-| `AUTH_SECRET`, `EXTERNAL_JWT_*` | no | Reserved fields on `Config`; not consumed by any handler in the current code. |
 
 ---
 

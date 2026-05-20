@@ -7,7 +7,7 @@ import (
 	"time"
 
 	esimetrics "eve-industry-planner/core/metrics/esi"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 )
 
 // RunEsiRateLimitGroups prints current ESI limiter groups and state from Redis.

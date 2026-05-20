@@ -7,10 +7,10 @@ import (
 	"strings"
 
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/core/crypto/keyrings"
+	"eve-industry-planner/shared/core/crypto/aesgcm/keyrings"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 
 	"go.mongodb.org/mongo-driver/bson"
 )

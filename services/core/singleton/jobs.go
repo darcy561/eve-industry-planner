@@ -12,7 +12,7 @@ import (
 	"context"
 
 	"eve-industry-planner/shared/core/documentlock"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 )
 
 // Lease keys used by the registered jobs. Kept as exported package

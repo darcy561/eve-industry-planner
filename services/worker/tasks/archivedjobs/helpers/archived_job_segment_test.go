@@ -3,7 +3,7 @@ package helpers
 import (
 	"testing"
 
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 func TestClassifyArchivedJobStatsSegment_ChainBeatsRetainedFlag(t *testing.T) {

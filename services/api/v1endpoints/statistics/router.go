@@ -3,7 +3,7 @@ package statistics
 import (
 	"net/http"
 
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared"
 )
 
 // Router routes /api/v1/statistics/* (private mux: rate limit + JWT).
