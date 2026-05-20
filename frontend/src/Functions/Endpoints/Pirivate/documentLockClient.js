@@ -1,7 +1,9 @@
 import {
   isRealtimeSocketOpen,
-  requestDocumentLockStatusBatchOverRealtime,
+  requestDocumentLockLockStateBatchOverRealtime,
+  sendDocumentLockEphemeralCommand,
 } from "../../../Realtime/realtimeClient.js";
+import { DOCUMENT_LOCK_FRAME_TYPES } from "../../DocumentLock/documentLockEvents.js";
 import { requestWithPrivateHeaders } from "./applyPrivateHeaders.js";
 import {
   USER_JOBS_COLLECTION,
@@ -11,8 +13,8 @@ import {
 /** Kept in sync with `documentlocks.MaxStatusBatchDocs` (`status_batch.go`). */
 export const MAX_STATUS_BATCH_DOC_IDS = 500;
 
-const STATUS_BATCH_HTTP_URL = new URL(
-  `/api/v1/document-locks/status-batch`,
+const LOCK_STATE_BATCH_HTTP_URL = new URL(
+  `/api/v1/document-locks/lock-state-batch`,
   window.location.origin
 ).toString();
 
@@ -26,13 +28,13 @@ function normalizeDocIdList(arr) {
 }
 
 /**
- * POST `/status-batch` in chunks so each of `jobDocIDs` and `groupDocIDs` stays ≤ {@link MAX_STATUS_BATCH_DOC_IDS}.
+ * POST `/lock-state-batch` in chunks so each of `jobDocIDs` and `groupDocIDs` stays ≤ {@link MAX_STATUS_BATCH_DOC_IDS}.
  *
  * @param {string[]} jobsNorm
  * @param {string[]} groupsNorm
  * @returns {Promise<Response>}
  */
-async function mergeLockStatusBatchOverHttp(jobsNorm, groupsNorm) {
+async function mergeLockStateBatchOverHttp(jobsNorm, groupsNorm) {
   let jobs = [...jobsNorm];
   let groups = [...groupsNorm];
   const mergedJob = {};
@@ -42,7 +44,7 @@ async function mergeLockStatusBatchOverHttp(jobsNorm, groupsNorm) {
     const jobChunk = jobs.splice(0, MAX_STATUS_BATCH_DOC_IDS);
     const groupChunk = groups.splice(0, MAX_STATUS_BATCH_DOC_IDS);
     const res = await requestWithPrivateHeaders(
-      STATUS_BATCH_HTTP_URL,
+      LOCK_STATE_BATCH_HTTP_URL,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -51,7 +53,7 @@ async function mergeLockStatusBatchOverHttp(jobsNorm, groupsNorm) {
           groupDocIDs: groupChunk,
         }),
       },
-      { requestName: "documentLockStatusBatch", retry: false }
+      { requestName: "documentLockLockStateBatch", retry: false }
     );
     if (!res.ok) return res;
     const body = await res.json().catch(() => ({}));
@@ -79,7 +81,7 @@ async function mergeLockStatusBatchOverHttp(jobsNorm, groupsNorm) {
  * @param {string[]} jobsNorm
  * @param {string[]} groupsNorm
  */
-async function mergeLockStatusBatchOverWs(jobsNorm, groupsNorm) {
+async function mergeLockStateBatchOverWs(jobsNorm, groupsNorm) {
   let jobs = [...jobsNorm];
   let groups = [...groupsNorm];
   const mergedJob = {};
@@ -89,7 +91,7 @@ async function mergeLockStatusBatchOverWs(jobsNorm, groupsNorm) {
     const jobChunk = jobs.splice(0, MAX_STATUS_BATCH_DOC_IDS);
     const groupChunk = groups.splice(0, MAX_STATUS_BATCH_DOC_IDS);
     const { jobResults, groupResults } =
-      await requestDocumentLockStatusBatchOverRealtime({
+      await requestDocumentLockLockStateBatchOverRealtime({
         jobDocIDs: jobChunk,
         groupDocIDs: groupChunk,
       });
@@ -155,6 +157,49 @@ export function releaseDocumentLock(collection, docID) {
 }
 
 /**
+ * Same-account emergency: clears the lock held by another session on this
+ * account (POST `/force-release`). Caller must not already be the holder.
+ *
+ * @param {string} collection
+ * @param {string} docID
+ * @returns {Promise<Response>}
+ */
+export function forceReleaseDocumentLockSameAccount(collection, docID) {
+  return requestWithPrivateHeaders(
+    lockUrl("force-release"),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ collection, docID }),
+    },
+    { requestName: "documentLockForceReleaseSameAccount", retry: false }
+  );
+}
+
+/**
+ * Holder accepts another session's access request. Server-side this atomically
+ * transfers ownership to the alive head of the waitlist (same transition as a
+ * post-probe handoff) so the lock cannot leak to a neutral state where any
+ * session could race in. Falls back to a plain release with no recipient when
+ * the requester is no longer alive in the queue.
+ *
+ * @param {string} collection
+ * @param {string} docID
+ * @returns {Promise<Response>}
+ */
+export function handOverDocumentLock(collection, docID) {
+  return requestWithPrivateHeaders(
+    lockUrl("hand-over"),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ collection, docID }),
+    },
+    { requestName: "documentLockHandOver", retry: false }
+  );
+}
+
+/**
  * @param {string} collection
  * @param {string} docID
  * @returns {Promise<Response>}
@@ -176,26 +221,26 @@ export function requestDocumentLockAccess(collection, docID) {
  * @param {string} docID
  * @returns {Promise<Response>}
  */
-export async function getDocumentLockStatus(collection, docID) {
+export async function getDocumentLockState(collection, docID) {
   if (collection === USER_JOBS_COLLECTION) {
-    return getDocumentLockStatusBatch({
+    return getDocumentLockStateBatch({
       jobDocIDs: [docID],
       groupDocIDs: [],
     }).then((res) => wrapBatchSinglePayload(res, "job", docID));
   }
   if (collection === USER_JOB_GROUPS_COLLECTION) {
-    return getDocumentLockStatusBatch({
+    return getDocumentLockStateBatch({
       jobDocIDs: [],
       groupDocIDs: [docID],
     }).then((res) => wrapBatchSinglePayload(res, "group", docID));
   }
-  const url = new URL(`/api/v1/document-locks/status`, window.location.origin);
+  const url = new URL(`/api/v1/document-locks/lock-state`, window.location.origin);
   url.searchParams.set("collection", collection);
   url.searchParams.set("docID", docID);
   return requestWithPrivateHeaders(
     url.toString(),
     { method: "GET" },
-    { requestName: "documentLockStatus", retry: false }
+    { requestName: "documentLockLockState", retry: false }
   );
 }
 
@@ -224,13 +269,13 @@ async function wrapBatchSinglePayload(res, kind, docID) {
 }
 
 /**
- * Fetch lock status for jobs and/or groups in one request (avoids per-doc rate limiting).
- * Uses WebSocket when `/ws` is connected (same Redis rows as HTTP); falls back to POST `/status-batch`.
+ * Fetch per-document lock state for jobs and/or groups in one round-trip (avoids per-doc rate limiting).
+ * Prefers WebSocket `document_lock_lock_state_batch` when `/ws` is open; falls back to POST `/lock-state-batch`.
  *
  * @param {{ jobDocIDs?: string[], groupDocIDs?: string[] }} params
- * @returns {Promise<Response>} JSON `{ jobResults, groupResults }` — maps of docID → status payload
+ * @returns {Promise<Response>} JSON `{ jobResults, groupResults }` — maps of docID → lock-state payload
  */
-export async function getDocumentLockStatusBatch({
+export async function getDocumentLockStateBatch({
   jobDocIDs = [],
   groupDocIDs = [],
 } = {}) {
@@ -250,7 +295,7 @@ export async function getDocumentLockStatusBatch({
 
   if (isRealtimeSocketOpen()) {
     try {
-      const { jobResults, groupResults } = await mergeLockStatusBatchOverWs(
+      const { jobResults, groupResults } = await mergeLockStateBatchOverWs(
         jobs,
         groups
       );
@@ -263,7 +308,7 @@ export async function getDocumentLockStatusBatch({
       /* fall through to HTTP */
     }
   }
-  return mergeLockStatusBatchOverHttp(jobs, groups);
+  return mergeLockStateBatchOverHttp(jobs, groups);
 }
 
 /**
@@ -287,12 +332,24 @@ export function claimDocumentLockHandoff(collection, docID) {
 
 /**
  * Refresh waitlist presence while queued (see server waitlist pulse TTL).
+ * Prefers a fire-and-forget WebSocket message when `/ws` is open.
  *
  * @param {string} collection
  * @param {string} docID
  * @returns {Promise<Response>}
  */
 export function pulseDocumentLockWaitlist(collection, docID) {
+  if (
+    sendDocumentLockEphemeralCommand(
+      DOCUMENT_LOCK_FRAME_TYPES.WAITLIST_PULSE,
+      collection,
+      docID
+    )
+  ) {
+    return Promise.resolve(
+      new Response(null, { status: 204, statusText: "No Content" })
+    );
+  }
   return requestWithPrivateHeaders(
     lockUrl("waitlist-pulse"),
     {
@@ -302,4 +359,98 @@ export function pulseDocumentLockWaitlist(collection, docID) {
     },
     { requestName: "documentLockWaitlistPulse", retry: false }
   );
+}
+
+/**
+ * Announce this tab as a passive viewer of `(collection, docID)`. Triggers a
+ * `document_lock_viewer_joined` event on the server so the current lock holder sees
+ * the contention affordance even without an explicit Request access click.
+ * Prefers WebSocket when `/ws` is open.
+ *
+ * @param {string} collection
+ * @param {string} docID
+ * @returns {Promise<Response>}
+ */
+export function postDocumentLockViewerArrived(collection, docID) {
+  if (
+    sendDocumentLockEphemeralCommand(
+      DOCUMENT_LOCK_FRAME_TYPES.VIEWER_ARRIVED,
+      collection,
+      docID
+    )
+  ) {
+    return Promise.resolve(
+      new Response(null, { status: 204, statusText: "No Content" })
+    );
+  }
+  return requestWithPrivateHeaders(
+    lockUrl("viewer-arrived"),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ collection, docID }),
+    },
+    { requestName: "documentLockViewerArrived", retry: false }
+  );
+}
+
+/**
+ * Clear this tab's viewer-presence entry on the server. Triggers a
+ * `document_lock_viewer_left` event so the holder's icon updates promptly instead
+ * of waiting for the server-side `ViewerPresenceTTL` defensive sweep.
+ * Prefers WebSocket when `/ws` is open (see {@link sendDocumentLockViewerDepartedBeacon} for `pagehide`).
+ *
+ * @param {string} collection
+ * @param {string} docID
+ * @returns {Promise<Response>}
+ */
+export function postDocumentLockViewerDeparted(collection, docID) {
+  if (
+    sendDocumentLockEphemeralCommand(
+      DOCUMENT_LOCK_FRAME_TYPES.VIEWER_DEPARTED,
+      collection,
+      docID
+    )
+  ) {
+    return Promise.resolve(
+      new Response(null, { status: 204, statusText: "No Content" })
+    );
+  }
+  return requestWithPrivateHeaders(
+    lockUrl("viewer-departed"),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ collection, docID }),
+    },
+    { requestName: "documentLockViewerDeparted", retry: false }
+  );
+}
+
+/**
+ * Best-effort viewer-departed via `navigator.sendBeacon` so the request still leaves
+ * the browser during `pagehide` / `beforeunload`. Falls back to the fetch-based path
+ * when sendBeacon is unavailable. Body matches the `/viewer-departed` endpoint.
+ *
+ * @param {string} collection
+ * @param {string} docID
+ * @returns {boolean} true when a beacon was queued, false to indicate caller should fall back
+ */
+export function sendDocumentLockViewerDepartedBeacon(collection, docID) {
+  if (
+    typeof navigator === "undefined" ||
+    typeof navigator.sendBeacon !== "function" ||
+    !collection ||
+    !docID
+  ) {
+    return false;
+  }
+  try {
+    const blob = new Blob([JSON.stringify({ collection, docID })], {
+      type: "application/json",
+    });
+    return navigator.sendBeacon(lockUrl("viewer-departed"), blob);
+  } catch {
+    return false;
+  }
 }

@@ -38,7 +38,7 @@ func GetCorpBuildStatsTimelineHandler(w http.ResponseWriter, r *http.Request, cl
 		logs.RespondHTTPError(w, r, http.StatusServiceUnavailable, "Service unavailable", errors.New("mongo client missing"))
 		return
 	}
-	claims, err := auth.ExtractInternalClaims(r)
+	corpIDs, _, err := auth.ExtractSessionGrants(ctx, r, clients.Redis)
 	if err != nil {
 		metrics.Error("auth_error")
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -50,7 +50,7 @@ func GetCorpBuildStatsTimelineHandler(w http.ResponseWriter, r *http.Request, cl
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if !corpInClaims(corpID, claims.Corporations) {
+	if !corpInClaims(corpID, corpIDs) {
 		metrics.Error("forbidden_corp")
 		http.Error(w, "Forbidden corporation scope", http.StatusForbidden)
 		return

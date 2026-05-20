@@ -1,18 +1,15 @@
 /**
- * Zustand actions for app JWT session, login token application, ESI-linked refresh tokens,
- * and scheduled ESI + corporation claims + server JWT refresh.
+ * Zustand actions for planner session, login response application, ESI-linked refresh tokens,
+ * and scheduled ESI + corporation claims + server session refresh.
  *
  * @fileoverview Token and session credential actions on the account slice
  */
 
-import {
-  decodeAppJwt,
-  getEffectiveAppAccessExpiryUnix,
-  getAppJwtSessionID,
-  verifyAppAccessTokenWithJwks,
-} from "../../Functions/Auth/appJwt.js";
-import { refreshServerJWT } from "../../Functions/Auth/serverTokens.js";
+import { refreshServerSession } from "../../Functions/Auth/serverTokens.js";
+import { shouldDeferAuthRefreshDueToTranquilityOffline } from "../../Functions/Auth/authRefreshTranquilityGate.js";
 import updateCorporationClaims from "../../Functions/Endpoints/Pirivate/corporationClaims.js";
+import GLOBAL_CONFIG from "../../global-config-app.js";
+import { dedupeLinkedCharacterHashStrings } from "../../Functions/Auth/characterHashCanonical.js";
 import { mergeApplicationSettingsState } from "../applicationSettings/core.js";
 import { metaLastModifiedMs } from "../realtimeSyncSlice.js";
 
@@ -23,6 +20,32 @@ import { metaLastModifiedMs } from "../realtimeSyncSlice.js";
  * rotation; only the modulus changes.
  */
 let esStaggerIndex = 0;
+
+/**
+ * Single-flight guard for {@link tokenActions.refreshServerToken}. Concurrent
+ * private API calls + the staggered ESI step + maintenance can all hit the
+ * refresh path at once; each parallel call rotates the planner refresh row in
+ * Redis (and the HttpOnly cookie for cloud users), orphaning the losers' tokens.
+ * While a refresh is in flight, additional callers await the same promise.
+ *
+ * @type {Promise<void>|null}
+ */
+let inflightRefreshServerTokenPromise = null;
+
+/**
+ * Clock skew (seconds) used when deciding whether `mainCharacter.esiAccessToken`
+ * is safe to send to `/api/v1/auth/sessions/rotate` as `eve_token`.
+ */
+const ESI_ACCESS_TOKEN_REFRESH_SKEW_SEC = 60;
+
+/** Matches {@link GLOBAL_CONFIG.PLANNER_SESSION_ROTATE_COOLDOWN_MINUTES} (~EVE access token cadence). */
+const PLANNER_SESSION_ROTATE_COOLDOWN_MS =
+  Math.max(
+    1,
+    Number(GLOBAL_CONFIG.PLANNER_SESSION_ROTATE_COOLDOWN_MINUTES) || 20
+  ) *
+  60 *
+  1000;
 
 /** @param {unknown} value */
 function toLinkedSet(value) {
@@ -156,33 +179,7 @@ export const tokenActions = (set, get) => ({
   },
 
   /**
-   * Decodes the app JWT (`account.accessToken`) via jose; returns `null` if missing or invalid.
-   *
-   * @returns {import("jose").JWTPayload|null}
-   */
-  getDeserialisedSerializedServerToken: () => {
-    const token = get().account?.accessToken;
-    if (!token) {
-      return null;
-    }
-    const payload = decodeAppJwt(token);
-    if (payload == null) {
-      console.error("Failed to deserialize app JWT (invalid or malformed)");
-    }
-    return payload;
-  },
-
-  /**
-   * Raw app JWT string for `Authorization: Bearer` on private API calls (from `account.accessToken`).
-   *
-   * @returns {string|null}
-   */
-  getServerAccessToken: () => {
-    return get().account?.accessToken || null;
-  },
-
-  /**
-   * One Zustand update for POST /api/v1/auth/login: JWT/session fields, optional
+   * One Zustand update for POST /api/v1/auth/sessions: session fields, optional
    * `user_document` linked* → root `linkedOrders` / `linkedJobs` / `linkedTrans`, `shareCitadelNames` on the account
    * slice, and optional `application_settings` for other prefs.
    * The full `user_document` is not persisted on the account slice — pass it to `runPostLoginAccountSync` if needed.
@@ -195,7 +192,10 @@ export const tokenActions = (set, get) => ({
 
     const isFirstTimeLogin = Boolean(response.first_login ?? false);
 
-    const sessionID = getAppJwtSessionID(response.access_token);
+    const sessionID =
+      typeof response.session_id === "string" && response.session_id.trim()
+        ? response.session_id.trim()
+        : null;
 
     set(
       (state) => {
@@ -229,9 +229,15 @@ export const tokenActions = (set, get) => ({
             mainCharacterHashForMerge
           );
         }
-        const userCloudAccounts = userCloudAccountsFromUserDocument(
+        let userCloudAccounts = userCloudAccountsFromUserDocument(
           response.user_document
         );
+        if (
+          response.esi_oauth_storage === "server" ||
+          response.esi_oauth_storage === "client"
+        ) {
+          userCloudAccounts = response.esi_oauth_storage === "server";
+        }
         if (userCloudAccounts !== undefined) {
           nextApplicationSettings = {
             ...nextApplicationSettings,
@@ -245,6 +251,11 @@ export const tokenActions = (set, get) => ({
             ? !!userCloudAccounts
             : !!state.applicationSettings.userCloudAccounts;
 
+        const bootstrapLinkedHashes =
+          cloudResolved && Array.isArray(response.linked_characters)
+            ? dedupeLinkedCharacterHashStrings(response.linked_characters)
+            : null;
+
         return {
           ...state,
           account: {
@@ -253,9 +264,8 @@ export const tokenActions = (set, get) => ({
             ...(mainCharacterHash !== undefined && {
               mainCharacterHash: mainCharacterHash || null,
             }),
-            accessToken: response.access_token,
-            accessTokenEXP: response.expires_at,
             sessionID,
+            lastPlannerSessionValidatedAt: sessionID ? Date.now() : null,
             refreshToken: cloudResolved
               ? null
               : response.refresh_token ?? null,
@@ -270,6 +280,11 @@ export const tokenActions = (set, get) => ({
             ...(nextShareCitadelNames !== undefined && {
               shareCitadelNames: nextShareCitadelNames,
             }),
+            linkedCharacterHashesFromBootstrapSession: bootstrapLinkedHashes,
+            linkedBootstrapHydrationPending:
+              cloudResolved &&
+              Array.isArray(response.linked_characters) &&
+              response.linked_characters.length > 0,
             actions: state.account.actions,
           },
           applicationSettings: nextApplicationSettings,
@@ -289,6 +304,24 @@ export const tokenActions = (set, get) => ({
         if (ap != null) rs.setCursorMs(`application_settings.${aid}`, ap);
       }
     }
+  },
+
+  /**
+   * End of cloud linked-character hydration from login/bootstrap (`runPostLoginAccountSync`).
+   */
+  clearLinkedBootstrapHydrationPending: () => {
+    set(
+      (state) => ({
+        ...state,
+        account: {
+          ...state.account,
+          linkedBootstrapHydrationPending: false,
+          actions: state.account.actions,
+        },
+      }),
+      false,
+      "account/clearLinkedBootstrapHydrationPending"
+    );
   },
 
   /**
@@ -330,33 +363,23 @@ export const tokenActions = (set, get) => ({
   },
 
   /**
-   * Update server JWT session fields (e.g. after /auth/refresh).
+   * Update server session fields (e.g. after `POST /api/v1/auth/sessions/rotate`).
    *
    * @param {object} partial
-   * @param {string} [partial.accessToken]
-   * @param {number} [partial.accessTokenEXP]
    * @param {string} [partial.refreshToken]
    * @param {number} [partial.refreshTokenEXP]
    */
   setSessionTokens: (partial) => {
     if (!partial) return;
     const nextSessionID =
-      partial.sessionID !== undefined
-        ? partial.sessionID
-        : partial.accessToken !== undefined
-          ? getAppJwtSessionID(partial.accessToken)
-          : undefined;
+      typeof partial.sessionID === "string" && partial.sessionID.trim()
+        ? partial.sessionID.trim()
+        : undefined;
     set(
       (state) => ({
         ...state,
         account: {
           ...state.account,
-          ...(partial.accessToken !== undefined && {
-            accessToken: partial.accessToken,
-          }),
-          ...(partial.accessTokenEXP !== undefined && {
-            accessTokenEXP: partial.accessTokenEXP,
-          }),
           ...(nextSessionID !== undefined && {
             sessionID: nextSessionID,
           }),
@@ -375,53 +398,114 @@ export const tokenActions = (set, get) => ({
   },
 
   /**
-   * Refreshes the app JWT when access is within 15 minutes of expiry.
-   * Uses the main character's ESI access token with the server refresh token.
+   * Rotates the planner app session (`POST .../rotate`) when credentials warrant it.
+   *
+   * **Cooldown:** If `sessionID` exists and {@link accountStateDefault.lastPlannerSessionValidatedAt}
+   * is within `PLANNER_SESSION_ROTATE_COOLDOWN_MS` (~20m from {@link GLOBAL_CONFIG.PLANNER_SESSION_ROTATE_COOLDOWN_MINUTES}),
+   * returns without HTTP — login/bootstrap already validated the session.
+   *
+   * In **cloud mode**, `eve_token` may be omitted when stale so the server uses the HttpOnly
+   * cookie + Mongo ESI (see `refresh.go` empty-`eve_token` branch).
+   *
+   * Concurrent callers share one in-flight promise via {@link inflightRefreshServerTokenPromise}.
    */
   refreshServerToken: async () => {
-    const state = get();
-    const mainCharacter = state.account.characters?.find((ch) => ch?.isMainCharacter);
-    if (!mainCharacter) return;
+    if (shouldDeferAuthRefreshDueToTranquilityOffline(get)) {
+      return;
+    }
+    if (inflightRefreshServerTokenPromise) {
+      return inflightRefreshServerTokenPromise;
+    }
 
+    const promise = (async () => {
+      const state = get();
+      const mainCharacter = state.account.characters?.find((ch) => ch?.isMainCharacter);
+      if (!mainCharacter) return;
+
+      const sessionID = state.account.sessionID;
+      const lastOk = state.account.lastPlannerSessionValidatedAt;
+      if (
+        typeof sessionID === "string" &&
+        sessionID.trim().length > 0 &&
+        typeof lastOk === "number" &&
+        Date.now() - lastOk < PLANNER_SESSION_ROTATE_COOLDOWN_MS
+      ) {
+        return;
+      }
+
+      try {
+        const { refreshToken } = state.account;
+        const cloud = !!state.applicationSettings?.userCloudAccounts;
+        if (!refreshToken && !cloud) {
+          return;
+        }
+        const currentTimeStamp = Math.floor(Date.now() / 1000);
+
+        // Cloud mode: prefer the Mongo fallback (empty eve_token + cookie) when the
+        // in-memory main ESI access token is missing or within the skew window of
+        // expiry; otherwise the server would reject the refresh with 401 even though
+        // the cookie + stored ESI material would have worked.
+        let eveTokenForRefresh = mainCharacter.esiAccessToken || "";
+        if (cloud) {
+          const esiExp = Number(mainCharacter.esiAccessTokenEXP) || 0;
+          if (
+            !eveTokenForRefresh ||
+            esiExp <= currentTimeStamp + ESI_ACCESS_TOKEN_REFRESH_SKEW_SEC
+          ) {
+            eveTokenForRefresh = "";
+          }
+        } else if (
+          typeof eveTokenForRefresh !== "string" ||
+          eveTokenForRefresh.trim().length === 0
+        ) {
+          // Local accounts must provide eve_token on refresh; skip until available.
+          return;
+        }
+
+        const response = await refreshServerSession(
+          refreshToken || null,
+          eveTokenForRefresh
+        );
+
+        const tokenPatch = {
+          sessionID: response.session_id ?? get().account.sessionID,
+        };
+        if (response.refresh_token) {
+          tokenPatch.refreshToken = response.refresh_token;
+          tokenPatch.refreshTokenEXP =
+            response.refresh_token_exp ?? response.refresh_token_expires_at;
+        }
+        get().account.actions.setSessionTokens(tokenPatch);
+        set(
+          (s) => ({
+            ...s,
+            account: {
+              ...s.account,
+              lastPlannerSessionValidatedAt: Date.now(),
+              actions: s.account.actions,
+            },
+          }),
+          false,
+          "account/plannerSessionRotateOk"
+        );
+      } catch (err) {
+        console.error(err.message);
+      }
+    })();
+
+    inflightRefreshServerTokenPromise = promise;
     try {
-      const { refreshToken, accessToken, accessTokenEXP } = state.account;
-      const cloud = !!state.applicationSettings?.userCloudAccounts;
-      if (!refreshToken && !cloud) {
-        return;
+      await promise;
+    } finally {
+      if (inflightRefreshServerTokenPromise === promise) {
+        inflightRefreshServerTokenPromise = null;
       }
-      const exp = getEffectiveAppAccessExpiryUnix(accessToken, accessTokenEXP);
-      if (exp == null || exp <= 0) {
-        return;
-      }
-      const currentTimeStamp = Math.floor(Date.now() / 1000);
-      const bufferTime = 900; // 15 minutes in seconds
-      if (exp >= currentTimeStamp + bufferTime) return;
-
-      const response = await refreshServerJWT(
-        refreshToken || null,
-        mainCharacter.esiAccessToken
-      );
-
-      await verifyAppAccessTokenWithJwks(response.access_token);
-
-      const tokenPatch = {
-        accessToken: response.access_token,
-        accessTokenEXP: response.expires_at,
-      };
-      if (response.refresh_token) {
-        tokenPatch.refreshToken = response.refresh_token;
-        tokenPatch.refreshTokenEXP =
-          response.refresh_token_exp ?? response.refresh_token_expires_at;
-      }
-      get().account.actions.setSessionTokens(tokenPatch);
-    } catch (err) {
-      console.error(err.message);
     }
   },
 
   /**
    * Staggered ESI pass: one character per call (round-robin: main first, then alts).
-   * `Character#refreshESIToken` no-ops when the token is still well inside the 15m
+   * `Character#refreshEsiAccessTokenIfNeeded` no-ops when the token is still well inside the 15m
    * buffer, so this is cheap on ticks where nothing is due. Used by
    * `useRefreshESITokens` (stagger from `ESI_STAGGER_TARGET_FULL_CYCLE_MINUTES` / n).
    */
@@ -432,7 +516,7 @@ export const tokenActions = (set, get) => ({
       (c) =>
         c &&
         !c.isPlaceholder &&
-        typeof c.refreshESIToken === "function"
+        typeof c.refreshEsiAccessTokenIfNeeded === "function"
     );
     if (characters.length === 0) return;
 
@@ -445,8 +529,12 @@ export const tokenActions = (set, get) => ({
     const character = chain[esStaggerIndex % n];
     esStaggerIndex++;
 
+    if (shouldDeferAuthRefreshDueToTranquilityOffline(get)) {
+      return;
+    }
+
     try {
-      await character.refreshESIToken();
+      await character.refreshEsiAccessTokenIfNeeded();
       await character.getPublicCharacterData();
     } catch (err) {
       console.error("Staggered ESI token refresh failed:", err);
@@ -456,11 +544,14 @@ export const tokenActions = (set, get) => ({
   },
 
   /**
-   * Periodic (see `DEFAULT_CHARACTER_REFRESH_INTERVAL`) corporation-claims and app
-   * JWT maintenance; ESI is kept fresh by the staggered rotation, not a bulk
+   * Periodic (see `DEFAULT_CHARACTER_REFRESH_INTERVAL`) corporation-claims and session
+   * maintenance; ESI is kept fresh by the staggered rotation, not a bulk
    * refresh. Used by `useRefreshESITokens`.
    */
   runEsiTokenIntervalMaintenance: async () => {
+    if (shouldDeferAuthRefreshDueToTranquilityOffline(get)) {
+      return;
+    }
     if (!get().account.isLoggedIn) return;
     const characters = get().account.characters;
     const esiTokens = characters
@@ -475,10 +566,13 @@ export const tokenActions = (set, get) => ({
 
   /**
    * Refresh ESI for **all** characters in one shot (main then alts in parallel),
-   * then claims + app JWT. Prefer staggered work for the timer; this remains for
+   * then claims + planner session refresh. Prefer staggered work for the timer; this remains for
    * exceptional cases (e.g. a forced refresh after a bulk import).
    */
   runScheduledTokenRefresh: async () => {
+    if (shouldDeferAuthRefreshDueToTranquilityOffline(get)) {
+      return;
+    }
     const state = get();
     if (!state.account.isLoggedIn) return;
     const characters = state.account.characters.filter((u) => u && !u.isPlaceholder);
@@ -487,29 +581,29 @@ export const tokenActions = (set, get) => ({
     const others = characters.filter((u) => u && !u.isMainCharacter);
 
     if (mainCharacter) {
-      if (typeof mainCharacter.refreshESIToken === "function") {
+      if (typeof mainCharacter.refreshEsiAccessTokenIfNeeded === "function") {
         try {
-          await mainCharacter.refreshESIToken();
+          await mainCharacter.refreshEsiAccessTokenIfNeeded();
           await mainCharacter.getPublicCharacterData();
         } catch (err) {
           console.error("Main character ESI refresh failed:", err);
         }
       } else {
         console.error(
-          "Invalid main character object or missing refreshESIToken method"
+          "Invalid main character object or missing refreshEsiAccessTokenIfNeeded method"
         );
       }
     }
 
     await Promise.allSettled(
       others.map(async (character) => {
-        if (!character || typeof character.refreshESIToken !== "function") {
+        if (!character || typeof character.refreshEsiAccessTokenIfNeeded !== "function") {
           console.error(
-            "Invalid character object or missing refreshESIToken method"
+            "Invalid character object or missing refreshEsiAccessTokenIfNeeded method"
           );
           return;
         }
-        await character.refreshESIToken();
+        await character.refreshEsiAccessTokenIfNeeded();
         await character.getPublicCharacterData();
       })
     );

@@ -2,7 +2,7 @@
  * Main Users Store for EVE Industry Planner.
  *
  * Creates and configures the main Zustand store by combining all state slices
- * including user settings, application settings, world data, and jobs data.
+ * including application settings, account session, world data, and jobs data.
  * Provides centralized state management with Redux DevTools integration
  * and hot module replacement support for development.
  *
@@ -14,7 +14,6 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import applicationSettingsSlice from "./applicationSettingsSlice";
 import accountSlice from "./accountSlice";
-import userSettingsSlice from "./userSlice";
 import worldDataSlice from "./worldDataSlIce";
 import jobsSlice from "./jobsSlice";
 import realtimeSyncSlice from "./realtimeSyncSlice";
@@ -24,7 +23,7 @@ import headerDocumentLockUISlice from "./headerDocumentLockUISlice";
 /**
  * Creates the main users store with all state slices.
  *
- * Combines all state slices (user settings, application settings, world data,
+ * Combines all state slices (application settings, account, world data,
  * and jobs data) into a single Zustand store with Redux DevTools integration.
  *
  * @returns {Object} Configured Zustand store instance
@@ -37,7 +36,6 @@ const createUsersStore = () =>
   create(
     devtools(
       (set, get) => ({
-        ...userSettingsSlice(set, get),
         ...applicationSettingsSlice(set, get),
         ...accountSlice(set, get),
         ...worldDataSlice(set, get),

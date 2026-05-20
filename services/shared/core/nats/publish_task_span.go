@@ -45,12 +45,12 @@ func taskDataAttrsFromJSON(taskType string, raw []byte) []attribute.KeyValue {
 			return nil
 		}
 		return []attribute.KeyValue{attribute.Int("task.data.build_number", req.BuildNumber)}
-	case "fetchCorporations":
-		var req CorporationClaimsRequest
+	case "updateAccountSessionGrants":
+		var req AccountSessionGrantsRequest
 		if err := json.Unmarshal(raw, &req); err != nil {
 			return nil
 		}
-		return corporationClaimsAttrs(req)
+		return accountSessionGrantsAttrs(req)
 	case "migrateUserDocumentToMongo", "migrateFirestoreWatchlistToMongo", "importUserJobDocumentsForAccount", "inactiveAccountPlannerCleanup", "cloudStoredEsiRefreshMaintenance":
 		var req MigrateUserDocumentToMongoRequest
 		if err := json.Unmarshal(raw, &req); err != nil {
@@ -130,7 +130,7 @@ func marketPricesRequestAttrs(req MarketPricesRequest) []attribute.KeyValue {
 	}
 }
 
-func corporationClaimsAttrs(req CorporationClaimsRequest) []attribute.KeyValue {
+func accountSessionGrantsAttrs(req AccountSessionGrantsRequest) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
 		attribute.Int("task.data.token_count", len(req.Tokens)),
 	}

@@ -6,6 +6,8 @@ import useUsersStore from "../../../Zustand/usersStore";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
 import { useJobStatuses } from "../Hooks/useJobStatuses";
 import { PlannerStageAccordionShell } from "../../../Styled Components/PlannerStageAccordionShell/PlannerStageAccordionShell";
+import { filterUnlockedDocumentIDs } from "../../../Functions/DocumentLock/documentLockSelectors";
+import { USER_JOBS_COLLECTION } from "../../../Functions/DocumentLock/documentLockCollections";
 
 function PlannerStageAccordionRow(props) {
   const { status, toggleExpanded, ...restContentsProps } = props;
@@ -21,9 +23,15 @@ function PlannerStageAccordionRow(props) {
       expanded={status.expanded}
       onToggle={() => toggleExpanded(status.id)}
       onSelectAll={() => {
+        const stageJobIDs = filterJobsForJobPlannerStage(
+          jobArray,
+          status.id
+        ).map((job) => job.jobID);
         addToMultiSelect(
-          filterJobsForJobPlannerStage(jobArray, status.id).map(
-            (job) => job.jobID
+          filterUnlockedDocumentIDs(
+            useUsersStore.getState(),
+            USER_JOBS_COLLECTION,
+            stageJobIDs
           )
         );
       }}

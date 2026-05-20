@@ -38,7 +38,7 @@ export function createTestStore(storeCreator) {
  * @example
  * const mockStore = createMockStore({
  *   account: { isLoggedIn: true },
- *   users: { user: { name: 'Test User' } }
+ *   applicationSettings: { theme: 'dark' }
  * });
  */
 export function createMockStore(initialState = {}, actions = {}) {
@@ -62,7 +62,7 @@ export function createMockStore(initialState = {}, actions = {}) {
  * 
  * @example
  * const spyStore = createSpyStore(createUsersStore);
- * spyStore.getState().users.actions.login('test@example.com');
+ * spyStore.getState().account.actions.setLoggedIn(true);
  * expect(spyStore.getSpyCalls()).toHaveLength(1);
  */
 export function createSpyStore(storeCreator) {
@@ -92,7 +92,7 @@ export function createSpyStore(storeCreator) {
  * @returns {Promise} Promise that resolves when condition is met
  * 
  * @example
- * await waitForStoreCondition(store, (state) => state.users.isLoading === false);
+ * await waitForStoreCondition(store, (state) => state.account.isLoggedIn === true);
  */
 export function waitForStoreCondition(store, condition, timeout = 1000) {
   return new Promise((resolve, reject) => {

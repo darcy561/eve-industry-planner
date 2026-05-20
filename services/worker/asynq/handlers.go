@@ -105,8 +105,8 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 		return sdetasks.RebuildCurrentSDEVersion(ctx, t, taskDeps)
 	})
 
-	mux.HandleFunc("fetchCorporations", func(ctx context.Context, t *asynq.Task) error {
-		return esitasks.UpdateCustomCorporationClaims(ctx, t, taskDeps)
+	mux.HandleFunc("updateAccountSessionGrants", func(ctx context.Context, t *asynq.Task) error {
+		return esitasks.RefreshAccountSessionGrants(ctx, t, taskDeps)
 	})
 
 	mux.HandleFunc("migrateUserDocumentToMongo", func(ctx context.Context, t *asynq.Task) error {
@@ -158,5 +158,8 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	})
 	mux.HandleFunc("cloudStoredEsiRefreshMaintenance", func(ctx context.Context, t *asynq.Task) error {
 		return maintenancetasks.CloudStoredEsiRefreshMaintenance(ctx, t, taskDeps)
+	})
+	mux.HandleFunc("pruneExpiredAccountSessions", func(ctx context.Context, t *asynq.Task) error {
+		return maintenancetasks.PruneExpiredAccountSessions(ctx, t, taskDeps)
 	})
 }

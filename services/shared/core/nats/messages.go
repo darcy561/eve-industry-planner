@@ -151,13 +151,12 @@ type SDECurrentBuildUpdate struct {
 	Version     string `json:"version,omitempty"`
 }
 
-// CorporationClaimsRequest represents the data sent to the worker for fetching corporation IDs.
-// Contains AccountID and all EVE SSO tokens to process.
-// This struct is used as the Data field content in TaskMessage when triggering corporation lookups.
-// The JSON representation of this struct is embedded in TaskMessage.Data.
-type CorporationClaimsRequest struct {
-	AccountID string   `json:"account_id"` // Account ID from internal JWT token
-	Tokens    []string `json:"tokens"`     // Array of EVE SSO JWT tokens
+// AccountSessionGrantsRequest is the worker payload for resolving corporation and alliance IDs
+// from ESI character affiliation using the supplied EVE SSO access tokens.
+// Embedded in TaskMessage.Data when publishing task.auth.updateAccountSessionGrants.
+type AccountSessionGrantsRequest struct {
+	AccountID string   `json:"account_id"`
+	Tokens    []string `json:"tokens"` // EVE SSO JWT access tokens (one per character)
 }
 
 // MigrateUserDocumentToMongoRequest represents the data sent to the worker for migrating a Firebase user document to MongoDB.

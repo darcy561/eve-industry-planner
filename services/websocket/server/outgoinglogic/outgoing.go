@@ -20,12 +20,16 @@ func ScopeContains(ids []string, want string) bool {
 	return false
 }
 
+// ShouldSuppressRecipient implements realtime echo suppression for outbound NATS payloads.
+// When sourceClientID is set (_meta.clientID / WebSocket tab id), only that connection is skipped so
+// other tabs sharing the same session still receive the message. When client id is absent (legacy or
+// non-browser writes), fall back to suppressing the entire session.
 func ShouldSuppressRecipient(sourceSessionID, sourceClientID, recipientSessionID, recipientClientID string) bool {
-	if sourceSessionID != "" {
-		return recipientSessionID == sourceSessionID
-	}
 	if sourceClientID != "" {
 		return recipientClientID == sourceClientID
+	}
+	if sourceSessionID != "" {
+		return recipientSessionID == sourceSessionID
 	}
 	return false
 }

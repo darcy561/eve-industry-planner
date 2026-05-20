@@ -1,10 +1,11 @@
 import requestWithPrivateHeaders from "./applyPrivateHeaders.js";
 
-const CLOUD_STORED_ESI_REFRESH_TOKENS_URL =
-  "/api/v1/user/cloud-stored-esi-refresh-tokens";
+const OAUTH_CREDENTIALS_URL =
+  "/api/v1/user/linked-characters/oauth-credentials";
 
 /**
- * Upserts encrypted cloud-stored ESI refresh rows for linked characters (GET/PUT/DELETE via dedicated endpoint).
+ * Cloud OAuth refresh material is stored encrypted server-side. PUT uploads secrets once (e.g. login/link flows).
+ * GET returns linked character hashes only — use `POST /api/v1/esi/characters/access-token/server` for ESI access tokens.
  *
  * @param {{ characterHash?: string, CharacterHash?: string, rToken?: string }[]} refreshTokens
  * @returns {Promise<boolean>}
@@ -21,7 +22,7 @@ async function upsertCloudStoredEsiRefreshTokens(refreshTokens) {
     };
 
     const response = await requestWithPrivateHeaders(
-      CLOUD_STORED_ESI_REFRESH_TOKENS_URL,
+      OAUTH_CREDENTIALS_URL,
       {
         method: "PUT",
         headers: {
@@ -63,7 +64,7 @@ async function deleteCloudStoredEsiRefreshTokens(characterHashes) {
     };
 
     const response = await requestWithPrivateHeaders(
-      CLOUD_STORED_ESI_REFRESH_TOKENS_URL,
+      OAUTH_CREDENTIALS_URL,
       {
         method: "DELETE",
         headers: {
@@ -91,13 +92,13 @@ async function deleteCloudStoredEsiRefreshTokens(characterHashes) {
 }
 
 /**
- * Loads cloud-stored ESI refresh metadata from the dedicated private endpoint.
+ * Loads linked character hashes for cloud accounts (`refreshTokens[].characterHash`; no OAuth secrets).
  * @returns {Promise<{refreshTokens: Array}|null>}
  */
 async function getCloudStoredEsiRefreshTokens() {
   try {
     const response = await requestWithPrivateHeaders(
-      CLOUD_STORED_ESI_REFRESH_TOKENS_URL,
+      OAUTH_CREDENTIALS_URL,
       {
         method: "GET",
         cache: "no-store",

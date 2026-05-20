@@ -9,7 +9,6 @@
  */
 
 export { stateDefault, coreActions } from './core.js';
-export { serverStatusActions } from './serverStatus.js';
 export { universeDataActions } from './universeData.js';
 export { marketDataActions } from './marketData.js';
 export { systemIndexesActions } from './systemIndexes.js';

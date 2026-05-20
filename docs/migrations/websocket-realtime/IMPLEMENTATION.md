@@ -13,9 +13,9 @@ Single place for **what shipped in the repo** (paths, contracts, env, behavior).
 | Component | Role |
 |-----------|------|
 | **`services/core`** | Mongo change stream → **JetStream** `doc.update.{collection}.{docID}` with `ChangeStreamMessage` JSON (`accountID`, optional `corporationID` / `allianceID`, optional `scopes`, `sourceClientID`, …). See [`changestream/watcher.go`](../../../services/core/changestream/watcher.go). |
-| **`services/websocket`** | HTTP `/ws`: JWT on **upgrade only**. Each replica runs a **JetStream** pull consumer with a **unique durable** on **`doc.update.>`** (`doc-live-updates-<suffix>`) so **every** pod receives every change (no shared durable load-balancing). Outbound routing: [`dispatch.go`](../../../services/websocket/server/dispatch.go) **`deliverOutboundDocUpdate`** — **`accountID`** first (account broadcast minus echo); else **`corporationID`** / **`allianceID`** using reverse indexes **`corpToClients`** / **`allianceToClients`** (filled after **`upgrade_scopes`**); optional **`scopes`** narrows recipients; else explicit `subscribe` doc IDs. Details: [ROUTING-AND-SCOPES.md](./ROUTING-AND-SCOPES.md). **`doc.lock.{accountID}`** is consumed via **JetStream** (`nats_doc_lock.go`). **HTTP stack:** `RequestStartTimeConstructor` → `RequestLoggingConstructor` (`request_id`, access log at **Debug**). **`otelhttp` is not used on `/ws`:** `gorilla/websocket` upgrade requires `http.Hijacker` on `ResponseWriter`. |
-| **`services/api`** | Issues internal JWT. |
-| **SPA** | Module singleton WebSocket (`frontend/src/Realtime/realtimeClient.js`); gated hook `useAccountWebSocket`; **`applyRemoteMessage`** (monotonic `realtimeSync` + account-scoped merge + token/character/system-index reconcile in one coordinated flow); `wsClientIdentity` for `X-WS-Client-ID` on private API calls. **Baseline `subscribe` after connect is a no-op**—JWT + `userConnections` imply the full account stream. |
+| **`services/websocket`** | HTTP `/ws`: **HttpOnly session cookie** validated on **upgrade** (Redis-backed planner session via [`api/helper/auth`](../../../services/api/helper/auth/)). Each replica runs a **JetStream** pull consumer with a **unique durable** on **`doc.update.>`** (`doc-live-updates-<suffix>`) so **every** pod receives every change (no shared durable load-balancing). Outbound routing: [`dispatch.go`](../../../services/websocket/server/dispatch.go) **`deliverOutboundDocUpdate`** — **`accountID`** first (account broadcast minus echo); else **`corporationID`** / **`allianceID`** using reverse indexes **`corpToClients`** / **`allianceToClients`** (filled after **`upgrade_scopes`**); optional **`scopes`** narrows recipients; else explicit `subscribe` doc IDs. Details: [ROUTING-AND-SCOPES.md](./ROUTING-AND-SCOPES.md). **`doc.lock.{accountID}`** is consumed via **JetStream** (`nats_doc_lock.go`). **HTTP stack:** `RequestStartTimeConstructor` → `RequestLoggingConstructor` (`request_id`, access log at **Debug**). **`otelhttp` is not used on `/ws`:** `gorilla/websocket` upgrade requires `http.Hijacker` on `ResponseWriter`. |
+| **`services/api`** | HTTP session minting / refresh and private REST routes (browser uses cookies; internal JWTs or ESI tokens may still appear in other API paths — not on the `/ws` upgrade). |
+| **SPA** | Module singleton WebSocket (`frontend/src/Realtime/realtimeClient.js`); gated hook `useAccountWebSocket`; **`applyRemoteMessage`** (monotonic `realtimeSync` + account-scoped merge + token/character/system-index reconcile in one coordinated flow); `wsClientIdentity` for `X-WS-Client-ID` on private API calls. **Baseline `subscribe` after connect is a no-op**—after session upgrade the server fans out the full account stream via **`userConnections`**. |
 
 ## WebSocket service — full map and flows
 
@@ -131,7 +131,7 @@ flowchart TB
 | **`userConnections[accountID]`** | Set of **`clientID`** for multi-tab fan-out and connection limits. |
 | **`sessionConnections[sessionID]`** | One active **`clientID`** per auth session (duplicate session clients are evicted, warning logged + metric incremented). |
 | **`explicitDocSubscribers[docID]`** | Reverse index for optional browser **`subscribe`** (escape hatch when payload has no **`accountID`**). |
-| **Session handoff** | In-memory map + **Redis** `ws:session_handoff:v1:{account}:{oldClientID}` — see [Session resume](#session-resume-jwt-rotation). |
+| **Session handoff** | In-memory map + **Redis** `ws:session_handoff:v1:{account}:{oldClientID}` — see [Session resume](#session-resume-reconnect). |
 
 ### Source file index (websocket package)
 
@@ -152,15 +152,15 @@ Each pod must use a **different** JetStream durable suffix so **every** replica 
 
 ## Backend
 
-### Shared internal JWT
+### Shared auth modules (API + historical JWT)
 
 | Item | Location |
 |------|----------|
-| RS256 sign/verify, key cache, JWKS helpers | [`services/shared/core/internaljwt/`](../../../services/shared/core/internaljwt/) |
-| API session + refresh-token helpers (non-JWT core) | [`services/api/helper/auth/`](../../../services/api/helper/auth/) |
-| WebSocket upgrade validation | [`services/websocket/server/handler.go`](../../../services/websocket/server/handler.go) → `internaljwt.ValidateInternalJWT` |
+| RS256 sign/verify, key cache, JWKS helpers | [`services/shared/core/internaljwt/`](../../../services/shared/core/internaljwt/) (used by some API paths — **not** the websocket upgrade) |
+| API session + Redis session helpers | [`services/api/helper/auth/`](../../../services/api/helper/auth/) |
+| WebSocket upgrade validation | [`services/websocket/server/handler.go`](../../../services/websocket/server/handler.go) → **`ReadAppSessionCookie`** + **`ExtractAccountSession`** (Redis); **`TouchAccountSession`** |
 
-**Behavior:** Every WebSocket connection validates the token at **Upgrade** only. There is no in-band token refresh on an open socket; the client must reconnect with a new subprotocol when the JWT rotates.
+**Behavior:** The browser opens same-origin **`/ws`** with **`credentials: "include"`** so the HttpOnly planner session cookie is sent. The server validates the session at **Upgrade** only. There is no in-band auth refresh on an open socket; a new connection picks up a rotated cookie automatically after the client reconnects.
 
 ### NATS: JetStream live delivery (websocket, multi-replica)
 
@@ -198,9 +198,9 @@ Each pod must use a **different** JetStream durable suffix so **every** replica 
 
 | Path | Behavior |
 |------|----------|
-| **JWT upgrade** | Connection is registered under **`userConnections[accountID]`**; [`handler.go`](../../../services/websocket/server/handler.go) stores JWT **corp/alliance ceilings** on the client and sends **`{ type: "connected", clientID, subscription: { account: true, corporation: false, alliance: false } }`**. Org pools stay empty until **`upgrade_scopes`**. |
+| **Session upgrade** | Connection is registered under **`userConnections[accountID]`**; [`handler.go`](../../../services/websocket/server/handler.go) stores **corp/alliance ceilings** from the session on the client and sends **`{ type: "connected", clientID, subscription: { account: true, corporation: false, alliance: false } }`**. Org pools stay empty until **`upgrade_scopes`**. |
 | Browser JSON **`subscribe`** / **`unsubscribe`** | Optional **explicit** doc IDs only ([`subscribe_auth.go`](../../../services/websocket/server/subscribe_auth.go)); updates **`explicitDocIDs`** + inverse index **`explicitDocSubscribers`** ([`subscription.go`](../../../services/websocket/server/subscription.go)). Used when payloads lack **`accountID`** or for tooling—**not** required for normal account documents. |
-| Browser JSON **`session_resume`** | After JWT re-handshake, restores **explicit** subscriptions from handoff via **`ApplySessionResume`** ([`session_resume.go`](../../../services/websocket/server/session_resume.go)); **`resume_ack`** may set **`skipBaselineSync: true`** whenever handoff matched (account stream needs no per-doc replay). Handoff snapshot stores **`explicitDocIDs`** only ([`reader.go`](../../../services/websocket/server/reader.go) defer). |
+| Browser JSON **`session_resume`** | After reconnect, restores **explicit** subscriptions from handoff via **`ApplySessionResume`** ([`session_resume.go`](../../../services/websocket/server/session_resume.go)); **`resume_ack`** may set **`skipBaselineSync: true`** whenever handoff matched (account stream needs no per-doc replay). Handoff snapshot stores **`explicitDocIDs`** only ([`reader.go`](../../../services/websocket/server/reader.go) defer). |
 
 ### OpenTelemetry metrics (websocket)
 
@@ -228,8 +228,8 @@ Enforced in **`(*Server).docSubscribeAuthorized`** ([`subscribe_auth.go`](../../
 
 | Collections | Rule |
 |---------------|------|
-| `users`, `application_settings` | **JWT proof:** the segment after the first `.` must equal **`account_id`** from the validated upgrade JWT (singleton docs keyed by account). |
-| `jobs`, `user_job_documents`, `archivedJobs`, `groups`, `build_stats` | **Mongo:** document must exist with `_id` and **`_meta.accountID`** matching the JWT account (via `DocumentExistsByID`, 3s timeout). |
+| `users`, `application_settings` | **Session account:** the Mongo document id segment after the first `.` must equal the connection’s **`accountID`** (singleton docs keyed by account). |
+| `jobs`, `user_job_documents`, `archivedJobs`, `groups`, `build_stats` | **Mongo:** document must exist with `_id` and **`_meta.accountID`** matching the session account (via `DocumentExistsByID`, 3s timeout). |
 | **Any other collection** | **Denied** (fail closed). |
 
 If Mongo is unavailable, Mongo-backed subscriptions are denied. **Adding a new realtime collection:** extend the `switch` in `subscribe_auth.go` with the correct ownership rule.
@@ -244,10 +244,10 @@ If Mongo is unavailable, Mongo-backed subscriptions are denied. **Adding a new r
 
 | File | Purpose |
 |------|---------|
-| [`frontend/src/Functions/Auth/appJwt.js`](../../../frontend/src/Functions/Auth/appJwt.js) | **App-internal JWT** helpers: `decodeAppJwt`, `getAppJwtExpiryUnix`, `isAppJwtExpired` (60s skew), `getEffectiveAppAccessExpiryUnix` (prefers API `accessTokenEXP`, else JWT `exp`). Used by `realtimeClient`, `useAccountWebSocket`, `tokenActions`. |
-| [`frontend/src/Realtime/realtimeClient.js`](../../../frontend/src/Realtime/realtimeClient.js) | Same-origin `/ws`, subprotocol `auth.<base64url(JWT)>`, **no baseline `subscribe`** (account implied by JWT), ping/pong, reconnect backoff (cap **20s**), optional `subscribeDocIDs` / `unsubscribeDocIDs` for explicit docs. **Does not** open or schedule reconnect when the JWT is **already expired** (`isAppJwtExpired`). After **reopen** following expiry halt or **token rotation**, runs baseline HTTP resync **unless** **`session_resume` / `resume_ack`** skipped it (see **Session resume** below). Exports **`stashRealtimeSessionResumeHint`** for the hook. |
+| [`frontend/src/Zustand/account/tokenActions.js`](../../../frontend/src/Zustand/account/tokenActions.js) | Session bootstrap and `refreshServerToken` (cookie-backed planner session; used before private `fetch`). |
+| [`frontend/src/Realtime/realtimeClient.js`](../../../frontend/src/Realtime/realtimeClient.js) | Same-origin **`/ws`** with **HttpOnly session cookie** (no auth query string or JWT subprotocol), **no baseline `subscribe`** (account stream implied after upgrade), ping/pong, reconnect backoff (cap **20s**), optional `subscribeDocIDs` / `unsubscribeDocIDs` for explicit docs. On **`open`**, compares store `sessionID` to the last successful open to decide baseline HTTP resync + planner job refetch. **`session_resume`** / **`resume_ack`** for tab handoff. Exports **`stashRealtimeSessionResumeHint`** for the hook. |
 | [`frontend/src/Realtime/resyncRealtimeDocumentsFromServer.js`](../../../frontend/src/Realtime/resyncRealtimeDocumentsFromServer.js) | Parallel **GET** [`/api/v1/user/main`](../../../services/api/apiServer.go) + [`/api/v1/user/application-settings`](../../../services/api/apiServer.go); merges into Zustand + advances `realtimeSync` cursors from `_meta.lastModified` (same contract as login / WS apply). |
-| [`frontend/src/Realtime/useAccountWebSocket.js`](../../../frontend/src/Realtime/useAccountWebSocket.js) | Connect when `isLoggedIn && accessToken && accountID`; disconnect otherwise; **`stashRealtimeSessionResumeHint()`** in effect cleanup before **`disconnectRealtime()`**; **timer ~90s before `accessTokenEXP`** to reconnect with a fresh token before expiry. |
+| [`frontend/src/Realtime/useAccountWebSocket.js`](../../../frontend/src/Realtime/useAccountWebSocket.js) | Connect when `isLoggedIn && accountID`; disconnect otherwise; **`stashRealtimeSessionResumeHint()`** in effect cleanup before **`disconnectRealtime()`**; visibility wake handler debounces singleton + planner refetch for background tabs. |
 | [`frontend/src/Realtime/applyRemoteMessage.js`](../../../frontend/src/Realtime/applyRemoteMessage.js) | Routes `ChangeStreamMessage`-shaped JSON for **`users`**, **`application_settings`**, and **`user_job_groups`** (`USER_JOB_GROUPS_COLLECTION`). Delegates to [`Realtime/handlers/`](../../../frontend/src/Realtime/handlers/). See **SPA: `applyRemoteMessage`** below. |
 | [`frontend/src/Realtime/wsClientIdentity.js`](../../../frontend/src/Realtime/wsClientIdentity.js) | In-memory WS `clientID` from `{ type: "connected" }`; still used for transport/session-resume hints and socket-level diagnostics. Lock ownership no longer depends on WS client id. |
 | [`frontend/src/Zustand/realtimeSyncSlice.js`](../../../frontend/src/Zustand/realtimeSyncSlice.js) | Per-doc cursors; seeded on login in [`tokenActions.js`](../../../frontend/src/Zustand/account/tokenActions.js). |
@@ -277,7 +277,7 @@ The **router** is [`frontend/src/Realtime/applyRemoteMessage.js`](../../../front
 
 6. **Deletes:** `application_settings` reset store; `users` delete logs a session warning (same as prior behavior).
 
-**HTTP baseline resync** on reconnect / token rotation remains [`resyncRealtimeDocumentsFromServer.js`](../../../frontend/src/Realtime/resyncRealtimeDocumentsFromServer.js) (parallel GETs); it is separate from per-message `applyRemoteMessage`.
+**HTTP baseline resync** on reconnect / session rotation remains [`resyncRealtimeDocumentsFromServer.js`](../../../frontend/src/Realtime/resyncRealtimeDocumentsFromServer.js) (parallel GETs); it is separate from per-message `applyRemoteMessage`.
 
 ### Job groups / planner (related SPA touchpoints)
 
@@ -293,8 +293,8 @@ Redis + API + WebSocket + SPA: account-scoped **collaborative edit** locks for M
 
 | Layer | Role |
 |-------|------|
-| **API** | [`services/api/v1endpoints/documentlocks/`](../../../services/api/v1endpoints/documentlocks/) — POST **`acquire`**, **`extend`**, **`release`**, **`request`**, **`claim-handoff`**, **`waitlist-pulse`**; GET **`status?collection=&docID=`**. Identity is derived from JWT claim **`session_id`** (`holderSessionID`, `requesterSessionID`, `probeTargetSessionID`). Publishes lock messages for websocket (see `helper/doclock/publish.go`). |
-| **JWT claim source** | Internal JWT now carries **`session_id`**; login/login-refresh mint it, standard refresh preserves it, and refresh backfills it when missing on legacy refresh-token records. |
+| **API** | [`services/api/v1endpoints/documentlocks/`](../../../services/api/v1endpoints/documentlocks/) — HTTP routes (thin handlers). Core logic in [`services/shared/core/documentlock/`](../../../services/shared/core/documentlock/) — POST **`acquire`**, **`extend`**, **`release`**, **`request`**, **`claim-handoff`**, **`waitlist-pulse`**; GET **`status?collection=&docID=`**. Identity is derived from JWT claim **`session_id`** (`holderSessionID`, `requesterSessionID`, `probeTargetSessionID`). Publishes lock messages for websocket (`documentlock/publish.go`). |
+| **JWT claim source** | Internal JWT now carries **`session_id`**; login/bootstrap mint it, standard rotate preserves it, and rotate backfills it when missing on legacy refresh-token records. |
 | **SPA state** | [`documentLockSlice.js`](../../../frontend/src/Zustand/documentLockSlice.js) — per-scope `lockHeld`, `readOnly`, TTL/expiry, handoff fields; patch via **`patchDocumentLockForScope`**. Collection names in [`documentLockCollections.js`](../../../frontend/src/Functions/DocumentLock/documentLockCollections.js). |
 | **`useDocumentLock`** | Used on **edit-job** for **`USER_JOBS_COLLECTION`** and (when job is in a group) **`USER_JOB_GROUPS_COLLECTION`**; acquire, periodic sync (**~45s**), extend (**~5 min** while holder), listens to **`eip-document-lock`**. Registers header UI via [`useRegisterHeaderDocumentLockUI`](../../../frontend/src/Hooks/useRegisterHeaderDocumentLockUI.js) — **job** scope ranks above **group** for the primary header icon ([`documentLockHeaderSelectors.js`](../../../frontend/src/Functions/DocumentLock/documentLockHeaderSelectors.js)). |
 | **Group route** | [`groupFrame.jsx`](../../../frontend/src/Components/Groups/groupFrame.jsx) — **`groupReadOnly`** from **`selectDocumentLockReadOnly(s, USER_JOB_GROUPS_COLLECTION, groupID)`** for side menu + view selector. |
@@ -319,14 +319,14 @@ Redis + API + WebSocket + SPA: account-scoped **collaborative edit** locks for M
 |-------|--------|-----------|
 | **`eip-document-lock`** | `realtimeClient` after WS `document_lock` | `useDocumentLock`, `useJobPlannerGroupLockSync`, alerts |
 
-### Session resume (JWT rotation)
+### Session resume (reconnect)
 
-Browsers cannot refresh the JWT on an **open** WebSocket; the client must **close and open a new** `/ws` with subprotocol `auth.<base64url(JWT)>`. To avoid unnecessary **baseline HTTP GETs** when the same tab reconnects with a fresh token, the stack supports an optional **session handoff**.
+The client **closes** `/ws` on teardown (e.g. React effect cleanup) and may **open** a new socket moments later with the **same** HttpOnly session cookie. To avoid unnecessary **baseline HTTP GETs** when the same tab reconnects and the server restores handoff state, the stack supports an optional **session handoff**.
 
 | Layer | Behavior |
 |-------|----------|
-| **Client** | [`useAccountWebSocket.js`](../../../frontend/src/Realtime/useAccountWebSocket.js) cleanup calls **`stashRealtimeSessionResumeHint()`** then **`disconnectRealtime()`**. Stash reads `useUsersStore.getState().account` so **logout** (already `isLoggedIn: false`) does **not** record a hint. [`realtimeClient.js`](../../../frontend/src/Realtime/realtimeClient.js) consumes a one-shot hint (`accountId` + prior server **`clientID`**) on the next connect, sends **`{ type: "session_resume", previousClientID }`** after `open`, and awaits **`{ type: "resume_ack", skipBaselineSync, restoredDocIDs? }`** (race timeout ~400ms). If **`skipBaselineSync`** is true, it skips **`syncAccountDocumentsFromServer()`** for that open. **Baseline websocket `subscribe` is empty** regardless—account-scoped delivery does not require replaying doc IDs. |
-| **Server** | On disconnect, **`snapshotSessionHandoff(client)`** captures **`explicitDocIDs`** and **active `Client.Scopes` corporation/alliance ids** ([`reader.go`](../../../services/websocket/server/reader.go) defer). [`session_resume.go`](../../../services/websocket/server/session_resume.go): **`popSessionHandoff`** tries **Redis `GETDEL` first**, then **in-memory** map; **`ApplySessionResume`** replays **`handleSubscribeRequest`** for each stored explicit doc ID (same auth as normal subscribe), then **re-applies org scopes** intersected with the **new** JWT ceiling and re-registers **`corpToClients` / `allianceToClients`** (may emit **`scopes_ack`**). **`skipBaselineSync`** is **`true`** whenever handoff matched—**including** when there were **zero** explicit docs (JWT rotation alone). **`restoredDocIDs`** is included in **`resume_ack`** only when non-empty. **`queueResumeAck`** sends **`resume_ack`**. |
+| **Client** | [`useAccountWebSocket.js`](../../../frontend/src/Realtime/useAccountWebSocket.js) cleanup calls **`stashRealtimeSessionResumeHint()`** then **`disconnectRealtime()`**. Stash reads `useUsersStore.getState().account` so **logout** (already `isLoggedIn: false`) does **not** record a hint. [`realtimeClient.js`](../../../frontend/src/Realtime/realtimeClient.js) consumes a one-shot hint (`accountId` + prior server **`clientID`**) on the next connect, sends **`{ type: "session_resume", previousClientID }`** after `open`, and awaits **`{ type: "resume_ack", skipBaselineSync, restoredDocIDs? }`** (race timeout ~400ms). Baseline singleton GETs run when **`sessionID`** changed vs the last successful open, or when **`session_resume`** was attempted but **`resume_ack.skipBaselineSync`** was not set (uncertain handoff). **Baseline websocket `subscribe` is empty** — account-scoped delivery does not require replaying doc IDs. |
+| **Server** | On disconnect, **`snapshotSessionHandoff(client)`** captures **`explicitDocIDs`** and **active `Client.Scopes` corporation/alliance ids** ([`reader.go`](../../../services/websocket/server/reader.go) defer). [`session_resume.go`](../../../services/websocket/server/session_resume.go): **`popSessionHandoff`** tries **Redis `GETDEL` first**, then **in-memory** map; **`ApplySessionResume`** replays **`handleSubscribeRequest`** for each stored explicit doc ID (same auth as normal subscribe), then **re-applies org scopes** intersected with the connection’s **ceiling** scopes and re-registers **`corpToClients` / `allianceToClients`** (may emit **`scopes_ack`**). **`skipBaselineSync`** is **`true`** whenever handoff matched—**including** when there were **zero** explicit docs (reconnect alone). **`restoredDocIDs`** is included in **`resume_ack`** only when non-empty. **`queueResumeAck`** sends **`resume_ack`**. |
 | **TTL** | **`sessionHandoffTTL`** on server equals **`WS_RECONNECT_MAX_MS` + `WS_SESSION_HANDOFF_SLACK_MS`** (**25s** by default): Redis (`SET` / key TTL) and in-memory `Expires`. Matches client exports so handoff survives **one** capped reconnect delay (**20s** max). Sources: [`realtime_timing.go`](../../../services/websocket/server/realtime_timing.go), [`realtimeClient.js`](../../../frontend/src/Realtime/realtimeClient.js) (`WS_SESSION_HANDOFF_MS`). If the client never reconnects, Redis keys expire automatically; memory entries prune on lookup. |
 | **Redis** | Key: **`ws:session_handoff:v1:{accountID}:{previousClientID}`**. Value: JSON **`{ "account_id", "docs": [...] }`** (explicit subscribe set; may be **empty**). Websocket service already connects via **`shared.ConnectServices(..., ServiceRedis)`**; handoff uses **`s.ServiceClients.Redis`**. If Redis is unavailable, logs warn and **memory-only** handoff still applies on the **same replica**. |
 

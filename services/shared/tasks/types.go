@@ -121,9 +121,9 @@ var (
 		DefaultPriority: Priority2,
 		DefaultTimeout:  60 * time.Second,
 	}
-	FetchCorporations = Task{
-		Name:            "fetchCorporations",
-		Subject:         "task.auth.fetchCorporations",
+	UpdateAccountSessionGrants = Task{
+		Name:            "updateAccountSessionGrants",
+		Subject:         "task.auth.updateAccountSessionGrants",
 		DefaultPriority: Priority3,
 		DefaultTimeout:  60 * time.Second,
 	}
@@ -175,6 +175,12 @@ var (
 		DefaultPriority: Priority5,
 		DefaultTimeout:  10 * time.Minute,
 	}
+	PruneExpiredAccountSessions = Task{
+		Name:            "pruneExpiredAccountSessions",
+		Subject:         "task.maintenance.pruneExpiredAccountSessions",
+		DefaultPriority: Priority5,
+		DefaultTimeout:  5 * time.Minute,
+	}
 )
 
 // ByName maps task name (handler key) to task definition for lookup (e.g. worker default priority).
@@ -194,7 +200,7 @@ var ByName = map[string]Task{
 	RefreshMarketPrices.Name:               RefreshMarketPrices,
 	CountMarketPricesItems.Name:            CountMarketPricesItems,
 	FetchMissingMarketPrices.Name:          FetchMissingMarketPrices,
-	FetchCorporations.Name:                 FetchCorporations,
+	UpdateAccountSessionGrants.Name:        UpdateAccountSessionGrants,
 	CheckSDEUpdates.Name:                   CheckSDEUpdates,
 	RollbackSDEVersion.Name:                RollbackSDEVersion,
 	ApplySDEVersion.Name:                   ApplySDEVersion,
@@ -203,4 +209,5 @@ var ByName = map[string]Task{
 	SchemaVersionMaintenanceBatch.Name:     SchemaVersionMaintenanceBatch,
 	InactiveAccountPlannerCleanup.Name:     InactiveAccountPlannerCleanup,
 	CloudStoredEsiRefreshMaintenance.Name:  CloudStoredEsiRefreshMaintenance,
+	PruneExpiredAccountSessions.Name:       PruneExpiredAccountSessions,
 }

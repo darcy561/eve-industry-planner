@@ -87,27 +87,6 @@ func FormatSyncComplete() ([]byte, error) {
 	return json.Marshal(msg)
 }
 
-// FormatDocumentUpdate formats a document update message
-func FormatDocumentUpdate(collection string, documentID string, data map[string]interface{}) ([]byte, error) {
-	msg := ServerSyncMessage{
-		Type:       "update",
-		DocumentID: documentID,
-		Collection: collection,
-		Data:       data,
-	}
-	return json.Marshal(msg)
-}
-
-// FormatDocumentDelete formats a document delete notification
-func FormatDocumentDelete(collection string, documentID string) ([]byte, error) {
-	msg := ServerSyncMessage{
-		Type:       "delete",
-		DocumentID: documentID,
-		Collection: collection,
-	}
-	return json.Marshal(msg)
-}
-
 // FormatSyncError formats an error message during sync
 func FormatSyncError(errorMsg string) ([]byte, error) {
 	msg := map[string]interface{}{

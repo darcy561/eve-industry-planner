@@ -1,8 +1,8 @@
 /**
  * World Data Slice for EVE Industry Planner.
  * 
- * Manages world-related data including market data, universe IDs, system indexes,
- * EVE server status, and player count. This slice provides centralized state
+ * Manages world-related data including market data, universe IDs, and system indexes.
+ * This slice provides centralized state
  * management for all EVE Online world data that is shared across the application.
  * 
  * @fileoverview World data state management slice for EVE Industry Planner
@@ -12,7 +12,6 @@
 import {
   stateDefault,
   coreActions,
-  serverStatusActions,
   universeDataActions,
   marketDataActions,
   systemIndexesActions,
@@ -22,7 +21,7 @@ import {
  * World Data Slice for Zustand Store.
  * 
  * Creates the world data slice with state and actions for managing EVE Online
- * world data including market data, universe IDs, system indexes, and server status.
+ * world data including market data, universe IDs, and system indexes.
  * Provides methods for updating and retrieving world data throughout the application.
  * 
  * @param {Function} set - Zustand set function for updating state
@@ -41,9 +40,6 @@ const worldDataSlice = (set, get) => ({
     actions: {
       // Core actions
       ...coreActions(set, get),
-      
-      // Server status actions
-      ...serverStatusActions(set, get),
       
       // Universe data actions
       ...universeDataActions(set, get),

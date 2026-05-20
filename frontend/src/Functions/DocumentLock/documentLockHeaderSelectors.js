@@ -35,14 +35,14 @@ export function primaryHeaderRegistration(s) {
   return eligible[0];
 }
 
-/** @param {*} s */
-export function selectHeaderLockScopeOk(s) {
-  return primaryHeaderRegistration(s) != null;
-}
-
-/** @param {*} s */
+/**
+ * True iff at least one enabled registration with a non-empty docID is
+ * present. Drives whether the app bar mounts the document-lock control at all.
+ *
+ * @param {*} s
+ */
 export function selectHeaderDocumentLockActive(s) {
-  return selectHeaderLockScopeOk(s);
+  return primaryHeaderRegistration(s) != null;
 }
 
 /** @param {*} s */
@@ -119,6 +119,24 @@ export function selectActiveDlHandoffOfferForMe(s) {
   const p = primaryHeaderRegistration(s);
   if (!p?.collection || !p?.docID) return false;
   return selectScopedDocumentLock(s, p.collection, p.docID).handoffOfferForMe;
+}
+
+/** @param {*} s */
+export function selectActiveDlLockScopeBootstrapped(s) {
+  const p = primaryHeaderRegistration(s);
+  if (!p?.collection || !p?.docID) return false;
+  return (
+    selectScopedDocumentLock(s, p.collection, p.docID).lockScopeBootstrapped ===
+    true
+  );
+}
+
+/** @param {*} s */
+export function selectActiveDlViewerCount(s) {
+  const p = primaryHeaderRegistration(s);
+  if (!p?.collection || !p?.docID) return 0;
+  const v = selectScopedDocumentLock(s, p.collection, p.docID).viewerCount;
+  return typeof v === "number" ? v : 0;
 }
 
 /** @param {*} s */

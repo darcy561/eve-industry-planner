@@ -27,7 +27,7 @@ type Server struct {
 	sessionConnections map[string]string
 	sessionConnMu      sync.RWMutex
 
-	// Short-lived snapshots of subscription sets for JWT rotation (in-process; see also Redis keys in session_resume.go).
+	// Short-lived snapshots of subscription sets for reconnect resume (in-process; see also Redis keys in session_resume.go).
 	sessionHandoffs   map[string]*sessionHandoffEntry
 	sessionHandoffsMu sync.Mutex
 
@@ -81,13 +81,13 @@ type Client struct {
 	conn      *websocket.Conn
 	connCtx   context.Context // derived from HTTP request for logging (WithoutCancel); set on connect
 	Send      chan []byte     // Exported for sync package
-	AccountID string          // Account ID from JWT claims - exported for sync package
-	SessionID string          // Session ID from JWT claims; one active client per session
+	AccountID string          // Account ID from validated app session — exported for sync package
+	SessionID string          // Session ID from validated app session
 	Scopes    model.RealtimeScopes
 
-	// allowedCorpJWT / allowedAllianceJWT are ceilings from the validated internal JWT (never trust the browser alone).
-	allowedCorpJWT     map[string]struct{}
-	allowedAllianceJWT map[string]struct{}
+	// grantedCorpIDs / grantedAllianceIDs are org id ceilings from the server session (never trust the browser alone).
+	grantedCorpIDs     map[string]struct{}
+	grantedAllianceIDs map[string]struct{}
 
 	// Explicit collection-scoped doc subscriptions (subscribe / unsubscribe JSON). Account-scoped
 	// realtime does not require entries here.

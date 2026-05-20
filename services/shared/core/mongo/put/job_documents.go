@@ -13,7 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func BulkUpsertJobDocuments(ctx context.Context, collection *mongo.Collection, accountID string, jobs []models.Job, now time.Time, sessionID string) (*mongo.BulkWriteResult, int, error) {
+func BulkUpsertJobDocuments(ctx context.Context, collection *mongo.Collection, accountID string, jobs []models.Job, now time.Time, sessionID, wsClientID string) (*mongo.BulkWriteResult, int, error) {
 	if collection == nil || accountID == "" {
 		return nil, 0, fmt.Errorf("BulkUpsertJobDocuments: invalid arguments")
 	}
@@ -27,9 +27,7 @@ func BulkUpsertJobDocuments(ctx context.Context, collection *mongo.Collection, a
 		job.MetaData.LastModified = now
 		job.MetaData.LastUpdatedBy = accountID
 		job.MetaData.AccountID = accountID
-		if sessionID != "" {
-			job.MetaData.SessionID = sessionID
-		}
+		ApplyMetaSessionClient(&job.MetaData.MetaData, sessionID, wsClientID)
 		bulkOps = append(bulkOps, mongo.NewUpdateOneModel().
 			SetFilter(bson.M{"_id": job.JobID, "_meta.accountID": accountID}).
 			SetUpdate(bson.M{

@@ -25,19 +25,29 @@ func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClien
 			handleRelease(w, r, clients)
 			return
 		}
+	case path == "/api/v1/document-locks/force-release" || path == "/api/v1/document-locks/force-release/":
+		if r.Method == http.MethodPost {
+			handleForceRelease(w, r, clients)
+			return
+		}
+	case path == "/api/v1/document-locks/hand-over" || path == "/api/v1/document-locks/hand-over/":
+		if r.Method == http.MethodPost {
+			handleHandOver(w, r, clients)
+			return
+		}
 	case path == "/api/v1/document-locks/request" || path == "/api/v1/document-locks/request/":
 		if r.Method == http.MethodPost {
 			handleRequest(w, r, clients)
 			return
 		}
-	case path == "/api/v1/document-locks/status-batch" || path == "/api/v1/document-locks/status-batch/":
+	case path == "/api/v1/document-locks/lock-state-batch" || path == "/api/v1/document-locks/lock-state-batch/":
 		if r.Method == http.MethodPost {
-			handleStatusBatch(w, r, clients)
+			handleLockStateBatch(w, r, clients)
 			return
 		}
-	case path == "/api/v1/document-locks/status" || path == "/api/v1/document-locks/status/":
+	case path == "/api/v1/document-locks/lock-state" || path == "/api/v1/document-locks/lock-state/":
 		if r.Method == http.MethodGet {
-			handleStatus(w, r, clients)
+			handleLockState(w, r, clients)
 			return
 		}
 	case path == "/api/v1/document-locks/claim-handoff" || path == "/api/v1/document-locks/claim-handoff/":
@@ -48,6 +58,16 @@ func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClien
 	case path == "/api/v1/document-locks/waitlist-pulse" || path == "/api/v1/document-locks/waitlist-pulse/":
 		if r.Method == http.MethodPost {
 			handleWaitlistPulse(w, r, clients)
+			return
+		}
+	case path == "/api/v1/document-locks/viewer-arrived" || path == "/api/v1/document-locks/viewer-arrived/":
+		if r.Method == http.MethodPost {
+			handleViewerArrived(w, r, clients)
+			return
+		}
+	case path == "/api/v1/document-locks/viewer-departed" || path == "/api/v1/document-locks/viewer-departed/":
+		if r.Method == http.MethodPost {
+			handleViewerDeparted(w, r, clients)
 			return
 		}
 	}

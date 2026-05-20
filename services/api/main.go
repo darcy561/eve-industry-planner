@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	"eve-industry-planner/api/v1endpoints/documentlocks"
-	"eve-industry-planner/shared/core/authzhmac"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry"
@@ -35,15 +33,12 @@ func main() {
 	ts := teleShutdown
 	clients.CleanupFns = append(clients.CleanupFns, func(c context.Context) { _ = ts(c) })
 
-	if _, err := authzhmac.NewFromEnv(); err != nil {
-		shared.ShutdownOnError(ctx, cancel, clients, err, 5*time.Second)
-		return
-	}
-
 	apimetrics.RegisterSSORefreshDistinctGauges(clients.Redis)
 	apimetrics.RegisterAuthSessionDistinctGauges(clients.Redis)
 
-	documentlocks.StartExpirySubscriber(ctx, clients)
+	// The doc-lock TTL expiry subscriber is a singleton workload — it runs
+	// in the core service under a Redis lease so duplicate replicas don't
+	// emit duplicate `document_lock_expired` events.
 
 	logs.DebugCtx(ctx, "api service running")
 

@@ -25,8 +25,7 @@ import getTooltipContent from "./jobCardTooltips";
 import useUsersStore from "../../../../Zustand/usersStore";
 import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
 import { getJobTypeAccentColor } from "../../../../Functions/Helper/jobTypeDividerColor";
-import { selectDocumentLockReadOnly } from "../../../../Functions/DocumentLock/documentLockSelectors.js";
-import { USER_JOBS_COLLECTION } from "../../../../Functions/DocumentLock/documentLockCollections.js";
+import { useJobCardLockState } from "../../../../Hooks/DocumentLock/useDocumentLockState";
 
 export function CompactGroupJobCardFrame({
   job,
@@ -36,9 +35,21 @@ export function CompactGroupJobCardFrame({
 }) {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
   const { multiSelect } = useUsersStore((state) => state.jobData);
-  const jobLockReadOnly = useUsersStore((s) =>
-    selectDocumentLockReadOnly(s, USER_JOBS_COLLECTION, job.jobID)
-  );
+  /**
+   * `cardLocked` gates destructive affordances (multi-select, delete) that
+   * require an exclusive lock. The Edit/View button stays enabled — the edit
+   * page itself handles the read-only path via `useDocumentLock`, so we let the
+   * user open the job to view its details and switch to editing if/when the
+   * lock becomes available.
+   *
+   * `useJobCardLockState` subscribes to the per-job lock and composes the
+   * group cascade flag the parent passes in, returning the scope-aware
+   * read-only copy used by the Tooltip below.
+   */
+  const { cardLocked, reason: cardLockReason } = useJobCardLockState({
+    jobID: job.jobID,
+    groupReadOnly,
+  });
   const { addToMultiSelect, removeFromMultiSelect } =
     useUsersStore.getState().jobData.actions;
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down("sm"));
@@ -108,7 +119,7 @@ export function CompactGroupJobCardFrame({
         return {
           marginTop: "5px",
           marginBottom: "5px",
-          cursor: "grab",
+          cursor: cardLocked ? "not-allowed" : "grab",
           backgroundColor,
           transition: "border 0.3s ease",
           border: `2px solid transparent`,
@@ -128,7 +139,7 @@ export function CompactGroupJobCardFrame({
           }}
         >
           <Checkbox
-            disabled={jobLockReadOnly}
+            disabled={cardLocked}
             sx={{
               color: (theme) =>
                 theme.palette.mode === PRIMARY_THEME
@@ -184,20 +195,25 @@ export function CompactGroupJobCardFrame({
             alignItems: "center",
             justifyContent: "center"
           }}>
-          <Button
-            color="primary"
-            disabled={jobLockReadOnly}
-            onClick={onJobClick}
+          <Tooltip
+            title={cardLockReason}
+            arrow
+            disableHoverListener={!cardLocked}
           >
-            {jobLockReadOnly ? "Locked" : "Edit"}
-          </Button>
+            <Button
+              color={cardLocked ? "warning" : "primary"}
+              onClick={onJobClick}
+            >
+              {cardLocked ? "View" : "Edit"}
+            </Button>
+          </Tooltip>
         </Grid>
         {!isMobile && (
           <Grid container align="center" size={1} sx={{
             alignItems: "center"
           }}>
             <IconButton
-              disabled={jobLockReadOnly || groupReadOnly}
+              disabled={cardLocked}
               sx={{
                 color: (theme) =>
                   theme.palette.mode === PRIMARY_THEME

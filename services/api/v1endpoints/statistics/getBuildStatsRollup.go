@@ -142,7 +142,7 @@ func GetCorpBuildStatsRollupHandler(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 
-	claims, err := auth.ExtractInternalClaims(r)
+	corpIDs, _, err := auth.ExtractSessionGrants(ctx, r, clients.Redis)
 	if err != nil {
 		metrics.Error("auth_error")
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -160,7 +160,7 @@ func GetCorpBuildStatsRollupHandler(w http.ResponseWriter, r *http.Request, clie
 		http.Error(w, "invalid corporation_id", http.StatusBadRequest)
 		return
 	}
-	if !corpInClaims(corpID, claims.Corporations) {
+	if !corpInClaims(corpID, corpIDs) {
 		metrics.Error("forbidden_corp")
 		http.Error(w, "Forbidden corporation scope", http.StatusForbidden)
 		return

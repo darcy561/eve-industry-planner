@@ -80,8 +80,10 @@ func performEveSSOTokenRequestWithRetry(ctx context.Context, req *http.Request) 
 		}
 		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
 			var errorResp EveSSOErrorResponse
-			if err := json.Unmarshal(body, &errorResp); err == nil && errorResp.ErrorDescription != "" {
-				return fmt.Errorf("EVE SSO Error: %s", errorResp.ErrorDescription)
+			if err := json.Unmarshal(body, &errorResp); err == nil {
+				if msg := formatEveSSOClientError(errorResp); msg != "" {
+					return errors.New(msg)
+				}
 			}
 			return fmt.Errorf("EVE SSO Error: Unknown error (status %d)", resp.StatusCode)
 		}
@@ -111,4 +113,21 @@ func performEveSSOTokenRequestWithRetry(ctx context.Context, req *http.Request) 
 		return nil, retryErr
 	}
 	return &tokenResp, nil
+}
+
+// formatEveSSOClientError builds a stable message for OAuth 4xx bodies. Include the `error` field
+// (e.g. invalid_grant) so callers can classify client errors even when error_description omits it.
+func formatEveSSOClientError(resp EveSSOErrorResponse) string {
+	oauthErr := strings.TrimSpace(resp.Error)
+	desc := strings.TrimSpace(resp.ErrorDescription)
+	switch {
+	case oauthErr != "" && desc != "":
+		return fmt.Sprintf("EVE SSO Error: %s: %s", oauthErr, desc)
+	case oauthErr != "":
+		return fmt.Sprintf("EVE SSO Error: %s", oauthErr)
+	case desc != "":
+		return fmt.Sprintf("EVE SSO Error: %s", desc)
+	default:
+		return ""
+	}
 }

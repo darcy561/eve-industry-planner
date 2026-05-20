@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
+	"eve-industry-planner/api/helper/auth"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	mongoput "eve-industry-planner/shared/core/mongo/put"
 	"eve-industry-planner/shared/logs"
@@ -59,11 +60,13 @@ func PutHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceC
 	}
 
 	now := time.Now().UTC()
+	sessionID, _ := auth.ExtractSessionID(r)
+	wsClientID := helper.ExtractWSClientID(r)
 
 	database := clients.Mongo.Database(mongocore.DatabaseName)
 	collection := database.Collection(mongocore.CollectionUserWatchlistDeprecated)
 
-	result, err := mongoput.UpsertWatchlistDeprecated(ctx, collection, accountID, groups, items, now)
+	result, err := mongoput.UpsertWatchlistDeprecated(ctx, collection, accountID, groups, items, now, sessionID, wsClientID)
 	if err != nil {
 		metrics.Error("database_error")
 		logs.ErrorCtx(ctx, "failed to upsert watchlist deprecated", "error", err, "account_id", accountID)

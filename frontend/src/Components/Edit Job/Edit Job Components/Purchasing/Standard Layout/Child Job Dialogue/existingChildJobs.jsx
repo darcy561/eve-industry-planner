@@ -3,6 +3,7 @@ import { Avatar, IconButton, Typography, Grid } from "@mui/material";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import ClearIcon from "@mui/icons-material/Clear";
 import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
+import { LockGatedTooltip } from "../../../../../DocumentLock/LockGatedTooltip";
 
 export function ExistingChildJobs_Purchasing(props) {
   const { existingChildJobs } = props;
@@ -27,7 +28,7 @@ export function ExistingChildJobs_Purchasing(props) {
   );
 }
 
-function ChildJobEntry({ actions, childJobID }) {
+function ChildJobEntry({ actions, childJobID, siblingLinkLock }) {
   const { findJobInJobArray } = useUsersStore.getState().jobData.actions;
 
   const job = findJobInJobArray(childJobID);
@@ -36,6 +37,21 @@ function ChildJobEntry({ actions, childJobID }) {
   const setupCount = Object.values(job.build.setup).reduce((prev, setup) => {
     return prev + 1;
   }, 0);
+  const { readOnly = false, reason = "" } = siblingLinkLock ?? {};
+  const unlinkButton = (
+    <IconButton
+      size="small"
+      color="error"
+      disabled={readOnly}
+      onClick={() => {
+        actions.markChildJobsForRemoval(job);
+        showSnackbarSuccess(`${job.name} Unlinked`);
+      }}
+    >
+      <ClearIcon />
+    </IconButton>
+  );
+
   return (
     <Grid
       container
@@ -67,16 +83,9 @@ function ChildJobEntry({ actions, childJobID }) {
         <Typography variant="body2">Setups: {setupCount}</Typography>
       </Grid>
       <Grid size={1}>
-        <IconButton
-          size="small"
-          color="error"
-          onClick={() => {
-            actions.markChildJobsForRemoval(job);
-            showSnackbarSuccess(`${job.name} Unlinked`);
-          }}
-        >
-          <ClearIcon />
-        </IconButton>
+        <LockGatedTooltip readOnly={readOnly} reason={reason}>
+          {unlinkButton}
+        </LockGatedTooltip>
       </Grid>
     </Grid>
   );

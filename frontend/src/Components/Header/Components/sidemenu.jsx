@@ -9,14 +9,15 @@ import {
 } from "@mui/material";
 import { useNavigate } from "@tanstack/react-router";
 import useUsersStore from "../../../Zustand/usersStore";
+import { useTranquilityServerStatusQuery } from "../../../Hooks/React Query/tranquilityServerStatus.js";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
 import useAppConfig from "../../../Hooks/App/useAppConfig";
 
 export function SideMenu({ open, setOpen }) {
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
-  const { eveServerStatus, evePlayerCount } = useUsersStore(
-    (state) => state.worldData
-  );
+  const { data: tranquilityStatus } = useTranquilityServerStatusQuery();
+  const eveServerStatus = tranquilityStatus?.online ?? false;
+  const evePlayerCount = tranquilityStatus?.playerCount ?? 0;
   const navigate = useNavigate();
 
   const { enable_upcoming_changes_page: enableUpcomingChanges = false } =

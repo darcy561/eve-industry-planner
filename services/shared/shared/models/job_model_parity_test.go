@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // Parity expectations: ../../../../migration/JOB_MODEL_PARITY_AUDIT.md (Phase 0).
@@ -199,6 +201,48 @@ func TestExtraCost_JSON_frontendExtrasPanelShape(t *testing.T) {
 	}
 	if e.ID != "550e8400-e29b-41d4-a716-446655440000" {
 		t.Fatalf("ID: got %q", e.ID)
+	}
+}
+
+func TestExtraCost_JSON_numericCategory_and_stringExtraValue(t *testing.T) {
+	const raw = `{"id":"row-1","category":2,"extraText":"Fuel","extraValue":"125000.5"}`
+	var e ExtraCost
+	if err := json.Unmarshal([]byte(raw), &e); err != nil {
+		t.Fatal(err)
+	}
+	if e.Category != "2" || e.ExtraText != "Fuel" || e.ExtraValue != 125000.5 || e.ID != "row-1" {
+		t.Fatalf("got %+v", e)
+	}
+}
+
+func TestExtraCost_JSON_legacyTypeLabelCost(t *testing.T) {
+	const raw = `{"id":"x","type":4,"label":"Note","cost":99.25}`
+	var e ExtraCost
+	if err := json.Unmarshal([]byte(raw), &e); err != nil {
+		t.Fatal(err)
+	}
+	if e.Category != "4" || e.ExtraText != "Note" || e.ExtraValue != 99.25 {
+		t.Fatalf("got %+v", e)
+	}
+}
+
+func TestExtraCost_BSON_numericCategory(t *testing.T) {
+	type row struct {
+		ID         string  `bson:"id"`
+		Category   int32   `bson:"category"`
+		ExtraText  string  `bson:"extraText"`
+		ExtraValue float64 `bson:"extraValue"`
+	}
+	b, err := bson.Marshal(row{ID: "r1", Category: 3, ExtraText: "t", ExtraValue: 10.5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var e ExtraCost
+	if err := bson.Unmarshal(b, &e); err != nil {
+		t.Fatal(err)
+	}
+	if e.ID != "r1" || e.Category != "3" || e.ExtraText != "t" || e.ExtraValue != 10.5 {
+		t.Fatalf("got %+v", e)
 	}
 }
 

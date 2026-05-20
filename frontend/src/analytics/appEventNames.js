@@ -1,7 +1,7 @@
 /**
  * Allowlisted event keys for POST /api/v1/analytics/events batch items (snake_case).
  * Prefer backend OTel (jobs, archived-jobs, auth/login, etc.) when the same action hits the API.
- * Keep in sync with allowedFrontendAnalyticsEvents in services/api/v1endpoints/frontend_analytics.go
+ * Keep in sync with allowedFrontendAnalyticsEvents in services/api/v1endpoints/frontendAnalytics.go
  */
 export const AppEvent = Object.freeze({
   NEW_JOB: "new_job",
@@ -22,4 +22,8 @@ export const AppEvent = Object.freeze({
   NEW_JOB_GROUP: "new_job_group",
   REMOVE_WATCHLIST_ITEM: "remove_watchlist_item",
   NEW_WATCHLIST_ITEM: "new_watchlist_item",
+  GROUP_TEMPLATE_ADD: "group_template_add",
+  GROUP_TEMPLATE_DELETE: "group_template_delete",
+  GROUP_TEMPLATE_REPLACE: "group_template_replace",
+  GROUP_TEMPLATE_APPLY: "group_template_apply",
 });
