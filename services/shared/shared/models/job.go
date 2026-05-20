@@ -1,7 +1,11 @@
 package models
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"eve-industry-planner/shared/core/sealedfields"
@@ -100,13 +104,178 @@ type JobCosts struct {
 }
 
 // ExtraCost matches the SPA extras row (Extras panel, Job.toDocument): id, category, extraText, extraValue.
-// category is a string in API and stored jobs. Legacy Firestore (numeric category, type/label/cost) is rewritten
-// only in archiveimport.normalizeExtrasCosts during migration/import, not at runtime decode.
+// Category is the extras category id as a string (same as ExtraCategory.ID). ExtraText is the description.
+// ExtraValue is the ISK amount (numeric JSON/BSON). UnmarshalJSON/UnmarshalBSON coerce legacy scalars (numeric category,
+// type/label/cost aliases) in addition to archiveimport.normalizeExtrasCosts for Firestore import.
 type ExtraCost struct {
 	ID         string  `json:"id" bson:"id"`
 	Category   string  `json:"category" bson:"category"`
 	ExtraText  string  `json:"extraText" bson:"extraText"`
-	ExtraValue float64 `json:"extraValue" bson:"extraValue"`
+	ExtraValue float64 `json:"extraValue" bson:"extraValue"` // ISK amount
+}
+
+func isJSONNullOrEmpty(raw json.RawMessage) bool {
+	b := bytes.TrimSpace(raw)
+	return len(b) == 0 || string(b) == "null"
+}
+
+func extraCostScalarString(raw json.RawMessage) string {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return strings.TrimSpace(s)
+	}
+	var f float64
+	if err := json.Unmarshal(raw, &f); err == nil {
+		return strings.TrimSpace(strconv.FormatFloat(f, 'f', -1, 64))
+	}
+	var n json.Number
+	if err := json.Unmarshal(raw, &n); err == nil {
+		f, err := n.Float64()
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(strconv.FormatFloat(f, 'f', -1, 64))
+	}
+	return strings.TrimSpace(string(raw))
+}
+
+func extraCostScalarFloat64(raw json.RawMessage) float64 {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "null" {
+		return 0
+	}
+	var f float64
+	if err := json.Unmarshal(raw, &f); err == nil {
+		return f
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return 0
+		}
+		v, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return 0
+		}
+		return v
+	}
+	var n json.Number
+	if err := json.Unmarshal(raw, &n); err == nil {
+		f, _ := n.Float64()
+		return f
+	}
+	return 0
+}
+
+// UnmarshalJSON accepts legacy numeric category, type→category, label→extraText, cost→extraValue, and string extraValue.
+func (e *ExtraCost) UnmarshalJSON(data []byte) error {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(data, &m); err != nil {
+		return err
+	}
+	if raw, ok := m["id"]; ok {
+		e.ID = extraCostScalarString(raw)
+	}
+	catRaw, catOK := m["category"]
+	if !catOK || isJSONNullOrEmpty(catRaw) {
+		catRaw = m["type"]
+	}
+	e.Category = extraCostScalarString(catRaw)
+	txtRaw, txtOK := m["extraText"]
+	if !txtOK || isJSONNullOrEmpty(txtRaw) {
+		txtRaw = m["label"]
+	}
+	e.ExtraText = extraCostScalarString(txtRaw)
+	valRaw, ok := m["extraValue"]
+	if !ok || isJSONNullOrEmpty(valRaw) {
+		valRaw = m["cost"]
+	}
+	e.ExtraValue = extraCostScalarFloat64(valRaw)
+	return nil
+}
+
+func extraCostCategoryFromBSON(v any) string {
+	if v == nil {
+		return ""
+	}
+	switch x := v.(type) {
+	case string:
+		return strings.TrimSpace(x)
+	case int32:
+		return strconv.FormatInt(int64(x), 10)
+	case int64:
+		return strconv.FormatInt(x, 10)
+	case int:
+		return strconv.Itoa(x)
+	case float64:
+		return strings.TrimSpace(strconv.FormatFloat(x, 'f', -1, 64))
+	case float32:
+		return strings.TrimSpace(strconv.FormatFloat(float64(x), 'f', -1, 64))
+	default:
+		return strings.TrimSpace(fmt.Sprint(x))
+	}
+}
+
+func extraCostValueFromBSON(v any) float64 {
+	if v == nil {
+		return 0
+	}
+	switch x := v.(type) {
+	case float64:
+		return x
+	case float32:
+		return float64(x)
+	case int32:
+		return float64(x)
+	case int64:
+		return float64(x)
+	case int:
+		return float64(x)
+	case string:
+		s := strings.TrimSpace(x)
+		if s == "" {
+			return 0
+		}
+		f, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return 0
+		}
+		return f
+	default:
+		return 0
+	}
+}
+
+// UnmarshalBSON coerces legacy numeric category and type/label/cost aliases like UnmarshalJSON.
+func (e *ExtraCost) UnmarshalBSON(data []byte) error {
+	var m bson.M
+	if err := bson.Unmarshal(data, &m); err != nil {
+		return err
+	}
+	if v, ok := m["id"]; ok && v != nil {
+		e.ID = extraCostCategoryFromBSON(v)
+	}
+	cat, ok := m["category"]
+	if !ok || cat == nil {
+		cat = m["type"]
+	}
+	e.Category = extraCostCategoryFromBSON(cat)
+	txt, ok := m["extraText"]
+	if !ok || txt == nil {
+		txt = m["label"]
+	}
+	e.ExtraText = extraCostCategoryFromBSON(txt)
+	val, ok := m["extraValue"]
+	if !ok || val == nil {
+		val = m["cost"]
+	}
+	e.ExtraValue = extraCostValueFromBSON(val)
+	return nil
 }
 
 // LinkedESIJob represents a linked ESI job from EVE Online API

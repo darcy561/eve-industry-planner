@@ -2,16 +2,55 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"eve-industry-planner/api/helper/sso"
-	"eve-industry-planner/shared/core/internaljwt"
 	"eve-industry-planner/shared/logs"
 
 	"github.com/redis/go-redis/v9"
 )
+
+type requestContextKey string
+
+const (
+	accountIDContextKey requestContextKey = "auth.account_id"
+	sessionIDContextKey requestContextKey = "auth.session_id"
+)
+
+type AccountSessionIdentity struct {
+	AccountID string
+	SessionID string
+	Session   AccountSession
+}
+
+func WithAuthIdentity(ctx context.Context, accountID, sessionID string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx = context.WithValue(ctx, accountIDContextKey, strings.TrimSpace(accountID))
+	ctx = context.WithValue(ctx, sessionIDContextKey, strings.TrimSpace(sessionID))
+	return ctx
+}
+
+func AccountIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	v, _ := ctx.Value(accountIDContextKey).(string)
+	return strings.TrimSpace(v)
+}
+
+func SessionIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	v, _ := ctx.Value(sessionIDContextKey).(string)
+	return strings.TrimSpace(v)
+}
 
 // Authentication error messages
 const (
@@ -53,28 +92,6 @@ func ValidateEveTokenAndExtractHash(ctx context.Context, tokenString, clientID s
 	}, nil
 }
 
-// GetAuthErrorMessage returns a minimal error message for internal JWT token validation failures.
-// Only distinguishes between expired and invalid tokens to avoid information leakage.
-func GetAuthErrorMessage(err error) string {
-	if err == nil {
-		return ErrMsgUnauthorized
-	}
-
-	errStr := strings.ToLower(err.Error())
-
-	// Only check if expired, all other errors are generic "Invalid token"
-	if strings.Contains(errStr, "expired") {
-		return ErrMsgTokenExpired
-	}
-
-	// Internal server errors should still use a service error message
-	if strings.Contains(errStr, "failed to load private key") {
-		return ErrMsgAuthServiceError
-	}
-
-	return ErrMsgTokenInvalid
-}
-
 // GetEveTokenErrorMessage returns a minimal error message for EVE SSO token validation failures.
 // Only distinguishes between expired and invalid tokens to avoid information leakage.
 func GetEveTokenErrorMessage(err error) string {
@@ -92,136 +109,81 @@ func GetEveTokenErrorMessage(err error) string {
 	return ErrMsgEveTokenInvalid
 }
 
-// ExtractAccountID extracts accountID from the JWT token in Authorization header
+// ExtractAccountID returns accountID set by auth middleware (session identity).
 func ExtractAccountID(r *http.Request) (string, error) {
-	claims, err := ExtractInternalClaims(r)
-	if err != nil {
-		return "", err
-	}
-	return claims.AccountID, nil
-}
-
-// ExtractSessionID extracts sessionID from the validated internal JWT in Authorization header.
-func ExtractSessionID(r *http.Request) (string, error) {
-	claims, err := ExtractInternalClaims(r)
-	if err != nil {
-		return "", err
-	}
-	if strings.TrimSpace(claims.SessionID) == "" {
-		return "", fmt.Errorf("missing session_id claim")
-	}
-	return claims.SessionID, nil
-}
-
-// ExtractInternalClaims validates the bearer token and returns parsed internal claims.
-func ExtractInternalClaims(r *http.Request) (*internaljwt.InternalClaims, error) {
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		return nil, fmt.Errorf("missing Authorization header")
-	}
-
-	const bearerPrefix = "Bearer "
-	if !strings.HasPrefix(authHeader, bearerPrefix) {
-		return nil, fmt.Errorf("invalid Authorization header format")
-	}
-
-	tokenString := strings.TrimSpace(authHeader[len(bearerPrefix):])
-	if tokenString == "" {
-		return nil, fmt.Errorf("empty token")
-	}
-
-	claims, err := internaljwt.ValidateInternalJWT(tokenString)
-	if err != nil {
-		return nil, fmt.Errorf("invalid token: %w", err)
-	}
-	return claims, nil
-}
-
-// sessionIDHTTPHeader must match api/helper.SessionIDHeader ("X-Session-ID").
-func sessionIDFromRequestHeader(r *http.Request) string {
 	if r == nil {
-		return ""
+		return "", fmt.Errorf("missing request")
 	}
-	return strings.TrimSpace(r.Header.Get("X-Session-ID"))
+	if fromCtx := AccountIDFromContext(r.Context()); fromCtx != "" {
+		return fromCtx, nil
+	}
+	return "", fmt.Errorf("missing auth context")
 }
 
-// SessionHeaderMatchesJWTClaims reports whether X-Session-ID matches the JWT session_id claim.
-// Both values must be non-empty after trim (binding JWT to the caller-declared session).
-func SessionHeaderMatchesJWTClaims(r *http.Request, claims *internaljwt.InternalClaims) bool {
-	if claims == nil {
-		return false
+// ExtractSessionID returns sessionID set by auth middleware (session identity).
+func ExtractSessionID(r *http.Request) (string, error) {
+	if r == nil {
+		return "", fmt.Errorf("missing request")
 	}
-	want := strings.TrimSpace(claims.SessionID)
-	if want == "" {
-		return false
+	if fromCtx := SessionIDFromContext(r.Context()); fromCtx != "" {
+		return fromCtx, nil
 	}
-	got := sessionIDFromRequestHeader(r)
-	return got != "" && got == want
+	return "", fmt.Errorf("missing auth context")
 }
 
-// SessionUpgradeMatchesJWTClaims reports whether the upgrade request carries the same session id as the JWT:
-// prefers X-Session-ID when set; otherwise URL query session_id (browser WebSockets cannot set custom headers).
-func SessionUpgradeMatchesJWTClaims(r *http.Request, claims *internaljwt.InternalClaims) bool {
-	if claims == nil || r == nil {
-		return false
+func ExtractAccountSession(ctx context.Context, r *http.Request, redisClient *redis.Client) (*AccountSessionIdentity, error) {
+	if redisClient == nil {
+		return nil, errors.New("redis client is nil")
 	}
-	want := strings.TrimSpace(claims.SessionID)
-	if want == "" {
-		return false
+	sessionID := strings.TrimSpace(ReadAppSessionCookie(r))
+	if sessionID == "" {
+		return nil, errors.New("session_missing")
 	}
-	if got := sessionIDFromRequestHeader(r); got != "" {
-		return got == want
+	accountID, session, err := ResolveAccountSessionBySessionID(ctx, redisClient, sessionID)
+	if err != nil || session == nil {
+		return nil, errors.New("session_missing")
 	}
-	got := strings.TrimSpace(r.URL.Query().Get("session_id"))
-	return got != "" && got == want
+	if session.RevokedAt != nil {
+		return nil, errors.New("session_revoked")
+	}
+	if !session.ReauthRequiredAt.IsZero() && time.Now().UTC().After(session.ReauthRequiredAt) {
+		return nil, errors.New("reauth_required")
+	}
+	return &AccountSessionIdentity{
+		AccountID: accountID,
+		SessionID: sessionID,
+		Session:   *session,
+	}, nil
 }
 
-// SessionRedisMatchesJWTClaims reports whether Redis session:<session_id> exists, its session_id
-// matches the JWT claim, and its account_id matches the JWT account_id claim.
-func SessionRedisMatchesJWTClaims(ctx context.Context, redisClient *redis.Client, claims *internaljwt.InternalClaims) bool {
-	if claims == nil || redisClient == nil {
-		return false
+func TryExtractAccountSession(ctx context.Context, r *http.Request, redisClient *redis.Client) (*AccountSessionIdentity, bool) {
+	identity, err := ExtractAccountSession(ctx, r, redisClient)
+	if err != nil || identity == nil {
+		return nil, false
 	}
-	jwtAccount := strings.TrimSpace(claims.AccountID)
-	sid := strings.TrimSpace(claims.SessionID)
-	if jwtAccount == "" || sid == "" {
-		return false
-	}
-	rec, err := GetSessionRecord(ctx, redisClient, sid)
-	if err != nil || rec == nil {
-		return false
-	}
-	if strings.TrimSpace(rec.SessionID) != sid {
-		return false
-	}
-	return strings.TrimSpace(rec.AccountID) == jwtAccount
+	return identity, true
 }
 
-// BearerInternalJWTValid reports whether the request carries a valid internal JWT, the
-// X-Session-ID header matches the JWT session_id claim, and Redis session record account_id
-// matches the JWT (same binding as private-route middleware).
-func BearerInternalJWTValid(ctx context.Context, r *http.Request, redisClient *redis.Client) bool {
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		return false
-	}
-
-	const bearerPrefix = "Bearer "
-	if !strings.HasPrefix(authHeader, bearerPrefix) {
-		return false
-	}
-
-	tokenString := strings.TrimSpace(authHeader[len(bearerPrefix):])
-	if tokenString == "" {
-		return false
-	}
-
-	claims, err := internaljwt.ValidateInternalJWT(tokenString)
+func ExtractAccountIDFromSession(ctx context.Context, r *http.Request, redisClient *redis.Client) (string, error) {
+	identity, err := ExtractAccountSession(ctx, r, redisClient)
 	if err != nil {
-		return false
+		return "", err
 	}
-	if !SessionHeaderMatchesJWTClaims(r, claims) {
-		return false
+	return identity.AccountID, nil
+}
+
+func ExtractSessionIDFromSession(ctx context.Context, r *http.Request, redisClient *redis.Client) (string, error) {
+	identity, err := ExtractAccountSession(ctx, r, redisClient)
+	if err != nil {
+		return "", err
 	}
-	return SessionRedisMatchesJWTClaims(ctx, redisClient, claims)
+	return identity.SessionID, nil
+}
+
+func ExtractSessionGrants(ctx context.Context, r *http.Request, redisClient *redis.Client) ([]int64, []int64, error) {
+	identity, err := ExtractAccountSession(ctx, r, redisClient)
+	if err != nil {
+		return nil, nil, err
+	}
+	return identity.Session.Grants.CorporationIDs, identity.Session.Grants.AllianceIDs, nil
 }

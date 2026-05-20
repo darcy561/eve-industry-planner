@@ -7,15 +7,15 @@ import (
 	"eve-industry-planner/websocket/server/model"
 )
 
-// ApplyRealtimeScopeUpgrade validates requested corporation/alliance ids against the JWT ceiling
-// stored on the client, merges them into Client.Scopes, and updates reverse indexes.
+// ApplyRealtimeScopeUpgrade validates requested corporation/alliance ids against the session grant
+// ceiling stored on the client, merges them into Client.Scopes, and updates reverse indexes.
 // Returns false when nothing was added (all requests invalid or empty).
 func (s *Server) ApplyRealtimeScopeUpgrade(client *Client, corps, alliances []string) bool {
 	if client == nil {
 		return false
 	}
-	validC := filterToAllowed(client.allowedCorpJWT, corps)
-	validA := filterToAllowed(client.allowedAllianceJWT, alliances)
+	validC := filterToAllowed(client.grantedCorpIDs, corps)
+	validA := filterToAllowed(client.grantedAllianceIDs, alliances)
 	if len(validC) == 0 && len(validA) == 0 {
 		return false
 	}

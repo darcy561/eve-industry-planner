@@ -19,7 +19,8 @@ func RequestStartOrNow(ctx context.Context) time.Time {
 	return start
 }
 
-// PopulateRequestMeta fills common request-derived metadata fields.
+// PopulateRequestMeta fills account id, session id (from auth context / cookie), and client id (X-WS-Client-ID).
+// Bulk upserts in mongoput use the same session/client pairing via ApplyMetaSessionClient.
 func PopulateRequestMeta(r *http.Request, meta *models.MetaData, accountID string) {
 	if meta == nil {
 		return

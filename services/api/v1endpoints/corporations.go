@@ -12,7 +12,6 @@ import (
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/api/helper/sso"
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/core/internaljwt"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
@@ -33,11 +32,11 @@ type CorporationsRequest struct {
 //
 // Before this handler:
 //   - 429 — rate limiter (private); safe to retry with backoff
-//   - 401 — auth middleware: missing/invalid Bearer / internal JWT (do not retry without refresh)
+//   - 401 — auth middleware: missing/invalid/revoked session
 //
-// This handler (also validates auth again for AccountID claims; usually redundant if middleware passed):
+// This handler:
 //   - 405 — method != POST
-//   - 401 — missing/invalid Bearer, invalid internal JWT, empty AccountID in claims
+//   - 401 — missing account session identity (should be rare; middleware normally guards this)
 //   - 400 — invalid JSON/body, no tokens, too many tokens (>50), empty token, no valid SSO tokens after validation
 //   - 500 — config load failure, NATS publish failure
 //   - 204 — task queued successfully (no body)
@@ -62,46 +61,11 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		return
 	}
 
-	// Extract and validate internal JWT token from Authorization header
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		metrics.Error("missing_auth")
-		logs.WarnCtx(ctx, "missing Authorization header")
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	// Extract Bearer token
-	const bearerPrefix = "Bearer "
-	if !strings.HasPrefix(authHeader, bearerPrefix) {
-		metrics.Error("invalid_auth_format")
-		logs.WarnCtx(ctx, "invalid Authorization header format")
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	internalTokenString := strings.TrimSpace(authHeader[len(bearerPrefix):])
-	if internalTokenString == "" {
-		metrics.Error("empty_token")
-		logs.WarnCtx(ctx, "empty token in Authorization header")
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	// Validate internal JWT token and extract AccountID
-	internalClaims, err := internaljwt.ValidateInternalJWT(internalTokenString)
-	if err != nil {
-		metrics.Error("invalid_token")
-		logs.WarnCtx(ctx, "failed to validate internal JWT token", "error", err)
-		http.Error(w, auth.GetAuthErrorMessage(err), http.StatusUnauthorized)
-		return
-	}
-
-	// Use AccountID from the internal token
-	accountID := internalClaims.AccountID
+	// Auth middleware stores session-resolved account identity in request context.
+	accountID := auth.AccountIDFromContext(ctx)
 	if accountID == "" {
 		metrics.Error("missing_account_id")
-		logs.WarnCtx(ctx, "AccountID missing from internal token")
+		logs.WarnCtx(ctx, "AccountID missing from authenticated session context")
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -172,14 +136,14 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	}
 
 	// Submit single task with AccountID and all valid EVE SSO tokens
-	taskRequest := natscore.CorporationClaimsRequest{
+	taskRequest := natscore.AccountSessionGrantsRequest{
 		AccountID: accountID,
 		Tokens:    validTokens,
 	}
 
-	if err := natscore.PublishTask(ctx, clients.JetStream, taskscore.FetchCorporations.Subject, taskscore.FetchCorporations.Name, taskRequest, clients.NATS); err != nil {
+	if err := natscore.PublishTask(ctx, clients.JetStream, taskscore.UpdateAccountSessionGrants.Subject, taskscore.UpdateAccountSessionGrants.Name, taskRequest, clients.NATS); err != nil {
 		metrics.Error("publish_error")
-		logs.ErrorCtx(ctx, "failed to publish corporation lookup task",
+		logs.ErrorCtx(ctx, "failed to publish account session grants refresh task",
 			"account_id", accountID,
 			"token_count", len(validTokens),
 			"error", err)
@@ -191,7 +155,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	w.WriteHeader(http.StatusNoContent)
 	metrics.Success()
 
-	logs.InfoCtx(ctx, "successfully queued corporation lookup task",
+	logs.InfoCtx(ctx, "successfully queued account session grants refresh task",
 		"account_id", accountID,
 		"valid_tokens", len(validTokens),
 		"total_tokens", len(reqBody.Tokens),

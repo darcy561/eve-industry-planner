@@ -12,11 +12,18 @@ import { AvailableChildJobs_Purchasing } from "./availableChildJobs";
 import { ExistingChildJobs_Purchasing } from "./existingChildJobs";
 import getCurrentLinkedChildJobIDsForMaterial from "../Material Cards/functions/getCurrentLinkedChildJobIDsForMaterial.js";
 import useUsersStore from "../../../../../../Zustand/usersStore";
+import { useSiblingLinkLock } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 
 export function ChildJobDialogue(props) {
   const { state, material, childDialogTrigger, updateChildDialogTrigger } =
     props;
-  const { jobArray } = useUsersStore((state) => state.jobData);
+  const { jobArray } = useUsersStore((rootState) => rootState.jobData);
+  /**
+   * Computed once at the dialog level and broadcast through `{...props}` so the
+   * Add/Clear row buttons share the same reactive lock subscription instead of
+   * each row re-running the selector chain.
+   */
+  const siblingLinkLock = useSiblingLinkLock(state);
 
   const existingChildJobs = getCurrentLinkedChildJobIDsForMaterial(
     material.typeID,
@@ -53,6 +60,7 @@ export function ChildJobDialogue(props) {
         <AvailableChildJobs_Purchasing
           {...props}
           availableChildJobs={availableChildJobs}
+          siblingLinkLock={siblingLinkLock}
         />
         <Grid sx={{ marginBottom: "10px" }}>
           <Typography variant="h6" color="primary" align="center">
@@ -62,6 +70,7 @@ export function ChildJobDialogue(props) {
         <ExistingChildJobs_Purchasing
           {...props}
           existingChildJobs={existingChildJobs}
+          siblingLinkLock={siblingLinkLock}
         />
       </DialogContent>
       <DialogActions>

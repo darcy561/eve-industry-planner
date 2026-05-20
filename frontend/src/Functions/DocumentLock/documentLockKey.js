@@ -12,16 +12,3 @@ const SEP = "\x1e";
 export function documentLockKey(collection, docID) {
   return `${collection}${SEP}${docID}`;
 }
-
-/**
- * @param {string} key - from {@link documentLockKey}
- * @returns {{ collection: string, docID: string }|null}
- */
-export function parseDocumentLockKey(key) {
-  if (typeof key !== "string" || !key.includes(SEP)) return null;
-  const i = key.indexOf(SEP);
-  const collection = key.slice(0, i);
-  const docID = key.slice(i + SEP.length);
-  if (!collection || !docID) return null;
-  return { collection, docID };
-}

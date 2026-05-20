@@ -7,6 +7,7 @@ import {
   Grid,
   Grow,
   IconButton,
+  Tooltip,
   Typography,
   useTheme,
 } from "@mui/material";
@@ -29,8 +30,7 @@ import useUsersStore from "../../../../Zustand/usersStore";
 import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
 import ContentPanel from "../../../../Styled Components/Paper/ContentPanel";
 import { getJobTypeAccentColor } from "../../../../Functions/Helper/jobTypeDividerColor";
-import { selectDocumentLockReadOnly } from "../../../../Functions/DocumentLock/documentLockSelectors.js";
-import { USER_JOBS_COLLECTION } from "../../../../Functions/DocumentLock/documentLockCollections.js";
+import { useJobCardLockState } from "../../../../Hooks/DocumentLock/useDocumentLockState";
 
 function DisplaySwitch({ job }) {
   switch (job.jobStatus) {
@@ -56,9 +56,21 @@ export function ClassicGroupJobCardFrame({
   editReturnPageView,
 }) {
   const { multiSelect, activeGroupID } = useUsersStore((state) => state.jobData);
-  const jobLockReadOnly = useUsersStore((s) =>
-    selectDocumentLockReadOnly(s, USER_JOBS_COLLECTION, job.jobID)
-  );
+  /**
+   * `cardLocked` gates destructive affordances (multi-select, delete) that
+   * require an exclusive lock. The Edit/View button stays enabled — the edit
+   * page itself handles the read-only path via `useDocumentLock`, so we let the
+   * user open the job to view its details and switch to editing if/when the
+   * lock becomes available.
+   *
+   * `useJobCardLockState` subscribes to the per-job lock and composes the
+   * group cascade flag the parent passes in, returning the scope-aware
+   * read-only copy used by the Tooltip below.
+   */
+  const { cardLocked, reason: cardLockReason } = useJobCardLockState({
+    jobID: job.jobID,
+    groupReadOnly,
+  });
   const { addToMultiSelect, removeFromMultiSelect, getActiveGroupObject } =
     useUsersStore.getState().jobData.actions;
   const {
@@ -109,7 +121,7 @@ export function ClassicGroupJobCardFrame({
     const borderColor = isDarkMode ? grey[700] : grey[400];
     return {
       padding: 0,
-      cursor: "grab",
+      cursor: cardLocked ? "not-allowed" : "grab",
       backgroundColor,
       transition: "border 0.3s ease",
       border: `2px solid transparent`,
@@ -129,7 +141,7 @@ export function ClassicGroupJobCardFrame({
         minHeight: 0,
       },
     };
-  }, [theme, jobCardChecked, isDragging, isHighlighted, PRIMARY_THEME]);
+  }, [theme, jobCardChecked, isDragging, isHighlighted, PRIMARY_THEME, cardLocked]);
 
   return (
     <Grow in={true}>
@@ -154,7 +166,7 @@ export function ClassicGroupJobCardFrame({
             <Box sx={{ display: "flex", flexDirection: "row", width: "100%" }}>
               <Box sx={{ flex: "0 0 auto" }}>
                 <Checkbox
-                  disabled={jobLockReadOnly}
+                  disabled={cardLocked}
                   checked={jobCardChecked}
                   sx={{
                     color: (theme) =>
@@ -174,7 +186,7 @@ export function ClassicGroupJobCardFrame({
               <Box sx={{ flex: 1 }} />
               <Box sx={{ flex: "0 0 auto" }}>
                 <IconButton
-                  disabled={jobLockReadOnly || groupReadOnly}
+                  disabled={cardLocked}
                   sx={{
                     color: (theme) =>
                       theme.palette.mode === PRIMARY_THEME
@@ -230,15 +242,20 @@ export function ClassicGroupJobCardFrame({
             </Box>
             <Box sx={{ display: "flex", flexDirection: "column", marginTop: "auto", width: "100%" }}>
               <Box sx={{ display: "flex", justifyContent: "center", marginTop: 0.5 }}>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  disabled={jobLockReadOnly}
-                  onClick={onJobClick}
-                  sx={{ height: 25, width: 100 }}
+                <Tooltip
+                  title={cardLockReason}
+                  arrow
+                  disableHoverListener={!cardLocked}
                 >
-                  {jobLockReadOnly ? "Locked" : "Edit"}
-                </Button>
+                  <Button
+                    variant="outlined"
+                    color={cardLocked ? "warning" : "primary"}
+                    onClick={onJobClick}
+                    sx={{ height: 25, width: 100 }}
+                  >
+                    {cardLocked ? "View" : "Edit"}
+                  </Button>
+                </Tooltip>
               </Box>
               <Box
                 sx={{

@@ -10,8 +10,10 @@ import (
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/core/sealedfields/entityids"
+	"eve-industry-planner/shared/core/documentlock"
+	mongocore "eve-industry-planner/shared/core/mongo"
 	mongoput "eve-industry-planner/shared/core/mongo/put"
+	"eve-industry-planner/shared/core/sealedfields/entityids"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/shared/models"
@@ -78,9 +80,47 @@ func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	}
 
 	collection := collJobDocuments(clients)
-	sessionID, _ := auth.ExtractSessionID(r)
+	sessionID, sessErr := auth.ExtractSessionID(r)
+	wsClientID := helper.ExtractWSClientID(r)
+
+	if clients.Redis != nil {
+		if sessErr != nil || sessionID == "" {
+			metrics.Error("auth_error")
+			logs.WarnCtx(ctx, "job documents put lock gate: missing session", "error", sessErr, "account_id", accountID)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		jobIDs := make([]string, 0, len(reqBody.Jobs))
+		for _, j := range reqBody.Jobs {
+			if j.JobID != "" {
+				jobIDs = append(jobIDs, j.JobID)
+			}
+		}
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, mongocore.CollectionUserJobDocuments, jobIDs)
+		if lerr != nil {
+			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
+				metrics.Error("auth_error")
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			metrics.Error("lock_error")
+			logs.ErrorCtx(ctx, "job documents put lock gate failed", "error", lerr, "account_id", accountID)
+			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to verify document lock", lerr)
+			return
+		}
+		if len(rejects) > 0 {
+			metrics.Error("lock_conflict")
+			logs.WarnCtx(ctx, "job documents put blocked: lock held elsewhere",
+				"account_id", accountID,
+				"requester_session_id", sessionID,
+				"rejected_count", len(rejects))
+			helper.RespondLockHeldElsewhereJSON(w, mongocore.CollectionUserJobDocuments, rejects)
+			return
+		}
+	}
+
 	now := time.Now()
-	result, failedCount, err := mongoput.BulkUpsertJobDocuments(ctx, collection, accountID, reqBody.Jobs, now, sessionID)
+	result, failedCount, err := mongoput.BulkUpsertJobDocuments(ctx, collection, accountID, reqBody.Jobs, now, sessionID, wsClientID)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			metrics.Error("request_canceled")

@@ -12,15 +12,10 @@ import SaveIcon from "@mui/icons-material/Save";
 import useUsersStore from "../../../Zustand/usersStore";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
 import { flushPendingGroupSave } from "../../../Functions/Debounce/jobGroupsPersistSchedule.js";
-import { USER_JOB_GROUPS_COLLECTION } from "../../../Functions/DocumentLock/documentLockCollections.js";
-import { selectDocumentLockReadOnly } from "../../../Functions/DocumentLock/documentLockSelectors.js";
+import { useActiveGroupLockReadOnly } from "../../../Hooks/DocumentLock/useDocumentLockState";
 
 function GroupNameFrame({}) {
-  const readOnly = useUsersStore((s) => {
-    const gid = s.jobData.activeGroupID;
-    if (!gid) return false;
-    return selectDocumentLockReadOnly(s, USER_JOB_GROUPS_COLLECTION, gid);
-  });
+  const readOnly = useActiveGroupLockReadOnly();
   const { updateModifiedGroups, getActiveGroupObject } =
     useUsersStore.getState().jobData.actions;
   const [allowEditGroupName, updateAllowEditGroupName] = useState(false);

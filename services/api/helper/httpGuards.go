@@ -15,12 +15,11 @@ func RequireMethod(w http.ResponseWriter, r *http.Request, expected string) bool
 	return false
 }
 
-// RequireAccountID extracts accountID from internal JWT and writes 401 when unavailable.
+// RequireAccountID extracts accountID from session context (or legacy JWT fallback) and writes 401 when unavailable.
 func RequireAccountID(w http.ResponseWriter, r *http.Request) (string, bool) {
-	accountID, err := auth.ExtractAccountID(r)
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return "", false
+	if fromCtx := auth.AccountIDFromContext(r.Context()); fromCtx != "" {
+		return fromCtx, true
 	}
-	return accountID, true
+	http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	return "", false
 }

@@ -2,7 +2,8 @@ import useUserStore from "../../../Zustand/usersStore";
 import { chunkArray } from "../chunkArray.js";
 import withRequestRetries, { splitRetryConfig } from "../withRequestRetries.js";
 import { getRealtimeClientID } from "../../../Realtime/wsClientIdentity.js";
-import { getAppJwtSessionID } from "../../Auth/appJwt.js";
+import { applyLockHeldElsewhereFromApiBody } from "../../DocumentLock/applyLockHeldElsewhereFromApiResponse.js";
+import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../../DocumentLock/documentLockEvents.js";
 
 /**
  * Shared `retry` options for batched private calls (same as `withRequestRetries` defaults).
@@ -29,11 +30,33 @@ function throwIfAnySettledFailed(settled, label) {
 }
 
 /**
- * Thrown / rejected when no Bearer token exists for a private request (not retried).
+ * @param {Response} res
+ * @param {string} methodLabel
+ * @param {string} url
+ * @param {string} text
+ * @param {string} [errorLabel]
+ * @returns {never}
+ */
+function throwNonOkPrivateResponse(res, methodLabel, url, text, errorLabel) {
+  if (res.status === 409 && applyLockHeldElsewhereFromApiBody(text)) {
+    const label = errorLabel || `${methodLabel} ${url}`;
+    const err = new Error(`${label}: document lock held elsewhere (409)`);
+    err.code = LOCK_HELD_ELSEWHERE;
+    throw err;
+  }
+  const err = new Error(
+    `${methodLabel} ${url} failed: ${res.status} ${text || res.statusText}`
+  );
+  err.status = res.status;
+  throw err;
+}
+
+/**
+ * Thrown / rejected when no authenticated app session is available for a private request (not retried).
  * @type {string}
  */
 export const PRIVATE_AUTH_TOKEN_UNAVAILABLE =
-  "Authentication required but no server token available";
+  "Authentication required but no session available";
 
 /**
  * @typedef {object} PrivateRequestBatchOptions
@@ -45,17 +68,20 @@ export const PRIVATE_AUTH_TOKEN_UNAVAILABLE =
  */
 
 /**
- * Private API helpers: Bearer app JWT (`account.accessToken`).
+ * Private API helpers: cookie-backed session auth.
  *
- * {@link requestWithPrivateHeaders} awaits `account.actions.refreshServerToken` first when the token
- * is near expiry (same buffer as elsewhere), then attaches the current Bearer token and `fetch`es.
+ * {@link requestWithPrivateHeaders} awaits `account.actions.refreshServerToken` first (often a no-op
+ * when the planner session was validated recently — see cooldown in `tokenActions.refreshServerToken`),
+ * then performs `fetch` with browser-managed same-origin cookies.
+ * Session identity comes from the session cookie server-side; **`X-WS-Client-ID`** is sent when the
+ * realtime layer has assigned a tab id (echo suppression / locks).
  * **Retries** (408 / 429 / 5xx by default) are applied automatically unless `config.retry === false`.
  *
  * **Batching:** pass `config.batch` with `size` and `arrayKey`. The request `body` must be a JSON
  * string of an object containing `arrayKey` as an array; it is split into chunks of at most `size`.
  * Omit `batch` or use `size` &lt; 1 for a single request. Chunks run with `Promise.allSettled` in parallel.
  * Typical sizes (match Go handlers): job-documents PUT 100, POST/DELETE IDs 200; groups PUT 100,
- * DELETE group IDs 200; archived-jobs PUT 100. Document-lock `status-batch` uses two arrays and is
+ * DELETE group IDs 200; archived-jobs PUT 100. Document-lock `lock-state-batch` uses two arrays and is
  * chunked in {@link documentLockClient.js} (500 per list). Citadel names already debatches in-module.
  *
  * @module applyPrivateHeaders
@@ -74,38 +100,23 @@ function stripBatchFromConfig(config) {
   return { inner, batch };
 }
 
-/**
- * Get server access token from Zustand store
- * @returns {string|null} Server access token or null if not available
- */
-function getServerToken() {
-  try {
-    const serverToken = useUserStore
-      .getState()
-      .account.actions.getServerAccessToken();
-    return serverToken;
-  } catch (error) {
-    console.error("Failed to get server token:", error);
-    return null;
-  }
-}
-
-/** Resolves session id for private API headers (Zustand, then JWT payload). */
-export function getSessionIDFromStoreOrToken(serverToken) {
+/** Resolves planner session id from the client store (for correlation / identity hints). */
+export function getSessionIDFromStore() {
   const fromStore = useUserStore.getState()?.account?.sessionID;
   if (typeof fromStore === "string" && fromStore.trim().length > 0) {
     return fromStore.trim();
   }
-  return getAppJwtSessionID(serverToken);
+  return null;
 }
 
 /**
- * Apply private headers (Authorization Bearer token) to options
- * Private endpoints always require authentication.
+ * Merge optional request metadata into fetch options. Private routes use **same-origin cookies**
+ * for auth; adds **`X-WS-Client-ID`** when the realtime layer has assigned a tab id.
+ *
  * @param {Object} options - Fetch options
  * @param {Object} config - Configuration
  * @param {string} [config.requestName] - Optional name for the request (appears in network tab headers)
- * @returns {Object|null} Options with private headers applied, or null if token not available
+ * @returns {Object} Options with headers merged (always returns an object — does not short-circuit on missing session)
  *
  * @example
  * const options = applyPrivateHeaders({
@@ -114,20 +125,9 @@ export function getSessionIDFromStoreOrToken(serverToken) {
  * });
  */
 function applyPrivateHeaders(options = {}, config = {}) {
-  const serverToken = getServerToken();
-
-  if (!serverToken) {
-    console.error("No server access token available - authentication required for private endpoints");
-    return null;
-  }
-
   const headers = {
     ...options.headers,
-    Authorization: `Bearer ${serverToken}`,
     ...(config.requestName && { "X-Request-Name": config.requestName }),
-    ...(getSessionIDFromStoreOrToken(serverToken) && {
-      "X-Session-ID": getSessionIDFromStoreOrToken(serverToken),
-    }),
     ...(getRealtimeClientID() && {
       "X-WS-Client-ID": getRealtimeClientID(),
     }),
@@ -135,12 +135,13 @@ function applyPrivateHeaders(options = {}, config = {}) {
 
   return {
     ...options,
+    credentials: options.credentials ?? "same-origin",
     headers,
   };
 }
 
 /**
- * One attempt: refresh token if configured, then fetch with private headers.
+ * One attempt: optional session refresh hook, then `fetch` with private headers (cookies + `X-WS-Client-ID`).
  * @param {string} URL
  * @param {Object} options
  * @param {Object} headerConfig - `requestName` only (retry stripped)
@@ -152,10 +153,6 @@ async function executePrivateFetchOnce(URL, options, headerConfig) {
   }
 
   const enhancedOptions = applyPrivateHeaders(options, headerConfig);
-
-  if (!enhancedOptions) {
-    throw new Error(PRIVATE_AUTH_TOKEN_UNAVAILABLE);
-  }
 
   return fetch(URL, enhancedOptions);
 }
@@ -252,12 +249,7 @@ async function executeBatchedPrivateRequest(URL, options, innerConfig, batch) {
       if (mergeResponseJsonArrays) {
         if (!res.ok) {
           const text = await res.text().catch(() => "");
-          /** @type {Error & { status?: number }} */
-          const err = new Error(
-            `${methodLabel} ${URL} failed: ${res.status} ${text || res.statusText}`
-          );
-          err.status = res.status;
-          throw err;
+          throwNonOkPrivateResponse(res, methodLabel, URL, text, errorLabel);
         }
         const data = await res.json();
         const rows = Array.isArray(data) ? data : [];
@@ -266,12 +258,7 @@ async function executeBatchedPrivateRequest(URL, options, innerConfig, batch) {
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
-        /** @type {Error & { status?: number }} */
-        const err = new Error(
-          `${methodLabel} ${URL} failed: ${res.status} ${text || res.statusText}`
-        );
-        err.status = res.status;
-        throw err;
+        throwNonOkPrivateResponse(res, methodLabel, URL, text, errorLabel);
       }
       return res;
     })
@@ -305,8 +292,8 @@ async function executeBatchedPrivateRequest(URL, options, innerConfig, batch) {
 }
 
 /**
- * Authenticated `fetch` for private routes: refreshes the app JWT when inside the expiry buffer,
- * then sends the request with `Authorization: Bearer`.
+ * Authenticated `fetch` for private routes: refreshes app session state then sends request
+ * with `credentials: "same-origin"` so browser attaches session cookie.
  *
  * Retries transient failures by default (same policy as `withRequestRetries`: 408 / 429 / 5xx).
  * Set `config.retry` to `false` to disable. Pass `config.retry: { maxAttempts, baseDelayMs, … }` to
@@ -322,7 +309,7 @@ async function executeBatchedPrivateRequest(URL, options, innerConfig, batch) {
  * @param {false|true|object} [config.retry] - `false` = no retries; `true`/omit = default retries; object = `withRequestRetries` options
  * @param {PrivateRequestBatchOptions} [config.batch]
  * @returns {Promise<Response>} HTTP response (merged synthetic response when `mergeResponseJsonArrays`)
- * @throws {Error} When authentication token is not available (after refresh), or last network error after retries
+ * @throws {Error} When the session refresh hook fails, or last network error after retries
  *
  * @example
  * const response = await requestWithPrivateHeaders('/api/v1/jobs/add', {
@@ -350,7 +337,16 @@ async function requestWithPrivateHeaders(URL, options = {}, config = {}) {
     return executeBatchedPrivateRequest(URL, options, innerConfig, batch);
   }
 
-  return executePrivateRequestSingle(URL, options, innerConfig);
+  const res = await executePrivateRequestSingle(URL, options, innerConfig);
+  if (!res.ok && res.status === 409) {
+    try {
+      const text = await res.clone().text();
+      applyLockHeldElsewhereFromApiBody(text);
+    } catch {
+      /* ignore */
+    }
+  }
+  return res;
 }
 
 export default requestWithPrivateHeaders;

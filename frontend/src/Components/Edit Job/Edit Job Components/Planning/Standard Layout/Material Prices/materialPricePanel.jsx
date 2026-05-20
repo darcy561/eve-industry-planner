@@ -8,9 +8,16 @@ import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel
 import { useMaterialPricingModel } from "./Hooks/useMaterialPricingModel";
 import { useMaterialOverrides } from "./Hooks/useMaterialOverrides";
 import { useChildJobBuildActions } from "./Hooks/useChildJobBuildActions";
+import { useActiveGroupReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 
 export function MaterialCostPanel(props) {
   const { state, actions } = props;
+  /**
+   * "Create All Child Jobs" combines per-row Create and Link-to-existing-group-job:
+   * it enrolls new jobs in the active group and may also flag siblings for linking,
+   * so both gating rules collapse onto the group lock cascade.
+   */
+  const groupLockReadOnly = useActiveGroupReadOnly(state);
   const {
     activeJob,
     layout,
@@ -53,8 +60,11 @@ export function MaterialCostPanel(props) {
           },
         },
         {
-          label: "Create All Child Jobs",
+          label: groupLockReadOnly
+            ? "Create All Child Jobs (group locked)"
+            : "Create All Child Jobs",
           onClick: buildAllChildJobs,
+          disabled: groupLockReadOnly,
         },
       ]}
     >

@@ -1,6 +1,6 @@
 import { decodeJwt } from "jose";
-import refreshAccessTokenESICall from "../Functions/EveESI/Character/refreshAccessToken";
-import refreshCloudStoredEsiAccessToken from "../Functions/EveESI/Character/refreshCloudStoredEsiAccessToken";
+import refreshEsiAccessTokenViaSsoRefreshEndpoint from "../Functions/EveESI/Character/refreshAccessToken";
+import refreshEsiAccessTokenFromServerStoredCredential from "../Functions/EveESI/Character/refreshCloudStoredEsiAccessToken";
 import getCharacterPublicInfo from "../Functions/EveESI/Character/getPublicData";
 import useUsersStore from "../Zustand/usersStore";
 
@@ -136,29 +136,28 @@ class Character {
   };
 
   /**
-   * Refreshes the ESI access token (15 min expiry buffer; updates local `Auth` when main).
+   * Refreshes the **ESI access JWT** (CCP), not the planner app session.
+   * Dispatches to server-stored vs client-held OAuth refresh (`esi_oauth_storage` / settings).
+   *
+   * Buffer is **660 s (11 min)** — see `tokenActions.refreshServerToken` for planner session cadence.
+   *
    * @returns {Promise<number>} 1 if refreshed, 0 if skipped or failed
    */
-  refreshESIToken = async () => {
+  refreshEsiAccessTokenIfNeeded = async () => {
     try {
       if (this.isPlaceholder) {
         return 0;
       }
       const currentTimeStamp = Math.floor(Date.now() / 1000);
-      const bufferTime = 900;
+      const bufferTime = 660;
 
       if (this.esiAccessTokenEXP >= currentTimeStamp + bufferTime) return 0;
       this.refreshState = 2;
       const cloudAccounts =
         !!useUsersStore.getState().applicationSettings.userCloudAccounts;
-      // Cloud mode: ESI refresh tokens live in Mongo; server refreshes by CharacterHash (main + alts).
-      const shouldUseCloudEsiRefresh =
-        cloudAccounts &&
-        (this.isMainCharacter ||
-          (!this.isMainCharacter && !this.esiRefreshToken));
-      const JWT = shouldUseCloudEsiRefresh
-        ? await refreshCloudStoredEsiAccessToken(this.CharacterHash)
-        : await refreshAccessTokenESICall(this.esiRefreshToken);
+      const JWT = cloudAccounts
+        ? await refreshEsiAccessTokenFromServerStoredCredential(this.CharacterHash)
+        : await refreshEsiAccessTokenViaSsoRefreshEndpoint(this.esiRefreshToken);
       if (JWT instanceof Error) {
         throw JWT;
       }
@@ -168,8 +167,8 @@ class Character {
       this.esiAccessTokenEXP = Number(exp);
       if (!cloudAccounts) {
         this.esiRefreshToken = JWT.refresh_token ?? "";
-      } else if (!this.isMainCharacter && JWT.refresh_token) {
-        this.esiRefreshToken = JWT.refresh_token;
+      } else {
+        this.esiRefreshToken = "";
       }
       this.refreshState = 3;
       if (this.isMainCharacter && !cloudAccounts && JWT.refresh_token) {

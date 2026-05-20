@@ -16,16 +16,11 @@ import ClearIcon from "@mui/icons-material/Clear";
 import useUsersStore from "../../../Zustand/usersStore";
 import VirtualisedRecipeSearch from "../../../Styled Components/autocomplete/virtualisedRecipeSearch";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
-import { USER_JOB_GROUPS_COLLECTION } from "../../../Functions/DocumentLock/documentLockCollections.js";
-import { selectDocumentLockReadOnly } from "../../../Functions/DocumentLock/documentLockSelectors.js";
+import { useActiveGroupLockReadOnly } from "../../../Hooks/DocumentLock/useDocumentLockState";
 import addNewJobsToPlanner from "../../../Functions/JobPlanner/addNewJobsToPlanner";
 
 export function SearchBar({ actions }) {
-  const readOnly = useUsersStore((s) => {
-    const gid = s.jobData.activeGroupID;
-    if (!gid) return false;
-    return selectDocumentLockReadOnly(s, USER_JOB_GROUPS_COLLECTION, gid);
-  });
+  const readOnly = useActiveGroupLockReadOnly();
   const { activeGroupID } = useUsersStore((state) => state.jobData);
   const [itemIDsToAdd, updateItemIDsToAdd] = useState([]);
   const [addNewGroupOnBuild, updateAddNewGroupOnBuild] = useState(false);

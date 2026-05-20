@@ -106,43 +106,16 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 				v1endpoints.AuthHandler(w, r, clients)
 			},
 		},
-		// Backward-compat alias for older clients still calling the pre-sessions auth route.
 		{
-			Path: "/api/v1/auth",
+			Path: "/api/v1/auth/sessions/rotate",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.AuthHandler(w, r, clients)
+				v1endpoints.RotateHandler(w, r, clients)
 			},
 		},
 		{
-			Path: "/api/v1/auth/sessions/refresh",
+			Path: "/api/v1/auth/sessions/bootstrap",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.RefreshHandler(w, r, clients)
-			},
-		},
-		// Backward-compat alias for older clients still calling the pre-sessions refresh route.
-		{
-			Path: "/api/v1/auth/refresh",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.RefreshHandler(w, r, clients)
-			},
-		},
-		{
-			Path: "/api/v1/auth/sessions/login-refresh",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.LoginRefreshHandler(w, r, clients)
-			},
-		},
-		// Backward-compat alias for older clients still calling the pre-sessions login-refresh route.
-		{
-			Path: "/api/v1/auth/login-refresh",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.LoginRefreshHandler(w, r, clients)
-			},
-		},
-		{
-			Path: "/api/v1/auth/jwks",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.JWKSHandler(w, r)
+				v1endpoints.BootstrapHandler(w, r, clients)
 			},
 		},
 		{
@@ -248,9 +221,9 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 	// Define private routes (v1)
 	privateRoutes := []route{
 		{
-			Path: "/api/v1/eve-sso/cloud-stored-esi/refresh",
+			Path: "/api/v1/esi/characters/access-token/server",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				userendpoints.CloudStoredEsiRefreshHandler(w, r, clients)
+				userendpoints.ServerStoredEsiAccessTokenHandler(w, r, clients)
 			},
 		},
 		{
@@ -272,7 +245,7 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 			},
 		},
 		{
-			Path: "/api/v1/user/cloud-stored-esi-refresh-tokens",
+			Path: "/api/v1/user/linked-characters/oauth-credentials",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				userendpoints.CloudStoredEsiRefreshTokensHandler(w, r, clients)
 			},

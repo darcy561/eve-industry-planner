@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useQueryClient } from "@tanstack/react-query";
+import { queryClient } from "../queryClient.js";
 import { logoutServerSession } from "../Functions/Auth/serverTokens";
 import { disconnectRealtime } from "../Realtime/realtimeClient.js";
 import { clearInboundJobDocumentCoalesce } from "../Functions/Debounce/inboundJobDocumentsCoalesce.js";
@@ -9,7 +9,6 @@ import { useEffect } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 
 function clearClientSessionState() {
-  const { resetUsersSettingsStore } = useUsersStore.getState().users.actions;
   const { resetJobDataStore } = useUsersStore.getState().jobData.actions;
   const { resetApplicationSettingsStore } = useUsersStore.getState()
     .applicationSettings.actions;
@@ -22,7 +21,6 @@ function clearClientSessionState() {
   // Clear session first so in-flight account GETs (e.g. syncAccountDocumentsFromServer) cannot
   // re-merge application_settings after we clear them in the same tick.
   resetAccountStore();
-  resetUsersSettingsStore();
   resetJobDataStore();
   resetApplicationSettingsStore();
   resetWorldDataStore();
@@ -30,7 +28,6 @@ function clearClientSessionState() {
 
 function SignoutComponent() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   useEffect(() => {
     async function performSignout() {
       const { refreshToken } = useUsersStore.getState().account;
@@ -63,7 +60,7 @@ function SignoutComponent() {
     }
 
     performSignout();
-  }, [navigate, queryClient]);
+  }, [navigate]);
 
   return <LoadingPage variant="route" />;
 }
