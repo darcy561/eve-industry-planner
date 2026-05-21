@@ -133,8 +133,7 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 				return
 			}
 			metrics.Error("lock_error")
-			logs.ErrorCtx(ctx, "archived jobs put lock gate failed", "error", lerr, "account_id", accountID)
-			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to verify document lock", lerr)
+			helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "archived jobs put lock gate failed", "archived_jobs_lock_gate_failed", "archived_jobs_put", lerr, map[string]interface{}{"account_id": accountID})
 			return
 		}
 		if len(rejects) > 0 {
@@ -179,8 +178,7 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	})
 	if err != nil {
 		metrics.Error("database_error")
-		logs.ErrorCtx(ctx, "archived jobs put: bulk write", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to save archived jobs", err)
+		helper.RespondEndpointServerError(w, r, "Failed to save archived jobs", "archived jobs put: bulk write", "archived_jobs_upsert_failed", "archived_jobs_put", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 

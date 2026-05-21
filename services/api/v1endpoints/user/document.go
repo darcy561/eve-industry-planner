@@ -67,8 +67,7 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 			return
 		}
 		metrics.Error("database_error")
-		logs.ErrorCtx(ctx, "failed to query user document", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to retrieve user document", err)
+		helper.RespondEndpointServerError(w, r, "Failed to retrieve user document", "failed to query user document", "user_doc_query_failed", "eve_token_login", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 
@@ -103,8 +102,7 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 
 	if err := helper.EncodeJSON(w, response); err != nil {
 		metrics.Error("encode_error")
-		logs.ErrorCtx(ctx, "failed to encode user document response", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode user document response", "user_doc_encode_failed", "eve_token_login", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 
@@ -155,8 +153,7 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 	if loadErr != nil {
 		if !errors.Is(loadErr, mongo.ErrNoDocuments) {
 			metrics.Error("database_error")
-			logs.ErrorCtx(ctx, "failed to load existing user document", "error", loadErr, "account_id", accountID)
-			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to save user document", loadErr)
+			helper.RespondEndpointServerError(w, r, "Failed to save user document", "failed to load existing user document", "user_doc_load_failed", "eve_token_login", loadErr, map[string]interface{}{"account_id": accountID})
 			return
 		}
 		// No existing doc is valid here; save path will upsert defaults from request.
@@ -172,7 +169,7 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 		cfg, cfgErr := config.LoadConfig()
 		if cfgErr != nil {
 			metrics.Error("config_error")
-			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", cfgErr)
+			helper.RespondEndpointServerError(w, r, "Internal server error", "failed to load config for user document save", "user_doc_config_load_failed", "eve_token_login", cfgErr, map[string]interface{}{"account_id": accountID})
 			return
 		}
 		if cfg.RefreshTokenKeyring != nil {
@@ -214,8 +211,7 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 	}
 	if err != nil {
 		metrics.Error("database_error")
-		logs.ErrorCtx(ctx, "failed to upsert user document", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to save user document", err)
+		helper.RespondEndpointServerError(w, r, "Failed to save user document", "failed to upsert user document", "user_doc_upsert_failed", "eve_token_login", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 

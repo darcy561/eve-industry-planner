@@ -74,14 +74,11 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 	}
 	if sessionID != "" {
 		if err := auth.RevokeAccountSession(ctx, clients.Redis, requestedAccountID, sessionID); err != nil {
-			logs.ErrorCtx(ctx, "failed to delete session record on logout", "error", err, "account_id", requestedAccountID)
-			logs.AttachHandlerFailureDetail(r, map[string]interface{}{
-				"failure_class":    "auth_logout_revoke_session",
+			helper.RespondEndpointServerError(w, r, "Internal server error", "failed to delete session record on logout", "auth_logout_revoke_session", "sessions_logout", err, map[string]interface{}{
 				"session_endpoint": "sessions_logout",
 				"account_id":       requestedAccountID,
 				"session_id_set":   sessionID != "",
 			})
-			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 			return
 		}
 	}

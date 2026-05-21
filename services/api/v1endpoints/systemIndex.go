@@ -132,8 +132,7 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *share
 		metrics.Error("encode_error")
 		apimetrics.LogRequestMetrics(ctx, "system_indexes", duration, "encode_error",
 			"error", err)
-		logs.ErrorCtx(ctx, "failed to encode response", "error", err)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode system index response", "system_index_encode_failed", "system_indexes", err, nil)
 		return
 	}
 

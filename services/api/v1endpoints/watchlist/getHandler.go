@@ -47,16 +47,14 @@ func GetHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceC
 			}
 			if err := helper.EncodeJSON(w, resp); err != nil {
 				metrics.Error("encode_error")
-				logs.ErrorCtx(ctx, "failed to encode empty watchlist response", "error", err, "account_id", accountID)
-				logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+				helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode empty watchlist response", "watchlist_encode_failed", "watchlist_get", err, map[string]interface{}{"account_id": accountID})
 				return
 			}
 			metrics.Success()
 			return
 		}
 		metrics.Error("database_error")
-		logs.ErrorCtx(ctx, "failed to query watchlist deprecated", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to retrieve watchlist", err)
+		helper.RespondEndpointServerError(w, r, "Failed to retrieve watchlist", "failed to query watchlist deprecated", "watchlist_query_failed", "watchlist_get", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 
@@ -67,8 +65,7 @@ func GetHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceC
 	}
 	if err := helper.EncodeJSON(w, resp); err != nil {
 		metrics.Error("encode_error")
-		logs.ErrorCtx(ctx, "failed to encode watchlist response", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode watchlist response", "watchlist_encode_failed", "watchlist_get", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 

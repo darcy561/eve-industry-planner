@@ -89,8 +89,7 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 				return
 			}
 			metrics.Error("lock_error")
-			logs.ErrorCtx(ctx, "groups put lock gate failed", "error", lerr, "account_id", accountID)
-			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to verify document lock", lerr)
+			helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "groups put lock gate failed", "groups_lock_gate_failed", "groups_put", lerr, map[string]interface{}{"account_id": accountID})
 			return
 		}
 		if len(rejects) > 0 {
@@ -108,8 +107,7 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 	result, err := mongoput.BulkUpsertGroups(ctx, collection, accountID, reqBody.Groups, now, sessionID, wsClientID)
 	if err != nil {
 		metrics.Error("database_error")
-		logs.ErrorCtx(ctx, "failed to bulk upsert groups", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to save groups", err)
+		helper.RespondEndpointServerError(w, r, "Failed to save groups", "failed to bulk upsert groups", "groups_upsert_failed", "groups_put", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 	if result == nil {

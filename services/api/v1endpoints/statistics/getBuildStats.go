@@ -38,8 +38,7 @@ func GetBuildStatsHandler(w http.ResponseWriter, r *http.Request, clients *share
 	}
 	if clients == nil || clients.Mongo == nil {
 		metrics.Error("mongo_client_missing")
-		logs.ErrorCtx(ctx, "build stats get: mongo client missing")
-		logs.RespondHTTPError(w, r, http.StatusServiceUnavailable, "Service unavailable", errors.New("mongo client missing"))
+		helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Service unavailable", "build stats get: mongo client missing", "build_stats_mongo_unavailable", "build_stats", errors.New("mongo client missing"), nil)
 		return
 	}
 
@@ -70,8 +69,7 @@ func GetBuildStatsHandler(w http.ResponseWriter, r *http.Request, clients *share
 	if err != nil {
 		if err != mongo.ErrNoDocuments {
 			metrics.Error("database_error")
-			logs.ErrorCtx(ctx, "build stats get: query failed", "error", err, "account_id", accountID, "type_id", typeID)
-			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to retrieve build statistics", err)
+			helper.RespondEndpointServerError(w, r, "Failed to retrieve build statistics", "build stats get: query failed", "build_stats_query_failed", "build_stats", err, map[string]interface{}{"account_id": accountID, "type_id": typeID})
 			return
 		}
 		row = models.EmptyBuildStatsRow(typeID)
@@ -82,7 +80,7 @@ func GetBuildStatsHandler(w http.ResponseWriter, r *http.Request, clients *share
 	w.WriteHeader(http.StatusOK)
 	if err := helper.EncodeJSON(w, row); err != nil {
 		metrics.Error("encode_error")
-		logs.ErrorCtx(ctx, "build stats get: encode failed", "error", err)
+		helper.RespondEndpointServerError(w, r, "Internal server error", "build stats get: encode failed", "build_stats_encode_failed", "build_stats", err, nil)
 		return
 	}
 	metrics.Success()

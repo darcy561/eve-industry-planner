@@ -83,8 +83,7 @@ func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 				return
 			}
 			metrics.Error("lock_error")
-			logs.ErrorCtx(ctx, "job documents put lock gate failed", "error", lerr, "account_id", accountID)
-			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to verify document lock", lerr)
+			helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "job documents put lock gate failed", "job_docs_lock_gate_failed", "job_documents", lerr, map[string]interface{}{"account_id": accountID})
 			return
 		}
 		if len(rejects) > 0 {
@@ -110,8 +109,7 @@ func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 			return
 		}
 		metrics.Error("database_error")
-		logs.ErrorCtx(ctx, "failed to bulk upsert job documents", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to save jobs", err)
+		helper.RespondEndpointServerError(w, r, "Failed to save jobs", "failed to bulk upsert job documents", "job_docs_upsert_failed", "job_documents", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 	if result == nil {

@@ -98,8 +98,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		metrics.Error("config_error")
-		logs.ErrorCtx(ctx, "failed to load config for corporations endpoint", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to load config for corporations endpoint", "corporations_config_load_failed", "corporations", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 
@@ -143,11 +142,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 	if err := natscore.PublishTask(ctx, clients.JetStream, taskscore.UpdateAccountSessionGrants.Subject, taskscore.UpdateAccountSessionGrants.Name, taskRequest, clients.NATS); err != nil {
 		metrics.Error("publish_error")
-		logs.ErrorCtx(ctx, "failed to publish account session grants refresh task",
-			"account_id", accountID,
-			"token_count", len(validTokens),
-			"error", err)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to publish account session grants refresh task", "corporations_publish_failed", "corporations", err, map[string]interface{}{"account_id": accountID, "token_count": len(validTokens)})
 		return
 	}
 

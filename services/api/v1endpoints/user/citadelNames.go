@@ -184,8 +184,7 @@ func handleSubmitCitadelName(w http.ResponseWriter, r *http.Request, clients *sh
 	_, err := coll.BulkWrite(ctx, writes, bulkOpts)
 	if err != nil {
 		metrics.Error("database_error")
-		logs.ErrorCtx(ctx, "failed to bulk upsert citadel names", "account_id", accountID, "count", len(writes), "err", err)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to submit citadel names", err)
+		helper.RespondEndpointServerError(w, r, "Failed to submit citadel names", "failed to bulk upsert citadel names", "citadel_names_upsert_failed", "citadel_names", err, map[string]interface{}{"account_id": accountID, "count": len(writes)})
 		return
 	}
 
@@ -226,7 +225,7 @@ func handleGetCitadelNameByID(w http.ResponseWriter, r *http.Request, clients *s
 			return
 		}
 		metrics.Error("database_error")
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to retrieve citadel name", err)
+		helper.RespondEndpointServerError(w, r, "Failed to retrieve citadel name", "failed to retrieve citadel name", "citadel_name_query_failed", "citadel_names", err, map[string]interface{}{"citadel_id": citadelID})
 		return
 	}
 
@@ -246,7 +245,7 @@ func handleGetCitadelNameByID(w http.ResponseWriter, r *http.Request, clients *s
 
 	if err := helper.EncodeJSON(w, response); err != nil {
 		metrics.Error("encode_error")
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode citadel name response", "citadel_name_encode_failed", "citadel_names", err, map[string]interface{}{"citadel_id": citadelID})
 		return
 	}
 
