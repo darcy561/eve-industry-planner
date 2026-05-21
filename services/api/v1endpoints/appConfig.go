@@ -45,8 +45,7 @@ func AppConfigHandler(w http.ResponseWriter, r *http.Request, _ *shared.ServiceC
 	payload, etag, err := helper.BuildJSONPayloadAndWeakETag(response)
 	if err != nil {
 		metrics.Error("json_build_error")
-		logs.ErrorCtx(ctx, "app-config: build JSON payload", "error", err)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		helper.RespondEndpointServerError(w, r, "Internal server error", "app-config: build JSON payload", "app_config_build_failed", "app_config", err, nil)
 		return
 	}
 
@@ -60,8 +59,7 @@ func AppConfigHandler(w http.ResponseWriter, r *http.Request, _ *shared.ServiceC
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(append(payload, '\n')); err != nil {
 		metrics.Error("write_error")
-		logs.ErrorCtx(ctx, "app-config: write response", "error", err)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		helper.RespondEndpointServerError(w, r, "Internal server error", "app-config: write response", "app_config_write_failed", "app_config", err, nil)
 		return
 	}
 }

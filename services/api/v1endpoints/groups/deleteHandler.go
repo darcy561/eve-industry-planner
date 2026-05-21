@@ -99,8 +99,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	})
 	if findErr != nil {
 		metrics.Error("database_error")
-		logs.ErrorCtx(ctx, "failed to resolve groups before delete", "error", findErr, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to delete groups", findErr)
+		helper.RespondEndpointServerError(w, r, "Failed to delete groups", "failed to resolve groups before delete", "groups_delete_resolve_failed", "groups_delete", findErr, map[string]interface{}{"account_id": accountID})
 		return
 	}
 
@@ -129,8 +128,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 				return
 			}
 			metrics.Error("lock_error")
-			logs.ErrorCtx(ctx, "failed to check group doc lock before delete", "error", lerr, "account_id", accountID)
-			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to verify document lock", lerr)
+			helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "failed to check group doc lock before delete", "groups_delete_lock_gate_failed", "groups_delete", lerr, map[string]interface{}{"account_id": accountID})
 			return
 		}
 		if len(rejects) > 0 {
@@ -153,8 +151,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	deletedCount64, err := mongocore.DeleteManyAfterStampingMeta(ctx, retryConfig, collection, filter, now, sessionID, wsClientID)
 	if err != nil {
 		metrics.Error("database_error")
-		logs.ErrorCtx(ctx, "failed to delete groups", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to delete groups", err)
+		helper.RespondEndpointServerError(w, r, "Failed to delete groups", "failed to delete groups", "groups_delete_failed", "groups_delete", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 

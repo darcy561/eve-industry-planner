@@ -2,12 +2,86 @@ package logs
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"strings"
 )
 
-// handlerFailureDetailKey stores structured fields for 5xx responses so middleware can log and
-// attach Sentry context when the captured exception alone is too generic.
+// ClientFailureMsgKey is the human-readable message for request-logging middleware on 4xx responses.
+const ClientFailureMsgKey = "client_failure_msg"
+
+// ServerFailureMsgKey is the human-readable message for request-logging middleware on 5xx responses.
+const ServerFailureMsgKey = "server_failure_msg"
+
+// handlerFailureDetailKey stores structured fields for 4xx/5xx responses so middleware can emit one
+// combined access log (and Sentry context on 5xx) instead of a generic line plus a handler warn.
 type handlerFailureDetailKey struct{}
+
+// AttachClientFailureDetail records a 4xx failure for consolidated request logging.
+// Handlers should prefer this over a separate WarnCtx when returning 4xx.
+func AttachClientFailureDetail(r *http.Request, msg string, detail map[string]interface{}) {
+	attachFailureDetailWithMsg(r, ClientFailureMsgKey, msg, detail)
+}
+
+// AttachServerFailureDetail records a 5xx failure for consolidated request logging.
+// Handlers should prefer this over a separate ErrorCtx when returning 5xx.
+func AttachServerFailureDetail(r *http.Request, msg string, err error, detail map[string]interface{}) {
+	attachFailureDetailWithMsg(r, ServerFailureMsgKey, msg, detail)
+	AttachHandlerError(r, err)
+}
+
+func attachFailureDetailWithMsg(r *http.Request, msgKey, msg string, detail map[string]interface{}) {
+	if r == nil {
+		return
+	}
+	merged := make(map[string]interface{}, len(detail)+1)
+	for k, v := range detail {
+		merged[k] = v
+	}
+	if strings.TrimSpace(msg) != "" {
+		merged[msgKey] = msg
+	}
+	AttachHandlerFailureDetail(r, merged)
+}
+
+// AccessLogMessage returns the access-log message for a completed request.
+func AccessLogMessage(statusCode int, detail map[string]interface{}) string {
+	if msg := failureDetailMessage(detail); msg != "" {
+		return msg
+	}
+	if fc, ok := detail["failure_class"].(string); ok && strings.TrimSpace(fc) != "" {
+		if statusCode >= 500 {
+			return fmt.Sprintf("request completed with server error (%s)", fc)
+		}
+		if statusCode >= 400 {
+			return fmt.Sprintf("request completed with client error (%s)", fc)
+		}
+	}
+	if statusCode >= 500 {
+		return "request completed with server error"
+	}
+	if statusCode >= 400 {
+		return "request completed with client error"
+	}
+	return "request completed"
+}
+
+func failureDetailMessage(detail map[string]interface{}) string {
+	if detail == nil {
+		return ""
+	}
+	for _, key := range []string{ServerFailureMsgKey, ClientFailureMsgKey} {
+		if msg, ok := detail[key].(string); ok && strings.TrimSpace(msg) != "" {
+			return msg
+		}
+	}
+	return ""
+}
+
+// ClientAccessLogMessage is an alias for [AccessLogMessage] (4xx/5xx).
+func ClientAccessLogMessage(statusCode int, detail map[string]interface{}) string {
+	return AccessLogMessage(statusCode, detail)
+}
 
 // AttachHandlerFailureDetail merges detail into request context (last key wins on collision).
 // Safe for nil r or empty detail.
@@ -61,9 +135,16 @@ func HandlerErrorFromRequest(r *http.Request) error {
 
 // RespondHTTPError writes an HTTP error body and status. For server errors (status >= 500), a non-nil
 // err is attached on r for outer middleware (for example Sentry in request logging).
+// Prefer [RespondHTTPServerError] when returning 500 with structured handler_failure detail.
 func RespondHTTPError(w http.ResponseWriter, r *http.Request, statusCode int, msg string, err error) {
 	if statusCode >= http.StatusInternalServerError && err != nil {
 		AttachHandlerError(r, err)
 	}
 	http.Error(w, msg, statusCode)
+}
+
+// RespondHTTPServerError writes a 500, attaches logMsg + detail for middleware, and records err for Sentry.
+func RespondHTTPServerError(w http.ResponseWriter, r *http.Request, publicMsg, logMsg string, err error, detail map[string]interface{}) {
+	AttachServerFailureDetail(r, logMsg, err, detail)
+	http.Error(w, publicMsg, http.StatusInternalServerError)
 }

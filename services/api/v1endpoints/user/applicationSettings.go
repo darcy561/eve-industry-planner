@@ -63,15 +63,13 @@ func handleGetApplicationSettings(w http.ResponseWriter, r *http.Request, client
 			return
 		}
 		metrics.Error("database_error")
-		logs.ErrorCtx(ctx, "failed to query application settings", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to retrieve application settings", err)
+		helper.RespondEndpointServerError(w, r, "Failed to retrieve application settings", "failed to query application settings", "app_settings_query_failed", "eve_token_login", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 
 	if err := helper.EncodeJSON(w, settingsDoc); err != nil {
 		metrics.Error("encode_error")
-		logs.ErrorCtx(ctx, "failed to encode application settings response", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode application settings response", "app_settings_encode_failed", "eve_token_login", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 
@@ -128,8 +126,7 @@ func handleSaveApplicationSettings(w http.ResponseWriter, r *http.Request, clien
 	}
 	if err != nil {
 		metrics.Error("database_error")
-		logs.ErrorCtx(ctx, "failed to upsert application settings", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to save application settings", err)
+		helper.RespondEndpointServerError(w, r, "Failed to save application settings", "failed to upsert application settings", "app_settings_upsert_failed", "eve_token_login", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 

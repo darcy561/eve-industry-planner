@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/core/evesso"
 	"eve-industry-planner/shared/logs"
@@ -33,12 +34,7 @@ func loadSSOConfigOrRespond(w http.ResponseWriter, r *http.Request, metricName s
 	duration := time.Since(start)
 	incError("config_error")
 	apimetrics.LogRequestMetrics(r.Context(), metricName, duration, "config_error", "error", err)
-	logs.ErrorCtx(r.Context(), logMessage, "error", err)
-	logs.AttachHandlerFailureDetail(r, map[string]interface{}{
-		"failure_class": "sso_config_load",
-		"metric":        metricName,
-	})
-	logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+	helper.RespondEndpointServerError(w, r, "Internal server error", logMessage, "sso_config_load", metricName, err, nil)
 	return config.Config{}, false
 }
 
@@ -49,12 +45,8 @@ func validateSSOCredentialsOrRespond(w http.ResponseWriter, r *http.Request, met
 	duration := time.Since(start)
 	incError("config_error")
 	apimetrics.LogRequestMetrics(r.Context(), metricName, duration, "config_error")
-	logs.ErrorCtx(r.Context(), "EVE SSO client ID or secret not configured")
-	logs.AttachHandlerFailureDetail(r, map[string]interface{}{
-		"failure_class": "sso_credentials_missing",
-		"metric":        metricName,
-	})
-	logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", errors.New("EVE SSO client ID or secret not configured"))
+	err := errors.New("EVE SSO client ID or secret not configured")
+	helper.RespondEndpointServerError(w, r, "Internal server error", "EVE SSO client ID or secret not configured", "sso_credentials_missing", metricName, err, nil)
 	return false
 }
 
@@ -64,33 +56,23 @@ func handleSSOProviderError(w http.ResponseWriter, r *http.Request, err error, d
 	case isSSOGrantClientError(msg):
 		// CCP often sends OAuth error_description text (e.g. "Authorization code is invalid.") without
 		// the literal substrings "invalid_grant" / "invalid_request" — those must still be 4xx, not 500.
-		logs.WarnCtx(r.Context(), "SSO provider rejected request",
-			"reason", "invalid_grant_or_oauth_description",
-			"status_code", http.StatusBadRequest,
-			"error", err)
+		logs.AttachClientFailureDetail(r, "SSO provider rejected request", map[string]interface{}{
+			"reason": "invalid_grant_or_oauth_description",
+			"error":  err.Error(),
+		})
 		http.Error(w, defaultMessage, http.StatusBadRequest)
 		return
 	case strings.Contains(msg, "server error"):
-		logs.ErrorCtx(r.Context(), "SSO provider upstream server error",
-			"reason", "upstream_server_error",
-			"status_code", http.StatusBadGateway,
-			"error", err)
-		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
-			"failure_class":      "sso_upstream_5xx",
+		helper.RespondEndpointError(w, r, http.StatusBadGateway, "EVE SSO server error", "SSO provider upstream server error", "sso_upstream_5xx", "", err, map[string]interface{}{
 			"provider_token_url": evesso.EveSSOTokenURL,
+			"reason":             "upstream_server_error",
 		})
-		logs.RespondHTTPError(w, r, http.StatusBadGateway, "EVE SSO server error", err)
 		return
 	default:
-		logs.ErrorCtx(r.Context(), "SSO provider exchange failed with unexpected error",
-			"reason", "unexpected_sso_exchange_error",
-			"status_code", http.StatusInternalServerError,
-			"error", err)
-		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
-			"failure_class":      "sso_exchange_unexpected",
+		helper.RespondEndpointServerError(w, r, defaultMessage, "SSO provider exchange failed with unexpected error", "sso_exchange_unexpected", "", err, map[string]interface{}{
 			"provider_token_url": evesso.EveSSOTokenURL,
+			"reason":             "unexpected_sso_exchange_error",
 		})
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, defaultMessage, err)
 	}
 }
 
