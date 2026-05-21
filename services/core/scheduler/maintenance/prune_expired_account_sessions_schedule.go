@@ -16,7 +16,9 @@ const (
 )
 
 // SchedulePruneExpiredAccountSessions enqueues a worker task that scans Redis
-// account_sessions:* keys and runs the same prune-on-load logic as API paths,
+// account_sessions:* keys, prunes expired sessions, and removes orphan session_index
+// and refresh_token rows (see auth.RunAuthSessionMaintenance). Core also runs an
+// hourly singleton pass (auth-session-maintenance).
 // so expired sessions are removed for inactive accounts as well.
 func SchedulePruneExpiredAccountSessions(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
 	jsContext := deps.JSContext

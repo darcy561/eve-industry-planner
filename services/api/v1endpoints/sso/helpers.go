@@ -109,6 +109,9 @@ func isSSOGrantClientError(msg string) bool {
 	if strings.Contains(msg, "redirect_uri") {
 		return true
 	}
+	if strings.Contains(msg, "refresh token") {
+		return true
+	}
 	return false
 }
 
