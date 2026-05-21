@@ -10,7 +10,9 @@ package singleton
 
 import (
 	"context"
+	"time"
 
+	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/core/documentlock"
 	"eve-industry-planner/shared/shared"
 )
@@ -20,7 +22,9 @@ import (
 // reusable across tests that want to assert lease behaviour without
 // duplicating string literals.
 const (
-	DoclockExpirySubscriberLeaseKey = "lease:doclock:expiry-subscriber"
+	DoclockExpirySubscriberLeaseKey     = "lease:doclock:expiry-subscriber"
+	AuthSessionMaintenanceLeaseKey      = "lease:auth:session-maintenance"
+	authSessionMaintenanceLoopInterval = time.Hour
 )
 
 // DoclockExpirySubscriberJob builds the singleton.Job that drives the
@@ -41,9 +45,25 @@ func DoclockExpirySubscriberJob(deps documentlock.Deps) Job {
 // single function so the wiring is greppable and reviewable in one place.
 //
 // Add new singletons here; each gets its own lease and goroutine.
+// AuthSessionMaintenanceJob runs hourly orphan session_index / refresh_token cleanup
+// on the core singleton leader (complements the worker cron that scans account_sessions).
+func AuthSessionMaintenanceJob(clients *shared.ServiceClients) Job {
+	return Job{
+		Name:     "auth-session-maintenance",
+		LeaseKey: AuthSessionMaintenanceLeaseKey,
+		Run: func(ctx context.Context) error {
+			if clients == nil || clients.Redis == nil {
+				return nil
+			}
+			return auth.RunAuthSessionMaintenanceLoop(ctx, clients.Redis, authSessionMaintenanceLoopInterval, auth.SessionCleanupOptionsFromEnv())
+		},
+	}
+}
+
 func allJobs(clients *shared.ServiceClients) []Job {
 	return []Job{
 		DoclockExpirySubscriberJob(documentlock.DepsFromServiceClients(clients)),
+		AuthSessionMaintenanceJob(clients),
 	}
 }
 

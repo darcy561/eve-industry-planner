@@ -2,11 +2,12 @@
 
 End-to-end documentation for the planner's authentication and session-handling subsystem after the migration **off** of internal API-issued JWTs and **onto** Redis-backed session cookies + EVE SSO.
 
-> Documentation is split into three files:
+> Documentation is split into four files:
 >
 > - **README.md** (this file) — vocabulary, cross-stack architecture, the wire contract, end-to-end flows, environment, and a file index.
 > - **[FRONTEND.md](./FRONTEND.md)** — React app: bootstrap modes, Zustand actions, request-time auth, refresh cooldown, Tranquility gate, signout, realtime auth.
 > - **[BACKEND.md](./BACKEND.md)** — Go API: middleware, Redis key layout, handler-by-handler contracts, refresh state machine, websocket upgrade auth.
+> - **[ROADMAP.md](./ROADMAP.md)** — full-system backlog: EVE SSO, Redis sessions, HTTP/WS, ESI maintenance, SPA, tests, ops, and related rollouts (see system map there).
 
 ---
 
@@ -443,3 +444,4 @@ For implementation detail, jump to:
 
 - **[FRONTEND.md](./FRONTEND.md)** — how the SPA orchestrates these flows.
 - **[BACKEND.md](./BACKEND.md)** — how the API and websocket service enforce identity.
+- **[ROADMAP.md](./ROADMAP.md)** — open issues, pickup order, and links to encryption/authz rollouts.

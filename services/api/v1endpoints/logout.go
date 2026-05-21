@@ -37,7 +37,7 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 		return
 	}
 
-	refreshToken, err := extractLogoutRefreshTokenFromRequest(r)
+	refreshToken, refreshFromCookie, err := extractLogoutRefreshTokenFromRequest(r)
 	if err != nil {
 		logs.WarnCtx(ctx, "failed to extract refresh token for logout", "error", err)
 		http.Error(w, "Invalid request", http.StatusBadRequest)
@@ -49,9 +49,16 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 		return
 	}
 
+	credLog := auth.BuildRefreshCredentialLogDetail(r, "sessions_logout", refreshToken, refreshFromCookie, "")
+
 	tokenData, err := auth.GetRefreshTokenData(ctx, clients.Redis, refreshToken)
 	if err != nil {
-		logs.WarnCtx(ctx, "logout refresh token not found", "error", err)
+		logs.WarnCtx(ctx, "logout refresh token not found in Redis",
+			"error", err,
+			"credential_source", credLog.CredentialSource,
+			"refresh_token_id_hint", credLog.RefreshTokenIDHint,
+			"likely_cause", credLog.LikelyCause,
+		)
 		http.Error(w, "Invalid token", http.StatusUnauthorized)
 		return
 	}
@@ -86,18 +93,19 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func extractLogoutRefreshTokenFromRequest(r *http.Request) (string, error) {
+func extractLogoutRefreshTokenFromRequest(r *http.Request) (refreshToken string, refreshFromCookie bool, err error) {
 	var reqBody LogoutRequest
 	if err := helper.DecodeJSONRequest(r, &reqBody, maxRefreshTokenLength+1024); err != nil {
-		return "", err
+		return "", false, err
 	}
 
-	token := strings.TrimSpace(reqBody.RefreshToken)
-	if token == "" {
-		token = auth.ReadAppRefreshCookie(r)
+	bodyRT := strings.TrimSpace(reqBody.RefreshToken)
+	cookieRT := auth.ReadAppRefreshCookie(r)
+	if bodyRT != "" {
+		return bodyRT, false, nil
 	}
-	if token == "" {
-		return "", errors.New("refresh_token is required in request body or cookie")
+	if cookieRT != "" {
+		return cookieRT, true, nil
 	}
-	return token, nil
+	return "", false, errors.New("refresh_token is required in request body or cookie")
 }
