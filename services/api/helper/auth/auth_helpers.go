@@ -146,7 +146,7 @@ func ExtractAccountSession(ctx context.Context, r *http.Request, redisClient *re
 	if session.RevokedAt != nil {
 		return nil, errors.New("session_revoked")
 	}
-	if !session.ReauthRequiredAt.IsZero() && time.Now().UTC().After(session.ReauthRequiredAt) {
+	if IsReauthExpired(session.StartedAt, session.ReauthRequiredAt, time.Now().UTC()) {
 		return nil, errors.New("reauth_required")
 	}
 	return &AccountSessionIdentity{

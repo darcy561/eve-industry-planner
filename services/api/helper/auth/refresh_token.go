@@ -154,22 +154,21 @@ func UpsertSessionRecord(ctx context.Context, redisClient *redis.Client, record 
 		return errors.New("account_id is required")
 	}
 	now := time.Now().UTC()
+	startedAt := record.StartedAt
+	if startedAt.IsZero() {
+		startedAt = now
+	}
+	lastSeenAt := record.LastSeenAt
+	if lastSeenAt.IsZero() {
+		lastSeenAt = now
+	}
 	s := AccountSession{
 		SessionID:        record.SessionID,
 		CharacterHash:    record.CharacterHash,
 		AppVersion:       record.AppVersion,
-		StartedAt:        record.StartedAt,
-		LastSeenAt:       record.LastSeenAt,
-		ReauthRequiredAt: record.StartedAt.Add(RefreshTokenTTL),
-	}
-	if s.StartedAt.IsZero() {
-		s.StartedAt = now
-	}
-	if s.LastSeenAt.IsZero() {
-		s.LastSeenAt = now
-	}
-	if s.ReauthRequiredAt.IsZero() {
-		s.ReauthRequiredAt = s.StartedAt.Add(RefreshTokenTTL)
+		StartedAt:        startedAt,
+		LastSeenAt:       lastSeenAt,
+		ReauthRequiredAt: ReauthDeadlineFromSessionStart(startedAt),
 	}
 	if err := UpsertAccountSession(ctx, redisClient, record.AccountID, s); err != nil {
 		return fmt.Errorf("failed to store session record: %w", err)
@@ -338,23 +337,44 @@ func normalizeIDs(ids []int64) []int64 {
 	return out
 }
 
-func pruneExpiredSessions(rec *AccountSessionsRecord, now time.Time) bool {
+// pruneExpiredSessions removes sessions past ReauthRequiredAt from rec.Sessions.
+// It returns pruned session IDs (for session_index cleanup) and whether rec was modified.
+func pruneExpiredSessions(rec *AccountSessionsRecord, now time.Time) (removed []string, changed bool) {
 	if rec == nil || len(rec.Sessions) == 0 {
-		return false
+		return nil, false
 	}
-	changed := false
 	for sessionID, session := range rec.Sessions {
 		if session.ReauthRequiredAt.IsZero() {
-			session.ReauthRequiredAt = session.StartedAt.Add(RefreshTokenTTL)
+			session.ReauthRequiredAt = ReauthDeadlineFromSessionStart(session.StartedAt)
 			rec.Sessions[sessionID] = session
 			changed = true
 		}
-		if !session.ReauthRequiredAt.IsZero() && now.After(session.ReauthRequiredAt) {
+		if IsReauthExpired(session.StartedAt, session.ReauthRequiredAt, now) {
 			delete(rec.Sessions, sessionID)
+			removed = append(removed, sessionID)
 			changed = true
 		}
 	}
-	return changed
+	return removed, changed
+}
+
+func deleteSessionIndexKeys(ctx context.Context, redisClient *redis.Client, sessionIDs ...string) {
+	if redisClient == nil || len(sessionIDs) == 0 {
+		return
+	}
+	keys := make([]string, 0, len(sessionIDs))
+	for _, sid := range sessionIDs {
+		sid = strings.TrimSpace(sid)
+		if sid != "" {
+			keys = append(keys, sessionIndexKey(sid))
+		}
+	}
+	if len(keys) == 0 {
+		return
+	}
+	if err := redisClient.Del(ctx, keys...).Err(); err != nil {
+		logs.WarnCtx(ctx, "failed to delete session index keys", "count", len(keys), "error", err)
+	}
 }
 
 func GetAccountSessionsRecord(ctx context.Context, redisClient *redis.Client, accountID string) (*AccountSessionsRecord, error) {
@@ -365,43 +385,21 @@ func GetAccountSessionsRecord(ctx context.Context, redisClient *redis.Client, ac
 	if redisClient == nil {
 		return nil, errors.New("redis client is nil")
 	}
-	key := accountSessionsKey(acc)
-	var rec AccountSessionsRecord
-	err := rediscore.GetJSON(ctx, redisClient, key, &rec)
-	if err == redis.Nil {
-		return &AccountSessionsRecord{
-			AccountID: acc,
-			Grants: SessionGrants{
-				CorporationIDs: []int64{},
-				AllianceIDs:    []int64{},
-			},
-			Sessions:  map[string]AccountSession{},
-			UpdatedAt: time.Now().UTC(),
-		}, nil
-	}
+	rec, exists, err := loadAccountSessionsRecordRaw(ctx, redisClient, acc)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get account sessions: %w", err)
-	}
-	if rec.AccountID == "" {
-		rec.AccountID = acc
-	}
-	if rec.Sessions == nil {
-		rec.Sessions = map[string]AccountSession{}
-	}
-	if rec.Grants.CorporationIDs == nil {
-		rec.Grants.CorporationIDs = []int64{}
-	}
-	if rec.Grants.AllianceIDs == nil {
-		rec.Grants.AllianceIDs = []int64{}
+		return nil, err
 	}
 	now := time.Now().UTC()
-	if pruneExpiredSessions(&rec, now) {
-		rec.UpdatedAt = now
-		if saveErr := rediscore.SaveJSON(ctx, redisClient, key, rec, SessionTTL); saveErr != nil {
+	removed, pruned := pruneExpiredSessions(rec, now)
+	if pruned {
+		cas := accountSessionsCASFromRecord(rec, exists)
+		if saveErr := saveAccountSessionsRecordCAS(ctx, redisClient, rec, cas); saveErr != nil {
 			logs.WarnCtx(ctx, "failed to persist pruned account sessions", "account_id", acc, "error", saveErr)
+		} else if len(removed) > 0 {
+			deleteSessionIndexKeys(ctx, redisClient, removed...)
 		}
 	}
-	return &rec, nil
+	return rec, nil
 }
 
 func SaveAccountSessionsRecord(ctx context.Context, redisClient *redis.Client, rec *AccountSessionsRecord) error {
@@ -412,19 +410,12 @@ func SaveAccountSessionsRecord(ctx context.Context, redisClient *redis.Client, r
 	if acc == "" {
 		return errors.New("account_id is required")
 	}
-	if redisClient == nil {
-		return errors.New("redis client is nil")
+	loaded, exists, err := loadAccountSessionsRecordRaw(ctx, redisClient, acc)
+	if err != nil {
+		return err
 	}
-	if rec.Sessions == nil {
-		rec.Sessions = map[string]AccountSession{}
-	}
-	rec.Grants.CorporationIDs = normalizeIDs(rec.Grants.CorporationIDs)
-	rec.Grants.AllianceIDs = normalizeIDs(rec.Grants.AllianceIDs)
-	rec.UpdatedAt = time.Now().UTC()
-	if err := rediscore.SaveJSON(ctx, redisClient, accountSessionsKey(acc), rec, SessionTTL); err != nil {
-		return fmt.Errorf("failed to save account sessions: %w", err)
-	}
-	return nil
+	cas := accountSessionsCASFromRecord(loaded, exists)
+	return saveAccountSessionsRecordCAS(ctx, redisClient, rec, cas)
 }
 
 func UpsertAccountSession(ctx context.Context, redisClient *redis.Client, accountID string, session AccountSession) error {
@@ -433,26 +424,22 @@ func UpsertAccountSession(ctx context.Context, redisClient *redis.Client, accoun
 	if acc == "" || sid == "" {
 		return errors.New("account_id and session_id are required")
 	}
-	rec, err := GetAccountSessionsRecord(ctx, redisClient, acc)
+	err := mutateAccountSessionsRecord(ctx, redisClient, acc, func(rec *AccountSessionsRecord) error {
+		now := time.Now().UTC()
+		if session.StartedAt.IsZero() {
+			session.StartedAt = now
+		}
+		if session.LastSeenAt.IsZero() {
+			session.LastSeenAt = now
+		}
+		if session.ReauthRequiredAt.IsZero() {
+			session.ReauthRequiredAt = ReauthDeadlineFromSessionStart(session.StartedAt)
+		}
+		session.Grants = rec.Grants
+		rec.Sessions[sid] = session
+		return nil
+	})
 	if err != nil {
-		return err
-	}
-	if rec.Sessions == nil {
-		rec.Sessions = map[string]AccountSession{}
-	}
-	now := time.Now().UTC()
-	if session.StartedAt.IsZero() {
-		session.StartedAt = now
-	}
-	if session.LastSeenAt.IsZero() {
-		session.LastSeenAt = now
-	}
-	if session.ReauthRequiredAt.IsZero() {
-		session.ReauthRequiredAt = session.StartedAt.Add(RefreshTokenTTL)
-	}
-	session.Grants = rec.Grants
-	rec.Sessions[sid] = session
-	if err := SaveAccountSessionsRecord(ctx, redisClient, rec); err != nil {
 		return err
 	}
 	if err := redisClient.Set(ctx, sessionIndexKey(sid), acc, SessionTTL).Err(); err != nil {
@@ -479,6 +466,38 @@ func GetAccountIDBySessionID(ctx context.Context, redisClient *redis.Client, ses
 	return strings.TrimSpace(v), nil
 }
 
+// loadAccountSessionRow loads one session without pruning expired rows (used for reauth checks before rotate).
+func loadAccountSessionRow(ctx context.Context, redisClient *redis.Client, sessionID string) (*AccountSession, error) {
+	sid := strings.TrimSpace(sessionID)
+	if sid == "" {
+		return nil, errors.New("session_id is required")
+	}
+	accountID, err := GetAccountIDBySessionID(ctx, redisClient, sid)
+	if err != nil {
+		return nil, err
+	}
+	key := accountSessionsKey(accountID)
+	var rec AccountSessionsRecord
+	err = rediscore.GetJSON(ctx, redisClient, key, &rec)
+	if err == redis.Nil {
+		return nil, errors.New("session not found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get account sessions: %w", err)
+	}
+	if rec.Sessions == nil {
+		return nil, errors.New("session not found")
+	}
+	session, ok := rec.Sessions[sid]
+	if !ok {
+		return nil, errors.New("session not found")
+	}
+	if session.ReauthRequiredAt.IsZero() && !session.StartedAt.IsZero() {
+		session.ReauthRequiredAt = ReauthDeadlineFromSessionStart(session.StartedAt)
+	}
+	return &session, nil
+}
+
 func ResolveAccountSessionBySessionID(ctx context.Context, redisClient *redis.Client, sessionID string) (string, *AccountSession, error) {
 	sid := strings.TrimSpace(sessionID)
 	accountID, err := GetAccountIDBySessionID(ctx, redisClient, sid)
@@ -491,6 +510,7 @@ func ResolveAccountSessionBySessionID(ctx context.Context, redisClient *redis.Cl
 	}
 	session, ok := rec.Sessions[sid]
 	if !ok {
+		deleteSessionIndexKeys(ctx, redisClient, sid)
 		return "", nil, errors.New("session not found")
 	}
 	return accountID, &session, nil
@@ -502,15 +522,14 @@ func RevokeAccountSession(ctx context.Context, redisClient *redis.Client, accoun
 	if acc == "" || sid == "" {
 		return nil
 	}
-	rec, err := GetAccountSessionsRecord(ctx, redisClient, acc)
+	err := mutateAccountSessionsRecord(ctx, redisClient, acc, func(rec *AccountSessionsRecord) error {
+		delete(rec.Sessions, sid)
+		return nil
+	})
 	if err != nil {
 		return err
 	}
-	delete(rec.Sessions, sid)
-	if err := SaveAccountSessionsRecord(ctx, redisClient, rec); err != nil {
-		return err
-	}
-	_ = redisClient.Del(ctx, sessionIndexKey(sid)).Err()
+	deleteSessionIndexKeys(ctx, redisClient, sid)
 	return nil
 }
 
@@ -520,37 +539,32 @@ func TouchAccountSession(ctx context.Context, redisClient *redis.Client, account
 	if acc == "" || sid == "" {
 		return errors.New("account_id and session_id are required")
 	}
-	rec, err := GetAccountSessionsRecord(ctx, redisClient, acc)
-	if err != nil {
-		return err
-	}
-	session, ok := rec.Sessions[sid]
-	if !ok {
-		return errors.New("session not found")
-	}
-	session.LastSeenAt = time.Now().UTC()
-	if strings.TrimSpace(appVersion) != "" {
-		session.AppVersion = strings.TrimSpace(appVersion)
-	}
-	session.Grants = rec.Grants
-	rec.Sessions[sid] = session
-	return SaveAccountSessionsRecord(ctx, redisClient, rec)
+	return mutateAccountSessionsRecord(ctx, redisClient, acc, func(rec *AccountSessionsRecord) error {
+		session, ok := rec.Sessions[sid]
+		if !ok {
+			return errors.New("session not found")
+		}
+		session.LastSeenAt = time.Now().UTC()
+		if strings.TrimSpace(appVersion) != "" {
+			session.AppVersion = strings.TrimSpace(appVersion)
+		}
+		session.Grants = rec.Grants
+		rec.Sessions[sid] = session
+		return nil
+	})
 }
 
 func UpdateAccountSessionGrants(ctx context.Context, redisClient *redis.Client, accountID string, corpIDs, allianceIDs []int64) error {
-	rec, err := GetAccountSessionsRecord(ctx, redisClient, accountID)
-	if err != nil {
-		return err
-	}
 	nextGrants := SessionGrants{
 		CorporationIDs: normalizeIDs(corpIDs),
 		AllianceIDs:    normalizeIDs(allianceIDs),
 	}
-	rec.Grants = nextGrants
-	rec.GrantsVersion++
-	for sid, session := range rec.Sessions {
-		session.Grants = nextGrants
-		rec.Sessions[sid] = session
-	}
-	return SaveAccountSessionsRecord(ctx, redisClient, rec)
+	return mutateAccountSessionsRecord(ctx, redisClient, accountID, func(rec *AccountSessionsRecord) error {
+		rec.Grants = nextGrants
+		for sid, session := range rec.Sessions {
+			session.Grants = nextGrants
+			rec.Sessions[sid] = session
+		}
+		return nil
+	})
 }

@@ -72,7 +72,12 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	refreshToken, eveToken, refreshFromCookie, err := extractRefreshCredentials(r)
 	if err != nil {
 		m.Errors.WithLabelValues("extraction_error").Inc(ctx)
-		logs.WarnCtx(ctx, "failed to extract tokens from request body", "error", err)
+		logs.WarnCtx(ctx, "failed to extract planner refresh credentials",
+			"error", err,
+			"session_endpoint", sessionEndpoint,
+			"has_eip_app_refresh_cookie", auth.ReadAppRefreshCookie(r) != "",
+			"has_eip_session_cookie", auth.ReadAppSessionCookie(r) != "",
+		)
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
@@ -96,11 +101,36 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	// Validate the cookie/body value against Redis refresh_token:<opaque> (planner app session material).
 	// Private API calls also use session:<session_id> (see middleware); refresh only requires this refresh row
 	// to exist and does not re-check session:<id> here.
+	credLog := auth.BuildRefreshCredentialLogDetail(r, sessionEndpoint, refreshToken, refreshFromCookie, eveToken)
+
 	tokenData, err := auth.GetRefreshTokenData(ctx, clients.Redis, refreshToken)
 	if err != nil {
 		if errors.Is(err, auth.ErrRefreshTokenNotFound) {
 			m.Errors.WithLabelValues("refresh_token_not_found").Inc(ctx)
-			logs.WarnCtx(ctx, "invalid or expired refresh token")
+			logs.WarnCtx(ctx, "planner refresh token not found in Redis",
+				"session_endpoint", credLog.SessionEndpoint,
+				"credential_source", credLog.CredentialSource,
+				"refresh_from_cookie", credLog.RefreshFromCookie,
+				"refresh_token_len", credLog.RefreshTokenLen,
+				"refresh_token_id_hint", credLog.RefreshTokenIDHint,
+				"has_eip_session_cookie", credLog.HasEipSessionCookie,
+				"has_eip_app_refresh_cookie", credLog.HasEipAppRefreshCookie,
+				"has_eve_token_body", credLog.HasEveTokenBody,
+				"likely_cause", credLog.LikelyCause,
+			)
+			logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+				"failure_class":             "auth_refresh_token_not_found",
+				"session_endpoint":          credLog.SessionEndpoint,
+				"metric":                    "session_refresh",
+				"credential_source":         credLog.CredentialSource,
+				"refresh_from_cookie":       credLog.RefreshFromCookie,
+				"refresh_token_len":         credLog.RefreshTokenLen,
+				"refresh_token_id_hint":     credLog.RefreshTokenIDHint,
+				"has_eip_session_cookie":    credLog.HasEipSessionCookie,
+				"has_eip_app_refresh_cookie": credLog.HasEipAppRefreshCookie,
+				"has_eve_token_body":        credLog.HasEveTokenBody,
+				"likely_cause":              credLog.LikelyCause,
+			})
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
 		}
@@ -112,6 +142,21 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 			"metric":           "session_refresh",
 		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		return
+	}
+
+	now := time.Now().UTC()
+	if strings.TrimSpace(tokenData.SessionID) != "" && auth.IsRefreshTokenDataReauthExpired(ctx, clients.Redis, tokenData, now) {
+		m.Errors.WithLabelValues("reauth_required").Inc(ctx)
+		logs.WarnCtx(ctx, "planner session reauth window elapsed",
+			"account_id", tokenData.AccountID,
+			"session_id", tokenData.SessionID,
+			"session_start", tokenData.SessionStart,
+			"session_endpoint", sessionEndpoint,
+		)
+		auth.ClearAppSessionCookie(w)
+		auth.ClearAppRefreshCookie(w, r)
+		writeRefreshAuthError(w, http.StatusUnauthorized, "reauth_required")
 		return
 	}
 
@@ -217,7 +262,6 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	updatedTokenData := *tokenData
 	updatedTokenData.Corporations = corporations
 	updatedTokenData.Alliances = alliances
-	now := time.Now().UTC()
 	sessionFlow := "refresh"
 	startedSession := false
 	needNewSessionID := strings.TrimSpace(updatedTokenData.SessionID) == ""
@@ -277,16 +321,41 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		StartedAt:     updatedTokenData.SessionStart,
 		LastSeenAt:    updatedTokenData.SessionSeenAt,
 	}); err != nil {
+		auth.RevokeRefreshTokenBestEffort(ctx, clients.Redis, newRefreshToken)
 		m.Errors.WithLabelValues("session_store_error").Inc(ctx)
 		sessionMetrics.StoreErrors.WithLabelValues(sessionFlow).Inc(ctx)
 		logs.ErrorCtx(ctx, "failed to store session record", "error", err,
-			"account_id", tokenData.AccountID, "character_hash", tokenData.CharacterHash)
+			"account_id", tokenData.AccountID,
+			"character_hash", tokenData.CharacterHash,
+			"session_id", updatedTokenData.SessionID,
+		)
 		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
 			"failure_class":    "auth_redis_session_record",
 			"session_endpoint": sessionEndpoint,
 			"metric":           "session_refresh",
 			"session_flow":     sessionFlow,
 			"account_id":       tokenData.AccountID,
+			"session_id":       updatedTokenData.SessionID,
+		})
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		return
+	}
+	if err := auth.VerifyAccountSessionPersisted(ctx, clients.Redis, tokenData.AccountID, updatedTokenData.SessionID); err != nil {
+		auth.RevokeRefreshTokenBestEffort(ctx, clients.Redis, newRefreshToken)
+		m.Errors.WithLabelValues("session_verify_error").Inc(ctx)
+		sessionMetrics.StoreErrors.WithLabelValues(sessionFlow).Inc(ctx)
+		logs.ErrorCtx(ctx, "account_sessions row missing after upsert", "error", err,
+			"account_id", tokenData.AccountID,
+			"character_hash", tokenData.CharacterHash,
+			"session_id", updatedTokenData.SessionID,
+		)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":    "auth_session_verify",
+			"session_endpoint": sessionEndpoint,
+			"metric":           "session_refresh",
+			"session_flow":     sessionFlow,
+			"account_id":       tokenData.AccountID,
+			"session_id":       updatedTokenData.SessionID,
 		})
 		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
@@ -300,6 +369,26 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	sessionMetrics.Stored.WithLabelValues(sessionFlow).Inc(ctx)
 	if err := auth.UpdateAccountSessionGrants(ctx, clients.Redis, tokenData.AccountID, corporations, alliances); err != nil {
 		logs.WarnCtx(ctx, "failed to update account session grants", "error", err, "account_id", tokenData.AccountID)
+	}
+	if err := auth.VerifyAccountSessionPersisted(ctx, clients.Redis, tokenData.AccountID, updatedTokenData.SessionID); err != nil {
+		auth.RevokeRefreshTokenBestEffort(ctx, clients.Redis, newRefreshToken)
+		m.Errors.WithLabelValues("session_verify_error").Inc(ctx)
+		sessionMetrics.StoreErrors.WithLabelValues(sessionFlow).Inc(ctx)
+		logs.ErrorCtx(ctx, "account_sessions row missing before issuing session cookies", "error", err,
+			"account_id", tokenData.AccountID,
+			"character_hash", tokenData.CharacterHash,
+			"session_id", updatedTokenData.SessionID,
+		)
+		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
+			"failure_class":    "auth_session_verify",
+			"session_endpoint": sessionEndpoint,
+			"metric":           "session_refresh",
+			"session_flow":     sessionFlow,
+			"account_id":       tokenData.AccountID,
+			"session_id":       updatedTokenData.SessionID,
+		})
+		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		return
 	}
 
 	// Rotation: invalidate only the refresh token that authenticated this request (other devices hold different strings).
@@ -345,7 +434,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 			AccountID:           tokenData.AccountID,
 			SessionID:           updatedTokenData.SessionID,
 			MainCharacterHash:   tokenData.CharacterHash,
-			ReauthRequiredAt:    updatedTokenData.SessionStart.Add(auth.RefreshTokenTTL).Unix(),
+			ReauthRequiredAt:    auth.ReauthRequiredAtUnix(updatedTokenData.SessionStart, time.Time{}),
 			FirstLogin:          loginDocs.FirstLogin,
 			UserDocument:        userOut,
 			ApplicationSettings: loginDocs.Settings,
@@ -393,7 +482,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		AccountID:         tokenData.AccountID,
 		SessionID:         updatedTokenData.SessionID,
 		MainCharacterHash: tokenData.CharacterHash,
-		ReauthRequiredAt:  updatedTokenData.SessionStart.Add(auth.RefreshTokenTTL).Unix(),
+		ReauthRequiredAt:  auth.ReauthRequiredAtUnix(updatedTokenData.SessionStart, time.Time{}),
 	}
 	if !refreshFromCookie {
 		rotate.RefreshToken = newRefreshToken
@@ -455,4 +544,20 @@ func extractRefreshCredentials(r *http.Request) (refreshToken string, eveToken s
 		return cookieRT, eveToken, true, nil
 	}
 	return "", "", false, errors.New("refresh_token is required in body or app refresh cookie")
+}
+
+type refreshAuthErrorResponse struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+func writeRefreshAuthError(w http.ResponseWriter, status int, code string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(refreshAuthErrorResponse{
+		Code:    code,
+		Message: "Unauthorized",
+	})
 }

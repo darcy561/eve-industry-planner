@@ -218,7 +218,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		return
 	}
 
-	reauthRequiredAt := sessionNow.Add(auth.RefreshTokenTTL).Unix()
+	reauthRequiredAt := auth.ReauthRequiredAtUnix(sessionNow, time.Time{})
 
 	userOut := loginDocs.User
 	var linkedCharacters []models.LinkedCharacterSession
