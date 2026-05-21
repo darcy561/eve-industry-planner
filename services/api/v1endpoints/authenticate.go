@@ -36,13 +36,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		duration := time.Since(start)
 		m.Errors.WithLabelValues("config_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "config_error", "error", err)
-		logs.ErrorCtx(ctx, "failed to load config for auth login", "error", err)
-		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
-			"failure_class":    "auth_config_load",
-			"session_endpoint": "auth_sessions",
-			"metric":           "eve_token_login",
-		})
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		respondAuthSessionsServerError(w, r, "failed to load config for auth login", "auth_config_load", err, nil)
 		return
 	}
 
@@ -108,38 +102,15 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 	corporations := auth.GetCorporations(ctx, clients.Redis, accountID)
 	alliances := auth.GetAlliances(ctx, clients.Redis, accountID)
 
-	// Generate refresh token
-	refreshToken, err := auth.GenerateRefreshToken()
-	if err != nil {
-		duration := time.Since(start)
-		m.Errors.WithLabelValues("refresh_token_generation_error").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "refresh_token_generation_error",
-			"error", err, "account_id", accountID, "character_hash", characterHash)
-		logs.ErrorCtx(ctx, "failed to generate refresh token", "error", err, "account_id", accountID, "character_hash", characterHash)
-		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
-			"failure_class":    "auth_refresh_token_gen",
-			"session_endpoint": "auth_sessions",
-			"metric":           "eve_token_login",
-			"account_id":       accountID,
-		})
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
-		return
-	}
-
 	sessionID, err := auth.GenerateSessionID()
 	if err != nil {
 		duration := time.Since(start)
 		m.Errors.WithLabelValues("session_generation_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "session_generation_error",
 			"error", err, "account_id", accountID, "character_hash", characterHash)
-		logs.ErrorCtx(ctx, "failed to generate session id", "error", err, "account_id", accountID, "character_hash", characterHash)
-		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
-			"failure_class":    "auth_session_id_gen",
-			"session_endpoint": "auth_sessions",
-			"metric":           "eve_token_login",
-			"account_id":       accountID,
+		respondAuthSessionsServerError(w, r, "failed to generate session id", "auth_session_id_gen", err, map[string]interface{}{
+			"account_id": accountID, "character_hash": characterHash,
 		})
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 	sessionNow := time.Now().UTC()
@@ -156,19 +127,24 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		SessionSeenAt: sessionNow,
 		AppVersion:    appVersion,
 	}
-	if err := auth.StoreRefreshToken(ctx, clients.Redis, refreshToken, refreshTokenData); err != nil {
+	refreshToken, err := auth.MintAndStoreRefreshToken(ctx, clients.Redis, refreshTokenData)
+	if err != nil {
 		duration := time.Since(start)
-		m.Errors.WithLabelValues("redis_error").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "redis_error",
-			"error", err, "account_id", accountID, "character_hash", characterHash)
-		logs.ErrorCtx(ctx, "failed to store refresh token", "error", err, "account_id", accountID, "character_hash", characterHash)
-		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
-			"failure_class":    "auth_redis_store_refresh",
-			"session_endpoint": "auth_sessions",
-			"metric":           "eve_token_login",
-			"account_id":       accountID,
-		})
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		if errors.Is(err, auth.ErrRefreshTokenGenerate) {
+			m.Errors.WithLabelValues("refresh_token_generation_error").Inc(ctx)
+			apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "refresh_token_generation_error",
+				"error", err, "account_id", accountID, "character_hash", characterHash)
+			respondAuthSessionsServerError(w, r, "failed to generate refresh token", "auth_refresh_token_gen", err, map[string]interface{}{
+				"account_id": accountID,
+			})
+		} else {
+			m.Errors.WithLabelValues("redis_error").Inc(ctx)
+			apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "redis_error",
+				"error", err, "account_id", accountID, "character_hash", characterHash)
+			respondAuthSessionsServerError(w, r, "failed to store refresh token", "auth_redis_store_refresh", err, map[string]interface{}{
+				"account_id": accountID,
+			})
+		}
 		return
 	}
 	if err := auth.UpsertSessionRecord(ctx, clients.Redis, auth.SessionRecord{
@@ -184,14 +160,9 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		sessionMetrics.StoreErrors.WithLabelValues("login").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "session_store_error",
 			"error", err, "account_id", accountID, "character_hash", characterHash)
-		logs.ErrorCtx(ctx, "failed to store session record", "error", err, "account_id", accountID, "character_hash", characterHash)
-		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
-			"failure_class":    "auth_redis_session_record",
-			"session_endpoint": "auth_sessions",
-			"metric":           "eve_token_login",
-			"account_id":       accountID,
+		respondAuthSessionsServerError(w, r, "failed to store session record", "auth_redis_session_record", err, map[string]interface{}{
+			"account_id": accountID, "character_hash": characterHash,
 		})
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 	sessionMetrics.Started.WithLabelValues("login").Inc(ctx)
@@ -207,14 +178,9 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		m.Errors.WithLabelValues("mongo_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "mongo_error",
 			"error", err, "account_id", accountID)
-		logs.ErrorCtx(ctx, "failed to resolve user documents for login", "error", err, "account_id", accountID)
-		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
-			"failure_class":    "auth_mongo_user_docs",
-			"session_endpoint": "auth_sessions",
-			"metric":           "eve_token_login",
-			"account_id":       accountID,
+		respondAuthSessionsServerError(w, r, "failed to resolve user documents for login", "auth_mongo_user_docs", err, map[string]interface{}{
+			"account_id": accountID,
 		})
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -284,14 +250,9 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		m.Errors.WithLabelValues("encode_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "encode_error",
 			"error", err, "account_id", accountID)
-		logs.ErrorCtx(ctx, "failed to encode response", "error", err, "account_id", accountID)
-		logs.AttachHandlerFailureDetail(r, map[string]interface{}{
-			"failure_class":    "auth_response_encode",
-			"session_endpoint": "auth_sessions",
-			"metric":           "eve_token_login",
-			"account_id":       accountID,
+		respondAuthSessionsServerError(w, r, "failed to encode response", "auth_response_encode", err, map[string]interface{}{
+			"account_id": accountID,
 		})
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
@@ -345,4 +306,12 @@ func extractTokenFromRequest(r *http.Request) (string, error) {
 	}
 
 	return tokenString, nil
+}
+
+func respondAuthSessionsServerError(w http.ResponseWriter, r *http.Request, logMsg, failureClass string, err error, extra map[string]interface{}) {
+	if extra == nil {
+		extra = map[string]interface{}{}
+	}
+	extra["session_endpoint"] = "auth_sessions"
+	helper.RespondEndpointServerError(w, r, "Internal server error", logMsg, failureClass, "eve_token_login", err, extra)
 }

@@ -132,8 +132,7 @@ func GetCatalogHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 	}
 	if err != nil {
 		metrics.Error("database_error")
-		logs.ErrorCtx(ctx, "group-templates catalog load", "err", err)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to load templates", err)
+		helper.RespondEndpointServerError(w, r, "Failed to load templates", "group-templates catalog load", "group_templates_catalog_load_failed", "group_templates", err, nil)
 		return
 	}
 	_ = helper.EncodeJSON(w, map[string]any{"templates": doc.Templates})
@@ -156,7 +155,7 @@ func GetCatalogEntryHandler(w http.ResponseWriter, r *http.Request, clients *sha
 			return
 		}
 		metrics.Error("database_error")
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to load catalog", err)
+		helper.RespondEndpointServerError(w, r, "Failed to load catalog", "group templates catalog load by id", "group_templates_catalog_entry_failed", "group_templates", err, nil)
 		return
 	}
 	idx := findTemplateIndex(doc.Templates, templateID)
@@ -187,7 +186,7 @@ func GetPayloadFullHandler(w http.ResponseWriter, r *http.Request, clients *shar
 			return
 		}
 		metrics.Error("database_error")
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to load template", err)
+		helper.RespondEndpointServerError(w, r, "Failed to load template", "group templates payload load failed", "group_templates_payload_load_failed", "group_templates", err, nil)
 		return
 	}
 	if payload.AccountID != accountID {
@@ -224,7 +223,7 @@ func PostTemplateHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	}
 	if err := normalizeAndValidatePayload(&body.Payload, tid, accountID); err != nil {
 		metrics.Error("validation_error")
-		logs.RespondHTTPError(w, r, http.StatusBadRequest, err.Error(), err)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, err.Error(), "group templates validation failed", "group_templates_validation_failed", "group_templates", err, nil)
 		return
 	}
 
@@ -234,13 +233,13 @@ func PostTemplateHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	cat, err := ensureCatalogDoc(ctx, catColl, accountID)
 	if err != nil {
 		metrics.Error("database_error")
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "catalog error", err)
+		helper.RespondEndpointServerError(w, r, "catalog error", "group templates catalog error", "group_templates_catalog_error", "group_templates", err, nil)
 		return
 	}
 	if len(cat.Templates) >= models.MaxTemplatesPerAccount {
 		metrics.Error("template_limit_reached")
 		msg := fmt.Sprintf("template limit reached (%d)", models.MaxTemplatesPerAccount)
-		logs.RespondHTTPError(w, r, http.StatusConflict, msg, errors.New(msg))
+		helper.RespondEndpointError(w, r, http.StatusConflict, msg, "group templates conflict", "group_templates_conflict", "group_templates", errors.New(msg), nil)
 		return
 	}
 
@@ -264,11 +263,11 @@ func PostTemplateHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		if mongo.IsDuplicateKeyError(err) {
 			metrics.Error("duplicate_template_id")
 			const msg = "template id already exists"
-			logs.RespondHTTPError(w, r, http.StatusConflict, msg, errors.New(msg))
+			helper.RespondEndpointError(w, r, http.StatusConflict, msg, "group templates duplicate id", "group_templates_duplicate_id", "group_templates", errors.New(msg), nil)
 			return
 		}
 		metrics.Error("database_error")
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "failed to save payload", err)
+		helper.RespondEndpointServerError(w, r, "failed to save payload", "group templates save payload failed", "group_templates_save_payload_failed", "group_templates", err, nil)
 		return
 	}
 
@@ -291,7 +290,7 @@ func PostTemplateHandler(w http.ResponseWriter, r *http.Request, clients *shared
 			return deleteErr
 		})
 		metrics.Error("database_error")
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "failed to update catalog", err)
+		helper.RespondEndpointServerError(w, r, "failed to update catalog", "group templates update catalog failed", "group_templates_update_catalog_failed", "group_templates", err, nil)
 		return
 	}
 
@@ -326,7 +325,7 @@ func PatchTemplateHandler(w http.ResponseWriter, r *http.Request, clients *share
 			return
 		}
 		metrics.Error("database_error")
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "catalog error", err)
+		helper.RespondEndpointServerError(w, r, "catalog error", "group templates patch catalog error", "group_templates_patch_catalog_error", "group_templates", err, nil)
 		return
 	}
 	idx := findTemplateIndex(doc.Templates, templateID)
@@ -347,7 +346,7 @@ func PatchTemplateHandler(w http.ResponseWriter, r *http.Request, clients *share
 	if body.Payload != nil {
 		if err := normalizeAndValidatePayload(body.Payload, templateID, accountID); err != nil {
 			metrics.Error("validation_error")
-			logs.RespondHTTPError(w, r, http.StatusBadRequest, err.Error(), err)
+			helper.RespondEndpointError(w, r, http.StatusBadRequest, err.Error(), "group templates patch validation failed", "group_templates_patch_validation_failed", "group_templates", err, nil)
 			return
 		}
 		createdAt := updated.CreatedAt
@@ -370,7 +369,7 @@ func PatchTemplateHandler(w http.ResponseWriter, r *http.Request, clients *share
 		})
 		if err != nil {
 			metrics.Error("database_error")
-			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "payload update failed", err)
+			helper.RespondEndpointServerError(w, r, "payload update failed", "group templates payload update failed", "group_templates_payload_update_failed", "group_templates", err, nil)
 			return
 		}
 	}
@@ -392,7 +391,7 @@ func PatchTemplateHandler(w http.ResponseWriter, r *http.Request, clients *share
 	})
 	if err != nil {
 		metrics.Error("database_error")
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "catalog save failed", err)
+		helper.RespondEndpointServerError(w, r, "catalog save failed", "group templates catalog save failed", "group_templates_catalog_save_failed", "group_templates", err, nil)
 		return
 	}
 	metrics.Success()
@@ -417,7 +416,7 @@ func DeleteTemplateHandler(w http.ResponseWriter, r *http.Request, clients *shar
 	})
 	if err != nil {
 		metrics.Error("database_error")
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "delete payload failed", err)
+		helper.RespondEndpointServerError(w, r, "delete payload failed", "group templates delete payload failed", "group_templates_delete_payload_failed", "group_templates", err, nil)
 		return
 	}
 	if delRes.DeletedCount == 0 {

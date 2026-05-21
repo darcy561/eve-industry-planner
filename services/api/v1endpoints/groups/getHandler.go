@@ -46,15 +46,13 @@ func GetGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 	groups, err := mongoget.LoadGroupsByAccount(ctx, collection, accountID)
 	if err != nil {
 		metrics.Error("database_error")
-		logs.ErrorCtx(ctx, "failed to query groups", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to retrieve groups", err)
+		helper.RespondEndpointServerError(w, r, "Failed to retrieve groups", "failed to query groups", "groups_query_failed", "groups_get", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 
 	if err := helper.EncodeJSON(w, groups); err != nil {
 		metrics.Error("encode_error")
-		logs.ErrorCtx(ctx, "failed to encode groups response", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode groups response", "groups_encode_failed", "groups_get", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 

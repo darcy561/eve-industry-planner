@@ -101,8 +101,7 @@ func GetJobDocumentByIDHandler(w http.ResponseWriter, r *http.Request, clients *
 			return
 		}
 		metrics.Error("database_error")
-		logs.ErrorCtx(ctx, "failed to query job document", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to retrieve job", err)
+		helper.RespondEndpointServerError(w, r, "Failed to retrieve job", "failed to query job document", "job_doc_query_failed", "job_documents", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 
@@ -196,8 +195,7 @@ func findJobs(
 	jobs, err := mongoget.LoadJobsByFilter(ctx, collection, accountID, label, filter)
 	if err != nil {
 		metrics.Error("database_error")
-		logs.ErrorCtx(ctx, "failed to query job documents", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to retrieve jobs", err)
+		helper.RespondEndpointServerError(w, r, "Failed to retrieve jobs", "failed to query job documents", "job_docs_query_failed", "job_documents", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 

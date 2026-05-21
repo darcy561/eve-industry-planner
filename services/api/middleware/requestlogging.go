@@ -71,14 +71,15 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 			)
 
 			if rw.statusCode >= 500 {
+				det := logs.HandlerFailureDetailFromRequest(r)
 				errFields := []zap.Field{logs.Ctx(ctx)}
 				if herr := logs.HandlerErrorFromRequest(r); herr != nil {
 					errFields = append(errFields, zap.Error(herr))
 				}
-				if det := logs.HandlerFailureDetailFromRequest(r); len(det) > 0 {
+				if len(det) > 0 {
 					errFields = append(errFields, zap.Any("handler_failure", det))
 				}
-				doneLogger.Error("request completed with server error", errFields...)
+				doneLogger.Error(logs.AccessLogMessage(rw.statusCode, det), errFields...)
 				// Non-panic 5xx: request logging sees the status but sentryhttp only captures panics.
 				sentry.WithScope(func(scope *sentry.Scope) {
 					scope.SetRequest(r)
@@ -90,7 +91,7 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 						"duration":         duration.String(),
 						"content_encoding": contentEncoding,
 					})
-					if det := logs.HandlerFailureDetailFromRequest(r); len(det) > 0 {
+					if len(det) > 0 {
 						scope.SetContext("handler_failure", det)
 					}
 					// Attach local call stack so non-panic 5xx events still provide source hints.
@@ -108,7 +109,12 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 					}
 				})
 			} else if rw.statusCode >= 400 {
-				doneLogger.Warn("request completed with client error", logs.Ctx(ctx))
+				det := logs.HandlerFailureDetailFromRequest(r)
+				clientFields := []zap.Field{logs.Ctx(ctx)}
+				if len(det) > 0 {
+					clientFields = append(clientFields, zap.Any("handler_failure", det))
+				}
+				doneLogger.Warn(logs.AccessLogMessage(rw.statusCode, det), clientFields...)
 			} else {
 				doneLogger.Debug("request completed", logs.Ctx(ctx))
 			}

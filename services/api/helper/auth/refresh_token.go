@@ -65,6 +65,8 @@ const (
 	AccountSessionsKeyPrefix = "account_sessions:"
 	// SessionIndexKeyPrefix maps session_id -> account_id for fast lookup.
 	SessionIndexKeyPrefix = "session_index:"
+	// SessionRefreshIndexKeyPrefix maps session_id -> current planner refresh token (opaque string).
+	SessionRefreshIndexKeyPrefix = "session_refresh:"
 	// SessionTTL matches RefreshTokenTTL so session:<id> ages out with the refresh-token window.
 	SessionTTL = RefreshTokenTTL
 )
@@ -141,6 +143,9 @@ func StoreRefreshToken(ctx context.Context, redisClient *redis.Client, token str
 	key := RefreshTokenKeyPrefix + token
 	if err := rediscore.SaveJSON(ctx, redisClient, key, data, RefreshTokenTTL); err != nil {
 		return fmt.Errorf("failed to store refresh token: %w", err)
+	}
+	if err := setSessionRefreshIndex(ctx, redisClient, data, token); err != nil {
+		return err
 	}
 	return nil
 }
@@ -226,8 +231,71 @@ func GetRefreshTokenData(ctx context.Context, redisClient *redis.Client, token s
 
 // RevokeRefreshToken removes a refresh token from Redis
 func RevokeRefreshToken(ctx context.Context, redisClient *redis.Client, token string) error {
+	if redisClient == nil {
+		return errors.New("redis client is nil")
+	}
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return nil
+	}
+	data, err := GetRefreshTokenData(ctx, redisClient, token)
+	if err != nil && !errors.Is(err, ErrRefreshTokenNotFound) {
+		return err
+	}
 	key := RefreshTokenKeyPrefix + token
-	return redisClient.Del(ctx, key).Err()
+	if err := redisClient.Del(ctx, key).Err(); err != nil {
+		return err
+	}
+	if data != nil {
+		clearSessionRefreshIndexIfMatch(ctx, redisClient, data.SessionID, token)
+	}
+	return nil
+}
+
+// ResolveRefreshTokenForValidSession returns the current planner refresh token for an active session row.
+// Used when rotate/bootstrap receives a stale body refresh token but a valid eip_session cookie.
+func ResolveRefreshTokenForValidSession(ctx context.Context, redisClient *redis.Client, sessionID string) (string, *RefreshTokenData, error) {
+	sid := strings.TrimSpace(sessionID)
+	if sid == "" {
+		return "", nil, ErrRefreshTokenNotFound
+	}
+	if redisClient == nil {
+		return "", nil, errors.New("redis client is nil")
+	}
+	accountID, sess, err := ResolveAccountSessionBySessionID(ctx, redisClient, sid)
+	if err != nil || sess == nil {
+		return "", nil, ErrRefreshTokenNotFound
+	}
+	if sess.RevokedAt != nil {
+		return "", nil, ErrRefreshTokenNotFound
+	}
+	if IsReauthExpired(sess.StartedAt, sess.ReauthRequiredAt, time.Now().UTC()) {
+		return "", nil, ErrRefreshTokenNotFound
+	}
+	token, err := getSessionRefreshIndexToken(ctx, redisClient, sid)
+	if err != nil {
+		return "", nil, err
+	}
+	if token == "" {
+		token, err = findRefreshTokenBySessionIDScan(ctx, redisClient, sid)
+		if err != nil {
+			return "", nil, err
+		}
+	}
+	if token == "" {
+		return "", nil, ErrRefreshTokenNotFound
+	}
+	data, err := GetRefreshTokenData(ctx, redisClient, token)
+	if err != nil {
+		return "", nil, err
+	}
+	if strings.TrimSpace(data.SessionID) != sid {
+		return "", nil, ErrRefreshTokenNotFound
+	}
+	if strings.TrimSpace(data.AccountID) != strings.TrimSpace(accountID) {
+		return "", nil, ErrRefreshTokenNotFound
+	}
+	return token, data, nil
 }
 
 // StoreCorporations stores corporation IDs for an account ID in Redis
@@ -317,6 +385,87 @@ func accountSessionsKey(accountID string) string {
 
 func sessionIndexKey(sessionID string) string {
 	return SessionIndexKeyPrefix + strings.TrimSpace(sessionID)
+}
+
+func sessionRefreshIndexKey(sessionID string) string {
+	return SessionRefreshIndexKeyPrefix + strings.TrimSpace(sessionID)
+}
+
+func setSessionRefreshIndex(ctx context.Context, redisClient *redis.Client, data RefreshTokenData, token string) error {
+	sid := strings.TrimSpace(data.SessionID)
+	tok := strings.TrimSpace(token)
+	if sid == "" || tok == "" {
+		return nil
+	}
+	if err := redisClient.Set(ctx, sessionRefreshIndexKey(sid), tok, RefreshTokenTTL).Err(); err != nil {
+		return fmt.Errorf("failed to store session refresh index: %w", err)
+	}
+	return nil
+}
+
+func clearSessionRefreshIndexIfMatch(ctx context.Context, redisClient *redis.Client, sessionID, token string) {
+	sid := strings.TrimSpace(sessionID)
+	tok := strings.TrimSpace(token)
+	if sid == "" || tok == "" {
+		return
+	}
+	key := sessionRefreshIndexKey(sid)
+	current, err := redisClient.Get(ctx, key).Result()
+	if err == redis.Nil {
+		return
+	}
+	if err != nil {
+		return
+	}
+	if strings.TrimSpace(current) == tok {
+		_ = redisClient.Del(ctx, key).Err()
+	}
+}
+
+func getSessionRefreshIndexToken(ctx context.Context, redisClient *redis.Client, sessionID string) (string, error) {
+	v, err := redisClient.Get(ctx, sessionRefreshIndexKey(sessionID)).Result()
+	if err == redis.Nil {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to get session refresh index: %w", err)
+	}
+	return strings.TrimSpace(v), nil
+}
+
+// findRefreshTokenBySessionIDScan locates a refresh_token row by session_id when the index is missing (legacy rows).
+func findRefreshTokenBySessionIDScan(ctx context.Context, redisClient *redis.Client, sessionID string) (string, error) {
+	sid := strings.TrimSpace(sessionID)
+	if sid == "" {
+		return "", nil
+	}
+	const scanCount = 200
+	var cursor uint64
+	for {
+		keys, next, err := redisClient.Scan(ctx, cursor, RefreshTokenKeyPrefix+"*", scanCount).Result()
+		if err != nil {
+			return "", err
+		}
+		for _, key := range keys {
+			token := strings.TrimSpace(strings.TrimPrefix(key, RefreshTokenKeyPrefix))
+			if token == "" {
+				continue
+			}
+			data, err := GetRefreshTokenData(ctx, redisClient, token)
+			if err != nil {
+				continue
+			}
+			if strings.TrimSpace(data.SessionID) == sid {
+				_ = setSessionRefreshIndex(ctx, redisClient, *data, token)
+				return token, nil
+			}
+		}
+		cursor = next
+		if cursor == 0 {
+			break
+		}
+	}
+	return "", nil
 }
 
 func normalizeIDs(ids []int64) []int64 {

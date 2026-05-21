@@ -69,8 +69,7 @@ func PutHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceC
 	result, err := mongoput.UpsertWatchlistDeprecated(ctx, collection, accountID, groups, items, now, sessionID, wsClientID)
 	if err != nil {
 		metrics.Error("database_error")
-		logs.ErrorCtx(ctx, "failed to upsert watchlist deprecated", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to save watchlist", err)
+		helper.RespondEndpointServerError(w, r, "Failed to save watchlist", "failed to upsert watchlist deprecated", "watchlist_upsert_failed", "watchlist_put", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 
