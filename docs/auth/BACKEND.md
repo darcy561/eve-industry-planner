@@ -2,7 +2,7 @@
 
 How the Go API and websocket services authenticate every request, how the EVE SSO and planner session endpoints work, what lives in Redis, and how the deprecated internal JWT layer was replaced with cookie + Redis session lookup.
 
-> Companion docs: **[README.md](./README.md)** for overview / wire contracts and **[FRONTEND.md](./FRONTEND.md)** for SPA detail.
+> Companion docs: **[README.md](./README.md)** for overview / wire contracts, **[FRONTEND.md](./FRONTEND.md)** for SPA detail, **[ROADMAP.md](./ROADMAP.md)** for full-stack backlog and test matrix.
 
 ---
 
@@ -500,7 +500,7 @@ stateDiagram-v2
 - **Redis is in the critical path of every authenticated request.** A Redis outage degrades to `401 {"code":"session_missing"}` (middleware returns this when `TouchAccountSession` fails). Consider a circuit breaker if you need to keep the SPA reachable during partial outages.
 - **Cookie scope matters.** `eip_app_refresh` is deliberately scoped to `/api/v1/auth` so even an XSS bug on a data route cannot exfiltrate the refresh value. Keep this invariant when adding new auth paths.
 - **No public JWKS endpoint.** Anything that previously hit `/.well-known/jwks.json` for the planner's internal key has been removed; consumers should not exist.
-- **Cleanup**: there is no scheduled job that purges expired `refresh_token:<token>` rows on logout — they age out by TTL. If you need to bulk-revoke (e.g. a compromised character), iterate `account_sessions:<accountID>` and DEL each `refresh_token:` chain manually, or add an admin endpoint.
+- **Cleanup**: `auth.RunAuthSessionMaintenance` (worker cron every 4h via `pruneExpiredAccountSessions`, core singleton `auth-session-maintenance` hourly) prunes expired `account_sessions` rows, deletes orphan `session_index:*` keys, and revokes `refresh_token:*` rows whose `session_id` is missing from `account_sessions`. Set `AUTH_SESSION_CLEANUP_DRY_RUN=true` to log counts without deleting. Logout still leaves refresh rows until the next sweep or TTL. Bulk revoke per account remains **#21** (admin endpoint).
 - **Grants caching**: `custom_claims_corporations:<accountID>` and `custom_claims_alliances:<accountID>` are *advisory* — the websocket scope checks fall back to `identity.Session.Grants`, which `UpdateAccountSessionGrants` refreshes on every login / rotate / bootstrap.
 
 ---
