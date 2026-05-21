@@ -51,14 +51,13 @@ func GetGroupByIDHandler(w http.ResponseWriter, r *http.Request, clients *shared
 			return
 		}
 		metrics.Error("database_error")
-		logs.ErrorCtx(ctx, "failed to load group by id", "error", err, "account_id", accountID, "group_id", groupID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to retrieve group", err)
+		helper.RespondEndpointServerError(w, r, "Failed to retrieve group", "failed to load group by id", "groups_get_by_id_failed", "groups_get", err, map[string]interface{}{"account_id": accountID, "group_id": groupID})
 		return
 	}
 
 	if err := helper.EncodeJSON(w, group); err != nil {
 		metrics.Error("encode_error")
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode group response", "groups_encode_failed", "groups_get", err, map[string]interface{}{"account_id": accountID, "group_id": groupID})
 		return
 	}
 

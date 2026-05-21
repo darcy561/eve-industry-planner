@@ -40,11 +40,14 @@ func handleAcquire(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 	out, err := lockService(clients).Acquire(hc.Ctx, hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
 	if err != nil {
 		if errors.Is(err, documentlock.ErrLocksUnavailable) {
-			http.Error(w, "Locks unavailable", http.StatusServiceUnavailable)
+			helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Locks unavailable", "document locks unavailable", "doc_lock_unavailable", "document_lock_acquire", err, map[string]interface{}{
+				"account_id": hc.AccountID, "collection": hc.Collection, "doc_id": hc.DocID,
+			})
 			return
 		}
-		logs.ErrorCtx(hc.Ctx, "doc lock acquire failed", "error", err)
-		http.Error(w, "Internal error", http.StatusInternalServerError)
+		helper.RespondEndpointServerError(w, r, "Internal error", "doc lock acquire failed", "doc_lock_acquire_failed", "document_lock_acquire", err, map[string]interface{}{
+			"account_id": hc.AccountID, "collection": hc.Collection, "doc_id": hc.DocID,
+		})
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -60,10 +63,14 @@ func handleExtend(w http.ResponseWriter, r *http.Request, clients *shared.Servic
 	out, err := lockService(clients).Extend(hc.Ctx, hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
 	if err != nil {
 		if errors.Is(err, documentlock.ErrLocksUnavailable) {
-			http.Error(w, "Locks unavailable", http.StatusServiceUnavailable)
+			helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Locks unavailable", "document locks unavailable", "doc_lock_unavailable", "document_lock_extend", err, map[string]interface{}{
+				"account_id": hc.AccountID, "collection": hc.Collection, "doc_id": hc.DocID,
+			})
 			return
 		}
-		http.Error(w, "Internal error", http.StatusInternalServerError)
+		helper.RespondEndpointServerError(w, r, "Internal error", "doc lock extend failed", "doc_lock_extend_failed", "document_lock_extend", err, map[string]interface{}{
+			"account_id": hc.AccountID, "collection": hc.Collection, "doc_id": hc.DocID,
+		})
 		return
 	}
 	if out.NotHolderPayload != nil {
@@ -83,10 +90,14 @@ func handleRelease(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 	err := lockService(clients).Release(hc.Ctx, hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
 	if err != nil {
 		if errors.Is(err, documentlock.ErrLocksUnavailable) {
-			http.Error(w, "Locks unavailable", http.StatusServiceUnavailable)
+			helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Locks unavailable", "document locks unavailable", "doc_lock_unavailable", "document_lock_release", err, map[string]interface{}{
+				"account_id": hc.AccountID, "collection": hc.Collection, "doc_id": hc.DocID,
+			})
 			return
 		}
-		http.Error(w, "Internal error", http.StatusInternalServerError)
+		helper.RespondEndpointServerError(w, r, "Internal error", "doc lock release failed", "doc_lock_release_failed", "document_lock_release", err, map[string]interface{}{
+			"account_id": hc.AccountID, "collection": hc.Collection, "doc_id": hc.DocID,
+		})
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -111,8 +122,9 @@ func handleForceRelease(w http.ResponseWriter, r *http.Request, clients *shared.
 			http.Error(w, "Already holding lock; use POST /release", http.StatusBadRequest)
 			return
 		}
-		logs.ErrorCtx(hc.Ctx, "doc lock force-release failed", "error", err)
-		http.Error(w, "Internal error", http.StatusInternalServerError)
+		helper.RespondEndpointServerError(w, r, "Internal error", "doc lock force-release failed", "doc_lock_force_release_failed", "document_lock_force_release", err, map[string]interface{}{
+			"account_id": hc.AccountID, "collection": hc.Collection, "doc_id": hc.DocID,
+		})
 		return
 	}
 	logs.InfoCtx(hc.Ctx, "document_lock_force_release",
@@ -136,8 +148,9 @@ func handleHandOver(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 			http.Error(w, "Locks unavailable", http.StatusServiceUnavailable)
 			return
 		}
-		logs.ErrorCtx(hc.Ctx, "doc lock hand over failed", "error", err)
-		http.Error(w, "Internal error", http.StatusInternalServerError)
+		helper.RespondEndpointServerError(w, r, "Internal error", "doc lock hand over failed", "doc_lock_handover_failed", "document_lock_handover", err, map[string]interface{}{
+			"account_id": hc.AccountID, "collection": hc.Collection, "doc_id": hc.DocID,
+		})
 		return
 	}
 	if res.Payload != nil {
@@ -160,8 +173,9 @@ func handleRequest(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 			http.Error(w, "Locks unavailable", http.StatusServiceUnavailable)
 			return
 		}
-		logs.ErrorCtx(hc.Ctx, "doc lock request access failed", "error", err)
-		http.Error(w, "Internal error", http.StatusInternalServerError)
+		helper.RespondEndpointServerError(w, r, "Internal error", "doc lock request access failed", "doc_lock_request_failed", "document_lock_request", err, map[string]interface{}{
+			"account_id": hc.AccountID, "collection": hc.Collection, "doc_id": hc.DocID,
+		})
 		return
 	}
 	if res.Payload != nil {
@@ -191,7 +205,9 @@ func handleLockState(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 	}
 	payload, err := documentlock.StatusPayloadForDoc(ctx, clients.Redis, accountID, collection, docID)
 	if err != nil {
-		http.Error(w, "Internal error", http.StatusInternalServerError)
+		helper.RespondEndpointServerError(w, r, "Internal error", "document lock state failed", "doc_lock_state_failed", "document_lock_state", err, map[string]interface{}{
+			"account_id": accountID, "collection": collection, "doc_id": docID,
+		})
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -224,8 +240,9 @@ func handleLockStateBatch(w http.ResponseWriter, r *http.Request, clients *share
 		case errors.Is(err, documentlock.ErrLocksUnavailable):
 			http.Error(w, "Locks unavailable", http.StatusServiceUnavailable)
 		default:
-			logs.ErrorCtx(ctx, "document lock state batch failed", "error", err)
-			http.Error(w, "Internal error", http.StatusInternalServerError)
+			helper.RespondEndpointServerError(w, r, "Internal error", "document lock state batch failed", "doc_lock_state_batch_failed", "document_lock_state_batch", err, map[string]interface{}{
+				"account_id": accountID,
+			})
 		}
 		return
 	}
@@ -247,7 +264,9 @@ func handleClaimHandoff(w http.ResponseWriter, r *http.Request, clients *shared.
 			http.Error(w, "Locks unavailable", http.StatusServiceUnavailable)
 			return
 		}
-		http.Error(w, "Internal error", http.StatusInternalServerError)
+		helper.RespondEndpointServerError(w, r, "Internal error", "doc lock claim handoff failed", "doc_lock_claim_handoff_failed", "document_lock_claim_handoff", err, map[string]interface{}{
+			"account_id": hc.AccountID, "collection": hc.Collection, "doc_id": hc.DocID,
+		})
 		return
 	}
 	if out.ErrText != "" {
@@ -269,8 +288,9 @@ func handleWaitlistPulse(w http.ResponseWriter, r *http.Request, clients *shared
 			http.Error(w, "Locks unavailable", http.StatusServiceUnavailable)
 			return
 		}
-		logs.ErrorCtx(hc.Ctx, "doc lock waitlist pulse failed", "error", err)
-		http.Error(w, "Internal error", http.StatusInternalServerError)
+		helper.RespondEndpointServerError(w, r, "Internal error", "doc lock waitlist pulse failed", "doc_lock_waitlist_pulse_failed", "document_lock_waitlist_pulse", err, map[string]interface{}{
+			"account_id": hc.AccountID, "collection": hc.Collection, "doc_id": hc.DocID,
+		})
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

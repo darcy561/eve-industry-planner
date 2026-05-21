@@ -42,23 +42,24 @@ func DecodeJSONOrBadRequest(
 		if metrics != nil {
 			metrics.Error("invalid_json")
 		}
+		detail := map[string]interface{}{"reason": err.Error()}
 		var jsonErr *JSONRequestError
 		if errors.As(err, &jsonErr) {
-			logs.WarnCtx(r.Context(), "invalid JSON request body",
-				"method", r.Method,
-				"path", r.URL.Path,
-				"reason", jsonErr.Detail,
-				"field", jsonErr.Field,
-				"offset", jsonErr.Offset,
-				"json_preview", jsonErr.BodyPreview,
-				"error", err)
-		} else {
-			logs.WarnCtx(r.Context(), "invalid JSON request body",
-				"method", r.Method,
-				"path", r.URL.Path,
-				"error", err)
+			if jsonErr.Detail != "" {
+				detail["reason"] = jsonErr.Detail
+			}
+			if jsonErr.Field != "" {
+				detail["field"] = jsonErr.Field
+			}
+			if jsonErr.Offset != 0 {
+				detail["offset"] = jsonErr.Offset
+			}
+			if jsonErr.BodyPreview != "" {
+				detail["json_preview"] = jsonErr.BodyPreview
+			}
 		}
-		logs.RespondHTTPError(w, r, http.StatusBadRequest, err.Error(), err)
+		logs.AttachClientFailureDetail(r, "invalid JSON request body", detail)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return false
 	}
 	return true

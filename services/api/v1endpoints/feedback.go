@@ -256,31 +256,27 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 			// Marshal payload to JSON
 			payloadJSON, err := json.Marshal(payload)
 			if err != nil {
-				logs.ErrorCtx(ctx, "failed to marshal Discord payload", "error", err, "account_id", accountID)
-				logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+				helper.RespondEndpointServerError(w, r, "Internal server error", "failed to marshal Discord payload", "feedback_marshal_failed", "feedback", err, map[string]interface{}{"account_id": accountID})
 				return
 			}
 
 			webhookReq, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.FeedbackDiscordWebhookURL, bytes.NewReader(payloadJSON))
 			if err != nil {
-				logs.ErrorCtx(ctx, "failed to build Discord webhook request", "error", err, "account_id", accountID)
-				logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to submit feedback", err)
+				helper.RespondEndpointServerError(w, r, "Failed to submit feedback", "failed to build Discord webhook request", "feedback_webhook_request_failed", "feedback", err, map[string]interface{}{"account_id": accountID})
 				return
 			}
 			webhookReq.Header.Set("Content-Type", "application/json")
 
 			webhookResp, err := http.DefaultClient.Do(webhookReq)
 			if err != nil {
-				logs.ErrorCtx(ctx, "failed to send Discord webhook", "error", err, "account_id", accountID)
-				logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to submit feedback", err)
+				helper.RespondEndpointServerError(w, r, "Failed to submit feedback", "failed to send Discord webhook", "feedback_webhook_send_failed", "feedback", err, map[string]interface{}{"account_id": accountID})
 				return
 			}
 			defer webhookResp.Body.Close()
 
 			// Check Discord webhook response
 			if webhookResp.StatusCode < 200 || webhookResp.StatusCode >= 300 {
-				logs.ErrorCtx(ctx, "Discord webhook returned error status", "status_code", webhookResp.StatusCode, "account_id", accountID)
-				logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to submit feedback", fmt.Errorf("discord webhook status %d", webhookResp.StatusCode))
+				helper.RespondEndpointServerError(w, r, "Failed to submit feedback", "Discord webhook returned error status", "feedback_webhook_status_error", "feedback", fmt.Errorf("discord webhook status %d", webhookResp.StatusCode), map[string]interface{}{"account_id": accountID, "status_code": webhookResp.StatusCode})
 				return
 			}
 		} else {

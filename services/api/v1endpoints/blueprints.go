@@ -58,15 +58,14 @@ func BlueprintGetHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 	if clients == nil || clients.Mongo == nil {
 		logs.WarnCtx(ctx, "blueprints get: mongo client unavailable")
-		logs.RespondHTTPError(w, r, http.StatusServiceUnavailable, "Service unavailable", errors.New("mongo client unavailable"))
+		helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Service unavailable", "blueprints mongo client unavailable", "blueprints_mongo_unavailable", "blueprints", errors.New("mongo client unavailable"), nil)
 		return
 	}
 
 	collection := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionBlueprints)
 	data, found, err := mongocore.GetPublicDocumentByID(ctx, collection, blueprintID)
 	if err != nil {
-		logs.ErrorCtx(ctx, "blueprints get: mongo error", "error", err, "blueprint_id", blueprintID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "An error occurred while retrieving blueprint data. Please try again later.", err)
+		helper.RespondEndpointServerError(w, r, "An error occurred while retrieving blueprint data. Please try again later.", "blueprints get: mongo error", "blueprints_get_mongo_failed", "blueprints", err, map[string]interface{}{"blueprint_id": blueprintID})
 		return
 	}
 	if !found {
@@ -77,8 +76,7 @@ func BlueprintGetHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 	w.Header().Set("Cache-Control", blueprintsCacheControl)
 	if err := helper.EncodeJSON(w, data); err != nil {
-		logs.ErrorCtx(ctx, "blueprints get: encode error", "error", err, "blueprint_id", blueprintID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		helper.RespondEndpointServerError(w, r, "Internal server error", "blueprints get: encode error", "blueprints_get_encode_failed", "blueprints", err, map[string]interface{}{"blueprint_id": blueprintID})
 		return
 	}
 
@@ -114,23 +112,21 @@ func BlueprintsPostHandler(w http.ResponseWriter, r *http.Request, clients *shar
 
 	if clients == nil || clients.Mongo == nil {
 		logs.WarnCtx(ctx, "blueprints post: mongo client unavailable")
-		logs.RespondHTTPError(w, r, http.StatusServiceUnavailable, "Service unavailable", errors.New("mongo client unavailable"))
+		helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Service unavailable", "blueprints mongo client unavailable", "blueprints_mongo_unavailable", "blueprints", errors.New("mongo client unavailable"), nil)
 		return
 	}
 
 	collection := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionBlueprints)
 	docs, err := mongocore.GetPublicDocumentsByIDs(ctx, collection, typeIDs)
 	if err != nil {
-		logs.ErrorCtx(ctx, "blueprints post: mongo error", "error", err)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "An error occurred while retrieving blueprint data. Please try again.", err)
+		helper.RespondEndpointServerError(w, r, "An error occurred while retrieving blueprint data. Please try again.", "blueprints post: mongo error", "blueprints_post_mongo_failed", "blueprints", err, nil)
 		return
 	}
 	results := bsonDocsToMaps(docs)
 
 	w.Header().Set("Cache-Control", "no-store")
 	if err := helper.EncodeJSON(w, results); err != nil {
-		logs.ErrorCtx(ctx, "blueprints post: encode error", "error", err)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		helper.RespondEndpointServerError(w, r, "Internal server error", "blueprints post: encode error", "blueprints_post_encode_failed", "blueprints", err, nil)
 		return
 	}
 

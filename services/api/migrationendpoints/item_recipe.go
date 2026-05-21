@@ -56,8 +56,7 @@ func ItemRecipeGetHandler(w http.ResponseWriter, r *http.Request, clients *share
 
 	data, found, err := migration.GetItemRecipe(ctx, itemID)
 	if err != nil {
-		logs.ErrorCtx(ctx, "item recipe get: firestore error", "error", err, "item_id", itemID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "An error occurred while retrieving item data. Please try again later.", err)
+		helper.RespondEndpointServerError(w, r, "An error occurred while retrieving item data. Please try again later.", "item recipe get: firestore error", "item_recipe_get_firestore_failed", "item_recipe", err, map[string]interface{}{"item_id": itemID})
 		return
 	}
 	if !found {
@@ -68,8 +67,7 @@ func ItemRecipeGetHandler(w http.ResponseWriter, r *http.Request, clients *share
 
 	w.Header().Set("Cache-Control", itemRecipeCacheControl)
 	if err := helper.EncodeJSON(w, data); err != nil {
-		logs.ErrorCtx(ctx, "item recipe get: encode error", "error", err, "item_id", itemID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		helper.RespondEndpointServerError(w, r, "Internal server error", "item recipe get: encode error", "item_recipe_get_encode_failed", "item_recipe", err, map[string]interface{}{"item_id": itemID})
 		return
 	}
 	logs.InfoCtx(ctx, "item recipe retrieved via migration", "item_id", itemID, "duration_ms", time.Since(start).Milliseconds())
@@ -113,15 +111,13 @@ func ItemRecipesPostHandler(w http.ResponseWriter, r *http.Request, clients *sha
 
 	results, err := migration.GetMultipleItemRecipes(ctx, typeIDs)
 	if err != nil {
-		logs.ErrorCtx(ctx, "item recipes post: firestore error", "error", err)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "An error occurred while retrieving item data. Please try again.", err)
+		helper.RespondEndpointServerError(w, r, "An error occurred while retrieving item data. Please try again.", "item recipes post: firestore error", "item_recipes_post_firestore_failed", "item_recipe", err, nil)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := helper.EncodeJSON(w, results); err != nil {
-		logs.ErrorCtx(ctx, "item recipes post: encode error", "error", err)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Internal server error", err)
+		helper.RespondEndpointServerError(w, r, "Internal server error", "item recipes post: encode error", "item_recipes_post_encode_failed", "item_recipe", err, nil)
 		return
 	}
 	logs.InfoCtx(ctx, "item recipes retrieved via migration", "requested", len(typeIDs), "returned", len(results), "duration_ms", time.Since(start).Milliseconds())

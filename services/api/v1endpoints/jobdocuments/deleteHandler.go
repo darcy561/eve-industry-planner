@@ -82,8 +82,7 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 				return
 			}
 			metrics.Error("lock_error")
-			logs.ErrorCtx(ctx, "job documents delete lock gate failed", "error", lerr, "account_id", accountID)
-			logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to verify document lock", lerr)
+			helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "job documents delete lock gate failed", "job_docs_lock_gate_failed", "job_documents", lerr, map[string]interface{}{"account_id": accountID})
 			return
 		}
 		if len(rejects) > 0 {
@@ -104,8 +103,7 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 
 	if err != nil {
 		metrics.Error("database_error")
-		logs.ErrorCtx(ctx, "failed to delete job documents", "error", err, "account_id", accountID)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "Failed to delete jobs", err)
+		helper.RespondEndpointServerError(w, r, "Failed to delete jobs", "failed to delete job documents", "job_docs_delete_failed", "job_documents", err, map[string]interface{}{"account_id": accountID})
 		return
 	}
 

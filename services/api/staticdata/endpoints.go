@@ -123,8 +123,7 @@ func MetaHandler(w http.ResponseWriter, r *http.Request) {
 		duration := time.Since(start)
 		m.Errors.WithLabelValues("meta_encode_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "static_data_meta", duration, "encode_error", "error", err)
-		logs.ErrorCtx(ctx, "static data meta encode error", "error", err)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, fmt.Sprintf("failed to encode response: %v", err), err)
+		helper.RespondEndpointServerError(w, r, fmt.Sprintf("failed to encode response: %v", err), "static data meta encode error", "static_data_meta_encode_failed", "static_data", err, nil)
 		return
 	}
 
@@ -170,8 +169,7 @@ func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string
 		shared.Errors.WithLabelValues(errPrefix + "_read_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "static_data_"+errPrefix, duration, "read_error",
 			"error", err, "file_path", filePath)
-		logs.ErrorCtx(ctx, "static data read error", "error", err, "file", errPrefix, "file_path", filePath)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "failed to read static data file", err)
+		helper.RespondEndpointServerError(w, r, "failed to read static data file", "static data read error", "static_data_read_failed", "static_data", err, map[string]interface{}{"file": errPrefix, "file_path": filePath})
 		return
 	}
 
@@ -181,8 +179,7 @@ func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string
 		shared.Errors.WithLabelValues(errPrefix + "_invalid_json").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "static_data_"+errPrefix, duration, "invalid_json",
 			"error", err, "file_path", filePath)
-		logs.ErrorCtx(ctx, "static data invalid json", "error", err, "file", errPrefix, "file_path", filePath)
-		logs.RespondHTTPError(w, r, http.StatusInternalServerError, "static data file is invalid JSON", err)
+		helper.RespondEndpointServerError(w, r, "static data file is invalid JSON", "static data invalid json", "static_data_invalid_json", "static_data", err, map[string]interface{}{"file": errPrefix, "file_path": filePath})
 		return
 	}
 
