@@ -200,10 +200,10 @@ flowchart TB
 
 | Id | Item | Status | Size |
 |----|------|--------|------|
-| **#7** | **Logout revokes `refresh_token:*`** — today only `account_sessions` + index; cookie resume can rotate without SSO until reauth deadline | open | S |
+| **#7** | **Logout revokes `refresh_token:*`** — `RevokeRefreshTokensForLogout` + SPA `clearPlannerAuthCookiesClientSide` | done | S |
 | **#21** | **Admin revoke-all for account** — support/compromise: all sessions, indexes, refresh rows | open | M |
 
-**Where:** `logout.go`, `refresh_token.go`; [BACKEND §6.3](./BACKEND.md#63-post-apiv1authsessionslogout-private--logouthandler).
+**Where:** `logout.go`, `session_persist.go` (`RevokeRefreshTokensForLogout`), `plannerAuthCookies.js`; [BACKEND §6.3](./BACKEND.md#63-post-apiv1authsessionslogout-private--logouthandler), [FRONTEND §8](./FRONTEND.md#8-signout).
 
 ---
 
@@ -213,7 +213,7 @@ flowchart TB
 |----|------|--------|------|
 | **#15** | **Refresh state machine tests** — miniredis + `httptest`: happy rotate preserves `SessionStart`; expired → `reauth_required` + no cookies; bootstrap cookie path; upsert verify failure | open | M |
 | **#43** | **`authenticate.go` handler tests** — first login sets cookies, `SessionStart`, cloud strips `refresh_token` from body, grants side effect | open | M |
-| **#44** | **Logout handler tests** — 204, cookies cleared, session revoked; #7 behavior when implemented | open | S |
+| **#44** | **Logout handler tests** — 204, cookies cleared, session + refresh revoked (`httptest` + miniredis for handler; `session_persist_test` covers revoke helper) | open | S |
 | **#45** | **Bootstrap Mongo failure** — no cookies if `ResolveUserDocumentsForLogin` fails after Redis writes; document rollback policy | open | S |
 
 **Where:** `authenticate.go`, `refresh.go`, `logout.go`.
@@ -344,7 +344,7 @@ One production failure mode that motivated **#2–#6** and **#20** — not the o
 
 1. **#8**, **#9**, **#10** — SPA handles API auth codes (unblocks support).
 2. **#15**, **#43**, **#12**, **#47** — handler + WS tests (regression safety net).
-3. **#7**, **#13** — logout + middleware cookie hygiene.
+3. **#13** — middleware cookie hygiene on `reauth_required` (**#7** done).
 4. **#14**, **#16**, **#54** — metrics + frontend tests.
 5. **#40**, **#41** — SSO handler tests.
 6. **#17**, **#18** — when scheduled (separate plans).

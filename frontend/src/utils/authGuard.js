@@ -1,33 +1,6 @@
 import { redirect } from '@tanstack/react-router'
 import useUsersStore from '../Zustand/usersStore'
-
-/** Mirrors backend `auth.EsiOAuthStorageCookieName` / `EsiOAuthStorageServer` (non-secret routing hint). */
-const EIP_ESI_OAUTH_STORAGE_COOKIE = 'eip_esi_oauth_storage'
-const EIP_ESI_OAUTH_STORAGE_SERVER = 'server'
-
-/**
- * True when the server set cloud ("server-side") OAuth storage — same hint used with HttpOnly app refresh.
- * Avoids POST …/auth/sessions/bootstrap on every public route load just to detect a cookie session.
- */
-function hasCloudOAuthStorageServerHint() {
-  if (typeof document === 'undefined') {
-    return false
-  }
-  const parts = document.cookie.split(';')
-  for (const part of parts) {
-    const trimmed = part.trim()
-    const eq = trimmed.indexOf('=')
-    if (eq === -1) {
-      continue
-    }
-    const name = trimmed.slice(0, eq).trim()
-    const value = trimmed.slice(eq + 1).trim()
-    if (name === EIP_ESI_OAUTH_STORAGE_COOKIE && value === EIP_ESI_OAUTH_STORAGE_SERVER) {
-      return true
-    }
-  }
-  return false
-}
+import { hasCloudOAuthStorageServerHint } from '../Functions/Auth/plannerAuthCookies.js'
 
 /**
  * Authentication guard function for TanStack Router routes.

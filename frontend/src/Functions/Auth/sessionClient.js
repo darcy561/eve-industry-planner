@@ -1,5 +1,6 @@
 import withRequestRetries from "../Endpoints/withRequestRetries.js";
 import requestWithPrivateHeaders from "../Endpoints/Pirivate/applyPrivateHeaders.js";
+import { clearPlannerAuthCookiesClientSide } from "./plannerAuthCookies.js";
 
 const AUTH_SESSIONS = "/api/v1/auth/sessions";
 const AUTH_SESSIONS_ROTATE = "/api/v1/auth/sessions/rotate";
@@ -83,7 +84,8 @@ export async function bootstrapPlannerSession(refreshToken, eveSSOToken) {
 }
 
 /**
- * Logout planner session (private route when refresh token is not HttpOnly-only edge cases).
+ * Logout planner session: revokes server-side session/refresh state and clears HttpOnly cookies
+ * via Set-Cookie on the response. Also clears client-readable cookies locally.
  */
 export async function logoutPlannerSession(refreshToken) {
   try {
@@ -98,10 +100,16 @@ export async function logoutPlannerSession(refreshToken) {
         },
         body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
       },
-      { requestName: "logoutPlannerSession" }
+      {
+        requestName: "logoutPlannerSession",
+        retry: false,
+        skipSessionRefresh: true,
+      }
     );
     return response.ok;
   } catch {
     return false;
+  } finally {
+    clearPlannerAuthCookiesClientSide();
   }
 }

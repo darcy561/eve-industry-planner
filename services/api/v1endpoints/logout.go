@@ -16,12 +16,11 @@ type LogoutRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// LogoutHandler ends the planner auth session: deletes Redis session:<session_id>, clears the HttpOnly
-// app session refresh cookie (eip_app_refresh), clears eip_esi_oauth_storage, and records metrics.
+// LogoutHandler ends the planner auth session: revokes refresh_token:<token> (and session_refresh index),
+// deletes the account_sessions row, clears HttpOnly cookies (eip_session, eip_app_refresh, esi oauth storage),
+// and records metrics.
 //
-// It does not delete the Redis key refresh_token:<planner_app_refresh_token> (planner session material)
-// or touch Mongo users.refreshTokens (encrypted ESI OAuth refresh secrets for cloud-linked characters).
-// Invalid planner or ESI credentials are handled when those flows run again (may require full EVE SSO).
+// It does not touch Mongo users.refreshTokens (encrypted ESI OAuth refresh secrets for cloud-linked characters).
 func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
 	sessionMetrics := apimetrics.GetAPIAuthSessionLifecycle()
@@ -71,6 +70,14 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 	sessionID := auth.SessionIDFromContext(r.Context())
 	if sessionID == "" {
 		sessionID = strings.TrimSpace(tokenData.SessionID)
+	}
+	if err := auth.RevokeRefreshTokensForLogout(ctx, clients.Redis, refreshToken, sessionID); err != nil {
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to revoke refresh token on logout", "auth_logout_revoke_refresh", "sessions_logout", err, map[string]interface{}{
+			"session_endpoint": "sessions_logout",
+			"account_id":       requestedAccountID,
+			"session_id_set":   sessionID != "",
+		})
+		return
 	}
 	if sessionID != "" {
 		if err := auth.RevokeAccountSession(ctx, clients.Redis, requestedAccountID, sessionID); err != nil {

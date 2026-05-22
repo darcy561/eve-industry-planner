@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { queryClient } from "../queryClient.js";
 import { logoutServerSession } from "../Functions/Auth/serverTokens";
+import { clearPlannerAuthCookiesClientSide } from "../Functions/Auth/plannerAuthCookies.js";
 import { disconnectRealtime } from "../Realtime/realtimeClient.js";
 import { clearInboundJobDocumentCoalesce } from "../Functions/Debounce/inboundJobDocumentsCoalesce.js";
 import useUsersStore from '../Zustand/usersStore'
@@ -24,6 +25,7 @@ function clearClientSessionState() {
   resetJobDataStore();
   resetApplicationSettingsStore();
   resetWorldDataStore();
+  clearPlannerAuthCookiesClientSide();
 }
 
 function SignoutComponent() {

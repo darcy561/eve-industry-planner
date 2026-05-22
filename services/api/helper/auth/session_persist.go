@@ -42,3 +42,39 @@ func RevokeRefreshTokenBestEffort(ctx context.Context, redisClient *redis.Client
 	}
 	_ = RevokeRefreshToken(ctx, redisClient, token)
 }
+
+// RevokeRefreshTokensForLogout removes planner refresh credentials for logout: the presented
+// token and any other refresh row indexed for the same session_id (stale cookie vs current index).
+func RevokeRefreshTokensForLogout(ctx context.Context, redisClient *redis.Client, presentedToken, sessionID string) error {
+	if redisClient == nil {
+		return errors.New("redis client is nil")
+	}
+	presented := strings.TrimSpace(presentedToken)
+	if presented == "" {
+		return nil
+	}
+	if err := RevokeRefreshToken(ctx, redisClient, presented); err != nil {
+		return err
+	}
+	sid := strings.TrimSpace(sessionID)
+	if sid == "" {
+		return nil
+	}
+	indexed, err := getSessionRefreshIndexToken(ctx, redisClient, sid)
+	if err != nil {
+		return err
+	}
+	if indexed != "" && indexed != presented {
+		if err := RevokeRefreshToken(ctx, redisClient, indexed); err != nil {
+			return err
+		}
+	}
+	scanned, err := findRefreshTokenBySessionIDScan(ctx, redisClient, sid)
+	if err != nil {
+		return err
+	}
+	if scanned != "" && scanned != presented {
+		return RevokeRefreshToken(ctx, redisClient, scanned)
+	}
+	return nil
+}

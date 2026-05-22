@@ -336,13 +336,16 @@ sequenceDiagram
         H-->>C: 401 Unauthorized
     else
         H->>H: sessionID = SessionIDFromContext || tokenData.SessionID
+        H->>R: RevokeRefreshTokensForLogout(presented, sessionID)\n  Del refresh_token:* + session_refresh index
         H->>R: RevokeAccountSession(account_id, sessionID)
         H->>C: Set-Cookie clear eip_app_refresh, eip_esi_oauth_storage, eip_session
         H-->>C: 204 No Content
     end
 ```
 
-**Important**: the handler **does not** delete `refresh_token:<token>` in Redis. It only removes the session row from `account_sessions` and the `session_index` entry. That refresh token will continue to age out on its 7d TTL, and any subsequent rotate attempt with it will succeed (it can still rotate — refresh validity is independent of session liveness). The intent is to leave the refresh chain intact for diagnostic purposes; admin tooling can mass-revoke if needed.
+**Revocation order**: `RevokeRefreshTokensForLogout` (`services/api/helper/auth/session_persist.go`) runs **before** `RevokeAccountSession`. It deletes the presented `refresh_token:<token>`, clears `session_refresh:<session_id>` when it points at a different token (stale cookie after rotation), and scans for a legacy row still bound to the same `session_id`. Subsequent `POST /auth/sessions/rotate` or `/bootstrap` with a captured refresh value returns `401 Invalid token`.
+
+**Mongo ESI refresh secrets** (`users.refreshTokens`) are unchanged on logout — only planner session material in Redis and auth cookies are cleared.
 
 ### 6.4 `POST /api/v1/eve-sso/tokens/exchange` (public) — `EveSSOExchangeHandler`
 
@@ -475,7 +478,7 @@ stateDiagram-v2
     NoSession --> Active: POST /auth/sessions (EVE JWT)\nStore refresh_token + UpsertSessionRecord
     Active --> Active: AuthConstructor TouchAccountSession on every request
     Active --> Active: POST /auth/sessions/rotate or /bootstrap\nrotate refresh_token, keep / mint sessionID
-    Active --> Revoked: POST /auth/sessions/logout\nRevokeAccountSession (refresh_token row LEFT in Redis)
+    Active --> Revoked: POST /auth/sessions/logout\nRevokeRefreshTokensForLogout + RevokeAccountSession + clear cookies
     Active --> Expired: ReauthRequiredAt < now\n(7d cap)
     Active --> Gone: Redis TTL elapses (no activity for 7d)
 
@@ -500,7 +503,7 @@ stateDiagram-v2
 - **Redis is in the critical path of every authenticated request.** A Redis outage degrades to `401 {"code":"session_missing"}` (middleware returns this when `TouchAccountSession` fails). Consider a circuit breaker if you need to keep the SPA reachable during partial outages.
 - **Cookie scope matters.** `eip_app_refresh` is deliberately scoped to `/api/v1/auth` so even an XSS bug on a data route cannot exfiltrate the refresh value. Keep this invariant when adding new auth paths.
 - **No public JWKS endpoint.** Anything that previously hit `/.well-known/jwks.json` for the planner's internal key has been removed; consumers should not exist.
-- **Cleanup**: `auth.RunAuthSessionMaintenance` (worker cron every 4h via `pruneExpiredAccountSessions`, core singleton `auth-session-maintenance` hourly) prunes expired `account_sessions` rows, deletes orphan `session_index:*` keys, and revokes `refresh_token:*` rows whose `session_id` is missing from `account_sessions`. Set `AUTH_SESSION_CLEANUP_DRY_RUN=true` to log counts without deleting. Logout still leaves refresh rows until the next sweep or TTL. Bulk revoke per account remains **#21** (admin endpoint).
+- **Cleanup**: `auth.RunAuthSessionMaintenance` (worker cron every 4h via `pruneExpiredAccountSessions`, core singleton `auth-session-maintenance` hourly) prunes expired `account_sessions` rows, deletes orphan `session_index:*` keys, and revokes `refresh_token:*` rows whose `session_id` is missing from `account_sessions`. Set `AUTH_SESSION_CLEANUP_DRY_RUN=true` to log counts without deleting. **Logout** revokes the presented planner refresh row immediately; maintenance still catches orphans from crashed tabs or partial failures. Bulk revoke per account remains **#21** (admin endpoint).
 - **Grants caching**: `custom_claims_corporations:<accountID>` and `custom_claims_alliances:<accountID>` are *advisory* — the websocket scope checks fall back to `identity.Session.Grants`, which `UpdateAccountSessionGrants` refreshes on every login / rotate / bootstrap.
 
 ---
@@ -513,6 +516,8 @@ stateDiagram-v2
 | `services/api/middleware/requestlogging.go` | `X-Request-ID`, Hijack/Flush for WS upgrade |
 | `services/api/helper/auth/auth_helpers.go` | Context keys, EVE JWT validation, `ExtractAccountSession` |
 | `services/api/helper/auth/refresh_token.go` | Redis types, key prefixes, TTLs, CRUD |
+| `services/api/helper/auth/session_persist.go` | Session verify helpers; `RevokeRefreshTokensForLogout` |
+| `services/api/helper/auth/session_persist_test.go` | Logout refresh revocation tests |
 | `services/api/helper/auth/session_cookie.go` | `eip_session` cookie |
 | `services/api/helper/auth/app_refresh_cookie.go` | `eip_app_refresh` cookie |
 | `services/api/helper/auth/esi_oauth_storage_cookie.go` | `eip_esi_oauth_storage` cookie |
