@@ -147,9 +147,11 @@ function applyPrivateHeaders(options = {}, config = {}) {
  * @param {Object} headerConfig - `requestName` only (retry stripped)
  */
 async function executePrivateFetchOnce(URL, options, headerConfig) {
-  const refresh = useUserStore.getState()?.account?.actions?.refreshServerToken;
-  if (typeof refresh === "function") {
-    await refresh();
+  if (!headerConfig.skipSessionRefresh) {
+    const refresh = useUserStore.getState()?.account?.actions?.refreshServerToken;
+    if (typeof refresh === "function") {
+      await refresh();
+    }
   }
 
   const enhancedOptions = applyPrivateHeaders(options, headerConfig);

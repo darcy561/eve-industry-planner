@@ -93,9 +93,11 @@ All private API calls go through `requestWithPrivateHeaders` (`frontend/src/Func
 requestWithPrivateHeaders(URL, options, config)
   └── executePrivateRequestSingle (retry shell)
         └── executePrivateFetchOnce
-              ├── await useUserStore.getState().account.actions.refreshServerToken()   // §4
+              ├── await refreshServerToken() unless config.skipSessionRefresh   // §4; logout sets skip
               └── fetch(URL, applyPrivateHeaders(options, config))                      // §3.2
 ```
+
+Pass **`skipSessionRefresh: true`** on calls that must not rotate the planner session first (today: `logoutPlannerSession`). Pass **`retry: false`** when retries would be unsafe or redundant (logout).
 
 ### 3.2 Headers added by `applyPrivateHeaders`
 
@@ -290,7 +292,7 @@ export function allowPublicAccess({ location }) {
 }
 ```
 
-`hasCloudOAuthStorageServerHint()` reads the non-HttpOnly **`eip_esi_oauth_storage`** cookie. When it equals `"server"`, the user has cloud-stored ESI material and the SPA can resume via the cookie path; the guard redirects them to `/auth` to rebuild client state and then return.
+`hasCloudOAuthStorageServerHint()` (from `Functions/Auth/plannerAuthCookies.js`) reads the non-HttpOnly **`eip_esi_oauth_storage`** cookie. When it equals `"server"`, the user has cloud-stored ESI material and the SPA can resume via the cookie path; the guard redirects them to `/auth` to rebuild client state and then return. Sign-out clears this cookie client-side so public routes do not loop back into `/auth` after logout.
 
 ### 7.3 First-login redirect (`__root.jsx`)
 
@@ -309,7 +311,7 @@ async function performSignout() {
     disconnectRealtime();                              // 1. close /ws first
     await logoutServerSession(refreshToken);           // 2. POST /api/v1/auth/sessions/logout
 
-    clearClientSessionState();                          // 3. reset Zustand slices
+    clearClientSessionState();                          // 3. reset Zustand + clearPlannerAuthCookiesClientSide()
     queryClient.clear();                               // 4. blow away React Query cache
 
     sessionStorage.clear();                            // 5. local + session storage
@@ -333,12 +335,21 @@ The internal order is critical:
 3. `resetJobDataStore()`.
 4. `resetApplicationSettingsStore()`.
 5. `resetWorldDataStore()`.
+6. `clearPlannerAuthCookiesClientSide()` — expires `eip_esi_oauth_storage` (and best-effort `eip_session` / `eip_app_refresh`; those are HttpOnly and are cleared by the server `Set-Cookie` on a successful logout response).
 
 Account is reset **first** so that any in-flight account GET completing after the reset cannot re-merge stale application settings in the same tick.
 
 ### 8.2 Logout request
 
-`logoutPlannerSession` is routed through `requestWithPrivateHeaders` (so `refreshServerToken()` runs first if the cooldown allows it, then the logout POST goes out with the cookie). The body carries the raw `refresh_token` for local accounts; for cloud accounts the server reads it from `eip_app_refresh`.
+`logoutPlannerSession` (`sessionClient.js`) uses `requestWithPrivateHeaders` with **`skipSessionRefresh: true`** and **`retry: false`** so logout does not rotate the session first or retry a destructive call. The request uses `credentials: "same-origin"` so the browser applies server `Set-Cookie` clears for HttpOnly cookies.
+
+The body carries the raw `refresh_token` for local accounts when Zustand still holds it; for cloud accounts the server reads the value from `eip_app_refresh`. A `finally` block always runs `clearPlannerAuthCookiesClientSide()` even when the API returns an error.
+
+| Cookie | HttpOnly | Cleared by |
+|---|---|---|
+| `eip_session` | yes | Server `Set-Cookie` on `204` (requires successful logout fetch) |
+| `eip_app_refresh` | yes | Server `Set-Cookie` on `204` |
+| `eip_esi_oauth_storage` | no | Server + `clearPlannerAuthCookiesClientSide()` |
 
 ### 8.3 No Firebase signout
 
@@ -374,7 +385,9 @@ stateDiagram-v2
 | `frontend/src/routes/__root.jsx` | First-login redirect. |
 | `frontend/src/routes/_protected.jsx` | `beforeLoad: requireAuth`. |
 | `frontend/src/routes/signout.jsx` | Orchestrated logout. |
-| `frontend/src/utils/authGuard.js` | `requireAuth`, `allowPublicAccess`, cookie hint. |
+| `frontend/src/utils/authGuard.js` | `requireAuth`, `allowPublicAccess`. |
+| `frontend/src/Functions/Auth/plannerAuthCookies.js` | Cookie constants; `clearPlannerAuthCookiesClientSide`, `hasCloudOAuthStorageServerHint`. |
+| `frontend/tests/plannerAuthCookies.test.js` | Client cookie expiry on sign-out. |
 | `frontend/src/Zustand/account/account.js` | Account slice defaults. |
 | `frontend/src/Zustand/account/tokenActions.js` | Login merge, rotate, ESI maintenance, scheduled refresh. |
 | `frontend/src/Zustand/account/index.js` | Barrel exports. |

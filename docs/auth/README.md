@@ -219,9 +219,10 @@ sequenceDiagram
     S->>A: POST /api/v1/auth/sessions/logout { refresh_token? }\nCookie: eip_session, eip_app_refresh
     A->>A: RequireAccountID (from session cookie context)
     A->>R: GetRefreshTokenData -> verify token.AccountID matches context
-    A->>R: RevokeAccountSession(accountID, sessionID)\n   (removes session row + session_index entry; refresh_token: row left intact)
+    A->>R: RevokeRefreshTokensForLogout(presented, sessionID)
+    A->>R: RevokeAccountSession(accountID, sessionID)
     A-->>S: 204 + Set-Cookie clear (all three)
-    S->>S: resetAccountStore + queryClient.clear() + storage.clear()
+    S->>S: clearPlannerAuthCookiesClientSide + resetAccountStore + queryClient.clear() + storage.clear()
     S->>S: navigate "/"
 ```
 
@@ -335,7 +336,9 @@ Request:
 { "refresh_token": "<planner refresh>" }  // optional if eip_app_refresh cookie present
 ```
 
-Response: `204 No Content` + `Set-Cookie` clears for all three auth cookies.
+Response: `204 No Content` + `Set-Cookie` clears for all three auth cookies (`Max-Age=0`).
+
+Server-side: `RevokeRefreshTokensForLogout` deletes `refresh_token:<presented>` (and any indexed/scanned row for the same `session_id`), then `RevokeAccountSession` removes the `account_sessions` row and `session_index`. The SPA also calls `clearPlannerAuthCookiesClientSide()` so `eip_esi_oauth_storage` is removed even if the HTTP call fails (HttpOnly cookies require a successful logout response with `credentials: "same-origin"`).
 
 ### 7.6 `POST /api/v1/eve-sso/tokens/refresh`
 
@@ -409,8 +412,9 @@ See [BACKEND.md §3](./BACKEND.md#3-redis-key-layout) for the full struct defini
 - `queryClient.js` — shared React Query client (60s default `staleTime`).
 - `routes/__root.jsx` — first-login redirect.
 - `routes/_protected.jsx` — `beforeLoad: requireAuth`.
-- `routes/signout.jsx` — orchestrated logout (realtime → API → store → cache → storage).
-- `utils/authGuard.js` — `requireAuth`, `allowPublicAccess`, cookie hint.
+- `routes/signout.jsx` — orchestrated logout (realtime → API → store → cache → storage → client cookie clear).
+- `utils/authGuard.js` — `requireAuth`, `allowPublicAccess`, cloud-resume cookie hint.
+- `Functions/Auth/plannerAuthCookies.js` — cookie names/paths; client-side expiry on sign-out.
 - `Zustand/account/account.js` — account slice defaults / state shape.
 - `Zustand/account/tokenActions.js` — session merge / rotate / ESI maintenance.
 - `Functions/Auth/sessionClient.js` — raw `fetch` calls to session endpoints.
