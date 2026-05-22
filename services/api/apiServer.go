@@ -72,14 +72,15 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 	})
 
 	// Outermost: RequestStartTimeConstructor (before otelhttp) so duration includes tracing.
-	// Under otelhttp: deadline, then request-scoped logging, then compression, then mux.
+	// Under otelhttp: deadline, logging, maintenance, compression, then mux (unregistered-route logging).
 	// Per-route middleware (rate limit, auth) is applied only to registered handlers via groups.
 	apiHandler := middleware.Chain(
 		middleware.RequestTimeoutConstructor(),
 		middleware.RequestLoggingConstructor(),
 		middleware.MaintenanceModeConstructor(),
 		middleware.CompressionConstructor(),
-	)(mux)
+		middleware.UnregisteredRoutesMuxConstructor(mux),
+	)(http.NotFoundHandler()) // leaf unused; UnregisteredRoutesMuxConstructor serves the mux directly
 
 	// Public and private groups for v1
 	// Per-ID citadel name GETs are cacheable (browser + CDN); a single page can request many
