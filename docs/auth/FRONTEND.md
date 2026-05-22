@@ -115,7 +115,7 @@ Pass **`skipSessionRefresh: true`** on calls that must not rotate the planner se
 
 ### 3.3 Retry & batching
 
-- **Retry policy** (`withRequestRetries`): 408 / 429 / 5xx, exponential backoff. Disable with `config.retry: false`. The "never retry" sentinel `PRIVATE_AUTH_TOKEN_UNAVAILABLE` is defined but no current code path throws it.
+- **Retry policy** (`withRequestRetries` / `apiRateLimitRetryConfig`): 408 / 429 / 5xx. On **429**, the client waits for the API fixed-window **`Retry-After`** header (seconds, set in `services/api/middleware/ratelimiter.go` from `X-RateLimit-Reset`), then retries. Applied by default on all `requestWithPrivateHeaders` and `fetchWithPublicHeaders` calls unless `config.retry: false`. The "never retry" sentinel `PRIVATE_AUTH_TOKEN_UNAVAILABLE` is defined but no current code path throws it.
 - **Batching**: pass `config.batch = { size, arrayKey, mergeResponseJsonArrays?, failure? }` to split a JSON-body array across chunks (`Promise.allSettled`). Typical sizes mirror backend handler limits: 100 / 200.
 
 ---

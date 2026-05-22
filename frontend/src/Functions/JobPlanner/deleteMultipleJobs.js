@@ -181,7 +181,15 @@ export default async function deleteMultipleJobs(inputJobIDs) {
     } catch (err) {
       restoreLinkedEsiSnapshot(accountSnapshot);
       console.error("deleteMultipleJobs: failed to persist delete flow", err);
-      showSnackbarError("Unable to delete jobs. No jobs were removed.", 5);
+      const rateLimited =
+        err?.status === 429 ||
+        (typeof err?.message === "string" && err.message.includes("429"));
+      showSnackbarError(
+        rateLimited
+          ? "Too many requests — wait a moment and try again."
+          : "Unable to delete jobs. No jobs were removed.",
+        5
+      );
       throw err;
     }
   }

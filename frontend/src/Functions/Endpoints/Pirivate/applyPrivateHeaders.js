@@ -1,17 +1,19 @@
 import useUserStore from "../../../Zustand/usersStore";
 import { chunkArray } from "../chunkArray.js";
-import withRequestRetries, { splitRetryConfig } from "../withRequestRetries.js";
+import withRequestRetries, {
+  apiRateLimitRetryConfig,
+  mergeApiRetryOptions,
+  splitRetryConfig,
+} from "../withRequestRetries.js";
 import { getRealtimeClientID } from "../../../Realtime/wsClientIdentity.js";
 import { applyLockHeldElsewhereFromApiBody } from "../../DocumentLock/applyLockHeldElsewhereFromApiResponse.js";
 import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../../DocumentLock/documentLockEvents.js";
 
 /**
- * Shared `retry` options for batched private calls (same as `withRequestRetries` defaults).
+ * Shared private API retry options (honors server `Retry-After` on 429).
+ * @see apiRateLimitRetryConfig
  */
-export const privateBatchRetryConfig = Object.freeze({
-  maxAttempts: 3,
-  baseDelayMs: 350,
-});
+export const privateBatchRetryConfig = apiRateLimitRetryConfig;
 
 /**
  * After `Promise.allSettled`, throw if any chunk rejected (e.g. HTTP error after retries).
@@ -75,11 +77,12 @@ export const PRIVATE_AUTH_TOKEN_UNAVAILABLE =
  * then performs `fetch` with browser-managed same-origin cookies.
  * Session identity comes from the session cookie server-side; **`X-WS-Client-ID`** is sent when the
  * realtime layer has assigned a tab id (echo suppression / locks).
- * **Retries** (408 / 429 / 5xx by default) are applied automatically unless `config.retry === false`.
+ * **Retries** (408 / 429 / 5xx by default) use {@link apiRateLimitRetryConfig}; on 429 the client waits for
+ * the API fixed-window `Retry-After` header (`ratelimiter.go`) before retrying. Disable with `config.retry: false`.
  *
  * **Batching:** pass `config.batch` with `size` and `arrayKey`. The request `body` must be a JSON
  * string of an object containing `arrayKey` as an array; it is split into chunks of at most `size`.
- * Omit `batch` or use `size` &lt; 1 for a single request. Chunks run with `Promise.allSettled` in parallel.
+ * Omit `batch` or use `size` &lt; 1 for a single request. Chunks run sequentially to avoid bursting the private rate limiter.
  * Typical sizes (match Go handlers): job-documents PUT 100, POST/DELETE IDs 200; groups PUT 100,
  * DELETE group IDs 200; archived-jobs PUT 100. Document-lock `lock-state-batch` uses two arrays and is
  * chunked in {@link documentLockClient.js} (500 per list). Citadel names already debatches in-module.
@@ -170,16 +173,10 @@ async function executePrivateRequestSingle(URL, options = {}, config = {}) {
 
   const runOnce = () => executePrivateFetchOnce(URL, options, headerConfig);
 
-  if (retry === false) {
+  const retryOpts = mergeApiRetryOptions(retry);
+  if (retryOpts === false) {
     return runOnce();
   }
-
-  const retryOpts =
-    retry === undefined || retry === true
-      ? {}
-      : typeof retry === "object"
-        ? retry
-        : {};
 
   return withRequestRetries(runOnce, {
     ...retryOpts,
@@ -239,8 +236,11 @@ async function executeBatchedPrivateRequest(URL, options, innerConfig, batch) {
 
   const methodLabel = options.method || "GET";
 
-  const settled = await Promise.allSettled(
-    chunks.map(async (chunk) => {
+  /** @type {PromiseSettledResult<unknown>[]} */
+  const settled = [];
+
+  for (const chunk of chunks) {
+    try {
       const nextBody = { ...bodyObj, [arrayKey]: chunk };
       const res = await executePrivateRequestSingle(
         URL,
@@ -255,25 +255,22 @@ async function executeBatchedPrivateRequest(URL, options, innerConfig, batch) {
         }
         const data = await res.json();
         const rows = Array.isArray(data) ? data : [];
-        return rows;
+        settled.push({ status: "fulfilled", value: rows });
+        continue;
       }
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         throwNonOkPrivateResponse(res, methodLabel, URL, text, errorLabel);
       }
-      return res;
-    })
-  );
-
-  if (failure === "first") {
-    for (const result of settled) {
-      if (result.status === "rejected") {
-        throw result.reason;
+      settled.push({ status: "fulfilled", value: res });
+    } catch (reason) {
+      settled.push({ status: "rejected", reason });
+      if (failure === "first") {
+        throw reason;
       }
+      throwIfAnySettledFailed(settled, errorLabel);
     }
-  } else {
-    throwIfAnySettledFailed(settled, errorLabel);
   }
 
   if (mergeResponseJsonArrays) {
@@ -297,9 +294,9 @@ async function executeBatchedPrivateRequest(URL, options, innerConfig, batch) {
  * Authenticated `fetch` for private routes: refreshes app session state then sends request
  * with `credentials: "same-origin"` so browser attaches session cookie.
  *
- * Retries transient failures by default (same policy as `withRequestRetries`: 408 / 429 / 5xx).
- * Set `config.retry` to `false` to disable. Pass `config.retry: { maxAttempts, baseDelayMs, … }` to
- * override (merged into `withRequestRetries` options).
+ * Retries transient failures by default ({@link apiRateLimitRetryConfig}: 408 / 429 / 5xx).
+ * On 429, waits for server `Retry-After` before retrying. Set `config.retry` to `false` to disable.
+ * Pass `config.retry: { maxAttempts, … }` to override (merged via {@link mergeApiRetryOptions}).
  *
  * Optional **`config.batch`**: `{ size, arrayKey, mergeResponseJsonArrays?, failure?, errorLabel? }`.
  * When `size` is omitted or &lt; 1, batching is skipped (one request). See module typedef.

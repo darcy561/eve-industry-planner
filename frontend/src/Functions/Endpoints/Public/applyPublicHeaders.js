@@ -1,6 +1,13 @@
 import GLOBAL_CONFIG from "../../../global-config-app";
 import { chunkArray } from "../chunkArray.js";
-import withRequestRetries, { splitRetryConfig } from "../withRequestRetries.js";
+import withRequestRetries, {
+  apiRateLimitRetryConfig,
+  mergeApiRetryOptions,
+  splitRetryConfig,
+} from "../withRequestRetries.js";
+
+/** Public API retry options (same 429 / `Retry-After` policy as private). */
+export const publicApiRetryConfig = apiRateLimitRetryConfig;
 
 const {
   DEFAULT_DISCORD_INVITE,
@@ -93,16 +100,10 @@ async function executePublicFetchSingle(URL, options = {}, config = {}) {
     return fetch(URL, enhancedOptions);
   };
 
-  if (retry === false) {
+  const retryOpts = mergeApiRetryOptions(retry);
+  if (retryOpts === false) {
     return runOnce();
   }
-
-  const retryOpts =
-    retry === undefined || retry === true
-      ? {}
-      : typeof retry === "object"
-        ? retry
-        : {};
 
   return withRequestRetries(runOnce, retryOpts);
 }

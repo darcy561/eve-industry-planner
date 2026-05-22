@@ -47,7 +47,7 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 		logs.ErrorCtx(ctx, "failed to create public rate limiter", "err", err)
 		return err
 	}
-	privateRateLimit, err := limiter.NewRateFromFormatted("100-M")
+	privateRateLimit, err := limiter.NewRateFromFormatted("200-M")
 	if err != nil {
 		logs.ErrorCtx(ctx, "failed to create private rate limiter", "err", err)
 		return err
