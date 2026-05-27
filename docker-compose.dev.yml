@@ -1,3 +1,6 @@
+# Dev overlay — merge with base: docker compose -f docker-compose.yml -f docker-compose.dev.yml
+# (see Makefile `make dev`). Do not validate this file alone; it only overrides select services.
+
 services:
   api:
     image: eve-industry-planner-api:local
@@ -12,7 +15,6 @@ services:
         SENTRY_DSN: ${SENTRY_DSN:-}
         SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-}
         FEEDBACK_DISCORD_WEBHOOK_URL: ${FEEDBACK_DISCORD_WEBHOOK_URL:-}
-    env_file: [.env]
     environment:
       FAIL_ON_STARTUP: "false"
 
@@ -26,7 +28,6 @@ services:
         ENVIRONMENT: ${ENVIRONMENT:-development}
         SENTRY_DSN: ${SENTRY_DSN:-}
         SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-}
-    env_file: [.env]
     environment:
       FAIL_ON_STARTUP: "false"
 
@@ -40,8 +41,6 @@ services:
         ENVIRONMENT: ${ENVIRONMENT:-development}
         SENTRY_DSN: ${SENTRY_DSN:-}
         SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-}
-    env_file: [.env]
-
 
   core:
     image: eve-industry-planner-core:local
@@ -55,7 +54,6 @@ services:
         ENVIRONMENT: ${ENVIRONMENT:-development}
         SENTRY_DSN: ${SENTRY_DSN:-}
         SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-}
-    env_file: [.env]
 
   mongo:
     ports: !override
@@ -68,17 +66,6 @@ services:
   asynqmon:
     ports: !override
       - "8080:8080"
-
-  # Observability: host 3030 -> Grafana 3000. Use http://127.0.0.1:3030 — 'localhost' often resolves to IPv6 (::1) first while this bind is IPv4-only.
-  grafana:
-    ports: !override
-      - "3030:3000"
-    environment: !override
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_SERVER_ROOT_URL=http://127.0.0.1:3030
-      - GF_DASHBOARDS_MIN_REFRESH_INTERVAL=5s
 
   frontend:
     image: eve-industry-planner-frontend:local
@@ -94,4 +81,3 @@ services:
         SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN:-}
         SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-}
         SENTRY_ERROR_SAMPLE_RATE: ${SENTRY_ERROR_SAMPLE_RATE:-}
-    env_file: [.env]

@@ -512,7 +512,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (task_type) (count_over_time({compose_service=\"worker\"} |= \"asynq task failed\" | json | task_type != \"\" [$__interval]))",
+          "expr": "sum by (task_type) (count_over_time({compose_service=\"worker\"} |= \"asynq task failed\" | task_type != \"\" [$__interval]))",
           "legendFormat": "{{task_type}}",
           "queryType": "range",
           "refId": "A"

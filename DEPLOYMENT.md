@@ -136,9 +136,9 @@ You have two options:
 
 These run on the same `eip` network and are defined in `docker-compose.yml`:
 
-- **otel-collector**: Receives OTLP from Go services and forwards metrics/logs/traces as configured under `observability/otel-collector/`
-- **prometheus**: Scrapes Prometheus-format metrics (including from the collector)
-- **loki** + **promtail**: Log aggregation; Promtail tails Docker container logs with `compose_service` labels for dashboards such as **Core · logs**, **API · logs**, etc.
+- **alloy**: Unified telemetry agent — OTLP logs from Go services → Loki; Docker stdout logs → Loki for frontend/infra; OTLP metrics → Prometheus. Config: `observability/alloy/config.alloy` (`LOG_LEVEL` env read at Alloy startup)
+- **prometheus**: Metrics TSDB; scrapes asynqmon; receives app OTLP metrics from Alloy remote write
+- **loki**: Log storage; Alloy pushes container stdout logs with `compose_service` labels for dashboards such as **Core · logs**, **API · logs**, etc.
 - **grafana**: Dashboards from `observability/grafana/provisioning`; login uses `GRAFANA_ADMIN_*` from `.env` (on first bootstrap, `ensure-env.sh` generates `GRAFANA_ADMIN_PASSWORD` like other secrets unless you set it explicitly)
 - **node_exporter**: Host/node metrics for Prometheus
 
@@ -161,9 +161,10 @@ make up
 ```
 
 This will:
-1. Update the Makefile from GitHub, then replace `docker-compose.yml`, the entire `observability/` tree, and `scripts/` from a **single Public branch tarball** when the branch HEAD has changed (`docker-compose.dev.yml` is not part of this download flow; it is only for local development from a git clone)
-2. Pull the latest container images when you run `make up` or `make dev`
-3. Restart all services with the updated configuration
+1. Update the Makefile from GitHub, then replace `docker-compose.yml`, the entire `observability/` tree (including `observability/alloy/config.alloy`), and `scripts/` from a **single Public branch tarball**
+2. Restart **Alloy** when the stack is already running (refreshes Docker log tailers after observability config changes)
+3. Pull the latest container images when you run `make up` or `make dev`
+4. Restart all services with the updated configuration when you run `make up` or `make dev` (both targets also restart Alloy after bringing services up)
 
 ## Maintenance
 
@@ -173,17 +174,24 @@ This will:
 docker compose logs -f
 ```
 
-Stream a single service (examples): `docker compose logs -f core` or `docker compose logs -f api`. For filterable JSON logs by container (`compose_service`) and other fields, use **Grafana → Loki** when Grafana/Promtail/Loki from `docker-compose.yml` are running.
+Stream a single service (examples): `docker compose logs -f core` or `docker compose logs -f api`. Go services log via **OTLP → Alloy → Loki** by default (`LOG_STDOUT=true` mirrors to container stdout). For filterable JSON logs by service (`compose_service`) and other fields, use **Grafana → Loki** when Grafana/Alloy/Loki from `docker-compose.yml` are running.
 
 **Log Levels:**
 
-Log verbosity is controlled by the `LOG_LEVEL` environment variable in your `.env` file. Valid values are:
-- `debug` - Most verbose, shows all log messages
-- `info` - Default, shows informational messages and above
-- `warn` or `warning` - Shows warnings and errors only
-- `error` - Shows only error messages
+Log verbosity in **Loki** (Go services via OTLP) is controlled by **`LOG_LEVEL` on the Alloy container** in your `.env` file. Go apps export all levels; Alloy filters before Loki. Valid values:
 
-To change the log level, edit the `LOG_LEVEL` variable in your `.env` file and restart the services. See `env.example` for more details.
+- `debug` — store all log levels in Loki
+- `info` — default; drops debug from Loki ingest
+- `warn` or `warning` — warnings and errors only
+- `error` — errors only
+
+To change what appears in Grafana/Loki, edit `LOG_LEVEL` in `.env` and restart Alloy:
+
+```bash
+docker compose restart alloy
+```
+
+No need to restart api, core, worker, or websocket for log level changes.
 
 ### Restarting Services
 
@@ -232,7 +240,7 @@ For issues or questions:
 # (first run may exit after creating .env — edit .env, then run again)
 make up
 
-# Update all files from GitHub and restart
+# Update all files from GitHub (restarts Alloy if stack is up), then restart services
 make update-files
 make up
 

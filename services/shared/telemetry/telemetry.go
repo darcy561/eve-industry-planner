@@ -95,6 +95,8 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 			attribute.String("service.name", cfg.ServiceName),
 			attribute.String("service.version", version),
 			attribute.String("service.instance.id", instanceID),
+			// Loki label for LogQL dashboards ({compose_service="api"}, etc.).
+			attribute.String("compose_service", cfg.ServiceName),
 		),
 	)
 	if err != nil {
@@ -134,7 +136,7 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 			sdklog.WithProcessor(sdklog.NewBatchProcessor(le)),
 		)
 		logglobal.SetLoggerProvider(lp)
-		logs.ResetRoot()
+		logs.EnableOTLPExport()
 	}
 
 	var mp *sdkmetric.MeterProvider

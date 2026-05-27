@@ -14,7 +14,7 @@ x-common-depends-on: &common-depends-on
   nats:
     condition: service_started
 
-# OTLP apps dial otel-collector:4317; without this they can start first and log connection refused / export timeouts until the collector listens.
+# OTLP apps dial alloy:4317; without this they can start first and log connection refused / export timeouts until Alloy listens.
 x-common-depends-on-otel: &common-depends-on-otel
   mongo:
     condition: service_healthy
@@ -22,7 +22,7 @@ x-common-depends-on-otel: &common-depends-on-otel
     condition: service_healthy
   nats:
     condition: service_started
-  otel-collector:
+  alloy:
     condition: service_started
 
 x-common-service-config: &common-service-config
@@ -36,9 +36,6 @@ x-common-service-config: &common-service-config
 services:
   api:
     <<: *common-service-config
-    environment:
-      OTEL_SERVICE_NAME: api
-      DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
     image: ghcr.io/darcy561/eve-industry-planner-api:${APP_VERSION}
     deploy:
       replicas: 1
@@ -46,7 +43,7 @@ services:
       <<: *common-depends-on
       core:
         condition: service_healthy
-      otel-collector:
+      alloy:
         condition: service_started
     labels:
       # Enable Traefik for this container
@@ -86,18 +83,12 @@ services:
 
   websocket:
     <<: *common-service-config
-    environment:
-      OTEL_SERVICE_NAME: websocket
-      DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
     image: ghcr.io/darcy561/eve-industry-planner-websocket:${APP_VERSION}
-    build:
-      context: ./services
-      dockerfile: websocket/Dockerfile
     depends_on:
       <<: *common-depends-on
       core:
         condition: service_healthy
-      otel-collector:
+      alloy:
         condition: service_started
     deploy:
       replicas: 2
@@ -128,8 +119,6 @@ services:
     <<: *common-service-config
     depends_on: *common-depends-on-otel
     environment:
-      OTEL_SERVICE_NAME: worker
-      DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
       GOOGLE_APPLICATION_CREDENTIALS: ${WORKER_GOOGLE_APPLICATION_CREDENTIALS:-${GOOGLE_APPLICATION_CREDENTIALS:-}}
       FIREBASE_PROJECT_ID: ${WORKER_FIREBASE_PROJECT_ID:-${FIREBASE_PROJECT_ID:-}}
     image: ghcr.io/darcy561/eve-industry-planner-worker:${APP_VERSION}
@@ -144,9 +133,6 @@ services:
   core:
     <<: *common-service-config
     depends_on: *common-depends-on-otel
-    environment:
-      OTEL_SERVICE_NAME: core
-      DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT:-}
     container_name: core
     image: ghcr.io/darcy561/eve-industry-planner-core:${APP_VERSION}
     healthcheck:
@@ -331,7 +317,7 @@ services:
       - eip
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.2.1
     container_name: prometheus
     restart: unless-stopped
     networks:
@@ -341,17 +327,16 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --web.enable-lifecycle
+      - --web.enable-remote-write-receiver
     volumes:
       - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     depends_on:
-      otel-collector:
-        condition: service_started
       asynqmon:
         condition: service_started
 
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:3.7.2
     container_name: loki
     restart: unless-stopped
     networks:
@@ -362,36 +347,37 @@ services:
       - loki_data:/loki
       - ./observability/loki/config.yaml:/etc/loki/config.yaml:ro
 
-  promtail:
-    image: grafana/promtail:latest
-    container_name: promtail
+  alloy:
+    image: grafana/alloy:v1.16.1
+    container_name: alloy
     restart: unless-stopped
     networks:
-      - eip
+      eip:
+        aliases:
+          - otel-collector
     dns: *common-dns
     environment:
       DOCKER_API_VERSION: "1.44"
-    command: -config.file=/etc/promtail/config.yaml
+      # Minimum severity stored in Loki for OTLP logs (debug|info|warn|warning|error). Apps always export debug.
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --stability.level=experimental
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./observability/promtail/config.yaml:/etc/promtail/config.yaml:ro
+      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy_data:/var/lib/alloy
     depends_on:
       loki:
         condition: service_started
-
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
-    container_name: otel-collector
-    restart: unless-stopped
-    networks:
-      - eip
-    dns: *common-dns
-    command: [ "--config=/etc/otelcol/config.yaml" ]
-    volumes:
-      - ./observability/otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
+      prometheus:
+        condition: service_started
 
   grafana:
-    image: grafana/grafana:latest
+    image: "grafana/grafana:13.0.1"
     container_name: grafana
     restart: unless-stopped
     networks:
@@ -401,12 +387,13 @@ services:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_SERVER_ROOT_URL=http://10.8.0.1:3030
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://10.8.0.1:3030}
+      - GF_DASHBOARDS_MIN_REFRESH_INTERVAL=${GRAFANA_MIN_REFRESH:-5s}
     volumes:
       - grafana_data:/var/lib/grafana
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
     ports:
-      - "10.8.0.1:3030:3000"
+      - "${GRAFANA_HOST_PORT:-10.8.0.1:3030}:3000"
     depends_on:
       prometheus:
         condition: service_started
@@ -439,6 +426,7 @@ volumes:
   prometheus_data:
   loki_data:
   grafana_data:
+  alloy_data:
 
 networks:
   eip:
