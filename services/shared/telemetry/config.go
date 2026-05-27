@@ -12,7 +12,7 @@ import (
 const sentryTracesSampleRateEnv = "SENTRY_TRACES_SAMPLE_RATE"
 
 // DefaultOTLPEndpoint is the gRPC host:port for the OTel collector on the default Docker Compose network.
-const DefaultOTLPEndpoint = "otel-collector:4317"
+const DefaultOTLPEndpoint = "alloy:4317"
 
 // DefaultMetricExportInterval is the OTLP metric reader period when [Config.MetricExportInterval] is zero.
 // Match Prometheus global scrape_interval for job otel_collector (see observability/prometheus/prometheus.yml)
@@ -30,7 +30,7 @@ type Config struct {
 	OTLPInsecure bool
 
 	// MetricExportInterval is how often the SDK pushes OTLP metrics to the collector.
-	// Zero means [DefaultMetricExportInterval] (aligned with Prometheus scrape of otel-collector:8889).
+	// Zero means [DefaultMetricExportInterval] (aligned with Prometheus ingest from Alloy remote write).
 	MetricExportInterval time.Duration
 
 	SentryDSN              string
@@ -39,7 +39,7 @@ type Config struct {
 	SentryTracesSampleRate float64
 }
 
-// DefaultConfig returns OTLP settings for services running on the standard stack (collector as otel-collector:4317).
+// DefaultConfig returns OTLP settings for services running on the standard stack (Alloy as alloy:4317).
 func DefaultConfig(serviceName string) Config {
 	envTag := strings.TrimSpace(BakedAppMode)
 	if envTag == "" {

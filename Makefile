@@ -67,7 +67,7 @@ help:
 	@echo ""
 	@echo "Available commands:"
 	@echo "  make up               - Start app (users / live images)"
-	@echo "  make update-files     - Updates all necessary files from GitHub"
+	@echo "  make update-files     - Refresh Makefile, scripts/, observability/ (incl. Alloy), and compose from GitHub Public"
 	@echo "  make dev              - Dev mode: local builds + docker-compose.dev.yml (needs git clone; not downloaded by make up)"
 	@echo "                        Required in .env: APP_VERSION (semver X.Y.Z). Optional baked-in feedback/Sentry:"
 	@echo "                        FEEDBACK_DISCORD_WEBHOOK_URL, SENTRY_DSN, SENTRY_ORG, SENTRY_PROJECT_ID,"
@@ -117,17 +117,19 @@ ensure-app-version:
 # ---------- User / live ----------
 up: download-setup-scripts ensure-keyfile ensure-env ensure-app-version ensure-refresh-token-key
 ifeq ($(OS),Windows_NT)
-	@"$(BASH)" -c 'DC_CMD=$$(if [ -f ./bin/docker-compose ] && [ -x ./bin/docker-compose ]; then echo "./bin/docker-compose"; elif [ -f ./docker-compose ] && [ -x ./docker-compose ]; then echo "./docker-compose"; elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi); eval "$$DC_CMD -f $(COMPOSE_BASE) up -d"'
+	@"$(BASH)" -c 'DC_CMD=$$(if [ -f ./bin/docker-compose ] && [ -x ./bin/docker-compose ]; then echo "./bin/docker-compose"; elif [ -f ./docker-compose ] && [ -x ./docker-compose ]; then echo "./docker-compose"; elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi); eval "$$DC_CMD -f $(COMPOSE_BASE) up -d && $$DC_CMD -f $(COMPOSE_BASE) restart alloy"'
 else
 	@$(DC) up -d
+	@$(DC) restart alloy
 endif
 
 # ---------- Dev ----------
 dev: download-setup-scripts ensure-keyfile ensure-env ensure-app-version ensure-refresh-token-key
 ifeq ($(OS),Windows_NT)
-	@"$(BASH)" -c 'DC_CMD=$$(if [ -f ./bin/docker-compose ] && [ -x ./bin/docker-compose ]; then echo "./bin/docker-compose"; elif [ -f ./docker-compose ] && [ -x ./docker-compose ]; then echo "./docker-compose"; elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi); eval "$$DC_CMD -f $(COMPOSE_BASE) -f $(COMPOSE_DEV) up -d --build"'
+	@"$(BASH)" -c 'DC_CMD=$$(if [ -f ./bin/docker-compose ] && [ -x ./bin/docker-compose ]; then echo "./bin/docker-compose"; elif [ -f ./docker-compose ] && [ -x ./docker-compose ]; then echo "./docker-compose"; elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi); eval "$$DC_CMD -f $(COMPOSE_BASE) -f $(COMPOSE_DEV) up -d --build && $$DC_CMD -f $(COMPOSE_BASE) -f $(COMPOSE_DEV) restart alloy"'
 else
 	@$(DC_DEV) up -d --build
+	@$(DC_DEV) restart alloy
 endif
 
 # Bootstrap: Download version-tracker.sh if it doesn't exist
@@ -191,4 +193,8 @@ update-files: bootstrap-version-tracker
 	echo 'version-tracker.sh updated successfully!' >&2; \
 	echo '' >&2; \
 	echo 'Updating tracked repo files (compose, scripts, observability)...' >&2; \
-	bash ./scripts/version-tracker.sh update"
+	bash ./scripts/version-tracker.sh update; \
+	echo '' >&2; \
+	echo 'Restarting Alloy when the stack is up (refreshes log tailers after observability sync)...' >&2; \
+	DC=$$(if [ -f ./bin/docker-compose ] && [ -x ./bin/docker-compose ]; then echo './bin/docker-compose'; elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then echo 'docker compose'; elif command -v docker-compose >/dev/null 2>&1; then echo 'docker-compose'; else echo 'docker compose'; fi); \
+	eval \"\$$DC -f $(COMPOSE_BASE) restart alloy\" 2>/dev/null || echo 'Note: Alloy not restarted (stack may not be running yet).' >&2"

@@ -1,13 +1,18 @@
-// Package logs provides the process-wide logger: JSON to stdout plus OpenTelemetry logs via otelzap.
+// Package logs provides the process-wide logger.
 //
-// For structured key/value lines, use the *Ctx helpers so trace context is attached (otelzap + stdout):
+// In Compose/production, [EnableOTLPExport] (from telemetry.Init) sends all log levels over OTLP;
+// Alloy drops below LOG_LEVEL before Loki. Service identity (compose_service, service.name) comes
+// from telemetry resource attributes, not logger env vars. Without OTLP, logs go to stdout JSON at debug.
+// Set LOG_STDOUT=true to mirror JSON logs to container stdout for docker compose logs.
+//
+// For structured key/value lines, use the *Ctx helpers so trace context is attached:
 //
 //	logs.InfoCtx(ctx, "msg", "key", value)
 //
 // Or use [Zap] / [FromContext] with [Ctx]: logger.Info("msg", logs.Ctx(ctx), zap.String("k", "v")).
-// The otelzap core reads [context.Context] from zap fields (see otelzap [Core.Write]).
+// [Ctx] carries [context.Context] for OTLP trace/span correlation on emit.
 //
-// [TraceLogFields] adds trace_id and span_id strings for grep-friendly JSON on stdout (e.g. Loki); OTLP correlation still comes from [Ctx].
+// [TraceLogFields] adds trace_id and span_id for LogQL filters on OTLP-ingested logs.
 //
 // HTTP handlers should receive a logger via [FromContext] (API middleware attaches a *zap.Logger to the request context).
 // After telemetry.Init installs a LoggerProvider, ResetRoot is called so OTLP export picks up the provider.
@@ -53,71 +58,45 @@ func Sync() error {
 	return z.Sync()
 }
 
-func firstNonEmpty(vals ...string) string {
-	for _, v := range vals {
-		if s := strings.TrimSpace(v); s != "" {
-			return s
-		}
-	}
-	return ""
-}
-
-func defaultResourceFields() []zap.Field {
-	var fs []zap.Field
-	if s := firstNonEmpty(
-		os.Getenv("OTEL_SERVICE_NAME"),
-		os.Getenv("LOG_SERVICE_NAME"),
-		os.Getenv("SERVICE_NAME"),
-	); s != "" {
-		fs = append(fs, zap.String("service_name", s))
-	}
-	if env := firstNonEmpty(
-		os.Getenv("DEPLOYMENT_ENVIRONMENT"),
-		os.Getenv("ENVIRONMENT"),
-	); env != "" {
-		fs = append(fs, zap.String("deployment_environment", env))
-	}
-	if v := strings.TrimSpace(os.Getenv("LOG_SERVICE_VERSION")); v != "" {
-		fs = append(fs, zap.String("service_version", v))
-	}
-	if hn, err := os.Hostname(); err == nil && hn != "" {
-		fs = append(fs, zap.String("host_name", hn))
-	}
-	return fs
-}
-
-func parseZapLevel(v string) zapcore.LevelEnabler {
-	switch strings.ToLower(strings.TrimSpace(v)) {
-	case "debug":
-		return zapcore.DebugLevel
-	case "warn", "warning":
-		return zapcore.WarnLevel
-	case "error":
-		return zapcore.ErrorLevel
+func logStdoutEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("LOG_STDOUT"))) {
+	case "1", "true", "yes", "on":
+		return true
 	default:
-		return zapcore.InfoLevel
+		return false
 	}
 }
 
 func buildRoot() *zap.Logger {
-	level := parseZapLevel(os.Getenv("LOG_LEVEL"))
+	// Export all levels over OTLP; Alloy filters by LOG_LEVEL before Loki (see observability/alloy/config.alloy).
+	level := zapcore.DebugLevel
+
+	if useOTLPExport() {
+		otelCore := otelzap.NewCore(
+			instrumentationName,
+			otelzap.WithLoggerProvider(global.GetLoggerProvider()),
+		)
+		var core zapcore.Core = otelCore
+		if logStdoutEnabled() {
+			encCfg := zap.NewProductionEncoderConfig()
+			encCfg.EncodeTime = zapcore.ISO8601TimeEncoder
+			encCfg.EncodeDuration = zapcore.SecondsDurationEncoder
+			stdoutCore := zapcore.NewCore(zapcore.NewJSONEncoder(encCfg), zapcore.AddSync(os.Stdout), level)
+			core = zapcore.NewTee(stdoutCore, otelCore)
+		}
+		return zap.New(core,
+			zap.AddCaller(),
+			zap.AddStacktrace(zapcore.ErrorLevel),
+		)
+	}
 
 	encCfg := zap.NewProductionEncoderConfig()
 	encCfg.EncodeTime = zapcore.ISO8601TimeEncoder
 	encCfg.EncodeDuration = zapcore.SecondsDurationEncoder
-	enc := zapcore.NewJSONEncoder(encCfg)
-	stdoutCore := zapcore.NewCore(enc, zapcore.AddSync(os.Stdout), level)
-
-	otelCore := otelzap.NewCore(
-		instrumentationName,
-		otelzap.WithLoggerProvider(global.GetLoggerProvider()),
-	)
-
-	tee := zapcore.NewTee(stdoutCore, otelCore)
-	return zap.New(tee,
+	stdoutCore := zapcore.NewCore(zapcore.NewJSONEncoder(encCfg), zapcore.AddSync(os.Stdout), level)
+	return zap.New(stdoutCore,
 		zap.AddCaller(),
 		zap.AddStacktrace(zapcore.ErrorLevel),
-		zap.Fields(defaultResourceFields()...),
 	)
 }
 
@@ -135,8 +114,7 @@ func Zap() *zap.Logger {
 	return getRoot()
 }
 
-// Ctx returns a zap field carrying context for otelzap (trace/span correlation on emit).
-// Stdout JSON may include a minimal encoding of ctx; OTLP does not add ctx as a redundant log attribute.
+// Ctx returns a zap field carrying context for OTLP trace/span correlation on emit (not encoded in JSON body).
 func Ctx(ctx context.Context) zap.Field {
 	if ctx == nil {
 		return zap.Skip()
@@ -144,8 +122,7 @@ func Ctx(ctx context.Context) zap.Field {
 	return zap.Any("ctx", ctx)
 }
 
-// TraceLogFields returns trace_id and span_id when the context carries a valid span (for stdout/Loki grep).
-// Prefer [Ctx] for OTLP; use this when building a *zap.Logger or extra fields for human-readable JSON.
+// TraceLogFields returns trace_id and span_id when the context carries a valid span (LogQL / structured metadata).
 func TraceLogFields(ctx context.Context) []zap.Field {
 	if ctx == nil {
 		return nil

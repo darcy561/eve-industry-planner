@@ -1,4 +1,4 @@
-# Phase A: infra scrapes. Phase B: Go OTLP metrics → Collector Prometheus exporter (:8889).
+# Phase A: infra scrapes. Phase B: Go OTLP metrics → Alloy → Prometheus remote write.
 #
 # Prometheus reads this file only at process start or after a reload. Editing this file on the host
 # does *not* apply until you either:
@@ -13,10 +13,6 @@ scrape_configs:
   - job_name: prometheus
     static_configs:
       - targets: ["localhost:9090"]
-
-  - job_name: otel_collector
-    static_configs:
-      - targets: ["otel-collector:8889"]
 
   # Asynqmon: hibiken/asynqmon with --enable-metrics-exporter (queue metrics on /metrics).
   - job_name: asynqmon

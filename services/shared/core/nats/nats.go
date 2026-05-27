@@ -111,7 +111,7 @@ func Cleanup(conn *natslib.Conn) {
 // The payload is automatically marshaled and wrapped in a TaskMessage structure.
 // W3C propagated context from ctx is attached to the NATS message (traceparent, tracestate, baggage)
 // and copied into Asynq task headers by the worker subscriber. Handlers should log with
-// logs.InfoCtx(ctx, ...), WarnCtx, or ErrorCtx so otelzap and stdout trace_id stay linked to the API span.
+// logs.InfoCtx(ctx, ...), WarnCtx, or ErrorCtx so OTLP logs stay linked to the API span.
 // Optional trailing args can be *natslib.Conn (for connection check on retry) and/or a priority
 // queue name (e.g. "priority_5") to override the task type default. Order does not matter.
 //

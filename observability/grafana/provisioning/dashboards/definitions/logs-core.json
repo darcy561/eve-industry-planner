@@ -15,7 +15,7 @@
         "type": "loki",
         "uid": "loki"
       },
-      "description": "Scoped to the **`core`** container (`compose_service`). Filter **internal parts** with JSON **`component`** (not OTEL `service_name`). Examples: `changestream`, `scheduler`, `scheduler.maintenance`, `archivedjobs`. Regex OK; use **`.*`** to avoid hiding lines without `component` (e.g. startup).",
+      "description": "Scoped to **`core`** (`compose_service`). The log **message** is shown first; click a line for structured fields (**component**, trace IDs, …) in the sidebar. Filter **detected_level** and **component** with the variables above.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -29,12 +29,17 @@
       "id": 2,
       "options": {
         "dedupStrategy": "none",
+        "detailsMode": "sidebar",
+        "displayedFields": [
+          "___LOG_LINE_BODY___"
+        ],
         "enableInfiniteScrolling": true,
         "enableLogDetails": true,
         "maxLines": 1000,
-        "prettifyLogMessage": true,
+        "prettifyLogMessage": false,
         "showCommonLabels": false,
-        "showLabels": true,
+        "showLabels": false,
+        "showLogAttributes": false,
         "showTime": true,
         "sortOrder": "Descending",
         "wrapLogMessage": true
@@ -46,7 +51,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{compose_service=\"core\"} |= \"${search}\" | json | level=~\"(?i)${level:raw}\" | component=~\"${component:raw}\"",
+          "expr": "{compose_service=\"core\"} |= \"${search}\" | detected_level=~\"(?i)${level:raw}\" | component=~\"${component:raw}\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -162,6 +167,6 @@
   "timezone": "browser",
   "title": "Core · logs",
   "uid": "logs-core",
-  "version": 8,
+  "version": 9,
   "weekStart": ""
 }

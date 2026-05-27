@@ -8,8 +8,8 @@ func TestNormalizeOTLPEndpoint(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-		{"otel-collector:4317", "otel-collector:4317", false},
-		{"http://otel-collector:4317", "otel-collector:4317", false},
+		{"alloy:4317", "alloy:4317", false},
+		{"http://alloy:4317", "alloy:4317", false},
 		{"https://127.0.0.1:4317", "127.0.0.1:4317", false},
 		{"", "", true},
 	}

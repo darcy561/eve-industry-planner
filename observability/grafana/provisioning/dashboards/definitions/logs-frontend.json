@@ -15,7 +15,7 @@
         "type": "loki",
         "uid": "loki"
       },
-      "description": "Scoped to the **`frontend`** container (`compose_service`). These logs are often **plain text** (e.g. nginx), not the same JSON shape as Go services. Use **search** and **line regex** to narrow; default line regex is **`.*`**. For HTTP path or status, use **search** or a regex. There is no shared `component` field here—use text filters instead.",
+      "description": "Scoped to the **`frontend`** container (`compose_service`). Plain-text nginx/docker logs — the line body is shown directly. Use **search** and **line regex** to narrow; default line regex is **`.*`**. Click a line for labels and parsed fields.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -29,12 +29,13 @@
       "id": 2,
       "options": {
         "dedupStrategy": "none",
+        "detailsMode": "sidebar",
         "enableInfiniteScrolling": true,
         "enableLogDetails": true,
         "maxLines": 1000,
-        "prettifyLogMessage": true,
+        "prettifyLogMessage": false,
         "showCommonLabels": false,
-        "showLabels": true,
+        "showLabels": false,
         "showTime": true,
         "sortOrder": "Descending",
         "wrapLogMessage": true
@@ -119,6 +120,6 @@
   "timezone": "browser",
   "title": "Frontend · logs",
   "uid": "logs-frontend",
-  "version": 5,
+  "version": 6,
   "weekStart": ""
 }

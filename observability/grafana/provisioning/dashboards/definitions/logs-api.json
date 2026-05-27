@@ -15,7 +15,7 @@
         "type": "loki",
         "uid": "loki"
       },
-      "description": "Scoped to the **`api`** container (`compose_service`). Filter **internal parts** with JSON **`component`** when present (e.g. future handler areas). Regex; default **`.*`**. Use **search text** for path, `request_id`, or free text. Lines without `component` may disappear if you narrow the regex.",
+      "description": "Scoped to **`api`** (`compose_service`). The log **message** is shown first; click a line to open structured fields (method, path, status_code, …) in the sidebar. Filter **detected_level** and **component** with the variables above.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -29,12 +29,17 @@
       "id": 2,
       "options": {
         "dedupStrategy": "none",
+        "detailsMode": "sidebar",
+        "displayedFields": [
+          "___LOG_LINE_BODY___"
+        ],
         "enableInfiniteScrolling": true,
         "enableLogDetails": true,
         "maxLines": 1000,
-        "prettifyLogMessage": true,
+        "prettifyLogMessage": false,
         "showCommonLabels": false,
-        "showLabels": true,
+        "showLabels": false,
+        "showLogAttributes": false,
         "showTime": true,
         "sortOrder": "Descending",
         "wrapLogMessage": true
@@ -46,7 +51,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{compose_service=\"api\"} |= \"${search}\" | json | level=~\"(?i)${level:raw}\" | component=~\"${component:raw}\"",
+          "expr": "{compose_service=\"api\"} |= \"${search}\" | detected_level=~\"(?i)${level:raw}\" | component=~\"${component:raw}\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -162,6 +167,6 @@
   "timezone": "browser",
   "title": "API · logs",
   "uid": "logs-api",
-  "version": 6,
+  "version": 7,
   "weekStart": ""
 }

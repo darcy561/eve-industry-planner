@@ -15,7 +15,7 @@
         "type": "loki",
         "uid": "loki"
       },
-      "description": "Scoped to the **`worker`** container (`compose_service`). **Internal work** is identified by JSON **`task_type`** (Asynq task type), not OTEL `service_name`. Use **task name (regex)** to narrow; default **`.*`**. Startup lines without `task_type` may not match a narrow pattern.",
+      "description": "Scoped to **`worker`** (`compose_service`). The log **message** is shown first; click a line for structured fields (**task_type**, trace IDs, …) in the sidebar. Filter **detected_level** and **task_type** with the variables above.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -29,12 +29,17 @@
       "id": 2,
       "options": {
         "dedupStrategy": "none",
+        "detailsMode": "sidebar",
+        "displayedFields": [
+          "___LOG_LINE_BODY___"
+        ],
         "enableInfiniteScrolling": true,
         "enableLogDetails": true,
         "maxLines": 1000,
-        "prettifyLogMessage": true,
+        "prettifyLogMessage": false,
         "showCommonLabels": false,
-        "showLabels": true,
+        "showLabels": false,
+        "showLogAttributes": false,
         "showTime": true,
         "sortOrder": "Descending",
         "wrapLogMessage": true
@@ -46,7 +51,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{compose_service=\"worker\"} |= \"${search}\" | json | level=~\"(?i)${level:raw}\" | task_type=~\"${task_name:raw}\"",
+          "expr": "{compose_service=\"worker\"} |= \"${search}\" | detected_level=~\"(?i)${level:raw}\" | task_type=~\"${task_name:raw}\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -162,6 +167,6 @@
   "timezone": "browser",
   "title": "Worker · logs",
   "uid": "logs-worker",
-  "version": 8,
+  "version": 9,
   "weekStart": ""
 }

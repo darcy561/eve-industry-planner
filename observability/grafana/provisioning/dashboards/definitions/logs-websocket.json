@@ -15,7 +15,7 @@
         "type": "loki",
         "uid": "loki"
       },
-      "description": "Scoped to the **`websocket`** container (`compose_service`). Filter **internal parts** with JSON **`component`** when handlers add it. Regex; default **`.*`**. OTEL **`service_name`** is the whole process (same idea as Core — use this filter for subsystems, not the deployment name).",
+      "description": "Scoped to **`websocket`** (`compose_service`). The log **message** is shown first; click a line for structured fields (**component**, trace IDs, …) in the sidebar. Filter **detected_level** and **component** with the variables above.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -29,12 +29,17 @@
       "id": 2,
       "options": {
         "dedupStrategy": "none",
+        "detailsMode": "sidebar",
+        "displayedFields": [
+          "___LOG_LINE_BODY___"
+        ],
         "enableInfiniteScrolling": true,
         "enableLogDetails": true,
         "maxLines": 1000,
-        "prettifyLogMessage": true,
+        "prettifyLogMessage": false,
         "showCommonLabels": false,
-        "showLabels": true,
+        "showLabels": false,
+        "showLogAttributes": false,
         "showTime": true,
         "sortOrder": "Descending",
         "wrapLogMessage": true
@@ -46,7 +51,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{compose_service=\"websocket\"} |= \"${search}\" | json | level=~\"(?i)${level:raw}\" | component=~\"${component:raw}\"",
+          "expr": "{compose_service=\"websocket\"} |= \"${search}\" | detected_level=~\"(?i)${level:raw}\" | component=~\"${component:raw}\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -162,6 +167,6 @@
   "timezone": "browser",
   "title": "WebSocket · logs",
   "uid": "logs-websocket",
-  "version": 6,
+  "version": 7,
   "weekStart": ""
 }
