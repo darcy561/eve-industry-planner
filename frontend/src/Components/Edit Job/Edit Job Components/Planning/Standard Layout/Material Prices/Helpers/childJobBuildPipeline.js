@@ -1,5 +1,5 @@
 import getMissingESIData from "../../../../../../../Functions/Shared/getMissingESIData";
-import recalculateInstallCostsWithNewData from "../../../../../../../Functions/Installation Costs/recalculateInstallCostsWithNewData";
+import { recalculateInstallCostsWithNewData } from "../../../../../../../Functions/Installation Costs/installCosts";
 import { buildJob } from "../../../../../../../Functions/JobPlanner/buildJob";
 import useUsersStore from "../../../../../../../Zustand/usersStore";
 

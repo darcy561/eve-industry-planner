@@ -41,6 +41,9 @@ function selectRefreshableCharacterCount(state) {
  */
 function useRefreshESITokens() {
   const isLoggedIn = useUsersStore((s) => s.account.isLoggedIn);
+  const plannerPrivateAuthReady = useUsersStore(
+    (s) => s.account.plannerPrivateAuthReady
+  );
   const characterCount = useUsersStore(selectRefreshableCharacterCount);
 
   useEffect(() => {
@@ -61,7 +64,7 @@ function useRefreshESITokens() {
   }, [isLoggedIn]);
 
   useEffect(() => {
-    if (characterCount < 1) {
+    if (!isLoggedIn || !plannerPrivateAuthReady || characterCount < 1) {
       return undefined;
     }
     const staggerMs = computeEsiStaggerIntervalMs(characterCount);
@@ -80,7 +83,7 @@ function useRefreshESITokens() {
     return () => {
       clearInterval(staggerId);
     };
-  }, [characterCount]);
+  }, [isLoggedIn, plannerPrivateAuthReady, characterCount]);
 }
 
 export default useRefreshESITokens;

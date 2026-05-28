@@ -1,6 +1,7 @@
 import { Typography, Grid } from "@mui/material";
 import { LARGE_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
+import { getJobInstallCostForPlanning } from "../../../../../../Functions/Installation Costs/installCosts";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 
 export function InformationPanel({ state }) {
@@ -30,7 +31,9 @@ export function InformationPanel({ state }) {
           }}>
           <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
             Total Install Costs:{" "}
-            {formatNumberForLocale(state.activeJob.build.costs.installCosts)}
+            {formatNumberForLocale(
+              getJobInstallCostForPlanning(state.activeJob)
+            )}
           </Typography>
         </Grid>
         <Grid
@@ -44,7 +47,7 @@ export function InformationPanel({ state }) {
             Total Cost Per Item:{" "}
             {formatNumberForLocale(
               (state.activeJob.build.costs.totalPurchaseCost +
-                state.activeJob.build.costs.installCosts) /
+                getJobInstallCostForPlanning(state.activeJob)) /
               state.activeJob.build.products.totalQuantity
             )}
           </Typography>

@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"time"
 
+	"eve-industry-planner/shared/logs"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -46,6 +48,40 @@ func RemoveViewer(ctx context.Context, rdb *redis.Client, accountID, collection,
 	return n > 0, nil
 }
 
+// StripPassiveViewerOnHolderGrant removes holderSessionID from the viewer registry
+// when they become the editor (e.g. waitlist promotion after passive viewing).
+// When publishLeft is true and an entry was removed, emits viewer_left so other
+// sessions refresh viewerCount without treating the editor as a passive viewer.
+func StripPassiveViewerOnHolderGrant(
+	ctx context.Context,
+	d Deps,
+	accountID, collection, docID, holderSessionID string,
+	publishLeft bool,
+) {
+	if d.Redis == nil || holderSessionID == "" || collection == "" || docID == "" {
+		return
+	}
+	removed, err := RemoveViewer(ctx, d.Redis, accountID, collection, docID, holderSessionID)
+	if err != nil {
+		logs.WarnCtx(ctx, "doc lock holder grant: strip viewer failed",
+			"error", err,
+			"account_id", accountID,
+			"collection", collection,
+			"doc_id", docID,
+		)
+		return
+	}
+	if !removed || !publishLeft {
+		return
+	}
+	_ = PublishLockEvent(ctx, d.JetStream, accountID, map[string]any{
+		LockPayloadEventKey: LockViewerEventLeft,
+		"collection":        collection,
+		"docID":             docID,
+		"sessionID":         holderSessionID,
+	})
+}
+
 // PruneAndCountViewers garbage-collects expired entries and returns the live viewer count.
 func PruneAndCountViewers(ctx context.Context, rdb *redis.Client, accountID, collection, docID string) (int64, error) {
 	if rdb == nil {
@@ -59,5 +95,16 @@ func PruneAndCountViewers(ctx context.Context, rdb *redis.Client, accountID, col
 	if _, err := pipe.Exec(ctx); err != nil {
 		return 0, err
 	}
-	return countCmd.Val(), nil
+	n := countCmd.Val()
+	rec, _ := GetLock(ctx, rdb, accountID, collection, docID)
+	if rec != nil && rec.HolderSessionID != "" {
+		_, zerr := rdb.ZScore(ctx, k, rec.HolderSessionID).Result()
+		if zerr == nil {
+			n--
+			if n < 0 {
+				n = 0
+			}
+		}
+	}
+	return n, nil
 }

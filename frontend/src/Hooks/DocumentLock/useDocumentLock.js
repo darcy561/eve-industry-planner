@@ -12,6 +12,8 @@ import { useLockPassiveViewerSnackbar } from "./useLockPassiveViewerSnackbar.js"
 import { useLockVacancySnackbar } from "./useLockVacancySnackbar.js";
 import { useLockViewerPresence } from "./useLockViewerPresence.js";
 import { useLockWsListener } from "./useLockWsListener.js";
+import { useLockLeaseContentionEffects } from "./useLockLeaseContention.js";
+import { scopeHasLeasePressure } from "../../Functions/DocumentLock/documentLockScope.js";
 
 const DEFAULT_PENDING_ACCESS_SNACKBAR =
   "Another tab requested edit access for this document.";
@@ -34,6 +36,9 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
     options.extendNudgeMessage ??
     "Your edit session is about to end — renew now while this tab is visible.";
   const passiveViewerMessage = options.passiveViewerMessage;
+  const releaseOnUnmount = options.releaseOnUnmount !== false;
+  const cascadeMemberJobScopesOnGrant =
+    options.cascadeMemberJobScopesOnGrant === true;
   const lockHeld = useUsersStore((s) =>
     selectScopedDocumentLock(s, collection, docID).lockHeld
   );
@@ -66,6 +71,16 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
     true
   );
   const sessionID = useUsersStore((s) => s.account.sessionID);
+
+  const leasePressure = scopeHasLeasePressure({
+    readOnly,
+    handoffPendingHolder,
+    pendingAccessRequest,
+    waitlistLen,
+    waitingInHandoffQueue,
+    handoffOfferForMe,
+    viewerCount,
+  });
 
   const { heldRef, dispatchHeld } = useDocumentLockHeld(lockHeld);
   const keyRef = useRef({ collection: "", docID: "" });
@@ -123,6 +138,8 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
     keyRef,
     cancelReadOnlyGrace,
     waitingInHandoffQueue,
+    releaseOnUnmount,
+    cascadeMemberJobScopesOnGrant,
   });
 
   const { syncLockFromServer } = useLockSyncFromServer({
@@ -139,9 +156,20 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
     enabled,
     lockHeld,
     readOnly,
+    leasePressure,
     patch,
     dispatchHeld,
     keyRef,
+    syncLockFromServer,
+  });
+
+  useLockLeaseContentionEffects({
+    enabled,
+    collection,
+    docID,
+    lockHeld,
+    readOnly,
+    leasePressure,
     syncLockFromServer,
   });
 
@@ -151,6 +179,7 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
     collection,
     syncLockFromServer,
     flushExtendLease,
+    leasePressure,
   });
 
   useLockViewerPresence({
@@ -158,6 +187,8 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
     collection,
     docID,
     readOnly,
+    waitingInHandoffQueue,
+    releaseOnUnmount,
   });
 
   useLockExtendNudgeSnackbar({
@@ -166,6 +197,7 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
     docID,
     lockHeld,
     readOnly,
+    leasePressure,
     lockExpiresAtUnix,
     handoffPendingHolder,
     extendNudgeMessage,

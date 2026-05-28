@@ -24,6 +24,11 @@ export const accountStateDefault = () => ({
   sessionID: null,
   /** Ms since epoch when POST /auth/sessions or /rotate last confirmed the planner session; throttles redundant rotates before private API calls. */
   lastPlannerSessionValidatedAt: null,
+  /**
+   * False during login until `applyClientSessionAfterAppTokens` finishes — blocks staggered ESI refresh
+   * from racing session cookie application on the browser.
+   */
+  plannerPrivateAuthReady: true,
   refreshToken: null,
   refreshTokenEXP: null,
   /** From login response: Mongo first-login (new account) flag. */

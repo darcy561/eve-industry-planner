@@ -1,6 +1,7 @@
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import { flushPendingGroupSave } from "../Debounce/jobGroupsPersistSchedule.js";
 import normalizeParentChildRelationships from "../Shared/normalizeParentChildRelationships.js";
+import { canPersistGroupClose } from "../DocumentLock/canPersistDocumentEditClose.js";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
@@ -58,14 +59,17 @@ export default async function closeActiveGroup(groupJobs) {
     modifiedJobIDsToPersist.add(jobID);
   }
 
+  const groupID = activeGroup.groupID;
+  const persistToServer = isLoggedIn && canPersistGroupClose(groupID);
+
   try {
     clearActiveGroupID();
     // Only patch the affected group jobs; keep non-group planner rows intact.
     updateOrAddJobsToJobArray(updatedGroupJobs);
-    updateModifiedGroups(activeGroup);
+    updateModifiedGroups(activeGroup, { queuePersist: persistToServer });
     clearMultiSelect();
 
-    if (isLoggedIn) {
+    if (persistToServer) {
       const updatedJobs = updatedGroupJobs.filter((job) =>
         modifiedJobIDsToPersist.has(job.jobID)
       );
@@ -73,6 +77,10 @@ export default async function closeActiveGroup(groupJobs) {
         flushPendingGroupSave(),
         saveJobsViaApi(updatedJobs),
       ]);
+    } else if (isLoggedIn && groupID) {
+      useUsersStore
+        .getState()
+        .jobData.actions.clearPendingJobGroupWrites(groupID);
     }
   } catch (error) {
     console.error("Error saving group close changes:", error);

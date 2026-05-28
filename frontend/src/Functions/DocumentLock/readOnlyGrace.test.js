@@ -48,6 +48,14 @@ describe("shouldEndReadOnlyGrace", () => {
         lockExpiresAtUnix: 123,
       })
     ).toBe(false);
+    expect(
+      shouldEndReadOnlyGrace({
+        readOnly: true,
+        lockHeld: false,
+        lockExpiresAtUnix: null,
+        waitingInHandoffQueue: true,
+      })
+    ).toBe(false);
   });
 });
 

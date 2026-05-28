@@ -23,14 +23,14 @@ describe("documentLockHeaderSelectors", () => {
     expect(selectHeaderDocumentLockActive(rootState({ registrations: [] }))).toBe(false);
   });
 
-  it("primaryHeaderRegistration prefers job over group when both enabled", () => {
+  it("primaryHeaderRegistration prefers group over job when both enabled", () => {
     const regs = [
-      { collection: USER_JOB_GROUPS_COLLECTION, docID: "g1", enabled: true },
       { collection: USER_JOBS_COLLECTION, docID: "j1", enabled: true },
+      { collection: USER_JOB_GROUPS_COLLECTION, docID: "g1", enabled: true },
     ];
     const p = primaryHeaderRegistration(rootState({ registrations: regs }));
-    expect(p?.collection).toBe(USER_JOBS_COLLECTION);
-    expect(p?.docID).toBe("j1");
+    expect(p?.collection).toBe(USER_JOB_GROUPS_COLLECTION);
+    expect(p?.docID).toBe("g1");
   });
 
   it("primaryHeaderRegistration ignores disabled entries", () => {

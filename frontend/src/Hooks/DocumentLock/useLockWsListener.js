@@ -104,12 +104,18 @@ export function useLockWsListener({
         // `DOCUMENT_LOCK_RELEASE_REASONS.HOLDER_RELEASE`); `hand_over_no_queue` on
         // /hand-over fallback. Legacy servers omitted `reason` — same patch path.
         cancelReadOnlyGrace();
+        const scope = selectScopedDocumentLock(
+          useUsersStore.getState(),
+          collection,
+          docID
+        );
         patch({
           lockHeld: false,
           readOnly: false,
           pendingAccessRequest: false,
           lockExpiresAtUnix: null,
           lockTtlSeconds: null,
+          suppressVacancyAcquire: scope.suppressVacancyAcquire === true,
           ...clearedHandoffState(),
         });
         dispatchHeld({ type: DOCUMENT_LOCK_HELD_ACTIONS.SET, held: false });

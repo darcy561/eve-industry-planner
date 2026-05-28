@@ -3,6 +3,7 @@ import repairMissingParentChildRelationships from "../Shared/repairParentChildRe
 import normalizeParentChildRelationships from "../Shared/normalizeParentChildRelationships.js";
 import materialTreeShaker from "../Helper/materialTreeShaker";
 import getAllRelatedJobs from "../Helper/getAllRelatedJobs";
+import { canPersistJobClose } from "../DocumentLock/canPersistDocumentEditClose.js";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import { showSnackbarInfo } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
@@ -20,8 +21,9 @@ export default async function closeActiveJob(
   const {
     setActiveJobID,
     updateModifiedGroups,
-    queueJobGroupWritesAndSchedule,
     getGroupObject,
+    clearPendingJobDocumentWrites,
+    clearPendingJobGroupWrites,
     updateOrAddJobsToJobArray,
     findJobInJobArray,
   } = useUsersStore.getState().jobData.actions;
@@ -112,8 +114,18 @@ export default async function closeActiveJob(
     inputJob.displayOnPlanner = true;
   }
 
-  if (isLoggedIn) {
-    await saveJobsViaApi([inputJob, ...Object.values(tempJobsSource), ...batchUpdates]);
+  const groupID = inputJob.includedInGroup ? inputJob.groupID : null;
+  const persistToServer =
+    isLoggedIn && canPersistJobClose(inputJob.jobID, groupID);
+
+  const jobsToPersist = [
+    inputJob,
+    ...Object.values(tempJobsSource),
+    ...batchUpdates,
+  ];
+
+  if (persistToServer) {
+    await saveJobsViaApi(jobsToPersist);
   }
 
   const esl = esiDataToLink ?? {};
@@ -137,19 +149,32 @@ export default async function closeActiveJob(
     transactionsToRemove: eslTr.remove,
   });
 
-  if (hasAnyChanges && isLoggedIn) {
+  if (hasAnyChanges && persistToServer) {
     await saveUserAccountDocument();
   }
 
   if (inputJob.includedInGroup) {
     const updatedGroup = getGroupObject(inputJob.groupID);
     if (updatedGroup?.groupID) {
-      updateModifiedGroups(updatedGroup);
-      queueJobGroupWritesAndSchedule(inputJob.groupID);
+      updateModifiedGroups(updatedGroup, { queuePersist: persistToServer });
+      if (!persistToServer) {
+        clearPendingJobGroupWrites(updatedGroup.groupID);
+      }
+    }
+  }
+
+  if (isLoggedIn && !persistToServer) {
+    const pendingJobIDs = jobsToPersist
+      .map((j) => j?.jobID)
+      .filter(Boolean);
+    if (pendingJobIDs.length > 0) {
+      clearPendingJobDocumentWrites(pendingJobIDs);
     }
   }
 
   updateOrAddJobsToJobArray([inputJob, ...tempJobs, ...batchUpdates]);
   setActiveJobID(null);
-  showSnackbarInfo(`${inputJob.name} Updated`);
+  if (persistToServer) {
+    showSnackbarInfo(`${inputJob.name} Updated`);
+  }
 }

@@ -28,12 +28,25 @@ func HandleViewerArrivedIngress(ctx context.Context, d Deps, accountID, sessionI
 		return
 	}
 
+	// Any other session opening the doc (passive viewer) overrides solo lease,
+	// same policy as waitlist pressure — holder moves to contested TTL + extend cycle.
+	if added && rec != nil && rec.HolderSessionID != "" && rec.HolderSessionID != sessionID {
+		if _, err := RebindHolderLeaseContested(ctx, d.Redis, accountID, collection, docID); err != nil {
+			logs.WarnCtx(ctx, "doc lock viewer arrived: rebind contested failed",
+				"error", err,
+				"account_id", accountID,
+				"collection", collection,
+				"doc_id", docID,
+			)
+		}
+	}
+
 	if added {
 		_ = PublishLockEvent(ctx, d.JetStream, accountID, map[string]any{
 			LockPayloadEventKey: LockViewerEventJoined,
 			"collection":        collection,
-			"docID":      docID,
-			"sessionID":  sessionID,
+			"docID":             docID,
+			"sessionID":         sessionID,
 		})
 	}
 }
@@ -66,8 +79,19 @@ func HandleViewerDepartedIngress(ctx context.Context, d Deps, accountID, session
 		_ = PublishLockEvent(ctx, d.JetStream, accountID, map[string]any{
 			LockPayloadEventKey: LockViewerEventLeft,
 			"collection":        collection,
-			"docID":      docID,
-			"sessionID":  sessionID,
+			"docID":             docID,
+			"sessionID":         sessionID,
 		})
+	}
+
+	if removed && rec != nil && rec.HolderSessionID != "" && rec.HolderSessionID != sessionID {
+		if err := TryRebindHolderLeaseSoloIfUncontested(ctx, d.Redis, accountID, collection, docID); err != nil {
+			logs.WarnCtx(ctx, "doc lock viewer departed: rebind solo failed",
+				"error", err,
+				"account_id", accountID,
+				"collection", collection,
+				"doc_id", docID,
+			)
+		}
 	}
 }

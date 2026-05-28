@@ -29,6 +29,7 @@ describe("useLockExtendLoop", () => {
         enabled: true,
         lockHeld: true,
         readOnly: false,
+        leasePressure: true,
         patch,
         dispatchHeld,
         keyRef,
@@ -54,6 +55,7 @@ describe("useLockExtendLoop", () => {
         enabled: true,
         lockHeld: true,
         readOnly: false,
+        leasePressure: true,
         patch: vi.fn(),
         dispatchHeld: vi.fn(),
         keyRef,
@@ -65,6 +67,32 @@ describe("useLockExtendLoop", () => {
       window.dispatchEvent(
         new CustomEvent(DOCUMENT_LOCK_RENEW_REQUEST_EVENT, {
           detail: { collection: "other", docID: "d1" },
+        })
+      );
+    });
+
+    expect(extendDocumentLock).not.toHaveBeenCalled();
+  });
+
+  it("does not extend on renew-request when uncontested (solo lease)", async () => {
+    const keyRef = { current: { collection: "c1", docID: "d1" } };
+    renderHook(() =>
+      useLockExtendLoop({
+        enabled: true,
+        lockHeld: true,
+        readOnly: false,
+        leasePressure: false,
+        patch: vi.fn(),
+        dispatchHeld: vi.fn(),
+        keyRef,
+        syncLockFromServer: vi.fn(),
+      })
+    );
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent(DOCUMENT_LOCK_RENEW_REQUEST_EVENT, {
+          detail: { collection: "c1", docID: "d1" },
         })
       );
     });

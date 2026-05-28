@@ -1,21 +1,23 @@
 import { IconButton, Tooltip } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import useUsersStore from "../../Zustand/usersStore";
 import { buildGroupSearchAfterEditClose } from "../../Functions/Groups/groupPageViewSearch";
+import { yieldEditJobDocumentLocksOnLeave } from "../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
 
 export function CloseJobIcon({ backupJob }) {
   const { setActiveJobID, updateOrAddJobsToJobArray } = useUsersStore.getState().jobData.actions;
   const navigate = useNavigate({ from: '/editjob/$jobID' });
   const search = useSearch({ from: '/editjob/$jobID' });
+  const { jobID } = useParams({ from: "/editjob/$jobID" });
 
-  function onClick() {
-    const isGroupPage = search.activeGroup !== undefined;
+  async function onClick() {
     const groupID = search.activeGroup;
+    await yieldEditJobDocumentLocksOnLeave({ jobID, groupID });
     updateOrAddJobsToJobArray(backupJob);
     setActiveJobID(null);
-    
-    if (isGroupPage) {
+
+    if (groupID) {
       navigate({
         to: "/group/$groupID",
         params: { groupID },

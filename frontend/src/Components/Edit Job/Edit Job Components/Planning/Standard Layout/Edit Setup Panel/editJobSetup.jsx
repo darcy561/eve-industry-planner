@@ -18,6 +18,7 @@ import SystemIndexTextField from "../../../../../../Styled Components/Textfield/
 import UseAlternativeCheckbox from "../../../../../../Styled Components/Checkbox/useAlternativeCheckbox";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import recalculateJobFromSetup from "../../../../../../Functions/JobPlanner/recalculateJobFromSetup";
+import { setupShowsManualStructureFields } from "../../../../../../Functions/Helper/customStructureSetup";
 
 export function EditJobSetup(props) {
   const { state, actions } = props;
@@ -209,7 +210,18 @@ function ManualStructureSelection({
   const [fetchSystemDataTrigger, updateFetchSystemDataTrigger] =
     useState(false);
 
-  if (state.activeJob.build.setup[setupToEdit].customStructureID !== "") return null;
+  const getCustomStructureWithID =
+    useUsersStore.getState().applicationSettings.actions
+      .getCustomStructureWithID;
+
+  if (
+    !setupShowsManualStructureFields(
+      state.activeJob.build.setup[setupToEdit],
+      getCustomStructureWithID
+    )
+  ) {
+    return null;
+  }
 
   return (
     <>

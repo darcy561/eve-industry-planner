@@ -67,6 +67,12 @@ services:
     ports: !override
       - "8080:8080"
 
+  grafana:
+    ports: !override
+      - "127.0.0.1:3030:3000"
+    environment:
+      - GF_SERVER_ROOT_URL=http://127.0.0.1:3030
+
   frontend:
     image: eve-industry-planner-frontend:local
     build:

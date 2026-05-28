@@ -3,7 +3,9 @@ import {
   claimDocumentLockHandoff,
   forceReleaseDocumentLockSameAccount,
   handOverDocumentLock,
+  postDocumentLockViewerDeparted,
   pulseDocumentLockWaitlist,
+  releaseDocumentLock,
   requestDocumentLockAccess,
 } from "../Functions/Endpoints/Pirivate/documentLockClient.js";
 import { suppressDocumentLockVacancyNotice } from "../Functions/DocumentLock/documentLockAcquireFeedback.js";
@@ -14,6 +16,7 @@ import {
   initialScopedDocumentLockState,
 } from "../Functions/DocumentLock/documentLockScope.js";
 import { buildGrantedHolderPatch, numberOrNull } from "../Functions/DocumentLock/documentLockStatusFields.js";
+import { resolveDocumentLockApiTarget } from "../Functions/DocumentLock/resolveDocumentLockApiTarget.js";
 
 /**
  * @typedef {import("../Functions/DocumentLock/documentLockScope.js").ScopedDocumentLockState} ScopedDocumentLockState
@@ -158,15 +161,19 @@ const documentLockSlice = (set, get) => ({
 
       requestAccess: async (collection, docID) => {
         if (!collection || !docID) return;
+        const target = resolveDocumentLockApiTarget(collection, docID);
         const { patchDocumentLockForScope } = get().documentLock.actions;
         try {
-          const res = await requestDocumentLockAccess(collection, docID);
+          const res = await requestDocumentLockAccess(
+            target.collection,
+            target.docID
+          );
           const data = await res.json().catch(() => ({}));
           if (res.status === 201) {
             suppressDocumentLockVacancyNotice();
             patchDocumentLockForScope(
-              collection,
-              docID,
+              target.collection,
+              target.docID,
               buildGrantedHolderPatch(data)
             );
             showSnackbarSuccess("Edit access granted.", 3);
@@ -175,16 +182,17 @@ const documentLockSlice = (set, get) => ({
           if (res.status === 200 && data.acquired === true && data.held === true) {
             suppressDocumentLockVacancyNotice();
             patchDocumentLockForScope(
-              collection,
-              docID,
+              target.collection,
+              target.docID,
               buildGrantedHolderPatch(data)
             );
             showSnackbarSuccess("Edit access granted.", 3);
             return;
           }
           if (res.status === 202) {
-            patchDocumentLockForScope(collection, docID, {
+            patchDocumentLockForScope(target.collection, target.docID, {
               waitingInHandoffQueue: true,
+              readOnly: true,
             });
           }
         } catch {
@@ -201,6 +209,7 @@ const documentLockSlice = (set, get) => ({
        */
       forceReleaseSameAccountEditLock: async (collection, docID) => {
         if (!collection || !docID) return;
+        const target = resolveDocumentLockApiTarget(collection, docID);
         const { patchDocumentLockForScope } = get().documentLock.actions;
         const ok = window.confirm(
           "Remove the edit lock from the other tab on this account? " +
@@ -209,10 +218,13 @@ const documentLockSlice = (set, get) => ({
         );
         if (!ok) return;
         try {
-          const res = await forceReleaseDocumentLockSameAccount(collection, docID);
+          const res = await forceReleaseDocumentLockSameAccount(
+            target.collection,
+            target.docID
+          );
           if (res.status === 204) {
             suppressDocumentLockVacancyNotice();
-            patchDocumentLockForScope(collection, docID, {
+            patchDocumentLockForScope(target.collection, target.docID, {
               lockHeld: false,
               readOnly: false,
               pendingAccessRequest: false,
@@ -220,12 +232,15 @@ const documentLockSlice = (set, get) => ({
               lockTtlSeconds: null,
               ...clearedHandoffFieldsForSlice(),
             });
-            const res2 = await acquireDocumentLock(collection, docID);
+            const res2 = await acquireDocumentLock(
+              target.collection,
+              target.docID
+            );
             const data = await res2.json().catch(() => ({}));
             if (res2.status === 201) {
               patchDocumentLockForScope(
-                collection,
-                docID,
+                target.collection,
+                target.docID,
                 buildGrantedHolderPatch(data, { withClearedHandoff: true })
               );
               showSnackbarSuccess("Edit lock cleared — you now hold the lock.", 3);
@@ -240,8 +255,8 @@ const documentLockSlice = (set, get) => ({
             ) {
               suppressDocumentLockVacancyNotice();
               patchDocumentLockForScope(
-                collection,
-                docID,
+                target.collection,
+                target.docID,
                 buildGrantedHolderPatch(data, { withClearedHandoff: true })
               );
               showSnackbarSuccess("Edit lock cleared — you now hold the lock.", 3);
@@ -263,7 +278,7 @@ const documentLockSlice = (set, get) => ({
               if (typeof data.viewerCount === "number") {
                 viewerPatch.viewerCount = data.viewerCount;
               }
-              patchDocumentLockForScope(collection, docID, {
+              patchDocumentLockForScope(target.collection, target.docID, {
                 ...viewerPatch,
                 ...clearedHandoffFieldsForSlice(),
               });
@@ -347,14 +362,15 @@ const documentLockSlice = (set, get) => ({
        */
       acceptAccessRequest: async (collection, docID) => {
         if (!collection || !docID) return;
+        const target = resolveDocumentLockApiTarget(collection, docID);
         const outcome = await requestEditJobReleaseConfirmation({
-          collection,
-          docID,
+          collection: target.collection,
+          docID: target.docID,
         });
         if (outcome === "cancelled") {
           get().documentLock.actions.clearPendingAccessNotice(
-            collection,
-            docID
+            target.collection,
+            target.docID
           );
           return;
         }
@@ -365,7 +381,98 @@ const documentLockSlice = (set, get) => ({
         }
         // "not-handled" → no edit-page handler registered (group page, etc) or
         // the holder has no unsaved changes; just complete the hand-over.
-        await get().documentLock.actions.handOverEditAccess(collection, docID);
+        await get().documentLock.actions.handOverEditAccess(
+          target.collection,
+          target.docID
+        );
+      },
+
+      /**
+       * Leave a document (close job, navigate away): hand over when someone is
+       * waiting, otherwise `/release`; passive viewers send `/viewer-departed`.
+       * Silent — no snackbars (unmount cleanup is best-effort backup).
+       *
+       * @param {string} collection
+       * @param {string} docID
+       */
+      yieldDocumentLockOnLeave: async (collection, docID) => {
+        if (!collection || !docID) return;
+        const k = docLockScopeKey(collection, docID);
+        const dl =
+          get().documentLock.scopes[k] ?? initialScopedDocumentLockState();
+        const { patchDocumentLockForScope } = get().documentLock.actions;
+        const releasedNeutralPatch = {
+          lockHeld: false,
+          readOnly: false,
+          pendingAccessRequest: false,
+          lockExpiresAtUnix: null,
+          lockTtlSeconds: null,
+          suppressVacancyAcquire: true,
+          ...clearedHandoffFieldsForSlice(),
+        };
+        const formerHolderReadOnlyPatch = {
+          readOnly: true,
+          lockHeld: false,
+          pendingAccessRequest: false,
+          lockExpiresAtUnix: null,
+          lockTtlSeconds: null,
+          extendSegmentCount: null,
+          waitlistLen: null,
+          handoffPendingHolder: false,
+          pendingHandoffOfferClientID: null,
+          pendingHandoffExpiresAtUnix: null,
+          handoffOfferForMe: false,
+          waitingInHandoffQueue: false,
+        };
+
+        const isHolder =
+          dl.lockHeld === true || dl.pendingAccessRequest === true;
+        if (isHolder) {
+          const shouldHandOver =
+            dl.pendingAccessRequest === true ||
+            (typeof dl.waitlistLen === "number" && dl.waitlistLen > 0);
+          try {
+            // Arm before any await: `/release` publishes `document_lock_released`
+            // over WS immediately; without this, #21 auto-acquire wins the race.
+            patchDocumentLockForScope(collection, docID, {
+              suppressVacancyAcquire: true,
+            });
+            if (shouldHandOver) {
+              const res = await handOverDocumentLock(collection, docID);
+              if (res.ok && res.status === 200) {
+                patchDocumentLockForScope(
+                  collection,
+                  docID,
+                  formerHolderReadOnlyPatch
+                );
+                return;
+              }
+              if (res.ok && res.status === 204) {
+                patchDocumentLockForScope(
+                  collection,
+                  docID,
+                  releasedNeutralPatch
+                );
+                return;
+              }
+            }
+            const rel = await releaseDocumentLock(collection, docID);
+            if (rel.ok) {
+              patchDocumentLockForScope(collection, docID, releasedNeutralPatch);
+            }
+          } catch {
+            /* ignore */
+          }
+          return;
+        }
+
+        if (dl.readOnly || dl.waitingInHandoffQueue) {
+          try {
+            await postDocumentLockViewerDeparted(collection, docID);
+          } catch {
+            /* ignore */
+          }
+        }
       },
 
       /**
@@ -375,13 +482,15 @@ const documentLockSlice = (set, get) => ({
        * requester actually receives the lock instead of racing for it.
        */
       handOverEditAccess: async (collection, docID) => {
+        const target = resolveDocumentLockApiTarget(collection, docID);
         const dl =
-          get().documentLock.scopes[docLockScopeKey(collection, docID)] ??
-          initialScopedDocumentLockState();
+          get().documentLock.scopes[
+            docLockScopeKey(target.collection, target.docID)
+          ] ?? initialScopedDocumentLockState();
         const mayHandOver =
           (dl.lockHeld === true || dl.pendingAccessRequest === true) &&
-          collection &&
-          docID;
+          target.collection &&
+          target.docID;
         if (!mayHandOver) return;
 
         const { patchDocumentLockForScope } = get().documentLock.actions;
@@ -409,13 +518,24 @@ const documentLockSlice = (set, get) => ({
         };
 
         try {
-          const res = await handOverDocumentLock(collection, docID);
+          const res = await handOverDocumentLock(
+            target.collection,
+            target.docID
+          );
           if (res.ok && res.status === 200) {
-            patchDocumentLockForScope(collection, docID, readOnlyFormerHolderPatch);
+            patchDocumentLockForScope(
+              target.collection,
+              target.docID,
+              readOnlyFormerHolderPatch
+            );
             return;
           }
           if (res.ok && res.status === 204) {
-            patchDocumentLockForScope(collection, docID, releasedNoQueuePatch);
+            patchDocumentLockForScope(
+              target.collection,
+              target.docID,
+              releasedNoQueuePatch
+            );
             showSnackbarWarning(
               "The other session is no longer waiting — the edit lock was released.",
               5

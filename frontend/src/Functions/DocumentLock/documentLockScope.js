@@ -34,6 +34,11 @@ export function initialScopedDocumentLockState() {
      * header does not flash the vacant/orphan affordance during bootstrap.
      */
     lockScopeBootstrapped: false,
+    /**
+     * Set when this tab voluntarily yields the lease (close job, navigate away).
+     * Blocks the #21 vacancy `tryAcquire` path until the scope is reset on unmount.
+     */
+    suppressVacancyAcquire: false,
   };
 }
 
@@ -68,4 +73,16 @@ export function scopeHasOtherSessionContention(st) {
   if (st.handoffOfferForMe) return true;
   if (typeof st.viewerCount === "number" && st.viewerCount > 0) return true;
   return false;
+}
+
+/**
+ * True when the holder must leave solo lease mode (contested TTL + `/extend`).
+ * Matches {@link scopeHasOtherSessionContention} — any other session on the doc
+ * (passive viewer, waitlist, handoff) overrides the long solo lease, analogous
+ * to same-account force-release breaking another session's hold.
+ *
+ * @param {ScopedDocumentLockState} st
+ */
+export function scopeHasLeasePressure(st) {
+  return scopeHasOtherSessionContention(st);
 }

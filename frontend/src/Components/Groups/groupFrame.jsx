@@ -11,7 +11,7 @@ import GroupNameFrame from "./Group Name/groupNameFrame";
 import { useGroupPageSideMenuFunctions } from "./Side Menu/Buttons/buttonFunctions";
 import getMissingJobObjects from "../../Functions/Helper/getMissingJobObjects";
 import { PriceEntryDialog } from "../Dialogues/Price Entry/PriceEntry";
-import recalculateInstallCostsWithNewData from "../../Functions/Installation Costs/recalculateInstallCostsWithNewData";
+import { recalculateInstallCostsWithNewData } from "../../Functions/Installation Costs/installCosts";
 import getMissingESIData from "../../Functions/Shared/getMissingESIData";
 import PriceHistoryDialog from "../Dialogues/Price History/dialogFrame";
 import MarketDataDialog from "../Dialogues/Market Data/dialogFrame";
@@ -170,6 +170,7 @@ function GroupPageFrame() {
   );
 
   const isGroupReady = activeGroupID === groupID;
+  const groupLockEnabled = Boolean(isLoggedIn && groupID && activeGroupObject);
 
   useEffect(() => {
     if (!isGroupReady) return;
@@ -192,7 +193,9 @@ function GroupPageFrame() {
     }
   }, [isGroupReady, state.pageView]);
 
-  useDocumentLock(USER_JOB_GROUPS_COLLECTION, groupID, Boolean(isLoggedIn && isGroupReady), {
+  useDocumentLock(USER_JOB_GROUPS_COLLECTION, groupID, groupLockEnabled, {
+    releaseOnUnmount: false,
+    cascadeMemberJobScopesOnGrant: true,
     pendingAccessRequestMessage:
       "Another tab requested edit access for this group.",
     becameOwnerVacantMessage:
@@ -210,7 +213,7 @@ function GroupPageFrame() {
   useRegisterHeaderDocumentLockUI({
     collection: USER_JOB_GROUPS_COLLECTION,
     docID: groupID,
-    enabled: Boolean(isLoggedIn && isGroupReady),
+    enabled: groupLockEnabled,
     readOnlyMessage:
       "This group is being edited in another session (read-only).",
   });

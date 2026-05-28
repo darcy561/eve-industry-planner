@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Button } from "@mui/material";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { requestEditJobNavigation } from "../../../../../../../Events/editJobNavigationEvents";
 import closeActiveJob from "../../../../../../../Functions/JobPlanner/closeActiveJob";
 import useUsersStore from "../../../../../../../Zustand/usersStore";
 import EditJobLeaveConfirmDialog from "../../../../../EditJobLeaveConfirmDialog";
+import { yieldEditJobDocumentLocksOnLeave } from "../../../../../../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
+import { useActiveJobPersistGate } from "../../../../../Edit Job Hooks/useActiveJobDocumentLock";
 
 export function OpenChildJobButon_ChildJobPopoverFrame({
   state,
@@ -14,11 +16,13 @@ export function OpenChildJobButon_ChildJobPopoverFrame({
 }) {
   const navigate = useNavigate({ from: '/editjob/$jobID' });
   const search = useSearch({ from: '/editjob/$jobID' });
+  const { jobID: routeJobID } = useParams({ from: "/editjob/$jobID" });
   const queryClient = useQueryClient();
   const [fallbackOpen, setFallbackOpen] = useState(false);
   const [leaveSaving, setLeaveSaving] = useState(false);
   const [pendingNav, setPendingNav] = useState(null);
   const { setActiveJobID } = useUsersStore.getState().jobData.actions;
+  const persist = useActiveJobPersistGate(state);
 
   const closeFallbackDialog = () => {
     if (leaveSaving) return;
@@ -26,8 +30,12 @@ export function OpenChildJobButon_ChildJobPopoverFrame({
     setPendingNav(null);
   };
 
-  const navigateToPendingJob = () => {
+  const navigateToPendingJob = async () => {
     if (!pendingNav) return;
+    await yieldEditJobDocumentLocksOnLeave({
+      jobID: routeJobID,
+      groupID: search.activeGroup,
+    });
     navigate({
       to: "/editjob/$jobID",
       params: { jobID: pendingNav.jobID },
@@ -74,12 +82,13 @@ export function OpenChildJobButon_ChildJobPopoverFrame({
       <EditJobLeaveConfirmDialog
         open={fallbackOpen}
         onClose={closeFallbackDialog}
-        onDiscard={() => {
+        onDiscard={async () => {
           setActiveJobID(null);
-          navigateToPendingJob();
+          await navigateToPendingJob();
         }}
+        saveDisabled={!persist.canPersist}
         onSave={async () => {
-          if (!pendingNav) return;
+          if (!pendingNav || !persist.canPersist) return;
           setLeaveSaving(true);
           try {
             await closeActiveJob(

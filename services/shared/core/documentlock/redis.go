@@ -18,8 +18,18 @@ const (
 	KeyPartSep = "\x1e"
 )
 
-// DefaultLockTTL is the Redis key TTL and default extension window.
+// DefaultLockTTL is the Redis key TTL and default extension window (contested mode).
 const DefaultLockTTL = 5 * time.Minute
+
+// SoloHolderLockTTL is used while the holder has no waitlist entries and no passive viewers.
+// Prevents frequent /extend traffic; reverts to DefaultLockTTL when someone joins or requests access.
+const SoloHolderLockTTL = 24 * time.Hour
+
+// Lease modes stored on LockRecord.leaseMode.
+const (
+	LeaseModeSolo       = "solo"
+	LeaseModeContested  = "contested"
+)
 
 // MaxExtensionsBeforeHandoffConsult — after this many consecutive lease segments, extend consults the waitlist.
 const MaxExtensionsBeforeHandoffConsult = 3
@@ -35,9 +45,20 @@ type LockRecord struct {
 	HolderSessionID      string `json:"holderSessionID"`
 	AccountID            string `json:"accountID"`
 	ExpiresAtUnix        int64  `json:"expiresAtUnix"`
+	LeaseMode            string `json:"leaseMode,omitempty"` // solo | contested
 	ExtendCount          int    `json:"extendCount,omitempty"`
 	ProbeTargetSessionID string `json:"probeTargetSessionID,omitempty"`
 	ProbeExpiresAtUnix   int64  `json:"probeExpiresAtUnix,omitempty"`
+}
+
+// SoloLockTTLSeconds returns SoloHolderLockTTL as whole seconds for Lua ARGV.
+func SoloLockTTLSeconds() int64 {
+	return int64(SoloHolderLockTTL / time.Second)
+}
+
+// ContestedLockTTLSeconds returns DefaultLockTTL as whole seconds for Lua ARGV.
+func ContestedLockTTLSeconds() int64 {
+	return int64(DefaultLockTTL / time.Second)
 }
 
 // LockKey builds the Redis key for a per-document lock (account-scoped so

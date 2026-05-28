@@ -49,7 +49,9 @@ export function useLockSyncFromServer({
             ...viewerCountPatch,
           });
           dispatchHeld({ type: DOCUMENT_LOCK_HELD_ACTIONS.SET, held: false });
-          void tryAcquire();
+          if (prev.suppressVacancyAcquire !== true) {
+            void tryAcquire();
+          }
           return;
         }
         if (prev.readOnly) {

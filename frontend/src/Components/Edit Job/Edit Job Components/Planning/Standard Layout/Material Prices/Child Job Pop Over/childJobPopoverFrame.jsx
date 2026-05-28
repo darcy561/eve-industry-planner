@@ -6,6 +6,7 @@ import { ChildJobSwitcher_ChildJobPopoverFrame } from "./switchChildJob";
 import { DisplayMismatchedChildTotals_ChildJobPopoverFrame } from "./misMatchedTotals";
 import { ChildJobMaterialTotalCosts_ChildJobPopoverFrame } from "./childJobTotalCosts";
 import { calculateMaterialCostFromChildJobs } from "../../../../../../../Functions/Groups/materialCostFromChildJobs.js";
+import { getJobInstallCostForPlanning } from "../../../../../../../Functions/Installation Costs/installCosts.js";
 import { ButtonSelectionLogic_ChildJobPopoverFrame } from "./buttonSelectionLogic";
 import { STANDARD_TEXT_FORMAT } from "../../../../../../../Context/defaultValues";
 import useUsersStore from "../../../../../../../Zustand/usersStore";
@@ -84,11 +85,7 @@ export function ChildJobPopoverFrame(props) {
     worldMarketData,
   ]);
 
-  const totalInstallCosts = Object.values(
-    currentJob?.build?.setup || []
-  ).reduce((prev, { estimatedInstallCost }) => {
-    return (prev += estimatedInstallCost);
-  }, 0);
+  const totalInstallCosts = getJobInstallCostForPlanning(currentJob);
 
   const totalCostPerItem =
     (currentJob?.build?.products?.totalQuantity || 0) !== 0

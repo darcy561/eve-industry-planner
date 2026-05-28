@@ -6,7 +6,9 @@ vi.mock("../Functions/Endpoints/Pirivate/documentLockClient.js", () => ({
   claimDocumentLockHandoff: vi.fn(),
   forceReleaseDocumentLockSameAccount: vi.fn(),
   handOverDocumentLock: vi.fn(),
+  postDocumentLockViewerDeparted: vi.fn(),
   pulseDocumentLockWaitlist: vi.fn(),
+  releaseDocumentLock: vi.fn(),
   requestDocumentLockAccess: vi.fn(),
 }));
 
@@ -23,13 +25,27 @@ vi.mock("../Functions/DocumentLock/documentLockAcquireFeedback.js", () => ({
   suppressDocumentLockVacancyNotice: vi.fn(),
 }));
 
+const { mockResolveDocumentLockApiTarget } = vi.hoisted(() => ({
+  mockResolveDocumentLockApiTarget: vi.fn((collection, docID) => ({
+    collection,
+    docID,
+  })),
+}));
+
+vi.mock("../Functions/DocumentLock/resolveDocumentLockApiTarget.js", () => ({
+  resolveDocumentLockApiTarget: (...args) =>
+    mockResolveDocumentLockApiTarget(...args),
+}));
+
 import documentLockSlice from "./documentLockSlice.js";
 import {
   acquireDocumentLock,
   claimDocumentLockHandoff,
   forceReleaseDocumentLockSameAccount,
   handOverDocumentLock,
+  postDocumentLockViewerDeparted,
   pulseDocumentLockWaitlist,
+  releaseDocumentLock,
   requestDocumentLockAccess,
 } from "../Functions/Endpoints/Pirivate/documentLockClient.js";
 import { suppressDocumentLockVacancyNotice } from "../Functions/DocumentLock/documentLockAcquireFeedback.js";
@@ -52,6 +68,10 @@ describe("documentLockSlice", () => {
 
   beforeEach(() => {
     useStore = createLockOnlyStore();
+    mockResolveDocumentLockApiTarget.mockImplementation((collection, docID) => ({
+      collection,
+      docID,
+    }));
   });
 
   it("patchDocumentLockForScope merges into existing scope", () => {
@@ -162,6 +182,10 @@ describe("documentLockSlice — async lock flows (regression)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockResolveDocumentLockApiTarget.mockImplementation((collection, docID) => ({
+      collection,
+      docID,
+    }));
     useStore = createLockOnlyStore();
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });
@@ -258,6 +282,97 @@ describe("documentLockSlice — async lock flows (regression)", () => {
     expect(
       useStore.getState().documentLock.scopes[scopeKey]?.waitingInHandoffQueue
     ).toBe(true);
+  });
+
+  it("requestAccess: group member job calls POST /request on the group lock", async () => {
+    mockResolveDocumentLockApiTarget.mockReturnValueOnce({
+      collection: "user_job_groups",
+      docID: "group-1",
+    });
+    requestDocumentLockAccess.mockResolvedValue({
+      ok: true,
+      status: 202,
+      json: vi.fn().mockResolvedValue({}),
+    });
+
+    await useStore.getState().documentLock.actions.requestAccess(
+      "user_job_documents",
+      "job-in-group"
+    );
+
+    expect(requestDocumentLockAccess).toHaveBeenCalledWith(
+      "user_job_groups",
+      "group-1"
+    );
+    expect(
+      useStore.getState().documentLock.scopes[
+        docLockScopeKey("user_job_groups", "group-1")
+      ]?.waitingInHandoffQueue
+    ).toBe(true);
+  });
+
+  it("yieldDocumentLockOnLeave: releases when holder with no waitlist", async () => {
+    useStore.getState().documentLock.actions.patchDocumentLockForScope(collection, docID, {
+      lockHeld: true,
+      waitlistLen: 0,
+    });
+    let suppressWhenReleaseCalled;
+    releaseDocumentLock.mockImplementation(async () => {
+      suppressWhenReleaseCalled =
+        useStore.getState().documentLock.scopes[scopeKey]?.suppressVacancyAcquire;
+      return { ok: true, status: 204 };
+    });
+
+    await useStore.getState().documentLock.actions.yieldDocumentLockOnLeave(
+      collection,
+      docID
+    );
+
+    expect(releaseDocumentLock).toHaveBeenCalledWith(collection, docID);
+    expect(handOverDocumentLock).not.toHaveBeenCalled();
+    expect(suppressWhenReleaseCalled).toBe(true);
+    const s = useStore.getState().documentLock.scopes[scopeKey];
+    expect(s?.lockHeld).toBe(false);
+    expect(s?.readOnly).toBe(false);
+    expect(s?.suppressVacancyAcquire).toBe(true);
+  });
+
+  it("yieldDocumentLockOnLeave: hands over when waitlist has entries", async () => {
+    useStore.getState().documentLock.actions.patchDocumentLockForScope(collection, docID, {
+      lockHeld: true,
+      waitlistLen: 1,
+    });
+    handOverDocumentLock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: vi.fn().mockResolvedValue(""),
+    });
+
+    await useStore.getState().documentLock.actions.yieldDocumentLockOnLeave(
+      collection,
+      docID
+    );
+
+    expect(handOverDocumentLock).toHaveBeenCalledWith(collection, docID);
+    expect(releaseDocumentLock).not.toHaveBeenCalled();
+    expect(useStore.getState().documentLock.scopes[scopeKey]?.readOnly).toBe(true);
+  });
+
+  it("yieldDocumentLockOnLeave: viewer-depart when queued but not holder", async () => {
+    useStore.getState().documentLock.actions.patchDocumentLockForScope(collection, docID, {
+      lockHeld: false,
+      waitingInHandoffQueue: true,
+      readOnly: false,
+    });
+    postDocumentLockViewerDeparted.mockResolvedValue({ ok: true, status: 204 });
+
+    await useStore.getState().documentLock.actions.yieldDocumentLockOnLeave(
+      collection,
+      docID
+    );
+
+    expect(postDocumentLockViewerDeparted).toHaveBeenCalledWith(collection, docID);
+    expect(releaseDocumentLock).not.toHaveBeenCalled();
   });
 
   it("handOverEditAccess: runs when pendingAccessRequest even if lockHeld false (snackbar accept)", async () => {

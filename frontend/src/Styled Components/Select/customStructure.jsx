@@ -27,9 +27,12 @@ function CustomStructureSelect({ value, jobType, onChange }) {
       []
   );
   
-  // Validate that the current value exists in the available options
-  const validValue = structures.some(structure => structure.id === value) ? value : "";
-  
+  const hasSelectedValue = Boolean(value);
+  const validValue = structures.some((structure) => structure.id === value)
+    ? value
+    : "";
+  const isOrphanedReference = hasSelectedValue && !validValue;
+
   return (
     <FormControl
       sx={{
@@ -59,9 +62,14 @@ function CustomStructureSelect({ value, jobType, onChange }) {
           }
         }}
       >
-        {validValue && (
-          <MenuItem key="clear" value={null}>
+        {hasSelectedValue && (
+          <MenuItem key="clear" value="">
             Clear
+          </MenuItem>
+        )}
+        {isOrphanedReference && (
+          <MenuItem key="missing" value={value} disabled>
+            (missing structure)
           </MenuItem>
         )}
         {structures.map((entry) => {

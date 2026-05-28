@@ -33,6 +33,7 @@ import { showShoppingList } from "../../../../Events/shoppingListEvents";
 import { showPriceEntryDialog } from "../../../../Events/priceEntryEvents";
 import moveItemsOnPlanner from "../../../../Functions/JobPlanner/moveItemsOnPlanner";
 import closeActiveGroup from "../../../../Functions/Groups/closeGroup";
+import { USER_JOB_GROUPS_COLLECTION } from "../../../../Functions/DocumentLock/documentLockCollections.js";
 import {
   openGroupTemplatesApplyDialog,
   openGroupTemplatesSaveDialog,
@@ -82,7 +83,16 @@ export function useGroupPageSideMenuFunctions(
         divider: true,
         disabled: roOff("Close Group"),
         onClick: async () => {
+          const groupID = activeGroupObject?.groupID;
           await closeActiveGroup(groupJobs);
+          if (groupID) {
+            await useUsersStore
+              .getState()
+              .documentLock.actions.yieldDocumentLockOnLeave(
+                USER_JOB_GROUPS_COLLECTION,
+                groupID
+              );
+          }
           navigate({ to: "/jobplanner" });
         },
       },

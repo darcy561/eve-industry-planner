@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import getMissingESIData from "../../../../../Functions/Shared/getMissingESIData";
 import checkJobTypeIsBuildable from "../../../../../Functions/Helper/checkJobTypeIsBuildable";
-import recalculateInstallCostsWithNewData from "../../../../../Functions/Installation Costs/recalculateInstallCostsWithNewData";
+import { recalculateInstallCostsWithNewData } from "../../../../../Functions/Installation Costs/installCosts";
 import VirtualisedRecipeSearch from "../../../../../Styled Components/autocomplete/virtualisedRecipeSearch";
 import useUsersStore from "../../../../../Zustand/usersStore";
 import { buildJob } from "../../../../../Functions/JobPlanner/buildJob";

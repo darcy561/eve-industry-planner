@@ -1,15 +1,17 @@
 import { Tooltip, IconButton } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 
 import deleteJobsFromPlanner from "../../Functions/JobPlanner/deleteMultipleJobs";
 import { buildGroupSearchAfterEditClose } from "../../Functions/Groups/groupPageViewSearch";
+import { yieldEditJobDocumentLocksOnLeave } from "../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
 import { useActiveJobPersistGate } from "./Edit Job Hooks/useActiveJobDocumentLock";
 import { persistAffordanceBlockedReason } from "../DocumentLock/LockGatedTooltip";
 
 export function DeleteJobIcon({ state }) {
   const navigate = useNavigate({ from: "/editjob/$jobID" });
   const search = useSearch({ from: "/editjob/$jobID" });
+  const { jobID } = useParams({ from: "/editjob/$jobID" });
   const persist = useActiveJobPersistGate(state);
 
   const deleteBlockedReason = persistAffordanceBlockedReason({
@@ -39,6 +41,10 @@ export function DeleteJobIcon({ state }) {
             if (!persist.canPersist) return;
             await deleteJobsFromPlanner(state.activeJob.jobID);
             const groupIDFromParams = search.activeGroup;
+            await yieldEditJobDocumentLocksOnLeave({
+              jobID,
+              groupID: groupIDFromParams,
+            });
             if (groupIDFromParams) {
               navigate({
                 to: "/group/$groupID",

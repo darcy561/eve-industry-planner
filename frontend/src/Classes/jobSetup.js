@@ -11,7 +11,7 @@ import {
   getSystemTypeFromID,
 } from "../Functions/Helper/getStructureInfo";
 import calculateTimeForSetup from "../Functions/Blueprint Calculations/calculateTimeForSetup";
-import calculateInstallCostfromSetup from "../Functions/Helper/calculateInstallCostfromSetup";
+import calculateInstallCostfromSetup from "../Functions/Installation Costs/installCosts";
 import calculateMaterialsFromSetup from "../Functions/Blueprint Calculations/calculateMaterialsForSetup";
 /**
  * Setup class for EVE Online industry job configurations.
@@ -448,7 +448,7 @@ class Setup {
     if (inputValue === undefined || getCustomStructureWithID === undefined)
       return;
 
-    if (inputValue == null) {
+    if (inputValue == null || inputValue === "") {
       this.customStructureID = "";
       return;
     }

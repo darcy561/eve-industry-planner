@@ -9,10 +9,10 @@ import {
  * Must stay as top-level references so `useSyncExternalStore` snapshots stay stable (Zustand v5 + React 19).
  */
 
-/** Prefer job scope over group when both register (e.g. edit-job page). Lower = wins. */
+/** Prefer group scope over job when both register — group is the unit of edit access. */
 function headerRegistrationRank(collection) {
-  if (collection === USER_JOBS_COLLECTION) return 0;
-  if (collection === USER_JOB_GROUPS_COLLECTION) return 1;
+  if (collection === USER_JOB_GROUPS_COLLECTION) return 0;
+  if (collection === USER_JOBS_COLLECTION) return 1;
   return 2;
 }
 
