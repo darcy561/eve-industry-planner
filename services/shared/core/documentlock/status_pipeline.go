@@ -120,12 +120,15 @@ func statusBatchFetch(
 		if rec == nil {
 			payload["held"] = false
 		} else {
-			for k, v := range LockPayload(rec.ExpiresAtUnix) {
+			for k, v := range LockPayloadForRecord(rec.ExpiresAtUnix, rec.LeaseMode) {
 				payload[k] = v
 			}
 			payload["held"] = true
 			payload["holderSessionID"] = rec.HolderSessionID
 			payload["extendCount"] = rec.ExtendCount
+			if rec.LeaseMode != "" {
+				payload["leaseMode"] = rec.LeaseMode
+			}
 			if wl, lerr := llen[i].Result(); lerr == nil {
 				payload["waitlistLen"] = wl
 			}

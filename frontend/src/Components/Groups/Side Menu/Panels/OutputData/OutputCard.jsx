@@ -30,7 +30,9 @@ function OutputJobCard({ inputJob, state, actions }) {
   const navigate = useNavigate();
 
   const CurrentBuildCost =
-    calculateCurrentJobBuildCostFromChildren(inputJob) || 0;
+    calculateCurrentJobBuildCostFromChildren(inputJob, {
+      installCostMode: "actual",
+    }) || 0;
 
   const currentMarketPrice =
     useUsersStore.getState().worldData.marketData[inputJob.itemID]?.[

@@ -12,6 +12,7 @@ import RigTypeSelect from "../../../../../Styled Components/Select/rigType";
 import SystemTypeSelect from "../../../../../Styled Components/Select/systemType";
 import TaxPercentageTextField from "../../../../../Styled Components/Textfield/tax";
 import useUsersStore from "../../../../../Zustand/usersStore";
+import { setupShowsManualStructureFields } from "../../../../../Functions/Helper/customStructureSetup";
 
 export function WatchListSetupOptions_WatchlistDialog({
   watchlistItemRequest,
@@ -82,7 +83,7 @@ export function WatchListSetupOptions_WatchlistDialog({
           </Grid>
         </Grid>
       )}
-      {jobSetup.customStructureID === "" && (
+      {setupShowsManualStructureFields(jobSetup, getCustomStructureWithID) && (
         <Grid container spacing={2} size={12}>
           <Grid size={{ xs: 12, sm: 6 }} sx={{ paddingRight: "10px" }}>
             <StructureTypeSelect

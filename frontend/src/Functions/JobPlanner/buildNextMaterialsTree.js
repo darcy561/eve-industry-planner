@@ -3,7 +3,7 @@ import buildParentChildRelationships from "../Helper/buildParentChildRelationshi
 import retrieveJobIDsFromGroupObjects from "../Helper/getJobIDsFromGroupObjects";
 import materialTreeShaker from "../Helper/materialTreeShaker";
 import getMissingESIData from "../Shared/getMissingESIData";
-import recalculateInstallCostsWithNewData from "../Installation Costs/recalculateInstallCostsWithNewData";
+import { recalculateInstallCostsWithNewData } from "../Installation Costs/installCosts";
 import { getAvailableBlueprintsByMaterialID } from "../Helper/getAvailableBlueprints";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import { showSnackbarSuccess } from "../../Events/snackbarEvents";

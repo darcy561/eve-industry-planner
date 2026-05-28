@@ -9,15 +9,21 @@ import { selectScopedDocumentLock } from "../../Functions/DocumentLock/documentL
 
 /**
  * Passive viewer `/viewer-arrived` / `/viewer-departed` + `sendBeacon` on `pagehide`.
+ * Queued waitlist tabs with the job open count as viewing even when `readOnly` is
+ * briefly false (e.g. after `request` 202 before acquire, or read-only grace).
  */
 export function useLockViewerPresence({
   enabled,
   collection,
   docID,
   readOnly,
+  waitingInHandoffQueue,
+  releaseOnUnmount = true,
 }) {
+  const registerAsViewer = readOnly || waitingInHandoffQueue;
+
   useEffect(() => {
-    if (!enabled || !collection || !docID || !readOnly) return undefined;
+    if (!enabled || !collection || !docID || !registerAsViewer) return undefined;
     void postDocumentLockViewerArrived(collection, docID).catch(() => {});
     function onPageHide() {
       sendDocumentLockViewerDepartedBeacon(collection, docID);
@@ -30,10 +36,11 @@ export function useLockViewerPresence({
         collection,
         docID
       );
+      if (!releaseOnUnmount) return;
       if (scope.lockHeld && !scope.readOnly) {
         return;
       }
       void postDocumentLockViewerDeparted(collection, docID).catch(() => {});
     };
-  }, [enabled, collection, docID, readOnly]);
+  }, [enabled, collection, docID, registerAsViewer, releaseOnUnmount]);
 }

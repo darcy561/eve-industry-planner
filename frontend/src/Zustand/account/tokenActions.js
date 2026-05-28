@@ -266,6 +266,7 @@ export const tokenActions = (set, get) => ({
             }),
             sessionID,
             lastPlannerSessionValidatedAt: sessionID ? Date.now() : null,
+            plannerPrivateAuthReady: sessionID ? false : state.account.plannerPrivateAuthReady,
             refreshToken: cloudResolved
               ? null
               : response.refresh_token ?? null,
@@ -309,6 +310,21 @@ export const tokenActions = (set, get) => ({
   /**
    * End of cloud linked-character hydration from login/bootstrap (`runPostLoginAccountSync`).
    */
+  setPlannerPrivateAuthReady: (ready) => {
+    set(
+      (state) => ({
+        ...state,
+        account: {
+          ...state.account,
+          plannerPrivateAuthReady: Boolean(ready),
+          actions: state.account.actions,
+        },
+      }),
+      false,
+      "account/setPlannerPrivateAuthReady"
+    );
+  },
+
   clearLinkedBootstrapHydrationPending: () => {
     set(
       (state) => ({
@@ -409,7 +425,8 @@ export const tokenActions = (set, get) => ({
    *
    * Concurrent callers share one in-flight promise via {@link inflightRefreshServerTokenPromise}.
    */
-  refreshServerToken: async () => {
+  refreshServerToken: async (options = {}) => {
+    const force = Boolean(options?.force);
     if (shouldDeferAuthRefreshDueToTranquilityOffline(get)) {
       return;
     }
@@ -425,6 +442,7 @@ export const tokenActions = (set, get) => ({
       const sessionID = state.account.sessionID;
       const lastOk = state.account.lastPlannerSessionValidatedAt;
       if (
+        !force &&
         typeof sessionID === "string" &&
         sessionID.trim().length > 0 &&
         typeof lastOk === "number" &&
@@ -511,7 +529,7 @@ export const tokenActions = (set, get) => ({
    */
   runStaggeredEsiTokenStep: async () => {
     const state = get();
-    if (!state.account.isLoggedIn) return;
+    if (!state.account.isLoggedIn || !state.account.plannerPrivateAuthReady) return;
     const characters = state.account.characters.filter(
       (c) =>
         c &&

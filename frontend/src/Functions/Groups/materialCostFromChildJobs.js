@@ -1,4 +1,5 @@
 import useUsersStore from "../../Zustand/usersStore.js";
+import { getJobInstallCostForPlanning } from "../Installation Costs/installCosts.js";
 
 /**
  * First matching job per ID (same as repeated `.find()` on a concatenated list).
@@ -32,16 +33,7 @@ function calculateJobUnitCost(inputJob, ctx) {
 
   try {
     let jobCost = inputJob.build.costs.extrasTotal;
-
-    const { installCosts } = inputJob.build.costs;
-    if (installCosts == null) {
-      jobCost += Object.values(inputJob.build.setup).reduce(
-        (prev, { estimatedInstallCost }) => prev + estimatedInstallCost,
-        0
-      );
-    } else {
-      jobCost += installCosts;
-    }
+    jobCost += getJobInstallCostForPlanning(inputJob);
 
     for (const material of inputJob.build.materials) {
       const childJobLocation = inputJob.build.childJobs[material.typeID];

@@ -94,6 +94,14 @@ export function applyDocumentLockStatusFromPayload(collection, docID, data) {
   if (typeof data.viewerCount === "number") {
     patch.viewerCount = data.viewerCount;
   }
+  const extendCount = numberOrNull(data, "extendCount");
+  if (extendCount !== null) {
+    patch.extendSegmentCount = extendCount;
+  }
+  const waitlistLen = numberOrNull(data, "waitlistLen");
+  if (waitlistLen !== null) {
+    patch.waitlistLen = waitlistLen;
+  }
 
   useUsersStore
     .getState()

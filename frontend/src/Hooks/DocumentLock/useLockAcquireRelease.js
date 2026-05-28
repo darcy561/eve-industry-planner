@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useRef } from "react";
 import useUsersStore from "../../Zustand/usersStore.js";
+import { selectScopedDocumentLock } from "../../Functions/DocumentLock/documentLockSelectors.js";
 import {
   acquireDocumentLock,
+  postDocumentLockViewerDeparted,
   releaseDocumentLock,
 } from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
 import {
   buildGrantedHolderPatch,
   numberOrNull,
 } from "../../Functions/DocumentLock/documentLockStatusFields.js";
+import { USER_JOB_GROUPS_COLLECTION } from "../../Functions/DocumentLock/documentLockCollections.js";
+import { patchGroupMemberJobScopesAfterGroupGrant } from "../../Functions/DocumentLock/patchGroupMemberJobScopesAfterGroupGrant.js";
 import { LOCK_WAITLIST_PULSE_INTERVAL_MS } from "../../Functions/DocumentLock/documentLockTimings.js";
 import { DOCUMENT_LOCK_HELD_ACTIONS } from "./documentLockHeldReducer.js";
 
@@ -30,6 +34,8 @@ export function useLockAcquireRelease({
   keyRef,
   cancelReadOnlyGrace,
   waitingInHandoffQueue,
+  releaseOnUnmount = true,
+  cascadeMemberJobScopesOnGrant = false,
 }) {
   const acquireInFlightRef = useRef(false);
   useEffect(() => {
@@ -42,7 +48,13 @@ export function useLockAcquireRelease({
 
   const release = useCallback(async () => {
     const { collection: c, docID: d } = keyRef.current;
-    if (!c || !d || !heldRef.current) return;
+    if (!c || !d) return;
+    const scope = selectScopedDocumentLock(
+      useUsersStore.getState(),
+      c,
+      d
+    );
+    if (!heldRef.current && scope.lockHeld !== true) return;
     dispatchHeld({ type: DOCUMENT_LOCK_HELD_ACTIONS.SET, held: false });
     patch({
       lockHeld: false,
@@ -66,6 +78,13 @@ export function useLockAcquireRelease({
       if (res.status === 201) {
         dispatchHeld({ type: DOCUMENT_LOCK_HELD_ACTIONS.SET, held: true });
         patch(buildGrantedHolderPatch(data, { withClearedHandoff: true }));
+        if (
+          collection === USER_JOB_GROUPS_COLLECTION &&
+          cascadeMemberJobScopesOnGrant
+        ) {
+          patchGroupMemberJobScopesAfterGroupGrant(docID);
+        }
+        void postDocumentLockViewerDeparted(collection, docID).catch(() => {});
         return;
       }
       if (
@@ -99,7 +118,14 @@ export function useLockAcquireRelease({
         lockTtlSeconds: null,
       });
     }
-  }, [collection, docID, enabled, patch, dispatchHeld]);
+  }, [
+    collection,
+    docID,
+    enabled,
+    patch,
+    dispatchHeld,
+    cascadeMemberJobScopesOnGrant,
+  ]);
 
   const runTryAcquireGuarded = useCallback(async () => {
     if (acquireInFlightRef.current) return;
@@ -127,16 +153,26 @@ export function useLockAcquireRelease({
   useEffect(() => {
     if (!enabled || !docID) {
       cancelReadOnlyGrace();
-      resetScope();
-      dispatchHeld({ type: DOCUMENT_LOCK_HELD_ACTIONS.SET, held: false });
+      if (releaseOnUnmount) {
+        void release();
+        resetScope();
+        dispatchHeld({ type: DOCUMENT_LOCK_HELD_ACTIONS.SET, held: false });
+      }
       keyRef.current = { collection: "", docID: "" };
       return;
     }
 
     let cancelled = false;
+    const scopeOnMount = selectScopedDocumentLock(
+      useUsersStore.getState(),
+      collection,
+      docID
+    );
     void (async () => {
       try {
-        if (!cancelled) await runTryAcquireGuarded();
+        if (!cancelled && scopeOnMount.suppressVacancyAcquire !== true) {
+          await runTryAcquireGuarded();
+        }
       } finally {
         if (!cancelled) {
           patch({ lockScopeBootstrapped: true });
@@ -147,9 +183,11 @@ export function useLockAcquireRelease({
     return () => {
       cancelled = true;
       cancelReadOnlyGrace();
-      void release();
-      resetScope();
-      dispatchHeld({ type: DOCUMENT_LOCK_HELD_ACTIONS.SET, held: false });
+      if (releaseOnUnmount) {
+        void release();
+        resetScope();
+        dispatchHeld({ type: DOCUMENT_LOCK_HELD_ACTIONS.SET, held: false });
+      }
       keyRef.current = { collection: "", docID: "" };
     };
   }, [
@@ -162,12 +200,19 @@ export function useLockAcquireRelease({
     cancelReadOnlyGrace,
     dispatchHeld,
     keyRef,
+    releaseOnUnmount,
   ]);
 
   // #21 — never stay "editable" without either the lease or read-only viewer state.
   useEffect(() => {
     if (!enabled || !collection || !docID) return;
     if (lockHeld || readOnly) return;
+    const scope = selectScopedDocumentLock(
+      useUsersStore.getState(),
+      collection,
+      docID
+    );
+    if (scope.suppressVacancyAcquire === true) return;
     void runTryAcquireGuarded();
   }, [
     enabled,

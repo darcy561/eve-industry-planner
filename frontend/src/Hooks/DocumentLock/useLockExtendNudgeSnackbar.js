@@ -13,6 +13,7 @@ export function useLockExtendNudgeSnackbar({
   docID,
   lockHeld,
   readOnly,
+  leasePressure,
   lockExpiresAtUnix,
   handoffPendingHolder,
   extendNudgeMessage,
@@ -31,7 +32,7 @@ export function useLockExtendNudgeSnackbar({
       belowLowRef.current = false;
       return;
     }
-    if (!lockHeld || readOnly || handoffPendingHolder) {
+    if (!lockHeld || readOnly || handoffPendingHolder || !leasePressure) {
       belowLowRef.current = false;
       return;
     }
@@ -62,6 +63,7 @@ export function useLockExtendNudgeSnackbar({
     readOnly,
     lockExpiresAtUnix,
     handoffPendingHolder,
+    leasePressure,
     extendNudgeMessage,
     tick,
   ]);

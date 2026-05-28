@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import calculateInstallCostfromSetup from "../../../Functions/Helper/calculateInstallCostfromSetup";
+import { calculateInstallCostfromSetup } from "../../../Functions/Installation Costs/installCosts";
+import { clearOrphanedCustomStructureOnSetups } from "../../../Functions/Helper/customStructureSetup";
 import Job from "../../../Classes/job";
 import { prefetchBuildStatsQuery } from "../../../Hooks/React Query/Backend/buildStats";
 import getMissingESIData from "../../../Functions/Shared/getMissingESIData";
@@ -45,6 +46,14 @@ export function useEditJobInitialState({
 
         const { requestedMarketData, requestedSystemIndexes } =
           await getMissingESIData(linkedJobs);
+
+        const getCustomStructureWithID =
+          useUsersStore.getState().applicationSettings.actions
+            .getCustomStructureWithID;
+        clearOrphanedCustomStructureOnSetups(
+          matchedJob.build.setup,
+          getCustomStructureWithID
+        );
 
         for (const setup of Object.values(matchedJob.build.setup)) {
           setup.estimatedInstallCost = calculateInstallCostfromSetup(

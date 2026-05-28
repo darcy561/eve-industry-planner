@@ -16,6 +16,7 @@ export function useLockExtendLoop({
   enabled,
   lockHeld,
   readOnly,
+  leasePressure,
   patch,
   dispatchHeld,
   keyRef,
@@ -60,13 +61,13 @@ export function useLockExtendLoop({
   }, [applyExtendResponse, keyRef]);
 
   useEffect(() => {
-    if (!enabled || !lockHeld || readOnly) return;
+    if (!enabled || !lockHeld || readOnly || !leasePressure) return;
     const id = window.setInterval(() => {
       if (document.visibilityState !== "visible") return;
       flushExtendLease();
     }, LOCK_EXTEND_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [enabled, lockHeld, readOnly, flushExtendLease]);
+  }, [enabled, lockHeld, readOnly, leasePressure, flushExtendLease]);
 
   useEffect(() => {
     const onRenewRequest = (ev) => {
@@ -74,7 +75,7 @@ export function useLockExtendLoop({
       const { collection: c, docID: dKey } = keyRef.current;
       if (!c || !dKey || !d?.collection || !d?.docID) return;
       if (d.collection !== c || d.docID !== dKey) return;
-      if (!enabled || !lockHeld || readOnly) return;
+      if (!enabled || !lockHeld || readOnly || !leasePressure) return;
       flushExtendLease();
     };
     window.addEventListener(DOCUMENT_LOCK_RENEW_REQUEST_EVENT, onRenewRequest);
@@ -83,7 +84,7 @@ export function useLockExtendLoop({
         DOCUMENT_LOCK_RENEW_REQUEST_EVENT,
         onRenewRequest
       );
-  }, [enabled, lockHeld, readOnly, flushExtendLease, keyRef]);
+  }, [enabled, lockHeld, readOnly, leasePressure, flushExtendLease, keyRef]);
 
   return { flushExtendLease };
 }

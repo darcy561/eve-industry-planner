@@ -54,6 +54,7 @@ type docLockTxResultLockRecord struct {
 	HolderSessionID      string `json:"holderSessionID,omitempty"`
 	AccountID            string `json:"accountID,omitempty"`
 	ExpiresAtUnix        int64  `json:"expiresAtUnix,omitempty"`
+	LeaseMode            string `json:"leaseMode,omitempty"`
 	ExtendCount          int    `json:"extendCount,omitempty"`
 	ProbeTargetSessionID string `json:"probeTargetSessionID,omitempty"`
 	ProbeExpiresAtUnix   int64  `json:"probeExpiresAtUnix,omitempty"`
@@ -121,7 +122,8 @@ end
 //	ARGV[1]  = accountID
 //	ARGV[2]  = sessionID (requester)
 //	ARGV[3]  = now (unix seconds)
-//	ARGV[4]  = ttl seconds (DefaultLockTTL in seconds)
+//	ARGV[4]  = contested ttl seconds (DefaultLockTTL)
+//	ARGV[5]  = solo ttl seconds (SoloHolderLockTTL)
 //
 // Outcome JSON:
 //
@@ -132,6 +134,7 @@ local account_id = ARGV[1]
 local session_id = ARGV[2]
 local now = tonumber(ARGV[3])
 local ttl = tonumber(ARGV[4])
+local solo_ttl = tonumber(ARGV[5])
 
 local existing = read_lock(k_lock, now)
 if existing and existing.holderSessionID and existing.holderSessionID ~= "" and existing.holderSessionID ~= session_id then
@@ -141,13 +144,15 @@ if existing and existing.holderSessionID and existing.holderSessionID ~= "" and 
   })
 end
 
-local exp = now + ttl
+local exp = now + solo_ttl
 local rec = {
   holderSessionID = session_id,
   accountID = account_id,
   expiresAtUnix = exp,
+  leaseMode = "solo",
+  extendCount = 0,
 }
-write_lock(k_lock, rec, ttl)
+write_lock(k_lock, rec, solo_ttl)
 return cjson.encode({
   outcome = "granted",
   record = rec,
@@ -160,7 +165,7 @@ type acquireTxResult struct {
 	Record  docLockTxResultLockRecord `json:"record"`
 }
 
-func runAcquireTx(ctx context.Context, rdb *redis.Client, accountID, sessionID, collection, docID string, now, ttlSeconds int64) (*acquireTxResult, error) {
+func runAcquireTx(ctx context.Context, rdb *redis.Client, accountID, sessionID, collection, docID string, now, contestedTTLSeconds, soloTTLSeconds int64) (*acquireTxResult, error) {
 	raw, err := acquireLockScript.Run(
 		ctx,
 		rdb,
@@ -168,7 +173,8 @@ func runAcquireTx(ctx context.Context, rdb *redis.Client, accountID, sessionID, 
 		accountID,
 		sessionID,
 		now,
-		ttlSeconds,
+		contestedTTLSeconds,
+		soloTTLSeconds,
 	).Text()
 	if err != nil {
 		return nil, fmt.Errorf("acquire tx: %w", err)
@@ -191,6 +197,7 @@ func runAcquireTx(ctx context.Context, rdb *redis.Client, accountID, sessionID, 
 //	ARGV[5]  = max extends before consulting waitlist
 //	ARGV[6]  = probe-ack wait seconds
 //	ARGV[7]  = waitlist-pulse TTL seconds
+//	ARGV[8]  = solo ttl seconds (cycle_reset when waitlist empty)
 //
 // Outcome JSON:
 //
@@ -213,6 +220,7 @@ local ttl = tonumber(ARGV[4])
 local max_extends = tonumber(ARGV[5])
 local probe_ack = tonumber(ARGV[6])
 local pulse_ttl = tonumber(ARGV[7])
+local solo_ttl = tonumber(ARGV[8])
 
 local existing = read_lock(k_lock, now)
 if not existing then
@@ -255,6 +263,7 @@ local current_count = tonumber(existing.extendCount) or 0
 if current_count < max_extends then
   existing.extendCount = current_count + 1
   existing.expiresAtUnix = exp
+  existing.leaseMode = "contested"
   write_lock(k_lock, existing, ttl)
   return cjson.encode({
     outcome = "extended",
@@ -268,11 +277,16 @@ existing.expiresAtUnix = exp
 local head = find_alive_head(k_wait, pulse_prefix)
 if not head then
   existing.extendCount = 0
-  write_lock(k_lock, existing, ttl)
+  existing.leaseMode = "solo"
+  existing.probeTargetSessionID = ""
+  existing.probeExpiresAtUnix = 0
+  local solo_exp = now + solo_ttl
+  existing.expiresAtUnix = solo_exp
+  write_lock(k_lock, existing, solo_ttl)
   return cjson.encode({
     outcome = "cycle_reset",
     record = existing,
-    expiresAtUnix = exp,
+    expiresAtUnix = solo_exp,
     extendCount = 0,
   })
 end
@@ -280,6 +294,7 @@ end
 -- Refresh the probe target's pulse so they don't fall out before they /claim.
 redis.call("SET", pulse_prefix .. head, "1", "EX", pulse_ttl)
 
+existing.leaseMode = "contested"
 existing.probeTargetSessionID = head
 existing.probeExpiresAtUnix = now + probe_ack
 write_lock(k_lock, existing, ttl)
@@ -308,7 +323,7 @@ func runExtendTx(
 	ctx context.Context,
 	rdb *redis.Client,
 	accountID, sessionID, collection, docID string,
-	now, ttlSeconds, maxExtends, probeAck, pulseTTL int64,
+	now, ttlSeconds, maxExtends, probeAck, pulseTTL, soloTTLSeconds int64,
 ) (*extendTxResult, error) {
 	raw, err := extendLockScript.Run(
 		ctx,
@@ -324,6 +339,7 @@ func runExtendTx(
 		maxExtends,
 		probeAck,
 		pulseTTL,
+		soloTTLSeconds,
 	).Text()
 	if err != nil {
 		return nil, fmt.Errorf("extend tx: %w", err)
@@ -602,6 +618,11 @@ end
 redis.call("LREM", k_wait, 1, requester)
 redis.call("RPUSH", k_wait, requester)
 redis.call("SET", k_pulse, "1", "EX", pulse_ttl)
+
+existing.leaseMode = "contested"
+existing.extendCount = 0
+existing.expiresAtUnix = now + ttl
+write_lock(k_lock, existing, ttl)
 
 return cjson.encode({
   outcome = "queued",

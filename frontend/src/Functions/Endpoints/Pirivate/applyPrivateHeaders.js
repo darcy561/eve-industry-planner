@@ -103,6 +103,16 @@ function stripBatchFromConfig(config) {
   return { inner, batch };
 }
 
+/**
+ * @param {Response} res
+ * @returns {Promise<boolean>}
+ */
+async function responseIndicatesSessionMissing(res) {
+  if (res.status !== 401) return false;
+  const text = await res.clone().text().catch(() => "");
+  return text.includes("session_missing");
+}
+
 /** Resolves planner session id from the client store (for correlation / identity hints). */
 export function getSessionIDFromStore() {
   const fromStore = useUserStore.getState()?.account?.sessionID;
@@ -171,14 +181,28 @@ async function executePrivateFetchOnce(URL, options, headerConfig) {
 async function executePrivateRequestSingle(URL, options = {}, config = {}) {
   const { rest: headerConfig, retry } = splitRetryConfig(config);
 
-  const runOnce = () => executePrivateFetchOnce(URL, options, headerConfig);
+  const runOnce = async (sessionRecoveryAttempted = false) => {
+    const res = await executePrivateFetchOnce(URL, options, headerConfig);
+    if (
+      !sessionRecoveryAttempted &&
+      !headerConfig.skipSessionRefresh &&
+      (await responseIndicatesSessionMissing(res))
+    ) {
+      const refresh = useUserStore.getState()?.account?.actions?.refreshServerToken;
+      if (typeof refresh === "function") {
+        await refresh({ force: true });
+        return runOnce(true);
+      }
+    }
+    return res;
+  };
 
   const retryOpts = mergeApiRetryOptions(retry);
   if (retryOpts === false) {
     return runOnce();
   }
 
-  return withRequestRetries(runOnce, {
+  return withRequestRetries(() => runOnce(), {
     ...retryOpts,
     isRetriableError: (err) =>
       !(

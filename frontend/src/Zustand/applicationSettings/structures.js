@@ -191,7 +191,7 @@ export const structureActions = (set, get) => ({
         );
 
         if (matchingStructure.default && updatedStorage.length > 0) {
-          updatedStorage[0] = { ...updatedStorage[0], default: true };
+          updatedStorage[0].setDefault(true);
         }
 
         return {

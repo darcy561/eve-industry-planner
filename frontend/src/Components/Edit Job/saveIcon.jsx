@@ -1,9 +1,10 @@
 import { IconButton, Tooltip } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import closeActiveJob from "../../Functions/JobPlanner/closeActiveJob";
 import { buildGroupSearchAfterEditClose } from "../../Functions/Groups/groupPageViewSearch";
+import { yieldEditJobDocumentLocksOnLeave } from "../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
 import { useActiveJobPersistGate } from "./Edit Job Hooks/useActiveJobDocumentLock";
 import { persistAffordanceBlockedReason } from "../DocumentLock/LockGatedTooltip";
 
@@ -11,6 +12,7 @@ export function SaveJobIcon({ state }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate({ from: '/editjob/$jobID' });
   const search = useSearch({ from: '/editjob/$jobID' });
+  const { jobID } = useParams({ from: "/editjob/$jobID" });
   const persist = useActiveJobPersistGate(state);
 
   async function onClick() {
@@ -24,6 +26,10 @@ export function SaveJobIcon({ state }) {
       queryClient
     );
     const groupIDFromParams = search.activeGroup;
+    await yieldEditJobDocumentLocksOnLeave({
+      jobID,
+      groupID: groupIDFromParams,
+    });
     
     if (groupIDFromParams) {
       navigate({

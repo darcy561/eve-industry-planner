@@ -5,7 +5,7 @@ import normalizeParentChildRelationships from "../Shared/normalizeParentChildRel
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import useUsersStore from "../../Zustand/usersStore";
 import getMissingESIData from "../Shared/getMissingESIData";
-import recalculateInstallCostsWithNewData from "../Installation Costs/recalculateInstallCostsWithNewData";
+import { recalculateInstallCostsWithNewData } from "../Installation Costs/installCosts";
 
 /**
  * Apply a template payload: build jobs (setups-first + optional reconcile), remap graph, persist.

@@ -37,12 +37,16 @@ describe("applyDocumentLockStatusFromPayload", () => {
       expiresAtUnix: 100,
       ttlSeconds: 60,
       viewerCount: 2,
+      extendCount: 1,
+      waitlistLen: 0,
     });
     const k = docLockScopeKey("user_job_documents", "j1");
     const scope = storeHolder.current.getState().documentLock.scopes[k];
     expect(scope.lockHeld).toBe(true);
     expect(scope.readOnly).toBe(false);
     expect(scope.viewerCount).toBe(2);
+    expect(scope.extendSegmentCount).toBe(1);
+    expect(scope.waitlistLen).toBe(0);
     expect(scope.lockExpiresAtUnix).toBe(100);
     expect(scope.lockTtlSeconds).toBe(60);
   });

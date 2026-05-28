@@ -97,15 +97,15 @@ Responsibilities, all driven from one mount/unmount:
 |---|---|
 | **Mount / docID change** | `runTryAcquireGuarded` → `tryAcquire` → 201 (we hold), 200/409 with `held:true` (read-only viewer), or transient lock-vanished → patch cleared. Guard dedupes overlapping mount + vacancy calls. |
 | **Vacant-editable self-heal (#21)** | While mounted, if `!lockHeld && !readOnly`, run `runTryAcquireGuarded` again (e.g. after read-only grace ends without a lease, or odd acquire responses). |
-| **Unmount / docID change** | Cancel grace timer, `/release` (only if we held), clear our scope, reset internal refs. |
-| **Extend loop** | Every `LOCK_EXTEND_INTERVAL_MS` while we hold and tab is visible → `/extend` → patch new expiry. |
+| **Unmount / docID change** | Default: cancel grace, `/release` if we held, reset scope. `releaseOnUnmount: false` keeps the Redis lease when leaving the page (group session on edit job or group page). Solo edit job uses default + `yieldEditJobDocumentLocksOnLeave` before navigate. Group locks release only on **Close Group** or handover. |
+| **Extend loop** | Every `LOCK_EXTEND_INTERVAL_MS` while we hold, tab is visible, and `scopeHasLeasePressure` → `/extend` → patch new expiry. Off in solo lease mode. |
 | **Status sync heartbeat** | Every `LOCK_STATUS_SYNC_INTERVAL_MS` → `/lock-state` (self-heal). |
 | **Post-expiry resync** | Every `LOCK_EXPIRY_RESYNC_INTERVAL_MS` while cached `expiresAtUnix` is already past. |
 | **Visibility / online** | On `visibilitychange` → resync + maybe `/extend`; on `online` → resync. |
 | **Waitlist pulse loop** | While `waitingInHandoffQueue` → `/waitlist-pulse` every `LOCK_WAITLIST_PULSE_INTERVAL_MS`. |
-| **Viewer presence** | When `readOnly: true` becomes true → `/viewer-arrived`; cleanup → `/viewer-departed` (+ `sendBeacon` on `pagehide`). |
+| **Viewer presence** | When `readOnly` or `waitingInHandoffQueue` (job page mounted) → `/viewer-arrived`; cleanup → `/viewer-departed` (+ `sendBeacon` on `pagehide`). |
 | **Vacancy snackbars** | `useLockVacancySnackbar` — holder ↔ viewer transitions (see [Snackbars](#snackbars)). |
-| **Extend nudge snackbar** | `useLockExtendNudgeSnackbar` — holder warning + “Renew now” when lease ≤ `LOCK_LOW_REMAINING_NUDGE_SEC` (30 s). |
+| **Extend nudge snackbar** | `useLockExtendNudgeSnackbar` — holder warning + “Renew now” when lease ≤ `LOCK_LOW_REMAINING_NUDGE_SEC` (30 s), only under lease pressure (contested). |
 | **Passive viewer snackbar** | `useLockPassiveViewerSnackbar` — one info toast when `viewerCount` goes 0 → ≥1 while you remain holder (not per extra viewer). |
 | **Mount bootstrap flag** | After the first guarded `tryAcquire` on mount, patch `lockScopeBootstrapped: true` so the header does not flash the grey vacant icon while acquire is in flight. |
 | **WS event listener** | Listens on `DOCUMENT_LOCK_CUSTOM_EVENT`; branches on inner `type` (see below). |
@@ -223,6 +223,20 @@ icon (easy to miss on the first ownership change).
 - **Vacant icon flash** — `orphanedAvailable` requires `lockScopeBootstrapped`
   so the grey “Take over” padlock does not appear during the initial
   `tryAcquire` window (default scope looks vacant before Redis responds).
+- **Solo lease (server)** — acquire grants `leaseMode: solo` with a long Redis
+  TTL (24 h). The client **does not** run `/extend` or extend-nudge snackbars
+  until `scopeHasLeasePressure` is true (same predicate as
+  `scopeHasOtherSessionContention`, including passive viewers). The server
+  **rebinds** to contested (5 min) when another session opens read-only or
+  queues `/request` (extend probe cycle unchanged). **Rebinds** back to solo when
+  the last viewer leaves and the waitlist is empty (or `cycle_reset` on extend
+  with an empty queue).
+- **Contention flip** — `useLockLeaseContentionEffects` calls `syncLockFromServer`
+  when lease pressure turns on or off so `lockExpiresAtUnix` matches the server
+  rebind (contested 5 min or solo 24 h). It does **not** call `/extend` on
+  pressure-on; the contested segment clock starts from server rebind
+  (`viewer-arrived` / request queued), and the holder extend loop runs on
+  `LOCK_EXTEND_INTERVAL_MS` while contested.
 
 Explicit API grants still use slice snackbars (“Edit access granted.”, etc.).
 `suppressDocumentLockVacancyNotice()` (2 s window after those APIs) prevents
@@ -427,6 +441,9 @@ listener. The slice exposes higher-level actions for snackbar-driven flows:
 | `requestAccess(collection, docID)` | Header popover → "Request access" / "Take over". Routes through `POST /request`, handles the 201 / 200-acquired / 202-queued branches. |
 | `pulseWaitlist(collection, docID)` | Driven by the `useDocumentLock` waitlist-pulse loop while `waitingInHandoffQueue`. |
 | `acceptAccessRequest(collection, docID)` | Snackbar "Accept" entry point. Routes through `requestEditJobReleaseConfirmation` so the Edit Job page can intercept and open its unsaved-changes dialog. Three outcomes: `proceed` (dialog already did the handover), `cancelled` (clear the notice locally), `not-handled` (no dialog handler → direct hand-over). |
+| `yieldDocumentLockOnLeave(collection, docID)` | Silent leave helper: `POST /hand-over` when `pendingAccessRequest` or `waitlistLen > 0`, else `POST /release` when holder; `POST /viewer-departed` when queued/read-only viewer. |
+| `yieldEditJobDocumentLocksOnLeave({ jobID, groupID })` | Solo jobs only (`groupID` absent): yields the job lock before navigate. No-op in group context — group + job leases end on group close or `handOverEditAccess`. |
+| `resolveDocumentLockApiTarget(collection, docID)` | Maps `user_job_documents` + group member job → `user_job_groups` + `groupID`. Used by `requestAccess`, `handOverEditAccess`, `acceptAccessRequest`, and `forceReleaseSameAccountEditLock` so the server runs group handover + per-job cascade. Header primary registration prefers the **group** scope when both register. |
 | `handOverEditAccess(collection, docID)` | Calls `POST /hand-over`. **200** → patches former holder read-only. **204** → requester pulse gone; patches lock released locally + warning snackbar. **409** (`doc_lock_hand_over_noop`) → snackbar only (still holder or race). Requires `lockHeld` **or** `pendingAccessRequest` so snackbar accept works if store briefly disagrees. |
 | `claimHandoffProbe(collection, docID)` | Driven by `useDocumentLock`'s `HANDOFF_PROBE` branch when our session is the probe target. Calls `POST /claim-handoff`. |
 | `clearPendingAccessNotice` / `resetDocumentLockForScope` / `resetAllDocumentLocks` | Housekeeping. |

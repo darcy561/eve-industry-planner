@@ -29,6 +29,7 @@ import { selectScopedDocumentLock } from "./documentLockSelectors.js";
  */
 export function shouldEndReadOnlyGrace(scope) {
   if (!scope) return false;
+  if (scope.waitingInHandoffQueue) return false;
   return (
     scope.readOnly === true &&
     scope.lockHeld === false &&

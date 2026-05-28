@@ -112,8 +112,11 @@ func handleExpiryMessage(ctx context.Context, d Deps, rawKey string) {
 		)
 	}
 
-	if promoted && collection == mongocore.CollectionUserJobGroups {
-		ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, d, accountID, docID, newHolder)
+	if promoted {
+		StripPassiveViewerOnHolderGrant(ctx, d, accountID, collection, docID, newHolder, true)
+		if collection == mongocore.CollectionUserJobGroups {
+			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, d, accountID, docID, newHolder)
+		}
 	}
 }
 

@@ -16,6 +16,7 @@ export function useLockSyncHeartbeat({
   collection,
   syncLockFromServer,
   flushExtendLease,
+  leasePressure,
 }) {
   useEffect(() => {
     if (!enabled || !docID) return;
@@ -27,7 +28,7 @@ export function useLockSyncHeartbeat({
         collection,
         docID
       );
-      if (scoped.lockHeld && !scoped.readOnly) {
+      if (scoped.lockHeld && !scoped.readOnly && leasePressure) {
         flushExtendLease();
       }
     }
@@ -40,7 +41,7 @@ export function useLockSyncHeartbeat({
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("online", onOnline);
     };
-  }, [enabled, docID, collection, syncLockFromServer, flushExtendLease]);
+  }, [enabled, docID, collection, syncLockFromServer, flushExtendLease, leasePressure]);
 
   useEffect(() => {
     if (!enabled || !docID) return;

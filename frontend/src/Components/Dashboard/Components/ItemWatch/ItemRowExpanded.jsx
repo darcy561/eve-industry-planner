@@ -4,7 +4,7 @@ import { Typography, Grid } from "@mui/material";
 import useUsersStore from "../../../../Zustand/usersStore";
 import MaterialPopoverIconButtons from "../../../../Styled Components/Popover/iconButtons";
 import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser";
-import calculateInstallCostfromSetup from "../../../../Functions/Helper/calculateInstallCostfromSetup";
+import { calculateInstallCostfromSetup } from "../../../../Functions/Installation Costs/installCosts";
 
 export function ExpandedWatchlistRow({ mat }) {
   const defaultMarket = useUsersStore(

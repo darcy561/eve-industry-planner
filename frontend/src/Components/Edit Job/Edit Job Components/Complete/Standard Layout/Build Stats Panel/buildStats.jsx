@@ -1,5 +1,6 @@
 import { Tooltip, Typography, Grid } from "@mui/material";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
+import { getJobInstallCostForPlanning } from "../../../../../../Functions/Installation Costs/installCosts";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 
@@ -53,7 +54,9 @@ export function BuildStatsPanel({ state }) {
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
             >
-              {formatNumberForLocale(state.activeJob.build.costs.installCosts)}
+              {formatNumberForLocale(
+                getJobInstallCostForPlanning(state.activeJob)
+              )}
             </Typography>
           </Grid>
         </Grid>

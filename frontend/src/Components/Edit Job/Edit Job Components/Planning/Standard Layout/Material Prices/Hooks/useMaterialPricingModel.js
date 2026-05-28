@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useEffectiveMarketHubFromLayout } from "../../../../../../../Hooks/Planner/useEffectiveMarketHubFromLayout.js";
 import { calculateMaterialCostFromChildJobs } from "../../../../../../../Functions/Groups/materialCostFromChildJobs.js";
+import { getJobInstallCostForPlanning } from "../../../../../../../Functions/Installation Costs/installCosts.js";
 import findAllChildJobCountOrIDs from "../../../../../../../Functions/Shared/findAllChildJobCountOrIDs.js";
 import {
   getEffectiveMaterialPriceHub,
@@ -37,10 +38,7 @@ export function useMaterialPricingModel({ state, actions }) {
       };
     });
 
-    const totalInstallCosts = Object.values(activeJob.build.setup).reduce(
-      (prev, setup) => prev + setup.estimatedInstallCost * setup.jobCount,
-      0
-    );
+    const totalInstallCosts = getJobInstallCostForPlanning(activeJob);
     const totalMaterialCost = resolvedMaterials.reduce(
       (prev, { material, marketSelect: materialMarketSelect, listingSelect: materialListingSelect }) => {
         const currentMaterialPrice = getMarketPriceForType(

@@ -188,45 +188,49 @@ export async function applyClientSessionAfterAppTokens(input) {
     loginAlreadyApplied = false,
   } = input;
 
-  if (!loginAlreadyApplied) {
-    useUsersStore
-      .getState()
-      .account.actions.applyLoginAuthResponse(
-        tokenResponse,
-        character.CharacterHash
-      );
-    await persistCloudMainEsiRefreshToken(character, tokenResponse);
+  try {
+    if (!loginAlreadyApplied) {
+      useUsersStore
+        .getState()
+        .account.actions.applyLoginAuthResponse(
+          tokenResponse,
+          character.CharacterHash
+        );
+      await persistCloudMainEsiRefreshToken(character, tokenResponse);
+    }
+    useUsersStore.getState().account.actions.setLoggedIn(true);
+
+    await character.getPublicCharacterData();
+    await buildCorporationObjectFromUserObject(character);
+
+    useUsersStore.getState().account.actions.updateCharacters([character]);
+    triggerCharacterDataPrefetch(queryClient, character.CharacterHash);
+
+    emitUserDataUpdate({
+      eveLoginComplete: true,
+      userArray: [
+        {
+          CharacterID: character.CharacterID,
+          CharacterName: character.CharacterName,
+        },
+      ],
+    });
+
+    useUsersStore.getState().jobData.actions.clearJobArray();
+
+    await runPostLoginAccountSync({
+      queryClient,
+      prefetchMultipleCharacters,
+      userDocument: tokenResponse.user_document,
+      linkedCharacters: tokenResponse.linked_characters,
+    });
+
+    bootstrapWatchlistLoginStep();
+    bootstrapJobGroupsLoginStep();
+    bootstrapJobDocumentsLoginStep();
+  } finally {
+    useUsersStore.getState().account.actions.setPlannerPrivateAuthReady(true);
   }
-  useUsersStore.getState().account.actions.setLoggedIn(true);
-
-  await character.getPublicCharacterData();
-  await buildCorporationObjectFromUserObject(character);
-
-  useUsersStore.getState().account.actions.updateCharacters([character]);
-  triggerCharacterDataPrefetch(queryClient, character.CharacterHash);
-
-  emitUserDataUpdate({
-    eveLoginComplete: true,
-    userArray: [
-      {
-        CharacterID: character.CharacterID,
-        CharacterName: character.CharacterName,
-      },
-    ],
-  });
-
-  useUsersStore.getState().jobData.actions.clearJobArray();
-
-  await runPostLoginAccountSync({
-    queryClient,
-    prefetchMultipleCharacters,
-    userDocument: tokenResponse.user_document,
-    linkedCharacters: tokenResponse.linked_characters,
-  });
-
-  bootstrapWatchlistLoginStep();
-  bootstrapJobGroupsLoginStep();
-  bootstrapJobDocumentsLoginStep();
 }
 
 /**

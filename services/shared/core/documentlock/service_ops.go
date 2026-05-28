@@ -24,9 +24,8 @@ func (s *Service) Acquire(ctx context.Context, accountID, sessionID, collection,
 		return nil, ErrLocksUnavailable
 	}
 	now := time.Now().Unix()
-	ttlSeconds := int64(DefaultLockTTL / time.Second)
 
-	tx, err := runAcquireTx(ctx, rdb, accountID, sessionID, collection, docID, now, ttlSeconds)
+	tx, err := runAcquireTx(ctx, rdb, accountID, sessionID, collection, docID, now, ContestedLockTTLSeconds(), SoloLockTTLSeconds())
 	if err != nil {
 		return nil, err
 	}
@@ -43,6 +42,7 @@ func (s *Service) Acquire(ctx context.Context, accountID, sessionID, collection,
 		return &AcquireResult{StatusCode: http.StatusOK, Payload: payload}, nil
 
 	case "granted":
+		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, sessionID, true)
 		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
 			LockPayloadEventKey: LockEventAcquired,
 			"collection":    collection,
@@ -53,7 +53,7 @@ func (s *Service) Acquire(ctx context.Context, accountID, sessionID, collection,
 		if collection == mongocore.CollectionUserJobGroups {
 			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, s.Deps, accountID, docID, sessionID)
 		}
-		payload := LockPayload(tx.Record.ExpiresAtUnix)
+		payload := LockPayloadForRecord(tx.Record.ExpiresAtUnix, tx.Record.LeaseMode)
 		payload["acquired"] = true
 		payload["held"] = true
 		payload["holderSessionID"] = sessionID
@@ -93,6 +93,7 @@ func (s *Service) Extend(ctx context.Context, accountID, sessionID, collection, 
 		int64(MaxExtensionsBeforeHandoffConsult),
 		ProbeAckWaitSeconds,
 		pulseTTLSeconds,
+		SoloLockTTLSeconds(),
 	)
 	if err != nil {
 		return nil, err
@@ -282,6 +283,7 @@ func (s *Service) HandOver(ctx context.Context, accountID, holderSessionID, coll
 		return &HandOverResult{StatusCode: http.StatusNoContent}, nil
 
 	case "promoted":
+		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, tx.NewHolderSessionID, true)
 		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, BuildHandoffCompletedPayload(
 			collection,
 			docID,
@@ -331,6 +333,7 @@ func (s *Service) RequestAccess(ctx context.Context, accountID, requesterSession
 
 	switch tx.Outcome {
 	case "granted_empty":
+		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, requesterSessionID, true)
 		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
 			LockPayloadEventKey:    LockEventAcquired,
 			"collection":           collection,
@@ -405,6 +408,7 @@ func (s *Service) ClaimHandoff(ctx context.Context, accountID, requesterSessionI
 	case "not_next_in_queue":
 		return &ClaimHandoffOutput{Status: http.StatusConflict, ErrText: "No longer next in queue"}, nil
 	case "granted":
+		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, tx.NewHolderSessionID, true)
 		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, BuildHandoffCompletedPayload(
 			collection,
 			docID,

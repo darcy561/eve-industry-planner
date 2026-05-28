@@ -26,6 +26,7 @@ export function useEditJobDocumentLocks({ jobID, activeJob, isLoading }) {
   );
 
   useDocumentLock(USER_JOBS_COLLECTION, jobID ?? "", documentLockReady, {
+    releaseOnUnmount: !groupLockReady,
     pendingAccessRequestMessage:
       "Another tab requested edit access for this job.",
     becameOwnerVacantMessage:
@@ -45,6 +46,7 @@ export function useEditJobDocumentLocks({ jobID, activeJob, isLoading }) {
     activeGroupID ?? "",
     groupLockReady,
     {
+      releaseOnUnmount: false,
       pendingAccessRequestMessage:
         "Another tab requested edit access for this group.",
       becameOwnerVacantMessage:

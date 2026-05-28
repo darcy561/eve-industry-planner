@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import useUsersStore from "../../../Zustand/usersStore";
 import closeActiveJob from "../../../Functions/JobPlanner/closeActiveJob";
@@ -15,6 +15,7 @@ import { closeJobDependencyTreeDialog } from "../../../Events/jobDependencyTreeD
 import { mergeEditJobNavigationSearch } from "./mergeEditJobNavigationSearch";
 import { buildGroupSearchAfterEditClose } from "../../../Functions/Groups/groupPageViewSearch";
 import { useActiveJobPersistGate } from "./useActiveJobDocumentLock";
+import { yieldEditJobDocumentLocksOnLeave } from "../../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
 
 /**
  * Registers two handlers while the edit-job page is mounted:
@@ -34,6 +35,7 @@ import { useActiveJobPersistGate } from "./useActiveJobDocumentLock";
 export function useEditJobLeaveConfirm({ backupJobRef, state }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate({ from: "/editjob/$jobID" });
+  const { jobID: routeJobID } = useParams({ from: "/editjob/$jobID" });
   const routeSearch = useSearch({ from: "/editjob/$jobID" });
   const { setActiveJobID } = useUsersStore.getState().jobData.actions;
 
@@ -71,6 +73,14 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
    * group when one is in the route search; falls back to the planner. Called
    * after the lock has been handed over so the unmount cleanup is a no-op.
    */
+  const yieldLocksForCurrentEditJob = useCallback(async () => {
+    const search = routeSearchRef.current ?? {};
+    await yieldEditJobDocumentLocksOnLeave({
+      jobID: routeJobID,
+      groupID: search.activeGroup,
+    });
+  }, [routeJobID]);
+
   const navigateAfterRelease = useCallback(() => {
     const search = routeSearchRef.current ?? {};
     const groupID = search.activeGroup;
@@ -126,6 +136,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
       } catch {
         /* server-side hand-over already publishes the event; ignore */
       }
+      await yieldLocksForCurrentEditJob();
       pendingReleaseResolveRef.current = null;
       pendingReleaseTargetRef.current = null;
       setActiveJobID(null);
@@ -140,6 +151,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
     if (!resolve || !pending) return;
     const { updateOrAddJobsToJobArray } = useUsersStore.getState().jobData.actions;
     updateOrAddJobsToJobArray(backupJobRef.current);
+    await yieldLocksForCurrentEditJob();
     setActiveJobID(null);
     navigate({
       to: "/editjob/$jobID",
@@ -158,6 +170,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
     navigate,
     navigateAfterRelease,
     setActiveJobID,
+    yieldLocksForCurrentEditJob,
   ]);
 
   const handleLeaveSave = useCallback(async () => {
@@ -184,6 +197,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
         } catch {
           /* ignore */
         }
+        await yieldLocksForCurrentEditJob();
         pendingReleaseResolveRef.current = null;
         pendingReleaseTargetRef.current = null;
         navigateAfterRelease();
@@ -213,6 +227,7 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
         s.parentChildToEdit,
         queryClient
       );
+      await yieldLocksForCurrentEditJob();
       navigate({
         to: "/editjob/$jobID",
         params: { jobID: pending.jobID },
@@ -226,7 +241,14 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
     } finally {
       setLeaveSaving(false);
     }
-  }, [closeDialogState, dialogMode, navigate, navigateAfterRelease, queryClient]);
+  }, [
+    closeDialogState,
+    dialogMode,
+    navigate,
+    navigateAfterRelease,
+    queryClient,
+    yieldLocksForCurrentEditJob,
+  ]);
 
   useEffect(() => {
     registerEditJobNavigateHandler((payload) => {
@@ -250,14 +272,20 @@ export function useEditJobLeaveConfirm({ backupJobRef, state }) {
         );
 
         if (!s.jobModified) {
-          setActiveJobID(null);
-          navigate({
-            to: "/editjob/$jobID",
-            params: { jobID: targetId },
-            search: navSearch,
-          });
-          closeJobDependencyTreeDialog();
-          resolve("navigated");
+          void (async () => {
+            await yieldEditJobDocumentLocksOnLeave({
+              jobID: routeJobID,
+              groupID: routeSearchRef.current?.activeGroup,
+            });
+            setActiveJobID(null);
+            navigate({
+              to: "/editjob/$jobID",
+              params: { jobID: targetId },
+              search: navSearch,
+            });
+            closeJobDependencyTreeDialog();
+            resolve("navigated");
+          })();
           return;
         }
 

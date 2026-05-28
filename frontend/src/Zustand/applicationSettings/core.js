@@ -25,6 +25,17 @@ function defaultReprocessingSettings() {
   };
 }
 
+/** @param {unknown} structure @param {new (data: object) => { toDocument(): object }} StructureClass */
+function customStructureRowToDocument(structure, StructureClass) {
+  if (structure != null && typeof structure.toDocument === "function") {
+    return structure.toDocument();
+  }
+  if (structure != null && typeof structure === "object") {
+    return new StructureClass(structure).toDocument();
+  }
+  return structure;
+}
+
 /**
  * Go `json` omits empty optional fields; Mongo full documents may also omit keys.
  * For authoritative GET / change-stream payloads, missing key means "empty / default",
@@ -267,13 +278,17 @@ export const coreActions = (set, get) => ({
       defaultMaterialEfficiencyValue: state.defaultMaterialEfficiencyValue,
       customStructures: {
         manufacturing: cs.manufacturing.map((structure) =>
-          structure.toDocument()
+          customStructureRowToDocument(structure, CustomStructure)
         ),
-        reaction: cs.reaction.map((structure) => structure.toDocument()),
+        reaction: cs.reaction.map((structure) =>
+          customStructureRowToDocument(structure, CustomStructure)
+        ),
         reprocessing: cs.reprocessing.map((structure) =>
-          structure.toDocument()
+          customStructureRowToDocument(structure, ReprocessingStructure)
         ),
-        invention: cs.invention.map((structure) => structure.toDocument()),
+        invention: cs.invention.map((structure) =>
+          customStructureRowToDocument(structure, InventionStructure)
+        ),
       },
       exemptTypeIDs: [...(state.exemptTypeIDs || [])],
       reprocessingSettings: {
@@ -317,11 +332,13 @@ export const coreActions = (set, get) => ({
       },
       structures: {
         manufacturing: cs.manufacturing.map((structure) =>
-          structure.toDocument()
+          customStructureRowToDocument(structure, CustomStructure)
         ),
-        reaction: cs.reaction.map((structure) => structure.toDocument()),
+        reaction: cs.reaction.map((structure) =>
+          customStructureRowToDocument(structure, CustomStructure)
+        ),
         reprocessing: cs.reprocessing.map((structure) =>
-          structure.toDocument()
+          customStructureRowToDocument(structure, ReprocessingStructure)
         ),
       },
       exemptTypeIDs: [...(state.exemptTypeIDs || [])],

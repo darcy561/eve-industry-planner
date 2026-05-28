@@ -26,6 +26,7 @@ describe("useLockExtendNudgeSnackbar", () => {
       docID: "d",
       lockHeld: true,
       readOnly: false,
+      leasePressure: true,
       lockExpiresAtUnix: base + 45,
       handoffPendingHolder: false,
       extendNudgeMessage: "nudge",

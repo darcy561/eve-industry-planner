@@ -1,5 +1,5 @@
 import { Button, Tooltip } from "@mui/material";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { deleteJobDocumentsFromApi } from "../../../../../../Functions/Endpoints/Pirivate/jobDocuments.js";
 import { flushPendingJobDocumentsSave } from "../../../../../../Functions/Debounce/jobDocumentsPersistSchedule.js";
@@ -13,12 +13,14 @@ import useUsersStore from "../../../../../../Zustand/usersStore";
 import { invalidateBuildStatsQuery } from "../../../../../../Hooks/React Query/Backend/buildStats";
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
+import { yieldEditJobDocumentLocksOnLeave } from "../../../../../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
 
 export function ArchiveJobButton({ state }) {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
   const { removeJobsFromJobArray } = useUsersStore.getState().jobData.actions;
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const navigate = useNavigate({ from: '/editjob/$jobID' });
+  const { jobID } = useParams({ from: "/editjob/$jobID" });
   const queryClient = useQueryClient();
   const jobLockReadOnly = useActiveJobReadOnly(state);
 
@@ -57,6 +59,7 @@ export function ArchiveJobButton({ state }) {
 
     await saveUserAccountDocument();
     removeJobsFromJobArray(state.activeJob.jobID);
+    await yieldEditJobDocumentLocksOnLeave({ jobID, groupID: null });
     navigate({ to: "/jobplanner" });
   };
 

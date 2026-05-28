@@ -5,7 +5,7 @@ import checkJobTypeIsBuildable from "../Helper/checkJobTypeIsBuildable";
 import { getAvailableBlueprintsByMaterialID } from "../Helper/getAvailableBlueprints";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import getMissingESIData from "../Shared/getMissingESIData";
-import recalculateInstallCostsWithNewData from "../Installation Costs/recalculateInstallCostsWithNewData";
+import { recalculateInstallCostsWithNewData } from "../Installation Costs/installCosts";
 import {
   showMassBuildFeedback,
   hideMassBuildFeedback,

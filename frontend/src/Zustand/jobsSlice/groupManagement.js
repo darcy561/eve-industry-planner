@@ -210,13 +210,15 @@ export const groupManagementActions = (set, get) => ({
    * Updates modified groups in the group array.
    *
    * @param {Array|Object} inputGroups - Array of modified group objects or a single modified group object
+   * @param {{ queuePersist?: boolean }} [opts] - `queuePersist: false` updates local `groupArray` only (no `pendingJobGroupWrites` / debounced PUT).
    *
    * @example
    * store.getState().jobData.actions.updateModifiedGroups(modifiedGroups);
    */
-  updateModifiedGroups: (inputGroups) => {
+  updateModifiedGroups: (inputGroups, opts = {}) => {
     if (!inputGroups) return;
 
+    const queuePersist = opts.queuePersist !== false;
     const modifiedGroups = Array.isArray(inputGroups)
       ? inputGroups
       : [inputGroups];
@@ -235,17 +237,21 @@ export const groupManagementActions = (set, get) => ({
           jobData: {
             ...state.jobData,
             groupArray: updatedGroupArray,
-            pendingJobGroupWrites: mergePendingJobGroupWrites(
-              state.jobData.pendingJobGroupWrites,
-              queuedIds
-            ),
+            pendingJobGroupWrites: queuePersist
+              ? mergePendingJobGroupWrites(
+                  state.jobData.pendingJobGroupWrites,
+                  queuedIds
+                )
+              : state.jobData.pendingJobGroupWrites,
           },
         };
       },
       false,
       "updateModifiedGroups"
     );
-    scheduleDebouncedGroupSave();
+    if (queuePersist) {
+      scheduleDebouncedGroupSave();
+    }
   },
 
   /** Documents for groups in `pendingJobGroupWrites` that still exist in `groupArray`. */

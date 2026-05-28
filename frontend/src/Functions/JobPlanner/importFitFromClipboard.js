@@ -1,5 +1,5 @@
 import getMissingESIData from "../Shared/getMissingESIData";
-import recalculateInstallCostsWithNewData from "../Installation Costs/recalculateInstallCostsWithNewData";
+import { recalculateInstallCostsWithNewData } from "../Installation Costs/installCosts";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import { getCachedData } from "../Helper/getCachedData";
 import { CACHED_DATA_FILES } from "../../Context/defaultValues";

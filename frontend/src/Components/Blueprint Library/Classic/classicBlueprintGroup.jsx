@@ -16,7 +16,7 @@ import AddIcon from "@mui/icons-material/Add";
 import { useQueryClient } from "@tanstack/react-query";
 import { saveJobsViaApi } from "../../../Functions/JobDocuments/saveJobsViaApi.js";
 import getMissingESIData from "../../../Functions/Shared/getMissingESIData";
-import recalculateInstallCostsWithNewData from "../../../Functions/Installation Costs/recalculateInstallCostsWithNewData";
+import { recalculateInstallCostsWithNewData } from "../../../Functions/Installation Costs/installCosts";
 import { showSnackbarSuccess } from "../../../Events/snackbarEvents";
 import useUsersStore from "../../../Zustand/usersStore";
 import useGetAllIndustryJobs from "../../../Hooks/EveEsi/useGetAllIndustryJobs";
