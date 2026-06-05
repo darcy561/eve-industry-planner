@@ -3,6 +3,7 @@ package statistics
 import (
 	"net/http"
 
+	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/shared"
 )
 
@@ -13,6 +14,6 @@ func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClien
 	case path == "/api/v1/statistics/build-stats" || path == "/api/v1/statistics/build-stats/":
 		GetBuildStatsHandler(w, r, clients)
 	default:
-		http.Error(w, "Not found", http.StatusNotFound)
+		helper.RespondEndpointError(w, r, http.StatusNotFound, "Not found", "statistics route not found", "not_found", "statistics", nil, nil)
 	}
 }

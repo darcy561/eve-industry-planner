@@ -26,37 +26,47 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if apihelperauth.ReadAppSessionCookie(r) == "" {
-		duration := time.Since(upgradeStart)
-		s.recordUpgradeError(reqCtx, "session_missing", duration)
-		logs.WarnCtx(reqCtx, "websocket connection rejected: missing session cookie", "ip", r.RemoteAddr, "duration_ms", duration.Milliseconds())
-		http.Error(w, "Unauthorized: session_missing", http.StatusUnauthorized)
+		wsUpgradeRejectClient(w, r, s, upgradeStart, "session_missing", http.StatusUnauthorized,
+			"websocket upgrade rejected: missing session cookie",
+			"Unauthorized: session_missing",
+			"ws_upgrade_session_missing",
+			map[string]interface{}{"has_eip_session_cookie": false},
+		)
 		return
 	}
 
 	if s.ServiceClients == nil || s.ServiceClients.Redis == nil {
-		duration := time.Since(upgradeStart)
-		s.recordUpgradeError(reqCtx, "redis_unavailable", duration)
-		logs.ErrorCtx(reqCtx, "websocket connection rejected: Redis unavailable for session validation", "ip", r.RemoteAddr, "duration_ms", duration.Milliseconds())
-		http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
+		wsUpgradeRejectServer(w, r, s, upgradeStart, "redis_unavailable", http.StatusServiceUnavailable,
+			"websocket upgrade rejected: Redis unavailable",
+			"Service unavailable",
+			"ws_upgrade_redis_unavailable",
+			nil,
+			nil,
+		)
 		return
 	}
 
 	identity, err := apihelperauth.ExtractAccountSession(reqCtx, r, s.ServiceClients.Redis)
 	if err != nil {
-		duration := time.Since(upgradeStart)
-		reason := err.Error()
-		s.recordUpgradeError(reqCtx, reason, duration)
-		logs.WarnCtx(reqCtx, "websocket connection rejected: invalid session", "reason", reason, "ip", r.RemoteAddr, "duration_ms", duration.Milliseconds())
-		http.Error(w, "Unauthorized: "+reason, http.StatusUnauthorized)
+		wsUpgradeRejectAuthSession(w, r, s, upgradeStart, err)
 		return
 	}
+	r = logs.BindRequestIdentityToRequest(r, identity.AccountID, identity.SessionID)
+
 	if err := apihelperauth.TouchAccountSession(reqCtx, s.ServiceClients.Redis, identity.AccountID, identity.SessionID, identity.Session.AppVersion); err != nil {
-		duration := time.Since(upgradeStart)
-		s.recordUpgradeError(reqCtx, "session_missing", duration)
-		logs.WarnCtx(reqCtx, "websocket connection rejected: failed session touch", "error", err, "ip", r.RemoteAddr, "duration_ms", duration.Milliseconds())
-		http.Error(w, "Unauthorized: session_missing", http.StatusUnauthorized)
+		wsUpgradeRejectClient(w, r, s, upgradeStart, "session_missing", http.StatusUnauthorized,
+			"websocket upgrade rejected: failed session touch",
+			"Unauthorized: session_missing",
+			"ws_upgrade_session_touch_failed",
+			map[string]interface{}{
+				"account_id": identity.AccountID,
+				"session_id": identity.SessionID,
+				"reason":     err.Error(),
+			},
+		)
 		return
 	}
+	wsUpgradeAttachSessionValidated(r, identity.AccountID, identity.SessionID)
 
 	// Check connection limit per user
 	s.userConnMu.Lock()
@@ -90,45 +100,32 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 			s.ClientsMu.Lock()
 			if clientToClose, exists := s.Clients[oldestClientID]; exists {
 				closeReason := "Connection limit exceeded - closing oldest connection"
-				logs.WarnCtx(reqCtx, "closing oldest connection to make room for new connection - multiple connections detected",
-					"account_id", identity.AccountID,
-					"client_id", oldestClientID,
-					"current_connections", connCount,
-					"max_connections", config.MaxConnectionsPerUser(),
-					"ip", r.RemoteAddr,
-					"note", "This suggests old connections aren't being closed when the client reconnects")
+				wsUpgradeAttachConnectionLimitEviction(r, identity.AccountID, oldestClientID, connCount, config.MaxConnectionsPerUser())
 
 				// Send close message to client (non-blocking, best effort)
 				// Use a short deadline to avoid blocking
 				clientToClose.conn.SetWriteDeadline(time.Now().Add(100 * time.Millisecond))
 				if err := clientToClose.conn.WriteMessage(websocket.CloseMessage,
 					websocket.FormatCloseMessage(websocket.CloseNormalClosure, closeReason)); err != nil {
-					// If write fails, connection is likely already closed - that's fine
-					logs.DebugCtx(reqCtx, "failed to send close message to client (connection may already be closed)",
-						"client_id", oldestClientID,
-						"error", err)
+					logs.AttachDebugStep(r, "connection_limit_close_message_failed", map[string]interface{}{
+						"evicted_client_id": oldestClientID,
+						"error":             err.Error(),
+					})
 				}
 
 				// Close the connection - this will cause ReadMessage to return an error
-				// which triggers the reader's defer cleanup and logs the disconnection
+				// which triggers the reader's defer cleanup
 				clientToClose.conn.Close()
 			}
 			s.ClientsMu.Unlock()
 
 			// Remove from userConnections after closing to free up a slot
-			// The reader's defer will also try to remove it, but that's safe (idempotent)
-			// We do it here to ensure the slot is freed immediately for the new connection
 			delete(userConns, oldestClientID)
 			if len(userConns) == 0 {
 				delete(s.userConnections, identity.AccountID)
 			}
 		} else {
-			// Fallback: if we couldn't find any client to close, log and continue
-			// This shouldn't happen, but we allow the connection to proceed
-			logs.WarnCtx(reqCtx, "connection limit reached but could not find client to close",
-				"account_id", identity.AccountID,
-				"current_connections", connCount,
-				"ip", r.RemoteAddr)
+			wsUpgradeAttachConnectionLimitFallback(r, identity.AccountID, connCount)
 		}
 	}
 	s.userConnMu.Unlock()
@@ -136,10 +133,13 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	// Upgrade connection
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		duration := time.Since(upgradeStart)
-		s.recordUpgradeError(reqCtx, "upgrade_failed", duration)
-		logs.ErrorCtx(reqCtx, "websocket upgrade failed", "error", err, "ip", r.RemoteAddr, "duration_ms", duration.Milliseconds())
-		http.Error(w, "upgrade failed", http.StatusInternalServerError)
+		wsUpgradeRejectServer(w, r, s, upgradeStart, "upgrade_failed", http.StatusInternalServerError,
+			"websocket upgrade failed",
+			"upgrade failed",
+			"ws_upgrade_failed",
+			err,
+			nil,
+		)
 		return
 	}
 	// Align permessage-deflate (compress/flate) with API default brotli/gzip level (see shared/compression). No-op if extension not negotiated.
@@ -147,7 +147,8 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 
 	clientID := fmt.Sprintf("%p", conn)
 	now := time.Now()
-	connCtx := context.WithoutCancel(reqCtx)
+	connCtx := context.WithoutCancel(r.Context())
+	connCtx = logs.BindRequestIdentity(connCtx, identity.AccountID, identity.SessionID)
 	client := &Client{
 		id:                 clientID,
 		conn:               conn,
@@ -164,14 +165,11 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		lastActivity:       now,
 	}
 
-	// Multiple tabs can legitimately share the same session cookie; do not evict by session id.
-
 	s.ClientsMu.Lock()
 	s.Clients[client.id] = client
 	clientCount := len(s.Clients)
 	s.ClientsMu.Unlock()
 
-	// Track user connection (ensure map is initialized)
 	s.userConnMu.Lock()
 	if s.userConnections[identity.AccountID] == nil {
 		s.userConnections[identity.AccountID] = make(map[string]bool)
@@ -183,26 +181,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	duration := time.Since(upgradeStart)
 	s.recordUpgradeSuccess(connCtx, client.AccountID, duration)
 
-	logs.InfoCtx(connCtx, "websocket client connected",
-		"client_id", client.id,
-		"character_hash", identity.Session.CharacterHash,
-		"account_id", client.AccountID,
-		"session_id", client.SessionID,
-		"total_clients", clientCount,
-		"user_connections", userConnCount,
-		"duration_ms", duration.Milliseconds(),
-		"user_agent", r.UserAgent())
-
-	// Verify connection is valid before starting goroutines
-	if client.conn == nil {
-		logs.ErrorCtx(connCtx, "websocket connection is nil, cannot start goroutines",
-			"client_id", client.id,
-			"account_id", client.AccountID)
-		return
-	}
-
 	// Send clientID to client immediately after connection
-	// This allows frontend to track the server-assigned clientID
 	connectionMsg := map[string]interface{}{
 		"type":     "connected",
 		"clientID": client.id,
@@ -214,59 +193,46 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	}
 	connectionMsgBytes, err := json.Marshal(connectionMsg)
 	if err == nil {
-		// Send connection message with clientID (non-blocking, best effort)
 		select {
 		case client.Send <- connectionMsgBytes:
-			logs.DebugCtx(connCtx, "sent clientID to client",
-				"client_id", client.id,
-				"account_id", client.AccountID)
+			logs.AttachDebugStep(r, "connected_message_queued", map[string]interface{}{
+				"client_id": client.id,
+			})
 		default:
-			logs.WarnCtx(connCtx, "failed to send clientID to client (send buffer full)",
-				"client_id", client.id,
-				"account_id", client.AccountID)
+			logs.AttachHandlerCaveat(r, "connected_message_buffer_full", "failed to queue connected message (send buffer full)", map[string]interface{}{
+				"client_id": client.id,
+			})
 		}
 	} else {
-		logs.WarnCtx(connCtx, "failed to marshal connection message",
-			"client_id", client.id,
-			"account_id", client.AccountID,
-			"error", err)
+		logs.AttachHandlerCaveat(r, "connected_message_marshal_failed", "failed to marshal connected message", map[string]interface{}{
+			"client_id": client.id,
+			"error":     err.Error(),
+		})
 	}
 
-	// Start writer goroutine for sending messages and pings
-	logs.DebugCtx(connCtx, "starting websocket writer goroutine",
-		"client_id", client.id,
-		"account_id", client.AccountID)
 	go func() {
 		defer func() {
-			if r := recover(); r != nil {
+			if rec := recover(); rec != nil {
 				logs.ErrorCtx(client.LogContext(), "panic in writer goroutine startup",
 					"client_id", client.id,
 					"account_id", client.AccountID,
-					"panic", r)
+					"panic", rec)
 			}
 		}()
 		s.writer(client)
 	}()
 
-	// Start reader goroutine (blocks until connection closes)
-	// This MUST be started or messages won't be received
-	logs.DebugCtx(connCtx, "starting websocket reader goroutine",
-		"client_id", client.id,
-		"account_id", client.AccountID)
 	go func() {
 		defer func() {
-			if r := recover(); r != nil {
+			if rec := recover(); rec != nil {
 				logs.ErrorCtx(client.LogContext(), "panic in reader goroutine startup",
 					"client_id", client.id,
 					"account_id", client.AccountID,
-					"panic", r)
+					"panic", rec)
 			}
 		}()
 		s.reader(client)
 	}()
 
-	logs.DebugCtx(connCtx, "websocket upgrade handler finished, reader and writer started",
-		"client_id", client.id,
-		"account_id", client.AccountID)
+	wsUpgradeFinishSuccess(r, client, identity.Session.CharacterHash, clientCount, userConnCount, duration, r.UserAgent())
 }
-

@@ -47,8 +47,7 @@ func BuildCloudLinkedCharactersForLogin(
 		plain, err := row.PlainRefreshMaterial(kr)
 		if err != nil {
 			logs.WarnCtx(ctx, "skip refresh token row for login sessions",
-				"account_id", accountID,
-				"character_hash", row.CharacterHash,
+								"character_hash", row.CharacterHash,
 				"error", err,
 			)
 			continue
@@ -57,8 +56,7 @@ func BuildCloudLinkedCharactersForLogin(
 		tok, err := evesso.RefreshEveSSOAccessToken(ctx, clientID, clientSecret, plain)
 		if err != nil {
 			logs.WarnCtx(ctx, "cloud login session ESI refresh failed",
-				"account_id", accountID,
-				"character_hash", row.CharacterHash,
+								"character_hash", row.CharacterHash,
 				"error", err,
 			)
 			continue

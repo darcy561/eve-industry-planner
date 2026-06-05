@@ -42,25 +42,44 @@ func (s *Server) subscribeToDocLockNotifications() {
 	}
 
 	processor := func(msg jetstream.Msg) {
+		ctx, endSpan := natscore.BeginConsumerContext(
+			context.Background(),
+			"eve-industry-planner/websocket/nats",
+			"nats.doc_lock_notification",
+			msg,
+			nil,
+		)
+		defer endSpan()
+
 		subject := msg.Subject()
 		accountID, err := natscore.ExtractIDFromSubject(subject, natscore.SubjectDocLock)
 		if err != nil {
-			logs.WarnCtx(ctx, "doc lock: bad subject", "subject", subject, "error", err)
+			natscore.FinishNATSConsumerOperation(ctx, "warn", "doc lock notification rejected", map[string]interface{}{
+				"subject": subject,
+				"reason":  "bad subject",
+				"error":   err.Error(),
+			})
 			natscore.AcknowledgeMessage(msg, "bad subject", natscore.GetDeliveryCount(msg))
 			return
 		}
 
 		wire, suppressSessionID, err := natslogic.BuildDocumentLockWire(msg.Data())
 		if err != nil {
-			logs.WarnCtx(ctx, "doc lock: build wire payload failed", "error", err)
+			natscore.FinishNATSConsumerOperation(ctx, "warn", "doc lock notification rejected", map[string]interface{}{
+				"subject":    subject,
+				"account_id": accountID,
+				"reason":     "marshal fail",
+				"error":      err.Error(),
+			})
 			natscore.AcknowledgeMessage(msg, "marshal fail", natscore.GetDeliveryCount(msg))
 			return
 		}
 
-		s.broadcastRawToAccount(accountID, wire, suppressSessionID)
+		outcome := s.broadcastRawToAccount(accountID, wire, suppressSessionID)
 
 		deliveryCount := natscore.GetDeliveryCount(msg)
 		natscore.AcknowledgeMessage(msg, "doc lock delivered", deliveryCount)
+		finishReplicaFanoutOperation(ctx, "doc lock notification delivered", "", subject, outcome, nil)
 	}
 
 	stopChan := make(chan struct{})

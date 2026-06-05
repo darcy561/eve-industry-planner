@@ -42,68 +42,61 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *share
 	})
 	defer metrics.Finish()
 
-	// Only accept POST requests
 	if !helper.RequireMethod(w, r, http.MethodPost) {
-		duration := time.Since(start)
 		metrics.Error("method_not_allowed")
-		apimetrics.LogRequestMetrics(ctx, "system_indexes", duration, "method_not_allowed")
-		logs.WarnCtx(ctx, "invalid method for system indexes endpoint")
 		return
 	}
 
-	// Extract request body into SystemIndexesBody struct
 	reqBody, err := helper.ExtractRequestBody[SystemIndexesBody](r)
 	if err != nil {
-		duration := time.Since(start)
 		metrics.Error("extraction_error")
-		apimetrics.LogRequestMetrics(ctx, "system_indexes", duration, "extraction_error",
-			"error", err)
-		logs.WarnCtx(ctx, "failed to extract system IDs", "error", err)
-		http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err), "failed to extract system IDs", "system_indexes_extraction_error", "system_indexes", err, nil)
 		return
 	}
 
-	// Validate and clean system IDs
 	validatedIDs, invalidCount := helper.ValidateIDs(reqBody.RequestedIDs)
 	if len(validatedIDs) == 0 {
-		duration := time.Since(start)
 		metrics.Error("no_valid_ids")
-		apimetrics.LogRequestMetrics(ctx, "system_indexes", duration, "no_valid_ids",
-			"total_ids", len(reqBody.RequestedIDs), "invalid_ids", invalidCount)
-		logs.WarnCtx(ctx, "no valid system IDs provided", "total_ids", len(reqBody.RequestedIDs), "invalid_ids", invalidCount)
-		http.Error(w, "No valid system IDs provided", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No valid system IDs provided", "no valid system IDs provided", "system_indexes_no_valid_ids", "system_indexes", nil, map[string]interface{}{
+			"total_ids": len(reqBody.RequestedIDs), "invalid_ids": invalidCount,
+		})
 		return
 	}
 
-	// Check if the number of system IDs is too many
 	if len(validatedIDs) > maxSystemIDs {
-		duration := time.Since(start)
 		metrics.Error("too_many_ids")
-		apimetrics.LogRequestMetrics(ctx, "system_indexes", duration, "too_many_ids",
-			"count", len(validatedIDs), "max", maxSystemIDs)
-		logs.WarnCtx(ctx, "too many system IDs requested", "count", len(validatedIDs), "max", maxSystemIDs)
-		http.Error(w, fmt.Sprintf("Too many system IDs (max %d)", maxSystemIDs), http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Too many system IDs (max %d)", maxSystemIDs), "too many system IDs requested", "system_indexes_too_many_ids", "system_indexes", nil, map[string]interface{}{
+			"count": len(validatedIDs), "max": maxSystemIDs,
+		})
 		return
 	}
 
-	// Log if any invalid system IDs were filtered out
 	if invalidCount > 0 {
-		logs.InfoCtx(ctx, "some invalid system IDs filtered out", "total_ids", len(reqBody.RequestedIDs), "valid_ids", len(validatedIDs), "invalid_ids", invalidCount)
+		logs.AttachHandlerCaveat(r, "invalid_system_ids_filtered", "some invalid system IDs filtered out", map[string]interface{}{
+			"total_ids":   len(reqBody.RequestedIDs),
+			"valid_ids":   len(validatedIDs),
+			"invalid_ids": invalidCount,
+		})
 	}
 
-	// Retrieve system indexes from Redis
+	logs.AttachDebugStep(r, "system_ids_validated", map[string]interface{}{
+		"valid_count":   len(validatedIDs),
+		"invalid_count": invalidCount,
+	})
+
 	result := make(map[string]esitypes.SystemIndexes, len(validatedIDs))
 	systemsFound := 0
 	systemsNotFound := 0
+	missingIDs := make([]string, 0)
 
 	for _, idStr := range validatedIDs {
-		systemID, _ := strconv.ParseInt(idStr, 10, 32) // Already validated, so no error check needed
+		systemID, _ := strconv.ParseInt(idStr, 10, 32)
 
 		var index esitypes.SystemIndexes
 		err = rediscore.GetIndustrySystemIndex(ctx, clients.Redis, int32(systemID), &index)
 		if err != nil {
-			// System not found in Redis - return blank index
 			systemsNotFound++
+			missingIDs = append(missingIDs, idStr)
 			index = esitypes.SystemIndexes{
 				SolarSystemID:    int32(systemID),
 				LastUpdated:      0,
@@ -115,10 +108,12 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *share
 				Reaction:         0,
 			}
 
-			// Log error if it's not just a missing entry
 			if err != redis.Nil {
 				metrics.Error("redis_error")
-				logs.WarnCtx(ctx, "redis error retrieving system index", "error", err, "system_id", systemID)
+				logs.AttachHandlerCaveat(r, "redis_system_index_error", "redis error retrieving system index", map[string]interface{}{
+					"error":     err.Error(),
+					"system_id": systemID,
+				})
 			}
 		} else {
 			systemsFound++
@@ -126,12 +121,13 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *share
 		result[idStr] = index
 	}
 
-	// Encode response (nginx handles compression); only record success metrics/logs after body is written
+	logs.AttachDebugStep(r, "redis_fetch_completed", map[string]interface{}{
+		"systems_found":     systemsFound,
+		"systems_not_found": systemsNotFound,
+	})
+
 	if err := helper.EncodeJSON(w, result); err != nil {
-		duration := time.Since(start)
 		metrics.Error("encode_error")
-		apimetrics.LogRequestMetrics(ctx, "system_indexes", duration, "encode_error",
-			"error", err)
 		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode system index response", "system_index_encode_failed", "system_indexes", err, nil)
 		return
 	}
@@ -140,16 +136,20 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *share
 	m.SystemsRequested.Observe(ctx, float64(len(validatedIDs)))
 	m.SystemIDsRequestedTotal.Add(ctx, float64(len(validatedIDs)))
 
-	apimetrics.LogRequestMetrics(ctx, "system_indexes", duration, "success",
-		"system_ids_count", len(validatedIDs),
-		"systems_found", systemsFound,
-		"systems_not_found", systemsNotFound,
-	)
+	logs.AttachHandlerSuccessDetail(r, "system indexes request completed", map[string]interface{}{
+		"requested_system_ids": validatedIDs,
+		"missing_system_ids":   missingIDs,
+		"system_ids_count":     len(validatedIDs),
+		"systems_found":        systemsFound,
+		"systems_not_found":    systemsNotFound,
+		"duration_ms":          duration.Milliseconds(),
+	})
 
-	logs.DebugCtx(ctx, "system indexes request completed",
-		"system_ids_count", len(validatedIDs),
-		"systems_found", systemsFound,
-		"systems_not_found", systemsNotFound,
-		"duration_ms", duration.Milliseconds(),
-	)
+	if duration > time.Second {
+		apimetrics.LogRequestMetrics(ctx, "system_indexes", duration, "success",
+			"system_ids_count", len(validatedIDs),
+			"systems_found", systemsFound,
+			"systems_not_found", systemsNotFound,
+		)
+	}
 }

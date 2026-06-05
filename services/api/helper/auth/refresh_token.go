@@ -331,7 +331,9 @@ func GetCorporations(ctx context.Context, redisClient *redis.Client, accountID s
 	}
 	if err != nil {
 		// Log error but return empty array - don't fail the request
-		logs.DebugCtx(ctx, "failed to get corporation IDs from Redis", "error", err, "account_id", accountID)
+		logs.AttachDebugStepCtx(ctx, "redis_corporations_load_degraded", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return []int64{}
 	}
 
@@ -366,7 +368,9 @@ func GetAlliances(ctx context.Context, redisClient *redis.Client, accountID stri
 		return []int64{}
 	}
 	if err != nil {
-		logs.DebugCtx(ctx, "failed to get alliance IDs from Redis", "error", err, "account_id", accountID)
+		logs.AttachDebugStepCtx(ctx, "redis_alliances_load_degraded", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return []int64{}
 	}
 
@@ -660,7 +664,7 @@ func ResolveAccountSessionBySessionID(ctx context.Context, redisClient *redis.Cl
 	session, ok := rec.Sessions[sid]
 	if !ok {
 		deleteSessionIndexKeys(ctx, redisClient, sid)
-		return "", nil, errors.New("session not found")
+		return accountID, nil, errors.New("session not found")
 	}
 	return accountID, &session, nil
 }

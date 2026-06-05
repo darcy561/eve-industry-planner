@@ -45,6 +45,24 @@ limits_config:
         - action: index_label
           attributes:
             - compose_service
+        - action: drop
+          attributes:
+            - telemetry.sdk.language
+            - telemetry.sdk.name
+            - telemetry.sdk.version
+            - host.name
+    scope_attributes:
+      - action: drop
+        regex: .*
+    log_attributes:
+      - action: drop
+        attributes:
+          - code.filepath
+          - code.function
+          - code.lineno
+          - code.file.path
+          - code.function.name
+          - code.line.number
   retention_period: 168h
 
 compactor:

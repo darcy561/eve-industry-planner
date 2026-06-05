@@ -26,19 +26,12 @@ func GetGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 	})
 	defer metrics.Finish()
 
-	// Only allow GET requests
 	if !helper.RequireMethod(w, r, http.MethodGet) {
 		metrics.Error("method_not_allowed")
-		logs.WarnCtx(ctx, "invalid method for getGroups endpoint")
 		return
 	}
 
-	accountID, ok := helper.RequireAccountID(w, r)
-	if !ok {
-		metrics.Error("auth_error")
-		logs.WarnCtx(ctx, "failed to extract accountID")
-		return
-	}
+	accountID := helper.AuthenticatedAccountID(r)
 
 	database := clients.Mongo.Database(mongocore.DatabaseName)
 	collection := database.Collection(mongocore.CollectionUserJobGroups)
@@ -46,20 +39,24 @@ func GetGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 	groups, err := mongoget.LoadGroupsByAccount(ctx, collection, accountID)
 	if err != nil {
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to retrieve groups", "failed to query groups", "groups_query_failed", "groups_get", err, map[string]interface{}{"account_id": accountID})
+		helper.RespondEndpointServerError(w, r, "Failed to retrieve groups", "failed to query groups", "groups_query_failed", "groups_get", err, nil)
 		return
 	}
 
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+		"group_count": len(groups),
+	})
+
 	if err := helper.EncodeJSON(w, groups); err != nil {
 		metrics.Error("encode_error")
-		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode groups response", "groups_encode_failed", "groups_get", err, map[string]interface{}{"account_id": accountID})
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode groups response", "groups_encode_failed", "groups_get", err, nil)
 		return
 	}
 
 	metrics.Success()
 	m.GroupsRequested.Observe(ctx, float64(len(groups)))
-	logs.InfoCtx(ctx, "user groups retrieved",
-		"account_id", accountID,
-		"group_count", len(groups),
-		"duration_ms", time.Since(start).Milliseconds())
+	logs.AttachHandlerSuccessDetail(r, "user groups retrieved", map[string]interface{}{
+		"group_count": len(groups),
+		"duration_ms": time.Since(start).Milliseconds(),
+	})
 }

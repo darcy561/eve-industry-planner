@@ -80,84 +80,82 @@ func MarketPricesHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	})
 	defer metrics.Finish()
 
-	// Only accept POST requests
 	if !helper.RequireMethod(w, r, http.MethodPost) {
-		duration := time.Since(start)
 		metrics.Error("method_not_allowed")
-		apimetrics.LogRequestMetrics(ctx, "market_prices", duration, "method_not_allowed")
-		logs.WarnCtx(ctx, "invalid method for market prices endpoint")
 		return
 	}
 
-	// Extract request body into MarketPricesBody struct
 	reqBody, err := helper.ExtractRequestBody[MarketPricesBody](r)
 	if err != nil {
-		duration := time.Since(start)
 		metrics.Error("extraction_error")
-		apimetrics.LogRequestMetrics(ctx, "market_prices", duration, "extraction_error",
-			"error", err)
-		logs.WarnCtx(ctx, "failed to extract type IDs", "error", err)
-		http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err), "failed to extract type IDs", "market_prices_extraction_error", "market_prices", err, nil)
 		return
 	}
 
-	// Validate and clean type IDs
 	validatedIDs, invalidCount := helper.ValidateIDs(reqBody.RequestedIDs)
 	if len(validatedIDs) == 0 {
-		duration := time.Since(start)
 		metrics.Error("no_valid_ids")
-		apimetrics.LogRequestMetrics(ctx, "market_prices", duration, "no_valid_ids",
-			"total_ids", len(reqBody.RequestedIDs), "invalid_ids", invalidCount)
-		logs.WarnCtx(ctx, "no valid type IDs provided", "total_ids", len(reqBody.RequestedIDs), "invalid_ids", invalidCount)
-		http.Error(w, "No valid type IDs provided", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No valid type IDs provided", "no valid type IDs provided", "market_prices_no_valid_ids", "market_prices", nil, map[string]interface{}{
+			"total_ids": len(reqBody.RequestedIDs), "invalid_ids": invalidCount,
+		})
 		return
 	}
 
-	// Check if the number of type IDs is too many
 	if len(validatedIDs) > maxTypeIDs {
-		duration := time.Since(start)
 		metrics.Error("too_many_ids")
-		apimetrics.LogRequestMetrics(ctx, "market_prices", duration, "too_many_ids",
-			"count", len(validatedIDs), "max", maxTypeIDs)
-		logs.WarnCtx(ctx, "too many type IDs requested", "count", len(validatedIDs), "max", maxTypeIDs)
-		http.Error(w, fmt.Sprintf("Too many type IDs (max %d)", maxTypeIDs), http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Too many type IDs (max %d)", maxTypeIDs), "too many type IDs requested", "market_prices_too_many_ids", "market_prices", nil, map[string]interface{}{
+			"count": len(validatedIDs), "max": maxTypeIDs,
+		})
 		return
 	}
 
-	// Log if any invalid type IDs were filtered out
 	if invalidCount > 0 {
-		logs.InfoCtx(ctx, "some invalid type IDs filtered out", "total_ids", len(reqBody.RequestedIDs), "valid_ids", len(validatedIDs), "invalid_ids", invalidCount)
+		logs.AttachHandlerCaveat(r, "invalid_type_ids_filtered", "some invalid type IDs filtered out", map[string]interface{}{
+			"total_ids":   len(reqBody.RequestedIDs),
+			"valid_ids":   len(validatedIDs),
+			"invalid_ids": invalidCount,
+		})
 	}
 
-	// Retrieve market prices from Redis
+	logs.AttachDebugStep(r, "type_ids_validated", map[string]interface{}{
+		"valid_count":   len(validatedIDs),
+		"invalid_count": invalidCount,
+	})
+
 	result := make(map[string]MarketPriceResponse, len(validatedIDs))
 	typesFound := 0
 	typesNotFound := 0
+	missingIDs := make([]string, 0)
 
 	for _, idStr := range validatedIDs {
-		typeID, _ := strconv.ParseInt(idStr, 10, 32) // Already validated, so no error check needed
+		typeID, _ := strconv.ParseInt(idStr, 10, 32)
 
-		response, found, err := fetchMarketPricesForType(ctx, clients.Redis, clients.JetStream, clients.NATS, int32(typeID))
+		response, found, err := fetchMarketPricesForType(ctx, r, clients.Redis, clients.JetStream, clients.NATS, int32(typeID))
 		if err != nil {
 			metrics.Error("redis_error")
-			logs.WarnCtx(ctx, "redis error retrieving market prices", "error", err, "type_id", typeID)
+			logs.AttachHandlerCaveat(r, "redis_market_prices_error", "redis error retrieving market prices", map[string]interface{}{
+				"error":   err.Error(),
+				"type_id": typeID,
+			})
 		}
 
 		if found {
 			typesFound++
 		} else {
 			typesNotFound++
+			missingIDs = append(missingIDs, idStr)
 		}
 
 		result[idStr] = response
 	}
 
-	// Encode response (nginx handles compression); only record success metrics/logs after body is written
+	logs.AttachDebugStep(r, "redis_fetch_completed", map[string]interface{}{
+		"types_found":     typesFound,
+		"types_not_found": typesNotFound,
+	})
+
 	if err := helper.EncodeJSON(w, result); err != nil {
-		duration := time.Since(start)
 		metrics.Error("encode_error")
-		apimetrics.LogRequestMetrics(ctx, "market_prices", duration, "encode_error",
-			"error", err)
 		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode market prices response", "market_prices_encode_failed", "market_prices", err, nil)
 		return
 	}
@@ -169,23 +167,27 @@ func MarketPricesHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		m.RequestsWithMissingPrices.Inc(ctx)
 	}
 
-	apimetrics.LogRequestMetrics(ctx, "market_prices", duration, "success",
-		"type_ids_count", len(validatedIDs),
-		"types_found", typesFound,
-		"types_not_found", typesNotFound,
-	)
+	logs.AttachHandlerSuccessDetail(r, "market prices request completed", map[string]interface{}{
+		"requested_type_ids": validatedIDs,
+		"missing_type_ids":   missingIDs,
+		"type_ids_count":     len(validatedIDs),
+		"types_found":        typesFound,
+		"types_not_found":    typesNotFound,
+		"duration_ms":        duration.Milliseconds(),
+	})
 
-	logs.InfoCtx(ctx, "market prices request completed",
-		"type_ids_count", len(validatedIDs),
-		"types_found", typesFound,
-		"types_not_found", typesNotFound,
-		"duration_ms", duration.Milliseconds(),
-	)
+	if duration > time.Second {
+		apimetrics.LogRequestMetrics(ctx, "market_prices", duration, "success",
+			"type_ids_count", len(validatedIDs),
+			"types_found", typesFound,
+			"types_not_found", typesNotFound,
+		)
+	}
 }
 
 // fetchMarketPricesForType fetches market prices for a specific type ID from Redis
 // Returns the response, whether any data was found, and any error
-func fetchMarketPricesForType(ctx context.Context, redisClient *redis.Client, js jetstream.JetStream, natsConn *nats.Conn, typeID int32) (MarketPriceResponse, bool, error) {
+func fetchMarketPricesForType(ctx context.Context, r *http.Request, redisClient *redis.Client, js jetstream.JetStream, natsConn *nats.Conn, typeID int32) (MarketPriceResponse, bool, error) {
 	response := MarketPriceResponse{
 		locations:     make(map[string]LocationPrice),
 		AdjustedPrice: 0,
@@ -209,7 +211,12 @@ func fetchMarketPricesForType(ctx context.Context, redisClient *redis.Client, js
 	// Fetch market prices for all locations using batch MGet (single operation, fastest)
 	priceEntries, err := rediscore.GetMarketPriceEntriesByType(ctx, redisClient, typeID, locationIDs)
 	if err != nil {
-		logs.WarnCtx(ctx, "failed to fetch market price entries by type", "error", err, "type_id", typeID)
+		if r != nil {
+			logs.AttachHandlerCaveat(r, "market_price_entries_fetch_failed", "failed to fetch market price entries by type", map[string]interface{}{
+				"error":   err.Error(),
+				"type_id": typeID,
+			})
+		}
 		// Continue with empty map - will send refresh messages
 		priceEntries = make(map[int32]*rediscore.MarketPriceEntry)
 	}
@@ -249,7 +256,11 @@ func fetchMarketPricesForType(ctx context.Context, redisClient *redis.Client, js
 	if !hasAnyData {
 		// Validate typeID before sending messages
 		if typeID == 0 {
-			logs.WarnCtx(ctx, "skipping market prices refresh messages due to invalid type_id", "type_id", typeID)
+			if r != nil {
+				logs.AttachHandlerCaveat(r, "market_prices_refresh_skipped_invalid_type", "skipping market prices refresh messages due to invalid type_id", map[string]interface{}{
+					"type_id": typeID,
+				})
+			}
 			return response, hasAnyData, nil
 		}
 
@@ -264,11 +275,14 @@ func fetchMarketPricesForType(ctx context.Context, redisClient *redis.Client, js
 
 			// Use high-priority task for missing market prices (FetchMissingMarketPrices has DefaultPriority Priority2)
 			if err := natscore.PublishTask(ctx, js, taskscore.FetchMissingMarketPrices.Subject, taskscore.FetchMissingMarketPrices.Name, request, natsConn); err != nil {
-				logs.WarnCtx(ctx, "failed to publish market prices refresh message",
-					"type_id", typeID,
-					"location_id", location.RegionID,
-					"station_id", location.StationID,
-					"error", err)
+				if r != nil {
+					logs.AttachHandlerCaveat(r, "market_prices_refresh_publish_failed", "failed to publish market prices refresh message", map[string]interface{}{
+						"type_id":     typeID,
+						"location_id": location.RegionID,
+						"station_id":  location.StationID,
+						"error":       err.Error(),
+					})
+				}
 				// Continue with other locations even if one fails
 			}
 		}

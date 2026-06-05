@@ -63,11 +63,8 @@ func MetaHandler(w http.ResponseWriter, r *http.Request) {
 	m := apimetrics.GetAPIStaticData()
 
 	if r.Method != http.MethodGet {
-		duration := time.Since(start)
 		m.Errors.WithLabelValues("meta_method_not_allowed").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "static_data_meta", duration, "method_not_allowed")
-		logs.WarnCtx(ctx, "invalid method for static data meta endpoint")
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for static data meta endpoint", "static_data_meta_method_not_allowed", "static_data", nil, map[string]interface{}{"method": r.Method})
 		return
 	}
 
@@ -119,6 +116,14 @@ func MetaHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	detail := staticDataFileServeDetail(r, "", "meta", 0)
+	detail["build_version"] = meta.BuildVersion
+	detail["build_number"] = meta.BuildNumber
+	detail["file_count"] = len(meta.FileKeys)
+	detail["data_dir"] = dataDir
+
+	logs.AttachDebugStep(r, "static_data_meta_built", detail)
+
 	if err := helper.EncodeJSON(w, meta); err != nil {
 		duration := time.Since(start)
 		m.Errors.WithLabelValues("meta_encode_error").Inc(ctx)
@@ -130,7 +135,16 @@ func MetaHandler(w http.ResponseWriter, r *http.Request) {
 	duration := time.Since(start)
 	m.Meta.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
 	m.Meta.RequestsCount.Inc(ctx)
-	apimetrics.LogRequestMetrics(ctx, "static_data_meta", duration, "success")
+	if duration > time.Second {
+		apimetrics.LogRequestMetrics(ctx, "static_data_meta", duration, "success")
+	}
+	logs.AttachHandlerSuccessDetail(r, "static data meta served", map[string]interface{}{
+		"url_path":      r.URL.Path,
+		"build_version": meta.BuildVersion,
+		"build_number":  meta.BuildNumber,
+		"file_count":    len(meta.FileKeys),
+		"duration_ms":   duration.Milliseconds(),
+	})
 }
 
 func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string, fileMetrics *apimetrics.StaticDataFileMetrics, errPrefix string) {
@@ -142,11 +156,8 @@ func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string
 	shared := apimetrics.GetAPIStaticData()
 
 	if r.Method != http.MethodGet {
-		duration := time.Since(start)
 		shared.Errors.WithLabelValues(errPrefix + "_method_not_allowed").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "static_data_"+errPrefix, duration, "method_not_allowed")
-		logs.WarnCtx(ctx, "invalid method for static data file", "file", errPrefix)
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for static data file", "static_data_file_method_not_allowed", "static_data", nil, map[string]interface{}{"method": r.Method, "file": errPrefix})
 		return
 	}
 
@@ -161,9 +172,7 @@ func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string
 		duration := time.Since(start)
 		if os.IsNotExist(err) {
 			shared.Errors.WithLabelValues(errPrefix + "_not_found").Inc(ctx)
-			apimetrics.LogRequestMetrics(ctx, "static_data_"+errPrefix, duration, "not_found", "file_path", filePath)
-			logs.WarnCtx(ctx, "static data file not found", "file", errPrefix, "file_path", filePath)
-			http.Error(w, "static data file not found", http.StatusNotFound)
+			helper.RespondEndpointError(w, r, http.StatusNotFound, "static data file not found", "static data file not found", "static_data_file_not_found", "static_data", err, map[string]interface{}{"file": errPrefix, "file_path": filePath})
 			return
 		}
 		shared.Errors.WithLabelValues(errPrefix + "_read_error").Inc(ctx)
@@ -195,8 +204,30 @@ func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
 
+	serveDetail := staticDataFileServeDetail(r, fileName, errPrefix, len(data))
+	logs.AttachDebugStep(r, "static_data_file_served", serveDetail)
+
 	duration := time.Since(start)
 	fileMetrics.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
 	fileMetrics.RequestsCount.Inc(ctx)
-	apimetrics.LogRequestMetrics(ctx, "static_data_"+errPrefix, duration, "success")
+	if duration > time.Second {
+		apimetrics.LogRequestMetrics(ctx, "static_data_"+errPrefix, duration, "success")
+	}
+	serveDetail["duration_ms"] = duration.Milliseconds()
+	logs.AttachHandlerSuccessDetail(r, fmt.Sprintf("static data file served (%s)", fileName), serveDetail)
+}
+
+func staticDataFileServeDetail(r *http.Request, fileName, fileKey string, bytes int) map[string]interface{} {
+	detail := map[string]interface{}{
+		"file_name": fileName,
+		"file_key":  fileKey,
+		"bytes":     bytes,
+	}
+	if r != nil {
+		detail["url_path"] = r.URL.Path
+		if v := r.URL.Query().Get("v"); v != "" {
+			detail["query_version"] = v
+		}
+	}
+	return detail
 }

@@ -11,12 +11,8 @@ import (
 // startCleanupGoroutine starts a background goroutine that periodically cleans up idle queues
 func (s *Server) startCleanupGoroutine() {
 	go func() {
-		cleanupCtx := context.Background()
 		ticker := time.NewTicker(config.CleanupInterval)
 		defer ticker.Stop()
-
-		logs.DebugCtx(cleanupCtx, "cleanup goroutine started")
-		defer logs.DebugCtx(cleanupCtx, "cleanup goroutine stopped")
 
 		for {
 			select {

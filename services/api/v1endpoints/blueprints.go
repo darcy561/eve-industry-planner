@@ -29,15 +29,13 @@ const (
 //	500 — Mongo query or encode failure
 //	200 — JSON success
 func BlueprintsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	ctx := r.Context()
 	switch r.Method {
 	case http.MethodGet:
 		BlueprintGetHandler(w, r, clients)
 	case http.MethodPost:
 		BlueprintsPostHandler(w, r, clients)
 	default:
-		logs.WarnCtx(ctx, "invalid method for blueprints endpoint")
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for blueprints endpoint", "method_not_allowed", "blueprints", nil, map[string]interface{}{"method": r.Method})
 	}
 }
 
@@ -51,13 +49,11 @@ func BlueprintGetHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	}
 	blueprintID = strings.TrimSpace(blueprintID)
 	if blueprintID == "" {
-		logs.WarnCtx(ctx, "blueprints get: missing or empty blueprintID")
-		http.Error(w, "Invalid or missing blueprintID", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid or missing blueprintID", "blueprints get: missing or empty blueprintID", "blueprints_missing_id", "blueprints", nil, nil)
 		return
 	}
 
 	if clients == nil || clients.Mongo == nil {
-		logs.WarnCtx(ctx, "blueprints get: mongo client unavailable")
 		helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Service unavailable", "blueprints mongo client unavailable", "blueprints_mongo_unavailable", "blueprints", errors.New("mongo client unavailable"), nil)
 		return
 	}
@@ -69,10 +65,13 @@ func BlueprintGetHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		return
 	}
 	if !found {
-		logs.WarnCtx(ctx, "blueprints get: blueprint not found", "blueprint_id", blueprintID)
-		http.Error(w, "Blueprint not found", http.StatusNotFound)
+		helper.RespondEndpointError(w, r, http.StatusNotFound, "Blueprint not found", "blueprints get: blueprint not found", "blueprints_not_found", "blueprints", nil, map[string]interface{}{"blueprint_id": blueprintID})
 		return
 	}
+
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+		"blueprint_id": blueprintID,
+	})
 
 	w.Header().Set("Cache-Control", blueprintsCacheControl)
 	if err := helper.EncodeJSON(w, data); err != nil {
@@ -80,7 +79,10 @@ func BlueprintGetHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		return
 	}
 
-	logs.InfoCtx(ctx, "blueprint retrieved", "blueprint_id", blueprintID, "duration_ms", time.Since(start).Milliseconds())
+	logs.AttachHandlerSuccessDetail(r, "blueprint retrieved", map[string]interface{}{
+		"blueprint_id": blueprintID,
+		"duration_ms":  time.Since(start).Milliseconds(),
+	})
 }
 
 type BlueprintsPostBody struct {
@@ -95,13 +97,11 @@ func BlueprintsPostHandler(w http.ResponseWriter, r *http.Request, clients *shar
 
 	var body BlueprintsPostBody
 	if err := helper.DecodeJSONRequest(r, &body, helper.DefaultMaxBodySize); err != nil {
-		logs.WarnCtx(ctx, "blueprints post: invalid body", "error", err)
-		http.Error(w, "Invalid or empty ID array", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid or empty ID array", "blueprints post: invalid body", "blueprints_invalid_body", "blueprints", err, nil)
 		return
 	}
 	if len(body.IDArray) == 0 {
-		logs.WarnCtx(ctx, "blueprints post: empty id array")
-		http.Error(w, "Invalid or empty ID array", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid or empty ID array", "blueprints post: empty id array", "blueprints_empty_id_array", "blueprints", nil, nil)
 		return
 	}
 
@@ -111,7 +111,6 @@ func BlueprintsPostHandler(w http.ResponseWriter, r *http.Request, clients *shar
 	}
 
 	if clients == nil || clients.Mongo == nil {
-		logs.WarnCtx(ctx, "blueprints post: mongo client unavailable")
 		helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Service unavailable", "blueprints mongo client unavailable", "blueprints_mongo_unavailable", "blueprints", errors.New("mongo client unavailable"), nil)
 		return
 	}
@@ -124,13 +123,22 @@ func BlueprintsPostHandler(w http.ResponseWriter, r *http.Request, clients *shar
 	}
 	results := bsonDocsToMaps(docs)
 
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+		"requested": len(typeIDs),
+		"returned":  len(results),
+	})
+
 	w.Header().Set("Cache-Control", "no-store")
 	if err := helper.EncodeJSON(w, results); err != nil {
 		helper.RespondEndpointServerError(w, r, "Internal server error", "blueprints post: encode error", "blueprints_post_encode_failed", "blueprints", err, nil)
 		return
 	}
 
-	logs.InfoCtx(ctx, "blueprints retrieved", "requested", len(typeIDs), "returned", len(results), "duration_ms", time.Since(start).Milliseconds())
+	logs.AttachHandlerSuccessDetail(r, "blueprints retrieved", map[string]interface{}{
+		"requested":   len(typeIDs),
+		"returned":    len(results),
+		"duration_ms": time.Since(start).Milliseconds(),
+	})
 }
 
 func bsonDocsToMaps(docs []bson.M) []map[string]any {

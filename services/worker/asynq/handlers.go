@@ -5,6 +5,7 @@ import (
 	"time"
 
 	natscore "eve-industry-planner/shared/core/nats"
+	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/natsprop"
 	"eve-industry-planner/shared/telemetry/workermetrics"
@@ -37,6 +38,9 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	mux.Use(func(h asynq.Handler) asynq.Handler {
 		return asynq.HandlerFunc(func(ctx context.Context, t *asynq.Task) error {
 			ctx = natsprop.ExtractFromStringMap(ctx, t.Headers())
+			ctx = natsprop.BindLogContextFromStringMap(ctx, t.Headers())
+			ctx = logs.BeginOperationContext(ctx)
+			ctx = logs.EnsureOperationLogger(ctx)
 			taskType := t.Type()
 			ctx, span := tracer.Start(ctx, "asynq.task",
 				trace.WithAttributes(attribute.String("asynq.task.type", taskType)),
@@ -44,22 +48,40 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 			if attrs := natscore.AsynqTaskPayloadSpanAttributes(taskType, t.Payload()); len(attrs) > 0 {
 				span.SetAttributes(attrs...)
 			}
+			logs.AttachDebugStepCtx(ctx, "asynq_task_started", map[string]interface{}{
+				"task_type": taskType,
+			})
 			start := time.Now()
 			err := h.ProcessTask(ctx, t)
 			elapsed := time.Since(start)
+			outcomeDetail := map[string]interface{}{
+				"task_type":   taskType,
+				"duration_ms": elapsed.Milliseconds(),
+			}
+			if rid := logs.RequestIDFromContext(ctx); rid != "" {
+				outcomeDetail["request_id"] = rid
+			}
 			switch {
 			case err == nil:
 				span.SetStatus(codes.Ok, "")
 				workermetrics.RecordAsynqTask(ctx, taskType, "success", elapsed)
+				logs.AttachDebugStepCtx(ctx, "asynq_task_completed", outcomeDetail)
+				emitAsynqTaskLog(ctx, "debug", "asynq task completed", outcomeDetail)
 			case errIsRateLimitDeferral(err):
 				// Matches asynq.Config.IsFailure: task is re-queued for later; do not count in metrics
 				// (these bounce until they eventually succeed or fail for real).
 				span.SetAttributes(attribute.String("asynq.task.outcome", "retry_rate_limit"))
 				span.SetStatus(codes.Ok, "")
+				outcomeDetail["outcome"] = "retry_rate_limit"
+				logs.AttachDebugStepCtx(ctx, "asynq_task_deferred", outcomeDetail)
+				emitAsynqTaskLog(ctx, "debug", "asynq task deferred (rate limit)", outcomeDetail)
 			default:
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
 				workermetrics.RecordAsynqTask(ctx, taskType, "failure", elapsed)
+				outcomeDetail["error"] = err.Error()
+				logs.AttachDebugStepCtx(ctx, "asynq_task_failed", outcomeDetail)
+				emitAsynqTaskLog(ctx, "warn", "asynq task failed", outcomeDetail)
 			}
 			span.End()
 			return err
@@ -150,4 +172,10 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	mux.HandleFunc("pruneExpiredAccountSessions", func(ctx context.Context, t *asynq.Task) error {
 		return maintenancetasks.PruneExpiredAccountSessions(ctx, t, taskDeps)
 	})
+}
+
+func emitAsynqTaskLog(ctx context.Context, level, msg string, detail map[string]interface{}) {
+	steps := logs.DebugStepsFromContext(ctx)
+	caveats := logs.HandlerCaveatsFromContext(ctx)
+	logs.EmitAccessShapedLog(ctx, level, msg, detail, steps, caveats)
 }

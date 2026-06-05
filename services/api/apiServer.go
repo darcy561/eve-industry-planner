@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/api/middleware"
 	"eve-industry-planner/api/migrationendpoints"
 	"eve-industry-planner/api/staticdata"
@@ -41,6 +42,10 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 		return fmt.Errorf("startup failure requested via FAIL_ON_STARTUP")
 	}
 
+	logs.SetDebugIdentityResolver(func(ctx context.Context) (string, string) {
+		return auth.AccountIDFromContext(ctx), auth.SessionIDFromContext(ctx)
+	})
+
 	//creates rate limits for routes and setups up redis store to store them
 	publicRateLimit, err := limiter.NewRateFromFormatted("50-S")
 	if err != nil {
@@ -67,6 +72,7 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 	// This is registered directly on mux (not through router groups) so it's only
 	// accessible directly on port 4000, not through Traefik's public routing
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		logs.AttachDebugStep(r, "health_check", nil)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
@@ -87,6 +93,7 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 	// structure IDs in parallel on a cold cache. Exempt that prefix from the default public
 	// rate limit so we do not need a non-cacheable batch lookup.
 	publicGroup := middleware.NewGroup(mux,
+		middleware.OptionalAccountLogConstructor(clients.Redis),
 		middleware.ApplyIf(
 			func(r *http.Request) bool {
 				return !strings.HasPrefix(r.URL.Path, "/api/v1/citadel-names")
@@ -344,6 +351,7 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 
 	// Migration-specific groups (separate from v1 handlers)
 	migrationPublicGroup := middleware.NewGroup(mux,
+		middleware.OptionalAccountLogConstructor(clients.Redis),
 		middleware.RateLimiterConstructor(store, publicRateLimit, "migration_public"),
 	)
 

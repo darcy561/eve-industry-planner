@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"eve-industry-planner/shared/logs"
@@ -135,11 +136,6 @@ func (s *Server) handleSubscribeRequest(clientID string, docID string) {
 	}
 	s.activeSubscriptions[clientID][docID] = time.Now()
 	s.activeSubsMu.Unlock()
-
-	logs.DebugCtx(s.clientLogCtx(clientID), "processed explicit subscribe request",
-		"client_id", clientID,
-		"account_id", accountID,
-		"doc_id", docID)
 }
 
 func (s *Server) handleUnsubscribeRequest(clientID string, docID string) {
@@ -175,63 +171,73 @@ func (s *Server) handleUnsubscribeRequest(clientID string, docID string) {
 		}
 	}
 	s.activeSubsMu.Unlock()
-
-	logs.DebugCtx(s.clientLogCtx(clientID), "processed explicit unsubscribe request",
-		"client_id", clientID,
-		"account_id", accountID,
-		"doc_id", docID)
 }
 
 // broadcastRawToAccount delivers a pre-marshaled JSON message to every connection for the account.
-// When suppressSessionID is non-empty, clients whose SessionID matches are skipped
-// (viewer joined/left echo only). Doc-lock `document_lock_requested` is not
-// suppressed here — JWT session is shared across tabs; see natslogic.BuildDocumentLockWire.
-func (s *Server) broadcastRawToAccount(accountID string, data []byte, suppressSessionID string) {
+func (s *Server) broadcastRawToAccount(accountID string, data []byte, suppressSessionID string) outboundDeliveryOutcome {
+	out := outboundDeliveryOutcome{
+		RouteKind:         "doc_lock",
+		AccountID:         accountID,
+		SuppressSessionID: strings.TrimSpace(suppressSessionID),
+	}
 	if accountID == "" || len(data) == 0 {
-		return
+		return out
 	}
 	s.userConnMu.RLock()
 	userConns, ok := s.userConnections[accountID]
 	if !ok || len(userConns) == 0 {
 		s.userConnMu.RUnlock()
-		return
+		return out
 	}
 	ids := make([]string, 0, len(userConns))
 	for id := range userConns {
 		ids = append(ids, id)
 	}
 	s.userConnMu.RUnlock()
+	out.CandidateCount = len(ids)
 
 	s.ClientsMu.RLock()
 	defer s.ClientsMu.RUnlock()
 	for _, cid := range ids {
 		client, exists := s.Clients[cid]
 		if !exists || !outgoinglogic.RawAccountRecipientDeliverable(accountID, client.AccountID) {
+			if !exists {
+				out.recordNotConnectedSkip(cid)
+			}
 			continue
 		}
 		if suppressSessionID != "" && client.SessionID == suppressSessionID {
+			out.recordSessionSkip(cid)
 			continue
 		}
-		if !outgoinglogic.TrySendNonBlocking(client.Send, data) {
+		if outgoinglogic.TrySendNonBlocking(client.Send, data) {
+			out.RecipientCount++
+			out.recordRecipient(cid, client)
+		} else {
+			out.recordSendBufferFull(cid)
 			logs.WarnCtx(context.Background(), "doc lock: client send buffer full",
 				"client_id", cid)
 		}
 	}
+	if out.RecipientCount > 0 {
+		out.RecipientAccountIDs = appendUniqueString(out.RecipientAccountIDs, accountID)
+	}
+	return out
 }
 
 // QueueSubscribeAck sends a lightweight ack after explicit subscribe JSON (optional for clients).
-func (s *Server) QueueSubscribeAck(client *Client, docIDs []string) {
+func (s *Server) QueueSubscribeAck(client *Client, docIDs []string) bool {
 	if client == nil || len(docIDs) == 0 {
-		return
+		return false
 	}
 	b, err := subscriptionlogic.MarshalSubscribeAck(docIDs)
 	if err != nil {
-		return
+		return false
 	}
 	select {
 	case client.Send <- b:
+		return true
 	default:
-		logs.WarnCtx(client.LogContext(), "subscribe_ack send buffer full",
-			"client_id", client.id)
+		return false
 	}
 }

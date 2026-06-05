@@ -4,13 +4,12 @@ import (
 	"net/http"
 	"strings"
 
-	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/shared"
 )
 
 // Router handles all /api/v1/groups routes.
 func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	ctx := r.Context()
 	path := r.URL.Path
 
 	switch {
@@ -23,8 +22,7 @@ func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClien
 		case http.MethodDelete:
 			DeleteGroupsHandler(w, r, clients)
 		default:
-			logs.WarnCtx(ctx, "invalid method for groups collection")
-			http.Error(w, "Method not allowed. Use GET /api/v1/groups to retrieve all groups, PUT /api/v1/groups to upsert groups, or DELETE /api/v1/groups to delete groups", http.StatusMethodNotAllowed)
+			helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use GET /api/v1/groups to retrieve all groups, PUT /api/v1/groups to upsert groups, or DELETE /api/v1/groups to delete groups", "invalid method for groups collection", "groups_method_not_allowed", "groups", nil, map[string]interface{}{"method": r.Method})
 		}
 	default:
 		const prefix = "/api/v1/groups/"
@@ -35,7 +33,6 @@ func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClien
 				return
 			}
 		}
-		logs.WarnCtx(ctx, "groups route not found")
-		http.Error(w, "Not found", http.StatusNotFound)
+		helper.RespondEndpointError(w, r, http.StatusNotFound, "Not found", "groups route not found", "groups_not_found", "groups", nil, map[string]interface{}{"path": path})
 	}
 }

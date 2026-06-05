@@ -240,8 +240,10 @@ func (s *Service) ForceReleaseSameAccount(ctx context.Context, accountID, reques
 
 // HandOverResult is the outcome of the holder accepting the waitlist head.
 type HandOverResult struct {
-	StatusCode int
-	Payload    map[string]any // nil for 204 responses
+	StatusCode              int
+	Payload                 map[string]any // nil for 204 responses
+	PreviousHolderSessionID string
+	NewHolderSessionID      string
 }
 
 // HandOver atomically transfers the lock to the alive waitlist head, or
@@ -280,7 +282,10 @@ func (s *Service) HandOver(ctx context.Context, accountID, holderSessionID, coll
 			"sessionID":         holderSessionID,
 			"reason":            LockReleaseReasonHandOverNoQueue,
 		})
-		return &HandOverResult{StatusCode: http.StatusNoContent}, nil
+		return &HandOverResult{
+			StatusCode:              http.StatusNoContent,
+			PreviousHolderSessionID: holderSessionID,
+		}, nil
 
 	case "promoted":
 		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, tx.NewHolderSessionID, true)
@@ -301,7 +306,12 @@ func (s *Service) HandOver(ctx context.Context, accountID, holderSessionID, coll
 		payload["held"] = true
 		payload["holderSessionID"] = tx.NewHolderSessionID
 		payload["handoffGranted"] = true
-		return &HandOverResult{StatusCode: http.StatusOK, Payload: payload}, nil
+		return &HandOverResult{
+			StatusCode:              http.StatusOK,
+			Payload:                 payload,
+			PreviousHolderSessionID: tx.PreviousHolderSessionID,
+			NewHolderSessionID:      tx.NewHolderSessionID,
+		}, nil
 
 	default:
 		return nil, fmt.Errorf("hand-over tx: unexpected outcome %q", tx.Outcome)
@@ -376,9 +386,11 @@ func (s *Service) RequestAccess(ctx context.Context, accountID, requesterSession
 
 // ClaimHandoffOutput is the outcome of POST /claim-handoff.
 type ClaimHandoffOutput struct {
-	Status  int
-	Payload map[string]any // set only for 200
-	ErrText string         // plain HTTP error body for non-200 (4xx)
+	Status                  int
+	Payload                 map[string]any // set only for 200
+	ErrText                 string         // plain HTTP error body for non-200 (4xx)
+	PreviousHolderSessionID string
+	NewHolderSessionID      string
 }
 
 // ClaimHandoff completes a probe-driven handoff for the queued session. The
@@ -424,7 +436,12 @@ func (s *Service) ClaimHandoff(ctx context.Context, accountID, requesterSessionI
 		payload["held"] = true
 		payload["holderSessionID"] = tx.NewHolderSessionID
 		payload["handoffGranted"] = true
-		return &ClaimHandoffOutput{Status: http.StatusOK, Payload: payload}, nil
+		return &ClaimHandoffOutput{
+			Status:                  http.StatusOK,
+			Payload:                 payload,
+			PreviousHolderSessionID: tx.PreviousHolderSessionID,
+			NewHolderSessionID:      tx.NewHolderSessionID,
+		}, nil
 	default:
 		return nil, fmt.Errorf("claim-handoff tx: unexpected outcome %q", tx.Outcome)
 	}

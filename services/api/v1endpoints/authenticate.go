@@ -42,60 +42,58 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 
 	// Only allow POST requests
 	if !helper.RequireMethod(w, r, http.MethodPost) {
-		duration := time.Since(start)
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "method_not_allowed")
-		logs.WarnCtx(ctx, "invalid method for auth endpoint")
+		attachAuthLoginClientFailure(r, "invalid method for auth endpoint", "auth_login_method_not_allowed", map[string]interface{}{
+			"method": r.Method,
+		})
 		return
 	}
 
 	// Extract token from request body (POST-only, tokens in body for security)
 	tokenString, err := extractTokenFromRequest(r)
 	if err != nil {
-		duration := time.Since(start)
 		m.Errors.WithLabelValues("extraction_error").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "extraction_error",
-			"error", err)
-		logs.WarnCtx(ctx, "failed to extract token from request body", "error", err)
-		// Generic error message to avoid leaking information
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		respondAuthLoginClientError(w, r, http.StatusBadRequest, "Invalid request", "failed to extract token from request body", "auth_login_extraction_error", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return
 	}
 
 	// Validate token length to prevent DoS attacks
 	if len(tokenString) > maxTokenLength {
-		duration := time.Since(start)
 		m.Errors.WithLabelValues("token_too_long").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "token_too_long",
-			"length", len(tokenString), "max", maxTokenLength)
-		logs.WarnCtx(ctx, "token too long", "length", len(tokenString), "max", maxTokenLength)
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		respondAuthLoginClientError(w, r, http.StatusBadRequest, "Invalid request", "EVE token too long", "auth_login_token_too_long", map[string]interface{}{
+			"length": len(tokenString),
+			"max":    maxTokenLength,
+		})
 		return
 	}
+
+	logs.AttachDebugStep(r, "eve_token_received", map[string]interface{}{
+		"token_len": len(tokenString),
+	})
 
 	// Validate the EVE SSO token and extract character hash
 	tokenInfo, err := auth.ValidateEveTokenAndExtractHash(r.Context(), tokenString, cfg.EveSSOClientID)
 	if err != nil {
-		duration := time.Since(start)
 		contentType := r.Header.Get("Content-Type")
 		m.Errors.WithLabelValues("validation_error").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "validation_error",
-			"error", err,
-			"token_length", len(tokenString),
-			"content_type", contentType,
-		)
-		// Do not log raw token; length + error are enough for support and Grafana.
-		logs.WarnCtx(ctx, "EVE SSO token validation failed",
-			"error", err,
-			"token_length", len(tokenString),
-			"content_type", contentType,
-		)
-		http.Error(w, auth.GetEveTokenErrorMessage(err), http.StatusUnauthorized)
+		respondAuthLoginClientError(w, r, http.StatusUnauthorized, auth.GetEveTokenErrorMessage(err), "EVE SSO token validation failed", "auth_login_eve_token_invalid", map[string]interface{}{
+			"error":        err.Error(),
+			"token_length": len(tokenString),
+			"content_type": contentType,
+		})
 		return
 	}
 	characterHash := tokenInfo.CharacterHash
 	scopes := tokenInfo.Scopes
+	logs.AttachDebugStep(r, "claims_validated", map[string]interface{}{
+		"character_hash": characterHash,
+		"scope_count":    len(scopes),
+	})
 	accountID := auth.GetAccountIDFromCharacterHash(characterHash)
+	r = logs.BindRequestAccountIDToRequest(r, accountID)
+	ctx = r.Context()
 	appVersion := extractAppVersion(r)
 
 	// Load corporation/alliance ID caches from Redis if available (keyed by AccountID)
@@ -109,11 +107,13 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "session_generation_error",
 			"error", err, "account_id", accountID, "character_hash", characterHash)
 		respondAuthSessionsServerError(w, r, "failed to generate session id", "auth_session_id_gen", err, map[string]interface{}{
-			"account_id": accountID, "character_hash": characterHash,
+			"character_hash": characterHash,
 		})
 		return
 	}
 	sessionNow := time.Now().UTC()
+	r = logs.BindRequestIdentityToRequest(r, accountID, sessionID)
+	ctx = r.Context()
 
 	// Store refresh token in Redis with user data (including corporations)
 	refreshTokenData := auth.RefreshTokenData{
@@ -135,14 +135,12 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 			apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "refresh_token_generation_error",
 				"error", err, "account_id", accountID, "character_hash", characterHash)
 			respondAuthSessionsServerError(w, r, "failed to generate refresh token", "auth_refresh_token_gen", err, map[string]interface{}{
-				"account_id": accountID,
 			})
 		} else {
 			m.Errors.WithLabelValues("redis_error").Inc(ctx)
 			apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "redis_error",
 				"error", err, "account_id", accountID, "character_hash", characterHash)
 			respondAuthSessionsServerError(w, r, "failed to store refresh token", "auth_redis_store_refresh", err, map[string]interface{}{
-				"account_id": accountID,
 			})
 		}
 		return
@@ -161,15 +159,20 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "session_store_error",
 			"error", err, "account_id", accountID, "character_hash", characterHash)
 		respondAuthSessionsServerError(w, r, "failed to store session record", "auth_redis_session_record", err, map[string]interface{}{
-			"account_id": accountID, "character_hash": characterHash,
+			"character_hash": characterHash,
 		})
 		return
 	}
+	logs.AttachDebugStep(r, "session_created", map[string]interface{}{
+		"session_id": sessionID,
+	})
 	sessionMetrics.Started.WithLabelValues("login").Inc(ctx)
 	sessionMetrics.Stored.WithLabelValues("login").Inc(ctx)
 	apimetrics.RecordAuthSessionDistinctAccount(ctx, clients.Redis, accountID)
 	if err := auth.UpdateAccountSessionGrants(ctx, clients.Redis, accountID, corporations, alliances); err != nil {
-		logs.WarnCtx(ctx, "failed to update account session grants", "error", err, "account_id", accountID)
+		logs.AttachHandlerCaveat(r, "account_session_grants_update_failed", "failed to update account session grants", map[string]interface{}{
+			"error": err.Error(),
+		})
 	}
 
 	loginDocs, err := helper.ResolveUserDocumentsForLogin(ctx, clients.Mongo, accountID)
@@ -179,7 +182,6 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "mongo_error",
 			"error", err, "account_id", accountID)
 		respondAuthSessionsServerError(w, r, "failed to resolve user documents for login", "auth_mongo_user_docs", err, map[string]interface{}{
-			"account_id": accountID,
 		})
 		return
 	}
@@ -187,6 +189,10 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 	reauthRequiredAt := auth.ReauthRequiredAtUnix(sessionNow, time.Time{})
 
 	userOut := loginDocs.User
+	logs.AttachDebugStep(r, "login_docs_loaded", map[string]interface{}{
+		"first_login":   loginDocs.FirstLogin,
+		"cloud_account": userOut.UserCloudAccounts,
+	})
 	var linkedCharacters []models.LinkedCharacterSession
 	if userOut.UserCloudAccounts && cfg.RefreshTokenKeyring != nil {
 		if len(userOut.RefreshTokens) > 0 {
@@ -195,8 +201,9 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 				cfg.EveSSOClientID, cfg.EveSSOClientSecret, cfg.RefreshTokenKeyring,
 			)
 			if err != nil {
-				logs.WarnCtx(ctx, "cloud linked-character ESI session bundle failed",
-					"error", err, "account_id", accountID)
+				logs.AttachHandlerCaveat(r, "cloud_linked_characters_failed", "cloud linked-character ESI session bundle failed", map[string]interface{}{
+					"error": err.Error(),
+				})
 			} else {
 				linkedCharacters = linkedCharacterSessions
 			}
@@ -216,7 +223,9 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 			Tokens:    tokens,
 		}
 		if err := natscore.PublishTask(ctx, clients.JetStream, taskscore.UpdateAccountSessionGrants.Subject, taskscore.UpdateAccountSessionGrants.Name, taskRequest, clients.NATS); err != nil {
-			logs.WarnCtx(ctx, "failed to publish account access grants refresh task on login", "account_id", accountID, "error", err)
+			logs.AttachHandlerCaveat(r, "account_grants_publish_failed", "failed to publish account access grants refresh task on login", map[string]interface{}{
+				"error": err.Error(),
+			})
 		}
 	}
 
@@ -251,7 +260,6 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "encode_error",
 			"error", err, "account_id", accountID)
 		respondAuthSessionsServerError(w, r, "failed to encode response", "auth_response_encode", err, map[string]interface{}{
-			"account_id": accountID,
 		})
 		return
 	}
@@ -266,15 +274,16 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 	}
 
 	// Log per-request metrics for slow requests
-	apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "success",
-		"account_id", accountID,
-		"first_login", loginDocs.FirstLogin,
-	)
+	if duration > time.Second {
+		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "success",
+			"first_login", loginDocs.FirstLogin,
+		)
+	}
 
-	logs.InfoCtx(ctx, "successfully authenticated user",
-		"account_id", accountID,
-		"duration_ms", duration.Milliseconds(),
-	)
+	logs.AttachHandlerSuccessDetail(r, "successfully authenticated user", map[string]interface{}{
+		"first_login": loginDocs.FirstLogin,
+		"duration_ms": duration.Milliseconds(),
+	})
 }
 
 func extractAppVersion(r *http.Request) string {

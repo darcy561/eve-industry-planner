@@ -134,45 +134,49 @@ func FrontendAppEventsBatchHandler(w http.ResponseWriter, r *http.Request, clien
 
 	if !helper.RequireMethod(w, r, http.MethodPost) {
 		metrics.Error("method_not_allowed_batch")
-		logs.WarnCtx(ctx, "invalid method for analytics events batch endpoint")
 		return
 	}
 
 	batch, err := helper.ExtractRequestBody[frontendAnalyticsBatchBody](r)
 	if err != nil {
 		metrics.Error("bad_json_batch")
-		logs.WarnCtx(ctx, "frontend analytics batch: invalid JSON", "error", err)
-		http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err), "frontend analytics batch: invalid JSON", "frontend_analytics_invalid_json", "frontend_analytics", err, nil)
 		return
 	}
 
 	n := len(batch.Events)
 	if n == 0 {
 		metrics.Error("batch_empty")
-		logs.WarnCtx(ctx, "frontend analytics batch: empty events")
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid request", "frontend analytics batch: empty events", "frontend_analytics_batch_empty", "frontend_analytics", nil, nil)
 		return
 	}
 	if n > maxFrontendBatchEvents {
 		metrics.Error("batch_too_many")
-		logs.WarnCtx(ctx, "frontend analytics batch: too many events", "count", n)
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid request", "frontend analytics batch: too many events", "frontend_analytics_batch_too_many", "frontend_analytics", nil, map[string]interface{}{"count": n})
 		return
 	}
 
 	for i := range batch.Events {
 		if reason := validateFrontendAnalyticsBody(&batch.Events[i]); reason != "" {
 			metrics.Error("batch_item_" + reason)
-			logs.WarnCtx(ctx, "frontend analytics batch: item validation failed", "reason", reason, "index", i)
-			http.Error(w, "Invalid request", http.StatusBadRequest)
+			helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid request", "frontend analytics batch: item validation failed", "frontend_analytics_item_invalid", "frontend_analytics", nil, map[string]interface{}{"reason": reason, "index": i})
 			return
 		}
 	}
+
+	logs.AttachDebugStep(r, "batch_validated", map[string]interface{}{
+		"event_count": n,
+		"audience":    audience,
+	})
 
 	for i := range batch.Events {
 		recordValidatedFrontendAnalytics(ctx, met, &batch.Events[i], audience)
 	}
 	metrics.Success()
+	logs.AttachHandlerSuccessDetail(r, "frontend analytics batch recorded", map[string]interface{}{
+		"event_count": n,
+		"audience":    audience,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 

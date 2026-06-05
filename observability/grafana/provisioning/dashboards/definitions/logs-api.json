@@ -15,7 +15,7 @@
         "type": "loki",
         "uid": "loki"
       },
-      "description": "Scoped to **`api`** (`compose_service`). The log **message** is shown first; click a line to open structured fields (method, path, status_code, …) in the sidebar. Filter **detected_level** and **component** with the variables above.",
+      "description": "Native **OTLP** logs for **`api`** (`compose_service`). Access-log columns are fixed in the row; click a line for full structured fields in the **sidebar**. Filter **level** and **component** with the variables above.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -31,6 +31,13 @@
         "dedupStrategy": "none",
         "detailsMode": "sidebar",
         "displayedFields": [
+          "detected_level",
+          "method",
+          "path",
+          "status_code",
+          "duration_ms",
+          "request_id",
+          "account_id",
           "___LOG_LINE_BODY___"
         ],
         "enableInfiniteScrolling": true,
@@ -167,6 +174,6 @@
   "timezone": "browser",
   "title": "API · logs",
   "uid": "logs-api",
-  "version": 7,
+  "version": 12,
   "weekStart": ""
 }

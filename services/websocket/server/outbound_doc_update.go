@@ -7,6 +7,7 @@ import (
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/websocket/server/config"
+	"eve-industry-planner/websocket/server/identity"
 	"eve-industry-planner/websocket/server/outgoinglogic"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -15,8 +16,10 @@ import (
 // docUpdateWork hands a JetStream message to an outbound shard worker so the Consume callback
 // returns quickly while we still ack only after browser fan-out (or inline fallback).
 type docUpdateWork struct {
+	ctx                   context.Context
 	msg                   jetstream.Msg
 	collectionScopedDocID string
+	subject               string
 }
 
 // outboundDocPartitionKey groups work by account, corporation, or alliance so ordering is
@@ -47,28 +50,45 @@ func shardIndexForDocUpdate(partitionKey string, shardCount int) int {
 	return int(h.Sum32() % uint32(shardCount))
 }
 
+func (s *Server) finishDocUpdateDelivery(ctx context.Context, docID, subject string, outcome outboundDeliveryOutcome) {
+	if outcome.RouteKind == "invalid" {
+	detail := outboundDeliveryDetail(docID, subject, outcome)
+	detail["ws_instance_id"] = identity.JetStreamConsumerSuffix()
+	natscore.FinishNATSConsumerOperation(ctx, "warn", "doc update rejected", detail)
+		return
+	}
+	finishReplicaFanoutOperation(ctx, "doc update delivered", docID, subject, outcome, nil)
+}
+
 // enqueueOutboundDocUpdate routes to a shard FIFO. If that shard is full, delivers synchronously and acks immediately.
-func (s *Server) enqueueOutboundDocUpdate(collectionScopedDocID string, msg jetstream.Msg) {
+func (s *Server) enqueueOutboundDocUpdate(ctx context.Context, collectionScopedDocID, subject string, msg jetstream.Msg) {
 	payloadCopy := append([]byte(nil), msg.Data()...)
 	shards := s.docUpdateOutboundShards
 	if len(shards) == 0 {
-		s.deliverOutboundDocUpdate(collectionScopedDocID, payloadCopy)
+		outcome := s.deliverOutboundDocUpdate(ctx, collectionScopedDocID, payloadCopy)
 		natscore.AcknowledgeMessage(msg, "no_shards", natscore.GetDeliveryCount(msg))
+		s.finishDocUpdateDelivery(ctx, collectionScopedDocID, subject, outcome)
 		return
 	}
 	key := outboundDocPartitionKey(collectionScopedDocID, payloadCopy)
 	idx := shardIndexForDocUpdate(key, len(shards))
 	select {
-	case shards[idx] <- docUpdateWork{msg: msg, collectionScopedDocID: collectionScopedDocID}:
-		// Shard worker delivers and acks.
+	case shards[idx] <- docUpdateWork{
+		ctx:                   ctx,
+		msg:                   msg,
+		collectionScopedDocID: collectionScopedDocID,
+		subject:               subject,
+	}:
+		// Shard worker delivers, acks, and emits the consolidated outcome log.
 	default:
-		logs.WarnCtx(context.Background(), "doc update outbound shard queue full; delivering synchronously",
+		logs.WarnCtx(ctx, "doc update outbound shard queue full; delivering synchronously",
 			"doc_id", collectionScopedDocID,
 			"shard", idx,
 			"partition", key,
 			"shard_queue_cap", config.DocUpdateOutboundShardQueueCap)
-		s.deliverOutboundDocUpdate(collectionScopedDocID, payloadCopy)
+		outcome := s.deliverOutboundDocUpdate(ctx, collectionScopedDocID, payloadCopy)
 		natscore.AcknowledgeMessage(msg, "inline_fallback", natscore.GetDeliveryCount(msg))
+		s.finishDocUpdateDelivery(ctx, collectionScopedDocID, subject, outcome)
 	}
 }
 
@@ -86,9 +106,14 @@ func (s *Server) runDocUpdateOutboundShardWorker(shard int) {
 			if !ok {
 				return
 			}
+			ctx := w.ctx
+			if ctx == nil {
+				ctx = context.Background()
+			}
 			payload := append([]byte(nil), w.msg.Data()...)
-			s.deliverOutboundDocUpdate(w.collectionScopedDocID, payload)
+			outcome := s.deliverOutboundDocUpdate(ctx, w.collectionScopedDocID, payload)
 			natscore.AcknowledgeMessage(w.msg, "delivered", natscore.GetDeliveryCount(w.msg))
+			s.finishDocUpdateDelivery(ctx, w.collectionScopedDocID, w.subject, outcome)
 		}
 	}
 }

@@ -3,6 +3,7 @@ package documentlocks
 import (
 	"net/http"
 
+	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/shared"
 )
 
@@ -71,5 +72,5 @@ func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClien
 			return
 		}
 	}
-	http.Error(w, "Not found", http.StatusNotFound)
+	helper.RespondEndpointError(w, r, http.StatusNotFound, "Not found", "document-locks route not found", "document_locks_not_found", "document_locks", nil, map[string]interface{}{"path": path})
 }

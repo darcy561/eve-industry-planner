@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/api/helper/auth"
 )
 
 // RequireMethodAndAccountID validates request method and extracts accountID.
@@ -21,14 +21,7 @@ func RequireMethodAndAccountID(
 		}
 		return "", false
 	}
-	accountID, ok := RequireAccountID(w, r)
-	if !ok {
-		if metrics != nil {
-			metrics.Error("auth_error")
-		}
-		return "", false
-	}
-	return accountID, true
+	return auth.AccountIDFromContext(r.Context()), true
 }
 
 // DecodeJSONOrBadRequest decodes JSON body into target and writes standardized 400 on failure.
@@ -58,8 +51,7 @@ func DecodeJSONOrBadRequest(
 				detail["json_preview"] = jsonErr.BodyPreview
 			}
 		}
-		logs.AttachClientFailureDetail(r, "invalid JSON request body", detail)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		RespondEndpointError(w, r, http.StatusBadRequest, err.Error(), "invalid JSON request body", "invalid_json", "", err, detail)
 		return false
 	}
 	return true
@@ -70,5 +62,5 @@ func RespondNotFound(w http.ResponseWriter, r *http.Request, metrics *RequestMet
 	if metrics != nil {
 		metrics.Error("not_found")
 	}
-	http.NotFound(w, r)
+	RespondEndpointError(w, r, http.StatusNotFound, "Not Found", "resource not found", "not_found", "", nil, nil)
 }

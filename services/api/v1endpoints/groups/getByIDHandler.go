@@ -29,15 +29,16 @@ func GetGroupByIDHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	})
 	defer metrics.Finish()
 
-	accountID, ok := helper.RequireMethodAndAccountID(w, r, metrics, http.MethodGet)
-	if !ok {
+	if !helper.RequireMethod(w, r, http.MethodGet) {
+		metrics.Error("method_not_allowed")
 		return
 	}
+	accountID := helper.AuthenticatedAccountID(r)
 
 	groupID = strings.TrimSpace(groupID)
 	if groupID == "" {
 		metrics.Error("bad_request")
-		http.Error(w, "group ID required", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "group ID required", "groups get by id: missing group id", "groups_missing_group_id", "groups_get", nil, nil)
 		return
 	}
 
@@ -51,19 +52,23 @@ func GetGroupByIDHandler(w http.ResponseWriter, r *http.Request, clients *shared
 			return
 		}
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to retrieve group", "failed to load group by id", "groups_get_by_id_failed", "groups_get", err, map[string]interface{}{"account_id": accountID, "group_id": groupID})
+		helper.RespondEndpointServerError(w, r, "Failed to retrieve group", "failed to load group by id", "groups_get_by_id_failed", "groups_get", err, map[string]interface{}{"group_id": groupID})
 		return
 	}
 
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+		"group_id": groupID,
+	})
+
 	if err := helper.EncodeJSON(w, group); err != nil {
 		metrics.Error("encode_error")
-		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode group response", "groups_encode_failed", "groups_get", err, map[string]interface{}{"account_id": accountID, "group_id": groupID})
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode group response", "groups_encode_failed", "groups_get", err, map[string]interface{}{"group_id": groupID})
 		return
 	}
 
 	metrics.Success()
-	logs.InfoCtx(ctx, "single group retrieved",
-		"account_id", accountID,
-		"group_id", groupID,
-		"duration_ms", time.Since(start).Milliseconds())
+	logs.AttachHandlerSuccessDetail(r, "single group retrieved", map[string]interface{}{
+		"group_id":    groupID,
+		"duration_ms": time.Since(start).Milliseconds(),
+	})
 }

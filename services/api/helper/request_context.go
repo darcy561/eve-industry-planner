@@ -26,7 +26,7 @@ func PopulateRequestMeta(r *http.Request, meta *models.MetaData, accountID strin
 		return
 	}
 	meta.AccountID = accountID
-	if sessionID, err := auth.ExtractSessionID(r); err == nil && sessionID != "" {
+	if sessionID := auth.SessionIDFromContext(r.Context()); sessionID != "" {
 		meta.SessionID = sessionID
 	}
 	if wsClientID := ExtractWSClientID(r); wsClientID != "" {

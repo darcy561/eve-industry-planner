@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 
-	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/websocket/server/model"
 )
 
@@ -30,9 +29,9 @@ func (s *Server) ApplyRealtimeScopeUpgrade(client *Client, corps, alliances []st
 }
 
 // queueScopesAck notifies the client which realtime pools are active after upgrade or resume.
-func (s *Server) queueScopesAck(client *Client) {
+func (s *Server) queueScopesAck(client *Client) bool {
 	if client == nil || client.Send == nil {
-		return
+		return false
 	}
 	sub := map[string]interface{}{
 		"account":     true,
@@ -45,12 +44,12 @@ func (s *Server) queueScopesAck(client *Client) {
 		"subscription": sub,
 	})
 	if err != nil {
-		return
+		return false
 	}
 	select {
 	case client.Send <- b:
+		return true
 	default:
-		logs.WarnCtx(client.LogContext(), "scopes_ack send buffer full",
-			"client_id", client.id)
+		return false
 	}
 }

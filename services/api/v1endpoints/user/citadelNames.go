@@ -81,8 +81,7 @@ func CitadelNamesHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	default:
 		m := apimetrics.GetAPICitadelNames()
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
-		logs.WarnCtx(ctx, "invalid method for citadel names endpoint")
-		http.Error(w, "Method not allowed. Use POST to submit citadel names.", http.StatusMethodNotAllowed)
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use POST to submit citadel names.", "invalid method for citadel names endpoint", "citadel_names_method_not_allowed", "citadel_names", nil, map[string]interface{}{"method": r.Method})
 	}
 }
 
@@ -94,8 +93,7 @@ func CitadelNameByIDHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	default:
 		m := apimetrics.GetAPICitadelNames()
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
-		logs.WarnCtx(ctx, "invalid method for citadel name lookup endpoint")
-		http.Error(w, "Method not allowed. Use GET to resolve citadel names.", http.StatusMethodNotAllowed)
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use GET to resolve citadel names.", "invalid method for citadel name lookup endpoint", "citadel_name_lookup_method_not_allowed", "citadel_names", nil, map[string]interface{}{"method": r.Method})
 	}
 }
 
@@ -111,13 +109,6 @@ func handleSubmitCitadelName(w http.ResponseWriter, r *http.Request, clients *sh
 	})
 	defer metrics.Finish()
 
-	accountID, ok := helper.RequireAccountID(w, r)
-	if !ok {
-		metrics.Error("auth_error")
-		logs.WarnCtx(ctx, "failed to extract accountID")
-		return
-	}
-
 	var body citadelNamesSubmitRequest
 	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &body) {
 		return
@@ -132,12 +123,12 @@ func handleSubmitCitadelName(w http.ResponseWriter, r *http.Request, clients *sh
 	}
 	if len(items) == 0 {
 		metrics.Error("validation_error")
-		http.Error(w, "submissions or id+name required", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "submissions or id+name required", "citadel names submit: missing submissions", "citadel_names_missing_submissions", "citadel_names", nil, nil)
 		return
 	}
 	if len(items) > maxCitadelNameBatch {
 		metrics.Error("validation_error")
-		http.Error(w, fmt.Sprintf("at most %d submissions per request", maxCitadelNameBatch), http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("at most %d submissions per request", maxCitadelNameBatch), "citadel names submit: batch too large", "citadel_names_batch_too_large", "citadel_names", nil, map[string]interface{}{"count": len(items), "max": maxCitadelNameBatch})
 		return
 	}
 
@@ -147,12 +138,12 @@ func handleSubmitCitadelName(w http.ResponseWriter, r *http.Request, clients *sh
 		name := strings.TrimSpace(it.Name)
 		if it.ID <= 0 || name == "" {
 			metrics.Error("validation_error")
-			http.Error(w, "each submission needs a positive id and non-empty name", http.StatusBadRequest)
+			helper.RespondEndpointError(w, r, http.StatusBadRequest, "each submission needs a positive id and non-empty name", "citadel names submit: invalid submission", "citadel_names_invalid_submission", "citadel_names", nil, nil)
 			return
 		}
 		if len(name) > 300 {
 			metrics.Error("validation_error")
-			http.Error(w, "name is too long", http.StatusBadRequest)
+			helper.RespondEndpointError(w, r, http.StatusBadRequest, "name is too long", "citadel names submit: name too long", "citadel_names_name_too_long", "citadel_names", nil, nil)
 			return
 		}
 		byID[it.ID] = citadelNameSubmission{ID: it.ID, Name: name}
@@ -184,16 +175,20 @@ func handleSubmitCitadelName(w http.ResponseWriter, r *http.Request, clients *sh
 	_, err := coll.BulkWrite(ctx, writes, bulkOpts)
 	if err != nil {
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to submit citadel names", "failed to bulk upsert citadel names", "citadel_names_upsert_failed", "citadel_names", err, map[string]interface{}{"account_id": accountID, "count": len(writes)})
+		helper.RespondEndpointServerError(w, r, "Failed to submit citadel names", "failed to bulk upsert citadel names", "citadel_names_upsert_failed", "citadel_names", err, map[string]interface{}{"count": len(writes)})
 		return
 	}
 
+	logs.AttachDebugStep(r, "mongo_upsert_completed", map[string]interface{}{
+		"count": len(writes),
+	})
+
 	w.WriteHeader(http.StatusNoContent)
 	metrics.Success()
-	logs.InfoCtx(ctx, "citadel names submitted",
-		"account_id", accountID,
-		"count", len(writes),
-		"duration_ms", time.Since(start).Milliseconds())
+	logs.AttachHandlerSuccessDetail(r, "citadel names submitted", map[string]interface{}{
+		"count":       len(writes),
+		"duration_ms": time.Since(start).Milliseconds(),
+	})
 }
 
 func handleGetCitadelNameByID(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
@@ -212,7 +207,7 @@ func handleGetCitadelNameByID(w http.ResponseWriter, r *http.Request, clients *s
 	citadelID, err := strconv.ParseInt(strings.TrimSpace(citadelIDRaw), 10, 64)
 	if err != nil || citadelID <= 0 {
 		metrics.Error("validation_error")
-		http.Error(w, "Invalid citadel ID", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid citadel ID", "citadel name lookup: invalid citadel id", "citadel_name_invalid_id", "citadel_names", err, map[string]interface{}{"citadel_id_raw": citadelIDRaw})
 		return
 	}
 
@@ -221,13 +216,17 @@ func handleGetCitadelNameByID(w http.ResponseWriter, r *http.Request, clients *s
 	if err := coll.FindOne(ctx, bson.M{"_id": citadelID}).Decode(&record); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			metrics.Error("not_found")
-			http.Error(w, "Citadel name not found", http.StatusNotFound)
+			helper.RespondEndpointError(w, r, http.StatusNotFound, "Citadel name not found", "citadel name not found", "citadel_name_not_found", "citadel_names", nil, map[string]interface{}{"citadel_id": citadelID})
 			return
 		}
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to retrieve citadel name", "failed to retrieve citadel name", "citadel_name_query_failed", "citadel_names", err, map[string]interface{}{"citadel_id": citadelID})
 		return
 	}
+
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+		"citadel_id": citadelID,
+	})
 
 	response := citadelNameLookupResponse{
 		ID:     record.ID,
@@ -250,9 +249,10 @@ func handleGetCitadelNameByID(w http.ResponseWriter, r *http.Request, clients *s
 	}
 
 	metrics.Success()
-	logs.InfoCtx(ctx, "citadel name resolved",
-		"id", citadelID,
-		"duration_ms", time.Since(start).Milliseconds())
+	logs.AttachHandlerSuccessDetail(r, "citadel name resolved", map[string]interface{}{
+		"id":          citadelID,
+		"duration_ms": time.Since(start).Milliseconds(),
+	})
 }
 
 func setCitadelLookupCacheHeaders(w http.ResponseWriter, etag string) {

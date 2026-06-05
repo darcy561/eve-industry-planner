@@ -70,6 +70,13 @@ func Enqueue(
 	traceHeaders := natsprop.AsynqHeadersFromNATS(msg.Headers())
 	traceHeaders = natscore.MergeTraceCarrierIntoHeaders(traceHeaders,
 		natsMsg.TraceCarrierTraceparent, natsMsg.TraceCarrierTracestate)
+	if natsMsg.LogContext != nil {
+		traceHeaders = natsprop.MergeLogContextIntoHeaders(traceHeaders,
+			natsMsg.LogContext.RequestID,
+			natsMsg.LogContext.AccountID,
+			natsMsg.LogContext.SessionID,
+		)
+	}
 
 	// Create asynq task with retention to prevent expiration
 	// Retention of 24 hours ensures messages don't expire while waiting in queue

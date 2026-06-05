@@ -3,6 +3,7 @@ package sso
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -29,20 +30,19 @@ func EveSSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *share
 
 	refreshToken, err := extractRefreshTokenFromSSORequest(r)
 	if err != nil {
-		duration := time.Since(start)
 		m.Errors.WithLabelValues("extraction_error").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "extraction_error", "error", err)
-		logs.WarnCtx(ctx, "failed to extract refresh token from request body", "error", err)
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		respondSSOClientError(w, r, "eve_sso_token_refresh", "Invalid request", "failed to extract refresh token from request body", "sso_refresh_extraction_error", http.StatusBadRequest, map[string]interface{}{
+			"error": err.Error(),
+		})
 		return
 	}
 
 	if len(refreshToken) > maxRefreshTokenLength {
-		duration := time.Since(start)
 		m.Errors.WithLabelValues("refresh_token_too_long").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "refresh_token_too_long", "length", len(refreshToken), "max", maxRefreshTokenLength)
-		logs.WarnCtx(ctx, "refresh token too long", "length", len(refreshToken), "max", maxRefreshTokenLength)
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		respondSSOClientError(w, r, "eve_sso_token_refresh", "Invalid request", "refresh token too long", "sso_refresh_token_too_long", http.StatusBadRequest, map[string]interface{}{
+			"length": len(refreshToken),
+			"max":    maxRefreshTokenLength,
+		})
 		return
 	}
 
@@ -50,16 +50,18 @@ func EveSSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *share
 		return
 	}
 
+	logs.AttachDebugStep(r, "refresh_token_received", map[string]interface{}{
+		"refresh_token_len": len(refreshToken),
+	})
+
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	tokenResponse, err := RefreshEveSSOAccessToken(ctx, cfg.EveSSOClientID, cfg.EveSSOClientSecret, refreshToken)
 	var characterHash string
 	if err != nil {
-		duration := time.Since(start)
 		m.Errors.WithLabelValues("sso_refresh_error").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "sso_refresh_error", "error", err)
-		logs.AttachClientFailureDetail(r, "failed to refresh access token", map[string]interface{}{
+		attachSSOClientFailure(r, "eve_sso_token_refresh", "failed to refresh access token", "sso_refresh_error", map[string]interface{}{
 			"sso_endpoint":      "token_refresh",
 			"refresh_token_len": len(refreshToken),
 			"error":             err.Error(),
@@ -67,6 +69,10 @@ func EveSSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *share
 		handleSSOProviderError(w, r, err, "Invalid refresh token")
 		return
 	}
+
+	logs.AttachDebugStep(r, "token_refreshed", map[string]interface{}{
+		"expires_in": tokenResponse.ExpiresIn,
+	})
 
 	if tokenResponse.AccessToken == "" {
 		duration := time.Since(start)
@@ -81,9 +87,13 @@ func EveSSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *share
 
 	characterHash, extractErr := extractCharacterHashFromEveSSOAccessToken(tokenResponse.AccessToken, cfg.EveSSOClientID)
 	if extractErr != nil {
-		logs.WarnCtx(ctx, "token character hash extraction degraded; continuing", "error", extractErr)
+		logs.AttachHandlerCaveat(r, "character_hash_extraction_degraded", "token character hash extraction degraded; continuing", map[string]interface{}{
+			"error": extractErr.Error(),
+		})
 	} else {
-		logs.DebugCtx(ctx, "successfully parsed SSO token claims", "character_hash", characterHash)
+		logs.AttachDebugStepMsg(r, "claims_parsed", "parsed SSO access token claims", map[string]interface{}{
+			"character_hash": characterHash,
+		})
 	}
 
 	response := EveSSOTokenPayload{
@@ -109,6 +119,13 @@ func EveSSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *share
 	apimetrics.RecordSSORefreshDistinctCharacter(ctx, clients.Redis, characterHash)
 
 	accountID := auth.GetAccountIDFromCharacterHash(characterHash)
-	apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "success", "character_hash", characterHash, "account_id", accountID)
-	logs.InfoCtx(ctx, "SSO token refresh completed", "character_hash", characterHash, "account_id", accountID, "duration_ms", duration.Milliseconds())
+	r = logs.BindRequestAccountIDToRequest(r, accountID)
+	ctx = r.Context()
+	if duration > time.Second {
+		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "success", "account_storage", auth.AccountStorageLocal)
+	}
+	logs.AttachHandlerSuccessDetail(r, fmt.Sprintf("SSO token refresh completed (%s)", auth.AccountStorageLogPhrase(auth.AccountStorageLocal)), map[string]interface{}{
+		"account_storage": auth.AccountStorageLocal,
+		"duration_ms":     duration.Milliseconds(),
+	})
 }

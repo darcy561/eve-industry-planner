@@ -14,15 +14,30 @@ import (
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
+func attachSSOClientFailure(r *http.Request, metricName, logMsg, failureClass string, extra map[string]interface{}) {
+	detail := map[string]interface{}{
+		"failure_class": failureClass,
+		"metric":        metricName,
+	}
+	for k, v := range extra {
+		detail[k] = v
+	}
+	logs.AttachClientFailureDetail(r, logMsg, detail)
+}
+
+func respondSSOClientError(w http.ResponseWriter, r *http.Request, metricName, publicMsg, logMsg, failureClass string, statusCode int, extra map[string]interface{}) {
+	attachSSOClientFailure(r, metricName, logMsg, failureClass, extra)
+	http.Error(w, publicMsg, statusCode)
+}
+
 func ensurePostMethod(w http.ResponseWriter, r *http.Request, metricName string, endpointLabel string, start time.Time, incError func(label string)) bool {
 	if r.Method == http.MethodPost {
 		return true
 	}
-	duration := time.Since(start)
 	incError("method_not_allowed")
-	apimetrics.LogRequestMetrics(r.Context(), metricName, duration, "method_not_allowed")
-	logs.WarnCtx(r.Context(), "invalid method for "+endpointLabel)
-	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	respondSSOClientError(w, r, metricName, "Method not allowed", "invalid method for "+endpointLabel, "sso_method_not_allowed", http.StatusMethodNotAllowed, map[string]interface{}{
+		"method": r.Method,
+	})
 	return false
 }
 
@@ -54,13 +69,10 @@ func handleSSOProviderError(w http.ResponseWriter, r *http.Request, err error, d
 	msg := strings.ToLower(err.Error())
 	switch {
 	case isSSOGrantClientError(msg):
-		// CCP often sends OAuth error_description text (e.g. "Authorization code is invalid.") without
-		// the literal substrings "invalid_grant" / "invalid_request" — those must still be 4xx, not 500.
-		logs.AttachClientFailureDetail(r, "SSO provider rejected request", map[string]interface{}{
+		respondSSOClientError(w, r, "", defaultMessage, "SSO provider rejected request", "sso_provider_invalid_grant", http.StatusBadRequest, map[string]interface{}{
 			"reason": "invalid_grant_or_oauth_description",
 			"error":  err.Error(),
 		})
-		http.Error(w, defaultMessage, http.StatusBadRequest)
 		return
 	case strings.Contains(msg, "server error"):
 		helper.RespondEndpointError(w, r, http.StatusBadGateway, "EVE SSO server error", "SSO provider upstream server error", "sso_upstream_5xx", "", err, map[string]interface{}{

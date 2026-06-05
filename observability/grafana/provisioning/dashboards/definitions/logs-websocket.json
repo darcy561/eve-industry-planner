@@ -15,7 +15,7 @@
         "type": "loki",
         "uid": "loki"
       },
-      "description": "Scoped to **`websocket`** (`compose_service`). The log **message** is shown first; click a line for structured fields (**component**, trace IDs, …) in the sidebar. Filter **detected_level** and **component** with the variables above.",
+      "description": "Native **OTLP** logs for **`websocket`** (`compose_service`). Key columns are fixed in the row; click a line for full structured fields in the **sidebar**. Filter **level** and **component** with the variables above.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -31,6 +31,10 @@
         "dedupStrategy": "none",
         "detailsMode": "sidebar",
         "displayedFields": [
+          "detected_level",
+          "component",
+          "duration_ms",
+          "account_id",
           "___LOG_LINE_BODY___"
         ],
         "enableInfiniteScrolling": true,
@@ -167,6 +171,6 @@
   "timezone": "browser",
   "title": "WebSocket · logs",
   "uid": "logs-websocket",
-  "version": 7,
+  "version": 12,
   "weekStart": ""
 }

@@ -19,7 +19,6 @@ import (
 
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/telemetry/natsprop"
 
 	"eve-industry-planner/core/scheduler/contract"
 	"eve-industry-planner/core/scheduler/helpers"
@@ -417,19 +416,28 @@ func (s *TaskScheduler) Start() error {
 
 // processScheduleRequest processes a schedule request message from JetStream
 func (s *TaskScheduler) processScheduleRequest(msg jetstream.Msg) {
-	tracer := otel.Tracer(otelTracerName)
-	ctx := context.Background()
-	ctx = natsprop.Extract(ctx, msg.Headers())
-	ctx, span := tracer.Start(ctx, "scheduler.consume_schedule_request",
-		trace.WithSpanKind(trace.SpanKindConsumer),
+	var envelope natscore.Message
+	_ = json.Unmarshal(msg.Data(), &envelope)
+
+	ctx, endSpan := natscore.BeginConsumerContext(
+		context.Background(),
+		otelTracerName,
+		"scheduler.consume_schedule_request",
+		msg,
+		&envelope,
 	)
-	defer span.End()
+	defer endSpan()
+	span := trace.SpanFromContext(ctx)
 
 	req, err := natscore.UnmarshalMessagePayload[natscore.ScheduleRequest](msg)
 	if err != nil {
 		logs.ErrorCtx(ctx, "failed to parse schedule request", "component", schedulerLogComponent, "error", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		natscore.FinishNATSConsumerOperation(ctx, "warn", "schedule request rejected", map[string]interface{}{
+			"reason": "parse_failed",
+			"error":  err.Error(),
+		})
 		natscore.NackMessage(msg)
 		return
 	}
@@ -500,6 +508,11 @@ func (s *TaskScheduler) processScheduleRequest(msg jetstream.Msg) {
 	// Acknowledge successful processing
 	deliveryCount := natscore.GetDeliveryCount(msg)
 	natscore.AcknowledgeMessage(msg, "successful scheduling", deliveryCount)
+	natscore.FinishNATSConsumerOperation(ctx, "info", "schedule request accepted", map[string]interface{}{
+		"component": schedulerLogComponent,
+		"job_id":    req.JobID,
+		"task_type": req.TaskType,
+	})
 }
 
 // Stop stops listening for scheduling requests and stops the scheduler

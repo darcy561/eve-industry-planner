@@ -233,6 +233,7 @@ func PublishMessage[T any](ctx context.Context, js jetstream.JetStream, subject 
 		switch m := any(msg).(type) {
 		case Message:
 			m.EnrichTraceCarrierFromContext(ctx)
+			m.EnrichLogContextFromContext(ctx)
 			msgData, err = json.Marshal(m)
 		default:
 			msgData, err = json.Marshal(msg)
@@ -276,6 +277,7 @@ func PublishMessage[T any](ctx context.Context, js jetstream.JetStream, subject 
 
 		hdr := make(natslib.Header)
 		natsprop.Inject(ctx, hdr)
+		natsprop.InjectLogContext(ctx, hdr)
 
 		publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		nmsg := &natslib.Msg{Subject: subject, Data: msgData, Header: hdr}
@@ -285,11 +287,15 @@ func PublishMessage[T any](ctx context.Context, js jetstream.JetStream, subject 
 			if attempt > 0 {
 				logs.InfoCtx(ctx, "JetStream publish succeeded after retry", "attempt", attempt+1, "subject", subject)
 			} else {
-				// Log successful publish for debugging
 				if pubAck != nil {
-					logs.DebugCtx(ctx, "JetStream message published", "subject", subject, "sequence", pubAck.Sequence)
+					logs.AttachDebugStepOrDebugCtx(ctx, "jetstream_published", "JetStream message published", map[string]interface{}{
+						"subject":  subject,
+						"sequence": pubAck.Sequence,
+					})
 				} else {
-					logs.DebugCtx(ctx, "JetStream message published", "subject", subject)
+					logs.AttachDebugStepOrDebugCtx(ctx, "jetstream_published", "JetStream message published", map[string]interface{}{
+						"subject": subject,
+					})
 				}
 			}
 			return nil

@@ -5,13 +5,11 @@ import (
 	"strings"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
 )
 
 // Router handles /api/v1/group-templates and subpaths.
 func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	ctx := r.Context()
 	path := strings.TrimSuffix(r.URL.Path, "/")
 	const base = "/api/v1/group-templates"
 
@@ -23,13 +21,11 @@ func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClien
 		case http.MethodPost:
 			PostTemplateHandler(w, r, clients)
 		default:
-			logs.WarnCtx(ctx, "invalid method for group-templates root")
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for group-templates root", "group_templates_method_not_allowed", "group_templates", nil, map[string]interface{}{"method": r.Method})
 		}
 	default:
 		const prefix = base + "/"
 		if !strings.HasPrefix(path, prefix) {
-			logs.WarnCtx(ctx, "group-templates route not found")
 			helper.RespondNotFound(w, r, nil)
 			return
 		}
@@ -49,7 +45,7 @@ func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClien
 			case http.MethodGet:
 				GetPayloadFullHandler(w, r, clients, tid)
 			default:
-				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for group-templates full", "group_templates_method_not_allowed", "group_templates", nil, map[string]interface{}{"method": r.Method, "template_id": tid})
 			}
 			return
 		}
@@ -66,7 +62,7 @@ func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClien
 		case http.MethodDelete:
 			DeleteTemplateHandler(w, r, clients, templateID)
 		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for group-templates entry", "group_templates_method_not_allowed", "group_templates", nil, map[string]interface{}{"method": r.Method, "template_id": templateID})
 		}
 	}
 }

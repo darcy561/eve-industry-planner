@@ -31,8 +31,7 @@ func DocumentHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 	default:
 		m := apimetrics.GetAPIEveTokenLogin()
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
-		logs.WarnCtx(ctx, "invalid method for user main document endpoint")
-		http.Error(w, "Method not allowed. Use GET to retrieve or PUT to save.", http.StatusMethodNotAllowed)
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use GET to retrieve or PUT to save.", "invalid method for user main document endpoint", "user_doc_method_not_allowed", "eve_token_login", nil, map[string]interface{}{"method": r.Method})
 	}
 }
 
@@ -48,12 +47,7 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 	})
 	defer metrics.Finish()
 
-	accountID, ok := helper.RequireAccountID(w, r)
-	if !ok {
-		metrics.Error("auth_error")
-		logs.WarnCtx(ctx, "failed to extract accountID")
-		return
-	}
+	accountID := helper.AuthenticatedAccountID(r)
 
 	database := clients.Mongo.Database(mongocore.DatabaseName)
 	collection := database.Collection(mongocore.CollectionUsers)
@@ -62,14 +56,17 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			metrics.Error("not_found")
-			logs.WarnCtx(ctx, "user document not found", "account_id", accountID)
-			http.Error(w, "User document not found", http.StatusNotFound)
+			helper.RespondEndpointError(w, r, http.StatusNotFound, "User document not found", "user document not found", "user_doc_not_found", "eve_token_login", nil, nil)
 			return
 		}
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to retrieve user document", "failed to query user document", "user_doc_query_failed", "eve_token_login", err, map[string]interface{}{"account_id": accountID})
+		helper.RespondEndpointServerError(w, r, "Failed to retrieve user document", "failed to query user document", "user_doc_query_failed", "eve_token_login", err, nil)
 		return
 	}
+
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+		"cloud_account": userDoc.UserCloudAccounts,
+	})
 
 	if userDoc.UserCloudAccounts {
 		userDoc.StripRefreshTokenSecretsForTransport()
@@ -102,14 +99,14 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 
 	if err := helper.EncodeJSON(w, response); err != nil {
 		metrics.Error("encode_error")
-		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode user document response", "user_doc_encode_failed", "eve_token_login", err, map[string]interface{}{"account_id": accountID})
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode user document response", "user_doc_encode_failed", "eve_token_login", err, nil)
 		return
 	}
 
 	metrics.Success()
-	logs.InfoCtx(ctx, "user document retrieved",
-		"account_id", accountID,
-		"duration_ms", time.Since(start).Milliseconds())
+	logs.AttachHandlerSuccessDetail(r, "user document retrieved", map[string]interface{}{
+		"duration_ms": time.Since(start).Milliseconds(),
+	})
 }
 
 func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
@@ -124,23 +121,19 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 	})
 	defer metrics.Finish()
 
-	accountID, ok := helper.RequireAccountID(w, r)
-	if !ok {
-		metrics.Error("auth_error")
-		logs.WarnCtx(ctx, "failed to extract accountID")
-		return
-	}
+	accountID := helper.AuthenticatedAccountID(r)
 
 	var userDoc models.UserAccountDocument
 	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &userDoc) {
-		logs.WarnCtx(ctx, "failed to decode user document JSON", "account_id", accountID)
 		return
 	}
 
 	if userDoc.MetaData.AccountID != "" && userDoc.MetaData.AccountID != accountID {
 		metrics.Error("account_id_mismatch")
-		logs.WarnCtx(ctx, "account ID mismatch", "token_account_id", accountID, "doc_account_id", userDoc.MetaData.AccountID)
-		http.Error(w, "Account ID in document must match authenticated account", http.StatusForbidden)
+		helper.RespondEndpointError(w, r, http.StatusForbidden, "Account ID in document must match authenticated account", "account ID mismatch on user document save", "user_doc_account_mismatch", "eve_token_login", nil, map[string]interface{}{
+			"token_account_id": accountID,
+			"doc_account_id":   userDoc.MetaData.AccountID,
+		})
 		return
 	}
 	helper.PopulateRequestMeta(r, &userDoc.MetaData.MetaData, accountID)
@@ -153,7 +146,7 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 	if loadErr != nil {
 		if !errors.Is(loadErr, mongo.ErrNoDocuments) {
 			metrics.Error("database_error")
-			helper.RespondEndpointServerError(w, r, "Failed to save user document", "failed to load existing user document", "user_doc_load_failed", "eve_token_login", loadErr, map[string]interface{}{"account_id": accountID})
+			helper.RespondEndpointServerError(w, r, "Failed to save user document", "failed to load existing user document", "user_doc_load_failed", "eve_token_login", loadErr, nil)
 			return
 		}
 		// No existing doc is valid here; save path will upsert defaults from request.
@@ -169,7 +162,7 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 		cfg, cfgErr := config.LoadConfig()
 		if cfgErr != nil {
 			metrics.Error("config_error")
-			helper.RespondEndpointServerError(w, r, "Internal server error", "failed to load config for user document save", "user_doc_config_load_failed", "eve_token_login", cfgErr, map[string]interface{}{"account_id": accountID})
+			helper.RespondEndpointServerError(w, r, "Internal server error", "failed to load config for user document save", "user_doc_config_load_failed", "eve_token_login", cfgErr, nil)
 			return
 		}
 		if cfg.RefreshTokenKeyring != nil {
@@ -185,8 +178,7 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 				if strings.TrimSpace(rt.RToken) != "" {
 					if encErr := rt.EncryptRefreshAtRest(rt.RToken, cfg.RefreshTokenKeyring); encErr != nil {
 						metrics.Error("invalid_json")
-						logs.WarnCtx(ctx, "failed to encrypt refresh token on save", "error", encErr, "account_id", accountID)
-						http.Error(w, "Invalid refresh token payload", http.StatusBadRequest)
+						helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid refresh token payload", "failed to encrypt refresh token on save", "user_doc_invalid_refresh_token", "eve_token_login", encErr, nil)
 						return
 					}
 					continue
@@ -204,24 +196,29 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 
 	result, retriedWithoutWSClientID, err := mongoput.UpsertUserAccountDocument(ctx, usersCol, accountID, userDoc)
 	if retriedWithoutWSClientID {
-		logs.WarnCtx(ctx, "user document upsert with websocket client id failed, retrying without client id",
-			"account_id", accountID,
-			"ws_client_id", userDoc.MetaData.ClientID,
-			"error", err)
+		logs.AttachHandlerCaveat(r, "upsert_retried_without_ws_client_id", "user document upsert with websocket client id failed, retrying without client id", map[string]interface{}{
+			"ws_client_id": userDoc.MetaData.ClientID,
+			"error":        err.Error(),
+		})
 	}
 	if err != nil {
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to save user document", "failed to upsert user document", "user_doc_upsert_failed", "eve_token_login", err, map[string]interface{}{"account_id": accountID})
+		helper.RespondEndpointServerError(w, r, "Failed to save user document", "failed to upsert user document", "user_doc_upsert_failed", "eve_token_login", err, nil)
 		return
 	}
+
+	logs.AttachDebugStep(r, "mongo_upsert_completed", map[string]interface{}{
+		"matched":  result.MatchedCount,
+		"upserted": result.UpsertedCount,
+	})
 
 	auth.SetEsiOAuthStorageCookieFromUserCloud(w, r, userDoc.UserCloudAccounts)
 	w.WriteHeader(http.StatusNoContent)
 
 	metrics.Success()
-	logs.InfoCtx(ctx, "user document saved",
-		"account_id", accountID,
-		"matched", result.MatchedCount,
-		"upserted", result.UpsertedCount,
-		"duration_ms", time.Since(start).Milliseconds())
+	logs.AttachHandlerSuccessDetail(r, "user document saved", map[string]interface{}{
+		"matched":     result.MatchedCount,
+		"upserted":    result.UpsertedCount,
+		"duration_ms": time.Since(start).Milliseconds(),
+	})
 }

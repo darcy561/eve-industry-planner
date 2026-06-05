@@ -65,11 +65,11 @@ func updateMaterials(item *EVEType, activityType string, typeIDMap map[string]*E
 		if !ok {
 			continue
 		}
-		typeID, ok := material["typeID"].(float64)
+		typeID, ok := parseSDETypeID(material["typeID"])
 		if !ok {
 			continue
 		}
-		matchedType, exists := typeIDMap[fmt.Sprintf("%.0f", typeID)]
+		matchedType, exists := typeIDMap[fmt.Sprintf("%d", typeID)]
 		if !exists {
 			continue
 		}

@@ -49,6 +49,37 @@ func TestResolveSentryTracesSampleRate_fallsBackToBaked(t *testing.T) {
 	}
 }
 
+func TestResolveServiceVersion_bakedRelease(t *testing.T) {
+	saved := BakedRelease
+	BakedRelease = "1.2.3"
+	t.Cleanup(func() { BakedRelease = saved })
+
+	if got := resolveServiceVersion(); got != "1.2.3" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestResolveServiceVersion_envFallback(t *testing.T) {
+	saved := BakedRelease
+	BakedRelease = ""
+	t.Cleanup(func() { BakedRelease = saved })
+	t.Setenv("APP_VERSION_NUMBER", "0.8.15")
+
+	if got := resolveServiceVersion(); got != "0.8.15" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestDefaultConfig_serviceVersion(t *testing.T) {
+	saved := BakedRelease
+	BakedRelease = "2.0.0"
+	t.Cleanup(func() { BakedRelease = saved })
+
+	if got := DefaultConfig("api").ServiceVersion; got != "2.0.0" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestResolveSentryTracesSampleRate_emptyMeansZero(t *testing.T) {
 	t.Setenv(sentryTracesSampleRateEnv, "")
 	saved := BakedSentryTracesSampleRate

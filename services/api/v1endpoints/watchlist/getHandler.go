@@ -47,32 +47,41 @@ func GetHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceC
 			}
 			if err := helper.EncodeJSON(w, resp); err != nil {
 				metrics.Error("encode_error")
-				helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode empty watchlist response", "watchlist_encode_failed", "watchlist_get", err, map[string]interface{}{"account_id": accountID})
+				helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode empty watchlist response", "watchlist_encode_failed", "watchlist_get", err, nil)
 				return
 			}
 			metrics.Success()
+			logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+				"has_document": false,
+			})
+			logs.AttachHandlerSuccessDetail(r, "watchlist document empty", map[string]interface{}{
+				"duration_ms": time.Since(start).Milliseconds(),
+			})
 			return
 		}
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to retrieve watchlist", "failed to query watchlist deprecated", "watchlist_query_failed", "watchlist_get", err, map[string]interface{}{"account_id": accountID})
+		helper.RespondEndpointServerError(w, r, "Failed to retrieve watchlist", "failed to query watchlist deprecated", "watchlist_query_failed", "watchlist_get", err, nil)
 		return
 	}
 
 	groups, items := coalesceGroupsItemsFromDoc(raw)
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+		"has_document": true,
+	})
 	resp := map[string]any{
 		"groups": groups,
 		"items":  items,
 	}
 	if err := helper.EncodeJSON(w, resp); err != nil {
 		metrics.Error("encode_error")
-		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode watchlist response", "watchlist_encode_failed", "watchlist_get", err, map[string]interface{}{"account_id": accountID})
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode watchlist response", "watchlist_encode_failed", "watchlist_get", err, nil)
 		return
 	}
 
 	metrics.Success()
-	logs.InfoCtx(ctx, "watchlist document retrieved",
-		"account_id", accountID,
-		"duration_ms", time.Since(start).Milliseconds())
+	logs.AttachHandlerSuccessDetail(r, "watchlist document retrieved", map[string]interface{}{
+		"duration_ms": time.Since(start).Milliseconds(),
+	})
 }
 
 func coalesceGroupsItemsFromDoc(raw bson.M) (any, any) {

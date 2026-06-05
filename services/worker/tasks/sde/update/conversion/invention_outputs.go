@@ -8,10 +8,13 @@ import (
 // ApplyInventionToOutputItems walks every blueprint row and copies activities.invention onto each
 // product type listed in invention.products (T2/T3 BPC outputs). Keys under activities.invention
 // are source blueprint type IDs (Option B). T1 manufacture rows never receive invention here.
-func ApplyInventionToOutputItems(fullBlueprintMap map[string]interface{}, combinedItemMap map[string]*EVEType) {
+func ApplyInventionToOutputItems(fullBlueprintMap map[string]interface{}, combinedItemMap map[string]*EVEType, typesData map[string]interface{}) {
 	for _, raw := range fullBlueprintMap {
 		bp, ok := raw.(map[string]interface{})
 		if !ok {
+			continue
+		}
+		if !isPublishedBlueprintFormula(bp, typesData) {
 			continue
 		}
 		activities, ok := bp["activities"].(map[string]interface{})
@@ -71,11 +74,14 @@ func inventionSourceForProduct(inv map[string]interface{}, productTypeID float64
 
 // BuildManufacturedProductByBlueprintTypeID maps blueprint paper type ID → first manufacturing
 // product type ID from the same SDE blueprint row (hull, ammo run, etc.).
-func BuildManufacturedProductByBlueprintTypeID(fullBlueprintMap map[string]interface{}) map[int]int {
+func BuildManufacturedProductByBlueprintTypeID(fullBlueprintMap map[string]interface{}, typesData map[string]interface{}) map[int]int {
 	out := make(map[int]int)
 	for _, raw := range fullBlueprintMap {
 		bp, ok := raw.(map[string]interface{})
 		if !ok {
+			continue
+		}
+		if !isPublishedBlueprintFormula(bp, typesData) {
 			continue
 		}
 		bpIDf, ok := bp["blueprintTypeID"].(float64)

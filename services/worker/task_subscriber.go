@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -14,6 +15,8 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/nats-io/nats.go/jetstream"
 )
+
+const workerNatsTracerName = "eve-industry-planner/worker/nats"
 
 const (
 	// MessageFetchBatchSize is the number of messages to fetch per batch
@@ -30,16 +33,30 @@ const (
 // processMessage receives a NATS message and enqueues it to the asynq server.
 // Acknowledges NATS message immediately after successful enqueue to prevent redelivery.
 func processMessage(
-	ctx context.Context,
 	msg jetstream.Msg,
 	subject string,
 	client *asynq.Client,
 ) {
+	var envelope natscore.Message
+	_ = json.Unmarshal(msg.Data(), &envelope)
+
+	ctx, endSpan := natscore.BeginConsumerContext(
+		context.Background(),
+		workerNatsTracerName,
+		"nats.enqueue_task",
+		msg,
+		&envelope,
+	)
+	defer endSpan()
+
 	// Determine task type from subject
 	taskType := getTaskTypeFromSubject(subject)
 	if taskType == "" {
 		deliveryCount, _ := natscore.GetMessageMetadata(msg)
-		logs.WarnCtx(ctx, "unknown task type for subject", "subject", subject)
+		natscore.FinishNATSConsumerOperation(ctx, "warn", "nats task rejected", map[string]interface{}{
+			"subject": subject,
+			"reason":  "unknown task type",
+		})
 		natscore.AcknowledgeMessage(msg, "unknown task type", deliveryCount)
 		return
 	}
@@ -49,6 +66,11 @@ func processMessage(
 	err := asynqpkg.Enqueue(msg, client, taskType, subject)
 	if err != nil {
 		logs.ErrorCtx(ctx, "failed to enqueue task to asynq", "subject", subject, "error", err)
+		natscore.FinishNATSConsumerOperation(ctx, "warn", "nats task enqueue failed", map[string]interface{}{
+			"subject":   subject,
+			"task_type": taskType,
+			"error":     err.Error(),
+		})
 		// Nack the message so it can be retried
 		natscore.NackMessage(msg)
 		return
@@ -58,6 +80,10 @@ func processMessage(
 	// Message is now safely in asynq queue with retention, won't expire
 	deliveryCount, _ := natscore.GetMessageMetadata(msg)
 	natscore.AcknowledgeMessage(msg, "enqueued to asynq", deliveryCount)
+	natscore.FinishNATSConsumerOperation(ctx, "debug", "nats task enqueued", map[string]interface{}{
+		"subject":   subject,
+		"task_type": taskType,
+	})
 }
 
 // getTaskTypeFromSubject derives the asynq task type from the NATS subject.
@@ -198,7 +224,7 @@ func SubscribeScheduledTasks(deps *WorkerDependencies) (func(context.Context), e
 	}
 
 	processor := func(msg jetstream.Msg) {
-		processMessage(ctx, msg, msg.Subject(), deps.AsynqClient)
+		processMessage(msg, msg.Subject(), deps.AsynqClient)
 	}
 
 	stopChan := make(chan struct{})

@@ -137,17 +137,41 @@ func ExtractAccountSession(ctx context.Context, r *http.Request, redisClient *re
 	}
 	sessionID := strings.TrimSpace(ReadAppSessionCookie(r))
 	if sessionID == "" {
-		return nil, errors.New("session_missing")
+		return nil, &AuthSessionError{
+			Code:   "session_missing",
+			Reason: authSessionReasonCookieAbsent,
+		}
 	}
 	accountID, session, err := ResolveAccountSessionBySessionID(ctx, redisClient, sessionID)
 	if err != nil || session == nil {
-		return nil, errors.New("session_missing")
+		authErr := &AuthSessionError{
+			Code:      "session_missing",
+			SessionID: sessionID,
+			AccountID: strings.TrimSpace(accountID),
+		}
+		switch {
+		case authErr.AccountID != "":
+			authErr.Reason = authSessionReasonSessionRowMissing
+		case err != nil && err.Error() == "session not found":
+			authErr.Reason = authSessionReasonSessionIndexMissing
+		default:
+			authErr.Reason = authSessionReasonRedisError
+		}
+		return nil, authErr
 	}
 	if session.RevokedAt != nil {
-		return nil, errors.New("session_revoked")
+		return nil, &AuthSessionError{
+			Code:      "session_revoked",
+			AccountID: accountID,
+			SessionID: sessionID,
+		}
 	}
 	if IsReauthExpired(session.StartedAt, session.ReauthRequiredAt, time.Now().UTC()) {
-		return nil, errors.New("reauth_required")
+		return nil, &AuthSessionError{
+			Code:      "reauth_required",
+			AccountID: accountID,
+			SessionID: sessionID,
+		}
 	}
 	return &AccountSessionIdentity{
 		AccountID: accountID,

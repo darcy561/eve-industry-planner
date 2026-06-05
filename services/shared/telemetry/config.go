@@ -47,7 +47,7 @@ func DefaultConfig(serviceName string) Config {
 	}
 	return Config{
 		ServiceName:            strings.TrimSpace(serviceName),
-		ServiceVersion:         "",
+		ServiceVersion:         resolveServiceVersion(),
 		OTLPEndpoint:           DefaultOTLPEndpoint,
 		OTLPInsecure:           true,
 		SentryDSN:              strings.TrimSpace(BakedSentryDSN),
@@ -76,6 +76,20 @@ func resolveSentryTracesSampleRate() float64 {
 		return parseTraceSampleRate(v)
 	}
 	return parseTraceSampleRate(BakedSentryTracesSampleRate)
+}
+
+// resolveServiceVersion returns the app semver for OTLP service.version (logs/metrics resource).
+// Priority: link-time BakedRelease (Docker APP_VERSION) → APP_VERSION_NUMBER → APP_VERSION → FRONTEND_APP_VERSION.
+func resolveServiceVersion() string {
+	if v := strings.TrimSpace(BakedRelease); v != "" {
+		return v
+	}
+	for _, key := range []string{"APP_VERSION_NUMBER", "APP_VERSION", "FRONTEND_APP_VERSION"} {
+		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func (c Config) shouldInit() bool {

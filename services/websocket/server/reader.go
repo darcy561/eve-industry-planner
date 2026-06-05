@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,10 +9,22 @@ import (
 
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/websocket/server/config"
-	syncpkg "eve-industry-planner/websocket/sync"
 
 	"github.com/gorilla/websocket"
 )
+
+func peekWSMessageType(msg []byte) string {
+	if len(msg) == 0 || msg[0] != '{' {
+		return ""
+	}
+	var header struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(msg, &header); err != nil {
+		return ""
+	}
+	return header.Type
+}
 
 // isBenignWebSocketDisconnect classifies errors that usually mean the peer went away
 // (tab closed, navigation, reconnect, proxy idle reset) rather than an internal failure.
@@ -43,9 +54,6 @@ func isBenignWebSocketDisconnect(err error) bool {
 // reader reads messages from the WebSocket connection
 func (s *Server) reader(client *Client) {
 	ctx := client.LogContext()
-	logs.DebugCtx(ctx, "websocket reader started",
-		"client_id", client.id,
-		"account_id", client.AccountID)
 
 	// Add panic recovery
 	defer func() {
@@ -109,24 +117,22 @@ func (s *Server) reader(client *Client) {
 	// We'll extend it in the loop when messages are received
 	client.conn.SetReadDeadline(time.Now().Add(config.PongWait))
 
-	logs.DebugCtx(ctx, "websocket reader read loop",
-		"client_id", client.id,
-		"account_id", client.AccountID,
-		"pong_wait", config.PongWait)
-
 	messageCount := 0
 	for {
 		messageType, msg, err := client.conn.ReadMessage()
 		messageCount++
+		consolidatedMsgType := peekWSMessageType(msg)
 
-		logs.DebugCtx(ctx, "websocket reader: ReadMessage returned",
-			"client_id", client.id,
-			"account_id", client.AccountID,
-			"message_count", messageCount,
-			"has_error", err != nil,
-			"error", err,
-			"message_type", messageType,
-			"message_length", len(msg))
+		if !shouldSkipReaderPerMessageDebug(msg, consolidatedMsgType) {
+			logs.DebugCtx(ctx, "websocket reader: ReadMessage returned",
+				"client_id", client.id,
+				"account_id", client.AccountID,
+				"message_count", messageCount,
+				"has_error", err != nil,
+				"error", err,
+				"message_type", messageType,
+				"message_length", len(msg))
+		}
 		if err != nil {
 			// Check if this is a timeout error (no pong received)
 			errStr := err.Error()
@@ -155,14 +161,15 @@ func (s *Server) reader(client *Client) {
 			break
 		}
 
-		// Log all received messages with type and content for debugging
-		logs.DebugCtx(ctx, "websocket message received",
-			"client_id", client.id,
-			"message_type", messageType,
-			"message_type_name", getMessageTypeName(messageType),
-			"message_length", len(msg),
-			"message", string(msg),
-			"message_bytes", fmt.Sprintf("%x", msg))
+		if !shouldSkipReaderPerMessageDebug(msg, consolidatedMsgType) {
+			logs.DebugCtx(ctx, "websocket message received",
+				"client_id", client.id,
+				"message_type", messageType,
+				"message_type_name", getMessageTypeName(messageType),
+				"message_length", len(msg),
+				"message", string(msg),
+				"message_bytes", fmt.Sprintf("%x", msg))
+		}
 
 		// Update last activity when message is received
 		client.activityMu.Lock()
@@ -202,9 +209,6 @@ func (s *Server) reader(client *Client) {
 			// Must use Send channel to avoid concurrent writes (gorilla/websocket requires serialized writes)
 			select {
 			case client.Send <- []byte("pong"):
-				logs.DebugCtx(ctx, "websocket heartbeat: pong queued for sending",
-					"client_id", client.id,
-					"account_id", client.AccountID)
 			default:
 				// Send buffer full - log warning but continue (heartbeat failure is not critical)
 				logs.WarnCtx(ctx, "websocket heartbeat: failed to queue pong (send buffer full)",
@@ -235,148 +239,49 @@ func (s *Server) reader(client *Client) {
 			if !ok {
 				msgType = ""
 			}
-			logs.DebugCtx(ctx, "parsed message type from JSON",
-				"client_id", client.id,
-				"account_id", client.AccountID,
-				"type", msgType,
-				"type_ok", ok)
+			if !shouldSkipReaderPerMessageDebug(msg, msgType) {
+				logs.DebugCtx(ctx, "parsed message type from JSON",
+					"client_id", client.id,
+					"account_id", client.AccountID,
+					"type", msgType,
+					"type_ok", ok)
+			}
 
 			switch msgType {
 			case "session_resume":
-				var resume struct {
-					PreviousClientID string `json:"previousClientID"`
-				}
-				if err := json.Unmarshal(msg, &resume); err != nil {
-					logs.WarnCtx(ctx, "failed to parse session_resume message",
-						"client_id", client.id,
-						"account_id", client.AccountID,
-						"error", err,
-						"message_preview", msgStr)
-					continue
-				}
-				prev := strings.TrimSpace(resume.PreviousClientID)
-				skipBaseline, restoredIDs := s.ApplySessionResume(ctx, client, prev)
-				s.queueResumeAck(client, skipBaseline, restoredIDs)
+				s.runWSMessageOperation(client, msgType, msg, s.handleSessionResumeWS)
 				continue
 
 			case "sync":
-				// Sync message - route to sync queue
-				syncpkg.HandleSyncMessage(ctx, s, client.id, client.AccountID, msg)
+				s.runWSMessageOperation(client, msgType, msg, s.handleSyncWS)
 				continue
 
 			case "subscribe":
-				var subscribeMsg struct {
-					DocIDs []string `json:"docIDs"`
-				}
-				if err := json.Unmarshal(msg, &subscribeMsg); err != nil {
-					logs.WarnCtx(ctx, "failed to parse subscribe message",
-						"client_id", client.id,
-						"account_id", client.AccountID,
-						"error", err,
-						"message_preview", msgStr)
-					continue
-				}
-
-				if len(subscribeMsg.DocIDs) == 0 {
-					logs.WarnCtx(ctx, "subscribe message missing or empty docIDs field - expected format: {\"type\":\"subscribe\",\"docIDs\":[\"doc1\",\"doc2\"]}",
-						"client_id", client.id,
-						"account_id", client.AccountID,
-						"message_preview", msgStr)
-					continue
-				}
-
-				acked := make([]string, 0)
-				for _, docID := range subscribeMsg.DocIDs {
-					if !s.docSubscribeAuthorized(context.Background(), docID, client.AccountID) {
-						logs.WarnCtx(ctx, "subscribe rejected: docID not authorized for account",
-							"client_id", client.id,
-							"account_id", client.AccountID,
-							"doc_id", docID)
-						continue
-					}
-					s.enqueueIncomingEvent(Event{
-						ClientID: client.id,
-						DocID:    docID,
-						Msg:      []byte("subscribe"),
-					})
-					acked = append(acked, docID)
-				}
-				s.QueueSubscribeAck(client, acked)
+				s.runWSMessageOperation(client, msgType, msg, s.handleSubscribeWS)
 				continue
 
 			case "upgrade_scopes":
-				var upgrade struct {
-					CorporationIDs []string `json:"corporationIDs"`
-					AllianceIDs    []string `json:"allianceIDs"`
-				}
-				if err := json.Unmarshal(msg, &upgrade); err != nil {
-					logs.WarnCtx(ctx, "failed to parse upgrade_scopes message",
-						"client_id", client.id,
-						"account_id", client.AccountID,
-						"error", err,
-						"message_preview", msgStr)
-					continue
-				}
-				if s.ApplyRealtimeScopeUpgrade(client, upgrade.CorporationIDs, upgrade.AllianceIDs) {
-					s.queueScopesAck(client)
-				} else {
-					logs.DebugCtx(ctx, "upgrade_scopes: no valid corporation/alliance ids for this session",
-						"client_id", client.id,
-						"account_id", client.AccountID)
-				}
+				s.runWSMessageOperation(client, msgType, msg, s.handleUpgradeScopesWS)
 				continue
 
 			case "unsubscribe":
-				var unsubscribeMsg struct {
-					DocIDs []string `json:"docIDs"`
-				}
-				if err := json.Unmarshal(msg, &unsubscribeMsg); err != nil {
-					logs.WarnCtx(ctx, "failed to parse unsubscribe message",
-						"client_id", client.id,
-						"account_id", client.AccountID,
-						"error", err,
-						"message_preview", msgStr)
-					continue
-				}
-
-				if len(unsubscribeMsg.DocIDs) == 0 {
-					logs.WarnCtx(ctx, "unsubscribe message missing or empty docIDs field - expected format: {\"type\":\"unsubscribe\",\"docIDs\":[\"doc1\",\"doc2\"]}",
-						"client_id", client.id,
-						"account_id", client.AccountID,
-						"message_preview", msgStr)
-					continue
-				}
-
-				for _, docID := range unsubscribeMsg.DocIDs {
-					if !s.docSubscribeAuthorized(context.Background(), docID, client.AccountID) {
-						logs.WarnCtx(ctx, "unsubscribe rejected: docID not authorized for account",
-							"client_id", client.id,
-							"account_id", client.AccountID,
-							"doc_id", docID)
-						continue
-					}
-					s.enqueueIncomingEvent(Event{
-						ClientID: client.id,
-						DocID:    docID,
-						Msg:      []byte("unsubscribe"),
-					})
-				}
+				s.runWSMessageOperation(client, msgType, msg, s.handleUnsubscribeWS)
 				continue
 
 			case "document_lock_lock_state_batch":
-				s.handleDocumentLockLockStateBatch(client, msg)
+				s.runWSMessageOperation(client, msgType, msg, s.handleDocumentLockLockStateBatch)
 				continue
 
 			case "document_lock_waitlist_pulse":
-				s.handleDocumentLockWaitlistPulseWS(client, msg)
+				s.runWSMessageOperation(client, msgType, msg, s.handleDocumentLockWaitlistPulseWS)
 				continue
 
 			case "document_lock_viewer_arrived":
-				s.handleDocumentLockViewerArrivedWS(client, msg)
+				s.runWSMessageOperation(client, msgType, msg, s.handleDocumentLockViewerArrivedWS)
 				continue
 
 			case "document_lock_viewer_departed":
-				s.handleDocumentLockViewerDepartedWS(client, msg)
+				s.runWSMessageOperation(client, msgType, msg, s.handleDocumentLockViewerDepartedWS)
 				continue
 
 			default:

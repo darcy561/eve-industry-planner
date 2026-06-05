@@ -29,20 +29,19 @@ func EveSSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shar
 
 	authCode, accountType, err := extractAuthCodeFromRequest(r)
 	if err != nil {
-		duration := time.Since(start)
 		m.Errors.WithLabelValues("extraction_error").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "extraction_error", "error", err)
-		logs.WarnCtx(ctx, "failed to extract auth code from request body", "error", err)
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		respondSSOClientError(w, r, "eve_sso_code_exchange", "Invalid request", "failed to extract auth code from request body", "sso_exchange_extraction_error", http.StatusBadRequest, map[string]interface{}{
+			"error": err.Error(),
+		})
 		return
 	}
 
 	if len(authCode) > maxAuthCodeLength {
-		duration := time.Since(start)
 		m.Errors.WithLabelValues("auth_code_too_long").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "auth_code_too_long", "length", len(authCode), "max", maxAuthCodeLength)
-		logs.WarnCtx(ctx, "auth code too long", "length", len(authCode), "max", maxAuthCodeLength)
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		respondSSOClientError(w, r, "eve_sso_code_exchange", "Invalid request", "auth code too long", "sso_exchange_auth_code_too_long", http.StatusBadRequest, map[string]interface{}{
+			"length": len(authCode),
+			"max":    maxAuthCodeLength,
+		})
 		return
 	}
 
@@ -50,16 +49,19 @@ func EveSSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shar
 		return
 	}
 
+	logs.AttachDebugStep(r, "auth_code_received", map[string]interface{}{
+		"account_type":  accountType,
+		"auth_code_len": len(authCode),
+	})
+
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	tokenResponse, err := exchangeAuthCodeForEveSSOTokens(ctx, cfg.EveSSOClientID, cfg.EveSSOClientSecret, authCode)
 	var characterHash string
 	if err != nil {
-		duration := time.Since(start)
 		m.Errors.WithLabelValues("sso_exchange_error").Inc(ctx)
-		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "sso_exchange_error", "error", err)
-		logs.AttachClientFailureDetail(r, "failed to exchange auth code for token", map[string]interface{}{
+		attachSSOClientFailure(r, "eve_sso_code_exchange", "failed to exchange auth code for token", "sso_exchange_error", map[string]interface{}{
 			"sso_endpoint":  "token_exchange",
 			"auth_code_len": len(authCode),
 			"account_type":  accountType,
@@ -68,6 +70,10 @@ func EveSSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shar
 		handleSSOProviderError(w, r, err, "Invalid authorization code")
 		return
 	}
+
+	logs.AttachDebugStep(r, "token_exchanged", map[string]interface{}{
+		"expires_in": tokenResponse.ExpiresIn,
+	})
 
 	if tokenResponse.AccessToken == "" {
 		duration := time.Since(start)
@@ -82,9 +88,15 @@ func EveSSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shar
 
 	characterHash, extractErr := extractCharacterHashFromEveSSOAccessToken(tokenResponse.AccessToken, cfg.EveSSOClientID)
 	if extractErr != nil {
-		logs.WarnCtx(ctx, "token character hash extraction degraded; continuing", "error", extractErr, "account_type", accountType)
+		logs.AttachHandlerCaveat(r, "character_hash_extraction_degraded", "token character hash extraction degraded; continuing", map[string]interface{}{
+			"error":        extractErr.Error(),
+			"account_type": accountType,
+		})
 	} else {
-		logs.DebugCtx(ctx, "successfully parsed SSO token claims", "character_hash", characterHash, "account_type", accountType)
+		logs.AttachDebugStepMsg(r, "claims_parsed", "parsed SSO access token claims", map[string]interface{}{
+			"character_hash": characterHash,
+			"account_type":   accountType,
+		})
 	}
 
 	response := EveSSOTokenPayload{
@@ -109,6 +121,14 @@ func EveSSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shar
 	m.Successes.Inc(ctx)
 
 	accountID := auth.GetAccountIDFromCharacterHash(characterHash)
-	apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "success", "account_type", accountType, "character_hash", characterHash, "account_id", accountID)
-	logs.InfoCtx(ctx, "SSO token exchange completed", "character_hash", characterHash, "account_id", accountID, "account_type", accountType, "duration_ms", duration.Milliseconds())
+	r = logs.BindRequestAccountIDToRequest(r, accountID)
+	ctx = r.Context()
+	if duration > time.Second {
+		apimetrics.LogRequestMetrics(ctx, "eve_sso_code_exchange", duration, "success", "account_type", accountType, "character_hash", characterHash)
+	}
+	logs.AttachHandlerSuccessDetail(r, "SSO token exchange completed", map[string]interface{}{
+		"character_hash": characterHash,
+		"account_type":   accountType,
+		"duration_ms":    duration.Milliseconds(),
+	})
 }

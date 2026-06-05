@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"eve-industry-planner/shared/logs"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 )
@@ -39,6 +41,16 @@ type Message struct {
 	// are missing on the JetStream-delivered message.
 	TraceCarrierTraceparent string `json:"trace_carrier_traceparent,omitempty"`
 	TraceCarrierTracestate  string `json:"trace_carrier_tracestate,omitempty"`
+
+	// LogContext duplicates request identity in the JSON body when JetStream omits user headers.
+	LogContext *MessageLogContext `json:"log_context,omitempty"`
+}
+
+// MessageLogContext carries HTTP request identity for log correlation across NATS consumers.
+type MessageLogContext struct {
+	RequestID string `json:"request_id,omitempty"`
+	AccountID string `json:"account_id,omitempty"`
+	SessionID string `json:"session_id,omitempty"`
 }
 
 // EnrichTraceCarrierFromContext sets TraceCarrier* fields from ctx via the global TextMapPropagator.
@@ -53,6 +65,31 @@ func (m *Message) EnrichTraceCarrierFromContext(ctx context.Context) {
 	}
 	if v := carrier["tracestate"]; v != "" {
 		m.TraceCarrierTracestate = v
+	}
+}
+
+// EnrichLogContextFromContext sets LogContext from ctx (request_id, account_id, session_id).
+func (m *Message) EnrichLogContextFromContext(ctx context.Context) {
+	if ctx == nil || m == nil {
+		return
+	}
+	rid := logs.RequestIDFromContext(ctx)
+	aid := logs.RequestAccountIDFromContext(ctx)
+	sid := logs.RequestSessionIDFromContext(ctx)
+	if rid == "" && aid == "" && sid == "" {
+		return
+	}
+	if m.LogContext == nil {
+		m.LogContext = &MessageLogContext{}
+	}
+	if rid != "" {
+		m.LogContext.RequestID = rid
+	}
+	if aid != "" {
+		m.LogContext.AccountID = aid
+	}
+	if sid != "" {
+		m.LogContext.SessionID = sid
 	}
 }
 

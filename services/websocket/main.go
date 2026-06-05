@@ -50,6 +50,10 @@ func main() {
 		return
 	}
 
+	logs.SetDebugIdentityResolver(func(c context.Context) (string, string) {
+		return logs.RequestAccountIDFromContext(c), logs.RequestSessionIDFromContext(c)
+	})
+
 	// Connect to required services
 	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo, shared.ServiceNATS, shared.ServiceRedis)
 	if err != nil {

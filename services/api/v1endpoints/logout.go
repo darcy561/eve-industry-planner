@@ -24,46 +24,55 @@ type LogoutRequest struct {
 func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
 	sessionMetrics := apimetrics.GetAPIAuthSessionLifecycle()
+	credLog := auth.BuildRefreshCredentialLogDetail(r, "sessions_logout", "", false, "")
 
 	if !helper.RequireMethod(w, r, http.MethodPost) {
-		logs.WarnCtx(ctx, "invalid method for logout endpoint")
+		attachLogoutClientFailure(r, credLog, "invalid method for logout endpoint", "auth_logout_method_not_allowed", map[string]interface{}{
+			"metric": "sessions_logout",
+			"method": r.Method,
+		})
 		return
 	}
 
-	requestedAccountID, ok := helper.RequireAccountID(w, r)
-	if !ok {
-		logs.WarnCtx(ctx, "failed to extract account id for logout")
-		return
-	}
+	requestedAccountID := helper.AuthenticatedAccountID(r)
 
 	refreshToken, refreshFromCookie, err := extractLogoutRefreshTokenFromRequest(r)
+	credLog = auth.BuildRefreshCredentialLogDetail(r, "sessions_logout", refreshToken, refreshFromCookie, "")
 	if err != nil {
-		logs.WarnCtx(ctx, "failed to extract refresh token for logout", "error", err)
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		respondLogoutClientError(w, r, credLog, http.StatusBadRequest, "Invalid request", "failed to extract refresh token for logout", "auth_logout_extraction_error", map[string]interface{}{
+			"metric": "sessions_logout",
+			"error":  err.Error(),
+		})
 		return
 	}
 	if len(refreshToken) > maxRefreshTokenLength {
-		logs.WarnCtx(ctx, "refresh token too long for logout", "length", len(refreshToken), "max", maxRefreshTokenLength)
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		respondLogoutClientError(w, r, credLog, http.StatusBadRequest, "Invalid request", "refresh token too long for logout", "auth_logout_refresh_token_too_long", map[string]interface{}{
+			"metric": "sessions_logout",
+			"length": len(refreshToken),
+			"max":    maxRefreshTokenLength,
+		})
 		return
 	}
 
-	credLog := auth.BuildRefreshCredentialLogDetail(r, "sessions_logout", refreshToken, refreshFromCookie, "")
+	logs.AttachDebugStep(r, "logout_credentials_extracted", map[string]interface{}{
+		"refresh_from_cookie": refreshFromCookie,
+		"refresh_token_len":   len(refreshToken),
+	})
 
 	tokenData, err := auth.GetRefreshTokenData(ctx, clients.Redis, refreshToken)
 	if err != nil {
-		logs.WarnCtx(ctx, "logout refresh token not found in Redis",
-			"error", err,
-			"credential_source", credLog.CredentialSource,
-			"refresh_token_id_hint", credLog.RefreshTokenIDHint,
-			"likely_cause", credLog.LikelyCause,
-		)
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		respondLogoutClientError(w, r, credLog, http.StatusUnauthorized, "Invalid token", "logout refresh token not found in Redis", "auth_logout_refresh_token_not_found", map[string]interface{}{
+			"metric": "sessions_logout",
+			"error":  err.Error(),
+		})
 		return
 	}
 	if tokenData.AccountID != requestedAccountID {
-		logs.WarnCtx(ctx, "logout token/account mismatch", "requested_account_id", requestedAccountID, "token_account_id", tokenData.AccountID)
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		respondLogoutClientError(w, r, credLog, http.StatusUnauthorized, "Unauthorized", "logout token/account mismatch", "auth_logout_account_mismatch", map[string]interface{}{
+			"metric":               "sessions_logout",
+			"requested_account_id": requestedAccountID,
+			"token_account_id":     tokenData.AccountID,
+		})
 		return
 	}
 
@@ -74,8 +83,7 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 	if err := auth.RevokeRefreshTokensForLogout(ctx, clients.Redis, refreshToken, sessionID); err != nil {
 		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to revoke refresh token on logout", "auth_logout_revoke_refresh", "sessions_logout", err, map[string]interface{}{
 			"session_endpoint": "sessions_logout",
-			"account_id":       requestedAccountID,
-			"session_id_set":   sessionID != "",
+						"session_id_set":   sessionID != "",
 		})
 		return
 	}
@@ -83,8 +91,7 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 		if err := auth.RevokeAccountSession(ctx, clients.Redis, requestedAccountID, sessionID); err != nil {
 			helper.RespondEndpointServerError(w, r, "Internal server error", "failed to delete session record on logout", "auth_logout_revoke_session", "sessions_logout", err, map[string]interface{}{
 				"session_endpoint": "sessions_logout",
-				"account_id":       requestedAccountID,
-				"session_id_set":   sessionID != "",
+								"session_id_set":   sessionID != "",
 			})
 			return
 		}
@@ -94,6 +101,12 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 	auth.ClearAppRefreshCookie(w, r)
 	auth.ClearEsiOAuthStorageCookie(w, r)
 	auth.ClearAppSessionCookie(w)
+	logs.AttachDebugStep(r, "session_revoked", map[string]interface{}{
+		"session_id_set": sessionID != "",
+	})
+	logs.AttachHandlerSuccessDetail(r, "logout completed", map[string]interface{}{
+		"refresh_from_cookie": refreshFromCookie,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 

@@ -11,15 +11,29 @@ func RequireMethod(w http.ResponseWriter, r *http.Request, expected string) bool
 	if r.Method == expected {
 		return true
 	}
-	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "method not allowed", "method_not_allowed", "", nil, map[string]interface{}{
+		"method":          r.Method,
+		"expected_method": expected,
+	})
 	return false
 }
 
-// RequireAccountID extracts accountID from session context (or legacy JWT fallback) and writes 401 when unavailable.
+// AuthenticatedAccountID returns the account id bound by auth middleware on private routes.
+func AuthenticatedAccountID(r *http.Request) string {
+	return auth.AccountIDFromContext(r.Context())
+}
+
+// AuthenticatedSessionID returns the session id bound by auth middleware on private routes.
+func AuthenticatedSessionID(r *http.Request) string {
+	return auth.SessionIDFromContext(r.Context())
+}
+
+// RequireAccountID extracts accountID set by auth middleware and writes 401 when unavailable.
+// Prefer [AuthenticatedAccountID] on routes behind [middleware.AuthConstructor].
 func RequireAccountID(w http.ResponseWriter, r *http.Request) (string, bool) {
-	if fromCtx := auth.AccountIDFromContext(r.Context()); fromCtx != "" {
-		return fromCtx, true
+	if accountID := AuthenticatedAccountID(r); accountID != "" {
+		return accountID, true
 	}
-	http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "missing authenticated account id", "auth_missing_account_id", "", nil, nil)
 	return "", false
 }
