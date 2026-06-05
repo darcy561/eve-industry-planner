@@ -30,7 +30,6 @@ func AppConfigHandler(w http.ResponseWriter, r *http.Request, _ *shared.ServiceC
 
 	if !helper.RequireMethod(w, r, http.MethodGet) {
 		metrics.Error("method_not_allowed")
-		logs.WarnCtx(ctx, "invalid method for app-config endpoint")
 		return
 	}
 
@@ -52,9 +51,22 @@ func AppConfigHandler(w http.ResponseWriter, r *http.Request, _ *shared.ServiceC
 	w.Header().Set("Cache-Control", "public, max-age=60")
 	w.Header().Set("ETag", etag)
 	if helper.IfNoneMatchSatisfied(r.Header.Get("If-None-Match"), etag) {
+		logs.AttachDebugStep(r, "cache_not_modified", map[string]interface{}{
+			"app_version": response.AppVersionNumber,
+		})
+		metrics.Success()
+		logs.AttachHandlerSuccessDetail(r, "app config not modified", map[string]interface{}{
+			"app_version": response.AppVersionNumber,
+		})
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
+
+	logs.AttachDebugStep(r, "app_config_built", map[string]interface{}{
+		"app_version":      response.AppVersionNumber,
+		"maintenance_mode": response.MaintenanceMode,
+		"feature_flags":    len(response.FeatureFlags),
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(append(payload, '\n')); err != nil {
@@ -62,4 +74,8 @@ func AppConfigHandler(w http.ResponseWriter, r *http.Request, _ *shared.ServiceC
 		helper.RespondEndpointServerError(w, r, "Internal server error", "app-config: write response", "app_config_write_failed", "app_config", err, nil)
 		return
 	}
+	metrics.Success()
+	logs.AttachHandlerSuccessDetail(r, "app config served", map[string]interface{}{
+		"app_version": response.AppVersionNumber,
+	})
 }

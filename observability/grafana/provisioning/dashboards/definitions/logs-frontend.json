@@ -15,7 +15,7 @@
         "type": "loki",
         "uid": "loki"
       },
-      "description": "Scoped to the **`frontend`** container (`compose_service`). Plain-text nginx/docker logs — the line body is shown directly. Use **search** and **line regex** to narrow; default line regex is **`.*`**. Click a line for labels and parsed fields.",
+      "description": "Scoped to the **`frontend`** container (`compose_service`). Plain-text nginx/docker logs. Use **search** and **line regex** to narrow. Click a line for labels in the **sidebar**.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -30,6 +30,9 @@
       "options": {
         "dedupStrategy": "none",
         "detailsMode": "sidebar",
+        "displayedFields": [
+          "___LOG_LINE_BODY___"
+        ],
         "enableInfiniteScrolling": true,
         "enableLogDetails": true,
         "maxLines": 1000,
@@ -120,6 +123,6 @@
   "timezone": "browser",
   "title": "Frontend · logs",
   "uid": "logs-frontend",
-  "version": 6,
+  "version": 8,
   "weekStart": ""
 }

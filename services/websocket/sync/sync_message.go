@@ -54,13 +54,23 @@ func ParseSyncMessage(ctx context.Context, clientID string, accountID string, ms
 		Subscriptions: clientMsg.Subscriptions,
 	}
 
-	logs.DebugCtx(ctx, "parsed sync message",
-		"client_id", clientID,
-		"account_id", clientMsg.AccountID,
-		"type", clientMsg.Type,
-		"collections", len(clientMsg.Subscriptions))
-
 	return syncMsg, nil
+}
+
+// HandleSyncMessage parses and enqueues a sync message (legacy entrypoint).
+func HandleSyncMessage(ctx context.Context, s SyncServer, clientID string, accountID string, msgBytes []byte) {
+	syncMsg, err := ParseSyncMessage(ctx, clientID, accountID, msgBytes)
+	if err != nil {
+		logs.WarnCtx(ctx, "failed to parse sync message",
+			"client_id", clientID,
+			"account_id", accountID,
+			"error", err)
+		return
+	}
+	if syncMsg == nil {
+		return
+	}
+	_ = EnqueueSyncMessageWithOutcome(ctx, s, clientID, *syncMsg)
 }
 
 // ServerSyncMessage represents messages sent from server to client during sync
@@ -122,43 +132,4 @@ func FormatSyncData(accountID string, userDoc map[string]interface{}, collection
 		Collections: collections,
 	}
 	return json.Marshal(msg)
-}
-
-// HandleSyncMessage parses and enqueues a sync message, handling all error cases.
-func HandleSyncMessage(ctx context.Context, s SyncServer, clientID string, accountID string, msgBytes []byte) {
-	// Parse the sync message
-	syncMsg, err := ParseSyncMessage(ctx, clientID, accountID, msgBytes)
-	if err != nil {
-		logs.WarnCtx(ctx, "failed to parse sync message",
-			"client_id", clientID,
-			"account_id", accountID,
-			"error", err)
-		return
-	}
-
-	if syncMsg == nil {
-		logs.WarnCtx(ctx, "parsed sync message is nil",
-			"client_id", clientID,
-			"account_id", accountID)
-		return
-	}
-
-	logs.DebugCtx(ctx, "sync message received",
-		"client_id", clientID,
-		"account_id", accountID,
-		"sync_type", syncMsg.Type,
-		"collections", len(syncMsg.Subscriptions),
-		"message_account_id", syncMsg.AccountID)
-
-	// Enqueue the sync message
-	if err := EnqueueSyncMessage(ctx, s, clientID, *syncMsg); err != nil {
-		logs.WarnCtx(ctx, "failed to enqueue sync message",
-			"client_id", clientID,
-			"account_id", accountID,
-			"error", err)
-	} else {
-		logs.DebugCtx(ctx, "sync message enqueued successfully",
-			"client_id", clientID,
-			"account_id", accountID)
-	}
 }

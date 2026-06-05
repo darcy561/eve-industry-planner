@@ -164,58 +164,54 @@ func (s *Server) popSessionHandoff(ctx context.Context, accountID, previousClien
 	return ent
 }
 
+// SessionResumeResult summarizes reconnect handoff for consolidated WS logging.
+type SessionResumeResult struct {
+	PreviousClientID    string
+	HandoffApplied      bool
+	SkipBaselineSync    bool
+	RestoredDocIDs      []string
+	UnauthorizedDocIDs  []string
+	ScopesRestored      bool
+}
+
 // ApplySessionResume moves NATS/outgoing subscription state from a disconnected client to this
-// connection when the browser reconnects with the same session (same tab). Returns whether the
-// handoff was applied and the doc IDs successfully re-subscribed (for resume_ack.restoredDocIDs).
-func (s *Server) ApplySessionResume(ctx context.Context, client *Client, previousClientID string) (skipBaselineSync bool, restoredDocIDs []string) {
+// connection when the browser reconnects with the same session (same tab).
+func (s *Server) ApplySessionResume(ctx context.Context, client *Client, previousClientID string) SessionResumeResult {
+	res := SessionResumeResult{PreviousClientID: previousClientID}
 	if client == nil || previousClientID == "" || previousClientID == client.id {
-		return false, nil
+		return res
 	}
 
 	ent := s.popSessionHandoff(ctx, client.AccountID, previousClientID)
 	if ent == nil {
-		logs.DebugCtx(ctx, "session resume: no valid handoff for previous client",
-			"new_client_id", client.id,
-			"previous_client_id", previousClientID,
-			"account_id", client.AccountID)
-		return false, nil
+		return res
 	}
+	res.HandoffApplied = true
 
-	applied := 0
 	for docID := range ent.Docs {
 		if !s.docSubscribeAuthorized(ctx, docID, client.AccountID) {
-			logs.WarnCtx(ctx, "session resume: skipping unauthorized doc",
-				"client_id", client.id,
-				"doc_id", docID)
+			res.UnauthorizedDocIDs = append(res.UnauthorizedDocIDs, docID)
 			continue
 		}
 		s.handleSubscribeRequest(client.id, docID)
-		restoredDocIDs = append(restoredDocIDs, docID)
-		applied++
+		res.RestoredDocIDs = append(res.RestoredDocIDs, docID)
 	}
 
 	if len(ent.CorporationIDs) > 0 || len(ent.AllianceIDs) > 0 {
 		next := replaceScopesWithinSessionGrants(client, ent.CorporationIDs, ent.AllianceIDs)
 		if len(next.CorporationIDs) > 0 || len(next.AllianceIDs) > 0 {
 			s.swapClientOrgScopesAndIndexes(client, next)
-			s.queueScopesAck(client)
+			res.ScopesRestored = true
 		}
 	}
 
-	logs.InfoCtx(ctx, "session resume applied after reconnect",
-		"new_client_id", client.id,
-		"previous_client_id", previousClientID,
-		"account_id", client.AccountID,
-		"subscriptions_restored", applied,
-		"subscriptions_total", len(ent.Docs))
-
-	// Account-scoped realtime needs no per-doc restore; skip baseline sync whenever handoff matched (session resume).
-	return true, restoredDocIDs
+	res.SkipBaselineSync = true
+	return res
 }
 
-func (s *Server) queueResumeAck(client *Client, skipBaselineSync bool, restoredDocIDs []string) {
+func (s *Server) queueResumeAck(client *Client, skipBaselineSync bool, restoredDocIDs []string) bool {
 	if client == nil || client.Send == nil {
-		return
+		return false
 	}
 	msg := map[string]interface{}{
 		"type":             "resume_ack",
@@ -226,12 +222,12 @@ func (s *Server) queueResumeAck(client *Client, skipBaselineSync bool, restoredD
 	}
 	b, err := json.Marshal(msg)
 	if err != nil {
-		return
+		return false
 	}
 	select {
 	case client.Send <- b:
+		return true
 	default:
-		logs.WarnCtx(client.LogContext(), "failed to queue resume_ack (send buffer full)",
-			"client_id", client.id)
+		return false
 	}
 }

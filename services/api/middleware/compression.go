@@ -12,6 +12,7 @@ import (
 
 	"github.com/andybalholm/brotli"
 
+	"eve-industry-planner/api/helper"
 	sharedcompression "eve-industry-planner/shared/compression"
 	"eve-industry-planner/shared/logs"
 
@@ -21,6 +22,35 @@ import (
 const (
 	responseCompressionMinBytes = 5 * 1024
 )
+
+func attachCompressionCompleted(r *http.Request, negotiated, applied, skipReason string, bodyBytes, compressedBytes int) {
+	if r == nil {
+		return
+	}
+	extra := map[string]interface{}{
+		"negotiated": negotiated,
+		"applied":    applied,
+	}
+	if bodyBytes > 0 {
+		extra["body_bytes"] = bodyBytes
+	}
+	if compressedBytes > 0 {
+		extra["compressed_bytes"] = compressedBytes
+	}
+	if skipReason != "" {
+		extra["skip_reason"] = skipReason
+	}
+	logs.AttachDebugStep(r, "compression_completed", extra)
+}
+
+func attachRequestBodyDecoded(r *http.Request, encoding string) {
+	if r == nil || encoding == "" {
+		return
+	}
+	logs.AttachDebugStep(r, "request_body_decoded", map[string]interface{}{
+		"encoding": encoding,
+	})
+}
 
 // withContentEncodingOnLogger adds content_encoding to the request-scoped logger (LoggerKey) so
 // handlers and logs.InfoCtx see the negotiated encoding after this middleware runs.
@@ -40,8 +70,7 @@ func CompressionConstructor() MiddlewareConstructor {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			decodedRequest, err := decodeRequestBody(r)
 			if err != nil {
-				logs.WarnCtx(r.Context(), "failed to decode compressed request body", "error", err)
-				http.Error(w, "Unsupported or invalid request encoding", http.StatusUnsupportedMediaType)
+				helper.RespondEndpointError(w, r, http.StatusUnsupportedMediaType, "Unsupported or invalid request encoding", "failed to decode compressed request body", "request_body_decode_failed", "", err, nil)
 				return
 			}
 			r = decodedRequest
@@ -55,7 +84,9 @@ func CompressionConstructor() MiddlewareConstructor {
 			acceptedEncodings := r.Header.Get("Accept-Encoding")
 
 			if acceptedEncodings == "" {
-				next.ServeHTTP(w, withContentEncodingOnLogger(r, "identity"))
+				r = withContentEncodingOnLogger(r, "identity")
+				next.ServeHTTP(w, r)
+				attachCompressionCompleted(r, "identity", "identity", "no_accept_encoding", 0, 0)
 				return
 			}
 
@@ -176,7 +207,9 @@ func CompressionConstructor() MiddlewareConstructor {
 				next.ServeHTTP(buffered, r)
 				writeBufferedResponse(r, w, buffered, "gzip")
 			default:
-				next.ServeHTTP(w, withContentEncodingOnLogger(r, "identity"))
+				r = withContentEncodingOnLogger(r, "identity")
+				next.ServeHTTP(w, r)
+				attachCompressionCompleted(r, "identity", "identity", "unsupported_or_no_match", 0, 0)
 			}
 		})
 	}
@@ -237,7 +270,10 @@ func copyHeaders(dst, src http.Header) {
 	}
 }
 
-func writeIdentityResponse(w http.ResponseWriter, buffered *bufferedResponseWriter) {
+func writeIdentityResponse(r *http.Request, w http.ResponseWriter, buffered *bufferedResponseWriter, negotiated, skipReason string) {
+	bodyBytes := buffered.body.Len()
+	attachCompressionCompleted(r, negotiated, "identity", skipReason, bodyBytes, 0)
+
 	dstHeaders := w.Header()
 	copyHeaders(dstHeaders, buffered.headers)
 	dstHeaders.Del("Content-Encoding")
@@ -250,12 +286,21 @@ func writeIdentityResponse(w http.ResponseWriter, buffered *bufferedResponseWrit
 
 func writeBufferedResponse(r *http.Request, w http.ResponseWriter, buffered *bufferedResponseWriter, encoding string) {
 	statusCode := buffered.resolvedStatusCode()
-	if buffered.body.Len() < responseCompressionMinBytes || statusCode == http.StatusNoContent || statusCode == http.StatusNotModified {
-		writeIdentityResponse(w, buffered)
+	bodyBytes := buffered.body.Len()
+	if bodyBytes < responseCompressionMinBytes {
+		writeIdentityResponse(r, w, buffered, encoding, "below_min_size")
+		return
+	}
+	if statusCode == http.StatusNoContent {
+		writeIdentityResponse(r, w, buffered, encoding, "no_content")
+		return
+	}
+	if statusCode == http.StatusNotModified {
+		writeIdentityResponse(r, w, buffered, encoding, "not_modified")
 		return
 	}
 
-	level := selectResponseCompressionLevel(buffered.body.Len())
+	level := selectResponseCompressionLevel(bodyBytes)
 	var compressed bytes.Buffer
 
 	switch encoding {
@@ -264,36 +309,38 @@ func writeBufferedResponse(r *http.Request, w http.ResponseWriter, buffered *buf
 		if _, err := br.Write(buffered.body.Bytes()); err != nil {
 			_ = br.Close()
 			logs.ErrorCtx(r.Context(), "failed to brotli-compress response", "error", err)
-			writeIdentityResponse(w, buffered)
+			writeIdentityResponse(r, w, buffered, encoding, "compress_failed")
 			return
 		}
 		if err := br.Close(); err != nil {
 			logs.ErrorCtx(r.Context(), "failed to close brotli writer", "error", err)
-			writeIdentityResponse(w, buffered)
+			writeIdentityResponse(r, w, buffered, encoding, "compress_failed")
 			return
 		}
 	case "gzip":
 		gz, err := gzip.NewWriterLevel(&compressed, level)
 		if err != nil {
 			logs.ErrorCtx(r.Context(), "failed to create gzip writer", "error", err)
-			writeIdentityResponse(w, buffered)
+			writeIdentityResponse(r, w, buffered, encoding, "compress_failed")
 			return
 		}
 		if _, err := gz.Write(buffered.body.Bytes()); err != nil {
 			_ = gz.Close()
 			logs.ErrorCtx(r.Context(), "failed to gzip-compress response", "error", err)
-			writeIdentityResponse(w, buffered)
+			writeIdentityResponse(r, w, buffered, encoding, "compress_failed")
 			return
 		}
 		if err := gz.Close(); err != nil {
 			logs.ErrorCtx(r.Context(), "failed to close gzip writer", "error", err)
-			writeIdentityResponse(w, buffered)
+			writeIdentityResponse(r, w, buffered, encoding, "compress_failed")
 			return
 		}
 	default:
-		writeIdentityResponse(w, buffered)
+		writeIdentityResponse(r, w, buffered, encoding, "unsupported_encoding")
 		return
 	}
+
+	attachCompressionCompleted(r, encoding, encoding, "", bodyBytes, compressed.Len())
 
 	dstHeaders := w.Header()
 	copyHeaders(dstHeaders, buffered.headers)
@@ -331,6 +378,7 @@ func decodeRequestBody(r *http.Request) (*http.Request, error) {
 				return originalBody.Close()
 			},
 		}
+		attachRequestBodyDecoded(r, rawEncoding)
 	case "gzip":
 		originalBody := r.Body
 		gz, err := gzip.NewReader(originalBody)
@@ -349,6 +397,7 @@ func decodeRequestBody(r *http.Request) (*http.Request, error) {
 				return bodyErr
 			},
 		}
+		attachRequestBodyDecoded(r, rawEncoding)
 	default:
 		return nil, fmt.Errorf("unsupported content encoding: %s", rawEncoding)
 	}

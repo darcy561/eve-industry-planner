@@ -7,6 +7,19 @@ import (
 	"eve-industry-planner/shared/logs"
 )
 
+const (
+	SyncEnqueueEnqueued        = "enqueued"
+	SyncEnqueueClientNotFound  = "client_not_found"
+	SyncEnqueueAlreadySyncing  = "already_syncing"
+	SyncEnqueueAccountMismatch = "account_mismatch"
+	SyncEnqueueQueueFull       = "queue_full"
+)
+
+// SyncEnqueueOutcome describes how a client sync message was accepted.
+type SyncEnqueueOutcome struct {
+	Status string
+}
+
 // GetOrCreateSyncQueue gets or creates a sync queue for a client
 // Thread-safe with SyncMu
 func GetOrCreateSyncQueue(ctx context.Context, s SyncServer, clientID string) *SyncQueue {
@@ -28,73 +41,54 @@ func GetOrCreateSyncQueue(ctx context.Context, s SyncServer, clientID string) *S
 	return queue
 }
 
-// EnqueueSyncMessage enqueues a sync message for a client
-// Checks if client exists and if client is already syncing (skips if true)
-func EnqueueSyncMessage(ctx context.Context, s SyncServer, clientID string, msg SyncMessage) error {
-	// Verify client exists
+// EnqueueSyncMessageWithOutcome enqueues a sync message for a client and reports the result
+// for consolidated websocket logging.
+func EnqueueSyncMessageWithOutcome(ctx context.Context, s SyncServer, clientID string, msg SyncMessage) SyncEnqueueOutcome {
 	s.GetClientsMu().RLock()
 	clients := s.GetClients()
 	client, exists := clients[clientID]
 	s.GetClientsMu().RUnlock()
 
 	if !exists {
-		logs.WarnCtx(ctx, "cannot enqueue sync message: client not found", "client_id", clientID)
-		return nil // Not an error, client just disconnected
+		return SyncEnqueueOutcome{Status: SyncEnqueueClientNotFound}
 	}
 
-	// Check if client is already syncing
 	client.GetSyncMu().Lock()
 	if client.GetSyncInProgress() {
 		client.GetSyncMu().Unlock()
-		logs.DebugCtx(ctx, "client already syncing, skipping sync message",
-			"client_id", clientID,
-			"sync_type", msg.Type)
-		return nil // Skip if already syncing (one sync per client at a time)
+		return SyncEnqueueOutcome{Status: SyncEnqueueAlreadySyncing}
 	}
 	client.GetSyncMu().Unlock()
 
-	// Verify accountID matches client
 	if msg.AccountID != client.GetAccountID() {
-		logs.WarnCtx(ctx, "sync message accountID mismatch",
-			"client_id", clientID,
-			"message_account_id", msg.AccountID,
-			"client_account_id", client.GetAccountID())
-		return nil // Skip invalid message
+		return SyncEnqueueOutcome{Status: SyncEnqueueAccountMismatch}
 	}
 
-	// Get or create sync queue
 	queue := GetOrCreateSyncQueue(ctx, s, clientID)
 
-	// Enqueue message (non-blocking)
 	select {
 	case queue.Ch <- msg:
 		queue.Mu.Lock()
 		queue.LastUse = time.Now()
 		queue.Mu.Unlock()
 
-		// Signal coordinator that work is available
 		signals := s.GetSyncSignals()
 		select {
 		case signals <- clientID:
-			// Signal sent successfully
 		default:
-			// Signal channel full - coordinator will find work via scan anyway
-			logs.DebugCtx(ctx, "sync signal channel full, will be picked up by scan",
-				"client_id", clientID)
 		}
-
-		logs.DebugCtx(ctx, "sync message enqueued",
-			"client_id", clientID,
-			"account_id", msg.AccountID,
-			"sync_type", msg.Type)
-
-		return nil
+		return SyncEnqueueOutcome{Status: SyncEnqueueEnqueued}
 
 	default:
-		// Queue full - drop message
 		logs.WarnCtx(ctx, "sync queue full, dropping message",
 			"client_id", clientID,
 			"sync_type", msg.Type)
-		return nil // Not a critical error, just log it
+		return SyncEnqueueOutcome{Status: SyncEnqueueQueueFull}
 	}
+}
+
+// EnqueueSyncMessage enqueues a sync message for a client.
+func EnqueueSyncMessage(ctx context.Context, s SyncServer, clientID string, msg SyncMessage) error {
+	_ = EnqueueSyncMessageWithOutcome(ctx, s, clientID, msg)
+	return nil
 }

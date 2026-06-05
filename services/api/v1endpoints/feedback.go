@@ -11,7 +11,6 @@ import (
 	"unicode/utf8"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/shared"
@@ -80,23 +79,21 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 
 	// Only accept POST requests
 	if !helper.RequireMethod(w, r, http.MethodPost) {
-		logs.WarnCtx(ctx, "invalid method for feedback endpoint")
 		return
 	}
 
-	// Optional auth: derive account id from session cookie when present.
-	accountID := "loggedOutUser"
-	if clients != nil && clients.Redis != nil {
-		if identity, ok := auth.TryExtractAccountSession(ctx, r, clients.Redis); ok && identity != nil {
-			accountID = identity.AccountID
-		}
+	// Optional auth: public middleware binds a valid session cookie; use a sentinel when absent.
+	accountID := logs.RequestAccountIDFromContext(ctx)
+	if accountID == "" {
+		accountID = "loggedOutUser"
 	}
+	ctx = logs.BindRequestAccountID(ctx, accountID)
+	r = r.WithContext(ctx)
 
 	// Extract request body
 	reqBody, err := helper.ExtractRequestBody[FeedbackBody](r)
 	if err != nil {
-		logs.WarnCtx(ctx, "failed to extract feedback body", "error", err, "account_id", accountID)
-		http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err), "failed to extract feedback body", "feedback_invalid_request", "feedback", err, nil)
 		return
 	}
 
@@ -105,22 +102,19 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 
 	contactName := strings.TrimSpace(reqBody.ContactName)
 	if len(contactName) > MaxFeedbackContactField {
-		logs.WarnCtx(ctx, "contact_name too long", "account_id", accountID, "length", len(contactName))
-		http.Error(w, fmt.Sprintf("contact_name exceeds maximum length of %d", MaxFeedbackContactField), http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("contact_name exceeds maximum length of %d", MaxFeedbackContactField), "feedback contact_name too long", "feedback_contact_name_too_long", "feedback", nil, map[string]interface{}{"length": len(contactName)})
 		return
 	}
 
 	contactDetails := strings.TrimSpace(reqBody.ContactInfo)
 	if len(contactDetails) > MaxFeedbackContactField {
-		logs.WarnCtx(ctx, "contact_info too long", "account_id", accountID, "length", len(contactDetails))
-		http.Error(w, fmt.Sprintf("contact_info exceeds maximum length of %d", MaxFeedbackContactField), http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("contact_info exceeds maximum length of %d", MaxFeedbackContactField), "feedback contact_info too long", "feedback_contact_info_too_long", "feedback", nil, map[string]interface{}{"length": len(contactDetails)})
 		return
 	}
 
 	sentryEventID := strings.TrimSpace(reqBody.SentryEventID)
 	if len(sentryEventID) > MaxSentryEventIDLength {
-		logs.WarnCtx(ctx, "sentry_event_id too long", "account_id", accountID, "length", len(sentryEventID))
-		http.Error(w, fmt.Sprintf("sentry_event_id exceeds maximum length of %d", MaxSentryEventIDLength), http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("sentry_event_id exceeds maximum length of %d", MaxSentryEventIDLength), "feedback sentry_event_id too long", "feedback_sentry_event_id_too_long", "feedback", nil, map[string]interface{}{"length": len(sentryEventID)})
 		return
 	}
 
@@ -128,52 +122,49 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 	if reqBody.Metadata != nil {
 		metaJSON, err := json.Marshal(reqBody.Metadata)
 		if err != nil {
-			logs.WarnCtx(ctx, "invalid metadata", "account_id", accountID, "error", err)
-			http.Error(w, "Invalid metadata", http.StatusBadRequest)
+			helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid metadata", "feedback invalid metadata", "feedback_invalid_metadata", "feedback", err, nil)
 			return
 		}
 		if len(metaJSON) > MaxFeedbackMetadataJSON {
-			logs.WarnCtx(ctx, "metadata JSON too large", "account_id", accountID, "bytes", len(metaJSON))
-			http.Error(w, "metadata too large", http.StatusBadRequest)
+			helper.RespondEndpointError(w, r, http.StatusBadRequest, "metadata too large", "feedback metadata too large", "feedback_metadata_too_large", "feedback", nil, map[string]interface{}{"bytes": len(metaJSON)})
 			return
 		}
 		metadataNorm, err = normalizeFeedbackMetadata(reqBody.Metadata)
 		if err != nil {
-			logs.WarnCtx(ctx, "invalid metadata content", "account_id", accountID, "error", err)
-			http.Error(w, fmt.Sprintf("Invalid metadata: %v", err), http.StatusBadRequest)
+			helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid metadata: %v", err), "feedback invalid metadata content", "feedback_invalid_metadata_content", "feedback", err, nil)
 			return
 		}
 	}
 
 	// Validate feedback content length
 	if len(feedbackContent) < MinFeedbackLength {
-		logs.WarnCtx(ctx, "feedback content too short", "account_id", accountID, "length", len(feedbackContent))
-		http.Error(w, "Feedback content is required", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Feedback content is required", "feedback content too short", "feedback_content_too_short", "feedback", nil, map[string]interface{}{"length": len(feedbackContent)})
 		return
 	}
 
 	if len(feedbackContent) > MaxFeedbackLength {
-		logs.WarnCtx(ctx, "feedback content too long", "account_id", accountID, "length", len(feedbackContent), "max", MaxFeedbackLength)
-		http.Error(w, fmt.Sprintf("Feedback content exceeds maximum length of %d characters", MaxFeedbackLength), http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Feedback content exceeds maximum length of %d characters", MaxFeedbackLength), "feedback content too long", "feedback_content_too_long", "feedback", nil, map[string]interface{}{"length": len(feedbackContent), "max": MaxFeedbackLength})
 		return
 	}
 
 	// Validate UTF-8 encoding
 	if !utf8.ValidString(feedbackContent) {
-		logs.WarnCtx(ctx, "feedback content contains invalid UTF-8", "account_id", accountID)
-		http.Error(w, "Feedback content contains invalid characters", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Feedback content contains invalid characters", "feedback content invalid UTF-8", "feedback_content_invalid_utf8", "feedback", nil, nil)
 		return
 	}
 
 	// Check for suspicious patterns (excessive repetition, potential spam)
 	if isSuspiciousContent(feedbackContent) {
-		logs.WarnCtx(ctx, "suspicious feedback content detected", "account_id", accountID)
-		http.Error(w, "Invalid feedback content", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid feedback content", "suspicious feedback content detected", "feedback_suspicious_content", "feedback", nil, nil)
 		return
 	}
 
 	// Sanitize content for Discord (remove control characters)
 	sanitizedContent := sanitizeForDiscord(feedbackContent)
+
+	logs.AttachDebugStep(r, "feedback_validated", map[string]interface{}{
+		"content_len": len(sanitizedContent),
+	})
 
 	// Only send Discord message if feedback content is not blank
 	if sanitizedContent != "" {
@@ -256,37 +247,42 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 			// Marshal payload to JSON
 			payloadJSON, err := json.Marshal(payload)
 			if err != nil {
-				helper.RespondEndpointServerError(w, r, "Internal server error", "failed to marshal Discord payload", "feedback_marshal_failed", "feedback", err, map[string]interface{}{"account_id": accountID})
+				helper.RespondEndpointServerError(w, r, "Internal server error", "failed to marshal Discord payload", "feedback_marshal_failed", "feedback", err, nil)
 				return
 			}
 
 			webhookReq, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.FeedbackDiscordWebhookURL, bytes.NewReader(payloadJSON))
 			if err != nil {
-				helper.RespondEndpointServerError(w, r, "Failed to submit feedback", "failed to build Discord webhook request", "feedback_webhook_request_failed", "feedback", err, map[string]interface{}{"account_id": accountID})
+				helper.RespondEndpointServerError(w, r, "Failed to submit feedback", "failed to build Discord webhook request", "feedback_webhook_request_failed", "feedback", err, nil)
 				return
 			}
 			webhookReq.Header.Set("Content-Type", "application/json")
 
 			webhookResp, err := http.DefaultClient.Do(webhookReq)
 			if err != nil {
-				helper.RespondEndpointServerError(w, r, "Failed to submit feedback", "failed to send Discord webhook", "feedback_webhook_send_failed", "feedback", err, map[string]interface{}{"account_id": accountID})
+				helper.RespondEndpointServerError(w, r, "Failed to submit feedback", "failed to send Discord webhook", "feedback_webhook_send_failed", "feedback", err, nil)
 				return
 			}
 			defer webhookResp.Body.Close()
 
 			// Check Discord webhook response
 			if webhookResp.StatusCode < 200 || webhookResp.StatusCode >= 300 {
-				helper.RespondEndpointServerError(w, r, "Failed to submit feedback", "Discord webhook returned error status", "feedback_webhook_status_error", "feedback", fmt.Errorf("discord webhook status %d", webhookResp.StatusCode), map[string]interface{}{"account_id": accountID, "status_code": webhookResp.StatusCode})
+				helper.RespondEndpointServerError(w, r, "Failed to submit feedback", "Discord webhook returned error status", "feedback_webhook_status_error", "feedback", fmt.Errorf("discord webhook status %d", webhookResp.StatusCode), map[string]interface{}{"status_code": webhookResp.StatusCode})
 				return
 			}
+			logs.AttachDebugStep(r, "discord_webhook_sent", map[string]interface{}{
+				"status_code": webhookResp.StatusCode,
+			})
 		} else {
-			logs.WarnCtx(ctx, "FEEDBACK_DISCORD_WEBHOOK_URL not configured, skipping Discord notification", "account_id", accountID)
+			logs.AttachHandlerCaveat(r, "discord_webhook_not_configured", "FEEDBACK_DISCORD_WEBHOOK_URL not configured, skipping Discord notification", nil)
 		}
 	} else {
-		logs.InfoCtx(ctx, "feedback content is blank, skipping Discord notification", "account_id", accountID)
+		logs.AttachHandlerCaveat(r, "discord_skipped_blank_content", "feedback content is blank, skipping Discord notification", nil)
 	}
 
-	logs.InfoCtx(ctx, "feedback submitted", "account_id", accountID, "duration_ms", time.Since(start).Milliseconds())
+	logs.AttachHandlerSuccessDetail(r, "feedback submitted", map[string]interface{}{
+		"duration_ms": time.Since(start).Milliseconds(),
+	})
 
 	// Return success status code
 	w.WriteHeader(http.StatusOK)

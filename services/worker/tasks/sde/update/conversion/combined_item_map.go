@@ -7,11 +7,14 @@ import (
 	"strings"
 )
 
-func ConvertBlueprintDataToTypeIDMap(blueprintData map[string]interface{}) map[string]interface{} {
+func ConvertBlueprintDataToTypeIDMap(blueprintData map[string]interface{}, typesData map[string]interface{}) map[string]interface{} {
 	out := make(map[string]interface{})
 	for _, value := range blueprintData {
 		blueprint, ok := value.(map[string]interface{})
 		if !ok {
+			continue
+		}
+		if !isPublishedBlueprintFormula(blueprint, typesData) {
 			continue
 		}
 		activities, ok := blueprint["activities"].(map[string]interface{})
@@ -20,12 +23,18 @@ func ConvertBlueprintDataToTypeIDMap(blueprintData map[string]interface{}) map[s
 		}
 		if m, ok := activities["manufacturing"].(map[string]interface{}); ok {
 			if typeID := extractTypeID(m); typeID != "" {
-				out[typeID] = value
+				assignBlueprintKey(out, typeID, blueprint, typesData)
 			}
 		}
 		if r, ok := activities["reaction"].(map[string]interface{}); ok {
 			if typeID := extractTypeID(r); typeID != "" {
-				out[typeID] = value
+				assignBlueprintKey(out, typeID, blueprint, typesData)
+			}
+			// Also index by formula (BPC) type ID so published formula rows can be merged onto the product.
+			if bpKey := blueprintTypeIDKey(blueprint); bpKey != "" {
+				if productKey := extractTypeID(r); productKey == "" || bpKey != productKey {
+					assignBlueprintKey(out, bpKey, blueprint, typesData)
+				}
 			}
 		}
 	}
@@ -33,19 +42,11 @@ func ConvertBlueprintDataToTypeIDMap(blueprintData map[string]interface{}) map[s
 }
 
 func extractTypeID(activity map[string]interface{}) string {
-	products, ok := activity["products"].([]interface{})
-	if !ok || len(products) == 0 {
-		return ""
-	}
-	product, ok := products[0].(map[string]interface{})
+	prodID, ok := firstProductTypeID(activity)
 	if !ok {
 		return ""
 	}
-	typeID, ok := product["typeID"].(float64)
-	if !ok {
-		return ""
-	}
-	return fmt.Sprintf("%.0f", typeID)
+	return fmt.Sprintf("%d", prodID)
 }
 
 func BuildCombinedItemMap(typesData map[string]interface{}, blueprintData map[string]interface{}) map[string]*EVEType {
@@ -135,11 +136,11 @@ func mergeBlueprintData(newItem *EVEType, blueprintData map[string]interface{}) 
 	if activities, ok := blueprintData["activities"].(map[string]interface{}); ok {
 		newItem.Activities = recipeActivitiesFromSDE(activities, blueprintData)
 	}
-	if blueprintTypeID, ok := blueprintData["blueprintTypeID"].(float64); ok {
-		newItem.BlueprintTypeID = int(blueprintTypeID)
+	if blueprintTypeID, ok := parseSDETypeID(blueprintData["blueprintTypeID"]); ok {
+		newItem.BlueprintTypeID = blueprintTypeID
 	}
-	if maxProductionLimit, ok := blueprintData["maxProductionLimit"].(float64); ok {
-		newItem.MaxProductionLimit = int(maxProductionLimit)
+	if maxProductionLimit, ok := parseSDETypeID(blueprintData["maxProductionLimit"]); ok {
+		newItem.MaxProductionLimit = maxProductionLimit
 	}
 }
 
@@ -168,11 +169,7 @@ func recipeActivitiesFromSDE(activities map[string]interface{}, blueprintRow map
 }
 
 func blueprintTypeIDKey(blueprintRow map[string]interface{}) string {
-	v, ok := blueprintRow["blueprintTypeID"].(float64)
-	if !ok {
-		return ""
-	}
-	return fmt.Sprintf("%.0f", v)
+	return formatSDETypeIDKey(blueprintRow["blueprintTypeID"])
 }
 
 func inventionSourceFromSDEMap(m map[string]interface{}) InventionSource {

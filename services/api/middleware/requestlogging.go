@@ -37,6 +37,7 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 			if rid == "" {
 				rid = uuid.NewString()
 			}
+			ctx = logs.WithRequestID(ctx, rid)
 			reqFields := append(logs.TraceLogFields(ctx),
 				zap.String("request_id", rid),
 				zap.String("method", r.Method),
@@ -44,10 +45,11 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 				zap.String("ip", r.RemoteAddr),
 			)
 			reqLogger := logs.Zap().With(reqFields...)
+			ctx = logs.WithHandlerFailureDetailStore(ctx)
 			ctx = context.WithValue(ctx, logs.LoggerKey{}, reqLogger)
 			r = r.WithContext(ctx)
 
-			reqLogger.Debug("request started", logs.Ctx(ctx))
+			logs.AttachDebugStep(r, "request_started", nil)
 
 			rw := &responseWriter{
 				ResponseWriter: w,
@@ -56,6 +58,11 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 
 			next.ServeHTTP(rw, r)
 
+			// Traefik polls /health every few seconds; skip access logs (no operator value).
+			if r.URL.Path == "/health" {
+				return
+			}
+
 			duration := time.Since(startTime)
 
 			contentEncoding := rw.Header().Get("Content-Encoding")
@@ -63,21 +70,36 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 				contentEncoding = "identity"
 			}
 
-			doneLogger := reqLogger.With(
+			doneFields := []zap.Field{
 				zap.Int("status_code", rw.statusCode),
 				zap.Int64("duration_ms", duration.Milliseconds()),
-				zap.String("duration", duration.String()),
 				zap.String("content_encoding", contentEncoding),
-			)
+			}
+			if accountID, sessionID := logs.RequestIdentityFromRequest(r); accountID != "" || sessionID != "" {
+				if accountID != "" {
+					doneFields = append(doneFields, zap.String("account_id", accountID))
+				}
+				if sessionID != "" {
+					doneFields = append(doneFields, zap.String("session_id", sessionID))
+				}
+			}
+			doneLogger := reqLogger.With(doneFields...)
+
+			appendDebugSteps := func(fields []zap.Field) []zap.Field {
+				if steps := logs.DebugStepsFromRequest(r); len(steps) > 0 {
+					return append(fields, zap.Any(logs.DebugStepsLogKey, logs.DebugStepsForLog(steps)))
+				}
+				return fields
+			}
 
 			if rw.statusCode >= 500 {
 				det := logs.HandlerFailureDetailFromRequest(r)
-				errFields := []zap.Field{logs.Ctx(ctx)}
+				errFields := appendDebugSteps([]zap.Field{logs.Ctx(ctx)})
 				if herr := logs.HandlerErrorFromRequest(r); herr != nil {
 					errFields = append(errFields, zap.Error(herr))
 				}
 				if len(det) > 0 {
-					errFields = append(errFields, zap.Any("handler_failure", det))
+					errFields = append(errFields, logs.AccessLogDetailFields(det)...)
 				}
 				doneLogger.Error(logs.AccessLogMessage(rw.statusCode, det), errFields...)
 				// Non-panic 5xx: request logging sees the status but sentryhttp only captures panics.
@@ -88,7 +110,6 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 					scope.SetContext("response", map[string]interface{}{
 						"status_code":      rw.statusCode,
 						"duration_ms":      duration.Milliseconds(),
-						"duration":         duration.String(),
 						"content_encoding": contentEncoding,
 					})
 					if len(det) > 0 {
@@ -110,17 +131,26 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 				})
 			} else if rw.statusCode >= 400 {
 				det := logs.HandlerFailureDetailFromRequest(r)
-				clientFields := []zap.Field{logs.Ctx(ctx)}
+				clientFields := appendDebugSteps([]zap.Field{logs.Ctx(ctx)})
 				if len(det) > 0 {
-					clientFields = append(clientFields, zap.Any("handler_failure", det))
+					clientFields = append(clientFields, logs.AccessLogDetailFields(det)...)
 				}
 				doneLogger.Warn(logs.AccessLogMessage(rw.statusCode, det), clientFields...)
 			} else {
-				doneLogger.Debug("request completed", logs.Ctx(ctx))
-			}
-
-			if duration > 1*time.Second {
-				doneLogger.Warn("slow request detected", logs.Ctx(ctx))
+				successMsg, successDet, caveats := logs.HandlerSuccessFromRequest(r)
+				if len(caveats) > 0 {
+					fields := appendDebugSteps([]zap.Field{logs.Ctx(ctx), zap.Any("caveats", logs.HandlerCaveatsForLog(caveats))})
+					if len(successDet) > 0 {
+						fields = append(fields, logs.AccessLogDetailFields(successDet)...)
+					}
+					doneLogger.Warn(logs.SuccessAccessLogMessage(successMsg, caveats), fields...)
+				} else if successMsg != "" || len(successDet) > 0 {
+					fields := appendDebugSteps([]zap.Field{logs.Ctx(ctx)})
+					if len(successDet) > 0 {
+						fields = append(fields, logs.AccessLogDetailFields(successDet)...)
+					}
+					doneLogger.Info(logs.SuccessAccessLogMessage(successMsg, caveats), fields...)
+				}
 			}
 		})
 	}

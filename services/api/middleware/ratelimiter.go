@@ -44,16 +44,22 @@ func RateLimiterConstructor(store limiter.Store, rateLimit limiter.Rate, scope s
 		}))
 		inner := mw.Handler(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := r.Context()
 			sr := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 			inner.ServeHTTP(sr, r)
 
 			remaining := sr.Header().Get("X-RateLimit-Remaining")
 			if sr.status == http.StatusTooManyRequests {
-				logs.WarnCtx(ctx, "request rate limited", "rate_limit_scope", scope, "rate_limit_remaining", remaining)
+				logs.AttachClientFailureDetail(r, "request rate limited", map[string]interface{}{
+					"failure_class":          "rate_limited",
+					"rate_limit_scope":       scope,
+					"rate_limit_remaining":   remaining,
+				})
 				return
 			}
-			logs.DebugCtx(ctx, "request within rate limit", "rate_limit_scope", scope, "rate_limit_remaining", remaining)
+			logs.AttachDebugStep(r, "rate_limit_ok", map[string]interface{}{
+				"rate_limit_scope":     scope,
+				"rate_limit_remaining": remaining,
+			})
 		})
 	}
 }

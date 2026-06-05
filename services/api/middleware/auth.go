@@ -30,23 +30,32 @@ func AuthConstructor(redisClient *redis.Client) MiddlewareConstructor {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			identity, err := auth.ExtractAccountSession(r.Context(), r, redisClient)
 			if err != nil {
-				code := err.Error()
-				switch code {
+				detail := auth.AuthSessionFailureDetailFromError(err, r)
+				switch detail.Code {
 				case "session_missing", "session_revoked", "reauth_required":
-					logs.WarnCtx(r.Context(), "auth session invalid", "code", code)
-					writeAuthError(w, http.StatusUnauthorized, code)
+					logs.AttachClientFailureDetail(r, detail.ClientFailureMessage(), detail.ClientFailureDetail(nil))
+					writeAuthError(w, http.StatusUnauthorized, detail.Code)
 				default:
-					logs.WarnCtx(r.Context(), "auth session validation failed", "error", err)
+					logs.AttachClientFailureDetail(r, detail.ClientFailureMessage(), detail.ClientFailureDetail(map[string]interface{}{
+						"error": err.Error(),
+					}))
 					writeAuthError(w, http.StatusUnauthorized, "session_missing")
 				}
 				return
 			}
 			if err := auth.TouchAccountSession(r.Context(), redisClient, identity.AccountID, identity.SessionID, identity.Session.AppVersion); err != nil {
-				logs.WarnCtx(r.Context(), "failed to touch account session", "error", err)
+				logs.AttachClientFailureDetail(r, "failed to touch account session", map[string]interface{}{
+					"failure_class": "auth_session_touch_failed",
+					"code":          "session_missing",
+					"account_id":    identity.AccountID,
+					"session_id":    identity.SessionID,
+					"error":         err.Error(),
+				})
 				writeAuthError(w, http.StatusUnauthorized, "session_missing")
 				return
 			}
 			ctx := auth.WithAuthIdentity(r.Context(), identity.AccountID, identity.SessionID)
+			ctx = logs.BindRequestIdentity(ctx, identity.AccountID, identity.SessionID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

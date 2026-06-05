@@ -80,7 +80,10 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 		))
 	}
 
-	version := cfg.ServiceVersion
+	version := strings.TrimSpace(cfg.ServiceVersion)
+	if version == "" {
+		version = strings.TrimSpace(cfg.SentryRelease)
+	}
 	if version == "" {
 		version = "unknown"
 	}
@@ -89,8 +92,6 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 	instanceID := instanceid.Replica()
 
 	res, err := resource.New(ctx,
-		resource.WithTelemetrySDK(),
-		resource.WithHost(),
 		resource.WithAttributes(
 			attribute.String("service.name", cfg.ServiceName),
 			attribute.String("service.version", version),

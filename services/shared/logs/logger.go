@@ -1,8 +1,8 @@
 // Package logs provides the process-wide logger.
 //
 // In Compose/production, [EnableOTLPExport] (from telemetry.Init) sends all log levels over OTLP;
-// Alloy drops below LOG_LEVEL before Loki. Service identity (compose_service, service.name) comes
-// from telemetry resource attributes, not logger env vars. Without OTLP, logs go to stdout JSON at debug.
+// Alloy drops below LOG_LEVEL before Loki and strips debug_steps unless LOG_LEVEL=debug.
+// Service identity (compose_service, service.name) comes from telemetry resource attributes, not logger env vars.
 // Set LOG_STDOUT=true to mirror JSON logs to container stdout for docker compose logs.
 //
 // For structured key/value lines, use the *Ctx helpers so trace context is attached:
@@ -68,7 +68,7 @@ func logStdoutEnabled() bool {
 }
 
 func buildRoot() *zap.Logger {
-	// Export all levels over OTLP; Alloy filters by LOG_LEVEL before Loki (see observability/alloy/config.alloy).
+	// Export all levels over OTLP; Alloy filters by LOG_LEVEL and strips debug_steps before Loki (see observability/alloy/config.alloy).
 	level := zapcore.DebugLevel
 
 	if useOTLPExport() {
@@ -77,17 +77,17 @@ func buildRoot() *zap.Logger {
 			otelzap.WithLoggerProvider(global.GetLoggerProvider()),
 		)
 		var core zapcore.Core = otelCore
+		zapOpts := []zap.Option{zap.AddStacktrace(zapcore.ErrorLevel)}
 		if logStdoutEnabled() {
 			encCfg := zap.NewProductionEncoderConfig()
 			encCfg.EncodeTime = zapcore.ISO8601TimeEncoder
 			encCfg.EncodeDuration = zapcore.SecondsDurationEncoder
 			stdoutCore := zapcore.NewCore(zapcore.NewJSONEncoder(encCfg), zapcore.AddSync(os.Stdout), level)
 			core = zapcore.NewTee(stdoutCore, otelCore)
+			// Caller metadata is useful in docker compose logs; OTLP/Loki omit it (see observability/alloy scrub).
+			zapOpts = append(zapOpts, zap.AddCaller())
 		}
-		return zap.New(core,
-			zap.AddCaller(),
-			zap.AddStacktrace(zapcore.ErrorLevel),
-		)
+		return zap.New(core, zapOpts...)
 	}
 
 	encCfg := zap.NewProductionEncoderConfig()
@@ -189,9 +189,36 @@ func fieldsFromKV(kv ...any) []zap.Field {
 	return fs
 }
 
+// AccessLogDetailFields returns top-level zap fields from handler success/failure detail maps.
+// account_id and session_id are omitted when present; use [RequestIdentityFromRequest] on the access log envelope.
+func AccessLogDetailFields(m map[string]interface{}) []zap.Field {
+	if len(m) == 0 {
+		return nil
+	}
+	fields := make([]zap.Field, 0, len(m))
+	for k, v := range m {
+		switch k {
+		case "account_id", "session_id":
+			continue
+		}
+		fields = append(fields, zap.Any(k, v))
+	}
+	return fields
+}
+
 func withCtxFields(ctx context.Context, kv ...any) []zap.Field {
 	fs := []zap.Field{Ctx(ctx)}
 	fs = append(fs, TraceLogFields(ctx)...)
+	if !kvContainsKey(kv, "account_id") {
+		if id := RequestAccountIDFromContext(ctx); id != "" {
+			fs = append(fs, zap.String("account_id", id))
+		}
+	}
+	if !kvContainsKey(kv, "session_id") {
+		if id := RequestSessionIDFromContext(ctx); id != "" {
+			fs = append(fs, zap.String("session_id", id))
+		}
+	}
 	fs = append(fs, fieldsFromKV(kv...)...)
 	return fs
 }

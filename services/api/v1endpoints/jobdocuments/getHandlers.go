@@ -34,11 +34,7 @@ func GetPlannerJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clien
 	})
 	defer metrics.Finish()
 
-	accountID, ok := helper.RequireAccountID(w, r)
-	if !ok {
-		metrics.Error("auth_error")
-		return
-	}
+	accountID := helper.AuthenticatedAccountID(r)
 
 	filter := bson.M{
 		"_meta.accountID":  accountID,
@@ -60,11 +56,7 @@ func GetJobDocumentsByGroupHandler(w http.ResponseWriter, r *http.Request, clien
 	})
 	defer metrics.Finish()
 
-	accountID, ok := helper.RequireAccountID(w, r)
-	if !ok {
-		metrics.Error("auth_error")
-		return
-	}
+	accountID := helper.AuthenticatedAccountID(r)
 
 	filter := bson.M{
 		"_meta.accountID": accountID,
@@ -86,37 +78,37 @@ func GetJobDocumentByIDHandler(w http.ResponseWriter, r *http.Request, clients *
 	})
 	defer metrics.Finish()
 
-	accountID, ok := helper.RequireAccountID(w, r)
-	if !ok {
-		metrics.Error("auth_error")
-		return
-	}
+	accountID := helper.AuthenticatedAccountID(r)
 
 	collection := collJobDocuments(clients)
 	doc, err := mongoget.LoadJobByID(ctx, collection, accountID, jobID)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			metrics.Error("not_found")
-			http.Error(w, "Not found", http.StatusNotFound)
+			helper.RespondEndpointError(w, r, http.StatusNotFound, "Not found", "job document not found", "job_doc_not_found", "job_documents", nil, map[string]interface{}{"job_id": jobID})
 			return
 		}
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to retrieve job", "failed to query job document", "job_doc_query_failed", "job_documents", err, map[string]interface{}{"account_id": accountID})
+		helper.RespondEndpointServerError(w, r, "Failed to retrieve job", "failed to query job document", "job_doc_query_failed", "job_documents", err, nil)
 		return
 	}
 
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+		"job_id": jobID,
+	})
+
 	if err := helper.EncodeJSON(w, doc); err != nil {
 		metrics.Error("encode_error")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode job document response", "job_doc_encode_failed", "job_documents", err, map[string]interface{}{"job_id": jobID})
 		return
 	}
 
 	metrics.Success()
 	m.JobsRequested.Observe(ctx, 1)
-	logs.InfoCtx(ctx, "job document retrieved",
-		"account_id", accountID,
-		"job_id", jobID,
-		"duration_ms", time.Since(start).Milliseconds())
+	logs.AttachHandlerSuccessDetail(r, "job document retrieved", map[string]interface{}{
+		"job_id":      jobID,
+		"duration_ms": time.Since(start).Milliseconds(),
+	})
 }
 
 // GetJobDocumentsByIDsHandler handles POST /api/v1/job-documents with { jobIDs: [] }
@@ -132,11 +124,7 @@ func GetJobDocumentsByIDsHandler(w http.ResponseWriter, r *http.Request, clients
 	})
 	defer metrics.Finish()
 
-	accountID, ok := helper.RequireAccountID(w, r)
-	if !ok {
-		metrics.Error("auth_error")
-		return
-	}
+	accountID := helper.AuthenticatedAccountID(r)
 
 	var reqBody struct {
 		JobIDs []string `json:"jobIDs"`
@@ -160,14 +148,17 @@ func GetJobDocumentsByIDsHandler(w http.ResponseWriter, r *http.Request, clients
 
 	if len(uniqueIDs) == 0 {
 		metrics.Error("no_job_ids")
-		http.Error(w, "No job IDs provided", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No job IDs provided", "no job IDs provided for batch get", "job_docs_get_no_ids", "job_documents", nil, nil)
 		return
 	}
 
 	const maxBatchSize = 200
 	if len(uniqueIDs) > maxBatchSize {
 		metrics.Error("batch_too_large")
-		http.Error(w, fmt.Sprintf("Batch too large (max %d job IDs)", maxBatchSize), http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d job IDs)", maxBatchSize), "job documents get batch too large", "job_docs_get_batch_too_large", "job_documents", nil, map[string]interface{}{
+			"count": len(uniqueIDs),
+			"max":   maxBatchSize,
+		})
 		return
 	}
 
@@ -195,21 +186,26 @@ func findJobs(
 	jobs, err := mongoget.LoadJobsByFilter(ctx, collection, accountID, label, filter)
 	if err != nil {
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to retrieve jobs", "failed to query job documents", "job_docs_query_failed", "job_documents", err, map[string]interface{}{"account_id": accountID})
+		helper.RespondEndpointServerError(w, r, "Failed to retrieve jobs", "failed to query job documents", "job_docs_query_failed", "job_documents", err, nil)
 		return
 	}
 
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+		"kind":      label,
+		"job_count": len(jobs),
+	})
+
 	if err := helper.EncodeJSON(w, jobs); err != nil {
 		metrics.Error("encode_error")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode job documents response", "job_docs_encode_failed", "job_documents", err, map[string]interface{}{"kind": label})
 		return
 	}
 
 	metrics.Success()
 	m.JobsRequested.Observe(ctx, float64(len(jobs)))
-	logs.InfoCtx(ctx, "job documents retrieved",
-		"account_id", accountID,
-		"kind", label,
-		"job_count", len(jobs),
-		"duration_ms", time.Since(start).Milliseconds())
+	logs.AttachHandlerSuccessDetail(r, "job documents retrieved", map[string]interface{}{
+		"kind":        label,
+		"job_count":   len(jobs),
+		"duration_ms": time.Since(start).Milliseconds(),
+	})
 }

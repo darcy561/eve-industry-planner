@@ -17,6 +17,43 @@ const ServerFailureMsgKey = "server_failure_msg"
 // combined access log (and Sentry context on 5xx) instead of a generic line plus a handler warn.
 type handlerFailureDetailKey struct{}
 
+// handlerFailureDetailStoreKey points at a request-scoped store installed by access-log middleware.
+// Inner middleware (e.g. compression) may replace *http.Request; the store stays on an ancestor context.
+type handlerFailureDetailStoreKey struct{}
+
+type handlerFailureDetailStore struct {
+	detail        map[string]interface{}
+	err           error
+	successMsg    string
+	successDetail map[string]interface{}
+	caveats       []HandlerCaveat
+	debugSteps    []DebugStep
+}
+
+// WithHandlerFailureDetailStore returns ctx with a mutable failure-detail store for the request.
+// Request-logging middleware should call this once per request before inner middleware runs.
+func WithHandlerFailureDetailStore(ctx context.Context) context.Context {
+	if failureDetailStoreFromContext(ctx) != nil {
+		return ctx
+	}
+	return WithFreshHandlerFailureDetailStore(ctx)
+}
+
+// WithFreshHandlerFailureDetailStore installs a new log store even when ctx already has one.
+// Use for nested operations (e.g. each WebSocket message) that need their own debug_steps.
+func WithFreshHandlerFailureDetailStore(ctx context.Context) context.Context {
+	store := &handlerFailureDetailStore{detail: make(map[string]interface{})}
+	return context.WithValue(ctx, handlerFailureDetailStoreKey{}, store)
+}
+
+func failureDetailStoreFromContext(ctx context.Context) *handlerFailureDetailStore {
+	if ctx == nil {
+		return nil
+	}
+	s, _ := ctx.Value(handlerFailureDetailStoreKey{}).(*handlerFailureDetailStore)
+	return s
+}
+
 // AttachClientFailureDetail records a 4xx failure for consolidated request logging.
 // Handlers should prefer this over a separate WarnCtx when returning 4xx.
 func AttachClientFailureDetail(r *http.Request, msg string, detail map[string]interface{}) {
@@ -89,7 +126,29 @@ func AttachHandlerFailureDetail(r *http.Request, detail map[string]interface{}) 
 	if r == nil || len(detail) == 0 {
 		return
 	}
+	enrichFailureDetailRequestIdentity(r.Context(), detail)
+	if store := failureDetailStoreFromContext(r.Context()); store != nil {
+		mergeHandlerFailureDetailMap(store, detail)
+		return
+	}
 	existing, _ := r.Context().Value(handlerFailureDetailKey{}).(map[string]interface{})
+	merged := mergeHandlerFailureDetailMaps(existing, detail)
+	*r = *r.WithContext(context.WithValue(r.Context(), handlerFailureDetailKey{}, merged))
+}
+
+func mergeHandlerFailureDetailMap(store *handlerFailureDetailStore, detail map[string]interface{}) {
+	if store == nil || len(detail) == 0 {
+		return
+	}
+	if store.detail == nil {
+		store.detail = make(map[string]interface{}, len(detail))
+	}
+	for k, v := range detail {
+		store.detail[k] = v
+	}
+}
+
+func mergeHandlerFailureDetailMaps(existing, detail map[string]interface{}) map[string]interface{} {
 	merged := make(map[string]interface{}, len(existing)+len(detail))
 	for k, v := range existing {
 		merged[k] = v
@@ -97,13 +156,16 @@ func AttachHandlerFailureDetail(r *http.Request, detail map[string]interface{}) 
 	for k, v := range detail {
 		merged[k] = v
 	}
-	*r = *r.WithContext(context.WithValue(r.Context(), handlerFailureDetailKey{}, merged))
+	return merged
 }
 
 // HandlerFailureDetailFromRequest returns detail attached with [AttachHandlerFailureDetail], if any.
 func HandlerFailureDetailFromRequest(r *http.Request) map[string]interface{} {
 	if r == nil {
 		return nil
+	}
+	if store := failureDetailStoreFromContext(r.Context()); store != nil && len(store.detail) > 0 {
+		return store.detail
 	}
 	d, _ := r.Context().Value(handlerFailureDetailKey{}).(map[string]interface{})
 	return d
@@ -121,6 +183,10 @@ func AttachHandlerError(r *http.Request, err error) {
 	if r == nil || err == nil {
 		return
 	}
+	if store := failureDetailStoreFromContext(r.Context()); store != nil {
+		store.err = err
+		return
+	}
 	*r = *r.WithContext(context.WithValue(r.Context(), handlerErrorKey{}, err))
 }
 
@@ -128,6 +194,9 @@ func AttachHandlerError(r *http.Request, err error) {
 func HandlerErrorFromRequest(r *http.Request) error {
 	if r == nil {
 		return nil
+	}
+	if store := failureDetailStoreFromContext(r.Context()); store != nil && store.err != nil {
+		return store.err
 	}
 	e, _ := r.Context().Value(handlerErrorKey{}).(error)
 	return e

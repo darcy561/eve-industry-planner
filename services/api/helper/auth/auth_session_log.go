@@ -1,0 +1,126 @@
+package auth
+
+import (
+	"errors"
+	"net/http"
+	"strings"
+)
+
+// AuthSessionError is returned by ExtractAccountSession for client-facing auth failure codes.
+// Error() returns the API code (session_missing, session_revoked, reauth_required).
+type AuthSessionError struct {
+	Code      string
+	AccountID string
+	SessionID string
+	Reason    string
+}
+
+func (e *AuthSessionError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Code
+}
+
+const (
+	authSessionReasonCookieAbsent       = "cookie_absent"
+	authSessionReasonSessionIndexMissing = "session_index_not_found"
+	authSessionReasonSessionRowMissing   = "session_row_missing"
+	authSessionReasonRedisError          = "redis_error"
+)
+
+// AuthSessionFailureDetail is safe diagnostic context for invalid session logs (no secrets beyond ids).
+type AuthSessionFailureDetail struct {
+	Code                string
+	AccountID           string
+	SessionID           string
+	HasEipSessionCookie bool
+	Reason              string
+}
+
+// AuthSessionFailureDetailFromError builds log context from an auth session validation error.
+func AuthSessionFailureDetailFromError(err error, r *http.Request) AuthSessionFailureDetail {
+	d := AuthSessionFailureDetail{
+		HasEipSessionCookie: strings.TrimSpace(ReadAppSessionCookie(r)) != "",
+	}
+	var authErr *AuthSessionError
+	if errors.As(err, &authErr) && authErr != nil {
+		d.Code = authErr.Code
+		d.AccountID = authErr.AccountID
+		d.SessionID = authErr.SessionID
+		d.Reason = authErr.Reason
+		return d
+	}
+	if err != nil {
+		d.Code = err.Error()
+	}
+	return d
+}
+
+// ClientFailureMessage returns the consolidated access-log message for request logging middleware.
+func (d AuthSessionFailureDetail) ClientFailureMessage() string {
+	switch d.Code {
+	case "session_missing":
+		return "auth session missing or invalid"
+	case "session_revoked":
+		return "auth session revoked"
+	case "reauth_required":
+		return "auth session reauth required"
+	default:
+		return "auth session validation failed"
+	}
+}
+
+// ClientFailureDetail returns structured fields for consolidated 4xx request logging.
+func (d AuthSessionFailureDetail) ClientFailureDetail(extra map[string]interface{}) map[string]interface{} {
+	out := map[string]interface{}{
+		"failure_class":          authSessionFailureClass(d.Code),
+		"code":                   d.Code,
+		"has_eip_session_cookie": d.HasEipSessionCookie,
+	}
+	if d.AccountID != "" {
+		out["account_id"] = d.AccountID
+	}
+	if d.SessionID != "" {
+		out["session_id"] = d.SessionID
+	}
+	if d.Reason != "" {
+		out["reason"] = d.Reason
+	}
+	for k, v := range extra {
+		out[k] = v
+	}
+	return out
+}
+
+func authSessionFailureClass(code string) string {
+	switch code {
+	case "session_missing":
+		return "auth_session_missing"
+	case "session_revoked":
+		return "auth_session_revoked"
+	case "reauth_required":
+		return "auth_reauth_required"
+	default:
+		return "auth_session_invalid"
+	}
+}
+
+// LogFields returns structured key/value pairs for direct WarnCtx (e.g. websocket without access logging).
+func (d AuthSessionFailureDetail) LogFields(extra ...interface{}) []interface{} {
+	fields := make([]interface{}, 0, 8+len(extra))
+	fields = append(fields,
+		"code", d.Code,
+		"has_eip_session_cookie", d.HasEipSessionCookie,
+	)
+	if d.AccountID != "" {
+		fields = append(fields, "account_id", d.AccountID)
+	}
+	if d.SessionID != "" {
+		fields = append(fields, "session_id", d.SessionID)
+	}
+	if d.Reason != "" {
+		fields = append(fields, "reason", d.Reason)
+	}
+	return append(fields, extra...)
+}

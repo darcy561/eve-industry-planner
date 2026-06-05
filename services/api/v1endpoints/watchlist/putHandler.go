@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/api/helper/auth"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	mongoput "eve-industry-planner/shared/core/mongo/put"
 	"eve-industry-planner/shared/logs"
@@ -30,37 +29,35 @@ func PutHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceC
 	})
 	defer metrics.Finish()
 
-	accountID, ok := helper.RequireMethodAndAccountID(w, r, metrics, http.MethodPut)
-	if !ok {
+	if !helper.RequireMethod(w, r, http.MethodPut) {
+		metrics.Error("method_not_allowed")
 		return
 	}
+	accountID := helper.AuthenticatedAccountID(r)
 
 	var body struct {
 		Groups any `json:"groups"`
 		Items  any `json:"items"`
 	}
 	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &body) {
-		logs.WarnCtx(ctx, "failed to decode watchlist JSON", "account_id", accountID)
 		return
 	}
 
 	groups, err := asJSONArray("groups", body.Groups)
 	if err != nil {
 		metrics.Error("invalid_json")
-		logs.WarnCtx(ctx, "invalid watchlist groups", "error", err, "account_id", accountID)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, err.Error(), "invalid watchlist groups", "watchlist_invalid_groups", "watchlist_put", err, nil)
 		return
 	}
 	items, err := asJSONArray("items", body.Items)
 	if err != nil {
 		metrics.Error("invalid_json")
-		logs.WarnCtx(ctx, "invalid watchlist items", "error", err, "account_id", accountID)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, err.Error(), "invalid watchlist items", "watchlist_invalid_items", "watchlist_put", err, nil)
 		return
 	}
 
 	now := time.Now().UTC()
-	sessionID, _ := auth.ExtractSessionID(r)
+	sessionID := helper.AuthenticatedSessionID(r)
 	wsClientID := helper.ExtractWSClientID(r)
 
 	database := clients.Mongo.Database(mongocore.DatabaseName)
@@ -69,18 +66,23 @@ func PutHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceC
 	result, err := mongoput.UpsertWatchlistDeprecated(ctx, collection, accountID, groups, items, now, sessionID, wsClientID)
 	if err != nil {
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to save watchlist", "failed to upsert watchlist deprecated", "watchlist_upsert_failed", "watchlist_put", err, map[string]interface{}{"account_id": accountID})
+		helper.RespondEndpointServerError(w, r, "Failed to save watchlist", "failed to upsert watchlist deprecated", "watchlist_upsert_failed", "watchlist_put", err, nil)
 		return
 	}
+
+	logs.AttachDebugStep(r, "mongo_upsert_completed", map[string]interface{}{
+		"matched":  result.MatchedCount,
+		"upserted": result.UpsertedCount,
+	})
 
 	w.WriteHeader(http.StatusNoContent)
 
 	metrics.Success()
-	logs.InfoCtx(ctx, "watchlist document saved",
-		"account_id", accountID,
-		"matched", result.MatchedCount,
-		"upserted", result.UpsertedCount,
-		"duration_ms", time.Since(start).Milliseconds())
+	logs.AttachHandlerSuccessDetail(r, "watchlist document saved", map[string]interface{}{
+		"matched":     result.MatchedCount,
+		"upserted":    result.UpsertedCount,
+		"duration_ms": time.Since(start).Milliseconds(),
+	})
 }
 
 func asJSONArray(fieldName string, v any) (any, error) {

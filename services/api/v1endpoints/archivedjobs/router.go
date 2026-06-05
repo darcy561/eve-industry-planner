@@ -3,6 +3,7 @@ package archivedjobs
 import (
 	"net/http"
 
+	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/shared"
 )
 
@@ -16,9 +17,9 @@ func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClien
 		case http.MethodPut:
 			PutArchivedJobsHandler(w, r, clients)
 		default:
-			http.Error(w, "Method not allowed. Use PUT /api/v1/archived-jobs with body {\"jobs\":[models.Job JSON...]}", http.StatusMethodNotAllowed)
+			helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use PUT /api/v1/archived-jobs with body {\"jobs\":[models.Job JSON...]}", "invalid method for archived jobs endpoint", "method_not_allowed", "archived_jobs", nil, map[string]interface{}{"method": r.Method})
 		}
 	default:
-		http.Error(w, "Not found", http.StatusNotFound)
+		helper.RespondEndpointError(w, r, http.StatusNotFound, "Not found", "archived jobs route not found", "not_found", "archived_jobs", nil, nil)
 	}
 }

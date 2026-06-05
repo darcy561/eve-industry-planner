@@ -31,10 +31,11 @@ func runSDEConversionStage(mapResult *sdeMapBuildResult) (*sdeConversionResult, 
 		return nil, fmt.Errorf("missing one or more required structured data maps")
 	}
 
-	blueprintTypeIDMap := conversion.ConvertBlueprintDataToTypeIDMap(blueprintsData)
+	blueprintTypeIDMap := conversion.ConvertBlueprintDataToTypeIDMap(blueprintsData, typesData)
 	combinedItemMap := conversion.BuildCombinedItemMap(typesData, blueprintTypeIDMap)
-	conversion.ApplyInventionToOutputItems(blueprintsData, combinedItemMap)
-	conversion.MergeInventionOntManufacturedProduct(combinedItemMap, conversion.BuildManufacturedProductByBlueprintTypeID(blueprintsData))
+	conversion.ApplyInventionToOutputItems(blueprintsData, combinedItemMap, typesData)
+	conversion.MergeInventionOntManufacturedProduct(combinedItemMap, conversion.BuildManufacturedProductByBlueprintTypeID(blueprintsData, typesData))
+	conversion.MergeReactionFormulaOntoProduct(combinedItemMap, conversion.BuildReactionProductByBlueprintTypeID(blueprintsData, typesData), typesData)
 	recipeList := conversion.GenerateRecipeListOutput(combinedItemMap)
 	searchIndex := conversion.GenerateSearchIndexOutput(recipeList)
 	fullItemList := conversion.GenerateFullItemListOutput(combinedItemMap, marketGroupsData)

@@ -47,19 +47,28 @@ func (s *Server) subscribeToDocUpdates() {
 	s.startOutboundDocUpdateShardWorkers()
 
 	processor := func(msg jetstream.Msg) {
+		ctx, endSpan := natscore.BeginConsumerContext(
+			context.Background(),
+			"eve-industry-planner/websocket/nats",
+			"nats.doc_update",
+			msg,
+			nil,
+		)
+		defer endSpan()
+
 		subject := msg.Subject()
 		docID, err := natscore.ExtractIDFromSubject(subject, natscore.SubjectDocUpdate)
 		if err != nil {
-			logs.WarnCtx(ctx, "doc updates: invalid subject", "subject", subject, "error", err)
+			natscore.FinishNATSConsumerOperation(ctx, "warn", "doc update rejected", map[string]interface{}{
+				"subject": subject,
+				"reason":  "bad subject",
+				"error":   err.Error(),
+			})
 			natscore.AcknowledgeMessage(msg, "bad subject", natscore.GetDeliveryCount(msg))
 			return
 		}
 
-		s.enqueueOutboundDocUpdate(docID, msg)
-
-		logs.DebugCtx(ctx, "doc update message queued for outbound worker (jetstream)",
-			"doc_id", docID,
-			"subject", subject)
+		s.enqueueOutboundDocUpdate(ctx, docID, subject, msg)
 	}
 
 	stopChan := make(chan struct{})

@@ -135,6 +135,9 @@ func GetCatalogHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 		helper.RespondEndpointServerError(w, r, "Failed to load templates", "group-templates catalog load", "group_templates_catalog_load_failed", "group_templates", err, nil)
 		return
 	}
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+		"template_count": len(doc.Templates),
+	})
 	_ = helper.EncodeJSON(w, map[string]any{"templates": doc.Templates})
 	metrics.Success()
 }
@@ -160,6 +163,9 @@ func GetCatalogEntryHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	}
 	idx := findTemplateIndex(doc.Templates, templateID)
 	if idx >= 0 {
+		logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+			"template_id": templateID,
+		})
 		_ = helper.EncodeJSON(w, doc.Templates[idx])
 		metrics.Success()
 		return
@@ -193,6 +199,9 @@ func GetPayloadFullHandler(w http.ResponseWriter, r *http.Request, clients *shar
 		helper.RespondNotFound(w, r, metrics)
 		return
 	}
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+		"template_id": templateID,
+	})
 	_ = helper.EncodeJSON(w, payload)
 	metrics.Success()
 }
@@ -294,6 +303,10 @@ func PostTemplateHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		return
 	}
 
+	logs.AttachDebugStep(r, "template_saved", map[string]interface{}{
+		"template_id": tid,
+	})
+
 	_ = helper.EncodeJSON(w, map[string]string{"templateID": tid})
 	metrics.Success()
 }
@@ -394,6 +407,9 @@ func PatchTemplateHandler(w http.ResponseWriter, r *http.Request, clients *share
 		helper.RespondEndpointServerError(w, r, "catalog save failed", "group templates catalog save failed", "group_templates_catalog_save_failed", "group_templates", err, nil)
 		return
 	}
+	logs.AttachDebugStep(r, "template_updated", map[string]interface{}{
+		"template_id": templateID,
+	})
 	metrics.Success()
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -433,8 +449,17 @@ func DeleteTemplateHandler(w http.ResponseWriter, r *http.Request, clients *shar
 	})
 	if err != nil {
 		metrics.Error("database_error")
-		logs.WarnCtx(ctx, "catalog pull after payload delete", "err", err)
+		logs.AttachHandlerCaveat(r, "catalog_pull_after_delete_failed", "catalog pull after payload delete failed", map[string]interface{}{
+			"error":       err.Error(),
+			"template_id": templateID,
+		})
 	}
 	metrics.Success()
+	logs.AttachDebugStep(r, "template_deleted", map[string]interface{}{
+		"template_id": templateID,
+	})
 	w.WriteHeader(http.StatusNoContent)
+	logs.AttachHandlerSuccessDetail(r, "group template deleted", map[string]interface{}{
+		"template_id": templateID,
+	})
 }

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/core/documentlock"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	mongoput "eve-industry-planner/shared/core/mongo/put"
@@ -31,11 +30,7 @@ func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	})
 	defer metrics.Finish()
 
-	accountID, ok := helper.RequireAccountID(w, r)
-	if !ok {
-		metrics.Error("auth_error")
-		return
-	}
+	accountID := helper.AuthenticatedAccountID(r)
 
 	var reqBody struct {
 		Jobs []models.Job `json:"jobs"`
@@ -47,26 +42,32 @@ func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 
 	if len(reqBody.Jobs) == 0 {
 		metrics.Error("no_jobs")
-		http.Error(w, "No jobs provided", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No jobs provided", "no jobs provided in batch request", "job_docs_put_no_jobs", "job_documents", nil, nil)
 		return
 	}
 
 	const maxBatchSize = 100
 	if len(reqBody.Jobs) > maxBatchSize {
 		metrics.Error("batch_too_large")
-		http.Error(w, fmt.Sprintf("Batch too large (max %d jobs)", maxBatchSize), http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d jobs)", maxBatchSize), "job documents batch too large", "job_docs_put_batch_too_large", "job_documents", nil, map[string]interface{}{
+			"count": len(reqBody.Jobs),
+			"max":   maxBatchSize,
+		})
 		return
 	}
 
+	logs.AttachDebugStep(r, "batch_validated", map[string]interface{}{
+		"batch_size": len(reqBody.Jobs),
+	})
+
 	collection := collJobDocuments(clients)
-	sessionID, sessErr := auth.ExtractSessionID(r)
+	sessionID := helper.AuthenticatedSessionID(r)
 	wsClientID := helper.ExtractWSClientID(r)
 
 	if clients.Redis != nil {
-		if sessErr != nil || sessionID == "" {
+		if sessionID == "" {
 			metrics.Error("auth_error")
-			logs.WarnCtx(ctx, "job documents put lock gate: missing session", "error", sessErr, "account_id", accountID)
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "job documents put lock gate: missing session", "job_docs_put_missing_session", "job_documents", nil, nil)
 			return
 		}
 		jobIDs := make([]string, 0, len(reqBody.Jobs))
@@ -79,22 +80,21 @@ func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "job documents put lock gate: session required", "job_docs_put_session_required", "job_documents", lerr, nil)
 				return
 			}
 			metrics.Error("lock_error")
-			helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "job documents put lock gate failed", "job_docs_lock_gate_failed", "job_documents", lerr, map[string]interface{}{"account_id": accountID})
+			helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "job documents put lock gate failed", "job_docs_lock_gate_failed", "job_documents", lerr, nil)
 			return
 		}
 		if len(rejects) > 0 {
 			metrics.Error("lock_conflict")
-			logs.WarnCtx(ctx, "job documents put blocked: lock held elsewhere",
-				"account_id", accountID,
-				"requester_session_id", sessionID,
-				"rejected_count", len(rejects))
-			helper.RespondLockHeldElsewhereJSON(w, mongocore.CollectionUserJobDocuments, rejects)
+			helper.RespondLockHeldElsewhereJSON(w, r, mongocore.CollectionUserJobDocuments, rejects)
 			return
 		}
+		logs.AttachDebugStep(r, "lock_gate_passed", map[string]interface{}{
+			"doc_count": len(jobIDs),
+		})
 	}
 
 	now := time.Now()
@@ -102,32 +102,39 @@ func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			metrics.Error("request_canceled")
-			logs.WarnCtx(ctx, "job documents bulk upsert canceled",
-				"account_id", accountID,
-				"error", err)
-			http.Error(w, "Request canceled", http.StatusRequestTimeout)
+			helper.RespondEndpointError(w, r, http.StatusRequestTimeout, "Request canceled", "job documents bulk upsert canceled", "job_docs_put_canceled", "job_documents", err, nil)
 			return
 		}
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to save jobs", "failed to bulk upsert job documents", "job_docs_upsert_failed", "job_documents", err, map[string]interface{}{"account_id": accountID})
+		helper.RespondEndpointServerError(w, r, "Failed to save jobs", "failed to bulk upsert job documents", "job_docs_upsert_failed", "job_documents", err, nil)
 		return
 	}
 	if result == nil {
 		metrics.Error("no_valid_jobs")
-		http.Error(w, "No valid jobs to save", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No valid jobs to save", "no valid jobs in batch", "job_docs_put_no_valid_jobs", "job_documents", nil, nil)
 		return
 	}
 	savedCount := int(result.UpsertedCount + result.ModifiedCount)
+	if failedCount > 0 {
+		logs.AttachHandlerCaveat(r, "batch_partial_failure", "some job documents failed validation in batch", map[string]interface{}{
+			"failed": failedCount,
+			"total":  len(reqBody.Jobs),
+		})
+	}
+	logs.AttachDebugStep(r, "mongo_write_completed", map[string]interface{}{
+		"saved":  savedCount,
+		"failed": failedCount,
+	})
 	w.WriteHeader(http.StatusNoContent)
 
 	metrics.Success()
 	m.JobsSaved.Add(ctx, float64(savedCount))
 	m.JobsRequested.Observe(ctx, float64(len(reqBody.Jobs)))
 
-	logs.InfoCtx(ctx, "batch job documents upserted",
-		"account_id", accountID,
-		"total", len(reqBody.Jobs),
-		"saved", savedCount,
-		"failed", failedCount,
-		"duration_ms", time.Since(start).Milliseconds())
+	logs.AttachHandlerSuccessDetail(r, "batch job documents upserted", map[string]interface{}{
+		"total":       len(reqBody.Jobs),
+		"saved":       savedCount,
+		"failed":      failedCount,
+		"duration_ms": time.Since(start).Milliseconds(),
+	})
 }

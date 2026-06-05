@@ -3,7 +3,7 @@ package watchlist
 import (
 	"net/http"
 
-	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
@@ -19,7 +19,6 @@ func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClien
 	default:
 		m := apimetrics.GetAPIEveTokenLogin()
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
-		logs.WarnCtx(ctx, "invalid method for watchlist endpoint")
-		http.Error(w, "Method not allowed. Use GET or PUT.", http.StatusMethodNotAllowed)
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use GET or PUT.", "invalid method for watchlist endpoint", "watchlist_method_not_allowed", "watchlist", nil, map[string]interface{}{"method": r.Method})
 	}
 }

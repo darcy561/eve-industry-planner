@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/core/documentlock"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
@@ -57,31 +56,28 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	defer metrics.Finish()
 
 	ctx := obsCtx
-	accountID, ok := helper.RequireAccountID(w, r)
-	if !ok {
-		metrics.Error("auth_error")
-		logs.WarnCtx(ctx, "archived jobs put: auth failed", "ip", r.RemoteAddr)
-		return
-	}
+	accountID := helper.AuthenticatedAccountID(r)
 
 	var reqBody struct {
 		Jobs []models.Job `json:"jobs"`
 	}
 	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &reqBody) {
-		logs.WarnCtx(ctx, "archived jobs put: bad JSON", "account_id", accountID)
 		return
 	}
 
 	if len(reqBody.Jobs) == 0 {
 		metrics.Error("no_jobs")
-		http.Error(w, "No jobs provided", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No jobs provided", "archived jobs put: empty batch", "archived_jobs_put_no_jobs", "archived_jobs_put", nil, nil)
 		return
 	}
 
 	const maxBatchSize = 100
 	if len(reqBody.Jobs) > maxBatchSize {
 		metrics.Error("batch_too_large")
-		http.Error(w, fmt.Sprintf("Batch too large (max %d jobs)", maxBatchSize), http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d jobs)", maxBatchSize), "archived jobs put: batch too large", "archived_jobs_put_batch_too_large", "archived_jobs_put", nil, map[string]interface{}{
+			"count": len(reqBody.Jobs),
+			"max":   maxBatchSize,
+		})
 		return
 	}
 
@@ -93,32 +89,35 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 		job := &reqBody.Jobs[i]
 		if job.JobID == "" {
 			metrics.Error("empty_job_id")
-			logs.WarnCtx(ctx, "archived jobs put: batch rejected (empty jobID)", "index", i, "account_id", accountID)
-			http.Error(w, fmt.Sprintf("Invalid job at index %d: jobID is required", i), http.StatusBadRequest)
+			helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid job at index %d: jobID is required", i), "archived jobs put: batch rejected (empty jobID)", "archived_jobs_put_empty_job_id", "archived_jobs_put", nil, map[string]interface{}{"index": i})
 			return
 		}
 		if _, dup := seenJobID[job.JobID]; dup {
 			metrics.Error("duplicate_job_id")
-			logs.WarnCtx(ctx, "archived jobs put: batch rejected (duplicate jobID)", "index", i, "job_id", job.JobID, "account_id", accountID)
-			http.Error(w, fmt.Sprintf("Invalid batch: duplicate jobID %q", job.JobID), http.StatusBadRequest)
+			helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid batch: duplicate jobID %q", job.JobID), "archived jobs put: batch rejected (duplicate jobID)", "archived_jobs_put_duplicate_job_id", "archived_jobs_put", nil, map[string]interface{}{"index": i, "job_id": job.JobID})
 			return
 		}
 		if job.MetaData.AccountID != "" && job.MetaData.AccountID != accountID {
 			metrics.Error("account_mismatch")
-			logs.WarnCtx(ctx, "archived jobs put: _meta.accountID does not match token",
-				"index", i, "job_id", job.JobID, "account_id", accountID, "job_meta_account_id", job.MetaData.AccountID)
-			http.Error(w, fmt.Sprintf("Invalid job at index %d: _meta.accountID does not match the authenticated account", i), http.StatusForbidden)
+			helper.RespondEndpointError(w, r, http.StatusForbidden, fmt.Sprintf("Invalid job at index %d: _meta.accountID does not match the authenticated account", i), "archived jobs put: _meta.accountID does not match token", "archived_jobs_put_account_mismatch", "archived_jobs_put", nil, map[string]interface{}{
+				"index":               i,
+				"job_id":              job.JobID,
+				"job_meta_account_id": job.MetaData.AccountID,
+			})
 			return
 		}
 		seenJobID[job.JobID] = struct{}{}
 	}
 
-	sessionID, sessErr := auth.ExtractSessionID(r)
+	logs.AttachDebugStep(r, "batch_validated", map[string]interface{}{
+		"batch_size": len(reqBody.Jobs),
+	})
+
+	sessionID := helper.AuthenticatedSessionID(r)
 	if clients.Redis != nil {
-		if sessErr != nil || sessionID == "" {
+		if sessionID == "" {
 			metrics.Error("auth_error")
-			logs.WarnCtx(ctx, "archived jobs put lock gate: missing session", "error", sessErr, "account_id", accountID)
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "archived jobs put lock gate: missing session", "archived_jobs_put_missing_session", "archived_jobs_put", nil, nil)
 			return
 		}
 		jobIDs := make([]string, len(reqBody.Jobs))
@@ -129,22 +128,21 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "archived jobs put lock gate: session required", "archived_jobs_put_session_required", "archived_jobs_put", lerr, nil)
 				return
 			}
 			metrics.Error("lock_error")
-			helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "archived jobs put lock gate failed", "archived_jobs_lock_gate_failed", "archived_jobs_put", lerr, map[string]interface{}{"account_id": accountID})
+			helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "archived jobs put lock gate failed", "archived_jobs_lock_gate_failed", "archived_jobs_put", lerr, nil)
 			return
 		}
 		if len(rejects) > 0 {
 			metrics.Error("lock_conflict")
-			logs.WarnCtx(ctx, "archived jobs put blocked: lock held elsewhere",
-				"account_id", accountID,
-				"requester_session_id", sessionID,
-				"rejected_count", len(rejects))
-			helper.RespondLockHeldElsewhereJSON(w, mongocore.CollectionUserJobDocuments, rejects)
+			helper.RespondLockHeldElsewhereJSON(w, r, mongocore.CollectionUserJobDocuments, rejects)
 			return
 		}
+		logs.AttachDebugStep(r, "lock_gate_passed", map[string]interface{}{
+			"doc_count": len(jobIDs),
+		})
 	}
 
 	now := time.Now().UTC()
@@ -178,15 +176,21 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	})
 	if err != nil {
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to save archived jobs", "archived jobs put: bulk write", "archived_jobs_upsert_failed", "archived_jobs_put", err, map[string]interface{}{"account_id": accountID})
+		helper.RespondEndpointServerError(w, r, "Failed to save archived jobs", "archived jobs put: bulk write", "archived_jobs_upsert_failed", "archived_jobs_put", err, nil)
 		return
 	}
 
 	savedCount := int(result.UpsertedCount + result.ModifiedCount)
 	nJobs := len(reqBody.Jobs)
+	logs.AttachDebugStep(r, "mongo_write_completed", map[string]interface{}{
+		"saved": savedCount,
+		"jobs":  nJobs,
+	})
 	if savedCount != nJobs {
-		logs.WarnCtx(ctx, "archived jobs put: mongo write count differs from batch size",
-			"account_id", accountID, "jobs", nJobs, "saved_ops", savedCount)
+		logs.AttachHandlerCaveat(r, "mongo_write_count_mismatch", "mongo write count differs from batch size", map[string]interface{}{
+			"jobs":      nJobs,
+			"saved_ops": savedCount,
+		})
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -195,10 +199,9 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	m.IndividualJobsArchived.Add(obsCtx, float64(nJobs))
 	m.JobsRequested.Observe(obsCtx, float64(nJobs))
 
-	logs.InfoCtx(ctx, "archived jobs put done",
-		"account_id", accountID,
-		"jobs", len(reqBody.Jobs),
-		"saved_ops", savedCount,
-		"duration_ms", time.Since(start).Milliseconds(),
-	)
+	logs.AttachHandlerSuccessDetail(r, "archived jobs put done", map[string]interface{}{
+		"jobs":        nJobs,
+		"saved_ops":   savedCount,
+		"duration_ms": time.Since(start).Milliseconds(),
+	})
 }

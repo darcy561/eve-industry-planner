@@ -8,45 +8,119 @@ import (
 	"eve-industry-planner/websocket/server/outgoinglogic"
 )
 
+// outboundDeliveryOutcome summarizes fan-out on this websocket replica.
+type outboundDeliveryOutcome struct {
+	RouteKind           string
+	RecipientCount      int
+	CandidateCount      int
+	AccountID           string
+	CorporationID       string
+	AllianceID          string
+	SourceClientID      string
+	SourceSessionID     string
+	SuppressSessionID   string
+	RecipientClientIDs  []string
+	RecipientSessionIDs []string
+	RecipientAccountIDs []string
+	SkippedEchoClientIDs          []string
+	SkippedSessionClientIDs       []string
+	SkippedSyncClientIDs          []string
+	SkippedNotConnectedClientIDs  []string
+	SkippedScopeClientIDs         []string
+	SkippedSendBufferFullClientIDs []string
+}
+
+func appendUniqueString(list []string, value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return list
+	}
+	for _, existing := range list {
+		if existing == value {
+			return list
+		}
+	}
+	return append(list, value)
+}
+
+func (o *outboundDeliveryOutcome) recordRecipient(clientID string, client *Client) {
+	o.RecipientClientIDs = append(o.RecipientClientIDs, clientID)
+	if client == nil {
+		return
+	}
+	o.RecipientSessionIDs = appendUniqueString(o.RecipientSessionIDs, client.SessionID)
+	o.RecipientAccountIDs = appendUniqueString(o.RecipientAccountIDs, client.AccountID)
+}
+
+func (o *outboundDeliveryOutcome) recordEchoSkip(clientID string) {
+	o.SkippedEchoClientIDs = append(o.SkippedEchoClientIDs, clientID)
+}
+
+func (o *outboundDeliveryOutcome) recordSessionSkip(clientID string) {
+	o.SkippedSessionClientIDs = append(o.SkippedSessionClientIDs, clientID)
+}
+
+func (o *outboundDeliveryOutcome) recordSyncSkip(clientID string) {
+	o.SkippedSyncClientIDs = append(o.SkippedSyncClientIDs, clientID)
+}
+
+func (o *outboundDeliveryOutcome) recordNotConnectedSkip(clientID string) {
+	o.SkippedNotConnectedClientIDs = append(o.SkippedNotConnectedClientIDs, clientID)
+}
+
+func (o *outboundDeliveryOutcome) recordScopeSkip(clientID string) {
+	o.SkippedScopeClientIDs = append(o.SkippedScopeClientIDs, clientID)
+}
+
+func (o *outboundDeliveryOutcome) recordSendBufferFull(clientID string) {
+	o.SkippedSendBufferFullClientIDs = append(o.SkippedSendBufferFullClientIDs, clientID)
+}
+
+func (o *outboundDeliveryOutcome) hasSuppression() bool {
+	return len(o.SkippedEchoClientIDs) > 0 ||
+		len(o.SkippedSessionClientIDs) > 0 ||
+		len(o.SkippedSyncClientIDs) > 0 ||
+		len(o.SkippedNotConnectedClientIDs) > 0 ||
+		len(o.SkippedScopeClientIDs) > 0 ||
+		len(o.SkippedSendBufferFullClientIDs) > 0 ||
+		o.SuppressSessionID != ""
+}
+
 // deliverOutboundDocUpdate routes a NATS doc.update payload to local WebSocket clients.
 // Precedence: accountID → corporationID → allianceID → explicit doc subscribers.
-// Corporation/alliance paths use reverse indexes filled by upgrade_scopes (session grant ceiling).
-func (s *Server) deliverOutboundDocUpdate(collectionScopedDocID string, messageData []byte) {
-	ctx := context.Background()
+func (s *Server) deliverOutboundDocUpdate(ctx context.Context, collectionScopedDocID string, messageData []byte) outboundDeliveryOutcome {
 	decoded, err := outgoinglogic.DecodeOutboundMessage(messageData)
 	if err != nil {
 		logs.WarnCtx(ctx, "outbound doc update: invalid JSON",
 			"doc_id", collectionScopedDocID,
 			"error", err.Error())
-		return
+		return outboundDeliveryOutcome{RouteKind: "invalid"}
 	}
 
 	if decoded.Route.AccountID != "" {
-		s.broadcastToAccountClients(collectionScopedDocID, messageData, decoded.Route)
-		return
+		return s.broadcastToAccountClients(ctx, collectionScopedDocID, messageData, decoded.Route)
 	}
-
 	if decoded.Route.CorporationID != "" {
-		s.broadcastToCorporationScope(collectionScopedDocID, messageData, decoded)
-		return
+		return s.broadcastToCorporationScope(ctx, collectionScopedDocID, messageData, decoded)
 	}
-
 	if decoded.Route.AllianceID != "" {
-		s.broadcastToAllianceScope(collectionScopedDocID, messageData, decoded)
-		return
+		return s.broadcastToAllianceScope(ctx, collectionScopedDocID, messageData, decoded)
 	}
-
-	s.deliverToExplicitDocSubscribers(collectionScopedDocID, messageData, decoded.Route.SourceClientID, decoded.Route.SourceSessionID)
+	return s.deliverToExplicitDocSubscribers(ctx, collectionScopedDocID, messageData, decoded.Route.SourceClientID, decoded.Route.SourceSessionID)
 }
 
 // broadcastToAccountClients sends a payload to every connection for the account except the source client.
-func (s *Server) broadcastToAccountClients(docID string, messageData []byte, route outgoinglogic.RouteInfo) {
-	bcCtx := context.Background()
+func (s *Server) broadcastToAccountClients(ctx context.Context, docID string, messageData []byte, route outgoinglogic.RouteInfo) outboundDeliveryOutcome {
+	out := outboundDeliveryOutcome{
+		RouteKind:       "account",
+		AccountID:       route.AccountID,
+		SourceClientID:  route.SourceClientID,
+		SourceSessionID: route.SourceSessionID,
+	}
 	accountID := route.AccountID
 	if accountID == "" {
-		logs.WarnCtx(bcCtx, "message missing accountID for account broadcast",
-			"doc_id", docID)
-		return
+		logs.WarnCtx(ctx, "message missing accountID for account broadcast", "doc_id", docID)
+		return outboundDeliveryOutcome{RouteKind: "invalid"}
 	}
 	sourceClientID := route.SourceClientID
 	sourceSessionID := route.SourceSessionID
@@ -55,9 +129,7 @@ func (s *Server) broadcastToAccountClients(docID string, messageData []byte, rou
 	clientIDs, hasConnections := s.userConnections[accountID]
 	if !hasConnections {
 		s.userConnMu.RUnlock()
-		logs.DebugCtx(bcCtx, "no clients connected for account",
-			"account_id", accountID)
-		return
+		return out
 	}
 
 	clientsToNotify := make([]string, 0, len(clientIDs))
@@ -65,23 +137,18 @@ func (s *Server) broadcastToAccountClients(docID string, messageData []byte, rou
 		clientsToNotify = append(clientsToNotify, clientID)
 	}
 	s.userConnMu.RUnlock()
+	out.CandidateCount = len(clientsToNotify)
 
-	var (
-		recipientClientIDs  []string
-		skippedEcho         []string
-		skippedSync         []string
-		skippedNotConnected []string
-	)
 	broadcastCount := 0
 	s.ClientsMu.RLock()
 	for _, clientID := range clientsToNotify {
 		client, exists := s.Clients[clientID]
 		if !exists {
-			skippedNotConnected = append(skippedNotConnected, clientID)
+			out.recordNotConnectedSkip(clientID)
 			continue
 		}
 		if outgoinglogic.ShouldSuppressRecipient(sourceSessionID, sourceClientID, client.SessionID, clientID) {
-			skippedEcho = append(skippedEcho, clientID)
+			out.recordEchoSkip(clientID)
 			continue
 		}
 
@@ -96,15 +163,16 @@ func (s *Server) broadcastToAccountClients(docID string, messageData []byte, rou
 		client.SyncMu.Lock()
 		if client.SyncInProgress {
 			client.SyncMu.Unlock()
-			skippedSync = append(skippedSync, clientID)
+			out.recordSyncSkip(clientID)
 			continue
 		}
 		client.SyncMu.Unlock()
 
 		if outgoinglogic.TrySendNonBlocking(client.Send, messageData) {
 			broadcastCount++
-			recipientClientIDs = append(recipientClientIDs, clientID)
+			out.recordRecipient(clientID, client)
 		} else {
+			out.recordSendBufferFull(clientID)
 			logs.WarnCtx(client.LogContext(), "client send buffer full, dropping message",
 				"client_id", clientID,
 				"account_id", accountID)
@@ -112,30 +180,12 @@ func (s *Server) broadcastToAccountClients(docID string, messageData []byte, rou
 	}
 	s.ClientsMu.RUnlock()
 
+	out.RecipientCount = broadcastCount
 	if broadcastCount > 0 {
-		s.recordDocUpdateSent(bcCtx, accountID, docID, broadcastCount)
-		logs.DebugCtx(bcCtx, "message broadcasted to account clients",
-			"account_id", accountID,
-			"doc_id", docID,
-			"recipients", broadcastCount,
-			"candidate_client_ids", strings.Join(clientsToNotify, ","),
-			"recipient_client_ids", strings.Join(recipientClientIDs, ","),
-			"skipped_echo_suppression_client_ids", strings.Join(skippedEcho, ","),
-			"skipped_sync_in_progress_client_ids", strings.Join(skippedSync, ","),
-			"skipped_not_connected_client_ids", strings.Join(skippedNotConnected, ","),
-			"source_client_id", sourceClientID,
-			"source_session_id", sourceSessionID)
-	} else if len(clientsToNotify) > 0 {
-		logs.DebugCtx(bcCtx, "account doc update: no recipients on this replica",
-			"account_id", accountID,
-			"doc_id", docID,
-			"candidate_client_ids", strings.Join(clientsToNotify, ","),
-			"skipped_echo_suppression_client_ids", strings.Join(skippedEcho, ","),
-			"skipped_sync_in_progress_client_ids", strings.Join(skippedSync, ","),
-			"skipped_not_connected_client_ids", strings.Join(skippedNotConnected, ","),
-			"source_client_id", sourceClientID,
-			"source_session_id", sourceSessionID)
+		s.recordDocUpdateSent(ctx, accountID, docID, broadcastCount)
+		out.RecipientAccountIDs = appendUniqueString(out.RecipientAccountIDs, accountID)
 	}
+	return out
 }
 
 func copyClientIDSet(m map[string]bool) []string {
@@ -149,8 +199,13 @@ func copyClientIDSet(m map[string]bool) []string {
 	return out
 }
 
-func (s *Server) broadcastToCorporationScope(docID string, messageData []byte, decoded outgoinglogic.DecodedOutbound) {
-	ctx := context.Background()
+func (s *Server) broadcastToCorporationScope(ctx context.Context, docID string, messageData []byte, decoded outgoinglogic.DecodedOutbound) outboundDeliveryOutcome {
+	out := outboundDeliveryOutcome{
+		RouteKind:       "corporation",
+		CorporationID:   decoded.Route.CorporationID,
+		SourceClientID:  decoded.Route.SourceClientID,
+		SourceSessionID: decoded.Route.SourceSessionID,
+	}
 	corporationID := decoded.Route.CorporationID
 	sourceClientID := decoded.Route.SourceClientID
 	sourceSessionID := decoded.Route.SourceSessionID
@@ -160,40 +215,44 @@ func (s *Server) broadcastToCorporationScope(docID string, messageData []byte, d
 	idsMap := s.corpToClients[corporationID]
 	clientIDs := copyClientIDSet(idsMap)
 	s.corpIndexMu.RUnlock()
+	out.CandidateCount = len(clientIDs)
 
 	if len(clientIDs) == 0 {
-		logs.DebugCtx(ctx, "corporation scope: no pooled clients for corporation",
-			"doc_id", docID,
-			"corporation_id", corporationID)
-		return
+		return out
 	}
 
-	var recipientIDs []string
-	sent := 0
+	var sent int
 	s.ClientsMu.RLock()
 	for _, clientID := range clientIDs {
 		client, ok := s.Clients[clientID]
 		if !ok {
+			out.recordNotConnectedSkip(clientID)
 			continue
 		}
 		if !outgoinglogic.CorporationRecipientMatchesDownward(client.AccountID, scopes) {
+			out.recordScopeSkip(clientID)
 			continue
 		}
 		client.SyncMu.Lock()
 		syncing := client.SyncInProgress
 		client.SyncMu.Unlock()
-		if !outgoinglogic.ScopeBroadcastRecipientDeliverable(
-			client.Scopes.CorporationIDs, corporationID,
-			client.SessionID, clientID,
-			sourceSessionID, sourceClientID,
-			syncing,
-		) {
+		if !outgoinglogic.ScopeContains(client.Scopes.CorporationIDs, corporationID) {
+			out.recordScopeSkip(clientID)
+			continue
+		}
+		if outgoinglogic.ShouldSuppressRecipient(sourceSessionID, sourceClientID, client.SessionID, clientID) {
+			out.recordEchoSkip(clientID)
+			continue
+		}
+		if syncing {
+			out.recordSyncSkip(clientID)
 			continue
 		}
 		if outgoinglogic.TrySendNonBlocking(client.Send, messageData) {
 			sent++
-			recipientIDs = append(recipientIDs, clientID)
+			out.recordRecipient(clientID, client)
 		} else {
+			out.recordSendBufferFull(clientID)
 			logs.WarnCtx(client.LogContext(), "corporation scope: send buffer full",
 				"client_id", client.id,
 				"corporation_id", corporationID)
@@ -201,27 +260,17 @@ func (s *Server) broadcastToCorporationScope(docID string, messageData []byte, d
 	}
 	s.ClientsMu.RUnlock()
 
-	if sent > 0 {
-		logs.DebugCtx(ctx, "corporation scope broadcast",
-			"doc_id", docID,
-			"corporation_id", corporationID,
-			"recipients", sent,
-			"candidate_pool_client_ids", strings.Join(clientIDs, ","),
-			"recipient_client_ids", strings.Join(recipientIDs, ","),
-			"source_client_id", sourceClientID,
-			"source_session_id", sourceSessionID)
-	} else if len(clientIDs) > 0 {
-		logs.DebugCtx(ctx, "corporation scope: no recipients on this replica",
-			"doc_id", docID,
-			"corporation_id", corporationID,
-			"candidate_pool_client_ids", strings.Join(clientIDs, ","),
-			"source_client_id", sourceClientID,
-			"source_session_id", sourceSessionID)
-	}
+	out.RecipientCount = sent
+	return out
 }
 
-func (s *Server) broadcastToAllianceScope(docID string, messageData []byte, decoded outgoinglogic.DecodedOutbound) {
-	ctx := context.Background()
+func (s *Server) broadcastToAllianceScope(ctx context.Context, docID string, messageData []byte, decoded outgoinglogic.DecodedOutbound) outboundDeliveryOutcome {
+	out := outboundDeliveryOutcome{
+		RouteKind:       "alliance",
+		AllianceID:      decoded.Route.AllianceID,
+		SourceClientID:  decoded.Route.SourceClientID,
+		SourceSessionID: decoded.Route.SourceSessionID,
+	}
 	allianceID := decoded.Route.AllianceID
 	sourceClientID := decoded.Route.SourceClientID
 	sourceSessionID := decoded.Route.SourceSessionID
@@ -231,41 +280,45 @@ func (s *Server) broadcastToAllianceScope(docID string, messageData []byte, deco
 	idsMap := s.allianceToClients[allianceID]
 	clientIDs := copyClientIDSet(idsMap)
 	s.allianceIndexMu.RUnlock()
+	out.CandidateCount = len(clientIDs)
 
 	if len(clientIDs) == 0 {
-		logs.DebugCtx(ctx, "alliance scope: no pooled clients for alliance",
-			"doc_id", docID,
-			"alliance_id", allianceID)
-		return
+		return out
 	}
 
-	var recipientIDs []string
-	sent := 0
+	var sent int
 	s.ClientsMu.RLock()
 	for _, clientID := range clientIDs {
 		client, ok := s.Clients[clientID]
 		if !ok {
+			out.recordNotConnectedSkip(clientID)
 			continue
 		}
 		corpScope := append([]string(nil), client.Scopes.CorporationIDs...)
 		if !outgoinglogic.AllianceRecipientMatchesDownward(corpScope, client.AccountID, scopes) {
+			out.recordScopeSkip(clientID)
 			continue
 		}
 		client.SyncMu.Lock()
 		syncing := client.SyncInProgress
 		client.SyncMu.Unlock()
-		if !outgoinglogic.ScopeBroadcastRecipientDeliverable(
-			client.Scopes.AllianceIDs, allianceID,
-			client.SessionID, clientID,
-			sourceSessionID, sourceClientID,
-			syncing,
-		) {
+		if !outgoinglogic.ScopeContains(client.Scopes.AllianceIDs, allianceID) {
+			out.recordScopeSkip(clientID)
+			continue
+		}
+		if outgoinglogic.ShouldSuppressRecipient(sourceSessionID, sourceClientID, client.SessionID, clientID) {
+			out.recordEchoSkip(clientID)
+			continue
+		}
+		if syncing {
+			out.recordSyncSkip(clientID)
 			continue
 		}
 		if outgoinglogic.TrySendNonBlocking(client.Send, messageData) {
 			sent++
-			recipientIDs = append(recipientIDs, clientID)
+			out.recordRecipient(clientID, client)
 		} else {
+			out.recordSendBufferFull(clientID)
 			logs.WarnCtx(client.LogContext(), "alliance scope: send buffer full",
 				"client_id", client.id,
 				"alliance_id", allianceID)
@@ -273,67 +326,59 @@ func (s *Server) broadcastToAllianceScope(docID string, messageData []byte, deco
 	}
 	s.ClientsMu.RUnlock()
 
-	if sent > 0 {
-		logs.DebugCtx(ctx, "alliance scope broadcast",
-			"doc_id", docID,
-			"alliance_id", allianceID,
-			"recipients", sent,
-			"candidate_pool_client_ids", strings.Join(clientIDs, ","),
-			"recipient_client_ids", strings.Join(recipientIDs, ","),
-			"source_client_id", sourceClientID,
-			"source_session_id", sourceSessionID)
-	} else if len(clientIDs) > 0 {
-		logs.DebugCtx(ctx, "alliance scope: no recipients on this replica",
-			"doc_id", docID,
-			"alliance_id", allianceID,
-			"candidate_pool_client_ids", strings.Join(clientIDs, ","),
-			"source_client_id", sourceClientID,
-			"source_session_id", sourceSessionID)
-	}
+	out.RecipientCount = sent
+	return out
 }
 
 // deliverToExplicitDocSubscribers delivers to clients that opted into this doc id (legacy / escape hatch).
-func (s *Server) deliverToExplicitDocSubscribers(docID string, messageData []byte, sourceClientID, sourceSessionID string) {
-	ctx := context.Background()
+func (s *Server) deliverToExplicitDocSubscribers(ctx context.Context, docID string, messageData []byte, sourceClientID, sourceSessionID string) outboundDeliveryOutcome {
+	out := outboundDeliveryOutcome{
+		RouteKind:       "explicit",
+		SourceClientID:  sourceClientID,
+		SourceSessionID: sourceSessionID,
+	}
 
 	s.explicitDocSubMu.RLock()
 	subSet := s.explicitDocSubscribers[docID]
 	if len(subSet) == 0 {
 		s.explicitDocSubMu.RUnlock()
-		logs.DebugCtx(ctx, "doc update: no explicit subscribers and no account/corp/alliance route",
-			"doc_id", docID)
-		return
+		return out
 	}
 	clientIDs := make([]string, 0, len(subSet))
 	for cid := range subSet {
 		clientIDs = append(clientIDs, cid)
 	}
 	s.explicitDocSubMu.RUnlock()
+	out.CandidateCount = len(clientIDs)
 
-	var recipientIDs []string
-	sent := 0
+	var sent int
 	s.ClientsMu.RLock()
 	for _, clientID := range clientIDs {
 		client, ok := s.Clients[clientID]
 		if !ok {
+			out.recordNotConnectedSkip(clientID)
 			continue
 		}
 		client.SyncMu.Lock()
 		syncing := client.SyncInProgress
 		client.SyncMu.Unlock()
-		if !outgoinglogic.ExplicitDocRecipientDeliverable(
-			docID,
-			client.SessionID, clientID,
-			sourceSessionID, sourceClientID,
-			client.explicitDocIDs[docID],
-			syncing,
-		) {
+		if outgoinglogic.ShouldSuppressRecipient(sourceSessionID, sourceClientID, client.SessionID, clientID) {
+			out.recordEchoSkip(clientID)
+			continue
+		}
+		if docID == "" || !client.explicitDocIDs[docID] {
+			out.recordScopeSkip(clientID)
+			continue
+		}
+		if syncing {
+			out.recordSyncSkip(clientID)
 			continue
 		}
 		if outgoinglogic.TrySendNonBlocking(client.Send, messageData) {
 			sent++
-			recipientIDs = append(recipientIDs, clientID)
+			out.recordRecipient(clientID, client)
 		} else {
+			out.recordSendBufferFull(clientID)
 			logs.WarnCtx(client.LogContext(), "explicit doc: send buffer full",
 				"client_id", clientID,
 				"doc_id", docID)
@@ -341,19 +386,58 @@ func (s *Server) deliverToExplicitDocSubscribers(docID string, messageData []byt
 	}
 	s.ClientsMu.RUnlock()
 
-	if sent > 0 {
-		logs.DebugCtx(ctx, "doc update delivered to explicit subscribers",
-			"doc_id", docID,
-			"recipients", sent,
-			"candidate_explicit_client_ids", strings.Join(clientIDs, ","),
-			"recipient_client_ids", strings.Join(recipientIDs, ","),
-			"source_client_id", sourceClientID,
-			"source_session_id", sourceSessionID)
-	} else if len(clientIDs) > 0 {
-		logs.DebugCtx(ctx, "explicit doc update: no recipients on this replica",
-			"doc_id", docID,
-			"candidate_explicit_client_ids", strings.Join(clientIDs, ","),
-			"source_client_id", sourceClientID,
-			"source_session_id", sourceSessionID)
+	out.RecipientCount = sent
+	return out
+}
+
+func outboundDeliveryDetail(docID, subject string, o outboundDeliveryOutcome) map[string]interface{} {
+	detail := map[string]interface{}{
+		"doc_id":          docID,
+		"route_kind":      o.RouteKind,
+		"recipient_count": o.RecipientCount,
+		"candidate_count": o.CandidateCount,
+	}
+	if subject != "" {
+		detail["subject"] = subject
+	}
+	if o.AccountID != "" {
+		detail["account_id"] = o.AccountID
+	}
+	if o.CorporationID != "" {
+		detail["corporation_id"] = o.CorporationID
+	}
+	if o.AllianceID != "" {
+		detail["alliance_id"] = o.AllianceID
+	}
+	if o.SourceClientID != "" {
+		detail["source_client_id"] = o.SourceClientID
+	}
+	if o.SourceSessionID != "" {
+		detail["source_session_id"] = o.SourceSessionID
+	}
+	if o.SuppressSessionID != "" {
+		detail["suppress_session_id"] = o.SuppressSessionID
+	}
+	appendSkipDetail(detail, "skipped_echo_suppression_client_ids", o.SkippedEchoClientIDs)
+	appendSkipDetail(detail, "skipped_session_suppression_client_ids", o.SkippedSessionClientIDs)
+	appendSkipDetail(detail, "skipped_sync_in_progress_client_ids", o.SkippedSyncClientIDs)
+	appendSkipDetail(detail, "skipped_not_connected_client_ids", o.SkippedNotConnectedClientIDs)
+	appendSkipDetail(detail, "skipped_scope_client_ids", o.SkippedScopeClientIDs)
+	appendSkipDetail(detail, "skipped_send_buffer_full_client_ids", o.SkippedSendBufferFullClientIDs)
+	if len(o.RecipientClientIDs) > 0 {
+		detail["recipient_client_ids"] = strings.Join(o.RecipientClientIDs, ",")
+	}
+	if len(o.RecipientSessionIDs) > 0 {
+		detail["recipient_session_ids"] = strings.Join(o.RecipientSessionIDs, ",")
+	}
+	if len(o.RecipientAccountIDs) > 0 {
+		detail["recipient_account_ids"] = strings.Join(o.RecipientAccountIDs, ",")
+	}
+	return detail
+}
+
+func appendSkipDetail(detail map[string]interface{}, key string, clientIDs []string) {
+	if len(clientIDs) > 0 {
+		detail[key] = strings.Join(clientIDs, ",")
 	}
 }

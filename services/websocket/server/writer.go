@@ -22,19 +22,11 @@ func (s *Server) writer(c *Client) {
 		}
 	}()
 
-	logs.DebugCtx(ctx, "websocket writer goroutine started",
-		"client_id", c.id,
-		"account_id", c.AccountID,
-		"ping_period", config.PingPeriod)
-
 	// Create a ticker for sending pings
 	pingTicker := time.NewTicker(config.PingPeriod)
 	defer func() {
 		pingTicker.Stop()
 		c.conn.Close()
-		logs.DebugCtx(ctx, "websocket writer goroutine exited",
-			"client_id", c.id,
-			"account_id", c.AccountID)
 	}()
 
 	for {
@@ -48,36 +40,17 @@ func (s *Server) writer(c *Client) {
 				return
 			}
 
-			// Log pong messages being written
-			if string(msg) == "pong" {
-				logs.DebugCtx(ctx, "websocket writer: writing pong message",
-					"client_id", c.id,
-					"account_id", c.AccountID)
-			}
-
 			if err := c.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
 				// Log write error but continue running
 				// The writer should only exit when Send channel is closed
 				// The reader will detect connection closure and close the Send channel
 				logs.WarnCtx(ctx, "websocket write error (continuing)", "client_id", c.id, "error", err)
 				// Don't return - continue running and let the Send channel closure signal exit
-			} else {
-				// Log successful pong writes
-				if string(msg) == "pong" {
-					logs.DebugCtx(ctx, "websocket writer: pong written",
-						"client_id", c.id,
-						"account_id", c.AccountID)
-				}
 			}
 
 		case <-pingTicker.C:
 			// Send ping to client
 			c.conn.SetWriteDeadline(time.Now().Add(config.WriteWait))
-			// Log heartbeat (ping sent)
-			logs.DebugCtx(ctx, "websocket heartbeat: ping sent",
-				"client_id", c.id,
-				"account_id", c.AccountID,
-				"ping_period", config.PingPeriod)
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				// Check if error is due to connection already closed (expected when client disconnects)
 				errStr := err.Error()

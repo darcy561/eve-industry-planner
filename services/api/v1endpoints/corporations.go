@@ -3,13 +3,12 @@ package v1endpoints
 import (
 	"context"
 	"errors"
-	"eve-industry-planner/api/helper"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
-	"eve-industry-planner/api/helper/auth"
+	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/sso"
 	"eve-industry-planner/shared/core/config"
 	natscore "eve-industry-planner/shared/core/nats"
@@ -24,28 +23,11 @@ type CorporationsRequest struct {
 	Tokens []string `json:"tokens"` // Array of EVE SSO JWT tokens
 }
 
-// CorporationsHandler handles POST /api/v1/auth/claims/corporations.
-//
-// Registered on the private mux group (apiServer): global middleware → rate limit →
-// [middleware.AuthConstructor] → this handler. Align with frontend withRequestRetries:
-// retry only 408, 429, 5xx (see Endpoints/withRequestRetries.js defaultIsRetriableHttpStatus).
-//
-// Before this handler:
-//   - 429 — rate limiter (private); safe to retry with backoff
-//   - 401 — auth middleware: missing/invalid/revoked session
-//
-// This handler:
-//   - 405 — method != POST
-//   - 401 — missing account session identity (should be rare; middleware normally guards this)
-//   - 400 — invalid JSON/body, no tokens, too many tokens (>50), empty token, no valid SSO tokens after validation
-//   - 500 — config load failure, NATS publish failure
-//   - 204 — task queued successfully (no body)
-//
-// Accepts multiple EVE SSO tokens, validates them, and publishes one worker task.
+// CorporationsHandler handles POST /api/v1/corporation-claims.
 func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
-	m := apimetrics.GetAPIEveTokenLogin() // Reuse auth metrics for now
+	m := apimetrics.GetAPIEveTokenLogin()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
 		ObserveDuration: func(ctx context.Context, ms float64) { m.Requests.Observe(ctx, ms) },
 		IncRequests:     func(ctx context.Context) { m.RequestsCount.Inc(ctx) },
@@ -54,73 +36,59 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	})
 	defer metrics.Finish()
 
-	// Only allow POST requests
 	if !helper.RequireMethod(w, r, http.MethodPost) {
 		metrics.Error("method_not_allowed")
-		logs.WarnCtx(ctx, "invalid method for corporations endpoint")
 		return
 	}
 
-	// Auth middleware stores session-resolved account identity in request context.
-	accountID := auth.AccountIDFromContext(ctx)
-	if accountID == "" {
-		metrics.Error("missing_account_id")
-		logs.WarnCtx(ctx, "AccountID missing from authenticated session context")
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+	accountID := helper.AuthenticatedAccountID(r)
 
-	// Extract tokens from request body
 	reqBody, err := extractCorporationsRequest(r)
 	if err != nil {
 		metrics.Error("extraction_error")
-		logs.WarnCtx(ctx, "failed to extract tokens from request body", "error", err, "account_id", accountID)
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid request", "failed to extract tokens from request body", "corporations_extraction_error", "corporations", err, nil)
 		return
 	}
 
 	if len(reqBody.Tokens) == 0 {
 		metrics.Error("no_tokens")
-		logs.WarnCtx(ctx, "no tokens provided in request", "account_id", accountID)
-		http.Error(w, "No tokens provided", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No tokens provided", "no tokens provided in request", "corporations_no_tokens", "corporations", nil, nil)
 		return
 	}
 
-	// Limit the number of tokens to prevent abuse
 	const maxTokens = 50
 	if len(reqBody.Tokens) > maxTokens {
 		metrics.Error("too_many_tokens")
-		logs.WarnCtx(ctx, "too many tokens provided", "account_id", accountID, "count", len(reqBody.Tokens), "max", maxTokens)
-		http.Error(w, fmt.Sprintf("Too many tokens (max %d)", maxTokens), http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Too many tokens (max %d)", maxTokens), "too many tokens provided", "corporations_too_many_tokens", "corporations", nil, map[string]interface{}{
+			"count": len(reqBody.Tokens),
+			"max":   maxTokens,
+		})
 		return
 	}
 
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		metrics.Error("config_error")
-		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to load config for corporations endpoint", "corporations_config_load_failed", "corporations", err, map[string]interface{}{"account_id": accountID})
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to load config for corporations endpoint", "corporations_config_load_failed", "corporations", err, nil)
 		return
 	}
 
-	// Validate each EVE SSO token before submitting to worker
 	validTokens := make([]string, 0)
-	for i, tokenString := range reqBody.Tokens {
-		// Validate token length
+	skippedTokens := 0
+	for _, tokenString := range reqBody.Tokens {
 		if len(tokenString) > maxTokenLength {
-			logs.WarnCtx(ctx, "token too long", "account_id", accountID, "index", i, "length", len(tokenString), "max", maxTokenLength)
+			skippedTokens++
 			continue
 		}
 
-		// Validate the EVE SSO token
 		claims, err := sso.ValidateEveSSOToken(tokenString, cfg.EveSSOClientID)
 		if err != nil {
-			logs.WarnCtx(ctx, "failed to validate EVE SSO token", "account_id", accountID, "index", i, "error", err)
+			skippedTokens++
 			continue
 		}
 
-		// Verify character ID is present
 		if claims.CharacterID == "" {
-			logs.WarnCtx(ctx, "missing character ID in token", "account_id", accountID, "index", i)
+			skippedTokens++
 			continue
 		}
 
@@ -129,12 +97,18 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 	if len(validTokens) == 0 {
 		metrics.Error("no_valid_tokens")
-		logs.WarnCtx(ctx, "no valid tokens found in request", "account_id", accountID)
-		http.Error(w, "No valid tokens provided", http.StatusBadRequest)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No valid tokens provided", "no valid tokens found in request", "corporations_no_valid_tokens", "corporations", nil, map[string]interface{}{
+			"total_tokens": len(reqBody.Tokens),
+		})
 		return
 	}
 
-	// Submit single task with AccountID and all valid EVE SSO tokens
+	logs.AttachDebugStep(r, "tokens_validated", map[string]interface{}{
+		"total_tokens":   len(reqBody.Tokens),
+		"valid_tokens":   len(validTokens),
+		"skipped_tokens": skippedTokens,
+	})
+
 	taskRequest := natscore.AccountSessionGrantsRequest{
 		AccountID: accountID,
 		Tokens:    validTokens,
@@ -142,23 +116,32 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 	if err := natscore.PublishTask(ctx, clients.JetStream, taskscore.UpdateAccountSessionGrants.Subject, taskscore.UpdateAccountSessionGrants.Name, taskRequest, clients.NATS); err != nil {
 		metrics.Error("publish_error")
-		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to publish account session grants refresh task", "corporations_publish_failed", "corporations", err, map[string]interface{}{"account_id": accountID, "token_count": len(validTokens)})
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to publish account session grants refresh task", "corporations_publish_failed", "corporations", err, map[string]interface{}{"token_count": len(validTokens)})
 		return
 	}
 
-	// Return 204 No Content - task queued successfully, no response body needed
+	logs.AttachDebugStep(r, "grants_task_published", map[string]interface{}{
+		"valid_tokens": len(validTokens),
+	})
+
 	w.WriteHeader(http.StatusNoContent)
 	metrics.Success()
 
-	logs.InfoCtx(ctx, "successfully queued account session grants refresh task",
-		"account_id", accountID,
-		"valid_tokens", len(validTokens),
-		"total_tokens", len(reqBody.Tokens),
-		"duration_ms", time.Since(start).Milliseconds(),
-	)
+	if skippedTokens > 0 {
+		logs.AttachHandlerCaveat(r, "tokens_skipped", "some tokens rejected during validation", map[string]interface{}{
+			"skipped": skippedTokens,
+			"total":   len(reqBody.Tokens),
+			"valid":   len(validTokens),
+		})
+	}
+
+	logs.AttachHandlerSuccessDetail(r, "successfully queued account session grants refresh task", map[string]interface{}{
+		"valid_tokens": len(validTokens),
+		"total_tokens": len(reqBody.Tokens),
+		"duration_ms":  time.Since(start).Milliseconds(),
+	})
 }
 
-// extractCorporationsRequest extracts the tokens array from the request body
 func extractCorporationsRequest(r *http.Request) (*CorporationsRequest, error) {
 	const maxBodySize = 50*maxTokenLength + 1024
 
@@ -167,12 +150,10 @@ func extractCorporationsRequest(r *http.Request) (*CorporationsRequest, error) {
 		return nil, err
 	}
 
-	// Validate tokens array
 	if reqBody.Tokens == nil {
 		return nil, errors.New("tokens array is required")
 	}
 
-	// Trim whitespace from each token
 	for i, token := range reqBody.Tokens {
 		reqBody.Tokens[i] = strings.TrimSpace(token)
 		if reqBody.Tokens[i] == "" {
