@@ -70,6 +70,7 @@ export function ClassicGroupJobCardFrame({
   const { cardLocked, reason: cardLockReason } = useJobCardLockState({
     jobID: job.jobID,
     groupReadOnly,
+    jobLockSubordinateToGroup: true,
   });
   const { addToMultiSelect, removeFromMultiSelect, getActiveGroupObject } =
     useUsersStore.getState().jobData.actions;

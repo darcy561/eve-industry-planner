@@ -1,12 +1,4 @@
 import { useEffect, useRef } from "react";
-import { scopeHasLeasePressure } from "../../Functions/DocumentLock/documentLockScope.js";
-
-/**
- * Derives whether the holder should run contested lease renewals (/extend, nudges).
- */
-export function useLeasePressureFromScope(scope) {
-  return scopeHasLeasePressure(scope);
-}
 
 /**
  * When contention appears or clears, resync from the server so Zustand picks up

@@ -4,6 +4,7 @@ import {
   selectActiveDlLockHeld,
   selectActiveDlReadOnly,
   selectHeaderDocumentLockActive,
+  selectSecondaryDocumentLockContended,
 } from "./documentLockHeaderSelectors.js";
 import {
   USER_JOB_GROUPS_COLLECTION,
@@ -31,6 +32,24 @@ describe("documentLockHeaderSelectors", () => {
     const p = primaryHeaderRegistration(rootState({ registrations: regs }));
     expect(p?.collection).toBe(USER_JOB_GROUPS_COLLECTION);
     expect(p?.docID).toBe("g1");
+  });
+
+  it("selectSecondaryDocumentLockContended is true when non-primary scope is read-only", () => {
+    const gk = docLockScopeKey(USER_JOB_GROUPS_COLLECTION, "g1");
+    const jk = docLockScopeKey(USER_JOBS_COLLECTION, "j1");
+    const s = rootState({
+      registrations: [
+        { collection: USER_JOBS_COLLECTION, docID: "j1", enabled: true },
+        { collection: USER_JOB_GROUPS_COLLECTION, docID: "g1", enabled: true },
+      ],
+      scopes: {
+        [jk]: { readOnly: true, lockHeld: false },
+        [gk]: { readOnly: false, lockHeld: true },
+      },
+    });
+    expect(selectSecondaryDocumentLockContended(s)).toBe(true);
+    expect(selectActiveDlReadOnly(s)).toBe(false);
+    expect(selectActiveDlLockHeld(s)).toBe(true);
   });
 
   it("primaryHeaderRegistration ignores disabled entries", () => {

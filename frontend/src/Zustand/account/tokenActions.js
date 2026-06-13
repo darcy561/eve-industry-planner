@@ -5,7 +5,15 @@
  * @fileoverview Token and session credential actions on the account slice
  */
 
-import { refreshServerSession } from "../../Functions/Auth/serverTokens.js";
+import {
+  fetchServerSession,
+  refreshServerSession,
+} from "../../Functions/Auth/serverTokens.js";
+import {
+  getTabPlannerRefreshToken,
+  persistTabPlannerSession,
+  persistTabPlannerSessionFromAuthResponse,
+} from "../../Functions/Auth/tabSessionStorage.js";
 import { shouldDeferAuthRefreshDueToTranquilityOffline } from "../../Functions/Auth/authRefreshTranquilityGate.js";
 import updateCorporationClaims from "../../Functions/Endpoints/Pirivate/corporationClaims.js";
 import GLOBAL_CONFIG from "../../global-config-app.js";
@@ -25,7 +33,7 @@ let esStaggerIndex = 0;
  * Single-flight guard for {@link tokenActions.refreshServerToken}. Concurrent
  * private API calls + the staggered ESI step + maintenance can all hit the
  * refresh path at once; each parallel call rotates the planner refresh row in
- * Redis (and the HttpOnly cookie for cloud users), orphaning the losers' tokens.
+ * Redis; credentials live in this tab's sessionStorage.
  * While a refresh is in flight, additional callers await the same promise.
  *
  * @type {Promise<void>|null}
@@ -267,12 +275,9 @@ export const tokenActions = (set, get) => ({
             sessionID,
             lastPlannerSessionValidatedAt: sessionID ? Date.now() : null,
             plannerPrivateAuthReady: sessionID ? false : state.account.plannerPrivateAuthReady,
-            refreshToken: cloudResolved
-              ? null
-              : response.refresh_token ?? null,
-            refreshTokenEXP: cloudResolved
-              ? null
-              : response.refresh_token_exp ?? response.refresh_token_expires_at,
+            refreshToken: response.refresh_token ?? null,
+            refreshTokenEXP:
+              response.refresh_token_exp ?? response.refresh_token_expires_at,
             isFirstTimeLogin,
             ...linkedPatch,
             ...(nextHasCompletedFirstLogin !== undefined && {
@@ -294,6 +299,8 @@ export const tokenActions = (set, get) => ({
       false,
       "account/applyLoginAuthResponse"
     );
+
+    persistTabPlannerSessionFromAuthResponse(response);
 
     const aid = response.account_id;
     if (aid) {
@@ -391,6 +398,15 @@ export const tokenActions = (set, get) => ({
       typeof partial.sessionID === "string" && partial.sessionID.trim()
         ? partial.sessionID.trim()
         : undefined;
+    persistTabPlannerSession({
+      ...(nextSessionID !== undefined && { sessionID: nextSessionID }),
+      ...(partial.refreshToken !== undefined && {
+        refreshToken: partial.refreshToken,
+      }),
+      ...(partial.refreshTokenEXP !== undefined && {
+        refreshTokenEXP: partial.refreshTokenEXP,
+      }),
+    });
     set(
       (state) => ({
         ...state,
@@ -420,8 +436,8 @@ export const tokenActions = (set, get) => ({
    * is within `PLANNER_SESSION_ROTATE_COOLDOWN_MS` (~20m from {@link GLOBAL_CONFIG.PLANNER_SESSION_ROTATE_COOLDOWN_MINUTES}),
    * returns without HTTP — login/bootstrap already validated the session.
    *
-   * In **cloud mode**, `eve_token` may be omitted when stale so the server uses the HttpOnly
-   * cookie + Mongo ESI (see `refresh.go` empty-`eve_token` branch).
+   * Planner refresh material is per-tab (`sessionStorage` + body on rotate). In **cloud mode**,
+   * `eve_token` may be omitted when stale so the server uses stored ESI from Mongo.
    *
    * Concurrent callers share one in-flight promise via {@link inflightRefreshServerTokenPromise}.
    */
@@ -452,11 +468,7 @@ export const tokenActions = (set, get) => ({
       }
 
       try {
-        const { refreshToken } = state.account;
         const cloud = !!state.applicationSettings?.userCloudAccounts;
-        if (!refreshToken && !cloud) {
-          return;
-        }
         const currentTimeStamp = Math.floor(Date.now() / 1000);
 
         // Cloud mode: prefer the Mongo fallback (empty eve_token + cookie) when the
@@ -476,14 +488,16 @@ export const tokenActions = (set, get) => ({
           typeof eveTokenForRefresh !== "string" ||
           eveTokenForRefresh.trim().length === 0
         ) {
-          // Local accounts must provide eve_token on refresh; skip until available.
+          // Local accounts must provide eve_token on refresh; skip until ESI refresh runs.
           return;
         }
 
-        const response = await refreshServerSession(
-          refreshToken || null,
-          eveTokenForRefresh
-        );
+        const tabRefresh = getTabPlannerRefreshToken() ?? state.account.refreshToken;
+        if (!tabRefresh && !cloud) {
+          return;
+        }
+
+        const response = await refreshServerSession(tabRefresh || null, eveTokenForRefresh);
 
         const tokenPatch = {
           sessionID: response.session_id ?? get().account.sessionID,
@@ -507,7 +521,39 @@ export const tokenActions = (set, get) => ({
           "account/plannerSessionRotateOk"
         );
       } catch (err) {
-        console.error(err.message);
+        const msg = err?.message ?? String(err);
+        const cloud = !!get().applicationSettings?.userCloudAccounts;
+        let eveTokenForRecovery = mainCharacter.esiAccessToken || "";
+        if (
+          msg.includes("401") &&
+          !cloud &&
+          typeof eveTokenForRecovery === "string" &&
+          eveTokenForRecovery.trim().length > 0
+        ) {
+          try {
+            const loginResp = await fetchServerSession(eveTokenForRecovery);
+            get().account.actions.applyLoginAuthResponse(
+              loginResp,
+              mainCharacter.CharacterHash
+            );
+            set(
+              (s) => ({
+                ...s,
+                account: {
+                  ...s.account,
+                  lastPlannerSessionValidatedAt: Date.now(),
+                  actions: s.account.actions,
+                },
+              }),
+              false,
+              "account/plannerSessionReestablishOk"
+            );
+            return;
+          } catch (reestablishErr) {
+            console.error(reestablishErr?.message ?? reestablishErr);
+          }
+        }
+        console.error(msg);
       }
     })();
 

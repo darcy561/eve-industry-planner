@@ -1,5 +1,9 @@
 import { selectScopedDocumentLock } from "./documentLockSelectors.js";
 import {
+  mergeScopedDocumentLockState,
+  scopeHasOtherSessionContention,
+} from "./documentLockScope.js";
+import {
   USER_JOB_GROUPS_COLLECTION,
   USER_JOBS_COLLECTION,
 } from "./documentLockCollections.js";
@@ -9,7 +13,7 @@ import {
  * Must stay as top-level references so `useSyncExternalStore` snapshots stay stable (Zustand v5 + React 19).
  */
 
-/** Prefer group scope over job when both register — group is the unit of edit access. */
+/** Group lock is authoritative for member jobs in a group edit session. */
 function headerRegistrationRank(collection) {
   if (collection === USER_JOB_GROUPS_COLLECTION) return 0;
   if (collection === USER_JOBS_COLLECTION) return 1;
@@ -143,4 +147,28 @@ export function selectActiveDlViewerCount(s) {
 export function selectHeaderDocumentLockRegistrations(s) {
   const regs = s.headerDocumentLockUI.registrations;
   return Array.isArray(regs) ? regs : [];
+}
+
+/**
+ * True when any enabled registration other than the primary scope has contention
+ * (read-only, waitlist, viewers, etc.). Edit Job registers job + group; the
+ * primary drives the icon, but group queue must still surface the affordance.
+ *
+ * @param {*} s
+ */
+export function selectSecondaryDocumentLockContended(s) {
+  const regs = selectHeaderDocumentLockRegistrations(s);
+  if (regs.length <= 1) return false;
+  const primary = primaryHeaderRegistration(s);
+  if (!primary?.collection || !primary?.docID) return false;
+  const scopes = s.documentLock?.scopes ?? {};
+  for (const r of regs) {
+    if (r.enabled === false || !r.collection || !r.docID) continue;
+    if (r.collection === primary.collection && r.docID === primary.docID) {
+      continue;
+    }
+    const st = mergeScopedDocumentLockState(scopes, r.collection, r.docID);
+    if (scopeHasOtherSessionContention(st)) return true;
+  }
+  return false;
 }

@@ -87,7 +87,7 @@ describe("useDocumentLockState", () => {
     expect(result.current).toBe(true);
   });
 
-  it("useJobCardLockState combines job and group read-only", () => {
+  it("useJobCardLockState combines job and group read-only on planner", () => {
     storeRef.current.getState().documentLock.actions.patchDocumentLockForScope(
       USER_JOBS_COLLECTION,
       "job-1",
@@ -99,5 +99,21 @@ describe("useDocumentLockState", () => {
     expect(result.current.cardLocked).toBe(true);
     expect(result.current.jobReadOnly).toBe(true);
     expect(result.current.reason).toContain("job");
+  });
+
+  it("useJobCardLockState ignores per-job read-only when subordinate to group", () => {
+    storeRef.current.getState().documentLock.actions.patchDocumentLockForScope(
+      USER_JOBS_COLLECTION,
+      "job-1",
+      { readOnly: true }
+    );
+    const { result } = renderHook(() =>
+      useJobCardLockState({
+        jobID: "job-1",
+        groupReadOnly: false,
+        jobLockSubordinateToGroup: true,
+      })
+    );
+    expect(result.current.cardLocked).toBe(false);
   });
 });

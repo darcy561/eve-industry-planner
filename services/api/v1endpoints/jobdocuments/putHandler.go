@@ -71,12 +71,17 @@ func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 			return
 		}
 		jobIDs := make([]string, 0, len(reqBody.Jobs))
+		jobGroupBypass := documentlock.JobGroupBypass{}
 		for _, j := range reqBody.Jobs {
-			if j.JobID != "" {
-				jobIDs = append(jobIDs, j.JobID)
+			if j.JobID == "" {
+				continue
+			}
+			jobIDs = append(jobIDs, j.JobID)
+			if j.IncludedInGroup && j.GroupID != "" {
+				jobGroupBypass[j.JobID] = j.GroupID
 			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, mongocore.CollectionUserJobDocuments, jobIDs)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, mongocore.CollectionUserJobDocuments, jobIDs, jobGroupBypass)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")

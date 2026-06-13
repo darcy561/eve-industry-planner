@@ -61,12 +61,6 @@ export const DOCUMENT_LOCK_FRAME_TYPES = Object.freeze({
   VIEWER_DEPARTED: "document_lock_viewer_departed",
 });
 
-/** @deprecated Use {@link DOCUMENT_LOCK_DOMAIN_EVENTS}. */
-export const DOCUMENT_LOCK_EVENTS = DOCUMENT_LOCK_DOMAIN_EVENTS;
-
-/** @deprecated Use {@link DOCUMENT_LOCK_FRAME_TYPES}. */
-export const DOCUMENT_LOCK_WS_TYPES = DOCUMENT_LOCK_FRAME_TYPES;
-
 /**
  * `reason` fields on `document_lock_released` / `document_lock_expired` /
  * `document_lock_handoff_completed` / `document_lock_group_cascade` events.

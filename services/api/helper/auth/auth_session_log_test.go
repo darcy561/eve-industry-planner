@@ -80,7 +80,7 @@ func TestExtractAccountSession_MissingCookieIncludesReason(t *testing.T) {
 	if !errors.As(err, &authErr) {
 		t.Fatalf("expected AuthSessionError, got %T: %v", err, err)
 	}
-	if authErr.Code != "session_missing" || authErr.Reason != authSessionReasonCookieAbsent {
+	if authErr.Code != "session_missing" || authErr.Reason != authSessionReasonSessionAbsent {
 		t.Fatalf("unexpected auth error: %+v", authErr)
 	}
 	if authErr.SessionID != "" || authErr.AccountID != "" {

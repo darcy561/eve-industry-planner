@@ -8,10 +8,11 @@ import {
   storeOriginalPathFromOAuthState,
   tryCompleteAdditionalAccountImportWindow,
 } from "../authCallbackParams.js";
+import { getTabPlannerRefreshToken } from "../../../Functions/Auth/tabSessionStorage.js";
+import { hasCloudOAuthStorageServerHint } from "../../../Functions/Auth/plannerAuthCookies.js";
 
 /**
- * One-shot: OAuth `code`, localStorage `Auth`, HttpOnly app refresh cookie + server-side Mongo ESI (cloud reload),
- * or EVE SSO redirect.
+ * One-shot: OAuth `code`, localStorage `Auth`, per-tab sessionStorage resume, or EVE SSO redirect.
  */
 export function useAuthUrlLogin() {
   const queryClient = useQueryClient();
@@ -60,16 +61,18 @@ export function useAuthUrlLogin() {
         return;
       }
 
-      try {
-        await runAppLogin({
-          queryClient,
-          prefetchMultipleCharacters,
-          triggerCharacterDataPrefetch,
-          mode: { type: "cookieCloudResume" },
-        });
-        return;
-      } catch {
-        /* No cookie session or not cloud / Mongo ESI missing — full SSO */
+      if (getTabPlannerRefreshToken() || hasCloudOAuthStorageServerHint()) {
+        try {
+          await runAppLogin({
+            queryClient,
+            prefetchMultipleCharacters,
+            triggerCharacterDataPrefetch,
+            mode: { type: "cookieCloudResume" },
+          });
+          return;
+        } catch {
+          /* Tab session stale or cloud ESI missing — full SSO */
+        }
       }
 
       redirectToEveSSO();

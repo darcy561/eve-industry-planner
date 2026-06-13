@@ -18,6 +18,7 @@ import {
   patchPlannerGroupLockScopeFromApi,
   patchPlannerJobLockScopeFromApi,
 } from "./plannerLockScopeFromApi.js";
+import { groupMemberJobScopeAfterGroupGrantPartial } from "../../Functions/DocumentLock/patchGroupMemberJobScopesAfterGroupGrant.js";
 
 /**
  * Iterates the requested `(jobIDs, groupIDs)` arrays in `chunkSize`-sized
@@ -189,13 +190,7 @@ export function useLockScopeSync({
           updates.push({
             collection: USER_JOBS_COLLECTION,
             docID: r.docID,
-            partial: {
-              lockHeld: false,
-              readOnly: false,
-              pendingAccessRequest: false,
-              lockExpiresAtUnix: null,
-              lockTtlSeconds: null,
-            },
+            partial: groupMemberJobScopeAfterGroupGrantPartial(),
           });
         }
         if (updates.length > 0) {
@@ -232,6 +227,3 @@ export function useLockScopeSync({
       );
   }, [isLoggedIn, trackGroups]);
 }
-
-/** @internal Exposed so the planner page can compute its chunk size lazily. */
-export const PLANNER_LOCK_SYNC_DEFAULT_CHUNK = MAX_STATUS_BATCH_DOC_IDS;

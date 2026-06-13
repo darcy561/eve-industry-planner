@@ -1,5 +1,5 @@
 /**
- * Module singleton WebSocket client for same-origin `/ws` (cookie-backed session auth).
+ * Module singleton WebSocket client for same-origin `/ws` (per-tab session query param).
  * Does not live in Zustand — connect/disconnect are explicit from auth lifecycle.
  */
 
@@ -104,9 +104,13 @@ export function stashRealtimeSessionResumeHint() {
   resumeHint = { accountId: accountID, clientId: cid };
 }
 
-/** Same-origin `/ws`; auth is HttpOnly session cookie only (no query params). */
+/** Same-origin `/ws`; per-tab session via `planner_session_id` query param. */
 function wsUrl() {
   const u = new URL("/ws", window.location.origin);
+  const sid = getSessionIDFromStore();
+  if (sid) {
+    u.searchParams.set("planner_session_id", sid);
+  }
   if (u.protocol === "https:") {
     u.protocol = "wss:";
   } else if (u.protocol === "http:") {

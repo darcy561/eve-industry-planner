@@ -5,6 +5,9 @@ import {
   selectScopedDocumentLock,
 } from "../../../Functions/DocumentLock/documentLockSelectors";
 import {
+  selectEffectiveJobDocumentLock,
+} from "../../../Functions/DocumentLock/groupSubordinateJobLock.js";
+import {
   USER_JOBS_COLLECTION,
   USER_JOB_GROUPS_COLLECTION,
 } from "../../../Functions/DocumentLock/documentLockCollections";
@@ -29,11 +32,12 @@ import { persistAffordanceBlockedReason } from "../../DocumentLock/LockGatedTool
  * @returns {boolean}
  */
 export function useActiveJobReadOnly(state) {
-  return useUsersStore((s) =>
-    state?.activeJob?.jobID
-      ? selectDocumentLockReadOnly(s, USER_JOBS_COLLECTION, state.activeJob.jobID)
-      : false
-  );
+  return useUsersStore((s) => {
+    const jobID = state?.activeJob?.jobID;
+    const groupID = state?.activeJob?.groupID;
+    if (!jobID) return false;
+    return selectEffectiveJobDocumentLock(s, jobID, groupID).readOnly === true;
+  });
 }
 
 /**
@@ -73,11 +77,19 @@ export function useActiveGroupReadOnly(state) {
  * }}
  */
 export function useActiveJobOrGroupReadOnly(state) {
+  const groupID = state?.activeJob?.groupID;
   const jobReadOnly = useActiveJobReadOnly(state);
   const groupReadOnly = useActiveGroupReadOnly(state);
+  const subordinate = useUsersStore((s) =>
+    Boolean(
+      groupID &&
+        s.jobData?.activeGroupID &&
+        s.jobData.activeGroupID === groupID
+    )
+  );
   return {
-    readOnly: jobReadOnly || groupReadOnly,
-    jobReadOnly,
+    readOnly: subordinate ? groupReadOnly : jobReadOnly || groupReadOnly,
+    jobReadOnly: subordinate ? false : jobReadOnly,
     groupReadOnly,
   };
 }
@@ -89,12 +101,12 @@ export function useActiveJobOrGroupReadOnly(state) {
  * @returns {boolean}
  */
 export function useActiveJobLockHeld(state) {
-  return useUsersStore((s) =>
-    state?.activeJob?.jobID
-      ? selectScopedDocumentLock(s, USER_JOBS_COLLECTION, state.activeJob.jobID)
-          .lockHeld
-      : false
-  );
+  return useUsersStore((s) => {
+    const jobID = state?.activeJob?.jobID;
+    const groupID = state?.activeJob?.groupID;
+    if (!jobID) return false;
+    return selectEffectiveJobDocumentLock(s, jobID, groupID).lockHeld === true;
+  });
 }
 
 /**
@@ -130,11 +142,18 @@ export function useActiveJobPersistGate(state) {
   const { readOnly, jobReadOnly, groupReadOnly } = useActiveJobOrGroupReadOnly(state);
   const jobLockHeld = useActiveJobLockHeld(state);
   const groupLockHeld = useActiveGroupLockHeld(state);
+  const activeGroupID = useUsersStore((s) => s.jobData.activeGroupID);
   const hasGroup = Boolean(state?.activeJob?.groupID);
   const jobID = state?.activeJob?.jobID;
 
-  const canPersist =
-    Boolean(jobID) && !readOnly && jobLockHeld && (!hasGroup || groupLockHeld);
+  const subordinate = Boolean(
+    hasGroup &&
+      activeGroupID &&
+      activeGroupID === state?.activeJob?.groupID
+  );
+  const canPersist = subordinate
+    ? Boolean(jobID) && !readOnly && groupLockHeld
+    : Boolean(jobID) && !readOnly && jobLockHeld && (!hasGroup || groupLockHeld);
 
   return {
     canPersist,

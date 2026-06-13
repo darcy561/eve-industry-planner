@@ -49,6 +49,7 @@ export function CompactGroupJobCardFrame({
   const { cardLocked, reason: cardLockReason } = useJobCardLockState({
     jobID: job.jobID,
     groupReadOnly,
+    jobLockSubordinateToGroup: true,
   });
   const { addToMultiSelect, removeFromMultiSelect } =
     useUsersStore.getState().jobData.actions;

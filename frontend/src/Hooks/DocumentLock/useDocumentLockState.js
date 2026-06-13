@@ -89,6 +89,7 @@ export function useActiveGroupLockReadOnly() {
  * @param {Object} params
  * @param {string | undefined | null} params.jobID
  * @param {boolean} [params.groupReadOnly=false]
+ * @param {boolean} [params.jobLockSubordinateToGroup=false] — group page: group lock owns member jobs
  * @returns {{
  *   cardLocked: boolean,
  *   jobReadOnly: boolean,
@@ -96,13 +97,19 @@ export function useActiveGroupLockReadOnly() {
  *   reason: string,
  * }}
  */
-export function useJobCardLockState({ jobID, groupReadOnly = false } = {}) {
+export function useJobCardLockState({
+  jobID,
+  groupReadOnly = false,
+  jobLockSubordinateToGroup = false,
+} = {}) {
   const jobReadOnly = useJobLockReadOnly(jobID);
-  const cardLocked = jobReadOnly || groupReadOnly;
+  const cardLocked = jobLockSubordinateToGroup
+    ? groupReadOnly
+    : jobReadOnly || groupReadOnly;
   let reason = "";
   if (cardLocked) {
     reason = lockReasonText({
-      scope: groupReadOnly ? "group" : "job",
+      scope: groupReadOnly || jobLockSubordinateToGroup ? "group" : "job",
       action: "opens in read-only view",
     });
   }

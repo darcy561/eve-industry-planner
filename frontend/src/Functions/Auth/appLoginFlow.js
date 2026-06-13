@@ -19,6 +19,7 @@ import { bootstrapWatchlistLoginStep } from "../../Components/Auth/bootstrapWatc
 import { upsertCloudStoredEsiRefreshTokens } from "../Endpoints/Pirivate/cloudStoredEsiRefreshTokens.js";
 import { decodeJwt } from "jose";
 import Character from "../../Classes/character";
+import { getTabPlannerRefreshToken } from "./tabSessionStorage.js";
 
 /**
  * Stores main character ESI refresh in Mongo (encrypted) for cloud accounts and drops client-held material.
@@ -68,13 +69,14 @@ export async function resolveLoginWithEveOauthCode(authCode) {
 }
 
 /**
- * Cloud cold reload: HttpOnly app refresh cookie + POST …/auth/sessions/bootstrap with empty eve_token.
- * Server validates Redis session and refreshes stored ESI from Mongo; client then loads ESI access via cloud-stored endpoint.
+ * Tab reload resume: per-tab refresh token in sessionStorage + POST …/bootstrap.
+ * Cloud accounts may omit eve_token (server refreshes ESI from Mongo).
  *
  * @returns {Promise<{ character: object, tokenResponse: object, loginAlreadyApplied: boolean }>}
  */
 export async function resolveLoginWithCookieCloudResume() {
-  const tokenResponse = await refreshServerSessionForLogin(null, "");
+  const tabRefresh = getTabPlannerRefreshToken();
+  const tokenResponse = await refreshServerSessionForLogin(tabRefresh, "");
   const mainHash =
     tokenResponse.main_character_hash ??
     tokenResponse?.user_document?.mainCharacterHash;
@@ -140,21 +142,12 @@ export async function resolveLoginWithEveClientRefreshToken(
   if (character instanceof Error) {
     throw character;
   }
-  const existingServerRefreshToken =
-    useUsersStore.getState().account.refreshToken;
-  const cloudAccounts =
-    !!useUsersStore.getState().applicationSettings?.userCloudAccounts;
-
+  const tabRefresh = getTabPlannerRefreshToken();
   let tokenResponse;
-  if (existingServerRefreshToken) {
-    tokenResponse = await refreshServerSessionForLogin(
-      existingServerRefreshToken,
-      character.esiAccessToken
-    );
-  } else if (cloudAccounts) {
+  if (tabRefresh) {
     try {
       tokenResponse = await refreshServerSessionForLogin(
-        null,
+        tabRefresh,
         character.esiAccessToken
       );
     } catch {

@@ -8,8 +8,7 @@ import (
 const (
 	// WSClientIDHeader is the request header carrying the websocket client ID.
 	WSClientIDHeader = "X-WS-Client-ID"
-	// SessionIDHeader is optional; session is validated via cookie + Redis (middleware). When set,
-	// it must match the JWT session_id claim.
+	// SessionIDHeader carries the per-tab planner session id (primary auth identity).
 	SessionIDHeader = "X-Session-ID"
 )
 

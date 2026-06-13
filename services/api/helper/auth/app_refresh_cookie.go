@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// AppRefreshCookieName is the HttpOnly cookie holding the server app refresh token (cloud-account users).
+// AppRefreshCookieName is the legacy HttpOnly refresh cookie (unused for per-tab sessions).
 const AppRefreshCookieName = "eip_app_refresh"
 
 // appRefreshCookiePath scopes the cookie to auth endpoints only.
@@ -16,7 +16,7 @@ func AppRefreshCookieMaxAgeSeconds() int {
 	return int(RefreshTokenTTL.Seconds())
 }
 
-// SetAppRefreshCookie sets the HttpOnly app refresh cookie (cloud users).
+// SetAppRefreshCookie sets the HttpOnly app refresh cookie.
 func SetAppRefreshCookie(w http.ResponseWriter, r *http.Request, refreshToken string) {
 	_ = r
 	if refreshToken == "" || w == nil {

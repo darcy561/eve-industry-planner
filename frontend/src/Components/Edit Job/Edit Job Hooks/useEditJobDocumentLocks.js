@@ -25,8 +25,9 @@ export function useEditJobDocumentLocks({ jobID, activeJob, isLoading }) {
       activeJob?.groupID === activeGroupID
   );
 
-  useDocumentLock(USER_JOBS_COLLECTION, jobID ?? "", documentLockReady, {
-    releaseOnUnmount: !groupLockReady,
+  // Group edit sessions: the group lock owns every member job — no per-job acquire.
+  useDocumentLock(USER_JOBS_COLLECTION, jobID ?? "", documentLockReady && !groupLockReady, {
+    releaseOnUnmount: true,
     pendingAccessRequestMessage:
       "Another tab requested edit access for this job.",
     becameOwnerVacantMessage:
@@ -63,33 +64,32 @@ export function useEditJobDocumentLocks({ jobID, activeJob, isLoading }) {
   );
 
   const headerLockRegistrations = useMemo(() => {
-    const jobReg = {
-      collection: USER_JOBS_COLLECTION,
-      docID: jobID ?? "",
-      enabled: documentLockReady,
-      label: "Job",
-      readOnlyMessage:
-        "This job is being edited in another session (read-only).",
-      treeOwnership: "full",
-    };
-
-    if (!groupLockReady || !activeGroupID) {
-      return [jobReg];
+    if (groupLockReady && activeGroupID) {
+      return [
+        {
+          collection: USER_JOB_GROUPS_COLLECTION,
+          docID: activeGroupID,
+          enabled: true,
+          label: "Group",
+          readOnlyMessage:
+            "This group is being edited in another session (read-only). Member jobs share this lock.",
+          treeOwnership: "full",
+        },
+      ];
     }
 
     return [
-      jobReg,
       {
-        collection: USER_JOB_GROUPS_COLLECTION,
-        docID: activeGroupID,
-        enabled: documentLockReady,
-        label: "Group",
+        collection: USER_JOBS_COLLECTION,
+        docID: jobID ?? "",
+        enabled: Boolean(isLoggedIn && jobID),
+        label: "Job",
         readOnlyMessage:
-          "This group is being edited in another session (read-only).",
-        treeOwnership: "limited",
+          "This job is being edited in another session (read-only).",
+        treeOwnership: "full",
       },
     ];
-  }, [activeGroupID, documentLockReady, groupLockReady, jobID]);
+  }, [activeGroupID, groupLockReady, isLoggedIn, jobID]);
 
   useRegisterHeaderDocumentLockUI({
     registrations: headerLockRegistrations,

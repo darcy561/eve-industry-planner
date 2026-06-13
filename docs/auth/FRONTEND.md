@@ -16,9 +16,9 @@ Defined in `frontend/src/Zustand/account/account.js` (defaults) and `frontend/sr
 |---|---|---|
 | `accountID` | `string \| null` | Sanitized character hash. Set by `applyLoginAuthResponse`. |
 | `mainCharacterHash` | `string \| null` | EVE character hash for the main character. |
-| `sessionID` | `string \| null` | Planner session id (mirrors the `eip_session` cookie value). |
+| `sessionID` | `string \| null` | Planner session id for **this tab** (mirrors `sessionStorage` via `tabSessionStorage.js`). |
 | `lastPlannerSessionValidatedAt` | `number \| null` | `Date.now()` of the last successful login / rotate / bootstrap. Drives the rotate cooldown. |
-| `refreshToken` | `string \| null` | Planner refresh token (raw). **Null** for cloud accounts (server keeps the value in the HttpOnly `eip_app_refresh` cookie). |
+| `refreshToken` | `string \| null` | Per-tab planner refresh token (mirrors `sessionStorage`; sent in JSON on bootstrap/rotate). |
 | `refreshTokenEXP` | `number \| null` | Optional epoch-seconds expiry mirrored from the server. |
 | `isLoggedIn` | `boolean` | The single source of truth used by route guards. Flipped by `setLoggedIn(true)` after `applyClientSessionAfterAppTokens` resolves. |
 | `isFirstTimeLogin` | `boolean` | `first_login` from the server (login-only). |
@@ -31,7 +31,7 @@ Defined in `frontend/src/Zustand/account/account.js` (defaults) and `frontend/sr
 
 | Action | Role |
 |---|---|
-| `applyLoginAuthResponse(response, mainCharacterHash)` | Single Zustand transaction. Mirrors the `SessionBootstrapResponse` (or rotate response) onto the account slice + `applicationSettings` slice. Detects cloud vs local via `esi_oauth_storage`. **Drops `refresh_token` for cloud users** (server holds it in the cookie). |
+| `applyLoginAuthResponse(response, mainCharacterHash)` | Single Zustand transaction. Mirrors the `SessionBootstrapResponse` (or rotate response) onto the account slice + `applicationSettings` slice. Detects cloud vs local via `esi_oauth_storage`. Persists `session_id` + `refresh_token` to **tab** `sessionStorage`. |
 | `clearLinkedBootstrapHydrationPending()` | Called by `runPostLoginAccountSync` when bootstrap hydration finishes. |
 | `applyUserDocumentFromRemote(doc)` | Realtime updates to the `users` collection (linked sets, `userCloudAccounts`, etc.). |
 | `setSessionTokens(partial)` | Merge `{ sessionID?, refreshToken?, refreshTokenEXP? }` after a successful rotate. |
@@ -66,9 +66,10 @@ flowchart TB
 
 1. URL contains `?code=…` → `runAppLogin({ mode: "oauthCode", authCode })`.
 2. `localStorage["Auth"]` exists → `runAppLogin({ mode: "eveClientRefresh", eveClientRefreshToken })`.
-3. Otherwise → `runAppLogin({ mode: "cookieCloudResume" })` (POSTs `/auth/sessions/bootstrap` with empty `eve_token`, relying on `eip_app_refresh` + `eip_session`).
+3. Tab has stored refresh (`sessionStorage`) or cloud OAuth hint → `runAppLogin({ mode: "cookieCloudResume" })` (POSTs `/auth/sessions/bootstrap` with per-tab `refresh_token` + `X-Session-ID`; cloud may omit `eve_token`).
+4. Otherwise → EVE SSO redirect (new tab gets a **new** planner session).
 
-All three converge on `applyClientSessionAfterAppTokens` (`frontend/src/Functions/Auth/appLoginFlow.js`), which:
+All successful modes converge on `applyClientSessionAfterAppTokens` (`frontend/src/Functions/Auth/appLoginFlow.js`), which:
 
 1. Runs `applyLoginAuthResponse` (unless the mode already did).
 2. For cloud accounts, calls `persistCloudMainEsiRefreshToken` to push the main ESI refresh token into Mongo and clear `localStorage["Auth"]`.
