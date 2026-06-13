@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
+
+	mongocore "eve-industry-planner/shared/core/mongo"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -111,15 +114,23 @@ func dedupeDocIDs(ids []string) []string {
 	return out
 }
 
+// JobGroupBypass maps job document ID → parent group ID. When the requester
+// holds the group lock, a conflicting per-job lock does not block the write
+// (group holder owns member job locks).
+type JobGroupBypass map[string]string
+
 // CollectLockHeldElsewhereRejects returns one entry per docID in `docIDs` (after
 // dedupe) whose lock is held by a session other than requesterSessionID.
 // Empty result means the batch may proceed. Nil rdb returns nil, nil (no enforcement).
 // Empty requesterSessionID returns (nil, errNonEmptySession) — callers must require session when enforcing.
+//
+// jobGroupBypass is only consulted for mongocore.CollectionUserJobDocuments; pass nil otherwise.
 func CollectLockHeldElsewhereRejects(
 	ctx context.Context,
 	rdb *redis.Client,
 	accountID, requesterSessionID, collection string,
 	docIDs []string,
+	jobGroupBypass JobGroupBypass,
 ) ([]LockHeldElsewhereItem, error) {
 	if rdb == nil {
 		return nil, nil
@@ -145,6 +156,27 @@ func CollectLockHeldElsewhereRejects(
 	}
 
 	now := time.Now().Unix()
+	useGroupBypass := collection == mongocore.CollectionUserJobDocuments && len(jobGroupBypass) > 0
+	groupHeldByRequester := map[string]bool{}
+	if useGroupBypass {
+		seenGroups := make(map[string]struct{})
+		for _, id := range uniq {
+			gid := strings.TrimSpace(jobGroupBypass[id])
+			if gid == "" {
+				continue
+			}
+			if _, ok := seenGroups[gid]; ok {
+				continue
+			}
+			seenGroups[gid] = struct{}{}
+			check, err := RequireHolder(ctx, rdb, accountID, requesterSessionID, mongocore.CollectionUserJobGroups, gid)
+			if err != nil {
+				return nil, err
+			}
+			groupHeldByRequester[gid] = check.Outcome == HolderOutcomeHeldByRequester
+		}
+	}
+
 	var rejects []LockHeldElsewhereItem
 	for i, id := range uniq {
 		s, err := cmds[i].Result()
@@ -162,6 +194,11 @@ func CollectLockHeldElsewhereRejects(
 			continue
 		}
 		if rec.HolderSessionID != requesterSessionID {
+			if useGroupBypass {
+				if gid := strings.TrimSpace(jobGroupBypass[id]); gid != "" && groupHeldByRequester[gid] {
+					continue
+				}
+			}
 			rejects = append(rejects, LockHeldElsewhereItem{
 				DocID:             id,
 				HolderSessionID:   rec.HolderSessionID,

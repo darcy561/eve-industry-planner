@@ -6,6 +6,7 @@ import {
   DOCUMENT_LOCK_CUSTOM_EVENT,
   DOCUMENT_LOCK_DOMAIN_EVENTS,
 } from "../../Functions/DocumentLock/documentLockEvents.js";
+import { groupMemberJobScopeAfterGroupGrantPartial } from "../../Functions/DocumentLock/patchGroupMemberJobScopesAfterGroupGrant.js";
 import { clearedHandoffState } from "./documentLockHookShared.js";
 import { DOCUMENT_LOCK_HELD_ACTIONS } from "./documentLockHeldReducer.js";
 
@@ -43,11 +44,7 @@ export function useLockWsListener({
         if (!hit) return;
         cancelReadOnlyGrace();
         patch({
-          lockHeld: false,
-          readOnly: false,
-          pendingAccessRequest: false,
-          lockExpiresAtUnix: null,
-          lockTtlSeconds: null,
+          ...groupMemberJobScopeAfterGroupGrantPartial(),
           ...clearedHandoffState(),
         });
         dispatchHeld({ type: DOCUMENT_LOCK_HELD_ACTIONS.SET, held: false });

@@ -81,7 +81,7 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 				groupIDs = append(groupIDs, g.GroupID)
 			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, mongocore.CollectionUserJobGroups, groupIDs)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, mongocore.CollectionUserJobGroups, groupIDs, nil)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")

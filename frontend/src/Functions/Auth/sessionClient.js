@@ -1,6 +1,12 @@
 import withRequestRetries from "../Endpoints/withRequestRetries.js";
 import requestWithPrivateHeaders from "../Endpoints/Pirivate/applyPrivateHeaders.js";
 import { clearPlannerAuthCookiesClientSide } from "./plannerAuthCookies.js";
+import {
+  clearTabPlannerSession,
+  getTabPlannerRefreshToken,
+  tabPlannerSessionRequestHeaders,
+  persistTabPlannerSessionFromAuthResponse,
+} from "./tabSessionStorage.js";
 
 const AUTH_SESSIONS = "/api/v1/auth/sessions";
 const AUTH_SESSIONS_ROTATE = "/api/v1/auth/sessions/rotate";
@@ -14,46 +20,57 @@ function getAppVersionHeaderValue() {
   return "unknown";
 }
 
+function authSessionHeaders(extra = {}) {
+  return {
+    "Content-Type": "application/json",
+    "X-App-Version": getAppVersionHeaderValue(),
+    ...tabPlannerSessionRequestHeaders(),
+    ...extra,
+  };
+}
+
 /** Initial planner session from EVE SSO access JWT (`POST /api/v1/auth/sessions`). */
 export async function establishPlannerSession(eveSSOToken) {
   const response = await withRequestRetries(() =>
     fetch(AUTH_SESSIONS, {
       method: "POST",
       credentials: "same-origin",
-      headers: {
-        "Content-Type": "application/json",
-        "X-App-Version": getAppVersionHeaderValue(),
-      },
+      headers: authSessionHeaders(),
       body: JSON.stringify({ token: eveSSOToken }),
     })
   );
   if (!response.ok) {
     throw new Error(`Failed to fetch server session: ${response.status} ${response.statusText}`);
   }
-  return response.json();
+  const json = await response.json();
+  persistTabPlannerSessionFromAuthResponse(json);
+  return json;
 }
 
-/** Periodic planner session rotate (`POST .../rotate`). Response `kind`: `session_rotate`. */
+/**
+ * Periodic planner session rotate (`POST .../rotate`). Response `kind`: `session_rotate`.
+ * Per-tab `refresh_token` in body + `X-Session-ID` header.
+ */
 export async function rotatePlannerSession(refreshToken, eveSSOToken) {
   const body = { eve_token: eveSSOToken };
-  if (refreshToken) {
-    body.refresh_token = refreshToken;
+  const rt = refreshToken || getTabPlannerRefreshToken();
+  if (rt) {
+    body.refresh_token = rt;
   }
   const response = await withRequestRetries(() =>
     fetch(AUTH_SESSIONS_ROTATE, {
       method: "POST",
       credentials: "same-origin",
-      headers: {
-        "Content-Type": "application/json",
-        "X-App-Version": getAppVersionHeaderValue(),
-      },
+      headers: authSessionHeaders(),
       body: JSON.stringify(body),
     })
   );
   if (!response.ok) {
     throw new Error(`Failed to refresh server session: ${response.status} ${response.statusText}`);
   }
-  return response.json();
+  const json = await response.json();
+  persistTabPlannerSessionFromAuthResponse(json);
+  return json;
 }
 
 /**
@@ -61,17 +78,15 @@ export async function rotatePlannerSession(refreshToken, eveSSOToken) {
  */
 export async function bootstrapPlannerSession(refreshToken, eveSSOToken) {
   const body = { eve_token: eveSSOToken };
-  if (refreshToken) {
-    body.refresh_token = refreshToken;
+  const rt = refreshToken || getTabPlannerRefreshToken();
+  if (rt) {
+    body.refresh_token = rt;
   }
   const response = await withRequestRetries(() =>
     fetch(AUTH_SESSIONS_BOOTSTRAP, {
       method: "POST",
       credentials: "same-origin",
-      headers: {
-        "Content-Type": "application/json",
-        "X-App-Version": getAppVersionHeaderValue(),
-      },
+      headers: authSessionHeaders(),
       body: JSON.stringify(body),
     })
   );
@@ -80,25 +95,24 @@ export async function bootstrapPlannerSession(refreshToken, eveSSOToken) {
       `Failed to refresh server session for login: ${response.status} ${response.statusText}`
     );
   }
-  return response.json();
+  const json = await response.json();
+  persistTabPlannerSessionFromAuthResponse(json);
+  return json;
 }
 
 /**
- * Logout planner session: revokes server-side session/refresh state and clears HttpOnly cookies
- * via Set-Cookie on the response. Also clears client-readable cookies locally.
+ * Logout this tab's planner session (revokes Redis row for tab refresh token).
  */
 export async function logoutPlannerSession(refreshToken) {
+  const rt = refreshToken || getTabPlannerRefreshToken();
   try {
     const response = await requestWithPrivateHeaders(
       AUTH_SESSIONS_LOGOUT,
       {
         method: "POST",
         credentials: "same-origin",
-        headers: {
-          "Content-Type": "application/json",
-          "X-App-Version": getAppVersionHeaderValue(),
-        },
-        body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
+        headers: authSessionHeaders(),
+        body: JSON.stringify(rt ? { refresh_token: rt } : {}),
       },
       {
         requestName: "logoutPlannerSession",
@@ -110,6 +124,7 @@ export async function logoutPlannerSession(refreshToken) {
   } catch {
     return false;
   } finally {
+    clearTabPlannerSession();
     clearPlannerAuthCookiesClientSide();
   }
 }

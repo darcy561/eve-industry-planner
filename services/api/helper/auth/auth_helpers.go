@@ -135,11 +135,11 @@ func ExtractAccountSession(ctx context.Context, r *http.Request, redisClient *re
 	if redisClient == nil {
 		return nil, errors.New("redis client is nil")
 	}
-	sessionID := strings.TrimSpace(ReadAppSessionCookie(r))
+	sessionID := ResolvePlannerSessionID(r)
 	if sessionID == "" {
 		return nil, &AuthSessionError{
 			Code:   "session_missing",
-			Reason: authSessionReasonCookieAbsent,
+			Reason: authSessionReasonSessionAbsent,
 		}
 	}
 	accountID, session, err := ResolveAccountSessionBySessionID(ctx, redisClient, sessionID)

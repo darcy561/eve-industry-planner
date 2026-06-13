@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { queryClient } from "../queryClient.js";
 import { logoutServerSession } from "../Functions/Auth/serverTokens";
+import { getTabPlannerRefreshToken } from "../Functions/Auth/tabSessionStorage.js";
 import { clearPlannerAuthCookiesClientSide } from "../Functions/Auth/plannerAuthCookies.js";
 import { disconnectRealtime } from "../Realtime/realtimeClient.js";
 import { clearInboundJobDocumentCoalesce } from "../Functions/Debounce/inboundJobDocumentsCoalesce.js";
@@ -32,11 +33,9 @@ function SignoutComponent() {
   const navigate = useNavigate();
   useEffect(() => {
     async function performSignout() {
-      const { refreshToken } = useUsersStore.getState().account;
-
       try {
         disconnectRealtime();
-        await logoutServerSession(refreshToken);
+        await logoutServerSession(getTabPlannerRefreshToken());
 
         clearClientSessionState();
         queryClient.clear();

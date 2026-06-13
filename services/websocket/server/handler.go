@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	apihelperauth "eve-industry-planner/api/helper/auth"
@@ -25,12 +26,15 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		upgradeStart = time.Now()
 	}
 
-	if apihelperauth.ReadAppSessionCookie(r) == "" {
+	if apihelperauth.ResolvePlannerSessionID(r) == "" {
 		wsUpgradeRejectClient(w, r, s, upgradeStart, "session_missing", http.StatusUnauthorized,
-			"websocket upgrade rejected: missing session cookie",
+			"websocket upgrade rejected: missing planner session",
 			"Unauthorized: session_missing",
 			"ws_upgrade_session_missing",
-			map[string]interface{}{"has_eip_session_cookie": false},
+			map[string]interface{}{
+				"has_eip_session_cookie":        apihelperauth.ReadAppSessionCookie(r) != "",
+				"has_planner_session_id_query": strings.TrimSpace(r.URL.Query().Get(apihelperauth.PlannerSessionIDQueryParam)) != "",
+			},
 		)
 		return
 	}

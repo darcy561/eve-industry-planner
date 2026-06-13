@@ -54,7 +54,7 @@ func ResolvePresentedRefreshToken(ctx context.Context, redisClient *redis.Client
 func ResolvePresentedRefreshTokenFromRequest(ctx context.Context, redisClient *redis.Client, presentedToken string, r *http.Request) (PresentedRefreshResult, error) {
 	sessionID := ""
 	if r != nil {
-		sessionID = ReadAppSessionCookie(r)
+		sessionID = ResolvePlannerSessionID(r)
 	}
 	return ResolvePresentedRefreshToken(ctx, redisClient, presentedToken, sessionID)
 }
@@ -81,13 +81,7 @@ func UseAppRefreshCookieOnResponse(refreshFromCookie, recoveredViaSession bool) 
 	return refreshFromCookie || recoveredViaSession
 }
 
-// ApplyRotatedSessionCookies sets eip_session and optionally eip_app_refresh after a successful rotate/bootstrap.
+// ApplyRotatedSessionCookies is a no-op for per-tab sessions (identity via X-Session-ID / JSON body).
 func ApplyRotatedSessionCookies(w http.ResponseWriter, r *http.Request, sessionID, newRefreshToken string, refreshFromCookie, recoveredViaSession bool) {
-	if w == nil {
-		return
-	}
-	SetAppSessionCookie(w, sessionID)
-	if UseAppRefreshCookieOnResponse(refreshFromCookie, recoveredViaSession) {
-		SetAppRefreshCookie(w, r, newRefreshToken)
-	}
+	_, _, _, _, _, _ = w, r, sessionID, newRefreshToken, refreshFromCookie, recoveredViaSession
 }

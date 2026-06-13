@@ -23,7 +23,8 @@ func (e *AuthSessionError) Error() string {
 }
 
 const (
-	authSessionReasonCookieAbsent       = "cookie_absent"
+	authSessionReasonSessionAbsent       = "session_absent"
+	authSessionReasonCookieAbsent        = "cookie_absent" // legacy alias in logs/tests
 	authSessionReasonSessionIndexMissing = "session_index_not_found"
 	authSessionReasonSessionRowMissing   = "session_row_missing"
 	authSessionReasonRedisError          = "redis_error"
@@ -31,17 +32,19 @@ const (
 
 // AuthSessionFailureDetail is safe diagnostic context for invalid session logs (no secrets beyond ids).
 type AuthSessionFailureDetail struct {
-	Code                string
-	AccountID           string
-	SessionID           string
-	HasEipSessionCookie bool
-	Reason              string
+	Code                     string
+	AccountID                string
+	SessionID                string
+	HasEipSessionCookie      bool
+	HasPlannerSessionIDHeader bool
+	Reason                   string
 }
 
 // AuthSessionFailureDetailFromError builds log context from an auth session validation error.
 func AuthSessionFailureDetailFromError(err error, r *http.Request) AuthSessionFailureDetail {
 	d := AuthSessionFailureDetail{
-		HasEipSessionCookie: strings.TrimSpace(ReadAppSessionCookie(r)) != "",
+		HasEipSessionCookie:       strings.TrimSpace(ReadAppSessionCookie(r)) != "",
+		HasPlannerSessionIDHeader: strings.TrimSpace(r.Header.Get(PlannerSessionIDHeader)) != "",
 	}
 	var authErr *AuthSessionError
 	if errors.As(err, &authErr) && authErr != nil {
@@ -74,9 +77,10 @@ func (d AuthSessionFailureDetail) ClientFailureMessage() string {
 // ClientFailureDetail returns structured fields for consolidated 4xx request logging.
 func (d AuthSessionFailureDetail) ClientFailureDetail(extra map[string]interface{}) map[string]interface{} {
 	out := map[string]interface{}{
-		"failure_class":          authSessionFailureClass(d.Code),
-		"code":                   d.Code,
-		"has_eip_session_cookie": d.HasEipSessionCookie,
+		"failure_class":                 authSessionFailureClass(d.Code),
+		"code":                          d.Code,
+		"has_eip_session_cookie":        d.HasEipSessionCookie,
+		"has_planner_session_id_header": d.HasPlannerSessionIDHeader,
 	}
 	if d.AccountID != "" {
 		out["account_id"] = d.AccountID

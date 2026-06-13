@@ -6,6 +6,10 @@ import withRequestRetries, {
   splitRetryConfig,
 } from "../withRequestRetries.js";
 import { getRealtimeClientID } from "../../../Realtime/wsClientIdentity.js";
+import {
+  getTabPlannerSessionID,
+  tabPlannerSessionRequestHeaders,
+} from "../../Auth/tabSessionStorage.js";
 import { applyLockHeldElsewhereFromApiBody } from "../../DocumentLock/applyLockHeldElsewhereFromApiResponse.js";
 import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../../DocumentLock/documentLockEvents.js";
 
@@ -43,7 +47,7 @@ function throwNonOkPrivateResponse(res, methodLabel, url, text, errorLabel) {
   if (res.status === 409 && applyLockHeldElsewhereFromApiBody(text)) {
     const label = errorLabel || `${methodLabel} ${url}`;
     const err = new Error(`${label}: document lock held elsewhere (409)`);
-    err.code = LOCK_HELD_ELSEWHERE;
+    err.code = DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE;
     throw err;
   }
   const err = new Error(
@@ -70,12 +74,12 @@ export const PRIVATE_AUTH_TOKEN_UNAVAILABLE =
  */
 
 /**
- * Private API helpers: cookie-backed session auth.
+ * Private API helpers: per-tab session auth via **`X-Session-ID`** (sessionStorage).
  *
  * {@link requestWithPrivateHeaders} awaits `account.actions.refreshServerToken` first (often a no-op
  * when the planner session was validated recently — see cooldown in `tokenActions.refreshServerToken`),
- * then performs `fetch` with browser-managed same-origin cookies.
- * Session identity comes from the session cookie server-side; **`X-WS-Client-ID`** is sent when the
+ * then performs `fetch` with tab session headers.
+ * Session identity is **`X-Session-ID`**; **`X-WS-Client-ID`** is sent when the
  * realtime layer has assigned a tab id (echo suppression / locks).
  * **Retries** (408 / 429 / 5xx by default) use {@link apiRateLimitRetryConfig}; on 429 the client waits for
  * the API fixed-window `Retry-After` header (`ratelimiter.go`) before retrying. Disable with `config.retry: false`.
@@ -113,8 +117,12 @@ async function responseIndicatesSessionMissing(res) {
   return text.includes("session_missing");
 }
 
-/** Resolves planner session id from the client store (for correlation / identity hints). */
+/** Resolves planner session id for this tab (sessionStorage, then Zustand). */
 export function getSessionIDFromStore() {
+  const fromTab = getTabPlannerSessionID();
+  if (fromTab) {
+    return fromTab;
+  }
   const fromStore = useUserStore.getState()?.account?.sessionID;
   if (typeof fromStore === "string" && fromStore.trim().length > 0) {
     return fromStore.trim();
@@ -123,8 +131,8 @@ export function getSessionIDFromStore() {
 }
 
 /**
- * Merge optional request metadata into fetch options. Private routes use **same-origin cookies**
- * for auth; adds **`X-WS-Client-ID`** when the realtime layer has assigned a tab id.
+ * Merge optional request metadata into fetch options. Private routes send per-tab **`X-Session-ID`**
+ * (from sessionStorage); adds **`X-WS-Client-ID`** when the realtime layer has assigned a tab id.
  *
  * @param {Object} options - Fetch options
  * @param {Object} config - Configuration
@@ -140,6 +148,7 @@ export function getSessionIDFromStore() {
 function applyPrivateHeaders(options = {}, config = {}) {
   const headers = {
     ...options.headers,
+    ...tabPlannerSessionRequestHeaders(),
     ...(config.requestName && { "X-Request-Name": config.requestName }),
     ...(getRealtimeClientID() && {
       "X-WS-Client-ID": getRealtimeClientID(),
@@ -154,7 +163,7 @@ function applyPrivateHeaders(options = {}, config = {}) {
 }
 
 /**
- * One attempt: optional session refresh hook, then `fetch` with private headers (cookies + `X-WS-Client-ID`).
+ * One attempt: optional session refresh hook, then `fetch` with private headers (`X-Session-ID` + `X-WS-Client-ID`).
  * @param {string} URL
  * @param {Object} options
  * @param {Object} headerConfig - `requestName` only (retry stripped)

@@ -26,6 +26,7 @@ import (
 //     chain uses its own opaque string. On successful refresh we mint a new token and revoke only the *presented*
 //     previous token — other devices keep their own Redis keys (multi-session safe).
 //   - eve_token (JSON body): current ESI access JWT from CCP (short-lived), proving the character matches the session.
+//     Local accounts send eve_token with the HttpOnly app refresh cookie (ESI access comes from client-held OAuth refresh).
 //     May be omitted when the client sends only the HttpOnly app refresh cookie AND the account has cloud-stored
 //     ESI refresh material in Mongo — the server then refreshes ESI from Mongo before issuing the planner JWT.
 //
@@ -390,9 +391,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 			ApplicationSettings: loginDocs.Settings,
 			LinkedCharacters:    linkedCharacters,
 		}
-		if !refreshFromCookie {
-			bootstrap.RefreshToken = newRefreshToken
-		}
+		bootstrap.RefreshToken = newRefreshToken
 		auth.ApplyRotatedSessionCookies(w, r, updatedTokenData.SessionID, newRefreshToken, refreshFromCookie, recoveredViaSession)
 		auth.SetEsiOAuthStorageCookieFromUserCloud(w, r, userOut.UserCloudAccounts)
 
@@ -421,10 +420,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		MainCharacterHash: tokenData.CharacterHash,
 		ReauthRequiredAt:  auth.ReauthRequiredAtUnix(updatedTokenData.SessionStart, time.Time{}),
 	}
-	if !refreshFromCookie {
-		rotate.RefreshToken = newRefreshToken
-	}
-
+	rotate.RefreshToken = newRefreshToken
 	auth.ApplyRotatedSessionCookies(w, r, updatedTokenData.SessionID, newRefreshToken, refreshFromCookie, recoveredViaSession)
 
 	w.Header().Set("Content-Type", "application/json")

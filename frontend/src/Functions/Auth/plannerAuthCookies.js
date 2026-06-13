@@ -1,9 +1,8 @@
 /**
  * Planner auth cookie names/paths — keep in sync with `services/api/helper/auth/*_cookie.go`.
  *
- * HttpOnly cookies (`eip_session`, `eip_app_refresh`) are cleared by the server on
- * `POST /api/v1/auth/sessions/logout` (Set-Cookie Max-Age=0). The browser only applies
- * those clears when the logout request uses `credentials: "same-origin"`.
+ * Legacy HttpOnly cookies (`eip_session`, `eip_app_refresh`) may still be cleared on logout.
+ * Per-tab planner sessions use `sessionStorage` + `X-Session-ID` (see tabSessionStorage.js).
  *
  * `eip_esi_oauth_storage` is readable from JS; clear it client-side on sign-out as well.
  */

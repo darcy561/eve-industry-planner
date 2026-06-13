@@ -242,11 +242,9 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		ApplicationSettings: loginDocs.Settings,
 		LinkedCharacters:    linkedCharacters,
 	}
-	auth.SetAppSessionCookie(w, sessionID)
-	if userOut.UserCloudAccounts {
-		auth.SetAppRefreshCookie(w, r, refreshToken)
-		response.RefreshToken = ""
-	}
+	// Per-tab sessions: client stores session_id + refresh_token in sessionStorage (X-Session-ID).
+	// Do not set shared HttpOnly cookies — they would collide across browser tabs.
+	response.RefreshToken = refreshToken
 	auth.SetEsiOAuthStorageCookieFromUserCloud(w, r, userOut.UserCloudAccounts)
 
 	w.Header().Set("Content-Type", "application/json")

@@ -14,6 +14,7 @@ import Character from "../../Classes/character.js";
 import { characterActions } from "./characterActions.js";
 import { corporationsActions } from "./corporationsActions.js";
 import { tokenActions } from "./tokenActions.js";
+import { clearTabPlannerSession } from "../../Functions/Auth/tabSessionStorage.js";
 
 export const accountStateDefault = () => ({
   accountID: null,
@@ -29,6 +30,7 @@ export const accountStateDefault = () => ({
    * from racing session cookie application on the browser.
    */
   plannerPrivateAuthReady: true,
+  /** Per-tab planner refresh token (mirrors sessionStorage; see tabSessionStorage.js). */
   refreshToken: null,
   refreshTokenEXP: null,
   /** From login response: Mongo first-login (new account) flag. */
@@ -91,6 +93,7 @@ export const accountActions = (set, get) => ({
   ...tokenActions(set, get),
 
   resetAccountStore: () => {
+    clearTabPlannerSession();
     get().realtimeSync?.actions?.reset?.();
     set(
       (state) => ({

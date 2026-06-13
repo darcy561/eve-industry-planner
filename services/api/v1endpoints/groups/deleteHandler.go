@@ -120,7 +120,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		return
 	}
 	if clients.Redis != nil {
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, mongocore.CollectionUserJobGroups, resolvedIDs)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, mongocore.CollectionUserJobGroups, resolvedIDs, nil)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")

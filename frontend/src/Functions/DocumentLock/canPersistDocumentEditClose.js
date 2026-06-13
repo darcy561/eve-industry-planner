@@ -1,4 +1,5 @@
 import { selectScopedDocumentLock } from "./documentLockSelectors.js";
+import { isJobLockSubordinateToGroup } from "./groupSubordinateJobLock.js";
 import {
   USER_JOBS_COLLECTION,
   USER_JOB_GROUPS_COLLECTION,
@@ -14,7 +15,7 @@ import useUsersStore from "../../Zustand/usersStore.js";
  * @param {string | undefined | null} docID
  * @returns {boolean}
  */
-export function canPersistDocumentScope(state, collection, docID) {
+function canPersistDocumentScope(state, collection, docID) {
   if (!docID) return false;
   const s = state ?? useUsersStore.getState();
   const scope = selectScopedDocumentLock(s, collection, docID);
@@ -34,7 +35,8 @@ export function canPersistGroupClose(groupID) {
 }
 
 /**
- * Edit-job save/close requires the job lock and, when grouped, the group lock.
+ * Edit-job save/close: solo jobs need the job lock; group edit sessions need
+ * only the group lock (group holder owns member jobs).
  *
  * @param {string | undefined | null} jobID
  * @param {string | undefined | null} groupID
@@ -42,6 +44,10 @@ export function canPersistGroupClose(groupID) {
  */
 export function canPersistJobClose(jobID, groupID) {
   const state = useUsersStore.getState();
+  if (!jobID) return false;
+  if (isJobLockSubordinateToGroup(state, groupID)) {
+    return canPersistDocumentScope(state, USER_JOB_GROUPS_COLLECTION, groupID);
+  }
   if (!canPersistDocumentScope(state, USER_JOBS_COLLECTION, jobID)) {
     return false;
   }

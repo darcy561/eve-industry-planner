@@ -31,6 +31,7 @@ import {
   selectHeaderDocumentLockActive,
   selectHeaderDocumentLockReadOnlyStored,
   selectHeaderDocumentLockRegistrations,
+  selectSecondaryDocumentLockContended,
 } from "../../Functions/DocumentLock/documentLockHeaderSelectors.js";
 import {
   docLockScopeKey,
@@ -120,6 +121,7 @@ export default function DocumentLockHeaderControl() {
   const handoffOfferForMe = useUsersStore(selectActiveDlHandoffOfferForMe);
   const lockScopeBootstrapped = useUsersStore(selectActiveDlLockScopeBootstrapped);
   const viewerCount = useUsersStore(selectActiveDlViewerCount);
+  const secondaryContended = useUsersStore(selectSecondaryDocumentLockContended);
 
   useEffect(() => {
     if (!active) return undefined;
@@ -228,22 +230,6 @@ export default function DocumentLockHeaderControl() {
   /** Avoid grey vacant flash while acquire is in flight on mount (solo open). */
   const orphanedAvailable =
     lockScopeBootstrapped && orphanedVacantOnServer;
-
-  /**
-   * Surface contention from any secondary registration (e.g. on /editjob the group lock
-   * is secondary to the job lock — without this, you could hold the job uncontested
-   * while another session queues for the parent group and never see the affordance).
-   */
-  const secondaryContended = useMemo(() => {
-    if (!Array.isArray(registrations) || registrations.length <= 1) return false;
-    for (let i = 1; i < registrations.length; i += 1) {
-      const r = registrations[i];
-      if (!r?.collection || !r?.docID || r.enabled === false) continue;
-      const st = mergeScopedDocumentLockState(scopes, r.collection, r.docID);
-      if (scopeHasOtherSessionContention(st)) return true;
-    }
-    return false;
-  }, [registrations, scopes]);
 
   /**
    * Holder with no contention sees nothing — quiet UI when they're uncontested editor.
