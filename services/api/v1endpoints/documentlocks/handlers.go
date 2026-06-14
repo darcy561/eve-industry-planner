@@ -99,7 +99,7 @@ func handleForceRelease(w http.ResponseWriter, r *http.Request, clients *shared.
 	if !ok {
 		return
 	}
-	prevHolder, err := lockService(clients).ForceReleaseSameAccount(hc.Ctx, hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
+	out, err := lockService(clients).ForceReleaseSameAccount(hc.Ctx, hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
 	if err != nil {
 		switch {
 		case errors.Is(err, documentlock.ErrLocksUnavailable):
@@ -115,10 +115,10 @@ func handleForceRelease(w http.ResponseWriter, r *http.Request, clients *shared.
 		}
 		return
 	}
-	finishLockHandlerSuccess(r, "force-release", http.StatusNoContent, hc, map[string]interface{}{
-		"previous_holder_session_id": prevHolder,
-	})
-	w.WriteHeader(http.StatusNoContent)
+	finishLockForceReleaseSuccess(r, hc, out)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(out.StatusCode)
+	_ = json.NewEncoder(w).Encode(out.Payload)
 }
 
 func handleHandOver(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {

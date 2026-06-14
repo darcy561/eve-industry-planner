@@ -78,7 +78,7 @@ export const DOCUMENT_LOCK_RELEASE_REASONS = Object.freeze({
   GROUP_MEMBERSHIP_ADDED: "group_membership_added",
   /** Holder POST `/release` succeeded — voluntary drop of the edit lock. */
   HOLDER_RELEASE: "holder_release",
-  /** Same-account `POST /force-release` cleared another tab's lock. */
+  /** Same-account `POST /force-release` evicted another tab and granted this session. */
   FORCE_RELEASED_SAME_ACCOUNT: "force_released_same_account",
   /** Holder accepted a request snackbar and there was no live waitlist head. */
   HAND_OVER_NO_QUEUE: "hand_over_no_queue",

@@ -263,9 +263,14 @@ export default function DocumentLockHeaderControl() {
     orphanedAvailable ||
     hasPassiveViewers;
 
+  /** Hide the affordance until acquire settles (holder, read-only, or queue). */
+  const headerBootstrapReady =
+    lockScopeBootstrapped || viewerReadOnly || secondaryContended;
+
   const showHeaderLockIcon =
-    secondaryContended ||
-    (hasPrimaryLockSignal && !primaryUncontestedHolder);
+    headerBootstrapReady &&
+    (secondaryContended ||
+      (hasPrimaryLockSignal && !primaryUncontestedHolder));
 
   const tooltipTitle = useMemo(() => {
     if (handoffPendingHolder) return HANDOFF_PENDING_HOLDER;

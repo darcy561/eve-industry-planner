@@ -170,7 +170,9 @@ function GroupPageFrame() {
   );
 
   const isGroupReady = activeGroupID === groupID;
-  const groupLockEnabled = Boolean(isLoggedIn && groupID && activeGroupObject);
+  const groupLockEnabled = Boolean(
+    isLoggedIn && groupID && activeGroupObject && isGroupReady
+  );
 
   useEffect(() => {
     if (!isGroupReady) return;

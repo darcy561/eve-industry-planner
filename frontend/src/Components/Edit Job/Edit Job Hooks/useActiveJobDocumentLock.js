@@ -5,6 +5,7 @@ import {
   selectScopedDocumentLock,
 } from "../../../Functions/DocumentLock/documentLockSelectors";
 import {
+  isJobLockSubordinateToGroup,
   selectEffectiveJobDocumentLock,
 } from "../../../Functions/DocumentLock/groupSubordinateJobLock.js";
 import {
@@ -48,15 +49,12 @@ export function useActiveJobReadOnly(state) {
  * @returns {boolean}
  */
 export function useActiveGroupReadOnly(state) {
-  return useUsersStore((s) =>
-    state?.activeJob?.groupID
-      ? selectDocumentLockReadOnly(
-          s,
-          USER_JOB_GROUPS_COLLECTION,
-          state.activeJob.groupID
-        )
-      : false
-  );
+  return useUsersStore((s) => {
+    const gid = state?.activeJob?.groupID;
+    if (!gid || !state?.activeJob?.includedInGroup) return false;
+    if (!s.jobData.actions.getGroupObject(gid)) return false;
+    return selectDocumentLockReadOnly(s, USER_JOB_GROUPS_COLLECTION, gid);
+  });
 }
 
 /**
@@ -81,11 +79,7 @@ export function useActiveJobOrGroupReadOnly(state) {
   const jobReadOnly = useActiveJobReadOnly(state);
   const groupReadOnly = useActiveGroupReadOnly(state);
   const subordinate = useUsersStore((s) =>
-    Boolean(
-      groupID &&
-        s.jobData?.activeGroupID &&
-        s.jobData.activeGroupID === groupID
-    )
+    isJobLockSubordinateToGroup(s, groupID)
   );
   return {
     readOnly: subordinate ? groupReadOnly : jobReadOnly || groupReadOnly,
@@ -118,7 +112,9 @@ export function useActiveJobLockHeld(state) {
 export function useActiveGroupLockHeld(state) {
   return useUsersStore((s) => {
     const gid = state?.activeJob?.groupID;
-    if (!gid) return true;
+    const included = state?.activeJob?.includedInGroup;
+    if (!gid || !included) return true;
+    if (!s.jobData.actions.getGroupObject(gid)) return true;
     return selectScopedDocumentLock(s, USER_JOB_GROUPS_COLLECTION, gid).lockHeld;
   });
 }
@@ -143,13 +139,15 @@ export function useActiveJobPersistGate(state) {
   const jobLockHeld = useActiveJobLockHeld(state);
   const groupLockHeld = useActiveGroupLockHeld(state);
   const activeGroupID = useUsersStore((s) => s.jobData.activeGroupID);
-  const hasGroup = Boolean(state?.activeJob?.groupID);
+  const hasGroup = useUsersStore((s) => {
+    const aj = state?.activeJob;
+    if (!aj?.groupID || !aj?.includedInGroup) return false;
+    return Boolean(s.jobData.actions.getGroupObject(aj.groupID));
+  });
   const jobID = state?.activeJob?.jobID;
 
-  const subordinate = Boolean(
-    hasGroup &&
-      activeGroupID &&
-      activeGroupID === state?.activeJob?.groupID
+  const subordinate = useUsersStore((s) =>
+    isJobLockSubordinateToGroup(s, state?.activeJob?.groupID)
   );
   const canPersist = subordinate
     ? Boolean(jobID) && !readOnly && groupLockHeld

@@ -400,27 +400,30 @@ func runReleaseTx(ctx context.Context, rdb *redis.Client, accountID, sessionID, 
 }
 
 // forceReleaseSameAccountScript clears a lock held by another session on the
-// same account (JWT accountID). Caller must not be the current holder — use
-// POST /release instead.
+// same account (JWT accountID) and atomically grants it to the caller.
+// Caller must not be the current holder — use POST /release instead.
 //
 //	KEYS[1]  = lock key
 //	KEYS[2]  = waitlist key
 //	ARGV[1]  = caller sessionID (requester)
 //	ARGV[2]  = now (unix seconds)
 //	ARGV[3]  = accountID (must match record.accountID)
+//	ARGV[4]  = solo ttl seconds (SoloHolderLockTTL)
 //
 // Outcome JSON:
 //
 //	{
 //	  "outcome": "released" | "noop_no_lock" | "noop_same_holder",
-//	  "previousHolderSessionID": ""   // set only when outcome == released
+//	  "previousHolderSessionID": "",   // set only when outcome == released
+//	  "record": {...}                  // new holder record when outcome == released
 //	}
-var forceReleaseSameAccountScript = redis.NewScript(readLockLuaFn + `
+var forceReleaseSameAccountScript = redis.NewScript(readLockLuaFn + writeLockLuaFn + `
 local k_lock = KEYS[1]
 local k_wait = KEYS[2]
 local caller_id = ARGV[1]
 local now = tonumber(ARGV[2])
 local account_id = ARGV[3]
+local solo_ttl = tonumber(ARGV[4])
 
 local existing = read_lock(k_lock, now)
 if not existing then
@@ -437,20 +440,30 @@ if existing.holderSessionID == caller_id then
 end
 
 local prev = existing.holderSessionID
-redis.call("DEL", k_lock)
 redis.call("DEL", k_wait)
+local exp = now + solo_ttl
+local rec = {
+  holderSessionID = caller_id,
+  accountID = account_id,
+  expiresAtUnix = exp,
+  leaseMode = "solo",
+  extendCount = 0,
+}
+write_lock(k_lock, rec, solo_ttl)
 return cjson.encode({
   outcome = "released",
   previousHolderSessionID = prev,
+  record = rec,
 })
 `)
 
 type forceReleaseSameAccountTxResult struct {
-	Outcome                 string `json:"outcome"`
-	PreviousHolderSessionID string `json:"previousHolderSessionID,omitempty"`
+	Outcome                 string                    `json:"outcome"`
+	PreviousHolderSessionID string                    `json:"previousHolderSessionID,omitempty"`
+	Record                  docLockTxResultLockRecord `json:"record,omitempty"`
 }
 
-func runForceReleaseSameAccountTx(ctx context.Context, rdb *redis.Client, accountID, callerSessionID, collection, docID string, now int64) (*forceReleaseSameAccountTxResult, error) {
+func runForceReleaseSameAccountTx(ctx context.Context, rdb *redis.Client, accountID, callerSessionID, collection, docID string, now, soloTTLSeconds int64) (*forceReleaseSameAccountTxResult, error) {
 	raw, err := forceReleaseSameAccountScript.Run(
 		ctx,
 		rdb,
@@ -461,6 +474,7 @@ func runForceReleaseSameAccountTx(ctx context.Context, rdb *redis.Client, accoun
 		callerSessionID,
 		now,
 		accountID,
+		soloTTLSeconds,
 	).Text()
 	if err != nil {
 		return nil, fmt.Errorf("force-release same-account tx: %w", err)

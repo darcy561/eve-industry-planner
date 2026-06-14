@@ -54,6 +54,13 @@ describe("canPersistDocumentEditClose", () => {
       "g1",
       { lockHeld: true, readOnly: false }
     );
+    storeHolder.current.setState((prev) => ({
+      jobData: {
+        actions: {
+          getGroupObject: (id) => (id === "g1" ? { groupID: "g1" } : null),
+        },
+      },
+    }));
     expect(canPersistJobClose("j1", "g1")).toBe(true);
 
     storeHolder.current.getState().documentLock.actions.patchDocumentLockForScope(
@@ -62,6 +69,22 @@ describe("canPersistDocumentEditClose", () => {
       { lockHeld: false, readOnly: true }
     );
     expect(canPersistJobClose("j1", "g1")).toBe(false);
+  });
+
+  it("canPersistJobClose ignores stale groupID when the group is gone", () => {
+    storeHolder.current.getState().documentLock.actions.patchDocumentLockForScope(
+      USER_JOBS_COLLECTION,
+      "j1",
+      { lockHeld: true, readOnly: false }
+    );
+    storeHolder.current.setState({
+      jobData: {
+        actions: {
+          getGroupObject: () => null,
+        },
+      },
+    });
+    expect(canPersistJobClose("j1", "g-deleted")).toBe(true);
   });
 
   it("canPersistGroupClose matches holder and not read-only", () => {

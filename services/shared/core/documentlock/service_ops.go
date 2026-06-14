@@ -200,25 +200,25 @@ func (s *Service) Release(ctx context.Context, accountID, sessionID, collection,
 }
 
 // ForceReleaseSameAccount removes the lock when it is held by a *different*
-// session on the same account (JWT accountID). The caller must not already
-// be the holder — use Release instead. Publishes `document_lock_released` with
-// reason `force_released_same_account`. For group locks, runs the same
-// per-job cascade as a group handoff against the evicted holder.
-func (s *Service) ForceReleaseSameAccount(ctx context.Context, accountID, requesterSessionID, collection, docID string) (previousHolderSessionID string, err error) {
+// session on the same account (JWT accountID) and atomically grants it to the
+// caller. The caller must not already be the holder — use Release instead.
+// Publishes `document_lock_released` (evicted holder) then `document_lock_acquired`
+// (caller). For group locks, cascades per-job locks on handoff and grant.
+func (s *Service) ForceReleaseSameAccount(ctx context.Context, accountID, requesterSessionID, collection, docID string) (*AcquireResult, error) {
 	rdb := s.Deps.Redis
 	if rdb == nil {
-		return "", ErrLocksUnavailable
+		return nil, ErrLocksUnavailable
 	}
 	now := time.Now().Unix()
-	tx, err := runForceReleaseSameAccountTx(ctx, rdb, accountID, requesterSessionID, collection, docID, now)
+	tx, err := runForceReleaseSameAccountTx(ctx, rdb, accountID, requesterSessionID, collection, docID, now, SoloLockTTLSeconds())
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	switch tx.Outcome {
 	case "noop_no_lock":
-		return "", ErrForceReleaseNoLock
+		return nil, ErrForceReleaseNoLock
 	case "noop_same_holder":
-		return "", ErrForceReleaseSameSession
+		return nil, ErrForceReleaseSameSession
 	case "released":
 		prev := tx.PreviousHolderSessionID
 		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
@@ -232,9 +232,24 @@ func (s *Service) ForceReleaseSameAccount(ctx context.Context, accountID, reques
 		if collection == mongocore.CollectionUserJobGroups {
 			ReleaseDependentJobLocksOnGroupHandoff(ctx, s.Deps, accountID, docID, prev)
 		}
-		return prev, nil
+		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, requesterSessionID, true)
+		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
+			LockPayloadEventKey: LockEventAcquired,
+			"collection":        collection,
+			"docID":             docID,
+			"sessionID":         requesterSessionID,
+			"expiresAtUnix":     tx.Record.ExpiresAtUnix,
+		})
+		if collection == mongocore.CollectionUserJobGroups {
+			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, s.Deps, accountID, docID, requesterSessionID)
+		}
+		payload := LockPayloadForRecord(tx.Record.ExpiresAtUnix, tx.Record.LeaseMode)
+		payload["acquired"] = true
+		payload["held"] = true
+		payload["holderSessionID"] = requesterSessionID
+		return &AcquireResult{StatusCode: http.StatusCreated, Payload: payload}, nil
 	default:
-		return "", fmt.Errorf("force-release same-account: unexpected outcome %q", tx.Outcome)
+		return nil, fmt.Errorf("force-release same-account: unexpected outcome %q", tx.Outcome)
 	}
 }
 

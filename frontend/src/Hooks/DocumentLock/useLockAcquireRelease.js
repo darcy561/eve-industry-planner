@@ -77,7 +77,10 @@ export function useLockAcquireRelease({
       const data = await res.json().catch(() => ({}));
       if (res.status === 201) {
         dispatchHeld({ type: DOCUMENT_LOCK_HELD_ACTIONS.SET, held: true });
-        patch(buildGrantedHolderPatch(data, { withClearedHandoff: true }));
+        patch({
+          ...buildGrantedHolderPatch(data, { withClearedHandoff: true }),
+          lockScopeBootstrapped: true,
+        });
         if (
           collection === USER_JOB_GROUPS_COLLECTION &&
           cascadeMemberJobScopesOnGrant
@@ -103,7 +106,7 @@ export function useLockAcquireRelease({
         if (typeof data.viewerCount === "number") {
           readOnlyPatch.viewerCount = data.viewerCount;
         }
-        patch(readOnlyPatch);
+        patch({ ...readOnlyPatch, lockScopeBootstrapped: true });
         return;
       }
       patch({
@@ -170,12 +173,31 @@ export function useLockAcquireRelease({
     );
     void (async () => {
       try {
-        if (!cancelled && scopeOnMount.suppressVacancyAcquire !== true) {
+        if (!cancelled) {
+          // Re-opening an editor page (e.g. group after Close Group) is explicit
+          // intent to hold the lease again — `releaseOnUnmount: false` scopes keep
+          // stale `suppressVacancyAcquire` across navigations.
+          if (scopeOnMount.suppressVacancyAcquire === true) {
+            patch({ suppressVacancyAcquire: false });
+          }
           await runTryAcquireGuarded();
         }
       } finally {
         if (!cancelled) {
-          patch({ lockScopeBootstrapped: true });
+          const scope = selectScopedDocumentLock(
+            useUsersStore.getState(),
+            collection,
+            docID
+          );
+          // Vacant acquire: stay un-bootstrapped so the header stays hidden while
+          // #21 self-heal retries; only mark ready once holder/read-only is known.
+          if (
+            scope.lockHeld === true ||
+            scope.readOnly === true ||
+            scope.waitingInHandoffQueue === true
+          ) {
+            patch({ lockScopeBootstrapped: true });
+          }
         }
       }
     })();

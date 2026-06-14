@@ -1,5 +1,8 @@
 import { selectScopedDocumentLock } from "./documentLockSelectors.js";
-import { isJobLockSubordinateToGroup } from "./groupSubordinateJobLock.js";
+import {
+  isJobInLiveGroup,
+  isJobLockSubordinateToGroup,
+} from "./groupSubordinateJobLock.js";
 import {
   USER_JOBS_COLLECTION,
   USER_JOB_GROUPS_COLLECTION,
@@ -51,6 +54,6 @@ export function canPersistJobClose(jobID, groupID) {
   if (!canPersistDocumentScope(state, USER_JOBS_COLLECTION, jobID)) {
     return false;
   }
-  if (!groupID) return true;
+  if (!isJobInLiveGroup(state, groupID)) return true;
   return canPersistDocumentScope(state, USER_JOB_GROUPS_COLLECTION, groupID);
 }
