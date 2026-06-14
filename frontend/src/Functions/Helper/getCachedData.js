@@ -69,6 +69,15 @@ async function getMetaForRead() {
   return fetchStaticMeta(false, true);
 }
 
+/** Resolves the active SDE build number from cached static-data metadata. */
+export async function getStaticDataBuildVersion() {
+  const meta = await getMetaForRead();
+  if (!meta) return null;
+  if (meta.build_number > 0) return String(meta.build_number);
+  if (meta.build_version) return meta.build_version;
+  return null;
+}
+
 function getVersionedURLFromMeta(meta, fileKey) {
   const fileMeta = meta?.file_keys?.[fileKey];
   if (!fileMeta) {

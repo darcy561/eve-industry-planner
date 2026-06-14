@@ -10,6 +10,11 @@ import {
   getTabPlannerSessionID,
   tabPlannerSessionRequestHeaders,
 } from "../../Auth/tabSessionStorage.js";
+import {
+  isTerminalPlannerAuthCode,
+  parsePlannerAuthCodeFromResponse,
+  redirectToFullEveLogin,
+} from "../../Auth/plannerSessionRedirect.js";
 import { applyLockHeldElsewhereFromApiBody } from "../../DocumentLock/applyLockHeldElsewhereFromApiResponse.js";
 import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../../DocumentLock/documentLockEvents.js";
 
@@ -117,6 +122,19 @@ async function responseIndicatesSessionMissing(res) {
   return text.includes("session_missing");
 }
 
+/**
+ * @param {Response} res
+ * @returns {Promise<boolean>}
+ */
+async function handleTerminalPlannerAuthResponse(res) {
+  const code = await parsePlannerAuthCodeFromResponse(res);
+  if (isTerminalPlannerAuthCode(code)) {
+    redirectToFullEveLogin();
+    return true;
+  }
+  return false;
+}
+
 /** Resolves planner session id for this tab (sessionStorage, then Zustand). */
 export function getSessionIDFromStore() {
   const fromTab = getTabPlannerSessionID();
@@ -192,6 +210,15 @@ async function executePrivateRequestSingle(URL, options = {}, config = {}) {
 
   const runOnce = async (sessionRecoveryAttempted = false) => {
     const res = await executePrivateFetchOnce(URL, options, headerConfig);
+    if (
+      !sessionRecoveryAttempted &&
+      !headerConfig.skipSessionRefresh &&
+      (await handleTerminalPlannerAuthResponse(res))
+    ) {
+      const err = new Error("Planner session requires full EVE login");
+      err.status = 401;
+      throw err;
+    }
     if (
       !sessionRecoveryAttempted &&
       !headerConfig.skipSessionRefresh &&

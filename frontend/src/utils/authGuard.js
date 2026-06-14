@@ -1,6 +1,6 @@
 import { redirect } from '@tanstack/react-router'
 import useUsersStore from '../Zustand/usersStore'
-import { hasCloudOAuthStorageServerHint } from '../Functions/Auth/plannerAuthCookies.js'
+import { hasResumablePlannerSession } from '../Functions/Auth/tabSessionStorage.js'
 
 /**
  * Authentication guard function for TanStack Router routes.
@@ -46,20 +46,14 @@ export function requireAuth({ location }) {
 export function allowPublicAccess({ location }) {
   const isLoggedIn = useUsersStore.getState().account.isLoggedIn
   
-  if (!isLoggedIn) {
-    const existingAuth = localStorage.getItem("Auth");
-    if (existingAuth || hasCloudOAuthStorageServerHint()) {
-      // If there's an auth token but user isn't logged in,
-      // or the cloud routing cookie indicates server-held OAuth (cold reload resume), redirect to auth
-      // to rebuild client state and then return to this page.
-      throw redirect({
-        to: '/auth',
-        search: {
-          state: location.pathname,
-        },
-      })
-    }
-    // No auth token - allow public access
+  if (!isLoggedIn && hasResumablePlannerSession()) {
+    // Stored ESI refresh, per-tab planner refresh, or cloud routing hint — rebuild on /auth.
+    throw redirect({
+      to: '/auth',
+      search: {
+        state: location.pathname,
+      },
+    })
   }
   
   return { isLoggedIn }

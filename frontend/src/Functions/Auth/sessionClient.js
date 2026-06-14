@@ -2,6 +2,9 @@ import withRequestRetries from "../Endpoints/withRequestRetries.js";
 import requestWithPrivateHeaders from "../Endpoints/Pirivate/applyPrivateHeaders.js";
 import { clearPlannerAuthCookiesClientSide } from "./plannerAuthCookies.js";
 import {
+  parsePlannerAuthCodeFromText,
+} from "./plannerSessionRedirect.js";
+import {
   clearTabPlannerSession,
   getTabPlannerRefreshToken,
   tabPlannerSessionRequestHeaders,
@@ -29,6 +32,24 @@ function authSessionHeaders(extra = {}) {
   };
 }
 
+/**
+ * @param {Response} response
+ * @param {string} prefix
+ * @returns {Promise<never>}
+ */
+async function throwPlannerAuthSessionHttpError(response, prefix) {
+  const text = await response.text().catch(() => "");
+  const code = parsePlannerAuthCodeFromText(text);
+  const err = new Error(
+    `${prefix}: ${response.status} ${text || response.statusText}`
+  );
+  err.status = response.status;
+  if (code) {
+    err.code = code;
+  }
+  throw err;
+}
+
 /** Initial planner session from EVE SSO access JWT (`POST /api/v1/auth/sessions`). */
 export async function establishPlannerSession(eveSSOToken) {
   const response = await withRequestRetries(() =>
@@ -40,7 +61,10 @@ export async function establishPlannerSession(eveSSOToken) {
     })
   );
   if (!response.ok) {
-    throw new Error(`Failed to fetch server session: ${response.status} ${response.statusText}`);
+    await throwPlannerAuthSessionHttpError(
+      response,
+      "Failed to fetch server session"
+    );
   }
   const json = await response.json();
   persistTabPlannerSessionFromAuthResponse(json);
@@ -66,7 +90,10 @@ export async function rotatePlannerSession(refreshToken, eveSSOToken) {
     })
   );
   if (!response.ok) {
-    throw new Error(`Failed to refresh server session: ${response.status} ${response.statusText}`);
+    await throwPlannerAuthSessionHttpError(
+      response,
+      "Failed to refresh server session"
+    );
   }
   const json = await response.json();
   persistTabPlannerSessionFromAuthResponse(json);
@@ -91,8 +118,9 @@ export async function bootstrapPlannerSession(refreshToken, eveSSOToken) {
     })
   );
   if (!response.ok) {
-    throw new Error(
-      `Failed to refresh server session for login: ${response.status} ${response.statusText}`
+    await throwPlannerAuthSessionHttpError(
+      response,
+      "Failed to refresh server session for login"
     );
   }
   const json = await response.json();

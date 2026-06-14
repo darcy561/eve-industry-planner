@@ -34,7 +34,7 @@ export function useAccountWebSocket() {
     };
   }, [isLoggedIn, accountID]);
 
-  /** Background tabs throttle timers / WS; re-align singletons + planner after the tab is visible again. */
+  /** Background tabs throttle timers / WS; refresh tokens when due, then re-sync data. */
   useEffect(() => {
     if (!isLoggedIn || !accountID) {
       return;
@@ -47,11 +47,24 @@ export function useAccountWebSocket() {
       }
       wakeTimer = window.setTimeout(() => {
         wakeTimer = null;
-        const logged = useUsersStore.getState().account.isLoggedIn;
-        const acc = useUsersStore.getState().account.accountID;
-        if (!logged || !acc) return;
-        scheduleDebouncedAccountDocumentsSync();
-        void fetchPlannerJobDocumentsFromApi().catch(() => {});
+        void (async () => {
+          const logged = useUsersStore.getState().account.isLoggedIn;
+          const acc = useUsersStore.getState().account.accountID;
+          if (!logged || !acc) return;
+
+          const { runTabVisibleAuthRefresh } =
+            useUsersStore.getState().account.actions;
+          if (typeof runTabVisibleAuthRefresh === "function") {
+            await runTabVisibleAuthRefresh();
+          }
+
+          if (!useUsersStore.getState().account.isLoggedIn) {
+            return;
+          }
+
+          scheduleDebouncedAccountDocumentsSync();
+          await fetchPlannerJobDocumentsFromApi().catch(() => {});
+        })();
       }, 800);
     };
     document.addEventListener("visibilitychange", onVisibility);

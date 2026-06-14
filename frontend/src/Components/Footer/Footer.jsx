@@ -3,6 +3,7 @@ import GitHubIcon from "@mui/icons-material/GitHub";
 import { FaDiscord } from "react-icons/fa";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
 import GLOBAL_CONFIG from "../../global-config-app";
+import useStaticDataBuildVersion from "../../Hooks/App/useStaticDataBuildVersion";
 
 const {
   DEFAULT_DISCORD_INVITE,
@@ -29,6 +30,8 @@ const SOCIAL_LINKS = [
 ];
 
 export function Footer() {
+  const sdeVersion = useStaticDataBuildVersion();
+
   return (
     <ContentPanel 
       componentName="Footer"
@@ -76,7 +79,7 @@ export function Footer() {
           alignItems: "center"
         }}>
           <Typography variant="caption" align="center">
-            All EVE related materials are property of CCP Games.
+            All EVE related materials are property of Fenris Creations.
           </Typography>
           <Typography variant="caption" align="center">
             Produced and maintained by {DEFAULT_INGAME_SUPPORT_MAIL_CHARACTER}
@@ -84,6 +87,11 @@ export function Footer() {
           <Typography variant="caption" align="center">
             Version: {__APP_VERSION__}
           </Typography>
+          {sdeVersion && (
+            <Typography variant="caption" align="center">
+              SDE Version: {sdeVersion}
+            </Typography>
+          )}
         </Stack>
       </Stack>
     </ContentPanel>
