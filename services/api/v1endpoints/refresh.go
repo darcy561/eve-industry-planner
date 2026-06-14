@@ -163,13 +163,9 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	}
 
 	if strings.TrimSpace(eveToken) == "" {
-		if !refreshFromCookie {
-			m.Errors.WithLabelValues("validation_error").Inc(ctx)
-			respondSessionRefreshClientError(w, r, credLog, http.StatusBadRequest, "eve_token is required unless authenticating with the app refresh cookie as a cloud account with stored ESI material", "eve_token required for planner session refresh", "auth_refresh_eve_token_required", map[string]interface{}{
-				"metric": "session_refresh",
-			})
-			return
-		}
+		// Per-tab sessions send refresh_token in the JSON body (sessionStorage), not only the
+		// legacy HttpOnly cookie. Cloud resume still omits eve_token; local accounts must
+		// provide eve_token (RefreshStoredEsiFromMongo returns ErrMongoStoredEsiNotCloud).
 		_, err := userendpoints.RefreshStoredEsiFromMongoForCharacter(ctx, clients, tokenData.AccountID, tokenData.CharacterHash)
 		if err != nil {
 			switch {

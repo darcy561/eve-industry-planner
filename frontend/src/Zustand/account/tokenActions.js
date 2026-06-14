@@ -11,9 +11,14 @@ import {
 } from "../../Functions/Auth/serverTokens.js";
 import {
   getTabPlannerRefreshToken,
+  isPlannerReauthDeadlinePassed,
   persistTabPlannerSession,
   persistTabPlannerSessionFromAuthResponse,
 } from "../../Functions/Auth/tabSessionStorage.js";
+import {
+  redirectToFullEveLogin,
+  redirectToFullEveLoginIfTerminal,
+} from "../../Functions/Auth/plannerSessionRedirect.js";
 import { shouldDeferAuthRefreshDueToTranquilityOffline } from "../../Functions/Auth/authRefreshTranquilityGate.js";
 import updateCorporationClaims from "../../Functions/Endpoints/Pirivate/corporationClaims.js";
 import GLOBAL_CONFIG from "../../global-config-app.js";
@@ -40,11 +45,17 @@ let esStaggerIndex = 0;
  */
 let inflightRefreshServerTokenPromise = null;
 
+/** Single-flight guard for {@link tokenActions.runTabVisibleAuthRefresh}. */
+let inflightTabVisibleAuthRefreshPromise = null;
+
 /**
  * Clock skew (seconds) used when deciding whether `mainCharacter.esiAccessToken`
  * is safe to send to `/api/v1/auth/sessions/rotate` as `eve_token`.
  */
 const ESI_ACCESS_TOKEN_REFRESH_SKEW_SEC = 60;
+
+/** Matches {@link Character#refreshEsiAccessTokenIfNeeded} — skip OAuth refresh when access JWT is still fresh. */
+const ESI_ACCESS_TOKEN_REFRESH_BUFFER_SEC = 660;
 
 /** Matches {@link GLOBAL_CONFIG.PLANNER_SESSION_ROTATE_COOLDOWN_MINUTES} (~EVE access token cadence). */
 const PLANNER_SESSION_ROTATE_COOLDOWN_MS =
@@ -67,6 +78,58 @@ function toLinkedSet(value) {
     );
   }
   return new Set();
+}
+
+/**
+ * @param {import("../../Classes/character").default|null|undefined} character
+ * @param {number} [bufferSec]
+ * @returns {boolean}
+ */
+function characterNeedsEsiAccessRefresh(
+  character,
+  bufferSec = ESI_ACCESS_TOKEN_REFRESH_BUFFER_SEC
+) {
+  if (!character || character.isPlaceholder) {
+    return false;
+  }
+  const exp = Number(character.esiAccessTokenEXP) || 0;
+  if (exp <= 0) {
+    return true;
+  }
+  const nowSec = Math.floor(Date.now() / 1000);
+  return exp < nowSec + bufferSec;
+}
+
+/**
+ * @param {Function} get
+ * @returns {boolean} True when tab wake should hit OAuth / planner rotate (not just data sync).
+ */
+function accountNeedsAuthRefreshOnTabWake(get) {
+  const state = get();
+  const characters = state.account.characters.filter(
+    (c) => c && !c.isPlaceholder
+  );
+
+  if (
+    characters.some((c) =>
+      characterNeedsEsiAccessRefresh(c, ESI_ACCESS_TOKEN_REFRESH_BUFFER_SEC)
+    )
+  ) {
+    return true;
+  }
+
+  const sessionID = state.account.sessionID;
+  const lastOk = state.account.lastPlannerSessionValidatedAt;
+  if (
+    typeof sessionID !== "string" ||
+    sessionID.trim().length === 0 ||
+    typeof lastOk !== "number" ||
+    Date.now() - lastOk >= PLANNER_SESSION_ROTATE_COOLDOWN_MS
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function normalizeLinkedID(value) {
@@ -455,6 +518,11 @@ export const tokenActions = (set, get) => ({
       const mainCharacter = state.account.characters?.find((ch) => ch?.isMainCharacter);
       if (!mainCharacter) return;
 
+      if (isPlannerReauthDeadlinePassed()) {
+        redirectToFullEveLoginIfTerminal("reauth_required");
+        return;
+      }
+
       const sessionID = state.account.sessionID;
       const lastOk = state.account.lastPlannerSessionValidatedAt;
       if (
@@ -521,6 +589,9 @@ export const tokenActions = (set, get) => ({
           "account/plannerSessionRotateOk"
         );
       } catch (err) {
+        if (redirectToFullEveLoginIfTerminal(err)) {
+          return;
+        }
         const msg = err?.message ?? String(err);
         const cloud = !!get().applicationSettings?.userCloudAccounts;
         let eveTokenForRecovery = mainCharacter.esiAccessToken || "";
@@ -631,9 +702,13 @@ export const tokenActions = (set, get) => ({
   /**
    * Refresh ESI for **all** characters in one shot (main then alts in parallel),
    * then claims + planner session refresh. Prefer staggered work for the timer; this remains for
-   * exceptional cases (e.g. a forced refresh after a bulk import).
+   * exceptional cases (e.g. a forced refresh after a bulk import or tab visibility wake).
+   *
+   * @param {object} [options]
+   * @param {boolean} [options.forcePlannerSession] - When true, bypasses planner rotate cooldown.
    */
-  runScheduledTokenRefresh: async () => {
+  runScheduledTokenRefresh: async (options = {}) => {
+    const forcePlannerSession = Boolean(options?.forcePlannerSession);
     if (shouldDeferAuthRefreshDueToTranquilityOffline(get)) {
       return;
     }
@@ -679,8 +754,110 @@ export const tokenActions = (set, get) => ({
       await updateCorporationClaims(esiTokens);
     }
 
-    await get().account.actions.refreshServerToken();
+    await get().account.actions.refreshServerToken(
+      forcePlannerSession ? { force: true } : undefined
+    );
     get().account.actions.updateCharacters([...get().account.characters]);
+  },
+
+  /**
+   * Background tab wake: refresh ESI access tokens only when near expiry, rotate planner session
+   * only when due — skips work when the tab was hidden briefly. Respects Tranquility gate.
+   */
+  runTabVisibleAuthRefresh: async () => {
+    if (inflightTabVisibleAuthRefreshPromise) {
+      return inflightTabVisibleAuthRefreshPromise;
+    }
+
+    const promise = (async () => {
+      if (shouldDeferAuthRefreshDueToTranquilityOffline(get)) {
+        return;
+      }
+
+      const state = get();
+      if (!state.account.isLoggedIn || !state.account.plannerPrivateAuthReady) {
+        return;
+      }
+
+      if (isPlannerReauthDeadlinePassed()) {
+        redirectToFullEveLoginIfTerminal("reauth_required");
+        return;
+      }
+
+      if (!accountNeedsAuthRefreshOnTabWake(get)) {
+        return;
+      }
+
+      const cloud = !!state.applicationSettings?.userCloudAccounts;
+      const characters = state.account.characters.filter(
+        (c) => c && !c.isPlaceholder
+      );
+      const mainCharacter = characters.find((c) => c?.isMainCharacter);
+      let anyEsiRefreshed = false;
+
+      for (const character of characters) {
+        if (
+          !characterNeedsEsiAccessRefresh(
+            character,
+            ESI_ACCESS_TOKEN_REFRESH_BUFFER_SEC
+          )
+        ) {
+          continue;
+        }
+        if (typeof character.refreshEsiAccessTokenIfNeeded !== "function") {
+          continue;
+        }
+        const refreshed = await character.refreshEsiAccessTokenIfNeeded();
+        if (refreshed === 1) {
+          anyEsiRefreshed = true;
+        }
+        await character.getPublicCharacterData();
+      }
+
+      get().account.actions.updateCharacters([...get().account.characters]);
+
+      if (!cloud && mainCharacter) {
+        const currentMain = get()
+          .account.characters?.find((ch) => ch?.isMainCharacter);
+        const attemptedMainRefresh = characterNeedsEsiAccessRefresh(
+          mainCharacter,
+          ESI_ACCESS_TOKEN_REFRESH_BUFFER_SEC
+        );
+        const nowSec = Math.floor(Date.now() / 1000);
+        const esiExp = Number(currentMain?.esiAccessTokenEXP) || 0;
+        const esiAccess = currentMain?.esiAccessToken || "";
+        const esiStillStale =
+          typeof esiAccess !== "string" ||
+          esiAccess.trim().length === 0 ||
+          esiExp <= nowSec + ESI_ACCESS_TOKEN_REFRESH_SKEW_SEC;
+
+        if (attemptedMainRefresh && esiStillStale) {
+          redirectToFullEveLogin();
+          return;
+        }
+      }
+
+      if (anyEsiRefreshed) {
+        const esiTokens = get()
+          .account.characters.map((ch) => ch?.esiAccessToken)
+          .filter((t) => typeof t === "string" && t.trim().length > 0);
+        if (esiTokens.length > 0) {
+          await updateCorporationClaims(esiTokens);
+        }
+      }
+
+      await get().account.actions.refreshServerToken();
+      get().account.actions.updateCharacters([...get().account.characters]);
+    })();
+
+    inflightTabVisibleAuthRefreshPromise = promise;
+    try {
+      await promise;
+    } finally {
+      if (inflightTabVisibleAuthRefreshPromise === promise) {
+        inflightTabVisibleAuthRefreshPromise = null;
+      }
+    }
   },
 
 });

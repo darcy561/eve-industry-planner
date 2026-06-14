@@ -1,14 +1,20 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCharacterHooks } from "../../../Hooks/React Query/useCharacterHooks";
 import { runAppLogin } from "../../../Functions/Auth/appLoginFlow.js";
-import redirectToEveSSO from "../Functions/eveSSORedirect";
+import {
+  redirectToFullEveLogin,
+  redirectToFullEveLoginIfTerminal,
+} from "../../../Functions/Auth/plannerSessionRedirect.js";
 import {
   getAuthCallbackParams,
   storeOriginalPathFromOAuthState,
   tryCompleteAdditionalAccountImportWindow,
 } from "../authCallbackParams.js";
-import { getTabPlannerRefreshToken } from "../../../Functions/Auth/tabSessionStorage.js";
+import {
+  getTabPlannerRefreshToken,
+  hasResumablePlannerSession,
+} from "../../../Functions/Auth/tabSessionStorage.js";
 import { hasCloudOAuthStorageServerHint } from "../../../Functions/Auth/plannerAuthCookies.js";
 
 /**
@@ -18,8 +24,40 @@ export function useAuthUrlLogin() {
   const queryClient = useQueryClient();
   const { triggerCharacterDataPrefetch, prefetchMultipleCharacters } =
     useCharacterHooks();
+  const loginStartedRef = useRef(false);
 
   useEffect(() => {
+    if (loginStartedRef.current) {
+      return;
+    }
+    loginStartedRef.current = true;
+
+    async function tryCookieCloudResume() {
+      if (!getTabPlannerRefreshToken() && !hasCloudOAuthStorageServerHint()) {
+        return false;
+      }
+      await runAppLogin({
+        queryClient,
+        prefetchMultipleCharacters,
+        triggerCharacterDataPrefetch,
+        mode: { type: "cookieCloudResume" },
+      });
+      return true;
+    }
+
+    async function tryEveClientRefresh(eveClientRefreshToken) {
+      await runAppLogin({
+        queryClient,
+        prefetchMultipleCharacters,
+        triggerCharacterDataPrefetch,
+        mode: {
+          type: "eveClientRefresh",
+          eveClientRefreshToken,
+        },
+      });
+      return true;
+    }
+
     async function run() {
       const { authCode, state } = getAuthCallbackParams();
       if (tryCompleteAdditionalAccountImportWindow(state, authCode)) {
@@ -37,45 +75,49 @@ export function useAuthUrlLogin() {
           });
         } catch (err) {
           console.error(err?.message ?? err);
-          redirectToEveSSO();
+          redirectToFullEveLogin();
         }
+        return;
+      }
+
+      if (!hasResumablePlannerSession()) {
+        redirectToFullEveLogin();
         return;
       }
 
       const existingAuth = localStorage.getItem("Auth");
-      if (existingAuth) {
+      const hasLocalEsiRefresh =
+        typeof existingAuth === "string" && existingAuth.trim().length > 0;
+
+      // Cloud accounts drop localStorage Auth after persisting ESI server-side.
+      if (!hasLocalEsiRefresh) {
         try {
-          await runAppLogin({
-            queryClient,
-            prefetchMultipleCharacters,
-            triggerCharacterDataPrefetch,
-            mode: {
-              type: "eveClientRefresh",
-              eveClientRefreshToken: existingAuth,
-            },
-          });
+          if (await tryCookieCloudResume()) {
+            return;
+          }
         } catch (err) {
-          console.error("Session login failed:", err);
-          redirectToEveSSO();
+          console.error("Tab session resume failed:", err);
+          if (redirectToFullEveLoginIfTerminal(err)) {
+            return;
+          }
         }
+        redirectToFullEveLogin();
         return;
       }
 
-      if (getTabPlannerRefreshToken() || hasCloudOAuthStorageServerHint()) {
-        try {
-          await runAppLogin({
-            queryClient,
-            prefetchMultipleCharacters,
-            triggerCharacterDataPrefetch,
-            mode: { type: "cookieCloudResume" },
-          });
+      // Local account: stored ESI refresh must succeed; tab-only resume cannot replace it.
+      try {
+        if (await tryEveClientRefresh(existingAuth)) {
           return;
-        } catch {
-          /* Tab session stale or cloud ESI missing — full SSO */
+        }
+      } catch (err) {
+        console.error("Session login failed:", err);
+        if (redirectToFullEveLoginIfTerminal(err)) {
+          return;
         }
       }
 
-      redirectToEveSSO();
+      redirectToFullEveLogin();
     }
     void run();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once; login flow is idempotent and must not re-run on hook identity
