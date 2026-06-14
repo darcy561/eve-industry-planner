@@ -92,6 +92,43 @@ describe("useLockAcquireRelease (#21 vacancy self-heal)", () => {
     unmount();
   });
 
+  it("mount acquire clears suppressVacancyAcquire from a prior voluntary leave", async () => {
+    const h = buildHarness();
+    mockLockScopes[docLockScopeKey("user_job_groups", "g1")] = {
+      readOnly: false,
+      lockHeld: false,
+      suppressVacancyAcquire: true,
+    };
+
+    const { unmount } = renderHook(() =>
+      useLockAcquireRelease({
+        collection: "user_job_groups",
+        docID: "g1",
+        enabled: true,
+        lockHeld: false,
+        readOnly: false,
+        patch: h.patch,
+        resetScope: h.resetScope,
+        heldRef: h.heldRef,
+        dispatchHeld: h.dispatchHeld,
+        keyRef: h.keyRef,
+        cancelReadOnlyGrace: h.cancelReadOnlyGrace,
+        waitingInHandoffQueue: false,
+        releaseOnUnmount: false,
+      })
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(acquireDocumentLock).toHaveBeenCalledWith("user_job_groups", "g1");
+    expect(h.patch).toHaveBeenCalledWith(
+      expect.objectContaining({ suppressVacancyAcquire: false })
+    );
+    unmount();
+  });
+
   it("does not self-heal acquire when suppressVacancyAcquire is set (voluntary leave)", async () => {
     const h = buildHarness();
     const key = docLockScopeKey("user_job_documents", "j1");
@@ -134,7 +171,7 @@ describe("useLockAcquireRelease (#21 vacancy self-heal)", () => {
     unmount();
   });
 
-  it("marks scope bootstrapped after first mount acquire attempt", async () => {
+  it("marks scope bootstrapped after successful mount acquire", async () => {
     const h = buildHarness();
     const { unmount } = renderHook(() =>
       useLockAcquireRelease({
@@ -158,8 +195,46 @@ describe("useLockAcquireRelease (#21 vacancy self-heal)", () => {
     });
 
     expect(h.patch).toHaveBeenCalledWith(
-      expect.objectContaining({ lockScopeBootstrapped: true })
+      expect.objectContaining({
+        lockHeld: true,
+        lockScopeBootstrapped: true,
+      })
     );
+    unmount();
+  });
+
+  it("does not bootstrap header when mount acquire leaves scope vacant", async () => {
+    acquireDocumentLock.mockResolvedValue({
+      ok: true,
+      status: 500,
+      json: vi.fn().mockResolvedValue({}),
+    });
+    const h = buildHarness();
+    const { unmount } = renderHook(() =>
+      useLockAcquireRelease({
+        collection: "user_job_documents",
+        docID: "j1",
+        enabled: true,
+        lockHeld: false,
+        readOnly: false,
+        patch: h.patch,
+        resetScope: h.resetScope,
+        heldRef: h.heldRef,
+        dispatchHeld: h.dispatchHeld,
+        keyRef: h.keyRef,
+        cancelReadOnlyGrace: h.cancelReadOnlyGrace,
+        waitingInHandoffQueue: false,
+      })
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const bootstrappedCalls = h.patch.mock.calls.filter((args) =>
+      args[0]?.lockScopeBootstrapped === true
+    );
+    expect(bootstrappedCalls).toHaveLength(0);
     unmount();
   });
 

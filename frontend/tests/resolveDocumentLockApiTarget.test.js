@@ -6,11 +6,12 @@ import {
 import { resolveDocumentLockApiTarget } from "../src/Functions/DocumentLock/resolveDocumentLockApiTarget.js";
 
 const findJobInJobArray = vi.fn();
+const getGroupObject = vi.fn();
 
 vi.mock("../src/Zustand/usersStore.js", () => ({
   default: {
     getState: () => ({
-      jobData: { actions: { findJobInJobArray } },
+      jobData: { actions: { findJobInJobArray, getGroupObject } },
     }),
   },
 }));
@@ -26,11 +27,27 @@ describe("resolveDocumentLockApiTarget", () => {
       includedInGroup: true,
       groupID: "group-1",
     });
+    getGroupObject.mockReturnValue({ groupID: "group-1" });
     expect(
       resolveDocumentLockApiTarget(USER_JOBS_COLLECTION, "job-1")
     ).toEqual({
       collection: USER_JOB_GROUPS_COLLECTION,
       docID: "group-1",
+    });
+  });
+
+  it("uses per-job lock when the group document is gone", () => {
+    findJobInJobArray.mockReturnValue({
+      jobID: "job-orphan",
+      includedInGroup: true,
+      groupID: "group-deleted",
+    });
+    getGroupObject.mockReturnValue(null);
+    expect(
+      resolveDocumentLockApiTarget(USER_JOBS_COLLECTION, "job-orphan")
+    ).toEqual({
+      collection: USER_JOBS_COLLECTION,
+      docID: "job-orphan",
     });
   });
 

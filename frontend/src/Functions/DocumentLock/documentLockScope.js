@@ -35,8 +35,9 @@ export function initialScopedDocumentLockState() {
      */
     lockScopeBootstrapped: false,
     /**
-     * Set when this tab voluntarily yields the lease (close job, navigate away).
-     * Blocks the #21 vacancy `tryAcquire` path until the scope is reset on unmount.
+     * Set when this tab voluntarily yields the lease (close job/group, navigate away).
+     * Blocks the #21 vacancy `tryAcquire` path until remount clears it on the next
+     * editor-page open (`useLockAcquireRelease` mount effect).
      */
     suppressVacancyAcquire: false,
   };

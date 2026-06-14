@@ -81,6 +81,18 @@ func finishLockHandlerSuccess(r *http.Request, operation string, statusCode int,
 	finishLockHandlerSuccessDetail(r, operation, statusCode, hc, "", merged)
 }
 
+func finishLockForceReleaseSuccess(r *http.Request, hc lockHandlerContext, out *documentlock.AcquireResult) {
+	if out == nil {
+		finishLockHandlerSuccess(r, "force-release", http.StatusOK, hc, nil)
+		return
+	}
+	extra := map[string]interface{}{
+		"acquired":  true,
+		"read_only": false,
+	}
+	finishLockHandlerSuccessDetail(r, "force-release-granted", out.StatusCode, hc, "document lock force-release granted", extra)
+}
+
 func finishLockAcquireSuccess(r *http.Request, hc lockHandlerContext, out *documentlock.AcquireResult) {
 	if out == nil {
 		finishLockHandlerSuccess(r, "acquire", http.StatusOK, hc, nil)

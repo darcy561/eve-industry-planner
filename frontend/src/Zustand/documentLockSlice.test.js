@@ -198,9 +198,8 @@ describe("documentLockSlice — async lock flows (regression)", () => {
   const docID = "job-regression-1";
   const scopeKey = docLockScopeKey(collection, docID);
 
-  it("forceReleaseSameAccountEditLock: 201 acquire shows success (holder wins race)", async () => {
-    forceReleaseDocumentLockSameAccount.mockResolvedValue({ status: 204 });
-    acquireDocumentLock.mockResolvedValue({
+  it("forceReleaseSameAccountEditLock: 201 grants lock to clearer", async () => {
+    forceReleaseDocumentLockSameAccount.mockResolvedValue({
       ok: true,
       status: 201,
       json: vi.fn().mockResolvedValue({
@@ -218,56 +217,9 @@ describe("documentLockSlice — async lock flows (regression)", () => {
       3
     );
     expect(showSnackbarWarning).not.toHaveBeenCalled();
+    expect(acquireDocumentLock).not.toHaveBeenCalled();
     expect(useStore.getState().documentLock.scopes[scopeKey]?.lockHeld).toBe(true);
     expect(useStore.getState().documentLock.scopes[scopeKey]?.readOnly).toBe(false);
-  });
-
-  it("forceReleaseSameAccountEditLock: 200 contended acquire warns and patches read-only (sibling won acquire)", async () => {
-    forceReleaseDocumentLockSameAccount.mockResolvedValue({ status: 204 });
-    acquireDocumentLock.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: vi.fn().mockResolvedValue({
-        held: true,
-        acquired: false,
-        expiresAtUnix: 1_700_000_000,
-        ttlSeconds: 300,
-        viewerCount: 2,
-      }),
-    });
-
-    await useStore
-      .getState()
-      .documentLock.actions.forceReleaseSameAccountEditLock(collection, docID);
-
-    expect(showSnackbarWarning).toHaveBeenCalledWith(
-      expect.stringContaining("another session took the edit lease first"),
-      6
-    );
-    expect(showSnackbarSuccess).not.toHaveBeenCalled();
-    const s = useStore.getState().documentLock.scopes[scopeKey];
-    expect(s?.readOnly).toBe(true);
-    expect(s?.lockHeld).toBe(false);
-    expect(s?.viewerCount).toBe(2);
-  });
-
-  it("forceReleaseSameAccountEditLock: non-201/200 acquire shows generic warning", async () => {
-    forceReleaseDocumentLockSameAccount.mockResolvedValue({ status: 204 });
-    acquireDocumentLock.mockResolvedValue({
-      ok: false,
-      status: 503,
-      json: vi.fn().mockResolvedValue({}),
-    });
-
-    await useStore
-      .getState()
-      .documentLock.actions.forceReleaseSameAccountEditLock(collection, docID);
-
-    expect(showSnackbarWarning).toHaveBeenCalledWith(
-      expect.stringContaining("could not take ownership"),
-      5
-    );
-    expect(showSnackbarSuccess).not.toHaveBeenCalled();
   });
 
   it("requestAccess: 202 queues waitlist pulse path in scope", async () => {

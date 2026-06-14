@@ -1,4 +1,5 @@
 import useUsersStore from "../../Zustand/usersStore.js";
+import { isJobInLiveGroup } from "./groupSubordinateJobLock.js";
 import {
   USER_JOB_GROUPS_COLLECTION,
   USER_JOBS_COLLECTION,
@@ -19,10 +20,13 @@ export function resolveDocumentLockApiTarget(collection, docID) {
   if (collection !== USER_JOBS_COLLECTION) {
     return { collection, docID };
   }
-  const job = useUsersStore
-    .getState()
-    .jobData.actions.findJobInJobArray(docID);
-  if (!job?.includedInGroup || !job.groupID) {
+  const state = useUsersStore.getState();
+  const job = state.jobData.actions.findJobInJobArray(docID);
+  if (
+    !job?.includedInGroup ||
+    !job.groupID ||
+    !isJobInLiveGroup(state, job.groupID, job.includedInGroup)
+  ) {
     return { collection, docID };
   }
   return {

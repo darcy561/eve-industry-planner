@@ -5,6 +5,21 @@ import {
 } from "./documentLockCollections.js";
 
 /**
+ * Whether the group still exists as an editable planner group (`groupArray`).
+ * Jobs keep `groupID` after archive/delete for backend references (archived
+ * job grouping, build stats, etc.); this only gates live edit-lock routing.
+ *
+ * @param {*} state — root store state
+ * @param {string | undefined | null} groupID
+ * @param {boolean} [includedInGroup=true]
+ * @returns {boolean}
+ */
+export function isJobInLiveGroup(state, groupID, includedInGroup = true) {
+  if (!groupID || includedInGroup === false) return false;
+  return Boolean(state?.jobData?.actions?.getGroupObject?.(groupID));
+}
+
+/**
  * Group edit sessions (group page or edit-job with matching `activeGroupID`)
  * treat the group lock as authoritative for every included job — per-job Redis
  * rows are subordinate and cleared on group grant / cascade.
@@ -14,7 +29,7 @@ import {
  * @returns {boolean}
  */
 export function isJobLockSubordinateToGroup(state, groupID) {
-  if (!groupID) return false;
+  if (!isJobInLiveGroup(state, groupID)) return false;
   const activeGroupID = state?.jobData?.activeGroupID;
   return Boolean(activeGroupID && activeGroupID === groupID);
 }

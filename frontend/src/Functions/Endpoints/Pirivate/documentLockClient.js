@@ -157,8 +157,9 @@ export function releaseDocumentLock(collection, docID) {
 }
 
 /**
- * Same-account emergency: clears the lock held by another session on this
- * account (POST `/force-release`). Caller must not already be the holder.
+ * Same-account emergency: evicts another session's lock and atomically grants
+ * it to this tab (POST `/force-release`). Caller must not already be the holder.
+ * Returns 201 with the same JSON shape as POST `/acquire` on success.
  *
  * @param {string} collection
  * @param {string} docID

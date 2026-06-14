@@ -518,16 +518,22 @@ func TestForceReleaseSameAccount(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := svc.ForceReleaseSameAccount(ctx, testAccountID, "other-sess", testCollection, testDocID)
+	out, err := svc.ForceReleaseSameAccount(ctx, testAccountID, "other-sess", testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("ForceReleaseSameAccount: %v", err)
+	}
+	if out == nil || out.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201 granted, got %+v", out)
+	}
+	if holder, _ := out.Payload["holderSessionID"].(string); holder != "other-sess" {
+		t.Fatalf("expected holder other-sess, got %q", holder)
 	}
 	got, err := GetLock(ctx, rdb, testAccountID, testCollection, testDocID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != nil {
-		t.Fatalf("expected lock cleared, got %+v", got)
+	if got == nil || got.HolderSessionID != "other-sess" {
+		t.Fatalf("expected lock granted to other-sess, got %+v", got)
 	}
 	n, err := WaitlistLen(ctx, rdb, testAccountID, testCollection, testDocID)
 	if err != nil {

@@ -1,5 +1,4 @@
 import {
-  acquireDocumentLock,
   claimDocumentLockHandoff,
   forceReleaseDocumentLockSameAccount,
   handOverDocumentLock,
@@ -201,8 +200,8 @@ const documentLockSlice = (set, get) => ({
       },
 
       /**
-       * Same-account emergency: POST `/force-release` then acquire. Confirms in
-       * the browser before calling the API.
+       * Same-account emergency: POST `/force-release` atomically evicts the other
+       * session and grants the lock to this tab. Confirms in the browser first.
        *
        * @param {string} collection
        * @param {string} docID
@@ -222,76 +221,18 @@ const documentLockSlice = (set, get) => ({
             target.collection,
             target.docID
           );
-          if (res.status === 204) {
+          let data = {};
+          if (typeof res.json === "function") {
+            data = await res.json().catch(() => ({}));
+          }
+          if (res.status === 201) {
             suppressDocumentLockVacancyNotice();
-            patchDocumentLockForScope(target.collection, target.docID, {
-              lockHeld: false,
-              readOnly: false,
-              pendingAccessRequest: false,
-              lockExpiresAtUnix: null,
-              lockTtlSeconds: null,
-              ...clearedHandoffFieldsForSlice(),
-            });
-            const res2 = await acquireDocumentLock(
+            patchDocumentLockForScope(
               target.collection,
-              target.docID
+              target.docID,
+              buildGrantedHolderPatch(data, { withClearedHandoff: true })
             );
-            const data = await res2.json().catch(() => ({}));
-            if (res2.status === 201) {
-              patchDocumentLockForScope(
-                target.collection,
-                target.docID,
-                buildGrantedHolderPatch(data, { withClearedHandoff: true })
-              );
-              showSnackbarSuccess("Edit lock cleared — you now hold the lock.", 3);
-              return;
-            }
-            // Same shape as POST /request auto-grant (defensive if API ever returns 200).
-            if (
-              res2.ok &&
-              res2.status === 200 &&
-              data.acquired === true &&
-              data.held === true
-            ) {
-              suppressDocumentLockVacancyNotice();
-              patchDocumentLockForScope(
-                target.collection,
-                target.docID,
-                buildGrantedHolderPatch(data, { withClearedHandoff: true })
-              );
-              showSnackbarSuccess("Edit lock cleared — you now hold the lock.", 3);
-              return;
-            }
-            // Another session (often the other tab on this account) won the race to POST /acquire.
-            if (
-              res2.ok &&
-              res2.status === 200 &&
-              data.held === true &&
-              data.acquired === false
-            ) {
-              const viewerPatch = {
-                readOnly: true,
-                lockHeld: false,
-                lockExpiresAtUnix: numberOrNull(data, "expiresAtUnix"),
-                lockTtlSeconds: numberOrNull(data, "ttlSeconds"),
-              };
-              if (typeof data.viewerCount === "number") {
-                viewerPatch.viewerCount = data.viewerCount;
-              }
-              patchDocumentLockForScope(target.collection, target.docID, {
-                ...viewerPatch,
-                ...clearedHandoffFieldsForSlice(),
-              });
-              showSnackbarWarning(
-                "The lock was cleared, but another session took the edit lease first — this tab is read-only. Try Request access or clear again if stuck.",
-                6
-              );
-              return; 
-            }
-            showSnackbarWarning(
-              `The lock was cleared, but this tab could not take ownership (${res2.status}). Try the lock control in the header.`,
-              5
-            );
+            showSnackbarSuccess("Edit lock cleared — you now hold the lock.", 3);
             return;
           }
           if (res.status === 404) {
