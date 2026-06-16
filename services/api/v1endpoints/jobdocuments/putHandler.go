@@ -105,11 +105,6 @@ func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	now := time.Now()
 	result, failedCount, err := mongoput.BulkUpsertJobDocuments(ctx, collection, accountID, reqBody.Jobs, now, sessionID, wsClientID)
 	if err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			metrics.Error("request_canceled")
-			helper.RespondEndpointError(w, r, http.StatusRequestTimeout, "Request canceled", "job documents bulk upsert canceled", "job_docs_put_canceled", "job_documents", err, nil)
-			return
-		}
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to save jobs", "failed to bulk upsert job documents", "job_docs_upsert_failed", "job_documents", err, nil)
 		return

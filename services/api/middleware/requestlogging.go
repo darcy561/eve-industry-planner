@@ -3,6 +3,7 @@ package middleware
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -92,7 +93,7 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 				return fields
 			}
 
-			if rw.statusCode >= 500 {
+			if rw.statusCode >= 500 && rw.statusCode != http.StatusServiceUnavailable {
 				det := logs.HandlerFailureDetailFromRequest(r)
 				errFields := appendDebugSteps([]zap.Field{logs.Ctx(ctx)})
 				if herr := logs.HandlerErrorFromRequest(r); herr != nil {
@@ -102,6 +103,11 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 					errFields = append(errFields, logs.AccessLogDetailFields(det)...)
 				}
 				doneLogger.Error(logs.AccessLogMessage(rw.statusCode, det), errFields...)
+				// Client disconnect / request deadline on a handler that still returned 5xx is not a server fault.
+				if herr := logs.HandlerErrorFromRequest(r); herr != nil &&
+					(errors.Is(herr, context.Canceled) || errors.Is(herr, context.DeadlineExceeded)) {
+					return
+				}
 				// Non-panic 5xx: request logging sees the status but sentryhttp only captures panics.
 				sentry.WithScope(func(scope *sentry.Scope) {
 					scope.SetRequest(r)
