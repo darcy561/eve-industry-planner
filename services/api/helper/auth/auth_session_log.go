@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+
+	"eve-industry-planner/shared/dependency"
 )
 
 // AuthSessionError is returned by ExtractAccountSession for client-facing auth failure codes.
@@ -29,6 +31,19 @@ const (
 	authSessionReasonSessionRowMissing   = "session_row_missing"
 	authSessionReasonRedisError          = "redis_error"
 )
+
+// IsInfrastructureError reports auth/session failures caused by Redis being unreachable
+// rather than a missing or invalid session.
+func IsInfrastructureError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var authErr *AuthSessionError
+	if errors.As(err, &authErr) && authErr != nil && authErr.Reason == authSessionReasonRedisError {
+		return true
+	}
+	return dependency.IsUnavailable(err)
+}
 
 // AuthSessionFailureDetail is safe diagnostic context for invalid session logs (no secrets beyond ids).
 type AuthSessionFailureDetail struct {

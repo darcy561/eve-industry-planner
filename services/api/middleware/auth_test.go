@@ -40,7 +40,7 @@ func TestAuthConstructor_AttachesClientFailureDetail(t *testing.T) {
 	if det["failure_class"] != "auth_session_missing" {
 		t.Fatalf("failure_class = %v", det["failure_class"])
 	}
-	if det["reason"] != "cookie_absent" {
+	if det["reason"] != "session_absent" {
 		t.Fatalf("reason = %v", det["reason"])
 	}
 }
