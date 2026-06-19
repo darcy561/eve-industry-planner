@@ -23,9 +23,9 @@ func WrapServeMuxUnregisteredRoutes(mux *http.ServeMux) http.Handler {
 		mux = http.NewServeMux()
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h, pattern := mux.Handler(r)
+		_, pattern := mux.Handler(r)
 		if pattern != "" {
-			h.ServeHTTP(w, r)
+			mux.ServeHTTP(w, r)
 			return
 		}
 		respondUnregisteredRoute(w, r)

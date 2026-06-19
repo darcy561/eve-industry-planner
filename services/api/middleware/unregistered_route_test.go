@@ -55,3 +55,21 @@ func TestWrapServeMuxUnregisteredRoutes_RegisteredPath(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 }
+
+func TestWrapServeMuxUnregisteredRoutes_PathValuePopulated(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/citadel-names/{citadelID}", func(w http.ResponseWriter, r *http.Request) {
+		if got := r.PathValue("citadelID"); got != "1043997206944" {
+			t.Fatalf("PathValue(citadelID) = %q, want 1043997206944", got)
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/citadel-names/1043997206944", nil)
+	rec := httptest.NewRecorder()
+	WrapServeMuxUnregisteredRoutes(mux).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+}
