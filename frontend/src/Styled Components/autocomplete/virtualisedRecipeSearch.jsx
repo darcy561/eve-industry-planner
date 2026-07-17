@@ -76,12 +76,13 @@ function ListboxComponent({ children, virtualizerControlRef, ref, ...other }) {
           {virtualizer.getVirtualItems().map((virtualItem) => (
             <div
               key={virtualItem.key}
+              data-index={virtualItem.index}
+              ref={virtualizer.measureElement}
               style={{
                 position: "absolute",
                 top: 0,
                 left: 0,
                 width: "100%",
-                height: virtualItem.size,
                 transform: `translateY(${virtualItem.start}px)`,
               }}
             >
@@ -122,7 +123,6 @@ function RecipeSearchAutocomplete({
   const [inputValue, setInputValue] = useState("");
   const theme = useTheme();
   const virtualizerControlRef = useRef(null);
-  /** Indices in the listbox match MUI's filtered options, not full `listToDisplay`. */
   const filteredOptionsSnapshotRef = useRef([]);
 
   const filterOptions = useMemo(
