@@ -9,6 +9,7 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	sentryotel "github.com/getsentry/sentry-go/otel"
+	sentryotlp "github.com/getsentry/sentry-go/otel/otlp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
@@ -26,8 +27,8 @@ import (
 )
 
 // Init installs global TracerProvider and MeterProvider when Config.shouldInit is true.
-// Traces are exported to Sentry only when SentryDSN is set and SentryTracesSampleRate > 0 (no OTLP trace exporter).
-// OTLP remains for metrics and logs to the collector when OTLPEndpoint is set.
+// Traces are exported to Sentry via OTLP when SentryDSN is set and SentryTracesSampleRate > 0.
+// App OTLP remains for metrics and logs to the collector when OTLPEndpoint is set.
 // It returns a shutdown function that flushes providers (and Sentry when configured).
 // Call shutdown on process exit with a timeout context.
 func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) {
@@ -61,24 +62,21 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 			// Do not drop events by environment here: use a separate Sentry project/DSN for dev,
 			// or filter by the "environment" tag in Sentry. Dropping all "development" events
 			// made production-looking deploys (e.g. mis-set build ARG) send nothing.
+			Integrations: func(integrations []sentry.Integration) []sentry.Integration {
+				return append(integrations, sentryotel.NewOtelIntegration())
+			},
 		}); err != nil {
 			return nil, fmt.Errorf("telemetry: sentry.Init: %w", err)
 		}
 		sentryStarted = true
 	}
 
-	if cfg.SentryDSN != "" {
-		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-			sentryotel.NewSentryPropagator(),
-			propagation.TraceContext{},
-			propagation.Baggage{},
-		))
-	} else {
-		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-			propagation.TraceContext{},
-			propagation.Baggage{},
-		))
-	}
+	// sentry-go ≥0.47 removed NewSentryPropagator; use W3C TraceContext/Baggage for OTel↔OTel
+	// (and frontend→backend when the browser SDK sends traceparent).
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
 
 	version := strings.TrimSpace(cfg.ServiceVersion)
 	if version == "" {
@@ -106,14 +104,24 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 
 	var traceShutdown func(context.Context) error
 	if sentrySendTraces {
+		exporter, err := sentryotlp.NewTraceExporter(ctx, cfg.SentryDSN)
+		if err != nil {
+			return nil, fmt.Errorf("telemetry: sentry otlp trace exporter: %w", err)
+		}
+		sr := cfg.SentryTracesSampleRate
+		if sr > 1 {
+			sr = 1.0
+		}
 		tp := sdktrace.NewTracerProvider(
 			sdktrace.WithResource(res),
-			sdktrace.WithSpanProcessor(sentryotel.NewSentrySpanProcessor()),
+			sdktrace.WithBatcher(exporter),
+			// OTLP export does not apply sentry.TracesSampleRate; sample in the SDK.
+			sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(sr))),
 		)
 		otel.SetTracerProvider(tp)
 		traceShutdown = tp.Shutdown
 	} else {
-		// No OTLP trace exporter; noop avoids exporting spans when Sentry tracing is off (errors-only).
+		// No Sentry trace export; noop avoids exporting spans when tracing is off (errors-only).
 		otel.SetTracerProvider(oteltrace.NewNoopTracerProvider())
 		traceShutdown = func(context.Context) error { return nil }
 	}
