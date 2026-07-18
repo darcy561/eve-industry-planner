@@ -42,6 +42,42 @@ const { PRIMARY_THEME, SECONDARY_THEME } = GLOBAL_CONFIG;
  */
 const ThemeContext = createContext();
 
+/** Safe localStorage access when storage is null or blocked (e.g. Firefox privacy). */
+export const themeStorage = {
+  getItem(key) {
+    try {
+      return localStorage?.getItem(key) ?? null;
+    } catch {
+      return null;
+    }
+  },
+  setItem(key, value) {
+    try {
+      localStorage?.setItem(key, value);
+    } catch {
+      // Storage unavailable; theme still works for this session.
+    }
+  },
+};
+
+/**
+ * Resolve the initial theme mode from storage and system preference.
+ * @param {string|null} storedTheme
+ * @param {boolean} systemPrefersDark
+ * @param {boolean} [hasWindow=true]
+ * @returns {string}
+ */
+export function resolveInitialThemeMode(
+  storedTheme,
+  systemPrefersDark,
+  hasWindow = true
+) {
+  if (!hasWindow) {
+    return PRIMARY_THEME;
+  }
+  return storedTheme || (systemPrefersDark ? PRIMARY_THEME : SECONDARY_THEME);
+}
+
 /**
  * Theme Provider component for EVE Industry Planner.
  *
@@ -60,24 +96,22 @@ const ThemeContext = createContext();
  */
 export function ThemeProvider({ children }) {
   const [mode, setMode] = useState(() => {
-    // Check system preference first
-    if (typeof window !== "undefined") {
-      const systemPrefersDark = window.matchMedia(
-        "(prefers-color-scheme: dark)"
-      ).matches;
-      const storedTheme = localStorage.getItem("theme");
-      return (
-        storedTheme || (systemPrefersDark ? PRIMARY_THEME : SECONDARY_THEME)
-      );
-    }
-    return PRIMARY_THEME;
+    const hasWindow = typeof window !== "undefined";
+    const systemPrefersDark = hasWindow
+      ? window.matchMedia("(prefers-color-scheme: dark)").matches
+      : false;
+    return resolveInitialThemeMode(
+      themeStorage.getItem("theme"),
+      systemPrefersDark,
+      hasWindow
+    );
   });
 
   // Listen for system theme changes
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handleChange = (e) => {
-      if (!localStorage.getItem("theme")) {
+      if (!themeStorage.getItem("theme")) {
         setMode(e.matches ? PRIMARY_THEME : SECONDARY_THEME);
       }
     };
@@ -88,11 +122,7 @@ export function ThemeProvider({ children }) {
 
   // Persist theme preference
   useEffect(() => {
-    try {
-      localStorage.setItem("theme", mode);
-    } catch (error) {
-      console.error("Failed to save theme preference:", error);
-    }
+    themeStorage.setItem("theme", mode);
   }, [mode]);
 
   const theme = useMemo(() => {
