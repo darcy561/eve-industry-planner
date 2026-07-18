@@ -212,26 +212,39 @@ services:
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.websecure.http.tls=true"
       - "--entrypoints.dashboard.address=:81"
+      # Internal Prometheus scrape only (not published to host)
+      - "--entrypoints.metrics.address=:8082"
       # Providers
       - "--providers.docker=true"
       - "--providers.docker.endpoint=unix:///var/run/docker.sock"
       - "--providers.docker.exposedbydefault=false"
-      # Access Log
+      # Admin API + dashboard (served via labels on entrypoint dashboard)
+      - "--api.dashboard=true"
+      # Metrics → Prometheus (job=traefik)
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.entryPoint=metrics"
+      - "--metrics.prometheus.addEntryPointsLabels=true"
+      - "--metrics.prometheus.addRoutersLabels=true"
+      - "--metrics.prometheus.addServicesLabels=true"
+      - "--metrics.prometheus.buckets=0.1,0.3,1.2,5.0"
+      # Access + app logs → container stdout (Alloy → Loki). No filepath = stdout.
       - "--accesslog=true"
-      - "--accesslog.filepath=/var/log/traefik/access.log"
       - "--log.level=INFO"
-      - "--log.filepath=/var/log/traefik/traefik.log"
     labels:
-      # Enable Traefik
       - "traefik.enable=true"
+      - "traefik.http.routers.traefik-dashboard.rule=PathPrefix(`/dashboard`) || PathPrefix(`/api`)"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=dashboard"
     ports:
       - "80:80"
       - "443:443"
+      - "81:81"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "traefik_data:/data"
       - "/var/log/traefik:/var/log/traefik"
 
+  # --- Data & messaging ---
   nats:
     container_name: nats
     image: nats:2
@@ -241,20 +254,6 @@ services:
     command: [ "-js", "-sd", "/data", "-m", "8222" ]
     networks:
       - eip
-
-  asynqmon:
-    <<: *common-service-config
-    container_name: asynqmon
-    image: hibiken/asynqmon:latest
-    ports:
-      - "10.8.0.1:8080:8080"
-    command:
-      - "--redis-addr=redis:6379"
-      - "--redis-password=${REDIS_PASSWORD}"
-      - "--enable-metrics-exporter"
-    depends_on:
-      redis:
-        condition: service_healthy
 
   redis:
     container_name: redisDB
@@ -279,8 +278,6 @@ services:
       timeout: 3s
       retries: 5
       start_period: 10s
-    ports:
-      - "10.8.0.1:6379:6379"
     networks:
       - eip
 
@@ -311,10 +308,78 @@ services:
       timeout: 10s
       retries: 30
       start_period: 30s
-    ports:
-      - "10.8.0.1:27017:27017"
     networks:
       - eip
+
+  # --- Observability (exporters → Prometheus/Loki/Grafana) ---
+  asynqmon:
+    <<: *common-service-config
+    container_name: asynqmon
+    image: hibiken/asynqmon:latest
+    command:
+      - "--redis-addr=redis:6379"
+      - "--redis-password=${REDIS_PASSWORD}"
+      - "--enable-metrics-exporter"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  nats-exporter:
+    container_name: nats-exporter
+    image: natsio/prometheus-nats-exporter:0.20.1
+    restart: unless-stopped
+    networks:
+      - eip
+    dns: *common-dns
+    command:
+      [
+        "-varz",
+        "-connz",
+        "-routez",
+        "-subz",
+        "-jsz=all",
+        "-prefix=nats",
+        "http://nats:8222",
+      ]
+    depends_on:
+      nats:
+        condition: service_started
+
+  redis-exporter:
+    container_name: redis-exporter
+    image: oliver006/redis_exporter:v1.87.0
+    restart: unless-stopped
+    networks:
+      - eip
+    dns: *common-dns
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  mongodb-exporter:
+    container_name: mongodb-exporter
+    image: percona/mongodb_exporter:0.51.0
+    restart: unless-stopped
+    networks:
+      - eip
+    dns: *common-dns
+    environment:
+      MONGODB_USER: ${MONGO_ROOT_USERNAME}
+      MONGODB_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGODB_URI: mongodb://mongo:27017/admin?authSource=admin&replicaSet=rs0
+    command:
+      [
+        "--collect-all",
+        "--compatible-mode",
+        "--no-mongodb.direct-connect",
+        "--web.listen-address=:9216",
+      ]
+    depends_on:
+      mongo:
+        condition: service_healthy
 
   prometheus:
     image: prom/prometheus:v3.2.1
@@ -333,6 +398,16 @@ services:
       - prometheus_data:/prometheus
     depends_on:
       asynqmon:
+        condition: service_started
+      nats-exporter:
+        condition: service_started
+      redis-exporter:
+        condition: service_started
+      mongodb-exporter:
+        condition: service_started
+      node_exporter:
+        condition: service_started
+      traefik:
         condition: service_started
 
   loki:
@@ -353,12 +428,8 @@ services:
     restart: unless-stopped
     networks:
       eip:
-        aliases:
-          - otel-collector
     dns: *common-dns
     environment:
-      DOCKER_API_VERSION: "1.44"
-      # Minimum severity stored in Loki for OTLP logs (debug|info|warn|warning|error). Apps always export debug.
       LOG_LEVEL: ${LOG_LEVEL:-info}
     command:
       - run
@@ -387,13 +458,11 @@ services:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://10.8.0.1:3030}
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://127.0.0.1:3030}
       - GF_DASHBOARDS_MIN_REFRESH_INTERVAL=${GRAFANA_MIN_REFRESH:-5s}
     volumes:
       - grafana_data:/var/lib/grafana
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
-    ports:
-      - "${GRAFANA_HOST_PORT:-10.8.0.1:3030}:3000"
     depends_on:
       prometheus:
         condition: service_started

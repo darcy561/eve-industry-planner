@@ -125,11 +125,11 @@ You have two options:
 
 - **mongo**: MongoDB (single-node replica set, `rs0` by default)
 - **redis**: Redis (password-protected; also used by Asynq and the WebSocket layer)
-- **nats**: NATS with JetStream enabled (`-js`) for internal messaging
+- **nats**: NATS with JetStream enabled (`-js`) for internal messaging; monitoring HTTP on `:8222`
 
 ### Edge and operations
 
-- **traefik**: Reverse proxy and TLS entrypoints (80/443), Docker provider, per-service labels for routes and middlewares
+- **traefik**: Reverse proxy and TLS entrypoints (80/443), Docker provider; Prometheus metrics on internal `:8082` (`job=traefik`); admin UI on host `:81` (`/dashboard/`); stdout access/app logs → Alloy → Loki (**Traefik** metrics + **Traefik · logs** Grafana dashboards)
 - **asynqmon** (optional UI): Asynq queue browser/metrics; see `docker-compose.yml` for how ports are published (default pattern binds to a specific host IP for internal/VPN access)
 
 ### Observability stack
@@ -137,10 +137,13 @@ You have two options:
 These run on the same `eip` network and are defined in `docker-compose.yml`:
 
 - **alloy**: Unified telemetry agent — OTLP logs from Go services → Loki; Docker stdout logs → Loki for frontend/infra; OTLP metrics → Prometheus. Config: `observability/alloy/config.alloy` (`LOG_LEVEL` env read at Alloy startup)
-- **prometheus**: Metrics TSDB; scrapes asynqmon; receives app OTLP metrics from Alloy remote write
+- **nats-exporter**: Scrapes NATS `:8222` into Prometheus metrics on `:7777` (`-prefix=nats`); powers **NATS Server** / **NATS JetStream** Grafana dashboards
+- **redis-exporter**: Scrapes Redis INFO into Prometheus on `:9121`; powers **Redis** Grafana dashboard
+- **mongodb-exporter**: Scrapes MongoDB into Prometheus on `:9216` (`--compatible-mode`); powers **MongoDB** Grafana dashboard
+- **prometheus**: Metrics TSDB; scrapes asynqmon, nats-exporter, redis-exporter, and mongodb-exporter; receives app OTLP metrics from Alloy remote write
 - **loki**: Log storage; Alloy pushes container stdout logs with `compose_service` labels for dashboards such as **Core · logs**, **API · logs**, etc.
 - **grafana**: Dashboards from `observability/grafana/provisioning`; login uses `GRAFANA_ADMIN_*` from `.env` (on first bootstrap, `ensure-env.sh` generates `GRAFANA_ADMIN_PASSWORD` like other secrets unless you set it explicitly)
-- **node_exporter**: Host/node metrics for Prometheus
+- **node_exporter**: Host CPU/memory/disk/network metrics on `:9100`; scraped by Prometheus (`job=node`); **Host** Grafana dashboard
 
 ### Ports
 
