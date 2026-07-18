@@ -17,12 +17,14 @@ vi.mock("../src/Zustand/usersStore.js", () => ({
 import {
   canPersistJobClose,
   canPersistGroupClose,
+  canEditActiveJob,
+  canEditActiveGroup,
 } from "../src/Functions/DocumentLock/canPersistDocumentEditClose.js";
 
 describe("canPersistDocumentEditClose", () => {
   beforeEach(() => {
     storeHolder.current = create((set, get) => ({
-      account: { sessionID: "sess-a" },
+      account: { sessionID: "sess-a", isLoggedIn: true },
       ...documentLockSlice(set, get),
     }));
   });
@@ -94,5 +96,62 @@ describe("canPersistDocumentEditClose", () => {
       { lockHeld: true, readOnly: false }
     );
     expect(canPersistGroupClose("g1")).toBe(true);
+  });
+
+  describe("canEditActiveJob / canEditActiveGroup (aligned UI gates)", () => {
+    it("allows logged-out local edits without a lease", () => {
+      storeHolder.current.setState({ account: { isLoggedIn: false } });
+      expect(canEditActiveJob("j1", null)).toBe(true);
+      expect(canEditActiveJob(null, null)).toBe(false);
+      expect(canEditActiveGroup("g1")).toBe(true);
+      expect(canEditActiveGroup(null)).toBe(false);
+    });
+
+    it("matches canPersist*Close when logged in", () => {
+      storeHolder.current.getState().documentLock.actions.patchDocumentLockForScope(
+        USER_JOBS_COLLECTION,
+        "j1",
+        { lockHeld: false, readOnly: false }
+      );
+      storeHolder.current.getState().documentLock.actions.patchDocumentLockForScope(
+        USER_JOB_GROUPS_COLLECTION,
+        "g1",
+        { lockHeld: false, readOnly: false }
+      );
+      expect(canEditActiveJob("j1", null)).toBe(false);
+      expect(canEditActiveGroup("g1")).toBe(false);
+      expect(canEditActiveJob("j1", null)).toBe(canPersistJobClose("j1", null));
+      expect(canEditActiveGroup("g1")).toBe(canPersistGroupClose("g1"));
+
+      storeHolder.current.getState().documentLock.actions.patchDocumentLockForScope(
+        USER_JOBS_COLLECTION,
+        "j1",
+        { lockHeld: true, readOnly: false }
+      );
+      storeHolder.current.getState().documentLock.actions.patchDocumentLockForScope(
+        USER_JOB_GROUPS_COLLECTION,
+        "g1",
+        { lockHeld: true, readOnly: false }
+      );
+      expect(canEditActiveJob("j1", null)).toBe(true);
+      expect(canEditActiveGroup("g1")).toBe(true);
+      expect(canEditActiveJob("j1", null)).toBe(canPersistJobClose("j1", null));
+      expect(canEditActiveGroup("g1")).toBe(canPersistGroupClose("g1"));
+    });
+
+    it("blocks logged-in viewers (read-only) the same way for job and group", () => {
+      storeHolder.current.getState().documentLock.actions.patchDocumentLockForScope(
+        USER_JOBS_COLLECTION,
+        "j1",
+        { lockHeld: false, readOnly: true }
+      );
+      storeHolder.current.getState().documentLock.actions.patchDocumentLockForScope(
+        USER_JOB_GROUPS_COLLECTION,
+        "g1",
+        { lockHeld: false, readOnly: true }
+      );
+      expect(canEditActiveJob("j1", null)).toBe(false);
+      expect(canEditActiveGroup("g1")).toBe(false);
+    });
   });
 });

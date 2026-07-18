@@ -112,7 +112,7 @@ Responsibilities, all driven from one mount/unmount:
 
 ### Edit-job: API persist affordances (#20 / #21)
 
-Server-gated writes (`PUT`/`DELETE` job-documents and groups, `PUT` archived-jobs) return **409** with `lock_held_elsewhere` when Redis is configured and another session holds the lock; `applyPrivateHeaders.js` surfaces `DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE` after patching scopes. On Edit Job, **save**, **delete**, **leave-dialog save**, and **sibling job linking** use **`useActiveJobPersistGate`** — `canPersist` requires `!readOnly`, **`lockHeld` on the job scope**, and (when the job has a group) **`lockHeld` on the group scope** aligned with `activeGroupID`. Other controls that already disable on **`useActiveJobReadOnly`** are the **documented gated set** for viewer lock (**ROADMAP.md** Done **#22** policy); holder-aware widening is **opportunistic** only if a gap is found later.
+Server-gated writes (`PUT`/`DELETE` job-documents and groups, `PUT` archived-jobs) return **409** with `lock_held_elsewhere` when Redis is configured and another session holds the lock; `applyPrivateHeaders.js` surfaces `DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE` after patching scopes. On Edit Job, **save**, **delete**, **leave-dialog save**, and **sibling job linking** use **`useActiveJobPersistGate`** → **`canEditActiveJob`**. On the group page, mutate side-menu actions and rename use **`useGroupCanEdit` / `useActiveGroupCanEdit`** → **`canEditActiveGroup`**. Both UI helpers share **`canEditLocallyOrAsHolder`**: logged-out allows local edits (no Redis lease); logged-in uses the same holder rules as **`canPersistJobClose`** / **`canPersistGroupClose`**. Job cards still gate “View” on **`readOnly`** only (vacancy must not flip cards while acquire is in flight). Close/save still skips API persist via `isLoggedIn && canPersist*Close(...)`. Other edit-job controls that already disable on **`useActiveJobReadOnly`** are the **documented gated set** for viewer lock (**ROADMAP.md** Done **#22** policy); holder-aware widening is **opportunistic** only if a gap is found later.
 
 ### CustomEvent → state mapping
 
@@ -354,7 +354,6 @@ shaped like `{ activeJob: { jobID, groupID } }`. The exports:
 | `useActiveGroupReadOnly(state)` | Group lock boolean (false for solo jobs). |
 | `useActiveJobOrGroupReadOnly(state)` | `{ readOnly, jobReadOnly, groupReadOnly }` (group wins for `reason` placement). |
 | `useSiblingLinkLock(state)` | `{ readOnly, reason }` for sibling-link affordances (purchasing rows, link buttons). |
-| `useLockGatedHandler(handler, readOnly)` | Wraps a handler so it's a no-op while read-only. Memoised. |
 
 All of them route through `selectDocumentLockReadOnly` underneath — the
 specialisation is purely about how the consumer is shaped.

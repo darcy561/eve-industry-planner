@@ -12,6 +12,7 @@ Related rollouts (separate plans):
 
 - [Refresh token encryption at rest](../refresh-token-encryption-rollout-plan.md) — Mongo ESI refresh ciphertext
 - [Authz HMAC rollout](../authz-hmac-rollout-plan.md) — ref IDs and scope snapshots
+- [Frontend lifecycles](../frontend-lifecycles/ROADMAP.md) — move SPA maintenance timers out of React mount into a boot-time supervisor
 
 > Per backlog item: **status** · **size** (S/M/L) · **where** · **why** · **how** · optional **acceptance**.  
 > Add **new** open items at the bottom **without renumbering** existing ids. Layer-specific items use **#4x** ids.
@@ -277,8 +278,9 @@ flowchart TB
 | **#16** | Frontend tests for auth errors + login modes | open | S |
 | **#54** | **Signout orchestration test** — disconnect WS → logout → `queryClient.clear` order | open | S |
 | **#55** | **`requireAuth` vs API 401** — document intentional split; optional sync on hard invalidation | open | S |
+| **#57** | **SPA maintenance lifecycles** — extract `useRefreshESITokens` timers into boot-time `Lifecycles/*`; keep `tokenActions` + React Query ownership | open | M |
 
-**Where:** [FRONTEND.md](./FRONTEND.md), `authGuard.js`, `signout.jsx`.
+**Where:** [FRONTEND.md](./FRONTEND.md), `authGuard.js`, `signout.jsx`; full plan [frontend-lifecycles/ROADMAP.md](../frontend-lifecycles/ROADMAP.md).
 
 ---
 
@@ -347,8 +349,9 @@ One production failure mode that motivated **#2–#6** and **#20** — not the o
 3. **#13** — middleware cookie hygiene on `reauth_required` (**#7** done).
 4. **#14**, **#16**, **#54** — metrics + frontend tests.
 5. **#40**, **#41** — SSO handler tests.
-6. **#17**, **#18** — when scheduled (separate plans).
-7. **#21**, **#30+** — admin and product features.
+6. **#57** — SPA lifecycle supervisor ([frontend-lifecycles](../frontend-lifecycles/ROADMAP.md)); can parallelise with SPA tests.
+7. **#17**, **#18** — when scheduled (separate plans).
+8. **#21**, **#30+** — admin and product features.
 
 ---
 

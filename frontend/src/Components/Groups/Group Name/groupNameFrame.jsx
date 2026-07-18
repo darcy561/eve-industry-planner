@@ -12,10 +12,10 @@ import SaveIcon from "@mui/icons-material/Save";
 import useUsersStore from "../../../Zustand/usersStore";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
 import { flushPendingGroupSave } from "../../../Functions/Debounce/jobGroupsPersistSchedule.js";
-import { useActiveGroupLockReadOnly } from "../../../Hooks/DocumentLock/useDocumentLockState";
+import { useActiveGroupCanEdit } from "../../../Hooks/DocumentLock/useDocumentLockState";
 
 function GroupNameFrame({}) {
-  const readOnly = useActiveGroupLockReadOnly();
+  const canEdit = useActiveGroupCanEdit();
   const { updateModifiedGroups, getActiveGroupObject } =
     useUsersStore.getState().jobData.actions;
   const [allowEditGroupName, updateAllowEditGroupName] = useState(false);
@@ -24,10 +24,10 @@ function GroupNameFrame({}) {
   const selectedGroup = getActiveGroupObject();
 
   useEffect(() => {
-    if (readOnly) {
+    if (!canEdit) {
       updateAllowEditGroupName(false);
     }
-  }, [readOnly]);
+  }, [canEdit]);
 
   useEffect(() => {
     if (selectedGroup) {
@@ -65,7 +65,7 @@ function GroupNameFrame({}) {
               <span>
                 <IconButton
                   size="small"
-                  disabled={readOnly}
+                  disabled={!canEdit}
                   onClick={() => updateAllowEditGroupName((prev) => !prev)}
                 >
                   <EditIcon color="primary" />

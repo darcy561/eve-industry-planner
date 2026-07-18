@@ -23,7 +23,7 @@ import GroupPageViewSelector from "./pageViewSelector";
 import { useDocumentLock } from "../../Hooks/DocumentLock/useDocumentLock.js";
 import { USER_JOB_GROUPS_COLLECTION } from "../../Functions/DocumentLock/documentLockCollections.js";
 import { useRegisterHeaderDocumentLockUI } from "../../Hooks/DocumentLock/useRegisterHeaderDocumentLockUI.js";
-import { useGroupLockReadOnly } from "../../Hooks/DocumentLock/useDocumentLockState.js";
+import { useGroupLockReadOnly, useGroupCanEdit } from "../../Hooks/DocumentLock/useDocumentLockState.js";
 import { useJobPlannerJobLockSync } from "../../Hooks/DocumentLock/useJobPlannerJobLockSync.js";
 import { parseGroupPageViewSearchParam } from "../../Functions/Groups/groupPageViewSearch";
 import { trackAppEvent } from "../../analytics/trackAppEvent";
@@ -55,6 +55,7 @@ function GroupPageFrame() {
   }, [search.pageView, state.pageView]);
 
   const groupReadOnly = useGroupLockReadOnly(groupID);
+  const groupCanEdit = useGroupCanEdit(groupID);
 
   useJobPlannerJobLockSync();
 
@@ -166,7 +167,7 @@ function GroupPageFrame() {
     actions,
     groupJobs,
     pageRequiresRightDrawerOpen,
-    groupReadOnly
+    groupCanEdit
   );
 
   const isGroupReady = activeGroupID === groupID;
