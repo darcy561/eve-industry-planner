@@ -193,8 +193,6 @@ update-files: bootstrap-version-tracker
 	echo 'version-tracker.sh updated successfully!' >&2; \
 	echo '' >&2; \
 	echo 'Updating tracked repo files (compose, scripts, observability)...' >&2; \
-	bash ./scripts/version-tracker.sh update; \
-	echo '' >&2; \
-	echo 'Restarting Alloy when the stack is up (refreshes log tailers after observability sync)...' >&2; \
-	DC=$$(if [ -f ./bin/docker-compose ] && [ -x ./bin/docker-compose ]; then echo './bin/docker-compose'; elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then echo 'docker compose'; elif command -v docker-compose >/dev/null 2>&1; then echo 'docker-compose'; else echo 'docker compose'; fi); \
-	eval \"\$$DC -f $(COMPOSE_BASE) restart alloy\" 2>/dev/null || echo 'Note: Alloy not restarted (stack may not be running yet).' >&2"
+	bash ./scripts/version-tracker.sh update"
+	@echo "Restarting Alloy when the stack is up (refreshes log tailers after observability sync)..."
+	@"$(BASH)" -c 'DC_CMD=$$(if [ -f ./bin/docker-compose ] && [ -x ./bin/docker-compose ]; then echo "./bin/docker-compose"; elif [ -f ./docker-compose ] && [ -x ./docker-compose ]; then echo "./docker-compose"; elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi); eval "$$DC_CMD -f $(COMPOSE_BASE) restart alloy" 2>/dev/null || echo "Note: Alloy not restarted (stack may not be running yet)." >&2'
