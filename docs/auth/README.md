@@ -8,6 +8,7 @@ End-to-end documentation for the planner's authentication and session-handling s
 > - **[FRONTEND.md](./FRONTEND.md)** — React app: bootstrap modes, Zustand actions, request-time auth, refresh cooldown, Tranquility gate, signout, realtime auth.
 > - **[BACKEND.md](./BACKEND.md)** — Go API: middleware, Redis key layout, handler-by-handler contracts, refresh state machine, websocket upgrade auth.
 > - **[ROADMAP.md](./ROADMAP.md)** — full-system backlog: EVE SSO, Redis sessions, HTTP/WS, ESI maintenance, SPA, tests, ops, and related rollouts (see system map there).
+> - **[Frontend lifecycles roadmap](../frontend-lifecycles/ROADMAP.md)** — move SPA auth/character maintenance clocks out of React `useEffect` into a boot-time supervisor.
 
 ---
 

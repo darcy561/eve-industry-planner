@@ -2,7 +2,7 @@
 
 How the React SPA establishes, maintains, and tears down planner sessions; how every private fetch picks up identity; how the realtime layer authenticates; and the role of the Tranquility status gate.
 
-> Companion docs: **[README.md](./README.md)** for overview and wire contracts; **[BACKEND.md](./BACKEND.md)** for server-side detail; **[ROADMAP.md](./ROADMAP.md)** for SPA backlog, test gaps, and pickup order.
+> Companion docs: **[README.md](./README.md)** for overview and wire contracts; **[BACKEND.md](./BACKEND.md)** for server-side detail; **[ROADMAP.md](./ROADMAP.md)** for SPA backlog, test gaps, and pickup order; **[Frontend lifecycles roadmap](../frontend-lifecycles/ROADMAP.md)** for moving maintenance timers out of React.
 
 ---
 

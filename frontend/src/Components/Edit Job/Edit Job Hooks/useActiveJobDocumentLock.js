@@ -1,10 +1,10 @@
-import { useCallback } from "react";
 import useUsersStore from "../../../Zustand/usersStore";
 import {
   selectDocumentLockReadOnly,
   selectScopedDocumentLock,
 } from "../../../Functions/DocumentLock/documentLockSelectors";
 import {
+  isJobInLiveGroup,
   isJobLockSubordinateToGroup,
   selectEffectiveJobDocumentLock,
 } from "../../../Functions/DocumentLock/groupSubordinateJobLock.js";
@@ -13,6 +13,7 @@ import {
   USER_JOB_GROUPS_COLLECTION,
 } from "../../../Functions/DocumentLock/documentLockCollections";
 import { persistAffordanceBlockedReason } from "../../DocumentLock/LockGatedTooltip";
+import { canEditActiveJob } from "../../../Functions/DocumentLock/canPersistDocumentEditClose.js";
 
 /**
  * Edit-job page hooks that surface the per-job and group document-lock state in
@@ -120,10 +121,12 @@ export function useActiveGroupLockHeld(state) {
 }
 
 /**
- * Server-backed persist (job + optional group) requires holding each relevant
- * lease, not merely `!readOnly` (#21 vacancy window).
+ * Persist / mutate gate for edit-job save, delete, leave-dialog save, and
+ * sibling-link affordances. `canPersist` is {@link canEditActiveJob} (guest
+ * bypass + {@link canPersistJobClose} when logged in). Lock flags are still
+ * returned for tooltip copy.
  *
- * @param {{ activeJob?: { jobID?: string, groupID?: string } } | undefined} state
+ * @param {{ activeJob?: { jobID?: string, groupID?: string, includedInGroup?: boolean } } | undefined} state
  * @returns {{
  *   canPersist: boolean,
  *   readOnly: boolean,
@@ -138,20 +141,12 @@ export function useActiveJobPersistGate(state) {
   const { readOnly, jobReadOnly, groupReadOnly } = useActiveJobOrGroupReadOnly(state);
   const jobLockHeld = useActiveJobLockHeld(state);
   const groupLockHeld = useActiveGroupLockHeld(state);
-  const activeGroupID = useUsersStore((s) => s.jobData.activeGroupID);
-  const hasGroup = useUsersStore((s) => {
-    const aj = state?.activeJob;
-    if (!aj?.groupID || !aj?.includedInGroup) return false;
-    return Boolean(s.jobData.actions.getGroupObject(aj.groupID));
-  });
   const jobID = state?.activeJob?.jobID;
-
-  const subordinate = useUsersStore((s) =>
-    isJobLockSubordinateToGroup(s, state?.activeJob?.groupID)
-  );
-  const canPersist = subordinate
-    ? Boolean(jobID) && !readOnly && groupLockHeld
-    : Boolean(jobID) && !readOnly && jobLockHeld && (!hasGroup || groupLockHeld);
+  const groupID = state?.activeJob?.includedInGroup
+    ? state.activeJob.groupID
+    : null;
+  const hasGroup = useUsersStore((s) => isJobInLiveGroup(s, groupID));
+  const canPersist = useUsersStore((s) => canEditActiveJob(jobID, groupID, s));
 
   return {
     canPersist,
@@ -189,30 +184,4 @@ export function useSiblingLinkLock(state) {
       })
     : "";
   return { readOnly: blocked, reason };
-}
-
-/**
- * Wrap an event handler so it becomes a no-op while the doc is not persistable.
- *
- * - `readOnly` — another session / viewer (unchanged UX).
- * - `lockHeld` — when a boolean is passed (#21), also block while this tab is
- *   not the holder (vacant-editable gap). Omit or pass `undefined` to gate on
- *   `readOnly` only.
- *
- * @template {(...args: any[]) => any} F
- * @param {F} handler
- * @param {boolean} readOnly
- * @param {boolean} [lockHeld]
- * @returns {F}
- */
-export function useLockGatedHandler(handler, readOnly, lockHeld) {
-  const blocked =
-    readOnly || (typeof lockHeld === "boolean" && !lockHeld);
-  return useCallback(
-    /** @type {F} */ ((...args) => {
-      if (blocked) return undefined;
-      return handler(...args);
-    }),
-    [handler, blocked]
-  );
 }

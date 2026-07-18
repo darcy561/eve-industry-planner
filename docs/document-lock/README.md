@@ -457,7 +457,7 @@ frontend/src/Functions/Endpoints/Pirivate/documentLockClient.js — REST client 
 frontend/src/Components/Edit Job/Edit Job Hooks/useActiveJobDocumentLock.js
                                     — reducer-shaped hooks for the Edit Job page
                                       (useActiveJobReadOnly, useActiveGroupReadOnly, useSiblingLinkLock,
-                                       useLockGatedHandler)
+                                       useActiveJobPersistGate)
 ```
 
 For per-layer detail see [FRONTEND.md](./FRONTEND.md) and [BACKEND.md](./BACKEND.md).

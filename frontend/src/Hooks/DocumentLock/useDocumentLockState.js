@@ -4,6 +4,7 @@ import {
   USER_JOBS_COLLECTION,
   USER_JOB_GROUPS_COLLECTION,
 } from "../../Functions/DocumentLock/documentLockCollections";
+import { canEditActiveGroup } from "../../Functions/DocumentLock/canPersistDocumentEditClose.js";
 import { lockReasonText } from "../../Components/DocumentLock/LockGatedTooltip";
 
 /**
@@ -70,6 +71,26 @@ export function useActiveGroupLockReadOnly() {
 }
 
 /**
+ * Group-page mutate eligibility — {@link canEditActiveGroup} (guest local edits
+ * or logged-in holder). Pair of edit-job's `useActiveJobPersistGate.canPersist`.
+ *
+ * @param {string | undefined | null} groupID
+ * @returns {boolean}
+ */
+export function useGroupCanEdit(groupID) {
+  return useUsersStore((s) => canEditActiveGroup(groupID, s));
+}
+
+/**
+ * {@link useGroupCanEdit} for `jobData.activeGroupID` (group name frame, etc.).
+ *
+ * @returns {boolean}
+ */
+export function useActiveGroupCanEdit() {
+  return useUsersStore((s) => canEditActiveGroup(s.jobData.activeGroupID, s));
+}
+
+/**
  * Combined gate for a job card. `cardLocked` is the canonical "card opens in
  * read-only view" flag every job/group-job card frame uses.
  *
@@ -85,6 +106,9 @@ export function useActiveGroupLockReadOnly() {
  * Group-lock cause takes precedence in the returned `reason` because the
  * group lock is the more-restrictive cascade — naming it leads the user to
  * the place where they can reclaim editing rights.
+ *
+ * Cards stay on `readOnly` (another session holds), not `canEdit` / `lockHeld`:
+ * vacancy (#21) should not flip cards to "View" while acquire is in flight.
  *
  * @param {Object} params
  * @param {string | undefined | null} params.jobID
