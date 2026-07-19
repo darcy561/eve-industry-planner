@@ -158,7 +158,8 @@ func GetOrEnsureStream(ctx context.Context, js jetstream.JetStream, ensureFunc f
 
 // GetOrCreateConsumer gets an existing consumer or creates a new one with the specified config.
 // If a consumer exists with a different DeliverPolicy or FilterSubject, it will be deleted and recreated
-// since these are immutable on existing consumers.
+// since these are immutable on existing consumers. Mutable fields such as InactiveThreshold are
+// reconciled via UpdateConsumer when the durable already exists.
 func GetOrCreateConsumer(ctx context.Context, stream jetstream.Stream, consumerConfig jetstream.ConsumerConfig) (jetstream.Consumer, error) {
 	// Try to get existing consumer
 	existingConsumer, err := stream.Consumer(ctx, consumerConfig.Durable)
@@ -188,7 +189,20 @@ func GetOrCreateConsumer(ctx context.Context, stream jetstream.Stream, consumerC
 					logs.WarnCtx(ctx, "failed to delete existing consumer with different config", "consumer", consumerConfig.Durable, "error", err)
 				}
 			} else {
-				// Consumer exists with correct config, use it
+				if info.Config.InactiveThreshold != consumerConfig.InactiveThreshold {
+					updateCfg := info.Config
+					updateCfg.InactiveThreshold = consumerConfig.InactiveThreshold
+					updated, uerr := stream.UpdateConsumer(ctx, updateCfg)
+					if uerr != nil {
+						logs.WarnCtx(ctx, "failed to reconcile consumer InactiveThreshold", "consumer", consumerConfig.Durable, "error", uerr)
+						return existingConsumer, nil
+					}
+					logs.InfoCtx(ctx, "reconciled consumer InactiveThreshold",
+						"consumer", consumerConfig.Durable,
+						"from", info.Config.InactiveThreshold.String(),
+						"to", consumerConfig.InactiveThreshold.String())
+					return updated, nil
+				}
 				return existingConsumer, nil
 			}
 		}

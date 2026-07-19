@@ -31,6 +31,10 @@ func SetupScheduleRequestReceiver(
 		return nil, fmt.Errorf("failed to get or ensure scheduler stream: %w", err)
 	}
 
+	if _, err := natscore.ReconcileStreamConsumers(ctx, stream, natscore.SchedulerKeepPolicy()); err != nil {
+		logs.WarnCtx(ctx, "scheduler stream consumer reconcile failed", "component", schedulerLogComponent, "error", err)
+	}
+
 	// Create or get durable consumer
 	// Use DeliverAllPolicy to get all messages including those published while scheduler was down
 	// FilterSubject filters to only receive messages for the specific subject (stream accepts all scheduler.*)

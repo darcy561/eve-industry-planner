@@ -68,19 +68,20 @@ const (
 	SubjectDocSubscribeFanout = "ws.doc.subscribe.fanout"
 )
 
-// Consumer names for JetStream pull consumers
+// Durable names / prefixes currently owned by the app. Stream reconcile allowlists
+// are built from these — anything else on the stream is deleted as obsolete.
 const (
-	// ConsumerTaskScheduled is the durable consumer name for all scheduled tasks (task.scheduled.>)
-	ConsumerTaskScheduled = "task-scheduled"
-
-	// ConsumerTaskAuth is the durable consumer name for all auth tasks (task.auth.>)
-	ConsumerTaskAuth = "task-auth"
+	// ConsumerTaskWorker is the single shared durable on worker-task-stream.
+	ConsumerTaskWorker = "task-worker"
 
 	// ConsumerScheduler is the durable consumer name for scheduler
 	ConsumerScheduler = "scheduler"
 
-	// ConsumerDocUpdates is the durable consumer name for document update notifications
-	ConsumerDocUpdates = "doc-updates"
+	// DurablePrefixDocLiveUpdates is the per-replica websocket fan-out prefix for doc.update.
+	DurablePrefixDocLiveUpdates = "doc-live-updates-"
+
+	// DurablePrefixDocLock is the per-replica websocket fan-out prefix for doc.lock.
+	DurablePrefixDocLock = "doc-lock-"
 )
 
 // Task names for logging purposes (human-readable labels)
