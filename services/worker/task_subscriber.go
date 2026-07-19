@@ -209,8 +209,12 @@ func SubscribeScheduledTasks(deps *WorkerDependencies) (func(context.Context), e
 		return nil, fmt.Errorf("failed to get or ensure stream: %w", err)
 	}
 
+	if _, err := natscore.ReconcileStreamConsumers(ctx, stream, natscore.WorkerTaskKeepPolicy()); err != nil {
+		logs.WarnCtx(ctx, "worker task stream consumer reconcile failed", "error", err)
+	}
+
 	consumerConfig := jetstream.ConsumerConfig{
-		Durable:       "task-worker",
+		Durable:       natscore.ConsumerTaskWorker,
 		FilterSubject: natscore.WorkerTaskStreamSubjects[0], // "task.>"
 		DeliverPolicy: jetstream.DeliverLastPolicy,
 		AckPolicy:     jetstream.AckExplicitPolicy,
@@ -230,7 +234,7 @@ func SubscribeScheduledTasks(deps *WorkerDependencies) (func(context.Context), e
 	stopChan := make(chan struct{})
 	startMessageLoop(consumer, processor, stopChan, natscore.WorkerTaskStreamSubjects[0], ctx)
 
-	logs.DebugCtx(ctx, "subscribed to task stream", "subject", natscore.WorkerTaskStreamSubjects[0], "consumer", "task-worker", "type", "pull")
+	logs.DebugCtx(ctx, "subscribed to task stream", "subject", natscore.WorkerTaskStreamSubjects[0], "consumer", natscore.ConsumerTaskWorker, "type", "pull")
 
 	return func(ctx context.Context) {
 		close(stopChan)

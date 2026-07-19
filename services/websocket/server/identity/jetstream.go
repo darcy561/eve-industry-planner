@@ -1,9 +1,8 @@
 package identity
 
 import (
-	"fmt"
-
 	"eve-industry-planner/shared/core/instanceid"
+	natscore "eve-industry-planner/shared/core/nats"
 )
 
 // JetStreamConsumerSuffix returns the stable per-process identifier used in
@@ -13,9 +12,9 @@ func JetStreamConsumerSuffix() string {
 }
 
 func DocLockJetStreamDurable() string {
-	return fmt.Sprintf("doc-lock-%s", JetStreamConsumerSuffix())
+	return natscore.DurablePrefixDocLock + JetStreamConsumerSuffix()
 }
 
 func DocLiveUpdatesJetStreamDurable() string {
-	return fmt.Sprintf("doc-live-updates-%s", JetStreamConsumerSuffix())
+	return natscore.DurablePrefixDocLiveUpdates + JetStreamConsumerSuffix()
 }
