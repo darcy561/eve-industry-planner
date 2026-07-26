@@ -3,6 +3,7 @@ package v1endpoints
 import (
 	"bytes"
 	"encoding/json"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"sort"
@@ -13,7 +14,6 @@ import (
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 )
 
 const (
@@ -73,7 +73,7 @@ type DiscordWebhookPayload struct {
 //	400 — invalid JSON, missing/empty response, length limits, invalid metadata
 //	500 — JSON marshal or Discord webhook failure
 //	200 — success (including when webhook URL is unset)
-func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 
@@ -168,12 +168,7 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 
 	// Only send Discord message if feedback content is not blank
 	if sanitizedContent != "" {
-		// Get Discord webhook URL from config
-		cfg, err := config.LoadConfig()
-		if err != nil {
-			// Log error but continue without Discord webhook
-			logs.ErrorCtx(ctx, "failed to load config for feedback", "error", err, "account_id", accountID)
-		} else if cfg.FeedbackDiscordWebhookURL != "" {
+		if webhookURL := config.FeedbackDiscordWebhookURL(); webhookURL != "" {
 			// Split content into multiple embeds if needed (Discord field max is 1024 chars)
 			contentParts := splitContentForDiscord(sanitizedContent, 1024)
 
@@ -251,7 +246,7 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 				return
 			}
 
-			webhookReq, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.FeedbackDiscordWebhookURL, bytes.NewReader(payloadJSON))
+			webhookReq, err := http.NewRequestWithContext(ctx, http.MethodPost, webhookURL, bytes.NewReader(payloadJSON))
 			if err != nil {
 				helper.RespondEndpointServerError(w, r, "Failed to submit feedback", "failed to build Discord webhook request", "feedback_webhook_request_failed", "feedback", err, nil)
 				return

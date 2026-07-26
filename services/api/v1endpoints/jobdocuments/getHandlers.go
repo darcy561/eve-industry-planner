@@ -2,6 +2,7 @@ package jobdocuments
 
 import (
 	"context"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"time"
@@ -10,19 +11,18 @@ import (
 	mongocore "eve-industry-planner/shared/core/mongo"
 	mongoget "eve-industry-planner/shared/core/mongo/get"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func collJobDocuments(clients *shared.ServiceClients) *mongo.Collection {
+func collJobDocuments(clients *stackservices.Clients) *mongo.Collection {
 	return clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUserJobDocuments)
 }
 
 // GetPlannerJobDocumentsHandler handles GET /api/v1/job-documents/planner
-func GetPlannerJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func GetPlannerJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIJobs()
@@ -44,7 +44,7 @@ func GetPlannerJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clien
 }
 
 // GetJobDocumentsByGroupHandler handles GET /api/v1/job-documents/by-group/{groupID}
-func GetJobDocumentsByGroupHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients, groupID string) {
+func GetJobDocumentsByGroupHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients, groupID string) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIJobs()
@@ -66,7 +66,7 @@ func GetJobDocumentsByGroupHandler(w http.ResponseWriter, r *http.Request, clien
 }
 
 // GetJobDocumentByIDHandler handles GET /api/v1/job-documents/{jobID}
-func GetJobDocumentByIDHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients, jobID string) {
+func GetJobDocumentByIDHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients, jobID string) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIJobs()
@@ -112,7 +112,7 @@ func GetJobDocumentByIDHandler(w http.ResponseWriter, r *http.Request, clients *
 }
 
 // GetJobDocumentsByIDsHandler handles POST /api/v1/job-documents with { jobIDs: [] }
-func GetJobDocumentsByIDsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func GetJobDocumentsByIDsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIJobs()
@@ -173,7 +173,7 @@ func findJobs(
 	ctx context.Context,
 	w http.ResponseWriter,
 	r *http.Request,
-	clients *shared.ServiceClients,
+	clients *stackservices.Clients,
 	filter bson.M,
 	accountID string,
 	start time.Time,

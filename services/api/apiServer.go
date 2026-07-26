@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"eve-industry-planner/shared/stackservices"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"eve-industry-planner/api/helper/auth"
+	"eve-industry-planner/api/helper/sdecache"
 	"eve-industry-planner/api/middleware"
 	"eve-industry-planner/api/migrationendpoints"
 	"eve-industry-planner/api/staticdata"
@@ -23,8 +23,8 @@ import (
 	userendpoints "eve-industry-planner/api/v1endpoints/user"
 	"eve-industry-planner/api/v1endpoints/watchlist"
 	"eve-industry-planner/shared/core/config"
+	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 
 	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/ulule/limiter/v3"
@@ -37,11 +37,7 @@ type route struct {
 	Handler http.HandlerFunc
 }
 
-func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
-	if os.Getenv("FAIL_ON_STARTUP") == "true" {
-		return fmt.Errorf("startup failure requested via FAIL_ON_STARTUP")
-	}
-
+func StartAPIServer(ctx context.Context, clients *stackservices.Clients) (lifecycle.Runner, error) {
 	logs.SetDebugIdentityResolver(func(ctx context.Context) (string, string) {
 		return auth.AccountIDFromContext(ctx), auth.SessionIDFromContext(ctx)
 	})
@@ -50,12 +46,12 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 	publicRateLimit, err := limiter.NewRateFromFormatted("50-S")
 	if err != nil {
 		logs.ErrorCtx(ctx, "failed to create public rate limiter", "err", err)
-		return err
+		return nil, err
 	}
 	privateRateLimit, err := limiter.NewRateFromFormatted("200-M")
 	if err != nil {
 		logs.ErrorCtx(ctx, "failed to create private rate limiter", "err", err)
-		return err
+		return nil, err
 	}
 	store, err := lredis.NewStoreWithOptions(clients.Redis, limiter.StoreOptions{
 		Prefix:          "limiter",
@@ -63,19 +59,13 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 	})
 	if err != nil {
 		logs.ErrorCtx(ctx, "failed to create redis store", "err", err)
-		return err
+		return nil, err
 	}
 
 	mux := http.NewServeMux()
 
-	// Register internal-only health check endpoint FIRST
-	// This is registered directly on mux (not through router groups) so it's only
-	// accessible directly on port 4000, not through Traefik's public routing
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		logs.AttachDebugStep(r, "health_check", nil)
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
+	// Warm live SDE into process memory; refresh on worker NATS SDE build updates.
+	sdecache.StartCacheWarmer(ctx, clients.NATS)
 
 	// Outermost: RequestStartTimeConstructor (before otelhttp) so duration includes tracing.
 	// Under otelhttp: deadline, logging, maintenance, compression, then mux (unregistered-route logging).
@@ -374,27 +364,30 @@ func StartAPIServer(ctx context.Context, clients *shared.ServiceClients) error {
 		migrationPublicGroup.HandleFunc(route.Path, route.Handler)
 	}
 
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		return err
-	}
 	baseHandler := middleware.RequestStartTimeConstructor()(
 		otelhttp.NewHandler(
 			apiHandler,
 			"api",
 			otelhttp.WithFilter(func(r *http.Request) bool {
-				return r.URL.Path != "/health"
+				switch r.URL.Path {
+				case "/health", "/healthy", "/ready":
+					return false
+				default:
+					return true
+				}
 			}),
 		),
 	)
 	// Panics → Sentry (errors); traces still from OTel → Sentry span processor when DSN is baked in.
 	sentryHandler := sentryhttp.New(sentryhttp.Options{Repanic: false})
 	handler := sentryHandler.Handle(baseHandler)
-	logs.InfoCtx(ctx, "api http server starting", "addr", ":"+cfg.API_PORT)
-	if err := http.ListenAndServe(":"+cfg.API_PORT, handler); err != nil {
-		logs.ErrorCtx(ctx, "api http server error", "err", err)
-		return err
+	addr := ":" + config.APIPort()
+	logs.InfoCtx(ctx, "api http server starting", "addr", addr)
+	srv := &http.Server{Addr: addr, Handler: handler}
+	runner, err := lifecycle.HTTPServer("api-http", srv)
+	if err != nil {
+		return nil, err
 	}
-	logs.InfoCtx(ctx, "api service listening")
-	return nil
+	logs.InfoCtx(ctx, "api service listening", "addr", addr)
+	return runner, nil
 }

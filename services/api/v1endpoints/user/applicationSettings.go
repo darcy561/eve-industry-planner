@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"time"
 
@@ -10,14 +11,13 @@ import (
 	mongoget "eve-industry-planner/shared/core/mongo/get"
 	mongoput "eve-industry-planner/shared/core/mongo/put"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func ApplicationSettingsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func ApplicationSettingsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	switch r.Method {
 	case http.MethodGet:
@@ -31,7 +31,7 @@ func ApplicationSettingsHandler(w http.ResponseWriter, r *http.Request, clients 
 	}
 }
 
-func handleGetApplicationSettings(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleGetApplicationSettings(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
@@ -76,7 +76,7 @@ func handleGetApplicationSettings(w http.ResponseWriter, r *http.Request, client
 	})
 }
 
-func handleSaveApplicationSettings(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleSaveApplicationSettings(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()

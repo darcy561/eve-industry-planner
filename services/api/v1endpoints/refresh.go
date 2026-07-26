@@ -3,6 +3,7 @@ package v1endpoints
 import (
 	"encoding/json"
 	"errors"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"strings"
@@ -13,8 +14,7 @@ import (
 	userendpoints "eve-industry-planner/api/v1endpoints/user"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
@@ -43,16 +43,16 @@ type RefreshRequest struct {
 }
 
 // RotateHandler handles periodic planner session rotation (POST /api/v1/auth/sessions/rotate).
-func RotateHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func RotateHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	refreshHandler(w, r, clients, false)
 }
 
 // BootstrapHandler handles planner session bootstrap after login flows (POST /api/v1/auth/sessions/bootstrap).
-func BootstrapHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func BootstrapHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	refreshHandler(w, r, clients, true)
 }
 
-func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients, touchLastLogin bool) {
+func refreshHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients, touchLastLogin bool) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPISessionRefresh()
@@ -146,8 +146,8 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	if strings.TrimSpace(tokenData.SessionID) != "" && auth.IsRefreshTokenDataReauthExpired(ctx, clients.Redis, tokenData, now) {
 		m.Errors.WithLabelValues("reauth_required").Inc(ctx)
 		attachSessionRefreshClientFailure(r, credLog, "planner session reauth window elapsed", "auth_reauth_required", map[string]interface{}{
-			"metric":         "session_refresh",
-			"session_start":  tokenData.SessionStart,
+			"metric":        "session_refresh",
+			"session_start": tokenData.SessionStart,
 		})
 		auth.ClearAppSessionCookie(w)
 		auth.ClearAppRefreshCookie(w, r)
@@ -155,7 +155,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		return
 	}
 
-	cfg, err := config.LoadConfig()
+	cfg, err := config.LoadCloudStoredESI()
 	if err != nil {
 		m.Errors.WithLabelValues("config_error").Inc(ctx)
 		respondRefreshServerError(w, r, sessionEndpoint, "failed to load config for auth refresh", "auth_config_load", err, nil)
@@ -172,7 +172,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 			case errors.Is(err, userendpoints.ErrMongoStoredEsiNotCloud):
 				m.Errors.WithLabelValues("validation_error").Inc(ctx)
 				respondSessionRefreshClientError(w, r, credLog, http.StatusBadRequest, "eve_token is required for non-cloud sessions", "eve_token required for non-cloud planner session refresh", "auth_refresh_eve_token_required_non_cloud", map[string]interface{}{
-					"metric":     "session_refresh",
+					"metric": "session_refresh",
 				})
 			case errors.Is(err, userendpoints.ErrMongoStoredEsiNoRow), errors.Is(err, userendpoints.ErrMongoStoredEsiUserNotFound):
 				m.Errors.WithLabelValues("cloud_esi_not_found").Inc(ctx)
@@ -188,13 +188,13 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 			case errors.Is(err, userendpoints.ErrMongoStoredEsiInvalidGrant):
 				m.Errors.WithLabelValues("validation_error").Inc(ctx)
 				respondSessionRefreshClientError(w, r, credLog, http.StatusUnauthorized, "Stored ESI refresh invalid — full EVE login required", "stored ESI refresh invalid for planner session refresh", "auth_cloud_esi_invalid_grant", map[string]interface{}{
-					"metric":     "session_refresh",
+					"metric": "session_refresh",
 				})
 			default:
 				m.Errors.WithLabelValues("validation_error").Inc(ctx)
 				respondSessionRefreshClientError(w, r, credLog, http.StatusUnauthorized, "Invalid token", "mongo stored ESI refresh failed (cookie resume)", "auth_cloud_esi_refresh_failed", map[string]interface{}{
-					"metric":     "session_refresh",
-					"error":      err.Error(),
+					"metric": "session_refresh",
+					"error":  err.Error(),
 				})
 			}
 			return
@@ -203,7 +203,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 			"character_hash": tokenData.CharacterHash,
 		})
 	} else {
-		eveTokenInfo, err := auth.ValidateEveTokenAndExtractHash(r.Context(), eveToken, cfg.EveSSOClientID)
+		eveTokenInfo, err := auth.ValidateEveTokenAndExtractHash(r.Context(), eveToken, cfg.SSO.ClientID)
 		if err != nil {
 			contentType := r.Header.Get("Content-Type")
 			m.Errors.WithLabelValues("validation_error").Inc(ctx)
@@ -298,8 +298,8 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		m.Errors.WithLabelValues("session_store_error").Inc(ctx)
 		sessionMetrics.StoreErrors.WithLabelValues(sessionFlow).Inc(ctx)
 		respondRefreshServerError(w, r, sessionEndpoint, "failed to store session record", "auth_redis_session_record", err, map[string]interface{}{
-			"session_flow":     sessionFlow,
-			"character_hash":   tokenData.CharacterHash,
+			"session_flow":   sessionFlow,
+			"character_hash": tokenData.CharacterHash,
 		})
 		return
 	}
@@ -313,8 +313,8 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		m.Errors.WithLabelValues("session_verify_error").Inc(ctx)
 		sessionMetrics.StoreErrors.WithLabelValues(sessionFlow).Inc(ctx)
 		respondRefreshServerError(w, r, sessionEndpoint, "account_sessions row missing after upsert", "auth_session_verify", err, map[string]interface{}{
-			"session_flow":     sessionFlow,
-			"character_hash":   tokenData.CharacterHash,
+			"session_flow":   sessionFlow,
+			"character_hash": tokenData.CharacterHash,
 		})
 		return
 	}
@@ -335,8 +335,8 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		m.Errors.WithLabelValues("session_verify_error").Inc(ctx)
 		sessionMetrics.StoreErrors.WithLabelValues(sessionFlow).Inc(ctx)
 		respondRefreshServerError(w, r, sessionEndpoint, "account_sessions row missing before issuing session cookies", "auth_session_verify", err, map[string]interface{}{
-			"session_flow":     sessionFlow,
-			"character_hash":   tokenData.CharacterHash,
+			"session_flow":   sessionFlow,
+			"character_hash": tokenData.CharacterHash,
 		})
 		return
 	}
@@ -353,17 +353,16 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		loginDocs, err := helper.ResolveUserDocumentsForLogin(ctx, clients.Mongo, tokenData.AccountID)
 		if err != nil {
 			m.Errors.WithLabelValues("mongo_error").Inc(ctx)
-			respondRefreshServerError(w, r, sessionEndpoint, "failed to resolve user documents for login refresh", "auth_mongo_user_docs", err, map[string]interface{}{
-			})
+			respondRefreshServerError(w, r, sessionEndpoint, "failed to resolve user documents for login refresh", "auth_mongo_user_docs", err, map[string]interface{}{})
 			return
 		}
 		userOut := loginDocs.User
 		var linkedCharacters []models.LinkedCharacterSession
-		if userOut.UserCloudAccounts && cfg.RefreshTokenKeyring != nil {
+		if userOut.UserCloudAccounts && cfg.Keys.Keyring != nil {
 			if len(userOut.RefreshTokens) > 0 {
 				linkedCharacterSessions, err := userendpoints.BuildCloudLinkedCharactersForLogin(
 					ctx, clients.Mongo, tokenData.AccountID, &userOut,
-					cfg.EveSSOClientID, cfg.EveSSOClientSecret, cfg.RefreshTokenKeyring,
+					cfg.SSO.ClientID, cfg.SSO.ClientSecret, cfg.Keys.Keyring,
 				)
 				if err != nil {
 					logs.AttachHandlerCaveat(r, "cloud_linked_characters_failed", "cloud linked-character ESI session bundle failed (bootstrap)", map[string]interface{}{
@@ -390,6 +389,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		bootstrap.RefreshToken = newRefreshToken
 		auth.ApplyRotatedSessionCookies(w, r, updatedTokenData.SessionID, newRefreshToken, refreshFromCookie, recoveredViaSession)
 		auth.SetEsiOAuthStorageCookieFromUserCloud(w, r, userOut.UserCloudAccounts)
+		auth.SetTenantAffinityCookieAccount(w, r, tokenData.AccountID)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
@@ -397,8 +397,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		w.WriteHeader(http.StatusOK)
 		if err := json.NewEncoder(w).Encode(bootstrap); err != nil {
 			m.Errors.WithLabelValues("encode_error").Inc(ctx)
-			respondRefreshServerError(w, r, sessionEndpoint, "failed to encode response", "auth_response_encode", err, map[string]interface{}{
-			})
+			respondRefreshServerError(w, r, sessionEndpoint, "failed to encode response", "auth_response_encode", err, map[string]interface{}{})
 			return
 		}
 		duration := time.Since(start)
@@ -418,6 +417,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	}
 	rotate.RefreshToken = newRefreshToken
 	auth.ApplyRotatedSessionCookies(w, r, updatedTokenData.SessionID, newRefreshToken, refreshFromCookie, recoveredViaSession)
+	auth.SetTenantAffinityCookieAccount(w, r, tokenData.AccountID)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
@@ -426,8 +426,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 
 	if err := json.NewEncoder(w).Encode(rotate); err != nil {
 		m.Errors.WithLabelValues("encode_error").Inc(ctx)
-		respondRefreshServerError(w, r, sessionEndpoint, "failed to encode response", "auth_response_encode", err, map[string]interface{}{
-		})
+		respondRefreshServerError(w, r, sessionEndpoint, "failed to encode response", "auth_response_encode", err, map[string]interface{}{})
 		return
 	}
 

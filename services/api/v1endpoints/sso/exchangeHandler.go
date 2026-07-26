@@ -3,17 +3,17 @@ package sso
 import (
 	"context"
 	"errors"
+	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"time"
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
-func EveSSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func EveSSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveSSOCodeExchange()
@@ -57,7 +57,7 @@ func EveSSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shar
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	tokenResponse, err := exchangeAuthCodeForEveSSOTokens(ctx, cfg.EveSSOClientID, cfg.EveSSOClientSecret, authCode)
+	tokenResponse, err := exchangeAuthCodeForEveSSOTokens(ctx, cfg.ClientID, cfg.ClientSecret, authCode)
 	var characterHash string
 	if err != nil {
 		m.Errors.WithLabelValues("sso_exchange_error").Inc(ctx)
@@ -86,7 +86,7 @@ func EveSSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *shar
 		return
 	}
 
-	characterHash, extractErr := extractCharacterHashFromEveSSOAccessToken(tokenResponse.AccessToken, cfg.EveSSOClientID)
+	characterHash, extractErr := extractCharacterHashFromEveSSOAccessToken(tokenResponse.AccessToken, cfg.ClientID)
 	if extractErr != nil {
 		logs.AttachHandlerCaveat(r, "character_hash_extraction_degraded", "token character hash extraction degraded; continuing", map[string]interface{}{
 			"error":        extractErr.Error(),

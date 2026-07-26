@@ -1,0 +1,91 @@
+---
+description: Final make command names for Swarm hybrid deploy (do not use retired names)
+alwaysApply: true
+---
+
+# Make command names (final)
+
+Use **only** these operator verbs. Do not invent aliases. Do not revive retired names.
+
+## Public (`make help`)
+
+| Command | Use for |
+|---------|---------|
+| `make up` | Start or recover the app (GHCR) |
+| `make status` | Show whether the app is running (Docker tables) |
+| `make logs` | Show logs (interactive service picker + all; `SERVICE=` / `ARGS=` optional) |
+| `make cli` | Open a shell in the app (for support); `ARGS=` for core `tasks` one-shots |
+| `make swarm-sync` | Apply `eip.config.yaml` settings (may roll containers). **Not** a version ship |
+| `make swarm-secrets-sync` | Apply secret changes from `.env` (not YAML) |
+| `make update-files` | Pull latest Makefile / scripts from Public |
+| `make release` | Roll out `APP_VERSION` from `.env`: pull/roll + Redis advertise |
+| `make restart` | Rolling restart (picker: one or all). Same images; **no** pull/bake/advertise |
+| `make shutdown` | Stop the app; **keeps data** (no volume delete) |
+
+## Dev (`make help-dev`)
+
+| Command | Use for |
+|---------|---------|
+| `make dev` | Local-clone bring-up with builds (not production — use `make up`) |
+| `make dev-release` | Roll out `APP_VERSION` with local images + Redis advertise |
+| `make rebuild` | Rebuild and roll app services; `SERVICES=` any Swarm/Compose name; data plane --no-recreate on default, force-recreate when listed; no advertise |
+| `make swarm-sync` | Same as public |
+| `make swarm-secrets-sync` | Same as public |
+| `make update-data SERVICE=…` | Target one data-layer Swarm service (e.g. `seaweedfs`); never app train; not part of `release` |
+
+## Ops (`make help-dev`)
+
+| Command | Use for |
+|---------|---------|
+| `make advertise` | Push version to Redis only (escape hatch) |
+| `make ws-placement-ops` | Cordon / evacuate / ... |
+| `make app-version-ops` | Manual Redis version get\|set\|clear |
+| `make smoke-ws-placement` | Quick websocket placement check |
+| `make stack-rm` | Remove the `eip` Swarm stack |
+
+## Retired — never write these
+
+- `make sync` → **`make swarm-sync`**
+- `make refresh` → **`make dev-release`**
+- `make stack-env-refresh` / `make stack-deploy` → removed; use **`make up`**, **`make swarm-sync`**, or **`make swarm-secrets-sync`** (script `stack-deploy.sh` is internal only)
+- Script path: `scripts/sync.sh` → **`scripts/swarm/swarm-sync.sh`**
+- Script path: `scripts/app-train-wave.sh` → **`scripts/swarm/release.sh`**
+- Script path: `scripts/app-advertise.sh` → **`scripts/ops/advertise.sh`**
+
+## Script layout
+
+```
+scripts/
+  lib/         shared helpers
+  bootstrap/   first-boot / ensure-* / update-files / compose-data-plane
+  swarm/       day-2 bring-up and Swarm ops
+  ops/         escapes (advertise, cli, placement, …)
+  test/        smokes / verify scripts
+```
+
+`make release` / `make dev-release` run a **cohort-pass** wave (build-all → compose → Swarm dual-warm → advertise → look-ahead drain → scale to R). Unattended (no operator gates). Reconcile skips no-op scale / uses `--detach`. Controller soft dual-run is a later placeholder (APP_TRAIN).
+
+| Make | Script |
+|------|--------|
+| make up / make dev | scripts/bootstrap/compose-data-plane.sh + scripts/swarm/stack-deploy.sh |
+| make update-files | scripts/bootstrap/update-files.sh |
+| make release / make dev-release | scripts/swarm/release.sh (--ghcr / --local) |
+| make advertise | scripts/ops/advertise.sh |
+| make rebuild | scripts/swarm/rebuild.sh |
+| make swarm-sync | scripts/swarm/swarm-sync.sh |
+| make swarm-secrets-sync | scripts/swarm/swarm-secrets-sync.sh |
+| make update-data | scripts/swarm/update-data.sh |
+| make status | scripts/swarm/status.sh |
+| make logs | scripts/swarm/logs.sh |
+| make restart | scripts/swarm/restart.sh |
+| make shutdown | scripts/swarm/shutdown.sh |
+| make cli | scripts/ops/core-cli.sh |
+| make app-version-ops | scripts/ops/app-version-ops.sh |
+| make ws-placement-ops | scripts/ops/ws-placement-ops.sh |
+| make smoke-ws-placement | scripts/test/smoke-ws-placement.sh |
+
+Secrets day-2: `make swarm-secrets-sync` (not `swarm-sync-secrets` / `sync-secrets`) — word order differs from `swarm-sync` on purpose.
+
+Hard rule: **`scripts/bootstrap/mongo-setup.sh`** — path moves only; never edit contents.
+
+Docs SoT: `docs/swarm/MAKE.md`, `docs/swarm/APP_TRAIN.md`, `docs/swarm/ENV.md`.

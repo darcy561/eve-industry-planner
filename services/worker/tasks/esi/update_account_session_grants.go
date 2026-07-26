@@ -68,11 +68,7 @@ func RefreshAccountSessionGrants(ctx context.Context, task *asynq.Task, deps *Ta
 		)
 	}
 
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		logs.ErrorCtx(ctx, "failed to load config", "error", err)
-		return fmt.Errorf("failed to load config: %w", err)
-	}
+	ssoCfg := config.LoadEveSSO()
 
 	corpSet := make(map[int64]bool)
 	allianceSet := make(map[int64]bool)
@@ -81,7 +77,7 @@ func RefreshAccountSessionGrants(ctx context.Context, task *asynq.Task, deps *Ta
 	characterIDs := make([]int, 0, len(request.Tokens))
 
 	for i, tokenString := range request.Tokens {
-		claims, err := sso.ValidateEveSSOToken(tokenString, cfg.EveSSOClientID)
+		claims, err := sso.ValidateEveSSOToken(tokenString, ssoCfg.ClientID)
 		if err != nil {
 			logs.WarnCtx(ctx, "failed to validate EVE SSO token in worker",
 				"index", i,

@@ -2,7 +2,7 @@ package v1endpoints
 
 import (
 	"eve-industry-planner/api/helper/auth"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 const (

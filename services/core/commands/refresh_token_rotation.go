@@ -2,15 +2,17 @@ package commands
 
 import (
 	"context"
+	"eve-industry-planner/shared/lifecycle"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/core/crypto/keyrings"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared"
 	taskscore "eve-industry-planner/shared/tasks"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -30,22 +32,22 @@ func runRotateRefreshTokenKeys(ctx context.Context, args []string) error {
 		return err
 	}
 
-	clients, err := shared.ConnectServices(ctx, shared.ServiceNATS, shared.ServiceMongo)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Services{Mongo: true, NATS: true})
 	if err != nil {
 		return err
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
 	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
 		return fmt.Errorf("failed to ensure worker task stream: %w", err)
 	}
-	cfg, err := config.LoadConfig()
+	rt, err := config.LoadCloudStoredESIKeys()
 	if err != nil {
-		return fmt.Errorf("load config for rotation fan-out: %w", err)
+		return fmt.Errorf("load refresh token keyring for rotation fan-out: %w", err)
 	}
 	if opts.fromVersion != "" {
-		if _, ok := cfg.RefreshTokenSupportedVersions[opts.fromVersion]; !ok {
-			return fmt.Errorf("--from=%s is not configured in active/legacy key versions %v", opts.fromVersion, keyrings.SupportedVersionList(cfg.RefreshTokenSupportedVersions))
+		if _, ok := rt.SupportedVersions[opts.fromVersion]; !ok {
+			return fmt.Errorf("--from=%s is not configured in active/legacy key versions %v", opts.fromVersion, keyrings.SupportedVersionList(rt.SupportedVersions))
 		}
 	}
 

@@ -1,14 +1,8 @@
 package sde
 
-import (
-	"encoding/json"
-	"os"
-	"path/filepath"
-	"time"
-)
+import "time"
 
 const (
-	DefaultDataDir         = "/static-data"
 	LiveDataDirName        = "live_data"
 	VersionFileName        = "version.json"
 	RecipeListFile         = "recipeList.json"
@@ -42,21 +36,6 @@ type VersionJSON struct {
 	Source       string    `json:"source"`
 }
 
-func ResolveDataDir() string {
-	if dataDir := os.Getenv("SDE_DATA_DIR"); dataDir != "" {
-		return dataDir
-	}
-	return DefaultDataDir
-}
-
-func LiveDataDir(dataDir string) string {
-	return filepath.Join(dataDir, LiveDataDirName)
-}
-
-func LiveDataFilePath(dataDir, fileName string) string {
-	return filepath.Join(LiveDataDir(dataDir), fileName)
-}
-
 // OutputFileNames returns the canonical set of SDE output files.
 func OutputFileNames() []string {
 	names := make([]string, 0, len(staticDataFileDefs))
@@ -73,29 +52,4 @@ func OutputFilesByKey() map[string]string {
 		byKey[def.Key] = def.FileName
 	}
 	return byKey
-}
-
-// RequiredOutputPaths returns absolute paths for version.json and live output files.
-func RequiredOutputPaths(dataDir string) []string {
-	out := []string{filepath.Join(dataDir, VersionFileName)}
-	for _, name := range OutputFileNames() {
-		out = append(out, LiveDataFilePath(dataDir, name))
-	}
-	return out
-}
-
-func ReadVersionJSON(dataDir string) (*VersionJSON, error) {
-	path := filepath.Join(dataDir, VersionFileName)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	var v VersionJSON
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, err
-	}
-	return &v, nil
 }

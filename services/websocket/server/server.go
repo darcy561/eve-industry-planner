@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared/stackservices"
 	"eve-industry-planner/websocket/server/config"
 	syncpkg "eve-industry-planner/websocket/sync"
 
@@ -33,7 +33,7 @@ func getMessageTypeName(messageType int) string {
 }
 
 // NewServer creates a new WebSocket server instance
-func NewServer(clients *shared.ServiceClients) *Server {
+func NewServer(clients *stackservices.Clients) *Server {
 	// Sync worker pool (pond). Incoming document work uses per-docID mutex serialization in processIncomingQueue.
 	syncPool := pond.NewPool(config.SyncPoolSize)
 
@@ -62,7 +62,7 @@ func NewServer(clients *shared.ServiceClients) *Server {
 		SyncSignals:             make(chan string, config.SignalChannelBuffer),
 		SyncPool:                syncPool,
 		upgrader:                upgrader,
-		ServiceClients:          clients,
+		Stack:          clients,
 		shutdownChan:            make(chan struct{}),
 	}
 

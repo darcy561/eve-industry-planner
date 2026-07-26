@@ -9,7 +9,7 @@ import (
 	evesso "eve-industry-planner/shared/core/evesso"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -47,7 +47,7 @@ func BuildCloudLinkedCharactersForLogin(
 		plain, err := row.PlainRefreshMaterial(kr)
 		if err != nil {
 			logs.WarnCtx(ctx, "skip refresh token row for login sessions",
-								"character_hash", row.CharacterHash,
+				"character_hash", row.CharacterHash,
 				"error", err,
 			)
 			continue
@@ -56,7 +56,7 @@ func BuildCloudLinkedCharactersForLogin(
 		tok, err := evesso.RefreshEveSSOAccessToken(ctx, clientID, clientSecret, plain)
 		if err != nil {
 			logs.WarnCtx(ctx, "cloud login session ESI refresh failed",
-								"character_hash", row.CharacterHash,
+				"character_hash", row.CharacterHash,
 				"error", err,
 			)
 			continue

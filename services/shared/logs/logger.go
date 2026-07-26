@@ -3,7 +3,8 @@
 // In Compose/production, [EnableOTLPExport] (from telemetry.Init) sends all log levels over OTLP;
 // Alloy drops below LOG_LEVEL before Loki and strips debug_steps unless LOG_LEVEL=debug.
 // Service identity (compose_service, service.name) comes from telemetry resource attributes, not logger env vars.
-// Set LOG_STDOUT=true to mirror JSON logs to container stdout for docker compose logs.
+// Stdout mirror: LOG_STDOUT=true|false overrides; when unset, enabled if
+// ENVIRONMENT / DEPLOYMENT_ENVIRONMENT is development|dev|local (Swarm + Compose).
 //
 // For structured key/value lines, use the *Ctx helpers so trace context is attached:
 //
@@ -62,9 +63,22 @@ func logStdoutEnabled() bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("LOG_STDOUT"))) {
 	case "1", "true", "yes", "on":
 		return true
-	default:
+	case "0", "false", "no", "off":
 		return false
+	default:
+		// Unset: mirror to stdout in local/dev so docker service logs stay useful under Swarm.
+		return isDevelopmentEnv()
 	}
+}
+
+func isDevelopmentEnv() bool {
+	for _, key := range []string{"DEPLOYMENT_ENVIRONMENT", "ENVIRONMENT"} {
+		switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
+		case "development", "dev", "local":
+			return true
+		}
+	}
+	return false
 }
 
 func buildRoot() *zap.Logger {

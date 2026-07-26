@@ -3,6 +3,7 @@ package v1endpoints
 import (
 	"encoding/json"
 	"errors"
+	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"strings"
 	"time"
@@ -10,11 +11,10 @@ import (
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
 	userendpoints "eve-industry-planner/api/v1endpoints/user"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/core/config"
+	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	taskscore "eve-industry-planner/shared/tasks"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
@@ -25,13 +25,12 @@ const (
 	maxRefreshTokenLength = 512 // Maximum refresh token length in bytes (UUID format is 36 chars, but allow buffer)
 )
 
-
-func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func AuthHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
 	sessionMetrics := apimetrics.GetAPIAuthSessionLifecycle()
-	cfg, err := config.LoadConfig()
+	cfg, err := config.LoadCloudStoredESI()
 	if err != nil {
 		duration := time.Since(start)
 		m.Errors.WithLabelValues("config_error").Inc(ctx)
@@ -74,7 +73,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 	})
 
 	// Validate the EVE SSO token and extract character hash
-	tokenInfo, err := auth.ValidateEveTokenAndExtractHash(r.Context(), tokenString, cfg.EveSSOClientID)
+	tokenInfo, err := auth.ValidateEveTokenAndExtractHash(r.Context(), tokenString, cfg.SSO.ClientID)
 	if err != nil {
 		contentType := r.Header.Get("Content-Type")
 		m.Errors.WithLabelValues("validation_error").Inc(ctx)
@@ -134,14 +133,12 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 			m.Errors.WithLabelValues("refresh_token_generation_error").Inc(ctx)
 			apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "refresh_token_generation_error",
 				"error", err, "account_id", accountID, "character_hash", characterHash)
-			respondAuthSessionsServerError(w, r, "failed to generate refresh token", "auth_refresh_token_gen", err, map[string]interface{}{
-			})
+			respondAuthSessionsServerError(w, r, "failed to generate refresh token", "auth_refresh_token_gen", err, map[string]interface{}{})
 		} else {
 			m.Errors.WithLabelValues("redis_error").Inc(ctx)
 			apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "redis_error",
 				"error", err, "account_id", accountID, "character_hash", characterHash)
-			respondAuthSessionsServerError(w, r, "failed to store refresh token", "auth_redis_store_refresh", err, map[string]interface{}{
-			})
+			respondAuthSessionsServerError(w, r, "failed to store refresh token", "auth_redis_store_refresh", err, map[string]interface{}{})
 		}
 		return
 	}
@@ -181,8 +178,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		m.Errors.WithLabelValues("mongo_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "mongo_error",
 			"error", err, "account_id", accountID)
-		respondAuthSessionsServerError(w, r, "failed to resolve user documents for login", "auth_mongo_user_docs", err, map[string]interface{}{
-		})
+		respondAuthSessionsServerError(w, r, "failed to resolve user documents for login", "auth_mongo_user_docs", err, map[string]interface{}{})
 		return
 	}
 
@@ -194,11 +190,11 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		"cloud_account": userOut.UserCloudAccounts,
 	})
 	var linkedCharacters []models.LinkedCharacterSession
-	if userOut.UserCloudAccounts && cfg.RefreshTokenKeyring != nil {
+	if userOut.UserCloudAccounts && cfg.Keys.Keyring != nil {
 		if len(userOut.RefreshTokens) > 0 {
 			linkedCharacterSessions, err := userendpoints.BuildCloudLinkedCharactersForLogin(
 				ctx, clients.Mongo, accountID, &userOut,
-				cfg.EveSSOClientID, cfg.EveSSOClientSecret, cfg.RefreshTokenKeyring,
+				cfg.SSO.ClientID, cfg.SSO.ClientSecret, cfg.Keys.Keyring,
 			)
 			if err != nil {
 				logs.AttachHandlerCaveat(r, "cloud_linked_characters_failed", "cloud linked-character ESI session bundle failed", map[string]interface{}{
@@ -246,6 +242,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 	// Do not set shared HttpOnly cookies — they would collide across browser tabs.
 	response.RefreshToken = refreshToken
 	auth.SetEsiOAuthStorageCookieFromUserCloud(w, r, userOut.UserCloudAccounts)
+	auth.SetTenantAffinityCookieAccount(w, r, accountID)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
@@ -257,8 +254,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *shared.Service
 		m.Errors.WithLabelValues("encode_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_token_login", duration, "encode_error",
 			"error", err, "account_id", accountID)
-		respondAuthSessionsServerError(w, r, "failed to encode response", "auth_response_encode", err, map[string]interface{}{
-		})
+		respondAuthSessionsServerError(w, r, "failed to encode response", "auth_response_encode", err, map[string]interface{}{})
 		return
 	}
 

@@ -45,10 +45,10 @@ func (s *Service) Acquire(ctx context.Context, accountID, sessionID, collection,
 		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, sessionID, true)
 		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
 			LockPayloadEventKey: LockEventAcquired,
-			"collection":    collection,
-			"docID":         docID,
-			"sessionID":     sessionID,
-			"expiresAtUnix": tx.Record.ExpiresAtUnix,
+			"collection":        collection,
+			"docID":             docID,
+			"sessionID":         sessionID,
+			"expiresAtUnix":     tx.Record.ExpiresAtUnix,
 		})
 		if collection == mongocore.CollectionUserJobGroups {
 			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, s.Deps, accountID, docID, sessionID)

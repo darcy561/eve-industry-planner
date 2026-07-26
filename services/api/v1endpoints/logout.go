@@ -2,13 +2,13 @@ package v1endpoints
 
 import (
 	"errors"
+	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"strings"
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
@@ -17,11 +17,11 @@ type LogoutRequest struct {
 }
 
 // LogoutHandler ends the planner auth session: revokes refresh_token:<token> (and session_refresh index),
-// deletes the account_sessions row, clears HttpOnly cookies (eip_session, eip_app_refresh, esi oauth storage),
-// and records metrics.
+// deletes the account_sessions row, clears HttpOnly cookies (eip_session, eip_app_refresh, esi oauth storage,
+// eip_tenant_affinity), and records metrics.
 //
 // It does not touch Mongo users.refreshTokens (encrypted ESI OAuth refresh secrets for cloud-linked characters).
-func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	sessionMetrics := apimetrics.GetAPIAuthSessionLifecycle()
 	credLog := auth.BuildRefreshCredentialLogDetail(r, "sessions_logout", "", false, "")
@@ -83,7 +83,7 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 	if err := auth.RevokeRefreshTokensForLogout(ctx, clients.Redis, refreshToken, sessionID); err != nil {
 		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to revoke refresh token on logout", "auth_logout_revoke_refresh", "sessions_logout", err, map[string]interface{}{
 			"session_endpoint": "sessions_logout",
-						"session_id_set":   sessionID != "",
+			"session_id_set":   sessionID != "",
 		})
 		return
 	}
@@ -91,7 +91,7 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 		if err := auth.RevokeAccountSession(ctx, clients.Redis, requestedAccountID, sessionID); err != nil {
 			helper.RespondEndpointServerError(w, r, "Internal server error", "failed to delete session record on logout", "auth_logout_revoke_session", "sessions_logout", err, map[string]interface{}{
 				"session_endpoint": "sessions_logout",
-								"session_id_set":   sessionID != "",
+				"session_id_set":   sessionID != "",
 			})
 			return
 		}
@@ -100,6 +100,7 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 	sessionMetrics.Ended.WithLabelValues("logout").Inc(ctx)
 	auth.ClearAppRefreshCookie(w, r)
 	auth.ClearEsiOAuthStorageCookie(w, r)
+	auth.ClearTenantAffinityCookie(w, r)
 	auth.ClearAppSessionCookie(w)
 	logs.AttachDebugStep(r, "session_revoked", map[string]interface{}{
 		"session_id_set": sessionID != "",

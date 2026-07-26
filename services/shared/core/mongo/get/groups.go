@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"

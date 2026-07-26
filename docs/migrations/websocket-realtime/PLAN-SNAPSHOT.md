@@ -64,7 +64,7 @@ The **websocket** process is a **stateless edge** for browser connections: it **
 ### Deployment and dependencies
 
 - **Binary:** [`services/websocket`](services/websocket) — HTTP server on configured port (e.g. `WS_PORT`), path **`/ws`** ([`services/websocket/main.go`](services/websocket/main.go), [`server/handler.go`](services/websocket/server/handler.go)).
-- **Required:** NATS JetStream (+ Mongo client if you keep **sync** or server-side writes on this service). **Redis** may remain for other features per existing [`ConnectServices`](services/shared/shared/services.go) wiring—trim only if nothing else needs it.
+- **Required:** NATS JetStream (+ Mongo client if you keep **sync** or server-side writes on this service). **Redis** may remain for other features per existing [`ConnectServices`](services/shared/deps/services.go) wiring—trim only if nothing else needs it.
 - **Horizontal scale:** **N replicas** behind Traefik (or a future gateway); each replica runs the **same** logic with **its own** NATS durable consumer name (see **Critical gap for “any instance” scalability** above).
 
 ### In-memory structures (per replica, not shared across pods)
@@ -312,7 +312,7 @@ Server messages are JSON matching `ChangeStreamMessage` from [`services/core/cha
 
 The **`realtimeSync` / `lastRemoteLastModified` cursors** in the client-side model are what **`applyRemoteMessage`** compares before mutating `account` or `applicationSettings`.
 
-Server models use **`_meta.lastModified`** (see [`services/shared/shared/models/metaData.go`](services/shared/shared/models/metaData.go) and account docs in [`services/shared/shared/models/accountDocuments.go`](services/shared/shared/models/accountDocuments.go)) as the document version cursor. The client must **mirror that** so a websocket delivery cannot **roll back** UI state to an older snapshot after the user (or another tab) has already moved forward.
+Server models use **`_meta.lastModified`** (see [`services/shared/models/metaData.go`](services/shared/models/metaData.go) and account docs in [`services/shared/models/accountDocuments.go`](services/shared/models/accountDocuments.go)) as the document version cursor. The client must **mirror that** so a websocket delivery cannot **roll back** UI state to an older snapshot after the user (or another tab) has already moved forward.
 
 **Track in app (per logical document, Phase-1: `users` + `application_settings` for the current account):**
 
@@ -325,7 +325,7 @@ Server models use **`_meta.lastModified`** (see [`services/shared/shared/models/
 - If **`tRemote > tApplied`**, run merge into Zustand, then set **`tApplied = tRemote`**.
 - **Local edits in flight:** when the user starts a save (PUT), optionally set a **`pendingLocalSave`** flag or bump a **`localWriteEpoch`**; ignore or queue remote applies until the PUT returns and you set `lastRemoteLastModified` from the **response body** (authoritative). That prevents “same info” from a slow WS echo from overwriting unsaved or just-saved local state.
 
-**Future collections (jobs, groups, watchlist, …):** same pattern—**one monotonic `_meta.lastModified` per document** wherever the server model uses shared `MetaData` ([`metaData.go`](services/shared/shared/models/metaData.go)).
+**Future collections (jobs, groups, watchlist, …):** same pattern—**one monotonic `_meta.lastModified` per document** wherever the server model uses shared `MetaData` ([`metaData.go`](services/shared/models/metaData.go)).
 
 - **`application_settings`**: reuse merge logic from [`frontend/src/Zustand/applicationSettings/core.js`](frontend/src/Zustand/applicationSettings/core.js) (`mergeApplicationSettingsState`) via a new action, e.g. `applicationSettings.actions.applyRemoteDocument(doc)`, **guarded by the rule above**, stripping Mongo-only fields if needed and preserving `actions` on the slice.
 - **`users`**: today login maps `user_document` into account fields via [`frontend/src/Zustand/account/tokenActions.js`](frontend/src/Zustand/account/tokenActions.js) `linkedSetsFromUserDocument` (comment notes full doc isn’t stored). Add an explicit **`applyUserDocumentFromMongo(doc)`** (or reuse/refactor `linkedSetsFromUserDocument`) **with the same lastModified guard**.

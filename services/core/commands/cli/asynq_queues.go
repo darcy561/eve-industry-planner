@@ -85,12 +85,12 @@ func RunWorkerQueues() error {
 }
 
 func asynqRedisOptFromConfig() (asynq.RedisClientOpt, error) {
-	cfg, err := config.LoadConfig()
+	rawURL, err := config.RedisURL()
 	if err != nil {
-		return asynq.RedisClientOpt{}, fmt.Errorf("failed loading config for asynq queue info: %w", err)
+		return asynq.RedisClientOpt{}, fmt.Errorf("failed loading redis config for asynq queue info: %w", err)
 	}
 
-	redisURL, err := url.Parse(cfg.REDIS_URL)
+	redisURL, err := url.Parse(rawURL)
 	if err != nil {
 		return asynq.RedisClientOpt{}, fmt.Errorf("failed parsing REDIS_URL for asynq queue info: %w", err)
 	}
@@ -111,4 +111,3 @@ func asynqRedisOptFromConfig() (asynq.RedisClientOpt, error) {
 		DB:       0,
 	}, nil
 }
-

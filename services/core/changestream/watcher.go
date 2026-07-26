@@ -15,6 +15,7 @@ import (
 
 	natslib "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -47,45 +48,69 @@ type ChangeStreamMessage struct {
 	ChangeEvent             map[string]interface{} `json:"changeEvent,omitempty"`
 }
 
-// Watcher watches MongoDB change streams and publishes changes to NATS
+// Watcher watches MongoDB change streams and publishes changes to NATS.
 type Watcher struct {
 	mongoClient *mongo.Client
 	jsContext   jetstream.JetStream
 	natsConn    *natslib.Conn
+	rdb         *redis.Client
 	database    *mongo.Database
-	stopChan    chan struct{}
 }
 
-// NewWatcher creates a new change stream watcher
-func NewWatcher(mongoClient *mongo.Client, jsContext jetstream.JetStream, natsConn *natslib.Conn) *Watcher {
+// NewWatcher creates a new change stream watcher. rdb may be nil (cold start only).
+func NewWatcher(mongoClient *mongo.Client, jsContext jetstream.JetStream, natsConn *natslib.Conn, rdb *redis.Client) *Watcher {
 	return &Watcher{
 		mongoClient: mongoClient,
 		jsContext:   jsContext,
 		natsConn:    natsConn,
+		rdb:         rdb,
 		database:    mongoClient.Database(mongocore.DatabaseName),
-		stopChan:    make(chan struct{}),
 	}
 }
 
-// Start begins watching MongoDB change streams (one goroutine per collection group; see CollectionGroups).
-// Returns a stop function that waits for all group loops to exit.
+// Start begins watching MongoDB change streams (one goroutine per collection group).
+// The returned stop cancels the watch context so Next aborts on lose-primary.
 func (w *Watcher) Start(groups []CollectionGroup) func() {
-	streamCtx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	for _, g := range groups {
 		wg.Add(1)
 		go func(group CollectionGroup) {
 			defer wg.Done()
-			w.watchCollectionGroup(streamCtx, group)
+			w.watchCollectionGroup(ctx, group)
 		}(g)
 	}
+	var once sync.Once
 	return func() {
-		close(w.stopChan)
-		wg.Wait()
+		once.Do(func() {
+			cancel()
+			done := make(chan struct{})
+			go func() {
+				wg.Wait()
+				close(done)
+			}()
+			select {
+			case <-done:
+			case <-time.After(30 * time.Second):
+				logs.WarnCtx(context.Background(), "changestream stop timed out waiting for group loops",
+					"component", changestreamLogComponent)
+			}
+		})
 	}
 }
 
-// watchCollectionGroup watches the database change stream filtered to one group's collections (ns.coll $in ...).
+func sleepOrDone(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
+	}
+}
+
+// watchCollectionGroup watches the database change stream filtered to one group's collections.
 func (w *Watcher) watchCollectionGroup(streamCtx context.Context, group CollectionGroup) {
 	logs.InfoCtx(streamCtx, "starting MongoDB change stream watcher for collection group",
 		"component", changestreamLogComponent,
@@ -96,97 +121,132 @@ func (w *Watcher) watchCollectionGroup(streamCtx context.Context, group Collecti
 	reconnectCount := 0
 	pipeline := MatchPipelineForCollections(group.Collections)
 	for {
-		select {
-		case <-w.stopChan:
+		if err := streamCtx.Err(); err != nil {
 			logs.InfoCtx(streamCtx, "change stream watcher stopped for collection group",
 				"component", changestreamLogComponent,
 				"group_id", group.ID,
 				"reconnects", reconnectCount)
 			return
-		default:
-			ctx, cancel := context.WithCancel(streamCtx)
+		}
 
-			opts := options.ChangeStream().
-				SetFullDocument(options.UpdateLookup).
-				SetFullDocumentBeforeChange(options.WhenAvailable)
+		ctx, cancel := context.WithCancel(streamCtx)
 
-			changeStream, err := w.database.Watch(ctx, pipeline, opts)
-			if err != nil {
-				reconnectCount++
-				logs.ErrorCtx(ctx, "failed to create change stream, will retry",
-					"component", changestreamLogComponent,
-					"group_id", group.ID,
-					"error", err,
-					"reconnect_attempt", reconnectCount)
-				cancel()
-				time.Sleep(5 * time.Second)
+		opts := options.ChangeStream().
+			SetFullDocument(options.UpdateLookup).
+			SetFullDocumentBeforeChange(options.WhenAvailable)
+
+		if token, ok := loadResumeToken(ctx, w.rdb, group.ID); ok {
+			opts.SetStartAfter(token)
+			logs.InfoCtx(ctx, "change stream resuming with StartAfter token",
+				"component", changestreamLogComponent, "group_id", group.ID)
+		}
+
+		changeStream, err := w.database.Watch(ctx, pipeline, opts)
+		if err != nil {
+			cancel()
+			if isInvalidResumeError(err) {
+				logs.WarnCtx(streamCtx, "change stream resume invalid; clearing token and cold start",
+					"component", changestreamLogComponent, "group_id", group.ID, "error", err)
+				clearResumeToken(streamCtx, w.rdb, group.ID)
+				continue
+			}
+			if streamCtx.Err() != nil {
+				return
+			}
+			reconnectCount++
+			logs.ErrorCtx(streamCtx, "failed to create change stream, will retry",
+				"component", changestreamLogComponent,
+				"group_id", group.ID,
+				"error", err,
+				"reconnect_attempt", reconnectCount)
+			if !sleepOrDone(streamCtx, 5*time.Second) {
+				return
+			}
+			continue
+		}
+
+		if reconnectCount > 0 {
+			logs.InfoCtx(ctx, "change stream reconnected successfully",
+				"component", changestreamLogComponent,
+				"group_id", group.ID,
+				"reconnect_count", reconnectCount)
+			reconnectCount = 0
+		} else {
+			logs.DebugCtx(ctx, "change stream created, watching for changes",
+				"component", changestreamLogComponent,
+				"group_id", group.ID,
+				"database", mongocore.DatabaseName)
+		}
+
+		eventCount := 0
+		for changeStream.Next(ctx) {
+			eventCount++
+			var changeEvent bson.M
+			if err := changeStream.Decode(&changeEvent); err != nil {
+				logs.WarnCtx(ctx, "failed to decode change event", "component", changestreamLogComponent, "group_id", group.ID, "error", err, "event_count", eventCount)
 				continue
 			}
 
-			if reconnectCount > 0 {
-				logs.InfoCtx(ctx, "change stream reconnected successfully",
-					"component", changestreamLogComponent,
-					"group_id", group.ID,
-					"reconnect_count", reconnectCount)
-				reconnectCount = 0
-			} else {
-				logs.DebugCtx(ctx, "change stream created, watching for changes",
-					"component", changestreamLogComponent,
-					"group_id", group.ID,
-					"database", mongocore.DatabaseName)
-			}
-
-			eventCount := 0
-			for changeStream.Next(ctx) {
-				eventCount++
-				var changeEvent bson.M
-				if err := changeStream.Decode(&changeEvent); err != nil {
-					logs.WarnCtx(ctx, "failed to decode change event", "component", changestreamLogComponent, "group_id", group.ID, "error", err, "event_count", eventCount)
-					continue
-				}
-
-				if operationType, ok := changeEvent["operationType"].(string); ok {
-					if ns, ok := changeEvent["ns"].(bson.M); ok {
-						if collection, ok := ns["coll"].(string); ok {
-							logs.DebugCtx(ctx, "change stream event received",
-								"component", changestreamLogComponent,
-								"group_id", group.ID,
-								"operation", operationType,
-								"collection", collection,
-								"event_count", eventCount)
-						}
+			if operationType, ok := changeEvent["operationType"].(string); ok {
+				if ns, ok := changeEvent["ns"].(bson.M); ok {
+					if collection, ok := ns["coll"].(string); ok {
+						logs.DebugCtx(ctx, "change stream event received",
+							"component", changestreamLogComponent,
+							"group_id", group.ID,
+							"operation", operationType,
+							"collection", collection,
+							"event_count", eventCount)
 					}
 				}
-
-				if err := w.processChangeEvent(ctx, changeEvent); err != nil {
-					logs.WarnCtx(ctx, "failed to process change event", "component", changestreamLogComponent, "group_id", group.ID, "error", err, "event_count", eventCount)
-				}
 			}
 
-			if eventCount > 0 {
-				logs.InfoCtx(ctx, "change stream iteration completed", "component", changestreamLogComponent, "group_id", group.ID, "events_processed", eventCount)
-			}
-
-			if err := changeStream.Err(); err != nil {
-				logs.WarnCtx(ctx, "change stream error, will reconnect",
-					"component", changestreamLogComponent,
-					"group_id", group.ID,
-					"error", err,
-					"events_processed", eventCount)
-				if err := changeStream.Close(ctx); err != nil {
-					logs.WarnCtx(ctx, "error closing change stream", "component", changestreamLogComponent, "group_id", group.ID, "error", err)
-				}
-				cancel()
-				time.Sleep(5 * time.Second)
+			procErr := w.processChangeEvent(ctx, changeEvent)
+			if procErr != nil {
+				logs.WarnCtx(ctx, "failed to process change event", "component", changestreamLogComponent, "group_id", group.ID, "error", procErr, "event_count", eventCount)
 				continue
 			}
-
-			if err := changeStream.Close(ctx); err != nil {
-				logs.WarnCtx(ctx, "error closing change stream", "component", changestreamLogComponent, "group_id", group.ID, "error", err)
+			// Advance cursor after publish success or intentional skip (prefer dup over miss).
+			if token, err := resumeTokenFromEvent(changeEvent); err != nil {
+				logs.WarnCtx(ctx, "change event missing resume token",
+					"component", changestreamLogComponent, "group_id", group.ID, "error", err)
+			} else {
+				saveResumeToken(ctx, w.rdb, group.ID, token)
 			}
-			cancel()
-			logs.InfoCtx(ctx, "change stream closed, reconnecting...", "component", changestreamLogComponent, "group_id", group.ID, "events_processed", eventCount)
-			time.Sleep(2 * time.Second)
+		}
+
+		streamErr := changeStream.Err()
+		_ = changeStream.Close(ctx)
+		cancel()
+
+		if eventCount > 0 {
+			logs.InfoCtx(streamCtx, "change stream iteration completed", "component", changestreamLogComponent, "group_id", group.ID, "events_processed", eventCount)
+		}
+
+		if streamCtx.Err() != nil {
+			return
+		}
+
+		if streamErr != nil {
+			if isInvalidResumeError(streamErr) {
+				logs.WarnCtx(streamCtx, "change stream history lost; clearing resume token",
+					"component", changestreamLogComponent, "group_id", group.ID, "error", streamErr)
+				clearResumeToken(streamCtx, w.rdb, group.ID)
+			} else {
+				logs.WarnCtx(streamCtx, "change stream error, will reconnect",
+					"component", changestreamLogComponent,
+					"group_id", group.ID,
+					"error", streamErr,
+					"events_processed", eventCount)
+			}
+			if !sleepOrDone(streamCtx, 5*time.Second) {
+				return
+			}
+			continue
+		}
+
+		logs.InfoCtx(streamCtx, "change stream closed, reconnecting...", "component", changestreamLogComponent, "group_id", group.ID, "events_processed", eventCount)
+		if !sleepOrDone(streamCtx, 2*time.Second) {
+			return
 		}
 	}
 }
@@ -647,12 +707,12 @@ func bsonArrayToStrings(v interface{}) []string {
 }
 
 // StartService starts the MongoDB change stream watcher service (parallel watches per CollectionGroups entry).
-// Returns a stop function for graceful shutdown.
-func StartService(mongoSecondaryClient *mongo.Client, jsContext jetstream.JetStream, natsConn *natslib.Conn) (func(), error) {
+// Returns a stop function for graceful shutdown. rdb stores per-group resume tokens (optional).
+func StartService(mongoSecondaryClient *mongo.Client, jsContext jetstream.JetStream, natsConn *natslib.Conn, rdb *redis.Client) (func(), error) {
 	groups := CollectionGroups()
 	if err := validateCollectionGroups(groups); err != nil {
 		return nil, err
 	}
-	watcher := NewWatcher(mongoSecondaryClient, jsContext, natsConn)
+	watcher := NewWatcher(mongoSecondaryClient, jsContext, natsConn, rdb)
 	return watcher.Start(groups), nil
 }

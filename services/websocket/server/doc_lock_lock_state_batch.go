@@ -37,12 +37,12 @@ func (s *Server) handleDocumentLockLockStateBatch(ctx context.Context, client *C
 		"job_doc_count":   len(in.JobDocIDs),
 		"group_doc_count": len(in.GroupDocIDs),
 	})
-	if s.ServiceClients == nil {
+	if s.Stack == nil {
 		s.queueDocumentLockLockStateBatchAck(client, reqID, false, nil, nil, "service unavailable")
 		finishWSLockStateBatchFailure(ctx, client, reqID, "document locks unavailable", "doc_lock_unavailable", nil)
 		return
 	}
-	jobResults, groupResults, err := documentlock.StatusBatchResults(ctx, s.ServiceClients.Redis, client.AccountID, in.JobDocIDs, in.GroupDocIDs)
+	jobResults, groupResults, err := documentlock.StatusBatchResults(ctx, s.Stack.Redis, client.AccountID, in.JobDocIDs, in.GroupDocIDs)
 	if err != nil {
 		switch {
 		case errors.Is(err, documentlock.ErrStatusBatchEmpty):

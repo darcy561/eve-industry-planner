@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { showVersionUpdateSnackbar } from "../../Events/snackbarEvents";
 import GLOBAL_CONFIG from "../../global-config-app";
+import { considerRemoteAppVersion } from "../../Functions/App/appVersionCheck.js";
 import {
   DEFAULT_APP_CONFIG,
   getAppConfig,
@@ -11,28 +11,6 @@ import {
 } from "../../Functions/Endpoints/Public/appConfig.js";
 
 const { DEFAULT_APP_VERSION_CHECK_INTERVAL } = GLOBAL_CONFIG;
-const VERSION_UPDATE_NOTIFIED_KEY = "app_config_version_update_notified";
-const VERSION_UPDATE_DISMISSED_KEY = "app_config_version_update_dismissed";
-
-function getStoredVersion(key) {
-  try {
-    return window.sessionStorage.getItem(key) || "";
-  } catch {
-    return "";
-  }
-}
-
-function setStoredVersion(key, value) {
-  try {
-    if (!value) {
-      window.sessionStorage.removeItem(key);
-      return;
-    }
-    window.sessionStorage.setItem(key, value);
-  } catch {
-    // Ignore storage errors (private mode, blocked storage, etc.).
-  }
-}
 
 async function checkForVersionUpdate() {
   try {
@@ -41,30 +19,7 @@ async function checkForVersionUpdate() {
     if (fetchMeta.notModified) {
       return;
     }
-    const remoteVersion = getAppVersionNumber();
-    const currentVersion = __APP_VERSION__;
-
-    if (!remoteVersion || remoteVersion === currentVersion) {
-      setStoredVersion(VERSION_UPDATE_NOTIFIED_KEY, "");
-      setStoredVersion(VERSION_UPDATE_DISMISSED_KEY, "");
-      return;
-    }
-
-    const dismissedVersion = getStoredVersion(VERSION_UPDATE_DISMISSED_KEY);
-    if (dismissedVersion === remoteVersion) {
-      return;
-    }
-
-    const notifiedVersion = getStoredVersion(VERSION_UPDATE_NOTIFIED_KEY);
-    if (notifiedVersion !== remoteVersion) {
-      setStoredVersion(VERSION_UPDATE_NOTIFIED_KEY, remoteVersion);
-      showVersionUpdateSnackbar(remoteVersion, (dismissedTargetVersion) => {
-        if (!dismissedTargetVersion) {
-          return;
-        }
-        setStoredVersion(VERSION_UPDATE_DISMISSED_KEY, dismissedTargetVersion);
-      });
-    }
+    considerRemoteAppVersion(getAppVersionNumber());
   } catch (error) {
     console.error("Error checking app version:", error);
   }

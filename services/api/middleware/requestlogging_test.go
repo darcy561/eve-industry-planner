@@ -11,7 +11,7 @@ import (
 func TestRequestLoggingConstructor_ClientFailureDetail(t *testing.T) {
 	handler := RequestLoggingConstructor()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logs.AttachClientFailureDetail(r, "planner refresh token not found in Redis", map[string]interface{}{
-			"failure_class":    "auth_refresh_token_not_found",
+			"failure_class":     "auth_refresh_token_not_found",
 			"credential_source": "json_body",
 		})
 		http.Error(w, "Invalid token", http.StatusUnauthorized)

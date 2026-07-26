@@ -1,15 +1,15 @@
 package archivedjobs
 
 import (
+	"eve-industry-planner/shared/stackservices"
 	"net/http"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/shared/shared"
 )
 
 // Router routes /api/v1/archived-jobs (batch upsert archived job payloads to Mongo).
 // Runs after api private middleware (rate limit, auth); see PutArchivedJobsHandler for status codes.
-func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func Router(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	path := r.URL.Path
 	switch {
 	case path == "/api/v1/archived-jobs" || path == "/api/v1/archived-jobs/":

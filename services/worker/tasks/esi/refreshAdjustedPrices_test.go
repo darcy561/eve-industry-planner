@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"eve-industry-planner/shared/stackservices"
 	"io"
 	"net/http"
 	"strings"
@@ -12,7 +13,6 @@ import (
 	"time"
 
 	esitypes "eve-industry-planner/shared/core/esi/types"
-	"eve-industry-planner/shared/shared"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
 	"github.com/redis/go-redis/v9"
@@ -507,7 +507,7 @@ func TestRefreshAdjustedPrices_NilTask(t *testing.T) {
 	})
 
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{
+		Clients: &stackservices.Clients{
 			Redis: redisClient,
 		},
 		ESIClient: &mockESIClientForStreaming{},

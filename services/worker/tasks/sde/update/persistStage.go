@@ -2,28 +2,23 @@ package update
 
 import (
 	"context"
+	objectstore "eve-industry-planner/shared/core/objectstore"
+	sdecore "eve-industry-planner/shared/core/sde"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
-	sdecore "eve-industry-planner/shared/core/sde"
 	"eve-industry-planner/shared/logs"
-	sdeshared "eve-industry-planner/worker/tasks/sde/shared"
+	sdepublish "eve-industry-planner/worker/tasks/sde/publish"
 )
 
-const (
-	liveDataDirName           = sdeshared.LiveDataDirName
-	previousVersionsDirName   = sdeshared.PreviousVersionsDirName
-	maxPreviousVersionsToKeep = sdeshared.MaxPreviousVersionsToKeep
-)
+const maxPreviousVersionsToKeep = sdecore.MaxPreviousVersions
 
 type sdePersistResult struct {
-	LiveDataDir        string
-	HasPreviousVersion bool
-	PreviousVersionDir string
-	PreviousRecipeList string
-	CurrentRecipeList  string
+	HasPreviousVersion  bool
+	ArchiveVersionName  string
+	PreviousRecipeBytes []byte
+	CurrentRecipeBytes  []byte
+	ReprocessingBytes   []byte
 }
 
 func runSDEPersistStage(versionResult *sdeVersionCheckResult, conversionResult *sdeConversionResult) (*sdePersistResult, error) {
@@ -40,151 +35,48 @@ func runSDEPersistStageWithMode(versionResult *sdeVersionCheckResult, conversion
 		return nil, nil
 	}
 
-	dataDir := versionResult.DataDir
-	liveDir := filepath.Join(dataDir, liveDataDirName)
-	tempLiveDir := filepath.Join(dataDir, fmt.Sprintf(".%s.tmp.%d", liveDataDirName, time.Now().UnixNano()))
-	previousRoot := filepath.Join(dataDir, previousVersionsDirName)
-	archiveDir := ""
-	hasPrevious := false
-	var prevVersionFile *sdeshared.StoredVersionJSON
-
-	if err := os.MkdirAll(tempLiveDir, 0o755); err != nil {
-		return nil, fmt.Errorf("failed to create temp live data dir: %w", err)
+	ctx := context.Background()
+	backend, err := objectstore.OpenStaticData(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("sde store: %w", err)
 	}
 
-	// Build the full next live_data folder first; swap it in with a single rename.
-	for logicalPath, contents := range conversionResult.Files {
-		fileName := filepath.Base(logicalPath)
-		targetPath := filepath.Join(tempLiveDir, fileName)
-		if err := sdeshared.AtomicWriteFile(targetPath, contents, 0o644); err != nil {
-			return nil, fmt.Errorf("failed writing temp output file %s: %w", fileName, err)
-		}
-	}
-
-	if _, err := os.Stat(liveDir); err == nil {
-		hasPrevious = true
-		prevVersionFile, _ = sdeshared.ReadRootVersionJSON(dataDir)
-
-		if replaceCurrentOnly {
-			if err := os.MkdirAll(previousRoot, 0o755); err != nil {
-				return nil, fmt.Errorf("failed to create previous versions directory for replace-current rebuild: %w", err)
-			}
-
-			archiveVersionName := ""
-			archiveBuildNumber := 0
-			if prevVersionFile != nil {
-				archiveVersionName = prevVersionFile.Version
-				archiveBuildNumber = prevVersionFile.BuildNumber
-			}
-			archiveFolderName, err := sdeshared.ResolveArchiveVersionName(previousRoot, archiveVersionName, archiveBuildNumber)
-			if err != nil {
-				return nil, fmt.Errorf("failed creating rebuild archive version name: %w", err)
-			}
-			archiveDir = filepath.Join(previousRoot, archiveFolderName)
-
-			if err := sdeshared.AtomicSwapDirs(liveDir, tempLiveDir); err != nil {
-				return nil, fmt.Errorf("failed atomic live_data swap for replace-current rebuild: %w", err)
-			}
-
-			if err := os.Rename(tempLiveDir, archiveDir); err != nil {
-				return nil, fmt.Errorf("failed archiving previous live_data after replace-current rebuild: %w", err)
-			}
-
-			archiveVersionFile := prevVersionFile
-			if prevVersionFile != nil {
-				copyVersion := *prevVersionFile
-				copyVersion.Version = archiveFolderName
-				archiveVersionFile = &copyVersion
-			}
-			if err := sdeshared.WriteVersionJSONIntoDir(archiveDir, archiveVersionFile, JSONDataURL); err != nil {
-				return nil, fmt.Errorf("failed writing version.json into rebuild archive dir: %w", err)
-			}
-		} else {
-			if err := os.MkdirAll(previousRoot, 0o755); err != nil {
-				return nil, fmt.Errorf("failed to create previous versions directory: %w", err)
-			}
-
-			// Archive based on the version currently served in live_data (version.json in dataDir),
-			// not the latest version we're about to deploy.
-			versionFolderName := ""
-			versionBuildNumber := 0
-			if prevVersionFile != nil {
-				versionFolderName = prevVersionFile.Version
-				versionBuildNumber = prevVersionFile.BuildNumber
-			}
-			archiveFolderName, err := sdeshared.ResolveArchiveVersionName(previousRoot, versionFolderName, versionBuildNumber)
-			if err != nil {
-				return nil, fmt.Errorf("failed creating archive version name: %w", err)
-			}
-			archiveDir = filepath.Join(previousRoot, archiveFolderName)
-
-			// Atomic directory exchange: readers never see a missing live_data folder.
-			if err := sdeshared.AtomicSwapDirs(liveDir, tempLiveDir); err != nil {
-				return nil, fmt.Errorf("failed atomic live_data swap: %w", err)
-			}
-
-			// tempLiveDir now contains the previous live data after the exchange.
-			if err := os.Rename(tempLiveDir, archiveDir); err != nil {
-				return nil, fmt.Errorf("failed archiving previous live_data: %w", err)
-			}
-
-			// Write version.json into the archived folder so later diffs/pruning can inspect
-			// both version and generation date.
-			archiveVersionFile := prevVersionFile
-			if prevVersionFile != nil {
-				copyVersion := *prevVersionFile
-				copyVersion.Version = archiveFolderName
-				archiveVersionFile = &copyVersion
-			}
-			if err := sdeshared.WriteVersionJSONIntoDir(archiveDir, archiveVersionFile, JSONDataURL); err != nil {
-				return nil, fmt.Errorf("failed writing version.json into previous version dir: %w", err)
-			}
-		}
-	} else {
-		// First deployment path: no existing live_data.
-		if err := os.Rename(tempLiveDir, liveDir); err != nil {
-			return nil, fmt.Errorf("failed promoting temp live data: %w", err)
-		}
-	}
-
-	if err := writeLatestVersionFile(versionResult, previousRoot); err != nil {
+	nextVersion, err := buildNextVersion(versionResult)
+	if err != nil {
 		return nil, err
 	}
 
-	logs.InfoCtx(context.Background(), "SDE persist stage completed",
-		"live_data_dir", liveDir,
+	pub, err := sdepublish.PublishLive(ctx, backend, conversionResult.Files, nextVersion, replaceCurrentOnly, JSONDataURL)
+	if err != nil {
+		return nil, err
+	}
+	if pub == nil {
+		return nil, nil
+	}
+
+	logs.InfoCtx(ctx, "SDE persist stage completed",
+		"backend", backend.Kind(),
 		"files_written", len(conversionResult.Files),
 		"replace_current_only", replaceCurrentOnly,
-		"previous_versions_dir", previousRoot,
+		"archive_version", pub.ArchiveVersionName,
 		"retained_versions", maxPreviousVersionsToKeep,
 	)
 
-	prevRecipe := ""
-	if hasPrevious && archiveDir != "" {
-		prevRecipe = filepath.Join(archiveDir, sdecore.RecipeListFile)
-	}
-
 	return &sdePersistResult{
-		LiveDataDir:        liveDir,
-		HasPreviousVersion: hasPrevious,
-		PreviousVersionDir: archiveDir,
-		PreviousRecipeList: prevRecipe,
-		CurrentRecipeList:  filepath.Join(liveDir, sdecore.RecipeListFile),
+		HasPreviousVersion:  pub.HasPreviousVersion,
+		ArchiveVersionName:  pub.ArchiveVersionName,
+		PreviousRecipeBytes: pub.PreviousRecipeList,
+		CurrentRecipeBytes:  pub.CurrentRecipeList,
+		ReprocessingBytes:   pub.ReprocessingData,
 	}, nil
 }
 
-func writeLatestVersionFile(versionResult *sdeVersionCheckResult, previousRoot string) error {
+func buildNextVersion(versionResult *sdeVersionCheckResult) (sdecore.VersionJSON, error) {
 	if versionResult == nil || versionResult.LatestBuildInfo == nil {
-		return nil
+		return sdecore.VersionJSON{}, fmt.Errorf("missing version result for persist")
 	}
-
-	versionLabel, err := sdeshared.NextBuildVersionName(previousRoot, versionResult.LatestBuildInfo.BuildNumber)
-	if err != nil {
-		return fmt.Errorf("failed creating live version label: %w", err)
-	}
-
-	v := sdeshared.StoredVersionJSON{
-		Version:      versionLabel,
+	// Leave Version empty so PublishLive assigns it after archiving.
+	v := sdecore.VersionJSON{
 		BuildNumber:  versionResult.LatestBuildInfo.BuildNumber,
 		ReleaseDate:  versionResult.LatestBuildInfo.ReleaseDate,
 		Key:          versionResult.LatestBuildInfo.Key,
@@ -196,16 +88,14 @@ func writeLatestVersionFile(versionResult *sdeVersionCheckResult, previousRoot s
 	if v.DownloadURL == "" {
 		v.DownloadURL = JSONDataURL
 	}
-	if err := sdeshared.WriteRootVersionJSON(versionResult.DataDir, v); err != nil {
-		return fmt.Errorf("failed writing version.json: %w", err)
-	}
-	return nil
+	return v, nil
 }
 
-func runSDEPrunePreviousVersions(dataDir string) error {
-	previousRoot := filepath.Join(dataDir, previousVersionsDirName)
-	if err := sdeshared.PrunePreviousVersions(previousRoot, maxPreviousVersionsToKeep); err != nil {
+func runSDEPrunePreviousVersions() error {
+	ctx := context.Background()
+	backend, err := objectstore.OpenStaticData(ctx)
+	if err != nil {
 		return err
 	}
-	return nil
+	return sdepublish.PrunePreviousVersions(ctx, backend, maxPreviousVersionsToKeep)
 }

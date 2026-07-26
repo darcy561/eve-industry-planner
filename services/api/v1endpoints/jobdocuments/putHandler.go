@@ -3,6 +3,7 @@ package jobdocuments
 import (
 	"context"
 	"errors"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"time"
@@ -12,13 +13,12 @@ import (
 	mongocore "eve-industry-planner/shared/core/mongo"
 	mongoput "eve-industry-planner/shared/core/mongo/put"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
 // PutJobDocumentsHandler handles PUT /api/v1/job-documents — batch upsert into user_job_documents.
-func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIJobs()

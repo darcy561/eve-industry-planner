@@ -7,15 +7,15 @@ import (
 
 // RefreshCredentialLogDetail is safe diagnostic context for refresh/bootstrap/rotate (no full secrets).
 type RefreshCredentialLogDetail struct {
-	SessionEndpoint       string
-	RefreshFromCookie     bool
-	CredentialSource      string
-	RefreshTokenLen       int
-	RefreshTokenIDHint    string
-	HasEipSessionCookie   bool
+	SessionEndpoint        string
+	RefreshFromCookie      bool
+	CredentialSource       string
+	RefreshTokenLen        int
+	RefreshTokenIDHint     string
+	HasEipSessionCookie    bool
 	HasEipAppRefreshCookie bool
-	HasEveTokenBody       bool
-	LikelyCause           string
+	HasEveTokenBody        bool
+	LikelyCause            string
 }
 
 // BuildRefreshCredentialLogDetail builds log/metrics context for a refresh request.

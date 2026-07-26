@@ -4,195 +4,177 @@
 # On Unix, use /bin/bash as the default shell
 ifeq ($(OS),Windows_NT)
     # Windows: Find Git Bash explicitly (avoid WSL bash)
-    # Use PowerShell to find Git Bash in common locations
-    BASH := $(shell powershell -NoProfile -Command "if (Test-Path 'C:\Program Files\Git\bin\bash.exe') { 'C:/Program Files/Git/bin/bash.exe' } elseif (Test-Path 'C:\Program Files (x86)\Git\bin\bash.exe') { 'C:/Program Files (x86)/Git/bin/bash.exe' } else { 'bash' }" 2>nul)
-    # If detection failed or returned empty, default to bash (will show error if not found)
+    # Redirect inside PowerShell only — `2>nul` under Make's $(shell)/sh creates a file named nul (Windows reserved).
+    BASH := $(shell powershell -NoProfile -Command "$$ErrorActionPreference='SilentlyContinue'; if (Test-Path 'C:\Program Files\Git\bin\bash.exe') { 'C:/Program Files/Git/bin/bash.exe' } elseif (Test-Path 'C:\Program Files (x86)\Git\bin\bash.exe') { 'C:/Program Files (x86)/Git/bin/bash.exe' } else { 'bash' }")
     BASH := $(if $(BASH),$(BASH),bash)
-    # Don't override SHELL, we'll explicitly use $(BASH) in commands
-    # Note: Paths with spaces will be handled by quoting $(BASH) in commands
 else
-    # Unix-like systems
     SHELL := /bin/bash
     BASH := /bin/bash
 endif
 
-COMPOSE_BASE = docker-compose.yml
-COMPOSE_DEV  = docker-compose.dev.yml
-
-# Function to get docker compose command
-# Uses local binary if available, otherwise falls back to system docker compose
-define get_docker_compose
-	@if [ -f ./bin/docker-compose ] && [ -x ./bin/docker-compose ]; then \
-		echo "./bin/docker-compose"; \
-	elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then \
-		echo "docker compose"; \
-	elif command -v docker-compose >/dev/null 2>&1; then \
-		echo "docker-compose"; \
-	else \
-		echo "docker compose"; \
-	fi
-endef
-
-# Use local docker compose binary if it exists, otherwise use system docker compose
-# Cross-platform version that works on both Windows and Unix
-DC_BIN_RAW = $(shell "$(BASH)" -c "if [ -f ./bin/docker-compose ] && [ -x ./bin/docker-compose ]; then echo './bin/docker-compose'; elif [ -f ./docker-compose ] && [ -x ./docker-compose ]; then echo './docker-compose'; elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then echo 'docker compose'; elif command -v docker-compose >/dev/null 2>&1; then echo 'docker-compose'; else echo 'docker compose'; fi" 2>/dev/null || echo "docker compose")
-
-# Helper to detect if DC_BIN_RAW is "docker compose" (contains space)
-space :=
-space +=
-IS_DOCKER_COMPOSE = $(findstring $(space),$(DC_BIN_RAW))
-
-# On Windows, "docker compose" must be executed via bash to handle multi-word commands
-ifeq ($(OS),Windows_NT)
-ifneq ($(IS_DOCKER_COMPOSE),)
-# It's "docker compose" - we'll execute it via bash in recipes
-# Store just the base command for reference
-DC_CMD = docker compose
-else
-# Single word command (docker-compose or ./bin/docker-compose)
-DC = $(DC_BIN_RAW) -f $(COMPOSE_BASE)
-DC_DEV = $(DC_BIN_RAW) -f $(COMPOSE_BASE) -f $(COMPOSE_DEV)
-endif
-else
-# Unix: Use directly - Make handles spaces correctly
-DC = $(DC_BIN_RAW) -f $(COMPOSE_BASE)
-DC_DEV = $(DC_BIN_RAW) -f $(COMPOSE_BASE) -f $(COMPOSE_DEV)
-endif
-
-# ---------- Phony targets ----------
-.PHONY: help up dev ensure-keyfile ensure-env ensure-app-version ensure-refresh-token-key download-setup-scripts bootstrap-download-script bootstrap-version-tracker update-files
-
-# ---------- Help ----------
 help:
 	@echo ""
-	@echo "Available commands:"
-	@echo "  make up               - Start app (users / live images)"
-	@echo "  make update-files     - Refresh Makefile, scripts/, observability/ (incl. Alloy), and compose from GitHub Public"
-	@echo "  make dev              - Dev mode: local builds + docker-compose.dev.yml (needs git clone; not downloaded by make up)"
-	@echo "                        Required in .env: APP_VERSION (semver X.Y.Z). Optional baked-in feedback/Sentry:"
-	@echo "                        FEEDBACK_DISCORD_WEBHOOK_URL, SENTRY_DSN, SENTRY_ORG, SENTRY_PROJECT_ID,"
-	@echo "                        SENTRY_AUTH_TOKEN (source maps), SENTRY_TRACES_SAMPLE_RATE, ENVIRONMENT"
-	@echo "  make help            - Show this help message"
+	@echo "Server install (published images)"
+	@echo "  make up                  Start or recover the app"
+	@echo "  make status              Show whether the app is running"
+	@echo "  make logs                Show logs (you will pick what to view)"
+	@echo "  make cli                 Open a shell in the app (for support)"
 	@echo ""
-	@echo "For detailed deployment instructions, see DEPLOYMENT.md"
+	@echo "  make swarm-sync          Apply settings from eip.config.yaml"
+	@echo "  make swarm-secrets-sync  Apply secret changes from .env"
+	@echo "  make update-files        Pull latest Makefile and scripts"
+	@echo "  make release             Roll out a new APP_VERSION from .env"
+	@echo ""
+	@echo "  make restart             Restart the app (you will pick what to restart)"
+	@echo "  make shutdown            Stop the app (keeps your data)"
+	@echo ""
+	@echo "  make help                Show this list"
+	@echo ""
+	@echo "  Tip: make update-files, set APP_VERSION in .env, then make release"
+	@echo "  Local development commands: make help-dev"
 	@echo ""
 
-# ---------- Prerequisites ----------
-# Bootstrap: Download download-setup-scripts.sh if it doesn't exist
+help-dev:
+	@echo ""
+	@echo "Local development (git clone on your machine)"
+	@echo "  make dev                 Start with local builds (not for production)"
+	@echo "  make swarm-sync          Apply settings from eip.config.yaml"
+	@echo "  make swarm-secrets-sync  Apply secret changes from .env"
+	@echo "  make dev-release         Roll out a new APP_VERSION (local images)"
+	@echo "  make rebuild             Rebuild and roll app services"
+	@echo "  make update-data SERVICE=seaweedfs|prometheus"
+	@echo "                           Update one data-layer service (e.g. object store)"
+	@echo ""
+	@echo "Ops helpers"
+	@echo "  make advertise           Push version to Redis only (escape hatch)"
+	@echo "  make cli ARGS='list'     Run a core tasks command"
+	@echo "  make ws-placement-ops ARGS=..."
+	@echo "                           Websocket placement ops (cordon, evacuate, …)"
+	@echo "  make app-version-ops ARGS=..."
+	@echo "                           Manual Redis version get|set|clear"
+	@echo "  make smoke-ws-placement  Quick websocket placement check"
+	@echo "  make stack-rm            Remove the eip Swarm stack"
+	@echo "  make help-dev            Show this list"
+	@echo ""
+	@echo "  Tip: for a normal server install use make up"
+	@echo "  Tip: set APP_VERSION in .env, then run make dev-release"
+	@echo "  Tip: EIP_VERBOSE=1 for detailed bake/deploy/secrets logs"
+	@echo "  Server commands: make help"
+	@echo ""
+
+# Chicken-egg: bare server may lack scripts/ — curl one bootstrap file, then it pulls the rest.
 bootstrap-download-script:
-	@"$(BASH)" -c "if [ ! -f ./scripts/download-setup-scripts.sh ]; then \
+	@"$(BASH)" -c "if [ ! -f ./scripts/bootstrap/download-setup-scripts.sh ]; then \
 		echo 'Bootstrap: Downloading download-setup-scripts.sh from GitHub...'; \
-		mkdir -p ./scripts; \
+		mkdir -p ./scripts/bootstrap; \
 		if command -v curl >/dev/null 2>&1; then \
-			curl -L -f -o ./scripts/download-setup-scripts.sh \
-				'https://raw.githubusercontent.com/darcy561/eve-industry-planner/Public/scripts/download-setup-scripts.sh' || \
+			curl -L -f -o ./scripts/bootstrap/download-setup-scripts.sh \
+				'https://raw.githubusercontent.com/darcy561/eve-industry-planner/Public/scripts/bootstrap/download-setup-scripts.sh' || \
 			(echo 'Error: Failed to download download-setup-scripts.sh from GitHub' >&2; exit 1); \
 		elif command -v wget >/dev/null 2>&1; then \
-			wget -O ./scripts/download-setup-scripts.sh \
-				'https://raw.githubusercontent.com/darcy561/eve-industry-planner/Public/scripts/download-setup-scripts.sh' || \
+			wget -O ./scripts/bootstrap/download-setup-scripts.sh \
+				'https://raw.githubusercontent.com/darcy561/eve-industry-planner/Public/scripts/bootstrap/download-setup-scripts.sh' || \
 			(echo 'Error: Failed to download download-setup-scripts.sh from GitHub' >&2; exit 1); \
 		else \
 			echo 'Error: Neither curl nor wget is available. Please install one of them.' >&2; \
 			exit 1; \
 		fi; \
-		chmod +x ./scripts/download-setup-scripts.sh; \
+		chmod +x ./scripts/bootstrap/download-setup-scripts.sh; \
 		echo 'Bootstrap: download-setup-scripts.sh downloaded and made executable'; \
 	fi"
 
 download-setup-scripts: bootstrap-download-script
-	@"$(BASH)" ./scripts/download-setup-scripts.sh
+	@"$(BASH)" ./scripts/bootstrap/download-setup-scripts.sh
 
 ensure-keyfile:
-	@"$(BASH)" ./scripts/generate-mongo-keyfile.sh
+	@"$(BASH)" ./scripts/bootstrap/generate-mongo-keyfile.sh
 
 ensure-env:
-	@"$(BASH)" ./scripts/ensure-env.sh
+	@"$(BASH)" ./scripts/bootstrap/ensure-env.sh
+
+ensure-s3-env: ensure-env
+	@"$(BASH)" ./scripts/bootstrap/ensure-s3-env.sh
 
 ensure-refresh-token-key:
-	@"$(BASH)" ./scripts/ensure-refresh-token-key.sh
+	@"$(BASH)" ./scripts/bootstrap/ensure-refresh-token-key.sh
 
 ensure-app-version:
-	@"$(BASH)" ./scripts/ensure-app-version.sh
+	@"$(BASH)" ./scripts/swarm/ensure-app-version.sh
 
-# ---------- User / live ----------
-up: download-setup-scripts ensure-keyfile ensure-env ensure-app-version ensure-refresh-token-key
-ifeq ($(OS),Windows_NT)
-	@"$(BASH)" -c 'DC_CMD=$$(if [ -f ./bin/docker-compose ] && [ -x ./bin/docker-compose ]; then echo "./bin/docker-compose"; elif [ -f ./docker-compose ] && [ -x ./docker-compose ]; then echo "./docker-compose"; elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi); eval "$$DC_CMD -f $(COMPOSE_BASE) up -d && $$DC_CMD -f $(COMPOSE_BASE) restart alloy"'
-else
-	@$(DC) up -d
-	@$(DC) restart alloy
-endif
+ensure-eip-network:
+	@"$(BASH)" ./scripts/swarm/ensure-eip-network.sh
 
-# ---------- Dev ----------
-dev: download-setup-scripts ensure-keyfile ensure-env ensure-app-version ensure-refresh-token-key
-ifeq ($(OS),Windows_NT)
-	@"$(BASH)" -c 'DC_CMD=$$(if [ -f ./bin/docker-compose ] && [ -x ./bin/docker-compose ]; then echo "./bin/docker-compose"; elif [ -f ./docker-compose ] && [ -x ./docker-compose ]; then echo "./docker-compose"; elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi); eval "$$DC_CMD -f $(COMPOSE_BASE) -f $(COMPOSE_DEV) up -d --build && $$DC_CMD -f $(COMPOSE_BASE) -f $(COMPOSE_DEV) restart alloy"'
-else
-	@$(DC_DEV) up -d --build
-	@$(DC_DEV) restart alloy
-endif
+ensure-swarm:
+	@"$(BASH)" ./scripts/swarm/ensure-swarm.sh
 
-# Bootstrap: Download version-tracker.sh if it doesn't exist
-bootstrap-version-tracker:
-	@"$(BASH)" -c "if [ ! -f ./scripts/version-tracker.sh ]; then \
-		echo 'Bootstrap: Downloading version-tracker.sh from GitHub...'; \
-		mkdir -p ./scripts; \
-		if command -v curl >/dev/null 2>&1; then \
-			curl -L -f -o ./scripts/version-tracker.sh \
-				'https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Public/scripts/version-tracker.sh' || \
-			(echo 'Error: Failed to download version-tracker.sh from GitHub' >&2; exit 1); \
-		elif command -v wget >/dev/null 2>&1; then \
-			wget -O ./scripts/version-tracker.sh \
-				'https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Public/scripts/version-tracker.sh' || \
-			(echo 'Error: Failed to download version-tracker.sh from GitHub' >&2; exit 1); \
-		else \
-			echo 'Error: Neither curl nor wget is available. Please install one of them.' >&2; \
-			exit 1; \
-		fi; \
-		chmod +x ./scripts/version-tracker.sh; \
-		echo 'Bootstrap: version-tracker.sh downloaded and made executable'; \
-	fi"
+ensure-eip-overlay: ensure-swarm
+	@"$(BASH)" ./scripts/swarm/ensure-eip-overlay.sh
 
-# ---------- Update Files ----------
-update-files: bootstrap-version-tracker
-	@"$(BASH)" -c "echo 'Updating files from GitHub...' >&2; \
-	echo '' >&2; \
-	echo 'Updating Makefile...' >&2; \
-	TEMP_FILE='Makefile.tmp'; \
-	if command -v curl >/dev/null 2>&1; then \
-		curl -L -f -o \"\$$TEMP_FILE\" \
-			'https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Public/Makefile' || \
-		(echo 'Error: Failed to download Makefile from GitHub' >&2; rm -f \"\$$TEMP_FILE\"; exit 1); \
-	elif command -v wget >/dev/null 2>&1; then \
-		wget -O \"\$$TEMP_FILE\" \
-			'https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Public/Makefile' || \
-		(echo 'Error: Failed to download Makefile from GitHub' >&2; rm -f \"\$$TEMP_FILE\"; exit 1); \
-	else \
-		echo 'Error: Neither curl nor wget is available. Please install one of them.' >&2; \
-		exit 1; \
-	fi; \
-	mv \"\$$TEMP_FILE\" Makefile; \
-	echo 'Makefile updated successfully!' >&2; \
-	echo '' >&2; \
-	echo 'Updating version-tracker.sh...' >&2; \
-	TEMP_FILE='./scripts/version-tracker.sh.tmp'; \
-	if command -v curl >/dev/null 2>&1; then \
-		curl -L -f -o \"\$$TEMP_FILE\" \
-			'https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Public/scripts/version-tracker.sh' || \
-		(echo 'Error: Failed to download version-tracker.sh from GitHub' >&2; rm -f \"\$$TEMP_FILE\"; exit 1); \
-	elif command -v wget >/dev/null 2>&1; then \
-		wget -O \"\$$TEMP_FILE\" \
-			'https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Public/scripts/version-tracker.sh' || \
-		(echo 'Error: Failed to download version-tracker.sh from GitHub' >&2; rm -f \"\$$TEMP_FILE\"; exit 1); \
-	else \
-		echo 'Error: Neither curl nor wget is available. Please install one of them.' >&2; \
-		exit 1; \
-	fi; \
-	mv \"\$$TEMP_FILE\" ./scripts/version-tracker.sh; \
-	chmod +x ./scripts/version-tracker.sh; \
-	echo 'version-tracker.sh updated successfully!' >&2; \
-	echo '' >&2; \
-	echo 'Updating tracked repo files (compose, scripts, observability)...' >&2; \
-	bash ./scripts/version-tracker.sh update"
-	@echo "Restarting Alloy when the stack is up (refreshes log tailers after observability sync)..."
-	@"$(BASH)" -c 'DC_CMD=$$(if [ -f ./bin/docker-compose ] && [ -x ./bin/docker-compose ]; then echo "./bin/docker-compose"; elif [ -f ./docker-compose ] && [ -x ./docker-compose ]; then echo "./docker-compose"; elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi); eval "$$DC_CMD -f $(COMPOSE_BASE) restart alloy" 2>/dev/null || echo "Note: Alloy not restarted (stack may not be running yet)." >&2'
+# .env → Swarm secrets + rematerialize stack (rolls elastic services). Not YAML.
+swarm-secrets-sync: ensure-s3-env ensure-app-version
+	@"$(BASH)" ./scripts/swarm/swarm-secrets-sync.sh $(ARGS)
+
+# One data-layer Swarm service (docker-stack.data.yml). Never app train.
+update-data: ensure-s3-env ensure-app-version
+	@"$(BASH)" -c 'export SERVICE="$(SERVICE)"; ./scripts/swarm/update-data.sh $(ARGS)'
+
+# eip.config.yaml → targeted service updates (default). Not a version ship.
+swarm-sync: ensure-env ensure-app-version
+	@"$(BASH)" ./scripts/swarm/swarm-sync.sh $(ARGS)
+
+# Local bake (cache) + roll only when image changed. SERVICES= optional subset. No advertise.
+rebuild: ensure-env ensure-app-version
+	@"$(BASH)" -c 'export SERVICES="$(SERVICES)"; ./scripts/swarm/rebuild.sh $(ARGS)'
+
+# .env APP_VERSION → GHCR pull/roll + Redis advertise.
+release: ensure-env ensure-app-version
+	@"$(BASH)" -c 'export SERVICES="$(SERVICES)"; ./scripts/swarm/release.sh --ghcr $(ARGS)'
+
+# .env APP_VERSION → local bake/roll + Redis advertise.
+dev-release: ensure-env ensure-app-version
+	@"$(BASH)" -c 'export SERVICES="$(SERVICES)"; ./scripts/swarm/release.sh --local $(ARGS)'
+
+# Redis advertise only (images already running).
+advertise: ensure-env ensure-app-version
+	@"$(BASH)" ./scripts/ops/advertise.sh $(ARGS)
+
+stack-rm:
+	@"$(BASH)" -c 'docker stack rm "$${EIP_STACK_NAME:-eip}"'
+
+smoke-ws-placement:
+	@"$(BASH)" ./scripts/test/smoke-ws-placement.sh
+
+ws-placement-ops:
+	@"$(BASH)" ./scripts/ops/ws-placement-ops.sh $(ARGS)
+
+app-version-ops:
+	@"$(BASH)" ./scripts/ops/app-version-ops.sh $(ARGS)
+
+# Shell or one-shot (ARGS=/CMD=) on the running core task after handoff.
+cli:
+	@"$(BASH)" -c 'export CMD="$(CMD)"; ./scripts/ops/core-cli.sh $(ARGS)'
+
+# Day-to-day ops. shutdown keeps volumes.
+status:
+	@"$(BASH)" ./scripts/swarm/status.sh
+
+logs:
+	@"$(BASH)" -c 'export SERVICE="$(SERVICE)"; export ARGS="$(ARGS)"; ./scripts/swarm/logs.sh'
+
+restart:
+	@"$(BASH)" -c 'export SERVICE="$(SERVICE)"; ./scripts/swarm/restart.sh $(ARGS)'
+
+shutdown:
+	@"$(BASH)" ./scripts/swarm/shutdown.sh $(ARGS)
+
+# Live bring-up: Swarm data + app (GHCR). Obs addon: docker-stack.obs.yml (separate).
+up: download-setup-scripts ensure-keyfile ensure-env ensure-s3-env ensure-app-version ensure-refresh-token-key ensure-eip-overlay
+	@"$(BASH)" ./scripts/swarm/stack-deploy.sh
+
+# Local bring-up: bake, then Swarm data + app with dev overlay.
+dev: download-setup-scripts ensure-keyfile ensure-env ensure-s3-env ensure-app-version ensure-refresh-token-key ensure-eip-overlay
+	@"$(BASH)" ./scripts/swarm/bake-local.sh
+	@"$(BASH)" ./scripts/swarm/stack-deploy.sh --dev
+
+update-files:
+	@"$(BASH)" ./scripts/bootstrap/update-files.sh

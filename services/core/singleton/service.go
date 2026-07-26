@@ -91,7 +91,7 @@ func (j Job) validate() error {
 // duplicate lease keys are returned immediately; no goroutines are spawned
 // in that case.
 //
-// The stop fn is idempotent and safe to call from `clients.CleanupFns`.
+// The stop fn is idempotent and safe to call from lifecycle shutdown.
 func StartService(redisClient *redis.Client, jobs ...Job) (func(), error) {
 	if redisClient == nil {
 		return nil, errors.New("singleton: redis client is required")

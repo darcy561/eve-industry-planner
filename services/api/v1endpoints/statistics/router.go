@@ -1,14 +1,14 @@
 package statistics
 
 import (
+	"eve-industry-planner/shared/stackservices"
 	"net/http"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/shared/shared"
 )
 
 // Router routes /api/v1/statistics/* (private mux: rate limit + JWT).
-func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func Router(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	path := r.URL.Path
 	switch {
 	case path == "/api/v1/statistics/build-stats" || path == "/api/v1/statistics/build-stats/":

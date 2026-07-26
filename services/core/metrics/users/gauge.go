@@ -2,8 +2,8 @@ package users
 
 import (
 	"context"
-	"sync/atomic"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"eve-industry-planner/core/metrics/common"

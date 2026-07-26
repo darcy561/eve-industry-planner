@@ -126,34 +126,26 @@ func connectMongo(mongoURL string, connectionName string, configureOpts func(*op
 	return nil, errors.New(message)
 }
 
-// ConnectPrimary establishes a client connection to the primary MongoDB instance
+// ConnectPrimary establishes a client connection using shared MONGO_USERNAME/PASSWORD
+// ([config.MongoURL]). Does not require Redis/NATS/keyring.
 func ConnectPrimary() (*mongo.Client, error) {
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	// Configure MongoDB client with reconnection settings for primary
-	configureOpts := func(opts *options.ClientOptions) {
-		opts.SetConnectTimeout(10 * time.Second)
-		opts.SetServerSelectionTimeout(10 * time.Second)
-		opts.SetSocketTimeout(10 * time.Second)
-		opts.SetHeartbeatInterval(10 * time.Second)
-		opts.SetMaxPoolSize(10) // Match IncomingPoolSize (10 workers) to allow full concurrent DB operations
-		opts.SetMinPoolSize(1)  // Minimal warm pool, scales automatically up to MaxPoolSize under load
-		// Enable automatic reconnection
-		opts.SetRetryWrites(true)
-		opts.SetRetryReads(true)
-		opts.SetMonitor(otelmongo.NewMonitor())
-	}
-
-	return connectMongo(cfg.MONGO_URL, "Mongo", configureOpts)
+	return connectFromURL(config.MongoURL)
 }
 
-// ConnectFromMongoEnv connects using [config.MongoURLFromEnv] only (no Redis or other service env).
-// Use from CLIs and one-off tools.
+// ConnectFromMongoEnv connects using [config.MongoURL] only.
 func ConnectFromMongoEnv() (*mongo.Client, error) {
-	mongoURL, err := config.MongoURLFromEnv()
+	return connectFromURL(config.MongoURL)
+}
+
+// ConnectAPI connects using [config.MongoURLAPI] (MONGO_USERNAME_API /
+// MONGO_PASSWORD_API when set, else shared MONGO_USERNAME/PASSWORD). Call from api;
+// other roles keep ConnectPrimary / ConnectFromMongoEnv.
+func ConnectAPI() (*mongo.Client, error) {
+	return connectFromURL(config.MongoURLAPI)
+}
+
+func connectFromURL(urlFn func() (string, error)) (*mongo.Client, error) {
+	mongoURL, err := urlFn()
 	if err != nil {
 		return nil, err
 	}
@@ -166,6 +158,7 @@ func ConnectFromMongoEnv() (*mongo.Client, error) {
 		opts.SetMinPoolSize(1)
 		opts.SetRetryWrites(true)
 		opts.SetRetryReads(true)
+		opts.SetMonitor(otelmongo.NewMonitor())
 	}
 	return connectMongo(mongoURL, "Mongo", configureOpts)
 }

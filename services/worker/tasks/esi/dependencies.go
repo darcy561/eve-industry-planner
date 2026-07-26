@@ -1,12 +1,12 @@
 package tasks
 
 import (
+	"eve-industry-planner/shared/stackservices"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
-	"eve-industry-planner/shared/shared"
 )
 
 // TaskDependencies holds all dependencies needed by ESI task functions
 type TaskDependencies struct {
-	*shared.ServiceClients
+	*stackservices.Clients
 	ESIClient esiratelimiter.ClientInterface
 }

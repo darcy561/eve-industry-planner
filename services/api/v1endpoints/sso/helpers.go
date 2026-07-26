@@ -41,20 +41,12 @@ func ensurePostMethod(w http.ResponseWriter, r *http.Request, metricName string,
 	return false
 }
 
-func loadSSOConfigOrRespond(w http.ResponseWriter, r *http.Request, metricName string, start time.Time, logMessage string, incError func(label string)) (config.Config, bool) {
-	cfg, err := config.LoadConfig()
-	if err == nil {
-		return cfg, true
-	}
-	duration := time.Since(start)
-	incError("config_error")
-	apimetrics.LogRequestMetrics(r.Context(), metricName, duration, "config_error", "error", err)
-	helper.RespondEndpointServerError(w, r, "Internal server error", logMessage, "sso_config_load", metricName, err, nil)
-	return config.Config{}, false
+func loadSSOConfigOrRespond(http.ResponseWriter, *http.Request, string, time.Time, string, func(label string)) (config.EveSSO, bool) {
+	return config.LoadEveSSO(), true
 }
 
-func validateSSOCredentialsOrRespond(w http.ResponseWriter, r *http.Request, metricName string, start time.Time, cfg config.Config, incError func(label string)) bool {
-	if cfg.EveSSOClientID != "" && cfg.EveSSOClientSecret != "" {
+func validateSSOCredentialsOrRespond(w http.ResponseWriter, r *http.Request, metricName string, start time.Time, cfg config.EveSSO, incError func(label string)) bool {
+	if cfg.ClientID != "" && cfg.ClientSecret != "" {
 		return true
 	}
 	duration := time.Since(start)
@@ -114,4 +106,3 @@ func writeTokenPayload(w http.ResponseWriter, payload EveSSOTokenPayload) error 
 	w.WriteHeader(http.StatusOK)
 	return json.NewEncoder(w).Encode(payload)
 }
-

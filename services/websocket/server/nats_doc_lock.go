@@ -14,17 +14,17 @@ import (
 // subscribeToDocLockNotifications fans out API-published lock events to all tabs for the account.
 func (s *Server) subscribeToDocLockNotifications() {
 	ctx := context.Background()
-	if s.ServiceClients == nil || s.ServiceClients.JetStream == nil {
+	if s.Stack == nil || s.Stack.JetStream == nil {
 		return
 	}
-	if err := natscore.EnsureDocUpdateStream(s.ServiceClients.JetStream); err != nil {
+	if err := natscore.EnsureDocUpdateStream(s.Stack.JetStream); err != nil {
 		logs.ErrorCtx(ctx, "doc lock: ensure stream", "error", err)
 		return
 	}
 
 	stream, err := natscore.GetOrEnsureStream(
 		ctx,
-		s.ServiceClients.JetStream,
+		s.Stack.JetStream,
 		natscore.EnsureDocUpdateStream,
 		natscore.DocUpdateStream,
 	)

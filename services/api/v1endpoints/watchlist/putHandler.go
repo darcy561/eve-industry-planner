@@ -2,6 +2,7 @@ package watchlist
 
 import (
 	"context"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"time"
@@ -10,14 +11,13 @@ import (
 	mongocore "eve-industry-planner/shared/core/mongo"
 	mongoput "eve-industry-planner/shared/core/mongo/put"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/bson"
 )
 
 // PutHandler handles PUT /api/v1/user/watchlist.
-func PutHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func PutHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()

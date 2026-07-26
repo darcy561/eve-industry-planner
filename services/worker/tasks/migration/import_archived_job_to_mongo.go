@@ -7,10 +7,10 @@ import (
 	"sort"
 	"time"
 
+	"eve-industry-planner/shared/archiveimport"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/archiveimport"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
@@ -27,7 +27,7 @@ func ImportArchivedJobToMongo(ctx context.Context, task *asynq.Task, deps *esita
 	if task == nil {
 		return fmt.Errorf("task is nil")
 	}
-	if deps == nil || deps.ServiceClients == nil || deps.Mongo == nil {
+	if deps == nil || deps.Clients == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
 	}
 

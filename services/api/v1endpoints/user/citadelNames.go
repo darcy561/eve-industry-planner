@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"errors"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,7 +13,6 @@ import (
 	"eve-industry-planner/api/helper"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -73,7 +73,7 @@ const (
 	citadelNamesCDNCacheControl = "public, s-maxage=2592000, stale-while-revalidate=604800, stale-if-error=604800"
 )
 
-func CitadelNamesHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func CitadelNamesHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	switch r.Method {
 	case http.MethodPost:
@@ -85,7 +85,7 @@ func CitadelNamesHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	}
 }
 
-func CitadelNameByIDHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func CitadelNameByIDHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	switch r.Method {
 	case http.MethodGet:
@@ -97,7 +97,7 @@ func CitadelNameByIDHandler(w http.ResponseWriter, r *http.Request, clients *sha
 	}
 }
 
-func handleSubmitCitadelName(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleSubmitCitadelName(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPICitadelNames()
@@ -191,7 +191,7 @@ func handleSubmitCitadelName(w http.ResponseWriter, r *http.Request, clients *sh
 	})
 }
 
-func handleGetCitadelNameByID(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleGetCitadelNameByID(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPICitadelNames()

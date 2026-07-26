@@ -2,11 +2,11 @@ package asynq
 
 import (
 	"context"
+	"eve-industry-planner/shared/stackservices"
 	"time"
 
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/natsprop"
 	"eve-industry-planner/shared/telemetry/workermetrics"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
@@ -26,7 +26,7 @@ import (
 
 // WorkerDependencies holds dependencies needed by task handlers
 type WorkerDependencies interface {
-	GetServiceClients() *shared.ServiceClients
+	GetClients() *stackservices.Clients
 	GetESIClient() esiratelimiter.ClientInterface
 }
 
@@ -90,8 +90,8 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 
 	// Create task dependencies once
 	taskDeps := &esitasks.TaskDependencies{
-		ServiceClients: deps.GetServiceClients(),
-		ESIClient:      deps.GetESIClient(),
+		Clients:   deps.GetClients(),
+		ESIClient: deps.GetESIClient(),
 	}
 
 	// Register task handlers

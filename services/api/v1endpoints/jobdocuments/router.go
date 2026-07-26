@@ -1,15 +1,15 @@
 package jobdocuments
 
 import (
+	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"strings"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/shared/shared"
 )
 
 // JobDocumentsRouter routes /api/v1/job-documents (filtered reads + batch write/delete on user_job_documents).
-func JobDocumentsRouter(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func JobDocumentsRouter(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	path := r.URL.Path
 	method := r.Method
 

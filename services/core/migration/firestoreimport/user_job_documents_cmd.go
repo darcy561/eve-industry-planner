@@ -2,16 +2,18 @@ package firestoreimport
 
 import (
 	"context"
+	"eve-industry-planner/shared/lifecycle"
+	"eve-industry-planner/shared/stackservices"
 	"flag"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/migration/firestoremig"
 	"eve-industry-planner/shared/firebaseadmin"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared/migration/firestoremig"
 	taskscore "eve-industry-planner/shared/tasks"
 
 	"cloud.google.com/go/firestore"
@@ -102,11 +104,11 @@ func RunImportUserJobDocumentsFromFirestore(ctx context.Context, args []string) 
 		return publishImportUserJobDocumentTaskSingle(ctx, accountTrim)
 	}
 
-	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Mongo)
 	if err != nil {
 		return err
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
 	fsc, err := firebaseadmin.GetFirestoreClient(ctx)
 	if err != nil {
@@ -147,11 +149,11 @@ func dryRunEnqueueUserJobDocumentTasksScanAll(ctx context.Context) error {
 }
 
 func publishImportUserJobDocumentTasksScanAll(ctx context.Context, skipAuthRecency bool) error {
-	clients, err := shared.ConnectServices(ctx, shared.ServiceNATS)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.NATS)
 	if err != nil {
 		return err
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
 		return fmt.Errorf("ensure worker task stream: %w", err)
 	}
@@ -206,11 +208,11 @@ func newImportUserJobDocumentTaskRequest(accountID string, skipAuthRecency bool)
 }
 
 func publishImportUserJobDocumentTaskSingle(ctx context.Context, accountID string) error {
-	clients, err := shared.ConnectServices(ctx, shared.ServiceNATS)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.NATS)
 	if err != nil {
 		return err
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
 		return fmt.Errorf("ensure worker task stream: %w", err)
 	}
@@ -243,11 +245,11 @@ func dryRunImportUserJobDocumentsSingle(ctx context.Context, accountID string) e
 		return fmt.Errorf("firestore client: %w", err)
 	}
 	defer func() { _ = firebaseadmin.Close(ctx) }()
-	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Mongo)
 	if err != nil {
 		return err
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
 	refs, err := firestoremig.CollectReferenceJobIDsForUser(ctx, fsc, clients.Mongo, accountID)
 	if err != nil {
@@ -278,11 +280,11 @@ func dryRunImportUserJobDocumentsScanAll(ctx context.Context) error {
 		return fmt.Errorf("firestore client: %w", err)
 	}
 	defer func() { _ = firebaseadmin.Close(ctx) }()
-	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Mongo)
 	if err != nil {
 		return err
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
 	var refTotal, wouldCopy int
 	iter := fsc.Collection(firestoremig.FirestoreUsersCollection).Documents(ctx)

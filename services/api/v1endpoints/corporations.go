@@ -3,6 +3,7 @@ package v1endpoints
 import (
 	"context"
 	"errors"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"strings"
@@ -13,7 +14,6 @@ import (
 	"eve-industry-planner/shared/core/config"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	taskscore "eve-industry-planner/shared/tasks"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
@@ -24,7 +24,7 @@ type CorporationsRequest struct {
 }
 
 // CorporationsHandler handles POST /api/v1/corporation-claims.
-func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
@@ -66,12 +66,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		return
 	}
 
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		metrics.Error("config_error")
-		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to load config for corporations endpoint", "corporations_config_load_failed", "corporations", err, nil)
-		return
-	}
+	ssoCfg := config.LoadEveSSO()
 
 	validTokens := make([]string, 0)
 	skippedTokens := 0
@@ -81,7 +76,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 			continue
 		}
 
-		claims, err := sso.ValidateEveSSOToken(tokenString, cfg.EveSSOClientID)
+		claims, err := sso.ValidateEveSSOToken(tokenString, ssoCfg.ClientID)
 		if err != nil {
 			skippedTokens++
 			continue

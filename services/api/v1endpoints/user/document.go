@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"errors"
+	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"strings"
 	"time"
@@ -14,14 +15,13 @@ import (
 	mongoget "eve-industry-planner/shared/core/mongo/get"
 	mongoput "eve-industry-planner/shared/core/mongo/put"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func DocumentHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func DocumentHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	switch r.Method {
 	case http.MethodGet:
@@ -35,7 +35,7 @@ func DocumentHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 	}
 }
 
-func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
@@ -109,7 +109,7 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 	})
 }
 
-func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
@@ -159,13 +159,13 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 	userDoc.HasCompletedFirstLoginFlow = userDoc.HasCompletedFirstLoginFlow || existingDoc.HasCompletedFirstLoginFlow
 
 	if userDoc.UserCloudAccounts {
-		cfg, cfgErr := config.LoadConfig()
+		tokenCfg, cfgErr := config.LoadCloudStoredESIKeys()
 		if cfgErr != nil {
 			metrics.Error("config_error")
 			helper.RespondEndpointServerError(w, r, "Internal server error", "failed to load config for user document save", "user_doc_config_load_failed", "eve_token_login", cfgErr, nil)
 			return
 		}
-		if cfg.RefreshTokenKeyring != nil {
+		if tokenCfg.Keyring != nil {
 			prevByHash := make(map[string]models.RefreshToken, len(existingDoc.RefreshTokens))
 			for _, t := range existingDoc.RefreshTokens {
 				if t.CharacterHash == "" {
@@ -176,7 +176,7 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 			for i := range userDoc.RefreshTokens {
 				rt := &userDoc.RefreshTokens[i]
 				if strings.TrimSpace(rt.RToken) != "" {
-					if encErr := rt.EncryptRefreshAtRest(rt.RToken, cfg.RefreshTokenKeyring); encErr != nil {
+					if encErr := rt.EncryptRefreshAtRest(rt.RToken, tokenCfg.Keyring); encErr != nil {
 						metrics.Error("invalid_json")
 						helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid refresh token payload", "failed to encrypt refresh token on save", "user_doc_invalid_refresh_token", "eve_token_login", encErr, nil)
 						return

@@ -332,13 +332,21 @@ func renewIfMine(ctx context.Context, client *redis.Client, key, instanceID stri
 	return res == 1, nil
 }
 
-// releaseIfMine deletes the lease key if our id still matches. No-op if we
-// no longer hold it.
-func releaseIfMine(ctx context.Context, client *redis.Client, key, instanceID string) error {
+// ReleaseIfMine deletes the lease key if our id still matches. No-op if we
+// no longer hold it. Used for shutdown and unhealthy-leader forced release.
+func ReleaseIfMine(ctx context.Context, client *redis.Client, key, instanceID string) error {
+	if client == nil {
+		return errors.New("redis lease: redis client is required")
+	}
 	if _, err := releaseIfMineScript.Run(ctx, client, []string{key}, instanceID).Result(); err != nil && !errors.Is(err, redis.Nil) {
 		return fmt.Errorf("release script: %w", err)
 	}
 	return nil
+}
+
+// releaseIfMine is the internal alias used by RunWhileHeld.
+func releaseIfMine(ctx context.Context, client *redis.Client, key, instanceID string) error {
+	return ReleaseIfMine(ctx, client, key, instanceID)
 }
 
 // sleepWithCtx blocks for d (plus optional jitter) but returns early on

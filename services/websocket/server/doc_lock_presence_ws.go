@@ -35,13 +35,13 @@ func (s *Server) handleDocumentLockWaitlistPulseWS(ctx context.Context, client *
 			"doc_lock_ws_invalid_message", "", "", nil)
 		return
 	}
-	if s.ServiceClients == nil || s.ServiceClients.Redis == nil {
+	if s.Stack == nil || s.Stack.Redis == nil {
 		finishWSDocumentLockClientFailure(ctx, client, "waitlist-pulse",
 			"document locks unavailable",
 			"doc_lock_unavailable", collection, docID, nil)
 		return
 	}
-	svc := documentlock.NewService(documentlock.DepsFromServiceClients(s.ServiceClients))
+	svc := documentlock.NewService(documentlock.DepsFromClients(s.Stack))
 	if err := svc.WaitlistPulse(ctx, client.AccountID, client.SessionID, collection, docID); err != nil {
 		if errors.Is(err, documentlock.ErrLocksUnavailable) {
 			finishWSDocumentLockClientFailure(ctx, client, "waitlist-pulse",
@@ -67,13 +67,13 @@ func (s *Server) handleDocumentLockViewerArrivedWS(ctx context.Context, client *
 			"doc_lock_ws_invalid_message", "", "", nil)
 		return
 	}
-	if s.ServiceClients == nil {
+	if s.Stack == nil {
 		finishWSDocumentLockClientFailure(ctx, client, "viewer-arrived",
 			"document locks unavailable",
 			"doc_lock_unavailable", collection, docID, nil)
 		return
 	}
-	documentlock.HandleViewerArrivedIngress(ctx, documentlock.DepsFromServiceClients(s.ServiceClients), client.AccountID, client.SessionID, collection, docID)
+	documentlock.HandleViewerArrivedIngress(ctx, documentlock.DepsFromClients(s.Stack), client.AccountID, client.SessionID, collection, docID)
 	wsAttachViewerPresenceStep(ctx, client, "arrived", collection, docID)
 	finishWSDocumentLockSuccess(ctx, client, "viewer-arrived", "document lock viewer-arrived", collection, docID, nil)
 }
@@ -86,13 +86,13 @@ func (s *Server) handleDocumentLockViewerDepartedWS(ctx context.Context, client 
 			"doc_lock_ws_invalid_message", "", "", nil)
 		return
 	}
-	if s.ServiceClients == nil {
+	if s.Stack == nil {
 		finishWSDocumentLockClientFailure(ctx, client, "viewer-departed",
 			"document locks unavailable",
 			"doc_lock_unavailable", collection, docID, nil)
 		return
 	}
-	documentlock.HandleViewerDepartedIngress(ctx, documentlock.DepsFromServiceClients(s.ServiceClients), client.AccountID, client.SessionID, collection, docID)
+	documentlock.HandleViewerDepartedIngress(ctx, documentlock.DepsFromClients(s.Stack), client.AccountID, client.SessionID, collection, docID)
 	wsAttachViewerPresenceStep(ctx, client, "departed", collection, docID)
 	finishWSDocumentLockSuccess(ctx, client, "viewer-departed", "document lock viewer-departed", collection, docID, nil)
 }

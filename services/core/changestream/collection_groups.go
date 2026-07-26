@@ -11,8 +11,8 @@ import (
 // CollectionGroup partitions the database change stream: one parallel Watch runs per group.
 // Each MongoDB collection name must appear in at most one group (validated at startup).
 type CollectionGroup struct {
-	ID           string   // Logical name for logs (e.g. "planner", "account")
-	Collections  []string // Database collection names (match ns.coll on change events)
+	ID          string   // Logical name for logs (e.g. "planner", "account")
+	Collections []string // Database collection names (match ns.coll on change events)
 }
 
 // Group builds a CollectionGroup. Pass mongocore.Collection* constants (or raw names).

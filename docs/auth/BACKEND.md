@@ -417,8 +417,6 @@ File: `services/shared/core/config/config.go`. `LoadConfig` populates a `Config`
 | `EveSSOClientSecret` | `EVE_CLIENT_SECRET` | Required for SSO token requests. |
 | Redis | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | All auth state lives here. |
 | `RefreshTokenKeyring` | `REFRESH_TOKEN_AES_KEY` (+ optional `*_VERSION`, `*_LEGACY_KEYS`) | AES-GCM keyring for Mongo-stored ESI refresh; built by `keyrings.NewRefreshTokenKeyringSpec()`. |
-| `AuthSecret` | `AUTH_SECRET` | **Unused** by current handlers. |
-| `ExternalJWTSecret` / `Issuer` / `Audience` | `EXTERNAL_JWT_*` | **Unused** by current handlers. |
 
 ---
 

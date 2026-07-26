@@ -3,6 +3,7 @@ package grouptemplates
 import (
 	"context"
 	"errors"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"time"
@@ -10,8 +11,7 @@ import (
 	"eve-industry-planner/api/helper"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"github.com/google/uuid"
@@ -20,20 +20,20 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func catalogCollection(clients *shared.ServiceClients) *mongo.Collection {
+func catalogCollection(clients *stackservices.Clients) *mongo.Collection {
 	return clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUserGroupTemplateCatalog)
 }
 
-func payloadCollection(clients *shared.ServiceClients) *mongo.Collection {
+func payloadCollection(clients *stackservices.Clients) *mongo.Collection {
 	return clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUserGroupTemplatePayloads)
 }
 
 type catalogStored struct {
-	ID             string                     `bson:"_id"`
-	SchemaVersion  int                        `bson:"schemaVersion"`
-	DocumentKind   string                     `bson:"documentKind"`
-	AccountID      string                     `bson:"accountID"`
-	CatalogVersion int64                      `bson:"catalogVersion"`
+	ID             string                        `bson:"_id"`
+	SchemaVersion  int                           `bson:"schemaVersion"`
+	DocumentKind   string                        `bson:"documentKind"`
+	AccountID      string                        `bson:"accountID"`
+	CatalogVersion int64                         `bson:"catalogVersion"`
 	Templates      []models.TemplateCatalogEntry `bson:"templates"`
 }
 
@@ -115,7 +115,7 @@ func findTemplateIndex(templates []models.TemplateCatalogEntry, templateID strin
 }
 
 // GetCatalogHandler GET /api/v1/group-templates
-func GetCatalogHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func GetCatalogHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	metrics := beginGroupTemplateMetrics(ctx)
 	defer metrics.Finish()
@@ -143,7 +143,7 @@ func GetCatalogHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 }
 
 // GetCatalogEntryHandler GET /api/v1/group-templates/:id
-func GetCatalogEntryHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients, templateID string) {
+func GetCatalogEntryHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients, templateID string) {
 	ctx := r.Context()
 	metrics := beginGroupTemplateMetrics(ctx)
 	defer metrics.Finish()
@@ -174,7 +174,7 @@ func GetCatalogEntryHandler(w http.ResponseWriter, r *http.Request, clients *sha
 }
 
 // GetPayloadFullHandler GET /api/v1/group-templates/:id/full
-func GetPayloadFullHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients, templateID string) {
+func GetPayloadFullHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients, templateID string) {
 	ctx := r.Context()
 	metrics := beginGroupTemplateMetrics(ctx)
 	defer metrics.Finish()
@@ -207,14 +207,14 @@ func GetPayloadFullHandler(w http.ResponseWriter, r *http.Request, clients *shar
 }
 
 type postTemplateRequest struct {
-	Name        string                    `json:"name"`
-	Description string                    `json:"description"`
-	TemplateID  string                    `json:"templateID"`
+	Name        string                      `json:"name"`
+	Description string                      `json:"description"`
+	TemplateID  string                      `json:"templateID"`
 	Payload     models.GroupTemplatePayload `json:"payload"`
 }
 
 // PostTemplateHandler POST /api/v1/group-templates
-func PostTemplateHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func PostTemplateHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	metrics := beginGroupTemplateMetrics(ctx)
 	defer metrics.Finish()
@@ -312,13 +312,13 @@ func PostTemplateHandler(w http.ResponseWriter, r *http.Request, clients *shared
 }
 
 type patchTemplateRequest struct {
-	Name        *string                    `json:"name,omitempty"`
-	Description *string                    `json:"description,omitempty"`
+	Name        *string                      `json:"name,omitempty"`
+	Description *string                      `json:"description,omitempty"`
 	Payload     *models.GroupTemplatePayload `json:"payload,omitempty"`
 }
 
 // PatchTemplateHandler PATCH /api/v1/group-templates/:id
-func PatchTemplateHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients, templateID string) {
+func PatchTemplateHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients, templateID string) {
 	ctx := r.Context()
 	metrics := beginGroupTemplateMetrics(ctx)
 	defer metrics.Finish()
@@ -415,7 +415,7 @@ func PatchTemplateHandler(w http.ResponseWriter, r *http.Request, clients *share
 }
 
 // DeleteTemplateHandler DELETE /api/v1/group-templates/:id
-func DeleteTemplateHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients, templateID string) {
+func DeleteTemplateHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients, templateID string) {
 	ctx := r.Context()
 	metrics := beginGroupTemplateMetrics(ctx)
 	defer metrics.Finish()

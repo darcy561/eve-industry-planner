@@ -16,10 +16,12 @@ const (
 	MessageTypeSchedule     = "schedule"     // Schedule message type
 	MessageTypeEmpty        = "empty"        // Empty message type
 	MessageTypeSubscription = "subscription" // Legacy envelope type (historic doc.subscribe payloads)
+	MessageTypeHealth       = "health"       // Control-plane health census (core NATS, not JetStream)
 )
 
 const (
 	// SubjectCoreSDEBuildUpdated is published by worker after SDE version-changing tasks complete.
+	// Subscribers: core (metrics gauge) and api (static-data cache refresh).
 	SubjectCoreSDEBuildUpdated = "core.metrics.sde.build.updated"
 )
 
@@ -167,6 +169,27 @@ type StatusMessage struct {
 	Time    int64  `json:"time,omitempty"`    // Optional timestamp in Unix milliseconds
 }
 
+// HealthPing is an optional payload on health.command.ping (raw or Message.Data).
+// Empty Role means all roles should Respond; non-empty filters to that role.
+type HealthPing struct {
+	Role string `json:"role,omitempty"`
+}
+
+// HealthStatus is the census reply payload (Message.Type == MessageTypeHealth).
+type HealthStatus struct {
+	Role       string `json:"role"`
+	InstanceID string `json:"instance_id"`
+	Healthy    bool   `json:"healthy"`
+	Ready      bool   `json:"ready"`
+	Error      string `json:"error,omitempty"`
+	TimeUnixMs int64  `json:"time_unix_ms"`
+}
+
+// MessageType returns the message type identifier for HealthStatus.
+func (HealthStatus) MessageType() string {
+	return MessageTypeHealth
+}
+
 // MarketPricesRequest represents the JSON data payload for market prices refresh task.
 // This struct is used as the Data field content in TaskMessage when triggering market prices refreshes.
 // The JSON representation of this struct is embedded in TaskMessage.Data.
@@ -182,7 +205,7 @@ type SDEApplyVersionRequest struct {
 	BuildNumber int `json:"build_number"`
 }
 
-// SDECurrentBuildUpdate notifies core to refresh in-memory SDE build metric cache.
+// SDECurrentBuildUpdate notifies subscribers that live SDE in the object store changed.
 type SDECurrentBuildUpdate struct {
 	BuildNumber int    `json:"build_number"`
 	Version     string `json:"version,omitempty"`

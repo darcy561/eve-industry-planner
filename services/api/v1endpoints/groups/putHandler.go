@@ -3,6 +3,7 @@ package groups
 import (
 	"context"
 	"errors"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"time"
@@ -12,13 +13,12 @@ import (
 	mongocore "eve-industry-planner/shared/core/mongo"
 	mongoput "eve-industry-planner/shared/core/mongo/put"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
 // PutGroupsHandler handles PUT /v1/groups (batch group upsert)
-func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIGroups()
@@ -118,7 +118,7 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 	savedCount := int(result.UpsertedCount + result.ModifiedCount)
 
 	if sessionID != "" && clients.Redis != nil && len(result.Deltas) > 0 {
-		deps := documentlock.DepsFromServiceClients(clients)
+		deps := documentlock.DepsFromClients(clients)
 		for _, delta := range result.Deltas {
 			if len(delta.AddedJobIDs) == 0 {
 				continue

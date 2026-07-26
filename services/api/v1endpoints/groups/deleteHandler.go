@@ -3,6 +3,7 @@ package groups
 import (
 	"context"
 	"errors"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"time"
@@ -11,7 +12,6 @@ import (
 	"eve-industry-planner/shared/core/documentlock"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -19,7 +19,7 @@ import (
 )
 
 // DeleteGroupsHandler handles DELETE /v1/groups - delete specific groups by IDs for the authenticated user
-func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIGroups()

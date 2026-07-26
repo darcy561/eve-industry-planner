@@ -2,6 +2,7 @@ package groups
 
 import (
 	"context"
+	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"strings"
 	"time"
@@ -10,14 +11,13 @@ import (
 	mongocore "eve-industry-planner/shared/core/mongo"
 	mongoget "eve-industry-planner/shared/core/mongo/get"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // GetGroupByIDHandler handles GET /v1/groups/{groupID} — one group for the authenticated account.
-func GetGroupByIDHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients, groupID string) {
+func GetGroupByIDHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients, groupID string) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIGroups()

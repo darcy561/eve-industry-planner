@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"time"
 
+	"eve-industry-planner/shared/httpclient"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/httpclient"
 
 	"github.com/redis/go-redis/v9"
 )

@@ -3,6 +3,7 @@ package watchlist
 import (
 	"context"
 	"errors"
+	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 	mongocore "eve-industry-planner/shared/core/mongo"
 	mongoget "eve-industry-planner/shared/core/mongo/get"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -18,7 +18,7 @@ import (
 )
 
 // GetHandler handles GET /api/v1/user/watchlist.
-func GetHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func GetHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()

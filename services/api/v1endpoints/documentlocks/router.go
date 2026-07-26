@@ -1,14 +1,14 @@
 package documentlocks
 
 import (
+	"eve-industry-planner/shared/stackservices"
 	"net/http"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/shared/shared"
 )
 
 // Router serves /api/v1/document-locks/{action}
-func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func Router(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	path := r.URL.Path
 	switch {
 	case path == "/api/v1/document-locks/acquire" || path == "/api/v1/document-locks/acquire/":

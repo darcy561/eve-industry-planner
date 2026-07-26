@@ -149,4 +149,3 @@ func TestBuildGroupCascadePayload_reasonVariants(t *testing.T) {
 		}
 	})
 }
-

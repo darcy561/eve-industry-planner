@@ -1,15 +1,15 @@
 package groups
 
 import (
+	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"strings"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/shared/shared"
 )
 
 // Router handles all /api/v1/groups routes.
-func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func Router(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	path := r.URL.Path
 
 	switch {

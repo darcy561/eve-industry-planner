@@ -36,14 +36,14 @@ func (s *Server) docSubscribeAuthorized(ctx context.Context, docID, accountID st
 		return id == accountID
 
 	case mongocore.CollectionJobs, mongocore.CollectionUserJobDocuments, mongocore.CollectionArchivedJobs, mongocore.CollectionUserJobGroups, mongocore.CollectionBuildStats:
-		if s.ServiceClients == nil || s.ServiceClients.Mongo == nil {
+		if s.Stack == nil || s.Stack.Mongo == nil {
 			logs.WarnCtx(context.Background(), "subscribe auth denied: mongo client unavailable",
 				"collection", collection, "doc_id", id)
 			return false
 		}
 		mctx, cancel := context.WithTimeout(ctx, docSubscribeMongoTimeout)
 		defer cancel()
-		coll := s.ServiceClients.Mongo.Database(mongocore.DatabaseName).Collection(collection)
+		coll := s.Stack.Mongo.Database(mongocore.DatabaseName).Collection(collection)
 		ok, err := mongocore.DocumentExistsByID(mctx, coll, id, accountID)
 		if err != nil {
 			logs.WarnCtx(context.Background(), "subscribe auth mongo lookup failed",

@@ -16,18 +16,18 @@ import (
 // (unlike a shared durable, which load-balances across instances).
 func (s *Server) subscribeToDocUpdates() {
 	ctx := context.Background()
-	if s.ServiceClients == nil || s.ServiceClients.JetStream == nil {
+	if s.Stack == nil || s.Stack.JetStream == nil {
 		logs.WarnCtx(ctx, "JetStream not available, document update subscription disabled")
 		return
 	}
-	if err := natscore.EnsureDocUpdateStream(s.ServiceClients.JetStream); err != nil {
+	if err := natscore.EnsureDocUpdateStream(s.Stack.JetStream); err != nil {
 		logs.ErrorCtx(ctx, "doc updates: ensure stream", "error", err)
 		return
 	}
 
 	stream, err := natscore.GetOrEnsureStream(
 		ctx,
-		s.ServiceClients.JetStream,
+		s.Stack.JetStream,
 		natscore.EnsureDocUpdateStream,
 		natscore.DocUpdateStream,
 	)

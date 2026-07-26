@@ -151,4 +151,3 @@ func findKeyByKid(keys map[string]*rsa.PublicKey, kid string) (*rsa.PublicKey, e
 	}
 	return key, nil
 }
-

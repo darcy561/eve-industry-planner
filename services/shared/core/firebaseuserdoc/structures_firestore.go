@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 // firestoreCustomStructure is the Firestore/JSON shape for manufacturing and reaction entries.

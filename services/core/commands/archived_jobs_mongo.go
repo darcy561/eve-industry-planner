@@ -2,6 +2,8 @@ package commands
 
 import (
 	"context"
+	"eve-industry-planner/shared/lifecycle"
+	"eve-industry-planner/shared/stackservices"
 	"flag"
 	"fmt"
 	"os"
@@ -10,7 +12,6 @@ import (
 	"time"
 
 	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/shared"
 
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -48,11 +49,11 @@ func runMarkArchivedJobsUnprocessed(ctx context.Context, args []string) error {
 		return fmt.Errorf("markArchivedJobsUnprocessed: use either -all or -account, not both")
 	}
 
-	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Mongo)
 	if err != nil {
 		return err
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
 	filter := bson.M{}
 	scopeDesc := "all accounts"
@@ -124,11 +125,11 @@ func runResetBuildStats(ctx context.Context, args []string) error {
 		return err
 	}
 
-	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Mongo)
 	if err != nil {
 		return err
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
 	filter := buildStatsIDPrefixFilter(*account)
 	coll := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionBuildStats)

@@ -1,0 +1,49 @@
+---
+description: eip admintool engineering — SoT lists, helpers, tidy layout, TUI rules
+globs: admintool/**
+alwaysApply: false
+---
+
+# admintool / eip
+
+Canonical docs (follow these):
+- [docs/admintool/TUI.md](../../docs/admintool/TUI.md)
+- [docs/admintool/VARIABLES.md](../../docs/admintool/VARIABLES.md)
+- [docs/admintool/ENGINEERING.md](../../docs/admintool/ENGINEERING.md)
+
+## SoT — no hardcoding
+
+- Reused strings/lists have **one** source of truth (see VARIABLES.md).
+- TUI menus: build from `internal/catalog` via helpers (`ops.Entries()`), not pasted tables.
+- Product name/tagline: `internal/kit` only.
+- Theme/gutters: `tui/theme` only.
+- Env/YAML keys: `env.example` / swarm ENV docs — do not invent a parallel key list in the UI.
+- **Process** SoT: `internal/process` (`EIP_FROM_TUI` / `FromTUI`, `ChildEnv`, `HoldOnError`) ≠ **`.env` keys**. Prefix `eip`/`EIP_` for OS-facing names (incl. `EIPMSG ` wire); packages/types unprefixed (`msg`, `chip.docker`). See VARIABLES.md.
+
+## Helpers — no duplication
+
+- Extract helpers for repeated actions (panels, lists, `exec.Run`, file IO).
+- New UI chrome goes in `tui/ui` / `tui/theme`, not copy-pasted into screens.
+
+## Folder hygiene
+
+- Full-screen flows → `tui/screens/<name>/`.
+- Update docs package maps when structure changes.
+- **No `doc.go` note files** — write `docs/admintool/` instead.
+
+## Docker — SDK first
+
+- Use **Docker Go SDK** via `internal/docker.NewClient` / `Probe` (`ResolveDockerEndpoint` for CLI context Host). Do **not** use bare `FromEnv` alone, inspect OS services, or raw Engine HTTP when the SDK can do it.
+- **TUI:** never Docker in-process — shell `eip <verb>`; verbs use the SDK.
+- **No SDK coverage?** Stop and **flag before implementing** an API workaround; explain the gap. Prefer wrapping the SDK if a cleaner approach exists.
+- Details: [docs/admintool/ENGINEERING.md](../../docs/admintool/ENGINEERING.md) § Docker access.
+
+## TUI runtime
+
+- **TUI-first:** no-args / double-click → TUI. Existing shell → TUI in that window, quit returns to prompt. No success-path console pause or CLI sermon.
+- Child-process ops only (`tui/exec`, `EIP_FROM_TUI=1`); never Cobra/Docker in-process.
+- Chip updates via `EIPMSG` `chip.*` / `internal/msg` → `Snapshot`; menu gates on `snap.Docker`.
+- OUTPUT pane via `EIPMSG` `pane.*` / `internal/msg` + stderr errors → `tui/pane.Buffer` (append + follow). Per-command formatters in `tui/output/<verb>/`. Non-protocol stdout discarded under TUI. Background `eip probe` never emits `pane.*`.
+- Keyboard-only (swallow `MouseMsg`); TUI styles ≠ Cobra.
+- **Build lock:** use `.\scripts\admintool\build-host.ps1` (or `.sh`) → repo-root `eip.exe` / `eip` only (**no `dist/`**). If locked: **ALERT**, stop running `eip` processes, retry. **Never** write alternate names (`eip-tui9.exe`, etc.).
+- Config SoT remains `.env` + `eip.config.yaml`.

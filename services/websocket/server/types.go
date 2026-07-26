@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared/stackservices"
 	"eve-industry-planner/websocket/server/model"
 	syncpkg "eve-industry-planner/websocket/sync"
 
@@ -68,9 +68,9 @@ type Server struct {
 	SyncPool pond.Pool // For sync operations (separate pool) - exported for sync package
 
 	// Configuration
-	upgrader       websocket.Upgrader
-	ServiceClients *shared.ServiceClients
-	metrics        *websocketMetrics
+	upgrader websocket.Upgrader
+	Stack    *stackservices.Clients
+	metrics  *websocketMetrics
 
 	// Shutdown coordination
 	shutdownChan chan struct{}
@@ -225,8 +225,8 @@ func (s *Server) clientLogCtx(clientID string) context.Context {
 
 // Implement syncpkg.SyncServer interface - MongoDB access
 func (s *Server) GetMongoClient() interface{} {
-	if s.ServiceClients == nil || s.ServiceClients.Mongo == nil {
+	if s.Stack == nil || s.Stack.Mongo == nil {
 		return nil
 	}
-	return s.ServiceClients.Mongo
+	return s.Stack.Mongo
 }

@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"strings"
@@ -10,9 +11,8 @@ import (
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/config"
 	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -31,7 +31,7 @@ type cloudStoredEsiRefreshTokensResponse struct {
 	RefreshTokens []models.RefreshToken `json:"refreshTokens"`
 }
 
-func CloudStoredEsiRefreshTokensHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func CloudStoredEsiRefreshTokensHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	m := apimetrics.GetAPICloudStoredEsiRefreshTokens()
 	switch r.Method {
@@ -47,7 +47,7 @@ func CloudStoredEsiRefreshTokensHandler(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
-func handleGetCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleGetCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	m := apimetrics.GetAPICloudStoredEsiRefreshTokens()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
@@ -98,7 +98,7 @@ func handleGetCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 		helper.RespondEndpointServerError(w, r, "Internal server error", "linked chars response encode", "linked_chars_response_encode", "cloud_stored_esi_refresh_tokens", err, map[string]interface{}{
 			"additional_chars_endpoint": "linked_characters_oauth_credentials",
 			"operation":                 "get",
-					})
+		})
 		return
 	}
 	metrics.Success()
@@ -107,7 +107,7 @@ func handleGetCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 	})
 }
 
-func handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	m := apimetrics.GetAPICloudStoredEsiRefreshTokens()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
@@ -120,21 +120,21 @@ func handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 
 	accountID := helper.AuthenticatedAccountID(r)
 
-	cfg, err := config.LoadConfig()
+	tokenCfg, err := config.LoadCloudStoredESIKeys()
 	if err != nil {
 		metrics.Error("config_error")
 		helper.RespondEndpointServerError(w, r, "Internal server error", "linked chars config load", "linked_chars_config_load", "cloud_stored_esi_refresh_tokens", err, map[string]interface{}{
 			"additional_chars_endpoint": "linked_characters_oauth_credentials",
 			"operation":                 "put",
-					})
+		})
 		return
 	}
-	if cfg.RefreshTokenKeyring == nil {
+	if tokenCfg.Keyring == nil {
 		metrics.Error("config_error")
 		helper.RespondEndpointServerError(w, r, "Refresh token keyring not configured", "linked chars keyring missing", "linked_chars_keyring_missing", "cloud_stored_esi_refresh_tokens", fmt.Errorf("refresh token keyring is nil"), map[string]interface{}{
 			"additional_chars_endpoint": "linked_characters_oauth_credentials",
 			"operation":                 "put",
-					})
+		})
 		return
 	}
 
@@ -181,7 +181,7 @@ func handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 		}
 		key := strings.ToLower(row.CharacterHash)
 		if strings.TrimSpace(row.RToken) != "" {
-			if err := row.EncryptRefreshAtRest(row.RToken, cfg.RefreshTokenKeyring); err != nil {
+			if err := row.EncryptRefreshAtRest(row.RToken, tokenCfg.Keyring); err != nil {
 				metrics.Error("validation_error")
 				helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid refresh token payload", "linked chars invalid refresh token payload", "linked_chars_invalid_refresh_token", "cloud_stored_esi_refresh_tokens", err, map[string]interface{}{
 					"additional_chars_endpoint": "linked_characters_oauth_credentials",
@@ -225,7 +225,7 @@ func handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 		helper.RespondEndpointServerError(w, r, "Failed to save refresh tokens", "linked chars refresh tokens save", "linked_chars_refresh_tokens_save", "cloud_stored_esi_refresh_tokens", err, map[string]interface{}{
 			"additional_chars_endpoint": "linked_characters_oauth_credentials",
 			"operation":                 "put",
-					})
+		})
 		return
 	}
 
@@ -237,7 +237,7 @@ func handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 	})
 }
 
-func handleDeleteCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleDeleteCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	m := apimetrics.GetAPICloudStoredEsiRefreshTokens()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
@@ -318,7 +318,7 @@ func handleDeleteCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Requ
 		helper.RespondEndpointServerError(w, r, "Failed to delete refresh tokens", "linked chars refresh tokens delete", "linked_chars_refresh_tokens_delete", "cloud_stored_esi_refresh_tokens", err, map[string]interface{}{
 			"additional_chars_endpoint": "linked_characters_oauth_credentials",
 			"operation":                 "delete",
-						"hashes_requested":          len(toRemove),
+			"hashes_requested":          len(toRemove),
 		})
 		return
 	}

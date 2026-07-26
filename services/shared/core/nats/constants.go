@@ -66,6 +66,10 @@ const (
 
 	// SubjectDocSubscribeFanout is the legacy core-NATS prefix (ws.doc.subscribe.fanout.{accountID}).
 	SubjectDocSubscribeFanout = "ws.doc.subscribe.fanout"
+
+	// SubjectHealthCommandPing is the core-NATS fan-out subject for controller health census.
+	// Every app replica Subscribe()s (no queue group) and Respond()s HealthStatus.
+	SubjectHealthCommandPing = "health.command.ping"
 )
 
 // Durable names / prefixes currently owned by the app. Stream reconcile allowlists

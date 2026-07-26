@@ -39,7 +39,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.ServiceClients == nil || s.ServiceClients.Redis == nil {
+	if s.Stack == nil || s.Stack.Redis == nil {
 		wsUpgradeRejectServer(w, r, s, upgradeStart, "redis_unavailable", http.StatusServiceUnavailable,
 			"websocket upgrade rejected: Redis unavailable",
 			"Service unavailable",
@@ -50,14 +50,14 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	identity, err := apihelperauth.ExtractAccountSession(reqCtx, r, s.ServiceClients.Redis)
+	identity, err := apihelperauth.ExtractAccountSession(reqCtx, r, s.Stack.Redis)
 	if err != nil {
 		wsUpgradeRejectAuthSession(w, r, s, upgradeStart, err)
 		return
 	}
 	r = logs.BindRequestIdentityToRequest(r, identity.AccountID, identity.SessionID)
 
-	if err := apihelperauth.TouchAccountSession(reqCtx, s.ServiceClients.Redis, identity.AccountID, identity.SessionID, identity.Session.AppVersion); err != nil {
+	if err := apihelperauth.TouchAccountSession(reqCtx, s.Stack.Redis, identity.AccountID, identity.SessionID, identity.Session.AppVersion); err != nil {
 		wsUpgradeRejectClient(w, r, s, upgradeStart, "session_missing", http.StatusUnauthorized,
 			"websocket upgrade rejected: failed session touch",
 			"Unauthorized: session_missing",

@@ -7,7 +7,7 @@ import (
 
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 // RequestStartOrNow returns middleware request start time or current time.

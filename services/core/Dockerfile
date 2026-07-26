@@ -38,8 +38,8 @@ FROM alpine:3.20
 # Build argument for image source (for GitHub Container Registry linking)
 ARG IMAGE_SOURCE=https://github.com/darcy561/eve-industry-planner
 
-# Install only essential packages (including su-exec for user switching and bash for exec -a)
-RUN apk --no-cache add ca-certificates tzdata su-exec bash && \
+# wget: Swarm healthcheck probes :19100/ready
+RUN apk --no-cache add ca-certificates tzdata su-exec bash wget && \
     addgroup -g 1001 -S appuser && \
     adduser -u 1001 -S appuser -G appuser
 

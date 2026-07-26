@@ -73,15 +73,15 @@ const (
 
 // RefreshTokenData is metadata bound to a planner app session refresh token in Redis (not ESI OAuth refresh material).
 type RefreshTokenData struct {
-	CharacterHash string                     `json:"character_hash"`
-	AccountID     string                     `json:"account_id"`
-	Scopes        []string                   `json:"scopes"`
+	CharacterHash string         `json:"character_hash"`
+	AccountID     string         `json:"account_id"`
+	Scopes        []string       `json:"scopes"`
 	Corporations  CorporationIDs `json:"corporations,omitempty"` // Corporation IDs the user can access
 	Alliances     AllianceIDs    `json:"alliances,omitempty"`    // Alliance IDs derived from character affiliation
-	SessionID     string                     `json:"session_id,omitempty"`
-	SessionStart  time.Time                  `json:"session_start,omitempty"`
-	SessionSeenAt time.Time                  `json:"session_seen_at,omitempty"`
-	AppVersion    string                     `json:"app_version,omitempty"`
+	SessionID     string         `json:"session_id,omitempty"`
+	SessionStart  time.Time      `json:"session_start,omitempty"`
+	SessionSeenAt time.Time      `json:"session_seen_at,omitempty"`
+	AppVersion    string         `json:"app_version,omitempty"`
 }
 
 // SessionRecord stores a lightweight auth session timeline in Redis.

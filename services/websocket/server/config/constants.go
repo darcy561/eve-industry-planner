@@ -25,6 +25,7 @@ const (
 
 	// Security configuration.
 	defaultMaxConnectionsPerUser = 5
+	defaultSlotClientCutoff      = 2000
 	MessageRateLimit             = 200
 	MessageRateWindow            = 1 * time.Second
 
@@ -58,3 +59,23 @@ func MaxConnectionsPerUser() int {
 
 // SessionHandoffTTL is used for Redis key TTL and in-memory handoff expiry.
 var SessionHandoffTTL = time.Duration(WSReconnectMaxMS+WSSessionHandoffSlackMS) * time.Millisecond
+
+// SlotClientCutoff is the soft per-replica client count used for placement hints
+// (eip:ws:full:…). 0 means unlimited (never mark the slot full).
+func SlotClientCutoff() int {
+	v := strings.TrimSpace(os.Getenv("WS_SLOT_CLIENT_CUTOFF"))
+	if v == "" {
+		return defaultSlotClientCutoff
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return defaultSlotClientCutoff
+	}
+	return n
+}
+
+// SlotAtClientCutoff reports whether connected clients have reached the cutoff.
+func SlotAtClientCutoff(connected int) bool {
+	cutoff := SlotClientCutoff()
+	return cutoff > 0 && connected >= cutoff
+}

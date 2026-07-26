@@ -28,7 +28,7 @@ Before deploying, ensure you have the following:
 
 ## Overview
 
-This guide covers deploying the EVE Industry Planner application using Docker Compose. The application supports both localhost development and production deployment.
+This guide covers deploying the EVE Industry Planner application. Public / VPS bring-up is **`make up`** (published GHCR images). Internals: [docs/swarm/MAKE.md](docs/swarm/MAKE.md).
 
 ## Quick Start
 
@@ -50,17 +50,17 @@ On **Windows (Git Bash)** use a path you can write to (e.g. under your user prof
 make up
 ```
 
-This target chains **`download-setup-scripts`** → **`ensure-keyfile`** → **`ensure-env`** → **`ensure-refresh-token-key`** → **`docker compose up -d`** (see the `Makefile`).
+On first run this may only bootstrap files and exit (see below). When `.env` is ready it brings up the **Compose data plane** (mongo/redis/nats + ops) and the **Swarm app stack** (Traefik, api, websocket, worker, ws-router, core, frontend, SeaweedFS from GHCR). See [docs/swarm/MAKE.md](docs/swarm/MAKE.md) and [docs/swarm/NETWORK.md](docs/swarm/NETWORK.md).
 
-**First-time deploy (no `.env` yet):** `scripts/ensure-env.sh` downloads **`env.example`** from the **Public** branch into `.env`, auto-generates database/redis secrets where needed, then **stops with a non-zero exit** and tells you to edit `.env` and run **`make up` again**. Docker containers **do not start** on that first successful bootstrap pass. You may be prompted to type **`YES`** after backing up **`AUTHZ_HMAC_KEY`**—use an **interactive** terminal for that step.
+**First-time deploy (no `.env` yet):** `make up` runs `scripts/bootstrap/ensure-env.sh`, which downloads **`env.example`** from the **Public** branch into `.env`, auto-generates database/redis secrets where needed, then **stops with a non-zero exit** and tells you to edit `.env` and run **`make up` again**. Docker containers **do not start** on that first successful bootstrap pass. You may be prompted to type **`YES`** after backing up **`AUTHZ_HMAC_KEY`**—use an **interactive** terminal for that step.
 
-**If `.env` already exists** (e.g. you restored a backup), `ensure-env` does nothing and **`make up` proceeds straight to `docker compose up -d`**.
+**If `.env` already exists** (e.g. you restored a backup), `ensure-env` does nothing and **`make up`** continues into overlay → Compose data plane → Swarm stack.
 
 ### Step 3: Configure `.env` and required files
 
-Edit `.env` with your real values (SSO, domains, optional Sentry, Grafana passwords, etc.). See the comments in `.env` / `env.example`.
+Edit `.env` with your real values (SSO, domains, optional Sentry, Grafana passwords, etc.). Variable meanings are documented in the embedded template [`admintool/internal/templates/env.example`](admintool/internal/templates/env.example) (also shipped inside the `eip` binary). **`.env` holds secrets** (and `APP_VERSION`); non-secret scale/ports/paths live in **`eip.config.yaml`** — copy from [`admintool/internal/templates/eip.config.yaml`](admintool/internal/templates/eip.config.yaml) when you want to customize. Apply procedures: [docs/swarm/ENV.md](docs/swarm/ENV.md).
 
-Place **Firebase Admin** JSON files where **`docker-compose.yml`** expects them (default: **`adminSDK.json`** and **`adminSDKLive.json`** in the same directory as the Makefile), or change the volume mounts.
+Firebase Admin JSON files are **not** mounted by default (steady-state api/worker/core do not need them). For one-off Firestore migration tasks, mount credentials yourself and set `GOOGLE_APPLICATION_CREDENTIALS`, or pass `-credentials` / `-dev` / `-live` as documented in the migration tooling.
 
 ### Step 4: Run `make up` again to start the stack
 
@@ -68,19 +68,27 @@ Place **Firebase Admin** JSON files where **`docker-compose.yml`** expects them 
 make up
 ```
 
-With `.env` in place, this completes **`ensure-*`** and starts **all** services with **`docker compose up -d`**.
+With `.env` in place, this completes **`ensure-*`**, starts the Compose data plane, and deploys the Swarm stack. Hybrid detail: [docs/swarm/MAKE.md](docs/swarm/MAKE.md).
 
 ## Environment Configuration
 
-For full variable documentation, see `env.example`. In practice you will configure:
+For variable documentation, see `env.example`. In practice you will configure:
 
-- **Frontend / client**: EVE Online SSO, optional Google Analytics, and build-time options described in that file
+- **Frontend / client**: EVE Online SSO, optional Google Analytics, and build-time options described in that file (SPA runs on Swarm as `eip_frontend`)
 - **Backend**: MongoDB and Redis credentials, NATS, auth and JWT settings, optional Sentry, optional Grafana admin user/password for the bundled stack
-- **Observability**: `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` (and similar) are documented under the Grafana section in `env.example`
+- **Observability**: `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` (and similar) under the Grafana section in `env.example`
 
-`make up` runs `ensure-env` and related scripts so a starting `.env` is created from `env.example` when missing; always review and set secrets before production use.
+`make up` runs `ensure-env` so a starting `.env` is created from `env.example` when missing; always review and set secrets before production use.
 
-**Mount files:** `docker-compose.yml` expects Firebase Admin JSON files in the deployment directory (e.g. `adminSDK.json` and `adminSDKLive.json` mounted into **api**, **worker**, and **core**). Provide those files or adjust the volume paths in your override/compose file.
+### Day-2 changes (stack already running)
+
+Do **not** use full `make up` only to apply config. Details and dry-run: [docs/swarm/ENV.md](docs/swarm/ENV.md).
+
+| You changed | Run |
+|-------------|-----|
+| Secrets used by Swarm apps (SSO, HMAC, S3 keys, app DB passwords, …) | **`make swarm-secrets-sync`** |
+| Operator YAML (`eip.config.yaml` — replicas, capacity, ports/paths, concurrency, client cutoff) | **`make swarm-sync`** (edit YAML first; no separate `scale-*` commands) |
+| Compose-only secrets (mongo/redis root, Grafana admin, …) | Recreate those Compose services (e.g. `make rebuild SERVICES=mongo,redis` on a git clone), then **`make swarm-secrets-sync`** if Swarm consumers need the new values |
 
 ## Access
 
@@ -116,33 +124,35 @@ You have two options:
 ### Application services
 
 - **frontend**: Serves the built SPA (static assets); Traefik routes `/` here
-- **api**: HTTP API on `/api` (port 4000 in the container)
-- **websocket**: Separate service for WebSocket traffic on `/ws` (port 4001 in the container), with optional sticky sessions for multiple replicas
-- **worker**: Background jobs (Asynq) consuming Redis queues
-- **core**: Central background processing (e.g. schedulers, change streams, shared data prep); **api** and **websocket** wait for **core** to be healthy before starting
+- **api**: Swarm HTTP API on `/api` (port 4000 in the container)
+- **websocket**: Swarm service for WebSocket traffic on port 4001; Traefik `/ws` goes via Swarm **ws-router** + Redis placement ([docs/swarm/WS_ROUTER.md](docs/swarm/WS_ROUTER.md)). Sticky `eip_ws_affinity` is fallback only.
+- **ws-router**: Swarm singleton; tenant → websocket slot placement + reverse-proxy of `/ws` upgrades
+- **worker**: Background jobs (Asynq) consuming Redis queues (Swarm)
+- **core**: Swarm control plane (`eip_core`) — schedulers, changestream → JetStream, nested singleton jobs. Primary via Redis `lease:core:primary`; `/ready` on `:19100` is handoff-ready standby (not “holds the lease”). See [docs/swarm/CORE_REBUILD.md](docs/swarm/CORE_REBUILD.md)
 
 ### Data and messaging
 
-- **mongo**: MongoDB (single-node replica set, `rs0` by default)
-- **redis**: Redis (password-protected; also used by Asynq and the WebSocket layer)
-- **nats**: NATS with JetStream enabled (`-js`) for internal messaging; monitoring HTTP on `:8222`
+- **mongo**: MongoDB (single-node replica set, `rs0` by default) — Compose
+- **redis**: Redis (password-protected; also used by Asynq and the WebSocket layer) — Compose
+- **nats**: NATS with JetStream enabled (`-js`) for internal messaging; monitoring HTTP on `:8222` — Compose
+- **seaweedfs**: Swarm data-fragment object store (`static-data` bucket via `objectstore`); S3 API on overlay only
 
 ### Edge and operations
 
-- **traefik**: Reverse proxy and TLS entrypoints (80/443), Docker provider; Prometheus metrics on internal `:8082` (`job=traefik`); admin UI on host `:81` (`/dashboard/`); stdout access/app logs → Alloy → Loki (**Traefik** metrics + **Traefik · logs** Grafana dashboards)
+- **traefik**: Swarm service `eip_traefik`; publishes `:80` / `:443` / `:81` via **ingress** on overlay `eip` (Docker Desktop localhost OK — #31). See [docs/swarm/TRAEFIK.md](docs/swarm/TRAEFIK.md)
 - **asynqmon** (optional UI): Asynq queue browser/metrics; see `docker-compose.yml` for how ports are published (default pattern binds to a specific host IP for internal/VPN access)
 
 ### Observability stack
 
-These run on the same `eip` network and are defined in `docker-compose.yml`:
+These run on the same external `eip` network (`make ensure-eip-network`; [docs/swarm/NETWORK.md](docs/swarm/NETWORK.md)) and are defined in `docker-compose.yml`:
 
-- **alloy**: Unified telemetry agent — OTLP logs from Go services → Loki; Docker stdout logs → Loki for frontend/infra; OTLP metrics → Prometheus. Config: `observability/alloy/config.alloy` (`LOG_LEVEL` env read at Alloy startup)
+- **alloy**: Unified telemetry agent — OTLP logs from Go services → Loki; Docker stdout logs → Loki for frontend/infra via **`alloy-docker-proxy`** (allowlisted sock; Alloy has no raw sock). Config embedded in eip (`admintool/internal/obskit/fs/alloy/config.alloy`; `LOG_LEVEL` env read at Alloy startup)
 - **nats-exporter**: Scrapes NATS `:8222` into Prometheus metrics on `:7777` (`-prefix=nats`); powers **NATS Server** / **NATS JetStream** Grafana dashboards
 - **redis-exporter**: Scrapes Redis INFO into Prometheus on `:9121`; powers **Redis** Grafana dashboard
 - **mongodb-exporter**: Scrapes MongoDB into Prometheus on `:9216` (`--compatible-mode`); powers **MongoDB** Grafana dashboard
-- **prometheus**: Metrics TSDB; scrapes asynqmon, nats-exporter, redis-exporter, and mongodb-exporter; receives app OTLP metrics from Alloy remote write
+- **prometheus**: Metrics TSDB on Swarm **data** fragment (`eip_prometheus`, alias `prometheus`); scrapes asynqmon / exporters / Traefik; receives app OTLP metrics from Alloy remote write. Not part of the observability addon toggle (#34). Day-2 config: `make update-data SERVICE=prometheus`
 - **loki**: Log storage; Alloy pushes container stdout logs with `compose_service` labels for dashboards such as **Core · logs**, **API · logs**, etc.
-- **grafana**: Dashboards from `observability/grafana/provisioning`; login uses `GRAFANA_ADMIN_*` from `.env` (on first bootstrap, `ensure-env.sh` generates `GRAFANA_ADMIN_PASSWORD` like other secrets unless you set it explicitly)
+- **grafana**: Dashboards from embedded eip configs (`admintool/internal/obskit/fs/grafana/provisioning`); login uses `GRAFANA_ADMIN_*` from `.env`. **`make dev`**: http://127.0.0.1/grafana via Traefik (no Grafana `ports:`). **`make up`**: unpublished — use Tailscale/tunnel to `grafana:3000` on `eip` (Traefik Grafana not default; optional later).
 - **node_exporter**: Host CPU/memory/disk/network metrics on `:9100`; scraped by Prometheus (`job=node`); **Host** Grafana dashboard
 
 ### Ports
@@ -164,20 +174,23 @@ make up
 ```
 
 This will:
-1. Update the Makefile from GitHub, then replace `docker-compose.yml`, the entire `observability/` tree (including `observability/alloy/config.alloy`), and `scripts/` from a **single Public branch tarball**
+1. Update the Makefile from GitHub, then replace `docker-compose.yml`, the entire `observability/` tree, and the **whole** `scripts/` tree (bootstrap/lib/swarm/ops/test) from a **single Public branch tarball**
 2. Restart **Alloy** when the stack is already running (refreshes Docker log tailers after observability config changes)
 3. Pull the latest container images when you run `make up` or `make dev`
 4. Restart all services with the updated configuration when you run `make up` or `make dev` (both targets also restart Alloy after bringing services up)
+
+Same Make verbs on Windows (Git Bash), Linux, and macOS — see [docs/swarm/MAKE.md](docs/swarm/MAKE.md#cross-os-smoke-public-verbs).
 
 ## Maintenance
 
 ### Viewing Logs
 
 ```bash
-docker compose logs -f
+make logs                  # interactive picker
+make logs SERVICE=api ARGS='-f'
 ```
 
-Stream a single service (examples): `docker compose logs -f core` or `docker compose logs -f api`. Go services log via **OTLP → Alloy → Loki** by default (`LOG_STDOUT=true` mirrors to container stdout). For filterable JSON logs by service (`compose_service`) and other fields, use **Grafana → Loki** when Grafana/Alloy/Loki from `docker-compose.yml` are running.
+Prefer **`make logs`** over raw Docker. Go services log via **OTLP → Alloy → Loki** by default. Stdout mirror is on when `ENVIRONMENT=development` (or `LOG_STDOUT=true`); set `LOG_STDOUT=false` to disable. For filterable JSON logs by service (`compose_service`) and other fields, use **Grafana → Loki** when Grafana/Alloy/Loki from `docker-compose.yml` are running.
 
 **Log Levels:**
 

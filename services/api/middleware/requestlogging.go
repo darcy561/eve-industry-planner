@@ -59,8 +59,8 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 
 			next.ServeHTTP(rw, r)
 
-			// Traefik polls /health every few seconds; skip access logs (no operator value).
-			if r.URL.Path == "/health" {
+			// Traefik/Swarm poll status paths; skip access logs (no operator value).
+			if r.URL.Path == "/health" || r.URL.Path == "/healthy" || r.URL.Path == "/ready" {
 				return
 			}
 

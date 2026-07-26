@@ -3,12 +3,12 @@ package documentlocks
 import (
 	"encoding/json"
 	"errors"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/documentlock"
-	"eve-industry-planner/shared/shared"
 )
 
 type lockBody struct {
@@ -27,11 +27,11 @@ func parseLockBody(r *http.Request) (lockBody, error) {
 	return b, nil
 }
 
-func lockService(clients *shared.ServiceClients) *documentlock.Service {
-	return documentlock.NewService(documentlock.DepsFromServiceClients(clients))
+func lockService(clients *stackservices.Clients) *documentlock.Service {
+	return documentlock.NewService(documentlock.DepsFromClients(clients))
 }
 
-func handleAcquire(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleAcquire(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	hc, ok := lockHandlerContextOK(w, r, clients.Redis)
 	if !ok {
 		return
@@ -51,7 +51,7 @@ func handleAcquire(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 	_ = json.NewEncoder(w).Encode(out.Payload)
 }
 
-func handleExtend(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleExtend(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	hc, ok := lockHandlerContextOK(w, r, clients.Redis)
 	if !ok {
 		return
@@ -76,7 +76,7 @@ func handleExtend(w http.ResponseWriter, r *http.Request, clients *shared.Servic
 	writeExtendJSON(w, out.StatusCode, out.ExpiresAtUnix, out.ExtendCount, out.Extras)
 }
 
-func handleRelease(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleRelease(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	hc, ok := lockHandlerContextOK(w, r, clients.Redis)
 	if !ok {
 		return
@@ -94,7 +94,7 @@ func handleRelease(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func handleForceRelease(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleForceRelease(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	hc, ok := lockHandlerContextOK(w, r, clients.Redis)
 	if !ok {
 		return
@@ -121,7 +121,7 @@ func handleForceRelease(w http.ResponseWriter, r *http.Request, clients *shared.
 	_ = json.NewEncoder(w).Encode(out.Payload)
 }
 
-func handleHandOver(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleHandOver(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	hc, ok := lockHandlerContextOK(w, r, clients.Redis)
 	if !ok {
 		return
@@ -152,7 +152,7 @@ func handleHandOver(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	w.WriteHeader(res.StatusCode)
 }
 
-func handleRequest(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleRequest(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	hc, ok := lockHandlerContextOK(w, r, clients.Redis)
 	if !ok {
 		return
@@ -176,7 +176,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request, clients *shared.Servi
 	w.WriteHeader(res.StatusCode)
 }
 
-func handleLockState(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleLockState(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	accountID, ok := helper.RequireAccountID(w, r)
 	if !ok {
@@ -215,7 +215,7 @@ type lockStateBatchBody struct {
 	GroupDocIDs []string `json:"groupDocIDs"`
 }
 
-func handleLockStateBatch(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleLockStateBatch(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	accountID, ok := helper.RequireAccountID(w, r)
 	if !ok {
@@ -256,7 +256,7 @@ func handleLockStateBatch(w http.ResponseWriter, r *http.Request, clients *share
 	})
 }
 
-func handleClaimHandoff(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleClaimHandoff(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	hc, ok := lockHandlerContextOK(w, r, clients.Redis)
 	if !ok {
 		return
@@ -283,7 +283,7 @@ func handleClaimHandoff(w http.ResponseWriter, r *http.Request, clients *shared.
 	_ = json.NewEncoder(w).Encode(out.Payload)
 }
 
-func handleWaitlistPulse(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func handleWaitlistPulse(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	hc, ok := lockHandlerContextOK(w, r, clients.Redis)
 	if !ok {
 		return

@@ -1,15 +1,15 @@
 package grouptemplates
 
 import (
+	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"strings"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/shared/shared"
 )
 
 // Router handles /api/v1/group-templates and subpaths.
-func Router(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func Router(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	path := strings.TrimSuffix(r.URL.Path, "/")
 	const base = "/api/v1/group-templates"
 

@@ -27,7 +27,7 @@ func MigrateUserDocumentToMongo(ctx context.Context, task *asynq.Task, deps *esi
 	if task == nil {
 		return fmt.Errorf("task is nil")
 	}
-	if deps == nil || deps.ServiceClients == nil || deps.Mongo == nil {
+	if deps == nil || deps.Clients == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
 	}
 

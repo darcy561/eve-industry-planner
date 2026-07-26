@@ -3,6 +3,7 @@ package v1endpoints
 import (
 	"context"
 	"encoding/json"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -14,7 +15,6 @@ import (
 	natscore "eve-industry-planner/shared/core/nats"
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	taskscore "eve-industry-planner/shared/tasks"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
@@ -69,7 +69,7 @@ func (r MarketPriceResponse) MarshalJSON() ([]byte, error) {
 //	405 — not POST
 //	400 — invalid JSON, missing typeIDs, empty array, too many IDs, or invalid IDs
 //	200 — JSON map of typeID → price rows; missing keys appear as empty arrays
-func MarketPricesHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func MarketPricesHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIMarketPrices()

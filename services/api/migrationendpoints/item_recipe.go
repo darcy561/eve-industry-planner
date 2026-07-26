@@ -1,6 +1,7 @@
 package migrationendpoints
 
 import (
+	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"strconv"
 	"strings"
@@ -9,14 +10,13 @@ import (
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/migration"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 )
 
 const (
 	itemRecipeCacheControl = "public, max-age=1800, s-maxage=3600"
 )
 
-func ItemRecipeHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func ItemRecipeHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	switch r.Method {
 	case http.MethodGet:
 		ItemRecipeGetHandler(w, r, clients)
@@ -30,7 +30,7 @@ func ItemRecipeHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 
 // ItemRecipeGetHandler handles GET /api/migration/item/{itemID} (public migration).
 // Returns item recipe from Firestore Items collection; 404 if not found.
-func ItemRecipeGetHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func ItemRecipeGetHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 
@@ -86,7 +86,7 @@ type ItemRecipesPostBody struct {
 
 // ItemRecipesPostHandler handles POST /api/migration/item (public migration).
 // Body: { "idArray": [34, 35, 36] }. Returns array of item recipe documents for found items.
-func ItemRecipesPostHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func ItemRecipesPostHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 

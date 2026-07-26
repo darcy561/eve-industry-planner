@@ -1,0 +1,15 @@
+# Dev overlay — local image tags from .eip-local-build.env (TAG_api, …).
+
+services:
+  api:
+    image: eve-industry-planner-api:${TAG_api}
+  websocket:
+    image: eve-industry-planner-websocket:${TAG_websocket}
+  worker:
+    image: eve-industry-planner-worker:${TAG_worker}
+  ws-router:
+    image: eve-industry-planner-ws-router:${TAG_ws_router}
+  core:
+    image: eve-industry-planner-core:${TAG_core}
+  frontend:
+    image: eve-industry-planner-frontend:${TAG_frontend}

@@ -47,12 +47,12 @@ func IsInfrastructureError(err error) bool {
 
 // AuthSessionFailureDetail is safe diagnostic context for invalid session logs (no secrets beyond ids).
 type AuthSessionFailureDetail struct {
-	Code                     string
-	AccountID                string
-	SessionID                string
-	HasEipSessionCookie      bool
+	Code                      string
+	AccountID                 string
+	SessionID                 string
+	HasEipSessionCookie       bool
 	HasPlannerSessionIDHeader bool
-	Reason                   string
+	Reason                    string
 }
 
 // AuthSessionFailureDetailFromError builds log context from an auth session validation error.

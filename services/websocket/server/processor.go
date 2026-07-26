@@ -173,7 +173,7 @@ drainComplete:
 // Uses already-parsed MessageFormat to avoid re-parsing JSON
 func (s *Server) processParsedMessageToDatabase(parsed parsedMessage) error {
 	lc := s.clientLogCtx(parsed.event.ClientID)
-	if s.ServiceClients == nil || s.ServiceClients.Mongo == nil {
+	if s.Stack == nil || s.Stack.Mongo == nil {
 		logs.WarnCtx(lc, "MongoDB not available, skipping database write",
 			"doc_id", parsed.event.DocID)
 		return nil
@@ -204,7 +204,7 @@ func (s *Server) processParsedMessageToDatabase(parsed parsedMessage) error {
 	}
 
 	// Get collection
-	database := s.ServiceClients.Mongo.Database("eve_industry_planner")
+	database := s.Stack.Mongo.Database("eve_industry_planner")
 	collection := database.Collection("users")
 
 	// Route to appropriate handler based on action

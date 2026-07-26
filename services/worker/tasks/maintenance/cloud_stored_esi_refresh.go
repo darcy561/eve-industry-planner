@@ -11,7 +11,7 @@ import (
 	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	esicore "eve-industry-planner/worker/esi"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
@@ -52,11 +52,11 @@ func CloudStoredEsiRefreshMaintenance(ctx context.Context, task *asynq.Task, dep
 		abandonMonths = defaultAbandonAfterLoginMonths
 	}
 
-	cfg, err := config.LoadConfig()
+	cfg, err := config.LoadCloudStoredESI()
 	if err != nil {
 		return err
 	}
-	if cfg.RefreshTokenKeyring == nil {
+	if cfg.Keys.Keyring == nil {
 		return fmt.Errorf("refresh token keyring is not configured")
 	}
 

@@ -11,7 +11,7 @@ import (
 // baked rate for Sentry performance traces. Omitted or empty → use baked; both empty → 0.
 const sentryTracesSampleRateEnv = "SENTRY_TRACES_SAMPLE_RATE"
 
-// DefaultOTLPEndpoint is the gRPC host:port for the OTel collector on the default Docker Compose network.
+// DefaultOTLPEndpoint is the gRPC host:port for Alloy (DNS alias on eip-core when obs addon is up).
 const DefaultOTLPEndpoint = "alloy:4317"
 
 // DefaultMetricExportInterval is the OTLP metric reader period when [Config.MetricExportInterval] is zero.
@@ -41,20 +41,30 @@ type Config struct {
 
 // DefaultConfig returns OTLP settings for services running on the standard stack (Alloy as alloy:4317).
 func DefaultConfig(serviceName string) Config {
-	envTag := strings.TrimSpace(BakedAppMode)
-	if envTag == "" {
-		envTag = "production"
-	}
 	return Config{
 		ServiceName:            strings.TrimSpace(serviceName),
 		ServiceVersion:         resolveServiceVersion(),
 		OTLPEndpoint:           DefaultOTLPEndpoint,
 		OTLPInsecure:           true,
 		SentryDSN:              strings.TrimSpace(BakedSentryDSN),
-		SentryEnvironment:      envTag,
+		SentryEnvironment:      resolveDeploymentEnvironment(),
 		SentryRelease:          strings.TrimSpace(BakedRelease),
 		SentryTracesSampleRate: resolveSentryTracesSampleRate(),
 	}
+}
+
+// resolveDeploymentEnvironment prefers runtime .env (Swarm env_file) over bake-time mode.
+// Order: DEPLOYMENT_ENVIRONMENT → ENVIRONMENT → BakedAppMode → "production".
+func resolveDeploymentEnvironment() string {
+	for _, key := range []string{"DEPLOYMENT_ENVIRONMENT", "ENVIRONMENT"} {
+		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+			return v
+		}
+	}
+	if v := strings.TrimSpace(BakedAppMode); v != "" {
+		return v
+	}
+	return "production"
 }
 
 // parseTraceSampleRate parses a performance-trace sample rate in [0,1].

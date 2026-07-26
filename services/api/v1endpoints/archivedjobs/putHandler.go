@@ -3,6 +3,7 @@ package archivedjobs
 import (
 	"context"
 	"errors"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"time"
@@ -11,8 +12,7 @@ import (
 	"eve-industry-planner/shared/core/documentlock"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -43,7 +43,7 @@ import (
 //
 // For each job, _meta.archivedBy is set to the JWT account_id (who submitted the request), in addition
 // to _meta.archivedAt, accountID, lastModified, and lastUpdatedBy.
-func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	obsCtx := r.Context()
 	start := helper.RequestStartOrNow(obsCtx)
 	m := apimetrics.GetAPIArchivedJobs()

@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"eve-industry-planner/shared/httpclient"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/httpclient"
 
 	"golang.org/x/time/rate"
 )

@@ -8,11 +8,11 @@ import (
 
 // Rate-limit classification for logs and handling (Reason stays human-readable).
 const (
-	RateLimitKindUnknown      = ""
-	RateLimitKindTaskBudget   = "task_time_budget" // task context cannot absorb the next Redis gate wait
-	RateLimitKindClientYield  = "client_yield"     // releasing worker: wait > local cap (spacing/token gate)
-	RateLimitKindESEDowntime  = "eve_downtime"
-	RateLimitKindESI429       = "esi_429"
+	RateLimitKindUnknown     = ""
+	RateLimitKindTaskBudget  = "task_time_budget" // task context cannot absorb the next Redis gate wait
+	RateLimitKindClientYield = "client_yield"     // releasing worker: wait > local cap (spacing/token gate)
+	RateLimitKindESEDowntime = "eve_downtime"
+	RateLimitKindESI429      = "esi_429"
 )
 
 // RateLimitError represents a rate limit error with classification for task handling

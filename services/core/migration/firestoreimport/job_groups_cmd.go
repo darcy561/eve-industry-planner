@@ -2,16 +2,17 @@ package firestoreimport
 
 import (
 	"context"
+	"eve-industry-planner/shared/lifecycle"
+	"eve-industry-planner/shared/stackservices"
 	"flag"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
-	"eve-industry-planner/shared/migration/firestoremig"
 	"eve-industry-planner/shared/firebaseadmin"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared/migration/firestoremig"
 
 	"cloud.google.com/go/firestore"
 	mongodriver "go.mongodb.org/mongo-driver/mongo"
@@ -85,11 +86,11 @@ func RunImportJobGroupsFromFirestore(ctx context.Context, args []string) error {
 		return importJobGroupsDryRunScanAll(ctx, *loginWithin)
 	}
 
-	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Mongo)
 	if err != nil {
 		return err
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
 	fsClient, err := firebaseadmin.GetFirestoreClient(ctx)
 	if err != nil {

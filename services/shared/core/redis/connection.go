@@ -12,8 +12,19 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// Connect uses shared REDIS_PASSWORD ([config.RedisURL]).
 func Connect() (*redis.Client, error) {
-	cfg, err := config.LoadConfig()
+	return connectFromURL(config.RedisURL)
+}
+
+// ConnectAPI uses REDIS_PASSWORD_API when set ([config.RedisURLAPI]), else
+// shared REDIS_PASSWORD. Call from api; other roles keep Connect.
+func ConnectAPI() (*redis.Client, error) {
+	return connectFromURL(config.RedisURLAPI)
+}
+
+func connectFromURL(urlFn func() (string, error)) (*redis.Client, error) {
+	redisURL, err := urlFn()
 	if err != nil {
 		return nil, err
 	}
@@ -23,22 +34,14 @@ func Connect() (*redis.Client, error) {
 	bg := context.Background()
 
 	for i := 0; i < retryCount; i++ {
-		// Parse Redis URL to handle password authentication
-		opts, parseErr := redis.ParseURL(cfg.REDIS_URL)
+		opts, parseErr := redis.ParseURL(redisURL)
 		if parseErr != nil {
-			// If URL parsing fails, fall back to basic connection (for backward compatibility)
-			opts = &redis.Options{
-				Addr: cfg.REDIS_URL,
-			}
+			opts = &redis.Options{Addr: redisURL}
 		}
-		// Override timeouts and pool settings
 		opts.DialTimeout = 5 * time.Second
-		// Increased ReadTimeout to handle Lua script execution under load
-		// Lua scripts can take longer when Redis is processing many concurrent operations
 		opts.ReadTimeout = 10 * time.Second
 		opts.WriteTimeout = 5 * time.Second
-		// Increased pool size to handle concurrent rate limit checks from multiple workers
-		opts.PoolSize = 20 // Max concurrent connections for performance under load
+		opts.PoolSize = 20
 
 		client := redis.NewClient(opts)
 
@@ -52,9 +55,7 @@ func Connect() (*redis.Client, error) {
 				logs.WarnCtx(bg, "redis OpenTelemetry tracing hook not installed", "err", err)
 			}
 
-			// Start background monitoring for connection health
 			go monitorRedisConnection(client)
-
 			return client, nil
 		}
 		i++

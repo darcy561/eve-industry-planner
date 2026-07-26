@@ -1,0 +1,262 @@
+// Docker logs → Loki for non-Go Swarm tasks (frontend/nginx, edge, data, obs infra).
+// Go apps (api/core/worker/websocket) use OTLP below — dropped from docker scrape.
+// Docker API via allowlisted alloy-docker-proxy (eip-docker-alloy only).
+//
+// #15: Swarm com.docker.swarm.service.name → compose_service (strip eip_ prefix) for LogQL.
+discovery.docker "docker" {
+	host             = "tcp://alloy-docker-proxy:2375"
+	refresh_interval = "5s"
+
+	filter {
+		name   = "status"
+		values = ["created", "restarting", "running"]
+	}
+}
+
+discovery.relabel "docker" {
+	targets = discovery.docker.docker.targets
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/(.*)"
+		target_label  = "container"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_log_stream"]
+		target_label  = "stream"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_swarm_service_name"]
+		regex         = "(.+)"
+		target_label  = "swarm_service"
+	}
+
+	// STACK_NAME=eip → eip_<role>
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_swarm_service_name"]
+		regex         = "eip_(.+)"
+		target_label  = "compose_service"
+		replacement   = "$1"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_swarm_service_name"]
+		regex         = "([^_]+)_.+"
+		target_label  = "swarm_stack"
+		replacement   = "$1"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_swarm_task_name"]
+		regex         = "[^.]+\\.([0-9]+)\\..+"
+		target_label  = "task_slot"
+		replacement   = "$1"
+	}
+
+	rule {
+		source_labels = ["compose_service"]
+		regex         = "(api|core|worker|websocket)"
+		action        = "drop"
+	}
+
+	rule {
+		source_labels = ["compose_service"]
+		regex         = "(alloy|alloy-docker-proxy|traefik-docker-proxy|ws-docker-proxy)"
+		action        = "drop"
+	}
+}
+
+loki.source.docker "docker" {
+	host             = "tcp://alloy-docker-proxy:2375"
+	targets          = discovery.docker.docker.targets
+	relabel_rules    = discovery.relabel.docker.rules
+	refresh_interval = "5s"
+	forward_to       = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+	endpoint {
+		url = "http://loki:3100/loki/api/v1/push"
+	}
+	external_labels = {}
+}
+
+// OTLP from Go services (replaces otel-collector).
+otelcol.receiver.otlp "apps" {
+	grpc {
+		endpoint = "0.0.0.0:4317"
+	}
+
+	http {
+		endpoint = "0.0.0.0:4318"
+	}
+
+	output {
+		metrics = [otelcol.processor.batch.apps.input]
+		logs    = [otelcol.processor.filter.loki_min_level.input]
+		traces  = [otelcol.processor.batch.traces.input]
+	}
+}
+
+// Drop logs below Alloy LOG_LEVEL before Loki (apps export debug; filter here). Restart alloy after LOG_LEVEL changes.
+otelcol.processor.filter "loki_min_level" {
+	error_mode = "ignore"
+
+	logs {
+		log_record = [
+			"severity_number < " + coalesce(
+				{
+					"debug"   = "SEVERITY_NUMBER_DEBUG",
+					"DEBUG"   = "SEVERITY_NUMBER_DEBUG",
+					"info"    = "SEVERITY_NUMBER_INFO",
+					"INFO"    = "SEVERITY_NUMBER_INFO",
+					"warn"    = "SEVERITY_NUMBER_WARN",
+					"WARN"    = "SEVERITY_NUMBER_WARN",
+					"warning" = "SEVERITY_NUMBER_WARN",
+					"WARNING" = "SEVERITY_NUMBER_WARN",
+					"error"   = "SEVERITY_NUMBER_ERROR",
+					"ERROR"   = "SEVERITY_NUMBER_ERROR",
+				}[coalesce(env("LOG_LEVEL"), "info")],
+				"SEVERITY_NUMBER_INFO",
+			),
+		]
+	}
+
+	output {
+		logs = [otelcol.processor.transform.scrub_otlp_boilerplate.input]
+	}
+}
+
+// Drop OTel/zap boilerplate from access logs before Loki (scope, SDK, caller metadata).
+otelcol.processor.transform "scrub_otlp_boilerplate" {
+	error_mode = "ignore"
+
+	log_statements {
+		context = "log"
+		statements = [
+			`set(flags, 0)`,
+			`delete_key(attributes, "code.filepath")`,
+			`delete_key(attributes, "code.function")`,
+			`delete_key(attributes, "code.lineno")`,
+			`delete_key(attributes, "code.file.path")`,
+			`delete_key(attributes, "code.function.name")`,
+			`delete_key(attributes, "code.line.number")`,
+		]
+	}
+
+	log_statements {
+		context = "resource"
+		statements = [
+			`delete_key(attributes, "telemetry.sdk.language")`,
+			`delete_key(attributes, "telemetry.sdk.name")`,
+			`delete_key(attributes, "telemetry.sdk.version")`,
+			`delete_key(attributes, "host.name")`,
+		]
+	}
+
+	log_statements {
+		context = "scope"
+		statements = [
+			`set(name, "")`,
+		]
+	}
+
+	output {
+		// debug: keep debug_steps on access logs; otherwise strip before Loki.
+		logs = coalesce(
+			{
+				"debug"   = [otelcol.processor.batch.logs.input],
+				"DEBUG"   = [otelcol.processor.batch.logs.input],
+				"info"    = [otelcol.processor.transform.strip_debug_steps.input],
+				"INFO"    = [otelcol.processor.transform.strip_debug_steps.input],
+				"warn"    = [otelcol.processor.transform.strip_debug_steps.input],
+				"WARN"    = [otelcol.processor.transform.strip_debug_steps.input],
+				"warning" = [otelcol.processor.transform.strip_debug_steps.input],
+				"WARNING" = [otelcol.processor.transform.strip_debug_steps.input],
+				"error"   = [otelcol.processor.transform.strip_debug_steps.input],
+				"ERROR"   = [otelcol.processor.transform.strip_debug_steps.input],
+			}[coalesce(env("LOG_LEVEL"), "info")],
+			[otelcol.processor.transform.strip_debug_steps.input],
+		)
+	}
+}
+
+// Remove debug_steps from access logs before Loki (skipped when LOG_LEVEL=debug via routing above).
+otelcol.processor.transform "strip_debug_steps" {
+	error_mode = "ignore"
+
+	log_statements {
+		context = "log"
+		statements = [
+			`delete_key(attributes, "debug_steps")`,
+		]
+	}
+
+	output {
+		logs = [otelcol.processor.batch.logs.input]
+	}
+}
+
+otelcol.processor.batch "apps" {
+	output {
+		metrics = [otelcol.exporter.prometheus.apps.input]
+	}
+}
+
+// Accept OTLP logs (Go services) → Loki native OTLP (/otlp). Log line = message; zap fields = structured metadata.
+otelcol.processor.batch "logs" {
+	output {
+		logs = [otelcol.exporter.otlphttp.loki.input]
+	}
+}
+
+otelcol.exporter.otlphttp "loki" {
+	client {
+		endpoint = "http://loki:3100/otlp"
+		tls {
+			insecure = true
+		}
+	}
+}
+
+// Accept OTLP traces then discard — app traces go to Sentry, not Alloy.
+otelcol.processor.batch "traces" {
+	output {
+		traces = [otelcol.exporter.debug.discard_traces.input]
+	}
+}
+
+otelcol.exporter.debug "discard_traces" {
+	verbosity           = "basic"
+	sampling_initial    = 0
+	sampling_thereafter = 0
+}
+
+// Match otel-collector translation_strategy UnderscoreEscapingWithoutSuffixes (no extra type/unit suffixes).
+otelcol.exporter.prometheus "apps" {
+	add_metric_suffixes     = false
+	include_scope_info      = false
+	include_target_info     = false
+	include_scope_labels    = false
+	resource_to_telemetry_conversion = false
+	forward_to              = [prometheus.relabel.otel_collector.receiver]
+}
+
+// Prometheus scrape used job="otel_collector"; preserve that label for dashboards that filter on it.
+prometheus.relabel "otel_collector" {
+	forward_to = [prometheus.remote_write.local.receiver]
+
+	rule {
+		action       = "replace"
+		target_label = "job"
+		replacement  = "otel_collector"
+	}
+}
+
+prometheus.remote_write "local" {
+	endpoint {
+		url = "http://prometheus:9090/api/v1/write"
+	}
+}

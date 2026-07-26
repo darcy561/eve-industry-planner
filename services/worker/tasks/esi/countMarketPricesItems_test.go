@@ -2,9 +2,8 @@ package tasks
 
 import (
 	"context"
+	"eve-industry-planner/shared/stackservices"
 	"testing"
-
-	"eve-industry-planner/shared/shared"
 
 	"github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"
@@ -13,7 +12,7 @@ import (
 func TestCountMarketPricesItems_NilTask(t *testing.T) {
 	ctx := context.Background()
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{
+		Clients: &stackservices.Clients{
 			Redis: redis.NewClient(&redis.Options{Addr: "invalid:6379"}),
 		},
 		ESIClient: &mockESIClient{},
@@ -28,7 +27,7 @@ func TestCountMarketPricesItems_InvalidRedisSkipsViaLock(t *testing.T) {
 	ctx := context.Background()
 	task := asynq.NewTask("countMarketPricesItems", []byte(`{}`))
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{
+		Clients: &stackservices.Clients{
 			Redis: redis.NewClient(&redis.Options{Addr: "invalid:6379"}),
 		},
 		ESIClient: &mockESIClient{},

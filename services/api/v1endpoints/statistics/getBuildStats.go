@@ -3,6 +3,7 @@ package statistics
 import (
 	"context"
 	"errors"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -10,8 +11,7 @@ import (
 	"eve-industry-planner/api/helper"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -21,7 +21,7 @@ import (
 // GetBuildStatsHandler serves GET /api/v1/statistics/build-stats?typeID=<int>.
 // Returns one Mongo build_stats row for the JWT account and item type (same aggregate shape as legacy
 // Firestore BuildStats documents). When no row exists, returns 200 with a zeroed aggregate for that typeID.
-func GetBuildStatsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func GetBuildStatsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	m := apimetrics.GetAPIStatistics()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{

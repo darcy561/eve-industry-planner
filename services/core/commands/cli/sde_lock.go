@@ -1,39 +1,38 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
+	"time"
 
-	sdeshared "eve-industry-planner/worker/tasks/sde/shared"
+	sdecore "eve-industry-planner/shared/core/sde"
 )
 
 // RunUnlockSdeVersion removes the SDE version lock so scheduled/manual updates can proceed.
 func RunUnlockSdeVersion() error {
-	dataDir := sdeDataDir()
-	lockPath := filepath.Join(dataDir, sdeshared.VersionLockFileName)
-
-	lock, err := sdeshared.ReadVersionLock(dataDir)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	backend, err := openSDEStore(ctx)
 	if err != nil {
-		return fmt.Errorf("failed reading current SDE version lock from %q: %w", lockPath, err)
+		return fmt.Errorf("sde store: %w", err)
+	}
+
+	lock, err := sdecore.ReadVersionLock(ctx, backend)
+	if err != nil {
+		return fmt.Errorf("failed reading current SDE version lock: %w", err)
 	}
 	if lock == nil {
-		fmt.Printf("SDE version lock is already unlocked (no lock file at %q)\n", lockPath)
+		fmt.Printf("SDE version lock is already unlocked (backend=%s)\n", backend.Kind())
 		return nil
 	}
 
-	if err := os.Remove(lockPath); err != nil {
-		if os.IsNotExist(err) {
-			fmt.Printf("SDE version lock is already unlocked (no lock file at %q)\n", lockPath)
-			return nil
-		}
-		return fmt.Errorf("failed removing SDE version lock at %q: %w", lockPath, err)
+	if err := backend.Delete(ctx, sdecore.VersionLockObjectKey); err != nil {
+		return fmt.Errorf("failed removing SDE version lock: %w", err)
 	}
 
 	out := map[string]interface{}{
-		"data_dir":         dataDir,
-		"lock_path":        lockPath,
+		"backend":          backend.Kind(),
 		"unlocked":         true,
 		"removed_lock":     lock,
 		"next_update_hint": "You can now run tasks checkSdeUpdates or tasks applySdeVersion --version=<int>",
@@ -45,4 +44,3 @@ func RunUnlockSdeVersion() error {
 	fmt.Println(string(b))
 	return nil
 }
-

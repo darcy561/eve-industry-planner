@@ -62,9 +62,9 @@ func TestRetryAfterSecondsFromRateLimitReset(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 
 	tests := []struct {
-		name   string
-		reset  string
-		want   int64
+		name  string
+		reset string
+		want  int64
 	}{
 		{"future reset", "1700000045", 45},
 		{"past reset clamps to 1", "1699999990", 1},

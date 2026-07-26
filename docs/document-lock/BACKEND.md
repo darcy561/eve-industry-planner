@@ -345,10 +345,12 @@ being immediate.
 ## TTL expiry subscriber
 
 The doc-lock TTL expiry subscriber is a **singleton workload** and lives in
-the `core` service (which is structurally a singleton via docker-compose
-`container_name: core`). It runs under a Redis lease so that rolling-deploy
-overlap of the core service — or any future multi-replica scenario — cannot
-produce duplicate `document_lock_expired` / `handoff_completed` events.
+the Swarm `core` service (`eip_core`, `replicas: 1` with lease-gated
+`start-first` handoff). It runs under its own nested Redis lease
+(`lease:doclock:expiry-subscriber`) on every core replica so mid-roll
+overlap cannot produce duplicate `document_lock_expired` /
+`handoff_completed` events. Primary-gated work (scheduler / changestream)
+is separate — see [CORE_REBUILD.md](../swarm/CORE_REBUILD.md).
 
 ```
 core/main.go

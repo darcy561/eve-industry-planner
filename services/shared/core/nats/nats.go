@@ -20,7 +20,7 @@ import (
 // Connect establishes a connection and returns it.
 // The connection includes automatic reconnection handling.
 func Connect() (*natslib.Conn, error) {
-	cfg, err := config.LoadConfig()
+	natsURL, err := config.NATSURL()
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func Connect() (*natslib.Conn, error) {
 			natslib.Timeout(retryDelay),
 		}
 
-		conn, err := natslib.Connect(cfg.NATS_URL, opts...)
+		conn, err := natslib.Connect(natsURL, opts...)
 		if err == nil {
 			i++
 			message := fmt.Sprintf("Connected to NATS on attempt %d/%d", i, retryCount)

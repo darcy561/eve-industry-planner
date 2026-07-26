@@ -2,14 +2,14 @@ package update
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-	"os"
-	"path/filepath"
+	sdecore "eve-industry-planner/shared/core/sde"
 	"reflect"
 	"testing"
 
+	objectstore "eve-industry-planner/shared/core/objectstore"
 	esitasks "eve-industry-planner/worker/tasks/esi"
-	sdeshared "eve-industry-planner/worker/tasks/sde/shared"
 
 	"github.com/hibiken/asynq"
 )
@@ -30,7 +30,7 @@ func withStageMocks(t *testing.T, mocks map[string]any) {
 	}
 
 	t.Cleanup(func() {
-		stageVersionCheck = orig["stageVersionCheck"].(func(context.Context, string) (*sdeVersionCheckResult, error))
+		stageVersionCheck = orig["stageVersionCheck"].(func(context.Context) (*sdeVersionCheckResult, error))
 		stageDownload = orig["stageDownload"].(func(context.Context, *sdeVersionCheckResult) (*sdeDownloadResult, error))
 		stageMapBuild = orig["stageMapBuild"].(func(*sdeDownloadResult) (*sdeMapBuildResult, error))
 		stageConversion = orig["stageConversion"].(func(*sdeMapBuildResult) (*sdeConversionResult, error))
@@ -38,14 +38,13 @@ func withStageMocks(t *testing.T, mocks map[string]any) {
 		stagePersist = orig["stagePersist"].(func(*sdeVersionCheckResult, *sdeConversionResult) (*sdePersistResult, error))
 		stagePersistReplace = orig["stagePersistReplace"].(func(*sdeVersionCheckResult, *sdeConversionResult) (*sdePersistResult, error))
 		stageRecipeDiff = orig["stageRecipeDiff"].(func(context.Context, *sdePersistResult, *esitasks.TaskDependencies) error)
-		stagePrunePrevious = orig["stagePrunePrevious"].(func(string) error)
+		stagePrunePrevious = orig["stagePrunePrevious"].(func() error)
 	})
 
-	// Apply mocks
 	for k, v := range mocks {
 		switch k {
 		case "stageVersionCheck":
-			stageVersionCheck = v.(func(context.Context, string) (*sdeVersionCheckResult, error))
+			stageVersionCheck = v.(func(context.Context) (*sdeVersionCheckResult, error))
 		case "stageDownload":
 			stageDownload = v.(func(context.Context, *sdeVersionCheckResult) (*sdeDownloadResult, error))
 		case "stageMapBuild":
@@ -61,7 +60,7 @@ func withStageMocks(t *testing.T, mocks map[string]any) {
 		case "stageRecipeDiff":
 			stageRecipeDiff = v.(func(context.Context, *sdePersistResult, *esitasks.TaskDependencies) error)
 		case "stagePrunePrevious":
-			stagePrunePrevious = v.(func(string) error)
+			stagePrunePrevious = v.(func() error)
 		default:
 			t.Fatalf("unknown mock key %q", k)
 		}
@@ -76,12 +75,12 @@ func TestCheckSDEUpdates_nilTask(t *testing.T) {
 }
 
 func TestCheckSDEUpdates_versionCheckError_shortCircuits(t *testing.T) {
-	// Don't t.Parallel: we mutate global stage variables.
+	_ = objectstore.OpenTestStore(t)
 	errSentinel := errors.New("version check failed")
 	calls := make([]string, 0, 6)
 
 	withStageMocks(t, map[string]any{
-		"stageVersionCheck": func(ctx context.Context, dataDir string) (*sdeVersionCheckResult, error) {
+		"stageVersionCheck": func(ctx context.Context) (*sdeVersionCheckResult, error) {
 			calls = append(calls, "versionCheck")
 			return nil, errSentinel
 		},
@@ -107,23 +106,14 @@ func TestCheckSDEUpdates_versionCheckError_shortCircuits(t *testing.T) {
 }
 
 func TestCheckSDEUpdates_noUpdate_skipsPersistAndPrune(t *testing.T) {
+	_ = objectstore.OpenTestStore(t)
 	errSentinel := errors.New("should not be called")
 	calls := make([]string, 0, 10)
 
-	// Ensure deterministic env var usage and restore afterwards
-	origEnv := os.Getenv("SDE_DATA_DIR")
-	_ = os.Setenv("SDE_DATA_DIR", "/tmp/sde")
-	t.Cleanup(func() {
-		_ = os.Setenv("SDE_DATA_DIR", origEnv)
-	})
-
 	withStageMocks(t, map[string]any{
-		"stageVersionCheck": func(ctx context.Context, dataDir string) (*sdeVersionCheckResult, error) {
+		"stageVersionCheck": func(ctx context.Context) (*sdeVersionCheckResult, error) {
 			calls = append(calls, "versionCheck")
-			if dataDir != "/tmp/sde" {
-				t.Fatalf("dataDir mismatch: got %q want %q", dataDir, "/tmp/sde")
-			}
-			return &sdeVersionCheckResult{DataDir: dataDir, NeedsUpdate: false}, nil
+			return &sdeVersionCheckResult{NeedsUpdate: false}, nil
 		},
 		"stageDownload": func(ctx context.Context, v *sdeVersionCheckResult) (*sdeDownloadResult, error) {
 			calls = append(calls, "download")
@@ -145,27 +135,23 @@ func TestCheckSDEUpdates_noUpdate_skipsPersistAndPrune(t *testing.T) {
 		},
 		"stagePersist": func(_ *sdeVersionCheckResult, _ *sdeConversionResult) (*sdePersistResult, error) {
 			calls = append(calls, "persist")
-			// persist should return nil when there's nothing to persist
 			return nil, nil
 		},
 		"stageRecipeDiff": func(_ context.Context, _ *sdePersistResult, _ *esitasks.TaskDependencies) error {
 			calls = append(calls, "recipeDiff")
 			return errSentinel
 		},
-		"stagePrunePrevious": func(_ string) error {
+		"stagePrunePrevious": func() error {
 			calls = append(calls, "prune")
 			return nil
 		},
 	})
 
-	// Since persist returns nil, recipeDiff should still be called (workflow calls it),
-	// but we can validate that prune is not called.
 	err := CheckSDEUpdates(context.Background(), asynq.NewTask("checkSDEUpdates", nil), (*esitasks.TaskDependencies)(nil))
 	if !errors.Is(err, errSentinel) {
 		t.Fatalf("expected %v from recipeDiff mock, got %v", errSentinel, err)
 	}
 
-	// prune must not be called
 	for _, c := range calls {
 		if c == "prune" {
 			t.Fatalf("prune was called unexpectedly: calls=%v", calls)
@@ -174,12 +160,13 @@ func TestCheckSDEUpdates_noUpdate_skipsPersistAndPrune(t *testing.T) {
 }
 
 func TestCheckSDEUpdates_previousVersion_runsDiffAndPrune(t *testing.T) {
+	_ = objectstore.OpenTestStore(t)
 	calls := make([]string, 0, 10)
 
 	withStageMocks(t, map[string]any{
-		"stageVersionCheck": func(ctx context.Context, dataDir string) (*sdeVersionCheckResult, error) {
+		"stageVersionCheck": func(ctx context.Context) (*sdeVersionCheckResult, error) {
 			calls = append(calls, "versionCheck")
-			return &sdeVersionCheckResult{DataDir: dataDir, NeedsUpdate: true}, nil
+			return &sdeVersionCheckResult{NeedsUpdate: true}, nil
 		},
 		"stageDownload": func(ctx context.Context, v *sdeVersionCheckResult) (*sdeDownloadResult, error) {
 			calls = append(calls, "download")
@@ -199,10 +186,9 @@ func TestCheckSDEUpdates_previousVersion_runsDiffAndPrune(t *testing.T) {
 		"stagePersist": func(_ *sdeVersionCheckResult, _ *sdeConversionResult) (*sdePersistResult, error) {
 			calls = append(calls, "persist")
 			return &sdePersistResult{
-				HasPreviousVersion: true,
-				PreviousRecipeList: "/prev/recipeList.json",
-				CurrentRecipeList:  "/live/recipeList.json",
-				PreviousVersionDir: "/prev",
+				HasPreviousVersion:  true,
+				CurrentRecipeBytes:  []byte(`[]`),
+				PreviousRecipeBytes: []byte(`[]`),
 			}, nil
 		},
 		"stageRecipeDiff": func(_ context.Context, p *sdePersistResult, _ *esitasks.TaskDependencies) error {
@@ -212,11 +198,8 @@ func TestCheckSDEUpdates_previousVersion_runsDiffAndPrune(t *testing.T) {
 			}
 			return nil
 		},
-		"stagePrunePrevious": func(dataDir string) error {
+		"stagePrunePrevious": func() error {
 			calls = append(calls, "prune")
-			if dataDir == "" {
-				t.Fatalf("expected non-empty dataDir")
-			}
 			return nil
 		},
 	})
@@ -226,7 +209,6 @@ func TestCheckSDEUpdates_previousVersion_runsDiffAndPrune(t *testing.T) {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 
-	// Validate ordering.
 	wantOrder := []string{"versionCheck", "download", "mapBuild", "conversion", "blueprintsSync", "persist", "recipeDiff", "prune"}
 	if !reflect.DeepEqual(calls, wantOrder) {
 		t.Fatalf("calls mismatch: got %v want %v", calls, wantOrder)
@@ -254,19 +236,19 @@ func TestRunSDEUpdatePipelineReplacingCurrent_skipsDiffAndPrune(t *testing.T) {
 		},
 		"stagePersistReplace": func(_ *sdeVersionCheckResult, _ *sdeConversionResult) (*sdePersistResult, error) {
 			calls = append(calls, "persistReplace")
-			return &sdePersistResult{HasPreviousVersion: false, CurrentRecipeList: "/live/recipeList.json"}, nil
+			return &sdePersistResult{HasPreviousVersion: false, CurrentRecipeBytes: []byte(`[]`)}, nil
 		},
 		"stageRecipeDiff": func(_ context.Context, _ *sdePersistResult, _ *esitasks.TaskDependencies) error {
 			calls = append(calls, "recipeDiff")
 			return nil
 		},
-		"stagePrunePrevious": func(_ string) error {
+		"stagePrunePrevious": func() error {
 			calls = append(calls, "prune")
 			return nil
 		},
 	})
 
-	err := runSDEUpdatePipelineReplacingCurrent(context.Background(), nil, &sdeVersionCheckResult{DataDir: "/tmp/sde"})
+	err := runSDEUpdatePipelineReplacingCurrent(context.Background(), nil, &sdeVersionCheckResult{})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -278,31 +260,12 @@ func TestRunSDEUpdatePipelineReplacingCurrent_skipsDiffAndPrune(t *testing.T) {
 }
 
 func TestRunSDEPersistStageReplaceCurrent_archivesWithVersionSuffix(t *testing.T) {
-	dataDir := t.TempDir()
-	liveDir := filepath.Join(dataDir, liveDataDirName)
-	if err := os.MkdirAll(liveDir, 0o755); err != nil {
-		t.Fatalf("mkdir live dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(liveDir, "recipeList.json"), []byte(`[]`), 0o644); err != nil {
-		t.Fatalf("write current recipe list: %v", err)
-	}
-
-	rootVersion := sdeshared.StoredVersionJSON{
-		Version:     "12345",
-		BuildNumber: 12345,
-	}
-	if err := sdeshared.WriteRootVersionJSON(dataDir, rootVersion); err != nil {
-		t.Fatalf("write root version: %v", err)
-	}
-
-	previousRoot := filepath.Join(dataDir, previousVersionsDirName)
-	if err := os.MkdirAll(filepath.Join(previousRoot, "12345_v1"), 0o755); err != nil {
-		t.Fatalf("mkdir existing archive: %v", err)
-	}
+	b := objectstore.OpenTestStore(t)
+	ctx := context.Background()
+	seedPersistFixture(t, ctx, b)
 
 	result, err := runSDEPersistStageReplaceCurrent(
 		&sdeVersionCheckResult{
-			DataDir: dataDir,
 			LatestBuildInfo: &latestBuildInfo{
 				BuildNumber: 12345,
 			},
@@ -316,59 +279,32 @@ func TestRunSDEPersistStageReplaceCurrent_archivesWithVersionSuffix(t *testing.T
 	if err != nil {
 		t.Fatalf("runSDEPersistStageReplaceCurrent failed: %v", err)
 	}
-
-	wantArchiveDir := filepath.Join(previousRoot, "12345_v2")
-	if result == nil || result.PreviousVersionDir != wantArchiveDir {
-		t.Fatalf("expected PreviousVersionDir=%q, got %#v", wantArchiveDir, result)
+	if result == nil || result.ArchiveVersionName != "12345_v2" {
+		t.Fatalf("expected archive 12345_v2, got %#v", result)
 	}
 
-	if _, err := os.Stat(wantArchiveDir); err != nil {
-		t.Fatalf("expected archive dir to exist: %v", err)
-	}
-
-	archivedVersion, err := sdeshared.ReadRootVersionJSON(wantArchiveDir)
+	archived, err := b.Get(ctx, sdecore.PreviousVersionKey("12345_v2", sdecore.VersionObjectKey))
 	if err != nil {
 		t.Fatalf("read archived version.json: %v", err)
 	}
-	if archivedVersion == nil || archivedVersion.Version != "12345_v2" {
-		t.Fatalf("expected archived version label 12345_v2, got %#v", archivedVersion)
+	var archivedVersion sdecore.VersionJSON
+	if err := json.Unmarshal(archived, &archivedVersion); err != nil || archivedVersion.Version != "12345_v2" {
+		t.Fatalf("expected archived version label 12345_v2, got %#v err=%v", archivedVersion, err)
 	}
 
-	liveVersion, err := sdeshared.ReadRootVersionJSON(dataDir)
-	if err != nil {
-		t.Fatalf("read live root version.json: %v", err)
-	}
-	if liveVersion == nil || liveVersion.Version != "12345_v3" || liveVersion.BuildNumber != 12345 {
-		t.Fatalf("expected live version label/build 12345_v3/12345, got %#v", liveVersion)
+	liveVersion, err := sdecore.ReadRootVersionJSON(ctx, b)
+	if err != nil || liveVersion == nil || liveVersion.Version != "12345_v3" || liveVersion.BuildNumber != 12345 {
+		t.Fatalf("expected live version label/build 12345_v3/12345, got %#v err=%v", liveVersion, err)
 	}
 }
 
 func TestRunSDEPersistStage_standardPersist_assignsVersionedLiveAndArchiveLabels(t *testing.T) {
-	dataDir := t.TempDir()
-	liveDir := filepath.Join(dataDir, liveDataDirName)
-	if err := os.MkdirAll(liveDir, 0o755); err != nil {
-		t.Fatalf("mkdir live dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(liveDir, "recipeList.json"), []byte(`[]`), 0o644); err != nil {
-		t.Fatalf("write current recipe list: %v", err)
-	}
-
-	rootVersion := sdeshared.StoredVersionJSON{
-		Version:     "12345",
-		BuildNumber: 12345,
-	}
-	if err := sdeshared.WriteRootVersionJSON(dataDir, rootVersion); err != nil {
-		t.Fatalf("write root version: %v", err)
-	}
-
-	previousRoot := filepath.Join(dataDir, previousVersionsDirName)
-	if err := os.MkdirAll(filepath.Join(previousRoot, "12345_v1"), 0o755); err != nil {
-		t.Fatalf("mkdir existing archive: %v", err)
-	}
+	b := objectstore.OpenTestStore(t)
+	ctx := context.Background()
+	seedPersistFixture(t, ctx, b)
 
 	result, err := runSDEPersistStage(
 		&sdeVersionCheckResult{
-			DataDir: dataDir,
 			LatestBuildInfo: &latestBuildInfo{
 				BuildNumber: 12345,
 			},
@@ -382,25 +318,40 @@ func TestRunSDEPersistStage_standardPersist_assignsVersionedLiveAndArchiveLabels
 	if err != nil {
 		t.Fatalf("runSDEPersistStage failed: %v", err)
 	}
-
-	wantArchiveDir := filepath.Join(previousRoot, "12345_v2")
-	if result == nil || result.PreviousVersionDir != wantArchiveDir {
-		t.Fatalf("expected PreviousVersionDir=%q, got %#v", wantArchiveDir, result)
+	if result == nil || result.ArchiveVersionName != "12345_v2" {
+		t.Fatalf("expected archive 12345_v2, got %#v", result)
 	}
 
-	archivedVersion, err := sdeshared.ReadRootVersionJSON(wantArchiveDir)
+	archived, err := b.Get(ctx, sdecore.PreviousVersionKey("12345_v2", sdecore.VersionObjectKey))
 	if err != nil {
 		t.Fatalf("read archived version.json: %v", err)
 	}
-	if archivedVersion == nil || archivedVersion.Version != "12345_v2" || archivedVersion.BuildNumber != 12345 {
-		t.Fatalf("expected archived version label/build 12345_v2/12345, got %#v", archivedVersion)
+	var archivedVersion sdecore.VersionJSON
+	if err := json.Unmarshal(archived, &archivedVersion); err != nil || archivedVersion.Version != "12345_v2" || archivedVersion.BuildNumber != 12345 {
+		t.Fatalf("expected archived version label/build 12345_v2/12345, got %#v err=%v", archivedVersion, err)
 	}
 
-	liveVersion, err := sdeshared.ReadRootVersionJSON(dataDir)
-	if err != nil {
-		t.Fatalf("read live root version.json: %v", err)
+	liveVersion, err := sdecore.ReadRootVersionJSON(ctx, b)
+	if err != nil || liveVersion == nil || liveVersion.Version != "12345_v3" || liveVersion.BuildNumber != 12345 {
+		t.Fatalf("expected live version label/build 12345_v3/12345, got %#v err=%v", liveVersion, err)
 	}
-	if liveVersion == nil || liveVersion.Version != "12345_v3" || liveVersion.BuildNumber != 12345 {
-		t.Fatalf("expected live version label/build 12345_v3/12345, got %#v", liveVersion)
+}
+
+func seedPersistFixture(t *testing.T, ctx context.Context, b objectstore.Backend) {
+	t.Helper()
+	if err := b.Put(ctx, sdecore.LiveKey("recipeList.json"), []byte(`[]`)); err != nil {
+		t.Fatalf("seed live recipeList: %v", err)
+	}
+	if err := sdecore.WriteRootVersionJSON(ctx, b, sdecore.VersionJSON{
+		Version:     "12345",
+		BuildNumber: 12345,
+	}); err != nil {
+		t.Fatalf("seed root version: %v", err)
+	}
+	if err := b.Put(ctx, sdecore.PreviousVersionKey("12345_v1", "recipeList.json"), []byte(`[]`)); err != nil {
+		t.Fatalf("seed previous recipeList: %v", err)
+	}
+	if err := b.Put(ctx, sdecore.PreviousVersionKey("12345_v1", sdecore.VersionObjectKey), []byte(`{"version":"12345_v1","build_number":12345}`)); err != nil {
+		t.Fatalf("seed previous version.json: %v", err)
 	}
 }

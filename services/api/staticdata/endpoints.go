@@ -1,14 +1,17 @@
+// Package staticdata serves public /api/static-data/* endpoints.
 package staticdata
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
 	"eve-industry-planner/api/helper"
+	"eve-industry-planner/api/helper/sdecache"
+	objectstore "eve-industry-planner/shared/core/objectstore"
 	sdecore "eve-industry-planner/shared/core/sde"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
@@ -68,17 +71,17 @@ func MetaHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cache metadata for 10 minutes at browser + CDN/Cloudflare edge.
 	w.Header().Set("Cache-Control", "public, max-age=600, stale-while-revalidate=60")
 	w.Header().Set("CDN-Cache-Control", "public, s-maxage=600, stale-while-revalidate=60")
 	w.Header().Set("Cloudflare-CDN-Cache-Control", "public, s-maxage=600, stale-while-revalidate=60")
 	w.Header().Set("Vary", "Accept-Encoding")
 
-	dataDir := os.Getenv("SDE_DATA_DIR")
-	if dataDir == "" {
-		dataDir = sdecore.ResolveDataDir()
+	backend, err := sdecache.OpenBackend(ctx)
+	if err != nil {
+		helper.RespondEndpointServerError(w, r, "static data store unavailable", "static data store error", "static_data_store_unavailable", "static_data", err, nil)
+		return
 	}
-	version, _ := sdecore.ReadVersionJSON(dataDir)
+	version, _ := sdecore.ReadRootVersionJSON(ctx, backend)
 
 	files := sdecore.OutputFileNames()
 	filesByKey := sdecore.OutputFilesByKey()
@@ -91,26 +94,26 @@ func MetaHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, name := range files {
-		p := sdecore.LiveDataFilePath(dataDir, name)
+		key := sdecore.LiveKey(name)
 		fm := fileMeta{
-			Path:         p,
+			Path:         key,
 			URL:          "/api/static-data/" + name,
 			VersionedURL: "/api/static-data/" + name,
 			Exists:       false,
 		}
-		if info, err := os.Stat(p); err == nil {
+		if info, err := backend.Stat(ctx, key); err == nil {
 			fm.Exists = true
-			fm.Size = info.Size()
-			fm.ModTime = info.ModTime().UTC()
+			fm.Size = info.Size
+			fm.ModTime = info.ModTime
 		}
 		if meta.BuildVersion != "" {
 			fm.VersionedURL = fm.URL + "?v=" + meta.BuildVersion
 		} else if meta.BuildNumber > 0 {
 			fm.VersionedURL = fm.URL + "?v=" + strconv.Itoa(meta.BuildNumber)
 		}
-		for key, fileName := range filesByKey {
+		for fileKey, fileName := range filesByKey {
 			if fileName == name {
-				meta.FileKeys[key] = fm
+				meta.FileKeys[fileKey] = fm
 				break
 			}
 		}
@@ -120,7 +123,7 @@ func MetaHandler(w http.ResponseWriter, r *http.Request) {
 	detail["build_version"] = meta.BuildVersion
 	detail["build_number"] = meta.BuildNumber
 	detail["file_count"] = len(meta.FileKeys)
-	detail["data_dir"] = dataDir
+	detail["backend"] = backend.Kind()
 
 	logs.AttachDebugStep(r, "static_data_meta_built", detail)
 
@@ -161,24 +164,19 @@ func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string
 		return
 	}
 
-	dataDir := os.Getenv("SDE_DATA_DIR")
-	if dataDir == "" {
-		dataDir = sdecore.ResolveDataDir()
-	}
-	filePath := sdecore.LiveDataFilePath(dataDir, fileName)
-
-	data, err := os.ReadFile(filePath)
+	objectKey := sdecore.LiveKey(fileName)
+	data, err := sdecache.ReadLiveFile(ctx, fileName)
 	if err != nil {
 		duration := time.Since(start)
-		if os.IsNotExist(err) {
+		if errors.Is(err, objectstore.ErrNotFound) {
 			shared.Errors.WithLabelValues(errPrefix + "_not_found").Inc(ctx)
-			helper.RespondEndpointError(w, r, http.StatusNotFound, "static data file not found", "static data file not found", "static_data_file_not_found", "static_data", err, map[string]interface{}{"file": errPrefix, "file_path": filePath})
+			helper.RespondEndpointError(w, r, http.StatusNotFound, "static data file not found", "static data file not found", "static_data_file_not_found", "static_data", err, map[string]interface{}{"file": errPrefix, "object_key": objectKey})
 			return
 		}
 		shared.Errors.WithLabelValues(errPrefix + "_read_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "static_data_"+errPrefix, duration, "read_error",
-			"error", err, "file_path", filePath)
-		helper.RespondEndpointServerError(w, r, "failed to read static data file", "static data read error", "static_data_read_failed", "static_data", err, map[string]interface{}{"file": errPrefix, "file_path": filePath})
+			"error", err, "object_key", objectKey)
+		helper.RespondEndpointServerError(w, r, "failed to read static data file", "static data read error", "static_data_read_failed", "static_data", err, map[string]interface{}{"file": errPrefix, "object_key": objectKey})
 		return
 	}
 
@@ -187,14 +185,11 @@ func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string
 		duration := time.Since(start)
 		shared.Errors.WithLabelValues(errPrefix + "_invalid_json").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "static_data_"+errPrefix, duration, "invalid_json",
-			"error", err, "file_path", filePath)
-		helper.RespondEndpointServerError(w, r, "static data file is invalid JSON", "static data invalid json", "static_data_invalid_json", "static_data", err, map[string]interface{}{"file": errPrefix, "file_path": filePath})
+			"error", err, "object_key", objectKey)
+		helper.RespondEndpointServerError(w, r, "static data file is invalid JSON", "static data invalid json", "static_data_invalid_json", "static_data", err, map[string]interface{}{"file": errPrefix, "object_key": objectKey})
 		return
 	}
 
-	// Cache policy for generated static files:
-	// - URLs are build-versioned (?v=<build>), so they can be treated as immutable.
-	// - Use a long but bounded TTL to align with periodic developer release cycles.
 	w.Header().Set("Cache-Control", "public, max-age=2592000, immutable")
 	w.Header().Set("CDN-Cache-Control", "public, s-maxage=2592000, immutable")
 	w.Header().Set("Cloudflare-CDN-Cache-Control", "public, s-maxage=2592000, immutable")

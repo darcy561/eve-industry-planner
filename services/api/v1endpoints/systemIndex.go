@@ -2,6 +2,7 @@ package v1endpoints
 
 import (
 	"context"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -11,7 +12,6 @@ import (
 	esitypes "eve-industry-planner/shared/core/esi/types"
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"github.com/redis/go-redis/v9"
@@ -31,7 +31,7 @@ type SystemIndexesBody struct {
 //	405 — not POST
 //	400 — invalid JSON, missing system_ids, empty array, too many IDs, or invalid IDs
 //	200 — JSON map of systemID → index rows; missing Redis keys appear as empty arrays (no per-id 404)
-func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPISystemIndexes()

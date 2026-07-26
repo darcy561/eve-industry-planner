@@ -25,9 +25,9 @@ const ErrCodeHandOverNoop = "doc_lock_hand_over_noop"
 
 // LockHeldElsewhereItem is one row in the `rejected` array on 409 responses.
 type LockHeldElsewhereItem struct {
-	DocID               string `json:"docID"`
-	HolderSessionID     string `json:"holderSessionID"`
-	LockExpiresAtUnix   int64  `json:"lockExpiresAtUnix"`
+	DocID             string `json:"docID"`
+	HolderSessionID   string `json:"holderSessionID"`
+	LockExpiresAtUnix int64  `json:"lockExpiresAtUnix"`
 }
 
 // HolderOutcome classifies the lock vs requester relationship.
@@ -44,9 +44,9 @@ const (
 
 // HolderCheck is the structured result of RequireHolder.
 type HolderCheck struct {
-	Outcome             HolderOutcome
-	HolderSessionID     string
-	LockExpiresAtUnix   int64
+	Outcome           HolderOutcome
+	HolderSessionID   string
+	LockExpiresAtUnix int64
 }
 
 // RequireHolder inspects the Redis lock for (accountID, collection, docID).
@@ -72,15 +72,15 @@ func RequireHolder(ctx context.Context, rdb *redis.Client, accountID, requesterS
 	}
 	if rec.HolderSessionID == requesterSessionID {
 		return HolderCheck{
-			Outcome:             HolderOutcomeHeldByRequester,
-			HolderSessionID:     rec.HolderSessionID,
-			LockExpiresAtUnix:   rec.ExpiresAtUnix,
+			Outcome:           HolderOutcomeHeldByRequester,
+			HolderSessionID:   rec.HolderSessionID,
+			LockExpiresAtUnix: rec.ExpiresAtUnix,
 		}, nil
 	}
 	return HolderCheck{
-		Outcome:             HolderOutcomeHeldByAnother,
-		HolderSessionID:     rec.HolderSessionID,
-		LockExpiresAtUnix:   rec.ExpiresAtUnix,
+		Outcome:           HolderOutcomeHeldByAnother,
+		HolderSessionID:   rec.HolderSessionID,
+		LockExpiresAtUnix: rec.ExpiresAtUnix,
 	}, nil
 }
 

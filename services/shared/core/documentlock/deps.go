@@ -1,11 +1,10 @@
 package documentlock
 
 import (
+	"eve-industry-planner/shared/stackservices"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/redis/go-redis/v9"
 	mongodriver "go.mongodb.org/mongo-driver/mongo"
-
-	"eve-industry-planner/shared/shared"
 )
 
 // Deps holds infrastructure used by document-lock operations (HTTP, WebSocket, subscribers).
@@ -15,8 +14,8 @@ type Deps struct {
 	JetStream jetstream.JetStream
 }
 
-// DepsFromServiceClients maps the shared service bundle into Deps.
-func DepsFromServiceClients(c *shared.ServiceClients) Deps {
+// DepsFromClients maps the shared stack-service clients into Deps.
+func DepsFromClients(c *stackservices.Clients) Deps {
 	if c == nil {
 		return Deps{}
 	}

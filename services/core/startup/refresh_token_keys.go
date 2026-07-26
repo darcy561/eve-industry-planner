@@ -2,6 +2,7 @@ package startup
 
 import (
 	"context"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"sort"
 	"strings"
@@ -10,23 +11,22 @@ import (
 	"eve-industry-planner/shared/core/crypto/keyrings"
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 
 	"go.mongodb.org/mongo-driver/bson"
 )
 
 // CheckRefreshTokenKeyringCoverage reports stored key versions at startup and warns on unknown versions.
-func CheckRefreshTokenKeyringCoverage(ctx context.Context, clients *shared.ServiceClients) error {
+func CheckRefreshTokenKeyringCoverage(ctx context.Context, clients *stackservices.Clients) error {
 	if clients == nil || clients.Mongo == nil {
 		return fmt.Errorf("mongo client is required for refresh token keyring startup check")
 	}
 
-	cfg, err := config.LoadConfig()
+	rt, err := config.LoadCloudStoredESIKeys()
 	if err != nil {
-		return fmt.Errorf("load config for refresh token keyring startup check: %w", err)
+		return fmt.Errorf("load refresh token keyring for startup check: %w", err)
 	}
-	activeVersion := cfg.RefreshTokenActiveVersion
-	supported := cfg.RefreshTokenSupportedVersions
+	activeVersion := rt.ActiveVersion
+	supported := rt.SupportedVersions
 
 	col := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUsers)
 	pipeline := mongoPipelineForRefreshTokenVersionCounts()

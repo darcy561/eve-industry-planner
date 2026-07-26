@@ -2,13 +2,15 @@ package commands
 
 import (
 	"context"
+	"eve-industry-planner/shared/lifecycle"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared"
 	taskscore "eve-industry-planner/shared/tasks"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -27,11 +29,11 @@ func runMigrateUserCloudAccountsToUserDoc(ctx context.Context, args []string) er
 		return err
 	}
 
-	clients, err := shared.ConnectServices(ctx, shared.ServiceNATS, shared.ServiceMongo)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Services{Mongo: true, NATS: true})
 	if err != nil {
 		return err
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
 	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
 		return fmt.Errorf("failed to ensure worker task stream: %w", err)

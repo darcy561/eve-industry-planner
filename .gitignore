@@ -15,6 +15,7 @@ node_modules
 
 # production
 /dist
+admintool/dist
 frontend/dist
 frontend/routeTree.gen.js
 
@@ -24,6 +25,9 @@ frontend/routeTree.gen.js
 .env.*
 services/worker/tmp/
 mongo-keyfile
+mongo-keyfile.bak
+mongo-keyfile.tmp
+mongo-keyfile.bak.tmp
 bin/
 docker-compose
 npm-debug.log*
@@ -47,5 +51,12 @@ archivejobs_firestore_normalized/
 # Sentry Config File
 .env.sentry-build-plugin
 
-# Version tracking (optional - remove if you want to track versions in git)
-.downloaded-versions.json
+# Operator config (local copy of eip.config.example.yaml — make swarm-sync)
+eip.config.yaml
+.eip-sync.env
+.eip-sync.env.bak
+.eip-sync.*
+.eip-swarm-secrets.yml
+.eip-swarm-configs.yml
+.eip-local-build.env
+.eip-stack-mode

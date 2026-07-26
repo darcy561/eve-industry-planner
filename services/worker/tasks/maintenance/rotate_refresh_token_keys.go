@@ -12,7 +12,7 @@ import (
 	mongoput "eve-industry-planner/shared/core/mongo/put"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
@@ -43,15 +43,15 @@ func RotateRefreshTokenKeys(ctx context.Context, task *asynq.Task, deps *esitask
 		return fmt.Errorf("account_id is required")
 	}
 
-	cfg, err := config.LoadConfig()
+	rt, err := config.LoadCloudStoredESIKeys()
 	if err != nil {
 		return err
 	}
-	if cfg.RefreshTokenKeyring == nil {
+	if rt.Keyring == nil {
 		return fmt.Errorf("refresh token keyring is not configured")
 	}
 
-	kr := cfg.RefreshTokenKeyring
+	kr := rt.Keyring
 	activeVer := kr.NormalizedActiveVersion()
 
 	col := deps.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUsers)

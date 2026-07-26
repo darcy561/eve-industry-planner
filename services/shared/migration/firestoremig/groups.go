@@ -11,7 +11,7 @@ import (
 
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 
 	"cloud.google.com/go/firestore"
 	"go.mongodb.org/mongo-driver/bson"

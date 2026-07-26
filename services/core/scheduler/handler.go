@@ -60,7 +60,8 @@ type TaskScheduler struct {
 
 // NewTaskScheduler creates a new task scheduler for cron jobs and one-time scheduled tasks
 func NewTaskScheduler(jsContext jetstream.JetStream, redisClient *redislib.Client, natsConn *natslib.Conn) (*TaskScheduler, error) {
-	sched, err := gocron.NewScheduler()
+	// Bound how long Shutdown waits for cancelled jobs to exit (default 10s).
+	sched, err := gocron.NewScheduler(gocron.WithStopTimeout(15 * time.Second))
 	if err != nil {
 		return nil, err
 	}
@@ -105,15 +106,16 @@ func (s *TaskScheduler) ScheduleCronJob(cronExpr string, taskType string) error 
 		return nil // Handler not registered yet, will be registered later
 	}
 
-	jobFunc := func() {
+	// First arg must be context.Context so gocron cancels in-flight work on Shutdown
+	// (market-prices micro-batches etc. must stop when primary is lost).
+	jobFunc := func(jobCtx context.Context) {
 		startTime := time.Now()
 		jobID := fmt.Sprintf("cron-%s-%d", taskType, startTime.UnixNano())
-		bg := context.Background()
-		logs.DebugCtx(bg, "cron job triggered", "component", schedulerLogComponent,
+		logs.DebugCtx(jobCtx, "cron job triggered", "component", schedulerLogComponent,
 			"job_id", jobID, "task_type", taskType, "cron_expr", cronExpr)
 
 		tracer := otel.Tracer(otelTracerName)
-		ctx, span := tracer.Start(bg, "scheduler.run",
+		ctx, span := tracer.Start(jobCtx, "scheduler.run",
 			trace.WithSpanKind(trace.SpanKindProducer),
 			trace.WithAttributes(
 				attribute.String("scheduler.trigger", "cron"),
@@ -181,12 +183,11 @@ func (s *TaskScheduler) ScheduleOneTimeJob(jobID string, taskType string, runAt 
 	taskTypeCopy := taskType
 	taskDataCopy := data
 
-	// Create the job function
-	jobFunc := func() {
+	// First arg must be context.Context so gocron cancels in-flight work on Shutdown.
+	jobFunc := func(jobCtx context.Context) {
 		startTime := time.Now()
-		bg := context.Background()
 		tracer := otel.Tracer(otelTracerName)
-		ctx, span := tracer.Start(bg, "scheduler.run",
+		ctx, span := tracer.Start(jobCtx, "scheduler.run",
 			trace.WithSpanKind(trace.SpanKindProducer),
 			trace.WithAttributes(
 				attribute.String("scheduler.trigger", "onetime"),

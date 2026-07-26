@@ -1,0 +1,107 @@
+# Build + unit tests for the eip host tool (admintool module).
+# On tag v*: publish cross-compiled Release assets for eip update.
+name: admintool
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "admintool/**"
+      - "scripts/admintool/**"
+      - ".github/workflows/admintool.yml"
+    tags:
+      - "v*"
+  pull_request:
+    paths:
+      - "admintool/**"
+      - "scripts/admintool/**"
+      - ".github/workflows/admintool.yml"
+
+concurrency:
+  group: admintool-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+
+    defaults:
+      run:
+        working-directory: admintool
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: admintool/go.mod
+          cache-dependency-path: admintool/go.sum
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build
+        run: go build -o eip-ci .
+
+  release:
+    name: release assets
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+
+    defaults:
+      run:
+        working-directory: admintool
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: admintool/go.mod
+          cache-dependency-path: admintool/go.sum
+
+      - name: Build release binaries
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VER="${TAG#v}"
+          LDFLAGS="-s -w -X eve-industry-planner/admintool/cmd/commands.Version=${VER}"
+          mkdir -p dist
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o dist/eip-windows-amd64.exe .
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o dist/eip-linux-amd64 .
+          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o dist/eip-darwin-amd64 .
+          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "$LDFLAGS" -o dist/eip-darwin-arm64 .
+          (
+            cd dist
+            sha256sum eip-windows-amd64.exe eip-linux-amd64 eip-darwin-amd64 eip-darwin-arm64 > SHA256SUMS
+          )
+
+      - name: Upload GitHub Release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            admintool/dist/eip-windows-amd64.exe
+            admintool/dist/eip-linux-amd64
+            admintool/dist/eip-darwin-amd64
+            admintool/dist/eip-darwin-arm64
+            admintool/dist/SHA256SUMS
+          generate_release_notes: true

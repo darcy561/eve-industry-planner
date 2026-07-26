@@ -4,15 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 
 	esicore "eve-industry-planner/shared/core/esi"
 	natscore "eve-industry-planner/shared/core/nats"
 	rediscore "eve-industry-planner/shared/core/redis"
-	sdecore "eve-industry-planner/shared/core/sde"
 	"eve-industry-planner/shared/logs"
 	taskscore "eve-industry-planner/shared/tasks"
 	esitasks "eve-industry-planner/worker/tasks/esi"
@@ -33,13 +30,9 @@ func runSDENewRecipeItemsStage(ctx context.Context, persistResult *sdePersistRes
 		return nil
 	}
 
-	if persistResult.CurrentRecipeList == "" {
-		return fmt.Errorf("missing recipeList current path for diff")
-	}
-
-	newBytes, err := os.ReadFile(persistResult.CurrentRecipeList)
-	if err != nil {
-		return fmt.Errorf("failed reading current recipeList: %w", err)
+	newBytes := persistResult.CurrentRecipeBytes
+	if len(newBytes) == 0 {
+		return fmt.Errorf("missing current recipeList bytes for diff")
 	}
 
 	var newRecipes []*conversion.EVEType
@@ -49,13 +42,8 @@ func runSDENewRecipeItemsStage(ctx context.Context, persistResult *sdePersistRes
 
 	var prevRecipes []*conversion.EVEType
 	prevIDs := make(map[int]bool)
-	if persistResult.HasPreviousVersion && persistResult.PreviousRecipeList != "" {
-		prevBytes, err := os.ReadFile(persistResult.PreviousRecipeList)
-		if err != nil {
-			return fmt.Errorf("failed reading previous recipeList: %w", err)
-		}
-
-		if err := json.Unmarshal(prevBytes, &prevRecipes); err != nil {
+	if persistResult.HasPreviousVersion && len(persistResult.PreviousRecipeBytes) > 0 {
+		if err := json.Unmarshal(persistResult.PreviousRecipeBytes, &prevRecipes); err != nil {
 			return fmt.Errorf("failed parsing previous recipeList.json: %w", err)
 		}
 
@@ -110,8 +98,7 @@ func runSDENewRecipeItemsStage(ctx context.Context, persistResult *sdePersistRes
 		typeIDs = append(typeIDs, id)
 	}
 
-	reprocessingPath := filepath.Join(persistResult.LiveDataDir, sdecore.ReprocessingFile)
-	reprocessingAdded, err := addReprocessingTypeIDs(typeIDsToRefresh, reprocessingPath)
+	reprocessingAdded, err := addReprocessingTypeIDs(typeIDsToRefresh, persistResult.ReprocessingBytes)
 	if err != nil {
 		return err
 	}
@@ -288,14 +275,10 @@ func parseTypeID(v any) (int32, bool) {
 	}
 }
 
-func addReprocessingTypeIDs(typeIDs map[int32]struct{}, reprocessingPath string) (int, error) {
-	if reprocessingPath == "" {
+func addReprocessingTypeIDs(typeIDs map[int32]struct{}, reprocessingBytes []byte) (int, error) {
+	b := reprocessingBytes
+	if len(b) == 0 {
 		return 0, nil
-	}
-
-	b, err := os.ReadFile(reprocessingPath)
-	if err != nil {
-		return 0, fmt.Errorf("failed reading reprocessingData.json: %w", err)
 	}
 
 	var reprocessingData map[string]*conversion.ReprocessingItem

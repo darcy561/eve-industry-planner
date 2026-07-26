@@ -2,6 +2,7 @@ package v1endpoints
 
 import (
 	"errors"
+	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"strconv"
 	"strings"
@@ -9,7 +10,6 @@ import (
 
 	"eve-industry-planner/api/helper"
 	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -28,7 +28,7 @@ const (
 //	503 — Mongo client unavailable
 //	500 — Mongo query or encode failure
 //	200 — JSON success
-func BlueprintsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func BlueprintsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	switch r.Method {
 	case http.MethodGet:
 		BlueprintGetHandler(w, r, clients)
@@ -39,7 +39,7 @@ func BlueprintsHandler(w http.ResponseWriter, r *http.Request, clients *shared.S
 	}
 }
 
-func BlueprintGetHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func BlueprintGetHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 
@@ -91,7 +91,7 @@ type BlueprintsPostBody struct {
 
 // BlueprintsPostHandler accepts any non-empty idArray; there is no per-request ID count cap beyond
 // helper.DefaultMaxBodySize (1MB JSON) and Mongo query timeout.
-func BlueprintsPostHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func BlueprintsPostHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 

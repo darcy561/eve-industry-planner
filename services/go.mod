@@ -8,6 +8,7 @@ require (
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/alitto/pond/v2 v2.7.1
 	github.com/andybalholm/brotli v1.2.2
+	github.com/docker/docker v27.5.1+incompatible
 	github.com/getsentry/sentry-go v0.48.0
 	github.com/getsentry/sentry-go/otel v0.48.0
 	github.com/getsentry/sentry-go/otel/otlp v0.48.0
@@ -16,10 +17,12 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/hibiken/asynq v0.26.0
+	github.com/minio/minio-go/v7 v7.0.95
 	github.com/nats-io/nats.go v1.52.0
 	github.com/redis/go-redis/extra/redisotel/v9 v9.21.0
 	github.com/redis/go-redis/v9 v9.21.0
 	github.com/robfig/cron/v3 v3.0.1
+	github.com/spf13/cobra v1.10.2
 	github.com/ulule/limiter/v3 v3.11.2
 	go.mongodb.org/mongo-driver v1.17.9
 	go.opentelemetry.io/contrib/bridges/otelzap v0.19.0
@@ -36,11 +39,11 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
 	go.uber.org/zap v1.28.0
-	golang.org/x/sys v0.47.0
 	golang.org/x/time v0.15.0
 	google.golang.org/api v0.289.0
 	google.golang.org/genproto v0.0.0-20260715232425-e75dac1f907d
 	google.golang.org/grpc v1.82.1
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -57,15 +60,24 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.58.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.58.0 // indirect
 	github.com/MicahParks/keyfunc v1.9.0 // indirect
+	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
+	github.com/containerd/log v0.1.0 // indirect
+	github.com/distribution/reference v0.6.0 // indirect
+	github.com/docker/go-connections v0.5.0 // indirect
+	github.com/docker/go-units v0.5.0 // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
+	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/goccy/go-json v0.10.5 // indirect
+	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
@@ -74,16 +86,29 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.18 // indirect
 	github.com/googleapis/gax-go/v2 v2.23.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/klauspost/compress v1.19.0 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.11 // indirect
+	github.com/minio/crc64nvme v1.0.2 // indirect
+	github.com/minio/md5-simd v1.1.2 // indirect
+	github.com/moby/docker-image-spec v1.3.1 // indirect
+	github.com/moby/term v0.5.2 // indirect
 	github.com/montanaflynn/stats v0.12.2 // indirect
+	github.com/morikuni/aec v1.1.0 // indirect
 	github.com/nats-io/nkeys v0.4.16 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
+	github.com/opencontainers/go-digest v1.0.0 // indirect
+	github.com/opencontainers/image-spec v1.1.1 // indirect
+	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/redis/go-redis/extra/rediscmd/v9 v9.21.0 // indirect
+	github.com/rs/xid v1.6.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
+	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.8.1 // indirect
+	github.com/tinylib/msgp v1.3.0 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.2.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
@@ -101,9 +126,11 @@ require (
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	google.golang.org/appengine/v2 v2.0.6 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260715232425-e75dac1f907d // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260715232425-e75dac1f907d // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
+	gotest.tools/v3 v3.5.2 // indirect
 )

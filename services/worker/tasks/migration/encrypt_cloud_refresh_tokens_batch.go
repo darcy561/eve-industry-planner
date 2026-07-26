@@ -10,7 +10,7 @@ import (
 	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
@@ -41,11 +41,11 @@ func EncryptCloudRefreshTokensBatch(ctx context.Context, task *asynq.Task, deps 
 		return fmt.Errorf("account_id is required")
 	}
 
-	cfg, err := config.LoadConfig()
+	tokenCfg, err := config.LoadCloudStoredESIKeys()
 	if err != nil {
 		return err
 	}
-	if cfg.RefreshTokenKeyring == nil {
+	if tokenCfg.Keyring == nil {
 		return fmt.Errorf("REFRESH_TOKEN_AES_KEY not configured")
 	}
 
@@ -71,7 +71,7 @@ func EncryptCloudRefreshTokensBatch(ctx context.Context, task *asynq.Task, deps 
 			continue
 		}
 		plain := rt.RToken
-		if err := rt.EncryptRefreshAtRest(plain, cfg.RefreshTokenKeyring); err != nil {
+		if err := rt.EncryptRefreshAtRest(plain, tokenCfg.Keyring); err != nil {
 			logs.WarnCtx(ctx, "encrypt refresh migration: encrypt row failed",
 				"account_id", p.AccountID,
 				"character_hash", rt.CharacterHash,

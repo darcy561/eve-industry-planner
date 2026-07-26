@@ -27,8 +27,8 @@ const SoloHolderLockTTL = 24 * time.Hour
 
 // Lease modes stored on LockRecord.leaseMode.
 const (
-	LeaseModeSolo       = "solo"
-	LeaseModeContested  = "contested"
+	LeaseModeSolo      = "solo"
+	LeaseModeContested = "contested"
 )
 
 // MaxExtensionsBeforeHandoffConsult — after this many consecutive lease segments, extend consults the waitlist.
