@@ -4,10 +4,11 @@
 # eip lives in this folder; that directory is project home (desktop shortcuts OK).
 # Operator docs (.env / eip.config.yaml): run ./eip (TUI Setup) or ./eip init.
 #
-# Development staging (generic prerelease tag — default):
-#   curl -fsSL https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Development/eip-bootstrap.sh | bash -s -- ~/eip
+# Prefer pipe (never writes this script into the deploy home):
+#   curl -fsSL …/Development/eip-bootstrap.sh | bash -s -- ~/eip
+# If the script file lives inside the home, it deletes itself after success.
 #
-# Per-branch (no crossover with Development/Public unless you set it):
+# Per-branch:
 #   EIP_KIT_BRANCH=swarm/my-feature \
 #   EIP_CLI_DOWNLOAD_BASE=https://github.com/darcy561/eve-industry-planner/releases/download/prerelease-swarm-my-feature \
 #   bash eip-bootstrap.sh ~/eip
@@ -74,6 +75,10 @@ done
 
 place_host_bin() {
   local dest="${DEPLOY}/eip"
+  if [ -x "${dest}" ]; then
+    echo "  eip already present (unchanged)"
+    return 0
+  fi
   if [ -n "${SCRIPT_DIR}" ]; then
     if [ -f "${SCRIPT_DIR}/eip" ]; then
       cp -f "${SCRIPT_DIR}/eip" "${dest}"
@@ -131,3 +136,16 @@ Done. This folder is your EIP home.
   export EIP_UPDATE_TAG=prerelease   # for eip update-binary on this channel
   ./eip up
 EOF
+
+# Drop this installer if it lives inside the deploy home (not when run from the repo).
+SCRIPT_FILE=""
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+  SCRIPT_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+fi
+if [ -n "${SCRIPT_FILE}" ] && [ -f "${SCRIPT_FILE}" ]; then
+  case "${SCRIPT_FILE}" in
+    "${DEPLOY}"|"${DEPLOY}"/*)
+      rm -f "${SCRIPT_FILE}" && echo "  removed bootstrap script from deploy home" || true
+      ;;
+  esac
+fi

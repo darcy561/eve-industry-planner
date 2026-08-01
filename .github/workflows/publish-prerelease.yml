@@ -32,7 +32,7 @@ jobs:
       promote_generic: ${{ steps.resolve.outputs.promote_generic }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.inputs.ref || github.sha }}
           fetch-depth: 0
@@ -101,7 +101,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.inputs.ref || github.sha }}
           fetch-depth: 0
@@ -258,12 +258,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.inputs.ref || github.sha }}
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: admintool/go.mod
           cache-dependency-path: admintool/go.sum
@@ -286,7 +286,7 @@ jobs:
           )
 
       - name: Upload branch-channel eip Release (prerelease)
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.version.outputs.channel_tag }}
           name: ${{ needs.version.outputs.channel_tag }}
@@ -312,7 +312,7 @@ jobs:
 
       - name: Upload generic prerelease eip Release
         if: needs.version.outputs.promote_generic == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: prerelease
           name: prerelease

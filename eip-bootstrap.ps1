@@ -3,8 +3,10 @@
 # eip.exe lives in this folder; that directory is project home (shortcuts OK).
 # Operator docs (.env / eip.config.yaml): run .\eip.exe (TUI Setup) or .\eip.exe init.
 #
-# Development staging (generic prerelease tag — default):
-#   irm …/Development/eip-bootstrap.ps1 -OutFile eip-bootstrap.ps1; .\eip-bootstrap.ps1 -Path D:\eip
+# Prefer not writing this script into the deploy home — run from temp or pipe:
+#   irm …/Development/eip-bootstrap.ps1 -OutFile $env:TEMP\eip-bootstrap.ps1
+#   & $env:TEMP\eip-bootstrap.ps1 -Path D:\eip
+# If it was saved inside the home, it deletes itself after a successful run.
 #
 # Per-branch: set EIP_KIT_BRANCH + EIP_CLI_DOWNLOAD_BASE to that branch's prerelease-* Release.
 #
@@ -78,22 +80,26 @@ foreach ($name in @("docker-stack.yml", "docker-stack.data.yml", "docker-stack.o
 }
 
 $hostDest = Join-Path $deploy "eip.exe"
-$hostSrc = Find-LocalHostBinary $srcDir
-if ($hostSrc) {
-  Copy-Item -Force $hostSrc $hostDest
-  Write-Host "  wrote eip.exe (from local)"
-} elseif ($DownloadBase) {
-  $url = "$($DownloadBase.TrimEnd('/'))/eip-windows-amd64.exe"
-  if ($DownloadBase -match '\.exe$') { $url = $DownloadBase }
-  try {
-    Write-Host "  downloading eip-windows-amd64.exe..."
-    Invoke-WebRequest -Uri $url -OutFile $hostDest -UseBasicParsing
-    Write-Host "  wrote eip.exe (download)"
-  } catch {
-    Write-Host "  note: could not download host binary ($($_.Exception.Message))"
-  }
+if (Test-Path $hostDest) {
+  Write-Host "  eip.exe already present (unchanged)"
 } else {
-  Write-Host "  note: no eip.exe yet - build with .\scripts\admintool\build-host.ps1, then re-run bootstrap"
+  $hostSrc = Find-LocalHostBinary $srcDir
+  if ($hostSrc) {
+    Copy-Item -Force $hostSrc $hostDest
+    Write-Host "  wrote eip.exe (from local)"
+  } elseif ($DownloadBase) {
+    $url = "$($DownloadBase.TrimEnd('/'))/eip-windows-amd64.exe"
+    if ($DownloadBase -match '\.exe$') { $url = $DownloadBase }
+    try {
+      Write-Host "  downloading eip-windows-amd64.exe..."
+      Invoke-WebRequest -Uri $url -OutFile $hostDest -UseBasicParsing
+      Write-Host "  wrote eip.exe (download)"
+    } catch {
+      Write-Host "  note: could not download host binary ($($_.Exception.Message))"
+    }
+  } else {
+    Write-Host "  note: no eip.exe yet - build with .\scripts\admintool\build-host.ps1, then re-run bootstrap"
+  }
 }
 
 if (-not (Test-Path $hostDest)) {
@@ -113,3 +119,19 @@ Write-Host "  # or: .\eip.exe init"
 Write-Host "  # optional: .\eip.exe add-path   # bare eip on PATH"
 Write-Host "  `$env:EIP_UPDATE_TAG = 'prerelease'   # for eip update-binary on this channel"
 Write-Host "  .\eip.exe up"
+
+# Drop this installer if it lives inside the deploy home (not when run from the repo).
+$scriptPath = $MyInvocation.MyCommand.Path
+if ($scriptPath) {
+  $scriptFull = [System.IO.Path]::GetFullPath($scriptPath)
+  $deployPrefix = $deploy.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+  if ($scriptFull.StartsWith($deployPrefix, [System.StringComparison]::OrdinalIgnoreCase) -or
+      ([System.IO.Path]::GetDirectoryName($scriptFull) -eq $deploy)) {
+    try {
+      Remove-Item -Force -LiteralPath $scriptFull
+      Write-Host "  removed bootstrap script from deploy home"
+    } catch {
+      Write-Host "  note: could not remove bootstrap script ($($_.Exception.Message))"
+    }
+  }
+}
