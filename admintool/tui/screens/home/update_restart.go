@@ -22,6 +22,12 @@ func parseUpdateRestartMessage(message string) (relaunch, resume bool) {
 	}
 }
 
+// isUpdateControlMessage is a parent-only signal (not operator StatusMsg text).
+func isUpdateControlMessage(message string) bool {
+	relaunch, _ := parseUpdateRestartMessage(message)
+	return relaunch
+}
+
 func (m *model) applyUpdateRestartMessage(message string) {
 	relaunch, resume := parseUpdateRestartMessage(message)
 	if !relaunch {

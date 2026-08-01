@@ -95,12 +95,11 @@ func SelfUpdate(ctx context.Context, opts Options) (Result, error) {
 		URL:     asset.BrowserDownloadURL,
 		DryRun:  opts.DryRun,
 	}
-	// Floating tag "cli" always re-checks download path (version strings do not match).
-	if current != "" && latest != "" && current == latest && !isFloatingCLITag(rel.TagName) {
+	// Pin tags (cli-vX.Y.Z): version string equality can skip.
+	// Floating tags (cli, prerelease-…): Version is an immutable pin, TagName is
+	// the channel — they never match, so skip via checksum below instead.
+	if current != "" && latest != "" && current == latest && !isFloatingReleaseTag(rel.TagName) {
 		out.Skipped = true
-		return out, nil
-	}
-	if opts.DryRun {
 		return out, nil
 	}
 
@@ -111,6 +110,13 @@ func SelfUpdate(ctx context.Context, opts Options) (Result, error) {
 	wantSum, ok := sums[assetName]
 	if !ok {
 		return Result{}, fmt.Errorf("selfupdate: SHA256SUMS missing entry for %s", assetName)
+	}
+	if curSum, err := fileSHA256(exe); err == nil && strings.EqualFold(curSum, wantSum) {
+		out.Skipped = true
+		return out, nil
+	}
+	if opts.DryRun {
+		return out, nil
 	}
 
 	newPath := exe + ".new"
@@ -178,8 +184,12 @@ func normalizeVersion(v string) string {
 	return releaseVersionKey(v)
 }
 
-func isFloatingCLITag(tag string) bool {
-	return strings.TrimSpace(tag) == "cli"
+func isFloatingReleaseTag(tag string) bool {
+	t := strings.TrimSpace(tag)
+	if t == "" || t == "cli" {
+		return true
+	}
+	return strings.HasPrefix(t, "prerelease")
 }
 
 // releaseVersionKey maps a Release tag to a comparable semver-ish string.

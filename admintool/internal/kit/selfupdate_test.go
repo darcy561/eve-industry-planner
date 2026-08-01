@@ -32,6 +32,20 @@ func TestNormalizeVersion(t *testing.T) {
 	}
 }
 
+func TestIsFloatingReleaseTag(t *testing.T) {
+	t.Parallel()
+	for _, tag := range []string{"cli", "prerelease", "prerelease-swarm-hard-cutover"} {
+		if !isFloatingReleaseTag(tag) {
+			t.Fatalf("%q should be floating", tag)
+		}
+	}
+	for _, tag := range []string{"cli-v1.0.0", "1.2.3", "v1.2.3"} {
+		if isFloatingReleaseTag(tag) {
+			t.Fatalf("%q should not be floating", tag)
+		}
+	}
+}
+
 func TestChannelTagFromAppVersion(t *testing.T) {
 	cases := map[string]string{
 		"prerelease":                        "prerelease",

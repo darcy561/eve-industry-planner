@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"eve-industry-planner/admintool/internal/process"
 	eipmsg "eve-industry-planner/admintool/internal/msg"
+	"eve-industry-planner/admintool/internal/process"
 	"eve-industry-planner/admintool/tui/exec"
 )
 
@@ -35,6 +35,7 @@ func TestParseUpdateRestartMessage(t *testing.T) {
 
 func TestApplyUpdateRestartMessageViaEvent(t *testing.T) {
 	m := newModel()
+	m.snap.StatusMsg = "update…"
 	next, _ := m.Update(exec.EventMsg{Event: eipmsg.Event{
 		Kind: eipmsg.KindStack, State: "update", Message: "restart-resume",
 	}})
@@ -42,6 +43,9 @@ func TestApplyUpdateRestartMessageViaEvent(t *testing.T) {
 	if !hm.pendingRelaunch || !hm.pendingResumeUpdate {
 		t.Fatalf("restart-resume: pendingRelaunch=%v pendingResumeUpdate=%v",
 			hm.pendingRelaunch, hm.pendingResumeUpdate)
+	}
+	if hm.snap.StatusMsg != "update…" {
+		t.Fatalf("control chip must not overwrite StatusMsg: %q", hm.snap.StatusMsg)
 	}
 
 	next, _ = hm.Update(exec.EventMsg{Event: eipmsg.Event{
@@ -52,6 +56,18 @@ func TestApplyUpdateRestartMessageViaEvent(t *testing.T) {
 		t.Fatalf("restart should clear resume: relaunch=%v resume=%v",
 			hm.pendingRelaunch, hm.pendingResumeUpdate)
 	}
+}
+
+func TestResumeUpdateMsgClearsPane(t *testing.T) {
+	m := newModel()
+	m.appendOut("old output")
+	next, _ := m.Update(resumeUpdateMsg{})
+	hm := next.(model)
+	// startCLI may fail without a real binary in PATH for tests — pane must still clear first.
+	if strings.Contains(hm.pane.Text, "old output") {
+		t.Fatalf("pane should clear on resume: %q", hm.pane.Text)
+	}
+	_ = next
 }
 
 func TestOnCLIDoneSchedulesRelaunchWithResume(t *testing.T) {

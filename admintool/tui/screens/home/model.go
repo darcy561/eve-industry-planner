@@ -192,12 +192,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case resumeUpdateMsg:
-		m.appendOut("Resuming update after binary restart…")
+		// Fresh pane — do not leave a sticky "Resuming…" line after the child ends.
+		m.pane.Clear()
+		m.syncPane()
 		return m.startCLI("update", []string{"update"})
 
 	case exec.EventMsg:
 		if msg.Event.Kind == eipmsg.KindStack && msg.Event.State == "update" {
 			m.applyUpdateRestartMessage(msg.Event.Message)
+			// restart / restart-resume are TUI control chips, not status-bar copy.
+			if isUpdateControlMessage(msg.Event.Message) {
+				return m.waitStream()
+			}
 		}
 		if statusbar.ApplyEvent(&m.snap, msg.Event) {
 			m.refreshMenuForDocker()
@@ -295,6 +301,8 @@ func (m model) onCLIDone(msg exec.DoneMsg) (tea.Model, tea.Cmd) {
 		resume := m.pendingResumeUpdate
 		m.pendingRelaunch = false
 		m.pendingResumeUpdate = false
+		m.snap.StatusMsg = ""
+		m.snap.StatusMsgTick = 0
 		m.appendOut("Restarting with new binary…")
 		return m, relaunchSelfCmd(resume)
 	}
