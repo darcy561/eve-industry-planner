@@ -153,7 +153,7 @@ func ResolveEnvFields(values map[string]string, generate map[string]bool) (map[s
 		}
 		cur, ok := out[f.Key]
 		if !ok {
-			cur = f.Default
+			cur = fieldDefault(f)
 		}
 		if IsLockedInFile(f, cur) {
 			out[f.Key] = strings.TrimSpace(cur)

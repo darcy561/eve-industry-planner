@@ -35,8 +35,7 @@ type Options struct {
 	CurrentVersion string
 	Repo           string // owner/name; empty → DefaultRepo or EIP_UPDATE_REPO
 	// Tag selects a Release by tag (e.g. prerelease, prerelease-swarm-foo).
-	// Empty → resolveUpdateTag() (EIP_UPDATE_TAG env, then .env APP_VERSION when it is a
-	// prerelease channel tag, else GitHub /releases/latest for Public).
+	// Empty → resolveUpdateTag() (see that func). Public / empty → /releases/latest.
 	Tag        string
 	DryRun     bool
 	HTTPClient *http.Client
@@ -155,21 +154,20 @@ func SelfUpdate(ctx context.Context, opts Options) (Result, error) {
 }
 
 // resolveUpdateTag picks the GitHub Release tag for update-binary.
-// Order: EIP_UPDATE_TAG env → home .env APP_VERSION when it is a floating
-// prerelease channel (prerelease / prerelease-*) → empty (use /releases/latest).
+// Order: EIP_UPDATE_TAG env → .env APP_VERSION (prerelease channel) →
+// baked kit.Channel (prerelease channel) → empty (/releases/latest).
 func resolveUpdateTag() string {
 	if tag := strings.TrimSpace(os.Getenv("EIP_UPDATE_TAG")); tag != "" {
 		return tag
 	}
-	home, err := Home()
-	if err != nil {
-		return ""
+	if home, err := Home(); err == nil {
+		if m, err := Map(filepath.Join(home, EnvFile)); err == nil {
+			if tag := channelTagFromAppVersion(Get(m, "APP_VERSION")); tag != "" {
+				return tag
+			}
+		}
 	}
-	m, err := Map(filepath.Join(home, EnvFile))
-	if err != nil {
-		return ""
-	}
-	return channelTagFromAppVersion(Get(m, "APP_VERSION"))
+	return BakedUpdateChannel()
 }
 
 // channelTagFromAppVersion returns APP_VERSION when it names a floating

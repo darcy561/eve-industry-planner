@@ -35,8 +35,8 @@ func EnvFields() []EnvField {
 var envFields = []EnvField{
 	{
 		Key: "APP_VERSION", Section: "Release", Label: "App version",
-		Help: "GHCR image tag SoT (and eip update channel when prerelease / prerelease-*). Development: prerelease. Feature branch: prerelease-<slug>. Public: X.Y.Z / latest. See PRERELEASE.md.",
-		Type: FieldText, Required: true, Default: "prerelease",
+		Help: "GHCR image tag. Prerelease builds preset this from the binary channel; Public leaves it blank for you to set. See PRERELEASE.md.",
+		Type: FieldText, Required: true, Default: "", // runtime: kit.DefaultAppVersion() via fieldDefault
 	},
 
 	{

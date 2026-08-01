@@ -28,10 +28,9 @@ var updateBinaryCmd = &cobra.Command{
 	Long: `Download an eip binary for this OS/arch from GitHub Releases and replace
 the on-disk executable (rename dance; safe on Windows).
 
-Default: GitHub /releases/latest (Public). Prerelease / branch channels:
-set .env APP_VERSION=prerelease or prerelease-<slug> (same as GHCR), or override
-with EIP_UPDATE_TAG. See docs/admintool/PRERELEASE.md. Swarm prereleases are
-marked prerelease on GitHub so they never take over /releases/latest.
+Default: GitHub /releases/latest (Public builds). Prerelease binaries bake their
+channel (kit.Channel) so Setup APP_VERSION and update-binary match without shell
+env. Optional overrides: .env APP_VERSION, EIP_UPDATE_TAG. See PRERELEASE.md.
 
 The binary embeds TUI assets, observability kit, bake HCL, and template defaults.
 Replacing it refreshes those. Operator files already on disk (.env, eip.config.yaml,

@@ -297,9 +297,11 @@ jobs:
         env:
           CGO_ENABLED: "0"
           VER: ${{ needs.version.outputs.version }}
+          CHANNEL: ${{ steps.meta.outputs.channel_tag }}
         run: |
           set -euo pipefail
-          LDFLAGS="-s -w -X eve-industry-planner/admintool/cmd/commands.Version=${VER}"
+          # Version = immutable pin; Channel = floating tag (APP_VERSION default + update-binary).
+          LDFLAGS="-s -w -X eve-industry-planner/admintool/cmd/commands.Version=${VER} -X eve-industry-planner/admintool/internal/kit.Channel=${CHANNEL}"
           mkdir -p dist
           GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o dist/eip-windows-amd64.exe .
           GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o dist/eip-linux-amd64 .

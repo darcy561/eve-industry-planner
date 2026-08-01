@@ -41,6 +41,27 @@ func TestChannelTagFromAppVersion(t *testing.T) {
 	}
 }
 
+func TestDefaultAppVersionUsesChannel(t *testing.T) {
+	prev := Channel
+	t.Cleanup(func() { Channel = prev })
+	Channel = "prerelease-swarm-hard-cutover"
+	if got := DefaultAppVersion(); got != Channel {
+		t.Fatalf("DefaultAppVersion=%q", got)
+	}
+	if got := BakedUpdateChannel(); got != Channel {
+		t.Fatalf("BakedUpdateChannel=%q", got)
+	}
+	// Public / local: Channel empty or semver → no APP_VERSION preset
+	Channel = "1.2.3"
+	if got := DefaultAppVersion(); got != "" {
+		t.Fatalf("semver must not preset APP_VERSION, got %q", got)
+	}
+	Channel = ""
+	if got := DefaultAppVersion(); got != "" {
+		t.Fatalf("empty Channel must not preset APP_VERSION, got %q", got)
+	}
+}
+
 func TestParseSHA256SUMS(t *testing.T) {
 	text := `
 # comment

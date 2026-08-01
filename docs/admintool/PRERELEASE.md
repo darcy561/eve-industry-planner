@@ -14,10 +14,10 @@ Public publish never writes `prerelease*`. Prerelease publish never writes `:lat
 
 | What | Store | Knob |
 |------|--------|------|
-| App images | GHCR `…-<svc>:${APP_VERSION}` | `.env` **`APP_VERSION`** → `eip up` |
-| Host `eip` tool | GitHub Release assets | Same **`APP_VERSION`** when it is `prerelease` / `prerelease-*` → `eip update-binary` (optional override: `EIP_UPDATE_TAG`) |
+| App images | GHCR `…-<svc>:${APP_VERSION}` | `.env` **`APP_VERSION`** (Setup default = baked channel) |
+| Host `eip` tool | GitHub Release assets | Baked **`kit.Channel`** at build time → `update-binary`; Setup seeds `APP_VERSION` from the same value |
 
-Set `APP_VERSION` once in Setup / `.env` (e.g. `prerelease-swarm-hard-cutover`). No shell env needed for Update tool. Public semver `APP_VERSION` still uses `/releases/latest` for the host binary.
+Prerelease CI sets `-ldflags … kit.Channel=prerelease-<slug>` (and `commands.Version` = immutable pin) so Setup and `update-binary` match the channel. **Public** leaves `kit.Channel` empty — operators set `APP_VERSION` manually; host updates use `/releases/latest`.
 
 Prerelease GitHub Releases use **`prerelease: true`**, so they never become `/releases/latest` (Public’s future binary channel).
 
@@ -56,28 +56,32 @@ gh workflow run "Publish prerelease" --ref Development -f publish=containers
 
 Containers need **`GHCR_TOKEN`**. Repo association uses OCI `org.opencontainers.image.source`. **New container packages need a one-time GitHub UI “Public”** (REST PATCH visibility 404s — GitHub limitation).
 
-## Operator — Development staging (`prerelease`)
+## Bootstrap channels
 
 ```bash
-mkdir -p ~/eip && cd ~/eip
-curl -fsSL https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Development/eip-bootstrap.sh | bash -s -- .
-./eip          # TUI Setup → .env / eip.config.yaml (or: ./eip init)
-# .env: EVE SSO; APP_VERSION=prerelease
-# optional: ./eip add-path
-./eip up
-# after another Development publish:
-./eip update-binary && ./eip up   # uses APP_VERSION channel
+# Development staging
+curl -fsSL …/eip-bootstrap.sh | bash -s -- ~/eip --channel Development
+# or: --channel prerelease
+
+# Feature / swarm branch
+curl -fsSL …/eip-bootstrap.sh | bash -s -- ~/eip --channel swarm/hard-cutover
+# or: --channel prerelease-swarm-hard-cutover
+
+# Public (latest eip Release + Public stack YAML)
+curl -fsSL …/eip-bootstrap.sh | bash -s -- ~/eip --channel Public
+
+# Switch channel later (re-fetch stacks + binary)
+bash eip-bootstrap.sh ~/eip --channel Development --force
 ```
 
-## Operator — one feature branch only
+Windows: `.\eip-bootstrap.ps1 -Path D:\eip -Channel swarm/hard-cutover` (`-Force` to switch).
+
+## Operator — after bootstrap
 
 ```bash
-export EIP_KIT_BRANCH=swarm/my-feature
-export EIP_CLI_DOWNLOAD_BASE=https://github.com/darcy561/eve-industry-planner/releases/download/prerelease-swarm-my-feature
-# bootstrap…
-./eip   # Setup: APP_VERSION=prerelease-swarm-my-feature (+ EVE SSO)
+./eip          # TUI Setup (prerelease builds preset APP_VERSION from baked channel)
 ./eip up
-./eip update-binary   # same APP_VERSION channel — no EIP_UPDATE_TAG needed
+./eip update-binary   # same baked / APP_VERSION channel
 ```
 
 ## No crossover (unless you choose it)

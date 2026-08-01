@@ -22,12 +22,22 @@ const (
 `
 )
 
+// fieldDefault returns the effective default for a field (APP_VERSION from baked channel).
+func fieldDefault(f EnvField) string {
+	if f.Key == "APP_VERSION" {
+		if d := kit.DefaultAppVersion(); d != "" {
+			return d
+		}
+	}
+	return f.Default
+}
+
 // DefaultEnvValues returns registry defaults keyed by current Key.
 func DefaultEnvValues() map[string]string {
 	fields := EnvFields()
 	out := make(map[string]string, len(fields))
 	for _, f := range fields {
-		out[f.Key] = f.Default
+		out[f.Key] = fieldDefault(f)
 	}
 	return out
 }
@@ -65,7 +75,7 @@ func ResolveEnvValues(file map[string]string) map[string]string {
 
 func resolveFieldValue(f EnvField, file map[string]string) string {
 	if file == nil {
-		return f.Default
+		return fieldDefault(f)
 	}
 	if v, ok := file[f.Key]; ok {
 		return v
@@ -78,7 +88,7 @@ func resolveFieldValue(f EnvField, file map[string]string) string {
 			return v
 		}
 	}
-	return f.Default
+	return fieldDefault(f)
 }
 
 // EmitEnv writes path as a full rebuild from values (current keys) plus unrecognized
@@ -175,12 +185,12 @@ func FormatEnvFile(values map[string]string, existing map[string]string) ([]byte
 		}
 		val, ok := values[f.Key]
 		if !ok {
-			val = f.Default
+			val = fieldDefault(f)
 		}
 		// Optional empty: prefer Default when set (e.g. LEGACY_KEYS={}) so CLI .env
 		// shows the expected structure; otherwise emit a commented placeholder.
 		if !f.Required && strings.TrimSpace(val) == "" {
-			if d := strings.TrimSpace(f.Default); d != "" {
+			if d := strings.TrimSpace(fieldDefault(f)); d != "" {
 				val = d
 			} else {
 				b.WriteString("# " + f.Key + "=\n")
