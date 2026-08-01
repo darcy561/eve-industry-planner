@@ -13,6 +13,7 @@ import (
 
 	"eve-industry-planner/admintool/cmd/commands"
 	"eve-industry-planner/admintool/internal/kit"
+	eipmsg "eve-industry-planner/admintool/internal/msg"
 	"eve-industry-planner/admintool/tui/brand"
 	"eve-industry-planner/admintool/tui/builder"
 	"eve-industry-planner/admintool/tui/exec"
@@ -100,6 +101,7 @@ type model struct {
 	logsFollow        bool
 	opsListBackup     []list.Item
 	fromMore          bool // child opened from More → close returns to More
+	pendingRelaunch   bool // set when update-binary asks the TUI to restart
 }
 
 const probeStaleLimit = 4 // ~12s at 3s poll
@@ -183,6 +185,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case exec.EventMsg:
+		if msg.Event.Kind == eipmsg.KindStack && msg.Event.State == "update-binary" &&
+			strings.EqualFold(strings.TrimSpace(msg.Event.Message), "restart") {
+			m.pendingRelaunch = true
+		}
 		if statusbar.ApplyEvent(&m.snap, msg.Event) {
 			m.refreshMenuForDocker()
 		}
@@ -210,6 +216,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case exec.DoneMsg:
 		return m.onCLIDone(msg)
+
+	case relaunchFailedMsg:
+		m.appendOut("Could not restart automatically: " + msg.err.Error())
+		m.appendOut("Quit and run eip again to use the new binary.")
+		m.refreshing = true
+		m.statusMsgClearGen++
+		m.returnToMoreOrMenu()
+		return m, tea.Batch(
+			statusbar.ProbeCmd(m.snap),
+			statusbar.ClearStatusMsgAfter(m.statusMsgClearGen),
+		)
 
 	case serviceListMsg:
 		return m.onServiceList(msg)
@@ -254,11 +271,19 @@ func (m model) onCLIDone(msg exec.DoneMsg) (tea.Model, tea.Cmd) {
 	} else if strings.TrimSpace(msg.Text) == "" && m.pane.Text == "" {
 		m.appendOut("(no output)")
 	}
-	if msg.Err != nil && len(m.pendingCLI) > 0 {
-		m.pendingCLI = nil
-		m.appendOut("Apply stopped — fix the error, then retry from Command (secrets / sync).")
+	if msg.Err != nil {
+		m.pendingRelaunch = false
+		if len(m.pendingCLI) > 0 {
+			m.pendingCLI = nil
+			m.appendOut("Apply stopped — fix the error, then retry from Command (secrets / sync).")
+		}
 	} else if len(m.pendingCLI) > 0 {
 		return m.startNextPendingCLI()
+	}
+	if m.pendingRelaunch {
+		m.pendingRelaunch = false
+		m.appendOut("Restarting with new binary…")
+		return m, relaunchSelfCmd()
 	}
 	m.refreshing = true
 	m.statusMsgClearGen++
@@ -268,6 +293,17 @@ func (m model) onCLIDone(msg exec.DoneMsg) (tea.Model, tea.Cmd) {
 		statusbar.ClearStatusMsgAfter(m.statusMsgClearGen),
 	)
 }
+
+func relaunchSelfCmd() tea.Cmd {
+	return func() tea.Msg {
+		if err := kit.RelaunchSelf(nil); err != nil {
+			return relaunchFailedMsg{err: err}
+		}
+		return tea.Quit()
+	}
+}
+
+type relaunchFailedMsg struct{ err error }
 
 func (m *model) syncPane() {
 	ui.SetViewportText(&m.viewport, m.pane.Text, m.pane.Follow)

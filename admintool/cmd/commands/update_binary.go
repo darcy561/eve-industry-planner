@@ -11,6 +11,7 @@ import (
 	"eve-industry-planner/admintool/internal/catalog"
 	"eve-industry-planner/admintool/internal/kit"
 	"eve-industry-planner/admintool/internal/msg"
+	"eve-industry-planner/admintool/internal/process"
 )
 
 func init() {
@@ -60,7 +61,12 @@ Not an app/image ship — use eip up / eip dev / eip rebuild for the stack.`,
 		for _, line := range strings.Split(formatUpdateBinaryResult(res), "\n") {
 			msg.Line(line)
 		}
-		msg.EmitStack("update-binary", msg.LightGreen, shortUpdateBinaryChip(res))
+		chip := shortUpdateBinaryChip(res)
+		msg.EmitStack("update-binary", msg.LightGreen, chip)
+		// TUI parent still runs the old image in memory — ask it to relaunch.
+		if res.Installed && process.FromTUI() {
+			msg.EmitStack("update-binary", msg.LightGreen, "restart")
+		}
 		return nil
 	},
 }
@@ -72,8 +78,14 @@ func formatUpdateBinaryResult(res kit.Result) string {
 	if res.DryRun {
 		return fmt.Sprintf("dry-run: would update %s → %s\n  asset %s\n  %s", res.Current, res.Latest, res.Asset, res.URL)
 	}
+	if process.FromTUI() {
+		return fmt.Sprintf(
+			"updated eip %s → %s\nTUI will restart with the new binary",
+			res.Current, res.Latest,
+		)
+	}
 	return fmt.Sprintf(
-		"updated eip %s → %s\nrestart this process to run the new binary\nrun eip sync if bundled observability configs changed",
+		"updated eip %s → %s\nnext eip command uses the new binary\nrun eip sync if bundled observability configs changed",
 		res.Current, res.Latest,
 	)
 }
