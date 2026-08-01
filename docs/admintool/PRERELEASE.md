@@ -41,9 +41,20 @@ Push **`swarm/my-feature`** (or any other non-Development staging branch in the 
 
 ## Publish
 
-[publish-prerelease.yml](../../.github/workflows/publish-prerelease.yml) is **manual only** (`workflow_dispatch`) — same idea as Public. In Actions → Publish prerelease → pick the branch (or pass `ref`), then Run. No build on every commit.
+[publish-prerelease.yml](../../.github/workflows/publish-prerelease.yml) is **manual only** (`workflow_dispatch`). Choose what to publish:
 
-Requires **`GHCR_TOKEN`**. Images push with that PAT; repo association uses OCI `org.opencontainers.image.source`. **New container packages need a one-time GitHub UI “Public”** (REST PATCH visibility 404s even when GET works — GitHub limitation). Later tags stay public.
+| `publish` | Builds |
+|-----------|--------|
+| **`binary`** (default) | Host `eip` Release assets only (`update-binary` / bootstrap) |
+| **`containers`** | GHCR app images only |
+| **`both`** | Binary + containers |
+
+```bash
+gh workflow run "Publish prerelease" --ref swarm/hard-cutover -f publish=binary
+gh workflow run "Publish prerelease" --ref Development -f publish=containers
+```
+
+Containers need **`GHCR_TOKEN`**. Repo association uses OCI `org.opencontainers.image.source`. **New container packages need a one-time GitHub UI “Public”** (REST PATCH visibility 404s — GitHub limitation).
 
 ## Operator — Development staging (`prerelease`)
 

@@ -1,5 +1,5 @@
-# Prerelease channel: GHCR images + eip GitHub Release (marked prerelease).
-# Manual only (same idea as Public) — run from Actions when you want a new build.
+# Prerelease channel: GHCR images and/or eip GitHub Release (marked prerelease).
+# Manual only — choose binary, containers, or both (default: binary only).
 # - Development → floating :prerelease (+ prerelease-development)
 # - Other staging branches (swarm/**, …) → prerelease-<slug> only
 # - Public → never; publish-containers-public.yml owns :latest / X.Y.Z
@@ -8,6 +8,15 @@ name: Publish prerelease
 on:
   workflow_dispatch:
     inputs:
+      publish:
+        description: "What to publish"
+        required: true
+        type: choice
+        options:
+          - binary
+          - containers
+          - both
+        default: binary
       ref:
         description: "Branch or SHA to build (empty = branch selected in the Actions UI)"
         required: false
@@ -15,7 +24,7 @@ on:
         default: ""
 
 concurrency:
-  group: publish-prerelease-${{ github.event.inputs.ref || github.ref }}
+  group: publish-prerelease-${{ github.event.inputs.publish }}-${{ github.event.inputs.ref || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -76,10 +85,11 @@ jobs:
           {
             echo "### Prerelease \`${CHANNEL}\`"
             echo "- Branch: \`${BRANCH}\`"
-            echo "- Immutable GHCR: \`${V}\`"
-            echo "- Branch floating GHCR / eip tag: \`${CHANNEL}\`"
+            echo "- Publish: \`${{ github.event.inputs.publish }}\`"
+            echo "- Immutable pin: \`${V}\`"
+            echo "- Branch floating tag: \`${CHANNEL}\`"
             if [ "${PROMOTE}" = "true" ]; then
-              echo "- **Generic staging:** GHCR \`:prerelease\` + eip Release \`prerelease\` (Development)"
+              echo "- **Generic staging:** also \`:prerelease\` / Release \`prerelease\` (Development)"
             else
               echo "- Generic \`prerelease\`: **not** updated (only \`${GENERIC_BRANCH}\` owns that tag)"
             fi
@@ -87,6 +97,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   publish_containers:
+    if: ${{ github.event.inputs.publish == 'containers' || github.event.inputs.publish == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [version]
@@ -246,6 +257,7 @@ jobs:
 
   release_eip:
     name: release eip assets
+    if: ${{ github.event.inputs.publish == 'binary' || github.event.inputs.publish == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [version]
@@ -261,6 +273,19 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.inputs.ref || github.sha }}
+
+      - name: Resolve commit + channel
+        id: meta
+        run: |
+          set -euo pipefail
+          CHANNEL="${{ needs.version.outputs.channel_tag }}"
+          if [ -z "${CHANNEL}" ]; then
+            echo "::error::channel_tag empty — version job did not resolve a release tag"
+            exit 1
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "channel_tag=${CHANNEL}" >> "$GITHUB_OUTPUT"
+          echo "Publishing eip Release tag=${CHANNEL} commit=$(git rev-parse --short=7 HEAD)"
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -288,21 +313,21 @@ jobs:
       - name: Upload branch-channel eip Release (prerelease)
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ needs.version.outputs.channel_tag }}
-          name: ${{ needs.version.outputs.channel_tag }}
-          target_commitish: ${{ github.sha }}
+          tag_name: ${{ steps.meta.outputs.channel_tag }}
+          name: ${{ steps.meta.outputs.channel_tag }}
+          target_commitish: ${{ steps.meta.outputs.sha }}
           prerelease: true
           make_latest: false
           generate_release_notes: true
+          fail_on_unmatched_files: true
           body: |
-            Swarm prerelease for branch `${{ needs.version.outputs.branch }}`.
+            Swarm prerelease for branch `${{ needs.version.outputs.branch }}` (eip binary).
 
             | Kind | Value |
             |------|--------|
-            | GHCR floating | `${{ needs.version.outputs.channel_tag }}` |
-            | GHCR pin | `${{ needs.version.outputs.version }}` |
-            | eip update | `EIP_UPDATE_TAG=${{ needs.version.outputs.channel_tag }}` |
-            | APP_VERSION | `${{ needs.version.outputs.channel_tag }}` (or pin) |
+            | Channel tag | `${{ steps.meta.outputs.channel_tag }}` |
+            | Version pin | `${{ needs.version.outputs.version }}` |
+            | eip update | `EIP_UPDATE_TAG=${{ steps.meta.outputs.channel_tag }}` |
           files: |
             admintool/dist/eip-windows-amd64.exe
             admintool/dist/eip-linux-amd64
@@ -316,16 +341,15 @@ jobs:
         with:
           tag_name: prerelease
           name: prerelease
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ steps.meta.outputs.sha }}
           prerelease: true
           make_latest: false
           generate_release_notes: true
+          fail_on_unmatched_files: true
           body: |
-            Development staging prerelease (pre-Public). Same commit as `${{ needs.version.outputs.channel_tag }}`.
+            Development staging prerelease (pre-Public). Same commit as `${{ steps.meta.outputs.channel_tag }}`.
 
-            - GHCR: `:prerelease`
             - Bootstrap / `eip update-binary`: `EIP_UPDATE_TAG=prerelease`
-            - `.env`: `APP_VERSION=prerelease`
             - Does not affect Public `:latest` / `X.Y.Z`
           files: |
             admintool/dist/eip-windows-amd64.exe
