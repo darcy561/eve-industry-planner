@@ -220,40 +220,36 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: ${{ env.DOCKER_BUILD_ARGS }}
 
-      # Personal-account packages: /users/{owner}/... (not /orgs/). Use the same PAT that
-      # docker-pushed the image (GHCR_TOKEN), not GITHUB_TOKEN. Fail hard while we verify.
-      # Repo link: OCI org.opencontainers.image.source (labels above) — not a REST call.
-      - name: Debug GHCR package (PAT)
+      # GHCR container visibility cannot be changed via REST (GET works, PATCH → 404).
+      # One-time bootstrap: Package settings → Public (+ Connect repository if unlinked).
+      # Repo association on push: OCI org.opencontainers.image.source (labels above).
+      - name: Check package visibility
         env:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           PACKAGE_NAME: ${{ steps.package-name.outputs.name }}
           OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
-          echo "OWNER=${OWNER}"
-          echo "PACKAGE_NAME=${PACKAGE_NAME}"
-          curl --fail-with-body -sS -L \
+          URL="https://api.github.com/users/${OWNER}/packages/container/${PACKAGE_NAME}"
+          code="$(curl -sS -o /tmp/pkg.json -w "%{http_code}" \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${GHCR_TOKEN}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/users/${OWNER}/packages/container/${PACKAGE_NAME}"
-
-      - name: Set package visibility to public
-        env:
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-          PACKAGE_NAME: ${{ steps.package-name.outputs.name }}
-          OWNER: ${{ github.repository_owner }}
-        run: |
-          set -euo pipefail
-          curl --fail-with-body -sS -L \
-            -X PATCH \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${GHCR_TOKEN}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            -H "Content-Type: application/json" \
-            "https://api.github.com/users/${OWNER}/packages/container/${PACKAGE_NAME}" \
-            -d '{"visibility":"public"}'
-          echo "Package ${PACKAGE_NAME} set public."
+            "${URL}" || true)"
+          if [ "${code}" != "200" ]; then
+            echo "::warning::Could not read package ${PACKAGE_NAME} (HTTP ${code}). Image was pushed; check GHCR if pulls fail."
+            cat /tmp/pkg.json || true
+            exit 0
+          fi
+          vis="$(jq -r '.visibility // empty' /tmp/pkg.json)"
+          echo "Package ${PACKAGE_NAME} visibility=${vis}"
+          if [ "${vis}" = "public" ]; then
+            echo "Package is public — OK."
+            exit 0
+          fi
+          echo "::warning::Package ${PACKAGE_NAME} is ${vis:-unknown}. GitHub has no working REST API to set container packages public."
+          echo "::warning::One-time: https://github.com/users/${OWNER}/packages/container/${PACKAGE_NAME}/settings → Change visibility → Public"
+          exit 0
 
   release_eip:
     name: release eip assets
