@@ -217,51 +217,19 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: ${{ env.DOCKER_BUILD_ARGS }}
 
-      # New packages often 404 for a few seconds; GITHUB_TOKEN also can't always see
-      # packages created with GHCR_TOKEN. Retry + use GHCR_TOKEN, link to this repo, then public.
-      - name: Link package to repo and set public
-        env:
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACKAGE_NAME: ${{ steps.package-name.outputs.name }}
-          OWNER: ${{ github.repository_owner }}
-          REPO: ${{ github.event.repository.name }}
+      # Same as publish-containers-public.yml — best-effort; do not fail the job.
+      # (Public packages are already public; first-time packages may need a one-time
+      # manual “Change visibility” under the user Packages page.)
+      - name: Set package visibility to public
         run: |
-          set -euo pipefail
-          TOKEN="${GHCR_TOKEN:-$GITHUB_TOKEN}"
-          ENC_NAME="$(printf %s "${PACKAGE_NAME}" | jq -sRr @uri)"
-          BASE="https://api.github.com/users/${OWNER}/packages/container/${ENC_NAME}"
-          AUTH=(-H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${TOKEN}" -H "X-GitHub-Api-Version: 2022-11-28")
-
-          for i in 1 2 3 4 5 6 7 8 9 10; do
-            code="$(curl -sS -o /tmp/pkg.json -w "%{http_code}" "${AUTH[@]}" "${BASE}" || true)"
-            if [ "${code}" = "200" ]; then
-              echo "Package ${PACKAGE_NAME} visible (attempt ${i})"
-              break
-            fi
-            echo "Package not ready yet (HTTP ${code}), retry ${i}/10…"
-            sleep 3
-          done
-          if [ "${code:-}" != "200" ]; then
-            echo "::error::Package ${PACKAGE_NAME} not found after push (last HTTP ${code}). Check https://github.com/users/${OWNER}/packages"
-            cat /tmp/pkg.json || true
-            exit 1
-          fi
-
-          # Surface under the repo Packages tab (otherwise only user-level packages list).
-          curl -sS -X PUT "${AUTH[@]}" \
-            "${BASE}/repos/${OWNER}/${REPO}" \
-            -o /tmp/link.json -w "link_http=%{http_code}\n" || true
-
-          vis="$(curl -sS -o /tmp/vis.json -w "%{http_code}" -X PATCH "${AUTH[@]}" \
-            "${BASE}" -d '{"visibility":"public"}')"
-          echo "visibility_http=${vis}"
-          if [ "${vis}" != "200" ] && [ "${vis}" != "204" ]; then
-            echo "::error::Failed to set ${PACKAGE_NAME} public (HTTP ${vis})"
-            cat /tmp/vis.json || true
-            exit 1
-          fi
-          echo "Package ${PACKAGE_NAME} is public and linked to ${OWNER}/${REPO}."
+          PACKAGE_NAME="${{ steps.package-name.outputs.name }}"
+          OWNER="${{ github.repository_owner }}"
+          curl -X PATCH \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/users/${OWNER}/packages/container/${PACKAGE_NAME}" \
+            -d '{"visibility":"public"}' || echo "Warning: Failed to set package visibility. Set manually in GitHub Package settings."
 
   release_eip:
     name: release eip assets
