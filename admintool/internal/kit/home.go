@@ -1,7 +1,6 @@
-// Home is always the process working directory — the folder that owns
-// stack YAML, .env, mode markers, and (in public installs) eip itself.
-// Public: setup drops the kit into one folder; run eip from there.
-// Local: run from the repo root.
+// Home is the directory that contains the running eip / eip.exe binary.
+// Bootstrap installs the binary into the deploy folder; stack YAML, .env, and
+// config live beside it. Everything in the tool resolves paths from that folder.
 package kit
 
 import (
@@ -9,13 +8,16 @@ import (
 	"path/filepath"
 )
 
-// Home returns the absolute project home (process working directory).
+// Home returns the absolute project home (directory of this executable).
 func Home() (string, error) {
-	wd, err := os.Getwd()
+	exe, err := os.Executable()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Abs(wd)
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
+	return filepath.Abs(filepath.Dir(exe))
 }
 
 // Path joins elements under Home (fails if Home cannot be resolved).

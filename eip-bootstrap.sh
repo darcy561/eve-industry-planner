@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Eve Industry Planner - fresh install (Linux/macOS).
-# Empty folder → host eip (CLI+TUI) + stack YAML + starter .env / eip.config.yaml.
+# Empty folder → host eip (CLI+TUI) + stack YAML.
+# eip lives in this folder; that directory is project home (desktop shortcuts OK).
+# Operator docs (.env / eip.config.yaml): run ./eip (TUI Setup) or ./eip init.
 #
 # Development staging (generic prerelease tag — default):
 #   curl -fsSL https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Development/eip-bootstrap.sh | bash -s -- ~/eip
@@ -11,7 +13,7 @@
 #   bash eip-bootstrap.sh ~/eip
 #
 # Overrides:
-#   EIP_KIT_BRANCH          raw GitHub branch for wrappers + stack YAML (default: Development)
+#   EIP_KIT_BRANCH          raw GitHub branch for stack YAML (default: Development)
 #   EIP_CLI_DOWNLOAD_BASE   Release asset directory (default: …/releases/download/prerelease)
 #   EIP_PUBLIC_RAW          full raw base URL (overrides EIP_KIT_BRANCH)
 
@@ -23,7 +25,7 @@ PUBLIC_RAW="${EIP_PUBLIC_RAW:-https://raw.githubusercontent.com/${REPO}/refs/hea
 DOWNLOAD_BASE="${EIP_CLI_DOWNLOAD_BASE:-https://github.com/${REPO}/releases/download/prerelease}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd 2>/dev/null || true)"
-if [ ! -f "${SCRIPT_DIR}/eip.sh" ] && [ ! -f "${SCRIPT_DIR}/eip-bootstrap.sh" ]; then
+if [ ! -f "${SCRIPT_DIR}/eip-bootstrap.sh" ]; then
   SCRIPT_DIR=""
 fi
 
@@ -33,18 +35,6 @@ DEPLOY="$(cd "${DEPLOY}" && pwd)"
 echo "EIP deploy home: ${DEPLOY}"
 echo "  kit source: ${PUBLIC_RAW}"
 echo "  binary:     ${DOWNLOAD_BASE}"
-
-fetch_or_copy() {
-  local name="$1"
-  local dest="${DEPLOY}/${name}"
-  if [ -n "${SCRIPT_DIR}" ] && [ -f "${SCRIPT_DIR}/${name}" ]; then
-    cp -f "${SCRIPT_DIR}/${name}" "${dest}"
-    echo "  wrote ${name} (from local)"
-  else
-    echo "  downloading ${name}…"
-    curl -fsSL "${PUBLIC_RAW}/${name}" -o "${dest}"
-  fi
-}
 
 fetch_stack_missing() {
   local name="$1"
@@ -77,11 +67,6 @@ host_asset_name() {
       ;;
   esac
 }
-
-fetch_or_copy eip.sh
-fetch_or_copy eip.cmd
-fetch_or_copy eip.ps1
-chmod +x "${DEPLOY}/eip.sh"
 
 for f in docker-stack.yml docker-stack.data.yml docker-stack.obs.yml; do
   fetch_stack_missing "${f}"
@@ -126,19 +111,11 @@ place_host_bin() {
 
 place_host_bin || true
 
-if [ ! -f "${DEPLOY}/.eip-home" ]; then
-  printf 'Eve Industry Planner deploy home\n' >"${DEPLOY}/.eip-home"
-  echo "  wrote .eip-home"
-fi
-
 if [ ! -x "${DEPLOY}/eip" ]; then
   echo "Error: no host eip in deploy home. Publish a prerelease (publish-prerelease.yml)," >&2
   echo "  or build with ./scripts/admintool/build-host.sh, then re-run bootstrap." >&2
   exit 1
 fi
-
-echo "  writing starter config from bundled templates (eip init)…"
-( cd "${DEPLOY}" && ./eip init )
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "  note: Docker not on PATH — eip needs the Engine for doctor/stack commands"
@@ -148,7 +125,9 @@ cat <<EOF
 
 Done. This folder is your EIP home.
   cd "${DEPLOY}"
-  edit .env   (EVE SSO; APP_VERSION defaults to prerelease)
+  ./eip          # TUI Setup writes .env / eip.config.yaml
+  # or: ./eip init
+  # optional: ./eip add-path   # bare eip on PATH
   export EIP_UPDATE_TAG=prerelease   # for eip update-binary on this channel
   ./eip up
 EOF

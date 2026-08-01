@@ -22,4 +22,6 @@ Host ops tool for Eve Industry Planner: one binary (`eip` / `eip.exe`) with **Co
 
 **Agent rules:** [`.cursor/rules/admintool-tui.mdc`](../../.cursor/rules/admintool-tui.mdc), [`.cursor/rules/admintool-templates.mdc`](../../.cursor/rules/admintool-templates.mdc) (`globs: admintool/**`).
 
-**Scope note:** Preferred host path for stack lifecycle is `eip` (up/dev/sync/secrets/rebuild/… + TUI). Host-tool day-2: **`eip update-binary`**. Public first-touch chicken-egg (curl Makefile / `update-files`) remains Make — not an `eip` verb yet. Make `release` / advertise / `update-data` are legacy leftovers — use `eip up` / `dev` / `rebuild` instead. `eip init` / TUI Setup only write operator docs (`.env` / `eip.config.yaml`).
+**Project home:** `kit.Home()` is the directory of the running `eip` / `eip.exe` (bootstrap puts the binary there). Details: [VARIABLES.md](./VARIABLES.md#project-home).
+
+**Scope note:** Preferred host path for stack lifecycle is `eip` (up/dev/sync/secrets/rebuild/… + TUI). First-touch: [`eip-bootstrap.sh`](../../eip-bootstrap.sh) / [`eip-bootstrap.ps1`](../../eip-bootstrap.ps1). Host-tool day-2: **`eip update-binary`**. `eip init` / TUI Setup only write operator docs (`.env` / `eip.config.yaml`).

@@ -50,6 +50,8 @@ Requires **`GHCR_TOKEN`**. Images push with that PAT; repo association uses OCI 
 ```bash
 mkdir -p ~/eip && cd ~/eip
 curl -fsSL https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Development/eip-bootstrap.sh | bash -s -- .
+./eip          # TUI Setup → .env / eip.config.yaml (or: ./eip init)
+# optional: ./eip add-path   # bare `eip` on PATH (symlink)
 # .env: EVE SSO; APP_VERSION=prerelease
 export EIP_UPDATE_TAG=prerelease
 ./eip up
@@ -63,7 +65,7 @@ export EIP_UPDATE_TAG=prerelease
 export EIP_KIT_BRANCH=swarm/my-feature
 export EIP_CLI_DOWNLOAD_BASE=https://github.com/darcy561/eve-industry-planner/releases/download/prerelease-swarm-my-feature
 # bootstrap…
-# APP_VERSION=prerelease-swarm-my-feature
+./eip   # Setup / init, then set APP_VERSION=prerelease-swarm-my-feature
 export EIP_UPDATE_TAG=prerelease-swarm-my-feature
 ./eip up
 ```

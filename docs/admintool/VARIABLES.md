@@ -15,7 +15,7 @@ Do not hardcode parallel copies of these values in screens or menus. Change the 
 | S3 app bucket names | [`admintool/internal/dataplane/s3`](../../admintool/internal/dataplane/s3/) (`AppBuckets`: `static-data`, `static-data-test`) — keep in sync with `objectstore` / stack `S3_BUCKET` |
 | Mongo ensure caller entry (Ready / ensure-mongo / init) | [`admintool/internal/dataplane`](../../admintool/internal/dataplane/) (`EnsureMongo`) → implementation `mongo.Ensure` |
 | Mongo preimage collections + application index specs | [`admintool/internal/dataplane/mongo`](../../admintool/internal/dataplane/mongo/) (`PreimageCollections`, `IndexSpecs`) — ensured via `EnsureMongo`; not on core boot |
-| Kit file names / `Require` / project home | [`admintool/internal/kit`](../../admintool/internal/kit/) — `Home()` is always process cwd |
+| Kit file names / `Require` / project home | [`admintool/internal/kit`](../../admintool/internal/kit/) — `Home()` is the directory of the running binary |
 | Path writability preflight | [`admintool/internal/kit/writable.go`](../../admintool/internal/kit/writable.go) (`EnsureFileWritable` / `EnsureDirWritable` / `Check*`) |
 | Operator docs gate | [`admintool/internal/kit/templates`](../../admintool/internal/kit/templates/) (`CheckOperatorDocs` → env usable + config Validate) |
 | Operator YAML Load/Validate/SyncEnv / Sync / WriteYAML | [`admintool/internal/config`](../../admintool/internal/config/) |
@@ -36,7 +36,7 @@ When adding a **CLI** verb: update `catalog` first, wire Cobra under `cmd/comman
 |---------|------|
 | Main | **Setup** (only if `.env` or `eip.config.yaml` missing) · Status · Start · Dev · Restart · Rebuild · Stop · Update · **More** |
 | More | Secrets · Settings · Logs · Command |
-| Hidden from TUI | `doctor`/`probe`, `ensure-mongo`, `ensure-s3`, `restore-mongo-keyfile`, `rekey-mongo` (CLI-only) |
+| Hidden from TUI | `doctor`/`probe`, `add-path`, `ensure-mongo`, `ensure-s3`, `restore-mongo-keyfile`, `rekey-mongo` (CLI-only) |
 | Not on menu | `secrets` / `sync` apply — Persist auto-queues them; typed Command or CLI for manual |
 
 ## TUI theme / layout (code)
@@ -94,9 +94,15 @@ Never document process flags as `.env` keys; never add them to `EnvFields`. `msg
 
 ## Project home
 
-**Rule:** the folder you run `eip` from is the project home (stack files, `.env`, `eip.config.yaml`). Resolution SoT: `internal/kit.Home()` → process cwd. Local dev: run from the repo root.
+**Rule:** project home is the directory that contains the running `eip` / `eip.exe` binary (`internal/kit.Home()`). Stack YAML, `.env`, and `eip.config.yaml` live beside it. Bootstrap installs the binary into that folder on purpose.
 
-**Public first-touch** (empty VPS → curl Makefile / `update-files`) is still Make under `scripts/bootstrap/`. There is no `eip` chicken-egg installer yet. Intended long-term model: drop binary (+ embedded kit) into a folder and run from there; day-2 host-tool replace is **`eip update-binary`** (GitHub Releases when published). That is **not** `make release` / advertise (retired; use `eip up`/`dev`/`rebuild`) and **not** `make update-data` (retired; pins in stack YAML + redeploy). Until Public releases exist, download URLs are not live.
+A Windows shortcut (or double-click) that targets `…\home\eip.exe` uses that folder as home regardless of shortcut **Start in** / shell cwd. Do not move the binary out of the home.
+
+Optional bare `eip` on PATH: run **`eip add-path`** (symlink; home still resolves via the real binary). `eip add-path --remove` undoes it. Not required for `./eip up` from the home folder.
+
+Local: `.\scripts\admintool\build-host.ps1` writes `eip.exe` at the repo root, so home is the repo root. Prefer a built binary over `go run` (temp build dirs are not a useful home).
+
+Day-2 host-tool replace: **`eip update-binary`** (GitHub Releases). Containers stay on `APP_VERSION` + `eip up`.
 
 Deploy source (`live` / `dev`) is **not** a project-home file. Deploy stamps Swarm label `eip.deploy.source` (`deploy.LabelDeploySource`); `ResolveSource` reads that label only.
 

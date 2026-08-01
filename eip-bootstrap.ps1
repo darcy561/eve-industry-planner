@@ -1,5 +1,7 @@
 # Eve Industry Planner - fresh install (Windows).
-# Empty folder → host eip.exe (CLI+TUI) + stack YAML + starter .env / eip.config.yaml.
+# Empty folder → host eip.exe (CLI+TUI) + stack YAML.
+# eip.exe lives in this folder; that directory is project home (shortcuts OK).
+# Operator docs (.env / eip.config.yaml): run .\eip.exe (TUI Setup) or .\eip.exe init.
 #
 # Development staging (generic prerelease tag — default):
 #   irm …/Development/eip-bootstrap.ps1 -OutFile eip-bootstrap.ps1; .\eip-bootstrap.ps1 -Path D:\eip
@@ -7,7 +9,7 @@
 # Per-branch: set EIP_KIT_BRANCH + EIP_CLI_DOWNLOAD_BASE to that branch's prerelease-* Release.
 #
 # Overrides:
-#   EIP_KIT_BRANCH          raw GitHub branch for wrappers + stack YAML (default: Development)
+#   EIP_KIT_BRANCH          raw GitHub branch for stack YAML (default: Development)
 #   EIP_CLI_DOWNLOAD_BASE   Release asset directory (default: …/releases/download/prerelease)
 #   EIP_PUBLIC_RAW          full raw base URL (overrides EIP_KIT_BRANCH)
 
@@ -45,18 +47,6 @@ function Find-LocalHostBinary([string]$srcDir) {
   return $null
 }
 
-function Get-OrCopyFile([string]$name, [string]$deploy, [string]$srcDir, [string]$rawBase) {
-  $dest = Join-Path $deploy $name
-  $local = if ($srcDir) { Join-Path $srcDir $name } else { $null }
-  if ($local -and (Test-Path $local)) {
-    Copy-Item -Force $local $dest
-    Write-Host "  wrote $name (from local)"
-    return
-  }
-  Write-Host "  downloading $name..."
-  Invoke-WebRequest -Uri "$rawBase/$name" -OutFile $dest -UseBasicParsing
-}
-
 function Get-StackMissing([string]$name, [string]$deploy, [string]$srcDir, [string]$rawBase) {
   $dest = Join-Path $deploy $name
   if (Test-Path $dest) {
@@ -83,9 +73,6 @@ Write-Host "  kit source: $PublicRaw"
 Write-Host "  binary:     $DownloadBase"
 
 $srcDir = Get-BootstrapDir
-foreach ($name in @("eip.cmd", "eip.ps1", "eip.sh")) {
-  Get-OrCopyFile $name $deploy $srcDir $PublicRaw
-}
 foreach ($name in @("docker-stack.yml", "docker-stack.data.yml", "docker-stack.obs.yml")) {
   Get-StackMissing $name $deploy $srcDir $PublicRaw
 }
@@ -109,25 +96,11 @@ if ($hostSrc) {
   Write-Host "  note: no eip.exe yet - build with .\scripts\admintool\build-host.ps1, then re-run bootstrap"
 }
 
-$marker = Join-Path $deploy ".eip-home"
-if (-not (Test-Path $marker)) {
-  Set-Content -Path $marker -Value "Eve Industry Planner deploy home`n" -NoNewline
-  Write-Host "  wrote .eip-home"
-}
-
 if (-not (Test-Path $hostDest)) {
   Write-Error "No eip.exe in deploy home. Publish a prerelease (publish-prerelease.yml), or build with .\scripts\admintool\build-host.ps1, then re-run bootstrap."
   exit 1
 }
 
-Push-Location $deploy
-try {
-  Write-Host "  writing starter config from bundled templates (eip init)..."
-  & $hostDest init
-  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-} finally {
-  Pop-Location
-}
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
   Write-Host "  note: Docker not on PATH - eip needs Docker Desktop running for doctor/stack commands"
 }
@@ -135,6 +108,8 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
 Write-Host ""
 Write-Host "Done. This folder is your EIP home."
 Write-Host "  cd `"$deploy`""
-Write-Host "  edit .env   (EVE SSO; APP_VERSION defaults to prerelease)"
+Write-Host "  .\eip.exe          # TUI Setup writes .env / eip.config.yaml"
+Write-Host "  # or: .\eip.exe init"
+Write-Host "  # optional: .\eip.exe add-path   # bare eip on PATH"
 Write-Host "  `$env:EIP_UPDATE_TAG = 'prerelease'   # for eip update-binary on this channel"
 Write-Host "  .\eip.exe up"
