@@ -70,7 +70,7 @@ func Run(ctx context.Context, src Source) error {
 	var expandEnv map[string]string
 	switch src {
 	case SourceLive:
-		if err := images.PullLive(ctx, home); err != nil {
+		if err := images.PullLive(ctx, home, wantObs); err != nil {
 			return err
 		}
 	case SourceDev:
@@ -109,6 +109,11 @@ func Run(ctx context.Context, src Source) error {
 	}
 
 	swarm.PruneStale(ctx, expanded.Secrets)
+	if src == SourceLive {
+		if err := images.ReconcileLive(ctx, home, wantObs); err != nil {
+			return err
+		}
+	}
 	if wantObs {
 		msg.Step("Done (%s, observability on). Run: eip status", mode)
 	} else {

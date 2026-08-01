@@ -25,6 +25,8 @@ func TestHomeWiresMenuAndDocs(t *testing.T) {
 				"showMoreList()",
 				"fromMore",
 				"onCLIDone(",
+				"resumeAfterBinaryCmd(",
+				"applyUpdateRestartMessage(",
 			} {
 				if !strings.Contains(body, want) {
 					t.Fatalf("%s must contain %q", name, want)

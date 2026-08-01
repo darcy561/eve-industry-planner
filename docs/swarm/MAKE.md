@@ -6,7 +6,7 @@
 >
 > Scripts layout: **`scripts/bootstrap/`** (ensure / update-files), **`scripts/lib/`** (shared helpers), **`scripts/swarm/`** (bring-up + day-2), **`scripts/ops/`** (escapes), **`scripts/test/`** (smokes). The Makefile only teaches public verbs — stack rematerialize is internal. Compose YAML is a stub (Public bundle / leftover cleanup only).
 >
-> **Preferred host tool:** [`eip`](../admintool/README.md) (`eip up` / `eip dev` / `eip rebuild` / `eip secrets` / ensure-* / `eip update-binary`). See [admintool ENGINEERING — Dual path](../admintool/ENGINEERING.md#dual-path-eip-vs-make).
+> **Preferred host tool:** [`eip`](../admintool/ENGINEERING.md) (`eip up` / `eip dev` / `eip rebuild` / `eip secrets` / ensure-* / `eip update`). See [Dual path](../admintool/ENGINEERING.md#dual-path-eip-vs-make).
 >
 > **Retired Make concepts (do not mirror in eip):** `release` / `dev-release` / `advertise` → use **`eip up`** / **`eip dev`** / **`eip rebuild`**. `update-data` → same (image pins in stack YAML). Bash `stack-deploy.sh` → **`eip up`/`dev`** (Go still calls `docker stack deploy` CLI; SDK has no stack-deploy API).
 >

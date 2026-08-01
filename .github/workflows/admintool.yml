@@ -1,25 +1,36 @@
 # Build + unit tests for the eip host tool (admintool module).
-# On tag v*: publish cross-compiled Release assets for eip update.
+# Public CLI ship: workflow_dispatch bump → cli-vX.Y.Z + floating cli.
 name: admintool
 
 on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Semver bump from live cli-v* (first ship is 1.0.0 if none)'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
   push:
     branches: ["**"]
     paths:
       - "admintool/**"
       - "scripts/admintool/**"
       - ".github/workflows/admintool.yml"
-    tags:
-      - "v*"
+      - ".github/scripts/semver-bump.sh"
   pull_request:
     paths:
       - "admintool/**"
       - "scripts/admintool/**"
       - ".github/workflows/admintool.yml"
+      - ".github/scripts/semver-bump.sh"
 
 concurrency:
-  group: admintool-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'workflow_dispatch' && 'admintool-public-release' || format('admintool-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
   test:
@@ -56,8 +67,7 @@ jobs:
 
   release:
     name: release assets
-    # Swarm prerelease channel tags (prerelease, prerelease-*) are published by publish-prerelease.yml.
-    if: startsWith(github.ref, 'refs/tags/v') && !startsWith(github.ref_name, 'prerelease')
+    if: github.event_name == 'workflow_dispatch'
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -69,8 +79,42 @@ jobs:
         working-directory: admintool
 
     steps:
-      - name: Checkout
+      - name: Checkout Public
         uses: actions/checkout@v6
+        with:
+          ref: Public
+          fetch-depth: 0
+
+      - name: Record Public SHA
+        id: meta
+        working-directory: ${{ github.workspace }}
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve next CLI version
+        id: version
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          bash .github/scripts/semver-bump.sh cli "${{ github.event.inputs.bump }}"
+
+      - name: Require CLI release notes
+        id: notes
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          NOTES_FILE=CLI_RELEASE_NOTES.md
+          if [ ! -f "${NOTES_FILE}" ]; then
+            echo "::error::missing ${NOTES_FILE}"
+            exit 1
+          fi
+          # Strip a single leading markdown title line; require remaining non-empty content.
+          BODY="$(sed '1{/^#/d;}' "${NOTES_FILE}" | sed '/./,$!d')"
+          if [ -z "$(echo "${BODY}" | tr -d '[:space:]')" ]; then
+            echo "::error::${NOTES_FILE} is empty — add pending CLI notes before publishing"
+            exit 1
+          fi
+          printf '%s\n' "${BODY}" > /tmp/cli-release-body.md
+          echo "body_path=/tmp/cli-release-body.md" >> "$GITHUB_OUTPUT"
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -81,13 +125,14 @@ jobs:
       - name: Build release binaries
         env:
           CGO_ENABLED: "0"
+          VER: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          VER="${TAG#v}"
-          # Public: Version only. kit.Channel stays empty so Setup does not preset APP_VERSION
-          # (operator chooses image tag). update-binary uses /releases/latest.
+          # Public CLI: Version=semver, Channel=cli (binary updates), KitBranch=Public (stacks).
+          # Setup must not preset APP_VERSION from Channel=cli.
           LDFLAGS="-s -w -X eve-industry-planner/admintool/cmd/commands.Version=${VER}"
+          LDFLAGS="${LDFLAGS} -X eve-industry-planner/admintool/internal/kit.Channel=cli"
+          LDFLAGS="${LDFLAGS} -X eve-industry-planner/admintool/internal/kit.KitBranch=Public"
           mkdir -p dist
           GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o dist/eip-windows-amd64.exe .
           GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o dist/eip-linux-amd64 .
@@ -98,13 +143,53 @@ jobs:
             sha256sum eip-windows-amd64.exe eip-linux-amd64 eip-darwin-amd64 eip-darwin-arm64 > SHA256SUMS
           )
 
-      - name: Upload GitHub Release assets
+      - name: Upload pin Release cli-v*
         uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          body_path: ${{ steps.notes.outputs.body_path }}
+          target_commitish: ${{ steps.meta.outputs.sha }}
+          make_latest: false
+          prerelease: false
+          fail_on_unmatched_files: true
           files: |
             admintool/dist/eip-windows-amd64.exe
             admintool/dist/eip-linux-amd64
             admintool/dist/eip-darwin-amd64
             admintool/dist/eip-darwin-arm64
             admintool/dist/SHA256SUMS
-          generate_release_notes: true
+
+      - name: Upload floating Release cli
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: cli
+          name: cli
+          body_path: ${{ steps.notes.outputs.body_path }}
+          target_commitish: ${{ steps.meta.outputs.sha }}
+          make_latest: false
+          prerelease: false
+          fail_on_unmatched_files: true
+          files: |
+            admintool/dist/eip-windows-amd64.exe
+            admintool/dist/eip-linux-amd64
+            admintool/dist/eip-darwin-amd64
+            admintool/dist/eip-darwin-arm64
+            admintool/dist/SHA256SUMS
+
+      - name: Clear CLI release notes on Public
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin Public
+          git checkout -B Public origin/Public
+          printf '%s\n' '# CLI release notes (pending)' '' > CLI_RELEASE_NOTES.md
+          git add CLI_RELEASE_NOTES.md
+          if git diff --staged --quiet; then
+            echo "CLI_RELEASE_NOTES.md already clear"
+            exit 0
+          fi
+          git commit -m "chore(cli): clear CLI_RELEASE_NOTES.md after ${{ steps.version.outputs.tag }}"
+          git push origin Public

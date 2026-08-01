@@ -1,20 +1,19 @@
 package process
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
-func TestFromTUI(t *testing.T) {
-	t.Setenv(EnvFromTUI, "")
-	if FromTUI() {
-		t.Fatal("expected false when unset")
+func TestTakeUpdateResume(t *testing.T) {
+	t.Setenv(EnvUpdateResume, ValueTrue)
+	if !TakeUpdateResume() {
+		t.Fatal("expected true")
 	}
-	t.Setenv(EnvFromTUI, ValueTrue)
-	if !FromTUI() {
-		t.Fatal("expected true when set")
+	if os.Getenv(EnvUpdateResume) != "" {
+		t.Fatal("expected env cleared")
 	}
-}
-
-func TestChildEnv(t *testing.T) {
-	if ChildEnv() != "EIP_FROM_TUI=1" {
-		t.Fatalf("got %q", ChildEnv())
+	if TakeUpdateResume() {
+		t.Fatal("second take should be false")
 	}
 }

@@ -19,6 +19,9 @@ admintool/dist
 frontend/dist
 frontend/routeTree.gen.js
 
+# Cursor IDE — rules/plans stay local. Promote durable notes into docs/ when needed.
+.cursor/
+
 # misc
 *.exe
 *.env

@@ -146,13 +146,13 @@ You have two options:
 
 These run on the same external `eip` network (`make ensure-eip-network`; [docs/swarm/NETWORK.md](docs/swarm/NETWORK.md)) and are defined in `docker-compose.yml`:
 
-- **alloy**: Unified telemetry agent — OTLP logs from Go services → Loki; Docker stdout logs → Loki for frontend/infra via **`alloy-docker-proxy`** (allowlisted sock; Alloy has no raw sock). Config embedded in eip (`admintool/internal/obskit/fs/alloy/config.alloy`; `LOG_LEVEL` env read at Alloy startup)
+- **alloy**: Unified telemetry agent — OTLP logs from Go services → Loki; Docker stdout logs → Loki for frontend/infra via **`alloy-docker-proxy`** (allowlisted sock; Alloy has no raw sock). Config embedded in eip (`admintool/internal/kit/obs/alloy/config.alloy`; `LOG_LEVEL` env read at Alloy startup)
 - **nats-exporter**: Scrapes NATS `:8222` into Prometheus metrics on `:7777` (`-prefix=nats`); powers **NATS Server** / **NATS JetStream** Grafana dashboards
 - **redis-exporter**: Scrapes Redis INFO into Prometheus on `:9121`; powers **Redis** Grafana dashboard
 - **mongodb-exporter**: Scrapes MongoDB into Prometheus on `:9216` (`--compatible-mode`); powers **MongoDB** Grafana dashboard
 - **prometheus**: Metrics TSDB on Swarm **data** fragment (`eip_prometheus`, alias `prometheus`); scrapes asynqmon / exporters / Traefik; receives app OTLP metrics from Alloy remote write. Not part of the observability addon toggle (#34). Day-2 config: `make update-data SERVICE=prometheus`
 - **loki**: Log storage; Alloy pushes container stdout logs with `compose_service` labels for dashboards such as **Core · logs**, **API · logs**, etc.
-- **grafana**: Dashboards from embedded eip configs (`admintool/internal/obskit/fs/grafana/provisioning`); login uses `GRAFANA_ADMIN_*` from `.env`. **`make dev`**: http://127.0.0.1/grafana via Traefik (no Grafana `ports:`). **`make up`**: unpublished — use Tailscale/tunnel to `grafana:3000` on `eip` (Traefik Grafana not default; optional later).
+- **grafana**: Dashboards from embedded eip configs (`admintool/internal/kit/obs/grafana/provisioning`); login uses `GRAFANA_ADMIN_*` from `.env`. **`make dev`**: http://127.0.0.1/grafana via Traefik (no Grafana `ports:`). **`make up`**: unpublished — use Tailscale/tunnel to `grafana:3000` on `eip` (Traefik Grafana not default; optional later).
 - **node_exporter**: Host CPU/memory/disk/network metrics on `:9100`; scraped by Prometheus (`job=node`); **Host** Grafana dashboard
 
 ### Ports

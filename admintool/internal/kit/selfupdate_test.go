@@ -1,6 +1,7 @@
 package kit
 
 import (
+	"os"
 	"testing"
 )
 
@@ -22,6 +23,12 @@ func TestNormalizeVersion(t *testing.T) {
 	}
 	if got := normalizeVersion("1.2.3"); got != "1.2.3" {
 		t.Fatalf("got %q", got)
+	}
+	if got := normalizeVersion("cli-v1.0.0"); got != "1.0.0" {
+		t.Fatalf("cli-v got %q", got)
+	}
+	if got := normalizeVersion("cli"); got != "" {
+		t.Fatalf("floating cli got %q", got)
 	}
 }
 
@@ -51,7 +58,14 @@ func TestDefaultAppVersionUsesChannel(t *testing.T) {
 	if got := BakedUpdateChannel(); got != Channel {
 		t.Fatalf("BakedUpdateChannel=%q", got)
 	}
-	// Public / local: Channel empty or semver → no APP_VERSION preset
+	// Public / local: Channel empty, "cli", or semver → no APP_VERSION preset
+	Channel = "cli"
+	if got := DefaultAppVersion(); got != "" {
+		t.Fatalf("cli must not preset APP_VERSION, got %q", got)
+	}
+	if got := BinaryChannel(); got != "cli" {
+		t.Fatalf("BinaryChannel=%q", got)
+	}
 	Channel = "1.2.3"
 	if got := DefaultAppVersion(); got != "" {
 		t.Fatalf("semver must not preset APP_VERSION, got %q", got)
@@ -59,6 +73,34 @@ func TestDefaultAppVersionUsesChannel(t *testing.T) {
 	Channel = ""
 	if got := DefaultAppVersion(); got != "" {
 		t.Fatalf("empty Channel must not preset APP_VERSION, got %q", got)
+	}
+	if got := BinaryChannel(); got != "cli" {
+		t.Fatalf("default BinaryChannel=%q", got)
+	}
+}
+
+func TestResolveKitBranch(t *testing.T) {
+	prevB, prevEnv := KitBranch, os.Getenv("EIP_KIT_BRANCH")
+	t.Cleanup(func() {
+		KitBranch = prevB
+		if prevEnv == "" {
+			_ = os.Unsetenv("EIP_KIT_BRANCH")
+		} else {
+			_ = os.Setenv("EIP_KIT_BRANCH", prevEnv)
+		}
+	})
+	_ = os.Unsetenv("EIP_KIT_BRANCH")
+	KitBranch = ""
+	if got := ResolveKitBranch(); got != "Public" {
+		t.Fatalf("default=%q", got)
+	}
+	KitBranch = "swarm/hard-cutover"
+	if got := ResolveKitBranch(); got != "swarm/hard-cutover" {
+		t.Fatalf("baked=%q", got)
+	}
+	t.Setenv("EIP_KIT_BRANCH", "Development")
+	if got := ResolveKitBranch(); got != "Development" {
+		t.Fatalf("env=%q", got)
 	}
 }
 

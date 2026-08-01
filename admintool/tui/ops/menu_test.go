@@ -10,6 +10,21 @@ import (
 	"eve-industry-planner/admintool/tui/status"
 )
 
+func writeOperatorKit(t *testing.T, home string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(home, kit.EnvFile), []byte("X=1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, kit.ConfigFile), []byte("version: 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range kit.StackFiles {
+		if err := os.WriteFile(filepath.Join(home, name), []byte("services: {}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestSetupNeeded(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
@@ -25,23 +40,22 @@ func TestSetupNeeded(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(home, kit.ConfigFile), []byte("version: 1\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	if !ops.SetupNeeded(home) {
+		t.Fatal("docs without stacks still needs setup")
+	}
+	writeOperatorKit(t, home)
 	if ops.SetupNeeded(home) {
-		t.Fatal("both files present — setup not needed")
+		t.Fatal("docs + stacks present — setup not needed")
 	}
 }
 
 func TestMainMenuOrderGreen(t *testing.T) {
 	home := t.TempDir()
 	t.Chdir(home)
-	// Both docs present → no Setup
-	if err := os.WriteFile(kit.EnvFile, []byte("X=1\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(kit.ConfigFile, []byte("version: 1\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	// Docs + stacks present → no Setup
+	writeOperatorKit(t, ".")
 	entries := ops.VisibleEntries(status.LightGreen)
-	want := []string{"Status", "Start", "Dev", "Restart", "Rebuild", "Stop", "Update tool", "More"}
+	want := []string{"Status", "Start", "Dev", "Restart", "Rebuild", "Stop", "Update", "More"}
 	if len(entries) != len(want) {
 		t.Fatalf("len=%d want %d: %+v", len(entries), len(want), titles(entries))
 	}
@@ -108,12 +122,7 @@ func TestApplyDockerGateStartsAtTopAfterProbe(t *testing.T) {
 	}
 	// With no docs, Setup is first; with docs Status is first.
 	_ = cur
-	if err := os.WriteFile(kit.EnvFile, []byte("X=1\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(kit.ConfigFile, []byte("version: 1\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeOperatorKit(t, ".")
 	ops.ApplyDockerGate(&l, status.LightGreen)
 	cur, ok = ops.Selected(l)
 	if !ok || cur.Title != "Status" {

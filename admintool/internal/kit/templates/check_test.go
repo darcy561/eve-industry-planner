@@ -16,6 +16,7 @@ func fillEVEOperatorSSO(t *testing.T, home string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	m["APP_VERSION"] = "1.0.0"
 	m["EVE_CLIENT_ID"] = "test-eve-client-id"
 	m["EVE_CLIENT_SECRET"] = "test-eve-client-secret"
 	m["EVE_CALLBACK_URL"] = "https://example.com/auth/callback"

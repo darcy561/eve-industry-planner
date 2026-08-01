@@ -25,16 +25,20 @@ func init() {
 
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Write missing .env / eip.config.yaml from Go defaults",
-	Long: `Write missing .env (EnvFields with Autogen secrets resolved) and eip.config.yaml
+	Short: "Write missing stack YAML / .env / eip.config.yaml",
+	Long: `Fetch missing docker-stack*.yml from the baked kit git branch tip, then write
+missing .env (EnvFields with Autogen secrets resolved) and eip.config.yaml
 (yamldefaults). Does not overwrite existing files. EVE SSO keys are left blank —
 set them (Setup / Edit / hand-edit) before CheckOperatorDocs / ensure can pass.
+
+Bootstrap only installs the host binary; this is the first-run fetch for stacks.
 
 If Swarm data tasks are running, also runs dataplane.EnsureS3 and/or
 dataplane.EnsureMongo as applicable (after the operator-docs gate).
 
 Does not push secrets/config into an existing stack — day-2 apply is eip secrets
 then eip sync (TUI Persist queues those child CLIs when Health is up).
+Day-2 stack refresh is eip update (or --stacks-only).
 
 TUI Setup is the guided editor for the same files (may overwrite with backups).`,
 	Args: cobra.NoArgs,
@@ -44,6 +48,22 @@ TUI Setup is the guided editor for the same files (may overwrite with backups).`
 		if err != nil {
 			msg.EmitStack("init", msg.LightRed, err.Error())
 			return err
+		}
+
+		msg.Step("Ensuring docker-stack*.yml…")
+		stackRes, err := kit.UpdateStacks(context.Background(), kit.StackUpdateOptions{
+			Home:        home,
+			MissingOnly: true,
+		})
+		if err != nil {
+			msg.EmitStack("init", msg.LightRed, err.Error())
+			return err
+		}
+		for _, name := range stackRes.Updated {
+			msg.Line("wrote " + name + " (from " + stackRes.Branch + ")")
+		}
+		for _, name := range stackRes.Unchanged {
+			msg.Line(name + " already present (unchanged)")
 		}
 
 		wroteEnv, err := templates.WriteMissingEnv(home)
@@ -105,7 +125,7 @@ TUI Setup is the guided editor for the same files (may overwrite with backups).`
 		}
 
 		chip := "already initialized"
-		if wroteEnv || wroteCfg {
+		if wroteEnv || wroteCfg || len(stackRes.Updated) > 0 {
 			chip = "defaults written"
 		}
 		msg.EmitStack("init", msg.LightGreen, chip)

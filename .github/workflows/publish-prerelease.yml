@@ -298,10 +298,13 @@ jobs:
           CGO_ENABLED: "0"
           VER: ${{ needs.version.outputs.version }}
           CHANNEL: ${{ steps.meta.outputs.channel_tag }}
+          KIT_BRANCH: ${{ needs.version.outputs.branch }}
         run: |
           set -euo pipefail
-          # Version = immutable pin; Channel = floating tag (APP_VERSION default + update-binary).
-          LDFLAGS="-s -w -X eve-industry-planner/admintool/cmd/commands.Version=${VER} -X eve-industry-planner/admintool/internal/kit.Channel=${CHANNEL}"
+          # Version = immutable pin; Channel = Release tag; KitBranch = stack YAML git ref.
+          LDFLAGS="-s -w -X eve-industry-planner/admintool/cmd/commands.Version=${VER}"
+          LDFLAGS="${LDFLAGS} -X eve-industry-planner/admintool/internal/kit.Channel=${CHANNEL}"
+          LDFLAGS="${LDFLAGS} -X eve-industry-planner/admintool/internal/kit.KitBranch=${KIT_BRANCH}"
           mkdir -p dist
           GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o dist/eip-windows-amd64.exe .
           GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o dist/eip-linux-amd64 .
@@ -329,7 +332,7 @@ jobs:
             |------|--------|
             | Channel tag | `${{ steps.meta.outputs.channel_tag }}` |
             | Version pin | `${{ needs.version.outputs.version }}` |
-            | eip update | `EIP_UPDATE_TAG=${{ steps.meta.outputs.channel_tag }}` |
+            | eip update | baked channel `${{ steps.meta.outputs.channel_tag }}` |
           files: |
             admintool/dist/eip-windows-amd64.exe
             admintool/dist/eip-linux-amd64
@@ -351,8 +354,8 @@ jobs:
           body: |
             Development staging prerelease (pre-Public). Same commit as `${{ steps.meta.outputs.channel_tag }}`.
 
-            - Bootstrap / `eip update-binary`: `EIP_UPDATE_TAG=prerelease`
-            - Does not affect Public `:latest` / `X.Y.Z`
+            - Bootstrap / `eip update`: channel `prerelease`
+            - Does not affect Public `:latest` / `X.Y.Z` / Release tag `cli`
           files: |
             admintool/dist/eip-windows-amd64.exe
             admintool/dist/eip-linux-amd64

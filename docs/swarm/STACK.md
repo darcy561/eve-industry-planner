@@ -3,7 +3,7 @@
 > Part of [ROADMAP.md](./ROADMAP.md). **Implementer** doc for the live stack:
 > Swarm **data fragment** (mongo / redis / nats / SeaweedFS / Prometheus) then **app fragment** (Traefik + api /
 > websocket / worker / ws-router / core / **frontend**); optional Compose observability ops. Preferred bring-up:
-> [`eip up`](../admintool/README.md) / `eip dev` ([ENGINEERING.md](../admintool/ENGINEERING.md)). Make remains legacy reference ([MAKE.md](./MAKE.md)).
+> [`eip up`](../admintool/ENGINEERING.md) / `eip dev`. Make remains legacy reference ([MAKE.md](./MAKE.md)).
 > Edge: [TRAEFIK.md](./TRAEFIK.md). Placement: [WS_ROUTER.md](./WS_ROUTER.md).
 
 ## Files

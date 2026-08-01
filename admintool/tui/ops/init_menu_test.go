@@ -1,10 +1,8 @@
 package ops_test
 
 import (
-	"os"
 	"testing"
 
-	"eve-industry-planner/admintool/internal/kit"
 	"eve-industry-planner/admintool/tui/ops"
 	"eve-industry-planner/admintool/tui/status"
 )
@@ -26,15 +24,10 @@ func TestSetupVisibleOnlyWhenNeeded(t *testing.T) {
 		t.Fatal("Setup expected when docs missing")
 	}
 
-	if err := os.WriteFile(kit.EnvFile, []byte("X=1\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(kit.ConfigFile, []byte("version: 1\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeOperatorKit(t, ".")
 	for _, e := range ops.VisibleEntries(status.LightOff) {
 		if e.Special == ops.SpecialSetup {
-			t.Fatal("Setup must hide when both docs exist")
+			t.Fatal("Setup must hide when docs + stacks exist")
 		}
 	}
 }

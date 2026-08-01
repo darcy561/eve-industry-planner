@@ -1,9 +1,12 @@
 package home
 
 import (
+	"context"
+
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"eve-industry-planner/admintool/internal/kit"
 	"eve-industry-planner/admintool/tui/ops"
 	initui "eve-industry-planner/admintool/tui/screens/init"
 	"eve-industry-planner/admintool/tui/ui"
@@ -13,6 +16,17 @@ import (
 
 func (m *model) openSetupBuilder() {
 	m.fromMore = false
+	if kit.StacksMissing("") {
+		res, err := kit.UpdateStacks(context.Background(), kit.StackUpdateOptions{MissingOnly: true})
+		if err != nil {
+			m.appendOutBlank("stack fetch failed: " + err.Error())
+			m.appendOutBlank("run eip init, then retry Setup")
+			return
+		}
+		for _, name := range res.Updated {
+			m.appendOutBlank("wrote " + name + " (from " + res.Branch + ")")
+		}
+	}
 	m.openEnvBuilder("SETUP", docEnvSetup)
 }
 

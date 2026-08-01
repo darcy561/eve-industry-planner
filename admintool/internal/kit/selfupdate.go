@@ -34,8 +34,8 @@ type Result struct {
 type Options struct {
 	CurrentVersion string
 	Repo           string // owner/name; empty → DefaultRepo or EIP_UPDATE_REPO
-	// Tag selects a Release by tag (e.g. prerelease, prerelease-swarm-foo).
-	// Empty → resolveUpdateTag() (see that func). Public / empty → /releases/latest.
+	// Tag selects a Release by tag (e.g. cli, prerelease, prerelease-swarm-foo).
+	// Empty → resolveUpdateTag() (see that func). Public default → cli.
 	Tag        string
 	DryRun     bool
 	HTTPClient *http.Client
@@ -43,7 +43,7 @@ type Options struct {
 }
 
 // SelfUpdate downloads the matching GitHub Release asset and replaces the on-disk
-// eip binary (used by eip update-binary). Embedded kit travels with the binary.
+// eip binary (used by eip update). Embedded kit travels with the binary.
 func SelfUpdate(ctx context.Context, opts Options) (Result, error) {
 	repo := strings.TrimSpace(opts.Repo)
 	if repo == "" {
@@ -77,16 +77,11 @@ func SelfUpdate(ctx context.Context, opts Options) (Result, error) {
 	if tag == "" {
 		tag = resolveUpdateTag()
 	}
-	var rel ghRelease
-	if tag != "" {
-		rel, err = fetchReleaseByTag(ctx, client, repo, tag)
-	} else {
-		rel, err = fetchLatest(ctx, client, repo)
-	}
+	rel, err := fetchReleaseByTag(ctx, client, repo, tag)
 	if err != nil {
 		return Result{}, err
 	}
-	latest := normalizeVersion(rel.TagName)
+	latest := releaseVersionKey(rel.TagName)
 	assetName := AssetName(runtime.GOOS, runtime.GOARCH)
 	asset, ok := rel.findAsset(assetName)
 	if !ok {
@@ -100,7 +95,8 @@ func SelfUpdate(ctx context.Context, opts Options) (Result, error) {
 		URL:     asset.BrowserDownloadURL,
 		DryRun:  opts.DryRun,
 	}
-	if current != "" && current == latest {
+	// Floating tag "cli" always re-checks download path (version strings do not match).
+	if current != "" && latest != "" && current == latest && !isFloatingCLITag(rel.TagName) {
 		out.Skipped = true
 		return out, nil
 	}
@@ -153,9 +149,8 @@ func SelfUpdate(ctx context.Context, opts Options) (Result, error) {
 	return out, nil
 }
 
-// resolveUpdateTag picks the GitHub Release tag for update-binary.
-// Order: EIP_UPDATE_TAG env → .env APP_VERSION (prerelease channel) →
-// baked kit.Channel (prerelease channel) → empty (/releases/latest).
+// resolveUpdateTag picks the GitHub Release tag for eip update (binary).
+// Order: EIP_UPDATE_TAG → .env APP_VERSION if prerelease* → baked Channel → "cli".
 func resolveUpdateTag() string {
 	if tag := strings.TrimSpace(os.Getenv("EIP_UPDATE_TAG")); tag != "" {
 		return tag
@@ -167,17 +162,7 @@ func resolveUpdateTag() string {
 			}
 		}
 	}
-	return BakedUpdateChannel()
-}
-
-// channelTagFromAppVersion returns APP_VERSION when it names a floating
-// prerelease eip/GHCR channel. Semver pins and 0.0.0-prerelease.* pins return "".
-func channelTagFromAppVersion(appVersion string) string {
-	v := strings.TrimSpace(appVersion)
-	if v == "prerelease" || strings.HasPrefix(v, "prerelease-") {
-		return v
-	}
-	return ""
+	return BinaryChannel()
 }
 
 // AssetName returns the Release asset filename for goos/goarch.
@@ -190,8 +175,23 @@ func AssetName(goos, goarch string) string {
 }
 
 func normalizeVersion(v string) string {
-	v = strings.TrimSpace(v)
-	return strings.TrimPrefix(v, "v")
+	return releaseVersionKey(v)
+}
+
+func isFloatingCLITag(tag string) bool {
+	return strings.TrimSpace(tag) == "cli"
+}
+
+// releaseVersionKey maps a Release tag to a comparable semver-ish string.
+// Floating "cli" returns "" so version equality never skips the update.
+func releaseVersionKey(tag string) string {
+	t := strings.TrimSpace(tag)
+	if t == "" || t == "cli" {
+		return ""
+	}
+	t = strings.TrimPrefix(t, "cli-v")
+	t = strings.TrimPrefix(t, "v")
+	return t
 }
 
 type ghRelease struct {
@@ -213,20 +213,22 @@ func (r ghRelease) findAsset(name string) (ghAsset, bool) {
 	return ghAsset{}, false
 }
 
-func fetchLatest(ctx context.Context, client *http.Client, repo string) (ghRelease, error) {
-	return fetchReleaseURL(ctx, client, fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", repo), "latest release")
-}
-
 func fetchReleaseByTag(ctx context.Context, client *http.Client, repo, tag string) (ghRelease, error) {
-	tag = strings.TrimPrefix(strings.TrimSpace(tag), "v")
-	// Channel tags are literal (prerelease, prerelease-swarm-foo); semver tags may be stored with or without v.
+	tag = strings.TrimSpace(tag)
+	if tag == "" {
+		return ghRelease{}, fmt.Errorf("selfupdate: empty release tag")
+	}
 	url := fmt.Sprintf("https://api.github.com/repos/%s/releases/tags/%s", repo, tag)
 	rel, err := fetchReleaseURL(ctx, client, url, "release "+tag)
 	if err == nil {
 		return rel, nil
 	}
-	// Retry with v-prefix for classic semver Release tags.
-	if !strings.HasPrefix(tag, "v") && strings.Contains(tag, ".") && !strings.HasPrefix(tag, "prerelease") {
+	// Classic semver tags may be stored as vX.Y.Z (not cli-v* / prerelease* / app-v*).
+	if !strings.HasPrefix(tag, "v") &&
+		!strings.HasPrefix(tag, "cli") &&
+		!strings.HasPrefix(tag, "prerelease") &&
+		!strings.HasPrefix(tag, "app-") &&
+		strings.Contains(tag, ".") {
 		return fetchReleaseURL(ctx, client, fmt.Sprintf("https://api.github.com/repos/%s/releases/tags/v%s", repo, tag), "release v"+tag)
 	}
 	return ghRelease{}, err

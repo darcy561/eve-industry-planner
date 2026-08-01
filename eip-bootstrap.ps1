@@ -1,101 +1,43 @@
 # Eve Industry Planner - fresh install (Windows).
-# Empty folder → host eip.exe (CLI+TUI) + stack YAML.
+# Empty folder → host eip.exe only. Stack YAML / .env come from eip init (or TUI Setup).
 # eip.exe lives in this folder; that directory is project home (shortcuts OK).
 #
-# Prefer not writing this script into the deploy home — run from temp:
-#   irm …/eip-bootstrap.ps1 -OutFile $env:TEMP\eip-bootstrap.ps1
-#   & $env:TEMP\eip-bootstrap.ps1 -Path D:\eip -Channel swarm/hard-cutover
+# Prefer not writing this script into the deploy home - run from temp:
+#   irm https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Public/eip-bootstrap.ps1 -OutFile $env:TEMP\eip-bootstrap.ps1
+#   & $env:TEMP\eip-bootstrap.ps1 -Path D:\eip
+#   & $env:TEMP\eip-bootstrap.ps1 -Path D:\eip -Release prerelease-swarm-hard-cutover
 #
-# Channels (-Channel / EIP_CHANNEL):
-#   Development | prerelease     → kit: Development, binary: prerelease
-#   swarm/my-feature             → kit: that branch, binary: prerelease-<slug>
-#   prerelease-swarm-my-feature  → same (tag form)
-#   Public | latest              → kit: Public, binary: /releases/latest
-# -Force re-downloads stacks + eip.exe (use when switching channels).
+# -Release / EIP_RELEASE: exact GitHub Release tag for the host binary (e.g. cli, cli-v1.0.0, prerelease-…).
+#   Omit for Public floating tag "cli". Fails if that Release/asset is missing.
+# -Force re-downloads eip.exe.
 #
-# Low-level overrides still work: EIP_KIT_BRANCH, EIP_CLI_DOWNLOAD_BASE, EIP_PUBLIC_RAW
+# Low-level override: EIP_CLI_DOWNLOAD_BASE
 
 [CmdletBinding()]
 param(
   [string]$Path = "",
-  [string]$Channel = "",
+  [string]$Release = "",
   [switch]$Force
 )
 
 $ErrorActionPreference = "Stop"
 $Repo = if ($env:EIP_REPO) { $env:EIP_REPO } else { "darcy561/eve-industry-planner" }
 
-function Get-BranchSlug([string]$branch) {
-  $s = $branch.ToLowerInvariant() -replace '/', '-'
-  $s = $s -replace '[^a-z0-9._-]', '-'
-  $s = $s -replace '-+', '-'
-  return $s.Trim('-')
+$ReleaseTag = if ($Release) { $Release.Trim() } elseif ($env:EIP_RELEASE) { $env:EIP_RELEASE.Trim() } else { "" }
+
+if ($ReleaseTag -match '[\s\\/]') {
+  Write-Error "Invalid -Release '$ReleaseTag' (use the exact GitHub Release tag, e.g. prerelease-swarm-hard-cutover)."
+  exit 1
 }
 
-function Resolve-BootstrapChannel([string]$ch) {
-  $ch = if ($ch) { $ch.Trim() } elseif ($env:EIP_CHANNEL) { $env:EIP_CHANNEL.Trim() } else { "Development" }
-  $kit = $null
-  $tag = $null
-  $download = $null
-
-  switch -Regex ($ch) {
-    '^(?i)(public|latest)$' {
-      $kit = "Public"
-      $tag = ""
-      $download = "https://github.com/$Repo/releases/latest/download"
-    }
-    '^(?i)(development|prerelease)$' {
-      $kit = "Development"
-      $tag = "prerelease"
-      $download = "https://github.com/$Repo/releases/download/prerelease"
-    }
-    '^(?i)prerelease-(.+)$' {
-      $slug = $Matches[1]
-      if ($slug -match '^(swarm)-(.+)$') {
-        $kit = "swarm/$($Matches[2])"
-      } elseif ($slug -eq "development") {
-        $kit = "Development"
-      } else {
-        $kit = $slug
-      }
-      $tag = "prerelease-$slug"
-      $download = "https://github.com/$Repo/releases/download/$tag"
-    }
-    default {
-      # Treat as git branch (e.g. swarm/hard-cutover)
-      $kit = $ch -replace '^refs/heads/', ''
-      $slug = Get-BranchSlug $kit
-      if ($kit -match '^(?i)development$') {
-        $tag = "prerelease"
-        $download = "https://github.com/$Repo/releases/download/prerelease"
-      } else {
-        $tag = "prerelease-$slug"
-        $download = "https://github.com/$Repo/releases/download/$tag"
-      }
-    }
-  }
-
-  return [pscustomobject]@{
-    Input      = $ch
-    KitBranch  = $kit
-    ChannelTag = $tag
-    DownloadBase = $download
-  }
-}
-
-$resolved = Resolve-BootstrapChannel $Channel
-$KitBranch = if ($env:EIP_KIT_BRANCH) { $env:EIP_KIT_BRANCH } else { $resolved.KitBranch }
-$PublicRaw = if ($env:EIP_PUBLIC_RAW) {
-  $env:EIP_PUBLIC_RAW
+# Explicit -Release always wins (so a missing tag fails instead of a leftover EIP_CLI_DOWNLOAD_BASE).
+if ($ReleaseTag) {
+  $DownloadBase = "https://github.com/$Repo/releases/download/$ReleaseTag"
+} elseif ($env:EIP_CLI_DOWNLOAD_BASE) {
+  $DownloadBase = $env:EIP_CLI_DOWNLOAD_BASE
 } else {
-  "https://raw.githubusercontent.com/$Repo/refs/heads/$KitBranch"
+  $DownloadBase = "https://github.com/$Repo/releases/download/cli"
 }
-$DownloadBase = if ($env:EIP_CLI_DOWNLOAD_BASE) {
-  $env:EIP_CLI_DOWNLOAD_BASE
-} else {
-  $resolved.DownloadBase
-}
-$ChannelTag = $resolved.ChannelTag
 
 function Get-BootstrapDir {
   if ($PSScriptRoot) { return $PSScriptRoot }
@@ -112,39 +54,20 @@ function Find-LocalHostBinary([string]$srcDir) {
   return $null
 }
 
-function Get-StackFile([string]$name, [string]$deploy, [string]$srcDir, [string]$rawBase, [bool]$force) {
-  $dest = Join-Path $deploy $name
-  if ((Test-Path $dest) -and -not $force) {
-    Write-Host "  $name already present (unchanged)"
-    return
-  }
-  $local = if ($srcDir) { Join-Path $srcDir $name } else { $null }
-  if ($local -and (Test-Path $local) -and -not $force) {
-    Copy-Item -Force $local $dest
-    Write-Host "  wrote $name (from local)"
-    return
-  }
-  Write-Host "  downloading $name..."
-  Invoke-WebRequest -Uri "$rawBase/$name" -OutFile $dest -UseBasicParsing
-  Write-Host "  wrote $name"
-}
-
 $deploy = if ($Path) { $Path } else { (Get-Location).Path }
 $deploy = [System.IO.Path]::GetFullPath($deploy)
 New-Item -ItemType Directory -Force -Path $deploy | Out-Null
 
 Write-Host "EIP deploy home: $deploy"
-Write-Host "  channel:    $($resolved.Input)"
-if ($ChannelTag) { Write-Host "  eip tag:    $ChannelTag" } else { Write-Host "  eip tag:    latest (Public)" }
-Write-Host "  kit source: $PublicRaw"
-Write-Host "  binary:     $DownloadBase"
-if ($Force) { Write-Host "  force:      re-download stacks + eip.exe" }
+if ($ReleaseTag) {
+  Write-Host "  release: $ReleaseTag"
+} else {
+  Write-Host "  release: cli (Public)"
+}
+Write-Host "  binary:  $DownloadBase"
+if ($Force) { Write-Host "  force:   re-download eip.exe" }
 
 $srcDir = Get-BootstrapDir
-foreach ($name in @("docker-stack.yml", "docker-stack.data.yml", "docker-stack.obs.yml")) {
-  Get-StackFile $name $deploy $srcDir $PublicRaw ([bool]$Force)
-}
-
 $hostDest = Join-Path $deploy "eip.exe"
 if ((Test-Path $hostDest) -and -not $Force) {
   Write-Host "  eip.exe already present (unchanged)"
@@ -157,35 +80,38 @@ if ((Test-Path $hostDest) -and -not $Force) {
     $url = "$($DownloadBase.TrimEnd('/'))/eip-windows-amd64.exe"
     if ($DownloadBase -match '\.exe$') { $url = $DownloadBase }
     $staging = Join-Path $deploy "eip.exe.new"
+    Write-Host "  downloading eip-windows-amd64.exe..."
     try {
-      Write-Host "  downloading eip-windows-amd64.exe..."
       Invoke-WebRequest -Uri $url -OutFile $staging -UseBasicParsing
-      if (Test-Path $hostDest) {
-        $old = Join-Path $deploy "eip.exe.old"
-        Remove-Item -Force -ErrorAction SilentlyContinue $old
-        try {
-          Move-Item -Force -LiteralPath $hostDest -Destination $old
-        } catch {
-          # Still running: leave eip.exe.old aside and try overwrite; if that fails, keep .new for manual swap.
-          Write-Host "  note: existing eip.exe is in use — downloaded to eip.exe.new; quit eip and re-run with -Force, or replace manually"
-          Write-Host "  wrote eip.exe.new (download)"
-          throw
-        }
-      }
-      Move-Item -Force -LiteralPath $staging -Destination $hostDest
-      Write-Host "  wrote eip.exe (download)"
     } catch {
-      if (-not (Test-Path $staging)) {
-        Write-Host "  note: could not download host binary ($($_.Exception.Message))"
+      Remove-Item -Force -ErrorAction SilentlyContinue $staging
+      if ($ReleaseTag) {
+        Write-Error "No host binary for Release '$ReleaseTag' ($url). Publish that tag or omit -Release for Public cli."
+      } else {
+        Write-Error "Could not download Public host binary ($url): $($_.Exception.Message)"
+      }
+      exit 1
+    }
+    if (Test-Path $hostDest) {
+      $old = Join-Path $deploy "eip.exe.old"
+      Remove-Item -Force -ErrorAction SilentlyContinue $old
+      try {
+        Move-Item -Force -LiteralPath $hostDest -Destination $old
+      } catch {
+        Write-Error "Existing eip.exe is in use. Quit eip, then re-run with -Force (binary saved as eip.exe.new)."
+        exit 1
       }
     }
+    Move-Item -Force -LiteralPath $staging -Destination $hostDest
+    Write-Host "  wrote eip.exe (download)"
   } else {
-    Write-Host "  note: no eip.exe yet - build with .\scripts\admintool\build-host.ps1, then re-run bootstrap"
+    Write-Error "No download URL for host binary."
+    exit 1
   }
 }
 
 if (-not (Test-Path $hostDest)) {
-  Write-Error "No eip.exe in deploy home. Publish the channel (publish-prerelease.yml), or build with .\scripts\admintool\build-host.ps1, then re-run bootstrap."
+  Write-Error "No eip.exe in deploy home."
   exit 1
 }
 
@@ -196,10 +122,13 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
 Write-Host ""
 Write-Host "Done. This folder is your EIP home."
 Write-Host "  cd `"$deploy`""
-Write-Host "  .\eip.exe          # TUI Setup (APP_VERSION preset from baked channel on prerelease builds)"
+Write-Host "  .\eip.exe init   # stack YAML + .env + eip.config.yaml"
+Write-Host "  .\eip.exe        # or TUI Setup"
 Write-Host "  .\eip.exe up"
-if ($ChannelTag) {
-  Write-Host "  # channel tag: $ChannelTag (switch later: re-run bootstrap -Channel <name> -Force)"
+if ($ReleaseTag) {
+  Write-Host "  # release: $ReleaseTag (switch: re-run with -Release <tag> -Force, or omit for Public cli)"
+} else {
+  Write-Host "  # release: cli (Public floating)"
 }
 
 # Drop this installer if it lives inside the deploy home (not when run from the repo).

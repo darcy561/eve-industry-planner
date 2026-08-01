@@ -45,7 +45,7 @@ func (r row) Title() string       { return r.entry.Title }
 func (r row) Description() string { return r.entry.Desc }
 func (r row) FilterValue() string { return r.entry.Title }
 
-// SetupNeeded reports whether first-run Setup should appear (either operator file missing).
+// SetupNeeded reports whether first-run Setup should appear (operator docs or stacks missing).
 func SetupNeeded(home string) bool {
 	if home == "" {
 		var err error
@@ -56,7 +56,7 @@ func SetupNeeded(home string) bool {
 	}
 	_, errEnv := os.Stat(filepath.Join(home, kit.EnvFile))
 	_, errCfg := os.Stat(filepath.Join(home, kit.ConfigFile))
-	return os.IsNotExist(errEnv) || os.IsNotExist(errCfg)
+	return os.IsNotExist(errEnv) || os.IsNotExist(errCfg) || kit.StacksMissing(home)
 }
 
 // Entries builds the main COMMANDS list (unfiltered except gating elsewhere).
@@ -76,7 +76,7 @@ func Entries() []Entry {
 		Entry{Title: "Restart", Desc: "Reload services", Special: SpecialRestart},
 		Entry{Title: "Rebuild", Desc: "Rebuild and apply local images", Args: []string{"rebuild"}},
 		Entry{Title: "Stop", Desc: "Stop the stack (keeps data)", Args: []string{"shutdown"}},
-		Entry{Title: "Update tool", Desc: "Update eip binary (+ embedded kit)", Args: []string{"update-binary"}},
+		Entry{Title: "Update", Desc: "Update binary, stacks, and images", Args: []string{"update"}},
 		Entry{Title: "More", Desc: "Settings, logs, and tools", Special: SpecialMore},
 	)
 	return out

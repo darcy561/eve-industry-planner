@@ -100,8 +100,9 @@ type model struct {
 	serviceTargets    []string
 	logsFollow        bool
 	opsListBackup     []list.Item
-	fromMore          bool // child opened from More → close returns to More
-	pendingRelaunch   bool // set when update-binary asks the TUI to restart
+	fromMore             bool // child opened from More → close returns to More
+	pendingRelaunch      bool // set when update asks the TUI to restart
+	pendingResumeUpdate  bool // relaunch with EIP_UPDATE_RESUME (continue stacks/images)
 }
 
 const probeStaleLimit = 4 // ~12s at 3s poll
@@ -127,8 +128,14 @@ func newModel() model {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(statusbar.ProbeCmd(m.snap), ui.MarqueeTick(), statusbar.PollTick())
+	cmds := []tea.Cmd{statusbar.ProbeCmd(m.snap), ui.MarqueeTick(), statusbar.PollTick()}
+	if c := resumeAfterBinaryCmd(); c != nil {
+		cmds = append(cmds, c)
+	}
+	return tea.Batch(cmds...)
 }
+
+type resumeUpdateMsg struct{}
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -184,10 +191,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case resumeUpdateMsg:
+		m.appendOut("Resuming update after binary restart…")
+		return m.startCLI("update", []string{"update"})
+
 	case exec.EventMsg:
-		if msg.Event.Kind == eipmsg.KindStack && msg.Event.State == "update-binary" &&
-			strings.EqualFold(strings.TrimSpace(msg.Event.Message), "restart") {
-			m.pendingRelaunch = true
+		if msg.Event.Kind == eipmsg.KindStack && msg.Event.State == "update" {
+			m.applyUpdateRestartMessage(msg.Event.Message)
 		}
 		if statusbar.ApplyEvent(&m.snap, msg.Event) {
 			m.refreshMenuForDocker()
@@ -273,6 +283,7 @@ func (m model) onCLIDone(msg exec.DoneMsg) (tea.Model, tea.Cmd) {
 	}
 	if msg.Err != nil {
 		m.pendingRelaunch = false
+		m.pendingResumeUpdate = false
 		if len(m.pendingCLI) > 0 {
 			m.pendingCLI = nil
 			m.appendOut("Apply stopped — fix the error, then retry from Command (secrets / sync).")
@@ -281,9 +292,11 @@ func (m model) onCLIDone(msg exec.DoneMsg) (tea.Model, tea.Cmd) {
 		return m.startNextPendingCLI()
 	}
 	if m.pendingRelaunch {
+		resume := m.pendingResumeUpdate
 		m.pendingRelaunch = false
+		m.pendingResumeUpdate = false
 		m.appendOut("Restarting with new binary…")
-		return m, relaunchSelfCmd()
+		return m, relaunchSelfCmd(resume)
 	}
 	m.refreshing = true
 	m.statusMsgClearGen++
@@ -294,9 +307,9 @@ func (m model) onCLIDone(msg exec.DoneMsg) (tea.Model, tea.Cmd) {
 	)
 }
 
-func relaunchSelfCmd() tea.Cmd {
+func relaunchSelfCmd(resumeUpdate bool) tea.Cmd {
 	return func() tea.Msg {
-		if err := kit.RelaunchSelf(nil); err != nil {
+		if err := kit.RelaunchSelfOpts(nil, relaunchOpts(resumeUpdate)); err != nil {
 			return relaunchFailedMsg{err: err}
 		}
 		return tea.Quit()

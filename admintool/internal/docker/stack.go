@@ -46,6 +46,29 @@ type TaskInfo struct {
 	DesiredState string
 	CurrentState string
 	Error        string
+	Image        string // ContainerSpec image (may include @digest)
+}
+
+// RunningImageDigest returns a digest from a desired-running task image, if any.
+func (info ServiceInfo) RunningImageDigest() string {
+	for _, t := range info.Tasks {
+		if !strings.EqualFold(t.DesiredState, string(swarm.TaskStateRunning)) {
+			continue
+		}
+		if d := digestFromImageRef(t.Image); d != "" {
+			return d
+		}
+	}
+	// Fallback: service spec image (often pinned after deploy).
+	return digestFromImageRef(info.Image)
+}
+
+func digestFromImageRef(ref string) string {
+	ref = strings.TrimSpace(ref)
+	if i := strings.LastIndex(ref, "@"); i >= 0 && i+1 < len(ref) {
+		return strings.TrimSpace(ref[i+1:])
+	}
+	return ""
 }
 
 // ResolveStackName returns EIP_STACK_NAME or kit.StackName.
@@ -130,11 +153,16 @@ func loadStackSnapshot(ctx context.Context, cli client.APIClient, stackName stri
 			info.Starting = 0
 		}
 		for _, t := range svcTasks {
+			taskImg := ""
+			if t.Spec.ContainerSpec != nil {
+				taskImg = strings.TrimSpace(t.Spec.ContainerSpec.Image)
+			}
 			info.Tasks = append(info.Tasks, TaskInfo{
 				Name:         taskDisplayName(t, full),
 				DesiredState: string(t.DesiredState),
 				CurrentState: formatTaskCurrentState(t),
 				Error:        strings.TrimSpace(t.Status.Err),
+				Image:        taskImg,
 			})
 			if t.DesiredState != swarm.TaskStateRunning {
 				continue

@@ -1,5 +1,7 @@
 # admintool — engineering conventions
 
+Entry point for host `eip` docs. Do **not** add `admintool/README.md` or `docs/admintool/README.md` — use this file and the siblings in `docs/admintool/`.
+
 ## Docker access (SDK first)
 
 - **Prefer the Docker Go SDK** (`github.com/docker/docker/client`) for all Engine/Swarm work.
@@ -29,10 +31,11 @@ Keep `admintool/` tidy and update [TUI.md](./TUI.md) when you add/move packages:
 ```text
 admintool/
   internal/catalog/              # CLI verb SoT + services.go (expected Swarm services)
-  internal/kit/                  # Home, product strings, envfile, writable, SelfUpdate, obs/
+  internal/kit/                  # Home, product, envfile, writable, Channel/KitBranch,
+                                 # SelfUpdate, UpdateStacks, pathlink, relaunch, obs/
   internal/kit/templates/        # WriteMissing* facade + CheckOperatorDocs
   internal/kit/templates/env/    # EnvFields / emit / autogen / backup / CheckUsable
-  internal/kit/templates/yamldefaults/  # DefaultConfig + ConfigFields
+  internal/kit/templates/yamldefaults/  # DefaultConfig + ConfigFields (Go SoT; no loose YAML)
   internal/config/               # Load/Validate/WriteYAML/SyncEnv/Sync (live YAML)
   internal/stack/                # stack YAML SoT + compose expand/inject
   internal/swarm/                # SyncSecrets / SyncConfigs / ApplyConfigs
@@ -62,7 +65,7 @@ Import direction for documents: `kit` ← `config` ← `templates/{env,yamldefau
 
 | Path | Role |
 |------|------|
-| **`eip` (preferred)** | up/dev (Go recipe + Ready), sync, secrets, rebuild, status/logs/restart/shutdown, init, ensure-*, mongo keyfile tools, `update-binary`, TUI |
+| **`eip` (preferred)** | up/dev (Go recipe + Ready), sync, secrets, rebuild, status/logs/restart/shutdown, init, ensure-*, mongo keyfile tools, `update`, TUI |
 | **Make / `scripts/` (legacy only)** | Public chicken-egg (`download-setup-scripts` / `update-files`) until an eip installer exists. Leftover Make verbs are **not** admintool features — do not add `eip release` / advertise / `update-data` mirrors. |
 
 **Retired as operator concepts (Make leftovers only — use eip instead):**
@@ -73,7 +76,7 @@ Import direction for documents: `kit` ← `config` ← `templates/{env,yamldefau
 | `make update-data SERVICE=` | **`eip up`** / **`eip rebuild`** (and rematerialize via secrets). Data images are pinned in `docker-stack.*.yml`; redeploy only moves what changed. |
 | `scripts/swarm/stack-deploy.sh` | **`eip up`** / **`eip dev`**. Under the hood Go still calls **`docker stack deploy`** (CLI) because the Engine SDK has no first-class stack-deploy API; that is intentional short-term, not “bash is SoT”. |
 
-`eip init` is **not** Public bootstrap — it only writes missing operator docs (+ optional ensure if data tasks are already up). See [VARIABLES.md](./VARIABLES.md) § Project home.
+`eip init` is **not** Public bootstrap (bootstrap only places the binary). Init fetches missing `docker-stack*.yml` from the baked kit branch, then writes missing operator docs (+ optional ensure if data tasks are already up). See [VARIABLES.md](./VARIABLES.md) § Project home.
 
 ## Deploy (`eip up` / `eip dev`)
 
@@ -110,9 +113,9 @@ Go recipe is the preferred bring-up. Same path every time: expand → two-pass *
 - **`eip sync`**: targeted `docker service update` from `eip.config.yaml`; `--dry-run` / `-n`. Membership = stack YAML labels (`eip.capacity.sync`, `eip.config.sync`).
 - **`eip secrets`**: hashed secrets from `.env`, then Rematerialize. Default `--live`; `--dev` when stack was `eip dev`.
 - **`eip rebuild`**: bake + rematerialize (dev). No Ready. After index SoT changes without full up/dev, run **`eip ensure-mongo`**.
-- **`eip update-binary`**: replace host **eip binary** from GitHub Releases (when published). Embedded kit (TUI assets, obs templates, bake HCL, env/config defaults) ships inside the binary. Does **not** overwrite on-disk `.env` / `eip.config.yaml` / stack YAML / keyfiles. Restart process, then **`eip sync`** if bundled Swarm configs changed. Not Public chicken-egg (`make update-files`).
+- **`eip update`**: day-2 refresh — **binary first** (GitHub Releases tag `cli` / baked channel), then stack YAML from the baked kit git branch tip, then **pull live images** and **digest-reconcile** (force-update services whose running digest drifted; includes obs when enabled). Flags: `--binary-only`, `--stacks-only`, `--images-only`. After binary install: TUI relaunches with `EIP_UPDATE_RESUME` then runs update again; CLI re-execs `eip update`. Embedded kit ships inside the binary. Does **not** overwrite on-disk `.env` / `eip.config.yaml` / keyfiles. Cold start remains **`eip up`**. Not Public chicken-egg (`make update-files`).
 - **`eip restart` / `logs` / `shutdown`**: SDK; TUI Restart/Logs use pickers; Logs follow → new logview console.
-- **`eip init`**: write-missing `.env` / `eip.config.yaml` (Autogen resolved; never `auto-generate-me`; EVE SSO blank). `CheckOperatorDocs` then optional EnsureS3/EnsureMongo if tasks up. Does **not** apply to a running stack.
+- **`eip init`**: write-missing `docker-stack*.yml` (from baked `KitBranch`), then `.env` / `eip.config.yaml` (Autogen resolved; never `auto-generate-me`; EVE SSO blank). `CheckOperatorDocs` then optional EnsureS3/EnsureMongo if tasks up. Does **not** apply to a running stack.
 - **`eip ensure-s3` / `ensure-mongo`**: CLI-only ensure without full deploy.
 - **`eip restore-mongo-keyfile` / `rekey-mongo`**: CLI-only keyfile recovery / rekey.
 
@@ -120,7 +123,7 @@ Go recipe is the preferred bring-up. Same path every time: expand → two-pass *
 
 - **Docs gate:** `templates.CheckOperatorDocs` before ensure probes on `eip init` and at start of `EnsureS3` / `EnsureMongo` / `Ready`. Presence/format only — not password strength (until rolling exists). Rejects empty required keys, sentinel, legacy EVE placeholders.
 - **Path writability:** `kit.EnsureFileWritable` / `EnsureDirWritable` before EmitEnv and `config.WriteYAML`. TUI live-checks backup stem via `Check*` (no mkdir).
-- **TUI menu:** plain-language in `tui/ops`. Setup while docs missing. More = Secrets / Settings / Logs / Command; children return to More. No Apply secrets/settings rows — Persist auto-applies.
+- **TUI menu:** plain-language in `tui/ops`. Setup while docs or `docker-stack*.yml` missing (`SetupNeeded` / `StacksMissing`). More = Secrets / Settings / Logs / Command; children return to More. No Apply secrets/settings rows — Persist auto-applies.
 - **TUI Setup:** env first → Use defaults or Advanced (`ConfigFields`).
 - **TUI Secrets / Settings:** Persist; stack up → child secrets+sync or sync only.
 - **ConfigField registry:** `yamldefaults.ConfigFields`; Validate/WriteYAML in `internal/config`.
@@ -148,7 +151,7 @@ Requires `docker` on PATH (`docker stack deploy`, `docker compose config`, bake)
 ## Build
 
 - `./scripts/admintool/build-host.sh` or `.\scripts\admintool\build-host.ps1` — repo-root `eip` / `eip.exe` (no `dist/`).
-- Tag `v*` CI publishes `eip-{os}-{arch}` + `SHA256SUMS` for `eip update-binary` (when that pipeline is live on the Public release channel).
+- Public CLI: Actions → **admintool** → Run workflow (`bump` patch/minor/major). Resolves live `cli-v*` (or first ship `1.0.0`), builds `eip-{os}-{arch}` + `SHA256SUMS`, uploads pin `cli-v*` + floating `cli`. See [PRERELEASE.md](./PRERELEASE.md) § Public ships.
 - Locked install target → ALERT, stop running `eip`, retry. **Never** write an alternate binary name.
 - **Prerelease:** [PRERELEASE.md](./PRERELEASE.md) — `Development` owns floating `:prerelease`; other staging branches get `prerelease-<slug>` only; Public stays on `X.Y.Z` / `:latest`.
 

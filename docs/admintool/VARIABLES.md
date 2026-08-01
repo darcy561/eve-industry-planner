@@ -34,7 +34,7 @@ When adding a **CLI** verb: update `catalog` first, wire Cobra under `cmd/comman
 
 | Surface | Rows |
 |---------|------|
-| Main | **Setup** (only if `.env` or `eip.config.yaml` missing) · Status · Start · Dev · Restart · Rebuild · Stop · Update · **More** |
+| Main | **Setup** (if `.env`, `eip.config.yaml`, or `docker-stack*.yml` missing) · Status · Start · Dev · Restart · Rebuild · Stop · Update · **More** |
 | More | Secrets · Settings · Logs · Command |
 | Hidden from TUI | `doctor`/`probe`, `add-path`, `ensure-mongo`, `ensure-s3`, `restore-mongo-keyfile`, `rekey-mongo` (CLI-only) |
 | Not on menu | `secrets` / `sync` apply — Persist auto-queues them; typed Command or CLI for manual |
@@ -60,6 +60,9 @@ When adding a **CLI** verb: update `catalog` first, wire Cobra under `cmd/comman
 | Operator YAML defaults | [`yamldefaults.DefaultConfig`](../../admintool/internal/kit/templates/yamldefaults/default.go) |
 | Operator YAML edit knobs | [`yamldefaults.ConfigFields`](../../admintool/internal/kit/templates/yamldefaults/fields.go) (TUI Settings / Setup Advanced). `cli.env_backup_path` is edited on the env Operator section (Setup writes it first) |
 | Write-missing facade | [`kit/templates`](../../admintool/internal/kit/templates/) (`WriteMissingEnv` / `WriteMissingConfig`) |
+| Deploy-home stack filenames | [`kit.StackFiles`](../../admintool/internal/kit/stackupdate.go) (`docker-stack.yml` / `.data.yml` / `.obs.yml`) — init/`eip update` always; `kit.Require` omits obs (addon-gated) |
+| Stack YAML fetch / refresh | [`kit.UpdateStacks`](../../admintool/internal/kit/stackupdate.go) (`MissingOnly` for init/Setup; full compare for `eip update`) |
+| Binary Release channel / kit git branch | [`kit.Channel`](../../admintool/internal/kit/channel.go) / `kit.KitBranch` (ldflags); `BinaryChannel()` / `ResolveKitBranch()` |
 | Required/optional Swarm secret keys from `.env` | [`admintool/internal/swarm`](../../admintool/internal/swarm/) (`RequiredKeys` / `OptionalKeys`) |
 | Per-service secret attach lists | [`docker-stack.yml`](../../docker-stack.yml) `secrets:` (discovered by `swarm.DiscoverAttach` / `stack.SecretAttaches`) |
 
@@ -71,7 +74,7 @@ Import direction: `kit` ← `config` ← `templates/env` and `templates/yamldefa
 
 | Term | Meaning | Examples |
 |------|---------|----------|
-| **Process flag** | Set by the TUI on `os/exec` `Cmd.Env` for that child only. Not persisted. Not operator config. | `EIP_FROM_TUI=1` |
+| **Process flag** | Set by the TUI on `os/exec` `Cmd.Env` for that child only. Not persisted. Not operator config. | `EIP_FROM_TUI=1`, `EIP_UPDATE_RESUME=1` (TUI relaunch after binary install) |
 | **`.env` / config files** | Operator/deployment SoT on disk **in project home**. | `MONGO_PASSWORD`, `eip.config.yaml`, `docker-stack.yml` |
 
 | Value | SoT |
@@ -104,7 +107,7 @@ Optional bare `eip` on PATH: run **`eip add-path`** (symlink; home still resolve
 
 Local: `.\scripts\admintool\build-host.ps1` writes `eip.exe` at the repo root, so home is the repo root.
 
-Day-2 host-tool replace: **`eip update-binary`** (GitHub Releases). Containers stay on `APP_VERSION` + `eip up`.
+Day-2: **`eip update`** (binary → stack YAML → pull + digest reconcile). Cold start / Ready: **`eip up`**. New major.minor line: edit `APP_VERSION`, then update or up.
 
 Deploy source (`live` / `dev`) is **not** a project-home file. Deploy stamps Swarm label `eip.deploy.source` (`deploy.LabelDeploySource`); `ResolveSource` reads that label only.
 

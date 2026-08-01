@@ -2,40 +2,45 @@ name: Publish Public containers
 on:
     workflow_dispatch:
         inputs:
-            app_version:
-                description: 'Semver X.Y.Z for image tags (required)'
+            bump:
+                description: 'Semver bump from live app-v* / GHCR :latest (patch default)'
                 required: true
-                type: string
+                type: choice
+                options:
+                    - patch
+                    - minor
+                    - major
+                default: patch
             overwrite_existing_tags:
                 description: 'Confirm overwrite — required if ghcr.io tags for this version already exist'
                 required: false
                 type: boolean
                 default: false
 
+concurrency:
+    group: publish-public-containers
+    cancel-in-progress: false
+
 jobs:
     preflight:
         runs-on: ubuntu-latest
-        timeout-minutes: 5
+        timeout-minutes: 10
         environment: Public
         outputs:
             version: ${{ steps.version.outputs.version }}
             major: ${{ steps.version.outputs.major }}
             minor: ${{ steps.version.outputs.minor }}
             patch: ${{ steps.version.outputs.patch }}
+            tag: ${{ steps.version.outputs.tag }}
         steps:
-            - name: Validate app_version
-              id: version
-              run: |
-                  V="${{ github.event.inputs.app_version }}"
-                  echo "Publish Public @ ${V}"
-                  if ! echo "${V}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-                      echo "::error::app_version must match X.Y.Z (got: ${V})"
-                      exit 1
-                  fi
-                  echo "version=${V}" >> "$GITHUB_OUTPUT"
-                  echo "major=$(echo "${V}" | cut -d'.' -f1)" >> "$GITHUB_OUTPUT"
-                  echo "minor=$(echo "${V}" | cut -d'.' -f2)" >> "$GITHUB_OUTPUT"
-                  echo "patch=$(echo "${V}" | cut -d'.' -f3)" >> "$GITHUB_OUTPUT"
+            - name: Checkout Public branch
+              uses: actions/checkout@v6
+              with:
+                  ref: Public
+                  fetch-depth: 0
+
+            # Version resolve + publish always use Public tip. Merge this workflow
+            # (and .github/scripts/semver-bump.sh) to Public before first bump dispatch.
 
             - name: Verify Sentry DSN
               env:
@@ -49,12 +54,33 @@ jobs:
                     exit 1
                   fi
 
+            - name: Require app release notes
+              run: |
+                  set -euo pipefail
+                  NOTES_FILE=APP_RELEASE_NOTES.md
+                  if [ ! -f "${NOTES_FILE}" ]; then
+                    echo "::error::missing ${NOTES_FILE}"
+                    exit 1
+                  fi
+                  BODY="$(sed '1{/^#/d;}' "${NOTES_FILE}" | sed '/./,$!d')"
+                  if [ -z "$(echo "${BODY}" | tr -d '[:space:]')" ]; then
+                    echo "::error::${NOTES_FILE} is empty — add pending app notes before publishing Public"
+                    exit 1
+                  fi
+                  echo "App release notes OK ($(echo "${BODY}" | wc -l) lines)"
+
             - name: Log in to GitHub Container Registry
               uses: docker/login-action@v4
               with:
                   registry: ghcr.io
                   username: ${{ github.actor }}
                   password: ${{ secrets.GHCR_TOKEN }}
+
+            - name: Resolve next app version
+              id: version
+              run: |
+                  set -euo pipefail
+                  bash .github/scripts/semver-bump.sh app "${{ github.event.inputs.bump }}"
 
             - name: Check existing version tags
               env:
@@ -235,3 +261,59 @@ jobs:
                     -H "X-GitHub-Api-Version: 2022-11-28" \
                     "https://api.github.com/users/${OWNER}/packages/container/${PACKAGE_NAME}" \
                     -d '{"visibility":"public"}' || echo "Warning: Failed to set package visibility. Set manually in GitHub Package settings."
+
+    publish_app_release:
+        name: app GitHub Release notes
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        needs: [preflight, publish_containers]
+        environment: Public
+        permissions:
+            contents: write
+        steps:
+            - name: Checkout Public branch
+              uses: actions/checkout@v6
+              with:
+                  ref: Public
+                  token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build release body from APP_RELEASE_NOTES.md
+              id: notes
+              run: |
+                  set -euo pipefail
+                  V="${{ needs.preflight.outputs.version }}"
+                  BODY="$(sed '1{/^#/d;}' APP_RELEASE_NOTES.md | sed '/./,$!d')"
+                  if [ -z "$(echo "${BODY}" | tr -d '[:space:]')" ]; then
+                    echo "::error::APP_RELEASE_NOTES.md is empty"
+                    exit 1
+                  fi
+                  {
+                    echo "## ${V}"
+                    echo ""
+                    printf '%s\n' "${BODY}"
+                  } > /tmp/app-release-body.md
+                  echo "tag=app-v${V}" >> "$GITHUB_OUTPUT"
+
+            - name: Create notes-only Release app-v*
+              uses: softprops/action-gh-release@v3
+              with:
+                  tag_name: ${{ steps.notes.outputs.tag }}
+                  name: ${{ steps.notes.outputs.tag }}
+                  body_path: /tmp/app-release-body.md
+                  target_commitish: Public
+                  make_latest: false
+                  prerelease: false
+
+            - name: Clear APP_RELEASE_NOTES.md
+              run: |
+                  set -euo pipefail
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                  printf '%s\n' '# App release notes (pending)' '' > APP_RELEASE_NOTES.md
+                  git add APP_RELEASE_NOTES.md
+                  if git diff --staged --quiet; then
+                    echo "APP_RELEASE_NOTES.md already clear"
+                    exit 0
+                  fi
+                  git commit -m "chore(app): clear APP_RELEASE_NOTES.md after app-v${{ needs.preflight.outputs.version }}"
+                  git push origin Public

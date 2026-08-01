@@ -27,8 +27,9 @@ Source: [`admintool/tui/`](../../admintool/tui/). Entry: `tui.Run()` → `screen
 
 ```text
 admintool/
-  internal/kit/           # product strings, Home, writable, templates/, obs/, SelfUpdate
+  internal/kit/           # Home, Channel/KitBranch, SelfUpdate, UpdateStacks, templates/, obs/
   internal/catalog/       # eip verb SoT + expected Swarm services / fragments
+  internal/config/        # live eip.config.yaml load/validate/sync/apply
   internal/deploy/        # Inspect / Source / Run (eip up / eip dev)
   internal/status/        # status report + WriteReport
   internal/docker/        # SDK Probe + StackSnapshot
@@ -52,6 +53,8 @@ admintool/
     screens/logview/     # thin follow window for eip logs -f --ui
 ```
 
+Full `internal/` tree: [ENGINEERING.md](./ENGINEERING.md) § Folder structure.
+
 ## Home screen layout
 
 1. **Header** — EIP ASCII mark (`brand`) + product name / “Management Tool” / deployed **app** version (`APP_VERSION` via `chip.app`). Shows `—` until a probe sees a stack.
@@ -61,13 +64,13 @@ admintool/
 
 | Docker | Visible |
 |--------|---------|
-| Off / red | Setup (if docs missing) + More |
+| Off / red | Setup (if docs or stacks missing) + More |
 | Amber | above + Status, Start, Dev |
 | Green | full main list; More → Logs also |
 
 3. **Body** — **COMMANDS** | **OUTPUT**. Outer gutters (`theme.HMargin`). OUTPUT history follows latest unless PgUp.
 
-**Main COMMANDS:** Setup (until both `.env` and `eip.config.yaml` exist) · Status · Start (`up`) · Dev · Restart · Rebuild · Stop (`shutdown`) · Update tool (`update-binary`) · **More**.
+**Main COMMANDS:** Setup (until `.env`, `eip.config.yaml`, and `docker-stack*.yml` exist) · Status · Start (`up`) · Dev · Restart · Rebuild · Stop (`shutdown`) · Update (`update`) · **More**.
 
 **More submenu:** Secrets · Settings · Logs · Command. Esc on More → Main. Closing a child (builder cancel/finish, Logs, Command, post-Persist apply DoneMsg) returns to **More**, not Main.
 
