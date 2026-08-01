@@ -15,9 +15,9 @@ Public publish never writes `prerelease*`. Prerelease publish never writes `:lat
 | What | Store | Knob |
 |------|--------|------|
 | App images | GHCR `…-<svc>:${APP_VERSION}` | `.env` **`APP_VERSION`** → `eip up` |
-| Host `eip` tool | GitHub Release assets | **`EIP_UPDATE_TAG`** → bootstrap / `eip update-binary` |
+| Host `eip` tool | GitHub Release assets | Same **`APP_VERSION`** when it is `prerelease` / `prerelease-*` → `eip update-binary` (optional override: `EIP_UPDATE_TAG`) |
 
-Match the names on purpose (`APP_VERSION=prerelease` with `EIP_UPDATE_TAG=prerelease`), but they are not the same artifact.
+Set `APP_VERSION` once in Setup / `.env` (e.g. `prerelease-swarm-hard-cutover`). No shell env needed for Update tool. Public semver `APP_VERSION` still uses `/releases/latest` for the host binary.
 
 Prerelease GitHub Releases use **`prerelease: true`**, so they never become `/releases/latest` (Public’s future binary channel).
 
@@ -62,12 +62,11 @@ Containers need **`GHCR_TOKEN`**. Repo association uses OCI `org.opencontainers.
 mkdir -p ~/eip && cd ~/eip
 curl -fsSL https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Development/eip-bootstrap.sh | bash -s -- .
 ./eip          # TUI Setup → .env / eip.config.yaml (or: ./eip init)
-# optional: ./eip add-path   # bare `eip` on PATH (symlink)
 # .env: EVE SSO; APP_VERSION=prerelease
-export EIP_UPDATE_TAG=prerelease
+# optional: ./eip add-path
 ./eip up
 # after another Development publish:
-./eip update-binary && ./eip up
+./eip update-binary && ./eip up   # uses APP_VERSION channel
 ```
 
 ## Operator — one feature branch only
@@ -76,9 +75,9 @@ export EIP_UPDATE_TAG=prerelease
 export EIP_KIT_BRANCH=swarm/my-feature
 export EIP_CLI_DOWNLOAD_BASE=https://github.com/darcy561/eve-industry-planner/releases/download/prerelease-swarm-my-feature
 # bootstrap…
-./eip   # Setup / init, then set APP_VERSION=prerelease-swarm-my-feature
-export EIP_UPDATE_TAG=prerelease-swarm-my-feature
+./eip   # Setup: APP_VERSION=prerelease-swarm-my-feature (+ EVE SSO)
 ./eip up
+./eip update-binary   # same APP_VERSION channel — no EIP_UPDATE_TAG needed
 ```
 
 ## No crossover (unless you choose it)

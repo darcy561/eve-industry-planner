@@ -29,9 +29,9 @@ var updateBinaryCmd = &cobra.Command{
 the on-disk executable (rename dance; safe on Windows).
 
 Default: GitHub /releases/latest (Public). Prerelease / branch channels:
-set EIP_UPDATE_TAG=prerelease or EIP_UPDATE_TAG=prerelease-<branch-slug>
-(see docs/admintool/PRERELEASE.md). Swarm prereleases are marked prerelease on
-GitHub so they never take over /releases/latest.
+set .env APP_VERSION=prerelease or prerelease-<slug> (same as GHCR), or override
+with EIP_UPDATE_TAG. See docs/admintool/PRERELEASE.md. Swarm prereleases are
+marked prerelease on GitHub so they never take over /releases/latest.
 
 The binary embeds TUI assets, observability kit, bake HCL, and template defaults.
 Replacing it refreshes those. Operator files already on disk (.env, eip.config.yaml,

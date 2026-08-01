@@ -25,6 +25,22 @@ func TestNormalizeVersion(t *testing.T) {
 	}
 }
 
+func TestChannelTagFromAppVersion(t *testing.T) {
+	cases := map[string]string{
+		"prerelease":                        "prerelease",
+		"prerelease-swarm-hard-cutover":     "prerelease-swarm-hard-cutover",
+		"1.2.3":                             "",
+		"latest":                            "",
+		"0.0.0-prerelease.swarm-hard-cutover.abc1234": "",
+		"": "",
+	}
+	for in, want := range cases {
+		if got := channelTagFromAppVersion(in); got != want {
+			t.Fatalf("APP_VERSION=%q got %q want %q", in, got, want)
+		}
+	}
+}
+
 func TestParseSHA256SUMS(t *testing.T) {
 	text := `
 # comment

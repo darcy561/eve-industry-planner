@@ -35,7 +35,8 @@ type Options struct {
 	CurrentVersion string
 	Repo           string // owner/name; empty → DefaultRepo or EIP_UPDATE_REPO
 	// Tag selects a Release by tag (e.g. prerelease, prerelease-swarm-foo).
-	// Empty → EIP_UPDATE_TAG env, else GitHub /releases/latest (Public).
+	// Empty → resolveUpdateTag() (EIP_UPDATE_TAG env, then .env APP_VERSION when it is a
+	// prerelease channel tag, else GitHub /releases/latest for Public).
 	Tag        string
 	DryRun     bool
 	HTTPClient *http.Client
@@ -75,7 +76,7 @@ func SelfUpdate(ctx context.Context, opts Options) (Result, error) {
 	current := normalizeVersion(opts.CurrentVersion)
 	tag := strings.TrimSpace(opts.Tag)
 	if tag == "" {
-		tag = strings.TrimSpace(os.Getenv("EIP_UPDATE_TAG"))
+		tag = resolveUpdateTag()
 	}
 	var rel ghRelease
 	if tag != "" {
@@ -151,6 +152,34 @@ func SelfUpdate(ctx context.Context, opts Options) (Result, error) {
 
 	out.Installed = true
 	return out, nil
+}
+
+// resolveUpdateTag picks the GitHub Release tag for update-binary.
+// Order: EIP_UPDATE_TAG env → home .env APP_VERSION when it is a floating
+// prerelease channel (prerelease / prerelease-*) → empty (use /releases/latest).
+func resolveUpdateTag() string {
+	if tag := strings.TrimSpace(os.Getenv("EIP_UPDATE_TAG")); tag != "" {
+		return tag
+	}
+	home, err := Home()
+	if err != nil {
+		return ""
+	}
+	m, err := Map(filepath.Join(home, EnvFile))
+	if err != nil {
+		return ""
+	}
+	return channelTagFromAppVersion(Get(m, "APP_VERSION"))
+}
+
+// channelTagFromAppVersion returns APP_VERSION when it names a floating
+// prerelease eip/GHCR channel. Semver pins and 0.0.0-prerelease.* pins return "".
+func channelTagFromAppVersion(appVersion string) string {
+	v := strings.TrimSpace(appVersion)
+	if v == "prerelease" || strings.HasPrefix(v, "prerelease-") {
+		return v
+	}
+	return ""
 }
 
 // AssetName returns the Release asset filename for goos/goarch.
