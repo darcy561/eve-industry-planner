@@ -116,15 +116,15 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      # Use GITHUB_TOKEN (not GHCR_TOKEN PAT) so new packages auto-link to this repo
-      # and show under ?tab=packages&repo_name=eve-industry-planner. PAT pushes often
-      # create unlinked user packages that never appear on that filtered page.
+      # Same as publish-containers-public.yml: packages are owned under the GHCR_TOKEN
+      # PAT. GITHUB_TOKEN cannot push to those (permission_denied: write_package).
+      # Link + public for new packages is a one-time Package settings step in the UI.
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Set package name
         id: package-name
@@ -220,19 +220,55 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: ${{ env.DOCKER_BUILD_ARGS }}
 
-      # Same as publish-containers-public.yml — best-effort; do not fail the job.
-      # (Public packages are already public; first-time packages may need a one-time
-      # manual “Change visibility” under the user Packages page.)
-      - name: Set package visibility to public
+      # GHCR_TOKEN (classic PAT: write:packages + repo) owns the package after docker push.
+      # Mutations must use /user/packages/... — /users/{owner}/... often 404s for PATCH.
+      # Public.yml still uses GITHUB_TOKEN + soft-fail (good enough for already-public pkgs).
+      - name: Link package to repo and set public
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          PACKAGE_NAME: ${{ steps.package-name.outputs.name }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
         run: |
-          PACKAGE_NAME="${{ steps.package-name.outputs.name }}"
-          OWNER="${{ github.repository_owner }}"
-          curl -X PATCH \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/users/${OWNER}/packages/container/${PACKAGE_NAME}" \
-            -d '{"visibility":"public"}' || echo "Warning: Failed to set package visibility. Set manually in GitHub Package settings."
+          set -euo pipefail
+          AUTH=(-H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GHCR_TOKEN}" -H "X-GitHub-Api-Version: 2022-11-28")
+          BASE="https://api.github.com/user/packages/container/${PACKAGE_NAME}"
+
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            code="$(curl -sS -o /tmp/pkg.json -w "%{http_code}" "${AUTH[@]}" "${BASE}" || true)"
+            if [ "${code}" = "200" ]; then
+              echo "Package ${PACKAGE_NAME} visible via /user/packages (attempt ${i})"
+              break
+            fi
+            echo "Waiting for package API (HTTP ${code}), retry ${i}/10…"
+            sleep 3
+          done
+          if [ "${code:-}" != "200" ]; then
+            echo "::warning::Package ${PACKAGE_NAME} not visible to GHCR_TOKEN yet (HTTP ${code})."
+            cat /tmp/pkg.json || true
+            exit 0
+          fi
+
+          link="$(curl -sS -o /tmp/link.json -w "%{http_code}" -X PUT "${AUTH[@]}" \
+            "${BASE}/repos/${OWNER}/${REPO}" || true)"
+          echo "link_http=${link}"
+          if [ "${link}" != "200" ] && [ "${link}" != "201" ] && [ "${link}" != "204" ]; then
+            echo "::warning::Repo link failed (HTTP ${link})"
+            cat /tmp/link.json || true
+          else
+            echo "Linked ${PACKAGE_NAME} → ${OWNER}/${REPO}"
+          fi
+
+          vis="$(curl -sS -o /tmp/vis.json -w "%{http_code}" -X PATCH "${AUTH[@]}" \
+            "${BASE}" -d '{"visibility":"public"}' || true)"
+          echo "visibility_http=${vis}"
+          if [ "${vis}" = "200" ] || [ "${vis}" = "204" ]; then
+            echo "Package ${PACKAGE_NAME} is public."
+            exit 0
+          fi
+          echo "::warning::Set public failed (HTTP ${vis}). Token scopes look fine — check package ownership / UI."
+          cat /tmp/vis.json || true
+          exit 0
 
   release_eip:
     name: release eip assets
