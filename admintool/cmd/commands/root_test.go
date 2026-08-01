@@ -71,6 +71,16 @@ func TestEnsureMongoRegistered(t *testing.T) {
 	}
 }
 
+func TestEnsureS3Registered(t *testing.T) {
+	c, _, err := rootCmd.Find([]string{"ensure-s3"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Name() != "ensure-s3" {
+		t.Fatalf("got %q", c.Name())
+	}
+}
+
 func TestRestoreMongoKeyfileRegistered(t *testing.T) {
 	c, _, err := rootCmd.Find([]string{"restore-mongo-keyfile"})
 	if err != nil {

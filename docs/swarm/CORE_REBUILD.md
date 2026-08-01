@@ -12,11 +12,11 @@ This track is a **rebuild/update of core's role**, not a minimal "get core into 
 
 - **Commit to SeaweedFS** as the static-data source of truth, plus the **api/worker** fetch/publish paths via `objectstore`.
 - **SeaweedFS lives on Swarm** from day one; **provisioned by scripts** inside existing bring-up; **no parallel `make data-*` family**.
-- **App train never touches the data layer** (SeaweedFS now; mongo/redis/nats or Swarm successors later). Exclusion is by **layer**, not a growing per-service denylist on rebuild/release.
+- **App train never touches the data layer** (mongo/redis/nats/SeaweedFS/Prometheus on the Swarm data fragment). Exclusion is by **layer**, not a growing per-service denylist on rebuild/release.
 - **Networks:** attachable overlay [`eip`](docs/swarm/NETWORK.md) for app/data DNS; per-consumer stack overlays **`eip-docker-*`** for socket proxies only (Traefik / ws-router / #18).
 - **Singletons** stay in scope; Redis lease + workload registry; can trail object-store slices.
 
-This revises the old "hybrid Compose data plane forever" line: SeaweedFS is the first durable store on Swarm; mongo/redis/nats may follow later under the same **order + don't cross-roll** rules. Public UX still hides Compose-vs-Swarm.
+Data plane (mongo/redis/nats/SeaweedFS/Prometheus) lives on the Swarm **data fragment**; app train on the **app fragment**. Same **order + don't cross-roll** rules. Preferred host UX is **`eip`** (not Compose-vs-Swarm).
 
 ## Core primary / singleton leadership (locked)
 
@@ -89,7 +89,7 @@ sequenceDiagram
 |----------|----------|
 | Command mode (`tasks ...`) | Out of band — one-shot |
 | Telemetry / ConnectServices / metrics | Standby OK |
-| **mongoindex.EnsureIndexes** | **Keep on core boot; remove from worker** (avoid N workers racing). Not lease-gated. Better Mongo owner later. |
+| **Application Mongo indexes / RS / users / preimages** | **Not on core** — owned by admintool `dataplane.EnsureMongo` / `eip ensure-mongo` (`IndexSpecs`, `PreimageCollections` in `admintool/internal/dataplane/mongo`). `eip up`/`dev` Ready gates app deploy. Legacy `mongo-setup.sh` is not the SoT. |
 | EnsureSDEStaticDataReady | **Removed** — SeaweedFS + api/worker `objectstore` |
 | CheckRefreshTokenKeyringCoverage | Soft report only — unknown versions already warn+nil; infra errors log and continue |
 | ReportSchemaVersionLag | Any replica OK |
@@ -101,10 +101,25 @@ sequenceDiagram
 ### Expandable workload gating (locked shape, v1 one owner)
 
 ```text
-Standby (core v1):  deps + EnsureIndexes + probes + primary election loop + singleton runners (+ soft reports)
+Standby (core v1):  deps + probes + primary election loop + singleton runners (+ soft reports)
 Leader (core v1):   + scheduler + changestream (servicemanager)
 SIGTERM:            release lease:core:primary -> stop managed workloads -> exit
 ```
+
+## How Mongo is ensured (locked — admintool)
+
+| Decision | Choice |
+|----------|--------|
+| Placement | Swarm service `mongo` in **data fragment** [`docker-stack.data.yml`](../../docker-stack.data.yml) |
+| CMD | Auth-first `mongod --replSet rs0 --auth --keyFile` (no dual-boot setup script) |
+| Keyfile host SoT | `./mongo-keyfile` (+ `.bak`); `EnsureKeyfile` / `eip restore-mongo-keyfile` / `eip rekey-mongo` |
+| Caller SoT | [`dataplane.EnsureMongo`](../../admintool/internal/dataplane/ensure_mongo.go) → `mongo.Ensure` |
+| Steps | Keyfile → wait PRIMARY → users → preimages (`PreimageCollections`) → indexes (`IndexSpecs`) → Check |
+| Bring-up | `eip up` / `eip dev`: data deploy → Ready (`EnsureS3` ‖ `EnsureMongo`) → app deploy |
+| Day-2 | `eip ensure-s3` / `eip ensure-mongo` (also after index SoT changes when not running full up/dev); rebuild/secrets rematerialize skip Ready |
+| Not on core | No `EnsureIndexes` / index create on standby boot |
+
+Details: [docs/admintool/ENGINEERING.md](../admintool/ENGINEERING.md), [VARIABLES.md](../admintool/VARIABLES.md).
 
 ## How SeaweedFS is set up (locked defaults)
 
@@ -117,7 +132,7 @@ SIGTERM:            release lease:core:primary -> stop managed workloads -> exit
 | S3 API | Internal only — `http://seaweedfs:8333` on `eip`. No public Traefik route |
 | Console | Not public in v1 |
 | Credentials | `.env` (`S3_ACCESS_KEY` / `S3_SECRET_KEY`); `swarm-secrets-sync` can refresh; real `docker secret` later (#3) |
-| Bucket | Name **`static-data`** (+ `static-data-test`); provisioned by `scripts/swarm/provision-s3.sh` |
+| Bucket | Name **`static-data`** (+ `static-data-test`); ensured by admintool `dataplane.EnsureS3` / `eip ensure-s3` |
 | Object layout | **Same tree as today under that bucket** — e.g. `live_data/`, `previous_versions/`, `version.json` at the usual relative paths. Later: more buckets for other data domains |
 | Client | Go `services/shared/core/objectstore` (`OpenStaticData*`); SDE path helpers in `shared/core/sde` |
 | Cutover | **Hard cut** — no volume dual-write/dual-read of `static_data_files` for SDE |
@@ -174,18 +189,18 @@ Rejected for health: JetStream `health.>`, service-push heartbeats as the primar
 
 ## Object-store decisions (locked)
 
-### 1. Provision via scripts — not bootstrap containers
+### 1. Ensure via admintool — not bootstrap containers
 
-**No large `make data-*` surface.** Merge into existing scripts; get **order** right.
+**Preferred:** `eip up` / `eip dev` (data → Ready → app). Buckets via `dataplane.EnsureS3` (concurrent with `EnsureMongo` in Ready).
 
 | Command class | Behaviour |
 |---------------|-----------|
-| **Bring-up** (`make up` / `make dev`) | Ordered: **data-layer fragment** up + provision (SeaweedFS + `static-data` bucket) **before** app-layer fragment |
-| **Day-2 app train** (`rebuild`, `release`, `dev-release`) | **App-layer fragment only** — never rolls data-layer services |
-| **Day-2 sync** (`swarm-sync`, `swarm-secrets-sync`) | Env/checks as today; may refresh data-layer env without app-train dual-warm |
-| **`make update-data`** | **Generic** targeted update for **one data-layer service** — e.g. `SERVICE=seaweedfs` now; later `SERVICE=mongo` without new make taxonomy |
+| **Bring-up** (`eip up` / `eip dev`) | Ordered: **data-layer fragment** up → Ready (`EnsureS3` ‖ `EnsureMongo`) → **app-layer fragment** |
+| **Day-2 ensure** | `eip ensure-s3` / `eip ensure-mongo` without full up/dev |
+| **Day-2 app train** (`eip rebuild`, Make `release` / `dev-release`) | **App-layer fragment only** — never rolls data-layer services; rematerialize skips Ready |
+| **Day-2 sync** (`eip sync` / `eip secrets`) | Env/checks; may refresh data-layer env without app-train dual-warm |
 
-Provision: `scripts/swarm/provision-s3.sh` from bring-up / `update-data`. Credentials in `.env` first.
+Credentials in `.env` first (`S3_ACCESS_KEY` / `S3_SECRET_KEY`).
 
 ### 2. Hard cut + bucket layout
 
@@ -220,7 +235,7 @@ update-data:  one service from data fragment
 
 - Overlay split (`public` / `app` / `data` / `obs`) beyond socket-proxy nets
 - Real Docker Swarm `secret` objects for S3 creds (`.env` first) — ROADMAP **#3**
-- Folding mongo/redis/nats onto Swarm (same order + don't-cross-roll when that lands)
+- ~~Folding mongo/redis/nats onto Swarm~~ **done** (data fragment; EnsureMongo for mongo desired state)
 - Swarm bootstrap/init containers for SeaweedFS
 - Stuffing unrelated domains into the `static-data` bucket (use more buckets later)
 - Public SeaweedFS / S3 console via Traefik
@@ -256,4 +271,4 @@ ROADMAP #9–#14 / Phase B/C closed. Bring-up order, **fragment-per-layer**, `up
 
 ### Do not pull in (stay separate)
 
-Capacity controller (#18/#19/…), WS deepen (#8/#20/#21), obs addon (#34), secrets/config + frontend track (#3/#16), broader Swarm test suite (#25–#27/#29), moving mongo/redis/nats onto Swarm.
+Capacity controller (#18/#19/…), WS deepen (#8/#20/#21), obs addon (#34), secrets/config + frontend track (#3/#16), broader Swarm test suite (#25–#27/#29). Mongo ensure owned by admintool (`EnsureMongo`).

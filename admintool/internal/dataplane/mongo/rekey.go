@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"eve-industry-planner/admintool/internal/dataplane/task"
 	"eve-industry-planner/admintool/internal/msg"
 )
 
@@ -131,7 +132,7 @@ func stopRekeyMongod(ctx context.Context, cid string) error {
 }
 
 func waitRekeyRootAuth(ctx context.Context, cid string, c creds, timeout time.Duration) error {
-	err := retry(ctx, timeout, time.Second, func() error {
+	err := task.Retry(ctx, timeout, time.Second, func() error {
 		if _, err := mongoshRoot(ctx, cid, c, "db.adminCommand('ping').ok", nil); err != nil {
 			return err
 		}

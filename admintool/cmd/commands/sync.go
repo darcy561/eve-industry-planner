@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"eve-industry-planner/admintool/internal/catalog"
-	"eve-industry-planner/admintool/internal/eipconfig"
+	"eve-industry-planner/admintool/internal/config"
 	"eve-industry-planner/admintool/internal/msg"
 )
 
@@ -31,7 +31,7 @@ var syncCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
 
-		err := eipconfig.Sync(ctx, dryRun)
+		err := config.Sync(ctx, dryRun)
 		if err != nil {
 			msg.EmitStack("sync", msg.LightRed, err.Error())
 			return err

@@ -8,14 +8,14 @@ import (
 
 	"github.com/docker/docker/client"
 
+	"eve-industry-planner/admintool/internal/config"
 	"eve-industry-planner/admintool/internal/dataplane"
 	"eve-industry-planner/admintool/internal/docker"
 	"eve-industry-planner/admintool/internal/dockercli"
-	"eve-industry-planner/admintool/internal/eipconfig"
-	"eve-industry-planner/admintool/internal/msg"
 	"eve-industry-planner/admintool/internal/engine"
 	"eve-industry-planner/admintool/internal/images"
 	"eve-industry-planner/admintool/internal/kit"
+	"eve-industry-planner/admintool/internal/msg"
 	"eve-industry-planner/admintool/internal/stack"
 	"eve-industry-planner/admintool/internal/swarm"
 )
@@ -40,7 +40,7 @@ func Run(ctx context.Context, src Source) error {
 		return err
 	}
 
-	cfg, err := eipconfig.LoadYAML(filepath.Join(home, kit.ConfigFile))
+	cfg, err := config.LoadYAML(filepath.Join(home, kit.ConfigFile))
 	if err != nil {
 		return fmt.Errorf("eip.config.yaml: %w", err)
 	}
@@ -94,11 +94,9 @@ func Run(ctx context.Context, src Source) error {
 	}
 
 	msg.Step("Checking data plane…")
-	// Nested waits: S3 WaitLive 90s + mongo waitTask 90s + PRIMARY probe 60s.
-	readyCtx, readyCancel := context.WithTimeout(ctx, 5*time.Minute)
-	err = dataplane.Ready(readyCtx, stackName)
-	readyCancel()
-	if err != nil {
+	// S3 + mongo Ensure (RS/users/preimages/indexes). Index builds have no short
+	// deadline — progress via msg; cancel with process interrupt only.
+	if err := dataplane.Ready(ctx, stackName); err != nil {
 		return err
 	}
 

@@ -86,6 +86,6 @@ scripts/
 
 Secrets day-2: `make swarm-secrets-sync` (not `swarm-sync-secrets` / `sync-secrets`) — word order differs from `swarm-sync` on purpose.
 
-Hard rule: **`scripts/bootstrap/mongo-setup.sh`** — path moves only; never edit contents.
+Legacy: **`scripts/bootstrap/mongo-setup.sh`** — not Swarm CMD; not SoT. Live mongo ensure is admintool `dataplane.EnsureMongo` (`eip ensure-mongo` / Ready). Prefer not editing the bash script; delete when Make is retired.
 
-Docs SoT: `docs/swarm/MAKE.md`, `docs/swarm/APP_TRAIN.md`, `docs/swarm/ENV.md`.
+Docs SoT (bring-up): `docs/admintool/ENGINEERING.md` (`eip`). Make surface: `docs/swarm/MAKE.md`, `docs/swarm/APP_TRAIN.md`, `docs/swarm/ENV.md`.

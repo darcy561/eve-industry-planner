@@ -9,7 +9,6 @@ import (
 	"eve-industry-planner/core/scheduler/contract"
 	schedesi "eve-industry-planner/core/scheduler/esi"
 	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/core/mongo/indexing"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	taskscore "eve-industry-planner/shared/tasks"
@@ -86,7 +85,7 @@ func publishCloudEsiRefreshMaintenanceBatch(ctx context.Context, deps contract.D
 		SetProjection(bson.M{"_id": 1}).
 		SetSort(bson.D{{Key: "_id", Value: 1}}).
 		SetLimit(int64(effectiveCap)).
-		SetHint(indexing.UsersMetaLastLoginAtIndexName)
+		SetHint(usersMetaLastLoginAtIndexName)
 
 	col := deps.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUsers)
 	cur, err := col.Find(ctx, filter, opts)
@@ -151,7 +150,7 @@ func computeCloudEsiPublishBatchSize(ctx context.Context, deps contract.Dependen
 	defer cancel()
 
 	col := deps.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUsers)
-	total, err := col.CountDocuments(countCtx, filter, options.Count().SetHint(indexing.UsersMetaLastLoginAtIndexName))
+	total, err := col.CountDocuments(countCtx, filter, options.Count().SetHint(usersMetaLastLoginAtIndexName))
 	if err != nil {
 		return 0, err
 	}

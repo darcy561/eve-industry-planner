@@ -11,10 +11,10 @@
 
 | Surface | Contents | Apply |
 |---------|----------|--------|
-| **`.env`** | Secrets (DB passwords, SSO, HMAC keys, S3 keys, …) | Compose reads `--env-file .env` only; elastic: **`make swarm-secrets-sync`** creates Swarm `docker secret` objects + rematerializes the stack (per-service `/run/secrets/<KEY>`). Optional `MONGO_*_API` / `REDIS_*_API`: api prefers them when set (`ConnectAPI`), else shared creds. Creating those DB/ACL users is a later **data-plane bootstrap** step (ROADMAP Follow-ups) — not required for day-2. |
+| **`.env`** | Secrets (DB passwords, SSO, HMAC keys, S3 keys, …) | Swarm services get secrets via **`eip secrets`** / legacy **`make swarm-secrets-sync`** (versioned `docker secret` + `/run/secrets/<KEY>`). Optional `MONGO_*_API` / `REDIS_*_API`: api prefers them when set (`ConnectAPI`), else shared creds. **Creating** those DB/ACL users is a later Ensure follow-up (ROADMAP) — not required for day-2. App S3 buckets: **`eip ensure-s3`** / Ready. Root/app mongo users + indexes: **`eip ensure-mongo`** / Ready. |
 | **Stack anchors** (`x-mongo-env`, `x-redis-env`, …) | Mesh networking (`MONGO_HOST` / `REDIS_*` / `NATS_URL` / `S3_URL`) | Required by Go (no host fallbacks). Not secrets. |
 | **`x-frontend-public-env`** | SPA public knobs (`EVE_CLIENT_ID`, callback/scope, `GA4_*`, `ENVIRONMENT`) | Stack task `environment` on `eip_frontend` — **no** docker secrets for FE |
-| **Operator YAML** | Replicas / capacity / concurrency / `client_cutoff` / addons / ports/paths / `proxy.trusted_ips`+`trusted_cidrs` / `scale_timing` | Copy [`eip.config.example.yaml`](../../eip.config.example.yaml) → `eip.config.yaml`. **`make swarm-sync`** validates + writes an **ephemeral** sync-env + targeted apply (capacity + Traefik ports/paths/proxy + Grafana path) and hash-diff Swarm file configs (`eip.config.sync`). Addon toggle (#34) still open |
+| **Operator YAML** | Replicas / capacity / concurrency / `client_cutoff` / addons / ports/paths / `proxy.trusted_ips`+`trusted_cidrs` / `scale_timing` | `eip init` writes defaults from [`yamldefaults.DefaultConfig`](../../admintool/internal/kit/templates/yamldefaults/default.go). **`make swarm-sync`** validates + writes an **ephemeral** sync-env + targeted apply (capacity + Traefik ports/paths/proxy + Grafana path) and hash-diff Swarm file configs (`eip.config.sync`). Addon toggle (#34) still open |
 
 | Verb | Applies |
 |------|---------|
@@ -45,8 +45,8 @@ Sync **does not** recreate mongo/redis/nats for these changes. Core and frontend
 Capacity/ports bridges are **ephemeral**: `scripts/lib/eip-config.sh` (`eip_sync_env_temp` / `eip_write_sync_env`) at stack expand and `make swarm-sync`. There is **no** durable `.eip-sync.env`. Temp files emit `EIP_HTTP_PORT`, `EIP_HTTPS_PORT`, `EIP_TRAEFIK_DASHBOARD_PORT`, `EIP_GRAFANA_PATH`, `EIP_TRAEFIK_DASHBOARD_PATH`, `EIP_TRAEFIK_TRUSTED_PROXY_CIDRS`, and `GRAFANA_ROOT_URL` for interpolation, then are removed.
 
 ```bash
-cp eip.config.example.yaml eip.config.yaml
-# edit…
+eip init   # writes eip.config.yaml when missing (Go defaults)
+# edit eip.config.yaml…
 make swarm-sync ARGS='--dry-run'
 make swarm-sync
 ```
@@ -75,34 +75,36 @@ anchors; non-secret knobs (`EVE_CLIENT_ID`, ports, …) stay task `environment`.
 
 | Runtime | After editing |
 |---------|----------------|
-| Operator YAML (`eip.config.yaml`) | **`make swarm-sync`** |
-| Compose data plane / ops secrets in `.env` | Recreate affected Compose services (see below) |
-| Swarm elastic secrets (SoT `.env` → `/run/secrets/<KEY>`) | **`make swarm-secrets-sync`** |
-| Frontend public knobs (`x-frontend-public-env`) | Rematerialize stack (bring-up or any stack rematerialize); **no** docker secrets |
+| Operator YAML (`eip.config.yaml`) | **`eip sync`** (or legacy **`make swarm-sync`**) |
+| Swarm secrets (SoT `.env` → `/run/secrets/<KEY>`) | **`eip secrets`** (or legacy **`make swarm-secrets-sync`**) |
+| S3 app buckets (`static-data` / `static-data-test`) | **`eip ensure-s3`** / Ready on `eip up`/`dev` |
+| Mongo desired state (RS/users/preimages/indexes/keyfile) | **`eip ensure-mongo`** / Ready on `eip up`/`dev` |
+| Frontend public knobs (`x-frontend-public-env`) | Rematerialize stack; **no** docker secrets |
 
-## Compose (data plane + ops)
+## Swarm data fragment (mongo / redis / nats / …)
 
-Examples: `mongo`, `redis`, `nats`, observability (until #34). Traefik + core + frontend are
-Swarm (`eip_traefik`, `eip_core`, `eip_frontend`). Compose always uses **`--env-file .env`** only
-(no sync-env file).
+Mongo, redis, and nats run on the Swarm **data fragment** (`docker-stack.data.yml`), not Compose.
+After `.env` secret edits prefer **`eip secrets`**. Day-2 ensure without a full up/dev:
+**`eip ensure-s3`** / **`eip ensure-mongo`**. Keyfile recovery: **`eip restore-mongo-keyfile`** / **`eip rekey-mongo`**.
+
+Optional **Compose observability** addon (#34) may still use `--env-file .env` for Grafana/etc.
 
 ```bash
-# Recreate only services that must pick up new secrets (examples):
-make rebuild SERVICES=mongo,redis
+eip secrets
+eip ensure-s3      # day-2 app buckets without full up/dev
+eip ensure-mongo   # day-2 mongo ensure without full up/dev
 
-# Or bounce the whole Compose project (also redeploys the stack via make up/dev):
-make up
-# / make dev
+# Legacy Make:
+make swarm-secrets-sync
+make update-data SERVICE=mongo
 ```
-
-`--force-recreate` is required when the compose file and image tag are unchanged but `.env` values
-changed — otherwise Compose may leave running containers alone.
 
 ## Swarm stack (Traefik + api / websocket / worker / ws-router / core / frontend)
 
 ```bash
 # Edit .env secrets, then:
-make swarm-secrets-sync
+eip secrets
+# legacy: make swarm-secrets-sync
 ```
 
 This syncs docker secrets and rolls services that mount them (`eip_api`, `eip_websocket`,
@@ -123,7 +125,7 @@ reconnects). Frontend has no secret mounts.
 | Worker concurrency (`services.worker.concurrency`) | `eip.config.yaml` → **`make swarm-sync`** — [WORKER.md](./WORKER.md) |
 | Websocket client cutoff (`services.websocket.client_cutoff`) | `eip.config.yaml` → **`make swarm-sync`** — [WEBSOCKET.md](./WEBSOCKET.md) |
 
-Exact variable lists live in `env.example` — this doc is the **apply procedure**, not the schema.
+Exact `.env` key lists live in [`env.EnvFields`](../../admintool/internal/kit/templates/env/fields.go) — this doc is the **apply procedure**, not the schema.
 
 ## Acceptance (#24)
 
@@ -160,7 +162,7 @@ bootstrap follow-up. Day-2 verb: **`make swarm-secrets-sync`**.
 - [STACK.md](./STACK.md) — deploy / remove (implementer)  
 - [WS_ROUTER.md](./WS_ROUTER.md) — placement router (`eip_ws_router`, landed)  
 - [WORKER.md](./WORKER.md) — concurrency envelope (`services.worker.concurrency`)  
-- [`eip.config.example.yaml`](../../eip.config.example.yaml) — operator YAML (#19)  
+- [`yamldefaults.DefaultConfig`](../../admintool/internal/kit/templates/yamldefaults/default.go) — operator YAML defaults (#19)
 - [WEBSOCKET.md](./WEBSOCKET.md) — drain / soft caps  
 - [NETWORK.md](./NETWORK.md) — shared `eip` network  
 - ROADMAP **#3** / **#16** / **#7** / **#19** / **#24** / **#32**  

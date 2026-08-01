@@ -6,6 +6,8 @@ package commands
 
 import (
 	"bytes"
+	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -16,19 +18,28 @@ import (
 //	-X eve-industry-planner/admintool/cmd/commands.Version=<version>
 var Version = "0.0.0-dev"
 
-// rootCmd is the base command when called without subcommands.
-var rootCmd = &cobra.Command{
-	Use:   "eip",
-	Short: "Eve Industry Planner deployment management",
-	Long: `Eve Industry Planner - eip
+func rootLong() string {
+	bin := "./eip"
+	if runtime.GOOS == "windows" {
+		bin = `.\eip.exe`
+	}
+	return fmt.Sprintf(`Eve Industry Planner - eip
 
 Same binary: interactive / no args → TUI; verbs → CLI.
 Source lives in admintool/; command prefix is eip.
 
-  .\eip.exe              # TUI (also double-click)
-  .\eip.exe doctor       # CLI Docker / stack health check
-  .\eip.exe --version
-  .\eip.exe help`,
+  %s              # TUI (run from a terminal)
+  %s ui           # force TUI
+  %s doctor       # CLI Docker / stack health check
+  %s --version
+  %s help`, bin, bin, bin, bin, bin)
+}
+
+// rootCmd is the base command when called without subcommands.
+var rootCmd = &cobra.Command{
+	Use:           "eip",
+	Short:         "Eve Industry Planner deployment management",
+	Long:          rootLong(),
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {

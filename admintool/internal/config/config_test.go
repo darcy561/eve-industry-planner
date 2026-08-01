@@ -1,17 +1,57 @@
-package eipconfig
+package config_test
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"eve-industry-planner/admintool/internal/config"
+	"eve-industry-planner/admintool/internal/kit/templates/yamldefaults"
 )
+
+func TestDefaultConfigValid(t *testing.T) {
+	t.Parallel()
+	cfg := yamldefaults.DefaultConfig()
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Services["worker"].Concurrency != 50 {
+		t.Fatalf("worker.concurrency=%d", cfg.Services["worker"].Concurrency)
+	}
+	if cfg.CLI.EnvBackupPath != config.DefaultEnvBackupStem {
+		t.Fatalf("cli.env_backup_path=%q", cfg.CLI.EnvBackupPath)
+	}
+}
+
+func TestWriteYAMLRoundTrip(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "eip.config.yaml")
+	if err := config.WriteYAML(path, yamldefaults.DefaultConfig()); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.LoadYAML(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Services["websocket"].ClientCutoff != 2000 {
+		t.Fatalf("client_cutoff=%d", cfg.Services["websocket"].ClientCutoff)
+	}
+	raw, _ := os.ReadFile(path)
+	if !strings.Contains(string(raw), "env_backup_path:") {
+		t.Fatalf("missing cli in:\n%s", raw)
+	}
+}
 
 func TestLoadExampleYAML(t *testing.T) {
 	t.Parallel()
-	path := filepath.Clean(filepath.Join("..", "kit", "templates", "eip.config.yaml"))
-	cfg, err := LoadYAML(path)
+	path := filepath.Join(t.TempDir(), "eip.config.yaml")
+	if err := config.WriteYAML(path, yamldefaults.DefaultConfig()); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.LoadYAML(path)
 	if err != nil {
-		t.Fatalf("load example: %v", err)
+		t.Fatalf("load: %v", err)
 	}
 	if cfg.Services["worker"].Concurrency != 50 {
 		t.Fatalf("worker.concurrency=%d", cfg.Services["worker"].Concurrency)
@@ -20,10 +60,7 @@ func TestLoadExampleYAML(t *testing.T) {
 
 func TestSyncEnvStable(t *testing.T) {
 	t.Parallel()
-	cfg, err := LoadYAML(filepath.Clean(filepath.Join("..", "kit", "templates", "eip.config.yaml")))
-	if err != nil {
-		t.Fatal(err)
-	}
+	cfg := yamldefaults.DefaultConfig()
 	joined := strings.Join(cfg.SyncEnv(), "\n")
 	for _, want := range []string{
 		"EIP_WEBSOCKET_CAPACITY_MAX=4",
@@ -35,5 +72,8 @@ func TestSyncEnvStable(t *testing.T) {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("missing %q in:\n%s", want, joined)
 		}
+	}
+	if strings.Contains(joined, "env_backup") || strings.Contains(joined, "EIP_CLI") {
+		t.Fatalf("cli leaked into SyncEnv:\n%s", joined)
 	}
 }

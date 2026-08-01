@@ -1,4 +1,4 @@
-package eipconfig
+package config
 
 import (
 	"strings"
@@ -77,6 +77,29 @@ func TestSyncEnvMapDefaults(t *testing.T) {
 	}
 }
 
+func TestEffectiveEnvBackupPath(t *testing.T) {
+	t.Parallel()
+	cfg := validConfig()
+	if cfg.EffectiveEnvBackupPath() != DefaultEnvBackupStem {
+		t.Fatalf("default=%q", cfg.EffectiveEnvBackupPath())
+	}
+	cfg.CLI.EnvBackupPath = "  custom-stem  "
+	if cfg.EffectiveEnvBackupPath() != "custom-stem" {
+		t.Fatalf("got %q", cfg.EffectiveEnvBackupPath())
+	}
+}
+
+func TestSyncEnvMapExcludesCLI(t *testing.T) {
+	t.Parallel()
+	cfg := validConfig()
+	cfg.CLI.EnvBackupPath = "secret-backup-path"
+	for k := range cfg.SyncEnvMap() {
+		if strings.Contains(strings.ToLower(k), "backup") || strings.Contains(strings.ToLower(k), "cli") {
+			t.Fatalf("SyncEnvMap leaked cli key %s", k)
+		}
+	}
+}
+
 func TestTrustedProxyCIDRsCSV(t *testing.T) {
 	t.Parallel()
 	cfg := validConfig()
@@ -85,5 +108,21 @@ func TestTrustedProxyCIDRsCSV(t *testing.T) {
 	got := cfg.TrustedProxyCIDRsCSV()
 	if got != "1.1.1.1,10.0.0.0/8" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestSummaryLines(t *testing.T) {
+	t.Parallel()
+	cfg := Config{
+		Version: 1,
+		Services: map[string]ServiceSpec{
+			"api":       {Min: 1, Max: 2},
+			"worker":    {Min: 1, Max: 2, Concurrency: 4},
+			"websocket": {Min: 2, Max: 4, ClientCutoff: 100, TargetClients: 50},
+		},
+	}
+	lines := cfg.SummaryLines()
+	if len(lines) < 4 {
+		t.Fatalf("got %v", lines)
 	}
 }

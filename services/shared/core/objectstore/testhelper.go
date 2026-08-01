@@ -28,7 +28,7 @@ func OpenTestStore(t *testing.T) Backend {
 	}
 	access := strings.TrimSpace(os.Getenv("S3_ACCESS_KEY"))
 	secret := strings.TrimSpace(os.Getenv("S3_SECRET_KEY"))
-	if access == "" || secret == "" || secret == "auto-generate-me" {
+	if access == "" || secret == "" {
 		t.Skip("S3_ACCESS_KEY / S3_SECRET_KEY not set")
 	}
 

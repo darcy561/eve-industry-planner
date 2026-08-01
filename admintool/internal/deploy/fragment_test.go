@@ -3,8 +3,8 @@ package deploy
 import (
 	"testing"
 
-	"eve-industry-planner/admintool/internal/docker"
 	"eve-industry-planner/admintool/internal/catalog"
+	"eve-industry-planner/admintool/internal/docker"
 )
 
 func TestFragmentStates(t *testing.T) {

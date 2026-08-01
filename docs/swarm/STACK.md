@@ -1,19 +1,20 @@
 # Swarm stack — data fragment + app fragment (#5 / #4 / #31)
 
-> Part of [ROADMAP.md](./ROADMAP.md). **Implementer** doc for the live hybrid stack:
-> Swarm **data fragment** (SeaweedFS + Prometheus) then **app fragment** (Traefik + api / websocket / worker /
-> ws-router / core / **frontend**) beside Compose mongo/redis/nats (+ ops). Public bring-up is [MAKE.md](./MAKE.md).
+> Part of [ROADMAP.md](./ROADMAP.md). **Implementer** doc for the live stack:
+> Swarm **data fragment** (mongo / redis / nats / SeaweedFS / Prometheus) then **app fragment** (Traefik + api /
+> websocket / worker / ws-router / core / **frontend**); optional Compose observability ops. Preferred bring-up:
+> [`eip up`](../admintool/README.md) / `eip dev` ([ENGINEERING.md](../admintool/ENGINEERING.md)). Make remains legacy reference ([MAKE.md](./MAKE.md)).
 > Edge: [TRAEFIK.md](./TRAEFIK.md). Placement: [WS_ROUTER.md](./WS_ROUTER.md).
 
 ## Files
 
 | File | Role |
 |------|------|
-| [`docker-stack.data.yml`](../../docker-stack.data.yml) | **Data-layer** fragment (SeaweedFS + **Prometheus** — not the observability addon). Membership = top-level `services:` in that file |
+| [`docker-stack.data.yml`](../../docker-stack.data.yml) | **Data-layer** fragment (mongo, redis, nats, SeaweedFS, **Prometheus** — not the observability addon). Membership = top-level `services:` in that file |
 | [`docker-stack.yml`](../../docker-stack.yml) | **App-layer** fragment (not for `compose up`) |
 | [`docker-stack.dev.yml`](../../docker-stack.dev.yml) | **dev overlay** — per-role `${TAG_api}` / `${TAG_core}` / … image refs for local bake |
 | `.eip-local-build.env` (gitignored) | Bake output: `APP_VERSION`, `TAG_*`, `DIGEST_*` for `stack-deploy --dev` |
-| [`eip.config.example.yaml`](../../eip.config.example.yaml) | Operator YAML draft (#19; worker #7 + websocket #8) |
+| [`yamldefaults.DefaultConfig`](../../admintool/internal/kit/templates/yamldefaults/default.go) | Operator YAML defaults (#19; worker #7 + websocket #8) → live `eip.config.yaml` |
 | [`NETWORK.md`](./NETWORK.md) | `eip` bridge → overlay before stack |
 | [`IDENTITY.md`](./IDENTITY.md) | `*-{{.Task.Slot}}` env contract |
 | [`ENV.md`](./ENV.md) | Secrets apply / ephemeral sync-env |
@@ -26,7 +27,7 @@
 ## Operator config (#19)
 
 Non-secret tunables (replicas, capacity, ports/paths, scale_timing, addons) live in
-[`eip.config.example.yaml`](../../eip.config.example.yaml) → `eip.config.yaml`. Apply with
+`eip.config.yaml` (defaults from [`yamldefaults.DefaultConfig`](../../admintool/internal/kit/templates/yamldefaults/default.go) via `eip init`). Apply with
 `make swarm-sync` (#32): capacity for services labeled `eip.capacity.sync=1` (api / websocket /
 worker — not ws-router) + Traefik host ports/paths + Grafana path + file configs
 (`eip.config.sync`). Addon toggle (#34) still open. Until synced:
@@ -42,11 +43,13 @@ See [ENV.md](./ENV.md) for the example-vs-live comparison table.
 1. Docker **Swarm** active (`make ensure-swarm` — init only if needed; does **not**
    mutate cluster-wide orchestration settings).
 2. External **`eip`** as **attachable overlay** — see [NETWORK.md](./NETWORK.md).  
-3. Compose data plane (at least mongo / redis / nats; usually ops) on `eip`,
-   so named volumes `eve-industry-planner_*` already exist (`traefik_data` / `core_data` are
-   create-once in `stack-deploy` if missing).
+3. Data-layer Swarm services (mongo / redis / nats / seaweedfs / prometheus) on `eip` via the data fragment;
+   named volumes `eve-industry-planner_*` created by `eip` engine Ready / stack deploy as needed.
 4. `.env` with required `APP_VERSION=X.Y.Z` (image/bake/advertise SoT) plus secrets; `eip.config.yaml` for capacity/ports/paths (not version).
-5. (Optional) `stack-deploy` stops leftover Compose api/websocket/worker/core/frontend/traefik from older installs.
+5. Data-plane desired state via `dataplane.Ready` — concurrent `EnsureS3` (app buckets) and
+   `EnsureMongo` (RS, users, preimages, indexes, keyfile) on `eip up`/`dev`, or day-2 with
+   `eip ensure-s3` / `eip ensure-mongo` (see [ENGINEERING.md](../admintool/ENGINEERING.md)).
+6. (Optional) leftover Compose api/websocket/worker/core/frontend/traefik from older installs should be removed.
 
 ## Swarm task history (optional Desktop hygiene)
 
@@ -91,14 +94,16 @@ Stack name: **`eip`** — data: `eip_seaweedfs`, `eip_prometheus` (DNS alias `pr
 **per-consumer** overlays (`eip-docker-traefik`, `eip-docker-ws`; Traefik/ws-router also on
 `eip`); per-consumer allowlists; #18 gets its own proxy + `eip-docker-capacity` stub.
 
-`make up` / `make dev` expand both fragments via `docker compose config`, deploy **data first**,
-run `provision-s3.sh` (verify/create buckets), then deploy **data+app** with `--prune` so
-Swarm drops services removed from the YAML. App train (`rebuild` / `release`) must not update
-data-layer services. Data image/config day-2: **`make update-data`**.
+`eip up` / `eip dev` deploy **data first**, run `dataplane.Ready` (`EnsureS3` ‖ `EnsureMongo`), then
+deploy **data+app** with `--prune`. Make’s `stack-deploy` path is legacy and does **not** run Ready.
+App train (`eip rebuild` / Make `release`) must not update data-layer services as a
+side effect of app rolls. Data image/config day-2: **`make update-data`** (legacy) or rematerialize via `eip`.
 
 ## What this stack includes
 
-- **SeaweedFS** (`eip_seaweedfs`, data fragment): S3 on overlay only (`seaweedfs:8333`); not host-published. Buckets `static-data` / `static-data-test` are `objectstore` constants.
+- **mongo** (`eip_mongo`, data fragment): auth-first single-node RS (`rs0`); host `./mongo-keyfile`. Desired state (RS, users, preimages, **indexes**) = admintool `EnsureMongo` — not core boot, not `mongo-setup.sh`.
+- **redis** / **nats** (`eip_redis`, `eip_nats`, data fragment): mesh data plane on `eip`.
+- **SeaweedFS** (`eip_seaweedfs`, data fragment): S3 on overlay only (`seaweedfs:8333`); not host-published. App buckets `static-data` / `static-data-test` via admintool `EnsureS3` (`AppBuckets` / `objectstore` constants).
 - **Prometheus** (`eip_prometheus`, data fragment): metrics TSDB for capacity controller (#18); DNS alias `prometheus` on `eip` (Alloy remote-write + Grafana). Label `eip.config.sync=1` → hash-synced Swarm config from `observability/prometheus/prometheus.yml` (`make swarm-sync` / `make release`; overlay `.eip-swarm-configs.yml`). Volume `eve-industry-planner_prometheus_data`. **Not** part of the observability addon (#34).
 - **SDE:** api/worker/core use `shared/core/objectstore` (object keys `live_data/`, `previous_versions/`, …). Empty bucket is fine — worker rebuilds from CCP live data. Traefik gates api on `/ready`.
 - **Traefik** (`eip_traefik`): ingress `80`/`443`/`81`, dual providers via **`eip_traefik-docker-proxy`** (no sock on Traefik), DNS alias `traefik` (#31)
@@ -114,7 +119,7 @@ data-layer services. Data image/config day-2: **`make update-data`**.
 
 ## What it does not include yet
 
-- Least-privilege `*_API` DB users (create in Mongo/Redis) — data-plane bootstrap follow-up; app falls back until then (#3 attach path already landed)
+- Least-privilege `*_API` DB users (create in Mongo/Redis) — future Ensure follow-up; app falls back until then (#3 attach path already landed)
 - Controller soft-cutover / HTTP train cookie remainder of **#23**; capacity controller (**#18**)
 - Observability addon toggle apply (**#34**)
 - Proven hybrid DNS / affinity acceptance in CI (operator verifies locally; `#4` smoke is local)
@@ -122,8 +127,8 @@ data-layer services. Data image/config day-2: **`make update-data`**.
 ## Acceptance checklist (local)
 
 - [x] `eip` is overlay + attachable (smoke 2026-07-19)
-- [x] Compose mongo/redis/nats healthy on `eip`
-- [x] `make up` / `make dev` succeeds (`eip_traefik` 1/1, `eip_api` 1/1, `eip_websocket` 2/2, `eip_worker` 1/1, `eip_ws-router` 1/1, `eip_core` 1/1, `eip_frontend` 1/1)
+- [x] Swarm data-fragment mongo/redis/nats healthy on `eip` (`EnsureMongo` for mongo desired state)
+- [x] `eip up` / `eip dev` (or legacy `make up` / `make dev`) succeeds (`eip_traefik` 1/1, `eip_api` 1/1, `eip_websocket` 2/2, `eip_worker` 1/1, `eip_ws-router` 1/1, `eip_core` 1/1, `eip_frontend` 1/1)
 - [x] Frontend on Swarm (#16) — public env via `x-frontend-public-env`; bake/train with app roles
 - [x] From an `eip_api` task: resolve `mongo`, `redis`, `nats` by name
 - [x] Websocket tasks show distinct `OTEL_SERVICE_INSTANCE_ID` (`websocket-1`, `websocket-2`)

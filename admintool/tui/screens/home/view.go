@@ -22,11 +22,17 @@ func (m model) View() string {
 
 	header := m.renderHeader()
 	bar := statusbar.RenderBar(m.width, m.snap)
-	body := ui.JoinPanes(m.renderLeft(), m.renderRight())
+	var body string
+	switch m.bodyMode {
+	case bodyModeBuilder:
+		body = m.builder.View()
+	default:
+		body = ui.JoinPanes(m.renderLeft(), m.renderRight())
+	}
 	footer := ui.HelpLine(m.width, m.footerHelp())
 
 	parts := []string{header, bar, body}
-	if m.focus == focusCommand {
+	if m.focus == focusCommand && m.bodyMode == bodyModeOps {
 		cmdLine := lipgloss.NewStyle().
 			Width(m.width).
 			Padding(0, theme.HMargin).
@@ -83,13 +89,19 @@ func (m model) renderHeader() string {
 
 func (m model) renderLeft() string {
 	title := "COMMANDS"
-	switch m.focus {
-	case focusRestartPick:
-		title = "RESTART"
-	case focusLogsType:
-		title = "LOG TYPE"
-	case focusLogsSource:
-		title = "LOG SOURCE"
+	if m.bodyMode == bodyModeSetupChoice {
+		title = "CONFIG"
+	} else {
+		switch m.focus {
+		case focusMore:
+			title = "MORE"
+		case focusRestartPick:
+			title = "RESTART"
+		case focusLogsType:
+			title = "LOG TYPE"
+		case focusLogsSource:
+			title = "LOG SOURCE"
+		}
 	}
 	return ui.RenderPanel(title, m.list.View(), m.leftW, m.bodyH)
 }
@@ -99,11 +111,19 @@ func (m model) renderRight() string {
 }
 
 func (m model) footerHelp() string {
+	switch m.bodyMode {
+	case bodyModeBuilder:
+		return m.builder.Help()
+	case bodyModeSetupChoice:
+		return "↑↓ select   enter confirm   esc skip config step   ctrl+c quit"
+	}
 	switch m.focus {
+	case focusMore:
+		return "↑↓ select   enter open   esc/q back   pgup/pgdn scroll output"
 	case focusRestartPick, focusLogsType, focusLogsSource:
 		return "↑↓ select   enter confirm   esc/q back   pgup/pgdn scroll output"
 	default:
-		return "↑↓ select   enter run   : command   pgup/pgdn scroll output pane esc quit"
+		return "↑↓ select   enter run   : command   pgup/pgdn scroll output   esc quit"
 	}
 }
 

@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"eve-industry-planner/admintool/internal/config"
 	"eve-industry-planner/admintool/internal/docker"
 	"eve-industry-planner/admintool/internal/dockercli"
-	"eve-industry-planner/admintool/internal/eipconfig"
-	"eve-industry-planner/admintool/internal/msg"
 	"eve-industry-planner/admintool/internal/images"
 	"eve-industry-planner/admintool/internal/kit"
+	"eve-industry-planner/admintool/internal/msg"
 	"eve-industry-planner/admintool/internal/swarm"
 )
 
@@ -34,7 +34,7 @@ func Rematerialize(ctx context.Context, src Source) error {
 		return err
 	}
 
-	cfg, err := eipconfig.LoadYAML(filepath.Join(home, kit.ConfigFile))
+	cfg, err := config.LoadYAML(filepath.Join(home, kit.ConfigFile))
 	if err != nil {
 		return fmt.Errorf("eip.config.yaml: %w", err)
 	}
@@ -68,7 +68,7 @@ func Rebuild(ctx context.Context, bakeArgs ...string) error {
 		return err
 	}
 
-	cfg, err := eipconfig.LoadYAML(filepath.Join(home, kit.ConfigFile))
+	cfg, err := config.LoadYAML(filepath.Join(home, kit.ConfigFile))
 	if err != nil {
 		return fmt.Errorf("eip.config.yaml: %w", err)
 	}
@@ -81,7 +81,7 @@ func Rebuild(ctx context.Context, bakeArgs ...string) error {
 	return stackRedeploy(ctx, home, SourceDev, cfg, expandEnv, "Rebuild")
 }
 
-func stackRedeploy(ctx context.Context, home string, src Source, cfg eipconfig.Config, expandEnv map[string]string, label string) error {
+func stackRedeploy(ctx context.Context, home string, src Source, cfg config.Config, expandEnv map[string]string, label string) error {
 	expanded, err := materializeExpanded(ctx, home, src, cfg, expandEnv)
 	if err != nil {
 		return err

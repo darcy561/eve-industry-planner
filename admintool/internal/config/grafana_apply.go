@@ -1,4 +1,4 @@
-package eipconfig
+package config
 
 import (
 	"context"
@@ -34,16 +34,6 @@ type grafanaInspect struct {
 			} `json:"ContainerSpec"`
 		} `json:"TaskTemplate"`
 	} `json:"Spec"`
-}
-
-// GrafanaRootURL builds GRAFANA_ROOT_URL for SyncEnvMap expand
-// (http://127.0.0.1{path}/). Swarm apply uses stack.DesiredGrafanaRootURL.
-func GrafanaRootURL(pathPrefix string) string {
-	pathPrefix = strings.TrimSpace(pathPrefix)
-	if pathPrefix == "" {
-		pathPrefix = "/grafana"
-	}
-	return "http://127.0.0.1" + pathPrefix + "/"
 }
 
 // PathFromTraefikRule extracts the first PathPrefix value from a Traefik router rule.
@@ -93,7 +83,7 @@ func InspectGrafanaService(ctx context.Context, name, rootEnv, ruleLabelKey stri
 	}, nil
 }
 
-// ApplyGrafanaPath updates Swarm grafana env/labels from obs stack kit.
+// ApplyGrafanaPath updates Swarm grafana env/labels from the obs stack file.
 // Skips if grafana is not deployed or obs stack is missing.
 func ApplyGrafanaPath(ctx context.Context, cfg Config, home, stackPrefix string, dryRun bool) error {
 	if stackPrefix == "" {

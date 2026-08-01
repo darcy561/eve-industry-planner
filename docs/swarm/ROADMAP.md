@@ -1,8 +1,8 @@
 # Docker Swarm migration - roadmap & backlog
 
-> **Handoff status (2026-07-23):** Branch **`swarm/hard-cutover`**. Hybrid live. **#3 / #4 / #5 / #7 / #16 / #17 / #21 / #24 / #31** done (secrets/config + FE on Swarm + day-2 apply docs + operator Make/scripts surface). **Core boxed off (#9–#14 + #28).** **#8** cutoff+divert (partial). **#19/#32** `make swarm-sync` / `swarm-secrets-sync` (ephemeral sync-env; durable **`.eip-sync.env` retired**). **`APP_VERSION` SoT is `.env`**. **#35/#33** bake/promote (incl. **frontend**). **#23/#6** app-train dual-warm. **Object store:** SeaweedFS + `objectstore`. **Next:** **#18** capacity-controller track. Least-privilege `*_API` DB users parked with data-plane bootstrap (Follow-ups). Docs: CORE_REBUILD, MAKE, APP_TRAIN, STACK, ENV, NETWORK_MAP, ROADMAP, DEPLOYMENT.
+> **Handoff status (2026-07-26):** Swarm **data + app** fragments live; prefer **`eip`**. **#3 / #4 / #5 / #7 / #16 / #17 / #21 / #24 / #31** done. **Core boxed off (#9–#14 + #28).** Data-plane ensure = admintool `EnsureS3` ‖ `EnsureMongo` (Ready). **#8** cutoff+divert (partial). **#19/#32** sync/secrets. **`APP_VERSION` SoT is `.env`**. **#35/#33** bake/promote. **#23/#6** app-train dual-warm. **Object store:** SeaweedFS + `objectstore`. **Next:** **#18** capacity-controller; least-privilege `*_API` DB users (Ensure follow-up). Make/scripts legacy until retired. Docs: admintool ENGINEERING, CORE_REBUILD, STACK, ENV, ROADMAP, DEPLOYMENT.
 
-Tracks moving production from **all-reconcile Docker Compose** to a **single-host hybrid**: Swarm for elastic services + control plane (**core**, Traefik, SeaweedFS, **frontend**) and Compose for mongo/redis/nats (+ ops). Not a requirement that every container live in one Swarm stack.
+Tracks the single-host Swarm cutover: **data fragment** (mongo/redis/nats/SeaweedFS/Prometheus) + **app fragment** (Traefik, api, websocket, worker, ws-router, core, frontend); optional Compose observability addon. Preferred host tool: **`eip`**. Make/scripts remain legacy reference until retired.
 
 Later, Swarm’s fixed replica counts are driven by a **capacity controller** (not a naive CPU HPA). Swarm does not autoscale by itself. Prep for the controller is **woven into earlier items** so Phase E is mostly policy + Docker/Traefik ops, not inventing identity or metrics from scratch.
 
@@ -51,7 +51,7 @@ Companion context:
 
 - App-train: [APP_TRAIN.md](./APP_TRAIN.md) - dual-warm 2R (FE in `WARM_ORDER`) then advertise then drain; core stop-first before dual-warm
 
-- Secrets / apply: [ENV.md](./ENV.md) - **`.env` = secrets**; stack injects mesh hosts/URLs; day-2 **`make swarm-secrets-sync`**; YAML via **`make swarm-sync`** (ephemeral sync-env); FE public knobs via `x-frontend-public-env`; optional `*_API` keys when set (user creation = data-plane bootstrap follow-up)
+- Secrets / apply: [ENV.md](./ENV.md) - **`.env` = secrets**; prefer **`eip secrets`** / **`eip sync`** (Make verbs legacy); FE public knobs via `x-frontend-public-env`; optional `*_API` keys when set (user creation = Ensure follow-up). S3 buckets: **`eip ensure-s3`**. Mongo root/app users + indexes: **`eip ensure-mongo`**
 
 - Core control plane: [CORE_REBUILD.md](./CORE_REBUILD.md) — `lease:core:primary` + `servicemanager`; nested singleton leases in `services/core/singleton`; changestream resume in `core/primaryhandoff`
 
@@ -161,7 +161,7 @@ flowchart TB
 | mongo / redis / nats | 1 | rare / manual | keep stable DNS names (Compose) |
 | observability addon | 0 unless enabled | Compose obs fragment (toggle = omit) | Grafana, Loki, Alloy, exporters, asynqmon UI (#34) — **no Prometheus** |
 
-**Hybrid is the intentional long-term topology:** data plane (+ ops) on Compose; **Traefik +** app train (**api / websocket / worker / ws-router / core / frontend**) on `docker stack deploy` attached to an **external** `eip` network. Frontend is on Swarm (**#16 done**) with public runtime env via `x-frontend-public-env` (no docker secrets for FE). Public UX teaches `make` + config files - not Compose-vs-Swarm. Folding mongo/redis/nats into one Swarm stack remains **optional Phase D**, not the default goal. Traefik moved to Swarm for Desktop host publish (#31), not as a Phase D “everything on stack” expansion.
+**Current topology:** Swarm **data fragment** (mongo/redis/nats/SeaweedFS/Prometheus) + **app fragment** (Traefik + api/websocket/worker/ws-router/core/frontend) on external `eip`. Frontend on Swarm (**#16**) with `x-frontend-public-env`. Data-plane desired state via admintool **`EnsureS3`** / **`EnsureMongo`**. Preferred operator UX is **`eip`** (Make legacy). Optional Compose observability addon (#34).
 
 ---
 
@@ -317,7 +317,7 @@ Goal: **new core becomes handoff-ready before old releases**, then takes `lease:
 | Scheduler / changestream | `primarycontroller` + `servicemanager` — leader only |
 | In-flight cron | gocron job `context.Context` cancelled on lose-primary / Shutdown (market-prices micro-batch stops early) |
 | Changestream resume | Redis tokens `eip:core:handoff:v1:cs:resume:{groupID}` + Mongo `StartAfter`; cancel watch on lose-primary; at-least-once |
-| SDE ensure / indexes / soft reports | Standby OK; not primary-gated |
+| Soft reports (schema lag / keyring) | Standby OK; not primary-gated. App Mongo indexes: admintool `EnsureMongo`, not core. |
 | Swarm roll | `order: start-first`; healthcheck `/ready` = standby handoff (not `is_leader`) |
 
 JetStream **consumers** stay on websocket slots; only the **publisher** (core) moves.
@@ -327,7 +327,7 @@ JetStream **consumers** stay on websocket slots; only the **publisher** (core) m
 ### Phase D - Remainder (optional)
 
 - Alloy/label mapping for swarm tasks when the **observability addon** is on (#15 / #34).
-- **Optionally** fold mongo/redis/nats into the same Swarm stack once ops are comfortable - **not the recommended default**; hybrid Compose data plane remains intentional.
+- ~~Optionally fold mongo/redis/nats into Swarm~~ **done** (data fragment).
 - **Capacity-controller prep:** app/Asynq series Prometheus will scrape (and #15 labels where needed); host headroom / node-exporter later. Full Grafana stack is **not** required for the controller.
 
 Frontend on Swarm (**#16**) **done** — stack service + bake/train; public knobs only (`x-frontend-public-env`).
@@ -372,7 +372,7 @@ Do not wait for Phase E to invent signals. Each earlier item owns a slice:
 | **#4** Traefik swarm + **ws-router placement** | Redis tenant->slot; sticky fallback; no per-browser sticky as end state | WS scale-up + co-located orgs; **prerequisite for #20 / #21** |
 | **#5** stack file | Mount point for policy YAML; optional label mirrors | #18 / #19 |
 | **#6** roll playbook | Manual `service scale`; note affinity impact on reconnect | Operator + controller parity |
-| **#7** worker capacity | **done** — 50 concurrency default+cap; replicas max 2; [WORKER.md](./WORKER.md); draft `worker:` in `eip.config.example.yaml` | #19 worker section |
+| **#7** worker capacity | **done** — 50 concurrency default+cap; replicas max 2; [WORKER.md](./WORKER.md); draft `worker:` in `yamldefaults.DefaultConfig` | #19 worker section |
 | **#8** WS reconnect / drain | **partial** — docs/YAML + force-close; soft caps / hosted-tenant open ([WEBSOCKET.md](./WEBSOCKET.md)) | #19 WS; feeds #20 / #21 |
 | **#15** Swarm metric/log labels | Trustworthy series for Prom scrapes + addon dashboards | #18 inputs; #34 when addon on |
 | **#17** Makefile/docs | `make swarm-sync` / `rebuild`; YAML edit/reload (scale via YAML; auto = #18) | Ops path (#32 / #33) — **done** |
@@ -445,7 +445,7 @@ When implementing #4, #6-#8, #11-#13, #18-#21, #23: add/extend tests in the same
 - **capacity-controller build-up:** required input for per-slot WS utilisation averages without orphan label explosion
 
 #### #3 - Secrets / configs instead of fragile bind mounts
-- **status:** **done** (2026-07-23) — inventory/adminSDK/mesh; narrow Go loaders + `swarmsecret`; real Swarm `docker secret` objects + per-service attach (no `env_file`); **#16** FE on Swarm. Optional `MONGO_*_API` / `REDIS_*_API` prefer-when-set with fallback; attach api-only when present. **Creating** those DB/ACL users is deferred (data-plane bootstrap follow-up).
+- **status:** **done** (2026-07-23) — inventory/adminSDK/mesh; narrow Go loaders + `swarmsecret`; real Swarm `docker secret` objects + per-service attach (no `env_file`); **#16** FE on Swarm. Optional `MONGO_*_API` / `REDIS_*_API` prefer-when-set with fallback; attach api-only when present. **Creating** those DB/ACL users is deferred (Ensure follow-up). Root/app mongo users + indexes: `EnsureMongo` (done).
 - **size:** L
 - **where:** [BIND_MOUNTS.md](./BIND_MOUNTS.md); [ENV.md](./ENV.md); [`docker-stack.yml`](../../docker-stack.yml); `scripts/swarm/lib/secrets.sh`; `services/shared/core/swarmsecret`; `services/shared/core/config`
 - **why:** Swarm stacks handle bind mounts poorly; full `.env` on every elastic task over-shares secrets; a god `LoadConfig()` that requires every credential fights per-service Swarm secrets; frontend build/runtime env is part of the same attachment story
@@ -455,9 +455,9 @@ When implementing #4, #6-#8, #11-#13, #18-#21, #23: add/extend tests in the same
   - **Narrow loaders + `swarmsecret`:** env then `/run/secrets/<name>`; no god `LoadConfig()`. Api `ConnectAPI` for optional `*_API` creds (fallback to shared).
   - **Swarm secrets:** `make swarm-secrets-sync` / `stack-deploy` → versioned `eip_<KEY>_<hash>` + `.eip-swarm-secrets.yml` per-service attach. Elastic services dropped `env_file`.
   - **#16 frontend on Swarm:** `x-frontend-public-env` (public knobs only); no docker secrets for FE.
-- **deferred (data-plane bootstrap follow-up):** create `MONGO_*_API` / `REDIS_*_API` users in Mongo/Redis when wanted; mongo keyfile / obs file mounts with #22 / #34 playbooks.
+- **deferred (Ensure follow-up):** create `MONGO_*_API` / `REDIS_*_API` users in Mongo/Redis when wanted (root/app mongo users + indexes already via `dataplane.EnsureMongo`). Obs file mounts with #34 playbooks.
 - **acceptance:** App services deploy without `./file` host binds for secrets; `make swarm-secrets-sync` rotates without teaching raw `docker secret`; frontend on stack — **met**. Least-privilege DB users — **opt-in later** (app works on shared creds until then).
-- **pairs with:** #16 (done), #24 (apply UX), #32 (day-2 verbs), data-plane bootstrap follow-up
+- **pairs with:** #16 (done), #24 (apply UX), #32 (day-2 verbs), Ensure follow-up
 #### #4 - Traefik swarm provider cutover + ws-router tenant placement
 - **status:** **done** (2026-07-19): swarm provider; affinity cookie; Swarm `eip_ws_router` + Traefik `/ws` cutover ([WS_ROUTER.md](./WS_ROUTER.md); replicas **1**, `start-first`); Redis placement + sticky fallback; acceptance via `make smoke-ws-placement`.
 - **size:** L
@@ -477,7 +477,7 @@ When implementing #4, #6-#8, #11-#13, #18-#21, #23: add/extend tests in the same
 ### Elastic services (Phase A)
 
 #### #5 - Stack file for api / websocket / worker
-- **status:** partial - stack live (2026-07-19): Traefik + api/websocket/worker/ws-router beside Compose mongo/redis/nats; smoke healthy. Day-2 roll playbook (#6) deferred with #23.
+- **status:** **done** for data+app Swarm fragments (mongo/redis/nats on data fragment; `EnsureMongo` for mongo). Historical note: 2026-07-19 smoke was hybrid Compose data plane. Day-2 roll playbook (#6) with #23.
 - **size:** M
 - **where:** [`docker-stack.yml`](../../docker-stack.yml); [STACK.md](./STACK.md); `scripts/swarm/stack-deploy.sh`; `make stack-deploy` / `stack-rm` / `ensure-eip-overlay`
 - **why:** Need Swarm-honoured `deploy.update_config` and slot templates
@@ -497,7 +497,7 @@ When implementing #4, #6-#8, #11-#13, #18-#21, #23: add/extend tests in the same
 #### #7 - Worker replica vs Asynq concurrency policy
 - **status:** done (2026-07-19) — cap **50** for now; raise later with evidence
 - **size:** S
-- **where:** `services/worker/asynq` (`MaxConcurrency` / `WORKER_ASYNQ_CONCURRENCY`); stack `eip.capacity.max=2`; [WORKER.md](./WORKER.md); `eip.config.example.yaml`
+- **where:** `services/worker/asynq` (`MaxConcurrency` / `WORKER_ASYNQ_CONCURRENCY`); stack `eip.capacity.max=2`; [WORKER.md](./WORKER.md); `kit/templates/yamldefaults.DefaultConfig`
 - **why:** Each process already uses a large concurrency pool; N replicas can overwhelm Redis/ESI; this envelope is the capacity controller’s ceiling; corp/alliance workloads will add more queue families later
 - **how (landed):** Default + hard-cap **50** per process; Swarm replicas **1** (labels min 1 / max **2**); cluster inflight ≈ `replicas × concurrency`; document that raising both multiplies ESI pressure; draft `worker.concurrency: 50` + lean max in example YAML; day-2 via `make swarm-sync` → `docker service update` (not sync-env / not `.env`)
 - **acceptance:** Written min/max replicas and concurrency; YAML draft includes extensibility notes for multi-tenant queues. (asynqmon/Grafana soak = optional ops follow-up, not blocking the envelope lock)
@@ -506,7 +506,7 @@ When implementing #4, #6-#8, #11-#13, #18-#21, #23: add/extend tests in the same
 #### #8 - Websocket rollout, affinity reconnect, and drain
 - **status:** partial (2026-07-19) — docs + YAML + **force-close on cordon/evacuate**; soft caps / hosted-tenant set still open
 - **size:** M
-- **where:** [WEBSOCKET.md](./WEBSOCKET.md); `eip.config.example.yaml` `websocket:`; `services/websocket/server/cordon_drain.go`; `scripts/swarm/ops/ws-placement-ops.sh` PUBLISH; Redis `ws:session_handoff:v1`
+- **where:** [WEBSOCKET.md](./WEBSOCKET.md); `kit/templates/yamldefaults.DefaultConfig` `websocket:`; `services/websocket/server/cordon_drain.go`; `scripts/swarm/ops/ws-placement-ops.sh` PUBLISH; Redis `ws:session_handoff:v1`
 - **why:** Replica rolls and scale-down still drop sockets; org co-location makes “which replica we drain” product-sensitive (do not evaporate the alliance’s home replica carelessly)
 - **how (landed):** Drain checklist; websocket YAML; ops SET cordon + **PUBLISH** `eip:ws:drain:v1` → matching slot `ForceCloseLocalClients` (`please_reconnect` + 1001); refuse upgrades while cordoned; startup EXISTS catch for missed publish. **Redis pub/sub notify is temporary** — SoT stays Redis; NATS drain notify is the #18 target (avoid a second long-term fan-out bus).
 - **how (still open):** Soft `target_clients` still policy-only (no soft divert). **Client cutoff + router full divert landed** (`WS_SLOT_CLIENT_CUTOFF` + Redis `eip:ws:full:v1`). Per-slot gauges polish; mid-edit roll soak. **Hosted-tenant query surface parked** until capacity-controller design (#18): in-process indexes already exist (`userConnections` / corp / alliance); do **not** pick HTTP vs Redis interest mirror yet — that choice must fit how #18 observes and how #20 interest lands. Until then ops uses placement Redis + gauges.
@@ -584,7 +584,7 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 - **why:** Same rolling-deploy story as api; FE needs public client knobs at start — under the Swarm env model, not a second Compose-only path
 - **how (landed):** `frontend` on stack (`start-first`, Traefik swarm labels); `x-frontend-public-env` (public knobs only — no docker secrets for FE); bake/promote like other app roles (`dev_app_services`); app-train `WARM_ORDER` includes FE (no Compose FE-first); `make dev` bakes FE then Compose data plane then `stack-deploy --dev`; `make rebuild` default = Swarm app roles only
 - **acceptance:** Frontend on Swarm; rolls with app train without data-plane bounce; required boot env from stack public env attachment (not a full shared god `.env` dump) — **met**
-- **pairs with:** #3 (done; `*_API` user creation = data-plane bootstrap follow-up), #23/#33/#35 (train/bake), #24/#32 (apply verbs)
+- **pairs with:** #3 (done; `*_API` user creation = Ensure follow-up), #23/#33/#35 (train/bake), #24/#32 (apply verbs)
 
 #### #17 - Makefile / DEPLOYMENT.md operator surface
 - **status:** **done** (2026-07-23) — public Make thinned; scripts layout; docs + cross-OS smoke notes. Scale helpers **dropped** (YAML + `make swarm-sync`; automatic scale = **#18**).
@@ -638,7 +638,7 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 #### #19 - Operator config YAML (capacity + addons + tunables)
 - **status:** partial (2026-07-20; sync-env ephemeral 2026-07-23) — example + **make swarm-sync** consumes replicas/capacity/bridges **and** ports/paths; durable **`.eip-sync.env` retired**; addon apply still open
 - **size:** M
-- **where:** [`eip.config.example.yaml`](../../eip.config.example.yaml); `eip.config.yaml` (local); `services/eipconfig` + `services/cmd/eipconfig`; `scripts/swarm/lib/eip-config.sh` (`eip_sync_env_temp` / `eip_write_sync_env`); [ENV.md](./ENV.md); [MAKE.md](./MAKE.md)
+- **where:** [`yamldefaults.DefaultConfig`](../../admintool/internal/kit/templates/yamldefaults/default.go); `eip.config.yaml` (local); `services/eipconfig` + `services/cmd/eipconfig`; `scripts/swarm/lib/eip-config.sh` (`eip_sync_env_temp` / `eip_write_sync_env`); [ENV.md](./ENV.md); [MAKE.md](./MAKE.md)
 - **why:** Ceilings, targets, reserve %, drain timeouts, kill-switches, **and addon toggles** must be tunable without rebuilding images; multi-tenant product will need more knobs than “global clients > N”; secrets stay in `.env`
 - **how (seeded):** Versioned example; Go validate/sync-env; `make swarm-sync` / stack expand → **ephemeral** sync-env temp (not a durable `.eip-sync.env`). Sync-env bridges: replicas=`min`, `eip.capacity.*`, Traefik host publish + dashboard/Grafana paths. Concurrency / client cutoff applied as task env via `apply.go` (`docker service update`), not sync-env. Compose data plane uses `--env-file .env` only.
 - **how (still open):** addon toggle (#34); production mount for #18; richer schema / dry-run policy print for controller
@@ -705,7 +705,7 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 - **acceptance (partial):** Unattended dual-warm + advertise-before-drain + look-ahead + prefer-newest place proven on local bake-tag waves. Remaining: controller soft-cutover automation; GHCR soak evidence
 
 #### #24 - Secrets apply + day-2 config refresh (public deploy)
-- **status:** **done** (2026-07-23) — mechanics + public docs: **`make swarm-secrets-sync`** / **`make swarm-sync`**; DEPLOYMENT / ENV / STACK / BIND_MOUNTS aligned (`env.example` stays variable-only). Optional `*_API` user creation = data-plane bootstrap follow-up (out of #24).
+- **status:** **done** (2026-07-23) — mechanics + public docs: **`make swarm-secrets-sync`** / **`make swarm-sync`**; DEPLOYMENT / ENV / STACK / BIND_MOUNTS aligned (`.env` schema = `EnvFields` Go SoT). Optional `*_API` user creation = Ensure follow-up (out of #24).
 - **size:** M
 - **where:** [ENV.md](./ENV.md); `Makefile` / #32; [DEPLOYMENT.md](../../DEPLOYMENT.md); [`docker-stack.yml`](../../docker-stack.yml); operator config YAML (#19)
 - **why:** Public tool - operators edit secrets and config. Swarm tasks do not auto-reload; need a clear apply path that is not full `make up`
@@ -779,7 +779,7 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 - **why:** Full `make up` is a sledgehammer for config/secrets edits while the stack is running; secrets and YAML must not share one easy-to-mistype verb
 - **how (landed):** `go run ./cmd/eipconfig` validate + sync-env + **apply**; sync-env is **ephemeral** (no durable `.eip-sync.env`); **`make swarm-secrets-sync`** → versioned Swarm secrets + stack rematerialize (no YAML; no data-plane bounce); adminSDK binds removed; cross-platform via `$(BASH)`
 - **how (still open):** Compose secret recreate path end-to-end polish (data-plane `.env` bounce UX)
-- **acceptance (partial):** Edit `eip.config.yaml` → `make swarm-sync` updates Swarm capacity/bridges and ports/paths without mongo/redis/nats bounce. Edit `.env` → `make swarm-secrets-sync` refreshes elastic — **public docs met under #24**. Optional `*_API` DB users = data-plane bootstrap follow-up
+- **acceptance (partial):** Edit `eip.config.yaml` → `make swarm-sync` updates Swarm capacity/bridges and ports/paths without mongo/redis/nats bounce. Edit `.env` → `make swarm-secrets-sync` refreshes elastic — **public docs met under #24**. Optional `*_API` DB users = Ensure follow-up
 
 #### #33 - `make rebuild` (dev scoped image rebuild + roll)
 - **status:** done (2026-07-20; FE on Swarm default 2026-07-23) for **dev day-2** — default = `dev_app_services` (Swarm bakeable roles incl. frontend), Docker cache, smart recreate; prod GHCR rebuild path still with #23
@@ -871,7 +871,7 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 12. **Selective WS fan-out (#20)** - filters; retention policy.
 13. **Core hot-swap (#9/#13) + failover tests (#28) + CLI (#14)** — done (core boxed off).
 14. **Data-plane update (#22)** - later.
-15. **Data-plane bootstrap — least-privilege API DB users** — when wanted: create `MONGO_*_API` / `REDIS_*_API` (Mongo user + Redis ACL), set keys in `.env`, `make swarm-secrets-sync`. App already falls back when unset (`ConnectAPI` / optional api-only secret attach). Also: mongo keyfile / obs mounts when playbooks need them (#22 / #34). No provision script yet.
+15. **Ensure — least-privilege API DB users** — when wanted: create `MONGO_*_API` / `REDIS_*_API` in admintool Ensure (Mongo user + Redis ACL), set keys in `.env`, `eip secrets`. App already falls back when unset (`ConnectAPI` / optional api-only secret attach). Mongo keyfile + root/app users + preimages + indexes already owned by `EnsureMongo`.
 16. **Testing architecture (#25-#29)** - CI layout; WS load tool; capacity dry-run; chaos drills; make targets; what runs in PR vs nightly.
 17. **Operator config split + make swarm-sync/rebuild** - secrets `.env` vs YAML; cross-platform scripting rules.
 18. **Companion doc renames** - ENV.md / MAKE.md / STACK.md / DEPLOYMENT.md edited for #24/#32/#17 (public Make surface closed).
@@ -908,7 +908,7 @@ Locked from planning (2026-07-19+). Keep unless deliberately revisited:
 | 17 | **Name it a capacity controller, not an “autoscaler.”** It owns replica counts, spare capacity, drain/remove, migrate targets, and optional pins - Swarm schedules; Traefik routes; the controller decides cluster shape (lightweight app control plane, not Kubernetes). |
 | 18 | **Capacity controller is its own singleton Swarm container** (not inlined into core). Swap it like core: **lease-gated hot-swap from day one** (`start-first`; only lease holder mutates Docker). Stop-first gap is emergency-only, not the design target. |
 | 19 | **Bring-up vs apply** - `make up`/`dev` create the world; `make swarm-sync`/`rebuild` mutate it. **`stack-deploy`** is an internal primitive — day-2 operator verb is **`make swarm-sync`**. |
-| 20 | **`make up` / `make dev` are hybrid (intentional end-state topology)** - Compose owns data plane + ops; Swarm stack owns **Traefik** + api/websocket/worker/**ws-router**/core/**frontend** (**#16 done**). Same commands; image source differs (GHCR `${APP_VERSION}` vs local per-role `${APP_VERSION}-<timestamp>`). Folding mongo/redis/nats into one Swarm stack is optional Phase D, not the default. See [MAKE.md](./MAKE.md). |
+| 20 | **Bring-up** — prefer **`eip up` / `eip dev`** (data → Ready/`EnsureS3`‖`EnsureMongo` → app). Make `up`/`dev` remain legacy. Data fragment owns mongo/redis/nats/SeaweedFS/Prometheus; app fragment owns Traefik + api/websocket/worker/ws-router/core/frontend. See [ENGINEERING.md](../admintool/ENGINEERING.md), [MAKE.md](./MAKE.md). |
 | 36 | **Frontend on Swarm (#16) done** — stack service + bake/train; runtime via `x-frontend-public-env` (public knobs only; no docker secrets for FE). |
 | 21 | **#31 done via Swarm Traefik + ingress** - no permanent `eip-edge` nginx. No Compose Traefik / Compose-elastic escape hatch - recover with make up / make dev. |
 | 22 | **Public UX hides hybrid** - teach make + config files; NETWORK/STACK are implementer docs. |

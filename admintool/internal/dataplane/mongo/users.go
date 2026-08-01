@@ -2,7 +2,6 @@ package mongo
 
 import (
 	"context"
-	"fmt"
 	"strings"
 )
 
@@ -23,8 +22,7 @@ adminDb.createUser({
 true;
 `
 
-// ensureUsersJS matches scripts/bootstrap/mongo-setup.sh ensure_users (process.env).
-// Runs with root auth after the first user exists.
+// ensureUsersJS: root + app users (process.env). Runs with root auth after first user exists.
 const ensureUsersJS = `
 const rootUser = process.env.EIP_MONGO_ROOT_USERNAME;
 const rootPwd = process.env.EIP_MONGO_ROOT_PASSWORD;
@@ -102,20 +100,14 @@ func ensureUsers(ctx context.Context, cid string, c creds) error {
 		if err != nil && !strings.Contains(out, "already exists") && !strings.Contains(err.Error(), "already exists") {
 			// If create failed for another reason, surface it (unless root can auth now).
 			if _, pingErr := mongoshRoot(ctx, cid, c, "db.adminCommand('ping').ok", nil); pingErr != nil {
-				if out != "" {
-					return fmt.Errorf("mongo: create first root: %w\n%s", err, out)
-				}
-				return fmt.Errorf("mongo: create first root: %w", err)
+				return wrapMongoshErr(err, out, "mongo: create first root")
 			}
 		}
 	}
 
 	out, err := mongoshRoot(ctx, cid, c, ensureUsersJS, env)
 	if err != nil {
-		if out != "" {
-			return fmt.Errorf("mongo: ensure users: %w\n%s", err, out)
-		}
-		return fmt.Errorf("mongo: ensure users: %w", err)
+		return wrapMongoshErr(err, out, "mongo: ensure users")
 	}
 	return nil
 }

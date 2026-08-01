@@ -1,4 +1,4 @@
-// Package mongo manages the Swarm mongo task: keyfile SoT, Ensure (RS/users/preimages),
+// Package mongo manages the Swarm mongo task: keyfile SoT, Ensure (RS/users/preimages/indexes),
 // Check, and recovery helpers (restore-mongo-keyfile, rekey-mongo).
 package mongo
 
@@ -11,10 +11,12 @@ import (
 	"strings"
 	"time"
 
+	"eve-industry-planner/admintool/internal/dataplane/task"
 	"eve-industry-planner/admintool/internal/kit"
 )
 
 const (
+	serviceName = "mongo"
 	keyFileName = "mongo-keyfile"
 	appDatabase = "eve_industry_planner"
 	envCollMod  = "EIP_COLLMOD_COLL_NAME"
@@ -28,56 +30,16 @@ type creds struct {
 }
 
 func containerID(ctx context.Context, stackName string) (string, error) {
-	if stackName == "" {
-		stackName = kit.StackName
-	}
-	svc := stackName + "_mongo"
-	cmd := exec.CommandContext(ctx, "docker", "ps", "-q",
-		"--filter", "label=com.docker.swarm.service.name="+svc,
-		"--filter", "status=running",
-	)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	if err := cmd.Run(); err != nil {
-		return "", err
-	}
-	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
-	if len(lines) == 0 || strings.TrimSpace(lines[0]) == "" {
-		return "", nil
-	}
-	return strings.TrimSpace(lines[0]), nil
+	return task.ContainerID(ctx, stackName, serviceName)
 }
 
-// waitTask blocks until a running mongo Swarm task exists, returning its container id.
 func waitTask(ctx context.Context, stackName string, timeout time.Duration) (string, error) {
-	if timeout <= 0 {
-		timeout = 90 * time.Second
-	}
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		cid, err := containerID(ctx, stackName)
-		if err != nil {
-			return "", err
-		}
-		if cid != "" {
-			return cid, nil
-		}
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case <-time.After(2 * time.Second):
-		}
-	}
-	return "", fmt.Errorf("mongo task did not become running in time")
+	return task.Wait(ctx, stackName, serviceName, timeout, nil)
 }
 
 // TaskRunning reports whether a mongo Swarm task is currently running.
 func TaskRunning(ctx context.Context, stackName string) (bool, error) {
-	cid, err := containerID(ctx, stackName)
-	if err != nil {
-		return false, err
-	}
-	return cid != "", nil
+	return task.Running(ctx, stackName, serviceName)
 }
 
 func loadCreds() (creds, error) {
@@ -103,11 +65,11 @@ func loadCreds() (creds, error) {
 
 // mongoshOpts configures a mongosh --eval inside the mongo container.
 type mongoshOpts struct {
-	User    string // empty = no auth
-	Pass    string
-	AuthDB  string
-	Eval    string
-	Env     []string // KEY=VAL for docker exec -e
+	User   string // empty = no auth
+	Pass   string
+	AuthDB string
+	Eval   string
+	Env    []string // KEY=VAL for docker exec -e
 }
 
 func mongosh(ctx context.Context, cid string, o mongoshOpts) (string, error) {

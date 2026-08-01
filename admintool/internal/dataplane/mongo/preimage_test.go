@@ -21,8 +21,8 @@ func TestPreimageCollections(t *testing.T) {
 		if PreimageCollections[i] != name {
 			t.Fatalf("[%d]=%q want %q", i, PreimageCollections[i], name)
 		}
-		if !safeCollName.MatchString(name) {
-			t.Fatalf("unsafe name %q", name)
+		if err := requireSafeIdent("preimage collection name", name); err != nil {
+			t.Fatal(err)
 		}
 	}
 }

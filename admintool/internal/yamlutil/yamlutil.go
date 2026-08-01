@@ -1,9 +1,11 @@
-// Package yamlutil is shared YAML load/alias helpers for admintool.
+// Package yamlutil is shared YAML helpers for admintool (stack docs + operator config).
+// Domain validate/headers stay in callers (e.g. package config); this package is IO + node utils.
 package yamlutil
 
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
@@ -35,6 +37,22 @@ func UnmarshalFile(path string, v any) error {
 	}
 	if err := yaml.Unmarshal(raw, v); err != nil {
 		return fmt.Errorf("parse %s: %w", path, err)
+	}
+	return nil
+}
+
+// Marshal encodes v as YAML.
+func Marshal(v any) ([]byte, error) {
+	return yaml.Marshal(v)
+}
+
+// WriteFile creates parent dirs and writes raw bytes (mode perm).
+func WriteFile(path string, raw []byte, perm os.FileMode) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, raw, perm); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil
 }

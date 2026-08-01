@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -33,7 +32,7 @@ type Opts struct {
 	StackFiles []string          // relative or absolute paths under Home
 	Env        map[string]string // sync-env, bake TAG_*, … — process env for compose
 	Source     string            // "live" | "dev"
-	SyncEnv    map[string]string // from eipconfig.Config.SyncEnvMap()
+	SyncEnv    map[string]string // from config.Config.SyncEnvMap()
 }
 
 // Expand runs docker compose config, strips project name, unquotes published ports,
@@ -53,21 +52,22 @@ func Expand(ctx context.Context, opts Opts) (string, error) {
 		return "", fmt.Errorf("stack: source must be live or dev")
 	}
 
-	composeFiles, cleanup, err := prepareComposeFiles(opts.Home, opts.StackFiles)
+	sources, err := prepareComposeSources(opts.Home, opts.StackFiles)
 	if err != nil {
 		return "", err
 	}
-	defer cleanup()
 
-	args := []string{"compose", "--env-file", filepath.Join(opts.Home, kit.EnvFile)}
-	for _, p := range composeFiles {
-		args = append(args, "-f", p)
+	args, stdinYAML, err := composeConfigInvocation(opts.Home, sources)
+	if err != nil {
+		return "", err
 	}
-	args = append(args, "config")
 
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	cmd.Dir = opts.Home
 	cmd.Env = kit.MergeEnviron(opts.SyncEnv, opts.Env)
+	if len(stdinYAML) > 0 {
+		cmd.Stdin = bytes.NewReader(stdinYAML)
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

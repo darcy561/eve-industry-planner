@@ -3,7 +3,6 @@ package mongo
 import (
 	"context"
 	"fmt"
-	"regexp"
 )
 
 // PreimageCollections need changeStreamPreAndPostImages enabled (SoT; was bash CHANGE_STREAM_PREIMAGE_COLLECTIONS).
@@ -16,15 +15,14 @@ var PreimageCollections = []string{
 	"user_watchlist_deprecated",
 }
 
-var safeCollName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
-
-// ensurePreimageJS matches scripts/bootstrap/mongo-setup.sh collMod loop.
-const ensurePreimageJS = `
+// ensurePreimageJS: createCollection + collMod changeStreamPreAndPostImages.
+// appDatabase is injected so DB name stays SoT with indexes/check.
+var ensurePreimageJS = fmt.Sprintf(`
 const collName = process.env.EIP_COLLMOD_COLL_NAME;
 if (!collName) {
   throw new Error("EIP_COLLMOD_COLL_NAME is not set");
 }
-const appDb = db.getSiblingDB("eve_industry_planner");
+const appDb = db.getSiblingDB(%q);
 const names = appDb.getCollectionNames();
 if (!names.includes(collName)) {
   appDb.createCollection(collName);
@@ -37,23 +35,20 @@ if (!r.ok) {
   throw new Error("collMod changeStreamPreAndPostImages failed for " + collName + ": " + tojson(r));
 }
 true;
-`
+`, appDatabase)
 
 func ensurePreimages(ctx context.Context, cid string, c creds) error {
 	for _, name := range PreimageCollections {
 		if name == "" {
 			continue
 		}
-		if !safeCollName.MatchString(name) {
-			return fmt.Errorf("mongo: invalid preimage collection name %q", name)
+		if err := requireSafeIdent("preimage collection name", name); err != nil {
+			return err
 		}
 		env := []string{envCollMod + "=" + name}
 		out, err := mongoshRoot(ctx, cid, c, ensurePreimageJS, env)
 		if err != nil {
-			if out != "" {
-				return fmt.Errorf("mongo: preimage %s: %w\n%s", name, err, out)
-			}
-			return fmt.Errorf("mongo: preimage %s: %w", name, err)
+			return wrapMongoshErr(err, out, "mongo: preimage %s", name)
 		}
 	}
 	return nil

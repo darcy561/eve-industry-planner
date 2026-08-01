@@ -1,5 +1,6 @@
-// Package kit names and Require()s project-home files for eip bring-up.
-// eip init writes missing .env / eip.config.yaml; up/dev call Require only.
+// Package kit is project-home layout: filenames, Home/Path, Require, envfile helpers,
+// and product strings. Document templates → kit/templates/{env,yamldefaults}.
+// Live eip.config.yaml load/apply → internal/config. Observability embeds stay in kit (obs/).
 package kit
 
 import (

@@ -22,7 +22,7 @@ frontend/routeTree.gen.js
 # misc
 *.exe
 *.env
-.env.*
+*.env*
 services/worker/tmp/
 mongo-keyfile
 mongo-keyfile.bak
@@ -51,8 +51,8 @@ archivejobs_firestore_normalized/
 # Sentry Config File
 .env.sentry-build-plugin
 
-# Operator config (local copy of eip.config.example.yaml — make swarm-sync)
-eip.config.yaml
+# Operator config (local copy — make swarm-sync). Root only; keep kit embed template tracked.
+/eip.config.yaml
 .eip-sync.env
 .eip-sync.env.bak
 .eip-sync.*
@@ -60,3 +60,9 @@ eip.config.yaml
 .eip-swarm-configs.yml
 .eip-local-build.env
 .eip-stack-mode
+
+# .env backups from eip EmitEnv (cli.env_backup_path stem; default eip-env-backup)
+eip-env-backup-current.txt
+eip-env-backup-*.txt
+*-env-backup-current.txt
+*-env-backup-*.txt

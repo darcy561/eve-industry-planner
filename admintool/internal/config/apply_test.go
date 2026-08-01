@@ -1,4 +1,4 @@
-package eipconfig
+package config
 
 import (
 	"testing"
@@ -111,22 +111,6 @@ func TestGrafanaPathNeedsApply(t *testing.T) {
 	}
 	if GrafanaPathNeedsApply(LiveGrafana{Running: false}, "/ops", "http://127.0.0.1/ops/") {
 		t.Fatal("want skip when not running")
-	}
-}
-
-func TestSummaryLines(t *testing.T) {
-	t.Parallel()
-	cfg := Config{
-		Version: 1,
-		Services: map[string]ServiceSpec{
-			"api":       {Min: 1, Max: 2},
-			"worker":    {Min: 1, Max: 2, Concurrency: 4},
-			"websocket": {Min: 2, Max: 4, ClientCutoff: 100, TargetClients: 50},
-		},
-	}
-	lines := cfg.SummaryLines()
-	if len(lines) < 4 {
-		t.Fatalf("got %v", lines)
 	}
 }
 

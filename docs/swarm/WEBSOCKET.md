@@ -1,8 +1,8 @@
 # Websocket capacity + drain (#8)
 
 > Part of [ROADMAP.md](./ROADMAP.md). Soft caps, roll/reconnect, and **manual drain** before
-> scale-in. Placement ops: [WS_ROUTER.md](./WS_ROUTER.md). Tunables: `eip.config.example.yaml`
-> (#19; `client_cutoff` via **`make swarm-sync`**). **Force-close on cordon/evacuate landed.**
+> scale-in. Placement ops: [WS_ROUTER.md](./WS_ROUTER.md). Tunables: `eip.config.yaml`
+> (#19; defaults in [`yamldefaults.DefaultConfig`](../../admintool/internal/kit/templates/yamldefaults/default.go); `client_cutoff` via **`make swarm-sync`**). **Force-close on cordon/evacuate landed.**
 > **Client cutoff + router full divert landed** (Redis `eip:ws:full:v1:{slot}`). Soft
 > `target_clients` / hosted-tenant surface still open or parked with #18.
 
@@ -30,7 +30,7 @@ few overs under race are acceptable — process refuse still gates the replica.
 
 ## Operator YAML (#19)
 
-See [`eip.config.example.yaml`](../../eip.config.example.yaml):
+See [`yamldefaults.DefaultConfig`](../../admintool/internal/kit/templates/yamldefaults/default.go) / live `eip.config.yaml`:
 
 ```yaml
 services:

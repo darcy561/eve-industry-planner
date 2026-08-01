@@ -1,76 +1,139 @@
 package ops_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
-	"eve-industry-planner/admintool/internal/catalog"
+	"eve-industry-planner/admintool/internal/kit"
 	"eve-industry-planner/admintool/tui/ops"
 	"eve-industry-planner/admintool/tui/status"
 )
 
-func TestStatusMenuLinked(t *testing.T) {
-	v, ok := catalog.ByID("status")
-	if !ok {
-		t.Fatal("status missing from catalog")
+func TestSetupNeeded(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	if !ops.SetupNeeded(home) {
+		t.Fatal("empty home needs setup")
 	}
-	found := false
-	for _, e := range ops.VisibleEntries(status.LightGreen) {
-		if e.Title != v.Title {
-			continue
-		}
-		found = true
-		if len(e.Args) != 1 || e.Args[0] != "status" {
-			t.Fatalf("args=%v want [status]", e.Args)
-		}
-		if e.Desc != v.Short {
-			t.Fatalf("desc=%q want %q", e.Desc, v.Short)
-		}
+	if err := os.WriteFile(filepath.Join(home, kit.EnvFile), []byte("X=1\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	if !found {
-		t.Fatal("Status not in green menu")
+	if !ops.SetupNeeded(home) {
+		t.Fatal("env only still needs setup")
 	}
-	for _, e := range ops.VisibleEntries(status.LightAmber) {
-		if e.Title == "Status" {
-			return
-		}
+	if err := os.WriteFile(filepath.Join(home, kit.ConfigFile), []byte("version: 1\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	t.Fatal("Status not in amber menu")
+	if ops.SetupNeeded(home) {
+		t.Fatal("both files present — setup not needed")
+	}
 }
 
-func TestUpDevInAmberAndGreen(t *testing.T) {
-	t.Parallel()
-	for _, id := range []string{"up", "dev"} {
-		v, ok := catalog.ByID(id)
-		if !ok {
-			t.Fatalf("%s missing from catalog", id)
+func TestMainMenuOrderGreen(t *testing.T) {
+	home := t.TempDir()
+	t.Chdir(home)
+	// Both docs present → no Setup
+	if err := os.WriteFile(kit.EnvFile, []byte("X=1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(kit.ConfigFile, []byte("version: 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	entries := ops.VisibleEntries(status.LightGreen)
+	want := []string{"Status", "Start", "Dev", "Restart", "Rebuild", "Stop", "Update", "More"}
+	if len(entries) != len(want) {
+		t.Fatalf("len=%d want %d: %+v", len(entries), len(want), titles(entries))
+	}
+	for i, title := range want {
+		if entries[i].Title != title {
+			t.Fatalf("[%d]=%q want %q", i, entries[i].Title, title)
 		}
-		for _, light := range []status.Light{status.LightGreen, status.LightAmber} {
-			found := false
-			for _, e := range ops.VisibleEntries(light) {
-				if e.Title == v.Title && len(e.Args) == 1 && e.Args[0] == id {
-					found = true
-					break
-				}
+	}
+}
+
+func TestMoreEntriesNoApplyRows(t *testing.T) {
+	t.Parallel()
+	for _, e := range ops.MoreEntries() {
+		switch e.Title {
+		case "Secrets", "Settings", "Logs", "Command":
+		default:
+			t.Fatalf("unexpected More row %q", e.Title)
+		}
+		if len(e.Args) > 0 {
+			t.Fatalf("More rows are specials only, got Args on %q: %v", e.Title, e.Args)
+		}
+	}
+}
+
+func TestMoreGating(t *testing.T) {
+	t.Parallel()
+	off := ops.VisibleMoreEntries(status.LightOff)
+	if !hasTitle(off, "Secrets") || !hasTitle(off, "Settings") || !hasTitle(off, "Command") {
+		t.Fatalf("off more=%v", titles(off))
+	}
+	if hasTitle(off, "Logs") {
+		t.Fatal("Logs must not show when Docker off")
+	}
+	green := ops.VisibleMoreEntries(status.LightGreen)
+	if !hasTitle(green, "Logs") {
+		t.Fatal("Logs on green")
+	}
+}
+
+func TestStartStopArgs(t *testing.T) {
+	t.Parallel()
+	for _, e := range ops.Entries() {
+		switch e.Title {
+		case "Start":
+			if len(e.Args) != 1 || e.Args[0] != "up" {
+				t.Fatalf("Start args=%v", e.Args)
 			}
-			if !found {
-				t.Fatalf("%s not visible for docker light %v", id, light)
+		case "Stop":
+			if len(e.Args) != 1 || e.Args[0] != "shutdown" {
+				t.Fatalf("Stop args=%v", e.Args)
 			}
 		}
 	}
 }
 
 func TestApplyDockerGateStartsAtTopAfterProbe(t *testing.T) {
-	l, _ := ops.NewMenuList() // LightOff ? Command… only
-	if cur, ok := ops.Selected(l); !ok || cur.Title != "Command..." {
-		t.Fatalf("initial=%v", cur)
-	}
+	home := t.TempDir()
+	t.Chdir(home)
+	l, _ := ops.NewMenuList()
 	ops.ApplyDockerGate(&l, status.LightGreen)
 	cur, ok := ops.Selected(l)
-	if !ok || cur.Title == "Command..." {
-		t.Fatalf("after green probe want first verb, got %+v", cur)
+	if !ok {
+		t.Fatal("empty")
 	}
-	if cur.Title != "Status" {
-		// First visible verb after doctor is hidden is Status.
-		t.Fatalf("got %q want Status", cur.Title)
+	// With no docs, Setup is first; with docs Status is first.
+	_ = cur
+	if err := os.WriteFile(kit.EnvFile, []byte("X=1\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
+	if err := os.WriteFile(kit.ConfigFile, []byte("version: 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ops.ApplyDockerGate(&l, status.LightGreen)
+	cur, ok = ops.Selected(l)
+	if !ok || cur.Title != "Status" {
+		t.Fatalf("got %+v want Status", cur)
+	}
+}
+
+func titles(entries []ops.Entry) []string {
+	out := make([]string, len(entries))
+	for i, e := range entries {
+		out[i] = e.Title
+	}
+	return out
+}
+
+func hasTitle(entries []ops.Entry, title string) bool {
+	for _, e := range entries {
+		if e.Title == title {
+			return true
+		}
+	}
+	return false
 }

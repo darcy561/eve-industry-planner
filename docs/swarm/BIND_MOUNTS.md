@@ -5,7 +5,7 @@
 > mesh hosts/URLs come from stack anchors. Day-2 elastic secret refresh is **`make swarm-secrets-sync`**.
 > Non-secret tunables stay in operator YAML (#19) via **`make swarm-sync`**. Real `docker secret`
 > objects + per-service scope + narrow Go config are **done (#3)**; optional `*_API` DB users are a
-> data-plane bootstrap follow-up.
+> future Ensure follow-up. Mongo keyfile + `EnsureMongo` are **done** (admintool).
 
 ## Goal
 
@@ -18,8 +18,7 @@ may keep reading `.env` directly. Operators rotate `.env` secrets via **`make sw
 | Mount | Services | Class | Target |
 |-------|----------|-------|--------|
 | ~~`./adminSDK.json`, `./adminSDKLive.json`~~ | ~~api, worker, core~~ | **removed** | Migration-only; not mounted. Use `-credentials` / `GOOGLE_APPLICATION_CREDENTIALS` when running Firestore import tasks. Deletion of migration code is a different roadmap. |
-| `./mongo-keyfile` | mongo | **secret** | Stay Compose; secret or generate-once named volume |
-| `./scripts/bootstrap/mongo-setup.sh` | mongo | bootstrap script | Swarm data fragment bind (single-host); not `eip.config.sync` |
+| `./mongo-keyfile` (+ `./mongo-keyfile.bak`) | mongo (Swarm data fragment) | **secret** | Host SoT for replica-set keyFile; managed by admintool `EnsureKeyfile` / `eip restore-mongo-keyfile` / `eip rekey-mongo`. Stack CMD is auth-first `mongod` (no setup-script bind). |
 | ~~`./observability/prometheus/prometheus.yml`~~ | ~~Compose prometheus~~ | **moved** | Swarm data fragment: Docker **config** `prometheus_yml` → `eip_prometheus` (#18 plane; not #34 addon) |
 | `./observability/loki/config.yaml` | loki | **config** | Observability addon (#34) |
 | `./observability/alloy/config.alloy` | alloy | **config** | Observability addon (#34) |
@@ -47,9 +46,9 @@ Also (not `./` host path but host-sensitive):
 4. **#3 (elastic done):** curated `.env` → versioned `docker secret` objects + `.eip-swarm-secrets.yml`
    per-service attach via `make swarm-secrets-sync`; Go `swarmsecret` reads `/run/secrets/<KEY>`.
    **#16 done:** frontend on Swarm with `x-frontend-public-env` (public knobs only; no docker secrets).  
-5. Keep mongo keyfile/setup on Compose until data-plane playbooks need otherwise (#22).  
+5. **Done (data-plane ensure):** App S3 buckets via `dataplane.EnsureS3`; RS / users / preimages / application indexes via `dataplane.EnsureMongo` (`eip up`/`dev` Ready concurrent, or `eip ensure-s3` / `eip ensure-mongo` / `eip init` when tasks are up). Legacy `scripts/bootstrap/mongo-setup.sh` is not Swarm CMD and is not the SoT.  
 6. Observability file mounts follow addon packaging (#34), not the elastic secrets path.  
-7. **Deferred (data-plane bootstrap):** create `MONGO_*_API` / `REDIS_*_API` DB users when wanted — app already falls back; secrets attach api-only if set. See ROADMAP Follow-ups.
+7. **Deferred:** create `MONGO_*_API` / `REDIS_*_API` DB users in Ensure when wanted — app already falls back; secrets attach api-only if set. See ROADMAP Follow-ups.
 
 ## Status
 
@@ -61,11 +60,14 @@ Also (not `./` host path but host-sensitive):
 | Stack injects mesh networking (hosts/URLs) | **Done** — secrets remain `.env` |
 | Frontend on Swarm (public env; no FE secrets) | **Done** (#16) |
 | Real Swarm `secret` objects + per-service scope + narrow Go config | **Done** (#3) |
-| Least-privilege `*_API` DB users (create in Mongo/Redis) | **Deferred** — data-plane bootstrap follow-up |
+| Least-privilege `*_API` DB users (create in Mongo/Redis) | **Deferred** — future `EnsureMongo` / Redis ensure follow-up |
+| EnsureS3 (app buckets `static-data*`) | **Done** — admintool; see [ENGINEERING.md](../admintool/ENGINEERING.md) |
+| Mongo keyfile + EnsureMongo (RS/users/preimages/indexes) | **Done** — admintool; see [ENGINEERING.md](../admintool/ENGINEERING.md) |
 
 ## Related
 
 - [ENV.md](./ENV.md) — secrets apply (`swarm-secrets-sync` vs `swarm-sync`)  
-- [MAKE.md](./MAKE.md) — day-2 verbs  
+- [MAKE.md](./MAKE.md) — day-2 verbs (legacy; prefer `eip`)  
 - [STACK.md](./STACK.md) — stack file (no adminSDK binds)  
+- [docs/admintool/ENGINEERING.md](../admintool/ENGINEERING.md) — `EnsureS3` / `EnsureMongo` / Ready  
 - ROADMAP **#3** / **#16** / **#24** / **#32** / **#34**  

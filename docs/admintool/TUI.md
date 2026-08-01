@@ -6,101 +6,118 @@ Source: [`admintool/tui/`](../../admintool/tui/). Entry: `tui.Run()` → `screen
 
 ## Goals
 
-- **TUI-first** host management UI (not a Docker oneshot). Double-click / run `eip.exe` with no args is the normal path.
+- **TUI-first** host management UI. Double-click / run `eip` with no args is the normal path.
 - Same binary as CLI for scripts (`eip doctor`, …). Interactive + no args → TUI; `EIP_FROM_TUI=1` (child of TUI) or non-TTY → CLI help/verbs.
-- Started from an existing terminal: TUI uses that window; quit returns to the shell prompt (no extra pause or second window).
-- Replace / wrap Make bring-up over time (`init` wizard, `up`, settings) without forcing operators to hand-edit `.env` first.
+- Started from an existing terminal: TUI uses that window; quit returns to the shell prompt.
+- Guided Setup / Secrets / Settings for `.env` and `eip.config.yaml`; stack ops via child CLI (Start/Dev/…). Make remain a legacy parallel path for Public bootstrap and some scripts.
 
 ## Hard rules
 
-1. **Child-process ops only** — every ops action runs `eip <args>` as a **child** with process flag `EIP_FROM_TUI=1` and detached stdin (Windows: `CREATE_NO_WINDOW`). Never run Cobra or Docker **in-process** from the TUI (console lifetime on Windows). Docker Engine access belongs in CLI verbs via `internal/docker.NewClient` (`ResolveDockerEndpoint` + SDK Ping/Info).
-2. **Two streams from the child** — **stdout:** `EIPMSG` envelopes (`chip.*` → chips; `pane.text` / `pane.status` → OUTPUT; TUI formats status with lipgloss). **stderr:** real errors → OUTPUT append. Non-protocol stdout discarded. **Probe:** chip types only (never `pane.*`).
-3. **TUI stays open** — exit on `esc` / ctrl+c (no Quit menu row).
-4. **TUI styles ≠ Cobra styles** — per-command OUTPUT formatters live in `tui/output/<verb>/` (e.g. `output/status.Render`); CLI dumps stay in `internal/*` (`status.FormatPlain`).
-5. **Keyboard-only** — enable mouse cell motion so the terminal does not turn the wheel into ↑/↓, then **swallow all `MouseMsg`**. No click/wheel navigation.
-6. **Reuse `theme` + `ui`** — new screens must use shared helpers; do not copy panel/list styling into each screen.
-7. **Locked binary builds** — if `eip.exe` is locked (TUI still running), **alert and stop**. Do not invent alternate binary names (`eip-tui9.exe`, etc.).
-8. **Config SoT stays files** — guided forms read/write `.env` and `eip.config.yaml` in place. Do not invent a third config store. Day-2 apply is `eip secrets` / `eip sync`.
-9. **Dynamic lists / one SoT** — see [VARIABLES.md](./VARIABLES.md) and [ENGINEERING.md](./ENGINEERING.md). Menus build from `internal/catalog`, not hard-coded tables.
+1. **Child-process ops only** — every Docker / stack action runs `eip <args>` as a **child** with `EIP_FROM_TUI=1` and detached stdin (Windows: `CREATE_NO_WINDOW`). Never run Cobra or Docker **in-process** from the TUI. Engine access belongs in CLI verbs via `internal/docker.NewClient`.
+2. **Two streams from the child** — **stdout:** `EIPMSG` (`chip.*` → chips; `pane.text` / `pane.status` → OUTPUT). **stderr:** real errors → OUTPUT. Non-protocol stdout discarded. **Probe:** chip types only (never `pane.*`).
+3. **TUI stays open** — exit on `esc` / ctrl+c from the main menu (no Quit row).
+4. **TUI styles ≠ Cobra styles** — per-command OUTPUT formatters in `tui/output/<verb>/`; CLI dumps in `internal/*` (`status.FormatPlain`).
+5. **Keyboard-only** — enable mouse cell motion so the wheel is not ↑/↓, then **swallow all `MouseMsg`**.
+6. **Reuse `theme` + `ui`** — and home helpers in `screens/home/{nav,docs,pickers}.go`.
+7. **Locked binary builds** — if the binary is locked (TUI still running), **alert and stop**. Do not invent alternate binary names.
+8. **Config SoT stays files** — builders read/write `.env` and `eip.config.yaml` in place. Day-2 apply: Persist auto-queues child `eip secrets` / `eip sync` when Health is up; otherwise Start/Dev; manual via Command or CLI.
+9. **Dynamic lists / one SoT** — CLI verbs in `catalog`; home menu copy/gating in `tui/ops`. See [VARIABLES.md](./VARIABLES.md).
 
 ## Package layout
 
 ```text
 admintool/
-  internal/kit/           # product strings, Home, envfile, templates/, obs/, SelfUpdate
+  internal/kit/           # product strings, Home, writable, templates/, obs/, SelfUpdate
   internal/catalog/       # eip verb SoT + expected Swarm services / fragments
-  internal/deploy/        # Inspect / Source / fragments; Run (eip up / eip dev)
-  internal/status/        # status report + WriteReport + outfmt geometry
+  internal/deploy/        # Inspect / Source / Run (eip up / eip dev)
+  internal/status/        # status report + WriteReport
   internal/docker/        # SDK Probe + StackSnapshot
-  internal/process/       # OS process helpers (FromTUI, ChildEnv, HoldOnError)
+  internal/process/       # FromTUI, ChildEnv, HoldOnError
   internal/msg/           # EIPMSG envelope + pane + chip.* helpers
   tui/
     run.go               # tui.Run()
-    theme/               # colors, gutters, shared lipgloss
-    ui/                  # Item, lists, panes, viewports
-    brand/               # EIP block logo
-    exec/                # streaming child eip (chans → WaitCmd)
-    ops/                 # home menu builder (← catalog)
-    pane/                # OUTPUT Buffer + AppendMsg (any source)
-    output/<verb>/       # per-command OUTPUT formatters (status, …)
-    status/              # chips + ApplyEvent / poll (header bar — not OUTPUT)
-    screens/home/        # main ops dashboard
-    screens/settings/    # (planned) env / config forms
-    screens/init/        # (planned) first-run wizard
+    theme/ ui/ brand/ exec/
+    ops/                 # home menu: Entries / MoreEntries / SetupNeeded / Allowed
+    pane/                # OUTPUT Buffer + AppendMsg
+    builder/             # reusable full-body wizard (section nav | form)
+    output/<verb>/       # per-command OUTPUT formatters
+    status/              # chips + ApplyEvent / poll
+    screens/home/        # ops dashboard
+      model.go           # Update / menu / command line
+      nav.go             # Main/More navigation, pane helpers
+      docs.go            # Setup / Secrets / Settings Persist + auto-apply
+      pickers.go         # Restart / Logs pickers
+      view.go keys.go
+    screens/init/        # EnvSections / ConfigSections + PersistEnv / PersistConfig
+    screens/logview/     # thin follow window for eip logs -f --ui
 ```
 
 ## Home screen layout
 
-1. **Header** — EIP ASCII mark (`brand`) + product name / “Management Tool” / deployed **app** version (`APP_VERSION` from live Swarm service env via `chip.app`). Shows `—` until a probe sees a stack. No grey header band; same terminal background as the body. Top padding so the logo is not clipped.
-2. **Status bar** — **Docker** · **Health** traffic lights, plus unlabeled **StatusMsg** text (marquee when long). No Job chip; `commandRunning` is a TUI flag only. Docker: green = engine up + swarm active; amber = engine up but swarm not active; red = engine unreachable. Health: live Swarm stack `eip` rollup (worst-wins; `desired==0` ignored); off when Docker is not swarm-active. StatusMsg comes from user CLI `chip.stack` only (prefer `message`). Status **auto-polls** `eip probe` every 3s even while a command runs (not a menu item; public CLI remains `eip doctor`). Probe emits `chip.docker` + `chip.health` + `chip.app` — never `chip.stack` or pane types. Menu gates on Docker light. Red/off: Command… only (app version is in the header). Amber: init / up / dev / status + Command…. Output pane empty until a command runs.
+1. **Header** — EIP ASCII mark (`brand`) + product name / “Management Tool” / deployed **app** version (`APP_VERSION` via `chip.app`). Shows `—` until a probe sees a stack.
+2. **Status bar** — **Docker** · **Health** lights + unlabeled **StatusMsg** (marquee when long). `commandRunning` is TUI-local (not a chip). Docker: green = engine + swarm active; amber = engine up, swarm not active; red = unreachable. Health: live stack rollup; off when Docker is not swarm-active. StatusMsg from user CLI `chip.stack` only. Auto-polls `eip probe` every 3s (chips only; public CLI name remains `eip doctor`).
 
-**Swarm vs Health vs StatusMsg:** Swarm is folded into the Docker light. Health = live stack membership/task rollup. StatusMsg = short CLI status phrase (cleared on next command start, or `StatusMsgHold` ≈ 5s after the command ends).
-3. **Body** — left **COMMANDS** list, right **OUTPUT** viewport (`ui.RenderPanel` + `ui.JoinPanes`). Outer left/right gutters (`theme.HMargin`). OUTPUT keeps full command history; new pane/stderr lines pin to the latest (`outputFollow`) unless the operator PgUp’s to read back (PgDn to bottom resumes follow). Scroll works while a command is still running.
-4. **Footer** — key hints.
-5. **Command line** (optional) — `:` or “Command…” focuses `eip ` text input.
+**Menu gating (Docker light):**
+
+| Docker | Visible |
+|--------|---------|
+| Off / red | Setup (if docs missing) + More |
+| Amber | above + Status, Start, Dev |
+| Green | full main list; More → Logs also |
+
+3. **Body** — **COMMANDS** | **OUTPUT**. Outer gutters (`theme.HMargin`). OUTPUT history follows latest unless PgUp.
+
+**Main COMMANDS:** Setup (until both `.env` and `eip.config.yaml` exist) · Status · Start (`up`) · Dev · Restart · Rebuild · Stop (`shutdown`) · Update · **More**.
+
+**More submenu:** Secrets · Settings · Logs · Command. Esc on More → Main. Closing a child (builder cancel/finish, Logs, Command, post-Persist apply DoneMsg) returns to **More**, not Main.
+
+**Setup flow:** env panels (incl. `cli.env_backup_path`) → PersistEnv → **Use defaults** or **Advanced** (config panels). Does not start the stack. Esc on the choice skips further Setup (env already saved).
+
+**Secrets / Settings:** day-2 builders. Finish → Persist; if Health up and Docker green → child apply (`secrets` then `sync`, or `sync` only). Autogen (space), bool fields (space), **ctrl+r** Roll (not Locked DB passwords). Form scrolls with pgup/pgdn.
+
+4. **Footer** — key hints (builder has its own line while open).
+5. **Command line** — `:` from Main, or More → Command. Typed `setup` / `edit` / `settings` open builders without `fromMore` (return to Main). Typed `secrets` / `sync` run CLI apply.
 
 ### Layout math
 
-- Lipgloss **borders sit outside** `Width`/`Height`. Panel outer sizes must account for ±2 or the body wraps and clips the logo.
-- Chrome height (header + status + footer [+ cmd line]) must be subtracted before `ui.CalcSplit`.
-- On resize, Bubble Tea sends `WindowSizeMsg` — reflow via `layout()` (responsive).
+- Lipgloss borders sit outside `Width`/`Height` (±2).
+- Subtract chrome (header + status + footer [+ cmd line]) before `ui.CalcSplit`.
+- Resize → `layout()`.
 
 ## List / selection UX
 
-- Full-width **blue selection bars** (not text-only highlights).
-- Helper/description on the bar must stay **readable** (light muted on primary — not faint white on blue).
-- Long helpers: **ellipsis** when not selected; selected row **marquees in place** (`ui.MarqueeDelegate`) so the layout never reflows.
-- Use `ui.NewItem` / `ui.NewList` / `ui.SizeList` / `ui.MarqueeDelegate` for generic rows; `ops` for home CLI catalog rows.
+- Full-width blue selection bars; helpers readable on the bar.
+- Long helpers: ellipsis when unselected; selected row marquees (`ui.MarqueeDelegate`).
+- Generic rows: `ui.NewItem` / `ui.NewList`; home catalog rows: `ops` `Entry` / `row`.
 
 ## Theme
 
-MUI-dark inspired blue primary (`theme.Primary` ≈ ANSI 33). Avoid purple glow / cream-serif AI defaults. Terminal default background — do not reintroduce a grey header panel.
-
-## Planned screens (config)
-
-Prefer **guided forms / wizards** over a freeform `.env` editor in the output pane.
-
-| Screen | Role |
-|--------|------|
-| `screens/init` | First-run: deploy home, auto-gen secrets (+ HMAC backup confirm), SSO / `APP_VERSION`, optional YAML, engine probe, then bring-up |
-| `screens/settings` | Day-2 tweak known keys; save to `.env` / `eip.config.yaml`; remind or trigger apply (secrets vs YAML split) |
-
-External `$EDITOR` / Notepad remains acceptable for power users; structured TUI forms are the default path for `make up` replacement.
+MUI-dark inspired blue primary (`theme.Primary` ≈ ANSI 33). Terminal default background — no grey header panel.
 
 ## Keys (home)
 
 | Key | Action |
 |-----|--------|
-| ↑ / ↓ | Select command |
-| Enter | Run selected |
-| `:` | Command box |
-| PgUp / PgDn | Scroll **output** pane (not the command list); works during a running command |
-| `esc` / ctrl+c | Quit (from menu; `esc` in command box cancels) |
+| ↑ / ↓ | Select |
+| Enter | Run / open |
+| `:` | Command box (Main) |
+| PgUp / PgDn | Scroll OUTPUT (works while a command runs) |
+| esc / q | Quit (Main); back (More / pickers); cancel command box → More or Main |
+| ctrl+c | Quit |
+| Builder: space | Autogen / bool toggle |
+| Builder: ctrl+r | Pending Roll |
+| Builder: ctrl+enter | Finish / Persist |
 
 ## Build
 
 ```text
+# Windows
 .\scripts\admintool\build-host.ps1
+
+# Linux / macOS
+./scripts/admintool/build-host.sh
 ```
 
-Writes repo-root `eip.exe` / `eip` only (no `dist/`). If the file is locked, the script **alerts**, stops running `eip` processes, waits, and retries — it never writes a differently named binary.
+Writes repo-root `eip.exe` / `eip` only (no `dist/`). Locked binary → alert, stop running `eip`, retry — never a differently named binary.
+
+**Linux launch:** real terminal (`./eip` or `./eip ui`). No-TTY may open an external terminal or fall back to CLI help.

@@ -1,5 +1,5 @@
 // Sync implements eip sync: capacity, Traefik, Grafana, and config mounts.
-package eipconfig
+package config
 
 import (
 	"context"

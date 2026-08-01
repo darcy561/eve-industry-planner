@@ -26,8 +26,9 @@ func Verbs() []Verb {
 		{ID: "restart", Title: "Restart", Short: "Rolling restart (same images; one service or all)"},
 		{ID: "shutdown", Title: "Shutdown", Short: "Stop the app completely (keeps volumes / data)"},
 		{ID: "update", Title: "Update", Short: "Update eip binary (bundled configs ship with it; then eip sync)"},
-		{ID: "init", Title: "Init", Short: "Write missing .env / eip.config.yaml from bundled templates"},
-		{ID: "ensure-mongo", Title: "Ensure mongo", Short: "Ensure mongo RS, users, and change-stream preimages (CLI)"},
+		{ID: "init", Title: "Init", Short: "Write missing .env / eip.config.yaml with generated secrets"},
+		{ID: "ensure-mongo", Title: "Ensure mongo", Short: "Ensure mongo RS, users, preimages, and indexes (CLI)"},
+		{ID: "ensure-s3", Title: "Ensure S3", Short: "Ensure SeaweedFS app buckets static-data / static-data-test (CLI)"},
 		{ID: "restore-mongo-keyfile", Title: "Restore mongo keyfile", Short: "Restore ./mongo-keyfile (+ .bak) from a running mongo task (CLI)"},
 		{ID: "rekey-mongo", Title: "Rekey mongo", Short: "Rekey ./mongo-keyfile using MONGO_ROOT_* when stack is down (CLI)"},
 	}

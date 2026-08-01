@@ -1,8 +1,8 @@
 package deploy
 
 import (
-	"eve-industry-planner/admintool/internal/docker"
 	"eve-industry-planner/admintool/internal/catalog"
+	"eve-industry-planner/admintool/internal/docker"
 )
 
 // FragmentState is live membership for one catalog fragment.

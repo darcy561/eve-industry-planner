@@ -40,10 +40,6 @@ if [ -z "${S3_ACCESS_KEY}" ] || [ -z "${S3_SECRET_KEY}" ]; then
   echo "Error: S3_ACCESS_KEY / S3_SECRET_KEY must be set in ${ENV_FILE}" >&2
   exit 1
 fi
-if [ "${S3_SECRET_KEY}" = "auto-generate-me" ]; then
-  echo "Error: S3_SECRET_KEY is still auto-generate-me — run make ensure-env / ensure-s3-env" >&2
-  exit 1
-fi
 
 wait_s3_live 90
 cid="$(eip_seaweedfs_container)"

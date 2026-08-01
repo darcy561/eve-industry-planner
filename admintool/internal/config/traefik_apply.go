@@ -1,4 +1,4 @@
-package eipconfig
+package config
 
 import (
 	"context"

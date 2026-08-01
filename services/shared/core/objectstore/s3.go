@@ -47,7 +47,7 @@ func openS3(ctx context.Context, cfg dialConfig) (*S3Backend, error) {
 	}
 	if !exists {
 		if !cfg.EnsureBucket {
-			return nil, fmt.Errorf("s3 bucket %q does not exist — run make up / provision-s3", cfg.Bucket)
+			return nil, fmt.Errorf("s3 bucket %q does not exist — run eip up / eip ensure-s3", cfg.Bucket)
 		}
 		if err := client.MakeBucket(ctx, cfg.Bucket, s3sdk.MakeBucketOptions{}); err != nil {
 			return nil, fmt.Errorf("s3 create bucket %q: %w", cfg.Bucket, err)

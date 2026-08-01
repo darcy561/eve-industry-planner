@@ -50,15 +50,15 @@ On **Windows (Git Bash)** use a path you can write to (e.g. under your user prof
 make up
 ```
 
-On first run this may only bootstrap files and exit (see below). When `.env` is ready it brings up the **Compose data plane** (mongo/redis/nats + ops) and the **Swarm app stack** (Traefik, api, websocket, worker, ws-router, core, frontend, SeaweedFS from GHCR). See [docs/swarm/MAKE.md](docs/swarm/MAKE.md) and [docs/swarm/NETWORK.md](docs/swarm/NETWORK.md).
+On first run this may only bootstrap files and exit (see below). When `.env` is ready it brings up the **Swarm data fragment** (mongo/redis/nats/SeaweedFS/Prometheus) and **app stack** (Traefik, api, websocket, worker, ws-router, core, frontend). Preferred host tool: **`eip up`** / **`eip dev`** ([docs/admintool/ENGINEERING.md](docs/admintool/ENGINEERING.md)); Make remains legacy ([docs/swarm/MAKE.md](docs/swarm/MAKE.md)). Network: [docs/swarm/NETWORK.md](docs/swarm/NETWORK.md).
 
-**First-time deploy (no `.env` yet):** `make up` runs `scripts/bootstrap/ensure-env.sh`, which downloads **`env.example`** from the **Public** branch into `.env`, auto-generates database/redis secrets where needed, then **stops with a non-zero exit** and tells you to edit `.env` and run **`make up` again**. Docker containers **do not start** on that first successful bootstrap pass. You may be prompted to type **`YES`** after backing up **`AUTHZ_HMAC_KEY`**—use an **interactive** terminal for that step.
+**First-time deploy (no `.env` yet):** `make up` runs `scripts/bootstrap/ensure-env.sh`, which runs **`eip init`** to write `.env` / `eip.config.yaml` from Go defaults (`kit/templates`), auto-generates database/redis secrets where needed, then **stops with a non-zero exit** and tells you to edit `.env` and run **`make up` again**. Docker containers **do not start** on that first successful bootstrap pass. You may be prompted to type **`YES`** after backing up **`AUTHZ_HMAC_KEY`**—use an **interactive** terminal for that step.
 
-**If `.env` already exists** (e.g. you restored a backup), `ensure-env` does nothing and **`make up`** continues into overlay → Compose data plane → Swarm stack.
+**If `.env` already exists** (e.g. you restored a backup), `ensure-env` does nothing and **`make up`** continues into overlay → Swarm data + app (legacy). Prefer **`eip up`** / **`eip dev`**, which run `dataplane.Ready` (`EnsureS3` ‖ `EnsureMongo`) before app deploy.
 
 ### Step 3: Configure `.env` and required files
 
-Edit `.env` with your real values (SSO, domains, optional Sentry, Grafana passwords, etc.). Variable meanings are documented in the embedded template [`admintool/internal/templates/env.example`](admintool/internal/templates/env.example) (also shipped inside the `eip` binary). **`.env` holds secrets** (and `APP_VERSION`); non-secret scale/ports/paths live in **`eip.config.yaml`** — copy from [`admintool/internal/templates/eip.config.yaml`](admintool/internal/templates/eip.config.yaml) when you want to customize. Apply procedures: [docs/swarm/ENV.md](docs/swarm/ENV.md).
+Edit `.env` with your real values (SSO, domains, optional Sentry, Grafana passwords, etc.). Variable schema is Go SoT in [`admintool/internal/kit/templates/env`](admintool/internal/kit/templates/env/) (`EnvFields`). **`.env` holds secrets** (and `APP_VERSION`); non-secret scale/ports/paths live in **`eip.config.yaml`** — defaults from [`yamldefaults.DefaultConfig`](admintool/internal/kit/templates/yamldefaults/default.go) via `eip init`. Apply procedures: [docs/swarm/ENV.md](docs/swarm/ENV.md).
 
 Firebase Admin JSON files are **not** mounted by default (steady-state api/worker/core do not need them). For one-off Firestore migration tasks, mount credentials yourself and set `GOOGLE_APPLICATION_CREDENTIALS`, or pass `-credentials` / `-dev` / `-live` as documented in the migration tooling.
 
@@ -68,17 +68,17 @@ Firebase Admin JSON files are **not** mounted by default (steady-state api/worke
 make up
 ```
 
-With `.env` in place, this completes **`ensure-*`**, starts the Compose data plane, and deploys the Swarm stack. Hybrid detail: [docs/swarm/MAKE.md](docs/swarm/MAKE.md).
+With `.env` in place, this completes **`ensure-*`** and deploys the Swarm stack (legacy Make path). Prefer **`eip up`**: [docs/admintool/ENGINEERING.md](docs/admintool/ENGINEERING.md).
 
 ## Environment Configuration
 
-For variable documentation, see `env.example`. In practice you will configure:
+For variable schema, see [`EnvFields`](admintool/internal/kit/templates/env/fields.go). In practice you will configure:
 
-- **Frontend / client**: EVE Online SSO, optional Google Analytics, and build-time options described in that file (SPA runs on Swarm as `eip_frontend`)
+- **Frontend / client**: EVE Online SSO, optional Google Analytics, and build-time options described there (SPA runs on Swarm as `eip_frontend`)
 - **Backend**: MongoDB and Redis credentials, NATS, auth and JWT settings, optional Sentry, optional Grafana admin user/password for the bundled stack
-- **Observability**: `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` (and similar) under the Grafana section in `env.example`
+- **Observability**: `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` (and similar) under the Grafana section in `EnvFields`
 
-`make up` runs `ensure-env` so a starting `.env` is created from `env.example` when missing; always review and set secrets before production use.
+`make up` runs `ensure-env` so a starting `.env` is created via `eip init` when missing; always review and set secrets before production use.
 
 ### Day-2 changes (stack already running)
 
@@ -88,7 +88,7 @@ Do **not** use full `make up` only to apply config. Details and dry-run: [docs/s
 |-------------|-----|
 | Secrets used by Swarm apps (SSO, HMAC, S3 keys, app DB passwords, …) | **`make swarm-secrets-sync`** |
 | Operator YAML (`eip.config.yaml` — replicas, capacity, ports/paths, concurrency, client cutoff) | **`make swarm-sync`** (edit YAML first; no separate `scale-*` commands) |
-| Compose-only secrets (mongo/redis root, Grafana admin, …) | Recreate those Compose services (e.g. `make rebuild SERVICES=mongo,redis` on a git clone), then **`make swarm-secrets-sync`** if Swarm consumers need the new values |
+| Data-plane secrets (mongo/redis root, …) | Update `.env`, then **`eip secrets`** (or legacy `make swarm-secrets-sync`). Mongo keyfile recovery: `eip restore-mongo-keyfile` / `eip rekey-mongo`. After index SoT changes without full up/dev: **`eip ensure-mongo`**. |
 
 ## Access
 
@@ -132,10 +132,10 @@ You have two options:
 
 ### Data and messaging
 
-- **mongo**: MongoDB (single-node replica set, `rs0` by default) — Compose
-- **redis**: Redis (password-protected; also used by Asynq and the WebSocket layer) — Compose
-- **nats**: NATS with JetStream enabled (`-js`) for internal messaging; monitoring HTTP on `:8222` — Compose
-- **seaweedfs**: Swarm data-fragment object store (`static-data` bucket via `objectstore`); S3 API on overlay only
+- **mongo**: Swarm data-fragment MongoDB (single-node replica set `rs0`, auth-first). Desired state (RS, users, preimages, indexes, keyfile) via admintool **`eip ensure-mongo`** / Ready — not core boot. See [docs/admintool/ENGINEERING.md](docs/admintool/ENGINEERING.md)
+- **redis**: Swarm data-fragment Redis (password-protected; also used by Asynq and the WebSocket layer)
+- **nats**: Swarm data-fragment NATS with JetStream (`-js`); monitoring HTTP on `:8222`
+- **seaweedfs**: Swarm data-fragment object store (`static-data*` buckets via `EnsureS3` / `objectstore`); S3 API on overlay only
 
 ### Edge and operations
 

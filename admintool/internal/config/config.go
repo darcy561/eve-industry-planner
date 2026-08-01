@@ -1,6 +1,7 @@
-// Package eipconfig loads and validates operator config (eip.config.yaml).
-// SyncEnvMap supplies capacity/ports/paths as process env for stack expand.
-package eipconfig
+// Package config loads, validates, emits, and applies live eip.config.yaml.
+// Starter defaults (DefaultConfig) live in kit/templates/yamldefaults — not here.
+// Generic YAML IO/aliases: yamlutil; this package owns Validate + config header + Sync/apply.
+package config
 
 import (
 	"fmt"
@@ -21,6 +22,26 @@ type Config struct {
 	Proxy       Proxy                  `yaml:"proxy"`
 	ScaleTiming ScaleTiming            `yaml:"scale_timing"`
 	Services    map[string]ServiceSpec `yaml:"services"`
+	CLI         CLI                    `yaml:"cli"` // admintool/TUI only — not SyncEnvMap
+}
+
+// CLI holds local eip/TUI settings (never exported into containers via SyncEnvMap).
+type CLI struct {
+	// EnvBackupPath is a stem (relative to project home) or absolute path prefix for .env backups.
+	// Files: {stem}-current.txt and {stem}-YYYYMMDD-HHMMSS.txt (keep 3 timestamped).
+	EnvBackupPath string `yaml:"env_backup_path"`
+}
+
+// DefaultEnvBackupStem is used when cli.env_backup_path is empty.
+const DefaultEnvBackupStem = "eip-env-backup"
+
+// EffectiveEnvBackupPath returns cli.env_backup_path or DefaultEnvBackupStem.
+func (c Config) EffectiveEnvBackupPath() string {
+	s := strings.TrimSpace(c.CLI.EnvBackupPath)
+	if s == "" {
+		return DefaultEnvBackupStem
+	}
+	return s
 }
 
 type Addons struct {

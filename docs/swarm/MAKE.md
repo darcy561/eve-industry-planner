@@ -6,7 +6,9 @@
 >
 > Scripts layout: **`scripts/bootstrap/`** (ensure / update-files), **`scripts/lib/`** (shared helpers), **`scripts/swarm/`** (bring-up + day-2), **`scripts/ops/`** (escapes), **`scripts/test/`** (smokes). The Makefile only teaches public verbs — stack rematerialize is internal. Compose YAML is a stub (Public bundle / leftover cleanup only).
 >
-> **Preferred host tool:** [`eip`](../admintool/README.md) (`eip up` / `eip dev` / `eip rebuild` / `eip secrets`). There is no `eip release` — Swarm roll order lives in stack YAML (`start-first` app, `stop-first` data/obs). Make `release` / `dev-release` below remain for legacy scripts only.
+> **Preferred host tool:** [`eip`](../admintool/README.md) (`eip up` / `eip dev` / `eip rebuild` / `eip secrets` / `eip ensure-s3` / `eip ensure-mongo`). There is no `eip release` — Swarm roll order lives in stack YAML (`start-first` app, `stop-first` data/obs). Make `release` / `dev-release` below remain for legacy scripts only.
+>
+> **Data plane ensure:** Make bring-up does **not** run `EnsureS3` / `EnsureMongo`. Use **`eip up`/`dev`** (Ready) or **`eip ensure-s3`** / **`eip ensure-mongo`**. Legacy `scripts/bootstrap/mongo-setup.sh` is not Swarm CMD.
 
 ## Command map (keep this short)
 

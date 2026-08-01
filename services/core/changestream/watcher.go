@@ -309,7 +309,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	var accountID string
 
 	// For DELETE operations, try to get fullDocumentBeforeChange (requires collection
-	// changeStreamPreAndPostImages — see mongo indexing for user_job_groups).
+	// changeStreamPreAndPostImages — ensured by admintool PreimageCollections / EnsureMongo).
 	// For other operations, use fullDocument.
 	var docToExtract bson.M
 	if operationType == "delete" {
@@ -346,9 +346,9 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	}
 
 	// DELETE events only populate fullDocumentBeforeChange when the collection has
-	// changeStreamPreAndPostImages (Mongo bootstrap / admin collMod). Without that, AccountID stays
-	// empty → websocket dispatch skips account broadcast (unless clients explicitly subscribed).
-	// Singleton account docs use Mongo _id === account id string.
+	// changeStreamPreAndPostImages (admintool PreimageCollections / EnsureMongo). Without that,
+	// AccountID stays empty → websocket dispatch skips account broadcast (unless clients
+	// explicitly subscribed). Singleton account docs use Mongo _id === account id string.
 	if accountID == "" && operationType == "delete" {
 		switch collection {
 		case mongocore.CollectionUsers, mongocore.CollectionApplicationSettings, mongocore.CollectionUserWatchlistDeprecated:
@@ -357,8 +357,8 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 			if collection == mongocore.CollectionUserJobGroups ||
 				collection == mongocore.CollectionUserJobDocuments {
 				logs.WarnCtx(ctx, "delete missing accountID on collection (fullDocumentBeforeChange empty);"+
-					" websocket account fan-out skipped — enable changeStreamPreAndPostImages for this collection"+
-					" (see scripts/mongo-setup.sh CHANGE_STREAM_PREIMAGE_COLLECTIONS or admin collMod)",
+					" websocket account fan-out skipped — enable changeStreamPreAndPostImages"+
+					" (eip ensure-mongo / admintool PreimageCollections)",
 					"component", changestreamLogComponent,
 					"collection", collection,
 					"doc_id", docID,

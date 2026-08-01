@@ -5,26 +5,20 @@
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/root.sh"
 
 # Sets EIP_CONFIG_FILE and EIP_CONFIG_ABS.
-# --allow-example: fall back to admintool templates example with a WARN (default).
-# --require-yaml: only eip.config.yaml (no example fallback).
+# Defaults live in Go (kit/templates/yamldefaults.DefaultConfig / eip init) — no on-disk template fallback.
+# --allow-example / --require-yaml: accepted for call-site compat (no template fallback).
 resolve_eip_config() {
-  local allow_example=1
-  local example_rel="admintool/internal/templates/eip.config.yaml"
   for arg in "$@"; do
     case "${arg}" in
-      --allow-example) allow_example=1 ;;
-      --require-yaml) allow_example=0 ;;
+      --allow-example|--require-yaml) ;; # compat no-ops
     esac
   done
 
   if [ -z "${EIP_CONFIG_FILE:-}" ]; then
     if [ -f "${EIP_ROOT}/eip.config.yaml" ] || [ -f eip.config.yaml ]; then
       EIP_CONFIG_FILE="eip.config.yaml"
-    elif [ "${allow_example}" -eq 1 ] && [ -f "${EIP_ROOT}/${example_rel}" ]; then
-      EIP_CONFIG_FILE="${example_rel}"
-      echo "WARN: using ${EIP_CONFIG_FILE} — copy to eip.config.yaml to customize." >&2
     else
-      echo "Error: no eip.config.yaml${allow_example:+ or ${example_rel}}" >&2
+      echo "Error: no eip.config.yaml — run: eip init" >&2
       return 1
     fi
   fi

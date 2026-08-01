@@ -38,6 +38,21 @@ func TestNewRefreshTokenKeyring_WithLegacyKeys(t *testing.T) {
 	}
 }
 
+func TestNewRefreshTokenKeyring_EmptyOrMissingLegacyOK(t *testing.T) {
+	key := make([]byte, 32)
+	t.Setenv("REFRESH_TOKEN_AES_KEY", base64.StdEncoding.EncodeToString(key))
+	t.Setenv("REFRESH_TOKEN_AES_KEY_VERSION", "v1")
+
+	for _, legacy := range []string{"", "   ", "{}"} {
+		t.Run("legacy="+legacy, func(t *testing.T) {
+			t.Setenv("REFRESH_TOKEN_AES_LEGACY_KEYS", legacy)
+			if _, err := NewRefreshTokenKeyring(); err != nil {
+				t.Fatalf("legacy %q: %v", legacy, err)
+			}
+		})
+	}
+}
+
 func TestNewRefreshTokenKeyring_RejectsInvalidLegacyJSON(t *testing.T) {
 	key := make([]byte, 32)
 	t.Setenv("REFRESH_TOKEN_AES_KEY", base64.StdEncoding.EncodeToString(key))

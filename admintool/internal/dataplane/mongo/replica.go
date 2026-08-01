@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"eve-industry-planner/admintool/internal/dataplane/task"
 )
 
 const jsInitiate = `
@@ -36,7 +38,7 @@ func rsStatusOK(ctx context.Context, cid string, c creds) bool {
 }
 
 func waitPrimary(ctx context.Context, cid string, c creds, timeout time.Duration) error {
-	err := retry(ctx, timeout, time.Second, func() error {
+	err := task.Retry(ctx, timeout, time.Second, func() error {
 		ok, err := isPrimary(ctx, cid, c)
 		if err != nil {
 			return err

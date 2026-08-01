@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"eve-industry-planner/admintool/internal/dataplane/task"
 )
 
 // Check verifies PRIMARY, root auth, and app user auth (no mutations).
@@ -16,7 +18,7 @@ func Check(ctx context.Context, stackName string) error {
 	if err != nil {
 		return err
 	}
-	err = retry(ctx, 60*time.Second, 2*time.Second, func() error {
+	err = task.Retry(ctx, 60*time.Second, 2*time.Second, func() error {
 		ok, err := isPrimary(ctx, cid, c)
 		if err != nil {
 			return err
@@ -32,7 +34,8 @@ func Check(ctx context.Context, stackName string) error {
 	if err != nil {
 		return fmt.Errorf("mongo is not PRIMARY or root ping failed: %w", err)
 	}
-	if _, err := mongoshApp(ctx, cid, c, "db.getSiblingDB('eve_industry_planner').runCommand({ping:1}).ok"); err != nil {
+	pingJS := fmt.Sprintf("db.getSiblingDB(%q).runCommand({ping:1}).ok", appDatabase)
+	if _, err := mongoshApp(ctx, cid, c, pingJS); err != nil {
 		return fmt.Errorf("mongo: app user cannot authenticate to %s", appDatabase)
 	}
 	return nil

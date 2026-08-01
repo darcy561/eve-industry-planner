@@ -16,7 +16,7 @@ concurrency (50) and scale replicas only within the max above until you re-open 
 
 ## Operator YAML (#19) — source of truth
 
-See [`eip.config.example.yaml`](../../eip.config.example.yaml). Apply with **`make swarm-sync`**
+See [`yamldefaults.DefaultConfig`](../../admintool/internal/kit/templates/yamldefaults/default.go) / live `eip.config.yaml`. Apply with **`make swarm-sync`**
 (not `.env`):
 
 ```yaml

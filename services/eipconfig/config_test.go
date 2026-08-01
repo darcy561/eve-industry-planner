@@ -11,11 +11,13 @@ import (
 
 func TestLoadExampleYAML(t *testing.T) {
 	t.Parallel()
-	root := filepath.Clean(filepath.Join("..", ".."))
-	path := filepath.Join(root, "admintool", "internal", "templates", "eip.config.yaml")
+	path := filepath.Join(t.TempDir(), "eip.config.yaml")
+	if err := eipconfig.WriteYAML(path, eipconfig.DefaultConfig()); err != nil {
+		t.Fatal(err)
+	}
 	cfg, err := eipconfig.LoadYAML(path)
 	if err != nil {
-		t.Fatalf("load example: %v", err)
+		t.Fatalf("load defaults: %v", err)
 	}
 	if cfg.Services["worker"].Concurrency != 50 {
 		t.Fatalf("worker.concurrency=%d", cfg.Services["worker"].Concurrency)
@@ -30,11 +32,7 @@ func TestLoadExampleYAML(t *testing.T) {
 
 func TestSyncEnvStable(t *testing.T) {
 	t.Parallel()
-	root := filepath.Clean(filepath.Join("..", ".."))
-	cfg, err := eipconfig.LoadYAML(filepath.Join(root, "admintool", "internal", "templates", "eip.config.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	cfg := eipconfig.DefaultConfig()
 	lines := cfg.SyncEnv()
 	joined := strings.Join(lines, "\n")
 	for _, want := range []string{

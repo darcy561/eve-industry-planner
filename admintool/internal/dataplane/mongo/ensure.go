@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"time"
 
+	"eve-industry-planner/admintool/internal/dataplane/task"
 	"eve-industry-planner/admintool/internal/msg"
 )
 
 // Ensure brings a running mongo task to desired state (idempotent):
-// keyfile SoT, replica set, root + app users, preimage collections, then Check.
+// keyfile SoT, replica set, root + app users, preimage collections, indexes, then Check.
+// Callers should use dataplane.EnsureMongo (Ready / eip ensure-mongo / init).
+// Index builds are not short-timeout'd — progress via msg; cancel via parent ctx.
 func Ensure(ctx context.Context, stackName string) error {
 	if err := EnsureKeyfile(); err != nil {
 		return err
@@ -40,6 +43,10 @@ func Ensure(ctx context.Context, stackName string) error {
 		return err
 	}
 	msg.Line("preimage collections ok")
+	if err := ensureIndexes(ctx, cid, c); err != nil {
+		return err
+	}
+	msg.Line("indexes ok")
 	if err := Check(ctx, stackName); err != nil {
 		return err
 	}
@@ -48,7 +55,7 @@ func Ensure(ctx context.Context, stackName string) error {
 }
 
 func waitPing(ctx context.Context, cid string, c creds, timeout time.Duration) error {
-	err := retry(ctx, timeout, time.Second, func() error {
+	err := task.Retry(ctx, timeout, time.Second, func() error {
 		if _, err := mongoshUnauth(ctx, cid, "db.adminCommand('ping').ok"); err == nil {
 			return nil
 		}

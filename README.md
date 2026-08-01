@@ -9,7 +9,7 @@
 | **Frontend** | React (Vite), MUI, TanStack Router/Query |
 | **Backend** | Go: REST API, WebSocket service, **core** (schedulers, changestreams, shared processing), **worker** (Asynq / Redis) |
 | **Data & messaging** | MongoDB, Redis, NATS (JetStream) |
-| **Deploy** | Hybrid: Swarm (Traefik, api, websocket, worker, ws-router, core, frontend, SeaweedFS) + Compose data plane (mongo/redis/nats + ops); optional observability |
+| **Deploy** | Swarm data (mongo/redis/nats/SeaweedFS/Prometheus) + app (Traefik, api, websocket, worker, ws-router, core, frontend); host tool **`eip`**; optional observability addon |
 
 Deployment and host setup: see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
 
@@ -19,6 +19,6 @@ Deployment and host setup: see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
 
 **Short description** (for the repository *About* field):
 
-> Web app for EVE Online industry planning and ESI-backed workflows. Monorepo: React SPA, Go API/WebSocket/core/worker, hybrid Swarm+Compose deploy, MongoDB, Redis, NATS.
+> Web app for EVE Online industry planning and ESI-backed workflows. Monorepo: React SPA, Go API/WebSocket/core/worker, Swarm deploy (`eip`), MongoDB, Redis, NATS.
 
 **Website (if applicable):** `https://eveindustryplanner.com`

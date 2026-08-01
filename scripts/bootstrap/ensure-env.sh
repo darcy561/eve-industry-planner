@@ -1,6 +1,6 @@
 #!/bin/bash
-# Create .env from the embedded template in the eip binary when missing.
-# Secrets auto-generation stays here; template bytes come from `eip init` (no GitHub download).
+# Create .env via eip init (Go EnvFields / DefaultConfig SoT) when missing.
+# Secrets auto-generation stays here; defaults come from `eip init` (no GitHub download).
 
 _EIP_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)"
 # shellcheck source=../lib/http.sh
@@ -18,11 +18,11 @@ if [ ! -f .env ]; then
 		EIP_BIN="./eip.exe"
 	fi
 	if [ -z "${EIP_BIN}" ]; then
-		echo 'Error: eip binary not found (needed to write bundled env.example).' >&2
+		echo 'Error: eip binary not found (needed for eip init defaults).' >&2
 		echo 'Build/install eip, then run: eip init' >&2
 		exit 1
 	fi
-	echo "Writing .env from bundled template via ${EIP_BIN} init…" >&2
+	echo "Writing .env / eip.config.yaml via ${EIP_BIN} init…" >&2
 	if ! "${EIP_BIN}" init; then
 		echo 'Error: eip init failed' >&2
 		exit 1
