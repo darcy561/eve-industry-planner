@@ -100,3 +100,13 @@ func TestRekeyMongoRegistered(t *testing.T) {
 		t.Fatalf("got %q", c.Name())
 	}
 }
+
+func TestUpdateBinaryRegistered(t *testing.T) {
+	c, _, err := rootCmd.Find([]string{"update-binary"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Name() != "update-binary" {
+		t.Fatalf("got %q", c.Name())
+	}
+}

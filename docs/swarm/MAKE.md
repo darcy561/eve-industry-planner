@@ -6,7 +6,9 @@
 >
 > Scripts layout: **`scripts/bootstrap/`** (ensure / update-files), **`scripts/lib/`** (shared helpers), **`scripts/swarm/`** (bring-up + day-2), **`scripts/ops/`** (escapes), **`scripts/test/`** (smokes). The Makefile only teaches public verbs — stack rematerialize is internal. Compose YAML is a stub (Public bundle / leftover cleanup only).
 >
-> **Preferred host tool:** [`eip`](../admintool/README.md) (`eip up` / `eip dev` / `eip rebuild` / `eip secrets` / `eip ensure-s3` / `eip ensure-mongo`). There is no `eip release` — Swarm roll order lives in stack YAML (`start-first` app, `stop-first` data/obs). Make `release` / `dev-release` below remain for legacy scripts only.
+> **Preferred host tool:** [`eip`](../admintool/README.md) (`eip up` / `eip dev` / `eip rebuild` / `eip secrets` / ensure-* / `eip update-binary`). See [admintool ENGINEERING — Dual path](../admintool/ENGINEERING.md#dual-path-eip-vs-make).
+>
+> **Retired Make concepts (do not mirror in eip):** `release` / `dev-release` / `advertise` → use **`eip up`** / **`eip dev`** / **`eip rebuild`**. `update-data` → same (image pins in stack YAML). Bash `stack-deploy.sh` → **`eip up`/`dev`** (Go still calls `docker stack deploy` CLI; SDK has no stack-deploy API).
 >
 > **Data plane ensure:** Make bring-up does **not** run `EnsureS3` / `EnsureMongo`. Use **`eip up`/`dev`** (Ready) or **`eip ensure-s3`** / **`eip ensure-mongo`**. Legacy `scripts/bootstrap/mongo-setup.sh` is not Swarm CMD.
 
@@ -23,7 +25,7 @@
 | **`make swarm-sync`** | Apply `eip.config` settings via ephemeral sync-env + hash-diff Swarm file configs (`eip.config.sync`). May roll when specs/config bytes change. **Not** a version ship |
 | **`make swarm-secrets-sync`** | Apply secret changes from `.env`. **Not** YAML — different word order from `swarm-sync` on purpose |
 | **`make update-files`** | Pull latest Makefile / scripts from Public |
-| **`make release`** | Ship `.env` `APP_VERSION`: pull/roll + Redis advertise; also hash-diff Swarm file configs (same as sync; no-op if unchanged) |
+| **`make release`** | **Legacy.** Prefer **`eip up`**. (Old: ship `.env` `APP_VERSION` + Redis advertise.) |
 | **`make restart`** | Rolling restart (picker: one service or all). Same images; **no** pull/bake/advertise |
 | **`make shutdown`** | Stop the app completely; **keeps data** (no volume delete). Start again with `make up` |
 
@@ -54,7 +56,7 @@ make shutdown              # confirm → stop; data kept
 | **`make rebuild`** | Default = `dev_app_services` only (bakeable roles incl. frontend; cache); `SERVICES=` optional Swarm scope (app/obs pinned OK); data-layer → `update-data`. Rolls when digest/tag changes. No advertise |
 | **`make swarm-sync`** | Same as public: Swarm settings from `eip.config` (ephemeral sync-env) |
 | **`make swarm-secrets-sync`** | Same as public: `.env` → Swarm elastic refresh |
-| **`make update-data SERVICE=`** | Target one **data-layer** Swarm service (`mongo`, `redis`, `nats`, `seaweedfs`, `prometheus`). Not app train; not part of `release` / `dev-release` |
+| **`make update-data SERVICE=`** | **Legacy.** Prefer **`eip up`** / **`eip rebuild`** (pinned images in stack YAML). |
 
 ```bash
 # Full local ship after bumping APP_VERSION in .env:

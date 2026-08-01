@@ -41,7 +41,7 @@ func TestMainMenuOrderGreen(t *testing.T) {
 		t.Fatal(err)
 	}
 	entries := ops.VisibleEntries(status.LightGreen)
-	want := []string{"Status", "Start", "Dev", "Restart", "Rebuild", "Stop", "Update", "More"}
+	want := []string{"Status", "Start", "Dev", "Restart", "Rebuild", "Stop", "Update tool", "More"}
 	if len(entries) != len(want) {
 		t.Fatalf("len=%d want %d: %+v", len(entries), len(want), titles(entries))
 	}

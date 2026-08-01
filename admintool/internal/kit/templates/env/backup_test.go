@@ -188,14 +188,18 @@ func TestWriteMissingSkipsBackup(t *testing.T) {
 
 func TestEffectiveBackupStemResolve(t *testing.T) {
 	t.Parallel()
-	home := "/proj"
+	home := filepath.Join(string(filepath.Separator), "proj")
 	if got := ResolveBackupStem(home, ""); got != filepath.Join(home, config.DefaultEnvBackupStem) {
 		t.Fatalf("got %q", got)
 	}
 	if got := ResolveBackupStem(home, "custom"); got != filepath.Join(home, "custom") {
 		t.Fatalf("got %q", got)
 	}
-	if got := ResolveBackupStem(home, "/abs/stem"); got != "/abs/stem" {
-		t.Fatalf("got %q", got)
+	abs := filepath.Join(string(filepath.Separator), "abs", "stem")
+	if runtime.GOOS == "windows" {
+		abs = `C:\abs\stem`
+	}
+	if got := ResolveBackupStem(home, abs); got != filepath.Clean(abs) {
+		t.Fatalf("got %q want %q", got, filepath.Clean(abs))
 	}
 }

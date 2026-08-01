@@ -25,7 +25,7 @@ func Verbs() []Verb {
 		{ID: "rebuild", Title: "Rebuild", Short: "Bake local images and rematerialize (roll only when digests change)"},
 		{ID: "restart", Title: "Restart", Short: "Rolling restart (same images; one service or all)"},
 		{ID: "shutdown", Title: "Shutdown", Short: "Stop the app completely (keeps volumes / data)"},
-		{ID: "update", Title: "Update", Short: "Update eip binary (bundled configs ship with it; then eip sync)"},
+		{ID: "update-binary", Title: "Update tool", Short: "Update eip host binary (+ embedded kit); then restart and eip sync if needed"},
 		{ID: "init", Title: "Init", Short: "Write missing .env / eip.config.yaml with generated secrets"},
 		{ID: "ensure-mongo", Title: "Ensure mongo", Short: "Ensure mongo RS, users, preimages, and indexes (CLI)"},
 		{ID: "ensure-s3", Title: "Ensure S3", Short: "Ensure SeaweedFS app buckets static-data / static-data-test (CLI)"},

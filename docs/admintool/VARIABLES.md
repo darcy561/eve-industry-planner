@@ -96,7 +96,7 @@ Never document process flags as `.env` keys; never add them to `EnvFields`. `msg
 
 **Rule:** the folder you run `eip` from is the project home (stack files, `.env`, `eip.config.yaml`). Resolution SoT: `internal/kit.Home()` → process cwd. Local dev: run from the repo root.
 
-**Public first-touch** (empty VPS → curl Makefile / `update-files`) is still Make under `scripts/bootstrap/`. There is no `eip` chicken-egg installer yet. Intended long-term model: drop binary (+ kit) into a folder and run from there; day-2 binary replace is `eip update` (GitHub Releases when published). Until Public releases exist, release download URLs are not live.
+**Public first-touch** (empty VPS → curl Makefile / `update-files`) is still Make under `scripts/bootstrap/`. There is no `eip` chicken-egg installer yet. Intended long-term model: drop binary (+ embedded kit) into a folder and run from there; day-2 host-tool replace is **`eip update-binary`** (GitHub Releases when published). That is **not** `make release` / advertise (retired; use `eip up`/`dev`/`rebuild`) and **not** `make update-data` (retired; pins in stack YAML + redeploy). Until Public releases exist, download URLs are not live.
 
 Deploy source (`live` / `dev`) is **not** a project-home file. Deploy stamps Swarm label `eip.deploy.source` (`deploy.LabelDeploySource`); `ResolveSource` reads that label only.
 

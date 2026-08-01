@@ -67,7 +67,7 @@ admintool/
 
 3. **Body** — **COMMANDS** | **OUTPUT**. Outer gutters (`theme.HMargin`). OUTPUT history follows latest unless PgUp.
 
-**Main COMMANDS:** Setup (until both `.env` and `eip.config.yaml` exist) · Status · Start (`up`) · Dev · Restart · Rebuild · Stop (`shutdown`) · Update · **More**.
+**Main COMMANDS:** Setup (until both `.env` and `eip.config.yaml` exist) · Status · Start (`up`) · Dev · Restart · Rebuild · Stop (`shutdown`) · Update tool (`update-binary`) · **More**.
 
 **More submenu:** Secrets · Settings · Logs · Command. Esc on More → Main. Closing a child (builder cancel/finish, Logs, Command, post-Persist apply DoneMsg) returns to **More**, not Main.
 

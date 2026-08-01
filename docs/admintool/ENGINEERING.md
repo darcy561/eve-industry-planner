@@ -62,14 +62,22 @@ Import direction for documents: `kit` ← `config` ← `templates/{env,yamldefau
 
 | Path | Role |
 |------|------|
-| **`eip` (preferred)** | up/dev (Go recipe + Ready), sync, secrets, rebuild, status/logs/restart/shutdown, init, ensure-*, mongo keyfile tools, binary update, TUI |
-| **Make / `scripts/` (legacy parallel)** | Public chicken-egg bootstrap (`download-setup-scripts` / `update-files`), bash `stack-deploy`, `release` / advertise, some ops escapes |
+| **`eip` (preferred)** | up/dev (Go recipe + Ready), sync, secrets, rebuild, status/logs/restart/shutdown, init, ensure-*, mongo keyfile tools, `update-binary`, TUI |
+| **Make / `scripts/` (legacy only)** | Public chicken-egg (`download-setup-scripts` / `update-files`) until an eip installer exists. Leftover Make verbs are **not** admintool features — do not add `eip release` / advertise / `update-data` mirrors. |
+
+**Retired as operator concepts (Make leftovers only — use eip instead):**
+
+| Legacy Make | Use instead |
+|-------------|-------------|
+| `make release` / `dev-release` / `advertise` | **`eip up`** (live) or **`eip dev`** / **`eip rebuild`** (local). Image pins live in stack YAML + `.env` tags; Swarm roll order is in compose deploy config. No Redis “advertise” verb in eip. |
+| `make update-data SERVICE=` | **`eip up`** / **`eip rebuild`** (and rematerialize via secrets). Data images are pinned in `docker-stack.*.yml`; redeploy only moves what changed. |
+| `scripts/swarm/stack-deploy.sh` | **`eip up`** / **`eip dev`**. Under the hood Go still calls **`docker stack deploy`** (CLI) because the Engine SDK has no first-class stack-deploy API; that is intentional short-term, not “bash is SoT”. |
 
 `eip init` is **not** Public bootstrap — it only writes missing operator docs (+ optional ensure if data tasks are already up). See [VARIABLES.md](./VARIABLES.md) § Project home.
 
 ## Deploy (`eip up` / `eip dev`)
 
-Go recipe is the preferred bring-up. Stack **apply** uses the Docker CLI (`dockercli.StackDeploy`); Engine SDK covers Swarm/network/volumes.
+Go recipe is the preferred bring-up. Same path every time: expand → two-pass **`docker stack deploy`** (via `dockercli.StackDeploy`) → `dataplane.Ready`. Engine SDK covers Swarm/network/volumes/inspect; stack apply stays on the CLI until an SDK path exists (not planned soon).
 
 | Piece | Role |
 |-------|------|
@@ -102,7 +110,7 @@ Go recipe is the preferred bring-up. Stack **apply** uses the Docker CLI (`docke
 - **`eip sync`**: targeted `docker service update` from `eip.config.yaml`; `--dry-run` / `-n`. Membership = stack YAML labels (`eip.capacity.sync`, `eip.config.sync`).
 - **`eip secrets`**: hashed secrets from `.env`, then Rematerialize. Default `--live`; `--dev` when stack was `eip dev`.
 - **`eip rebuild`**: bake + rematerialize (dev). No Ready. After index SoT changes without full up/dev, run **`eip ensure-mongo`**.
-- **`eip update`**: replace host binary from GitHub Releases (when published). Then restart process + **`eip sync`** for bundled config diffs. Not a Public first-touch installer.
+- **`eip update-binary`**: replace host **eip binary** from GitHub Releases (when published). Embedded kit (TUI assets, obs templates, bake HCL, env/config defaults) ships inside the binary. Does **not** overwrite on-disk `.env` / `eip.config.yaml` / stack YAML / keyfiles. Restart process, then **`eip sync`** if bundled Swarm configs changed. Not Public chicken-egg (`make update-files`).
 - **`eip restart` / `logs` / `shutdown`**: SDK; TUI Restart/Logs use pickers; Logs follow → new logview console.
 - **`eip init`**: write-missing `.env` / `eip.config.yaml` (Autogen resolved; never `auto-generate-me`; EVE SSO blank). `CheckOperatorDocs` then optional EnsureS3/EnsureMongo if tasks up. Does **not** apply to a running stack.
 - **`eip ensure-s3` / `ensure-mongo`**: CLI-only ensure without full deploy.
@@ -121,7 +129,7 @@ Go recipe is the preferred bring-up. Stack **apply** uses the Docker CLI (`docke
 
 SoT in stack YAML: app `start-first` (`x-app-deploy`); data/obs `stop-first` (`x-data-deploy` / `x-obs-deploy`); socket proxies `stop-first` (`x-proxy-deploy`). Honored by up/dev/rebuild/rematerialize.
 
-Requires `docker` on PATH (stack deploy / compose config / bake).
+Requires `docker` on PATH (`docker stack deploy`, `docker compose config`, bake).
 
 ## Child CLI ↔ TUI messaging
 
@@ -140,8 +148,9 @@ Requires `docker` on PATH (stack deploy / compose config / bake).
 ## Build
 
 - `./scripts/admintool/build-host.sh` or `.\scripts\admintool\build-host.ps1` — repo-root `eip` / `eip.exe` (no `dist/`).
-- Tag `v*` CI publishes `eip-{os}-{arch}` + `SHA256SUMS` for `eip update` (when that pipeline is live on the Public release channel).
+- Tag `v*` CI publishes `eip-{os}-{arch}` + `SHA256SUMS` for `eip update-binary` (when that pipeline is live on the Public release channel).
 - Locked install target → ALERT, stop running `eip`, retry. **Never** write an alternate binary name.
+- **Prerelease:** [PRERELEASE.md](./PRERELEASE.md) — `Development` owns floating `:prerelease`; other staging branches get `prerelease-<slug>` only; Public stays on `X.Y.Z` / `:latest`.
 
 ## Embedded kit (binary SoT)
 

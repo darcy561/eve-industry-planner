@@ -56,7 +56,8 @@ jobs:
 
   release:
     name: release assets
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Swarm prerelease channel tags (prerelease, prerelease-*) are published by publish-prerelease.yml.
+    if: startsWith(github.ref, 'refs/tags/v') && !startsWith(github.ref_name, 'prerelease')
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 20

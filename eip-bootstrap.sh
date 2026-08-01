@@ -1,16 +1,26 @@
 #!/usr/bin/env bash
 # Eve Industry Planner - fresh install (Linux/macOS).
-# Deploy home gets host eip (CLI + TUI in one binary) + starter config.
-# Source module folder is admintool/; command prefix is eip.
+# Empty folder → host eip (CLI+TUI) + stack YAML + starter .env / eip.config.yaml.
 #
-#   ./scripts/admintool/build-host.sh
-#   ./eip-bootstrap.sh /path/to/my-eip
-#   cd /path/to/my-eip && ./eip
+# Development staging (generic prerelease tag — default):
+#   curl -fsSL https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Development/eip-bootstrap.sh | bash -s -- ~/eip
+#
+# Per-branch (no crossover with Development/Public unless you set it):
+#   EIP_KIT_BRANCH=swarm/my-feature \
+#   EIP_CLI_DOWNLOAD_BASE=https://github.com/darcy561/eve-industry-planner/releases/download/prerelease-swarm-my-feature \
+#   bash eip-bootstrap.sh ~/eip
+#
+# Overrides:
+#   EIP_KIT_BRANCH          raw GitHub branch for wrappers + stack YAML (default: Development)
+#   EIP_CLI_DOWNLOAD_BASE   Release asset directory (default: …/releases/download/prerelease)
+#   EIP_PUBLIC_RAW          full raw base URL (overrides EIP_KIT_BRANCH)
 
 set -euo pipefail
 
-PUBLIC_RAW="${EIP_PUBLIC_RAW:-https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/Public}"
-DOWNLOAD_BASE="${EIP_CLI_DOWNLOAD_BASE:-}"
+REPO="${EIP_REPO:-darcy561/eve-industry-planner}"
+KIT_BRANCH="${EIP_KIT_BRANCH:-Development}"
+PUBLIC_RAW="${EIP_PUBLIC_RAW:-https://raw.githubusercontent.com/${REPO}/refs/heads/${KIT_BRANCH}}"
+DOWNLOAD_BASE="${EIP_CLI_DOWNLOAD_BASE:-https://github.com/${REPO}/releases/download/prerelease}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd 2>/dev/null || true)"
 if [ ! -f "${SCRIPT_DIR}/eip.sh" ] && [ ! -f "${SCRIPT_DIR}/eip-bootstrap.sh" ]; then
@@ -21,6 +31,8 @@ DEPLOY="${1:-$(pwd)}"
 mkdir -p "${DEPLOY}"
 DEPLOY="$(cd "${DEPLOY}" && pwd)"
 echo "EIP deploy home: ${DEPLOY}"
+echo "  kit source: ${PUBLIC_RAW}"
+echo "  binary:     ${DOWNLOAD_BASE}"
 
 fetch_or_copy() {
   local name="$1"
@@ -34,10 +46,46 @@ fetch_or_copy() {
   fi
 }
 
+fetch_stack_missing() {
+  local name="$1"
+  local dest="${DEPLOY}/${name}"
+  if [ -f "${dest}" ]; then
+    echo "  ${name} already present (unchanged)"
+    return 0
+  fi
+  if [ -n "${SCRIPT_DIR}" ] && [ -f "${SCRIPT_DIR}/${name}" ]; then
+    cp -f "${SCRIPT_DIR}/${name}" "${dest}"
+    echo "  wrote ${name} (from local)"
+    return 0
+  fi
+  echo "  downloading ${name}…"
+  curl -fsSL "${PUBLIC_RAW}/${name}" -o "${dest}"
+  echo "  wrote ${name}"
+}
+
+host_asset_name() {
+  local os arch
+  os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  arch="$(uname -m)"
+  case "${os}-${arch}" in
+    linux-x86_64|linux-amd64) echo "eip-linux-amd64" ;;
+    darwin-arm64) echo "eip-darwin-arm64" ;;
+    darwin-x86_64|darwin-amd64) echo "eip-darwin-amd64" ;;
+    *)
+      echo "unsupported platform ${os}/${arch} — set EIP_CLI_DOWNLOAD_BASE to a full asset URL" >&2
+      return 1
+      ;;
+  esac
+}
+
 fetch_or_copy eip.sh
 fetch_or_copy eip.cmd
 fetch_or_copy eip.ps1
 chmod +x "${DEPLOY}/eip.sh"
+
+for f in docker-stack.yml docker-stack.data.yml docker-stack.obs.yml; do
+  fetch_stack_missing "${f}"
+done
 
 place_host_bin() {
   local dest="${DEPLOY}/eip"
@@ -55,22 +103,24 @@ place_host_bin() {
       return 0
     fi
   fi
-  if [ -n "${DOWNLOAD_BASE}" ]; then
-    local url="${DOWNLOAD_BASE}/eip-linux-amd64"
-    case "${DOWNLOAD_BASE}" in
-      */eip|*/eip-linux-amd64) url="${DOWNLOAD_BASE}" ;;
-    esac
-    echo "  downloading eip…"
-    if curl -fsSL "${url}" -o "${dest}"; then
-      chmod +x "${dest}"
-      echo "  wrote eip (download)"
-      return 0
-    fi
-    echo "  note: could not download host binary"
-    rm -f "${dest}"
-  else
-    echo "  note: no host eip yet — build with ./scripts/admintool/build-host.sh or bake admintool-linux, then re-run bootstrap"
+  if [ -z "${DOWNLOAD_BASE}" ]; then
+    echo "  note: no host eip yet — build with ./scripts/admintool/build-host.sh, then re-run bootstrap"
+    return 1
   fi
+  local asset url
+  asset="$(host_asset_name)" || return 1
+  url="${DOWNLOAD_BASE%/}/${asset}"
+  case "${DOWNLOAD_BASE}" in
+    */eip|*/eip-linux-amd64|*/eip-darwin-amd64|*/eip-darwin-arm64) url="${DOWNLOAD_BASE}" ;;
+  esac
+  echo "  downloading ${asset}…"
+  if curl -fsSL "${url}" -o "${dest}"; then
+    chmod +x "${dest}"
+    echo "  wrote eip (download)"
+    return 0
+  fi
+  echo "  note: could not download host binary from ${url}"
+  rm -f "${dest}"
   return 1
 }
 
@@ -82,7 +132,8 @@ if [ ! -f "${DEPLOY}/.eip-home" ]; then
 fi
 
 if [ ! -x "${DEPLOY}/eip" ]; then
-  echo "Error: no host eip in deploy home. Build with ./scripts/admintool/build-host.sh (or bake admintool-linux), then re-run bootstrap." >&2
+  echo "Error: no host eip in deploy home. Publish a prerelease (publish-prerelease.yml)," >&2
+  echo "  or build with ./scripts/admintool/build-host.sh, then re-run bootstrap." >&2
   exit 1
 fi
 
@@ -97,7 +148,7 @@ cat <<EOF
 
 Done. This folder is your EIP home.
   cd "${DEPLOY}"
-  edit .env   (and eip.config.yaml if you want)
-  ./eip              # TUI (same binary)
-  ./eip doctor       # CLI
+  edit .env   (EVE SSO; APP_VERSION defaults to prerelease)
+  export EIP_UPDATE_TAG=prerelease   # for eip update-binary on this channel
+  ./eip up
 EOF

@@ -34,12 +34,16 @@ type Result struct {
 type Options struct {
 	CurrentVersion string
 	Repo           string // owner/name; empty → DefaultRepo or EIP_UPDATE_REPO
-	DryRun         bool
-	HTTPClient     *http.Client
-	Executable     string // empty → os.Executable()
+	// Tag selects a Release by tag (e.g. prerelease, prerelease-swarm-foo).
+	// Empty → EIP_UPDATE_TAG env, else GitHub /releases/latest (Public).
+	Tag        string
+	DryRun     bool
+	HTTPClient *http.Client
+	Executable string // empty → os.Executable()
 }
 
-// SelfUpdate downloads the matching Release asset and replaces the on-disk binary.
+// SelfUpdate downloads the matching GitHub Release asset and replaces the on-disk
+// eip binary (used by eip update-binary). Embedded kit travels with the binary.
 func SelfUpdate(ctx context.Context, opts Options) (Result, error) {
 	repo := strings.TrimSpace(opts.Repo)
 	if repo == "" {
@@ -69,7 +73,16 @@ func SelfUpdate(ctx context.Context, opts Options) (Result, error) {
 	_ = os.Remove(exe + ".old")
 
 	current := normalizeVersion(opts.CurrentVersion)
-	rel, err := fetchLatest(ctx, client, repo)
+	tag := strings.TrimSpace(opts.Tag)
+	if tag == "" {
+		tag = strings.TrimSpace(os.Getenv("EIP_UPDATE_TAG"))
+	}
+	var rel ghRelease
+	if tag != "" {
+		rel, err = fetchReleaseByTag(ctx, client, repo, tag)
+	} else {
+		rel, err = fetchLatest(ctx, client, repo)
+	}
 	if err != nil {
 		return Result{}, err
 	}
@@ -174,7 +187,25 @@ func (r ghRelease) findAsset(name string) (ghAsset, bool) {
 }
 
 func fetchLatest(ctx context.Context, client *http.Client, repo string) (ghRelease, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", repo)
+	return fetchReleaseURL(ctx, client, fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", repo), "latest release")
+}
+
+func fetchReleaseByTag(ctx context.Context, client *http.Client, repo, tag string) (ghRelease, error) {
+	tag = strings.TrimPrefix(strings.TrimSpace(tag), "v")
+	// Channel tags are literal (prerelease, prerelease-swarm-foo); semver tags may be stored with or without v.
+	url := fmt.Sprintf("https://api.github.com/repos/%s/releases/tags/%s", repo, tag)
+	rel, err := fetchReleaseURL(ctx, client, url, "release "+tag)
+	if err == nil {
+		return rel, nil
+	}
+	// Retry with v-prefix for classic semver Release tags.
+	if !strings.HasPrefix(tag, "v") && strings.Contains(tag, ".") && !strings.HasPrefix(tag, "prerelease") {
+		return fetchReleaseURL(ctx, client, fmt.Sprintf("https://api.github.com/repos/%s/releases/tags/v%s", repo, tag), "release v"+tag)
+	}
+	return ghRelease{}, err
+}
+
+func fetchReleaseURL(ctx context.Context, client *http.Client, url, label string) (ghRelease, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return ghRelease{}, err
@@ -183,19 +214,19 @@ func fetchLatest(ctx context.Context, client *http.Client, repo string) (ghRelea
 	req.Header.Set("User-Agent", "eip-selfupdate")
 	resp, err := client.Do(req)
 	if err != nil {
-		return ghRelease{}, fmt.Errorf("selfupdate: latest release: %w", err)
+		return ghRelease{}, fmt.Errorf("selfupdate: %s: %w", label, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return ghRelease{}, fmt.Errorf("selfupdate: latest release: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return ghRelease{}, fmt.Errorf("selfupdate: %s: HTTP %d: %s", label, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	var rel ghRelease
 	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
-		return ghRelease{}, fmt.Errorf("selfupdate: decode release: %w", err)
+		return ghRelease{}, fmt.Errorf("selfupdate: decode %s: %w", label, err)
 	}
 	if rel.TagName == "" {
-		return ghRelease{}, fmt.Errorf("selfupdate: release missing tag_name")
+		return ghRelease{}, fmt.Errorf("selfupdate: %s missing tag_name", label)
 	}
 	return rel, nil
 }

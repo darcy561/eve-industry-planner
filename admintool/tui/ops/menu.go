@@ -76,7 +76,7 @@ func Entries() []Entry {
 		Entry{Title: "Restart", Desc: "Reload services", Special: SpecialRestart},
 		Entry{Title: "Rebuild", Desc: "Rebuild and apply local images", Args: []string{"rebuild"}},
 		Entry{Title: "Stop", Desc: "Stop the stack (keeps data)", Args: []string{"shutdown"}},
-		Entry{Title: "Update", Desc: "Update this tool", Args: []string{"update"}},
+		Entry{Title: "Update tool", Desc: "Update eip binary (+ embedded kit)", Args: []string{"update-binary"}},
 		Entry{Title: "More", Desc: "Settings, logs, and tools", Special: SpecialMore},
 	)
 	return out

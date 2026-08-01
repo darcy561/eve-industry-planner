@@ -63,8 +63,16 @@ TUI Setup is the guided editor for the same files (may overwrite with backups).`
 
 		msg.Step("Checking .env and eip.config.yaml…")
 		if err := templates.CheckOperatorDocs(home); err != nil {
-			msg.EmitStack("init", msg.LightRed, err.Error())
-			return err
+			// Fresh WriteMissing leaves EVE SSO blank — that is expected.
+			// Fail closed on ensure/up; here we only warn so bootstrap can finish.
+			msg.Line("operator docs incomplete: " + err.Error())
+			msg.Line("edit .env (EVE SSO + APP_VERSION), then re-run eip init or eip up")
+			chip := "defaults written — edit .env"
+			if !wroteEnv && !wroteCfg {
+				chip = "edit .env required"
+			}
+			msg.EmitStack("init", msg.LightAmber, chip)
+			return nil
 		}
 		msg.Line("operator docs ok")
 

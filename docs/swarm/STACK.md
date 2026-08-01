@@ -82,8 +82,7 @@ make swarm-sync                # eip.config.yaml → capacity / ports / paths / 
 Implementer notes (not public day-2 verbs):
 
 ```bash
-make update-data SERVICE=seaweedfs   # data-layer only (not app train)
-make update-data SERVICE=prometheus  # reload Prom image/config
+# Prefer eip up / eip rebuild (pinned images). Legacy: make update-data SERVICE=…
 make stack-rm                      # docker stack rm eip
 ```
 
@@ -96,8 +95,9 @@ Stack name: **`eip`** — data: `eip_seaweedfs`, `eip_prometheus` (DNS alias `pr
 
 `eip up` / `eip dev` deploy **data first**, run `dataplane.Ready` (`EnsureS3` ‖ `EnsureMongo`), then
 deploy **data+app** with `--prune`. Make’s `stack-deploy` path is legacy and does **not** run Ready.
-App train (`eip rebuild` / Make `release`) must not update data-layer services as a
-side effect of app rolls. Data image/config day-2: **`make update-data`** (legacy) or rematerialize via `eip`.
+App rolls (`eip rebuild` / `eip up`) must not bounce data-layer services unless their
+pinned image/config in stack YAML changed. Prefer rematerialize via eip; do not use
+Make `release` / `update-data` (legacy).
 
 ## What this stack includes
 

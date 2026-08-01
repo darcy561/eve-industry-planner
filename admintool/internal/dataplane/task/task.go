@@ -38,6 +38,11 @@ func ContainerID(ctx context.Context, stackName, service string) (string, error)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	if err := cmd.Run(); err != nil {
+		// CommandContext often surfaces "signal: killed" / "exit status 1" when
+		// the parent ctx expires; prefer the context error for callers.
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
 		return "", err
 	}
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")

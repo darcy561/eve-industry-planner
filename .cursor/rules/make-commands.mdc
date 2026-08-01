@@ -1,91 +1,35 @@
 ---
-description: Final make command names for Swarm hybrid deploy (do not use retired names)
+description: Make is legacy parallel to eip; prefer admintool verbs for stack lifecycle
 alwaysApply: true
 ---
 
-# Make command names (final)
+# Host ops: prefer eip over Make
 
-Use **only** these operator verbs. Do not invent aliases. Do not revive retired names.
+**Preferred host tool:** `eip` / `eip.exe` (admintool). Docs: `docs/admintool/ENGINEERING.md` § Dual path.
 
-## Public (`make help`)
+| Need | Use |
+|------|-----|
+| Bring up / recover | **`eip up`** (live) / **`eip dev`** (bake) |
+| Day-2 YAML / secrets | **`eip sync`** / **`eip secrets`** |
+| Local image roll | **`eip rebuild`** |
+| Host tool binary | **`eip update-binary`** |
+| Data plane ensure | Built into Ready on up/dev; or **`eip ensure-s3`** / **`eip ensure-mongo`** |
 
-| Command | Use for |
-|---------|---------|
-| `make up` | Start or recover the app (GHCR) |
-| `make status` | Show whether the app is running (Docker tables) |
-| `make logs` | Show logs (interactive service picker + all; `SERVICE=` / `ARGS=` optional) |
-| `make cli` | Open a shell in the app (for support); `ARGS=` for core `tasks` one-shots |
-| `make swarm-sync` | Apply `eip.config.yaml` settings (may roll containers). **Not** a version ship |
-| `make swarm-secrets-sync` | Apply secret changes from `.env` (not YAML) |
-| `make update-files` | Pull latest Makefile / scripts from Public |
-| `make release` | Roll out `APP_VERSION` from `.env`: pull/roll + Redis advertise |
-| `make restart` | Rolling restart (picker: one or all). Same images; **no** pull/bake/advertise |
-| `make shutdown` | Stop the app; **keeps data** (no volume delete) |
+## Make leftovers (not eip features)
 
-## Dev (`make help-dev`)
+Do **not** add eip mirrors of these. Prefer the eip column above.
 
-| Command | Use for |
-|---------|---------|
-| `make dev` | Local-clone bring-up with builds (not production — use `make up`) |
-| `make dev-release` | Roll out `APP_VERSION` with local images + Redis advertise |
-| `make rebuild` | Rebuild and roll app services; `SERVICES=` any Swarm/Compose name; data plane --no-recreate on default, force-recreate when listed; no advertise |
-| `make swarm-sync` | Same as public |
-| `make swarm-secrets-sync` | Same as public |
-| `make update-data SERVICE=…` | Target one data-layer Swarm service (e.g. `seaweedfs`); never app train; not part of `release` |
+| Legacy Make | Prefer |
+|-------------|--------|
+| `make release` / `dev-release` / `advertise` | **`eip up`** / **`eip dev`** / **`eip rebuild`** |
+| `make update-data SERVICE=` | **`eip up`** / **`eip rebuild`** (pins in stack YAML) |
+| `scripts/swarm/stack-deploy.sh` | **`eip up`** / **`eip dev`** (Go calls `docker stack deploy` CLI; no SDK stack-deploy API yet) |
+| `make update-files` | Public chicken-egg only (until eip installer exists) |
 
-## Ops (`make help-dev`)
+## Remaining Make verbs (still scripted)
 
-| Command | Use for |
-|---------|---------|
-| `make advertise` | Push version to Redis only (escape hatch) |
-| `make ws-placement-ops` | Cordon / evacuate / ... |
-| `make app-version-ops` | Manual Redis version get\|set\|clear |
-| `make smoke-ws-placement` | Quick websocket placement check |
-| `make stack-rm` | Remove the `eip` Swarm stack |
+Public/dev helpers that still shell to `scripts/` when someone uses Make: `up`, `dev`, `status`, `logs`, `cli`, `swarm-sync`, `swarm-secrets-sync`, `update-files`, `restart`, `shutdown`, `rebuild`, ops escapes (`ws-placement-ops`, `app-version-ops`, smokes), `stack-rm`.
 
-## Retired — never write these
+Retired Make names (never revive): `make sync` → swarm-sync; `make refresh`; `make stack-env-refresh` / public `make stack-deploy`.
 
-- `make sync` → **`make swarm-sync`**
-- `make refresh` → **`make dev-release`**
-- `make stack-env-refresh` / `make stack-deploy` → removed; use **`make up`**, **`make swarm-sync`**, or **`make swarm-secrets-sync`** (script `stack-deploy.sh` is internal only)
-- Script path: `scripts/sync.sh` → **`scripts/swarm/swarm-sync.sh`**
-- Script path: `scripts/app-train-wave.sh` → **`scripts/swarm/release.sh`**
-- Script path: `scripts/app-advertise.sh` → **`scripts/ops/advertise.sh`**
-
-## Script layout
-
-```
-scripts/
-  lib/         shared helpers
-  bootstrap/   first-boot / ensure-* / update-files / compose-data-plane
-  swarm/       day-2 bring-up and Swarm ops
-  ops/         escapes (advertise, cli, placement, …)
-  test/        smokes / verify scripts
-```
-
-`make release` / `make dev-release` run a **cohort-pass** wave (build-all → compose → Swarm dual-warm → advertise → look-ahead drain → scale to R). Unattended (no operator gates). Reconcile skips no-op scale / uses `--detach`. Controller soft dual-run is a later placeholder (APP_TRAIN).
-
-| Make | Script |
-|------|--------|
-| make up / make dev | scripts/bootstrap/compose-data-plane.sh + scripts/swarm/stack-deploy.sh |
-| make update-files | scripts/bootstrap/update-files.sh |
-| make release / make dev-release | scripts/swarm/release.sh (--ghcr / --local) |
-| make advertise | scripts/ops/advertise.sh |
-| make rebuild | scripts/swarm/rebuild.sh |
-| make swarm-sync | scripts/swarm/swarm-sync.sh |
-| make swarm-secrets-sync | scripts/swarm/swarm-secrets-sync.sh |
-| make update-data | scripts/swarm/update-data.sh |
-| make status | scripts/swarm/status.sh |
-| make logs | scripts/swarm/logs.sh |
-| make restart | scripts/swarm/restart.sh |
-| make shutdown | scripts/swarm/shutdown.sh |
-| make cli | scripts/ops/core-cli.sh |
-| make app-version-ops | scripts/ops/app-version-ops.sh |
-| make ws-placement-ops | scripts/ops/ws-placement-ops.sh |
-| make smoke-ws-placement | scripts/test/smoke-ws-placement.sh |
-
-Secrets day-2: `make swarm-secrets-sync` (not `swarm-sync-secrets` / `sync-secrets`) — word order differs from `swarm-sync` on purpose.
-
-Legacy: **`scripts/bootstrap/mongo-setup.sh`** — not Swarm CMD; not SoT. Live mongo ensure is admintool `dataplane.EnsureMongo` (`eip ensure-mongo` / Ready). Prefer not editing the bash script; delete when Make is retired.
-
-Docs SoT (bring-up): `docs/admintool/ENGINEERING.md` (`eip`). Make surface: `docs/swarm/MAKE.md`, `docs/swarm/APP_TRAIN.md`, `docs/swarm/ENV.md`.
+Legacy: **`scripts/bootstrap/mongo-setup.sh`** — not Swarm CMD; not SoT. Live mongo ensure is `dataplane.EnsureMongo`.

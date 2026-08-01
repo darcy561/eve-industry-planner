@@ -36,4 +36,6 @@ CI: [`.github/workflows/admintool.yml`](../.github/workflows/admintool.yml) — 
 
 **TUI policy:** user actions run `eip <args>` as a child with `EIP_FROM_TUI=1`. Background refresh polls `eip probe` (chips only). Home menu is plain-language (`tui/ops`); Setup / More → Secrets & Settings edit files; Persist can auto-run `secrets`/`sync`. Quit with `esc` / ctrl+c from Main.
 
-**Not in this package:** Public chicken-egg bootstrap (curl Makefile / `update-files`) — still Make/`scripts/bootstrap/`.
+**Host-tool update:** `eip update-binary` (GitHub Releases when published).
+
+**Not in this package:** Public chicken-egg bootstrap (curl Makefile / `update-files`) — still Make/`scripts/bootstrap/`. Make `release` / advertise / `update-data` are legacy — use `eip up` / `dev` / `rebuild`.

@@ -35,8 +35,8 @@ func EnvFields() []EnvField {
 var envFields = []EnvField{
 	{
 		Key: "APP_VERSION", Section: "Release", Label: "App version",
-		Help: "Image tags (GHCR / local bake), Redis advertise, task APP_VERSION.",
-		Type: FieldText, Required: true, Default: "0.8.15",
+		Help: "GHCR image tag SoT. Development staging: prerelease. Feature branch: prerelease-<slug>. Public live: X.Y.Z / latest. No crossover unless you change this. See PRERELEASE.md.",
+		Type: FieldText, Required: true, Default: "prerelease",
 	},
 
 	{
