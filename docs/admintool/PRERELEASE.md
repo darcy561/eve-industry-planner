@@ -41,7 +41,7 @@ Push **`swarm/my-feature`** (or any other non-Development staging branch in the 
 
 ## Publish
 
-[publish-prerelease.yml](../../.github/workflows/publish-prerelease.yml) on push to `Development` or `swarm/**` (docs-only pushes skipped). Optional workflow_dispatch with a ref.
+[publish-prerelease.yml](../../.github/workflows/publish-prerelease.yml) is **manual only** (`workflow_dispatch`) — same idea as Public. In Actions → Publish prerelease → pick the branch (or pass `ref`), then Run. No build on every commit.
 
 Requires **`GHCR_TOKEN`**. Images push with that PAT; repo association uses OCI `org.opencontainers.image.source`. **New container packages need a one-time GitHub UI “Public”** (REST PATCH visibility 404s even when GET works — GitHub limitation). Later tags stay public.
 

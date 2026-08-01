@@ -1,22 +1,15 @@
 # Prerelease channel: GHCR images + eip GitHub Release (marked prerelease).
+# Manual only (same idea as Public) — run from Actions when you want a new build.
 # - Development → floating :prerelease (+ prerelease-development)
 # - Other staging branches (swarm/**, …) → prerelease-<slug> only
 # - Public → never; publish-containers-public.yml owns :latest / X.Y.Z
 name: Publish prerelease
 
 on:
-  push:
-    branches:
-      - Development
-      - "swarm/**"
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - ".cursor/**"
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch or SHA to build (empty = current ref)"
+        description: "Branch or SHA to build (empty = branch selected in the Actions UI)"
         required: false
         type: string
         default: ""

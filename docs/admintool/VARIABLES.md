@@ -98,9 +98,11 @@ Never document process flags as `.env` keys; never add them to `EnvFields`. `msg
 
 A Windows shortcut (or double-click) that targets `…\home\eip.exe` uses that folder as home regardless of shortcut **Start in** / shell cwd. Do not move the binary out of the home.
 
+**`go test` / `go run`:** those tools put the executable under a temp `go-build` tree (or a `*.test` binary). That is not a deploy home, so `Home()` falls back to the process working directory (unit tests `t.Chdir` into a temp root). Installed / `build-host` binaries always use the executable directory.
+
 Optional bare `eip` on PATH: run **`eip add-path`** (symlink; home still resolves via the real binary). `eip add-path --remove` undoes it. Not required for `./eip up` from the home folder.
 
-Local: `.\scripts\admintool\build-host.ps1` writes `eip.exe` at the repo root, so home is the repo root. Prefer a built binary over `go run` (temp build dirs are not a useful home).
+Local: `.\scripts\admintool\build-host.ps1` writes `eip.exe` at the repo root, so home is the repo root.
 
 Day-2 host-tool replace: **`eip update-binary`** (GitHub Releases). Containers stay on `APP_VERSION` + `eip up`.
 
