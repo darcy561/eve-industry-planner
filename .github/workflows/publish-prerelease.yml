@@ -220,55 +220,40 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: ${{ env.DOCKER_BUILD_ARGS }}
 
-      # GHCR_TOKEN (classic PAT: write:packages + repo) owns the package after docker push.
-      # Mutations must use /user/packages/... — /users/{owner}/... often 404s for PATCH.
-      # Public.yml still uses GITHUB_TOKEN + soft-fail (good enough for already-public pkgs).
-      - name: Link package to repo and set public
+      # Personal-account packages: /users/{owner}/... (not /orgs/). Use the same PAT that
+      # docker-pushed the image (GHCR_TOKEN), not GITHUB_TOKEN. Fail hard while we verify.
+      # Repo link: OCI org.opencontainers.image.source (labels above) — not a REST call.
+      - name: Debug GHCR package (PAT)
         env:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           PACKAGE_NAME: ${{ steps.package-name.outputs.name }}
           OWNER: ${{ github.repository_owner }}
-          REPO: ${{ github.event.repository.name }}
         run: |
           set -euo pipefail
-          AUTH=(-H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GHCR_TOKEN}" -H "X-GitHub-Api-Version: 2022-11-28")
-          BASE="https://api.github.com/user/packages/container/${PACKAGE_NAME}"
+          echo "OWNER=${OWNER}"
+          echo "PACKAGE_NAME=${PACKAGE_NAME}"
+          curl --fail-with-body -sS -L \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GHCR_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/users/${OWNER}/packages/container/${PACKAGE_NAME}"
 
-          for i in 1 2 3 4 5 6 7 8 9 10; do
-            code="$(curl -sS -o /tmp/pkg.json -w "%{http_code}" "${AUTH[@]}" "${BASE}" || true)"
-            if [ "${code}" = "200" ]; then
-              echo "Package ${PACKAGE_NAME} visible via /user/packages (attempt ${i})"
-              break
-            fi
-            echo "Waiting for package API (HTTP ${code}), retry ${i}/10…"
-            sleep 3
-          done
-          if [ "${code:-}" != "200" ]; then
-            echo "::warning::Package ${PACKAGE_NAME} not visible to GHCR_TOKEN yet (HTTP ${code})."
-            cat /tmp/pkg.json || true
-            exit 0
-          fi
-
-          link="$(curl -sS -o /tmp/link.json -w "%{http_code}" -X PUT "${AUTH[@]}" \
-            "${BASE}/repos/${OWNER}/${REPO}" || true)"
-          echo "link_http=${link}"
-          if [ "${link}" != "200" ] && [ "${link}" != "201" ] && [ "${link}" != "204" ]; then
-            echo "::warning::Repo link failed (HTTP ${link})"
-            cat /tmp/link.json || true
-          else
-            echo "Linked ${PACKAGE_NAME} → ${OWNER}/${REPO}"
-          fi
-
-          vis="$(curl -sS -o /tmp/vis.json -w "%{http_code}" -X PATCH "${AUTH[@]}" \
-            "${BASE}" -d '{"visibility":"public"}' || true)"
-          echo "visibility_http=${vis}"
-          if [ "${vis}" = "200" ] || [ "${vis}" = "204" ]; then
-            echo "Package ${PACKAGE_NAME} is public."
-            exit 0
-          fi
-          echo "::warning::Set public failed (HTTP ${vis}). Token scopes look fine — check package ownership / UI."
-          cat /tmp/vis.json || true
-          exit 0
+      - name: Set package visibility to public
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          PACKAGE_NAME: ${{ steps.package-name.outputs.name }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body -sS -L \
+            -X PATCH \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GHCR_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/users/${OWNER}/packages/container/${PACKAGE_NAME}" \
+            -d '{"visibility":"public"}'
+          echo "Package ${PACKAGE_NAME} set public."
 
   release_eip:
     name: release eip assets
