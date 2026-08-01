@@ -6,12 +6,17 @@ import (
 	"os"
 
 	"eve-industry-planner/admintool/cmd"
+	"eve-industry-planner/admintool/internal/kit"
 	"eve-industry-planner/admintool/internal/process"
 	"eve-industry-planner/admintool/tui"
 	tuiexec "eve-industry-planner/admintool/tui/exec"
 )
 
 func main() {
+	// After a binary replace, Windows often still had eip.exe.old locked by the
+	// old TUI; the new process clears sidecars once that handle is gone.
+	kit.RemoveStaleSelfUpdateSidecars()
+
 	args := os.Args[1:]
 	forceUI := len(args) == 1 && (args[0] == "ui" || args[0] == "tui")
 	wantTUI := forceUI || (len(args) == 0 && !process.FromTUI())

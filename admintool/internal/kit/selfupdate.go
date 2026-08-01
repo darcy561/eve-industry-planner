@@ -70,7 +70,7 @@ func SelfUpdate(ctx context.Context, opts Options) (Result, error) {
 		return Result{}, fmt.Errorf("selfupdate: resolve executable: %w", err)
 	}
 
-	_ = os.Remove(exe + ".old")
+	removeSelfUpdateSidecars(exe)
 
 	current := normalizeVersion(opts.CurrentVersion)
 	tag := strings.TrimSpace(opts.Tag)
@@ -151,8 +151,31 @@ func SelfUpdate(ctx context.Context, opts Options) (Result, error) {
 		return Result{}, fmt.Errorf("selfupdate: rename .new -> current: %w", err)
 	}
 
+	// Best-effort: on Windows the parent TUI may still hold .old until relaunch.
+	// New process startup also calls RemoveStaleSelfUpdateSidecars.
+	_ = os.Remove(oldPath)
+
 	out.Installed = true
 	return out, nil
+}
+
+// RemoveStaleSelfUpdateSidecars deletes eip.exe.old / .new next to this binary.
+// Safe to call at process start (after a prior update's rename dance).
+func RemoveStaleSelfUpdateSidecars() {
+	exe, err := ResolvedExecutable()
+	if err != nil {
+		return
+	}
+	removeSelfUpdateSidecars(exe)
+}
+
+func removeSelfUpdateSidecars(exe string) {
+	exe = strings.TrimSpace(exe)
+	if exe == "" {
+		return
+	}
+	_ = os.Remove(exe + ".old")
+	_ = os.Remove(exe + ".new")
 }
 
 // resolveUpdateTag picks the GitHub Release tag for eip update (binary).
