@@ -155,7 +155,9 @@ func (s *Session) rebuildInputs() {
 	innerW, _ := ui.PanelInnerSize(s.rightW, s.bodyH)
 	for i, f := range sec.Fields {
 		ti := textinput.New()
-		ti.Placeholder = f.Help
+		// Help is rendered under the field in renderForm — do not also put it
+		// in Placeholder (that duplicated the subheader until the user typed).
+		ti.Placeholder = ""
 		ti.CharLimit = 512
 		ti.SetValue(f.Value)
 		ti.Prompt = ""
@@ -614,7 +616,7 @@ func (s Session) renderForm() string {
 			}
 			b.WriteString(st.Width(theme.Max(8, innerW-2)).Render("  " + f.Status))
 			b.WriteByte('\n')
-		} else if f.Help != "" && (s.focus != focusForm || i != s.fieldIdx) {
+		} else if f.Help != "" {
 			b.WriteString(helpStyle.Width(theme.Max(8, innerW-2)).Render("  " + f.Help))
 			b.WriteByte('\n')
 		}
