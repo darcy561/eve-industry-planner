@@ -101,6 +101,9 @@ jobs:
     if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Repo-root .env (APP_VERSION SoT) is gitignored; Vite requires a version to load.
+    env:
+      APP_VERSION: 0.0.0-ci
     defaults:
       run:
         working-directory: frontend
