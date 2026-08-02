@@ -77,6 +77,44 @@ func TestEnsureKeyfileRestoresFromBak(t *testing.T) {
 	}
 }
 
+func TestEnsureKeyfileRestoresOverDockerDir(t *testing.T) {
+	// When the bind source is missing, Docker may create an empty directory at mongo-keyfile.
+	home := t.TempDir()
+	t.Chdir(home)
+	prev := volumeHasDataFn
+	volumeHasDataFn = func() (bool, string, error) { return false, "", nil }
+	t.Cleanup(func() { volumeHasDataFn = prev })
+
+	if err := EnsureKeyfile(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(home, keyFileName)
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := EnsureKeyfile(); err != nil {
+		t.Fatal(err)
+	}
+	st, err := os.Stat(path)
+	if err != nil || st.IsDir() {
+		t.Fatalf("want file, got dir/err: %v %+v", err, st)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(want) {
+		t.Fatal("restored keyfile does not match bak")
+	}
+}
+
 func TestEnsureKeyfileRefusesGenerateWhenVolumeHasData(t *testing.T) {
 	home := t.TempDir()
 	t.Chdir(home)

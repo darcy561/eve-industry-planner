@@ -33,7 +33,11 @@ func WaitZoneReady(id string, timeout time.Duration) bool {
 
 // MouseClickAtZone returns a left-button release on the zone's top-left cell
 // (bubblezone / Charm v2 treat release as the actionable click).
+// Waits briefly for the async zone worker after Scan.
 func MouseClickAtZone(id string) (tea.MouseReleaseMsg, bool) {
+	if !WaitZoneReady(id, time.Second) {
+		return tea.MouseReleaseMsg{}, false
+	}
 	z := zone.Get(id)
 	if z == nil || z.IsZero() {
 		return tea.MouseReleaseMsg{}, false
@@ -42,7 +46,11 @@ func MouseClickAtZone(id string) (tea.MouseReleaseMsg, bool) {
 }
 
 // MouseWheelAtZone returns a wheel event over the zone's top-left cell.
+// Waits briefly for the async zone worker after Scan.
 func MouseWheelAtZone(id string, up bool) (tea.MouseWheelMsg, bool) {
+	if !WaitZoneReady(id, time.Second) {
+		return tea.MouseWheelMsg{}, false
+	}
 	z := zone.Get(id)
 	if z == nil || z.IsZero() {
 		return tea.MouseWheelMsg{}, false
@@ -74,6 +82,8 @@ func init() {
 func Mark(id, s string) string { return zone.Mark(id, s) }
 
 // Scan finalizes zone offsets for a full frame (call at program root View).
+// Do not Scan already-scanned content (e.g. tea.View.Content): a second Scan
+// with no markers issues a new iteration clear and drops prior zones.
 func Scan(frame string) string { return zone.Scan(frame) }
 
 // ZoneListRow is the id for list row i (menus, pickers, builder nav).

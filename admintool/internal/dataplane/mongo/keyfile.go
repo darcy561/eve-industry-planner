@@ -141,12 +141,24 @@ func copyKeyfile(src, dst string) error {
 
 func atomicWrite600(path string, raw []byte) error {
 	tmp := path + ".tmp"
+	_ = os.Remove(tmp)
 	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
 		return fmt.Errorf("mongo: write %s: %w", filepath.Base(path), err)
 	}
+	// Docker creates an empty directory at the bind path when the host file was missing.
+	if st, err := os.Stat(path); err == nil && st.IsDir() {
+		if err := os.RemoveAll(path); err != nil {
+			_ = os.Remove(tmp)
+			return fmt.Errorf("mongo: remove blocking directory %s: %w", filepath.Base(path), err)
+		}
+	}
 	if err := os.Rename(tmp, path); err != nil {
+		// Windows often cannot rename over a bind-mounted file; overwrite in place.
+		if err2 := os.WriteFile(path, raw, 0o600); err2 != nil {
+			_ = os.Remove(tmp)
+			return fmt.Errorf("mongo: install %s: %w", filepath.Base(path), err)
+		}
 		_ = os.Remove(tmp)
-		return fmt.Errorf("mongo: install %s: %w", filepath.Base(path), err)
 	}
 	_ = os.Chmod(path, 0o600)
 	return nil

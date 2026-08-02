@@ -145,7 +145,7 @@ func TestCommandPromptInsideOutputNotFooter(t *testing.T) {
 	}
 	next, _ := m.activateMore()
 	hm := next.(model)
-	v := hm.View()
+	v := hm.View() // NewProgramView already Scans — do not Scan Content again.
 	if !strings.Contains(v.Content, "COMMAND") {
 		t.Fatal("want COMMAND panel title")
 	}
@@ -153,7 +153,6 @@ func TestCommandPromptInsideOutputNotFooter(t *testing.T) {
 	if !strings.Contains(v.Content, "esc leave") {
 		t.Fatalf("want help footer while Command open, view missing esc leave")
 	}
-	_ = ui.Scan(v.Content)
 	if !ui.WaitZoneReady(ui.ZoneCommandLine, time.Second) {
 		t.Fatal("command line zone should be inside OUTPUT panel")
 	}
