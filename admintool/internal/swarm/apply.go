@@ -3,14 +3,21 @@ package swarm
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
-	"eve-industry-planner/admintool/internal/dockercli"
+	"github.com/containerd/errdefs"
+	swarmtypes "github.com/moby/moby/api/types/swarm"
+	"github.com/moby/moby/client"
+
+	"eve-industry-planner/admintool/internal/docker"
 	"eve-industry-planner/admintool/internal/msg"
 	"eve-industry-planner/admintool/internal/stack"
 )
 
-// Apply mount-rolls hash-diff config objects onto running services.
+// ApplyConfigs mount-rolls hash-diff config objects onto running services via
+// Moby ServiceInspect / ConfigInspect / ServiceUpdate (not `docker service update`).
 // Missing stack files are errors; missing services are skipped.
 func ApplyConfigs(ctx context.Context, home, stackPrefix string, dryRun bool, stackFiles ...string) error {
 	if stackPrefix == "" {
@@ -37,6 +44,12 @@ func ApplyConfigs(ctx context.Context, home, stackPrefix string, dryRun bool, st
 		mounts = append(mounts, ms...)
 	}
 
+	apiClient, err := docker.NewAPIClient(client.WithTimeout(2 * time.Minute))
+	if err != nil {
+		return fmt.Errorf("apply configs: engine API client: %w", err)
+	}
+	defer apiClient.Close()
+
 	var updated, skipped, missing int
 	for _, m := range mounts {
 		raw, err := resolveBytes(home, m.File)
@@ -46,13 +59,14 @@ func ApplyConfigs(ctx context.Context, home, stackPrefix string, dryRun bool, st
 		obj := Name(m.Key, raw)
 		swarmSvc := stackPrefix + "_" + m.Service
 
-		exists := dockercli.ServiceExists(ctx, swarmSvc)
+		service, err := apiClient.ServiceInspect(ctx, swarmSvc, client.ServiceInspectOptions{})
+		exists := err == nil
+		if err != nil && !errdefs.IsNotFound(err) {
+			return fmt.Errorf("inspect service %s: %w", swarmSvc, err)
+		}
 		var liveName string
 		if exists {
-			liveName, err = liveConfigName(ctx, swarmSvc, m.Key, m.Target)
-			if err != nil {
-				return err
-			}
+			liveName = liveConfigName(service.Service, m.Key, m.Target)
 		}
 		switch decideConfigRoll(exists, liveName, obj) {
 		case configRollSkipMissing:
@@ -76,20 +90,20 @@ func ApplyConfigs(ctx context.Context, home, stackPrefix string, dryRun bool, st
 			continue
 		}
 
-		if _, err := ensureConfig(ctx, m.Key, raw); err != nil {
+		if _, err := ensureConfig(ctx, apiClient, m.Key, raw); err != nil {
 			return err
 		}
-
-		args := []string{"service", "update", "--detach=true"}
-		if liveName != "" {
-			args = append(args, "--config-rm", liveName)
+		// Re-inspect: grafana (etc.) may roll many mounts; Version must be current.
+		fresh, err := apiClient.ServiceInspect(ctx, swarmSvc, client.ServiceInspectOptions{})
+		if err != nil {
+			return fmt.Errorf("inspect service %s: %w", swarmSvc, err)
 		}
-		args = append(args, "--config-add", fmt.Sprintf("source=%s,target=%s", obj, m.Target), swarmSvc)
-		if err := dockercli.Run(ctx, args...); err != nil {
+		liveName = liveConfigName(fresh.Service, m.Key, m.Target)
+		if err := rollServiceConfig(ctx, apiClient, fresh.Service, liveName, obj, m.Target); err != nil {
 			return fmt.Errorf("update configs on %s: %w", swarmSvc, err)
 		}
 		msg.Line(fmt.Sprintf("updated %s (config %s)", swarmSvc, m.Key))
-		PruneOldConfigs(ctx, m.Key, obj)
+		pruneOldConfigs(ctx, apiClient, m.Key, obj)
 		updated++
 	}
 
@@ -97,41 +111,90 @@ func ApplyConfigs(ctx context.Context, home, stackPrefix string, dryRun bool, st
 	return nil
 }
 
-// PruneOld drops older eip_<key>_* objects not listed in keep (best-effort).
-func PruneOldConfigs(ctx context.Context, key, keep string) {
-	out, err := dockercli.RunOut(ctx, "config", "ls", "--format", "{{.Name}}")
+func pruneOldConfigs(ctx context.Context, apiClient *client.Client, key, keep string) {
+	configs, err := apiClient.ConfigList(ctx, client.ConfigListOptions{})
 	if err != nil {
 		return
 	}
-	for _, name := range supersededObjectNames(strings.Split(out, "\n"), key, keep) {
-		if err := dockercli.Run(ctx, "config", "rm", name); err == nil {
+	names := make([]string, 0, len(configs.Items))
+	for _, config := range configs.Items {
+		names = append(names, config.Spec.Name)
+	}
+	for _, name := range supersededObjectNames(names, key, keep) {
+		if _, err := apiClient.ConfigRemove(ctx, name, client.ConfigRemoveOptions{}); err == nil {
 			msg.Line("pruned superseded docker config " + name)
 		}
 	}
 }
 
-func liveConfigName(ctx context.Context, swarmSvc, key, target string) (string, error) {
-	out, err := dockercli.RunOut(ctx, "service", "inspect", swarmSvc, "--format",
-		`{{range .Spec.TaskTemplate.ContainerSpec.Configs}}{{.ConfigName}}	{{if .File}}{{.File.Name}}{{end}}{{"\n"}}{{end}}`)
-	if err != nil {
-		return "", err
+func liveConfigName(service swarmtypes.Service, key, target string) string {
+	container := service.Spec.TaskTemplate.ContainerSpec
+	if container == nil {
+		return ""
 	}
-	for _, line := range strings.Split(out, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
+	for _, ref := range container.Configs {
+		if ref == nil {
 			continue
 		}
-		name, tgt, ok := strings.Cut(line, "\t")
-		if ok && tgt == target {
-			return name, nil
+		if ref.File != nil && ref.File.Name == target {
+			return ref.ConfigName
 		}
 	}
 	prefix := "eip_" + key + "_"
-	for _, line := range strings.Split(out, "\n") {
-		name := strings.TrimSpace(strings.Split(line, "\t")[0])
-		if strings.HasPrefix(name, prefix) {
-			return name, nil
+	for _, ref := range container.Configs {
+		if ref == nil {
+			continue
+		}
+		if strings.HasPrefix(ref.ConfigName, prefix) {
+			return ref.ConfigName
 		}
 	}
-	return "", nil
+	return ""
+}
+
+func rollServiceConfig(ctx context.Context, apiClient *client.Client, service swarmtypes.Service, liveName, configName, target string) error {
+	config, err := apiClient.ConfigInspect(ctx, configName, client.ConfigInspectOptions{})
+	if err != nil {
+		return fmt.Errorf("inspect config %s: %w", configName, err)
+	}
+
+	spec := service.Spec
+	container := spec.TaskTemplate.ContainerSpec
+	if container == nil {
+		return fmt.Errorf("service %s: missing ContainerSpec", service.Spec.Name)
+	}
+
+	file := &swarmtypes.ConfigReferenceFileTarget{
+		Name: target,
+		UID:  "0",
+		GID:  "0",
+		Mode: os.FileMode(0o444),
+	}
+	configs := make([]*swarmtypes.ConfigReference, 0, len(container.Configs)+1)
+	for _, ref := range container.Configs {
+		if ref == nil {
+			continue
+		}
+		matchesLive := liveName != "" && ref.ConfigName == liveName
+		matchesTarget := ref.File != nil && ref.File.Name == target
+		if !matchesLive && !matchesTarget {
+			configs = append(configs, ref)
+			continue
+		}
+		if ref.File != nil {
+			file.UID = ref.File.UID
+			file.GID = ref.File.GID
+			file.Mode = ref.File.Mode
+		}
+	}
+	container.Configs = append(configs, &swarmtypes.ConfigReference{
+		ConfigID:   config.Config.ID,
+		ConfigName: config.Config.Spec.Name,
+		File:       file,
+	})
+	_, err = apiClient.ServiceUpdate(ctx, service.ID, client.ServiceUpdateOptions{
+		Version: service.Version,
+		Spec:    spec,
+	})
+	return err
 }

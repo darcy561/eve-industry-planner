@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types/swarm"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/api/types/swarm"
+	"github.com/moby/moby/client"
 )
 
 // EngineProbe is a lightweight daemon/swarm readiness check.
@@ -66,28 +66,28 @@ func Probe(ctx context.Context) ProbeResult {
 		Health: HealthOff,
 	}
 
-	cli, err := NewClient(client.WithTimeout(DefaultClientTimeout))
+	apiClient, err := NewAPIClient(client.WithTimeout(DefaultClientTimeout))
 	if err != nil {
-		out.Err = fmt.Errorf("docker client: %w", err)
+		out.Err = fmt.Errorf("engine API client: %w", err)
 		return out
 	}
-	defer cli.Close()
+	defer apiClient.Close()
 
-	ping, err := cli.Ping(ctx)
+	ping, err := apiClient.Ping(ctx, client.PingOptions{})
 	if err != nil {
 		out.Err = fmt.Errorf("engine ping: %w (is DOCKER_HOST / docker.sock available?)", err)
 		return out
 	}
 	out.Engine.APIVersion = ping.APIVersion
 
-	info, err := cli.Info(ctx)
+	info, err := apiClient.Info(ctx, client.InfoOptions{})
 	if err != nil {
 		out.Err = fmt.Errorf("info unavailable: %w", err)
 		return out
 	}
-	out.Engine.ServerVersion = info.ServerVersion
-	if info.Swarm.LocalNodeState != "" {
-		out.Engine.Swarm = string(info.Swarm.LocalNodeState)
+	out.Engine.ServerVersion = info.Info.ServerVersion
+	if info.Info.Swarm.LocalNodeState != "" {
+		out.Engine.Swarm = string(info.Info.Swarm.LocalNodeState)
 	}
 
 	if !strings.EqualFold(out.Engine.Swarm, "active") {
@@ -96,7 +96,7 @@ func Probe(ctx context.Context) ProbeResult {
 		return out
 	}
 
-	snap, err := LoadStackSnapshotWithHealth(ctx, cli, ResolveStackName())
+	snap, err := LoadStackSnapshotWithHealth(ctx, apiClient, ResolveStackName())
 	if err != nil {
 		out.Health = HealthRed
 		out.HealthDetail = err.Error()
@@ -112,14 +112,13 @@ func hasHealthcheck(svc swarm.Service) bool {
 	return cs != nil && cs.Healthcheck != nil
 }
 
-func containerHealth(ctx context.Context, cli client.APIClient, t swarm.Task) string {
-	cs := t.Status.ContainerStatus
-	if cs == nil || cs.ContainerID == "" {
+func containerHealth(ctx context.Context, apiClient *client.Client, containerID string) TaskHealth {
+	if containerID == "" {
 		return ""
 	}
-	info, err := cli.ContainerInspect(ctx, cs.ContainerID)
-	if err != nil || info.State == nil || info.State.Health == nil {
+	info, err := apiClient.ContainerInspect(ctx, containerID, client.ContainerInspectOptions{})
+	if err != nil || info.Container.State == nil || info.Container.State.Health == nil {
 		return ""
 	}
-	return strings.ToLower(strings.TrimSpace(info.State.Health.Status))
+	return TaskHealth(strings.ToLower(strings.TrimSpace(string(info.Container.State.Health.Status))))
 }

@@ -1,5 +1,5 @@
-# Local Swarm app images (#35). Used by scripts/swarm/bake-local.sh — not Compose.
-# Bake always tags :${BAKE_WORKING_TAG} (default "bake"). bake-local.sh promotes a
+# Local Swarm app images (#35). Used by eip dev / eip rebuild (admintool/internal/images).
+# Bake always tags :${BAKE_WORKING_TAG} (default "bake"). Promote a
 # per-role TAG_* only when that role's :bake image digest changes.
 #
 #   docker buildx bake -f docker-bake.hcl swarm

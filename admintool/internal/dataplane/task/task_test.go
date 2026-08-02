@@ -69,11 +69,12 @@ func TestWaitTimeoutMessageRunning(t *testing.T) {
 	if err == nil {
 		t.Fatal("want error")
 	}
-	// Ctx deadline, wait timeout, or missing docker — all acceptable in CI.
+	// Ctx deadline, wait timeout, or unreachable engine — all acceptable in CI.
 	if !errors.Is(err, context.DeadlineExceeded) &&
 		!errors.Is(err, context.Canceled) &&
 		!strings.Contains(err.Error(), "did not become running") &&
-		!strings.Contains(err.Error(), "executable file not found") &&
+		!strings.Contains(err.Error(), "engine") &&
+		!strings.Contains(err.Error(), "connect") &&
 		!strings.Contains(err.Error(), "docker") {
 		t.Fatalf("%q", err)
 	}

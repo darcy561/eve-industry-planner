@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"eve-industry-planner/admintool/internal/kit"
 	"eve-industry-planner/admintool/internal/msg"
@@ -23,6 +23,9 @@ import (
 // ProbeKillAfter is how long a background probe child may run before Kill.
 // Must exceed the Docker client timeout inside eip probe.
 const ProbeKillAfter = 5 * time.Second
+
+// CancelGrace is how long Interrupt may take before Kill.
+const CancelGrace = 2 * time.Second
 
 // EventMsg is a chip event from the child (decoded EIPMSG chip.*).
 type EventMsg struct {
@@ -50,6 +53,29 @@ func (s *Stream) Kill() {
 		return
 	}
 	_ = s.cmd.Process.Kill()
+}
+
+// Interrupt asks the child to stop (SIGINT). Falls back to Kill if Signal fails
+// (common for Windows CREATE_NO_WINDOW children).
+func (s *Stream) Interrupt() {
+	if s == nil || s.cmd == nil || s.cmd.Process == nil {
+		return
+	}
+	if err := s.cmd.Process.Signal(os.Interrupt); err != nil {
+		_ = s.cmd.Process.Kill()
+	}
+}
+
+// Cancel interrupts the child, then Kill after CancelGrace if still alive.
+func (s *Stream) Cancel() {
+	if s == nil {
+		return
+	}
+	s.Interrupt()
+	go func() {
+		time.Sleep(CancelGrace)
+		s.Kill()
+	}()
 }
 
 // WaitCmd waits for the next stream message.
@@ -120,35 +146,12 @@ func Start(args []string, label string) (*Stream, error) {
 		s.Msgs <- pane.AppendMsg{Text: chunk}
 	}
 
-	dispatchEIPMSG := func(line string) {
-		env, ok := msg.ParseLine(line)
-		if !ok {
-			return // non-protocol stdout discarded
-		}
-		if ev, ok := msg.EventFromEnvelope(env); ok {
-			s.Msgs <- EventMsg{Event: ev}
-			return
-		}
-		switch env.Type {
-		case msg.TypePaneText:
-			msg, err := msg.DecodeText(env.Data)
-			if err != nil || msg == "" {
-				return
-			}
-			appendPane(msg)
-		case msg.TypePaneStatus:
-			var report status.Report
-			if err := msg.DecodeData(env, &report); err != nil {
-				return
-			}
-			s.Msgs <- outstatus.Msg{Report: report}
-		}
-	}
-
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		scanLines(stdout, dispatchEIPMSG)
+		scanLines(stdout, func(line string) {
+			routeStdoutLine(line, func(m tea.Msg) { s.Msgs <- m }, appendPane)
+		})
 	}()
 	go func() {
 		defer wg.Done()
@@ -166,6 +169,38 @@ func Start(args []string, label string) (*Stream, error) {
 	}()
 
 	return s, nil
+}
+
+// routeStdoutLine demuxes one child stdout line (EIPMSG → events/pane; else drop).
+func routeStdoutLine(line string, send func(tea.Msg), appendPane func(string)) {
+	env, ok := msg.ParseLine(line)
+	if !ok {
+		return
+	}
+	if ev, ok := msg.EventFromEnvelope(env); ok {
+		send(EventMsg{Event: ev})
+		return
+	}
+	switch env.Type {
+	case msg.TypePaneText:
+		text, err := msg.DecodeText(env.Data)
+		if err != nil || text == "" {
+			return
+		}
+		appendPane(text)
+	case msg.TypePaneProgress:
+		p, err := msg.DecodeProgress(env.Data)
+		if err != nil {
+			return
+		}
+		send(pane.ProgressMsg{Text: p.Text, Done: p.Done, Fraction: p.Fraction})
+	case msg.TypePaneStatus:
+		var report status.Report
+		if err := msg.DecodeData(env, &report); err != nil {
+			return
+		}
+		send(outstatus.Msg{Report: report})
+	}
 }
 
 // Collect runs a child to completion (used by ProbeCmd). Returns pane text + chip events.
@@ -188,16 +223,21 @@ func collect(args []string, killAfter time.Duration) (text string, events []msg.
 		timer := time.AfterFunc(killAfter, s.Kill)
 		defer timer.Stop()
 	}
-	for msg := range s.Msgs {
-		switch m := msg.(type) {
+	return consumeStream(s)
+}
+
+// consumeStream drains Msgs until DoneMsg (used by Collect / tests).
+func consumeStream(s *Stream) (text string, events []msg.Event, err error) {
+	for m := range s.Msgs {
+		switch msg := m.(type) {
 		case EventMsg:
-			events = append(events, m.Event)
+			events = append(events, msg.Event)
 		case DoneMsg:
-			text = m.Text
-			if text == "" && m.Err != nil {
-				text = m.Err.Error()
+			text = msg.Text
+			if text == "" && msg.Err != nil {
+				text = msg.Err.Error()
 			}
-			return text, events, m.Err
+			return text, events, msg.Err
 		}
 	}
 	return text, events, err
@@ -223,22 +263,6 @@ func CollectRawStdout(args []string) (string, error) {
 	detachChild(cmd)
 	out, err := cmd.Output()
 	return string(out), err
-}
-
-// Run is a blocking convenience for callers that only need pane text.
-func Run(args []string) string {
-	text, _, err := Collect(args)
-	text = strings.TrimSpace(text)
-	if err != nil {
-		if text == "" {
-			return err.Error()
-		}
-		return text + "\n" + err.Error()
-	}
-	if text == "" {
-		return "(no output)"
-	}
-	return text
 }
 
 func scanLines(r io.Reader, fn func(string)) {

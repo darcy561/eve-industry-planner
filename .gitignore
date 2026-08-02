@@ -64,7 +64,10 @@ archivejobs_firestore_normalized/
 .eip-local-build.env
 .eip-stack-mode
 
-# .env backups from eip EmitEnv (cli.env_backup_path stem; default eip-env-backup)
+# Local backups (default .env stem backups/env/env; other tools may use backups/ later)
+backups/
+# Legacy root-stem .env backups
+eip-env-backups/
 eip-env-backup-current.txt
 eip-env-backup-*.txt
 *-env-backup-current.txt

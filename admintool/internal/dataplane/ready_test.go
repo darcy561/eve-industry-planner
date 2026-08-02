@@ -30,7 +30,7 @@ func TestErrNotReadyMessage(t *testing.T) {
 	}
 }
 
-func TestReadyRunsEnsureS3AndEnsureMongoConcurrently(t *testing.T) {
+func TestReadyUsesEnsureRegistry(t *testing.T) {
 	t.Parallel()
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
@@ -42,20 +42,17 @@ func TestReadyRunsEnsureS3AndEnsureMongoConcurrently(t *testing.T) {
 	}
 	body := string(src)
 	for _, need := range []string{
-		"errgroup.WithContext",
 		"checkOperatorDocs(",
-		"ensureS3(",
-		"ensureMongo(",
-		"g.Go(",
+		"RunAllEnsures(",
 	} {
 		if !strings.Contains(body, need) {
 			t.Fatalf("Ready missing %q", need)
 		}
 	}
-	if strings.Contains(body, "mongo.Ensure(") || strings.Contains(body, "s3.Ensure(") {
-		t.Fatal("Ready must call ensureS3/ensureMongo only (docs checked once up front)")
+	if strings.Contains(body, "ensureS3(") || strings.Contains(body, "ensureMongo(") {
+		t.Fatal("Ready should use RunAllEnsures, not call ensureS3/ensureMongo directly")
 	}
-	if strings.Contains(body, "s3.Check(") {
-		t.Fatal("Ready must use EnsureS3, not check-only")
+	if strings.Contains(body, "mongo.Ensure(") || strings.Contains(body, "s3.Ensure(") {
+		t.Fatal("Ready must not call mongo.Ensure/s3.Ensure directly")
 	}
 }

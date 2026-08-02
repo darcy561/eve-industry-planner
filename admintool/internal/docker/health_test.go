@@ -35,18 +35,18 @@ func TestRollupHealth(t *testing.T) {
 		},
 		{
 			name: "unhealthy red",
-			in:   []ServiceScore{{Desired: 1, Running: 1, TaskHealths: []string{"unhealthy"}}},
+			in:   []ServiceScore{{Desired: 1, Running: 1, TaskHealths: []TaskHealth{TaskHealthUnhealthy}}},
 			want: HealthRed,
 		},
 		{
 			name: "starting amber",
-			in:   []ServiceScore{{Desired: 1, Running: 1, TaskHealths: []string{"starting"}}},
+			in:   []ServiceScore{{Desired: 1, Running: 1, TaskHealths: []TaskHealth{TaskHealthStarting}}},
 			want: HealthAmber,
 		},
 		{
 			name: "worst wins",
 			in: []ServiceScore{
-				{Desired: 1, Running: 1, TaskHealths: []string{"healthy"}},
+				{Desired: 1, Running: 1, TaskHealths: []TaskHealth{TaskHealthHealthy}},
 				{Desired: 2, Running: 1},
 			},
 			want: HealthAmber,
@@ -63,5 +63,16 @@ func TestRollupHealth(t *testing.T) {
 				t.Fatalf("RollupHealth=%v want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestHealthSummaryNoStackIsOff(t *testing.T) {
+	t.Parallel()
+	light, detail := (StackSnapshot{}).HealthSummary()
+	if light != HealthOff {
+		t.Fatalf("light=%v want off", light)
+	}
+	if detail != "no stack services" {
+		t.Fatalf("detail=%q", detail)
 	}
 }

@@ -40,6 +40,37 @@ services:
 	}
 }
 
+func TestInjectPreservesEscapedDollars(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "app.yml")
+	// Post-Expand form: literal $ already re-escaped as $$ for stack deploy.
+	body := `
+services:
+  api:
+    image: api:1
+    deploy:
+      labels:
+        traefik.http.middlewares.cors.headers.accessControlAllowOriginListRegex: "^https://example.com$$"
+`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := InjectSecrets(path,
+		map[string]string{"MONGO_PASSWORD": "eip_MONGO_PASSWORD_abc"},
+		map[string][]string{"api": {"MONGO_PASSWORD"}},
+	); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	if !strings.Contains(text, "example.com$$") {
+		t.Fatalf("inject remarshal dropped $$ escape:\n%s", text)
+	}
+}
+
 func TestInjectExternalConfigs(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "obs.yml")

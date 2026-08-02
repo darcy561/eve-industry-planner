@@ -11,6 +11,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 TAG="${EIP_CLI_VERSION:-0.0.0-dev}"
 LD="-s -w -X eve-industry-planner/admintool/cmd/commands.Version=${TAG}"
+if [ -n "${EIP_CHANNEL:-}" ]; then
+  LD="${LD} -X eve-industry-planner/admintool/internal/kit.Channel=${EIP_CHANNEL}"
+fi
+if [ -n "${EIP_KIT_BRANCH:-}" ]; then
+  LD="${LD} -X eve-industry-planner/admintool/internal/kit.KitBranch=${EIP_KIT_BRANCH}"
+fi
 
 stop_eip() {
   if command -v pkill >/dev/null 2>&1; then
@@ -47,6 +53,12 @@ install_eip() {
 
 cd "${ROOT}/admintool"
 export CGO_ENABLED=0
+# Match published Release assets when host Go defaults oddly (e.g. GOARCH=386).
+if [ -z "${GOARCH:-}" ]; then
+  case "$(uname -s)" in
+    Linux|MINGW*|MSYS*|CYGWIN*|Windows_NT) export GOARCH=amd64 ;;
+  esac
+fi
 
 TMP="$(mktemp "${TMPDIR:-/tmp}/eip-build.XXXXXX")"
 case "$(uname -s)" in

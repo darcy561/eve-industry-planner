@@ -21,8 +21,9 @@ type EnvField struct {
 	Required     bool
 	Default      string
 	PreviousKeys []string // old names in existing files → migrate into Key on load
-	Autogen      bool     // TUI: checkbox generate (checked) vs manual (unchecked)
-	Locked       bool     // once a real value exists in .env, field is read-only (no roll yet)
+	Autogen      bool     // can generate material; TUI Autogen checkbox only while unset
+	Locked       bool     // once set in .env: read-only forever (no Roll — e.g. DB passwords)
+	Hidden       bool     // omit from TUI; still loaded/emitted (managed behind the scenes)
 }
 
 // EnvFields returns the ordered .env schema (sections + keys).
@@ -69,18 +70,18 @@ var envFields = []EnvField{
 
 	{
 		Key: "MONGO_ROOT_USERNAME", Section: "Database", Label: "Mongo root username",
-		Help: "Root admin (mongo-setup / container bootstrap).",
-		Type: FieldText, Required: true, Default: "admin",
+		Help: "Root admin (mongo-setup / container bootstrap). Locked once set.",
+		Type: FieldText, Required: true, Default: "admin", Locked: true,
 	},
 	{
 		Key: "MONGO_ROOT_PASSWORD", Section: "Database", Label: "Mongo root password",
-		Help: "Root admin password. Generated on first Setup / eip init.",
+		Help: "Root admin password. Generated on first Setup / eip init. Locked once set.",
 		Type: FieldPassword, Required: true, Default: "", Autogen: true, Locked: true,
 	},
 	{
 		Key: "MONGO_USERNAME", Section: "Database", Label: "Mongo username",
-		Help: "Shared app DB user (api / worker / core / websocket when *_API unset).",
-		Type: FieldText, Required: true, Default: "EXAMPLE_USERNAME",
+		Help: "Shared app DB user (api / worker / core / websocket when *_API unset). Locked once set.",
+		Type: FieldText, Required: true, Default: "EXAMPLE_USERNAME", Locked: true,
 	},
 	{
 		Key: "MONGO_PASSWORD", Section: "Database", Label: "Mongo password",
@@ -89,28 +90,28 @@ var envFields = []EnvField{
 	},
 	{
 		Key: "MONGO_USERNAME_API", Section: "Database", Label: "Mongo API username",
-		Help: "Optional API-only Mongo user. Empty → api uses MONGO_USERNAME / MONGO_PASSWORD.",
-		Type: FieldText, Required: false, Default: "",
+		Help: "Optional API-only Mongo user. Empty → api uses MONGO_USERNAME / MONGO_PASSWORD. Locked once set.",
+		Type: FieldText, Required: false, Default: "", Locked: true,
 	},
 	{
 		Key: "MONGO_PASSWORD_API", Section: "Database", Label: "Mongo API password",
-		Help: "Optional API-only Mongo password. Locked once set.",
+		Help: "Optional API-only Mongo password. Autogen on first create; locked once set.",
 		Type: FieldPassword, Required: false, Default: "", Autogen: true, Locked: true,
 	},
 
 	{
 		Key: "REDIS_PASSWORD", Section: "Database", Label: "Redis password",
-		Help: "Shared password. Locked once set. Compose: no $ in generated values.",
+		Help: "Shared password. Autogen on first create; locked once set. Compose: no $ in generated values.",
 		Type: FieldPassword, Required: true, Default: "", Autogen: true, Locked: true,
 	},
 	{
 		Key: "REDIS_USERNAME_API", Section: "Database", Label: "Redis API username",
-		Help: "Optional API-only Redis ACL user. Empty → api uses REDIS_PASSWORD.",
-		Type: FieldText, Required: false, Default: "",
+		Help: "Optional API-only Redis ACL user. Empty → api uses REDIS_PASSWORD. Locked once set.",
+		Type: FieldText, Required: false, Default: "", Locked: true,
 	},
 	{
 		Key: "REDIS_PASSWORD_API", Section: "Database", Label: "Redis API password",
-		Help: "Optional API-only Redis ACL password. Locked once set.",
+		Help: "Optional API-only Redis ACL password. Autogen on first create; locked once set.",
 		Type: FieldPassword, Required: false, Default: "", Autogen: true, Locked: true,
 	},
 
@@ -121,29 +122,32 @@ var envFields = []EnvField{
 	},
 	{
 		Key: "S3_SECRET_KEY", Section: "Database", Label: "S3 secret key",
-		Help: "S3 secret. Can regenerate via Autogen checkbox until locked roll exists.",
+		Help: "S3 secret. Autogen on first Setup; later use Roll on save to regenerate.",
 		Type: FieldPassword, Required: true, Default: "", Autogen: true,
 	},
 
 	{
 		Key: "AUTHZ_HMAC_KEY", Section: "Encryption", Label: "Authz HMAC key",
-		Help: "HMAC secret for deterministic authz refs. Keep stable per environment.",
-		Type: FieldHMAC, Required: true, Default: "", Autogen: true,
+		Help: "HMAC secret for deterministic authz refs. Autogen on first create; locked once set (roll later).",
+		Type: FieldHMAC, Required: true, Default: "", Autogen: true, Locked: true,
 	},
 	{
 		Key: "REFRESH_TOKEN_AES_KEY", Section: "Encryption", Label: "Refresh token AES key",
-		Help: "AES-256-GCM key for cloud refresh tokens at rest.",
+		Help: "AES-256-GCM key for cloud refresh tokens at rest. " +
+			"Roll on save regenerates the key, bumps REFRESH_TOKEN_AES_KEY_VERSION, " +
+			"and moves the previous key into REFRESH_TOKEN_AES_LEGACY_KEYS.",
 		Type: FieldAES, Required: true, Default: "", Autogen: true,
 	},
 	{
 		Key: "REFRESH_TOKEN_AES_KEY_VERSION", Section: "Encryption", Label: "Refresh token AES version",
-		Help: "Active keyring version for refresh-token encryption (default v1).",
-		Type: FieldText, Required: true, Default: "v1",
+		Help: "Active keyring version (default v1). Not edited in the TUI — bumps automatically when the AES key is rolled.",
+		Type: FieldText, Required: true, Default: "v1", Hidden: true,
 	},
 	{
 		Key: "REFRESH_TOKEN_AES_LEGACY_KEYS", Section: "Encryption", Label: "Refresh token AES legacy keys",
-		Help: "Optional JSON object of retired key versions for decrypt. Leave {} when unused. " +
-			`After rotating (e.g. v1→v2) use single quotes: '{"v1":"<base64-old-key>"}'. ` +
+		Help: "JSON object of retired key versions for decrypt. Leave {} when unused. " +
+			"Filled automatically on AES Roll (previous version → legacy). " +
+			`Advanced manual edit: '{"v1":"<base64-old-key>"}'. ` +
 			"Each value must be standard base64 and the same decoded length as REFRESH_TOKEN_AES_KEY.",
 		Type: FieldText, Required: false, Default: "{}",
 	},
@@ -213,8 +217,8 @@ var envFields = []EnvField{
 	},
 	{
 		Key: "GRAFANA_ADMIN_PASSWORD", Section: "Grafana", Label: "Grafana admin password",
-		Help: "Grafana login password. Generated on first Setup / eip init.",
-		Type: FieldPassword, Required: true, Default: "", Autogen: true,
+		Help: "Grafana login password. Generated on first Setup / eip init. Locked once set.",
+		Type: FieldPassword, Required: true, Default: "", Autogen: true, Locked: true,
 	},
 	{
 		Key: "GRAFANA_ROOT_URL", Section: "Grafana", Label: "Grafana root URL",

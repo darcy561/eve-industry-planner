@@ -1,8 +1,8 @@
 # Docker Swarm migration - roadmap & backlog
 
-> **Handoff status (2026-07-26):** Swarm **data + app** fragments live; prefer **`eip`**. **#3 / #4 / #5 / #7 / #16 / #17 / #21 / #24 / #31** done. **Core boxed off (#9–#14 + #28).** Data-plane ensure = admintool `EnsureS3` ‖ `EnsureMongo` (Ready). **#8** cutoff+divert (partial). **#19/#32** sync/secrets. **`APP_VERSION` SoT is `.env`**. **#35/#33** bake/promote. **#23/#6** app-train dual-warm. **Object store:** SeaweedFS + `objectstore`. **Next:** **#18** capacity-controller; least-privilege `*_API` DB users (Ensure follow-up). Make/scripts legacy until retired. Docs: admintool ENGINEERING, CORE_REBUILD, STACK, ENV, ROADMAP, DEPLOYMENT.
+> **Handoff status (2026-08-02):** Swarm **data + app** fragments live; **Public docs teach `eip` first** ([DEPLOYMENT.md](../../DEPLOYMENT.md): bootstrap → `init` → `up`). **#3 / #4 / #5 / #7 / #16 / #17 / #21 / #24 / #31** done. **Core boxed off (#9–#14 + #28).** Data-plane ensure = admintool `EnsureS3` ‖ `EnsureMongo` (Ready). **#8** cutoff+divert (partial). **#19/#32** sync/secrets. **`APP_VERSION` SoT is `.env`**. **#35/#33** bake/promote. **#23/#6** app-train dual-warm. **Object store:** SeaweedFS + `objectstore`. **Next:** **#18** capacity-controller; least-privilege `*_API` DB users (Ensure follow-up). **Make retired** (Makefile + Make script trees gone; `scripts/admintool/` + eip-bootstrap remain). Docs: DEPLOYMENT, ENV, MAKE (retired map), admintool ENGINEERING / PRERELEASE, CORE_REBUILD, STACK, ROADMAP.
 
-Tracks the single-host Swarm cutover: **data fragment** (mongo/redis/nats/SeaweedFS/Prometheus) + **app fragment** (Traefik, api, websocket, worker, ws-router, core, frontend); optional Compose observability addon. Preferred host tool: **`eip`**. Make/scripts remain legacy reference until retired.
+Tracks the single-host Swarm cutover: **data fragment** (mongo/redis/nats/SeaweedFS/Prometheus) + **app fragment** (Traefik, api, websocket, worker, ws-router, core, frontend); optional Compose observability addon. Preferred host tool: **`eip`** ([DEPLOYMENT.md](../../DEPLOYMENT.md)). Make retired: [MAKE.md](./MAKE.md).
 
 Later, Swarm’s fixed replica counts are driven by a **capacity controller** (not a naive CPU HPA). Swarm does not autoscale by itself. Prep for the controller is **woven into earlier items** so Phase E is mostly policy + Docker/Traefik ops, not inventing identity or metrics from scratch.
 
@@ -36,7 +36,7 @@ Companion context:
 
 
 
-- Current prod path: `docker-compose.yml` + `make up` (`DEPLOYMENT.md`)
+- Current prod path: bootstrap + **`eip up`** ([DEPLOYMENT.md](../../DEPLOYMENT.md)); Make legacy ([MAKE.md](./MAKE.md))
 
 - Shared network contract: [NETWORK.md](./NETWORK.md) (`eip` external **overlay** for hybrid)
 
@@ -44,20 +44,20 @@ Companion context:
 
 - Elastic Swarm stack (live): [STACK.md](./STACK.md) + [`docker-stack.yml`](../../docker-stack.yml) - Traefik + api/websocket/worker/ws-router/**core**/**frontend**
 
-- Entry points: [MAKE.md](./MAKE.md) - hybrid `make up` / `make dev` (bring-up); day-2 **`make swarm-sync` / `make swarm-secrets-sync` / `make rebuild` / `make dev-release`** (#32 / #33 / #23)
+- Entry points: **`eip up` / `eip dev` / `eip rebuild` / `eip secrets` / `eip sync` / `eip update`** ([DEPLOYMENT.md](../../DEPLOYMENT.md), [ENGINEERING.md](../admintool/ENGINEERING.md)); legacy Make map [MAKE.md](./MAKE.md)
 - Edge: [TRAEFIK.md](./TRAEFIK.md) - Swarm `eip_traefik` (ingress); `/ws` -> [WS_ROUTER.md](./WS_ROUTER.md); frontend via swarm provider
 
 - WS placement: [WS_ROUTER.md](./WS_ROUTER.md) - Redis tenant->slot; sticky fallback; prefer-newest bake mid-wave
 
 - App-train: [APP_TRAIN.md](./APP_TRAIN.md) - dual-warm 2R (FE in `WARM_ORDER`) then advertise then drain; core stop-first before dual-warm
 
-- Secrets / apply: [ENV.md](./ENV.md) - **`.env` = secrets**; prefer **`eip secrets`** / **`eip sync`** (Make verbs legacy); FE public knobs via `x-frontend-public-env`; optional `*_API` keys when set (user creation = Ensure follow-up). S3 buckets: **`eip ensure-s3`**. Mongo root/app users + indexes: **`eip ensure-mongo`**
+- Secrets / apply: [ENV.md](./ENV.md) - **`.env` = secrets**; **`eip secrets`** / **`eip sync`** (Make verbs legacy); FE public knobs via `x-frontend-public-env`; optional `*_API` keys when set (user creation = Ensure follow-up). S3 buckets: **`eip ensure-s3`**. Mongo root/app users + indexes: **`eip ensure-mongo`**
 
 - Core control plane: [CORE_REBUILD.md](./CORE_REBUILD.md) — `lease:core:primary` + `servicemanager`; nested singleton leases in `services/core/singleton`; changestream resume in `core/primaryhandoff`
 
 - **Multi-tenant product:** [document-lock ROADMAP Strategic direction](../document-lock/ROADMAP.md#strategic-direction--multi-tenant-locks-account--corporation--alliance)
 
-- Public deploy: **`.env` = secrets**; separate **operator config YAML** = replicas/addons/tunables (#19 / #34); day-2 YAML via **`make swarm-sync`**, secrets via **`make swarm-secrets-sync`** (not full `make up`)
+- Public deploy: **`.env` = secrets**; separate **operator config YAML** = replicas/addons/tunables (#19 / #34); day-2 YAML via **`eip sync`**, secrets via **`eip secrets`** (not full bring-up)
 
 
 
@@ -481,7 +481,7 @@ When implementing #4, #6-#8, #11-#13, #18-#21, #23: add/extend tests in the same
 - **size:** M
 - **where:** [`docker-stack.yml`](../../docker-stack.yml); [STACK.md](./STACK.md); `scripts/swarm/stack-deploy.sh`; `make stack-deploy` / `stack-rm` / `ensure-eip-overlay`
 - **why:** Need Swarm-honoured `deploy.update_config` and slot templates
-- **how:** Extract elastic services; pin images via `APP_VERSION`; wire volumes (`api_data`, `worker_data`) on single node as **external** Compose project volumes; SDE in SeaweedFS (`objectstore`); reserve `capacity_config` volume for `#19`; optional `eip.capacity.*` deploy labels. Deploy expands `.env` via `docker compose config` and strips top-level `name:` for Swarm.
+- **how:** Extract elastic services; pin images via `APP_VERSION`; wire volumes (`api_data`, `worker_data`) on single node as **external** Compose project volumes; SDE in SeaweedFS (`objectstore`); reserve `capacity_config` volume for `#19`; optional `eip.capacity.*` deploy labels. Deploy expands `.env` via compose-go (`admintool` Expand) and strips top-level `name:` for Swarm.
 - **acceptance:** `docker stack deploy` runs Traefik + elastic + ws-router beside data plane - **verified local smoke** (STACK.md). `/ws` -> ws-router - **done** (#4). Remaining: durable continuity / ops polish.
 - **capacity-controller build-up:** config mount path + optional label mirrors for #18 / #19
 
@@ -561,9 +561,9 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 #### #14 - Core CLI / one-shot job ops under Swarm
 - **status:** done — validated mid-roll wait + one-shot
 - **size:** S
-- **where:** `make cli` → `scripts/swarm/ops/core-cli.sh`; [MAKE.md](./MAKE.md); core `tasks` wrapper unchanged
+- **where:** **`eip cli`** → `admintool/internal/ops/core_cli.go`; TUI More → Command / `:`; legacy `scripts/ops/core-cli.sh` / `make cli`; [MAKE.md](./MAKE.md); core `tasks` wrapper unchanged
 - **why:** `docker exec` + Compose `container_name: core` breaks under Swarm task IDs
-- **how (landed):** Core-only (no api/worker/websocket CLI). Uses `lib/require.sh` + `STACK_NAME`. Resolve sole running `eip_core` via Swarm service label; on `UpdateStatus=updating` (or multiple tasks) announce mid-roll, snapshot baseline, wait until the **new** task is sole owner; fail on pause/rollback/timeout. One-shots: `make cli ARGS='list'` → container `tasks list` (no typed `tasks` prefix). Bare `make cli` = interactive shell escape. Not generalized to other Swarm roles.
+- **how (landed):** Core-only (no api/worker/websocket CLI). Resolve sole running `eip_core` via Swarm service label; on `UpdateStatus=updating` (or multiple tasks) announce mid-roll, snapshot baseline, wait until the **new** task is sole owner; fail on pause/rollback/timeout. One-shots: `eip cli list` → container `tasks list` (no typed `tasks` prefix). Bare `eip cli` = interactive shell (terminal). TUI: OUTPUT pane becomes the command window.
 - **acceptance:** Common migrations/tasks runnable without Compose container names; safe during `start-first` overlap
 
 ### Observability & edge (Phase D-ish)
@@ -587,19 +587,13 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 - **pairs with:** #3 (done; `*_API` user creation = Ensure follow-up), #23/#33/#35 (train/bake), #24/#32 (apply verbs)
 
 #### #17 - Makefile / DEPLOYMENT.md operator surface
-- **status:** **done** (2026-07-23) — public Make thinned; scripts layout; docs + cross-OS smoke notes. Scale helpers **dropped** (YAML + `make swarm-sync`; automatic scale = **#18**).
+- **status:** **done** (2026-07-23; **Make retired 2026-08-02**) — operator surface is **`eip`** only; Makefile + Make script trees deleted; [MAKE.md](./MAKE.md) is a retired verb map.
 - **size:** M
-- **where:** `Makefile` (`make help` / `help-dev`); `scripts/{bootstrap,lib,swarm,ops,test}/`; `DEPLOYMENT.md`; [MAKE.md](./MAKE.md)
+- **where:** `eip` / eip-bootstrap / `scripts/admintool/`; `DEPLOYMENT.md`; [MAKE.md](./MAKE.md)
 - **why:** Public users need one bring-up story and clear day-2 apply/rebuild - without learning hybrid internals or OS-specific commands
-- **how (landed):**
-  - **Bring-up:** `make up` / `make dev` → `scripts/bootstrap/compose-data-plane.sh` + internal stack rematerialize (no public `make stack-deploy`)
-  - **Day-2:** `make swarm-sync` + `make swarm-secrets-sync` (#32); `make rebuild` (#33); `make release` / `dev-release` (#23)
-  - **Scale:** edit `eip.config.yaml` → `make swarm-sync` (no `scale-*` Make targets)
-  - **Refresh:** `make update-files` → whole-folder `scripts/` replace via `lib/public-bundle.sh`
-  - **Layout:** `scripts/lib`, `bootstrap/`, `swarm/`, `ops/`, `test/`
-  - **Docs:** DEPLOYMENT/ENV/MAKE paths aligned; [MAKE.md cross-OS smoke](./MAKE.md#cross-os-smoke-public-verbs)
-- **acceptance:** Docs describe bring-up vs apply vs rebuild; no public dual-name for env apply; public verbs smoke-documented on Windows/Linux/macOS; no Compose-elastic product path — **met**
-- **capacity-controller build-up:** #18 will own automatic scale; operators already have YAML + `swarm-sync` as the manual path
+- **how (landed → retired):** Public Make thinned, then replaced by bootstrap + `eip` (up/dev/sync/secrets/rebuild/update/logs/cli/shutdown). Scale = YAML + **`eip sync`** (automatic = **#18**).
+- **acceptance:** Docs teach eip-first bring-up vs apply vs rebuild; no Compose-elastic product path — **met**
+- **capacity-controller build-up:** #18 will own automatic scale; operators use YAML + `eip sync` as the manual path
 
 ### Capacity controller (Phase E)
 
@@ -628,7 +622,7 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
   4. **Scale-down sequence** - cordon -> drain/evacuate (#21) -> when empty `docker service scale` down (never instant kill of a hot slot).
   5. **Optional placement overlays** - Redis pins / migrate targets written for #21 / controller; **default placement remains ws-router Redis map (#4)**.
   6. **Kill switches & lease** - per-service `capacity_controller_managed: false`; only the lease holder mutates Docker; hot-reload config.
-  7. **Human ops CLI** - keep **`make ws-placement-ops`** as the operator surface; when the controller is armed it should **call the controller** (same evacuate/cordon/pin verbs), not write Redis/Docker in parallel. Direct Redis from the script stays a **break-glass** (unarmed / emergency) path only — do not teach two steady-state writers.
+  7. **Human ops CLI** - Make **`ws-placement-ops` removed**. When #18 is armed, evacuate/cordon/pin verbs live on the **capacity controller** (and later `eip`); do not restore a parallel Redis Make writer.
   
   Signals: Asynq queue depth/age; per-slot WS clients / hot-tenant; optional API latency/CPU. **Prometheus is part of this setup** — Swarm **data** fragment service (lean scrapes), independent of #34. **node-exporter / host headroom later** - not v1. Observability addon (#34) not required. Introduce order: **worker -> websocket (up first, down only with drain) -> api**.
 

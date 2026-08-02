@@ -13,9 +13,9 @@ import (
 func TestParseUpdateRestartMessage(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		in              string
-		wantRelaunch    bool
-		wantResume      bool
+		in           string
+		wantRelaunch bool
+		wantResume   bool
 	}{
 		{"restart-resume", true, true},
 		{"  Restart-Resume  ", true, true},
@@ -87,7 +87,7 @@ func TestOnCLIDoneSchedulesRelaunchWithResume(t *testing.T) {
 	if !strings.Contains(hm.pane.Text, "Restarting with new binary") {
 		t.Fatalf("pane=%q", hm.pane.Text)
 	}
-	// Do not invoke cmd — it would RelaunchSelf / os.Exit.
+	// Do not invoke cmd — it would RelaunchSelfOpts / os.Exit.
 }
 
 func TestOnCLIDoneErrorClearsResumeFlags(t *testing.T) {

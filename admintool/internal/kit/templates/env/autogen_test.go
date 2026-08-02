@@ -9,7 +9,7 @@ import (
 func TestGeneratePasswordHMACCharset(t *testing.T) {
 	t.Parallel()
 	for _, typ := range []FieldType{FieldPassword, FieldHMAC} {
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			s, err := Generate(typ)
 			if err != nil {
 				t.Fatal(err)
@@ -87,6 +87,43 @@ func TestIsLockedInFile(t *testing.T) {
 	}
 }
 
+func TestShowAutogenAndRollCheckboxes(t *testing.T) {
+	t.Parallel()
+	locked := EnvField{Key: "MONGO_PASSWORD", Autogen: true, Locked: true, Type: FieldPassword}
+	authz := EnvField{Key: "AUTHZ_HMAC_KEY", Autogen: true, Locked: true, Type: FieldHMAC}
+	rollable := EnvField{Key: "S3_SECRET_KEY", Autogen: true, Locked: false, Type: FieldPassword}
+	user := EnvField{Key: "MONGO_USERNAME", Locked: true, Type: FieldText}
+	set := "already-set-secret-value-here-ok"
+
+	if !ShowAutogenCheckbox(locked, "") || ShowRollCheckbox(locked, "") {
+		t.Fatal("first create Locked field: Autogen only")
+	}
+	if ShowAutogenCheckbox(locked, set) || ShowRollCheckbox(locked, set) {
+		t.Fatal("set Locked field: no Autogen/Roll")
+	}
+	if !IsLockedInFile(locked, set) || !SecretValueReadOnly(locked, set) {
+		t.Fatal("set Locked field must be read-only")
+	}
+
+	if ShowAutogenCheckbox(authz, set) || ShowRollCheckbox(authz, set) || !IsLockedInFile(authz, set) {
+		t.Fatal("set Authz HMAC: locked, no Roll")
+	}
+
+	if !ShowAutogenCheckbox(rollable, "") || ShowRollCheckbox(rollable, "") {
+		t.Fatal("first create rollable: Autogen only")
+	}
+	if ShowAutogenCheckbox(rollable, set) || !ShowRollCheckbox(rollable, set) {
+		t.Fatal("set rollable: Roll only")
+	}
+	if !SecretValueReadOnly(rollable, set) {
+		t.Fatal("set rollable value must be read-only")
+	}
+
+	if !IsLockedInFile(user, "EXAMPLE_USERNAME") || IsLockedInFile(user, "") {
+		t.Fatal("Locked username locks when non-empty")
+	}
+}
+
 func TestResolveEnvFieldsLockedPreserved(t *testing.T) {
 	t.Parallel()
 	vals := DefaultEnvValues()
@@ -156,19 +193,16 @@ func TestRuleHelpNonEmpty(t *testing.T) {
 
 func TestEnvFieldsAutogenFlags(t *testing.T) {
 	t.Parallel()
-	var lockedDB int
+	var lockedSecrets int
 	for _, f := range EnvFields() {
 		if f.Autogen && f.Type == FieldText {
 			t.Fatalf("%s: Autogen with FieldText", f.Key)
 		}
-		if f.Locked {
-			lockedDB++
-			if !f.Autogen {
-				t.Fatalf("%s locked but not Autogen", f.Key)
-			}
+		if f.Locked && f.Autogen {
+			lockedSecrets++
 		}
 	}
-	if lockedDB < 4 {
-		t.Fatalf("expected mongo/redis locked passwords, got %d", lockedDB)
+	if lockedSecrets < 6 {
+		t.Fatalf("expected locked Autogen secrets (mongo/redis/grafana/authz), got %d", lockedSecrets)
 	}
 }

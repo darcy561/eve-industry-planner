@@ -3,17 +3,19 @@ package docker
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
 
 // ResolveDockerEndpoint returns the Engine API host the Docker CLI would use.
 //
-// The Engine SDK's FromEnv does not read Docker CLI contexts. On Docker Desktop
-// the active context is often desktop-linux → dockerDesktopLinuxEngine (or a
-// Desktop unix socket), not the legacy SDK default pipe/socket. This helper is
-// CLI-context compatibility only — not OS service / WSL / Hyper-V detection.
+// Moby client.FromEnv does not read Docker CLI contexts. On Docker Desktop the
+// active context is often desktop-linux → dockerDesktopLinuxEngine (or a Desktop
+// unix socket), not the legacy default pipe/socket. This helper is CLI-context
+// compatibility only — not OS service / WSL / Hyper-V detection.
 //
 // Precedence: DOCKER_HOST → DOCKER_CONTEXT → config currentContext Host → ""
 // (empty = let the SDK use its platform default). Does not load context TLS
@@ -59,7 +61,7 @@ func currentContextName() (string, error) {
 	}
 	b, err := os.ReadFile(filepath.Join(dir, "config.json"))
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return "", nil
 		}
 		return "", err
@@ -82,7 +84,7 @@ func contextEndpointHost(name string) (string, error) {
 	metaPath := filepath.Join(dir, "contexts", "meta", fmt.Sprintf("%x", sum), "meta.json")
 	b, err := os.ReadFile(metaPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return "", nil
 		}
 		return "", fmt.Errorf("docker context %q: %w", name, err)

@@ -5,7 +5,7 @@ package status
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 
 	"eve-industry-planner/admintool/internal/status"
 	"eve-industry-planner/admintool/tui/theme"

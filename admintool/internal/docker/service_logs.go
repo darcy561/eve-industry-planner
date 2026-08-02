@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/moby/moby/api/pkg/stdcopy"
+	"github.com/moby/moby/client"
 )
 
 // ServiceLogsOpts configures Swarm service log streaming.
@@ -18,7 +17,7 @@ type ServiceLogsOpts struct {
 }
 
 // ServiceLogs opens the log stream for a Swarm service (caller must Close).
-func ServiceLogs(ctx context.Context, cli client.APIClient, nameOrID string, opts ServiceLogsOpts) (io.ReadCloser, error) {
+func ServiceLogs(ctx context.Context, apiClient *client.Client, nameOrID string, opts ServiceLogsOpts) (io.ReadCloser, error) {
 	if nameOrID == "" {
 		return nil, fmt.Errorf("service logs: empty name")
 	}
@@ -26,7 +25,7 @@ func ServiceLogs(ctx context.Context, cli client.APIClient, nameOrID string, opt
 	if tail == "" {
 		tail = "100"
 	}
-	rc, err := cli.ServiceLogs(ctx, nameOrID, container.LogsOptions{
+	result, err := apiClient.ServiceLogs(ctx, nameOrID, client.ServiceLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     opts.Follow,
@@ -37,13 +36,7 @@ func ServiceLogs(ctx context.Context, cli client.APIClient, nameOrID string, opt
 	if err != nil {
 		return nil, fmt.Errorf("service logs %s: %w", nameOrID, err)
 	}
-	return rc, nil
-}
-
-// CopyServiceLogs demuxes a ServiceLogs reader onto w (stdout+stderr frames → w).
-func CopyServiceLogs(w io.Writer, rc io.Reader) error {
-	_, err := stdcopy.StdCopy(w, w, rc)
-	return err
+	return result, nil
 }
 
 // CopyServiceLogsFormatted demuxes and rewrites Swarm details prefixes into

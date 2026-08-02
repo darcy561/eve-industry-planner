@@ -1,6 +1,8 @@
 package kit
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -27,7 +29,7 @@ func TestCheckDirWritableMissingNoCreate(t *testing.T) {
 	if err := CheckDirWritable(missing); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "nope")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, "nope")); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatal("CheckDirWritable must not create missing dirs")
 	}
 }

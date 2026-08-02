@@ -3,12 +3,11 @@
 package task
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"os/exec"
-	"strings"
 	"time"
+
+	"github.com/moby/moby/client"
 
 	"eve-industry-planner/admintool/internal/docker"
 )
@@ -24,6 +23,15 @@ type ReadyFunc func(ctx context.Context, cid string) error
 
 // ContainerID returns the first running container id for stack_service, or "".
 func ContainerID(ctx context.Context, stackName, service string) (string, error) {
+	apiClient, err := docker.NewAPIClient(client.WithTimeout(docker.DefaultClientTimeout))
+	if err != nil {
+		return "", err
+	}
+	defer apiClient.Close()
+	return containerID(ctx, apiClient, stackName, service)
+}
+
+func containerID(ctx context.Context, apiClient *client.Client, stackName, service string) (string, error) {
 	if stackName == "" {
 		stackName = docker.ResolveStackName()
 	}
@@ -31,25 +39,21 @@ func ContainerID(ctx context.Context, stackName, service string) (string, error)
 		return "", fmt.Errorf("task: service name required")
 	}
 	svc := stackName + "_" + service
-	cmd := exec.CommandContext(ctx, "docker", "ps", "-q",
-		"--filter", "label=com.docker.swarm.service.name="+svc,
-		"--filter", "status=running",
-	)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	if err := cmd.Run(); err != nil {
-		// CommandContext often surfaces "signal: killed" / "exit status 1" when
-		// the parent ctx expires; prefer the context error for callers.
+	f := make(client.Filters)
+	f.Add("label", docker.LabelSwarmServiceName+"="+svc)
+	f.Add("status", "running")
+	list, err := apiClient.ContainerList(ctx, client.ContainerListOptions{Filters: f})
+	if err != nil {
+		// Prefer parent ctx expiry over opaque transport/cancel noise.
 		if ctx.Err() != nil {
 			return "", ctx.Err()
 		}
 		return "", err
 	}
-	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
-	if len(lines) == 0 || strings.TrimSpace(lines[0]) == "" {
+	if len(list.Items) == 0 {
 		return "", nil
 	}
-	return strings.TrimSpace(lines[0]), nil
+	return list.Items[0].ID, nil
 }
 
 // Running reports whether a Swarm task for service is currently running.
@@ -67,12 +71,18 @@ func Wait(ctx context.Context, stackName, service string, timeout time.Duration,
 	if timeout <= 0 {
 		timeout = DefaultTimeout
 	}
+	apiClient, err := docker.NewAPIClient(client.WithTimeout(timeout + docker.DefaultClientTimeout))
+	if err != nil {
+		return "", err
+	}
+	defer apiClient.Close()
+
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
-		cid, err := ContainerID(ctx, stackName, service)
+		cid, err := containerID(ctx, apiClient, stackName, service)
 		if err != nil {
 			return "", err
 		}

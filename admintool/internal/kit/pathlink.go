@@ -1,7 +1,9 @@
 package kit
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -111,7 +113,7 @@ func InstallPathLink(dir string) (linkPath string, err error) {
 		if err := os.Remove(linkPath); err != nil {
 			return "", fmt.Errorf("replace symlink: %w", err)
 		}
-	} else if !os.IsNotExist(err) {
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return "", err
 	}
 	if err := os.Symlink(target, linkPath); err != nil {
@@ -131,7 +133,7 @@ func RemovePathLink(dir string) (linkPath string, err error) {
 	linkPath = filepath.Join(dir, LinkName())
 	fi, err := os.Lstat(linkPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return linkPath, fmt.Errorf("no link at %s", linkPath)
 		}
 		return "", err

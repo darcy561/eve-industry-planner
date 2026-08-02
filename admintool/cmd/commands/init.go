@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"context"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -14,6 +13,7 @@ import (
 	"eve-industry-planner/admintool/internal/kit"
 	"eve-industry-planner/admintool/internal/kit/templates"
 	"eve-industry-planner/admintool/internal/msg"
+	"eve-industry-planner/admintool/internal/process"
 )
 
 func init() {
@@ -44,20 +44,27 @@ TUI Setup is the guided editor for the same files (may overwrite with backups).`
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		msg.EmitStackForVerb("init")
-		home, err := kit.Home()
-		if err != nil {
+		ctx, cancel := process.TimeoutSignalContext(20 * time.Minute)
+		defer cancel()
+
+		fail := func(err error) error {
+			err = process.MapDoneError(err)
 			msg.EmitStack("init", msg.LightRed, err.Error())
 			return err
 		}
 
+		home, err := kit.Home()
+		if err != nil {
+			return fail(err)
+		}
+
 		msg.Step("Ensuring docker-stack*.yml…")
-		stackRes, err := kit.UpdateStacks(context.Background(), kit.StackUpdateOptions{
+		stackRes, err := kit.UpdateStacks(ctx, kit.StackUpdateOptions{
 			Home:        home,
 			MissingOnly: true,
 		})
 		if err != nil {
-			msg.EmitStack("init", msg.LightRed, err.Error())
-			return err
+			return fail(err)
 		}
 		for _, name := range stackRes.Updated {
 			msg.Line("wrote " + name + " (from " + stackRes.Branch + ")")
@@ -68,13 +75,11 @@ TUI Setup is the guided editor for the same files (may overwrite with backups).`
 
 		wroteEnv, err := templates.WriteMissingEnv(home)
 		if err != nil {
-			msg.EmitStack("init", msg.LightRed, err.Error())
-			return err
+			return fail(err)
 		}
 		wroteCfg, err := templates.WriteMissingConfig(home)
 		if err != nil {
-			msg.EmitStack("init", msg.LightRed, err.Error())
-			return err
+			return fail(err)
 		}
 
 		for _, line := range initLines(home, wroteEnv, wroteCfg) {
@@ -97,31 +102,27 @@ TUI Setup is the guided editor for the same files (may overwrite with backups).`
 		msg.Line("operator docs ok")
 
 		stackName := docker.ResolveStackName()
-		probeCtx, probeCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		probeCtx, probeCancel := process.TimeoutSignalContext(30 * time.Second)
 		s3Up, err := s3.TaskRunning(probeCtx, stackName)
 		if err != nil {
 			probeCancel()
-			msg.EmitStack("init", msg.LightRed, err.Error())
-			return err
+			return fail(err)
 		}
 		mongoUp, err := mongo.TaskRunning(probeCtx, stackName)
 		probeCancel()
 		if err != nil {
-			msg.EmitStack("init", msg.LightRed, err.Error())
-			return err
+			return fail(err)
 		}
 		// Docs already checked above; use Ensure* which re-checks (cheap) before service work.
 		if !s3Up {
 			msg.Line("seaweedfs task not running — skip EnsureS3 (run eip up or start data stack)")
-		} else if err := dataplane.EnsureS3(context.Background(), stackName); err != nil {
-			msg.EmitStack("init", msg.LightRed, err.Error())
-			return err
+		} else if err := dataplane.EnsureS3(ctx, stackName); err != nil {
+			return fail(err)
 		}
 		if !mongoUp {
 			msg.Line("mongo task not running — skip EnsureMongo (run eip up or start data stack)")
-		} else if err := dataplane.EnsureMongo(context.Background(), stackName); err != nil {
-			msg.EmitStack("init", msg.LightRed, err.Error())
-			return err
+		} else if err := dataplane.EnsureMongo(ctx, stackName); err != nil {
+			return fail(err)
 		}
 
 		chip := "already initialized"

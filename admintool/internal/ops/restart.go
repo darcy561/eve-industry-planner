@@ -1,15 +1,16 @@
-// Package ops implements day-2 stack lifecycle verbs (restart, shutdown, logs)
-// using the Engine SDK via internal/docker.
+// Package ops implements day-2 stack lifecycle verbs (restart, shutdown, logs,
+// repair) using the Moby Engine API via internal/docker.NewAPIClient.
 package ops
 
 import (
 	"context"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 
 	"eve-industry-planner/admintool/internal/catalog"
 	"eve-industry-planner/admintool/internal/docker"
@@ -19,38 +20,33 @@ import (
 
 // ListRunning returns short names of Swarm services in the stack namespace (sorted).
 func ListRunning(ctx context.Context) ([]string, error) {
-	cli, err := docker.NewClient(client.WithTimeout(30 * time.Second))
+	apiClient, err := docker.NewAPIClient(client.WithTimeout(30 * time.Second))
 	if err != nil {
 		return nil, err
 	}
-	defer cli.Close()
+	defer apiClient.Close()
 
-	snap, err := docker.LoadStackSnapshot(ctx, cli, docker.ResolveStackName())
+	snap, err := docker.LoadStackSnapshot(ctx, apiClient, docker.ResolveStackName())
 	if err != nil {
 		return nil, err
 	}
 	if !snap.Present {
 		return nil, nil
 	}
-	names := make([]string, 0, len(snap.Services))
-	for short := range snap.Services {
-		names = append(names, short)
-	}
-	sort.Strings(names)
-	return names, nil
+	return slices.Sorted(maps.Keys(snap.Services)), nil
 }
 
 // Restart force-updates one Swarm service or the whole stack (same images).
 // target is a short name, full name (eip_api), or "all".
 func Restart(ctx context.Context, target string, yes bool) error {
-	cli, err := docker.NewClient(client.WithTimeout(5 * time.Minute))
+	apiClient, err := docker.NewAPIClient(client.WithTimeout(5 * time.Minute))
 	if err != nil {
 		return err
 	}
-	defer cli.Close()
+	defer apiClient.Close()
 
 	stackName := docker.ResolveStackName()
-	snap, err := docker.LoadStackSnapshot(ctx, cli, stackName)
+	snap, err := docker.LoadStackSnapshot(ctx, apiClient, stackName)
 	if err != nil {
 		return err
 	}
@@ -70,14 +66,14 @@ func Restart(ctx context.Context, target string, yes bool) error {
 		if !process.Confirm("Restart the whole app with a rolling update (same version). The app should stay up.", yes) {
 			return fmt.Errorf("restart: cancelled (pass -y to confirm)")
 		}
-		return restartAll(ctx, cli, snap)
+		return restartAll(ctx, apiClient, snap)
 	}
 	info := snap.Services[short]
 	if !process.Confirm(fmt.Sprintf("Restart %s with a rolling update so the app stays up.", short), yes) {
 		return fmt.Errorf("restart: cancelled (pass -y to confirm)")
 	}
 	msg.Step("Rolling restart: %s", short)
-	if err := docker.ForceUpdateService(ctx, cli, info.FullName); err != nil {
+	if err := docker.ForceUpdateService(ctx, apiClient, info.FullName); err != nil {
 		return err
 	}
 	msg.Step("Done. Check with: eip status")
@@ -88,11 +84,7 @@ func Restart(ctx context.Context, target string, yes bool) error {
 func resolveRestartTarget(target, stackName string, running map[string]struct{}) (short string, all bool, err error) {
 	target = strings.TrimSpace(target)
 	if target == "" {
-		names := make([]string, 0, len(running))
-		for s := range running {
-			names = append(names, s)
-		}
-		sort.Strings(names)
+		names := slices.Sorted(maps.Keys(running))
 		return "", false, fmt.Errorf("restart: pass a service short name or \"all\" (running: %s)", strings.Join(names, ", "))
 	}
 	if strings.EqualFold(target, "all") {
@@ -105,35 +97,17 @@ func resolveRestartTarget(target, stackName string, running map[string]struct{})
 	return short, false, nil
 }
 
-func restartAll(ctx context.Context, cli client.APIClient, snap docker.StackSnapshot) error {
+func restartAll(ctx context.Context, apiClient *client.Client, snap docker.StackSnapshot) error {
 	msg.Step("Rolling restart of the whole app (same version)…")
-	prefer := catalog.RestartPrefer()
-	done := map[string]bool{}
-	n := 0
-	for _, short := range prefer {
-		info, ok := snap.Services[short]
-		if !ok {
-			continue
-		}
-		msg.Step("  rolling restart: %s", short)
-		if err := docker.ForceUpdateService(ctx, cli, info.FullName); err != nil {
-			return err
-		}
-		done[short] = true
-		n++
-	}
-	rest := make([]string, 0, len(snap.Services))
+	cands := make(map[string]struct{}, len(snap.Services))
 	for short := range snap.Services {
-		if done[short] {
-			continue
-		}
-		rest = append(rest, short)
+		cands[short] = struct{}{}
 	}
-	sort.Strings(rest)
-	for _, short := range rest {
+	n := 0
+	for _, short := range catalog.OrderPrefer(cands) {
 		info := snap.Services[short]
 		msg.Step("  rolling restart: %s", short)
-		if err := docker.ForceUpdateService(ctx, cli, info.FullName); err != nil {
+		if err := docker.ForceUpdateService(ctx, apiClient, info.FullName); err != nil {
 			return err
 		}
 		n++

@@ -3,7 +3,7 @@ package status
 import (
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // PollInterval is how often home runs ProbeCmd (Docker chip refresh).

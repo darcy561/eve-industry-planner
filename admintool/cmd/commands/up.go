@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"eve-industry-planner/admintool/internal/catalog"
 	"eve-industry-planner/admintool/internal/deploy"
 	"eve-industry-planner/admintool/internal/msg"
+	"eve-industry-planner/admintool/internal/process"
 )
 
 func init() {
@@ -35,10 +35,10 @@ func runDeploy(cmd *cobra.Command, src deploy.Source) error {
 	}
 	msg.EmitStackForVerb(verb)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Minute)
+	ctx, cancel := process.TimeoutSignalContext(45 * time.Minute)
 	defer cancel()
 
-	err := deploy.Run(ctx, src)
+	err := process.MapDoneError(deploy.Run(ctx, src))
 	if err != nil {
 		msg.EmitStack(verb, msg.LightRed, err.Error())
 		return err

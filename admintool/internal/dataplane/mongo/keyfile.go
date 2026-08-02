@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -15,7 +16,7 @@ import (
 	"eve-industry-planner/admintool/internal/msg"
 )
 
-// keyfileRandBytes matches scripts/bootstrap/generate-mongo-keyfile.sh (openssl rand -base64 756).
+// keyfileRandBytes: openssl rand -base64 756 (756 bytes of entropy, base64-encoded).
 const keyfileRandBytes = 756
 
 // keyFileBak is the local spare next to ./mongo-keyfile (gitignored).
@@ -92,18 +93,6 @@ func EnsureKeyfile() error {
 	}
 
 	return writeGeneratedKeyfile(path, bak, "wrote")
-}
-
-// RequireKeyfile fails if project-home mongo-keyfile is missing or empty.
-func RequireKeyfile() error {
-	path, err := KeyfilePath()
-	if err != nil {
-		return err
-	}
-	if !keyfilePresent(path) {
-		return fmt.Errorf("mongo: missing %s (eip restore-mongo-keyfile if task is up; eip rekey-mongo if stack is down + MONGO_ROOT_*; else restore from %s)", keyFileName, keyFileBak)
-	}
-	return nil
 }
 
 // writeKeyfileContents generates a new keyfile body and writes it to path (chmod 600).
@@ -236,7 +225,7 @@ func pickContainerKeyfile(ctx context.Context, cid string) (string, error) {
 func containerPathNonEmpty(ctx context.Context, cid, path string) (bool, error) {
 	cmd := exec.CommandContext(ctx, "docker", "exec", cid, "test", "-s", path)
 	if err := cmd.Run(); err != nil {
-		if _, ok := err.(*exec.ExitError); ok {
+		if _, ok := errors.AsType[*exec.ExitError](err); ok {
 			return false, nil
 		}
 		return false, fmt.Errorf("mongo: probe %s in container: %w", path, err)

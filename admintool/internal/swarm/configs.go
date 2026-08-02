@@ -1,5 +1,6 @@
-// Configs sync eip.config.sync mounts to hashed Swarm config objects.
-// Observability file: paths resolve from the eip binary (kit.ReadObs); other paths from disk.
+// Configs sync eip.config.sync mounts to hashed Swarm config objects (Moby
+// Config* APIs — not `docker config` CLI). Observability files resolve from the
+// eip binary (kit.ReadObs); other paths from disk.
 package swarm
 
 import (
@@ -7,8 +8,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
-	"eve-industry-planner/admintool/internal/dockercli"
+	"github.com/containerd/errdefs"
+	swarmtypes "github.com/moby/moby/api/types/swarm"
+	"github.com/moby/moby/client"
+
+	"eve-industry-planner/admintool/internal/docker"
 	"eve-industry-planner/admintool/internal/kit"
 	"eve-industry-planner/admintool/internal/stack"
 )
@@ -48,13 +54,19 @@ func SyncConfigs(ctx context.Context, home string, stackFiles ...string) (map[st
 		}
 	}
 
+	apiClient, err := docker.NewAPIClient(client.WithTimeout(2 * time.Minute))
+	if err != nil {
+		return nil, fmt.Errorf("configs: engine API client: %w", err)
+	}
+	defer apiClient.Close()
+
 	keyToObj := map[string]string{}
 	for _, t := range targets {
 		raw, err := resolveBytes(home, t.File)
 		if err != nil {
 			return nil, fmt.Errorf("config %s: %w", t.Key, err)
 		}
-		obj, err := ensureConfig(ctx, t.Key, raw)
+		obj, err := ensureConfig(ctx, apiClient, t.Key, raw)
 		if err != nil {
 			return nil, err
 		}
@@ -89,13 +101,25 @@ func resolveBytes(home, file string) ([]byte, error) {
 	return raw, nil
 }
 
-func ensureConfig(ctx context.Context, key string, raw []byte) (string, error) {
+func ensureConfig(ctx context.Context, apiClient *client.Client, key string, raw []byte) (string, error) {
 	obj := Name(key, raw)
-	if _, err := dockercli.RunOut(ctx, "config", "inspect", obj); err == nil {
+	if _, err := apiClient.ConfigInspect(ctx, obj, client.ConfigInspectOptions{}); err == nil {
 		return obj, nil
+	} else if !errdefs.IsNotFound(err) {
+		return "", fmt.Errorf("inspect config %s: %w", obj, err)
 	}
-	if err := dockercli.CreateStdin(ctx, "config", obj, raw); err != nil {
-		return "", err
+	if _, err := apiClient.ConfigCreate(ctx, client.ConfigCreateOptions{
+		Spec: swarmtypes.ConfigSpec{
+			Annotations: swarmtypes.Annotations{Name: obj},
+			Data:        raw,
+		},
+	}); err != nil {
+		if errdefs.IsConflict(err) || errdefs.IsAlreadyExists(err) {
+			if _, inspErr := apiClient.ConfigInspect(ctx, obj, client.ConfigInspectOptions{}); inspErr == nil {
+				return obj, nil
+			}
+		}
+		return "", fmt.Errorf("create config %s: %w", obj, err)
 	}
 	return obj, nil
 }

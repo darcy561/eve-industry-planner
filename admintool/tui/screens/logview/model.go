@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"eve-industry-planner/admintool/internal/kit"
 	"eve-industry-planner/admintool/internal/ops"
@@ -73,7 +73,7 @@ func Run(service, tail string) error {
 		lines:   ch,
 		errs:    errCh,
 	}
-	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	p := tea.NewProgram(m)
 	_, err := p.Run()
 	cancel()
 	return err
@@ -128,7 +128,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "q", "esc":
 			if m.cancel != nil {
@@ -167,10 +167,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *model) layout() {
 	chrome := brand.MiniHeight() + 1 /*rule*/ + 1 /*footer*/
-	bodyH := m.height - chrome
-	if bodyH < 3 {
-		bodyH = 3
-	}
+	bodyH := max(m.height-chrome, 3)
 	ui.SizeViewport(&m.vp, theme.Max(12, m.width-2*theme.HMargin), bodyH)
 	m.syncVP()
 }
@@ -179,17 +176,21 @@ func (m *model) syncVP() {
 	ui.SetViewportText(&m.vp, m.text, m.follow)
 }
 
-func (m model) View() string {
+func (m model) View() tea.View {
 	if !m.ready {
-		return "Loading logs…"
+		return ui.NewProgramView("Loading logs…", ui.ProgramViewOpts{Title: kit.CLIName + " logs"})
 	}
 	header := m.renderHeader()
 	body := lipgloss.NewStyle().
 		Width(m.width).
 		Padding(0, theme.HMargin).
 		Render(m.vp.View())
-	footer := ui.HelpLine(m.width, "pgup/pgdn scroll   end follow   esc/q close")
-	return lipgloss.JoinVertical(lipgloss.Left, header, body, footer)
+	footer := ui.HelpLine(m.width, "wheel/pgup/pgdn scroll   end follow   esc/q close")
+	title := kit.CLIName + " · logs " + m.service
+	return ui.NewProgramView(
+		lipgloss.JoinVertical(lipgloss.Left, header, body, footer),
+		ui.ProgramViewOpts{Title: title},
+	)
 }
 
 func (m model) renderHeader() string {

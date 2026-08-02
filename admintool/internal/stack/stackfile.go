@@ -1,11 +1,13 @@
-// Package stack loads docker-stack*.yml fragments and expands them for deploy.
+// Package stack loads docker-stack*.yml, expands via compose-go, and injects
+// hashed secrets/configs for deploy.
 // Membership SoT for capacity sync, config mounts, secret attaches, and Traefik/Grafana apply.
 package stack
 
 import (
 	"fmt"
+	"maps"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -536,7 +538,7 @@ func ImageRepos(doc Doc) map[string]string {
 // ConfigMounts returns every eip.config.sync mount (stable service order).
 // Same logical key on two services yields two entries (mount roll needs both).
 func ConfigMounts(doc Doc) ([]ConfigMount, error) {
-	names := sortedKeys(doc.Services)
+	names := slices.Sorted(maps.Keys(doc.Services))
 	var out []ConfigMount
 	for _, name := range names {
 		svc := doc.Services[name]
@@ -588,7 +590,7 @@ func CapacityTargets(doc Doc, stackPrefix string) []CapacityTarget {
 	if stackPrefix == "" {
 		stackPrefix = "eip"
 	}
-	names := sortedKeys(doc.Services)
+	names := slices.Sorted(maps.Keys(doc.Services))
 	var out []CapacityTarget
 	for _, name := range names {
 		svc := doc.Services[name]
@@ -610,7 +612,7 @@ func CapacityTargets(doc Doc, stackPrefix string) []CapacityTarget {
 
 // SecretAttaches returns per-service secret keys (stable service order).
 func SecretAttaches(doc Doc) []SecretAttach {
-	names := sortedKeys(doc.Services)
+	names := slices.Sorted(maps.Keys(doc.Services))
 	var out []SecretAttach
 	for _, name := range names {
 		for _, k := range doc.Services[name].Secrets {
@@ -618,13 +620,4 @@ func SecretAttaches(doc Doc) []SecretAttach {
 		}
 	}
 	return out
-}
-
-func sortedKeys[V any](m map[string]V) []string {
-	names := make([]string, 0, len(m))
-	for n := range m {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	return names
 }

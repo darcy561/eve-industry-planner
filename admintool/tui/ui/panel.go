@@ -1,10 +1,8 @@
 package ui
 
 import (
-	"strings"
-
-	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/viewport"
+	"charm.land/lipgloss/v2"
 
 	"eve-industry-planner/admintool/tui/theme"
 )
@@ -18,22 +16,13 @@ type SplitLayout struct {
 
 // CalcSplit sizes the two-pane body given terminal size and reserved chrome height.
 func CalcSplit(termW, termH, chromeH int) SplitLayout {
-	bodyH := termH - chromeH
-	if bodyH < 8 {
-		bodyH = 8
-	}
+	bodyH := max(termH-chromeH, 8)
 
 	usableW := termW - 2*theme.HMargin
 	if usableW < 40 {
 		usableW = theme.Max(40, termW)
 	}
-	leftW := usableW * 36 / 100
-	if leftW < 30 {
-		leftW = 30
-	}
-	if leftW > 44 {
-		leftW = 44
-	}
+	leftW := min(max(usableW*36/100, 30), 44)
 	rightW := usableW - leftW - theme.ColGap
 	if rightW < 28 {
 		rightW = 28
@@ -89,9 +78,12 @@ func HelpLine(termW int, text string) string {
 	return theme.HelpLine(termW, text)
 }
 
-// NewOutputViewport builds a keyboard-scrolled output pane (mouse wheel off).
+// NewOutputViewport builds an OUTPUT/form viewport (soft-wrap on).
+// Home/builder scroll via zone wheel routing; set MouseWheelEnabled for
+// standalone viewports that handle tea.MouseMsg themselves (logview).
 func NewOutputViewport(content string) viewport.Model {
-	vp := viewport.New(0, 0)
+	vp := viewport.New()
+	vp.SoftWrap = true
 	vp.SetContent(content)
 	vp.MouseWheelEnabled = false
 	return vp
@@ -102,50 +94,23 @@ func SizeViewport(vp *viewport.Model, width, height int) {
 	if vp == nil {
 		return
 	}
-	vp.Width = theme.Max(12, width)
-	vp.Height = theme.Max(5, height)
+	vp.SetWidth(theme.Max(12, width))
+	vp.SetHeight(theme.Max(5, height))
 }
 
 // SetViewportText replaces content. When followBottom is true, keeps the view
 // pinned to the latest lines; otherwise preserves the current scroll offset
 // (clamped) so the operator can read history while output still appends.
-// Soft-wraps to the viewport width so long log lines stay readable.
+// Soft wrapping is handled by the viewport (SoftWrap).
 func SetViewportText(vp *viewport.Model, text string, followBottom bool) {
 	if vp == nil {
 		return
 	}
-	y := vp.YOffset
-	w := vp.Width
-	if w < 8 {
-		w = 8
-	}
-	vp.SetContent(SoftWrap(text, w))
+	y := vp.YOffset()
+	vp.SetContent(text)
 	if followBottom {
 		vp.GotoBottom()
 		return
 	}
 	vp.SetYOffset(y)
-}
-
-// SoftWrap inserts newlines so no visual line exceeds width (rune-aware).
-func SoftWrap(text string, width int) string {
-	if width < 8 || text == "" {
-		return text
-	}
-	lines := strings.Split(text, "\n")
-	var b strings.Builder
-	b.Grow(len(text) + len(lines))
-	for i, line := range lines {
-		if i > 0 {
-			b.WriteByte('\n')
-		}
-		runes := []rune(line)
-		for len(runes) > width {
-			b.WriteString(string(runes[:width]))
-			b.WriteByte('\n')
-			runes = runes[width:]
-		}
-		b.WriteString(string(runes))
-	}
-	return b.String()
 }

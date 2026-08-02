@@ -4,7 +4,7 @@
 >
 > **Object store = SeaweedFS** (`eip_seaweedfs`) + shared Go package `objectstore`. S3-compatible API on overlay `seaweedfs:8333`. Bucket layout `static-data` / `live_data/` etc.
 >
-> **Progress:** slices 1–6 **complete and validated**. ROADMAP **#9–#14** + **#28** done — core boxed off (primary lease, `start-first`, Redis changestream resume, dual-publisher failover tests in `core/leadership`, `make cli`). **Next (outside this doc):** ROADMAP **#3** / **#18** track.
+> **Progress:** slices 1–6 **complete and validated**. ROADMAP **#9–#14** + **#28** done — core boxed off (primary lease, `start-first`, Redis changestream resume, dual-publisher failover tests in `core/leadership`, `eip cli`). **Next (outside this doc):** ROADMAP **#3** / **#18** track.
 
 ## Direction (locked)
 
@@ -262,7 +262,7 @@ ROADMAP #9–#14 / Phase B/C closed. Bring-up order, **fragment-per-layer**, `up
 | **#10** Ready without Compose depends_on | **done** — per-service **`/healthy` + `/ready`**; api owns static readiness; core `/ready` = handoff-ready standby |
 | **#11 / #12** Lease-gate scheduler + changestream | Slice 6 — **done** — under `lease:core:primary` + `servicemanager`; #12 Redis resume + watch cancel |
 | **#13** start-first hot-swap | Slice 6 — **done** — `docker-stack.yml` + validated live roll |
-| **#14** Core CLI under Swarm | **done** — `make cli` / `scripts/swarm/ops/core-cli.sh` (core-only) |
+| **#14** Core CLI under Swarm | **done** — `eip cli` / TUI More→Command (`cli …` or bare tasks) |
 | **#28** Core failover tests | **done** — unit/miniredis + `core/leadership` dual-publisher harness (clean-Stop takeover bound; crash/TTL via `lease` tests) |
 | **#5 / STACK** split | **Fragment-per-layer** — data vs app |
 | **#17 / #23 / #33** make surface / app train | **App train = app fragment only**; **`make update-data`** for data fragment |

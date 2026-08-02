@@ -3,27 +3,26 @@
 > Part of [ROADMAP.md](./ROADMAP.md). **`.env` = secrets.** Mesh hosts/URLs (mongo/redis/nats/S3)
 > are injected by [`docker-stack.yml`](../../docker-stack.yml) anchors — not set in `.env`.
 > Non-secret tunables (replicas, capacity, addon toggles) live in **`eip.config.yaml`** (#19).
-> Apply YAML with **`make swarm-sync`**. Refresh elastic secrets from `.env` with
-> **`make swarm-secrets-sync`** (#32). Containers do **not**
-> reload env automatically.
+> Prefer **`eip sync`** (YAML) and **`eip secrets`** (`.env` → Swarm secrets). Make verbs below are
+> **legacy**. Containers do **not** reload env automatically.
 
 ## Two surfaces
 
 | Surface | Contents | Apply |
 |---------|----------|--------|
-| **`.env`** | Secrets (DB passwords, SSO, HMAC keys, S3 keys, …) | Swarm services get secrets via **`eip secrets`** / legacy **`make swarm-secrets-sync`** (versioned `docker secret` + `/run/secrets/<KEY>`). Optional `MONGO_*_API` / `REDIS_*_API`: api prefers them when set (`ConnectAPI`), else shared creds. **Creating** those DB/ACL users is a later Ensure follow-up (ROADMAP) — not required for day-2. App S3 buckets: **`eip ensure-s3`** / Ready. Root/app mongo users + indexes: **`eip ensure-mongo`** / Ready. |
+| **`.env`** | Secrets (DB passwords, SSO, HMAC keys, S3 keys, …) | Swarm services get secrets via **`eip secrets`** (Moby Engine API → versioned Swarm secret objects + `/run/secrets/<KEY>`). Optional `MONGO_*_API` / `REDIS_*_API`: api prefers them when set (`ConnectAPI`), else shared creds. **Creating** those DB/ACL users is a later Ensure follow-up (ROADMAP) — not required for day-2. App S3 buckets: **`eip ensure-s3`** / Ready. Root/app mongo users + indexes: **`eip ensure-mongo`** / Ready. Legacy: `make swarm-secrets-sync`. |
 | **Stack anchors** (`x-mongo-env`, `x-redis-env`, …) | Mesh networking (`MONGO_HOST` / `REDIS_*` / `NATS_URL` / `S3_URL`) | Required by Go (no host fallbacks). Not secrets. |
 | **`x-frontend-public-env`** | SPA public knobs (`EVE_CLIENT_ID`, callback/scope, `GA4_*`, `ENVIRONMENT`) | Stack task `environment` on `eip_frontend` — **no** docker secrets for FE |
-| **Operator YAML** | Replicas / capacity / concurrency / `client_cutoff` / addons / ports/paths / `proxy.trusted_ips`+`trusted_cidrs` / `scale_timing` | `eip init` writes defaults from [`yamldefaults.DefaultConfig`](../../admintool/internal/kit/templates/yamldefaults/default.go). **`make swarm-sync`** validates + writes an **ephemeral** sync-env + targeted apply (capacity + Traefik ports/paths/proxy + Grafana path) and hash-diff Swarm file configs (`eip.config.sync`). Addon toggle (#34) still open |
+| **Operator YAML** | Replicas / capacity / concurrency / `client_cutoff` / addons / ports/paths / `proxy.trusted_ips`+`trusted_cidrs` / `scale_timing` | `eip init` writes defaults from [`yamldefaults.DefaultConfig`](../../admintool/internal/kit/templates/yamldefaults/default.go). **`eip sync`** validates + targeted apply (capacity + Traefik ports/paths/proxy + Grafana path) and hash-diff Swarm file configs (`eip.config.sync`). Addon toggle (#34) still open. Legacy: `make swarm-sync`. |
 
 | Verb | Applies |
 |------|---------|
-| `make swarm-sync` | Operator YAML → Swarm capacity / ports / paths |
-| `make swarm-secrets-sync` | `.env` → elastic Swarm refresh (no YAML; no data-plane bounce) |
+| **`eip sync`** | Operator YAML → Swarm capacity / ports / paths |
+| **`eip secrets`** | `.env` → elastic Swarm refresh (no YAML; no data-plane bounce) |
+| `make swarm-sync` | **Legacy** — same intent as `eip sync` |
+| `make swarm-secrets-sync` | **Legacy** — same intent as `eip secrets` |
 
-Word order differs on purpose so tab-complete / muscle memory cannot easily hit the wrong target.
-
-### What `make swarm-sync` applies today
+### What sync applies today (`eip sync` / legacy `make swarm-sync`)
 
 Capacity membership is **label-discovered**: stack services with `eip.capacity.sync=1` in
 [`docker-stack.yml`](../../docker-stack.yml) (api / websocket / worker). `eip.capacity.*` alone
@@ -42,24 +41,25 @@ is not enough — ws-router has capacity labels but is not synced. File configs 
 
 Sync **does not** recreate mongo/redis/nats for these changes. Core and frontend are on Swarm (`eip_core`, `eip_frontend`) — sync may roll them only when stack env/spec changes. Changing concurrency or cutoff rolls the matching Swarm service(s) when the env/spec changes. Ports/paths roll Traefik briefly when publish/labels differ; Grafana path recreate only when `paths.grafana` differs and grafana is running. Setting `replicas` to `min` re-asserts the YAML desired count (manual `docker service scale` is overwritten on next sync).
 
-Capacity/ports bridges are **ephemeral**: `scripts/lib/eip-config.sh` (`eip_sync_env_temp` / `eip_write_sync_env`) at stack expand and `make swarm-sync`. There is **no** durable `.eip-sync.env`. Temp files emit `EIP_HTTP_PORT`, `EIP_HTTPS_PORT`, `EIP_TRAEFIK_DASHBOARD_PORT`, `EIP_GRAFANA_PATH`, `EIP_TRAEFIK_DASHBOARD_PATH`, `EIP_TRAEFIK_TRUSTED_PROXY_CIDRS`, and `GRAFANA_ROOT_URL` for interpolation, then are removed.
+Capacity/ports bridges are **ephemeral** at stack expand and sync. There is **no** durable `.eip-sync.env`. Temp files emit `EIP_HTTP_PORT`, `EIP_HTTPS_PORT`, `EIP_TRAEFIK_DASHBOARD_PORT`, `EIP_GRAFANA_PATH`, `EIP_TRAEFIK_DASHBOARD_PATH`, `EIP_TRAEFIK_TRUSTED_PROXY_CIDRS`, and `GRAFANA_ROOT_URL` for interpolation, then are removed.
 
 ```bash
 eip init   # writes eip.config.yaml when missing (Go defaults)
 # edit eip.config.yaml…
-make swarm-sync ARGS='--dry-run'
-make swarm-sync
+eip sync --dry-run
+eip sync
 ```
 
-> Prefer **`make swarm-sync`** for day-2 operator YAML. Prefer **`make swarm-secrets-sync`** when
-> you changed `.env` secrets for elastic services. Bring-up (`make up` / `make dev`) rematerializes
-> the Swarm stack internally — that is not a public day-2 verb.
+> Prefer **`eip sync`** for day-2 operator YAML. Prefer **`eip secrets`** when you changed `.env`
+> secrets for elastic services. Bring-up (`eip up` / `eip dev`) rematerializes the Swarm stack
+> internally — that is not a public day-2 verb. Legacy Make: [MAKE.md](./MAKE.md).
 
-### `make swarm-secrets-sync` (#32 / #3)
+### `eip secrets` (#32 / #3)
 
 ```bash
-make swarm-secrets-sync ARGS='--dry-run'
-make swarm-secrets-sync
+eip secrets --dry-run
+eip secrets
+# legacy: make swarm-secrets-sync
 ```
 
 1. Reads curated keys from `.env` → creates versioned Swarm secrets (`eip_<KEY>_<hash>`).
@@ -107,23 +107,24 @@ eip secrets
 # legacy: make swarm-secrets-sync
 ```
 
-This syncs docker secrets and rolls services that mount them (`eip_api`, `eip_websocket`,
-`eip_worker`, `eip_ws-router`, `eip_core`). Expect a rolling `start-first` update (brief WS
-reconnects). Frontend has no secret mounts.
+This creates/updates versioned Swarm secret objects (via **`eip secrets`** / Moby API) and
+rematerializes services that mount them (`eip_api`, `eip_websocket`, `eip_worker`,
+`eip_ws-router`, `eip_core`). Expect a rolling `start-first` update (brief WS reconnects).
+Frontend has no secret mounts.
 
 ### Which vars need which path?
 
 | Change | Typical action |
 |--------|----------------|
-| App secrets used by api/ws/worker/ws-router/core | `make swarm-secrets-sync` |
-| Mongo/Redis/NATS passwords | Update `.env`, recreate **data-plane** Compose services, then `make swarm-secrets-sync` so consumers get new passwords |
+| App secrets used by api/ws/worker/ws-router/core | `eip secrets` (legacy: `make swarm-secrets-sync`) |
+| Mongo/Redis/NATS passwords | Update `.env`, recreate **data-plane** Compose services, then `eip secrets` so consumers get new passwords |
 | `APP_VERSION` (image tag) | **`.env` SoT** (non-secret). Used for GHCR tags, local bake base, task env, and Redis advertise. Not written by `eip.config` / sync-env. |
-| Redis advertised train version (`eip:app:advertised_version:v1`) | **Ship only:** end of `make release` / `make dev-release`, or `make advertise` (reads `.env` `APP_VERSION`) — **not** `make swarm-sync`. [APP_TRAIN.md](./APP_TRAIN.md). Escape: `make app-version-ops` |
-| Traefik stack flags / labels | Edit `docker-stack.yml`, then `make up` / `make dev` (or `make swarm-secrets-sync` if only secret attach changed) |
-| Frontend public knobs | Edit stack `x-frontend-public-env`, then `make up` / `make dev` (no docker secrets) |
+| Redis advertised train version (`eip:app:advertised_version:v1`) | **Ship only:** end of **`eip up`** / **`eip dev`** / **`eip rebuild`** (reads `.env` `APP_VERSION`) — **not** `eip sync`. [APP_TRAIN.md](./APP_TRAIN.md). Legacy Make advertise escapes in [MAKE.md](./MAKE.md) |
+| Traefik stack flags / labels | Edit `docker-stack.yml`, then `eip up` / `eip dev` (or `eip secrets` if only secret attach changed) |
+| Frontend public knobs | Edit stack `x-frontend-public-env`, then `eip up` / `eip dev` (no docker secrets) |
 | Grafana / Alloy-only knobs | Compose recreate of those services only (become addon #34 later) |
-| Worker concurrency (`services.worker.concurrency`) | `eip.config.yaml` → **`make swarm-sync`** — [WORKER.md](./WORKER.md) |
-| Websocket client cutoff (`services.websocket.client_cutoff`) | `eip.config.yaml` → **`make swarm-sync`** — [WEBSOCKET.md](./WEBSOCKET.md) |
+| Worker concurrency (`services.worker.concurrency`) | `eip.config.yaml` → **`eip sync`** — [WORKER.md](./WORKER.md) |
+| Websocket client cutoff (`services.websocket.client_cutoff`) | `eip.config.yaml` → **`eip sync`** — [WEBSOCKET.md](./WEBSOCKET.md) |
 
 Exact `.env` key lists live in [`env.EnvFields`](../../admintool/internal/kit/templates/env/fields.go) — this doc is the **apply procedure**, not the schema.
 
@@ -132,18 +133,18 @@ Exact `.env` key lists live in [`env.EnvFields`](../../admintool/internal/kit/te
 An operator can:
 
 1. Change a documented **elastic** secret in `.env`  
-2. Run **`make swarm-secrets-sync`** (optionally `ARGS='--dry-run'` first)  
+2. Run **`eip secrets`** (legacy: `make swarm-secrets-sync`)  
 3. Confirm tasks remount secrets (e.g. `docker exec` into an `eip_api` task and read
    `/run/secrets/<KEY>`) — **without** bouncing mongo/redis/nats  
 
 And for non-secret knobs:
 
 1. Edit `eip.config.yaml`  
-2. Run **`make swarm-sync`**  
+2. Run **`eip sync`** (legacy: `make swarm-sync`)  
 3. Capacity / ports / paths update without a data-plane bounce  
 
-Do **not** teach raw `docker secret` for day-2 secret apply. Stack rematerialize is internal to
-`make up` / `make swarm-secrets-sync` — not a separate public Make target.
+Do **not** teach raw `docker secret` for day-2 secret apply (`eip` uses the Moby Engine API).
+Stack rematerialize is internal to `eip up` / `eip secrets` — not a separate public Make target.
 
 **Out of #24:** creating Mongo/Redis `*_API` users (optional later — app falls back to shared
 creds); observability addon toggle (#34).
@@ -154,11 +155,12 @@ creds); observability addon toggle (#34).
 [BIND_MOUNTS.md](./BIND_MOUNTS.md). Go `shared/core/swarmsecret` reads env then `/run/secrets/<name>`;
 narrow loaders + api `ConnectAPI`. Swarm `secret` objects + per-service attach + **#16** frontend
 on Swarm (public env only) are **done**. Optional `*_API` DB/ACL **user creation** is a data-plane
-bootstrap follow-up. Day-2 verb: **`make swarm-secrets-sync`**.
+bootstrap follow-up. Day-2 verb: **`eip secrets`**.
 
 ## Related
 
-- [MAKE.md](./MAKE.md) — bring-up vs day-2 sync/rebuild  
+- [DEPLOYMENT.md](../../DEPLOYMENT.md) — Public bootstrap / `eip up`
+- [MAKE.md](./MAKE.md) — legacy Make map (bring-up vs day-2)  
 - [STACK.md](./STACK.md) — deploy / remove (implementer)  
 - [WS_ROUTER.md](./WS_ROUTER.md) — placement router (`eip_ws_router`, landed)  
 - [WORKER.md](./WORKER.md) — concurrency envelope (`services.worker.concurrency`)  

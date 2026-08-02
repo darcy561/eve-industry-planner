@@ -28,12 +28,13 @@ const Version = 1
 
 // Message types (stable strings). Chip helpers live in chipstate; pane helpers here.
 const (
-	TypePaneText   = "pane.text"
-	TypePaneStatus = "pane.status"
-	TypeChipDocker = "chip.docker"
-	TypeChipHealth = "chip.health"
-	TypeChipStack  = "chip.stack"
-	TypeChipApp    = "chip.app" // deployed APP_VERSION (header; probe may emit)
+	TypePaneText     = "pane.text"
+	TypePaneStatus   = "pane.status"
+	TypePaneProgress = "pane.progress"
+	TypeChipDocker   = "chip.docker"
+	TypeChipHealth   = "chip.health"
+	TypeChipStack    = "chip.stack"
+	TypeChipApp      = "chip.app" // deployed APP_VERSION (header; probe may emit)
 )
 
 // Envelope is one protocol message.
@@ -46,6 +47,14 @@ type Envelope struct {
 // TextPayload is data for TypePaneText.
 type TextPayload struct {
 	Message string `json:"message"`
+}
+
+// ProgressPayload is data for TypePaneProgress.
+// Fraction is optional overall progress in [0,1]; omit when unknown (TUI may show indeterminate).
+type ProgressPayload struct {
+	Text     string   `json:"text"`
+	Done     bool     `json:"done"`
+	Fraction *float64 `json:"fraction,omitempty"`
 }
 
 // Enabled reports whether the process should emit EIPMSG (child of TUI).
@@ -81,11 +90,6 @@ func EmitText(message string) {
 		return
 	}
 	emit(TypePaneText, TextPayload{Message: message})
-}
-
-// Emitf emits TypePaneText with sprintf.
-func Emitf(format string, args ...any) {
-	EmitText(fmt.Sprintf(format, args...))
 }
 
 // Step prints a progress line: EIPMSG pane.text under TUI, else plain stdout.
@@ -154,6 +158,53 @@ var _ io.Writer = (*LineWriter)(nil)
 // EmitStatus emits TypePaneStatus (structured OUTPUT; TUI renders).
 func EmitStatus(report any) {
 	emit(TypePaneStatus, report)
+}
+
+// EmitProgress emits TypePaneProgress (TUI live overlay; Done commits text then clears).
+func EmitProgress(text string, done bool) {
+	EmitProgressPayload(ProgressPayload{Text: text, Done: done})
+}
+
+// EmitProgressFrac is EmitProgress with a known overall fraction in [0,1] (clamped).
+func EmitProgressFrac(text string, done bool, fraction float64) {
+	f := ClampFraction(fraction)
+	EmitProgressPayload(ProgressPayload{Text: text, Done: done, Fraction: &f})
+}
+
+// EmitProgressPayload emits a full ProgressPayload when Enabled.
+func EmitProgressPayload(p ProgressPayload) {
+	if !Enabled() {
+		return
+	}
+	if p.Fraction != nil {
+		f := ClampFraction(*p.Fraction)
+		p.Fraction = &f
+	}
+	emit(TypePaneProgress, p)
+}
+
+// ClampFraction clamps f to [0,1].
+func ClampFraction(f float64) float64 {
+	if f < 0 {
+		return 0
+	}
+	if f > 1 {
+		return 1
+	}
+	return f
+}
+
+// DecodeProgress unmarshals TypePaneProgress data.
+func DecodeProgress(data json.RawMessage) (ProgressPayload, error) {
+	var p ProgressPayload
+	if err := json.Unmarshal(data, &p); err != nil {
+		return ProgressPayload{}, err
+	}
+	if p.Fraction != nil {
+		f := ClampFraction(*p.Fraction)
+		p.Fraction = &f
+	}
+	return p, nil
 }
 
 // ParseLine parses one stdout line. ok is false if it is not EIPMSG or unsupported.

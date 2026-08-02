@@ -1,8 +1,8 @@
 # WS placement router (`eip_ws_router`)
 
 > Part of [ROADMAP.md](./ROADMAP.md) backlog **#4** / **#21**. **Placement implemented** on the
-> hybrid stack; **#4 acceptance done** (`make smoke-ws-placement`). **#21 minimum:** Redis
-> cordon/pin/evacuate overlays honored on place (`make ws-placement-ops`). Traefik stays
+> hybrid stack; **#4 acceptance done**. **#21 minimum:** Redis cordon/pin/evacuate overlays
+> honored on place (Make ops script **removed** — #18 owns the armed path). Traefik stays
 > TLS/ingress only; this service owns tenant → websocket **slot** placement.
 
 ## Locked model
@@ -96,21 +96,12 @@ slot. Sticky fallback also uses the eligible set.
 (`please_reconnect` + close 1001); SPA reconnects; router places on an eligible slot.
 Session handoff Redis keys cover ~25s.
 
-> Redis pub/sub wake-up is a **temporary** bridge (ops script is Redis-only today). Placement /
-> cordon **state** stays in Redis. Planned: NATS drain notify under #18 — see [WEBSOCKET.md](./WEBSOCKET.md).
+> Redis pub/sub wake-up is a **temporary** bridge. Placement / cordon **state** stays in Redis.
+> Planned: NATS drain notify + capacity-controller ops under #18 — see [WEBSOCKET.md](./WEBSOCKET.md).
+> The Make `ws-placement-ops` escape was **removed** (not ported to `eip`).
 
-```bash
-make ws-placement-ops ARGS='status'
-make ws-placement-ops ARGS='cordon websocket-2'          # also force-closes locals on that slot
-make ws-placement-ops ARGS='evacuate websocket-2'          # -> another eligible slot + drain
-make ws-placement-ops ARGS='evacuate websocket-2 websocket-1'
-make ws-placement-ops ARGS='pin account:123 websocket-1'
-make ws-placement-ops ARGS='uncordon websocket-2'
-```
-
-Scale-in playbook (manual): **full checklist in [WEBSOCKET.md](./WEBSOCKET.md)** —
-inventory → cordon → evacuate → wait reconnect → scale down.
-Never cold-kill a hot alliance slot. Sticky is fallback only.
+Scale-in playbook: **[WEBSOCKET.md](./WEBSOCKET.md)** — never cold-kill a hot alliance slot.
+Sticky is fallback only. Armed evacuate/cordon = **#18**.
 
 ## Health + metrics
 
@@ -153,25 +144,18 @@ The router container does **not** mount `/var/run/docker.sock`. Its proxy lives 
 proxy + overlay (`eip-docker-traefik`); #18 gets a third (`eip-docker-capacity`) — never
 share docker nets or allowlists across trust boundaries.
 
-## #4 acceptance smoke
+## #4 acceptance
 
-With the stack healthy and ≥2 websocket replicas:
-
-```bash
-make smoke-ws-placement
-# or: ./scripts/swarm/test/smoke-ws-placement.sh
-```
-
-Asserts two `/ws` upgrades with the same `eip_tenant_affinity` cookie land on one Redis
-placement slot (`eip:ws:place:v1:…` → `websocket-N`). Clears smoke keys afterward.
+Landed: same `eip_tenant_affinity` cookie → same Redis placement slot (`eip:ws:place:v1:…`).
+The Make smoke script was removed with other Make escapes.
 
 ## Sequencing
 
 1. **Done:** router + Traefik `/ws` cutover + Redis placement (this doc / stack).
-2. **Done:** #4 acceptance — same affinity key → same websocket slot (`make smoke-ws-placement`).
-3. **Done (minimum):** #21 cordon / pin / evacuate Redis overlays + `make ws-placement-ops`.
-4. **Done (force-close):** cordon/evacuate PUBLISH drain → websocket force-closes locals ([WEBSOCKET.md](./WEBSOCKET.md)).
-5. Soft caps / hosted-tenant gauges still open (#8); capacity-controller hooks (#18).
+2. **Done:** #4 acceptance — same affinity key → same websocket slot.
+3. **Done (minimum):** #21 cordon / pin / evacuate Redis overlays (runtime); Make ops CLI removed.
+4. **Done (force-close):** drain PUBLISH → websocket force-closes locals ([WEBSOCKET.md](./WEBSOCKET.md)).
+5. Soft caps / hosted-tenant gauges still open (#8); capacity-controller ops (#18).
 
 ## Related
 

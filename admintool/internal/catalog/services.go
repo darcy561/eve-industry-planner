@@ -1,6 +1,8 @@
 // Expected Swarm services and deploy fragments (status / deploy membership).
 package catalog
 
+import "slices"
+
 // Fragment IDs used by status and deploy membership.
 const (
 	FragmentApp  = "app"
@@ -38,13 +40,39 @@ type Group struct {
 	Services []Service
 }
 
-// RestartPrefer is the preferred short-name order for whole-stack rolling restart.
-// Live services not listed here are restarted after these (stable short-name order).
+// RestartPrefer is the prefer-list SoT for OrderPrefer (rolling restart,
+// repair force-update, image reconcile). Unlisted candidates follow in sorted order.
 func RestartPrefer() []string {
 	return []string{
 		"traefik", "api", "websocket", "worker", "ws-router", "core", "frontend",
 		"mongo", "redis", "nats", "seaweedfs", "prometheus",
 	}
+}
+
+// OrderPrefer orders candidates: RestartPrefer first, then sorted remainder.
+// Prefer entries absent from candidates are skipped.
+func OrderPrefer(candidates map[string]struct{}) []string {
+	if len(candidates) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(candidates))
+	seen := make(map[string]bool, len(candidates))
+	for _, short := range RestartPrefer() {
+		if _, ok := candidates[short]; !ok {
+			continue
+		}
+		out = append(out, short)
+		seen[short] = true
+	}
+	rest := make([]string, 0, len(candidates)-len(seen))
+	for short := range candidates {
+		if seen[short] {
+			continue
+		}
+		rest = append(rest, short)
+	}
+	slices.Sort(rest)
+	return append(out, rest...)
 }
 
 // Groups returns expected inventory in report order.

@@ -2,8 +2,12 @@ package stack
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/compose-spec/compose-go/v2/types"
 )
 
 func TestExpandGuards(t *testing.T) {
@@ -29,97 +33,234 @@ func TestExpandGuards(t *testing.T) {
 	}
 }
 
-func TestStripConfigsAndSecrets(t *testing.T) {
-	t.Parallel()
-	in := `
-name: demo
+func TestExpandInterpolatesAndStamps(t *testing.T) {
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, ".env"), []byte("APP_VERSION=1.2.3\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stack := `
 services:
   api:
-    image: x
+    image: ghcr.io/example/api:${APP_VERSION}
     secrets:
       - MONGO_PASSWORD
-    configs:
-      - source: cfg
-        target: /cfg
-  worker:
-    image: y
-configs:
-  cfg:
-    file: ./cfg.yml
-secrets:
-  MONGO_PASSWORD:
-    external: true
-`
-	text, err := stripConfigsBlock(in)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(text, "file: ./cfg.yml") {
-		t.Fatalf("top-level configs remain:\n%s", text)
-	}
-	if !strings.Contains(text, "source: cfg") {
-		t.Fatalf("service config mount stripped:\n%s", text)
-	}
-
-	text, err = stripSecrets(text)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(text, "MONGO_PASSWORD") {
-		t.Fatalf("secrets remain:\n%s", text)
-	}
-	if !strings.Contains(text, "source: cfg") {
-		t.Fatalf("config mount lost after stripSecrets:\n%s", text)
-	}
-}
-
-func TestInjectSourceLabelsPreservesListForm(t *testing.T) {
-	t.Parallel()
-	in := `
-services:
-  api:
-    image: x
-    deploy:
-      labels:
-        - "traefik.enable=true"
-        - "eip.capacity.sync=1"
-  worker:
-    image: y
-`
-	out, err := injectSourceLabels(in, "dev")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out, "eip.deploy.source") || !strings.Contains(out, "dev") {
-		t.Fatalf("missing deploy source:\n%s", out)
-	}
-	if !strings.Contains(out, "traefik.enable") {
-		t.Fatalf("traefik label lost:\n%s", out)
-	}
-	if !strings.Contains(out, "eip.capacity.sync") {
-		t.Fatalf("capacity label lost:\n%s", out)
-	}
-	// both services get the stamp
-	if strings.Count(out, "eip.deploy.source") < 2 {
-		t.Fatalf("expected label on both services:\n%s", out)
-	}
-}
-
-func TestInjectSourceLabelsMapForm(t *testing.T) {
-	t.Parallel()
-	in := `
-services:
-  api:
     deploy:
       labels:
         traefik.enable: "true"
+  worker:
+    image: ghcr.io/example/worker:${APP_VERSION}
+secrets:
+  MONGO_PASSWORD:
+    external: true
+configs:
+  cfg:
+    file: ./cfg.yml
 `
-	out, err := injectSourceLabels(in, "live")
+	if err := os.WriteFile(filepath.Join(home, "docker-stack.yml"), []byte(stack), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	path, err := Expand(context.Background(), Opts{
+		Home:       home,
+		StackFiles: []string{"docker-stack.yml"},
+		Source:     "dev",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "traefik.enable") || !strings.Contains(out, "live") {
-		t.Fatalf("bad inject:\n%s", out)
+	defer os.Remove(path)
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	if strings.Contains(text, "${APP_VERSION}") {
+		t.Fatalf("APP_VERSION not interpolated:\n%s", text)
+	}
+	if !strings.Contains(text, "ghcr.io/example/api:1.2.3") {
+		t.Fatalf("missing interpolated image:\n%s", text)
+	}
+	if strings.HasPrefix(strings.TrimSpace(text), "name:") {
+		t.Fatalf("project name should be stripped:\n%s", text)
+	}
+	if strings.Contains(text, "MONGO_PASSWORD") {
+		t.Fatalf("secrets should be stripped:\n%s", text)
+	}
+	if strings.Contains(text, "file: ./cfg.yml") || strings.Contains(text, "\nconfigs:") {
+		t.Fatalf("top-level configs should be stripped:\n%s", text)
+	}
+	if strings.Count(text, "eip.deploy.source") < 2 {
+		t.Fatalf("expected deploy source on both services:\n%s", text)
+	}
+	if !strings.Contains(text, "traefik.enable") {
+		t.Fatalf("existing label lost:\n%s", text)
+	}
+	// Source value is stamped (map form: key then value on same or next tokens).
+	if !strings.Contains(text, "eip.deploy.source: dev") && !strings.Contains(text, "eip.deploy.source: \"dev\"") {
+		t.Fatalf("missing source=dev stamp:\n%s", text)
+	}
+}
+
+func TestExpandEnvOverlayWinsOverDotEnv(t *testing.T) {
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, ".env"), []byte("APP_VERSION=from-dotenv\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stack := `
+services:
+  api:
+    image: img:${APP_VERSION}
+`
+	if err := os.WriteFile(filepath.Join(home, "stack.yml"), []byte(stack), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path, err := Expand(context.Background(), Opts{
+		Home:       home,
+		StackFiles: []string{"stack.yml"},
+		Source:     "live",
+		Env:        map[string]string{"APP_VERSION": "from-overlay"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(path)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "img:from-overlay") {
+		t.Fatalf("overlay should win:\n%s", raw)
+	}
+}
+
+func TestExpandMultipleInMemoryRewrites(t *testing.T) {
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, ".env"), []byte("X=1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Two files with obs-style configs force two in-memory rewrites.
+	a := `
+configs:
+  prometheus_yml:
+    file: ./observability/prometheus/prometheus.yml
+services:
+  a:
+    image: a:1
+`
+	b := `
+configs:
+  loki_yml:
+    file: ./observability/loki/config.yaml
+services:
+  b:
+    image: b:1
+`
+	if err := os.WriteFile(filepath.Join(home, "a.yml"), []byte(a), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "b.yml"), []byte(b), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path, err := Expand(context.Background(), Opts{
+		Home:       home,
+		StackFiles: []string{"a.yml", "b.yml"},
+		Source:     "live",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(path)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	if !strings.Contains(text, "image: a:1") || !strings.Contains(text, "image: b:1") {
+		t.Fatalf("merged services missing:\n%s", text)
+	}
+	if strings.Contains(text, "observability/") {
+		t.Fatalf("obs file configs should be stripped after externalize:\n%s", text)
+	}
+}
+
+func TestPrepareProjectForStack(t *testing.T) {
+	t.Parallel()
+	p := &types.Project{
+		Name: "eip",
+		Configs: types.Configs{
+			"cfg": {Name: "cfg"},
+		},
+		Secrets: types.Secrets{
+			"s": {Name: "s"},
+		},
+		Services: types.Services{
+			"api": {
+				Image:   "x",
+				Secrets: []types.ServiceSecretConfig{{Source: "s"}},
+				Deploy: &types.DeployConfig{
+					Labels: types.Labels{"traefik.enable": "true"},
+				},
+			},
+			"worker": {Image: "y"},
+		},
+	}
+	prepareProjectForStack(p, "live")
+	if p.Name != "" || p.Configs != nil || p.Secrets != nil {
+		t.Fatalf("top-level not cleared: name=%q configs=%v secrets=%v", p.Name, p.Configs, p.Secrets)
+	}
+	if len(p.Services["api"].Secrets) != 0 {
+		t.Fatalf("service secrets remain: %#v", p.Services["api"].Secrets)
+	}
+	if p.Services["api"].Deploy.Labels[LabelDeploySource] != "live" {
+		t.Fatalf("api labels: %#v", p.Services["api"].Deploy.Labels)
+	}
+	if p.Services["api"].Deploy.Labels["traefik.enable"] != "true" {
+		t.Fatalf("traefik label lost")
+	}
+	if p.Services["worker"].Deploy == nil || p.Services["worker"].Deploy.Labels[LabelDeploySource] != "live" {
+		t.Fatalf("worker stamp missing: %#v", p.Services["worker"].Deploy)
+	}
+}
+
+func TestExpandEscapesLiteralDollarsForStackDeploy(t *testing.T) {
+	home := t.TempDir()
+	stack := `
+services:
+  api:
+    image: img:1
+    deploy:
+      labels:
+        - "traefik.http.middlewares.cors.headers.accessControlAllowOriginListRegex=^https://example.com$$"
+`
+	if err := os.WriteFile(filepath.Join(home, "stack.yml"), []byte(stack), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path, err := Expand(context.Background(), Opts{
+		Home:       home,
+		StackFiles: []string{"stack.yml"},
+		Source:     "live",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(path)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	// compose-go turns $$ → $; we re-escape so docker stack deploy sees $$.
+	if !strings.Contains(text, "example.com$$") {
+		t.Fatalf("literal $ not re-escaped for stack deploy:\n%s", text)
+	}
+}
+
+func TestEscapeDollarsForStackDeploy(t *testing.T) {
+	t.Parallel()
+	got := escapeDollarsForStackDeploy(`^https://eveindustryplanner.com$`)
+	if got != `^https://eveindustryplanner.com$$` {
+		t.Fatalf("got %q", got)
 	}
 }
 
@@ -139,7 +280,6 @@ func TestNormalizeModeNumbers(t *testing.T) {
 	if out != "              mode: 493\n" {
 		t.Fatalf("%q", out)
 	}
-	// already numeric — unchanged
 	if got := normalizeModeNumbers("              mode: 493\n"); got != "              mode: 493\n" {
 		t.Fatalf("%q", got)
 	}

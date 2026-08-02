@@ -1,6 +1,8 @@
 package env
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -65,7 +67,7 @@ func TestBackupEnvRotation(t *testing.T) {
 	}
 
 	// More saves → prune timestamped to 3
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		clock = clock.Add(time.Minute)
 		vals["APP_VERSION"] = "x"
 		if err := EmitEnvOpts(envPath, vals, EmitOpts{BackupStem: stem, Now: now}); err != nil {
@@ -166,7 +168,7 @@ func TestCheckBackupStemWritable(t *testing.T) {
 	if err := CheckBackupStemWritable(home, "ok-stem"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(home, "ok-stem")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(home, "ok-stem")); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatal("check must not create stem dirs")
 	}
 }

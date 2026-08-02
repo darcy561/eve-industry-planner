@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 
 	"eve-industry-planner/admintool/internal/config"
 	"eve-industry-planner/admintool/internal/dataplane"
@@ -21,6 +21,7 @@ import (
 )
 
 // Run brings up the Swarm stack (two-pass deploy + data-plane Ready gate).
+// If the stack was already healthy before bring-up, Ready/ensure is skipped.
 // src must be SourceLive or SourceDev.
 // When eip.config.yaml addons.observability.enabled, merges docker-stack.obs.yml
 // into the full deploy (and prunes it when disabled via stack --prune).
@@ -49,11 +50,12 @@ func Run(ctx context.Context, src Source) error {
 		return err
 	}
 
-	cli, err := docker.NewClient(client.WithTimeout(docker.DefaultClientTimeout))
+	// Ready may SwarmInit / create overlays — longer than DefaultClientTimeout (probe).
+	apiClient, err := docker.NewAPIClient(client.WithTimeout(2 * time.Minute))
 	if err != nil {
-		return fmt.Errorf("docker client: %w", err)
+		return fmt.Errorf("engine API client: %w", err)
 	}
-	defer cli.Close()
+	defer apiClient.Close()
 
 	msg.Step("Preparing Swarm engine…")
 	stackFiles := []string{kit.AppStackFile, kit.DataStackFile}
@@ -61,11 +63,16 @@ func Run(ctx context.Context, src Source) error {
 		stackFiles = append(stackFiles, kit.ObsStackFile)
 	}
 	engCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	err = engine.Ready(engCtx, cli, home, stackFiles...)
+	err = engine.Ready(engCtx, apiClient, home, stackFiles...)
 	cancel()
 	if err != nil {
 		return err
 	}
+
+	stackName := docker.ResolveStackName()
+	// Skip long Ensure when the stack was already healthy before this bring-up
+	// (re-run of up/dev). Cold start / amber/red still run dataplane.Ready.
+	skipReady := stackAlreadyHealthy(ctx, apiClient, stackName)
 
 	var expandEnv map[string]string
 	switch src {
@@ -86,18 +93,21 @@ func Run(ctx context.Context, src Source) error {
 	}
 	defer expanded.cleanup()
 
-	stackName := docker.ResolveStackName()
 	mode := string(src)
 	msg.Step("Deploying stack %s (%s) — data…", stackName, mode)
 	if err := stackDeploy(ctx, home, stackName, []string{expanded.Data}, false); err != nil {
 		return err
 	}
 
-	msg.Step("Checking data plane…")
-	// S3 + mongo Ensure (RS/users/preimages/indexes). Index builds have no short
-	// deadline — progress via msg; cancel with process interrupt only.
-	if err := dataplane.Ready(ctx, stackName); err != nil {
-		return err
+	if skipReady {
+		msg.Step("Stack already healthy — skipping ensure")
+	} else {
+		msg.Step("Checking data plane…")
+		// S3 + mongo Ensure (RS/users/preimages/indexes). Index builds have no short
+		// deadline — progress via msg; cancel with process interrupt only.
+		if err := dataplane.Ready(ctx, stackName); err != nil {
+			return err
+		}
 	}
 
 	msg.Step("Deploying stack %s (%s) — data+app…", stackName, mode)
@@ -120,6 +130,16 @@ func Run(ctx context.Context, src Source) error {
 		msg.Step("Done (%s). Run: eip status", mode)
 	}
 	return nil
+}
+
+// stackAlreadyHealthy reports whether the named stack currently rolls up green.
+func stackAlreadyHealthy(ctx context.Context, apiClient *client.Client, stackName string) bool {
+	snap, err := docker.LoadStackSnapshotWithHealth(ctx, apiClient, stackName)
+	if err != nil {
+		return false
+	}
+	light, _ := snap.HealthSummary()
+	return light == docker.HealthGreen
 }
 
 func expandFragment(ctx context.Context, label, home string, files []string, env map[string]string, src Source, syncEnv map[string]string) (string, error) {

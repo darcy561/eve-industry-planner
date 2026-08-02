@@ -1,7 +1,11 @@
 // Package brand is product mark / header artwork for the TUI.
 package brand
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"image/color"
+
+	"charm.land/lipgloss/v2"
+)
 
 // EIP block letters from Eve Industry Planner Tools (cli/cli.go).
 var logoLines = []string{
@@ -14,7 +18,7 @@ var logoLines = []string{
 }
 
 // Logo renders the EIP mark in accent color.
-func Logo(accent lipgloss.Color) string {
+func Logo(accent color.Color) string {
 	style := lipgloss.NewStyle().Foreground(accent).Bold(true)
 	out := make([]string, len(logoLines))
 	for i, line := range logoLines {
@@ -37,7 +41,7 @@ var miniLogoLines = []string{
 }
 
 // MiniLogo renders the compact EIP mark in accent color.
-func MiniLogo(accent lipgloss.Color) string {
+func MiniLogo(accent color.Color) string {
 	style := lipgloss.NewStyle().Foreground(accent).Bold(true)
 	out := make([]string, len(miniLogoLines))
 	for i, line := range miniLogoLines {

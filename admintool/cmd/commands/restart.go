@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"eve-industry-planner/admintool/internal/catalog"
 	"eve-industry-planner/admintool/internal/msg"
 	"eve-industry-planner/admintool/internal/ops"
+	"eve-industry-planner/admintool/internal/process"
 )
 
 func init() {
@@ -36,11 +36,11 @@ The TUI uses --list to populate a service picker, then runs restart <target> -y.
 	RunE: func(cmd *cobra.Command, args []string) error {
 		listOnly, _ := cmd.Flags().GetBool("list")
 		if listOnly {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := process.TimeoutSignalContext(30 * time.Second)
 			defer cancel()
 			names, err := ops.ListRunning(ctx)
 			if err != nil {
-				return err
+				return process.MapDoneError(err)
 			}
 			for _, n := range names {
 				fmt.Fprintln(cmd.OutOrStdout(), n)
@@ -51,14 +51,14 @@ The TUI uses --list to populate a service picker, then runs restart <target> -y.
 		yes, _ := cmd.Flags().GetBool("yes")
 		msg.EmitStackForVerb("restart")
 
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+		ctx, cancel := process.TimeoutSignalContext(15 * time.Minute)
 		defer cancel()
 
 		target := ""
 		if len(args) > 0 {
 			target = args[0]
 		}
-		if err := ops.Restart(ctx, target, yes); err != nil {
+		if err := process.MapDoneError(ops.Restart(ctx, target, yes)); err != nil {
 			msg.EmitStack("restart", msg.LightRed, err.Error())
 			return err
 		}

@@ -2,12 +2,16 @@ package config
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
-	"eve-industry-planner/admintool/internal/dockercli"
+	"github.com/containerd/errdefs"
+	swarmtypes "github.com/moby/moby/api/types/swarm"
+	"github.com/moby/moby/client"
+
+	"eve-industry-planner/admintool/internal/docker"
 	"eve-industry-planner/admintool/internal/msg"
 	"eve-industry-planner/admintool/internal/stack"
 )
@@ -62,22 +66,6 @@ func (c Config) DesiredFromConfig(targets []stack.CapacityTarget, appDoc stack.D
 	return out
 }
 
-type swarmInspect struct {
-	Spec struct {
-		Labels map[string]string `json:"Labels"`
-		Mode   struct {
-			Replicated *struct {
-				Replicas *uint64 `json:"Replicas"`
-			} `json:"Replicated"`
-		} `json:"Mode"`
-		TaskTemplate struct {
-			ContainerSpec struct {
-				Env []string `json:"Env"`
-			} `json:"ContainerSpec"`
-		} `json:"TaskTemplate"`
-	} `json:"Spec"`
-}
-
 // LiveService is the relevant subset of a running Swarm service.
 type LiveService struct {
 	Replicas    uint64
@@ -123,34 +111,31 @@ func DiffService(live LiveService, desire DesiredService) []Change {
 	return ch
 }
 
-// InspectService reads live Swarm state via docker CLI. Missing service → error.
-func InspectService(ctx context.Context, name string) (LiveService, error) {
-	out, err := dockercli.TryOut(ctx, "service", "inspect", name, "--format", "{{json .}}")
+func inspectService(ctx context.Context, apiClient *client.Client, name string) (LiveService, error) {
+	result, err := apiClient.ServiceInspect(ctx, name, client.ServiceInspectOptions{})
 	if err != nil {
-		return LiveService{}, fmt.Errorf("docker service inspect %s: %w", name, err)
+		// Preserve errdefs classification for callers (IsNotFound → skip).
+		return LiveService{}, err
 	}
-	var raw swarmInspect
-	if err := json.Unmarshal([]byte(out), &raw); err != nil {
-		return LiveService{}, fmt.Errorf("parse inspect %s: %w", name, err)
-	}
+	return liveService(result.Service), nil
+}
+
+func liveService(service swarmtypes.Service) LiveService {
 	live := LiveService{
-		Env:         parseEnvList(raw.Spec.TaskTemplate.ContainerSpec.Env),
-		CapacityMin: raw.Spec.Labels[stack.LabelCapacityMin],
-		CapacityMax: raw.Spec.Labels[stack.LabelCapacityMax],
+		Env:         map[string]string{},
+		CapacityMin: service.Spec.Labels[stack.LabelCapacityMin],
+		CapacityMax: service.Spec.Labels[stack.LabelCapacityMax],
 	}
-	if raw.Spec.Mode.Replicated != nil && raw.Spec.Mode.Replicated.Replicas != nil {
-		live.Replicas = *raw.Spec.Mode.Replicated.Replicas
+	if container := service.Spec.TaskTemplate.ContainerSpec; container != nil {
+		live.Env = parseEnvList(container.Env)
 	}
-	return live, nil
+	if service.Spec.Mode.Replicated != nil && service.Spec.Mode.Replicated.Replicas != nil {
+		live.Replicas = *service.Spec.Mode.Replicated.Replicas
+	}
+	return live
 }
 
-// ServiceExists reports whether a Swarm service is deployed.
-func ServiceExists(ctx context.Context, name string) bool {
-	return dockercli.ServiceExists(ctx, name)
-}
-
-// ApplyServiceUpdate runs docker service update for the given changes only.
-func ApplyServiceUpdate(ctx context.Context, desire DesiredService, changes []Change, dryRun bool) error {
+func applyServiceUpdate(ctx context.Context, apiClient *client.Client, desire DesiredService, changes []Change, dryRun bool) error {
 	if len(changes) == 0 {
 		return nil
 	}
@@ -168,40 +153,83 @@ func ApplyServiceUpdate(ctx context.Context, desire DesiredService, changes []Ch
 		}
 	}
 
-	args := []string{"service", "update", "--detach=true"}
+	if dryRun {
+		msg.Line("dry-run: would update " + desire.SwarmService)
+		return nil
+	}
+	result, err := apiClient.ServiceInspect(ctx, desire.SwarmService, client.ServiceInspectOptions{})
+	if err != nil {
+		return fmt.Errorf("inspect service %s: %w", desire.SwarmService, err)
+	}
+	service := result.Service
+	spec := service.Spec
 	if needReplicas {
-		args = append(args, "--replicas", strconv.FormatUint(desire.Replicas, 10))
+		if spec.Mode.Replicated == nil {
+			spec.Mode.Replicated = &swarmtypes.ReplicatedService{}
+		}
+		spec.Mode.Replicated.Replicas = &desire.Replicas
 	}
 	if needLabels {
+		if spec.Labels == nil {
+			spec.Labels = map[string]string{}
+		}
 		short := desire.SwarmService
 		if i := strings.Index(desire.SwarmService, "_"); i >= 0 {
 			short = desire.SwarmService[i+1:]
 		}
-		args = append(args,
-			"--label-add", stack.LabelCapacityService+"="+short,
-			"--label-add", stack.LabelCapacityMin+"="+desire.CapacityMin,
-			"--label-add", stack.LabelCapacityMax+"="+desire.CapacityMax,
-		)
+		spec.Labels[stack.LabelCapacityService] = short
+		spec.Labels[stack.LabelCapacityMin] = desire.CapacityMin
+		spec.Labels[stack.LabelCapacityMax] = desire.CapacityMax
 	}
-	for k := range envKeys {
-		args = append(args, "--env-add", k+"="+desire.Env[k])
+	if len(envKeys) > 0 {
+		if spec.TaskTemplate.ContainerSpec == nil {
+			return fmt.Errorf("update service %s: missing ContainerSpec", desire.SwarmService)
+		}
+		spec.TaskTemplate.ContainerSpec.Env = setEnv(spec.TaskTemplate.ContainerSpec.Env, desire.Env, envKeys)
 	}
-	args = append(args, desire.SwarmService)
-
-	if dryRun {
-		msg.Line("dry-run: docker " + strings.Join(args, " "))
-		return nil
-	}
-	if err := dockercli.Run(ctx, args...); err != nil {
-		return err
+	if _, err := apiClient.ServiceUpdate(ctx, service.ID, client.ServiceUpdateOptions{
+		Version: service.Version,
+		Spec:    spec,
+	}); err != nil {
+		return fmt.Errorf("update service %s: %w", desire.SwarmService, err)
 	}
 	msg.Line("updated " + desire.SwarmService)
 	return nil
 }
 
+func setEnv(env []string, values map[string]string, keys map[string]struct{}) []string {
+	out := make([]string, 0, len(env)+len(keys))
+	for _, item := range env {
+		key, _, ok := strings.Cut(item, "=")
+		if !ok {
+			out = append(out, item)
+			continue
+		}
+		if _, replace := keys[key]; replace {
+			out = append(out, key+"="+values[key])
+			delete(keys, key)
+			continue
+		}
+		out = append(out, item)
+	}
+	for key := range keys {
+		out = append(out, key+"="+values[key])
+	}
+	return out
+}
+
 // ApplyCapacity diffs live Swarm capacity-sync services and updates only what changed.
 // Missing Swarm services are skipped.
 func ApplyCapacity(ctx context.Context, cfg Config, targets []stack.CapacityTarget, appDoc stack.Doc, dryRun bool) error {
+	apiClient, err := docker.NewAPIClient(client.WithTimeout(2 * time.Minute))
+	if err != nil {
+		return fmt.Errorf("capacity sync: engine API client: %w", err)
+	}
+	defer apiClient.Close()
+	return applyCapacity(ctx, apiClient, cfg, targets, appDoc, dryRun)
+}
+
+func applyCapacity(ctx context.Context, apiClient *client.Client, cfg Config, targets []stack.CapacityTarget, appDoc stack.Doc, dryRun bool) error {
 	if len(targets) == 0 {
 		msg.Line("capacity sync: no services with eip.capacity.sync=1")
 		return nil
@@ -209,11 +237,14 @@ func ApplyCapacity(ctx context.Context, cfg Config, targets []stack.CapacityTarg
 	desired := cfg.DesiredFromConfig(targets, appDoc)
 	var updated, skipped, missing int
 	for _, d := range desired {
-		live, err := InspectService(ctx, d.SwarmService)
+		live, err := inspectService(ctx, apiClient, d.SwarmService)
 		if err != nil {
-			msg.Line(fmt.Sprintf("skip %s (not deployed)", d.SwarmService))
-			missing++
-			continue
+			if errdefs.IsNotFound(err) {
+				msg.Line(fmt.Sprintf("skip %s (not deployed)", d.SwarmService))
+				missing++
+				continue
+			}
+			return fmt.Errorf("inspect service %s: %w", d.SwarmService, err)
 		}
 		changes := DiffService(live, d)
 		if len(changes) == 0 {
@@ -229,7 +260,7 @@ func ApplyCapacity(ctx context.Context, cfg Config, targets []stack.CapacityTarg
 			}
 			msg.Line(fmt.Sprintf("  %s: %s -> %s", c.Field, from, c.To))
 		}
-		if err := ApplyServiceUpdate(ctx, d, changes, dryRun); err != nil {
+		if err := applyServiceUpdate(ctx, apiClient, d, changes, dryRun); err != nil {
 			return err
 		}
 		updated++

@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"eve-industry-planner/admintool/internal/catalog"
 	"eve-industry-planner/admintool/internal/msg"
 	"eve-industry-planner/admintool/internal/ops"
+	"eve-industry-planner/admintool/internal/process"
 	"eve-industry-planner/admintool/tui/screens/logview"
 )
 
@@ -42,11 +42,11 @@ TUI: dump → OUTPUT pane; follow → new console with --ui.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		listOnly, _ := cmd.Flags().GetBool("list")
 		if listOnly {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := process.TimeoutSignalContext(30 * time.Second)
 			defer cancel()
 			names, err := ops.ListRunning(ctx)
 			if err != nil {
-				return err
+				return process.MapDoneError(err)
 			}
 			for _, n := range names {
 				fmt.Fprintln(cmd.OutOrStdout(), n)
@@ -80,14 +80,14 @@ TUI: dump → OUTPUT pane; follow → new console with --ui.`,
 		if follow {
 			timeout = 24 * time.Hour
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		ctx, cancel := process.TimeoutSignalContext(timeout)
 		defer cancel()
 
-		err := ops.Logs(ctx, ops.LogsOpts{
+		err := process.MapDoneError(ops.Logs(ctx, ops.LogsOpts{
 			Target: target,
 			Tail:   tail,
 			Follow: follow,
-		})
+		}))
 		if err != nil {
 			msg.EmitStack("logs", msg.LightRed, err.Error())
 			return err

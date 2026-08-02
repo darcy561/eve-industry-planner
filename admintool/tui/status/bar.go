@@ -2,8 +2,9 @@ package status
 
 import (
 	"fmt"
+	"image/color"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 
 	"eve-industry-planner/admintool/tui/theme"
 	"eve-industry-planner/admintool/tui/ui"
@@ -55,7 +56,7 @@ func indicator(label string, light Light, word string) string {
 	return lipgloss.NewStyle().MarginRight(2).Render(out)
 }
 
-func lightGlyph(light Light) (glyph string, color lipgloss.Color) {
+func lightGlyph(light Light) (glyph string, c color.Color) {
 	switch light {
 	case LightGreen:
 		return "●", lipgloss.Color("108")

@@ -74,12 +74,3 @@ func TestResolveSource(t *testing.T) {
 	}
 }
 
-func TestLabelsForSource(t *testing.T) {
-	m := LabelsForSource(SourceDev)
-	if m[LabelDeploySource] != "dev" {
-		t.Fatal(m)
-	}
-	if LabelsForSource(SourceMixed) != nil {
-		t.Fatal("mixed should not be written")
-	}
-}

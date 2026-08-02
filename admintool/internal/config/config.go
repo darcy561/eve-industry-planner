@@ -1,12 +1,14 @@
 // Package config loads, validates, emits, and applies live eip.config.yaml.
+// Day-2 Sync (capacity / Traefik / Grafana) mutates Swarm via Moby ServiceUpdate.
 // Starter defaults (DefaultConfig) live in kit/templates/yamldefaults — not here.
 // Generic YAML IO/aliases: yamlutil; this package owns Validate + config header + Sync/apply.
 package config
 
 import (
 	"fmt"
+	"maps"
 	"net"
-	"sort"
+	"slices"
 	"strings"
 
 	"eve-industry-planner/admintool/internal/yamlutil"
@@ -29,11 +31,13 @@ type Config struct {
 type CLI struct {
 	// EnvBackupPath is a stem (relative to project home) or absolute path prefix for .env backups.
 	// Files: {stem}-current.txt and {stem}-YYYYMMDD-HHMMSS.txt (keep 3 timestamped).
+	// Default is under a folder so backups do not clutter project home.
 	EnvBackupPath string `yaml:"env_backup_path"`
 }
 
 // DefaultEnvBackupStem is used when cli.env_backup_path is empty.
-const DefaultEnvBackupStem = "eip-env-backup"
+// Relative to project home → backups/env/env-current.txt, …
+const DefaultEnvBackupStem = "backups/env/env"
 
 // EffectiveEnvBackupPath returns cli.env_backup_path or DefaultEnvBackupStem.
 func (c Config) EffectiveEnvBackupPath() string {
@@ -300,11 +304,7 @@ func (c Config) SyncEnvMap() map[string]string {
 // SyncEnv returns KEY=VALUE lines (stable order) for tests / logging.
 func (c Config) SyncEnv() []string {
 	env := c.SyncEnvMap()
-	keys := make([]string, 0, len(env))
-	for k := range env {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(env))
 	out := make([]string, 0, len(keys))
 	for _, k := range keys {
 		out = append(out, k+"="+env[k])
@@ -315,11 +315,7 @@ func (c Config) SyncEnv() []string {
 // SummaryLines are human-readable apply notes for eip sync logs.
 func (c Config) SummaryLines() []string {
 	var lines []string
-	names := make([]string, 0, len(c.Services))
-	for n := range c.Services {
-		names = append(names, n)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(c.Services))
 	for _, n := range names {
 		s := c.Services[n]
 		line := fmt.Sprintf("%s: capacity_controller_managed=%t min=%d max=%d replicas(sync)=%d", n, s.CapacityControllerManaged, s.Min, s.Max, s.Min)

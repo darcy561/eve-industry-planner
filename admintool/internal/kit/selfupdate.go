@@ -73,6 +73,10 @@ func SelfUpdate(ctx context.Context, opts Options) (Result, error) {
 	removeSelfUpdateSidecars(exe)
 
 	current := normalizeVersion(opts.CurrentVersion)
+	// Local soak builds (…local) must not be overwritten by GitHub Release assets.
+	if isLocalDevVersion(opts.CurrentVersion) {
+		return Result{Current: current, Skipped: true, DryRun: opts.DryRun}, nil
+	}
 	tag := strings.TrimSpace(opts.Tag)
 	if tag == "" {
 		tag = resolveUpdateTag()
@@ -215,6 +219,10 @@ func isFloatingReleaseTag(tag string) bool {
 	return strings.HasPrefix(t, "prerelease")
 }
 
+func isLocalDevVersion(v string) bool {
+	return strings.HasSuffix(strings.TrimSpace(v), ".local")
+}
+
 // releaseVersionKey maps a Release tag to a comparable semver-ish string.
 // Floating "cli" returns "" so version equality never skips the update.
 func releaseVersionKey(tag string) string {
@@ -320,7 +328,7 @@ func fetchSHA256SUMS(ctx context.Context, client *http.Client, rel ghRelease) (m
 
 func parseSHA256SUMS(text string) map[string]string {
 	out := map[string]string{}
-	for _, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue

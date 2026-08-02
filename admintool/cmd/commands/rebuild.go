@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"eve-industry-planner/admintool/internal/catalog"
 	"eve-industry-planner/admintool/internal/deploy"
 	"eve-industry-planner/admintool/internal/msg"
+	"eve-industry-planner/admintool/internal/process"
 )
 
 func init() {
@@ -33,7 +33,7 @@ Requires a prior eip dev stack (dev source). Does not re-run engine/dataplane Re
 		noCache, _ := cmd.Flags().GetBool("no-cache")
 		msg.EmitStackForVerb("rebuild")
 
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Minute)
+		ctx, cancel := process.TimeoutSignalContext(45 * time.Minute)
 		defer cancel()
 
 		var bakeArgs []string
@@ -41,7 +41,7 @@ Requires a prior eip dev stack (dev source). Does not re-run engine/dataplane Re
 			bakeArgs = append(bakeArgs, "--no-cache")
 		}
 
-		if err := deploy.Rebuild(ctx, bakeArgs...); err != nil {
+		if err := process.MapDoneError(deploy.Rebuild(ctx, bakeArgs...)); err != nil {
 			msg.EmitStack("rebuild", msg.LightRed, err.Error())
 			return err
 		}

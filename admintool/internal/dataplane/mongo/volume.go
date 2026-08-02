@@ -2,6 +2,7 @@ package mongo
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -54,7 +55,7 @@ func volumeLooksProvisioned(volume string) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr.ExitCode() == 1 {
 		return false, nil
 	}
 	// Image pull / docker down — treat as empty so EnsureKeyfile can still generate.

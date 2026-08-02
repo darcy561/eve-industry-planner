@@ -3,7 +3,7 @@ package home
 import (
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"eve-industry-planner/admintool/internal/kit"
 	"eve-industry-planner/admintool/internal/process"

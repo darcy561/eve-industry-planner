@@ -5,20 +5,20 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 
 	"eve-industry-planner/admintool/internal/docker"
 	"eve-industry-planner/admintool/internal/dockercli"
-	"eve-industry-planner/admintool/internal/msg"
 	"eve-industry-planner/admintool/internal/kit"
+	"eve-industry-planner/admintool/internal/msg"
 	"eve-industry-planner/admintool/internal/stack"
 )
 
@@ -52,11 +52,7 @@ func Bake(ctx context.Context, home string, extraArgs ...string) (map[string]str
 	}
 	devRoles := stack.ImageRepos(devDoc)
 	if len(roles) == 0 {
-		roles = make([]string, 0, len(devRoles))
-		for r := range devRoles {
-			roles = append(roles, r)
-		}
-		sort.Strings(roles)
+		roles = slices.Sorted(maps.Keys(devRoles))
 	} else {
 		for _, r := range roles {
 			if _, ok := devRoles[r]; !ok {
@@ -69,28 +65,31 @@ func Bake(ctx context.Context, home string, extraArgs ...string) (map[string]str
 	}
 
 	msg.Step("Baking local images…")
+	if msg.Enabled() {
+		msg.Step("  buildx progress (may take several minutes)…")
+	}
 	if err := runBuildxBake(ctx, home, envMap, appVersion, noCache, roles); err != nil {
 		return nil, err
 	}
 
-	cli, err := docker.NewClient(client.WithTimeout(30 * time.Second))
+	apiClient, err := docker.NewAPIClient(client.WithTimeout(30 * time.Second))
 	if err != nil {
-		return nil, fmt.Errorf("docker client: %w", err)
+		return nil, fmt.Errorf("engine API client: %w", err)
 	}
-	defer cli.Close()
+	defer apiClient.Close()
 
 	bakeDigests := map[string]string{}
 	for _, role := range roles {
 		repo := devRoles[role]
 		ref := repo + ":" + bakeWorkingTag
-		dig, err := imageDigest(ctx, ref)
+		dig, err := imageDigest(ctx, apiClient, ref)
 		if err != nil || dig == "" {
 			return nil, fmt.Errorf("bake: no image digest for %s after bake", ref)
 		}
 		bakeDigests[role] = dig
 	}
 
-	snap, err := docker.LoadStackSnapshot(ctx, cli, docker.ResolveStackName())
+	snap, err := docker.LoadStackSnapshot(ctx, apiClient, docker.ResolveStackName())
 	if err != nil {
 		return nil, fmt.Errorf("bake: stack snapshot: %w", err)
 	}
@@ -116,7 +115,7 @@ func Bake(ctx context.Context, home string, extraArgs ...string) (map[string]str
 			msg.Step("  promote %s (no active local tag)", role)
 			continue
 		}
-		oldDig, err := imageDigest(ctx, repo+":"+oldTag)
+		oldDig, err := imageDigest(ctx, apiClient, repo+":"+oldTag)
 		if err != nil || oldDig == "" {
 			promote = append(promote, role)
 			msg.Step("  promote %s (active image missing)", role)
@@ -141,7 +140,7 @@ func Bake(ctx context.Context, home string, extraArgs ...string) (map[string]str
 			repo := devRoles[role]
 			src := repo + ":" + bakeWorkingTag
 			dst := repo + ":" + newTag
-			if err := dockercli.Run(ctx, "tag", src, dst); err != nil {
+			if _, err := apiClient.ImageTag(ctx, client.ImageTagOptions{Source: src, Target: dst}); err != nil {
 				return nil, fmt.Errorf("bake: tag %s: %w", dst, err)
 			}
 			tags[role] = newTag
@@ -185,7 +184,10 @@ func runBuildxBake(ctx context.Context, home string, envMap map[string]string, a
 	if noCache {
 		args = append(args, "--no-cache")
 	}
-	if dockercli.Verbose() {
+	// Quiet hides all BuildKit output. Under TUI (and EIP_VERBOSE) use plain so
+	// the OUTPUT pane keeps moving — buildx writes progress on stderr.
+	stream := dockercli.Verbose() || msg.Enabled()
+	if stream {
 		args = append(args, "--progress=plain")
 	} else {
 		args = append(args, "--progress=quiet")
@@ -200,17 +202,19 @@ func runBuildxBake(ctx context.Context, home string, envMap map[string]string, a
 	cmd.Dir = home
 	cmd.Env = bakeCmdEnv(envMap, appVersion)
 	cmd.Stdin = bytes.NewReader(bakeHCL)
-	cmd.Stderr = os.Stderr
-	var stdoutW *msg.LineWriter
+	var lineW *msg.LineWriter
 	if msg.Enabled() {
-		stdoutW = msg.NewLineWriter()
-		cmd.Stdout = stdoutW
+		// Relay stdout+stderr as pane.text (not raw child stderr "errors").
+		lineW = msg.NewLineWriter()
+		cmd.Stdout = lineW
+		cmd.Stderr = lineW
 	} else {
 		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 	}
 	err := cmd.Run()
-	if stdoutW != nil {
-		stdoutW.Flush()
+	if lineW != nil {
+		lineW.Flush()
 	}
 	if err != nil {
 		return fmt.Errorf("buildx bake: %w", err)
@@ -220,10 +224,10 @@ func runBuildxBake(ctx context.Context, home string, envMap map[string]string, a
 
 func bakeCmdEnv(envMap map[string]string, appVersion string) []string {
 	overlay := map[string]string{
-		"APP_VERSION":          appVersion,
-		"FRONTEND_APP_VERSION": appVersion,
-		"BAKE_WORKING_TAG":     bakeWorkingTag,
-		"ENVIRONMENT":          "development",
+		"APP_VERSION":            appVersion,
+		"FRONTEND_APP_VERSION":   appVersion,
+		"BAKE_WORKING_TAG":       bakeWorkingTag,
+		"ENVIRONMENT":            "development",
 		"APP_FEATURE_FLAGS_JSON": `{"enable_upcoming_changes_page":false}`,
 	}
 	if v := kit.Get(envMap, "ENVIRONMENT"); v != "" {
@@ -263,25 +267,23 @@ func swarmLocalTag(repo, serviceImage string) string {
 	return tag
 }
 
-// imageDigest matches scripts/lib/images.sh: RepoDigests[0] else Id.
-func imageDigest(ctx context.Context, ref string) (string, error) {
-	out, err := dockercli.RunOut(ctx, "image", "inspect", ref,
-		"--format", "{{if .RepoDigests}}{{index .RepoDigests 0}}{{end}}")
-	if err == nil {
-		d := strings.TrimSpace(out)
+// imageDigest: RepoDigests[0] else Id (Moby ImageInspect).
+func imageDigest(ctx context.Context, apiClient *client.Client, ref string) (string, error) {
+	insp, err := apiClient.ImageInspect(ctx, ref)
+	if err != nil {
+		return "", err
+	}
+	if len(insp.RepoDigests) > 0 {
+		d := strings.TrimSpace(insp.RepoDigests[0])
 		if d != "" {
-			if i := strings.Index(d, "@"); i >= 0 {
-				return d[i+1:], nil
+			if _, after, ok := strings.Cut(d, "@"); ok {
+				return after, nil
 			}
 			return d, nil
 		}
 	}
-	out, err = dockercli.RunOut(ctx, "image", "inspect", ref, "--format", "{{.Id}}")
-	if err != nil {
-		return "", err
-	}
-	id := strings.TrimSpace(out)
-	if id == "" || id == "missing" {
+	id := strings.TrimSpace(insp.ID)
+	if id == "" {
 		return "", fmt.Errorf("no digest for %s", ref)
 	}
 	return id, nil

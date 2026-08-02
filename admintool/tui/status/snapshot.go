@@ -1,7 +1,7 @@
 package status
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"eve-industry-planner/admintool/cmd/commands"
 	"eve-industry-planner/admintool/internal/msg"

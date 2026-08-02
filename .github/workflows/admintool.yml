@@ -1,4 +1,5 @@
-# Build + unit tests for the eip host tool (admintool module).
+# eip host tool (admintool): unit tests (ubuntu/windows/macos), Swarm integration
+# (ubuntu: docker swarm init + go test -tags=integration), optional Public CLI ship.
 # Public CLI ship: workflow_dispatch bump → cli-vX.Y.Z + floating cli.
 name: admintool
 
@@ -65,10 +66,44 @@ jobs:
       - name: Build
         run: go build -o eip-ci .
 
+  # Linux Engine + Swarm: Moby secret/config CRUD (not run on win/mac — same Linux API).
+  integration:
+    name: integration (swarm)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: admintool
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: admintool/go.mod
+          cache-dependency-path: admintool/go.sum
+
+      - name: Docker info
+        run: docker info
+
+      - name: Swarm init
+        run: |
+          set -euo pipefail
+          docker swarm leave --force 2>/dev/null || true
+          docker swarm init
+
+      - name: Integration tests
+        run: go test ./internal/swarm/ -tags=integration -count=1 -timeout 10m
+
+      - name: Swarm leave
+        if: always()
+        run: docker swarm leave --force || true
+
   release:
     name: release assets
     if: github.event_name == 'workflow_dispatch'
-    needs: test
+    needs: [test, integration]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

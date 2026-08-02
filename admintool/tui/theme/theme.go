@@ -1,7 +1,7 @@
 // Package theme is the shared TUI palette and layout gutters.
 package theme
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // Layout gutters (columns).
 const (

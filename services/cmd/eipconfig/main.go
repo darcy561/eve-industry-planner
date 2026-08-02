@@ -61,7 +61,7 @@ func main() {
 			fatal(err)
 		}
 	case "discover-config-sync":
-		// TSV: key\tfile\tservice\ttarget — for scripts/lib/configs.sh (yaml.v3 parse).
+		// TSV: key\tfile\tservice\ttarget (yaml.v3 parse).
 		stackPath := eipconfig.ResolveStackPath(flagValue(os.Args[2:], "--stack", eipconfig.DataStackFile()))
 		targets, err := eipconfig.DiscoverConfigSyncTargets(stackPath)
 		if err != nil {

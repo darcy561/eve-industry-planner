@@ -53,7 +53,7 @@ func Execute() error {
 }
 
 // RunArgs executes the CLI with the given argv (no program name) and captures
-// combined stdout/stderr for the TUI. Safe for sequential use from one process.
+// combined stdout/stderr. Used by unit tests; safe for sequential use in one process.
 func RunArgs(args []string) (output string, err error) {
 	var out, errOut bytes.Buffer
 	rootCmd.SetArgs(args)

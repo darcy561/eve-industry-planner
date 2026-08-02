@@ -12,7 +12,7 @@ func TestSetupVisibleOnlyWhenNeeded(t *testing.T) {
 	t.Chdir(home)
 
 	found := false
-	for _, e := range ops.VisibleEntries(status.LightOff) {
+	for _, e := range ops.VisibleEntries(status.LightOff, status.LightOff) {
 		if e.Special == ops.SpecialSetup {
 			found = true
 			if e.Title != "Setup" {
@@ -25,7 +25,7 @@ func TestSetupVisibleOnlyWhenNeeded(t *testing.T) {
 	}
 
 	writeOperatorKit(t, ".")
-	for _, e := range ops.VisibleEntries(status.LightOff) {
+	for _, e := range ops.VisibleEntries(status.LightOff, status.LightOff) {
 		if e.Special == ops.SpecialSetup {
 			t.Fatal("Setup must hide when docs + stacks exist")
 		}
@@ -36,7 +36,7 @@ func TestMoreAlwaysOnMain(t *testing.T) {
 	t.Parallel()
 	for _, light := range []status.Light{status.LightOff, status.LightRed, status.LightAmber, status.LightGreen} {
 		found := false
-		for _, e := range ops.VisibleEntries(light) {
+		for _, e := range ops.VisibleEntries(light, status.LightOff) {
 			if e.Special == ops.SpecialMore {
 				found = true
 				if e.Title != "More" {

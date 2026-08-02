@@ -136,10 +136,10 @@ Make `release` / `update-data` (legacy).
 - [x] Tenant affinity cookie set at login (`account:{id}`)
 - [x] ws-router on stack (`replicas: 1`, start-first); Redis placement path live (#4 impl)
 - [x] **#31** — Traefik on Swarm ingress; Windows `http://127.0.0.1/` and `/grafana/login` (dev)
-- [x] Same tenant → same slot (#4 acceptance — `make smoke-ws-placement`, 2026-07-19)
+- [x] Same tenant → same slot (#4 acceptance, 2026-07-19; Make smoke script later removed)
 - [x] Core `start-first` primary lease handoff + Redis changestream resume (#9–#13)
 - [x] Core dual-publisher failover tests (#28 — `go test ./core/leadership/…`)
-- [x] #21 minimum — cordon/pin/evacuate Redis overlays (`make ws-placement-ops`, 2026-07-19)
+- [x] #21 minimum — cordon/pin/evacuate Redis overlays (2026-07-19; Make ops CLI later removed → #18)
 - [ ] Durable continuity after `service scale` / recreate
 - [x] Bind-mount secrets cutover (#3 — Swarm secrets + narrow loaders; BIND_MOUNTS.md)
 - [x] Day-2 apply docs (#24 — `swarm-secrets-sync` / `swarm-sync`; ENV.md / DEPLOYMENT.md)

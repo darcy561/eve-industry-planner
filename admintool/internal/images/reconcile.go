@@ -3,11 +3,10 @@ package images
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 
 	"eve-industry-planner/admintool/internal/catalog"
 	"eve-industry-planner/admintool/internal/docker"
@@ -26,14 +25,14 @@ func ReconcileLive(ctx context.Context, home string, wantObs bool) error {
 		byService[r.Service] = r.Image
 	}
 
-	cli, err := docker.NewClient(client.WithTimeout(docker.DefaultClientTimeout))
+	apiClient, err := docker.NewAPIClient(client.WithTimeout(2 * time.Minute))
 	if err != nil {
-		return fmt.Errorf("reconcile: docker client: %w", err)
+		return fmt.Errorf("reconcile: engine API client: %w", err)
 	}
-	defer cli.Close()
+	defer apiClient.Close()
 
 	snapCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	snap, err := docker.LoadStackSnapshot(snapCtx, cli, docker.ResolveStackName())
+	snap, err := docker.LoadStackSnapshot(snapCtx, apiClient, docker.ResolveStackName())
 	cancel()
 	if err != nil {
 		return fmt.Errorf("reconcile: stack snapshot: %w", err)
@@ -55,7 +54,7 @@ func ReconcileLive(ctx context.Context, home string, wantObs bool) error {
 		if runDig == "" {
 			continue
 		}
-		localDig, err := imageDigest(ctx, img)
+		localDig, err := imageDigest(ctx, apiClient, img)
 		if err != nil {
 			return fmt.Errorf("reconcile %s: local digest: %w", short, err)
 		}
@@ -63,7 +62,7 @@ func ReconcileLive(ctx context.Context, home string, wantObs bool) error {
 			continue
 		}
 		msg.Step("  force-update %s (digest drift)", short)
-		if err := docker.ForceUpdateService(ctx, cli, info.FullName); err != nil {
+		if err := docker.ForceUpdateService(ctx, apiClient, info.FullName); err != nil {
 			return fmt.Errorf("reconcile %s: %w", short, err)
 		}
 		forced++
@@ -77,40 +76,14 @@ func ReconcileLive(ctx context.Context, home string, wantObs bool) error {
 }
 
 func reconcileOrder(byService map[string]string, snap docker.StackSnapshot) []string {
-	prefer := catalog.RestartPrefer()
-	done := map[string]bool{}
-	var out []string
-	for _, short := range prefer {
-		if _, ok := byService[short]; !ok {
-			continue
-		}
-		if _, ok := snap.Services[short]; !ok {
-			continue
-		}
-		out = append(out, short)
-		done[short] = true
-	}
-	rest := make([]string, 0, len(byService))
+	cands := make(map[string]struct{}, len(byService))
 	for short := range byService {
-		if done[short] {
-			continue
-		}
 		if _, ok := snap.Services[short]; !ok {
 			continue
 		}
-		rest = append(rest, short)
+		cands[short] = struct{}{}
 	}
-	sort.Strings(rest)
-	return append(out, rest...)
-}
-
-// DigestFromImageRef returns the @digest suffix when present.
-func DigestFromImageRef(ref string) string {
-	ref = strings.TrimSpace(ref)
-	if i := strings.LastIndex(ref, "@"); i >= 0 && i+1 < len(ref) {
-		return strings.TrimSpace(ref[i+1:])
-	}
-	return ""
+	return catalog.OrderPrefer(cands)
 }
 
 // DigestsMatch reports whether two digests name the same content.

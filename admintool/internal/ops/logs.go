@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 
 	"eve-industry-planner/admintool/internal/docker"
 	"eve-industry-planner/admintool/internal/msg"
@@ -22,7 +22,7 @@ type LogsOpts struct {
 	Follow bool
 }
 
-// Logs streams Swarm service logs (SDK). Under TUI dump mode, writes to stderr
+// Logs streams Swarm service logs (Moby ServiceLogs). Under TUI dump mode, writes to stderr
 // so the OUTPUT pane captures lines. Follow blocks until ctx cancel / stream end.
 func Logs(ctx context.Context, opts LogsOpts) error {
 	target := strings.TrimSpace(opts.Target)
@@ -42,11 +42,11 @@ func Logs(ctx context.Context, opts LogsOpts) error {
 		if len(sorted) == 0 {
 			return fmt.Errorf("logs: nothing is running — start with eip up / eip dev")
 		}
-		cli, shortToFull, err := resolveStack(ctx, opts.Follow)
+		apiClient, shortToFull, err := resolveStack(ctx, opts.Follow)
 		if err != nil {
 			return err
 		}
-		defer cli.Close()
+		defer apiClient.Close()
 		tail := effectiveTail(opts.Tail)
 		for i, short := range sorted {
 			full, ok := shortToFull[short]
@@ -57,7 +57,7 @@ func Logs(ctx context.Context, opts LogsOpts) error {
 				fmt.Fprintln(out)
 			}
 			msg.Step("=== logs: %s ===", short)
-			if err := streamOne(ctx, cli, full, short, docker.ServiceLogsOpts{Tail: tail, Follow: false}, out); err != nil {
+			if err := streamOne(ctx, apiClient, full, short, docker.ServiceLogsOpts{Tail: tail, Follow: false}, out); err != nil {
 				msg.Line(fmt.Sprintf("logs %s: %v", short, err))
 			}
 		}
@@ -77,11 +77,11 @@ func StreamLogs(ctx context.Context, opts LogsOpts, w io.Writer) error {
 	if opts.Follow && strings.EqualFold(target, "all") {
 		return fmt.Errorf("logs: follow (-f) cannot be used with all services; pick one service")
 	}
-	cli, shortToFull, err := resolveStack(ctx, opts.Follow)
+	apiClient, shortToFull, err := resolveStack(ctx, opts.Follow)
 	if err != nil {
 		return err
 	}
-	defer cli.Close()
+	defer apiClient.Close()
 
 	stackName := docker.ResolveStackName()
 	short := strings.TrimPrefix(target, stackName+"_")
@@ -89,7 +89,7 @@ func StreamLogs(ctx context.Context, opts LogsOpts, w io.Writer) error {
 	if !ok {
 		return fmt.Errorf("logs: unknown or not running service %q", target)
 	}
-	return streamOne(ctx, cli, full, short, docker.ServiceLogsOpts{
+	return streamOne(ctx, apiClient, full, short, docker.ServiceLogsOpts{
 		Tail:   effectiveTail(opts.Tail),
 		Follow: opts.Follow,
 	}, w)
@@ -102,29 +102,29 @@ func effectiveTail(tail string) string {
 	return tail
 }
 
-func resolveStack(ctx context.Context, follow bool) (client.APIClient, map[string]string, error) {
+func resolveStack(ctx context.Context, follow bool) (*client.Client, map[string]string, error) {
 	timeout := 2 * time.Minute
 	if follow {
 		timeout = 24 * time.Hour
 	}
-	cli, err := docker.NewClient(client.WithTimeout(timeout))
+	apiClient, err := docker.NewAPIClient(client.WithTimeout(timeout))
 	if err != nil {
 		return nil, nil, err
 	}
-	snap, err := docker.LoadStackSnapshot(ctx, cli, docker.ResolveStackName())
+	snap, err := docker.LoadStackSnapshot(ctx, apiClient, docker.ResolveStackName())
 	if err != nil {
-		cli.Close()
+		apiClient.Close()
 		return nil, nil, err
 	}
 	if !snap.Present {
-		cli.Close()
+		apiClient.Close()
 		return nil, nil, fmt.Errorf("logs: nothing is running — start with eip up / eip dev")
 	}
 	m := make(map[string]string, len(snap.Services))
 	for short, info := range snap.Services {
 		m[short] = info.FullName
 	}
-	return cli, m, nil
+	return apiClient, m, nil
 }
 
 func logWriter() io.Writer {
@@ -134,8 +134,8 @@ func logWriter() io.Writer {
 	return os.Stdout
 }
 
-func streamOne(ctx context.Context, cli client.APIClient, fullName, short string, opts docker.ServiceLogsOpts, w io.Writer) error {
-	rc, err := docker.ServiceLogs(ctx, cli, fullName, opts)
+func streamOne(ctx context.Context, apiClient *client.Client, fullName, short string, opts docker.ServiceLogsOpts, w io.Writer) error {
+	rc, err := docker.ServiceLogs(ctx, apiClient, fullName, opts)
 	if err != nil {
 		return err
 	}

@@ -1,16 +1,13 @@
 package builder
 
 import (
-	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/huh/v2"
 
-	"eve-industry-planner/admintool/tui/theme"
 	"eve-industry-planner/admintool/tui/ui"
 )
 
@@ -21,73 +18,62 @@ const (
 	focusForm
 )
 
-// Session is a nested wizard model: left section list, right active form.
+// Session is a nested wizard: left section list, right huh form + Finish.
 type Session struct {
-	Title    string // left panel title (e.g. INIT)
+	Title    string
 	sections []Section
 	secIdx   int
-	fieldIdx int
+	fieldIdx int // fallback when huh focus key is empty (notes)
 	focus    focusPane
 
 	nav         list.Model
 	navDelegate *ui.MarqueeDelegate
-	inputs      []textinput.Model
-	formVP      viewport.Model // right-pane scroll for long forms / wrapped help
+	form        *huh.Form
+	formVP      viewport.Model
+	binds       formBinds
 
-	finishErr string // shown when Finish validation fails
+	finishErr     string
+	finishFocused bool
+	tabToFinish   bool // tab (not ↑↓) advanced past last field → land on Finish
 
 	leftW  int
 	rightW int
 	bodyH  int
 }
 
-// NewSession builds a Session from sections (copies field values into inputs).
+// NewSession builds a Session from sections.
 func NewSession(title string, sections []Section) Session {
 	if title == "" {
 		title = "SETUP"
 	}
 	secs := make([]Section, len(sections))
 	copy(secs, sections)
-	s := Session{
-		Title:    title,
-		sections: secs,
-		focus:    focusNav,
-		formVP:   ui.NewOutputViewport(""),
-	}
+	s := Session{Title: title, sections: secs, focus: focusNav}
 	s.rebuildNav(30, 10)
-	s.rebuildInputs()
+	_ = s.rebuildForm()
 	return s
 }
 
-// Sections returns the current section definitions (values may lag inputs until sync).
-func (s Session) Sections() []Section {
-	return s.sections
-}
+func (s Session) Sections() []Section { return s.sections }
+func (s Session) ActiveIndex() int    { return s.secIdx }
+func (s Session) FocusForm() bool     { return s.focus == focusForm }
 
-// ActiveIndex returns the selected section index.
-func (s Session) ActiveIndex() int {
-	return s.secIdx
-}
+// FinishError is the Persist error banner text (empty when clear).
+func (s Session) FinishError() string { return s.finishErr }
 
-// FocusForm reports whether the form (not nav) owns keys.
-func (s Session) FocusForm() bool {
-	return s.focus == focusForm
-}
-
-// SetFinishError shows an error banner (keeps the wizard open).
-func (s *Session) SetFinishError(msg string) {
+// SetFinishError shows an error banner and rebuilds the form.
+func (s *Session) SetFinishError(msg string) tea.Cmd {
 	s.finishErr = strings.TrimSpace(msg)
+	return s.rebuildForm()
 }
 
-// AdvanceMarquee ticks the section-list marquee selection.
-func (s *Session) AdvanceMarquee() {
-	if s.navDelegate != nil {
-		s.navDelegate.Advance(s.nav.Index())
-	}
-}
-
-// SetSize updates panel geometry and resizes nav / inputs / form viewport.
-func (s *Session) SetSize(leftW, rightW, bodyH int) {
+// SetSize updates panel geometry and rebuilds the huh form.
+// Syncs live huh binds first so resize does not drop in-progress edits.
+// Same dimensions with an existing form are a no-op so home layout /
+// WindowSizeMsg cannot spin rebuild → Init → RequestWindowSize → layout.
+func (s *Session) SetSize(leftW, rightW, bodyH int) tea.Cmd {
+	s.syncFromBinds()
+	same := s.form != nil && s.leftW == leftW && s.rightW == rightW && s.bodyH == bodyH
 	s.leftW, s.rightW, s.bodyH = leftW, rightW, bodyH
 	listW, listH := ui.ListSizeInPanel(leftW, bodyH)
 	if s.navDelegate == nil {
@@ -95,19 +81,17 @@ func (s *Session) SetSize(leftW, rightW, bodyH int) {
 	} else {
 		ui.SizeList(&s.nav, s.navDelegate, listW, listH)
 	}
-	innerW, _ := ui.PanelInnerSize(rightW, bodyH)
-	for i := range s.inputs {
-		s.inputs[i].Width = theme.Max(8, innerW-4)
+	s.sizeFormVP()
+	if same {
+		s.syncFormVPContent()
+		return nil
 	}
-	s.sizeFormViewport()
-	s.refreshFormViewport()
-	s.ensureFieldVisible()
+	return s.rebuildForm()
 }
 
-// Collect syncs inputs and returns all field values + Autogen generate flags.
-// PendingRoll forces generate=true for that key (buffer unchanged until Persist).
+// Collect syncs huh binds and returns values + Autogen generate flags.
 func (s *Session) Collect() (values map[string]string, generate map[string]bool) {
-	s.syncValuesFromInputs()
+	s.syncFromBinds()
 	values = make(map[string]string)
 	generate = make(map[string]bool)
 	for _, sec := range s.sections {
@@ -116,7 +100,7 @@ func (s *Session) Collect() (values map[string]string, generate map[string]bool)
 				continue
 			}
 			values[f.ID] = f.Value
-			if f.Autogen && !f.Locked {
+			if (f.Autogen || f.AllowRoll) && !f.Locked {
 				generate[f.ID] = f.AutogenOn || f.PendingRoll
 			}
 		}
@@ -139,315 +123,265 @@ func (s *Session) rebuildNav(width, height int) {
 	}
 }
 
-func (s *Session) fieldEditable(f Field) bool {
+func fieldEditable(f Field) bool {
 	if f.Kind == KindReadonly || f.Kind == KindBool || f.Locked {
 		return false
 	}
-	if f.Autogen && f.AutogenOn {
-		return false // generate-on-save: no manual input
-	}
-	return true
-}
-
-func (s *Session) rebuildInputs() {
-	sec := s.currentSection()
-	s.inputs = make([]textinput.Model, len(sec.Fields))
-	innerW, _ := ui.PanelInnerSize(s.rightW, s.bodyH)
-	for i, f := range sec.Fields {
-		ti := textinput.New()
-		// Help is rendered under the field in renderForm — do not also put it
-		// in Placeholder (that duplicated the subheader until the user typed).
-		ti.Placeholder = ""
-		ti.CharLimit = 512
-		ti.SetValue(f.Value)
-		ti.Prompt = ""
-		ti.Width = theme.Max(8, innerW-4)
-		if f.Kind == KindSecret {
-			ti.EchoMode = textinput.EchoPassword
-			ti.EchoCharacter = '•'
-		}
-		s.inputs[i] = ti
-	}
-	if s.fieldIdx < 0 || s.fieldIdx >= len(sec.Fields) {
-		s.fieldIdx = 0
-	}
-	s.blurAllInputs()
+	return !(f.Autogen && f.AutogenOn && !f.PendingRoll)
 }
 
 func (s Session) currentSection() Section {
 	if len(s.sections) == 0 {
 		return Section{}
 	}
-	i := s.secIdx
-	if i < 0 {
-		i = 0
-	}
+	i := max(s.secIdx, 0)
 	if i >= len(s.sections) {
 		i = len(s.sections) - 1
 	}
 	return s.sections[i]
 }
 
-func (s *Session) syncValuesFromInputs() {
-	if s.secIdx < 0 || s.secIdx >= len(s.sections) {
-		return
-	}
-	fields := s.sections[s.secIdx].Fields
-	for i := range fields {
-		if i < len(s.inputs) && s.fieldEditable(fields[i]) {
-			fields[i].Value = s.inputs[i].Value()
-		}
-	}
-	s.sections[s.secIdx].Fields = fields
-}
-
-func (s *Session) selectSection(idx int) {
+func (s *Session) selectSection(idx int) tea.Cmd {
 	if idx < 0 || idx >= len(s.sections) || idx == s.secIdx {
-		return
+		return nil
 	}
-	s.syncValuesFromInputs()
+	s.syncFromBinds()
 	s.secIdx = idx
 	s.nav.Select(idx)
 	s.fieldIdx = 0
-	s.rebuildInputs()
-	s.formVP.GotoTop()
-	s.refreshFormViewport()
-}
-
-func (s *Session) blurAllInputs() {
-	for i := range s.inputs {
-		s.inputs[i].Blur()
-	}
+	s.finishFocused = false
+	s.tabToFinish = false
+	s.formVP.SetYOffset(0)
+	return s.rebuildForm()
 }
 
 func (s *Session) focusField(i int) tea.Cmd {
-	if len(s.inputs) == 0 {
+	return s.applyFieldFocus(i)
+}
+
+func (s *Session) focusFinish() tea.Cmd {
+	s.focus = focusForm
+	s.finishFocused = true
+	s.syncFromBinds()
+	return nil
+}
+
+// goBack mirrors esc: form → sections; sections → CancelMsg.
+func (s Session) goBack() (Session, tea.Cmd) {
+	if s.focus == focusForm {
+		s.focus = focusNav
+		s.finishFocused = false
+		s.syncFromBinds()
+		return s, nil
+	}
+	s.syncFromBinds()
+	return s, func() tea.Msg { return CancelMsg{} }
+}
+
+func (s *Session) emitDone() (Session, tea.Cmd) {
+	s.syncFromBinds()
+	s.finishErr = ""
+	return *s, func() tea.Msg { return DoneMsg{} }
+}
+
+func (s *Session) focusedHuhKey() string {
+	if s.form == nil {
+		return ""
+	}
+	if ff := s.form.GetFocusedField(); ff != nil {
+		return ff.GetKey()
+	}
+	return ""
+}
+
+func (s *Session) focusedFieldIndex() int {
+	if key := s.focusedHuhKey(); key != "" {
+		id, _, _ := strings.Cut(key, ":")
+		for i, f := range s.currentSection().Fields {
+			if f.ID == id || f.ID == key {
+				return i
+			}
+		}
+	}
+	return s.fieldIdx
+}
+
+// mutateFieldAt syncs binds, applies mut to fields[i], rebuilds when mut returns true.
+func (s *Session) mutateFieldAt(i int, mut func(f *Field) bool) tea.Cmd {
+	if s.secIdx < 0 || s.secIdx >= len(s.sections) {
 		return nil
 	}
-	if i < 0 {
-		i = 0
+	s.syncFromBinds()
+	fields := s.sections[s.secIdx].Fields
+	if i < 0 || i >= len(fields) || !mut(&fields[i]) {
+		return nil
 	}
-	if i >= len(s.inputs) {
-		i = len(s.inputs) - 1
-	}
-	s.blurAllInputs()
+	applyFieldStatus(&fields[i])
+	s.sections[s.secIdx].Fields = fields
 	s.fieldIdx = i
-	s.ensureFieldVisible()
-	f := s.sections[s.secIdx].Fields[i]
-	if !s.fieldEditable(f) {
-		return nil
-	}
-	s.inputs[i].Focus()
-	return textinput.Blink
+	s.focus = focusForm
+	s.finishFocused = false
+	return s.rebuildForm()
 }
 
-func (s *Session) sizeFormViewport() {
-	if s.rightW <= 0 || s.bodyH <= 0 {
-		return
-	}
-	vpW, vpH := ui.ViewportSizeInPanel(s.rightW, s.bodyH)
-	ui.SizeViewport(&s.formVP, vpW, vpH)
+func (s *Session) mutateFocusedField(mut func(f *Field) bool) tea.Cmd {
+	return s.mutateFieldAt(s.focusedFieldIndex(), mut)
 }
 
-func (s *Session) refreshFormViewport() {
-	s.sizeFormViewport()
-	ui.SetViewportText(&s.formVP, s.renderForm(), false)
+func (s *Session) toggleBool() tea.Cmd {
+	return s.toggleBoolAt(s.focusedFieldIndex())
 }
 
-// ensureFieldVisible scrolls the form viewport so the ▸ field stays in view.
-func (s *Session) ensureFieldVisible() {
-	s.refreshFormViewport()
-	h := s.formVP.Height
-	if h <= 0 {
-		return
-	}
-	raw := ui.SoftWrap(s.renderForm(), theme.Max(8, s.formVP.Width))
-	focusLine := 0
-	for i, line := range strings.Split(raw, "\n") {
-		if strings.Contains(line, "▸") {
-			focusLine = i
-			break
+func (s *Session) toggleBoolAt(i int) tea.Cmd {
+	return s.mutateFieldAt(i, func(f *Field) bool {
+		if f.Kind != KindBool {
+			return false
 		}
-	}
-	y := s.formVP.YOffset
-	if focusLine < y {
-		s.formVP.SetYOffset(focusLine)
-	} else if focusLine >= y+h {
-		s.formVP.SetYOffset(focusLine - h + 1)
-	}
-}
-
-func (s *Session) toggleBool() {
-	if s.secIdx < 0 || s.secIdx >= len(s.sections) {
-		return
-	}
-	fields := s.sections[s.secIdx].Fields
-	if s.fieldIdx < 0 || s.fieldIdx >= len(fields) {
-		return
-	}
-	if fields[s.fieldIdx].Kind != KindBool {
-		return
-	}
-	s.syncValuesFromInputs()
-	fields = s.sections[s.secIdx].Fields
-	if strings.EqualFold(strings.TrimSpace(fields[s.fieldIdx].Value), "true") {
-		fields[s.fieldIdx].Value = "false"
-	} else {
-		fields[s.fieldIdx].Value = "true"
-	}
-	s.sections[s.secIdx].Fields = fields
-	s.rebuildInputs()
-}
-
-func (s *Session) toggleAutogen() {
-	if s.secIdx < 0 || s.secIdx >= len(s.sections) {
-		return
-	}
-	fields := s.sections[s.secIdx].Fields
-	if s.fieldIdx < 0 || s.fieldIdx >= len(fields) {
-		return
-	}
-	f := fields[s.fieldIdx]
-	if !f.Autogen || f.Locked {
-		return
-	}
-	s.syncValuesFromInputs()
-	fields = s.sections[s.secIdx].Fields
-	fields[s.fieldIdx].AutogenOn = !fields[s.fieldIdx].AutogenOn
-	if fields[s.fieldIdx].AutogenOn {
-		fields[s.fieldIdx].PendingRoll = false
-	}
-	s.sections[s.secIdx].Fields = fields
-	s.refreshFieldStatus(s.secIdx, s.fieldIdx)
-	s.rebuildInputs()
-}
-
-func (s *Session) toggleRoll() {
-	if s.secIdx < 0 || s.secIdx >= len(s.sections) {
-		return
-	}
-	fields := s.sections[s.secIdx].Fields
-	if s.fieldIdx < 0 || s.fieldIdx >= len(fields) {
-		return
-	}
-	f := fields[s.fieldIdx]
-	if !f.Autogen || f.Locked {
-		return
-	}
-	s.syncValuesFromInputs()
-	fields = s.sections[s.secIdx].Fields
-	fields[s.fieldIdx].PendingRoll = !fields[s.fieldIdx].PendingRoll
-	if fields[s.fieldIdx].PendingRoll {
-		fields[s.fieldIdx].AutogenOn = false // roll is one-shot; keep typed buffer until Finish
-	}
-	s.sections[s.secIdx].Fields = fields
-	s.refreshFieldStatus(s.secIdx, s.fieldIdx)
-	s.rebuildInputs()
-}
-
-func (s *Session) refreshFieldStatus(secIdx, fieldIdx int) {
-	if secIdx < 0 || secIdx >= len(s.sections) {
-		return
-	}
-	fields := s.sections[secIdx].Fields
-	if fieldIdx < 0 || fieldIdx >= len(fields) {
-		return
-	}
-	f := &fields[fieldIdx]
-	switch {
-	case f.Locked:
-		f.Status = "Locked — value cannot be changed here"
-	case f.PendingRoll:
-		f.Status = "Will roll on save (current value kept until then)"
-	case f.Autogen && f.AutogenOn:
-		f.Status = "Will generate on save"
-	default:
-		// leave Status for caller/initui; clear roll/gen hints
-		if strings.HasPrefix(f.Status, "Will roll") || strings.HasPrefix(f.Status, "Will generate") {
-			f.Status = ""
+		if strings.EqualFold(strings.TrimSpace(f.Value), "true") {
+			f.Value = "false"
+		} else {
+			f.Value = "true"
 		}
-	}
-	s.sections[secIdx].Fields = fields
+		return true
+	})
 }
 
-// Init implements tea.Model.
+func (s *Session) toggleAutogen() tea.Cmd {
+	return s.toggleAutogenAt(s.focusedFieldIndex())
+}
+
+func (s *Session) toggleAutogenAt(i int) tea.Cmd {
+	return s.mutateFieldAt(i, func(f *Field) bool {
+		if !f.canAutogen() {
+			return false
+		}
+		f.AutogenOn = !f.AutogenOn
+		if f.AutogenOn {
+			f.PendingRoll = false
+		}
+		return true
+	})
+}
+
+func (s *Session) toggleRoll() tea.Cmd {
+	return s.toggleRollAt(s.focusedFieldIndex())
+}
+
+func (s *Session) toggleRollAt(i int) tea.Cmd {
+	return s.mutateFieldAt(i, func(f *Field) bool {
+		if !f.canRoll() {
+			return false
+		}
+		f.PendingRoll = !f.PendingRoll
+		if f.PendingRoll {
+			f.AutogenOn = false
+		}
+		return true
+	})
+}
+
 func (s Session) Init() tea.Cmd {
+	// Form content is settled inside rebuildForm/SetSize; nothing async to run.
 	return nil
 }
 
 // Update handles builder keys. Returns CancelMsg / DoneMsg for the parent.
 func (s Session) Update(msg tea.Msg) (Session, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch {
-		case msg.String() == "ctrl+c", msg.Type == tea.KeyCtrlC:
+	case ui.MarqueeTickMsg:
+		var cmd tea.Cmd
+		s.nav, cmd = s.nav.Update(msg)
+		return s, cmd
+	case tea.KeyPressMsg:
+		switch msg.String() {
+		case "ctrl+c":
 			return s, tea.Quit
-		case msg.String() == "ctrl+enter", msg.String() == "ctrl+s", msg.Type == tea.KeyCtrlS:
-			s.syncValuesFromInputs()
-			s.finishErr = ""
-			return s, func() tea.Msg { return DoneMsg{} }
-		case msg.Type == tea.KeyEsc || msg.String() == "esc" || msg.String() == "escape":
-			if s.focus == focusForm {
-				s.focus = focusNav
-				s.blurAllInputs()
-				return s, nil
+		case "ctrl+enter", "ctrl+s":
+			return s.emitDone()
+		case "ctrl+shift+c":
+			return s, s.CopyFocused()
+		case "ctrl+v":
+			if s.focus == focusForm && !s.finishFocused {
+				return s, ui.PasteText()
 			}
-			s.syncValuesFromInputs()
-			return s, func() tea.Msg { return CancelMsg{} }
-		case msg.String() == " ":
-			if s.focus == focusForm && s.secIdx >= 0 && s.secIdx < len(s.sections) {
-				fields := s.sections[s.secIdx].Fields
-				if s.fieldIdx >= 0 && s.fieldIdx < len(fields) {
-					if fields[s.fieldIdx].Kind == KindBool {
-						s.toggleBool()
-					} else {
-						s.toggleAutogen()
+		case "esc", "escape":
+			return s.goBack()
+		case "space":
+			if s.focus == focusForm && !s.finishFocused {
+				fields := s.currentSection().Fields
+				i := s.focusedFieldIndex()
+				if i >= 0 && i < len(fields) {
+					if fields[i].Kind == KindBool {
+						return s, s.toggleBool()
 					}
-					return s, s.focusField(s.fieldIdx)
+					if key := s.focusedHuhKey(); strings.HasSuffix(key, ":roll") {
+						return s, s.toggleRoll()
+					}
+					if fields[i].canAutogen() {
+						return s, s.toggleAutogen()
+					}
+					if fields[i].canRoll() {
+						return s, s.toggleRoll()
+					}
 				}
 			}
-		case msg.String() == "ctrl+r":
-			if s.focus == focusForm {
-				s.toggleRoll()
-				return s, s.focusField(s.fieldIdx)
+		case "ctrl+r":
+			if s.focus == focusForm && !s.finishFocused {
+				return s, s.toggleRoll()
 			}
-		case msg.String() == "tab":
-			if s.focus == focusNav {
-				s.focus = focusForm
-				return s, s.focusField(0)
-			}
-			return s, s.advanceField(+1)
-		case msg.String() == "shift+tab":
-			if s.focus == focusForm {
-				return s, s.advanceField(-1)
-			}
-			return s, nil
-		case msg.Type == tea.KeyEnter || msg.String() == "enter" || msg.String() == "\r":
-			if s.focus == focusNav {
-				s.focus = focusForm
-				return s, s.focusField(0)
-			}
-			return s, s.advanceField(+1)
-		case msg.String() == "up", msg.Type == tea.KeyUp:
-			if s.focus == focusForm {
-				return s, s.advanceField(-1)
-			}
-		case msg.String() == "down", msg.Type == tea.KeyDown:
-			if s.focus == focusForm {
-				return s, s.advanceField(+1)
-			}
-		case msg.Type == tea.KeyPgUp, msg.String() == "pgup":
-			if s.focus == focusForm {
-				s.refreshFormViewport()
-				s.formVP.HalfViewUp()
+		case "pgup", "pgdown", "pageup", "pagedown":
+			if s.focus == focusForm && !s.finishFocused {
+				s.scrollFormPage(msg.String() == "pgup" || msg.String() == "pageup")
 				return s, nil
 			}
-		case msg.Type == tea.KeyPgDown, msg.String() == "pgdown", msg.String() == "pgdn":
-			if s.focus == focusForm {
-				s.refreshFormViewport()
-				s.formVP.HalfViewDown()
+		case "up", "k":
+			// Stay in the active pane — do not jump nav ↔ form at the ends.
+			if s.focus == focusForm && !s.finishFocused {
+				s.tabToFinish = false
+				return s.forwardToForm(huh.PrevField())
+			}
+		case "down", "j":
+			if s.focus == focusForm && !s.finishFocused {
+				s.tabToFinish = false
+				return s.forwardToForm(huh.NextField())
+			}
+		case "tab":
+			if s.focus == focusNav {
+				return s, s.focusField(0)
+			}
+			if s.finishFocused {
 				return s, nil
 			}
+			if s.focus == focusForm {
+				s.tabToFinish = true
+			}
+		case "shift+tab":
+			if s.focus == focusForm && s.finishFocused {
+				s.finishFocused = false
+				return s, s.focusField(len(s.currentSection().Fields) - 1)
+			}
+		case "enter", "\r":
+			if s.focus == focusNav {
+				return s, s.focusField(0)
+			}
+			if s.finishFocused {
+				return s.emitDone()
+			}
+		}
+	case tea.ClipboardMsg:
+		return s.forwardToForm(tea.PasteMsg{Content: msg.String()})
+	case tea.PasteMsg:
+		return s.forwardToForm(msg)
+	case tea.MouseMsg:
+		return s.HandleMouse(msg)
+	}
+
+	// Huh field-update msgs must reach the form even when the section list is focused.
+	if s.form != nil {
+		switch msg.(type) {
+		case tea.KeyPressMsg, tea.MouseMsg, ui.MarqueeTickMsg:
+		default:
+			return s.forwardToForm(msg)
 		}
 	}
 
@@ -456,172 +390,128 @@ func (s Session) Update(msg tea.Msg) (Session, tea.Cmd) {
 		var cmd tea.Cmd
 		s.nav, cmd = s.nav.Update(msg)
 		if s.nav.Index() != prev {
-			s.selectSection(s.nav.Index())
+			return s, tea.Batch(cmd, s.selectSection(s.nav.Index()))
 		}
 		return s, cmd
 	}
-
-	if len(s.inputs) == 0 {
+	if s.form == nil {
 		return s, nil
 	}
-	f := s.sections[s.secIdx].Fields[s.fieldIdx]
-	if !s.fieldEditable(f) {
-		return s, nil
-	}
-	var cmd tea.Cmd
-	s.inputs[s.fieldIdx], cmd = s.inputs[s.fieldIdx].Update(msg)
-	// Live value back into field for status helpers (parent may refresh Status).
-	fields := s.sections[s.secIdx].Fields
-	fields[s.fieldIdx].Value = s.inputs[s.fieldIdx].Value()
-	if fields[s.fieldIdx].Validate != nil {
-		if st := fields[s.fieldIdx].Validate(fields[s.fieldIdx].Value); st != "" {
-			fields[s.fieldIdx].Status = st
+	if s.finishFocused {
+		if _, ok := msg.(tea.KeyPressMsg); ok {
+			return s, nil
 		}
 	}
-	s.sections[s.secIdx].Fields = fields
+	return s.forwardToForm(msg)
+}
+
+// sectionInteractive reports whether the active section has editable controls
+// (inputs / Autogen / Roll). All-locked sections only show Notes — huh skips
+// them and would otherwise dump focus on Finish, swallowing ↑↓ for the nav.
+func (s Session) sectionInteractive() bool {
+	for _, f := range s.currentSection().Fields {
+		if f.canAutogen() || f.canRoll() || f.Kind == KindBool || fieldEditable(f) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s Session) forwardToForm(msg tea.Msg) (Session, tea.Cmd) {
+	if s.form == nil {
+		return s, nil
+	}
+	before := s.snapshotFields()
+	model, cmd := s.form.Update(msg)
+	if f, ok := model.(*huh.Form); ok {
+		s.form = f
+	}
+	s.syncFromBinds()
+	s.fieldIdx = s.focusedFieldIndex()
+
+	switch s.form.State {
+	case huh.StateCompleted:
+		wantFinish := s.tabToFinish
+		s.tabToFinish = false
+		initCmd := s.rebuildForm()
+		if !s.sectionInteractive() {
+			s.focus = focusNav
+			s.finishFocused = false
+			return s, initCmd
+		}
+		if wantFinish {
+			s.finishFocused = true
+			s.focus = focusForm
+			return s, initCmd
+		}
+		// ↑↓ past the last field: stay on the form (do not jump panes / blank out).
+		s.finishFocused = false
+		s.focus = focusForm
+		return s, initCmd
+	case huh.StateAborted:
+		return s, s.rebuildForm()
+	}
+	if cmd := s.revertLockedEdits(); cmd != nil {
+		return s, cmd
+	}
+	if s.needsFormRebuild(before) {
+		return s, s.rebuildForm()
+	}
+	s.syncFormVPContent()
 	return s, cmd
 }
 
-func (s *Session) advanceField(delta int) tea.Cmd {
-	if len(s.inputs) == 0 {
+// revertLockedEdits rebuilds when a locked/readonly input was typed into so the
+// displayed value snaps back (disabled-field UX; huh has no read-only input).
+func (s *Session) revertLockedEdits() tea.Cmd {
+	if s.secIdx < 0 || s.secIdx >= len(s.sections) {
 		return nil
 	}
-	next := s.fieldIdx + delta
-	if next < 0 {
-		s.focus = focusNav
-		s.blurAllInputs()
-		return nil
+	for i, f := range s.sections[s.secIdx].Fields {
+		if i >= len(s.binds.values) {
+			break
+		}
+		disabled := f.Locked || f.Kind == KindReadonly || (f.AllowRoll && !f.Autogen)
+		if disabled && s.binds.values[i] != f.Value {
+			return s.rebuildForm()
+		}
 	}
-	if next >= len(s.inputs) {
-		next = len(s.inputs) - 1
-	}
-	return s.focusField(next)
+	return nil
 }
 
-// Help is the footer hint line for home.
+// CopyFocused sets the clipboard to the focused field value.
+func (s Session) CopyFocused() tea.Cmd {
+	if s.focus != focusForm || s.finishFocused {
+		return nil
+	}
+	i := s.focusedFieldIndex()
+	fields := s.currentSection().Fields
+	if i < 0 || i >= len(fields) {
+		return nil
+	}
+	val := fields[i].Value
+	if i < len(s.binds.values) {
+		val = s.binds.values[i]
+	}
+	return ui.CopyText(val)
+}
+
 func (s Session) Help() string {
 	if s.focus == focusForm {
-		return "↑↓ fields   pgup/pgdn scroll   space toggle   ctrl+r roll   tab next   esc sections   ctrl+enter finish   ctrl+c quit"
+		return "↑↓ fields   tab Finish   click field   ctrl+shift+c copy field   F6 select text   ctrl+v paste   ctrl+s finish   esc sections"
 	}
-	return "↑↓ sections   enter edit   ctrl+enter finish   esc back   ctrl+c quit"
+	return "↑↓ sections   enter/click edit   Back leave   F6 select text   ctrl+s finish   esc back"
 }
 
-// View renders both panels (nav | form) for the current size.
 func (s Session) View() string {
-	left := ui.RenderPanel(s.Title, s.nav.View(), s.leftW, s.bodyH)
-	right := ui.RenderPanel(s.rightTitle(), s.formViewportView(), s.rightW, s.bodyH)
+	left := ui.Mark(ui.ZonePaneNav, ui.RenderPanel(s.Title, s.nav.View(), s.leftW, s.bodyH))
+	right := ui.Mark(ui.ZonePaneForm, ui.RenderPanel(s.rightTitle(), s.formBodyView(), s.rightW, s.bodyH))
 	return ui.JoinPanes(left, right)
 }
 
-// formViewportView sizes the form viewport and returns the visible window.
-func (s Session) formViewportView() string {
-	vp := s.formVP
-	vpW, vpH := ui.ViewportSizeInPanel(s.rightW, s.bodyH)
-	ui.SizeViewport(&vp, vpW, vpH)
-	ui.SetViewportText(&vp, s.renderForm(), false)
-	return vp.View()
-}
-
 func (s Session) rightTitle() string {
-	sec := s.currentSection()
-	if sec.Title == "" {
-		return "FORM"
+	if sec := s.currentSection(); sec.Title != "" {
+		return strings.ToUpper(sec.Title)
 	}
-	return strings.ToUpper(sec.Title)
-}
-
-func (s Session) renderForm() string {
-	sec := s.currentSection()
-	innerW, _ := ui.PanelInnerSize(s.rightW, s.bodyH)
-	var b strings.Builder
-	if s.finishErr != "" {
-		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
-		b.WriteString(errStyle.Width(theme.Max(8, innerW-2)).Render(s.finishErr))
-		b.WriteString("\n\n")
-	}
-	if sec.Help != "" {
-		b.WriteString(theme.MutedText(sec.Help))
-		b.WriteString("\n\n")
-	}
-	if len(sec.Fields) == 0 {
-		b.WriteString(theme.MutedText("(no fields in this section)"))
-		return b.String()
-	}
-	labelStyle := lipgloss.NewStyle().Foreground(theme.Title).Bold(true)
-	helpStyle := lipgloss.NewStyle().Foreground(theme.Muted)
-	okStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("78"))
-	warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-	for i, f := range sec.Fields {
-		cursor := "  "
-		if s.focus == focusForm && i == s.fieldIdx {
-			cursor = lipgloss.NewStyle().Foreground(theme.Primary).Bold(true).Render("▸ ")
-		}
-		b.WriteString(cursor)
-		b.WriteString(labelStyle.Render(f.Label))
-		if f.Locked || f.Kind == KindReadonly {
-			b.WriteString(helpStyle.Render(" (read-only)"))
-		}
-		b.WriteByte('\n')
-
-		if f.Kind == KindBool {
-			check := "[ ]"
-			if strings.EqualFold(strings.TrimSpace(f.Value), "true") {
-				check = "[x]"
-			}
-			b.WriteString("  ")
-			b.WriteString(helpStyle.Render(check + " Enabled (space)"))
-			b.WriteByte('\n')
-		} else if f.Autogen && !f.Locked {
-			check := "[ ]"
-			if f.AutogenOn {
-				check = "[x]"
-			}
-			b.WriteString("  ")
-			b.WriteString(helpStyle.Render(check + " Autogen (generate on save)"))
-			b.WriteByte('\n')
-			roll := "[ ]"
-			if f.PendingRoll {
-				roll = "[x]"
-			}
-			b.WriteString("  ")
-			b.WriteString(helpStyle.Render(roll + " Roll once on save (ctrl+r)"))
-			b.WriteByte('\n')
-		}
-
-		if f.Kind == KindBool {
-			// value shown via checkbox only
-		} else if f.Autogen && f.AutogenOn && !f.Locked && !f.PendingRoll {
-			b.WriteString("  ")
-			b.WriteString(okStyle.Render("(value will be generated on finish)"))
-			b.WriteByte('\n')
-		} else if i < len(s.inputs) {
-			b.WriteString("  ")
-			b.WriteString(s.inputs[i].View())
-			b.WriteByte('\n')
-		} else {
-			b.WriteString("  ")
-			b.WriteString(f.Value)
-			b.WriteByte('\n')
-		}
-
-		if f.Status != "" {
-			st := helpStyle
-			low := strings.ToLower(f.Status)
-			if strings.Contains(low, "invalid") || strings.Contains(low, "must") ||
-				strings.Contains(low, "not writable") || strings.Contains(low, "permission") {
-				st = warnStyle
-			} else if strings.HasPrefix(f.Status, "Will generate") || strings.HasPrefix(f.Status, "Will roll") ||
-				strings.HasPrefix(f.Status, "OK") {
-				st = okStyle
-			}
-			b.WriteString(st.Width(theme.Max(8, innerW-2)).Render("  " + f.Status))
-			b.WriteByte('\n')
-		} else if f.Help != "" {
-			b.WriteString(helpStyle.Width(theme.Max(8, innerW-2)).Render("  " + f.Help))
-			b.WriteByte('\n')
-		}
-		b.WriteByte('\n')
-	}
-	b.WriteString(theme.MutedText(fmt.Sprintf("Section %d/%d", s.secIdx+1, len(s.sections))))
-	return b.String()
+	return "FORM"
 }

@@ -6,8 +6,6 @@ package pane
 
 import (
 	"strings"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 // Buffer holds OUTPUT pane text. Follow pins the viewport to the latest lines.
@@ -56,10 +54,10 @@ type AppendMsg struct {
 // ClearMsg clears the OUTPUT buffer.
 type ClearMsg struct{}
 
-// AppendCmd returns a Cmd that delivers AppendMsg (for non-stream sources).
-func AppendCmd(text string) tea.Cmd {
-	if text == "" {
-		return nil
-	}
-	return func() tea.Msg { return AppendMsg{Text: text} }
+// ProgressMsg is a replaceable OUTPUT overlay (Done commits Text then clears).
+// Fraction is optional overall progress in [0,1] for the terminal ProgressBar.
+type ProgressMsg struct {
+	Text     string
+	Done     bool
+	Fraction *float64
 }

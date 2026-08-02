@@ -27,7 +27,7 @@ Reasons (locked for this tool):
 | Same binary | Shell `eip status` and TUI **Status** share one verb implementation |
 | Windows console | Avoid Docker/Cobra console-lifetime issues inside the Bubble Tea process |
 | Isolation | A crashing verb does not take down the TUI |
-| Boundary | TUI = UI; child = ops + Docker SDK |
+| Boundary | TUI = UI; child = ops + Moby Engine SDK |
 
 Cost: parent and child **do not share memory**. Go `chan` values cannot cross that boundary.
 
@@ -100,7 +100,7 @@ Always emit via helpers — do not hand-build lines.
 
 | Type | Helper | Parent `tea.Msg` | Purpose |
 |------|--------|------------------|---------|
-| `pane.text` | `msg.EmitText` / `Emitf` / `Step` / `Line` | `pane.AppendMsg` | Append string as-is (`Step`/`Line` for up/dev; bake/docker verbose via `LineWriter`) |
+| `pane.text` | `msg.EmitText` / `Step` / `Line` | `pane.AppendMsg` | Append string as-is (`Step`/`Line` for up/dev; bake/docker verbose via `LineWriter`) |
 | `pane.status` | `msg.EmitStatus(report)` | `output/status.Msg` | `output/status.Render` (lipgloss) then append |
 | `chip.docker` | `msg.EmitDockerFromSwarm` / `Emit` | `exec.EventMsg` | Docker chip + menu gate |
 | `chip.health` | `msg.EmitHealthFromProbe` | `exec.EventMsg` | Health chip |
@@ -129,7 +129,7 @@ home.Update
 pane.Buffer  (append-only scrollback)
 ```
 
-Local UI can also append without a child: `pane.AppendCmd("…")` / `AppendMsg` from any screen.
+Local UI can also append without a child: `pane.AppendMsg{Text: "…"}` from any screen.
 
 ---
 

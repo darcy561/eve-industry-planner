@@ -66,15 +66,22 @@ func TestApplyEventDockerLights(t *testing.T) {
 
 func TestApplyEventHealth(t *testing.T) {
 	snap := Default()
-	ApplyEvent(&snap, msg.Event{
+	if !ApplyEvent(&snap, msg.Event{
 		Kind: msg.KindHealth, Light: msg.LightGreen, Message: "ok",
-	})
+	}) {
+		t.Fatal("health off→green should report menuChanged")
+	}
 	if snap.Health != LightGreen || snap.HealthDetail != "ok" {
 		t.Fatalf("health=%v detail=%q", snap.Health, snap.HealthDetail)
 	}
-	ApplyEvent(&snap, msg.HealthEventOff("skipped"))
+	if !ApplyEvent(&snap, msg.HealthEventOff("skipped")) {
+		t.Fatal("health green→off should report menuChanged")
+	}
 	if snap.Health != LightOff {
 		t.Fatalf("health=%v want off", snap.Health)
+	}
+	if ApplyEvent(&snap, msg.HealthEventOff("again")) {
+		t.Fatal("same health off should not report menuChanged")
 	}
 }
 

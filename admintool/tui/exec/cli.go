@@ -1,6 +1,6 @@
 // Package exec runs child `eip <args>` for the TUI (never Cobra/Docker in-process).
 //
-// Streaming: EIPMSG on stdout → EventMsg / pane.AppendMsg / output/<cmd>.Msg;
+// Streaming: EIPMSG on stdout → EventMsg / pane.* / output/<cmd>.Msg;
 // stderr → pane as errors. Non-protocol stdout discarded under TUI.
 package exec
 

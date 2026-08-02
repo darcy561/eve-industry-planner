@@ -28,7 +28,7 @@ type ServiceRow struct {
 	Tasks    []string `json:"tasks,omitempty"`
 }
 
-// ServiceSignal mirrors scripts/swarm/sh emit_swarm_service rules.
+// ServiceSignal classifies a Swarm service for operator status (OK/PARTIAL/DOWN).
 func ServiceSignal(stackPresent, exists bool, desired, running, starting uint64) (Signal, string) {
 	if !stackPresent {
 		return Down, "app stack not deployed"

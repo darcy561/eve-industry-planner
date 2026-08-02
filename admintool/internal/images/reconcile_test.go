@@ -19,12 +19,3 @@ func TestDigestsMatch(t *testing.T) {
 	}
 }
 
-func TestDigestFromImageRef(t *testing.T) {
-	got := DigestFromImageRef("ghcr.io/x/api:0.8@sha256:deadbeef")
-	if got != "sha256:deadbeef" {
-		t.Fatalf("got %q", got)
-	}
-	if DigestFromImageRef("ghcr.io/x/api:0.8") != "" {
-		t.Fatal("expected empty without @digest")
-	}
-}

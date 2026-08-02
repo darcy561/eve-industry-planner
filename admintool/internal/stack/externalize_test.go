@@ -31,11 +31,8 @@ services:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(sources) != 1 {
-		t.Fatalf("sources=%v", sources)
-	}
-	if sources[0].Path != "" {
-		t.Fatalf("want in-memory rewrite, got path %q", sources[0].Path)
+	if len(sources) != 1 || sources[0].Path != src || len(sources[0].YAML) == 0 {
+		t.Fatalf("want path+YAML rewrite: %#v", sources)
 	}
 	got := string(sources[0].YAML)
 	if strings.Contains(got, "observability/prometheus") {
@@ -65,64 +62,9 @@ services:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(sources) != 1 || sources[0].Path != src || len(sources[0].YAML) != 0 {
-		t.Fatalf("want on-disk path only: %#v", sources[0])
+	if len(sources) != 1 || sources[0].Path != src || string(sources[0].YAML) != string(raw) {
+		t.Fatalf("want unchanged bytes: %#v", sources[0])
 	}
-}
-
-func TestComposeConfigInvocation(t *testing.T) {
-	home := filepath.FromSlash("/proj/home")
-	if runtime.GOOS == "windows" {
-		home = `C:\proj\home`
-	}
-	envFile := filepath.Join(home, ".env")
-	stackPath := filepath.Join(home, "docker-stack.yml")
-
-	t.Run("stdin rewrite", func(t *testing.T) {
-		args, stdin, err := composeConfigInvocation(home, []composeSource{
-			{YAML: []byte("services: {}\n")},
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		wantPrefix := []string{"compose", "--env-file", envFile, "-f", "-", "config"}
-		if len(args) != len(wantPrefix) {
-			t.Fatalf("args=%v", args)
-		}
-		for i := range wantPrefix {
-			if args[i] != wantPrefix[i] {
-				t.Fatalf("args[%d]=%q want %q (%v)", i, args[i], wantPrefix[i], args)
-			}
-		}
-		if string(stdin) != "services: {}\n" {
-			t.Fatalf("stdin=%q", stdin)
-		}
-	})
-
-	t.Run("on-disk path", func(t *testing.T) {
-		args, stdin, err := composeConfigInvocation(home, []composeSource{
-			{Path: stackPath},
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(stdin) != 0 {
-			t.Fatalf("stdin=%q", stdin)
-		}
-		if args[3] != "-f" || args[4] != stackPath || args[5] != "config" {
-			t.Fatalf("args=%v", args)
-		}
-	})
-
-	t.Run("reject two rewrites", func(t *testing.T) {
-		_, _, err := composeConfigInvocation(home, []composeSource{
-			{YAML: []byte("a: 1\n")},
-			{YAML: []byte("b: 2\n")},
-		})
-		if err == nil || !strings.Contains(err.Error(), "more than one") {
-			t.Fatalf("got %v", err)
-		}
-	})
 }
 
 func TestAbsoluteBindSourcePathStyles(t *testing.T) {

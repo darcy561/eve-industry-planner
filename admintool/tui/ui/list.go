@@ -1,12 +1,13 @@
 package ui
 
 import (
-	"github.com/charmbracelet/bubbles/list"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
 
 	"eve-industry-planner/admintool/tui/theme"
 )
 
-// NewList builds a keyboard-only list with marquee selection styling.
+// NewList builds a home/nav list with marquee selection styling (keys + mouse zones).
 func NewList(items []list.Item, d *MarqueeDelegate, width, height int) list.Model {
 	if d == nil {
 		d = NewMarqueeDelegate(width)
@@ -17,14 +18,21 @@ func NewList(items []list.Item, d *MarqueeDelegate, width, height int) list.Mode
 	l := list.New(items, d, w, h)
 	l.SetShowTitle(false)
 	l.SetShowStatusBar(false)
+	// Keep pagination for short panes (small terminals). ↑/↓ still cross pages.
+	// Drop pgup/pgdn/f/d/… from page keys — home uses those for OUTPUT scroll.
 	l.SetShowPagination(true)
+	l.KeyMap.NextPage = key.NewBinding(
+		key.WithKeys("right", "l"),
+		key.WithHelp("→/l", "next page"),
+	)
+	l.KeyMap.PrevPage = key.NewBinding(
+		key.WithKeys("left", "h"),
+		key.WithHelp("←/h", "prev page"),
+	)
 	l.SetShowHelp(false)
 	l.SetFilteringEnabled(false)
 	l.KeyMap.Quit.SetEnabled(false)
 	l.KeyMap.ForceQuit.SetEnabled(false)
-	// Home owns PgUp/PgDn for the output pane — do not page the menu list.
-	l.KeyMap.NextPage.SetEnabled(false)
-	l.KeyMap.PrevPage.SetEnabled(false)
 	return l
 }
 

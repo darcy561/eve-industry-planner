@@ -128,7 +128,7 @@ func ApplyGrafanaPath(cfg Config, dryRun bool) error {
 	if filepath.Base(root) == "services" {
 		root = filepath.Dir(root)
 	}
-	// Ephemeral sync-env from scripts/lib/eip-config.sh (swarm-sync sets EIP_SYNC_ENV_FILE).
+	// Ephemeral sync-env (EIP_SYNC_ENV_FILE) when apply is driven with a temp env file.
 	syncEnv := os.Getenv("EIP_SYNC_ENV_FILE")
 	envFile := filepath.Join(root, ".env")
 	base := filepath.Join(root, "docker-compose.yml")

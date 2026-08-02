@@ -1,17 +1,17 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 	"time"
 
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 	"github.com/spf13/cobra"
 
 	"eve-industry-planner/admintool/internal/catalog"
 	"eve-industry-planner/admintool/internal/deploy"
 	"eve-industry-planner/admintool/internal/docker"
 	"eve-industry-planner/admintool/internal/msg"
+	"eve-industry-planner/admintool/internal/process"
 	"eve-industry-planner/admintool/internal/status"
 )
 
@@ -32,18 +32,18 @@ var statusCmd = &cobra.Command{
 }
 
 func runStatus(cmd *cobra.Command) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	ctx, cancel := process.TimeoutSignalContext(8 * time.Second)
 	defer cancel()
 
-	cli, err := docker.NewClient(client.WithTimeout(docker.DefaultClientTimeout))
+	apiClient, err := docker.NewAPIClient(client.WithTimeout(docker.DefaultClientTimeout))
 	if err != nil {
-		return fmt.Errorf("docker client: %w", err)
+		return fmt.Errorf("engine API client: %w", err)
 	}
-	defer cli.Close()
+	defer apiClient.Close()
 
-	view, err := deploy.Inspect(ctx, cli)
+	view, err := deploy.Inspect(ctx, apiClient)
 	if err != nil {
-		return err
+		return process.MapDoneError(err)
 	}
 
 	report := status.Build(view)

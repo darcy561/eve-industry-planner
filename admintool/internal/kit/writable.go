@@ -37,28 +37,6 @@ func EnsureDirWritable(dir string) error {
 	return probeDirWrite(dir)
 }
 
-// CheckFileWritable reports whether path can be created or replaced.
-// Does not create missing parent directories.
-func CheckFileWritable(path string) error {
-	path = filepath.Clean(strings.TrimSpace(path))
-	if path == "" || path == "." {
-		return fmt.Errorf("file path is empty")
-	}
-	dir := filepath.Dir(path)
-	if st, err := os.Stat(path); err == nil {
-		if st.IsDir() {
-			return fmt.Errorf("%s is a directory, not a file", path)
-		}
-		if err := probeFileWrite(path); err != nil {
-			return writableErr("file not writable", path, err)
-		}
-		return nil
-	} else if !os.IsNotExist(err) {
-		return writableErr("cannot stat", path, err)
-	}
-	return CheckDirWritable(dir)
-}
-
 // EnsureFileWritable ensures the parent directory exists and path can be written/replaced.
 func EnsureFileWritable(path string) error {
 	path = filepath.Clean(strings.TrimSpace(path))
@@ -77,7 +55,7 @@ func EnsureFileWritable(path string) error {
 			return writableErr("file not writable", path, err)
 		}
 		return nil
-	} else if !os.IsNotExist(err) {
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return writableErr("cannot stat", path, err)
 	}
 	return nil
@@ -93,7 +71,7 @@ func nearestExistingDir(dir string) (string, error) {
 			}
 			return cur, nil
 		}
-		if !os.IsNotExist(err) {
+		if !errors.Is(err, fs.ErrNotExist) {
 			return "", writableErr("cannot stat", cur, err)
 		}
 		parent := filepath.Dir(cur)
@@ -111,7 +89,7 @@ func probeDirWrite(dir string) error {
 		return writableErr("directory not writable", dir, err)
 	}
 	_ = f.Close()
-	if err := os.Remove(probe); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(probe); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return writableErr("directory not writable", dir, err)
 	}
 	return nil

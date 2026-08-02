@@ -2,7 +2,9 @@
 package initui
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,6 +41,9 @@ func EnvSections() []builder.Section {
 	bySec := map[string]*bucket{}
 
 	for _, f := range env.EnvFields() {
+		if f.Hidden {
+			continue
+		}
 		sec := f.Section
 		if sec == "" {
 			sec = "General"
@@ -49,36 +54,7 @@ func EnvSections() []builder.Section {
 			bySec[sec] = b
 			order = append(order, sec)
 		}
-		cur := values[f.Key]
-		locked := env.IsLockedInFile(f, cur)
-		kind := builder.KindText
-		if f.Type == env.FieldPassword || f.Type == env.FieldHMAC || f.Type == env.FieldAES {
-			kind = builder.KindSecret
-		}
-		if locked {
-			kind = builder.KindReadonly
-		}
-		genOn := false
-		if f.Autogen && !locked {
-			genOn = env.DefaultGenerateFlag(f, cur)
-		}
-		bf := builder.Field{
-			ID:        f.Key,
-			Label:     f.Label,
-			Help:      f.Help,
-			Kind:      kind,
-			Value:     cur,
-			Autogen:   f.Autogen && !locked,
-			AutogenOn: genOn,
-			Locked:    locked,
-		}
-		if f.Autogen {
-			_, msg := env.ClassifyAutogenCheckbox(f, cur, genOn, locked)
-			bf.Status = msg
-			if !genOn && !locked && msg == "" {
-				bf.Status = env.RuleHelp(f.Type)
-			}
-		}
+		bf := builderFieldFromEnv(f, values[f.Key])
 		b.fields = append(b.fields, bf)
 	}
 
@@ -116,6 +92,46 @@ func EnvSections() []builder.Section {
 	return out
 }
 
+// builderFieldFromEnv maps an EnvField + on-disk value into builder UI flags.
+// Autogen checkbox: first create only. Roll: day-2 for non-Locked Autogen secrets.
+// Once a secret exists, the value is read-only (manual password update unsupported).
+func builderFieldFromEnv(f env.EnvField, cur string) builder.Field {
+	locked := env.IsLockedInFile(f, cur)
+	showAutogen := env.ShowAutogenCheckbox(f, cur)
+	showRoll := env.ShowRollCheckbox(f, cur)
+	// Passwords/keys are plain text here (local ops TUI — visible + copy/paste).
+	kind := builder.KindText
+	genOn := false
+	if showAutogen {
+		genOn = env.DefaultGenerateFlag(f, cur)
+	}
+	bf := builder.Field{
+		ID:        f.Key,
+		Label:     f.Label,
+		Help:      f.Help,
+		Kind:      kind,
+		Value:     cur,
+		Autogen:   showAutogen,
+		AllowRoll: showRoll,
+		AutogenOn: genOn,
+		Locked:    locked,
+	}
+	if f.Autogen {
+		_, msg := env.ClassifyAutogenCheckbox(f, cur, genOn, locked)
+		bf.Status = msg
+		if showRoll && !locked {
+			if f.Key == "REFRESH_TOKEN_AES_KEY" {
+				bf.Status = "Set — Roll on save regenerates key, bumps version, keeps old key in legacy"
+			} else {
+				bf.Status = "Set — check Roll on save to regenerate"
+			}
+		} else if showAutogen && !genOn && msg == "" {
+			bf.Status = env.RuleHelp(f.Type)
+		}
+	}
+	return bf
+}
+
 func backupPathStatus(home, stem string) string {
 	if err := env.CheckBackupStemWritable(home, stem); err != nil {
 		return err.Error()
@@ -144,11 +160,6 @@ func NewSession() builder.Session {
 	return NewEnvSession("SETUP")
 }
 
-// NewSessionTitled is NewEnvSession with a custom left-panel title (e.g. EDIT ENV).
-func NewSessionTitled(title string) builder.Session {
-	return NewEnvSession(title)
-}
-
 // NewEnvSession builds the .env (+ cli.env_backup_path) document builder.
 func NewEnvSession(title string) builder.Session {
 	if title == "" {
@@ -172,25 +183,33 @@ func PersistEnv(s *builder.Session) error {
 	backupStem := strings.TrimSpace(values[fieldEnvBackupPath])
 	delete(values, fieldEnvBackupPath)
 
+	home, err := kit.Home()
+	if err != nil {
+		return err
+	}
+	envPath := filepath.Join(home, kit.EnvFile)
+	// Hidden keys (e.g. AES version) are not in the TUI Collect map — keep on-disk values.
+	disk, _ := env.LoadEnvValues(envPath)
+
 	envVals := make(map[string]string, len(env.EnvFields()))
 	for _, f := range env.EnvFields() {
 		if v, ok := values[f.Key]; ok {
 			envVals[f.Key] = v
-		} else {
-			envVals[f.Key] = f.Default
+			continue
 		}
+		if disk != nil {
+			if v, ok := disk[f.Key]; ok {
+				envVals[f.Key] = v
+				continue
+			}
+		}
+		envVals[f.Key] = f.Default
 	}
 
 	resolved, err := env.ResolveEnvFields(envVals, generate)
 	if err != nil {
 		return err
 	}
-
-	home, err := kit.Home()
-	if err != nil {
-		return err
-	}
-	envPath := filepath.Join(home, kit.EnvFile)
 	if err := env.CheckBackupStemWritable(home, backupStem); err != nil {
 		return err
 	}
@@ -204,7 +223,7 @@ func PersistEnv(s *builder.Session) error {
 	cfgPath := filepath.Join(home, kit.ConfigFile)
 	cfg, err := config.LoadYAML(cfgPath)
 	if err != nil {
-		if _, st := os.Stat(cfgPath); os.IsNotExist(st) {
+		if _, st := os.Stat(cfgPath); errors.Is(st, fs.ErrNotExist) {
 			cfg = yamldefaults.DefaultConfig()
 		} else {
 			return fmt.Errorf("load %s: %w", kit.ConfigFile, err)

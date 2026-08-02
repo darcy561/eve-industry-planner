@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/list"
+	tea "charm.land/bubbletea/v2"
 
 	"eve-industry-planner/admintool/tui/exec"
 	"eve-industry-planner/admintool/tui/ui"
@@ -18,7 +18,7 @@ func loadServiceListCmd(kind string) tea.Cmd {
 			return serviceListMsg{err: err, kind: kind}
 		}
 		var names []string
-		for _, line := range strings.Split(out, "\n") {
+		for line := range strings.SplitSeq(out, "\n") {
 			line = strings.TrimSpace(line)
 			if line == "" {
 				continue
@@ -42,7 +42,7 @@ func (m *model) leavePicker() {
 
 // pickerChrome handles ctrl+c / esc|q / page scroll shared by pickers.
 // ok=false means the key was not handled.
-func (m *model) pickerChrome(msg tea.KeyMsg, onBack func()) (handled bool, quit bool) {
+func (m *model) pickerChrome(msg tea.KeyPressMsg, onBack func()) (handled bool, quit bool) {
 	switch {
 	case msg.String() == "ctrl+c":
 		return true, true
@@ -113,7 +113,7 @@ func (m *model) showRestartPicker() {
 }
 
 func (m model) updateRestartPick(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if key, ok := msg.(tea.KeyMsg); ok {
+	if key, ok := msg.(tea.KeyPressMsg); ok {
 		if handled, quit := m.pickerChrome(key, func() {
 			m.fromMore = false
 			m.leavePicker()
@@ -124,23 +124,27 @@ func (m model) updateRestartPick(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if isEnter(key) {
-			item, ok := ui.SelectedItem(m.list)
-			if !ok || item.Title() == "Loading…" {
-				return m, nil
-			}
-			if item.Title() == pickBack {
-				m.fromMore = false
-				m.leavePicker()
-				return m, nil
-			}
-			target := item.Title()
-			m.fromMore = false
-			m.leavePicker()
-			return m.startCLI("restart "+target, []string{"restart", target, "-y"})
+			return m.activateRestartPick()
 		}
 	}
 	m.list, _ = m.list.Update(msg)
 	return m, nil
+}
+
+func (m model) activateRestartPick() (tea.Model, tea.Cmd) {
+	item, ok := ui.SelectedItem(m.list)
+	if !ok || item.Title() == "Loading…" {
+		return m, nil
+	}
+	if item.Title() == pickBack {
+		m.fromMore = false
+		m.leavePicker()
+		return m, nil
+	}
+	target := item.Title()
+	m.fromMore = false
+	m.leavePicker()
+	return m.startCLI("restart "+target, []string{"restart", target, "-y"})
 }
 
 func (m *model) showLogsTypePicker() {
@@ -157,7 +161,7 @@ func (m *model) showLogsTypePicker() {
 }
 
 func (m model) updateLogsType(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if key, ok := msg.(tea.KeyMsg); ok {
+	if key, ok := msg.(tea.KeyPressMsg); ok {
 		if handled, quit := m.pickerChrome(key, m.leavePicker); handled {
 			if quit {
 				return m, tea.Quit
@@ -165,30 +169,34 @@ func (m model) updateLogsType(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if isEnter(key) {
-			item, ok := ui.SelectedItem(m.list)
-			if !ok {
-				return m, nil
-			}
-			switch item.Title() {
-			case pickBack:
-				m.leavePicker()
-				return m, nil
-			case "Recent dump":
-				m.logsFollow = false
-			case "Follow":
-				m.logsFollow = true
-			default:
-				return m, nil
-			}
-			m.focus = focusLogsSource
-			m.serviceTargets = nil
-			m.appendOutBlank("Loading services for logs…")
-			m.setLoadingList("fetching running services")
-			return m, loadServiceListCmd("logs")
+			return m.activateLogsType()
 		}
 	}
 	m.list, _ = m.list.Update(msg)
 	return m, nil
+}
+
+func (m model) activateLogsType() (tea.Model, tea.Cmd) {
+	item, ok := ui.SelectedItem(m.list)
+	if !ok {
+		return m, nil
+	}
+	switch item.Title() {
+	case pickBack:
+		m.leavePicker()
+		return m, nil
+	case "Recent dump":
+		m.logsFollow = false
+	case "Follow":
+		m.logsFollow = true
+	default:
+		return m, nil
+	}
+	m.focus = focusLogsSource
+	m.serviceTargets = nil
+	m.appendOutBlank("Loading services for logs…")
+	m.setLoadingList("fetching running services")
+	return m, loadServiceListCmd("logs")
 }
 
 func (m *model) showLogsSourcePicker() {
@@ -209,7 +217,7 @@ func (m *model) showLogsSourcePicker() {
 }
 
 func (m model) updateLogsSource(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if key, ok := msg.(tea.KeyMsg); ok {
+	if key, ok := msg.(tea.KeyPressMsg); ok {
 		backToType := func() {
 			m.focus = focusLogsType
 			m.showLogsTypePicker()
@@ -222,28 +230,34 @@ func (m model) updateLogsSource(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if isEnter(key) {
-			item, ok := ui.SelectedItem(m.list)
-			if !ok || item.Title() == "Loading…" {
-				return m, nil
-			}
-			if item.Title() == pickBack {
-				backToType()
-				return m, nil
-			}
-			target := item.Title()
-			follow := m.logsFollow
-			m.leavePicker()
-			if follow {
-				if err := exec.StartInNewConsole([]string{"logs", target, "-f", "--ui", "--tail", "100"}); err != nil {
-					m.appendOut(err.Error())
-					return m, nil
-				}
-				m.appendOut(fmt.Sprintf("Opened follow window: eip logs %s -f --ui", target))
-				return m, nil
-			}
-			return m.startCLI("logs "+target, []string{"logs", target, "--tail", "100"})
+			return m.activateLogsSource()
 		}
 	}
 	m.list, _ = m.list.Update(msg)
 	return m, nil
+}
+
+func (m model) activateLogsSource() (tea.Model, tea.Cmd) {
+	item, ok := ui.SelectedItem(m.list)
+	if !ok || item.Title() == "Loading…" {
+		return m, nil
+	}
+	if item.Title() == pickBack {
+		m.focus = focusLogsType
+		m.showLogsTypePicker()
+		m.layout()
+		return m, nil
+	}
+	target := item.Title()
+	follow := m.logsFollow
+	m.leavePicker()
+	if follow {
+		if err := exec.StartInNewConsole([]string{"logs", target, "-f", "--ui", "--tail", "100"}); err != nil {
+			m.appendOut(err.Error())
+			return m, nil
+		}
+		m.appendOut(fmt.Sprintf("Opened follow window: eip logs %s -f --ui", target))
+		return m, nil
+	}
+	return m.startCLI("logs "+target, []string{"logs", target, "--tail", "100"})
 }

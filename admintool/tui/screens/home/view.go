@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"eve-industry-planner/admintool/internal/kit"
+	"eve-industry-planner/admintool/internal/process"
 	"eve-industry-planner/admintool/tui/brand"
 	"eve-industry-planner/admintool/tui/theme"
 	"eve-industry-planner/admintool/tui/ui"
@@ -15,9 +16,9 @@ import (
 	statusbar "eve-industry-planner/admintool/tui/status"
 )
 
-func (m model) View() string {
+func (m model) View() tea.View {
 	if !m.ready {
-		return "Loading…"
+		return ui.NewProgramView("Loading…", ui.ProgramViewOpts{Title: kit.CLIName})
 	}
 
 	header := m.renderHeader()
@@ -31,17 +32,33 @@ func (m model) View() string {
 	}
 	footer := ui.HelpLine(m.width, m.footerHelp())
 
-	parts := []string{header, bar, body}
-	if m.focus == focusCommand && m.bodyMode == bodyModeOps {
-		cmdLine := lipgloss.NewStyle().
-			Width(m.width).
-			Padding(0, theme.HMargin).
-			Foreground(theme.Text).
-			Render(m.input.View())
-		parts = append(parts, cmdLine)
+	parts := []string{header, bar}
+	if !m.mouseCapture {
+		parts = append(parts, m.renderSelectBanner())
 	}
-	parts = append(parts, footer)
-	return lipgloss.JoinVertical(lipgloss.Left, parts...)
+	parts = append(parts, body, footer)
+	title := kit.CLIName
+	switch {
+	case m.commandRunning:
+		title = kit.CLIName + " · running…"
+	case m.bodyMode == bodyModeBuilder:
+		title = kit.CLIName + " · " + m.builder.Title
+	}
+	return ui.NewProgramView(
+		lipgloss.JoinVertical(lipgloss.Left, parts...),
+		ui.ProgramViewOpts{
+			Title:       title,
+			Cursor:      m.focusCursor(),
+			ProgressBar: m.progressBar(),
+			MouseNone:   !m.mouseCapture,
+		},
+	)
+}
+
+func (m model) focusCursor() *tea.Cursor {
+	// Builder uses huh's virtual cursor. Command window uses an in-prompt caret
+	// (no hardware cursor — wrong Y scrolls the alt-screen / jumps More).
+	return nil
 }
 
 func (m model) renderHeader() string {
@@ -72,10 +89,7 @@ func (m model) renderHeader() string {
 		rule,
 	)
 
-	padTop := (brand.Height() - 5) / 2
-	if padTop < 0 {
-		padTop = 0
-	}
+	padTop := max((brand.Height()-5)/2, 0)
 	textCol = lipgloss.NewStyle().PaddingTop(padTop).PaddingLeft(3).Render(textCol)
 	row := lipgloss.JoinHorizontal(lipgloss.Top, logo, textCol)
 
@@ -95,6 +109,8 @@ func (m model) renderLeft() string {
 		switch m.focus {
 		case focusMore:
 			title = "MORE"
+		case focusCommand:
+			title = "COMMAND"
 		case focusRestartPick:
 			title = "RESTART"
 		case focusLogsType:
@@ -103,33 +119,70 @@ func (m model) renderLeft() string {
 			title = "LOG SOURCE"
 		}
 	}
-	return ui.RenderPanel(title, m.list.View(), m.leftW, m.bodyH)
+	return ui.Mark(ui.ZonePaneNav, ui.RenderPanel(title, m.list.View(), m.leftW, m.bodyH))
 }
 
 func (m model) renderRight() string {
-	return ui.RenderPanel("OUTPUT", m.viewport.View(), m.rightW, m.bodyH)
+	title := "OUTPUT"
+	if m.cmdSession {
+		title = "COMMAND"
+	}
+	inner := m.viewport.View()
+	if m.cmdSession {
+		// Prompt lives inside the panel under the scroll region so wheel/PgUp
+		// never push it over the footer (footer stays the help line).
+		prompt := lipgloss.NewStyle().Foreground(theme.Text).Render(m.input.View())
+		inner = lipgloss.JoinVertical(lipgloss.Left, inner, ui.Mark(ui.ZoneCommandLine, prompt))
+	}
+	return ui.Mark(ui.ZonePaneOutput, ui.RenderPanel(title, inner, m.rightW, m.bodyH))
+}
+
+func (m model) renderSelectBanner() string {
+	label := " SELECT TEXT — drag to highlight, then right-click Copy · F6 restores clicks "
+	return lipgloss.NewStyle().
+		Width(m.width).
+		Align(lipgloss.Center).
+		Bold(true).
+		Foreground(theme.OnPrimary).
+		Background(theme.Primary).
+		Render(label)
 }
 
 func (m model) footerHelp() string {
+	if !m.mouseCapture {
+		return "SELECT TEXT — drag · right-click Copy · F6 back to clicks"
+	}
+	if m.commandRunning {
+		if m.cancelling {
+			return "cancelling…   wheel/pgup/pgdn scroll output"
+		}
+		return "esc/ctrl+c cancel   wheel/pgup/pgdn scroll output"
+	}
 	switch m.bodyMode {
 	case bodyModeBuilder:
 		return m.builder.Help()
 	case bodyModeSetupChoice:
-		return "↑↓ select   enter confirm   esc skip config step   ctrl+c quit"
+		return "↑↓/click confirm   ← Back skip   esc skip   ctrl+c quit"
 	}
 	switch m.focus {
+	case focusCommand:
+		return "enter run   host: status secrets…   core: cli list   esc leave"
 	case focusMore:
-		return "↑↓ select   enter open   esc/q back   pgup/pgdn scroll output"
+		return "↑↓/click open   ← Back   esc/q back   wheel nav/output"
 	case focusRestartPick, focusLogsType, focusLogsSource:
-		return "↑↓ select   enter confirm   esc/q back   pgup/pgdn scroll output"
+		return "↑↓/click confirm   ← Back   esc/q back   wheel nav/output"
 	default:
-		return "↑↓ select   enter run   : command   pgup/pgdn scroll output   esc quit"
+		return "↑↓/click run   : command   F6 select text   ctrl+shift+c copy   esc quit"
 	}
 }
 
 // Run starts the home ops TUI (blocking).
 func Run() error {
-	p := tea.NewProgram(newModel(), tea.WithAltScreen(), tea.WithMouseCellMotion())
-	_, err := p.Run()
+	process.EnsureTUIConsoleSize()
+	p := tea.NewProgram(newModel())
+	final, err := p.Run()
+	if m, ok := final.(model); ok && m.stream != nil {
+		m.stream.Cancel()
+	}
 	return err
 }

@@ -2,8 +2,9 @@ package images
 
 import (
 	"fmt"
+	"maps"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"eve-industry-planner/admintool/internal/kit"
@@ -59,11 +60,7 @@ func collectLiveImageRefs(home string, relFiles []string, appVer string) ([]Live
 		if err != nil {
 			return nil, err
 		}
-		names := make([]string, 0, len(doc.Services))
-		for name := range doc.Services {
-			names = append(names, name)
-		}
-		sort.Strings(names)
+		names := slices.Sorted(maps.Keys(doc.Services))
 		for _, name := range names {
 			img := resolveStackImage(doc.Services[name].Image, appVer)
 			if img == "" {

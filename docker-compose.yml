@@ -3,8 +3,8 @@
 #   docker-stack.obs.yml   — observability addon (eip-obs)
 #   docker-stack.yml       — app train / edge
 #
-# Kept only so Public `update-files` / leftover cleanup still see a project name.
-# `make up` / `make dev` do not bring Compose services up.
+# Stub project name for leftover Compose cleanup (`eip shutdown`).
+# Not a runtime plane — do not `docker compose up`.
 
 name: eve-industry-planner
 

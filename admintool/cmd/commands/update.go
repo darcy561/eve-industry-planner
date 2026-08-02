@@ -71,7 +71,7 @@ Does not overwrite .env. Not a full cold start (use eip up).`,
 
 		msg.EmitStackForVerb("update")
 
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Minute)
+		ctx, cancel := process.TimeoutSignalContext(45 * time.Minute)
 		defer cancel()
 
 		var binRes kit.Result
@@ -85,10 +85,11 @@ Does not overwrite .env. Not a full cold start (use eip up).`,
 				DryRun:         dryRun,
 			})
 			if err != nil {
+				err = process.MapDoneError(err)
 				msg.EmitStack("update", msg.LightRed, err.Error())
 				return err
 			}
-			for _, line := range strings.Split(formatBinaryUpdateResult(binRes), "\n") {
+			for line := range strings.SplitSeq(formatBinaryUpdateResult(binRes), "\n") {
 				msg.Line(line)
 			}
 
@@ -113,16 +114,17 @@ Does not overwrite .env. Not a full cold start (use eip up).`,
 			msg.Step("Checking stack YAML…")
 			stackRes, err = kit.UpdateStacks(ctx, kit.StackUpdateOptions{DryRun: dryRun})
 			if err != nil {
+				err = process.MapDoneError(err)
 				msg.EmitStack("update", msg.LightRed, err.Error())
 				return err
 			}
-			for _, line := range strings.Split(formatStackUpdateResult(stackRes), "\n") {
+			for line := range strings.SplitSeq(formatStackUpdateResult(stackRes), "\n") {
 				msg.Line(line)
 			}
 		}
 
 		if doImages && !dryRun {
-			if err := runImageUpdate(ctx, len(stackRes.Updated) > 0); err != nil {
+			if err := process.MapDoneError(runImageUpdate(ctx, len(stackRes.Updated) > 0)); err != nil {
 				msg.EmitStack("update", msg.LightRed, err.Error())
 				return err
 			}

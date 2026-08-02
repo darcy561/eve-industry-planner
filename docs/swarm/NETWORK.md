@@ -1,7 +1,7 @@
 # Shared Docker networks (`eip-core`, edge, obs, socket proxies)
 
 > Part of [ROADMAP.md](./ROADMAP.md). Main mesh overlay is **`eip-core`** (renamed from `eip`).
-> Created via `ensure-eip-overlay` / `make up` / `make dev` ([MAKE.md](./MAKE.md)).
+> Created via **`eip up`** / **`eip dev`**.
 
 ## Planes
 
@@ -20,20 +20,9 @@ Docker socket proxies each get a **stack-owned overlay** (`eip-docker-traefik`, 
 
 ## Bootstrap
 
-```bash
-make ensure-eip-network
-# or: ./scripts/swarm/ensure-eip-network.sh
-```
+**`eip up` / `eip dev`** ensure the attachable overlay **`eip-core`** (override: `EIP_NETWORK_NAME`). No separate Make ensure scripts.
 
-Creates a plain bridge when `eip-core` is missing. Hybrid / Swarm cutover:
-
-```bash
-make ensure-eip-overlay
-```
-
-Converts/creates **`eip-core`** as an attachable overlay. Override: `EIP_NETWORK_NAME` (default `eip-core`).
-
-If you still have a legacy network named `eip`, stop containers on it, `docker network rm eip`, then `make ensure-eip-overlay` and recreate services.
+If you still have a legacy network named `eip`, stop containers on it, `docker network rm eip`, then bring the stack up again with **`eip up`**.
 
 ## Acceptance
 

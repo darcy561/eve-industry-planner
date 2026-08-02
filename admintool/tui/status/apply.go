@@ -7,8 +7,8 @@ import (
 )
 
 // ApplyEvent updates Snapshot chips from one chip Event (decoded EIPMSG).
-// Returns true if Docker light changed (caller should ApplyDockerGate).
-func ApplyEvent(snap *Snapshot, ev msg.Event) (dockerChanged bool) {
+// Returns true if Docker or Health light changed (caller should refresh menu gates).
+func ApplyEvent(snap *Snapshot, ev msg.Event) (menuChanged bool) {
 	if snap == nil {
 		return false
 	}
@@ -18,8 +18,9 @@ func ApplyEvent(snap *Snapshot, ev msg.Event) (dockerChanged bool) {
 		applyDockerEvent(snap, ev)
 		return snap.Docker != prev
 	case msg.KindHealth:
+		prev := snap.Health
 		applyHealthEvent(snap, ev)
-		return false
+		return snap.Health != prev
 	case msg.KindStack:
 		applyStatusMsgEvent(snap, ev)
 		return false
@@ -31,14 +32,14 @@ func ApplyEvent(snap *Snapshot, ev msg.Event) (dockerChanged bool) {
 	}
 }
 
-// ApplyEvents applies multiple events; dockerChanged if any docker light change.
-func ApplyEvents(snap *Snapshot, events []msg.Event) (dockerChanged bool) {
+// ApplyEvents applies multiple events; menuChanged if any Docker/Health light change.
+func ApplyEvents(snap *Snapshot, events []msg.Event) (menuChanged bool) {
 	for _, ev := range events {
 		if ApplyEvent(snap, ev) {
-			dockerChanged = true
+			menuChanged = true
 		}
 	}
-	return dockerChanged
+	return menuChanged
 }
 
 func applyDockerEvent(snap *Snapshot, ev msg.Event) {

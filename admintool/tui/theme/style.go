@@ -1,16 +1,12 @@
 package theme
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 func NormalTitle() lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(Text).Bold(true)
 }
 
 func NormalDesc() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(Muted)
-}
-
-func Dimmed() lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(Muted)
 }
 

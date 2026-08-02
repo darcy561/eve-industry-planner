@@ -8,20 +8,15 @@ import (
 	"strings"
 )
 
-// RelaunchOpts configures RelaunchSelf.
+// RelaunchOpts configures RelaunchSelfOpts.
 type RelaunchOpts struct {
 	// ExtraEnv are KEY=value pairs merged into the new process env (override).
 	ExtraEnv []string
 }
 
-// RelaunchSelf starts a new process of this executable with args (empty = TUI),
+// RelaunchSelfOpts starts a new process of this executable with args (empty = TUI),
 // then exits the current process with code 0. Used after eip update so the
-// TUI picks up the replaced binary on disk.
-func RelaunchSelf(args []string) error {
-	return RelaunchSelfOpts(args, RelaunchOpts{})
-}
-
-// RelaunchSelfOpts is RelaunchSelf with optional env overrides.
+// TUI picks up the replaced binary on disk. ExtraEnv overrides are optional.
 func RelaunchSelfOpts(args []string, opts RelaunchOpts) error {
 	exe, err := ResolvedExecutable()
 	if err != nil {

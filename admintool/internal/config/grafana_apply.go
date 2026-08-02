@@ -2,14 +2,17 @@ package config
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
-	"eve-industry-planner/admintool/internal/dockercli"
+	"github.com/containerd/errdefs"
+	"github.com/moby/moby/client"
+
+	"eve-industry-planner/admintool/internal/docker"
 	"eve-industry-planner/admintool/internal/kit"
 	"eve-industry-planner/admintool/internal/msg"
 	"eve-industry-planner/admintool/internal/stack"
@@ -23,17 +26,6 @@ type LiveGrafana struct {
 	RootURL       string
 	TraefikRule   string
 	PathFromLabel string
-}
-
-type grafanaInspect struct {
-	Spec struct {
-		Labels       map[string]string `json:"Labels"`
-		TaskTemplate struct {
-			ContainerSpec struct {
-				Env []string `json:"Env"`
-			} `json:"ContainerSpec"`
-		} `json:"TaskTemplate"`
-	} `json:"Spec"`
 }
 
 // PathFromTraefikRule extracts the first PathPrefix value from a Traefik router rule.
@@ -60,21 +52,19 @@ func GrafanaPathNeedsApply(live LiveGrafana, desirePath, wantRoot string) bool {
 	return false
 }
 
-// InspectGrafanaService reads live grafana env/labels. Missing → Running=false.
-func InspectGrafanaService(ctx context.Context, name, rootEnv, ruleLabelKey string) (LiveGrafana, error) {
-	if name == "" {
-		return LiveGrafana{Running: false}, nil
-	}
-	out, err := dockercli.TryOut(ctx, "service", "inspect", name, "--format", "{{json .}}")
+func inspectGrafanaService(ctx context.Context, apiClient *client.Client, name, rootEnv, ruleLabelKey string) (LiveGrafana, error) {
+	result, err := apiClient.ServiceInspect(ctx, name, client.ServiceInspectOptions{})
 	if err != nil {
-		return LiveGrafana{Running: false}, nil
+		if errdefs.IsNotFound(err) {
+			return LiveGrafana{Running: false}, nil
+		}
+		return LiveGrafana{}, fmt.Errorf("inspect service %s: %w", name, err)
 	}
-	var raw grafanaInspect
-	if err := json.Unmarshal([]byte(out), &raw); err != nil {
-		return LiveGrafana{}, fmt.Errorf("parse inspect %s: %w", name, err)
+	env := map[string]string{}
+	if container := result.Service.Spec.TaskTemplate.ContainerSpec; container != nil {
+		env = parseEnvList(container.Env)
 	}
-	env := parseEnvList(raw.Spec.TaskTemplate.ContainerSpec.Env)
-	rule := raw.Spec.Labels[ruleLabelKey]
+	rule := result.Service.Spec.Labels[ruleLabelKey]
 	return LiveGrafana{
 		Running:       true,
 		RootURL:       env[rootEnv],
@@ -83,8 +73,8 @@ func InspectGrafanaService(ctx context.Context, name, rootEnv, ruleLabelKey stri
 	}, nil
 }
 
-// ApplyGrafanaPath updates Swarm grafana env/labels from the obs stack file.
-// Skips if grafana is not deployed or obs stack is missing.
+// ApplyGrafanaPath updates Swarm grafana env/labels from the obs stack file via
+// Moby ServiceUpdate. Skips if grafana is not deployed or obs stack is missing.
 func ApplyGrafanaPath(ctx context.Context, cfg Config, home, stackPrefix string, dryRun bool) error {
 	if stackPrefix == "" {
 		stackPrefix = "eip"
@@ -108,7 +98,12 @@ func ApplyGrafanaPath(ctx context.Context, cfg Config, home, stackPrefix string,
 	wantRoot := stack.DesiredGrafanaRootURL(surface, desirePath)
 	wantRule := stack.SubstituteEnv(surface.TraefikRule, "EIP_GRAFANA_PATH", desirePath)
 
-	live, err := InspectGrafanaService(ctx, svc, surface.RootURLEnv, surface.TraefikRuleKey)
+	apiClient, err := docker.NewAPIClient(client.WithTimeout(2 * time.Minute))
+	if err != nil {
+		return fmt.Errorf("grafana sync: engine API client: %w", err)
+	}
+	defer apiClient.Close()
+	live, err := inspectGrafanaService(ctx, apiClient, svc, surface.RootURLEnv, surface.TraefikRuleKey)
 	if err != nil {
 		return err
 	}
@@ -129,18 +124,33 @@ func ApplyGrafanaPath(ctx context.Context, cfg Config, home, stackPrefix string,
 	}
 	msg.Line(fmt.Sprintf("plan grafana:\n  path: %s -> %s", from, desirePath))
 
-	args := []string{
-		"service", "update", "--detach=true",
-		"--env-add", surface.RootURLEnv + "=" + wantRoot,
-		"--label-add", surface.TraefikRuleKey + "=" + wantRule,
-		svc,
-	}
 	if dryRun {
-		msg.Line("dry-run: docker " + strings.Join(args, " "))
+		msg.Line("dry-run: would update " + svc)
 		return nil
 	}
-	if err := dockercli.Run(ctx, args...); err != nil {
-		return err
+	result, err := apiClient.ServiceInspect(ctx, svc, client.ServiceInspectOptions{})
+	if err != nil {
+		return fmt.Errorf("inspect service %s: %w", svc, err)
+	}
+	service := result.Service
+	spec := service.Spec
+	if spec.TaskTemplate.ContainerSpec == nil {
+		return fmt.Errorf("update grafana %s: missing ContainerSpec", svc)
+	}
+	spec.TaskTemplate.ContainerSpec.Env = setEnv(
+		spec.TaskTemplate.ContainerSpec.Env,
+		map[string]string{surface.RootURLEnv: wantRoot},
+		map[string]struct{}{surface.RootURLEnv: {}},
+	)
+	if spec.Labels == nil {
+		spec.Labels = map[string]string{}
+	}
+	spec.Labels[surface.TraefikRuleKey] = wantRule
+	if _, err := apiClient.ServiceUpdate(ctx, service.ID, client.ServiceUpdateOptions{
+		Version: service.Version,
+		Spec:    spec,
+	}); err != nil {
+		return fmt.Errorf("update grafana %s: %w", svc, err)
 	}
 	msg.Line("updated " + svc)
 	return nil

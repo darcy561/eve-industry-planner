@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -9,6 +8,7 @@ import (
 	"eve-industry-planner/admintool/internal/catalog"
 	"eve-industry-planner/admintool/internal/dataplane"
 	"eve-industry-planner/admintool/internal/msg"
+	"eve-industry-planner/admintool/internal/process"
 )
 
 func init() {
@@ -36,7 +36,9 @@ Same path as dataplane.Ready's mongo half (eip up / eip dev).`,
 		msg.EmitStackForVerb("ensure-mongo")
 
 		// No short timeout — match Ready / EnsureMongo (index builds may be long).
-		if err := dataplane.EnsureMongo(context.Background(), ""); err != nil {
+		ctx, cancel := process.SignalContext()
+		defer cancel()
+		if err := process.MapDoneError(dataplane.EnsureMongo(ctx, "")); err != nil {
 			msg.EmitStack("ensure-mongo", msg.LightRed, err.Error())
 			return err
 		}

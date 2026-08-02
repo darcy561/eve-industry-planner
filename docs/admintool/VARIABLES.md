@@ -7,7 +7,7 @@ Do not hardcode parallel copies of these values in screens or menus. Change the 
 | Value | SoT |
 |-------|-----|
 | Product name, tagline, CLI name, stack name | [`admintool/internal/kit`](../../admintool/internal/kit/product.go) |
-| Binary / module folder names | [README.md](./README.md) |
+| Binary / module folder names | [`admintool/`](../../admintool/) (`go.mod`, `main.go`) — see [ENGINEERING.md](./ENGINEERING.md) |
 | Expected Swarm service groups + fragments | [`admintool/internal/catalog/services.go`](../../admintool/internal/catalog/services.go) |
 | Deploy source / inspect / up-dev recipe | [`admintool/internal/deploy`](../../admintool/internal/deploy/) (`Source`, `Inspect`, `Run`) |
 | Dataplane Swarm-task wait/poll | [`admintool/internal/dataplane/task`](../../admintool/internal/dataplane/task/) (`ContainerID`, `Running`, `Wait`, `Retry`) — shared poller; ready probes stay in s3/mongo |
@@ -16,7 +16,7 @@ Do not hardcode parallel copies of these values in screens or menus. Change the 
 | Mongo ensure caller entry (Ready / ensure-mongo / init) | [`admintool/internal/dataplane`](../../admintool/internal/dataplane/) (`EnsureMongo`) → implementation `mongo.Ensure` |
 | Mongo preimage collections + application index specs | [`admintool/internal/dataplane/mongo`](../../admintool/internal/dataplane/mongo/) (`PreimageCollections`, `IndexSpecs`) — ensured via `EnsureMongo`; not on core boot |
 | Kit file names / `Require` / project home | [`admintool/internal/kit`](../../admintool/internal/kit/) — `Home()` is the directory of the running binary |
-| Path writability preflight | [`admintool/internal/kit/writable.go`](../../admintool/internal/kit/writable.go) (`EnsureFileWritable` / `EnsureDirWritable` / `Check*`) |
+| Path writability preflight | [`admintool/internal/kit/writable.go`](../../admintool/internal/kit/writable.go) (`EnsureFileWritable` / `EnsureDirWritable` / `CheckDirWritable`) |
 | Operator docs gate | [`admintool/internal/kit/templates`](../../admintool/internal/kit/templates/) (`CheckOperatorDocs` → env usable + config Validate) |
 | Operator YAML Load/Validate/SyncEnv / Sync / WriteYAML | [`admintool/internal/config`](../../admintool/internal/config/) |
 | Swarm stack / network IDs | `kit.StackName` / `engine.NetworkName` (`eip-core`); not redefined in TUI |
@@ -28,16 +28,16 @@ Do not hardcode parallel copies of these values in screens or menus. Change the 
 | `eip` CLI verbs (id, title, short for `--help`) | [`admintool/internal/catalog/verbs.go`](../../admintool/internal/catalog/verbs.go) |
 | Home TUI menu titles / helpers / gating | [`admintool/tui/ops`](../../admintool/tui/ops/) (`Entries`, `MoreEntries`, `SetupNeeded`, `Allowed`) — plain-language; `Args` keep CLI ids (`up`, `shutdown`, …) |
 
-When adding a **CLI** verb: update `catalog` first, wire Cobra under `cmd/commands/`, keep Cobra `Short` aligned with `catalog.Verb.Short`. TUI may hide the verb (`tuiHiddenVerbs`), remap the title (e.g. Start → `up`), or nest it under **More** — do not assume the catalog order is the home menu order.
+When adding a **CLI** verb: update `catalog` first, wire Cobra under `cmd/commands/`, keep Cobra `Short` aligned with `catalog.Verb.Short`. TUI may omit the verb from `tui/ops` menus, remap the title (e.g. Start → `up`), or nest it under **More** — do not assume the catalog order is the home menu order.
 
 **TUI menu (current):**
 
 | Surface | Rows |
 |---------|------|
-| Main | **Setup** (if `.env`, `eip.config.yaml`, or `docker-stack*.yml` missing) · Status · Start · Dev · Restart · Rebuild · Stop · Update · **More** |
-| More | Secrets · Settings · Logs · Command |
+| Main | **Setup** (if `.env`, `eip.config.yaml`, or `docker-stack*.yml` missing) · Status · Start or Repair (by Health) · Dev · Restart · Rebuild · Stop · Update · **More** |
+| More | Command · Secrets · Settings · Logs (Command = host `eip` verbs + core `cli` / bare tasks) |
 | Hidden from TUI | `doctor`/`probe`, `add-path`, `ensure-mongo`, `ensure-s3`, `restore-mongo-keyfile`, `rekey-mongo` (CLI-only) |
-| Not on menu | `secrets` / `sync` apply — Persist auto-queues them; typed Command or CLI for manual |
+| Not on menu | `secrets` / `sync` apply — Persist auto-queues them; typed `:` / More → Command for manual |
 
 ## TUI theme / layout (code)
 
@@ -53,10 +53,10 @@ When adding a **CLI** verb: update `catalog` first, wire Cobra under `cmd/comman
 | Value | SoT |
 |-------|-----|
 | `.env` key schema | [`admintool/internal/kit/templates/env`](../../admintool/internal/kit/templates/env/) (`EnvFields`); apply rules in [docs/swarm/ENV.md](../swarm/ENV.md) |
-| `.env` Autogen / Locked / Roll | Same package: Autogen checkbox → generate on Finish; Locked (e.g. DB passwords) read-only once set; TUI **ctrl+r** = pending Roll until Finish (not for Locked DB passwords). Defaults for Autogen fields are empty — never write `auto-generate-me` |
+| `.env` Autogen / Locked / Roll | Same package: **Autogen** under its field, only while unset. Once set: Mongo/Redis usernames+passwords, Grafana password, Authz HMAC lock (no Roll). Rollable today: S3 secret + refresh-token AES. AES Roll also bumps hidden `REFRESH_TOKEN_AES_KEY_VERSION` and stashes the old key in `REFRESH_TOKEN_AES_LEGACY_KEYS`. Never write `auto-generate-me` |
 | EVE SSO | Required; blank after WriteMissing; ensure rejects empty or legacy placeholders (`your_eve_oauth_*`) |
 | `.env` key renames | `EnvField.PreviousKeys` — load migrates old names; Emit writes current keys + preserved unknown section |
-| `.env` backups | `cli.env_backup_path` in `eip.config.yaml` (default stem `eip-env-backup`): `stem-current.txt` + up to 3 timestamped copies before replace |
+| `.env` backups | `cli.env_backup_path` in `eip.config.yaml` (default stem `backups/env/env`): `stem-current.txt` + up to 3 timestamped copies before replace |
 | Operator YAML defaults | [`yamldefaults.DefaultConfig`](../../admintool/internal/kit/templates/yamldefaults/default.go) |
 | Operator YAML edit knobs | [`yamldefaults.ConfigFields`](../../admintool/internal/kit/templates/yamldefaults/fields.go) (TUI Settings / Setup Advanced). `cli.env_backup_path` is edited on the env Operator section (Setup writes it first) |
 | Write-missing facade | [`kit/templates`](../../admintool/internal/kit/templates/) (`WriteMissingEnv` / `WriteMissingConfig`) |
@@ -83,7 +83,9 @@ Import direction: `kit` ← `config` ← `templates/env` and `templates/yamldefa
 
 Never document process flags as `.env` keys; never add them to `EnvFields`. `msg` emit helpers gate on `process.FromTUI()` — do not redefine `EIP_FROM_TUI` elsewhere.
 
-**Docker CLI env** (`DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_CONFIG`) is owned by Docker, not EIP. `internal/docker.NewClient` honors it the same way the `docker` CLI does; do not mirror those keys into `.env` / `EnvFields`.
+**Docker CLI env** (`DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_CONFIG`) is owned by Docker, not EIP. `internal/docker.NewAPIClient` honors it the same way the `docker` CLI does; do not mirror those keys into `.env` / `EnvFields`.
+
+Optional host env (not `.env` / not TUI process flags): `EIP_VERBOSE` / `VERBOSE` (docker binary stream for stack deploy / bake), `EIP_PULL_PARALLEL` (live image pull concurrency, default `4`, max `16`).
 
 ## `eip` / `EIP_` prefix convention
 

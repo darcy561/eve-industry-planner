@@ -1,10 +1,13 @@
 package env
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -45,7 +48,7 @@ func DefaultEnvValues() map[string]string {
 // LoadEnvFile reads path into a map. Missing file → empty map (not an error).
 func LoadEnvFile(path string) (map[string]string, error) {
 	if _, err := os.Stat(path); err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return map[string]string{}, nil
 		}
 		return nil, err
@@ -209,11 +212,7 @@ func FormatEnvFile(values map[string]string, existing map[string]string) ([]byte
 	if len(preserved) > 0 {
 		b.WriteByte('\n')
 		b.WriteString(preservedSectionHeader)
-		keys := make([]string, 0, len(preserved))
-		for k := range preserved {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(preserved))
 		for _, k := range keys {
 			b.WriteString(k)
 			b.WriteByte('=')

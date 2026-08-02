@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 )
@@ -32,8 +33,31 @@ func IsSetSecret(value string) bool {
 }
 
 // IsLockedInFile reports whether a Locked field already has a real value and must stay read-only.
+// Autogen secrets use IsSetSecret; plain Locked text (e.g. usernames) locks on any non-empty value.
 func IsLockedInFile(f EnvField, fileValue string) bool {
-	return f.Locked && IsSetSecret(fileValue)
+	if !f.Locked {
+		return false
+	}
+	if f.Autogen || f.Type == FieldPassword || f.Type == FieldHMAC || f.Type == FieldAES {
+		return IsSetSecret(fileValue)
+	}
+	return strings.TrimSpace(fileValue) != ""
+}
+
+// ShowAutogenCheckbox is true only on first create (Autogen field still unset).
+func ShowAutogenCheckbox(f EnvField, fileValue string) bool {
+	return f.Autogen && !IsSetSecret(fileValue) && !IsLockedInFile(f, fileValue)
+}
+
+// ShowRollCheckbox is true for day-2 Autogen fields that are not permanently Locked.
+func ShowRollCheckbox(f EnvField, fileValue string) bool {
+	return f.Autogen && !f.Locked && IsSetSecret(fileValue)
+}
+
+// SecretValueReadOnly is true once an Autogen secret exists (manual edit unsupported).
+// Locked fields stay read-only; rollable fields show Roll only.
+func SecretValueReadOnly(f EnvField, fileValue string) bool {
+	return f.Autogen && IsSetSecret(fileValue)
 }
 
 // RuleHelp returns material rules for gen-capable types (shown when manual entry is enabled).
@@ -143,10 +167,9 @@ func ResolveField(f EnvField, value string, generate bool) (string, error) {
 // Keys missing from generate default to false (manual), except sentinel/empty required
 // Autogen fields default generate=true for first-write / CLI convenience.
 func ResolveEnvFields(values map[string]string, generate map[string]bool) (map[string]string, error) {
+	prior := maps.Clone(values)
 	out := make(map[string]string, len(values))
-	for k, v := range values {
-		out[k] = v
-	}
+	maps.Copy(out, values)
 	for _, f := range EnvFields() {
 		if !f.Autogen {
 			continue
@@ -174,6 +197,9 @@ func ResolveEnvFields(values map[string]string, generate map[string]bool) (map[s
 			return nil, fmt.Errorf("%s: %w", f.Key, err)
 		}
 		out[f.Key] = resolved
+	}
+	if err := applyRefreshTokenKeyRotation(out, prior, generate); err != nil {
+		return nil, err
 	}
 	return out, nil
 }

@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -42,10 +41,10 @@ Does not scale Swarm, deploy, dump/wipe, or run Ensure.
 			return fmt.Errorf("cancelled")
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		ctx, cancel := process.TimeoutSignalContext(3 * time.Minute)
 		defer cancel()
 
-		if err := mongo.Rekey(ctx, ""); err != nil {
+		if err := process.MapDoneError(mongo.Rekey(ctx, "")); err != nil {
 			msg.EmitStack("rekey-mongo", msg.LightRed, err.Error())
 			return err
 		}

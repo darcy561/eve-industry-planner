@@ -4,23 +4,23 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 )
 
 // ForceUpdateService triggers a rolling restart of a Swarm service (same image/spec).
-// Equivalent to `docker service update --force` via the Engine SDK.
-func ForceUpdateService(ctx context.Context, cli client.APIClient, nameOrID string) error {
+// Equivalent to `docker service update --force` via Moby ServiceUpdate.
+func ForceUpdateService(ctx context.Context, apiClient *client.Client, nameOrID string) error {
 	if nameOrID == "" {
 		return fmt.Errorf("force update: empty service name")
 	}
-	svc, _, err := cli.ServiceInspectWithRaw(ctx, nameOrID, types.ServiceInspectOptions{})
+	result, err := apiClient.ServiceInspect(ctx, nameOrID, client.ServiceInspectOptions{})
 	if err != nil {
 		return fmt.Errorf("inspect %s: %w", nameOrID, err)
 	}
+	svc := result.Service
 	spec := svc.Spec
 	spec.TaskTemplate.ForceUpdate++
-	_, err = cli.ServiceUpdate(ctx, svc.ID, svc.Version, spec, types.ServiceUpdateOptions{})
+	_, err = apiClient.ServiceUpdate(ctx, svc.ID, client.ServiceUpdateOptions{Version: svc.Version, Spec: spec})
 	if err != nil {
 		return fmt.Errorf("update %s: %w", nameOrID, err)
 	}

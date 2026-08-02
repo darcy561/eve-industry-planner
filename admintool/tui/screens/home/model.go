@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
 
 	"eve-industry-planner/admintool/cmd/commands"
 	"eve-industry-planner/admintool/internal/kit"
@@ -31,7 +30,7 @@ type focusPane int
 const (
 	focusMenu focusPane = iota
 	focusMore
-	focusCommand
+	focusCommand // combined host eip + core tasks command window
 	focusRestartPick
 	focusLogsType
 	focusLogsSource
@@ -57,7 +56,7 @@ const (
 )
 
 const (
-	pickBack             = "← Back"
+	pickBack             = ops.BackTitle
 	choiceConfigDefaults = "Use defaults"
 	choiceConfigAdvanced = "Advanced"
 )
@@ -75,34 +74,39 @@ type cliJob struct {
 }
 
 type model struct {
-	focus             focusPane
-	bodyMode          bodyMode
-	docKind           docKind
-	builder           builder.Session
-	list              list.Model
-	delegate          *ui.MarqueeDelegate
-	input             textinput.Model
-	viewport          viewport.Model
-	snap              statusbar.Snapshot
-	pane              pane.Buffer
-	commandRunning    bool
-	stream            *exec.Stream
-	pendingCLI        []cliJob
-	refreshing        bool
-	probeStaleTicks   int
-	statusMsgClearGen int
-	width             int
-	height            int
-	ready             bool
-	leftW             int
-	rightW            int
-	bodyH             int
-	serviceTargets    []string
-	logsFollow        bool
-	opsListBackup     []list.Item
-	fromMore             bool // child opened from More → close returns to More
-	pendingRelaunch      bool // set when update asks the TUI to restart
-	pendingResumeUpdate  bool // relaunch with EIP_UPDATE_RESUME (continue stacks/images)
+	focus               focusPane
+	bodyMode            bodyMode
+	docKind             docKind
+	builder             builder.Session
+	list                list.Model
+	delegate            *ui.MarqueeDelegate
+	input               textinput.Model
+	viewport            viewport.Model
+	snap                statusbar.Snapshot
+	pane                pane.Buffer
+	progressText        string
+	progressFrac        *float64 // optional [0,1] for terminal ProgressBar; nil = indeterminate while live
+	commandRunning      bool
+	cancelling          bool
+	stream              *exec.Stream
+	pendingCLI          []cliJob
+	refreshing          bool
+	probeStaleTicks     int
+	statusMsgClearGen   int
+	width               int
+	height              int
+	ready               bool
+	leftW               int
+	rightW              int
+	bodyH               int
+	serviceTargets      []string
+	logsFollow          bool
+	opsListBackup       []list.Item
+	fromMore            bool // child opened from More → close returns to More
+	cmdSession          bool // Command window open (host + core); freezes More marquee
+	pendingRelaunch     bool // set when update asks the TUI to restart
+	pendingResumeUpdate bool // relaunch with EIP_UPDATE_RESUME (continue stacks/images)
+	mouseCapture        bool // true: clicks/wheel; false: terminal drag-select / native copy
 }
 
 const probeStaleLimit = 4 // ~12s at 3s poll
@@ -112,18 +116,19 @@ func newModel() model {
 	ti.Placeholder = "up | status | logs api | ..."
 	ti.CharLimit = 256
 	ti.Prompt = kit.CLIName + " "
-	ti.PromptStyle = lipgloss.NewStyle().Foreground(theme.Primary).Bold(true)
+	ui.ApplyTextInputDark(&ti)
 
 	menu, delegate := ops.NewMenuList()
 	return model{
-		focus:      focusMenu,
-		list:       menu,
-		delegate:   delegate,
-		input:      ti,
-		viewport:   ui.NewOutputViewport(""),
-		snap:       statusbar.Default(),
-		pane:       pane.Buffer{Follow: true},
-		refreshing: true,
+		focus:        focusMenu,
+		list:         menu,
+		delegate:     delegate,
+		input:        ti,
+		viewport:     ui.NewOutputViewport(""),
+		snap:         statusbar.Default(),
+		pane:         pane.Buffer{Follow: true},
+		refreshing:   true,
+		mouseCapture: true,
 	}
 }
 
@@ -140,10 +145,12 @@ type resumeUpdateMsg struct{}
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		if m.ready && msg.Width == m.width && msg.Height == m.height {
+			return m, nil
+		}
 		m.width, m.height = msg.Width, msg.Height
 		m.ready = true
-		m.layout()
-		return m, nil
+		return m, m.layout()
 
 	case builder.CancelMsg:
 		return m.closeBuilder()
@@ -152,15 +159,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onBuilderDone()
 
 	case ui.MarqueeTickMsg:
+		var cmd tea.Cmd
 		if m.bodyMode == bodyModeBuilder {
-			m.builder.AdvanceMarquee()
-		} else if m.delegate != nil {
-			m.delegate.Advance(m.list.Index())
+			m.builder, cmd = m.builder.Update(msg)
+		} else if !m.cmdSession {
+			// Freeze More list marquee while Command is open — avoids left-pane churn.
+			m.list, cmd = m.list.Update(msg)
 		}
 		if m.snap.StatusMsg != "" {
 			m.snap.StatusMsgTick++
 		}
-		return m, ui.MarqueeTick()
+		if cmd == nil {
+			cmd = ui.MarqueeTick()
+		}
+		return m, cmd
 
 	case statusbar.PollTickMsg:
 		cmds := []tea.Cmd{statusbar.PollTick()}
@@ -175,19 +187,39 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(append(cmds, statusbar.ProbeCmd(m.snap))...)
 
 	case tea.MouseMsg:
+		if !m.mouseCapture {
+			return m, nil
+		}
+		return m.handleMouse(msg)
+
+	case ui.ClipboardCopiedMsg:
+		return m.withStatusMsg("Copied to clipboard")
+
+	case ui.ClipboardCopyFailedMsg:
+		return m.withStatusMsg("Copy failed — try F6 select text, then right-click Copy")
+
+	case tea.ClipboardMsg:
+		if m.bodyMode == bodyModeBuilder {
+			var cmd tea.Cmd
+			m.builder, cmd = m.builder.Update(msg)
+			return m, cmd
+		}
+		if m.focus == focusCommand {
+			return m, ui.InsertClipboard(&m.input, msg.String())
+		}
 		return m, nil
 
 	case statusbar.Msg:
 		m.refreshing = false
 		m.probeStaleTicks = 0
-		prevDocker := m.snap.Docker
+		prevDocker, prevHealth := m.snap.Docker, m.snap.Health
 		statusMsg, statusTick := m.snap.StatusMsg, m.snap.StatusMsgTick
 		m.snap = msg.Snap
 		m.snap.ToolVersion = commands.Version
 		m.snap.StatusMsg = statusMsg
 		m.snap.StatusMsgTick = statusTick
-		if m.snap.Docker != prevDocker {
-			m.refreshMenuForDocker()
+		if m.snap.Docker != prevDocker || m.snap.Health != prevHealth {
+			m.refreshMenuGates()
 		}
 		return m, nil
 
@@ -206,12 +238,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if statusbar.ApplyEvent(&m.snap, msg.Event) {
-			m.refreshMenuForDocker()
+			m.refreshMenuGates()
 		}
 		return m.waitStream()
 
 	case pane.AppendMsg:
 		m.appendOut(msg.Text)
+		return m.waitStream()
+
+	case pane.ProgressMsg:
+		if msg.Done {
+			if strings.TrimSpace(msg.Text) != "" {
+				m.pane.Append(msg.Text)
+			}
+			m.clearProgress()
+		} else {
+			m.progressText = msg.Text
+			m.progressFrac = msg.Fraction
+		}
+		m.syncPane()
 		return m.waitStream()
 
 	case outstatus.Msg:
@@ -220,6 +265,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case pane.ClearMsg:
 		m.pane.Clear()
+		m.clearProgress()
 		m.syncPane()
 		return m, nil
 
@@ -248,6 +294,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onServiceList(msg)
 	}
 
+	// Global clipboard / select-mode keys (before builder / menus steal them).
+	// F6 — not ctrl+shift+m: Windows Terminal steals that for its own Mark Mode.
+	if key, ok := msg.(tea.KeyPressMsg); ok {
+		switch {
+		case key.String() == "f6", key.Code == tea.KeyF6:
+			return m.toggleMouseCapture()
+		case key.String() == "ctrl+shift+c", key.String() == "ctrl+shift+C":
+			// Select mode: never write the clipboard — that chord is Terminal's
+			// "copy selection", and our write was racing/overwriting it.
+			if !m.mouseCapture {
+				return m.withStatusMsg("Highlighted text: use right-click → Copy (eip does not bind this key here)")
+			}
+			if cmd := m.copyClipboard(); cmd != nil {
+				return m, cmd
+			}
+			return m.withStatusMsg("Nothing to copy — click a field first (or F6 + right-click for screen text)")
+		case key.String() == "ctrl+v":
+			if m.bodyMode == bodyModeBuilder || m.focus == focusCommand {
+				return m, ui.PasteText()
+			}
+		}
+	}
+
 	if m.bodyMode == bodyModeBuilder {
 		var cmd tea.Cmd
 		m.builder, cmd = m.builder.Update(msg)
@@ -257,8 +326,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateSetupChoice(msg)
 	}
 	if m.commandRunning {
-		if key, ok := msg.(tea.KeyMsg); ok && m.handleOutputScroll(key) {
-			return m, nil
+		if key, ok := msg.(tea.KeyPressMsg); ok {
+			if m.handleOutputScroll(key) {
+				return m, nil
+			}
+			switch key.String() {
+			case "ctrl+c", "esc":
+				if !m.cancelling {
+					m.cancelling = true
+					m.pendingCLI = nil
+					m.pendingRelaunch = false
+					m.pendingResumeUpdate = false
+					m.appendOut("Cancelling…")
+					if m.stream != nil {
+						m.stream.Cancel()
+					}
+				}
+				return m.waitStream()
+			}
 		}
 		return m, nil
 	}
@@ -280,19 +365,33 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) onCLIDone(msg exec.DoneMsg) (tea.Model, tea.Cmd) {
+	wasCancel := m.cancelling
+	m.cancelling = false
 	m.commandRunning = false
 	m.stream = nil
-	if strings.TrimSpace(msg.Text) == "" && msg.Err != nil {
+	if m.progressText != "" {
+		m.pane.Append(m.progressText)
+	}
+	m.clearProgress()
+	m.syncPane()
+	if wasCancel {
+		m.pendingCLI = nil
+		m.pendingRelaunch = false
+		m.pendingResumeUpdate = false
+		m.appendOut("Cancelled.")
+	} else if strings.TrimSpace(msg.Text) == "" && msg.Err != nil {
 		m.appendOut(msg.Err.Error())
 	} else if strings.TrimSpace(msg.Text) == "" && m.pane.Text == "" {
 		m.appendOut("(no output)")
 	}
-	if msg.Err != nil {
+	if wasCancel {
+		// skip error/pending/relaunch paths
+	} else if msg.Err != nil {
 		m.pendingRelaunch = false
 		m.pendingResumeUpdate = false
 		if len(m.pendingCLI) > 0 {
 			m.pendingCLI = nil
-			m.appendOut("Apply stopped — fix the error, then retry from Command (secrets / sync).")
+			m.appendOut("Apply stopped — fix the error, then retry from : (secrets / sync).")
 		}
 	} else if len(m.pendingCLI) > 0 {
 		return m.startNextPendingCLI()
@@ -308,6 +407,14 @@ func (m model) onCLIDone(msg exec.DoneMsg) (tea.Model, tea.Cmd) {
 	}
 	m.refreshing = true
 	m.statusMsgClearGen++
+	if m.cmdSession {
+		cmd := m.refocusCommandSession()
+		return m, tea.Batch(
+			cmd,
+			statusbar.ProbeCmd(m.snap),
+			statusbar.ClearStatusMsgAfter(m.statusMsgClearGen),
+		)
+	}
 	m.returnToMoreOrMenu()
 	return m, tea.Batch(
 		statusbar.ProbeCmd(m.snap),
@@ -326,32 +433,63 @@ func relaunchSelfCmd(resumeUpdate bool) tea.Cmd {
 
 type relaunchFailedMsg struct{ err error }
 
-func (m *model) syncPane() {
-	ui.SetViewportText(&m.viewport, m.pane.Text, m.pane.Follow)
+func (m *model) clearProgress() {
+	m.progressText = ""
+	m.progressFrac = nil
 }
 
-func (m *model) layout() {
-	chromeH := 1 + brand.Height() + 1 + 2 + 1
-	if m.focus == focusCommand && m.bodyMode == bodyModeOps {
-		chromeH++
+func (m *model) syncPane() {
+	text := m.pane.Text
+	if m.progressText != "" {
+		if text != "" {
+			text += "\n"
+		}
+		// Theme the live board; committed history stays plain text.
+		text += ui.StyleProgressOverlay(m.progressText)
 	}
+	ui.SetViewportText(&m.viewport, text, m.pane.Follow)
+}
+
+func (m model) progressBar() *tea.ProgressBar {
+	if m.progressText == "" && m.progressFrac == nil {
+		return nil
+	}
+	return ui.ProgressBarFromFraction(m.progressFrac)
+}
+
+func (m *model) layout() tea.Cmd {
+	// Match view chrome: pad + logo + border + status (2) + footer help (1).
+	headerH := 1 + brand.Height() + 1
+	statusH := 2
+	footerH := 1
+	bannerH := 0
+	if !m.mouseCapture {
+		bannerH = 1 // renderSelectBanner between status and body
+	}
+	chromeH := headerH + statusH + bannerH + footerH
 	split := ui.CalcSplit(m.width, m.height, chromeH)
 	m.leftW, m.rightW, m.bodyH = split.LeftW, split.RightW, split.BodyH
 
 	if m.bodyMode == bodyModeBuilder {
-		m.builder.SetSize(m.leftW, m.rightW, m.bodyH)
-		return
+		return m.builder.SetSize(m.leftW, m.rightW, m.bodyH)
 	}
 	listW, listH := ui.ListSizeInPanel(m.leftW, m.bodyH)
 	ui.SizeList(&m.list, m.delegate, listW, listH)
 	vpW, vpH := ui.ViewportSizeInPanel(m.rightW, m.bodyH)
+	if m.cmdSession {
+		// Reserve one row inside the OUTPUT panel for the command prompt.
+		vpH = theme.Max(3, vpH-1)
+		m.input.SetWidth(theme.Max(12, vpW-2))
+	} else {
+		m.input.SetWidth(theme.Max(12, m.width-2*theme.HMargin-8))
+	}
 	ui.SizeViewport(&m.viewport, vpW, vpH)
 	m.syncPane()
-	m.input.Width = theme.Max(12, m.width-2*theme.HMargin-8)
+	return nil
 }
 
 func (m model) startCLI(label string, args []string) (tea.Model, tea.Cmd) {
-	if !ops.Allowed(ops.Entry{Title: label, Args: args}, m.snap.Docker) {
+	if !ops.Allowed(ops.Entry{Title: label, Args: args}, m.snap.Docker, m.snap.Health) {
 		return m, nil
 	}
 	m.commandRunning = true
@@ -366,6 +504,10 @@ func (m model) startCLI(label string, args []string) (tea.Model, tea.Cmd) {
 		m.commandRunning = false
 		m.pendingCLI = nil
 		m.appendOut(err.Error())
+		if m.cmdSession {
+			cmd := m.refocusCommandSession()
+			return m, cmd
+		}
 		m.returnToMoreOrMenu()
 		return m, nil
 	}
@@ -382,14 +524,14 @@ func (m model) startNextPendingCLI() (tea.Model, tea.Cmd) {
 	return m.startCLI(job.Label, job.Args)
 }
 
-func (m *model) handleOutputScroll(msg tea.KeyMsg) bool {
+func (m *model) handleOutputScroll(msg tea.KeyPressMsg) bool {
 	switch {
 	case isPageUp(msg):
 		m.pane.Follow = false
-		m.viewport.HalfViewUp()
+		m.viewport.HalfPageUp()
 		return true
 	case isPageDown(msg):
-		m.viewport.HalfViewDown()
+		m.viewport.HalfPageDown()
 		if m.viewport.AtBottom() {
 			m.pane.Follow = true
 		}
@@ -401,34 +543,19 @@ func (m *model) handleOutputScroll(msg tea.KeyMsg) bool {
 
 func (m model) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch {
 		case msg.String() == "ctrl+c", msg.String() == "esc":
 			return m, tea.Quit
 		case msg.String() == ":":
 			m.fromMore = false
-			return m, m.openCommandLine()
+			cmd := m.openCommandSession()
+			return m, cmd
 		case isPageUp(msg), isPageDown(msg):
 			m.handleOutputScroll(msg)
 			return m, nil
 		case isEnter(msg):
-			entry, ok := ops.Selected(m.list)
-			if !ok || !ops.Allowed(entry, m.snap.Docker) {
-				return m, nil
-			}
-			m.fromMore = false
-			switch entry.Special {
-			case ops.SpecialMore:
-				m.showMoreList()
-				return m, nil
-			case ops.SpecialRestart:
-				return m.beginRestartPick()
-			case ops.SpecialSetup:
-				m.openSetupBuilder()
-				return m, m.builder.Init()
-			default:
-				return m.startCLI(entry.Title, entry.Args)
-			}
+			return m.activateMenu()
 		}
 	}
 	m.list, _ = m.list.Update(msg)
@@ -437,7 +564,7 @@ func (m model) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) updateMore(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch {
 		case msg.String() == "ctrl+c":
 			return m, tea.Quit
@@ -448,23 +575,7 @@ func (m model) updateMore(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.handleOutputScroll(msg)
 			return m, nil
 		case isEnter(msg):
-			entry, ok := ops.Selected(m.list)
-			if !ok || !ops.Allowed(entry, m.snap.Docker) {
-				return m, nil
-			}
-			m.fromMore = true
-			switch entry.Special {
-			case ops.SpecialCommand:
-				return m, m.openCommandLine()
-			case ops.SpecialLogs:
-				return m.beginLogsPick()
-			case ops.SpecialEditEnv:
-				m.openSecretsBuilder()
-				return m, m.builder.Init()
-			case ops.SpecialEditConfig:
-				m.openSettingsBuilder()
-				return m, m.builder.Init()
-			}
+			return m.activateMore()
 		}
 	}
 	m.list, _ = m.list.Update(msg)
@@ -473,40 +584,61 @@ func (m model) updateMore(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) updateCommand(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch {
 		case msg.String() == "ctrl+c":
 			return m, tea.Quit
+		case isPageUp(msg), isPageDown(msg):
+			m.handleOutputScroll(msg)
+			return m, nil
 		case msg.String() == "esc":
-			m.input.Blur()
-			m.returnToMoreOrMenu()
+			m.closeCommandSession()
 			return m, nil
 		case isEnter(msg):
 			line := strings.TrimSpace(m.input.Value())
-			m.input.Blur()
 			if line == "" {
-				m.returnToMoreOrMenu()
-				return m, nil
+				// Stay open — empty Enter must not leave (click can synthesize Enter).
+				m.input.Focus()
+				return m, textinput.Blink
 			}
-			args := strings.Fields(line)
-			if len(args) == 1 {
-				switch args[0] {
-				case "init", "setup":
-					m.fromMore = false
-					m.openSetupBuilder()
-					return m, m.builder.Init()
-				case "edit", "edit-env", "env":
-					m.fromMore = false
-					m.openSecretsBuilder()
-					return m, m.builder.Init()
-				case "edit-config", "config", "settings":
-					m.fromMore = false
-					m.openSettingsBuilder()
-					return m, m.builder.Init()
+			act := parseCommandLine(line)
+			if act.Err != "" {
+				m.appendOut(act.Err)
+				cmd := m.refocusCommandSession()
+				return m, cmd
+			}
+			switch act.Builder {
+			case "setup":
+				// Keep fromMore (More → Command → setup should return to More).
+				m.cmdSession = false
+				m.input.Blur()
+				m.openSetupBuilder()
+				if m.bodyMode != bodyModeBuilder {
+					// Stack fetch failed — restore Command prompt (do not leave stuck Back-only).
+					return m, m.refocusCommandSession()
 				}
+				return m, m.builder.Init()
+			case "secrets":
+				m.cmdSession = false
+				m.input.Blur()
+				m.openSecretsBuilder()
+				return m, m.builder.Init()
+			case "settings":
+				m.cmdSession = false
+				m.input.Blur()
+				m.openSettingsBuilder()
+				return m, m.builder.Init()
 			}
-			return m.startCLI(line, args)
+			if len(act.RunArgs) == 0 {
+				cmd := m.refocusCommandSession()
+				return m, cmd
+			}
+			return m.startCLI(act.Label, act.RunArgs)
 		}
+	case tea.PasteMsg:
+		var cmd tea.Cmd
+		m.input, cmd = m.input.Update(msg)
+		return m, cmd
 	}
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)

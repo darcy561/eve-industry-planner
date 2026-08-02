@@ -40,8 +40,3 @@ func Check(ctx context.Context, stackName string) error {
 	}
 	return nil
 }
-
-// CheckPrimary is an alias for Check (PRIMARY + root + app auth).
-func CheckPrimary(ctx context.Context, stackName string) error {
-	return Check(ctx, stackName)
-}

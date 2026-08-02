@@ -43,4 +43,10 @@ func TestRecipeReadyUsesParentContext(t *testing.T) {
 	if !strings.Contains(snippet, "dataplane.Ready(ctx,") {
 		t.Fatalf("want dataplane.Ready(ctx,…), got %q", snippet)
 	}
+	if !strings.Contains(body, "stackAlreadyHealthy") {
+		t.Fatal("want stackAlreadyHealthy gate before Ready")
+	}
+	if !strings.Contains(body, "Stack already healthy — skipping ensure") {
+		t.Fatal("want operator step when skipping Ready")
+	}
 }

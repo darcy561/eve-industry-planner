@@ -1,4 +1,5 @@
 // Sync implements eip sync: capacity, Traefik, Grafana, and config mounts.
+// Swarm mutations use the Moby Engine API (not `docker service update` CLI).
 package config
 
 import (
@@ -7,7 +8,6 @@ import (
 	"path/filepath"
 
 	"eve-industry-planner/admintool/internal/docker"
-	"eve-industry-planner/admintool/internal/dockercli"
 	"eve-industry-planner/admintool/internal/kit"
 	"eve-industry-planner/admintool/internal/msg"
 	"eve-industry-planner/admintool/internal/stack"
@@ -16,9 +16,6 @@ import (
 
 // Sync applies capacity, Traefik, Grafana, and file-config mounts from operator YAML.
 func Sync(ctx context.Context, dryRun bool) error {
-	if err := dockercli.LookPath(); err != nil {
-		return err
-	}
 	home, err := kit.Home()
 	if err != nil {
 		return err

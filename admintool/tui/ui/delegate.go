@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/list"
+	tea "charm.land/bubbletea/v2"
 
 	"eve-industry-planner/admintool/tui/theme"
 )
@@ -33,8 +33,14 @@ func NewMarqueeDelegate(width int) *MarqueeDelegate {
 func (d *MarqueeDelegate) Height() int  { return d.height }
 func (d *MarqueeDelegate) Spacing() int { return d.spacing }
 
-// Update is unused; home drives MarqueeTickMsg and calls Advance.
-func (d *MarqueeDelegate) Update(tea.Msg, *list.Model) tea.Cmd { return nil }
+// Update advances the marquee on MarqueeTickMsg (bubbles ItemDelegate hook).
+func (d *MarqueeDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd {
+	if _, ok := msg.(MarqueeTickMsg); !ok || m == nil {
+		return nil
+	}
+	d.Advance(m.Index())
+	return MarqueeTick()
+}
 
 // Advance steps the marquee; resets when the selection changes.
 func (d *MarqueeDelegate) Advance(selectedIndex int) {
@@ -83,5 +89,7 @@ func (d *MarqueeDelegate) Render(w io.Writer, m list.Model, index int, item list
 			Render(desc)
 	}
 
-	fmt.Fprintf(w, "%s\n%s", titleStyled, descStyled)
+	rowView := titleStyled + "\n" + descStyled
+	// Mark after width/marquee math so zone markers do not skew StringWidth.
+	fmt.Fprint(w, Mark(ZoneListRow(index), rowView))
 }

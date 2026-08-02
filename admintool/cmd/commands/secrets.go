@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"eve-industry-planner/admintool/internal/deploy"
 	"eve-industry-planner/admintool/internal/kit"
 	"eve-industry-planner/admintool/internal/msg"
+	"eve-industry-planner/admintool/internal/process"
 	"eve-industry-planner/admintool/internal/swarm"
 )
 
@@ -48,7 +48,7 @@ so expand keeps local bake TAG_* from running services.`,
 
 		msg.EmitStackForVerb("secrets")
 
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+		ctx, cancel := process.TimeoutSignalContext(20 * time.Minute)
 		defer cancel()
 
 		if dryRun {
@@ -64,7 +64,7 @@ so expand keeps local bake TAG_* from running services.`,
 			return nil
 		}
 
-		if err := deploy.Rematerialize(ctx, src); err != nil {
+		if err := process.MapDoneError(deploy.Rematerialize(ctx, src)); err != nil {
 			msg.EmitStack("secrets", msg.LightRed, err.Error())
 			return err
 		}

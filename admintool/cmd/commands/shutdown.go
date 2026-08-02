@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"eve-industry-planner/admintool/internal/catalog"
 	"eve-industry-planner/admintool/internal/msg"
 	"eve-industry-planner/admintool/internal/ops"
+	"eve-industry-planner/admintool/internal/process"
 )
 
 func init() {
@@ -33,10 +33,10 @@ resources. Volumes and external networks (eip-core) are kept.
 		yes, _ := cmd.Flags().GetBool("yes")
 		msg.EmitStackForVerb("shutdown")
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		ctx, cancel := process.TimeoutSignalContext(10 * time.Minute)
 		defer cancel()
 
-		if err := ops.Shutdown(ctx, yes); err != nil {
+		if err := process.MapDoneError(ops.Shutdown(ctx, yes)); err != nil {
 			msg.EmitStack("shutdown", msg.LightRed, err.Error())
 			return err
 		}

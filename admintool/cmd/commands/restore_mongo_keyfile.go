@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"eve-industry-planner/admintool/internal/catalog"
 	"eve-industry-planner/admintool/internal/dataplane/mongo"
 	"eve-industry-planner/admintool/internal/msg"
+	"eve-industry-planner/admintool/internal/process"
 )
 
 func init() {
@@ -32,10 +32,10 @@ file. Does not generate a new key, touch volumes, or run Ensure.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		msg.EmitStackForVerb("restore-mongo-keyfile")
 
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := process.TimeoutSignalContext(30 * time.Second)
 		defer cancel()
 
-		if err := mongo.RestoreKeyfileFromContainer(ctx, ""); err != nil {
+		if err := process.MapDoneError(mongo.RestoreKeyfileFromContainer(ctx, "")); err != nil {
 			msg.EmitStack("restore-mongo-keyfile", msg.LightRed, err.Error())
 			return err
 		}

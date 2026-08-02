@@ -2,12 +2,17 @@ package config
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
-	"eve-industry-planner/admintool/internal/dockercli"
+	"github.com/containerd/errdefs"
+	"github.com/moby/moby/api/types/network"
+	swarmtypes "github.com/moby/moby/api/types/swarm"
+	"github.com/moby/moby/client"
+
+	"eve-industry-planner/admintool/internal/docker"
 	"eve-industry-planner/admintool/internal/msg"
 	"eve-industry-planner/admintool/internal/stack"
 )
@@ -36,27 +41,6 @@ type LiveTraefik struct {
 	PublishedByTarget map[uint32]uint32
 	DashboardRule     string
 	TrustedProxyCIDRs string
-}
-
-type traefikInspect struct {
-	Spec struct {
-		Labels       map[string]string `json:"Labels"`
-		TaskTemplate struct {
-			ContainerSpec struct {
-				Env []string `json:"Env"`
-			} `json:"ContainerSpec"`
-		} `json:"TaskTemplate"`
-	} `json:"Spec"`
-	Endpoint struct {
-		Spec struct {
-			Ports []struct {
-				Protocol      string `json:"Protocol"`
-				TargetPort    uint32 `json:"TargetPort"`
-				PublishedPort uint32 `json:"PublishedPort"`
-				PublishMode   string `json:"PublishMode"`
-			} `json:"Ports"`
-		} `json:"Spec"`
-	} `json:"Endpoint"`
 }
 
 // DesiredTraefikFromConfig builds Traefik apply state from operator YAML + stack surface.
@@ -110,37 +94,32 @@ func DiffTraefik(live LiveTraefik, desire DesiredTraefik) []Change {
 	return ch
 }
 
-// InspectTraefik reads live Traefik publish ports + dashboard rule + trusted proxy env.
-func InspectTraefik(ctx context.Context, name, ruleLabelKey string) (LiveTraefik, error) {
-	if name == "" {
-		return LiveTraefik{}, fmt.Errorf("inspect traefik: empty service name")
-	}
-	out, err := dockercli.TryOut(ctx, "service", "inspect", name, "--format", "{{json .}}")
+func inspectTraefik(ctx context.Context, apiClient *client.Client, name, ruleLabelKey string) (LiveTraefik, error) {
+	result, err := apiClient.ServiceInspect(ctx, name, client.ServiceInspectOptions{})
 	if err != nil {
-		return LiveTraefik{}, fmt.Errorf("docker service inspect %s: %w", name, err)
+		// Preserve errdefs classification for callers (IsNotFound → skip).
+		return LiveTraefik{}, err
 	}
-	var raw traefikInspect
-	if err := json.Unmarshal([]byte(out), &raw); err != nil {
-		return LiveTraefik{}, fmt.Errorf("parse inspect %s: %w", name, err)
-	}
-	env := parseEnvList(raw.Spec.TaskTemplate.ContainerSpec.Env)
+	svc := result.Service
 	live := LiveTraefik{
 		PublishedByTarget: map[uint32]uint32{},
-		DashboardRule:     raw.Spec.Labels[ruleLabelKey],
-		TrustedProxyCIDRs: env[traefikEnvTrustedIPsWeb],
+		DashboardRule:     svc.Spec.Labels[ruleLabelKey],
 	}
-	for _, p := range raw.Endpoint.Spec.Ports {
+	if container := svc.Spec.TaskTemplate.ContainerSpec; container != nil {
+		live.TrustedProxyCIDRs = parseEnvList(container.Env)[traefikEnvTrustedIPsWeb]
+	}
+	// Prefer Spec.EndpointSpec (what ServiceUpdate writes); fall back to Endpoint.Ports.
+	ports := svc.Endpoint.Ports
+	if svc.Spec.EndpointSpec != nil && len(svc.Spec.EndpointSpec.Ports) > 0 {
+		ports = svc.Spec.EndpointSpec.Ports
+	}
+	for _, p := range ports {
 		live.PublishedByTarget[p.TargetPort] = p.PublishedPort
 	}
 	return live, nil
 }
 
-func publishAdd(published, target int, protocol, mode string) string {
-	return fmt.Sprintf("published=%d,target=%d,protocol=%s,mode=%s", published, target, protocol, mode)
-}
-
-// ApplyTraefikUpdate updates publish mappings, dashboard PathPrefix label, and trusted proxy env.
-func ApplyTraefikUpdate(ctx context.Context, desire DesiredTraefik, changes []Change, dryRun bool) error {
+func applyTraefikUpdate(ctx context.Context, apiClient *client.Client, desire DesiredTraefik, changes []Change, dryRun bool) error {
 	if len(changes) == 0 {
 		return nil
 	}
@@ -158,54 +137,113 @@ func ApplyTraefikUpdate(ctx context.Context, desire DesiredTraefik, changes []Ch
 		}
 	}
 
-	args := []string{"service", "update", "--detach=true"}
-	if needPublish {
-		s := desire.Surface
-		for _, p := range []stack.TraefikPublishPort{s.HTTP, s.HTTPS, s.Dashboard} {
-			args = append(args, "--publish-rm", fmt.Sprintf("target=%d", p.Target))
-		}
-		args = append(args,
-			"--publish-add", publishAdd(desire.HTTPPort, s.HTTP.Target, s.HTTP.Protocol, s.HTTP.Mode),
-			"--publish-add", publishAdd(desire.HTTPSPort, s.HTTPS.Target, s.HTTPS.Protocol, s.HTTPS.Mode),
-			"--publish-add", publishAdd(desire.DashboardPort, s.Dashboard.Target, s.Dashboard.Protocol, s.Dashboard.Mode),
-		)
-	}
-	if needLabel {
-		args = append(args, "--label-add", desire.Surface.DashboardRuleKey+"="+desire.DashboardRule)
-	}
-	if needTrustedEnv {
-		if desire.TrustedProxyCIDRs == "" {
-			args = append(args,
-				"--env-rm", traefikEnvTrustedIPsWeb,
-				"--env-rm", traefikEnvTrustedIPsWebsecure,
-			)
-		} else {
-			args = append(args,
-				"--env-add", traefikEnvTrustedIPsWeb+"="+desire.TrustedProxyCIDRs,
-				"--env-add", traefikEnvTrustedIPsWebsecure+"="+desire.TrustedProxyCIDRs,
-			)
-		}
-	}
 	svc := desire.SwarmService
 	if svc == "" {
 		return fmt.Errorf("traefik update: empty SwarmService")
 	}
-	args = append(args, svc)
-
 	if dryRun {
-		msg.Line("dry-run: docker " + strings.Join(args, " "))
+		msg.Line("dry-run: would update " + svc)
 		return nil
 	}
-	if err := dockercli.Run(ctx, args...); err != nil {
-		return err
+	result, err := apiClient.ServiceInspect(ctx, svc, client.ServiceInspectOptions{})
+	if err != nil {
+		return fmt.Errorf("inspect service %s: %w", svc, err)
+	}
+	service := result.Service
+	spec := service.Spec
+	if needPublish {
+		if spec.EndpointSpec == nil {
+			spec.EndpointSpec = &swarmtypes.EndpointSpec{}
+		}
+		targets := map[uint32]struct{}{
+			uint32(desire.Surface.HTTP.Target):      {},
+			uint32(desire.Surface.HTTPS.Target):     {},
+			uint32(desire.Surface.Dashboard.Target): {},
+		}
+		ports := make([]swarmtypes.PortConfig, 0, len(spec.EndpointSpec.Ports)+3)
+		for _, p := range spec.EndpointSpec.Ports {
+			if _, replace := targets[p.TargetPort]; !replace {
+				ports = append(ports, p)
+			}
+		}
+		for _, p := range []struct {
+			published int
+			port      stack.TraefikPublishPort
+		}{
+			{desire.HTTPPort, desire.Surface.HTTP},
+			{desire.HTTPSPort, desire.Surface.HTTPS},
+			{desire.DashboardPort, desire.Surface.Dashboard},
+		} {
+			ports = append(ports, swarmtypes.PortConfig{
+				PublishedPort: uint32(p.published),
+				TargetPort:    uint32(p.port.Target),
+				Protocol:      network.IPProtocol(p.port.Protocol),
+				PublishMode:   swarmtypes.PortConfigPublishMode(p.port.Mode),
+			})
+		}
+		spec.EndpointSpec.Ports = ports
+	}
+	if needLabel {
+		if spec.Labels == nil {
+			spec.Labels = map[string]string{}
+		}
+		spec.Labels[desire.Surface.DashboardRuleKey] = desire.DashboardRule
+	}
+	if needTrustedEnv {
+		if spec.TaskTemplate.ContainerSpec == nil {
+			return fmt.Errorf("update traefik %s: missing ContainerSpec", svc)
+		}
+		values := map[string]string{
+			traefikEnvTrustedIPsWeb:       desire.TrustedProxyCIDRs,
+			traefikEnvTrustedIPsWebsecure: desire.TrustedProxyCIDRs,
+		}
+		keys := map[string]struct{}{
+			traefikEnvTrustedIPsWeb:       {},
+			traefikEnvTrustedIPsWebsecure: {},
+		}
+		if desire.TrustedProxyCIDRs == "" {
+			spec.TaskTemplate.ContainerSpec.Env = removeEnv(spec.TaskTemplate.ContainerSpec.Env, keys)
+		} else {
+			spec.TaskTemplate.ContainerSpec.Env = setEnv(spec.TaskTemplate.ContainerSpec.Env, values, keys)
+		}
+	}
+	if _, err := apiClient.ServiceUpdate(ctx, service.ID, client.ServiceUpdateOptions{
+		Version: service.Version,
+		Spec:    spec,
+	}); err != nil {
+		return fmt.Errorf("update traefik %s: %w", svc, err)
 	}
 	msg.Line("updated " + svc)
 	return nil
 }
 
+func removeEnv(env []string, keys map[string]struct{}) []string {
+	out := make([]string, 0, len(env))
+	for _, item := range env {
+		key, _, ok := strings.Cut(item, "=")
+		if !ok {
+			out = append(out, item)
+			continue
+		}
+		if _, remove := keys[key]; !remove {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
 // ApplyTraefikConfig diffs and updates Traefik publish + dashboard path + proxy trust.
 // Port targets, protocol/mode, and rule template come from appStackPath.
 func ApplyTraefikConfig(ctx context.Context, cfg Config, appStackPath, stackPrefix string, dryRun bool) error {
+	apiClient, err := docker.NewAPIClient(client.WithTimeout(2 * time.Minute))
+	if err != nil {
+		return fmt.Errorf("traefik sync: engine API client: %w", err)
+	}
+	defer apiClient.Close()
+	return applyTraefikConfig(ctx, apiClient, cfg, appStackPath, stackPrefix, dryRun)
+}
+
+func applyTraefikConfig(ctx context.Context, apiClient *client.Client, cfg Config, appStackPath, stackPrefix string, dryRun bool) error {
 	if stackPrefix == "" {
 		stackPrefix = "eip"
 	}
@@ -221,10 +259,13 @@ func ApplyTraefikConfig(ctx context.Context, cfg Config, appStackPath, stackPref
 	svc := stackPrefix + "_traefik"
 	desire := DesiredTraefikFromConfig(cfg, surface)
 	desire.SwarmService = svc
-	live, err := InspectTraefik(ctx, svc, surface.DashboardRuleKey)
+	live, err := inspectTraefik(ctx, apiClient, svc, surface.DashboardRuleKey)
 	if err != nil {
-		msg.Line("skip " + svc + " (not deployed)")
-		return nil
+		if errdefs.IsNotFound(err) {
+			msg.Line("skip " + svc + " (not deployed)")
+			return nil
+		}
+		return fmt.Errorf("inspect service %s: %w", svc, err)
 	}
 	changes := DiffTraefik(live, desire)
 	if len(changes) == 0 {
@@ -243,5 +284,5 @@ func ApplyTraefikConfig(ctx context.Context, cfg Config, appStackPath, stackPref
 		}
 		msg.Line(fmt.Sprintf("  %s: %s -> %s", c.Field, from, to))
 	}
-	return ApplyTraefikUpdate(ctx, desire, changes, dryRun)
+	return applyTraefikUpdate(ctx, apiClient, desire, changes, dryRun)
 }

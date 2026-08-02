@@ -3,31 +3,33 @@ package docker
 import (
 	"time"
 
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 )
 
 // DefaultClientTimeout bounds dial/API waits (Desktop restart, missing pipe).
 const DefaultClientTimeout = 4 * time.Second
 
-// NewClient returns an Engine SDK client for the resolved CLI endpoint.
+// NewAPIClient returns a Moby Engine API client (*client.Client).
 //
-// Flow: ResolveDockerEndpoint → WithHost or FromEnv → API version negotiation
-// → caller extras. Availability is validated by Ping/Info on the client, not by
-// inspecting OS services. All admintool Engine access should use this helper.
-func NewClient(extra ...client.Opt) (*client.Client, error) {
+// This is the SDK handle used everywhere Engine work happens. Do not name the
+// variable "cli" — that means the docker binary (internal/dockercli) or eip
+// Cobra verbs. Prefer apiClient at call sites.
+//
+// Flow: ResolveDockerEndpoint → WithHost or FromEnv → caller extras.
+// Availability is validated by Ping/Info on the client, not by inspecting OS
+// services. All admintool Engine access should use this helper.
+func NewAPIClient(extra ...client.Opt) (*client.Client, error) {
 	host, err := ResolveDockerEndpoint()
 	if err != nil {
 		return nil, err
 	}
 
-	opts := []client.Opt{
-		client.WithAPIVersionNegotiation(),
-	}
+	opts := []client.Opt{}
 	if host != "" {
 		opts = append(opts, client.WithHost(host))
 	} else {
 		opts = append(opts, client.FromEnv)
 	}
 	opts = append(opts, extra...)
-	return client.NewClientWithOpts(opts...)
+	return client.New(opts...)
 }

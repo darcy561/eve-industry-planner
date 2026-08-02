@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -9,6 +8,7 @@ import (
 	"eve-industry-planner/admintool/internal/catalog"
 	"eve-industry-planner/admintool/internal/dataplane"
 	"eve-industry-planner/admintool/internal/msg"
+	"eve-industry-planner/admintool/internal/process"
 )
 
 func init() {
@@ -31,7 +31,9 @@ Same path as dataplane.Ready's S3 half (eip up / eip dev).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		msg.EmitStackForVerb("ensure-s3")
 
-		if err := dataplane.EnsureS3(context.Background(), ""); err != nil {
+		ctx, cancel := process.SignalContext()
+		defer cancel()
+		if err := process.MapDoneError(dataplane.EnsureS3(ctx, "")); err != nil {
 			msg.EmitStack("ensure-s3", msg.LightRed, err.Error())
 			return err
 		}

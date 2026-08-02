@@ -2,8 +2,9 @@ package stack
 
 import (
 	"fmt"
+	"maps"
 	"os"
-	"sort"
+	"slices"
 
 	"gopkg.in/yaml.v3"
 )
@@ -81,11 +82,7 @@ func mutateDoc(path string, fn func(doc *yaml.Node) error) error {
 }
 
 func externalResourceMap(keyToObj map[string]string) *yaml.Node {
-	keys := make([]string, 0, len(keyToObj))
-	for k := range keyToObj {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(keyToObj))
 	m := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	for _, k := range keys {
 		entry := &yaml.Node{

@@ -1,7 +1,9 @@
 package templates
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -19,7 +21,7 @@ func CheckOperatorDocs(home string) error {
 		p := filepath.Join(home, name)
 		st, err := os.Stat(p)
 		if err != nil {
-			if os.IsNotExist(err) {
+			if errors.Is(err, fs.ErrNotExist) {
 				return fmt.Errorf("missing %s; run eip init or TUI Setup", name)
 			}
 			return fmt.Errorf("%s: %w", name, err)

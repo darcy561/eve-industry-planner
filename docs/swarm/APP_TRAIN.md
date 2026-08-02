@@ -144,16 +144,13 @@ flowchart LR
 | **Advertise current** | Browsers’ “must be on” | End of `release`/`dev-release`, or `make advertise` |
 
 ```bash
-# Public
-make release
-
-# Dev
-make dev-release
-make advertise                 # nudge only
-make advertise ARGS='--dry-run'
+# Prefer eip day-2 (Make release path is legacy):
+./eip update
+./eip rebuild   # local bake/roll
 ```
 
-Escape hatch: `make app-version-ops ARGS='set 0.9.0'`.
+Legacy Make train (`make release` / `dev-release`) still dual-warms and inlines Redis advertise
+via `eipconfig`. Separate `advertise` / `app-version-ops` Make escapes were **removed**.
 
 #### Frontend update check (poll + WS nudge — same snackbar)
 
@@ -161,7 +158,7 @@ Escape hatch: `make app-version-ops ARGS='set 0.9.0'`.
 |-------|--------|
 | Config SoT | `.env` `APP_VERSION` (required) |
 | Bake | Image `APP_VERSION` / `__APP_VERSION__` at build |
-| Advertise | Redis via **`make release` / `make dev-release`** (or `make advertise`) — **not** `make swarm-sync` |
+| Advertise | Redis via **`eip update`** / legacy Make release (inlined `eipconfig advertise`) — **not** `eip sync` |
 | Poll | `useAppConfig` → `GET /api/v1/app-config` |
 | WS | `connected.app_version` + PUBLISH `{type:"app_version"}` |
 | Compare | `considerRemoteAppVersion` |
@@ -213,20 +210,14 @@ Warm NEW beside OLD **without** cordon as the primary tool; advertise; controlle
 ## Commands (today)
 
 ```bash
-# Public — bump APP_VERSION in .env, then:
-make release
+# Prefer eip:
+./eip update                              # binary / stacks / images
+./eip rebuild                             # local bake/roll
+./eip rebuild -- …                        # scoped when supported
 
-# Dev — same, with local builds:
-make dev-release
-make dev-release ARGS='--dry-run'
-make rebuild                              # full app train (cache; no advertise)
-make rebuild SERVICES=websocket           # scoped
-make rebuild SERVICES=mongo,grafana       # explicit force-recreate
-make advertise                            # ops escape: Redis nudge
-
-make app-version-ops ARGS='get'
-make ws-placement-ops ARGS='status'
-make ws-placement-ops ARGS='evacuate websocket-1 websocket-3'
+# Legacy Make train (dying path):
+make release / make dev-release           # dual-warm + inlined advertise
+make rebuild                              # cache bake/roll; no advertise
 ```
 
 ---
@@ -235,14 +226,11 @@ make ws-placement-ops ARGS='evacuate websocket-1 websocket-3'
 
 | Target / doc | Role |
 |--------------|------|
-| `make release` | Public ship (#23) — GHCR roll + advertise |
-| `make dev-release` | Dev ship (#23) — local roll + advertise |
-| `make advertise` | Ops escape — Redis nudge only |
-| `make rebuild` | Dev fine-tune — full app train / any `SERVICES=` |
-| `make swarm-sync` | Capacity only — **not** version ship |
-| `make app-version-ops` | Escape hatch for Redis SoT |
-| `make ws-placement-ops` | WS cutover (#21) |
-| [WEBSOCKET.md](./WEBSOCKET.md) | Drain / evacuate |
+| **`eip update`** / **`eip rebuild`** | Preferred day-2 ship |
+| `make release` / `dev-release` | Legacy Make train — GHCR/local roll + inlined advertise |
+| `make rebuild` | Legacy fine-tune |
+| `eip sync` / `make swarm-sync` | Capacity only — **not** version ship |
+| [WEBSOCKET.md](./WEBSOCKET.md) | Drain checklist (#18 owns armed ops) |
 | [WS_ROUTER.md](./WS_ROUTER.md) | Placement / prefer-newest |
 | FE `considerRemoteAppVersion` | Poll + WS → snackbar; WS still reconnects |
 | GH Action `APP_VERSION` | Bake identity into published images |

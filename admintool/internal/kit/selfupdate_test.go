@@ -46,6 +46,16 @@ func TestIsFloatingReleaseTag(t *testing.T) {
 	}
 }
 
+func TestIsLocalDevVersion(t *testing.T) {
+	t.Parallel()
+	if !isLocalDevVersion("0.0.0-prerelease.swarm-hard-cutover.local") {
+		t.Fatal("expected .local soak version")
+	}
+	if isLocalDevVersion("0.0.0-prerelease.swarm-hard-cutover.cd03e98") {
+		t.Fatal("published pin is not local")
+	}
+}
+
 func TestChannelTagFromAppVersion(t *testing.T) {
 	cases := map[string]string{
 		"prerelease":                        "prerelease",

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 
 	"eve-industry-planner/admintool/internal/docker"
 	"eve-industry-planner/admintool/internal/kit"
@@ -35,13 +35,13 @@ func TagsFromStack(ctx context.Context, home string) (map[string]string, error) 
 		return nil, fmt.Errorf("tags: no roles in %s", kit.AppStackDevFile)
 	}
 
-	cli, err := docker.NewClient(client.WithTimeout(30 * time.Second))
+	apiClient, err := docker.NewAPIClient(client.WithTimeout(30 * time.Second))
 	if err != nil {
-		return nil, fmt.Errorf("docker client: %w", err)
+		return nil, fmt.Errorf("engine API client: %w", err)
 	}
-	defer cli.Close()
+	defer apiClient.Close()
 
-	snap, err := docker.LoadStackSnapshot(ctx, cli, docker.ResolveStackName())
+	snap, err := docker.LoadStackSnapshot(ctx, apiClient, docker.ResolveStackName())
 	if err != nil {
 		return nil, fmt.Errorf("tags: stack snapshot: %w", err)
 	}

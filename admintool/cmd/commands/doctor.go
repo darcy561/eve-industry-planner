@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -9,6 +8,7 @@ import (
 
 	"eve-industry-planner/admintool/internal/docker"
 	"eve-industry-planner/admintool/internal/msg"
+	"eve-industry-planner/admintool/internal/process"
 )
 
 func init() {
@@ -27,7 +27,7 @@ var doctorCmd = &cobra.Command{
 }
 
 func runEngineProbe(cmd *cobra.Command) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	ctx, cancel := process.TimeoutSignalContext(4 * time.Second)
 	defer cancel()
 
 	probe := docker.Probe(ctx)

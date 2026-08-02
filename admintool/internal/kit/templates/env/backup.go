@@ -1,7 +1,9 @@
 package env
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -49,7 +51,7 @@ func timestampBackupPath(stem string, t time.Time) string {
 // If livePath is missing, this is a no-op.
 func backupEnvBeforeReplace(livePath, stem string, now func() time.Time) error {
 	if _, err := os.Stat(livePath); err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
 		return err
@@ -76,7 +78,7 @@ func backupEnvBeforeReplace(livePath, stem string, now func() time.Time) error {
 		if err := os.Rename(current, ts); err != nil {
 			return fmt.Errorf("rotate current backup: %w", err)
 		}
-	} else if !os.IsNotExist(err) {
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
 
@@ -96,12 +98,12 @@ func backupEnvBeforeReplace(livePath, stem string, now func() time.Time) error {
 
 func uniqueTimestampPath(stem string, t time.Time) string {
 	p := timestampBackupPath(stem, t)
-	if _, err := os.Stat(p); os.IsNotExist(err) {
+	if _, err := os.Stat(p); errors.Is(err, fs.ErrNotExist) {
 		return p
 	}
 	for i := 1; i < 1000; i++ {
 		cand := fmt.Sprintf("%s-%s-%d.txt", stem, t.Format("20060102-150405"), i)
-		if _, err := os.Stat(cand); os.IsNotExist(err) {
+		if _, err := os.Stat(cand); errors.Is(err, fs.ErrNotExist) {
 			return cand
 		}
 	}
@@ -118,7 +120,7 @@ func pruneTimestampedBackups(stem string, keep int) error {
 	dir := filepath.Dir(stem)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
 		return err
@@ -139,7 +141,7 @@ func pruneTimestampedBackups(stem string, keep int) error {
 		return nil
 	}
 	for _, name := range names[keep:] {
-		if err := os.Remove(filepath.Join(dir, name)); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(filepath.Join(dir, name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("prune backup %s: %w", name, err)
 		}
 	}

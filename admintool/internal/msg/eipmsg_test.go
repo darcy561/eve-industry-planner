@@ -69,6 +69,58 @@ func TestIsChip(t *testing.T) {
 	}
 }
 
+func TestDecodeProgress(t *testing.T) {
+	raw, _ := json.Marshal(ProgressPayload{Text: "Pulling…", Done: false})
+	p, err := DecodeProgress(raw)
+	if err != nil || p.Text != "Pulling…" || p.Done {
+		t.Fatalf("%v %+v", err, p)
+	}
+	raw, _ = json.Marshal(ProgressPayload{Text: "final", Done: true})
+	p, err = DecodeProgress(raw)
+	if err != nil || !p.Done || p.Text != "final" {
+		t.Fatalf("%v %+v", err, p)
+	}
+}
+
+func TestDecodeProgressFraction(t *testing.T) {
+	f := 1.5 // clamped to 1
+	raw, _ := json.Marshal(ProgressPayload{Text: "x", Fraction: &f})
+	p, err := DecodeProgress(raw)
+	if err != nil || p.Fraction == nil || *p.Fraction != 1 {
+		t.Fatalf("%v %+v", err, p)
+	}
+	raw, _ = json.Marshal(ProgressPayload{Text: "no frac"})
+	p, err = DecodeProgress(raw)
+	if err != nil || p.Fraction != nil {
+		t.Fatalf("want nil fraction: %v %+v", err, p)
+	}
+}
+
+func TestClampFraction(t *testing.T) {
+	if ClampFraction(-0.2) != 0 || ClampFraction(0.5) != 0.5 || ClampFraction(2) != 1 {
+		t.Fatal("clamp")
+	}
+}
+
+func TestParseLineProgress(t *testing.T) {
+	raw, _ := json.Marshal(ProgressPayload{Text: "board", Done: false})
+	line := Prefix + string(mustJSON(Envelope{Version: Version, Type: TypePaneProgress, Data: raw}))
+	env, ok := ParseLine(line)
+	if !ok || env.Type != TypePaneProgress {
+		t.Fatalf("%v %+v", ok, env)
+	}
+	p, err := DecodeProgress(env.Data)
+	if err != nil || p.Text != "board" {
+		t.Fatal(err, p)
+	}
+}
+
+func TestEmitProgressNoopWhenDisabled(t *testing.T) {
+	t.Setenv(process.EnvFromTUI, "")
+	EmitProgress("x", false)
+	EmitProgress("y", true)
+}
+
 func mustJSON(v any) []byte {
 	b, err := json.Marshal(v)
 	if err != nil {

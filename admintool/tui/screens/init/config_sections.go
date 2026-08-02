@@ -1,7 +1,9 @@
 package initui
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -117,7 +119,7 @@ func loadConfigOrDefault(home string) config.Config {
 	cfgPath := filepath.Join(home, kit.ConfigFile)
 	cfg, err := config.LoadYAML(cfgPath)
 	if err != nil {
-		if _, st := os.Stat(cfgPath); os.IsNotExist(st) {
+		if _, st := os.Stat(cfgPath); errors.Is(st, fs.ErrNotExist) {
 			return yamldefaults.DefaultConfig()
 		}
 		// Invalid / unreadable: start from defaults so the form can heal via Finish.

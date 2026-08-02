@@ -1,6 +1,6 @@
 package ui
 
-import "github.com/charmbracelet/bubbles/list"
+import "charm.land/bubbles/v2/list"
 
 // Item is a reusable title+help row for menus, wizards, and settings lists.
 type Item struct {

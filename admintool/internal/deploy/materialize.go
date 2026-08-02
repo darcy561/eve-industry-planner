@@ -20,8 +20,8 @@ type expandedStack struct {
 	Secrets swarm.SecretsOverlay
 }
 
-// materializeExpanded syncs secrets/configs objects, expands fragments, and
-// injects hashed externals into those expand paths.
+// materializeExpanded syncs secrets/configs objects (Moby Secret*/Config*), expands
+// fragments, and injects hashed externals into those expand paths.
 func materializeExpanded(ctx context.Context, home string, src Source, cfg config.Config, expandEnv map[string]string) (expandedStack, error) {
 	wantObs := cfg.Addons.Observability.Enabled
 	if err := requireObsStack(home, wantObs); err != nil {

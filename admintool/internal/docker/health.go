@@ -1,12 +1,26 @@
 package docker
 
+import (
+	containertypes "github.com/moby/moby/api/types/container"
+)
+
+// TaskHealth is a container healthcheck status from Engine inspect.
+type TaskHealth = containertypes.HealthStatus
+
+const (
+	TaskHealthNone      TaskHealth = containertypes.NoHealthcheck
+	TaskHealthStarting  TaskHealth = containertypes.Starting
+	TaskHealthHealthy   TaskHealth = containertypes.Healthy
+	TaskHealthUnhealthy TaskHealth = containertypes.Unhealthy
+)
+
 // ServiceScore is one Swarm service's contribution to the Health rollup.
 // Desired == 0 means the service is ignored (scaled to zero / not on).
 type ServiceScore struct {
 	Desired          uint64
 	Running          uint64
-	HasFailedDesired bool     // desired-running task in failed/rejected
-	TaskHealths      []string // "healthy" / "unhealthy" / "starting"; empty = no check
+	HasFailedDesired bool // desired-running task in failed/rejected
+	TaskHealths      []TaskHealth
 }
 
 // RollupHealth computes worst-wins health across scored services.
@@ -42,15 +56,17 @@ func scoreService(s ServiceScore) HealthLight {
 	hasUnhealthy := false
 	hasStarting := false
 	for _, h := range s.TaskHealths {
-		if h == "" || h == "none" {
-			continue
-		}
-		hasAny = true
 		switch h {
-		case "unhealthy":
+		case "", TaskHealthNone:
+			continue
+		case TaskHealthUnhealthy:
+			hasAny = true
 			hasUnhealthy = true
-		case "starting":
+		case TaskHealthStarting:
+			hasAny = true
 			hasStarting = true
+		default:
+			hasAny = true
 		}
 	}
 	if !hasAny {

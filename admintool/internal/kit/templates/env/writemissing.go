@@ -1,6 +1,8 @@
 package env
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -13,7 +15,7 @@ func WriteMissing(home string) (bool, error) {
 	path := filepath.Join(home, kit.EnvFile)
 	if _, err := os.Stat(path); err == nil {
 		return false, nil
-	} else if !os.IsNotExist(err) {
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return false, err
 	}
 	vals := DefaultEnvValues()

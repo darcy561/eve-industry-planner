@@ -1,6 +1,8 @@
 package kit
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -39,7 +41,7 @@ func TestInstallAndRemovePathLink(t *testing.T) {
 	if removed != linkPath {
 		t.Fatalf("removed=%q want %q", removed, linkPath)
 	}
-	if _, err := os.Lstat(linkPath); !os.IsNotExist(err) {
+	if _, err := os.Lstat(linkPath); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("link still present: %v", err)
 	}
 }

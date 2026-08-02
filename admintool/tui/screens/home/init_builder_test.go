@@ -11,7 +11,7 @@ import (
 func TestHomeWiresMenuAndDocs(t *testing.T) {
 	t.Parallel()
 	dir := filepath.Dir(callerFile(t))
-	for _, name := range []string{"model.go", "nav.go", "docs.go", "pickers.go"} {
+	for _, name := range []string{"model.go", "mouse.go", "nav.go", "docs.go", "pickers.go"} {
 		src, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			t.Fatal(err)
@@ -20,20 +20,31 @@ func TestHomeWiresMenuAndDocs(t *testing.T) {
 		switch name {
 		case "model.go":
 			for _, want := range []string{
-				"ops.SpecialSetup",
-				"ops.SpecialMore",
-				"showMoreList()",
 				"fromMore",
 				"onCLIDone(",
 				"resumeAfterBinaryCmd(",
 				"applyUpdateRestartMessage(",
+				"handleMouse(",
+				"activateMenu(",
+			} {
+				if !strings.Contains(body, want) {
+					t.Fatalf("%s must contain %q", name, want)
+				}
+			}
+		case "mouse.go":
+			for _, want := range []string{
+				"ops.SpecialSetup",
+				"ops.SpecialMore",
+				"showMoreList()",
+				"activateSelection(",
+				"ZonePaneOutput",
 			} {
 				if !strings.Contains(body, want) {
 					t.Fatalf("%s must contain %q", name, want)
 				}
 			}
 		case "nav.go":
-			for _, want := range []string{"showMainMenu(", "returnToMoreOrMenu(", "openCommandLine(", "appendOut("} {
+			for _, want := range []string{"showMainMenu(", "returnToMoreOrMenu(", "openCommandSession(", "appendOut("} {
 				if !strings.Contains(body, want) {
 					t.Fatalf("%s must contain %q", name, want)
 				}

@@ -2,16 +2,17 @@
 
 > Part of [ROADMAP.md](./ROADMAP.md). **Inventory** for remaining binds; **adminSDK** host binds
 > removed from stack/Compose (#32). Public secrets file remains **`.env`** ([ENV.md](./ENV.md));
-> mesh hosts/URLs come from stack anchors. Day-2 elastic secret refresh is **`make swarm-secrets-sync`**.
-> Non-secret tunables stay in operator YAML (#19) via **`make swarm-sync`**. Real `docker secret`
-> objects + per-service scope + narrow Go config are **done (#3)**; optional `*_API` DB users are a
-> future Ensure follow-up. Mongo keyfile + `EnsureMongo` are **done** (admintool).
+> mesh hosts/URLs come from stack anchors. Day-2 elastic secret refresh is **`eip secrets`**.
+> Non-secret tunables stay in operator YAML (#19) via **`eip sync`**.
+> Versioned Swarm secret objects + per-service scope + narrow Go config are **done (#3)**
+> (`eip secrets` via Moby Engine API); optional `*_API` DB users are a future Ensure follow-up.
+> Mongo keyfile + `EnsureMongo` are **done** (admintool).
 
 ## Goal
 
 Elastic Swarm services should not depend on `./file` host binds for secrets. Compose data plane
-may keep reading `.env` directly. Operators rotate `.env` secrets via **`make swarm-secrets-sync`**
-— not raw `docker secret` as the primary UX.
+may keep reading `.env` directly. Operators rotate `.env` secrets via **`eip secrets`**
+— not raw `docker secret` CLI as the primary UX.
 
 ## Host binds today
 
@@ -34,7 +35,7 @@ Also (not `./` host path but host-sensitive):
 
 ## Classification rules
 
-- **secret** — SoT in `.env`; elastic runtime via Swarm secrets (`/run/secrets/<KEY>`) from `make swarm-secrets-sync`; never baked into images  
+- **secret** — SoT in `.env`; elastic runtime via Swarm secrets (`/run/secrets/<KEY>`) from `eip secrets`; never baked into images  
 - **config** — non-secret files; prefer Docker configs / operator YAML / addon mounts  
 - **volume** — durable app/DB state; named volumes only  
 
@@ -43,10 +44,10 @@ Also (not `./` host path but host-sensitive):
 1. Inventory complete (this doc).  
 2. **Done (#32):** remove `adminSDK*` host binds from stack/Compose (no Swarm file-secret replacement — migration-only).  
 3. **Done (#32 day-2 verb):** `make swarm-secrets-sync` rematerializes elastic from `.env` via stack-deploy (no YAML apply; no mongo/redis/nats bounce).  
-4. **#3 (elastic done):** curated `.env` → versioned `docker secret` objects + `.eip-swarm-secrets.yml`
-   per-service attach via `make swarm-secrets-sync`; Go `swarmsecret` reads `/run/secrets/<KEY>`.
+4. **#3 (elastic done):** curated `.env` → versioned Swarm secret objects + stack inject / rematerialize
+   via `eip secrets` (Moby API); Go `swarmsecret` reads `/run/secrets/<KEY>`.
    **#16 done:** frontend on Swarm with `x-frontend-public-env` (public knobs only; no docker secrets).  
-5. **Done (data-plane ensure):** App S3 buckets via `dataplane.EnsureS3`; RS / users / preimages / application indexes via `dataplane.EnsureMongo` (`eip up`/`dev` Ready concurrent, or `eip ensure-s3` / `eip ensure-mongo` / `eip init` when tasks are up). Legacy `scripts/bootstrap/mongo-setup.sh` is not Swarm CMD and is not the SoT.  
+5. **Done (data-plane ensure):** App S3 buckets via `dataplane.EnsureS3`; RS / users / preimages / application indexes via `dataplane.EnsureMongo` (`eip up`/`dev` Ready concurrent, or `eip ensure-s3` / `eip ensure-mongo` / `eip init` when tasks are up).
 6. Observability file mounts follow addon packaging (#34), not the elastic secrets path.  
 7. **Deferred:** create `MONGO_*_API` / `REDIS_*_API` DB users in Ensure when wanted — app already falls back; secrets attach api-only if set. See ROADMAP Follow-ups.
 

@@ -3,14 +3,16 @@ package docker
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/swarm"
-	"github.com/docker/docker/client"
 	"github.com/docker/go-units"
+	"github.com/moby/moby/api/types/swarm"
+	"github.com/moby/moby/client"
+	"golang.org/x/sync/errgroup"
 
 	"eve-industry-planner/admintool/internal/kit"
 )
@@ -37,7 +39,7 @@ type ServiceInfo struct {
 
 	HasFailedDesired bool
 	HasHealthcheck   bool
-	TaskHealths      []string // set when loaded with health enrichment
+	TaskHealths      []TaskHealth // set when loaded with health enrichment
 }
 
 // TaskInfo is one task row for status detail lines.
@@ -80,17 +82,17 @@ func ResolveStackName() string {
 }
 
 // LoadStackSnapshot lists services/tasks for the stack namespace (no healthchecks).
-func LoadStackSnapshot(ctx context.Context, cli client.APIClient, stackName string) (StackSnapshot, error) {
-	return loadStackSnapshot(ctx, cli, stackName, false)
+func LoadStackSnapshot(ctx context.Context, apiClient *client.Client, stackName string) (StackSnapshot, error) {
+	return loadStackSnapshot(ctx, apiClient, stackName, false)
 }
 
 // LoadStackSnapshotWithHealth is LoadStackSnapshot plus container health inspect
 // for services that declare a healthcheck and already meet desired running count.
-func LoadStackSnapshotWithHealth(ctx context.Context, cli client.APIClient, stackName string) (StackSnapshot, error) {
-	return loadStackSnapshot(ctx, cli, stackName, true)
+func LoadStackSnapshotWithHealth(ctx context.Context, apiClient *client.Client, stackName string) (StackSnapshot, error) {
+	return loadStackSnapshot(ctx, apiClient, stackName, true)
 }
 
-func loadStackSnapshot(ctx context.Context, cli client.APIClient, stackName string, withHealth bool) (StackSnapshot, error) {
+func loadStackSnapshot(ctx context.Context, apiClient *client.Client, stackName string, withHealth bool) (StackSnapshot, error) {
 	if stackName == "" {
 		stackName = ResolveStackName()
 	}
@@ -100,26 +102,28 @@ func loadStackSnapshot(ctx context.Context, cli client.APIClient, stackName stri
 	}
 	f := StackNamespaceFilter(stackName)
 
-	services, err := cli.ServiceList(ctx, types.ServiceListOptions{Filters: f, Status: true})
+	services, err := apiClient.ServiceList(ctx, client.ServiceListOptions{Filters: f, Status: true})
 	if err != nil {
 		return out, fmt.Errorf("service list: %w", err)
 	}
-	if len(services) == 0 {
+	if len(services.Items) == 0 {
 		return out, nil
 	}
 	out.Present = true
 
-	tasks, err := cli.TaskList(ctx, types.TaskListOptions{Filters: f})
+	tasks, err := apiClient.TaskList(ctx, client.TaskListOptions{Filters: f})
 	if err != nil {
 		return out, fmt.Errorf("task list: %w", err)
 	}
 	byService := map[string][]swarm.Task{}
-	for _, t := range tasks {
+	for _, t := range tasks.Items {
 		byService[t.ServiceID] = append(byService[t.ServiceID], t)
 	}
 
+	var healthJobs []healthJob
+
 	prefix := stackName + "_"
-	for _, svc := range services {
+	for _, svc := range services.Items {
 		full := svc.Spec.Name
 		short := strings.TrimPrefix(full, prefix)
 		if short == full {
@@ -183,14 +187,52 @@ func loadStackSnapshot(ctx context.Context, cli client.APIClient, stackName stri
 				if t.Status.State != swarm.TaskStateRunning {
 					continue
 				}
-				if h := containerHealth(ctx, cli, t); h != "" {
-					info.TaskHealths = append(info.TaskHealths, h)
+				cs := t.Status.ContainerStatus
+				if cs == nil || cs.ContainerID == "" {
+					continue
 				}
+				healthJobs = append(healthJobs, healthJob{short: short, cid: cs.ContainerID})
 			}
 		}
 		out.Services[short] = info
 	}
+
+	enrichTaskHealths(ctx, apiClient, out.Services, healthJobs)
 	return out, nil
+}
+
+type healthJob struct {
+	short string
+	cid   string
+}
+
+const healthInspectLimit = 8
+
+// enrichTaskHealths inspects container health in parallel (limit healthInspectLimit).
+// Inspect failures are ignored (same as prior serial path).
+func enrichTaskHealths(ctx context.Context, apiClient *client.Client, services map[string]ServiceInfo, jobs []healthJob) {
+	if len(jobs) == 0 {
+		return
+	}
+	results := make([]TaskHealth, len(jobs))
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(healthInspectLimit)
+	for i, job := range jobs {
+		g.Go(func() error {
+			results[i] = containerHealth(gctx, apiClient, job.cid)
+			return nil
+		})
+	}
+	_ = g.Wait()
+	for i, job := range jobs {
+		h := results[i]
+		if h == "" || h == TaskHealthNone {
+			continue
+		}
+		info := services[job.short]
+		info.TaskHealths = append(info.TaskHealths, h)
+		services[job.short] = info
+	}
 }
 
 // Scores builds RollupHealth inputs from live membership.
@@ -244,8 +286,8 @@ func (s StackSnapshot) DeployedAppVersion() string {
 func envValue(env []string, key string) string {
 	prefix := key + "="
 	for _, e := range env {
-		if strings.HasPrefix(e, prefix) {
-			return strings.TrimSpace(strings.TrimPrefix(e, prefix))
+		if after, ok := strings.CutPrefix(e, prefix); ok {
+			return strings.TrimSpace(after)
 		}
 	}
 	return ""
@@ -272,18 +314,18 @@ func semverishImageTag(image string) string {
 	if len(parts) < 2 {
 		return ""
 	}
-	for _, p := range parts {
-		if p == "" {
-			return ""
-		}
+	if slices.Contains(parts, "") {
+		return ""
 	}
 	return tag
 }
 
 // HealthSummary is worst-wins light + "N/M services up" detail.
+// No stack membership → HealthOff (not red) so TUI can show Start vs Repair:
+// Docker green + Health off = nothing deployed; amber/red = unhealthy stack.
 func (s StackSnapshot) HealthSummary() (HealthLight, string) {
 	if !s.Present {
-		return HealthRed, "no stack services"
+		return HealthOff, "no stack services"
 	}
 	scores := s.Scores()
 	light := RollupHealth(scores)
@@ -307,13 +349,9 @@ func (s StackSnapshot) HealthSummary() (HealthLight, string) {
 // mergeServiceLabels copies Spec.Labels and ContainerSpec.Labels (deploy stamps both).
 func mergeServiceLabels(svc swarm.Service) map[string]string {
 	out := map[string]string{}
-	for k, v := range svc.Spec.Labels {
-		out[k] = v
-	}
+	maps.Copy(out, svc.Spec.Labels)
 	if cs := svc.Spec.TaskTemplate.ContainerSpec; cs != nil {
-		for k, v := range cs.Labels {
-			out[k] = v
-		}
+		maps.Copy(out, cs.Labels)
 	}
 	if len(out) == 0 {
 		return nil

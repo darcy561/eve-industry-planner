@@ -3,7 +3,7 @@ package ui
 import (
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -41,9 +41,6 @@ func MarqueeWindow(s string, width, offset int) string {
 	if loopW <= 0 {
 		return FitEllipsis(s, width)
 	}
-	start := offset % loopW
-	if start < 0 {
-		start = 0
-	}
+	start := max(offset%loopW, 0)
 	return ansi.Cut(loop+loop, start, start+width)
 }

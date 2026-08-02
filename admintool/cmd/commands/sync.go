@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"eve-industry-planner/admintool/internal/catalog"
 	"eve-industry-planner/admintool/internal/config"
 	"eve-industry-planner/admintool/internal/msg"
+	"eve-industry-planner/admintool/internal/process"
 )
 
 func init() {
@@ -28,10 +28,10 @@ var syncCmd = &cobra.Command{
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		msg.EmitStackForVerb("sync")
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		ctx, cancel := process.TimeoutSignalContext(10 * time.Minute)
 		defer cancel()
 
-		err := config.Sync(ctx, dryRun)
+		err := process.MapDoneError(config.Sync(ctx, dryRun))
 		if err != nil {
 			msg.EmitStack("sync", msg.LightRed, err.Error())
 			return err

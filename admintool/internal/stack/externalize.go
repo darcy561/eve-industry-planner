@@ -11,20 +11,16 @@ import (
 	"eve-industry-planner/admintool/internal/kit"
 )
 
-// composeSource is one -f input for docker compose config.
-// Path is an on-disk stack fragment. YAML is an in-memory rewrite (obs configs
-// stubbed to external + relative binds absoluteized against project home).
-// Fed via docker compose -f -; never write rewrite temps into the project home.
+// composeSource is one compose-go input: on-disk Path (Filename) + YAML bytes
+// (never written back into home). Path is kept for relative path resolution.
 type composeSource struct {
 	Path string
 	YAML []byte
 }
 
-// prepareComposeSources rewrites observability configs.*.file to external stubs
-// in memory for docker compose config (bytes come from embed; Sync already
-// created objects). Relative bind sources (./mongo-keyfile) are absoluteized
-// against home so resolution does not depend on compose file location / cwd.
-// Unchanged fragments keep their on-disk path.
+// prepareComposeSources loads fragments, stubs observability configs.*.file to
+// external (Sync already created objects), and absoluteizes relative binds on
+// rewritten docs. Every source carries Path + YAML (no second disk read on load).
 func prepareComposeSources(home string, stackFiles []string) ([]composeSource, error) {
 	out := make([]composeSource, 0, len(stackFiles))
 	for _, f := range stackFiles {
@@ -41,40 +37,16 @@ func prepareComposeSources(home string, stackFiles []string) ([]composeSource, e
 			return nil, fmt.Errorf("%s: %w", src, err)
 		}
 		if !changed {
-			out = append(out, composeSource{Path: src})
+			out = append(out, composeSource{Path: src, YAML: raw})
 			continue
 		}
 		abs, err := absoluteizeRelativeBindSources(home, rewritten)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", src, err)
 		}
-		out = append(out, composeSource{YAML: abs})
+		out = append(out, composeSource{Path: src, YAML: abs})
 	}
 	return out, nil
-}
-
-// composeConfigInvocation builds docker compose config argv + optional stdin.
-// Pure helper for unit tests (no Docker).
-func composeConfigInvocation(home string, sources []composeSource) (args []string, stdin []byte, err error) {
-	args = []string{"compose", "--env-file", filepath.Join(home, kit.EnvFile)}
-	stdinFiles := 0
-	for _, s := range sources {
-		if len(s.YAML) > 0 {
-			stdinFiles++
-			if stdinFiles > 1 {
-				return nil, nil, fmt.Errorf("stack: more than one in-memory compose rewrite in one expand (unsupported)")
-			}
-			args = append(args, "-f", "-")
-			stdin = append(stdin, s.YAML...)
-			continue
-		}
-		if s.Path == "" {
-			return nil, nil, fmt.Errorf("stack: empty compose source")
-		}
-		args = append(args, "-f", s.Path)
-	}
-	args = append(args, "config")
-	return args, stdin, nil
 }
 
 func externalizeObservabilityConfigs(raw []byte) ([]byte, bool, error) {
@@ -126,9 +98,6 @@ func externalizeObservabilityConfigs(raw []byte) ([]byte, bool, error) {
 	return marshaled, true, nil
 }
 
-// absoluteizeRelativeBindSources rewrites long-form bind mount sources that are
-// relative (./ or ../) to absolute paths under home. Named volumes and absolute
-// sources are left unchanged. OS-native separators via filepath.Join.
 func absoluteizeRelativeBindSources(home string, raw []byte) ([]byte, error) {
 	if strings.TrimSpace(home) == "" {
 		return nil, fmt.Errorf("empty home")
@@ -186,7 +155,6 @@ func absoluteizeRelativeBindSources(home string, raw []byte) ([]byte, error) {
 	return yaml.Marshal(&root)
 }
 
-// absoluteBindSource returns an absolute host path when src is ./ or ../ relative.
 func absoluteBindSource(home, src string) (string, bool) {
 	src = strings.TrimSpace(src)
 	if src == "" || filepath.IsAbs(src) {
@@ -196,4 +164,29 @@ func absoluteBindSource(home, src string) (string, bool) {
 		return "", false
 	}
 	return filepath.Clean(filepath.Join(home, src)), true
+}
+
+func mappingValue(m *yaml.Node, key string) *yaml.Node {
+	if m == nil || m.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		if m.Content[i].Value == key {
+			return m.Content[i+1]
+		}
+	}
+	return nil
+}
+
+func setMappingChild(m *yaml.Node, key string, child *yaml.Node) {
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		if m.Content[i].Value == key {
+			m.Content[i+1] = child
+			return
+		}
+	}
+	m.Content = append(m.Content,
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key},
+		child,
+	)
 }

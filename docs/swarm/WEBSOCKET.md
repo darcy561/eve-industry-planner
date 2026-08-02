@@ -54,32 +54,16 @@ slot may be the only home for an alliance.
 
 ### Before you shrink
 
-1. **Inventory concentration**  
-   `make ws-placement-ops ARGS='status'` — which tenants sit on the slot you will remove?  
-   Prefer removing a slot with **few / cold** placements when possible.
-2. **Pick destination**  
-   Leave ≥1 healthy uncordoned slot. If only two slots exist, evacuate onto the survivor.
-3. **Cordon the victim**  
-   `make ws-placement-ops ARGS='cordon websocket-N'`  
-   New placements skip it; already-connected sockets stay until reconnect.
-4. **Evacuate placement map**  
-   `make ws-placement-ops ARGS='evacuate websocket-N'`  
-   (or `evacuate websocket-N websocket-M` to pin destination)  
-   Rewrites Redis `eip:ws:place:v1:*` off N and keeps N cordoned.
-5. **Wait for drain (force-close + reconnect)**  
-   `cordon` / `evacuate` **PUBLISH** `eip:ws:drain:v1` → that websocket slot closes locals
-   (`please_reconnect` + close 1001). SPA reconnects via backoff + session handoff
-   (`ws:session_handoff:v1`). Router places on an eligible (non-cordoned) slot.  
-   Budget: **`drain_timeout` (10m)** as a safety ceiling; typical reconnect is seconds.
-6. **Confirm empty enough**  
-   Re-check `status` (no placements on N) and websocket logs
-   (`slot cordon drain: force-closed local clients`).  
-   Hosted-tenant tracking (in-process set) is still a later polish item.
-7. **Scale down**  
-   `docker service scale eip_websocket=$((N-1))`  
-   Only after placements are gone / clients reconnected.
-8. **Cleanup**  
-   After the task is gone, `uncordon` is moot; clear any pins that pointed at the dead slot.
+The Make `ws-placement-ops` escape was **removed**. Runtime still honors Redis cordon/pin/
+evacuate overlays + drain PUBLISH (`eip:ws:drain:v1` → force-close). Armed operator path = **#18**
+capacity controller. Until then: do **not** cold-scale a hot slot — wait for natural drain or
+use Redis break-glass only if you know the key layout (`eip:ws:cordon:v1:*`, `eip:ws:place:v1:*`).
+
+1. Prefer shrinking a **cold** slot (few placements).
+2. Leave ≥1 healthy uncordoned slot.
+3. Cordon / evacuate / wait reconnect (budget **`drain_timeout` (10m)**) before
+   `docker service scale eip_websocket=…`.
+4. Confirm empty enough via logs (`slot cordon drain: force-closed local clients`) before scale-down.
 
 ### Controlled roll (image / config, **same** replica count)
 
@@ -122,12 +106,10 @@ on `eip:ws:drain:v1`. Each websocket replica subscribes; matching slot:
 SPA reconnect does not special-case close codes — any non-manual close schedules reconnect.  
 Rebuild/redeploy websocket after this change (`make rebuild SERVICES=websocket` or `make dev`).
 
-**Bus note (intentional temporary):** the wake-up is **Redis pub/sub** because
-`ws-placement-ops` already talks Redis next to the cordon `SET`. Redis remains the **source of
-truth** for cordon/placement. **Target for #18 / deepen #21:** keep Redis as the map; move the
-drain **notification** to **NATS**; keep **`make ws-placement-ops`** but point it at the
-**capacity controller** (same verbs) so automation and humans share one write path. Direct Redis
-from the script becomes break-glass only.
+**Bus note (intentional temporary):** drain wake-up is **Redis pub/sub** next to the cordon
+`SET`. Redis remains SoT for cordon/placement. **Target for #18:** keep Redis as the map; move
+drain **notification** to **NATS**; operator verbs live on the capacity controller (not a Make
+script).
 
 ## App-train waves
 
@@ -135,7 +117,8 @@ Version ship uses dual-warm + look-ahead cordon ([APP_TRAIN.md](./APP_TRAIN.md))
 
 ## Related
 
-- [WS_ROUTER.md](./WS_ROUTER.md) — Redis placement + `make ws-placement-ops`  
+- [WS_ROUTER.md](./WS_ROUTER.md) — Redis placement / prefer-newest  
+
 - [WORKER.md](./WORKER.md) — sibling capacity envelope (#7)  
 - [TRAEFIK.md](./TRAEFIK.md) — `/ws` → router; sticky = fallback  
 - [STACK.md](./STACK.md) — `eip_websocket` deploy  

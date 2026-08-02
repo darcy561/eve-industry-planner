@@ -5,54 +5,53 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 )
 
 // StackNamespaceFilter returns a label filter for com.docker.stack.namespace=<stack>.
-func StackNamespaceFilter(stackName string) filters.Args {
+func StackNamespaceFilter(stackName string) client.Filters {
 	if stackName == "" {
 		stackName = ResolveStackName()
 	}
-	return filters.NewArgs(filters.Arg("label", LabelStackNamespace+"="+stackName))
+	filters := make(client.Filters)
+	filters.Add("label", LabelStackNamespace+"="+stackName)
+	return filters
 }
 
 // RemoveStackServices removes every Swarm service labeled with the stack namespace.
 // Does not remove volumes. External networks (e.g. eip-core) are left alone.
-func RemoveStackServices(ctx context.Context, cli client.APIClient, stackName string) (int, error) {
+func RemoveStackServices(ctx context.Context, apiClient *client.Client, stackName string) (int, error) {
 	if stackName == "" {
 		stackName = ResolveStackName()
 	}
-	svcs, err := cli.ServiceList(ctx, types.ServiceListOptions{Filters: StackNamespaceFilter(stackName)})
+	svcs, err := apiClient.ServiceList(ctx, client.ServiceListOptions{Filters: StackNamespaceFilter(stackName)})
 	if err != nil {
 		return 0, fmt.Errorf("list stack services: %w", err)
 	}
-	for _, svc := range svcs {
+	for _, svc := range svcs.Items {
 		name := svc.Spec.Name
 		if name == "" {
 			name = svc.ID
 		}
-		if err := cli.ServiceRemove(ctx, svc.ID); err != nil {
+		if _, err := apiClient.ServiceRemove(ctx, svc.ID, client.ServiceRemoveOptions{}); err != nil {
 			return 0, fmt.Errorf("remove service %s: %w", name, err)
 		}
 	}
-	return len(svcs), nil
+	return len(svcs.Items), nil
 }
 
 // RemoveStackNetworks removes networks labeled with the stack namespace (best-effort).
-func RemoveStackNetworks(ctx context.Context, cli client.APIClient, stackName string) (int, error) {
+func RemoveStackNetworks(ctx context.Context, apiClient *client.Client, stackName string) (int, error) {
 	if stackName == "" {
 		stackName = ResolveStackName()
 	}
-	nets, err := cli.NetworkList(ctx, types.NetworkListOptions{Filters: StackNamespaceFilter(stackName)})
+	nets, err := apiClient.NetworkList(ctx, client.NetworkListOptions{Filters: StackNamespaceFilter(stackName)})
 	if err != nil {
 		return 0, fmt.Errorf("list stack networks: %w", err)
 	}
 	n := 0
-	for _, nw := range nets {
-		if err := cli.NetworkRemove(ctx, nw.ID); err != nil {
+	for _, nw := range nets.Items {
+		if _, err := apiClient.NetworkRemove(ctx, nw.ID, client.NetworkRemoveOptions{}); err != nil {
 			continue
 		}
 		n++
@@ -61,7 +60,7 @@ func RemoveStackNetworks(ctx context.Context, cli client.APIClient, stackName st
 }
 
 // WaitStackGone waits until no services remain with the stack namespace label.
-func WaitStackGone(ctx context.Context, cli client.APIClient, stackName string, timeout time.Duration) error {
+func WaitStackGone(ctx context.Context, apiClient *client.Client, stackName string, timeout time.Duration) error {
 	if stackName == "" {
 		stackName = ResolveStackName()
 	}
@@ -70,15 +69,15 @@ func WaitStackGone(ctx context.Context, cli client.APIClient, stackName string, 
 	}
 	deadline := time.Now().Add(timeout)
 	for {
-		svcs, err := cli.ServiceList(ctx, types.ServiceListOptions{Filters: StackNamespaceFilter(stackName)})
+		svcs, err := apiClient.ServiceList(ctx, client.ServiceListOptions{Filters: StackNamespaceFilter(stackName)})
 		if err != nil {
 			return fmt.Errorf("wait stack gone: %w", err)
 		}
-		if len(svcs) == 0 {
+		if len(svcs.Items) == 0 {
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("stack %s still has %d service(s) after %s", stackName, len(svcs), timeout)
+			return fmt.Errorf("stack %s still has %d service(s) after %s", stackName, len(svcs.Items), timeout)
 		}
 		select {
 		case <-ctx.Done():
@@ -90,29 +89,30 @@ func WaitStackGone(ctx context.Context, cli client.APIClient, stackName string, 
 
 // RemoveComposeProject removes containers and networks for a Compose project label
 // (compose down without -v). Volumes are kept. Safe scope: label filter only.
-func RemoveComposeProject(ctx context.Context, cli client.APIClient, project string) (containers, networks int, err error) {
+func RemoveComposeProject(ctx context.Context, apiClient *client.Client, project string) (containers, networks int, err error) {
 	if project == "" {
 		return 0, 0, fmt.Errorf("compose project: empty name")
 	}
-	f := filters.NewArgs(filters.Arg("label", LabelComposeProject+"="+project))
+	f := make(client.Filters)
+	f.Add("label", LabelComposeProject+"="+project)
 
-	list, err := cli.ContainerList(ctx, container.ListOptions{All: true, Filters: f})
+	list, err := apiClient.ContainerList(ctx, client.ContainerListOptions{All: true, Filters: f})
 	if err != nil {
 		return 0, 0, fmt.Errorf("list compose containers: %w", err)
 	}
-	for _, c := range list {
-		if err := cli.ContainerRemove(ctx, c.ID, container.RemoveOptions{Force: true, RemoveVolumes: false}); err != nil {
+	for _, c := range list.Items {
+		if _, err := apiClient.ContainerRemove(ctx, c.ID, client.ContainerRemoveOptions{Force: true, RemoveVolumes: false}); err != nil {
 			return containers, networks, fmt.Errorf("remove container %s: %w", shortID(c.ID), err)
 		}
 		containers++
 	}
 
-	nets, err := cli.NetworkList(ctx, types.NetworkListOptions{Filters: f})
+	nets, err := apiClient.NetworkList(ctx, client.NetworkListOptions{Filters: f})
 	if err != nil {
 		return containers, 0, fmt.Errorf("list compose networks: %w", err)
 	}
-	for _, nw := range nets {
-		if err := cli.NetworkRemove(ctx, nw.ID); err != nil {
+	for _, nw := range nets.Items {
+		if _, err := apiClient.NetworkRemove(ctx, nw.ID, client.NetworkRemoveOptions{}); err != nil {
 			continue
 		}
 		networks++

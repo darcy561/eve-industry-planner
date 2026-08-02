@@ -1,4 +1,4 @@
-// Package builder is a reusable full-body wizard (section nav | form).
+// Package builder is a reusable full-body wizard (section nav | huh form + Finish).
 // Screens supply Sections; home embeds Session while the wizard is open.
 package builder
 
@@ -7,12 +7,12 @@ type Kind int
 
 const (
 	KindText Kind = iota
-	KindSecret
+	KindSecret   // deprecated: treated as plain KindText (ops TUI shows values)
 	KindReadonly
-	KindBool // space toggles true/false (no text input)
+	KindBool // huh Confirm (space / ←→)
 )
 
-// Field is one declarative form input.
+// Field is one declarative form input (SoT for env/config builders).
 type Field struct {
 	ID    string
 	Label string
@@ -20,18 +20,13 @@ type Field struct {
 	Kind  Kind
 	Value string
 
-	// Autogen: show generate checkbox (space toggles AutogenOn).
-	Autogen   bool
-	AutogenOn bool // checked = generate on save; hide manual input
-	// Locked: existing real secret — read-only, no checkbox / roll.
-	Locked bool
-	// PendingRoll: regenerate this Autogen field on Finish only (buffer unchanged until then).
-	// Not available when Locked (DB password roll is a later feature).
-	PendingRoll bool
-	// Status is live validation / Autogen / roll hint under the field.
-	Status string
-	// Validate optionally refreshes Status from Value (e.g. path writability).
-	// Return "" to leave Status unchanged; non-empty replaces Status.
+	Autogen     bool   // show Autogen checkbox (first create only)
+	AllowRoll   bool   // show Roll checkbox (day-2 non-Locked secrets)
+	AutogenOn   bool   // generate on save; hide manual input when set
+	Locked      bool   // permanently read-only (no Autogen / Roll)
+	PendingRoll bool   // regenerate on Finish only (buffer kept until then)
+	Status      string // live validation / Autogen / roll hint
+	// Validate refreshes Status from Value. "" leaves Status unchanged.
 	Validate func(value string) string
 }
 
@@ -42,6 +37,9 @@ type Section struct {
 	Help   string
 	Fields []Field
 }
+
+func (f Field) canAutogen() bool { return f.Autogen && !f.Locked }
+func (f Field) canRoll() bool    { return f.AllowRoll && !f.Locked }
 
 // CancelMsg leaves the builder without finishing (home restores ops).
 type CancelMsg struct{}

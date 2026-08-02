@@ -3,7 +3,7 @@ package status
 import (
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // StatusMsgHold is how long the unlabeled bar text stays after a command ends

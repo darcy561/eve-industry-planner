@@ -1,16 +1,22 @@
-// Secrets sync curated .env keys to versioned Swarm secret objects.
-// Per-service attach lists come from docker-stack.yml secrets: (stack SoT).
-// Deploy injects SecretsOverlay into the expanded app stack via stack.InjectSecrets.
+// Secrets sync curated .env keys to versioned Swarm secret objects (Moby Secret*
+// APIs — not `docker secret` CLI). Per-service attach lists come from
+// docker-stack.yml secrets: (stack SoT). Deploy injects SecretsOverlay into the
+// expanded app stack via stack.InjectSecrets.
 package swarm
 
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
-	"sort"
-	"strings"
+	"slices"
+	"time"
 
-	"eve-industry-planner/admintool/internal/dockercli"
+	"github.com/containerd/errdefs"
+	swarmtypes "github.com/moby/moby/api/types/swarm"
+	"github.com/moby/moby/client"
+
+	"eve-industry-planner/admintool/internal/docker"
 	"eve-industry-planner/admintool/internal/kit"
 	"eve-industry-planner/admintool/internal/msg"
 	"eve-industry-planner/admintool/internal/stack"
@@ -95,9 +101,15 @@ func SyncSecrets(ctx context.Context, home string) (SecretsOverlay, error) {
 	if err != nil {
 		return SecretsOverlay{}, err
 	}
+	apiClient, err := docker.NewAPIClient(client.WithTimeout(2 * time.Minute))
+	if err != nil {
+		return SecretsOverlay{}, fmt.Errorf("secrets: engine API client: %w", err)
+	}
+	defer apiClient.Close()
+
 	keyToObj := map[string]string{}
-	for _, key := range sortedKeys(payloads) {
-		obj, err := ensureSecret(ctx, key, payloads[key])
+	for _, key := range slices.Sorted(maps.Keys(payloads)) {
+		obj, err := ensureSecret(ctx, apiClient, key, payloads[key])
 		if err != nil {
 			return SecretsOverlay{}, err
 		}
@@ -145,15 +157,6 @@ func collectSecretPayloads(env map[string]string, attach []Attach) (map[string]s
 	return out, nil
 }
 
-func sortedKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
 // ByService returns service → logical keys (optional unset keys omitted).
 func (o SecretsOverlay) ByService() (map[string][]string, error) {
 	bySvc := map[string][]string{}
@@ -167,17 +170,8 @@ func (o SecretsOverlay) ByService() (map[string][]string, error) {
 		bySvc[a.Service] = append(bySvc[a.Service], a.Key)
 	}
 	for svc, list := range bySvc {
-		sort.Strings(list)
-		seen := map[string]struct{}{}
-		var uniq []string
-		for _, k := range list {
-			if _, ok := seen[k]; ok {
-				continue
-			}
-			seen[k] = struct{}{}
-			uniq = append(uniq, k)
-		}
-		bySvc[svc] = uniq
+		slices.Sort(list)
+		bySvc[svc] = slices.Compact(list)
 	}
 	return bySvc, nil
 }
@@ -187,28 +181,49 @@ func PruneStale(ctx context.Context, o SecretsOverlay) {
 	if len(o.KeyToObj) == 0 {
 		return
 	}
-	out, err := dockercli.RunOut(ctx, "secret", "ls", "--format", "{{.Name}}")
+	apiClient, err := docker.NewAPIClient()
 	if err != nil {
 		return
 	}
-	names := strings.Split(out, "\n")
+	defer apiClient.Close()
+
+	secrets, err := apiClient.SecretList(ctx, client.SecretListOptions{})
+	if err != nil {
+		return
+	}
+	names := make([]string, 0, len(secrets.Items))
+	for _, secret := range secrets.Items {
+		names = append(names, secret.Spec.Name)
+	}
 	for key, keep := range o.KeyToObj {
 		for _, name := range supersededObjectNames(names, key, keep) {
-			if err := dockercli.Run(ctx, "secret", "rm", name); err == nil {
+			if _, err := apiClient.SecretRemove(ctx, name, client.SecretRemoveOptions{}); err == nil {
 				msg.Line("pruned superseded docker secret " + name)
 			}
 		}
 	}
 }
 
-func ensureSecret(ctx context.Context, key, value string) (string, error) {
+func ensureSecret(ctx context.Context, apiClient *client.Client, key, value string) (string, error) {
 	raw := []byte(value)
 	obj := Name(key, raw)
-	if _, err := dockercli.RunOut(ctx, "secret", "inspect", obj); err == nil {
+	if _, err := apiClient.SecretInspect(ctx, obj, client.SecretInspectOptions{}); err == nil {
 		return obj, nil
+	} else if !errdefs.IsNotFound(err) {
+		return "", fmt.Errorf("inspect secret %s: %w", obj, err)
 	}
-	if err := dockercli.CreateStdin(ctx, "secret", obj, raw); err != nil {
-		return "", err
+	if _, err := apiClient.SecretCreate(ctx, client.SecretCreateOptions{
+		Spec: swarmtypes.SecretSpec{
+			Annotations: swarmtypes.Annotations{Name: obj},
+			Data:        raw,
+		},
+	}); err != nil {
+		if errdefs.IsConflict(err) || errdefs.IsAlreadyExists(err) {
+			if _, inspErr := apiClient.SecretInspect(ctx, obj, client.SecretInspectOptions{}); inspErr == nil {
+				return obj, nil
+			}
+		}
+		return "", fmt.Errorf("create secret %s: %w", obj, err)
 	}
 	return obj, nil
 }

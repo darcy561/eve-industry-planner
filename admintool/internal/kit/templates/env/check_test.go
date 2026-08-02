@@ -1,6 +1,7 @@
 package env
 
 import (
+	"maps"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -55,9 +56,7 @@ func TestCheckUsableRejectsLegacyEVEPlaceholders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for k, v := range legacyPlaceholders {
-		m[k] = v
-	}
+	maps.Copy(m, legacyPlaceholders)
 	if err := EmitEnvOpts(path, m, EmitOpts{SkipBackup: true}); err != nil {
 		t.Fatal(err)
 	}

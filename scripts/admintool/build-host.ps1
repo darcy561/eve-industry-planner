@@ -1,6 +1,11 @@
 # Build host eip binary from the admintool module into the repo root only.
 #   .\scripts\admintool\build-host.ps1
 #   $env:EIP_CLI_VERSION='0.1.0'; .\scripts\admintool\build-host.ps1
+#   # Prerelease soak (matches publish-prerelease ldflags):
+#   $env:EIP_CLI_VERSION='0.0.0-prerelease.swarm-hard-cutover.local'
+#   $env:EIP_CHANNEL='prerelease-swarm-hard-cutover'
+#   $env:EIP_KIT_BRANCH='swarm/hard-cutover'
+#   .\scripts\admintool\build-host.ps1
 #
 # If the install target is locked: ALERT, stop running eip processes, wait briefly,
 # retry. Never write an alternate binary name. No dist/ output.
@@ -9,6 +14,12 @@ $ErrorActionPreference = "Stop"
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $Tag = if ($env:EIP_CLI_VERSION) { $env:EIP_CLI_VERSION } else { "0.0.0-dev" }
 $Ld = "-s -w -X eve-industry-planner/admintool/cmd/commands.Version=$Tag"
+if ($env:EIP_CHANNEL) {
+  $Ld += " -X eve-industry-planner/admintool/internal/kit.Channel=$($env:EIP_CHANNEL)"
+}
+if ($env:EIP_KIT_BRANCH) {
+  $Ld += " -X eve-industry-planner/admintool/internal/kit.KitBranch=$($env:EIP_KIT_BRANCH)"
+}
 
 function Stop-EipProcesses {
   Get-Process -ErrorAction SilentlyContinue |
@@ -55,6 +66,13 @@ Do not use an alternate output name.
 Push-Location (Join-Path $Root "admintool")
 try {
   $env:CGO_ENABLED = "0"
+  # Match published Release assets (eip-windows-amd64.exe). A 32-bit Go host
+  # defaults GOARCH=386 and SelfUpdate then looks for a non-existent asset.
+  if (-not $env:GOARCH) {
+    if ($IsWindows -or $env:OS -match "Windows") {
+      $env:GOARCH = "amd64"
+    }
+  }
   $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("eip-build-" + $PID + $(if ($IsWindows -or $env:OS -match "Windows") { ".exe" } else { "" }))
   try {
     go build -ldflags $Ld -trimpath -o $tmp .

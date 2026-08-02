@@ -2,7 +2,7 @@ package docker
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -28,7 +28,7 @@ func FriendlyPorts(published []uint32) string {
 	if len(out) == 0 {
 		return ""
 	}
-	sort.Ints(out)
+	slices.Sort(out)
 	parts := make([]string, len(out))
 	for i, p := range out {
 		parts[i] = strconv.Itoa(p)

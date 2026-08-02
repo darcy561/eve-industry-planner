@@ -61,6 +61,19 @@ func TestFlagWiring(t *testing.T) {
 	}
 }
 
+func TestRepairRegistered(t *testing.T) {
+	c, _, err := rootCmd.Find([]string{"repair"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Name() != "repair" {
+		t.Fatalf("got %q", c.Name())
+	}
+	if c.Flags().Lookup("dry-run") == nil {
+		t.Fatal("missing --dry-run")
+	}
+}
+
 func TestEnsureMongoRegistered(t *testing.T) {
 	c, _, err := rootCmd.Find([]string{"ensure-mongo"})
 	if err != nil {
