@@ -4,7 +4,7 @@
 
 ## Highlights
 
-- Short summary of what changed in the host `eip` binary
+- Short summary of what changed in the Deployment Tool CLI binary
 - Call out anything that changes bootstrap / `eip update` / TUI Setup
 
 ## Changes

@@ -3,7 +3,7 @@
 //
 // Prefer OTEL_SERVICE_INSTANCE_ID set to a slot-stable name — api-{{.Task.Slot}},
 // websocket-{{.Task.Slot}}, worker-{{.Task.Slot}}, ws-router-{{.Task.Slot}}, or fixed "core".
-// Stack SoT: docs/swarm/STACK.md § Replica identity.
+// Stack SoT: technical-documentation/stack/STACK.md § Replica identity.
 package instanceid
 
 import (

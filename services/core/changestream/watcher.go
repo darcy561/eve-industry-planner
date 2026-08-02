@@ -309,7 +309,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	var accountID string
 
 	// For DELETE operations, try to get fullDocumentBeforeChange (requires collection
-	// changeStreamPreAndPostImages — ensured by admintool PreimageCollections / EnsureMongo).
+	// changeStreamPreAndPostImages — ensured by deployment-tool PreimageCollections / EnsureMongo).
 	// For other operations, use fullDocument.
 	var docToExtract bson.M
 	if operationType == "delete" {
@@ -346,7 +346,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	}
 
 	// DELETE events only populate fullDocumentBeforeChange when the collection has
-	// changeStreamPreAndPostImages (admintool PreimageCollections / EnsureMongo). Without that,
+	// changeStreamPreAndPostImages (deployment-tool PreimageCollections / EnsureMongo). Without that,
 	// AccountID stays empty → websocket dispatch skips account broadcast (unless clients
 	// explicitly subscribed). Singleton account docs use Mongo _id === account id string.
 	if accountID == "" && operationType == "delete" {
@@ -358,7 +358,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 				collection == mongocore.CollectionUserJobDocuments {
 				logs.WarnCtx(ctx, "delete missing accountID on collection (fullDocumentBeforeChange empty);"+
 					" websocket account fan-out skipped — enable changeStreamPreAndPostImages"+
-					" (eip ensure-mongo / admintool PreimageCollections)",
+					" (eip ensure-mongo / deployment-tool PreimageCollections)",
 					"component", changestreamLogComponent,
 					"collection", collection,
 					"doc_id", docID,

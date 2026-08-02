@@ -266,7 +266,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: admintool
+        working-directory: deployment-tool
 
     steps:
       - name: Checkout
@@ -290,8 +290,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: admintool/go.mod
-          cache-dependency-path: admintool/go.sum
+          go-version-file: deployment-tool/go.mod
+          cache-dependency-path: deployment-tool/go.sum
 
       - name: Build release binaries
         env:
@@ -302,9 +302,9 @@ jobs:
         run: |
           set -euo pipefail
           # Version = immutable pin; Channel = Release tag; KitBranch = stack YAML git ref.
-          LDFLAGS="-s -w -X eve-industry-planner/admintool/cmd/commands.Version=${VER}"
-          LDFLAGS="${LDFLAGS} -X eve-industry-planner/admintool/internal/kit.Channel=${CHANNEL}"
-          LDFLAGS="${LDFLAGS} -X eve-industry-planner/admintool/internal/kit.KitBranch=${KIT_BRANCH}"
+          LDFLAGS="-s -w -X eve-industry-planner/deployment-tool/cmd/commands.Version=${VER}"
+          LDFLAGS="${LDFLAGS} -X eve-industry-planner/deployment-tool/internal/kit.Channel=${CHANNEL}"
+          LDFLAGS="${LDFLAGS} -X eve-industry-planner/deployment-tool/internal/kit.KitBranch=${KIT_BRANCH}"
           mkdir -p dist
           GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o dist/eip-windows-amd64.exe .
           GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o dist/eip-linux-amd64 .
@@ -334,11 +334,11 @@ jobs:
             | Version pin | `${{ needs.version.outputs.version }}` |
             | eip update | baked channel `${{ steps.meta.outputs.channel_tag }}` |
           files: |
-            admintool/dist/eip-windows-amd64.exe
-            admintool/dist/eip-linux-amd64
-            admintool/dist/eip-darwin-amd64
-            admintool/dist/eip-darwin-arm64
-            admintool/dist/SHA256SUMS
+            deployment-tool/dist/eip-windows-amd64.exe
+            deployment-tool/dist/eip-linux-amd64
+            deployment-tool/dist/eip-darwin-amd64
+            deployment-tool/dist/eip-darwin-arm64
+            deployment-tool/dist/SHA256SUMS
 
       - name: Upload generic prerelease eip Release
         if: needs.version.outputs.promote_generic == 'true'
@@ -357,8 +357,8 @@ jobs:
             - Bootstrap / `eip update`: channel `prerelease`
             - Does not affect Public `:latest` / `X.Y.Z` / Release tag `cli`
           files: |
-            admintool/dist/eip-windows-amd64.exe
-            admintool/dist/eip-linux-amd64
-            admintool/dist/eip-darwin-amd64
-            admintool/dist/eip-darwin-arm64
-            admintool/dist/SHA256SUMS
+            deployment-tool/dist/eip-windows-amd64.exe
+            deployment-tool/dist/eip-linux-amd64
+            deployment-tool/dist/eip-darwin-amd64
+            deployment-tool/dist/eip-darwin-arm64
+            deployment-tool/dist/SHA256SUMS

@@ -2,7 +2,7 @@
 package eipconfig
 
 // DefaultConfig returns starter operator config (kept in sync with
-// admintool/internal/kit/templates/yamldefaults.DefaultConfig; no CLI block here).
+// deployment-tool/internal/kit/templates/yamldefaults.DefaultConfig; no CLI block here).
 func DefaultConfig() Config {
 	var addons Addons
 	addons.Observability.Enabled = false

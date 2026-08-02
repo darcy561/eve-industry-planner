@@ -9,9 +9,9 @@
 | **Frontend** | React (Vite), MUI, TanStack Router/Query |
 | **Backend** | Go: REST API, WebSocket service, **core** (schedulers, changestreams, shared processing), **worker** (Asynq / Redis) |
 | **Data & messaging** | MongoDB, Redis, NATS (JetStream) |
-| **Deploy** | Swarm data (mongo/redis/nats/SeaweedFS/Prometheus) + app (Traefik, api, websocket, worker, ws-router, core, frontend); host tool **`eip`**; optional observability addon |
+| **Deploy** | Swarm data (mongo/redis/nats/SeaweedFS/Prometheus) + app (Traefik, api, websocket, worker, ws-router, core, frontend); **Deployment Tool** (CLI/TUI; commands use `eip …`); optional observability addon |
 
-Deployment and host setup: see **[DEPLOYMENT.md](./docs/DEPLOYMENT.md)**.
+Deployment and host setup: see **[DEPLOYMENT.md](./technical-documentation/deployment/guide.md)**.
 
 ---
 

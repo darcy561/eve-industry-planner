@@ -9,7 +9,7 @@ import (
 )
 
 // Prepare kicks warn-continue background checks.
-// Application Mongo indexes are owned by admintool dataplane.EnsureMongo (eip up/dev / ensure-mongo).
+// Application Mongo indexes are owned by deployment-tool dataplane.EnsureMongo (eip up/dev / ensure-mongo).
 func Prepare(ctx context.Context, clients *stackservices.Clients) error {
 	Background(ctx, clients)
 	return nil

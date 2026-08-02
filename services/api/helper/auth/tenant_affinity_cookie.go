@@ -8,7 +8,7 @@ import (
 )
 
 // TenantAffinityCookieName is the Redis placement key for eip_ws_router (/ws).
-// See docs/swarm/WS_ROUTER.md / shared/wsplacement.
+// See technical-documentation/backend/ws-router/ws-router.md / shared/wsplacement.
 const TenantAffinityCookieName = wsplacement.AffinityCookie
 
 const tenantAffinityCookiePath = "/"
