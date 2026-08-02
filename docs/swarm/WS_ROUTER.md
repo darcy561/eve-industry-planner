@@ -11,7 +11,7 @@
 |-------|------|
 | **Traefik** (Swarm `eip_traefik`) | TLS + ingress publish + path `/ws` → `eip_ws_router` (swarm provider) |
 | **ws-router** (Swarm) | Redis-first placement; reverse-proxy upgrade to `websocket-N:4001` |
-| **Redis** (Compose) | Placement authority: `tenant → slot id` (aligned with `websocket-{{.Task.Slot}}`) |
+| **Redis** (Swarm data fragment) | Placement authority: `tenant → slot id` (aligned with `websocket-{{.Task.Slot}}`) |
 | **Cookie `eip_tenant_affinity`** | Hint / key only (`alliance:` → `corporation:` → `account:`). Real session auth stays on the websocket process |
 | **Sticky `eip_ws_affinity`** | **Fallback** when affinity cookie missing or Redis unavailable — not the steady-state org model |
 
@@ -67,9 +67,9 @@ mount the raw Docker socket (`:ro` on a sock mount is not API read-only).
 **Dead / missing slot on connect:** instant **reassign** (no background reconcile loop in v1).
 That keeps the balancer correct when a task dies.
 
-**App-train (#23) - prefer newest bake:** among eligible (non-cordoned / non-full) slots, placement
+**Prefer newest bake (mid-roll):** among eligible (non-cordoned / non-full) slots, placement
 and reassignment prefer backends whose process `APP_VERSION` is the highest semver. Sticky homes
-on an older bake are reassigned onto NEW so reconnects do not hop OLD columns during dual-warm.
+on an older bake are reassigned onto NEW so reconnects prefer newer tasks during Swarm rolls.
 Affinity key / pin / cordon / full still apply. OLD SPA clients may land on NEW slots (FE still
 snackbars refresh for new assets; reconnect is not blocked). Exact client `?app_version=` match
 filtering was removed.
@@ -132,11 +132,11 @@ Browser `/ws` upgrades use the Traefik CORS middleware on **`ws-router`** (label
 
 ## Recovery
 
-Re-run the same bring-up (`make up` / `make dev` / `stack-deploy`). No Compose-elastic fallback.
+Re-run the same bring-up (`eip up` / `eip dev`). No Compose-elastic fallback.
 
 ## Bring-up
 
-Included with hybrid `make up` / `make dev` / `stack-deploy`. Binary:
+Included with hybrid `eip up` / `eip dev`. Binary:
 `services/ws-router` + `ws-docker-proxy`. Router calls `DOCKER_HOST=tcp://ws-docker-proxy:2375`
 (allowlisted GET `/services` + `/tasks` only), then HTTP-probes each task’s `:19100/ready`.
 The router container does **not** mount `/var/run/docker.sock`. Its proxy lives on overlay
@@ -162,5 +162,5 @@ The Make smoke script was removed with other Make escapes.
 - [WEBSOCKET.md](./WEBSOCKET.md) — drain checklist / force-close (#8)
 - [TRAEFIK.md](./TRAEFIK.md) — ingress; `/ws` → router
 - [STACK.md](./STACK.md) — stack services
-- [IDENTITY.md](./IDENTITY.md) — `websocket-N` / `ws-router-N` slots
+- [STACK.md](./STACK.md) § Replica identity — `websocket-N` / `ws-router-N` slots
 - [ROADMAP.md](./ROADMAP.md) — **#4**, **#8**, **#21**

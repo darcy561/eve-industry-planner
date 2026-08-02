@@ -8,6 +8,7 @@ import (
 	eipmsg "eve-industry-planner/admintool/internal/msg"
 	"eve-industry-planner/admintool/internal/process"
 	"eve-industry-planner/admintool/tui/exec"
+	"eve-industry-planner/admintool/tui/ops"
 )
 
 func TestParseUpdateRestartMessage(t *testing.T) {
@@ -63,11 +64,25 @@ func TestResumeUpdateMsgClearsPane(t *testing.T) {
 	m.appendOut("old output")
 	next, _ := m.Update(resumeUpdateMsg{})
 	hm := next.(model)
-	// startCLI may fail without a real binary in PATH for tests — pane must still clear first.
+	// start may fail without a real binary in PATH for tests — pane must still clear first.
 	if strings.Contains(hm.pane.Text, "old output") {
 		t.Fatalf("pane should clear on resume: %q", hm.pane.Text)
 	}
 	_ = next
+}
+
+func TestResumeUpdateMsgBypassesDockerGate(t *testing.T) {
+	m := newModel()
+	entry := ops.Entry{Title: "update", Args: []string{"update"}}
+	if ops.Allowed(entry, m.snap.Docker, m.snap.Health) {
+		t.Fatal("precondition: update should be gated when Docker is off")
+	}
+	next, _ := m.Update(resumeUpdateMsg{})
+	hm := next.(model)
+	if !strings.Contains(hm.pane.Text, "Running update") {
+		t.Fatalf("resume must force-start update when Docker off: pane=%q running=%v",
+			hm.pane.Text, hm.commandRunning)
+	}
 }
 
 func TestOnCLIDoneSchedulesRelaunchWithResume(t *testing.T) {
@@ -79,15 +94,18 @@ func TestOnCLIDoneSchedulesRelaunchWithResume(t *testing.T) {
 	next, cmd := m.onCLIDone(exec.DoneMsg{})
 	hm := next.(model)
 	if hm.pendingRelaunch || hm.pendingResumeUpdate {
-		t.Fatal("flags should clear before relaunch cmd runs")
+		t.Fatal("pending flags should clear before quit")
+	}
+	if !hm.relaunchOnExit || !hm.relaunchResume {
+		t.Fatalf("relaunchOnExit=%v relaunchResume=%v", hm.relaunchOnExit, hm.relaunchResume)
 	}
 	if cmd == nil {
-		t.Fatal("expected relaunch cmd")
+		t.Fatal("expected tea.Quit")
 	}
 	if !strings.Contains(hm.pane.Text, "Restarting with new binary") {
 		t.Fatalf("pane=%q", hm.pane.Text)
 	}
-	// Do not invoke cmd — it would RelaunchSelfOpts / os.Exit.
+	// Run() calls RelaunchSelfOpts after tea exits — do not invoke here (os.Exit).
 }
 
 func TestOnCLIDoneErrorClearsResumeFlags(t *testing.T) {
@@ -100,6 +118,9 @@ func TestOnCLIDoneErrorClearsResumeFlags(t *testing.T) {
 	hm := next.(model)
 	if hm.pendingRelaunch || hm.pendingResumeUpdate {
 		t.Fatal("error should clear relaunch/resume")
+	}
+	if hm.relaunchOnExit {
+		t.Fatal("error must not arm relaunchOnExit")
 	}
 	if cmd == nil {
 		t.Fatal("expected post-done probe/clear cmds")

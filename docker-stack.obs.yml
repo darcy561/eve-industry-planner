@@ -5,8 +5,9 @@
 #   eip-core         — attach services that must reach data/app DNS (exporters, alloy, grafana→prom)
 #   eip-docker-alloy — alloy socket-proxy only (not on eip-core / eip-obs for the proxy itself)
 #
-# Prometheus stays on docker-stack.data.yml; when this fragment is deployed, attach
-# prometheus to eip-obs (eip sync / up — dual-home). Alloy joins eip-core when obs is on.
+# Prometheus stays on docker-stack.data.yml (eip-core only). Scrapes reach obs targets
+# because exporters / asynqmon dual-home onto eip-core. Optional later: dual-home
+# prometheus onto eip-obs instead (see docs/swarm/NETWORK.md). Alloy joins eip-core when obs is on.
 
 x-common-dns: &common-dns
   - 8.8.8.8

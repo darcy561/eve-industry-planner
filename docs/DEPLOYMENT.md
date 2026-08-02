@@ -1,8 +1,8 @@
 # Deployment Guide
 
-Preferred host tool: **`eip`**. Bootstrap installs the binary; then `eip init` → edit `.env` → `eip up`. Make / `scripts/` remain a **legacy** escape until Public file refresh no longer depends on them — see [docs/swarm/MAKE.md](docs/swarm/MAKE.md) and [docs/admintool/ENGINEERING.md](docs/admintool/ENGINEERING.md).
+Preferred host tool: **`eip`**. Bootstrap installs the binary; then `eip init` → edit `.env` → `eip up`. Internals: [ENGINEERING.md](admintool/ENGINEERING.md).
 
-Channels / prerelease tags: [docs/admintool/PRERELEASE.md](docs/admintool/PRERELEASE.md).
+Channels / prerelease tags: [PRERELEASE.md](admintool/PRERELEASE.md).
 
 ## Requirements
 
@@ -27,7 +27,7 @@ Make / Git Bash are **not** required. The Makefile was removed — use **`eip`**
 
 ## Overview
 
-Public / VPS bring-up uses published GHCR images via **`eip up`**. Local development (full git clone + bake) uses **`eip dev`**. Internals: [docs/swarm/MAKE.md](docs/swarm/MAKE.md) (legacy Make map), [docs/admintool/ENGINEERING.md](docs/admintool/ENGINEERING.md).
+Public / VPS bring-up uses published GHCR images via **`eip up`**. Local development (full git clone + bake) uses **`eip dev`**. Internals: [ENGINEERING.md](admintool/ENGINEERING.md).
 
 ## Quick Start
 
@@ -52,7 +52,7 @@ irm https://raw.githubusercontent.com/darcy561/eve-industry-planner/refs/heads/P
 cd D:\eip
 ```
 
-Prerelease / staging release tags: see [PRERELEASE.md](docs/admintool/PRERELEASE.md) (`--release` / `-Release`).
+Prerelease / staging release tags: see [PRERELEASE.md](admintool/PRERELEASE.md) (`--release` / `-Release`).
 
 ### Step 2: Initialize config
 
@@ -67,7 +67,7 @@ Docker containers **do not start** until you run `eip up` / `eip dev`.
 
 ### Step 3: Configure `.env`
 
-Edit `.env` with your real values (SSO, domains, optional Sentry, Grafana passwords, etc.). Variable schema is Go SoT in [`admintool/internal/kit/templates/env`](admintool/internal/kit/templates/env/) (`EnvFields`). **`.env` holds secrets** (and `APP_VERSION`); non-secret scale/ports/paths live in **`eip.config.yaml`**. Apply procedures: [docs/swarm/ENV.md](docs/swarm/ENV.md).
+Edit `.env` with your real values (SSO, domains, optional Sentry, Grafana passwords, etc.). Variable schema is Go SoT in [`admintool/internal/kit/templates/env`](../admintool/internal/kit/templates/env/) (`EnvFields`). **`.env` holds secrets** (and `APP_VERSION`); non-secret scale/ports/paths live in **`eip.config.yaml`**. Apply procedures: [ENV.md](swarm/ENV.md).
 
 Firebase Admin JSON files are **not** mounted by default. For one-off Firestore migration tasks, mount credentials yourself and set `GOOGLE_APPLICATION_CREDENTIALS`, or pass flags as documented in the migration tooling.
 
@@ -77,7 +77,7 @@ Firebase Admin JSON files are **not** mounted by default. For one-off Firestore 
 ./eip up
 ```
 
-Deploys the **Swarm data fragment** (mongo/redis/nats/SeaweedFS/Prometheus) and **app stack** (Traefik, api, websocket, worker, ws-router, core, frontend), then runs data-plane Ready (`EnsureS3` ‖ `EnsureMongo`). Network: [docs/swarm/NETWORK.md](docs/swarm/NETWORK.md).
+Deploys the **Swarm data fragment** (mongo/redis/nats/SeaweedFS/Prometheus) and **app stack** (Traefik, api, websocket, worker, ws-router, core, frontend), then runs data-plane Ready (`EnsureS3` ‖ `EnsureMongo`). Network: [NETWORK.md](swarm/NETWORK.md).
 
 **Local bake (git clone):** use `./eip dev` instead of `eip up`.
 
@@ -93,16 +93,14 @@ Always review secrets before production use.
 
 ### Day-2 changes (stack already running)
 
-Do **not** use full bring-up only to apply config. Details and dry-run: [docs/swarm/ENV.md](docs/swarm/ENV.md).
+Do **not** use full bring-up only to apply config. Details and dry-run: [ENV.md](swarm/ENV.md).
 
 | You changed | Run |
 |-------------|-----|
 | Secrets used by Swarm apps (SSO, HMAC, S3 keys, app DB passwords, …) | **`eip secrets`** |
 | Operator YAML (`eip.config.yaml` — replicas, capacity, ports/paths, concurrency, client cutoff) | **`eip sync`** |
 | Data-plane secrets (mongo/redis root, …) | Update `.env`, then **`eip secrets`**. Mongo keyfile recovery: `eip restore-mongo-keyfile` / `eip rekey-mongo`. After index SoT changes without full up/dev: **`eip ensure-mongo`**. |
-| Host binary / stack YAML / image reconcile | **`eip update`** (or `--binary-only` / `--stacks-only` / `--images-only`) |
-
-Former Make verb map (retired): [MAKE.md](docs/swarm/MAKE.md).
+| Host binary / stack YAML / image reconcile | **`eip update`** (or `--binary-only` / `--stacks-only` / `--images-only`) — app fragment only; see [ENGINEERING.md](admintool/ENGINEERING.md) § App images |
 
 ## Access
 
@@ -135,32 +133,32 @@ You have two options:
 
 - **frontend**: Serves the built SPA (static assets); Traefik routes `/` here
 - **api**: Swarm HTTP API on `/api` (port 4000 in the container)
-- **websocket**: Swarm service for WebSocket traffic on port 4001; Traefik `/ws` goes via Swarm **ws-router** + Redis placement ([docs/swarm/WS_ROUTER.md](docs/swarm/WS_ROUTER.md)). Sticky `eip_ws_affinity` is fallback only.
+- **websocket**: Swarm service for WebSocket traffic on port 4001; Traefik `/ws` goes via Swarm **ws-router** + Redis placement ([WS_ROUTER.md](swarm/WS_ROUTER.md)). Sticky `eip_ws_affinity` is fallback only.
 - **ws-router**: Swarm singleton; tenant → websocket slot placement + reverse-proxy of `/ws` upgrades
 - **worker**: Background jobs (Asynq) consuming Redis queues (Swarm)
-- **core**: Swarm control plane (`eip_core`) — schedulers, changestream → JetStream, nested singleton jobs. Primary via Redis `lease:core:primary`; `/ready` on `:19100` is handoff-ready standby (not “holds the lease”). See [docs/swarm/CORE_REBUILD.md](docs/swarm/CORE_REBUILD.md)
+- **core**: Swarm control plane (`eip_core`) — schedulers, changestream → JetStream, nested singleton jobs. Primary via Redis `lease:core:primary`; `/ready` on `:19100` is handoff-ready standby (not “holds the lease”). See [CORE_REBUILD.md](swarm/CORE_REBUILD.md)
 
 ### Data and messaging
 
-- **mongo**: Swarm data-fragment MongoDB (single-node replica set `rs0`, auth-first). Desired state via **`eip ensure-mongo`** / Ready — not core boot. See [docs/admintool/ENGINEERING.md](docs/admintool/ENGINEERING.md)
+- **mongo**: Swarm data-fragment MongoDB (single-node replica set `rs0`, auth-first). Desired state via **`eip ensure-mongo`** / Ready — not core boot. See [ENGINEERING.md](admintool/ENGINEERING.md)
 - **redis**: Swarm data-fragment Redis (password-protected; also used by Asynq and the WebSocket layer)
 - **nats**: Swarm data-fragment NATS with JetStream (`-js`); monitoring HTTP on `:8222`
 - **seaweedfs**: Swarm data-fragment object store (`static-data*` buckets via `EnsureS3` / `objectstore`); S3 API on overlay only
 
 ### Edge and operations
 
-- **traefik**: Swarm service `eip_traefik`; publishes `:80` / `:443` / `:81` via **ingress** on overlay `eip` (Docker Desktop localhost OK). See [docs/swarm/TRAEFIK.md](docs/swarm/TRAEFIK.md)
+- **traefik**: Swarm service `eip_traefik`; publishes `:80` / `:443` / `:81` via **ingress** (Docker Desktop localhost OK). Mesh DNS alias on `eip-core`. See [TRAEFIK.md](swarm/TRAEFIK.md)
 - **asynqmon** (optional UI): Asynq queue browser/metrics; see stack / compose for how ports are published
 
 ### Observability stack
 
-These run on the same external `eip` network ([docs/swarm/NETWORK.md](docs/swarm/NETWORK.md)):
+These run on the mesh overlay **`eip-core`** ([NETWORK.md](swarm/NETWORK.md)):
 
 - **alloy**: Unified telemetry agent — OTLP logs from Go services → Loki; Docker stdout logs → Loki for frontend/infra via **`alloy-docker-proxy`**. Config embedded in eip (`admintool/internal/kit/obs/alloy/config.alloy`; `LOG_LEVEL` env read at Alloy startup)
 - **nats-exporter** / **redis-exporter** / **mongodb-exporter**: Scrapes into Prometheus
 - **prometheus**: Metrics TSDB on Swarm **data** fragment (`eip_prometheus`)
 - **loki**: Log storage; Alloy pushes container stdout logs with `compose_service` labels
-- **grafana**: Dashboards from embedded eip configs; login uses `GRAFANA_ADMIN_*` from `.env`. Local `eip dev`: http://127.0.0.1/grafana via Traefik. Public `eip up`: unpublished by default — use Tailscale/tunnel to `grafana:3000` on `eip`
+- **grafana**: Dashboards from embedded eip configs; login uses `GRAFANA_ADMIN_*` from `.env`. Local `eip dev`: http://127.0.0.1/grafana via Traefik. Public `eip up`: unpublished by default — use Tailscale/tunnel to `grafana:3000` on `eip-core` / `eip-obs`
 - **node_exporter**: Host metrics on `:9100`
 
 ### Ports
@@ -174,7 +172,7 @@ These run on the same external `eip` network ([docs/swarm/NETWORK.md](docs/swarm
 ./eip update
 ```
 
-Typical order: host binary → stack YAML from the binary’s baked kit branch → image reconcile. Narrow flags: `--binary-only`, `--stacks-only`, `--images-only`. Details: [PRERELEASE.md](docs/admintool/PRERELEASE.md).
+Typical order: host binary → stack YAML from the binary’s baked kit branch → image reconcile. Narrow flags: `--binary-only`, `--stacks-only`, `--images-only`. Details: [PRERELEASE.md](admintool/PRERELEASE.md).
 
 ## Maintenance
 
@@ -191,7 +189,7 @@ Prefer **`eip logs`** over raw Docker. Go services log via **OTLP → Alloy → 
 
 Log verbosity in **Loki** (Go services via OTLP) is controlled by **`LOG_LEVEL` on the Alloy container** in your `.env` file. Go apps export all levels; Alloy filters before Loki. Valid values: `debug`, `info` (default), `warn` / `warning`, `error`.
 
-To change what appears in Grafana/Loki, edit `LOG_LEVEL` in `.env` and restart Alloy (Compose observability path) or re-apply via your usual day-2 flow.
+To change what appears in Grafana/Loki, edit `LOG_LEVEL` in `.env` and restart Alloy (obs addon / `docker-stack.obs.yml`) or re-apply via your usual day-2 flow.
 
 ### Stopping the stack
 
@@ -211,20 +209,16 @@ For a **full git clone** (local bake):
 ./eip dev
 ```
 
-Builds local images and deploys the Swarm stack with local tags. Day-2 code rolls: `eip rebuild`. Prefer this over legacy `make dev`.
+Builds local images and deploys the Swarm stack with local tags. Day-2 code rolls: `eip rebuild`.
 
-Prerelease soak / channel pins: [PRERELEASE.md](docs/admintool/PRERELEASE.md).
-
-### Migrating from Make
-
-The Makefile and Make script trees are **gone**. Use **eip-bootstrap** + `eip`. Day-2 refresh: **`eip update`**. Verb map: [MAKE.md](docs/swarm/MAKE.md).
+Prerelease soak / channel pins: [PRERELEASE.md](admintool/PRERELEASE.md).
 
 ## Support
 
 For issues or questions:
 
 - Check logs: `./eip logs api -f` (or Grafana → Loki)
-- Review this deployment guide and [docs/admintool/ENGINEERING.md](docs/admintool/ENGINEERING.md)
+- Review this deployment guide and [ENGINEERING.md](admintool/ENGINEERING.md)
 
 ## Quick Reference
 

@@ -106,6 +106,8 @@ type model struct {
 	cmdSession          bool // Command window open (host + core); freezes More marquee
 	pendingRelaunch     bool // set when update asks the TUI to restart
 	pendingResumeUpdate bool // relaunch with EIP_UPDATE_RESUME (continue stacks/images)
+	relaunchOnExit      bool // after tea.Quit, Run() starts a new eip process
+	relaunchResume      bool // pass EIP_UPDATE_RESUME to the new process
 	mouseCapture        bool // true: clicks/wheel; false: terminal drag-select / native copy
 }
 
@@ -227,7 +229,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Fresh pane — do not leave a sticky "Resuming…" line after the child ends.
 		m.pane.Clear()
 		m.syncPane()
-		return m.startCLI("update", []string{"update"})
+		// Bypass menu gates: Init races Probe, and Docker may still be LightOff.
+		return m.startCLIForced("update", []string{"update"})
 
 	case exec.EventMsg:
 		if msg.Event.Kind == eipmsg.KindStack && msg.Event.State == "update" {
@@ -278,17 +281,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case exec.DoneMsg:
 		return m.onCLIDone(msg)
-
-	case relaunchFailedMsg:
-		m.appendOut("Could not restart automatically: " + msg.err.Error())
-		m.appendOut("Quit and run eip again to use the new binary.")
-		m.refreshing = true
-		m.statusMsgClearGen++
-		m.returnToMoreOrMenu()
-		return m, tea.Batch(
-			statusbar.ProbeCmd(m.snap),
-			statusbar.ClearStatusMsgAfter(m.statusMsgClearGen),
-		)
 
 	case serviceListMsg:
 		return m.onServiceList(msg)
@@ -397,13 +389,16 @@ func (m model) onCLIDone(msg exec.DoneMsg) (tea.Model, tea.Cmd) {
 		return m.startNextPendingCLI()
 	}
 	if m.pendingRelaunch {
-		resume := m.pendingResumeUpdate
+		// Quit tea first so the terminal leaves alt-screen/raw mode; Run() then
+		// starts the new binary (RelaunchSelfOpts must not run inside a tea.Cmd).
+		m.relaunchOnExit = true
+		m.relaunchResume = m.pendingResumeUpdate
 		m.pendingRelaunch = false
 		m.pendingResumeUpdate = false
 		m.snap.StatusMsg = ""
 		m.snap.StatusMsgTick = 0
 		m.appendOut("Restarting with new binary…")
-		return m, relaunchSelfCmd(resume)
+		return m, tea.Quit
 	}
 	m.refreshing = true
 	m.statusMsgClearGen++
@@ -421,17 +416,6 @@ func (m model) onCLIDone(msg exec.DoneMsg) (tea.Model, tea.Cmd) {
 		statusbar.ClearStatusMsgAfter(m.statusMsgClearGen),
 	)
 }
-
-func relaunchSelfCmd(resumeUpdate bool) tea.Cmd {
-	return func() tea.Msg {
-		if err := kit.RelaunchSelfOpts(nil, relaunchOpts(resumeUpdate)); err != nil {
-			return relaunchFailedMsg{err: err}
-		}
-		return tea.Quit()
-	}
-}
-
-type relaunchFailedMsg struct{ err error }
 
 func (m *model) clearProgress() {
 	m.progressText = ""
@@ -492,6 +476,11 @@ func (m model) startCLI(label string, args []string) (tea.Model, tea.Cmd) {
 	if !ops.Allowed(ops.Entry{Title: label, Args: args}, m.snap.Docker, m.snap.Health) {
 		return m, nil
 	}
+	return m.startCLIForced(label, args)
+}
+
+// startCLIForced runs a child CLI without Docker/Health menu gates (resume-after-update).
+func (m model) startCLIForced(label string, args []string) (tea.Model, tea.Cmd) {
 	m.commandRunning = true
 	m.pane.Follow = true
 	m.statusMsgClearGen++

@@ -2,7 +2,7 @@
 
 > Part of [ROADMAP.md](./ROADMAP.md). Soft caps, roll/reconnect, and **manual drain** before
 > scale-in. Placement ops: [WS_ROUTER.md](./WS_ROUTER.md). Tunables: `eip.config.yaml`
-> (#19; defaults in [`yamldefaults.DefaultConfig`](../../admintool/internal/kit/templates/yamldefaults/default.go); `client_cutoff` via **`make swarm-sync`**). **Force-close on cordon/evacuate landed.**
+> (#19; defaults in [`yamldefaults.DefaultConfig`](../../admintool/internal/kit/templates/yamldefaults/default.go); `client_cutoff` via **`eip sync`**). **Force-close on cordon/evacuate landed.**
 > **Client cutoff + router full divert landed** (Redis `eip:ws:full:v1:{slot}`). Soft
 > `target_clients` / hosted-tenant surface still open or parked with #18.
 
@@ -14,7 +14,7 @@
 | Capacity label min / max | **2 / 12** (stack today) | Example YAML lean ceiling **max: 4** until soak (#19 sync) |
 | Soft target / client cutoff | **1500 / 2000** clients per slot | Soft = YAML/controller hint; cutoff enforced in WS binary |
 | Soft enforce | docs / #18 only | Does not refuse connects |
-| Client cutoff | **`services.websocket.client_cutoff`** (default 2000) | YAML SoT → `make swarm-sync` (service update; stack default until then); 503 `slot_full` + Redis full hint |
+| Client cutoff | **`services.websocket.client_cutoff`** (default 2000) | YAML SoT → **`eip sync`** (service update; stack default until then); 503 `slot_full` + Redis full hint |
 | Router divert | Redis `eip:ws:full:v1:{slot}` | Best-effort: skip full home despite affinity/pin; process refuse is authoritative |
 | Reserve | **0.20** | Prefer scale-up before packing every slot hot |
 | Drain timeout | **10m** | Wait for natural reconnect after evacuate; do not cold-kill |
@@ -44,7 +44,7 @@ services:
     drain_timeout: 10m
 ```
 
-`client_cutoff` (and capacity labels / replicas from `min`) apply via **`make swarm-sync`**.
+`client_cutoff` (and capacity labels / replicas from `min`) apply via **`eip sync`**.
 Soft `target_clients` / reserve remain policy seed for #18 until the controller enforces them.
 
 ## Drain / cordon checklist (manual scale-in)
@@ -89,7 +89,7 @@ use Redis break-glass only if you know the key layout (`eip:ws:cordon:v1:*`, `ei
 |------|--------|
 | Live force-close / please-reconnect after cordon | **Done** — Redis `PUBLISH eip:ws:drain:v1` + WS subscriber |
 | Accurate hosted-tenant set (memory ± Redis) | **Parked** — in-process indexes exist; query surface (HTTP vs Redis interest) decided with #18 / #20 |
-| Client cutoff refuse | **Landed** — YAML `client_cutoff` (default 2000) via `make swarm-sync` → 503 `slot_full` + Redis full hint |
+| Client cutoff refuse | **Landed** — YAML `client_cutoff` (default 2000) via **`eip sync`** → 503 `slot_full` + Redis full hint |
 | Per-slot `ws.connected_clients` gauges | Partially present (OTel); Prom/controller scrapes with #18 |
 | Router divert on full/cutoff | **Landed** — skip `eip:ws:full:v1:{slot}` in eligible set; reassign affinity/pin home when full |
 | Soft divert on `target_clients` | Still open with #18 |
@@ -104,16 +104,15 @@ on `eip:ws:drain:v1`. Each websocket replica subscribes; matching slot:
 3. Refuses new upgrades while cordoned (503)
 
 SPA reconnect does not special-case close codes — any non-manual close schedules reconnect.  
-Rebuild/redeploy websocket after this change (`make rebuild SERVICES=websocket` or `make dev`).
+Rebuild/redeploy websocket after this change (`eip rebuild` scoped to websocket when supported, or `eip rebuild` / `eip dev`).
 
 **Bus note (intentional temporary):** drain wake-up is **Redis pub/sub** next to the cordon
 `SET`. Redis remains SoT for cordon/placement. **Target for #18:** keep Redis as the map; move
-drain **notification** to **NATS**; operator verbs live on the capacity controller (not a Make
-script).
+drain **notification** to **NATS**; operator verbs live on the capacity controller (and `eip`).
 
-## App-train waves
+## Version rolls
 
-Version ship uses dual-warm + look-ahead cordon ([APP_TRAIN.md](./APP_TRAIN.md)). Router prefers newest bake mid-wave ([WS_ROUTER.md](./WS_ROUTER.md)). SPA snackbar still prompts refresh; **outdated tabs keep reconnecting** /ws.
+Day-2 app images: **`eip update`** / **`eip rebuild`** ([ENGINEERING.md](../admintool/ENGINEERING.md)). Router prefers newest bake mid-roll ([WS_ROUTER.md](./WS_ROUTER.md)). SPA snackbar still prompts refresh; **outdated tabs keep reconnecting** `/ws`.
 
 ## Related
 

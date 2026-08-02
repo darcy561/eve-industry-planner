@@ -85,9 +85,9 @@ admintool/
 
 Import direction for documents: `kit` ← `config` ← `templates/{env,yamldefaults}`. `config` must not import templates.
 
-## Dual path (eip vs Make)
+## Operator surface (`eip` only)
 
-**Make is retired** (root Makefile + `scripts/{bootstrap,swarm,lib,ops,test}/` deleted). Host ops are **`eip` only**. Keep **`scripts/admintool/`** (build-host) + repo-root **eip-bootstrap**. Verb map: [MAKE.md](../swarm/MAKE.md). Do not add `eip release` / advertise / `update-data` mirrors.
+**Make is retired** (root Makefile + `scripts/{bootstrap,swarm,lib,ops,test}/` deleted). Host ops are **`eip` only**. Keep **`scripts/admintool/`** (build-host) + repo-root **eip-bootstrap**. Do not add `eip release` / advertise / `update-data` mirrors.
 
 | Path | Role |
 |------|------|
@@ -152,6 +152,19 @@ Go recipe is the preferred bring-up. Same path every time: expand → two-pass *
 SoT in stack YAML: app `start-first` (`x-app-deploy`); data/obs `stop-first` (`x-data-deploy` / `x-obs-deploy`); socket proxies `stop-first` (`x-proxy-deploy`). Honored by up/dev/rebuild/rematerialize.
 
 Requires `docker` on PATH for the remaining binary exceptions (`docker stack deploy`, `docker buildx bake`). Engine/Swarm CRUD uses the Moby SDK (daemon socket); stack YAML expand uses compose-go in-process.
+
+### App images (day-2)
+
+App services share one **`APP_VERSION`** (`.env` SoT). Membership = **app fragment** in [`docker-stack.yml`](../../docker-stack.yml): api, websocket, worker, ws-router, core, frontend. Traefik is upstream (rare). Data fragment (mongo/redis/nats/SeaweedFS/Prometheus) and obs addon are **not** rolled by normal image ship.
+
+| Path | Use |
+|------|-----|
+| **`eip update`** | Public / GHCR — binary → kit stack YAML → pull live images → digest-reconcile |
+| **`eip rebuild`** | Local bake + rematerialize app fragment (no Ready) |
+
+Do **not** use **`eip up`** / **`eip dev`** as a routine version bump on a healthy install (data-plane / Ready risk). Swarm owns replica replacement from stack `update_config`; there is no separate release orchestrator.
+
+**Version surfaces:** bake / task `APP_VERSION`; FE `GET /api/v1/app-config` snackbar; WS `connected.app_version`. Mid-roll, ws-router prefers newest bake among eligible slots ([WS_ROUTER.md](../swarm/WS_ROUTER.md)). Outdated SPA keeps reconnecting `/ws`; refresh still needed for new assets. Redis `eip:app:advertised_version:v1` may exist for FE SoT — polish, not a ship gate.
 
 ## Child CLI ↔ TUI messaging
 

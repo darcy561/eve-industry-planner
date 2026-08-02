@@ -1,9 +1,9 @@
 // Package instanceid resolves a stable per-process replica identifier used for OpenTelemetry
 // service.instance.id, websocket JetStream durable suffixes, ws_instance_id metric labels, etc.
 //
-// Contract (Swarm migration #2): prefer OTEL_SERVICE_INSTANCE_ID set to a slot-stable name —
-// api-{{.Task.Slot}}, websocket-{{.Task.Slot}}, worker-{{.Task.Slot}}, or fixed "core".
-// See docs/swarm/IDENTITY.md.
+// Prefer OTEL_SERVICE_INSTANCE_ID set to a slot-stable name — api-{{.Task.Slot}},
+// websocket-{{.Task.Slot}}, worker-{{.Task.Slot}}, ws-router-{{.Task.Slot}}, or fixed "core".
+// Stack SoT: docs/swarm/STACK.md § Replica identity.
 package instanceid
 
 import (
@@ -19,9 +19,8 @@ var replicaSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
 // Priority: OTEL_SERVICE_INSTANCE_ID → WS_CONSUMER_NAME → DOCKER_CONTAINER_NAME → CONTAINER_NAME →
 // HOSTNAME → os.Hostname() → "local".
 //
-// Set OTEL_SERVICE_INSTANCE_ID (preferred) or DOCKER_CONTAINER_NAME when you want dashboards and
-// Prometheus labels to match a human-readable / slot-stable name; Docker does not inject compose
-// container names by default. Never assign the same id to two live replicas of the same role.
+// Set OTEL_SERVICE_INSTANCE_ID (preferred) so dashboards and Prometheus labels match the Swarm
+// slot. Never assign the same id to two live replicas of the same role.
 func Replica() string {
 	var raw string
 	for _, key := range []string{

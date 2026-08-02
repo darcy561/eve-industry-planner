@@ -142,7 +142,7 @@ func (r *Router) resolveSlot(ctx context.Context, req *http.Request) (slot strin
 		return ""
 	}
 	// Prefer newest bake among eligible so reconnects shuffle onto NEW during a
-	// dual-warm wave. OLD SPA clients may use NEW slots (no exact-match gate).
+	// Swarm roll. OLD SPA clients may use NEW slots (no exact-match gate).
 	preferred := preferNewestSlots(eligible, versionOf)
 
 	eligibleSet := map[string]struct{}{}

@@ -177,12 +177,20 @@ func (m model) footerHelp() string {
 }
 
 // Run starts the home ops TUI (blocking).
+// After a binary update, the model quits tea first so the terminal is restored,
+// then this starts a new eip process (see relaunchOnExit).
 func Run() error {
 	process.EnsureTUIConsoleSize()
 	p := tea.NewProgram(newModel())
 	final, err := p.Run()
-	if m, ok := final.(model); ok && m.stream != nil {
+	m, ok := final.(model)
+	if ok && m.stream != nil {
 		m.stream.Cancel()
+	}
+	if ok && m.relaunchOnExit {
+		if rerr := kit.RelaunchSelfOpts(nil, relaunchOpts(m.relaunchResume)); rerr != nil {
+			return fmt.Errorf("restart after update: %w", rerr)
+		}
 	}
 	return err
 }

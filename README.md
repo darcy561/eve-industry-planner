@@ -11,7 +11,7 @@
 | **Data & messaging** | MongoDB, Redis, NATS (JetStream) |
 | **Deploy** | Swarm data (mongo/redis/nats/SeaweedFS/Prometheus) + app (Traefik, api, websocket, worker, ws-router, core, frontend); host tool **`eip`**; optional observability addon |
 
-Deployment and host setup: see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
+Deployment and host setup: see **[DEPLOYMENT.md](./docs/DEPLOYMENT.md)**.
 
 ---
 

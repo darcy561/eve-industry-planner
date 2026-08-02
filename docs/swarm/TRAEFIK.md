@@ -1,8 +1,8 @@
 # Traefik + Swarm edge (#4 / #31)
 
 > Part of [ROADMAP.md](./ROADMAP.md). Hybrid edge: **Traefik runs as Swarm service
-> `eip_traefik`** with **ingress** publish. It discovers Compose ops via the
-> **Docker** provider and stack app services (api / ws-router / **frontend**, …) via the
+> `eip_traefik`** with **ingress** publish. It discovers obs-addon services via the
+> **Docker**/swarm providers as configured and stack app services (api / ws-router / **frontend**, …) via the
 > **Swarm** provider.
 > Tenant-aware `/ws` placement is owned by **[`eip_ws_router`](./WS_ROUTER.md)** (Redis) —
 > not Traefik hash-on-cookie (unavailable in Traefik v3).
@@ -14,21 +14,21 @@
 | Traefik on Swarm stack (`eip_traefik`) | **Done** — `docker-stack.yml` |
 | Host publish via Swarm **ingress** (`80`/`443`/`81`) | **Done — #31** (Desktop localhost OK) |
 | `providers.swarm` + `network=eip-public` | Done — edge plane |
-| `providers.docker.network=eip` | Done — Compose ops (grafana, …) |
+| `providers.docker.network=eip` | Done — obs-addon discovery path (grafana, …) when enabled |
 | Stack labels `traefik.swarm.network=eip-public` | Done — frontend / api / ws-router |
 | `/api` `/ws` / frontend reach stack tasks | Verified — `/ws` → **ws-router**; frontend via **swarm** provider (#16) |
 | Sticky `eip_ws_affinity` on `/ws` | **Fallback only** — when affinity cookie/Redis missing |
 | App tenant affinity cookie `eip_tenant_affinity` | **Done** — `account:{id}` at login/bootstrap/rotate |
 | **ws-router** Redis placement | **Done** — replicas **1**, `start-first` |
 | Hash on tenant affinity cookie value | **Not pursued** |
-| Compose Traefik / Compose-elastic | **Removed** — Swarm edge + elastic only; recover with make up / make dev |
+| Compose Traefik / Compose-elastic | **Removed** — Swarm edge + elastic only; recover with `eip up` / `eip dev` |
 
 ## Why Swarm ingress (#31)
 
 Compose Traefik on attachable overlay `eip` with `ports: 80/443/81` often **hung** HTTP from
 Windows Docker Desktop (`com.docker.backend` → overlay IP stayed `SYN_SENT`; in-network curl
 was fine). Swarm **ingress** publish for the same Traefik image returns timely HTTP from
-`http://127.0.0.1/` (including `/grafana` under `make dev`).
+`http://127.0.0.1/` (including `/grafana` under `eip dev`).
 
 No permanent `eip-edge` nginx sidecar.
 
@@ -67,22 +67,23 @@ Docker API: **`eip_traefik-docker-proxy`** on overlay **`eip-docker-traefik`**
 `NODES` is required so the swarm provider can inspect nodes when building routes. Wider than
 `ws-docker-proxy` on purpose — do not merge the two, and do not reuse this proxy for #18
 (controller gets its own overlay `eip-docker-capacity`). Image pinned `traefik:v3`
-(third-party; not app-train).
+(third-party; not part of app image rolls).
 
 ## Bring-up / change Traefik
 
 ```bash
-make up          # or make dev
-# Traefik lands with make stack-deploy (part of up/dev)
+eip up          # or eip dev
+# Traefik lands with stack deploy (part of up/dev)
 
-make stack-deploy   # after editing docker-stack.yml Traefik flags/labels
+# After editing docker-stack.yml Traefik flags/labels:
+eip up          # or eip secrets if only secret attach changed
 ```
 
 App GHCR releases do **not** include Traefik — see ROADMAP **#23** (roll Traefik **alone first**
-only when this image/flags change; then app-train waves).
+only when this image/flags change; then app image rolls via `eip update`).
 
 **Host ports / public paths** come from operator YAML (`ports.*` / `paths.*`) via
-**`make swarm-sync`** (#32). Container Traefik entrypoints stay **`:80` / `:443` / `:81`**;
+**`eip sync`** (#32). Container Traefik entrypoints stay **`:80` / `:443` / `:81`**;
 YAML only changes **host published** ports and PathPrefix rules / Grafana root URL.
 
 | YAML key | Role |
@@ -95,12 +96,12 @@ YAML only changes **host published** ports and PathPrefix rules / Grafana root U
 
 (Formerly sketched as `edge.publish` / `edge.paths` — renamed for operator clarity in #19.)
 
-Day-2: edit YAML → **`make swarm-sync`** (targeted `eip_traefik` publish/label update; grafana-only
-Compose recreate when `paths.grafana` changes). Fresh bring-up / `--full-stack` expands the same
-keys from an **ephemeral** sync-env (`eip_sync_env_temp` / `eip_write_sync_env` — no durable
-`.eip-sync.env`) into [`docker-stack.yml`](../../docker-stack.yml) and Compose files. Not `.env`
-(secrets only). Needed when another stack claims 80/443, or operators want e.g. Grafana under a
-different path. Addon UIs (asynqmon, …) get `paths.*` entries when exposed via Traefik under #34.
+Day-2: edit YAML → **`eip sync`** (targeted `eip_traefik` publish/label update; grafana path
+update when `paths.grafana` changes and obs is enabled). Fresh bring-up expands the same keys from an
+**ephemeral** sync-env (admintool Expand / SyncEnv — no durable `.eip-sync.env`) into
+[`docker-stack.yml`](../../docker-stack.yml) / data / obs fragments. Not `.env` (secrets only).
+Needed when another stack claims 80/443, or operators want e.g. Grafana under a different path.
+Addon UIs (asynqmon, …) get `paths.*` entries when exposed via Traefik (#34).
 
 Verify host (Desktop OK after #31):
 
@@ -115,13 +116,13 @@ In-network:
 docker run --rm --network eip curlimages/curl:8.5.0 -sS -o /dev/null -w "%{http_code}\n" http://traefik/ping
 ```
 
-Grafana under **`make dev`**: `http://127.0.0.1/grafana`. **`make up`** leaves Grafana
+Grafana under **`eip dev`**: `http://127.0.0.1/grafana`. **`eip up`** leaves Grafana
 unpublished (Tailscale/tunnel). Full Grafana/Loki path → optional addon (#34); Prom stays with
 capacity-controller setup (#18).
 
 ## Recovery
 
-Re-run **`make up`** or **`make dev`** (same command as bring-up). There is no Compose Traefik or
+Re-run **`eip up`** or **`eip dev`** (same command as bring-up). There is no Compose Traefik or
 Compose-elastic fallback — Desktop host publish requires Swarm ingress (`eip_traefik`).
 
 ## Affinity / placement model (#4)
@@ -134,7 +135,7 @@ Compose-elastic fallback — Desktop host publish requires Swarm ingress (`eip_t
 ## Related
 
 - [WS_ROUTER.md](./WS_ROUTER.md) — placement router  
-- [MAKE.md](./MAKE.md) — hybrid bring-up  
+- [DEPLOYMENT.md](../DEPLOYMENT.md) — hybrid bring-up  
 - [STACK.md](./STACK.md) — stack services  
-- [NETWORK.md](./NETWORK.md) — overlay `eip`  
+- [NETWORK.md](./NETWORK.md) — planes (`eip-core` docker provider / `eip-public` swarm provider)
 - [ROADMAP.md](./ROADMAP.md) — #4 / #21 / #31  

@@ -11,12 +11,12 @@
 This track is a **rebuild/update of core's role**, not a minimal "get core into Swarm" wedge.
 
 - **Commit to SeaweedFS** as the static-data source of truth, plus the **api/worker** fetch/publish paths via `objectstore`.
-- **SeaweedFS lives on Swarm** from day one; **provisioned by scripts** inside existing bring-up; **no parallel `make data-*` family**.
-- **App train never touches the data layer** (mongo/redis/nats/SeaweedFS/Prometheus on the Swarm data fragment). Exclusion is by **layer**, not a growing per-service denylist on rebuild/release.
-- **Networks:** attachable overlay [`eip`](docs/swarm/NETWORK.md) for app/data DNS; per-consumer stack overlays **`eip-docker-*`** for socket proxies only (Traefik / ws-router / #18).
+- **SeaweedFS lives on Swarm** from day one; **provisioned by admintool** inside existing bring-up (`EnsureS3` / Ready); **no parallel data-* verb family**.
+- **Day-2 app image ship never touches the data layer** (mongo/redis/nats/SeaweedFS/Prometheus on the Swarm data fragment). Exclusion is by **layer**, not a growing per-service denylist on `eip rebuild` / `eip update`.
+- **Networks:** attachable overlay [`eip-core`](./NETWORK.md) for app/data DNS; per-consumer stack overlays **`eip-docker-*`** for socket proxies only (Traefik / ws-router / #18).
 - **Singletons** stay in scope; Redis lease + workload registry; can trail object-store slices.
 
-Data plane (mongo/redis/nats/SeaweedFS/Prometheus) lives on the Swarm **data fragment**; app train on the **app fragment**. Same **order + don't cross-roll** rules. Preferred host UX is **`eip`** (not Compose-vs-Swarm).
+Data plane lives on the Swarm **data fragment**; app services on the **app fragment**. Same **order + don't cross-roll** rules. Preferred host UX is **`eip`**.
 
 ## Core primary / singleton leadership (locked)
 
@@ -129,30 +129,30 @@ Details: [docs/admintool/ENGINEERING.md](../admintool/ENGINEERING.md), [VARIABLE
 | Network | Attach to existing `eip` only; DNS alias `seaweedfs` |
 | Persistence | Named volume `eve-industry-planner_seaweedfs_data` |
 | Image | `chrislusf/seaweedfs` (pin tag; `weed mini`) |
-| S3 API | Internal only — `http://seaweedfs:8333` on `eip`. No public Traefik route |
+| S3 API | Internal only — `http://seaweedfs:8333` on `eip-core`. No public Traefik route |
 | Console | Not public in v1 |
-| Credentials | `.env` (`S3_ACCESS_KEY` / `S3_SECRET_KEY`); `swarm-secrets-sync` can refresh; real `docker secret` later (#3) |
+| Credentials | `.env` (`S3_ACCESS_KEY` / `S3_SECRET_KEY`); **`eip secrets`** refreshes elastic; Swarm `secret` objects (#3 done) |
 | Bucket | Name **`static-data`** (+ `static-data-test`); ensured by admintool `dataplane.EnsureS3` / `eip ensure-s3` |
 | Object layout | **Same tree as today under that bucket** — e.g. `live_data/`, `previous_versions/`, `version.json` at the usual relative paths. Later: more buckets for other data domains |
 | Client | Go `services/shared/core/objectstore` (`OpenStaticData*`); SDE path helpers in `shared/core/sde` |
 | Cutover | **Hard cut** — no volume dual-write/dual-read of `static_data_files` for SDE |
-| Make surface | Existing verbs + order; **`make update-data SERVICE=seaweedfs`** — generic data-layer service update |
+| Operator surface | **`eip up` / `eip dev`** bring-up; day-2 data ensure via **`eip ensure-s3`** / **`eip ensure-mongo`** — no separate data-update verb |
 | Layer encoding | **Stack fragments** — `docker-stack.data.yml` / app stack; membership = what lives in that fragment |
 | Health HTTP | **`/healthy`** and **`/ready`** on app services — simple, tool-friendly |
 
 ```mermaid
 flowchart TB
-  subgraph swarm [Swarm stack eip]
+  subgraph data [Swarm data fragment]
+    mongo[mongo]
+    redis[redis]
+    nats[nats]
+    seaweed[seaweedfs]
+  end
+  subgraph app [Swarm app fragment]
     traefik[traefik]
     api[api]
     worker[worker]
     core[core]
-    seaweed[seaweedfs]
-  end
-  subgraph compose [Compose for now]
-    mongo[mongo]
-    redis[redis]
-    nats[nats]
     frontend[frontend]
   end
   worker -->|"put versioned SDE objects"| seaweed
@@ -197,8 +197,8 @@ Rejected for health: JetStream `health.>`, service-push heartbeats as the primar
 |---------------|-----------|
 | **Bring-up** (`eip up` / `eip dev`) | Ordered: **data-layer fragment** up → Ready (`EnsureS3` ‖ `EnsureMongo`) → **app-layer fragment** |
 | **Day-2 ensure** | `eip ensure-s3` / `eip ensure-mongo` without full up/dev |
-| **Day-2 app train** (`eip rebuild`, Make `release` / `dev-release`) | **App-layer fragment only** — never rolls data-layer services; rematerialize skips Ready |
-| **Day-2 sync** (`eip sync` / `eip secrets`) | Env/checks; may refresh data-layer env without app-train dual-warm |
+| **Day-2 app images** (`eip rebuild` / `eip update`) | **App-layer fragment only** — never rolls data-layer services; rematerialize skips Ready |
+| **Day-2 sync** (`eip sync` / `eip secrets`) | Env/checks; may refresh data-layer env without app image rolls |
 
 Credentials in `.env` first (`S3_ACCESS_KEY` / `S3_SECRET_KEY`).
 
@@ -217,13 +217,13 @@ Credentials in `.env` first (`S3_ACCESS_KEY` / `S3_SECRET_KEY`).
 
 ```text
 Bring-up:     data fragment ready + provision -> app fragment
-App train:    app fragment only
-update-data:  one service from data fragment
+Day-2 images: app fragment only (eip update / eip rebuild)
+Day-2 data:   eip ensure-s3 / eip ensure-mongo (or Ready on up/dev)
 ```
 
 ## Implementation slices (ordered)
 
-1. **Data fragment + SeaweedFS + `update-data`** — **done**
+1. **Data fragment + SeaweedFS + ensure/Ready** — **done**
 2. **Object contract + worker publish** — **done**
 3. **API consume + cache + `/healthy` + `/ready`** — **done** (Traefik gates on `/ready`)
 4. **Strip core static gate** — **done**
@@ -234,8 +234,9 @@ update-data:  one service from data fragment
 ## Explicitly parked (still possible later)
 
 - Overlay split (`public` / `app` / `data` / `obs`) beyond socket-proxy nets
-- Real Docker Swarm `secret` objects for S3 creds (`.env` first) — ROADMAP **#3**
+- ~~Real Docker Swarm `secret` objects for S3 creds~~ **done** (#3 — `eip secrets`)
 - ~~Folding mongo/redis/nats onto Swarm~~ **done** (data fragment; EnsureMongo for mongo desired state)
+- ~~Observability Compose plane~~ **done** — Swarm `docker-stack.obs.yml` (#34)
 - Swarm bootstrap/init containers for SeaweedFS
 - Stuffing unrelated domains into the `static-data` bucket (use more buckets later)
 - Public SeaweedFS / S3 console via Traefik
@@ -243,7 +244,7 @@ update-data:  one service from data fragment
 
 ## Rejected / superseded (not backlog)
 
-- Parallel public `make data-*` taxonomy → bring-up order + `make update-data`
+- Parallel public `data-*` / `update-data` taxonomy → bring-up order + `eip ensure-*` / Ready
 - Swarm-native primary / Docker-socket election → Redis `lease:core:primary`
 - Peer HTTP / `registerExtra` handoff on `:19100` → Redis changestream resume tokens; probes stay thin `/healthy`+`/ready`
 - Multi-active scheduler/changestream → out of scope; single-primary is the design
@@ -252,7 +253,7 @@ update-data:  one service from data fragment
 
 ## Docs impact
 
-ROADMAP #9–#14 / Phase B/C closed. Bring-up order, **fragment-per-layer**, `update-data`, `/healthy`+/`/ready`, Redis handoff resume, and `static-data` bucket layout live in MAKE/ENV/STACK/BIND_MOUNTS/NETWORK.
+ROADMAP #9–#14 / Phase B/C closed. Bring-up order, **fragment-per-layer**, ensure/Ready, `/healthy`+/`/ready`, Redis handoff resume, and `static-data` bucket layout live in DEPLOYMENT/ENV/STACK/NETWORK/ENGINEERING.
 
 ## Roadmap alignment
 
@@ -265,10 +266,10 @@ ROADMAP #9–#14 / Phase B/C closed. Bring-up order, **fragment-per-layer**, `up
 | **#14** Core CLI under Swarm | **done** — `eip cli` / TUI More→Command (`cli …` or bare tasks) |
 | **#28** Core failover tests | **done** — unit/miniredis + `core/leadership` dual-publisher harness (clean-Stop takeover bound; crash/TTL via `lease` tests) |
 | **#5 / STACK** split | **Fragment-per-layer** — data vs app |
-| **#17 / #23 / #33** make surface / app train | **App train = app fragment only**; **`make update-data`** for data fragment |
-| **#22** Data-plane updates | Pattern now with SeaweedFS + `update-data` |
-| **#3 / BIND_MOUNTS** static volume | Hard cut off `static_data_files` for SDE — objects in SeaweedFS `static-data` |
+| **#17 / #23 / #33** `eip` surface / app images | **App fragment only** for day-2 rolls; data fragment via Ready / **`eip ensure-*`** |
+| **#22** Data-plane updates | Pattern now with SeaweedFS + ensure/Ready (no mirrored `update-data`) |
+| **#3** static volume | Hard cut off `static_data_files` for SDE — objects in SeaweedFS `static-data` (ENV.md § Remaining host binds) |
 
 ### Do not pull in (stay separate)
 
-Capacity controller (#18/#19/…), WS deepen (#8/#20/#21), obs addon (#34), secrets/config + frontend track (#3/#16), broader Swarm test suite (#25–#27/#29). Mongo ensure owned by admintool (`EnsureMongo`).
+Capacity controller (#18/#19/…), WS deepen (#8/#20/#21), secrets/config polish + Ensure `*_API` (#3 follow-up), broader Swarm test suite (#25–#27/#29). Obs addon (#34) and Compose→Swarm migrate done. Mongo ensure owned by admintool (`EnsureMongo`).

@@ -50,8 +50,8 @@ func main() {
 			fatal(err)
 		}
 	case "advertise":
-		// App-train / rollout only — flips Redis SoT + PUBLISH. Not part of make swarm-sync.
-		// Version SoT is .env APP_VERSION (pass --version from make advertise).
+		// Optional FE advertise polish — flips Redis SoT + PUBLISH. Not eip sync.
+		// Version SoT is .env APP_VERSION (optional --version).
 		want := flagValue(os.Args[2:], "--version", "")
 		if want == "" {
 			want = strings.TrimSpace(os.Getenv("APP_VERSION"))

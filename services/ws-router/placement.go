@@ -67,8 +67,8 @@ func eligibleSlots(ready []string, skip map[string]bool) []string {
 }
 
 // preferNewestSlots keeps only slots whose bake equals the newest AppVersion
-// among ready (semver X.Y.Z). Used so reconnects land on NEW during a dual-warm
-// wave instead of staying on OLD (avoids multi-hop as OLD columns drain).
+// among ready (semver X.Y.Z). Used so reconnects land on NEW during a Swarm
+// roll instead of staying on OLD (avoids multi-hop as OLD tasks drain).
 // If versions are missing / incomparable, returns ready unchanged.
 func preferNewestSlots(ready []string, versionOf func(slot string) string) []string {
 	if len(ready) == 0 {

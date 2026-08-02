@@ -2,8 +2,8 @@
  * Shared app-version compare / snackbar path for app-config poll and WS nudge.
  * Outdated clients should not auto-reconnect realtime (avoid mixed-version sockets).
  *
- * "Outdated" means the advertised train is *ahead of* this SPA bake (client must refresh).
- * A client that is *ahead of* Redis advertise (dual-warm before advertise) is not outdated.
+ * "Outdated" means the advertised version is *ahead of* this SPA bake (client must refresh).
+ * A client that is *ahead of* Redis advertise (new bake before advertise flip) is not outdated.
  */
 
 import { showVersionUpdateSnackbar } from "../../Events/snackbarEvents";
@@ -101,7 +101,7 @@ export function considerRemoteAppVersion(remoteVersion) {
   }
 
   const cmp = compareAppVersions(remote, current);
-  // Equal, or SPA ahead of advertise (dual-warm before Redis flip): not outdated.
+  // Equal, or SPA ahead of advertise (new bake before Redis flip): not outdated.
   if (cmp <= 0) {
     setStoredVersion(VERSION_UPDATE_NOTIFIED_KEY, "");
     setStoredVersion(VERSION_UPDATE_DISMISSED_KEY, "");

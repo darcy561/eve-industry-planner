@@ -16,7 +16,7 @@ concurrency (50) and scale replicas only within the max above until you re-open 
 
 ## Operator YAML (#19) — source of truth
 
-See [`yamldefaults.DefaultConfig`](../../admintool/internal/kit/templates/yamldefaults/default.go) / live `eip.config.yaml`. Apply with **`make swarm-sync`**
+See [`yamldefaults.DefaultConfig`](../../admintool/internal/kit/templates/yamldefaults/default.go) / live `eip.config.yaml`. Apply with **`eip sync`**
 (not `.env`):
 
 ```yaml
@@ -28,7 +28,7 @@ services:
     concurrency: 50   # per process; binary hard-caps at 50 for now
 ```
 
-`make swarm-sync` writes task env on `eip_worker` (stack default is `50` until sync). Values
+**`eip sync`** writes task env on `eip_worker` (stack default is `50` until sync). Values
 above 50 are clamped to 50 in the binary. Changing concurrency rolls the worker when apply
 updates the service spec.
 

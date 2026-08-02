@@ -19,7 +19,7 @@ Do not hardcode parallel copies of these values in screens or menus. Change the 
 | Path writability preflight | [`admintool/internal/kit/writable.go`](../../admintool/internal/kit/writable.go) (`EnsureFileWritable` / `EnsureDirWritable` / `CheckDirWritable`) |
 | Operator docs gate | [`admintool/internal/kit/templates`](../../admintool/internal/kit/templates/) (`CheckOperatorDocs` → env usable + config Validate) |
 | Operator YAML Load/Validate/SyncEnv / Sync / WriteYAML | [`admintool/internal/config`](../../admintool/internal/config/) |
-| Swarm stack / network IDs | `kit.StackName` / `engine.NetworkName` (`eip-core`); not redefined in TUI |
+| Swarm stack / network IDs | `kit.StackName`; external nets from fragment YAML via `stack.ExternalNetworks` (today `eip-core`) — see [NETWORK.md](../swarm/NETWORK.md) |
 
 ## Operator command list (code)
 

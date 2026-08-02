@@ -15,8 +15,10 @@ type RelaunchOpts struct {
 }
 
 // RelaunchSelfOpts starts a new process of this executable with args (empty = TUI),
-// then exits the current process with code 0. Used after eip update so the
-// TUI picks up the replaced binary on disk. ExtraEnv overrides are optional.
+// then exits the current process with code 0. Call only after Bubble Tea has
+// returned from Program.Run (terminal left alt-screen/raw); invoking from a
+// tea.Cmd skips cleanup and breaks the console on Windows. Used after eip
+// update so the new TUI picks up the replaced binary on disk.
 func RelaunchSelfOpts(args []string, opts RelaunchOpts) error {
 	exe, err := ResolvedExecutable()
 	if err != nil {
