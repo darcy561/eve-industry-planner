@@ -77,7 +77,6 @@ Applies to **SPA / frontend**, Go services, and Deployment Tool alike — not a 
   - Expected Swarm services → catalog / stack discovery as appropriate
   - Frontend public runtime knobs → stack/`x-frontend-public-env` (and the owning template/emit path) — not a second hand-maintained list in the SPA
   - Product strings / theme tokens / menu catalogs → their existing single owners (kit, theme, ops) — do not fork copies into screens
-- Do not revive the old Deployment Tool package name `eipconfig` (that name is `services/eipconfig`).
 
 ### Prefer modern platform idioms (every stack)
 

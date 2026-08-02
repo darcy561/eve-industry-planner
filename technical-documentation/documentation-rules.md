@@ -20,13 +20,33 @@ Example: Traefik edge defaults → template `yamldefaults.DefaultConfig` / live 
 
 ## Topic doc shape (live SoT)
 
-Exemplar: [`stack/traefik.md`](./stack/traefik.md). Use the same discipline for other live topic docs (especially under `stack/`).
+Exemplar: [`stack/traefik.md`](./stack/traefik.md). Use the same discipline for product / stack / service live topic docs (especially under `stack/` and `backend/`).
 
 1. **Short intro** — what this SoT is and the primary code/YAML anchor.
 2. **Image & defaults** (when the topic has pins / knobs) — table: Piece | Default | Change. Change stops at the owning file (`docker-stack*.yml`, template `yamldefaults.DefaultConfig`, live `eip.config.yaml`). No apply choreography.
 3. **Topic wiring** — one clear diagram or table for how this piece fits (traffic, discovery, membership, …). Prefer naming networks/services as in YAML.
 4. **Topic-only detail** — e.g. proxy allowlist; omit incomplete dumps of YAML that the Change column already points at.
 5. **No** roadmap/migration links, Owns tables, smoke-curl sections, or re-teaching another doc’s procedure.
+
+## Testing topic doc shape
+
+Applies to live topics under [`testing/`](./testing/contents.md) and to **area testing SoT** docs that teach how an area is tested (exemplar area doc: [`deployment/deployment-tool/cli/testing.md`](./deployment/deployment-tool/cli/testing.md); cross-cutting exemplars: [`testing/overview.md`](./testing/overview.md), [`testing/services/worker.md`](./testing/services/worker.md)).
+
+Same isolation and current-behaviour rules as product topics. Shape differs because these docs inventory **how to run and what is covered**, not image pins or traffic wiring:
+
+1. **Short intro** — what this SoT covers and the primary module / package / workflow anchor.
+2. **Entrypoints** — how to run (commands); CI vs local; whether Docker / Swarm is required. Prefer a small table when there is more than one check (Check | Where | Notes).
+3. **Coverage map** — inventory of **what is tested**, not coverage-% reports. Prefer qualitative depth: **Tested** (what assertions cover) / **Thin** (tests exist, large adjacent surface missing) / **Little / none**. Behaviour claims stay one hop in the owning frontend / backend / stack topic. Describe tested areas in plain language (not bare file lists).
+4. **Topic-only detail** — harness conventions, build tags, fakes, soak verbs owned by this doc. Do not paste another area’s full verb playbook or feature contract.
+5. **No** roadmap/migration links, Owns tables, or “planned / later harness” checklists (those stay in `migration-plans/` or the section `contents.md` Does not own).
+
+**Services module:** entry [`testing/services/contents.md`](./testing/services/contents.md); **one topic file per service** under `testing/services/` (e.g. `api.md`, `worker.md`). Do not grow a single combined services dump.
+
+**Deployment Tool module:** run/CI conventions stay in [`deployment/deployment-tool/cli/testing.md`](./deployment/deployment-tool/cli/testing.md); qualitative depth entry [`testing/deployment-tool/contents.md`](./testing/deployment-tool/contents.md) with **one topic file per package area** under `testing/deployment-tool/`.
+
+**Frontend module:** entry [`testing/frontend/contents.md`](./testing/frontend/contents.md) (placeholder until depth topics land); prefer one topic file per SPA area when filled in.
+
+Section entry for testing remains [`testing/contents.md`](./testing/contents.md) (`Owns` / `Does not own` / task map). Folder rules: [`testing/documentation-rules.md`](./testing/documentation-rules.md).
 
 ## `contents.md` shape
 

@@ -1,6 +1,6 @@
-# Deployment Tool (deployment-tool module): unit tests (ubuntu/windows/macos), Swarm integration
-# (ubuntu: docker swarm init + go test -tags=integration), optional Public CLI ship.
-# Public CLI ship: workflow_dispatch bump → cli-vX.Y.Z + floating cli.
+# Deployment Tool: Public CLI ship only (workflow_dispatch).
+# Requires a green test.yml run for Public tip (manual ship still), then
+# re-runs Ubuntu unit + Swarm (same as test.yml) before upload.
 name: deployment-tool
 
 on:
@@ -15,41 +15,39 @@ on:
           - minor
           - major
         default: patch
-  push:
-    branches: ["**"]
-    paths:
-      - "deployment-tool/**"
-      - "scripts/deployment-tool/**"
-      - ".github/workflows/deployment-tool.yml"
-      - ".github/scripts/semver-bump.sh"
-  pull_request:
-    paths:
-      - "deployment-tool/**"
-      - "scripts/deployment-tool/**"
-      - ".github/workflows/deployment-tool.yml"
-      - ".github/scripts/semver-bump.sh"
 
 concurrency:
-  group: ${{ github.event_name == 'workflow_dispatch' && 'deployment-tool-public-release' || format('deployment-tool-{0}', github.ref) }}
-  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+  group: deployment-tool-public-release
+  cancel-in-progress: false
 
 jobs:
-  test:
-    name: test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
-          - macos-latest
+  require-ci:
+    name: require green test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout Public
+        uses: actions/checkout@v6
+        with:
+          ref: Public
+          fetch-depth: 0
 
+      - name: Require successful test.yml for tip
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/require-test-green.sh "$(git rev-parse HEAD)"
+
+  test:
+    name: deployment-tool
+    needs: require-ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: deployment-tool
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -66,9 +64,9 @@ jobs:
       - name: Build
         run: go build -o eip-ci .
 
-  # Linux Engine + Swarm: Moby secret/config CRUD (not run on win/mac — same Linux API).
   integration:
     name: integration (swarm)
+    needs: require-ci
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -102,8 +100,7 @@ jobs:
 
   release:
     name: release assets
-    if: github.event_name == 'workflow_dispatch'
-    needs: [test, integration]
+    needs: [require-ci, test, integration]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

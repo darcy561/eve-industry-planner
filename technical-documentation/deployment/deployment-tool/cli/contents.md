@@ -18,6 +18,8 @@ Deployment Tool CLI: engineering layout, bring-up recipe, verb behaviour, variab
 | Bring-up recipe / Ready / ensure roles | [deploy.md](./deploy.md) |
 | Verb behaviour / TUI↔CLI map / day-2 ship | [verbs.md](./verbs.md) |
 | Unit / integration / CI tests for the tool | [testing.md](./testing.md) |
+| Deployment Tool test depth by package | [../../../testing/deployment-tool/contents.md](../../../testing/deployment-tool/contents.md) |
+| Cross-repo test map (services + tool + soak) | [../../../testing/contents.md](../../../testing/contents.md) |
 | SoT registries, process flags, project home | [variables.md](./variables.md) |
 | EIPMSG wire protocol / CLI↔TUI emit | [messaging.md](./messaging.md) |
 | Release channels / bootstrap `--release` / `APP_VERSION` | [release-channels.md](./release-channels.md) |

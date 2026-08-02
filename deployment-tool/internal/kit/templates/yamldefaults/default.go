@@ -5,7 +5,6 @@ package yamldefaults
 import "eve-industry-planner/deployment-tool/internal/config"
 
 // DefaultConfig returns starter operator config for a new eip.config.yaml.
-// Policy defaults should stay aligned with services/eipconfig.DefaultConfig (no CLI there).
 func DefaultConfig() config.Config {
 	var addons config.Addons
 	addons.Observability.Enabled = false

@@ -20,6 +20,8 @@ Setup does **not** preset `APP_VERSION` from `Channel=cli` (unlike prerelease fl
 
 Manual `workflow_dispatch` only. App and CLI are **separate** workflows (bump independently). Both resolve the next version from **live** tags at run time (`patch` / `minor` / `major`), checkout **Public**, and require non-empty release notes (cleared on Public after success).
 
+**CI gate (keeps ship manual):** both workflows require a **successful** [`test.yml`](../../../.github/workflows/test.yml) run for the Public tip SHA before publishing ([`require-test-green.sh`](../../../.github/scripts/require-test-green.sh)). They do not publish automatically when tests go green. CLI ship also re-runs Ubuntu unit + Swarm after that check. Day-to-day CI / branch check **`ci`** → [testing overview](../../testing/overview.md) § CI test suite.
+
 | Product | Workflow | Result |
 |---------|----------|--------|
 | **App images** | [`publish-containers-public.yml`](../../../.github/workflows/publish-containers-public.yml) | GHCR images for api, websocket, worker, core, frontend — tags `X.Y.Z`, `X.Y`, `X`, `latest`. Notes-only GitHub Release `app-vX.Y.Z`. Requires Sentry DSN on the Public environment. Optional **confirm overwrite** if that semver already exists on GHCR. |

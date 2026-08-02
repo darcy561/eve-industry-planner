@@ -64,11 +64,11 @@ func TestResumeUpdateMsgClearsPane(t *testing.T) {
 	m.appendOut("old output")
 	next, _ := m.Update(resumeUpdateMsg{})
 	hm := next.(model)
-	// start may fail without a real binary in PATH for tests — pane must still clear first.
+	t.Cleanup(func() { reapTestCLI(hm.stream) })
+	// Resume clears the pane before startCLIForced; child is os.Executable() under go test.
 	if strings.Contains(hm.pane.Text, "old output") {
 		t.Fatalf("pane should clear on resume: %q", hm.pane.Text)
 	}
-	_ = next
 }
 
 func TestResumeUpdateMsgBypassesDockerGate(t *testing.T) {
@@ -79,9 +79,28 @@ func TestResumeUpdateMsgBypassesDockerGate(t *testing.T) {
 	}
 	next, _ := m.Update(resumeUpdateMsg{})
 	hm := next.(model)
+	t.Cleanup(func() { reapTestCLI(hm.stream) })
 	if !strings.Contains(hm.pane.Text, "Running update") {
 		t.Fatalf("resume must force-start update when Docker off: pane=%q running=%v",
 			hm.pane.Text, hm.commandRunning)
+	}
+}
+
+// reapTestCLI kills a child started by startCLIForced and drains until DoneMsg so
+// Windows can unlink the go-test binary after the package finishes.
+func reapTestCLI(s *exec.Stream) {
+	if s == nil {
+		return
+	}
+	s.Kill()
+	for {
+		msg := s.WaitCmd()()
+		if msg == nil {
+			return
+		}
+		if _, ok := msg.(exec.DoneMsg); ok {
+			return
+		}
 	}
 }
 

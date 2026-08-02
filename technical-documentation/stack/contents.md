@@ -24,3 +24,4 @@ Single-host Swarm topology: fragments, membership, replica identity, secrets, op
 | Websocket cutoff / drain / handoff (service) | [../backend/websocket/websocket.md](../backend/websocket/websocket.md) |
 | ws-router placement / affinity (service) | [../backend/ws-router/ws-router.md](../backend/ws-router/ws-router.md) |
 | Worker concurrency / capacity (service) | [../backend/worker/worker.md](../backend/worker/worker.md) |
+| How stack / tool / services are tested | [../testing/contents.md](../testing/contents.md) |

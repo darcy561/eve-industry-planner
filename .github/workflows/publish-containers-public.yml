@@ -26,6 +26,9 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 10
         environment: Public
+        permissions:
+            actions: read
+            contents: read
         outputs:
             version: ${{ steps.version.outputs.version }}
             major: ${{ steps.version.outputs.major }}
@@ -41,6 +44,11 @@ jobs:
 
             # Version resolve + publish always use Public tip. Merge this workflow
             # (and .github/scripts/semver-bump.sh) to Public before first bump dispatch.
+
+            - name: Require successful test.yml for tip
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: bash .github/scripts/require-test-green.sh "$(git rev-parse HEAD)"
 
             - name: Verify Sentry DSN
               env:

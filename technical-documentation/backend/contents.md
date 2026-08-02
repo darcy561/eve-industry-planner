@@ -20,5 +20,4 @@ Application behaviour for Go services under `services/` (API contracts, workers,
 | Core primary lease / handoff | [core/contents.md](./core/contents.md) |
 | ws-router placement / affinity / Redis keys | [ws-router/contents.md](./ws-router/contents.md) |
 | Shared library docs (when written) | [shared/contents.md](./shared/contents.md) |
-| eipconfig docs (when written) | [eipconfig/contents.md](./eipconfig/contents.md) |
 | Swarm topology / Traefik / probes / rolls | [stack/](../stack/contents.md) |
