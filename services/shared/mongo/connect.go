@@ -15,11 +15,12 @@ import (
 )
 
 func connectMongo(mongoURL string, connectionName string, configureOpts func(*options.ClientOptions)) (*mongo.Client, error) {
-	retryCount := 5
-	retryDelay := 5 * time.Second
+	const retryCount = 5
+	const retryDelay = 5 * time.Second
 	bg := context.Background()
 
-	for i := 0; i < retryCount; i++ {
+	var lastErr error
+	for attempt := 1; attempt <= retryCount; attempt++ {
 		opts := options.Client().ApplyURI(mongoURL)
 		configureOpts(opts)
 
@@ -28,22 +29,25 @@ func connectMongo(mongoURL string, connectionName string, configureOpts func(*op
 			ctx, cancel := context.WithTimeout(bg, 5*time.Second)
 			err = client.Ping(ctx, nil)
 			cancel()
-
 			if err == nil {
-				i++
-				logs.DebugCtx(bg, fmt.Sprintf("Connected to %s on attempt %d/%d", connectionName, i, retryCount))
+				logs.DebugCtx(bg, fmt.Sprintf("Connected to %s on attempt %d/%d", connectionName, attempt, retryCount))
 				go monitorMongoConnection(client)
 				return client, nil
 			}
 			_ = client.Disconnect(bg)
 		}
-		i++
-		logs.ErrorCtx(bg, fmt.Sprintf("Failed to connect to %s. Attempt %d/%d. Error: %v", connectionName, i, retryCount, err))
-		time.Sleep(retryDelay)
+		lastErr = err
+		logs.ErrorCtx(bg, fmt.Sprintf("Failed to connect to %s. Attempt %d/%d. Error: %v", connectionName, attempt, retryCount, lastErr))
+		if attempt < retryCount {
+			time.Sleep(retryDelay)
+		}
 	}
 
 	message := fmt.Sprintf("Failed to connect to %s after %d attempts. Exiting...", connectionName, retryCount)
 	logs.ErrorCtx(bg, message)
+	if lastErr != nil {
+		return nil, fmt.Errorf("%s: %w", message, lastErr)
+	}
 	return nil, errors.New(message)
 }
 
@@ -85,6 +89,8 @@ func ConnectAPI() (*Mongo, error) {
 	return mongoFromURL(config.MongoURLAPI)
 }
 
+// monitorMongoConnection periodically Pings the shared client for observability.
+// The driver recovers via SDAM and the connection pool; this loop does not rebuild the client.
 func monitorMongoConnection(client *mongo.Client) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -94,15 +100,17 @@ func monitorMongoConnection(client *mongo.Client) {
 		ctx, cancel := context.WithTimeout(bg, 5*time.Second)
 		err := client.Ping(ctx, nil)
 		cancel()
-
-		if err != nil {
-			logs.WarnCtx(bg, "MongoDB connection health check failed, attempting reconnect", "error", err)
-			time.Sleep(2 * time.Second)
-			ctx, cancel := context.WithTimeout(bg, 5*time.Second)
-			if err := client.Ping(ctx, nil); err == nil {
-				logs.InfoCtx(bg, "MongoDB reconnected successfully")
-			}
-			cancel()
+		if err == nil {
+			continue
 		}
+		logs.WarnCtx(bg, "MongoDB Ping failed", "error", err)
+		time.Sleep(2 * time.Second)
+		ctx, cancel = context.WithTimeout(bg, 5*time.Second)
+		if err := client.Ping(ctx, nil); err == nil {
+			logs.InfoCtx(bg, "MongoDB Ping recovered")
+		} else {
+			logs.WarnCtx(bg, "MongoDB Ping still failing", "error", err)
+		}
+		cancel()
 	}
 }

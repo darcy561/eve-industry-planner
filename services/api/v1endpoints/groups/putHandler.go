@@ -3,7 +3,6 @@ package groups
 import (
 	"context"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"time"
@@ -17,7 +16,7 @@ import (
 )
 
 // PutGroupsHandler handles PUT /v1/groups (batch group upsert)
-func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) PutGroupsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIGroups()
@@ -33,8 +32,6 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackserv
 	if !ok {
 		return
 	}
-	mongo := clients.Mongo
-
 	var reqBody struct {
 		Groups []models.Group `json:"groups"`
 	}
@@ -66,7 +63,7 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackserv
 	wsClientID := helper.ExtractWSClientID(r)
 	sessionID := helper.AuthenticatedSessionID(r)
 
-	if clients.Redis != nil {
+	if h.locks.Redis != nil {
 		if sessionID == "" {
 			metrics.Error("auth_error")
 			helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "groups put lock gate: missing session", "groups_put_missing_session", "groups_put", nil, nil)
@@ -78,7 +75,7 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackserv
 				groupIDs = append(groupIDs, g.GroupID)
 			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, eipmongo.CollectionUserJobGroups, groupIDs, nil)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionUserJobGroups, groupIDs, nil)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -100,7 +97,7 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackserv
 	}
 
 	now := time.Now()
-	result, err := mongo.Groups.BulkUpsertGroups(ctx, accountID, reqBody.Groups, now, sessionID, wsClientID)
+	result, err := h.Mongo.Groups.BulkUpsertGroups(ctx, accountID, reqBody.Groups, now, sessionID, wsClientID)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to save groups", "failed to bulk upsert groups", "groups_upsert_failed", "groups_put", err, nil)
@@ -114,13 +111,12 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackserv
 	failedCount := result.FailedCount
 	savedCount := int(result.UpsertedCount + result.ModifiedCount)
 
-	if sessionID != "" && clients.Redis != nil && len(result.Deltas) > 0 {
-		deps := documentlock.DepsFromClients(clients)
+	if sessionID != "" && h.locks.Redis != nil && len(result.Deltas) > 0 {
 		for _, delta := range result.Deltas {
 			if len(delta.AddedJobIDs) == 0 {
 				continue
 			}
-			held, herr := documentlock.LockHeldBySession(ctx, clients.Redis, accountID, eipmongo.CollectionUserJobGroups, delta.GroupID, sessionID)
+			held, herr := documentlock.LockHeldBySession(ctx, h.locks.Redis, accountID, eipmongo.CollectionUserJobGroups, delta.GroupID, sessionID)
 			if herr != nil {
 				logs.AttachHandlerCaveat(r, "group_lock_cascade_check_failed", "group membership cascade: group lock check failed", map[string]interface{}{
 					"error":    herr.Error(),
@@ -131,7 +127,7 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackserv
 			if !held {
 				continue
 			}
-			documentlock.ReleaseStaleDependentJobLocksOnGroupMembershipAdded(ctx, deps, accountID, delta.GroupID, delta.AddedJobIDs, sessionID)
+			documentlock.ReleaseStaleDependentJobLocksOnGroupMembershipAdded(ctx, h.locks, accountID, delta.GroupID, delta.AddedJobIDs, sessionID)
 		}
 	}
 

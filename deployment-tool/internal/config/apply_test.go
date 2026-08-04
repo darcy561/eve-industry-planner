@@ -189,7 +189,7 @@ func TestDesiredFromConfigEnvGating(t *testing.T) {
 		Services: map[string]ServiceSpec{
 			"api":       {Min: 1, Max: 2},
 			"worker":    {Min: 1, Max: 2, Concurrency: 12},
-			"websocket": {Min: 2, Max: 4, ClientCutoff: 99},
+			"websocket": {Min: 2, Max: 4, ClientCutoff: 99, TargetClients: 50},
 		},
 	}
 	doc := stack.Doc{
@@ -198,7 +198,7 @@ func TestDesiredFromConfigEnvGating(t *testing.T) {
 			"worker": {
 				Environment: stack.ServiceEnv{stack.EnvWorkerAsynqConcurrency: "1"},
 			},
-			"websocket": {}, // no WS_SLOT_CLIENT_CUTOFF → env omitted
+			"websocket": {}, // no WS_SLOT_* → env omitted
 		},
 	}
 	targets := []stack.CapacityTarget{
@@ -222,9 +222,25 @@ func TestDesiredFromConfigEnvGating(t *testing.T) {
 		t.Fatalf("worker env: %#v", by["eip_worker"].Env)
 	}
 	if len(by["eip_websocket"].Env) != 0 {
-		t.Fatalf("websocket should omit undeclared cutoff: %#v", by["eip_websocket"].Env)
+		t.Fatalf("websocket should omit undeclared cutoff/target: %#v", by["eip_websocket"].Env)
 	}
 	if by["eip_websocket"].Replicas != 2 || by["eip_websocket"].CapacityMax != "4" {
 		t.Fatalf("websocket capacity: %#v", by["eip_websocket"])
+	}
+
+	doc.Services["websocket"] = stack.Service{
+		Environment: stack.ServiceEnv{
+			stack.EnvWSSlotClientCutoff:  "2000",
+			stack.EnvWSSlotTargetClients: "1500",
+		},
+	}
+	got = cfg.DesiredFromConfig(targets, doc)
+	by = map[string]DesiredService{}
+	for _, d := range got {
+		by[d.SwarmService] = d
+	}
+	env := by["eip_websocket"].Env
+	if env[stack.EnvWSSlotClientCutoff] != "99" || env[stack.EnvWSSlotTargetClients] != "50" {
+		t.Fatalf("websocket env when declared: %#v", env)
 	}
 }

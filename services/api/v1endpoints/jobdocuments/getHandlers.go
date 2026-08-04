@@ -3,7 +3,6 @@ package jobdocuments
 import (
 	"context"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"time"
@@ -17,7 +16,7 @@ import (
 )
 
 // GetPlannerJobDocumentsHandler handles GET /api/v1/job-documents/planner
-func GetPlannerJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) GetPlannerJobDocumentsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIJobs()
@@ -35,11 +34,11 @@ func GetPlannerJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clien
 		"_meta.accountID":  accountID,
 		"displayOnPlanner": true,
 	}
-	findJobs(ctx, w, r, clients, filter, accountID, start, "planner jobs", metrics)
+	findJobs(ctx, w, r, h, filter, accountID, start, "planner jobs", metrics)
 }
 
 // GetJobDocumentsByGroupHandler handles GET /api/v1/job-documents/by-group/{groupID}
-func GetJobDocumentsByGroupHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients, groupID string) {
+func (h *Handlers) GetJobDocumentsByGroupHandler(w http.ResponseWriter, r *http.Request, groupID string) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIJobs()
@@ -57,11 +56,11 @@ func GetJobDocumentsByGroupHandler(w http.ResponseWriter, r *http.Request, clien
 		"_meta.accountID": accountID,
 		"groupID":         groupID,
 	}
-	findJobs(ctx, w, r, clients, filter, accountID, start, "jobs by group", metrics)
+	findJobs(ctx, w, r, h, filter, accountID, start, "jobs by group", metrics)
 }
 
 // GetJobDocumentByIDHandler handles GET /api/v1/job-documents/{jobID}
-func GetJobDocumentByIDHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients, jobID string) {
+func (h *Handlers) GetJobDocumentByIDHandler(w http.ResponseWriter, r *http.Request, jobID string) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIJobs()
@@ -74,9 +73,8 @@ func GetJobDocumentByIDHandler(w http.ResponseWriter, r *http.Request, clients *
 	defer metrics.Finish()
 
 	accountID := helper.AuthenticatedAccountID(r)
-	mongo := clients.Mongo
 
-	doc, err := mongo.JobDocuments.LoadJobByID(ctx, accountID, jobID)
+	doc, err := h.Mongo.JobDocuments.LoadJobByID(ctx, accountID, jobID)
 	if err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
@@ -107,7 +105,7 @@ func GetJobDocumentByIDHandler(w http.ResponseWriter, r *http.Request, clients *
 }
 
 // GetJobDocumentsByIDsHandler handles POST /api/v1/job-documents with { jobIDs: [] }
-func GetJobDocumentsByIDsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) GetJobDocumentsByIDsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIJobs()
@@ -161,14 +159,14 @@ func GetJobDocumentsByIDsHandler(w http.ResponseWriter, r *http.Request, clients
 		"_meta.accountID": accountID,
 		"_id":             bson.M{"$in": uniqueIDs},
 	}
-	findJobs(ctx, w, r, clients, filter, accountID, start, "jobs by ids", metrics)
+	findJobs(ctx, w, r, h, filter, accountID, start, "jobs by ids", metrics)
 }
 
 func findJobs(
 	ctx context.Context,
 	w http.ResponseWriter,
 	r *http.Request,
-	clients *stackservices.Clients,
+	h *Handlers,
 	filter bson.M,
 	accountID string,
 	start time.Time,
@@ -176,9 +174,8 @@ func findJobs(
 	metrics *helper.RequestMetricsTracker,
 ) {
 	m := apimetrics.GetAPIJobs()
-	mongo := clients.Mongo
 
-	jobs, err := mongo.JobDocuments.LoadJobsByFilter(ctx, accountID, filter)
+	jobs, err := h.Mongo.JobDocuments.LoadJobsByFilter(ctx, accountID, filter)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to retrieve jobs", "failed to query job documents", "job_docs_query_failed", "job_documents", err, nil)

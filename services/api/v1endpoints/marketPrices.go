@@ -3,7 +3,6 @@ package v1endpoints
 import (
 	"context"
 	"encoding/json"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -17,10 +16,6 @@ import (
 	"eve-industry-planner/shared/logs"
 	taskscore "eve-industry-planner/shared/tasks"
 	"eve-industry-planner/shared/telemetry/apimetrics"
-
-	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
-	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -69,7 +64,7 @@ func (r MarketPriceResponse) MarshalJSON() ([]byte, error) {
 //	405 — not POST
 //	400 — invalid JSON, missing typeIDs, empty array, too many IDs, or invalid IDs
 //	200 — JSON map of typeID → price rows; missing keys appear as empty arrays
-func MarketPricesHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (a *Handlers) MarketPricesHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIMarketPrices()
@@ -130,7 +125,7 @@ func MarketPricesHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 	for _, idStr := range validatedIDs {
 		typeID, _ := strconv.ParseInt(idStr, 10, 32)
 
-		response, found, err := fetchMarketPricesForType(ctx, r, clients.Redis, clients.JetStream, clients.NATS, int32(typeID))
+		response, found, err := a.fetchMarketPricesForType(ctx, r, int32(typeID))
 		if err != nil {
 			metrics.Error("redis_error")
 			logs.AttachHandlerCaveat(r, "redis_market_prices_error", "redis error retrieving market prices", map[string]interface{}{
@@ -187,7 +182,7 @@ func MarketPricesHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 
 // fetchMarketPricesForType fetches market prices for a specific type ID from Redis
 // Returns the response, whether any data was found, and any error
-func fetchMarketPricesForType(ctx context.Context, r *http.Request, redisClient *redis.Client, js jetstream.JetStream, natsConn *nats.Conn, typeID int32) (MarketPriceResponse, bool, error) {
+func (a *Handlers) fetchMarketPricesForType(ctx context.Context, r *http.Request, typeID int32) (MarketPriceResponse, bool, error) {
 	response := MarketPriceResponse{
 		locations:     make(map[string]LocationPrice),
 		AdjustedPrice: 0,
@@ -197,7 +192,7 @@ func fetchMarketPricesForType(ctx context.Context, r *http.Request, redisClient 
 
 	// Fetch adjusted price
 	var adjustedPrice esitypes.AdjustedPrice
-	err := rediscore.GetMarketPrice(ctx, redisClient, typeID, &adjustedPrice)
+	err := rediscore.GetMarketPrice(ctx, a.Redis, typeID, &adjustedPrice)
 	if err == nil {
 		response.AdjustedPrice = adjustedPrice.AdjustedPrice
 	}
@@ -209,7 +204,7 @@ func fetchMarketPricesForType(ctx context.Context, r *http.Request, redisClient 
 	}
 
 	// Fetch market prices for all locations using batch MGet (single operation, fastest)
-	priceEntries, err := rediscore.GetMarketPriceEntriesByType(ctx, redisClient, typeID, locationIDs)
+	priceEntries, err := rediscore.GetMarketPriceEntriesByType(ctx, a.Redis, typeID, locationIDs)
 	if err != nil {
 		if r != nil {
 			logs.AttachHandlerCaveat(r, "market_price_entries_fetch_failed", "failed to fetch market price entries by type", map[string]interface{}{
@@ -274,7 +269,7 @@ func fetchMarketPricesForType(ctx context.Context, r *http.Request, redisClient 
 			}
 
 			// Use high-priority task for missing market prices (FetchMissingMarketPrices has DefaultPriority Priority2)
-			if err := natscore.PublishTask(ctx, js, taskscore.FetchMissingMarketPrices.Subject, taskscore.FetchMissingMarketPrices.Name, request, natsConn); err != nil {
+			if err := natscore.PublishTask(ctx, a.JetStream, taskscore.FetchMissingMarketPrices.Subject, taskscore.FetchMissingMarketPrices.Name, request, a.NATS); err != nil {
 				if r != nil {
 					logs.AttachHandlerCaveat(r, "market_prices_refresh_publish_failed", "failed to publish market prices refresh message", map[string]interface{}{
 						"type_id":     typeID,

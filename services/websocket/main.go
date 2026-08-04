@@ -16,8 +16,8 @@ func main() {
 
 	for _, phase := range []func(context.Context) error{
 		a.connectDeps,
-		a.startProbes,
 		a.startServer,
+		a.startProbes,
 	} {
 		if err := phase(ctx); err != nil {
 			logs.ErrorCtx(ctx, "initialization failed", "error", err)

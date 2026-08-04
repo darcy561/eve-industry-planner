@@ -27,7 +27,7 @@ func ImportArchivedJobToMongo(ctx context.Context, task *asynq.Task, deps *esita
 	if task == nil {
 		return fmt.Errorf("task is nil")
 	}
-	if deps == nil || deps.Clients == nil || deps.Mongo == nil {
+	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
 	}
 

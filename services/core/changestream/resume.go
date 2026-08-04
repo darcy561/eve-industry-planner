@@ -92,8 +92,24 @@ func isInvalidResumeError(err error) bool {
 		case 286, 280, 260:
 			return true
 		}
+		// Corrupt StartAfter often surfaces as FailedToParse (code 9) with a resume-token message.
+		if (cmd.Code == 9 || strings.EqualFold(cmd.Name, "FailedToParse")) &&
+			strings.Contains(strings.ToLower(cmd.Message), "resume") {
+			return true
+		}
 	}
 	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "resume") && (strings.Contains(msg, "history") ||
-		strings.Contains(msg, "not found") || strings.Contains(msg, "invalid"))
+	if !strings.Contains(msg, "resume") {
+		return false
+	}
+	// History-lost wording, missing token, or corrupt StartAfter text when codes aren't unwrapable.
+	if strings.Contains(msg, "history") ||
+		strings.Contains(msg, "not found") ||
+		strings.Contains(msg, "invalid") ||
+		strings.Contains(msg, "malformed") ||
+		strings.Contains(msg, "failedtoparse") {
+		return true
+	}
+	// e.g. "resume token string was not a valid hex string"
+	return strings.Contains(msg, "token") && (strings.Contains(msg, "hex") || strings.Contains(msg, "parse"))
 }

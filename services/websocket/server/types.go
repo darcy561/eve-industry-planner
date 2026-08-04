@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"eve-industry-planner/shared/stackservices"
@@ -19,13 +20,10 @@ type Server struct {
 	Clients   map[string]*Client
 	ClientsMu sync.RWMutex
 
-	// User connection tracking (account_id -> []client_id)
+	// Per-account client ids (account_id -> set of client_id). Caps concurrent tabs;
+	// also the account: side of HostedTenants.
 	userConnections map[string]map[string]bool
 	userConnMu      sync.RWMutex
-
-	// Session connection tracking (session_id -> active client_id). Exactly one live client per session.
-	sessionConnections map[string]string
-	sessionConnMu      sync.RWMutex
 
 	// Short-lived snapshots of subscription sets for reconnect resume (in-process; see also Redis keys in session_resume.go).
 	sessionHandoffs   map[string]*sessionHandoffEntry
@@ -47,6 +45,7 @@ type Server struct {
 	explicitDocSubMu       sync.RWMutex
 
 	// Reverse indexes for corporation / alliance realtime pools (populated after upgrade_scopes).
+	// Also the corporation: / alliance: side of HostedTenants.
 	// Two mutexes reduce contention: corp broadcasts do not block alliance index updates and vice versa.
 	// When both locks are required, always take corpIndexMu before allianceIndexMu.
 	corpToClients     map[string]map[string]bool // corporation id -> client_id set
@@ -74,6 +73,8 @@ type Server struct {
 
 	// Shutdown coordination
 	shutdownChan chan struct{}
+	shutdownOnce sync.Once
+	draining     atomic.Bool // local SIGTERM / stop drain — Ready 503 + refuse upgrades
 }
 
 type Client struct {
@@ -98,6 +99,7 @@ type Client struct {
 	connectedAt    time.Time    // When this connection was established
 	lastActivity   time.Time    // Last time connection received activity (pong or message)
 	activityMu     sync.RWMutex // Protects lastActivity
+	writeMu        sync.Mutex   // Serializes conn writes (gorilla allows one writer)
 
 	// Sync state tracking
 	// Exported fields for use by sync package

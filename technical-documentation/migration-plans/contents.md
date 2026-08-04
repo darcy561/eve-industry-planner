@@ -17,4 +17,4 @@ Decision/history/work logs for long-running migrations. **Not SoT.**
 | Refresh token encryption rollout | [refresh-token-encryption-rollout-plan.md](./refresh-token-encryption-rollout-plan.md) |
 | Core SeaweedFS + Swarm primary rebuild (landed) | [core-rebuild.md](./core-rebuild.md) |
 | Swarm stack migration (backlog / overlays) | [swarm-stack/contents.md](./swarm-stack/contents.md) |
-| MongoDB Go driver v1 → v2 (parity + follow-ups) | [mongo-driver-v2/contents.md](./mongo-driver-v2/contents.md) |
+| MongoDB Go driver v1 → v2 (**closed** — history) | [mongo-driver-v2/contents.md](./mongo-driver-v2/contents.md) |

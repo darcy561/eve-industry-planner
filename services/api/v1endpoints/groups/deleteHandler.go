@@ -3,7 +3,6 @@ package groups
 import (
 	"context"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"time"
@@ -19,7 +18,7 @@ import (
 )
 
 // DeleteGroupsHandler handles DELETE /v1/groups - delete specific groups by IDs for the authenticated user
-func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) DeleteGroupsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIGroups()
@@ -35,8 +34,6 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 	if !ok {
 		return
 	}
-	mongo := clients.Mongo
-
 	var reqBody struct {
 		GroupIDs []string `json:"groupIDs"`
 	}
@@ -65,7 +62,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 		"batch_size": len(reqBody.GroupIDs),
 	})
 
-	collection := mongo.Groups.Collection()
+	collection := h.Mongo.Groups.Collection()
 	filter := bson.M{
 		"_meta.accountID": accountID,
 		"_id":             bson.M{"$in": reqBody.GroupIDs},
@@ -116,8 +113,8 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 		helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "groups delete lock gate: missing session", "groups_delete_missing_session", "groups_delete", nil, nil)
 		return
 	}
-	if clients.Redis != nil {
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, eipmongo.CollectionUserJobGroups, resolvedIDs, nil)
+	if h.locks.Redis != nil {
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionUserJobGroups, resolvedIDs, nil)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -141,7 +138,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 	now := time.Now().UTC()
 	wsClientID := helper.ExtractWSClientID(r)
 
-	deletedCount64, err := mongo.Groups.DeleteManyAfterStampingMeta(ctx, filter, now, sessionID, wsClientID,
+	deletedCount64, err := h.Mongo.Groups.DeleteManyAfterStampingMeta(ctx, filter, now, sessionID, wsClientID,
 		eipmongo.WithOpName(fmt.Sprintf("delete %d groups for account %s", len(resolvedIDs), accountID)))
 	if err != nil {
 		metrics.Error("database_error")
@@ -155,9 +152,9 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 		"deleted": deletedCount,
 	})
 
-	if clients.Redis != nil {
+	if h.locks.Redis != nil {
 		for _, gid := range resolvedIDs {
-			_ = documentlock.DeleteDocLock(ctx, clients.Redis, accountID, eipmongo.CollectionUserJobGroups, gid)
+			_ = documentlock.DeleteDocLock(ctx, h.locks.Redis, accountID, eipmongo.CollectionUserJobGroups, gid)
 		}
 	}
 

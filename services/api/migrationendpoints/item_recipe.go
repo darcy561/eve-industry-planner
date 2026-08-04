@@ -1,7 +1,6 @@
 package migrationendpoints
 
 import (
-	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,12 +15,12 @@ const (
 	itemRecipeCacheControl = "public, max-age=1800, s-maxage=3600"
 )
 
-func ItemRecipeHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func ItemRecipeHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		ItemRecipeGetHandler(w, r, clients)
+		ItemRecipeGetHandler(w, r)
 	case http.MethodPost:
-		ItemRecipesPostHandler(w, r, clients)
+		ItemRecipesPostHandler(w, r)
 	default:
 		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "item recipe: method not allowed", "item_recipe_method_not_allowed", "item_recipe", nil, map[string]interface{}{"method": r.Method})
 		return
@@ -30,7 +29,7 @@ func ItemRecipeHandler(w http.ResponseWriter, r *http.Request, clients *stackser
 
 // ItemRecipeGetHandler handles GET /api/migration/item/{itemID} (public migration).
 // Returns item recipe from Firestore Items collection; 404 if not found.
-func ItemRecipeGetHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func ItemRecipeGetHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 
@@ -86,7 +85,7 @@ type ItemRecipesPostBody struct {
 
 // ItemRecipesPostHandler handles POST /api/migration/item (public migration).
 // Body: { "idArray": [34, 35, 36] }. Returns array of item recipe documents for found items.
-func ItemRecipesPostHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func ItemRecipesPostHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 

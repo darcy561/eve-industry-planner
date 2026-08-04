@@ -3,7 +3,6 @@ package archivedjobs
 import (
 	"context"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"time"
@@ -43,7 +42,7 @@ import (
 //
 // For each job, _meta.archivedBy is set to the JWT account_id (who submitted the request), in addition
 // to _meta.archivedAt, accountID, lastModified, and lastUpdatedBy.
-func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request) {
 	obsCtx := r.Context()
 	start := helper.RequestStartOrNow(obsCtx)
 	m := apimetrics.GetAPIArchivedJobs()
@@ -57,7 +56,6 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sta
 
 	ctx := obsCtx
 	accountID := helper.AuthenticatedAccountID(r)
-	mongo := clients.Mongo
 
 	var reqBody struct {
 		Jobs []models.Job `json:"jobs"`
@@ -115,7 +113,7 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sta
 	})
 
 	sessionID := helper.AuthenticatedSessionID(r)
-	if clients.Redis != nil {
+	if h.locks.Redis != nil {
 		if sessionID == "" {
 			metrics.Error("auth_error")
 			helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "archived jobs put lock gate: missing session", "archived_jobs_put_missing_session", "archived_jobs_put", nil, nil)
@@ -132,7 +130,7 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sta
 				jobGroupBypass[j.JobID] = j.GroupID
 			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, eipmongo.CollectionUserJobDocuments, jobIDs, jobGroupBypass)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionUserJobDocuments, jobIDs, jobGroupBypass)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -172,7 +170,7 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sta
 			SetUpsert(true))
 	}
 
-	collection := mongo.ArchivedJobs.Collection()
+	collection := h.Mongo.ArchivedJobs.Collection()
 	var result *mongodriver.BulkWriteResult
 	err := eipmongo.Retry(ctx, fmt.Sprintf("bulk upsert %d archived jobs", len(bulkOps)), func() error {
 		var e error

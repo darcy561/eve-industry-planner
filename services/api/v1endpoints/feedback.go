@@ -3,7 +3,6 @@ package v1endpoints
 import (
 	"bytes"
 	"encoding/json"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"sort"
@@ -73,7 +72,7 @@ type DiscordWebhookPayload struct {
 //	400 — invalid JSON, missing/empty response, length limits, invalid metadata
 //	500 — JSON marshal or Discord webhook failure
 //	200 — success (including when webhook URL is unset)
-func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (a *Handlers) FeedbackHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 

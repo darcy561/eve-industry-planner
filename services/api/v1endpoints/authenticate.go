@@ -3,14 +3,13 @@ package v1endpoints
 import (
 	"encoding/json"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"strings"
 	"time"
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
-	userendpoints "eve-industry-planner/api/v1endpoints/user"
+	user "eve-industry-planner/api/v1endpoints/user"
 	"eve-industry-planner/shared/core/config"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
@@ -25,11 +24,16 @@ const (
 	maxRefreshTokenLength = 512 // Maximum refresh token length in bytes (UUID format is 36 chars, but allow buffer)
 )
 
-func AuthHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (a *Handlers) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
 	sessionMetrics := apimetrics.GetAPIAuthSessionLifecycle()
+	mongo := a.Mongo
+	rdb := a.Redis
+	js := a.JetStream
+	nc := a.NATS
+	h := user.New(a.Deps)
 	cfg, err := config.LoadCloudStoredESI()
 	if err != nil {
 		duration := time.Since(start)
@@ -96,8 +100,8 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.
 	appVersion := extractAppVersion(r)
 
 	// Load corporation/alliance ID caches from Redis if available (keyed by AccountID)
-	corporations := auth.GetCorporations(ctx, clients.Redis, accountID)
-	alliances := auth.GetAlliances(ctx, clients.Redis, accountID)
+	corporations := auth.GetCorporations(ctx, rdb, accountID)
+	alliances := auth.GetAlliances(ctx, rdb, accountID)
 
 	sessionID, err := auth.GenerateSessionID()
 	if err != nil {
@@ -126,7 +130,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.
 		SessionSeenAt: sessionNow,
 		AppVersion:    appVersion,
 	}
-	refreshToken, err := auth.MintAndStoreRefreshToken(ctx, clients.Redis, refreshTokenData)
+	refreshToken, err := auth.MintAndStoreRefreshToken(ctx, rdb, refreshTokenData)
 	if err != nil {
 		duration := time.Since(start)
 		if errors.Is(err, auth.ErrRefreshTokenGenerate) {
@@ -142,7 +146,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.
 		}
 		return
 	}
-	if err := auth.UpsertSessionRecord(ctx, clients.Redis, auth.SessionRecord{
+	if err := auth.UpsertSessionRecord(ctx, rdb, auth.SessionRecord{
 		SessionID:     sessionID,
 		AccountID:     accountID,
 		CharacterHash: characterHash,
@@ -165,14 +169,14 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.
 	})
 	sessionMetrics.Started.WithLabelValues("login").Inc(ctx)
 	sessionMetrics.Stored.WithLabelValues("login").Inc(ctx)
-	apimetrics.RecordAuthSessionDistinctAccount(ctx, clients.Redis, accountID)
-	if err := auth.UpdateAccountSessionGrants(ctx, clients.Redis, accountID, corporations, alliances); err != nil {
+	apimetrics.RecordAuthSessionDistinctAccount(ctx, rdb, accountID)
+	if err := auth.UpdateAccountSessionGrants(ctx, rdb, accountID, corporations, alliances); err != nil {
 		logs.AttachHandlerCaveat(r, "account_session_grants_update_failed", "failed to update account session grants", map[string]interface{}{
 			"error": err.Error(),
 		})
 	}
 
-	loginDocs, err := helper.ResolveUserDocumentsForLogin(ctx, clients.Mongo, accountID)
+	loginDocs, err := helper.ResolveUserDocumentsForLogin(ctx, mongo, accountID)
 	if err != nil {
 		duration := time.Since(start)
 		m.Errors.WithLabelValues("mongo_error").Inc(ctx)
@@ -192,8 +196,8 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.
 	var linkedCharacters []models.LinkedCharacterSession
 	if userOut.UserCloudAccounts && cfg.Keys.Keyring != nil {
 		if len(userOut.RefreshTokens) > 0 {
-			linkedCharacterSessions, err := userendpoints.BuildCloudLinkedCharactersForLogin(
-				ctx, clients.Mongo, accountID, &userOut,
+			linkedCharacterSessions, err := h.BuildCloudLinkedCharactersForLogin(
+				ctx, accountID, &userOut,
 				cfg.SSO.ClientID, cfg.SSO.ClientSecret, cfg.Keys.Keyring,
 			)
 			if err != nil {
@@ -205,8 +209,8 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.
 			}
 		}
 	}
-	userendpoints.StripRefreshTokensFromUserDocumentForClient(&userOut)
-	if clients != nil && clients.JetStream != nil && len(linkedCharacters) > 0 {
+	user.StripRefreshTokensFromUserDocumentForClient(&userOut)
+	if js != nil && len(linkedCharacters) > 0 {
 		tokens := make([]string, 0, len(linkedCharacters)+1)
 		tokens = append(tokens, tokenString)
 		for _, linked := range linkedCharacters {
@@ -218,7 +222,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.
 			AccountID: accountID,
 			Tokens:    tokens,
 		}
-		if err := natscore.PublishTask(ctx, clients.JetStream, taskscore.UpdateAccountSessionGrants.Subject, taskscore.UpdateAccountSessionGrants.Name, taskRequest, clients.NATS); err != nil {
+		if err := natscore.PublishTask(ctx, js, taskscore.UpdateAccountSessionGrants.Subject, taskscore.UpdateAccountSessionGrants.Name, taskRequest, nc); err != nil {
 			logs.AttachHandlerCaveat(r, "account_grants_publish_failed", "failed to publish account access grants refresh task on login", map[string]interface{}{
 				"error": err.Error(),
 			})

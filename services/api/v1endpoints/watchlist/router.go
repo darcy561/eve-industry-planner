@@ -1,7 +1,6 @@
 package watchlist
 
 import (
-	"eve-industry-planner/shared/stackservices"
 	"net/http"
 
 	"eve-industry-planner/api/helper"
@@ -9,13 +8,13 @@ import (
 )
 
 // Router handles /api/v1/user/watchlist requests.
-func Router(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) Router(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	switch r.Method {
 	case http.MethodGet:
-		GetHandler(w, r, clients)
+		h.GetHandler(w, r)
 	case http.MethodPut:
-		PutHandler(w, r, clients)
+		h.PutHandler(w, r)
 	default:
 		m := apimetrics.GetAPIEveTokenLogin()
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)

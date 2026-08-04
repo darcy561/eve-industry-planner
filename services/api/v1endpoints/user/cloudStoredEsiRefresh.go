@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"strings"
@@ -33,8 +32,8 @@ var (
 // material for the given character hash, then persists rotation. Used when the planner session refresh
 // request has no client eve_token but a valid HttpOnly app refresh cookie (cloud cookie resume).
 // Returns the new ESI access token string for optional inclusion in the bootstrap session JSON (avoids a second CCP round-trip).
-func RefreshStoredEsiFromMongoForCharacter(ctx context.Context, clients *stackservices.Clients, accountID, characterHash string) (esiAccessToken string, err error) {
-	tok, err := refreshStoredEsiFromMongo(ctx, clients, accountID, strings.TrimSpace(characterHash))
+func (h *Handlers) RefreshStoredEsiFromMongoForCharacter(ctx context.Context, accountID, characterHash string) (esiAccessToken string, err error) {
+	tok, err := h.refreshStoredEsiFromMongo(ctx, accountID, strings.TrimSpace(characterHash))
 	if err != nil {
 		return "", err
 	}
@@ -44,19 +43,19 @@ func RefreshStoredEsiFromMongoForCharacter(ctx context.Context, clients *stackse
 	return tok.AccessToken, nil
 }
 
-func refreshStoredEsiFromMongo(ctx context.Context, clients *stackservices.Clients, accountID, targetHash string) (*evesso.EveSSOTokenPayload, error) {
+func (h *Handlers) refreshStoredEsiFromMongo(ctx context.Context, accountID, targetHash string) (*evesso.EveSSOTokenPayload, error) {
 	cfg, err := config.LoadCloudStoredESI()
 	if err != nil {
 		return nil, fmt.Errorf("mongo stored esi: %w", err)
 	}
 
-	return cloudstoredesi.RefreshStoredEsiForCharacter(ctx, clients.Mongo, accountID, targetHash, &cfg)
+	return cloudstoredesi.RefreshStoredEsiForCharacter(ctx, h.Mongo, accountID, targetHash, &cfg)
 }
 
 // ServerStoredEsiAccessTokenHandler handles POST /api/v1/esi/characters/access-token/server:
 // refreshes ESI access using Mongo-held OAuth refresh for the character hash (cloud / server storage mode).
 // No long-lived refresh secret is returned to the client.
-func ServerStoredEsiAccessTokenHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) ServerStoredEsiAccessTokenHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveSSOTokenRefresh()
@@ -89,7 +88,7 @@ func ServerStoredEsiAccessTokenHandler(w http.ResponseWriter, r *http.Request, c
 		"client_access_token_exp": req.ClientAccessTokenExp,
 	})
 
-	tok, err := refreshStoredEsiFromMongo(ctx, clients, accountID, targetHash)
+	tok, err := h.refreshStoredEsiFromMongo(ctx, accountID, targetHash)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrMongoStoredEsiUserNotFound):

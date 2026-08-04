@@ -140,6 +140,13 @@ func (c Config) Validate() error {
 	if ws.ClientCutoff < 0 {
 		return fmt.Errorf("services.websocket.client_cutoff: must be >= 0 (0 = unlimited)")
 	}
+	if ws.TargetClients < 0 {
+		return fmt.Errorf("services.websocket.target_clients: must be >= 0 (0 = soft divert off)")
+	}
+	if ws.TargetClients > 0 && ws.ClientCutoff > 0 && ws.TargetClients > ws.ClientCutoff {
+		return fmt.Errorf("services.websocket.target_clients: must be <= client_cutoff when both > 0 (got target=%d cutoff=%d)",
+			ws.TargetClients, ws.ClientCutoff)
+	}
 	if err := validatePort("ports.http", c.Ports.HTTP); err != nil {
 		return err
 	}

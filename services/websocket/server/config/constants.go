@@ -26,6 +26,7 @@ const (
 	// Security configuration.
 	defaultMaxConnectionsPerUser = 5
 	defaultSlotClientCutoff      = 2000
+	defaultSlotTargetClients     = 1500
 	MessageRateLimit             = 200
 	MessageRateWindow            = 1 * time.Second
 
@@ -60,7 +61,7 @@ func MaxConnectionsPerUser() int {
 // SessionHandoffTTL is used for Redis key TTL and in-memory handoff expiry.
 var SessionHandoffTTL = time.Duration(WSReconnectMaxMS+WSSessionHandoffSlackMS) * time.Millisecond
 
-// SlotClientCutoff is the soft per-replica client count used for placement hints
+// SlotClientCutoff is the hard per-replica client count for the Redis full placement hint
 // (eip:ws:full:…). 0 means unlimited (never mark the slot full).
 func SlotClientCutoff() int {
 	v := strings.TrimSpace(os.Getenv("WS_SLOT_CLIENT_CUTOFF"))
@@ -78,4 +79,24 @@ func SlotClientCutoff() int {
 func SlotAtClientCutoff(connected int) bool {
 	cutoff := SlotClientCutoff()
 	return cutoff > 0 && connected >= cutoff
+}
+
+// SlotTargetClients is the soft per-replica client count for the Redis soft
+// placement hint (eip:ws:soft:…). 0 means soft divert off (never mark soft).
+func SlotTargetClients() int {
+	v := strings.TrimSpace(os.Getenv("WS_SLOT_TARGET_CLIENTS"))
+	if v == "" {
+		return defaultSlotTargetClients
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return defaultSlotTargetClients
+	}
+	return n
+}
+
+// SlotAtTargetClients reports whether connected clients have reached the soft target.
+func SlotAtTargetClients(connected int) bool {
+	target := SlotTargetClients()
+	return target > 0 && connected >= target
 }

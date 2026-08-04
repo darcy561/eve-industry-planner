@@ -1,7 +1,6 @@
 package grouptemplates
 
 import (
-	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"strings"
 
@@ -9,7 +8,7 @@ import (
 )
 
 // Router handles /api/v1/group-templates and subpaths.
-func Router(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) Router(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimSuffix(r.URL.Path, "/")
 	const base = "/api/v1/group-templates"
 
@@ -17,9 +16,9 @@ func Router(w http.ResponseWriter, r *http.Request, clients *stackservices.Clien
 	case path == base:
 		switch r.Method {
 		case http.MethodGet:
-			GetCatalogHandler(w, r, clients)
+			h.GetCatalogHandler(w, r)
 		case http.MethodPost:
-			PostTemplateHandler(w, r, clients)
+			h.PostTemplateHandler(w, r)
 		default:
 			helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for group-templates root", "group_templates_method_not_allowed", "group_templates", nil, map[string]interface{}{"method": r.Method})
 		}
@@ -43,7 +42,7 @@ func Router(w http.ResponseWriter, r *http.Request, clients *stackservices.Clien
 			}
 			switch r.Method {
 			case http.MethodGet:
-				GetPayloadFullHandler(w, r, clients, tid)
+				h.GetPayloadFullHandler(w, r, tid)
 			default:
 				helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for group-templates full", "group_templates_method_not_allowed", "group_templates", nil, map[string]interface{}{"method": r.Method, "template_id": tid})
 			}
@@ -56,11 +55,11 @@ func Router(w http.ResponseWriter, r *http.Request, clients *stackservices.Clien
 		templateID := rest
 		switch r.Method {
 		case http.MethodGet:
-			GetCatalogEntryHandler(w, r, clients, templateID)
+			h.GetCatalogEntryHandler(w, r, templateID)
 		case http.MethodPatch:
-			PatchTemplateHandler(w, r, clients, templateID)
+			h.PatchTemplateHandler(w, r, templateID)
 		case http.MethodDelete:
-			DeleteTemplateHandler(w, r, clients, templateID)
+			h.DeleteTemplateHandler(w, r, templateID)
 		default:
 			helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for group-templates entry", "group_templates_method_not_allowed", "group_templates", nil, map[string]interface{}{"method": r.Method, "template_id": templateID})
 		}

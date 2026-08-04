@@ -38,4 +38,16 @@ No Traefik route. Slot identity: `worker-{{.Task.Slot}}`.
 | Endpoint | Role |
 |----------|------|
 | `GET :19100/healthy` | Liveness |
-| `GET :19100/ready` | Readiness (Swarm healthcheck) |
+| `GET :19100/ready` | Readiness (Swarm healthcheck) — Redis Ping, NATS connected, Mongo Ping |
+
+## Task dependencies
+
+Worker Asynq handlers take `*TaskDependencies`, not `*stackservices.Clients`. Built at the asynq mux composition root via `FromClients(clients, esi)`.
+
+| Field | Role |
+|-------|------|
+| `Mongo` | Shared `*eipmongo.Mongo` — [mongo.md](../shared/mongo.md) |
+| `Redis` / `NATS` / `JetStream` | Stack clients for tasks that need them |
+| `ObjectStore` | Static-data / SDE object backend |
+| `ESIClient` | Rate-limited ESI HTTP |
+

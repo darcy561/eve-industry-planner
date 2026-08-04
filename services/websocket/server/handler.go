@@ -17,6 +17,15 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  4096,
+	WriteBufferSize: 4096,
+	CheckOrigin:     nil, // Disable origin checking - handled by Nginx/proxy in front
+	// RFC 7692: negotiate permessage-deflate when the client offers it. Flate level is set
+	// after upgrade to match shared/compression.FlateDefaultLevel (API default HTTP tier).
+	EnableCompression: true,
+}
+
 // HandleWS handles WebSocket requests from clients
 func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	reqCtx := r.Context()
@@ -26,13 +35,19 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		upgradeStart = time.Now()
 	}
 
+	// Local draining only here — cordon/cutoff run after session + Redis are available.
+	if s.IsDraining() {
+		_ = s.rejectUpgradeBlocked(w, r, upgradeStart, "draining")
+		return
+	}
+
 	if apihelperauth.ResolvePlannerSessionID(r) == "" {
 		wsUpgradeRejectClient(w, r, s, upgradeStart, "session_missing", http.StatusUnauthorized,
 			"websocket upgrade rejected: missing planner session",
 			"Unauthorized: session_missing",
 			"ws_upgrade_session_missing",
 			map[string]interface{}{
-				"has_eip_session_cookie":        apihelperauth.ReadAppSessionCookie(r) != "",
+				"has_eip_session_cookie":       apihelperauth.ReadAppSessionCookie(r) != "",
 				"has_planner_session_id_query": strings.TrimSpace(r.URL.Query().Get(apihelperauth.PlannerSessionIDQueryParam)) != "",
 			},
 		)
@@ -47,6 +62,10 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 			nil,
 			nil,
 		)
+		return
+	}
+
+	if s.rejectUpgradeBlocked(w, r, upgradeStart, s.upgradeBlockReason(reqCtx, true)) {
 		return
 	}
 
@@ -71,6 +90,11 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	wsUpgradeAttachSessionValidated(r, identity.AccountID, identity.SessionID)
+
+	// Re-check after auth/session work — drain/cordon/cutoff may have flipped mid-upgrade.
+	if s.rejectUpgradeBlocked(w, r, upgradeStart, s.upgradeBlockReason(reqCtx, true)) {
+		return
+	}
 
 	// Check connection limit per user
 	s.userConnMu.Lock()
@@ -106,11 +130,9 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 				closeReason := "Connection limit exceeded - closing oldest connection"
 				wsUpgradeAttachConnectionLimitEviction(r, identity.AccountID, oldestClientID, connCount, config.MaxConnectionsPerUser())
 
-				// Send close message to client (non-blocking, best effort)
-				// Use a short deadline to avoid blocking
-				clientToClose.conn.SetWriteDeadline(time.Now().Add(100 * time.Millisecond))
-				if err := clientToClose.conn.WriteMessage(websocket.CloseMessage,
-					websocket.FormatCloseMessage(websocket.CloseNormalClosure, closeReason)); err != nil {
+				if err := clientToClose.writeFrame(websocket.CloseMessage,
+					websocket.FormatCloseMessage(websocket.CloseNormalClosure, closeReason),
+					100*time.Millisecond); err != nil {
 					logs.AttachDebugStep(r, "connection_limit_close_message_failed", map[string]interface{}{
 						"evicted_client_id": oldestClientID,
 						"error":             err.Error(),
@@ -119,7 +141,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 
 				// Close the connection - this will cause ReadMessage to return an error
 				// which triggers the reader's defer cleanup
-				clientToClose.conn.Close()
+				_ = clientToClose.conn.Close()
 			}
 			s.ClientsMu.Unlock()
 
@@ -144,6 +166,13 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 			err,
 			nil,
 		)
+		return
+	}
+	// Hijacked — cannot HTTP-reject; drop if drain/cordon flipped during Upgrade.
+	if reason := s.upgradeBlockReason(reqCtx, false); reason != "" {
+		logs.WarnCtx(reqCtx, "websocket upgraded while slot closed; closing without register",
+			"reason", reason)
+		_ = conn.Close()
 		return
 	}
 	// Align permessage-deflate (compress/flate) with API default brotli/gzip level (see shared/compression). No-op if extension not negotiated.
@@ -173,6 +202,8 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	s.Clients[client.id] = client
 	clientCount := len(s.Clients)
 	s.ClientsMu.Unlock()
+	s.syncSlotFullFlag(connCtx, clientCount)
+	s.syncSlotSoftFlag(connCtx, clientCount)
 
 	s.userConnMu.Lock()
 	if s.userConnections[identity.AccountID] == nil {

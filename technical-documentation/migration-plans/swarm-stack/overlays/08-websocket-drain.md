@@ -1,7 +1,7 @@
 # #8 — Websocket rollout, affinity reconnect, and drain
 
 **Roadmap:** [../roadmap.md](../roadmap.md) `#8`  
-**Status (mirror):** partial — force-close landed; **`x-app-stop-grace` YAML landed**; **slice design accepted (2026-08-03) — ready to implement** (SIGTERM drain, refuses, soft divert, 60s process wait). Hosted-tenant / evacuate CLI still open after.
+**Status (mirror):** **done** for #8 product + promote (2026-08-04) — drain slice, soak (`cmd/ws_soak`), live SoT promoted from [`../promote/`](../promote/README.md). Evacuate CLI → #21/#18. **Locked:** no Redis mirror of hosted tenants.
 
 **Not live SoT.** On overlap with live docs, this overlay wins until promote.
 
@@ -13,28 +13,40 @@ Live today: [websocket.md](../../../backend/websocket/websocket.md), [ws-router.
 
 ## What changed
 
-### Already landed (keep) — verified against code 2026-08-03
+### Landed this slice (2026-08-04) — lifecycle + watchers + SIGTERM drain + soft divert
 
-| Claim | Code | Verified? |
-|-------|------|-----------|
-| Cordon key + drain PUBLISH → `ForceCloseLocalClients` (`please_reconnect` + close 1001) | `server/cordon_drain.go`; keys in `shared/wsplacement` | Yes |
-| Startup EXISTS: if own cordon already set, force-close once | `runCordonDrainWatcher` | Yes |
-| Force-close only when own cordon key still present | `trigger` checks `isOwnSlotCordoned` | Yes |
-| Client cutoff → SET/DEL `eip:ws:full:v1:{slot}` (TTL refresh) | `server/slot_full.go` + `WS_SLOT_CLIENT_CUTOFF` | Yes |
-| ws-router eligible = Docker `running` ∩ `/ready` 200 ∩ not cordon ∩ not full | `ws-router/backends.go`, `placement.go`, `proxy.go` | Yes |
-| Session handoff `ws:session_handoff:v1:…` | `server/session_resume.go` | Yes |
+| Claim | Code |
+|-------|------|
+| App holds `*Server`; cleanups call `DrainForRoll` then `Shutdown(ctx)` **before** HTTP/probes/deps | `services/websocket/app.go` |
+| `Shutdown(ctx)` closes `shutdownChan`, stops sync pool, **honours cleanup ctx** | `server/shutdown.go` |
+| Process `shutdownTimeout` = **60s** (matches `x-app-stop-grace`) | `app.go` |
+| Removed unused `sessionConnections` map | `server/types.go` |
+| `NewServer` starts cordon drain + slot-full maintainer | `server/server.go` |
+| Cordon watcher cancels via `contextUntilShutdown` | `drain.go`, `shutdown.go` |
+| Full + soft flag SET/DEL on connect/disconnect + 30s maintainer | `handler.go`, `reader.go`, `slot_flags.go` |
+| Local `draining` flag; Ready fails with `draining` | `drain.go`, `app.go` (`startServer` before `startProbes`) |
+| Upgrade refuse **503**: `draining` / `cordoned` / `at_cutoff` | `handler.go` |
+| SIGTERM path: `ForceCloseLocalClients(action=roll, via=sigterm)` + wait Clients empty or cleanup ctx | `drain.go` |
+| Force-close is close-first (fast empty); `please_reconnect` best-effort via Send; wait re-kicks late joiners | `drain.go`, `writer.go` (`writeFrame`) |
+| Soft divert: `target_clients` → `WS_SLOT_TARGET_CLIENTS` → `eip:ws:soft:v1`; router prefer-non-soft | config apply, `wsplacement.SoftPrefix`, `ws-router` |
+| Validate `target_clients` ≥ 0; when both > 0 require ≤ `client_cutoff` | `deployment-tool/internal/config` |
+| Hosted-tenant query view over `userConnections` / `corpToClients` / `allianceToClients` | `hosted_tenants.go`, `wsplacement` tenant keys — **in-process only; no Redis write (locked)** |
 
-**Not in code (in this slice — cordon refuse):**
+**Removed (not #8 scope):** Redis advertised-version WS fan-out + shared SET/PUBLISH helpers — deleted 2026-08-04. Marked removed on roadmap **#23**. Version surfaces remain bake / `app-config` / `connected.app_version` ([verbs.md](../../../deployment/deployment-tool/cli/verbs.md)). FE still listens for `{type: app_version}` — Follow-ups § frontend realtime polish (not this ticket).
 
-- **Refuse upgrades while cordoned** — explain text *says* “refuses new placements,” but `handler.go` does **not** check `isOwnSlotCordoned` on upgrade. Placement skip is **router-only** today. **Add process refuse on cordon** with the SIGTERM work.
+### Live in process (ops / placement)
 
-**Hard cutoff (add process refuse this slice):**
+| Claim | Code |
+|-------|------|
+| Cordon key + drain PUBLISH → `ForceCloseLocalClients` | `server/drain.go` (watcher started) |
+| Startup EXISTS → force-close once | `runCordonDrainWatcher` |
+| Force-close only when own cordon key still present | `trigger` / `isOwnSlotCordoned` |
+| Client cutoff → SET/DEL `eip:ws:full:v1:{slot}` | `server/slot_flags.go` |
+| Soft divert → SET/DEL `eip:ws:soft:v1:{slot}` | `server/slot_flags.go` |
+| ws-router eligible = Docker `running` ∩ `/ready` 200 ∩ not cordon ∩ not full (soft **not** a skip) | `ws-router/…` |
+| Session handoff `ws:session_handoff:v1:…` | `server/session_resume.go` |
 
-- `client_cutoff` / `WS_SLOT_CLIENT_CUTOFF`: websocket already **SET**s `eip:ws:full:v1:{slot}`; router skips full. **Add** upgrade refuse in `handler`.
-
-**Soft divert (pulled into this slice — was parked):**
-
-- `target_clients` is the early / soft line (default 1500). Not a refuse. See accepted design / implement plan below.
+**Process refuses (landed):** cordon + `client_cutoff` + local draining — all **503** in `handler.go`. Soft does **not** refuse.
 
 ### Stack — stop grace (YAML landed; document here)
 
@@ -48,9 +60,9 @@ Live today: [websocket.md](../../../backend/websocket/websocket.md), [ws-router.
 
 Compose puts grace **outside** `deploy:` — hence a separate service-root merge, not inside `x-app-deploy`.
 
-**YAML status:** already in [`docker-stack.yml`](../../../../docker-stack.yml). **Process status:** app binaries still use shorter in-process shutdown timers (e.g. websocket lifecycle ~5s) — Docker will wait 60s, but the process exits early until aligned (implement plan step 3).
+**YAML status:** already in [`docker-stack.yml`](../../../../docker-stack.yml). **Websocket process:** `shutdownTimeout` / cleanup ctx budget = **60s** (aligned); SIGTERM kick + empty-or-deadline wait share that budget with `Shutdown`. Other start-first services may still use shorter in-process timers (sanity in implement plan step 8).
 
-### Accepted — SIGTERM drain (not coded; implement next)
+### Accepted — SIGTERM drain (landed)
 
 Goal: Swarm rolls / task stop drain clients without requiring Redis cordon/pubsub for that path.
 
@@ -72,7 +84,7 @@ Swarm start-first roll
     → OLD exits before stop_grace (60s) elapses
 ```
 
-### Accepted — soft divert at `target_clients` (in this slice)
+### Accepted — soft divert at `target_clients` (landed)
 
 **Intent:** when a slot is “getting full,” slow **growth** of new homes; do **not** kick or hard-refuse (that stays at `client_cutoff`). Org Redis stickiness wins over soft.
 
@@ -152,15 +164,17 @@ SIGTERM path does **not** replace pre-stop cordon for careful alliance-home evac
 
 | # | Work | Notes |
 |---|------|--------|
-| 1 | Websocket draining flag + ReadyCheck | SIGTERM → not-ready (`/ready` 503) |
-| 2 | Refuse upgrades **503** + reason | `draining` / `cordoned` / `at_cutoff`; one connected counter; drift OK |
-| 3 | SIGTERM → `ForceCloseLocalClients` + wait ≤ **60s** | Align lifecycle shutdown with stop grace |
-| 4 | Soft divert | Config/`eip sync` → `WS_SLOT_TARGET_CLIENTS`; `eip:ws:soft:v1`; router stick on place/pin; prefer non-soft on miss/reassign; pin ignores soft **not** full; validate target ≤ cutoff when both > 0 |
-| 5 | wsplacement + router tests | Soft prefer; place-hit on soft home; all-soft fallback |
-| 6 | Websocket unit tests | Ready flip; refuses; force-close on shutdown |
-| 7 | Stale comments | `slot_full.go`, `SlotClientCutoff` godoc (“soft” → hard cutoff) |
-| 8 | Smoke other start-first shutdown timers | Websocket must-fix; others sanity only |
-| 9 | Promote (go-ahead) | websocket.md, ws-router.md, config.md (`target_clients` sync), stack.md (`x-app-stop-grace`) |
+| 0 | Wire cordon + full watchers; sync full on connect/disconnect; shutdown-aware cordon loop | **Done** (Redis version advertiser **removed**, not wired) |
+| 1 | Websocket draining flag + ReadyCheck | **Done** — `IsDraining` in Ready |
+| 2 | Refuse upgrades **503** + reason | **Done** — `draining` / `cordoned` / `at_cutoff` |
+| 3 | SIGTERM → `ForceCloseLocalClients` + wait ≤ **60s** | **Done** — `DrainForRoll` + shared cleanup budget |
+| 4 | Soft divert | **Done** — config/sync/stack env + Redis soft + router prefer-non-soft |
+| 5 | wsplacement + router tests | **Done** — `preferNonSoftSlots` / all-soft fallback (`router_test.go`) |
+| 6 | Websocket unit tests | **Done** — see **Testing (in-flight)** unit table |
+| 6b | Websocket integration suite | **Done** — 21 scenarios via `newIntegFixture`; inventory in **Testing (in-flight)**; live testing topic unchanged until promote |
+| 7 | Stale comments | Cutoff “soft”→hard **done**; TUI help updated for soft divert |
+| 8 | Smoke other start-first shutdown timers | Websocket budget aligned; others sanity only |
+| 9 | Promote (go-ahead) | **Done** 2026-08-04 — live files replaced from [../promote/](../promote/README.md) |
 
 **Limits (promote wording):**
 
@@ -172,31 +186,179 @@ SIGTERM path does **not** replace pre-stop cordon for careful alliance-home evac
 
 ### Still open on #8 (after this slice)
 
-- Hosted-tenant query surface (parked for #18 / #20)
-- Soak evidence / gauges polish
-- Armed evacuate CLI → #21 / #18
+- none for #8 SoT (promoted 2026-08-04). Armed evacuate CLI → #21 / #18. Optional gauges / mid-soak roll polish.
+
+**Hosted-tenant (done for #8 — do not re-open as Redis work):** local `HostedTenants` / `HostsTenant` query view only. **Rejected:** Redis SET of `account:` / `corporation:` / `alliance:` hosting keys. Cross-replica discovery for capacity / selective fan-out is **#20 / #18** via **NATS census and/or internal API** (see roadmap #8 lock + #20).
+
+FE `please_reconnect` / dead `{type: app_version}` handler tidy lives under roadmap **Follow-ups § frontend realtime polish** — not this ticket.
+
+---
+
+## Testing (in-flight)
+
+**Project SoT for websocket test depth while #8 is open.** Verified against code 2026-08-04 (`go test ./websocket/... ./ws-router/ ./shared/wsplacement/` green).
+
+**Do not edit** live [`testing/services/websocket.md`](../../../testing/services/websocket.md) until promote. That live topic is **stale** today (still lists Redis advertised app-version fanout tests — those files are **deleted**; see #23 / What changed).
+
+### Entrypoints
+
+| Check | Command (from `services/`) | Notes |
+|-------|----------------------------|--------|
+| Websocket tree | `go test ./websocket/...` | No Docker |
+| Server package | `go test ./websocket/server/` | Unit + Integration in same package |
+| Integration only | `go test ./websocket/server/ -count=1 -run Integration` | 11 tests; all via `newIntegFixture` |
+| Related (this slice) | `go test ./ws-router/ ./shared/wsplacement/` | Soft prefer + tenant keys |
+| Live soak (ops) | `go build -o ../.tmp/ws_soak ./cmd/ws_soak` then docker-run on `eip-core` (see below) | Not CI; needs stack up |
+
+### Live soak harness (`cmd/ws_soak`)
+
+Operator evidence tool. Seeds Redis planner sessions, holds `/ws` clients (default via `ws-router:8080`), reconnects on `please_reconnect` / close, reports sticky-slot + Redis `soft` / `full` / `place` keys.
+
+**Profiles**
+
+| Profile | Purpose | Default clients |
+|---------|---------|-----------------|
+| `hold` (default) | Drain / reconnect endurance — does **not** hit prod soft/hard (1500/2000) | 50 |
+| `limits` | Soft + hard pressure + divert asserts against lowered thresholds | fill=`cutoff` on one corp key; then mixed account/corp/alliance keys (place miss) assert off-soft / not-on-full via Redis place |
+
+```bash
+# from services/, stack up (eip up / eip dev)
+go build -o ../.tmp/ws_soak ./cmd/ws_soak
+
+# hold — roll/cordon mid-run for please_reconnect evidence
+docker run --rm --network eip-core --env-file ../.env \
+  -e REDIS_HOST=redis -e REDIS_PORT=6379 \
+  -v "$PWD/../.tmp/ws_soak:/ws_soak:ro" --entrypoint /ws_soak alpine:3.20 \
+  -profile hold -ws-url ws://ws-router:8080/ws -clients 50 -duration 5m
+
+# limits — FIRST lower thresholds in eip.config.yaml and eip sync, e.g.:
+#   services.websocket.target_clients: 20
+#   services.websocket.client_cutoff: 40
+docker run --rm --network eip-core --env-file ../.env \
+  -e REDIS_HOST=redis -e REDIS_PORT=6379 \
+  -v "$PWD/../.tmp/ws_soak:/ws_soak:ro" --entrypoint /ws_soak alpine:3.20 \
+  -profile limits -expect-target 20 -expect-cutoff 40 -duration 2m
+```
+
+`limits` phases: (1) fill shared corp to target → soft key (2) mixed new keys → assert ≥`-min-divert-ratio` place **off** soft (3) fill to cutoff → full key (4) mixed keys → assert **none** place on full. Needs ≥2 websocket replicas. Fails if soft/full never appear or divert ratio fails. Use `-require-503` with direct websocket `-ws-url` for process refuse. Knobs: `-soft-divert`, `-full-probe`, `-corp` (fill corp id), `-min-divert-ratio`. Restore prod thresholds after. Unit helpers: `go test ./cmd/ws_soak/`. Broader affinity sims → **#26**.
+
+### Harness SoT
+
+| Piece | Path / API |
+|-------|------------|
+| Sole Integration entry | `server/integration_harness_test.go` → `newIntegFixture` |
+| Surface | httptest `/ws`, `/ready`, `/healthy` |
+| Deps | miniredis; NATS/Mongo Ready as injectable flags (not live processes) |
+| Helpers | Env defaults in fixture (`instance` + cutoff/target=0); `setSlotLimits` override; `seedSession`, `connectAccount`, `dial` / `dialRefuse`, `writeJSON`, `readJSONMessage` / `readJSONOfType`, `waitClients`, Redis wait/assert, `register` / placement sync |
+| Scenarios | Thin `integration_*.go` only — no second Server construction |
+
+### Integration scenarios (`-run Integration`) — 21
+
+| Test | Asserts |
+|------|---------|
+| `TestIntegrationConnectReceivesConnected` | Seeded session → HandleWS → `connected` JSON; hosts `account:`; disconnect clears |
+| `TestIntegrationConnectMissingSessionUnauthorized` | Dial refuse → **401** |
+| `TestIntegrationConnectRefusedWhileDraining` | `draining` → dial refuse **503** + body |
+| `TestIntegrationConnectRefusedWhileCordoned` | Redis cordon key → dial refuse **503** `cordoned` |
+| `TestIntegrationReadyHealthyWhenDepsOK` | `/healthy` + `/ready` → **200** OK |
+| `TestIntegrationReadyFailsWhenDraining` | `/ready` **503** NOT_READY; `/healthy` still OK |
+| `TestIntegrationReadyFailsWhenRedisUnavailable` | `f.Redis = nil` → `/ready` **503** |
+| `TestIntegrationReadyFailsWhenNATSOrMongoFlaggedDown` | Flag deps down/up → Ready tracks |
+| `TestIntegrationSoftHintDoesNotRefuseUpgrade` | Soft Redis set at target; real dial still gets `connected` |
+| `TestIntegrationCutoffRefusesWhileSoftAlsoSet` | Soft+full set; dial refuse **503** `at_cutoff` |
+| `TestIntegrationHostedTenantsWithSoftFullLifecycle` | Register + org scopes → 3 tenant keys + soft; unregister clears |
+| `TestIntegrationDrainForRollClosesLiveSocket` | Live dial → `please_reconnect` (`action=roll`,`via=sigterm`) → read error + Clients empty |
+| `TestIntegrationUpgradeScopesAckAndHosted` | `upgrade_scopes` → `scopes_ack`; hosts corp/alliance |
+| `TestIntegrationSessionResumeRestoresScopes` | Disconnect handoff → reconnect `session_resume` → `resume_ack` + scopes |
+| `TestIntegrationDocLockWaitlistPulseSetsRedis` | Invalid pulse no Redis key; valid pulse SET |
+| `TestIntegrationDocLockViewerArrivedAndDeparted` | Viewer ZSET add then remove |
+| `TestIntegrationDocLockLockStateBatchAckOK` | Ack `ok` + `jobResults` |
+| `TestIntegrationDocLockLockStateBatchAckEmpty` | Ack `ok=false` empty error |
+| `TestIntegrationDocLockLockStateBatchAckTooMany` | Ack `ok=false` too-many error |
+| `TestIntegrationDocLockLockStateBatchMissingRequestID` | No ack; later valid batch still works |
+| `TestIntegrationDocLockFanoutBroadcastsToAccount` | Wire + `broadcastRawToAccount` → both tabs get `document_lock` |
+
+ReadyCheck shape mirrors `websocket/app.go` **inside the fixture** — `app.go` / `main.go` themselves are not under test.
+
+### Unit coverage landed / extended this slice (`server/`, `server/config/`)
+
+| File | Covers |
+|------|--------|
+| `drain_test.go` | `DrainForRoll`; ForceClose/explain; cordon parse/subscribe/own-slot; HandleWS refuse draining/cordoned/at_cutoff |
+| `slot_flags_test.go` | soft + full Redis SET/DEL; `contextUntilShutdown` |
+| `shutdown_test.go` | Shutdown closes chan, idempotent, cancelled ctx |
+| `hosted_tenants_test.go` | Account via `userConnections`; corp/alliance indexes + refcount |
+| `config/constants_test.go` | `client_cutoff` + `target_clients` defaults/off/at-threshold |
+| `doclocklogic/` | Parse presence/batch; ack marshal; WaitlistPulse; batch empty/ok/too-many/nil redis |
+
+### Pre-existing websocket units (unchanged this slice; still run in tree)
+
+| Area | Covers |
+|------|--------|
+| `subscribe_auth_test.go` | Singleton account docs; unknown collection denied; jobs need Mongo |
+| `outgoinglogic/` | Suppress self-recipient; decode scopes; alliance/corp downward match |
+| `natslogic/` | Document-lock wire; fanout consumer inactive-threshold |
+
+### Related packages (implement plan #5 / hosted keys)
+
+| Package | Covers (relevant to #8) |
+|---------|-------------------------|
+| `ws-router` | `preferNonSoftSlots` + all-soft fallback; eligible ignores soft; still drops cordon/full |
+| `shared/wsplacement` | `TenantKey*` / prefix helpers (`tenant_test.go`) |
+| `deployment-tool/internal/config` | `target_clients` validate (≥0; ≤ cutoff when both >0) + apply → `WS_SLOT_TARGET_CLIENTS` |
+
+### Gaps vs landed behaviour (honest)
+
+| Landed claim | Test depth |
+|--------------|------------|
+| Soft does not refuse | Integration dial at soft **yes**; unit soft SET/DEL **yes** |
+| Cutoff / cordon / draining refuse | Unit + Integration dial for draining / cutoff / cordon **yes** |
+| SIGTERM ForceClose + empty wait | Integration: `please_reconnect` + close + empty **yes**; unit re-kick **yes** |
+| App Ready wiring order (`startServer` before probes) | Fixture Ready only — **not** `app.go` |
+| Soft router prefer | `ws-router` unit **yes** — not cross-process with websocket |
+| Hosted-tenant Redis interest | **Rejected** — local query view only; census/API is #20 / #18 |
+| Doc-lock WS + fanout delivery | Integration pulse/viewer/batch + `broadcastRawToAccount` **yes**; JetStream subscribe→loop **no** |
+| Session resume / scope upgrade over wire | Integration **yes** |
+| Swarm multi-replica roll smoke | **ops:** `cmd/ws_soak` (manual mid-soak roll) |
+
+### Still thin / later
+
+- `nats_doc_lock` JetStream subscribe loop in fixture (delivery half covered)
+- Real NATS/Mongo Ready (fixture flags only today)
+- Cross-package `resolveSlot` with live soft/full keys
+- Recorded soak evidence + gauges polish; #26 co-location asserts
 
 ---
 
 ## Missing live SoT discovered mid-work
 
-Drafts for promote (after implement):
+**Promote drafts assembled** (current-behaviour only; copy on go-ahead): [../promote/README.md](../promote/README.md)
 
-1. **websocket.md** — SIGTERM drain; cordon/cutoff refuse; soft vs hard limits; soft Redis key.
-2. **ws-router.md** — prefer non-soft; hard-skip full/cordon; fallback when all soft.
-3. **config.md** — `target_clients` + `client_cutoff` as Websocket config / sync (operator SoT); env bridge names only.
-4. **stack.md** — `x-app-stop-grace` 60s on start-first services.
+| Draft | Live target |
+|-------|-------------|
+| [../promote/backend/websocket/websocket.md](../promote/backend/websocket/websocket.md) | `backend/websocket/websocket.md` |
+| [../promote/backend/ws-router/ws-router.md](../promote/backend/ws-router/ws-router.md) | `backend/ws-router/ws-router.md` |
+| [../promote/stack/config.md](../promote/stack/config.md) | `stack/config.md` (`target_clients` sync) |
+| [../promote/stack/stack.md](../promote/stack/stack.md) | `stack/stack.md` (`x-app-stop-grace` 60s) |
+| [../promote/testing/services/websocket.md](../promote/testing/services/websocket.md) | `testing/services/websocket.md` |
 
-Do not edit those live files until go-ahead.
+**Promoted 2026-08-04** into live paths listed above. Drafts under `promote/` remain as the promote snapshot.
 
 ---
 
 ## Notes / decisions
 
+0. **Testing depth for this slice stays in this overlay** until promote — do not edit live `testing/services/*.md` mid-project (restored 2026-08-04 after mistaken live edits).
+0b. **Server package file tidy (2026-08-04):** `slot_flags.go` (was soft+full); `logging.go` (upgrade/op/fanout logs); `doc_lock_logging.go`; `upgrader`→`handler.go`; `writeFrame`→`writer.go`.
+0c. **Doc-lock adapter peel (2026-08-04):** pure `server/doclocklogic` (parse / presence / batch / ack + wire type SoT); thin WS handlers in `doc_lock_ws.go`; NATS in `nats_doc_lock.go`. Domain SoT: `shared/core/documentlock` (keys, failure classes, StatusBatch). Viewer WS matches domain best-effort (no Stack-nil refuse). HTTP document-locks uses same failure-class constants.
+0d. **Drain consolidate (2026-08-04):** one `drain.go` — `upgradeBlockReason` / `rejectUpgradeBlocked` (refuse SoT), `kickAndWait(signalFn)` (shared kick; cordon refreshes active signal), `ForceCloseLocalClients`. SIGTERM sets `draining` and owns stop wait; cordon watcher skips wait when draining; re-kicks while cordon key holds. HandleWS: draining → session → Redis → block reason (incl. post-auth); post-Upgrade uses block reason without cutoff.
+0e. **Hosted-tenant Redis rejected (2026-08-04):** #8 query view is enough locally. Do not invent Redis hosted-tenant interest keys. #20 filter updates use the local view; #18 / #20 cross-replica census uses NATS and/or internal API.
+0f. **ForceClose please_reconnect (2026-08-04):** sync `writeFrame` before `Close` so the explain frame is on the wire under stop grace (Send-queue raced Close). Integration asserts `action=roll` / `via=sigterm`.
+0g. **Soak tool (2026-08-04):** `services/cmd/ws_soak` — `-profile hold` (drain/reconnect) and `-profile limits` (fill corp → soft; mixed account/corp/alliance keys assert soft divert; fill → full; mixed keys assert not-on-full). Run on `eip-core` against `ws-router`. Does not replace Integration; ops evidence for #8 / feeds #26.
 1. **SIGTERM = local drain signal for rolls.** Prefer this over inventing a second Redis publish on every Swarm stop.
 2. **Keep Redis cordon for pre-stop ops.** Router eligibility needs an explicit skip while the task can still be `/ready` 200.
 3. **60s stop grace is the app start-first standard** (`x-app-stop-grace`). Same number as former core-only grace.
-4. **YAML grace without process wait is incomplete** — Docker waits; binary must use the budget for kick + exit.
+4. **YAML grace + process budget aligned (60s).** Drain kick + wait + sync-pool stop share one cleanup fn under that budget.
 5. **Optional later:** router retry another backend on dial/502 (race before probe refresh). Not required for v1 of this slice if not-ready + refuse-upgrade are prompt.
 6. **Rejected for this slice:** using NATS census as the router placement signal (wrong consumer; bus still off). Using SIGTERM alone as the only evacuate tool (too late for pre-stop placement skip). Soft divert must not hard-skip (would collapse to cutoff).
 7. **Soft divert in this slice** — Redis soft hint; stick on place/pin; prefer non-soft only when assigning/reassigning. Not a hard skip (unlike full). `reserve_capacity` stays for #18.

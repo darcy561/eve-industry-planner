@@ -2,7 +2,6 @@ package v1endpoints
 
 import (
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"strconv"
 	"strings"
@@ -27,18 +26,18 @@ const (
 //	503 — Mongo client unavailable
 //	500 — Mongo query or encode failure
 //	200 — JSON success
-func BlueprintsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) BlueprintsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		BlueprintGetHandler(w, r, clients)
+		h.BlueprintGetHandler(w, r)
 	case http.MethodPost:
-		BlueprintsPostHandler(w, r, clients)
+		h.BlueprintsPostHandler(w, r)
 	default:
 		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for blueprints endpoint", "method_not_allowed", "blueprints", nil, map[string]interface{}{"method": r.Method})
 	}
 }
 
-func BlueprintGetHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) BlueprintGetHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 
@@ -52,13 +51,12 @@ func BlueprintGetHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 		return
 	}
 
-	if clients == nil || clients.Mongo == nil {
+	if h.Mongo == nil {
 		helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Service unavailable", "blueprints mongo client unavailable", "blueprints_mongo_unavailable", "blueprints", errors.New("mongo client unavailable"), nil)
 		return
 	}
 
-	mongo := clients.Mongo
-	data, found, err := mongo.Blueprints.GetPublicByID(ctx, blueprintID)
+	data, found, err := h.Mongo.Blueprints.GetPublicByID(ctx, blueprintID)
 	if err != nil {
 		helper.RespondEndpointServerError(w, r, "An error occurred while retrieving blueprint data. Please try again later.", "blueprints get: mongo error", "blueprints_get_mongo_failed", "blueprints", err, map[string]interface{}{"blueprint_id": blueprintID})
 		return
@@ -90,7 +88,7 @@ type BlueprintsPostBody struct {
 
 // BlueprintsPostHandler accepts any non-empty idArray; there is no per-request ID count cap beyond
 // helper.DefaultMaxBodySize (1MB JSON) and Mongo query timeout.
-func BlueprintsPostHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) BlueprintsPostHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 
@@ -109,13 +107,12 @@ func BlueprintsPostHandler(w http.ResponseWriter, r *http.Request, clients *stac
 		typeIDs = append(typeIDs, strconv.Itoa(n))
 	}
 
-	if clients == nil || clients.Mongo == nil {
+	if h.Mongo == nil {
 		helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Service unavailable", "blueprints mongo client unavailable", "blueprints_mongo_unavailable", "blueprints", errors.New("mongo client unavailable"), nil)
 		return
 	}
 
-	mongo := clients.Mongo
-	docs, err := mongo.Blueprints.GetPublicByIDs(ctx, typeIDs)
+	docs, err := h.Mongo.Blueprints.GetPublicByIDs(ctx, typeIDs)
 	if err != nil {
 		helper.RespondEndpointServerError(w, r, "An error occurred while retrieving blueprint data. Please try again.", "blueprints post: mongo error", "blueprints_post_mongo_failed", "blueprints", err, nil)
 		return

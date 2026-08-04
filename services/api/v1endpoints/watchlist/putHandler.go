@@ -2,7 +2,6 @@ package watchlist
 
 import (
 	"context"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"time"
@@ -15,7 +14,7 @@ import (
 )
 
 // PutHandler handles PUT /api/v1/user/watchlist.
-func PutHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) PutHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
@@ -32,7 +31,6 @@ func PutHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.C
 		return
 	}
 	accountID := helper.AuthenticatedAccountID(r)
-	mongo := clients.Mongo
 
 	var body struct {
 		Groups any `json:"groups"`
@@ -59,7 +57,7 @@ func PutHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.C
 	sessionID := helper.AuthenticatedSessionID(r)
 	wsClientID := helper.ExtractWSClientID(r)
 
-	result, err := mongo.WatchlistDeprecated.UpsertWatchlistDeprecated(ctx, accountID, groups, items, now, sessionID, wsClientID)
+	result, err := h.Mongo.WatchlistDeprecated.UpsertWatchlistDeprecated(ctx, accountID, groups, items, now, sessionID, wsClientID)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to save watchlist", "failed to upsert watchlist deprecated", "watchlist_upsert_failed", "watchlist_put", err, nil)

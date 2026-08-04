@@ -2,6 +2,7 @@ package changestream
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"eve-industry-planner/core/primaryhandoff"
@@ -57,17 +58,32 @@ func TestResumeTokenFromEvent(t *testing.T) {
 }
 
 func TestIsInvalidResumeError(t *testing.T) {
-	if isInvalidResumeError(nil) {
-		t.Fatal("nil")
+	t.Parallel()
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"286", mongo.CommandError{Code: 286, Message: "ChangeStreamHistoryLost"}, true},
+		{"280", mongo.CommandError{Code: 280, Message: "ChangeStreamFatalError"}, true},
+		{"260", mongo.CommandError{Code: 260, Message: "NonResumable"}, true},
+		{"other code", mongo.CommandError{Code: 1, Message: "other"}, false},
+		{"FailedToParse resume token", mongo.CommandError{Code: 9, Name: "FailedToParse", Message: "resume token string was not a valid hex string"}, true},
+		{"FailedToParse unrelated", mongo.CommandError{Code: 9, Name: "FailedToParse", Message: "could not parse query"}, false},
+		{"string corrupt hex", fmt.Errorf("(FailedToParse) resume token string was not a valid hex string"), true},
+		{"wrapped 286", fmt.Errorf("watch: %w", mongo.CommandError{Code: 286, Message: "ChangeStreamHistoryLost"}), true},
+		{"network no resume", fmt.Errorf("connection refused"), false},
+		{"resume alone", fmt.Errorf("will resume shortly"), false},
+		{"hex without resume", fmt.Errorf("invalid hex encoding"), false},
 	}
-	if !isInvalidResumeError(mongo.CommandError{Code: 286, Message: "ChangeStreamHistoryLost"}) {
-		t.Fatal("want 286")
-	}
-	if !isInvalidResumeError(mongo.CommandError{Code: 260, Message: "NonResumable"}) {
-		t.Fatal("want 260")
-	}
-	if isInvalidResumeError(mongo.CommandError{Code: 1, Message: "other"}) {
-		t.Fatal("other code")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := isInvalidResumeError(tc.err); got != tc.want {
+				t.Fatalf("isInvalidResumeError(%v)=%v want %v", tc.err, got, tc.want)
+			}
+		})
 	}
 }
 

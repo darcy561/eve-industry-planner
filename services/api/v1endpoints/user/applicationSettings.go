@@ -3,7 +3,6 @@ package user
 import (
 	"context"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"time"
 
@@ -15,13 +14,13 @@ import (
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
-func ApplicationSettingsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) ApplicationSettingsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	switch r.Method {
 	case http.MethodGet:
-		handleGetApplicationSettings(w, r, clients)
+		h.handleGetApplicationSettings(w, r)
 	case http.MethodPut:
-		handleSaveApplicationSettings(w, r, clients)
+		h.handleSaveApplicationSettings(w, r)
 	default:
 		m := apimetrics.GetAPIEveTokenLogin()
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
@@ -29,7 +28,7 @@ func ApplicationSettingsHandler(w http.ResponseWriter, r *http.Request, clients 
 	}
 }
 
-func handleGetApplicationSettings(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) handleGetApplicationSettings(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
@@ -42,9 +41,8 @@ func handleGetApplicationSettings(w http.ResponseWriter, r *http.Request, client
 	defer metrics.Finish()
 
 	accountID := helper.AuthenticatedAccountID(r)
-	mongo := clients.Mongo
 
-	settingsDoc, err := mongo.LoadApplicationSettings(ctx, accountID, time.Now().UTC())
+	settingsDoc, err := h.Mongo.LoadApplicationSettings(ctx, accountID, time.Now().UTC())
 	if err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
@@ -72,7 +70,7 @@ func handleGetApplicationSettings(w http.ResponseWriter, r *http.Request, client
 	})
 }
 
-func handleSaveApplicationSettings(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) handleSaveApplicationSettings(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
@@ -85,7 +83,6 @@ func handleSaveApplicationSettings(w http.ResponseWriter, r *http.Request, clien
 	defer metrics.Finish()
 
 	accountID := helper.AuthenticatedAccountID(r)
-	mongo := clients.Mongo
 
 	var settingsDoc models.ApplicationSettings
 	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &settingsDoc) {
@@ -104,7 +101,7 @@ func handleSaveApplicationSettings(w http.ResponseWriter, r *http.Request, clien
 	}
 	helper.PopulateRequestMeta(r, &settingsDoc.MetaData.MetaData, accountID)
 
-	result, retriedWithoutWSClientID, err := mongo.ApplicationSettings.UpsertApplicationSettings(ctx, accountID, settingsDoc)
+	result, retriedWithoutWSClientID, err := h.Mongo.ApplicationSettings.UpsertApplicationSettings(ctx, accountID, settingsDoc)
 	if retriedWithoutWSClientID {
 		logs.AttachHandlerCaveat(r, "upsert_retried_without_ws_client_id", "application settings upsert with websocket client id failed, retrying without client id", map[string]interface{}{
 			"ws_client_id": settingsDoc.MetaData.ClientID,

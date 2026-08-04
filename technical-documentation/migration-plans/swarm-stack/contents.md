@@ -18,5 +18,6 @@ Named for the **work**, not a git branch. **Project close** = roadmap finished +
 | Backlog, handoff, pickup order, ticket status | [roadmap.md](./roadmap.md) |
 | All ticket overlays (index) | [overlay.md](./overlay.md) |
 | One ticket’s detail / land notes | [overlays/](./overlays/) (`NN-*.md` for `#N`) |
+| Promote drafts (go-ahead copy into live) | [promote/README.md](./promote/README.md) |
 | Phase 1 gate checklist | [roadmap.md](./roadmap.md) § Phase 1 |
 | When this project is “done” | Roadmap complete → promote live SoT (not “merge the branch”) |

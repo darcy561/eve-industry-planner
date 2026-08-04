@@ -95,6 +95,47 @@ func TestPickSlotPrefersLowerLoad(t *testing.T) {
 	}
 }
 
+func TestPreferNonSoftSlots(t *testing.T) {
+	t.Parallel()
+	preferred := []string{"websocket-1", "websocket-2", "websocket-3"}
+	got := preferNonSoftSlots(preferred, map[string]bool{"websocket-1": true, "websocket-3": true})
+	if len(got) != 1 || got[0] != "websocket-2" {
+		t.Fatalf("got %#v", got)
+	}
+}
+
+func TestPreferNonSoftSlotsAllSoftFallsBack(t *testing.T) {
+	t.Parallel()
+	preferred := []string{"websocket-1", "websocket-2"}
+	got := preferNonSoftSlots(preferred, map[string]bool{"websocket-1": true, "websocket-2": true})
+	if len(got) != 2 || got[0] != "websocket-1" || got[1] != "websocket-2" {
+		t.Fatalf("expected all-soft fallback, got %#v", got)
+	}
+}
+
+func TestPreferNonSoftSlotsEmptySoftUnchanged(t *testing.T) {
+	t.Parallel()
+	preferred := []string{"websocket-1", "websocket-2"}
+	got := preferNonSoftSlots(preferred, nil)
+	if len(got) != 2 {
+		t.Fatalf("got %#v", got)
+	}
+}
+
+func TestEligibleSlotsIgnoresSoft(t *testing.T) {
+	t.Parallel()
+	// Soft must not enter mergeSkip — soft slot stays eligible.
+	ready := []string{"websocket-1", "websocket-2"}
+	got := eligibleSlots(ready, mergeSkip(nil, nil))
+	if len(got) != 2 {
+		t.Fatalf("got %#v", got)
+	}
+	softPreferred := preferNonSoftSlots(got, map[string]bool{"websocket-1": true})
+	if len(softPreferred) != 1 || softPreferred[0] != "websocket-2" {
+		t.Fatalf("pick filter %#v", softPreferred)
+	}
+}
+
 func TestFormatTruncate(t *testing.T) {
 	t.Parallel()
 	if truncate("abcdef", 3) != "abc" {

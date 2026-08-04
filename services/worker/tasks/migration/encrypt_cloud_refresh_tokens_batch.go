@@ -2,6 +2,7 @@ package migration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -52,7 +53,7 @@ func EncryptCloudRefreshTokensBatch(ctx context.Context, task *asynq.Task, deps 
 
 	var doc models.UserAccountDocument
 	if err := usersCol.FindOne(ctx, bson.M{"_id": p.AccountID, "_meta.accountID": p.AccountID}).Decode(&doc); err != nil {
-		if err == mongodriver.ErrNoDocuments {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			return nil
 		}
 		return fmt.Errorf("load user for encryptCloudRefreshTokensBatch %s: %w", p.AccountID, err)

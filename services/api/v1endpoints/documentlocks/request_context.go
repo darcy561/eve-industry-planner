@@ -52,7 +52,7 @@ func lockDebugExtra(hc lockHandlerContext, extra map[string]interface{}) map[str
 func respondLockUnavailable(w http.ResponseWriter, r *http.Request, metric string, hc lockHandlerContext, err error) {
 	extra := lockTargetExtra(hc)
 	extra["account_id"] = hc.AccountID
-	helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Locks unavailable", "document locks unavailable", "doc_lock_unavailable", metric, err, extra)
+	helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Locks unavailable", "document locks unavailable", documentlock.FailureUnavailable, metric, err, extra)
 }
 
 func attachLockOperationCompleted(r *http.Request, hc lockHandlerContext, operation string, statusCode int) {
@@ -298,11 +298,11 @@ func lockHandlerContextOK(w http.ResponseWriter, r *http.Request, redisClient *r
 	sessionID := helper.AuthenticatedSessionID(r)
 	b, err := parseLockBody(r)
 	if err != nil {
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, err.Error(), "document lock: invalid request body", "doc_lock_bad_request", "document_lock", err, nil)
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, err.Error(), "document lock: invalid request body", documentlock.FailureBadRequest, "document_lock", err, nil)
 		return lockHandlerContext{}, false
 	}
 	if redisClient == nil {
-		helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Locks unavailable", "document locks unavailable", "doc_lock_unavailable", "document_lock", nil, nil)
+		helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Locks unavailable", "document locks unavailable", documentlock.FailureUnavailable, "document_lock", nil, nil)
 		return lockHandlerContext{}, false
 	}
 	hc := lockHandlerContext{

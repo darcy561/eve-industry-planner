@@ -3,7 +3,6 @@ package jobdocuments
 import (
 	"context"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"time"
@@ -17,7 +16,7 @@ import (
 )
 
 // PutJobDocumentsHandler handles PUT /api/v1/job-documents — batch upsert into user_job_documents.
-func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIJobs()
@@ -30,7 +29,6 @@ func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *sta
 	defer metrics.Finish()
 
 	accountID := helper.AuthenticatedAccountID(r)
-	mongo := clients.Mongo
 
 	var reqBody struct {
 		Jobs []models.Job `json:"jobs"`
@@ -63,7 +61,7 @@ func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *sta
 	sessionID := helper.AuthenticatedSessionID(r)
 	wsClientID := helper.ExtractWSClientID(r)
 
-	if clients.Redis != nil {
+	if h.locks.Redis != nil {
 		if sessionID == "" {
 			metrics.Error("auth_error")
 			helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "job documents put lock gate: missing session", "job_docs_put_missing_session", "job_documents", nil, nil)
@@ -80,7 +78,7 @@ func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *sta
 				jobGroupBypass[j.JobID] = j.GroupID
 			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, eipmongo.CollectionUserJobDocuments, jobIDs, jobGroupBypass)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionUserJobDocuments, jobIDs, jobGroupBypass)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -102,7 +100,7 @@ func PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *sta
 	}
 
 	now := time.Now()
-	result, failedCount, err := mongo.JobDocuments.BulkUpsertJobs(ctx, accountID, reqBody.Jobs, now, sessionID, wsClientID)
+	result, failedCount, err := h.Mongo.JobDocuments.BulkUpsertJobs(ctx, accountID, reqBody.Jobs, now, sessionID, wsClientID)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to save jobs", "failed to bulk upsert job documents", "job_docs_upsert_failed", "job_documents", err, nil)

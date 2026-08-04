@@ -3,7 +3,6 @@ package jobdocuments
 import (
 	"context"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"time"
@@ -19,7 +18,7 @@ import (
 )
 
 // DeleteJobDocumentsHandler handles DELETE /api/v1/job-documents with { jobIDs: [] }.
-func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIJobs()
@@ -32,7 +31,6 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 	defer metrics.Finish()
 
 	accountID := helper.AuthenticatedAccountID(r)
-	mongo := clients.Mongo
 
 	var reqBody struct {
 		JobIDs []string `json:"jobIDs"`
@@ -70,20 +68,20 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 	sessionID := helper.AuthenticatedSessionID(r)
 	wsClientID := helper.ExtractWSClientID(r)
 
-	if clients.Redis != nil {
+	if h.locks.Redis != nil {
 		if sessionID == "" {
 			metrics.Error("auth_error")
 			helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "job documents delete lock gate: missing session", "job_docs_delete_missing_session", "job_documents", nil, nil)
 			return
 		}
 		jobGroupBypass := documentlock.JobGroupBypass{}
-		if mongo != nil {
+		if h.Mongo != nil {
 			type jobGroupRow struct {
 				ID              string `bson:"_id"`
 				GroupID         string `bson:"groupID"`
 				IncludedInGroup bool   `bson:"includedInGroup"`
 			}
-			collection := mongo.JobDocuments.Collection()
+			collection := h.Mongo.JobDocuments.Collection()
 			cur, findErr := collection.Find(ctx, bson.M{
 				"_meta.accountID": accountID,
 				"_id":             bson.M{"$in": reqBody.JobIDs},
@@ -111,7 +109,7 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 				return
 			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, eipmongo.CollectionUserJobDocuments, reqBody.JobIDs, jobGroupBypass)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionUserJobDocuments, reqBody.JobIDs, jobGroupBypass)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -132,7 +130,7 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 		})
 	}
 
-	deletedCount, err := mongo.JobDocuments.DeleteManyAfterStampingMeta(ctx, filter, now, sessionID, wsClientID,
+	deletedCount, err := h.Mongo.JobDocuments.DeleteManyAfterStampingMeta(ctx, filter, now, sessionID, wsClientID,
 		eipmongo.WithOpName(fmt.Sprintf("delete %d job documents", len(reqBody.JobIDs))))
 
 	if err != nil {

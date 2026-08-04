@@ -662,7 +662,7 @@ func runRequestAccessTx(
 		[]string{
 			LockKey(accountID, collection, docID),
 			waitlistKey(accountID, collection, docID),
-			waitlistPulseKey(accountID, collection, docID, requesterSessionID),
+			WaitlistPulseKey(accountID, collection, docID, requesterSessionID),
 		},
 		accountID,
 		requesterSessionID,
@@ -766,7 +766,7 @@ func runClaimHandoffTx(
 		[]string{
 			LockKey(accountID, collection, docID),
 			waitlistKey(accountID, collection, docID),
-			waitlistPulseKey(accountID, collection, docID, requesterSessionID),
+			WaitlistPulseKey(accountID, collection, docID, requesterSessionID),
 		},
 		accountID,
 		requesterSessionID,

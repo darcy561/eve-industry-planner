@@ -49,7 +49,6 @@ func NewServer(clients *stackservices.Clients) *Server {
 	s := &Server{
 		Clients:                 make(map[string]*Client),
 		userConnections:         make(map[string]map[string]bool),
-		sessionConnections:      make(map[string]string),
 		sessionHandoffs:         make(map[string]*sessionHandoffEntry),
 		activeSubscriptions:     make(map[string]map[string]time.Time),
 		incomingQueues:          make(map[string]*IncomingDocQueue),
@@ -62,7 +61,7 @@ func NewServer(clients *stackservices.Clients) *Server {
 		SyncSignals:             make(chan string, config.SignalChannelBuffer),
 		SyncPool:                syncPool,
 		upgrader:                upgrader,
-		Stack:          clients,
+		Stack:                   clients,
 		shutdownChan:            make(chan struct{}),
 	}
 
@@ -94,6 +93,10 @@ func NewServer(clients *stackservices.Clients) *Server {
 
 	// Start cleanup goroutine for idle queues
 	s.startCleanupGoroutine()
+
+	// Redis placement / ops watchers (exit when Shutdown closes shutdownChan).
+	s.startCordonDrainWatcher()
+	s.startSlotFullFlagMaintainer()
 
 	return s
 }

@@ -56,6 +56,9 @@ func (c Config) DesiredFromConfig(targets []stack.CapacityTarget, appDoc stack.D
 			if stack.HasEnvironmentKey(svc, stack.EnvWSSlotClientCutoff) {
 				d.Env[stack.EnvWSSlotClientCutoff] = itoa(s.ClientCutoff)
 			}
+			if stack.HasEnvironmentKey(svc, stack.EnvWSSlotTargetClients) {
+				d.Env[stack.EnvWSSlotTargetClients] = itoa(s.TargetClients)
+			}
 		case "worker":
 			if stack.HasEnvironmentKey(svc, stack.EnvWorkerAsynqConcurrency) {
 				d.Env[stack.EnvWorkerAsynqConcurrency] = itoa(s.Concurrency)

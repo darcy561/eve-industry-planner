@@ -23,6 +23,21 @@ func TestValidateOK(t *testing.T) {
 	if err := validConfig().Validate(); err != nil {
 		t.Fatal(err)
 	}
+	cfg := validConfig()
+	s := cfg.Services["websocket"]
+	s.TargetClients = 50
+	s.ClientCutoff = 100
+	cfg.Services["websocket"] = s
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	// Either side 0 skips target≤cutoff.
+	s.TargetClients = 999
+	s.ClientCutoff = 0
+	cfg.Services["websocket"] = s
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestValidateRejects(t *testing.T) {
@@ -40,6 +55,13 @@ func TestValidateRejects(t *testing.T) {
 		{"concurrency high", func(c *Config) { s := c.Services["worker"]; s.Concurrency = 51; c.Services["worker"] = s }, "concurrency"},
 		{"concurrency zero", func(c *Config) { s := c.Services["worker"]; s.Concurrency = 0; c.Services["worker"] = s }, "concurrency"},
 		{"client_cutoff neg", func(c *Config) { s := c.Services["websocket"]; s.ClientCutoff = -1; c.Services["websocket"] = s }, "client_cutoff"},
+		{"target_clients neg", func(c *Config) { s := c.Services["websocket"]; s.TargetClients = -1; c.Services["websocket"] = s }, "target_clients"},
+		{"target > cutoff", func(c *Config) {
+			s := c.Services["websocket"]
+			s.TargetClients = 100
+			s.ClientCutoff = 50
+			c.Services["websocket"] = s
+		}, "target_clients"},
 		{"bad http port", func(c *Config) { c.Ports.HTTP = 70000 }, "ports.http"},
 		{"path no slash", func(c *Config) { c.Paths.Grafana = "grafana" }, "paths.grafana"},
 		{"ip as cidr", func(c *Config) { c.Proxy.TrustedIPs = []string{"10.0.0.0/8"} }, "trusted_ips"},

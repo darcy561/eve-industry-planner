@@ -46,6 +46,11 @@ func (r *Router) isFull(ctx context.Context, slot string) bool {
 	return err == nil && n > 0
 }
 
+func (r *Router) isSoft(ctx context.Context, slot string) bool {
+	n, err := r.rdb.Exists(ctx, r.cfg.SoftKeyPrefix+slot).Result()
+	return err == nil && n > 0
+}
+
 // eligibleSlots drops skipped backends (cordoned and/or at client_cutoff). If every
 // slot is skipped, returns ready unchanged so /ws is not black-holed — process refuse
 // still gates a few overs on a full slot (client_cutoff is an arbitrary operator number).
@@ -161,7 +166,21 @@ func (r *Router) loadFull(ctx context.Context, slots []string) map[string]bool {
 	return out
 }
 
+func (r *Router) loadSoft(ctx context.Context, slots []string) map[string]bool {
+	out := map[string]bool{}
+	if len(slots) == 0 || r.rdb == nil {
+		return out
+	}
+	for _, s := range slots {
+		if r.isSoft(ctx, s) {
+			out[s] = true
+		}
+	}
+	return out
+}
+
 // mergeSkip unions cordon + full skip maps for eligibility.
+// Soft is intentionally excluded — soft divert only affects new-home pick order.
 func mergeSkip(cordoned, full map[string]bool) map[string]bool {
 	out := map[string]bool{}
 	for k, v := range cordoned {
@@ -173,6 +192,25 @@ func mergeSkip(cordoned, full map[string]bool) map[string]bool {
 		if v {
 			out[k] = true
 		}
+	}
+	return out
+}
+
+// preferNonSoftSlots keeps preferred slots that are not soft-marked. If every
+// preferred slot is soft, returns preferred unchanged (all-soft fallback).
+func preferNonSoftSlots(preferred []string, soft map[string]bool) []string {
+	if len(preferred) == 0 || len(soft) == 0 {
+		return preferred
+	}
+	out := make([]string, 0, len(preferred))
+	for _, s := range preferred {
+		if soft[s] {
+			continue
+		}
+		out = append(out, s)
+	}
+	if len(out) == 0 {
+		return preferred
 	}
 	return out
 }

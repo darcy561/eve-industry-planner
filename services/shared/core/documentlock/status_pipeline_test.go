@@ -73,7 +73,7 @@ func TestStatusBatchFetch_HeldWithViewersAndWaitlist(t *testing.T) {
 	if _, err := AddViewer(ctx, rdb, testAccountID, testCollection, docID, "viewer-b"); err != nil {
 		t.Fatalf("AddViewer b: %v", err)
 	}
-	if err := rdb.ZAddArgs(ctx, viewerPresenceKey(testAccountID, testCollection, docID), redis.ZAddArgs{
+	if err := rdb.ZAddArgs(ctx, ViewerPresenceKey(testAccountID, testCollection, docID), redis.ZAddArgs{
 		Members: []redis.Z{{Score: float64(time.Now().Add(-time.Hour).Unix()), Member: "viewer-stale"}},
 	}).Err(); err != nil {
 		t.Fatalf("seed stale viewer: %v", err)

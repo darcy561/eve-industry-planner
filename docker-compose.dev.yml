@@ -1,6 +1,0 @@
-# Deprecated as a runtime plane. Local Swarm images: docker-bake.hcl + docker-stack.dev.yml (`eip dev` / `eip rebuild`).
-# No Compose data-plane overrides.
-
-name: eve-industry-planner
-
-services: {}

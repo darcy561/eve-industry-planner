@@ -141,12 +141,12 @@ func ConfigFields() []ConfigField {
 		},
 		{
 			Key: "services.websocket.target_clients", Section: "Websocket", Label: "Target clients",
-			Help: "Target concurrent clients per capacity planning.",
+			Help: "Soft divert threshold per replica (eip sync → WS_SLOT_TARGET_CLIENTS). New homes prefer non-soft slots; place/pin stick. 0 = off. When both > 0 must be ≤ client_cutoff.",
 			Type: FieldInt,
 		},
 		{
 			Key: "services.websocket.client_cutoff", Section: "Websocket", Label: "Client cutoff",
-			Help: "Hard client cutoff (0 = unlimited).",
+			Help: "Hard client cutoff — Redis full hint + process refuse (0 = unlimited).",
 			Type: FieldInt,
 		},
 		{

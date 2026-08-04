@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"io"
 	"net/http"
 	"strings"
@@ -561,9 +560,7 @@ func TestRefreshMarketPrices_NilTask(t *testing.T) {
 	})
 
 	deps := &TaskDependencies{
-		Clients: &stackservices.Clients{
-			Redis: redisClient,
-		},
+		Redis: redisClient,
 		ESIClient: &mockESIClientForStreaming{},
 	}
 
@@ -592,9 +589,7 @@ func TestRefreshMarketPrices_InvalidJSON(t *testing.T) {
 	})
 
 	deps := &TaskDependencies{
-		Clients: &stackservices.Clients{
-			Redis: redisClient,
-		},
+		Redis: redisClient,
 		ESIClient: &mockESIClientForStreaming{},
 	}
 
@@ -618,9 +613,7 @@ func TestRefreshMarketPrices_MissingParameters(t *testing.T) {
 	})
 
 	deps := &TaskDependencies{
-		Clients: &stackservices.Clients{
-			Redis: redisClient,
-		},
+		Redis: redisClient,
 		ESIClient: &mockESIClientForStreaming{},
 	}
 

@@ -17,17 +17,28 @@ import (
 	wsserver "eve-industry-planner/websocket/server"
 )
 
-const shutdownTimeout = 5 * time.Second
+// Per-cleanup budget matches stack x-app-stop-grace (60s).
+const shutdownTimeout = 60 * time.Second
 
 type app struct {
 	g        lifecycle.Group
 	stopDeps func(context.Context)
 	clients  *stackservices.Clients
+	ws       *wsserver.Server
 	initErr  error
 }
 
 func (a *app) cleanups() []func(context.Context) {
-	return lifecycle.AppThenDeps(a.g.Cleanups(), a.stopDeps)
+	// Drain + Shutdown share one cleanup budget (60s) before HTTP/probes/deps stop.
+	var appLayer []func(context.Context)
+	if a.ws != nil {
+		appLayer = append(appLayer, func(c context.Context) {
+			a.ws.DrainForRoll(c)
+			a.ws.Shutdown(c)
+		})
+	}
+	appLayer = append(appLayer, a.g.Cleanups()...)
+	return lifecycle.AppThenDeps(appLayer, a.stopDeps)
 }
 
 func (a *app) cleanupIfFailed() {
@@ -64,8 +75,35 @@ func (a *app) connectDeps(ctx context.Context) error {
 	return nil
 }
 
+func (a *app) startServer(ctx context.Context) error {
+	a.ws = wsserver.NewServer(a.clients)
+
+	// Do not wrap with otelhttp: gorilla/websocket Upgrade requires Hijacker.
+	core := http.HandlerFunc(a.ws.HandleWS)
+	h := middleware.RequestStartTimeConstructor()(
+		middleware.RequestLoggingConstructor()(core),
+	)
+
+	mux := http.NewServeMux()
+	mux.Handle("/ws", h)
+	mux.Handle("/ws/", h)
+
+	addr := ":" + config.WSPort()
+	logs.InfoCtx(ctx, "ws server starting", "addr", addr)
+	runner, err := lifecycle.HTTPServer("websocket-http", &http.Server{Addr: addr, Handler: mux})
+	if err != nil {
+		return a.fail(err)
+	}
+	a.g.Add(runner)
+	return nil
+}
+
 func (a *app) startProbes(ctx context.Context) error {
+	// Server starts first so Ready can observe draining.
 	ready := func(c context.Context) error {
+		if a.ws != nil && a.ws.IsDraining() {
+			return fmt.Errorf("draining")
+		}
 		if err := a.clients.Redis.Ping(c).Err(); err != nil {
 			return fmt.Errorf("redis: %w", err)
 		}
@@ -94,28 +132,5 @@ func (a *app) startProbes(ctx context.Context) error {
 		return a.fail(err)
 	}
 	a.g.Add(bus)
-	return nil
-}
-
-func (a *app) startServer(ctx context.Context) error {
-	wsServer := wsserver.NewServer(a.clients)
-
-	// Do not wrap with otelhttp: gorilla/websocket Upgrade requires Hijacker.
-	core := http.HandlerFunc(wsServer.HandleWS)
-	h := middleware.RequestStartTimeConstructor()(
-		middleware.RequestLoggingConstructor()(core),
-	)
-
-	mux := http.NewServeMux()
-	mux.Handle("/ws", h)
-	mux.Handle("/ws/", h)
-
-	addr := ":" + config.WSPort()
-	logs.InfoCtx(ctx, "ws server starting", "addr", addr)
-	runner, err := lifecycle.HTTPServer("websocket-http", &http.Server{Addr: addr, Handler: mux})
-	if err != nil {
-		return a.fail(err)
-	}
-	a.g.Add(runner)
 	return nil
 }

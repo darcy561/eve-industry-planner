@@ -3,7 +3,6 @@ package groups
 import (
 	"context"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"strings"
 	"time"
@@ -16,7 +15,7 @@ import (
 )
 
 // GetGroupByIDHandler handles GET /v1/groups/{groupID} — one group for the authenticated account.
-func GetGroupByIDHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients, groupID string) {
+func (h *Handlers) GetGroupByIDHandler(w http.ResponseWriter, r *http.Request, groupID string) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIGroups()
@@ -33,7 +32,6 @@ func GetGroupByIDHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 		return
 	}
 	accountID := helper.AuthenticatedAccountID(r)
-	mongo := clients.Mongo
 
 	groupID = strings.TrimSpace(groupID)
 	if groupID == "" {
@@ -42,7 +40,7 @@ func GetGroupByIDHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 		return
 	}
 
-	group, err := mongo.Groups.LoadGroupByID(ctx, accountID, groupID)
+	group, err := h.Mongo.Groups.LoadGroupByID(ctx, accountID, groupID)
 	if err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			helper.RespondNotFound(w, r, metrics)

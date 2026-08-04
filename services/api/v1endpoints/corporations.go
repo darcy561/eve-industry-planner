@@ -3,7 +3,6 @@ package v1endpoints
 import (
 	"context"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"strings"
@@ -24,7 +23,7 @@ type CorporationsRequest struct {
 }
 
 // CorporationsHandler handles POST /api/v1/corporation-claims.
-func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (a *Handlers) CorporationsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
@@ -109,7 +108,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 		Tokens:    validTokens,
 	}
 
-	if err := natscore.PublishTask(ctx, clients.JetStream, taskscore.UpdateAccountSessionGrants.Subject, taskscore.UpdateAccountSessionGrants.Name, taskRequest, clients.NATS); err != nil {
+	if err := natscore.PublishTask(ctx, a.JetStream, taskscore.UpdateAccountSessionGrants.Subject, taskscore.UpdateAccountSessionGrants.Name, taskRequest, a.NATS); err != nil {
 		metrics.Error("publish_error")
 		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to publish account session grants refresh task", "corporations_publish_failed", "corporations", err, map[string]interface{}{"token_count": len(validTokens)})
 		return

@@ -2,14 +2,15 @@ package helper_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	"eve-industry-planner/api/helper"
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -160,7 +161,7 @@ func TestLive_JobDocumentsPutGetFlow(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected LoadJobByID to fail for other account")
 	}
-	if err != mongo.ErrNoDocuments {
+	if !errors.Is(err, mongo.ErrNoDocuments) {
 		t.Fatalf("expected ErrNoDocuments for other account, got %v", err)
 	}
 }
@@ -332,7 +333,7 @@ func TestLive_JobDocumentsDeleteFlow(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected job gone after delete")
 	}
-	if err != mongo.ErrNoDocuments {
+	if !errors.Is(err, mongo.ErrNoDocuments) {
 		t.Fatalf("expected ErrNoDocuments after delete, got %v", err)
 	}
 }
@@ -366,7 +367,7 @@ func TestLive_GroupsDeleteFlow(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected group gone after delete")
 	}
-	if err != mongo.ErrNoDocuments {
+	if !errors.Is(err, mongo.ErrNoDocuments) {
 		t.Fatalf("expected ErrNoDocuments after delete, got %v", err)
 	}
 }

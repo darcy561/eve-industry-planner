@@ -58,7 +58,7 @@ func maintainAccountCloudRefreshTokens(ctx context.Context, users *eipmongo.Docs
 	usersCol := users.Collection()
 	var userDoc models.UserAccountDocument
 	if err := usersCol.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&userDoc); err != nil {
-		if err == mongodriver.ErrNoDocuments {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			return stats, errCloudEsiMaintUserNotFound
 		}
 		return stats, fmt.Errorf("cloud esi maintenance: load user: %w", err)

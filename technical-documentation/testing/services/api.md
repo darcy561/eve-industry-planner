@@ -17,7 +17,7 @@ EIP_MONGO_PARITY_LIVE=1 go test ./api/helper/ -run Live -count=1
 
 ## Coverage map
 
-**Depth:** Strong around auth/session helpers and some middleware. Most HTTP handlers and app wiring are untested. Opt-in live Mongo covers the main account Docs call paths handlers will wrap later.
+**Depth:** Strong around auth/session helpers and some middleware. Most HTTP handlers and app wiring are untested. Opt-in live Mongo covers the main account Docs call paths handlers use after auth/lock.
 
 ### Tested
 
@@ -30,7 +30,7 @@ EIP_MONGO_PARITY_LIVE=1 go test ./api/helper/ -run Live -count=1
 | `helper` (live Mongo, opt-in) | `ResolveUserDocumentsForLogin`; user/settings upsert+reload; watchlist put/get; job/group put/get/list/delete (`DeleteManyAfterStampingMeta`); group membership deltas — same Docs APIs handlers use after auth/lock (scratch `eip-api-live-account`) |
 | `v1endpoints` | Session bootstrap/rotate JSON shapes; ESI OAuth storage field presence |
 | `v1endpoints/sso` | `IsSSOGrantClientError` classification only |
-| `tests` | `/ready` vs `/healthy` probe contract (SDE warm gate) |
+| `tests` | `/ready` vs `/healthy` probe contract — mux isolates **SDE warm** gating; production `app.startProbes` also **Pings Mongo** (not asserted in this isolated mux) |
 
 ### Thin
 
@@ -49,3 +49,5 @@ EIP_MONGO_PARITY_LIVE=1 go test ./api/helper/ -run Live -count=1
 - Depth labels → [contents.md](./contents.md) § Depth labels.
 - Prefer package-scoped runs under `api/helper/auth` when iterating session work.
 - Live Mongo tests skip unless `EIP_MONGO_PARITY_LIVE=1`; they do not run in default CI unit jobs.
+- Production API ready = SDE cache warm **and** Mongo Ping (`services/api/app.go`). Package `api/tests` keeps the SDE-only mux so warm/not-warm behaviour stays deterministic without a live Mongo.
+- Handler wiring behaviour → [deps.md](../../backend/api/deps.md); Mongo package → [mongo.md](../../backend/shared/mongo.md).

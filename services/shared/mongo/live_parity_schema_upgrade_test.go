@@ -2,23 +2,23 @@ package mongo_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
-	mongoget "eve-industry-planner/shared/core/mongo/get"
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // Live schema-upgrade get path: clone a real doc, downgrade schemaVersion, Load*
-// (new + legacy), assert in-memory + persisted shape. Scratch ids cleaned up.
+// via shared/mongo, assert in-memory + persisted shape. Scratch ids cleaned up.
 
-func TestParity_live_schemaUpgrade_userAndSettings(t *testing.T) {
+func TestLive_schemaUpgrade_userAndSettings(t *testing.T) {
 	mongo := requireLiveMongo(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -38,79 +38,63 @@ func TestParity_live_schemaUpgrade_userAndSettings(t *testing.T) {
 
 	liveUser, ok := findOneRaw(t, ctx, usersColl)
 	if !ok {
-		t.Skip("no users documents to clone for schema-upgrade parity")
+		t.Skip("no users documents to clone for schema-upgrade")
 	}
 	liveSettings, okSettings := findOneRaw(t, ctx, settingsColl)
 
-	// --- users: unversioned legacy shape ---
+	// --- users: unversioned shape ---
 	// UpgradeUserAccountDocument (v0→v1) forces HasCompletedFirstLoginFlow=false, ShareCitadelNames=true.
 	userSeed := cloneAsScratchAccount(liveUser, userID)
 	delete(userSeed, "schemaVersion")
-	userSeed["hasCompletedFirstLoginFlow"] = true  // must be forced false by upgrade
+	userSeed["hasCompletedFirstLoginFlow"] = true // must be forced false by upgrade
 	userSeed["shareCitadelNames"] = false         // must be forced true by upgrade
 	userSeed["userCloudAccounts"] = true          // body field must survive
 
-	runUserUpgrade := func(label string, load func() (models.UserAccountDocument, error)) bson.M {
-		t.Helper()
-		if _, err := usersColl.ReplaceOne(ctx, bson.M{"_id": userID}, userSeed, options.Replace().SetUpsert(true)); err != nil {
-			t.Fatalf("%s seed user: %v", label, err)
-		}
-		// Confirm seed is unversioned on disk
-		seedRaw := loadRawByID(t, ctx, usersColl, userID)
-		if _, has := seedRaw["schemaVersion"]; has {
-			// omitempty may still leave 0 if we set it — we deleted the key
-			if v, ok := asInt(seedRaw["schemaVersion"]); ok && v > 0 {
-				t.Fatalf("%s seed still has schemaVersion=%v", label, seedRaw["schemaVersion"])
-			}
-		}
-
-		doc, err := load()
-		if err != nil {
-			t.Fatalf("%s LoadUserAccount: %v", label, err)
-		}
-		if doc.SchemaVersion != models.UserAccountDocumentSchemaCurrent {
-			t.Fatalf("%s in-memory schemaVersion=%d want %d", label, doc.SchemaVersion, models.UserAccountDocumentSchemaCurrent)
-		}
-		if doc.HasCompletedFirstLoginFlow {
-			t.Fatalf("%s HasCompletedFirstLoginFlow should be forced false by v0→v1 upgrade", label)
-		}
-		if !doc.ShareCitadelNames {
-			t.Fatalf("%s ShareCitadelNames should be forced true by v0→v1 upgrade", label)
-		}
-		if !doc.UserCloudAccounts {
-			t.Fatalf("%s UserCloudAccounts should survive upgrade", label)
-		}
-
-		raw := loadRawByID(t, ctx, usersColl, userID)
-		ver, ok := asInt(raw["schemaVersion"])
-		if !ok || ver != models.UserAccountDocumentSchemaCurrent {
-			t.Fatalf("%s persisted schemaVersion=%v want %d", label, raw["schemaVersion"], models.UserAccountDocumentSchemaCurrent)
-		}
-		if got, _ := raw["hasCompletedFirstLoginFlow"].(bool); got {
-			t.Fatalf("%s persisted hasCompletedFirstLoginFlow still true", label)
-		}
-		if got, _ := raw["shareCitadelNames"].(bool); !got {
-			t.Fatalf("%s persisted shareCitadelNames still false", label)
-		}
-		if got, _ := raw["userCloudAccounts"].(bool); !got {
-			t.Fatalf("%s persisted userCloudAccounts lost", label)
-		}
-		meta, _ := raw["_meta"].(bson.M)
-		if got, _ := meta["accountID"].(string); got != userID {
-			t.Fatalf("%s persisted _meta.accountID=%q", label, got)
-		}
-		return raw
+	if _, err := usersColl.ReplaceOne(ctx, bson.M{"_id": userID}, userSeed, options.Replace().SetUpsert(true)); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	seedRaw := loadRawByID(t, ctx, usersColl, userID)
+	if v, ok := asInt(seedRaw["schemaVersion"]); ok && v > 0 {
+		t.Fatalf("seed still has schemaVersion=%v", seedRaw["schemaVersion"])
 	}
 
-	rawUserNew := runUserUpgrade("new", func() (models.UserAccountDocument, error) {
-		return mongo.LoadUserAccount(ctx, userID)
-	})
-	rawUserLegacy := runUserUpgrade("legacy", func() (models.UserAccountDocument, error) {
-		return mongoget.LoadUserAccountDocument(ctx, usersColl, userID)
-	})
-	assertRawEqualIgnoringMetaLastModified(t, "user upgrade new vs legacy", rawUserNew, rawUserLegacy)
+	doc, err := mongo.LoadUserAccount(ctx, userID)
+	if err != nil {
+		t.Fatalf("LoadUserAccount: %v", err)
+	}
+	if doc.SchemaVersion != models.UserAccountDocumentSchemaCurrent {
+		t.Fatalf("in-memory schemaVersion=%d want %d", doc.SchemaVersion, models.UserAccountDocumentSchemaCurrent)
+	}
+	if doc.HasCompletedFirstLoginFlow {
+		t.Fatalf("HasCompletedFirstLoginFlow should be forced false by v0→v1 upgrade")
+	}
+	if !doc.ShareCitadelNames {
+		t.Fatalf("ShareCitadelNames should be forced true by v0→v1 upgrade")
+	}
+	if !doc.UserCloudAccounts {
+		t.Fatalf("UserCloudAccounts should survive upgrade")
+	}
 
-	// Idempotent: second load must not change schema again / must match
+	raw := loadRawByID(t, ctx, usersColl, userID)
+	ver, ok := asInt(raw["schemaVersion"])
+	if !ok || ver != models.UserAccountDocumentSchemaCurrent {
+		t.Fatalf("persisted schemaVersion=%v want %d", raw["schemaVersion"], models.UserAccountDocumentSchemaCurrent)
+	}
+	if got, _ := raw["hasCompletedFirstLoginFlow"].(bool); got {
+		t.Fatalf("persisted hasCompletedFirstLoginFlow still true")
+	}
+	if got, _ := raw["shareCitadelNames"].(bool); !got {
+		t.Fatalf("persisted shareCitadelNames still false")
+	}
+	if got, _ := raw["userCloudAccounts"].(bool); !got {
+		t.Fatalf("persisted userCloudAccounts lost")
+	}
+	meta, _ := raw["_meta"].(bson.M)
+	if got, _ := meta["accountID"].(string); got != userID {
+		t.Fatalf("persisted _meta.accountID=%q", got)
+	}
+
+	// Idempotent: second load must not change schema again
 	again, err := mongo.LoadUserAccount(ctx, userID)
 	if err != nil {
 		t.Fatalf("second LoadUserAccount: %v", err)
@@ -120,65 +104,51 @@ func TestParity_live_schemaUpgrade_userAndSettings(t *testing.T) {
 	}
 
 	if !okSettings {
-		t.Log("user schema-upgrade parity ok (no settings docs to clone)")
+		t.Log("user schema-upgrade ok (no settings docs to clone)")
 		return
 	}
 
 	// --- application_settings: unversioned → current ---
-	// UpgradeApplicationSettings treats <=0 as current immediately, then persists because
-	// beforeSchemaVersion (0) != after (1). Invention clear only runs when still <1 (dead for <=0).
 	settingsSeed := cloneAsScratchAccount(liveSettings, settingsID)
 	delete(settingsSeed, "schemaVersion")
 	settingsSeed["displayHelpCards"] = true // must survive
 
-	runSettingsUpgrade := func(label string, load func(now time.Time) (models.ApplicationSettings, error)) bson.M {
-		t.Helper()
-		if _, err := settingsColl.ReplaceOne(ctx, bson.M{"_id": settingsID}, settingsSeed, options.Replace().SetUpsert(true)); err != nil {
-			t.Fatalf("%s seed settings: %v", label, err)
-		}
-		now := time.Now().UTC()
-		doc, err := load(now)
-		if err != nil {
-			t.Fatalf("%s LoadApplicationSettings: %v", label, err)
-		}
-		if doc.SchemaVersion != models.ApplicationSettingsSchemaCurrent {
-			t.Fatalf("%s in-memory schemaVersion=%d want %d", label, doc.SchemaVersion, models.ApplicationSettingsSchemaCurrent)
-		}
-		if !doc.DisplayHelpCards {
-			t.Fatalf("%s DisplayHelpCards should survive upgrade", label)
-		}
-
-		raw := loadRawByID(t, ctx, settingsColl, settingsID)
-		ver, ok := asInt(raw["schemaVersion"])
-		if !ok || ver != models.ApplicationSettingsSchemaCurrent {
-			t.Fatalf("%s persisted schemaVersion=%v want %d", label, raw["schemaVersion"], models.ApplicationSettingsSchemaCurrent)
-		}
-		if got, _ := raw["displayHelpCards"].(bool); !got {
-			t.Fatalf("%s persisted displayHelpCards lost", label)
-		}
-		meta, _ := raw["_meta"].(bson.M)
-		if got, _ := meta["accountID"].(string); got != settingsID {
-			t.Fatalf("%s persisted _meta.accountID=%q", label, got)
-		}
-		return raw
+	if _, err := settingsColl.ReplaceOne(ctx, bson.M{"_id": settingsID}, settingsSeed, options.Replace().SetUpsert(true)); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	now := time.Now().UTC()
+	settingsDoc, err := mongo.LoadApplicationSettings(ctx, settingsID, now)
+	if err != nil {
+		t.Fatalf("LoadApplicationSettings: %v", err)
+	}
+	if settingsDoc.SchemaVersion != models.ApplicationSettingsSchemaCurrent {
+		t.Fatalf("in-memory schemaVersion=%d want %d", settingsDoc.SchemaVersion, models.ApplicationSettingsSchemaCurrent)
+	}
+	if !settingsDoc.DisplayHelpCards {
+		t.Fatalf("DisplayHelpCards should survive upgrade")
 	}
 
-	rawSetNew := runSettingsUpgrade("new", func(now time.Time) (models.ApplicationSettings, error) {
-		return mongo.LoadApplicationSettings(ctx, settingsID, now)
-	})
-	rawSetLegacy := runSettingsUpgrade("legacy", func(now time.Time) (models.ApplicationSettings, error) {
-		return mongoget.LoadApplicationSettingsDocument(ctx, settingsColl, settingsID, now)
-	})
-	assertRawEqualIgnoringMetaLastModified(t, "settings upgrade new vs legacy", rawSetNew, rawSetLegacy)
+	rawSet := loadRawByID(t, ctx, settingsColl, settingsID)
+	ver, ok = asInt(rawSet["schemaVersion"])
+	if !ok || ver != models.ApplicationSettingsSchemaCurrent {
+		t.Fatalf("persisted schemaVersion=%v want %d", rawSet["schemaVersion"], models.ApplicationSettingsSchemaCurrent)
+	}
+	if got, _ := rawSet["displayHelpCards"].(bool); !got {
+		t.Fatalf("persisted displayHelpCards lost")
+	}
+	meta, _ = rawSet["_meta"].(bson.M)
+	if got, _ := meta["accountID"].(string); got != settingsID {
+		t.Fatalf("persisted _meta.accountID=%q", got)
+	}
 
-	t.Log("schema-upgrade user/settings parity ok")
+	t.Log("schema-upgrade user/settings ok")
 }
 
-func findOneRaw(t *testing.T, ctx context.Context, coll *mongo.Collection) (bson.M, bool) {
+func findOneRaw(t *testing.T, ctx context.Context, coll *mongodriver.Collection) (bson.M, bool) {
 	t.Helper()
 	var raw bson.M
 	err := coll.FindOne(ctx, bson.M{}).Decode(&raw)
-	if err == mongo.ErrNoDocuments {
+	if errors.Is(err, mongodriver.ErrNoDocuments) {
 		return nil, false
 	}
 	if err != nil {

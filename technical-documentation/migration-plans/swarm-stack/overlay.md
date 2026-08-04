@@ -13,7 +13,7 @@ Index: [contents.md](./contents.md).
 | #5 | done | [05-stack-file.md](./overlays/05-stack-file.md) |
 | #6 | absorbed into #23 | [06-rolling-update.md](./overlays/06-rolling-update.md) |
 | #7 | done | [07-worker-concurrency.md](./overlays/07-worker-concurrency.md) |
-| #8 | partial — slice design accepted; implement next | [08-websocket-drain.md](./overlays/08-websocket-drain.md) |
+| #8 | **done** — drain + soak + live SoT promote (no Redis hosted-tenant) | [08-websocket-drain.md](./overlays/08-websocket-drain.md) · [promote/](./promote/README.md) |
 | #9 | done | [09-core-singleton.md](./overlays/09-core-singleton.md) |
 | #10 | done | [10-core-ready.md](./overlays/10-core-ready.md) |
 | #11 | done | [11-scheduler-lease.md](./overlays/11-scheduler-lease.md) |

@@ -3,7 +3,6 @@ package sso
 import (
 	"context"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"time"
 
@@ -13,7 +12,7 @@ import (
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
-func EveSSOExchangeHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) EveSSOExchangeHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveSSOCodeExchange()

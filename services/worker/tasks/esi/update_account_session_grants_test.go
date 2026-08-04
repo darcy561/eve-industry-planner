@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"testing"
 
@@ -86,7 +85,6 @@ func createMockTask(taskType string, data interface{}) *asynq.Task {
 func TestRefreshAccountSessionGrants_NilTask(t *testing.T) {
 	ctx := context.Background()
 	deps := &TaskDependencies{
-		Clients:   &stackservices.Clients{},
 		ESIClient: &mockESIClient{},
 	}
 
@@ -110,7 +108,6 @@ func TestRefreshAccountSessionGrants_InvalidJSON(t *testing.T) {
 	task := asynq.NewTask("updateAccountSessionGrants", payloadBytes)
 
 	deps := &TaskDependencies{
-		Clients:   &stackservices.Clients{},
 		ESIClient: &mockESIClient{},
 	}
 
@@ -129,7 +126,6 @@ func TestRefreshAccountSessionGrants_MissingAccountID(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		Clients:   &stackservices.Clients{},
 		ESIClient: &mockESIClient{},
 	}
 
@@ -151,7 +147,6 @@ func TestRefreshAccountSessionGrants_EmptyTokens(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		Clients:   &stackservices.Clients{},
 		ESIClient: &mockESIClient{},
 	}
 
@@ -174,9 +169,8 @@ func TestRefreshAccountSessionGrants_TokenValidationFailure(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		Clients: &stackservices.Clients{
-			Redis: setupAccountSessionGrantsTestEnv(t),
-		},
+		Redis: setupAccountSessionGrantsTestEnv(t),
+
 		ESIClient: &mockESIClient{},
 	}
 
@@ -234,7 +228,6 @@ func TestRefreshAccountSessionGrants_ESIRetryableRateLimitError(t *testing.T) {
 		}
 
 		deps := &TaskDependencies{
-			Clients: &stackservices.Clients{},
 			ESIClient:      esiClient,
 		}
 
@@ -266,7 +259,6 @@ func TestRefreshAccountSessionGrants_ESINonRetryableError(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		Clients:   &stackservices.Clients{},
 		ESIClient: esiClient,
 	}
 
@@ -298,7 +290,6 @@ func TestRefreshAccountSessionGrants_ESINon200Status(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		Clients:   &stackservices.Clients{},
 		ESIClient: esiClient,
 	}
 
@@ -330,7 +321,6 @@ func TestRefreshAccountSessionGrants_InvalidJSONResponse(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		Clients:   &stackservices.Clients{},
 		ESIClient: esiClient,
 	}
 
@@ -373,7 +363,6 @@ func TestRefreshAccountSessionGrants_SuccessfulProcessing(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		Clients:   &stackservices.Clients{},
 		ESIClient: esiClient,
 	}
 
@@ -411,7 +400,6 @@ func TestRefreshAccountSessionGrants_DuplicateCorporations(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		Clients:   &stackservices.Clients{},
 		ESIClient: esiClient,
 	}
 
@@ -445,7 +433,6 @@ func TestRefreshAccountSessionGrants_ZeroCorporationID(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		Clients:   &stackservices.Clients{},
 		ESIClient: esiClient,
 	}
 
@@ -479,7 +466,6 @@ func TestRefreshAccountSessionGrants_MixedSuccessAndFailure(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		Clients:   &stackservices.Clients{},
 		ESIClient: esiClient,
 	}
 
@@ -518,9 +504,8 @@ func TestRefreshAccountSessionGrants_RedisStorageFailure(t *testing.T) {
 
 	// Use nil Redis to trigger storage error
 	deps := &TaskDependencies{
-		Clients: &stackservices.Clients{
-			Redis: nil, // This will cause StoreCorporations to fail
-		},
+		Redis: nil, // This will cause StoreCorporations to fail,
+
 		ESIClient: esiClient,
 	}
 
@@ -551,7 +536,6 @@ func TestRefreshAccountSessionGrants_NilResponse(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		Clients:   &stackservices.Clients{},
 		ESIClient: esiClient,
 	}
 

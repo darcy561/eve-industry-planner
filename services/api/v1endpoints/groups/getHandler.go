@@ -2,7 +2,6 @@ package groups
 
 import (
 	"context"
-	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"time"
 
@@ -12,7 +11,7 @@ import (
 )
 
 // GetGroupsHandler handles GET /v1/groups - retrieve all groups for the authenticated user
-func GetGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) GetGroupsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIGroups()
@@ -30,9 +29,8 @@ func GetGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackserv
 	}
 
 	accountID := helper.AuthenticatedAccountID(r)
-	mongo := clients.Mongo
 
-	groups, err := mongo.Groups.LoadGroupsByAccount(ctx, accountID)
+	groups, err := h.Mongo.Groups.LoadGroupsByAccount(ctx, accountID)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to retrieve groups", "failed to query groups", "groups_query_failed", "groups_get", err, nil)

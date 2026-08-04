@@ -13,6 +13,7 @@ const (
 	PinPrefix       = "eip:ws:pin:v1:"
 	CordonPrefix    = "eip:ws:cordon:v1:"
 	FullPrefix      = "eip:ws:full:v1:"
+	SoftPrefix      = "eip:ws:soft:v1:"
 	DrainChannel    = "eip:ws:drain:v1"
 
 	// PlacementTTL is Redis TTL for eip:ws:place:v1:* (ws-router SET/EXPIRE; ops scripts use 86400s).

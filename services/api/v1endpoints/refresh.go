@@ -3,7 +3,6 @@ package v1endpoints
 import (
 	"encoding/json"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"strings"
@@ -11,7 +10,7 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
-	userendpoints "eve-industry-planner/api/v1endpoints/user"
+	user "eve-industry-planner/api/v1endpoints/user"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
@@ -43,20 +42,23 @@ type RefreshRequest struct {
 }
 
 // RotateHandler handles periodic planner session rotation (POST /api/v1/auth/sessions/rotate).
-func RotateHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
-	refreshHandler(w, r, clients, false)
+func (a *Handlers) RotateHandler(w http.ResponseWriter, r *http.Request) {
+	a.refreshHandler(w, r, false)
 }
 
 // BootstrapHandler handles planner session bootstrap after login flows (POST /api/v1/auth/sessions/bootstrap).
-func BootstrapHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
-	refreshHandler(w, r, clients, true)
+func (a *Handlers) BootstrapHandler(w http.ResponseWriter, r *http.Request) {
+	a.refreshHandler(w, r, true)
 }
 
-func refreshHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients, touchLastLogin bool) {
+func (a *Handlers) refreshHandler(w http.ResponseWriter, r *http.Request, touchLastLogin bool) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPISessionRefresh()
 	sessionMetrics := apimetrics.GetAPIAuthSessionLifecycle()
+	mongo := a.Mongo
+	rdb := a.Redis
+	h := user.New(a.Deps)
 	appVersion := extractAppVersion(r)
 	sessionEndpoint := "sessions_rotate"
 	if touchLastLogin {
@@ -117,7 +119,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *stackservic
 
 	// Validate planner refresh material (refresh_token:<opaque>). When the presented token is missing or
 	// stale but eip_session is valid, resolve the current refresh row for that session_id (multi-tab local).
-	resolved, err := auth.ResolvePresentedRefreshTokenFromRequest(ctx, clients.Redis, refreshToken, r)
+	resolved, err := auth.ResolvePresentedRefreshTokenFromRequest(ctx, rdb, refreshToken, r)
 	recoveredViaSession := resolved.RecoveredViaSession
 	refreshToken = resolved.Token
 	tokenData := resolved.Data
@@ -143,7 +145,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *stackservic
 	})
 
 	now := time.Now().UTC()
-	if strings.TrimSpace(tokenData.SessionID) != "" && auth.IsRefreshTokenDataReauthExpired(ctx, clients.Redis, tokenData, now) {
+	if strings.TrimSpace(tokenData.SessionID) != "" && auth.IsRefreshTokenDataReauthExpired(ctx, rdb, tokenData, now) {
 		m.Errors.WithLabelValues("reauth_required").Inc(ctx)
 		attachSessionRefreshClientFailure(r, credLog, "planner session reauth window elapsed", "auth_reauth_required", map[string]interface{}{
 			"metric":        "session_refresh",
@@ -166,26 +168,26 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *stackservic
 		// Per-tab sessions send refresh_token in the JSON body (sessionStorage), not only the
 		// legacy HttpOnly cookie. Cloud resume still omits eve_token; local accounts must
 		// provide eve_token (RefreshStoredEsiFromMongo returns ErrMongoStoredEsiNotCloud).
-		_, err := userendpoints.RefreshStoredEsiFromMongoForCharacter(ctx, clients, tokenData.AccountID, tokenData.CharacterHash)
+		_, err := h.RefreshStoredEsiFromMongoForCharacter(ctx, tokenData.AccountID, tokenData.CharacterHash)
 		if err != nil {
 			switch {
-			case errors.Is(err, userendpoints.ErrMongoStoredEsiNotCloud):
+			case errors.Is(err, user.ErrMongoStoredEsiNotCloud):
 				m.Errors.WithLabelValues("validation_error").Inc(ctx)
 				respondSessionRefreshClientError(w, r, credLog, http.StatusBadRequest, "eve_token is required for non-cloud sessions", "eve_token required for non-cloud planner session refresh", "auth_refresh_eve_token_required_non_cloud", map[string]interface{}{
 					"metric": "session_refresh",
 				})
-			case errors.Is(err, userendpoints.ErrMongoStoredEsiNoRow), errors.Is(err, userendpoints.ErrMongoStoredEsiUserNotFound):
+			case errors.Is(err, user.ErrMongoStoredEsiNoRow), errors.Is(err, user.ErrMongoStoredEsiUserNotFound):
 				m.Errors.WithLabelValues("cloud_esi_not_found").Inc(ctx)
 				respondSessionRefreshClientError(w, r, credLog, http.StatusUnauthorized, "Invalid token", "cloud ESI material not found for refresh session", "auth_cloud_esi_not_found", map[string]interface{}{
 					"metric":         "session_refresh",
 					"character_hash": tokenData.CharacterHash,
 				})
-			case errors.Is(err, userendpoints.ErrMongoStoredEsiKeyring), errors.Is(err, userendpoints.ErrMongoStoredEsiDecrypt), errors.Is(err, userendpoints.ErrMongoStoredEsiPersist):
+			case errors.Is(err, user.ErrMongoStoredEsiKeyring), errors.Is(err, user.ErrMongoStoredEsiDecrypt), errors.Is(err, user.ErrMongoStoredEsiPersist):
 				m.Errors.WithLabelValues("config_error").Inc(ctx)
 				respondRefreshServerError(w, r, sessionEndpoint, "cloud stored ESI refresh internal error", "cloud_stored_esi_internal", err, map[string]interface{}{
 					"character_hash": tokenData.CharacterHash,
 				})
-			case errors.Is(err, userendpoints.ErrMongoStoredEsiInvalidGrant):
+			case errors.Is(err, user.ErrMongoStoredEsiInvalidGrant):
 				m.Errors.WithLabelValues("validation_error").Inc(ctx)
 				respondSessionRefreshClientError(w, r, credLog, http.StatusUnauthorized, "Stored ESI refresh invalid — full EVE login required", "stored ESI refresh invalid for planner session refresh", "auth_cloud_esi_invalid_grant", map[string]interface{}{
 					"metric": "session_refresh",
@@ -232,8 +234,8 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *stackservic
 	}
 
 	// Load corporation/alliance caches from Redis (aggregated from all characters on the account)
-	corporations := auth.GetCorporations(ctx, clients.Redis, tokenData.AccountID)
-	alliances := auth.GetAlliances(ctx, clients.Redis, tokenData.AccountID)
+	corporations := auth.GetCorporations(ctx, rdb, tokenData.AccountID)
+	alliances := auth.GetAlliances(ctx, rdb, tokenData.AccountID)
 
 	// Update token data with fresh corporation/alliance lists from Redis
 	updatedTokenData := *tokenData
@@ -271,7 +273,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *stackservic
 	}
 
 	// Mint and persist the next planner refresh token (same path as login).
-	newRefreshToken, err := auth.MintAndStoreRefreshToken(ctx, clients.Redis, updatedTokenData)
+	newRefreshToken, err := auth.MintAndStoreRefreshToken(ctx, rdb, updatedTokenData)
 	if err != nil {
 		if errors.Is(err, auth.ErrRefreshTokenGenerate) {
 			m.Errors.WithLabelValues("refresh_token_generation_error").Inc(ctx)
@@ -286,7 +288,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *stackservic
 		})
 		return
 	}
-	if err := auth.UpsertSessionRecord(ctx, clients.Redis, auth.SessionRecord{
+	if err := auth.UpsertSessionRecord(ctx, rdb, auth.SessionRecord{
 		SessionID:     updatedTokenData.SessionID,
 		AccountID:     tokenData.AccountID,
 		CharacterHash: tokenData.CharacterHash,
@@ -294,7 +296,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *stackservic
 		StartedAt:     updatedTokenData.SessionStart,
 		LastSeenAt:    updatedTokenData.SessionSeenAt,
 	}); err != nil {
-		auth.RevokeRefreshTokenBestEffort(ctx, clients.Redis, newRefreshToken)
+		auth.RevokeRefreshTokenBestEffort(ctx, rdb, newRefreshToken)
 		m.Errors.WithLabelValues("session_store_error").Inc(ctx)
 		sessionMetrics.StoreErrors.WithLabelValues(sessionFlow).Inc(ctx)
 		respondRefreshServerError(w, r, sessionEndpoint, "failed to store session record", "auth_redis_session_record", err, map[string]interface{}{
@@ -308,8 +310,8 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *stackservic
 		"started_session":  startedSession,
 		"session_endpoint": sessionEndpoint,
 	})
-	if err := auth.VerifyAccountSessionPersisted(ctx, clients.Redis, tokenData.AccountID, updatedTokenData.SessionID); err != nil {
-		auth.RevokeRefreshTokenBestEffort(ctx, clients.Redis, newRefreshToken)
+	if err := auth.VerifyAccountSessionPersisted(ctx, rdb, tokenData.AccountID, updatedTokenData.SessionID); err != nil {
+		auth.RevokeRefreshTokenBestEffort(ctx, rdb, newRefreshToken)
 		m.Errors.WithLabelValues("session_verify_error").Inc(ctx)
 		sessionMetrics.StoreErrors.WithLabelValues(sessionFlow).Inc(ctx)
 		respondRefreshServerError(w, r, sessionEndpoint, "account_sessions row missing after upsert", "auth_session_verify", err, map[string]interface{}{
@@ -320,18 +322,18 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *stackservic
 	}
 	if startedSession {
 		sessionMetrics.Started.WithLabelValues(sessionFlow).Inc(ctx)
-		apimetrics.RecordAuthSessionDistinctAccount(ctx, clients.Redis, tokenData.AccountID)
+		apimetrics.RecordAuthSessionDistinctAccount(ctx, rdb, tokenData.AccountID)
 	} else {
 		sessionMetrics.Continued.WithLabelValues(sessionFlow).Inc(ctx)
 	}
 	sessionMetrics.Stored.WithLabelValues(sessionFlow).Inc(ctx)
-	if err := auth.UpdateAccountSessionGrants(ctx, clients.Redis, tokenData.AccountID, corporations, alliances); err != nil {
+	if err := auth.UpdateAccountSessionGrants(ctx, rdb, tokenData.AccountID, corporations, alliances); err != nil {
 		logs.AttachHandlerCaveat(r, "account_session_grants_update_failed", "failed to update account session grants", map[string]interface{}{
 			"error": err.Error(),
 		})
 	}
-	if err := auth.VerifyAccountSessionPersisted(ctx, clients.Redis, tokenData.AccountID, updatedTokenData.SessionID); err != nil {
-		auth.RevokeRefreshTokenBestEffort(ctx, clients.Redis, newRefreshToken)
+	if err := auth.VerifyAccountSessionPersisted(ctx, rdb, tokenData.AccountID, updatedTokenData.SessionID); err != nil {
+		auth.RevokeRefreshTokenBestEffort(ctx, rdb, newRefreshToken)
 		m.Errors.WithLabelValues("session_verify_error").Inc(ctx)
 		sessionMetrics.StoreErrors.WithLabelValues(sessionFlow).Inc(ctx)
 		respondRefreshServerError(w, r, sessionEndpoint, "account_sessions row missing before issuing session cookies", "auth_session_verify", err, map[string]interface{}{
@@ -342,7 +344,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *stackservic
 	}
 
 	// Rotation: invalidate only the refresh token that authenticated this request (other devices hold different strings).
-	if err := auth.RevokeSupersededRefreshToken(ctx, clients.Redis, refreshToken); err != nil {
+	if err := auth.RevokeSupersededRefreshToken(ctx, rdb, refreshToken); err != nil {
 		logs.AttachHandlerCaveat(r, "superseded_refresh_revoke_failed", "failed to revoke superseded planner app session refresh token", map[string]interface{}{
 			"error":          err.Error(),
 			"character_hash": tokenData.CharacterHash,
@@ -350,7 +352,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *stackservic
 	}
 
 	if touchLastLogin {
-		loginDocs, err := helper.ResolveUserDocumentsForLogin(ctx, clients.Mongo, tokenData.AccountID)
+		loginDocs, err := helper.ResolveUserDocumentsForLogin(ctx, mongo, tokenData.AccountID)
 		if err != nil {
 			m.Errors.WithLabelValues("mongo_error").Inc(ctx)
 			respondRefreshServerError(w, r, sessionEndpoint, "failed to resolve user documents for login refresh", "auth_mongo_user_docs", err, map[string]interface{}{})
@@ -360,8 +362,8 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *stackservic
 		var linkedCharacters []models.LinkedCharacterSession
 		if userOut.UserCloudAccounts && cfg.Keys.Keyring != nil {
 			if len(userOut.RefreshTokens) > 0 {
-				linkedCharacterSessions, err := userendpoints.BuildCloudLinkedCharactersForLogin(
-					ctx, clients.Mongo, tokenData.AccountID, &userOut,
+				linkedCharacterSessions, err := h.BuildCloudLinkedCharactersForLogin(
+					ctx, tokenData.AccountID, &userOut,
 					cfg.SSO.ClientID, cfg.SSO.ClientSecret, cfg.Keys.Keyring,
 				)
 				if err != nil {
@@ -373,7 +375,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *stackservic
 				}
 			}
 		}
-		userendpoints.StripRefreshTokensFromUserDocumentForClient(&userOut)
+		user.StripRefreshTokensFromUserDocumentForClient(&userOut)
 		bootstrap := SessionBootstrapResponse{
 			Kind:                sessionKindBootstrap,
 			EsiOAuthStorage:     esiOAuthStorageFromUserCloud(userOut.UserCloudAccounts),

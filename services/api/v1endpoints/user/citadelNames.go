@@ -3,7 +3,6 @@ package user
 import (
 	"context"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -72,11 +71,11 @@ const (
 	citadelNamesCDNCacheControl = "public, s-maxage=2592000, stale-while-revalidate=604800, stale-if-error=604800"
 )
 
-func CitadelNamesHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) CitadelNamesHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	switch r.Method {
 	case http.MethodPost:
-		handleSubmitCitadelName(w, r, clients)
+		h.handleSubmitCitadelName(w, r)
 	default:
 		m := apimetrics.GetAPICitadelNames()
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
@@ -84,11 +83,11 @@ func CitadelNamesHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 	}
 }
 
-func CitadelNameByIDHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) CitadelNameByIDHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	switch r.Method {
 	case http.MethodGet:
-		handleGetCitadelNameByID(w, r, clients)
+		h.handleGetCitadelNameByID(w, r)
 	default:
 		m := apimetrics.GetAPICitadelNames()
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
@@ -96,7 +95,7 @@ func CitadelNameByIDHandler(w http.ResponseWriter, r *http.Request, clients *sta
 	}
 }
 
-func handleSubmitCitadelName(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) handleSubmitCitadelName(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPICitadelNames()
@@ -149,8 +148,7 @@ func handleSubmitCitadelName(w http.ResponseWriter, r *http.Request, clients *st
 	}
 
 	now := time.Now().UTC()
-	store := clients.Mongo
-	coll := store.CitadelNames.Collection()
+	coll := h.Mongo.CitadelNames.Collection()
 
 	var writes []mongodriver.WriteModel
 	for _, s := range byID {
@@ -191,7 +189,7 @@ func handleSubmitCitadelName(w http.ResponseWriter, r *http.Request, clients *st
 	})
 }
 
-func handleGetCitadelNameByID(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) handleGetCitadelNameByID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPICitadelNames()
@@ -211,8 +209,7 @@ func handleGetCitadelNameByID(w http.ResponseWriter, r *http.Request, clients *s
 		return
 	}
 
-	store := clients.Mongo
-	coll := store.CitadelNames.Collection()
+	coll := h.Mongo.CitadelNames.Collection()
 	var record citadelNameRecord
 	if err := coll.FindOne(ctx, bson.M{"_id": citadelID}).Decode(&record); err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {

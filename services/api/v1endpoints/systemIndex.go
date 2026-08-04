@@ -2,7 +2,6 @@ package v1endpoints
 
 import (
 	"context"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -31,7 +30,7 @@ type SystemIndexesBody struct {
 //	405 — not POST
 //	400 — invalid JSON, missing system_ids, empty array, too many IDs, or invalid IDs
 //	200 — JSON map of systemID → index rows; missing Redis keys appear as empty arrays (no per-id 404)
-func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (a *Handlers) SystemIndexesHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPISystemIndexes()
@@ -93,7 +92,7 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *stack
 		systemID, _ := strconv.ParseInt(idStr, 10, 32)
 
 		var index esitypes.SystemIndexes
-		err = rediscore.GetIndustrySystemIndex(ctx, clients.Redis, int32(systemID), &index)
+		err = rediscore.GetIndustrySystemIndex(ctx, a.Redis, int32(systemID), &index)
 		if err != nil {
 			systemsNotFound++
 			missingIDs = append(missingIDs, idStr)

@@ -2,15 +2,12 @@ package v1endpoints
 
 import (
 	"context"
-	"eve-industry-planner/shared/stackservices"
 	"net/http"
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/appconfig"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
-
-	"github.com/redis/go-redis/v9"
 )
 
 type AppConfigResponse struct {
@@ -19,17 +16,9 @@ type AppConfigResponse struct {
 	FeatureFlags     map[string]interface{} `json:"feature_flags"`
 }
 
-func resolveAppConfigVersion(ctx context.Context, clients *stackservices.Clients) string {
-	var rdb *redis.Client
-	if clients != nil {
-		rdb = clients.Redis
-	}
-	return appconfig.ResolveAdvertisedAppVersion(ctx, rdb)
-}
-
 // AppConfigHandler returns lightweight client config without Firebase Remote Config.
-// app_version_number prefers Redis train SoT (eip:app:advertised_version:v1), else process env.
-func AppConfigHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+// app_version_number is this process bake/env (APP_VERSION family).
+func (a *Handlers) AppConfigHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	m := apimetrics.GetAPIAppConfig()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
@@ -47,7 +36,7 @@ func AppConfigHandler(w http.ResponseWriter, r *http.Request, clients *stackserv
 	featureFlags := appconfig.FeatureFlags()
 
 	response := AppConfigResponse{
-		AppVersionNumber: resolveAppConfigVersion(ctx, clients),
+		AppVersionNumber: appconfig.ProcessAppVersion(),
 		MaintenanceMode:  appconfig.MaintenanceModeEnabled(),
 		FeatureFlags:     featureFlags,
 	}

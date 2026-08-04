@@ -3,7 +3,6 @@ package sso
 import (
 	"context"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"time"
@@ -14,7 +13,7 @@ import (
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
-func EveSSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) EveSSORefreshHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveSSOTokenRefresh()
@@ -116,7 +115,7 @@ func EveSSORefreshHandler(w http.ResponseWriter, r *http.Request, clients *stack
 	m.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
 	m.RequestsCount.Inc(ctx)
 	m.Successes.Inc(ctx)
-	apimetrics.RecordSSORefreshDistinctCharacter(ctx, clients.Redis, characterHash)
+	apimetrics.RecordSSORefreshDistinctCharacter(ctx, h.Redis, characterHash)
 
 	accountID := auth.GetAccountIDFromCharacterHash(characterHash)
 	r = logs.BindRequestAccountIDToRequest(r, accountID)

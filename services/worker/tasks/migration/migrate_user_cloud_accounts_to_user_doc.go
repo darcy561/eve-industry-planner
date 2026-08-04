@@ -2,6 +2,7 @@ package migration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -48,7 +49,7 @@ func MigrateUserCloudAccountsToUserDoc(ctx context.Context, task *asynq.Task, de
 		ctx,
 		bson.M{"_id": p.AccountID, "_meta.accountID": p.AccountID},
 	).Decode(&settings); err != nil {
-		if err == mongodriver.ErrNoDocuments {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			return nil
 		}
 		return fmt.Errorf("load settings for %s: %w", p.AccountID, err)

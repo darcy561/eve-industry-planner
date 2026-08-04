@@ -8,6 +8,7 @@ import (
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/shared/mongo/writers"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
@@ -77,7 +78,7 @@ func ProcessBuildStats(ctx context.Context, task *asynq.Task, deps *esitasks.Tas
 
 		processed := 0
 		skipped := 0
-		bulk := mongo.Bulk()
+		pairs := make([]writers.BuildStatsArchivePair, 0, len(jobs))
 
 		for i := range jobs {
 			job := &jobs[i]
@@ -103,29 +104,22 @@ func ProcessBuildStats(ctx context.Context, task *asynq.Task, deps *esitasks.Tas
 			}
 
 			statsID := eipmongo.BuildStatsDocumentID(acct, job.ItemID)
-			statsFilter := bson.M{"_id": statsID}
-			statsUpdate := bson.M{
-				"$inc":  buildStatSnapshotIncUpdate(snap),
-				"$set":  bson.M{"jobType": snap.JobType, "typeID": snap.TypeID},
-				"$push": bson.M{"dataSnapshots": snap},
-			}
-
-			jobFilter := bson.M{"_id": job.JobID}
-			jobUpdate := bson.M{"$set": bson.M{"_meta.archiveProcessed": true}}
-
-			bulk.UpdateOne(mongo.BuildStats, statsFilter, statsUpdate, eipmongo.Upsert())
-			bulk.UpdateOne(mongo.ArchivedJobs, jobFilter, jobUpdate)
+			pairs = append(pairs, writers.BuildStatsArchivePair{
+				StatsFilter: bson.M{"_id": statsID},
+				StatsUpdate: bson.M{
+					"$inc":  buildStatSnapshotIncUpdate(snap),
+					"$set":  bson.M{"jobType": snap.JobType, "typeID": snap.TypeID},
+					"$push": bson.M{"dataSnapshots": snap},
+				},
+				JobFilter: bson.M{"_id": job.JobID},
+				JobUpdate: bson.M{"$set": bson.M{"_meta.archiveProcessed": true}},
+			})
 			processed++
 		}
 
-		if bulk.Len() > 0 {
-			err = eipmongo.Retry(ctx, fmt.Sprintf("ProcessBuildStats batch %d account=%s", batchNum, req.AccountID), func() error {
-				_, e := bulk.RunOrdered(ctx)
-				return e
-			})
-			if err != nil {
-				return fmt.Errorf("build_stats batch bulk write account=%s batch=%d: %w", req.AccountID, batchNum, err)
-			}
+		if err := writers.ApplyBuildStatsArchiveBatch(ctx, mongo,
+			fmt.Sprintf("ProcessBuildStats batch %d account=%s", batchNum, req.AccountID), pairs); err != nil {
+			return fmt.Errorf("build_stats batch bulk write account=%s batch=%d: %w", req.AccountID, batchNum, err)
 		}
 
 		totalProcessed += processed
@@ -137,7 +131,7 @@ func ProcessBuildStats(ctx context.Context, task *asynq.Task, deps *esitasks.Tas
 			"candidates", len(jobs),
 			"processed", processed,
 			"skipped", skipped,
-			"bulk_writes", bulk.Len(),
+			"bulk_pairs", len(pairs),
 		)
 
 		if len(jobs) < buildStatsBatchSize {

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"eve-industry-planner/api/apideps"
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/api/helper/sdecache"
 	"eve-industry-planner/api/middleware"
@@ -20,7 +21,7 @@ import (
 	"eve-industry-planner/api/v1endpoints/jobdocuments"
 	ssoendpoints "eve-industry-planner/api/v1endpoints/sso"
 	"eve-industry-planner/api/v1endpoints/statistics"
-	userendpoints "eve-industry-planner/api/v1endpoints/user"
+	user "eve-industry-planner/api/v1endpoints/user"
 	"eve-industry-planner/api/v1endpoints/watchlist"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/lifecycle"
@@ -96,83 +97,71 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients) (lifecy
 		middleware.AuthConstructor(clients.Redis),
 	)
 
+	deps := apideps.FromClients(clients)
+	v1 := v1endpoints.New(deps)
+	ssoH := ssoendpoints.New(deps)
+	userH := user.New(deps)
+	watchlists := watchlist.New(deps)
+	stats := statistics.New(deps)
+	templates := grouptemplates.New(deps)
+	jobDocs := jobdocuments.New(deps)
+	groupH := groups.New(deps)
+	archived := archivedjobs.New(deps)
+	locks := documentlocks.New(deps)
+
 	// Define public routes (v1)
 	publicRoutes := []route{
 		{
-			Path: "/api/v1/auth/sessions",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.AuthHandler(w, r, clients)
-			},
+			Path:    "/api/v1/auth/sessions",
+			Handler: v1.AuthHandler,
 		},
 		{
-			Path: "/api/v1/auth/sessions/rotate",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.RotateHandler(w, r, clients)
-			},
+			Path:    "/api/v1/auth/sessions/rotate",
+			Handler: v1.RotateHandler,
 		},
 		{
-			Path: "/api/v1/auth/sessions/bootstrap",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.BootstrapHandler(w, r, clients)
-			},
+			Path:    "/api/v1/auth/sessions/bootstrap",
+			Handler: v1.BootstrapHandler,
 		},
 		{
-			Path: "/api/v1/eve-sso/tokens/exchange",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				ssoendpoints.EveSSOExchangeHandler(w, r, clients)
-			},
+			Path:    "/api/v1/eve-sso/tokens/exchange",
+			Handler: ssoH.EveSSOExchangeHandler,
 		},
 		{
-			Path: "/api/v1/eve-sso/tokens/refresh",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				ssoendpoints.EveSSORefreshHandler(w, r, clients)
-			},
-		},
-		{Path: "/api/v1/system-indexes",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.SystemIndexesHandler(w, r, clients)
-			},
-		},
-		{Path: "/api/v1/market-prices",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.MarketPricesHandler(w, r, clients)
-			},
+			Path:    "/api/v1/eve-sso/tokens/refresh",
+			Handler: ssoH.EveSSORefreshHandler,
 		},
 		{
-			Path: "/api/v1/analytics/events",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.FrontendAppEventsBatchHandler(w, r, clients)
-			},
+			Path:    "/api/v1/system-indexes",
+			Handler: v1.SystemIndexesHandler,
 		},
 		{
-			Path: "/api/v1/feedback",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.FeedbackHandler(w, r, clients)
-			},
+			Path:    "/api/v1/market-prices",
+			Handler: v1.MarketPricesHandler,
 		},
 		{
-			Path: "/api/v1/app-config",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.AppConfigHandler(w, r, clients)
-			},
+			Path:    "/api/v1/analytics/events",
+			Handler: v1.FrontendAppEventsBatchHandler,
 		},
 		{
-			Path: "/api/v1/citadel-names/{citadelID}",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				userendpoints.CitadelNameByIDHandler(w, r, clients)
-			},
+			Path:    "/api/v1/feedback",
+			Handler: v1.FeedbackHandler,
 		},
 		{
-			Path: "/api/v1/blueprints/{blueprintID}",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.BlueprintsHandler(w, r, clients)
-			},
+			Path:    "/api/v1/app-config",
+			Handler: v1.AppConfigHandler,
 		},
 		{
-			Path: "/api/v1/blueprints",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.BlueprintsHandler(w, r, clients)
-			},
+			Path:    "/api/v1/citadel-names/{citadelID}",
+			Handler: userH.CitadelNameByIDHandler,
+		},
+		{
+			Path:    "/api/v1/blueprints/{blueprintID}",
+			Handler: v1.BlueprintsHandler,
+		},
+		{
+			Path:    "/api/v1/blueprints",
+			Handler: v1.BlueprintsHandler,
 		},
 		{
 			Path: "/api/static-data/recipeList.json",
@@ -219,118 +208,80 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients) (lifecy
 	// Define private routes (v1)
 	privateRoutes := []route{
 		{
-			Path: "/api/v1/esi/characters/access-token/server",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				userendpoints.ServerStoredEsiAccessTokenHandler(w, r, clients)
-			},
+			Path:    "/api/v1/esi/characters/access-token/server",
+			Handler: userH.ServerStoredEsiAccessTokenHandler,
 		},
 		{
-			Path: "/api/v1/corporation-claims",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.CorporationsHandler(w, r, clients)
-			},
+			Path:    "/api/v1/corporation-claims",
+			Handler: v1.CorporationsHandler,
 		},
 		{
-			Path: "/api/v1/auth/sessions/logout",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				v1endpoints.LogoutHandler(w, r, clients)
-			},
+			Path:    "/api/v1/auth/sessions/logout",
+			Handler: v1.LogoutHandler,
 		},
 		{
-			Path: "/api/v1/user/document",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				userendpoints.DocumentHandler(w, r, clients)
-			},
+			Path:    "/api/v1/user/document",
+			Handler: userH.DocumentHandler,
 		},
 		{
-			Path: "/api/v1/user/linked-characters/oauth-credentials",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				userendpoints.CloudStoredEsiRefreshTokensHandler(w, r, clients)
-			},
+			Path:    "/api/v1/user/linked-characters/oauth-credentials",
+			Handler: userH.CloudStoredEsiRefreshTokensHandler,
 		},
 		{
-			Path: "/api/v1/user/application-settings",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				userendpoints.ApplicationSettingsHandler(w, r, clients)
-			},
+			Path:    "/api/v1/user/application-settings",
+			Handler: userH.ApplicationSettingsHandler,
 		},
 		{
-			Path: "/api/v1/user/citadel-names",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				userendpoints.CitadelNamesHandler(w, r, clients)
-			},
+			Path:    "/api/v1/user/citadel-names",
+			Handler: userH.CitadelNamesHandler,
 		},
 		{
-			Path: "/api/v1/user/watchlist",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				watchlist.Router(w, r, clients)
-			},
+			Path:    "/api/v1/user/watchlist",
+			Handler: watchlists.Router,
 		},
 		{
-			Path: "/api/v1/job-documents",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				jobdocuments.JobDocumentsRouter(w, r, clients)
-			},
+			Path:    "/api/v1/job-documents",
+			Handler: jobDocs.Router,
 		},
 		{
-			Path: "/api/v1/job-documents/",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				jobdocuments.JobDocumentsRouter(w, r, clients)
-			},
+			Path:    "/api/v1/job-documents/",
+			Handler: jobDocs.Router,
 		},
 		{
-			Path: "/api/v1/archived-jobs",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				archivedjobs.Router(w, r, clients)
-			},
+			Path:    "/api/v1/archived-jobs",
+			Handler: archived.Router,
 		},
 		{
-			Path: "/api/v1/archived-jobs/",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				archivedjobs.Router(w, r, clients)
-			},
+			Path:    "/api/v1/archived-jobs/",
+			Handler: archived.Router,
 		},
 		{
-			Path: "/api/v1/statistics",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				statistics.Router(w, r, clients)
-			},
+			Path:    "/api/v1/statistics",
+			Handler: stats.Router,
 		},
 		{
-			Path: "/api/v1/statistics/",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				statistics.Router(w, r, clients)
-			},
+			Path:    "/api/v1/statistics/",
+			Handler: stats.Router,
 		},
 		{
-			Path: "/api/v1/groups",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				groups.Router(w, r, clients)
-			},
+			Path:    "/api/v1/groups",
+			Handler: groupH.Router,
 		},
 		{
-			Path: "/api/v1/groups/",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				groups.Router(w, r, clients)
-			},
+			Path:    "/api/v1/groups/",
+			Handler: groupH.Router,
 		},
 		{
-			Path: "/api/v1/group-templates",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				grouptemplates.Router(w, r, clients)
-			},
+			Path:    "/api/v1/group-templates",
+			Handler: templates.Router,
 		},
 		{
-			Path: "/api/v1/group-templates/",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				grouptemplates.Router(w, r, clients)
-			},
+			Path:    "/api/v1/group-templates/",
+			Handler: templates.Router,
 		},
 		{
-			Path: "/api/v1/document-locks/",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				documentlocks.Router(w, r, clients)
-			},
+			Path:    "/api/v1/document-locks/",
+			Handler: locks.Router,
 		},
 	}
 
@@ -350,13 +301,13 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients) (lifecy
 		{
 			Path: "/api/migration/item/{itemID}",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				migrationendpoints.ItemRecipeHandler(w, r, clients)
+				migrationendpoints.ItemRecipeHandler(w, r)
 			},
 		},
 		{
 			Path: "/api/migration/item",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				migrationendpoints.ItemRecipeHandler(w, r, clients)
+				migrationendpoints.ItemRecipeHandler(w, r)
 			},
 		},
 	}

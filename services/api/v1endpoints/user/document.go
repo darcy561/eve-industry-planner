@@ -3,7 +3,6 @@ package user
 import (
 	"context"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"strings"
 	"time"
@@ -18,13 +17,13 @@ import (
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
-func DocumentHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) DocumentHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	switch r.Method {
 	case http.MethodGet:
-		handleGetUserDocument(w, r, clients)
+		h.handleGetUserDocument(w, r)
 	case http.MethodPut:
-		handleSaveUserDocument(w, r, clients)
+		h.handleSaveUserDocument(w, r)
 	default:
 		m := apimetrics.GetAPIEveTokenLogin()
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
@@ -32,7 +31,7 @@ func DocumentHandler(w http.ResponseWriter, r *http.Request, clients *stackservi
 	}
 }
 
-func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) handleGetUserDocument(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
@@ -45,9 +44,8 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *stac
 	defer metrics.Finish()
 
 	accountID := helper.AuthenticatedAccountID(r)
-	mongo := clients.Mongo
 
-	userDoc, err := mongo.LoadUserAccount(ctx, accountID)
+	userDoc, err := h.Mongo.LoadUserAccount(ctx, accountID)
 	if err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
@@ -104,7 +102,7 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *stac
 	})
 }
 
-func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) handleSaveUserDocument(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
@@ -117,7 +115,6 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sta
 	defer metrics.Finish()
 
 	accountID := helper.AuthenticatedAccountID(r)
-	mongo := clients.Mongo
 
 	var userDoc models.UserAccountDocument
 	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &userDoc) {
@@ -135,7 +132,7 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sta
 	helper.PopulateRequestMeta(r, &userDoc.MetaData.MetaData, accountID)
 
 	var existingDoc models.UserAccountDocument
-	existingDoc, loadErr := mongo.LoadUserAccount(ctx, accountID)
+	existingDoc, loadErr := h.Mongo.LoadUserAccount(ctx, accountID)
 	if loadErr != nil {
 		if !errors.Is(loadErr, mongodriver.ErrNoDocuments) {
 			metrics.Error("database_error")
@@ -187,7 +184,7 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sta
 		}
 	}
 
-	result, retriedWithoutWSClientID, err := mongo.Users.UpsertUserAccount(ctx, accountID, userDoc)
+	result, retriedWithoutWSClientID, err := h.Mongo.Users.UpsertUserAccount(ctx, accountID, userDoc)
 	if retriedWithoutWSClientID {
 		logs.AttachHandlerCaveat(r, "upsert_retried_without_ws_client_id", "user document upsert with websocket client id failed, retrying without client id", map[string]interface{}{
 			"ws_client_id": userDoc.MetaData.ClientID,

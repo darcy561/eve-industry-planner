@@ -3,15 +3,16 @@ package grouptemplates
 import (
 	"context"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"time"
 
+	"eve-industry-planner/api/apideps"
 	"eve-industry-planner/api/helper"
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/shared/mongo/writers"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"github.com/google/uuid"
@@ -19,6 +20,17 @@ import (
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
+
+type Handlers struct {
+	*apideps.Deps
+}
+
+func New(deps *apideps.Deps) *Handlers {
+	if deps == nil {
+		deps = &apideps.Deps{}
+	}
+	return &Handlers{Deps: deps}
+}
 
 type catalogStored struct {
 	ID             string                        `bson:"_id"`
@@ -101,7 +113,7 @@ func findTemplateIndex(templates []models.TemplateCatalogEntry, templateID strin
 }
 
 // GetCatalogHandler GET /api/v1/group-templates
-func GetCatalogHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) GetCatalogHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	metrics := beginGroupTemplateMetrics(ctx)
 	defer metrics.Finish()
@@ -109,8 +121,7 @@ func GetCatalogHandler(w http.ResponseWriter, r *http.Request, clients *stackser
 	if !ok {
 		return
 	}
-	mongo := clients.Mongo
-	doc, err := loadCatalogDoc(ctx, mongo.TemplateCatalog, accountID)
+	doc, err := loadCatalogDoc(ctx, h.Mongo.TemplateCatalog, accountID)
 	if errors.Is(err, mongodriver.ErrNoDocuments) {
 		_ = helper.EncodeJSON(w, map[string]any{"templates": []models.TemplateCatalogEntry{}})
 		metrics.Success()
@@ -129,7 +140,7 @@ func GetCatalogHandler(w http.ResponseWriter, r *http.Request, clients *stackser
 }
 
 // GetCatalogEntryHandler GET /api/v1/group-templates/:id
-func GetCatalogEntryHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients, templateID string) {
+func (h *Handlers) GetCatalogEntryHandler(w http.ResponseWriter, r *http.Request, templateID string) {
 	ctx := r.Context()
 	metrics := beginGroupTemplateMetrics(ctx)
 	defer metrics.Finish()
@@ -137,8 +148,7 @@ func GetCatalogEntryHandler(w http.ResponseWriter, r *http.Request, clients *sta
 	if !ok {
 		return
 	}
-	mongo := clients.Mongo
-	doc, err := loadCatalogDoc(ctx, mongo.TemplateCatalog, accountID)
+	doc, err := loadCatalogDoc(ctx, h.Mongo.TemplateCatalog, accountID)
 	if err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			helper.RespondNotFound(w, r, metrics)
@@ -161,7 +171,7 @@ func GetCatalogEntryHandler(w http.ResponseWriter, r *http.Request, clients *sta
 }
 
 // GetPayloadFullHandler GET /api/v1/group-templates/:id/full
-func GetPayloadFullHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients, templateID string) {
+func (h *Handlers) GetPayloadFullHandler(w http.ResponseWriter, r *http.Request, templateID string) {
 	ctx := r.Context()
 	metrics := beginGroupTemplateMetrics(ctx)
 	defer metrics.Finish()
@@ -169,10 +179,9 @@ func GetPayloadFullHandler(w http.ResponseWriter, r *http.Request, clients *stac
 	if !ok {
 		return
 	}
-	mongo := clients.Mongo
 	var payload models.GroupTemplatePayload
 	err := eipmongo.Retry(ctx, fmt.Sprintf("group_templates get payload %s", templateID), func() error {
-		return mongo.TemplatePayloads.Collection().FindOne(ctx, bson.M{"_id": templateID}).Decode(&payload)
+		return h.Mongo.TemplatePayloads.Collection().FindOne(ctx, bson.M{"_id": templateID}).Decode(&payload)
 	})
 	if err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
@@ -202,7 +211,7 @@ type postTemplateRequest struct {
 }
 
 // PostTemplateHandler POST /api/v1/group-templates
-func PostTemplateHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) PostTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	metrics := beginGroupTemplateMetrics(ctx)
 	defer metrics.Finish()
@@ -224,8 +233,7 @@ func PostTemplateHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 		return
 	}
 
-	mongo := clients.Mongo
-	cat, err := ensureCatalogDoc(ctx, mongo.TemplateCatalog, accountID)
+	cat, err := ensureCatalogDoc(ctx, h.Mongo.TemplateCatalog, accountID)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "catalog error", "group templates catalog error", "group_templates_catalog_error", "group_templates", err, nil)
@@ -252,18 +260,7 @@ func PostTemplateHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 		"jobs":          body.Payload.Jobs,
 	}
 
-	bulk := mongo.Bulk().
-		InsertOne(mongo.TemplatePayloads, payloadDoc).
-		UpdateOne(mongo.TemplateCatalog, bson.M{"_id": accountID}, bson.M{
-			"$push": bson.M{"templates": entry},
-			"$inc":  bson.M{"catalogVersion": 1},
-			"$set": bson.M{
-				"schemaVersion": models.GroupTemplateCatalogSchemaVersion,
-				"documentKind":  models.GroupTemplateCatalogDocumentKind,
-			},
-		})
-
-	_, err = bulk.RunOrdered(ctx)
+	err = writers.CreateGroupTemplate(ctx, h.Mongo, accountID, entry, payloadDoc)
 	if err != nil {
 		if mongodriver.IsDuplicateKeyError(err) {
 			metrics.Error("duplicate_template_id")
@@ -291,7 +288,7 @@ type patchTemplateRequest struct {
 }
 
 // PatchTemplateHandler PATCH /api/v1/group-templates/:id
-func PatchTemplateHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients, templateID string) {
+func (h *Handlers) PatchTemplateHandler(w http.ResponseWriter, r *http.Request, templateID string) {
 	ctx := r.Context()
 	metrics := beginGroupTemplateMetrics(ctx)
 	defer metrics.Finish()
@@ -303,8 +300,7 @@ func PatchTemplateHandler(w http.ResponseWriter, r *http.Request, clients *stack
 	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &body) {
 		return
 	}
-	mongo := clients.Mongo
-	doc, err := loadCatalogDoc(ctx, mongo.TemplateCatalog, accountID)
+	doc, err := loadCatalogDoc(ctx, h.Mongo.TemplateCatalog, accountID)
 	if err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			helper.RespondNotFound(w, r, metrics)
@@ -352,21 +348,14 @@ func PatchTemplateHandler(w http.ResponseWriter, r *http.Request, clients *stack
 			"jobs":          body.Payload.Jobs,
 		}
 
-		bulk := mongo.Bulk().
-			ReplaceOne(mongo.TemplatePayloads, bson.M{"_id": templateID, "accountID": accountID}, payloadDoc, eipmongo.Upsert()).
-			UpdateOne(mongo.TemplateCatalog, bson.M{"_id": accountID}, bson.M{
-				"$set": bson.M{"templates.$[t]": updated},
-				"$inc": bson.M{"catalogVersion": 1},
-			}, eipmongo.ArrayFilters(bson.M{"t.templateID": templateID}))
-
-		if _, err := bulk.RunOrdered(ctx); err != nil {
+		if err := writers.ReplaceGroupTemplatePayload(ctx, h.Mongo, accountID, templateID, updated, payloadDoc); err != nil {
 			metrics.Error("database_error")
 			helper.RespondEndpointServerError(w, r, "template update failed", "group templates patch failed", "group_templates_patch_failed", "group_templates", err, nil)
 			return
 		}
 	} else {
 		err = eipmongo.Retry(ctx, fmt.Sprintf("group_templates update catalog entry %s", templateID), func() error {
-			_, updateErr := mongo.TemplateCatalog.Collection().UpdateOne(ctx,
+			_, updateErr := h.Mongo.TemplateCatalog.Collection().UpdateOne(ctx,
 				bson.M{"_id": accountID},
 				bson.M{
 					"$set": bson.M{"templates.$[t]": updated},
@@ -391,7 +380,7 @@ func PatchTemplateHandler(w http.ResponseWriter, r *http.Request, clients *stack
 }
 
 // DeleteTemplateHandler DELETE /api/v1/group-templates/:id
-func DeleteTemplateHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients, templateID string) {
+func (h *Handlers) DeleteTemplateHandler(w http.ResponseWriter, r *http.Request, templateID string) {
 	ctx := r.Context()
 	metrics := beginGroupTemplateMetrics(ctx)
 	defer metrics.Finish()
@@ -399,16 +388,7 @@ func DeleteTemplateHandler(w http.ResponseWriter, r *http.Request, clients *stac
 	if !ok {
 		return
 	}
-	mongo := clients.Mongo
-
-	bulk := mongo.Bulk().
-		DeleteOne(mongo.TemplatePayloads, bson.M{"_id": templateID, "accountID": accountID}).
-		UpdateOne(mongo.TemplateCatalog, bson.M{"_id": accountID}, bson.M{
-			"$pull": bson.M{"templates": bson.M{"templateID": templateID}},
-			"$inc":  bson.M{"catalogVersion": 1},
-		})
-
-	result, err := bulk.RunOrdered(ctx)
+	result, err := writers.DeleteGroupTemplate(ctx, h.Mongo, accountID, templateID)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "delete template failed", "group templates delete failed", "group_templates_delete_failed", "group_templates", err, nil)

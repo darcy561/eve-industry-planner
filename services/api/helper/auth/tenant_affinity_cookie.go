@@ -15,17 +15,15 @@ const tenantAffinityCookiePath = "/"
 
 // FormatTenantAffinityKey builds alliance:{id} → corporation:{id} → account:{id}.
 // Empty alliance/corp fall through; accountID must be non-empty for a usable key.
+// Prefix shapes come from wsplacement.TenantKey*.
 func FormatTenantAffinityKey(accountID, corporationID, allianceID string) string {
-	if id := strings.TrimSpace(allianceID); id != "" {
-		return "alliance:" + id
+	if k := wsplacement.TenantKeyAlliance(allianceID); k != "" {
+		return k
 	}
-	if id := strings.TrimSpace(corporationID); id != "" {
-		return "corporation:" + id
+	if k := wsplacement.TenantKeyCorporation(corporationID); k != "" {
+		return k
 	}
-	if id := strings.TrimSpace(accountID); id != "" {
-		return "account:" + id
-	}
-	return ""
+	return wsplacement.TenantKeyAccount(accountID)
 }
 
 // SetTenantAffinityCookie sets eip_tenant_affinity (Path=/) for ws-router Redis placement.

@@ -3,11 +3,10 @@ package mongo_test
 import (
 	"context"
 	"fmt"
-	"reflect"
+	"strings"
 	"testing"
 	"time"
 
-	mongoget "eve-industry-planner/shared/core/mongo/get"
 	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/models"
 
@@ -15,24 +14,21 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// Live dual-path LoadJobsByFilter: oracle mongoget vs shared/mongo against real docs.
+// Live LoadJobsByFilter coverage via shared/mongo against real docs / scratch seeds.
 // Requires EIP_MONGO_PARITY_LIVE=1.
 
-func TestParity_live_LoadJobsByFilter_handlerShapes(t *testing.T) {
+func TestLive_LoadJobsByFilter_handlerShapes(t *testing.T) {
 	mongo := requireLiveMongo(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
 	samples := sampleLiveJobAccounts(t, ctx, mongo, 8)
 	if len(samples) == 0 {
-		t.Skip("no user_job_documents with _id + _meta.accountID to sample")
+		t.Skip("no app-shaped user_job_documents (jobID field) to sample — throughput stubs skipped")
 	}
 
 	checked := 0
 	for _, s := range samples {
-		coll := mongo.JobDocuments.Collection()
-
-		// Same shapes as jobdocuments getHandlers (account already in filter).
 		filters := []struct {
 			label  string
 			filter bson.M
@@ -48,94 +44,93 @@ func TestParity_live_LoadJobsByFilter_handlerShapes(t *testing.T) {
 		}
 
 		for _, fc := range filters {
-			legacyJobs, errL := mongoget.LoadJobsByFilter(ctx, coll, s.accountID, fc.label, cloneFilter(fc.filter))
-			newJobs, errN := mongo.JobDocuments.LoadJobsByFilter(ctx, s.accountID, cloneFilter(fc.filter))
-			if (errL == nil) != (errN == nil) {
-				t.Fatalf("account %s %s err new=%v legacy=%v", s.accountID, fc.label, errN, errL)
+			jobs, err := mongo.JobDocuments.LoadJobsByFilter(ctx, s.accountID, cloneFilter(fc.filter))
+			if err != nil {
+				t.Fatalf("account %s %s: %v", s.accountID, fc.label, err)
 			}
-			if errN != nil {
-				t.Fatalf("account %s %s: %v", s.accountID, fc.label, errN)
+			for _, j := range jobs {
+				if j.JobID == "" {
+					t.Fatalf("account %s %s: job missing jobID", s.accountID, fc.label)
+				}
+				if j.MetaData.AccountID != s.accountID {
+					t.Fatalf("account %s %s: leaked account %q", s.accountID, fc.label, j.MetaData.AccountID)
+				}
 			}
-			assertJobListParity(t, s.accountID+"/"+fc.label, legacyJobs, newJobs)
 			checked++
-			t.Logf("ok handler-shape %s account=%s jobs=%d", fc.label, s.accountID, len(newJobs))
+			t.Logf("ok handler-shape %s account=%s jobs=%d", fc.label, s.accountID, len(jobs))
 		}
 	}
 	if checked == 0 {
-		t.Fatal("no LoadJobsByFilter handler-shape compares ran")
+		t.Fatal("no LoadJobsByFilter handler-shape loads ran")
 	}
 }
 
-// Documents the intentional account-scope delta: new merges accountID into the filter;
-// oracle does not. Handler-shaped calls already include accountID so they stay equal.
-func TestParity_live_LoadJobsByFilter_accountScopeDelta(t *testing.T) {
+// LoadJobsByFilter merges accountID into the filter. Seeds scratch docs so identity is via jobID.
+func TestLive_LoadJobsByFilter_accountScope(t *testing.T) {
 	mongo := requireLiveMongo(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	samples := sampleLiveJobAccounts(t, ctx, mongo, 3)
-	if len(samples) == 0 {
-		t.Skip("no user_job_documents to sample")
-	}
-	s := samples[0]
+	accountID := "eip-parity-scope-delta"
+	otherAccount := "eip-parity-scope-delta-other"
 	coll := mongo.JobDocuments.Collection()
-	jobID := s.jobIDs[0]
+	t.Cleanup(func() {
+		cctx, c := context.WithTimeout(context.Background(), 30*time.Second)
+		defer c()
+		_, _ = coll.DeleteMany(cctx, bson.M{"_meta.accountID": bson.M{"$in": []string{accountID, otherAccount}}})
+	})
+	_, _ = coll.DeleteMany(ctx, bson.M{"_meta.accountID": bson.M{"$in": []string{accountID, otherAccount}}})
 
-	// Filter omits account — only _id. Both should still find the same row (_id is unique).
-	idOnly := bson.M{"_id": bson.M{"$in": []string{jobID}}}
-	legacyID, errL := mongoget.LoadJobsByFilter(ctx, coll, s.accountID, "id_only", cloneFilter(idOnly))
-	newID, errN := mongo.JobDocuments.LoadJobsByFilter(ctx, s.accountID, cloneFilter(idOnly))
-	if errL != nil || errN != nil {
-		t.Fatalf("id_only err new=%v legacy=%v", errN, errL)
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	jobID := fmt.Sprintf("eip-parity-scope-delta-%d", now.UnixNano())
+	otherJobID := fmt.Sprintf("eip-parity-scope-delta-other-%d", now.UnixNano())
+	job := scopeScratchJob(jobID, accountID)
+	other := scopeScratchJob(otherJobID, otherAccount)
+	if _, failed, err := mongo.JobDocuments.BulkUpsertJobs(ctx, accountID, []models.Job{job}, now, "scope-delta", "scope-delta"); err != nil || failed != 0 {
+		t.Fatalf("seed: failed=%d err=%v", failed, err)
 	}
-	assertJobListParity(t, "id_only", legacyID, newID)
-	t.Logf("id_only: both returned %d job(s) (unique _id)", len(newID))
+	if _, failed, err := mongo.JobDocuments.BulkUpsertJobs(ctx, otherAccount, []models.Job{other}, now, "scope-delta", "scope-delta"); err != nil || failed != 0 {
+		t.Fatalf("seed other: failed=%d err=%v", failed, err)
+	}
 
-	// Wrong account in filter, correct accountID param.
+	// Filter omits account — only _id. Unique _id still finds the row; merge keeps account scope.
+	idOnly := bson.M{"_id": bson.M{"$in": []string{jobID}}}
+	gotID, err := mongo.JobDocuments.LoadJobsByFilter(ctx, accountID, cloneFilter(idOnly))
+	if err != nil {
+		t.Fatalf("id_only: %v", err)
+	}
+	if len(gotID) != 1 || gotID[0].JobID != jobID {
+		t.Fatalf("id_only: got %v want only %s", jobIDsOf(gotID), jobID)
+	}
+
+	// Wrong account in filter, correct accountID param — merge forces accountID param.
 	wrongAccountFilter := bson.M{
 		"_meta.accountID": "eip-parity-wrong-account",
 		"_id":             jobID,
 	}
-	legacyWrong, errL := mongoget.LoadJobsByFilter(ctx, coll, s.accountID, "wrong_acct_filter", cloneFilter(wrongAccountFilter))
-	newWrong, errN := mongo.JobDocuments.LoadJobsByFilter(ctx, s.accountID, cloneFilter(wrongAccountFilter))
-	if errL != nil || errN != nil {
-		t.Fatalf("wrong_acct_filter err new=%v legacy=%v", errN, errL)
+	gotWrong, err := mongo.JobDocuments.LoadJobsByFilter(ctx, accountID, cloneFilter(wrongAccountFilter))
+	if err != nil {
+		t.Fatalf("wrong_acct_filter: %v", err)
 	}
-	if len(legacyWrong) != 0 {
-		t.Fatalf("oracle with wrong account in filter: expected 0 jobs, got %d", len(legacyWrong))
+	if len(gotWrong) != 1 || gotWrong[0].JobID != jobID {
+		t.Fatalf("merge should force accountID param: got %d jobs (want job %s)", len(gotWrong), jobID)
 	}
-	if len(newWrong) != 1 || newWrong[0].JobID != jobID {
-		t.Fatalf("new merge should force accountID param: got %d jobs (want job %s)", len(newWrong), jobID)
-	}
-	t.Logf("accountScopeDelta: oracle empty with wrong filter account; new returned job via merged accountID=%s", s.accountID)
 
-	// Broad filter without account (displayOnPlanner only) — oracle can see other accounts;
-	// new must stay on s.accountID.
-	broad := bson.M{"displayOnPlanner": true}
-	legacyBroad, errL := mongoget.LoadJobsByFilter(ctx, coll, s.accountID, "planner_no_acct", cloneFilter(broad))
-	newBroad, errN := mongo.JobDocuments.LoadJobsByFilter(ctx, s.accountID, cloneFilter(broad))
-	if errL != nil || errN != nil {
-		t.Fatalf("planner_no_acct err new=%v legacy=%v", errN, errL)
+	// Broad filter without account — must stay on accountID (not otherAccount).
+	broad := bson.M{"displayOnPlanner": true, "_id": bson.M{"$in": []string{jobID, otherJobID}}}
+	gotBroad, err := mongo.JobDocuments.LoadJobsByFilter(ctx, accountID, cloneFilter(broad))
+	if err != nil {
+		t.Fatalf("planner_no_acct: %v", err)
 	}
-	for _, j := range newBroad {
-		if j.MetaData.AccountID != s.accountID {
-			t.Fatalf("new leaked account %q (want %q)", j.MetaData.AccountID, s.accountID)
+	for _, j := range gotBroad {
+		if j.MetaData.AccountID != accountID {
+			t.Fatalf("leaked account %q (want %q)", j.MetaData.AccountID, accountID)
 		}
 	}
-	otherAccounts := 0
-	for _, j := range legacyBroad {
-		if j.MetaData.AccountID != s.accountID {
-			otherAccounts++
-		}
+	if len(gotBroad) != 1 || gotBroad[0].JobID != jobID {
+		t.Fatalf("planner_no_acct: got %v want only %s", jobIDsOf(gotBroad), jobID)
 	}
-	t.Logf("planner_no_acct: new=%d (scoped) oracle=%d (otherAccounts=%d)", len(newBroad), len(legacyBroad), otherAccounts)
-	if otherAccounts == 0 && len(legacyBroad) != len(newBroad) {
-		// Same account universe only — lengths should still match if no other accounts exist.
-		assertJobListParity(t, "planner_no_acct_same_universe", legacyBroad, newBroad)
-	}
-	if otherAccounts > 0 && len(legacyBroad) <= len(newBroad) {
-		t.Fatalf("expected oracle broader than new when other accounts present: oracle=%d new=%d", len(legacyBroad), len(newBroad))
-	}
+	t.Logf("accountScope: id_only + wrong-filter merge + broad filter all scoped to %s", accountID)
 }
 
 type liveJobAccountSample struct {
@@ -147,7 +142,8 @@ type liveJobAccountSample struct {
 func sampleLiveJobAccounts(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, maxAccounts int) []liveJobAccountSample {
 	t.Helper()
 	coll := mongo.JobDocuments.Collection()
-	cur, err := coll.Find(ctx, bson.M{}, options.Find().SetLimit(80))
+	// Prefer app-shaped docs (jobID field). Throughput stubs only have _id/_meta and break JobID identity.
+	cur, err := coll.Find(ctx, bson.M{"jobID": bson.M{"$type": "string", "$ne": ""}}, options.Find().SetLimit(80))
 	if err != nil {
 		t.Fatalf("sample find: %v", err)
 	}
@@ -161,7 +157,13 @@ func sampleLiveJobAccounts(t *testing.T, ctx context.Context, mongo *eipmongo.Mo
 			t.Fatalf("decode: %v", err)
 		}
 		jobID, accountID := docIDAndAccount(raw)
+		if jobField, _ := raw["jobID"].(string); jobField != "" {
+			jobID = jobField
+		}
 		if jobID == "" || accountID == "" || accountID == parityScratchAccount {
+			continue
+		}
+		if strings.HasPrefix(accountID, "eip-parity-") {
 			continue
 		}
 		s, ok := byAccount[accountID]
@@ -199,7 +201,7 @@ func cloneFilter(in bson.M) bson.M {
 
 // Docs-layer slip: filter omits _meta.accountID. LoadJobsByFilter must still scope;
 // the same Find without merge returns both accounts (what happens if we don't merge).
-func TestParity_live_LoadJobsByFilter_docsLayerSlip(t *testing.T) {
+func TestLive_LoadJobsByFilter_docsLayerSlip(t *testing.T) {
 	mongo := requireLiveMongo(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -287,24 +289,4 @@ func jobIDsOf(jobs []models.Job) []string {
 		out[i] = j.JobID
 	}
 	return out
-}
-
-func assertJobListParity(t *testing.T, label string, legacyJobs, newJobs []models.Job) {
-	t.Helper()
-	if len(legacyJobs) != len(newJobs) {
-		t.Fatalf("%s len new=%d legacy=%d", label, len(newJobs), len(legacyJobs))
-	}
-	byID := make(map[string]models.Job, len(legacyJobs))
-	for _, j := range legacyJobs {
-		byID[j.JobID] = j
-	}
-	for _, j := range newJobs {
-		want, ok := byID[j.JobID]
-		if !ok {
-			t.Fatalf("%s missing job %s in oracle result", label, j.JobID)
-		}
-		if !reflect.DeepEqual(want, j) {
-			t.Fatalf("%s job %s content mismatch", label, j.JobID)
-		}
-	}
 }

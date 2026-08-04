@@ -24,35 +24,38 @@ func Retry(ctx context.Context, operationName string, operation func() error) er
 	return retryMongoOperation(ctx, operationName, retryMaxAttempts, retryInitialDelay, retryMaxDelay, operation)
 }
 
-// IsRetryableMongoError reports whether err looks like a transient Mongo / network failure
-// (substring match on the error text).
+// IsRetryableMongoError reports whether err is a transient Mongo / network failure suitable for Retry.
+// Prefers driver helpers (IsNetworkError / IsTimeout); keeps a narrow string fallback for SDAM messages.
 func IsRetryableMongoError(err error) bool {
 	if err == nil {
 		return false
 	}
-
-	errStr := err.Error()
-	retryableErrors := []string{
-		"server selection error",
-		"server selection timeout",
-		"connection timeout",
-		"i/o timeout",
-		"context deadline exceeded",
-		"no reachable servers",
-		"connection(mongo",
-		"incomplete read",
-		"network error",
-		"connection closed",
-		"connection reset",
+	if errors.Is(err, context.Canceled) {
+		return false
+	}
+	if errors.Is(err, mongo.ErrNoDocuments) || errors.Is(err, mongo.ErrNilDocument) {
+		return false
+	}
+	if errors.Is(err, mongo.ErrClientDisconnected) {
+		return true
+	}
+	if mongo.IsNetworkError(err) || mongo.IsTimeout(err) {
+		return true
 	}
 
-	errStrLower := strings.ToLower(errStr)
-	for _, retryable := range retryableErrors {
-		if strings.Contains(errStrLower, strings.ToLower(retryable)) {
+	errStrLower := strings.ToLower(err.Error())
+	for _, retryable := range []string{
+		"server selection error",
+		"server selection timeout",
+		"no reachable servers",
+		"connection closed",
+		"connection reset",
+		"incomplete read",
+	} {
+		if strings.Contains(errStrLower, retryable) {
 			return true
 		}
 	}
-
 	return false
 }
 

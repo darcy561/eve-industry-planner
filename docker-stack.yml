@@ -260,6 +260,7 @@ services:
       OTEL_SERVICE_INSTANCE_ID: "websocket-{{.Task.Slot}}"
       APP_VERSION: ${APP_VERSION}
       WS_SLOT_CLIENT_CUTOFF: "2000"
+      WS_SLOT_TARGET_CLIENTS: "1500"
     secrets: *secrets-websocket
     volumes:
       - api_data:/data

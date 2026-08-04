@@ -17,15 +17,14 @@ import (
 // BuildCloudLinkedCharactersForLogin refreshes each stored additional-character ESI token
 // server-side, returns short-lived access sessions for the client, encrypts refresh material at rest,
 // and persists the user document when ciphertext or rotated refresh tokens change.
-func BuildCloudLinkedCharactersForLogin(
+func (h *Handlers) BuildCloudLinkedCharactersForLogin(
 	ctx context.Context,
-	mongo *eipmongo.Mongo,
 	accountID string,
 	user *models.UserAccountDocument,
 	clientID, clientSecret string,
 	kr *corecrypto.Keyring,
 ) ([]models.LinkedCharacterSession, error) {
-	if mongo == nil || accountID == "" || user == nil || kr == nil {
+	if h.Mongo == nil || accountID == "" || user == nil || kr == nil {
 		return nil, fmt.Errorf("invalid args for BuildCloudLinkedCharactersForLogin")
 	}
 	if clientID == "" || clientSecret == "" {
@@ -79,7 +78,7 @@ func BuildCloudLinkedCharactersForLogin(
 	}
 
 	if dirty {
-		if err := mongo.Users.PatchUserAccountFields(ctx, accountID, bson.M{
+		if err := h.Mongo.Users.PatchUserAccountFields(ctx, accountID, bson.M{
 			"refreshTokens":      user.RefreshTokens,
 			"_meta.lastModified": time.Now().UTC(),
 		}, eipmongo.WithOpName(fmt.Sprintf("persist encrypted refresh tokens at login %s", accountID))); err != nil {

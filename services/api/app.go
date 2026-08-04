@@ -64,9 +64,15 @@ func (a *app) registerMetrics(context.Context) error {
 }
 
 func (a *app) startProbes(ctx context.Context) error {
-	ready := func(context.Context) error {
+	ready := func(c context.Context) error {
 		if !sdecache.IsReady() {
 			return fmt.Errorf("sde cache not ready")
+		}
+		if a.clients == nil || a.clients.Mongo == nil {
+			return fmt.Errorf("mongo missing")
+		}
+		if err := a.clients.Mongo.Ping(c); err != nil {
+			return fmt.Errorf("mongo: %w", err)
 		}
 		return nil
 	}

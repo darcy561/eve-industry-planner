@@ -2,30 +2,48 @@ package server
 
 import (
 	"context"
-	"time"
 
 	"eve-industry-planner/shared/logs"
 )
 
-// Shutdown gracefully shuts down the WebSocket server
-func (s *Server) Shutdown() {
-	shutdownCtx := context.Background()
-	logs.InfoCtx(shutdownCtx, "websocket server shutting down")
+// contextUntilShutdown is cancelled when shutdownChan closes (or immediately if already closed).
+func (s *Server) contextUntilShutdown() (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		select {
+		case <-s.shutdownChan:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	return ctx, cancel
+}
 
-	// Signal shutdown to all coordinators
-	close(s.shutdownChan)
-
-	stopperSync := s.SyncPool.Stop()
-	shutdownTimeout := 30 * time.Second
-	shutdownTimer := time.NewTimer(shutdownTimeout)
-	defer shutdownTimer.Stop()
-
-	select {
-	case <-stopperSync.Done():
-		logs.DebugCtx(shutdownCtx, "sync pool stopped")
-	case <-shutdownTimer.C:
-		logs.WarnCtx(shutdownCtx, "sync pool shutdown timeout")
+// Shutdown closes shutdownChan (coordinators exit) and stops the sync pool.
+// Sync-pool wait is bounded by ctx (lifecycle cleanup budget / stop grace).
+// Safe to call more than once.
+func (s *Server) Shutdown(ctx context.Context) {
+	if s == nil {
+		return
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	s.shutdownOnce.Do(func() {
+		logs.InfoCtx(ctx, "websocket server shutting down")
 
-	logs.DebugCtx(shutdownCtx, "websocket server shutdown complete")
+		close(s.shutdownChan)
+
+		if s.SyncPool != nil {
+			stopperSync := s.SyncPool.Stop()
+			select {
+			case <-stopperSync.Done():
+				logs.DebugCtx(ctx, "sync pool stopped")
+			case <-ctx.Done():
+				logs.WarnCtx(ctx, "sync pool shutdown interrupted", "error", ctx.Err())
+			}
+		}
+
+		logs.DebugCtx(ctx, "websocket server shutdown complete")
+	})
 }

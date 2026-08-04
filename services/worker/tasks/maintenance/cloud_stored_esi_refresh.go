@@ -73,7 +73,7 @@ func CloudStoredEsiRefreshMaintenance(ctx context.Context, task *asynq.Task, dep
 	mongo := deps.Mongo
 	var userDoc models.UserAccountDocument
 	if err := mongo.Users.Collection().FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&userDoc); err != nil {
-		if err == mongodriver.ErrNoDocuments {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			logs.InfoCtx(ctx, "cloud esi refresh maintenance: user not found", "account_id", accountID)
 			return nil
 		}

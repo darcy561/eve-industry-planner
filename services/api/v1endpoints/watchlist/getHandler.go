@@ -3,7 +3,6 @@ package watchlist
 import (
 	"context"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"time"
 
@@ -16,7 +15,7 @@ import (
 )
 
 // GetHandler handles GET /api/v1/user/watchlist.
-func GetHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) GetHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
@@ -32,9 +31,7 @@ func GetHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.C
 	if !ok {
 		return
 	}
-	mongo := clients.Mongo
-
-	raw, err := mongo.WatchlistDeprecated.LoadWatchlistDeprecated(ctx, accountID)
+	raw, err := h.Mongo.WatchlistDeprecated.LoadWatchlistDeprecated(ctx, accountID)
 	if err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			resp := map[string]any{

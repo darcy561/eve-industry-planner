@@ -30,6 +30,7 @@ type config struct {
 	PinKeyPrefix        string
 	CordonKeyPrefix     string
 	FullKeyPrefix       string
+	SoftKeyPrefix       string
 }
 
 func loadConfig() config {
@@ -66,6 +67,7 @@ func loadConfig() config {
 		PinKeyPrefix:       wsplacement.PinPrefix,
 		CordonKeyPrefix:    wsplacement.CordonPrefix,
 		FullKeyPrefix:      wsplacement.FullPrefix,
+		SoftKeyPrefix:      wsplacement.SoftPrefix,
 	}
 }
 

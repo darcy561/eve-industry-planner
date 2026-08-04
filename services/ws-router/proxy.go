@@ -129,11 +129,14 @@ func (r *Router) resolveSlot(ctx context.Context, req *http.Request) (slot strin
 
 	cordoned := map[string]bool{}
 	full := map[string]bool{}
+	soft := map[string]bool{}
 	redisUp := r.redisOK(ctx)
 	if redisUp {
 		cordoned = r.loadCordoned(ctx, ready)
 		full = r.loadFull(ctx, ready)
+		soft = r.loadSoft(ctx, ready)
 	}
+	// Soft does not affect eligibility (only new-home pick order).
 	eligible := eligibleSlots(ready, mergeSkip(cordoned, full))
 	versionOf := func(s string) string {
 		if be, ok := r.be.get(s); ok {
@@ -144,6 +147,7 @@ func (r *Router) resolveSlot(ctx context.Context, req *http.Request) (slot strin
 	// Prefer newest bake among eligible so reconnects shuffle onto NEW during a
 	// Swarm roll. OLD SPA clients may use NEW slots (no exact-match gate).
 	preferred := preferNewestSlots(eligible, versionOf)
+	pickFrom := preferNonSoftSlots(preferred, soft)
 
 	eligibleSet := map[string]struct{}{}
 	for _, s := range eligible {
@@ -161,6 +165,7 @@ func (r *Router) resolveSlot(ctx context.Context, req *http.Request) (slot strin
 
 	if aff != "" && redisUp {
 		// Ops pin wins when the pinned slot is still eligible (not cordoned/full / still up).
+		// Pin ignores soft (eligible-only check; soft is not a skip).
 		if pin, perr := r.getPin(ctx, aff); perr == nil && pin != "" {
 			if _, ok := eligibleSet[pin]; ok {
 				r.placePin.Add(1)
@@ -179,9 +184,10 @@ func (r *Router) resolveSlot(ctx context.Context, req *http.Request) (slot strin
 		if gerr != nil && !errors.Is(gerr, redis.Nil) {
 			r.redisErr.Add(1)
 			log.Printf("redis get placement: %v", gerr)
-			return r.stickyFallback(req, preferred, preferredSet)
+			return r.stickyFallback(req, preferred, preferredSet, pickFrom)
 		}
 		if placed != "" {
+			// Place hit sticks even when the home slot is soft.
 			if _, ok := preferredSet[placed]; ok {
 				r.placeHit.Add(1)
 				r.touchPlacement(ctx, aff)
@@ -202,7 +208,7 @@ func (r *Router) resolveSlot(ctx context.Context, req *http.Request) (slot strin
 		} else {
 			r.placeMiss.Add(1)
 		}
-		slot = r.pickSlot(preferred)
+		slot = r.pickSlot(pickFrom)
 		if serr := r.setPlacement(ctx, aff, slot); serr != nil {
 			r.redisErr.Add(1)
 			log.Printf("redis set placement: %v", serr)
@@ -212,18 +218,21 @@ func (r *Router) resolveSlot(ctx context.Context, req *http.Request) (slot strin
 	if aff != "" && !redisUp {
 		r.redisErr.Add(1)
 	}
-	return r.stickyFallback(req, preferred, preferredSet)
+	return r.stickyFallback(req, preferred, preferredSet, pickFrom)
 }
 
-func (r *Router) stickyFallback(req *http.Request, ready []string, readySet map[string]struct{}) (string, bool, error) {
+func (r *Router) stickyFallback(req *http.Request, preferred []string, preferredSet map[string]struct{}, pickFrom []string) (string, bool, error) {
 	r.stickyFB.Add(1)
 	if c, err := req.Cookie(r.cfg.StickyCookie); err == nil && c != nil {
 		v := strings.TrimSpace(c.Value)
-		if _, ok := readySet[v]; ok {
+		if _, ok := preferredSet[v]; ok {
 			return v, false, nil
 		}
 	}
-	return r.pickSlot(ready), true, nil
+	if len(pickFrom) == 0 {
+		pickFrom = preferred
+	}
+	return r.pickSlot(pickFrom), true, nil
 }
 
 func (r *Router) pickSlot(ready []string) string {

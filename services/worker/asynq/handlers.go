@@ -89,10 +89,7 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	})
 
 	// Create task dependencies once
-	taskDeps := &esitasks.TaskDependencies{
-		Clients:   deps.GetClients(),
-		ESIClient: deps.GetESIClient(),
-	}
+	taskDeps := esitasks.FromClients(deps.GetClients(), deps.GetESIClient())
 
 	// Register task handlers
 	mux.HandleFunc("refreshSystemIndexes", func(ctx context.Context, t *asynq.Task) error {

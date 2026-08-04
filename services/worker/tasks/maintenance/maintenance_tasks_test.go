@@ -3,7 +3,6 @@ package maintenance
 import (
 	"context"
 	"encoding/json"
-	"eve-industry-planner/shared/stackservices"
 	"testing"
 
 	natscore "eve-industry-planner/shared/core/nats"
@@ -30,7 +29,7 @@ func encodeAsynqWrappedPayload(t *testing.T, taskType string, inner any) []byte 
 }
 
 func depsMongoNil() *esitasks.TaskDependencies {
-	return &esitasks.TaskDependencies{Clients: &stackservices.Clients{}}
+	return &esitasks.TaskDependencies{}
 }
 
 func TestCloudStoredEsiRefreshMaintenance_Validation(t *testing.T) {

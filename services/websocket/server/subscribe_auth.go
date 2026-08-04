@@ -2,11 +2,12 @@ package server
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
@@ -19,6 +20,7 @@ const docSubscribeMongoTimeout = 3 * time.Second
 //
 // Singleton collections (document id must equal accountID):
 //   - users, application_settings, user_watchlist_deprecated — singleton per account; _id matches accountID (same invariant as login).
+//
 // Mongo ownership (_id + _meta.accountID == accountID):
 //   - jobs, user_job_documents, archivedJobs, groups, build_stats
 //
@@ -72,7 +74,7 @@ func documentExistsByAccountID(ctx context.Context, coll *mongodriver.Collection
 	if err == nil {
 		return true, nil
 	}
-	if err == mongodriver.ErrNoDocuments {
+	if errors.Is(err, mongodriver.ErrNoDocuments) {
 		return false, nil
 	}
 	return false, err

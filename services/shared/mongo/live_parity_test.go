@@ -8,21 +8,20 @@ import (
 	"testing"
 	"time"
 
-	legacy "eve-industry-planner/shared/core/mongo"
 	eipmongo "eve-industry-planner/shared/mongo"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// Deeper parity against real documents:
+// Live / fixture document helpers for shared/mongo.
 //
 //	EIP_MONGO_PARITY_LIVE=1  — connect with env (same as stack) and sample collections
 //	or place export under .tmp/mongo-parity (see cmd/mongo_parity_sample)
 //
 // Skips when neither live env nor fixture files are available.
 
-func TestParity_realDocs_AsDocumentM_andUnmarshal(t *testing.T) {
+func TestLive_realDocs_AsDocumentM_andUnmarshal(t *testing.T) {
 	docs := loadParitySampleDocs(t)
 	if len(docs) == 0 {
 		t.Skip("no live Mongo (EIP_MONGO_PARITY_LIVE=1) and no fixtures under .tmp/mongo-parity — run cmd/mongo_parity_sample")
@@ -30,45 +29,38 @@ func TestParity_realDocs_AsDocumentM_andUnmarshal(t *testing.T) {
 
 	for i, doc := range docs {
 		got := eipmongo.AsDocumentM(doc)
-		want := legacy.AsDocumentM(doc)
-		if !asDocumentMEqual(got, want) {
-			t.Fatalf("doc[%d] AsDocumentM mismatch", i)
+		if got == nil {
+			t.Fatalf("doc[%d] AsDocumentM returned nil", i)
+		}
+		if len(got) == 0 && len(doc) != 0 {
+			t.Fatalf("doc[%d] AsDocumentM emptied non-empty doc", i)
 		}
 
 		raw, err := bson.Marshal(doc)
 		if err != nil {
 			t.Fatalf("doc[%d] marshal: %v", i, err)
 		}
-		gotU, errNew := eipmongo.UnmarshalDocumentM(raw)
-		wantU, errOld := legacy.UnmarshalDocumentM(raw)
-		if (errNew == nil) != (errOld == nil) {
-			t.Fatalf("doc[%d] Unmarshal err new=%v legacy=%v", i, errNew, errOld)
+		gotU, err := eipmongo.UnmarshalDocumentM(raw)
+		if err != nil {
+			t.Fatalf("doc[%d] UnmarshalDocumentM: %v", i, err)
 		}
-		if errNew != nil {
-			continue
-		}
-		if !asDocumentMEqual(gotU, wantU) {
-			t.Fatalf("doc[%d] UnmarshalDocumentM mismatch", i)
+		if gotU == nil {
+			t.Fatalf("doc[%d] UnmarshalDocumentM returned nil", i)
 		}
 
-		// StructToMongoDoc parity on re-decoded map-as-value with stable string _id when present.
 		id, _ := doc["_id"].(string)
 		if id == "" {
 			continue
 		}
-		gotDoc, errNew := eipmongo.StructToMongoDoc(doc, id)
-		wantDoc, errOld := legacy.StructToMongoDoc(doc, id)
-		if (errNew == nil) != (errOld == nil) {
-			t.Fatalf("doc[%d] StructToMongoDoc err new=%v legacy=%v", i, errNew, errOld)
+		gotDoc, err := eipmongo.StructToMongoDoc(doc, id)
+		if err != nil {
+			t.Fatalf("doc[%d] StructToMongoDoc: %v", i, err)
 		}
-		if errNew != nil {
-			continue
-		}
-		if !asDocumentMEqual(gotDoc, wantDoc) {
-			t.Fatalf("doc[%d] StructToMongoDoc mismatch", i)
+		if got, _ := gotDoc["_id"].(string); got != id {
+			t.Fatalf("doc[%d] StructToMongoDoc _id=%q want %q", i, got, id)
 		}
 	}
-	t.Logf("parity ok on %d real/fixture documents", len(docs))
+	t.Logf("ok on %d real/fixture documents", len(docs))
 }
 
 func loadParitySampleDocs(t *testing.T) []bson.M {

@@ -2,7 +2,6 @@ package v1endpoints
 
 import (
 	"context"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -63,9 +62,9 @@ const maxFrontendByTypeKeys = 500
 // maxFrontendBatchEvents caps items per POST /api/v1/analytics/events (defensive; client debatches).
 const maxFrontendBatchEvents = 60
 
-func frontendAnalyticsAudience(ctx context.Context, r *http.Request, clients *stackservices.Clients) string {
-	if clients != nil {
-		if _, ok := auth.TryExtractAccountSession(ctx, r, clients.Redis); ok {
+func (a *Handlers) frontendAnalyticsAudience(ctx context.Context, r *http.Request) string {
+	if a.Redis != nil {
+		if _, ok := auth.TryExtractAccountSession(ctx, r, a.Redis); ok {
 			return apimetrics.FrontendAudienceAuthenticated
 		}
 	}
@@ -120,9 +119,9 @@ func recordValidatedFrontendAnalytics(ctx context.Context, met *apimetrics.WebFr
 
 // FrontendAppEventsBatchHandler handles POST /api/v1/analytics/events (batched product analytics for OTel).
 // Body: {"events":[{...},{...}]} - each object matches [frontendAnalyticsBody]. Max [maxFrontendBatchEvents] items.
-func FrontendAppEventsBatchHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (a *Handlers) FrontendAppEventsBatchHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	audience := frontendAnalyticsAudience(ctx, r, clients)
+	audience := a.frontendAnalyticsAudience(ctx, r)
 	met := apimetrics.GetWebFrontendEvents()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
 		ObserveDuration: func(ctx context.Context, ms float64) { met.RecordRequestMilliseconds(ctx, ms, audience) },

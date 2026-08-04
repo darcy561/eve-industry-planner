@@ -9,6 +9,7 @@ import (
 
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/websocket/server/config"
+	"eve-industry-planner/websocket/server/doclocklogic"
 
 	"github.com/gorilla/websocket"
 )
@@ -79,6 +80,8 @@ func (s *Server) reader(client *Client) {
 		delete(s.Clients, client.id)
 		clientCount := len(s.Clients)
 		s.ClientsMu.Unlock()
+		s.syncSlotFullFlag(ctx, clientCount)
+		s.syncSlotSoftFlag(ctx, clientCount)
 
 		// Remove from user connection tracking
 		s.userConnMu.Lock()
@@ -195,8 +198,9 @@ func (s *Server) reader(client *Client) {
 				"account_id", client.AccountID,
 				"message_count", client.messageCount,
 				"limit", config.MessageRateLimit)
-			client.conn.WriteMessage(websocket.CloseMessage,
-				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "Rate limit exceeded"))
+			_ = client.writeFrame(websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "Rate limit exceeded"),
+				config.WriteWait)
 			break
 		}
 		client.messageMu.Unlock()
@@ -268,19 +272,19 @@ func (s *Server) reader(client *Client) {
 				s.runWSMessageOperation(client, msgType, msg, s.handleUnsubscribeWS)
 				continue
 
-			case "document_lock_lock_state_batch":
+			case doclocklogic.MsgLockStateBatch:
 				s.runWSMessageOperation(client, msgType, msg, s.handleDocumentLockLockStateBatch)
 				continue
 
-			case "document_lock_waitlist_pulse":
+			case doclocklogic.MsgWaitlistPulse:
 				s.runWSMessageOperation(client, msgType, msg, s.handleDocumentLockWaitlistPulseWS)
 				continue
 
-			case "document_lock_viewer_arrived":
+			case doclocklogic.MsgViewerArrived:
 				s.runWSMessageOperation(client, msgType, msg, s.handleDocumentLockViewerArrivedWS)
 				continue
 
-			case "document_lock_viewer_departed":
+			case doclocklogic.MsgViewerDeparted:
 				s.runWSMessageOperation(client, msgType, msg, s.handleDocumentLockViewerDepartedWS)
 				continue
 

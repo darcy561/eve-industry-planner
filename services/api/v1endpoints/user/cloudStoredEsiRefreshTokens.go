@@ -2,7 +2,7 @@ package user
 
 import (
 	"context"
-	"eve-industry-planner/shared/stackservices"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -10,9 +10,9 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/config"
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -31,23 +31,23 @@ type cloudStoredEsiRefreshTokensResponse struct {
 	RefreshTokens []models.RefreshToken `json:"refreshTokens"`
 }
 
-func CloudStoredEsiRefreshTokensHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) CloudStoredEsiRefreshTokensHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	m := apimetrics.GetAPICloudStoredEsiRefreshTokens()
 	switch r.Method {
 	case http.MethodGet:
-		handleGetCloudStoredEsiRefreshTokens(w, r, clients)
+		h.handleGetCloudStoredEsiRefreshTokens(w, r)
 	case http.MethodPut:
-		handlePutCloudStoredEsiRefreshTokens(w, r, clients)
+		h.handlePutCloudStoredEsiRefreshTokens(w, r)
 	case http.MethodDelete:
-		handleDeleteCloudStoredEsiRefreshTokens(w, r, clients)
+		h.handleDeleteCloudStoredEsiRefreshTokens(w, r)
 	default:
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
 		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use GET, PUT, or DELETE.", "invalid method for cloud stored ESI refresh tokens endpoint", "linked_chars_method_not_allowed", "cloud_stored_esi_refresh_tokens", nil, map[string]interface{}{"method": r.Method})
 	}
 }
 
-func handleGetCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) handleGetCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	m := apimetrics.GetAPICloudStoredEsiRefreshTokens()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
@@ -62,10 +62,10 @@ func handleGetCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 
 	// GET returns linked-character hashes only. OAuth refresh material stays encrypted server-side;
 	// clients obtain ESI access via POST /api/v1/esi/characters/access-token/server.
-	col := clients.Mongo.Users.Collection()
+	col := h.Mongo.Users.Collection()
 	var userDoc models.UserAccountDocument
 	if err := col.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&userDoc); err != nil {
-		if err == mongodriver.ErrNoDocuments {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
 			helper.RespondEndpointError(w, r, http.StatusNotFound, "User document not found", "linked chars user doc not found", "linked_chars_user_not_found", "cloud_stored_esi_refresh_tokens", nil, map[string]interface{}{
 				"additional_chars_endpoint": "linked_characters_oauth_credentials",
@@ -107,7 +107,7 @@ func handleGetCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 	})
 }
 
-func handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	m := apimetrics.GetAPICloudStoredEsiRefreshTokens()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
@@ -143,10 +143,10 @@ func handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	col := clients.Mongo.Users.Collection()
+	col := h.Mongo.Users.Collection()
 	var existingDoc models.UserAccountDocument
 	if err := col.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&existingDoc); err != nil {
-		if err == mongodriver.ErrNoDocuments {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
 			helper.RespondEndpointError(w, r, http.StatusNotFound, "User document not found", "linked chars user doc not found", "linked_chars_user_not_found", "cloud_stored_esi_refresh_tokens", nil, map[string]interface{}{
 				"additional_chars_endpoint": "linked_characters_oauth_credentials",
@@ -235,7 +235,7 @@ func handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 	})
 }
 
-func handleDeleteCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) handleDeleteCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	m := apimetrics.GetAPICloudStoredEsiRefreshTokens()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
@@ -270,10 +270,10 @@ func handleDeleteCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	col := clients.Mongo.Users.Collection()
+	col := h.Mongo.Users.Collection()
 	var existingDoc models.UserAccountDocument
 	if err := col.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&existingDoc); err != nil {
-		if err == mongodriver.ErrNoDocuments {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
 			helper.RespondEndpointError(w, r, http.StatusNotFound, "User document not found", "linked chars user doc not found", "linked_chars_user_not_found", "cloud_stored_esi_refresh_tokens", nil, map[string]interface{}{
 				"additional_chars_endpoint": "linked_characters_oauth_credentials",

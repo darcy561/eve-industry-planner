@@ -3,15 +3,14 @@ package statistics
 import (
 	"context"
 	"errors"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"strconv"
 
 	"eve-industry-planner/api/helper"
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -21,7 +20,7 @@ import (
 // GetBuildStatsHandler serves GET /api/v1/statistics/build-stats?typeID=<int>.
 // Returns one Mongo build_stats row for the JWT account and item type (same aggregate shape as legacy
 // Firestore BuildStats documents). When no row exists, returns 200 with a zeroed aggregate for that typeID.
-func GetBuildStatsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
+func (h *Handlers) GetBuildStatsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	m := apimetrics.GetAPIStatistics()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
@@ -38,7 +37,7 @@ func GetBuildStatsHandler(w http.ResponseWriter, r *http.Request, clients *stack
 	}
 	accountID := helper.AuthenticatedAccountID(r)
 
-	if clients == nil || clients.Mongo == nil {
+	if h.Mongo == nil {
 		metrics.Error("mongo_client_missing")
 		helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Service unavailable", "build stats get: mongo client missing", "build_stats_mongo_unavailable", "build_stats", errors.New("mongo client missing"), nil)
 		return
@@ -62,9 +61,8 @@ func GetBuildStatsHandler(w http.ResponseWriter, r *http.Request, clients *stack
 		"type_id": typeID,
 	})
 
-	mongo := clients.Mongo
 	statsID := eipmongo.BuildStatsDocumentID(accountID, typeID)
-	coll := mongo.BuildStats.Collection()
+	coll := h.Mongo.BuildStats.Collection()
 
 	var row models.BuildStatsRow
 	foundInDB := true

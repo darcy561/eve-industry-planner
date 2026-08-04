@@ -2,14 +2,15 @@ package cloudstoredesi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/core/evesso"
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
@@ -37,7 +38,7 @@ func RefreshStoredEsiForCharacter(ctx context.Context, mongo *eipmongo.Mongo, ac
 
 	var userDoc models.UserAccountDocument
 	if err := usersCol.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&userDoc); err != nil {
-		if err == mongodriver.ErrNoDocuments {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			return nil, ErrUserNotFound
 		}
 		return nil, fmt.Errorf("cloud esi: %w", err)

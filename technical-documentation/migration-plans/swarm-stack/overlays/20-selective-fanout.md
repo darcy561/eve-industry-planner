@@ -22,4 +22,6 @@ _Draft here in live-doc shape. Promote with the rest._
 
 ## Notes / decisions
 
-_Locks, rejected options, links to code anchors._
+- **Locked with #8:** local hosted-tenant set is the in-process query view (`HostedTenants` / `HostsTenant`). **Rejected:** Redis interest registry mirroring `account:` / `corporation:` / `alliance:` hosting keys.
+- **Cross-replica “who hosts what”:** NATS census and/or internal HTTP API (#18 consumers) — not Redis. Slot filter updates read the **local** query view only.
+- Detail / acceptance: [roadmap.md](../roadmap.md) `#20`.
