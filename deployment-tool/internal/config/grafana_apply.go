@@ -20,12 +20,14 @@ import (
 
 var pathPrefixRe = regexp.MustCompile(`PathPrefix\(` + "`" + `([^` + "`" + `]+)` + "`" + `\)`)
 
-// LiveGrafana is the running Swarm grafana path settings (if present).
+// LiveGrafana is the running Swarm grafana path / Traefik label settings (if present).
 type LiveGrafana struct {
 	Running       bool
 	RootURL       string
 	TraefikRule   string
 	PathFromLabel string
+	TraefikEnable string
+	Labels        map[string]string
 }
 
 // PathFromTraefikRule extracts the first PathPrefix value from a Traefik router rule.
@@ -35,6 +37,33 @@ func PathFromTraefikRule(rule string) string {
 		return ""
 	}
 	return m[1]
+}
+
+func traefikSwarmNetworkLabelKey(labels map[string]string) string {
+	for k := range labels {
+		if strings.Contains(k, "swarm.network") {
+			return k
+		}
+	}
+	return ""
+}
+
+// DesiredGrafanaLabels builds Traefik labels from stack templates + public flag.
+// Network membership → ApplyLabeledNetworkMemberships.
+func DesiredGrafanaLabels(surface stack.GrafanaApplySurface, desirePath, edgeNet string, public bool) map[string]string {
+	out := make(map[string]string, len(surface.TraefikLabels)+1)
+	for k, v := range surface.TraefikLabels {
+		out[k] = stack.SubstituteEnv(v, "EIP_GRAFANA_PATH", desirePath)
+	}
+	if public {
+		out[surface.TraefikEnableKey] = "true"
+		if key := traefikSwarmNetworkLabelKey(surface.TraefikLabels); key != "" && edgeNet != "" {
+			out[key] = edgeNet
+		}
+	} else {
+		out[surface.TraefikEnableKey] = "false"
+	}
+	return out
 }
 
 // GrafanaPathNeedsApply reports whether live grafana path differs from desired.
@@ -52,7 +81,7 @@ func GrafanaPathNeedsApply(live LiveGrafana, desirePath, wantRoot string) bool {
 	return false
 }
 
-func inspectGrafanaService(ctx context.Context, apiClient *client.Client, name, rootEnv, ruleLabelKey string) (LiveGrafana, error) {
+func inspectGrafanaService(ctx context.Context, apiClient *client.Client, name, rootEnv, ruleLabelKey, enableKey string) (LiveGrafana, error) {
 	result, err := apiClient.ServiceInspect(ctx, name, client.ServiceInspectOptions{})
 	if err != nil {
 		if errdefs.IsNotFound(err) {
@@ -64,20 +93,35 @@ func inspectGrafanaService(ctx context.Context, apiClient *client.Client, name, 
 	if container := result.Service.Spec.TaskTemplate.ContainerSpec; container != nil {
 		env = parseEnvList(container.Env)
 	}
-	rule := result.Service.Spec.Labels[ruleLabelKey]
+	labels := map[string]string{}
+	for k, v := range result.Service.Spec.Labels {
+		labels[k] = v
+	}
+	rule := labels[ruleLabelKey]
 	return LiveGrafana{
 		Running:       true,
 		RootURL:       env[rootEnv],
 		TraefikRule:   rule,
 		PathFromLabel: PathFromTraefikRule(rule),
+		TraefikEnable: labels[enableKey],
+		Labels:        labels,
 	}, nil
 }
 
-// ApplyGrafanaPath updates Swarm grafana env/labels from the obs stack file via
-// Moby ServiceUpdate. Skips if grafana is not deployed or obs stack is missing.
+// ApplyGrafanaPath updates Grafana env + Traefik labels via ApplyServiceSpecPatch.
+// Networks → ApplyLabeledNetworkMemberships only.
 func ApplyGrafanaPath(ctx context.Context, cfg Config, home, stackPrefix string, dryRun bool) error {
+	apiClient, err := docker.NewAPIClient(client.WithTimeout(2 * time.Minute))
+	if err != nil {
+		return fmt.Errorf("grafana sync: engine API client: %w", err)
+	}
+	defer apiClient.Close()
+	return applyGrafanaPath(ctx, apiClient, cfg, home, stackPrefix, dryRun)
+}
+
+func applyGrafanaPath(ctx context.Context, apiClient *client.Client, cfg Config, home, stackPrefix string, dryRun bool) error {
 	if stackPrefix == "" {
-		stackPrefix = "eip"
+		stackPrefix = kit.StackName
 	}
 	obsPath := filepath.Join(home, kit.ObsStackFile)
 	if _, err := os.Stat(obsPath); err != nil {
@@ -93,17 +137,24 @@ func ApplyGrafanaPath(ctx context.Context, cfg Config, home, stackPrefix string,
 		return err
 	}
 
-	svc := stackPrefix + "_" + surface.Service
-	desirePath := cfg.EffectivePaths().Grafana
-	wantRoot := stack.DesiredGrafanaRootURL(surface, desirePath)
-	wantRule := stack.SubstituteEnv(surface.TraefikRule, "EIP_GRAFANA_PATH", desirePath)
-
-	apiClient, err := docker.NewAPIClient(client.WithTimeout(2 * time.Minute))
-	if err != nil {
-		return fmt.Errorf("grafana sync: engine API client: %w", err)
+	edgeRef := ""
+	if key := traefikSwarmNetworkLabelKey(surface.TraefikLabels); key != "" {
+		edgeRef = strings.TrimSpace(surface.TraefikLabels[key])
 	}
-	defer apiClient.Close()
-	live, err := inspectGrafanaService(ctx, apiClient, svc, surface.RootURLEnv, surface.TraefikRuleKey)
+	edgeNet := edgeRef
+	if edgeRef != "" {
+		if resolved, err := stack.ResolveNetworkRef(edgeRef, doc); err == nil {
+			edgeNet = resolved
+		}
+	}
+
+	svc := docker.FullServiceName(stackPrefix, surface.Service)
+	desirePath := cfg.EffectivePaths().Grafana
+	wantRoot := cfg.EffectiveGrafanaRootURL()
+	public := cfg.Addons.Observability.Grafana.Public
+	wantLabels := DesiredGrafanaLabels(surface, desirePath, edgeNet, public)
+
+	live, err := inspectGrafanaService(ctx, apiClient, svc, surface.RootURLEnv, surface.TraefikRuleKey, surface.TraefikEnableKey)
 	if err != nil {
 		return err
 	}
@@ -111,8 +162,11 @@ func ApplyGrafanaPath(ctx context.Context, cfg Config, home, stackPrefix string,
 		msg.Line("skip grafana: not deployed (obs addon off)")
 		return nil
 	}
-	if !GrafanaPathNeedsApply(live, desirePath, wantRoot) {
-		msg.Line(fmt.Sprintf("unchanged grafana (path=%q)", desirePath))
+
+	pathDirty := GrafanaPathNeedsApply(live, desirePath, wantRoot)
+	labelDirty := grafanaLabelsDirty(live, public, wantLabels)
+	if !pathDirty && !labelDirty {
+		msg.Line(fmt.Sprintf("unchanged grafana (path=%q public=%t)", desirePath, public))
 		return nil
 	}
 	from := live.PathFromLabel
@@ -122,36 +176,23 @@ func ApplyGrafanaPath(ctx context.Context, cfg Config, home, stackPrefix string,
 	if from == "" {
 		from = "(unset)"
 	}
-	msg.Line(fmt.Sprintf("plan grafana:\n  path: %s -> %s", from, desirePath))
+	msg.Line(fmt.Sprintf("plan grafana:\n  path: %s -> %s\n  public: %t", from, desirePath, public))
 
-	if dryRun {
-		msg.Line("dry-run: would update " + svc)
-		return nil
+	return ApplyServiceSpecPatch(ctx, apiClient, ServiceSpecPatch{
+		ServiceName: svc,
+		Labels:      wantLabels,
+		Env:         map[string]string{surface.RootURLEnv: wantRoot},
+	}, dryRun)
+}
+
+func grafanaLabelsDirty(live LiveGrafana, public bool, wantLabels map[string]string) bool {
+	if kit.Truthy(live.TraefikEnable) != public {
+		return true
 	}
-	result, err := apiClient.ServiceInspect(ctx, svc, client.ServiceInspectOptions{})
-	if err != nil {
-		return fmt.Errorf("inspect service %s: %w", svc, err)
+	for k, want := range wantLabels {
+		if live.Labels[k] != want {
+			return true
+		}
 	}
-	service := result.Service
-	spec := service.Spec
-	if spec.TaskTemplate.ContainerSpec == nil {
-		return fmt.Errorf("update grafana %s: missing ContainerSpec", svc)
-	}
-	spec.TaskTemplate.ContainerSpec.Env = setEnv(
-		spec.TaskTemplate.ContainerSpec.Env,
-		map[string]string{surface.RootURLEnv: wantRoot},
-		map[string]struct{}{surface.RootURLEnv: {}},
-	)
-	if spec.Labels == nil {
-		spec.Labels = map[string]string{}
-	}
-	spec.Labels[surface.TraefikRuleKey] = wantRule
-	if _, err := apiClient.ServiceUpdate(ctx, service.ID, client.ServiceUpdateOptions{
-		Version: service.Version,
-		Spec:    spec,
-	}); err != nil {
-		return fmt.Errorf("update grafana %s: %w", svc, err)
-	}
-	msg.Line("updated " + svc)
-	return nil
+	return false
 }

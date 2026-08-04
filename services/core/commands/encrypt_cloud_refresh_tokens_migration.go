@@ -9,12 +9,11 @@ import (
 	"strings"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type encryptCloudRefreshTokenMigrationOptions struct {
@@ -39,8 +38,8 @@ func runEncryptCloudRefreshTokensMigration(ctx context.Context, args []string) e
 		return fmt.Errorf("failed to ensure worker task stream: %w", err)
 	}
 
-	db := clients.Mongo.Database(mongocore.DatabaseName)
-	usersCol := db.Collection(mongocore.CollectionUsers)
+	mongo := clients.Mongo
+	usersCol := mongo.Users.Collection()
 	filter := bson.M{
 		"userCloudAccounts": true,
 		"refreshTokens": bson.M{

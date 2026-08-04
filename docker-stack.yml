@@ -1,5 +1,5 @@
 # App-layer Swarm fragment on eip-core. Data: docker-stack.data.yml. Obs: docker-stack.obs.yml.
-# Roll order: app start-first (x-app-deploy); socket proxies stop-first (x-proxy-deploy).
+# Roll order: app start-first (x-app-deploy) + 60s stop grace (x-app-stop-grace); socket proxies stop-first (x-proxy-deploy).
 # Day-2 ship: eip rebuild / rematerialize / eip up — Swarm honors update_config below.
 # Probe port 19100 must match services/shared/orchestrationprobes ListenPort.
 #
@@ -100,6 +100,10 @@ x-app-deploy: &app-deploy
     condition: on-failure
     delay: 5s
 
+# Service-level (not under deploy:). Every *app-deploy consumer merges this at the service root.
+x-app-stop-grace: &app-stop-grace
+  stop_grace_period: 60s
+
 # Docker socket proxies: stop-first (avoid two proxies on the same sock).
 x-proxy-deploy: &proxy-deploy
   replicas: 1
@@ -134,6 +138,7 @@ services:
       <<: *proxy-deploy
 
   traefik:
+    <<: *app-stop-grace
     image: traefik:v3
     networks:
       eip-core:
@@ -197,6 +202,7 @@ services:
         - "traefik.http.services.traefik.loadbalancer.server.port=80"
 
   api:
+    <<: *app-stop-grace
     image: ghcr.io/darcy561/eve-industry-planner-api:${APP_VERSION}
     networks: [eip-core, eip-public]
     dns: *common-dns
@@ -245,6 +251,7 @@ services:
       start_period: 60s
 
   websocket:
+    <<: *app-stop-grace
     image: ghcr.io/darcy561/eve-industry-planner-websocket:${APP_VERSION}
     networks: [eip-core]
     dns: *common-dns
@@ -288,6 +295,7 @@ services:
       <<: *proxy-deploy
 
   ws-router:
+    <<: *app-stop-grace
     image: ghcr.io/darcy561/eve-industry-planner-ws-router:${APP_VERSION}
     networks: [eip-core, eip-public, eip-docker-ws]
     dns: *common-dns
@@ -337,6 +345,7 @@ services:
       start_period: 10s
 
   worker:
+    <<: *app-stop-grace
     image: ghcr.io/darcy561/eve-industry-planner-worker:${APP_VERSION}
     networks: [eip-core]
     dns: *common-dns
@@ -364,6 +373,7 @@ services:
       start_period: 30s
 
   core:
+    <<: *app-stop-grace
     image: ghcr.io/darcy561/eve-industry-planner-core:${APP_VERSION}
     networks: [eip-core]
     dns: *common-dns
@@ -384,7 +394,6 @@ services:
         failure_action: rollback
         monitor: 45s
         delay: 10s
-    stop_grace_period: 60s
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:19100/ready"]
       interval: 5s
@@ -393,6 +402,7 @@ services:
       start_period: 30s
 
   frontend:
+    <<: *app-stop-grace
     image: ghcr.io/darcy561/eve-industry-planner-frontend:${APP_VERSION}
     networks: [eip-public]
     dns: *common-dns
@@ -469,12 +479,16 @@ secrets:
   FEEDBACK_DISCORD_WEBHOOK_URL:
     external: true
 
+# Network name SoT for this fragment (compose map keys still literal).
+x-net-core: &net-core eip-core
+x-net-public: &net-public eip-public
+
 networks:
   eip-core:
-    name: eip-core
+    name: *net-core
     external: true
   eip-public:
-    name: eip-public
+    name: *net-public
     driver: overlay
     attachable: false
   # One overlay per Docker socket proxy — never share; proxies stay off eip-core.

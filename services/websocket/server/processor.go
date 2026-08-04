@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/websocket/server/incominglogic"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // processIncomingQueue processes events from an incoming queue (client → database)
@@ -204,8 +204,8 @@ func (s *Server) processParsedMessageToDatabase(parsed parsedMessage) error {
 	}
 
 	// Get collection
-	database := s.Stack.Mongo.Database("eve_industry_planner")
-	collection := database.Collection("users")
+	mongo := s.Stack.Mongo
+	collection := mongo.Users.Collection()
 
 	// Route to appropriate handler based on action
 	switch msgFormat.Action {
@@ -252,7 +252,7 @@ func (s *Server) handleAdd(collection *mongo.Collection, docID, clientID string,
 	}
 
 	// Upsert: Insert if not exists, update if exists
-	opts := options.Update().SetUpsert(true)
+	opts := options.UpdateOne().SetUpsert(true)
 	update := bson.M{
 		"$set": dbDoc,
 		"$setOnInsert": bson.M{
@@ -260,10 +260,7 @@ func (s *Server) handleAdd(collection *mongo.Collection, docID, clientID string,
 		},
 	}
 
-	retryConfig := mongocore.DefaultRetryConfig()
-	retryConfig.OperationName = fmt.Sprintf("add document %s", docID)
-
-	err := mongocore.RetryMongoOperation(ctx, retryConfig, func() error {
+	err := eipmongo.Retry(ctx, fmt.Sprintf("add document %s", docID), func() error {
 		_, err := collection.UpdateOne(
 			ctx,
 			bson.M{"_id": docID},
@@ -318,17 +315,14 @@ func (s *Server) handleUpdate(collection *mongo.Collection, docID, clientID stri
 	}
 	update["$set"].(bson.M)["updatedAt"] = time.Now()
 
-	retryConfig := mongocore.DefaultRetryConfig()
-	retryConfig.OperationName = fmt.Sprintf("update document %s", docID)
-
 	var result *mongo.UpdateResult
-	err := mongocore.RetryMongoOperation(ctx, retryConfig, func() error {
+	err := eipmongo.Retry(ctx, fmt.Sprintf("update document %s", docID), func() error {
 		var err error
 		result, err = collection.UpdateOne(
 			ctx,
 			bson.M{"_id": docID},
 			update,
-			options.Update().SetUpsert(true), // Upsert: create if not exists
+			options.UpdateOne().SetUpsert(true), // Upsert: create if not exists
 		)
 		return err
 	})
@@ -358,10 +352,7 @@ func (s *Server) handleDelete(collection *mongo.Collection, docID, clientID stri
 
 	// First, add metadata to the document before deletion
 	// This allows MongoDB change streams to capture the metadata in the delete event
-	retryConfig := mongocore.DefaultRetryConfig()
-	retryConfig.OperationName = fmt.Sprintf("add delete metadata for document %s", docID)
-
-	err := mongocore.RetryMongoOperation(ctx, retryConfig, func() error {
+	err := eipmongo.Retry(ctx, fmt.Sprintf("add delete metadata for document %s", docID), func() error {
 		_, err := collection.UpdateOne(
 			ctx,
 			bson.M{"_id": docID},
@@ -386,11 +377,8 @@ func (s *Server) handleDelete(collection *mongo.Collection, docID, clientID stri
 	}
 
 	// Now delete the document
-	retryConfigDelete := mongocore.DefaultRetryConfig()
-	retryConfigDelete.OperationName = fmt.Sprintf("delete document %s", docID)
-
 	var result *mongo.DeleteResult
-	err = mongocore.RetryMongoOperation(ctx, retryConfigDelete, func() error {
+	err = eipmongo.Retry(ctx, fmt.Sprintf("delete document %s", docID), func() error {
 		var err error
 		result, err = collection.DeleteOne(ctx, bson.M{"_id": docID})
 		return err

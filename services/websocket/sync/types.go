@@ -41,7 +41,7 @@ type SyncServer interface {
 	}
 	// GetMongoClient returns the MongoDB client for querying documents
 	// Returns nil if MongoDB is not available
-	GetMongoClient() interface{} // *mongo.Client (avoiding direct import in interface)
+	GetMongoClient() interface{} // *eipmongo.Mongo (avoiding direct import in interface)
 	// ReplaceClientSubscriptions replaces all subscriptions for a client with new ones
 	// This atomically removes old subscriptions and adds new ones
 	ReplaceClientSubscriptions(clientID string, accountID string, newSubscriptions map[string][]string) error

@@ -7,15 +7,14 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/config"
-	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // EncryptCloudRefreshTokensBatch encrypts legacy plaintext `refreshTokens[].rToken` rows
@@ -49,12 +48,11 @@ func EncryptCloudRefreshTokensBatch(ctx context.Context, task *asynq.Task, deps 
 		return fmt.Errorf("REFRESH_TOKEN_AES_KEY not configured")
 	}
 
-	db := deps.Mongo.Database(mongocore.DatabaseName)
-	usersCol := db.Collection(mongocore.CollectionUsers)
+	usersCol := deps.Mongo.Users.Collection()
 
 	var doc models.UserAccountDocument
 	if err := usersCol.FindOne(ctx, bson.M{"_id": p.AccountID, "_meta.accountID": p.AccountID}).Decode(&doc); err != nil {
-		if err == mongo.ErrNoDocuments {
+		if err == mongodriver.ErrNoDocuments {
 			return nil
 		}
 		return fmt.Errorf("load user for encryptCloudRefreshTokensBatch %s: %w", p.AccountID, err)

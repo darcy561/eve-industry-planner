@@ -27,7 +27,7 @@ func depsReady(clients *stackservices.Clients) func(context.Context) error {
 			return fmt.Errorf("redis missing")
 		}
 		if clients.Mongo != nil {
-			if err := clients.Mongo.Ping(ctx, nil); err != nil {
+			if err := clients.Mongo.Ping(ctx); err != nil {
 				return fmt.Errorf("mongo: %w", err)
 			}
 		} else {

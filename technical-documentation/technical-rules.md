@@ -13,6 +13,7 @@ Docs shape / naming / one-hop → [`documentation-rules.md`](./documentation-rul
 | State the current rule or behaviour | Cutover notes that name deleted tools or paths |
 | Point at the live SoT package / verb / YAML | Advertise obsolete placeholders as operator or implementer guidance |
 | Put migration history in `migration-plans/` | Keep migration checklists in live docs or sprinkle legacy names in comments “for context” |
+| Comment what the code/package owns today | Cite migration tickets, overlay numbers, roadmap sections, or “from #N” in product code comments |
 
 Rejecting leftover bad values in code is fine; **do not document or comment those leftovers** as guidance. Prefer “required keys must be set.”
 

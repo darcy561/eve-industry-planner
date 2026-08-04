@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 
 	"eve-industry-planner/deployment-tool/internal/stack"
@@ -111,6 +112,73 @@ func TestGrafanaPathNeedsApply(t *testing.T) {
 	}
 	if GrafanaPathNeedsApply(LiveGrafana{Running: false}, "/ops", "http://127.0.0.1/ops/") {
 		t.Fatal("want skip when not running")
+	}
+}
+
+func TestDesiredGrafanaLabels(t *testing.T) {
+	t.Parallel()
+	surface := stack.GrafanaApplySurface{
+		TraefikEnableKey: "traefik.enable",
+		TraefikLabels: map[string]string{
+			"traefik.enable":                    "false",
+			"traefik.swarm.network":             "eip-public",
+			"traefik.http.routers.grafana.rule": "PathPrefix(`${EIP_GRAFANA_PATH:-/grafana}`)",
+		},
+	}
+	pub := DesiredGrafanaLabels(surface, "/ops", "eip-public", true)
+	if pub["traefik.enable"] != "true" {
+		t.Fatalf("enable=%q", pub["traefik.enable"])
+	}
+	if pub["traefik.swarm.network"] != "eip-public" {
+		t.Fatalf("network=%q", pub["traefik.swarm.network"])
+	}
+	if !strings.Contains(pub["traefik.http.routers.grafana.rule"], "/ops") {
+		t.Fatalf("rule=%q", pub["traefik.http.routers.grafana.rule"])
+	}
+	priv := DesiredGrafanaLabels(surface, "/ops", "eip-public", false)
+	if priv["traefik.enable"] != "false" {
+		t.Fatalf("private enable=%q", priv["traefik.enable"])
+	}
+	if _, ok := priv["traefik.http.routers.grafana.rule"]; !ok {
+		t.Fatal("private keeps router template labels")
+	}
+}
+
+func TestMergeStringMapKeepsOtherLabels(t *testing.T) {
+	t.Parallel()
+	labels := map[string]string{
+		"traefik.enable":                    "true",
+		"traefik.http.routers.grafana.rule": "PathPrefix(`/grafana`)",
+		"eip.config.sync":                   "1",
+	}
+	mergeStringMap(labels, map[string]string{
+		"traefik.enable":                    "false",
+		"traefik.http.routers.grafana.rule": "PathPrefix(`/ops`)",
+	})
+	if labels["traefik.enable"] != "false" {
+		t.Fatalf("%v", labels)
+	}
+	if labels["traefik.http.routers.grafana.rule"] != "PathPrefix(`/ops`)" {
+		t.Fatalf("templates updated in place: %v", labels)
+	}
+	if labels["eip.config.sync"] != "1" {
+		t.Fatal("non-traefik labels must remain")
+	}
+}
+
+func TestGrafanaLabelsDirty(t *testing.T) {
+	t.Parallel()
+	live := LiveGrafana{
+		Running:       true,
+		TraefikEnable: "false",
+		Labels:        map[string]string{"traefik.enable": "false"},
+	}
+	wantPriv := map[string]string{"traefik.enable": "false"}
+	if grafanaLabelsDirty(live, false, wantPriv) {
+		t.Fatal("private unchanged should be clean")
+	}
+	if !grafanaLabelsDirty(live, true, map[string]string{"traefik.enable": "true"}) {
+		t.Fatal("want dirty when enabling public")
 	}
 }
 

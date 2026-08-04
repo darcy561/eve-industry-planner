@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // UnprocessedArchivedJobFilter matches archived job documents not yet aggregated into build_stats
@@ -37,8 +37,8 @@ func DistinctUnprocessedArchivedAccountIDs(ctx context.Context, client *mongo.Cl
 		return nil, fmt.Errorf("mongo client is nil")
 	}
 	coll := client.Database(DatabaseName).Collection(CollectionArchivedJobs)
-	raw, err := coll.Distinct(ctx, "_meta.accountID", UnprocessedArchivedJobFilter())
-	if err != nil {
+	var raw []any
+	if err := coll.Distinct(ctx, "_meta.accountID", UnprocessedArchivedJobFilter()).Decode(&raw); err != nil {
 		return nil, err
 	}
 	out := make([]string, 0, len(raw))

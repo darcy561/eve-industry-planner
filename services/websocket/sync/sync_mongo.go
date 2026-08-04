@@ -6,13 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 const (
@@ -53,7 +52,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 
 	// Handle known collections with struct decoding
 	switch collectionName {
-	case mongocore.CollectionUsers:
+	case eipmongo.CollectionUsers:
 		var users []models.UserAccountDocument
 		if err := cursor.All(ctx, &users); err != nil {
 			return nil, fmt.Errorf("failed to decode users: %w", err)
@@ -71,7 +70,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		}
 		return results, cursor.Err()
 
-	case mongocore.CollectionJobs:
+	case eipmongo.CollectionJobs:
 		var jobs []models.Job
 		if err := cursor.All(ctx, &jobs); err != nil {
 			return nil, fmt.Errorf("failed to decode jobs: %w", err)
@@ -88,7 +87,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		}
 		return results, cursor.Err()
 
-	case mongocore.CollectionUserJobGroups:
+	case eipmongo.CollectionUserJobGroups:
 		var groups []models.Group
 		if err := cursor.All(ctx, &groups); err != nil {
 			return nil, fmt.Errorf("failed to decode groups: %w", err)
@@ -128,7 +127,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		switch idVal := doc["_id"].(type) {
 		case string:
 			docID = idVal
-		case primitive.ObjectID:
+		case bson.ObjectID:
 			docID = idVal.Hex()
 		default:
 			// Try to convert to string
@@ -181,21 +180,18 @@ func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionNam
 	default:
 	}
 
-	// Get MongoDB client (type assert to *mongo.Client)
-	mongoClientInterface := s.GetMongoClient()
-	if mongoClientInterface == nil {
+	// Get Mongo handle
+	mongoHandleInterface := s.GetMongoClient()
+	if mongoHandleInterface == nil {
 		return nil, fmt.Errorf("MongoDB client not available")
 	}
 
-	// Type assert to *mongo.Client
-	mongoClient, ok := mongoClientInterface.(*mongo.Client)
+	mongo, ok := mongoHandleInterface.(*eipmongo.Mongo)
 	if !ok {
 		return nil, fmt.Errorf("invalid MongoDB client type")
 	}
 
-	// Get database and collection
-	database := mongoClient.Database(mongocore.DatabaseName)
-	collection := database.Collection(collectionName)
+	collection := mongo.Coll(collectionName)
 
 	// Build query filter
 	filter := bson.M{
@@ -204,10 +200,10 @@ func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionNam
 
 	// Account scoping: jobs, users, application_settings, and user_watchlist_deprecated use _meta.accountID (see models.Job, UserAccountDocument).
 	// Other collections use root accountID.
-	if collectionName == mongocore.CollectionJobs ||
-		collectionName == mongocore.CollectionUsers ||
-		collectionName == mongocore.CollectionApplicationSettings ||
-		collectionName == mongocore.CollectionUserWatchlistDeprecated {
+	if collectionName == eipmongo.CollectionJobs ||
+		collectionName == eipmongo.CollectionUsers ||
+		collectionName == eipmongo.CollectionApplicationSettings ||
+		collectionName == eipmongo.CollectionUserWatchlistDeprecated {
 		filter["_meta.accountID"] = accountID
 	} else {
 		filter["accountID"] = accountID
@@ -215,10 +211,8 @@ func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionNam
 
 	// Use retry logic from mongo core package
 	var results map[string]map[string]interface{}
-	retryConfig := mongocore.DefaultRetryConfig()
-	retryConfig.OperationName = fmt.Sprintf("query documents from %s", collectionName)
 
-	err := mongocore.RetryMongoOperation(ctx, retryConfig, func() error {
+	err := eipmongo.Retry(ctx, fmt.Sprintf("query documents from %s", collectionName), func() error {
 		var err error
 		results, err = queryDocumentsOnce(ctx, collection, filter, collectionName)
 		return err
@@ -248,20 +242,18 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 	default:
 	}
 
-	// Get MongoDB client
-	mongoClientInterface := s.GetMongoClient()
-	if mongoClientInterface == nil {
+	// Get Mongo handle
+	mongoHandleInterface := s.GetMongoClient()
+	if mongoHandleInterface == nil {
 		return nil, fmt.Errorf("MongoDB client not available")
 	}
 
-	mongoClient, ok := mongoClientInterface.(*mongo.Client)
+	mongo, ok := mongoHandleInterface.(*eipmongo.Mongo)
 	if !ok {
 		return nil, fmt.Errorf("invalid MongoDB client type")
 	}
 
-	// Get database and collection
-	database := mongoClient.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionJobs)
+	collection := mongo.Jobs.Collection()
 
 	// Build query filter: jobs shown on planner (displayOnPlanner or legacy isIncludedOnPlanner).
 	filter := bson.M{
@@ -274,10 +266,8 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 
 	// Use retry logic from mongo core package
 	var jobs []models.Job
-	retryConfig := mongocore.DefaultRetryConfig()
-	retryConfig.OperationName = fmt.Sprintf("query all jobs for account %s", accountID)
 
-	err := mongocore.RetryMongoOperation(ctx, retryConfig, func() error {
+	err := eipmongo.Retry(ctx, fmt.Sprintf("query all jobs for account %s", accountID), func() error {
 		cursor, err := collection.Find(ctx, filter)
 		if err != nil {
 			return fmt.Errorf("MongoDB query failed: %w", err)
@@ -310,7 +300,7 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 	}
 
 	logs.DebugCtx(ctx, "queried all jobs for account",
-		"collection", mongocore.CollectionJobs,
+		"collection", eipmongo.CollectionJobs,
 		"account_id", accountID,
 		"found", len(results))
 
@@ -328,20 +318,18 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 	default:
 	}
 
-	// Get MongoDB client
-	mongoClientInterface := s.GetMongoClient()
-	if mongoClientInterface == nil {
+	// Get Mongo handle
+	mongoHandleInterface := s.GetMongoClient()
+	if mongoHandleInterface == nil {
 		return nil, fmt.Errorf("MongoDB client not available")
 	}
 
-	mongoClient, ok := mongoClientInterface.(*mongo.Client)
+	mongo, ok := mongoHandleInterface.(*eipmongo.Mongo)
 	if !ok {
 		return nil, fmt.Errorf("invalid MongoDB client type")
 	}
 
-	// Get database and collection
-	database := mongoClient.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionUserJobGroups)
+	collection := mongo.Groups.Collection()
 
 	filter := bson.M{
 		"_meta.accountID": accountID,
@@ -349,10 +337,8 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 
 	// Use retry logic from mongo core package
 	var groups []models.Group
-	retryConfig := mongocore.DefaultRetryConfig()
-	retryConfig.OperationName = fmt.Sprintf("query all groups for account %s", accountID)
 
-	err := mongocore.RetryMongoOperation(ctx, retryConfig, func() error {
+	err := eipmongo.Retry(ctx, fmt.Sprintf("query all groups for account %s", accountID), func() error {
 		cursor, err := collection.Find(ctx, filter)
 		if err != nil {
 			return fmt.Errorf("MongoDB query failed: %w", err)
@@ -385,7 +371,7 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 	}
 
 	logs.DebugCtx(ctx, "queried all groups for account",
-		"collection", mongocore.CollectionUserJobGroups,
+		"collection", eipmongo.CollectionUserJobGroups,
 		"account_id", accountID,
 		"found", len(results))
 

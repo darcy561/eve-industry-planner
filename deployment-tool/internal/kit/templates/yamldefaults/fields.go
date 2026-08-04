@@ -28,6 +28,9 @@ type ConfigField struct {
 	Label   string
 	Help    string
 	Type    FieldType
+	// BoolYes / BoolNo override TUI Confirm labels (empty → Enabled / Disabled).
+	BoolYes string
+	BoolNo  string
 }
 
 // ConfigFields returns the registry in section/display order.
@@ -38,6 +41,23 @@ func ConfigFields() []ConfigField {
 			Key: "addons.observability.enabled", Section: "Addons", Label: "Observability",
 			Help: "Enable Prometheus/Grafana/Loki observability stack (eip sync applies).",
 			Type: FieldBool,
+		},
+		{
+			Key: "paths.grafana", Section: "Grafana", Label: "Path",
+			Help: "Path prefix on your site (must start with /). Example: /grafana.",
+			Type: FieldText,
+		},
+		{
+			Key: "addons.observability.grafana.base_url", Section: "Grafana", Label: "Base URL",
+			Help: "Site origin only — scheme and host, no path. Default http://127.0.0.1. Combined with Path (example: https://ops.example.com + /grafana).",
+			Type: FieldText,
+		},
+		{
+			Key: "addons.observability.grafana.public", Section: "Grafana", Label: "Access",
+			Help: "Public puts Grafana on your site (Base URL + Path) and exposes it via Traefik. Private keeps it internal only. Default private.",
+			Type: FieldBool,
+			BoolYes: "Public",
+			BoolNo:  "Private",
 		},
 		{
 			Key: "ports.http", Section: "Ports", Label: "HTTP port",
@@ -53,11 +73,6 @@ func ConfigFields() []ConfigField {
 			Key: "ports.traefik_dashboard", Section: "Ports", Label: "Traefik dashboard port",
 			Help: "Host publish port for Traefik dashboard (0 or empty → 81).",
 			Type: FieldInt,
-		},
-		{
-			Key: "paths.grafana", Section: "Paths", Label: "Grafana path",
-			Help: "URL path prefix for Grafana (must start with /).",
-			Type: FieldText,
 		},
 		{
 			Key: "paths.traefik_dashboard", Section: "Paths", Label: "Traefik dashboard path",
@@ -211,6 +226,10 @@ func getFieldString(cfg config.Config, f ConfigField) string {
 	switch f.Key {
 	case "addons.observability.enabled":
 		return strconv.FormatBool(cfg.Addons.Observability.Enabled)
+	case "addons.observability.grafana.public":
+		return strconv.FormatBool(cfg.Addons.Observability.Grafana.Public)
+	case "addons.observability.grafana.base_url":
+		return cfg.Addons.Observability.Grafana.BaseURL
 	case "ports.http":
 		return strconv.Itoa(cfg.Ports.HTTP)
 	case "ports.https":
@@ -273,6 +292,14 @@ func setField(cfg *config.Config, f ConfigField, raw string, ensure func(string)
 			return err
 		}
 		cfg.Addons.Observability.Enabled = b
+	case "addons.observability.grafana.public":
+		b, err := parseBool(raw)
+		if err != nil {
+			return err
+		}
+		cfg.Addons.Observability.Grafana.Public = b
+	case "addons.observability.grafana.base_url":
+		cfg.Addons.Observability.Grafana.BaseURL = raw
 	case "ports.http":
 		n, err := parseInt(raw)
 		if err != nil {

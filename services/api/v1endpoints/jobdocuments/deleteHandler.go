@@ -10,12 +10,12 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/documentlock"
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // DeleteJobDocumentsHandler handles DELETE /api/v1/job-documents with { jobIDs: [] }.
@@ -32,6 +32,7 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 	defer metrics.Finish()
 
 	accountID := helper.AuthenticatedAccountID(r)
+	mongo := clients.Mongo
 
 	var reqBody struct {
 		JobIDs []string `json:"jobIDs"`
@@ -60,7 +61,6 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 		"batch_size": len(reqBody.JobIDs),
 	})
 
-	collection := collJobDocuments(clients)
 	filter := bson.M{
 		"_meta.accountID": accountID,
 		"_id":             bson.M{"$in": reqBody.JobIDs},
@@ -77,12 +77,13 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 			return
 		}
 		jobGroupBypass := documentlock.JobGroupBypass{}
-		if clients.Mongo != nil {
+		if mongo != nil {
 			type jobGroupRow struct {
 				ID              string `bson:"_id"`
 				GroupID         string `bson:"groupID"`
 				IncludedInGroup bool   `bson:"includedInGroup"`
 			}
+			collection := mongo.JobDocuments.Collection()
 			cur, findErr := collection.Find(ctx, bson.M{
 				"_meta.accountID": accountID,
 				"_id":             bson.M{"$in": reqBody.JobIDs},
@@ -110,7 +111,7 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 				return
 			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, mongocore.CollectionUserJobDocuments, reqBody.JobIDs, jobGroupBypass)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, eipmongo.CollectionUserJobDocuments, reqBody.JobIDs, jobGroupBypass)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -123,7 +124,7 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 		}
 		if len(rejects) > 0 {
 			metrics.Error("lock_conflict")
-			helper.RespondLockHeldElsewhereJSON(w, r, mongocore.CollectionUserJobDocuments, rejects)
+			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionUserJobDocuments, rejects)
 			return
 		}
 		logs.AttachDebugStep(r, "lock_gate_passed", map[string]interface{}{
@@ -131,10 +132,8 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 		})
 	}
 
-	retryConfig := mongocore.DefaultRetryConfig()
-	retryConfig.OperationName = fmt.Sprintf("delete %d job documents", len(reqBody.JobIDs))
-
-	deletedCount, err := mongocore.DeleteManyAfterStampingMeta(ctx, retryConfig, collection, filter, now, sessionID, wsClientID)
+	deletedCount, err := mongo.JobDocuments.DeleteManyAfterStampingMeta(ctx, filter, now, sessionID, wsClientID,
+		eipmongo.WithOpName(fmt.Sprintf("delete %d job documents", len(reqBody.JobIDs))))
 
 	if err != nil {
 		metrics.Error("database_error")

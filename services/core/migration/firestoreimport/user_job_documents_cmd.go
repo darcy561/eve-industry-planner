@@ -14,10 +14,10 @@ import (
 	"eve-industry-planner/shared/firebaseadmin"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/migration/firestoremig"
+	eipmongo "eve-industry-planner/shared/mongo"
 	taskscore "eve-industry-planner/shared/tasks"
 
 	"cloud.google.com/go/firestore"
-	mongodriver "go.mongodb.org/mongo-driver/mongo"
 	"google.golang.org/api/iterator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -325,7 +325,7 @@ func dryRunImportUserJobDocumentsScanAll(ctx context.Context) error {
 	return nil
 }
 
-func importUserJobDocumentsSingleWrite(ctx context.Context, fsc *firestore.Client, mc *mongodriver.Client, accountID string) error {
+func importUserJobDocumentsSingleWrite(ctx context.Context, fsc *firestore.Client, mc *eipmongo.Mongo, accountID string) error {
 	imp, miss, fail, lerr := firestoremig.ImportAllReferencedUserJobDocumentsForAccount(ctx, fsc, mc, accountID)
 	fmt.Printf("User job documents for %q: imported=%d, missing Firestore doc (skipped)=%d, failed=%d\n", accountID, imp, miss, fail)
 	if lerr != nil {
@@ -334,7 +334,7 @@ func importUserJobDocumentsSingleWrite(ctx context.Context, fsc *firestore.Clien
 	return nil
 }
 
-func importUserJobDocumentsScanAllWrite(ctx context.Context, fsc *firestore.Client, mc *mongodriver.Client) error {
+func importUserJobDocumentsScanAllWrite(ctx context.Context, fsc *firestore.Client, mc *eipmongo.Mongo) error {
 	var totImp, totMiss, totFail, acctErr int
 	iter := fsc.Collection(firestoremig.FirestoreUsersCollection).Documents(ctx)
 	for {

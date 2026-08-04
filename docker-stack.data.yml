@@ -1,6 +1,10 @@
 # Data-layer Swarm fragment (mongo / redis / nats / SeaweedFS / Prometheus) on eip-core.
 # Roll order: stop-first (x-data-deploy) — R=1 + exclusive volumes.
 # File configs: eip.config.sync=1 → hash-synced via eip sync / rematerialize.
+# Network name SoT: x-net-* anchors (reuse in name: + eip.network.* labels).
+
+x-net-core: &net-core eip-core
+x-net-obs: &net-obs eip-obs
 
 x-common-dns: &common-dns
   - 8.8.8.8
@@ -125,8 +129,8 @@ services:
       <<: *data-deploy
 
   # Metrics TSDB — always on data plane (not gated by observability addon).
-  # Obs exporters dual-home on eip-core so these scrape targets resolve when addon is up.
-  # Optional later: dual-home prometheus onto eip-obs for obs-only DNS.
+  # Obs exporters dual-home on eip-core so scrape targets resolve when addon is up.
+  # eip.network.attach: Deployment Tool attaches this name when obs is on / detaches when off.
   # DNS alias `prometheus` keeps Alloy remote-write + Grafana datasource stable.
   prometheus:
     image: prom/prometheus:v3.2.1
@@ -153,11 +157,13 @@ services:
     deploy:
       <<: *data-deploy
       labels:
-        - "eip.config.sync=1"
+        eip.config.sync: "1"
+        eip.network.attach: *net-obs
+        eip.network.attach.when: observability
 
 networks:
   eip-core:
-    name: eip-core
+    name: *net-core
     external: true
 
 volumes:

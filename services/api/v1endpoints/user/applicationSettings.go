@@ -2,19 +2,17 @@ package user
 
 import (
 	"context"
+	"errors"
 	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"time"
 
 	"eve-industry-planner/api/helper"
-	mongocore "eve-industry-planner/shared/core/mongo"
-	mongoget "eve-industry-planner/shared/core/mongo/get"
-	mongoput "eve-industry-planner/shared/core/mongo/put"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/mongo"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 func ApplicationSettingsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
@@ -44,13 +42,11 @@ func handleGetApplicationSettings(w http.ResponseWriter, r *http.Request, client
 	defer metrics.Finish()
 
 	accountID := helper.AuthenticatedAccountID(r)
+	mongo := clients.Mongo
 
-	database := clients.Mongo.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionApplicationSettings)
-
-	settingsDoc, err := mongoget.LoadApplicationSettingsDocument(ctx, collection, accountID, time.Now().UTC())
+	settingsDoc, err := mongo.LoadApplicationSettings(ctx, accountID, time.Now().UTC())
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
 			helper.RespondEndpointError(w, r, http.StatusNotFound, "Application settings not found", "application settings document not found", "app_settings_not_found", "eve_token_login", nil, nil)
 			return
@@ -89,6 +85,7 @@ func handleSaveApplicationSettings(w http.ResponseWriter, r *http.Request, clien
 	defer metrics.Finish()
 
 	accountID := helper.AuthenticatedAccountID(r)
+	mongo := clients.Mongo
 
 	var settingsDoc models.ApplicationSettings
 	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &settingsDoc) {
@@ -107,10 +104,7 @@ func handleSaveApplicationSettings(w http.ResponseWriter, r *http.Request, clien
 	}
 	helper.PopulateRequestMeta(r, &settingsDoc.MetaData.MetaData, accountID)
 
-	database := clients.Mongo.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionApplicationSettings)
-
-	result, retriedWithoutWSClientID, err := mongoput.UpsertApplicationSettingsDocument(ctx, collection, accountID, settingsDoc)
+	result, retriedWithoutWSClientID, err := mongo.ApplicationSettings.UpsertApplicationSettings(ctx, accountID, settingsDoc)
 	if retriedWithoutWSClientID {
 		logs.AttachHandlerCaveat(r, "upsert_retried_without_ws_client_id", "application settings upsert with websocket client id failed, retrying without client id", map[string]interface{}{
 			"ws_client_id": settingsDoc.MetaData.ClientID,

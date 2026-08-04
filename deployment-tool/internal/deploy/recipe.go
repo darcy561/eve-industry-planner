@@ -114,8 +114,22 @@ func Run(ctx context.Context, src Source) error {
 	if expanded.Obs != "" {
 		msg.Step("  (+ observability addon)")
 	}
+	// Labeled attach/detach before prune so target overlays still exist for ID match.
+	if !wantObs {
+		if err := config.ApplyLabeledNetworkMemberships(ctx, cfg, home, stackName, false); err != nil {
+			return err
+		}
+	}
 	if err := stackDeploy(ctx, home, stackName, expanded.fullFiles(), true); err != nil {
 		return err
+	}
+	if wantObs {
+		if err := config.ApplyLabeledNetworkMemberships(ctx, cfg, home, stackName, false); err != nil {
+			return err
+		}
+		if err := config.ApplyGrafanaPath(ctx, cfg, home, stackName, false); err != nil {
+			return err
+		}
 	}
 
 	swarm.PruneStale(ctx, expanded.Secrets)

@@ -9,12 +9,12 @@ import (
 
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/core/evesso"
-	mongoput "eve-industry-planner/shared/core/mongo/put"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // cloudEsiMaintainStats summarizes maintainAccountCloudRefreshTokens.
@@ -45,7 +45,7 @@ func isPermanentOAuthRefreshFailure(err error) bool {
 
 // maintainAccountCloudRefreshTokens re-encrypts refresh rows to the active key version when needed,
 // exchanges each row with EVE SSO, updates encryption keys, and persists.
-func maintainAccountCloudRefreshTokens(ctx context.Context, usersCol *mongo.Collection, accountID string, cfg *config.CloudStoredESI) (cloudEsiMaintainStats, error) {
+func maintainAccountCloudRefreshTokens(ctx context.Context, users *eipmongo.Docs, accountID string, cfg *config.CloudStoredESI) (cloudEsiMaintainStats, error) {
 	var stats cloudEsiMaintainStats
 	if cfg == nil || cfg.Keys.Keyring == nil {
 		return stats, errCloudEsiMaintKeyring
@@ -55,9 +55,10 @@ func maintainAccountCloudRefreshTokens(ctx context.Context, usersCol *mongo.Coll
 		return stats, errCloudEsiMaintMissingAccountID
 	}
 
+	usersCol := users.Collection()
 	var userDoc models.UserAccountDocument
 	if err := usersCol.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&userDoc); err != nil {
-		if err == mongo.ErrNoDocuments {
+		if err == mongodriver.ErrNoDocuments {
 			return stats, errCloudEsiMaintUserNotFound
 		}
 		return stats, fmt.Errorf("cloud esi maintenance: load user: %w", err)
@@ -175,10 +176,10 @@ func maintainAccountCloudRefreshTokens(ctx context.Context, usersCol *mongo.Coll
 		return stats, nil
 	}
 
-	if err := mongoput.PatchUserAccountFields(ctx, usersCol, accountID, bson.M{
+	if err := users.PatchUserAccountFields(callCtx, accountID, bson.M{
 		"refreshTokens":      userDoc.RefreshTokens,
 		"_meta.lastModified": time.Now().UTC(),
-	}, fmt.Sprintf("cloud esi maintenance persist %s", accountID)); err != nil {
+	}, eipmongo.WithOpName(fmt.Sprintf("cloud esi maintenance persist %s", accountID))); err != nil {
 		return stats, fmt.Errorf("%w: %v", errCloudEsiMaintPersist, err)
 	}
 

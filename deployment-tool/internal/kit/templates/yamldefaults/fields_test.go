@@ -13,6 +13,8 @@ func TestValuesFromApplyRoundTrip(t *testing.T) {
 	base := DefaultConfig()
 	vals := ValuesFromConfig(base)
 	vals["addons.observability.enabled"] = "true"
+	vals["addons.observability.grafana.public"] = "true"
+	vals["addons.observability.grafana.base_url"] = "https://ops.example.com"
 	vals["ports.http"] = "8080"
 	vals["proxy.trusted_ips"] = "127.0.0.1, 10.0.0.1"
 	vals["services.worker.max"] = "3"
@@ -22,6 +24,12 @@ func TestValuesFromApplyRoundTrip(t *testing.T) {
 	}
 	if !got.Addons.Observability.Enabled {
 		t.Fatal("observability not enabled")
+	}
+	if !got.Addons.Observability.Grafana.Public {
+		t.Fatal("grafana.public not enabled")
+	}
+	if got.Addons.Observability.Grafana.BaseURL != "https://ops.example.com" {
+		t.Fatalf("base_url=%q", got.Addons.Observability.Grafana.BaseURL)
 	}
 	if got.Ports.HTTP != 8080 {
 		t.Fatalf("http=%d", got.Ports.HTTP)

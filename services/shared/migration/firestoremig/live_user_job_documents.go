@@ -8,14 +8,14 @@ import (
 	"strings"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/archiveimport"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/models"
 
 	"cloud.google.com/go/firestore"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -23,7 +23,7 @@ import (
 const (
 	firestoreJobSnapshotDocID   = "JobSnapshot"
 	firestoreJobSnapshotField   = "snapshot"
-	firestoreUserJobsCollection = "Jobs" // also try "jobs" in fetch
+	firestoreUserJobsCollection = "Jobs"
 	importLiveUserJobsActor     = "firestore-import:liveUserJobDocuments"
 )
 
@@ -44,12 +44,11 @@ func UserJobFirestoreRef(fs *firestore.Client, accountID, jobDocID, collName str
 func CollectReferenceJobIDsForUser(
 	ctx context.Context,
 	fs *firestore.Client,
-	m *mongo.Client,
+	m *eipmongo.Mongo,
 	accountID string,
 ) (ids []string, err error) {
 	set := make(map[string]struct{})
 
-	// 1) JobSnapshot
 	snap, err := JobSnapshotFirestoreRef(fs, accountID).Get(ctx)
 	if err != nil {
 		if status.Code(err) != codes.NotFound {
@@ -61,7 +60,6 @@ func CollectReferenceJobIDsForUser(
 		}
 	}
 
-	// 2) GroupData in Firestore
 	gd, err := GroupDataFirestoreRef(fs, accountID).Get(ctx)
 	if err != nil {
 		if status.Code(err) != codes.NotFound {
@@ -73,7 +71,6 @@ func CollectReferenceJobIDsForUser(
 		}
 	}
 
-	// 3) Migrated groups in Mongo
 	if m != nil {
 		extra, merr := jobIDsFromMongoUserJobGroups(ctx, m, accountID)
 		if merr != nil {
@@ -160,8 +157,8 @@ func stringSliceFromMixedIDArray(v any) []string {
 	return out
 }
 
-func jobIDsFromMongoUserJobGroups(ctx context.Context, m *mongo.Client, accountID string) ([]string, error) {
-	coll := m.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUserJobGroups)
+func jobIDsFromMongoUserJobGroups(ctx context.Context, m *eipmongo.Mongo, accountID string) ([]string, error) {
+	coll := m.Groups.Collection()
 	cur, err := coll.Find(ctx, bson.M{"_meta.accountID": accountID})
 	if err != nil {
 		return nil, err
@@ -187,7 +184,6 @@ func jobIDsFromMongoUserJobGroups(ctx context.Context, m *mongo.Client, accountI
 	return all, nil
 }
 
-// toAnySlice accepts []any, []interface{} (Firestore), or any slice type via reflection.
 func toAnySlice(v any) ([]any, bool) {
 	if v == nil {
 		return nil, false
@@ -208,7 +204,6 @@ func toAnySlice(v any) ([]any, bool) {
 	return out, true
 }
 
-// jobFirestoreDocIDCandidates returns possible Firestore document ids for a job reference.
 func jobFirestoreDocIDCandidates(referencedID string) []string {
 	referencedID = strings.TrimSpace(referencedID)
 	if referencedID == "" {
@@ -227,7 +222,6 @@ func jobFirestoreDocIDCandidates(referencedID string) []string {
 		pref := archiveimport.EnsureJobIDPrefix(referencedID)
 		add(pref)
 	}
-	// if reference had job- prefix, also try without (legacy store)
 	if strings.HasPrefix(referencedID, "job-") {
 		add(strings.TrimPrefix(referencedID, "job-"))
 	}
@@ -235,12 +229,10 @@ func jobFirestoreDocIDCandidates(referencedID string) []string {
 	for s := range seen {
 		out = append(out, s)
 	}
-	// prefer shorter / exact reference first
 	sort.Strings(out)
 	return out
 }
 
-// FetchUserJobFirestoreData loads Users/{uid}/Jobs/{id} (or jobs/) — first existing candidate wins.
 func FetchUserJobFirestoreData(ctx context.Context, fs *firestore.Client, accountID, referencedJobID string) (data map[string]any, err error) {
 	cands := jobFirestoreDocIDCandidates(referencedJobID)
 	if len(cands) == 0 {
@@ -250,7 +242,6 @@ func FetchUserJobFirestoreData(ctx context.Context, fs *firestore.Client, accoun
 		for _, docID := range cands {
 			snap, err := UserJobFirestoreRef(fs, accountID, docID, coll).Get(ctx)
 			if err != nil {
-				// Firestore returns NotFound for missing documents (see DocumentRef.Get docs).
 				if status.Code(err) == codes.NotFound {
 					continue
 				}
@@ -265,7 +256,7 @@ func FetchUserJobFirestoreData(ctx context.Context, fs *firestore.Client, accoun
 }
 
 // UpsertUserJobDocumentToMongo parses Firestore job map with archiveimport.JobFromFirestoreMap and upserts user_job_documents.
-func UpsertUserJobDocumentToMongo(ctx context.Context, m *mongo.Client, accountID string, firestoreJob map[string]any) error {
+func UpsertUserJobDocumentToMongo(ctx context.Context, m *eipmongo.Mongo, accountID string, firestoreJob map[string]any) error {
 	if m == nil {
 		return fmt.Errorf("mongo client is required")
 	}
@@ -286,26 +277,23 @@ func UpsertUserJobDocumentToMongo(ctx context.Context, m *mongo.Client, accountI
 	job.MetaData.LastModified = now
 	job.MetaData.LastUpdatedBy = importLiveUserJobsActor
 
-	coll := m.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUserJobDocuments)
+	coll := m.JobDocuments.Collection()
 	op := mongo.NewUpdateOneModel().
 		SetFilter(bson.M{"_id": job.JobID, "_meta.accountID": job.MetaData.AccountID}).
-		SetUpdate(bson.M{"$set": job, "$unset": mongocore.UserJobDocumentsUpsertUnset}).
+		SetUpdate(bson.M{"$set": job, "$unset": eipmongo.UserJobDocumentsUpsertUnset}).
 		SetUpsert(true)
 
-	retry := mongocore.DefaultRetryConfig()
-	retry.OperationName = fmt.Sprintf("import live user job document %s", job.JobID)
-	return mongocore.RetryMongoOperation(ctx, retry, func() error {
+	return eipmongo.Retry(ctx, fmt.Sprintf("import live user job document %s", job.JobID), func() error {
 		_, e := coll.BulkWrite(ctx, []mongo.WriteModel{op}, options.BulkWrite().SetOrdered(false))
 		return e
 	})
 }
 
 // ImportAllReferencedUserJobDocumentsForAccount loads each referenced id; skips missing Firestore documents.
-// lastErr is set to the most recent upsert/parse error when failed > 0 (earlier errors are not preserved).
 func ImportAllReferencedUserJobDocumentsForAccount(
 	ctx context.Context,
 	fs *firestore.Client,
-	m *mongo.Client,
+	m *eipmongo.Mongo,
 	accountID string,
 ) (imported, missingFS, failed int, lastErr error) {
 	ids, err := CollectReferenceJobIDsForUser(ctx, fs, m, accountID)

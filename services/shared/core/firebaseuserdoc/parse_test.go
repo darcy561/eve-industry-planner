@@ -3,7 +3,7 @@ package firebaseuserdoc
 import (
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"eve-industry-planner/shared/models"
 )

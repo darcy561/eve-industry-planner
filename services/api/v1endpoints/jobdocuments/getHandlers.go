@@ -2,24 +2,19 @@ package jobdocuments
 
 import (
 	"context"
+	"errors"
 	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
 	"time"
 
 	"eve-industry-planner/api/helper"
-	mongocore "eve-industry-planner/shared/core/mongo"
-	mongoget "eve-industry-planner/shared/core/mongo/get"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
-
-func collJobDocuments(clients *stackservices.Clients) *mongo.Collection {
-	return clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUserJobDocuments)
-}
 
 // GetPlannerJobDocumentsHandler handles GET /api/v1/job-documents/planner
 func GetPlannerJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
@@ -79,17 +74,17 @@ func GetJobDocumentByIDHandler(w http.ResponseWriter, r *http.Request, clients *
 	defer metrics.Finish()
 
 	accountID := helper.AuthenticatedAccountID(r)
+	mongo := clients.Mongo
 
-	collection := collJobDocuments(clients)
-	doc, err := mongoget.LoadJobByID(ctx, collection, accountID, jobID)
+	doc, err := mongo.JobDocuments.LoadJobByID(ctx, accountID, jobID)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
 			helper.RespondEndpointError(w, r, http.StatusNotFound, "Not found", "job document not found", "job_doc_not_found", "job_documents", nil, map[string]interface{}{"job_id": jobID})
 			return
 		}
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to retrieve job", "failed to query job document", "job_doc_query_failed", "job_documents", err, nil)
+		helper.RespondEndpointServerError(w, r, "Failed to retrieve job", "failed to query job document", "job_doc_query_failed", "job_documents", err, map[string]interface{}{"job_id": jobID})
 		return
 	}
 
@@ -181,9 +176,9 @@ func findJobs(
 	metrics *helper.RequestMetricsTracker,
 ) {
 	m := apimetrics.GetAPIJobs()
-	collection := collJobDocuments(clients)
+	mongo := clients.Mongo
 
-	jobs, err := mongoget.LoadJobsByFilter(ctx, collection, accountID, label, filter)
+	jobs, err := mongo.JobDocuments.LoadJobsByFilter(ctx, accountID, filter)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to retrieve jobs", "failed to query job documents", "job_docs_query_failed", "job_documents", err, nil)

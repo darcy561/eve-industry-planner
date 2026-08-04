@@ -9,13 +9,13 @@ import (
 	"strconv"
 
 	"eve-industry-planner/api/helper"
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // GetBuildStatsHandler serves GET /api/v1/statistics/build-stats?typeID=<int>.
@@ -62,19 +62,17 @@ func GetBuildStatsHandler(w http.ResponseWriter, r *http.Request, clients *stack
 		"type_id": typeID,
 	})
 
-	statsID := mongocore.BuildStatsDocumentID(accountID, typeID)
-	coll := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionBuildStats)
-
-	retryCfg := mongocore.DefaultRetryConfig()
-	retryCfg.OperationName = fmt.Sprintf("get build_stats %s", statsID)
+	mongo := clients.Mongo
+	statsID := eipmongo.BuildStatsDocumentID(accountID, typeID)
+	coll := mongo.BuildStats.Collection()
 
 	var row models.BuildStatsRow
 	foundInDB := true
-	err = mongocore.RetryMongoOperation(ctx, retryCfg, func() error {
+	err = eipmongo.Retry(ctx, fmt.Sprintf("get build_stats %s", statsID), func() error {
 		return coll.FindOne(ctx, bson.M{"_id": statsID}).Decode(&row)
 	})
 	if err != nil {
-		if err != mongo.ErrNoDocuments {
+		if !errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("database_error")
 			helper.RespondEndpointServerError(w, r, "Failed to retrieve build statistics", "build stats get: query failed", "build_stats_query_failed", "build_stats", err, map[string]interface{}{"type_id": typeID})
 			return

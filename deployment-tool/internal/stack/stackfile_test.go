@@ -210,6 +210,12 @@ func TestGrafanaApplySurfaceRepoObsStack(t *testing.T) {
 	if got.RootURLEnv == "" || got.TraefikRule == "" {
 		t.Fatalf("%#v", got)
 	}
+	if got.TraefikLabels["traefik.enable"] != "false" {
+		t.Fatalf("want private default enable=false, got %#v", got.TraefikLabels)
+	}
+	if _, ok := got.TraefikLabels["traefik.http.routers.grafana-secure.entrypoints"]; !ok {
+		t.Fatalf("missing websecure router template: %#v", got.TraefikLabels)
+	}
 }
 
 func TestCapacityTargets(t *testing.T) {

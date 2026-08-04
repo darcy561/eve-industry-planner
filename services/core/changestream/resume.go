@@ -11,8 +11,8 @@ import (
 	"eve-industry-planner/shared/logs"
 
 	"github.com/redis/go-redis/v9"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // loadResumeToken returns the stored StartAfter token for groupID, or (nil, false).

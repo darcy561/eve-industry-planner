@@ -11,14 +11,11 @@ import (
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/core/config"
-	mongocore "eve-industry-planner/shared/core/mongo"
-	mongoget "eve-industry-planner/shared/core/mongo/get"
-	mongoput "eve-industry-planner/shared/core/mongo/put"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/mongo"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 func DocumentHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.Clients) {
@@ -48,13 +45,11 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *stac
 	defer metrics.Finish()
 
 	accountID := helper.AuthenticatedAccountID(r)
+	mongo := clients.Mongo
 
-	database := clients.Mongo.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionUsers)
-
-	userDoc, err := mongoget.LoadUserAccountDocument(ctx, collection, accountID)
+	userDoc, err := mongo.LoadUserAccount(ctx, accountID)
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
 			helper.RespondEndpointError(w, r, http.StatusNotFound, "User document not found", "user document not found", "user_doc_not_found", "eve_token_login", nil, nil)
 			return
@@ -122,6 +117,7 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sta
 	defer metrics.Finish()
 
 	accountID := helper.AuthenticatedAccountID(r)
+	mongo := clients.Mongo
 
 	var userDoc models.UserAccountDocument
 	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &userDoc) {
@@ -138,13 +134,10 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sta
 	}
 	helper.PopulateRequestMeta(r, &userDoc.MetaData.MetaData, accountID)
 
-	database := clients.Mongo.Database(mongocore.DatabaseName)
-	usersCol := database.Collection(mongocore.CollectionUsers)
-
 	var existingDoc models.UserAccountDocument
-	existingDoc, loadErr := mongoget.LoadUserAccountDocument(ctx, usersCol, accountID)
+	existingDoc, loadErr := mongo.LoadUserAccount(ctx, accountID)
 	if loadErr != nil {
-		if !errors.Is(loadErr, mongo.ErrNoDocuments) {
+		if !errors.Is(loadErr, mongodriver.ErrNoDocuments) {
 			metrics.Error("database_error")
 			helper.RespondEndpointServerError(w, r, "Failed to save user document", "failed to load existing user document", "user_doc_load_failed", "eve_token_login", loadErr, nil)
 			return
@@ -194,7 +187,7 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sta
 		}
 	}
 
-	result, retriedWithoutWSClientID, err := mongoput.UpsertUserAccountDocument(ctx, usersCol, accountID, userDoc)
+	result, retriedWithoutWSClientID, err := mongo.Users.UpsertUserAccount(ctx, accountID, userDoc)
 	if retriedWithoutWSClientID {
 		logs.AttachHandlerCaveat(r, "upsert_retried_without_ws_client_id", "user document upsert with websocket client id failed, retrying without client id", map[string]interface{}{
 			"ws_client_id": userDoc.MetaData.ClientID,

@@ -220,11 +220,6 @@ var envFields = []EnvField{
 		Help: "Grafana login password. Generated on first Setup / eip init. Locked once set.",
 		Type: FieldPassword, Required: true, Default: "", Autogen: true, Locked: true,
 	},
-	{
-		Key: "GRAFANA_ROOT_URL", Section: "Grafana", Label: "Grafana root URL",
-		Help: "Should match how you open Grafana (e.g. http://127.0.0.1/grafana/).",
-		Type: FieldText, Required: false, Default: "",
-	},
 }
 
 // knownEnvKeySet returns current keys and PreviousKeys (consumed on migrate, not preserved).

@@ -1,6 +1,7 @@
 package archiveimport
 
 import (
+	"bytes"
 	"encoding/json"
 	"math"
 	"os"
@@ -12,7 +13,7 @@ import (
 
 	"eve-industry-planner/shared/models"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func TestJobFromFirestoreMap_legacyNumericJobIDAndFlatBlueprintFields(t *testing.T) {
@@ -720,8 +721,10 @@ func TestJobFromFirestoreMap_hoistsLifecycleIntoMetaAndUsesAccountID(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	var top map[string]any
-	if err := bson.Unmarshal(b, &top); err != nil {
+	dec := bson.NewDecoder(bson.NewDocumentReader(bytes.NewReader(b)))
+	dec.DefaultDocumentM()
+	var top bson.M
+	if err := dec.Decode(&top); err != nil {
 		t.Fatal(err)
 	}
 	for _, k := range []string{"archiveProcessed", "archived", "archiveTimeStamp", "deleted", "deletedTimeStamp", "accountID"} {
@@ -729,7 +732,7 @@ func TestJobFromFirestoreMap_hoistsLifecycleIntoMetaAndUsesAccountID(t *testing.
 			t.Fatalf("canonical Job BSON must not have root %q (belongs under _meta only)", k)
 		}
 	}
-	meta, _ := top["_meta"].(map[string]any)
+	meta, _ := top["_meta"].(bson.M)
 	if meta == nil {
 		t.Fatal("missing _meta")
 	}

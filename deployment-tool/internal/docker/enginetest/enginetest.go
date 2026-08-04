@@ -17,6 +17,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/moby/moby/api/types/swarm"
 	"github.com/moby/moby/client"
 )
 
@@ -29,6 +30,20 @@ type Engine struct {
 	// ServiceInspect maps service name/id → status + raw JSON body.
 	// Missing keys → 404 {"message":"…"}.
 	ServiceInspect map[string]Response
+
+	// ServiceUpdates records POST /services/{id}/update bodies (oldest first).
+	ServiceUpdates []ServiceUpdateCall
+	// ServiceUpdateStatus overrides the HTTP status for updates (0 → 200).
+	ServiceUpdateStatus int
+	// ServiceUpdateBody overrides the JSON response (empty → {}).
+	ServiceUpdateBody string
+}
+
+// ServiceUpdateCall is one captured ServiceUpdate request.
+type ServiceUpdateCall struct {
+	ID      string
+	Version string
+	Spec    swarm.ServiceSpec
 }
 
 // Response is one Engine HTTP response.
@@ -88,6 +103,35 @@ func (e *Engine) SetServiceError(name string, status int, msg string) {
 	e.SetServiceInspect(name, status, string(b))
 }
 
+// SetServiceOK registers a minimal Swarm service inspect body under name (and ID when set).
+func (e *Engine) SetServiceOK(name string, svc swarm.Service) {
+	e.t.Helper()
+	if svc.ID == "" {
+		svc.ID = name + "-id"
+	}
+	if svc.Spec.Name == "" {
+		svc.Spec.Name = name
+	}
+	body, err := json.Marshal(svc)
+	if err != nil {
+		e.t.Fatalf("enginetest SetServiceOK: %v", err)
+	}
+	e.SetServiceInspect(name, http.StatusOK, string(body))
+	if svc.ID != name {
+		e.SetServiceInspect(svc.ID, http.StatusOK, string(body))
+	}
+}
+
+// LastServiceUpdate returns the most recent update call, or ok=false.
+func (e *Engine) LastServiceUpdate() (ServiceUpdateCall, bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if len(e.ServiceUpdates) == 0 {
+		return ServiceUpdateCall{}, false
+	}
+	return e.ServiceUpdates[len(e.ServiceUpdates)-1], true
+}
+
 func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	// Strip /v1.xx prefix when present.
@@ -101,6 +145,40 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodGet && (path == "/_ping" || path == "/ping"):
 		w.Header().Set("API-Version", client.MaxAPIVersion)
 		w.WriteHeader(http.StatusOK)
+		return
+	case r.Method == http.MethodPost && strings.HasPrefix(path, "/services/") && strings.HasSuffix(path, "/update"):
+		id := strings.TrimPrefix(path, "/services/")
+		id = strings.TrimSuffix(id, "/update")
+		raw, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, `{"message":"read body"}`, http.StatusBadRequest)
+			return
+		}
+		var spec swarm.ServiceSpec
+		if len(raw) > 0 {
+			if err := json.Unmarshal(raw, &spec); err != nil {
+				http.Error(w, `{"message":"bad service spec"}`, http.StatusBadRequest)
+				return
+			}
+		}
+		e.mu.Lock()
+		e.ServiceUpdates = append(e.ServiceUpdates, ServiceUpdateCall{
+			ID:      id,
+			Version: r.URL.Query().Get("version"),
+			Spec:    spec,
+		})
+		status := e.ServiceUpdateStatus
+		body := e.ServiceUpdateBody
+		e.mu.Unlock()
+		if status == 0 {
+			status = http.StatusOK
+		}
+		if body == "" {
+			body = `{}`
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = io.WriteString(w, body)
 		return
 	case r.Method == http.MethodGet && strings.HasPrefix(path, "/services/"):
 		name := strings.TrimPrefix(path, "/services/")

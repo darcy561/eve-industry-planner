@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // Parity expectations: ../../../../migration/JOB_MODEL_PARITY_AUDIT.md (Phase 0).

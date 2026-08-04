@@ -13,9 +13,9 @@ import (
 	"eve-industry-planner/shared/firebaseadmin"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/migration/firestoremig"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"cloud.google.com/go/firestore"
-	mongodriver "go.mongodb.org/mongo-driver/mongo"
 	"google.golang.org/api/iterator"
 )
 
@@ -165,7 +165,7 @@ func importWatchlistDryRunScanAll(ctx context.Context, loginWithin time.Duration
 	return nil
 }
 
-func importWatchlistSingleWrite(ctx context.Context, fsClient *firestore.Client, mc *mongodriver.Client, accountID string) error {
+func importWatchlistSingleWrite(ctx context.Context, fsClient *firestore.Client, mc *eipmongo.Mongo, accountID string) error {
 	if mc == nil {
 		return fmt.Errorf("mongo client is required")
 	}
@@ -181,7 +181,7 @@ func importWatchlistSingleWrite(ctx context.Context, fsClient *firestore.Client,
 	return nil
 }
 
-func importWatchlistScanAllWrite(ctx context.Context, fsClient *firestore.Client, mc *mongodriver.Client, loginWithin time.Duration) error {
+func importWatchlistScanAllWrite(ctx context.Context, fsClient *firestore.Client, mc *eipmongo.Mongo, loginWithin time.Duration) error {
 	if mc == nil {
 		return fmt.Errorf("mongo client is required")
 	}

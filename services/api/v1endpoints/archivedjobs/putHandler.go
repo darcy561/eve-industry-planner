@@ -10,14 +10,14 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/documentlock"
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // PutArchivedJobsHandler handles PUT /v1/archived-jobs — batch upsert into Mongo archivedJobs.
@@ -57,6 +57,7 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sta
 
 	ctx := obsCtx
 	accountID := helper.AuthenticatedAccountID(r)
+	mongo := clients.Mongo
 
 	var reqBody struct {
 		Jobs []models.Job `json:"jobs"`
@@ -131,7 +132,7 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sta
 				jobGroupBypass[j.JobID] = j.GroupID
 			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, mongocore.CollectionUserJobDocuments, jobIDs, jobGroupBypass)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, eipmongo.CollectionUserJobDocuments, jobIDs, jobGroupBypass)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -144,7 +145,7 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sta
 		}
 		if len(rejects) > 0 {
 			metrics.Error("lock_conflict")
-			helper.RespondLockHeldElsewhereJSON(w, r, mongocore.CollectionUserJobDocuments, rejects)
+			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionUserJobDocuments, rejects)
 			return
 		}
 		logs.AttachDebugStep(r, "lock_gate_passed", map[string]interface{}{
@@ -153,7 +154,7 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sta
 	}
 
 	now := time.Now().UTC()
-	bulkOps := make([]mongo.WriteModel, 0, len(reqBody.Jobs))
+	bulkOps := make([]mongodriver.WriteModel, 0, len(reqBody.Jobs))
 	for i := range reqBody.Jobs {
 		job := &reqBody.Jobs[i]
 		helper.PopulateRequestMeta(r, &job.MetaData.MetaData, accountID)
@@ -165,18 +166,15 @@ func PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request, clients *sta
 		job.MetaData.ArchivedAt = now
 		job.MetaData.ArchivedBy = accountID
 
-		bulkOps = append(bulkOps, mongo.NewUpdateOneModel().
+		bulkOps = append(bulkOps, mongodriver.NewUpdateOneModel().
 			SetFilter(bson.M{"_id": job.JobID, "_meta.accountID": job.MetaData.AccountID}).
-			SetUpdate(bson.M{"$set": job, "$unset": mongocore.ArchivedJobsUpsertUnset}).
+			SetUpdate(bson.M{"$set": job, "$unset": eipmongo.ArchivedJobsUpsertUnset}).
 			SetUpsert(true))
 	}
 
-	collection := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionArchivedJobs)
-	retryConfig := mongocore.DefaultRetryConfig()
-	retryConfig.OperationName = fmt.Sprintf("bulk upsert %d archived jobs", len(bulkOps))
-
-	var result *mongo.BulkWriteResult
-	err := mongocore.RetryMongoOperation(ctx, retryConfig, func() error {
+	collection := mongo.ArchivedJobs.Collection()
+	var result *mongodriver.BulkWriteResult
+	err := eipmongo.Retry(ctx, fmt.Sprintf("bulk upsert %d archived jobs", len(bulkOps)), func() error {
 		var e error
 		result, e = collection.BulkWrite(ctx, bulkOps, options.BulkWrite().SetOrdered(false))
 		return e

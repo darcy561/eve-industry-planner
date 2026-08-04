@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 const buildStatsBatchSize = 500
@@ -41,16 +41,14 @@ func ProcessBuildStats(ctx context.Context, task *asynq.Task, deps *esitasks.Tas
 		return fmt.Errorf("account_id is required")
 	}
 
-	db := deps.Mongo.Database(mongocore.DatabaseName)
-	archived := db.Collection(mongocore.CollectionArchivedJobs)
-	statsColl := db.Collection(mongocore.CollectionBuildStats)
+	mongo := deps.Mongo
+	archivedColl := mongo.ArchivedJobs.Collection()
 
 	filter := bson.M{"$and": bson.A{
-		mongocore.ArchivedJobAccountFilter(req.AccountID),
-		mongocore.UnprocessedArchivedJobFilter(),
+		eipmongo.ArchivedJobAccountFilter(req.AccountID),
+		eipmongo.UnprocessedArchivedJobFilter(),
 	}}
 
-	retryCfg := mongocore.DefaultRetryConfig()
 	totalProcessed := 0
 	totalSkipped := 0
 	batchNum := 0
@@ -60,7 +58,7 @@ func ProcessBuildStats(ctx context.Context, task *asynq.Task, deps *esitasks.Tas
 			return err
 		}
 
-		cursor, err := archived.Find(ctx, filter, options.Find().SetLimit(buildStatsBatchSize))
+		cursor, err := archivedColl.Find(ctx, filter, options.Find().SetLimit(buildStatsBatchSize))
 		if err != nil {
 			return fmt.Errorf("find unprocessed archived jobs: %w", err)
 		}
@@ -79,6 +77,7 @@ func ProcessBuildStats(ctx context.Context, task *asynq.Task, deps *esitasks.Tas
 
 		processed := 0
 		skipped := 0
+		bulk := mongo.Bulk()
 
 		for i := range jobs {
 			job := &jobs[i]
@@ -103,36 +102,30 @@ func ProcessBuildStats(ctx context.Context, task *asynq.Task, deps *esitasks.Tas
 				continue
 			}
 
-			statsID := mongocore.BuildStatsDocumentID(acct, job.ItemID)
+			statsID := eipmongo.BuildStatsDocumentID(acct, job.ItemID)
 			statsFilter := bson.M{"_id": statsID}
-			// $inc: cumulative counters (no read of the doc required). $set: denormalized fields from this job.
 			statsUpdate := bson.M{
 				"$inc":  buildStatSnapshotIncUpdate(snap),
 				"$set":  bson.M{"jobType": snap.JobType, "typeID": snap.TypeID},
 				"$push": bson.M{"dataSnapshots": snap},
 			}
 
-			err = mongocore.RetryMongoOperation(ctx, retryCfg, func() error {
-				_, e := statsColl.UpdateOne(ctx, statsFilter, statsUpdate, options.Update().SetUpsert(true))
-				return e
-			})
-			if err != nil {
-				return fmt.Errorf("build_stats update job_id=%s stats_id=%s: %w", job.JobID, statsID, err)
-			}
-
-			// Match by _id only: this job was just read from the account-scoped find; update does not touch _meta.accountID.
 			jobFilter := bson.M{"_id": job.JobID}
 			jobUpdate := bson.M{"$set": bson.M{"_meta.archiveProcessed": true}}
 
-			err = mongocore.RetryMongoOperation(ctx, retryCfg, func() error {
-				_, e := archived.UpdateOne(ctx, jobFilter, jobUpdate)
+			bulk.UpdateOne(mongo.BuildStats, statsFilter, statsUpdate, eipmongo.Upsert())
+			bulk.UpdateOne(mongo.ArchivedJobs, jobFilter, jobUpdate)
+			processed++
+		}
+
+		if bulk.Len() > 0 {
+			err = eipmongo.Retry(ctx, fmt.Sprintf("ProcessBuildStats batch %d account=%s", batchNum, req.AccountID), func() error {
+				_, e := bulk.RunOrdered(ctx)
 				return e
 			})
 			if err != nil {
-				return fmt.Errorf("mark archived job processed job_id=%s: %w", job.JobID, err)
+				return fmt.Errorf("build_stats batch bulk write account=%s batch=%d: %w", req.AccountID, batchNum, err)
 			}
-
-			processed++
 		}
 
 		totalProcessed += processed
@@ -144,6 +137,7 @@ func ProcessBuildStats(ctx context.Context, task *asynq.Task, deps *esitasks.Tas
 			"candidates", len(jobs),
 			"processed", processed,
 			"skipped", skipped,
+			"bulk_writes", bulk.Len(),
 		)
 
 		if len(jobs) < buildStatsBatchSize {

@@ -7,10 +7,9 @@ import (
 	"maps"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type StructUpsertItem struct {
@@ -66,8 +65,8 @@ func StructToMongoDoc(v interface{}, docID ...string) (bson.M, error) {
 		return nil, fmt.Errorf("failed to marshal struct to BSON: %w", err)
 	}
 
-	var doc bson.M
-	if err := bson.Unmarshal(docBytes, &doc); err != nil {
+	doc, err := UnmarshalDocumentM(docBytes)
+	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal BSON to map: %w", err)
 	}
 
@@ -75,7 +74,7 @@ func StructToMongoDoc(v interface{}, docID ...string) (bson.M, error) {
 	if len(docID) > 0 && docID[0] != "" {
 		doc["_id"] = docID[0]
 	} else {
-		doc["_id"] = primitive.NewObjectID()
+		doc["_id"] = bson.NewObjectID()
 	}
 
 	return doc, nil
@@ -133,7 +132,7 @@ func UpsertStructByIDWithMeta(ctx context.Context, collection *mongo.Collection,
 			"$set":         setDoc,
 			"$setOnInsert": bson.M{"_id": docID},
 		},
-		options.Update().SetUpsert(true),
+		options.UpdateOne().SetUpsert(true),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("upsert document: %w", err)
@@ -191,7 +190,7 @@ func UpsertStructByIDPreservingMeta(ctx context.Context, collection *mongo.Colle
 			"$set":         setDoc,
 			"$setOnInsert": setOnInsert,
 		},
-		options.Update().SetUpsert(true),
+		options.UpdateOne().SetUpsert(true),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("upsert document preserving meta: %w", err)
@@ -413,12 +412,9 @@ func applyLastModified(setDoc bson.M, setOnInsert bson.M, doc bson.M, preserveMe
 
 	// Keep shared metadata timestamp current when metadata is stored under _meta.
 	if metaRaw, ok := setDoc["_meta"]; ok {
-		if meta, ok := metaRaw.(bson.M); ok {
+		if meta := AsDocumentM(metaRaw); meta != nil {
 			meta["lastModified"] = now
 			setDoc["_meta"] = meta
-		} else if metaMap, ok := metaRaw.(map[string]any); ok {
-			metaMap["lastModified"] = now
-			setDoc["_meta"] = metaMap
 		}
 	}
 	if preserveMeta {
@@ -448,14 +444,7 @@ func applyLastModified(setDoc bson.M, setOnInsert bson.M, doc bson.M, preserveMe
 }
 
 func ensureMetaMap(metaRaw interface{}) bson.M {
-	if meta, ok := metaRaw.(bson.M); ok {
-		return meta
-	}
-	if metaMap, ok := metaRaw.(map[string]any); ok {
-		meta := bson.M{}
-		for k, v := range metaMap {
-			meta[k] = v
-		}
+	if meta := AsDocumentM(metaRaw); meta != nil {
 		return meta
 	}
 	return bson.M{}

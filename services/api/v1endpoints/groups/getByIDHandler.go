@@ -2,18 +2,17 @@ package groups
 
 import (
 	"context"
+	"errors"
 	"eve-industry-planner/shared/stackservices"
 	"net/http"
 	"strings"
 	"time"
 
 	"eve-industry-planner/api/helper"
-	mongocore "eve-industry-planner/shared/core/mongo"
-	mongoget "eve-industry-planner/shared/core/mongo/get"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/mongo"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // GetGroupByIDHandler handles GET /v1/groups/{groupID} — one group for the authenticated account.
@@ -34,6 +33,7 @@ func GetGroupByIDHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 		return
 	}
 	accountID := helper.AuthenticatedAccountID(r)
+	mongo := clients.Mongo
 
 	groupID = strings.TrimSpace(groupID)
 	if groupID == "" {
@@ -42,12 +42,9 @@ func GetGroupByIDHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 		return
 	}
 
-	database := clients.Mongo.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionUserJobGroups)
-
-	group, err := mongoget.LoadGroupByID(ctx, collection, accountID, groupID)
+	group, err := mongo.Groups.LoadGroupByID(ctx, accountID, groupID)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			helper.RespondNotFound(w, r, metrics)
 			return
 		}

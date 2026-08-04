@@ -7,8 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // ParseExtrasDeletedAtJSON interprets a JSON deletedAt value: null, number (epoch ms from legacy clients), or ISO/RFC3339 string.
@@ -75,7 +74,7 @@ func coerceDeletedAtFromInterface(v interface{}) *string {
 		}
 		out := time.UnixMilli(int64(t)).UTC().Format(time.RFC3339Nano)
 		return &out
-	case primitive.DateTime:
+	case bson.DateTime:
 		if t == 0 {
 			return nil
 		}

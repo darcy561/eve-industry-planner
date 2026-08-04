@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
-	mongocore "eve-industry-planner/shared/core/mongo"
-	mongoget "eve-industry-planner/shared/core/mongo/get"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
@@ -32,11 +30,9 @@ func GetGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackserv
 	}
 
 	accountID := helper.AuthenticatedAccountID(r)
+	mongo := clients.Mongo
 
-	database := clients.Mongo.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionUserJobGroups)
-
-	groups, err := mongoget.LoadGroupsByAccount(ctx, collection, accountID)
+	groups, err := mongo.Groups.LoadGroupsByAccount(ctx, accountID)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to retrieve groups", "failed to query groups", "groups_query_failed", "groups_get", err, nil)

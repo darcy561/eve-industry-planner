@@ -10,12 +10,12 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/documentlock"
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // DeleteGroupsHandler handles DELETE /v1/groups - delete specific groups by IDs for the authenticated user
@@ -35,6 +35,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 	if !ok {
 		return
 	}
+	mongo := clients.Mongo
 
 	var reqBody struct {
 		GroupIDs []string `json:"groupIDs"`
@@ -64,24 +65,20 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 		"batch_size": len(reqBody.GroupIDs),
 	})
 
-	database := clients.Mongo.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionUserJobGroups)
-
+	collection := mongo.Groups.Collection()
 	filter := bson.M{
 		"_meta.accountID": accountID,
 		"_id":             bson.M{"$in": reqBody.GroupIDs},
 	}
 
-	findRetry := mongocore.DefaultRetryConfig()
-	findRetry.OperationName = fmt.Sprintf("resolve groups for delete account %s", accountID)
-
 	var resolvedIDs []string
-	findErr := mongocore.RetryMongoOperation(ctx, findRetry, func() error {
+	findErr := eipmongo.Retry(ctx, fmt.Sprintf("resolve groups for delete account %s", accountID), func() error {
 		cur, err := collection.Find(ctx, filter, options.Find().SetProjection(bson.M{"_id": 1}))
 		if err != nil {
 			return err
 		}
 		defer cur.Close(ctx)
+		resolvedIDs = resolvedIDs[:0]
 		for cur.Next(ctx) {
 			var doc struct {
 				ID string `bson:"_id"`
@@ -120,7 +117,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 		return
 	}
 	if clients.Redis != nil {
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, mongocore.CollectionUserJobGroups, resolvedIDs, nil)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, eipmongo.CollectionUserJobGroups, resolvedIDs, nil)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -133,7 +130,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 		}
 		if len(rejects) > 0 {
 			metrics.Error("lock_conflict")
-			helper.RespondLockHeldElsewhereJSON(w, r, mongocore.CollectionUserJobGroups, rejects)
+			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionUserJobGroups, rejects)
 			return
 		}
 		logs.AttachDebugStep(r, "lock_gate_passed", map[string]interface{}{
@@ -144,10 +141,8 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 	now := time.Now().UTC()
 	wsClientID := helper.ExtractWSClientID(r)
 
-	retryConfig := mongocore.DefaultRetryConfig()
-	retryConfig.OperationName = fmt.Sprintf("delete %d groups for account %s", len(resolvedIDs), accountID)
-
-	deletedCount64, err := mongocore.DeleteManyAfterStampingMeta(ctx, retryConfig, collection, filter, now, sessionID, wsClientID)
+	deletedCount64, err := mongo.Groups.DeleteManyAfterStampingMeta(ctx, filter, now, sessionID, wsClientID,
+		eipmongo.WithOpName(fmt.Sprintf("delete %d groups for account %s", len(resolvedIDs), accountID)))
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to delete groups", "failed to delete groups", "groups_delete_failed", "groups_delete", err, nil)
@@ -162,7 +157,7 @@ func DeleteGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 
 	if clients.Redis != nil {
 		for _, gid := range resolvedIDs {
-			_ = documentlock.DeleteDocLock(ctx, clients.Redis, accountID, mongocore.CollectionUserJobGroups, gid)
+			_ = documentlock.DeleteDocLock(ctx, clients.Redis, accountID, eipmongo.CollectionUserJobGroups, gid)
 		}
 	}
 

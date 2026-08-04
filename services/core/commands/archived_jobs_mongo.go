@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func buildStatsIDPrefixFilter(accountID string) bson.M {
@@ -62,7 +62,8 @@ func runMarkArchivedJobsUnprocessed(ctx context.Context, args []string) error {
 		scopeDesc = fmt.Sprintf("_meta.accountID=%s", accountTrim)
 	}
 
-	coll := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionArchivedJobs)
+	mongo := clients.Mongo
+	coll := mongo.ArchivedJobs.Collection()
 
 	ctxCount, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
@@ -105,7 +106,7 @@ func archivedJobsEmptyHint(scopeDesc string) string {
 		"note: no documents matched in %s.%s (scope: %s). "+
 			"If you expected rows here, confirm MONGO_URL points at the right cluster and that archived jobs "+
 			"have been imported into Mongo (they are not read from Firestore by this command).\n",
-		mongocore.DatabaseName, mongocore.CollectionArchivedJobs, scopeDesc,
+		eipmongo.DatabaseName, eipmongo.CollectionArchivedJobs, scopeDesc,
 	)
 }
 
@@ -131,8 +132,9 @@ func runResetBuildStats(ctx context.Context, args []string) error {
 	}
 	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
+	mongo := clients.Mongo
 	filter := buildStatsIDPrefixFilter(*account)
-	coll := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionBuildStats)
+	coll := mongo.BuildStats.Collection()
 
 	ctxOp, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()

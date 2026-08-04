@@ -8,14 +8,13 @@ import (
 
 	"eve-industry-planner/core/scheduler/contract"
 	schedesi "eve-industry-planner/core/scheduler/esi"
-	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	taskscore "eve-industry-planner/shared/tasks"
 
 	redislib "github.com/redis/go-redis/v9"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 const (
@@ -87,7 +86,8 @@ func publishCloudEsiRefreshMaintenanceBatch(ctx context.Context, deps contract.D
 		SetLimit(int64(effectiveCap)).
 		SetHint(usersMetaLastLoginAtIndexName)
 
-	col := deps.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUsers)
+	mongo := deps.Mongo
+	col := mongo.Users.Collection()
 	cur, err := col.Find(ctx, filter, opts)
 	if err != nil {
 		logs.ErrorCtx(ctx, "cloud esi refresh maintenance: user query failed", "component", schedulerLogComponent, "error", err)
@@ -149,7 +149,8 @@ func computeCloudEsiPublishBatchSize(ctx context.Context, deps contract.Dependen
 	countCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
 
-	col := deps.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUsers)
+	mongo := deps.Mongo
+	col := mongo.Users.Collection()
 	total, err := col.CountDocuments(countCtx, filter, options.Count().SetHint(usersMetaLastLoginAtIndexName))
 	if err != nil {
 		return 0, err

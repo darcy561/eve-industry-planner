@@ -41,10 +41,10 @@ No dedicated menu rows for **Apply secrets/settings** — Persist auto-queues; u
 
 - **`eip up`**: live pulls; two-pass + Ready ([deploy.md](./deploy.md)). If the stack was already healthy before bring-up, skips `dataplane.Ready` (step: “Stack already healthy — skipping ensure”).
 - **`eip dev`**: bake + merge `docker-stack.dev.yml`; same two-pass + Ready (same healthy skip).
-- **`eip sync`**: targeted Moby `ServiceUpdate` from `eip.config.yaml`; `--dry-run` / `-n`. Membership = stack YAML labels (`eip.capacity.sync`, `eip.config.sync`). Stack effect → [config.md](../../../stack/config.md). TUI: Persist / Command — not a Main row.
+- **`eip sync`**: targeted Moby `ServiceUpdate` from `eip.config.yaml` (capacity, Traefik ports/paths/proxy, Grafana Path / Base URL / Access, labeled network membership); `--dry-run` / `-n`. Stack labels include `eip.capacity.sync`, `eip.config.sync`, and network attach/detach labels. Effect → [config.md](../../../stack/config.md), [network.md](../../../stack/network.md). TUI: Persist / Command — not a Main row.
 - **`eip secrets`**: hashed secrets from `.env` (Moby Secret*), then Rematerialize. Default `--live`; `--dev` when stack was `eip dev`. Attach → [secrets.md](../../../stack/secrets.md). TUI: Persist after Secrets / Command — not a Main row.
 - **`eip rebuild`**: bake + rematerialize (dev). No Ready. After index SoT changes without full up/dev, run **`eip ensure-mongo`**.
-- **`eip update`**: day-2 refresh — **binary first** (GitHub Releases tag `cli` / baked channel), then stack YAML from the baked kit git branch tip, then **pull live images** and **digest-reconcile** (force-update services whose running digest drifted; includes obs when enabled). Flags: `--binary-only`, `--stacks-only`, `--images-only`. After binary install: TUI relaunches with `EIP_UPDATE_RESUME` then runs update again; CLI re-execs `eip update`. Embedded kit ships inside the binary. Does **not** overwrite on-disk `.env` / `eip.config.yaml` / keyfiles. Cold start remains **`eip up`**.
+- **`eip update`**: day-2 refresh — **binary first** (GitHub Releases tag `cli` / baked channel), then stack YAML from the baked kit git branch tip, then **pull live images** and **digest-reconcile** (force-update services whose running digest drifted). Live refs = app + data (+ obs when enabled) from kit fragments. Flags: `--binary-only`, `--stacks-only`, `--images-only`. After binary install: TUI relaunches with `EIP_UPDATE_RESUME` then runs update again; CLI re-execs `eip update`. Embedded kit ships inside the binary. Does **not** overwrite on-disk `.env` / `eip.config.yaml` / keyfiles. Cold start remains **`eip up`**.
 - **`eip restart` / `logs` / `shutdown`**: Moby SDK; TUI Restart/Logs use pickers; Logs follow → new logview console.
 - **`eip repair`**: day-2 heal for an already-deployed unhealthy stack (TUI **Repair** when Health is amber/red). Rematerialize if expected services are missing; runs dataplane `ServiceEnsures` registry entries only for bad service shorts (task must be running); force-update other bad present services. No pull/bake/`dataplane.Ready`/cold start. Healthy stack → use `eip update`; nothing deployed → `eip up`. Flag: `--dry-run` / `-n`.
 - **`eip status`**: expected vs live Swarm stack (TUI **Status**).
@@ -55,16 +55,16 @@ No dedicated menu rows for **Apply secrets/settings** — Persist auto-queues; u
 - **`eip ensure-s3` / `ensure-mongo`**: CLI-only ensure without full deploy.
 - **`eip restore-mongo-keyfile` / `rekey-mongo`**: CLI-only keyfile recovery / rekey.
 
-## Day-2 app images
+## Day-2 images
 
-App services share one **`APP_VERSION`** (`.env` SoT). Membership = **app fragment** in [`docker-stack.yml`](../../../../docker-stack.yml): api, websocket, worker, ws-router, core, frontend. Traefik is upstream (rare). Data fragment and obs addon are **not** rolled by normal image ship.
+App services share one **`APP_VERSION`** (`.env` SoT) in the **app fragment** ([`docker-stack.yml`](../../../../docker-stack.yml)): api, websocket, worker, ws-router, core, frontend. Traefik is upstream (rare). Data pins live in [`docker-stack.data.yml`](../../../../docker-stack.data.yml); obs pins in [`docker-stack.obs.yml`](../../../../docker-stack.obs.yml) when the addon is on.
 
 | Path | Use |
 |------|-----|
-| **`eip update`** | Public / GHCR — binary → kit stack YAML → pull live images → digest-reconcile |
-| **`eip rebuild`** | Local bake + rematerialize app fragment (no Ready) |
+| **`eip update`** | Public — binary → kit stack YAML → pull `LiveImageRefs` (app + data + obs when on) → digest-reconcile |
+| **`eip rebuild`** | Local bake + rematerialize **app** fragment (no Ready; does not bake data/obs) |
 
-Local bake writes gitignored **`.eip-local-build.env`** (`APP_VERSION`, `TAG_*`, `DIGEST_*`) used to expand [`docker-stack.dev.yml`](../../../../docker-stack.dev.yml).
+Bump a data (or obs) image by changing the pin in the kit fragment and shipping; the next **`eip update`** pulls and reconciles it. Data services use Swarm `stop-first` / named volumes from the fragment.
 
 Day-2 image ship on a healthy install uses **`eip update`** / **`eip rebuild`**. Swarm owns replica replacement from stack `update_config`.
 

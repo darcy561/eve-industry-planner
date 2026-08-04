@@ -141,7 +141,7 @@ func applyServiceUpdate(ctx context.Context, apiClient *client.Client, desire De
 	}
 	needReplicas := false
 	needLabels := false
-	envKeys := map[string]struct{}{}
+	env := map[string]string{}
 	for _, c := range changes {
 		switch {
 		case c.Field == "replicas":
@@ -149,52 +149,39 @@ func applyServiceUpdate(ctx context.Context, apiClient *client.Client, desire De
 		case strings.HasPrefix(c.Field, "label:"):
 			needLabels = true
 		case strings.HasPrefix(c.Field, "env:"):
-			envKeys[strings.TrimPrefix(c.Field, "env:")] = struct{}{}
+			key := strings.TrimPrefix(c.Field, "env:")
+			if v, ok := desire.Env[key]; ok {
+				env[key] = v
+			}
 		}
 	}
 
-	if dryRun {
-		msg.Line("dry-run: would update " + desire.SwarmService)
-		return nil
-	}
-	result, err := apiClient.ServiceInspect(ctx, desire.SwarmService, client.ServiceInspectOptions{})
-	if err != nil {
-		return fmt.Errorf("inspect service %s: %w", desire.SwarmService, err)
-	}
-	service := result.Service
-	spec := service.Spec
-	if needReplicas {
-		if spec.Mode.Replicated == nil {
-			spec.Mode.Replicated = &swarmtypes.ReplicatedService{}
-		}
-		spec.Mode.Replicated.Replicas = &desire.Replicas
+	patch := ServiceSpecPatch{
+		ServiceName: desire.SwarmService,
+		Env:         env,
 	}
 	if needLabels {
-		if spec.Labels == nil {
-			spec.Labels = map[string]string{}
-		}
 		short := desire.SwarmService
 		if i := strings.Index(desire.SwarmService, "_"); i >= 0 {
 			short = desire.SwarmService[i+1:]
 		}
-		spec.Labels[stack.LabelCapacityService] = short
-		spec.Labels[stack.LabelCapacityMin] = desire.CapacityMin
-		spec.Labels[stack.LabelCapacityMax] = desire.CapacityMax
-	}
-	if len(envKeys) > 0 {
-		if spec.TaskTemplate.ContainerSpec == nil {
-			return fmt.Errorf("update service %s: missing ContainerSpec", desire.SwarmService)
+		patch.Labels = map[string]string{
+			stack.LabelCapacityService: short,
+			stack.LabelCapacityMin:     desire.CapacityMin,
+			stack.LabelCapacityMax:     desire.CapacityMax,
 		}
-		spec.TaskTemplate.ContainerSpec.Env = setEnv(spec.TaskTemplate.ContainerSpec.Env, desire.Env, envKeys)
 	}
-	if _, err := apiClient.ServiceUpdate(ctx, service.ID, client.ServiceUpdateOptions{
-		Version: service.Version,
-		Spec:    spec,
-	}); err != nil {
-		return fmt.Errorf("update service %s: %w", desire.SwarmService, err)
+	if needReplicas {
+		replicas := desire.Replicas
+		patch.Mutate = func(spec *swarmtypes.ServiceSpec) error {
+			if spec.Mode.Replicated == nil {
+				spec.Mode.Replicated = &swarmtypes.ReplicatedService{}
+			}
+			spec.Mode.Replicated.Replicas = &replicas
+			return nil
+		}
 	}
-	msg.Line("updated " + desire.SwarmService)
-	return nil
+	return ApplyServiceSpecPatch(ctx, apiClient, patch, dryRun)
 }
 
 func setEnv(env []string, values map[string]string, keys map[string]struct{}) []string {

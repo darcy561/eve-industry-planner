@@ -49,9 +49,22 @@ func (c Config) EffectiveEnvBackupPath() string {
 }
 
 type Addons struct {
-	Observability struct {
-		Enabled bool `yaml:"enabled"`
-	} `yaml:"observability"`
+	Observability ObservabilityAddon `yaml:"observability"`
+}
+
+// ObservabilityAddon is addons.observability in eip.config.yaml.
+type ObservabilityAddon struct {
+	Enabled bool                 `yaml:"enabled"`
+	Grafana ObservabilityGrafana `yaml:"grafana"`
+}
+
+// ObservabilityGrafana is addons.observability.grafana.
+type ObservabilityGrafana struct {
+	// Public exposes Grafana on the edge (Traefik). Default false = private / no edge.
+	Public bool `yaml:"public"`
+	// BaseURL is scheme+host (optional port), no path. Combined with paths.grafana for GF_SERVER_ROOT_URL.
+	// DefaultConfig sets DefaultGrafanaBaseURL; omit/blank still falls back to that.
+	BaseURL string `yaml:"base_url"`
 }
 
 type Ports struct {
@@ -137,6 +150,12 @@ func (c Config) Validate() error {
 		return err
 	}
 	if err := validatePath("paths.grafana", c.Paths.Grafana); err != nil {
+		return err
+	}
+	if c.Addons.Observability.Grafana.Public && strings.TrimSpace(c.Paths.Grafana) == "" {
+		return fmt.Errorf("paths.grafana: required when addons.observability.grafana.public is true")
+	}
+	if err := validateGrafanaBaseURL(c.Addons.Observability.Grafana.BaseURL); err != nil {
 		return err
 	}
 	if err := validatePath("paths.traefik_dashboard", c.Paths.TraefikDashboard); err != nil {
@@ -297,7 +316,7 @@ func (c Config) SyncEnvMap() map[string]string {
 		"EIP_GRAFANA_PATH":                grafanaPath,
 		"EIP_TRAEFIK_DASHBOARD_PATH":      paths.TraefikDashboard,
 		"EIP_TRAEFIK_TRUSTED_PROXY_CIDRS": c.TrustedProxyCIDRsCSV(),
-		"GRAFANA_ROOT_URL":                GrafanaRootURL(grafanaPath),
+		"GRAFANA_ROOT_URL":                c.EffectiveGrafanaRootURL(),
 	}
 }
 
@@ -330,8 +349,8 @@ func (c Config) SummaryLines() []string {
 	ports := c.EffectivePorts()
 	paths := c.EffectivePaths()
 	lines = append(lines, fmt.Sprintf(
-		"ports/paths: http=%d https=%d traefik_dashboard=%d grafana=%q dashboard_path=%q (applied by eip sync)",
-		ports.HTTP, ports.HTTPS, ports.TraefikDashboard, paths.Grafana, paths.TraefikDashboard,
+		"ports/paths: http=%d https=%d traefik_dashboard=%d grafana=%q grafana.public=%t grafana.root=%q dashboard_path=%q (applied by eip sync)",
+		ports.HTTP, ports.HTTPS, ports.TraefikDashboard, paths.Grafana, c.Addons.Observability.Grafana.Public, c.EffectiveGrafanaRootURL(), paths.TraefikDashboard,
 	))
 	proxies := c.EffectiveTrustedProxies()
 	if len(proxies) == 0 {

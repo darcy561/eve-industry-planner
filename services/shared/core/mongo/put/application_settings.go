@@ -7,7 +7,7 @@ import (
 	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/models"
 
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // UpsertApplicationSettingsDocument writes application_settings with _meta-preserving upsert.

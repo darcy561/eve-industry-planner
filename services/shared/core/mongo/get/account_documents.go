@@ -8,8 +8,8 @@ import (
 	mongoput "eve-industry-planner/shared/core/mongo/put"
 	"eve-industry-planner/shared/models"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 func LoadUserAccountDocument(ctx context.Context, usersCol *mongo.Collection, accountID string) (models.UserAccountDocument, error) {

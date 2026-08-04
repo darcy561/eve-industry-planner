@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/firebaseuserdoc"
-	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/firebaseadmin"
 	"eve-industry-planner/shared/logs"
@@ -45,16 +44,13 @@ func MigrateUserDocumentToMongo(ctx context.Context, task *asynq.Task, deps *esi
 		span.SetAttributes(attribute.String("account_id", request.AccountID))
 	}
 
-	client := deps.Mongo
-	db := client.Database(mongocore.DatabaseName)
-	usersCol := db.Collection(mongocore.CollectionUsers)
-	settingsCol := db.Collection(mongocore.CollectionApplicationSettings)
+	mongo := deps.Mongo
 
-	userDocExists, err := mongocore.DocumentExistsByID(ctx, usersCol, request.AccountID, request.AccountID)
+	userDocExists, err := mongo.Users.ExistsByAccountID(ctx, request.AccountID, request.AccountID)
 	if err != nil {
 		return fmt.Errorf("check existing user account document: %w", err)
 	}
-	settingsDocExists, err := mongocore.DocumentExistsByID(ctx, settingsCol, request.AccountID, request.AccountID)
+	settingsDocExists, err := mongo.ApplicationSettings.ExistsByAccountID(ctx, request.AccountID, request.AccountID)
 	if err != nil {
 		return fmt.Errorf("check existing application settings document: %w", err)
 	}
@@ -65,7 +61,6 @@ func MigrateUserDocumentToMongo(ctx context.Context, task *asynq.Task, deps *esi
 
 	logs.InfoCtx(ctx, "migrate user document task started", "account_id", request.AccountID)
 
-	// Ensure user exists in Firebase Auth; exit early if not (nothing to migrate)
 	authClient, err := firebaseadmin.GetAuthClient(ctx)
 	if err != nil {
 		return fmt.Errorf("get firebase auth client: %w", err)
@@ -74,12 +69,11 @@ func MigrateUserDocumentToMongo(ctx context.Context, task *asynq.Task, deps *esi
 	if err != nil {
 		if auth.IsUserNotFound(err) {
 			logs.InfoCtx(ctx, "user not found in Firebase Auth, skipping migration", "account_id", request.AccountID)
-			return nil // success, nothing to migrate
+			return nil
 		}
 		return fmt.Errorf("get firebase auth user: %w", err)
 	}
 
-	// Use Auth metadata for created/last-login; fallback to now if missing or zero
 	var createdAt, lastLoginAt time.Time
 	if userRecord.UserMetadata != nil {
 		if userRecord.UserMetadata.CreationTimestamp > 0 {
@@ -97,7 +91,6 @@ func MigrateUserDocumentToMongo(ctx context.Context, task *asynq.Task, deps *esi
 		lastLoginAt = createdAt
 	}
 
-	// Fetch user document from Firestore
 	fsClient, err := firebaseadmin.GetFirestoreClient(ctx)
 	if err != nil {
 		return fmt.Errorf("get firestore client: %w", err)
@@ -123,14 +116,12 @@ func MigrateUserDocumentToMongo(ctx context.Context, task *asynq.Task, deps *esi
 	accountDoc := firebaseuserdoc.MapUserAccountForImport(fb, request.AccountID, createdAt, lastLoginAt)
 	settingsDoc := firebaseuserdoc.MapApplicationSettings(fb, request.AccountID)
 
-	// Upsert account document
-	_, err = mongocore.UpsertStructByIDWithMeta(ctx, usersCol, accountDoc, request.AccountID)
+	_, err = mongo.Users.UpsertStructWithMeta(ctx, accountDoc, request.AccountID)
 	if err != nil {
 		return fmt.Errorf("upsert user account document: %w", err)
 	}
 
-	// Upsert application settings document
-	settingsResult, err := mongocore.UpsertStructByIDWithMeta(ctx, settingsCol, settingsDoc, request.AccountID)
+	settingsResult, err := mongo.ApplicationSettings.UpsertStructWithMeta(ctx, settingsDoc, request.AccountID)
 	if err != nil {
 		return fmt.Errorf("upsert application settings document: %w", err)
 	}
@@ -138,7 +129,8 @@ func MigrateUserDocumentToMongo(ctx context.Context, task *asynq.Task, deps *esi
 		"account_id", request.AccountID,
 		"matched", settingsResult.MatchedCount,
 		"modified", settingsResult.ModifiedCount,
-		"upserted", settingsResult.UpsertedCount)
+		"upserted", settingsResult.UpsertedCount,
+	)
 
 	logs.InfoCtx(ctx, "migrated user document to MongoDB",
 		"account_id", request.AccountID)

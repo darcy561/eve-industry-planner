@@ -20,7 +20,7 @@ go test ./internal/docker/...
 | Endpoint | `ResolveDockerEndpoint` from context / `DOCKER_HOST` / config JSON (many edge cases) |
 | Health / status helpers | Health rollup; no-stack summary; friendly ports; replica detail |
 | Logs / version helpers | Service log line formatting; deployed app version from env/image; running image digest |
-| `enginetest` | Fake Engine httptest — service inspect 404 vs error classification (used by config apply tests too) |
+| `enginetest` | Fake Engine httptest — service inspect 404 vs error; `SetServiceOK` + ServiceUpdate body capture (used by config `ApplyServiceSpecPatch` tests) |
 
 ### Thin
 

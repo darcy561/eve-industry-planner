@@ -4,12 +4,11 @@ import (
 	"context"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 const schemaVersionReportTimeout = 60 * time.Second
@@ -17,23 +16,23 @@ const schemaVersionReportTimeout = 60 * time.Second
 // ReportSchemaVersionLag logs how many documents per collection are not at the current
 // schema version (missing schemaVersion counts as not current). Watchlist is excluded.
 // Failures are logged and do not return an error — intended for observability only.
-func ReportSchemaVersionLag(ctx context.Context, mongoClient *mongo.Client) {
-	if mongoClient == nil {
+func ReportSchemaVersionLag(ctx context.Context, mongoHandle *eipmongo.Mongo) {
+	if mongoHandle == nil || mongoHandle.DB == nil {
 		return
 	}
 	rctx, cancel := context.WithTimeout(ctx, schemaVersionReportTimeout)
 	defer cancel()
 
-	db := mongoClient.Database(mongocore.DatabaseName)
+	db := mongoHandle.DB
 	targets := []struct {
 		collection string
 		current    int
 	}{
-		{mongocore.CollectionUsers, models.UserAccountDocumentSchemaCurrent},
-		{mongocore.CollectionApplicationSettings, models.ApplicationSettingsSchemaCurrent},
-		{mongocore.CollectionUserJobDocuments, models.JobSchemaCurrent},
-		{mongocore.CollectionUserJobGroups, models.GroupSchemaCurrent},
-		{mongocore.CollectionJobs, models.JobSchemaCurrent},
+		{eipmongo.CollectionUsers, models.UserAccountDocumentSchemaCurrent},
+		{eipmongo.CollectionApplicationSettings, models.ApplicationSettingsSchemaCurrent},
+		{eipmongo.CollectionUserJobDocuments, models.JobSchemaCurrent},
+		{eipmongo.CollectionUserJobGroups, models.GroupSchemaCurrent},
+		{eipmongo.CollectionJobs, models.JobSchemaCurrent},
 	}
 
 	for _, t := range targets {

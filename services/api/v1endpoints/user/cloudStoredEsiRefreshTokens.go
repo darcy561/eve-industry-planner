@@ -10,13 +10,13 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/config"
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type cloudStoredEsiRefreshTokensRequest struct {
@@ -62,10 +62,10 @@ func handleGetCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 
 	// GET returns linked-character hashes only. OAuth refresh material stays encrypted server-side;
 	// clients obtain ESI access via POST /api/v1/esi/characters/access-token/server.
-	col := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUsers)
+	col := clients.Mongo.Users.Collection()
 	var userDoc models.UserAccountDocument
 	if err := col.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&userDoc); err != nil {
-		if err == mongo.ErrNoDocuments {
+		if err == mongodriver.ErrNoDocuments {
 			metrics.Error("not_found")
 			helper.RespondEndpointError(w, r, http.StatusNotFound, "User document not found", "linked chars user doc not found", "linked_chars_user_not_found", "cloud_stored_esi_refresh_tokens", nil, map[string]interface{}{
 				"additional_chars_endpoint": "linked_characters_oauth_credentials",
@@ -143,10 +143,10 @@ func handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	col := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUsers)
+	col := clients.Mongo.Users.Collection()
 	var existingDoc models.UserAccountDocument
 	if err := col.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&existingDoc); err != nil {
-		if err == mongo.ErrNoDocuments {
+		if err == mongodriver.ErrNoDocuments {
 			metrics.Error("not_found")
 			helper.RespondEndpointError(w, r, http.StatusNotFound, "User document not found", "linked chars user doc not found", "linked_chars_user_not_found", "cloud_stored_esi_refresh_tokens", nil, map[string]interface{}{
 				"additional_chars_endpoint": "linked_characters_oauth_credentials",
@@ -210,9 +210,7 @@ func handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Request
 		nextRows = append(nextRows, row)
 	}
 
-	retryCfg := mongocore.DefaultRetryConfig()
-	retryCfg.OperationName = fmt.Sprintf("update cloud-stored ESI refresh tokens %s", accountID)
-	if err := mongocore.RetryMongoOperation(ctx, retryCfg, func() error {
+	if err := eipmongo.Retry(ctx, fmt.Sprintf("update cloud-stored ESI refresh tokens %s", accountID), func() error {
 		_, err := col.UpdateOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}, bson.M{
 			"$set": bson.M{
 				"refreshTokens":      nextRows,
@@ -272,10 +270,10 @@ func handleDeleteCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	col := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUsers)
+	col := clients.Mongo.Users.Collection()
 	var existingDoc models.UserAccountDocument
 	if err := col.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&existingDoc); err != nil {
-		if err == mongo.ErrNoDocuments {
+		if err == mongodriver.ErrNoDocuments {
 			metrics.Error("not_found")
 			helper.RespondEndpointError(w, r, http.StatusNotFound, "User document not found", "linked chars user doc not found", "linked_chars_user_not_found", "cloud_stored_esi_refresh_tokens", nil, map[string]interface{}{
 				"additional_chars_endpoint": "linked_characters_oauth_credentials",
@@ -303,9 +301,7 @@ func handleDeleteCloudStoredEsiRefreshTokens(w http.ResponseWriter, r *http.Requ
 		nextRows = append(nextRows, row)
 	}
 
-	retryCfg := mongocore.DefaultRetryConfig()
-	retryCfg.OperationName = fmt.Sprintf("delete cloud-stored ESI refresh tokens %s", accountID)
-	if err := mongocore.RetryMongoOperation(ctx, retryCfg, func() error {
+	if err := eipmongo.Retry(ctx, fmt.Sprintf("delete cloud-stored ESI refresh tokens %s", accountID), func() error {
 		_, err := col.UpdateOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}, bson.M{
 			"$set": bson.M{
 				"refreshTokens":      nextRows,

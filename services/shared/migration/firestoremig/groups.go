@@ -9,14 +9,14 @@ import (
 	"strconv"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/models"
 
 	"cloud.google.com/go/firestore"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 const (
@@ -87,7 +87,7 @@ func (s GroupDataImportSkip) String() string {
 // UpsertUserJobGroupsFromGroupData reads Firestore ProfileInfo/GroupData (groupData array) and upserts each
 // object into user_job_groups as models.Group, matching the API/PUT contract (_id = groupID, _meta.accountID).
 // Skips has one entry per skipped array index (not_object, unmarshal, empty_groupID).
-func UpsertUserJobGroupsFromGroupData(ctx context.Context, fs *firestore.Client, m *mongo.Client, accountID string) (written, skipped int, skips []GroupDataImportSkip, err error) {
+func UpsertUserJobGroupsFromGroupData(ctx context.Context, fs *firestore.Client, m *eipmongo.Mongo, accountID string) (written, skipped int, skips []GroupDataImportSkip, err error) {
 	if accountID == "" {
 		return 0, 0, nil, fmt.Errorf("account_id is required")
 	}
@@ -113,7 +113,7 @@ func UpsertUserJobGroupsFromGroupData(ctx context.Context, fs *firestore.Client,
 	}
 
 	now := time.Now().UTC()
-	coll := m.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUserJobGroups)
+	coll := m.Groups.Collection()
 
 	// Last occurrence wins for duplicate groupIDs in the array.
 	byID := make(map[string]models.Group, len(items))
@@ -155,10 +155,9 @@ func UpsertUserJobGroupsFromGroupData(ctx context.Context, fs *firestore.Client,
 			SetUpsert(true))
 	}
 
-	retry := mongocore.DefaultRetryConfig()
-	retry.OperationName = fmt.Sprintf("bulk upsert user_job_groups (firestore import) %s", accountID)
+	retry := fmt.Sprintf("bulk upsert user_job_groups (firestore import) %s", accountID)
 	var res *mongo.BulkWriteResult
-	err = mongocore.RetryMongoOperation(ctx, retry, func() error {
+	err = eipmongo.Retry(ctx, retry, func() error {
 		var e error
 		res, e = coll.BulkWrite(ctx, writeModels, options.BulkWrite().SetOrdered(false))
 		return e

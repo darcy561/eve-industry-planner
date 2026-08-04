@@ -59,7 +59,7 @@ Keep stub folders’ `contents.md` with empty task rows ready to expand. Do not 
 
 ## Document current behaviour only
 
-**Applies all the time** to live documentation (and the same bar for code comments — see [`technical-rules.md`](./technical-rules.md) § Current behaviour only): describe **what runs today**. Do not teach by naming retired practices, deleted scripts, old sentinels, or “never do X anymore” cutover notes.
+**Applies all the time** to live documentation (and the same bar for code comments — see [`technical-rules.md`](./technical-rules.md) § Current behaviour only): describe **what runs today**. Do not teach by naming retired practices, deleted scripts, old sentinels, or “never do X anymore” cutover notes. Product code comments must not cite migration tickets, overlays, or roadmap sections — that narrative stays in `migration-plans/` (see [`migration-plans/documentation-rules.md`](./migration-plans/documentation-rules.md) § Product code comments).
 
 | Do | Don’t |
 |----|--------|
@@ -73,7 +73,7 @@ Rejecting leftover bad values in code is fine; **do not advertise those leftover
 
 ## Migration plans are not SoT
 
-`migration-plans/` documents migration process only. It is **not** live SoT until content is committed into live docs elsewhere. Folder rules (nearest wins): [`migration-plans/documentation-rules.md`](./migration-plans/documentation-rules.md).
+`migration-plans/` documents migration process only. It is **not** live SoT until content is **promoted** into live docs elsewhere. Active migration projects: **do not edit live SoT** until the project is complete and promotion is approved; in-flight truth is live docs **plus** the project overlay (overlay wins on overlap). Folder rules (nearest wins): [`migration-plans/documentation-rules.md`](./migration-plans/documentation-rules.md).
 
 ## Development vs Deployment Tool CLI
 

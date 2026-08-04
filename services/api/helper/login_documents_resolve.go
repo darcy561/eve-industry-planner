@@ -6,14 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
-	mongoget "eve-industry-planner/shared/core/mongo/get"
-	mongoput "eve-industry-planner/shared/core/mongo/put"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type LoginDocumentsResolution struct {
@@ -22,27 +20,24 @@ type LoginDocumentsResolution struct {
 	FirstLogin bool
 }
 
-func ResolveUserDocumentsForLogin(ctx context.Context, dbClient *mongo.Client, accountID string) (*LoginDocumentsResolution, error) {
-	if dbClient == nil {
-		return nil, errors.New("mongo client is nil")
+func ResolveUserDocumentsForLogin(ctx context.Context, mongo *eipmongo.Mongo, accountID string) (*LoginDocumentsResolution, error) {
+	if mongo == nil {
+		return nil, errors.New("mongo handle is nil")
 	}
 	if accountID == "" {
 		return nil, errors.New("accountID is required")
 	}
 
 	now := time.Now().UTC()
-	db := dbClient.Database(mongocore.DatabaseName)
-	usersCol := db.Collection(mongocore.CollectionUsers)
-	settingsCol := db.Collection(mongocore.CollectionApplicationSettings)
 
-	userDoc, userErr := mongoget.LoadUserAccountDocument(ctx, usersCol, accountID)
+	userDoc, userErr := mongo.LoadUserAccount(ctx, accountID)
 	userExists := userErr == nil
-	if userErr != nil && !errors.Is(userErr, mongo.ErrNoDocuments) {
+	if userErr != nil && !errors.Is(userErr, mongodriver.ErrNoDocuments) {
 		return nil, fmt.Errorf("load user document: %w", userErr)
 	}
-	settingsDoc, settingsErr := mongoget.LoadApplicationSettingsDocument(ctx, settingsCol, accountID, now)
+	settingsDoc, settingsErr := mongo.LoadApplicationSettings(ctx, accountID, now)
 	settingsExist := settingsErr == nil
-	if settingsErr != nil && !errors.Is(settingsErr, mongo.ErrNoDocuments) {
+	if settingsErr != nil && !errors.Is(settingsErr, mongodriver.ErrNoDocuments) {
 		return nil, fmt.Errorf("load application settings document: %w", settingsErr)
 	}
 	firstLogin := !userExists
@@ -52,17 +47,17 @@ func ResolveUserDocumentsForLogin(ctx context.Context, dbClient *mongo.Client, a
 	}
 	if !userExists {
 		userDoc = models.DefaultUserAccountDocument(accountID, now)
-		if _, _, err := mongoput.UpsertUserAccountDocument(ctx, usersCol, accountID, userDoc); err != nil {
+		if _, _, err := mongo.Users.UpsertUserAccount(ctx, accountID, userDoc); err != nil {
 			return nil, fmt.Errorf("create default user document: %w", err)
 		}
 	}
 	if !settingsExist {
 		settingsDoc = models.DefaultApplicationSettings(accountID, now)
-		if _, _, err := mongoput.UpsertApplicationSettingsDocument(ctx, settingsCol, accountID, settingsDoc); err != nil {
+		if _, _, err := mongo.ApplicationSettings.UpsertApplicationSettings(ctx, accountID, settingsDoc); err != nil {
 			return nil, fmt.Errorf("create default application settings: %w", err)
 		}
 	}
-	if err := updateUserLastLoginMetadata(ctx, usersCol, accountID, now); err != nil {
+	if err := updateUserLastLoginMetadata(ctx, mongo, accountID, now); err != nil {
 		return nil, err
 	}
 	userDoc.MetaData.LastLoginAt = now
@@ -70,14 +65,16 @@ func ResolveUserDocumentsForLogin(ctx context.Context, dbClient *mongo.Client, a
 	return &LoginDocumentsResolution{User: userDoc, Settings: settingsDoc, FirstLogin: firstLogin}, nil
 }
 
-func updateUserLastLoginMetadata(ctx context.Context, usersCol *mongo.Collection, accountID string, at time.Time) error {
-	if usersCol == nil || accountID == "" {
+func updateUserLastLoginMetadata(ctx context.Context, mongo *eipmongo.Mongo, accountID string, at time.Time) error {
+	if mongo == nil || accountID == "" {
 		return fmt.Errorf("updateUserLastLoginMetadata: invalid args")
 	}
+	usersCol := mongo.Users.Collection()
+	if usersCol == nil {
+		return fmt.Errorf("updateUserLastLoginMetadata: users collection unavailable")
+	}
 	setDoc := bson.M{"_meta.lastLoginAt": at, "_meta.lastModified": at}
-	retryCfg := mongocore.DefaultRetryConfig()
-	retryCfg.OperationName = fmt.Sprintf("touch last login %s", accountID)
-	return mongocore.RetryMongoOperation(ctx, retryCfg, func() error {
+	return eipmongo.Retry(ctx, fmt.Sprintf("touch last login %s", accountID), func() error {
 		_, err := usersCol.UpdateOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}, bson.M{"$set": setDoc})
 		return err
 	})

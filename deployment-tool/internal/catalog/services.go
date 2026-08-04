@@ -26,6 +26,13 @@ func Fragments() []Fragment {
 	}
 }
 
+// Well-known service shorts (compose services.* keys / Swarm short names).
+// Groups() below must use these — do not re-type the same shorts in deploy/config.
+const (
+	ServicePrometheus = "prometheus"
+	ServiceGrafana    = "grafana"
+)
+
 // Service is one expected stack member (short Swarm name without stack prefix).
 type Service struct {
 	Short string // e.g. "api"
@@ -103,7 +110,7 @@ func Groups() []Group {
 				{Short: "redis", Label: "Cache"},
 				{Short: "nats", Label: "Messaging"},
 				{Short: "seaweedfs", Label: "Object store"},
-				{Short: "prometheus", Label: "Prometheus"},
+				{Short: ServicePrometheus, Label: "Prometheus"},
 			},
 		},
 		{
@@ -111,7 +118,7 @@ func Groups() []Group {
 			Fragment: FragmentObs,
 			Critical: false,
 			Services: []Service{
-				{Short: "grafana", Label: "Grafana"},
+				{Short: ServiceGrafana, Label: "Grafana"},
 				{Short: "loki", Label: "Loki"},
 				{Short: "alloy", Label: "Alloy"},
 				{Short: "alloy-docker-proxy", Label: "Alloy helper"},

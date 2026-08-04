@@ -44,12 +44,15 @@ func Sync(ctx context.Context, dryRun bool) error {
 	}
 	targets := stack.CapacityTargets(doc, stackPrefix)
 
-	msg.Step("Applying targeted diffs (eip.capacity.sync + traefik ports/paths + grafana path)…")
+	msg.Step("Applying targeted diffs (eip.capacity.sync + traefik ports/paths + network labels + grafana)…")
 	msg.Line("(APP_VERSION / image ship is NOT part of eip sync — use eip rebuild or rematerialize)")
 	if err := ApplyCapacity(ctx, cfg, targets, doc, dryRun); err != nil {
 		return err
 	}
 	if err := ApplyTraefikConfig(ctx, cfg, appPath, stackPrefix, dryRun); err != nil {
+		return err
+	}
+	if err := ApplyLabeledNetworkMemberships(ctx, cfg, home, stackPrefix, dryRun); err != nil {
 		return err
 	}
 	if err := ApplyGrafanaPath(ctx, cfg, home, stackPrefix, dryRun); err != nil {

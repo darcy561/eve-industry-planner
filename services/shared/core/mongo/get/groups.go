@@ -6,8 +6,8 @@ import (
 
 	"eve-industry-planner/shared/models"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 func LoadGroupsByAccount(ctx context.Context, collection *mongo.Collection, accountID string) ([]models.Group, error) {

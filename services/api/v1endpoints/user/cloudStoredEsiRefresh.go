@@ -14,7 +14,6 @@ import (
 	cloudstoredesi "eve-industry-planner/api/helper/cloudstoredesi"
 	"eve-industry-planner/shared/core/config"
 	evesso "eve-industry-planner/shared/core/evesso"
-	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
@@ -51,9 +50,7 @@ func refreshStoredEsiFromMongo(ctx context.Context, clients *stackservices.Clien
 		return nil, fmt.Errorf("mongo stored esi: %w", err)
 	}
 
-	database := clients.Mongo.Database(mongocore.DatabaseName)
-	usersCol := database.Collection(mongocore.CollectionUsers)
-	return cloudstoredesi.RefreshStoredEsiForCharacter(ctx, usersCol, accountID, targetHash, &cfg)
+	return cloudstoredesi.RefreshStoredEsiForCharacter(ctx, clients.Mongo, accountID, targetHash, &cfg)
 }
 
 // ServerStoredEsiAccessTokenHandler handles POST /api/v1/esi/characters/access-token/server:

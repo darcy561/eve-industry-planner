@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -55,11 +55,11 @@ func StatusBatchResults(ctx context.Context, rdb *redis.Client, accountID string
 		return nil, nil, ErrStatusBatchTooMany
 	}
 
-	jobResults, err = pipelinedStatusForCollection(ctx, rdb, accountID, mongocore.CollectionUserJobDocuments, jobDocIDs)
+	jobResults, err = pipelinedStatusForCollection(ctx, rdb, accountID, eipmongo.CollectionUserJobDocuments, jobDocIDs)
 	if err != nil {
 		return nil, nil, err
 	}
-	groupResults, err = pipelinedStatusForCollection(ctx, rdb, accountID, mongocore.CollectionUserJobGroups, groupDocIDs)
+	groupResults, err = pipelinedStatusForCollection(ctx, rdb, accountID, eipmongo.CollectionUserJobGroups, groupDocIDs)
 	if err != nil {
 		return nil, nil, err
 	}

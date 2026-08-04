@@ -9,10 +9,9 @@ import (
 
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/core/crypto/keyrings"
-	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // CheckRefreshTokenKeyringCoverage reports stored key versions at startup and warns on unknown versions.
@@ -28,7 +27,8 @@ func CheckRefreshTokenKeyringCoverage(ctx context.Context, clients *stackservice
 	activeVersion := rt.ActiveVersion
 	supported := rt.SupportedVersions
 
-	col := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUsers)
+	mongo := clients.Mongo
+	col := mongo.Users.Collection()
 	pipeline := mongoPipelineForRefreshTokenVersionCounts()
 
 	cur, err := col.Aggregate(ctx, pipeline)

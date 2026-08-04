@@ -9,10 +9,9 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
-	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 const (
@@ -58,8 +57,8 @@ func BlueprintGetHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 		return
 	}
 
-	collection := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionBlueprints)
-	data, found, err := mongocore.GetPublicDocumentByID(ctx, collection, blueprintID)
+	mongo := clients.Mongo
+	data, found, err := mongo.Blueprints.GetPublicByID(ctx, blueprintID)
 	if err != nil {
 		helper.RespondEndpointServerError(w, r, "An error occurred while retrieving blueprint data. Please try again later.", "blueprints get: mongo error", "blueprints_get_mongo_failed", "blueprints", err, map[string]interface{}{"blueprint_id": blueprintID})
 		return
@@ -115,8 +114,8 @@ func BlueprintsPostHandler(w http.ResponseWriter, r *http.Request, clients *stac
 		return
 	}
 
-	collection := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionBlueprints)
-	docs, err := mongocore.GetPublicDocumentsByIDs(ctx, collection, typeIDs)
+	mongo := clients.Mongo
+	docs, err := mongo.Blueprints.GetPublicByIDs(ctx, typeIDs)
 	if err != nil {
 		helper.RespondEndpointServerError(w, r, "An error occurred while retrieving blueprint data. Please try again.", "blueprints post: mongo error", "blueprints_post_mongo_failed", "blueprints", err, nil)
 		return

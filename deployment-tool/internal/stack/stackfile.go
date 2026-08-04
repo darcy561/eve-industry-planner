@@ -184,24 +184,28 @@ func TraefikApplySurfaceFromDoc(doc Doc) (TraefikApplySurface, error) {
 	return out, nil
 }
 
-// GrafanaApplySurface is path apply SoT from docker-stack.obs.yml.
+// GrafanaApplySurface is path + edge-label SoT from docker-stack.obs.yml.
 type GrafanaApplySurface struct {
-	Service        string // stack short name
-	RootURLEnv     string // GF_SERVER_ROOT_URL
-	RootURLTmpl    string // ${GRAFANA_ROOT_URL:-http://…}
-	TraefikRuleKey string
-	TraefikRule    string // PathPrefix(`${EIP_GRAFANA_PATH:-…}`)
+	Service          string // stack short name
+	RootURLEnv       string // GF_SERVER_ROOT_URL
+	RootURLTmpl      string // ${GRAFANA_ROOT_URL:-http://…}
+	TraefikRuleKey   string
+	TraefikRule      string            // PathPrefix(`${EIP_GRAFANA_PATH:-…}`)
+	TraefikLabels    map[string]string // all traefik.* deploy labels (templates)
+	TraefikEnableKey string
 }
 
 const (
-	envGrafanaPath    = "EIP_GRAFANA_PATH"
-	envGrafanaRoot    = "GRAFANA_ROOT_URL"
-	grafanaRootURLEnv = "GF_SERVER_ROOT_URL"
+	envGrafanaPath     = "EIP_GRAFANA_PATH"
+	envGrafanaRoot     = "GRAFANA_ROOT_URL"
+	grafanaRootURLEnv  = "GF_SERVER_ROOT_URL"
+	traefikEnableLabel = "traefik.enable"
 )
 
 // GrafanaApplySurfaceFromDoc reads services.grafana path templates from the obs
 func GrafanaApplySurfaceFromDoc(doc Doc) (GrafanaApplySurface, error) {
-	svc, ok := doc.Services["grafana"]
+	const grafanaShort = "grafana" // compose services key (catalog.ServiceGrafana)
+	svc, ok := doc.Services[grafanaShort]
 	if !ok {
 		return GrafanaApplySurface{}, fmt.Errorf("stack has no grafana service")
 	}
@@ -209,22 +213,27 @@ func GrafanaApplySurfaceFromDoc(doc Doc) (GrafanaApplySurface, error) {
 	if rootTmpl == "" || !strings.Contains(rootTmpl, envGrafanaRoot) {
 		return GrafanaApplySurface{}, fmt.Errorf("grafana: missing environment %s with ${%s}", grafanaRootURLEnv, envGrafanaRoot)
 	}
+	traefik := map[string]string{}
 	var ruleKey, rule string
 	for k, v := range svc.Deploy.Labels {
-		if strings.Contains(v, envGrafanaPath) && strings.Contains(k, "grafana.rule") {
+		if strings.HasPrefix(k, "traefik.") {
+			traefik[k] = v
+		}
+		if strings.Contains(v, envGrafanaPath) && strings.Contains(k, "grafana.rule") && !strings.Contains(k, "secure") {
 			ruleKey, rule = k, v
-			break
 		}
 	}
 	if rule == "" {
 		return GrafanaApplySurface{}, fmt.Errorf("grafana: missing Traefik rule label with ${%s}", envGrafanaPath)
 	}
 	return GrafanaApplySurface{
-		Service:        "grafana",
-		RootURLEnv:     grafanaRootURLEnv,
-		RootURLTmpl:    rootTmpl,
-		TraefikRuleKey: ruleKey,
-		TraefikRule:    rule,
+		Service:          grafanaShort,
+		RootURLEnv:       grafanaRootURLEnv,
+		RootURLTmpl:      rootTmpl,
+		TraefikRuleKey:   ruleKey,
+		TraefikRule:      rule,
+		TraefikLabels:    traefik,
+		TraefikEnableKey: traefikEnableLabel,
 	}, nil
 }
 

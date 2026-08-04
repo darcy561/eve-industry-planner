@@ -11,13 +11,12 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
-	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 const maxCitadelNameBatch = 200
@@ -150,11 +149,12 @@ func handleSubmitCitadelName(w http.ResponseWriter, r *http.Request, clients *st
 	}
 
 	now := time.Now().UTC()
-	coll := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionCitadelNames)
+	store := clients.Mongo
+	coll := store.CitadelNames.Collection()
 
-	var writes []mongo.WriteModel
+	var writes []mongodriver.WriteModel
 	for _, s := range byID {
-		writes = append(writes, mongo.NewUpdateOneModel().
+		writes = append(writes, mongodriver.NewUpdateOneModel().
 			SetFilter(bson.M{"_id": s.ID}).
 			SetUpdate(bson.M{
 				"$set": bson.M{
@@ -211,10 +211,11 @@ func handleGetCitadelNameByID(w http.ResponseWriter, r *http.Request, clients *s
 		return
 	}
 
-	coll := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionCitadelNames)
+	store := clients.Mongo
+	coll := store.CitadelNames.Collection()
 	var record citadelNameRecord
 	if err := coll.FindOne(ctx, bson.M{"_id": citadelID}).Decode(&record); err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
 			helper.RespondEndpointError(w, r, http.StatusNotFound, "Citadel name not found", "citadel name not found", "citadel_name_not_found", "citadel_names", nil, map[string]interface{}{"citadel_id": citadelID})
 			return

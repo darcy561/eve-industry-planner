@@ -3,9 +3,10 @@ package changestream
 import (
 	"fmt"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // CollectionGroup partitions the database change stream: one parallel Watch runs per group.
@@ -15,11 +16,11 @@ type CollectionGroup struct {
 	Collections []string // Database collection names (match ns.coll on change events)
 }
 
-// Group builds a CollectionGroup. Pass mongocore.Collection* constants (or raw names).
+// Group builds a CollectionGroup. Pass eipmongo.Collection* constants (or raw names).
 //
 // Example — add a new realtime collection:
 //
-//	Group("widgets", mongocore.CollectionWidgets)
+//	Group("widgets", eipmongo.CollectionWidgets)
 //
 // Or create a new group when you want that collection isolated on its own goroutine:
 //
@@ -34,21 +35,21 @@ func Group(id string, collections ...string) CollectionGroup {
 func CollectionGroups() []CollectionGroup {
 	return []CollectionGroup{
 		Group("account",
-			mongocore.CollectionUsers,
-			mongocore.CollectionApplicationSettings,
-			mongocore.CollectionUserWatchlistDeprecated,
+			eipmongo.CollectionUsers,
+			eipmongo.CollectionApplicationSettings,
+			eipmongo.CollectionUserWatchlistDeprecated,
 		),
 		Group("planner",
-			mongocore.CollectionJobs,
-			mongocore.CollectionUserJobDocuments,
-			mongocore.CollectionUserJobGroups,
+			eipmongo.CollectionJobs,
+			eipmongo.CollectionUserJobDocuments,
+			eipmongo.CollectionUserJobGroups,
 		),
 		Group("archive_and_stats",
-			mongocore.CollectionArchivedJobs,
-			mongocore.CollectionBuildStats,
+			eipmongo.CollectionArchivedJobs,
+			eipmongo.CollectionBuildStats,
 		),
 		Group("blueprints",
-			mongocore.CollectionBlueprints,
+			eipmongo.CollectionBlueprints,
 		),
 	}
 }

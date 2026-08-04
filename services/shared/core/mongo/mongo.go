@@ -9,10 +9,10 @@ import (
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/logs"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/mongo/otelmongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/v2/mongo/otelmongo"
 )
 
 // Database and collection names
@@ -95,7 +95,7 @@ func connectMongo(mongoURL string, connectionName string, configureOpts func(*op
 		// Apply additional configuration
 		configureOpts(opts)
 
-		client, err := mongo.Connect(bg, opts)
+		client, err := mongo.Connect(opts)
 		if err == nil {
 			// Verify connection by pinging
 			ctx, cancel := context.WithTimeout(bg, 5*time.Second)
@@ -152,12 +152,13 @@ func connectFromURL(urlFn func() (string, error)) (*mongo.Client, error) {
 	configureOpts := func(opts *options.ClientOptions) {
 		opts.SetConnectTimeout(10 * time.Second)
 		opts.SetServerSelectionTimeout(10 * time.Second)
-		opts.SetSocketTimeout(10 * time.Second)
+		opts.SetTimeout(10 * time.Second)
 		opts.SetHeartbeatInterval(10 * time.Second)
 		opts.SetMaxPoolSize(10)
 		opts.SetMinPoolSize(1)
 		opts.SetRetryWrites(true)
 		opts.SetRetryReads(true)
+		opts.SetBSONOptions(&options.BSONOptions{DefaultDocumentM: true})
 		opts.SetMonitor(otelmongo.NewMonitor())
 	}
 	return connectMongo(mongoURL, "Mongo", configureOpts)

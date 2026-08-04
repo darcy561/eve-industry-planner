@@ -9,24 +9,16 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
-
-func catalogCollection(clients *stackservices.Clients) *mongo.Collection {
-	return clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUserGroupTemplateCatalog)
-}
-
-func payloadCollection(clients *stackservices.Clients) *mongo.Collection {
-	return clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUserGroupTemplatePayloads)
-}
 
 type catalogStored struct {
 	ID             string                        `bson:"_id"`
@@ -37,15 +29,10 @@ type catalogStored struct {
 	Templates      []models.TemplateCatalogEntry `bson:"templates"`
 }
 
-func runMongoRetry(ctx context.Context, operationName string, operation func() error) error {
-	retryCfg := mongocore.DefaultRetryConfig()
-	retryCfg.OperationName = operationName
-	return mongocore.RetryMongoOperation(ctx, retryCfg, operation)
-}
-
-func loadCatalogDoc(ctx context.Context, coll *mongo.Collection, accountID string) (*catalogStored, error) {
+func loadCatalogDoc(ctx context.Context, catalog *eipmongo.Docs, accountID string) (*catalogStored, error) {
+	coll := catalog.Collection()
 	var doc catalogStored
-	err := runMongoRetry(ctx, fmt.Sprintf("group_templates load catalog %s", accountID), func() error {
+	err := eipmongo.Retry(ctx, fmt.Sprintf("group_templates load catalog %s", accountID), func() error {
 		return coll.FindOne(ctx, bson.M{"_id": accountID}).Decode(&doc)
 	})
 	if err != nil {
@@ -54,12 +41,12 @@ func loadCatalogDoc(ctx context.Context, coll *mongo.Collection, accountID strin
 	return &doc, nil
 }
 
-func ensureCatalogDoc(ctx context.Context, coll *mongo.Collection, accountID string) (*catalogStored, error) {
-	doc, err := loadCatalogDoc(ctx, coll, accountID)
+func ensureCatalogDoc(ctx context.Context, catalog *eipmongo.Docs, accountID string) (*catalogStored, error) {
+	doc, err := loadCatalogDoc(ctx, catalog, accountID)
 	if err == nil {
 		return doc, nil
 	}
-	if !errors.Is(err, mongo.ErrNoDocuments) {
+	if !errors.Is(err, mongodriver.ErrNoDocuments) {
 		return nil, err
 	}
 	initial := catalogStored{
@@ -70,14 +57,13 @@ func ensureCatalogDoc(ctx context.Context, coll *mongo.Collection, accountID str
 		CatalogVersion: 1,
 		Templates:      []models.TemplateCatalogEntry{},
 	}
-	err = runMongoRetry(ctx, fmt.Sprintf("group_templates ensure catalog %s", accountID), func() error {
-		_, insertErr := coll.InsertOne(ctx, initial)
+	err = eipmongo.Retry(ctx, fmt.Sprintf("group_templates ensure catalog %s", accountID), func() error {
+		_, insertErr := catalog.Collection().InsertOne(ctx, initial)
 		return insertErr
 	})
 	if err != nil {
-		// Race: another request may have created it.
-		if mongo.IsDuplicateKeyError(err) {
-			return loadCatalogDoc(ctx, coll, accountID)
+		if mongodriver.IsDuplicateKeyError(err) {
+			return loadCatalogDoc(ctx, catalog, accountID)
 		}
 		return nil, err
 	}
@@ -123,9 +109,9 @@ func GetCatalogHandler(w http.ResponseWriter, r *http.Request, clients *stackser
 	if !ok {
 		return
 	}
-	coll := catalogCollection(clients)
-	doc, err := loadCatalogDoc(ctx, coll, accountID)
-	if errors.Is(err, mongo.ErrNoDocuments) {
+	mongo := clients.Mongo
+	doc, err := loadCatalogDoc(ctx, mongo.TemplateCatalog, accountID)
+	if errors.Is(err, mongodriver.ErrNoDocuments) {
 		_ = helper.EncodeJSON(w, map[string]any{"templates": []models.TemplateCatalogEntry{}})
 		metrics.Success()
 		return
@@ -151,9 +137,10 @@ func GetCatalogEntryHandler(w http.ResponseWriter, r *http.Request, clients *sta
 	if !ok {
 		return
 	}
-	doc, err := loadCatalogDoc(ctx, catalogCollection(clients), accountID)
+	mongo := clients.Mongo
+	doc, err := loadCatalogDoc(ctx, mongo.TemplateCatalog, accountID)
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			helper.RespondNotFound(w, r, metrics)
 			return
 		}
@@ -182,12 +169,13 @@ func GetPayloadFullHandler(w http.ResponseWriter, r *http.Request, clients *stac
 	if !ok {
 		return
 	}
+	mongo := clients.Mongo
 	var payload models.GroupTemplatePayload
-	err := runMongoRetry(ctx, fmt.Sprintf("group_templates get payload %s", templateID), func() error {
-		return payloadCollection(clients).FindOne(ctx, bson.M{"_id": templateID}).Decode(&payload)
+	err := eipmongo.Retry(ctx, fmt.Sprintf("group_templates get payload %s", templateID), func() error {
+		return mongo.TemplatePayloads.Collection().FindOne(ctx, bson.M{"_id": templateID}).Decode(&payload)
 	})
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			helper.RespondNotFound(w, r, metrics)
 			return
 		}
@@ -236,10 +224,8 @@ func PostTemplateHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 		return
 	}
 
-	catColl := catalogCollection(clients)
-	payColl := payloadCollection(clients)
-
-	cat, err := ensureCatalogDoc(ctx, catColl, accountID)
+	mongo := clients.Mongo
+	cat, err := ensureCatalogDoc(ctx, mongo.TemplateCatalog, accountID)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "catalog error", "group templates catalog error", "group_templates_catalog_error", "group_templates", err, nil)
@@ -256,50 +242,37 @@ func PostTemplateHandler(w http.ResponseWriter, r *http.Request, clients *stacks
 	entry := models.BuildCatalogEntryFromPayload(tid, body.Name, body.Description, &body.Payload, now, now)
 	entry.PayloadDocumentID = tid
 
-	err = runMongoRetry(ctx, fmt.Sprintf("group_templates insert payload %s", tid), func() error {
-		_, insertErr := payColl.InsertOne(ctx, bson.M{
-			"_id":           tid,
-			"schemaVersion": body.Payload.SchemaVersion,
-			"documentKind":  body.Payload.DocumentKind,
-			"accountID":     accountID,
-			"templateID":    tid,
-			"source":        body.Payload.Source,
-			"jobs":          body.Payload.Jobs,
+	payloadDoc := bson.M{
+		"_id":           tid,
+		"schemaVersion": body.Payload.SchemaVersion,
+		"documentKind":  body.Payload.DocumentKind,
+		"accountID":     accountID,
+		"templateID":    tid,
+		"source":        body.Payload.Source,
+		"jobs":          body.Payload.Jobs,
+	}
+
+	bulk := mongo.Bulk().
+		InsertOne(mongo.TemplatePayloads, payloadDoc).
+		UpdateOne(mongo.TemplateCatalog, bson.M{"_id": accountID}, bson.M{
+			"$push": bson.M{"templates": entry},
+			"$inc":  bson.M{"catalogVersion": 1},
+			"$set": bson.M{
+				"schemaVersion": models.GroupTemplateCatalogSchemaVersion,
+				"documentKind":  models.GroupTemplateCatalogDocumentKind,
+			},
 		})
-		return insertErr
-	})
+
+	_, err = bulk.RunOrdered(ctx)
 	if err != nil {
-		if mongo.IsDuplicateKeyError(err) {
+		if mongodriver.IsDuplicateKeyError(err) {
 			metrics.Error("duplicate_template_id")
 			const msg = "template id already exists"
 			helper.RespondEndpointError(w, r, http.StatusConflict, msg, "group templates duplicate id", "group_templates_duplicate_id", "group_templates", errors.New(msg), nil)
 			return
 		}
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "failed to save payload", "group templates save payload failed", "group_templates_save_payload_failed", "group_templates", err, nil)
-		return
-	}
-
-	err = runMongoRetry(ctx, fmt.Sprintf("group_templates append catalog entry %s", accountID), func() error {
-		_, updateErr := catColl.UpdateOne(ctx, bson.M{"_id": accountID},
-			bson.M{
-				"$push": bson.M{"templates": entry},
-				"$inc":  bson.M{"catalogVersion": 1},
-				"$set": bson.M{
-					"schemaVersion": models.GroupTemplateCatalogSchemaVersion,
-					"documentKind":  models.GroupTemplateCatalogDocumentKind,
-				},
-			},
-		)
-		return updateErr
-	})
-	if err != nil {
-		_ = runMongoRetry(ctx, fmt.Sprintf("group_templates rollback payload %s", tid), func() error {
-			_, deleteErr := payColl.DeleteOne(ctx, bson.M{"_id": tid})
-			return deleteErr
-		})
-		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "failed to update catalog", "group templates update catalog failed", "group_templates_update_catalog_failed", "group_templates", err, nil)
+		helper.RespondEndpointServerError(w, r, "failed to save template", "group templates save failed", "group_templates_save_failed", "group_templates", err, nil)
 		return
 	}
 
@@ -330,10 +303,10 @@ func PatchTemplateHandler(w http.ResponseWriter, r *http.Request, clients *stack
 	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &body) {
 		return
 	}
-	catColl := catalogCollection(clients)
-	doc, err := loadCatalogDoc(ctx, catColl, accountID)
+	mongo := clients.Mongo
+	doc, err := loadCatalogDoc(ctx, mongo.TemplateCatalog, accountID)
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			helper.RespondNotFound(w, r, metrics)
 			return
 		}
@@ -368,45 +341,48 @@ func PatchTemplateHandler(w http.ResponseWriter, r *http.Request, clients *stack
 		}
 		updated = models.BuildCatalogEntryFromPayload(templateID, updated.Name, updated.Description, body.Payload, createdAt, now)
 		updated.PayloadDocumentID = templateID
-		err = runMongoRetry(ctx, fmt.Sprintf("group_templates replace payload %s", templateID), func() error {
-			_, replaceErr := payloadCollection(clients).ReplaceOne(ctx, bson.M{"_id": templateID, "accountID": accountID}, bson.M{
-				"_id":           templateID,
-				"schemaVersion": body.Payload.SchemaVersion,
-				"documentKind":  body.Payload.DocumentKind,
-				"accountID":     accountID,
-				"templateID":    templateID,
-				"source":        body.Payload.Source,
-				"jobs":          body.Payload.Jobs,
-			}, options.Replace().SetUpsert(true))
-			return replaceErr
+
+		payloadDoc := bson.M{
+			"_id":           templateID,
+			"schemaVersion": body.Payload.SchemaVersion,
+			"documentKind":  body.Payload.DocumentKind,
+			"accountID":     accountID,
+			"templateID":    templateID,
+			"source":        body.Payload.Source,
+			"jobs":          body.Payload.Jobs,
+		}
+
+		bulk := mongo.Bulk().
+			ReplaceOne(mongo.TemplatePayloads, bson.M{"_id": templateID, "accountID": accountID}, payloadDoc, eipmongo.Upsert()).
+			UpdateOne(mongo.TemplateCatalog, bson.M{"_id": accountID}, bson.M{
+				"$set": bson.M{"templates.$[t]": updated},
+				"$inc": bson.M{"catalogVersion": 1},
+			}, eipmongo.ArrayFilters(bson.M{"t.templateID": templateID}))
+
+		if _, err := bulk.RunOrdered(ctx); err != nil {
+			metrics.Error("database_error")
+			helper.RespondEndpointServerError(w, r, "template update failed", "group templates patch failed", "group_templates_patch_failed", "group_templates", err, nil)
+			return
+		}
+	} else {
+		err = eipmongo.Retry(ctx, fmt.Sprintf("group_templates update catalog entry %s", templateID), func() error {
+			_, updateErr := mongo.TemplateCatalog.Collection().UpdateOne(ctx,
+				bson.M{"_id": accountID},
+				bson.M{
+					"$set": bson.M{"templates.$[t]": updated},
+					"$inc": bson.M{"catalogVersion": 1},
+				},
+				options.UpdateOne().SetArrayFilters([]any{bson.M{"t.templateID": templateID}}),
+			)
+			return updateErr
 		})
 		if err != nil {
 			metrics.Error("database_error")
-			helper.RespondEndpointServerError(w, r, "payload update failed", "group templates payload update failed", "group_templates_payload_update_failed", "group_templates", err, nil)
+			helper.RespondEndpointServerError(w, r, "catalog save failed", "group templates catalog save failed", "group_templates_catalog_save_failed", "group_templates", err, nil)
 			return
 		}
 	}
 
-	err = runMongoRetry(ctx, fmt.Sprintf("group_templates update catalog entry %s", templateID), func() error {
-		_, updateErr := catColl.UpdateOne(ctx,
-			bson.M{"_id": accountID},
-			bson.M{
-				"$set": bson.M{
-					"templates.$[t]": updated,
-				},
-				"$inc": bson.M{"catalogVersion": 1},
-			},
-			options.Update().SetArrayFilters(options.ArrayFilters{
-				Filters: []interface{}{bson.M{"t.templateID": templateID}},
-			}),
-		)
-		return updateErr
-	})
-	if err != nil {
-		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "catalog save failed", "group templates catalog save failed", "group_templates_catalog_save_failed", "group_templates", err, nil)
-		return
-	}
 	logs.AttachDebugStep(r, "template_updated", map[string]interface{}{
 		"template_id": templateID,
 	})
@@ -423,37 +399,26 @@ func DeleteTemplateHandler(w http.ResponseWriter, r *http.Request, clients *stac
 	if !ok {
 		return
 	}
-	payColl := payloadCollection(clients)
-	var delRes *mongo.DeleteResult
-	err := runMongoRetry(ctx, fmt.Sprintf("group_templates delete payload %s", templateID), func() error {
-		var deleteErr error
-		delRes, deleteErr = payColl.DeleteOne(ctx, bson.M{"_id": templateID, "accountID": accountID})
-		return deleteErr
-	})
-	if err != nil {
-		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "delete payload failed", "group templates delete payload failed", "group_templates_delete_payload_failed", "group_templates", err, nil)
-		return
-	}
-	if delRes.DeletedCount == 0 {
-		helper.RespondNotFound(w, r, metrics)
-		return
-	}
-	catColl := catalogCollection(clients)
-	err = runMongoRetry(ctx, fmt.Sprintf("group_templates pull catalog entry %s", templateID), func() error {
-		_, updateErr := catColl.UpdateOne(ctx, bson.M{"_id": accountID}, bson.M{
+	mongo := clients.Mongo
+
+	bulk := mongo.Bulk().
+		DeleteOne(mongo.TemplatePayloads, bson.M{"_id": templateID, "accountID": accountID}).
+		UpdateOne(mongo.TemplateCatalog, bson.M{"_id": accountID}, bson.M{
 			"$pull": bson.M{"templates": bson.M{"templateID": templateID}},
 			"$inc":  bson.M{"catalogVersion": 1},
 		})
-		return updateErr
-	})
+
+	result, err := bulk.RunOrdered(ctx)
 	if err != nil {
 		metrics.Error("database_error")
-		logs.AttachHandlerCaveat(r, "catalog_pull_after_delete_failed", "catalog pull after payload delete failed", map[string]interface{}{
-			"error":       err.Error(),
-			"template_id": templateID,
-		})
+		helper.RespondEndpointServerError(w, r, "delete template failed", "group templates delete failed", "group_templates_delete_failed", "group_templates", err, nil)
+		return
 	}
+	if result == nil || result.DeletedCount == 0 {
+		helper.RespondNotFound(w, r, metrics)
+		return
+	}
+
 	metrics.Success()
 	logs.AttachDebugStep(r, "template_deleted", map[string]interface{}{
 		"template_id": templateID,

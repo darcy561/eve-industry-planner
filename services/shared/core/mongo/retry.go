@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/logs"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // RetryConfig holds configuration for MongoDB operation retries

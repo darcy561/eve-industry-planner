@@ -20,6 +20,10 @@ type Field struct {
 	Kind  Kind
 	Value string
 
+	// BoolYes / BoolNo label KindBool Confirm choices (empty → Enabled / Disabled).
+	BoolYes string
+	BoolNo  string
+
 	Autogen     bool   // show Autogen checkbox (first create only)
 	AllowRoll   bool   // show Roll checkbox (day-2 non-Locked secrets)
 	AutogenOn   bool   // generate on save; hide manual input when set

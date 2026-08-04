@@ -5,8 +5,11 @@ import (
 	"strings"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 const docSubscribeMongoTimeout = 3 * time.Second
@@ -32,19 +35,20 @@ func (s *Server) docSubscribeAuthorized(ctx context.Context, docID, accountID st
 	collection, id := parts[0], parts[1]
 
 	switch collection {
-	case mongocore.CollectionUsers, mongocore.CollectionApplicationSettings, mongocore.CollectionUserWatchlistDeprecated:
+	case eipmongo.CollectionUsers, eipmongo.CollectionApplicationSettings, eipmongo.CollectionUserWatchlistDeprecated:
 		return id == accountID
 
-	case mongocore.CollectionJobs, mongocore.CollectionUserJobDocuments, mongocore.CollectionArchivedJobs, mongocore.CollectionUserJobGroups, mongocore.CollectionBuildStats:
+	case eipmongo.CollectionJobs, eipmongo.CollectionUserJobDocuments, eipmongo.CollectionArchivedJobs, eipmongo.CollectionUserJobGroups, eipmongo.CollectionBuildStats:
 		if s.Stack == nil || s.Stack.Mongo == nil {
 			logs.WarnCtx(context.Background(), "subscribe auth denied: mongo client unavailable",
 				"collection", collection, "doc_id", id)
 			return false
 		}
+		mongo := s.Stack.Mongo
 		mctx, cancel := context.WithTimeout(ctx, docSubscribeMongoTimeout)
 		defer cancel()
-		coll := s.Stack.Mongo.Database(mongocore.DatabaseName).Collection(collection)
-		ok, err := mongocore.DocumentExistsByID(mctx, coll, id, accountID)
+		coll := mongo.Coll(collection)
+		ok, err := documentExistsByAccountID(mctx, coll, id, accountID)
 		if err != nil {
 			logs.WarnCtx(context.Background(), "subscribe auth mongo lookup failed",
 				"error", err, "collection", collection, "doc_id", id, "account_id", accountID)
@@ -55,4 +59,21 @@ func (s *Server) docSubscribeAuthorized(ctx context.Context, docID, accountID st
 	default:
 		return false
 	}
+}
+
+func documentExistsByAccountID(ctx context.Context, coll *mongodriver.Collection, docID, accountID string) (bool, error) {
+	if coll == nil {
+		return false, nil
+	}
+	err := coll.FindOne(ctx, bson.M{
+		"_id":             docID,
+		"_meta.accountID": accountID,
+	}).Err()
+	if err == nil {
+		return true, nil
+	}
+	if err == mongodriver.ErrNoDocuments {
+		return false, nil
+	}
+	return false, err
 }

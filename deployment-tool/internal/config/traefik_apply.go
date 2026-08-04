@@ -141,80 +141,58 @@ func applyTraefikUpdate(ctx context.Context, apiClient *client.Client, desire De
 	if svc == "" {
 		return fmt.Errorf("traefik update: empty SwarmService")
 	}
-	if dryRun {
-		msg.Line("dry-run: would update " + svc)
-		return nil
-	}
-	result, err := apiClient.ServiceInspect(ctx, svc, client.ServiceInspectOptions{})
-	if err != nil {
-		return fmt.Errorf("inspect service %s: %w", svc, err)
-	}
-	service := result.Service
-	spec := service.Spec
-	if needPublish {
-		if spec.EndpointSpec == nil {
-			spec.EndpointSpec = &swarmtypes.EndpointSpec{}
-		}
-		targets := map[uint32]struct{}{
-			uint32(desire.Surface.HTTP.Target):      {},
-			uint32(desire.Surface.HTTPS.Target):     {},
-			uint32(desire.Surface.Dashboard.Target): {},
-		}
-		ports := make([]swarmtypes.PortConfig, 0, len(spec.EndpointSpec.Ports)+3)
-		for _, p := range spec.EndpointSpec.Ports {
-			if _, replace := targets[p.TargetPort]; !replace {
-				ports = append(ports, p)
-			}
-		}
-		for _, p := range []struct {
-			published int
-			port      stack.TraefikPublishPort
-		}{
-			{desire.HTTPPort, desire.Surface.HTTP},
-			{desire.HTTPSPort, desire.Surface.HTTPS},
-			{desire.DashboardPort, desire.Surface.Dashboard},
-		} {
-			ports = append(ports, swarmtypes.PortConfig{
-				PublishedPort: uint32(p.published),
-				TargetPort:    uint32(p.port.Target),
-				Protocol:      network.IPProtocol(p.port.Protocol),
-				PublishMode:   swarmtypes.PortConfigPublishMode(p.port.Mode),
-			})
-		}
-		spec.EndpointSpec.Ports = ports
-	}
+	patch := ServiceSpecPatch{ServiceName: svc}
 	if needLabel {
-		if spec.Labels == nil {
-			spec.Labels = map[string]string{}
+		patch.Labels = map[string]string{
+			desire.Surface.DashboardRuleKey: desire.DashboardRule,
 		}
-		spec.Labels[desire.Surface.DashboardRuleKey] = desire.DashboardRule
 	}
 	if needTrustedEnv {
-		if spec.TaskTemplate.ContainerSpec == nil {
-			return fmt.Errorf("update traefik %s: missing ContainerSpec", svc)
-		}
-		values := map[string]string{
-			traefikEnvTrustedIPsWeb:       desire.TrustedProxyCIDRs,
-			traefikEnvTrustedIPsWebsecure: desire.TrustedProxyCIDRs,
-		}
-		keys := map[string]struct{}{
-			traefikEnvTrustedIPsWeb:       {},
-			traefikEnvTrustedIPsWebsecure: {},
-		}
 		if desire.TrustedProxyCIDRs == "" {
-			spec.TaskTemplate.ContainerSpec.Env = removeEnv(spec.TaskTemplate.ContainerSpec.Env, keys)
+			patch.EnvUnset = []string{traefikEnvTrustedIPsWeb, traefikEnvTrustedIPsWebsecure}
 		} else {
-			spec.TaskTemplate.ContainerSpec.Env = setEnv(spec.TaskTemplate.ContainerSpec.Env, values, keys)
+			patch.Env = map[string]string{
+				traefikEnvTrustedIPsWeb:       desire.TrustedProxyCIDRs,
+				traefikEnvTrustedIPsWebsecure: desire.TrustedProxyCIDRs,
+			}
 		}
 	}
-	if _, err := apiClient.ServiceUpdate(ctx, service.ID, client.ServiceUpdateOptions{
-		Version: service.Version,
-		Spec:    spec,
-	}); err != nil {
-		return fmt.Errorf("update traefik %s: %w", svc, err)
+	if needPublish {
+		patch.Mutate = func(spec *swarmtypes.ServiceSpec) error {
+			if spec.EndpointSpec == nil {
+				spec.EndpointSpec = &swarmtypes.EndpointSpec{}
+			}
+			targets := map[uint32]struct{}{
+				uint32(desire.Surface.HTTP.Target):      {},
+				uint32(desire.Surface.HTTPS.Target):     {},
+				uint32(desire.Surface.Dashboard.Target): {},
+			}
+			ports := make([]swarmtypes.PortConfig, 0, len(spec.EndpointSpec.Ports)+3)
+			for _, p := range spec.EndpointSpec.Ports {
+				if _, replace := targets[p.TargetPort]; !replace {
+					ports = append(ports, p)
+				}
+			}
+			for _, p := range []struct {
+				published int
+				port      stack.TraefikPublishPort
+			}{
+				{desire.HTTPPort, desire.Surface.HTTP},
+				{desire.HTTPSPort, desire.Surface.HTTPS},
+				{desire.DashboardPort, desire.Surface.Dashboard},
+			} {
+				ports = append(ports, swarmtypes.PortConfig{
+					PublishedPort: uint32(p.published),
+					TargetPort:    uint32(p.port.Target),
+					Protocol:      network.IPProtocol(p.port.Protocol),
+					PublishMode:   swarmtypes.PortConfigPublishMode(p.port.Mode),
+				})
+			}
+			spec.EndpointSpec.Ports = ports
+			return nil
+		}
 	}
-	msg.Line("updated " + svc)
-	return nil
+	return ApplyServiceSpecPatch(ctx, apiClient, patch, dryRun)
 }
 
 func removeEnv(env []string, keys map[string]struct{}) []string {

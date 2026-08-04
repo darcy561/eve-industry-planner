@@ -45,11 +45,13 @@ func ConfigSections() []builder.Section {
 			kind = builder.KindBool
 		}
 		b.fields = append(b.fields, builder.Field{
-			ID:    f.Key,
-			Label: f.Label,
-			Help:  f.Help,
-			Kind:  kind,
-			Value: values[f.Key],
+			ID:      f.Key,
+			Label:   f.Label,
+			Help:    f.Help,
+			Kind:    kind,
+			Value:   values[f.Key],
+			BoolYes: f.BoolYes,
+			BoolNo:  f.BoolNo,
 		})
 	}
 

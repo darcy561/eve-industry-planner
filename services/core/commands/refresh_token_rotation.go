@@ -11,12 +11,11 @@ import (
 
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/core/crypto/keyrings"
-	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type rotateRefreshTokenOptions struct {
@@ -51,7 +50,8 @@ func runRotateRefreshTokenKeys(ctx context.Context, args []string) error {
 		}
 	}
 
-	usersCol := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUsers)
+	mongo := clients.Mongo
+	usersCol := mongo.Users.Collection()
 	filter := bson.M{
 		"refreshTokens": bson.M{
 			"$elemMatch": keyrings.EncryptedRefreshTokenElemMatch(opts.fromVersion),

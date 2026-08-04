@@ -10,8 +10,7 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/documentlock"
-	mongocore "eve-industry-planner/shared/core/mongo"
-	mongoput "eve-industry-planner/shared/core/mongo/put"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
@@ -34,6 +33,7 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackserv
 	if !ok {
 		return
 	}
+	mongo := clients.Mongo
 
 	var reqBody struct {
 		Groups []models.Group `json:"groups"`
@@ -63,9 +63,6 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackserv
 		"batch_size": len(reqBody.Groups),
 	})
 
-	database := clients.Mongo.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionUserJobGroups)
-
 	wsClientID := helper.ExtractWSClientID(r)
 	sessionID := helper.AuthenticatedSessionID(r)
 
@@ -81,7 +78,7 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackserv
 				groupIDs = append(groupIDs, g.GroupID)
 			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, mongocore.CollectionUserJobGroups, groupIDs, nil)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, eipmongo.CollectionUserJobGroups, groupIDs, nil)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -94,7 +91,7 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackserv
 		}
 		if len(rejects) > 0 {
 			metrics.Error("lock_conflict")
-			helper.RespondLockHeldElsewhereJSON(w, r, mongocore.CollectionUserJobGroups, rejects)
+			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionUserJobGroups, rejects)
 			return
 		}
 		logs.AttachDebugStep(r, "lock_gate_passed", map[string]interface{}{
@@ -103,7 +100,7 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackserv
 	}
 
 	now := time.Now()
-	result, err := mongoput.BulkUpsertGroups(ctx, collection, accountID, reqBody.Groups, now, sessionID, wsClientID)
+	result, err := mongo.Groups.BulkUpsertGroups(ctx, accountID, reqBody.Groups, now, sessionID, wsClientID)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to save groups", "failed to bulk upsert groups", "groups_upsert_failed", "groups_put", err, nil)
@@ -123,7 +120,7 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *stackserv
 			if len(delta.AddedJobIDs) == 0 {
 				continue
 			}
-			held, herr := documentlock.LockHeldBySession(ctx, clients.Redis, accountID, mongocore.CollectionUserJobGroups, delta.GroupID, sessionID)
+			held, herr := documentlock.LockHeldBySession(ctx, clients.Redis, accountID, eipmongo.CollectionUserJobGroups, delta.GroupID, sessionID)
 			if herr != nil {
 				logs.AttachHandlerCaveat(r, "group_lock_cascade_check_failed", "group membership cascade: group lock check failed", map[string]interface{}{
 					"error":    herr.Error(),

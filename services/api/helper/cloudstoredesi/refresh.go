@@ -8,17 +8,20 @@ import (
 
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/core/evesso"
-	mongoput "eve-industry-planner/shared/core/mongo/put"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/models"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // RefreshStoredEsiForCharacter refreshes one encrypted refresh row by CharacterHash and persists the user document.
-func RefreshStoredEsiForCharacter(ctx context.Context, usersCol *mongo.Collection, accountID, characterHash string, cfg *config.CloudStoredESI) (*evesso.EveSSOTokenPayload, error) {
+func RefreshStoredEsiForCharacter(ctx context.Context, mongo *eipmongo.Mongo, accountID, characterHash string, cfg *config.CloudStoredESI) (*evesso.EveSSOTokenPayload, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("cloud esi: config is nil")
+	}
+	if mongo == nil {
+		return nil, fmt.Errorf("cloud esi: mongo handle is nil")
 	}
 	if strings.TrimSpace(accountID) == "" || strings.TrimSpace(characterHash) == "" {
 		return nil, fmt.Errorf("cloud esi: account_id and character_hash required")
@@ -27,9 +30,14 @@ func RefreshStoredEsiForCharacter(ctx context.Context, usersCol *mongo.Collectio
 		return nil, ErrKeyring
 	}
 
+	usersCol := mongo.Users.Collection()
+	if usersCol == nil {
+		return nil, fmt.Errorf("cloud esi: users collection unavailable")
+	}
+
 	var userDoc models.UserAccountDocument
 	if err := usersCol.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&userDoc); err != nil {
-		if err == mongo.ErrNoDocuments {
+		if err == mongodriver.ErrNoDocuments {
 			return nil, ErrUserNotFound
 		}
 		return nil, fmt.Errorf("cloud esi: %w", err)
@@ -73,10 +81,10 @@ func RefreshStoredEsiForCharacter(ctx context.Context, usersCol *mongo.Collectio
 		return nil, fmt.Errorf("cloud esi: encrypt: %w", err)
 	}
 
-	if err := mongoput.PatchUserAccountFields(ctx, usersCol, accountID, bson.M{
+	if err := mongo.Users.PatchUserAccountFields(ctx, accountID, bson.M{
 		"refreshTokens":      userDoc.RefreshTokens,
 		"_meta.lastModified": time.Now().UTC(),
-	}, "persist cloud-stored ESI refresh rotation"); err != nil {
+	}, eipmongo.WithOpName("persist cloud-stored ESI refresh rotation")); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrPersist, err)
 	}
 

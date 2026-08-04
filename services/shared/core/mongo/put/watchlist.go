@@ -7,9 +7,9 @@ import (
 
 	mongocore "eve-industry-planner/shared/core/mongo"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 func UpsertWatchlistDeprecated(ctx context.Context, collection *mongo.Collection, accountID string, groups any, items any, now time.Time, sessionID, wsClientID string) (*mongo.UpdateResult, error) {

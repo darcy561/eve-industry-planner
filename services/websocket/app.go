@@ -72,7 +72,7 @@ func (a *app) startProbes(ctx context.Context) error {
 		if a.clients.NATS == nil || !a.clients.NATS.IsConnected() {
 			return fmt.Errorf("nats not connected")
 		}
-		if err := a.clients.Mongo.Ping(c, nil); err != nil {
+		if err := a.clients.Mongo.Ping(c); err != nil {
 			return fmt.Errorf("mongo: %w", err)
 		}
 		return nil

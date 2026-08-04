@@ -8,13 +8,11 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
-	mongocore "eve-industry-planner/shared/core/mongo"
-	mongoget "eve-industry-planner/shared/core/mongo/get"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // GetHandler handles GET /api/v1/user/watchlist.
@@ -34,13 +32,11 @@ func GetHandler(w http.ResponseWriter, r *http.Request, clients *stackservices.C
 	if !ok {
 		return
 	}
+	mongo := clients.Mongo
 
-	database := clients.Mongo.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionUserWatchlistDeprecated)
-
-	raw, err := mongoget.LoadWatchlistDeprecated(ctx, collection, accountID)
+	raw, err := mongo.WatchlistDeprecated.LoadWatchlistDeprecated(ctx, accountID)
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			resp := map[string]any{
 				"groups": []any{},
 				"items":  []any{},

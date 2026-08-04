@@ -93,9 +93,24 @@ func stackRedeploy(ctx context.Context, home string, src Source, cfg config.Conf
 	if expanded.Obs != "" {
 		msg.Step("  (+ observability addon)")
 	}
+	wantObs := cfg.Addons.Observability.Enabled
+	// Labeled attach/detach before prune so target overlays still exist for ID match.
+	if !wantObs {
+		if err := config.ApplyLabeledNetworkMemberships(ctx, cfg, home, stackName, false); err != nil {
+			return err
+		}
+	}
 	// data + app (+ obs): Swarm only rolls services whose expanded spec changed.
 	if err := stackDeploy(ctx, home, stackName, expanded.fullFiles(), true); err != nil {
 		return err
+	}
+	if wantObs {
+		if err := config.ApplyLabeledNetworkMemberships(ctx, cfg, home, stackName, false); err != nil {
+			return err
+		}
+		if err := config.ApplyGrafanaPath(ctx, cfg, home, stackName, false); err != nil {
+			return err
+		}
 	}
 
 	swarm.PruneStale(ctx, expanded.Secrets)

@@ -1,13 +1,15 @@
 # Observability addon Swarm fragment (optional — deploy when addons.observability.enabled).
 # Roll order: stop-first (x-obs-deploy) — R=1 + persistent volumes.
-# Networks:
-#   eip-obs          — obs plane (loki/grafana/exporters/…)
-#   eip-core         — attach services that must reach data/app DNS (exporters, alloy, grafana→prom)
-#   eip-docker-alloy — alloy socket-proxy only (not on eip-core / eip-obs for the proxy itself)
+# Network name SoT: x-net-* anchors (reuse in networks.*.name + labels).
 #
-# Prometheus stays on docker-stack.data.yml (eip-core only). Scrapes reach obs targets
-# because exporters / asynqmon dual-home onto eip-core. Optional later: dual-home
-# prometheus onto eip-obs instead (see technical-documentation/stack/NETWORK.md). Alloy joins eip-core when obs is on.
+# Runtime nets (Deployment Tool ApplyLabeledNetworkMemberships):
+#   prometheus (data): attach *net-obs when observability
+#   grafana: detach *net-core; attach *net-public when grafana.public
+# Alloy joins eip-core + eip-obs here (static). Traefik enable toggled by ApplyGrafanaPath.
+
+x-net-core: &net-core eip-core
+x-net-public: &net-public eip-public
+x-net-obs: &net-obs eip-obs
 
 x-common-dns: &common-dns
   - 8.8.8.8
@@ -89,8 +91,6 @@ services:
     networks:
       eip-obs:
         aliases: [grafana]
-      eip-core: {}
-      eip-public: {}
     dns: *common-dns
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
@@ -149,13 +149,22 @@ services:
     deploy:
       <<: *obs-deploy
       labels:
-        - "eip.config.sync=1"
-        - "traefik.enable=true"
-        - "traefik.swarm.network=eip-public"
-        - "traefik.http.routers.grafana.rule=PathPrefix(`${EIP_GRAFANA_PATH:-/grafana}`)"
-        - "traefik.http.routers.grafana.entrypoints=web"
-        - "traefik.http.routers.grafana.priority=100"
-        - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+        eip.config.sync: "1"
+        eip.network.detach: *net-core
+        eip.network.attach: *net-public
+        eip.network.attach.when: grafana.public
+        # Traefik off by default; eip sync / deploy enables when grafana.public=true.
+        traefik.enable: "false"
+        traefik.swarm.network: *net-public
+        traefik.http.routers.grafana.rule: "PathPrefix(`${EIP_GRAFANA_PATH:-/grafana}`)"
+        traefik.http.routers.grafana.entrypoints: web
+        traefik.http.routers.grafana.priority: "100"
+        traefik.http.routers.grafana.service: grafana
+        traefik.http.routers.grafana-secure.rule: "PathPrefix(`${EIP_GRAFANA_PATH:-/grafana}`)"
+        traefik.http.routers.grafana-secure.entrypoints: websecure
+        traefik.http.routers.grafana-secure.priority: "100"
+        traefik.http.routers.grafana-secure.service: grafana
+        traefik.http.services.grafana.loadbalancer.server.port: "3000"
 
   asynqmon:
     image: hibiken/asynqmon:latest
@@ -248,14 +257,14 @@ services:
 
 networks:
   eip-core:
-    name: eip-core
+    name: *net-core
     external: true
   eip-public:
-    name: eip-public
+    name: *net-public
     driver: overlay
     attachable: false
   eip-obs:
-    name: eip-obs
+    name: *net-obs
     driver: overlay
     attachable: true
   eip-docker-alloy:

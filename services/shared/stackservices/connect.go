@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/core/objectstore"
 	"eve-industry-planner/shared/core/redis"
@@ -15,7 +15,6 @@ import (
 	natslib "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	redislib "github.com/redis/go-redis/v9"
-	mongodriver "go.mongodb.org/mongo-driver/mongo"
 )
 
 // Services selects which stack data-plane clients to open.
@@ -37,7 +36,7 @@ var (
 
 // Clients holds open stack-service clients (no shutdown list).
 type Clients struct {
-	Mongo       *mongodriver.Client
+	Mongo       *eipmongo.Mongo
 	NATS        *natslib.Conn
 	JetStream   jetstream.JetStream
 	Redis       *redislib.Client
@@ -50,7 +49,7 @@ func Connect(ctx context.Context, services Services) (*Clients, func(context.Con
 	return connect(ctx, false, services)
 }
 
-// ConnectAPI is Connect using mongo.ConnectAPI / redis.ConnectAPI
+// ConnectAPI is Connect using eipmongo.ConnectAPI / redis.ConnectAPI
 // (MONGO_*_API / REDIS_*_API when set). Call from the api role only.
 func ConnectAPI(ctx context.Context, services Services) (*Clients, func(context.Context), error) {
 	return connect(ctx, true, services)
@@ -75,18 +74,18 @@ func connect(ctx context.Context, apiCreds bool, services Services) (*Clients, f
 	}
 
 	if services.Mongo {
-		var mongoClient *mongodriver.Client
+		var mongoHandle *eipmongo.Mongo
 		var err error
 		if apiCreds {
-			mongoClient, err = mongo.ConnectAPI()
+			mongoHandle, err = eipmongo.ConnectAPI()
 		} else {
-			mongoClient, err = mongo.ConnectPrimary()
+			mongoHandle, err = eipmongo.ConnectPrimary()
 		}
 		if err != nil {
 			return fail(fmt.Errorf("failed to connect to mongo: %w", err))
 		}
-		clients.Mongo = mongoClient
-		cleanups = append(cleanups, func(c context.Context) { mongo.Cleanup(c, mongoClient) })
+		clients.Mongo = mongoHandle
+		cleanups = append(cleanups, func(c context.Context) { mongoHandle.Disconnect(c) })
 	}
 
 	if services.NATS {

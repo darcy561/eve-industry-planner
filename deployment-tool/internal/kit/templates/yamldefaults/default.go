@@ -8,6 +8,7 @@ import "eve-industry-planner/deployment-tool/internal/config"
 func DefaultConfig() config.Config {
 	var addons config.Addons
 	addons.Observability.Enabled = false
+	addons.Observability.Grafana.BaseURL = config.DefaultGrafanaBaseURL
 	return config.Config{
 		Version: 1,
 		CLI: config.CLI{

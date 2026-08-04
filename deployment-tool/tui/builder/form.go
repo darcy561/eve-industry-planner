@@ -188,12 +188,19 @@ func (s *Session) huhFieldsFor(i int, f Field) []huh.Field {
 	}
 
 	if f.Kind == KindBool {
+		yes, no := "Enabled", "Disabled"
+		if f.BoolYes != "" {
+			yes = f.BoolYes
+		}
+		if f.BoolNo != "" {
+			no = f.BoolNo
+		}
 		return []huh.Field{huh.NewConfirm().
 			Key(f.ID).
 			Title(f.Label).
 			Description(status).
-			Affirmative("Enabled").
-			Negative("Disabled").
+			Affirmative(yes).
+			Negative(no).
 			Value(&s.binds.bools[i])}
 	}
 

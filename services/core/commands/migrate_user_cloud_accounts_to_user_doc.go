@@ -9,12 +9,11 @@ import (
 	"strings"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type migrateUserCloudAccountsOptions struct {
@@ -39,7 +38,8 @@ func runMigrateUserCloudAccountsToUserDoc(ctx context.Context, args []string) er
 		return fmt.Errorf("failed to ensure worker task stream: %w", err)
 	}
 
-	settingsCol := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionApplicationSettings)
+	mongo := clients.Mongo
+	settingsCol := mongo.ApplicationSettings.Collection()
 	filter := bson.M{
 		"userCloudAccounts": bson.M{"$exists": true},
 	}

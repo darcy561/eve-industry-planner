@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 )
@@ -20,36 +20,35 @@ func runSDEBlueprintsMongoStageAsync(_ context.Context, conversionResult *sdeCon
 	}
 
 	recipes := conversionResult.RecipeList
-	mongoClient := deps.Mongo
+	mongo := deps.Mongo
 
 	go func() {
 		stageCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
 
-		collection := mongoClient.Database(mongocore.DatabaseName).Collection(mongocore.CollectionBlueprints)
-		items := make([]mongocore.StructUpsertItem, 0, len(recipes))
+		items := make([]eipmongo.StructUpsertItem, 0, len(recipes))
 
 		for _, recipe := range recipes {
 			if recipe == nil || recipe.ItemID == 0 {
 				continue
 			}
-			items = append(items, mongocore.StructUpsertItem{
+			items = append(items, eipmongo.StructUpsertItem{
 				DocID: strconv.Itoa(recipe.ItemID),
 				Value: recipe,
 			})
 		}
 
-		summary, err := mongocore.UpsertStructsByIDPreservingMetaBulk(stageCtx, collection, items, blueprintsBulkWriteBatchSize)
+		summary, err := mongo.Blueprints.UpsertStructsPreservingMetaBulk(stageCtx, items, blueprintsBulkWriteBatchSize)
 		if err != nil {
 			logs.WarnCtx(stageCtx, "SDE mongo blueprint bulk upsert failed",
-				"collection", mongocore.CollectionBlueprints,
+				"collection", eipmongo.CollectionBlueprints,
 				"error", err,
 			)
 			return
 		}
 
 		logs.InfoCtx(stageCtx, "SDE mongo blueprint sync completed",
-			"collection", mongocore.CollectionBlueprints,
+			"collection", eipmongo.CollectionBlueprints,
 			"total", summary.Total,
 			"upserted", summary.Success,
 			"failed", summary.Failed,

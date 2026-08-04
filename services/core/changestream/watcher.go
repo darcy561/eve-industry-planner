@@ -9,16 +9,16 @@ import (
 	"sync"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 
 	natslib "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/redis/go-redis/v9"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 const changestreamLogComponent = "changestream"
@@ -50,21 +50,25 @@ type ChangeStreamMessage struct {
 
 // Watcher watches MongoDB change streams and publishes changes to NATS.
 type Watcher struct {
-	mongoClient *mongo.Client
-	jsContext   jetstream.JetStream
-	natsConn    *natslib.Conn
-	rdb         *redis.Client
-	database    *mongo.Database
+	mongo     *eipmongo.Mongo
+	jsContext jetstream.JetStream
+	natsConn  *natslib.Conn
+	rdb       *redis.Client
+	database  *mongo.Database
 }
 
 // NewWatcher creates a new change stream watcher. rdb may be nil (cold start only).
-func NewWatcher(mongoClient *mongo.Client, jsContext jetstream.JetStream, natsConn *natslib.Conn, rdb *redis.Client) *Watcher {
+func NewWatcher(mongoHandle *eipmongo.Mongo, jsContext jetstream.JetStream, natsConn *natslib.Conn, rdb *redis.Client) *Watcher {
+	var database *mongo.Database
+	if mongoHandle != nil {
+		database = mongoHandle.DB
+	}
 	return &Watcher{
-		mongoClient: mongoClient,
-		jsContext:   jsContext,
-		natsConn:    natsConn,
-		rdb:         rdb,
-		database:    mongoClient.Database(mongocore.DatabaseName),
+		mongo:     mongoHandle,
+		jsContext: jsContext,
+		natsConn:  natsConn,
+		rdb:       rdb,
+		database:  database,
 	}
 }
 
@@ -116,7 +120,7 @@ func (w *Watcher) watchCollectionGroup(streamCtx context.Context, group Collecti
 		"component", changestreamLogComponent,
 		"group_id", group.ID,
 		"collections", group.Collections,
-		"database", mongocore.DatabaseName)
+		"database", eipmongo.DatabaseName)
 
 	reconnectCount := 0
 	pipeline := MatchPipelineForCollections(group.Collections)
@@ -175,7 +179,7 @@ func (w *Watcher) watchCollectionGroup(streamCtx context.Context, group Collecti
 			logs.DebugCtx(ctx, "change stream created, watching for changes",
 				"component", changestreamLogComponent,
 				"group_id", group.ID,
-				"database", mongocore.DatabaseName)
+				"database", eipmongo.DatabaseName)
 		}
 
 		eventCount := 0
@@ -351,11 +355,11 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	// explicitly subscribed). Singleton account docs use Mongo _id === account id string.
 	if accountID == "" && operationType == "delete" {
 		switch collection {
-		case mongocore.CollectionUsers, mongocore.CollectionApplicationSettings, mongocore.CollectionUserWatchlistDeprecated:
+		case eipmongo.CollectionUsers, eipmongo.CollectionApplicationSettings, eipmongo.CollectionUserWatchlistDeprecated:
 			accountID = docID
 		default:
-			if collection == mongocore.CollectionUserJobGroups ||
-				collection == mongocore.CollectionUserJobDocuments {
+			if collection == eipmongo.CollectionUserJobGroups ||
+				collection == eipmongo.CollectionUserJobDocuments {
 				logs.WarnCtx(ctx, "delete missing accountID on collection (fullDocumentBeforeChange empty);"+
 					" websocket account fan-out skipped — enable changeStreamPreAndPostImages"+
 					" (eip ensure-mongo / deployment-tool PreimageCollections)",
@@ -374,7 +378,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	}
 
 	switch collection {
-	case mongocore.CollectionUsers, mongocore.CollectionApplicationSettings, mongocore.CollectionUserWatchlistDeprecated:
+	case eipmongo.CollectionUsers, eipmongo.CollectionApplicationSettings, eipmongo.CollectionUserWatchlistDeprecated:
 		if operationType == "update" || operationType == "replace" {
 			if previousDocToExtract != nil {
 				previousDocument = make(map[string]interface{}, len(previousDocToExtract))
@@ -386,7 +390,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	}
 	refreshTokensChanged := false
 	linkedCharactersChanged := false
-	if collection == mongocore.CollectionUsers {
+	if collection == eipmongo.CollectionUsers {
 		refreshTokensChanged = usersRefreshTokensChanged(operationType, docToExtract, previousDocToExtract)
 		linkedCharactersChanged = usersRefreshTokenCharacterHashesChanged(operationType, docToExtract, previousDocToExtract)
 		stripUsersRefreshTokenFields(document)
@@ -394,7 +398,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		// Client no longer needs previous users-doc payload; it relies on change flags
 		// plus dedicated token endpoint reads for linked-character reconciliation.
 		previousDocument = nil
-	} else if collection == mongocore.CollectionApplicationSettings {
+	} else if collection == eipmongo.CollectionApplicationSettings {
 		// Application settings reconcile uses the current authoritative document only.
 		previousDocument = nil
 	}
@@ -708,11 +712,11 @@ func bsonArrayToStrings(v interface{}) []string {
 
 // StartService starts the MongoDB change stream watcher service (parallel watches per CollectionGroups entry).
 // Returns a stop function for graceful shutdown. rdb stores per-group resume tokens (optional).
-func StartService(mongoSecondaryClient *mongo.Client, jsContext jetstream.JetStream, natsConn *natslib.Conn, rdb *redis.Client) (func(), error) {
+func StartService(mongoHandle *eipmongo.Mongo, jsContext jetstream.JetStream, natsConn *natslib.Conn, rdb *redis.Client) (func(), error) {
 	groups := CollectionGroups()
 	if err := validateCollectionGroups(groups); err != nil {
 		return nil, err
 	}
-	watcher := NewWatcher(mongoSecondaryClient, jsContext, natsConn, rdb)
+	watcher := NewWatcher(mongoHandle, jsContext, natsConn, rdb)
 	return watcher.Start(groups), nil
 }

@@ -8,15 +8,14 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/config"
-	mongocore "eve-industry-planner/shared/core/mongo"
-	mongoput "eve-industry-planner/shared/core/mongo/put"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // RotateRefreshTokenKeys rotates encrypted refresh-token rows to the active key version.
@@ -54,9 +53,9 @@ func RotateRefreshTokenKeys(ctx context.Context, task *asynq.Task, deps *esitask
 	kr := rt.Keyring
 	activeVer := kr.NormalizedActiveVersion()
 
-	col := deps.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUsers)
+	mongo := deps.Mongo
 	var userDoc models.UserAccountDocument
-	if err := col.FindOne(ctx, bson.M{"_id": p.AccountID, "_meta.accountID": p.AccountID}).Decode(&userDoc); err != nil {
+	if err := mongo.Users.Collection().FindOne(ctx, bson.M{"_id": p.AccountID, "_meta.accountID": p.AccountID}).Decode(&userDoc); err != nil {
 		return fmt.Errorf("load user for key rotation %s: %w", p.AccountID, err)
 	}
 
@@ -101,10 +100,10 @@ func RotateRefreshTokenKeys(ctx context.Context, task *asynq.Task, deps *esitask
 	}
 
 	if changed && !p.DryRun {
-		if err := mongoput.PatchUserAccountFields(ctx, col, p.AccountID, bson.M{
+		if err := mongo.Users.PatchUserAccountFields(ctx, p.AccountID, bson.M{
 			"refreshTokens":      userDoc.RefreshTokens,
 			"_meta.lastModified": time.Now().UTC(),
-		}, fmt.Sprintf("rotate refresh token keys %s", p.AccountID)); err != nil {
+		}, eipmongo.WithOpName(fmt.Sprintf("rotate refresh token keys %s", p.AccountID))); err != nil {
 			return fmt.Errorf("persist rotated refresh tokens for %s: %w", p.AccountID, err)
 		}
 	}
