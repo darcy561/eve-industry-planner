@@ -41,9 +41,9 @@ const (
 	// SubjectSchedulerSchedule is the NATS subject for requesting one-time scheduled tasks
 	SubjectSchedulerSchedule = "scheduler.schedule"
 
-	// SubjectDocUpdate is the NATS subject pattern for document updates
-	// Format: doc.update.{docID}
-	// Example: doc.update.user123, doc.update.job456
+	// SubjectDocUpdate is the NATS subject prefix for document updates.
+	// Format: doc.update.{tenantString}.{collection}.{docID}
+	// Example: doc.update.account:abc.jobs.doc123
 	SubjectDocUpdate = "doc.update"
 
 	// SubjectDocSubscribe is the NATS subject pattern for document subscribe
@@ -70,6 +70,10 @@ const (
 	// SubjectHealthCommandPing is the core-NATS fan-out subject for controller health census.
 	// Every app replica Subscribe()s (no queue group) and Respond()s HealthStatus.
 	SubjectHealthCommandPing = "health.command.ping"
+
+	// SubjectWSPlacementState is core-NATS pub/sub for websocket placement load flags.
+	// Payload: PlacementState (messages.go).
+	SubjectWSPlacementState = "ws.placement.state"
 )
 
 // Durable names / prefixes currently owned by the app. Stream reconcile allowlists

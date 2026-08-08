@@ -4,10 +4,10 @@ import (
 	"testing"
 )
 
-// Register → org scopes → hosted tenants → unregister clears soft hint + tenant keys.
+// Register → org scopes → hosted tenants → unregister clears soft on /placement.
 func TestIntegrationHostedTenantsWithSoftFullLifecycle(t *testing.T) {
 	f := newIntegFixture(t)
-	f.setSlotLimits(1, 5)
+	f.setPlacementLimits(1, 5)
 	c := f.newClient("c1", "acct-1", []string{"10"}, []string{"99"})
 	f.register(c)
 	f.setOrgScopes(c, []string{"10"}, []string{"99"})
@@ -22,7 +22,7 @@ func TestIntegrationHostedTenantsWithSoftFullLifecycle(t *testing.T) {
 	}
 
 	f.syncPlacementHints()
-	f.requireRedisValue(f.softKey(), "1")
+	f.requirePlacement(true, false, 1)
 
 	f.unregister(c)
 	f.syncPlacementHints()
@@ -30,5 +30,5 @@ func TestIntegrationHostedTenantsWithSoftFullLifecycle(t *testing.T) {
 	if f.Server.HostedTenantCount() != 0 {
 		t.Fatalf("hosted after disconnect=%v", f.Server.HostedTenants())
 	}
-	f.requireRedisAbsent(f.softKey())
+	f.requirePlacement(false, false, 0)
 }

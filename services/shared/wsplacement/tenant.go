@@ -35,3 +35,14 @@ func TenantKeyAlliance(id string) string {
 	}
 	return TenantPrefixAlliance + id
 }
+
+// TenantStringFromRouting picks account → corporation → alliance (websocket dispatch precedence).
+func TenantStringFromRouting(accountID, corporationID, allianceID string) string {
+	if k := TenantKeyAccount(accountID); k != "" {
+		return k
+	}
+	if k := TenantKeyCorporation(corporationID); k != "" {
+		return k
+	}
+	return TenantKeyAlliance(allianceID)
+}

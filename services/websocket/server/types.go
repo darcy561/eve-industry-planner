@@ -6,12 +6,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/stackservices"
 	"eve-industry-planner/websocket/server/model"
 	syncpkg "eve-industry-planner/websocket/sync"
 
 	"github.com/alitto/pond/v2"
 	"github.com/gorilla/websocket"
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 type Server struct {
@@ -55,6 +57,7 @@ type Server struct {
 
 	// JetStream doc.update fan-out: one FIFO per shard (see outbound_doc_update.go).
 	docUpdateOutboundShards []chan docUpdateWork
+	outboundInFlight        atomic.Int64 // work currently inside a shard worker
 
 	// Sync queues (client_id -> sync queue)
 	// One sync per client at a time (enforced by queue)
@@ -72,9 +75,25 @@ type Server struct {
 	metrics  *websocketMetrics
 
 	// Shutdown coordination
-	shutdownChan chan struct{}
-	shutdownOnce sync.Once
-	draining     atomic.Bool // local SIGTERM / stop drain — Ready 503 + refuse upgrades
+	// intakeStopChan stops JetStream pull loops only (outbound shard workers stay up for flush).
+	// shutdownChan stops shard workers, sync coordinator, placement maintainer, cleanup.
+	intakeStopChan  chan struct{}
+	intakeStopOnce  sync.Once
+	shutdownChan    chan struct{}
+	stopConsumeOnce sync.Once   // closes shutdownChan (workers / coordinators)
+	shutdownOnce    sync.Once   // sync pool + durable delete (after stopConsume)
+	draining        atomic.Bool // local SIGTERM / stop drain — Ready 503 + refuse upgrades
+
+	// Placement state publish (NATS SubjectWSPlacementState); optional override for tests.
+	placementPublishFn func(subject string, data []byte) error
+	placementMu        sync.Mutex
+	lastPlacementState natscore.PlacementState
+	hasLastPlacement   bool
+
+	// Selective JetStream fan-out: debounced FilterSubjects from HostedTenants.
+	fanoutFilterMu    sync.Mutex
+	fanoutFilterTimer *time.Timer
+	fanoutStream      jetstream.Stream
 }
 
 type Client struct {
@@ -156,7 +175,7 @@ func (s *Server) GetClientsMu() interface {
 }
 
 func (s *Server) GetSyncPool() interface {
-	SubmitErr(func() error) interface{}
+	SubmitErr(func() error) any
 } {
 	// Wrap pond.Pool to match interface signature
 	return &poolWrapper{p: s.SyncPool}
@@ -167,7 +186,7 @@ type poolWrapper struct {
 	p pond.Pool
 }
 
-func (pw *poolWrapper) SubmitErr(f func() error) interface{} {
+func (pw *poolWrapper) SubmitErr(f func() error) any {
 	return pw.p.SubmitErr(f)
 }
 

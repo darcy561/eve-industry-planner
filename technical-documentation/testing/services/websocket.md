@@ -9,7 +9,7 @@ Live SoT for test depth under [`services/websocket`](../../../services/websocket
 | Service tree | From `services/`: `go test ./websocket/...` | No Docker |
 | Server package | `go test ./websocket/server/` | Unit + Integration in same package |
 | Integration only | `go test ./websocket/server/ -count=1 -run Integration` | All via `newIntegFixture` |
-| Related | `go test ./ws-router/ ./shared/wsplacement/` | Soft prefer + tenant keys |
+| Related | `go test ./ws-router/ ./shared/wsplacement/ ./shared/container/` | Place prefer + tenant keys + identity |
 | Soak helpers | `go test ./cmd/ws_soak/` | Plan/cohort unit only |
 
 ```bash
@@ -19,41 +19,43 @@ go test ./websocket/server/ -count=1 -run Integration
 
 ## Coverage map
 
-**Depth:** Unit slices + Integration harness (miniredis; injectable Ready deps — not live NATS/Mongo). Sync / JetStream subscribe loop / Swarm multi-replica smoke still thin. Optional ops soak: `cmd/ws_soak` against a running stack.
+**Depth:** Unit slices + Integration harness (miniredis; injectable Ready deps — not live NATS/Mongo for most cases). Selective JetStream fan-out covered with embedded `nats-server` in-package. Sync / Swarm multi-replica smoke still thin. Optional ops soak: `cmd/ws_soak` against a running stack.
 
 ### Tested
 
 | Area | What the tests cover |
 |------|----------------------|
 | `server/config` | `client_cutoff` + `target_clients` defaults and at-threshold |
-| `server` (unit) | Drain/refuse (draining/cordon/cutoff); soft/full Redis; cordon signal/own-slot; hosted-tenant view; shutdown; doc-subscribe auth |
-| `server` (integration) | SoT `newIntegFixture`: connect/Ready/soft/cutoff/cordon, hosted+soft, `DrainForRoll`+`please_reconnect`, scopes/resume, doc-lock pulse/viewer/batch/fanout delivery |
+| `server` (unit) | Drain/refuse (draining/cutoff); soft/full NATS publish + `/placement`; hosted-tenant view; shutdown; outbound flush order; doc-subscribe auth; payload-prefer doc-update id parse |
+| `server` (integration) | SoT `newIntegFixture`: connect/Ready/soft/cutoff, hosted+soft, `DrainForRoll`+`please_reconnect`, scopes/resume, doc-lock pulse/viewer/batch/fanout delivery |
+| `server` (JetStream E2E) | `TestIntegrationSelectiveFanoutHostPullsNonHostDoesNot`: HostedTenants → FilterSubjects; host pulls tenant-keyed `doc.update`; peer inert pulls 0; empty host → inert |
 | `server/doclocklogic` | Parse/ack/pulse/batch classification |
 | `server/outgoinglogic` | Suppress self-recipient; decode scopes; alliance/corp downward match |
-| `server/natslogic` | Document-lock wire; fanout consumer inactive-threshold |
-| `cmd/ws_soak` | Limits plan / mixed cohort key shapes / divert ratio helpers |
+| `server/natslogic` | Document-lock wire; fanout consumer inactive-threshold; start inert FilterSubjects (not firehose) |
+| `server/identity` | JetStream durable names from `container.ID()` |
+| `cmd/ws_soak` | Limits plan / mixed cohort key shapes / divert ratio helpers; NATS soft/full watcher |
 
 ### Thin
 
 - Fixture Ready mirrors app wiring — not `app.go` / `main.go` themselves
-- NATS/Mongo Ready via flags only
+- NATS/Mongo Ready via flags only (except selective-fanout E2E above)
 - Soft router prefer covered in `ws-router` unit tests, not cross-process with websocket in CI
+- Formal Grafana pull≈0 gauges / soak profile for selective fan-out (manual stack check OK)
 
 ### Little / none
 
 - `sync/` (processor, Mongo, queue, coordinator)
-- `server/subscriptionlogic/`, `server/incominglogic/`, `server/identity/`, `server/model/`
-- JetStream subscribe→fanout loop in fixture
+- `server/subscriptionlogic/`, `server/incominglogic/`, `server/model/`
 - Automated Swarm multi-replica roll in CI
 
 ## Ops soak (not CI)
 
-`services/cmd/ws_soak` against `eip up` / `eip dev` (docker network `eip-core`, Redis + `ws-router`):
+`services/cmd/ws_soak` against `eip up` / `eip dev` (docker network `eip-core`, NATS + `ws-router`; Redis only for session seed):
 
 | Profile | Purpose |
 |---------|---------|
 | `hold` | Hold N `/ws` clients; reconnect on close / `please_reconnect` |
-| `limits` | Sync lowered `target_clients` / `client_cutoff` first; fill one corp home → soft; mixed account/corp/alliance keys assert place off soft; fill → full; mixed keys assert not-on-full |
+| `limits` | Sync lowered `target_clients` / `client_cutoff` first; fill one corp home → soft; mixed account/corp/alliance keys assert place off soft via `connected.container_id`; fill → full; mixed keys assert not-on-full |
 
 See command header comments in `services/cmd/ws_soak/main.go`. Restore prod thresholds after limits runs.
 

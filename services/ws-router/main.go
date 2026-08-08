@@ -26,7 +26,7 @@ func main() {
 		}
 	}
 
-	log.Printf("ws-router listening on %s (service=%s redis=%s placement_ttl=%s)",
-		a.cfg.ListenAddr, a.cfg.WebsocketService, a.cfg.RedisHost, a.cfg.PlacementTTL)
+	log.Printf("ws-router listening on %s (service=%s nats=%s)",
+		a.cfg.ListenAddr, a.cfg.WebsocketService, a.nc.ConnectedUrl())
 	lifecycle.WaitForShutdown(ctx, shutdownTimeout, a.cleanups()...)
 }

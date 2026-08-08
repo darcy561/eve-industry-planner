@@ -6,10 +6,11 @@ import (
 	"net/http"
 	"time"
 
+	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/orchestrationprobes"
 
-	"github.com/redis/go-redis/v9"
+	natslib "github.com/nats-io/nats.go"
 )
 
 const shutdownTimeout = 15 * time.Second
@@ -18,7 +19,8 @@ type app struct {
 	g        lifecycle.Group
 	stopDeps func(context.Context)
 	cfg      config
-	rdb      *redis.Client
+	nc       *natslib.Conn
+	place    *placementStore
 	be       *backendRegistry
 	initErr  error
 }
@@ -41,13 +43,29 @@ func (a *app) fail(err error) error {
 
 func (a *app) connectDeps(context.Context) error {
 	a.cfg = loadConfig()
-	a.rdb = newRedis(a.cfg)
-	a.stopDeps = func(context.Context) { _ = a.rdb.Close() }
+	nc, err := natscore.Connect()
+	if err != nil {
+		return a.fail(fmt.Errorf("nats: %w", err))
+	}
+	a.nc = nc
+	a.place = newPlacementStore()
+	a.stopDeps = func(context.Context) {
+		if a.nc != nil {
+			a.nc.Close()
+		}
+	}
 	return nil
 }
 
 func (a *app) startDiscovery(ctx context.Context) error {
 	a.be = newBackendRegistry(a.cfg)
+	a.be.onReady = func(c context.Context, running map[string]backend) {
+		// running = Swarm tasks still up (may include draining / not /ready).
+		a.place.reconcileStatuses(c, a.cfg, a.be.statusHTTP, running)
+	}
+	if _, err := a.nc.Subscribe(natscore.SubjectWSPlacementState, a.place.applyMsg); err != nil {
+		return a.fail(fmt.Errorf("nats subscribe %s: %w", natscore.SubjectWSPlacementState, err))
+	}
 	lifecycle.GoCtx(ctx, a.be.pollLoop)
 	return nil
 }
@@ -55,8 +73,8 @@ func (a *app) startDiscovery(ctx context.Context) error {
 func (a *app) startProbes(ctx context.Context) error {
 	// Traefik + Swarm gate on this: router deps OK and ≥1 WS that passed orchestrationprobes /ready.
 	ready := func(c context.Context) error {
-		if a.rdb.Ping(c).Err() != nil {
-			return fmt.Errorf("redis unavailable")
+		if a.nc == nil || !a.nc.IsConnected() {
+			return fmt.Errorf("nats unavailable")
 		}
 		if a.be == nil || a.be.count() < 1 {
 			return fmt.Errorf("no probe-ready websocket backends")
@@ -73,9 +91,9 @@ func (a *app) startProbes(ctx context.Context) error {
 
 func (a *app) startHTTP(context.Context) error {
 	srv := &Router{
-		cfg: a.cfg,
-		rdb: a.rdb,
-		be:  a.be,
+		cfg:   a.cfg,
+		be:    a.be,
+		place: a.place,
 	}
 
 	mux := http.NewServeMux()

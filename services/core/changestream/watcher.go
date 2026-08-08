@@ -9,9 +9,10 @@ import (
 	"sync"
 	"time"
 
-	eipmongo "eve-industry-planner/shared/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/shared/wsplacement"
 
 	natslib "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -403,10 +404,21 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		previousDocument = nil
 	}
 
-	// Create NATS subject: doc.update.{collection}.{docID}
-	subject := fmt.Sprintf("%s.%s.%s", natscore.SubjectDocUpdate, collection, docID)
-
 	corpID, allianceID, scopePayload := extractOrgRoutingFromDocument(docToExtract)
+
+	tenantString := wsplacement.TenantStringFromRouting(accountID, corpID, allianceID)
+	subject := natscore.DocUpdateSubject(tenantString, collection, docID)
+	if subject == "" {
+		logs.WarnCtx(ctx, "change stream event skipped: no tenant for doc.update subject",
+			"component", changestreamLogComponent,
+			"operation", operationType,
+			"collection", collection,
+			"doc_id", docID,
+			"account_id", accountID,
+			"corporation_id", corpID,
+			"alliance_id", allianceID)
+		return nil
+	}
 
 	// Create message payload
 	message := ChangeStreamMessage{
@@ -440,6 +452,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 			"collection", collection,
 			"doc_id", docID,
 			"subject", subject,
+			"tenant", tenantString,
 			"error", err)
 		return fmt.Errorf("failed to publish change stream message: %w", err)
 	}
@@ -450,6 +463,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		"collection", collection,
 		"doc_id", docID,
 		"subject", subject,
+		"tenant", tenantString,
 		"source_client_id", sourceClientID,
 		"source_session_id", sourceSessionID,
 		"account_id", accountID,

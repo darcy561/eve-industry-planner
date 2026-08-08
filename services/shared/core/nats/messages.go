@@ -3,6 +3,8 @@ package nats
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"eve-industry-planner/shared/logs"
 
@@ -17,6 +19,7 @@ const (
 	MessageTypeEmpty        = "empty"        // Empty message type
 	MessageTypeSubscription = "subscription" // Legacy envelope type (historic doc.subscribe payloads)
 	MessageTypeHealth       = "health"       // Control-plane health census (core NATS, not JetStream)
+	MessageTypeWSPlacement  = "ws_placement" // Websocket placement load flags (core NATS pub/sub)
 )
 
 const (
@@ -188,6 +191,37 @@ type HealthStatus struct {
 // MessageType returns the message type identifier for HealthStatus.
 func (HealthStatus) MessageType() string {
 	return MessageTypeHealth
+}
+
+// PlacementState is the raw JSON payload for SubjectWSPlacementState (not a Message envelope)
+// and for websocket GET /placement.
+type PlacementState struct {
+	ContainerID string `json:"container_id"`
+	Clients     int    `json:"clients"`
+	Soft        bool   `json:"soft"`
+	Full        bool   `json:"full"`
+	Draining    bool   `json:"draining"`
+}
+
+// MessageType returns the message type identifier for PlacementState.
+func (PlacementState) MessageType() string {
+	return MessageTypeWSPlacement
+}
+
+// ParsePlacementState decodes raw PlacementState JSON (not a Message envelope).
+func ParsePlacementState(data []byte) (PlacementState, error) {
+	var s PlacementState
+	if err := json.Unmarshal(data, &s); err != nil {
+		return PlacementState{}, err
+	}
+	s.ContainerID = strings.TrimSpace(s.ContainerID)
+	if s.ContainerID == "" {
+		return PlacementState{}, fmt.Errorf("nats: placement state container_id required")
+	}
+	if s.Clients < 0 {
+		s.Clients = 0
+	}
+	return s, nil
 }
 
 // MarketPricesRequest represents the JSON data payload for market prices refresh task.

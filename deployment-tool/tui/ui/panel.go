@@ -20,32 +20,32 @@ func CalcSplit(termW, termH, chromeH int) SplitLayout {
 
 	usableW := termW - 2*theme.HMargin
 	if usableW < 40 {
-		usableW = theme.Max(40, termW)
+		usableW = max(40, termW)
 	}
 	leftW := min(max(usableW*36/100, 30), 44)
 	rightW := usableW - leftW - theme.ColGap
 	if rightW < 28 {
 		rightW = 28
-		leftW = theme.Max(22, usableW-rightW-theme.ColGap)
+		leftW = max(22, usableW-rightW-theme.ColGap)
 	}
 	return SplitLayout{LeftW: leftW, RightW: rightW, BodyH: bodyH}
 }
 
 // PanelInnerSize is content width/height inside a bordered panel.
 func PanelInnerSize(outerW, outerH int) (innerW, innerH int) {
-	return theme.Max(12, outerW-2), theme.Max(5, outerH-2)
+	return max(12, outerW-2), max(5, outerH-2)
 }
 
 // ListSizeInPanel returns list dimensions inside a titled panel.
 func ListSizeInPanel(outerW, outerH int) (listW, listH int) {
 	innerW, innerH := PanelInnerSize(outerW, outerH)
-	return theme.Max(10, innerW-2), theme.Max(5, innerH-2)
+	return max(10, innerW-2), max(5, innerH-2)
 }
 
 // ViewportSizeInPanel returns viewport dimensions inside a titled panel.
 func ViewportSizeInPanel(outerW, outerH int) (vpW, vpH int) {
 	innerW, innerH := PanelInnerSize(outerW, outerH)
-	return theme.Max(12, innerW-2), theme.Max(5, innerH-2)
+	return max(12, innerW-2), max(5, innerH-2)
 }
 
 // RenderPanel draws a rounded bordered pane with a primary-colored title.
@@ -94,8 +94,8 @@ func SizeViewport(vp *viewport.Model, width, height int) {
 	if vp == nil {
 		return
 	}
-	vp.SetWidth(theme.Max(12, width))
-	vp.SetHeight(theme.Max(5, height))
+	vp.SetWidth(max(12, width))
+	vp.SetHeight(max(5, height))
 }
 
 // SetViewportText replaces content. When followBottom is true, keeps the view

@@ -93,7 +93,7 @@ func (s *Session) rebuildForm() tea.Cmd {
 	form := huh.NewForm(huh.NewGroup(fields...)).
 		WithTheme(eipHuhTheme()).
 		WithKeyMap(km).
-		WithWidth(theme.Max(20, innerW-2)).
+		WithWidth(max(20, innerW-2)).
 		WithShowHelp(false).
 		WithShowErrors(true)
 	form.SubmitCmd = nil
@@ -107,7 +107,7 @@ func (s *Session) rebuildForm() tea.Cmd {
 		// note group and skip Init so content stays visible.
 		s.form = huh.NewForm(huh.NewGroup(fields...)).
 			WithTheme(eipHuhTheme()).
-			WithWidth(theme.Max(20, innerW-2)).
+			WithWidth(max(20, innerW-2)).
 			WithShowHelp(false).
 			WithShowErrors(false)
 		s.form.SubmitCmd = nil
@@ -171,7 +171,7 @@ func isWindowSizeMsg(msg tea.Msg) bool {
 
 func cmdsFromMsg(msg tea.Msg) ([]tea.Cmd, bool) {
 	rv := reflect.ValueOf(msg)
-	if rv.Kind() != reflect.Slice || rv.Type().Elem() != reflect.TypeOf((tea.Cmd)(nil)) {
+	if rv.Kind() != reflect.Slice || rv.Type().Elem() != reflect.TypeFor[tea.Cmd]() {
 		return nil, false
 	}
 	out := make([]tea.Cmd, rv.Len())

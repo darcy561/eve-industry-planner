@@ -81,7 +81,7 @@ Does not overwrite .env. Not a full cold start (use eip up).`,
 		if doBinary {
 			msg.Step("Checking GitHub Releases for eip…")
 			binRes, err = kit.SelfUpdate(ctx, kit.Options{
-				CurrentVersion: Version,
+				CurrentVersion: kit.Version,
 				DryRun:         dryRun,
 			})
 			if err != nil {

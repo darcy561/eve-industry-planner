@@ -47,13 +47,13 @@ func buildLimitsIdentities(fillN, softDivertN, fullProbeN int, fillCorpID int64)
 	}
 
 	fillAff := wsplacement.TenantKeyCorporation(fmt.Sprintf("%d", fillCorpID))
-	for i := 0; i < fillN; i++ {
+	for i := range fillN {
 		acct := fmt.Sprintf("soak-fill-%d", i+1)
 		out = append(out, next(cohortFill, acct, fillAff, fillCorpID, 0))
 	}
 
 	addMixed := func(n int, cohort cohortKind, acctPrefix string, corpBase, allianceBase int64) {
-		for i := 0; i < n; i++ {
+		for i := range n {
 			acct := fmt.Sprintf("%s-%d", acctPrefix, i+1)
 			switch i % 3 {
 			case 0:
@@ -99,22 +99,4 @@ func countAffinityKinds(ids []clientIdentity) (accounts, corps, alliances int) {
 
 func hasPrefix(s, prefix string) bool {
 	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
-}
-
-// slotsFromFlagKeys maps eip:ws:soft:v1:websocket-1 → websocket-1.
-func slotsFromFlagKeys(keys []string, prefix string) []string {
-	var out []string
-	seen := map[string]bool{}
-	for _, k := range keys {
-		if len(k) <= len(prefix) || k[:len(prefix)] != prefix {
-			continue
-		}
-		slot := k[len(prefix):]
-		if slot == "" || seen[slot] {
-			continue
-		}
-		seen[slot] = true
-		out = append(out, slot)
-	}
-	return out
 }

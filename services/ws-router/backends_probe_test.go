@@ -62,10 +62,10 @@ func TestFilterProbeReady(t *testing.T) {
 		})},
 	}
 	got := reg.filterProbeReady(context.Background(), map[string]backend{
-		"websocket-1": {Slot: "websocket-1", IP: "10.0.0.1"},
-		"websocket-2": {Slot: "websocket-2", IP: "10.0.0.2"},
+		"aaa111111111": {ContainerID: "aaa111111111", IP: "10.0.0.1"},
+		"bbb222222222": {ContainerID: "bbb222222222", IP: "10.0.0.2"},
 	})
-	if len(got) != 1 || got["websocket-1"].IP != "10.0.0.1" {
+	if len(got) != 1 || got["aaa111111111"].IP != "10.0.0.1" {
 		t.Fatalf("got %#v", got)
 	}
 }

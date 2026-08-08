@@ -23,7 +23,7 @@ type MarqueeDelegate struct {
 // NewMarqueeDelegate builds a 2-line title+desc delegate.
 func NewMarqueeDelegate(width int) *MarqueeDelegate {
 	return &MarqueeDelegate{
-		Width:     theme.Max(8, width),
+		Width:     max(8, width),
 		lastIndex: -1,
 		height:    2,
 		spacing:   0,
@@ -54,7 +54,7 @@ func (d *MarqueeDelegate) Advance(selectedIndex int) {
 
 // SetWidth updates the row width used for truncate/marquee.
 func (d *MarqueeDelegate) SetWidth(width int) {
-	d.Width = theme.Max(8, width)
+	d.Width = max(8, width)
 }
 
 func (d *MarqueeDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
@@ -63,7 +63,7 @@ func (d *MarqueeDelegate) Render(w io.Writer, m list.Model, index int, item list
 		return
 	}
 
-	inner := theme.Max(1, d.Width-2) // match Padding(0, 1) on styles
+	inner := max(1, d.Width-2) // match Padding(0, 1) on styles
 	title := FitEllipsis(row.Title(), inner)
 	desc := row.Description()
 	selected := index == m.Index()

@@ -6,7 +6,6 @@ import (
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 
-	"eve-industry-planner/deployment-tool/tui/theme"
 	"eve-industry-planner/deployment-tool/tui/ui"
 )
 
@@ -18,7 +17,7 @@ type fieldBand struct {
 
 func (s *Session) formContentWidth() int {
 	innerW, _ := ui.PanelInnerSize(s.rightW, s.bodyH)
-	return theme.Max(20, innerW-2)
+	return max(20, innerW-2)
 }
 
 func (s *Session) renderHuhField(f huh.Field, width int) string {
@@ -42,10 +41,7 @@ func (s *Session) fieldBands() []fieldBand {
 			y++ // huh FieldSeparator "\n\n" → one blank line between widgets
 		}
 		needSep = true
-		h := lipgloss.Height(s.renderHuhField(f, width))
-		if h < 1 {
-			h = 1
-		}
+		h := max(lipgloss.Height(s.renderHuhField(f, width)), 1)
 		y += h
 	}
 

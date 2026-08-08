@@ -32,8 +32,8 @@ Live SoT for non-secret operator YAML. Secrets → [secrets.md](./secrets.md). A
 | `min` | api, websocket, worker | Desired Swarm `deploy.replicas` on sync; also written to `eip.capacity.min` |
 | `max` | api, websocket, worker | Ceiling label `eip.capacity.max` (sync keeps the label honest; automatic scale is future work) |
 | `concurrency` | worker | Task env `WORKER_ASYNQ_CONCURRENCY` — [worker.md](../backend/worker/worker.md) |
-| `client_cutoff` | websocket | Task env `WS_SLOT_CLIENT_CUTOFF` — hard full hint + process refuse — [websocket.md](../backend/websocket/websocket.md) |
-| `target_clients` | websocket | Task env `WS_SLOT_TARGET_CLIENTS` — soft divert hint (prefer non-soft on new homes); `0` = off — [websocket.md](../backend/websocket/websocket.md) / [ws-router.md](../backend/ws-router/ws-router.md) |
+| `client_cutoff` | websocket | Task env `WS_CLIENT_CUTOFF` — hard full placement flag + process refuse — [websocket.md](../backend/websocket/websocket.md) |
+| `target_clients` | websocket | Task env `WS_TARGET_CLIENTS` — soft divert flag (prefer non-soft on new homes); `0` = off — [websocket.md](../backend/websocket/websocket.md) / [ws-router.md](../backend/ws-router/ws-router.md) |
 | `capacity_controller_managed` | api, websocket, worker | **Future work** — kill-switch for automatic capacity control; unused today |
 | `reserve_capacity` / `drain_timeout` | websocket | Policy / ops budget — `reserve_capacity` unused by sync today; `drain_timeout` is operator evacuate wait (not process stop grace) |
 
@@ -50,8 +50,8 @@ Targeted Moby `ServiceUpdate` + Swarm file-config hash roll. Does **not** bounce
 | `services.*.min` | `deploy.replicas` on capacity-sync services |
 | `services.*.min` / `max` | Labels `eip.capacity.min` / `eip.capacity.max` |
 | `services.worker.concurrency` | Env on `eip_worker` |
-| `services.websocket.client_cutoff` | Env `WS_SLOT_CLIENT_CUTOFF` on `eip_websocket` |
-| `services.websocket.target_clients` | Env `WS_SLOT_TARGET_CLIENTS` on `eip_websocket` |
+| `services.websocket.client_cutoff` | Env `WS_CLIENT_CUTOFF` on `eip_websocket` |
+| `services.websocket.target_clients` | Env `WS_TARGET_CLIENTS` on `eip_websocket` |
 | `ports.*` | Host publish on `eip_traefik` (container entrypoints stay `:80` / `:443` / `:81`) |
 | `paths.traefik_dashboard` | Traefik dashboard PathPrefix label |
 | `paths.grafana` + `addons.observability.grafana.base_url` | Grafana PathPrefix labels; `GF_SERVER_ROOT_URL` = Base URL + Path (blank base → `http://127.0.0.1`) — if `eip_grafana` running. Route labels → [traefik.md](./traefik.md) |
@@ -60,7 +60,7 @@ Targeted Moby `ServiceUpdate` + Swarm file-config hash roll. Does **not** bounce
 | `proxy.trusted_*` | Traefik trusted-proxy / forwardedHeaders |
 | File bodies for services labeled `eip.config.sync=1` | Hash-diff Swarm configs (Prometheus yml on data; Loki/Alloy/… when obs on) |
 
-Bring-up / rematerialize also interpolates ports/paths/proxy into stack templates from this YAML. Stack YAML may keep bootstrap literals for `WS_SLOT_*`; **live operator values** come from this YAML via sync.
+Bring-up / rematerialize also interpolates ports/paths/proxy into stack templates from this YAML. Stack YAML may keep bootstrap literals for `WS_CLIENT_CUTOFF` / `WS_TARGET_CLIENTS`; **live operator values** come from this YAML via sync.
 
 `GRAFANA_ROOT_URL` is a SyncEnv expand bridge only — not a Secrets / `.env` field.
 

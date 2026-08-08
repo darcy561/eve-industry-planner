@@ -8,7 +8,6 @@ import (
 	apihelperauth "eve-industry-planner/api/helper/auth"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/websocket/server/identity"
 
 	"go.uber.org/zap"
 )
@@ -285,8 +284,6 @@ func finishReplicaFanoutOperation(ctx context.Context, msg, docID, subject strin
 	for k, v := range extra {
 		detail[k] = v
 	}
-	detail["ws_instance_id"] = identity.JetStreamConsumerSuffix()
-
 	level := "debug"
 	logMsg := msg
 	switch {

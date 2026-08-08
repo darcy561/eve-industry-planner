@@ -19,10 +19,3 @@ var (
 	Title          = lipgloss.Color("255")
 	Text           = lipgloss.Color("252")
 )
-
-func Max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}

@@ -13,6 +13,15 @@ func TestTenantKeys(t *testing.T) {
 	if TenantKeyAlliance("all2") != "alliance:all2" {
 		t.Fatal("alliance")
 	}
+	if TenantStringFromRouting("a", "c", "z") != "account:a" {
+		t.Fatal("account wins")
+	}
+	if TenantStringFromRouting("", "c", "z") != "corporation:c" {
+		t.Fatal("corp next")
+	}
+	if TenantStringFromRouting("", "", "z") != "alliance:z" {
+		t.Fatal("alliance last")
+	}
 	if TenantKeyAccount("") != "" || TenantKeyCorporation("  ") != "" {
 		t.Fatal("empty")
 	}

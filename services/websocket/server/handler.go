@@ -10,6 +10,7 @@ import (
 
 	apihelperauth "eve-industry-planner/api/helper/auth"
 	sharedcompression "eve-industry-planner/shared/compression"
+	"eve-industry-planner/shared/container"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/websocket/server/config"
 	"eve-industry-planner/websocket/server/model"
@@ -35,7 +36,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		upgradeStart = time.Now()
 	}
 
-	// Local draining only here — cordon/cutoff run after session + Redis are available.
+	// Local draining only here — cutoff runs after session is available.
 	if s.IsDraining() {
 		_ = s.rejectUpgradeBlocked(w, r, upgradeStart, "draining")
 		return
@@ -46,7 +47,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 			"websocket upgrade rejected: missing planner session",
 			"Unauthorized: session_missing",
 			"ws_upgrade_session_missing",
-			map[string]interface{}{
+			map[string]any{
 				"has_eip_session_cookie":       apihelperauth.ReadAppSessionCookie(r) != "",
 				"has_planner_session_id_query": strings.TrimSpace(r.URL.Query().Get(apihelperauth.PlannerSessionIDQueryParam)) != "",
 			},
@@ -81,7 +82,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 			"websocket upgrade rejected: failed session touch",
 			"Unauthorized: session_missing",
 			"ws_upgrade_session_touch_failed",
-			map[string]interface{}{
+			map[string]any{
 				"account_id": identity.AccountID,
 				"session_id": identity.SessionID,
 				"reason":     err.Error(),
@@ -91,7 +92,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	}
 	wsUpgradeAttachSessionValidated(r, identity.AccountID, identity.SessionID)
 
-	// Re-check after auth/session work — drain/cordon/cutoff may have flipped mid-upgrade.
+	// Re-check after auth/session work — drain/cutoff may have flipped mid-upgrade.
 	if s.rejectUpgradeBlocked(w, r, upgradeStart, s.upgradeBlockReason(reqCtx, true)) {
 		return
 	}
@@ -133,7 +134,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 				if err := clientToClose.writeFrame(websocket.CloseMessage,
 					websocket.FormatCloseMessage(websocket.CloseNormalClosure, closeReason),
 					100*time.Millisecond); err != nil {
-					logs.AttachDebugStep(r, "connection_limit_close_message_failed", map[string]interface{}{
+					logs.AttachDebugStep(r, "connection_limit_close_message_failed", map[string]any{
 						"evicted_client_id": oldestClientID,
 						"error":             err.Error(),
 					})
@@ -168,9 +169,9 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	// Hijacked — cannot HTTP-reject; drop if drain/cordon flipped during Upgrade.
+	// Hijacked — cannot HTTP-reject; drop if drain/cutoff flipped during Upgrade.
 	if reason := s.upgradeBlockReason(reqCtx, false); reason != "" {
-		logs.WarnCtx(reqCtx, "websocket upgraded while slot closed; closing without register",
+		logs.WarnCtx(reqCtx, "websocket upgraded while container closed; closing without register",
 			"reason", reason)
 		_ = conn.Close()
 		return
@@ -202,8 +203,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	s.Clients[client.id] = client
 	clientCount := len(s.Clients)
 	s.ClientsMu.Unlock()
-	s.syncSlotFullFlag(connCtx, clientCount)
-	s.syncSlotSoftFlag(connCtx, clientCount)
+	s.syncPlacementFlags(connCtx, clientCount)
 
 	s.userConnMu.Lock()
 	if s.userConnections[identity.AccountID] == nil {
@@ -212,15 +212,18 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	s.userConnections[identity.AccountID][client.id] = true
 	userConnCount := len(s.userConnections[identity.AccountID])
 	s.userConnMu.Unlock()
+	s.scheduleDocFanoutFilterReconcile()
 
 	duration := time.Since(upgradeStart)
 	s.recordUpgradeSuccess(connCtx, client.AccountID, duration)
 
-	// Send clientID to client immediately after connection
-	connectionMsg := map[string]interface{}{
-		"type":     "connected",
-		"clientID": client.id,
-		"subscription": map[string]interface{}{
+	// Send clientID + hosting container id immediately after connection
+	// (container_id lets edge clients / soak observe place without Redis).
+	connectionMsg := map[string]any{
+		"type":         "connected",
+		"clientID":     client.id,
+		"container_id": container.ID(),
+		"subscription": map[string]any{
 			"account":     true,
 			"corporation": false,
 			"alliance":    false,
@@ -230,16 +233,16 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		select {
 		case client.Send <- connectionMsgBytes:
-			logs.AttachDebugStep(r, "connected_message_queued", map[string]interface{}{
+			logs.AttachDebugStep(r, "connected_message_queued", map[string]any{
 				"client_id": client.id,
 			})
 		default:
-			logs.AttachHandlerCaveat(r, "connected_message_buffer_full", "failed to queue connected message (send buffer full)", map[string]interface{}{
+			logs.AttachHandlerCaveat(r, "connected_message_buffer_full", "failed to queue connected message (send buffer full)", map[string]any{
 				"client_id": client.id,
 			})
 		}
 	} else {
-		logs.AttachHandlerCaveat(r, "connected_message_marshal_failed", "failed to marshal connected message", map[string]interface{}{
+		logs.AttachHandlerCaveat(r, "connected_message_marshal_failed", "failed to marshal connected message", map[string]any{
 			"client_id": client.id,
 			"error":     err.Error(),
 		})

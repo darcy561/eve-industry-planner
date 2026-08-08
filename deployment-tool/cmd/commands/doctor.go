@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"eve-industry-planner/deployment-tool/internal/docker"
+	"eve-industry-planner/deployment-tool/internal/kit"
 	"eve-industry-planner/deployment-tool/internal/msg"
 	"eve-industry-planner/deployment-tool/internal/process"
 )
@@ -57,7 +58,7 @@ func runEngineProbe(cmd *cobra.Command) error {
 	}
 	if probe.Err != nil {
 		if probe.Engine.APIVersion != "" {
-			fmt.Fprintf(out, "eip %s\n", Version)
+			fmt.Fprintf(out, "eip %s\n", kit.Version)
 			fmt.Fprintf(out, "docker: host=%s api=%s ping=ok (%v)\n", host, probe.Engine.APIVersion, probe.Err)
 			fmt.Fprintf(out, "health: off\n")
 			return nil
@@ -65,7 +66,7 @@ func runEngineProbe(cmd *cobra.Command) error {
 		return probe.Err
 	}
 
-	fmt.Fprintf(out, "eip %s\n", Version)
+	fmt.Fprintf(out, "eip %s\n", kit.Version)
 	if probe.AppVersion != "" {
 		fmt.Fprintf(out, "app %s\n", probe.AppVersion)
 	}

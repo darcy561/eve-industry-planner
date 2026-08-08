@@ -3,10 +3,12 @@ package natslogic
 import (
 	"testing"
 	"time"
+
+	natscore "eve-industry-planner/shared/core/nats"
 )
 
 func TestDocFanoutConsumerConfigsHaveInactiveThreshold(t *testing.T) {
-	t.Setenv("OTEL_SERVICE_INSTANCE_ID", "ws-test-replica")
+	t.Setenv("HOSTNAME", "ws-test-replica")
 
 	_, live := DocLiveUpdatesConsumerConfig()
 	if live.InactiveThreshold != DocFanoutConsumerInactiveThreshold {
@@ -18,6 +20,9 @@ func TestDocFanoutConsumerConfigsHaveInactiveThreshold(t *testing.T) {
 	if live.Durable != "doc-live-updates-ws-test-replica" {
 		t.Fatalf("unexpected live durable %q", live.Durable)
 	}
+	if live.FilterSubject != "" || len(live.FilterSubjects) != 1 || live.FilterSubjects[0] != natscore.DocUpdateFilterInert {
+		t.Fatalf("live should start inert FilterSubjects, got subject=%q subjects=%v", live.FilterSubject, live.FilterSubjects)
+	}
 
 	_, lock := DocLockConsumerConfig()
 	if lock.InactiveThreshold != DocFanoutConsumerInactiveThreshold {
@@ -25,5 +30,8 @@ func TestDocFanoutConsumerConfigsHaveInactiveThreshold(t *testing.T) {
 	}
 	if lock.Durable != "doc-lock-ws-test-replica" {
 		t.Fatalf("unexpected lock durable %q", lock.Durable)
+	}
+	if lock.FilterSubject != "" || len(lock.FilterSubjects) != 1 || lock.FilterSubjects[0] != natscore.DocLockFilterInert {
+		t.Fatalf("lock should start inert FilterSubjects, got subject=%q subjects=%v", lock.FilterSubject, lock.FilterSubjects)
 	}
 }

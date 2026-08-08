@@ -14,7 +14,7 @@ func TestDiscoverAttachFromAppStack(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantSvc := map[string]bool{
-		"api": true, "websocket": true, "worker": true, "core": true, "ws-router": true,
+		"api": true, "websocket": true, "worker": true, "core": true,
 	}
 	seen := map[string]bool{}
 	for _, a := range got {

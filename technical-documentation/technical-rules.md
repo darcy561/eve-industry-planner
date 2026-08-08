@@ -82,6 +82,7 @@ Applies to **SPA / frontend**, Go services, and Deployment Tool alike — not a 
 ### Prefer modern platform idioms (every stack)
 
 - Prefer **current** language/framework idioms over legacy patterns in the stack you are editing (Go, and later SPA/TS when that bar is filled in).
+- **Go:** verify with **`go fix`** — see **Prefer modern Go** below.
 - **Frontend:** use modern React / JavaScript practices consistent with the repo as they are documented; do not introduce parallel old patterns “because the SPA bar is unfinished.” Shared rules here (SoT, reuse, deps, testing-as-we-build, security for client bundles) **already apply**.
 - SPA-specific design-system / UI rules will live in [`frontend/technical-rules.md`](./frontend/technical-rules.md) when written; until then, do not invent a second global frontend standard in chat — extend that file.
 
@@ -143,6 +144,7 @@ Applies to `services/**` (Go) and `deployment-tool/**`. Complements the shared s
 ### Prefer modern Go (and say when you don’t)
 
 - Prefer **newer stdlib / idioms over older** when both work: `slices` / `maps` / `cmp` over hand-rolled loops where they fit; `errors.Is` / `errors.As` / `errors.AsType` over stringly or bare `==`; `strings.Cut` / `SplitSeq` / `CutPrefix` over older split+index patterns; `any` over `interface{}`; no pre-1.22 `e := e` loop captures; `errgroup` for parallel work that returns errors.
+- **`go fix` on written code only:** after writing or editing Go in `services/**` or `deployment-tool/**`, run **`go fix -diff`** scoped to the **packages (or files) you actually touched** in that change — not the whole module, sibling packages, or unrelated paths in the same folder tree. Empty diff on that scope = modern enough for the default fixers; non-empty = apply fixes **only in that same scope** (or `go fix` on those packages then review). Do **not** use the check as a reason to modernize untouched code in the same PR. Do not skip this check on new or changed code.
 - Long-running CLI/ops: **signal-aware contexts** (`process.TimeoutSignalContext` / `SignalContext` + `MapDoneError`) — not bare `context.WithTimeout(context.Background(), …)` for operator verbs.
 - `go.mod` / `tools/go.mod`: **language version only**. **Never** add a `toolchain` directive.
 - Modules are **not all on the latest Go yet** — bump the module `go` version **as we touch that area** (incremental upgrade), not a big-bang rewrite of everything at once.

@@ -857,13 +857,13 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "ws_connected_clients",
-          "legendFormat": "{{ws_instance_id}}",
+          "expr": "ws_connected_clients{service_name=\"websocket\"}",
+          "legendFormat": "{{service_instance_id}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Connected clients by websocket instance (ws_instance_id)",
+      "title": "Connected clients by websocket instance (service_instance_id)",
       "type": "timeseries"
     }
   ],

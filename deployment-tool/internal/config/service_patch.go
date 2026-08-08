@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	swarmtypes "github.com/moby/moby/api/types/swarm"
 	"github.com/moby/moby/client"
@@ -81,7 +82,5 @@ func ApplyServiceSpecPatch(ctx context.Context, apiClient *client.Client, patch 
 }
 
 func mergeStringMap(dst, src map[string]string) {
-	for k, v := range src {
-		dst[k] = v
-	}
+	maps.Copy(dst, src)
 }

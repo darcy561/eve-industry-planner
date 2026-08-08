@@ -2,6 +2,7 @@ package builder
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -32,11 +33,11 @@ func stubSections() []Section {
 	}
 }
 
-func keyEsc() tea.KeyPressMsg     { return tea.KeyPressMsg{Code: tea.KeyEsc} }
-func keyCtrlS() tea.KeyPressMsg   { return tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl} }
-func keyCtrlR() tea.KeyPressMsg   { return tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl} }
-func keySpace() tea.KeyPressMsg   { return tea.KeyPressMsg{Text: " ", Code: ' '} }
-func keyPgDown() tea.KeyPressMsg  { return tea.KeyPressMsg{Code: tea.KeyPgDown} }
+func keyEsc() tea.KeyPressMsg    { return tea.KeyPressMsg{Code: tea.KeyEsc} }
+func keyCtrlS() tea.KeyPressMsg  { return tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl} }
+func keyCtrlR() tea.KeyPressMsg  { return tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl} }
+func keySpace() tea.KeyPressMsg  { return tea.KeyPressMsg{Text: " ", Code: ' '} }
+func keyPgDown() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeyPgDown} }
 
 // applyUpdate runs Update and drainsCmds (huh navigates via NextField cmds).
 func applyUpdate(s Session, msg tea.Msg) Session {
@@ -129,15 +130,10 @@ func cmdHasWindowSizeRequest(cmd tea.Cmd) bool {
 		return true
 	}
 	if batch, ok := msg.(tea.BatchMsg); ok {
-		for _, c := range batch {
-			if cmdHasWindowSizeRequest(c) {
-				return true
-			}
-		}
-		return false
+		return slices.ContainsFunc(batch, cmdHasWindowSizeRequest)
 	}
 	rv := reflect.ValueOf(msg)
-	if rv.Kind() == reflect.Slice && rv.Type().Elem() == reflect.TypeOf((tea.Cmd)(nil)) {
+	if rv.Kind() == reflect.Slice && rv.Type().Elem() == reflect.TypeFor[tea.Cmd]() {
 		for i := 0; i < rv.Len(); i++ {
 			c, _ := rv.Index(i).Interface().(tea.Cmd)
 			if cmdHasWindowSizeRequest(c) {

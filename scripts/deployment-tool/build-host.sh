@@ -10,7 +10,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 TAG="${EIP_CLI_VERSION:-0.0.0-dev}"
-LD="-s -w -X eve-industry-planner/deployment-tool/cmd/commands.Version=${TAG}"
+LD="-s -w -X eve-industry-planner/deployment-tool/internal/kit.Version=${TAG}"
 if [ -n "${EIP_CHANNEL:-}" ]; then
   LD="${LD} -X eve-industry-planner/deployment-tool/internal/kit.Channel=${EIP_CHANNEL}"
 fi

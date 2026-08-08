@@ -35,7 +35,7 @@ Keep `deployment-tool/` tidy and update [tui.md](../tui/tui.md) § TUI package m
 ```text
 deployment-tool/
   internal/catalog/              # CLI verb SoT + services.go (expected Swarm services)
-  internal/kit/                  # Home, product, envfile, writable, Channel/KitBranch,
+  internal/kit/                  # Home, product, envfile, writable, Version/Channel/KitBranch,
                                  # SelfUpdate, UpdateStacks, pathlink, relaunch, obs/
   internal/kit/templates/        # WriteMissing* facade + CheckOperatorDocs
   internal/kit/templates/env/    # EnvFields / emit / autogen / backup / CheckUsable

@@ -83,9 +83,6 @@ x-secrets-core: &secrets-core
   - REFRESH_TOKEN_AES_KEY
   - REFRESH_TOKEN_AES_LEGACY_KEYS
 
-x-secrets-ws-router: &secrets-ws-router
-  - REDIS_PASSWORD
-
 # App / Traefik: start-first so the replacement is up before the old task stops.
 x-app-deploy: &app-deploy
   update_config:
@@ -208,7 +205,6 @@ services:
     dns: *common-dns
     environment:
       <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env]
-      OTEL_SERVICE_INSTANCE_ID: "api-{{.Task.Slot}}"
       APP_VERSION: ${APP_VERSION}
     secrets: *secrets-api
     volumes:
@@ -257,10 +253,9 @@ services:
     dns: *common-dns
     environment:
       <<: [*mongo-env, *redis-env, *nats-env, *app-public-env]
-      OTEL_SERVICE_INSTANCE_ID: "websocket-{{.Task.Slot}}"
       APP_VERSION: ${APP_VERSION}
-      WS_SLOT_CLIENT_CUTOFF: "2000"
-      WS_SLOT_TARGET_CLIENTS: "1500"
+      WS_CLIENT_CUTOFF: "2000"
+      WS_TARGET_CLIENTS: "1500"
     secrets: *secrets-websocket
     volumes:
       - api_data:/data
@@ -301,14 +296,12 @@ services:
     networks: [eip-core, eip-public, eip-docker-ws]
     dns: *common-dns
     environment:
-      <<: *redis-env
-      OTEL_SERVICE_INSTANCE_ID: "ws-router-{{.Task.Slot}}"
+      <<: *nats-env
       APP_VERSION: ${APP_VERSION}
       EIP_WEBSOCKET_SERVICE: eip_websocket
       EIP_WS_BACKEND_PORT: "4001"
       EIP_WS_ROUTER_LISTEN: ":8080"
       DOCKER_HOST: tcp://ws-docker-proxy:2375
-    secrets: *secrets-ws-router
     deploy:
       <<: *app-deploy
       replicas: 1
@@ -352,7 +345,6 @@ services:
     dns: *common-dns
     environment:
       <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env]
-      OTEL_SERVICE_INSTANCE_ID: "worker-{{.Task.Slot}}"
       APP_VERSION: ${APP_VERSION}
       WORKER_ASYNQ_CONCURRENCY: "50"
     secrets: *secrets-worker
@@ -380,7 +372,6 @@ services:
     dns: *common-dns
     environment:
       <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env]
-      OTEL_SERVICE_INSTANCE_ID: core
       APP_VERSION: ${APP_VERSION}
     secrets: *secrets-core
     volumes:

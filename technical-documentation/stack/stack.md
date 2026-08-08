@@ -44,17 +44,17 @@ Websocket process cleanup budget (`shutdownTimeout` / SIGTERM drain wait) is **6
 
 ## Replica identity
 
-Stable per-process IDs for JetStream durables, OTLP `service.instance.id`, and `ws_instance_id` metrics. Stack SoT in [`docker-stack.yml`](../../docker-stack.yml); resolution in [`instanceid.Replica`](../../services/shared/core/instanceid/replica.go).
+Per-process identity is the Docker **short container id** — in-container `HOSTNAME` (default), externally `ContainerStatus.ContainerID[:12]`. Helper: [`container.ID()`](../../services/shared/container/id.go). Used for OTel `service.instance.id`, JetStream durable suffixes, placement backend keys / `PlacementState.container_id`, lease holders, and probes bus instance fields.
 
-| Service | `OTEL_SERVICE_INSTANCE_ID` |
-|---------|----------------------------|
-| api | `api-{{.Task.Slot}}` |
-| websocket | `websocket-{{.Task.Slot}}` |
-| worker | `worker-{{.Task.Slot}}` |
-| ws-router | `ws-router-{{.Task.Slot}}` |
-| core | fixed `core` (`replicas: 1`) |
+| Piece | Rule |
+|-------|------|
+| SoT | `container.ID()` from `HOSTNAME` (then `os.Hostname()`, then `"local"`) |
+| Telemetry | OTel `service.name` + `service.instance.id` only — no parallel `ws_instance_id` |
+| Stack env | Do **not** inject `OTEL_SERVICE_INSTANCE_ID` as identity SoT |
+| Swarm `Task.Slot` | Orchestration ordinal only — not placement or durable identity |
+| Continuity | Replacement containers get a **new** id; stale place → reassign; durables are deleted on graceful drain (crash backstop: JetStream `InactiveThreshold` + reconcile) |
 
-Resolution order: `OTEL_SERVICE_INSTANCE_ID` → `WS_CONSUMER_NAME` → `DOCKER_CONTAINER_NAME` → `CONTAINER_NAME` → `HOSTNAME` → `os.Hostname()` → `"local"` (sanitized, max 64). **Do not** set the same id on two live replicas of the same role. After `service scale` / recreate, the same slot must reuse the same suffix so durables stay continuous. Traefik has no slot id. ws-router placement stores **slot ids** (`websocket-N`), not raw IPs.
+**Do not** set the same identity on two live replicas of the same role. Traefik has no replica identity. ws-router placement stores **container ids**, not `websocket-N` slot names and not raw IPs. Operators target the **current** container id — do not teach pin/cordon/drain “across replace” via slot names.
 
 ## Probes
 

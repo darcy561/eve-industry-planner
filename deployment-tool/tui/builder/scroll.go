@@ -3,7 +3,6 @@ package builder
 import (
 	"charm.land/bubbles/v2/viewport"
 
-	"eve-industry-planner/deployment-tool/tui/theme"
 	"eve-industry-planner/deployment-tool/tui/ui"
 )
 
@@ -11,8 +10,8 @@ import (
 // (panel title + section footer + Back/Finish reserved below the scroll area).
 func (s *Session) sizeFormVP() {
 	innerW, innerH := ui.PanelInnerSize(s.rightW, s.bodyH)
-	h := theme.Max(3, innerH-7)
-	w := theme.Max(12, innerW-2)
+	h := max(3, innerH-7)
+	w := max(12, innerW-2)
 	if s.formVP.Width() == 0 {
 		s.formVP = viewport.New(viewport.WithWidth(w), viewport.WithHeight(h))
 		s.formVP.MouseWheelEnabled = false

@@ -7,7 +7,7 @@ Index: [contents.md](./contents.md).
 | Ticket | Status (mirror) | Overlay |
 |--------|-----------------|---------|
 | #1 | done | [01-eip-core.md](./overlays/01-eip-core.md) |
-| #2 | partial | [02-replica-identity.md](./overlays/02-replica-identity.md) |
+| #2 | **done** — identity + placement signal + live SoT promote (2026-08-07) | [02-replica-identity.md](./overlays/02-replica-identity.md) · [promote/](./promote/README.md) |
 | #3 | done | [03-secrets-configs.md](./overlays/03-secrets-configs.md) |
 | #4 | done | [04-traefik-ws-router.md](./overlays/04-traefik-ws-router.md) |
 | #5 | done | [05-stack-file.md](./overlays/05-stack-file.md) |
@@ -25,13 +25,13 @@ Index: [contents.md](./contents.md).
 | #17 | done | [17-operator-surface.md](./overlays/17-operator-surface.md) |
 | #18 | open | [18-capacity-controller.md](./overlays/18-capacity-controller.md) |
 | #19 | partial | [19-operator-config-yaml.md](./overlays/19-operator-config-yaml.md) |
-| #20 | open | [20-selective-fanout.md](./overlays/20-selective-fanout.md) |
-| #21 | partial | [21-tenant-evacuate.md](./overlays/21-tenant-evacuate.md) |
+| #20 | open — decision pack Outcomes locked | [20-selective-fanout.md](./overlays/20-selective-fanout.md) · [20-selective-fanout/](./20-selective-fanout/) |
+| #21 | partial — Redis overlays retired by #2; armed ops → #18 | [21-tenant-evacuate.md](./overlays/21-tenant-evacuate.md) |
 | #22 | **done** — absorbed into `eip update` / #23 | [22-data-plane-updates.md](./overlays/22-data-plane-updates.md) |
 | #23 | done | [23-app-image-ship.md](./overlays/23-app-image-ship.md) |
 | #24 | done | [24-secrets-day2.md](./overlays/24-secrets-day2.md) |
 | #25 | done | [25-test-suite-foundation.md](./overlays/25-test-suite-foundation.md) |
-| #26 | open | [26-ws-affinity-sim.md](./overlays/26-ws-affinity-sim.md) |
+| #26 | open — soak base (#8/#2); co-location asserts still open | [26-ws-affinity-sim.md](./overlays/26-ws-affinity-sim.md) |
 | #27 | open | [27-capacity-dry-run.md](./overlays/27-capacity-dry-run.md) |
 | #28 | done | [28-core-failover-tests.md](./overlays/28-core-failover-tests.md) |
 | #29 | open | [29-management-ops-sim.md](./overlays/29-management-ops-sim.md) |

@@ -3,8 +3,6 @@ package ui
 import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
-
-	"eve-industry-planner/deployment-tool/tui/theme"
 )
 
 // NewList builds a home/nav list with marquee selection styling (keys + mouse zones).
@@ -12,8 +10,8 @@ func NewList(items []list.Item, d *MarqueeDelegate, width, height int) list.Mode
 	if d == nil {
 		d = NewMarqueeDelegate(width)
 	}
-	w := theme.Max(10, width)
-	h := theme.Max(5, height)
+	w := max(10, width)
+	h := max(5, height)
 	d.SetWidth(w)
 	l := list.New(items, d, w, h)
 	l.SetShowTitle(false)
@@ -47,8 +45,8 @@ func SizeList(l *list.Model, d *MarqueeDelegate, width, height int) {
 	if l == nil || d == nil {
 		return
 	}
-	w := theme.Max(10, width)
-	h := theme.Max(5, height)
+	w := max(10, width)
+	h := max(5, height)
 	d.SetWidth(w)
 	l.SetSize(w, h)
 	l.SetDelegate(d)

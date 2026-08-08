@@ -25,8 +25,8 @@ const (
 
 	// Security configuration.
 	defaultMaxConnectionsPerUser = 5
-	defaultSlotClientCutoff      = 2000
-	defaultSlotTargetClients     = 1500
+	defaultClientCutoff          = 2000
+	defaultTargetClients         = 1500
 	MessageRateLimit             = 200
 	MessageRateWindow            = 1 * time.Second
 
@@ -61,42 +61,42 @@ func MaxConnectionsPerUser() int {
 // SessionHandoffTTL is used for Redis key TTL and in-memory handoff expiry.
 var SessionHandoffTTL = time.Duration(WSReconnectMaxMS+WSSessionHandoffSlackMS) * time.Millisecond
 
-// SlotClientCutoff is the hard per-replica client count for the Redis full placement hint
-// (eip:ws:full:…). 0 means unlimited (never mark the slot full).
-func SlotClientCutoff() int {
-	v := strings.TrimSpace(os.Getenv("WS_SLOT_CLIENT_CUTOFF"))
+// ClientCutoff is the hard per-replica client count for placement full + upgrade refuse.
+// 0 means unlimited (never mark the backend full / never refuse for cutoff).
+func ClientCutoff() int {
+	v := strings.TrimSpace(os.Getenv("WS_CLIENT_CUTOFF"))
 	if v == "" {
-		return defaultSlotClientCutoff
+		return defaultClientCutoff
 	}
 	n, err := strconv.Atoi(v)
 	if err != nil || n < 0 {
-		return defaultSlotClientCutoff
+		return defaultClientCutoff
 	}
 	return n
 }
 
-// SlotAtClientCutoff reports whether connected clients have reached the cutoff.
-func SlotAtClientCutoff(connected int) bool {
-	cutoff := SlotClientCutoff()
+// AtClientCutoff reports whether connected clients have reached the cutoff.
+func AtClientCutoff(connected int) bool {
+	cutoff := ClientCutoff()
 	return cutoff > 0 && connected >= cutoff
 }
 
-// SlotTargetClients is the soft per-replica client count for the Redis soft
-// placement hint (eip:ws:soft:…). 0 means soft divert off (never mark soft).
-func SlotTargetClients() int {
-	v := strings.TrimSpace(os.Getenv("WS_SLOT_TARGET_CLIENTS"))
+// TargetClients is the soft per-replica client count for placement soft divert.
+// 0 means soft divert off (never mark soft).
+func TargetClients() int {
+	v := strings.TrimSpace(os.Getenv("WS_TARGET_CLIENTS"))
 	if v == "" {
-		return defaultSlotTargetClients
+		return defaultTargetClients
 	}
 	n, err := strconv.Atoi(v)
 	if err != nil || n < 0 {
-		return defaultSlotTargetClients
+		return defaultTargetClients
 	}
 	return n
 }
 
-// SlotAtTargetClients reports whether connected clients have reached the soft target.
-func SlotAtTargetClients(connected int) bool {
-	target := SlotTargetClients()
+// AtTargetClients reports whether connected clients have reached the soft target.
+func AtTargetClients(connected int) bool {
+	target := TargetClients()
 	return target > 0 && connected >= target
 }

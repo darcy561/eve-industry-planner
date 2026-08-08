@@ -71,7 +71,7 @@ func TestExpandRepoStacksNoBareDollarCORS(t *testing.T) {
 func assertStackDeploySafeDollars(t *testing.T, text string) {
 	t.Helper()
 	// CORS regex anchors must be $$ for docker stack deploy's second interpolate.
-	for _, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		if !strings.Contains(line, "accessControlAllowOriginListRegex") {
 			continue
 		}

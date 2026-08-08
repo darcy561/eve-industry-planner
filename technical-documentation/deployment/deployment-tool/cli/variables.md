@@ -37,7 +37,7 @@ Full **TUI row → CLI verb** map → [verbs.md](./verbs.md). Health gating UX �
 | Live YAML load / validate / sync / apply | [`internal/config`](../../../../deployment-tool/internal/config/) |
 | Deploy-home stack filenames | [`kit.StackFiles`](../../../../deployment-tool/internal/kit/stackupdate.go) (`docker-stack.yml` / `.data.yml` / `.obs.yml`) — init/`eip update` always; `kit.Require` omits obs (addon-gated) |
 | Stack YAML fetch / refresh | [`kit.UpdateStacks`](../../../../deployment-tool/internal/kit/stackupdate.go) (`MissingOnly` for init/Setup; full compare for `eip update`) |
-| Binary Release channel / kit git branch | [`kit.Channel`](../../../../deployment-tool/internal/kit/channel.go) / `kit.KitBranch` (ldflags); `BinaryChannel()` / `ResolveKitBranch()` — operator narrative → [release-channels.md](./release-channels.md) |
+| Tool binary version / Release channel / kit git branch | [`kit.Version`](../../../../deployment-tool/internal/kit/channel.go) / `kit.Channel` / `kit.KitBranch` (ldflags); `BinaryChannel()` / `ResolveKitBranch()` — operator narrative → [release-channels.md](./release-channels.md) |
 | Required/optional Swarm secret keys from `.env` | [`internal/swarm`](../../../../deployment-tool/internal/swarm/) (`RequiredKeys` / `OptionalKeys`) |
 | Per-service secret attach lists | [`docker-stack.yml`](../../../../docker-stack.yml) `secrets:` (discovered by `swarm.DiscoverAttach` / `stack.SecretAttaches`) |
 | Expected Swarm service groups + fragments | [`internal/catalog/services.go`](../../../../deployment-tool/internal/catalog/services.go) |

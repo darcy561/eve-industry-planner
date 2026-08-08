@@ -168,7 +168,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *model) layout() {
 	chrome := brand.MiniHeight() + 1 /*rule*/ + 1 /*footer*/
 	bodyH := max(m.height-chrome, 3)
-	ui.SizeViewport(&m.vp, theme.Max(12, m.width-2*theme.HMargin), bodyH)
+	ui.SizeViewport(&m.vp, max(12, m.width-2*theme.HMargin), bodyH)
 	m.syncVP()
 }
 
@@ -206,7 +206,7 @@ func (m model) renderHeader() string {
 	row := lipgloss.JoinHorizontal(lipgloss.Top, logo, textCol)
 	rule := lipgloss.NewStyle().
 		Foreground(theme.Border).
-		Render(strings.Repeat("─", theme.Max(8, m.width-2*theme.HMargin)))
+		Render(strings.Repeat("─", max(8, m.width-2*theme.HMargin)))
 	return lipgloss.NewStyle().
 		Width(m.width).
 		Padding(0, theme.HMargin).

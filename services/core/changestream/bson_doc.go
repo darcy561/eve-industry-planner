@@ -25,6 +25,6 @@ func changeStreamDocFieldStatus(changeEvent bson.M, key string) string {
 
 // subDocumentToMap converts any BSON-decoded subdocument (bson.M, bson.D, etc.)
 // into bson.M so field lookups (_meta.accountID, etc.) work reliably on change stream events.
-func subDocumentToMap(v interface{}) bson.M {
+func subDocumentToMap(v any) bson.M {
 	return eipmongo.AsDocumentM(v)
 }

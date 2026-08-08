@@ -50,7 +50,7 @@ func buildIdentities(clients, accounts int, mode affinityMode, corpID, allianceI
 		accounts = clients
 	}
 	out := make([]clientIdentity, clients)
-	for i := 0; i < clients; i++ {
+	for i := range clients {
 		acctN := (i % accounts) + 1
 		accountID := fmt.Sprintf("soak-acct-%d", acctN)
 		sessionID := fmt.Sprintf("soak-sess-%d", i+1)

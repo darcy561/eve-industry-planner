@@ -53,11 +53,11 @@ func (c Config) DesiredFromConfig(targets []stack.CapacityTarget, appDoc stack.D
 		svc := appDoc.Services[t.Service]
 		switch t.YAMLKey {
 		case "websocket":
-			if stack.HasEnvironmentKey(svc, stack.EnvWSSlotClientCutoff) {
-				d.Env[stack.EnvWSSlotClientCutoff] = itoa(s.ClientCutoff)
+			if stack.HasEnvironmentKey(svc, stack.EnvWSClientCutoff) {
+				d.Env[stack.EnvWSClientCutoff] = itoa(s.ClientCutoff)
 			}
-			if stack.HasEnvironmentKey(svc, stack.EnvWSSlotTargetClients) {
-				d.Env[stack.EnvWSSlotTargetClients] = itoa(s.TargetClients)
+			if stack.HasEnvironmentKey(svc, stack.EnvWSTargetClients) {
+				d.Env[stack.EnvWSTargetClients] = itoa(s.TargetClients)
 			}
 		case "worker":
 			if stack.HasEnvironmentKey(svc, stack.EnvWorkerAsynqConcurrency) {

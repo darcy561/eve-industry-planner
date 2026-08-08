@@ -14,13 +14,13 @@ func TestDiffServiceNoop(t *testing.T) {
 		Replicas:     2,
 		CapacityMin:  "2",
 		CapacityMax:  "4",
-		Env:          map[string]string{"WS_SLOT_CLIENT_CUTOFF": "2000"},
+		Env:          map[string]string{"WS_CLIENT_CUTOFF": "2000"},
 	}
 	live := LiveService{
 		Replicas:    2,
 		CapacityMin: "2",
 		CapacityMax: "4",
-		Env:         map[string]string{"WS_SLOT_CLIENT_CUTOFF": "2000", "OTHER": "x"},
+		Env:         map[string]string{"WS_CLIENT_CUTOFF": "2000", "OTHER": "x"},
 	}
 	if ch := DiffService(live, desire); len(ch) != 0 {
 		t.Fatalf("want no changes, got %#v", ch)
@@ -34,13 +34,13 @@ func TestDiffServiceEnvAndLabel(t *testing.T) {
 		Replicas:     2,
 		CapacityMin:  "2",
 		CapacityMax:  "4",
-		Env:          map[string]string{"WS_SLOT_CLIENT_CUTOFF": "2000"},
+		Env:          map[string]string{"WS_CLIENT_CUTOFF": "2000"},
 	}
 	live := LiveService{
 		Replicas:    2,
 		CapacityMin: "2",
 		CapacityMax: "12",
-		Env:         map[string]string{"WS_SLOT_CLIENT_CUTOFF": "1"},
+		Env:         map[string]string{"WS_CLIENT_CUTOFF": "1"},
 	}
 	ch := DiffService(live, desire)
 	if len(ch) != 2 {
@@ -198,7 +198,7 @@ func TestDesiredFromConfigEnvGating(t *testing.T) {
 			"worker": {
 				Environment: stack.ServiceEnv{stack.EnvWorkerAsynqConcurrency: "1"},
 			},
-			"websocket": {}, // no WS_SLOT_* → env omitted
+			"websocket": {}, // no WS_CLIENT_*/WS_TARGET_* → env omitted
 		},
 	}
 	targets := []stack.CapacityTarget{
@@ -230,8 +230,8 @@ func TestDesiredFromConfigEnvGating(t *testing.T) {
 
 	doc.Services["websocket"] = stack.Service{
 		Environment: stack.ServiceEnv{
-			stack.EnvWSSlotClientCutoff:  "2000",
-			stack.EnvWSSlotTargetClients: "1500",
+			stack.EnvWSClientCutoff:  "2000",
+			stack.EnvWSTargetClients: "1500",
 		},
 	}
 	got = cfg.DesiredFromConfig(targets, doc)
@@ -240,7 +240,7 @@ func TestDesiredFromConfigEnvGating(t *testing.T) {
 		by[d.SwarmService] = d
 	}
 	env := by["eip_websocket"].Env
-	if env[stack.EnvWSSlotClientCutoff] != "99" || env[stack.EnvWSSlotTargetClients] != "50" {
+	if env[stack.EnvWSClientCutoff] != "99" || env[stack.EnvWSTargetClients] != "50" {
 		t.Fatalf("websocket env when declared: %#v", env)
 	}
 }

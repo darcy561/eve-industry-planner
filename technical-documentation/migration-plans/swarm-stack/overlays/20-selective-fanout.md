@@ -1,27 +1,32 @@
 # #20 — Selective JetStream / WS fan-out (interest-based)
 
 **Roadmap:** [../roadmap.md](../roadmap.md) `#20`  
-**Status (mirror):** open  
-**Not live SoT.** On overlap with live docs, this overlay wins until promote.
+**Status (mirror):** **done** — product + live SoT promote 2026-08-08  
+**Live SoT:** [websocket.md](../../../backend/websocket/websocket.md) § JetStream doc fan-out; [core.md](../../../backend/core/core.md) § Changestream → JetStream; [locks.md](../../../backend/api/document-lock/locks.md) (WS filters). Snapshot: [../promote/](../promote/).
+
+## Decision pack (history)
+
+→ **[../20-selective-fanout/](../20-selective-fanout/)**
+
+Durable **naming** under [#2 jetstream-durables](../02-replica-identity/jetstream-durables.md).
 
 ## What changed
 
-_Fill as work for this ticket lands. Keep current-behaviour notes here during the project._
+_Publisher + selective filters (2026-08-08):_ `UpdateConsumerFilterSubjects`; WS debounced reconcile from `HostedTenants`; core publishes `doc.update.{tenantString}.{collection}.{docID}`; empty hosts use inert filters (not `>`). Live stack verified: host/non-host FilterSubjects + deliveries. Promote into live SoT same day.
 
 ## How this part works after the change
 
-_Operator / implementer behaviour after the change. Promote into live SoT only with go-ahead._
+→ Prefer **live** docs above. Summary: one durable per `container.ID()`; mutable `FilterSubjects` from local `HostedTenants`; tenant-keyed `doc.update`; lock filters phase-1 = `doc.lock.{accountID}` for hosted accounts; updates `DeliverNew` / locks `DeliverLast` on widen.
 
-## Still open
+## Still open (follow-ons — not blocking #20 done)
 
-_Explicit remainders for this ticket (or “none”)._
+1. Formal Grafana pull≈0 / soak profile (manual NATS + log evidence accepted for close)
+2. Cross-replica hosted-tenant census — parked (#18 / #21)
 
-## Missing live SoT discovered mid-work
-
-_Draft here in live-doc shape. Promote with the rest._
+Corp/alliance lock subjects (`doc.lock.{tenantString}`) are **not** this overlay — see [document-lock roadmap #32](../../../backend/api/document-lock/roadmap.md) (notes what #20 already landed for account filters).
 
 ## Notes / decisions
 
-- **Locked with #8:** local hosted-tenant set is the in-process query view (`HostedTenants` / `HostsTenant`). **Rejected:** Redis interest registry mirroring `account:` / `corporation:` / `alliance:` hosting keys.
-- **Cross-replica “who hosts what”:** NATS census and/or internal HTTP API (#18 consumers) — not Redis. Slot filter updates read the **local** query view only.
-- Detail / acceptance: [roadmap.md](../roadmap.md) `#20`.
+- Local `HostedTenants` only; **no** Redis interest registry (#8).
+- Census parked — not required for selective pull.
+- Filter updates are cost control; miss window accepted ([empty-and-miss](../20-selective-fanout/empty-and-miss.md)).

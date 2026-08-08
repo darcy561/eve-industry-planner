@@ -3,7 +3,7 @@ package status
 import (
 	tea "charm.land/bubbletea/v2"
 
-	"eve-industry-planner/deployment-tool/cmd/commands"
+	"eve-industry-planner/deployment-tool/internal/kit"
 	"eve-industry-planner/deployment-tool/internal/msg"
 	"eve-industry-planner/deployment-tool/tui/exec"
 )
@@ -47,7 +47,7 @@ type Msg struct {
 // Default returns chips in the unknown / probing state.
 func Default() Snapshot {
 	return Snapshot{
-		ToolVersion: commands.Version,
+		ToolVersion: kit.Version,
 		Docker:      LightOff,
 		DockerWord:  "",
 		Health:      LightOff,
@@ -64,7 +64,7 @@ func ProbeCmd(base Snapshot) tea.Cmd {
 		snap := Default()
 		snap.ToolVersion = base.ToolVersion
 		if snap.ToolVersion == "" {
-			snap.ToolVersion = commands.Version
+			snap.ToolVersion = kit.Version
 		}
 		// Sticky until a successful probe emits chip.app (hard engine-down skips emit).
 		snap.AppVersion = base.AppVersion

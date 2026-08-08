@@ -35,12 +35,6 @@ func ProgressBarFromFraction(fraction *float64) *tea.ProgressBar {
 	if fraction == nil {
 		return tea.NewProgressBar(tea.ProgressBarIndeterminate, 0)
 	}
-	pct := int(*fraction * 100)
-	if pct < 0 {
-		pct = 0
-	}
-	if pct > 100 {
-		pct = 100
-	}
+	pct := min(max(int(*fraction*100), 0), 100)
 	return tea.NewProgressBar(tea.ProgressBarDefault, pct)
 }

@@ -235,13 +235,15 @@ otelcol.exporter.debug "discard_traces" {
 }
 
 // Match otel-collector translation_strategy UnderscoreEscapingWithoutSuffixes (no extra type/unit suffixes).
+// resource_to_telemetry_conversion promotes OTel resource attrs (service.name, service.instance.id)
+// onto metric labels (service_name, service_instance_id) — standard per-container identity for Prom/Grafana.
 otelcol.exporter.prometheus "apps" {
-	add_metric_suffixes     = false
-	include_scope_info      = false
-	include_target_info     = false
-	include_scope_labels    = false
-	resource_to_telemetry_conversion = false
-	forward_to              = [prometheus.relabel.otel_collector.receiver]
+	add_metric_suffixes              = false
+	include_scope_info               = false
+	include_target_info              = false
+	include_scope_labels             = false
+	resource_to_telemetry_conversion = true
+	forward_to                       = [prometheus.relabel.otel_collector.receiver]
 }
 
 // Prometheus scrape used job="otel_collector"; preserve that label for dashboards that filter on it.

@@ -113,8 +113,9 @@ One Redis lock row = one `(accountID, collection, docID)`. Two browsers on the s
 ### #32 — JetStream subjects and WebSocket fan-out by tenant
 
 - **Status**: open · **Size**: M · **Where**: `documentlock/publish.go`, `shared/core/nats/constants.go` (`SubjectDocLock`), `websocket/server/nats_doc_lock.go`, subscription / `broadcastRawToAccount` → tenant-based broadcast (new helper or parameterised bucket).
-- **Why**: today `doc.lock.{accountID}` and `broadcastRawToAccount` only reach account-scoped listeners.
-- **How**: publish to `doc.lock.{tenantString}`; WS clients subscribe to **all tenants** needed for open routes (union of personal account + corps/alliances the session may edit). Echo suppression by `sessionID` unchanged; consider suppress by principal if needed. Personal-only sessions keep a single `account:…` subscription (same as today after encoding).
+- **Why**: today publish + in-process delivery are still account-scoped (`doc.lock.{accountID}`, `broadcastRawToAccount`); corp/alliance lock subjects are not on the bus yet.
+- **Already landed (outside this roadmap — swarm selective fan-out, 2026-08-08):** websocket lock durables are **not** a `doc.lock.>` firehose. Each replica’s `doc-lock-{container.ID()}` durable uses mutable **FilterSubjects** = `doc.lock.{accountID}` for each locally hosted `account:{id}` (inert `__none__` when empty; `DeliverLast`). Publish subject unchanged: `doc.lock.{accountID}`. Live SoT: [websocket.md](../websocket/websocket.md) § JetStream doc fan-out; [locks.md](./locks.md) publish/WS pull. Do **not** re-implement account-only selective pull here.
+- **Still this ticket:** publish `doc.lock.{tenantString}` (same family as placement / `doc.update` tenants); widen WS filters + replace account-only broadcast with tenant-aware fan-out for all tenants needed on open routes (personal + corp/alliance); personal-only sessions stay a single `account:…` path after #30 encoding. Echo suppression by `sessionID` unchanged (consider suppress by principal if needed). Depends on **#30** / **#31**.
 
 ### #33 — `LockRecord` and waitlist entries: holder principal
 

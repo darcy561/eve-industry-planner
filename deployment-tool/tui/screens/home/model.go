@@ -10,7 +10,6 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 
-	"eve-industry-planner/deployment-tool/cmd/commands"
 	"eve-industry-planner/deployment-tool/internal/kit"
 	eipmsg "eve-industry-planner/deployment-tool/internal/msg"
 	"eve-industry-planner/deployment-tool/tui/brand"
@@ -217,7 +216,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		prevDocker, prevHealth := m.snap.Docker, m.snap.Health
 		statusMsg, statusTick := m.snap.StatusMsg, m.snap.StatusMsgTick
 		m.snap = msg.Snap
-		m.snap.ToolVersion = commands.Version
+		m.snap.ToolVersion = kit.Version
 		m.snap.StatusMsg = statusMsg
 		m.snap.StatusMsgTick = statusTick
 		if m.snap.Docker != prevDocker || m.snap.Health != prevHealth {
@@ -462,10 +461,10 @@ func (m *model) layout() tea.Cmd {
 	vpW, vpH := ui.ViewportSizeInPanel(m.rightW, m.bodyH)
 	if m.cmdSession {
 		// Reserve one row inside the OUTPUT panel for the command prompt.
-		vpH = theme.Max(3, vpH-1)
-		m.input.SetWidth(theme.Max(12, vpW-2))
+		vpH = max(3, vpH-1)
+		m.input.SetWidth(max(12, vpW-2))
 	} else {
-		m.input.SetWidth(theme.Max(12, m.width-2*theme.HMargin-8))
+		m.input.SetWidth(max(12, m.width-2*theme.HMargin-8))
 	}
 	ui.SizeViewport(&m.viewport, vpW, vpH)
 	m.syncPane()

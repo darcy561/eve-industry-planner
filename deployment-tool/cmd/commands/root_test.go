@@ -3,6 +3,8 @@ package commands
 import (
 	"strings"
 	"testing"
+
+	"eve-industry-planner/deployment-tool/internal/kit"
 )
 
 func TestRunArgsVersion(t *testing.T) {
@@ -10,7 +12,7 @@ func TestRunArgsVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, Version) {
+	if !strings.Contains(out, kit.Version) {
 		t.Fatalf("version output %q", out)
 	}
 }

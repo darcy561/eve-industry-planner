@@ -141,7 +141,7 @@ func ConfigFields() []ConfigField {
 		},
 		{
 			Key: "services.websocket.target_clients", Section: "Websocket", Label: "Target clients",
-			Help: "Soft divert threshold per replica (eip sync → WS_SLOT_TARGET_CLIENTS). New homes prefer non-soft slots; place/pin stick. 0 = off. When both > 0 must be ≤ client_cutoff.",
+			Help: "Soft divert threshold per replica (eip sync → WS_TARGET_CLIENTS). New homes prefer non-soft backends; place/pin stick. 0 = off. When both > 0 must be ≤ client_cutoff.",
 			Type: FieldInt,
 		},
 		{

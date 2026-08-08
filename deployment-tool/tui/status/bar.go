@@ -18,9 +18,9 @@ func RenderBar(width int, snap Snapshot) string {
 	}
 	chips := lipgloss.JoinHorizontal(lipgloss.Center, parts...)
 
-	inner := theme.Max(0, width-2*theme.HMargin)
+	inner := max(0, width-2*theme.HMargin)
 	chipW := lipgloss.Width(chips)
-	msgW := theme.Max(0, inner-chipW-1)
+	msgW := max(0, inner-chipW-1)
 	msg := ""
 	if snap.StatusMsg != "" && msgW > 0 {
 		text := ui.MarqueeWindow(snap.StatusMsg, msgW, snap.StatusMsgTick)

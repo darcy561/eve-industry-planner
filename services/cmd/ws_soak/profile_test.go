@@ -68,12 +68,9 @@ func TestBuildLimitsIdentitiesMixed(t *testing.T) {
 	}
 }
 
-func TestSlotsFromFlagKeys(t *testing.T) {
-	got := slotsFromFlagKeys([]string{
-		wsplacement.SoftPrefix + "websocket-1",
-		wsplacement.SoftPrefix + "websocket-2",
-	}, wsplacement.SoftPrefix)
-	if len(got) != 2 {
+func TestUniqueSorted(t *testing.T) {
+	got := uniqueSorted([]string{"b", "a", "b", " ", "a"})
+	if len(got) != 2 || got[0] != "a" || got[1] != "b" {
 		t.Fatalf("got %#v", got)
 	}
 }

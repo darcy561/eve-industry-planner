@@ -302,7 +302,7 @@ jobs:
         run: |
           set -euo pipefail
           # Version = immutable pin; Channel = Release tag; KitBranch = stack YAML git ref.
-          LDFLAGS="-s -w -X eve-industry-planner/deployment-tool/cmd/commands.Version=${VER}"
+          LDFLAGS="-s -w -X eve-industry-planner/deployment-tool/internal/kit.Version=${VER}"
           LDFLAGS="${LDFLAGS} -X eve-industry-planner/deployment-tool/internal/kit.Channel=${CHANNEL}"
           LDFLAGS="${LDFLAGS} -X eve-industry-planner/deployment-tool/internal/kit.KitBranch=${KIT_BRANCH}"
           mkdir -p dist

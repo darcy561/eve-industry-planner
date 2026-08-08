@@ -20,7 +20,7 @@ import (
 	"time"
 
 	apihelperauth "eve-industry-planner/api/helper/auth"
-	"eve-industry-planner/shared/core/instanceid"
+	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/orchestrationprobes"
 	"eve-industry-planner/shared/stackservices"
 	"eve-industry-planner/shared/wsplacement"
@@ -53,16 +53,16 @@ type integFixture struct {
 //
 // Env defaults (single SoT — do not re-Setenv in scenarios unless overriding):
 //
-//	OTEL_SERVICE_INSTANCE_ID = websocket-integ:<t.Name()>
-//	WS_SLOT_CLIENT_CUTOFF    = 0  (unlimited)
-//	WS_SLOT_TARGET_CLIENTS   = 0  (soft off)
+//	HOSTNAME = websocket-integ:<t.Name()>
+//	WS_CLIENT_CUTOFF    = 0  (unlimited)
+//	WS_TARGET_CLIENTS   = 0  (soft off)
 //
-// Override limits with setSlotLimits after the fixture is built.
+// Override limits with setPlacementLimits after the fixture is built.
 func newIntegFixture(t *testing.T) *integFixture {
 	t.Helper()
-	t.Setenv("OTEL_SERVICE_INSTANCE_ID", "websocket-integ:"+t.Name())
-	t.Setenv("WS_SLOT_CLIENT_CUTOFF", "0")
-	t.Setenv("WS_SLOT_TARGET_CLIENTS", "0")
+	t.Setenv("HOSTNAME", "websocket-integ:"+t.Name())
+	t.Setenv("WS_CLIENT_CUTOFF", "0")
+	t.Setenv("WS_TARGET_CLIENTS", "0")
 
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
@@ -80,6 +80,7 @@ func newIntegFixture(t *testing.T) *integFixture {
 		Stack:                  &stackservices.Clients{Redis: rdb},
 		SyncPool:               pond.NewPool(1),
 		upgrader:               upgrader,
+		intakeStopChan:         make(chan struct{}),
 		shutdownChan:           make(chan struct{}),
 	}
 	t.Cleanup(func() {
@@ -98,6 +99,7 @@ func newIntegFixture(t *testing.T) *integFixture {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", s.HandleWS)
 	mux.HandleFunc("/ws/", s.HandleWS)
+	mux.HandleFunc(wsplacement.StatusPath, s.HandlePlacement)
 	mux.HandleFunc("/ready", orchestrationprobes.ReadyHandler(f.readyCheck))
 	mux.HandleFunc("/healthy", orchestrationprobes.HealthyHandler)
 	f.HTTP = httptest.NewServer(mux)
@@ -131,12 +133,12 @@ func (f *integFixture) setDeps(natsOK, mongoOK bool) {
 	f.deps.mongoOK = mongoOK
 }
 
-// setSlotLimits overrides the fixture defaults for soft target / hard cutoff.
+// setPlacementLimits overrides the fixture defaults for soft target / hard cutoff.
 // Config reads these env vars at call time, so this is safe after newIntegFixture.
-func (f *integFixture) setSlotLimits(targetClients, clientCutoff int) {
+func (f *integFixture) setPlacementLimits(targetClients, clientCutoff int) {
 	f.t.Helper()
-	f.t.Setenv("WS_SLOT_TARGET_CLIENTS", strconv.Itoa(targetClients))
-	f.t.Setenv("WS_SLOT_CLIENT_CUTOFF", strconv.Itoa(clientCutoff))
+	f.t.Setenv("WS_TARGET_CLIENTS", strconv.Itoa(targetClients))
+	f.t.Setenv("WS_CLIENT_CUTOFF", strconv.Itoa(clientCutoff))
 }
 
 func (f *integFixture) seedSession(accountID, sessionID string) {
@@ -277,6 +279,34 @@ func (f *integFixture) readJSONOfType(conn *websocket.Conn, wantType string, tim
 	return nil
 }
 
+func (f *integFixture) redisGet(key string) (string, error) {
+	return f.Redis.Get(context.Background(), key).Result()
+}
+
+func (f *integFixture) redisExists(key string) int64 {
+	f.t.Helper()
+	n, err := f.Redis.Exists(context.Background(), key).Result()
+	if err != nil {
+		f.t.Fatalf("Exists %s: %v", key, err)
+	}
+	return n
+}
+
+func (f *integFixture) requireRedisValue(key, want string) {
+	f.t.Helper()
+	got, err := f.redisGet(key)
+	if err != nil || got != want {
+		f.t.Fatalf("redis %s: got %q err=%v want %q", key, got, err, want)
+	}
+}
+
+func (f *integFixture) requireRedisAbsent(key string) {
+	f.t.Helper()
+	if n := f.redisExists(key); n != 0 {
+		f.t.Fatalf("redis %s: exists=%d want 0", key, n)
+	}
+}
+
 func (f *integFixture) waitRedisExists(key string, timeout time.Duration) {
 	f.t.Helper()
 	deadline := time.Now().Add(timeout)
@@ -356,43 +386,31 @@ func (f *integFixture) setOrgScopes(c *Client, corps, alliances []string) {
 func (f *integFixture) syncPlacementHints() {
 	f.t.Helper()
 	n := f.Server.ConnectedCount()
-	ctx := context.Background()
-	f.Server.syncSlotSoftFlag(ctx, n)
-	f.Server.syncSlotFullFlag(ctx, n)
+	f.Server.syncPlacementFlags(context.Background(), n)
 }
 
-func (f *integFixture) softKey() string {
-	return wsplacement.SoftPrefix + instanceid.Replica()
-}
-
-func (f *integFixture) fullKey() string {
-	return wsplacement.FullPrefix + instanceid.Replica()
-}
-
-func (f *integFixture) redisGet(key string) (string, error) {
-	return f.Redis.Get(context.Background(), key).Result()
-}
-
-func (f *integFixture) redisExists(key string) int64 {
+func (f *integFixture) placementStatus() natscore.PlacementState {
 	f.t.Helper()
-	n, err := f.Redis.Exists(context.Background(), key).Result()
+	res, err := http.Get(f.HTTP.URL + wsplacement.StatusPath)
 	if err != nil {
-		f.t.Fatalf("Exists %s: %v", key, err)
+		f.t.Fatalf("GET placement: %v", err)
 	}
-	return n
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		f.t.Fatalf("placement status=%d", res.StatusCode)
+	}
+	var st natscore.PlacementState
+	if err := json.NewDecoder(res.Body).Decode(&st); err != nil {
+		f.t.Fatalf("decode placement: %v", err)
+	}
+	return st
 }
 
-func (f *integFixture) requireRedisValue(key, want string) {
+func (f *integFixture) requirePlacement(soft, full bool, clients int) {
 	f.t.Helper()
-	got, err := f.redisGet(key)
-	if err != nil || got != want {
-		f.t.Fatalf("redis %s: got %q err=%v want %q", key, got, err, want)
-	}
-}
-
-func (f *integFixture) requireRedisAbsent(key string) {
-	f.t.Helper()
-	if n := f.redisExists(key); n != 0 {
-		f.t.Fatalf("redis %s: exists=%d want 0", key, n)
+	st := f.placementStatus()
+	if st.Soft != soft || st.Full != full || st.Clients != clients {
+		f.t.Fatalf("placement soft=%v full=%v clients=%d want soft=%v full=%v clients=%d",
+			st.Soft, st.Full, st.Clients, soft, full, clients)
 	}
 }

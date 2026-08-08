@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -94,9 +95,7 @@ func inspectGrafanaService(ctx context.Context, apiClient *client.Client, name, 
 		env = parseEnvList(container.Env)
 	}
 	labels := map[string]string{}
-	for k, v := range result.Service.Spec.Labels {
-		labels[k] = v
-	}
+	maps.Copy(labels, result.Service.Spec.Labels)
 	rule := labels[ruleLabelKey]
 	return LiveGrafana{
 		Running:       true,

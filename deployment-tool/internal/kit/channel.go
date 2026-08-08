@@ -5,6 +5,11 @@ import (
 	"strings"
 )
 
+// Version is the tool binary version (EIP_CLI_VERSION). Set at link time:
+//
+//	-X eve-industry-planner/deployment-tool/internal/kit.Version=<version>
+var Version = "0.0.0-dev"
+
 // Channel is the GitHub Release tag baked at link time (-ldflags) for binary updates,
 // e.g. "cli", "prerelease", or "prerelease-<slug>". Empty in local builds → default "cli".
 var Channel = ""

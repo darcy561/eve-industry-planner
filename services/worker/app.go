@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"eve-industry-planner/shared/core/instanceid"
+	"eve-industry-planner/shared/container"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/logs"
@@ -136,7 +136,7 @@ func (a *app) startProbes(ctx context.Context) error {
 
 	bus, err := orchestrationprobes.StartBus(ctx, orchestrationprobes.BusOptions{
 		Role:       "worker",
-		InstanceID: instanceid.Replica(),
+		InstanceID: container.ID(),
 		Conn:       a.clients.NATS,
 		Ready:      ready,
 		Enabled:    false,

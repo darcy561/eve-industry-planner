@@ -4,27 +4,21 @@ import (
 	"context"
 	"fmt"
 	"time"
-
-	"github.com/redis/go-redis/v9"
 )
 
-// waitSoftFull polls Redis until soft and/or full keys appear (or ctx done).
-// seenSoft / seenFull are updated as soon as each class is observed.
-func waitSoftFull(ctx context.Context, rdb *redis.Client, wantSoft, wantFull bool, every time.Duration, seenSoft, seenFull *bool) error {
+// waitSoftFull polls NATS-backed placement state until soft and/or full
+// containers appear (or ctx done). seenSoft / seenFull flip as soon as each is observed.
+func waitSoftFull(ctx context.Context, w *placementWatcher, wantSoft, wantFull bool, every time.Duration, seenSoft, seenFull *bool) error {
 	if every <= 0 {
 		every = 500 * time.Millisecond
 	}
 	t := time.NewTicker(every)
 	defer t.Stop()
 	for {
-		soft, full, err := probeSoftFull(ctx, rdb)
-		if err != nil {
-			return err
-		}
-		if len(soft) > 0 {
+		if len(w.softIDs()) > 0 {
 			*seenSoft = true
 		}
-		if len(full) > 0 {
+		if len(w.fullIDs()) > 0 {
 			*seenFull = true
 		}
 		if (!wantSoft || *seenSoft) && (!wantFull || *seenFull) {

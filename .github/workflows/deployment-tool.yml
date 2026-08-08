@@ -162,7 +162,7 @@ jobs:
           set -euo pipefail
           # Public CLI: Version=semver, Channel=cli (binary updates), KitBranch=Public (stacks).
           # Setup must not preset APP_VERSION from Channel=cli.
-          LDFLAGS="-s -w -X eve-industry-planner/deployment-tool/cmd/commands.Version=${VER}"
+          LDFLAGS="-s -w -X eve-industry-planner/deployment-tool/internal/kit.Version=${VER}"
           LDFLAGS="${LDFLAGS} -X eve-industry-planner/deployment-tool/internal/kit.Channel=cli"
           LDFLAGS="${LDFLAGS} -X eve-industry-planner/deployment-tool/internal/kit.KitBranch=Public"
           mkdir -p dist

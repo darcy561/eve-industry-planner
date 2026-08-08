@@ -21,12 +21,11 @@ type stats struct {
 	ReconnectOK      atomic.Uint64
 
 	refuseByStatus sync.Map // int status -> *atomic.Uint64
-	slotHits       sync.Map // sticky slot -> *atomic.Uint64
-	placeHits      sync.Map // redis place slot -> *atomic.Uint64
+	slotHits       sync.Map // container id (sticky or connected) -> *atomic.Uint64
 
-	// limits: affinity → slot (latest successful place lookup after connect)
+	// limits: affinity → container id (from connected.container_id)
 	affinityPlace sync.Map // string → string
-	// limits: cohort|slot → count
+	// limits: cohort|container_id → count
 	cohortSlots sync.Map // string → *atomic.Uint64
 
 	live atomic.Int64
@@ -61,13 +60,18 @@ func (s *stats) incSlot(slot string) {
 	v.(*atomic.Uint64).Add(1)
 }
 
-func (s *stats) setPlaceCounts(counts map[string]int64) {
-	s.placeHits = sync.Map{}
-	for slot, n := range counts {
-		v := atomic.Uint64{}
-		v.Store(uint64(n))
-		s.placeHits.Store(slot, &v)
-	}
+func (s *stats) placeCountsFromAffinity() map[string]int64 {
+	out := map[string]int64{}
+	s.affinityPlace.Range(func(_, v any) bool {
+		slot, _ := v.(string)
+		slot = strings.TrimSpace(slot)
+		if slot == "" {
+			return true
+		}
+		out[slot]++
+		return true
+	})
+	return out
 }
 
 func (s *stats) recordAffinityPlace(cohort cohortKind, affinity, slot string) {
@@ -171,9 +175,9 @@ func (s *stats) finalReport(softKeys, fullKeys []string, placeCounts map[string]
 	for k, v := range placeCounts {
 		placeU[k] = uint64(v)
 	}
-	b.WriteString(fmt.Sprintf("redis_place:      %s\n", formatCounts(placeU)))
-	b.WriteString(fmt.Sprintf("redis_soft_keys:  %s\n", joinOrNone(softKeys)))
-	b.WriteString(fmt.Sprintf("redis_full_keys:  %s\n", joinOrNone(fullKeys)))
+	b.WriteString(fmt.Sprintf("place_homes:      %s\n", formatCounts(placeU)))
+	b.WriteString(fmt.Sprintf("nats_soft:        %s\n", joinOrNone(softKeys)))
+	b.WriteString(fmt.Sprintf("nats_full:        %s\n", joinOrNone(fullKeys)))
 	return b.String()
 }
 

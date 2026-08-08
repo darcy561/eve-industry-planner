@@ -46,16 +46,10 @@ func buildLimitsPlan(expectTarget, expectCutoff, clients, softDivert, fullProbes
 	}
 	fill := expectCutoff
 	if softDivert < 1 {
-		softDivert = 12
-		if expectTarget/2 > softDivert {
-			softDivert = expectTarget / 2
-		}
+		softDivert = max(expectTarget/2, 12)
 	}
 	if fullProbes < 1 {
-		fullProbes = 10
-		if expectCutoff/4 > fullProbes {
-			fullProbes = expectCutoff / 4
-		}
+		fullProbes = max(expectCutoff/4, 10)
 	}
 	total := fill + softDivert + fullProbes
 	if clients > 0 {
@@ -99,19 +93,19 @@ type limitsEvidence struct {
 	ExpectCutoff int
 	Require503   bool
 
-	SoftSlots          []string
-	FullSlots          []string
-	SoftDivertTotal    int
-	SoftDivertOffSoft  int
-	SoftDivertOnSoft   int
-	FullProbeTotal     int
-	FullProbeOffFull   int
-	FullProbeOnFull    int
-	MinDivertRatio     float64
-	SkipDivertAssert   bool // e.g. single replica — no non-soft home
-	AffinityAccount    int
-	AffinityCorp       int
-	AffinityAlliance   int
+	SoftSlots         []string
+	FullSlots         []string
+	SoftDivertTotal   int
+	SoftDivertOffSoft int
+	SoftDivertOnSoft  int
+	FullProbeTotal    int
+	FullProbeOffFull  int
+	FullProbeOnFull   int
+	MinDivertRatio    float64
+	SkipDivertAssert  bool // e.g. single replica — no non-soft home
+	AffinityAccount   int
+	AffinityCorp      int
+	AffinityAlliance  int
 }
 
 func (e limitsEvidence) assert() error {
@@ -119,10 +113,10 @@ func (e limitsEvidence) assert() error {
 		return fmt.Errorf("limits: connected_ok=%d < expect-target=%d (is stack synced to these thresholds?)", e.ConnectedOK, e.ExpectTarget)
 	}
 	if !e.SoftSeen {
-		return fmt.Errorf("limits: never saw Redis soft key (eip:ws:soft:v1:*) — sync target_clients=%d then re-run", e.ExpectTarget)
+		return fmt.Errorf("limits: never saw NATS soft placement state — sync target_clients=%d then re-run", e.ExpectTarget)
 	}
 	if !e.FullSeen {
-		return fmt.Errorf("limits: never saw Redis full key (eip:ws:full:v1:*) — sync client_cutoff=%d and use enough fill holders", e.ExpectCutoff)
+		return fmt.Errorf("limits: never saw NATS full placement state — sync client_cutoff=%d and use enough fill holders", e.ExpectCutoff)
 	}
 	if e.Require503 && e.Refuse503 == 0 {
 		return fmt.Errorf("limits: -require-503 set but no HTTP %d refuses (point -ws-url at a single websocket task to bypass router divert)", http.StatusServiceUnavailable)
@@ -138,8 +132,8 @@ func (e limitsEvidence) assert() error {
 		}
 	}
 	if e.FullProbeTotal > 0 && e.FullProbeOnFull > 0 {
-		// Router must hard-skip full; any place onto a full slot is a failure.
-		return fmt.Errorf("limits: %d/%d full-probe keys placed on full slot(s) %v (want 0)",
+		// Router must hard-skip full; any place onto a full container is a failure.
+		return fmt.Errorf("limits: %d/%d full-probe keys placed on full container(s) %v (want 0)",
 			e.FullProbeOnFull, e.FullProbeTotal, e.FullSlots)
 	}
 	return nil

@@ -80,8 +80,7 @@ func (s *Server) reader(client *Client) {
 		delete(s.Clients, client.id)
 		clientCount := len(s.Clients)
 		s.ClientsMu.Unlock()
-		s.syncSlotFullFlag(ctx, clientCount)
-		s.syncSlotSoftFlag(ctx, clientCount)
+		s.syncPlacementFlags(ctx, clientCount)
 
 		// Remove from user connection tracking
 		s.userConnMu.Lock()
@@ -98,6 +97,7 @@ func (s *Server) reader(client *Client) {
 			userConnCount = len(userConns)
 		}
 		s.userConnMu.Unlock()
+		s.scheduleDocFanoutFilterReconcile()
 
 		// Close connection if not already closed
 		client.conn.Close()

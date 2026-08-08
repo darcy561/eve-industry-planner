@@ -11,12 +11,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-)
 
-// Version is the tool version (EIP_CLI_VERSION). Set at link time:
-//
-//	-X eve-industry-planner/deployment-tool/cmd/commands.Version=<version>
-var Version = "0.0.0-dev"
+	"eve-industry-planner/deployment-tool/internal/kit"
+)
 
 func rootLong() string {
 	bin := "./eip"
@@ -80,6 +77,6 @@ func RunArgs(args []string) (output string, err error) {
 
 func init() {
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
-	rootCmd.Version = Version
+	rootCmd.Version = kit.Version
 	rootCmd.SetVersionTemplate("{{.Version}}\n")
 }

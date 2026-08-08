@@ -24,11 +24,6 @@ type soakConfig struct {
 	Reconnect   bool
 	ReadIdle    time.Duration // how long to wait between read deadline refreshes
 	DialTimeout time.Duration
-	PlaceRedis  placeLookup
-}
-
-type placeLookup interface {
-	Lookup(ctx context.Context, affinity string) (string, error)
 }
 
 func wsURLForSession(base, sessionID string) (string, error) {
@@ -101,20 +96,23 @@ func dialOnce(cfg soakConfig, id clientIdentity, sticky string) dialResult {
 	return out
 }
 
-func awaitConnected(conn *websocket.Conn, timeout time.Duration) error {
+func awaitConnected(conn *websocket.Conn, timeout time.Duration) (containerID string, err error) {
 	_ = conn.SetReadDeadline(time.Now().Add(timeout))
 	_, raw, err := conn.ReadMessage()
 	if err != nil {
-		return err
+		return "", err
 	}
 	var msg map[string]any
 	if err := json.Unmarshal(raw, &msg); err != nil {
-		return fmt.Errorf("connected json: %w", err)
+		return "", fmt.Errorf("connected json: %w", err)
 	}
 	if got, _ := msg["type"].(string); got != "connected" {
-		return fmt.Errorf("want type=connected got %v", msg["type"])
+		return "", fmt.Errorf("want type=connected got %v", msg["type"])
 	}
-	return nil
+	if cid, _ := msg["container_id"].(string); strings.TrimSpace(cid) != "" {
+		return strings.TrimSpace(cid), nil
+	}
+	return "", nil
 }
 
 // runWorker holds one /ws connection until ctx is done, reconnecting when enabled.
@@ -150,7 +148,8 @@ func runWorker(ctx context.Context, cfg soakConfig, id clientIdentity, st *stats
 			sticky = res.Sticky
 			st.incSlot(sticky)
 		}
-		if err := awaitConnected(res.Conn, 5*time.Second); err != nil {
+		containerID, err := awaitConnected(res.Conn, 5*time.Second)
+		if err != nil {
 			st.CloseUnexpected.Add(1)
 			_ = res.Conn.Close()
 			if !cfg.Reconnect {
@@ -169,10 +168,15 @@ func runWorker(ctx context.Context, cfg soakConfig, id clientIdentity, st *stats
 			st.ReconnectOK.Add(1)
 		}
 		first = false
-		if cfg.PlaceRedis != nil && id.Affinity != "" {
-			if slot, err := cfg.PlaceRedis.Lookup(ctx, id.Affinity); err == nil && slot != "" {
-				st.recordAffinityPlace(id.Cohort, id.Affinity, slot)
-			}
+		// Prefer connected.container_id (place path); sticky is fallback only.
+		home := containerID
+		if home == "" {
+			home = sticky
+		}
+		if home != "" && id.Affinity != "" {
+			st.recordAffinityPlace(id.Cohort, id.Affinity, home)
+		} else if home != "" {
+			st.incSlot(home)
 		}
 		st.live.Add(1)
 

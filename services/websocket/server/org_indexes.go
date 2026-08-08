@@ -103,23 +103,25 @@ func (s *Server) unregisterAlliancePoolsLocked(client *Client) {
 func (s *Server) swapClientOrgScopesAndIndexes(client *Client, next model.RealtimeScopes) {
 	s.corpIndexMu.Lock()
 	s.allianceIndexMu.Lock()
-	defer s.allianceIndexMu.Unlock()
-	defer s.corpIndexMu.Unlock()
 	s.unregisterCorpPoolsLocked(client)
 	s.unregisterAlliancePoolsLocked(client)
 	client.Scopes = next
 	s.registerCorpPoolsLocked(client)
 	s.registerAlliancePoolsLocked(client)
+	s.allianceIndexMu.Unlock()
+	s.corpIndexMu.Unlock()
+	s.scheduleDocFanoutFilterReconcile()
 }
 
 // unregisterClientFromOrgPools removes this client from corp and alliance pools using current Scopes.
 func (s *Server) unregisterClientFromOrgPools(client *Client) {
 	s.corpIndexMu.Lock()
 	s.allianceIndexMu.Lock()
-	defer s.allianceIndexMu.Unlock()
-	defer s.corpIndexMu.Unlock()
 	s.unregisterCorpPoolsLocked(client)
 	s.unregisterAlliancePoolsLocked(client)
+	s.allianceIndexMu.Unlock()
+	s.corpIndexMu.Unlock()
+	s.scheduleDocFanoutFilterReconcile()
 }
 
 // replaceScopesWithinSessionGrants returns org scopes filtered to ids allowed by this connection's session grants.

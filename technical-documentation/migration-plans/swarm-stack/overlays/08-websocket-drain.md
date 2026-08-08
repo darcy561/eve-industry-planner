@@ -198,7 +198,7 @@ FE `please_reconnect` / dead `{type: app_version}` handler tidy lives under road
 
 **Project SoT for websocket test depth while #8 is open.** Verified against code 2026-08-04 (`go test ./websocket/... ./ws-router/ ./shared/wsplacement/` green).
 
-**Do not edit** live [`testing/services/websocket.md`](../../../testing/services/websocket.md) until promote. That live topic is **stale** today (still lists Redis advertised app-version fanout tests — those files are **deleted**; see #23 / What changed).
+Live [`testing/services/websocket.md`](../../../testing/services/websocket.md) refreshed with #2 promote (NATS placement / soak). Historical Redis advertised-version fanout tests remain deleted (#23).
 
 ### Entrypoints
 
@@ -240,7 +240,7 @@ docker run --rm --network eip-core --env-file ../.env \
   -profile limits -expect-target 20 -expect-cutoff 40 -duration 2m
 ```
 
-`limits` phases: (1) fill shared corp to target → soft key (2) mixed new keys → assert ≥`-min-divert-ratio` place **off** soft (3) fill to cutoff → full key (4) mixed keys → assert **none** place on full. Needs ≥2 websocket replicas. Fails if soft/full never appear or divert ratio fails. Use `-require-503` with direct websocket `-ws-url` for process refuse. Knobs: `-soft-divert`, `-full-probe`, `-corp` (fill corp id), `-min-divert-ratio`. Restore prod thresholds after. Unit helpers: `go test ./cmd/ws_soak/`. Broader affinity sims → **#26**.
+`limits` phases: (1) fill shared corp to target → soft via NATS (2) mixed new keys → assert ≥`-min-divert-ratio` place **off** soft (3) fill to cutoff → full via NATS (4) mixed keys → assert **none** place on full. Place observation uses `connected.container_id` (#2). Needs ≥2 websocket replicas. Fails if soft/full never appear or divert ratio fails. Use `-require-503` with direct websocket `-ws-url` for process refuse. Knobs: `-soft-divert`, `-full-probe`, `-corp` (fill corp id), `-min-divert-ratio`. Restore prod thresholds after. Unit helpers: `go test ./cmd/ws_soak/`. Broader affinity sims → **#26**.
 
 ### Harness SoT
 

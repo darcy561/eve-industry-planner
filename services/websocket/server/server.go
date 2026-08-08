@@ -37,10 +37,7 @@ func NewServer(clients *stackservices.Clients) *Server {
 	// Sync worker pool (pond). Incoming document work uses per-docID mutex serialization in processIncomingQueue.
 	syncPool := pond.NewPool(config.SyncPoolSize)
 
-	shardN := config.DocUpdateOutboundShardCount
-	if shardN < 1 {
-		shardN = 1
-	}
+	shardN := max(config.DocUpdateOutboundShardCount, 1)
 	shards := make([]chan docUpdateWork, shardN)
 	for i := range shards {
 		shards[i] = make(chan docUpdateWork, config.DocUpdateOutboundShardQueueCap)
@@ -62,6 +59,7 @@ func NewServer(clients *stackservices.Clients) *Server {
 		SyncPool:                syncPool,
 		upgrader:                upgrader,
 		Stack:                   clients,
+		intakeStopChan:          make(chan struct{}),
 		shutdownChan:            make(chan struct{}),
 	}
 
@@ -94,9 +92,8 @@ func NewServer(clients *stackservices.Clients) *Server {
 	// Start cleanup goroutine for idle queues
 	s.startCleanupGoroutine()
 
-	// Redis placement / ops watchers (exit when Shutdown closes shutdownChan).
-	s.startCordonDrainWatcher()
-	s.startSlotFullFlagMaintainer()
+	// Placement state publisher (exits when shutdownChan closes after drain/Shutdown).
+	s.startPlacementFlagMaintainer()
 
 	return s
 }

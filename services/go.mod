@@ -17,6 +17,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/hibiken/asynq v0.26.0
 	github.com/minio/minio-go/v7 v7.2.1
+	github.com/nats-io/nats-server/v2 v2.12.4
 	github.com/nats-io/nats.go v1.52.0
 	github.com/redis/go-redis/extra/redisotel/v9 v9.21.0
 	github.com/redis/go-redis/v9 v9.21.0
@@ -57,6 +58,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.59.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.59.0 // indirect
 	github.com/MicahParks/keyfunc v1.9.0 // indirect
+	github.com/antithesishq/antithesis-sdk-go v0.5.0-default-no-op // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
@@ -71,6 +73,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
+	github.com/google/go-tpm v0.9.8 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.19 // indirect
 	github.com/googleapis/gax-go/v2 v2.23.0 // indirect
@@ -80,7 +83,9 @@ require (
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
 	github.com/minio/crc64nvme v1.1.1 // indirect
+	github.com/minio/highwayhash v1.0.4-0.20251030100505-070ab1a87a76 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
+	github.com/nats-io/jwt/v2 v2.8.0 // indirect
 	github.com/nats-io/nkeys v0.4.16 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect

@@ -1,5 +1,7 @@
 # Migration: WebSocket realtime (users + application_settings + job groups)
 
+**Historical project folder.** Current JetStream publish/filter behaviour (tenant-keyed `doc.update`, selective `FilterSubjects`, inert empty hosts) is live SoT: [backend/websocket/websocket.md](../../backend/websocket/websocket.md) § JetStream doc fan-out and [backend/core/core.md](../../backend/core/core.md). Swarm follow-on: [swarm-stack/overlays/20-selective-fanout.md](../swarm-stack/overlays/20-selective-fanout.md). Tables below may still describe the pre-selective firehose path.
+
 This folder is the **workspace home** for everything tied to the WebSocket / Mongo change-stream / NATS realtime work. Keep it **updated as you implement** so anyone can see the full picture without replaying ad-hoc design discussions.
 
 **Implementation reference (code paths, subscribe ACL, JWT lifecycle, ops):** [implementation.md](./implementation.md).

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper/sdecache"
-	"eve-industry-planner/shared/core/instanceid"
+	"eve-industry-planner/shared/container"
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/orchestrationprobes"
 	"eve-industry-planner/shared/telemetry"
@@ -84,7 +84,7 @@ func (a *app) startProbes(ctx context.Context) error {
 
 	bus, err := orchestrationprobes.StartBus(ctx, orchestrationprobes.BusOptions{
 		Role:       "api",
-		InstanceID: instanceid.Replica(),
+		InstanceID: container.ID(),
 		Conn:       a.clients.NATS,
 		Ready:      ready,
 		Enabled:    false,

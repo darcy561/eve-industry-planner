@@ -103,10 +103,7 @@ func (s Session) fieldIndexAtClick(click tea.MouseMsg) int {
 	}
 	// Panel chrome: top border + title line before form body.
 	const panelChrome = 2
-	contentY := click.Mouse().Y - z.StartY - panelChrome + s.formVP.YOffset()
-	if contentY < 0 {
-		contentY = 0
-	}
+	contentY := max(click.Mouse().Y-z.StartY-panelChrome+s.formVP.YOffset(), 0)
 	bands := s.fieldBands()
 	if len(bands) == 0 {
 		return 0

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -193,12 +194,7 @@ func isNewSoleOwner(sole string, baseline []string) bool {
 	if len(baseline) == 0 {
 		return true
 	}
-	for _, b := range baseline {
-		if b == sole {
-			return false
-		}
-	}
-	return true
+	return !slices.Contains(baseline, sole)
 }
 
 func waitForStableOwner(ctx context.Context, apiClient *client.Client, service string, baseline []string) error {

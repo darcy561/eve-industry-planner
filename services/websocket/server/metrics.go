@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/websocket/server/identity"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -127,8 +126,8 @@ func (s *Server) registerGaugeCallbacks() {
 	}
 
 	_, err = m.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
-		// Same identity as JetStream durable suffix so dashboards can split gauges per replica.
-		wsInstanceAttr := attribute.String("ws_instance_id", identity.JetStreamConsumerSuffix())
+		// Per-container split uses OTel resource service.instance.id (Prom:
+		// service_instance_id via Alloy resource_to_telemetry_conversion).
 
 		s.ClientsMu.RLock()
 		totalClients := int64(len(s.Clients))
@@ -165,26 +164,23 @@ func (s *Server) registerGaugeCallbacks() {
 		}
 		s.explicitDocSubMu.RUnlock()
 
-		o.ObserveInt64(connectedClientsGauge, totalClients, metric.WithAttributes(wsInstanceAttr))
-		o.ObserveInt64(connectedAccountsGauge, totalAccounts, metric.WithAttributes(wsInstanceAttr))
+		o.ObserveInt64(connectedClientsGauge, totalClients)
+		o.ObserveInt64(connectedAccountsGauge, totalAccounts)
 
 		for accountID, count := range accountCounts {
 			o.ObserveInt64(accountClientsGauge, count, metric.WithAttributes(
 				attribute.String("account_id", accountID),
-				wsInstanceAttr,
 			))
 		}
 		for _, row := range clientDocCounts {
 			o.ObserveInt64(clientDocsGauge, row.docCount, metric.WithAttributes(
 				attribute.String("client_id", row.clientID),
 				attribute.String("account_id", row.accountID),
-				wsInstanceAttr,
 			))
 		}
 		for docID, count := range docSubscriberCounts {
 			o.ObserveInt64(docSubscribersGauge, count, metric.WithAttributes(
 				attribute.String("doc_id", docID),
-				wsInstanceAttr,
 			))
 		}
 		return nil

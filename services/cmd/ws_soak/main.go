@@ -1,12 +1,12 @@
 // Command ws_soak holds many authenticated /ws connections against a live stack
 // (Traefik or ws-router), reconnects on please_reconnect / close, and reports
-// sticky-slot + Redis soft/full/place occupancy.
+// sticky + NATS soft/full + place outcomes from connected.container_id.
 //
 // Hold soak (default — drain / reconnect evidence):
 //
 //	go build -o ../.tmp/ws_soak ./cmd/ws_soak
 //	docker run --rm --network eip-core --env-file ../.env \
-//	  -e REDIS_HOST=redis -e REDIS_PORT=6379 \
+//	  -e REDIS_HOST=redis -e REDIS_PORT=6379 -e NATS_URL=nats://nats:4222 \
 //	  -v "$PWD/../.tmp/ws_soak:/ws_soak:ro" --entrypoint /ws_soak alpine:3.20 \
 //	  -ws-url ws://ws-router:8080/ws -clients 50 -duration 5m
 //
@@ -16,7 +16,7 @@
 //	docker run … /ws_soak -profile limits -expect-target 20 -expect-cutoff 40 -duration 2m
 //
 // Limits uses a fill corp (one place home) plus mixed account/corp/alliance keys
-// to assert soft divert and full hard-skip via Redis place lookups.
+// to assert soft divert and full hard-skip via connected.container_id place outcomes.
 //
 // Host path (Traefik published): seed needs Redis reachability (same docker
 // network, or tunnel). Example WS URL: ws://127.0.0.1/ws
@@ -34,7 +34,6 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/wsplacement"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -48,8 +47,8 @@ func main() {
 
 func run() error {
 	var (
-		profileName = flag.String("profile", "hold", "hold (endurance) | limits (soft+hard pressure)")
-		wsURL       = flag.String("ws-url", "ws://ws-router:8080/ws", "WebSocket upgrade URL (query session id appended)")
+		profileName  = flag.String("profile", "hold", "hold (endurance) | limits (soft+hard pressure)")
+		wsURL        = flag.String("ws-url", "ws://ws-router:8080/ws", "WebSocket upgrade URL (query session id appended)")
 		clients      = flag.Int("clients", 0, "concurrent /ws clients (0 = profile default)")
 		accounts     = flag.Int("accounts", 0, "hold: distinct soak accounts (0 = 10)")
 		duration     = flag.Duration("duration", 5*time.Minute, "how long to hold connections")
@@ -66,7 +65,7 @@ func run() error {
 		expectTarget = flag.Int("expect-target", 20, "limits: stack target_clients after eip sync")
 		expectCutoff = flag.Int("expect-cutoff", 40, "limits: stack client_cutoff after eip sync")
 		require503   = flag.Bool("require-503", false, "limits: fail unless HTTP 503 at_cutoff refuses (use direct websocket -ws-url)")
-		flagWait     = flag.Duration("flag-wait", 90*time.Second, "limits: max wait for soft/full Redis keys after each phase")
+		flagWait     = flag.Duration("flag-wait", 90*time.Second, "limits: max wait for soft/full NATS placement state after each phase")
 		softDivertN  = flag.Int("soft-divert", 0, "limits: mixed-key clients after soft (0 = auto)")
 		fullProbeN   = flag.Int("full-probe", 0, "limits: mixed-key clients after full (0 = auto)")
 		minDivert    = flag.Float64("min-divert-ratio", 0.8, "limits: min fraction of soft-divert keys that must place off soft")
@@ -87,9 +86,19 @@ func run() error {
 	}
 	defer func() { _ = rdb.Close() }()
 
+	nc, err := connectNATS()
+	if err != nil {
+		return err
+	}
+	defer nc.Close()
+	watch, err := startPlacementWatch(nc)
+	if err != nil {
+		return err
+	}
+
 	switch prof {
 	case profileLimits:
-		return runLimits(ctx, rdb, limitsRunArgs{
+		return runLimits(ctx, rdb, watch, limitsRunArgs{
 			wsURL:          *wsURL,
 			clients:        *clients,
 			duration:       *duration,
@@ -109,7 +118,7 @@ func run() error {
 			minDivertRatio: *minDivert,
 		})
 	default:
-		return runHold(ctx, rdb, holdRunArgs{
+		return runHold(ctx, rdb, watch, holdRunArgs{
 			wsURL:       *wsURL,
 			clients:     *clients,
 			accounts:    *accounts,
@@ -129,16 +138,16 @@ func run() error {
 }
 
 type holdRunArgs struct {
-	wsURL, affinity           string
-	clients, accounts         int
+	wsURL, affinity             string
+	clients, accounts           int
 	duration, ramp, reportEvery time.Duration
-	corpID, allianceID        int64
-	reconnect, insecure       bool
-	maxDrop                   float64
-	seedOnly, noSeed          bool
+	corpID, allianceID          int64
+	reconnect, insecure         bool
+	maxDrop                     float64
+	seedOnly, noSeed            bool
 }
 
-func runHold(ctx context.Context, rdb *redis.Client, a holdRunArgs) error {
+func runHold(ctx context.Context, rdb *redis.Client, watch *placementWatcher, a holdRunArgs) error {
 	clients := a.clients
 	if clients < 1 {
 		clients = 50
@@ -183,24 +192,24 @@ func runHold(ctx context.Context, rdb *redis.Client, a holdRunArgs) error {
 	cancelSoak()
 	<-done
 
-	return finishReport(rdb, st, a.maxDrop, nil)
+	return finishReport(watch, st, a.maxDrop, nil)
 }
 
 type limitsRunArgs struct {
-	wsURL                                string
-	clients                              int
+	wsURL                                 string
+	clients                               int
 	duration, ramp, reportEvery, flagWait time.Duration
-	fillCorpID                           int64
-	insecure                             bool
-	maxDrop                              float64
-	seedOnly, noSeed                     bool
-	expectTarget, expectCutoff           int
-	softDivert, fullProbes               int
-	minDivertRatio                       float64
-	require503                           bool
+	fillCorpID                            int64
+	insecure                              bool
+	maxDrop                               float64
+	seedOnly, noSeed                      bool
+	expectTarget, expectCutoff            int
+	softDivert, fullProbes                int
+	minDivertRatio                        float64
+	require503                            bool
 }
 
-func runLimits(ctx context.Context, rdb *redis.Client, a limitsRunArgs) error {
+func runLimits(ctx context.Context, rdb *redis.Client, watch *placementWatcher, a limitsRunArgs) error {
 	plan, err := buildLimitsPlan(a.expectTarget, a.expectCutoff, a.clients, a.softDivert, a.fullProbes, a.fillCorpID, a.minDivertRatio)
 	if err != nil {
 		return err
@@ -227,21 +236,16 @@ func runLimits(ctx context.Context, rdb *redis.Client, a limitsRunArgs) error {
 	}
 
 	st := newStats()
-	places := redisPlaceLookup{rdb: rdb}
 	base := soakConfig{
 		WSURL:       a.wsURL,
 		Insecure:    a.insecure,
 		ReadIdle:    30 * time.Second,
 		DialTimeout: 10 * time.Second,
-		PlaceRedis:  places,
 	}
 	soakCtx, cancelSoak := context.WithTimeout(ctx, a.duration)
 	defer cancelSoak()
 
-	targetN := plan.ExpectTarget
-	if targetN > len(fillIDs) {
-		targetN = len(fillIDs)
-	}
+	targetN := min(plan.ExpectTarget, len(fillIDs))
 
 	var wg sync.WaitGroup
 	startBatch := func(batch []clientIdentity, reconnect bool, ramp time.Duration) {
@@ -286,18 +290,16 @@ func runLimits(ctx context.Context, rdb *redis.Client, a limitsRunArgs) error {
 		return err
 	}
 	softCtx, softCancel := context.WithTimeout(soakCtx, a.flagWait)
-	err = waitSoftFull(softCtx, rdb, true, false, 500*time.Millisecond, &seenSoft, &seenFull)
+	err = waitSoftFull(softCtx, watch, true, false, 500*time.Millisecond, &seenSoft, &seenFull)
 	softCancel()
 	if err != nil {
 		cancelSoak()
 		<-done
-		_ = finishReport(rdb, st, a.maxDrop, nil)
+		_ = finishReport(watch, st, a.maxDrop, nil)
 		return fmt.Errorf("phase1 soft: %w", err)
 	}
-	if softKeys, _, perr := probeSoftFull(context.Background(), rdb); perr == nil {
-		softSlots = slotsFromFlagKeys(softKeys, wsplacement.SoftPrefix)
-	}
-	fmt.Printf("limits phase1: soft observed slots=%v live=%d\n", softSlots, st.live.Load())
+	softSlots = uniqueSorted(watch.softIDs())
+	fmt.Printf("limits phase1: soft observed containers=%v live=%d\n", softSlots, st.live.Load())
 
 	// Phase 2: mixed new keys while soft — must prefer non-soft.
 	if len(softDivIDs) > 0 {
@@ -306,13 +308,13 @@ func runLimits(ctx context.Context, rdb *redis.Client, a limitsRunArgs) error {
 		liveCtx, liveCancel := context.WithTimeout(soakCtx, a.flagWait)
 		_ = waitLive(liveCtx, st, int64(targetN+len(softDivIDs)), 100*time.Millisecond)
 		liveCancel()
-		// Brief settle for Redis place writes.
+		// Brief settle for place / NATS apply.
 		select {
 		case <-soakCtx.Done():
 		case <-time.After(500 * time.Millisecond):
 		}
 		on, off, total := countOnOff(st.cohortSlotCounts(cohortSoftDivert), softSlots)
-		fmt.Printf("limits phase2: soft-divert place off_soft=%d on_soft=%d total=%d soft_slots=%v slots=%s\n",
+		fmt.Printf("limits phase2: soft-divert place off_soft=%d on_soft=%d total=%d soft=%v homes=%s\n",
 			off, on, total, softSlots, formatCounts(st.cohortSlotCounts(cohortSoftDivert)))
 	}
 
@@ -326,21 +328,19 @@ func runLimits(ctx context.Context, rdb *redis.Client, a limitsRunArgs) error {
 	_ = waitLive(liveCtx, st, int64(plan.ExpectCutoff), 100*time.Millisecond)
 	liveCancel()
 	fullCtx, fullCancel := context.WithTimeout(soakCtx, a.flagWait)
-	err = waitSoftFull(fullCtx, rdb, false, true, 500*time.Millisecond, &seenSoft, &seenFull)
+	err = waitSoftFull(fullCtx, watch, false, true, 500*time.Millisecond, &seenSoft, &seenFull)
 	fullCancel()
 	if err != nil {
 		cancelSoak()
 		<-done
-		_ = finishReport(rdb, st, a.maxDrop, nil)
+		_ = finishReport(watch, st, a.maxDrop, nil)
 		return fmt.Errorf("phase3 full: %w", err)
 	}
-	if softKeys, fullKeys, perr := probeSoftFull(context.Background(), rdb); perr == nil {
-		softSlots = slotsFromFlagKeys(softKeys, wsplacement.SoftPrefix)
-		fullSlots = slotsFromFlagKeys(fullKeys, wsplacement.FullPrefix)
-	}
-	fmt.Printf("limits phase3: full observed slots=%v live=%d\n", fullSlots, st.live.Load())
+	softSlots = uniqueSorted(watch.softIDs())
+	fullSlots = uniqueSorted(watch.fullIDs())
+	fmt.Printf("limits phase3: full observed containers=%v live=%d\n", fullSlots, st.live.Load())
 
-	// Phase 4: mixed keys after full — must not place on full slot.
+	// Phase 4: mixed keys after full — must not place on full container.
 	if len(fullProbeIDs) > 0 {
 		fmt.Printf("limits phase4: full-probe %d mixed keys\n", len(fullProbeIDs))
 		startBatch(fullProbeIDs, plan.ReconnectProbes, a.ramp/2)
@@ -353,7 +353,7 @@ func runLimits(ctx context.Context, rdb *redis.Client, a limitsRunArgs) error {
 		case <-time.After(500 * time.Millisecond):
 		}
 		on, off, total := countOnOff(st.cohortSlotCounts(cohortFullProbe), fullSlots)
-		fmt.Printf("limits phase4: full-probe place off_full=%d on_full=%d total=%d full_slots=%v slots=%s\n",
+		fmt.Printf("limits phase4: full-probe place off_full=%d on_full=%d total=%d full=%v homes=%s\n",
 			off, on, total, fullSlots, formatCounts(st.cohortSlotCounts(cohortFullProbe)))
 	}
 
@@ -361,16 +361,13 @@ func runLimits(ctx context.Context, rdb *redis.Client, a limitsRunArgs) error {
 	cancelSoak()
 	<-done
 
-	soft, full, perr := probeSoftFull(context.Background(), rdb)
-	if perr == nil {
-		if len(soft) > 0 {
-			seenSoft = true
-			softSlots = slotsFromFlagKeys(soft, wsplacement.SoftPrefix)
-		}
-		if len(full) > 0 {
-			seenFull = true
-			fullSlots = slotsFromFlagKeys(full, wsplacement.FullPrefix)
-		}
+	softSlots = uniqueSorted(watch.softIDs())
+	fullSlots = uniqueSorted(watch.fullIDs())
+	if len(softSlots) > 0 {
+		seenSoft = true
+	}
+	if len(fullSlots) > 0 {
+		seenFull = true
 	}
 	softOn, softOff, softTotal := countOnOff(st.cohortSlotCounts(cohortSoftDivert), softSlots)
 	fullOn, fullOff, fullTotal := countOnOff(st.cohortSlotCounts(cohortFullProbe), fullSlots)
@@ -391,13 +388,13 @@ func runLimits(ctx context.Context, rdb *redis.Client, a limitsRunArgs) error {
 		FullProbeOffFull:  fullOff,
 		FullProbeOnFull:   fullOn,
 		MinDivertRatio:    plan.MinDivertRatio,
-		// Skip only when we recorded no divert placements (lookup failed); ≥2 replicas required for a pass.
+		// Skip only when we recorded no divert placements; ≥2 replicas required for a pass.
 		SkipDivertAssert: softTotal == 0,
 		AffinityAccount:  accN,
 		AffinityCorp:     corpN,
 		AffinityAlliance: allN,
 	}
-	if err := finishReport(rdb, st, a.maxDrop, &ev); err != nil {
+	if err := finishReport(watch, st, a.maxDrop, &ev); err != nil {
 		return err
 	}
 	return ev.assert()
@@ -472,20 +469,15 @@ func waitSoak(ctx context.Context, done <-chan struct{}) {
 	}
 }
 
-func finishReport(rdb *redis.Client, st *stats, maxDrop float64, limits *limitsEvidence) error {
-	soft, full, err := probeSoftFull(context.Background(), rdb)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "warn: soft/full probe: %v\n", err)
-	}
-	place, err := probePlacementCounts(context.Background(), rdb)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "warn: place probe: %v\n", err)
-	}
+func finishReport(watch *placementWatcher, st *stats, maxDrop float64, limits *limitsEvidence) error {
+	soft := uniqueSorted(watch.softIDs())
+	full := uniqueSorted(watch.fullIDs())
+	place := st.placeCountsFromAffinity()
 	fmt.Print(st.finalReport(soft, full, place))
 	if limits != nil {
 		fmt.Printf("limits_evidence: soft_seen=%v full_seen=%v refuse_503=%d require_503=%v\n",
 			limits.SoftSeen, limits.FullSeen, limits.Refuse503, limits.Require503)
-		fmt.Printf("limits_divert: soft_slots=%v soft_divert off/on/total=%d/%d/%d full_slots=%v full_probe off/on/total=%d/%d/%d mixed_keys account/corp/alliance=%d/%d/%d\n",
+		fmt.Printf("limits_divert: soft=%v soft_divert off/on/total=%d/%d/%d full=%v full_probe off/on/total=%d/%d/%d mixed_keys account/corp/alliance=%d/%d/%d\n",
 			limits.SoftSlots, limits.SoftDivertOffSoft, limits.SoftDivertOnSoft, limits.SoftDivertTotal,
 			limits.FullSlots, limits.FullProbeOffFull, limits.FullProbeOnFull, limits.FullProbeTotal,
 			limits.AffinityAccount, limits.AffinityCorp, limits.AffinityAlliance)

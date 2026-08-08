@@ -41,6 +41,8 @@ Phase 1 is complete only when all of the following exist and are linked:
 
 **Do not start project work** (code, stack, Deployment Tool, or other product changes) until Phase 1 is done. Later phases are named in the project plan (e.g. Stage A/B) and run only after this gate.
 
+When the project or a new/updated plan will touch Go: as part of planning (Phase 1 or when the plan names the code surfaces), run **`go fix -diff`** on **those packages/paths only** and note upgrades that should land before or with the planned work — see [`technical-rules.md`](./technical-rules.md). Do not widen the scan (or fixes) into packages outside the plan’s touch surface. Do not discover a pile of in-scope `go fix` debt only after the feature slice is written.
+
 Phase 1 itself may only touch docs under the project folder and the section `contents.md` link — still **no** live SoT edits.
 
 ## Hard rule — do not edit live SoT during project work
@@ -85,6 +87,7 @@ Suggested block near the top of the plan entry file:
 **Rules:** Read and following [`../documentation-rules.md`](../documentation-rules.md)
 and [`../technical-rules.md`](../technical-rules.md) (migration-plans).
 Phase 1 (project folders/docs) before any product work.
+For Go surfaces in scope only: `go fix -diff` before planned work; again on edited packages (not unrelated code).
 Live SoT will not be edited until this project is complete and promotion is approved.
 ```
 

@@ -3,9 +3,9 @@ package server
 import (
 	"context"
 
+	"eve-industry-planner/shared/container"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/websocket/server/identity"
 	"eve-industry-planner/websocket/server/natslogic"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -32,6 +32,9 @@ func (s *Server) subscribeToDocLockNotifications() {
 		logs.ErrorCtx(ctx, "doc lock: get stream", "error", err)
 		return
 	}
+	s.fanoutFilterMu.Lock()
+	s.fanoutStream = stream
+	s.fanoutFilterMu.Unlock()
 
 	docLockDurable, consumerConfig := natslogic.DocLockConsumerConfig()
 
@@ -40,6 +43,7 @@ func (s *Server) subscribeToDocLockNotifications() {
 		logs.ErrorCtx(ctx, "doc lock: create consumer", "error", err)
 		return
 	}
+	s.reconcileDocFanoutFilters(ctx)
 
 	processor := func(msg jetstream.Msg) {
 		ctx, endSpan := natscore.BeginConsumerContext(
@@ -84,7 +88,7 @@ func (s *Server) subscribeToDocLockNotifications() {
 
 	stopChan := make(chan struct{})
 	go func() {
-		<-s.shutdownChan
+		<-s.intakeStopChan
 		close(stopChan)
 	}()
 
@@ -97,5 +101,5 @@ func (s *Server) subscribeToDocLockNotifications() {
 
 	logs.DebugCtx(ctx, "subscribed to doc.lock notifications",
 		"consumer", docLockDurable,
-		"replica_suffix", identity.JetStreamConsumerSuffix())
+		"container_id", container.ID())
 }

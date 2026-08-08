@@ -14,7 +14,7 @@ func (s *Session) settleForm(cmd tea.Cmd) {
 	if s.form == nil || cmd == nil {
 		return
 	}
-	for i := 0; i < 64; i++ {
+	for range 64 {
 		msg, ok := tryCmdMsg(cmd, 25*time.Millisecond)
 		if !ok {
 			return

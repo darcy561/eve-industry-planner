@@ -7,8 +7,8 @@ import (
 	"eve-industry-planner/shared/wsplacement"
 )
 
-// TenantAffinityCookieName is the Redis placement key for eip_ws_router (/ws).
-// See technical-documentation/backend/ws-router/ws-router.md / shared/wsplacement.
+// TenantAffinityCookieName is the tenant cohort cookie for ws-router place lookup (/ws).
+// See shared/wsplacement (AffinityCookie) and backend/ws-router when promoted.
 const TenantAffinityCookieName = wsplacement.AffinityCookie
 
 const tenantAffinityCookiePath = "/"
@@ -26,7 +26,7 @@ func FormatTenantAffinityKey(accountID, corporationID, allianceID string) string
 	return wsplacement.TenantKeyAccount(accountID)
 }
 
-// SetTenantAffinityCookie sets eip_tenant_affinity (Path=/) for ws-router Redis placement.
+// SetTenantAffinityCookie sets eip_tenant_affinity (Path=/) for ws-router place lookup.
 func SetTenantAffinityCookie(w http.ResponseWriter, r *http.Request, accountID, corporationID, allianceID string) {
 	_ = r
 	if w == nil {

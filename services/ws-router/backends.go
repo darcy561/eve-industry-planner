@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -18,9 +19,9 @@ import (
 )
 
 type backend struct {
-	Slot       string
-	IP         string
-	AppVersion string // from task Spec.ContainerSpec.Env APP_VERSION (empty if unset)
+	ContainerID string // Docker short id (ContainerID[:12]); matches container.ID() in-process
+	IP          string
+	AppVersion  string // from task Spec.ContainerSpec.Env APP_VERSION (empty if unset)
 }
 
 type backendRegistry struct {
@@ -28,8 +29,11 @@ type backendRegistry struct {
 	dockerHTTP *http.Client
 	dockerBase string // http://docker (unix) or http://host:2375 (tcp proxy)
 	probeHTTP  *http.Client
+	statusHTTP *http.Client
 	mu         sync.RWMutex
-	bySlot     map[string]backend // only probe-ready backends
+	byID       map[string]backend // only probe-ready backends, keyed by ContainerID
+	// onReady runs after each successful registry refresh (probe-ready set).
+	onReady func(ctx context.Context, ready map[string]backend)
 }
 
 func newBackendRegistry(cfg config) *backendRegistry {
@@ -52,7 +56,10 @@ func newBackendRegistry(cfg config) *backendRegistry {
 		probeHTTP: &http.Client{
 			Timeout: cfg.BackendProbeTimeout,
 		},
-		bySlot: map[string]backend{},
+		statusHTTP: &http.Client{
+			Timeout: cfg.BackendProbeTimeout,
+		},
+		byID: map[string]backend{},
 	}
 }
 
@@ -87,42 +94,47 @@ func (b *backendRegistry) pollLoop(ctx context.Context) {
 }
 
 func (b *backendRegistry) refresh(ctx context.Context) {
-	slots, err := b.fetchRunningSlots(ctx)
+	running, err := b.fetchRunning(ctx)
 	if err != nil {
 		log.Printf("backend refresh: %v", err)
 		return
 	}
-	ready := b.filterProbeReady(ctx, slots)
+	ready := b.filterProbeReady(ctx, running)
 	b.mu.Lock()
-	b.bySlot = ready
+	b.byID = ready
 	b.mu.Unlock()
+	if b.onReady != nil {
+		// Placement status for every running task (including not-ready / draining).
+		// Routing registry above stays probe-ready only.
+		b.onReady(ctx, running)
+	}
 }
 
 // filterProbeReady keeps backends whose orchestrationprobes /ready returns 200.
-func (b *backendRegistry) filterProbeReady(ctx context.Context, slots map[string]backend) map[string]backend {
-	if len(slots) == 0 {
+func (b *backendRegistry) filterProbeReady(ctx context.Context, backends map[string]backend) map[string]backend {
+	if len(backends) == 0 {
 		return map[string]backend{}
 	}
 	type result struct {
-		slot string
-		be   backend
-		ok   bool
+		id string
+		be backend
+		ok bool
 	}
-	ch := make(chan result, len(slots))
+	ch := make(chan result, len(backends))
 	var wg sync.WaitGroup
-	for slot, be := range slots {
+	for id, be := range backends {
 		wg.Add(1)
-		go func(slot string, be backend) {
+		go func(id string, be backend) {
 			defer wg.Done()
-			ch <- result{slot: slot, be: be, ok: b.probeReady(ctx, be.IP)}
-		}(slot, be)
+			ch <- result{id: id, be: be, ok: b.probeReady(ctx, be.IP)}
+		}(id, be)
 	}
 	wg.Wait()
 	close(ch)
 	out := map[string]backend{}
 	for r := range ch {
 		if r.ok {
-			out[r.slot] = r.be
+			out[r.id] = r.be
 		}
 	}
 	return out
@@ -153,27 +165,25 @@ func (b *backendRegistry) probeReady(ctx context.Context, ip string) bool {
 func (b *backendRegistry) snapshot() map[string]backend {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	out := make(map[string]backend, len(b.bySlot))
-	for k, v := range b.bySlot {
-		out[k] = v
-	}
+	out := make(map[string]backend, len(b.byID))
+	maps.Copy(out, b.byID)
 	return out
 }
 
 func (b *backendRegistry) count() int {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	return len(b.bySlot)
+	return len(b.byID)
 }
 
-func (b *backendRegistry) get(slot string) (backend, bool) {
+func (b *backendRegistry) get(id string) (backend, bool) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	be, ok := b.bySlot[slot]
+	be, ok := b.byID[id]
 	return be, ok
 }
 
-func (b *backendRegistry) sortedSlots() []string {
+func (b *backendRegistry) sortedIDs() []string {
 	snap := b.snapshot()
 	keys := make([]string, 0, len(snap))
 	for k := range snap {
@@ -184,9 +194,12 @@ func (b *backendRegistry) sortedSlots() []string {
 }
 
 type dockerTaskList []struct {
-	Slot   int `json:"Slot"`
+	Slot   int `json:"Slot"` // Swarm ordinal only (not identity); skip unassigned tasks
 	Status struct {
-		State string `json:"State"`
+		State           string `json:"State"`
+		ContainerStatus struct {
+			ContainerID string `json:"ContainerID"`
+		} `json:"ContainerStatus"`
 	} `json:"Status"`
 	Spec struct {
 		ContainerSpec struct {
@@ -198,7 +211,7 @@ type dockerTaskList []struct {
 	} `json:"NetworksAttachments"`
 }
 
-func (b *backendRegistry) fetchRunningSlots(ctx context.Context) (map[string]backend, error) {
+func (b *backendRegistry) fetchRunning(ctx context.Context) (map[string]backend, error) {
 	svcID, err := b.resolveServiceID(ctx)
 	if err != nil {
 		return nil, err
@@ -217,29 +230,49 @@ func (b *backendRegistry) fetchRunningSlots(ctx context.Context) (map[string]bac
 		if !strings.EqualFold(t.Status.State, "running") {
 			continue
 		}
-		slot := slotIDFromTask(t.Slot, t.Spec.ContainerSpec.Env)
+		if t.Slot < 1 {
+			continue
+		}
+		id := shortContainerID(t.Status.ContainerStatus.ContainerID)
 		var groups [][]string
 		for _, na := range t.NetworksAttachments {
 			groups = append(groups, na.Addresses)
 		}
 		ip := firstIP(groups)
-		if ip == "" || t.Slot < 1 {
+		if ip == "" || id == "" {
 			continue
 		}
-		out[slot] = backend{
-			Slot:       slot,
-			IP:         ip,
-			AppVersion: envValue(t.Spec.ContainerSpec.Env, "APP_VERSION"),
+		out[id] = backend{
+			ContainerID: id,
+			IP:          ip,
+			AppVersion:  envValue(t.Spec.ContainerSpec.Env, "APP_VERSION"),
 		}
 	}
 	return out, nil
 }
 
+// shortContainerID returns Docker short id (first 12 hex chars), matching in-container HOSTNAME.
+func shortContainerID(full string) string {
+	id := strings.TrimSpace(full)
+	if id == "" {
+		return ""
+	}
+	if i := strings.IndexByte(id, ':'); i >= 0 {
+		// e.g. sha256:<hex>
+		id = id[i+1:]
+	}
+	id = strings.TrimSpace(id)
+	if len(id) > 12 {
+		id = id[:12]
+	}
+	return id
+}
+
 func envValue(env []string, key string) string {
 	prefix := key + "="
 	for _, e := range env {
-		if strings.HasPrefix(e, prefix) {
-			v := strings.TrimPrefix(e, prefix)
+		if after, ok := strings.CutPrefix(e, prefix); ok {
+			v := after
 			if strings.Contains(v, "{{") {
 				return ""
 			}
@@ -312,20 +345,4 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n]
-}
-
-// slotIDFromTask maps a Swarm task to a stable backend key.
-// Prefer Task.Slot — Spec.ContainerSpec.Env still holds Swarm template literals
-// (e.g. websocket-{{.Task.Slot}}), not the runtime-resolved value.
-func slotIDFromTask(slot int, env []string) string {
-	id := fmt.Sprintf("websocket-%d", slot)
-	for _, e := range env {
-		if strings.HasPrefix(e, "OTEL_SERVICE_INSTANCE_ID=") {
-			v := strings.TrimPrefix(e, "OTEL_SERVICE_INSTANCE_ID=")
-			if v != "" && !strings.Contains(v, "{{") {
-				return v
-			}
-		}
-	}
-	return id
 }

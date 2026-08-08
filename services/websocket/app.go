@@ -8,12 +8,13 @@ import (
 	"time"
 
 	"eve-industry-planner/api/middleware"
+	"eve-industry-planner/shared/container"
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/core/instanceid"
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/orchestrationprobes"
 	"eve-industry-planner/shared/telemetry"
+	"eve-industry-planner/shared/wsplacement"
 	wsserver "eve-industry-planner/websocket/server"
 )
 
@@ -29,7 +30,9 @@ type app struct {
 }
 
 func (a *app) cleanups() []func(context.Context) {
-	// Drain + Shutdown share one cleanup budget (60s) before HTTP/probes/deps stop.
+	// DrainForRoll (publish draining, delete durables, stop intake, flush outbound,
+	// kick) then Shutdown (sync pool; durable delete idempotent) share one cleanup
+	// budget (60s) before HTTP/probes/deps stop.
 	var appLayer []func(context.Context)
 	if a.ws != nil {
 		appLayer = append(appLayer, func(c context.Context) {
@@ -87,6 +90,7 @@ func (a *app) startServer(ctx context.Context) error {
 	mux := http.NewServeMux()
 	mux.Handle("/ws", h)
 	mux.Handle("/ws/", h)
+	mux.HandleFunc(wsplacement.StatusPath, a.ws.HandlePlacement)
 
 	addr := ":" + config.WSPort()
 	logs.InfoCtx(ctx, "ws server starting", "addr", addr)
@@ -123,7 +127,7 @@ func (a *app) startProbes(ctx context.Context) error {
 
 	bus, err := orchestrationprobes.StartBus(ctx, orchestrationprobes.BusOptions{
 		Role:       "websocket",
-		InstanceID: instanceid.Replica(),
+		InstanceID: container.ID(),
 		Conn:       a.clients.NATS,
 		Ready:      ready,
 		Enabled:    false,

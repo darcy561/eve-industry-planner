@@ -13,7 +13,7 @@
 $ErrorActionPreference = "Stop"
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $Tag = if ($env:EIP_CLI_VERSION) { $env:EIP_CLI_VERSION } else { "0.0.0-dev" }
-$Ld = "-s -w -X eve-industry-planner/deployment-tool/cmd/commands.Version=$Tag"
+$Ld = "-s -w -X eve-industry-planner/deployment-tool/internal/kit.Version=$Tag"
 if ($env:EIP_CHANNEL) {
   $Ld += " -X eve-industry-planner/deployment-tool/internal/kit.Channel=$($env:EIP_CHANNEL)"
 }

@@ -21,7 +21,7 @@ ARG EIP_CLI_VERSION=0.0.0-dev
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-s -w -extldflags '-static' -X eve-industry-planner/deployment-tool/cmd/commands.Version=${EIP_CLI_VERSION}" \
+    -ldflags="-s -w -extldflags '-static' -X eve-industry-planner/deployment-tool/internal/kit.Version=${EIP_CLI_VERSION}" \
     -trimpath \
     -o /out/eip .
 
@@ -41,7 +41,7 @@ ARG EIP_CLI_VERSION=0.0.0-dev
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build \
-    -ldflags="-s -w -X eve-industry-planner/deployment-tool/cmd/commands.Version=${EIP_CLI_VERSION}" \
+    -ldflags="-s -w -X eve-industry-planner/deployment-tool/internal/kit.Version=${EIP_CLI_VERSION}" \
     -trimpath \
     -o /out/eip.exe .
 

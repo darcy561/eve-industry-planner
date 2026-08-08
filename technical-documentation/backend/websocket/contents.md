@@ -2,7 +2,7 @@
 
 ## Owns (SoT)
 
-Application behaviour for [`services/websocket`](../../../services/websocket/): soft/full hints, upgrade refuses, SIGTERM drain, cordon force-close, session handoff, hosted-tenant query view, per-slot ops facts.
+Application behaviour for [`services/websocket`](../../../services/websocket/): soft/full hints, upgrade refuses, SIGTERM drain, cordon force-close, session handoff, hosted-tenant query view, selective JetStream doc fan-out, per-slot ops facts.
 
 ## Does not own
 
@@ -17,3 +17,4 @@ Application behaviour for [`services/websocket`](../../../services/websocket/): 
 | I need to… | Read |
 |------------|------|
 | Change soft/hard limits, cordon/drain, handoff, websocket defaults | [websocket.md](./websocket.md) |
+| Change JetStream FilterSubjects / doc.update pull selectivity | [websocket.md](./websocket.md) § JetStream doc fan-out |

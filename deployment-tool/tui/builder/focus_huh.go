@@ -36,7 +36,7 @@ func (s *Session) jumpHuhToField(logicalIdx int) {
 	if want == "" {
 		return
 	}
-	for n := 0; n < 64; n++ {
+	for range 64 {
 		ff := s.form.GetFocusedField()
 		if ff == nil {
 			return
