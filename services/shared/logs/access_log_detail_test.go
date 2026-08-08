@@ -8,7 +8,7 @@ import (
 
 func TestAccessLogDetailFields_FlattensAndSkipsIdentity(t *testing.T) {
 	t.Parallel()
-	fields := AccessLogDetailFields(map[string]interface{}{
+	fields := AccessLogDetailFields(map[string]any{
 		"account_id": "acc",
 		"session_id": "sess",
 		"found":      false,
@@ -42,7 +42,7 @@ func TestAccessLogDetailFields_Empty(t *testing.T) {
 
 func TestAccessLogDetailFields_EncodesValues(t *testing.T) {
 	t.Parallel()
-	fields := AccessLogDetailFields(map[string]interface{}{"jobs": int64(10)})
+	fields := AccessLogDetailFields(map[string]any{"jobs": int64(10)})
 	if len(fields) != 1 {
 		t.Fatalf("len(fields) = %d", len(fields))
 	}

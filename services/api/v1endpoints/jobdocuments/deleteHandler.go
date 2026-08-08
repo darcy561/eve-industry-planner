@@ -48,14 +48,14 @@ func (h *Handlers) DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Requ
 	const maxBatchSize = 200
 	if len(reqBody.JobIDs) > maxBatchSize {
 		metrics.Error("batch_too_large")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d job IDs)", maxBatchSize), "job documents delete batch too large", "job_docs_delete_batch_too_large", "job_documents", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d job IDs)", maxBatchSize), "job documents delete batch too large", "job_docs_delete_batch_too_large", "job_documents", nil, map[string]any{
 			"count": len(reqBody.JobIDs),
 			"max":   maxBatchSize,
 		})
 		return
 	}
 
-	logs.AttachDebugStep(r, "batch_validated", map[string]interface{}{
+	logs.AttachDebugStep(r, "batch_validated", map[string]any{
 		"batch_size": len(reqBody.JobIDs),
 	})
 
@@ -125,7 +125,7 @@ func (h *Handlers) DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Requ
 			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionUserJobDocuments, rejects)
 			return
 		}
-		logs.AttachDebugStep(r, "lock_gate_passed", map[string]interface{}{
+		logs.AttachDebugStep(r, "lock_gate_passed", map[string]any{
 			"doc_count": len(reqBody.JobIDs),
 		})
 	}
@@ -139,13 +139,13 @@ func (h *Handlers) DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_write_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_write_completed", map[string]any{
 		"deleted": deletedCount,
 	})
 
 	w.WriteHeader(http.StatusNoContent)
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "job documents deleted", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "job documents deleted", map[string]any{
 		"requested":   len(reqBody.JobIDs),
 		"deleted":     deletedCount,
 		"duration_ms": time.Since(start).Milliseconds(),

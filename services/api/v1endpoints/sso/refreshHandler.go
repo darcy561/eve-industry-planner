@@ -30,7 +30,7 @@ func (h *Handlers) EveSSORefreshHandler(w http.ResponseWriter, r *http.Request) 
 	refreshToken, err := extractRefreshTokenFromSSORequest(r)
 	if err != nil {
 		m.Errors.WithLabelValues("extraction_error").Inc(ctx)
-		respondSSOClientError(w, r, "eve_sso_token_refresh", "Invalid request", "failed to extract refresh token from request body", "sso_refresh_extraction_error", http.StatusBadRequest, map[string]interface{}{
+		respondSSOClientError(w, r, "eve_sso_token_refresh", "Invalid request", "failed to extract refresh token from request body", "sso_refresh_extraction_error", http.StatusBadRequest, map[string]any{
 			"error": err.Error(),
 		})
 		return
@@ -38,7 +38,7 @@ func (h *Handlers) EveSSORefreshHandler(w http.ResponseWriter, r *http.Request) 
 
 	if len(refreshToken) > maxRefreshTokenLength {
 		m.Errors.WithLabelValues("refresh_token_too_long").Inc(ctx)
-		respondSSOClientError(w, r, "eve_sso_token_refresh", "Invalid request", "refresh token too long", "sso_refresh_token_too_long", http.StatusBadRequest, map[string]interface{}{
+		respondSSOClientError(w, r, "eve_sso_token_refresh", "Invalid request", "refresh token too long", "sso_refresh_token_too_long", http.StatusBadRequest, map[string]any{
 			"length": len(refreshToken),
 			"max":    maxRefreshTokenLength,
 		})
@@ -49,7 +49,7 @@ func (h *Handlers) EveSSORefreshHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	logs.AttachDebugStep(r, "refresh_token_received", map[string]interface{}{
+	logs.AttachDebugStep(r, "refresh_token_received", map[string]any{
 		"refresh_token_len": len(refreshToken),
 	})
 
@@ -60,7 +60,7 @@ func (h *Handlers) EveSSORefreshHandler(w http.ResponseWriter, r *http.Request) 
 	var characterHash string
 	if err != nil {
 		m.Errors.WithLabelValues("sso_refresh_error").Inc(ctx)
-		attachSSOClientFailure(r, "eve_sso_token_refresh", "failed to refresh access token", "sso_refresh_error", map[string]interface{}{
+		attachSSOClientFailure(r, "eve_sso_token_refresh", "failed to refresh access token", "sso_refresh_error", map[string]any{
 			"sso_endpoint":      "token_refresh",
 			"refresh_token_len": len(refreshToken),
 			"error":             err.Error(),
@@ -69,7 +69,7 @@ func (h *Handlers) EveSSORefreshHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	logs.AttachDebugStep(r, "token_refreshed", map[string]interface{}{
+	logs.AttachDebugStep(r, "token_refreshed", map[string]any{
 		"expires_in": tokenResponse.ExpiresIn,
 	})
 
@@ -77,7 +77,7 @@ func (h *Handlers) EveSSORefreshHandler(w http.ResponseWriter, r *http.Request) 
 		duration := time.Since(start)
 		m.Errors.WithLabelValues("no_access_token").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "no_access_token")
-		helper.RespondEndpointServerError(w, r, "No access token received from EVE SSO", "no access token received from EVE SSO refresh", "sso_empty_access_token", "eve_sso_token_refresh", errors.New("empty access token from EVE SSO"), map[string]interface{}{
+		helper.RespondEndpointServerError(w, r, "No access token received from EVE SSO", "no access token received from EVE SSO refresh", "sso_empty_access_token", "eve_sso_token_refresh", errors.New("empty access token from EVE SSO"), map[string]any{
 			"sso_endpoint": "token_refresh",
 			"expires_in":   tokenResponse.ExpiresIn,
 		})
@@ -86,11 +86,11 @@ func (h *Handlers) EveSSORefreshHandler(w http.ResponseWriter, r *http.Request) 
 
 	characterHash, extractErr := extractCharacterHashFromEveSSOAccessToken(tokenResponse.AccessToken, cfg.ClientID)
 	if extractErr != nil {
-		logs.AttachHandlerCaveat(r, "character_hash_extraction_degraded", "token character hash extraction degraded; continuing", map[string]interface{}{
+		logs.AttachHandlerCaveat(r, "character_hash_extraction_degraded", "token character hash extraction degraded; continuing", map[string]any{
 			"error": extractErr.Error(),
 		})
 	} else {
-		logs.AttachDebugStepMsg(r, "claims_parsed", "parsed SSO access token claims", map[string]interface{}{
+		logs.AttachDebugStepMsg(r, "claims_parsed", "parsed SSO access token claims", map[string]any{
 			"character_hash": characterHash,
 		})
 	}
@@ -105,7 +105,7 @@ func (h *Handlers) EveSSORefreshHandler(w http.ResponseWriter, r *http.Request) 
 		duration := time.Since(start)
 		m.Errors.WithLabelValues("encode_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "encode_error", "error", err)
-		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode response", "sso_response_encode", "eve_sso_token_refresh", err, map[string]interface{}{
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode response", "sso_response_encode", "eve_sso_token_refresh", err, map[string]any{
 			"sso_endpoint": "token_refresh",
 		})
 		return
@@ -123,7 +123,7 @@ func (h *Handlers) EveSSORefreshHandler(w http.ResponseWriter, r *http.Request) 
 	if duration > time.Second {
 		apimetrics.LogRequestMetrics(ctx, "eve_sso_token_refresh", duration, "success", "account_storage", auth.AccountStorageLocal)
 	}
-	logs.AttachHandlerSuccessDetail(r, fmt.Sprintf("SSO token refresh completed (%s)", auth.AccountStorageLogPhrase(auth.AccountStorageLocal)), map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, fmt.Sprintf("SSO token refresh completed (%s)", auth.AccountStorageLogPhrase(auth.AccountStorageLocal)), map[string]any{
 		"account_storage": auth.AccountStorageLocal,
 		"duration_ms":     duration.Milliseconds(),
 	})

@@ -1,25 +1,21 @@
 # #33 — eip rebuild (dev scoped image rebuild + roll)
 
 **Roadmap:** [../roadmap.md](../roadmap.md) `#33`  
-**Status (mirror):** done  
-**Not live SoT.** On overlap with live docs, this overlay wins until promote.
+**Status (mirror):** **done**  
+**Live SoT:** [verbs.md](../../../deployment/deployment-tool/cli/verbs.md) (§ Day-2 images / `eip rebuild`).
 
 ## What changed
 
-_Fill as work for this ticket lands. Keep current-behaviour notes here during the project._
+Local-dev day-2: **`eip rebuild`** bakes the full app group to `:bake`, promotes per-role `TAG_*` only when digest changes, rematerializes the app fragment (no Ready). Public CLI takes no role args (`--no-cache` only). Prod day-2 images remain **`eip update`**.
 
 ## How this part works after the change
 
-_Operator / implementer behaviour after the change. Promote into live SoT only with go-ahead._
+→ Prefer live [verbs.md](../../../deployment/deployment-tool/cli/verbs.md). Unchanged digests keep tags → no needless Swarm rolls.
 
 ## Still open
 
-_Explicit remainders for this ticket (or “none”)._
-
-## Missing live SoT discovered mid-work
-
-_Draft here in live-doc shape. Promote with the rest._
+None. Per-role bake CLI **dropped** — full-group bake + digest promote is enough for local dev.
 
 ## Notes / decisions
 
-_Locks, rejected options, links to code anchors._
+Internal bake helpers may still parse role name args; they are not part of the operator surface.

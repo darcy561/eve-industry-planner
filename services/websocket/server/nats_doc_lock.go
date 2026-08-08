@@ -58,7 +58,7 @@ func (s *Server) subscribeToDocLockNotifications() {
 		subject := msg.Subject()
 		accountID, err := natscore.ExtractIDFromSubject(subject, natscore.SubjectDocLock)
 		if err != nil {
-			natscore.FinishNATSConsumerOperation(ctx, "warn", "doc lock notification rejected", map[string]interface{}{
+			natscore.FinishNATSConsumerOperation(ctx, "warn", "doc lock notification rejected", map[string]any{
 				"subject": subject,
 				"reason":  "bad subject",
 				"error":   err.Error(),
@@ -69,7 +69,7 @@ func (s *Server) subscribeToDocLockNotifications() {
 
 		wire, suppressSessionID, err := natslogic.BuildDocumentLockWire(msg.Data())
 		if err != nil {
-			natscore.FinishNATSConsumerOperation(ctx, "warn", "doc lock notification rejected", map[string]interface{}{
+			natscore.FinishNATSConsumerOperation(ctx, "warn", "doc lock notification rejected", map[string]any{
 				"subject":    subject,
 				"account_id": accountID,
 				"reason":     "marshal fail",

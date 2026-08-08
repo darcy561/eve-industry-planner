@@ -37,7 +37,7 @@ func (h *Handlers) GetGroupsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 		"group_count": len(groups),
 	})
 
@@ -49,7 +49,7 @@ func (h *Handlers) GetGroupsHandler(w http.ResponseWriter, r *http.Request) {
 
 	metrics.Success()
 	m.GroupsRequested.Observe(ctx, float64(len(groups)))
-	logs.AttachHandlerSuccessDetail(r, "user groups retrieved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "user groups retrieved", map[string]any{
 		"group_count": len(groups),
 		"duration_ms": time.Since(start).Milliseconds(),
 	})

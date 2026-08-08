@@ -56,7 +56,7 @@ func (a *Handlers) SystemIndexesHandler(w http.ResponseWriter, r *http.Request) 
 	validatedIDs, invalidCount := helper.ValidateIDs(reqBody.RequestedIDs)
 	if len(validatedIDs) == 0 {
 		metrics.Error("no_valid_ids")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No valid system IDs provided", "no valid system IDs provided", "system_indexes_no_valid_ids", "system_indexes", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No valid system IDs provided", "no valid system IDs provided", "system_indexes_no_valid_ids", "system_indexes", nil, map[string]any{
 			"total_ids": len(reqBody.RequestedIDs), "invalid_ids": invalidCount,
 		})
 		return
@@ -64,21 +64,21 @@ func (a *Handlers) SystemIndexesHandler(w http.ResponseWriter, r *http.Request) 
 
 	if len(validatedIDs) > maxSystemIDs {
 		metrics.Error("too_many_ids")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Too many system IDs (max %d)", maxSystemIDs), "too many system IDs requested", "system_indexes_too_many_ids", "system_indexes", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Too many system IDs (max %d)", maxSystemIDs), "too many system IDs requested", "system_indexes_too_many_ids", "system_indexes", nil, map[string]any{
 			"count": len(validatedIDs), "max": maxSystemIDs,
 		})
 		return
 	}
 
 	if invalidCount > 0 {
-		logs.AttachHandlerCaveat(r, "invalid_system_ids_filtered", "some invalid system IDs filtered out", map[string]interface{}{
+		logs.AttachHandlerCaveat(r, "invalid_system_ids_filtered", "some invalid system IDs filtered out", map[string]any{
 			"total_ids":   len(reqBody.RequestedIDs),
 			"valid_ids":   len(validatedIDs),
 			"invalid_ids": invalidCount,
 		})
 	}
 
-	logs.AttachDebugStep(r, "system_ids_validated", map[string]interface{}{
+	logs.AttachDebugStep(r, "system_ids_validated", map[string]any{
 		"valid_count":   len(validatedIDs),
 		"invalid_count": invalidCount,
 	})
@@ -109,7 +109,7 @@ func (a *Handlers) SystemIndexesHandler(w http.ResponseWriter, r *http.Request) 
 
 			if err != redis.Nil {
 				metrics.Error("redis_error")
-				logs.AttachHandlerCaveat(r, "redis_system_index_error", "redis error retrieving system index", map[string]interface{}{
+				logs.AttachHandlerCaveat(r, "redis_system_index_error", "redis error retrieving system index", map[string]any{
 					"error":     err.Error(),
 					"system_id": systemID,
 				})
@@ -120,7 +120,7 @@ func (a *Handlers) SystemIndexesHandler(w http.ResponseWriter, r *http.Request) 
 		result[idStr] = index
 	}
 
-	logs.AttachDebugStep(r, "redis_fetch_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "redis_fetch_completed", map[string]any{
 		"systems_found":     systemsFound,
 		"systems_not_found": systemsNotFound,
 	})
@@ -135,7 +135,7 @@ func (a *Handlers) SystemIndexesHandler(w http.ResponseWriter, r *http.Request) 
 	m.SystemsRequested.Observe(ctx, float64(len(validatedIDs)))
 	m.SystemIDsRequestedTotal.Add(ctx, float64(len(validatedIDs)))
 
-	logs.AttachHandlerSuccessDetail(r, "system indexes request completed", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "system indexes request completed", map[string]any{
 		"requested_system_ids": validatedIDs,
 		"missing_system_ids":   missingIDs,
 		"system_ids_count":     len(validatedIDs),

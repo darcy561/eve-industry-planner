@@ -12,11 +12,11 @@ func TestAttachHandlerSuccessDetailAndCaveats(t *testing.T) {
 	ctx := WithHandlerFailureDetailStore(r.Context())
 	r = r.WithContext(ctx)
 
-	AttachHandlerCaveat(r, "mongo_write_count_mismatch", "mongo write count differs from batch size", map[string]interface{}{
+	AttachHandlerCaveat(r, "mongo_write_count_mismatch", "mongo write count differs from batch size", map[string]any{
 		"jobs":      10,
 		"saved_ops": 8,
 	})
-	AttachHandlerSuccessDetail(r, "archived jobs put done", map[string]interface{}{
+	AttachHandlerSuccessDetail(r, "archived jobs put done", map[string]any{
 		"jobs":        10,
 		"saved_ops":   8,
 		"duration_ms": int64(42),
@@ -48,7 +48,7 @@ func TestAttachHandlerSuccessDetail_SurvivesChildRequestContext(t *testing.T) {
 	outer = outer.WithContext(ctx)
 
 	inner := outer.WithContext(context.WithValue(outer.Context(), struct{ k string }{"marker"}, "child"))
-	AttachHandlerSuccessDetail(inner, "archived jobs put done", map[string]interface{}{"jobs": 3})
+	AttachHandlerSuccessDetail(inner, "archived jobs put done", map[string]any{"jobs": 3})
 
 	msg, detail, _ := HandlerSuccessFromRequest(outer)
 	if msg != "archived jobs put done" || detail["jobs"] != 3 {

@@ -9,13 +9,13 @@ import (
 )
 
 func TestParseUserDoc_customStructuresStringScalarsCoercedOnMap(t *testing.T) {
-	doc := map[string]interface{}{
+	doc := map[string]any{
 		"accountID": "acct-1",
-		"settings": map[string]interface{}{
-			"structures": map[string]interface{}{
-				"manufacturing": []interface{}{},
-				"reaction": []interface{}{
-					map[string]interface{}{
+		"settings": map[string]any{
+			"structures": map[string]any{
+				"manufacturing": []any{},
+				"reaction": []any{
+					map[string]any{
 						"id":            "r1",
 						"jobType":       2,
 						"name":          "Test",
@@ -27,7 +27,7 @@ func TestParseUserDoc_customStructuresStringScalarsCoercedOnMap(t *testing.T) {
 						"default":       false,
 					},
 				},
-				"reprocessing": []interface{}{},
+				"reprocessing": []any{},
 			},
 		},
 	}
@@ -56,12 +56,12 @@ func TestParseUserDoc_customStructuresStringScalarsCoercedOnMap(t *testing.T) {
 }
 
 func TestParseUserDoc_customStructuresNumericScalarsStillDecode(t *testing.T) {
-	doc := map[string]interface{}{
+	doc := map[string]any{
 		"accountID": "a",
-		"settings": map[string]interface{}{
-			"structures": map[string]interface{}{
-				"manufacturing": []interface{}{
-					map[string]interface{}{
+		"settings": map[string]any{
+			"structures": map[string]any{
+				"manufacturing": []any{
+					map[string]any{
 						"id":            "m1",
 						"jobType":       1,
 						"name":          "M",
@@ -73,8 +73,8 @@ func TestParseUserDoc_customStructuresNumericScalarsStillDecode(t *testing.T) {
 						"default":       false,
 					},
 				},
-				"reaction":     []interface{}{},
-				"reprocessing": []interface{}{},
+				"reaction":     []any{},
+				"reprocessing": []any{},
 			},
 		},
 	}
@@ -96,8 +96,8 @@ func TestCustomStructureBSONRoundTrip_int64AndFloat64(t *testing.T) {
 	type wrap struct {
 		S models.CustomStructure `bson:"s"`
 	}
-	raw, err := bson.Marshal(map[string]interface{}{
-		"s": map[string]interface{}{
+	raw, err := bson.Marshal(map[string]any{
+		"s": map[string]any{
 			"id":            "x",
 			"jobType":       1,
 			"name":          "n",

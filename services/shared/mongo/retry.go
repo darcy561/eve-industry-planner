@@ -72,7 +72,7 @@ func retryMongoOperation(
 	}
 
 	var lastErr error
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	for attempt := range maxRetries {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -105,10 +105,7 @@ func retryMongoOperation(
 			break
 		}
 
-		delay := initialDelay * time.Duration(1<<attempt)
-		if delay > maxDelay {
-			delay = maxDelay
-		}
+		delay := min(initialDelay*time.Duration(1<<attempt), maxDelay)
 
 		logs.WarnCtx(ctx, "MongoDB operation failed, retrying",
 			"operation", opName,

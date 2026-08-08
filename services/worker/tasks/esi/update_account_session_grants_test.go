@@ -55,7 +55,7 @@ func createAffiliationJSON(corporationID, allianceID int) []byte {
 }
 
 // Helper to create a mock asynq.Task for testing
-func createMockTask(taskType string, data interface{}) *asynq.Task {
+func createMockTask(taskType string, data any) *asynq.Task {
 	// Create the task payload structure
 	var payloadData json.RawMessage
 	if data != nil {

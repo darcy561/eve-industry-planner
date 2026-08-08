@@ -18,6 +18,6 @@ func (h *Handlers) Router(w http.ResponseWriter, r *http.Request) {
 	default:
 		m := apimetrics.GetAPIEveTokenLogin()
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
-		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use GET or PUT.", "invalid method for watchlist endpoint", "watchlist_method_not_allowed", "watchlist", nil, map[string]interface{}{"method": r.Method})
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use GET or PUT.", "invalid method for watchlist endpoint", "watchlist_method_not_allowed", "watchlist", nil, map[string]any{"method": r.Method})
 	}
 }

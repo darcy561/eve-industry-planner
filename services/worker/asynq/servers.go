@@ -105,11 +105,8 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 								taskIDHash = taskIDHash*31 + uint64(b)
 							}
 							// Hash payload (use first 100 bytes to avoid excessive computation)
-							payloadLen := len(payloadBytes)
-							if payloadLen > 100 {
-								payloadLen = 100
-							}
-							for i := 0; i < payloadLen; i++ {
+							payloadLen := min(len(payloadBytes), 100)
+							for i := range payloadLen {
 								taskIDHash = taskIDHash*31 + uint64(payloadBytes[i])
 							}
 							jitter := time.Duration(taskIDHash % uint64(jitterWindow))
@@ -143,11 +140,8 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 					for _, b := range taskTypeBytes {
 						taskIDHash = taskIDHash*31 + uint64(b)
 					}
-					payloadLen := len(payloadBytes)
-					if payloadLen > 100 {
-						payloadLen = 100
-					}
-					for i := 0; i < payloadLen; i++ {
+					payloadLen := min(len(payloadBytes), 100)
+					for i := range payloadLen {
 						taskIDHash = taskIDHash*31 + uint64(payloadBytes[i])
 					}
 					jitter := time.Duration(taskIDHash%1000) * time.Millisecond // 0-1s jitter
@@ -165,11 +159,8 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 					for _, b := range taskTypeBytes {
 						taskIDHash = taskIDHash*31 + uint64(b)
 					}
-					payloadLen := len(payloadBytes)
-					if payloadLen > 100 {
-						payloadLen = 100
-					}
-					for i := 0; i < payloadLen; i++ {
+					payloadLen := min(len(payloadBytes), 100)
+					for i := range payloadLen {
 						taskIDHash = taskIDHash*31 + uint64(payloadBytes[i])
 					}
 					jitter := time.Duration(taskIDHash % uint64(jitterWindow))

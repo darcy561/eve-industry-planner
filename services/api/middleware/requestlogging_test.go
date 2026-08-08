@@ -10,7 +10,7 @@ import (
 
 func TestRequestLoggingConstructor_ClientFailureDetail(t *testing.T) {
 	handler := RequestLoggingConstructor()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logs.AttachClientFailureDetail(r, "planner refresh token not found in Redis", map[string]interface{}{
+		logs.AttachClientFailureDetail(r, "planner refresh token not found in Redis", map[string]any{
 			"failure_class":     "auth_refresh_token_not_found",
 			"credential_source": "json_body",
 		})
@@ -28,8 +28,8 @@ func TestRequestLoggingConstructor_ClientFailureDetail(t *testing.T) {
 
 func TestRequestLoggingConstructor_SuccessWithDebugSteps(t *testing.T) {
 	handler := RequestLoggingConstructor()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logs.AttachDebugStep(r, "claims_parsed", map[string]interface{}{"character_hash": "abc"})
-		logs.AttachHandlerSuccessDetail(r, "SSO token exchange completed", map[string]interface{}{
+		logs.AttachDebugStep(r, "claims_parsed", map[string]any{"character_hash": "abc"})
+		logs.AttachHandlerSuccessDetail(r, "SSO token exchange completed", map[string]any{
 			"duration_ms": int64(12),
 		})
 		w.WriteHeader(http.StatusOK)
@@ -46,10 +46,10 @@ func TestRequestLoggingConstructor_SuccessWithDebugSteps(t *testing.T) {
 
 func TestRequestLoggingConstructor_SuccessWithCaveats(t *testing.T) {
 	handler := RequestLoggingConstructor()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logs.AttachHandlerCaveat(r, "mongo_write_count_mismatch", "mongo write count differs from batch size", map[string]interface{}{
+		logs.AttachHandlerCaveat(r, "mongo_write_count_mismatch", "mongo write count differs from batch size", map[string]any{
 			"jobs": 10, "saved_ops": 8,
 		})
-		logs.AttachHandlerSuccessDetail(r, "archived jobs put done", map[string]interface{}{
+		logs.AttachHandlerSuccessDetail(r, "archived jobs put done", map[string]any{
 			"jobs": 10, "saved_ops": 8,
 		})
 		w.WriteHeader(http.StatusNoContent)
@@ -98,7 +98,7 @@ func TestRequestLoggingConstructor_ResolvesIdentityFromSuccessDetail(t *testing.
 	handler := RequestLoggingConstructor()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		loggedRequest = r
 		inner := r.WithContext(logs.BindRequestIdentity(r.Context(), "acct-log", "sess-log"))
-		logs.AttachHandlerSuccessDetail(inner, "user document retrieved", map[string]interface{}{
+		logs.AttachHandlerSuccessDetail(inner, "user document retrieved", map[string]any{
 			"found": false,
 		})
 		w.WriteHeader(http.StatusOK)

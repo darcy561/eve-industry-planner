@@ -67,7 +67,7 @@ func MetaHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != http.MethodGet {
 		m.Errors.WithLabelValues("meta_method_not_allowed").Inc(ctx)
-		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for static data meta endpoint", "static_data_meta_method_not_allowed", "static_data", nil, map[string]interface{}{"method": r.Method})
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for static data meta endpoint", "static_data_meta_method_not_allowed", "static_data", nil, map[string]any{"method": r.Method})
 		return
 	}
 
@@ -141,7 +141,7 @@ func MetaHandler(w http.ResponseWriter, r *http.Request) {
 	if duration > time.Second {
 		apimetrics.LogRequestMetrics(ctx, "static_data_meta", duration, "success")
 	}
-	logs.AttachHandlerSuccessDetail(r, "static data meta served", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "static data meta served", map[string]any{
 		"url_path":      r.URL.Path,
 		"build_version": meta.BuildVersion,
 		"build_number":  meta.BuildNumber,
@@ -160,7 +160,7 @@ func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string
 
 	if r.Method != http.MethodGet {
 		shared.Errors.WithLabelValues(errPrefix + "_method_not_allowed").Inc(ctx)
-		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for static data file", "static_data_file_method_not_allowed", "static_data", nil, map[string]interface{}{"method": r.Method, "file": errPrefix})
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for static data file", "static_data_file_method_not_allowed", "static_data", nil, map[string]any{"method": r.Method, "file": errPrefix})
 		return
 	}
 
@@ -170,13 +170,13 @@ func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string
 		duration := time.Since(start)
 		if errors.Is(err, objectstore.ErrNotFound) {
 			shared.Errors.WithLabelValues(errPrefix + "_not_found").Inc(ctx)
-			helper.RespondEndpointError(w, r, http.StatusNotFound, "static data file not found", "static data file not found", "static_data_file_not_found", "static_data", err, map[string]interface{}{"file": errPrefix, "object_key": objectKey})
+			helper.RespondEndpointError(w, r, http.StatusNotFound, "static data file not found", "static data file not found", "static_data_file_not_found", "static_data", err, map[string]any{"file": errPrefix, "object_key": objectKey})
 			return
 		}
 		shared.Errors.WithLabelValues(errPrefix + "_read_error").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "static_data_"+errPrefix, duration, "read_error",
 			"error", err, "object_key", objectKey)
-		helper.RespondEndpointServerError(w, r, "failed to read static data file", "static data read error", "static_data_read_failed", "static_data", err, map[string]interface{}{"file": errPrefix, "object_key": objectKey})
+		helper.RespondEndpointServerError(w, r, "failed to read static data file", "static data read error", "static_data_read_failed", "static_data", err, map[string]any{"file": errPrefix, "object_key": objectKey})
 		return
 	}
 
@@ -186,7 +186,7 @@ func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string
 		shared.Errors.WithLabelValues(errPrefix + "_invalid_json").Inc(ctx)
 		apimetrics.LogRequestMetrics(ctx, "static_data_"+errPrefix, duration, "invalid_json",
 			"error", err, "object_key", objectKey)
-		helper.RespondEndpointServerError(w, r, "static data file is invalid JSON", "static data invalid json", "static_data_invalid_json", "static_data", err, map[string]interface{}{"file": errPrefix, "object_key": objectKey})
+		helper.RespondEndpointServerError(w, r, "static data file is invalid JSON", "static data invalid json", "static_data_invalid_json", "static_data", err, map[string]any{"file": errPrefix, "object_key": objectKey})
 		return
 	}
 
@@ -212,8 +212,8 @@ func serveStaticDataFile(w http.ResponseWriter, r *http.Request, fileName string
 	logs.AttachHandlerSuccessDetail(r, fmt.Sprintf("static data file served (%s)", fileName), serveDetail)
 }
 
-func staticDataFileServeDetail(r *http.Request, fileName, fileKey string, bytes int) map[string]interface{} {
-	detail := map[string]interface{}{
+func staticDataFileServeDetail(r *http.Request, fileName, fileKey string, bytes int) map[string]any {
+	detail := map[string]any{
 		"file_name": fileName,
 		"file_key":  fileKey,
 		"bytes":     bytes,

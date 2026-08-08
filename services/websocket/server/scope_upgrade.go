@@ -33,12 +33,12 @@ func (s *Server) queueScopesAck(client *Client) bool {
 	if client == nil || client.Send == nil {
 		return false
 	}
-	sub := map[string]interface{}{
+	sub := map[string]any{
 		"account":     true,
 		"corporation": len(client.Scopes.CorporationIDs) > 0,
 		"alliance":    len(client.Scopes.AllianceIDs) > 0,
 	}
-	b, err := json.Marshal(map[string]interface{}{
+	b, err := json.Marshal(map[string]any{
 		"type":         "scopes_ack",
 		"ok":           true,
 		"subscription": sub,

@@ -49,7 +49,7 @@ func coerceDeletedAtFromString(s string) *string {
 	return nil
 }
 
-func coerceDeletedAtFromInterface(v interface{}) *string {
+func coerceDeletedAtFromInterface(v any) *string {
 	if v == nil {
 		return nil
 	}
@@ -124,10 +124,10 @@ func NormalizeExtrasCategories(categories []ExtraCategory) []ExtraCategory {
 // UnmarshalBSON decodes legacy extras category rows (deletedAt as int64 ms, Date, or string).
 func (e *ExtraCategory) UnmarshalBSON(data []byte) error {
 	var doc struct {
-		ID        string      `bson:"id"`
-		Label     string      `bson:"label"`
-		Deleted   bool        `bson:"deleted"`
-		DeletedAt interface{} `bson:"deletedAt"`
+		ID        string `bson:"id"`
+		Label     string `bson:"label"`
+		Deleted   bool   `bson:"deleted"`
+		DeletedAt any    `bson:"deletedAt"`
 	}
 	if err := bson.Unmarshal(data, &doc); err != nil {
 		return err

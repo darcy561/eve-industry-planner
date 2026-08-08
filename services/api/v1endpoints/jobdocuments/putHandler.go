@@ -47,14 +47,14 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 	const maxBatchSize = 100
 	if len(reqBody.Jobs) > maxBatchSize {
 		metrics.Error("batch_too_large")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d jobs)", maxBatchSize), "job documents batch too large", "job_docs_put_batch_too_large", "job_documents", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d jobs)", maxBatchSize), "job documents batch too large", "job_docs_put_batch_too_large", "job_documents", nil, map[string]any{
 			"count": len(reqBody.Jobs),
 			"max":   maxBatchSize,
 		})
 		return
 	}
 
-	logs.AttachDebugStep(r, "batch_validated", map[string]interface{}{
+	logs.AttachDebugStep(r, "batch_validated", map[string]any{
 		"batch_size": len(reqBody.Jobs),
 	})
 
@@ -94,7 +94,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionUserJobDocuments, rejects)
 			return
 		}
-		logs.AttachDebugStep(r, "lock_gate_passed", map[string]interface{}{
+		logs.AttachDebugStep(r, "lock_gate_passed", map[string]any{
 			"doc_count": len(jobIDs),
 		})
 	}
@@ -113,12 +113,12 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 	}
 	savedCount := int(result.UpsertedCount + result.ModifiedCount)
 	if failedCount > 0 {
-		logs.AttachHandlerCaveat(r, "batch_partial_failure", "some job documents failed validation in batch", map[string]interface{}{
+		logs.AttachHandlerCaveat(r, "batch_partial_failure", "some job documents failed validation in batch", map[string]any{
 			"failed": failedCount,
 			"total":  len(reqBody.Jobs),
 		})
 	}
-	logs.AttachDebugStep(r, "mongo_write_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_write_completed", map[string]any{
 		"saved":  savedCount,
 		"failed": failedCount,
 	})
@@ -128,7 +128,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 	m.JobsSaved.Add(ctx, float64(savedCount))
 	m.JobsRequested.Observe(ctx, float64(len(reqBody.Jobs)))
 
-	logs.AttachHandlerSuccessDetail(r, "batch job documents upserted", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "batch job documents upserted", map[string]any{
 		"total":       len(reqBody.Jobs),
 		"saved":       savedCount,
 		"failed":      failedCount,

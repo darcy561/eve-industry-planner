@@ -205,7 +205,7 @@ func fieldsFromKV(kv ...any) []zap.Field {
 
 // AccessLogDetailFields returns top-level zap fields from handler success/failure detail maps.
 // account_id and session_id are omitted when present; use [RequestIdentityFromRequest] on the access log envelope.
-func AccessLogDetailFields(m map[string]interface{}) []zap.Field {
+func AccessLogDetailFields(m map[string]any) []zap.Field {
 	if len(m) == 0 {
 		return nil
 	}

@@ -14,7 +14,7 @@ func (h *Handlers) handleViewerArrived(w http.ResponseWriter, r *http.Request) {
 	}
 
 	documentlock.HandleViewerArrivedIngress(hc.Ctx, h.LockDeps(), hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
-	logs.AttachDebugStep(r, "viewer_presence_updated", lockDebugExtra(hc, map[string]interface{}{"event": "arrived"}))
+	logs.AttachDebugStep(r, "viewer_presence_updated", lockDebugExtra(hc, map[string]any{"event": "arrived"}))
 	finishLockHandlerSuccess(r, "viewer-arrived", http.StatusNoContent, hc, nil)
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -26,7 +26,7 @@ func (h *Handlers) handleViewerDeparted(w http.ResponseWriter, r *http.Request) 
 	}
 
 	documentlock.HandleViewerDepartedIngress(hc.Ctx, h.LockDeps(), hc.AccountID, hc.SessionID, hc.Collection, hc.DocID)
-	logs.AttachDebugStep(r, "viewer_presence_updated", lockDebugExtra(hc, map[string]interface{}{"event": "departed"}))
+	logs.AttachDebugStep(r, "viewer_presence_updated", lockDebugExtra(hc, map[string]any{"event": "departed"}))
 	finishLockHandlerSuccess(r, "viewer-departed", http.StatusNoContent, hc, nil)
 	w.WriteHeader(http.StatusNoContent)
 }

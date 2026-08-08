@@ -33,7 +33,7 @@ func (h *Handlers) BlueprintsHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		h.BlueprintsPostHandler(w, r)
 	default:
-		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for blueprints endpoint", "method_not_allowed", "blueprints", nil, map[string]interface{}{"method": r.Method})
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for blueprints endpoint", "method_not_allowed", "blueprints", nil, map[string]any{"method": r.Method})
 	}
 }
 
@@ -58,25 +58,25 @@ func (h *Handlers) BlueprintGetHandler(w http.ResponseWriter, r *http.Request) {
 
 	data, found, err := h.Mongo.Blueprints.GetPublicByID(ctx, blueprintID)
 	if err != nil {
-		helper.RespondEndpointServerError(w, r, "An error occurred while retrieving blueprint data. Please try again later.", "blueprints get: mongo error", "blueprints_get_mongo_failed", "blueprints", err, map[string]interface{}{"blueprint_id": blueprintID})
+		helper.RespondEndpointServerError(w, r, "An error occurred while retrieving blueprint data. Please try again later.", "blueprints get: mongo error", "blueprints_get_mongo_failed", "blueprints", err, map[string]any{"blueprint_id": blueprintID})
 		return
 	}
 	if !found {
-		helper.RespondEndpointError(w, r, http.StatusNotFound, "Blueprint not found", "blueprints get: blueprint not found", "blueprints_not_found", "blueprints", nil, map[string]interface{}{"blueprint_id": blueprintID})
+		helper.RespondEndpointError(w, r, http.StatusNotFound, "Blueprint not found", "blueprints get: blueprint not found", "blueprints_not_found", "blueprints", nil, map[string]any{"blueprint_id": blueprintID})
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 		"blueprint_id": blueprintID,
 	})
 
 	w.Header().Set("Cache-Control", blueprintsCacheControl)
 	if err := helper.EncodeJSON(w, data); err != nil {
-		helper.RespondEndpointServerError(w, r, "Internal server error", "blueprints get: encode error", "blueprints_get_encode_failed", "blueprints", err, map[string]interface{}{"blueprint_id": blueprintID})
+		helper.RespondEndpointServerError(w, r, "Internal server error", "blueprints get: encode error", "blueprints_get_encode_failed", "blueprints", err, map[string]any{"blueprint_id": blueprintID})
 		return
 	}
 
-	logs.AttachHandlerSuccessDetail(r, "blueprint retrieved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "blueprint retrieved", map[string]any{
 		"blueprint_id": blueprintID,
 		"duration_ms":  time.Since(start).Milliseconds(),
 	})
@@ -119,7 +119,7 @@ func (h *Handlers) BlueprintsPostHandler(w http.ResponseWriter, r *http.Request)
 	}
 	results := bsonDocsToMaps(docs)
 
-	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 		"requested": len(typeIDs),
 		"returned":  len(results),
 	})
@@ -130,7 +130,7 @@ func (h *Handlers) BlueprintsPostHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	logs.AttachHandlerSuccessDetail(r, "blueprints retrieved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "blueprints retrieved", map[string]any{
 		"requested":   len(typeIDs),
 		"returned":    len(results),
 		"duration_ms": time.Since(start).Milliseconds(),

@@ -71,7 +71,7 @@ func beginWSMessageOperation(client *Client, messageType string, msg []byte) (co
 
 	ctx, span := wsTracer.Start(ctx, "ws."+messageType, trace.WithAttributes(attrs...))
 
-	logs.AttachDebugStepCtx(ctx, "message_received", map[string]interface{}{
+	logs.AttachDebugStepCtx(ctx, "message_received", map[string]any{
 		"message_type":   messageType,
 		"message_id":     messageID,
 		"client_id":      client.id,

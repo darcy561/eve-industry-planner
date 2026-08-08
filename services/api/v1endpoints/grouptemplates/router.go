@@ -20,7 +20,7 @@ func (h *Handlers) Router(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPost:
 			h.PostTemplateHandler(w, r)
 		default:
-			helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for group-templates root", "group_templates_method_not_allowed", "group_templates", nil, map[string]interface{}{"method": r.Method})
+			helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for group-templates root", "group_templates_method_not_allowed", "group_templates", nil, map[string]any{"method": r.Method})
 		}
 	default:
 		const prefix = base + "/"
@@ -34,8 +34,8 @@ func (h *Handlers) Router(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// .../full
-		if strings.HasSuffix(rest, "/full") {
-			tid := strings.TrimSuffix(rest, "/full")
+		if before, ok := strings.CutSuffix(rest, "/full"); ok {
+			tid := before
 			if tid == "" || strings.Contains(tid, "/") {
 				helper.RespondNotFound(w, r, nil)
 				return
@@ -44,7 +44,7 @@ func (h *Handlers) Router(w http.ResponseWriter, r *http.Request) {
 			case http.MethodGet:
 				h.GetPayloadFullHandler(w, r, tid)
 			default:
-				helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for group-templates full", "group_templates_method_not_allowed", "group_templates", nil, map[string]interface{}{"method": r.Method, "template_id": tid})
+				helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for group-templates full", "group_templates_method_not_allowed", "group_templates", nil, map[string]any{"method": r.Method, "template_id": tid})
 			}
 			return
 		}
@@ -61,7 +61,7 @@ func (h *Handlers) Router(w http.ResponseWriter, r *http.Request) {
 		case http.MethodDelete:
 			h.DeleteTemplateHandler(w, r, templateID)
 		default:
-			helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for group-templates entry", "group_templates_method_not_allowed", "group_templates", nil, map[string]interface{}{"method": r.Method, "template_id": templateID})
+			helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for group-templates entry", "group_templates_method_not_allowed", "group_templates", nil, map[string]any{"method": r.Method, "template_id": templateID})
 		}
 	}
 }

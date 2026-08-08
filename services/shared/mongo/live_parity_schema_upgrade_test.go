@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"testing"
 	"time"
 
@@ -160,15 +161,11 @@ func findOneRaw(t *testing.T, ctx context.Context, coll *mongodriver.Collection)
 // cloneAsScratchAccount rewrites _id and _meta.accountID for isolated upgrade tests.
 func cloneAsScratchAccount(src bson.M, scratchID string) bson.M {
 	out := bson.M{}
-	for k, v := range src {
-		out[k] = v
-	}
+	maps.Copy(out, src)
 	out["_id"] = scratchID
 	meta := bson.M{}
 	if existing, ok := out["_meta"].(bson.M); ok {
-		for k, v := range existing {
-			meta[k] = v
-		}
+		maps.Copy(meta, existing)
 	}
 	meta["accountID"] = scratchID
 	out["_meta"] = meta

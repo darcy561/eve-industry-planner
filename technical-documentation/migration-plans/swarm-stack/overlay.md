@@ -13,7 +13,7 @@ Index: [contents.md](./contents.md).
 | #5 | done | [05-stack-file.md](./overlays/05-stack-file.md) |
 | #6 | absorbed into #23 | [06-rolling-update.md](./overlays/06-rolling-update.md) |
 | #7 | done | [07-worker-concurrency.md](./overlays/07-worker-concurrency.md) |
-| #8 | **done** — drain + soak + live SoT promote (no Redis hosted-tenant) | [08-websocket-drain.md](./overlays/08-websocket-drain.md) · [promote/](./promote/README.md) |
+| #8 | **done** — drain + soak + live SoT promote | [08-websocket-drain.md](./overlays/08-websocket-drain.md) · [promote/](./promote/README.md) |
 | #9 | done | [09-core-singleton.md](./overlays/09-core-singleton.md) |
 | #10 | done | [10-core-ready.md](./overlays/10-core-ready.md) |
 | #11 | done | [11-scheduler-lease.md](./overlays/11-scheduler-lease.md) |
@@ -24,14 +24,14 @@ Index: [contents.md](./contents.md).
 | #16 | done | [16-frontend-swarm.md](./overlays/16-frontend-swarm.md) |
 | #17 | done | [17-operator-surface.md](./overlays/17-operator-surface.md) |
 | #18 | open | [18-capacity-controller.md](./overlays/18-capacity-controller.md) |
-| #19 | partial | [19-operator-config-yaml.md](./overlays/19-operator-config-yaml.md) |
-| #20 | open — decision pack Outcomes locked | [20-selective-fanout.md](./overlays/20-selective-fanout.md) · [20-selective-fanout/](./20-selective-fanout/) |
-| #21 | partial — Redis overlays retired by #2; armed ops → #18 | [21-tenant-evacuate.md](./overlays/21-tenant-evacuate.md) |
+| #19 | partial — `eip sync` apply landed; controller policy schema open | [19-operator-yaml-sync-controller-schema.md](./overlays/19-operator-yaml-sync-controller-schema.md) |
+| #20 | **done** — product + live SoT promote (2026-08-08) | [20-selective-fanout.md](./overlays/20-selective-fanout.md) · [20-selective-fanout/](./20-selective-fanout/) · [promote/](./promote/README.md) |
+| #21 | partial — controller evacuate/pin/cordon via #18 / `eip` (roll drain already landed) | [21-controller-evacuate-ops.md](./overlays/21-controller-evacuate-ops.md) |
 | #22 | **done** — absorbed into `eip update` / #23 | [22-data-plane-updates.md](./overlays/22-data-plane-updates.md) |
 | #23 | done | [23-app-image-ship.md](./overlays/23-app-image-ship.md) |
 | #24 | done | [24-secrets-day2.md](./overlays/24-secrets-day2.md) |
 | #25 | done | [25-test-suite-foundation.md](./overlays/25-test-suite-foundation.md) |
-| #26 | open — soak base (#8/#2); co-location asserts still open | [26-ws-affinity-sim.md](./overlays/26-ws-affinity-sim.md) |
+| #26 | **done** — hold + limits + co-location fail-on-split | [26-ws-affinity-sim.md](./overlays/26-ws-affinity-sim.md) |
 | #27 | open | [27-capacity-dry-run.md](./overlays/27-capacity-dry-run.md) |
 | #28 | done | [28-core-failover-tests.md](./overlays/28-core-failover-tests.md) |
 | #29 | open | [29-management-ops-sim.md](./overlays/29-management-ops-sim.md) |

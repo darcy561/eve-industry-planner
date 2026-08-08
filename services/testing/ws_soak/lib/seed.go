@@ -1,4 +1,4 @@
-package main
+package soaklib
 
 import (
 	"context"
@@ -24,9 +24,9 @@ type clientIdentity struct {
 type affinityMode string
 
 const (
-	affinityNone    affinityMode = "none"
-	affinityAccount affinityMode = "account"
-	affinityCorp    affinityMode = "corp"
+	affinityNone     affinityMode = "none"
+	affinityAccount  affinityMode = "account"
+	affinityCorp     affinityMode = "corp"
 	affinityAlliance affinityMode = "alliance"
 )
 

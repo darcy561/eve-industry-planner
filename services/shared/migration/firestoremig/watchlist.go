@@ -81,7 +81,7 @@ func normalizeFirestoreArrayField(m map[string]any, key string) any {
 	if arr, ok := v.([]any); ok {
 		return toBSONArray(arr)
 	}
-	if arr, ok := v.([]interface{}); ok {
+	if arr, ok := v.([]any); ok {
 		return toBSONArray(arr)
 	}
 	return bson.A{}

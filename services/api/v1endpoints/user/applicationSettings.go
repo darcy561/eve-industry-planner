@@ -24,7 +24,7 @@ func (h *Handlers) ApplicationSettingsHandler(w http.ResponseWriter, r *http.Req
 	default:
 		m := apimetrics.GetAPIEveTokenLogin()
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
-		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use GET to retrieve or PUT to save.", "invalid method for application settings document endpoint", "app_settings_method_not_allowed", "eve_token_login", nil, map[string]interface{}{"method": r.Method})
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use GET to retrieve or PUT to save.", "invalid method for application settings document endpoint", "app_settings_method_not_allowed", "eve_token_login", nil, map[string]any{"method": r.Method})
 	}
 }
 
@@ -54,7 +54,7 @@ func (h *Handlers) handleGetApplicationSettings(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 		"settings_found": true,
 	})
 
@@ -65,7 +65,7 @@ func (h *Handlers) handleGetApplicationSettings(w http.ResponseWriter, r *http.R
 	}
 
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "application settings document retrieved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "application settings document retrieved", map[string]any{
 		"duration_ms": time.Since(start).Milliseconds(),
 	})
 }
@@ -93,7 +93,7 @@ func (h *Handlers) handleSaveApplicationSettings(w http.ResponseWriter, r *http.
 
 	if settingsDoc.MetaData.AccountID != "" && settingsDoc.MetaData.AccountID != accountID {
 		metrics.Error("account_id_mismatch")
-		helper.RespondEndpointError(w, r, http.StatusForbidden, "Account ID in document must match authenticated account", "account ID mismatch on application settings save", "app_settings_account_mismatch", "eve_token_login", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusForbidden, "Account ID in document must match authenticated account", "account ID mismatch on application settings save", "app_settings_account_mismatch", "eve_token_login", nil, map[string]any{
 			"token_account_id": accountID,
 			"doc_account_id":   settingsDoc.MetaData.AccountID,
 		})
@@ -103,7 +103,7 @@ func (h *Handlers) handleSaveApplicationSettings(w http.ResponseWriter, r *http.
 
 	result, retriedWithoutWSClientID, err := h.Mongo.ApplicationSettings.UpsertApplicationSettings(ctx, accountID, settingsDoc)
 	if retriedWithoutWSClientID {
-		logs.AttachHandlerCaveat(r, "upsert_retried_without_ws_client_id", "application settings upsert with websocket client id failed, retrying without client id", map[string]interface{}{
+		logs.AttachHandlerCaveat(r, "upsert_retried_without_ws_client_id", "application settings upsert with websocket client id failed, retrying without client id", map[string]any{
 			"ws_client_id": settingsDoc.MetaData.ClientID,
 			"error":        err.Error(),
 		})
@@ -114,7 +114,7 @@ func (h *Handlers) handleSaveApplicationSettings(w http.ResponseWriter, r *http.
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_upsert_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_upsert_completed", map[string]any{
 		"matched":  result.MatchedCount,
 		"upserted": result.UpsertedCount,
 	})
@@ -122,7 +122,7 @@ func (h *Handlers) handleSaveApplicationSettings(w http.ResponseWriter, r *http.
 	w.WriteHeader(http.StatusNoContent)
 
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "application settings document saved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "application settings document saved", map[string]any{
 		"matched":     result.MatchedCount,
 		"upserted":    result.UpsertedCount,
 		"duration_ms": time.Since(start).Milliseconds(),

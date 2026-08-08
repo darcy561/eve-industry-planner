@@ -1,25 +1,16 @@
-package main
+package soaklib
 
 import (
 	"fmt"
 	"net/http"
 )
 
-type soakProfile string
-
+// Internal aliases for existing call sites.
 const (
-	profileHold   soakProfile = "hold"
-	profileLimits soakProfile = "limits"
+	profileHold     = ProfileHold
+	profileLimits   = ProfileLimits
+	profilePressure = ProfilePressure
 )
-
-func parseProfile(s string) (soakProfile, error) {
-	switch soakProfile(s) {
-	case profileHold, profileLimits:
-		return soakProfile(s), nil
-	default:
-		return "", fmt.Errorf("profile must be hold|limits, got %q", s)
-	}
-}
 
 // limitsPlan sizes a soft→hard pressure soak against operator-synced thresholds.
 // Fill cohort shares one corp place key; soft_divert / full_probe use mixed
@@ -106,6 +97,8 @@ type limitsEvidence struct {
 	AffinityAccount   int
 	AffinityCorp      int
 	AffinityAlliance  int
+	RequireColoc      bool
+	FillSlotCounts    map[string]uint64 // fill cohort place homes — must be one backend when RequireColoc
 }
 
 func (e limitsEvidence) assert() error {
@@ -120,6 +113,9 @@ func (e limitsEvidence) assert() error {
 	}
 	if e.Require503 && e.Refuse503 == 0 {
 		return fmt.Errorf("limits: -require-503 set but no HTTP %d refuses (point -ws-url at a single websocket task to bypass router divert)", http.StatusServiceUnavailable)
+	}
+	if e.RequireColoc && len(e.FillSlotCounts) > 1 {
+		return fmt.Errorf("limits: fill cohort split across backends [%s] (shared corp key must co-locate)", formatCounts(e.FillSlotCounts))
 	}
 	if e.SkipDivertAssert {
 		return nil

@@ -44,7 +44,7 @@ type LocationPrice struct {
 // MarshalJSON implements custom JSON marshaling to flatten location IDs as top-level keys
 func (r MarketPriceResponse) MarshalJSON() ([]byte, error) {
 	// Create a map to hold all fields including location IDs as top-level keys
-	result := make(map[string]interface{})
+	result := make(map[string]any)
 
 	// Add all location IDs as top-level keys
 	for locationID, price := range r.locations {
@@ -90,7 +90,7 @@ func (a *Handlers) MarketPricesHandler(w http.ResponseWriter, r *http.Request) {
 	validatedIDs, invalidCount := helper.ValidateIDs(reqBody.RequestedIDs)
 	if len(validatedIDs) == 0 {
 		metrics.Error("no_valid_ids")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No valid type IDs provided", "no valid type IDs provided", "market_prices_no_valid_ids", "market_prices", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No valid type IDs provided", "no valid type IDs provided", "market_prices_no_valid_ids", "market_prices", nil, map[string]any{
 			"total_ids": len(reqBody.RequestedIDs), "invalid_ids": invalidCount,
 		})
 		return
@@ -98,21 +98,21 @@ func (a *Handlers) MarketPricesHandler(w http.ResponseWriter, r *http.Request) {
 
 	if len(validatedIDs) > maxTypeIDs {
 		metrics.Error("too_many_ids")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Too many type IDs (max %d)", maxTypeIDs), "too many type IDs requested", "market_prices_too_many_ids", "market_prices", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Too many type IDs (max %d)", maxTypeIDs), "too many type IDs requested", "market_prices_too_many_ids", "market_prices", nil, map[string]any{
 			"count": len(validatedIDs), "max": maxTypeIDs,
 		})
 		return
 	}
 
 	if invalidCount > 0 {
-		logs.AttachHandlerCaveat(r, "invalid_type_ids_filtered", "some invalid type IDs filtered out", map[string]interface{}{
+		logs.AttachHandlerCaveat(r, "invalid_type_ids_filtered", "some invalid type IDs filtered out", map[string]any{
 			"total_ids":   len(reqBody.RequestedIDs),
 			"valid_ids":   len(validatedIDs),
 			"invalid_ids": invalidCount,
 		})
 	}
 
-	logs.AttachDebugStep(r, "type_ids_validated", map[string]interface{}{
+	logs.AttachDebugStep(r, "type_ids_validated", map[string]any{
 		"valid_count":   len(validatedIDs),
 		"invalid_count": invalidCount,
 	})
@@ -128,7 +128,7 @@ func (a *Handlers) MarketPricesHandler(w http.ResponseWriter, r *http.Request) {
 		response, found, err := a.fetchMarketPricesForType(ctx, r, int32(typeID))
 		if err != nil {
 			metrics.Error("redis_error")
-			logs.AttachHandlerCaveat(r, "redis_market_prices_error", "redis error retrieving market prices", map[string]interface{}{
+			logs.AttachHandlerCaveat(r, "redis_market_prices_error", "redis error retrieving market prices", map[string]any{
 				"error":   err.Error(),
 				"type_id": typeID,
 			})
@@ -144,7 +144,7 @@ func (a *Handlers) MarketPricesHandler(w http.ResponseWriter, r *http.Request) {
 		result[idStr] = response
 	}
 
-	logs.AttachDebugStep(r, "redis_fetch_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "redis_fetch_completed", map[string]any{
 		"types_found":     typesFound,
 		"types_not_found": typesNotFound,
 	})
@@ -162,7 +162,7 @@ func (a *Handlers) MarketPricesHandler(w http.ResponseWriter, r *http.Request) {
 		m.RequestsWithMissingPrices.Inc(ctx)
 	}
 
-	logs.AttachHandlerSuccessDetail(r, "market prices request completed", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "market prices request completed", map[string]any{
 		"requested_type_ids": validatedIDs,
 		"missing_type_ids":   missingIDs,
 		"type_ids_count":     len(validatedIDs),
@@ -207,7 +207,7 @@ func (a *Handlers) fetchMarketPricesForType(ctx context.Context, r *http.Request
 	priceEntries, err := rediscore.GetMarketPriceEntriesByType(ctx, a.Redis, typeID, locationIDs)
 	if err != nil {
 		if r != nil {
-			logs.AttachHandlerCaveat(r, "market_price_entries_fetch_failed", "failed to fetch market price entries by type", map[string]interface{}{
+			logs.AttachHandlerCaveat(r, "market_price_entries_fetch_failed", "failed to fetch market price entries by type", map[string]any{
 				"error":   err.Error(),
 				"type_id": typeID,
 			})
@@ -252,7 +252,7 @@ func (a *Handlers) fetchMarketPricesForType(ctx context.Context, r *http.Request
 		// Validate typeID before sending messages
 		if typeID == 0 {
 			if r != nil {
-				logs.AttachHandlerCaveat(r, "market_prices_refresh_skipped_invalid_type", "skipping market prices refresh messages due to invalid type_id", map[string]interface{}{
+				logs.AttachHandlerCaveat(r, "market_prices_refresh_skipped_invalid_type", "skipping market prices refresh messages due to invalid type_id", map[string]any{
 					"type_id": typeID,
 				})
 			}
@@ -271,7 +271,7 @@ func (a *Handlers) fetchMarketPricesForType(ctx context.Context, r *http.Request
 			// Use high-priority task for missing market prices (FetchMissingMarketPrices has DefaultPriority Priority2)
 			if err := natscore.PublishTask(ctx, a.JetStream, taskscore.FetchMissingMarketPrices.Subject, taskscore.FetchMissingMarketPrices.Name, request, a.NATS); err != nil {
 				if r != nil {
-					logs.AttachHandlerCaveat(r, "market_prices_refresh_publish_failed", "failed to publish market prices refresh message", map[string]interface{}{
+					logs.AttachHandlerCaveat(r, "market_prices_refresh_publish_failed", "failed to publish market prices refresh message", map[string]any{
 						"type_id":     typeID,
 						"location_id": location.RegionID,
 						"station_id":  location.StationID,

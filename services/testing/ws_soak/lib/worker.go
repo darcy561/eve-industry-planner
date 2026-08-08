@@ -1,4 +1,4 @@
-package main
+package soaklib
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -22,8 +21,13 @@ type soakConfig struct {
 	WSURL       string
 	Insecure    bool
 	Reconnect   bool
-	ReadIdle    time.Duration // how long to wait between read deadline refreshes
+	ReadIdle    time.Duration // optional read deadline; 0 = none (preferred for holds)
 	DialTimeout time.Duration
+	// DocRecv is optional; called for ChangeStream-shaped doc updates (non-blocking).
+	DocRecv func(docID, accountID string)
+	// Live is optional membership registry (fanout ready-settle).
+	Live        *liveRegistry
+	ReadySettle time.Duration
 }
 
 func wsURLForSession(base, sessionID string) (string, error) {
@@ -178,10 +182,37 @@ func runWorker(ctx context.Context, cfg soakConfig, id clientIdentity, st *stats
 		} else if home != "" {
 			st.incSlot(home)
 		}
+
+		if needsScopeUpgrade(id) {
+			if err := upgradeScopes(res.Conn, id, 5*time.Second); err != nil {
+				st.ScopesFail.Add(1)
+				st.CloseUnexpected.Add(1)
+				_ = res.Conn.Close()
+				if !cfg.Reconnect {
+					return
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(200 * time.Millisecond):
+				}
+				continue
+			}
+			st.ScopesOK.Add(1)
+		}
+
+		if cfg.Live != nil {
+			cfg.Live.MarkLive(id)
+			cfg.Live.ScheduleReady(id.AccountID)
+		}
+
 		st.live.Add(1)
 
-		closedReason := holdConn(ctx, res.Conn, cfg.ReadIdle, st)
+		closedReason := holdConn(ctx, res.Conn, cfg.ReadIdle, st, id.AccountID, cfg.DocRecv)
 		st.live.Add(-1)
+		if cfg.Live != nil {
+			cfg.Live.Unregister(id.AccountID)
+		}
 		_ = res.Conn.Close()
 
 		if closedReason == "done" || ctx.Err() != nil {
@@ -203,39 +234,124 @@ func runWorker(ctx context.Context, cfg soakConfig, id clientIdentity, st *stats
 	}
 }
 
-// holdConn reads until please_reconnect, socket error, or ctx done.
-// Returns "please_reconnect", "close", or "done" (soak cancelled).
-func holdConn(ctx context.Context, conn *websocket.Conn, readIdle time.Duration, st *stats) (reason string) {
-	// gorilla/websocket panics on repeated Read after a failed connection; never retry those.
-	defer func() {
-		if recover() != nil {
-			reason = "close"
-		}
-	}()
-	for {
-		select {
-		case <-ctx.Done():
-			return "done"
-		default:
-		}
-		_ = conn.SetReadDeadline(time.Now().Add(readIdle))
+func needsScopeUpgrade(id clientIdentity) bool {
+	return id.CorpID != 0 || id.AllianceID != 0
+}
+
+// upgradeScopes sends upgrade_scopes and waits for scopes_ack (org pool + HostedTenants).
+func upgradeScopes(conn *websocket.Conn, id clientIdentity, timeout time.Duration) error {
+	var corpIDs, allianceIDs []string
+	if id.CorpID != 0 {
+		corpIDs = []string{fmt.Sprintf("%d", id.CorpID)}
+	}
+	if id.AllianceID != 0 {
+		allianceIDs = []string{fmt.Sprintf("%d", id.AllianceID)}
+	}
+	payload, err := json.Marshal(map[string]any{
+		"type":           "upgrade_scopes",
+		"corporationIDs": corpIDs,
+		"allianceIDs":    allianceIDs,
+	})
+	if err != nil {
+		return err
+	}
+	_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	if err := conn.WriteMessage(websocket.TextMessage, payload); err != nil {
+		return fmt.Errorf("upgrade_scopes write: %w", err)
+	}
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		_ = conn.SetReadDeadline(deadline)
 		_, raw, err := conn.ReadMessage()
 		if err != nil {
-			if ctx.Err() != nil {
-				return "done"
-			}
-			if ne, ok := err.(net.Error); ok && ne.Timeout() {
-				continue
-			}
-			return "close"
+			return fmt.Errorf("upgrade_scopes read: %w", err)
+		}
+		if string(raw) == "pong" || string(raw) == "ping" {
+			continue
 		}
 		var msg map[string]any
 		if json.Unmarshal(raw, &msg) != nil {
 			continue
 		}
-		if got, _ := msg["type"].(string); got == "please_reconnect" {
+		if got, _ := msg["type"].(string); got != "scopes_ack" {
+			continue
+		}
+		if ok, _ := msg["ok"].(bool); !ok {
+			return fmt.Errorf("scopes_ack not ok: %v", msg)
+		}
+		return nil
+	}
+	return fmt.Errorf("timeout waiting scopes_ack")
+}
+
+// App text heartbeat — same interval/payload as frontend realtimeClient.js.
+// Written from a side goroutine; gorilla allows WriteMessage concurrent with the
+// default PingHandler's WriteControl pongs. Do not drive pings off read deadlines
+// (ReadMessage errors are permanent in gorilla).
+const appPingPeriod = 45 * time.Second
+
+// holdConn reads until please_reconnect, socket error, or ctx done.
+// Returns "please_reconnect", "close", or "done" (soak cancelled).
+func holdConn(ctx context.Context, conn *websocket.Conn, readIdle time.Duration, st *stats, accountID string, docRecv func(docID, accountID string)) (reason string) {
+	defer func() {
+		if recover() != nil {
+			reason = "close"
+		}
+	}()
+	if readIdle > 0 {
+		_ = conn.SetReadDeadline(time.Now().Add(readIdle))
+	} else {
+		_ = conn.SetReadDeadline(time.Time{})
+	}
+	readDone := make(chan struct{})
+	defer close(readDone)
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = conn.Close()
+		case <-readDone:
+		}
+	}()
+	go func() {
+		t := time.NewTicker(appPingPeriod)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-readDone:
+				return
+			case <-t.C:
+				_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+				if err := conn.WriteMessage(websocket.TextMessage, []byte("ping")); err != nil {
+					return
+				}
+			}
+		}
+	}()
+	for {
+		_, raw, err := conn.ReadMessage()
+		if err != nil {
+			if ctx.Err() != nil {
+				return "done"
+			}
+			return "close"
+		}
+		if readIdle > 0 {
+			_ = conn.SetReadDeadline(time.Now().Add(readIdle))
+		}
+		if bytesEqASCII(raw, "pong") || bytesEqASCII(raw, "ping") {
+			continue
+		}
+		// Cheap field extract — avoid map[string]any on every fan-in frame.
+		if extractJSONStringField(raw, "type") == "please_reconnect" {
 			st.PleaseReconnect.Add(1)
 			return "please_reconnect"
+		}
+		if docRecv != nil {
+			if docID := strings.TrimSpace(extractJSONStringField(raw, "docID")); docID != "" {
+				docRecv(docID, accountID)
+			}
 		}
 	}
 }

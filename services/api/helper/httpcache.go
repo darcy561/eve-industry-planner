@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func writeCanonicalJSONValue(b *strings.Builder, v interface{}) {
+func writeCanonicalJSONValue(b *strings.Builder, v any) {
 	switch x := v.(type) {
 	case nil:
 		b.WriteString("null")
@@ -22,7 +22,7 @@ func writeCanonicalJSONValue(b *strings.Builder, v interface{}) {
 		b.WriteString(strconv.Quote(x))
 	case float64:
 		b.WriteString(strconv.FormatFloat(x, 'f', -1, 64))
-	case []interface{}:
+	case []any:
 		b.WriteByte('[')
 		for i, item := range x {
 			if i > 0 {
@@ -31,7 +31,7 @@ func writeCanonicalJSONValue(b *strings.Builder, v interface{}) {
 			writeCanonicalJSONValue(b, item)
 		}
 		b.WriteByte(']')
-	case map[string]interface{}:
+	case map[string]any:
 		keys := make([]string, 0, len(x))
 		for k := range x {
 			keys = append(keys, k)
@@ -65,12 +65,12 @@ func sortStrings(values []string) {
 }
 
 // BuildJSONPayloadAndWeakETag marshals data and computes a weak ETag from a canonical JSON view.
-func BuildJSONPayloadAndWeakETag(data interface{}) ([]byte, string, error) {
+func BuildJSONPayloadAndWeakETag(data any) ([]byte, string, error) {
 	payload, err := json.Marshal(data)
 	if err != nil {
 		return nil, "", err
 	}
-	var generic interface{}
+	var generic any
 	if err := json.Unmarshal(payload, &generic); err != nil {
 		return nil, "", err
 	}
@@ -86,7 +86,7 @@ func IfNoneMatchSatisfied(ifNoneMatchHeader, etag string) bool {
 	if ifNoneMatchHeader == "" {
 		return false
 	}
-	for _, candidate := range strings.Split(ifNoneMatchHeader, ",") {
+	for candidate := range strings.SplitSeq(ifNoneMatchHeader, ",") {
 		tag := strings.TrimSpace(candidate)
 		if tag == "*" || tag == etag {
 			return true

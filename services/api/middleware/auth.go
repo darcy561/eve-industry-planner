@@ -26,7 +26,7 @@ func writeAuthError(w http.ResponseWriter, status int, code string) {
 	})
 }
 
-func respondAuthDependencyUnavailable(w http.ResponseWriter, r *http.Request, logMsg string, err error, extra map[string]interface{}) {
+func respondAuthDependencyUnavailable(w http.ResponseWriter, r *http.Request, logMsg string, err error, extra map[string]any) {
 	helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Service temporarily unavailable", logMsg, "auth_dependency_unavailable", "auth", err, extra)
 }
 
@@ -38,7 +38,7 @@ func AuthConstructor(redisClient *redis.Client) MiddlewareConstructor {
 			if err != nil {
 				if auth.IsInfrastructureError(err) || dependency.IsUnavailable(err) {
 					detail := auth.AuthSessionFailureDetailFromError(err, r)
-					extra := detail.ClientFailureDetail(map[string]interface{}{"error": err.Error()})
+					extra := detail.ClientFailureDetail(map[string]any{"error": err.Error()})
 					respondAuthDependencyUnavailable(w, r, "auth session validation failed: dependency unavailable", err, extra)
 					return
 				}
@@ -48,7 +48,7 @@ func AuthConstructor(redisClient *redis.Client) MiddlewareConstructor {
 					logs.AttachClientFailureDetail(r, detail.ClientFailureMessage(), detail.ClientFailureDetail(nil))
 					writeAuthError(w, http.StatusUnauthorized, detail.Code)
 				default:
-					logs.AttachClientFailureDetail(r, detail.ClientFailureMessage(), detail.ClientFailureDetail(map[string]interface{}{
+					logs.AttachClientFailureDetail(r, detail.ClientFailureMessage(), detail.ClientFailureDetail(map[string]any{
 						"error": err.Error(),
 					}))
 					writeAuthError(w, http.StatusUnauthorized, "session_missing")
@@ -57,13 +57,13 @@ func AuthConstructor(redisClient *redis.Client) MiddlewareConstructor {
 			}
 			if err := auth.TouchAccountSession(r.Context(), redisClient, identity.AccountID, identity.SessionID, identity.Session.AppVersion); err != nil {
 				if dependency.IsUnavailable(err) {
-					respondAuthDependencyUnavailable(w, r, "failed to touch account session: dependency unavailable", err, map[string]interface{}{
+					respondAuthDependencyUnavailable(w, r, "failed to touch account session: dependency unavailable", err, map[string]any{
 						"account_id": identity.AccountID,
 						"session_id": identity.SessionID,
 					})
 					return
 				}
-				logs.AttachClientFailureDetail(r, "failed to touch account session", map[string]interface{}{
+				logs.AttachClientFailureDetail(r, "failed to touch account session", map[string]any{
 					"failure_class": "auth_session_touch_failed",
 					"code":          "session_missing",
 					"account_id":    identity.AccountID,

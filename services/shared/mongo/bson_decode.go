@@ -2,6 +2,7 @@ package mongo
 
 import (
 	"bytes"
+	"maps"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -27,9 +28,7 @@ func AsDocumentM(v any) bson.M {
 		return m
 	case map[string]any:
 		out := make(bson.M, len(m))
-		for k, val := range m {
-			out[k] = val
-		}
+		maps.Copy(out, m)
 		return out
 	case bson.D:
 		out := make(bson.M, len(m))

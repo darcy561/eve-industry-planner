@@ -51,14 +51,14 @@ func (h *Handlers) DeleteGroupsHandler(w http.ResponseWriter, r *http.Request) {
 	const maxBatchSize = 200
 	if len(reqBody.GroupIDs) > maxBatchSize {
 		metrics.Error("batch_too_large")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d group IDs)", maxBatchSize), "groups delete batch too large", "groups_delete_batch_too_large", "groups_delete", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d group IDs)", maxBatchSize), "groups delete batch too large", "groups_delete_batch_too_large", "groups_delete", nil, map[string]any{
 			"count": len(reqBody.GroupIDs),
 			"max":   maxBatchSize,
 		})
 		return
 	}
 
-	logs.AttachDebugStep(r, "batch_validated", map[string]interface{}{
+	logs.AttachDebugStep(r, "batch_validated", map[string]any{
 		"batch_size": len(reqBody.GroupIDs),
 	})
 
@@ -100,7 +100,7 @@ func (h *Handlers) DeleteGroupsHandler(w http.ResponseWriter, r *http.Request) {
 		metrics.Success()
 		m.GroupsDeleted.Add(ctx, 0)
 		m.GroupsRequested.Observe(ctx, float64(len(reqBody.GroupIDs)))
-		logs.AttachHandlerSuccessDetail(r, "groups delete: nothing matched filter", map[string]interface{}{
+		logs.AttachHandlerSuccessDetail(r, "groups delete: nothing matched filter", map[string]any{
 			"requested_count": len(reqBody.GroupIDs),
 			"duration_ms":     time.Since(start).Milliseconds(),
 		})
@@ -130,7 +130,7 @@ func (h *Handlers) DeleteGroupsHandler(w http.ResponseWriter, r *http.Request) {
 			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionUserJobGroups, rejects)
 			return
 		}
-		logs.AttachDebugStep(r, "lock_gate_passed", map[string]interface{}{
+		logs.AttachDebugStep(r, "lock_gate_passed", map[string]any{
 			"doc_count": len(resolvedIDs),
 		})
 	}
@@ -148,7 +148,7 @@ func (h *Handlers) DeleteGroupsHandler(w http.ResponseWriter, r *http.Request) {
 
 	deletedCount := int(deletedCount64)
 
-	logs.AttachDebugStep(r, "mongo_write_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_write_completed", map[string]any{
 		"deleted": deletedCount,
 	})
 
@@ -163,7 +163,7 @@ func (h *Handlers) DeleteGroupsHandler(w http.ResponseWriter, r *http.Request) {
 	metrics.Success()
 	m.GroupsDeleted.Add(ctx, float64(deletedCount))
 	m.GroupsRequested.Observe(ctx, float64(len(reqBody.GroupIDs)))
-	logs.AttachHandlerSuccessDetail(r, "groups deleted", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "groups deleted", map[string]any{
 		"requested_count": len(reqBody.GroupIDs),
 		"deleted_count":   deletedCount,
 		"duration_ms":     time.Since(start).Milliseconds(),

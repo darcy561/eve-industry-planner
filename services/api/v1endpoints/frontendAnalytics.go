@@ -110,10 +110,7 @@ func recordValidatedFrontendAnalytics(ctx context.Context, met *apimetrics.WebFr
 		met.RecordItemTreeViews(ctx, audience, byType)
 		return
 	}
-	n := body.Count
-	if n < 1 {
-		n = 1
-	}
+	n := max(body.Count, 1)
 	met.RecordEvent(ctx, key, audience, n)
 }
 
@@ -151,19 +148,19 @@ func (a *Handlers) FrontendAppEventsBatchHandler(w http.ResponseWriter, r *http.
 	}
 	if n > maxFrontendBatchEvents {
 		metrics.Error("batch_too_many")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid request", "frontend analytics batch: too many events", "frontend_analytics_batch_too_many", "frontend_analytics", nil, map[string]interface{}{"count": n})
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid request", "frontend analytics batch: too many events", "frontend_analytics_batch_too_many", "frontend_analytics", nil, map[string]any{"count": n})
 		return
 	}
 
 	for i := range batch.Events {
 		if reason := validateFrontendAnalyticsBody(&batch.Events[i]); reason != "" {
 			metrics.Error("batch_item_" + reason)
-			helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid request", "frontend analytics batch: item validation failed", "frontend_analytics_item_invalid", "frontend_analytics", nil, map[string]interface{}{"reason": reason, "index": i})
+			helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid request", "frontend analytics batch: item validation failed", "frontend_analytics_item_invalid", "frontend_analytics", nil, map[string]any{"reason": reason, "index": i})
 			return
 		}
 	}
 
-	logs.AttachDebugStep(r, "batch_validated", map[string]interface{}{
+	logs.AttachDebugStep(r, "batch_validated", map[string]any{
 		"event_count": n,
 		"audience":    audience,
 	})
@@ -172,7 +169,7 @@ func (a *Handlers) FrontendAppEventsBatchHandler(w http.ResponseWriter, r *http.
 		recordValidatedFrontendAnalytics(ctx, met, &batch.Events[i], audience)
 	}
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "frontend analytics batch recorded", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "frontend analytics batch recorded", map[string]any{
 		"event_count": n,
 		"audience":    audience,
 	})

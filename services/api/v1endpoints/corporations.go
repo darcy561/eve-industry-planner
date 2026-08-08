@@ -58,7 +58,7 @@ func (a *Handlers) CorporationsHandler(w http.ResponseWriter, r *http.Request) {
 	const maxTokens = 50
 	if len(reqBody.Tokens) > maxTokens {
 		metrics.Error("too_many_tokens")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Too many tokens (max %d)", maxTokens), "too many tokens provided", "corporations_too_many_tokens", "corporations", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Too many tokens (max %d)", maxTokens), "too many tokens provided", "corporations_too_many_tokens", "corporations", nil, map[string]any{
 			"count": len(reqBody.Tokens),
 			"max":   maxTokens,
 		})
@@ -91,13 +91,13 @@ func (a *Handlers) CorporationsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if len(validTokens) == 0 {
 		metrics.Error("no_valid_tokens")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No valid tokens provided", "no valid tokens found in request", "corporations_no_valid_tokens", "corporations", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No valid tokens provided", "no valid tokens found in request", "corporations_no_valid_tokens", "corporations", nil, map[string]any{
 			"total_tokens": len(reqBody.Tokens),
 		})
 		return
 	}
 
-	logs.AttachDebugStep(r, "tokens_validated", map[string]interface{}{
+	logs.AttachDebugStep(r, "tokens_validated", map[string]any{
 		"total_tokens":   len(reqBody.Tokens),
 		"valid_tokens":   len(validTokens),
 		"skipped_tokens": skippedTokens,
@@ -110,11 +110,11 @@ func (a *Handlers) CorporationsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := natscore.PublishTask(ctx, a.JetStream, taskscore.UpdateAccountSessionGrants.Subject, taskscore.UpdateAccountSessionGrants.Name, taskRequest, a.NATS); err != nil {
 		metrics.Error("publish_error")
-		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to publish account session grants refresh task", "corporations_publish_failed", "corporations", err, map[string]interface{}{"token_count": len(validTokens)})
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to publish account session grants refresh task", "corporations_publish_failed", "corporations", err, map[string]any{"token_count": len(validTokens)})
 		return
 	}
 
-	logs.AttachDebugStep(r, "grants_task_published", map[string]interface{}{
+	logs.AttachDebugStep(r, "grants_task_published", map[string]any{
 		"valid_tokens": len(validTokens),
 	})
 
@@ -122,14 +122,14 @@ func (a *Handlers) CorporationsHandler(w http.ResponseWriter, r *http.Request) {
 	metrics.Success()
 
 	if skippedTokens > 0 {
-		logs.AttachHandlerCaveat(r, "tokens_skipped", "some tokens rejected during validation", map[string]interface{}{
+		logs.AttachHandlerCaveat(r, "tokens_skipped", "some tokens rejected during validation", map[string]any{
 			"skipped": skippedTokens,
 			"total":   len(reqBody.Tokens),
 			"valid":   len(validTokens),
 		})
 	}
 
-	logs.AttachHandlerSuccessDetail(r, "successfully queued account session grants refresh task", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "successfully queued account session grants refresh task", map[string]any{
 		"valid_tokens": len(validTokens),
 		"total_tokens": len(reqBody.Tokens),
 		"duration_ms":  time.Since(start).Milliseconds(),

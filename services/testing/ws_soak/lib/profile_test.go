@@ -1,4 +1,4 @@
-package main
+package soaklib
 
 import (
 	"testing"
@@ -7,13 +7,13 @@ import (
 )
 
 func TestParseProfile(t *testing.T) {
-	for _, want := range []soakProfile{profileHold, profileLimits} {
-		got, err := parseProfile(string(want))
+	for _, want := range []Profile{ProfileHold, ProfileLimits, ProfilePressure, ProfileFanout} {
+		got, err := ParseProfile(string(want))
 		if err != nil || got != want {
 			t.Fatalf("%q: got %q err=%v", want, got, err)
 		}
 	}
-	if _, err := parseProfile("nope"); err == nil {
+	if _, err := ParseProfile("nope"); err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -87,6 +87,7 @@ func TestLimitsEvidenceAssertDivert(t *testing.T) {
 		SoftSeen: true, FullSeen: true, ConnectedOK: 20, ExpectTarget: 20, ExpectCutoff: 40,
 		SoftDivertTotal: 10, SoftDivertOffSoft: 9, SoftDivertOnSoft: 1, MinDivertRatio: 0.8,
 		FullProbeTotal: 5, FullProbeOffFull: 5,
+		RequireColoc: true, FillSlotCounts: map[string]uint64{"abc": 40},
 	}
 	if err := ok.assert(); err != nil {
 		t.Fatal(err)
@@ -102,5 +103,53 @@ func TestLimitsEvidenceAssertDivert(t *testing.T) {
 	badFull.FullProbeOffFull = 4
 	if err := badFull.assert(); err == nil {
 		t.Fatal("want full probe error")
+	}
+	badColoc := ok
+	badColoc.FillSlotCounts = map[string]uint64{"a": 20, "b": 20}
+	if err := badColoc.assert(); err == nil {
+		t.Fatal("want fill coloc split error")
+	}
+}
+
+func TestAssertNoColocSplits(t *testing.T) {
+	ok := map[string]map[string]uint64{
+		"corporation:1": {"c1": 10},
+		"account:a":     {"c2": 2},
+	}
+	if err := assertSharedOrgAffinityColoc(map[string]map[string]uint64{
+		"corporation:1": {"a": 3, "b": 1},
+	}); err == nil {
+		t.Fatal("expected shared org coloc failure")
+	}
+	if err := assertSharedOrgAffinityColoc(map[string]map[string]uint64{
+		"corporation:1": {"a": 4},
+		"alliance:9":    {"a": 2},
+		"account:solo":  {"a": 1, "b": 1}, // ignored — not org key
+	}); err != nil {
+		t.Fatalf("shared org coloc ok: %v", err)
+	}
+
+	if err := assertNoColocSplits(ok); err != nil {
+		t.Fatal(err)
+	}
+	bad := map[string]map[string]uint64{
+		"corporation:1": {"c1": 8, "c2": 2},
+	}
+	if err := assertNoColocSplits(bad); err == nil {
+		t.Fatal("want split error")
+	}
+}
+
+func TestRecordAffinityPlaceTracksSplits(t *testing.T) {
+	st := newStats()
+	st.recordAffinityPlace(cohortFill, "corporation:1", "c1")
+	st.recordAffinityPlace(cohortFill, "corporation:1", "c1")
+	st.recordAffinityPlace(cohortFill, "corporation:1", "c2")
+	homes := st.affinityHomeSets()
+	if got := homes["corporation:1"]; len(got) != 2 || got["c1"] != 2 || got["c2"] != 1 {
+		t.Fatalf("homes=%v", got)
+	}
+	if err := assertNoColocSplits(homes); err == nil {
+		t.Fatal("want split")
 	}
 }

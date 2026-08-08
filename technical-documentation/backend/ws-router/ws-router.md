@@ -15,6 +15,7 @@ Live SoT for the **ws-router** service: in-memory tenant→backend placement and
 | NATS | `*nats-env` (no Redis secrets on this service) | stack `services.ws-router` |
 | Affinity cookie | `eip_tenant_affinity` | [`wsplacement.AffinityCookie`](../../../services/shared/wsplacement/keys.go) |
 | Sticky cookie | `eip_ws_affinity` | same (`StickyCookie`) — fallback only |
+| Upgrade copy buffer | **16 KiB** per direction (pooled) | [`proxy_upgrade.go`](../../../services/ws-router/proxy_upgrade.go) `wsProxyCopyBuf` |
 | Capacity labels | `min=1` `max=2` | stack `deploy.labels` `eip.capacity.*` |
 
 Full service block → `services.ws-router` / `services.ws-docker-proxy` in that YAML.

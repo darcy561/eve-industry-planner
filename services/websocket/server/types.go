@@ -245,7 +245,7 @@ func (s *Server) clientLogCtx(clientID string) context.Context {
 }
 
 // Implement syncpkg.SyncServer interface - MongoDB access
-func (s *Server) GetMongoClient() interface{} {
+func (s *Server) GetMongoClient() any {
 	if s.Stack == nil || s.Stack.Mongo == nil {
 		return nil
 	}

@@ -132,7 +132,7 @@ func (h *Handlers) GetCatalogHandler(w http.ResponseWriter, r *http.Request) {
 		helper.RespondEndpointServerError(w, r, "Failed to load templates", "group-templates catalog load", "group_templates_catalog_load_failed", "group_templates", err, nil)
 		return
 	}
-	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 		"template_count": len(doc.Templates),
 	})
 	_ = helper.EncodeJSON(w, map[string]any{"templates": doc.Templates})
@@ -160,7 +160,7 @@ func (h *Handlers) GetCatalogEntryHandler(w http.ResponseWriter, r *http.Request
 	}
 	idx := findTemplateIndex(doc.Templates, templateID)
 	if idx >= 0 {
-		logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+		logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 			"template_id": templateID,
 		})
 		_ = helper.EncodeJSON(w, doc.Templates[idx])
@@ -196,7 +196,7 @@ func (h *Handlers) GetPayloadFullHandler(w http.ResponseWriter, r *http.Request,
 		helper.RespondNotFound(w, r, metrics)
 		return
 	}
-	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 		"template_id": templateID,
 	})
 	_ = helper.EncodeJSON(w, payload)
@@ -273,7 +273,7 @@ func (h *Handlers) PostTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logs.AttachDebugStep(r, "template_saved", map[string]interface{}{
+	logs.AttachDebugStep(r, "template_saved", map[string]any{
 		"template_id": tid,
 	})
 
@@ -372,7 +372,7 @@ func (h *Handlers) PatchTemplateHandler(w http.ResponseWriter, r *http.Request, 
 		}
 	}
 
-	logs.AttachDebugStep(r, "template_updated", map[string]interface{}{
+	logs.AttachDebugStep(r, "template_updated", map[string]any{
 		"template_id": templateID,
 	})
 	metrics.Success()
@@ -400,11 +400,11 @@ func (h *Handlers) DeleteTemplateHandler(w http.ResponseWriter, r *http.Request,
 	}
 
 	metrics.Success()
-	logs.AttachDebugStep(r, "template_deleted", map[string]interface{}{
+	logs.AttachDebugStep(r, "template_deleted", map[string]any{
 		"template_id": templateID,
 	})
 	w.WriteHeader(http.StatusNoContent)
-	logs.AttachHandlerSuccessDetail(r, "group template deleted", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "group template deleted", map[string]any{
 		"template_id": templateID,
 	})
 }

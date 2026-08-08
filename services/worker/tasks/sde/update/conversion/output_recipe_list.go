@@ -56,12 +56,12 @@ func updateMaterials(item *EVEType, activityType string, typeIDMap map[string]*E
 	if !ok {
 		return
 	}
-	materials, ok := activity["materials"].([]interface{})
+	materials, ok := activity["materials"].([]any)
 	if !ok {
 		return
 	}
 	for _, matI := range materials {
-		material, ok := matI.(map[string]interface{})
+		material, ok := matI.(map[string]any)
 		if !ok {
 			continue
 		}

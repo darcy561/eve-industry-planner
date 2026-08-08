@@ -19,17 +19,17 @@ const (
 	MongoDBQueryTimeout = 10 * time.Second
 )
 
-// structToMap converts a struct to map[string]interface{} via JSON marshaling
+// structToMap converts a struct to map[string]any via JSON marshaling
 // This ensures proper type conversion and JSON compatibility
-func structToMap(v interface{}) (map[string]interface{}, error) {
+func structToMap(v any) (map[string]any, error) {
 	// Marshal struct to JSON bytes
 	jsonBytes, err := json.Marshal(v)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal struct to JSON: %w", err)
 	}
 
-	// Unmarshal JSON bytes to map[string]interface{}
-	var result map[string]interface{}
+	// Unmarshal JSON bytes to map[string]any
+	var result map[string]any
 	if err := json.Unmarshal(jsonBytes, &result); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
@@ -40,8 +40,8 @@ func structToMap(v interface{}) (map[string]interface{}, error) {
 // queryDocumentsOnce performs a single MongoDB query attempt
 // Decodes into structs for known collections (users, jobs, groups) for type safety
 // Falls back to bson.M for unknown collections
-func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filter bson.M, collectionName string) (map[string]map[string]interface{}, error) {
-	results := make(map[string]map[string]interface{})
+func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filter bson.M, collectionName string) (map[string]map[string]any, error) {
+	results := make(map[string]map[string]any)
 
 	// Use Find with $in operator to query all documents at once
 	cursor, err := collection.Find(ctx, filter)
@@ -138,7 +138,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 				"doc_id", docID)
 		}
 
-		// Convert bson.M to map[string]interface{} via JSON marshaling
+		// Convert bson.M to map[string]any via JSON marshaling
 		// This ensures proper BSON to JSON type conversion
 		docMap, err := structToMap(doc)
 		if err != nil {
@@ -163,14 +163,14 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 }
 
 // QueryDocumentsByCollection queries documents from MongoDB by collection name and document IDs
-// Returns a map of documentID -> document data (as map[string]interface{})
+// Returns a map of documentID -> document data (as map[string]any)
 // Documents that don't exist are omitted from the result
 // Uses bulk query with $in operator for efficiency
 // Implements retry logic with exponential backoff for transient MongoDB errors
 // Context can be cancelled to stop ongoing queries if client disconnects
-func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionName string, documentIDs []string, accountID string) (map[string]map[string]interface{}, error) {
+func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionName string, documentIDs []string, accountID string) (map[string]map[string]any, error) {
 	if len(documentIDs) == 0 {
-		return make(map[string]map[string]interface{}), nil
+		return make(map[string]map[string]any), nil
 	}
 
 	// Check if context is already cancelled
@@ -210,7 +210,7 @@ func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionNam
 	}
 
 	// Use retry logic from mongo core package
-	var results map[string]map[string]interface{}
+	var results map[string]map[string]any
 
 	err := eipmongo.Retry(ctx, fmt.Sprintf("query documents from %s", collectionName), func() error {
 		var err error
@@ -232,9 +232,9 @@ func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionNam
 }
 
 // QueryAllJobsForAccount queries all jobs for an accountID where displayOnPlanner is true
-// Returns a map of jobID -> job data (as map[string]interface{})
+// Returns a map of jobID -> job data (as map[string]any)
 // Uses struct decoding for type safety and proper BSON to JSON conversion
-func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string) (map[string]map[string]interface{}, error) {
+func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string) (map[string]map[string]any, error) {
 	// Check if context is already cancelled
 	select {
 	case <-ctx.Done():
@@ -287,7 +287,7 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 	}
 
 	// Convert structs to maps via JSON marshaling
-	results := make(map[string]map[string]interface{}, len(jobs))
+	results := make(map[string]map[string]any, len(jobs))
 	for _, job := range jobs {
 		jobMap, err := structToMap(job)
 		if err != nil {
@@ -308,9 +308,9 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 }
 
 // QueryAllGroupsForAccount queries all groups for an accountID
-// Returns a map of groupID -> group data (as map[string]interface{})
+// Returns a map of groupID -> group data (as map[string]any)
 // Uses struct decoding for type safety and proper BSON to JSON conversion
-func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID string) (map[string]map[string]interface{}, error) {
+func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID string) (map[string]map[string]any, error) {
 	// Check if context is already cancelled
 	select {
 	case <-ctx.Done():
@@ -358,7 +358,7 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 	}
 
 	// Convert structs to maps via JSON marshaling
-	results := make(map[string]map[string]interface{}, len(groups))
+	results := make(map[string]map[string]any, len(groups))
 	for _, group := range groups {
 		groupMap, err := structToMap(group)
 		if err != nil {

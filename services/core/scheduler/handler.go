@@ -435,7 +435,7 @@ func (s *TaskScheduler) processScheduleRequest(msg jetstream.Msg) {
 		logs.ErrorCtx(ctx, "failed to parse schedule request", "component", schedulerLogComponent, "error", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		natscore.FinishNATSConsumerOperation(ctx, "warn", "schedule request rejected", map[string]interface{}{
+		natscore.FinishNATSConsumerOperation(ctx, "warn", "schedule request rejected", map[string]any{
 			"reason": "parse_failed",
 			"error":  err.Error(),
 		})
@@ -509,7 +509,7 @@ func (s *TaskScheduler) processScheduleRequest(msg jetstream.Msg) {
 	// Acknowledge successful processing
 	deliveryCount := natscore.GetDeliveryCount(msg)
 	natscore.AcknowledgeMessage(msg, "successful scheduling", deliveryCount)
-	natscore.FinishNATSConsumerOperation(ctx, "info", "schedule request accepted", map[string]interface{}{
+	natscore.FinishNATSConsumerOperation(ctx, "info", "schedule request accepted", map[string]any{
 		"component": schedulerLogComponent,
 		"job_id":    req.JobID,
 		"task_type": req.TaskType,

@@ -2,6 +2,7 @@ package documentlocks
 
 import (
 	"context"
+	"maps"
 	"net/http"
 
 	"eve-industry-planner/api/helper"
@@ -28,14 +29,14 @@ type lockHandlerContext struct {
 	Redis      *redis.Client
 }
 
-func lockTargetExtra(hc lockHandlerContext) map[string]interface{} {
-	return map[string]interface{}{
+func lockTargetExtra(hc lockHandlerContext) map[string]any {
+	return map[string]any{
 		"collection": hc.Collection,
 		"doc_id":     hc.DocID,
 	}
 }
 
-func lockDebugExtra(hc lockHandlerContext, extra map[string]interface{}) map[string]interface{} {
+func lockDebugExtra(hc lockHandlerContext, extra map[string]any) map[string]any {
 	merged := lockTargetExtra(hc)
 	if hc.AccountID != "" {
 		merged["account_id"] = hc.AccountID
@@ -43,9 +44,7 @@ func lockDebugExtra(hc lockHandlerContext, extra map[string]interface{}) map[str
 	if hc.SessionID != "" {
 		merged["session_id"] = hc.SessionID
 	}
-	for k, v := range extra {
-		merged[k] = v
-	}
+	maps.Copy(merged, extra)
 	return merged
 }
 
@@ -56,13 +55,13 @@ func respondLockUnavailable(w http.ResponseWriter, r *http.Request, metric strin
 }
 
 func attachLockOperationCompleted(r *http.Request, hc lockHandlerContext, operation string, statusCode int) {
-	logs.AttachDebugStep(r, "lock_operation_completed", lockDebugExtra(hc, map[string]interface{}{
+	logs.AttachDebugStep(r, "lock_operation_completed", lockDebugExtra(hc, map[string]any{
 		"operation":   operation,
 		"status_code": statusCode,
 	}))
 }
 
-func finishLockHandlerSuccessDetail(r *http.Request, operation string, statusCode int, hc lockHandlerContext, msg string, extra map[string]interface{}) {
+func finishLockHandlerSuccessDetail(r *http.Request, operation string, statusCode int, hc lockHandlerContext, msg string, extra map[string]any) {
 	if msg == "" {
 		msg = "document lock " + operation
 	}
@@ -73,11 +72,9 @@ func finishLockHandlerSuccessDetail(r *http.Request, operation string, statusCod
 	logs.AttachHandlerSuccessDetail(r, msg, detail)
 }
 
-func finishLockHandlerSuccess(r *http.Request, operation string, statusCode int, hc lockHandlerContext, extra map[string]interface{}) {
+func finishLockHandlerSuccess(r *http.Request, operation string, statusCode int, hc lockHandlerContext, extra map[string]any) {
 	merged := lockTargetExtra(hc)
-	for k, v := range extra {
-		merged[k] = v
-	}
+	maps.Copy(merged, extra)
 	finishLockHandlerSuccessDetail(r, operation, statusCode, hc, "", merged)
 }
 
@@ -86,7 +83,7 @@ func finishLockForceReleaseSuccess(r *http.Request, hc lockHandlerContext, out *
 		finishLockHandlerSuccess(r, "force-release", http.StatusOK, hc, nil)
 		return
 	}
-	extra := map[string]interface{}{
+	extra := map[string]any{
 		"acquired":  true,
 		"read_only": false,
 	}
@@ -101,7 +98,7 @@ func finishLockAcquireSuccess(r *http.Request, hc lockHandlerContext, out *docum
 
 	operation := "acquire"
 	msg := "document lock acquired"
-	extra := map[string]interface{}{
+	extra := map[string]any{
 		"acquired":  true,
 		"read_only": false,
 	}
@@ -128,7 +125,7 @@ func finishLockExtendSuccess(r *http.Request, hc lockHandlerContext, out *docume
 	}
 
 	if out.NotHolderPayload != nil {
-		extra := map[string]interface{}{
+		extra := map[string]any{
 			"holding":   false,
 			"read_only": false,
 		}
@@ -148,7 +145,7 @@ func finishLockExtendSuccess(r *http.Request, hc lockHandlerContext, out *docume
 		return
 	}
 
-	extra := map[string]interface{}{
+	extra := map[string]any{
 		"holding":         true,
 		"read_only":       false,
 		"extend_count":    out.ExtendCount,
@@ -181,7 +178,7 @@ func finishLockRequestSuccess(r *http.Request, hc lockHandlerContext, res *docum
 	}
 
 	var operation, msg string
-	extra := map[string]interface{}{}
+	extra := map[string]any{}
 
 	switch res.StatusCode {
 	case http.StatusAccepted:
@@ -204,8 +201,8 @@ func finishLockRequestSuccess(r *http.Request, hc lockHandlerContext, res *docum
 	finishLockHandlerSuccessDetail(r, operation, res.StatusCode, hc, msg, extra)
 }
 
-func handoffHolderExtra(previousHolderSessionID, newHolderSessionID string) map[string]interface{} {
-	extra := map[string]interface{}{}
+func handoffHolderExtra(previousHolderSessionID, newHolderSessionID string) map[string]any {
+	extra := map[string]any{}
 	if previousHolderSessionID != "" {
 		extra["previous_holder_session_id"] = previousHolderSessionID
 	}
@@ -241,26 +238,24 @@ func finishLockClaimHandoffSuccess(r *http.Request, hc lockHandlerContext, out *
 	finishLockHandlerSuccessDetail(r, "claim-handoff", out.Status, hc, "document lock handoff claimed", extra)
 }
 
-func attachLockHandlerClientFailure(r *http.Request, operation, logMsg, failureClass string, statusCode int, hc lockHandlerContext, extra map[string]interface{}) {
+func attachLockHandlerClientFailure(r *http.Request, operation, logMsg, failureClass string, statusCode int, hc lockHandlerContext, extra map[string]any) {
 	attachLockOperationCompleted(r, hc, operation, statusCode)
 	detail := lockTargetExtra(hc)
 	detail["operation"] = operation
 	detail["status_code"] = statusCode
 	detail["failure_class"] = failureClass
-	for k, v := range extra {
-		detail[k] = v
-	}
+	maps.Copy(detail, extra)
 	logs.AttachClientFailureDetail(r, logMsg, detail)
 }
 
-func finishLockStateSuccess(r *http.Request, operation, accountID, collection, docID string, extra map[string]interface{}) {
+func finishLockStateSuccess(r *http.Request, operation, accountID, collection, docID string, extra map[string]any) {
 	hc := lockHandlerContext{
 		AccountID:  accountID,
 		Collection: collection,
 		DocID:      docID,
 	}
 	attachLockOperationCompleted(r, hc, operation, http.StatusOK)
-	detail := map[string]interface{}{
+	detail := map[string]any{
 		"operation":   operation,
 		"status_code": http.StatusOK,
 	}
@@ -270,16 +265,14 @@ func finishLockStateSuccess(r *http.Request, operation, accountID, collection, d
 	if docID != "" {
 		detail["doc_id"] = docID
 	}
-	for k, v := range extra {
-		detail[k] = v
-	}
+	maps.Copy(detail, extra)
 	logs.AttachHandlerSuccessDetail(r, "document lock "+operation, detail)
 }
 
 func finishLockStateBatchSuccess(r *http.Request, accountID string, jobCount, groupCount int) {
 	hc := lockHandlerContext{AccountID: accountID}
 	attachLockOperationCompleted(r, hc, "lock-state-batch", http.StatusOK)
-	detail := map[string]interface{}{
+	detail := map[string]any{
 		"operation":       "lock-state-batch",
 		"status_code":     http.StatusOK,
 		"job_doc_count":   jobCount,

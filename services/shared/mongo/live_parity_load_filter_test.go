@@ -3,12 +3,13 @@ package mongo_test
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 	"testing"
 	"time"
 
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -193,9 +194,7 @@ func sampleLiveJobAccounts(t *testing.T, ctx context.Context, mongo *eipmongo.Mo
 
 func cloneFilter(in bson.M) bson.M {
 	out := make(bson.M, len(in))
-	for k, v := range in {
-		out[k] = v
-	}
+	maps.Copy(out, in)
 	return out
 }
 

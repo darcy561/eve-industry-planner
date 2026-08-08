@@ -47,22 +47,22 @@ func (h *Handlers) GetGroupByIDHandler(w http.ResponseWriter, r *http.Request, g
 			return
 		}
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to retrieve group", "failed to load group by id", "groups_get_by_id_failed", "groups_get", err, map[string]interface{}{"group_id": groupID})
+		helper.RespondEndpointServerError(w, r, "Failed to retrieve group", "failed to load group by id", "groups_get_by_id_failed", "groups_get", err, map[string]any{"group_id": groupID})
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 		"group_id": groupID,
 	})
 
 	if err := helper.EncodeJSON(w, group); err != nil {
 		metrics.Error("encode_error")
-		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode group response", "groups_encode_failed", "groups_get", err, map[string]interface{}{"group_id": groupID})
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode group response", "groups_encode_failed", "groups_get", err, map[string]any{"group_id": groupID})
 		return
 	}
 
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "single group retrieved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "single group retrieved", map[string]any{
 		"group_id":    groupID,
 		"duration_ms": time.Since(start).Milliseconds(),
 	})

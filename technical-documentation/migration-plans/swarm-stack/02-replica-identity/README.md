@@ -24,8 +24,8 @@ Do not treat historical “we set OTEL slot ids for JetStream” as a requiremen
 | Router view of a websocket task | **`backend`** keyed by `ContainerID` | slot |
 | Per-replica capacity thresholds | **`client_cutoff`**, **`target_clients`** (env `WS_CLIENT_CUTOFF` / `WS_TARGET_CLIENTS`) | slot cutoff / slot target |
 | Swarm replica ordinal | **`Slot`** (Docker task JSON only; assigned gate) | identity |
-| Placement signals | NATS `ws.placement.state` + `GET /placement` (`PlacementState`) | Redis `eip:ws:soft/full/…` (retired) |
-| Place map | In-memory on ws-router (`affinity → container_id`) | Redis `eip:ws:place:v1:` (retired) |
+| Placement signals | NATS `ws.placement.state` + `GET /placement` (`PlacementState`) | Redis placement flags |
+| Place map | In-memory on ws-router (`affinity → container_id`) | Redis place/pin keys |
 
 **Promote drafts (live-doc shape):** [../promote/README.md](../promote/README.md).
 
@@ -46,9 +46,9 @@ Do not treat historical “we set OTEL slot ids for JetStream” as a requiremen
 
 | Doc | Consumer |
 |-----|----------|
-| [place-pin.md](./place-pin.md) | ws-router backend keys + place / pin (place now in-memory; Redis retired) |
-| [soft-full-cordon.md](./soft-full-cordon.md) | Redis soft / full / cordon |
-| [drain.md](./drain.md) | Drain PUBLISH + reconnect target id |
+| [place-pin.md](./place-pin.md) | ws-router memory place (`affinity → container_id`) |
+| [soft-full-cordon.md](./soft-full-cordon.md) | NATS/`PlacementState` soft / full / clients / draining |
+| [drain.md](./drain.md) | `DrainForRoll` + draining flag + `please_reconnect` |
 | [jetstream-durables.md](./jetstream-durables.md) | JetStream durable names |
 | [otel-metrics.md](./otel-metrics.md) | OTel `service.instance.id` + Prom series (env SoT retired) |
 | [ws-container-id.md](./ws-container-id.md) | Process/container identity → `service.instance.id` — [stub](./ws-instance-id.md) for old `ws_instance_id` |

@@ -116,9 +116,16 @@ func (s *Server) reader(client *Client) {
 			"was_in_user_conns", wasInUserConns)
 	}()
 
-	// Set read deadline to enable timeout detection for stale connections
-	// We'll extend it in the loop when messages are received
+	// Read deadline detects stale peers. Extend on app data below and on websocket
+	// pongs (writer sends Ping every PingPeriod). Without SetPongHandler, idle
+	// clients that only answer protocol pings die after PongWait.
 	client.conn.SetReadDeadline(time.Now().Add(config.PongWait))
+	client.conn.SetPongHandler(func(string) error {
+		client.activityMu.Lock()
+		client.lastActivity = time.Now()
+		client.activityMu.Unlock()
+		return client.conn.SetReadDeadline(time.Now().Add(config.PongWait))
+	})
 
 	messageCount := 0
 	for {
@@ -227,7 +234,7 @@ func (s *Server) reader(client *Client) {
 
 		// Parse JSON messages and handle by type field
 		if len(msg) > 0 && msg[0] == '{' {
-			var msgData map[string]interface{}
+			var msgData map[string]any
 			if err := json.Unmarshal(msg, &msgData); err != nil {
 				// Not valid JSON
 				logs.WarnCtx(ctx, "websocket message is not valid JSON",

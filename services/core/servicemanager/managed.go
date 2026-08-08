@@ -61,9 +61,7 @@ func (m *Managed) Follow(ctx context.Context, states <-chan primarycontroller.St
 
 	runCtx, cancel := context.WithCancel(ctx)
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for {
 			select {
 			case <-runCtx.Done():
@@ -79,7 +77,7 @@ func (m *Managed) Follow(ctx context.Context, states <-chan primarycontroller.St
 				m.apply(ctx, st)
 			}
 		}
-	}()
+	})
 
 	var once sync.Once
 	m.stopFollow = func() {

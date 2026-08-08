@@ -52,19 +52,16 @@ func TestRunWhileHeld_SingleLeader(t *testing.T) {
 	defer cancel()
 
 	var (
-		mu           sync.Mutex
-		concurrent   int
-		maxObserved  int
-		invocations  atomic.Int32
-		leaderID     atomic.Value // string
-		wg           sync.WaitGroup
+		mu          sync.Mutex
+		concurrent  int
+		maxObserved int
+		invocations atomic.Int32
+		leaderID    atomic.Value // string
+		wg          sync.WaitGroup
 	)
 
-	for i := 0; i < N; i++ {
-		i := i
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for i := range N {
+		wg.Go(func() {
 			id := "replica-" + string(rune('a'+i)) + "-" + InstanceID()
 			_ = RunWhileHeld(ctx, rdb, "lease-single", id, fastOpts(), func(scoped context.Context) error {
 				invocations.Add(1)
@@ -83,7 +80,7 @@ func TestRunWhileHeld_SingleLeader(t *testing.T) {
 				<-scoped.Done()
 				return nil
 			})
-		}()
+		})
 	}
 
 	// Give the cluster time to settle and confirm exactly one leader.
@@ -169,11 +166,10 @@ func TestRunWhileHeld_LostLeaseCancelsFn(t *testing.T) {
 	t.Parallel()
 	rdb, _ := newTestRedis(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	var (
-		entered  = make(chan struct{}, 1)
+		entered   = make(chan struct{}, 1)
 		cancelled = make(chan struct{}, 1)
 	)
 
@@ -241,8 +237,7 @@ func TestRunWhileHeld_FnErrorTriggersReacquire(t *testing.T) {
 func TestRunWhileHeld_RejectsBadArgs(t *testing.T) {
 	t.Parallel()
 	rdb, _ := newTestRedis(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	cases := []struct {
 		name        string
 		client      *redis.Client
@@ -255,7 +250,6 @@ func TestRunWhileHeld_RejectsBadArgs(t *testing.T) {
 		{"nil_fn", rdb, "k", "id", nil},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			if err := RunWhileHeld(ctx, tc.client, tc.key, tc.instID, fastOpts(), tc.fn); err == nil {
 				t.Fatalf("expected error for %s", tc.name)

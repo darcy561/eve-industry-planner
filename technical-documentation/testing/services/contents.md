@@ -26,6 +26,7 @@ How Go tests under [`services/`](../../../services/) are run, plus per-service q
 | CI | [`.github/workflows/test.yml`](../../../.github/workflows/test.yml) job `services` | Selected when `services/**` changes (or manual dispatch) — [overview](../overview.md) § CI test suite |
 | One service tree | e.g. `go test ./core/...` | Prefer while iterating a service |
 | Package-scoped | e.g. `go test ./ws-router/` | Tightest loop |
+| Shared harness / soak libs | `go test ./testing/...` | [../harness.md](../harness.md) — not per-service product depth |
 
 ```bash
 go test ./...

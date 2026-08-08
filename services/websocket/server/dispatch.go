@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"eve-industry-planner/shared/logs"
@@ -10,23 +11,23 @@ import (
 
 // outboundDeliveryOutcome summarizes fan-out on this websocket replica.
 type outboundDeliveryOutcome struct {
-	RouteKind           string
-	RecipientCount      int
-	CandidateCount      int
-	AccountID           string
-	CorporationID       string
-	AllianceID          string
-	SourceClientID      string
-	SourceSessionID     string
-	SuppressSessionID   string
-	RecipientClientIDs  []string
-	RecipientSessionIDs []string
-	RecipientAccountIDs []string
-	SkippedEchoClientIDs          []string
-	SkippedSessionClientIDs       []string
-	SkippedSyncClientIDs          []string
-	SkippedNotConnectedClientIDs  []string
-	SkippedScopeClientIDs         []string
+	RouteKind                      string
+	RecipientCount                 int
+	CandidateCount                 int
+	AccountID                      string
+	CorporationID                  string
+	AllianceID                     string
+	SourceClientID                 string
+	SourceSessionID                string
+	SuppressSessionID              string
+	RecipientClientIDs             []string
+	RecipientSessionIDs            []string
+	RecipientAccountIDs            []string
+	SkippedEchoClientIDs           []string
+	SkippedSessionClientIDs        []string
+	SkippedSyncClientIDs           []string
+	SkippedNotConnectedClientIDs   []string
+	SkippedScopeClientIDs          []string
 	SkippedSendBufferFullClientIDs []string
 }
 
@@ -35,10 +36,8 @@ func appendUniqueString(list []string, value string) []string {
 	if value == "" {
 		return list
 	}
-	for _, existing := range list {
-		if existing == value {
-			return list
-		}
+	if slices.Contains(list, value) {
+		return list
 	}
 	return append(list, value)
 }
@@ -390,8 +389,8 @@ func (s *Server) deliverToExplicitDocSubscribers(ctx context.Context, docID stri
 	return out
 }
 
-func outboundDeliveryDetail(docID, subject string, o outboundDeliveryOutcome) map[string]interface{} {
-	detail := map[string]interface{}{
+func outboundDeliveryDetail(docID, subject string, o outboundDeliveryOutcome) map[string]any {
+	detail := map[string]any{
 		"doc_id":          docID,
 		"route_kind":      o.RouteKind,
 		"recipient_count": o.RecipientCount,
@@ -436,7 +435,7 @@ func outboundDeliveryDetail(docID, subject string, o outboundDeliveryOutcome) ma
 	return detail
 }
 
-func appendSkipDetail(detail map[string]interface{}, key string, clientIDs []string) {
+func appendSkipDetail(detail map[string]any, key string, clientIDs []string) {
 	if len(clientIDs) > 0 {
 		detail[key] = strings.Join(clientIDs, ",")
 	}

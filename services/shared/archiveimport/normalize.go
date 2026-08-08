@@ -148,7 +148,7 @@ func deepCloneReplaceNonFiniteFloats(v any) any {
 			return v
 		}
 		out := make([]any, n)
-		for i := 0; i < n; i++ {
+		for i := range n {
 			out[i] = deepCloneReplaceNonFiniteFloats(rv.Index(i).Interface())
 		}
 		return out
@@ -462,25 +462,25 @@ func upgradeLegacyJobShape(m map[string]any) {
 	setupID := uuid.New().String()
 	rawTime := rawDataTimeSeconds(m)
 	setup := map[string]any{
-		"id":                               setupID,
-		"runCount":                         runCount,
-		"jobCount":                         jobCount,
-		"ME":                               me,
-		"TE":                               te,
-		"structureID":                      structureID,
-		"rigID":                            rigID,
-		"systemTypeID":                     systemTypeID,
-		"systemID":                         30000142,
-		"taxValue":                         0.25,
-		"estimatedInstallCost":             0.0,
-		"customStructureID":                  "",
-		"materialCount":                    map[string]any{},
-		"estimatedTime":                    0.0,
-		"rawTime":                          rawTime,
-		"jobType":                          jt,
-		"appliedRequirementID":             int64(-1),
-		"alternativeSystemIndexValue":      0.0,
-		"useAlternativeSystemIndexValue":   false,
+		"id":                             setupID,
+		"runCount":                       runCount,
+		"jobCount":                       jobCount,
+		"ME":                             me,
+		"TE":                             te,
+		"structureID":                    structureID,
+		"rigID":                          rigID,
+		"systemTypeID":                   systemTypeID,
+		"systemID":                       30000142,
+		"taxValue":                       0.25,
+		"estimatedInstallCost":           0.0,
+		"customStructureID":              "",
+		"materialCount":                  map[string]any{},
+		"estimatedTime":                  0.0,
+		"rawTime":                        rawTime,
+		"jobType":                        jt,
+		"appliedRequirementID":           int64(-1),
+		"alternativeSystemIndexValue":    0.0,
+		"useAlternativeSystemIndexValue": false,
 	}
 	if selected != nil {
 		setup["selectedCharacter"] = *selected
@@ -685,10 +685,7 @@ func normalizeJobSetupScalarFields(s map[string]any) {
 		s[k] = jobSetupIntFromMap(s, k, 0)
 	}
 	for _, k := range []string{"runCount", "jobCount"} {
-		n := jobSetupIntFromMap(s, k, 1)
-		if n < 1 {
-			n = 1
-		}
+		n := max(jobSetupIntFromMap(s, k, 1), 1)
 		s[k] = n
 	}
 	for _, k := range []string{"estimatedInstallCost", "estimatedTime", "rawTime", "alternativeSystemIndexValue"} {
@@ -1509,4 +1506,3 @@ func truthyAny(v any) bool {
 		return false
 	}
 }
-

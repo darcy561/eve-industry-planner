@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"maps"
 	"net/http"
 	"strings"
 
@@ -90,8 +91,8 @@ func (d AuthSessionFailureDetail) ClientFailureMessage() string {
 }
 
 // ClientFailureDetail returns structured fields for consolidated 4xx request logging.
-func (d AuthSessionFailureDetail) ClientFailureDetail(extra map[string]interface{}) map[string]interface{} {
-	out := map[string]interface{}{
+func (d AuthSessionFailureDetail) ClientFailureDetail(extra map[string]any) map[string]any {
+	out := map[string]any{
 		"failure_class":                 authSessionFailureClass(d.Code),
 		"code":                          d.Code,
 		"has_eip_session_cookie":        d.HasEipSessionCookie,
@@ -106,9 +107,7 @@ func (d AuthSessionFailureDetail) ClientFailureDetail(extra map[string]interface
 	if d.Reason != "" {
 		out["reason"] = d.Reason
 	}
-	for k, v := range extra {
-		out[k] = v
-	}
+	maps.Copy(out, extra)
 	return out
 }
 
@@ -126,8 +125,8 @@ func authSessionFailureClass(code string) string {
 }
 
 // LogFields returns structured key/value pairs for direct WarnCtx (e.g. websocket without access logging).
-func (d AuthSessionFailureDetail) LogFields(extra ...interface{}) []interface{} {
-	fields := make([]interface{}, 0, 8+len(extra))
+func (d AuthSessionFailureDetail) LogFields(extra ...any) []any {
+	fields := make([]any, 0, 8+len(extra))
 	fields = append(fields,
 		"code", d.Code,
 		"has_eip_session_cookie", d.HasEipSessionCookie,

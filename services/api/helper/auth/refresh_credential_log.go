@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"maps"
 	"net/http"
 	"strings"
 )
@@ -53,8 +54,8 @@ func refreshTokenIDHint(token string) string {
 }
 
 // ClientFailureDetail returns structured fields for consolidated 4xx request logging (no full secrets).
-func (d RefreshCredentialLogDetail) ClientFailureDetail(failureClass string, extra map[string]interface{}) map[string]interface{} {
-	out := map[string]interface{}{
+func (d RefreshCredentialLogDetail) ClientFailureDetail(failureClass string, extra map[string]any) map[string]any {
+	out := map[string]any{
 		"failure_class":              failureClass,
 		"session_endpoint":           d.SessionEndpoint,
 		"credential_source":          d.CredentialSource,
@@ -66,9 +67,7 @@ func (d RefreshCredentialLogDetail) ClientFailureDetail(failureClass string, ext
 		"has_eve_token_body":         d.HasEveTokenBody,
 		"likely_cause":               d.LikelyCause,
 	}
-	for k, v := range extra {
-		out[k] = v
-	}
+	maps.Copy(out, extra)
 	return out
 }
 

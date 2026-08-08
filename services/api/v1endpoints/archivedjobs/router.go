@@ -16,7 +16,7 @@ func (h *Handlers) Router(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPut:
 			h.PutArchivedJobsHandler(w, r)
 		default:
-			helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use PUT /api/v1/archived-jobs with body {\"jobs\":[models.Job JSON...]}", "invalid method for archived jobs endpoint", "method_not_allowed", "archived_jobs", nil, map[string]interface{}{"method": r.Method})
+			helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use PUT /api/v1/archived-jobs with body {\"jobs\":[models.Job JSON...]}", "invalid method for archived jobs endpoint", "method_not_allowed", "archived_jobs", nil, map[string]any{"method": r.Method})
 		}
 	default:
 		helper.RespondEndpointError(w, r, http.StatusNotFound, "Not found", "archived jobs route not found", "not_found", "archived_jobs", nil, nil)

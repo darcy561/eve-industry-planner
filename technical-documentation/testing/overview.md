@@ -44,6 +44,7 @@ Ship workflows do **not** auto-publish; they still need **Run workflow**, but fa
 | Deployment Tool Swarm integration | Secret/config ensure + prune on a real Engine | [swarm.md](./deployment-tool/swarm.md) |
 | Frontend unit | SPA Vitest suites | [frontend/contents.md](./frontend/contents.md) (placeholder — depth topics TBD) |
 | Manual stack soak | Bring-up and day-2 against a live stack | guide + verbs (above); topology → [stack/contents.md](../stack/contents.md) |
+| Shared Go harness / ops soak | Packages under `services/testing/` | [harness.md](./harness.md) |
 
 ## Topic-only detail
 

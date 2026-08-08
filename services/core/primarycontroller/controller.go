@@ -99,9 +99,7 @@ func (s *Service) start(ctx context.Context) error {
 	s.started.Store(true)
 	s.loopOK.Store(true)
 
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
+	s.wg.Go(func() {
 		defer s.loopOK.Store(false)
 		err := lease.RunWhileHeld(runCtx, s.rdb, LeaseKey, s.leaseID, s.leaseOpts, func(scoped context.Context) error {
 			logs.InfoCtx(scoped, s.msg("acquired primary lease"),
@@ -118,7 +116,7 @@ func (s *Service) start(ctx context.Context) error {
 				"component", s.Name(), "error", err, "lease_key", LeaseKey)
 			s.loopOK.Store(false)
 		}
-	}()
+	})
 
 	var stopOnce sync.Once
 	s.stop = func() {

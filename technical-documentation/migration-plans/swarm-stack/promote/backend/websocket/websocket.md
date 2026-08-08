@@ -122,4 +122,4 @@ Traefik does not LB this service directly.
 
 ## Ops soak (optional)
 
-Against a live stack: `services/cmd/ws_soak` (`-profile hold` for reconnect endurance; `-profile limits` for soft/full + divert asserts after temporarily lowering synced thresholds). Place observation uses `connected.container_id` + NATS soft/full — not Redis placement keys. Not a substitute for unit/integration tests. See [testing/services/websocket.md](../../testing/services/websocket.md).
+Against a live stack: `services/testing/ws_soak` (`-profile hold` for reconnect endurance; `-profile limits` for soft/full + divert asserts after temporarily lowering synced thresholds). Place observation uses `connected.container_id` + NATS soft/full. Not a substitute for unit/integration tests. See [testing/services/websocket.md](../../testing/services/websocket.md).

@@ -3,10 +3,11 @@ package server
 import (
 	"context"
 	"fmt"
+	"maps"
 	"time"
 
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/websocket/server/incominglogic"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -224,7 +225,7 @@ func (s *Server) processParsedMessageToDatabase(parsed parsedMessage) error {
 }
 
 // handleAdd creates a new document or updates if it exists (upsert)
-func (s *Server) handleAdd(collection *mongo.Collection, docID, clientID string, data map[string]interface{}) error {
+func (s *Server) handleAdd(collection *mongo.Collection, docID, clientID string, data map[string]any) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -247,9 +248,7 @@ func (s *Server) handleAdd(collection *mongo.Collection, docID, clientID string,
 	}
 
 	// Merge user data into document
-	for k, v := range data {
-		dbDoc[k] = v
-	}
+	maps.Copy(dbDoc, data)
 
 	// Upsert: Insert if not exists, update if exists
 	opts := options.UpdateOne().SetUpsert(true)
@@ -278,7 +277,7 @@ func (s *Server) handleAdd(collection *mongo.Collection, docID, clientID string,
 }
 
 // handleUpdate updates an existing document (does not create if missing)
-func (s *Server) handleUpdate(collection *mongo.Collection, docID, clientID string, data map[string]interface{}) error {
+func (s *Server) handleUpdate(collection *mongo.Collection, docID, clientID string, data map[string]any) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -301,9 +300,7 @@ func (s *Server) handleUpdate(collection *mongo.Collection, docID, clientID stri
 	}
 
 	// Merge user data into document
-	for k, v := range data {
-		dbDoc[k] = v
-	}
+	maps.Copy(dbDoc, data)
 
 	// Update existing document or create if it doesn't exist (upsert)
 	// This allows testing scenarios where UPDATE might be used on new documents

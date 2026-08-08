@@ -22,7 +22,7 @@ func ItemRecipeHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		ItemRecipesPostHandler(w, r)
 	default:
-		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "item recipe: method not allowed", "item_recipe_method_not_allowed", "item_recipe", nil, map[string]interface{}{"method": r.Method})
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "item recipe: method not allowed", "item_recipe_method_not_allowed", "item_recipe", nil, map[string]any{"method": r.Method})
 		return
 	}
 }
@@ -34,7 +34,7 @@ func ItemRecipeGetHandler(w http.ResponseWriter, r *http.Request) {
 	start := helper.RequestStartOrNow(ctx)
 
 	if r.Method != http.MethodGet {
-		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "item recipe get: method not allowed", "item_recipe_get_method_not_allowed", "item_recipe", nil, map[string]interface{}{"method": r.Method})
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "item recipe get: method not allowed", "item_recipe_get_method_not_allowed", "item_recipe", nil, map[string]any{"method": r.Method})
 		return
 	}
 
@@ -48,31 +48,31 @@ func ItemRecipeGetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logs.AttachDebugStep(r, "item_id_resolved", map[string]interface{}{
+	logs.AttachDebugStep(r, "item_id_resolved", map[string]any{
 		"item_id": itemID,
 	})
 
 	data, found, err := migration.GetItemRecipe(ctx, itemID)
 	if err != nil {
-		helper.RespondEndpointServerError(w, r, "An error occurred while retrieving item data. Please try again later.", "item recipe get: firestore error", "item_recipe_get_firestore_failed", "item_recipe", err, map[string]interface{}{"item_id": itemID})
+		helper.RespondEndpointServerError(w, r, "An error occurred while retrieving item data. Please try again later.", "item recipe get: firestore error", "item_recipe_get_firestore_failed", "item_recipe", err, map[string]any{"item_id": itemID})
 		return
 	}
 	if !found {
-		helper.RespondEndpointError(w, r, http.StatusNotFound, "Item not found", "item recipe get: item not found", "item_recipe_get_not_found", "item_recipe", nil, map[string]interface{}{"item_id": itemID})
+		helper.RespondEndpointError(w, r, http.StatusNotFound, "Item not found", "item recipe get: item not found", "item_recipe_get_not_found", "item_recipe", nil, map[string]any{"item_id": itemID})
 		return
 	}
 
-	logs.AttachDebugStep(r, "firestore_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "firestore_query_completed", map[string]any{
 		"item_id": itemID,
 		"found":   found,
 	})
 
 	w.Header().Set("Cache-Control", itemRecipeCacheControl)
 	if err := helper.EncodeJSON(w, data); err != nil {
-		helper.RespondEndpointServerError(w, r, "Internal server error", "item recipe get: encode error", "item_recipe_get_encode_failed", "item_recipe", err, map[string]interface{}{"item_id": itemID})
+		helper.RespondEndpointServerError(w, r, "Internal server error", "item recipe get: encode error", "item_recipe_get_encode_failed", "item_recipe", err, map[string]any{"item_id": itemID})
 		return
 	}
-	logs.AttachHandlerSuccessDetail(r, "item recipe retrieved via migration", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "item recipe retrieved via migration", map[string]any{
 		"item_id":     itemID,
 		"duration_ms": time.Since(start).Milliseconds(),
 	})
@@ -90,7 +90,7 @@ func ItemRecipesPostHandler(w http.ResponseWriter, r *http.Request) {
 	start := helper.RequestStartOrNow(ctx)
 
 	if r.Method != http.MethodPost {
-		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "item recipes post: method not allowed", "item_recipes_post_method_not_allowed", "item_recipe", nil, map[string]interface{}{"method": r.Method})
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "item recipes post: method not allowed", "item_recipes_post_method_not_allowed", "item_recipe", nil, map[string]any{"method": r.Method})
 		return
 	}
 
@@ -109,7 +109,7 @@ func ItemRecipesPostHandler(w http.ResponseWriter, r *http.Request) {
 		typeIDs = append(typeIDs, strconv.Itoa(n))
 	}
 
-	logs.AttachDebugStep(r, "batch_validated", map[string]interface{}{
+	logs.AttachDebugStep(r, "batch_validated", map[string]any{
 		"requested": len(typeIDs),
 	})
 
@@ -119,7 +119,7 @@ func ItemRecipesPostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logs.AttachDebugStep(r, "firestore_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "firestore_query_completed", map[string]any{
 		"requested": len(typeIDs),
 		"returned":  len(results),
 	})
@@ -129,7 +129,7 @@ func ItemRecipesPostHandler(w http.ResponseWriter, r *http.Request) {
 		helper.RespondEndpointServerError(w, r, "Internal server error", "item recipes post: encode error", "item_recipes_post_encode_failed", "item_recipe", err, nil)
 		return
 	}
-	logs.AttachHandlerSuccessDetail(r, "item recipes retrieved via migration", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "item recipes retrieved via migration", map[string]any{
 		"requested":   len(typeIDs),
 		"returned":    len(results),
 		"duration_ms": time.Since(start).Milliseconds(),

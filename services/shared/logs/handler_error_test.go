@@ -10,7 +10,7 @@ import (
 func TestAttachClientFailureDetail(t *testing.T) {
 	t.Parallel()
 	r := httptest.NewRequest("POST", "/api/v1/auth/sessions/rotate", nil)
-	AttachClientFailureDetail(r, "planner refresh token not found in Redis", map[string]interface{}{
+	AttachClientFailureDetail(r, "planner refresh token not found in Redis", map[string]any{
 		"failure_class": "auth_refresh_token_not_found",
 		"likely_cause":  "stale_or_revoked_body_refresh_token_typical_multi_tab_or_local_account",
 	})
@@ -29,7 +29,7 @@ func TestAttachClientFailureDetail(t *testing.T) {
 
 func TestClientAccessLogMessage_FailureClassFallback(t *testing.T) {
 	t.Parallel()
-	msg := ClientAccessLogMessage(401, map[string]interface{}{"failure_class": "auth_reauth_required"})
+	msg := ClientAccessLogMessage(401, map[string]any{"failure_class": "auth_reauth_required"})
 	if msg != "request completed with client error (auth_reauth_required)" {
 		t.Fatalf("message = %q", msg)
 	}
@@ -44,7 +44,7 @@ func TestAttachClientFailureDetail_SurvivesChildRequestContext(t *testing.T) {
 
 	// Simulate compression middleware replacing *http.Request before the handler runs.
 	inner := outer.WithContext(context.WithValue(outer.Context(), struct{ k string }{"content_encoding"}, "br"))
-	AttachClientFailureDetail(inner, "planner refresh token not found in Redis", map[string]interface{}{
+	AttachClientFailureDetail(inner, "planner refresh token not found in Redis", map[string]any{
 		"failure_class": "auth_refresh_token_not_found",
 	})
 
@@ -58,7 +58,7 @@ func TestAttachServerFailureDetail(t *testing.T) {
 	t.Parallel()
 	r := httptest.NewRequest("POST", "/api/v1/auth/sessions/rotate", nil)
 	err := errors.New("redis timeout")
-	AttachServerFailureDetail(r, "failed to store new refresh token", err, map[string]interface{}{
+	AttachServerFailureDetail(r, "failed to store new refresh token", err, map[string]any{
 		"failure_class": "auth_redis_store_refresh",
 		"metric":        "session_refresh",
 	})

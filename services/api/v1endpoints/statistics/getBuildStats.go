@@ -52,12 +52,12 @@ func (h *Handlers) GetBuildStatsHandler(w http.ResponseWriter, r *http.Request) 
 	typeID64, err := strconv.ParseInt(typeIDStr, 10, 32)
 	if err != nil || typeID64 < 0 {
 		metrics.Error("invalid_type_id")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, "invalid typeID", "build stats get: invalid typeID", "build_stats_invalid_type_id", "build_stats", err, map[string]interface{}{"type_id": typeIDStr})
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "invalid typeID", "build stats get: invalid typeID", "build_stats_invalid_type_id", "build_stats", err, map[string]any{"type_id": typeIDStr})
 		return
 	}
 	typeID := int(typeID64)
 
-	logs.AttachDebugStep(r, "type_id_resolved", map[string]interface{}{
+	logs.AttachDebugStep(r, "type_id_resolved", map[string]any{
 		"type_id": typeID,
 	})
 
@@ -72,7 +72,7 @@ func (h *Handlers) GetBuildStatsHandler(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		if !errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("database_error")
-			helper.RespondEndpointServerError(w, r, "Failed to retrieve build statistics", "build stats get: query failed", "build_stats_query_failed", "build_stats", err, map[string]interface{}{"type_id": typeID})
+			helper.RespondEndpointServerError(w, r, "Failed to retrieve build statistics", "build stats get: query failed", "build_stats_query_failed", "build_stats", err, map[string]any{"type_id": typeID})
 			return
 		}
 		foundInDB = false
@@ -88,7 +88,7 @@ func (h *Handlers) GetBuildStatsHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "build stats retrieved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "build stats retrieved", map[string]any{
 		"type_id": typeID,
 		"found":   foundInDB,
 	})

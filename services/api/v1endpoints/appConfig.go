@@ -13,7 +13,7 @@ import (
 type AppConfigResponse struct {
 	AppVersionNumber string                 `json:"app_version_number"`
 	MaintenanceMode  bool                   `json:"maintenance_mode"`
-	FeatureFlags     map[string]interface{} `json:"feature_flags"`
+	FeatureFlags     map[string]any `json:"feature_flags"`
 }
 
 // AppConfigHandler returns lightweight client config without Firebase Remote Config.
@@ -51,18 +51,18 @@ func (a *Handlers) AppConfigHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=60")
 	w.Header().Set("ETag", etag)
 	if helper.IfNoneMatchSatisfied(r.Header.Get("If-None-Match"), etag) {
-		logs.AttachDebugStep(r, "cache_not_modified", map[string]interface{}{
+		logs.AttachDebugStep(r, "cache_not_modified", map[string]any{
 			"app_version": response.AppVersionNumber,
 		})
 		metrics.Success()
-		logs.AttachHandlerSuccessDetail(r, "app config not modified", map[string]interface{}{
+		logs.AttachHandlerSuccessDetail(r, "app config not modified", map[string]any{
 			"app_version": response.AppVersionNumber,
 		})
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
 
-	logs.AttachDebugStep(r, "app_config_built", map[string]interface{}{
+	logs.AttachDebugStep(r, "app_config_built", map[string]any{
 		"app_version":      response.AppVersionNumber,
 		"maintenance_mode": response.MaintenanceMode,
 		"feature_flags":    len(response.FeatureFlags),
@@ -75,7 +75,7 @@ func (a *Handlers) AppConfigHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "app config served", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "app config served", map[string]any{
 		"app_version": response.AppVersionNumber,
 	})
 }

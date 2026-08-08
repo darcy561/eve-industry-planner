@@ -115,7 +115,7 @@ func SaveMarketOrdersETags(ctx context.Context, client *redis.Client, typeID int
 		url.PathEscape(strconv.FormatInt(int64(locationID), 10)))
 
 	// Use Redis hash to store page -> ETag mapping
-	hashFields := make(map[string]interface{})
+	hashFields := make(map[string]any)
 	for page, etag := range etags {
 		if etag != "" {
 			hashFields[strconv.Itoa(page)] = etag
@@ -158,7 +158,7 @@ func GetMarketOrdersETags(ctx context.Context, client *redis.Client, typeID int3
 // SaveMarketOrdersPage stores market orders for a specific page with a TTL.
 // Key format: esi:market_orders:{type_id}:{location_id}:page:{page_number}
 // TTL is set to expire the cached data after the specified duration.
-func SaveMarketOrdersPage(ctx context.Context, client *redis.Client, typeID int32, locationID int32, page int, orders interface{}, ttl time.Duration) error {
+func SaveMarketOrdersPage(ctx context.Context, client *redis.Client, typeID int32, locationID int32, page int, orders any, ttl time.Duration) error {
 	key := fmt.Sprintf("esi:market_orders:%s:%s:page:%d",
 		url.PathEscape(strconv.FormatInt(int64(typeID), 10)),
 		url.PathEscape(strconv.FormatInt(int64(locationID), 10)),
@@ -168,7 +168,7 @@ func SaveMarketOrdersPage(ctx context.Context, client *redis.Client, typeID int3
 
 // GetMarketOrdersPage retrieves cached market orders for a specific page.
 // Returns error if not found or on error.
-func GetMarketOrdersPage(ctx context.Context, client *redis.Client, typeID int32, locationID int32, page int, target interface{}) error {
+func GetMarketOrdersPage(ctx context.Context, client *redis.Client, typeID int32, locationID int32, page int, target any) error {
 	key := fmt.Sprintf("esi:market_orders:%s:%s:page:%d",
 		url.PathEscape(strconv.FormatInt(int64(typeID), 10)),
 		url.PathEscape(strconv.FormatInt(int64(locationID), 10)),

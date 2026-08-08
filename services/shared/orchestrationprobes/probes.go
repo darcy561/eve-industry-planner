@@ -2,6 +2,7 @@
 // on a dedicated listener, plus an optional gated NATS health census responder.
 //
 // Standard HTTP paths: /healthy, /health (liveness), /ready (readiness).
+// Optional Go pprof under /debug/pprof/ when ENVIRONMENT=development only.
 // ListenAddr is fixed (:19100) — not on the public traffic mux.
 package orchestrationprobes
 
@@ -30,6 +31,7 @@ func mountDefaults(mux *http.ServeMux, ready ReadyCheck, registerExtra func(*htt
 	mux.HandleFunc("/healthy", HealthyHandler)
 	mux.HandleFunc("/health", HealthyHandler)
 	mux.HandleFunc("/ready", ReadyHandler(ready))
+	registerPprof(mux)
 	if registerExtra != nil {
 		registerExtra(mux)
 	}

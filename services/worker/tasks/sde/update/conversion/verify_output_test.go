@@ -34,7 +34,7 @@ func TestFullSDEConversion_matchesPublishedSDEReference(t *testing.T) {
 		}
 
 		key := strconv.Itoa(got.ItemID)
-		ref, ok := referenceByProduct[key].(map[string]interface{})
+		ref, ok := referenceByProduct[key].(map[string]any)
 		if !ok || !isProductIndexKey(key, ref) {
 			continue
 		}
@@ -44,10 +44,10 @@ func TestFullSDEConversion_matchesPublishedSDEReference(t *testing.T) {
 	}
 
 	for key, raw := range referenceByProduct {
-		if !isProductIndexKey(key, raw.(map[string]interface{})) {
+		if !isProductIndexKey(key, raw.(map[string]any)) {
 			continue
 		}
-		bp := raw.(map[string]interface{})
+		bp := raw.(map[string]any)
 		if !isPublishedBlueprintFormula(bp, types) {
 			t.Errorf("reference map product %s uses unpublished formula type %s", key, blueprintTypeIDKey(bp))
 		}
@@ -69,10 +69,10 @@ func TestFullSDEConversion_matchesPublishedSDEReference(t *testing.T) {
 	}
 }
 
-func assertProductRecipeMatchesReference(t *testing.T, recipeList []*EVEType, referenceByProduct map[string]interface{}, itemID int) {
+func assertProductRecipeMatchesReference(t *testing.T, recipeList []*EVEType, referenceByProduct map[string]any, itemID int) {
 	t.Helper()
 	key := strconv.Itoa(itemID)
-	ref, ok := referenceByProduct[key].(map[string]interface{})
+	ref, ok := referenceByProduct[key].(map[string]any)
 	if !ok {
 		t.Fatalf("itemID %d: missing from reference map", itemID)
 	}
@@ -91,7 +91,7 @@ func assertProductRecipeMatchesReference(t *testing.T, recipeList []*EVEType, re
 	}
 }
 
-func recipeMatchesReferenceBlueprint(got *EVEType, ref map[string]interface{}) error {
+func recipeMatchesReferenceBlueprint(got *EVEType, ref map[string]any) error {
 	wantJob := jobTypeForBlueprintRow(ref)
 	if got.JobType != wantJob {
 		return mismatch("jobType", got.JobType, wantJob)
@@ -139,7 +139,7 @@ func intFromAny(v any) int {
 	return n
 }
 
-func loadSDEExtractOrSkip(t *testing.T) (blueprints, types map[string]interface{}) {
+func loadSDEExtractOrSkip(t *testing.T) (blueprints, types map[string]any) {
 	t.Helper()
 	extractDir := os.Getenv("SDE_EXTRACT_DIR")
 	if extractDir == "" {
@@ -160,12 +160,12 @@ func loadSDEExtractOrSkip(t *testing.T) (blueprints, types map[string]interface{
 	return blueprints, types
 }
 
-func parseJSONLFile(path string) (map[string]interface{}, error) {
+func parseJSONLFile(path string) (map[string]any, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[string]interface{})
+	out := make(map[string]any)
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	scanner.Buffer(make([]byte, 0, 1024*1024), 64*1024*1024)
 	for scanner.Scan() {
@@ -173,7 +173,7 @@ func parseJSONLFile(path string) (map[string]interface{}, error) {
 		if len(bytes.TrimSpace(line)) == 0 {
 			continue
 		}
-		var obj map[string]interface{}
+		var obj map[string]any
 		if err := json.Unmarshal(line, &obj); err != nil {
 			return nil, err
 		}

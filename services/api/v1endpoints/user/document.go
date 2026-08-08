@@ -27,7 +27,7 @@ func (h *Handlers) DocumentHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		m := apimetrics.GetAPIEveTokenLogin()
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
-		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use GET to retrieve or PUT to save.", "invalid method for user main document endpoint", "user_doc_method_not_allowed", "eve_token_login", nil, map[string]interface{}{"method": r.Method})
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use GET to retrieve or PUT to save.", "invalid method for user main document endpoint", "user_doc_method_not_allowed", "eve_token_login", nil, map[string]any{"method": r.Method})
 	}
 }
 
@@ -57,7 +57,7 @@ func (h *Handlers) handleGetUserDocument(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 		"cloud_account": userDoc.UserCloudAccounts,
 	})
 
@@ -97,7 +97,7 @@ func (h *Handlers) handleGetUserDocument(w http.ResponseWriter, r *http.Request)
 	}
 
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "user document retrieved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "user document retrieved", map[string]any{
 		"duration_ms": time.Since(start).Milliseconds(),
 	})
 }
@@ -123,7 +123,7 @@ func (h *Handlers) handleSaveUserDocument(w http.ResponseWriter, r *http.Request
 
 	if userDoc.MetaData.AccountID != "" && userDoc.MetaData.AccountID != accountID {
 		metrics.Error("account_id_mismatch")
-		helper.RespondEndpointError(w, r, http.StatusForbidden, "Account ID in document must match authenticated account", "account ID mismatch on user document save", "user_doc_account_mismatch", "eve_token_login", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusForbidden, "Account ID in document must match authenticated account", "account ID mismatch on user document save", "user_doc_account_mismatch", "eve_token_login", nil, map[string]any{
 			"token_account_id": accountID,
 			"doc_account_id":   userDoc.MetaData.AccountID,
 		})
@@ -186,7 +186,7 @@ func (h *Handlers) handleSaveUserDocument(w http.ResponseWriter, r *http.Request
 
 	result, retriedWithoutWSClientID, err := h.Mongo.Users.UpsertUserAccount(ctx, accountID, userDoc)
 	if retriedWithoutWSClientID {
-		logs.AttachHandlerCaveat(r, "upsert_retried_without_ws_client_id", "user document upsert with websocket client id failed, retrying without client id", map[string]interface{}{
+		logs.AttachHandlerCaveat(r, "upsert_retried_without_ws_client_id", "user document upsert with websocket client id failed, retrying without client id", map[string]any{
 			"ws_client_id": userDoc.MetaData.ClientID,
 			"error":        err.Error(),
 		})
@@ -197,7 +197,7 @@ func (h *Handlers) handleSaveUserDocument(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_upsert_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_upsert_completed", map[string]any{
 		"matched":  result.MatchedCount,
 		"upserted": result.UpsertedCount,
 	})
@@ -206,7 +206,7 @@ func (h *Handlers) handleSaveUserDocument(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusNoContent)
 
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "user document saved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "user document saved", map[string]any{
 		"matched":     result.MatchedCount,
 		"upserted":    result.UpsertedCount,
 		"duration_ms": time.Since(start).Milliseconds(),

@@ -125,10 +125,7 @@ func RefreshAccountSessionGrants(ctx context.Context, task *asynq.Task, deps *Ta
 		groupDesignation := esiratelimiter.GroupDesignation{}
 
 		for start := 0; start < len(characterIDs); start += maxCharacterAffiliationBatch {
-			end := start + maxCharacterAffiliationBatch
-			if end > len(characterIDs) {
-				end = len(characterIDs)
-			}
+			end := min(start+maxCharacterAffiliationBatch, len(characterIDs))
 			chunk := characterIDs[start:end]
 
 			payload, err := json.Marshal(chunk)

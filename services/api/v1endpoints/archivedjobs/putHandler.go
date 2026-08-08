@@ -73,7 +73,7 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 	const maxBatchSize = 100
 	if len(reqBody.Jobs) > maxBatchSize {
 		metrics.Error("batch_too_large")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d jobs)", maxBatchSize), "archived jobs put: batch too large", "archived_jobs_put_batch_too_large", "archived_jobs_put", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d jobs)", maxBatchSize), "archived jobs put: batch too large", "archived_jobs_put_batch_too_large", "archived_jobs_put", nil, map[string]any{
 			"count": len(reqBody.Jobs),
 			"max":   maxBatchSize,
 		})
@@ -88,17 +88,17 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 		job := &reqBody.Jobs[i]
 		if job.JobID == "" {
 			metrics.Error("empty_job_id")
-			helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid job at index %d: jobID is required", i), "archived jobs put: batch rejected (empty jobID)", "archived_jobs_put_empty_job_id", "archived_jobs_put", nil, map[string]interface{}{"index": i})
+			helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid job at index %d: jobID is required", i), "archived jobs put: batch rejected (empty jobID)", "archived_jobs_put_empty_job_id", "archived_jobs_put", nil, map[string]any{"index": i})
 			return
 		}
 		if _, dup := seenJobID[job.JobID]; dup {
 			metrics.Error("duplicate_job_id")
-			helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid batch: duplicate jobID %q", job.JobID), "archived jobs put: batch rejected (duplicate jobID)", "archived_jobs_put_duplicate_job_id", "archived_jobs_put", nil, map[string]interface{}{"index": i, "job_id": job.JobID})
+			helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid batch: duplicate jobID %q", job.JobID), "archived jobs put: batch rejected (duplicate jobID)", "archived_jobs_put_duplicate_job_id", "archived_jobs_put", nil, map[string]any{"index": i, "job_id": job.JobID})
 			return
 		}
 		if job.MetaData.AccountID != "" && job.MetaData.AccountID != accountID {
 			metrics.Error("account_mismatch")
-			helper.RespondEndpointError(w, r, http.StatusForbidden, fmt.Sprintf("Invalid job at index %d: _meta.accountID does not match the authenticated account", i), "archived jobs put: _meta.accountID does not match token", "archived_jobs_put_account_mismatch", "archived_jobs_put", nil, map[string]interface{}{
+			helper.RespondEndpointError(w, r, http.StatusForbidden, fmt.Sprintf("Invalid job at index %d: _meta.accountID does not match the authenticated account", i), "archived jobs put: _meta.accountID does not match token", "archived_jobs_put_account_mismatch", "archived_jobs_put", nil, map[string]any{
 				"index":               i,
 				"job_id":              job.JobID,
 				"job_meta_account_id": job.MetaData.AccountID,
@@ -108,7 +108,7 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 		seenJobID[job.JobID] = struct{}{}
 	}
 
-	logs.AttachDebugStep(r, "batch_validated", map[string]interface{}{
+	logs.AttachDebugStep(r, "batch_validated", map[string]any{
 		"batch_size": len(reqBody.Jobs),
 	})
 
@@ -146,7 +146,7 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionUserJobDocuments, rejects)
 			return
 		}
-		logs.AttachDebugStep(r, "lock_gate_passed", map[string]interface{}{
+		logs.AttachDebugStep(r, "lock_gate_passed", map[string]any{
 			"doc_count": len(jobIDs),
 		})
 	}
@@ -185,12 +185,12 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 
 	savedCount := int(result.UpsertedCount + result.ModifiedCount)
 	nJobs := len(reqBody.Jobs)
-	logs.AttachDebugStep(r, "mongo_write_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_write_completed", map[string]any{
 		"saved": savedCount,
 		"jobs":  nJobs,
 	})
 	if savedCount != nJobs {
-		logs.AttachHandlerCaveat(r, "mongo_write_count_mismatch", "mongo write count differs from batch size", map[string]interface{}{
+		logs.AttachHandlerCaveat(r, "mongo_write_count_mismatch", "mongo write count differs from batch size", map[string]any{
 			"jobs":      nJobs,
 			"saved_ops": savedCount,
 		})
@@ -202,7 +202,7 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 	m.IndividualJobsArchived.Add(obsCtx, float64(nJobs))
 	m.JobsRequested.Observe(obsCtx, float64(nJobs))
 
-	logs.AttachHandlerSuccessDetail(r, "archived jobs put done", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "archived jobs put done", map[string]any{
 		"jobs":        nJobs,
 		"saved_ops":   savedCount,
 		"duration_ms": time.Since(start).Milliseconds(),

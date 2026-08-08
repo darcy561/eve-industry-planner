@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"strings"
 	"sync"
@@ -32,21 +33,21 @@ type ScopesPayload struct {
 
 // ChangeStreamMessage represents the message payload sent to NATS
 type ChangeStreamMessage struct {
-	Subject                 string                 `json:"subject"`
-	Collection              string                 `json:"collection"`
-	DocID                   string                 `json:"docID"`
-	OperationType           string                 `json:"operationType"`
-	SourceClientID          string                 `json:"sourceClientID,omitempty"`  // ClientID that originated the change (for filtering)
-	SourceSessionID         string                 `json:"sourceSessionID,omitempty"` // SessionID that originated the change (stable across client reconnects)
-	AccountID               string                 `json:"accountID,omitempty"`       // AccountID for INSERT operations (broadcast to all account clients)
-	CorporationID           string                 `json:"corporationID,omitempty"`   // Org routing when accountID is absent (see websocket dispatch)
-	AllianceID              string                 `json:"allianceID,omitempty"`
-	Scopes                  *ScopesPayload         `json:"scopes,omitempty"`
-	Document                map[string]interface{} `json:"document,omitempty"`
-	PreviousDocument        map[string]interface{} `json:"previousDocument,omitempty"`
-	RefreshTokensChanged    bool                   `json:"refreshTokensChanged,omitempty"`
-	LinkedCharactersChanged bool                   `json:"linkedCharactersChanged,omitempty"`
-	ChangeEvent             map[string]interface{} `json:"changeEvent,omitempty"`
+	Subject                 string         `json:"subject"`
+	Collection              string         `json:"collection"`
+	DocID                   string         `json:"docID"`
+	OperationType           string         `json:"operationType"`
+	SourceClientID          string         `json:"sourceClientID,omitempty"`  // ClientID that originated the change (for filtering)
+	SourceSessionID         string         `json:"sourceSessionID,omitempty"` // SessionID that originated the change (stable across client reconnects)
+	AccountID               string         `json:"accountID,omitempty"`       // AccountID for INSERT operations (broadcast to all account clients)
+	CorporationID           string         `json:"corporationID,omitempty"`   // Org routing when accountID is absent (see websocket dispatch)
+	AllianceID              string         `json:"allianceID,omitempty"`
+	Scopes                  *ScopesPayload `json:"scopes,omitempty"`
+	Document                map[string]any `json:"document,omitempty"`
+	PreviousDocument        map[string]any `json:"previousDocument,omitempty"`
+	RefreshTokensChanged    bool           `json:"refreshTokensChanged,omitempty"`
+	LinkedCharactersChanged bool           `json:"linkedCharactersChanged,omitempty"`
+	ChangeEvent             map[string]any `json:"changeEvent,omitempty"`
 }
 
 // Watcher watches MongoDB change streams and publishes changes to NATS.
@@ -308,7 +309,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	}
 
 	// Extract full document if available
-	var document map[string]interface{}
+	var document map[string]any
 	var sourceClientID string
 	var sourceSessionID string
 	var accountID string
@@ -324,10 +325,8 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	}
 
 	if docToExtract != nil {
-		document = make(map[string]interface{})
-		for k, v := range docToExtract {
-			document[k] = v
-		}
+		document = make(map[string]any)
+		maps.Copy(document, docToExtract)
 
 		meta := subDocumentToMap(docToExtract["_meta"])
 		if meta != nil {
@@ -372,7 +371,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		}
 	}
 
-	var previousDocument map[string]interface{}
+	var previousDocument map[string]any
 	var previousDocToExtract bson.M
 	if operationType == "update" || operationType == "replace" {
 		previousDocToExtract = subDocumentToMap(changeEvent["fullDocumentBeforeChange"])
@@ -382,10 +381,8 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	case eipmongo.CollectionUsers, eipmongo.CollectionApplicationSettings, eipmongo.CollectionUserWatchlistDeprecated:
 		if operationType == "update" || operationType == "replace" {
 			if previousDocToExtract != nil {
-				previousDocument = make(map[string]interface{}, len(previousDocToExtract))
-				for k, v := range previousDocToExtract {
-					previousDocument[k] = v
-				}
+				previousDocument = make(map[string]any, len(previousDocToExtract))
+				maps.Copy(previousDocument, previousDocToExtract)
 			}
 		}
 	}
@@ -500,14 +497,14 @@ func isSchemaMaintenanceOnlyUpdate(changeEvent bson.M, operationType string) boo
 	return hasSchemaVersion || hasSnakeSchemaVersion
 }
 
-func hasRemovedFields(raw interface{}) bool {
+func hasRemovedFields(raw any) bool {
 	if raw == nil {
 		return false
 	}
 	switch v := raw.(type) {
 	case bson.A:
 		return len(v) > 0
-	case []interface{}:
+	case []any:
 		return len(v) > 0
 	default:
 		return true
@@ -563,11 +560,11 @@ func usersRefreshTokenCharacterHashSet(doc bson.M) map[string]struct{} {
 		return map[string]struct{}{}
 	}
 
-	var rows []interface{}
+	var rows []any
 	switch v := field.(type) {
 	case bson.A:
-		rows = []interface{}(v)
-	case []interface{}:
+		rows = []any(v)
+	case []any:
 		rows = v
 	default:
 		return map[string]struct{}{}
@@ -600,7 +597,7 @@ func equalStringSets(a, b map[string]struct{}) bool {
 	return true
 }
 
-func usersRefreshTokensField(doc bson.M) interface{} {
+func usersRefreshTokensField(doc bson.M) any {
 	if doc == nil {
 		return nil
 	}
@@ -613,7 +610,7 @@ func usersRefreshTokensField(doc bson.M) interface{} {
 	return nil
 }
 
-func stripUsersRefreshTokenFields(doc map[string]interface{}) {
+func stripUsersRefreshTokenFields(doc map[string]any) {
 	if doc == nil {
 		return
 	}
@@ -654,7 +651,7 @@ func docFieldString(doc, meta bson.M, keys ...string) string {
 	return ""
 }
 
-func bsonValueToString(v interface{}) string {
+func bsonValueToString(v any) string {
 	switch t := v.(type) {
 	case string:
 		return strings.TrimSpace(t)
@@ -688,26 +685,26 @@ func scopesFromDocOrMeta(doc, meta bson.M) *ScopesPayload {
 	return &ScopesPayload{CorporationIDs: cids, AccountIDs: aids}
 }
 
-func asBsonM(v interface{}) bson.M {
+func asBsonM(v any) bson.M {
 	switch m := v.(type) {
 	case bson.M:
 		return m
-	case map[string]interface{}:
+	case map[string]any:
 		return bson.M(m)
 	default:
 		return nil
 	}
 }
 
-func bsonArrayToStrings(v interface{}) []string {
+func bsonArrayToStrings(v any) []string {
 	if v == nil {
 		return nil
 	}
-	var elems []interface{}
+	var elems []any
 	switch t := v.(type) {
 	case bson.A:
-		elems = []interface{}(t)
-	case []interface{}:
+		elems = []any(t)
+	case []any:
 		elems = t
 	default:
 		return nil

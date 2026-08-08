@@ -2,6 +2,7 @@ package ratelimiter
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"eve-industry-planner/shared/logs"
@@ -52,11 +53,8 @@ func (c *ESIClient) CleanupUnusedGroups() {
 	if removedCount > 0 {
 		pathsToRemove := make([]string, 0)
 		for path, mappedGroup := range c.pathToGroup {
-			for _, removedGroup := range removedGroups {
-				if mappedGroup == removedGroup {
-					pathsToRemove = append(pathsToRemove, path)
-					break
-				}
+			if slices.Contains(removedGroups, mappedGroup) {
+				pathsToRemove = append(pathsToRemove, path)
 			}
 		}
 		for _, path := range pathsToRemove {

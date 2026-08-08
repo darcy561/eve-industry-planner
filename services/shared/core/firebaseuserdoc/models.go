@@ -5,14 +5,14 @@ import "encoding/json"
 // UserDoc represents the legacy Firebase user document shape (camelCase) for JSON unmarshaling.
 // Used when reading from Firestore or when receiving the document from the migration endpoint.
 type UserDoc struct {
-	AccountID      string        `json:"accountID"`
-	JobStatusArray []Job         `json:"jobStatusArray"`
-	Deleted        interface{}   `json:"deleted"`
-	LinkedJobs     []int64       `json:"linkedJobs"`
-	LinkedTrans    []int64       `json:"linkedTrans"`
-	LinkedOrders   []int64       `json:"linkedOrders"`
-	RefreshTokens  []Token       `json:"refreshTokens"`
-	Settings       *Settings     `json:"settings"`
+	AccountID      string    `json:"accountID"`
+	JobStatusArray []Job     `json:"jobStatusArray"`
+	Deleted        any       `json:"deleted"`
+	LinkedJobs     []int64   `json:"linkedJobs"`
+	LinkedTrans    []int64   `json:"linkedTrans"`
+	LinkedOrders   []int64   `json:"linkedOrders"`
+	RefreshTokens  []Token   `json:"refreshTokens"`
+	Settings       *Settings `json:"settings"`
 }
 
 // Job represents a job status entry in the Firebase document.
@@ -38,17 +38,17 @@ type JobStatusEntryFirestore struct {
 
 // Settings represents the settings subtree of the Firebase user document.
 type Settings struct {
-	Account                         *Account                         `json:"account"`
-	Layout                          *Layout                          `json:"layout"`
-	EditJob                         *EditJob                         `json:"editJob"`
-	Structures                      *Structures                      `json:"structures"`
-	ExemptTypeIDs                   []int                            `json:"exemptTypeIDs"`
-	AutomaticJobRecalculation       *bool                            `json:"automaticJobRecalculation"`
-	IgnoreItemsWithoutBlueprints    *bool                            `json:"ignoreItemsWithoutBlueprints"`
-	DefaultReprocessingCharacter    *string                          `json:"defaultReprocessingCharacter"`
-	ReprocessingCalculationSettings *ReprocessingSettings            `json:"reprocessingCalculationSettings"`
-	ExtrasCategories                []ExtraCategory                  `json:"extrasCategories"`
-	PredefinedSystemIndexes         map[string]map[string]float64    `json:"predefinedSystemIndexes"`
+	Account                         *Account                           `json:"account"`
+	Layout                          *Layout                            `json:"layout"`
+	EditJob                         *EditJob                           `json:"editJob"`
+	Structures                      *Structures                        `json:"structures"`
+	ExemptTypeIDs                   []int                              `json:"exemptTypeIDs"`
+	AutomaticJobRecalculation       *bool                              `json:"automaticJobRecalculation"`
+	IgnoreItemsWithoutBlueprints    *bool                              `json:"ignoreItemsWithoutBlueprints"`
+	DefaultReprocessingCharacter    *string                            `json:"defaultReprocessingCharacter"`
+	ReprocessingCalculationSettings *ReprocessingSettings              `json:"reprocessingCalculationSettings"`
+	ExtrasCategories                []ExtraCategory                    `json:"extrasCategories"`
+	PredefinedSystemIndexes         map[string]map[string]float64      `json:"predefinedSystemIndexes"`
 	JobStatuses                     map[string]JobStatusEntryFirestore `json:"jobStatuses,omitempty"`
 }
 

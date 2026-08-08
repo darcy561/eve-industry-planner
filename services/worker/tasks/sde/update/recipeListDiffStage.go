@@ -77,12 +77,9 @@ func runSDENewRecipeItemsStage(ctx context.Context, persistResult *sdePersistRes
 	)
 
 	// Keep log noise bounded: list up to 50 new item IDs.
-	limit := 50
-	if len(newItems) < limit {
-		limit = len(newItems)
-	}
+	limit := min(len(newItems), 50)
 	itemIDs := make([]int, 0, limit)
-	for i := 0; i < limit; i++ {
+	for i := range limit {
 		itemIDs = append(itemIDs, newItems[i].ItemID)
 	}
 	if len(newItems) > 0 {
@@ -227,13 +224,13 @@ func addMaterialsTypeIDs(typeIDs map[int32]struct{}, r *conversion.EVEType, acti
 		return
 	}
 
-	materials, ok := materialsAny.([]interface{})
+	materials, ok := materialsAny.([]any)
 	if !ok {
 		return
 	}
 
 	for _, matI := range materials {
-		mat, ok := matI.(map[string]interface{})
+		mat, ok := matI.(map[string]any)
 		if !ok {
 			continue
 		}

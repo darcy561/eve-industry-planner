@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/archiveimport"
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"cloud.google.com/go/firestore"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -198,7 +198,7 @@ func toAnySlice(v any) ([]any, bool) {
 	}
 	n := rv.Len()
 	out := make([]any, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		out[i] = rv.Index(i).Interface()
 	}
 	return out, true
@@ -222,8 +222,8 @@ func jobFirestoreDocIDCandidates(referencedID string) []string {
 		pref := archiveimport.EnsureJobIDPrefix(referencedID)
 		add(pref)
 	}
-	if strings.HasPrefix(referencedID, "job-") {
-		add(strings.TrimPrefix(referencedID, "job-"))
+	if after, ok := strings.CutPrefix(referencedID, "job-"); ok {
+		add(after)
 	}
 	out := make([]string, 0, len(seen))
 	for s := range seen {

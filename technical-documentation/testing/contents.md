@@ -2,7 +2,7 @@
 
 ## Owns (SoT)
 
-Cross-cutting **map** of how this repo is tested today: layers, entrypoints, CI test suite policy, and where area SoT lives. Shared harness topics land here when they exist.
+Cross-cutting **map** of how this repo is tested today: layers, entrypoints, CI test suite policy, and where area SoT lives. Shared Go harness / ops-soak packages live under [`services/testing/`](../../services/testing/) — SoT: [harness.md](./harness.md).
 
 ## Does not own
 
@@ -17,6 +17,7 @@ Cross-cutting **map** of how this repo is tested today: layers, entrypoints, CI 
 |------------|------|
 | See what test layers exist and what runs where | [overview.md](./overview.md) |
 | CI policy (branches, path filters, suites) | [overview.md](./overview.md) § CI test suite → [test.yml](../../.github/workflows/test.yml) |
+| Shared Go harness / ops soak packages (`services/testing`) | [harness.md](./harness.md) |
 | Run Go tests / see services test depth | [services/contents.md](./services/contents.md) |
 | api / core / websocket / worker / … depth | [services/contents.md](./services/contents.md) task map |
 | Deployment Tool test depth by package | [deployment-tool/contents.md](./deployment-tool/contents.md) |

@@ -22,14 +22,14 @@ func MaintenanceModeEnabled() bool {
 }
 
 // FeatureFlags parses APP_FEATURE_FLAGS_JSON (same semantics as the app-config HTTP handler).
-func FeatureFlags() map[string]interface{} {
+func FeatureFlags() map[string]any {
 	s := strings.TrimSpace(os.Getenv("APP_FEATURE_FLAGS_JSON"))
 	if s == "" {
-		return map[string]interface{}{}
+		return map[string]any{}
 	}
-	var out map[string]interface{}
+	var out map[string]any
 	if err := json.Unmarshal([]byte(s), &out); err != nil || out == nil {
-		return map[string]interface{}{}
+		return map[string]any{}
 	}
 	return out
 }

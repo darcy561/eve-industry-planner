@@ -2,6 +2,7 @@ package firebaseuserdoc
 
 import (
 	"encoding/json"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -10,7 +11,7 @@ import (
 )
 
 // ParseUserDoc unmarshals a Firebase user document (e.g. from Firestore or request body) into UserDoc.
-func ParseUserDoc(doc map[string]interface{}) (*UserDoc, error) {
+func ParseUserDoc(doc map[string]any) (*UserDoc, error) {
 	if len(doc) == 0 {
 		return nil, nil
 	}
@@ -188,9 +189,7 @@ func buildApplicationSettingsBase(fb *UserDoc, accountID string) models.Applicat
 			s.PredefinedSystemIndexes = fb.Settings.PredefinedSystemIndexes
 		}
 	}
-	for k, v := range jobStatusesForApplicationSettings(fb) {
-		s.JobStatuses[k] = v
-	}
+	maps.Copy(s.JobStatuses, jobStatusesForApplicationSettings(fb))
 	s.ExtrasCategories = models.NormalizeExtrasCategories(s.ExtrasCategories)
 	return s
 }

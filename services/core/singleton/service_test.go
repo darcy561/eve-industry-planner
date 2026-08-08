@@ -289,7 +289,6 @@ func TestStartService_ValidationErrors(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			stop, err := StartService(tc.client, tc.jobs...)
 			if err == nil {

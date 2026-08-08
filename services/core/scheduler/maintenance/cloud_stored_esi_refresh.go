@@ -161,21 +161,12 @@ func computeCloudEsiPublishBatchSize(ctx context.Context, deps contract.Dependen
 
 	target := int(math.Ceil(float64(total) / runsPerDayCloudEsi))
 	const buffer = 1.12
-	batch := int(math.Ceil(float64(target) * buffer))
-	if batch < minCloudEsiAccountsBatch {
-		batch = minCloudEsiAccountsBatch
-	}
-	if batch > maxCloudEsiAccountsAbsolute {
-		batch = maxCloudEsiAccountsAbsolute
-	}
+	batch := min(max(int(math.Ceil(float64(target)*buffer)), minCloudEsiAccountsBatch), maxCloudEsiAccountsAbsolute)
 
 	inDT, downtimeEnd := schedesi.IsInEVEDowntime(now)
 	if inDT {
 		windowEnd := now.Add(microBatchPublishWindow)
-		availableAfter := windowEnd.Sub(downtimeEnd)
-		if availableAfter < 0 {
-			availableAfter = 0
-		}
+		availableAfter := max(windowEnd.Sub(downtimeEnd), 0)
 		downtimeCap := int(math.Floor(float64(batch) * availableAfter.Seconds() / microBatchPublishWindow.Seconds()))
 		if downtimeCap < batch && downtimeCap >= 0 {
 			if downtimeCap < 1 {
@@ -200,13 +191,7 @@ func microBatchPlan(accountCount int) (plannedSlices int, requestsPerSlice int) 
 	if accountCount < 1 {
 		return 0, 0
 	}
-	plannedSlices = int(microBatchPublishWindow / microBatchInterval)
-	if plannedSlices < 1 {
-		plannedSlices = 1
-	}
-	if accountCount < plannedSlices {
-		plannedSlices = accountCount
-	}
+	plannedSlices = min(accountCount, max(int(microBatchPublishWindow/microBatchInterval), 1))
 	requestsPerSlice = int(math.Ceil(float64(accountCount) / float64(plannedSlices)))
 	return plannedSlices, requestsPerSlice
 }
@@ -219,10 +204,7 @@ func microBatchPublishCloudEsiTasks(ctx context.Context, deps contract.Dependenc
 
 	published := 0
 	for start := 0; start < len(accountIDs); start += requestsPerSlice {
-		end := start + requestsPerSlice
-		if end > len(accountIDs) {
-			end = len(accountIDs)
-		}
+		end := min(start+requestsPerSlice, len(accountIDs))
 		for _, accountID := range accountIDs[start:end] {
 			payload := natscore.CloudStoredEsiRefreshMaintenanceRequest{
 				AccountID:               accountID,
@@ -261,8 +243,8 @@ func microBatchPublishCloudEsiTasks(ctx context.Context, deps contract.Dependenc
 func cloudEsiRefreshUserFilter(sixMoAgo, rotateCutoffTime time.Time, afterID string) bson.M {
 	hasRefreshRows := bson.M{
 		"$expr": bson.M{
-			"$gt": []interface{}{
-				bson.M{"$size": bson.M{"$ifNull": []interface{}{"$refreshTokens", []interface{}{}}}},
+			"$gt": []any{
+				bson.M{"$size": bson.M{"$ifNull": []any{"$refreshTokens", []any{}}}},
 				0,
 			},
 		},

@@ -286,13 +286,9 @@ func (c *ESIClient) GetOrCreateGroupLimiter(ctx context.Context, fullGroupName s
 			limiter.Limiter.SetLimit(newRate)
 
 			// Adjust burst to be a small fraction of the token limit
-			newBurst := tokenLimit / 20
-			if newBurst < 5 {
-				newBurst = 5
-			}
-			if newBurst > 100 {
-				newBurst = 100 // Cap burst
-			}
+			newBurst := min(max(tokenLimit/20, 5),
+				// Cap burst
+				100)
 			limiter.Limiter.SetBurst(newBurst)
 			limiter.mu.Unlock()
 
@@ -341,13 +337,7 @@ func (c *ESIClient) GetOrCreateGroupLimiter(ctx context.Context, fullGroupName s
 		initialRate = rate.Limit(requestsPerSecond)
 
 		// Burst is a small fraction of token limit (5% or minimum 5, max 100)
-		initialBurst = tokenLimit / 20
-		if initialBurst < 5 {
-			initialBurst = 5
-		}
-		if initialBurst > 100 {
-			initialBurst = 100
-		}
+		initialBurst = min(max(tokenLimit/20, 5), 100)
 	} else {
 		// Use defaults if no token limit available yet
 		initialRate = c.defLim.DefaultRate

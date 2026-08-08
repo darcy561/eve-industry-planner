@@ -124,7 +124,7 @@ func TestCheckSDEUpdates_noUpdate_skipsPersistAndPrune(t *testing.T) {
 		},
 		"stageMapBuild": func(d *sdeDownloadResult) (*sdeMapBuildResult, error) {
 			calls = append(calls, "mapBuild")
-			return &sdeMapBuildResult{StructuredData: map[string]map[string]interface{}{}}, nil
+			return &sdeMapBuildResult{StructuredData: map[string]map[string]any{}}, nil
 		},
 		"stageConversion": func(m *sdeMapBuildResult) (*sdeConversionResult, error) {
 			calls = append(calls, "conversion")
@@ -174,7 +174,7 @@ func TestCheckSDEUpdates_previousVersion_runsDiffAndPrune(t *testing.T) {
 		},
 		"stageMapBuild": func(d *sdeDownloadResult) (*sdeMapBuildResult, error) {
 			calls = append(calls, "mapBuild")
-			return &sdeMapBuildResult{StructuredData: map[string]map[string]interface{}{"Types": {"k": map[string]interface{}{}}}}, nil
+			return &sdeMapBuildResult{StructuredData: map[string]map[string]any{"Types": {"k": map[string]any{}}}}, nil
 		},
 		"stageConversion": func(m *sdeMapBuildResult) (*sdeConversionResult, error) {
 			calls = append(calls, "conversion")
@@ -225,7 +225,7 @@ func TestRunSDEUpdatePipelineReplacingCurrent_skipsDiffAndPrune(t *testing.T) {
 		},
 		"stageMapBuild": func(d *sdeDownloadResult) (*sdeMapBuildResult, error) {
 			calls = append(calls, "mapBuild")
-			return &sdeMapBuildResult{StructuredData: map[string]map[string]interface{}{"Types": {"k": map[string]interface{}{}}}}, nil
+			return &sdeMapBuildResult{StructuredData: map[string]map[string]any{"Types": {"k": map[string]any{}}}}, nil
 		},
 		"stageConversion": func(m *sdeMapBuildResult) (*sdeConversionResult, error) {
 			calls = append(calls, "conversion")

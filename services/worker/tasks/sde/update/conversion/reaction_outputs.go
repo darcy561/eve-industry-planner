@@ -5,10 +5,10 @@ import (
 )
 
 // BuildReactionProductByBlueprintTypeID maps reaction formula type ID → first reaction product type ID.
-func BuildReactionProductByBlueprintTypeID(fullBlueprintMap map[string]interface{}, typesData map[string]interface{}) map[int]int {
+func BuildReactionProductByBlueprintTypeID(fullBlueprintMap map[string]any, typesData map[string]any) map[int]int {
 	out := make(map[int]int)
 	for _, raw := range fullBlueprintMap {
-		bp, ok := raw.(map[string]interface{})
+		bp, ok := raw.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -19,11 +19,11 @@ func BuildReactionProductByBlueprintTypeID(fullBlueprintMap map[string]interface
 		if !ok {
 			continue
 		}
-		activities, ok := bp["activities"].(map[string]interface{})
+		activities, ok := bp["activities"].(map[string]any)
 		if !ok {
 			continue
 		}
-		reaction, ok := activities["reaction"].(map[string]interface{})
+		reaction, ok := activities["reaction"].(map[string]any)
 		if !ok {
 			continue
 		}
@@ -38,7 +38,7 @@ func BuildReactionProductByBlueprintTypeID(fullBlueprintMap map[string]interface
 
 // MergeReactionFormulaOntoProduct moves activities.reaction from each formula item (blueprintTypeID)
 // onto the output product (reaction.products[0]) so recipeList and Mongo stay keyed by product itemID.
-func MergeReactionFormulaOntoProduct(combinedItemMap map[string]*EVEType, bpToProduct map[int]int, typesData map[string]interface{}) {
+func MergeReactionFormulaOntoProduct(combinedItemMap map[string]*EVEType, bpToProduct map[int]int, typesData map[string]any) {
 	for bpID, prodID := range bpToProduct {
 		if bpID == prodID {
 			continue
@@ -76,24 +76,24 @@ func MergeReactionFormulaOntoProduct(combinedItemMap map[string]*EVEType, bpToPr
 	}
 }
 
-func shouldApplyFormulaReactionToProduct(prodItem, formulaItem *EVEType, typesData map[string]interface{}) bool {
+func shouldApplyFormulaReactionToProduct(prodItem, formulaItem *EVEType, typesData map[string]any) bool {
 	if prodItem.Activities == nil || prodItem.Activities.Reaction == nil {
 		return true
 	}
 	return preferBlueprintRow(blueprintRowFromEVEType(prodItem), blueprintRowFromEVEType(formulaItem), typesData)
 }
 
-func blueprintRowFromEVEType(item *EVEType) map[string]interface{} {
+func blueprintRowFromEVEType(item *EVEType) map[string]any {
 	if item == nil {
 		return nil
 	}
-	row := map[string]interface{}{
+	row := map[string]any{
 		"blueprintTypeID": item.BlueprintTypeID,
 	}
 	if item.Activities == nil {
 		return row
 	}
-	activities := map[string]interface{}{}
+	activities := map[string]any{}
 	if item.Activities.Manufacturing != nil {
 		activities["manufacturing"] = item.Activities.Manufacturing
 	}
@@ -106,12 +106,12 @@ func blueprintRowFromEVEType(item *EVEType) map[string]interface{} {
 	return row
 }
 
-func firstProductTypeID(activity map[string]interface{}) (int, bool) {
-	products, ok := activity["products"].([]interface{})
+func firstProductTypeID(activity map[string]any) (int, bool) {
+	products, ok := activity["products"].([]any)
 	if !ok || len(products) == 0 {
 		return 0, false
 	}
-	product, ok := products[0].(map[string]interface{})
+	product, ok := products[0].(map[string]any)
 	if !ok {
 		return 0, false
 	}

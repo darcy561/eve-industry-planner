@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -331,7 +331,7 @@ func GetCorporations(ctx context.Context, redisClient *redis.Client, accountID s
 	}
 	if err != nil {
 		// Log error but return empty array - don't fail the request
-		logs.AttachDebugStepCtx(ctx, "redis_corporations_load_degraded", map[string]interface{}{
+		logs.AttachDebugStepCtx(ctx, "redis_corporations_load_degraded", map[string]any{
 			"error": err.Error(),
 		})
 		return []int64{}
@@ -368,7 +368,7 @@ func GetAlliances(ctx context.Context, redisClient *redis.Client, accountID stri
 		return []int64{}
 	}
 	if err != nil {
-		logs.AttachDebugStepCtx(ctx, "redis_alliances_load_degraded", map[string]interface{}{
+		logs.AttachDebugStepCtx(ctx, "redis_alliances_load_degraded", map[string]any{
 			"error": err.Error(),
 		})
 		return []int64{}
@@ -486,7 +486,7 @@ func normalizeIDs(ids []int64) []int64 {
 	for id := range m {
 		out = append(out, id)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	slices.Sort(out)
 	return out
 }
 

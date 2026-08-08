@@ -1,12 +1,15 @@
-package main
+package soaklib
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"eve-industry-planner/shared/wsplacement"
 )
 
 // stats aggregates soak counters for the final report.
@@ -23,14 +26,24 @@ type stats struct {
 	refuseByStatus sync.Map // int status -> *atomic.Uint64
 	slotHits       sync.Map // container id (sticky or connected) -> *atomic.Uint64
 
-	// limits: affinity → container id (from connected.container_id)
-	affinityPlace sync.Map // string → string
+	// affinity → *affinityHomes (container_id → count) from connected.container_id
+	affinityHomes sync.Map
 	// limits: cohort|container_id → count
 	cohortSlots sync.Map // string → *atomic.Uint64
 
 	live atomic.Int64
 
+	// Org scope upgrades (corp/alliance fan-out).
+	ScopesOK   atomic.Uint64
+	ScopesFail atomic.Uint64
+
 	startedAt time.Time
+}
+
+// affinityHomes tracks every backend a single affinity key landed on.
+type affinityHomes struct {
+	mu     sync.Mutex
+	bySlot map[string]uint64
 }
 
 func newStats() *stats {
@@ -62,13 +75,16 @@ func (s *stats) incSlot(slot string) {
 
 func (s *stats) placeCountsFromAffinity() map[string]int64 {
 	out := map[string]int64{}
-	s.affinityPlace.Range(func(_, v any) bool {
-		slot, _ := v.(string)
-		slot = strings.TrimSpace(slot)
-		if slot == "" {
+	s.affinityHomes.Range(func(_, v any) bool {
+		homes, _ := v.(*affinityHomes)
+		if homes == nil {
 			return true
 		}
-		out[slot]++
+		homes.mu.Lock()
+		for slot, n := range homes.bySlot {
+			out[slot] += int64(n)
+		}
+		homes.mu.Unlock()
 		return true
 	})
 	return out
@@ -80,11 +96,82 @@ func (s *stats) recordAffinityPlace(cohort cohortKind, affinity, slot string) {
 	if affinity == "" || slot == "" {
 		return
 	}
-	s.affinityPlace.Store(affinity, slot)
+	raw, _ := s.affinityHomes.LoadOrStore(affinity, &affinityHomes{bySlot: map[string]uint64{}})
+	homes := raw.(*affinityHomes)
+	homes.mu.Lock()
+	homes.bySlot[slot]++
+	homes.mu.Unlock()
 	key := string(cohort) + "|" + slot
 	v, _ := s.cohortSlots.LoadOrStore(key, &atomic.Uint64{})
 	v.(*atomic.Uint64).Add(1)
 	s.incSlot(slot)
+}
+
+// affinityHomeSets returns affinity → (container_id → placement count).
+func (s *stats) affinityHomeSets() map[string]map[string]uint64 {
+	out := map[string]map[string]uint64{}
+	s.affinityHomes.Range(func(k, v any) bool {
+		aff, _ := k.(string)
+		homes, _ := v.(*affinityHomes)
+		if aff == "" || homes == nil {
+			return true
+		}
+		homes.mu.Lock()
+		cp := make(map[string]uint64, len(homes.bySlot))
+		maps.Copy(cp, homes.bySlot)
+		homes.mu.Unlock()
+		out[aff] = cp
+		return true
+	})
+	return out
+}
+
+// colocSplit is an affinity key that landed on more than one backend.
+type colocSplit struct {
+	Affinity string
+	Homes    map[string]uint64
+}
+
+func findColocSplits(homeSets map[string]map[string]uint64) []colocSplit {
+	var out []colocSplit
+	for aff, homes := range homeSets {
+		if len(homes) > 1 {
+			out = append(out, colocSplit{Affinity: aff, Homes: homes})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Affinity < out[j].Affinity })
+	return out
+}
+
+func assertNoColocSplits(homeSets map[string]map[string]uint64) error {
+	splits := findColocSplits(homeSets)
+	if len(splits) == 0 {
+		return nil
+	}
+	s := splits[0]
+	return fmt.Errorf("colocation: affinity %q placed on %d backends [%s] (want 1 — N clients with key K must share a home)",
+		s.Affinity, len(s.Homes), formatCounts(s.Homes))
+}
+
+// assertSharedOrgAffinityColoc fails when a corporation:/alliance: affinity key with ≥2
+// placements split across backends (fanout mixed-affinity coloc bar).
+func assertSharedOrgAffinityColoc(homeSets map[string]map[string]uint64) error {
+	filtered := map[string]map[string]uint64{}
+	for aff, homes := range homeSets {
+		if !strings.HasPrefix(aff, wsplacement.TenantPrefixCorporation) &&
+			!strings.HasPrefix(aff, wsplacement.TenantPrefixAlliance) {
+			continue
+		}
+		var total uint64
+		for _, n := range homes {
+			total += n
+		}
+		if total < 2 {
+			continue
+		}
+		filtered[aff] = homes
+	}
+	return assertNoColocSplits(filtered)
 }
 
 func (s *stats) cohortSlotCounts(cohort cohortKind) map[string]uint64 {
@@ -189,6 +276,22 @@ func joinOrNone(items []string) string {
 	return strings.Join(items, " ")
 }
 
+func formatAffinityHomes(homeSets map[string]map[string]uint64) string {
+	if len(homeSets) == 0 {
+		return "(none)"
+	}
+	keys := make([]string, 0, len(homeSets))
+	for k := range homeSets {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, aff := range keys {
+		parts = append(parts, fmt.Sprintf("%s→[%s]", aff, formatCounts(homeSets[aff])))
+	}
+	return strings.Join(parts, " ")
+}
+
 // dropRate returns unexpected closes / successful dials (0 when no dials).
 func (s *stats) dropRate() float64 {
 	ok := s.DialOK.Load()
@@ -197,3 +300,4 @@ func (s *stats) dropRate() float64 {
 	}
 	return float64(s.CloseUnexpected.Load()) / float64(ok)
 }
+

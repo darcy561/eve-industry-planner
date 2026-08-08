@@ -2,26 +2,27 @@ package conversion
 
 import (
 	"fmt"
+	"maps"
 	"strconv"
 )
 
 // ApplyInventionToOutputItems walks every blueprint row and copies activities.invention onto each
 // product type listed in invention.products (T2/T3 BPC outputs). Keys under activities.invention
 // are source blueprint type IDs (Option B). T1 manufacture rows never receive invention here.
-func ApplyInventionToOutputItems(fullBlueprintMap map[string]interface{}, combinedItemMap map[string]*EVEType, typesData map[string]interface{}) {
+func ApplyInventionToOutputItems(fullBlueprintMap map[string]any, combinedItemMap map[string]*EVEType, typesData map[string]any) {
 	for _, raw := range fullBlueprintMap {
-		bp, ok := raw.(map[string]interface{})
+		bp, ok := raw.(map[string]any)
 		if !ok {
 			continue
 		}
 		if !isPublishedBlueprintFormula(bp, typesData) {
 			continue
 		}
-		activities, ok := bp["activities"].(map[string]interface{})
+		activities, ok := bp["activities"].(map[string]any)
 		if !ok {
 			continue
 		}
-		inv, ok := activities["invention"].(map[string]interface{})
+		inv, ok := activities["invention"].(map[string]any)
 		if !ok {
 			continue
 		}
@@ -29,12 +30,12 @@ func ApplyInventionToOutputItems(fullBlueprintMap map[string]interface{}, combin
 		if srcKey == "" {
 			continue
 		}
-		products, ok := inv["products"].([]interface{})
+		products, ok := inv["products"].([]any)
 		if !ok {
 			continue
 		}
 		for _, p := range products {
-			prod, ok := p.(map[string]interface{})
+			prod, ok := p.(map[string]any)
 			if !ok {
 				continue
 			}
@@ -59,7 +60,7 @@ func ApplyInventionToOutputItems(fullBlueprintMap map[string]interface{}, combin
 	}
 }
 
-func inventionSourceForProduct(inv map[string]interface{}, productTypeID float64) InventionSource {
+func inventionSourceForProduct(inv map[string]any, productTypeID float64) InventionSource {
 	base := inventionSourceFromSDEMap(inv)
 	want := int64(productTypeID)
 	filtered := make([]InventionProduct, 0, 1)
@@ -74,10 +75,10 @@ func inventionSourceForProduct(inv map[string]interface{}, productTypeID float64
 
 // BuildManufacturedProductByBlueprintTypeID maps blueprint paper type ID → first manufacturing
 // product type ID from the same SDE blueprint row (hull, ammo run, etc.).
-func BuildManufacturedProductByBlueprintTypeID(fullBlueprintMap map[string]interface{}, typesData map[string]interface{}) map[int]int {
+func BuildManufacturedProductByBlueprintTypeID(fullBlueprintMap map[string]any, typesData map[string]any) map[int]int {
 	out := make(map[int]int)
 	for _, raw := range fullBlueprintMap {
-		bp, ok := raw.(map[string]interface{})
+		bp, ok := raw.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -89,19 +90,19 @@ func BuildManufacturedProductByBlueprintTypeID(fullBlueprintMap map[string]inter
 			continue
 		}
 		bpID := int(bpIDf)
-		activities, ok := bp["activities"].(map[string]interface{})
+		activities, ok := bp["activities"].(map[string]any)
 		if !ok {
 			continue
 		}
-		mfg, ok := activities["manufacturing"].(map[string]interface{})
+		mfg, ok := activities["manufacturing"].(map[string]any)
 		if !ok {
 			continue
 		}
-		prods, ok := mfg["products"].([]interface{})
+		prods, ok := mfg["products"].([]any)
 		if !ok || len(prods) == 0 {
 			continue
 		}
-		first, ok := prods[0].(map[string]interface{})
+		first, ok := prods[0].(map[string]any)
 		if !ok {
 			continue
 		}
@@ -135,9 +136,7 @@ func MergeInventionOntManufacturedProduct(combinedItemMap map[string]*EVEType, b
 		if prodItem.Activities.Invention == nil {
 			prodItem.Activities.Invention = make(map[string]InventionSource)
 		}
-		for k, v := range bpItem.Activities.Invention {
-			prodItem.Activities.Invention[k] = v
-		}
+		maps.Copy(prodItem.Activities.Invention, bpItem.Activities.Invention)
 		bpItem.Activities.Invention = nil
 		if recipeActivitiesEmpty(bpItem.Activities) {
 			bpItem.Activities = nil

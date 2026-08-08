@@ -10,7 +10,7 @@ Live SoT for test depth under [`services/websocket`](../../../services/websocket
 | Server package | `go test ./websocket/server/` | Unit + Integration in same package |
 | Integration only | `go test ./websocket/server/ -count=1 -run Integration` | All via `newIntegFixture` |
 | Related | `go test ./ws-router/ ./shared/wsplacement/ ./shared/container/` | Place prefer + tenant keys + identity |
-| Soak helpers | `go test ./cmd/ws_soak/` | Plan/cohort unit only |
+| Soak helpers | `go test ./testing/ws_soak/lib/...` | Plan/cohort unit only |
 
 ```bash
 go test ./websocket/...
@@ -19,7 +19,7 @@ go test ./websocket/server/ -count=1 -run Integration
 
 ## Coverage map
 
-**Depth:** Unit slices + Integration harness (miniredis; injectable Ready deps — not live NATS/Mongo for most cases). Selective JetStream fan-out covered with embedded `nats-server` in-package. Sync / Swarm multi-replica smoke still thin. Optional ops soak: `cmd/ws_soak` against a running stack.
+**Depth:** Unit slices + Integration harness (miniredis; injectable Ready deps — not live NATS/Mongo for most cases). Selective JetStream fan-out covered with embedded `nats-server` in-package. Sync / Swarm multi-replica smoke still thin. Optional ops soak: `testing/ws_soak` against a running stack.
 
 ### Tested
 
@@ -33,7 +33,7 @@ go test ./websocket/server/ -count=1 -run Integration
 | `server/outgoinglogic` | Suppress self-recipient; decode scopes; alliance/corp downward match |
 | `server/natslogic` | Document-lock wire; fanout consumer inactive-threshold; start inert FilterSubjects (not firehose) |
 | `server/identity` | JetStream durable names from `container.ID()` |
-| `cmd/ws_soak` | Limits plan / mixed cohort key shapes / divert ratio helpers; NATS soft/full watcher |
+| `testing/ws_soak` (`main` + `lib`/`soaklib`) | Limits plan / mixed cohort key shapes / divert ratio helpers; NATS soft/full watcher |
 
 ### Thin
 
@@ -50,14 +50,14 @@ go test ./websocket/server/ -count=1 -run Integration
 
 ## Ops soak (not CI)
 
-`services/cmd/ws_soak` against `eip up` / `eip dev` (docker network `eip-core`, NATS + `ws-router`; Redis only for session seed):
+`services/testing/ws_soak` against `eip up` / `eip dev` (docker network `eip-core`, NATS + `ws-router`; Redis only for session seed):
 
 | Profile | Purpose |
 |---------|---------|
 | `hold` | Hold N `/ws` clients; reconnect on close / `please_reconnect` |
 | `limits` | Sync lowered `target_clients` / `client_cutoff` first; fill one corp home → soft; mixed account/corp/alliance keys assert place off soft via `connected.container_id`; fill → full; mixed keys assert not-on-full |
 
-See command header comments in `services/cmd/ws_soak/main.go`. Restore prod thresholds after limits runs.
+See command header comments in `services/testing/ws_soak/main.go`. Restore prod thresholds after limits runs.
 
 ## Topic-only detail
 

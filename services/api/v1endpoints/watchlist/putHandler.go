@@ -64,7 +64,7 @@ func (h *Handlers) PutHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_upsert_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_upsert_completed", map[string]any{
 		"matched":  result.MatchedCount,
 		"upserted": result.UpsertedCount,
 	})
@@ -72,7 +72,7 @@ func (h *Handlers) PutHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "watchlist document saved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "watchlist document saved", map[string]any{
 		"matched":     result.MatchedCount,
 		"upserted":    result.UpsertedCount,
 		"duration_ms": time.Since(start).Milliseconds(),

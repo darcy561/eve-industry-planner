@@ -22,7 +22,7 @@ type DecodedOutbound struct {
 
 // DecodeOutboundMessage unmarshals the payload once for routing and scope filtering.
 func DecodeOutboundMessage(messageData []byte) (DecodedOutbound, error) {
-	var msgData map[string]interface{}
+	var msgData map[string]any
 	if err := json.Unmarshal(messageData, &msgData); err != nil {
 		return DecodedOutbound{}, err
 	}
@@ -39,7 +39,7 @@ func DecodeOutboundMessage(messageData []byte) (DecodedOutbound, error) {
 	}, nil
 }
 
-func stringFieldOrNumber(m map[string]interface{}, keys ...string) string {
+func stringFieldOrNumber(m map[string]any, keys ...string) string {
 	for _, k := range keys {
 		v, ok := m[k]
 		if !ok {
@@ -53,8 +53,8 @@ func stringFieldOrNumber(m map[string]interface{}, keys ...string) string {
 	return ""
 }
 
-func parseScopes(v interface{}) DownwardScopes {
-	m, ok := v.(map[string]interface{})
+func parseScopes(v any) DownwardScopes {
+	m, ok := v.(map[string]any)
 	if !ok || m == nil {
 		return DownwardScopes{}
 	}
@@ -64,12 +64,12 @@ func parseScopes(v interface{}) DownwardScopes {
 	}
 }
 
-func stringSliceFromJSONField(m map[string]interface{}, key string) []string {
+func stringSliceFromJSONField(m map[string]any, key string) []string {
 	raw, ok := m[key]
 	if !ok {
 		return nil
 	}
-	arr, ok := raw.([]interface{})
+	arr, ok := raw.([]any)
 	if !ok || len(arr) == 0 {
 		return nil
 	}
@@ -87,7 +87,7 @@ func stringSliceFromJSONField(m map[string]interface{}, key string) []string {
 	return out
 }
 
-func stringFromScalar(v interface{}) string {
+func stringFromScalar(v any) string {
 	if v == nil {
 		return ""
 	}

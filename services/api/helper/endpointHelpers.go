@@ -29,13 +29,13 @@ func DecodeJSONOrBadRequest(
 	w http.ResponseWriter,
 	r *http.Request,
 	metrics *RequestMetricsTracker,
-	target interface{},
+	target any,
 ) bool {
 	if err := DecodeJSONRequest(r, target, DefaultMaxBodySize); err != nil {
 		if metrics != nil {
 			metrics.Error("invalid_json")
 		}
-		detail := map[string]interface{}{"reason": err.Error()}
+		detail := map[string]any{"reason": err.Error()}
 		var jsonErr *JSONRequestError
 		if errors.As(err, &jsonErr) {
 			if jsonErr.Detail != "" {

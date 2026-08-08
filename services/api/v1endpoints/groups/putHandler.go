@@ -49,14 +49,14 @@ func (h *Handlers) PutGroupsHandler(w http.ResponseWriter, r *http.Request) {
 	const maxBatchSize = 100
 	if len(reqBody.Groups) > maxBatchSize {
 		metrics.Error("batch_too_large")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d groups)", maxBatchSize), "groups batch too large", "groups_put_batch_too_large", "groups_put", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d groups)", maxBatchSize), "groups batch too large", "groups_put_batch_too_large", "groups_put", nil, map[string]any{
 			"count": len(reqBody.Groups),
 			"max":   maxBatchSize,
 		})
 		return
 	}
 
-	logs.AttachDebugStep(r, "batch_validated", map[string]interface{}{
+	logs.AttachDebugStep(r, "batch_validated", map[string]any{
 		"batch_size": len(reqBody.Groups),
 	})
 
@@ -91,7 +91,7 @@ func (h *Handlers) PutGroupsHandler(w http.ResponseWriter, r *http.Request) {
 			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionUserJobGroups, rejects)
 			return
 		}
-		logs.AttachDebugStep(r, "lock_gate_passed", map[string]interface{}{
+		logs.AttachDebugStep(r, "lock_gate_passed", map[string]any{
 			"doc_count": len(groupIDs),
 		})
 	}
@@ -118,7 +118,7 @@ func (h *Handlers) PutGroupsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			held, herr := documentlock.LockHeldBySession(ctx, h.locks.Redis, accountID, eipmongo.CollectionUserJobGroups, delta.GroupID, sessionID)
 			if herr != nil {
-				logs.AttachHandlerCaveat(r, "group_lock_cascade_check_failed", "group membership cascade: group lock check failed", map[string]interface{}{
+				logs.AttachHandlerCaveat(r, "group_lock_cascade_check_failed", "group membership cascade: group lock check failed", map[string]any{
 					"error":    herr.Error(),
 					"group_id": delta.GroupID,
 				})
@@ -132,13 +132,13 @@ func (h *Handlers) PutGroupsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if failedCount > 0 {
-		logs.AttachHandlerCaveat(r, "batch_partial_failure", "some groups failed validation in batch", map[string]interface{}{
+		logs.AttachHandlerCaveat(r, "batch_partial_failure", "some groups failed validation in batch", map[string]any{
 			"failed": failedCount,
 			"total":  len(reqBody.Groups),
 		})
 	}
 
-	logs.AttachDebugStep(r, "mongo_write_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_write_completed", map[string]any{
 		"saved":  savedCount,
 		"failed": failedCount,
 	})
@@ -149,7 +149,7 @@ func (h *Handlers) PutGroupsHandler(w http.ResponseWriter, r *http.Request) {
 	m.GroupsSaved.Add(ctx, float64(savedCount))
 	m.GroupsRequested.Observe(ctx, float64(len(reqBody.Groups)))
 
-	logs.AttachHandlerSuccessDetail(r, "batch groups upserted", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "batch groups upserted", map[string]any{
 		"total":       len(reqBody.Groups),
 		"saved":       savedCount,
 		"failed":      failedCount,

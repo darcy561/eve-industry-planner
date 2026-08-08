@@ -60,7 +60,7 @@ func (s *Server) handleDocumentLockViewerPresenceWS(ctx context.Context, client 
 func (s *Server) handleDocumentLockLockStateBatch(ctx context.Context, client *Client, msg []byte) {
 	req, ok, parseErr := doclocklogic.ParseLockStateBatch(msg)
 	if parseErr != nil {
-		finishWSLockStateBatchFailure(ctx, client, "", "document lock state batch: invalid request body", documentlock.FailureStateBatchBadRequest, map[string]interface{}{
+		finishWSLockStateBatchFailure(ctx, client, "", "document lock state batch: invalid request body", documentlock.FailureStateBatchBadRequest, map[string]any{
 			"error": parseErr.Error(),
 		})
 		return
@@ -69,7 +69,7 @@ func (s *Server) handleDocumentLockLockStateBatch(ctx context.Context, client *C
 		finishWSLockStateBatchFailure(ctx, client, "", "document lock state batch: missing requestId", documentlock.FailureStateBatchBadRequest, nil)
 		return
 	}
-	wsAppendDebugStep(ctx, "lock_state_batch_request", map[string]interface{}{
+	wsAppendDebugStep(ctx, "lock_state_batch_request", map[string]any{
 		"request_id":      req.RequestID,
 		"job_doc_count":   len(req.JobDocIDs),
 		"group_doc_count": len(req.GroupDocIDs),
@@ -87,16 +87,16 @@ func (s *Server) handleDocumentLockLockStateBatch(ctx context.Context, client *C
 	}
 	ackSent := s.queueDocumentLockLockStateBatchAck(client, res.RequestID, res.AckOK, res.JobResults, res.GroupResults, res.AckErrMsg)
 	if !ackSent {
-		logs.AttachHandlerCaveatCtx(ctx, "lock_state_batch_ack_buffer_full", "document lock lock-state-batch ack not delivered", map[string]interface{}{
+		logs.AttachHandlerCaveatCtx(ctx, "lock_state_batch_ack_buffer_full", "document lock lock-state-batch ack not delivered", map[string]any{
 			"request_id": res.RequestID,
 			"client_id":  client.id,
 		})
-		wsAppendDebugStep(ctx, "lock_state_batch_ack_dropped", map[string]interface{}{
+		wsAppendDebugStep(ctx, "lock_state_batch_ack_dropped", map[string]any{
 			"request_id": res.RequestID,
 			"client_id":  client.id,
 		})
 	} else {
-		wsAppendDebugStep(ctx, "lock_state_batch_ack_queued", map[string]interface{}{
+		wsAppendDebugStep(ctx, "lock_state_batch_ack_queued", map[string]any{
 			"request_id": res.RequestID,
 			"client_id":  client.id,
 		})

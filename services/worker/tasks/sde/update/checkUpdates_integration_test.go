@@ -139,7 +139,7 @@ func TestSDEUpdateWorkflowIntegration_generatesAndVersionFiles(t *testing.T) {
 	}
 
 	totalPersistUpdates := 7
-	for i := 0; i < totalPersistUpdates; i++ {
+	for i := range totalPersistUpdates {
 		versionResult.LatestBuildInfo.BuildNumber = baseBuild + i
 		if versionResult.LatestBuildInfo.ReleaseDate == "" {
 			versionResult.LatestBuildInfo.ReleaseDate = "unknown"

@@ -7,26 +7,26 @@ import (
 	"strings"
 )
 
-func ConvertBlueprintDataToTypeIDMap(blueprintData map[string]interface{}, typesData map[string]interface{}) map[string]interface{} {
-	out := make(map[string]interface{})
+func ConvertBlueprintDataToTypeIDMap(blueprintData map[string]any, typesData map[string]any) map[string]any {
+	out := make(map[string]any)
 	for _, value := range blueprintData {
-		blueprint, ok := value.(map[string]interface{})
+		blueprint, ok := value.(map[string]any)
 		if !ok {
 			continue
 		}
 		if !isPublishedBlueprintFormula(blueprint, typesData) {
 			continue
 		}
-		activities, ok := blueprint["activities"].(map[string]interface{})
+		activities, ok := blueprint["activities"].(map[string]any)
 		if !ok {
 			continue
 		}
-		if m, ok := activities["manufacturing"].(map[string]interface{}); ok {
+		if m, ok := activities["manufacturing"].(map[string]any); ok {
 			if typeID := extractTypeID(m); typeID != "" {
 				assignBlueprintKey(out, typeID, blueprint, typesData)
 			}
 		}
-		if r, ok := activities["reaction"].(map[string]interface{}); ok {
+		if r, ok := activities["reaction"].(map[string]any); ok {
 			if typeID := extractTypeID(r); typeID != "" {
 				assignBlueprintKey(out, typeID, blueprint, typesData)
 			}
@@ -41,7 +41,7 @@ func ConvertBlueprintDataToTypeIDMap(blueprintData map[string]interface{}, types
 	return out
 }
 
-func extractTypeID(activity map[string]interface{}) string {
+func extractTypeID(activity map[string]any) string {
 	prodID, ok := firstProductTypeID(activity)
 	if !ok {
 		return ""
@@ -49,17 +49,17 @@ func extractTypeID(activity map[string]interface{}) string {
 	return fmt.Sprintf("%d", prodID)
 }
 
-func BuildCombinedItemMap(typesData map[string]interface{}, blueprintData map[string]interface{}) map[string]*EVEType {
+func BuildCombinedItemMap(typesData map[string]any, blueprintData map[string]any) map[string]*EVEType {
 	out := make(map[string]*EVEType, len(typesData))
 	for key, value := range typesData {
-		itemData, ok := value.(map[string]interface{})
+		itemData, ok := value.(map[string]any)
 		if !ok {
 			continue
 		}
 		if published, ok := itemData["published"].(bool); ok && !published {
 			continue
 		}
-		if name, ok := itemData["name"].(map[string]interface{}); ok {
+		if name, ok := itemData["name"].(map[string]any); ok {
 			if enName, ok := name["en"].(string); ok {
 				if strings.Contains(enName, "expired") || strings.Contains(enName, "Expired") {
 					continue
@@ -72,16 +72,16 @@ func BuildCombinedItemMap(typesData map[string]interface{}, blueprintData map[st
 
 		keyStr := strconv.Itoa(newItem.Key)
 		if blueprintMatch, exists := blueprintData[keyStr]; exists {
-			if blueprint, ok := blueprintMatch.(map[string]interface{}); ok {
-				if activities, ok := blueprint["activities"].(map[string]interface{}); ok {
-					if manufacturing, ok := activities["manufacturing"].(map[string]interface{}); ok {
-						if products, ok := manufacturing["products"].([]interface{}); ok && len(products) > 0 {
+			if blueprint, ok := blueprintMatch.(map[string]any); ok {
+				if activities, ok := blueprint["activities"].(map[string]any); ok {
+					if manufacturing, ok := activities["manufacturing"].(map[string]any); ok {
+						if products, ok := manufacturing["products"].([]any); ok && len(products) > 0 {
 							newItem.JobType = ManufacturingID
 							mergeBlueprintData(newItem, blueprint)
 						}
 					}
-					if reaction, ok := activities["reaction"].(map[string]interface{}); ok {
-						if products, ok := reaction["products"].([]interface{}); ok && len(products) > 0 {
+					if reaction, ok := activities["reaction"].(map[string]any); ok {
+						if products, ok := reaction["products"].([]any); ok && len(products) > 0 {
 							newItem.JobType = ReactionID
 							mergeBlueprintData(newItem, blueprint)
 						}
@@ -94,13 +94,13 @@ func BuildCombinedItemMap(typesData map[string]interface{}, blueprintData map[st
 	return out
 }
 
-func createEVETypeFromData(itemData map[string]interface{}) *EVEType {
+func createEVETypeFromData(itemData map[string]any) *EVEType {
 	item := &EVEType{}
 	if key, ok := itemData["_key"].(float64); ok {
 		item.Key = int(key)
 		item.ItemID = int(key)
 	}
-	if nameObj, ok := itemData["name"].(map[string]interface{}); ok {
+	if nameObj, ok := itemData["name"].(map[string]any); ok {
 		if enName, ok := nameObj["en"].(string); ok {
 			item.Name = enName
 		}
@@ -132,8 +132,8 @@ func createEVETypeFromData(itemData map[string]interface{}) *EVEType {
 	return item
 }
 
-func mergeBlueprintData(newItem *EVEType, blueprintData map[string]interface{}) {
-	if activities, ok := blueprintData["activities"].(map[string]interface{}); ok {
+func mergeBlueprintData(newItem *EVEType, blueprintData map[string]any) {
+	if activities, ok := blueprintData["activities"].(map[string]any); ok {
 		newItem.Activities = recipeActivitiesFromSDE(activities, blueprintData)
 	}
 	if blueprintTypeID, ok := parseSDETypeID(blueprintData["blueprintTypeID"]); ok {
@@ -146,21 +146,21 @@ func mergeBlueprintData(newItem *EVEType, blueprintData map[string]interface{}) 
 
 // recipeActivitiesFromSDE converts raw SDE activities onto RecipeActivities.
 // SDE uses a single invention object per blueprint row; static output nests it under invention[sourceBlueprintTypeID] (Option B).
-func recipeActivitiesFromSDE(activities map[string]interface{}, blueprintRow map[string]interface{}) *RecipeActivities {
+func recipeActivitiesFromSDE(activities map[string]any, blueprintRow map[string]any) *RecipeActivities {
 	out := &RecipeActivities{}
-	if m, ok := activities["manufacturing"].(map[string]interface{}); ok {
+	if m, ok := activities["manufacturing"].(map[string]any); ok {
 		out.Manufacturing = m
 	}
-	if m, ok := activities["reaction"].(map[string]interface{}); ok {
+	if m, ok := activities["reaction"].(map[string]any); ok {
 		out.Reaction = m
 	}
-	if m, ok := activities["copying"].(map[string]interface{}); ok {
+	if m, ok := activities["copying"].(map[string]any); ok {
 		out.Copying = m
 	}
-	if m, ok := activities["research_material"].(map[string]interface{}); ok {
+	if m, ok := activities["research_material"].(map[string]any); ok {
 		out.ResearchMaterial = m
 	}
-	if m, ok := activities["research_time"].(map[string]interface{}); ok {
+	if m, ok := activities["research_time"].(map[string]any); ok {
 		out.ResearchTime = m
 	}
 
@@ -168,11 +168,11 @@ func recipeActivitiesFromSDE(activities map[string]interface{}, blueprintRow map
 	return out
 }
 
-func blueprintTypeIDKey(blueprintRow map[string]interface{}) string {
+func blueprintTypeIDKey(blueprintRow map[string]any) string {
 	return formatSDETypeIDKey(blueprintRow["blueprintTypeID"])
 }
 
-func inventionSourceFromSDEMap(m map[string]interface{}) InventionSource {
+func inventionSourceFromSDEMap(m map[string]any) InventionSource {
 	b, err := json.Marshal(m)
 	if err != nil {
 		return InventionSource{}

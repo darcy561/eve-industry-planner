@@ -7,7 +7,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"strings"
 	"sync/atomic"
@@ -96,16 +95,15 @@ func (r *Router) handleProxy(w http.ResponseWriter, req *http.Request) {
 	}
 
 	target := &url.URL{Scheme: "http", Host: net.JoinHostPort(be.IP, r.cfg.BackendPort)}
-	proxy := httputil.NewSingleHostReverseProxy(target)
-	proxy.FlushInterval = -1
-	proxy.ErrorHandler = func(rw http.ResponseWriter, _ *http.Request, e error) {
-		r.proxyErr.Add(1)
-		log.Printf("proxy error container_id=%s: %v", id, e)
-		http.Error(rw, "backend proxy error", http.StatusBadGateway)
-	}
 	r.activeProxies.Add(1)
 	defer r.activeProxies.Add(-1)
-	proxy.ServeHTTP(w, req)
+	if err := proxyWebSocketUpgrade(w, req, target); err != nil {
+		r.proxyErr.Add(1)
+		log.Printf("proxy error container_id=%s: %v", id, err)
+		if !errors.Is(err, errProxyClientWritten) {
+			http.Error(w, "backend proxy error", http.StatusBadGateway)
+		}
+	}
 }
 
 func (r *Router) resolveBackend(_ context.Context, req *http.Request) (id string, setSticky bool, err error) {

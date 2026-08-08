@@ -44,10 +44,10 @@ func (h *Handlers) GetHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			metrics.Success()
-			logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+			logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 				"has_document": false,
 			})
-			logs.AttachHandlerSuccessDetail(r, "watchlist document empty", map[string]interface{}{
+			logs.AttachHandlerSuccessDetail(r, "watchlist document empty", map[string]any{
 				"duration_ms": time.Since(start).Milliseconds(),
 			})
 			return
@@ -58,7 +58,7 @@ func (h *Handlers) GetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	groups, items := coalesceGroupsItemsFromDoc(raw)
-	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 		"has_document": true,
 	})
 	resp := map[string]any{
@@ -72,7 +72,7 @@ func (h *Handlers) GetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "watchlist document retrieved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "watchlist document retrieved", map[string]any{
 		"duration_ms": time.Since(start).Milliseconds(),
 	})
 }

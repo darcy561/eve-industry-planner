@@ -249,7 +249,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 	syncData := make(map[string]SyncDataCollection)
 
 	// Extract user document separately (single document per account, not a collection)
-	var userDoc map[string]interface{}
+	var userDoc map[string]any
 	if accountDoc, found := accountDocs[accountID]; found {
 		userDoc = accountDoc
 	}
@@ -363,7 +363,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 				// Merge additional documents into sync data
 				if syncData[collectionName].Updates == nil {
 					syncData[collectionName] = SyncDataCollection{
-						Updates: make(map[string]map[string]interface{}),
+						Updates: make(map[string]map[string]any),
 						Deletes: []string{},
 					}
 				}
@@ -386,7 +386,7 @@ func handleSyncMessage(ctx context.Context, s SyncServer, client SyncClient, cli
 			// (they might have been in initial data but then deleted)
 			if syncData[collectionName].Updates == nil {
 				syncData[collectionName] = SyncDataCollection{
-					Updates: make(map[string]map[string]interface{}),
+					Updates: make(map[string]map[string]any),
 					Deletes: []string{},
 				}
 			}

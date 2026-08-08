@@ -111,10 +111,7 @@ func CheckServerStatus(ctx context.Context, esiClient esiratelimiter.ClientInter
 	if redisClient != nil {
 		if ok, res := tryRedisSharedStatusCache(ctx, redisClient); ok {
 			validUntil, _ := rediscore.GetServerStatusValidUntil(ctx, redisClient)
-			secLeft := int((validUntil - time.Now().UnixMilli()) / 1000)
-			if secLeft < 0 {
-				secLeft = 0
-			}
+			secLeft := max(int((validUntil-time.Now().UnixMilli())/1000), 0)
 			logs.DebugCtx(ctx, "server status from shared Redis cache (no HTTP)",
 				"valid_until_ms", validUntil,
 				"seconds_left", secLeft)
@@ -219,11 +216,11 @@ func CheckServerStatus(ctx context.Context, esiClient esiratelimiter.ClientInter
 func parseCacheSeconds(resp *http.Response) int {
 	cc := resp.Header.Get("Cache-Control")
 	if cc != "" {
-		parts := strings.Split(cc, ",")
-		for _, p := range parts {
+		parts := strings.SplitSeq(cc, ",")
+		for p := range parts {
 			p = strings.TrimSpace(p)
-			if strings.HasPrefix(p, "max-age=") {
-				v := strings.TrimPrefix(p, "max-age=")
+			if after, ok := strings.CutPrefix(p, "max-age="); ok {
+				v := after
 				if secs, err := strconv.Atoi(v); err == nil && secs > 0 {
 					return secs
 				}

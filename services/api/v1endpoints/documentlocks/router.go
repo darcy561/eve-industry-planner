@@ -71,5 +71,5 @@ func (h *Handlers) Router(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	helper.RespondEndpointError(w, r, http.StatusNotFound, "Not found", "document-locks route not found", "document_locks_not_found", "document_locks", nil, map[string]interface{}{"path": path})
+	helper.RespondEndpointError(w, r, http.StatusNotFound, "Not found", "document-locks route not found", "document_locks_not_found", "document_locks", nil, map[string]any{"path": path})
 }

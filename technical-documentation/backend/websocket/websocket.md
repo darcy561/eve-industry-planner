@@ -106,6 +106,10 @@ Each replica keeps **one** durable for live updates and **one** for locks, named
 
 **Ops inspect (dev/stack):** `GET :4001/placement` for clients; JetStream `consumer info doc-update-stream doc-live-updates-<container_id>` for live Filter Subjects (NATS CLI / nats-box on `eip-core`).
 
+## Keepalive
+
+Writer sends websocket **Ping** every `PingPeriod` (1m). Reader read deadline is `PongWait` (90s), extended on app data and on **Pong** (`SetPongHandler`). SPA also sends text `"ping"` every 45s (server replies `"pong"`). Idle peers that neither pong nor send app traffic are closed as stale.
+
 ## Session handoff
 
 Redis `ws:session_handoff:v1:…` (~25s TTL: reconnect window + slack) lets a reconnect resume subscriptions across backends when the handoff is still present. This is auth/session continuity — not the placement signal plane.
@@ -116,10 +120,11 @@ Redis `ws:session_handoff:v1:…` (~25s TTL: reconnect window + slack) lets a re
 |----------|------|
 | `GET :19100/healthy` | Liveness (stays up while draining) |
 | `GET :19100/ready` | Readiness — fails when draining, or when Redis / NATS / Mongo deps fail Swarm healthcheck |
+| `GET :19100/debug/pprof/*` | Go pprof (heap/profile/goroutine/…) when `ENVIRONMENT=development` only — probe port; off on live |
 | `GET :4001/placement` | `PlacementState` JSON for router status reconcile |
 
 Traefik does not LB this service directly.
 
 ## Ops soak (optional)
 
-Against a live stack: `services/cmd/ws_soak` (`-profile hold` for reconnect endurance; `-profile limits` for soft/full + divert asserts after temporarily lowering synced thresholds). Place observation uses `connected.container_id` + NATS soft/full — not Redis placement keys. Not a substitute for unit/integration tests. See [testing/services/websocket.md](../../testing/services/websocket.md).
+Against a live stack: `services/testing/ws_soak` — `hold` (reconnect endurance), `limits` / `pressure` (soft/full + divert after temporarily lowering synced thresholds), `fanout` (phased connect then JetStream → WS exact delivery; default via Traefik `/ws`). Place observation uses `connected.container_id` + NATS soft/full — not Redis placement keys. Not a substitute for unit/integration tests. How to run / read reports → [testing/services/websocket.md](../../testing/services/websocket.md) + [testing/harness.md](../../testing/harness.md).

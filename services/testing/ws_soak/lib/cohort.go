@@ -1,4 +1,4 @@
-package main
+package soaklib
 
 import (
 	"fmt"
@@ -12,11 +12,12 @@ const (
 	cohortFill       cohortKind = "fill"
 	cohortSoftDivert cohortKind = "soft_divert"
 	cohortFullProbe  cohortKind = "full_probe"
+	cohortGroup      cohortKind = "group" // pressure: sticky multi-client affinity groups
 )
 
 const (
-	defaultFillCorpID       int64 = 910001
-	defaultDivertCorpBase   int64 = 920000
+	defaultFillCorpID         int64 = 910001
+	defaultDivertCorpBase     int64 = 920000
 	defaultDivertAllianceBase int64 = 930000
 )
 

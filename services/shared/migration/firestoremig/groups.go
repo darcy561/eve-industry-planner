@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
 	"reflect"
 	"strconv"
 	"time"
 
 	"eve-industry-planner/shared/logs"
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"cloud.google.com/go/firestore"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -177,7 +178,7 @@ func groupDataArrayFromDoc(data map[string]any) []any {
 	if arr, ok := v.([]any); ok {
 		return arr
 	}
-	if arr, ok := v.([]interface{}); ok {
+	if arr, ok := v.([]any); ok {
 		out := make([]any, len(arr))
 		for i, x := range arr {
 			out[i] = x
@@ -192,9 +193,7 @@ func groupDataArrayFromDoc(data map[string]any) []any {
 // before JSON decode (same invariants as the current JS toDocument() shape).
 func groupFromFirestoreMap(accountID string, now time.Time, obj map[string]any) (models.Group, error) {
 	norm := make(map[string]any, len(obj))
-	for k, v := range obj {
-		norm[k] = v
-	}
+	maps.Copy(norm, obj)
 	normalizeLegacyFirestoreGroupMap(norm)
 
 	b, err := json.Marshal(norm)

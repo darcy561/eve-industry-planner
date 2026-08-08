@@ -48,13 +48,13 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 			if attrs := natscore.AsynqTaskPayloadSpanAttributes(taskType, t.Payload()); len(attrs) > 0 {
 				span.SetAttributes(attrs...)
 			}
-			logs.AttachDebugStepCtx(ctx, "asynq_task_started", map[string]interface{}{
+			logs.AttachDebugStepCtx(ctx, "asynq_task_started", map[string]any{
 				"task_type": taskType,
 			})
 			start := time.Now()
 			err := h.ProcessTask(ctx, t)
 			elapsed := time.Since(start)
-			outcomeDetail := map[string]interface{}{
+			outcomeDetail := map[string]any{
 				"task_type":   taskType,
 				"duration_ms": elapsed.Milliseconds(),
 			}
@@ -171,7 +171,7 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	})
 }
 
-func emitAsynqTaskLog(ctx context.Context, level, msg string, detail map[string]interface{}) {
+func emitAsynqTaskLog(ctx context.Context, level, msg string, detail map[string]any) {
 	steps := logs.DebugStepsFromContext(ctx)
 	caveats := logs.HandlerCaveatsFromContext(ctx)
 	logs.EmitAccessShapedLog(ctx, level, msg, detail, steps, caveats)

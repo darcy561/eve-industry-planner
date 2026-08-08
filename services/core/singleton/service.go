@@ -117,7 +117,6 @@ func StartService(redisClient *redis.Client, jobs ...Job) (func(), error) {
 	wg.Add(len(jobs))
 
 	for _, j := range jobs {
-		j := j
 		leaseID := lease.InstanceID() + ":" + j.Name
 		go func() {
 			defer wg.Done()

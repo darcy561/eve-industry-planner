@@ -148,7 +148,7 @@ func (h *Handlers) handleHandOver(w http.ResponseWriter, r *http.Request) {
 	}
 	switch res.StatusCode {
 	case http.StatusConflict:
-		attachLockHandlerClientFailure(r, "hand-over", "document lock hand-over: no queue change", "doc_lock_handover_noop", res.StatusCode, hc, map[string]interface{}{
+		attachLockHandlerClientFailure(r, "hand-over", "document lock hand-over: no queue change", "doc_lock_handover_noop", res.StatusCode, hc, map[string]any{
 			"error_code": documentlock.ErrCodeHandOverNoop,
 		})
 	default:
@@ -196,14 +196,14 @@ func (h *Handlers) handleLockState(w http.ResponseWriter, r *http.Request) {
 	collection := r.URL.Query().Get("collection")
 	docID := r.URL.Query().Get("docID")
 	if collection == "" || docID == "" {
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, "collection and docID query params required", "document lock state: missing query params", "doc_lock_state_bad_request", "document_lock_state", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "collection and docID query params required", "document lock state: missing query params", "doc_lock_state_bad_request", "document_lock_state", nil, map[string]any{
 			"collection": collection,
 			"doc_id":     docID,
 		})
 		return
 	}
 	if h.Redis == nil {
-		helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Locks unavailable", "document locks unavailable", documentlock.FailureUnavailable, "document_lock_state", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Locks unavailable", "document locks unavailable", documentlock.FailureUnavailable, "document_lock_state", nil, map[string]any{
 			"collection": collection,
 			"doc_id":     docID,
 		})
@@ -211,7 +211,7 @@ func (h *Handlers) handleLockState(w http.ResponseWriter, r *http.Request) {
 	}
 	payload, err := documentlock.StatusPayloadForDoc(ctx, h.Redis, accountID, collection, docID)
 	if err != nil {
-		helper.RespondEndpointServerError(w, r, "Internal error", "document lock state failed", documentlock.FailureStateFailed, "document_lock_state", err, map[string]interface{}{
+		helper.RespondEndpointServerError(w, r, "Internal error", "document lock state failed", documentlock.FailureStateFailed, "document_lock_state", err, map[string]any{
 			"account_id": accountID, "collection": collection, "doc_id": docID,
 		})
 		return
@@ -241,19 +241,19 @@ func (h *Handlers) handleLockStateBatch(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		switch {
 		case errors.Is(err, documentlock.ErrStatusBatchEmpty):
-			helper.RespondEndpointError(w, r, http.StatusBadRequest, documentlock.ErrStatusBatchEmpty.Error(), "document lock state batch: empty request", documentlock.FailureStateBatchEmpty, "document_lock_state_batch", err, map[string]interface{}{
+			helper.RespondEndpointError(w, r, http.StatusBadRequest, documentlock.ErrStatusBatchEmpty.Error(), "document lock state batch: empty request", documentlock.FailureStateBatchEmpty, "document_lock_state_batch", err, map[string]any{
 				"account_id": accountID,
 			})
 		case errors.Is(err, documentlock.ErrStatusBatchTooMany):
-			helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("maximum %d jobDocIDs and %d groupDocIDs per request", documentlock.MaxStatusBatchDocs, documentlock.MaxStatusBatchDocs), "document lock state batch: too many doc ids", documentlock.FailureStateBatchTooMany, "document_lock_state_batch", err, map[string]interface{}{
+			helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("maximum %d jobDocIDs and %d groupDocIDs per request", documentlock.MaxStatusBatchDocs, documentlock.MaxStatusBatchDocs), "document lock state batch: too many doc ids", documentlock.FailureStateBatchTooMany, "document_lock_state_batch", err, map[string]any{
 				"account_id": accountID,
 			})
 		case errors.Is(err, documentlock.ErrLocksUnavailable):
-			helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Locks unavailable", "document locks unavailable", documentlock.FailureUnavailable, "document_lock_state_batch", err, map[string]interface{}{
+			helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Locks unavailable", "document locks unavailable", documentlock.FailureUnavailable, "document_lock_state_batch", err, map[string]any{
 				"account_id": accountID,
 			})
 		default:
-			helper.RespondEndpointServerError(w, r, "Internal error", "document lock state batch failed", documentlock.FailureStateBatchFailed, "document_lock_state_batch", err, map[string]interface{}{
+			helper.RespondEndpointServerError(w, r, "Internal error", "document lock state batch failed", documentlock.FailureStateBatchFailed, "document_lock_state_batch", err, map[string]any{
 				"account_id": accountID,
 			})
 		}
@@ -282,7 +282,7 @@ func (h *Handlers) handleClaimHandoff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if out.ErrText != "" {
-		attachLockHandlerClientFailure(r, "claim-handoff", "document lock claim-handoff: "+out.ErrText, "doc_lock_claim_handoff_rejected", out.Status, hc, map[string]interface{}{
+		attachLockHandlerClientFailure(r, "claim-handoff", "document lock claim-handoff: "+out.ErrText, "doc_lock_claim_handoff_rejected", out.Status, hc, map[string]any{
 			"reason": out.ErrText,
 		})
 		http.Error(w, out.ErrText, out.Status)

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"maps"
 	"net/http"
 	"time"
 
@@ -14,9 +15,9 @@ import (
 
 const wsUpgradeOperation = "websocket_upgrade"
 
-func wsEmitOperationLog(ctx context.Context, client *Client, level, msg string, detail map[string]interface{}, steps []logs.DebugStep, caveats []logs.HandlerCaveat) {
+func wsEmitOperationLog(ctx context.Context, client *Client, level, msg string, detail map[string]any, steps []logs.DebugStep, caveats []logs.HandlerCaveat) {
 	if detail == nil {
-		detail = map[string]interface{}{}
+		detail = map[string]any{}
 	}
 	if start, ok := logs.RequestStartTime(ctx); ok && !start.IsZero() {
 		detail["duration_ms"] = time.Since(start).Milliseconds()
@@ -55,7 +56,7 @@ func wsEmitOperationLog(ctx context.Context, client *Client, level, msg string, 
 	}
 }
 
-func wsEmitOperationOutcome(ctx context.Context, client *Client, success bool, msg string, detail map[string]interface{}, successLevel string) {
+func wsEmitOperationOutcome(ctx context.Context, client *Client, success bool, msg string, detail map[string]any, successLevel string) {
 	caveats := logs.HandlerCaveatsFromContext(ctx)
 	level := "info"
 	switch {
@@ -70,11 +71,11 @@ func wsEmitOperationOutcome(ctx context.Context, client *Client, success bool, m
 	wsEmitOperationLog(ctx, client, level, msg, detail, steps, caveats)
 }
 
-func wsAppendDebugStep(ctx context.Context, step string, extra map[string]interface{}) {
+func wsAppendDebugStep(ctx context.Context, step string, extra map[string]any) {
 	logs.AttachDebugStepCtx(ctx, step, extra)
 }
 
-func wsTargetExtra(client *Client, extra map[string]interface{}) map[string]interface{} {
+func wsTargetExtra(client *Client, extra map[string]any) map[string]any {
 	return wsLockTargetExtra(client, "", "", extra)
 }
 
@@ -82,22 +83,20 @@ func finishWSOperationSuccess(
 	ctx context.Context,
 	client *Client,
 	operation, msg string,
-	extra map[string]interface{},
+	extra map[string]any,
 	successLevel string,
 ) {
 	if extra == nil {
-		extra = map[string]interface{}{}
+		extra = map[string]any{}
 	}
 	extra["operation"] = operation
-	stepDetail := map[string]interface{}{
+	stepDetail := map[string]any{
 		"operation":  operation,
 		"client_id":  client.id,
 		"account_id": client.AccountID,
 		"session_id": client.SessionID,
 	}
-	for k, v := range extra {
-		stepDetail[k] = v
-	}
+	maps.Copy(stepDetail, extra)
 	wsAppendDebugStep(ctx, "ws_operation_completed", stepDetail)
 	wsEmitOperationOutcome(ctx, client, true, msg, wsTargetExtra(client, extra), successLevel)
 }
@@ -106,14 +105,14 @@ func finishWSOperationFailure(
 	ctx context.Context,
 	client *Client,
 	operation, msg, failureClass string,
-	extra map[string]interface{},
+	extra map[string]any,
 ) {
 	if extra == nil {
-		extra = map[string]interface{}{}
+		extra = map[string]any{}
 	}
 	extra["operation"] = operation
 	extra["failure_class"] = failureClass
-	wsAppendDebugStep(ctx, "ws_operation_rejected", map[string]interface{}{
+	wsAppendDebugStep(ctx, "ws_operation_rejected", map[string]any{
 		"operation":     operation,
 		"failure_class": failureClass,
 		"client_id":     client.id,
@@ -131,11 +130,11 @@ func wsUpgradeRejectClient(
 	reasonCode string,
 	status int,
 	logMsg, responseBody, failureClass string,
-	extra map[string]interface{},
+	extra map[string]any,
 ) {
 	duration := time.Since(start)
 	s.recordUpgradeError(r.Context(), reasonCode, duration)
-	detail := map[string]interface{}{
+	detail := map[string]any{
 		"operation":     wsUpgradeOperation,
 		"failure_class": failureClass,
 		"status_code":   status,
@@ -144,10 +143,8 @@ func wsUpgradeRejectClient(
 	if reasonCode != "" {
 		detail["code"] = reasonCode
 	}
-	for k, v := range extra {
-		detail[k] = v
-	}
-	stepExtra := map[string]interface{}{
+	maps.Copy(detail, extra)
+	stepExtra := map[string]any{
 		"reason_code":   reasonCode,
 		"failure_class": failureClass,
 	}
@@ -171,11 +168,11 @@ func wsUpgradeRejectServer(
 	status int,
 	logMsg, responseBody, failureClass string,
 	err error,
-	extra map[string]interface{},
+	extra map[string]any,
 ) {
 	duration := time.Since(start)
 	s.recordUpgradeError(r.Context(), reasonCode, duration)
-	detail := map[string]interface{}{
+	detail := map[string]any{
 		"operation":     wsUpgradeOperation,
 		"failure_class": failureClass,
 		"status_code":   status,
@@ -184,10 +181,8 @@ func wsUpgradeRejectServer(
 	if reasonCode != "" {
 		detail["code"] = reasonCode
 	}
-	for k, v := range extra {
-		detail[k] = v
-	}
-	logs.AttachDebugStep(r, "websocket_upgrade_rejected", map[string]interface{}{
+	maps.Copy(detail, extra)
+	logs.AttachDebugStep(r, "websocket_upgrade_rejected", map[string]any{
 		"reason_code":   reasonCode,
 		"failure_class": failureClass,
 	})
@@ -199,20 +194,20 @@ func wsUpgradeRejectServer(
 }
 
 func wsUpgradeAttachSessionValidated(r *http.Request, accountID, sessionID string) {
-	logs.AttachDebugStep(r, "session_validated", map[string]interface{}{
+	logs.AttachDebugStep(r, "session_validated", map[string]any{
 		"account_id": accountID,
 		"session_id": sessionID,
 	})
 }
 
 func wsUpgradeAttachConnectionLimitEviction(r *http.Request, accountID, evictedClientID string, connCount, maxConns int) {
-	logs.AttachDebugStep(r, "connection_limit_evicted", map[string]interface{}{
+	logs.AttachDebugStep(r, "connection_limit_evicted", map[string]any{
 		"account_id":          accountID,
 		"evicted_client_id":   evictedClientID,
 		"current_connections": connCount,
 		"max_connections":     maxConns,
 	})
-	logs.AttachHandlerCaveat(r, "connection_limit_eviction", "closed oldest connection to make room for new websocket", map[string]interface{}{
+	logs.AttachHandlerCaveat(r, "connection_limit_eviction", "closed oldest connection to make room for new websocket", map[string]any{
 		"evicted_client_id":   evictedClientID,
 		"current_connections": connCount,
 		"max_connections":     maxConns,
@@ -220,7 +215,7 @@ func wsUpgradeAttachConnectionLimitEviction(r *http.Request, accountID, evictedC
 }
 
 func wsUpgradeAttachConnectionLimitFallback(r *http.Request, accountID string, connCount int) {
-	logs.AttachHandlerCaveat(r, "connection_limit_fallback", "connection limit reached but no client could be evicted", map[string]interface{}{
+	logs.AttachHandlerCaveat(r, "connection_limit_fallback", "connection limit reached but no client could be evicted", map[string]any{
 		"account_id":          accountID,
 		"current_connections": connCount,
 	})
@@ -234,7 +229,7 @@ func wsUpgradeFinishSuccess(
 	duration time.Duration,
 	userAgent string,
 ) {
-	logs.AttachDebugStep(r, "websocket_upgrade_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "websocket_upgrade_completed", map[string]any{
 		"client_id":        client.id,
 		"account_id":       client.AccountID,
 		"session_id":       client.SessionID,
@@ -242,7 +237,7 @@ func wsUpgradeFinishSuccess(
 		"user_connections": userConnections,
 		"duration_ms":      duration.Milliseconds(),
 	})
-	logs.AttachHandlerSuccessDetail(r, "websocket client connected", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "websocket client connected", map[string]any{
 		"operation":        wsUpgradeOperation,
 		"client_id":        client.id,
 		"account_id":       client.AccountID,
@@ -279,11 +274,9 @@ func wsUpgradeRejectAuthSession(
 // finishReplicaFanoutOperation emits one consolidated NATS outcome log for fan-out on this
 // websocket replica. Successful delivery logs at info with recipient account/session/client ids;
 // idle replicas and no-recipient outcomes log at debug with an explicit message suffix.
-func finishReplicaFanoutOperation(ctx context.Context, msg, docID, subject string, outcome outboundDeliveryOutcome, extra map[string]interface{}) {
+func finishReplicaFanoutOperation(ctx context.Context, msg, docID, subject string, outcome outboundDeliveryOutcome, extra map[string]any) {
 	detail := outboundDeliveryDetail(docID, subject, outcome)
-	for k, v := range extra {
-		detail[k] = v
-	}
+	maps.Copy(detail, extra)
 	level := "debug"
 	logMsg := msg
 	switch {
@@ -300,8 +293,8 @@ func finishReplicaFanoutOperation(ctx context.Context, msg, docID, subject strin
 	natscore.FinishNATSConsumerOperation(ctx, level, logMsg, detail)
 }
 
-func wsLockTargetExtra(client *Client, collection, docID string, extra map[string]interface{}) map[string]interface{} {
-	merged := map[string]interface{}{
+func wsLockTargetExtra(client *Client, collection, docID string, extra map[string]any) map[string]any {
+	merged := map[string]any{
 		"transport": "websocket",
 		"client_id": client.id,
 	}
@@ -317,14 +310,12 @@ func wsLockTargetExtra(client *Client, collection, docID string, extra map[strin
 	if client.SessionID != "" {
 		merged["session_id"] = client.SessionID
 	}
-	for k, v := range extra {
-		merged[k] = v
-	}
+	maps.Copy(merged, extra)
 	return merged
 }
 
 func wsAttachViewerPresenceStep(ctx context.Context, client *Client, event, collection, docID string) {
-	wsAppendDebugStep(ctx, "viewer_presence_updated", wsLockTargetExtra(client, collection, docID, map[string]interface{}{
+	wsAppendDebugStep(ctx, "viewer_presence_updated", wsLockTargetExtra(client, collection, docID, map[string]any{
 		"event": event,
 	}))
 }
@@ -333,14 +324,14 @@ func finishWSDocumentLockSuccess(
 	ctx context.Context,
 	client *Client,
 	operation, msg, collection, docID string,
-	extra map[string]interface{},
+	extra map[string]any,
 	successLevel string,
 ) {
 	if extra == nil {
-		extra = map[string]interface{}{}
+		extra = map[string]any{}
 	}
 	extra["operation"] = operation
-	stepDetail := map[string]interface{}{
+	stepDetail := map[string]any{
 		"operation":  operation,
 		"client_id":  client.id,
 		"account_id": client.AccountID,
@@ -352,9 +343,7 @@ func finishWSDocumentLockSuccess(
 	if docID != "" {
 		stepDetail["doc_id"] = docID
 	}
-	for k, v := range extra {
-		stepDetail[k] = v
-	}
+	maps.Copy(stepDetail, extra)
 	wsAppendDebugStep(ctx, "lock_operation_completed", stepDetail)
 	wsEmitOperationOutcome(ctx, client, true, msg, wsLockTargetExtra(client, collection, docID, extra), successLevel)
 }
@@ -363,14 +352,14 @@ func finishWSDocumentLockClientFailure(
 	ctx context.Context,
 	client *Client,
 	operation, msg, failureClass, collection, docID string,
-	extra map[string]interface{},
+	extra map[string]any,
 ) {
 	if extra == nil {
-		extra = map[string]interface{}{}
+		extra = map[string]any{}
 	}
 	extra["operation"] = operation
 	extra["failure_class"] = failureClass
-	stepDetail := map[string]interface{}{
+	stepDetail := map[string]any{
 		"operation":     operation,
 		"failure_class": failureClass,
 		"client_id":     client.id,
@@ -383,9 +372,7 @@ func finishWSDocumentLockClientFailure(
 	if docID != "" {
 		stepDetail["doc_id"] = docID
 	}
-	for k, v := range extra {
-		stepDetail[k] = v
-	}
+	maps.Copy(stepDetail, extra)
 	wsAppendDebugStep(ctx, "lock_operation_rejected", stepDetail)
 	wsEmitOperationOutcome(ctx, client, false, msg, wsLockTargetExtra(client, collection, docID, extra), "")
 }
@@ -395,7 +382,7 @@ func finishWSLockStateBatchSuccess(ctx context.Context, client *Client, requestI
 	if !ackDelivered {
 		successLevel = "" // caveat (ack buffer full) elevates to warn
 	}
-	finishWSDocumentLockSuccess(ctx, client, "lock-state-batch", "document lock lock-state-batch", "", "", map[string]interface{}{
+	finishWSDocumentLockSuccess(ctx, client, "lock-state-batch", "document lock lock-state-batch", "", "", map[string]any{
 		"request_id":      requestID,
 		"job_doc_count":   jobDocCount,
 		"group_doc_count": groupDocCount,
@@ -407,10 +394,10 @@ func finishWSLockStateBatchFailure(
 	ctx context.Context,
 	client *Client,
 	requestID, msg, failureClass string,
-	extra map[string]interface{},
+	extra map[string]any,
 ) {
 	if extra == nil {
-		extra = map[string]interface{}{}
+		extra = map[string]any{}
 	}
 	if requestID != "" {
 		extra["request_id"] = requestID

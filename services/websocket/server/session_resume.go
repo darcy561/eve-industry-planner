@@ -213,7 +213,7 @@ func (s *Server) queueResumeAck(client *Client, skipBaselineSync bool, restoredD
 	if client == nil || client.Send == nil {
 		return false
 	}
-	msg := map[string]interface{}{
+	msg := map[string]any{
 		"type":             "resume_ack",
 		"skipBaselineSync": skipBaselineSync,
 	}

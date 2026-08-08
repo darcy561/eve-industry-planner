@@ -132,7 +132,7 @@ func TestExtractAccountSession_OrphanIndexIncludesAccountAndSession(t *testing.T
 	}
 }
 
-func containsLogField(fields []interface{}, key string, want interface{}) bool {
+func containsLogField(fields []any, key string, want any) bool {
 	for i := 0; i+1 < len(fields); i += 2 {
 		if k, ok := fields[i].(string); ok && k == key && fields[i+1] == want {
 			return true

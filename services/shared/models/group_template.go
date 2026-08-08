@@ -11,39 +11,39 @@ const (
 	GroupTemplateCatalogSchemaVersion = 1
 	GroupTemplatePayloadSchemaVersion = 1
 	GroupTemplateCatalogDocumentKind  = "groupTemplateCatalog"
-	GroupTemplatePayloadDocumentKind    = "groupTemplatePayload"
-	MaxTemplatesPerAccount              = 50
-	MaxJobsPerTemplate                  = 300
-	MaxSetupsPerJob                     = 32
+	GroupTemplatePayloadDocumentKind  = "groupTemplatePayload"
+	MaxTemplatesPerAccount            = 50
+	MaxJobsPerTemplate                = 300
+	MaxSetupsPerJob                   = 32
 )
 
 // TemplateOutputSummary is one root deliverable row in the catalog.
 type TemplateOutputSummary struct {
-	TemplateJobID         string `json:"templateJobId" bson:"templateJobId"`
-	ItemID                int    `json:"itemID" bson:"itemID"`
-	DesiredTotalQuantity  int    `json:"desiredTotalQuantity" bson:"desiredTotalQuantity"`
+	TemplateJobID        string `json:"templateJobId" bson:"templateJobId"`
+	ItemID               int    `json:"itemID" bson:"itemID"`
+	DesiredTotalQuantity int    `json:"desiredTotalQuantity" bson:"desiredTotalQuantity"`
 }
 
 // TemplateCatalogEntry is one row in catalog.templates[].
 type TemplateCatalogEntry struct {
-	TemplateID         string                  `json:"templateID" bson:"templateID"`
-	Name               string                  `json:"name" bson:"name"`
-	Description        string                  `json:"description" bson:"description"`
-	TotalJobs          int                     `json:"totalJobs" bson:"totalJobs"`
-	OutputsSummary     []TemplateOutputSummary `json:"outputsSummary" bson:"outputsSummary"`
-	RootOutputItemIDs  []int                   `json:"rootOutputItemIDs" bson:"rootOutputItemIDs"`
-	PayloadDocumentID  string                  `json:"payloadDocumentId" bson:"payloadDocumentId"`
-	CreatedAt          time.Time               `json:"createdAt" bson:"createdAt"`
-	UpdatedAt          time.Time               `json:"updatedAt" bson:"updatedAt"`
+	TemplateID        string                  `json:"templateID" bson:"templateID"`
+	Name              string                  `json:"name" bson:"name"`
+	Description       string                  `json:"description" bson:"description"`
+	TotalJobs         int                     `json:"totalJobs" bson:"totalJobs"`
+	OutputsSummary    []TemplateOutputSummary `json:"outputsSummary" bson:"outputsSummary"`
+	RootOutputItemIDs []int                   `json:"rootOutputItemIDs" bson:"rootOutputItemIDs"`
+	PayloadDocumentID string                  `json:"payloadDocumentId" bson:"payloadDocumentId"`
+	CreatedAt         time.Time               `json:"createdAt" bson:"createdAt"`
+	UpdatedAt         time.Time               `json:"updatedAt" bson:"updatedAt"`
 }
 
 // GroupTemplateCatalog is one Mongo document per account (_id = accountID).
 type GroupTemplateCatalog struct {
-	SchemaVersion   int                    `json:"schemaVersion" bson:"schemaVersion"`
-	DocumentKind    string                 `json:"documentKind" bson:"documentKind"`
-	AccountID       string                 `json:"accountID" bson:"accountID"`
-	CatalogVersion  int64                  `json:"catalogVersion" bson:"catalogVersion"`
-	Templates       []TemplateCatalogEntry `json:"templates" bson:"templates"`
+	SchemaVersion  int                    `json:"schemaVersion" bson:"schemaVersion"`
+	DocumentKind   string                 `json:"documentKind" bson:"documentKind"`
+	AccountID      string                 `json:"accountID" bson:"accountID"`
+	CatalogVersion int64                  `json:"catalogVersion" bson:"catalogVersion"`
+	Templates      []TemplateCatalogEntry `json:"templates" bson:"templates"`
 }
 
 // TemplatePresetSetup is one setup row stored on a template job node.
@@ -63,30 +63,30 @@ type TemplatePresetSetup struct {
 
 // TemplateJobNode is one node in payload.jobs[].
 type TemplateJobNode struct {
-	TemplateJobID               string            `json:"templateJobId" bson:"templateJobId"`
-	ItemID                      int               `json:"itemID" bson:"itemID"`
-	JobType                     int               `json:"jobType" bson:"jobType"`
-	Name                        string            `json:"name,omitempty" bson:"name,omitempty"`
-	DesiredTotalQuantity        int               `json:"desiredTotalQuantity" bson:"desiredTotalQuantity"`
-	ParentTemplateJobIDs        []string          `json:"parentTemplateJobIds" bson:"parentTemplateJobIds"`
-	ChildLinksByMaterialTypeID  map[string][]string `json:"childLinksByMaterialTypeId" bson:"childLinksByMaterialTypeId"`
-	PresetSetups                []TemplatePresetSetup `json:"presetSetups" bson:"presetSetups"`
+	TemplateJobID              string                `json:"templateJobId" bson:"templateJobId"`
+	ItemID                     int                   `json:"itemID" bson:"itemID"`
+	JobType                    int                   `json:"jobType" bson:"jobType"`
+	Name                       string                `json:"name,omitempty" bson:"name,omitempty"`
+	DesiredTotalQuantity       int                   `json:"desiredTotalQuantity" bson:"desiredTotalQuantity"`
+	ParentTemplateJobIDs       []string              `json:"parentTemplateJobIds" bson:"parentTemplateJobIds"`
+	ChildLinksByMaterialTypeID map[string][]string   `json:"childLinksByMaterialTypeId" bson:"childLinksByMaterialTypeId"`
+	PresetSetups               []TemplatePresetSetup `json:"presetSetups" bson:"presetSetups"`
 }
 
 // GroupTemplatePayloadSource optional provenance.
 type GroupTemplatePayloadSource struct {
-	GroupID     string    `json:"groupID,omitempty" bson:"groupID,omitempty"`
-	CapturedAt  time.Time `json:"capturedAt,omitempty" bson:"capturedAt,omitempty"`
+	GroupID    string    `json:"groupID,omitempty" bson:"groupID,omitempty"`
+	CapturedAt time.Time `json:"capturedAt,omitempty" bson:"capturedAt,omitempty"`
 }
 
 // GroupTemplatePayload is one Mongo document per templateID (_id = templateID string).
 type GroupTemplatePayload struct {
-	SchemaVersion int                     `json:"schemaVersion" bson:"schemaVersion"`
-	DocumentKind  string                  `json:"documentKind" bson:"documentKind"`
-	AccountID     string                  `json:"accountID" bson:"accountID"`
-	TemplateID    string                  `json:"templateID" bson:"templateID"`
+	SchemaVersion int                         `json:"schemaVersion" bson:"schemaVersion"`
+	DocumentKind  string                      `json:"documentKind" bson:"documentKind"`
+	AccountID     string                      `json:"accountID" bson:"accountID"`
+	TemplateID    string                      `json:"templateID" bson:"templateID"`
 	Source        *GroupTemplatePayloadSource `json:"source,omitempty" bson:"source,omitempty"`
-	Jobs          []TemplateJobNode       `json:"jobs" bson:"jobs"`
+	Jobs          []TemplateJobNode           `json:"jobs" bson:"jobs"`
 }
 
 // ValidateGroupTemplatePayload checks graph and size invariants (no recipe math server-side).
