@@ -82,7 +82,8 @@ type Server struct {
 	shutdownChan    chan struct{}
 	stopConsumeOnce sync.Once   // closes shutdownChan (workers / coordinators)
 	shutdownOnce    sync.Once   // sync pool + durable delete (after stopConsume)
-	draining        atomic.Bool // local SIGTERM / stop drain — Ready 503 + refuse upgrades
+	draining      atomic.Bool // SIGTERM roll / planned kick — Ready fails + refuse upgrades
+	plannedCordon atomic.Bool // planned evacuate soft-stop — refuse upgrades + placement draining; Ready stays OK
 
 	// Placement state publish (NATS SubjectWSPlacementState); optional override for tests.
 	placementPublishFn func(subject string, data []byte) error

@@ -128,39 +128,6 @@ services:
     deploy:
       <<: *data-deploy
 
-  # Metrics TSDB — always on data plane (not gated by observability addon).
-  # Obs exporters dual-home on eip-core so scrape targets resolve when addon is up.
-  # eip.network.attach: Deployment Tool attaches this name when obs is on / detaches when off.
-  # DNS alias `prometheus` keeps Alloy remote-write + Grafana datasource stable.
-  prometheus:
-    image: prom/prometheus:v3.2.1
-    command:
-      - --config.file=/etc/prometheus/prometheus.yml
-      - --storage.tsdb.path=/prometheus
-      - --web.enable-lifecycle
-      - --web.enable-remote-write-receiver
-    networks:
-      eip-core:
-        aliases: [prometheus]
-    dns: *common-dns
-    configs:
-      - source: prometheus_yml
-        target: /etc/prometheus/prometheus.yml
-    volumes:
-      - prometheus_data:/prometheus
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    deploy:
-      <<: *data-deploy
-      labels:
-        eip.config.sync: "1"
-        eip.network.attach: *net-obs
-        eip.network.attach.when: observability
-
 networks:
   eip-core:
     name: *net-core
@@ -179,11 +146,3 @@ volumes:
   seaweedfs_data:
     name: eve-industry-planner_seaweedfs_data
     external: true
-  prometheus_data:
-    name: eve-industry-planner_prometheus_data
-    external: true
-
-# file: is discovery SoT for sync_swarm_configs; deploy uses hashed external overlay.
-configs:
-  prometheus_yml:
-    file: ./observability/prometheus/prometheus.yml

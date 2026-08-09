@@ -24,4 +24,16 @@
 | [testing/services/core.md](./testing/services/core.md) | [`…/testing/services/core.md`](../../../testing/services/core.md) | Updated |
 | [testing/services/shared.md](./testing/services/shared.md) | [`…/testing/services/shared.md`](../../../testing/services/shared.md) | Updated |
 
-Snapshots above match live (re-copied 2026-08-08 after docs↔code recheck). Drafts are **current-behaviour only** (no roadmap ticket numbers). Decision pack / history stays in [20-selective-fanout/](../20-selective-fanout/) and [overlays/20-selective-fanout.md](../overlays/20-selective-fanout.md).
+## #18 capacity controller — promoted 2026-08-09 (Phase D)
+
+| Live target | Apply |
+|-------------|--------|
+| [`stack/stack.md`](../../../stack/stack.md) | Data drops prometheus; app adds capacity-controller + proxy; obs includes prometheus |
+| [`stack/network.md`](../../../stack/network.md) | `eip-docker-capacity`; Prom dual-home on obs fragment |
+| [`stack/config.md`](../../../stack/config.md) | Policy mount `eip_config_yaml`; controller consumes managed/scale_timing; Prom on obs |
+| [`deployment/deployment-tool/cli/verbs.md`](../../../deployment/deployment-tool/cli/verbs.md) | `eip capacity` |
+| [`backend/websocket/websocket.md`](../../../backend/websocket/websocket.md) | Planned `ws.command.*` vs roll drain |
+| [`deployment/guide.md`](../../../deployment/guide.md) | Membership table |
+| [`testing/services/capacity-controller.md`](../../../testing/services/capacity-controller.md) | **New** depth topic + contents rows |
+
+Decision pack / history: [18-capacity-controller/](../18-capacity-controller/), overlays `#18`/`#21`/`#27`/`#29`. Remainders (WS managed soak, pin/move) stay migration-tracked.

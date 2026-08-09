@@ -74,6 +74,12 @@ const (
 	// SubjectWSPlacementState is core-NATS pub/sub for websocket placement load flags.
 	// Payload: PlacementState (messages.go).
 	SubjectWSPlacementState = "ws.placement.state"
+
+	// SubjectWSCommandCordon / SubjectWSCommandDrain are planned evacuate req/reply
+	// (capacity controller → matching websocket container_id). Distinct from SIGTERM DrainForRoll.
+	SubjectWSCommandCordon = "ws.command.cordon"
+	SubjectWSCommandDrain  = "ws.command.drain"
+	SubjectWSCommandUncordon = "ws.command.uncordon"
 )
 
 // Durable names / prefixes currently owned by the app. Stream reconcile allowlists

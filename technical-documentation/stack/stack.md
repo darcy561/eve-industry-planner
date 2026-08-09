@@ -6,9 +6,9 @@ Live SoT for Swarm stack name **`eip`**: fragment files, membership, replica ide
 
 | File | Role |
 |------|------|
-| [`docker-stack.data.yml`](../../docker-stack.data.yml) | **Data** fragment — mongo, redis, nats, SeaweedFS, **Prometheus** (not the obs addon). Membership = top-level `services:` |
-| [`docker-stack.yml`](../../docker-stack.yml) | **App** fragment — Traefik + api / websocket / worker / ws-router / core / frontend + socket proxies |
-| [`docker-stack.obs.yml`](../../docker-stack.obs.yml) | **Obs** addon — Grafana/Loki/Alloy/exporters/asynqmon; merged only when `addons.observability.enabled` |
+| [`docker-stack.data.yml`](../../docker-stack.data.yml) | **Data** fragment — mongo, redis, nats, SeaweedFS (lean). Membership = top-level `services:` |
+| [`docker-stack.yml`](../../docker-stack.yml) | **App** fragment — Traefik + api / websocket / worker / ws-router / core / frontend / **capacity-controller** (+ socket proxies) |
+| [`docker-stack.obs.yml`](../../docker-stack.obs.yml) | **Obs** addon — **Prometheus**, Grafana/Loki/Alloy/exporters/asynqmon; merged only when `addons.observability.enabled` |
 | [`docker-stack.dev.yml`](../../docker-stack.dev.yml) | **Dev overlay** — per-role `${TAG_*}` image refs (merged on `eip dev` / `eip rebuild`) |
 
 Operator YAML defaults → [config.md](./config.md). Secrets → [secrets.md](./secrets.md). Bake / image tags → [verbs.md](../deployment/deployment-tool/cli/verbs.md).
@@ -16,15 +16,17 @@ Operator YAML defaults → [config.md](./config.md). Secrets → [secrets.md](./
 ## Membership
 
 ```text
-data   mongo · redis · nats · seaweedfs · prometheus
+data   mongo · redis · nats · seaweedfs
 app    traefik (+ traefik-docker-proxy) · frontend · api · websocket
        · worker · ws-router (+ ws-docker-proxy) · core
-obs*   grafana · loki · alloy (+ alloy-docker-proxy) · exporters · asynqmon · node_exporter
+       · capacity-controller (+ capacity-docker-proxy)
+obs*   prometheus · grafana · loki · alloy (+ alloy-docker-proxy)
+       · exporters · asynqmon · node_exporter
 ```
 
 \* When `addons.observability.enabled` merges `docker-stack.obs.yml` ([config.md](./config.md)).
 
-**Prometheus is data**, not obs. Overlay membership → [network.md](./network.md). Per-service behaviour → [backend/](../backend/contents.md).
+**Prometheus is obs**, not data. Capacity controller Evaluate does not query Prom. Per-role Apply is gated by `services.*.capacity_controller_managed` in operator YAML. Overlay membership → [network.md](./network.md). Per-service behaviour → [backend/](../backend/contents.md). Operator capacity verbs → [verbs.md](../deployment/deployment-tool/cli/verbs.md) (`eip capacity`).
 
 Data deploy runs first on bring-up, then data+app with `--prune`. App rolls (`eip rebuild` / `eip update`) must not bounce data-layer services unless their pinned image/config in stack YAML changed.
 
@@ -35,7 +37,7 @@ App services that roll **start-first** (`x-app-deploy`) also merge service-root 
 | Piece | Value |
 |-------|--------|
 | Anchor | `x-app-stop-grace` → `stop_grace_period: 60s` |
-| Consumers | traefik, api, websocket, ws-router, worker, core, frontend |
+| Consumers | traefik, api, websocket, ws-router, worker, core, frontend, capacity-controller |
 | Not applied | `x-proxy-deploy` socket proxies (stop-first, short-lived) |
 
 Compose puts grace **outside** `deploy:` — hence a separate service-root merge, not inside `x-app-deploy`.

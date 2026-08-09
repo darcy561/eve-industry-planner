@@ -34,7 +34,7 @@ func materializeExpanded(ctx context.Context, home string, src Source, cfg confi
 		return expandedStack{}, err
 	}
 
-	configStacks := []string{kit.DataStackFile}
+	configStacks := []string{kit.DataStackFile, kit.AppStackFile}
 	if wantObs {
 		configStacks = append(configStacks, kit.ObsStackFile)
 	}
@@ -69,6 +69,11 @@ func materializeExpanded(ctx context.Context, home string, src Source, cfg confi
 		return expandedStack{}, err
 	}
 	if err := stack.InjectSecrets(tmpApp, secretsOv.KeyToObj, bySvc); err != nil {
+		_ = os.Remove(tmpData)
+		_ = os.Remove(tmpApp)
+		return expandedStack{}, err
+	}
+	if err := stack.InjectExternalConfigs(tmpApp, configsMap); err != nil {
 		_ = os.Remove(tmpData)
 		_ = os.Remove(tmpApp)
 		return expandedStack{}, err

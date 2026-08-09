@@ -13,6 +13,10 @@ import (
 	natslib "github.com/nats-io/nats.go"
 )
 
+// StatusFill enriches a HealthStatus after ready/healthy are set (role-specific census fields).
+// Callers must not mutate Role / InstanceID / Healthy / Ready / Error / TimeUnixMs except via fill needs.
+type StatusFill func(status *natscore.HealthStatus)
+
 // BusOptions configures the gated health census responder (controller poll / scatter-gather).
 // Enabled defaults to false — no subscription until a controller path flips it on.
 type BusOptions struct {
@@ -21,6 +25,7 @@ type BusOptions struct {
 	Conn       *natslib.Conn
 	Ready      ReadyCheck
 	Enabled    bool
+	Fill       StatusFill // optional; websocket/worker census without importing those packages here
 }
 
 // StartBus subscribes to health.command.ping when Enabled. Otherwise returns a no-op Runner.
@@ -86,6 +91,9 @@ func handleHealthPing(opts BusOptions, msg *natslib.Msg) {
 		} else {
 			status.Ready = true
 		}
+	}
+	if opts.Fill != nil {
+		opts.Fill(&status)
 	}
 
 	if err := natscore.RespondEnvelope(msg, natscore.MessageTypeHealth, status); err != nil {

@@ -155,11 +155,6 @@ func ConfigFields() []ConfigField {
 			Type: FieldFloat,
 		},
 		{
-			Key: "services.websocket.drain_timeout", Section: "Websocket", Label: "Drain timeout",
-			Help: "Drain timeout when scaling down (e.g. 10m).",
-			Type: FieldText,
-		},
-		{
 			Key: "services.api.capacity_controller_managed", Section: "API", Label: "Capacity managed",
 			Help: "When true, capacity controller may adjust API replicas within min/max.",
 			Type: FieldBool,
@@ -270,8 +265,6 @@ func getFieldString(cfg config.Config, f ConfigField) string {
 		return strconv.Itoa(cfg.Services["websocket"].ClientCutoff)
 	case "services.websocket.reserve_capacity":
 		return strconv.FormatFloat(cfg.Services["websocket"].ReserveCapacity, 'f', -1, 64)
-	case "services.websocket.drain_timeout":
-		return cfg.Services["websocket"].DrainTimeout
 	case "services.api.capacity_controller_managed":
 		return strconv.FormatBool(cfg.Services["api"].CapacityControllerManaged)
 	case "services.api.min":
@@ -411,10 +404,6 @@ func setField(cfg *config.Config, f ConfigField, raw string, ensure func(string)
 		}
 		s := ensure("websocket")
 		s.ReserveCapacity = n
-		cfg.Services["websocket"] = s
-	case "services.websocket.drain_timeout":
-		s := ensure("websocket")
-		s.DrainTimeout = raw
 		cfg.Services["websocket"] = s
 	case "services.api.capacity_controller_managed":
 		b, err := parseBool(raw)

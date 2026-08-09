@@ -18,9 +18,9 @@ Phase 1 gate cleared. Stub at [`../swarm-roadmap.md`](../swarm-roadmap.md) point
 
 > **Migration / backlog log — not live SoT.** Project home → [contents.md](./contents.md). Live stack docs → [stack/contents.md](../../stack/contents.md).
 >
-> **Handoff status (2026-08-08; code-verified):** **Compose runtime retired** — Swarm fragments only (`docker-stack.data.yml` / `docker-stack.yml` / optional `docker-stack.obs.yml`). Stub `docker-compose.yml` is cleanup-only. **Operator surface is the Deployment Tool only** (CLI / TUI) ([guide.md](../../deployment/guide.md): bootstrap → `eip init` → `eip up`; day-2 `eip secrets` / `sync` / `update` / `rebuild` / `logs` / `cli` / `shutdown`). **#17 done.** **Done:** **#2** (replica identity + placement signal + live SoT); **#8** (drain / soft / HostedTenants); **#20** (selective JetStream fan-out + live SoT promote — [overlays/20-selective-fanout.md](./overlays/20-selective-fanout.md) / [promote/](./promote/README.md)); **#3 / #4 / #5 / #7 / #15 / #16 / #17 / #22 / #23 / #24 / #25 / #26 / #28 / #31 / #32 / #33 / #34 / #35 / #36**; core boxed (**#9–#14 + #28**). **#25** includes unified path-filtered CI ([`test.yml`](../../../.github/workflows/test.yml) → aggregate **`ci`**) + repo ruleset requiring **`ci`** on **`Public`** / **`Development`**. **Project close ≠ git merge:** finish this roadmap (tickets + overlays), then **promote** remaining overlays into live SoT with go-ahead. Data ensure = `EnsureS3` ‖ `EnsureMongo` (Ready). **Partial:** **#19** (`eip sync` apply landed; controller policy schema open), **#21** (controller evacuate/pin/cordon via #18 / `eip`). **Open (no packages yet):** **#18** / **#27** / **#29** / **#30**. **Next:** controller track **#19 policy schema → #30 → #27 → #18**; deepen **#21**; management sim **#29**; Ensure `*_API` users follow-up. Census for hosted tenants remains **parked** (#18 / #21). Live docs: [testing/contents.md](../../testing/contents.md), [guide.md](../../deployment/guide.md), [websocket.md](../../backend/websocket/websocket.md), [stack.md](../../stack/stack.md).
+> **Handoff status (2026-08-09):** **Compose runtime retired.** Operator surface = Deployment Tool. Swarm cutover + #2/#8/#20 done. **Capacity Phases A–D landed** — service/proxy/lease/Observe+Scale/evacuate/`eip capacity` + #29 Fake management sim + **live SoT promote**. Apply gated by `capacity_controller_managed` (template default **true** for api/websocket/worker). Pack: [18-capacity-controller/](./18-capacity-controller/). **Project wrap for capacity track** (promote done). **Partial remainders:** #18 / #21 (pin/move). **Done:** #19 (consume+mount), #27, #29, #30, #34. Census parked. Live docs: [testing/services/capacity-controller.md](../../testing/services/capacity-controller.md), [guide.md](../../deployment/guide.md), [websocket.md](../../backend/websocket/websocket.md), [stack.md](../../stack/stack.md).
 
-Tracks the single-host Swarm stack: **data fragment** (mongo/redis/nats/SeaweedFS/Prometheus) + **app fragment** (Traefik, api, websocket, worker, ws-router, core, frontend); optional Swarm **observability** fragment (`docker-stack.obs.yml`, #34). **Operator surface: [Deployment Tool](../../deployment/guide.md) ([`deployment-tool/`](../../../deployment-tool/) CLI + TUI; commands use `eip …`).
+Tracks the single-host Swarm stack: **data fragment** (mongo/redis/nats/SeaweedFS) + **app fragment** (Traefik, api, websocket, worker, ws-router, core, frontend, capacity-controller); optional Swarm **observability** fragment (`docker-stack.obs.yml`, #34 — includes Prometheus). **Operator surface: [Deployment Tool](../../deployment/guide.md) ([`deployment-tool/`](../../../deployment-tool/) CLI + TUI; commands use `eip …`).
 
 Later, Swarm’s fixed replica counts are driven by a **capacity controller** (not a naive CPU HPA). Swarm does not autoscale by itself. Prep for the controller is **woven into earlier items** so Phase E is mostly policy + Docker/Traefik ops, not inventing identity or metrics from scratch.
 
@@ -34,11 +34,11 @@ Later, Swarm’s fixed replica counts are driven by a **capacity controller** (n
 
 ## Start here for a new session
 
-1. **Goal of next implementation slice:** Phase 1 **done** for this project folder. Finish the **roadmap** (not “merge the branch”). Swarm cutover + identity + drain + selective fan-out + Deployment Tool ops are **landed**. Remaining product work is the **capacity-controller track** and armed evacuate ops. Cross-replica hosted census remains **parked** (#18 / #21). Controller track still **#19 policy schema → #30 → #27 → #18**. When the roadmap is done → **promote** remaining overlays into live SoT (go-ahead) and close this project. Compose→Swarm migrate **done**. **Core boxed off** (#9–#14 + #28). Operator path is the **Deployment Tool** (`eip …` verbs).
+1. **Goal of next implementation slice:** Capacity **Phases A–D done** (including promote). Remainders: careful WS `capacity_controller_managed` soak flip; pin/move tenant; census parked. Pack history: [18-capacity-controller/](./18-capacity-controller/).
 
-2. **Pickup order:** [Recommended pickup order](#recommended-pickup-order) — **#2 / #8 / #20 / #26 done**; next **#19 policy schema → #30 → #27 → #18** (and #21/#29) as listed there. Project wrap = roadmap complete + promote, not git merge.
+2. **Pickup order:** [Recommended pickup order](#recommended-pickup-order) — capacity track Phases A–D complete; remainders under #18/#21. Project wrap = roadmap complete + promote (promote landed 2026-08-09).
 
-3. **WS placement (locked):** in-memory **tenant → container_id** on Swarm **`eip_ws_router`**; soft/full/clients/draining via NATS `ws.placement.state` + `GET /placement`. Traefik routes `/ws` -> router. Cookie `eip_tenant_affinity` is the key. Sticky = fallback. Mid-roll **prefer newest bake**; place-miss picks **lowest live clients**. Drain: [websocket.md](../../backend/websocket/websocket.md). Controller evacuate/pin ops → **#21** (via **#18** / `eip`).
+3. **WS placement (locked):** in-memory **tenant → container_id** on Swarm **`eip_ws_router`**; soft/full/clients/draining via NATS `ws.placement.state` + `GET /placement`. Traefik routes `/ws` -> router. Cookie `eip_tenant_affinity` is the key. Sticky = fallback. Mid-roll **prefer newest bake**; place-miss picks **lowest live clients**. Drain: [websocket.md](../../backend/websocket/websocket.md). Planned evacuate via **`eip capacity`** / `ws.command.*` (landed; pin/move open).
 
 4. **Auth** rolls **in parallel** - account-key cookie now; widen when corp/alliance claims exist.
 
@@ -46,7 +46,7 @@ Later, Swarm’s fixed replica counts are driven by a **capacity controller** (n
 
 6. **Code anchors already in tree:** `services/shared/container` (`container.ID()`), `services/core/singleton` + `redis/lease`, websocket JetStream durables, `tenant_affinity_cookie.go`, `services/ws-router/` (memory place + NATS placement), stack Traefik `/ws` → `eip_ws_router` labels, **`deployment-tool/`** (deploy/sync/secrets/rebuild/update/cli).
 
-7. **Testing:** **#25 done** — live map [testing/contents.md](../../testing/contents.md) ([overview](../../testing/overview.md) § CI, [services](../../testing/services/contents.md), [Deployment Tool testing](../../deployment/deployment-tool/cli/testing.md)); path-filtered [`test.yml`](../../../.github/workflows/test.yml) (services + frontend + deployment-tool) with aggregate **`ci`**; ruleset requires **`ci`** on Public/Development. Grow sims **#27 / #29** as features land (**#26** done); weave tests into PRs for #18/#21/etc.
+7. **Testing:** **#25 done** — live map [testing/contents.md](../../testing/contents.md) ([overview](../../testing/overview.md) § CI, [services](../../testing/services/contents.md), [Deployment Tool testing](../../deployment/deployment-tool/cli/testing.md)); path-filtered [`test.yml`](../../../.github/workflows/test.yml) with aggregate **`ci`**; ruleset requires **`ci`** on Public/Development. Capacity dry-run / management sim **#27 / #29 done** ([capacity-controller.md](../../testing/services/capacity-controller.md)); **#26** soak done.
 
 Companion context:
 
@@ -100,12 +100,12 @@ Companion context:
 |-------|--------|------|
 | Deploy | **`eip up`** / **`eip dev`** — two-pass stack deploy + Ready (`EnsureS3` ‖ `EnsureMongo`) via [deploy.md](../../deployment/deployment-tool/cli/deploy.md) | Day-2: **`eip sync`**, **`eip secrets`**, **`eip rebuild`**, **`eip update`** ([verbs.md](../../deployment/deployment-tool/cli/verbs.md); #32 / #33 / #23) |
 | Operator UX | Host **`eip`** binary (TUI + CLI); bootstrap installs it | #17 done — keep verbs in Deployment Tool catalog / TUI |
-| api / websocket / worker / ws-router / Traefik / **core** / **frontend** | Swarm `docker-stack.yml` | #2/#4/#7/#8/#16/#20 done; #6 absorbed into #23; core Phase B/C done; #21 armed ops open; no capacity-controller service yet |
+| api / websocket / worker / ws-router / Traefik / **core** / **frontend** / **capacity-controller** | Swarm `docker-stack.yml` | #2/#4/#7/#8/#16/#20 done; #6 absorbed into #23; core Phase B/C done; capacity Phases A–D done (managed gate; WS unmanaged); #21 pin/move + WS soak remain |
 | websocket identity | `container.ID()` (`HOSTNAME` / ContainerID[:12]); OTel `service.instance.id` only | **#2 done** — no slot-stable SoT; graceful durable delete + InactiveThreshold backstop |
 | core | Swarm `eip_core` (`replicas: 1`, `start-first`); probes `:19100`; primary lease + Redis changestream resume | Optional warm `replicas: 2` parked; **#28** dual-publisher failover tests done |
 | Edge | Swarm `eip_traefik` (docker + swarm providers); `/ws` -> **ws-router** | #4 done; memory place + NATS flags (#2); sticky fallback; mid-wave **prefer newest bake** |
-| Capacity / YAML | `eip sync` applies replicas / concurrency / cutoff / **`target_clients`** / ports / paths / proxy / obs knobs | **#19 partial** — controller policy schema (`managed`, `reserve_capacity`, `scale_timing`, auto-`max`) unused; no `#18` / `#30` packages |
-| Observability | Optional Swarm fragment `docker-stack.obs.yml` (#34 **done** — toggle via YAML / `eip up`/`dev`) | Default **off**; Prom always on Swarm **data** fragment (not in addon) |
+| Capacity / YAML | `eip sync` + Swarm config `eip_config_yaml` mount for controller; worker Scale when managed | **#19 done** (mount/Load + promote); remainders soak/pin on #18/#21; [18-capacity-controller/](./18-capacity-controller/) |
+| Observability | Optional Swarm fragment `docker-stack.obs.yml` (#34 **done** — toggle via YAML / `eip up`/`dev`) | Default **off**; **Prometheus on obs** (dual-home `eip-obs`+`eip-core`); data fragment lean |
 | Dev | **`eip dev`** — bake local images + deploy; day-2 **`eip rebuild`** | Same app as prod; cache bake; no data-plane bounce by default |
 
 Elastic / dynamic process set (by design): **api**, **websocket**, **worker**, **ws-router**.  
@@ -162,13 +162,13 @@ flowchart TB
 | websocket | ≥1-2 (capacity-controlled + drain; lean default 1) | `start-first` | `container.ID()` (place / JetStream / OTel) |
 | worker | ≥1 (first capacity-control target) | `start-first` | `container.ID()` / `service.instance.id` |
 | core | 1 | `start-first` (primary lease handoff) | `container.ID()` (single replica) |
-| capacity-controller | 0 until Phase E; then 1 | `start-first` (lease-gated; same spirit as core Phase C) | singleton slot; owns desired shape (replicas, drain, optional pins) - Swarm executes |
-| prometheus | 1 (data fragment) | Swarm **data** fragment | lean scrapes; **not** gated by addon |
+| capacity-controller | 1 (Phases A–D landed; managed gate) | `start-first` (lease-gated; same spirit as core Phase C) | singleton; owns desired shape (replicas, drain, optional pins) - Swarm executes |
+| prometheus | 0 unless obs enabled | Swarm **obs** fragment (`eip-obs`+`eip-core`) | gated by addon; not Evaluate SoT |
 | frontend | 1-2 | `start-first` | optional |
 | mongo / redis / nats | 1 | rare / manual | stable DNS on Swarm data fragment |
-| observability addon | 0 unless enabled | Swarm `docker-stack.obs.yml` (toggle = omit) | Grafana, Loki, Alloy, exporters, asynqmon UI (#34) — **no Prometheus** |
+| observability addon | 0 unless enabled | Swarm `docker-stack.obs.yml` (toggle = omit) | Grafana, Loki, Alloy, exporters, asynqmon, **Prometheus**, node_exporter (#34) |
 
-**Current topology:** Swarm **data** + **app** + optional **obs** fragments on external **`eip-core`** (stack namespace still `eip_*` services). Frontend on Swarm (**#16**) with `x-frontend-public-env`. Data-plane desired state via deployment-tool **`EnsureS3`** / **`EnsureMongo`**. Operator UX is the **Deployment Tool only** (CLI / TUI). Obs addon (#34) done — `addons.observability.enabled` merges `docker-stack.obs.yml`. Compose runtime retired (stub `docker-compose.yml` for leftover cleanup only).
+**Current topology:** Swarm **data** + **app** + optional **obs** fragments on external **`eip-core`** (stack namespace still `eip_*` services). Frontend + capacity-controller on Swarm. Data-plane desired state via deployment-tool **`EnsureS3`** / **`EnsureMongo`**. Operator UX is the **Deployment Tool only** (CLI / TUI). Obs addon (#34) done — `addons.observability.enabled` merges `docker-stack.obs.yml` (includes Prom). Compose runtime retired (stub `docker-compose.yml` for leftover cleanup only).
 
 ---
 
@@ -191,7 +191,7 @@ Compose recreate of a singleton proxy would drop every live `/ws` tunnel. Router
 
 ### Ops / scale-in (#21 — controller evacuate / pin / cordon)
 
-Instant reassign on connect keeps the balancer correct when a backend dies; #21 is still required for **safe scale-in** (do not cold-kill a hot alliance). Placement acceptance **done** (#4); identity + signal plane **done** (#2 — memory place + NATS flags). SIGTERM roll drain publishes `draining` on NATS and kicks locals (#2 / #8). **Still open:** armed evacuate / pin / cordon ops on **#18** / `eip` against live container ids (not slot-across-replace vocabulary).
+Instant reassign on connect keeps the balancer correct when a backend dies; planned evacuate keeps **safe scale-in** (do not cold-kill a hot alliance). Placement acceptance **done** (#4); identity + signal plane **done** (#2). SIGTERM roll drain (#2 / #8) unchanged. **Phase C landed:** `ws.command.*` + `eip capacity` cordon/drain/uncordon/evacuate against live container ids. **Still open:** pin/move; WS managed soak; census parked.
 
 Capacity controller (#18) later may write pins / desired replicas; it does not replace the router.
 
@@ -238,7 +238,7 @@ Product direction (locks, docs, WS fan-out) is **one planner** that serves **per
 | Workers | Today personal/Asynq queues; leave policy room for **per-tenant or per-queue-family** triggers when corp/alliance job pipelines exist (#7 / #19) |
 | Core changestream publish | Collection groups today; **per-tenant publisher isolation + metrics** tracked in [changestream-tenant-scale](../changestream-tenant-scale/plan.md) (not this backlog) |
 | Drain / scale-down | Must consider **tenant concentration** - do not shrink away the only replica hosting a hot alliance without drain (#8 / #21); local hosted set empties as sockets leave; census/API consumers must see the slot go cold |
-| **Move / rebalance tenants** | Memory place is sticky until reassigned; **#21** evacuate/pin overlays + reconnect (ops surface open). Prefer reconnect over live teleport |
+| **Move / rebalance tenants** | Memory place is sticky until reassigned; **#21** evacuate landed (Phase C); pin/move still open. Prefer reconnect over live teleport |
 
 **Affinity key (target):** `alliance:{id}` -> else `corporation:{id}` -> else `account:{id}` (same encoding as lock tenants). **Default routing = memory place via ws-router (#4 / #2).** Controlled overrides / evacuate = **#21** (deepen on #18).
 
@@ -262,17 +262,17 @@ Placement can ship with **account-key affinity** before corp collections exist, 
 8. **Lay capacity-controller groundwork early** - metrics, Traefik, drain, YAML policy feed Phase E (see [Capacity controller build-up](#capacity-controller-build-up-woven)).
 9. **Operator-owned policy file** - ceilings, targets, reserve %, cooldowns in mounted YAML (#19), including **host resource headroom**.
 10. **Design for multi-tenant from day one** - tenant-shaped placement/scale keys; auth claims roll in parallel.
-11. **Org-aware WS placement over sticky** - memory tenant→container_id via **ws-router** (#4 / #2); Traefik only terminates `/ws` to the router. Sticky is fallback. **#21** evacuate/move for safe scale-in (next).
+11. **Org-aware WS placement over sticky** - memory tenant→container_id via **ws-router** (#4 / #2); Traefik only terminates `/ws` to the router. Sticky is fallback. **#21** evacuate for safe scale-in (landed); pin/move follow-on.
 12. **Selective WS bus delivery follows affinity** - #20; no Redis on changelog hot path; one durable per live instance + mutable filters.
 13. **Tenant placement is movable** - #21 evacuate/move against live container ids; lock UX during moves with doc-lock corp/alliance work.
 14. **Hard cutover, then deepen** - minimal Swarm first; then GHCR day-2 rolls (#23), affinity depth, capacity controller.
 15. **Two public config surfaces** - **`.env` = secrets**; separate **operator config YAML** (`eip.config.yaml`) = replicas, capacity, addon toggles, non-secret tunables (#19 / #24 / #34). Day-2: **`eip sync`** (YAML) / **`eip secrets`** (`.env`) (#32), not full `eip up`.
 16. **This roadmap is the handoff** - implement from here; don’t re-derive from chat.
-17. **Test as we build** - every major capability gets automated coverage and a **simulation/harness** path (affinity, connections, scale, evacuate/move, core failover). Prefer dry-run / fake Docker / load generators over “try it in prod.” Weave tests into item acceptance; live map → [testing/contents.md](../../testing/contents.md); remaining sims **#27 / #29** (**#26** done).
+17. **Test as we build** - every major capability gets automated coverage and a **simulation/harness** path (affinity, connections, scale, evacuate/move, core failover). Prefer dry-run / fake Docker / load generators over “try it in prod.” Weave tests into PRs; live map → [testing/contents.md](../../testing/contents.md); sims **#26 / #27 / #29** done.
 18. **Bring-up vs apply** - `eip up` / `eip dev` create the world; **`eip sync` / `eip secrets` / `eip rebuild` / `eip update`** mutate it. Do not use full bring-up as the config apply hammer.
 19. **Public UX hides orchestration internals** - operators learn **`eip`** + config files; NETWORK/STACK are implementer docs.
 20. **Same `eip` experience on Windows, Linux, and macOS** - one Go binary (TUI + CLI); bootstrap `.sh` / `.ps1` only places the binary (#17 / #32 / #33 / #35). No OS-specific public command set.
-21. **Observability is an optional addon** - default off for lean self-hosts (#34 **done**). **No separate metrics toggle.** Prometheus lives on the Swarm **data** fragment (with SeaweedFS), **not** in the obs fragment — #34 omits `docker-stack.obs.yml`. Apps must run with observability off.
+21. **Observability is an optional addon** - default off for lean self-hosts (#34 **done**). **No separate metrics toggle.** Prometheus lives on the Swarm **obs** fragment (with Grafana/Loki/…); data fragment is lean. Apps must run with observability off.
 22. **Host ops = Deployment Tool** - verbs in catalog / TUI only: [guide.md](../../deployment/guide.md) / [verbs.md](../../deployment/deployment-tool/cli/verbs.md).
 
 ---
@@ -304,7 +304,7 @@ Prepare files/network/identity for the **hard cutover**. Defer ordered multi-ser
 
 **Exit criteria:** Swarm fragments are the working prod/dev shape; recover with **`eip up` / `eip dev`**. Day-2 image rolls are **#23** (+ #6 absorbed), not a hard-cutover gate. (Stay inside the #7 envelope — do not scale workers blindly.)
 
-**Then build outward:** day-2 rolls (**#23**), selective fan-out (**#20**), and core Phase B/C are **done**. Remaining outward work is the **capacity controller** track (#19 policy schema → #30 → #27 → #18) + armed evacuate (#21).
+**Then build outward:** day-2 rolls (**#23**), selective fan-out (**#20**), core Phase B/C, and capacity **Phases A–D** (incl. promote) are **done**. Remainders: WS managed soak; pin/move.
 
 ### Phase B - Core as Swarm singleton — **done**
 
@@ -342,7 +342,7 @@ Frontend on Swarm (**#16**) **done** — stack service + bake/train; public knob
 
 ### Phase E - Capacity controller (optional)
 
-Swarm does **not** autoscale and does not understand org co-location. After elastic services are stable, add a **dedicated singleton Swarm service** for the **capacity controller** (#18) driven by operator YAML (#19) - **its own container**, not a sidecar of core/api/worker. **Prometheus comes up with this setup** as a Swarm **data** fragment service (lean scrapes: apps / Asynq) — same plane as SeaweedFS, outside the observability fragment. The **observability addon** (#34) remains optional (omit `docker-stack.obs.yml`) and is **not** a Phase E prerequisite.
+Swarm does **not** autoscale and does not understand org co-location. **Capacity controller** (#18) is a dedicated singleton Swarm service driven by operator YAML (#19) - **its own container**, not a sidecar of core/api/worker. Phases A–D landed (service/proxy/lease/Observe+Scale/evacuate/`eip capacity`/#29 sim + live SoT promote; managed gate). **Prometheus is on the obs fragment** (#34) — not required for Evaluate. The **observability addon** remains optional (omit `docker-stack.obs.yml`).
 
 **Roll / swap:** same class of problem as core. From day one use **lease-gated hot-swap** (core Phase C pattern): `replicas: 1` (or 2 with warm standby), `order: start-first`, Redis lease so only one controller mutates Docker; new task acquires lease -> becomes active -> old loses lease / SIGTERM -> exits. Brief dual-process overlap is fine; **dual armed mutators are not**. A stop-first gap is acceptable only as an emergency fallback, not the design target.
 
@@ -388,8 +388,8 @@ Do not wait for Phase E to invent signals. Each earlier item owns a slice:
 | **#19** operator YAML (sync + controller schema) | Sync-applied knobs landed; controller policy keys (`managed`, reserve, timing, drain) feed #18 | #18 + #34 source of truth |
 | **#30** cluster abstraction | Observe/Apply API hiding Docker; fake impl for #27 | #18 packages |
 | **#20** selective fan-out | **done** — tenant-scoped JetStream filters | Honest per-slot pull cost |
-| **#21** controller evacuate / pin / cordon | WS management ops owned by #18 / `eip` (armed verbs still open) | Management under affinity |
-| **#25-#29** testing harness | #25/#26/#28 done; #27/#29 open | Confidence for #18 / #21 |
+| **#21** controller evacuate / pin / cordon | Evacuate/cordon/drain/`eip capacity` landed (Phase C); pin/move open | Management under affinity |
+| **#25-#29** testing harness | #25/#26/#27/#28/#29/#30 done | Confidence for #18 / #21 |
 
 Phase E (#18) should **evaluate cluster health periodically** from metrics + policy (#19), then call Swarm/Traefik-facing ops (scale, cordon, drain, optional pins) - not react to a single CPU sample. Prefer **dry-run** (#27) before armed mutations.
 
@@ -497,9 +497,9 @@ Per-ticket detail overlays → [overlay.md](./overlay.md) (one file under `overl
   4. Remove opaque sticky as steady-state (emergency / escape-hatch fallback only)
   5. Redis session handoff / SPA resume when reconnect moves backends - handoff exists
   6. Track local hosted-tenant set for future #20 - **done under #8** as in-process query view (`HostedTenants` / `HostsTenant` over existing connection indexes). **Locked: do not mirror that set into Redis.** Cross-replica visibility / gauges → #20 / #18 via NATS census or internal API.
-  7. **#21 next** - evacuate/pin ops on live container ids via **#18** / `eip`
+  7. **#21** - evacuate/cordon/`eip capacity` landed (Phase C); pin/move still open
 - **acceptance:** Swarm routing works - **verified locally**. Cookie set at session - **done**. Two clients same affinity key -> same WS replica - **done**. No Compose-elastic escape hatch - recover with **`eip up` / `eip dev`**.
-- **capacity-controller build-up:** lean router `/metrics` + later WS occupancy gauges; scale-down needs #21 evacuate
+- **capacity-controller build-up:** lean router `/metrics` + later WS occupancy gauges; scale-down uses #21 evacuate (Phase C landed; managed soak before auto Apply)
 
 ### Elastic services (Phase A)
 
@@ -653,9 +653,10 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 #### #18 - Capacity controller (singleton Swarm service)
 
 - **overlay:** [overlays/18-capacity-controller.md](./overlays/18-capacity-controller.md)
-- **status:** open - prep: finish **#19** controller policy schema consume, then **#30** cluster seam + **#27** dry-run before arming. Prerequisites landed: #4/#5/#7/#8/#15/#20/#21-min. Cross-replica hosted census **parked** (NATS / internal API — revisit with #21 / this ticket). WS scale-down needs #21 evacuate path armed on controller
+- **decision pack:** [18-capacity-controller/](./18-capacity-controller/) — Phase 0 locked; **Phases A–D landed** (2026-08-09) incl. promote
+- **status:** partial — Phases A–D **landed** (service/proxy/lease/Observe+Scale/health/worker armed/Prom→obs + WS `ws.command.*` + Evaluate scale-in + `eip capacity` + #29 Fake sim + live SoT). Still open: WS managed soak; pin/move follow-on.
 - **size:** L
-- **where:** **dedicated** app image/service (`capacity-controller`) — **not in tree yet**; Docker API via its **own** allowlisted proxy (`capacity-controller-docker-proxy` on `eip-docker-capacity` — **not stubbed in `docker-stack.yml` yet**; only traefik/ws proxies exist today); **Prometheus on Swarm data fragment** (`docker-stack.data.yml`, with SeaweedFS) + Prom query client; mounted YAML from #19; Redis lease for controller leadership (same spirit as core)
+- **where:** `services/capacity-controller` + Swarm `capacity-controller` / `capacity-docker-proxy` on `eip-docker-capacity`; lease `lease:capacity:primary`; cooldown `eip:capacity:cooldown:v1`; policy `/etc/eip/eip.config.yaml`; Evaluate SoT = Moby + Redis Asynq + NATS health (no Prom). **Prometheus on obs fragment.** Apply gated by managed YAML. Operator: **`eip capacity`** → Moby exec → ctl.
 - **why:** Swarm only holds a desired replica count. Something still must decide **cluster shape**: how many worker/WS/api replicas, when to drain/remove a slot, how much spare capacity to keep, and (later) which replica should receive a new or migrated tenant. That is richer than watching CPU. Own container keeps Docker privileges and scale loops out of core/api/worker, and lets Swarm replace it like other singletons.
 - **how:** Dedicated **capacity controller** service only (no app replica calls Docker to scale itself). **Docker socket pattern (locked with Traefik/ws-router):** one `tecnativa/docker-socket-proxy` per trust boundary on its **own** overlay (`eip-docker-traefik` / `eip-docker-ws` / `eip-docker-capacity`) — never mount the sock on the controller, never put proxies on `eip-core`, never share docker nets across consumers, and never widen `traefik-docker-proxy` / `ws-docker-proxy` for Apply. Controller proxy is the only one that may enable `POST` (scale/update) after **#27** dry-run + **#30** executor. **Swap model (locked):** lease-gated **hot-swap from day one** - same spirit as core Phase C (`start-first`, single leader via Redis lease; optional warm standby). New task acquires lease before arming mutations; old task releases lease on SIGTERM. Cooldown/hysteresis state may live in Redis so a roll does not forget recent scale decisions.
 
@@ -679,7 +680,7 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
   6. **Kill switches & lease** - per-service `capacity_controller_managed: false`; only the lease holder mutates Docker; hot-reload config.
   7. **Human ops CLI** - When #18 is armed, evacuate/cordon/pin verbs live on the **capacity controller** (and `eip`); single write path.
   
-  Signals: Asynq queue depth/age; per-slot WS clients / hot-tenant; optional API latency/CPU. **Prometheus is part of this setup** — Swarm **data** fragment service (lean scrapes), independent of #34. **node-exporter / host headroom later** - not v1. Observability addon (#34) not required. Introduce order: **worker -> websocket (up first, down only with drain) -> api**.
+  Signals: Asynq queue depth/age; per-slot WS clients / hot-tenant; optional API latency/CPU. **Prometheus is on the obs fragment** (#34) — not an Evaluate dependency. **node-exporter / host headroom later** - not v1. Observability addon not required for the controller. Introduce order: **worker -> websocket (up first, down only with drain) -> api**.
 
   Illustrative loop: two WS slots at ~90% of `target_clients` -> decide scale to 3 -> wait WS-3 healthy -> place new tenants on WS-3; later average ~30% -> drain WS-3 -> when empty scale to 2.
 - **acceptance:** Controller is its own Swarm service and rolls via `service update` without bouncing the stack; hot-swap transfers lease with no dual Docker mutators; packages keep policy pure (fixture-tested) and Docker confined to cluster/executor; worker and WS desired state converge under YAML without hand-scaling; operators can disable/clamp via YAML; scale-up respects host ceilings when configured; WS scale-down always drains; no replica stampede; **#27 dry-run** + **#30** fake cluster proven before arming Docker mutations in any environment
@@ -687,19 +688,13 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 #### #19 - Operator YAML: `eip sync` apply + controller policy schema
 
 - **overlay:** [overlays/19-operator-yaml-sync-controller-schema.md](./overlays/19-operator-yaml-sync-controller-schema.md)
-- **status:** partial — **`eip sync` apply path done** (replicas/capacity labels, concurrency, cutoff, **`target_clients`**, ports/paths/proxy, file configs, obs toggle with #34; ephemeral SyncEnvMap). **Still open:** controller **policy schema** keys validated but unused until #18 consumes them.
+- **status:** **done** 2026-08-09 — **`eip sync` apply** + controller Load + Swarm config **`eip_config_yaml`** mount/reload + Observe merge + live config docs promote. Armed Apply path = #18.
 - **size:** M
-- **where:** [`yamldefaults.DefaultConfig`](../../../deployment-tool/internal/kit/templates/yamldefaults/default.go); `eip.config.yaml` (project home); deployment-tool `config.Sync` / Expand; [config.md](../../stack/config.md); [verbs.md](../../deployment/deployment-tool/cli/verbs.md)
-- **why:** One operator YAML for day-2 sync knobs **and** (later) capacity-controller policy — ceilings, reserve %, drain timeouts, kill-switches, addons — without rebuilding images; secrets stay in `.env`
+- **where:** [`yamldefaults.DefaultConfig`](../../../deployment-tool/internal/kit/templates/yamldefaults/default.go); `eip.config.yaml` (project home); Swarm config mount on `capacity-controller`; deployment-tool `config.Sync` / Expand; [config.md](../../stack/config.md); [verbs.md](../../deployment/deployment-tool/cli/verbs.md)
+- **why:** One operator YAML for day-2 sync knobs **and** capacity-controller policy — ceilings, reserve %, drain timeouts, kill-switches, addons — without rebuilding images; secrets stay in `.env`
 - **how (landed — `eip sync` / expand):** Versioned defaults; Go validate; ephemeral SyncEnvMap. Applied today: `services.*.min`→replicas + `eip.capacity.min/max` labels; `services.worker.concurrency`; `services.websocket.client_cutoff` → `WS_CLIENT_CUTOFF`; **`services.websocket.target_clients` → `WS_TARGET_CLIENTS` (soft divert)**; `ports.*` / `paths.*` / `proxy.*`; file-config hash rolls; obs fragment merge on rematerialize (#34). Live SoT → [config.md](../../stack/config.md).
-- **how (still open — controller policy schema for #18):**
-  - `scale_timing` (`cooldown`, `scale_up_stabilization`, `scale_down_stabilization`) — controller pacing
-  - `services.*.capacity_controller_managed` — per-role kill switch
-  - `services.websocket.reserve_capacity` — spare headroom before scale-up
-  - `services.websocket.drain_timeout` — controller/operator evacuate wait (not process stop grace)
-  - Automatic use of `services.*.max` as a live scale ceiling (labels written today; controller not armed)
-  - Optional: dry-run policy print (#27); controller file mount only if needed beyond project-home YAML
-- **acceptance (partial):** **`eip sync`** + obs toggle + soft `target_clients` apply without data-plane bounce — **met**. Remaining: #18 consumes the controller policy keys above.
+- **how (landed — controller consume):** mirrored YAML load/validate; Swarm config mount `/etc/eip/eip.config.yaml`; Observe merges RoleState; Evaluate uses managed/min/max, worker thresholds, WS reserve, scale_timing/cooldown (Redis live).
+- **acceptance (partial):** **`eip sync`** + obs toggle + soft `target_clients` + controller mount/Load + promote — **met** for schema path.
 
 ### Multi-tenant realtime efficiency (after affinity)
 
@@ -725,17 +720,17 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 #### #21 - Controller evacuate / pin / cordon ops (via #18 / `eip`)
 
 - **overlay:** [overlays/21-controller-evacuate-ops.md](./overlays/21-controller-evacuate-ops.md)
-- **status:** partial — automatic SIGTERM roll drain + NATS `draining` **landed** under #2 / #8 (prerequisite). **Still open:** armed evacuate / pin / cordon / move verbs on the **capacity controller** (#18), exposed via **`eip`** — single write path. Cross-replica census **parked** → #18 / this ticket.
+- **status:** partial — Phase C **landed** 2026-08-09: `ws.command.cordon|drain|uncordon`; PlannedCordon/Drain/Uncordon; controller Evaluate scale-in + Swarm NATS Request; **`eip capacity`** / ctl; Phase D promote **done**. **Still open:** pin/move; WS managed soak; census **parked**.
 - **size:** M
-- **where:** capacity-controller executor + `eip` verbs; signals into ws-router place/eligibility + websocket drain (`PlacementState`); [ws-router.md](../../backend/ws-router/ws-router.md)
+- **where:** capacity-controller executor/ctl + `eip capacity`; websocket `StartWSCommandBus`; [ws-router.md](../../backend/ws-router/ws-router.md)
 - **why:** Router **instant-reassigns** dead backends on connect (balancer stays correct). Safe **scale-in** / rebalance needs controller-driven evacuate so a hot alliance is not cold-killed when shrinking or migrating.
-- **how (direction - prefer reconnect over live TCP migrate):**
+- **how (landed — prefer reconnect over live TCP migrate):**
   1. **Default placement** stays memory place + NATS flags via ws-router (#4 / #2). Controller ops target **live container ids** (no slot-across-replace).
-  2. **#18 owns the write path:** evacuate backend / move tenant / pin / cordon → mark draining / refuse new homes → clients reconnect → router re-places. **`eip`** is the operator front door to that controller (not a parallel script path).
+  2. **#18 owns the write path:** cordon → drain → scale (Evaluate playbook); ctl/`eip capacity` for operator evacuate. **`eip`** is Moby-exec front door (not host NATS).
   3. Instant reassign on connect remains the crash/miss fallback - not a substitute for planned evacuate.
-  4. **Safety** + doc-lock coordination; dual-interest grace for #20.
-  5. Not required for basic place-to-live-backend; **required** before automated WS scale-down (#18).
-- **acceptance:** Controller/`eip` evacuate/move works without cold-killing a hot backend; scale-in playbook evacuates before `service scale` down
+  4. Pin/move deferred; dual-interest grace for #20 still relevant when pin lands.
+  5. WS stays `capacity_controller_managed: false` until soak; required before automated WS scale-down Apply.
+- **acceptance:** Controller/`eip` evacuate without cold-kill + scale-in before `service scale` down — **met** for evacuate/cordon/drain path; move/pin remaining
 - **capacity-controller build-up:** this ticket *is* the WS management ops surface #18 calls on scale-in / rebalance
 
 ### Release / ops (after basic cutover)
@@ -778,12 +773,12 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 #### #25 - Swarm test suite foundation
 
 - **overlay:** [overlays/25-test-suite-foundation.md](./overlays/25-test-suite-foundation.md)
-- **status:** **done** (2026-08-02) — live testing map + unified path-filtered CI; remaining sims **#27 / #29** (**#26** done)
+- **status:** **done** (2026-08-02) — live testing map + unified path-filtered CI; capacity sims **#27 / #29 done** (**#26** done)
 - **size:** M
 - **where:** [testing/contents.md](../../testing/contents.md); [overview.md](../../testing/overview.md) § CI; [services/contents.md](../../testing/services/contents.md); [deployment-tool CLI testing](../../deployment/deployment-tool/cli/testing.md); [`.github/workflows/test.yml`](../../../.github/workflows/test.yml); [github-actions](../../deployment/github-actions/contents.md)
 - **why:** Need one place for unit/integration entrypoints so features don’t ship untestable
 - **how (landed):** Cross-cutting testing section (contents + overview + services + deployment-tool depth + frontend placeholder); Deployment Tool unit / `enginetest` / Swarm `integration`; `services/` `go test ./…`; frontend Vitest (`APP_VERSION=0.0.0-ci` in CI — root `.env` gitignored); core leadership (#28); ws-router / websocket cordon-drain units. **CI:** single [`test.yml`](../../../.github/workflows/test.yml) path-filters services / frontend / deployment-tool; aggregate job **`ci`**; auto on push/PR to Public + Development, `workflow_dispatch` elsewhere; Public ship workflows gate on green tip via [`require-test-green.sh`](../../../.github/scripts/require-test-green.sh); repo ruleset requires **`ci`** on Public/Development. Retired always-on `services.yml`; Deployment Tool workflow is Public CLI ship (manual) only.
-- **acceptance:** Documented entrypoints + live suite map linked from Start here; CI reports **`ci`** for selected suites — **met** (green on draft PR / dispatch). Affinity soak **#26 done**; capacity dry-run / management drills = **#27 / #29**.
+- **acceptance:** Documented entrypoints + live suite map linked from Start here; CI reports **`ci`** for selected suites — **met** (green on draft PR / dispatch). Affinity soak **#26 done**; capacity dry-run / management drills **#27 / #29 done**.
 
 #### #26 - WebSocket connection / affinity simulator
 
@@ -798,12 +793,12 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 #### #27 - Capacity controller dry-run / simulation
 
 - **overlay:** [overlays/27-capacity-dry-run.md](./overlays/27-capacity-dry-run.md)
-- **status:** open - pairs with #18 / #19 / #30; **required before arming real Docker mutations** (`service scale`, drain, optional pins)
+- **status:** **done** 2026-08-09 — Phase A Evaluate/Fake fixtures; Phase B live Apply (managed gate); Phase C `eip capacity plan`; Phase D management sim + testing topic promote  
 - **size:** M
-- **where:** `policy.Evaluate` unit tests + capacity-controller flags (`--dry-run`); fake `#30` cluster impl that records Apply calls
+- **where:** `services/capacity-controller/policy` + `cluster` Fake + `executor` management sim; Swarm binary armed by default; [testing/services/capacity-controller.md](../../testing/services/capacity-controller.md)
 - **why:** Must simulate full **cluster-shape** decisions (queue spikes, client floods, reserve headroom, drain-then-scale-down, host ceiling) without mutating prod Swarm
-- **how:** Golden fixtures for pure `Evaluate` (e.g. “two slots @90% -> scale to 3”; “three slots @30% -> drain newest -> scale to 2”); dry-run wires Observe -> Evaluate -> Apply against a recording cluster; never opens Docker socket unless `EIP_CAPACITY_ARMED=1`
-- **acceptance:** Full policy suite without Docker; documented sims of worker scale-up/down, WS reserve/scale/drain cycle, and host-ceiling pause
+- **how:** Golden fixtures for pure `Evaluate`; Fake records Apply; unmanaged roles skip Apply
+- **acceptance:** Full policy suite without Docker; documented sims of worker scale-up/down, WS reserve/scale/drain cycle — **met**; management playbook → #29 (also done)
 
 #### #28 - Core leadership / failover tests
 
@@ -819,22 +814,22 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 #### #29 - Management ops simulator (evacuate / move / cordon / roll)
 
 - **overlay:** [overlays/29-management-ops-sim.md](./overlays/29-management-ops-sim.md)
-- **status:** open - pairs with #21 / #23 / #6
+- **status:** **done** 2026-08-09 — Fake cordon→drain→scale management sim in CI; operator `eip capacity` drills documented; pin/move deferred with #21
 - **size:** M
-- **where:** `eip` / capacity-controller dry-run hooks, or service admin endpoints gated for non-prod
+- **where:** `services/capacity-controller/executor/management_sim_test.go`; `eip capacity` + optional #26 soak; [testing/services/capacity-controller.md](../../testing/services/capacity-controller.md); [overlays/29-management-ops-sim.md](./overlays/29-management-ops-sim.md)
 - **why:** Ops paths must be rehearsable without waiting for a real hot alliance incident
-- **how:** CLI/`eip` drills that: cordon a slot, move a synthetic tenant, dry-run digest-reconcile / force-update set, assert interest/map/client counts; use sim clients from #26 where needed
-- **acceptance:** Documented drill: evacuate slot -> clients (#26) land elsewhere; roll dry-run prints affected services without applying; CI can run a subset without live Swarm
+- **how (landed):** CI Fake playbook; `eip capacity status|plan` dry-run; armed cordon/drain/evacuate against live `container_id`; reconnect evidence via #26 when desired
+- **acceptance:** Documented drill + CI subset without live Swarm — **met** for evacuate playbook; pin/move / roll digest dry-run remain follow-ons
 
 #### #30 - Cluster state abstraction (capacity controller)
 
 - **overlay:** [overlays/30-cluster-abstraction.md](./overlays/30-cluster-abstraction.md)
-- **status:** open - start with or just before #18 / #27; do **not** let Docker SDK types leak into `policy/`
+- **status:** **done** (Phase C 2026-08-09) — Fake + Swarm Observe/Scale + Cordon/Drain/Uncordon via `ws.command.*`; do **not** let Docker SDK types leak into `policy/`
 - **size:** S
-- **where:** `capacity-controller/cluster` (interface + Swarm impl + fake/recording impl)
+- **where:** `services/capacity-controller/cluster` (interface + Fake + `Swarm` via capacity-docker-proxy + NATS)
 - **why:** Before the Docker API leaks everywhere. Policy must not import Swarm client types; dry-run (#27) and future API/orchestrator churn stay confined. Not a bet on leaving Swarm - a seam for testability and executor hygiene.
-- **how:** Define a small interface, e.g. observe workers/websockets/api (replica counts, slot IDs, client counts, health), plus Apply ops (`Scale`, `Cordon`, `Drain`, optional pin helpers). First impl talks to Docker Swarm (+ Prom/Redis reads as needed for Observe). Fake impl feeds fixtures and records mutations. Keep the surface minimal; grow only when #18/#21 need new ops.
-- **acceptance:** `policy` package has **zero** Docker imports; #27 runs Evaluate + Apply against fake cluster; Swarm impl is the only production adapter
+- **how (landed):** `Cluster` Observe/Scale/Cordon/Drain/Uncordon; Fake for fixtures; `Swarm` Observe = Moby + Redis Asynq + NATS health + cooldown; Scale via proxy; planned WS commands via NATS Request.
+- **acceptance:** `policy` package has **zero** Docker imports; #27 runs Evaluate + Apply against fake cluster; Swarm impl is the only production adapter — **met**
 
 #### #31 - Docker Desktop host publish for Traefik (ingress)
 
@@ -869,12 +864,12 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 #### #34 - Observability addon (optional; default off)
 
 - **overlay:** [overlays/34-obs-addon.md](./overlays/34-obs-addon.md)
-- **status:** **done** (Swarm fragment + deployment-tool toggle) — pairs with #15 / #19
+- **status:** **done** (Swarm fragment + toggle + **Prom on obs** + live docs promote 2026-08-09) — pairs with #15 / #19
 - **size:** M
-- **where:** [`docker-stack.obs.yml`](../../../docker-stack.obs.yml); `addons.observability.enabled` in [`yamldefaults`](../../../deployment-tool/internal/kit/templates/yamldefaults/default.go); deployment-tool `deploy` materialize / rematerialize / recipe; [deploy.md](../../deployment/deployment-tool/cli/deploy.md)
-- **why:** Lean self-hosts should not pay for Grafana/Loki/Alloy/exporters/asynqmon UI; controller needs Prom separately (#18), not the full addon
-- **how (landed):** Toggle = include/omit Swarm obs fragment (no Prom inside it). Addon = Grafana, Loki, Alloy, mongo/redis/nats exporters, asynqmon UI, node_exporter. **`eip up` / `eip dev` / rematerialize** merge or prune obs when YAML enabled. Apps soft-fail OTLP / run with addon off. **Prometheus stays on Swarm data fragment** — always outside this toggle.
-- **acceptance:** Default install runs core app path with obs off; enabling via config + bring-up starts only that fragment; apps healthy without Alloy; Prom scrapes lean app/Asynq targets — **met**
+- **where:** [`docker-stack.obs.yml`](../../../docker-stack.obs.yml) (includes Prometheus, dual-home `eip-obs`+`eip-core`); `addons.observability.enabled` in [`yamldefaults`](../../../deployment-tool/internal/kit/templates/yamldefaults/default.go); deployment-tool `deploy` materialize / rematerialize / recipe; [deploy.md](../../deployment/deployment-tool/cli/deploy.md)
+- **why:** Lean self-hosts should not pay for Grafana/Loki/Alloy/exporters/asynqmon/Prom; controller Evaluate does not need Prom (#18)
+- **how (landed):** Toggle = include/omit Swarm obs fragment. Addon = Grafana, Loki, Alloy, exporters, asynqmon, node_exporter, **Prometheus**. **`eip up` / `eip dev` / rematerialize** merge or prune obs when YAML enabled. Apps soft-fail OTLP / run with addon off. Data fragment lean (no Prom).
+- **acceptance:** Default install runs core app path with obs off; enabling via config + bring-up starts only that fragment; apps healthy without Alloy; Prom scrapes when obs on — **met**
 
 ---
 
@@ -919,14 +914,14 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 | Websocket capacity | Affinity + manual/capacity control; drain must respect hot tenants (#8 -> #18); **moves** via #21 |
 | Tenant pins stuck on one slot | Fixed by **#21** rebalance/evacuate; needed for scale-in |
 | Alloy/`compose_service` logs | **Done (#15)** — Swarm → `compose_service` relabel |
-| Observability footprint | **Done (#34):** addon off by default (Swarm obs fragment); Prom on data fragment |
+| Observability footprint | **Done (#34):** addon off by default (Swarm obs fragment **includes Prom**); data fragment lean |
 | `docker exec core` / fixed names | **Done (#14)** — **`eip cli …`** / TUI Command |
 | Traefik `/ws` routing | Swarm provider -> **ws-router**; not opaque sticky as end state |
 | `eip dev` vs prod | Same app/images; day-2 **`eip sync` / `eip rebuild` / `eip update`** (#32 / #33 / #23) vs full bring-up |
 | Mongo/Redis/NATS data | One DB; touch rarely; image pins ride kit YAML + **`eip update`** (#22 absorbed into #23) |
 | Version bumps | Kit stack YAML + pull/reconcile via **`eip update`** (#23; app + data + obs); Traefik rare/separate |
 | Public secrets / config edits | `.env` → **`eip secrets`**; YAML → **`eip sync`** (#24 / #32) |
-| Testing / sims | **#25 / #26 / #28 done**; still open **#27 / #29**; dry-run (#27) + cluster seam (#30) before real scale/drain |
+| Testing / sims | **#25 / #26 / #27 / #28 / #29 / #30 done** |
 | Local Desktop host -> Traefik | **Done (#31)** - Swarm ingress `eip_traefik` |
 | Cross-platform `eip` | Same Go binary on Win/Linux/macOS (#17 / #32 / #33 / #35) |
 
@@ -934,24 +929,22 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 
 ## Recommended pickup order
 
-**Already landed (do not re-open):** Phase 0; Compose→Swarm migrate (data + app + obs fragments); **#2/#3/#4/#5/#7/#8/#9–#17/#20/#22–#26/#28/#31–#36**; **#15/#34** obs; **#32** day-2 verbs. Testing map + unified CI → [testing/contents.md](../../testing/contents.md) / [`test.yml`](../../../.github/workflows/test.yml). Code-verified 2026-08-08: placement = memory + NATS; selective fan-out packages present; **no** `capacity-controller/` / cluster / dry-run policy packages yet.
+**Already landed (do not re-open):** Phase 0; Compose→Swarm migrate (data + app + obs fragments); **#2/#3/#4/#5/#7/#8/#9–#17/#19/#20/#22–#36**; **#15/#34** obs (+ Prom on obs); **#32** day-2 verbs; **capacity Phases A–D** (controller/proxy/lease/Observe+Scale/health/worker Apply + `ws.command.*` + Evaluate scale-in + `eip capacity` + #29 Fake sim + live SoT promote). Testing map + unified CI → [testing/contents.md](../../testing/contents.md) / [`test.yml`](../../../.github/workflows/test.yml). Code-verified: capacity service in `docker-stack.yml`; no arm env; WS unmanaged; Apply gated by managed.
 
-**Next (live) — finish this roadmap; overlays here until promote (git branch merge is separate shipping):**
+**Next (live) — optional remainders (git branch merge is separate shipping):**
 
 1. **#2 / #8 / #20** — **done** (placement signal, drain, selective fan-out; live SoT promoted). Hosted-tenant query view **done** (in-process).
-2. **#19 policy schema → #30 → #27 → #18** — finish controller policy YAML consume + cluster seam + **dry-run** before armed capacity controller (add `eip-docker-capacity` proxy with the service — not present in stack YAML today)
-3. **#21** — arm controller evacuate/pin/cordon verbs on **#18** / `eip` (live container ids)
-4. **#29** management sim (+ **#27** with controller) — weave into feature work; **#26** soak/coloc done
-5. **Ensure `*_API` DB users** — optional follow-up on #3
-6. **Optional polish:** durable local-tag file only if deliberately wanted (#35 uses in-memory `TAG_*`)
-7. **Close this project** — roadmap done → go-ahead → promote remaining overlays into live SoT; then other work may continue on the same branch. Merging to Development/Public is not the project gate.
+2. **Capacity controller remainders** — pack [18-capacity-controller/](./18-capacity-controller/); **A–D done** (incl. promote). Next (optional): WS `capacity_controller_managed` soak flip; pin/move under #21.
+3. **Ensure `*_API` DB users** — optional follow-up on #3
+4. **Optional polish:** durable local-tag file only if deliberately wanted (#35 uses in-memory `TAG_*`)
+5. **Project close** — capacity promote landed 2026-08-09; remainders above are follow-on, not a second promote gate for the pack.
 
 ---
 
 ## Follow-ups (detail later)
 
 1. **#4 done** - placement + acceptance ([ws-router.md](../../backend/ws-router/ws-router.md)); store/signal plane → **#2**.
-2. **Controller evacuate / pin / cordon (#21)** - arm ops on #18 / `eip` (live container ids).
+2. **Controller evacuate / pin / cordon (#21)** - Phase C evacuate/`eip capacity` landed; pin/move + WS managed soak still open.
 3. **Hard cutover ops polish** - stack live; secrets/config day-2 (#24/#32 done); roll playbook (#6) absorbed into #23 (Swarm digest-reconcile / bake).
 4. **Core readiness (#10)** — done.
 5. **Scheduler lease (#11)** — done (incl. in-flight cancel).
@@ -959,13 +952,13 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 7. **Observability addon (#34) done** — Swarm `docker-stack.obs.yml` + YAML toggle; labels (#15) done.
 8. **Worker + host capacity (#7 done / #19)** - node-exporter later.
 9. **Operator runbooks** - **day-2 ship** ([verbs.md](../../deployment/deployment-tool/cli/verbs.md) / #23); **`eip rebuild`** (#33); **`eip sync` / `eip secrets`** (#24/#32); **`eip cli`** (#14); controller evacuate (#21 via #18 / `eip`).
-10. **Capacity controller (#18/#19/#30)** - `policy`/`cluster`/`executor`; Observe->Evaluate->Apply->Wait; **dry-run first (#27)**; Prom with controller.
+10. **Capacity controller (#18/#19/#30)** - Phases A–D landed (Observe→Evaluate→Apply→Wait; `ws.command.*` / `eip capacity`; #29 sim; live SoT promote; managed gate). Remainders: WS soak; pin/move. #19/#27/#29/#30 done.
 11. **Multi-tenant infra sync** - locks + auth + placement.
 12. **Selective WS fan-out (#20)** — **done** (promote 2026-08-08). Census parked (#18 / #21).
 13. **Core hot-swap (#9/#13) + failover tests (#28) + CLI (#14)** — done (core boxed off).
 14. **Data-plane update (#22)** — **done** / absorbed into **`eip update`** (#23).
 15. **Ensure — least-privilege API DB users** — when wanted: create `MONGO_*_API` / `REDIS_*_API` in deployment-tool Ensure (Mongo user + Redis ACL), set keys in `.env`, `eip secrets`. App already falls back when unset (`ConnectAPI` / optional api-only secret attach). Mongo keyfile + root/app users + preimages + indexes already owned by `EnsureMongo`.
-16. **Testing architecture (#25-#29)** - **#25 / #26 / #28 done**. Still open: capacity dry-run (#27); chaos/management drills (#29; kill/evacuate recovery).
+16. **Testing architecture (#25-#29)** - **#25 / #26 / #27 / #28 / #29 / #30 done**.
 17. **Operator config split + `eip sync` / `eip rebuild`** — done (#17/#32/#33).
 18. **Companion docs** - secrets.md / config.md / stack.md / guide.md / deploy.md / verbs.md / engineering.md / **network.md** aligned for Deployment Tool ops (**#36** promoted).
 18a. **Docs cleanup (later — after swarm migration work)** — stack + guide + CI/channels + **Deployment Tool CLI/TUI** live-SoT pass landed; **Cursor Phase 3** landed (SoT in `technical-rules.md` / `documentation-rules.md`; thin `.mdc` pointers; `deployment-tool-*.mdc`). Remaining: backend/frontend large-doc breakdown when touching those services.
@@ -1045,7 +1038,7 @@ Locked from planning (2026-07-19+). Keep unless deliberately revisited:
 | 15 | **Phase 0 closed (2026-07-19)** - **#1** eip network, **#5** stack, Traefik swarm **basic**, **#24** day-2 apply path, companion docs, **`eip_tenant_affinity` cookie**, **#3 inventory**. **#2 identity** completed 2026-08-07 (promote). **Hard cutover branch** landed ws-router + Swarm Traefik (#4/#31); operator surface **Deployment Tool** (#17). |
 | 27 | **WS affinity cookie bridge** - App sets `eip_tenant_affinity=account:{id}` (format prefers alliance->corp->account). Key for memory place via ws-router; Traefik sticky `eip_ws_affinity` is router fallback only. |
 | 28 | **ws-router on Swarm (replicas 1, start-first handover)** - not Compose in hybrid path. Occupancy balance metrics from websocket in-memory maps (#8), not a placement scout. |
-| 16 | **Full testing + simulation track** (#25-#29): #25/#26/#28 done — live map under `technical-documentation/testing/` + unified path-filtered [`test.yml`](../../../.github/workflows/test.yml) (aggregate **`ci`**; ruleset on Public/Development). Still required: capacity-controller **dry-run** before armed Docker mutations (#27), management ops drills (#29). Weave into feature PRs; document new harnesses under `testing/` when they land. |
+| 16 | **Full testing + simulation track** (#25-#29): #25/#26/#27/#28/#29/#30 done — live map under `technical-documentation/testing/` + unified path-filtered [`test.yml`](../../../.github/workflows/test.yml) (aggregate **`ci`**; ruleset on Public/Development). Capacity depth → [testing/services/capacity-controller.md](../../testing/services/capacity-controller.md). |
 | 17 | **Name it a capacity controller, not an “autoscaler.”** It owns replica counts, spare capacity, drain/remove, migrate targets, and optional pins - Swarm schedules; Traefik routes; the controller decides cluster shape (lightweight app control plane, not Kubernetes). |
 | 18 | **Capacity controller is its own singleton Swarm container** (not inlined into core). Swap it like core: **lease-gated hot-swap from day one** (`start-first`; only lease holder mutates Docker). Stop-first gap is emergency-only, not the design target. |
 | 19 | **Bring-up vs apply** - `eip up`/`dev` create the world; `eip sync`/`secrets`/`rebuild`/`update` mutate it. Stack deploy is an internal deployment-tool primitive — day-2 operator verb is **`eip sync`** (YAML) / **`eip secrets`** (`.env`). |
@@ -1055,7 +1048,7 @@ Locked from planning (2026-07-19+). Keep unless deliberately revisited:
 | 22 | **Public UX hides orchestration internals** - teach **`eip`** + config files; NETWORK/STACK are implementer docs. |
 | 23 | **Same `eip` experience on Windows, Linux, and macOS** - one Go binary (TUI + CLI); bootstrap `.sh`/`.ps1` only places the binary; no OS-specific public command set. |
 | 24 | **Observability is an optional addon** (default **off**). Toggle only in operator config (#34 **done**). **No separate metrics toggle.** Toggle = omit Swarm `docker-stack.obs.yml`. |
-| 25 | **Prometheus is on the Swarm data fragment** (`docker-stack.data.yml` with SeaweedFS) — **not** in the observability fragment / #34 toggle. Lands ahead of the capacity controller so #18 can query it. Addon is Grafana/Loki/Alloy/exporters/asynqmon UI only. |
+| 25 | **Prometheus placement (superseded):** Originally on Swarm **data** fragment so #18 could query without obs addon. **#18 decision pack** locks Evaluate SoT without Prom; **Phase B moved Prom → obs fragment** — see [18-capacity-controller/prometheus-placement.md](./18-capacity-controller/prometheus-placement.md). Live stack docs promoted Phase D 2026-08-09. |
 | 26 | **Apps must run correctly with observability off** (no hard Alloy/Grafana/Loki/exporter dependency for core behaviour). |
 | 30 | **WS place mid-wave** - `preferNewestSlots` on eligible backends; reassign sticky off older bake; affinity key / pin / cordon / full still apply. Exact client bake match filter removed. |
 | 31 | **`APP_VERSION` SoT is `.env`** (non-secret). `eip.config` capacity/ports/paths bridges are **ephemeral sync-env** at expand / **`eip sync`** (no durable `.eip-sync.env`). Local Swarm tags are per-role `${APP_VERSION}-<timestamp>` via bake → **in-memory `TAG_*`** + `docker-stack.dev.yml` (no `stack-force-local`; no durable `.eip-local-build.env` writer). |

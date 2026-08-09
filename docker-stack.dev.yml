@@ -11,5 +11,7 @@ services:
     image: eve-industry-planner-ws-router:${TAG_ws_router}
   core:
     image: eve-industry-planner-core:${TAG_core}
+  capacity-controller:
+    image: eve-industry-planner-capacity-controller:${TAG_capacity_controller}
   frontend:
     image: eve-industry-planner-frontend:${TAG_frontend}

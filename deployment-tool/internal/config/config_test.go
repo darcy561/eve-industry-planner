@@ -140,7 +140,6 @@ services:
     target_clients: 1500
     client_cutoff: 2000
     reserve_capacity: 0.2
-    drain_timeout: 10m
   api:
     capacity_controller_managed: true
     min: 1
@@ -163,8 +162,9 @@ func TestSyncEnvStable(t *testing.T) {
 	cfg := yamldefaults.DefaultConfig()
 	joined := strings.Join(cfg.SyncEnv(), "\n")
 	for _, want := range []string{
-		"EIP_WEBSOCKET_CAPACITY_MAX=4",
-		"EIP_WORKER_CAPACITY_MAX=2",
+		"EIP_WEBSOCKET_CAPACITY_MAX=5",
+		"EIP_WORKER_CAPACITY_MAX=5",
+		"EIP_API_CAPACITY_MAX=5",
 		"EIP_API_REPLICAS=1",
 		"EIP_HTTP_PORT=80",
 		"GRAFANA_ROOT_URL=http://127.0.0.1/grafana/",

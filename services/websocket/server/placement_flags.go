@@ -34,8 +34,16 @@ func (s *Server) currentPlacementState(connected int) natscore.PlacementState {
 		connected,
 		config.TargetClients(),
 		config.ClientCutoff(),
-		s != nil && s.IsDraining(),
+		s != nil && s.placementDraining(),
 	)
+}
+
+// CurrentPlacementSnapshot returns placement flags for health census (capacity Observe).
+func (s *Server) CurrentPlacementSnapshot() natscore.PlacementState {
+	if s == nil {
+		return natscore.PlacementState{}
+	}
+	return s.currentPlacementState(s.ConnectedCount())
 }
 
 // publishPlacementState publishes raw PlacementState JSON on SubjectWSPlacementState

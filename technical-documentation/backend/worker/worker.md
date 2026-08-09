@@ -8,7 +8,7 @@ Live SoT for the **worker** service: per-process Asynq concurrency × Swarm repl
 |-------|---------|--------|
 | Image | `ghcr.io/darcy561/eve-industry-planner-worker:${APP_VERSION}` | [`docker-stack.yml`](../../../docker-stack.yml) `services.worker.image` |
 | Replicas | `1` (`EIP_WORKER_REPLICAS`, from config `min`) | Template: [`yamldefaults.DefaultConfig`](../../../deployment-tool/internal/kit/templates/yamldefaults/default.go). Live: `eip.config.yaml` |
-| Capacity min / max | `1` / `2` | same (`services.worker.min` / `max`) |
+| Capacity min / max | `1` / `5` | same (`services.worker.min` / `max`) |
 | `concurrency` | `50` (`WORKER_ASYNQ_CONCURRENCY`) | same — binary hard-caps at `MaxConcurrency` **50** |
 | `capacity_controller_managed` | `true` | same |
 | Volume | `worker_data` → `/data` | stack YAML |

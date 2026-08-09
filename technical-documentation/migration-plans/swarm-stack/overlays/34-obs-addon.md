@@ -1,25 +1,27 @@
 # #34 — Observability addon (optional; default off)
 
 **Roadmap:** [../roadmap.md](../roadmap.md) `#34`  
-**Status (mirror):** done  
-**Not live SoT.** On overlap with live docs, this overlay wins until promote.
+**Status (mirror):** **done** (addon toggle + **Prom on obs** + live docs promote 2026-08-09)  
+**Related pack:** [../18-capacity-controller/prometheus-placement.md](../18-capacity-controller/prometheus-placement.md)  
+**Live SoT:** [stack.md](../../../stack/stack.md), [network.md](../../../stack/network.md), [config.md](../../../stack/config.md).
 
 ## What changed
 
-_Fill as work for this ticket lands. Keep current-behaviour notes here during the project._
+Addon fragment + YAML toggle **landed**. **Phase B:** Prometheus relocated **data → obs** (`docker-stack.obs.yml`), dual-home **`eip-obs` + `eip-core`**; data fragment lean (mongo/redis/nats/SeaweedFS). DT catalog Groups / SyncConfigs / materialize / InjectExternalConfigs updated for the move. **Phase D:** live stack/network/config/guide docs promoted.
 
 ## How this part works after the change
 
-_Operator / implementer behaviour after the change. Promote into live SoT only with go-ahead._
+Obs off omits Grafana/Loki/Alloy/exporters/asynqmon/node_exporter **and Prom**. Controller Evaluate does not need Prom (Redis Asynq + NATS health). Supersedes decision 25’s controller rationale.
 
 ## Still open
 
-_Explicit remainders for this ticket (or “none”)._
+_none_
 
 ## Missing live SoT discovered mid-work
 
-_Draft here in live-doc shape. Promote with the rest._
+_Promoted 2026-08-09._
 
 ## Notes / decisions
 
-_Locks, rejected options, links to code anchors._
+- Apps must still run correctly with observability off.
+- Controller has no Prom query client in v1.

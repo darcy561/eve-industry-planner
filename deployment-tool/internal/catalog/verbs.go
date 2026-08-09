@@ -23,6 +23,7 @@ func Verbs() []Verb {
 		{ID: "sync", Title: "Sync", Short: "Apply eip.config.yaml (capacity, Traefik, Grafana, configs)"},
 		{ID: "logs", Title: "Logs", Short: "Show Swarm service logs (dump or follow)"},
 		{ID: "cli", Title: "CLI", Short: "Run core tasks or open a shell on the running core task"},
+		{ID: "capacity", Title: "Capacity", Short: "Run capacity-controller ctl (status/plan/cordon/drain/evacuate)"},
 		{ID: "secrets", Title: "Secrets", Short: "Sync .env secrets to Swarm and rematerialize mounts"},
 		{ID: "rebuild", Title: "Rebuild", Short: "Bake local images and rematerialize (roll only when digests change)"},
 		{ID: "restart", Title: "Restart", Short: "Rolling restart (same images; one service or all)"},

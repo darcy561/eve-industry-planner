@@ -19,6 +19,7 @@ Named for the **work**, not a git branch. **Project close** = roadmap finished +
 | All ticket overlays (index) | [overlay.md](./overlay.md) |
 | One ticket’s detail / land notes | [overlays/](./overlays/) (`NN-*.md` for `#N`) |
 | #2 replica identity decision pack | [02-replica-identity/](./02-replica-identity/) |
+| #18 capacity controller decision pack (Phase E) | [18-capacity-controller/](./18-capacity-controller/) |
 | #20 selective fan-out decision pack | [20-selective-fanout/](./20-selective-fanout/) |
 | Promote drafts (go-ahead copy into live) | [promote/README.md](./promote/README.md) |
 | Phase 1 gate checklist | [roadmap.md](./roadmap.md) § Phase 1 |

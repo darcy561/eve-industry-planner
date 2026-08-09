@@ -3,8 +3,8 @@
 # Network name SoT: x-net-* anchors (reuse in networks.*.name + labels).
 #
 # Runtime nets (Deployment Tool ApplyLabeledNetworkMemberships):
-#   prometheus (data): attach *net-obs when observability
 #   grafana: detach *net-core; attach *net-public when grafana.public
+# Prometheus lives here (not on the data fragment). Dual-homes eip-obs + eip-core for scrapes.
 # Alloy joins eip-core + eip-obs here (static). Traefik enable toggled by ApplyGrafanaPath.
 
 x-net-core: &net-core eip-core
@@ -31,6 +31,36 @@ x-obs-deploy: &obs-deploy
     delay: 5s
 
 services:
+  # Metrics TSDB — observability addon only (capacity controller does not query Prom).
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+      - --web.enable-remote-write-receiver
+    networks:
+      eip-obs:
+        aliases: [prometheus]
+      eip-core:
+        aliases: [prometheus]
+    dns: *common-dns
+    configs:
+      - source: prometheus_yml
+        target: /etc/prometheus/prometheus.yml
+    volumes:
+      - prometheus_data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      <<: *obs-deploy
+      labels:
+        - "eip.config.sync=1"
+
   loki:
     image: grafana/loki:3.7.2
     command: ["-config.file=/etc/loki/config.yaml"]
@@ -282,8 +312,13 @@ volumes:
   alloy_data:
     name: eve-industry-planner_alloy_data
     external: true
+  prometheus_data:
+    name: eve-industry-planner_prometheus_data
+    external: true
 
 configs:
+  prometheus_yml:
+    file: ./observability/prometheus/prometheus.yml
   loki_yml:
     file: ./observability/loki/config.yaml
   alloy_config:

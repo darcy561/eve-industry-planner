@@ -20,6 +20,7 @@ const (
 	MessageTypeSubscription = "subscription" // Legacy envelope type (historic doc.subscribe payloads)
 	MessageTypeHealth       = "health"       // Control-plane health census (core NATS, not JetStream)
 	MessageTypeWSPlacement  = "ws_placement" // Websocket placement load flags (core NATS pub/sub)
+	MessageTypeWSCommand    = "ws_command"   // Planned cordon/drain/uncordon ack
 )
 
 const (
@@ -186,6 +187,15 @@ type HealthStatus struct {
 	Ready      bool   `json:"ready"`
 	Error      string `json:"error,omitempty"`
 	TimeUnixMs int64  `json:"time_unix_ms"`
+
+	// Optional census fields (capacity Observe / dashboards). Omitempty keeps replies lean.
+	AppVersion        string `json:"app_version,omitempty"`
+	Clients           int    `json:"clients,omitempty"`
+	Soft              bool   `json:"soft,omitempty"`
+	Full              bool   `json:"full,omitempty"`
+	Draining          bool   `json:"draining,omitempty"`
+	HostedTenantCount int    `json:"hosted_tenant_count,omitempty"`
+	ActiveTasks       int    `json:"active_tasks,omitempty"`
 }
 
 // MessageType returns the message type identifier for HealthStatus.
@@ -206,6 +216,24 @@ type PlacementState struct {
 // MessageType returns the message type identifier for PlacementState.
 func (PlacementState) MessageType() string {
 	return MessageTypeWSPlacement
+}
+
+// WSCommand is the req payload for ws.command.cordon|drain|uncordon.
+type WSCommand struct {
+	ContainerID string `json:"container_id"`
+}
+
+// WSCommandAck is the reply payload (Message.Type == MessageTypeWSCommand).
+type WSCommandAck struct {
+	OK          bool   `json:"ok"`
+	ContainerID string `json:"container_id"`
+	Action      string `json:"action"` // cordon | drain | uncordon
+	Error       string `json:"error,omitempty"`
+}
+
+// MessageType returns the message type identifier for WSCommandAck.
+func (WSCommandAck) MessageType() string {
+	return MessageTypeWSCommand
 }
 
 // ParsePlacementState decodes raw PlacementState JSON (not a Message envelope).

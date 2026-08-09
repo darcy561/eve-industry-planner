@@ -23,23 +23,23 @@ Index: [contents.md](./contents.md).
 | #15 | done | [15-obs-labels.md](./overlays/15-obs-labels.md) |
 | #16 | done | [16-frontend-swarm.md](./overlays/16-frontend-swarm.md) |
 | #17 | done | [17-operator-surface.md](./overlays/17-operator-surface.md) |
-| #18 | open | [18-capacity-controller.md](./overlays/18-capacity-controller.md) |
-| #19 | partial — `eip sync` apply landed; controller policy schema open | [19-operator-yaml-sync-controller-schema.md](./overlays/19-operator-yaml-sync-controller-schema.md) |
+| #18 | partial — A–D landed; WS soak + pin/move remain | [18-capacity-controller.md](./overlays/18-capacity-controller.md) · [18-capacity-controller/](./18-capacity-controller/) · [promote/](./promote/README.md) |
+| #19 | **done** — sync + Load + mount + promote | [19-operator-yaml-sync-controller-schema.md](./overlays/19-operator-yaml-sync-controller-schema.md) |
 | #20 | **done** — product + live SoT promote (2026-08-08) | [20-selective-fanout.md](./overlays/20-selective-fanout.md) · [20-selective-fanout/](./20-selective-fanout/) · [promote/](./promote/README.md) |
-| #21 | partial — controller evacuate/pin/cordon via #18 / `eip` (roll drain already landed) | [21-controller-evacuate-ops.md](./overlays/21-controller-evacuate-ops.md) |
+| #21 | partial — evacuate/`eip capacity` + promote; pin/move + WS soak open | [21-controller-evacuate-ops.md](./overlays/21-controller-evacuate-ops.md) · [18-capacity-controller/evacuate-ops.md](./18-capacity-controller/evacuate-ops.md) |
 | #22 | **done** — absorbed into `eip update` / #23 | [22-data-plane-updates.md](./overlays/22-data-plane-updates.md) |
 | #23 | done | [23-app-image-ship.md](./overlays/23-app-image-ship.md) |
 | #24 | done | [24-secrets-day2.md](./overlays/24-secrets-day2.md) |
 | #25 | done | [25-test-suite-foundation.md](./overlays/25-test-suite-foundation.md) |
 | #26 | **done** — hold + limits + co-location fail-on-split | [26-ws-affinity-sim.md](./overlays/26-ws-affinity-sim.md) |
-| #27 | open | [27-capacity-dry-run.md](./overlays/27-capacity-dry-run.md) |
+| #27 | **done** — Evaluate/Fake + managed-gate Apply + ctl plan + management sim | [27-capacity-dry-run.md](./overlays/27-capacity-dry-run.md) · [18-capacity-controller/dry-run-fixtures.md](./18-capacity-controller/dry-run-fixtures.md) |
 | #28 | done | [28-core-failover-tests.md](./overlays/28-core-failover-tests.md) |
-| #29 | open | [29-management-ops-sim.md](./overlays/29-management-ops-sim.md) |
-| #30 | open | [30-cluster-abstraction.md](./overlays/30-cluster-abstraction.md) |
+| #29 | **done** — Fake playbook + docs promote | [29-management-ops-sim.md](./overlays/29-management-ops-sim.md) |
+| #30 | **done** — Observe/Scale + Cordon/Drain/Uncordon (Phase C) | [30-cluster-abstraction.md](./overlays/30-cluster-abstraction.md) · [18-capacity-controller/cluster-api.md](./18-capacity-controller/cluster-api.md) |
 | #31 | done | [31-traefik-ingress.md](./overlays/31-traefik-ingress.md) |
 | #32 | done | [32-eip-sync-secrets.md](./overlays/32-eip-sync-secrets.md) |
 | #33 | done | [33-eip-rebuild.md](./overlays/33-eip-rebuild.md) |
-| #34 | done | [34-obs-addon.md](./overlays/34-obs-addon.md) |
+| #34 | **done** — Prom on obs + live docs promote | [34-obs-addon.md](./overlays/34-obs-addon.md) |
 | #35 | done | [35-buildx-bake.md](./overlays/35-buildx-bake.md) |
 | #36 | **done** — promoted | [36-network-plane-polish.md](./overlays/36-network-plane-polish.md) · [promote drafts](./overlays/36-promote-draft.md) (history) |
 
@@ -47,4 +47,4 @@ Index: [contents.md](./contents.md).
 
 1. Keep roadmap status / size / acceptance on [roadmap.md](./roadmap.md).
 2. Put detailed design, land notes, and missing-SoT drafts in the matching `overlays/NN-*.md`.
-3. Do not edit live `stack/` / `deployment/` / `testing/` docs until promote go-ahead.
+3. Prefer live SoT after promote; overlays remain history / remainders.

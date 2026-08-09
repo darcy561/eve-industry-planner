@@ -97,7 +97,7 @@ jobs:
                   OWNER="${{ github.repository_owner }}"
                   REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2 | tr '[:upper:]' '[:lower:]')
                   VERSION="${{ steps.version.outputs.version }}"
-                  SERVICES="api websocket worker core frontend"
+                  SERVICES="api websocket worker core frontend capacity-controller"
                   EXISTING=()
 
                   for svc in ${SERVICES}; do
@@ -136,7 +136,7 @@ jobs:
 
         strategy:
             matrix:
-                service: [api, websocket, worker, core, frontend]
+                service: [api, websocket, worker, core, frontend, capacity-controller]
 
         steps:
             - name: Checkout Public branch

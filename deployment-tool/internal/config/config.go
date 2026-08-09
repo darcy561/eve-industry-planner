@@ -93,11 +93,11 @@ type ServiceSpec struct {
 	CapacityControllerManaged bool    `yaml:"capacity_controller_managed"`
 	Min                       int     `yaml:"min"`
 	Max                       int     `yaml:"max"`
-	Concurrency               int     `yaml:"concurrency"`
-	TargetClients             int     `yaml:"target_clients"`
-	ClientCutoff              int     `yaml:"client_cutoff"`
-	ReserveCapacity           float64 `yaml:"reserve_capacity"`
-	DrainTimeout              string  `yaml:"drain_timeout"`
+	Concurrency               int                `yaml:"concurrency,omitempty"`                 // worker
+	TargetClients             int                `yaml:"target_clients,omitempty"`               // websocket
+	ClientCutoff              int                `yaml:"client_cutoff,omitempty"`                // websocket
+	ReserveCapacity           float64            `yaml:"reserve_capacity,omitempty"`             // websocket
+	QueueScaleUpPct           map[string]float64 `yaml:"queue_scale_up_pct,omitempty"`           // worker: scale-up pending fraction per priority queue
 }
 
 // LoadYAML reads and validates operator config from path.
@@ -136,6 +136,11 @@ func (c Config) Validate() error {
 	if w.Concurrency < 1 || w.Concurrency > 50 {
 		return fmt.Errorf("services.worker.concurrency: want 1..50, got %d", w.Concurrency)
 	}
+	for k, v := range w.QueueScaleUpPct {
+		if v < 0 {
+			return fmt.Errorf("services.worker.queue_scale_up_pct.%s: must be >= 0, got %v", k, v)
+		}
+	}
 	ws := c.Services["websocket"]
 	if ws.ClientCutoff < 0 {
 		return fmt.Errorf("services.websocket.client_cutoff: must be >= 0 (0 = unlimited)")
@@ -146,6 +151,9 @@ func (c Config) Validate() error {
 	if ws.TargetClients > 0 && ws.ClientCutoff > 0 && ws.TargetClients > ws.ClientCutoff {
 		return fmt.Errorf("services.websocket.target_clients: must be <= client_cutoff when both > 0 (got target=%d cutoff=%d)",
 			ws.TargetClients, ws.ClientCutoff)
+	}
+	if ws.ReserveCapacity < 0 || ws.ReserveCapacity >= 1 {
+		return fmt.Errorf("services.websocket.reserve_capacity: want 0 <= reserve < 1, got %v", ws.ReserveCapacity)
 	}
 	if err := validatePort("ports.http", c.Ports.HTTP); err != nil {
 		return err

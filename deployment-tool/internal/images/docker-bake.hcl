@@ -63,7 +63,7 @@ variable "ADMINTOOL_IMAGE" {
 }
 
 group "swarm" {
-  targets = ["api", "websocket", "worker", "ws-router", "core", "frontend"]
+  targets = ["api", "websocket", "worker", "ws-router", "core", "capacity-controller", "frontend"]
 }
 
 # Legacy/deferred container image — not the operator runtime.
@@ -153,6 +153,18 @@ target "core" {
     APP_VERSION               = APP_VERSION
     FRONTEND_APP_VERSION      = APP_VERSION
     APP_FEATURE_FLAGS_JSON    = APP_FEATURE_FLAGS_JSON
+    ENVIRONMENT               = ENVIRONMENT
+    SENTRY_DSN                = SENTRY_DSN
+    SENTRY_TRACES_SAMPLE_RATE = SENTRY_TRACES_SAMPLE_RATE
+  }
+}
+
+target "capacity-controller" {
+  context    = "./services"
+  dockerfile = "capacity-controller/Dockerfile"
+  tags       = ["eve-industry-planner-capacity-controller:${BAKE_WORKING_TAG}"]
+  args = {
+    APP_VERSION               = APP_VERSION
     ENVIRONMENT               = ENVIRONMENT
     SENTRY_DSN                = SENTRY_DSN
     SENTRY_TRACES_SAMPLE_RATE = SENTRY_TRACES_SAMPLE_RATE

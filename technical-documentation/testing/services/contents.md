@@ -41,6 +41,7 @@ go test ./...
 | websocket test depth | [websocket.md](./websocket.md) |
 | worker test depth | [worker.md](./worker.md) |
 | ws-router test depth | [ws-router.md](./ws-router.md) |
+| capacity-controller test depth | [capacity-controller.md](./capacity-controller.md) |
 | shared libraries test depth | [shared.md](./shared.md) |
 
 Depth labels are qualitative (package presence + `Test*` names), not coverage reports. Re-skim the owning service file when adding large suites. CI suite → [overview](../overview.md) § CI test suite.

@@ -9,14 +9,6 @@ import (
 func TestCollectLabeledNetworkMemberships(t *testing.T) {
 	t.Parallel()
 	data := stack.Doc{
-		Services: map[string]stack.Service{
-			"prometheus": {
-				Deploy: stack.Deploy{Labels: stack.Labels{
-					stack.LabelNetworkAttach:     "eip-obs",
-					stack.LabelNetworkAttachWhen: "observability",
-				}},
-			},
-		},
 		Networks: map[string]stack.Network{
 			"eip-core": {Name: "eip-core", External: true},
 		},
@@ -49,9 +41,6 @@ func TestCollectLabeledNetworkMemberships(t *testing.T) {
 		t.Fatal(err)
 	}
 	by := indexMemberships(items)
-	if !by["prometheus|eip-obs"].Attach {
-		t.Fatal("prom should attach when observability on")
-	}
 	if by["grafana|eip-core"].Attach {
 		t.Fatal("grafana detach core")
 	}
@@ -68,15 +57,6 @@ func TestCollectLabeledNetworkMemberships(t *testing.T) {
 	byPub := indexMemberships(itemsPub)
 	if !byPub["grafana|eip-public"].Attach {
 		t.Fatal("grafana edge on when public")
-	}
-
-	cfgOff := Config{}
-	itemsOff, err := collectLabeledNetworkMemberships(cfgOff, []stack.Doc{data, app, obs}, []stack.Doc{data, app})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if indexMemberships(itemsOff)["prometheus|eip-obs"].Attach {
-		t.Fatal("prom off when observability off")
 	}
 }
 

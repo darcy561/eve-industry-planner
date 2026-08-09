@@ -59,7 +59,7 @@ func Sync(ctx context.Context, dryRun bool) error {
 		return err
 	}
 
-	configStacks := []string{kit.DataStackFile}
+	configStacks := []string{kit.DataStackFile, kit.AppStackFile}
 	if cfg.Addons.Observability.Enabled {
 		configStacks = append(configStacks, kit.ObsStackFile)
 	}

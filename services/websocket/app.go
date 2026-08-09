@@ -5,11 +5,12 @@ import (
 	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"net/http"
-	"time"
+	"os"
 
 	"eve-industry-planner/api/middleware"
 	"eve-industry-planner/shared/container"
 	"eve-industry-planner/shared/core/config"
+	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/orchestrationprobes"
@@ -18,8 +19,8 @@ import (
 	wsserver "eve-industry-planner/websocket/server"
 )
 
-// Per-cleanup budget matches stack x-app-stop-grace (60s).
-const shutdownTimeout = 60 * time.Second
+// Per-cleanup budget matches stack x-app-stop-grace (lifecycle.AppStopGrace).
+const shutdownTimeout = lifecycle.AppStopGrace
 
 type app struct {
 	g        lifecycle.Group
@@ -130,11 +131,32 @@ func (a *app) startProbes(ctx context.Context) error {
 		InstanceID: container.ID(),
 		Conn:       a.clients.NATS,
 		Ready:      ready,
-		Enabled:    false,
+		Enabled:    true,
+		Fill: func(st *natscore.HealthStatus) {
+			if st == nil {
+				return
+			}
+			st.AppVersion = os.Getenv("APP_VERSION")
+			if a.ws == nil {
+				return
+			}
+			ps := a.ws.CurrentPlacementSnapshot()
+			st.Clients = ps.Clients
+			st.Soft = ps.Soft
+			st.Full = ps.Full
+			st.Draining = ps.Draining
+			st.HostedTenantCount = len(a.ws.HostedTenants())
+		},
 	})
 	if err != nil {
 		return a.fail(err)
 	}
 	a.g.Add(bus)
+
+	cmdBus, err := a.ws.StartWSCommandBus(ctx, a.clients.NATS)
+	if err != nil {
+		return a.fail(err)
+	}
+	a.g.Add(cmdBus)
 	return nil
 }

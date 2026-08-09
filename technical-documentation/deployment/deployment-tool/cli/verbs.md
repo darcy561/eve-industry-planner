@@ -34,6 +34,7 @@ No dedicated menu rows for **Apply secrets/settings** — Persist auto-queues; u
 | `eip init` | Headless write-missing; guided path is **Setup**. Reachable via Command / `:`. |
 | `eip secrets` / `eip sync` | Persist auto-queues when appropriate; Command / CLI for manual. |
 | `eip cli` | Core tasks / shell. TUI: Command / `:` only (interactive core shell stays terminal-only). |
+| `eip capacity` | Moby-exec into `eip_capacity-controller` → `ctl` (status / plan / cordon / drain / evacuate / uncordon). |
 | `eip ensure-mongo` / `eip ensure-s3` | Ensure without full deploy. |
 | `eip restore-mongo-keyfile` / `eip rekey-mongo` | Keyfile recovery / rekey. |
 
@@ -51,13 +52,14 @@ No dedicated menu rows for **Apply secrets/settings** — Persist auto-queues; u
 - **`eip init`**: write-missing `docker-stack*.yml` (from baked `KitBranch`), then `.env` / `eip.config.yaml` (Autogen secrets resolved; EVE SSO left blank for the operator). `CheckOperatorDocs` then optional EnsureS3/EnsureMongo if tasks up. Does **not** apply to a running stack. TUI guided path = **Setup**. Not Public bootstrap (bootstrap only places the binary).
 - **`eip doctor`** (alias **`probe`**): Engine ping + health rollup. CLI-facing name `doctor`; TUI poller uses `probe`.
 - **`eip cli`**: core tasks / shell — TUI via Command / `:` only.
+- **`eip capacity`**: Moby-exec into the running `eip_capacity-controller` task and run `capacity-controller ctl …` (same spirit as `eip cli` → core). Subcommands: `status`, `plan`, `cordon <container_id>`, `uncordon <container_id>`, `drain <container_id>`, `evacuate <container_id>`. Automatic Scale/drain Apply for a role requires `services.<role>.capacity_controller_managed: true`. Does **not** open a host NATS client. Policy / membership → [config.md](../../../stack/config.md), [stack.md](../../../stack/stack.md); planned WS path → [websocket.md](../../../backend/websocket/websocket.md).
 - **`eip add-path`**: optional PATH symlink — CLI-only.
 - **`eip ensure-s3` / `ensure-mongo`**: CLI-only ensure without full deploy.
 - **`eip restore-mongo-keyfile` / `rekey-mongo`**: CLI-only keyfile recovery / rekey.
 
 ## Day-2 images
 
-App services share one **`APP_VERSION`** (`.env` SoT) in the **app fragment** ([`docker-stack.yml`](../../../../docker-stack.yml)): api, websocket, worker, ws-router, core, frontend. Traefik is upstream (rare). Data pins live in [`docker-stack.data.yml`](../../../../docker-stack.data.yml); obs pins in [`docker-stack.obs.yml`](../../../../docker-stack.obs.yml) when the addon is on.
+App services share one **`APP_VERSION`** (`.env` SoT) in the **app fragment** ([`docker-stack.yml`](../../../../docker-stack.yml)): api, websocket, worker, ws-router, core, frontend, capacity-controller. Traefik is upstream (rare). Data pins live in [`docker-stack.data.yml`](../../../../docker-stack.data.yml); obs pins in [`docker-stack.obs.yml`](../../../../docker-stack.obs.yml) when the addon is on.
 
 | Path | Use |
 |------|-----|

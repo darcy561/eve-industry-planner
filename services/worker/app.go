@@ -4,6 +4,7 @@ import (
 	"context"
 	"eve-industry-planner/shared/stackservices"
 	"fmt"
+	"os"
 	"time"
 
 	"eve-industry-planner/shared/container"
@@ -139,7 +140,12 @@ func (a *app) startProbes(ctx context.Context) error {
 		InstanceID: container.ID(),
 		Conn:       a.clients.NATS,
 		Ready:      ready,
-		Enabled:    false,
+		Enabled:    true,
+		Fill: func(st *natscore.HealthStatus) {
+			if st != nil {
+				st.AppVersion = os.Getenv("APP_VERSION")
+			}
+		},
 	})
 	if err != nil {
 		return a.fail(err)

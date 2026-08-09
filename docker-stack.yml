@@ -83,6 +83,9 @@ x-secrets-core: &secrets-core
   - REFRESH_TOKEN_AES_KEY
   - REFRESH_TOKEN_AES_LEGACY_KEYS
 
+x-secrets-capacity: &secrets-capacity
+  - REDIS_PASSWORD
+
 # App / Traefik: start-first so the replacement is up before the old task stops.
 x-app-deploy: &app-deploy
   update_config:
@@ -237,7 +240,7 @@ services:
         - "traefik.http.services.api.loadbalancer.healthcheck.scheme=http"
         - "eip.capacity.service=api"
         - "eip.capacity.min=${EIP_API_CAPACITY_MIN:-1}"
-        - "eip.capacity.max=${EIP_API_CAPACITY_MAX:-4}"
+        - "eip.capacity.max=${EIP_API_CAPACITY_MAX:-5}"
         - "eip.capacity.sync=1"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:19100/ready"]
@@ -261,11 +264,11 @@ services:
       - api_data:/data
     deploy:
       <<: *app-deploy
-      replicas: ${EIP_WEBSOCKET_REPLICAS:-2}
+      replicas: ${EIP_WEBSOCKET_REPLICAS:-1}
       labels:
         - "eip.capacity.service=websocket"
-        - "eip.capacity.min=${EIP_WEBSOCKET_CAPACITY_MIN:-2}"
-        - "eip.capacity.max=${EIP_WEBSOCKET_CAPACITY_MAX:-12}"
+        - "eip.capacity.min=${EIP_WEBSOCKET_CAPACITY_MIN:-1}"
+        - "eip.capacity.max=${EIP_WEBSOCKET_CAPACITY_MAX:-5}"
         - "eip.capacity.sync=1"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:19100/ready"]
@@ -356,7 +359,7 @@ services:
       labels:
         - "eip.capacity.service=worker"
         - "eip.capacity.min=${EIP_WORKER_CAPACITY_MIN:-1}"
-        - "eip.capacity.max=${EIP_WORKER_CAPACITY_MAX:-2}"
+        - "eip.capacity.max=${EIP_WORKER_CAPACITY_MAX:-5}"
         - "eip.capacity.sync=1"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:19100/ready"]
@@ -391,6 +394,56 @@ services:
       interval: 5s
       timeout: 3s
       retries: 36
+      start_period: 30s
+
+  # Docker API proxy for capacity-controller — own overlay eip-docker-capacity (POST allowed for Scale).
+  capacity-docker-proxy:
+    image: tecnativa/docker-socket-proxy:v0.4.2
+    networks: [eip-docker-capacity]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      SERVICES: "1"
+      TASKS: "1"
+      POST: "1"
+      EVENTS: "0"
+      PING: "0"
+      VERSION: "0"
+    deploy:
+      <<: *proxy-deploy
+
+  capacity-controller:
+    <<: *app-stop-grace
+    image: ghcr.io/darcy561/eve-industry-planner-capacity-controller:${APP_VERSION}
+    networks: [eip-core, eip-docker-capacity]
+    dns: *common-dns
+    environment:
+      <<: [*redis-env, *nats-env]
+      APP_VERSION: ${APP_VERSION}
+      DOCKER_HOST: tcp://capacity-docker-proxy:2375
+      EIP_STACK_NAME: eip
+      EIP_CAPACITY_POLICY_PATH: /etc/eip/eip.config.yaml
+    secrets: *secrets-capacity
+    configs:
+      - source: eip_config_yaml
+        target: /etc/eip/eip.config.yaml
+    deploy:
+      <<: *app-deploy
+      replicas: 1
+      update_config:
+        order: start-first
+        parallelism: 1
+        failure_action: rollback
+        monitor: 45s
+        delay: 10s
+      labels:
+        - "eip.config.sync=1"
+        - "eip.capacity.service=capacity-controller"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:19100/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
       start_period: 30s
 
   frontend:
@@ -492,6 +545,10 @@ networks:
     name: eip-docker-ws
     driver: overlay
     attachable: false
+  eip-docker-capacity:
+    name: eip-docker-capacity
+    driver: overlay
+    attachable: false
 
 volumes:
   api_data:
@@ -503,8 +560,11 @@ volumes:
   core_data:
     name: eve-industry-planner_core_data
     external: true
-  capacity_config:
-    name: eve-industry-planner_capacity_config
   traefik_data:
     name: eve-industry-planner_traefik_data
     external: true
+
+# file: is discovery SoT for sync_swarm_configs; deploy uses hashed external overlay.
+configs:
+  eip_config_yaml:
+    file: ./eip.config.yaml

@@ -7,14 +7,13 @@ Live SoT for the **websocket** service: per-replica soft/full placement signals,
 | Piece | Default | Change |
 |-------|---------|--------|
 | Image | `ghcr.io/darcy561/eve-industry-planner-websocket:${APP_VERSION}` | [`docker-stack.yml`](../../../docker-stack.yml) `services.websocket.image` |
-| Replicas | `2` (`EIP_WEBSOCKET_REPLICAS`, from config `min`) | Template: [`yamldefaults.DefaultConfig`](../../../deployment-tool/internal/kit/templates/yamldefaults/default.go). Live: `eip.config.yaml` |
-| Capacity min / max | template `2` / `4` | same (`services.websocket.min` / `max`) |
+| Replicas | `1` (`EIP_WEBSOCKET_REPLICAS`, from config `min`) | Template: [`yamldefaults.DefaultConfig`](../../../deployment-tool/internal/kit/templates/yamldefaults/default.go). Live: `eip.config.yaml` |
+| Capacity min / max | template `1` / `5` | same (`services.websocket.min` / `max`) |
 | `target_clients` | `1500` (`WS_TARGET_CLIENTS`; `0` = soft divert off) | same → **`eip sync`** / bring-up |
 | `client_cutoff` | `2000` (`WS_CLIENT_CUTOFF`; `0` = unlimited) | same → **`eip sync`** / bring-up |
 | `reserve_capacity` | `0.20` | same (capacity-controller policy only; not enforced here) |
-| `drain_timeout` | `10m` | same (ops budget for evacuate wait; not the process stop timer) |
-| `capacity_controller_managed` | `false` | same |
-| Process stop budget | **60s** (`shutdownTimeout`; matches stack `x-app-stop-grace`) | [`app.go`](../../../services/websocket/app.go) |
+| `capacity_controller_managed` | `true` | same |
+| Process stop budget | **60s** (`lifecycle.AppStopGrace`; matches stack `x-app-stop-grace`) | [`app.go`](../../../services/websocket/app.go) / [`stop_grace.go`](../../../services/shared/lifecycle/stop_grace.go) |
 | Volume | `api_data` → `/data` | stack YAML |
 | Networks | `eip-core` only | [network.md](../../stack/network.md) |
 
@@ -79,7 +78,19 @@ Swarm start-first roll
     → OLD exits before stop_grace (60s) elapses
 ```
 
-Do **not** `docker service scale eip_websocket=N-1` on a hot replica that may be the only home for an alliance. Prefer waiting for clients to leave (or a future evacuate path), then shrink a cold empty replica. Leave ≥1 healthy non-draining backend. SIGTERM drain is the last mile of a stop.
+Do **not** `docker service scale eip_websocket=N-1` on a hot replica that may be the only home for an alliance. Prefer planned evacuate (`eip capacity evacuate <container_id>`) or wait for clients to leave, then shrink a cold empty replica. Leave ≥1 healthy non-draining backend. SIGTERM drain is the last mile of a stop.
+
+## Planned cordon / drain / uncordon
+
+Separate from roll SIGTERM drain. Capacity-controller (or operator via **`eip capacity`**) targets a live **`container_id`** over NATS request-reply:
+
+| Subject | Process effect |
+|---------|----------------|
+| `ws.command.cordon` | Soft-stop: refuse new upgrades; **Ready stays OK** (router can still see the backend); publish placement soft/draining as applicable |
+| `ws.command.drain` | Kick local clients (`please_reconnect`) and clear load; Ready fails while draining; kick wait bounded by `lifecycle.AppStopGrace` (60s); ack after kick wait ends |
+| `ws.command.uncordon` | Clear planned cordon/drain flags when empty / operator restores |
+
+Scale-in playbook (controller Evaluate when websocket is managed): **cordon → drain → wait clients empty (or drain ack / stop-grace budget) → Moby Scale(desired−1)**. Controller NATS Drain waits for the websocket process ack (same stop-grace SoT + RTT slack) — no separate YAML drain timer. Default operator YAML has `services.websocket.capacity_controller_managed: true`. Set `false` to skip automatic Apply for that role.
 
 ## Hosted-tenant query view
 

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"eve-industry-planner/shared/stackservices"
+	"os"
 	"time"
 
 	"eve-industry-planner/core/changestream"
@@ -14,6 +15,7 @@ import (
 	"eve-industry-planner/core/singleton"
 	"eve-industry-planner/core/startup"
 	"eve-industry-planner/shared/container"
+	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/orchestrationprobes"
 	"eve-industry-planner/shared/telemetry"
@@ -89,7 +91,12 @@ func (a *app) startProbes(ctx context.Context) error {
 		InstanceID: container.ID(),
 		Conn:       a.clients.NATS,
 		Ready:      health.Check,
-		Enabled:    false,
+		Enabled:    true,
+		Fill: func(st *natscore.HealthStatus) {
+			if st != nil {
+				st.AppVersion = os.Getenv("APP_VERSION")
+			}
+		},
 	})
 	if err != nil {
 		return a.fail(err)

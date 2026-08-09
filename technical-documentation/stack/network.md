@@ -6,11 +6,12 @@ Live SoT for Swarm overlay networks. Membership SoT is the stack fragments: [`do
 
 | Network | Kind | Attachable | Owner | Role |
 |---------|------|------------|-------|------|
-| **`eip-core`** | external overlay | **yes** (create-once) | `engine.Ready` from `external: true` in fragments | Mesh — data + app DNS; Traefik alias; Prometheus always. Obs exporters / Alloy dual-home when obs on. Grafana is **not** on mesh. |
+| **`eip-core`** | external overlay | **yes** (create-once) | `engine.Ready` from `external: true` in fragments | Mesh — data + app DNS; Traefik alias. Obs exporters / Alloy / Prometheus dual-home when obs on. Grafana is **not** on mesh. |
 | **`eip-public`** | stack overlay | no | app (+ obs) fragment | Edge — Traefik swarm provider ↔ frontend / api / ws-router; Grafana only when Access is **Public** ([config.md](./config.md)) |
-| **`eip-obs`** | stack overlay | yes | obs fragment | Obs overlay — Loki / Grafana / Alloy / exporters / asynqmon; Prometheus attaches when obs is on |
+| **`eip-obs`** | stack overlay | yes | obs fragment | Obs overlay — Prometheus / Loki / Grafana / Alloy / exporters / asynqmon |
 | **`eip-docker-traefik`** | stack overlay | no | app | Socket-proxy island — Traefik ↔ `traefik-docker-proxy:2375` |
 | **`eip-docker-ws`** | stack overlay | no | app | Socket-proxy island — ws-router ↔ `ws-docker-proxy:2375` |
+| **`eip-docker-capacity`** | stack overlay | no | app | Socket-proxy island — capacity-controller ↔ `capacity-docker-proxy:2375` (`POST` allowed for Scale) |
 | **`eip-docker-alloy`** | stack overlay | no | obs | Socket-proxy island — Alloy ↔ `alloy-docker-proxy:2375` |
 | Swarm **ingress** | built-in | — | Engine | Host publish for Traefik only (`mode: ingress`) |
 
@@ -25,29 +26,27 @@ Live SoT for Swarm overlay networks. Membership SoT is the stack fragments: [`do
 
 2  eip-core  (mesh overlay, external attachable)
    └─ api · websocket · worker · core · ws-router · traefik
-      · seaweedfs · mongo · redis · nats · prometheus
-      · alloy* · asynqmon* · *-exporter*
+      · capacity-controller · seaweedfs · mongo · redis · nats
+      · prometheus* · alloy* · asynqmon* · *-exporter*
 
 3  eip-obs  (obs addon overlay)*
-   └─ loki · alloy · grafana · asynqmon · exporters
-      · prometheus‡
+   └─ prometheus · loki · alloy · grafana · asynqmon · exporters
 
 4  eip-docker-*  (one proxy + one consumer each)
-   ├─ eip-docker-traefik  → traefik-docker-proxy + traefik
-   ├─ eip-docker-ws       → ws-docker-proxy + ws-router
-   └─ eip-docker-alloy*   → alloy-docker-proxy + alloy
+   ├─ eip-docker-traefik    → traefik-docker-proxy + traefik
+   ├─ eip-docker-ws         → ws-docker-proxy + ws-router
+   ├─ eip-docker-capacity   → capacity-docker-proxy + capacity-controller
+   └─ eip-docker-alloy*     → alloy-docker-proxy + alloy
 ```
 
 \* Only when `addons.observability.enabled` deploys `docker-stack.obs.yml`.  
-† Edge only when Access is **Public** — [config.md](./config.md).  
-‡ Data-fragment Prometheus; attached to `eip-obs` while the addon is on (labeled membership below).
+† Edge only when Access is **Public** — [config.md](./config.md).
 
 ## Membership matrix
 
 | Service | Fragment | Networks | Notes |
 |---------|----------|----------|-------|
 | nats / redis / mongo / seaweedfs | data | `eip-core` | DNS aliases on mesh (`mongo`, `redis`, …) |
-| prometheus | data | `eip-core`; + `eip-obs` when obs on | Mesh always; obs via labeled membership |
 | traefik-docker-proxy | app | `eip-docker-traefik` | never on mesh/edge |
 | traefik | app | `eip-core` · `eip-public` · `eip-docker-traefik` | alias `traefik` on mesh; **only** host publish |
 | frontend | app | `eip-public` | edge-only SPA |
@@ -56,18 +55,21 @@ Live SoT for Swarm overlay networks. Membership SoT is the stack fragments: [`do
 | ws-docker-proxy | app | `eip-docker-ws` | never on mesh/edge |
 | ws-router | app | `eip-core` · `eip-public` · `eip-docker-ws` | dual-home + Docker API |
 | worker / core | app | `eip-core` | mesh only |
+| capacity-docker-proxy | app | `eip-docker-capacity` | never on mesh/edge; `POST=1` for Scale |
+| capacity-controller | app | `eip-core` · `eip-docker-capacity` | mesh + Docker API; policy Swarm config mount |
+| prometheus | obs | `eip-obs` · `eip-core` | dual-home (static); only when obs on |
 | loki | obs | `eip-obs` | |
 | alloy-docker-proxy | obs | `eip-docker-alloy` | never on mesh/obs for the proxy itself |
 | alloy | obs | `eip-obs` · `eip-core` · `eip-docker-alloy` | OTLP target `alloy:4317` from apps |
 | grafana | obs | `eip-obs`; + `eip-public` when Public | Detached from `eip-core` — Access → [config.md](./config.md) |
 | asynqmon / *-exporter / node_exporter | obs | `eip-obs` · `eip-core` | dual-home so Prometheus can scrape |
 
-**Not on the edge overlay (by design):** websocket, worker, core, seaweedfs, mongo, redis, nats, prometheus; Grafana when Access is **Private**.  
+**Not on the edge overlay (by design):** websocket, worker, core, capacity-controller, seaweedfs, mongo, redis, nats, prometheus; Grafana when Access is **Private**.  
 Traefik never routes directly to websocket; `/ws` → ws-router → Docker API + mesh to `eip_websocket` tasks.
 
 ## Labeled network membership
 
-Some services need overlays that are **not** always in their static `networks:` list — e.g. Prometheus only on `eip-obs` while the addon is on, Grafana only on `eip-public` when Access is **Public**, and Grafana kept **off** `eip-core`. Stack fragments declare that intent with Swarm deploy labels; the Deployment Tool reads them and runs an idempotent attach/detach on rematerialize and **`eip sync`**.
+Some services need overlays that are **not** always in their static `networks:` list — e.g. Grafana only on `eip-public` when Access is **Public**, and Grafana kept **off** `eip-core`. Stack fragments declare that intent with Swarm deploy labels; the Deployment Tool reads them and runs an idempotent attach/detach on rematerialize and **`eip sync`**.
 
 Label **values** are Docker network **names** from fragment `x-net-*` anchors (same names as `networks.*.name`). Go resolves those strings; it does not hard-code overlay name lists.
 
@@ -77,7 +79,7 @@ Label **values** are Docker network **names** from fragment `x-net-*` anchors (s
 | `eip.network.attach.when` | Optional gate: `observability` (addon on) or `grafana.public` (Access Public). Omit = attach whenever the network is active |
 | `eip.network.detach` | Network name(s) always kept off the service |
 
-**Today’s uses:** Prometheus → attach `eip-obs` when `observability`. Grafana → detach `eip-core`; attach `eip-public` when `grafana.public`. Operator knobs for those gates → [config.md](./config.md).
+**Today’s uses:** Grafana → detach `eip-core`; attach `eip-public` when `grafana.public`. Prometheus is **static** dual-home on the obs fragment (`eip-obs` + `eip-core`) — not labeled attach. Operator knobs → [config.md](./config.md).
 
 ## Who dials whom
 
@@ -94,11 +96,13 @@ Label **values** are Docker network **names** from fragment `x-net-*` anchors (s
 | ws-router | redis | `eip-core` | placement / sticky |
 | ws-router | `eip_websocket` tasks | `eip-core` (via Docker API) | `DOCKER_HOST` → proxy |
 | ws-router | ws-docker-proxy | `eip-docker-ws` | `:2375` |
-| prometheus | traefik `:8082` · exporters · asynqmon | `eip-core` | scrapes on mesh (exporters dual-homed) |
-| prometheus | obs targets | `eip-obs` when attached | when addon on |
+| capacity-controller | capacity-docker-proxy | `eip-docker-capacity` | `:2375` (Scale / inspect) |
+| capacity-controller | redis · nats · app roles | `eip-core` | Observe / health / `ws.command.*` |
+| prometheus | traefik `:8082` · exporters · asynqmon | `eip-core` | scrapes on mesh when obs on |
+| prometheus | loki / grafana / obs targets | `eip-obs` | when addon on |
 | alloy | loki · prometheus | `eip-obs` / `eip-core` | log + remote write |
 | alloy | alloy-docker-proxy | `eip-docker-alloy` | container discovery |
-| grafana | prometheus · loki | `eip-obs` (prom dual-homed) | datasources |
+| grafana | prometheus · loki | `eip-obs` | datasources |
 | apps (OTLP) | alloy `:4317` | `eip-core` | when obs on |
 
 ## Traefik provider networks

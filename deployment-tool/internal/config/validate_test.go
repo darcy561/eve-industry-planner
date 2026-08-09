@@ -62,6 +62,16 @@ func TestValidateRejects(t *testing.T) {
 			s.ClientCutoff = 50
 			c.Services["websocket"] = s
 		}, "target_clients"},
+		{"reserve >= 1", func(c *Config) {
+			s := c.Services["websocket"]
+			s.ReserveCapacity = 1
+			c.Services["websocket"] = s
+		}, "reserve_capacity"},
+		{"reserve neg", func(c *Config) {
+			s := c.Services["websocket"]
+			s.ReserveCapacity = -0.1
+			c.Services["websocket"] = s
+		}, "reserve_capacity"},
 		{"bad http port", func(c *Config) { c.Ports.HTTP = 70000 }, "ports.http"},
 		{"path no slash", func(c *Config) { c.Paths.Grafana = "grafana" }, "paths.grafana"},
 		{"ip as cidr", func(c *Config) { c.Proxy.TrustedIPs = []string{"10.0.0.0/8"} }, "trusted_ips"},

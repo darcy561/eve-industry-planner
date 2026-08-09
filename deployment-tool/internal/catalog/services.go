@@ -51,7 +51,7 @@ type Group struct {
 // repair force-update, image reconcile). Unlisted candidates follow in sorted order.
 func RestartPrefer() []string {
 	return []string{
-		"traefik", "api", "websocket", "worker", "ws-router", "core", "frontend",
+		"traefik", "api", "websocket", "worker", "ws-router", "core", "capacity-controller", "frontend",
 		"mongo", "redis", "nats", "seaweedfs", "prometheus",
 	}
 }
@@ -97,8 +97,10 @@ func Groups() []Group {
 				{Short: "ws-router", Label: "Websocket router"},
 				{Short: "worker", Label: "Background worker"},
 				{Short: "core", Label: "Core"},
+				{Short: "capacity-controller", Label: "Capacity controller"},
 				{Short: "traefik-docker-proxy", Label: "Traefik helper"},
 				{Short: "ws-docker-proxy", Label: "Websocket helper"},
+				{Short: "capacity-docker-proxy", Label: "Capacity helper"},
 			},
 		},
 		{
@@ -110,7 +112,6 @@ func Groups() []Group {
 				{Short: "redis", Label: "Cache"},
 				{Short: "nats", Label: "Messaging"},
 				{Short: "seaweedfs", Label: "Object store"},
-				{Short: ServicePrometheus, Label: "Prometheus"},
 			},
 		},
 		{
@@ -118,6 +119,7 @@ func Groups() []Group {
 			Fragment: FragmentObs,
 			Critical: false,
 			Services: []Service{
+				{Short: ServicePrometheus, Label: "Prometheus"},
 				{Short: ServiceGrafana, Label: "Grafana"},
 				{Short: "loki", Label: "Loki"},
 				{Short: "alloy", Label: "Alloy"},

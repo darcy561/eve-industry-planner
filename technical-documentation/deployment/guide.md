@@ -62,7 +62,7 @@ Edit `.env` with real values (SSO, domains, optional Sentry, Grafana passwords, 
 ./eip up
 ```
 
-Deploys the Swarm **data** fragment (mongo / redis / nats / SeaweedFS / Prometheus) and **app** fragment (Traefik, api, websocket, worker, ws-router, core, frontend), then data-plane Ready (`EnsureS3` ‖ `EnsureMongo`). Topology → [stack.md](../stack/stack.md), [network.md](../stack/network.md).
+Deploys the Swarm **data** fragment (mongo / redis / nats / SeaweedFS) and **app** fragment (Traefik, api, websocket, worker, ws-router, core, frontend, capacity-controller), then data-plane Ready (`EnsureS3` ‖ `EnsureMongo`). Optional obs (including Prometheus) via `addons.observability.enabled`. Topology → [stack.md](../stack/stack.md), [network.md](../stack/network.md).
 
 **Local bake** (git clone): `./eip dev` instead of `eip up`.
 
@@ -88,9 +88,9 @@ Fragments and membership → [stack.md](../stack/stack.md). Overlays → [networ
 
 | Layer | Services (short) |
 |-------|------------------|
-| **Data** | mongo, redis, nats, seaweedfs, **prometheus** |
-| **App** | traefik, frontend, api, websocket, worker, ws-router, core |
-| **Obs** (optional) | grafana, loki, alloy, exporters, asynqmon, node_exporter — toggle `addons.observability.enabled` → [config.md](../stack/config.md) |
+| **Data** | mongo, redis, nats, seaweedfs |
+| **App** | traefik, frontend, api, websocket, worker, ws-router, core, capacity-controller |
+| **Obs** (optional) | prometheus, grafana, loki, alloy, exporters, asynqmon, node_exporter — toggle `addons.observability.enabled` → [config.md](../stack/config.md) |
 
 Service behaviour: [ws-router](../backend/ws-router/ws-router.md), [websocket](../backend/websocket/websocket.md), [worker](../backend/worker/worker.md), [core](../backend/core/core.md).
 

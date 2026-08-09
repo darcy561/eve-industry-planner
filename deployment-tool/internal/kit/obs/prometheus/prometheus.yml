@@ -1,9 +1,9 @@
-# Prometheus scrape config (Swarm data fragment: eip_prometheus on eip-core).
-# Always-on lean + exporter targets. Exporters / asynqmon / node_exporter live in
-# docker-stack.obs.yml (also dual-homed on eip-core for DNS). Those jobs fail soft
-# when the obs addon is not deployed — Prom stays up for app/Traefik scrapes.
+# Prometheus scrape config (Swarm observability fragment: eip_prometheus on eip-obs + eip-core).
+# Deployed only when addons.observability.enabled. Dual-homes eip-core so scrape targets resolve.
+# Exporters / asynqmon / node_exporter live in the same obs fragment.
 #
 # App OTLP metrics arrive via Alloy remote_write (job=otel_collector), not scrape.
+# Capacity-controller Evaluate does not query Prometheus.
 #
 # Reload after edit: hash-diff config sync (`eip sync`), or inside the task:
 #   wget -qO- --post-data='' http://localhost:9090/-/reload
@@ -42,7 +42,7 @@ scrape_configs:
       - targets: ["mongodb-exporter:9216"]
     metrics_path: /metrics
 
-  # Host metrics: prom/node-exporter (:9100). Controller host-headroom later — not #18 v1.
+  # Host metrics: prom/node-exporter (:9100). Capacity Evaluate does not use host headroom today.
   - job_name: node
     static_configs:
       - targets: ["node-exporter:9100"]

@@ -108,7 +108,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [api, websocket, worker, core, frontend, ws-router]
+        service: [api, websocket, worker, core, frontend, ws-router, capacity-controller]
 
     steps:
       - name: Checkout

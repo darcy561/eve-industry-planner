@@ -4,10 +4,12 @@ import (
 	"context"
 	"eve-industry-planner/shared/stackservices"
 	"fmt"
+	"os"
 	"time"
 
 	"eve-industry-planner/api/helper/sdecache"
 	"eve-industry-planner/shared/container"
+	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/orchestrationprobes"
 	"eve-industry-planner/shared/telemetry"
@@ -87,7 +89,12 @@ func (a *app) startProbes(ctx context.Context) error {
 		InstanceID: container.ID(),
 		Conn:       a.clients.NATS,
 		Ready:      ready,
-		Enabled:    false,
+		Enabled:    true,
+		Fill: func(st *natscore.HealthStatus) {
+			if st != nil {
+				st.AppVersion = os.Getenv("APP_VERSION")
+			}
+		},
 	})
 	if err != nil {
 		return a.fail(err)
