@@ -84,11 +84,6 @@ func ConnectPrimary() (*Mongo, error) {
 	return mongoFromURL(config.MongoURL)
 }
 
-// ConnectAPI connects with API credentials when set (else shared) and returns a [Mongo] handle.
-func ConnectAPI() (*Mongo, error) {
-	return mongoFromURL(config.MongoURLAPI)
-}
-
 // monitorMongoConnection periodically Pings the shared client for observability.
 // The driver recovers via SDAM and the connection pool; this loop does not rebuild the client.
 func monitorMongoConnection(client *mongo.Client) {

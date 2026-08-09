@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	natscore "eve-industry-planner/shared/core/nats"
+	"eve-industry-planner/testing/harness"
 
 	natslib "github.com/nats-io/nats.go"
 )
@@ -68,7 +69,7 @@ func (w *placementWatcher) idsWhere(match func(natscore.PlacementState) bool) []
 }
 
 func connectNATS() (*natslib.Conn, error) {
-	return natscore.Connect()
+	return harness.ConnectNATS()
 }
 
 func startPlacementWatch(nc *natslib.Conn) (*placementWatcher, error) {

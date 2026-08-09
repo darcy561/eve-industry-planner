@@ -85,17 +85,29 @@ func (s *Swarm) Observe(ctx context.Context) (State, error) {
 		}
 		out.Services[svc] = ss
 	}
+	s.linkAPIPressureFromWS(&out)
 	return out, nil
 }
 
 // ObserveService builds State for one managed service (per-service control loop).
+// For api, also includes websocket so Evaluate can link api Scale to WS client load.
 func (s *Swarm) ObserveService(ctx context.Context, svc Service) (State, error) {
 	healthBySvc, _ := s.pingHealth(ctx)
-	ss, err := s.observeService(ctx, svc, s.cfg(), healthBySvc[string(svc)])
+	cfg := s.cfg()
+	ss, err := s.observeService(ctx, svc, cfg, healthBySvc[string(svc)])
 	if err != nil {
 		return State{}, err
 	}
-	return State{Services: map[Service]ServiceState{svc: ss}}, nil
+	out := State{Services: map[Service]ServiceState{svc: ss}}
+	if svc == ServiceAPI {
+		ws, werr := s.observeService(ctx, ServiceWebsocket, cfg, healthBySvc[string(ServiceWebsocket)])
+		if werr != nil {
+			return out, nil // api-only; Evaluate holds without WS signal
+		}
+		out.Services[ServiceWebsocket] = ws
+		s.linkAPIPressureFromWS(&out)
+	}
+	return out, nil
 }
 
 func (s *Swarm) cfg() config.Config {
@@ -260,35 +272,89 @@ func (s *Swarm) stampPressure(svc Service, ss *ServiceState) {
 			}
 		}
 	case ServiceWebsocket:
-		if len(ss.Backends) > 0 && ss.TargetClients > 0 {
-			total := 0
-			for _, b := range ss.Backends {
-				total += b.Clients
-			}
-			avg := float64(total) / float64(len(ss.Backends))
-			reserve := ss.ReserveCapacity
-			if reserve < 0 {
-				reserve = 0
-			}
-			if reserve >= 1 {
-				reserve = 0.99
-			}
-			if avg > float64(ss.TargetClients)*(1-reserve) {
-				up = true
-			}
-			drainingEmpty := false
-			for _, b := range ss.Backends {
-				if b.Draining && b.Clients == 0 {
-					drainingEmpty = true
-					break
-				}
-			}
-			if drainingEmpty && avg <= float64(ss.TargetClients)*0.35 {
-				down = true
-			}
-		}
+		up, down = wsClientPressure(*ss)
+	case ServiceAPI:
+		// Pressure comes from websocket clients via linkAPIPressureFromWS.
 	}
 
+	s.applyPressure(svc, ss, now, up, down)
+}
+
+// linkAPIPressureFromWS stamps api up/down pressure from websocket client load
+// (pragmatic proxy until api has its own request signal).
+func (s *Swarm) linkAPIPressureFromWS(st *State) {
+	if st == nil || st.Services == nil {
+		return
+	}
+	api, ok := st.Services[ServiceAPI]
+	if !ok {
+		return
+	}
+	ws, ok := st.Services[ServiceWebsocket]
+	if !ok {
+		return
+	}
+	up, down := wsClientPressure(ws)
+	// Scale-down for api is plain Scale when underutilized (no WS drain gate).
+	if !up && wsClientUnderutilized(ws) && api.DesiredReplicas > api.Min {
+		down = true
+	}
+	s.applyPressure(ServiceAPI, &api, time.Now().UTC(), up, down)
+	st.Services[ServiceAPI] = api
+}
+
+func wsClientPressure(ss ServiceState) (up, down bool) {
+	avg, ok := wsClientAvg(ss)
+	if !ok || ss.TargetClients <= 0 {
+		return false, false
+	}
+	reserve := ss.ReserveCapacity
+	if reserve < 0 {
+		reserve = 0
+	}
+	if reserve >= 1 {
+		reserve = 0.99
+	}
+	if avg > float64(ss.TargetClients)*(1-reserve) {
+		up = true
+	}
+	d := ss.DesiredReplicas
+	if d <= 0 {
+		d = ss.Running
+	}
+	if !up && d > ss.Min && avg <= float64(ss.TargetClients)*0.35 {
+		down = true
+	}
+	return up, down
+}
+
+func wsClientUnderutilized(ss ServiceState) bool {
+	avg, ok := wsClientAvg(ss)
+	if !ok || ss.TargetClients <= 0 {
+		return false
+	}
+	return avg <= float64(ss.TargetClients)*0.35
+}
+
+func wsClientAvg(ss ServiceState) (avg float64, ok bool) {
+	n := len(ss.Backends)
+	if n == 0 {
+		n = ss.Running
+	}
+	if n == 0 {
+		return 0, false
+	}
+	total := 0
+	if len(ss.Backends) > 0 {
+		for _, b := range ss.Backends {
+			total += b.Clients
+		}
+		return float64(total) / float64(len(ss.Backends)), true
+	}
+	return 0, true
+}
+
+func (s *Swarm) applyPressure(svc Service, ss *ServiceState, now time.Time, up, down bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if up {
@@ -298,6 +364,7 @@ func (s *Swarm) stampPressure(svc Service, ss *ServiceState) {
 		ss.PressureUpSince = s.pressureUp[svc]
 	} else {
 		s.pressureUp[svc] = time.Time{}
+		ss.PressureUpSince = time.Time{}
 	}
 	if down {
 		if s.pressureDown[svc].IsZero() {
@@ -306,6 +373,7 @@ func (s *Swarm) stampPressure(svc Service, ss *ServiceState) {
 		ss.PressureDownSince = s.pressureDown[svc]
 	} else {
 		s.pressureDown[svc] = time.Time{}
+		ss.PressureDownSince = time.Time{}
 	}
 }
 

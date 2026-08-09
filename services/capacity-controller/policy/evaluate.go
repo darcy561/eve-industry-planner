@@ -68,7 +68,19 @@ func EvaluateService(svc cluster.Service, state cluster.State, cfg config.Config
 			plan.WaitAtLeast = w
 		}
 	case cluster.ServiceAPI:
-		plan.Summary = "hold"
+		ws, hasWS := state.Services[cluster.ServiceWebsocket]
+		if !hasWS {
+			plan.Summary = "hold"
+			break
+		}
+		if a, w, summary := evaluateAPI(ss, ws, cfg.ScaleTiming, now); a != nil {
+			plan.Actions = append(plan.Actions, *a)
+			plan.Summary = summary
+			plan.WaitAtLeast = w
+		} else {
+			plan.Summary = summary
+			plan.WaitAtLeast = w
+		}
 	default:
 		plan.Summary = "hold"
 	}
@@ -228,6 +240,68 @@ func evaluateWebsocket(ss cluster.ServiceState, timing config.ScaleTiming, now t
 			}
 			return nil, remainingStab(ss.PressureDownSince, downStab, now), "websocket cordon stabilizing"
 		}
+	}
+
+	return nil, 0, "hold"
+}
+
+// evaluateAPI scales api replicas from websocket client load (same reserve /
+// underutilized thresholds as websocket). Approximation until api has its own
+// request signal. Plain Scale only — no cordon/drain.
+func evaluateAPI(api, ws cluster.ServiceState, timing config.ScaleTiming, now time.Time) (*Action, time.Duration, string) {
+	if !api.Managed {
+		return nil, 0, "hold"
+	}
+
+	n := len(ws.Backends)
+	if n == 0 {
+		n = ws.Running
+	}
+	if n == 0 {
+		return nil, 0, "hold"
+	}
+	totalClients := 0
+	for _, b := range ws.Backends {
+		totalClients += b.Clients
+	}
+	avg := float64(totalClients) / float64(n)
+
+	target := ws.TargetClients
+	if target <= 0 {
+		return nil, 0, "hold"
+	}
+	reserve := ws.ReserveCapacity
+	if reserve < 0 {
+		reserve = 0
+	}
+	if reserve >= 1 {
+		reserve = 0.99
+	}
+	threshold := float64(target) * (1 - reserve)
+
+	d := api.DesiredReplicas
+	if d <= 0 {
+		d = api.Running
+	}
+
+	upStab := timing.ScaleUpStabilization.Duration()
+	downStab := timing.ScaleDownStabilization.Duration()
+
+	if avg > threshold && d < api.Max {
+		if sustained(api.PressureUpSince, upStab, now) {
+			next := d + 1
+			return scaleAction(cluster.ServiceAPI, next, "api linked to websocket client load"), 0, fmt.Sprintf("scale api %d→%d", d, next)
+		}
+		return nil, remainingStab(api.PressureUpSince, upStab, now), "api scale-up stabilizing"
+	}
+
+	underutilized := avg <= float64(target)*0.35
+	if d > api.Min && underutilized {
+		if sustained(api.PressureDownSince, downStab, now) {
+			next := d - 1
+			return scaleAction(cluster.ServiceAPI, next, "api linked to websocket underutilized"), 0, fmt.Sprintf("scale api %d→%d", d, next)
+		}
+		return nil, remainingStab(api.PressureDownSince, downStab, now), "api scale-down stabilizing"
 	}
 
 	return nil, 0, "hold"

@@ -89,7 +89,7 @@ Each doc separates:
 
 Pack Outcomes locked (Phase 0). Phases A–D landed 2026-08-09:
 
-- [x] v1-scope — Apply when managed; template default **true** for worker/websocket/api (api Evaluate still holds)
+- [x] v1-scope — Apply when managed; template default **true** for worker/websocket/api; api Scale from WS client load
 - [x] packages-loop — main loop under `lease:capacity:primary`; scale-in plan kinds cordon/drain/scale
 - [x] cluster-api — Swarm Observe/Scale + Cordon/Drain/Uncordon via NATS Request; Fake Uncordon + drain-state updates
 - [x] observe-signals — Moby + Redis Asynq + NATS health (`StartBus` + StatusFill)
@@ -103,6 +103,6 @@ Pack Outcomes locked (Phase 0). Phases A–D landed 2026-08-09:
 - [x] evacuate-ops — playbook + ctl/`eip capacity` verbs; Apply gated by managed
 - [x] dry-run-fixtures — Evaluate/Fake; unmanaged roles skip Apply
 - [x] go-fix-pretest (scoped `go fix -diff` each Go phase; D clean)
-- [x] #29 management sim + **live SoT promote** (stack / network / config / verbs / websocket / guide / testing)
+- [x] #29 management sim + **live SoT aligned to code** ([capacity-controller.md](../../../stack/capacity-controller.md) + stack/network/config/verbs/websocket/guide/testing)
 
-**Remainders (not pack blockers):** WS managed soak flip; pin/move tenant; hosted census parked.
+**Remainders (not pack blockers):** none for soak. **Pin/move scrapped for now.** Hosted census parked.

@@ -23,10 +23,10 @@ Index: [contents.md](./contents.md).
 | #15 | done | [15-obs-labels.md](./overlays/15-obs-labels.md) |
 | #16 | done | [16-frontend-swarm.md](./overlays/16-frontend-swarm.md) |
 | #17 | done | [17-operator-surface.md](./overlays/17-operator-surface.md) |
-| #18 | partial — A–D landed; WS soak + pin/move remain | [18-capacity-controller.md](./overlays/18-capacity-controller.md) · [18-capacity-controller/](./18-capacity-controller/) · [promote/](./promote/README.md) |
+| #18 | **done** — A–D + docs promote + WS soak sign-off; **pin/move scrapped** | [18-capacity-controller.md](./overlays/18-capacity-controller.md) · [18-capacity-controller/](./18-capacity-controller/) · [promote/](./promote/README.md) |
 | #19 | **done** — sync + Load + mount + promote | [19-operator-yaml-sync-controller-schema.md](./overlays/19-operator-yaml-sync-controller-schema.md) |
 | #20 | **done** — product + live SoT promote (2026-08-08) | [20-selective-fanout.md](./overlays/20-selective-fanout.md) · [20-selective-fanout/](./20-selective-fanout/) · [promote/](./promote/README.md) |
-| #21 | partial — evacuate/`eip capacity` + promote; pin/move + WS soak open | [21-controller-evacuate-ops.md](./overlays/21-controller-evacuate-ops.md) · [18-capacity-controller/evacuate-ops.md](./18-capacity-controller/evacuate-ops.md) |
+| #21 | **done** (evacuate/`eip capacity` + soak); **pin/move scrapped** | [21-controller-evacuate-ops.md](./overlays/21-controller-evacuate-ops.md) · [18-capacity-controller/evacuate-ops.md](./18-capacity-controller/evacuate-ops.md) |
 | #22 | **done** — absorbed into `eip update` / #23 | [22-data-plane-updates.md](./overlays/22-data-plane-updates.md) |
 | #23 | done | [23-app-image-ship.md](./overlays/23-app-image-ship.md) |
 | #24 | done | [24-secrets-day2.md](./overlays/24-secrets-day2.md) |

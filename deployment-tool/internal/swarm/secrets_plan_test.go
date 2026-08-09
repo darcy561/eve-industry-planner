@@ -45,12 +45,12 @@ func TestValidateEnvMissingRequired(t *testing.T) {
 func TestCollectSecretPayloads(t *testing.T) {
 	t.Parallel()
 	env := filledRequiredEnv()
-	env["REDIS_PASSWORD_API"] = "opt" // optional set
+	env["FEEDBACK_DISCORD_WEBHOOK_URL"] = "opt" // optional set
 	got, err := collectSecretPayloads(env, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got["REDIS_PASSWORD_API"] != "opt" {
+	if got["FEEDBACK_DISCORD_WEBHOOK_URL"] != "opt" {
 		t.Fatalf("optional missing: %#v", got)
 	}
 	if len(got) != len(RequiredKeys)+1 {
@@ -64,7 +64,7 @@ func TestCollectSecretPayloadsOmitsUnsetOptional(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := got["REDIS_PASSWORD_API"]; ok {
+	if _, ok := got["FEEDBACK_DISCORD_WEBHOOK_URL"]; ok {
 		t.Fatal("unset optional should be omitted")
 	}
 }

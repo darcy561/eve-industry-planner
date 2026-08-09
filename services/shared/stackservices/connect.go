@@ -43,19 +43,10 @@ type Clients struct {
 	ObjectStore objectstore.Backend
 }
 
-// Connect opens clients for the selected stack services with shared DB creds.
+// Connect opens clients for the selected stack services with shared DB creds
+// (MONGO_USERNAME / MONGO_PASSWORD, REDIS_PASSWORD).
 // On error, any partial connections are closed and the stop func is a no-op.
 func Connect(ctx context.Context, services Services) (*Clients, func(context.Context), error) {
-	return connect(ctx, false, services)
-}
-
-// ConnectAPI is Connect using eipmongo.ConnectAPI / redis.ConnectAPI
-// (MONGO_*_API / REDIS_*_API when set). Call from the api role only.
-func ConnectAPI(ctx context.Context, services Services) (*Clients, func(context.Context), error) {
-	return connect(ctx, true, services)
-}
-
-func connect(ctx context.Context, apiCreds bool, services Services) (*Clients, func(context.Context), error) {
 	clients := &Clients{}
 	var cleanups []func(context.Context)
 
@@ -74,13 +65,7 @@ func connect(ctx context.Context, apiCreds bool, services Services) (*Clients, f
 	}
 
 	if services.Mongo {
-		var mongoHandle *eipmongo.Mongo
-		var err error
-		if apiCreds {
-			mongoHandle, err = eipmongo.ConnectAPI()
-		} else {
-			mongoHandle, err = eipmongo.ConnectPrimary()
-		}
+		mongoHandle, err := eipmongo.ConnectPrimary()
 		if err != nil {
 			return fail(fmt.Errorf("failed to connect to mongo: %w", err))
 		}
@@ -99,13 +84,7 @@ func connect(ctx context.Context, apiCreds bool, services Services) (*Clients, f
 	}
 
 	if services.Redis {
-		var redisClient *redislib.Client
-		var err error
-		if apiCreds {
-			redisClient, err = redis.ConnectAPI()
-		} else {
-			redisClient, err = redis.Connect()
-		}
+		redisClient, err := redis.Connect()
 		if err != nil {
 			return fail(fmt.Errorf("failed to connect to redis: %w", err))
 		}

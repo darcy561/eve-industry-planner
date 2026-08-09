@@ -31,7 +31,7 @@ services/capacity-controller/
   loops.go          // errgroup shell + shared serviceLoop tick
   loop_worker.go    // workerLoop + applyWorker (scale)
   loop_websocket.go // websocketLoop + applyWebsocket (scale/cordon/drain)
-  loop_api.go       // apiLoop + applyAPI (hold)
+  loop_api.go       // apiLoop + applyAPI (Scale linked to WS clients)
   ctl/              // status|plan|cordon|uncordon|drain|evacuate
   policy/           // EvaluateService / Evaluate (pure; no Moby imports)
   cluster/          // Cluster + Swarm (Moby Scale; NATS Cordon/Drain/Uncordon)

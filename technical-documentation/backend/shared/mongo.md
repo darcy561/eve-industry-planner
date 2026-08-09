@@ -10,8 +10,7 @@ Stack image / data fragment → [stack contents](../../stack/contents.md). Day-2
 |-------|---------|--------|
 | Driver | `go.mongodb.org/mongo-driver/v2` | `services/go.mod` |
 | Database name | pinned in package (`DatabaseName`) | `services/shared/mongo` |
-| Connect (shared creds) | `ConnectPrimary` | URL from config / secrets |
-| Connect (API prefer) | `ConnectAPI` | optional `MONGO_*_API` with shared fallback |
+| Connect | `ConnectPrimary` | shared `MONGO_USERNAME` / `MONGO_PASSWORD` |
 | Boot connect attempts | `5` × 5s delay | `services/shared/mongo/connect.go` |
 | Client timeouts / pool | connect/serverSelection/timeout 10s; max pool 10; min 1; heartbeat 10s | same |
 | Retry writes / reads | enabled on client | same |

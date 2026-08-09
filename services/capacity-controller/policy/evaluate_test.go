@@ -336,3 +336,83 @@ func TestEvaluate_unknownQueueDepthHolds(t *testing.T) {
 		t.Fatalf("want missing queue depth hold, got %+v", plan)
 	}
 }
+
+func TestEvaluate_apiScalesUpFromWebsocketClients(t *testing.T) {
+	// WS avg 1350 > 1500*(1-0.2)=1200 → scale api 1→2
+	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	st := cluster.State{
+		Services: map[cluster.Service]cluster.ServiceState{
+			cluster.ServiceAPI: {
+				DesiredReplicas: 1,
+				Running:         1,
+				Managed:         true,
+				Min:             1,
+				Max:             4,
+				PressureUpSince: now.Add(-2 * time.Minute),
+			},
+			cluster.ServiceWebsocket: {
+				DesiredReplicas: 2,
+				Running:         2,
+				TargetClients:   1500,
+				ReserveCapacity: 0.2,
+				Backends: []cluster.BackendState{
+					{ContainerID: "a", Clients: 1350, Ready: true, Healthy: true},
+					{ContainerID: "b", Clients: 1350, Ready: true, Healthy: true},
+				},
+			},
+		},
+	}
+	plan := policy.EvaluateService(cluster.ServiceAPI, st, baseCfg(), now)
+	if len(plan.Actions) != 1 || plan.Actions[0].Service != cluster.ServiceAPI || plan.Actions[0].Desired == nil || *plan.Actions[0].Desired != 2 {
+		t.Fatalf("plan=%+v", plan)
+	}
+}
+
+func TestEvaluate_apiScalesDownWhenWebsocketUnderutilized(t *testing.T) {
+	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	st := cluster.State{
+		Services: map[cluster.Service]cluster.ServiceState{
+			cluster.ServiceAPI: {
+				DesiredReplicas:   3,
+				Running:           3,
+				Managed:           true,
+				Min:               1,
+				Max:               4,
+				PressureDownSince: now.Add(-10 * time.Minute),
+			},
+			cluster.ServiceWebsocket: {
+				DesiredReplicas: 2,
+				Running:         2,
+				TargetClients:   1500,
+				ReserveCapacity: 0.2,
+				Backends: []cluster.BackendState{
+					{ContainerID: "a", Clients: 100, Ready: true, Healthy: true},
+					{ContainerID: "b", Clients: 100, Ready: true, Healthy: true},
+				},
+			},
+		},
+	}
+	plan := policy.EvaluateService(cluster.ServiceAPI, st, baseCfg(), now)
+	if len(plan.Actions) != 1 || plan.Actions[0].Desired == nil || *plan.Actions[0].Desired != 2 {
+		t.Fatalf("want scale api 3→2, got %+v", plan)
+	}
+}
+
+func TestEvaluate_apiHoldsWithoutWebsocketState(t *testing.T) {
+	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	st := cluster.State{
+		Services: map[cluster.Service]cluster.ServiceState{
+			cluster.ServiceAPI: {
+				DesiredReplicas: 1,
+				Running:         1,
+				Managed:         true,
+				Min:             1,
+				Max:             4,
+			},
+		},
+	}
+	plan := policy.EvaluateService(cluster.ServiceAPI, st, baseCfg(), now)
+	if len(plan.Actions) != 0 || plan.Summary != "hold" {
+		t.Fatalf("want hold without ws, got %+v", plan)
+	}
+}

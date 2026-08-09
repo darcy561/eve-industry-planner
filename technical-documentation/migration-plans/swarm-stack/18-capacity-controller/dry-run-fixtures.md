@@ -13,7 +13,7 @@ Prove cluster-shape decisions without mutating Swarm. Recording cluster must sho
 
 ## Trade-offs
 
-WS fixtures may still plan while WS unmanaged — documents future Apply without flipping managed.
+Evaluate may emit plans for unmanaged roles; Apply no-ops until Managed — fixtures cover both.
 
 ## Outcome
 

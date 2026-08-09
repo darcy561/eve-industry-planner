@@ -1,7 +1,7 @@
 # #29 — Management ops simulator (evacuate / move / cordon / roll)
 
 **Roadmap:** [../roadmap.md](../roadmap.md) `#29`  
-**Status (mirror):** **done** 2026-08-09 — Fake playbook sim + CI path; live armed drills documented; pin/move deferred with #21  
+**Status (mirror):** **done** 2026-08-09 — Fake playbook sim + CI path; live armed drills documented; pin/move **scrapped for now** (was deferred with #21)  
 **Not live SoT.** On overlap with live docs, this overlay wins until promote (then history only).
 
 ## What changed
@@ -9,7 +9,7 @@
 - **CI (no Swarm):** `TestManagementSim_websocketEvacuatePlaybook` — Fake cordon → drain → scale under Evaluate+Apply (`services/capacity-controller/executor/management_sim_test.go`). Fake updates backend draining/clients on Cordon/Drain/Uncordon.
 - **Operator dry-run:** `eip capacity status|plan` against live Observe.
 - **Live drills:** `eip capacity cordon|drain|evacuate|uncordon`; optional #26 soak clients for reconnect evidence.
-- Pin/move tenant drills **not** in v1 (follow #21 remainders).
+- Pin/move tenant drills **scrapped for now** (do not track as #21 remainder)
 
 ## How this part works after the change
 
@@ -26,8 +26,11 @@ Promote testing map: [testing/services/capacity-controller.md](../../../testing/
 
 ## Still open
 
-- Pin / move tenant sim (with #21)
-- Live soak flip of `services.websocket.capacity_controller_managed`
+- Live soak **sign-off** for managed websocket (and optionally api) capacity scale-up/down — managed default already **true**
+
+## Scrapped for now
+
+- Pin / move tenant sim
 
 ## Missing live SoT discovered mid-work
 

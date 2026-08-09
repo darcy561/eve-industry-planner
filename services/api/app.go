@@ -48,7 +48,7 @@ func (a *app) connectDeps(ctx context.Context) error {
 	}
 	a.g.AddApp(func(c context.Context) { _ = teleShutdown(c) })
 
-	clients, stopDeps, err := stackservices.ConnectAPI(ctx, stackservices.Services{
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Services{
 		Mongo: true, NATS: true, Redis: true, ObjectStore: true,
 	})
 	if err != nil {

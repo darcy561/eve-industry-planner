@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
-	natslib "github.com/nats-io/nats.go"
+	"eve-industry-planner/testing/harness"
 )
 
-// Run executes cfg.Profile against a live stack.
+// Run executes cfg.Profile / cfg.Phase against a live stack.
 func Run(ctx context.Context, cfg Config) error {
 	cfg = cfg.withDefaults()
 	p, err := ParseProfile(string(cfg.Profile))
@@ -18,8 +17,13 @@ func Run(ctx context.Context, cfg Config) error {
 		return err
 	}
 	cfg.Profile = p
+	ph, err := ParsePhase(string(cfg.Phase))
+	if err != nil {
+		return err
+	}
+	cfg.Phase = ph
 
-	nc, err := connectNATS()
+	nc, err := harness.ConnectNATS()
 	if err != nil {
 		return err
 	}
@@ -35,25 +39,16 @@ func Run(ctx context.Context, cfg Config) error {
 	} else {
 		fmt.Printf("capacity_soak: docker observe via %s\n", strings.TrimSpace(os.Getenv("DOCKER_HOST")))
 	}
+	fmt.Printf("capacity_soak: profile=%s phase=%s\n", cfg.Profile, cfg.Phase)
 
 	switch cfg.Profile {
 	case ProfileWorker:
 		return runWorker(ctx, obs, cfg)
 	case ProfileWebsocket:
 		return runWebsocket(ctx, obs, cfg)
+	case ProfileAPI:
+		return runAPI(ctx, obs, cfg)
 	default:
 		return fmt.Errorf("unknown profile %q", cfg.Profile)
 	}
-}
-
-func connectNATS() (*natslib.Conn, error) {
-	url := strings.TrimSpace(os.Getenv("NATS_URL"))
-	if url == "" {
-		url = "nats://nats:4222"
-	}
-	nc, err := natslib.Connect(url, natslib.Name("capacity_soak"), natslib.Timeout(5*time.Second))
-	if err != nil {
-		return nil, fmt.Errorf("nats: %w", err)
-	}
-	return nc, nil
 }

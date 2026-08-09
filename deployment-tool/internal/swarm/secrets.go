@@ -36,10 +36,6 @@ var RequiredKeys = []string{
 
 // OptionalKeys are created/attached only when set in .env.
 var OptionalKeys = []string{
-	"MONGO_USERNAME_API",
-	"MONGO_PASSWORD_API",
-	"REDIS_USERNAME_API",
-	"REDIS_PASSWORD_API",
 	"REFRESH_TOKEN_AES_LEGACY_KEYS",
 	"FEEDBACK_DISCORD_WEBHOOK_URL",
 }

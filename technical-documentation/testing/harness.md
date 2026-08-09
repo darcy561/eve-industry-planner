@@ -15,31 +15,45 @@ Live SoT for cross-cutting **ops soak / harness packages** under [`services/test
 
 | Package | Depth | What it covers |
 |---------|-------|----------------|
-| `testing/ws_soak/lib` (`soaklib`) | **Tested** (unit) / **ops** (live stack) | Hold / limits / pressure placement; **fanout** phased ramp then JetStream publish; inventory-capped `tenantGen` + `churnPool`; soft stop (freeze → drain expects → stop workers); leave-timeout force-leave (non-fatal); exact delivery (`deliveryTracker`); ready-settle; leave-waits-pending; cheap WS frame parse; JetStream publish (Mongo stubbed). |
+| `testing/harness` | **Tested** (unit) | Shared `ConnectNATS`, `PollUntil`, `AsynqRedisOpt` / `CapacitySoakNoop` |
+| `testing/ws_soak/lib` (`soaklib`) | **Tested** (unit) / **ops** (live stack) | Hold / limits / pressure placement; **fanout**; `tenantGen` + `churnPool`; delivery tracker; JetStream publish (Mongo stubbed). **SoT for WS client seed/dial.** |
 | `testing/ws_soak` | CLI | Thin `main.go` → `soaklib.Run` (flags only) |
-| `testing/capacity_soak/lib` (`capsoak`) | **Tested** (unit) / **ops** (live stack) | Worker: pause Asynq queue → enqueue pending → wait scale-up → unpause → wait scale-down. Websocket: soaklib hold load → wait scale-up → cancel load → wait cordon/drain/scale-down. Observe via Docker (`DOCKER_HOST`) or NATS health counts. |
-| `testing/capacity_soak` | CLI | Thin `main.go` → `capsoak.Run` (flags only) |
-| `testing/capacity_controller/clusterfake` | **Tested** (imported by capacity-controller executor tests) | Recording in-memory `cluster.Cluster` — not linked into the product binary |
+| `testing/capacity_soak/lib` (`capsoak`) | **Tested** (unit) / **ops** (live stack) | Worker Asynq via harness; websocket/api hold via soaklib (`Accounts==Clients`) + Docker/NATS Observer; `-phase all\|up\|down` |
+| `testing/capacity_soak` | CLI | Thin `main.go` → parse profile/phase → `capsoak.Run` |
+| `testing/capacity_controller/clusterfake` | **Tested** | Recording in-memory `cluster.Cluster` — not in product binary |
 
 ## Topic-only detail
 
-- **Parent folder** — `services/testing/` holds shared harness products (CLI `main` + reusable `lib/` under the same tree; no separate `services/cmd/` for soaks).
-- **Product unit/integration tests** remain next to the code under test (`websocket/server`, `shared/…`). Move something here only when it is reused across services or is an ops soak/harness.
-- Conventions for new packages: extend [technical-rules.md](./technical-rules.md) when shared patterns appear.
-- Unit: `go test ./testing/ws_soak/lib/... ./testing/capacity_soak/lib/...`
+- **Parent folder** — `services/testing/` holds shared harness products (CLI `main` + reusable `lib/` under the same tree).
+- **Shared package** — `testing/harness` for connect/poll/Asynq Redis. Domain WS profiles + client SoT stay in `soaklib`; Swarm observe + capacity phases stay in `capsoak` (capsoak calls soaklib hold directly).
+- **Product unit/integration tests** stay next to the code under test.
+- Unit: `go test ./testing/harness/... ./testing/ws_soak/lib/... ./testing/capacity_soak/lib/...`
+
+### Shared harness conventions
+
+| Item | Behaviour |
+|------|-----------|
+| NATS | `harness.ConnectNATS` → product `natscore.Connect` (`NATS_URL`) |
+| Poll loops | `harness.PollUntil` (+ optional `Alive`) |
+| WS hold for other soaks | Call `soaklib.Run` ProfileHold with `Accounts == Clients` (capsoak pattern); do not put soaklib behind harness (import cycle) |
+| Asynq Redis | `harness.AsynqRedisOpt` from `config.RedisURL`; task type `harness.CapacitySoakNoop` |
 
 ### Capacity soak conventions
 
 | Item | Behaviour |
 |------|-----------|
-| Profiles | `-profile worker` \| `websocket` (alias `ws`) |
-| Observe | Prefer host run with `DOCKER_HOST` so **desired** replicas are visible; without Docker, NATS health **running** counts only |
-| Demo timing | Shorten `scale_*` stabilization / cooldown in `eip.config.yaml`, then `eip sync`; managed api/websocket/worker |
-| Worker | Pause queue → enqueue `capacitySoakNoop` → assert scale-up → unpause → assert scale-down |
-| Websocket | soaklib **hold** load → assert scale-up → stop load → assert scale-down (cordon/drain playbook) |
-| Logging | Prefer `LOG_LEVEL=warn` when docker-running on `eip-core` |
+| Profiles | `-profile worker` \| `websocket` (`ws`) \| `api` |
+| Phases | `-phase all` (default) \| `up` \| `down` |
+| Observe | Prefer `DOCKER_HOST` for **desired**; else NATS health running counts |
+| Demo timing | Shorten `scale_*` in `eip.config.yaml`, then `eip sync` |
+| WS thresholds | Lower `target_clients` so hold can cross reserve; restore after |
+| Worker | Pause → enqueue `harness.CapacitySoakNoop` → scale-up → unpause → scale-down |
+| Websocket | soaklib hold (`Accounts==Clients`, auto `-ramp` / `-min-live`) → scale-up → idle → scale-down |
+| Api | Same hold; asserts **api** replicas |
+| Logging | Prefer `LOG_LEVEL=warn` on `eip-core` |
+| Pass | up: effective ≥ `-want`; down: effective ≤ `-min` |
 
-CLI header comments: [`services/testing/capacity_soak/main.go`](../../services/testing/capacity_soak/main.go).
+How to run → [services/capacity-controller.md](./services/capacity-controller.md) § Ops soak. CLI: [`services/testing/capacity_soak/main.go`](../../services/testing/capacity_soak/main.go).
 
 ### Fanout ops conventions
 
@@ -48,11 +62,9 @@ CLI header comments: [`services/testing/capacity_soak/main.go`](../../services/t
 | Default `-ws-url` | `ws://traefik:80/ws` (browser path). Bypass: `ws://ws-router:8080/ws` |
 | Wall | `-ramp` (connect/churn only) + `-duration` (JetStream publish window) |
 | Inventory | Capped at `-clients` (default 500); continuous gen does not grow past bootstrap |
-| Publish | Until duration ends; `-fanout-messages` is a soft floor warn only (0 = none) |
+| Publish | Until duration ends; `-fanout-messages` is a soft pub floor warn only (0 = none) |
 | Logging | Always pass `-e LOG_LEVEL=warn` (or higher) — `.env` debug floods JetStream publish logs |
 | `pending` in reports | Soak `deliveryTracker` open expects — **not** NATS consumer pending or WS outbound queue depth |
-| Latency line | First matching WS recv after TrackPub (matched deliveries only) |
 | Pass | `wrong=0 dup=0 offline_hit=0` and drain completes; coloc when `-require-coloc` |
-| Scale note | High `-fanout-rate` can leave soak-side pending at soft-stop; capacity/coloc can still be healthy |
 
-CLI header comments: [`services/testing/ws_soak/main.go`](../../services/testing/ws_soak/main.go).
+CLI: [`services/testing/ws_soak/main.go`](../../services/testing/ws_soak/main.go).

@@ -26,7 +26,7 @@ obs*   prometheus · grafana · loki · alloy (+ alloy-docker-proxy)
 
 \* When `addons.observability.enabled` merges `docker-stack.obs.yml` ([config.md](./config.md)).
 
-**Prometheus is obs**, not data. Capacity controller Evaluate does not query Prom. Per-role Apply is gated by `services.*.capacity_controller_managed` in operator YAML. Overlay membership → [network.md](./network.md). Per-service behaviour → [backend/](../backend/contents.md). Operator capacity verbs → [verbs.md](../deployment/deployment-tool/cli/verbs.md) (`eip capacity`).
+**Prometheus is obs**, not data. Capacity controller Evaluate does not query Prom. Per-role Apply is gated by `services.*.capacity_controller_managed` in operator YAML. Controller behaviour → [capacity-controller.md](./capacity-controller.md). Overlay membership → [network.md](./network.md). Per-service behaviour → [backend/](../backend/contents.md). Operator capacity verbs → [verbs.md](../deployment/deployment-tool/cli/verbs.md) (`eip capacity`).
 
 Data deploy runs first on bring-up, then data+app with `--prune`. App rolls (`eip rebuild` / `eip update`) must not bounce data-layer services unless their pinned image/config in stack YAML changed.
 

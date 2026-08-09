@@ -42,7 +42,7 @@ One **connected-client** counter drives placement flags and process refuse. Flag
 
 `0` target = soft divert off. `0` cutoff = unlimited (no full flag / no at_cutoff refuse). Flags refresh on connect/disconnect and a short maintainer; publish is deduped (state updated only after successful publish).
 
-`reserve_capacity` is not enforced by this binary (capacity controller later).
+`reserve_capacity` is not enforced by this binary — capacity-controller Evaluate uses it for WS (and api-linked) scale thresholds ([capacity-controller.md](../../stack/capacity-controller.md)).
 
 ## Upgrade refuses (503)
 

@@ -19,7 +19,7 @@ Object store is opened for the API process at connect time but is **not** on `ap
 ## Wiring
 
 ```text
-ConnectAPI → clients
+Connect → clients
                │
                ├─ middleware / rate limit / SDE warmer (composition root)
                │

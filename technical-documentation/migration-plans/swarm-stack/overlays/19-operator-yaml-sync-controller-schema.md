@@ -36,7 +36,7 @@ See [policy-yaml.md](../18-capacity-controller/policy-yaml.md). Mount: [config-m
 
 ## Still open
 
-1. Apply behaviour remains #18 (managed gate; WS unmanaged until soak)
+_None for #19 schema path._ Apply behaviour / soak sign-off → #18 / #21.
 
 ## Missing live SoT discovered mid-work
 

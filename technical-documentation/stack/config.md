@@ -36,9 +36,11 @@ Live SoT for non-secret operator YAML. Secrets → [secrets.md](./secrets.md). A
 | `client_cutoff` | websocket | Task env `WS_CLIENT_CUTOFF` — hard full placement flag + process refuse — [websocket.md](../backend/websocket/websocket.md) |
 | `target_clients` | websocket | Task env `WS_TARGET_CLIENTS` — soft divert flag (prefer non-soft on new homes); `0` = off — [websocket.md](../backend/websocket/websocket.md) / [ws-router.md](../backend/ws-router/ws-router.md); controller WS Evaluate |
 | `capacity_controller_managed` | api, websocket, worker | Kill-switch for automatic Apply — capacity-controller skips unmanaged roles. Default **true** for all three |
-| `reserve_capacity` | websocket | Controller WS reserve headroom |
+| `reserve_capacity` | websocket | Controller WS (and api-linked) reserve headroom — [capacity-controller.md](./capacity-controller.md) |
 
 Validate: `min` ≥ 1; `max` ≥ `min`; `client_cutoff` ≥ 0; `target_clients` ≥ 0; when both > 0 require `target_clients` ≤ `client_cutoff`; `reserve_capacity` in `[0, 1)`; `queue_scale_up_pct.*` ≥ 0 when set.
+
+**Controller Evaluate (summary):** worker pending % of `C×R`; websocket avg clients vs `target × (1 − reserve)` up / `target × 0.35` underutilized scale-in playbook; api plain Scale from the same WS client signal. Detail → [capacity-controller.md](./capacity-controller.md).
 
 Capacity sync membership is **label-discovered** in [`docker-stack.yml`](../../docker-stack.yml): only services with `eip.capacity.sync=1` (api / websocket / worker). ws-router has capacity labels but is **not** synced.
 

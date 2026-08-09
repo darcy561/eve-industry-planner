@@ -7,14 +7,13 @@ Live SoT for the **websocket** service: per-replica soft/full placement signals,
 | Piece | Default | Change |
 |-------|---------|--------|
 | Image | `ghcr.io/darcy561/eve-industry-planner-websocket:${APP_VERSION}` | [`docker-stack.yml`](../../../docker-stack.yml) `services.websocket.image` |
-| Replicas | `2` (`EIP_WEBSOCKET_REPLICAS`, from config `min`) | Template: [`yamldefaults.DefaultConfig`](../../../deployment-tool/internal/kit/templates/yamldefaults/default.go). Live: `eip.config.yaml` |
-| Capacity min / max | template `2` / `4` | same (`services.websocket.min` / `max`) |
+| Replicas | `1` (`EIP_WEBSOCKET_REPLICAS`, from config `min`) | Template: [`yamldefaults.DefaultConfig`](../../../deployment-tool/internal/kit/templates/yamldefaults/default.go). Live: `eip.config.yaml` |
+| Capacity min / max | template `1` / `5` | same (`services.websocket.min` / `max`) |
 | `target_clients` | `1500` (`WS_TARGET_CLIENTS`; `0` = soft divert off) | same → **`eip sync`** / bring-up |
 | `client_cutoff` | `2000` (`WS_CLIENT_CUTOFF`; `0` = unlimited) | same → **`eip sync`** / bring-up |
 | `reserve_capacity` | `0.20` | same (capacity-controller policy only; not enforced here) |
-| `drain_timeout` | `10m` | same (ops budget for evacuate wait; not the process stop timer) |
-| `capacity_controller_managed` | `false` | same |
-| Process stop budget | **60s** (`shutdownTimeout`; matches stack `x-app-stop-grace`) | [`app.go`](../../../services/websocket/app.go) |
+| `capacity_controller_managed` | `true` | same |
+| Process stop budget | **60s** (`lifecycle.AppStopGrace`; matches stack `x-app-stop-grace`) | [`app.go`](../../../services/websocket/app.go) / [`stop_grace.go`](../../../services/shared/lifecycle/stop_grace.go) |
 | Volume | `api_data` → `/data` | stack YAML |
 | Networks | `eip-core` only | [network.md](../../stack/network.md) |
 
@@ -43,7 +42,7 @@ One **connected-client** counter drives placement flags and process refuse. Flag
 
 `0` target = soft divert off. `0` cutoff = unlimited (no full flag / no at_cutoff refuse). Flags refresh on connect/disconnect and a short maintainer; publish is deduped (state updated only after successful publish).
 
-`reserve_capacity` is not enforced by this binary (capacity controller later).
+`reserve_capacity` is not enforced by this binary — capacity-controller Evaluate uses it for WS (and api-linked) scale thresholds ([capacity-controller.md](../../stack/capacity-controller.md)).
 
 ## Upgrade refuses (503)
 
@@ -79,7 +78,19 @@ Swarm start-first roll
     → OLD exits before stop_grace (60s) elapses
 ```
 
-Do **not** `docker service scale eip_websocket=N-1` on a hot replica that may be the only home for an alliance. Prefer waiting for clients to leave (or a future evacuate path), then shrink a cold empty replica. Leave ≥1 healthy non-draining backend. SIGTERM drain is the last mile of a stop.
+Do **not** `docker service scale eip_websocket=N-1` on a hot replica that may be the only home for an alliance. Prefer planned evacuate (`eip capacity evacuate <container_id>`) or wait for clients to leave, then shrink a cold empty replica. Leave ≥1 healthy non-draining backend. SIGTERM drain is the last mile of a stop.
+
+## Planned cordon / drain / uncordon
+
+Separate from roll SIGTERM drain. Capacity-controller (or operator via **`eip capacity`**) targets a live **`container_id`** over NATS request-reply:
+
+| Subject | Process effect |
+|---------|----------------|
+| `ws.command.cordon` | Soft-stop: refuse new upgrades; **Ready stays OK** (router can still see the backend); publish placement soft/draining as applicable |
+| `ws.command.drain` | Kick local clients (`please_reconnect`) and clear load; Ready fails while draining; kick wait bounded by `lifecycle.AppStopGrace` (60s); ack after kick wait ends |
+| `ws.command.uncordon` | Clear planned cordon/drain flags when empty / operator restores |
+
+Scale-in playbook (controller Evaluate when websocket is managed): **cordon → drain → wait clients empty (or drain ack / stop-grace budget) → Moby Scale(desired−1)**. Controller NATS Drain waits for the websocket process ack (same stop-grace SoT + RTT slack) — no separate YAML drain timer. Default operator YAML has `services.websocket.capacity_controller_managed: true`. Set `false` to skip automatic Apply for that role.
 
 ## Hosted-tenant query view
 
@@ -106,6 +117,10 @@ Each replica keeps **one** durable for live updates and **one** for locks, named
 
 **Ops inspect (dev/stack):** `GET :4001/placement` for clients; JetStream `consumer info doc-update-stream doc-live-updates-<container_id>` for live Filter Subjects (NATS CLI / nats-box on `eip-core`).
 
+## Keepalive
+
+Writer sends websocket **Ping** every `PingPeriod` (1m). Reader read deadline is `PongWait` (90s), extended on app data and on **Pong** (`SetPongHandler`). SPA also sends text `"ping"` every 45s (server replies `"pong"`). Idle peers that neither pong nor send app traffic are closed as stale.
+
 ## Session handoff
 
 Redis `ws:session_handoff:v1:…` (~25s TTL: reconnect window + slack) lets a reconnect resume subscriptions across backends when the handoff is still present. This is auth/session continuity — not the placement signal plane.
@@ -116,10 +131,11 @@ Redis `ws:session_handoff:v1:…` (~25s TTL: reconnect window + slack) lets a re
 |----------|------|
 | `GET :19100/healthy` | Liveness (stays up while draining) |
 | `GET :19100/ready` | Readiness — fails when draining, or when Redis / NATS / Mongo deps fail Swarm healthcheck |
+| `GET :19100/debug/pprof/*` | Go pprof (heap/profile/goroutine/…) when `ENVIRONMENT=development` only — probe port; off on live |
 | `GET :4001/placement` | `PlacementState` JSON for router status reconcile |
 
 Traefik does not LB this service directly.
 
 ## Ops soak (optional)
 
-Against a live stack: `services/testing/ws_soak` (`-profile hold` for reconnect endurance; `-profile limits` for soft/full + divert asserts after temporarily lowering synced thresholds). Place observation uses `connected.container_id` + NATS soft/full. Not a substitute for unit/integration tests. See [testing/services/websocket.md](../../testing/services/websocket.md).
+Against a live stack: `services/testing/ws_soak` — `hold` (reconnect endurance), `limits` / `pressure` (soft/full + divert after temporarily lowering synced thresholds), `fanout` (phased connect then JetStream → WS exact delivery; default via Traefik `/ws`). Place observation uses `connected.container_id` + NATS soft/full — not Redis placement keys. Not a substitute for unit/integration tests. How to run / read reports → [testing/services/websocket.md](../../testing/services/websocket.md) + [testing/harness.md](../../testing/harness.md).

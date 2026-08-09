@@ -250,4 +250,4 @@ ROADMAP #9–#14 / Phase B/C closed. Bring-up order, **fragment-per-layer**, ens
 
 ### Do not pull in (stay separate)
 
-Capacity controller (#18/#19/…), WS deepen (#8/#20/#21), secrets/config polish + Ensure `*_API` (#3 follow-up), broader Swarm test suite (#25–#27/#29). Obs addon (#34) and Compose→Swarm migrate done. Mongo ensure owned by deployment-tool (`EnsureMongo`).
+Capacity controller (#18/#19/…), WS deepen (#8/#20/#21), secrets/config polish (#3), broader Swarm test suite (#25–#27/#29). Obs addon (#34) and Compose→Swarm migrate done. Mongo ensure owned by deployment-tool (`EnsureMongo`).

@@ -1,8 +1,3 @@
-// Package capsoak drives live-stack capacity-controller scale drills
-// (worker Asynq backlog and websocket client load).
-//
-// CLI: go build -o ../.tmp/capacity_soak ./testing/capacity_soak
-// Run on eip-core (see main.go header). Not linked into product binaries.
 package capsoak
 
 import (
@@ -11,22 +6,33 @@ import (
 	"time"
 )
 
-// Profile selects which drill to run.
+// Profile selects which service drill to run.
 type Profile string
 
 const (
 	ProfileWorker    Profile = "worker"
 	ProfileWebsocket Profile = "websocket"
+	ProfileAPI       Profile = "api" // hold WS load; assert api replicas (linked Evaluate)
+)
+
+// Phase selects which half of a drill to run.
+type Phase string
+
+const (
+	PhaseAll  Phase = "all"  // scale-up then scale-down
+	PhaseUp   Phase = "up"   // scale-up only (cleanup load/queue; no down wait)
+	PhaseDown Phase = "down" // scale-down only (expect idle / already underutilized)
 )
 
 // Config is CLI-facing soak options.
 type Config struct {
 	Profile Profile
+	Phase   Phase
 
 	StackName string // Swarm service prefix, default "eip"
 
 	// Timing expectations (operator should shorten eip.config scale_* for demos).
-	Timeout     time.Duration
+	Timeout     time.Duration // per phase (up or down)
 	PollEvery   time.Duration
 	ReportEvery time.Duration
 
@@ -36,11 +42,13 @@ type Config struct {
 	MinReplicas int    // expected floor after drain (default 1)
 	MaxWatch    int    // fail if never reach this desired/running (default 2)
 
-	// Websocket (soaklib)
+	// Websocket / api (soaklib ProfileHold, Accounts==Clients)
 	WSURL       string
 	Clients     int
-	WSDuration  time.Duration
-	InsecureTLS bool
+	WSDuration  time.Duration // max hold wall (cancelled after scale-up)
+	Ramp        time.Duration // stagger connects (0 = auto from client count)
+	MinLive     int           // wait for this many live WS clients before scale-up assert (0 = auto ~80%)
+	Insecure    bool
 	NoSeed      bool
 	SeedOnly    bool
 }
@@ -49,6 +57,9 @@ func (c Config) withDefaults() Config {
 	out := c
 	if out.StackName == "" {
 		out.StackName = "eip"
+	}
+	if out.Phase == "" {
+		out.Phase = PhaseAll
 	}
 	if out.Timeout <= 0 {
 		out.Timeout = 10 * time.Minute
@@ -78,7 +89,20 @@ func (c Config) withDefaults() Config {
 		out.Clients = 80
 	}
 	if out.WSDuration <= 0 {
-		out.WSDuration = 3 * time.Minute
+		out.WSDuration = 5 * time.Minute
+	}
+	if out.Ramp < 0 {
+		out.Ramp = 0
+	}
+	if out.Ramp == 0 && out.Clients > 20 {
+		// ~25ms/client, capped — avoids dial stampede / session CAS pile-ups.
+		out.Ramp = min(time.Duration(out.Clients)*25*time.Millisecond, 2*time.Minute)
+	}
+	if out.MinLive < 0 {
+		out.MinLive = 0
+	}
+	if out.MinLive == 0 {
+		out.MinLive = max((out.Clients*4)/5, 1)
 	}
 	return out
 }
@@ -90,7 +114,23 @@ func ParseProfile(s string) (Profile, error) {
 		return ProfileWorker, nil
 	case "websocket", "ws":
 		return ProfileWebsocket, nil
+	case "api":
+		return ProfileAPI, nil
 	default:
-		return "", fmt.Errorf("profile must be worker|websocket, got %q", s)
+		return "", fmt.Errorf("profile must be worker|websocket|api, got %q", s)
+	}
+}
+
+// ParsePhase maps CLI names.
+func ParsePhase(s string) (Phase, error) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "", "all":
+		return PhaseAll, nil
+	case "up", "scale-up", "scaleup":
+		return PhaseUp, nil
+	case "down", "scale-down", "scaledown":
+		return PhaseDown, nil
+	default:
+		return "", fmt.Errorf("phase must be all|up|down, got %q", s)
 	}
 }

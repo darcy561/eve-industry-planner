@@ -202,7 +202,7 @@ func TestEnvFieldsAutogenFlags(t *testing.T) {
 			lockedSecrets++
 		}
 	}
-	if lockedSecrets < 6 {
+	if lockedSecrets < 5 {
 		t.Fatalf("expected locked Autogen secrets (mongo/redis/grafana/authz), got %d", lockedSecrets)
 	}
 }

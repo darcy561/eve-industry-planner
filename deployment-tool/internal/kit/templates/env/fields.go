@@ -80,7 +80,7 @@ var envFields = []EnvField{
 	},
 	{
 		Key: "MONGO_USERNAME", Section: "Database", Label: "Mongo username",
-		Help: "Shared app DB user (api / worker / core / websocket when *_API unset). Locked once set.",
+		Help: "Shared app DB user (api / worker / core / websocket). Locked once set.",
 		Type: FieldText, Required: true, Default: "EXAMPLE_USERNAME", Locked: true,
 	},
 	{
@@ -88,31 +88,11 @@ var envFields = []EnvField{
 		Help: "Shared app DB password. Locked once set (password roll is a later feature).",
 		Type: FieldPassword, Required: true, Default: "", Autogen: true, Locked: true,
 	},
-	{
-		Key: "MONGO_USERNAME_API", Section: "Database", Label: "Mongo API username",
-		Help: "Optional API-only Mongo user. Empty → api uses MONGO_USERNAME / MONGO_PASSWORD. Locked once set.",
-		Type: FieldText, Required: false, Default: "", Locked: true,
-	},
-	{
-		Key: "MONGO_PASSWORD_API", Section: "Database", Label: "Mongo API password",
-		Help: "Optional API-only Mongo password. Autogen on first create; locked once set.",
-		Type: FieldPassword, Required: false, Default: "", Autogen: true, Locked: true,
-	},
 
 	{
 		Key: "REDIS_PASSWORD", Section: "Database", Label: "Redis password",
 		Help: "Shared password. Autogen on first create; locked once set. Generated values: A–Z a–z 0–9 _ - only (no $).",
 		Type: FieldPassword, Required: true, Default: "", Autogen: true, Locked: true,
-	},
-	{
-		Key: "REDIS_USERNAME_API", Section: "Database", Label: "Redis API username",
-		Help: "Optional API-only Redis ACL user. Empty → api uses REDIS_PASSWORD. Locked once set.",
-		Type: FieldText, Required: false, Default: "", Locked: true,
-	},
-	{
-		Key: "REDIS_PASSWORD_API", Section: "Database", Label: "Redis API password",
-		Help: "Optional API-only Redis ACL password. Autogen on first create; locked once set.",
-		Type: FieldPassword, Required: false, Default: "", Autogen: true, Locked: true,
 	},
 
 	{

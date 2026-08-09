@@ -17,12 +17,6 @@ func Connect() (*redis.Client, error) {
 	return connectFromURL(config.RedisURL)
 }
 
-// ConnectAPI uses REDIS_PASSWORD_API when set ([config.RedisURLAPI]), else
-// shared REDIS_PASSWORD. Call from api; other roles keep Connect.
-func ConnectAPI() (*redis.Client, error) {
-	return connectFromURL(config.RedisURLAPI)
-}
-
 func connectFromURL(urlFn func() (string, error)) (*redis.Client, error) {
 	redisURL, err := urlFn()
 	if err != nil {

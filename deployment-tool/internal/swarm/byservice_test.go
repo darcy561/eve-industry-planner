@@ -13,7 +13,7 @@ func TestByServiceOmitsUnsetOptional(t *testing.T) {
 		},
 		Attach: []Attach{
 			{Service: "api", Key: "MONGO_PASSWORD"},
-			{Service: "api", Key: "REDIS_PASSWORD_API"}, // optional, unset
+			{Service: "api", Key: "FEEDBACK_DISCORD_WEBHOOK_URL"}, // optional, unset
 			{Service: "worker", Key: "MONGO_PASSWORD"},
 		},
 	}

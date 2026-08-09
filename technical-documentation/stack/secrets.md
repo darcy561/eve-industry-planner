@@ -19,7 +19,7 @@ Containers do **not** reload env automatically. Prefer **`eip secrets`** after e
 
 | Surface | Contents |
 |---------|----------|
-| **`.env`** | Secrets (DB passwords, SSO, HMAC keys, S3 keys, …). Optional `MONGO_*_API` / `REDIS_*_API`: api prefers them when set (`ConnectAPI`), else shared creds. |
+| **`.env`** | Secrets (DB passwords, SSO, HMAC keys, S3 keys, …). App roles use shared `MONGO_USERNAME` / `MONGO_PASSWORD` and `REDIS_PASSWORD`. |
 | **Stack anchors** (`x-mongo-env`, …) | Mesh networking (`MONGO_HOST` / `REDIS_*` / `NATS_URL` / `S3_URL`) — required by Go; not secrets. |
 | **`x-frontend-public-env`** | SPA public knobs (`EVE_CLIENT_ID`, callback/scope, `GA4_*`, `ENVIRONMENT`) on `eip_frontend` task env — **no** docker secrets for FE. |
 

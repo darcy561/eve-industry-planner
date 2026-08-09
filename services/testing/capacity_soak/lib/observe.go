@@ -24,6 +24,12 @@ type Shape struct {
 	Source  string
 }
 
+// ClientCensus is websocket (or similar) live client totals from health ping.
+type ClientCensus struct {
+	Backends int
+	Clients  int
+}
+
 // Observer reads desired/running for a stack service.
 type Observer struct {
 	Stack  string
@@ -65,6 +71,16 @@ func (o *Observer) ObserveWebsocket(ctx context.Context) (Shape, error) {
 	return o.observe(ctx, "websocket", "websocket")
 }
 
+// ObserveAPI returns api shape.
+func (o *Observer) ObserveAPI(ctx context.Context) (Shape, error) {
+	return o.observe(ctx, "api", "api")
+}
+
+// WebsocketClients sums Clients from websocket health replies.
+func (o *Observer) WebsocketClients(ctx context.Context) (ClientCensus, error) {
+	return o.clientCensus(ctx, "websocket")
+}
+
 func (o *Observer) observe(ctx context.Context, role, healthRole string) (Shape, error) {
 	sh := Shape{Desired: -1, Source: "nats-health"}
 	if o.Docker != nil {
@@ -90,6 +106,44 @@ func (o *Observer) observe(ctx context.Context, role, healthRole string) (Shape,
 	}
 	sh.Running = n
 	return sh, nil
+}
+
+func (o *Observer) clientCensus(ctx context.Context, role string) (ClientCensus, error) {
+	var out ClientCensus
+	if o.NATS == nil || !o.NATS.IsConnected() {
+		return out, fmt.Errorf("nats not connected")
+	}
+	inbox := natslib.NewInbox()
+	sub, err := o.NATS.SubscribeSync(inbox)
+	if err != nil {
+		return out, err
+	}
+	defer func() { _ = sub.Unsubscribe() }()
+
+	payload, _ := json.Marshal(natscore.HealthPing{})
+	if err := o.NATS.PublishRequest(natscore.SubjectHealthCommandPing, inbox, payload); err != nil {
+		return out, err
+	}
+
+	deadline := time.Now().Add(healthPingWait)
+	for time.Now().Before(deadline) {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			break
+		}
+		msg, err := sub.NextMsg(remaining)
+		if err != nil {
+			break
+		}
+		st, ok := decodeHealth(msg.Data)
+		if !ok || st.Role != role {
+			continue
+		}
+		out.Backends++
+		out.Clients += st.Clients
+	}
+	_ = ctx
+	return out, nil
 }
 
 func countRunningTasks(ctx context.Context, api *client.Client, serviceID string) (int, error) {
