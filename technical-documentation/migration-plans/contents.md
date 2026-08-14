@@ -13,10 +13,11 @@ Decision/history/work logs for long-running migrations. **Not SoT.**
 | I need to… | Read |
 |------------|------|
 | Websocket realtime migration log / plan | [websocket-realtime/contents.md](./websocket-realtime/contents.md) |
-| AuthZ HMAC rollout plan | [authz-hmac-rollout-plan.md](./authz-hmac-rollout-plan.md) |
+| AuthZ HMAC rollout (entity refs, entitlements snapshot) | [authz-hmac/contents.md](./authz-hmac/contents.md) |
 | Refresh token encryption rollout | [refresh-token-encryption-rollout-plan.md](./refresh-token-encryption-rollout-plan.md) |
 | Core SeaweedFS + Swarm primary rebuild (landed) | [core-rebuild.md](./core-rebuild.md) |
 | Swarm stack migration (**closed** — history; live SoT promoted) | [swarm-stack/contents.md](./swarm-stack/contents.md) |
 | Changestream tenant scale (publisher queues / metrics / future auto-detect) | [changestream-tenant-scale/contents.md](./changestream-tenant-scale/contents.md) |
 | Shared packages `go fix` cleanup (**closed** — history; Tier 4 omit tags waived) | [shared-go-fix/contents.md](./shared-go-fix/contents.md) |
 | MongoDB Go driver v1 → v2 (**closed** — history) | [mongo-driver-v2/contents.md](./mongo-driver-v2/contents.md) |
+| Archived jobs statistics (rollups, snapshots, corp aggregation) | [archived-jobs-stats/contents.md](./archived-jobs-stats/contents.md) |
