@@ -1,4 +1,4 @@
-package commands
+﻿package commands
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/core/crypto/keyrings"
+	"eve-industry-planner/shared/crypto/aesgcm/keyrings"
 	natscore "eve-industry-planner/shared/core/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 
