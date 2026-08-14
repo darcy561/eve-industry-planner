@@ -2,8 +2,10 @@ package changestream
 
 import (
 	"context"
-	"eve-industry-planner/shared/stackservices"
 	"fmt"
+
+	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/shared/stackservices"
 
 	"eve-industry-planner/core/primarycontroller"
 	"eve-industry-planner/core/servicemanager"
@@ -18,7 +20,21 @@ func StartUnderPrimary(ctx context.Context, clients *stackservices.Clients, stat
 		if clients.Mongo == nil || clients.JetStream == nil || clients.NATS == nil {
 			return nil, fmt.Errorf("changestream: mongo, jetstream, and nats required")
 		}
-		return StartService(clients.Mongo, clients.JetStream, clients.NATS, clients.Redis)
+		// Change streams need a client with no operation timeout; it lives only while primary.
+		// One connection is held per group for as long as its stream awaits events.
+		watchMongo, err := eipmongo.ConnectWatch(uint64(len(CollectionGroups())))
+		if err != nil {
+			return nil, fmt.Errorf("changestream: watch client: %w", err)
+		}
+		stop, err := StartService(watchMongo, clients.JetStream, clients.NATS, clients.Redis)
+		if err != nil {
+			watchMongo.Disconnect(context.Background())
+			return nil, err
+		}
+		return func() {
+			stop()
+			watchMongo.Disconnect(context.Background())
+		}, nil
 	})
 	if err := m.Follow(ctx, states); err != nil {
 		return nil, err
