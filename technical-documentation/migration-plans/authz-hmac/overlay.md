@@ -101,8 +101,4 @@ while both paths are live.
 Drafts for documentation that should exist but does not, written here first and promoted when the
 project closes.
 
-**Broken plan links in the auth roadmap.** [backend/api/auth/roadmap.md](../../backend/api/auth/roadmap.md)
-lists two related rollouts with paths that do not resolve from its own location — this project's
-plan and the refresh-token encryption plan both live under `migration-plans/`, not beside the auth
-docs. Both links predate this project and are not corrected here, because live SoT is not edited
-while a project is active. Fix them on promote.
+_None recorded yet._
