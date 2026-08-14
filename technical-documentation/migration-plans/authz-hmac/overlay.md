@@ -29,10 +29,45 @@ This was the plan's blocking security milestone and no longer gates later phases
 
 ## Shared HMAC helpers
 
-_Not landed._
+Two packages under `shared/crypto/authzhmac` derive and validate entity refs. Nothing calls them
+yet; the metadata schema work is their first consumer.
 
-Fill in: helper API, where key material is loaded from, ref format produced, and what callers may
-assume about determinism across key versions.
+### Deriving refs — `authzhmac/helper`
+
+A `Helper` derives refs under one key version:
+
+| Call | Produces |
+|------|----------|
+| `RefFromCharacterID(id)` | `{version}_char_{token}` |
+| `RefFromCorporationID(id)` | `{version}_corp_{token}` |
+| `RefFromAllianceID(id)` | `{version}_alliance_{token}` |
+
+The token is base64url without padding of `HMAC-SHA256(key, "{kind}:{id}")`. The kind is part of
+the HMAC input, so one numeric id yields a different token per entity kind. Ids of zero or below
+are rejected, as is key material under 16 bytes.
+
+`New(version, key)` takes key material directly. `NewFromEnv()` resolves it through
+`swarmsecret.Require("AUTHZ_HMAC_KEY")`, so the key is read from `/run/secrets` or the
+environment, and reads the version from `AUTHZ_HMAC_KEY_VERSION`, defaulting to `v1`.
+
+Determinism holds for a given `(kind, id, key version)` while that key is active. A different key
+produces different tokens for the same id, which is why the version is stamped into the ref.
+
+### Validating refs — `authzhmac/ref`
+
+`ParseRefVersion` splits a ref into version and kind, reporting whether it is well formed.
+`ValidateRefShape` additionally checks the token holds only base64url characters. Neither touches
+key material, so callers can validate refs without access to the secret.
+
+### Operator surface
+
+`AUTHZ_HMAC_KEY` was already provisioned: an `EnvFields` entry that autogenerates on first create
+and locks once set, registered as a Swarm secret and mounted for the api and worker services.
+
+`AUTHZ_HMAC_KEY_VERSION` is new — a hidden `EnvFields` entry defaulting to `v1`, published to
+containers through the stack's public env block. It is not secret. Changing it changes every ref
+derived afterwards, so stored refs from an earlier version stay readable only if that version's
+key is still what the helper holds.
 
 ## Metadata schema and reverse indexes
 
