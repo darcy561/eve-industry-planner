@@ -128,6 +128,13 @@ type churnPool struct {
 // force-disconnect and continue (counted in LeaveTimeouts) so large soaks are not aborted.
 // freeze stops further join/leave scheduling while keeping live workers up (for delivery drain).
 func StartChurnPool(ctx context.Context, opts ChurnPoolOptions) (stats *ChurnPoolStats, errCh <-chan error, freeze func()) {
+	stats, errCh, freeze, _ = startChurnPool(ctx, opts)
+	return stats, errCh, freeze
+}
+
+// startChurnPool also returns the pool so in-package callers can observe churn
+// quiescence via waitChurnQuiesced.
+func startChurnPool(ctx context.Context, opts ChurnPoolOptions) (stats *ChurnPoolStats, errCh <-chan error, freeze func(), pool *churnPool) {
 	opts = opts.withDefaults()
 	stats = &ChurnPoolStats{}
 	ch := make(chan error, 1)
@@ -136,7 +143,7 @@ func StartChurnPool(ctx context.Context, opts ChurnPoolOptions) (stats *ChurnPoo
 	if opts.RunIdentity == nil {
 		ch <- fmt.Errorf("churnPool: RunIdentity is required")
 		close(ch)
-		return stats, errCh, func() {}
+		return stats, errCh, func() {}, nil
 	}
 
 	p := &churnPool{
@@ -178,7 +185,7 @@ func StartChurnPool(ctx context.Context, opts ChurnPoolOptions) (stats *ChurnPoo
 	}()
 
 	freeze = func() { p.frozen.Store(true) }
-	return stats, errCh, freeze
+	return stats, errCh, freeze, p
 }
 
 func (p *churnPool) addInventory(id clientIdentity) {
@@ -505,6 +512,33 @@ func (p *churnPool) cancelAllLive() {
 		select {
 		case <-w.done:
 		case <-time.After(2 * time.Second):
+		}
+	}
+}
+
+// churnQuiesced reports whether every scheduled join/leave has been applied.
+// Both maps are marked under mu when scheduleOnce commits a swap and cleared
+// under mu once the worker starts or stops, so an empty pair on a frozen pool
+// means no dispatch is still in flight.
+func (p *churnPool) churnQuiesced() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.joining) == 0 && len(p.leaving) == 0
+}
+
+// waitChurnQuiesced waits until a frozen pool has applied all in-flight churn.
+func waitChurnQuiesced(ctx context.Context, p *churnPool, poll time.Duration) error {
+	if poll <= 0 {
+		poll = 5 * time.Millisecond
+	}
+	for {
+		if p.churnQuiesced() {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("wait churn quiesced: %w", ctx.Err())
+		case <-time.After(poll):
 		}
 	}
 }
