@@ -1,9 +1,9 @@
-package models
+﻿package models
 
 import (
 	"testing"
 
-	corecrypto "eve-industry-planner/shared/core/crypto"
+	"eve-industry-planner/shared/crypto/aesgcm"
 )
 
 func TestRefreshTokenEncryptAndPlainRoundTrip(t *testing.T) {
@@ -11,7 +11,7 @@ func TestRefreshTokenEncryptAndPlainRoundTrip(t *testing.T) {
 	for i := range key {
 		key[i] = byte(i)
 	}
-	kr, err := corecrypto.NewKeyring("v1", key, nil)
+	kr, err := aesgcm.NewKeyring("v1", key, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestRefreshTokenEncryptAndPlainRoundTrip(t *testing.T) {
 
 func TestRefreshTokenLegacyPlaintextFallback(t *testing.T) {
 	key := make([]byte, 32)
-	kr, err := corecrypto.NewKeyring("v1", key, nil)
+	kr, err := aesgcm.NewKeyring("v1", key, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestRefreshTokenLegacyPlaintextFallback(t *testing.T) {
 
 func TestRefreshTokenDecryptUsesCharacterHashAAD(t *testing.T) {
 	key := make([]byte, 32)
-	kr, err := corecrypto.NewKeyring("v1", key, nil)
+	kr, err := aesgcm.NewKeyring("v1", key, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestReencryptTowardActiveVersion_skipUntagged(t *testing.T) {
 		keyV1[i] = byte(i)
 		keyV2[i] = byte(i + 1)
 	}
-	krV1, err := corecrypto.NewKeyring("v1", keyV1, nil)
+	krV1, err := aesgcm.NewKeyring("v1", keyV1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestReencryptTowardActiveVersion_skipUntagged(t *testing.T) {
 		t.Fatal(err)
 	}
 	legacy := map[string][]byte{"v1": keyV1}
-	krV2, err := corecrypto.NewKeyring("v2", keyV2, legacy)
+	krV2, err := aesgcm.NewKeyring("v2", keyV2, legacy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestReencryptTowardActiveVersion_legacyPlaintext(t *testing.T) {
 	for i := range key {
 		key[i] = byte(i)
 	}
-	kr, err := corecrypto.NewKeyring("v1", key, nil)
+	kr, err := aesgcm.NewKeyring("v1", key, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

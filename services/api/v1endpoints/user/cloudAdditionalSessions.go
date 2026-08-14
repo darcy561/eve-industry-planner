@@ -1,11 +1,11 @@
-package user
+﻿package user
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	corecrypto "eve-industry-planner/shared/core/crypto"
+	"eve-industry-planner/shared/crypto/aesgcm"
 	evesso "eve-industry-planner/shared/core/evesso"
 	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
@@ -22,7 +22,7 @@ func (h *Handlers) BuildCloudLinkedCharactersForLogin(
 	accountID string,
 	user *models.UserAccountDocument,
 	clientID, clientSecret string,
-	kr *corecrypto.Keyring,
+	kr *aesgcm.Keyring,
 ) ([]models.LinkedCharacterSession, error) {
 	if h.Mongo == nil || accountID == "" || user == nil || kr == nil {
 		return nil, fmt.Errorf("invalid args for BuildCloudLinkedCharactersForLogin")
