@@ -70,7 +70,7 @@ func (c *ESIClient) AddGroupLimiter(groupName string, rps float64, burst int) {
 // If this is a new group discovery, creates the group limiter and maps the path.
 // groupDesignation is required and specifies the rate limit group (no longer extracted from headers).
 // Character ID should be included in GroupDesignation.SecondaryGroup if needed.
-func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, resp *http.Response, tokensConsumed int, path string, groupDesignation GroupDesignation) *GroupLimiter {
+func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, resp *http.Response, tokensConsumed int, reservedTokens int, path string, groupDesignation GroupDesignation) *GroupLimiter {
 	now := time.Now()
 
 	// Parse ESI rate limit headers (for token limits and usage, not group name)
@@ -199,6 +199,11 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 
 	// Only track token consumptions if token restrictions are enforced
 	if enforceTokens {
+		if actualLimiter != gl && reservedTokens > 0 {
+			gl.ReleaseReservation(reservedTokens)
+			reservedTokens = 0
+		}
+
 		// Clean up old consumptions first
 		logs.DebugCtx(ctx, "calling CleanupOldConsumptions", "path", path, "group", actualLimiter.Name)
 		actualLimiter.CleanupOldConsumptions(ctx)
@@ -253,58 +258,27 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 
 	// Only track token usage and consumptions if token restrictions are enforced
 	if enforceTokens {
-		// Use server-provided remaining if available, otherwise calculate from consumption
-		// IMPORTANT: This update happens regardless of response status code (including 429),
-		// because rate limit headers contain current usage information even in error responses.
 		oldTokenUsed := actualLimiter.TokenUsed
-		if remainingStr != "" {
-			if remaining, err := strconv.Atoi(remainingStr); err == nil {
-				// Server knows best - use their count
-				if usedStr != "" {
-					if used, err := strconv.Atoi(usedStr); err == nil {
-						actualLimiter.TokenUsed = used
-						// Also track consumption locally so CleanupOldConsumptions works correctly
-						actualLimiter.consumptions = append(actualLimiter.consumptions, TokenConsumption{
-							Tokens:   tokensConsumed,
-							Consumed: now,
-						})
-						logs.DebugCtx(ctx, "updated token usage from X-Ratelimit-Used header",
-							"limiter", actualLimiter.Name,
-							"path", path,
-							"status_code", resp.StatusCode,
-							"old_used", oldTokenUsed,
-							"new_used", used,
-							"remaining", remaining,
-							"limit", actualLimiter.TokenLimit)
-					}
-				} else {
-					newUsed := actualLimiter.TokenLimit - remaining
-					actualLimiter.TokenUsed = newUsed
-					// Also track consumption locally so CleanupOldConsumptions works correctly
-					actualLimiter.consumptions = append(actualLimiter.consumptions, TokenConsumption{
-						Tokens:   tokensConsumed,
-						Consumed: now,
-					})
-					logs.DebugCtx(ctx, "calculated token usage from X-Ratelimit-Remaining",
-						"limiter", actualLimiter.Name,
-						"path", path,
-						"status_code", resp.StatusCode,
-						"old_used", oldTokenUsed,
-						"new_used", newUsed,
-						"remaining", remaining,
-						"limit", actualLimiter.TokenLimit)
+		if reservedTokens > 0 {
+			delta := tokensConsumed - reservedTokens
+			actualLimiter.TokenUsed += delta
+			if actualLimiter.TokenUsed < 0 {
+				actualLimiter.TokenUsed = 0
+			}
+			for i := len(actualLimiter.consumptions) - 1; i >= 0; i-- {
+				if actualLimiter.consumptions[i].Tokens == reservedTokens {
+					actualLimiter.consumptions[i].Tokens = tokensConsumed
+					break
 				}
 			}
 		} else {
-			// Track consumption locally (no server headers available)
 			beforeCount := len(actualLimiter.consumptions)
 			actualLimiter.consumptions = append(actualLimiter.consumptions, TokenConsumption{
 				Tokens:   tokensConsumed,
 				Consumed: now,
 			})
 			actualLimiter.TokenUsed += tokensConsumed
-
-			logs.DebugCtx(ctx, "tracked token consumption locally (no server headers)",
+			logs.DebugCtx(ctx, "tracked token consumption locally (no prior reservation)",
 				"limiter", actualLimiter.Name,
 				"path", path,
 				"old_used", oldTokenUsed,
@@ -312,6 +286,28 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 				"tokens_consumed", tokensConsumed,
 				"consumption_count", len(actualLimiter.consumptions),
 				"consumption_history_added", len(actualLimiter.consumptions)-beforeCount)
+		}
+
+		// Server usage may be ahead of local reservations; never rewind the window.
+		if usedStr != "" {
+			if used, err := strconv.Atoi(usedStr); err == nil && used > actualLimiter.TokenUsed {
+				logs.DebugCtx(ctx, "raised token usage to X-Ratelimit-Used",
+					"limiter", actualLimiter.Name,
+					"path", path,
+					"status_code", resp.StatusCode,
+					"old_used", oldTokenUsed,
+					"local_used", actualLimiter.TokenUsed,
+					"server_used", used,
+					"limit", actualLimiter.TokenLimit)
+				actualLimiter.TokenUsed = used
+			}
+		} else if remainingStr != "" {
+			if remaining, err := strconv.Atoi(remainingStr); err == nil {
+				inferred := actualLimiter.TokenLimit - remaining
+				if inferred > actualLimiter.TokenUsed {
+					actualLimiter.TokenUsed = inferred
+				}
+			}
 		}
 	}
 
@@ -427,6 +423,7 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 	// Wait for general rate limiter (prevents burst)
 	rateWaitStart := time.Now()
 	if err := gl.Limiter.Wait(ctx); err != nil {
+		gl.ReleaseReservation(estimatedTokens)
 		logs.ErrorCtx(ctx, "rate limiter wait failed",
 			"path", path,
 			"group", gl.Name,
@@ -453,6 +450,7 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 	}
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, reqBodyReader)
 	if err != nil {
+		gl.ReleaseReservation(estimatedTokens)
 		return nil, nil, err
 	}
 
@@ -471,6 +469,7 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 	resp, err := c.httpClient.Do(req)
 	requestDuration := time.Since(requestStart)
 	if err != nil {
+		gl.ReleaseReservation(estimatedTokens)
 		logs.ErrorCtx(ctx, "HTTP request failed",
 			"path", path,
 			"group", gl.Name,
@@ -493,7 +492,7 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 	// This will discover/create the group limiter if needed
 	// Use provided group designation (no longer extracted from headers)
 	logs.DebugCtx(ctx, "ABOUT TO CALL updateFromHeaders", "path", path, "group", gl.Name)
-	actualLimiter := c.updateFromHeaders(ctx, gl, resp, tokensConsumed, path, groupDesignation)
+	actualLimiter := c.updateFromHeaders(ctx, gl, resp, tokensConsumed, estimatedTokens, path, groupDesignation)
 	logs.DebugCtx(ctx, "RETURNED FROM updateFromHeaders", "path", path, "group", actualLimiter.Name)
 
 	// Update last used time for the actual limiter
@@ -651,6 +650,7 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 	// Wait for general rate limiter (prevents burst)
 	rateWaitStart := time.Now()
 	if err := gl.Limiter.Wait(ctx); err != nil {
+		gl.ReleaseReservation(estimatedTokens)
 		logs.ErrorCtx(ctx, "rate limiter wait failed (streaming)",
 			"path", path,
 			"group", gl.Name,
@@ -673,6 +673,7 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, nil)
 	if err != nil {
+		gl.ReleaseReservation(estimatedTokens)
 		return nil, err
 	}
 
@@ -688,6 +689,7 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 	resp, err := c.httpClient.Do(req)
 	requestDuration := time.Since(requestStart)
 	if err != nil {
+		gl.ReleaseReservation(estimatedTokens)
 		logs.ErrorCtx(ctx, "HTTP request failed (streaming)",
 			"path", path,
 			"group", gl.Name,
@@ -709,7 +711,7 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 	// Handle server feedback synchronously to ensure proper tracking
 	// This will discover/create the group limiter if needed
 	// Use provided group designation (no longer extracted from headers)
-	actualLimiter := c.updateFromHeaders(ctx, gl, resp, tokensConsumed, path, groupDesignation)
+	actualLimiter := c.updateFromHeaders(ctx, gl, resp, tokensConsumed, estimatedTokens, path, groupDesignation)
 
 	// Update last used time for the actual limiter
 	actualLimiter.mu.Lock()

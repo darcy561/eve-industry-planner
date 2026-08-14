@@ -14,29 +14,35 @@ import (
 
 // CleanupOldConsumptions removes token consumptions older than the window duration
 func (gl *GroupLimiter) CleanupOldConsumptions(ctx context.Context) {
-	now := time.Now()
-	cutoff := now.Add(-gl.windowDuration)
-
 	gl.mu.Lock()
 	defer gl.mu.Unlock()
+	gl.cleanupOldConsumptionsLocked(ctx)
+}
+
+// cleanupOldConsumptionsLocked drops expired window entries and subtracts them from TokenUsed.
+// TokenUsed is not recomputed from the remaining ledger: server headers and in-flight
+// reservations can legitimately sit above the sum of local rows.
+func (gl *GroupLimiter) cleanupOldConsumptionsLocked(ctx context.Context) {
+	now := time.Now()
+	cutoff := now.Add(-gl.windowDuration)
 
 	beforeCount := len(gl.consumptions)
 	beforeTokens := gl.TokenUsed
 
-	// Remove consumptions older than the window
 	validConsumptions := make([]TokenConsumption, 0, len(gl.consumptions))
-	totalTokens := 0
 	expiredTokens := 0
 	for _, cons := range gl.consumptions {
 		if cons.Consumed.After(cutoff) {
 			validConsumptions = append(validConsumptions, cons)
-			totalTokens += cons.Tokens
 		} else {
 			expiredTokens += cons.Tokens
 		}
 	}
 	gl.consumptions = validConsumptions
-	gl.TokenUsed = totalTokens
+	gl.TokenUsed -= expiredTokens
+	if gl.TokenUsed < 0 {
+		gl.TokenUsed = 0
+	}
 	gl.lastUpdate = now
 
 	if expiredTokens > 0 || beforeCount != len(validConsumptions) {
@@ -45,31 +51,25 @@ func (gl *GroupLimiter) CleanupOldConsumptions(ctx context.Context) {
 			"before_count", beforeCount,
 			"after_count", len(validConsumptions),
 			"before_tokens", beforeTokens,
-			"after_tokens", totalTokens,
+			"after_tokens", gl.TokenUsed,
 			"expired_tokens", expiredTokens,
 			"window_duration", gl.windowDuration)
 	}
 }
 
-// CanMakeRequest checks if we have enough tokens and aren't in a retry-after period
-// IMPORTANT: This is a read-only check. Tokens are not reserved here - they're updated
-// after the HTTP request completes. This means multiple concurrent requests can pass
-// this check and all make requests, potentially causing token_used to exceed token_limit.
-// The server's X-Ratelimit-Used header will reflect the true usage.
+// CanMakeRequest checks retry-after and the token window, then reserves estimatedTokens
+// so concurrent callers cannot all admit against the same remaining budget.
 func (gl *GroupLimiter) CanMakeRequest(ctx context.Context, estimatedTokens int) error {
-	// Clean up expired tokens first to ensure accurate token count
-	// This proactively returns expired tokens to the bucket (15-minute floating window)
-	gl.CleanupOldConsumptions(ctx)
+	gl.mu.Lock()
+	defer gl.mu.Unlock()
 
-	gl.mu.RLock()
+	gl.cleanupOldConsumptionsLocked(ctx)
+
+	now := time.Now()
 	retryAfter := gl.retryAfter
 	tokenUsed := gl.TokenUsed
 	tokenLimit := gl.TokenLimit
-	gl.mu.RUnlock()
 
-	now := time.Now()
-
-	// Check if we're in retry-after period (from previous 429 response)
 	if now.Before(retryAfter) {
 		waitTime := time.Until(retryAfter)
 		logs.DebugCtx(ctx, "request blocked by retry-after",
@@ -88,20 +88,13 @@ func (gl *GroupLimiter) CanMakeRequest(ctx context.Context, estimatedTokens int)
 		}
 	}
 
-	// Skip token bucket checks if token restrictions are not enforced (rate limiting only)
-	gl.mu.RLock()
-	enforceTokens := gl.EnforceTokenRestrictions
-	gl.mu.RUnlock()
-
-	if !enforceTokens {
+	if !gl.EnforceTokenRestrictions {
 		logs.DebugCtx(ctx, "token check skipped (no token restrictions, using rate limiter only)",
 			"group", gl.Name,
 			"estimated_tokens", estimatedTokens)
 		return nil
 	}
 
-	// If TokenLimit is 0 but we should enforce tokens, treat it as an error condition
-	// This shouldn't happen if headers are present, but we should still enforce restrictions
 	if tokenLimit == 0 {
 		logs.WarnCtx(ctx, "token limit is 0 but token restrictions are enforced, blocking request",
 			"group", gl.Name,
@@ -118,31 +111,19 @@ func (gl *GroupLimiter) CanMakeRequest(ctx context.Context, estimatedTokens int)
 		}
 	}
 
-	// Check if we have enough tokens (after cleanup)
 	remaining := tokenLimit - tokenUsed
 	if tokenUsed+estimatedTokens > tokenLimit {
-		// Calculate how many tokens we need to free up
-		// deficit = how many tokens we're over the limit
-		// tokensNeeded = deficit + estimated tokens for this request
 		deficit := tokenUsed - tokenLimit
 		tokensNeeded := deficit + estimatedTokens
 
-		// Find when enough tokens will become available by looking at consumptions
-		// Since it's a 15-minute sliding window, we need to find the earliest expiry
-		// time that gives us enough tokens freed up.
-		gl.mu.RLock()
-		retryAfterTime := now.Add(gl.windowDuration) // Default: full window if no consumptions
+		retryAfterTime := now.Add(gl.windowDuration)
 		if len(gl.consumptions) > 0 {
-			// Group consumptions by expiry time (consumptions expiring at the same time)
-			// and sum tokens for each expiry time
 			expiryMap := make(map[time.Time]int)
 			for _, cons := range gl.consumptions {
 				expiry := cons.Consumed.Add(gl.windowDuration)
 				expiryMap[expiry] += cons.Tokens
 			}
-			gl.mu.RUnlock()
 
-			// Collect unique expiry times and sort them
 			expiryTimes := make([]time.Time, 0, len(expiryMap))
 			for expiry := range expiryMap {
 				expiryTimes = append(expiryTimes, expiry)
@@ -151,25 +132,20 @@ func (gl *GroupLimiter) CanMakeRequest(ctx context.Context, estimatedTokens int)
 				return expiryTimes[i].Before(expiryTimes[j])
 			})
 
-			// Sum up tokens until we have enough, using expiry times in order
 			tokensFreed := 0
 			for _, expiry := range expiryTimes {
 				tokensFreed += expiryMap[expiry]
 				retryAfterTime = expiry
 				if tokensFreed >= tokensNeeded {
-					break // Found when enough tokens will be available
+					break
 				}
 			}
 
-			// If we don't have enough tokens even after all expire, use the latest expiry
 			if tokensFreed < tokensNeeded && len(expiryTimes) > 0 {
 				retryAfterTime = expiryTimes[len(expiryTimes)-1]
 			}
-		} else {
-			gl.mu.RUnlock()
 		}
 
-		// If tokens will become available soon, mark as retryable
 		retryable := false
 		if now.Before(retryAfterTime) && time.Until(retryAfterTime) < 5*time.Minute {
 			retryable = true
@@ -198,14 +174,52 @@ func (gl *GroupLimiter) CanMakeRequest(ctx context.Context, estimatedTokens int)
 		}
 	}
 
+	if estimatedTokens > 0 {
+		gl.TokenUsed += estimatedTokens
+		gl.consumptions = append(gl.consumptions, TokenConsumption{
+			Tokens:   estimatedTokens,
+			Consumed: now,
+		})
+	}
+
 	logs.DebugCtx(ctx, "token check passed",
 		"group", gl.Name,
-		"token_used", tokenUsed,
+		"token_used", gl.TokenUsed,
 		"token_limit", tokenLimit,
-		"remaining", remaining,
+		"remaining", tokenLimit-gl.TokenUsed,
 		"estimated_tokens", estimatedTokens)
 
 	return nil
+}
+
+// ReleaseReservation drops a reservation from CanMakeRequest when the HTTP call
+// does not complete (wait / dial / request construction failure).
+func (gl *GroupLimiter) ReleaseReservation(estimatedTokens int) {
+	if estimatedTokens <= 0 {
+		return
+	}
+	gl.mu.Lock()
+	defer gl.mu.Unlock()
+	if !gl.EnforceTokenRestrictions {
+		return
+	}
+	gl.releaseReservationLocked(estimatedTokens)
+}
+
+func (gl *GroupLimiter) releaseReservationLocked(estimatedTokens int) {
+	if estimatedTokens <= 0 {
+		return
+	}
+	gl.TokenUsed -= estimatedTokens
+	if gl.TokenUsed < 0 {
+		gl.TokenUsed = 0
+	}
+	for i := len(gl.consumptions) - 1; i >= 0; i-- {
+		if gl.consumptions[i].Tokens == estimatedTokens {
+			gl.consumptions = append(gl.consumptions[:i], gl.consumptions[i+1:]...)
+			return
+		}
+	}
 }
 
 // GetLimiterForGroup gets the limiter for a given group designation.
