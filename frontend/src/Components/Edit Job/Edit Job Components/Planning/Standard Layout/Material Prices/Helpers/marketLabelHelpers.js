@@ -9,10 +9,15 @@ const listingLabelById = Object.fromEntries(
   listingType.map((entry) => [entry.id, entry.name])
 );
 
+const listingModeLabelById = {
+  buy: "Buy",
+  sell: "Sell",
+  buyP95: "Buy 95%",
+  sellP05: "Sell 5%",
+};
+
 export function getListingModeLabel(listingSelect) {
-  if (listingSelect === "buy") return "Buy";
-  if (listingSelect === "sell") return "Sell";
-  return listingSelect;
+  return listingModeLabelById[listingSelect] || listingSelect;
 }
 
 export function getListingOrdersLabel(listingSelect) {

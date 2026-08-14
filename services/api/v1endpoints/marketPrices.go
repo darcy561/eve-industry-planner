@@ -11,10 +11,8 @@ import (
 	"eve-industry-planner/api/helper"
 	esicore "eve-industry-planner/shared/core/esi"
 	esitypes "eve-industry-planner/shared/core/esi/types"
-	natscore "eve-industry-planner/shared/core/nats"
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/logs"
-	taskscore "eve-industry-planner/shared/tasks"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
@@ -35,10 +33,13 @@ type MarketPriceResponse struct {
 	TypeID        int32                    `json:"typeID"`
 }
 
-// LocationPrice represents buy/sell prices for a location
+// LocationPrice represents the prices for a location: best buy/sell, plus the
+// outlier-trimmed percentile of each side.
 type LocationPrice struct {
-	Buy  float64 `json:"buy"`
-	Sell float64 `json:"sell"`
+	Buy     float64 `json:"buy"`
+	Sell    float64 `json:"sell"`
+	BuyP95  float64 `json:"buyP95"`
+	SellP05 float64 `json:"sellP05"`
 }
 
 // MarshalJSON implements custom JSON marshaling to flatten location IDs as top-level keys
@@ -224,61 +225,24 @@ func (a *Handlers) fetchMarketPricesForType(ctx context.Context, r *http.Request
 		// Look up price entry for this location's region ID
 		priceEntry, found := priceEntries[int32(location.RegionID)]
 		if !found || priceEntry == nil {
-			// Market price not found for this location - add with zero prices
-			response.locations[location.ID] = LocationPrice{
-				Buy:  0,
-				Sell: 0,
-			}
+			// No orders for this type at this location's hub station.
+			response.locations[location.ID] = LocationPrice{}
 			continue
 		}
 
 		// Market price found
 		hasAnyData = true
 		response.locations[location.ID] = LocationPrice{
-			Buy:  priceEntry.Buy,
-			Sell: priceEntry.Sell,
+			Buy:     priceEntry.Buy,
+			Sell:    priceEntry.Sell,
+			BuyP95:  priceEntry.BuyP95,
+			SellP05: priceEntry.SellP05,
 		}
 
 		// Track minimum last updated (only from non-zero values)
 		if priceEntry.LastUpdated > 0 {
 			if minLastUpdated == 0 || priceEntry.LastUpdated < minLastUpdated {
 				minLastUpdated = priceEntry.LastUpdated
-			}
-		}
-	}
-
-	// If no data found for any location, send messages to worker to request prices for all locations
-	if !hasAnyData {
-		// Validate typeID before sending messages
-		if typeID == 0 {
-			if r != nil {
-				logs.AttachHandlerCaveat(r, "market_prices_refresh_skipped_invalid_type", "skipping market prices refresh messages due to invalid type_id", map[string]any{
-					"type_id": typeID,
-				})
-			}
-			return response, hasAnyData, nil
-		}
-
-		// Send message for each default location
-		for _, location := range esicore.DefaultMarketLocations {
-
-			request := natscore.MarketPricesRequest{
-				TypeID:     typeID,
-				LocationID: location.RegionID,
-				StationID:  location.StationID,
-			}
-
-			// Use high-priority task for missing market prices (FetchMissingMarketPrices has DefaultPriority Priority2)
-			if err := natscore.PublishTask(ctx, a.JetStream, taskscore.FetchMissingMarketPrices.Subject, taskscore.FetchMissingMarketPrices.Name, request, a.NATS); err != nil {
-				if r != nil {
-					logs.AttachHandlerCaveat(r, "market_prices_refresh_publish_failed", "failed to publish market prices refresh message", map[string]any{
-						"type_id":     typeID,
-						"location_id": location.RegionID,
-						"station_id":  location.StationID,
-						"error":       err.Error(),
-					})
-				}
-				// Continue with other locations even if one fails
 			}
 		}
 	}

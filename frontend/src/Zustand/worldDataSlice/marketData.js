@@ -74,6 +74,8 @@ export const marketDataActions = (set, get) => ({
           res[obj.id] = {
             buy: 0,
             sell: 0,
+            buyP95: 0,
+            sellP05: 0,
           };
           return res;
         },

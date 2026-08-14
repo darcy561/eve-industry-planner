@@ -33,12 +33,12 @@ func taskDataAttrsFromJSON(taskType string, raw []byte) []attribute.KeyValue {
 		return nil
 	}
 	switch taskType {
-	case "refreshMarketPrices", "fetchMissingMarketPrices":
-		var req MarketPricesRequest
+	case "refreshRegionMarketOrders":
+		var req RegionMarketOrdersRequest
 		if err := json.Unmarshal(raw, &req); err != nil {
 			return nil
 		}
-		return marketPricesRequestAttrs(req)
+		return regionMarketOrdersRequestAttrs(req)
 	case "applySDEVersion":
 		var req SDEApplyVersionRequest
 		if err := json.Unmarshal(raw, &req); err != nil {
@@ -95,10 +95,9 @@ func startPublishTaskSpan(ctx context.Context, subject, taskType string, taskDat
 	return tracer.Start(ctx, "nats.publish_task", opts...)
 }
 
-func marketPricesRequestAttrs(req MarketPricesRequest) []attribute.KeyValue {
+func regionMarketOrdersRequestAttrs(req RegionMarketOrdersRequest) []attribute.KeyValue {
 	return []attribute.KeyValue{
-		attribute.Int64("task.data.type_id", int64(req.TypeID)),
-		attribute.Int64("task.data.location_id", int64(req.LocationID)),
+		attribute.Int64("task.data.region_id", int64(req.RegionID)),
 		attribute.Int64("task.data.station_id", req.StationID),
 	}
 }

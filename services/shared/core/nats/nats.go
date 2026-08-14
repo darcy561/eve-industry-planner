@@ -117,8 +117,8 @@ func Cleanup(conn *natslib.Conn) {
 //
 // Examples:
 //
-//	PublishTask(ctx, js, subject, "refreshMarketPrices", request)
-//	PublishTask(ctx, js, subject, "refreshMarketPrices", request, natsConn)
+//	PublishTask(ctx, js, subject, "refreshRegionMarketOrders", request)
+//	PublishTask(ctx, js, subject, "refreshRegionMarketOrders", request, natsConn)
 //	PublishTask(ctx, js, subject, "migrateUserDocumentToMongo", payload, natsConn, "priority_5")
 func PublishTask(ctx context.Context, js jetstream.JetStream, subject string, taskType string, payload any, opts ...any) (err error) {
 	var natsConn *natslib.Conn

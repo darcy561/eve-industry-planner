@@ -59,8 +59,11 @@ export const permanentExtrasCategories = new Set(["0", "5"]);
 /**
  * Market listing types for EVE Online market data.
  *
- * Defines the two main types of market orders available in EVE Online:
- * buy orders (where players buy items) and sell orders (where players sell items).
+ * Buy and sell orders report the best price available at a trade hub. The percentile variants
+ * report the same order books with outlying quotes excluded: the 95th percentile of buy prices
+ * and the 5th percentile of sell prices. Percentiles are computed over order prices without
+ * volume weighting, and fall back to the best price when a book holds too few orders to be
+ * meaningful.
  *
  * @type {Array<Object>}
  * @property {string} id - Unique identifier for the listing type
@@ -69,12 +72,16 @@ export const permanentExtrasCategories = new Set(["0", "5"]);
  * @example
  * [
  *   { id: "buy", name: "Buy Orders" },
- *   { id: "sell", name: "Sell Orders" }
+ *   { id: "sell", name: "Sell Orders" },
+ *   { id: "buyP95", name: "Buy Orders (95th %ile)" },
+ *   { id: "sellP05", name: "Sell Orders (5th %ile)" }
  * ]
  */
 export let listingType = [
   { id: "buy", name: "Buy Orders" },
   { id: "sell", name: "Sell Orders" },
+  { id: "buyP95", name: "Buy Orders (95th %ile)" },
+  { id: "sellP05", name: "Sell Orders (5th %ile)" },
 ];
 
 /**
