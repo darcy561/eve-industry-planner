@@ -12,7 +12,7 @@ Decision/history/work logs for long-running migrations. **Not SoT.**
 
 | I need to… | Read |
 |------------|------|
-| Websocket realtime migration log / plan | [websocket-realtime/contents.md](./websocket-realtime/contents.md) |
+| Websocket realtime — promote verified behaviour, then retire | [websocket-realtime/contents.md](./websocket-realtime/contents.md) |
 | AuthZ HMAC rollout (entity refs, entitlements snapshot) | [authz-hmac/contents.md](./authz-hmac/contents.md) |
 | Refresh token encryption rollout | [refresh-token-encryption-rollout-plan.md](./refresh-token-encryption-rollout-plan.md) |
 | Swarm stack migration (**closed** — history; live SoT promoted) | [swarm-stack/contents.md](./swarm-stack/contents.md) |
