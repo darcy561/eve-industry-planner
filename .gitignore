@@ -19,11 +19,6 @@ admintool/dist
 frontend/dist
 frontend/routeTree.gen.js
 
-# Cursor IDE — plans/transcripts stay local. Project agent rules are tracked.
-.cursor/*
-!.cursor/rules/
-!.cursor/rules/**
-
 # misc
 *.exe
 *.env

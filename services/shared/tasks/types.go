@@ -82,23 +82,11 @@ var (
 		DefaultPriority: Priority3,
 		DefaultTimeout:  60 * time.Second,
 	}
-	RefreshMarketPrices = Task{
-		Name:            "refreshMarketPrices",
-		Subject:         "task.scheduled.refreshMarketPrices",
+	RefreshRegionMarketOrders = Task{
+		Name:            "refreshRegionMarketOrders",
+		Subject:         "task.scheduled.refreshRegionMarketOrders",
 		DefaultPriority: Priority4,
-		DefaultTimeout:  60 * time.Second,
-	}
-	CountMarketPricesItems = Task{
-		Name:            "countMarketPricesItems",
-		Subject:         "task.scheduled.countMarketPricesItems",
-		DefaultPriority: Priority3,
-		DefaultTimeout:  2 * time.Minute,
-	}
-	FetchMissingMarketPrices = Task{
-		Name:            "fetchMissingMarketPrices",
-		Subject:         "task.scheduled.fetchMissingMarketPrices",
-		DefaultPriority: Priority2,
-		DefaultTimeout:  60 * time.Second,
+		DefaultTimeout:  30 * time.Minute,
 	}
 	UpdateAccountSessionGrants = Task{
 		Name:            "updateAccountSessionGrants",
@@ -173,9 +161,7 @@ var ByName = map[string]Task{
 	ProcessArchivedBuildStats.Name:         ProcessArchivedBuildStats,
 	RefreshSystemIndexes.Name:              RefreshSystemIndexes,
 	RefreshAdjustedPrices.Name:             RefreshAdjustedPrices,
-	RefreshMarketPrices.Name:               RefreshMarketPrices,
-	CountMarketPricesItems.Name:            CountMarketPricesItems,
-	FetchMissingMarketPrices.Name:          FetchMissingMarketPrices,
+	RefreshRegionMarketOrders.Name:         RefreshRegionMarketOrders,
 	UpdateAccountSessionGrants.Name:        UpdateAccountSessionGrants,
 	CheckSDEUpdates.Name:                   CheckSDEUpdates,
 	RollbackSDEVersion.Name:                RollbackSDEVersion,
