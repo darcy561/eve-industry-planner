@@ -1,6 +1,6 @@
 # Core service (`eip_core`)
 
-Live SoT for the **core** control-plane service (schedulers, changestream, nested singletons). Code: [`services/core`](../../../services/core/). Rebuild / cutover history → [migration-plans/core-rebuild.md](../../migration-plans/core-rebuild.md).
+Live SoT for the **core** control-plane service (schedulers, changestream, nested singletons). Code: [`services/core`](../../../services/core/).
 
 ## Image & defaults
 
