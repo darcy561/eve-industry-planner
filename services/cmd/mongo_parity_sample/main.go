@@ -1,5 +1,5 @@
 // Command mongo_parity_sample pulls sample documents from a live Mongo into
-// .tmp/mongo-parity/ for rebuild parity tests (migration-plans/mongo-driver-v2).
+// .tmp/mongo-parity/ for rebuild parity tests.
 //
 // Output is gitignored — may contain account data. Do not commit.
 //
