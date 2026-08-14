@@ -9,7 +9,7 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 ## Does not own
 
 - Live archived-jobs behaviour → [backend/contents.md](../../backend/contents.md) (promoted only when this project closes)
-- Mongo driver v1 → v2 history → [mongo-driver-v2/contents.md](../mongo-driver-v2/contents.md)
+- Live Mongo access layer → [backend/shared/mongo.md](../../backend/shared/mongo.md)
 - Deterministic entity refs (`char_ref` / `corp_ref` / `alliance_ref`) → [authz-hmac-rollout-plan.md](../authz-hmac-rollout-plan.md)
 - Frontend SPA conventions → [frontend/technical-rules.md](../../frontend/technical-rules.md)
 

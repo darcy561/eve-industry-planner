@@ -6,7 +6,6 @@ Application behaviour for [`services/core`](../../../services/core/): primary le
 
 ## Does not own
 
-- Rebuild / SeaweedFS cutover history → [migration-plans/core-rebuild.md](../../migration-plans/core-rebuild.md)
 - Overlay membership → [stack/network.md](../../stack/network.md)
 - Data-plane EnsureMongo / EnsureS3 → [deploy.md](../../deployment/deployment-tool/cli/deploy.md)
 
@@ -16,4 +15,3 @@ Application behaviour for [`services/core`](../../../services/core/): primary le
 |------------|------|
 | Core image defaults / primary lease (live) | [core.md](./core.md) |
 | Changestream → `doc.update` subject shape | [core.md](./core.md) § Changestream → JetStream |
-| Core rebuild plan history | [../../migration-plans/core-rebuild.md](../../migration-plans/core-rebuild.md) |

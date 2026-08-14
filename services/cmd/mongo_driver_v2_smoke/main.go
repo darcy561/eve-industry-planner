@@ -1,5 +1,5 @@
-// Command mongo_driver_v2_smoke exercises driver v2 connect / CRUD / changestream
-// against a live Mongo (migration-plans/mongo-driver-v2 Stage A4 + B5).
+// Command mongo_driver_v2_smoke exercises Mongo connect / CRUD / changestream
+// against a live Mongo.
 //
 // Example (from repo root, stack up, app network eip-core):
 //
