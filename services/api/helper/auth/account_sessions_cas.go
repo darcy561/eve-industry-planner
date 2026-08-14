@@ -113,14 +113,24 @@ func saveAccountSessionsRecordCAS(ctx context.Context, redisClient *redis.Client
 		return fmt.Errorf("failed to marshal account sessions: %w", err)
 	}
 
+	// The write must go through TxPipelined: only MULTI/EXEC honours the WATCH on key,
+	// so a racing writer that touched key between the read below and EXEC aborts this
+	// attempt with redis.TxFailedErr instead of being silently overwritten.
+	commit := func(tx *redis.Tx) error {
+		_, err := tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+			pipe.Set(ctx, key, payload, SessionTTL)
+			return nil
+		})
+		return err
+	}
+
 	err = redisClient.Watch(ctx, func(tx *redis.Tx) error {
 		currentBytes, err := tx.Get(ctx, key).Bytes()
 		if err == redis.Nil {
 			if cas.exists {
 				return ErrAccountSessionsConflict
 			}
-			_, err = tx.Set(ctx, key, payload, SessionTTL).Result()
-			return err
+			return commit(tx)
 		}
 		if err != nil {
 			return err
@@ -135,8 +145,7 @@ func saveAccountSessionsRecordCAS(ctx context.Context, redisClient *redis.Client
 		if !accountSessionsCASMatch(&current, cas) {
 			return ErrAccountSessionsConflict
 		}
-		_, err = tx.Set(ctx, key, payload, SessionTTL).Result()
-		return err
+		return commit(tx)
 	}, key)
 	if err == nil {
 		return nil
