@@ -1,11 +1,11 @@
-package models
+﻿package models
 
 import (
 	"errors"
 	"fmt"
 	"strings"
 
-	corecrypto "eve-industry-planner/shared/core/crypto"
+	"eve-industry-planner/shared/crypto/aesgcm"
 )
 
 // RefreshToken represents a refresh token for a character.
@@ -24,7 +24,7 @@ type RefreshToken struct {
 
 // PlainRefreshMaterial returns the refresh token plaintext, preferring encrypted-at-rest fields
 // and falling back to legacy rToken during migration.
-func (r *RefreshToken) PlainRefreshMaterial(kr *corecrypto.Keyring) (string, error) {
+func (r *RefreshToken) PlainRefreshMaterial(kr *aesgcm.Keyring) (string, error) {
 	if kr == nil {
 		return "", errors.New("refresh token keyring is nil")
 	}
@@ -41,7 +41,7 @@ func (r *RefreshToken) PlainRefreshMaterial(kr *corecrypto.Keyring) (string, err
 }
 
 // EncryptRefreshAtRest replaces legacy plaintext with AES-GCM ciphertext fields.
-func (r *RefreshToken) EncryptRefreshAtRest(plaintext string, kr *corecrypto.Keyring) error {
+func (r *RefreshToken) EncryptRefreshAtRest(plaintext string, kr *aesgcm.Keyring) error {
 	if kr == nil {
 		return errors.New("refresh token keyring is nil")
 	}
@@ -61,7 +61,7 @@ func (r *RefreshToken) EncryptRefreshAtRest(plaintext string, kr *corecrypto.Key
 	r.RTokenCiphertext = ct
 	r.RTokenNonce = nonce
 	r.RTokenKeyVersion = ver
-	r.TokenFormatVersion = corecrypto.CiphertextFormatVersion
+	r.TokenFormatVersion = aesgcm.CiphertextFormatVersion
 	r.RToken = ""
 	return nil
 }
@@ -71,7 +71,7 @@ func (r *RefreshToken) EncryptRefreshAtRest(plaintext string, kr *corecrypto.Key
 //
 // If skipUntagged is true, rows with no stored key version are left unchanged (cloud ESI maintenance).
 // If false, legacy plaintext-only rows are encrypted too (dedicated key-rotation tasks).
-func (r *RefreshToken) ReencryptTowardActiveVersion(kr *corecrypto.Keyring, skipUntagged bool) (didRotate bool, err error) {
+func (r *RefreshToken) ReencryptTowardActiveVersion(kr *aesgcm.Keyring, skipUntagged bool) (didRotate bool, err error) {
 	if kr == nil {
 		return false, errors.New("refresh token keyring is nil")
 	}
@@ -97,7 +97,7 @@ func (r *RefreshToken) ReencryptTowardActiveVersion(kr *corecrypto.Keyring, skip
 			r.RTokenNonce = nn
 			r.RTokenCiphertext = ct
 			r.RTokenKeyVersion = ver
-			r.TokenFormatVersion = corecrypto.CiphertextFormatVersion
+			r.TokenFormatVersion = aesgcm.CiphertextFormatVersion
 			r.RToken = ""
 		}
 		return rotated, nil

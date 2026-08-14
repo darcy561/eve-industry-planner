@@ -51,24 +51,45 @@ func connectMongo(mongoURL string, connectionName string, configureOpts func(*op
 	return nil, errors.New(message)
 }
 
+// applyBaseOpts sets the connection settings shared by every client.
+func applyBaseOpts(opts *options.ClientOptions) {
+	opts.SetConnectTimeout(10 * time.Second)
+	opts.SetServerSelectionTimeout(10 * time.Second)
+	opts.SetHeartbeatInterval(10 * time.Second)
+	opts.SetMaxPoolSize(10)
+	opts.SetMinPoolSize(1)
+	opts.SetRetryWrites(true)
+	opts.SetRetryReads(true)
+	opts.SetBSONOptions(&options.BSONOptions{DefaultDocumentM: true})
+	opts.SetMonitor(otelmongo.NewMonitor())
+}
+
 func connectFromURL(urlFn func() (string, error)) (*mongo.Client, error) {
 	mongoURL, err := urlFn()
 	if err != nil {
 		return nil, err
 	}
 	configureOpts := func(opts *options.ClientOptions) {
-		opts.SetConnectTimeout(10 * time.Second)
-		opts.SetServerSelectionTimeout(10 * time.Second)
+		applyBaseOpts(opts)
 		opts.SetTimeout(10 * time.Second)
-		opts.SetHeartbeatInterval(10 * time.Second)
-		opts.SetMaxPoolSize(10)
-		opts.SetMinPoolSize(1)
-		opts.SetRetryWrites(true)
-		opts.SetRetryReads(true)
-		opts.SetBSONOptions(&options.BSONOptions{DefaultDocumentM: true})
-		opts.SetMonitor(otelmongo.NewMonitor())
 	}
 	return connectMongo(mongoURL, "Mongo", configureOpts)
+}
+
+// watchPoolSpare covers the connection-monitor ping and reconnect overlap alongside the
+// streams, which each hold a connection for as long as they are awaiting events.
+const watchPoolSpare = 4
+
+func watchClientFromURL(urlFn func() (string, error), streams uint64) (*mongo.Client, error) {
+	mongoURL, err := urlFn()
+	if err != nil {
+		return nil, err
+	}
+	configureOpts := func(opts *options.ClientOptions) {
+		applyBaseOpts(opts)
+		opts.SetMaxPoolSize(streams + watchPoolSpare)
+	}
+	return connectMongo(mongoURL, "Mongo (watch)", configureOpts)
 }
 
 func mongoFromURL(urlFn func() (string, error)) (*Mongo, error) {
@@ -82,6 +103,21 @@ func mongoFromURL(urlFn func() (string, error)) (*Mongo, error) {
 // ConnectPrimary connects with shared MONGO_USERNAME/PASSWORD and returns a [Mongo] handle.
 func ConnectPrimary() (*Mongo, error) {
 	return mongoFromURL(config.MongoURL)
+}
+
+// ConnectWatch returns a [Mongo] handle for change streams. It sets no client-wide operation
+// timeout, so a cursor may block until an event arrives; callers bound the server wait with
+// MaxAwaitTime. streams is the number of concurrent change streams the caller will open, and
+// sizes the connection pool. Use [ConnectPrimary] for request/response work.
+func ConnectWatch(streams uint64) (*Mongo, error) {
+	if streams == 0 {
+		return nil, errors.New("mongo: ConnectWatch requires at least one stream")
+	}
+	client, err := watchClientFromURL(config.MongoURL, streams)
+	if err != nil {
+		return nil, err
+	}
+	return NewMongo(client)
 }
 
 // monitorMongoConnection periodically Pings the shared client for observability.

@@ -1,4 +1,4 @@
-package corecrypto
+package aesgcm
 
 import "testing"
 

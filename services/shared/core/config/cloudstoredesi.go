@@ -1,14 +1,14 @@
-package config
+﻿package config
 
 import (
-	corecrypto "eve-industry-planner/shared/core/crypto"
-	"eve-industry-planner/shared/core/crypto/keyrings"
+	"eve-industry-planner/shared/crypto/aesgcm"
+	"eve-industry-planner/shared/crypto/aesgcm/keyrings"
 )
 
 // CloudStoredESIKeys is the AES keyring for encrypting cloud-stored ESI OAuth
 // refresh material (users.refreshTokens ciphertext), not app session refresh cookies.
 type CloudStoredESIKeys struct {
-	Keyring           *corecrypto.Keyring
+	Keyring           *aesgcm.Keyring
 	ActiveVersion     string
 	SupportedVersions map[string]struct{}
 }
