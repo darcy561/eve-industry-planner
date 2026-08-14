@@ -10,7 +10,7 @@ policy behind the refs.
 ## Does not own
 
 - Live auth and session behaviour → [backend/api/auth/overview.md](../../backend/api/auth/overview.md) (promoted only when this project closes)
-- Refresh token encryption rollout → [refresh-token-encryption-rollout-plan.md](../refresh-token-encryption-rollout-plan.md)
+- ESI refresh token encryption at rest → [backend/api/auth/sessions.md](../../backend/api/auth/sessions.md)
 - Archived job statistics → [archived-jobs-stats/contents.md](../archived-jobs-stats/contents.md)
 - Operator secret provisioning verbs → [deployment/deployment-tool/cli/verbs.md](../../deployment/deployment-tool/cli/verbs.md)
 
