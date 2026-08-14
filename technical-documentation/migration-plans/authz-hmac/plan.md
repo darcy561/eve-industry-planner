@@ -13,7 +13,7 @@ Statuses reflect what runs today, not what was intended when this plan was writt
 | Rollout phase | Status |
 |---------------|--------|
 | Phase 1 — project docs | Complete |
-| 1. Shared HMAC helpers + tests | Not started — see [Shared helper implementation](#shared-helper-implementation) |
+| 1. Shared HMAC helpers + tests | **Landed** — `shared/crypto/authzhmac/{helper,ref}`; see [overlay.md](./overlay.md) § Shared HMAC helpers |
 | 2. Metadata schema fields and reverse indexes | Not started |
 | 3. Login-time backfill for legacy accounts | Not started |
 | 4. Refresh-token encryption at rest + migration | **Landed** — `models.RefreshToken` persists `rTokenCiphertext` / `rTokenNonce` / `rTokenKeyVersion`, with the keyring built by `crypto/aesgcm/keyrings.NewRefreshTokenKeyringSpec` |
@@ -29,22 +29,11 @@ Nothing under phases 1–3 or 5–9 exists in the codebase yet. No `crypto/hmac`
 
 ## Shared helper implementation
 
-Rollout phase 1 (shared helpers) has a reference implementation on the unmerged branch
-`feature/archived-jobs-redesign` under `shared/core/crypto/authzhmac/{helper,ref}`. It matches the
-ref format, domain-separation prefixes, and encoding this plan specifies, and it ships with tests.
+Rollout phase 1 landed as `shared/crypto/authzhmac/{helper,ref}`. Behaviour and operator surface →
+[overlay.md](./overlay.md) § Shared HMAC helpers.
 
-Two changes are required before that code can land, because it predates rules and packages that
-now exist:
-
-- **Key loading.** The branch reads `AUTHZ_HMAC_KEY` with a bare `os.Getenv`. Key material is
-  loaded through `swarmsecret.Require` in this codebase so it resolves from `/run/secrets` as well
-  as the environment — the pattern `keyrings.NewRefreshTokenKeyringSpec` already follows. The
-  non-secret version string may stay on `os.Getenv`, as it does there.
-- **Operator env schema.** `AUTHZ_HMAC_KEY` and `AUTHZ_HMAC_KEY_VERSION` are operator surface and
-  belong in the Deployment Tool `EnvFields` source of truth rather than only in a Go constant.
-
-The `ref` package (ref parsing and shape validation) has no key handling and needs no rework, but
-it has no callers until the helper lands.
+The helpers have no callers yet. Rollout phase 2 (metadata schema fields and reverse indexes) is
+the first consumer.
 
 ## Objectives
 

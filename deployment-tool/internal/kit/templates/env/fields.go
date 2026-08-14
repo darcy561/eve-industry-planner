@@ -112,6 +112,11 @@ var envFields = []EnvField{
 		Type: FieldHMAC, Required: true, Default: "", Autogen: true, Locked: true,
 	},
 	{
+		Key: "AUTHZ_HMAC_KEY_VERSION", Section: "Encryption", Label: "Authz HMAC version",
+		Help: "Active authz ref version (default v1). Stamped into every derived ref, so changing it invalidates stored refs until they are recomputed.",
+		Type: FieldText, Required: true, Default: "v1", Hidden: true,
+	},
+	{
 		Key: "REFRESH_TOKEN_AES_KEY", Section: "Encryption", Label: "Refresh token AES key",
 		Help: "AES-256-GCM key for cloud refresh tokens at rest. " +
 			"Roll on save regenerates the key, bumps REFRESH_TOKEN_AES_KEY_VERSION, " +
