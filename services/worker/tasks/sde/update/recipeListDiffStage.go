@@ -7,11 +7,7 @@ import (
 	"slices"
 	"strconv"
 
-	esicore "eve-industry-planner/shared/core/esi"
-	natscore "eve-industry-planner/shared/core/nats"
-	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/logs"
-	taskscore "eve-industry-planner/shared/tasks"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 	"eve-industry-planner/worker/tasks/sde/update/conversion"
 )
@@ -90,81 +86,15 @@ func runSDENewRecipeItemsStage(ctx context.Context, persistResult *sdePersistRes
 		)
 	}
 
-	typeIDs := make([]int32, 0, len(typeIDsToRefresh))
-	for id := range typeIDsToRefresh {
-		typeIDs = append(typeIDs, id)
-	}
-
 	reprocessingAdded, err := addReprocessingTypeIDs(typeIDsToRefresh, persistResult.ReprocessingBytes)
 	if err != nil {
 		return err
 	}
 
-	typeIDs = typeIDs[:0]
-	for id := range typeIDsToRefresh {
-		typeIDs = append(typeIDs, id)
-	}
-
-	if deps == nil || deps.Redis == nil || deps.JetStream == nil || deps.NATS == nil {
-		// Keep the diff stage working even without Redis/NATS (e.g. file-generation integration tests).
-		logs.InfoCtx(ctx, "SDE market price refresh skip: missing deps",
-			"new_items_count", len(newItems),
-			"type_ids_extracted", len(typeIDs),
-			"reprocessing_type_ids_added", reprocessingAdded,
-		)
-		return nil
-	}
-
-	presentSet, err := rediscore.GetExistingMarketOrdersTypeIDs(ctx, deps.Redis, typeIDs)
-	if err != nil {
-		return fmt.Errorf("failed checking redis market refresh presence: %w", err)
-	}
-
-	missingTypeIDs := make([]int32, 0)
-	for _, id := range typeIDs {
-		if !presentSet[id] {
-			missingTypeIDs = append(missingTypeIDs, id)
-		}
-	}
-
-	logs.InfoCtx(ctx, "SDE market price missing detection",
+	logs.InfoCtx(ctx, "SDE recipeList diff complete",
 		"new_items_count", len(newItems),
-		"type_ids_extracted", len(typeIDs),
+		"type_ids_extracted", len(typeIDsToRefresh),
 		"reprocessing_type_ids_added", reprocessingAdded,
-		"type_ids_present", len(presentSet),
-		"type_ids_missing", len(missingTypeIDs),
-	)
-
-	if len(missingTypeIDs) == 0 {
-		return nil
-	}
-
-	// Publish missing market price tasks like the API endpoint does:
-	// for each missing typeID, enqueue refresh tasks for every default market location.
-	task := taskscore.FetchMissingMarketPrices
-	published := 0
-	for _, typeID := range missingTypeIDs {
-		for _, location := range esicore.DefaultMarketLocations {
-			request := natscore.MarketPricesRequest{
-				TypeID:     typeID,
-				LocationID: location.RegionID,
-				StationID:  location.StationID,
-			}
-			if err := natscore.PublishTask(ctx, deps.JetStream, task.Subject, task.Name, request, deps.NATS); err != nil {
-				logs.WarnCtx(ctx, "SDE failed publishing fetchMissingMarketPrices task",
-					"type_id", typeID,
-					"location_id", location.RegionID,
-					"error", err,
-				)
-				continue
-			}
-			published++
-		}
-	}
-
-	logs.InfoCtx(ctx, "SDE published missing market price refresh tasks",
-		"type_ids_missing", len(missingTypeIDs),
-		"tasks_published", published,
 	)
 
 	return nil

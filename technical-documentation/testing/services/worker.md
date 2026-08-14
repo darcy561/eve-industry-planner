@@ -25,7 +25,7 @@ go test ./worker/...
 |------|----------------------|
 | `ratelimiter` | Token bucket / flood exhaustion & recovery; concurrent stress; cleanup goroutine; ESI client Do/429; group naming & token parsing; error typing |
 | `tasks/esi` — system indexes | Stream industry systems (304, gzip, JSON errors, retry, rate-limit); task paths (lock, ETag, not-modified) |
-| `tasks/esi` — market prices | Filter/categorize orders; paginated fetch; task orchestration |
+| `tasks/esi` — region market orders | Payload validation; percentile maths (sample floor, nearest rank, outlier trimming, empty book sides) |
 | `tasks/esi` — adjusted prices | Stream + task paths |
 | `tasks/esi` — session grants | JSON/token validation; ESI errors; corp dedupe; Redis storage |
 | `tasks/esi` — helpers | Retry / ESI verb helpers |
@@ -41,7 +41,7 @@ go test ./worker/...
 | Area | Gap |
 |------|-----|
 | `tasks/maintenance` | Payload validation only — not cloud-ESI maintain / prune sessions / schema batch execution |
-| `tasks/esi` count-market-prices | Nil task + invalid-Redis skip only |
+| `tasks/esi` region market orders | Percentile maths and payload validation only — not the pagination pass, 304 page replay, or station filtering |
 | `tasks/sde/publish` | Single ordering test |
 | `tasks/sde/update/conversion` | Output writers / index stages largely untested |
 | `tasks/archivedjobs` | Snapshot math only — not `process_build_stats` processor |
