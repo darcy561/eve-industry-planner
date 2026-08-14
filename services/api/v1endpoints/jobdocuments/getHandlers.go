@@ -2,27 +2,21 @@ package jobdocuments
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"eve-industry-planner/api/helper"
-	mongocore "eve-industry-planner/shared/core/mongo"
-	mongoget "eve-industry-planner/shared/core/mongo/get"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
-func collJobDocuments(clients *shared.ServiceClients) *mongo.Collection {
-	return clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUserJobDocuments)
-}
-
 // GetPlannerJobDocumentsHandler handles GET /api/v1/job-documents/planner
-func GetPlannerJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) GetPlannerJobDocumentsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIJobs()
@@ -40,11 +34,11 @@ func GetPlannerJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clien
 		"_meta.accountID":  accountID,
 		"displayOnPlanner": true,
 	}
-	findJobs(ctx, w, r, clients, filter, accountID, start, "planner jobs", metrics)
+	findJobs(ctx, w, r, h, filter, accountID, start, "planner jobs", metrics)
 }
 
 // GetJobDocumentsByGroupHandler handles GET /api/v1/job-documents/by-group/{groupID}
-func GetJobDocumentsByGroupHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients, groupID string) {
+func (h *Handlers) GetJobDocumentsByGroupHandler(w http.ResponseWriter, r *http.Request, groupID string) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIJobs()
@@ -62,11 +56,11 @@ func GetJobDocumentsByGroupHandler(w http.ResponseWriter, r *http.Request, clien
 		"_meta.accountID": accountID,
 		"groupID":         groupID,
 	}
-	findJobs(ctx, w, r, clients, filter, accountID, start, "jobs by group", metrics)
+	findJobs(ctx, w, r, h, filter, accountID, start, "jobs by group", metrics)
 }
 
 // GetJobDocumentByIDHandler handles GET /api/v1/job-documents/{jobID}
-func GetJobDocumentByIDHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients, jobID string) {
+func (h *Handlers) GetJobDocumentByIDHandler(w http.ResponseWriter, r *http.Request, jobID string) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIJobs()
@@ -80,39 +74,38 @@ func GetJobDocumentByIDHandler(w http.ResponseWriter, r *http.Request, clients *
 
 	accountID := helper.AuthenticatedAccountID(r)
 
-	collection := collJobDocuments(clients)
-	doc, err := mongoget.LoadJobByID(ctx, collection, accountID, jobID)
+	doc, err := h.Mongo.JobDocuments.LoadJobByID(ctx, accountID, jobID)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
-			helper.RespondEndpointError(w, r, http.StatusNotFound, "Not found", "job document not found", "job_doc_not_found", "job_documents", nil, map[string]interface{}{"job_id": jobID})
+			helper.RespondEndpointError(w, r, http.StatusNotFound, "Not found", "job document not found", "job_doc_not_found", "job_documents", nil, map[string]any{"job_id": jobID})
 			return
 		}
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to retrieve job", "failed to query job document", "job_doc_query_failed", "job_documents", err, nil)
+		helper.RespondEndpointServerError(w, r, "Failed to retrieve job", "failed to query job document", "job_doc_query_failed", "job_documents", err, map[string]any{"job_id": jobID})
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 		"job_id": jobID,
 	})
 
 	if err := helper.EncodeJSON(w, doc); err != nil {
 		metrics.Error("encode_error")
-		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode job document response", "job_doc_encode_failed", "job_documents", err, map[string]interface{}{"job_id": jobID})
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode job document response", "job_doc_encode_failed", "job_documents", err, map[string]any{"job_id": jobID})
 		return
 	}
 
 	metrics.Success()
 	m.JobsRequested.Observe(ctx, 1)
-	logs.AttachHandlerSuccessDetail(r, "job document retrieved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "job document retrieved", map[string]any{
 		"job_id":      jobID,
 		"duration_ms": time.Since(start).Milliseconds(),
 	})
 }
 
 // GetJobDocumentsByIDsHandler handles POST /api/v1/job-documents with { jobIDs: [] }
-func GetJobDocumentsByIDsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) GetJobDocumentsByIDsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIJobs()
@@ -155,7 +148,7 @@ func GetJobDocumentsByIDsHandler(w http.ResponseWriter, r *http.Request, clients
 	const maxBatchSize = 200
 	if len(uniqueIDs) > maxBatchSize {
 		metrics.Error("batch_too_large")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d job IDs)", maxBatchSize), "job documents get batch too large", "job_docs_get_batch_too_large", "job_documents", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d job IDs)", maxBatchSize), "job documents get batch too large", "job_docs_get_batch_too_large", "job_documents", nil, map[string]any{
 			"count": len(uniqueIDs),
 			"max":   maxBatchSize,
 		})
@@ -166,14 +159,14 @@ func GetJobDocumentsByIDsHandler(w http.ResponseWriter, r *http.Request, clients
 		"_meta.accountID": accountID,
 		"_id":             bson.M{"$in": uniqueIDs},
 	}
-	findJobs(ctx, w, r, clients, filter, accountID, start, "jobs by ids", metrics)
+	findJobs(ctx, w, r, h, filter, accountID, start, "jobs by ids", metrics)
 }
 
 func findJobs(
 	ctx context.Context,
 	w http.ResponseWriter,
 	r *http.Request,
-	clients *shared.ServiceClients,
+	h *Handlers,
 	filter bson.M,
 	accountID string,
 	start time.Time,
@@ -181,29 +174,28 @@ func findJobs(
 	metrics *helper.RequestMetricsTracker,
 ) {
 	m := apimetrics.GetAPIJobs()
-	collection := collJobDocuments(clients)
 
-	jobs, err := mongoget.LoadJobsByFilter(ctx, collection, accountID, label, filter)
+	jobs, err := h.Mongo.JobDocuments.LoadJobsByFilter(ctx, accountID, filter)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to retrieve jobs", "failed to query job documents", "job_docs_query_failed", "job_documents", err, nil)
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 		"kind":      label,
 		"job_count": len(jobs),
 	})
 
 	if err := helper.EncodeJSON(w, jobs); err != nil {
 		metrics.Error("encode_error")
-		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode job documents response", "job_docs_encode_failed", "job_documents", err, map[string]interface{}{"kind": label})
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode job documents response", "job_docs_encode_failed", "job_documents", err, map[string]any{"kind": label})
 		return
 	}
 
 	metrics.Success()
 	m.JobsRequested.Observe(ctx, float64(len(jobs)))
-	logs.AttachHandlerSuccessDetail(r, "job documents retrieved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "job documents retrieved", map[string]any{
 		"kind":        label,
 		"job_count":   len(jobs),
 		"duration_ms": time.Since(start).Milliseconds(),

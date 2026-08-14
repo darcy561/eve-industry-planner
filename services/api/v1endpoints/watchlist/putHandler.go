@@ -7,17 +7,14 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
-	mongocore "eve-industry-planner/shared/core/mongo"
-	mongoput "eve-industry-planner/shared/core/mongo/put"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // PutHandler handles PUT /api/v1/user/watchlist.
-func PutHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) PutHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
@@ -60,17 +57,14 @@ func PutHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceC
 	sessionID := helper.AuthenticatedSessionID(r)
 	wsClientID := helper.ExtractWSClientID(r)
 
-	database := clients.Mongo.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionUserWatchlistDeprecated)
-
-	result, err := mongoput.UpsertWatchlistDeprecated(ctx, collection, accountID, groups, items, now, sessionID, wsClientID)
+	result, err := h.Mongo.WatchlistDeprecated.UpsertWatchlistDeprecated(ctx, accountID, groups, items, now, sessionID, wsClientID)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to save watchlist", "failed to upsert watchlist deprecated", "watchlist_upsert_failed", "watchlist_put", err, nil)
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_upsert_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_upsert_completed", map[string]any{
 		"matched":  result.MatchedCount,
 		"upserted": result.UpsertedCount,
 	})
@@ -78,7 +72,7 @@ func PutHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceC
 	w.WriteHeader(http.StatusNoContent)
 
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "watchlist document saved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "watchlist document saved", map[string]any{
 		"matched":     result.MatchedCount,
 		"upserted":    result.UpsertedCount,
 		"duration_ms": time.Since(start).Milliseconds(),

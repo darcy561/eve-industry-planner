@@ -3,36 +3,36 @@ package conversion
 import "testing"
 
 func TestGenerateInventionModifiersOutput_decryptorRow(t *testing.T) {
-	typesData := map[string]interface{}{
-		"34201": map[string]interface{}{
+	typesData := map[string]any{
+		"34201": map[string]any{
 			"_key":      float64(34201),
 			"groupID":   float64(1304),
 			"published": true,
-			"name":      map[string]interface{}{"en": "Accelerant Decryptor"},
+			"name":      map[string]any{"en": "Accelerant Decryptor"},
 		},
-		"1": map[string]interface{}{
+		"1": map[string]any{
 			"published": false,
-			"name":      map[string]interface{}{"en": "Hidden"},
+			"name":      map[string]any{"en": "Hidden"},
 		},
 	}
-	dogmaAttrs := map[string]interface{}{
-		"1112": map[string]interface{}{
+	dogmaAttrs := map[string]any{
+		"1112": map[string]any{
 			"_key":        float64(1112),
 			"name":        "inventionPropabilityMultiplier",
 			"description": "test",
 		},
 	}
-	typeDogma := map[string]interface{}{
-		"34201": map[string]interface{}{
+	typeDogma := map[string]any{
+		"34201": map[string]any{
 			"_key": float64(34201),
-			"dogmaAttributes": []interface{}{
-				map[string]interface{}{"attributeID": float64(1112), "value": float64(3.5)},
+			"dogmaAttributes": []any{
+				map[string]any{"attributeID": float64(1112), "value": float64(3.5)},
 			},
 		},
-		"1": map[string]interface{}{
+		"1": map[string]any{
 			"_key": float64(1),
-			"dogmaAttributes": []interface{}{
-				map[string]interface{}{"attributeID": float64(1112), "value": float64(9)},
+			"dogmaAttributes": []any{
+				map[string]any{"attributeID": float64(1112), "value": float64(9)},
 			},
 		},
 	}
@@ -53,19 +53,19 @@ func TestGenerateInventionModifiersOutput_decryptorRow(t *testing.T) {
 }
 
 func TestGenerateInventionModifiersOutput_talocanDecryptorExcludedIPHAlignment(t *testing.T) {
-	typesData := map[string]interface{}{
-		"21074": map[string]interface{}{
+	typesData := map[string]any{
+		"21074": map[string]any{
 			"_key": float64(21074), "groupID": float64(735), "published": true,
-			"name": map[string]interface{}{"en": "Talocan Sketch Books"},
+			"name": map[string]any{"en": "Talocan Sketch Books"},
 		},
 	}
-	dogmaAttrs := map[string]interface{}{
-		"1112": map[string]interface{}{"name": "inventionPropabilityMultiplier"},
+	dogmaAttrs := map[string]any{
+		"1112": map[string]any{"name": "inventionPropabilityMultiplier"},
 	}
-	typeDogma := map[string]interface{}{
-		"21074": map[string]interface{}{
-			"dogmaAttributes": []interface{}{
-				map[string]interface{}{"attributeID": float64(1112), "value": float64(3.5)},
+	typeDogma := map[string]any{
+		"21074": map[string]any{
+			"dogmaAttributes": []any{
+				map[string]any{"attributeID": float64(1112), "value": float64(3.5)},
 			},
 		},
 	}
@@ -79,19 +79,19 @@ func TestGenerateInventionModifiersOutput_talocanDecryptorExcludedIPHAlignment(t
 }
 
 func TestGenerateInventionModifiersOutput_dataInterfaceExcluded(t *testing.T) {
-	typesData := map[string]interface{}{
-		"30384": map[string]interface{}{
+	typesData := map[string]any{
+		"30384": map[string]any{
 			"_key": float64(30384), "groupID": float64(979), "published": true,
-			"name": map[string]interface{}{"en": "Minmatar Subsystems Data Interface"},
+			"name": map[string]any{"en": "Minmatar Subsystems Data Interface"},
 		},
 	}
-	dogmaAttrs := map[string]interface{}{
-		"1112": map[string]interface{}{"name": "inventionPropabilityMultiplier"},
+	dogmaAttrs := map[string]any{
+		"1112": map[string]any{"name": "inventionPropabilityMultiplier"},
 	}
-	typeDogma := map[string]interface{}{
-		"30384": map[string]interface{}{
-			"dogmaAttributes": []interface{}{
-				map[string]interface{}{"attributeID": float64(1112), "value": float64(1)},
+	typeDogma := map[string]any{
+		"30384": map[string]any{
+			"dogmaAttributes": []any{
+				map[string]any{"attributeID": float64(1112), "value": float64(1)},
 			},
 		},
 	}
@@ -105,22 +105,22 @@ func TestGenerateInventionModifiersOutput_dataInterfaceExcluded(t *testing.T) {
 }
 
 func TestGenerateInventionModifiersOutput_nonDecryptorDogmaIgnored(t *testing.T) {
-	typesData := map[string]interface{}{
-		"99": map[string]interface{}{
+	typesData := map[string]any{
+		"99": map[string]any{
 			"_key": float64(99), "groupID": float64(1304), "published": true,
-			"name": map[string]interface{}{"en": "Skill Book"},
+			"name": map[string]any{"en": "Skill Book"},
 		},
 	}
-	dogmaAttrs := map[string]interface{}{
-		"474": map[string]interface{}{"name": "inventionBonus"},
-		"1112": map[string]interface{}{
+	dogmaAttrs := map[string]any{
+		"474": map[string]any{"name": "inventionBonus"},
+		"1112": map[string]any{
 			"name": "inventionPropabilityMultiplier",
 		},
 	}
-	typeDogma := map[string]interface{}{
-		"99": map[string]interface{}{
-			"dogmaAttributes": []interface{}{
-				map[string]interface{}{"attributeID": float64(474), "value": float64(10)},
+	typeDogma := map[string]any{
+		"99": map[string]any{
+			"dogmaAttributes": []any{
+				map[string]any{"attributeID": float64(474), "value": float64(10)},
 			},
 		},
 	}

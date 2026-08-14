@@ -13,8 +13,6 @@ import (
 	cloudstoredesi "eve-industry-planner/api/helper/cloudstoredesi"
 	"eve-industry-planner/shared/core/config"
 	evesso "eve-industry-planner/shared/core/evesso"
-	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
@@ -34,8 +32,8 @@ var (
 // material for the given character hash, then persists rotation. Used when the planner session refresh
 // request has no client eve_token but a valid HttpOnly app refresh cookie (cloud cookie resume).
 // Returns the new ESI access token string for optional inclusion in the bootstrap session JSON (avoids a second CCP round-trip).
-func RefreshStoredEsiFromMongoForCharacter(ctx context.Context, clients *shared.ServiceClients, accountID, characterHash string) (esiAccessToken string, err error) {
-	tok, err := refreshStoredEsiFromMongo(ctx, clients, accountID, strings.TrimSpace(characterHash))
+func (h *Handlers) RefreshStoredEsiFromMongoForCharacter(ctx context.Context, accountID, characterHash string) (esiAccessToken string, err error) {
+	tok, err := h.refreshStoredEsiFromMongo(ctx, accountID, strings.TrimSpace(characterHash))
 	if err != nil {
 		return "", err
 	}
@@ -45,21 +43,19 @@ func RefreshStoredEsiFromMongoForCharacter(ctx context.Context, clients *shared.
 	return tok.AccessToken, nil
 }
 
-func refreshStoredEsiFromMongo(ctx context.Context, clients *shared.ServiceClients, accountID, targetHash string) (*evesso.EveSSOTokenPayload, error) {
-	cfg, err := config.LoadConfig()
+func (h *Handlers) refreshStoredEsiFromMongo(ctx context.Context, accountID, targetHash string) (*evesso.EveSSOTokenPayload, error) {
+	cfg, err := config.LoadCloudStoredESI()
 	if err != nil {
 		return nil, fmt.Errorf("mongo stored esi: %w", err)
 	}
 
-	database := clients.Mongo.Database(mongocore.DatabaseName)
-	usersCol := database.Collection(mongocore.CollectionUsers)
-	return cloudstoredesi.RefreshStoredEsiForCharacter(ctx, usersCol, accountID, targetHash, &cfg)
+	return cloudstoredesi.RefreshStoredEsiForCharacter(ctx, h.Mongo, accountID, targetHash, &cfg)
 }
 
 // ServerStoredEsiAccessTokenHandler handles POST /api/v1/esi/characters/access-token/server:
 // refreshes ESI access using Mongo-held OAuth refresh for the character hash (cloud / server storage mode).
 // No long-lived refresh secret is returned to the client.
-func ServerStoredEsiAccessTokenHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) ServerStoredEsiAccessTokenHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveSSOTokenRefresh()
@@ -87,66 +83,66 @@ func ServerStoredEsiAccessTokenHandler(w http.ResponseWriter, r *http.Request, c
 		return
 	}
 
-	logs.AttachDebugStep(r, "character_hash_received", map[string]interface{}{
-		"character_hash":           targetHash,
+	logs.AttachDebugStep(r, "character_hash_received", map[string]any{
+		"character_hash":          targetHash,
 		"client_access_token_exp": req.ClientAccessTokenExp,
 	})
 
-	tok, err := refreshStoredEsiFromMongo(ctx, clients, accountID, targetHash)
+	tok, err := h.refreshStoredEsiFromMongo(ctx, accountID, targetHash)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrMongoStoredEsiUserNotFound):
 			m.Errors.WithLabelValues("not_found").Inc(ctx)
-			helper.RespondEndpointError(w, r, http.StatusNotFound, "user document not found", "cloud stored ESI refresh: user not found", "linked_esi_user_not_found", "eve_sso_token_refresh", err, map[string]interface{}{"character_hash": targetHash})
+			helper.RespondEndpointError(w, r, http.StatusNotFound, "user document not found", "cloud stored ESI refresh: user not found", "linked_esi_user_not_found", "eve_sso_token_refresh", err, map[string]any{"character_hash": targetHash})
 		case errors.Is(err, ErrMongoStoredEsiNotCloud):
 			m.Errors.WithLabelValues("forbidden").Inc(ctx)
-			helper.RespondEndpointError(w, r, http.StatusForbidden, "cloud storage mode is not enabled", "cloud stored ESI refresh: not cloud mode", "linked_esi_not_cloud", "eve_sso_token_refresh", err, map[string]interface{}{"character_hash": targetHash})
+			helper.RespondEndpointError(w, r, http.StatusForbidden, "cloud storage mode is not enabled", "cloud stored ESI refresh: not cloud mode", "linked_esi_not_cloud", "eve_sso_token_refresh", err, map[string]any{"character_hash": targetHash})
 		case errors.Is(err, ErrMongoStoredEsiNoRow):
 			m.Errors.WithLabelValues("forbidden").Inc(ctx)
-			helper.RespondEndpointError(w, r, http.StatusForbidden, "character not linked for this account", "cloud stored ESI refresh: character not linked", "linked_esi_character_not_linked", "eve_sso_token_refresh", err, map[string]interface{}{"character_hash": targetHash})
+			helper.RespondEndpointError(w, r, http.StatusForbidden, "character not linked for this account", "cloud stored ESI refresh: character not linked", "linked_esi_character_not_linked", "eve_sso_token_refresh", err, map[string]any{"character_hash": targetHash})
 		case errors.Is(err, ErrMongoStoredEsiKeyring):
 			m.Errors.WithLabelValues("config_error").Inc(ctx)
-			helper.RespondEndpointServerError(w, r, "Internal server error", "linked esi keyring", "linked_esi_keyring", "eve_sso_token_refresh", err, map[string]interface{}{
+			helper.RespondEndpointServerError(w, r, "Internal server error", "linked esi keyring", "linked_esi_keyring", "eve_sso_token_refresh", err, map[string]any{
 				"additional_chars_endpoint": "esi_server_access_token",
-								"character_hash":            targetHash,
+				"character_hash":            targetHash,
 			})
 		case errors.Is(err, ErrMongoStoredEsiDecrypt):
 			m.Errors.WithLabelValues("extraction_error").Inc(ctx)
-			helper.RespondEndpointServerError(w, r, "stored refresh token unavailable", "linked esi decrypt", "linked_esi_decrypt", "eve_sso_token_refresh", err, map[string]interface{}{
+			helper.RespondEndpointServerError(w, r, "stored refresh token unavailable", "linked esi decrypt", "linked_esi_decrypt", "eve_sso_token_refresh", err, map[string]any{
 				"additional_chars_endpoint": "esi_server_access_token",
-								"character_hash":            targetHash,
+				"character_hash":            targetHash,
 			})
 		case errors.Is(err, ErrMongoStoredEsiInvalidGrant):
 			m.Errors.WithLabelValues("sso_refresh_error").Inc(ctx)
-			helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid refresh token", "cloud stored ESI refresh: invalid grant", "linked_esi_invalid_grant", "eve_sso_token_refresh", err, map[string]interface{}{"character_hash": targetHash})
+			helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid refresh token", "cloud stored ESI refresh: invalid grant", "linked_esi_invalid_grant", "eve_sso_token_refresh", err, map[string]any{"character_hash": targetHash})
 		case errors.Is(err, ErrMongoStoredEsiPersist):
 			m.Errors.WithLabelValues("database_error").Inc(ctx)
-			helper.RespondEndpointServerError(w, r, "Internal server error", "linked esi persist mongo", "linked_esi_persist_mongo", "eve_sso_token_refresh", err, map[string]interface{}{
+			helper.RespondEndpointServerError(w, r, "Internal server error", "linked esi persist mongo", "linked_esi_persist_mongo", "eve_sso_token_refresh", err, map[string]any{
 				"additional_chars_endpoint": "esi_server_access_token",
-								"character_hash":            targetHash,
+				"character_hash":            targetHash,
 			})
 		default:
 			if strings.Contains(err.Error(), "invalid_grant") || strings.Contains(err.Error(), "invalid_request") {
 				m.Errors.WithLabelValues("sso_refresh_error").Inc(ctx)
-				helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid refresh token", "cloud stored ESI refresh: invalid grant (upstream)", "linked_esi_invalid_grant", "eve_sso_token_refresh", err, map[string]interface{}{"character_hash": targetHash})
+				helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid refresh token", "cloud stored ESI refresh: invalid grant (upstream)", "linked_esi_invalid_grant", "eve_sso_token_refresh", err, map[string]any{"character_hash": targetHash})
 			} else if strings.Contains(err.Error(), "encrypt") {
 				m.Errors.WithLabelValues("encode_error").Inc(ctx)
-				helper.RespondEndpointServerError(w, r, "Internal server error", "linked esi encrypt rotation", "linked_esi_encrypt_rotation", "eve_sso_token_refresh", err, map[string]interface{}{
+				helper.RespondEndpointServerError(w, r, "Internal server error", "linked esi encrypt rotation", "linked_esi_encrypt_rotation", "eve_sso_token_refresh", err, map[string]any{
 					"additional_chars_endpoint": "esi_server_access_token",
-										"character_hash":            targetHash,
+					"character_hash":            targetHash,
 				})
 			} else {
 				m.Errors.WithLabelValues("database_error").Inc(ctx)
-				helper.RespondEndpointError(w, r, http.StatusBadGateway, "Failed to refresh token", "linked esi upstream refresh", "linked_esi_upstream_refresh", "eve_sso_token_refresh", err, map[string]interface{}{
+				helper.RespondEndpointError(w, r, http.StatusBadGateway, "Failed to refresh token", "linked esi upstream refresh", "linked_esi_upstream_refresh", "eve_sso_token_refresh", err, map[string]any{
 					"additional_chars_endpoint": "esi_server_access_token",
-										"character_hash":            targetHash,
+					"character_hash":            targetHash,
 				})
 			}
 		}
 		return
 	}
 
-	logs.AttachDebugStep(r, "esi_refreshed_from_mongo", map[string]interface{}{
+	logs.AttachDebugStep(r, "esi_refreshed_from_mongo", map[string]any{
 		"expires_in": tok.ExpiresIn,
 	})
 
@@ -158,7 +154,7 @@ func ServerStoredEsiAccessTokenHandler(w http.ResponseWriter, r *http.Request, c
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		m.Errors.WithLabelValues("encode_error").Inc(ctx)
-		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode cloud-stored ESI refresh response", "linked_esi_encode_failed", "eve_sso_token_refresh", err, map[string]interface{}{
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode cloud-stored ESI refresh response", "linked_esi_encode_failed", "eve_sso_token_refresh", err, map[string]any{
 			"character_hash": targetHash,
 		})
 		return
@@ -168,7 +164,7 @@ func ServerStoredEsiAccessTokenHandler(w http.ResponseWriter, r *http.Request, c
 	m.Requests.Observe(ctx, apimetrics.DurationMilliseconds(duration))
 	m.RequestsCount.Inc(ctx)
 	m.Successes.Inc(ctx)
-	logs.AttachHandlerSuccessDetail(r, "cloud stored ESI access token refreshed", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "cloud stored ESI access token refreshed", map[string]any{
 		"character_hash": targetHash,
 		"duration_ms":    duration.Milliseconds(),
 	})

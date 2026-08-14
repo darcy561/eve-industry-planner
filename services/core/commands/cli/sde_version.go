@@ -1,38 +1,41 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
+	sdecore "eve-industry-planner/shared/core/sde"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
-	sdeshared "eve-industry-planner/worker/tasks/sde/shared"
+	objectstore "eve-industry-planner/shared/core/objectstore"
 )
 
-func sdeDataDir() string {
-	if dataDir := strings.TrimSpace(os.Getenv("SDE_DATA_DIR")); dataDir != "" {
-		return dataDir
-	}
-	return sdeshared.DefaultDataDir
+func openSDEStore(ctx context.Context) (objectstore.Backend, error) {
+	return objectstore.OpenStaticData(ctx)
 }
 
 // RunSdeVersion prints current live SDE metadata to stdout.
 func RunSdeVersion() error {
-	dataDir := sdeDataDir()
-	version, err := sdeshared.ReadRootVersionJSON(dataDir)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	backend, err := openSDEStore(ctx)
 	if err != nil {
-		return fmt.Errorf("failed reading live SDE version from %q: %w", dataDir, err)
+		return fmt.Errorf("sde store: %w", err)
+	}
+	version, err := sdecore.ReadRootVersionJSON(ctx, backend)
+	if err != nil {
+		return fmt.Errorf("failed reading live SDE version: %w", err)
 	}
 	if version == nil {
-		fmt.Printf("No live SDE version metadata found at %q\n", filepath.Join(dataDir, "version.json"))
+		fmt.Printf("No live SDE version metadata found (backend=%s)\n", backend.Kind())
 		return nil
 	}
 
 	out := map[string]interface{}{
-		"data_dir": dataDir,
-		"live":     version,
+		"backend": backend.Kind(),
+		"live":    version,
 	}
 	b, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
@@ -43,36 +46,36 @@ func RunSdeVersion() error {
 }
 
 type previousVersionInfo struct {
-	Directory string                     `json:"directory"`
-	Version   *sdeshared.StoredVersionJSON `json:"version,omitempty"`
+	Directory string               `json:"directory"`
+	Version   *sdecore.VersionJSON `json:"version,omitempty"`
 }
 
 // RunSdeVersionHistory prints retained previous SDE versions to stdout.
 func RunSdeVersionHistory() error {
-	dataDir := sdeDataDir()
-	previousRoot := filepath.Join(dataDir, sdeshared.PreviousVersionsDirName)
-	entries, err := os.ReadDir(previousRoot)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	backend, err := openSDEStore(ctx)
 	if err != nil {
-		if os.IsNotExist(err) {
-			fmt.Printf("No previous versions directory found at %q\n", previousRoot)
-			return nil
-		}
-		return fmt.Errorf("failed reading previous versions from %q: %w", previousRoot, err)
+		return fmt.Errorf("sde store: %w", err)
+	}
+	names, err := backend.ListChildNames(ctx, sdecore.PreviousVersionsPrefix)
+	if err != nil {
+		return fmt.Errorf("failed listing previous versions: %w", err)
+	}
+	if len(names) == 0 {
+		fmt.Printf("No previous versions found (backend=%s)\n", backend.Kind())
+		return nil
 	}
 
-	previous := make([]previousVersionInfo, 0, len(entries))
-	for _, entry := range entries {
-		if !entry.IsDir() {
+	previous := make([]previousVersionInfo, 0, len(names))
+	for _, dirName := range names {
+		if dirName == "" || strings.HasPrefix(dirName, ".") {
 			continue
 		}
-		dirName := entry.Name()
-		versionPath := filepath.Join(previousRoot, dirName, "version.json")
-
 		info := previousVersionInfo{Directory: dirName}
-		b, readErr := os.ReadFile(versionPath)
-		if readErr == nil {
-			var parsed sdeshared.StoredVersionJSON
-			if jsonErr := json.Unmarshal(b, &parsed); jsonErr == nil {
+		if data, err := backend.Get(ctx, sdecore.PreviousVersionKey(dirName, sdecore.VersionObjectKey)); err == nil {
+			var parsed sdecore.VersionJSON
+			if json.Unmarshal(data, &parsed) == nil {
 				info.Version = &parsed
 			}
 		}
@@ -80,34 +83,17 @@ func RunSdeVersionHistory() error {
 	}
 
 	sort.Slice(previous, func(i, j int) bool {
-		vi := previous[i].Version
-		vj := previous[j].Version
-		if vi == nil && vj == nil {
-			return previous[i].Directory < previous[j].Directory
-		}
-		if vi == nil {
-			return false
-		}
-		if vj == nil {
-			return true
-		}
-		if vi.GeneratedAt.Equal(vj.GeneratedAt) {
-			return vi.BuildNumber > vj.BuildNumber
-		}
-		return vi.GeneratedAt.After(vj.GeneratedAt)
+		return previous[i].Directory > previous[j].Directory
 	})
 
 	out := map[string]interface{}{
-		"data_dir":           dataDir,
-		"previous_versions":  previous,
-		"retained_count":     len(previous),
-		"previous_root_path": previousRoot,
+		"backend":           backend.Kind(),
+		"previous_versions": previous,
 	}
 	b, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed formatting previous versions output: %w", err)
+		return fmt.Errorf("failed formatting history output: %w", err)
 	}
 	fmt.Println(string(b))
 	return nil
 }
-

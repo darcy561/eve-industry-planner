@@ -1,46 +1,45 @@
 package v1endpoints
 
 import (
+	"maps"
 	"net/http"
 
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/logs"
 )
 
-func authClientFailureDetail(metric, failureClass string, extra map[string]interface{}) map[string]interface{} {
-	out := map[string]interface{}{"metric": metric}
+func authClientFailureDetail(metric, failureClass string, extra map[string]any) map[string]any {
+	out := map[string]any{"metric": metric}
 	if failureClass != "" {
 		out["failure_class"] = failureClass
 	}
-	for k, v := range extra {
-		out[k] = v
-	}
+	maps.Copy(out, extra)
 	return out
 }
 
-func attachAuthLoginClientFailure(r *http.Request, logMsg, failureClass string, extra map[string]interface{}) {
+func attachAuthLoginClientFailure(r *http.Request, logMsg, failureClass string, extra map[string]any) {
 	logs.AttachClientFailureDetail(r, logMsg, authClientFailureDetail("eve_token_login", failureClass, extra))
 }
 
-func attachSessionRefreshClientFailure(r *http.Request, credLog auth.RefreshCredentialLogDetail, logMsg, failureClass string, extra map[string]interface{}) {
+func attachSessionRefreshClientFailure(r *http.Request, credLog auth.RefreshCredentialLogDetail, logMsg, failureClass string, extra map[string]any) {
 	logs.AttachClientFailureDetail(r, logMsg, credLog.ClientFailureDetail(failureClass, extra))
 }
 
-func attachLogoutClientFailure(r *http.Request, credLog auth.RefreshCredentialLogDetail, logMsg, failureClass string, extra map[string]interface{}) {
+func attachLogoutClientFailure(r *http.Request, credLog auth.RefreshCredentialLogDetail, logMsg, failureClass string, extra map[string]any) {
 	logs.AttachClientFailureDetail(r, logMsg, credLog.ClientFailureDetail(failureClass, extra))
 }
 
-func respondAuthLoginClientError(w http.ResponseWriter, r *http.Request, statusCode int, publicMsg, logMsg, failureClass string, extra map[string]interface{}) {
+func respondAuthLoginClientError(w http.ResponseWriter, r *http.Request, statusCode int, publicMsg, logMsg, failureClass string, extra map[string]any) {
 	attachAuthLoginClientFailure(r, logMsg, failureClass, extra)
 	http.Error(w, publicMsg, statusCode)
 }
 
-func respondSessionRefreshClientError(w http.ResponseWriter, r *http.Request, credLog auth.RefreshCredentialLogDetail, statusCode int, publicMsg, logMsg, failureClass string, extra map[string]interface{}) {
+func respondSessionRefreshClientError(w http.ResponseWriter, r *http.Request, credLog auth.RefreshCredentialLogDetail, statusCode int, publicMsg, logMsg, failureClass string, extra map[string]any) {
 	attachSessionRefreshClientFailure(r, credLog, logMsg, failureClass, extra)
 	http.Error(w, publicMsg, statusCode)
 }
 
-func respondLogoutClientError(w http.ResponseWriter, r *http.Request, credLog auth.RefreshCredentialLogDetail, statusCode int, publicMsg, logMsg, failureClass string, extra map[string]interface{}) {
+func respondLogoutClientError(w http.ResponseWriter, r *http.Request, credLog auth.RefreshCredentialLogDetail, statusCode int, publicMsg, logMsg, failureClass string, extra map[string]any) {
 	attachLogoutClientFailure(r, credLog, logMsg, failureClass, extra)
 	http.Error(w, publicMsg, statusCode)
 }

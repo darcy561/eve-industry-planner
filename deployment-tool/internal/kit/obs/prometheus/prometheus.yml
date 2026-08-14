@@ -1,0 +1,55 @@
+# Prometheus scrape config (Swarm observability fragment: eip_prometheus on eip-obs + eip-core).
+# Deployed only when addons.observability.enabled. Dual-homes eip-core so scrape targets resolve.
+# Exporters / asynqmon / node_exporter live in the same obs fragment.
+#
+# App OTLP metrics arrive via Alloy remote_write (job=otel_collector), not scrape.
+# Capacity-controller Evaluate does not query Prometheus.
+#
+# Reload after edit: hash-diff config sync (`eip sync`), or inside the task:
+#   wget -qO- --post-data='' http://localhost:9090/-/reload
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Asynq queues (controller signal). Requires obs fragment (asynqmon on eip-core).
+  - job_name: asynqmon
+    static_configs:
+      - targets: ["asynqmon:8080"]
+    metrics_path: /metrics
+
+  # NATS: natsio/prometheus-nats-exporter → http://nats:8222 (-m) with -prefix=nats.
+  - job_name: nats
+    static_configs:
+      - targets: ["nats-exporter:7777"]
+    metrics_path: /metrics
+
+  # Redis: oliver006/redis_exporter (:9121). namespace for Grafana Redis dashboard (#763).
+  - job_name: redis
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+        labels:
+          namespace: eip
+    metrics_path: /metrics
+
+  # MongoDB: percona/mongodb_exporter (:9216) with --compatible-mode (Grafana #14997).
+  - job_name: mongodb
+    static_configs:
+      - targets: ["mongodb-exporter:9216"]
+    metrics_path: /metrics
+
+  # Host metrics: prom/node-exporter (:9100). Capacity Evaluate does not use host headroom today.
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+    metrics_path: /metrics
+
+  # Traefik: native Prometheus metrics on internal entrypoint :8082 (eip-core alias).
+  - job_name: traefik
+    static_configs:
+      - targets: ["traefik:8082"]
+    metrics_path: /metrics

@@ -3,6 +3,8 @@ package commands
 import (
 	"context"
 	"encoding/json"
+	"eve-industry-planner/shared/lifecycle"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"strconv"
 	"strings"
@@ -13,7 +15,6 @@ import (
 	archivedjobsched "eve-industry-planner/core/scheduler/archivedjobs"
 	"eve-industry-planner/core/scheduler/contract"
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared"
 	taskscore "eve-industry-planner/shared/tasks"
 )
 
@@ -214,11 +215,11 @@ func runList() error {
 // runFanOutArchivedBuildStats enqueues one ProcessArchivedBuildStats worker task per account that has
 // unprocessed archivedJobs rows (same behavior as the core hourly cron).
 func runFanOutArchivedBuildStats(ctx context.Context) error {
-	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo, shared.ServiceNATS)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Services{Mongo: true, NATS: true})
 	if err != nil {
 		return err
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
 		return fmt.Errorf("failed to ensure worker task stream: %w", err)
 	}
@@ -351,11 +352,11 @@ func runTrigger(ctx context.Context, args []string) error {
 		return runFanOutArchivedBuildStats(ctx)
 	}
 
-	clients, err := shared.ConnectServices(ctx, shared.ServiceNATS)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.NATS)
 	if err != nil {
 		return err
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
 	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
 		return fmt.Errorf("failed to ensure worker task stream: %w", err)
@@ -425,19 +426,4 @@ func payloadToInterface(payload json.RawMessage) interface{} {
 
 func allTasks() []taskscore.Task {
 	return enabledTasks
-}
-
-// Command-mode invocations are one-shot; they should close resources immediately,
-// not wait for SIGINT/SIGTERM like the long-running services do.
-func runImmediateCleanups(cleanups ...func(context.Context)) {
-	for _, fn := range cleanups {
-		if fn == nil {
-			continue
-		}
-		cctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		func() {
-			defer cancel()
-			fn(cctx)
-		}()
-	}
 }

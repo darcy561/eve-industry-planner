@@ -13,7 +13,6 @@ import (
 	"eve-industry-planner/shared/core/config"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	taskscore "eve-industry-planner/shared/tasks"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
@@ -24,7 +23,7 @@ type CorporationsRequest struct {
 }
 
 // CorporationsHandler handles POST /api/v1/corporation-claims.
-func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (a *Handlers) CorporationsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
@@ -59,19 +58,14 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	const maxTokens = 50
 	if len(reqBody.Tokens) > maxTokens {
 		metrics.Error("too_many_tokens")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Too many tokens (max %d)", maxTokens), "too many tokens provided", "corporations_too_many_tokens", "corporations", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Too many tokens (max %d)", maxTokens), "too many tokens provided", "corporations_too_many_tokens", "corporations", nil, map[string]any{
 			"count": len(reqBody.Tokens),
 			"max":   maxTokens,
 		})
 		return
 	}
 
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		metrics.Error("config_error")
-		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to load config for corporations endpoint", "corporations_config_load_failed", "corporations", err, nil)
-		return
-	}
+	ssoCfg := config.LoadEveSSO()
 
 	validTokens := make([]string, 0)
 	skippedTokens := 0
@@ -81,7 +75,7 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 			continue
 		}
 
-		claims, err := sso.ValidateEveSSOToken(tokenString, cfg.EveSSOClientID)
+		claims, err := sso.ValidateEveSSOToken(tokenString, ssoCfg.ClientID)
 		if err != nil {
 			skippedTokens++
 			continue
@@ -97,13 +91,13 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 
 	if len(validTokens) == 0 {
 		metrics.Error("no_valid_tokens")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No valid tokens provided", "no valid tokens found in request", "corporations_no_valid_tokens", "corporations", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No valid tokens provided", "no valid tokens found in request", "corporations_no_valid_tokens", "corporations", nil, map[string]any{
 			"total_tokens": len(reqBody.Tokens),
 		})
 		return
 	}
 
-	logs.AttachDebugStep(r, "tokens_validated", map[string]interface{}{
+	logs.AttachDebugStep(r, "tokens_validated", map[string]any{
 		"total_tokens":   len(reqBody.Tokens),
 		"valid_tokens":   len(validTokens),
 		"skipped_tokens": skippedTokens,
@@ -114,13 +108,13 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		Tokens:    validTokens,
 	}
 
-	if err := natscore.PublishTask(ctx, clients.JetStream, taskscore.UpdateAccountSessionGrants.Subject, taskscore.UpdateAccountSessionGrants.Name, taskRequest, clients.NATS); err != nil {
+	if err := natscore.PublishTask(ctx, a.JetStream, taskscore.UpdateAccountSessionGrants.Subject, taskscore.UpdateAccountSessionGrants.Name, taskRequest, a.NATS); err != nil {
 		metrics.Error("publish_error")
-		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to publish account session grants refresh task", "corporations_publish_failed", "corporations", err, map[string]interface{}{"token_count": len(validTokens)})
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to publish account session grants refresh task", "corporations_publish_failed", "corporations", err, map[string]any{"token_count": len(validTokens)})
 		return
 	}
 
-	logs.AttachDebugStep(r, "grants_task_published", map[string]interface{}{
+	logs.AttachDebugStep(r, "grants_task_published", map[string]any{
 		"valid_tokens": len(validTokens),
 	})
 
@@ -128,14 +122,14 @@ func CorporationsHandler(w http.ResponseWriter, r *http.Request, clients *shared
 	metrics.Success()
 
 	if skippedTokens > 0 {
-		logs.AttachHandlerCaveat(r, "tokens_skipped", "some tokens rejected during validation", map[string]interface{}{
+		logs.AttachHandlerCaveat(r, "tokens_skipped", "some tokens rejected during validation", map[string]any{
 			"skipped": skippedTokens,
 			"total":   len(reqBody.Tokens),
 			"valid":   len(validTokens),
 		})
 	}
 
-	logs.AttachHandlerSuccessDetail(r, "successfully queued account session grants refresh task", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "successfully queued account session grants refresh task", map[string]any{
 		"valid_tokens": len(validTokens),
 		"total_tokens": len(reqBody.Tokens),
 		"duration_ms":  time.Since(start).Milliseconds(),

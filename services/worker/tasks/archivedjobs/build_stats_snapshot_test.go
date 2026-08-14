@@ -3,8 +3,8 @@ package archivedjobs
 import (
 	"testing"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/shared/models"
 )
 
 func TestComputeBuildStatSnapshot_matchesArchievedJobsMath(t *testing.T) {
@@ -77,7 +77,7 @@ func TestComputeBuildStatSnapshot_zeroQuantityErrors(t *testing.T) {
 }
 
 func TestBuildStatsDocumentID(t *testing.T) {
-	if g, w := mongocore.BuildStatsDocumentID("acc", 34), "acc|34"; g != w {
+	if g, w := eipmongo.BuildStatsDocumentID("acc", 34), "acc|34"; g != w {
 		t.Fatalf("got %q want %q", g, w)
 	}
 }

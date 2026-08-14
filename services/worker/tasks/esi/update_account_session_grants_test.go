@@ -1,16 +1,13 @@
 package tasks
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"testing"
 
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
 	"github.com/alicebob/miniredis/v2"
@@ -34,13 +31,10 @@ func (m *mockESIClient) DoRequest(ctx context.Context, method, path string, head
 	return nil, errors.New("not implemented")
 }
 
-// setupAccountSessionGrantsTestEnv configures env vars required by [config.LoadConfig] and returns
+// setupAccountSessionGrantsTestEnv configures Eve SSO env for token validation and returns
 // an in-memory Redis client so [RefreshAccountSessionGrants] can persist grants without a real Redis.
 func setupAccountSessionGrantsTestEnv(t *testing.T) *redis.Client {
 	t.Helper()
-	t.Setenv("MONGO_URL", "mongodb://127.0.0.1:27017/eve_industry_planner")
-	t.Setenv("REDIS_PASSWORD", "test-redis-password")
-	t.Setenv("REFRESH_TOKEN_AES_KEY", base64.StdEncoding.EncodeToString(bytes.Repeat([]byte("x"), 32)))
 	t.Setenv("EVE_CLIENT_ID", "test-eve-client-id")
 
 	srv, err := miniredis.Run()
@@ -61,7 +55,7 @@ func createAffiliationJSON(corporationID, allianceID int) []byte {
 }
 
 // Helper to create a mock asynq.Task for testing
-func createMockTask(taskType string, data interface{}) *asynq.Task {
+func createMockTask(taskType string, data any) *asynq.Task {
 	// Create the task payload structure
 	var payloadData json.RawMessage
 	if data != nil {
@@ -91,8 +85,7 @@ func createMockTask(taskType string, data interface{}) *asynq.Task {
 func TestRefreshAccountSessionGrants_NilTask(t *testing.T) {
 	ctx := context.Background()
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{},
-		ESIClient:      &mockESIClient{},
+		ESIClient: &mockESIClient{},
 	}
 
 	err := RefreshAccountSessionGrants(ctx, nil, deps)
@@ -115,8 +108,7 @@ func TestRefreshAccountSessionGrants_InvalidJSON(t *testing.T) {
 	task := asynq.NewTask("updateAccountSessionGrants", payloadBytes)
 
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{},
-		ESIClient:      &mockESIClient{},
+		ESIClient: &mockESIClient{},
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
@@ -134,8 +126,7 @@ func TestRefreshAccountSessionGrants_MissingAccountID(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{},
-		ESIClient:      &mockESIClient{},
+		ESIClient: &mockESIClient{},
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
@@ -156,8 +147,7 @@ func TestRefreshAccountSessionGrants_EmptyTokens(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{},
-		ESIClient:      &mockESIClient{},
+		ESIClient: &mockESIClient{},
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
@@ -179,9 +169,8 @@ func TestRefreshAccountSessionGrants_TokenValidationFailure(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{
-			Redis: setupAccountSessionGrantsTestEnv(t),
-		},
+		Redis: setupAccountSessionGrantsTestEnv(t),
+
 		ESIClient: &mockESIClient{},
 	}
 
@@ -239,7 +228,6 @@ func TestRefreshAccountSessionGrants_ESIRetryableRateLimitError(t *testing.T) {
 		}
 
 		deps := &TaskDependencies{
-			ServiceClients: &shared.ServiceClients{},
 			ESIClient:      esiClient,
 		}
 
@@ -271,8 +259,7 @@ func TestRefreshAccountSessionGrants_ESINonRetryableError(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{},
-		ESIClient:      esiClient,
+		ESIClient: esiClient,
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
@@ -303,8 +290,7 @@ func TestRefreshAccountSessionGrants_ESINon200Status(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{},
-		ESIClient:      esiClient,
+		ESIClient: esiClient,
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
@@ -335,8 +321,7 @@ func TestRefreshAccountSessionGrants_InvalidJSONResponse(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{},
-		ESIClient:      esiClient,
+		ESIClient: esiClient,
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
@@ -378,8 +363,7 @@ func TestRefreshAccountSessionGrants_SuccessfulProcessing(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{},
-		ESIClient:      esiClient,
+		ESIClient: esiClient,
 	}
 
 	// We need to mock StoreCorporations - but it's in a different package
@@ -416,8 +400,7 @@ func TestRefreshAccountSessionGrants_DuplicateCorporations(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{},
-		ESIClient:      esiClient,
+		ESIClient: esiClient,
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
@@ -450,8 +433,7 @@ func TestRefreshAccountSessionGrants_ZeroCorporationID(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{},
-		ESIClient:      esiClient,
+		ESIClient: esiClient,
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
@@ -484,8 +466,7 @@ func TestRefreshAccountSessionGrants_MixedSuccessAndFailure(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{},
-		ESIClient:      esiClient,
+		ESIClient: esiClient,
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
@@ -523,9 +504,8 @@ func TestRefreshAccountSessionGrants_RedisStorageFailure(t *testing.T) {
 
 	// Use nil Redis to trigger storage error
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{
-			Redis: nil, // This will cause StoreCorporations to fail
-		},
+		Redis: nil, // This will cause StoreCorporations to fail,
+
 		ESIClient: esiClient,
 	}
 
@@ -556,8 +536,7 @@ func TestRefreshAccountSessionGrants_NilResponse(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{},
-		ESIClient:      esiClient,
+		ESIClient: esiClient,
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)

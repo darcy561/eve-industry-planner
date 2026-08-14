@@ -71,16 +71,35 @@ func isConsumerNotFound(err error) bool {
 	return err != nil && errors.Is(err, jetstream.ErrConsumerNotFound)
 }
 
-func deleteStreamConsumer(ctx context.Context, stream jetstream.Stream, name string) (deleted bool) {
+// DeleteConsumer removes a durable consumer from stream.
+// ErrConsumerNotFound is success (already gone / peer race). Other errors are
+// logged and returned. Nil stream or empty name is a no-op.
+func DeleteConsumer(ctx context.Context, stream jetstream.Stream, name string) error {
+	if stream == nil || name == "" {
+		return nil
+	}
 	if err := stream.DeleteConsumer(ctx, name); err != nil {
 		if isConsumerNotFound(err) {
-			// Peer replica already removed it.
-			return true
+			return nil
 		}
-		logs.WarnCtx(ctx, "failed to delete obsolete stream consumer", "consumer", name, "error", err)
-		return false
+		logs.WarnCtx(ctx, "failed to delete stream consumer", "consumer", name, "error", err)
+		return err
 	}
-	return true
+	return nil
+}
+
+// DeleteConsumers removes each named durable. Continues after errors.
+// Returns how many names completed successfully (including already-absent).
+func DeleteConsumers(ctx context.Context, stream jetstream.Stream, names ...string) (ok int) {
+	for _, name := range names {
+		if name == "" {
+			continue
+		}
+		if err := DeleteConsumer(ctx, stream, name); err == nil {
+			ok++
+		}
+	}
+	return ok
 }
 
 // ReconcileStreamConsumers deletes durables not covered by policy and optionally
@@ -94,7 +113,7 @@ func ReconcileStreamConsumers(ctx context.Context, stream jetstream.Stream, poli
 	}
 
 	const maxPasses = 8
-	for pass := 0; pass < maxPasses; pass++ {
+	for range maxPasses {
 		passResult, err := reconcileStreamConsumersOnce(ctx, stream, policy)
 		result.Listed = passResult.Listed
 		result.Deleted += passResult.Deleted
@@ -148,13 +167,13 @@ func reconcileStreamConsumersOnce(ctx context.Context, stream jetstream.Stream, 
 			// Same naming generation: drop abandoned replicas (no waiters).
 			// Callers should run this after pull loops are up so peers show NumWaiting > 0.
 			if info.NumWaiting == 0 {
-				if deleteStreamConsumer(ctx, stream, name) {
+				if err := DeleteConsumer(ctx, stream, name); err == nil {
 					result.Deleted++
 				}
 				continue
 			}
 		default:
-			if deleteStreamConsumer(ctx, stream, name) {
+			if err := DeleteConsumer(ctx, stream, name); err == nil {
 				result.Deleted++
 			}
 			continue

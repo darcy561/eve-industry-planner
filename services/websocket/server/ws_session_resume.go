@@ -15,7 +15,7 @@ func (s *Server) handleSessionResumeWS(ctx context.Context, client *Client, msg 
 	if err := json.Unmarshal(msg, &resume); err != nil {
 		finishWSOperationFailure(ctx, client, "session_resume",
 			"websocket session resume: invalid message",
-			"ws_session_resume_invalid_message", map[string]interface{}{
+			"ws_session_resume_invalid_message", map[string]any{
 				"error": err.Error(),
 			})
 		return
@@ -30,20 +30,20 @@ func (s *Server) handleSessionResumeWS(ctx context.Context, client *Client, msg 
 	if prev == client.id {
 		finishWSOperationFailure(ctx, client, "session_resume",
 			"websocket session resume: previousClientID matches current client",
-			"ws_session_resume_same_client", map[string]interface{}{
+			"ws_session_resume_same_client", map[string]any{
 				"previous_client_id": prev,
 			})
 		return
 	}
 
-	wsAppendDebugStep(ctx, "session_resume_request", map[string]interface{}{
+	wsAppendDebugStep(ctx, "session_resume_request", map[string]any{
 		"previous_client_id": prev,
 	})
 
 	result := s.ApplySessionResume(ctx, client, prev)
 	if len(result.UnauthorizedDocIDs) > 0 {
 		logs.AttachHandlerCaveatCtx(ctx, "session_resume_unauthorized_docs",
-			"skipped unauthorized doc ids during session resume", map[string]interface{}{
+			"skipped unauthorized doc ids during session resume", map[string]any{
 				"doc_ids": strings.Join(result.UnauthorizedDocIDs, ","),
 			})
 	}
@@ -51,20 +51,20 @@ func (s *Server) handleSessionResumeWS(ctx context.Context, client *Client, msg 
 	ackDelivered := s.queueResumeAck(client, result.SkipBaselineSync, result.RestoredDocIDs)
 	if !ackDelivered {
 		logs.AttachHandlerCaveatCtx(ctx, "session_resume_ack_buffer_full",
-			"resume_ack not delivered", map[string]interface{}{
+			"resume_ack not delivered", map[string]any{
 				"client_id": client.id,
 			})
 	}
 	if result.ScopesRestored {
 		if !s.queueScopesAck(client) {
 			logs.AttachHandlerCaveatCtx(ctx, "session_resume_scopes_ack_buffer_full",
-				"scopes_ack not delivered after resume", map[string]interface{}{
+				"scopes_ack not delivered after resume", map[string]any{
 					"client_id": client.id,
 				})
 		}
 	}
 
-	extra := map[string]interface{}{
+	extra := map[string]any{
 		"previous_client_id":   prev,
 		"handoff_applied":      result.HandoffApplied,
 		"skip_baseline_sync":   result.SkipBaselineSync,

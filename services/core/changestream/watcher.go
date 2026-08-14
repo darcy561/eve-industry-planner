@@ -4,20 +4,23 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/shared/wsplacement"
 
 	natslib "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/redis/go-redis/v9"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 const changestreamLogComponent = "changestream"
@@ -30,163 +33,226 @@ type ScopesPayload struct {
 
 // ChangeStreamMessage represents the message payload sent to NATS
 type ChangeStreamMessage struct {
-	Subject                 string                 `json:"subject"`
-	Collection              string                 `json:"collection"`
-	DocID                   string                 `json:"docID"`
-	OperationType           string                 `json:"operationType"`
-	SourceClientID          string                 `json:"sourceClientID,omitempty"`  // ClientID that originated the change (for filtering)
-	SourceSessionID         string                 `json:"sourceSessionID,omitempty"` // SessionID that originated the change (stable across client reconnects)
-	AccountID               string                 `json:"accountID,omitempty"`       // AccountID for INSERT operations (broadcast to all account clients)
-	CorporationID           string                 `json:"corporationID,omitempty"`   // Org routing when accountID is absent (see websocket dispatch)
-	AllianceID              string                 `json:"allianceID,omitempty"`
-	Scopes                  *ScopesPayload         `json:"scopes,omitempty"`
-	Document                map[string]interface{} `json:"document,omitempty"`
-	PreviousDocument        map[string]interface{} `json:"previousDocument,omitempty"`
-	RefreshTokensChanged    bool                   `json:"refreshTokensChanged,omitempty"`
-	LinkedCharactersChanged bool                   `json:"linkedCharactersChanged,omitempty"`
-	ChangeEvent             map[string]interface{} `json:"changeEvent,omitempty"`
+	Subject                 string         `json:"subject"`
+	Collection              string         `json:"collection"`
+	DocID                   string         `json:"docID"`
+	OperationType           string         `json:"operationType"`
+	SourceClientID          string         `json:"sourceClientID,omitempty"`  // ClientID that originated the change (for filtering)
+	SourceSessionID         string         `json:"sourceSessionID,omitempty"` // SessionID that originated the change (stable across client reconnects)
+	AccountID               string         `json:"accountID,omitempty"`       // AccountID for INSERT operations (broadcast to all account clients)
+	CorporationID           string         `json:"corporationID,omitempty"`   // Org routing when accountID is absent (see websocket dispatch)
+	AllianceID              string         `json:"allianceID,omitempty"`
+	Scopes                  *ScopesPayload `json:"scopes,omitempty"`
+	Document                map[string]any `json:"document,omitempty"`
+	PreviousDocument        map[string]any `json:"previousDocument,omitempty"`
+	RefreshTokensChanged    bool           `json:"refreshTokensChanged,omitempty"`
+	LinkedCharactersChanged bool           `json:"linkedCharactersChanged,omitempty"`
+	ChangeEvent             map[string]any `json:"changeEvent,omitempty"`
 }
 
-// Watcher watches MongoDB change streams and publishes changes to NATS
+// Watcher watches MongoDB change streams and publishes changes to NATS.
 type Watcher struct {
-	mongoClient *mongo.Client
-	jsContext   jetstream.JetStream
-	natsConn    *natslib.Conn
-	database    *mongo.Database
-	stopChan    chan struct{}
+	mongo     *eipmongo.Mongo
+	jsContext jetstream.JetStream
+	natsConn  *natslib.Conn
+	rdb       *redis.Client
+	database  *mongo.Database
 }
 
-// NewWatcher creates a new change stream watcher
-func NewWatcher(mongoClient *mongo.Client, jsContext jetstream.JetStream, natsConn *natslib.Conn) *Watcher {
+// NewWatcher creates a new change stream watcher. rdb may be nil (cold start only).
+func NewWatcher(mongoHandle *eipmongo.Mongo, jsContext jetstream.JetStream, natsConn *natslib.Conn, rdb *redis.Client) *Watcher {
+	var database *mongo.Database
+	if mongoHandle != nil {
+		database = mongoHandle.DB
+	}
 	return &Watcher{
-		mongoClient: mongoClient,
-		jsContext:   jsContext,
-		natsConn:    natsConn,
-		database:    mongoClient.Database(mongocore.DatabaseName),
-		stopChan:    make(chan struct{}),
+		mongo:     mongoHandle,
+		jsContext: jsContext,
+		natsConn:  natsConn,
+		rdb:       rdb,
+		database:  database,
 	}
 }
 
-// Start begins watching MongoDB change streams (one goroutine per collection group; see CollectionGroups).
-// Returns a stop function that waits for all group loops to exit.
+// Start begins watching MongoDB change streams (one goroutine per collection group).
+// The returned stop cancels the watch context so Next aborts on lose-primary.
 func (w *Watcher) Start(groups []CollectionGroup) func() {
-	streamCtx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	for _, g := range groups {
 		wg.Add(1)
 		go func(group CollectionGroup) {
 			defer wg.Done()
-			w.watchCollectionGroup(streamCtx, group)
+			w.watchCollectionGroup(ctx, group)
 		}(g)
 	}
+	var once sync.Once
 	return func() {
-		close(w.stopChan)
-		wg.Wait()
+		once.Do(func() {
+			cancel()
+			done := make(chan struct{})
+			go func() {
+				wg.Wait()
+				close(done)
+			}()
+			select {
+			case <-done:
+			case <-time.After(30 * time.Second):
+				logs.WarnCtx(context.Background(), "changestream stop timed out waiting for group loops",
+					"component", changestreamLogComponent)
+			}
+		})
 	}
 }
 
-// watchCollectionGroup watches the database change stream filtered to one group's collections (ns.coll $in ...).
+func sleepOrDone(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
+	}
+}
+
+// watchCollectionGroup watches the database change stream filtered to one group's collections.
 func (w *Watcher) watchCollectionGroup(streamCtx context.Context, group CollectionGroup) {
 	logs.InfoCtx(streamCtx, "starting MongoDB change stream watcher for collection group",
 		"component", changestreamLogComponent,
 		"group_id", group.ID,
 		"collections", group.Collections,
-		"database", mongocore.DatabaseName)
+		"database", eipmongo.DatabaseName)
 
 	reconnectCount := 0
 	pipeline := MatchPipelineForCollections(group.Collections)
 	for {
-		select {
-		case <-w.stopChan:
+		if err := streamCtx.Err(); err != nil {
 			logs.InfoCtx(streamCtx, "change stream watcher stopped for collection group",
 				"component", changestreamLogComponent,
 				"group_id", group.ID,
 				"reconnects", reconnectCount)
 			return
-		default:
-			ctx, cancel := context.WithCancel(streamCtx)
+		}
 
-			opts := options.ChangeStream().
-				SetFullDocument(options.UpdateLookup).
-				SetFullDocumentBeforeChange(options.WhenAvailable)
+		ctx, cancel := context.WithCancel(streamCtx)
 
-			changeStream, err := w.database.Watch(ctx, pipeline, opts)
-			if err != nil {
-				reconnectCount++
-				logs.ErrorCtx(ctx, "failed to create change stream, will retry",
-					"component", changestreamLogComponent,
-					"group_id", group.ID,
-					"error", err,
-					"reconnect_attempt", reconnectCount)
-				cancel()
-				time.Sleep(5 * time.Second)
+		opts := options.ChangeStream().
+			SetFullDocument(options.UpdateLookup).
+			SetFullDocumentBeforeChange(options.WhenAvailable)
+
+		if token, ok := loadResumeToken(ctx, w.rdb, group.ID); ok {
+			opts.SetStartAfter(token)
+			logs.InfoCtx(ctx, "change stream resuming with StartAfter token",
+				"component", changestreamLogComponent, "group_id", group.ID)
+		}
+
+		changeStream, err := w.database.Watch(ctx, pipeline, opts)
+		if err != nil {
+			cancel()
+			if isInvalidResumeError(err) {
+				logs.WarnCtx(streamCtx, "change stream resume invalid; clearing token and cold start",
+					"component", changestreamLogComponent, "group_id", group.ID, "error", err)
+				clearResumeToken(streamCtx, w.rdb, group.ID)
+				continue
+			}
+			if streamCtx.Err() != nil {
+				return
+			}
+			reconnectCount++
+			logs.ErrorCtx(streamCtx, "failed to create change stream, will retry",
+				"component", changestreamLogComponent,
+				"group_id", group.ID,
+				"error", err,
+				"reconnect_attempt", reconnectCount)
+			if !sleepOrDone(streamCtx, 5*time.Second) {
+				return
+			}
+			continue
+		}
+
+		if reconnectCount > 0 {
+			logs.InfoCtx(ctx, "change stream reconnected successfully",
+				"component", changestreamLogComponent,
+				"group_id", group.ID,
+				"reconnect_count", reconnectCount)
+			reconnectCount = 0
+		} else {
+			logs.DebugCtx(ctx, "change stream created, watching for changes",
+				"component", changestreamLogComponent,
+				"group_id", group.ID,
+				"database", eipmongo.DatabaseName)
+		}
+
+		eventCount := 0
+		for changeStream.Next(ctx) {
+			eventCount++
+			var changeEvent bson.M
+			if err := changeStream.Decode(&changeEvent); err != nil {
+				logs.WarnCtx(ctx, "failed to decode change event", "component", changestreamLogComponent, "group_id", group.ID, "error", err, "event_count", eventCount)
 				continue
 			}
 
-			if reconnectCount > 0 {
-				logs.InfoCtx(ctx, "change stream reconnected successfully",
-					"component", changestreamLogComponent,
-					"group_id", group.ID,
-					"reconnect_count", reconnectCount)
-				reconnectCount = 0
-			} else {
-				logs.DebugCtx(ctx, "change stream created, watching for changes",
-					"component", changestreamLogComponent,
-					"group_id", group.ID,
-					"database", mongocore.DatabaseName)
-			}
-
-			eventCount := 0
-			for changeStream.Next(ctx) {
-				eventCount++
-				var changeEvent bson.M
-				if err := changeStream.Decode(&changeEvent); err != nil {
-					logs.WarnCtx(ctx, "failed to decode change event", "component", changestreamLogComponent, "group_id", group.ID, "error", err, "event_count", eventCount)
-					continue
-				}
-
-				if operationType, ok := changeEvent["operationType"].(string); ok {
-					if ns, ok := changeEvent["ns"].(bson.M); ok {
-						if collection, ok := ns["coll"].(string); ok {
-							logs.DebugCtx(ctx, "change stream event received",
-								"component", changestreamLogComponent,
-								"group_id", group.ID,
-								"operation", operationType,
-								"collection", collection,
-								"event_count", eventCount)
-						}
+			if operationType, ok := changeEvent["operationType"].(string); ok {
+				if ns, ok := changeEvent["ns"].(bson.M); ok {
+					if collection, ok := ns["coll"].(string); ok {
+						logs.DebugCtx(ctx, "change stream event received",
+							"component", changestreamLogComponent,
+							"group_id", group.ID,
+							"operation", operationType,
+							"collection", collection,
+							"event_count", eventCount)
 					}
 				}
-
-				if err := w.processChangeEvent(ctx, changeEvent); err != nil {
-					logs.WarnCtx(ctx, "failed to process change event", "component", changestreamLogComponent, "group_id", group.ID, "error", err, "event_count", eventCount)
-				}
 			}
 
-			if eventCount > 0 {
-				logs.InfoCtx(ctx, "change stream iteration completed", "component", changestreamLogComponent, "group_id", group.ID, "events_processed", eventCount)
-			}
-
-			if err := changeStream.Err(); err != nil {
-				logs.WarnCtx(ctx, "change stream error, will reconnect",
-					"component", changestreamLogComponent,
-					"group_id", group.ID,
-					"error", err,
-					"events_processed", eventCount)
-				if err := changeStream.Close(ctx); err != nil {
-					logs.WarnCtx(ctx, "error closing change stream", "component", changestreamLogComponent, "group_id", group.ID, "error", err)
-				}
-				cancel()
-				time.Sleep(5 * time.Second)
+			procErr := w.processChangeEvent(ctx, changeEvent)
+			if procErr != nil {
+				logs.WarnCtx(ctx, "failed to process change event", "component", changestreamLogComponent, "group_id", group.ID, "error", procErr, "event_count", eventCount)
 				continue
 			}
-
-			if err := changeStream.Close(ctx); err != nil {
-				logs.WarnCtx(ctx, "error closing change stream", "component", changestreamLogComponent, "group_id", group.ID, "error", err)
+			// Advance cursor after publish success or intentional skip (prefer dup over miss).
+			if token, err := resumeTokenFromEvent(changeEvent); err != nil {
+				logs.WarnCtx(ctx, "change event missing resume token",
+					"component", changestreamLogComponent, "group_id", group.ID, "error", err)
+			} else {
+				saveResumeToken(ctx, w.rdb, group.ID, token)
 			}
-			cancel()
-			logs.InfoCtx(ctx, "change stream closed, reconnecting...", "component", changestreamLogComponent, "group_id", group.ID, "events_processed", eventCount)
-			time.Sleep(2 * time.Second)
+		}
+
+		streamErr := changeStream.Err()
+		_ = changeStream.Close(ctx)
+		cancel()
+
+		if eventCount > 0 {
+			logs.InfoCtx(streamCtx, "change stream iteration completed", "component", changestreamLogComponent, "group_id", group.ID, "events_processed", eventCount)
+		}
+
+		if streamCtx.Err() != nil {
+			return
+		}
+
+		if streamErr != nil {
+			if isInvalidResumeError(streamErr) {
+				logs.WarnCtx(streamCtx, "change stream history lost; clearing resume token",
+					"component", changestreamLogComponent, "group_id", group.ID, "error", streamErr)
+				clearResumeToken(streamCtx, w.rdb, group.ID)
+			} else {
+				logs.WarnCtx(streamCtx, "change stream error, will reconnect",
+					"component", changestreamLogComponent,
+					"group_id", group.ID,
+					"error", streamErr,
+					"events_processed", eventCount)
+			}
+			if !sleepOrDone(streamCtx, 5*time.Second) {
+				return
+			}
+			continue
+		}
+
+		logs.InfoCtx(streamCtx, "change stream closed, reconnecting...", "component", changestreamLogComponent, "group_id", group.ID, "events_processed", eventCount)
+		if !sleepOrDone(streamCtx, 2*time.Second) {
+			return
 		}
 	}
 }
@@ -243,13 +309,13 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	}
 
 	// Extract full document if available
-	var document map[string]interface{}
+	var document map[string]any
 	var sourceClientID string
 	var sourceSessionID string
 	var accountID string
 
 	// For DELETE operations, try to get fullDocumentBeforeChange (requires collection
-	// changeStreamPreAndPostImages — see mongo indexing for user_job_groups).
+	// changeStreamPreAndPostImages — ensured by deployment-tool PreimageCollections / EnsureMongo).
 	// For other operations, use fullDocument.
 	var docToExtract bson.M
 	if operationType == "delete" {
@@ -259,10 +325,8 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	}
 
 	if docToExtract != nil {
-		document = make(map[string]interface{})
-		for k, v := range docToExtract {
-			document[k] = v
-		}
+		document = make(map[string]any)
+		maps.Copy(document, docToExtract)
 
 		meta := subDocumentToMap(docToExtract["_meta"])
 		if meta != nil {
@@ -286,19 +350,19 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	}
 
 	// DELETE events only populate fullDocumentBeforeChange when the collection has
-	// changeStreamPreAndPostImages (Mongo bootstrap / admin collMod). Without that, AccountID stays
-	// empty → websocket dispatch skips account broadcast (unless clients explicitly subscribed).
-	// Singleton account docs use Mongo _id === account id string.
+	// changeStreamPreAndPostImages (deployment-tool PreimageCollections / EnsureMongo). Without that,
+	// AccountID stays empty → websocket dispatch skips account broadcast (unless clients
+	// explicitly subscribed). Singleton account docs use Mongo _id === account id string.
 	if accountID == "" && operationType == "delete" {
 		switch collection {
-		case mongocore.CollectionUsers, mongocore.CollectionApplicationSettings, mongocore.CollectionUserWatchlistDeprecated:
+		case eipmongo.CollectionUsers, eipmongo.CollectionApplicationSettings, eipmongo.CollectionUserWatchlistDeprecated:
 			accountID = docID
 		default:
-			if collection == mongocore.CollectionUserJobGroups ||
-				collection == mongocore.CollectionUserJobDocuments {
+			if collection == eipmongo.CollectionUserJobGroups ||
+				collection == eipmongo.CollectionUserJobDocuments {
 				logs.WarnCtx(ctx, "delete missing accountID on collection (fullDocumentBeforeChange empty);"+
-					" websocket account fan-out skipped — enable changeStreamPreAndPostImages for this collection"+
-					" (see scripts/mongo-setup.sh CHANGE_STREAM_PREIMAGE_COLLECTIONS or admin collMod)",
+					" websocket account fan-out skipped — enable changeStreamPreAndPostImages"+
+					" (eip ensure-mongo / deployment-tool PreimageCollections)",
 					"component", changestreamLogComponent,
 					"collection", collection,
 					"doc_id", docID,
@@ -307,26 +371,24 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		}
 	}
 
-	var previousDocument map[string]interface{}
+	var previousDocument map[string]any
 	var previousDocToExtract bson.M
 	if operationType == "update" || operationType == "replace" {
 		previousDocToExtract = subDocumentToMap(changeEvent["fullDocumentBeforeChange"])
 	}
 
 	switch collection {
-	case mongocore.CollectionUsers, mongocore.CollectionApplicationSettings, mongocore.CollectionUserWatchlistDeprecated:
+	case eipmongo.CollectionUsers, eipmongo.CollectionApplicationSettings, eipmongo.CollectionUserWatchlistDeprecated:
 		if operationType == "update" || operationType == "replace" {
 			if previousDocToExtract != nil {
-				previousDocument = make(map[string]interface{}, len(previousDocToExtract))
-				for k, v := range previousDocToExtract {
-					previousDocument[k] = v
-				}
+				previousDocument = make(map[string]any, len(previousDocToExtract))
+				maps.Copy(previousDocument, previousDocToExtract)
 			}
 		}
 	}
 	refreshTokensChanged := false
 	linkedCharactersChanged := false
-	if collection == mongocore.CollectionUsers {
+	if collection == eipmongo.CollectionUsers {
 		refreshTokensChanged = usersRefreshTokensChanged(operationType, docToExtract, previousDocToExtract)
 		linkedCharactersChanged = usersRefreshTokenCharacterHashesChanged(operationType, docToExtract, previousDocToExtract)
 		stripUsersRefreshTokenFields(document)
@@ -334,15 +396,26 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		// Client no longer needs previous users-doc payload; it relies on change flags
 		// plus dedicated token endpoint reads for linked-character reconciliation.
 		previousDocument = nil
-	} else if collection == mongocore.CollectionApplicationSettings {
+	} else if collection == eipmongo.CollectionApplicationSettings {
 		// Application settings reconcile uses the current authoritative document only.
 		previousDocument = nil
 	}
 
-	// Create NATS subject: doc.update.{collection}.{docID}
-	subject := fmt.Sprintf("%s.%s.%s", natscore.SubjectDocUpdate, collection, docID)
-
 	corpID, allianceID, scopePayload := extractOrgRoutingFromDocument(docToExtract)
+
+	tenantString := wsplacement.TenantStringFromRouting(accountID, corpID, allianceID)
+	subject := natscore.DocUpdateSubject(tenantString, collection, docID)
+	if subject == "" {
+		logs.WarnCtx(ctx, "change stream event skipped: no tenant for doc.update subject",
+			"component", changestreamLogComponent,
+			"operation", operationType,
+			"collection", collection,
+			"doc_id", docID,
+			"account_id", accountID,
+			"corporation_id", corpID,
+			"alliance_id", allianceID)
+		return nil
+	}
 
 	// Create message payload
 	message := ChangeStreamMessage{
@@ -376,6 +449,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 			"collection", collection,
 			"doc_id", docID,
 			"subject", subject,
+			"tenant", tenantString,
 			"error", err)
 		return fmt.Errorf("failed to publish change stream message: %w", err)
 	}
@@ -386,6 +460,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		"collection", collection,
 		"doc_id", docID,
 		"subject", subject,
+		"tenant", tenantString,
 		"source_client_id", sourceClientID,
 		"source_session_id", sourceSessionID,
 		"account_id", accountID,
@@ -422,14 +497,14 @@ func isSchemaMaintenanceOnlyUpdate(changeEvent bson.M, operationType string) boo
 	return hasSchemaVersion || hasSnakeSchemaVersion
 }
 
-func hasRemovedFields(raw interface{}) bool {
+func hasRemovedFields(raw any) bool {
 	if raw == nil {
 		return false
 	}
 	switch v := raw.(type) {
 	case bson.A:
 		return len(v) > 0
-	case []interface{}:
+	case []any:
 		return len(v) > 0
 	default:
 		return true
@@ -485,11 +560,11 @@ func usersRefreshTokenCharacterHashSet(doc bson.M) map[string]struct{} {
 		return map[string]struct{}{}
 	}
 
-	var rows []interface{}
+	var rows []any
 	switch v := field.(type) {
 	case bson.A:
-		rows = []interface{}(v)
-	case []interface{}:
+		rows = []any(v)
+	case []any:
 		rows = v
 	default:
 		return map[string]struct{}{}
@@ -522,7 +597,7 @@ func equalStringSets(a, b map[string]struct{}) bool {
 	return true
 }
 
-func usersRefreshTokensField(doc bson.M) interface{} {
+func usersRefreshTokensField(doc bson.M) any {
 	if doc == nil {
 		return nil
 	}
@@ -535,7 +610,7 @@ func usersRefreshTokensField(doc bson.M) interface{} {
 	return nil
 }
 
-func stripUsersRefreshTokenFields(doc map[string]interface{}) {
+func stripUsersRefreshTokenFields(doc map[string]any) {
 	if doc == nil {
 		return
 	}
@@ -576,7 +651,7 @@ func docFieldString(doc, meta bson.M, keys ...string) string {
 	return ""
 }
 
-func bsonValueToString(v interface{}) string {
+func bsonValueToString(v any) string {
 	switch t := v.(type) {
 	case string:
 		return strings.TrimSpace(t)
@@ -610,26 +685,26 @@ func scopesFromDocOrMeta(doc, meta bson.M) *ScopesPayload {
 	return &ScopesPayload{CorporationIDs: cids, AccountIDs: aids}
 }
 
-func asBsonM(v interface{}) bson.M {
+func asBsonM(v any) bson.M {
 	switch m := v.(type) {
 	case bson.M:
 		return m
-	case map[string]interface{}:
+	case map[string]any:
 		return bson.M(m)
 	default:
 		return nil
 	}
 }
 
-func bsonArrayToStrings(v interface{}) []string {
+func bsonArrayToStrings(v any) []string {
 	if v == nil {
 		return nil
 	}
-	var elems []interface{}
+	var elems []any
 	switch t := v.(type) {
 	case bson.A:
-		elems = []interface{}(t)
-	case []interface{}:
+		elems = []any(t)
+	case []any:
 		elems = t
 	default:
 		return nil
@@ -647,12 +722,12 @@ func bsonArrayToStrings(v interface{}) []string {
 }
 
 // StartService starts the MongoDB change stream watcher service (parallel watches per CollectionGroups entry).
-// Returns a stop function for graceful shutdown.
-func StartService(mongoSecondaryClient *mongo.Client, jsContext jetstream.JetStream, natsConn *natslib.Conn) (func(), error) {
+// Returns a stop function for graceful shutdown. rdb stores per-group resume tokens (optional).
+func StartService(mongoHandle *eipmongo.Mongo, jsContext jetstream.JetStream, natsConn *natslib.Conn, rdb *redis.Client) (func(), error) {
 	groups := CollectionGroups()
 	if err := validateCollectionGroups(groups); err != nil {
 		return nil, err
 	}
-	watcher := NewWatcher(mongoSecondaryClient, jsContext, natsConn)
+	watcher := NewWatcher(mongoHandle, jsContext, natsConn, rdb)
 	return watcher.Start(groups), nil
 }

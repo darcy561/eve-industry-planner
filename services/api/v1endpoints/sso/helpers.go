@@ -3,6 +3,7 @@ package sso
 import (
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"strings"
 	"time"
@@ -14,18 +15,16 @@ import (
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
-func attachSSOClientFailure(r *http.Request, metricName, logMsg, failureClass string, extra map[string]interface{}) {
-	detail := map[string]interface{}{
+func attachSSOClientFailure(r *http.Request, metricName, logMsg, failureClass string, extra map[string]any) {
+	detail := map[string]any{
 		"failure_class": failureClass,
 		"metric":        metricName,
 	}
-	for k, v := range extra {
-		detail[k] = v
-	}
+	maps.Copy(detail, extra)
 	logs.AttachClientFailureDetail(r, logMsg, detail)
 }
 
-func respondSSOClientError(w http.ResponseWriter, r *http.Request, metricName, publicMsg, logMsg, failureClass string, statusCode int, extra map[string]interface{}) {
+func respondSSOClientError(w http.ResponseWriter, r *http.Request, metricName, publicMsg, logMsg, failureClass string, statusCode int, extra map[string]any) {
 	attachSSOClientFailure(r, metricName, logMsg, failureClass, extra)
 	http.Error(w, publicMsg, statusCode)
 }
@@ -35,26 +34,18 @@ func ensurePostMethod(w http.ResponseWriter, r *http.Request, metricName string,
 		return true
 	}
 	incError("method_not_allowed")
-	respondSSOClientError(w, r, metricName, "Method not allowed", "invalid method for "+endpointLabel, "sso_method_not_allowed", http.StatusMethodNotAllowed, map[string]interface{}{
+	respondSSOClientError(w, r, metricName, "Method not allowed", "invalid method for "+endpointLabel, "sso_method_not_allowed", http.StatusMethodNotAllowed, map[string]any{
 		"method": r.Method,
 	})
 	return false
 }
 
-func loadSSOConfigOrRespond(w http.ResponseWriter, r *http.Request, metricName string, start time.Time, logMessage string, incError func(label string)) (config.Config, bool) {
-	cfg, err := config.LoadConfig()
-	if err == nil {
-		return cfg, true
-	}
-	duration := time.Since(start)
-	incError("config_error")
-	apimetrics.LogRequestMetrics(r.Context(), metricName, duration, "config_error", "error", err)
-	helper.RespondEndpointServerError(w, r, "Internal server error", logMessage, "sso_config_load", metricName, err, nil)
-	return config.Config{}, false
+func loadSSOConfigOrRespond(http.ResponseWriter, *http.Request, string, time.Time, string, func(label string)) (config.EveSSO, bool) {
+	return config.LoadEveSSO(), true
 }
 
-func validateSSOCredentialsOrRespond(w http.ResponseWriter, r *http.Request, metricName string, start time.Time, cfg config.Config, incError func(label string)) bool {
-	if cfg.EveSSOClientID != "" && cfg.EveSSOClientSecret != "" {
+func validateSSOCredentialsOrRespond(w http.ResponseWriter, r *http.Request, metricName string, start time.Time, cfg config.EveSSO, incError func(label string)) bool {
+	if cfg.ClientID != "" && cfg.ClientSecret != "" {
 		return true
 	}
 	duration := time.Since(start)
@@ -69,19 +60,19 @@ func handleSSOProviderError(w http.ResponseWriter, r *http.Request, err error, d
 	msg := strings.ToLower(err.Error())
 	switch {
 	case isSSOGrantClientError(msg):
-		respondSSOClientError(w, r, "", defaultMessage, "SSO provider rejected request", "sso_provider_invalid_grant", http.StatusBadRequest, map[string]interface{}{
+		respondSSOClientError(w, r, "", defaultMessage, "SSO provider rejected request", "sso_provider_invalid_grant", http.StatusBadRequest, map[string]any{
 			"reason": "invalid_grant_or_oauth_description",
 			"error":  err.Error(),
 		})
 		return
 	case strings.Contains(msg, "server error"):
-		helper.RespondEndpointError(w, r, http.StatusBadGateway, "EVE SSO server error", "SSO provider upstream server error", "sso_upstream_5xx", "", err, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadGateway, "EVE SSO server error", "SSO provider upstream server error", "sso_upstream_5xx", "", err, map[string]any{
 			"provider_token_url": evesso.EveSSOTokenURL,
 			"reason":             "upstream_server_error",
 		})
 		return
 	default:
-		helper.RespondEndpointServerError(w, r, defaultMessage, "SSO provider exchange failed with unexpected error", "sso_exchange_unexpected", "", err, map[string]interface{}{
+		helper.RespondEndpointServerError(w, r, defaultMessage, "SSO provider exchange failed with unexpected error", "sso_exchange_unexpected", "", err, map[string]any{
 			"provider_token_url": evesso.EveSSOTokenURL,
 			"reason":             "unexpected_sso_exchange_error",
 		})
@@ -114,4 +105,3 @@ func writeTokenPayload(w http.ResponseWriter, payload EveSSOTokenPayload) error 
 	w.WriteHeader(http.StatusOK)
 	return json.NewEncoder(w).Encode(payload)
 }
-

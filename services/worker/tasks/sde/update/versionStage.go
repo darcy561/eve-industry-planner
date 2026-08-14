@@ -3,12 +3,13 @@ package update
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	sdecore "eve-industry-planner/shared/core/sde"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 
+	objectstore "eve-industry-planner/shared/core/objectstore"
 	"eve-industry-planner/shared/logs"
 )
 
@@ -29,7 +30,6 @@ type latestBuildInfo struct {
 }
 
 type sdeVersionCheckResult struct {
-	DataDir         string
 	CurrentBuild    int
 	CurrentVersion  string
 	HasCurrent      bool
@@ -39,18 +39,15 @@ type sdeVersionCheckResult struct {
 	NeedsUpdate     bool
 }
 
-func runSDEVersionCheckStage(ctx context.Context, dataDir string) (*sdeVersionCheckResult, error) {
-	current, err := readCurrentVersion(dataDir)
+func runSDEVersionCheckStage(ctx context.Context) (*sdeVersionCheckResult, error) {
+	current, err := readCurrentVersion(ctx)
 	hasCurrentVersion := true
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, objectstore.ErrNotFound) {
 			hasCurrentVersion = false
-			logs.DebugCtx(ctx, "no local SDE version found; update required",
-				"data_dir", dataDir,
-				"expected_file", filepath.Join(dataDir, "version.json"),
-			)
+			logs.DebugCtx(ctx, "no SDE version in object store; update required")
 		} else {
-			return nil, fmt.Errorf("failed reading current SDE version from %s: %w", dataDir, err)
+			return nil, fmt.Errorf("failed reading current SDE version: %w", err)
 		}
 	}
 
@@ -60,7 +57,6 @@ func runSDEVersionCheckStage(ctx context.Context, dataDir string) (*sdeVersionCh
 	}
 
 	result := &sdeVersionCheckResult{
-		DataDir:         dataDir,
 		CurrentVersion:  "none",
 		LatestBuild:     latest.BuildNumber,
 		LatestRelease:   latest.ReleaseDate,
@@ -76,7 +72,6 @@ func runSDEVersionCheckStage(ctx context.Context, dataDir string) (*sdeVersionCh
 	}
 
 	logs.DebugCtx(ctx, "SDE version check completed",
-		"data_dir", result.DataDir,
 		"current_build", result.CurrentBuild,
 		"current_version", result.CurrentVersion,
 		"latest_build", result.LatestBuild,
@@ -87,18 +82,23 @@ func runSDEVersionCheckStage(ctx context.Context, dataDir string) (*sdeVersionCh
 	return result, nil
 }
 
-func readCurrentVersion(dataDir string) (*versionFile, error) {
-	versionPath := filepath.Join(dataDir, "version.json")
-	data, err := os.ReadFile(versionPath)
+func readCurrentVersion(ctx context.Context) (*versionFile, error) {
+	backend, err := objectstore.OpenStaticData(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	var current versionFile
-	if err := json.Unmarshal(data, &current); err != nil {
+	v, err := sdecore.ReadRootVersionJSON(ctx, backend)
+	if err != nil {
 		return nil, err
 	}
-	return &current, nil
+	if v == nil {
+		return nil, objectstore.ErrNotFound
+	}
+	return &versionFile{
+		Version:     v.Version,
+		BuildNumber: v.BuildNumber,
+		ReleaseDate: v.ReleaseDate,
+	}, nil
 }
 
 func fetchLatestBuild(ctx context.Context) (*latestBuildInfo, error) {

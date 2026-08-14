@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -25,9 +25,9 @@ const ErrCodeHandOverNoop = "doc_lock_hand_over_noop"
 
 // LockHeldElsewhereItem is one row in the `rejected` array on 409 responses.
 type LockHeldElsewhereItem struct {
-	DocID               string `json:"docID"`
-	HolderSessionID     string `json:"holderSessionID"`
-	LockExpiresAtUnix   int64  `json:"lockExpiresAtUnix"`
+	DocID             string `json:"docID"`
+	HolderSessionID   string `json:"holderSessionID"`
+	LockExpiresAtUnix int64  `json:"lockExpiresAtUnix"`
 }
 
 // HolderOutcome classifies the lock vs requester relationship.
@@ -44,9 +44,9 @@ const (
 
 // HolderCheck is the structured result of RequireHolder.
 type HolderCheck struct {
-	Outcome             HolderOutcome
-	HolderSessionID     string
-	LockExpiresAtUnix   int64
+	Outcome           HolderOutcome
+	HolderSessionID   string
+	LockExpiresAtUnix int64
 }
 
 // RequireHolder inspects the Redis lock for (accountID, collection, docID).
@@ -72,15 +72,15 @@ func RequireHolder(ctx context.Context, rdb *redis.Client, accountID, requesterS
 	}
 	if rec.HolderSessionID == requesterSessionID {
 		return HolderCheck{
-			Outcome:             HolderOutcomeHeldByRequester,
-			HolderSessionID:     rec.HolderSessionID,
-			LockExpiresAtUnix:   rec.ExpiresAtUnix,
+			Outcome:           HolderOutcomeHeldByRequester,
+			HolderSessionID:   rec.HolderSessionID,
+			LockExpiresAtUnix: rec.ExpiresAtUnix,
 		}, nil
 	}
 	return HolderCheck{
-		Outcome:             HolderOutcomeHeldByAnother,
-		HolderSessionID:     rec.HolderSessionID,
-		LockExpiresAtUnix:   rec.ExpiresAtUnix,
+		Outcome:           HolderOutcomeHeldByAnother,
+		HolderSessionID:   rec.HolderSessionID,
+		LockExpiresAtUnix: rec.ExpiresAtUnix,
 	}, nil
 }
 
@@ -124,7 +124,7 @@ type JobGroupBypass map[string]string
 // Empty result means the batch may proceed. Nil rdb returns nil, nil (no enforcement).
 // Empty requesterSessionID returns (nil, errNonEmptySession) — callers must require session when enforcing.
 //
-// jobGroupBypass is only consulted for mongocore.CollectionUserJobDocuments; pass nil otherwise.
+// jobGroupBypass is only consulted for eipmongo.CollectionUserJobDocuments; pass nil otherwise.
 func CollectLockHeldElsewhereRejects(
 	ctx context.Context,
 	rdb *redis.Client,
@@ -156,7 +156,7 @@ func CollectLockHeldElsewhereRejects(
 	}
 
 	now := time.Now().Unix()
-	useGroupBypass := collection == mongocore.CollectionUserJobDocuments && len(jobGroupBypass) > 0
+	useGroupBypass := collection == eipmongo.CollectionUserJobDocuments && len(jobGroupBypass) > 0
 	groupHeldByRequester := map[string]bool{}
 	if useGroupBypass {
 		seenGroups := make(map[string]struct{})
@@ -169,7 +169,7 @@ func CollectLockHeldElsewhereRejects(
 				continue
 			}
 			seenGroups[gid] = struct{}{}
-			check, err := RequireHolder(ctx, rdb, accountID, requesterSessionID, mongocore.CollectionUserJobGroups, gid)
+			check, err := RequireHolder(ctx, rdb, accountID, requesterSessionID, eipmongo.CollectionUserJobGroups, gid)
 			if err != nil {
 				return nil, err
 			}

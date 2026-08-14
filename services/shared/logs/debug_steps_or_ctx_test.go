@@ -18,7 +18,7 @@ func TestAttachDebugStepOrDebugCtx_usesStoreWhenPresent(t *testing.T) {
 	})
 
 	ctx := WithHandlerFailureDetailStore(context.Background())
-	AttachDebugStepOrDebugCtx(ctx, "jetstream_published", "JetStream message published", map[string]interface{}{
+	AttachDebugStepOrDebugCtx(ctx, "jetstream_published", "JetStream message published", map[string]any{
 		"subject": "tasks.example",
 	})
 
@@ -41,7 +41,7 @@ func TestAttachDebugStepOrDebugCtx_fallsBackToDebugCtxWithoutStore(t *testing.T)
 	})
 
 	EnableOTLPExport()
-	AttachDebugStepOrDebugCtx(context.Background(), "jetstream_published", "JetStream message published", map[string]interface{}{
+	AttachDebugStepOrDebugCtx(context.Background(), "jetstream_published", "JetStream message published", map[string]any{
 		"subject": "tasks.example",
 	})
 

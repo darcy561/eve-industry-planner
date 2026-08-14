@@ -118,12 +118,12 @@ func buildUserDocData(accountID string) map[string]any {
 	}
 
 	return map[string]any{
-		"accountID": accountID,
-		"deleted":   nil,
-		"linkedJobs":     []any{},
-		"linkedTrans":    []any{},
-		"linkedOrders":   []any{},
-		"settings":       settings,
-		"refreshTokens":  []any{},
+		"accountID":     accountID,
+		"deleted":       nil,
+		"linkedJobs":    []any{},
+		"linkedTrans":   []any{},
+		"linkedOrders":  []any{},
+		"settings":      settings,
+		"refreshTokens": []any{},
 	}
 }

@@ -11,7 +11,6 @@ import (
 	esitypes "eve-industry-planner/shared/core/esi/types"
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"github.com/redis/go-redis/v9"
@@ -31,7 +30,7 @@ type SystemIndexesBody struct {
 //	405 — not POST
 //	400 — invalid JSON, missing system_ids, empty array, too many IDs, or invalid IDs
 //	200 — JSON map of systemID → index rows; missing Redis keys appear as empty arrays (no per-id 404)
-func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (a *Handlers) SystemIndexesHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPISystemIndexes()
@@ -57,7 +56,7 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *share
 	validatedIDs, invalidCount := helper.ValidateIDs(reqBody.RequestedIDs)
 	if len(validatedIDs) == 0 {
 		metrics.Error("no_valid_ids")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No valid system IDs provided", "no valid system IDs provided", "system_indexes_no_valid_ids", "system_indexes", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No valid system IDs provided", "no valid system IDs provided", "system_indexes_no_valid_ids", "system_indexes", nil, map[string]any{
 			"total_ids": len(reqBody.RequestedIDs), "invalid_ids": invalidCount,
 		})
 		return
@@ -65,21 +64,21 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *share
 
 	if len(validatedIDs) > maxSystemIDs {
 		metrics.Error("too_many_ids")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Too many system IDs (max %d)", maxSystemIDs), "too many system IDs requested", "system_indexes_too_many_ids", "system_indexes", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Too many system IDs (max %d)", maxSystemIDs), "too many system IDs requested", "system_indexes_too_many_ids", "system_indexes", nil, map[string]any{
 			"count": len(validatedIDs), "max": maxSystemIDs,
 		})
 		return
 	}
 
 	if invalidCount > 0 {
-		logs.AttachHandlerCaveat(r, "invalid_system_ids_filtered", "some invalid system IDs filtered out", map[string]interface{}{
+		logs.AttachHandlerCaveat(r, "invalid_system_ids_filtered", "some invalid system IDs filtered out", map[string]any{
 			"total_ids":   len(reqBody.RequestedIDs),
 			"valid_ids":   len(validatedIDs),
 			"invalid_ids": invalidCount,
 		})
 	}
 
-	logs.AttachDebugStep(r, "system_ids_validated", map[string]interface{}{
+	logs.AttachDebugStep(r, "system_ids_validated", map[string]any{
 		"valid_count":   len(validatedIDs),
 		"invalid_count": invalidCount,
 	})
@@ -93,7 +92,7 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *share
 		systemID, _ := strconv.ParseInt(idStr, 10, 32)
 
 		var index esitypes.SystemIndexes
-		err = rediscore.GetIndustrySystemIndex(ctx, clients.Redis, int32(systemID), &index)
+		err = rediscore.GetIndustrySystemIndex(ctx, a.Redis, int32(systemID), &index)
 		if err != nil {
 			systemsNotFound++
 			missingIDs = append(missingIDs, idStr)
@@ -110,7 +109,7 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *share
 
 			if err != redis.Nil {
 				metrics.Error("redis_error")
-				logs.AttachHandlerCaveat(r, "redis_system_index_error", "redis error retrieving system index", map[string]interface{}{
+				logs.AttachHandlerCaveat(r, "redis_system_index_error", "redis error retrieving system index", map[string]any{
 					"error":     err.Error(),
 					"system_id": systemID,
 				})
@@ -121,7 +120,7 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *share
 		result[idStr] = index
 	}
 
-	logs.AttachDebugStep(r, "redis_fetch_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "redis_fetch_completed", map[string]any{
 		"systems_found":     systemsFound,
 		"systems_not_found": systemsNotFound,
 	})
@@ -136,7 +135,7 @@ func SystemIndexesHandler(w http.ResponseWriter, r *http.Request, clients *share
 	m.SystemsRequested.Observe(ctx, float64(len(validatedIDs)))
 	m.SystemIDsRequestedTotal.Add(ctx, float64(len(validatedIDs)))
 
-	logs.AttachHandlerSuccessDetail(r, "system indexes request completed", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "system indexes request completed", map[string]any{
 		"requested_system_ids": validatedIDs,
 		"missing_system_ids":   missingIDs,
 		"system_ids_count":     len(validatedIDs),

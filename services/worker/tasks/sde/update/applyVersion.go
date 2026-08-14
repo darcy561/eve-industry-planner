@@ -2,14 +2,15 @@ package update
 
 import (
 	"context"
+	objectstore "eve-industry-planner/shared/core/objectstore"
+	sdecore "eve-industry-planner/shared/core/sde"
 	"fmt"
-	"os"
+	"strconv"
 	"time"
 
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	esitasks "eve-industry-planner/worker/tasks/esi"
-	sdeshared "eve-industry-planner/worker/tasks/sde/shared"
 
 	"github.com/hibiken/asynq"
 )
@@ -31,18 +32,16 @@ func ApplySDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.TaskD
 		return fmt.Errorf("invalid build_number: %d", req.BuildNumber)
 	}
 
-	dataDir := os.Getenv("SDE_DATA_DIR")
-	if dataDir == "" {
-		dataDir = sdeshared.DefaultDataDir
+	backend, err := objectstore.OpenStaticData(ctx)
+	if err != nil {
+		return fmt.Errorf("sde store: %w", err)
 	}
-
-	rootVersion, err := sdeshared.ReadRootVersionJSON(dataDir)
+	rootVersion, err := sdecore.ReadRootVersionJSON(ctx, backend)
 	if err != nil {
 		return fmt.Errorf("failed reading root version.json: %w", err)
 	}
 
 	versionResult := &sdeVersionCheckResult{
-		DataDir:         dataDir,
 		CurrentVersion:  "none",
 		LatestBuild:     req.BuildNumber,
 		LatestRelease:   "",
@@ -60,16 +59,16 @@ func ApplySDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.TaskD
 		return err
 	}
 
-	liveVersion, err := sdeshared.ReadRootVersionJSON(dataDir)
+	liveVersion, err := sdecore.ReadRootVersionJSON(ctx, backend)
 	if err != nil {
 		return fmt.Errorf("failed reading rebuilt root version.json: %w", err)
 	}
-	lockVersion := sdeshared.IntToString(req.BuildNumber)
+	lockVersion := strconv.Itoa(req.BuildNumber)
 	if liveVersion != nil && liveVersion.Version != "" {
 		lockVersion = liveVersion.Version
 	}
 
-	if err := sdeshared.WriteVersionLock(dataDir, sdeshared.VersionLock{
+	if err := sdecore.WriteVersionLock(ctx, backend, sdecore.VersionLock{
 		Version:     lockVersion,
 		BuildNumber: req.BuildNumber,
 		LockedAt:    time.Now().UTC(),
@@ -80,7 +79,6 @@ func ApplySDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.TaskD
 	}
 
 	logs.InfoCtx(ctx, "SDE apply version completed",
-		"data_dir", dataDir,
 		"build_number", req.BuildNumber,
 	)
 	if liveVersion != nil {

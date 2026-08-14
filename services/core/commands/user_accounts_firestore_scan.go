@@ -2,6 +2,8 @@ package commands
 
 import (
 	"context"
+	"eve-industry-planner/shared/lifecycle"
+	"eve-industry-planner/shared/stackservices"
 	"flag"
 	"fmt"
 	"os"
@@ -11,7 +13,6 @@ import (
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/firebaseadmin"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	taskscore "eve-industry-planner/shared/tasks"
 
 	"cloud.google.com/go/firestore"
@@ -79,11 +80,11 @@ func runImportUserAccountsFromFirestoreScan(ctx context.Context, args []string) 
 		logs.InfoCtx(ctx, "user accounts scan: using FIREBASE_PROJECT_ID for this run", "project_id", projectID)
 	}
 
-	clients, err := shared.ConnectServices(ctx, shared.ServiceNATS)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.NATS)
 	if err != nil {
 		return err
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
 	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
 		return fmt.Errorf("ensure worker task stream: %w", err)
@@ -106,7 +107,7 @@ func runImportUserAccountsFromFirestoreScan(ctx context.Context, args []string) 
 
 func publishMigrateUserTasksSingle(
 	ctx context.Context,
-	clients *shared.ServiceClients,
+	clients *stackservices.Clients,
 	fsClient *firestore.Client,
 	taskDef taskscore.Task,
 	accountID string,
@@ -134,7 +135,7 @@ func publishMigrateUserTasksSingle(
 
 func publishMigrateUserTasksScanAll(
 	ctx context.Context,
-	clients *shared.ServiceClients,
+	clients *stackservices.Clients,
 	fsClient *firestore.Client,
 	taskDef taskscore.Task,
 	dryRun bool,

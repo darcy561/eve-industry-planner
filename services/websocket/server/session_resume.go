@@ -72,7 +72,7 @@ func (s *Server) snapshotSessionHandoff(ctx context.Context, client *Client) {
 }
 
 func (s *Server) storeRedisSessionHandoff(ctx context.Context, accountID, oldClientID string, docList, corpIDs, allianceIDs []string) {
-	if s.ServiceClients == nil || s.ServiceClients.Redis == nil {
+	if s.Stack == nil || s.Stack.Redis == nil {
 		return
 	}
 	payload := redisSessionHandoffPayload{
@@ -89,7 +89,7 @@ func (s *Server) storeRedisSessionHandoff(ctx context.Context, accountID, oldCli
 	rctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	key := sessionHandoffRedisKey(accountID, oldClientID)
-	err = s.ServiceClients.Redis.Set(rctx, key, b, config.SessionHandoffTTL).Err()
+	err = s.Stack.Redis.Set(rctx, key, b, config.SessionHandoffTTL).Err()
 	if err != nil {
 		logs.WarnCtx(ctx, "session handoff redis SET failed", "error", err, "key_prefix", redisHandoffKeyPrefix)
 	}
@@ -109,11 +109,11 @@ func (s *Server) popSessionHandoff(ctx context.Context, accountID, previousClien
 		return nil
 	}
 
-	if s.ServiceClients != nil && s.ServiceClients.Redis != nil {
+	if s.Stack != nil && s.Stack.Redis != nil {
 		key := sessionHandoffRedisKey(accountID, previousClientID)
 		rctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
-		val, err := s.ServiceClients.Redis.GetDel(rctx, key).Result()
+		val, err := s.Stack.Redis.GetDel(rctx, key).Result()
 		if err == nil && val != "" {
 			var payload redisSessionHandoffPayload
 			if errUnmarshal := json.Unmarshal([]byte(val), &payload); errUnmarshal != nil {
@@ -213,7 +213,7 @@ func (s *Server) queueResumeAck(client *Client, skipBaselineSync bool, restoredD
 	if client == nil || client.Send == nil {
 		return false
 	}
-	msg := map[string]interface{}{
+	msg := map[string]any{
 		"type":             "resume_ack",
 		"skipBaselineSync": skipBaselineSync,
 	}

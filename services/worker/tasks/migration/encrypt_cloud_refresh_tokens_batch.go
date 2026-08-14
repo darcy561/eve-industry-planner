@@ -2,20 +2,20 @@ package migration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"eve-industry-planner/shared/core/config"
-	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // EncryptCloudRefreshTokensBatch encrypts legacy plaintext `refreshTokens[].rToken` rows
@@ -41,20 +41,19 @@ func EncryptCloudRefreshTokensBatch(ctx context.Context, task *asynq.Task, deps 
 		return fmt.Errorf("account_id is required")
 	}
 
-	cfg, err := config.LoadConfig()
+	tokenCfg, err := config.LoadCloudStoredESIKeys()
 	if err != nil {
 		return err
 	}
-	if cfg.RefreshTokenKeyring == nil {
+	if tokenCfg.Keyring == nil {
 		return fmt.Errorf("REFRESH_TOKEN_AES_KEY not configured")
 	}
 
-	db := deps.Mongo.Database(mongocore.DatabaseName)
-	usersCol := db.Collection(mongocore.CollectionUsers)
+	usersCol := deps.Mongo.Users.Collection()
 
 	var doc models.UserAccountDocument
 	if err := usersCol.FindOne(ctx, bson.M{"_id": p.AccountID, "_meta.accountID": p.AccountID}).Decode(&doc); err != nil {
-		if err == mongo.ErrNoDocuments {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			return nil
 		}
 		return fmt.Errorf("load user for encryptCloudRefreshTokensBatch %s: %w", p.AccountID, err)
@@ -71,7 +70,7 @@ func EncryptCloudRefreshTokensBatch(ctx context.Context, task *asynq.Task, deps 
 			continue
 		}
 		plain := rt.RToken
-		if err := rt.EncryptRefreshAtRest(plain, cfg.RefreshTokenKeyring); err != nil {
+		if err := rt.EncryptRefreshAtRest(plain, tokenCfg.Keyring); err != nil {
 			logs.WarnCtx(ctx, "encrypt refresh migration: encrypt row failed",
 				"account_id", p.AccountID,
 				"character_hash", rt.CharacterHash,

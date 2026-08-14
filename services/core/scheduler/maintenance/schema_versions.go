@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"eve-industry-planner/core/scheduler/contract"
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	taskscore "eve-industry-planner/shared/tasks"
@@ -22,10 +22,10 @@ const (
 )
 
 var schemaMaintenanceCollections = []string{
-	mongocore.CollectionUsers,
-	mongocore.CollectionApplicationSettings,
-	mongocore.CollectionUserJobDocuments,
-	mongocore.CollectionUserJobGroups,
+	eipmongo.CollectionUsers,
+	eipmongo.CollectionApplicationSettings,
+	eipmongo.CollectionUserJobDocuments,
+	eipmongo.CollectionUserJobGroups,
 }
 
 // ScheduleSchemaVersionMaintenance schedules a low-frequency maintenance task that

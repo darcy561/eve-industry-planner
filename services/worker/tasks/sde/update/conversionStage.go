@@ -76,7 +76,7 @@ func runSDEConversionStage(mapResult *sdeMapBuildResult) (*sdeConversionResult, 
 	}, nil
 }
 
-func addJSONFile(out map[string][]byte, basePath string, v interface{}) error {
+func addJSONFile(out map[string][]byte, basePath string, v any) error {
 	jsonData, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal %s failed: %w", basePath, err)

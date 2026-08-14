@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 func TestSessionRotateResponseJSONRoundTrip(t *testing.T) {

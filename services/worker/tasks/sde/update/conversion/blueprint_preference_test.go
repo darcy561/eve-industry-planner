@@ -9,22 +9,22 @@ func TestConvertBlueprintDataToTypeIDMap_tungstenCarbidePrefersPublishedFormula(
 	const testRow = `{"_key":45732,"activities":{"reaction":{"materials":[{"quantity":100,"typeID":16657},{"quantity":100,"typeID":16661}],"products":[{"quantity":20,"typeID":16672}],"skills":[{"level":1,"typeID":45746}],"time":360}},"blueprintTypeID":45732,"maxProductionLimit":1000000}`
 	const liveRow = `{"_key":46207,"activities":{"reaction":{"materials":[{"quantity":5,"typeID":4051},{"quantity":100,"typeID":16657},{"quantity":100,"typeID":16661}],"products":[{"quantity":10000,"typeID":16672}],"skills":[{"level":3,"typeID":45746}],"time":10800}},"blueprintTypeID":46207,"maxProductionLimit":1000}`
 
-	blueprints := map[string]interface{}{}
+	blueprints := map[string]any{}
 	for _, raw := range []string{testRow, liveRow} {
-		var row map[string]interface{}
+		var row map[string]any
 		if err := json.Unmarshal([]byte(raw), &row); err != nil {
 			t.Fatal(err)
 		}
 		blueprints[blueprintTypeIDKey(row)] = row
 	}
 
-	types := map[string]interface{}{}
+	types := map[string]any{}
 	for _, raw := range []string{
 		`{"_key":45732,"name":{"en":"Test Reaction Blueprint"},"published":false}`,
 		`{"_key":46207,"name":{"en":"Tungsten Carbide Reaction Formula"},"published":true}`,
 		`{"_key":16672,"name":{"en":"Tungsten Carbide"},"published":true}`,
 	} {
-		var row map[string]interface{}
+		var row map[string]any
 		if err := json.Unmarshal([]byte(raw), &row); err != nil {
 			t.Fatal(err)
 		}
@@ -32,11 +32,11 @@ func TestConvertBlueprintDataToTypeIDMap_tungstenCarbidePrefersPublishedFormula(
 	}
 
 	out := ConvertBlueprintDataToTypeIDMap(blueprints, types)
-	matched, ok := out["16672"].(map[string]interface{})
+	matched, ok := out["16672"].(map[string]any)
 	if !ok {
 		t.Fatal("expected product 16672 to be indexed")
 	}
-	live := blueprints["46207"].(map[string]interface{})
+	live := blueprints["46207"].(map[string]any)
 	wantQty := firstActivityProductQuantityMust(t, live)
 	bpID, _ := parseSDETypeID(matched["blueprintTypeID"])
 	if bpID != 46207 {
@@ -51,7 +51,7 @@ func TestConvertBlueprintDataToTypeIDMap_tungstenCarbidePrefersPublishedFormula(
 	}
 }
 
-func firstActivityProductQuantityMust(t *testing.T, bp map[string]interface{}) int {
+func firstActivityProductQuantityMust(t *testing.T, bp map[string]any) int {
 	t.Helper()
 	q, ok := firstActivityProductQuantity(bp)
 	if !ok {
@@ -62,15 +62,15 @@ func firstActivityProductQuantityMust(t *testing.T, bp map[string]interface{}) i
 
 func TestConvertBlueprintDataToTypeIDMap_skipsUnpublishedBlueprint(t *testing.T) {
 	const testRow = `{"_key":45732,"activities":{"reaction":{"products":[{"quantity":20,"typeID":16672}]}},"blueprintTypeID":45732}`
-	types := map[string]interface{}{
-		"45732": map[string]interface{}{"_key": float64(45732), "published": false},
-		"16672": map[string]interface{}{"_key": float64(16672), "published": true},
+	types := map[string]any{
+		"45732": map[string]any{"_key": float64(45732), "published": false},
+		"16672": map[string]any{"_key": float64(16672), "published": true},
 	}
-	var row map[string]interface{}
+	var row map[string]any
 	if err := json.Unmarshal([]byte(testRow), &row); err != nil {
 		t.Fatal(err)
 	}
-	out := ConvertBlueprintDataToTypeIDMap(map[string]interface{}{"45732": row}, types)
+	out := ConvertBlueprintDataToTypeIDMap(map[string]any{"45732": row}, types)
 	if _, ok := out["16672"]; ok {
 		t.Fatal("unpublished formula must not index product 16672")
 	}

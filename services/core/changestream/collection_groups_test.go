@@ -4,13 +4,13 @@ import (
 	"strings"
 	"testing"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 )
 
 func TestValidateCollectionGroups_ok(t *testing.T) {
 	groups := []CollectionGroup{
-		Group("a", mongocore.CollectionUsers),
-		Group("b", mongocore.CollectionJobs),
+		Group("a", eipmongo.CollectionUsers),
+		Group("b", eipmongo.CollectionJobs),
 	}
 	if err := validateCollectionGroups(groups); err != nil {
 		t.Fatal(err)
@@ -19,11 +19,11 @@ func TestValidateCollectionGroups_ok(t *testing.T) {
 
 func TestValidateCollectionGroups_duplicateCollection(t *testing.T) {
 	groups := []CollectionGroup{
-		Group("a", mongocore.CollectionUsers),
-		Group("b", mongocore.CollectionUsers),
+		Group("a", eipmongo.CollectionUsers),
+		Group("b", eipmongo.CollectionUsers),
 	}
 	err := validateCollectionGroups(groups)
-	if err == nil || !strings.Contains(err.Error(), mongocore.CollectionUsers) {
+	if err == nil || !strings.Contains(err.Error(), eipmongo.CollectionUsers) {
 		t.Fatalf("expected duplicate collection error, got %v", err)
 	}
 }

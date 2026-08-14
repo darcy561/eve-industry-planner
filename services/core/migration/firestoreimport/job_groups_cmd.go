@@ -2,19 +2,20 @@ package firestoreimport
 
 import (
 	"context"
+	"eve-industry-planner/shared/lifecycle"
+	"eve-industry-planner/shared/stackservices"
 	"flag"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
-	"eve-industry-planner/shared/migration/firestoremig"
 	"eve-industry-planner/shared/firebaseadmin"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared/migration/firestoremig"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"cloud.google.com/go/firestore"
-	mongodriver "go.mongodb.org/mongo-driver/mongo"
 	"google.golang.org/api/iterator"
 )
 
@@ -85,11 +86,11 @@ func RunImportJobGroupsFromFirestore(ctx context.Context, args []string) error {
 		return importJobGroupsDryRunScanAll(ctx, *loginWithin)
 	}
 
-	clients, err := shared.ConnectServices(ctx, shared.ServiceMongo)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Mongo)
 	if err != nil {
 		return err
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
 	fsClient, err := firebaseadmin.GetFirestoreClient(ctx)
 	if err != nil {
@@ -165,7 +166,7 @@ func importJobGroupsDryRunScanAll(ctx context.Context, loginWithin time.Duration
 	return nil
 }
 
-func importJobGroupsSingleWrite(ctx context.Context, fsClient *firestore.Client, mc *mongodriver.Client, accountID string) error {
+func importJobGroupsSingleWrite(ctx context.Context, fsClient *firestore.Client, mc *eipmongo.Mongo, accountID string) error {
 	if mc == nil {
 		return fmt.Errorf("mongo client is required")
 	}
@@ -182,7 +183,7 @@ func importJobGroupsSingleWrite(ctx context.Context, fsClient *firestore.Client,
 	return nil
 }
 
-func importJobGroupsScanAllWrite(ctx context.Context, fsClient *firestore.Client, mc *mongodriver.Client, loginWithin time.Duration) error {
+func importJobGroupsScanAllWrite(ctx context.Context, fsClient *firestore.Client, mc *eipmongo.Mongo, loginWithin time.Duration) error {
 	if mc == nil {
 		return fmt.Errorf("mongo client is required")
 	}

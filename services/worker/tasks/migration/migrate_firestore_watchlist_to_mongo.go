@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"eve-industry-planner/shared/migration/firestoremig"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/firebaseadmin"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/migration/firestoremig"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
@@ -21,7 +21,7 @@ func MigrateFirestoreWatchlistToMongo(ctx context.Context, task *asynq.Task, dep
 	if task == nil {
 		return fmt.Errorf("task is nil")
 	}
-	if deps == nil || deps.ServiceClients == nil || deps.Mongo == nil {
+	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
 	}
 

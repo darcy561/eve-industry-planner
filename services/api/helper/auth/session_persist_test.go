@@ -60,7 +60,7 @@ func TestRevokeRefreshTokensForLogout(t *testing.T) {
 	rdb, _ := newAuthTestRedis(t)
 
 	const (
-		accountID   = "acct-logout-revoke"
+		accountID = "acct-logout-revoke"
 		sessionID = "sess-logout-revoke"
 		stale     = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 		current   = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"

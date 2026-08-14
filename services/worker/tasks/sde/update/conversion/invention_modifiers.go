@@ -29,9 +29,9 @@ type InventionModifierItem struct {
 
 // GenerateInventionModifiersOutput builds decryptor modifier stats from SDE DogmaAttributes + TypeDogma + Types.
 func GenerateInventionModifiersOutput(
-	typesData map[string]interface{},
-	dogmaAttributesData map[string]interface{},
-	typeDogmaData map[string]interface{},
+	typesData map[string]any,
+	dogmaAttributesData map[string]any,
+	typeDogmaData map[string]any,
 ) (*InventionModifiersOutput, error) {
 	if typesData == nil || dogmaAttributesData == nil || typeDogmaData == nil {
 		return nil, fmt.Errorf("missing types, dogmaAttributes, or typeDogma data")
@@ -48,11 +48,11 @@ func GenerateInventionModifiersOutput(
 
 	items := make([]InventionModifierItem, 0)
 	for typeKey, raw := range typeDogmaData {
-		row, ok := raw.(map[string]interface{})
+		row, ok := raw.(map[string]any)
 		if !ok {
 			continue
 		}
-		typeRow, hasType := typesData[typeKey].(map[string]interface{})
+		typeRow, hasType := typesData[typeKey].(map[string]any)
 		if !hasType || !typePublishedForExport(typeRow) {
 			continue
 		}
@@ -67,14 +67,14 @@ func GenerateInventionModifiersOutput(
 			continue
 		}
 
-		dogmaList, ok := row["dogmaAttributes"].([]interface{})
+		dogmaList, ok := row["dogmaAttributes"].([]any)
 		if !ok || len(dogmaList) == 0 {
 			continue
 		}
 
 		modifiers := make(map[string]float64)
 		for _, da := range dogmaList {
-			m, ok := da.(map[string]interface{})
+			m, ok := da.(map[string]any)
 			if !ok {
 				continue
 			}
@@ -115,7 +115,7 @@ func GenerateInventionModifiersOutput(
 	}, nil
 }
 
-func buildInventionAttributeIndex(dogmaAttributesData map[string]interface{}) map[string]*InventionAttributeDef {
+func buildInventionAttributeIndex(dogmaAttributesData map[string]any) map[string]*InventionAttributeDef {
 	out := make(map[string]*InventionAttributeDef)
 
 	for _, id := range decryptorInventionDogmaAllowlist {
@@ -124,7 +124,7 @@ func buildInventionAttributeIndex(dogmaAttributesData map[string]interface{}) ma
 		if !ok {
 			continue
 		}
-		row, ok := raw.(map[string]interface{})
+		row, ok := raw.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -139,11 +139,11 @@ func buildInventionAttributeIndex(dogmaAttributesData map[string]interface{}) ma
 	return out
 }
 
-func typePublishedForExport(itemData map[string]interface{}) bool {
+func typePublishedForExport(itemData map[string]any) bool {
 	if published, ok := itemData["published"].(bool); ok && !published {
 		return false
 	}
-	if name, ok := itemData["name"].(map[string]interface{}); ok {
+	if name, ok := itemData["name"].(map[string]any); ok {
 		if enName, ok := name["en"].(string); ok {
 			if strings.Contains(enName, "expired") || strings.Contains(enName, "Expired") {
 				return false
@@ -153,8 +153,8 @@ func typePublishedForExport(itemData map[string]interface{}) bool {
 	return true
 }
 
-func englishTypeName(itemData map[string]interface{}) string {
-	if nameObj, ok := itemData["name"].(map[string]interface{}); ok {
+func englishTypeName(itemData map[string]any) string {
+	if nameObj, ok := itemData["name"].(map[string]any); ok {
 		if en, ok := nameObj["en"].(string); ok {
 			return en
 		}
@@ -166,7 +166,7 @@ func attrIDKey(attributeID float64) string {
 	return strconv.FormatInt(int64(attributeID), 10)
 }
 
-func float64FromJSON(v interface{}) (float64, bool) {
+func float64FromJSON(v any) (float64, bool) {
 	switch x := v.(type) {
 	case float64:
 		return x, true

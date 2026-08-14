@@ -5,6 +5,10 @@
 
 import { getSessionIDFromStore } from "../Functions/Endpoints/Pirivate/applyPrivateHeaders.js";
 import { fetchPlannerJobDocumentsFromApi } from "../Functions/Endpoints/Pirivate/jobDocuments.js";
+import {
+  considerRemoteAppVersion,
+  isClientAppVersionOutdated,
+} from "../Functions/App/appVersionCheck.js";
 import { applyRemoteMessage } from "./applyRemoteMessage.js";
 import { syncAccountDocumentsFromServer } from "./resyncRealtimeDocumentsFromServer.js";
 import useUsersStore from "../Zustand/usersStore.js";
@@ -110,6 +114,16 @@ function wsUrl() {
   const sid = getSessionIDFromStore();
   if (sid) {
     u.searchParams.set("planner_session_id", sid);
+  }
+  // Optional bake hint for ops/logs; ws-router prefers newest slots regardless.
+  try {
+    const baked =
+      typeof __APP_VERSION__ !== "undefined" ? String(__APP_VERSION__) : "";
+    if (baked) {
+      u.searchParams.set("app_version", baked);
+    }
+  } catch {
+    /* ignore */
   }
   if (u.protocol === "https:") {
     u.protocol = "wss:";
@@ -308,6 +322,41 @@ export function connectRealtime(params) {
         }
         if (parsed.type === "connected") {
           setRealtimeClientID(parsed.clientID);
+          // app_version here is process bake (slot identity) — do NOT feed the
+          // advertised-version snackbar path (that would clear "outdated" on OLD).
+          // eslint-disable-next-line no-console -- ops/test: which Swarm websocket slot hosts us
+          console.info("[realtime] connected", {
+            clientID: parsed.clientID,
+            slot: parsed.slot,
+            app_version: parsed.app_version,
+          });
+          return;
+        }
+        if (parsed.type === "app_version") {
+          if (typeof parsed.app_version === "string") {
+            considerRemoteAppVersion(parsed.app_version);
+          }
+          // eslint-disable-next-line no-console -- ops/train cutover nudge
+          console.info("[realtime] app_version", {
+            app_version: parsed.app_version,
+            outdated: isClientAppVersionOutdated(),
+          });
+          return;
+        }
+        if (parsed.type === "please_reconnect") {
+          // Drain / evacuate (#8 / #21): console only — makes ops moves easy to follow in DevTools.
+          // eslint-disable-next-line no-console -- intentional ops/test visibility for slot moves
+          console.info(
+            "[realtime] please_reconnect:",
+            typeof parsed.message === "string" && parsed.message
+              ? parsed.message
+              : "(no message)",
+            {
+              action: parsed.action,
+              via: parsed.via,
+              slot: parsed.slot,
+            }
+          );
           return;
         }
       }

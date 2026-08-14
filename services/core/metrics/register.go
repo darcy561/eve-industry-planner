@@ -13,14 +13,14 @@ import (
 
 	natslib "github.com/nats-io/nats.go"
 	"github.com/redis/go-redis/v9"
-	gomongo "go.mongodb.org/mongo-driver/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 )
 
 // RegisterAll wires core service metric groups.
-func RegisterAll(rdb *redis.Client, mongoClient *gomongo.Client, natsConn *natslib.Conn) []func(context.Context) {
+func RegisterAll(rdb *redis.Client, mongoHandle *eipmongo.Mongo, natsConn *natslib.Conn) []func(context.Context) {
 	cleanups := make([]func(context.Context), 0, 1)
 	esi.Register(rdb)
-	users.Register(mongoClient)
+	users.Register(mongoHandle)
 	sde.Register()
 	appconfig.Register()
 	if natsConn != nil {

@@ -1,0 +1,364 @@
+# Prerelease channel: GHCR images and/or eip GitHub Release (marked prerelease).
+# Manual only — choose binary, containers, or both (default: binary only).
+# - Development → floating :prerelease (+ prerelease-development)
+# - Other staging branches (swarm/**, …) → prerelease-<slug> only
+# - Public → never; publish-containers-public.yml owns :latest / X.Y.Z
+name: Publish prerelease
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "What to publish"
+        required: true
+        type: choice
+        options:
+          - binary
+          - containers
+          - both
+        default: binary
+      ref:
+        description: "Branch or SHA to build (empty = branch selected in the Actions UI)"
+        required: false
+        type: string
+        default: ""
+
+concurrency:
+  group: publish-prerelease-${{ github.event.inputs.publish }}-${{ github.event.inputs.ref || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      slug: ${{ steps.resolve.outputs.slug }}
+      branch: ${{ steps.resolve.outputs.branch }}
+      channel_tag: ${{ steps.resolve.outputs.channel_tag }}
+      promote_generic: ${{ steps.resolve.outputs.promote_generic }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
+          fetch-depth: 0
+
+      - name: Resolve channel + version
+        id: resolve
+        env:
+          # Only this branch updates floating :prerelease / Release tag "prerelease".
+          # Override with repo variable PRERELEASE_BRANCH if the staging branch is renamed.
+          GENERIC_BRANCH: ${{ vars.PRERELEASE_BRANCH || 'Development' }}
+        run: |
+          set -euo pipefail
+          BRANCH="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.ref }}" ]; then
+            BRANCH="${{ github.event.inputs.ref }}"
+            BRANCH="${BRANCH#refs/heads/}"
+          fi
+          # Docker/GitHub-safe slug from branch (swarm/foo-bar → swarm-foo-bar)
+          SLUG="$(echo "${BRANCH}" | tr '[:upper:]' '[:lower:]' | sed 's#/#-#g' | sed 's/[^a-z0-9._-]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')"
+          if [ -z "${SLUG}" ]; then
+            echo "::error::empty branch slug"
+            exit 1
+          fi
+          SHA7="$(git rev-parse --short=7 HEAD)"
+          # Immutable GHCR tag (version string for APP_VERSION pin). Not a Public semver.
+          V="0.0.0-prerelease.${SLUG}.${SHA7}"
+          CHANNEL="prerelease-${SLUG}"
+          PROMOTE=false
+          BRANCH_LC="$(echo "${BRANCH}" | tr '[:upper:]' '[:lower:]')"
+          GENERIC_LC="$(echo "${GENERIC_BRANCH}" | tr '[:upper:]' '[:lower:]')"
+          if [ "${BRANCH_LC}" = "${GENERIC_LC}" ]; then
+            PROMOTE=true
+          fi
+
+          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "slug=${SLUG}" >> "$GITHUB_OUTPUT"
+          echo "version=${V}" >> "$GITHUB_OUTPUT"
+          echo "channel_tag=${CHANNEL}" >> "$GITHUB_OUTPUT"
+          echo "promote_generic=${PROMOTE}" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Prerelease \`${CHANNEL}\`"
+            echo "- Branch: \`${BRANCH}\`"
+            echo "- Publish: \`${{ github.event.inputs.publish }}\`"
+            echo "- Immutable pin: \`${V}\`"
+            echo "- Branch floating tag: \`${CHANNEL}\`"
+            if [ "${PROMOTE}" = "true" ]; then
+              echo "- **Generic staging:** also \`:prerelease\` / Release \`prerelease\` (Development)"
+            else
+              echo "- Generic \`prerelease\`: **not** updated (only \`${GENERIC_BRANCH}\` owns that tag)"
+            fi
+            echo "- Isolation: Public uses \`X.Y.Z\` / \`:latest\`; pick a tag explicitly — no automatic crossover"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish_containers:
+    if: ${{ github.event.inputs.publish == 'containers' || github.event.inputs.publish == 'both' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [version]
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [api, websocket, worker, core, frontend, ws-router, capacity-controller]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # Same as publish-containers-public.yml: packages are owned under the GHCR_TOKEN
+      # PAT. GITHUB_TOKEN cannot push to those (permission_denied: write_package).
+      # Link + public for new packages is a one-time Package settings step in the UI.
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Set package name
+        id: package-name
+        run: |
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2 | tr '[:upper:]' '[:lower:]')
+          echo "name=${REPO_NAME}-${{ matrix.service }}" >> "$GITHUB_OUTPUT"
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ steps.package-name.outputs.name }}
+          tags: |
+            type=raw,value=${{ needs.version.outputs.version }}
+            type=raw,value=${{ needs.version.outputs.channel_tag }}
+            type=raw,value=prerelease,enable=${{ needs.version.outputs.promote_generic == 'true' }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+            org.opencontainers.image.created=${{ github.run_started_at }}
+            org.opencontainers.image.branch=${{ needs.version.outputs.branch }}
+            org.opencontainers.image.title=eve-industry-planner-${{ matrix.service }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set build context and dockerfile
+        id: build-config
+        run: |
+          if [ "${{ matrix.service }}" = "frontend" ]; then
+            echo "context=." >> "$GITHUB_OUTPUT"
+            echo "dockerfile=./frontend/Dockerfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "context=./services" >> "$GITHUB_OUTPUT"
+            echo "dockerfile=./services/${{ matrix.service }}/Dockerfile" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare Docker build args
+        env:
+          SENTRY_DSN_VAR: ${{ vars.SENTRY_DSN }}
+          SENTRY_DSN_SECRET: ${{ secrets.SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          IMAGE_SOURCE="https://github.com/${{ github.repository }}"
+          APP_VERSION="${{ needs.version.outputs.version }}"
+          SENTRY_DSN_VAL="${SENTRY_DSN_VAR:-}"
+          if [ -z "${SENTRY_DSN_VAL}" ]; then
+            SENTRY_DSN_VAL="${SENTRY_DSN_SECRET:-}"
+          fi
+          if [ -z "${SENTRY_DSN_VAL}" ]; then
+            echo "::warning::Sentry DSN not set — building without Sentry (OK for prerelease)."
+          fi
+
+          {
+            echo "DOCKER_BUILD_ARGS<<BUILD_ARGS_EOF"
+            echo "IMAGE_SOURCE=${IMAGE_SOURCE}"
+            echo "ENVIRONMENT=production"
+            echo "APP_VERSION=${APP_VERSION}"
+            echo "FRONTEND_APP_VERSION=${APP_VERSION}"
+            echo "SENTRY_DSN=${SENTRY_DSN_VAL}"
+
+            if [ "${{ matrix.service }}" = "frontend" ]; then
+              echo "SENTRY_ORG=${{ vars.SENTRY_ORG }}"
+              echo "SENTRY_PROJECT_ID=${{ vars.SENTRY_PROJECT_ID }}"
+              echo "SENTRY_AUTH_TOKEN=${SENTRY_AUTH_TOKEN}"
+              echo "SENTRY_TRACES_SAMPLE_RATE=${{ vars.SENTRY_TRACES_SAMPLE_RATE }}"
+              echo "SENTRY_ERROR_SAMPLE_RATE=${{ vars.SENTRY_ERROR_SAMPLE_RATE }}"
+            fi
+
+            if [ "${{ matrix.service }}" = "api" ]; then
+              echo "FEEDBACK_DISCORD_WEBHOOK_URL=${{ vars.FEEDBACK_DISCORD_WEBHOOK_URL }}"
+            fi
+
+            if [ "${{ matrix.service }}" = "api" ] || [ "${{ matrix.service }}" = "core" ]; then
+              FFLAGS='${{ vars.APP_FEATURE_FLAGS_JSON }}'
+              if [ -z "${FFLAGS}" ] || [ "${FFLAGS}" = "null" ]; then
+                FFLAGS='{}'
+              fi
+              echo "APP_FEATURE_FLAGS_JSON=${FFLAGS}"
+            fi
+
+            echo "BUILD_ARGS_EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Build and push ${{ matrix.service }}
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ steps.build-config.outputs.context }}
+          file: ${{ steps.build-config.outputs.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: ${{ env.DOCKER_BUILD_ARGS }}
+
+      # GHCR container visibility cannot be changed via REST (GET works, PATCH → 404).
+      # One-time bootstrap: Package settings → Public (+ Connect repository if unlinked).
+      # Repo association on push: OCI org.opencontainers.image.source (labels above).
+      - name: Check package visibility
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          PACKAGE_NAME: ${{ steps.package-name.outputs.name }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          URL="https://api.github.com/users/${OWNER}/packages/container/${PACKAGE_NAME}"
+          code="$(curl -sS -o /tmp/pkg.json -w "%{http_code}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GHCR_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${URL}" || true)"
+          if [ "${code}" != "200" ]; then
+            echo "::warning::Could not read package ${PACKAGE_NAME} (HTTP ${code}). Image was pushed; check GHCR if pulls fail."
+            cat /tmp/pkg.json || true
+            exit 0
+          fi
+          vis="$(jq -r '.visibility // empty' /tmp/pkg.json)"
+          echo "Package ${PACKAGE_NAME} visibility=${vis}"
+          if [ "${vis}" = "public" ]; then
+            echo "Package is public — OK."
+            exit 0
+          fi
+          echo "::warning::Package ${PACKAGE_NAME} is ${vis:-unknown}. GitHub has no working REST API to set container packages public."
+          echo "::warning::One-time: https://github.com/users/${OWNER}/packages/container/${PACKAGE_NAME}/settings → Change visibility → Public"
+          exit 0
+
+  release_eip:
+    name: release eip assets
+    if: ${{ github.event.inputs.publish == 'binary' || github.event.inputs.publish == 'both' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [version]
+    permissions:
+      contents: write
+
+    defaults:
+      run:
+        working-directory: deployment-tool
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
+
+      - name: Resolve commit + channel
+        id: meta
+        run: |
+          set -euo pipefail
+          CHANNEL="${{ needs.version.outputs.channel_tag }}"
+          if [ -z "${CHANNEL}" ]; then
+            echo "::error::channel_tag empty — version job did not resolve a release tag"
+            exit 1
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "channel_tag=${CHANNEL}" >> "$GITHUB_OUTPUT"
+          echo "Publishing eip Release tag=${CHANNEL} commit=$(git rev-parse --short=7 HEAD)"
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: deployment-tool/go.mod
+          cache-dependency-path: deployment-tool/go.sum
+
+      - name: Build release binaries
+        env:
+          CGO_ENABLED: "0"
+          VER: ${{ needs.version.outputs.version }}
+          CHANNEL: ${{ steps.meta.outputs.channel_tag }}
+          KIT_BRANCH: ${{ needs.version.outputs.branch }}
+        run: |
+          set -euo pipefail
+          # Version = immutable pin; Channel = Release tag; KitBranch = stack YAML git ref.
+          LDFLAGS="-s -w -X eve-industry-planner/deployment-tool/internal/kit.Version=${VER}"
+          LDFLAGS="${LDFLAGS} -X eve-industry-planner/deployment-tool/internal/kit.Channel=${CHANNEL}"
+          LDFLAGS="${LDFLAGS} -X eve-industry-planner/deployment-tool/internal/kit.KitBranch=${KIT_BRANCH}"
+          mkdir -p dist
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o dist/eip-windows-amd64.exe .
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o dist/eip-linux-amd64 .
+          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o dist/eip-darwin-amd64 .
+          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "$LDFLAGS" -o dist/eip-darwin-arm64 .
+          (
+            cd dist
+            sha256sum eip-windows-amd64.exe eip-linux-amd64 eip-darwin-amd64 eip-darwin-arm64 > SHA256SUMS
+          )
+
+      - name: Upload branch-channel eip Release (prerelease)
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.meta.outputs.channel_tag }}
+          name: ${{ steps.meta.outputs.channel_tag }}
+          target_commitish: ${{ steps.meta.outputs.sha }}
+          prerelease: true
+          make_latest: false
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          body: |
+            Swarm prerelease for branch `${{ needs.version.outputs.branch }}` (eip binary).
+
+            | Kind | Value |
+            |------|--------|
+            | Channel tag | `${{ steps.meta.outputs.channel_tag }}` |
+            | Version pin | `${{ needs.version.outputs.version }}` |
+            | eip update | baked channel `${{ steps.meta.outputs.channel_tag }}` |
+          files: |
+            deployment-tool/dist/eip-windows-amd64.exe
+            deployment-tool/dist/eip-linux-amd64
+            deployment-tool/dist/eip-darwin-amd64
+            deployment-tool/dist/eip-darwin-arm64
+            deployment-tool/dist/SHA256SUMS
+
+      - name: Upload generic prerelease eip Release
+        if: needs.version.outputs.promote_generic == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: prerelease
+          name: prerelease
+          target_commitish: ${{ steps.meta.outputs.sha }}
+          prerelease: true
+          make_latest: false
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          body: |
+            Development staging prerelease (pre-Public). Same commit as `${{ steps.meta.outputs.channel_tag }}`.
+
+            - Bootstrap / `eip update`: channel `prerelease`
+            - Does not affect Public `:latest` / `X.Y.Z` / Release tag `cli`
+          files: |
+            deployment-tool/dist/eip-windows-amd64.exe
+            deployment-tool/dist/eip-linux-amd64
+            deployment-tool/dist/eip-darwin-amd64
+            deployment-tool/dist/eip-darwin-arm64
+            deployment-tool/dist/SHA256SUMS

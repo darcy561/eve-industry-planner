@@ -27,7 +27,7 @@ func attachCompressionCompleted(r *http.Request, negotiated, applied, skipReason
 	if r == nil {
 		return
 	}
-	extra := map[string]interface{}{
+	extra := map[string]any{
 		"negotiated": negotiated,
 		"applied":    applied,
 	}
@@ -47,7 +47,7 @@ func attachRequestBodyDecoded(r *http.Request, encoding string) {
 	if r == nil || encoding == "" {
 		return
 	}
-	logs.AttachDebugStep(r, "request_body_decoded", map[string]interface{}{
+	logs.AttachDebugStep(r, "request_body_decoded", map[string]any{
 		"encoding": encoding,
 	})
 }

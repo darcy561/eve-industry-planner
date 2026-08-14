@@ -12,9 +12,9 @@ func TestResolvePresentedRefreshToken_RecoversFromSession(t *testing.T) {
 	rdb, _ := newAuthTestRedis(t)
 
 	const (
-		accountID   = "acct-presented-resolve"
-		sessionID   = "sess-presented-resolve"
-		staleToken  = "00000000-0000-4000-8000-000000000099"
+		accountID    = "acct-presented-resolve"
+		sessionID    = "sess-presented-resolve"
+		staleToken   = "00000000-0000-4000-8000-000000000099"
 		currentToken = "33333333-3333-4333-8333-333333333333"
 	)
 	now := time.Now().UTC()
@@ -104,4 +104,3 @@ func TestUseAppRefreshCookieOnResponse(t *testing.T) {
 		t.Fatal("expected false")
 	}
 }
-

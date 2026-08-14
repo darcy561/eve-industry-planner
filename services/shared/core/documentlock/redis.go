@@ -27,8 +27,8 @@ const SoloHolderLockTTL = 24 * time.Hour
 
 // Lease modes stored on LockRecord.leaseMode.
 const (
-	LeaseModeSolo       = "solo"
-	LeaseModeContested  = "contested"
+	LeaseModeSolo      = "solo"
+	LeaseModeContested = "contested"
 )
 
 // MaxExtensionsBeforeHandoffConsult — after this many consecutive lease segments, extend consults the waitlist.
@@ -71,7 +71,8 @@ func waitlistKey(accountID, collection, docID string) string {
 	return waitPrefix + accountID + KeyPartSep + collection + KeyPartSep + docID
 }
 
-func waitlistPulseKey(accountID, collection, docID, sessionID string) string {
+// WaitlistPulseKey is the Redis key proving a session is still waiting on a doc.
+func WaitlistPulseKey(accountID, collection, docID, sessionID string) string {
 	return pulsePrefix + accountID + KeyPartSep + collection + KeyPartSep + docID + KeyPartSep + sessionID
 }
 
@@ -80,14 +81,14 @@ func TouchWaitlistPulse(ctx context.Context, rdb *redis.Client, accountID, colle
 	if sessionID == "" || rdb == nil {
 		return nil
 	}
-	return rdb.Set(ctx, waitlistPulseKey(accountID, collection, docID, sessionID), "1", WaitlistPulseTTL).Err()
+	return rdb.Set(ctx, WaitlistPulseKey(accountID, collection, docID, sessionID), "1", WaitlistPulseTTL).Err()
 }
 
 func hasWaitlistPulse(ctx context.Context, rdb *redis.Client, accountID, collection, docID, sessionID string) (bool, error) {
 	if sessionID == "" || rdb == nil {
 		return false, nil
 	}
-	n, err := rdb.Exists(ctx, waitlistPulseKey(accountID, collection, docID, sessionID)).Result()
+	n, err := rdb.Exists(ctx, WaitlistPulseKey(accountID, collection, docID, sessionID)).Result()
 	return n > 0, err
 }
 

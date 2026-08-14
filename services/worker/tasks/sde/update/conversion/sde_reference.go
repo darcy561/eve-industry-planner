@@ -3,13 +3,13 @@ package conversion
 import "strconv"
 
 // isProductIndexKey is true when key is the primary output type ID for manufacturing or reaction on this blueprint row.
-func isProductIndexKey(key string, blueprint map[string]interface{}) bool {
-	activities, ok := blueprint["activities"].(map[string]interface{})
+func isProductIndexKey(key string, blueprint map[string]any) bool {
+	activities, ok := blueprint["activities"].(map[string]any)
 	if !ok {
 		return false
 	}
 	for _, actKey := range []string{"manufacturing", "reaction"} {
-		activity, ok := activities[actKey].(map[string]interface{})
+		activity, ok := activities[actKey].(map[string]any)
 		if !ok {
 			continue
 		}
@@ -21,18 +21,18 @@ func isProductIndexKey(key string, blueprint map[string]interface{}) bool {
 }
 
 // jobTypeForBlueprintRow returns ManufacturingID or ReactionID when the row has that activity with products.
-func jobTypeForBlueprintRow(blueprint map[string]interface{}) int {
-	activities, ok := blueprint["activities"].(map[string]interface{})
+func jobTypeForBlueprintRow(blueprint map[string]any) int {
+	activities, ok := blueprint["activities"].(map[string]any)
 	if !ok {
 		return BaseMaterialID
 	}
-	if m, ok := activities["manufacturing"].(map[string]interface{}); ok {
-		if products, ok := m["products"].([]interface{}); ok && len(products) > 0 {
+	if m, ok := activities["manufacturing"].(map[string]any); ok {
+		if products, ok := m["products"].([]any); ok && len(products) > 0 {
 			return ManufacturingID
 		}
 	}
-	if r, ok := activities["reaction"].(map[string]interface{}); ok {
-		if products, ok := r["products"].([]interface{}); ok && len(products) > 0 {
+	if r, ok := activities["reaction"].(map[string]any); ok {
+		if products, ok := r["products"].([]any); ok && len(products) > 0 {
 			return ReactionID
 		}
 	}
@@ -54,15 +54,15 @@ func activityProductQuantity(item *EVEType) (int, bool) {
 	}
 }
 
-func activityQuantityFromMap(activity map[string]interface{}) (int, bool) {
+func activityQuantityFromMap(activity map[string]any) (int, bool) {
 	if activity == nil {
 		return 0, false
 	}
-	products, ok := activity["products"].([]interface{})
+	products, ok := activity["products"].([]any)
 	if !ok || len(products) == 0 {
 		return 0, false
 	}
-	product, ok := products[0].(map[string]interface{})
+	product, ok := products[0].(map[string]any)
 	if !ok {
 		return 0, false
 	}
@@ -70,8 +70,8 @@ func activityQuantityFromMap(activity map[string]interface{}) (int, bool) {
 }
 
 // blueprintProductQuantity reads quantity from a raw SDE blueprint row for the activity matching jobType.
-func blueprintProductQuantity(blueprint map[string]interface{}, jobType int) (int, bool) {
-	activities, ok := blueprint["activities"].(map[string]interface{})
+func blueprintProductQuantity(blueprint map[string]any, jobType int) (int, bool) {
+	activities, ok := blueprint["activities"].(map[string]any)
 	if !ok {
 		return 0, false
 	}
@@ -84,7 +84,7 @@ func blueprintProductQuantity(blueprint map[string]interface{}, jobType int) (in
 	default:
 		return 0, false
 	}
-	activity, ok := activities[actKey].(map[string]interface{})
+	activity, ok := activities[actKey].(map[string]any)
 	if !ok {
 		return 0, false
 	}
@@ -92,21 +92,21 @@ func blueprintProductQuantity(blueprint map[string]interface{}, jobType int) (in
 }
 
 // discoverAnchorProducts returns item IDs useful for spot-check logs: reaction collision, reaction, manufacturing.
-func discoverAnchorProducts(blueprints, types map[string]interface{}) (collisionProduct, reactionProduct, manufacturingProduct int) {
-	unpubByProduct := make(map[string][]map[string]interface{})
-	publishedReaction := make(map[string]map[string]interface{})
-	publishedMfg := make(map[string]map[string]interface{})
+func discoverAnchorProducts(blueprints, types map[string]any) (collisionProduct, reactionProduct, manufacturingProduct int) {
+	unpubByProduct := make(map[string][]map[string]any)
+	publishedReaction := make(map[string]map[string]any)
+	publishedMfg := make(map[string]map[string]any)
 
 	for _, raw := range blueprints {
-		bp, ok := raw.(map[string]interface{})
+		bp, ok := raw.(map[string]any)
 		if !ok {
 			continue
 		}
-		activities, ok := bp["activities"].(map[string]interface{})
+		activities, ok := bp["activities"].(map[string]any)
 		if !ok {
 			continue
 		}
-		if r, ok := activities["reaction"].(map[string]interface{}); ok {
+		if r, ok := activities["reaction"].(map[string]any); ok {
 			prodKey := extractTypeID(r)
 			if prodKey == "" {
 				continue
@@ -119,7 +119,7 @@ func discoverAnchorProducts(blueprints, types map[string]interface{}) (collision
 				unpubByProduct[prodKey] = append(unpubByProduct[prodKey], bp)
 			}
 		}
-		if m, ok := activities["manufacturing"].(map[string]interface{}); ok {
+		if m, ok := activities["manufacturing"].(map[string]any); ok {
 			prodKey := extractTypeID(m)
 			if prodKey == "" || !isPublishedBlueprintFormula(bp, types) {
 				continue

@@ -12,17 +12,17 @@ import (
 )
 
 type sdeMapBuildResult struct {
-	StructuredData map[string]map[string]interface{}
+	StructuredData map[string]map[string]any
 }
 
 // runSDEMapBuildStage handles stage 3: parse extracted JSONL and build keyed maps in memory.
 func runSDEMapBuildStage(downloadResult *sdeDownloadResult) (*sdeMapBuildResult, error) {
 	if downloadResult == nil || len(downloadResult.ExtractedFiles) == 0 {
 		logs.DebugCtx(context.Background(), "SDE map-build stage skipped; no extracted files in memory")
-		return &sdeMapBuildResult{StructuredData: map[string]map[string]interface{}{}}, nil
+		return &sdeMapBuildResult{StructuredData: map[string]map[string]any{}}, nil
 	}
 
-	structuredData := make(map[string]map[string]interface{}, len(requiredFiles))
+	structuredData := make(map[string]map[string]any, len(requiredFiles))
 	for filename, fieldName := range requiredFiles {
 		raw, ok := downloadResult.ExtractedFiles[filename]
 		if !ok {
@@ -48,8 +48,8 @@ func runSDEMapBuildStage(downloadResult *sdeDownloadResult) (*sdeMapBuildResult,
 	return &sdeMapBuildResult{StructuredData: structuredData}, nil
 }
 
-func parseJSONLToKeyedMap(data []byte) (map[string]interface{}, error) {
-	out := make(map[string]interface{})
+func parseJSONLToKeyedMap(data []byte) (map[string]any, error) {
+	out := make(map[string]any)
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	// Raise token size to handle very large JSONL rows.
 	scanner.Buffer(make([]byte, 0, 1024*1024), 64*1024*1024)
@@ -60,7 +60,7 @@ func parseJSONLToKeyedMap(data []byte) (map[string]interface{}, error) {
 			continue
 		}
 
-		var obj map[string]interface{}
+		var obj map[string]any
 		if err := json.Unmarshal(line, &obj); err != nil {
 			return nil, fmt.Errorf("invalid jsonl row: %w", err)
 		}

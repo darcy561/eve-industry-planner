@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"cloud.google.com/go/firestore"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 const (
@@ -28,7 +27,7 @@ func WatchlistFirestoreRef(fs *firestore.Client, accountID string) *firestore.Do
 // UpsertUserWatchlistDeprecatedFromFirestore reads Firestore Users/{id}/ProfileInfo/Watchlist and upserts
 // user_watchlist_deprecated. Returns migrated=true when a document was written, false when the Firestore
 // watchlist doc is missing (same as worker: no error).
-func UpsertUserWatchlistDeprecatedFromFirestore(ctx context.Context, fs *firestore.Client, m *mongo.Client, accountID string) (migrated bool, err error) {
+func UpsertUserWatchlistDeprecatedFromFirestore(ctx context.Context, fs *firestore.Client, m *eipmongo.Mongo, accountID string) (migrated bool, err error) {
 	if accountID == "" {
 		return false, fmt.Errorf("account_id is required")
 	}
@@ -62,12 +61,9 @@ func UpsertUserWatchlistDeprecatedFromFirestore(ctx context.Context, fs *firesto
 		},
 	}
 
-	db := m.Database(mongocore.DatabaseName)
-	coll := db.Collection(mongocore.CollectionUserWatchlistDeprecated)
+	coll := m.WatchlistDeprecated.Collection()
 
-	retry := mongocore.DefaultRetryConfig()
-	retry.OperationName = fmt.Sprintf("upsert watchlist deprecated (migration) %s", accountID)
-	err = mongocore.RetryMongoOperation(ctx, retry, func() error {
+	err = eipmongo.Retry(ctx, fmt.Sprintf("upsert watchlist deprecated (migration) %s", accountID), func() error {
 		_, e := coll.ReplaceOne(ctx, bson.M{"_id": accountID}, doc, options.Replace().SetUpsert(true))
 		return e
 	})
@@ -85,7 +81,7 @@ func normalizeFirestoreArrayField(m map[string]any, key string) any {
 	if arr, ok := v.([]any); ok {
 		return toBSONArray(arr)
 	}
-	if arr, ok := v.([]interface{}); ok {
+	if arr, ok := v.([]any); ok {
 		return toBSONArray(arr)
 	}
 	return bson.A{}

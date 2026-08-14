@@ -54,7 +54,7 @@ func (e *JSONRequestError) Unwrap() error {
 //	    http.Error(w, err.Error(), http.StatusBadRequest)
 //	    return
 //	}
-func DecodeJSONRequest(r *http.Request, target interface{}, maxBodySize int64) error {
+func DecodeJSONRequest(r *http.Request, target any, maxBodySize int64) error {
 	if maxBodySize <= 0 {
 		maxBodySize = DefaultMaxBodySize
 	}
@@ -137,8 +137,8 @@ func buildJSONRequestError(err error, rawBody []byte) error {
 		}
 	}
 
-	if strings.HasPrefix(err.Error(), "json: unknown field ") {
-		field := strings.TrimPrefix(err.Error(), "json: unknown field ")
+	if after, ok := strings.CutPrefix(err.Error(), "json: unknown field "); ok {
+		field := after
 		field = strings.Trim(field, "\"")
 		return &JSONRequestError{
 			PublicMessage: "invalid request body",

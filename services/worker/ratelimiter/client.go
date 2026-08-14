@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"eve-industry-planner/shared/httpclient"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/httpclient"
 
 	"golang.org/x/time/rate"
 )
@@ -235,13 +235,9 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 		actualLimiter.Limiter.SetLimit(newRate)
 
 		// Adjust burst to be a small fraction of the token limit (e.g., 5% or minimum 5)
-		newBurst := tokenLimit / 20
-		if newBurst < 5 {
-			newBurst = 5
-		}
-		if newBurst > 100 {
-			newBurst = 100 // Cap burst to prevent excessive bursts
-		}
+		newBurst := min(max(tokenLimit/20, 5),
+			// Cap burst to prevent excessive bursts
+			100)
 		actualLimiter.Limiter.SetBurst(newBurst)
 		// NOTE: Don't unlock here - we're already holding the lock from line 178
 
@@ -569,7 +565,7 @@ func (c *ESIClient) Do(ctx context.Context, method, path string, headers map[str
 	actualLimiter.mu.RUnlock()
 
 	// Build log fields
-	logFields := []interface{}{
+	logFields := []any{
 		"path", path,
 		"group", actualLimiter.Name,
 		"status", resp.StatusCode,
@@ -778,7 +774,7 @@ func (c *ESIClient) DoRequest(ctx context.Context, method, path string, headers 
 	actualLimiter.mu.RUnlock()
 
 	// Build log fields
-	logFields := []interface{}{
+	logFields := []any{
 		"path", path,
 		"group", actualLimiter.Name,
 		"status", resp.StatusCode,

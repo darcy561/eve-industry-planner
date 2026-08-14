@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared/stackservices"
 )
 
 func TestDocSubscribeAuthorized_singletonAccountDocs(t *testing.T) {
-	s := &Server{ServiceClients: &shared.ServiceClients{}}
+	s := &Server{Stack: &stackservices.Clients{}}
 
 	if !s.docSubscribeAuthorized(context.Background(), "users.acc123", "acc123") {
 		t.Fatal("expected users doc for same account")
@@ -25,7 +25,7 @@ func TestDocSubscribeAuthorized_singletonAccountDocs(t *testing.T) {
 }
 
 func TestDocSubscribeAuthorized_unknownCollectionDenied(t *testing.T) {
-	s := &Server{ServiceClients: &shared.ServiceClients{}}
+	s := &Server{Stack: &stackservices.Clients{}}
 	if s.docSubscribeAuthorized(context.Background(), "blueprints.123", "acc123") {
 		t.Fatal("expected deny unknown / public collection")
 	}
@@ -35,7 +35,7 @@ func TestDocSubscribeAuthorized_unknownCollectionDenied(t *testing.T) {
 }
 
 func TestDocSubscribeAuthorized_jobsRequiresMongo(t *testing.T) {
-	s := &Server{ServiceClients: &shared.ServiceClients{Mongo: nil}}
+	s := &Server{Stack: &stackservices.Clients{Mongo: nil}}
 	if s.docSubscribeAuthorized(context.Background(), "jobs.any-id", "acc123") {
 		t.Fatal("expected deny jobs when mongo unavailable")
 	}

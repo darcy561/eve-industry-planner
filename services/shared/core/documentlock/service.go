@@ -5,7 +5,7 @@ type Service struct {
 	Deps Deps
 }
 
-// NewService returns a lock service. Callers typically use DepsFromServiceClients.
+// NewService returns a lock service. Callers typically use DepsFromClients.
 func NewService(d Deps) *Service {
 	return &Service{Deps: d}
 }

@@ -6,13 +6,13 @@ import (
 )
 
 func TestDecodeOutboundMessage_scopes(t *testing.T) {
-	raw := map[string]interface{}{
+	raw := map[string]any{
 		"accountID":     "",
 		"allianceID":    "99000001",
 		"corporationID": "",
-		"scopes": map[string]interface{}{
-			"corporationIDs": []interface{}{"98000001", float64(98000002)},
-			"accountIDs":     []interface{}{"acct1"},
+		"scopes": map[string]any{
+			"corporationIDs": []any{"98000001", float64(98000002)},
+			"accountIDs":     []any{"acct1"},
 		},
 	}
 	b, err := json.Marshal(raw)

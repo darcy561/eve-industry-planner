@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
@@ -30,7 +29,7 @@ func encodeAsynqWrappedPayload(t *testing.T, taskType string, inner any) []byte 
 }
 
 func depsMongoNil() *esitasks.TaskDependencies {
-	return &esitasks.TaskDependencies{ServiceClients: &shared.ServiceClients{}}
+	return &esitasks.TaskDependencies{}
 }
 
 func TestCloudStoredEsiRefreshMaintenance_Validation(t *testing.T) {

@@ -15,7 +15,7 @@ func (s *Server) handleSubscribeWS(ctx context.Context, client *Client, msg []by
 	if err := json.Unmarshal(msg, &subscribeMsg); err != nil {
 		finishWSOperationFailure(ctx, client, "subscribe",
 			"websocket subscribe: invalid message",
-			"ws_subscribe_invalid_message", map[string]interface{}{
+			"ws_subscribe_invalid_message", map[string]any{
 				"error": err.Error(),
 			})
 		return
@@ -27,7 +27,7 @@ func (s *Server) handleSubscribeWS(ctx context.Context, client *Client, msg []by
 		return
 	}
 
-	wsAppendDebugStep(ctx, "subscribe_request", map[string]interface{}{
+	wsAppendDebugStep(ctx, "subscribe_request", map[string]any{
 		"requested_doc_count": len(subscribeMsg.DocIDs),
 	})
 
@@ -54,13 +54,13 @@ func (s *Server) handleSubscribeWS(ctx context.Context, client *Client, msg []by
 
 	if len(rejected) > 0 {
 		logs.AttachHandlerCaveatCtx(ctx, "subscribe_unauthorized_docs",
-			"subscribe rejected unauthorized doc ids", map[string]interface{}{
+			"subscribe rejected unauthorized doc ids", map[string]any{
 				"doc_ids": strings.Join(rejected, ","),
 			})
 	}
 	if len(dropped) > 0 {
 		logs.AttachHandlerCaveatCtx(ctx, "subscribe_queue_full",
-			"subscribe incoming queue full for doc ids", map[string]interface{}{
+			"subscribe incoming queue full for doc ids", map[string]any{
 				"doc_ids": strings.Join(dropped, ","),
 			})
 	}
@@ -70,13 +70,13 @@ func (s *Server) handleSubscribeWS(ctx context.Context, client *Client, msg []by
 		ackDelivered = s.QueueSubscribeAck(client, enqueued)
 		if !ackDelivered {
 			logs.AttachHandlerCaveatCtx(ctx, "subscribe_ack_buffer_full",
-				"subscribe_ack not delivered", map[string]interface{}{
+				"subscribe_ack not delivered", map[string]any{
 					"client_id": client.id,
 				})
 		}
 	}
 
-	extra := map[string]interface{}{
+	extra := map[string]any{
 		"requested_doc_count": len(subscribeMsg.DocIDs),
 		"enqueued_doc_count":  len(enqueued),
 		"rejected_doc_count":  len(rejected),
@@ -112,7 +112,7 @@ func (s *Server) handleUnsubscribeWS(ctx context.Context, client *Client, msg []
 	if err := json.Unmarshal(msg, &unsubscribeMsg); err != nil {
 		finishWSOperationFailure(ctx, client, "unsubscribe",
 			"websocket unsubscribe: invalid message",
-			"ws_unsubscribe_invalid_message", map[string]interface{}{
+			"ws_unsubscribe_invalid_message", map[string]any{
 				"error": err.Error(),
 			})
 		return
@@ -124,7 +124,7 @@ func (s *Server) handleUnsubscribeWS(ctx context.Context, client *Client, msg []
 		return
 	}
 
-	wsAppendDebugStep(ctx, "unsubscribe_request", map[string]interface{}{
+	wsAppendDebugStep(ctx, "unsubscribe_request", map[string]any{
 		"requested_doc_count": len(unsubscribeMsg.DocIDs),
 	})
 
@@ -151,18 +151,18 @@ func (s *Server) handleUnsubscribeWS(ctx context.Context, client *Client, msg []
 
 	if len(rejected) > 0 {
 		logs.AttachHandlerCaveatCtx(ctx, "unsubscribe_unauthorized_docs",
-			"unsubscribe rejected unauthorized doc ids", map[string]interface{}{
+			"unsubscribe rejected unauthorized doc ids", map[string]any{
 				"doc_ids": strings.Join(rejected, ","),
 			})
 	}
 	if len(dropped) > 0 {
 		logs.AttachHandlerCaveatCtx(ctx, "unsubscribe_queue_full",
-			"unsubscribe incoming queue full for doc ids", map[string]interface{}{
+			"unsubscribe incoming queue full for doc ids", map[string]any{
 				"doc_ids": strings.Join(dropped, ","),
 			})
 	}
 
-	extra := map[string]interface{}{
+	extra := map[string]any{
 		"requested_doc_count": len(unsubscribeMsg.DocIDs),
 		"enqueued_doc_count":  len(enqueued),
 		"rejected_doc_count":  len(rejected),

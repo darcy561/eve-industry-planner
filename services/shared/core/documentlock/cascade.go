@@ -4,11 +4,10 @@ import (
 	"context"
 	"errors"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
-	mongoget "eve-industry-planner/shared/core/mongo/get"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 
-	"go.mongodb.org/mongo-driver/mongo"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // DecideHandoffCascadeRelease is the predicate for group handoff cascade (exported for unit tests).
@@ -102,9 +101,9 @@ func ReleaseStaleDependentJobLocksOnGroupMembershipAdded(
 		return
 	}
 	_ = PublishLockEvent(ctx, d.JetStream, accountID, BuildGroupCascadePayload(
-		mongocore.CollectionUserJobGroups,
+		eipmongo.CollectionUserJobGroups,
 		groupID,
-		mongocore.CollectionUserJobDocuments,
+		eipmongo.CollectionUserJobDocuments,
 		releases,
 		LockReleaseReasonGroupMembershipAdded,
 	))
@@ -124,12 +123,9 @@ func cascadeReleaseDependentJobLocks(
 		return
 	}
 
-	groupColl := d.Mongo.
-		Database(mongocore.DatabaseName).
-		Collection(mongocore.CollectionUserJobGroups)
-	group, err := mongoget.LoadGroupByID(ctx, groupColl, accountID, groupID)
+	group, err := d.Mongo.Groups.LoadGroupByID(ctx, accountID, groupID)
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			return
 		}
 		logs.WarnCtx(ctx, "doc lock cascade: load group failed",
@@ -162,9 +158,9 @@ func cascadeReleaseDependentJobLocks(
 		return
 	}
 	_ = PublishLockEvent(ctx, d.JetStream, accountID, BuildGroupCascadePayload(
-		mongocore.CollectionUserJobGroups,
+		eipmongo.CollectionUserJobGroups,
 		groupID,
-		mongocore.CollectionUserJobDocuments,
+		eipmongo.CollectionUserJobDocuments,
 		releases,
 		cascadeReason,
 	))

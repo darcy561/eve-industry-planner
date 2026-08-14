@@ -24,7 +24,7 @@ import (
 	"encoding/json"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -80,7 +80,7 @@ func pipelinedDecideAndReleaseJobLocks(
 	pipe := rdb.Pipeline()
 	get := make([]*redis.StringCmd, len(keep))
 	for i, jobID := range keep {
-		get[i] = pipe.Get(ctx, LockKey(accountID, mongocore.CollectionUserJobDocuments, jobID))
+		get[i] = pipe.Get(ctx, LockKey(accountID, eipmongo.CollectionUserJobDocuments, jobID))
 	}
 	if _, err := pipe.Exec(ctx); err != nil && err != redis.Nil {
 		return nil, err
@@ -114,7 +114,7 @@ func pipelinedDecideAndReleaseJobLocks(
 
 	delPipe := rdb.Pipeline()
 	for _, r := range releases {
-		_ = delPipe.Del(ctx, LockKey(accountID, mongocore.CollectionUserJobDocuments, r.JobID))
+		_ = delPipe.Del(ctx, LockKey(accountID, eipmongo.CollectionUserJobDocuments, r.JobID))
 	}
 	if _, err := delPipe.Exec(ctx); err != nil {
 		// Return the decided releases along with the error so the caller

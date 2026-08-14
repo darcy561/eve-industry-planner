@@ -48,7 +48,7 @@ func RateLimiterConstructor(store limiter.Store, rateLimit limiter.Rate, scope s
 				http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 			}),
 			lstdlib.WithErrorHandler(func(w http.ResponseWriter, r *http.Request, err error) {
-				helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Service temporarily unavailable", "rate limiter store unavailable", "rate_limit_dependency_unavailable", "rate_limit", err, map[string]interface{}{
+				helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Service temporarily unavailable", "rate limiter store unavailable", "rate_limit_dependency_unavailable", "rate_limit", err, map[string]any{
 					"rate_limit_scope": scope,
 				})
 			}),
@@ -60,7 +60,7 @@ func RateLimiterConstructor(store limiter.Store, rateLimit limiter.Rate, scope s
 
 			remaining := sr.Header().Get("X-RateLimit-Remaining")
 			if sr.status == http.StatusTooManyRequests {
-				logs.AttachClientFailureDetail(r, "request rate limited", map[string]interface{}{
+				logs.AttachClientFailureDetail(r, "request rate limited", map[string]any{
 					"failure_class":        "rate_limited",
 					"rate_limit_scope":     scope,
 					"rate_limit_remaining": remaining,
@@ -70,7 +70,7 @@ func RateLimiterConstructor(store limiter.Store, rateLimit limiter.Rate, scope s
 			if sr.status == http.StatusServiceUnavailable {
 				return
 			}
-			logs.AttachDebugStep(r, "rate_limit_ok", map[string]interface{}{
+			logs.AttachDebugStep(r, "rate_limit_ok", map[string]any{
 				"rate_limit_scope":     scope,
 				"rate_limit_remaining": remaining,
 			})

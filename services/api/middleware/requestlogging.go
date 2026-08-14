@@ -59,8 +59,8 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 
 			next.ServeHTTP(rw, r)
 
-			// Traefik polls /health every few seconds; skip access logs (no operator value).
-			if r.URL.Path == "/health" {
+			// Traefik/Swarm poll status paths; skip access logs (no operator value).
+			if r.URL.Path == "/health" || r.URL.Path == "/healthy" || r.URL.Path == "/ready" {
 				return
 			}
 
@@ -113,7 +113,7 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 					scope.SetRequest(r)
 					scope.SetLevel(sentry.LevelError)
 					scope.SetTag("status_code", fmt.Sprintf("%d", rw.statusCode))
-					scope.SetContext("response", map[string]interface{}{
+					scope.SetContext("response", map[string]any{
 						"status_code":      rw.statusCode,
 						"duration_ms":      duration.Milliseconds(),
 						"content_encoding": contentEncoding,
@@ -122,7 +122,7 @@ func RequestLoggingConstructor() MiddlewareConstructor {
 						scope.SetContext("handler_failure", det)
 					}
 					// Attach local call stack so non-panic 5xx events still provide source hints.
-					scope.SetContext("debug", map[string]interface{}{
+					scope.SetContext("debug", map[string]any{
 						"capture_stack": string(debug.Stack()),
 					})
 					if herr := logs.HandlerErrorFromRequest(r); herr != nil {

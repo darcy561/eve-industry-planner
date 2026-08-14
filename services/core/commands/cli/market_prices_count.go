@@ -3,21 +3,23 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"eve-industry-planner/shared/lifecycle"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
+	"time"
 
 	rediscore "eve-industry-planner/shared/core/redis"
-	"eve-industry-planner/shared/shared"
 )
 
 // RunDisplayMarketPriceCount returns the current market prices item count.
 // Prefers cached count, with live fallback from the refresh-time set cardinality.
 func RunDisplayMarketPriceCount() error {
 	ctx := context.Background()
-	clients, err := shared.ConnectServices(ctx, shared.ServiceRedis)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Redis)
 	if err != nil {
 		return fmt.Errorf("failed connecting to redis: %w", err)
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
 	cacheExists, err := rediscore.CachedTotalMarketOrdersCountExists(ctx, clients.Redis)
 	if err != nil {
@@ -53,4 +55,3 @@ func RunDisplayMarketPriceCount() error {
 	fmt.Println(string(b))
 	return nil
 }
-

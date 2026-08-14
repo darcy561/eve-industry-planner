@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -73,15 +73,15 @@ const (
 
 // RefreshTokenData is metadata bound to a planner app session refresh token in Redis (not ESI OAuth refresh material).
 type RefreshTokenData struct {
-	CharacterHash string                     `json:"character_hash"`
-	AccountID     string                     `json:"account_id"`
-	Scopes        []string                   `json:"scopes"`
+	CharacterHash string         `json:"character_hash"`
+	AccountID     string         `json:"account_id"`
+	Scopes        []string       `json:"scopes"`
 	Corporations  CorporationIDs `json:"corporations,omitempty"` // Corporation IDs the user can access
 	Alliances     AllianceIDs    `json:"alliances,omitempty"`    // Alliance IDs derived from character affiliation
-	SessionID     string                     `json:"session_id,omitempty"`
-	SessionStart  time.Time                  `json:"session_start,omitempty"`
-	SessionSeenAt time.Time                  `json:"session_seen_at,omitempty"`
-	AppVersion    string                     `json:"app_version,omitempty"`
+	SessionID     string         `json:"session_id,omitempty"`
+	SessionStart  time.Time      `json:"session_start,omitempty"`
+	SessionSeenAt time.Time      `json:"session_seen_at,omitempty"`
+	AppVersion    string         `json:"app_version,omitempty"`
 }
 
 // SessionRecord stores a lightweight auth session timeline in Redis.
@@ -331,7 +331,7 @@ func GetCorporations(ctx context.Context, redisClient *redis.Client, accountID s
 	}
 	if err != nil {
 		// Log error but return empty array - don't fail the request
-		logs.AttachDebugStepCtx(ctx, "redis_corporations_load_degraded", map[string]interface{}{
+		logs.AttachDebugStepCtx(ctx, "redis_corporations_load_degraded", map[string]any{
 			"error": err.Error(),
 		})
 		return []int64{}
@@ -368,7 +368,7 @@ func GetAlliances(ctx context.Context, redisClient *redis.Client, accountID stri
 		return []int64{}
 	}
 	if err != nil {
-		logs.AttachDebugStepCtx(ctx, "redis_alliances_load_degraded", map[string]interface{}{
+		logs.AttachDebugStepCtx(ctx, "redis_alliances_load_degraded", map[string]any{
 			"error": err.Error(),
 		})
 		return []int64{}
@@ -486,7 +486,7 @@ func normalizeIDs(ids []int64) []int64 {
 	for id := range m {
 		out = append(out, id)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	slices.Sort(out)
 	return out
 }
 

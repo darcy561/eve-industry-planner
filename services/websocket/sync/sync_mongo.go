@@ -6,13 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 const (
@@ -20,17 +19,17 @@ const (
 	MongoDBQueryTimeout = 10 * time.Second
 )
 
-// structToMap converts a struct to map[string]interface{} via JSON marshaling
+// structToMap converts a struct to map[string]any via JSON marshaling
 // This ensures proper type conversion and JSON compatibility
-func structToMap(v interface{}) (map[string]interface{}, error) {
+func structToMap(v any) (map[string]any, error) {
 	// Marshal struct to JSON bytes
 	jsonBytes, err := json.Marshal(v)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal struct to JSON: %w", err)
 	}
 
-	// Unmarshal JSON bytes to map[string]interface{}
-	var result map[string]interface{}
+	// Unmarshal JSON bytes to map[string]any
+	var result map[string]any
 	if err := json.Unmarshal(jsonBytes, &result); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
@@ -41,8 +40,8 @@ func structToMap(v interface{}) (map[string]interface{}, error) {
 // queryDocumentsOnce performs a single MongoDB query attempt
 // Decodes into structs for known collections (users, jobs, groups) for type safety
 // Falls back to bson.M for unknown collections
-func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filter bson.M, collectionName string) (map[string]map[string]interface{}, error) {
-	results := make(map[string]map[string]interface{})
+func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filter bson.M, collectionName string) (map[string]map[string]any, error) {
+	results := make(map[string]map[string]any)
 
 	// Use Find with $in operator to query all documents at once
 	cursor, err := collection.Find(ctx, filter)
@@ -53,7 +52,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 
 	// Handle known collections with struct decoding
 	switch collectionName {
-	case mongocore.CollectionUsers:
+	case eipmongo.CollectionUsers:
 		var users []models.UserAccountDocument
 		if err := cursor.All(ctx, &users); err != nil {
 			return nil, fmt.Errorf("failed to decode users: %w", err)
@@ -71,7 +70,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		}
 		return results, cursor.Err()
 
-	case mongocore.CollectionJobs:
+	case eipmongo.CollectionJobs:
 		var jobs []models.Job
 		if err := cursor.All(ctx, &jobs); err != nil {
 			return nil, fmt.Errorf("failed to decode jobs: %w", err)
@@ -88,7 +87,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		}
 		return results, cursor.Err()
 
-	case mongocore.CollectionUserJobGroups:
+	case eipmongo.CollectionUserJobGroups:
 		var groups []models.Group
 		if err := cursor.All(ctx, &groups); err != nil {
 			return nil, fmt.Errorf("failed to decode groups: %w", err)
@@ -128,7 +127,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		switch idVal := doc["_id"].(type) {
 		case string:
 			docID = idVal
-		case primitive.ObjectID:
+		case bson.ObjectID:
 			docID = idVal.Hex()
 		default:
 			// Try to convert to string
@@ -139,7 +138,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 				"doc_id", docID)
 		}
 
-		// Convert bson.M to map[string]interface{} via JSON marshaling
+		// Convert bson.M to map[string]any via JSON marshaling
 		// This ensures proper BSON to JSON type conversion
 		docMap, err := structToMap(doc)
 		if err != nil {
@@ -164,14 +163,14 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 }
 
 // QueryDocumentsByCollection queries documents from MongoDB by collection name and document IDs
-// Returns a map of documentID -> document data (as map[string]interface{})
+// Returns a map of documentID -> document data (as map[string]any)
 // Documents that don't exist are omitted from the result
 // Uses bulk query with $in operator for efficiency
 // Implements retry logic with exponential backoff for transient MongoDB errors
 // Context can be cancelled to stop ongoing queries if client disconnects
-func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionName string, documentIDs []string, accountID string) (map[string]map[string]interface{}, error) {
+func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionName string, documentIDs []string, accountID string) (map[string]map[string]any, error) {
 	if len(documentIDs) == 0 {
-		return make(map[string]map[string]interface{}), nil
+		return make(map[string]map[string]any), nil
 	}
 
 	// Check if context is already cancelled
@@ -181,21 +180,18 @@ func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionNam
 	default:
 	}
 
-	// Get MongoDB client (type assert to *mongo.Client)
-	mongoClientInterface := s.GetMongoClient()
-	if mongoClientInterface == nil {
+	// Get Mongo handle
+	mongoHandleInterface := s.GetMongoClient()
+	if mongoHandleInterface == nil {
 		return nil, fmt.Errorf("MongoDB client not available")
 	}
 
-	// Type assert to *mongo.Client
-	mongoClient, ok := mongoClientInterface.(*mongo.Client)
+	mongo, ok := mongoHandleInterface.(*eipmongo.Mongo)
 	if !ok {
 		return nil, fmt.Errorf("invalid MongoDB client type")
 	}
 
-	// Get database and collection
-	database := mongoClient.Database(mongocore.DatabaseName)
-	collection := database.Collection(collectionName)
+	collection := mongo.Coll(collectionName)
 
 	// Build query filter
 	filter := bson.M{
@@ -204,21 +200,19 @@ func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionNam
 
 	// Account scoping: jobs, users, application_settings, and user_watchlist_deprecated use _meta.accountID (see models.Job, UserAccountDocument).
 	// Other collections use root accountID.
-	if collectionName == mongocore.CollectionJobs ||
-		collectionName == mongocore.CollectionUsers ||
-		collectionName == mongocore.CollectionApplicationSettings ||
-		collectionName == mongocore.CollectionUserWatchlistDeprecated {
+	if collectionName == eipmongo.CollectionJobs ||
+		collectionName == eipmongo.CollectionUsers ||
+		collectionName == eipmongo.CollectionApplicationSettings ||
+		collectionName == eipmongo.CollectionUserWatchlistDeprecated {
 		filter["_meta.accountID"] = accountID
 	} else {
 		filter["accountID"] = accountID
 	}
 
 	// Use retry logic from mongo core package
-	var results map[string]map[string]interface{}
-	retryConfig := mongocore.DefaultRetryConfig()
-	retryConfig.OperationName = fmt.Sprintf("query documents from %s", collectionName)
+	var results map[string]map[string]any
 
-	err := mongocore.RetryMongoOperation(ctx, retryConfig, func() error {
+	err := eipmongo.Retry(ctx, fmt.Sprintf("query documents from %s", collectionName), func() error {
 		var err error
 		results, err = queryDocumentsOnce(ctx, collection, filter, collectionName)
 		return err
@@ -238,9 +232,9 @@ func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionNam
 }
 
 // QueryAllJobsForAccount queries all jobs for an accountID where displayOnPlanner is true
-// Returns a map of jobID -> job data (as map[string]interface{})
+// Returns a map of jobID -> job data (as map[string]any)
 // Uses struct decoding for type safety and proper BSON to JSON conversion
-func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string) (map[string]map[string]interface{}, error) {
+func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string) (map[string]map[string]any, error) {
 	// Check if context is already cancelled
 	select {
 	case <-ctx.Done():
@@ -248,20 +242,18 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 	default:
 	}
 
-	// Get MongoDB client
-	mongoClientInterface := s.GetMongoClient()
-	if mongoClientInterface == nil {
+	// Get Mongo handle
+	mongoHandleInterface := s.GetMongoClient()
+	if mongoHandleInterface == nil {
 		return nil, fmt.Errorf("MongoDB client not available")
 	}
 
-	mongoClient, ok := mongoClientInterface.(*mongo.Client)
+	mongo, ok := mongoHandleInterface.(*eipmongo.Mongo)
 	if !ok {
 		return nil, fmt.Errorf("invalid MongoDB client type")
 	}
 
-	// Get database and collection
-	database := mongoClient.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionJobs)
+	collection := mongo.Jobs.Collection()
 
 	// Build query filter: jobs shown on planner (displayOnPlanner or legacy isIncludedOnPlanner).
 	filter := bson.M{
@@ -274,10 +266,8 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 
 	// Use retry logic from mongo core package
 	var jobs []models.Job
-	retryConfig := mongocore.DefaultRetryConfig()
-	retryConfig.OperationName = fmt.Sprintf("query all jobs for account %s", accountID)
 
-	err := mongocore.RetryMongoOperation(ctx, retryConfig, func() error {
+	err := eipmongo.Retry(ctx, fmt.Sprintf("query all jobs for account %s", accountID), func() error {
 		cursor, err := collection.Find(ctx, filter)
 		if err != nil {
 			return fmt.Errorf("MongoDB query failed: %w", err)
@@ -297,7 +287,7 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 	}
 
 	// Convert structs to maps via JSON marshaling
-	results := make(map[string]map[string]interface{}, len(jobs))
+	results := make(map[string]map[string]any, len(jobs))
 	for _, job := range jobs {
 		jobMap, err := structToMap(job)
 		if err != nil {
@@ -310,7 +300,7 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 	}
 
 	logs.DebugCtx(ctx, "queried all jobs for account",
-		"collection", mongocore.CollectionJobs,
+		"collection", eipmongo.CollectionJobs,
 		"account_id", accountID,
 		"found", len(results))
 
@@ -318,9 +308,9 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 }
 
 // QueryAllGroupsForAccount queries all groups for an accountID
-// Returns a map of groupID -> group data (as map[string]interface{})
+// Returns a map of groupID -> group data (as map[string]any)
 // Uses struct decoding for type safety and proper BSON to JSON conversion
-func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID string) (map[string]map[string]interface{}, error) {
+func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID string) (map[string]map[string]any, error) {
 	// Check if context is already cancelled
 	select {
 	case <-ctx.Done():
@@ -328,20 +318,18 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 	default:
 	}
 
-	// Get MongoDB client
-	mongoClientInterface := s.GetMongoClient()
-	if mongoClientInterface == nil {
+	// Get Mongo handle
+	mongoHandleInterface := s.GetMongoClient()
+	if mongoHandleInterface == nil {
 		return nil, fmt.Errorf("MongoDB client not available")
 	}
 
-	mongoClient, ok := mongoClientInterface.(*mongo.Client)
+	mongo, ok := mongoHandleInterface.(*eipmongo.Mongo)
 	if !ok {
 		return nil, fmt.Errorf("invalid MongoDB client type")
 	}
 
-	// Get database and collection
-	database := mongoClient.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionUserJobGroups)
+	collection := mongo.Groups.Collection()
 
 	filter := bson.M{
 		"_meta.accountID": accountID,
@@ -349,10 +337,8 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 
 	// Use retry logic from mongo core package
 	var groups []models.Group
-	retryConfig := mongocore.DefaultRetryConfig()
-	retryConfig.OperationName = fmt.Sprintf("query all groups for account %s", accountID)
 
-	err := mongocore.RetryMongoOperation(ctx, retryConfig, func() error {
+	err := eipmongo.Retry(ctx, fmt.Sprintf("query all groups for account %s", accountID), func() error {
 		cursor, err := collection.Find(ctx, filter)
 		if err != nil {
 			return fmt.Errorf("MongoDB query failed: %w", err)
@@ -372,7 +358,7 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 	}
 
 	// Convert structs to maps via JSON marshaling
-	results := make(map[string]map[string]interface{}, len(groups))
+	results := make(map[string]map[string]any, len(groups))
 	for _, group := range groups {
 		groupMap, err := structToMap(group)
 		if err != nil {
@@ -385,7 +371,7 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 	}
 
 	logs.DebugCtx(ctx, "queried all groups for account",
-		"collection", mongocore.CollectionUserJobGroups,
+		"collection", eipmongo.CollectionUserJobGroups,
 		"account_id", accountID,
 		"found", len(results))
 

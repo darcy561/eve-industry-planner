@@ -9,6 +9,7 @@ import (
 
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/websocket/server/config"
+	"eve-industry-planner/websocket/server/doclocklogic"
 
 	"github.com/gorilla/websocket"
 )
@@ -79,6 +80,7 @@ func (s *Server) reader(client *Client) {
 		delete(s.Clients, client.id)
 		clientCount := len(s.Clients)
 		s.ClientsMu.Unlock()
+		s.syncPlacementFlags(ctx, clientCount)
 
 		// Remove from user connection tracking
 		s.userConnMu.Lock()
@@ -95,6 +97,7 @@ func (s *Server) reader(client *Client) {
 			userConnCount = len(userConns)
 		}
 		s.userConnMu.Unlock()
+		s.scheduleDocFanoutFilterReconcile()
 
 		// Close connection if not already closed
 		client.conn.Close()
@@ -113,9 +116,16 @@ func (s *Server) reader(client *Client) {
 			"was_in_user_conns", wasInUserConns)
 	}()
 
-	// Set read deadline to enable timeout detection for stale connections
-	// We'll extend it in the loop when messages are received
+	// Read deadline detects stale peers. Extend on app data below and on websocket
+	// pongs (writer sends Ping every PingPeriod). Without SetPongHandler, idle
+	// clients that only answer protocol pings die after PongWait.
 	client.conn.SetReadDeadline(time.Now().Add(config.PongWait))
+	client.conn.SetPongHandler(func(string) error {
+		client.activityMu.Lock()
+		client.lastActivity = time.Now()
+		client.activityMu.Unlock()
+		return client.conn.SetReadDeadline(time.Now().Add(config.PongWait))
+	})
 
 	messageCount := 0
 	for {
@@ -195,8 +205,9 @@ func (s *Server) reader(client *Client) {
 				"account_id", client.AccountID,
 				"message_count", client.messageCount,
 				"limit", config.MessageRateLimit)
-			client.conn.WriteMessage(websocket.CloseMessage,
-				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "Rate limit exceeded"))
+			_ = client.writeFrame(websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "Rate limit exceeded"),
+				config.WriteWait)
 			break
 		}
 		client.messageMu.Unlock()
@@ -223,7 +234,7 @@ func (s *Server) reader(client *Client) {
 
 		// Parse JSON messages and handle by type field
 		if len(msg) > 0 && msg[0] == '{' {
-			var msgData map[string]interface{}
+			var msgData map[string]any
 			if err := json.Unmarshal(msg, &msgData); err != nil {
 				// Not valid JSON
 				logs.WarnCtx(ctx, "websocket message is not valid JSON",
@@ -268,19 +279,19 @@ func (s *Server) reader(client *Client) {
 				s.runWSMessageOperation(client, msgType, msg, s.handleUnsubscribeWS)
 				continue
 
-			case "document_lock_lock_state_batch":
+			case doclocklogic.MsgLockStateBatch:
 				s.runWSMessageOperation(client, msgType, msg, s.handleDocumentLockLockStateBatch)
 				continue
 
-			case "document_lock_waitlist_pulse":
+			case doclocklogic.MsgWaitlistPulse:
 				s.runWSMessageOperation(client, msgType, msg, s.handleDocumentLockWaitlistPulseWS)
 				continue
 
-			case "document_lock_viewer_arrived":
+			case doclocklogic.MsgViewerArrived:
 				s.runWSMessageOperation(client, msgType, msg, s.handleDocumentLockViewerArrivedWS)
 				continue
 
-			case "document_lock_viewer_departed":
+			case doclocklogic.MsgViewerDeparted:
 				s.runWSMessageOperation(client, msgType, msg, s.handleDocumentLockViewerDepartedWS)
 				continue
 

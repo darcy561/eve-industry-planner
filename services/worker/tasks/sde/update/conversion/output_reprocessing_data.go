@@ -37,7 +37,7 @@ var (
 	}
 )
 
-func GenerateReprocessingDataOutput(reprocessingMap map[string]interface{}, typeIDMap map[string]*EVEType, marketGroupsMap map[string]interface{}) map[string]*ReprocessingItem {
+func GenerateReprocessingDataOutput(reprocessingMap map[string]any, typeIDMap map[string]*EVEType, marketGroupsMap map[string]any) map[string]*ReprocessingItem {
 	reprocessingObjects := make(map[string]*ReprocessingItem)
 	for key, value := range typeIDMap {
 		reprocessingItemData, exists := reprocessingMap[key]
@@ -58,7 +58,7 @@ func GenerateReprocessingDataOutput(reprocessingMap map[string]interface{}, type
 	return reprocessingObjects
 }
 
-func createReprocessingItem(key string, reprocessingData interface{}, mainItem *EVEType, marketGroupsMap map[string]interface{}) *ReprocessingItem {
+func createReprocessingItem(key string, reprocessingData any, mainItem *EVEType, marketGroupsMap map[string]any) *ReprocessingItem {
 	item := &ReprocessingItem{
 		ID:        key,
 		Name:      mainItem.Name,
@@ -83,14 +83,14 @@ func createReprocessingItem(key string, reprocessingData interface{}, mainItem *
 		item.ReprocessingSkill = 12196
 	}
 
-	if reprocessingM, ok := reprocessingData.(map[string]interface{}); ok {
+	if reprocessingM, ok := reprocessingData.(map[string]any); ok {
 		for _, value := range reprocessingM {
-			materialArray, ok := value.([]interface{})
+			materialArray, ok := value.([]any)
 			if !ok {
 				continue
 			}
 			for _, materialItem := range materialArray {
-				material, ok := materialItem.(map[string]interface{})
+				material, ok := materialItem.(map[string]any)
 				if !ok {
 					continue
 				}
@@ -109,7 +109,7 @@ func createReprocessingItem(key string, reprocessingData interface{}, mainItem *
 	return item
 }
 
-func assignReprocessingItemType(item *EVEType, marketGroupsMap map[string]interface{}) int {
+func assignReprocessingItemType(item *EVEType, marketGroupsMap map[string]any) int {
 	if parentGroupID := findParentGroupFromMarketGroup(item, marketGroupsMap); parentGroupID != "" {
 		if itemType, exists := marketGroupsToItemTypes[parentGroupID]; exists {
 			return itemType

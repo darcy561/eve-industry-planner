@@ -2,6 +2,9 @@
 // one core replica at a time. The generic plumbing lives in service.go;
 // this file owns *which* jobs are wired in production.
 //
+// Process-level primary (scheduler, changestream) is driven by primarycontroller
+// + servicemanager under lease:core:primary — not here. SDE ensure runs on every replica.
+//
 // Adding a new singleton workload: write a constructor below and append it
 // to `allJobs`. Everything else (lease, renewer, scoped context, stop fn)
 // is handled by `StartService`.
@@ -10,11 +13,13 @@ package singleton
 
 import (
 	"context"
+	"errors"
+	"sync"
 	"time"
 
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/core/documentlock"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared/stackservices"
 )
 
 // Lease keys used by the registered jobs. Kept as exported package
@@ -22,8 +27,8 @@ import (
 // reusable across tests that want to assert lease behaviour without
 // duplicating string literals.
 const (
-	DoclockExpirySubscriberLeaseKey     = "lease:doclock:expiry-subscriber"
-	AuthSessionMaintenanceLeaseKey      = "lease:auth:session-maintenance"
+	DoclockExpirySubscriberLeaseKey    = "lease:doclock:expiry-subscriber"
+	AuthSessionMaintenanceLeaseKey     = "lease:auth:session-maintenance"
 	authSessionMaintenanceLoopInterval = time.Hour
 )
 
@@ -40,14 +45,9 @@ func DoclockExpirySubscriberJob(deps documentlock.Deps) Job {
 	}
 }
 
-// allJobs returns every singleton workload this codebase wants to run on
-// exactly one core replica at a time. The catalog is intentionally a
-// single function so the wiring is greppable and reviewable in one place.
-//
-// Add new singletons here; each gets its own lease and goroutine.
 // AuthSessionMaintenanceJob runs hourly orphan session_index / refresh_token cleanup
-// on the core singleton leader (complements the worker cron that scans account_sessions).
-func AuthSessionMaintenanceJob(clients *shared.ServiceClients) Job {
+// on a dedicated singleton lease (complements the worker cron that scans account_sessions).
+func AuthSessionMaintenanceJob(clients *stackservices.Clients) Job {
 	return Job{
 		Name:     "auth-session-maintenance",
 		LeaseKey: AuthSessionMaintenanceLeaseKey,
@@ -60,19 +60,33 @@ func AuthSessionMaintenanceJob(clients *shared.ServiceClients) Job {
 	}
 }
 
-func allJobs(clients *shared.ServiceClients) []Job {
+func allJobs(clients *stackservices.Clients) []Job {
 	return []Job{
-		DoclockExpirySubscriberJob(documentlock.DepsFromServiceClients(clients)),
+		DoclockExpirySubscriberJob(documentlock.DepsFromClients(clients)),
 		AuthSessionMaintenanceJob(clients),
 	}
 }
 
-// Start spawns every registered singleton workload and returns an
-// aggregate stop function (drains all goroutines on shutdown). This is
-// the production entry point — `core/main.go` calls it directly.
+// Start spawns every registered singleton workload and returns a Catalog
+// that implements health.Component and lifecycle.Runner.
 //
-// Tests that want to register a custom subset can call `StartService`
-// instead with the specific jobs they need.
-func Start(clients *shared.ServiceClients) (func(), error) {
-	return StartService(clients.Redis, allJobs(clients)...)
+// Tests that want a custom subset can call StartService instead.
+func Start(clients *stackservices.Clients) (*Catalog, error) {
+	if clients == nil || clients.Redis == nil {
+		return nil, errors.New("singleton: redis client is required")
+	}
+	stop, err := StartService(clients.Redis, allJobs(clients)...)
+	if err != nil {
+		return nil, err
+	}
+	cat := &Catalog{rdb: clients.Redis}
+	cat.running.Store(true)
+	var once sync.Once
+	cat.stop = func() {
+		once.Do(func() {
+			cat.running.Store(false)
+			stop()
+		})
+	}
+	return cat, nil
 }

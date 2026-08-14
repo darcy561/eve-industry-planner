@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
+	"eve-industry-planner/shared/stackservices"
 	"eve-industry-planner/websocket/server/config"
 	syncpkg "eve-industry-planner/websocket/sync"
 
@@ -33,14 +33,11 @@ func getMessageTypeName(messageType int) string {
 }
 
 // NewServer creates a new WebSocket server instance
-func NewServer(clients *shared.ServiceClients) *Server {
+func NewServer(clients *stackservices.Clients) *Server {
 	// Sync worker pool (pond). Incoming document work uses per-docID mutex serialization in processIncomingQueue.
 	syncPool := pond.NewPool(config.SyncPoolSize)
 
-	shardN := config.DocUpdateOutboundShardCount
-	if shardN < 1 {
-		shardN = 1
-	}
+	shardN := max(config.DocUpdateOutboundShardCount, 1)
 	shards := make([]chan docUpdateWork, shardN)
 	for i := range shards {
 		shards[i] = make(chan docUpdateWork, config.DocUpdateOutboundShardQueueCap)
@@ -49,7 +46,6 @@ func NewServer(clients *shared.ServiceClients) *Server {
 	s := &Server{
 		Clients:                 make(map[string]*Client),
 		userConnections:         make(map[string]map[string]bool),
-		sessionConnections:      make(map[string]string),
 		sessionHandoffs:         make(map[string]*sessionHandoffEntry),
 		activeSubscriptions:     make(map[string]map[string]time.Time),
 		incomingQueues:          make(map[string]*IncomingDocQueue),
@@ -62,7 +58,8 @@ func NewServer(clients *shared.ServiceClients) *Server {
 		SyncSignals:             make(chan string, config.SignalChannelBuffer),
 		SyncPool:                syncPool,
 		upgrader:                upgrader,
-		ServiceClients:          clients,
+		Stack:                   clients,
+		intakeStopChan:          make(chan struct{}),
 		shutdownChan:            make(chan struct{}),
 	}
 
@@ -94,6 +91,9 @@ func NewServer(clients *shared.ServiceClients) *Server {
 
 	// Start cleanup goroutine for idle queues
 	s.startCleanupGoroutine()
+
+	// Placement state publisher (exits when shutdownChan closes after drain/Shutdown).
+	s.startPlacementFlagMaintainer()
 
 	return s
 }

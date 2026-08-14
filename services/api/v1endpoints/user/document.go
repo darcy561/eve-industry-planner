@@ -10,32 +10,28 @@ import (
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/core/config"
-	mongocore "eve-industry-planner/shared/core/mongo"
-	mongoget "eve-industry-planner/shared/core/mongo/get"
-	mongoput "eve-industry-planner/shared/core/mongo/put"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/mongo"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
-func DocumentHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) DocumentHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	switch r.Method {
 	case http.MethodGet:
-		handleGetUserDocument(w, r, clients)
+		h.handleGetUserDocument(w, r)
 	case http.MethodPut:
-		handleSaveUserDocument(w, r, clients)
+		h.handleSaveUserDocument(w, r)
 	default:
 		m := apimetrics.GetAPIEveTokenLogin()
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
-		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use GET to retrieve or PUT to save.", "invalid method for user main document endpoint", "user_doc_method_not_allowed", "eve_token_login", nil, map[string]interface{}{"method": r.Method})
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use GET to retrieve or PUT to save.", "invalid method for user main document endpoint", "user_doc_method_not_allowed", "eve_token_login", nil, map[string]any{"method": r.Method})
 	}
 }
 
-func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) handleGetUserDocument(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
@@ -49,12 +45,9 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 
 	accountID := helper.AuthenticatedAccountID(r)
 
-	database := clients.Mongo.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionUsers)
-
-	userDoc, err := mongoget.LoadUserAccountDocument(ctx, collection, accountID)
+	userDoc, err := h.Mongo.LoadUserAccount(ctx, accountID)
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
 			helper.RespondEndpointError(w, r, http.StatusNotFound, "User document not found", "user document not found", "user_doc_not_found", "eve_token_login", nil, nil)
 			return
@@ -64,7 +57,7 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 		"cloud_account": userDoc.UserCloudAccounts,
 	})
 
@@ -104,12 +97,12 @@ func handleGetUserDocument(w http.ResponseWriter, r *http.Request, clients *shar
 	}
 
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "user document retrieved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "user document retrieved", map[string]any{
 		"duration_ms": time.Since(start).Milliseconds(),
 	})
 }
 
-func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) handleSaveUserDocument(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
@@ -130,7 +123,7 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 
 	if userDoc.MetaData.AccountID != "" && userDoc.MetaData.AccountID != accountID {
 		metrics.Error("account_id_mismatch")
-		helper.RespondEndpointError(w, r, http.StatusForbidden, "Account ID in document must match authenticated account", "account ID mismatch on user document save", "user_doc_account_mismatch", "eve_token_login", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusForbidden, "Account ID in document must match authenticated account", "account ID mismatch on user document save", "user_doc_account_mismatch", "eve_token_login", nil, map[string]any{
 			"token_account_id": accountID,
 			"doc_account_id":   userDoc.MetaData.AccountID,
 		})
@@ -138,13 +131,10 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 	}
 	helper.PopulateRequestMeta(r, &userDoc.MetaData.MetaData, accountID)
 
-	database := clients.Mongo.Database(mongocore.DatabaseName)
-	usersCol := database.Collection(mongocore.CollectionUsers)
-
 	var existingDoc models.UserAccountDocument
-	existingDoc, loadErr := mongoget.LoadUserAccountDocument(ctx, usersCol, accountID)
+	existingDoc, loadErr := h.Mongo.LoadUserAccount(ctx, accountID)
 	if loadErr != nil {
-		if !errors.Is(loadErr, mongo.ErrNoDocuments) {
+		if !errors.Is(loadErr, mongodriver.ErrNoDocuments) {
 			metrics.Error("database_error")
 			helper.RespondEndpointServerError(w, r, "Failed to save user document", "failed to load existing user document", "user_doc_load_failed", "eve_token_login", loadErr, nil)
 			return
@@ -159,13 +149,13 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 	userDoc.HasCompletedFirstLoginFlow = userDoc.HasCompletedFirstLoginFlow || existingDoc.HasCompletedFirstLoginFlow
 
 	if userDoc.UserCloudAccounts {
-		cfg, cfgErr := config.LoadConfig()
+		tokenCfg, cfgErr := config.LoadCloudStoredESIKeys()
 		if cfgErr != nil {
 			metrics.Error("config_error")
 			helper.RespondEndpointServerError(w, r, "Internal server error", "failed to load config for user document save", "user_doc_config_load_failed", "eve_token_login", cfgErr, nil)
 			return
 		}
-		if cfg.RefreshTokenKeyring != nil {
+		if tokenCfg.Keyring != nil {
 			prevByHash := make(map[string]models.RefreshToken, len(existingDoc.RefreshTokens))
 			for _, t := range existingDoc.RefreshTokens {
 				if t.CharacterHash == "" {
@@ -176,7 +166,7 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 			for i := range userDoc.RefreshTokens {
 				rt := &userDoc.RefreshTokens[i]
 				if strings.TrimSpace(rt.RToken) != "" {
-					if encErr := rt.EncryptRefreshAtRest(rt.RToken, cfg.RefreshTokenKeyring); encErr != nil {
+					if encErr := rt.EncryptRefreshAtRest(rt.RToken, tokenCfg.Keyring); encErr != nil {
 						metrics.Error("invalid_json")
 						helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid refresh token payload", "failed to encrypt refresh token on save", "user_doc_invalid_refresh_token", "eve_token_login", encErr, nil)
 						return
@@ -194,9 +184,9 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 		}
 	}
 
-	result, retriedWithoutWSClientID, err := mongoput.UpsertUserAccountDocument(ctx, usersCol, accountID, userDoc)
+	result, retriedWithoutWSClientID, err := h.Mongo.Users.UpsertUserAccount(ctx, accountID, userDoc)
 	if retriedWithoutWSClientID {
-		logs.AttachHandlerCaveat(r, "upsert_retried_without_ws_client_id", "user document upsert with websocket client id failed, retrying without client id", map[string]interface{}{
+		logs.AttachHandlerCaveat(r, "upsert_retried_without_ws_client_id", "user document upsert with websocket client id failed, retrying without client id", map[string]any{
 			"ws_client_id": userDoc.MetaData.ClientID,
 			"error":        err.Error(),
 		})
@@ -207,7 +197,7 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_upsert_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_upsert_completed", map[string]any{
 		"matched":  result.MatchedCount,
 		"upserted": result.UpsertedCount,
 	})
@@ -216,7 +206,7 @@ func handleSaveUserDocument(w http.ResponseWriter, r *http.Request, clients *sha
 	w.WriteHeader(http.StatusNoContent)
 
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "user document saved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "user document saved", map[string]any{
 		"matched":     result.MatchedCount,
 		"upserted":    result.UpsertedCount,
 		"duration_ms": time.Since(start).Milliseconds(),

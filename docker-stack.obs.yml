@@ -1,0 +1,369 @@
+# Observability addon Swarm fragment (optional — deploy when addons.observability.enabled).
+# Roll order: stop-first (x-obs-deploy) — R=1 + persistent volumes.
+# Network name SoT: x-net-* anchors (reuse in networks.*.name + labels).
+#
+# Runtime nets (Deployment Tool ApplyLabeledNetworkMemberships):
+#   grafana: detach *net-core; attach *net-public when grafana.public
+# Prometheus lives here (not on the data fragment). Dual-homes eip-obs + eip-core for scrapes.
+# Alloy joins eip-core + eip-obs here (static). Traefik enable toggled by ApplyGrafanaPath.
+
+x-net-core: &net-core eip-core
+x-net-public: &net-public eip-public
+x-net-obs: &net-obs eip-obs
+
+x-common-dns: &common-dns
+  - 8.8.8.8
+  - 8.8.4.4
+  - 1.1.1.1
+
+x-obs-deploy: &obs-deploy
+  replicas: 1
+  update_config:
+    order: stop-first
+    parallelism: 1
+    failure_action: pause
+    monitor: 30s
+  rollback_config:
+    order: stop-first
+    parallelism: 1
+  restart_policy:
+    condition: on-failure
+    delay: 5s
+
+services:
+  # Metrics TSDB — observability addon only (capacity controller does not query Prom).
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+      - --web.enable-remote-write-receiver
+    networks:
+      eip-obs:
+        aliases: [prometheus]
+      eip-core:
+        aliases: [prometheus]
+    dns: *common-dns
+    configs:
+      - source: prometheus_yml
+        target: /etc/prometheus/prometheus.yml
+    volumes:
+      - prometheus_data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      <<: *obs-deploy
+      labels:
+        - "eip.config.sync=1"
+
+  loki:
+    image: grafana/loki:3.7.2
+    command: ["-config.file=/etc/loki/config.yaml"]
+    networks:
+      eip-obs:
+        aliases: [loki]
+    dns: *common-dns
+    configs:
+      - source: loki_yml
+        target: /etc/loki/config.yaml
+    volumes:
+      - loki_data:/loki
+    deploy:
+      <<: *obs-deploy
+      labels:
+        - "eip.config.sync=1"
+
+  alloy-docker-proxy:
+    image: tecnativa/docker-socket-proxy:v0.4.2
+    networks: [eip-docker-alloy]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      CONTAINERS: "1"
+      EVENTS: "1"
+      POST: "0"
+    deploy:
+      <<: *obs-deploy
+
+  alloy:
+    image: grafana/alloy:v1.16.1
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --stability.level=experimental
+    networks:
+      eip-obs:
+        aliases: [alloy]
+      eip-core: {}
+      eip-docker-alloy: {}
+    dns: *common-dns
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    configs:
+      - source: alloy_config
+        target: /etc/alloy/config.alloy
+    volumes:
+      - alloy_data:/var/lib/alloy
+    deploy:
+      <<: *obs-deploy
+      labels:
+        - "eip.config.sync=1"
+
+  grafana:
+    image: grafana/grafana:13.0.1
+    networks:
+      eip-obs:
+        aliases: [grafana]
+    dns: *common-dns
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://127.0.0.1/grafana/}
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: ${GRAFANA_MIN_REFRESH:-5s}
+    volumes:
+      - grafana_data:/var/lib/grafana
+    configs:
+      - source: grafana_datasources_yaml
+        target: /etc/grafana/provisioning/datasources/datasources.yaml
+      - source: grafana_dashboards_yaml
+        target: /etc/grafana/provisioning/dashboards/dashboards.yaml
+      - source: grafana_dash_api_otel_metrics
+        target: /etc/grafana/provisioning/dashboards/definitions/api-otel-metrics.json
+      - source: grafana_dash_app_activity
+        target: /etc/grafana/provisioning/dashboards/definitions/app-activity.json
+      - source: grafana_dash_asynq_queues
+        target: /etc/grafana/provisioning/dashboards/definitions/asynq-queues.json
+      - source: grafana_dash_core_esi_limits
+        target: /etc/grafana/provisioning/dashboards/definitions/core-esi-limits.json
+      - source: grafana_dash_frontend_events_otel_metrics
+        target: /etc/grafana/provisioning/dashboards/definitions/frontend-events-otel-metrics.json
+      - source: grafana_dash_host
+        target: /etc/grafana/provisioning/dashboards/definitions/host.json
+      - source: grafana_dash_logs_api
+        target: /etc/grafana/provisioning/dashboards/definitions/logs-api.json
+      - source: grafana_dash_logs_core
+        target: /etc/grafana/provisioning/dashboards/definitions/logs-core.json
+      - source: grafana_dash_logs_frontend
+        target: /etc/grafana/provisioning/dashboards/definitions/logs-frontend.json
+      - source: grafana_dash_logs_traefik
+        target: /etc/grafana/provisioning/dashboards/definitions/logs-traefik.json
+      - source: grafana_dash_logs_websocket
+        target: /etc/grafana/provisioning/dashboards/definitions/logs-websocket.json
+      - source: grafana_dash_logs_worker
+        target: /etc/grafana/provisioning/dashboards/definitions/logs-worker.json
+      - source: grafana_dash_mongodb
+        target: /etc/grafana/provisioning/dashboards/definitions/mongodb.json
+      - source: grafana_dash_nats_jetstream
+        target: /etc/grafana/provisioning/dashboards/definitions/nats-jetstream.json
+      - source: grafana_dash_nats_server
+        target: /etc/grafana/provisioning/dashboards/definitions/nats-server.json
+      - source: grafana_dash_observability_stack
+        target: /etc/grafana/provisioning/dashboards/definitions/observability-stack.json
+      - source: grafana_dash_redis
+        target: /etc/grafana/provisioning/dashboards/definitions/redis.json
+      - source: grafana_dash_traefik
+        target: /etc/grafana/provisioning/dashboards/definitions/traefik.json
+      - source: grafana_dash_websocket_otel_metrics
+        target: /etc/grafana/provisioning/dashboards/definitions/websocket-otel-metrics.json
+      - source: grafana_dash_worker_tasks
+        target: /etc/grafana/provisioning/dashboards/definitions/worker-tasks.json
+    deploy:
+      <<: *obs-deploy
+      labels:
+        eip.config.sync: "1"
+        eip.network.detach: *net-core
+        eip.network.attach: *net-public
+        eip.network.attach.when: grafana.public
+        # Traefik off by default; eip sync / deploy enables when grafana.public=true.
+        traefik.enable: "false"
+        traefik.swarm.network: *net-public
+        traefik.http.routers.grafana.rule: "PathPrefix(`${EIP_GRAFANA_PATH:-/grafana}`)"
+        traefik.http.routers.grafana.entrypoints: web
+        traefik.http.routers.grafana.priority: "100"
+        traefik.http.routers.grafana.service: grafana
+        traefik.http.routers.grafana-secure.rule: "PathPrefix(`${EIP_GRAFANA_PATH:-/grafana}`)"
+        traefik.http.routers.grafana-secure.entrypoints: websecure
+        traefik.http.routers.grafana-secure.priority: "100"
+        traefik.http.routers.grafana-secure.service: grafana
+        traefik.http.services.grafana.loadbalancer.server.port: "3000"
+
+  asynqmon:
+    image: hibiken/asynqmon:latest
+    command:
+      - "--redis-addr=redis:6379"
+      - "--redis-password=${REDIS_PASSWORD}"
+      - "--enable-metrics-exporter"
+    networks:
+      eip-obs:
+        aliases: [asynqmon]
+      eip-core: {}
+    dns: *common-dns
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    deploy:
+      <<: *obs-deploy
+
+  nats-exporter:
+    image: natsio/prometheus-nats-exporter:0.20.1
+    command:
+      [
+        "-varz",
+        "-connz",
+        "-routez",
+        "-subz",
+        "-jsz=all",
+        "-prefix=nats",
+        "http://nats:8222",
+      ]
+    networks:
+      eip-obs:
+        aliases: [nats-exporter]
+      eip-core: {}
+    dns: *common-dns
+    deploy:
+      <<: *obs-deploy
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.87.0
+    networks:
+      eip-obs:
+        aliases: [redis-exporter]
+      eip-core: {}
+    dns: *common-dns
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    deploy:
+      <<: *obs-deploy
+
+  mongodb-exporter:
+    image: percona/mongodb_exporter:0.51.0
+    command:
+      [
+        "--collect-all",
+        "--compatible-mode",
+        "--no-mongodb.direct-connect",
+        "--web.listen-address=:9216",
+      ]
+    networks:
+      eip-obs:
+        aliases: [mongodb-exporter]
+      eip-core: {}
+    dns: *common-dns
+    environment:
+      MONGODB_USER: ${MONGO_ROOT_USERNAME}
+      MONGODB_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGODB_URI: mongodb://mongo:27017/admin?authSource=admin&replicaSet=rs0
+    deploy:
+      <<: *obs-deploy
+
+  node_exporter:
+    image: prom/node-exporter:latest
+    command:
+      - --path.rootfs=/host
+      - --no-collector.kernel_hung
+    networks:
+      eip-obs:
+        aliases: [node-exporter, node_exporter]
+      eip-core: {}
+    dns: *common-dns
+    pid: host
+    volumes:
+      - type: bind
+        source: /
+        target: /host
+        read_only: true
+    deploy:
+      <<: *obs-deploy
+
+networks:
+  eip-core:
+    name: *net-core
+    external: true
+  eip-public:
+    name: *net-public
+    driver: overlay
+    attachable: false
+  eip-obs:
+    name: *net-obs
+    driver: overlay
+    attachable: true
+  eip-docker-alloy:
+    name: eip-docker-alloy
+    driver: overlay
+    attachable: false
+
+volumes:
+  loki_data:
+    name: eve-industry-planner_loki_data
+    external: true
+  grafana_data:
+    name: eve-industry-planner_grafana_data
+    external: true
+  alloy_data:
+    name: eve-industry-planner_alloy_data
+    external: true
+  prometheus_data:
+    name: eve-industry-planner_prometheus_data
+    external: true
+
+configs:
+  prometheus_yml:
+    file: ./observability/prometheus/prometheus.yml
+  loki_yml:
+    file: ./observability/loki/config.yaml
+  alloy_config:
+    file: ./observability/alloy/config.alloy
+  grafana_datasources_yaml:
+    file: ./observability/grafana/provisioning/datasources/datasources.yaml
+  grafana_dashboards_yaml:
+    file: ./observability/grafana/provisioning/dashboards/dashboards.yaml
+  grafana_dash_api_otel_metrics:
+    file: ./observability/grafana/provisioning/dashboards/definitions/api-otel-metrics.json
+  grafana_dash_app_activity:
+    file: ./observability/grafana/provisioning/dashboards/definitions/app-activity.json
+  grafana_dash_asynq_queues:
+    file: ./observability/grafana/provisioning/dashboards/definitions/asynq-queues.json
+  grafana_dash_core_esi_limits:
+    file: ./observability/grafana/provisioning/dashboards/definitions/core-esi-limits.json
+  grafana_dash_frontend_events_otel_metrics:
+    file: ./observability/grafana/provisioning/dashboards/definitions/frontend-events-otel-metrics.json
+  grafana_dash_host:
+    file: ./observability/grafana/provisioning/dashboards/definitions/host.json
+  grafana_dash_logs_api:
+    file: ./observability/grafana/provisioning/dashboards/definitions/logs-api.json
+  grafana_dash_logs_core:
+    file: ./observability/grafana/provisioning/dashboards/definitions/logs-core.json
+  grafana_dash_logs_frontend:
+    file: ./observability/grafana/provisioning/dashboards/definitions/logs-frontend.json
+  grafana_dash_logs_traefik:
+    file: ./observability/grafana/provisioning/dashboards/definitions/logs-traefik.json
+  grafana_dash_logs_websocket:
+    file: ./observability/grafana/provisioning/dashboards/definitions/logs-websocket.json
+  grafana_dash_logs_worker:
+    file: ./observability/grafana/provisioning/dashboards/definitions/logs-worker.json
+  grafana_dash_mongodb:
+    file: ./observability/grafana/provisioning/dashboards/definitions/mongodb.json
+  grafana_dash_nats_jetstream:
+    file: ./observability/grafana/provisioning/dashboards/definitions/nats-jetstream.json
+  grafana_dash_nats_server:
+    file: ./observability/grafana/provisioning/dashboards/definitions/nats-server.json
+  grafana_dash_observability_stack:
+    file: ./observability/grafana/provisioning/dashboards/definitions/observability-stack.json
+  grafana_dash_redis:
+    file: ./observability/grafana/provisioning/dashboards/definitions/redis.json
+  grafana_dash_traefik:
+    file: ./observability/grafana/provisioning/dashboards/definitions/traefik.json
+  grafana_dash_websocket_otel_metrics:
+    file: ./observability/grafana/provisioning/dashboards/definitions/websocket-otel-metrics.json
+  grafana_dash_worker_tasks:
+    file: ./observability/grafana/provisioning/dashboards/definitions/worker-tasks.json

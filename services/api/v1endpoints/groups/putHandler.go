@@ -9,16 +9,14 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/documentlock"
-	mongocore "eve-industry-planner/shared/core/mongo"
-	mongoput "eve-industry-planner/shared/core/mongo/put"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
 // PutGroupsHandler handles PUT /v1/groups (batch group upsert)
-func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) PutGroupsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIGroups()
@@ -34,7 +32,6 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 	if !ok {
 		return
 	}
-
 	var reqBody struct {
 		Groups []models.Group `json:"groups"`
 	}
@@ -52,24 +49,21 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 	const maxBatchSize = 100
 	if len(reqBody.Groups) > maxBatchSize {
 		metrics.Error("batch_too_large")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d groups)", maxBatchSize), "groups batch too large", "groups_put_batch_too_large", "groups_put", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d groups)", maxBatchSize), "groups batch too large", "groups_put_batch_too_large", "groups_put", nil, map[string]any{
 			"count": len(reqBody.Groups),
 			"max":   maxBatchSize,
 		})
 		return
 	}
 
-	logs.AttachDebugStep(r, "batch_validated", map[string]interface{}{
+	logs.AttachDebugStep(r, "batch_validated", map[string]any{
 		"batch_size": len(reqBody.Groups),
 	})
-
-	database := clients.Mongo.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionUserJobGroups)
 
 	wsClientID := helper.ExtractWSClientID(r)
 	sessionID := helper.AuthenticatedSessionID(r)
 
-	if clients.Redis != nil {
+	if h.locks.Redis != nil {
 		if sessionID == "" {
 			metrics.Error("auth_error")
 			helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "groups put lock gate: missing session", "groups_put_missing_session", "groups_put", nil, nil)
@@ -81,7 +75,7 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 				groupIDs = append(groupIDs, g.GroupID)
 			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, mongocore.CollectionUserJobGroups, groupIDs, nil)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionUserJobGroups, groupIDs, nil)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -94,16 +88,16 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 		}
 		if len(rejects) > 0 {
 			metrics.Error("lock_conflict")
-			helper.RespondLockHeldElsewhereJSON(w, r, mongocore.CollectionUserJobGroups, rejects)
+			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionUserJobGroups, rejects)
 			return
 		}
-		logs.AttachDebugStep(r, "lock_gate_passed", map[string]interface{}{
+		logs.AttachDebugStep(r, "lock_gate_passed", map[string]any{
 			"doc_count": len(groupIDs),
 		})
 	}
 
 	now := time.Now()
-	result, err := mongoput.BulkUpsertGroups(ctx, collection, accountID, reqBody.Groups, now, sessionID, wsClientID)
+	result, err := h.Mongo.Groups.BulkUpsertGroups(ctx, accountID, reqBody.Groups, now, sessionID, wsClientID)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to save groups", "failed to bulk upsert groups", "groups_upsert_failed", "groups_put", err, nil)
@@ -117,15 +111,14 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 	failedCount := result.FailedCount
 	savedCount := int(result.UpsertedCount + result.ModifiedCount)
 
-	if sessionID != "" && clients.Redis != nil && len(result.Deltas) > 0 {
-		deps := documentlock.DepsFromServiceClients(clients)
+	if sessionID != "" && h.locks.Redis != nil && len(result.Deltas) > 0 {
 		for _, delta := range result.Deltas {
 			if len(delta.AddedJobIDs) == 0 {
 				continue
 			}
-			held, herr := documentlock.LockHeldBySession(ctx, clients.Redis, accountID, mongocore.CollectionUserJobGroups, delta.GroupID, sessionID)
+			held, herr := documentlock.LockHeldBySession(ctx, h.locks.Redis, accountID, eipmongo.CollectionUserJobGroups, delta.GroupID, sessionID)
 			if herr != nil {
-				logs.AttachHandlerCaveat(r, "group_lock_cascade_check_failed", "group membership cascade: group lock check failed", map[string]interface{}{
+				logs.AttachHandlerCaveat(r, "group_lock_cascade_check_failed", "group membership cascade: group lock check failed", map[string]any{
 					"error":    herr.Error(),
 					"group_id": delta.GroupID,
 				})
@@ -134,18 +127,18 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 			if !held {
 				continue
 			}
-			documentlock.ReleaseStaleDependentJobLocksOnGroupMembershipAdded(ctx, deps, accountID, delta.GroupID, delta.AddedJobIDs, sessionID)
+			documentlock.ReleaseStaleDependentJobLocksOnGroupMembershipAdded(ctx, h.locks, accountID, delta.GroupID, delta.AddedJobIDs, sessionID)
 		}
 	}
 
 	if failedCount > 0 {
-		logs.AttachHandlerCaveat(r, "batch_partial_failure", "some groups failed validation in batch", map[string]interface{}{
+		logs.AttachHandlerCaveat(r, "batch_partial_failure", "some groups failed validation in batch", map[string]any{
 			"failed": failedCount,
 			"total":  len(reqBody.Groups),
 		})
 	}
 
-	logs.AttachDebugStep(r, "mongo_write_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_write_completed", map[string]any{
 		"saved":  savedCount,
 		"failed": failedCount,
 	})
@@ -156,7 +149,7 @@ func PutGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 	m.GroupsSaved.Add(ctx, float64(savedCount))
 	m.GroupsRequested.Observe(ctx, float64(len(reqBody.Groups)))
 
-	logs.AttachHandlerSuccessDetail(r, "batch groups upserted", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "batch groups upserted", map[string]any{
 		"total":       len(reqBody.Groups),
 		"saved":       savedCount,
 		"failed":      failedCount,

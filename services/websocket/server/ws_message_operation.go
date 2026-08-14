@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/websocket/server/doclocklogic"
 
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
@@ -32,10 +33,10 @@ func isConsolidatedWSOperationMessageType(msgType string) bool {
 		"subscribe",
 		"unsubscribe",
 		"upgrade_scopes",
-		"document_lock_lock_state_batch",
-		"document_lock_waitlist_pulse",
-		"document_lock_viewer_arrived",
-		"document_lock_viewer_departed":
+		doclocklogic.MsgLockStateBatch,
+		doclocklogic.MsgWaitlistPulse,
+		doclocklogic.MsgViewerArrived,
+		doclocklogic.MsgViewerDeparted:
 		return true
 	default:
 		return false
@@ -70,7 +71,7 @@ func beginWSMessageOperation(client *Client, messageType string, msg []byte) (co
 
 	ctx, span := wsTracer.Start(ctx, "ws."+messageType, trace.WithAttributes(attrs...))
 
-	logs.AttachDebugStepCtx(ctx, "message_received", map[string]interface{}{
+	logs.AttachDebugStepCtx(ctx, "message_received", map[string]any{
 		"message_type":   messageType,
 		"message_id":     messageID,
 		"client_id":      client.id,

@@ -10,8 +10,9 @@ import (
 	"strings"
 
 	corecrypto "eve-industry-planner/shared/core/crypto"
+	"eve-industry-planner/shared/core/swarmsecret"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 const (
@@ -35,11 +36,12 @@ func NewRefreshTokenKeyring() (*corecrypto.Keyring, error) {
 	return spec.Keyring, nil
 }
 
-// NewRefreshTokenKeyringSpec builds refresh-token keyring + key version metadata from environment variables.
+// NewRefreshTokenKeyringSpec builds refresh-token keyring + key version metadata
+// from env or /run/secrets (see [swarmsecret.Require] / [swarmsecret.Get]).
 func NewRefreshTokenKeyringSpec() (*RefreshTokenKeyringSpec, error) {
-	raw := strings.TrimSpace(os.Getenv("REFRESH_TOKEN_AES_KEY"))
-	if raw == "" {
-		return nil, errors.New("REFRESH_TOKEN_AES_KEY environment variable is required")
+	raw, err := swarmsecret.Require("REFRESH_TOKEN_AES_KEY")
+	if err != nil {
+		return nil, err
 	}
 	key, err := decodeAESKey(raw, "REFRESH_TOKEN_AES_KEY")
 	if err != nil {
@@ -51,7 +53,7 @@ func NewRefreshTokenKeyringSpec() (*RefreshTokenKeyringSpec, error) {
 		ver = RefreshTokenDefaultKeyVersion
 	}
 
-	legacy, err := parseLegacyRefreshTokenKeys(os.Getenv("REFRESH_TOKEN_AES_LEGACY_KEYS"), len(key), ver)
+	legacy, err := parseLegacyRefreshTokenKeys(swarmsecret.Get("REFRESH_TOKEN_AES_LEGACY_KEYS"), len(key), ver)
 	if err != nil {
 		return nil, err
 	}

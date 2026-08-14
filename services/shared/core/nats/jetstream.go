@@ -157,10 +157,15 @@ func GetOrEnsureStream(ctx context.Context, js jetstream.JetStream, ensureFunc f
 }
 
 // GetOrCreateConsumer gets an existing consumer or creates a new one with the specified config.
-// If a consumer exists with a different DeliverPolicy or FilterSubject, it will be deleted and recreated
-// since these are immutable on existing consumers. Mutable fields such as InactiveThreshold are
-// reconciled via UpdateConsumer when the durable already exists.
+// DeliverPolicy mismatch still forces delete+recreate.
+//
+// When the requested config sets FilterSubjects (plural), filters are treated as mutable:
+// drift is reconciled with UpdateConsumer and does not recreate the durable. Worker/scheduler
+// callers that use singular FilterSubject keep recreate-on-mismatch for that field.
+// InactiveThreshold is always reconciled via UpdateConsumer when the durable already exists.
 func GetOrCreateConsumer(ctx context.Context, stream jetstream.Stream, consumerConfig jetstream.ConsumerConfig) (jetstream.Consumer, error) {
+	mutableFilters := len(consumerConfig.FilterSubjects) > 0
+
 	// Try to get existing consumer
 	existingConsumer, err := stream.Consumer(ctx, consumerConfig.Durable)
 	if err == nil {
@@ -168,39 +173,47 @@ func GetOrCreateConsumer(ctx context.Context, stream jetstream.Stream, consumerC
 		info := existingConsumer.CachedInfo()
 		if info == nil {
 			// Can't check config, delete and recreate
-			if err := stream.DeleteConsumer(ctx, consumerConfig.Durable); err != nil {
-				logs.WarnCtx(ctx, "failed to delete existing consumer", "consumer", consumerConfig.Durable, "error", err)
-			}
+			_ = DeleteConsumer(ctx, stream, consumerConfig.Durable)
 		} else {
 			needsRecreate := false
-			// Check DeliverPolicy (immutable)
 			if info.Config.DeliverPolicy != consumerConfig.DeliverPolicy {
 				logs.InfoCtx(ctx, "consumer DeliverPolicy mismatch, will recreate", "consumer", consumerConfig.Durable, "existing", info.Config.DeliverPolicy, "requested", consumerConfig.DeliverPolicy)
 				needsRecreate = true
 			}
-			// Check FilterSubject (immutable)
-			if info.Config.FilterSubject != consumerConfig.FilterSubject {
-				logs.InfoCtx(ctx, "consumer FilterSubject mismatch, will recreate", "consumer", consumerConfig.Durable, "existing", info.Config.FilterSubject, "requested", consumerConfig.FilterSubject)
-				needsRecreate = true
+			if !mutableFilters {
+				// Static singular filter (worker/scheduler): mismatch → recreate.
+				if info.Config.FilterSubject != consumerConfig.FilterSubject {
+					logs.InfoCtx(ctx, "consumer FilterSubject mismatch, will recreate", "consumer", consumerConfig.Durable, "existing", info.Config.FilterSubject, "requested", consumerConfig.FilterSubject)
+					needsRecreate = true
+				}
 			}
 			if needsRecreate {
-				// Delete the existing consumer to recreate with correct config
-				if err := stream.DeleteConsumer(ctx, consumerConfig.Durable); err != nil {
-					logs.WarnCtx(ctx, "failed to delete existing consumer with different config", "consumer", consumerConfig.Durable, "error", err)
-				}
+				_ = DeleteConsumer(ctx, stream, consumerConfig.Durable)
 			} else {
+				updateCfg := info.Config
+				changed := false
+				if mutableFilters {
+					desired := NormalizeFilterSubjects(consumerConfig.FilterSubjects)
+					current := ConsumerFilterSubjects(info.Config)
+					if !subjectsAsSetEqual(current, desired) {
+						updateCfg.FilterSubject = ""
+						updateCfg.FilterSubjects = append([]string(nil), desired...)
+						changed = true
+					}
+				}
 				if info.Config.InactiveThreshold != consumerConfig.InactiveThreshold {
-					updateCfg := info.Config
 					updateCfg.InactiveThreshold = consumerConfig.InactiveThreshold
+					changed = true
+				}
+				if changed {
 					updated, uerr := stream.UpdateConsumer(ctx, updateCfg)
 					if uerr != nil {
-						logs.WarnCtx(ctx, "failed to reconcile consumer InactiveThreshold", "consumer", consumerConfig.Durable, "error", uerr)
+						logs.WarnCtx(ctx, "failed to reconcile consumer config", "consumer", consumerConfig.Durable, "error", uerr)
 						return existingConsumer, nil
 					}
-					logs.InfoCtx(ctx, "reconciled consumer InactiveThreshold",
+					logs.InfoCtx(ctx, "reconciled consumer config",
 						"consumer", consumerConfig.Durable,
-						"from", info.Config.InactiveThreshold.String(),
-						"to", consumerConfig.InactiveThreshold.String())
+						"mutable_filters", mutableFilters)
 					return updated, nil
 				}
 				return existingConsumer, nil

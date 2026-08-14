@@ -9,9 +9,9 @@ import (
 
 // MessageFormat represents the new message structure
 type MessageFormat struct {
-	DocumentID interface{}            `json:"documentid"` // Can be string or number
-	Action     string                 `json:"action"`     // ADD, UPDATE, DELETE
-	Data       map[string]interface{} `json:"data"`
+	DocumentID any            `json:"documentid"` // Can be string or number
+	Action     string         `json:"action"`     // ADD, UPDATE, DELETE
+	Data       map[string]any `json:"data"`
 }
 
 // parsedMessage holds an Event with its parsed data

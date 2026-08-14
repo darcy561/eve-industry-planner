@@ -10,12 +10,22 @@ import (
 
 	apihelperauth "eve-industry-planner/api/helper/auth"
 	sharedcompression "eve-industry-planner/shared/compression"
+	"eve-industry-planner/shared/container"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/websocket/server/config"
 	"eve-industry-planner/websocket/server/model"
 
 	"github.com/gorilla/websocket"
 )
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  4096,
+	WriteBufferSize: 4096,
+	CheckOrigin:     nil, // Disable origin checking - handled by Nginx/proxy in front
+	// RFC 7692: negotiate permessage-deflate when the client offers it. Flate level is set
+	// after upgrade to match shared/compression.FlateDefaultLevel (API default HTTP tier).
+	EnableCompression: true,
+}
 
 // HandleWS handles WebSocket requests from clients
 func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
@@ -26,20 +36,26 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		upgradeStart = time.Now()
 	}
 
+	// Local draining only here — cutoff runs after session is available.
+	if s.IsDraining() {
+		_ = s.rejectUpgradeBlocked(w, r, upgradeStart, "draining")
+		return
+	}
+
 	if apihelperauth.ResolvePlannerSessionID(r) == "" {
 		wsUpgradeRejectClient(w, r, s, upgradeStart, "session_missing", http.StatusUnauthorized,
 			"websocket upgrade rejected: missing planner session",
 			"Unauthorized: session_missing",
 			"ws_upgrade_session_missing",
-			map[string]interface{}{
-				"has_eip_session_cookie":        apihelperauth.ReadAppSessionCookie(r) != "",
+			map[string]any{
+				"has_eip_session_cookie":       apihelperauth.ReadAppSessionCookie(r) != "",
 				"has_planner_session_id_query": strings.TrimSpace(r.URL.Query().Get(apihelperauth.PlannerSessionIDQueryParam)) != "",
 			},
 		)
 		return
 	}
 
-	if s.ServiceClients == nil || s.ServiceClients.Redis == nil {
+	if s.Stack == nil || s.Stack.Redis == nil {
 		wsUpgradeRejectServer(w, r, s, upgradeStart, "redis_unavailable", http.StatusServiceUnavailable,
 			"websocket upgrade rejected: Redis unavailable",
 			"Service unavailable",
@@ -50,19 +66,23 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	identity, err := apihelperauth.ExtractAccountSession(reqCtx, r, s.ServiceClients.Redis)
+	if s.rejectUpgradeBlocked(w, r, upgradeStart, s.upgradeBlockReason(reqCtx, true)) {
+		return
+	}
+
+	identity, err := apihelperauth.ExtractAccountSession(reqCtx, r, s.Stack.Redis)
 	if err != nil {
 		wsUpgradeRejectAuthSession(w, r, s, upgradeStart, err)
 		return
 	}
 	r = logs.BindRequestIdentityToRequest(r, identity.AccountID, identity.SessionID)
 
-	if err := apihelperauth.TouchAccountSession(reqCtx, s.ServiceClients.Redis, identity.AccountID, identity.SessionID, identity.Session.AppVersion); err != nil {
+	if err := apihelperauth.TouchAccountSession(reqCtx, s.Stack.Redis, identity.AccountID, identity.SessionID, identity.Session.AppVersion); err != nil {
 		wsUpgradeRejectClient(w, r, s, upgradeStart, "session_missing", http.StatusUnauthorized,
 			"websocket upgrade rejected: failed session touch",
 			"Unauthorized: session_missing",
 			"ws_upgrade_session_touch_failed",
-			map[string]interface{}{
+			map[string]any{
 				"account_id": identity.AccountID,
 				"session_id": identity.SessionID,
 				"reason":     err.Error(),
@@ -71,6 +91,11 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	wsUpgradeAttachSessionValidated(r, identity.AccountID, identity.SessionID)
+
+	// Re-check after auth/session work — drain/cutoff may have flipped mid-upgrade.
+	if s.rejectUpgradeBlocked(w, r, upgradeStart, s.upgradeBlockReason(reqCtx, true)) {
+		return
+	}
 
 	// Check connection limit per user
 	s.userConnMu.Lock()
@@ -106,12 +131,10 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 				closeReason := "Connection limit exceeded - closing oldest connection"
 				wsUpgradeAttachConnectionLimitEviction(r, identity.AccountID, oldestClientID, connCount, config.MaxConnectionsPerUser())
 
-				// Send close message to client (non-blocking, best effort)
-				// Use a short deadline to avoid blocking
-				clientToClose.conn.SetWriteDeadline(time.Now().Add(100 * time.Millisecond))
-				if err := clientToClose.conn.WriteMessage(websocket.CloseMessage,
-					websocket.FormatCloseMessage(websocket.CloseNormalClosure, closeReason)); err != nil {
-					logs.AttachDebugStep(r, "connection_limit_close_message_failed", map[string]interface{}{
+				if err := clientToClose.writeFrame(websocket.CloseMessage,
+					websocket.FormatCloseMessage(websocket.CloseNormalClosure, closeReason),
+					100*time.Millisecond); err != nil {
+					logs.AttachDebugStep(r, "connection_limit_close_message_failed", map[string]any{
 						"evicted_client_id": oldestClientID,
 						"error":             err.Error(),
 					})
@@ -119,7 +142,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 
 				// Close the connection - this will cause ReadMessage to return an error
 				// which triggers the reader's defer cleanup
-				clientToClose.conn.Close()
+				_ = clientToClose.conn.Close()
 			}
 			s.ClientsMu.Unlock()
 
@@ -144,6 +167,13 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 			err,
 			nil,
 		)
+		return
+	}
+	// Hijacked — cannot HTTP-reject; drop if drain/cutoff flipped during Upgrade.
+	if reason := s.upgradeBlockReason(reqCtx, false); reason != "" {
+		logs.WarnCtx(reqCtx, "websocket upgraded while container closed; closing without register",
+			"reason", reason)
+		_ = conn.Close()
 		return
 	}
 	// Align permessage-deflate (compress/flate) with API default brotli/gzip level (see shared/compression). No-op if extension not negotiated.
@@ -173,6 +203,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	s.Clients[client.id] = client
 	clientCount := len(s.Clients)
 	s.ClientsMu.Unlock()
+	s.syncPlacementFlags(connCtx, clientCount)
 
 	s.userConnMu.Lock()
 	if s.userConnections[identity.AccountID] == nil {
@@ -181,15 +212,18 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	s.userConnections[identity.AccountID][client.id] = true
 	userConnCount := len(s.userConnections[identity.AccountID])
 	s.userConnMu.Unlock()
+	s.scheduleDocFanoutFilterReconcile()
 
 	duration := time.Since(upgradeStart)
 	s.recordUpgradeSuccess(connCtx, client.AccountID, duration)
 
-	// Send clientID to client immediately after connection
-	connectionMsg := map[string]interface{}{
-		"type":     "connected",
-		"clientID": client.id,
-		"subscription": map[string]interface{}{
+	// Send clientID + hosting container id immediately after connection
+	// (container_id lets edge clients / soak observe place without Redis).
+	connectionMsg := map[string]any{
+		"type":         "connected",
+		"clientID":     client.id,
+		"container_id": container.ID(),
+		"subscription": map[string]any{
 			"account":     true,
 			"corporation": false,
 			"alliance":    false,
@@ -199,16 +233,16 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		select {
 		case client.Send <- connectionMsgBytes:
-			logs.AttachDebugStep(r, "connected_message_queued", map[string]interface{}{
+			logs.AttachDebugStep(r, "connected_message_queued", map[string]any{
 				"client_id": client.id,
 			})
 		default:
-			logs.AttachHandlerCaveat(r, "connected_message_buffer_full", "failed to queue connected message (send buffer full)", map[string]interface{}{
+			logs.AttachHandlerCaveat(r, "connected_message_buffer_full", "failed to queue connected message (send buffer full)", map[string]any{
 				"client_id": client.id,
 			})
 		}
 	} else {
-		logs.AttachHandlerCaveat(r, "connected_message_marshal_failed", "failed to marshal connected message", map[string]interface{}{
+		logs.AttachHandlerCaveat(r, "connected_message_marshal_failed", "failed to marshal connected message", map[string]any{
 			"client_id": client.id,
 			"error":     err.Error(),
 		})

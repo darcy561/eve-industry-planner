@@ -13,7 +13,7 @@ func RespondLockHeldElsewhereJSON(w http.ResponseWriter, r *http.Request, collec
 	if rejected == nil {
 		rejected = []documentlock.LockHeldElsewhereItem{}
 	}
-	logs.AttachClientFailureDetail(r, "document lock held elsewhere", endpointFailureDetail("lock_held_elsewhere", "", map[string]interface{}{
+	logs.AttachClientFailureDetail(r, "document lock held elsewhere", endpointFailureDetail("lock_held_elsewhere", "", map[string]any{
 		"collection":     collection,
 		"rejected_count": len(rejected),
 	}))

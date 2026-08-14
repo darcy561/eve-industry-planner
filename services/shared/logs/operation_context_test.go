@@ -11,8 +11,8 @@ func TestBeginOperationContext_DebugStepsAndCaveats(t *testing.T) {
 	parent := BindRequestIdentity(context.Background(), "acct-ws", "sess-ws")
 	ctx := BeginOperationContext(parent)
 
-	AttachDebugStepCtx(ctx, "message_received", map[string]interface{}{"message_type": "document_lock_viewer_arrived"})
-	AttachHandlerCaveatCtx(ctx, "ack_buffer_full", "ack not delivered", map[string]interface{}{"request_id": "r1"})
+	AttachDebugStepCtx(ctx, "message_received", map[string]any{"message_type": "document_lock_viewer_arrived"})
+	AttachHandlerCaveatCtx(ctx, "ack_buffer_full", "ack not delivered", map[string]any{"request_id": "r1"})
 
 	steps := DebugStepsFromContext(ctx)
 	if len(steps) != 1 || steps[0].Step != "message_received" {
@@ -57,7 +57,7 @@ func TestBeginIsolatedOperationContext_FreshStoreAndStartTime(t *testing.T) {
 	AttachDebugStepCtx(parent, "websocket_upgrade_completed", nil)
 
 	ctx := BeginIsolatedOperationContext(parent)
-	AttachDebugStepCtx(ctx, "message_received", map[string]interface{}{"message_type": "document_lock_lock_state_batch"})
+	AttachDebugStepCtx(ctx, "message_received", map[string]any{"message_type": "document_lock_lock_state_batch"})
 
 	steps := DebugStepsFromContext(ctx)
 	if len(steps) != 1 || steps[0].Step != "message_received" {

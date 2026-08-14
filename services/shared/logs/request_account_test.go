@@ -14,7 +14,7 @@ func TestBindRequestIdentity_EnrichesHandlerFailureDetail(t *testing.T) {
 	ctx = BindRequestIdentity(ctx, "acct-1", "sess-1")
 	r = r.WithContext(ctx)
 
-	AttachClientFailureDetail(r, "user document not found", map[string]interface{}{
+	AttachClientFailureDetail(r, "user document not found", map[string]any{
 		"failure_class": "user_doc_not_found",
 	})
 
@@ -35,7 +35,7 @@ func TestBindRequestIdentity_ExplicitDetailWins(t *testing.T) {
 	ctx = BindRequestIdentity(ctx, "acct-ctx", "sess-ctx")
 	r = r.WithContext(ctx)
 
-	AttachClientFailureDetail(r, "mismatch", map[string]interface{}{
+	AttachClientFailureDetail(r, "mismatch", map[string]any{
 		"failure_class": "auth_account_mismatch",
 		"account_id":    "acct-explicit",
 		"session_id":    "sess-explicit",
@@ -77,7 +77,7 @@ func TestRequestIdentityFromRequest_FromSuccessDetailWhenOuterContextMissing(t *
 	outer = outer.WithContext(ctx)
 
 	inner := outer.WithContext(BindRequestIdentity(outer.Context(), "acct-store", "sess-store"))
-	AttachHandlerSuccessDetail(inner, "user document retrieved", map[string]interface{}{
+	AttachHandlerSuccessDetail(inner, "user document retrieved", map[string]any{
 		"found": false,
 	})
 
@@ -94,7 +94,7 @@ func TestRequestIdentityFromRequest_FromFailureDetail(t *testing.T) {
 	ctx := WithHandlerFailureDetailStore(r.Context())
 	r = r.WithContext(ctx)
 
-	AttachClientFailureDetail(r, "user document not found", map[string]interface{}{
+	AttachClientFailureDetail(r, "user document not found", map[string]any{
 		"failure_class": "user_doc_not_found",
 		"account_id":    "acct-fail",
 		"session_id":    "sess-fail",

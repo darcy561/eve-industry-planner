@@ -223,7 +223,7 @@ func TestCanMakeRequest_Concurrent(t *testing.T) {
 
 	// Test concurrent access
 	done := make(chan bool, 10)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		go func() {
 			err := gl.CanMakeRequest(ctx, 5)
 			done <- (err == nil)
@@ -232,7 +232,7 @@ func TestCanMakeRequest_Concurrent(t *testing.T) {
 
 	// Wait for all goroutines
 	successCount := 0
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		if <-done {
 			successCount++
 		}

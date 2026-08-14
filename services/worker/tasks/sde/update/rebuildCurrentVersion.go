@@ -2,19 +2,18 @@ package update
 
 import (
 	"context"
+	objectstore "eve-industry-planner/shared/core/objectstore"
+	sdecore "eve-industry-planner/shared/core/sde"
 	"fmt"
-	"os"
 	"time"
 
 	"eve-industry-planner/shared/logs"
 	esitasks "eve-industry-planner/worker/tasks/esi"
-	sdeshared "eve-industry-planner/worker/tasks/sde/shared"
 
 	"github.com/hibiken/asynq"
 )
 
 // RebuildCurrentSDEVersion rebuilds the currently active SDE build in place.
-// It replaces live_data atomically and archives the displaced snapshot with a versioned suffix.
 func RebuildCurrentSDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
 	if task == nil {
 		return fmt.Errorf("task is nil")
@@ -23,12 +22,11 @@ func RebuildCurrentSDEVersion(ctx context.Context, task *asynq.Task, deps *esita
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
-	dataDir := os.Getenv("SDE_DATA_DIR")
-	if dataDir == "" {
-		dataDir = sdeshared.DefaultDataDir
+	backend, err := objectstore.OpenStaticData(ctx)
+	if err != nil {
+		return fmt.Errorf("sde store: %w", err)
 	}
-
-	rootVersion, err := sdeshared.ReadRootVersionJSON(dataDir)
+	rootVersion, err := sdecore.ReadRootVersionJSON(ctx, backend)
 	if err != nil {
 		return fmt.Errorf("failed reading root version.json: %w", err)
 	}
@@ -37,7 +35,6 @@ func RebuildCurrentSDEVersion(ctx context.Context, task *asynq.Task, deps *esita
 	}
 
 	versionResult := &sdeVersionCheckResult{
-		DataDir:        dataDir,
 		CurrentVersion: rootVersion.Version,
 		CurrentBuild:   rootVersion.BuildNumber,
 		LatestBuild:    rootVersion.BuildNumber,
@@ -57,7 +54,6 @@ func RebuildCurrentSDEVersion(ctx context.Context, task *asynq.Task, deps *esita
 	}
 
 	logs.InfoCtx(ctx, "SDE rebuild current version completed",
-		"data_dir", dataDir,
 		"build_number", rootVersion.BuildNumber,
 		"version", rootVersion.Version,
 	)
