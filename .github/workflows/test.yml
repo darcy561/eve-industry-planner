@@ -47,16 +47,26 @@ jobs:
         uses: dorny/paths-filter@v3
         id: filter
         with:
+          # Documentation lives in technical-documentation/, wiki/, and repo-root
+          # markdown. None of it changes what a suite exercises, so exclude it.
           filters: |
             services:
-              - 'services/**'
+              - all:
+                - 'services/**'
+                - '!**/*.md'
               - '.github/workflows/test.yml'
             frontend:
-              - 'frontend/**'
+              - all:
+                - 'frontend/**'
+                - '!**/*.md'
               - '.github/workflows/test.yml'
             deployment_tool:
-              - 'deployment-tool/**'
-              - 'scripts/deployment-tool/**'
+              - all:
+                - 'deployment-tool/**'
+                - '!**/*.md'
+              - all:
+                - 'scripts/deployment-tool/**'
+                - '!**/*.md'
               - '.github/workflows/test.yml'
 
       - name: Set suite flags
