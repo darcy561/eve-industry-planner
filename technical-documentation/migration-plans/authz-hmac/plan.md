@@ -1,5 +1,51 @@
 # AuthZ HMAC Rollout Plan
 
+**Rules:** Read and following [`../documentation-rules.md`](../documentation-rules.md)
+and [`../technical-rules.md`](../technical-rules.md) (migration-plans).
+Phase 1 (project folders/docs) before any product work.
+For Go surfaces in scope only: `go fix -diff` before planned work; again on edited packages (not unrelated code).
+Live SoT will not be edited until this project is complete and promotion is approved.
+
+## Rollout status
+
+Statuses reflect what runs today, not what was intended when this plan was written.
+
+| Rollout phase | Status |
+|---------------|--------|
+| Phase 1 — project docs | Complete |
+| 1. Shared HMAC helpers + tests | Not started — see [Shared helper implementation](#shared-helper-implementation) |
+| 2. Metadata schema fields and reverse indexes | Not started |
+| 3. Login-time backfill for legacy accounts | Not started |
+| 4. Refresh-token encryption at rest + migration | **Landed** — `models.RefreshToken` persists `rTokenCiphertext` / `rTokenNonce` / `rTokenKeyVersion`, with the keyring built by `crypto/aesgcm/keyrings.NewRefreshTokenKeyringSpec` |
+| 5. Entitlements store and event recompute worker | Not started |
+| 6. API policy checks against entitlements | Not started |
+| 7. Websocket scope refresh from entitlements events | Not started |
+| 8. Dual-read migration period | Not started |
+| 9. Full cutover to entitlements | Not started |
+
+Nothing under phases 1–3 or 5–9 exists in the codebase yet. No `crypto/hmac` use, no
+`char_ref` / `corp_ref` / `alliance_ref` symbols, and no entitlements store are present on
+`Development`.
+
+## Shared helper implementation
+
+Rollout phase 1 (shared helpers) has a reference implementation on the unmerged branch
+`feature/archived-jobs-redesign` under `shared/core/crypto/authzhmac/{helper,ref}`. It matches the
+ref format, domain-separation prefixes, and encoding this plan specifies, and it ships with tests.
+
+Two changes are required before that code can land, because it predates rules and packages that
+now exist:
+
+- **Key loading.** The branch reads `AUTHZ_HMAC_KEY` with a bare `os.Getenv`. Key material is
+  loaded through `swarmsecret.Require` in this codebase so it resolves from `/run/secrets` as well
+  as the environment — the pattern `keyrings.NewRefreshTokenKeyringSpec` already follows. The
+  non-secret version string may stay on `os.Getenv`, as it does there.
+- **Operator env schema.** `AUTHZ_HMAC_KEY` and `AUTHZ_HMAC_KEY_VERSION` are operator surface and
+  belong in the Deployment Tool `EnvFields` source of truth rather than only in a Go constant.
+
+The `ref` package (ref parsing and shape validation) has no key handling and needs no rework, but
+it has no callers until the helper lands.
+
 ## Objectives
 
 - Keep `character_hash` as canonical identity.
