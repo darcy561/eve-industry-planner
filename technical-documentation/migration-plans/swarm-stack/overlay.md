@@ -1,6 +1,6 @@
 # Overlays — Swarm stack migration
 
-Per-ticket behaviour overlays for [roadmap.md](./roadmap.md) backlog **#1–#36**. **Not live SoT.** On overlap with live docs, the ticket overlay wins until promote.
+Per-ticket behaviour overlays for [roadmap.md](./roadmap.md) backlog **#1–#36**. **History only — not live SoT.** Live docs are authoritative; these overlays do not win.
 
 Index: [contents.md](./contents.md).
 
@@ -45,6 +45,4 @@ Index: [contents.md](./contents.md).
 
 ## How to use
 
-1. Keep roadmap status / size / acceptance on [roadmap.md](./roadmap.md).
-2. Put detailed design, land notes, and missing-SoT drafts in the matching `overlays/NN-*.md`.
-3. Prefer live SoT after promote; overlays remain history / remainders.
+History only. Prefer live SoT for day-to-day edits. These overlays are land notes, not winning SoT.

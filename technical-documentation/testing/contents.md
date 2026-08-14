@@ -9,7 +9,7 @@ Cross-cutting **map** of how this repo is tested today: layers, entrypoints, CI 
 - Deployment Tool run/`enginetest` conventions → [deployment/deployment-tool/cli/testing.md](../deployment/deployment-tool/cli/testing.md)
 - Feature behaviour under test → owning [frontend](../frontend/contents.md) / [backend](../backend/contents.md) / [stack](../stack/contents.md) topic
 - Publish / prerelease / Public CLI ship workflows → [deployment/github-actions](../deployment/github-actions/contents.md)
-- Capacity dry-run / management drills history → [migration-plans/swarm-stack/roadmap.md](../migration-plans/swarm-stack/roadmap.md); live depth → [services/capacity-controller.md](./services/capacity-controller.md)
+- Capacity dry-run / management drills history (closed swarm-stack) → [migration-plans/swarm-stack/contents.md](../migration-plans/swarm-stack/contents.md); live depth → [services/capacity-controller.md](./services/capacity-controller.md)
 
 ## Task map
 

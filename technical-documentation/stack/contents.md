@@ -9,7 +9,7 @@ Single-host Swarm topology: fragments, membership, replica identity, secrets, op
 - Public bring-up narrative → [deployment/guide.md](../deployment/guide.md)
 - Deployment Tool CLI/TUI internals → [deployment/deployment-tool](../deployment/deployment-tool/contents.md)
 - Application contracts → [backend/](../backend/contents.md), [frontend/](../frontend/contents.md)
-- Swarm migration backlog / ticket history → [migration-plans/swarm-roadmap.md](../migration-plans/swarm-roadmap.md)
+- Swarm stack migration history (closed) → [migration-plans/swarm-stack/contents.md](../migration-plans/swarm-stack/contents.md)
 
 ## Task map
 

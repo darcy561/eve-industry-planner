@@ -1,6 +1,6 @@
 # Docker Swarm migration — roadmap & backlog
 
-**Rules:** Read and following [`../documentation-rules.md`](../documentation-rules.md) and [`../technical-rules.md`](../technical-rules.md) (migration-plans). Phase 1 (project folders/docs) before any product work. Live SoT will not be edited until this project is complete and promotion is approved. While active: live docs + this folder’s [overlay](./overlay.md); overlay wins on overlap; no overlay → live docs are truth. Missing SoT found mid-work is drafted here and promoted with the rest.
+**Rules:** Read and following [`../documentation-rules.md`](../documentation-rules.md) and [`../technical-rules.md`](../technical-rules.md) (migration-plans). **Project closed (2026-08-14).** Live SoT is authoritative. This folder is history; [overlays](./overlay.md) do not win.
 
 ## Phase 1 — Project docs setup (gate)
 
@@ -18,7 +18,7 @@ Phase 1 gate cleared. Stub at [`../swarm-roadmap.md`](../swarm-roadmap.md) point
 
 > **Migration / backlog log — not live SoT.** Project home → [contents.md](./contents.md). Live stack docs → [stack/contents.md](../../stack/contents.md).
 >
-> **Handoff status (2026-08-09):** **Compose runtime retired.** Operator surface = Deployment Tool. Swarm cutover + #2/#8/#20 done. **Capacity Phases A–D + docs promote complete** — live SoT under [capacity-controller.md](../../stack/capacity-controller.md). Apply gated by `capacity_controller_managed` (default **true**). Pack: [18-capacity-controller/](./18-capacity-controller/). **WS managed soak signed off** (scale-up + scale-down; pressure fix 2026-08-09). **Pin/move scrapped for now.** **Done:** #19, #27, #29, #30, #34. Census parked.
+> **Handoff status (2026-08-14):** **Project closed.** Roadmap **#1–#36** + live SoT promote complete. Operator surface = Deployment Tool. Compose runtime retired. This folder is history. **Ship remaining (not this docs project):** merge `swarm/hard-cutover` → Development (PR #58). **Pin/move scrapped for now.** Census parked.
 
 Tracks the single-host Swarm stack: **data fragment** (mongo/redis/nats/SeaweedFS) + **app fragment** (Traefik, api, websocket, worker, ws-router, core, frontend, capacity-controller); optional Swarm **observability** fragment (`docker-stack.obs.yml`, #34 — includes Prometheus). **Operator surface: [Deployment Tool](../../deployment/guide.md) ([`deployment-tool/`](../../../deployment-tool/) CLI + TUI; commands use `eip …`).
 
@@ -34,9 +34,9 @@ Later, Swarm’s fixed replica counts are driven by a **capacity controller** (n
 
 ## Start here for a new session
 
-1. **Goal of next implementation slice:** Capacity track **closed for remainders** (docs promote + WS soak sign-off). **Pin/move scrapped for now.** Census parked. Pack: [18-capacity-controller/](./18-capacity-controller/).
+1. **This project is closed.** Do not start new swarm-stack slices here. History: [contents.md](./contents.md). Live behaviour: [stack/contents.md](../../stack/contents.md).
 
-2. **Pickup order:** [Recommended pickup order](#recommended-pickup-order) — capacity SoT + soak done; no capacity remainder unless reopened.
+2. **Pickup order:** none in this project. [Recommended pickup order](#recommended-pickup-order) records what landed. Optional later remainders that were never the close gate → Follow-ups.
 
 3. **WS placement (locked):** in-memory **tenant → container_id** on Swarm **`eip_ws_router`**; soft/full/clients/draining via NATS `ws.placement.state` + `GET /placement`. Traefik routes `/ws` -> router. Cookie `eip_tenant_affinity` is the key. Sticky = fallback. Mid-roll **prefer newest bake**; place-miss picks **lowest live clients**. Drain: [websocket.md](../../backend/websocket/websocket.md). Planned evacuate via **`eip capacity`** / `ws.command.*` (landed). **Pin/move — out of scope for now.**
 
@@ -931,12 +931,9 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 
 **Already landed (do not re-open):** Phase 0; Compose→Swarm migrate (data + app + obs fragments); **#2/#3/#4/#5/#7/#8/#9–#17/#19/#20/#22–#36**; **#15/#34** obs (+ Prom on obs); **#32** day-2 verbs; **capacity Phases A–D** (controller/proxy/lease/Observe+Scale/health/worker Apply + `ws.command.*` + Evaluate scale-in + api←WS clients + `eip capacity` + #29 Fake sim + live SoT aligned to code). Testing map + unified CI → [testing/contents.md](../../testing/contents.md) / [`test.yml`](../../../.github/workflows/test.yml). Code-verified: capacity service in `docker-stack.yml`; no arm env; managed default **true**; Apply gated by managed.
 
-**Next (live) — optional remainders (git branch merge is separate shipping):**
+**Project closed (2026-08-14).** Do not re-open unless deliberately revisiting a decision. Git merge of `swarm/hard-cutover` is separate shipping.
 
-1. **#2 / #8 / #20** — **done** (placement signal, drain, selective fan-out; live SoT promoted). Hosted-tenant query view **done** (in-process).
-2. **Capacity controller** — pack [18-capacity-controller/](./18-capacity-controller/); **A–D + soak sign-off done**. **Pin/move scrapped for now.**
-3. **Optional polish:** durable local-tag file only if deliberately wanted (#35 uses in-memory `TAG_*`)
-4. **Project close (docs)** — capacity promote + WS soak **complete** 2026-08-09.
+**Not this project (optional later):** pin/move (scrapped); durable local-tag file only if wanted (#35 uses in-memory `TAG_*`); auth affinity widen; frontend realtime polish; API ObjectStore on `apideps.Deps` — Follow-ups.
 
 ---
 
