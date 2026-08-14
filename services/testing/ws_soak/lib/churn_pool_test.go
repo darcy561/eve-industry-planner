@@ -16,7 +16,7 @@ func TestChurnPoolFreezeStopsScheduling(t *testing.T) {
 	for i := range ids {
 		ids[i] = clientIdentity{AccountID: "f" + strconv.Itoa(i+1), SessionID: "s" + strconv.Itoa(i+1)}
 	}
-	stats, errCh, freeze := StartChurnPool(ctx, ChurnPoolOptions{
+	stats, errCh, freeze, pool := startChurnPool(ctx, ChurnPoolOptions{
 		Initial:      ids,
 		LiveRatio:    0.5,
 		TickEvery:    5 * time.Millisecond,
@@ -30,13 +30,20 @@ func TestChurnPoolFreezeStopsScheduling(t *testing.T) {
 	if err := waitChurnLive(ctx, stats, 5, 5*time.Millisecond); err != nil {
 		t.Fatal(err)
 	}
+	// A swap committed before freeze still drains through the join/leave
+	// channels, so baseline the counters once that work has been applied.
+	freeze()
+	if err := waitChurnQuiesced(ctx, pool, 5*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
 	joinsBefore := stats.Joins.Load()
 	leavesBefore := stats.Leaves.Load()
-	freeze()
-	time.Sleep(80 * time.Millisecond)
-	if stats.Joins.Load() != joinsBefore || stats.Leaves.Load() != leavesBefore {
-		t.Fatalf("freeze should stop churn joins/leaves; joins %d→%d leaves %d→%d",
-			joinsBefore, stats.Joins.Load(), leavesBefore, stats.Leaves.Load())
+	for range 20 {
+		time.Sleep(5 * time.Millisecond)
+		if stats.Joins.Load() != joinsBefore || stats.Leaves.Load() != leavesBefore {
+			t.Fatalf("freeze should stop churn joins/leaves; joins %d→%d leaves %d→%d",
+				joinsBefore, stats.Joins.Load(), leavesBefore, stats.Leaves.Load())
+		}
 	}
 	cancel()
 	for range errCh {
