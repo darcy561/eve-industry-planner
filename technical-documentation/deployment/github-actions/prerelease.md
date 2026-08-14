@@ -26,7 +26,7 @@ Manual `workflow_dispatch` only (not on every push). Input `publish` selects the
 | `publish` | Result |
 |-----------|--------|
 | **`binary`** (default) | GitHub Release(s) with Deployment Tool CLI assets (`eip-*`, checksums), marked `prerelease: true`, tagged with the channel floats above. |
-| **`containers`** | GHCR app images (api, websocket, worker, core, frontend, ws-router) tagged with the pin + channel floats (generic `prerelease` only when the ref is `PRERELEASE_BRANCH`). |
+| **`containers`** | GHCR app images (api, websocket, worker, core, frontend, ws-router, capacity-controller, wiki) tagged with the pin + channel floats (generic `prerelease` only when the ref is `PRERELEASE_BRANCH`). |
 | **`both`** | Binary + containers from the same commit. |
 
 ```bash

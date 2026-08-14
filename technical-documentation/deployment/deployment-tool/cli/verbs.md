@@ -47,7 +47,7 @@ No dedicated menu rows for **Apply secrets/settings** — Persist auto-queues; u
 - **`eip rebuild`**: bake + rematerialize (dev). No Ready. After index SoT changes without full up/dev, run **`eip ensure-mongo`**.
 - **`eip update`**: day-2 refresh — **binary first** (GitHub Releases tag `cli` / baked channel), then stack YAML from the baked kit git branch tip, then **pull live images** and **digest-reconcile** (force-update services whose running digest drifted). Live refs = app + data (+ obs when enabled) from kit fragments. Flags: `--binary-only`, `--stacks-only`, `--images-only`. After binary install: TUI relaunches with `EIP_UPDATE_RESUME` then runs update again; CLI re-execs `eip update`. Embedded kit ships inside the binary. Does **not** overwrite on-disk `.env` / `eip.config.yaml` / keyfiles. Cold start remains **`eip up`**.
 - **`eip restart` / `logs` / `shutdown`**: Moby SDK; TUI Restart/Logs use pickers; Logs follow → new logview console.
-- **`eip repair`**: day-2 heal for an already-deployed unhealthy stack (TUI **Repair** when Health is amber/red). Rematerialize if expected services are missing; runs dataplane `ServiceEnsures` registry entries only for bad service shorts (task must be running); force-update other bad present services. No pull/bake/`dataplane.Ready`/cold start. Healthy stack → use `eip update`; nothing deployed → `eip up`. Flag: `--dry-run` / `-n`.
+- **`eip repair`**: day-2 heal for an already-deployed unhealthy stack (TUI **Repair** when Health is amber/red). Rematerialize if expected services are missing; force-update bad present services; then dataplane `ServiceEnsures` for bad registry shorts (task must be running). No pull/bake/`dataplane.Ready`/cold start. Healthy stack → use `eip update`; nothing deployed → `eip up`. Flag: `--dry-run` / `-n`.
 - **`eip status`**: expected vs live Swarm stack (TUI **Status**).
 - **`eip init`**: write-missing `docker-stack*.yml` (from baked `KitBranch`), then `.env` / `eip.config.yaml` (Autogen secrets resolved; EVE SSO left blank for the operator). `CheckOperatorDocs` then optional EnsureS3/EnsureMongo if tasks up. Does **not** apply to a running stack. TUI guided path = **Setup**. Not Public bootstrap (bootstrap only places the binary).
 - **`eip doctor`** (alias **`probe`**): Engine ping + health rollup. CLI-facing name `doctor`; TUI poller uses `probe`.
@@ -59,7 +59,7 @@ No dedicated menu rows for **Apply secrets/settings** — Persist auto-queues; u
 
 ## Day-2 images
 
-App services share one **`APP_VERSION`** (`.env` SoT) in the **app fragment** ([`docker-stack.yml`](../../../../docker-stack.yml)): api, websocket, worker, ws-router, core, frontend, capacity-controller. Traefik is upstream (rare). Data pins live in [`docker-stack.data.yml`](../../../../docker-stack.data.yml); obs pins in [`docker-stack.obs.yml`](../../../../docker-stack.obs.yml) when the addon is on.
+App services share one **`APP_VERSION`** (`.env` SoT) in the **app fragment** ([`docker-stack.yml`](../../../../docker-stack.yml)): api, websocket, worker, ws-router, core, frontend, capacity-controller. Wiki uses a derived GHCR tag from that same `APP_VERSION` — [wiki.md](../../../stack/wiki.md). Traefik is upstream (rare). Data pins live in [`docker-stack.data.yml`](../../../../docker-stack.data.yml); obs pins in [`docker-stack.obs.yml`](../../../../docker-stack.obs.yml) when the addon is on.
 
 | Path | Use |
 |------|-----|

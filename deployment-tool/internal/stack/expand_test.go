@@ -223,6 +223,75 @@ func TestPrepareProjectForStack(t *testing.T) {
 	}
 }
 
+func TestExpandWikiHostAndCompatTag(t *testing.T) {
+	home := t.TempDir()
+	stack := `
+services:
+  wiki:
+    image: ghcr.io/example/wiki:${WIKI_COMPAT_TAG}
+    deploy:
+      labels:
+        - "traefik.http.routers.wiki.rule=Host(` + "`wiki.${EIP_WIKI_HOST}`" + `)"
+`
+	if err := os.WriteFile(filepath.Join(home, "stack.yml"), []byte(stack), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".env"), []byte("APP_VERSION=2.4.1\nEVE_CALLBACK_URL=https://shop.example/cb\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	path, err := Expand(context.Background(), Opts{
+		Home:       home,
+		StackFiles: []string{"stack.yml"},
+		Source:     "live",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(path)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	if !strings.Contains(text, "ghcr.io/example/wiki:2.4") {
+		t.Fatalf("compat tag not interpolated:\n%s", text)
+	}
+	if strings.Contains(text, "2.4.1") {
+		t.Fatalf("full semver should not be the wiki tag:\n%s", text)
+	}
+	if !strings.Contains(text, "wiki.shop.example") {
+		t.Fatalf("wiki host not interpolated:\n%s", text)
+	}
+
+	if _, err := Expand(context.Background(), Opts{
+		Home:       home,
+		StackFiles: []string{"stack.yml"},
+		Source:     "live",
+		Env:        map[string]string{"EVE_CALLBACK_URL": ""},
+	}); err == nil {
+		t.Fatal("live expand without callback host should fail")
+	}
+
+	path, err = Expand(context.Background(), Opts{
+		Home:       home,
+		StackFiles: []string{"stack.yml"},
+		Source:     "dev",
+		Env:        map[string]string{"EVE_CALLBACK_URL": ""},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(path)
+	raw, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "wiki.localhost") {
+		t.Fatalf("dev host:\n%s", raw)
+	}
+}
+
 func TestExpandEscapesLiteralDollarsForStackDeploy(t *testing.T) {
 	home := t.TempDir()
 	stack := `

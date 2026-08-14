@@ -63,7 +63,7 @@ variable "ADMINTOOL_IMAGE" {
 }
 
 group "swarm" {
-  targets = ["api", "websocket", "worker", "ws-router", "core", "capacity-controller", "frontend"]
+  targets = ["api", "websocket", "worker", "ws-router", "core", "capacity-controller", "frontend", "wiki"]
 }
 
 # Legacy/deferred container image — not the operator runtime.
@@ -185,4 +185,10 @@ target "frontend" {
     SENTRY_TRACES_SAMPLE_RATE = SENTRY_TRACES_SAMPLE_RATE
     SENTRY_ERROR_SAMPLE_RATE  = SENTRY_ERROR_SAMPLE_RATE
   }
+}
+
+target "wiki" {
+  context    = "."
+  dockerfile = "docker/wiki/Dockerfile"
+  tags       = ["eve-industry-planner-wiki:${BAKE_WORKING_TAG}"]
 }

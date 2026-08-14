@@ -142,6 +142,8 @@ func loadStackSnapshot(ctx context.Context, apiClient *client.Client, stackName 
 		if svc.ServiceStatus != nil {
 			info.Desired = svc.ServiceStatus.DesiredTasks
 			info.Running = svc.ServiceStatus.RunningTasks
+		} else {
+			info.Desired = replicatedDesired(svc)
 		}
 		var pubs []uint32
 		for _, p := range svc.Endpoint.Ports {
@@ -388,4 +390,11 @@ func shortID(id string) string {
 		return id[:12]
 	}
 	return id
+}
+
+func replicatedDesired(svc swarm.Service) uint64 {
+	if svc.Spec.Mode.Replicated == nil || svc.Spec.Mode.Replicated.Replicas == nil {
+		return 0
+	}
+	return *svc.Spec.Mode.Replicated.Replicas
 }

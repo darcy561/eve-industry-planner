@@ -1,22 +1,22 @@
 # Welcome to Eve Industry Planner Wiki
 
-Welcome to the documentation and knowledge base for **Eve Industry Planner** - your comprehensive tool for planning and managing EVE Online industry operations.
+Welcome to the documentation and knowledge base for Eve Industry Planner - your comprehensive tool for planning and managing EVE Online industry operations.
 
 ## About Eve Industry Planner
 
-Eve Industry Planner is a modern way to plan and manage your industry jobs quickly, so you can spend more time in-game doing the things you enjoy!
+Eve Industry Planner is a modern way to plan and manage manufacturing and reaction builds (invention support is planned)—each tracked as a planner job on your board, separate from individual in-game industry jobs on your characters.
 
-As many long-standing members of the EVE Online community know, having a good system to manage your industry jobs is important and extremely useful. Being able to know exactly how much something has cost you to build is vital when it comes to selling your items for the right price, in the right location. Get it wrong and you could lose a lot of ISK!
+As many long-standing members of the EVE Online community know, having a good system to track planner jobs through planning, purchasing, building, and selling is important and extremely useful. Being able to know exactly how much something has cost you to build is vital when it comes to selling your items for the right price, in the right location. Get it wrong and you could lose a lot of ISK!
 
-Eve Industry Planner is here to help you manage your jobs easily, whether you are in front of your PC, on the bus, or just sat at work. Using the data provided by the EVE ESI, you can keep up to date with your industry jobs and sell orders.
+Eve Industry Planner is here to help you manage your builds easily, whether you are in front of your PC, on the bus, or just sat at work. Using data from ESI, you can link in-game industry jobs, market orders, and wallet transactions to your planner jobs and keep costs up to date.
 
 ## Core Features
 
 ### 📊 Plan It
-Plan your industry jobs with precision. Calculate material costs, build times, and profit margins before you commit.
+Plan manufacturing and reaction planner jobs with precision. Calculate material costs, build times, and profit margins before you commit.
 
 ### 🏭 Build It
-Track your active industry jobs in real-time. Monitor progress and manage multiple jobs across different stations.
+Track progress by linking ESI industry jobs to your planner jobs. Monitor builds across characters and structures.
 
 ### 💰 Sell It
 Keep track of your sell orders and market data. Know when and where to sell for maximum profit.
@@ -25,7 +25,7 @@ Keep track of your sell orders and market data. Know when and where to sell for 
 ## Quick Links
 
 ### Core Features
-- [Job Planner](job%20planner) - Manage and organize your industry jobs
+- [Job Planner](job%20planner) - Workflow board for manufacturing and reaction planner jobs
 - [Edit Job](edit%20job) - Configure individual jobs through the workflow
 - [Groups](groups) - Organize related jobs into groups
 - [Dashboard](dashboard) - Overview of all your operations
@@ -40,7 +40,8 @@ Keep track of your sell orders and market data. Know when and where to sell for 
 
 ### Configuration
 - [Settings](settings) - Configure application preferences and defaults
-- [Accounts](accounts) - Manage EVE Online accounts and characters
+- [Accounts](accounts) - Main login, linked characters, and account storage
+- [Citadel Names](citadel%20names) - Community structure names for asset locations
 
 ### Technical
 - [Technical Documentation](technical) - Technology stack and architecture overview

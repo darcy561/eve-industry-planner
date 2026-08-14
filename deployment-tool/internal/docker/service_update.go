@@ -26,3 +26,29 @@ func ForceUpdateService(ctx context.Context, apiClient *client.Client, nameOrID 
 	}
 	return nil
 }
+
+// ServiceIdleStuck reports a replicated service that should have a task but Swarm
+// has none running or starting (typical after stop-first: only Shutdown/Complete).
+func ServiceIdleStuck(info ServiceInfo) bool {
+	return info.Desired > 0 && info.Running == 0 && info.Starting == 0
+}
+
+// UnstickIdleService force-updates stack_short when it is present and idle-stuck.
+// Returns true when a force-update was issued. Missing services are a no-op.
+func UnstickIdleService(ctx context.Context, apiClient *client.Client, stackName, short string) (bool, error) {
+	if short == "" {
+		return false, fmt.Errorf("unstick: empty service name")
+	}
+	snap, err := LoadStackSnapshot(ctx, apiClient, stackName)
+	if err != nil {
+		return false, err
+	}
+	info, ok := snap.Services[short]
+	if !ok || !ServiceIdleStuck(info) {
+		return false, nil
+	}
+	if err := ForceUpdateService(ctx, apiClient, info.FullName); err != nil {
+		return false, err
+	}
+	return true, nil
+}

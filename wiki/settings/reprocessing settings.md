@@ -1,45 +1,23 @@
 # Reprocessing Settings
 
-The Reprocessing Settings section allows you to configure default preferences for the reprocessing calculator and reprocessing-related features.
+The Reprocessing Settings tab has one account default for the [Reprocessing Calculator](../reprocessing%20calculator): which character’s reprocessing skills to use when the page opens.
+
+Structure presets live under [Custom Structures](../settings/custom%20structures). Market hub and order type live under [Job Settings](../settings/job).
+
+## Where you control it
+
+- Settings → Reprocessing Settings tab
 
 ## Default Reprocessing Character
 
-### Default Reprocessing Character
+Pick a character from your linked [Accounts](../accounts). Their Reprocessing, Reprocessing Efficiency, and ore-specific skill levels load into the calculator on open (from ESI when available).
 
-**Dropdown:** Select your default reprocessing character
+You can change character or override individual skills on the calculator itself—this setting is only the starting choice, not a lock. If nothing is saved yet, the app falls back to your main character when possible.
 
-This setting determines which character will be used by default when:
-- Using the reprocessing calculator
-- Calculating reprocessing yields
-- Planning reprocessing jobs
+## Related pages
 
-**How to use:**
-1. Select a character from the dropdown menu
-2. The selected character's reprocessing skills will be used for calculations
-3. The setting is automatically saved after a 2-second delay
-
-**Why this matters:**
-- Different characters may have different reprocessing skill levels
-- Skill levels affect the yield percentage when reprocessing ores and ice
-- Using the correct character ensures accurate yield calculations
-
-## Character Selection
-
-The dropdown will show all characters that you have added to your account. Each character's reprocessing skills are used to calculate:
-- Reprocessing yield percentages
-- Material output quantities
-- Efficiency bonuses
-
-## How Settings Are Saved
-
-The default reprocessing character setting is automatically saved to your account with a 2-second debounce delay. This means:
-- Changes are saved automatically after you stop making adjustments
-- No manual save button is required
-- Settings are synced across all your devices
-
-## Related Documentation
-
-- [Settings Overview](../settings)
-- [Reprocessing Calculator](../reprocessing%20calculator)
-- [Job Settings](job)
-
+- [Settings overview](../settings) — All settings tabs
+- [Layout Settings](../settings/layout) — Planner appearance and stage names
+- [Job Settings](../settings/job) — Default market hub and order type
+- [Blueprint Settings](../settings/blueprint) — Automatic job building defaults
+- [Custom Structures](../settings/custom%20structures) — Reprocessing structure presets

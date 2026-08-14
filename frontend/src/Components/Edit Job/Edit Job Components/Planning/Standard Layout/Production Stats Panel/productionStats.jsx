@@ -53,7 +53,7 @@ export function ProductionStats({ state, actions }) {
   const parentRequirements = calculateParentRequirements();
 
   return (
-    <ContentPanel paperSx={{ height: "auto" }}>
+    <ContentPanel paperSx={{ height: "auto" }} wikiUrl="edit job/planning/production stats">
       <Grid container sx={{ flexDirection: "column" }}>
         <Grid container>
           <Grid container sx={{ marginBottom: "5px" }} size={12}>

@@ -6,7 +6,7 @@ import { STANDARD_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 
 export function BuildStatsPanel({ state }) {
   return (
-    <ContentPanel componentName="Build Stats Panel">
+    <ContentPanel componentName="Build Stats Panel" wikiUrl="edit job/complete/build stats panel">
       <Grid container spacing={1} sx={{ flexDirection: "row" }}>
         <Grid container size={12}>
           <Grid

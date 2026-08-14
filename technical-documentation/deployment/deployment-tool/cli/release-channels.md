@@ -30,7 +30,7 @@ Immutable pins `0.0.0-prerelease.<slug>.<sha7>` are CI publish tags only — use
 
 | What | Store | Knob |
 |------|--------|------|
-| App images | GHCR `…-<svc>:${APP_VERSION}` | `.env` **`APP_VERSION`** (Setup default = baked prerelease channel only) |
+| App images | GHCR `…-<svc>:${APP_VERSION}` (wiki: derived compat tag → [wiki.md](../../../stack/wiki.md)) | `.env` **`APP_VERSION`** (Setup default = baked prerelease channel only) |
 | Deployment Tool CLI binary | GitHub Release assets | Baked **`kit.Channel`** → `eip update`; stacks from baked **`kit.KitBranch`** |
 | Stack YAML | Git branch tip (raw) | `eip update` (not on Releases) |
 

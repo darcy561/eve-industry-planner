@@ -28,6 +28,7 @@ export function SkillsPanel({ state }) {
   return (
     <ContentPanel
       title="Required Skills"
+      wikiUrl="edit job/planning/skills"
       paperSx={{ height: "auto" }}
       isLoading={isLoading}
       isError={isError}

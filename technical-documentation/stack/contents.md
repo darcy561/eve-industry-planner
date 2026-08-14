@@ -2,7 +2,7 @@
 
 ## Owns (SoT)
 
-Single-host Swarm topology: fragments, membership, replica identity, secrets, operator config, networks, Traefik. App service SoT → [backend/](../backend/contents.md).
+Single-host Swarm topology: fragments, membership, replica identity, secrets, operator config, networks, Traefik, wiki. App service SoT → [backend/](../backend/contents.md).
 
 ## Does not own
 
@@ -20,6 +20,7 @@ Single-host Swarm topology: fragments, membership, replica identity, secrets, op
 | `eip.config.yaml` / sync surface | [config.md](./config.md) |
 | Overlay networks | [network.md](./network.md) |
 | Traefik edge (providers, ingress, routes, ports/paths) | [traefik.md](./traefik.md) |
+| Wiki service / Host / Otter digest pin | [wiki.md](./wiki.md) |
 | Core primary lease / image defaults (service) | [../backend/core/core.md](../backend/core/core.md) |
 | Websocket cutoff / drain / handoff (service) | [../backend/websocket/websocket.md](../backend/websocket/websocket.md) |
 | ws-router placement / affinity (service) | [../backend/ws-router/ws-router.md](../backend/ws-router/ws-router.md) |

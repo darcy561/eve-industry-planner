@@ -32,6 +32,13 @@ frontend/*.log
 *.md
 README*
 
+# Wiki image (docker/wiki/Dockerfile) copies pages + theme from the repo root context.
+!wiki/
+!wiki/**
+!wiki/**/*.md
+!wiki-assets/
+!wiki-assets/**
+
 # IDE files
 .vscode/
 .idea/

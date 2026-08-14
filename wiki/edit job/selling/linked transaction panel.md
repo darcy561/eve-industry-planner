@@ -5,26 +5,26 @@ The Linked Transaction Panel displays all transactions that have been linked to 
 ## Overview
 
 The Linked Transaction Panel provides:
-- **Linked transaction display** showing all sales transactions
-- **Transaction details** with date, description, quantity, price, and fees
-- **Transaction management** to unlink transactions if needed
-- **Manual transaction entry** for sales not in ESI API
-- **Location filtering** to filter by market order location
+- Linked transaction display showing all sales transactions
+- Transaction details with date, description, quantity, price, and fees
+- Transaction management to unlink transactions if needed
+- Manual transaction entry for sales not in ESI API
+- Location filtering to filter by market order location
 
 ## Panel Display
 
 ### Title
-- **Text**: "Linked Transactions"
-- **Position**: Panel header
+- Text: "Linked Transactions"
+- Position: Panel header
 
 ### Menu Button
-- **Location**: Top-right corner
-- **Icon**: Three vertical dots (⋮)
-- **Function**: Opens context menu
+- Location: Top-right corner
+- Icon: Three vertical dots (⋮)
+- Function: Opens context menu
 
 #### Menu Options
 
-**Add Manual Transaction**
+Add Manual Transaction
 - Opens dialogue to create custom transaction
 - Use for sales not in ESI API
 - Allows manual entry of all transaction details
@@ -36,46 +36,46 @@ The Linked Transaction Panel provides:
 Each linked transaction is displayed as a row showing:
 
 #### Character/Corporation Avatar
-- **Display**: Portrait or corporation logo
-- **Size**: 24px on mobile, 32px on desktop
-- **Tooltip**: Shows character or corporation name
-- **Purpose**: Identifies who made the sale
+- Display: Portrait or corporation logo
+- Size: 24px on mobile, 32px on desktop
+- Tooltip: Shows character or corporation name
+- Purpose: Identifies who made the sale
 
 #### Date
-- **Display**: Transaction date
-- **Format**: Locale-formatted date
-- **Position**: Second column
-- **Purpose**: Shows when sale occurred
+- Display: Transaction date
+- Format: Locale-formatted date
+- Position: Second column
+- Purpose: Shows when sale occurred
 
 #### Description
-- **Display**: Transaction description
-- **Content**: Item name or sale description
-- **Position**: Third column
-- **Purpose**: Identifies what was sold
+- Display: Transaction description
+- Content: Item name or sale description
+- Position: Third column
+- Purpose: Identifies what was sold
 
 #### Quantity and Price
-- **Display**: "Quantity @ Price" format
-- **Format**: Locale-formatted numbers
-- **Position**: Fourth column
-- **Purpose**: Shows quantity sold and unit price
+- Display: "Quantity @ Price" format
+- Format: Locale-formatted numbers
+- Position: Fourth column
+- Purpose: Shows quantity sold and unit price
 
 #### Amount
-- **Display**: Total transaction amount
-- **Format**: Locale-formatted currency
-- **Position**: Fifth column
-- **Purpose**: Shows total revenue from transaction
+- Display: Total transaction amount
+- Format: Locale-formatted currency
+- Position: Fifth column
+- Purpose: Shows total revenue from transaction
 
 #### Tax
-- **Display**: Transaction fee/tax amount
-- **Format**: Locale-formatted currency with minus sign
-- **Position**: Sixth column (hidden on mobile)
-- **Purpose**: Shows transaction fees paid
+- Display: Transaction fee/tax amount
+- Format: Locale-formatted currency with minus sign
+- Position: Sixth column (hidden on mobile)
+- Purpose: Shows transaction fees paid
 
 #### Unlink Button
-- **Icon**: Clear (X) icon
-- **Color**: Error (red)
-- **Function**: Unlinks transaction from job
-- **Behavior**:
+- Icon: Clear (X) icon
+- Color: Error (red)
+- Function: Unlinks transaction from job
+- Behavior:
   - Removes transaction from linked list
   - Updates sales stats
   - Shows confirmation message
@@ -84,10 +84,10 @@ Each linked transaction is displayed as a row showing:
 ## Location Filtering
 
 ### Filtered Display
-- **Filtering**: Transactions are filtered by active order locations
-- **Active Orders**: Set in Market Order Panel using filter buttons
-- **Display**: Only shows transactions matching filtered locations
-- **Purpose**: Focus on transactions for specific orders
+- Filtering: Transactions are filtered by active order locations
+- Active Orders: Set in Market Order Panel using filter buttons
+- Display: Only shows transactions matching filtered locations
+- Purpose: Focus on transactions for specific orders
 
 ### Filter Behavior
 - Transactions only show if their location matches active filters
@@ -101,41 +101,41 @@ Each linked transaction is displayed as a row showing:
 Opens when "Add Manual Transaction" is selected from menu:
 
 #### Date/Time Picker
-- **Type**: DateTime picker
-- **Default**: Current date/time
-- **Function**: Set transaction date
-- **Purpose**: Record when sale occurred
+- Type: DateTime picker
+- Default: Current date/time
+- Function: Set transaction date
+- Purpose: Record when sale occurred
 
 #### Description Field
-- **Type**: Text input
-- **Label**: "Description"
-- **Validation**: Removes special characters
-- **Purpose**: Describe the transaction
+- Type: Text input
+- Label: "Description"
+- Validation: Removes special characters
+- Purpose: Describe the transaction
 
 #### Item Cost Field
-- **Type**: Number input
-- **Label**: "Item Cost"
-- **Suffix**: "ISK"
-- **Function**: Enter price per unit
-- **Behavior**: Auto-calculates total amount when quantity changes
+- Type: Number input
+- Label: "Item Cost"
+- Suffix: "ISK"
+- Function: Enter price per unit
+- Behavior: Auto-calculates total amount when quantity changes
 
 #### Quantity Field
-- **Type**: Number input
-- **Label**: "Quantity"
-- **Function**: Enter quantity sold
-- **Behavior**: Auto-calculates total amount when price changes
+- Type: Number input
+- Label: "Quantity"
+- Function: Enter quantity sold
+- Behavior: Auto-calculates total amount when price changes
 
 #### Tax Or Fees Paid Field
-- **Type**: Number input
-- **Label**: "Tax Or Fees Paid"
-- **Suffix**: "ISK"
-- **Function**: Enter transaction fees
-- **Purpose**: Record fees paid on sale
+- Type: Number input
+- Label: "Tax Or Fees Paid"
+- Suffix: "ISK"
+- Function: Enter transaction fees
+- Purpose: Record fees paid on sale
 
 #### Dialogue Actions
-- **Close Button**: Cancels transaction entry
-- **Add Button**: Creates and links transaction
-- **Behavior**: 
+- Close Button: Cancels transaction entry
+- Add Button: Creates and links transaction
+- Behavior: 
   - Creates transaction object
   - Links to active market order
   - Adds to linked transactions
@@ -143,9 +143,9 @@ Opens when "Add Manual Transaction" is selected from menu:
   - Closes dialogue
 
 ## Empty State
-- **Message**: "There are currently no transactions linked to this market order."
-- **Condition**: No transactions are linked
-- **Action**: Link transactions from Available Transactions panel or add manually
+- Message: "There are currently no transactions linked to this market order."
+- Condition: No transactions are linked
+- Action: Link transactions from Available Transactions panel or add manually
 
 ## Transaction Management
 
@@ -167,16 +167,16 @@ Opens when "Add Manual Transaction" is selected from menu:
 
 ### Transaction Data
 Each transaction includes:
-- **Transaction ID**: Unique identifier
-- **Date**: When sale occurred
-- **Description**: Sale description
-- **Quantity**: Items sold
-- **Unit Price**: Price per item
-- **Amount**: Total revenue
-- **Tax**: Transaction fees
-- **Location ID**: Where sale occurred
-- **Character Hash**: Who made the sale
-- **Order ID**: Linked market order (if applicable)
+- Transaction ID: Unique identifier
+- Date: When sale occurred
+- Description: Sale description
+- Quantity: Items sold
+- Unit Price: Price per item
+- Amount: Total revenue
+- Tax: Transaction fees
+- Location ID: Where sale occurred
+- Character Hash: Who made the sale
+- Order ID: Linked market order (if applicable)
 
 ## Using the Panel
 

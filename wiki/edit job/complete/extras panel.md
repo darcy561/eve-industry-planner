@@ -5,17 +5,17 @@ The Extras Panel allows you to add or remove additional costs that weren't captu
 ## Overview
 
 The Extras Panel provides:
-- **Extra cost tracking** for expenses not captured elsewhere
-- **Categorized costs** using custom categories for organization
-- **Cost entry** with description and amount
-- **Cost management** with ability to add and remove entries
-- **Total calculation** showing sum of all extra costs
+- Extra cost tracking for expenses not captured elsewhere
+- Categorized costs using custom categories for organization
+- Cost entry with description and amount
+- Cost management with ability to add and remove entries
+- Total calculation showing sum of all extra costs
 
 ## Panel Display
 
 ### Title
-- **Text**: "Extra Costs"
-- **Position**: Panel header
+- Text: "Extra Costs"
+- Position: Panel header
 
 ## Existing Extra Costs
 
@@ -23,35 +23,35 @@ The Extras Panel provides:
 Each extra cost is displayed as a card showing:
 
 #### Category Chip
-- **Display**: Category label as a filled chip
-- **Color**: Secondary theme color
-- **Size**: Small chip with category name
-- **Purpose**: Organizes costs by category
+- Display: Category label as a filled chip
+- Color: Secondary theme color
+- Size: Small chip with category name
+- Purpose: Organizes costs by category
 
 #### Description
-- **Display**: Text description of the cost
-- **Format**: Single line, truncated if too long
-- **Purpose**: Explains what the cost is for
+- Display: Text description of the cost
+- Format: Single line, truncated if too long
+- Purpose: Explains what the cost is for
 
 #### Cost Amount
-- **Display**: Formatted currency value
-- **Format**: Locale-formatted with ISK suffix
-- **Position**: Right side of card
+- Display: Formatted currency value
+- Format: Locale-formatted with ISK suffix
+- Position: Right side of card
 
 #### Delete Button
-- **Icon**: Delete (trash) icon
-- **Color**: Error (red)
-- **Function**: Removes the extra cost entry
-- **Behavior**: 
+- Icon: Delete (trash) icon
+- Color: Error (red)
+- Function: Removes the extra cost entry
+- Behavior: 
   - Removes entry immediately
   - Updates total costs
   - Shows confirmation message
 
 ### Entry Layout
-- **Background**: Hover color for visual separation
-- **Border**: Divider border for definition
-- **Spacing**: Consistent gap between entries
-- **Padding**: Comfortable internal spacing
+- Background: Hover color for visual separation
+- Border: Divider border for definition
+- Spacing: Consistent gap between entries
+- Padding: Comfortable internal spacing
 
 ## Adding Extra Costs
 
@@ -59,41 +59,41 @@ Each extra cost is displayed as a card showing:
 Located below existing costs:
 
 #### Category Selector
-- **Type**: Dropdown select
-- **Label**: Category selection
-- **Options**: Custom categories from application settings
-- **Default**: "Unassigned" (category ID 0)
-- **Purpose**: Organize costs by type (e.g., "Hauling", "Fees", "Other")
+- Type: Dropdown select
+- Label: Category selection
+- Options: Custom categories from application settings
+- Default: "Unassigned" (category ID 0)
+- Purpose: Organize costs by type (e.g., "Hauling", "Fees", "Other")
 
 #### Description Field
-- **Type**: Text input
-- **Label**: "Description"
-- **Placeholder**: "Enter description..."
-- **Required**: Yes (if category is Unassigned)
-- **Validation**: 
+- Type: Text input
+- Label: "Description"
+- Placeholder: "Enter description..."
+- Required: Yes (if category is Unassigned)
+- Validation: 
   - Required if category is 0 (Unassigned)
   - Sanitized to remove HTML/special characters
-- **Purpose**: Describe what the cost is for
+- Purpose: Describe what the cost is for
 
 #### Cost Field
-- **Type**: Number input
-- **Label**: "Cost"
-- **Placeholder**: "0.00"
-- **Required**: Yes
-- **Step**: 0.01 (allows decimal values)
-- **Min**: 0
-- **Validation**: Must be greater than 0
-- **Tooltip**: Shows short text format of value
-- **Purpose**: Enter the cost amount in ISK
+- Type: Number input
+- Label: "Cost"
+- Placeholder: "0.00"
+- Required: Yes
+- Step: 0.01 (allows decimal values)
+- Min: 0
+- Validation: Must be greater than 0
+- Tooltip: Shows short text format of value
+- Purpose: Enter the cost amount in ISK
 
 #### Add Button
-- **Icon**: Plus (+) icon
-- **Color**: Primary theme color
-- **Type**: Icon button
-- **Disabled State**: 
+- Icon: Plus (+) icon
+- Color: Primary theme color
+- Type: Icon button
+- Disabled State: 
   - Disabled if description empty (when category is Unassigned)
   - Disabled if cost is 0 or less
-- **Behavior**: 
+- Behavior: 
   - Validates inputs
   - Adds entry to list
   - Resets form
@@ -111,17 +111,17 @@ Located below existing costs:
 ## Cost Categories
 
 ### Category System
-- **Custom Categories**: Defined in application settings
-- **Unassigned**: Default category (ID 0) for uncategorized costs
-- **Organization**: Helps group similar costs together
-- **Filtering**: Can filter costs by category in other views
+- Custom Categories: Defined in application settings
+- Unassigned: Default category (ID 0) for uncategorized costs
+- Organization: Helps group similar costs together
+- Filtering: Can filter costs by category in other views
 
 ### Common Use Cases
-- **Hauling Fees**: Transport costs for materials or products
-- **Manual Installation**: Costs for jobs not in ESI data
-- **Fees**: Broker fees, transaction fees, etc.
-- **Adjustments**: Cost corrections or adjustments
-- **Other**: Miscellaneous expenses
+- Hauling Fees: Transport costs for materials or products
+- Manual Installation: Costs for jobs not in ESI data
+- Fees: Broker fees, transaction fees, etc.
+- Adjustments: Cost corrections or adjustments
+- Other: Miscellaneous expenses
 
 ## Cost Management
 
@@ -132,9 +132,9 @@ Located below existing costs:
 4. Confirmation message appears
 
 ### Editing Entries
-- **Not directly editable**: Entries cannot be edited in place
-- **Workaround**: Delete and re-add with corrected values
-- **Best practice**: Double-check values before adding
+- Not directly editable: Entries cannot be edited in place
+- Workaround: Delete and re-add with corrected values
+- Best practice: Double-check values before adding
 
 ## Total Cost Integration
 
@@ -148,7 +148,7 @@ Located below existing costs:
 Total build cost includes:
 - Material purchase costs
 - Installation costs (from linked ESI jobs)
-- **Extras costs** (this panel)
+- Extras costs (this panel)
 - Invention costs (if applicable)
 
 ## Best Practices

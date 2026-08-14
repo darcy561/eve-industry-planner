@@ -12,6 +12,7 @@ export function AvailableBlueprintsPanel(props) {
     <ContentPanel
       visible={isLoggedIn}
       title="Blueprint Library"
+      wikiUrl="edit job/planning/blueprint options"
       componentName="Blueprint Library"
       paperSx={{ height: "auto" }}
       titleMarginBottom={2}

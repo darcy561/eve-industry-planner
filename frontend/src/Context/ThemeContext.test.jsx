@@ -21,6 +21,8 @@ import {
   ThemeProvider,
   resolveInitialThemeMode,
   themeStorage,
+  wikiThemeCookieDomain,
+  WIKI_THEME_COOKIE,
   useThemeContext,
 } from "./ThemeContext";
 
@@ -130,6 +132,22 @@ describe("themeStorage", () => {
   });
 });
 
+describe("wikiThemeCookieDomain", () => {
+  it("keeps localhost host-only", () => {
+    expect(wikiThemeCookieDomain("localhost")).toBe("localhost");
+    expect(wikiThemeCookieDomain("127.0.0.1")).toBe("127.0.0.1");
+  });
+
+  it("uses the registrable domain with a leading dot", () => {
+    expect(wikiThemeCookieDomain("eveindustryplanner.com")).toBe(
+      ".eveindustryplanner.com"
+    );
+    expect(wikiThemeCookieDomain("www.eveindustryplanner.com")).toBe(
+      ".eveindustryplanner.com"
+    );
+  });
+});
+
 describe("resolveInitialThemeMode", () => {
   it("returns primary when window is unavailable", () => {
     expect(resolveInitialThemeMode(null, true, false)).toBe(PRIMARY_THEME);
@@ -233,6 +251,7 @@ describe("ThemeProvider", () => {
     );
 
     expect(localStorage.getItem("theme")).toBe(PRIMARY_THEME);
+    expect(document.cookie).toContain(`${WIKI_THEME_COOKIE}=`);
   });
 
   it("toggles between primary and secondary themes", async () => {

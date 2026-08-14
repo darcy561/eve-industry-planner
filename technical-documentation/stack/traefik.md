@@ -38,6 +38,7 @@ Traffic (host → eip-public via providers.swarm)
                       ├─ /api              → eip_api          (web + websecure; CORS; LB :19100/ready)
                       ├─ /ws               → eip_ws-router    (web + websecure; CORS; LB :19100/ready)
                       ├─ /  (priority 1)   → eip_frontend     (web + websecure; LB /health.json)
+                      ├─ Host wiki.{host}  → eip_wiki         (web + websecure; LB :8080) — [wiki.md](./wiki.md)
                       ├─ dashboard path    → api@internal     (entrypoint dashboard only)
                       └─ paths.grafana     → grafana          (obs on + Access Public; web + websecure)
 

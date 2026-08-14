@@ -5,40 +5,40 @@ The Information Panel provides a quick overview of key cost metrics for the job 
 ## Overview
 
 The Information Panel provides:
-- **Total material cost** showing all material purchase expenses
-- **Total install costs** from linked ESI industry jobs
-- **Cost per item** calculation for unit cost analysis
-- **Quick reference** for cost tracking during active manufacturing
+- Total material cost showing all material purchase expenses
+- Total install costs from linked ESI industry jobs
+- Cost per item calculation for unit cost analysis
+- Quick reference for cost tracking during active manufacturing
 
 ## Panel Display
 
 ### Total Material Cost
-- **Label**: "Total Material Cost"
-- **Value**: Sum of all material purchase costs
-- **Format**: Locale-formatted currency
-- **Calculation**: Sum of all `purchasedCost` values from all materials
-- **Purpose**: Shows total expenditure on materials
+- Label: "Total Material Cost"
+- Value: Sum of all material purchase costs
+- Format: Locale-formatted currency
+- Calculation: Sum of all `purchasedCost` values from all materials
+- Purpose: Shows total expenditure on materials
 
 ### Total Install Costs
-- **Label**: "Total Install Costs"
-- **Value**: Sum of installation fees from linked ESI jobs
-- **Format**: Locale-formatted currency
-- **Calculation**: Sum of installation costs from all linked industry jobs
-- **Purpose**: Shows total installation fees paid for manufacturing
+- Label: "Total Install Costs"
+- Value: Sum of installation fees from linked ESI jobs
+- Format: Locale-formatted currency
+- Calculation: Sum of installation costs from all linked ESI industry jobs
+- Purpose: Shows total installation fees paid for manufacturing
 
 ### Total Cost Per Item
-- **Label**: "Total Cost Per Item"
-- **Value**: Average cost per produced item
-- **Format**: Locale-formatted currency
-- **Calculation**: `(Total Material Cost + Total Install Costs) ÷ Total Items Produced`
-- **Purpose**: Shows unit cost efficiency including both materials and installation
+- Label: "Total Cost Per Item"
+- Value: Average cost per produced item
+- Format: Locale-formatted currency
+- Calculation: `(Total Material Cost + Total Install Costs) ÷ Total Items Produced`
+- Purpose: Shows unit cost efficiency including both materials and installation
 
 ## Layout
 
 ### Responsive Design
-- **Mobile**: Full width, stacked vertically
-- **Desktop**: Three-column layout showing all metrics side-by-side
-- **Spacing**: Consistent margins and padding
+- Mobile: Full width, stacked vertically
+- Desktop: Three-column layout showing all metrics side-by-side
+- Spacing: Consistent margins and padding
 
 ## Using the Panel
 

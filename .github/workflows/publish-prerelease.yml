@@ -108,7 +108,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [api, websocket, worker, core, frontend, ws-router, capacity-controller]
+        service: [api, websocket, worker, core, frontend, ws-router, capacity-controller, wiki]
 
     steps:
       - name: Checkout
@@ -160,6 +160,9 @@ jobs:
           if [ "${{ matrix.service }}" = "frontend" ]; then
             echo "context=." >> "$GITHUB_OUTPUT"
             echo "dockerfile=./frontend/Dockerfile" >> "$GITHUB_OUTPUT"
+          elif [ "${{ matrix.service }}" = "wiki" ]; then
+            echo "context=." >> "$GITHUB_OUTPUT"
+            echo "dockerfile=./docker/wiki/Dockerfile" >> "$GITHUB_OUTPUT"
           else
             echo "context=./services" >> "$GITHUB_OUTPUT"
             echo "dockerfile=./services/${{ matrix.service }}/Dockerfile" >> "$GITHUB_OUTPUT"

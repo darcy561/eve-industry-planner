@@ -19,6 +19,7 @@ export function JobSetupPanel(props) {
   return (
     <ContentPanel
       title="Build Setup"
+      wikiUrl="edit job/planning/setups"
       paperSx={{ position: "relative", height: "auto" }}
       enableMenu
       menuItems={[

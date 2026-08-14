@@ -5,29 +5,29 @@ The Market Costs Panel displays current market prices for the produced item acro
 ## Overview
 
 The Market Costs Panel provides:
-- **Current market prices** for buy and sell orders across multiple market options
-- **Quick access** to market data and price history
-- **Price comparison** to help set competitive prices
-- **Market information** for informed selling decisions
+- Current market prices for buy and sell orders across multiple market options
+- Quick access to market data and price history
+- Price comparison to help set competitive prices
+- Market information for informed selling decisions
 
 ## Panel Display
 
 ### Title
-- **Text**: "Current Market Prices"
-- **Position**: Panel header
+- Text: "Current Market Prices"
+- Position: Panel header
 
 ### Action Buttons
 Located in top-right corner:
 
 #### Market History Button
-- **Icon**: Market history icon
-- **Function**: Opens market price history dialogue
-- **Purpose**: View historical price trends
+- Icon: Market history icon
+- Function: Opens market price history dialogue
+- Purpose: View historical price trends
 
 #### Market Data Button
-- **Icon**: Market data icon
-- **Function**: Opens market data dialogue
-- **Purpose**: View detailed market information
+- Icon: Market data icon
+- Function: Opens market data dialogue
+- Purpose: View detailed market information
 
 ## Market Options Display
 
@@ -37,23 +37,23 @@ The panel displays prices for multiple market options (typically different regio
 Each market option shows:
 
 #### Market Name
-- **Display**: Market option name (e.g., "The Forge", "Domain")
-- **Position**: Left side of option row
-- **Format**: Standard text format
+- Display: Market option name (e.g., "The Forge", "Domain")
+- Position: Left side of option row
+- Format: Standard text format
 
 #### Price Information
-- **Sell Price**: Current sell order price
-- **Buy Price**: Current buy order price
-- **Format**: Locale-formatted currency
-- **Display**: Two lines showing both prices
+- Sell Price: Current sell order price
+- Buy Price: Current buy order price
+- Format: Locale-formatted currency
+- Display: Two lines showing both prices
 
 ### Layout Structure
-- **Responsive Grid**: 
+- Responsive Grid: 
   - 1 column on mobile
   - 2 columns on tablet
   - 4 columns on desktop
-- **Centered Alignment**: All content centered within each option
-- **Consistent Spacing**: Uniform gaps between options
+- Centered Alignment: All content centered within each option
+- Consistent Spacing: Uniform gaps between options
 
 ## Using the Panel
 

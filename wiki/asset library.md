@@ -9,7 +9,7 @@ The Asset Library allows you to:
 - Search and filter assets
 - See asset locations
 - Track asset quantities
-- Use assets in job planning
+- Use assets when planning manufacturing and reaction planner jobs
 
 ## Key Features
 
@@ -29,9 +29,9 @@ The Asset Library allows you to:
 
 ### Asset Usage
 
-- Use assets in job planning
+- Use assets when planning manufacturing and reaction planner jobs
 - Import assets to shopping lists
-- Link assets to jobs
+- Link assets to planner jobs
 - Track asset utilization
 
 ### Asset Locations
@@ -43,7 +43,7 @@ The Asset Library allows you to:
 
 ## Related Documentation
 
-- [Edit Job - Purchasing](edit%20job/purchasing) - Using assets in jobs
+- [Edit Job - Purchasing](edit%20job/purchasing) - Using assets in planner jobs
 - [Job Planner](job%20planner) - Planning with available assets
 - [Dashboard](dashboard) - Asset overview
 

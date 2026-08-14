@@ -1,6 +1,6 @@
 # Blueprint Library
 
-The Blueprint Library is your collection of blueprints available for manufacturing. Here you can view, organize, and manage all your blueprints.
+The Blueprint Library is your collection of blueprints used for manufacturing and reaction planner jobs. Here you can view, organize, and manage all your blueprints.
 
 ## Overview
 

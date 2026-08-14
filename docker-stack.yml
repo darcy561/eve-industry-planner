@@ -1,5 +1,6 @@
 # App-layer Swarm fragment on eip-core. Data: docker-stack.data.yml. Obs: docker-stack.obs.yml.
-# Roll order: app start-first (x-app-deploy) + 60s stop grace (x-app-stop-grace); socket proxies stop-first (x-proxy-deploy).
+# Roll order: app start-first (x-app-deploy) + 60s stop grace (x-app-stop-grace);
+# wiki stop-first (x-wiki-deploy, SQLite); socket proxies stop-first (x-proxy-deploy).
 # Day-2 ship: eip rebuild / rematerialize / eip up — Swarm honors update_config below.
 # Probe port 19100 must match services/shared/orchestrationprobes ListenPort.
 #
@@ -99,6 +100,21 @@ x-app-deploy: &app-deploy
 # Service-level (not under deploy:). Every *app-deploy consumer merges this at the service root.
 x-app-stop-grace: &app-stop-grace
   stop_grace_period: 60s
+
+# Wiki: stop-first (SQLite settings DB; R=1). Not capacity-managed; no :19100 probes.
+x-wiki-deploy: &wiki-deploy
+  replicas: 1
+  update_config:
+    order: stop-first
+    parallelism: 1
+    failure_action: pause
+    monitor: 30s
+  rollback_config:
+    order: stop-first
+    parallelism: 1
+  restart_policy:
+    condition: on-failure
+    delay: 5s
 
 # Docker socket proxies: stop-first (avoid two proxies on the same sock).
 x-proxy-deploy: &proxy-deploy
@@ -489,6 +505,31 @@ services:
       retries: 3
       start_period: 5s
 
+  wiki:
+    image: ghcr.io/darcy561/eve-industry-planner-wiki:${WIKI_COMPAT_TAG}
+    networks: [eip-public]
+    dns: *common-dns
+    environment:
+      OTTERWIKI_SETTINGS: /app-data/db/settings.cfg
+      SQLALCHEMY_DATABASE_URI: sqlite:////app-data/db/db.sqlite
+      READ_ACCESS: ANONYMOUS
+      WRITE_ACCESS: ADMIN
+      DISABLE_REGISTRATION: "true"
+    volumes:
+      - otterwiki_db:/app-data/db
+    deploy:
+      <<: *wiki-deploy
+      labels:
+        - "traefik.enable=true"
+        - "traefik.swarm.network=eip-public"
+        - "traefik.http.routers.wiki.rule=Host(`wiki.${EIP_WIKI_HOST}`)"
+        - "traefik.http.routers.wiki.entrypoints=web"
+        - "traefik.http.routers.wiki.service=wiki"
+        - "traefik.http.routers.wiki-secure.rule=Host(`wiki.${EIP_WIKI_HOST}`)"
+        - "traefik.http.routers.wiki-secure.entrypoints=websecure"
+        - "traefik.http.routers.wiki-secure.service=wiki"
+        - "traefik.http.services.wiki.loadbalancer.server.port=8080"
+
 # External stubs so compose config accepts service secret mounts; overlay sets hashed names.
 secrets:
   MONGO_USERNAME:
@@ -550,6 +591,9 @@ volumes:
     external: true
   traefik_data:
     name: eve-industry-planner_traefik_data
+    external: true
+  otterwiki_db:
+    name: eve-industry-planner_otterwiki_db
     external: true
 
 # file: is discovery SoT for sync_swarm_configs; deploy uses hashed external overlay.

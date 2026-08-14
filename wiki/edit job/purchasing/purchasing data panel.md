@@ -5,85 +5,85 @@ The Purchasing Data Panel provides an overview of material acquisition progress 
 ## Overview
 
 The Purchasing Data Panel provides:
-- **Progress tracking** showing how many materials are complete
-- **Cost summaries** displaying total material costs and cost per item
-- **Quick actions** for shopping lists and cost import
-- **Market controls** for selecting market location and listing type
-- **Display preferences** for hiding completed materials
+- Progress tracking showing how many materials are complete
+- Cost summaries displaying total material costs and cost per item
+- Quick actions for shopping lists and cost import
+- Market controls for selecting market location and listing type
+- Display preferences for hiding completed materials
 
 ## Statistics Display
 
 ### Total Complete Items
-- **Format**: "Total Complete Items: X / Y"
-- **X**: Number of materials that are fully acquired
-- **Y**: Total number of materials required
-- **Purpose**: Quick progress indicator showing acquisition status
+- Format: "Total Complete Items: X / Y"
+- X: Number of materials that are fully acquired
+- Y: Total number of materials required
+- Purpose: Quick progress indicator showing acquisition status
 
 ### Total Material Cost
-- **Label**: "Total Material Cost"
-- **Value**: Sum of all material purchase costs
-- **Format**: Locale-formatted currency
-- **Calculation**: Sum of all `purchasedCost` values from all materials
-- **Purpose**: Shows total expenditure on materials
+- Label: "Total Material Cost"
+- Value: Sum of all material purchase costs
+- Format: Locale-formatted currency
+- Calculation: Sum of all `purchasedCost` values from all materials
+- Purpose: Shows total expenditure on materials
 
 ### Current Cost Per Item
-- **Label**: "Current Cost Per Item"
-- **Value**: Average cost per produced item
-- **Format**: Locale-formatted currency
-- **Calculation**: `Total Material Cost ÷ Total Items Produced`
-- **Purpose**: Shows unit cost efficiency
+- Label: "Current Cost Per Item"
+- Value: Average cost per produced item
+- Format: Locale-formatted currency
+- Calculation: `Total Material Cost ÷ Total Items Produced`
+- Purpose: Shows unit cost efficiency
 
 ## Panel Controls
 
 ### Hide Completed Purchases
-- **Type**: Toggle switch
-- **Location**: Top section of controls
-- **Function**: Hides materials that are marked as complete
-- **Behavior**: 
+- Type: Toggle switch
+- Location: Top section of controls
+- Function: Hides materials that are marked as complete
+- Behavior: 
   - Saves preference to application settings
   - Updates display immediately
   - Persists across sessions
-- **Use Case**: Focus on remaining materials when most are complete
+- Use Case: Focus on remaining materials when most are complete
 
 ### Shopping List Button
-- **Location**: Middle section of controls
-- **Visibility**: Only shown when not all materials are complete
-- **Function**: Opens the [Shopping List dialogue](../dialogues/shopping%20list) for remaining materials
-- **Tooltip**: "Displays a shopping list of the remaining materials needed."
-- **Behavior**: 
+- Location: Middle section of controls
+- Visibility: Only shown when not all materials are complete
+- Function: Opens the [Shopping List dialogue](../dialogues/shopping%20list) for remaining materials
+- Tooltip: "Displays a shopping list of the remaining materials needed."
+- Behavior: 
   - Generates shopping list for current job
   - Shows only materials that aren't complete
   - Opens in a dialogue window
 
 ### Import Costs From Multibuy Button
-- **Location**: Middle section of controls
-- **Visibility**: Only shown when not all materials are complete
-- **Function**: Imports material costs from EVE Online multibuy clipboard data
-- **Tooltip**: "Imports costs copied from the multibuy page in game."
-- **Behavior**:
+- Location: Middle section of controls
+- Visibility: Only shown when not all materials are complete
+- Function: Imports material costs from EVE Online multibuy clipboard data
+- Tooltip: "Imports costs copied from the multibuy page in game."
+- Behavior:
   1. Reads clipboard data
   2. Parses multibuy format (item name and cost)
   3. Matches items to job materials by name
   4. Adds costs to matching materials
   5. Updates total costs automatically
-- **Error Handling**: 
+- Error Handling: 
   - Shows error if no matching items found
   - Displays error message if clipboard format is invalid
 
 ### Market Location Selector
-- **Location**: Right section of controls
-- **Function**: Selects the market region for price data
-- **Options**: Various EVE Online regions (The Forge, Domain, etc.)
-- **Behavior**: 
+- Location: Right section of controls
+- Function: Selects the market region for price data
+- Options: Various EVE Online regions (The Forge, Domain, etc.)
+- Behavior: 
   - Saves selection to job layout preferences
   - Updates market price displays
   - Uses default market location if not previously set
 
 ### Market Listing Selector
-- **Location**: Right section of controls
-- **Function**: Selects the type of market listing to use
-- **Options**: Typically "buy" or "sell" orders
-- **Behavior**: 
+- Location: Right section of controls
+- Function: Selects the type of market listing to use
+- Options: Typically "buy" or "sell" orders
+- Behavior: 
   - Saves selection to job layout preferences
   - Updates market price displays
   - Uses default listing type if not previously set

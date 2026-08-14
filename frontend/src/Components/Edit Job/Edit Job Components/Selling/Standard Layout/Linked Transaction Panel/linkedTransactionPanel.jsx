@@ -26,6 +26,7 @@ export function LinkedTransactionPanel(props) {
   return (
     <ContentPanel
       title="Linked Transactions"
+      wikiUrl="edit job/selling/linked transaction panel"
       componentName="Linked Transaction Panel"
       paperSx={{ position: "relative" }}
       enableMenu

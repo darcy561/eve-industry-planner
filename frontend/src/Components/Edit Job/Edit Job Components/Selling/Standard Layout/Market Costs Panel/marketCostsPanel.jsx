@@ -16,7 +16,7 @@ export function MarketCostsPanel({ state }) {
     .worldData.actions.findMarketData(state.activeJob.itemID);
 
   return (
-    <ContentPanel title="Current Market Prices" componentName="Market Costs Panel" paperSx={{ position: "relative" }}>
+    <ContentPanel title="Current Market Prices" wikiUrl="edit job/selling/market costs panel" componentName="Market Costs Panel" paperSx={{ position: "relative" }}>
       <Box
         sx={{
           position: "absolute",

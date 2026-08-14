@@ -49,6 +49,7 @@ export function MaterialCostPanel(props) {
   return (
     <ContentPanel
       title="Estimated Market Costs"
+      wikiUrl="edit job/planning/material prices"
       paperSx={{ position: "relative", height: "auto" }}
       titleMarginBottom={6}
       enableMenu

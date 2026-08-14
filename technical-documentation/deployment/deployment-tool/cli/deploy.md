@@ -28,7 +28,7 @@ Requires `docker` on PATH for `docker stack deploy` and (dev) `docker buildx bak
 | `stack` | Membership SoT + Expand/Inject. Obs `configs.*.file` stubs rewritten in memory; relative binds absoluteized against project home. |
 | Two-pass deploy | Data (no prune) → `dataplane.Ready` → data+app (`--prune`). Ready (including index builds) before app deploy. |
 | `dataplane.Ready` | Concurrent `RunAllEnsures` from `ServiceEnsures` registry. Fail → “run `eip init` / `eip ensure-s3` / `eip ensure-mongo`”. No short timeout — cancel via interrupt. |
-| `dataplane/task` | Shared Swarm-task poller via Moby `ContainerList`. Timeouts caller-owned. |
+| `dataplane/task` | Shared Swarm-task poller via Moby `ContainerList`. Timeouts caller-owned. If the service is present with desired replicas but no running/starting task, force-updates once after 8s then keeps polling. |
 | `dataplane.EnsureS3` | Caller SoT → `s3.Ensure`. Used by Ready, `eip ensure-s3`, `eip init` (when seaweedfs up). |
 | `dataplane.EnsureMongo` | Caller SoT → `mongo.Ensure`. Used by Ready, `eip ensure-mongo`, `eip init` (when mongo up). |
 | `s3.Ensure` | Fail-closed `.env` gate (`S3_*` must be set), weed bucket list/create `static-data` / `static-data-test`, Check. |

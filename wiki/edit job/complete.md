@@ -1,31 +1,31 @@
 # Edit Job - Complete Stage
 
-The Complete stage is where you finalize build cost calculations after manufacturing is finished. This stage allows you to add any additional costs, review final build statistics, and prepare the job for sale or use in other jobs.
+The Complete stage is where you finalize build cost calculations after ESI industry jobs have finished. This stage allows you to add any additional costs, review final build statistics, and prepare the planner job for sale or for passing costs to parent planner jobs.
 
 ## Stage Purpose
 
 The Complete stage serves to:
-- **Finalize costs** by adding any extra costs not captured during purchasing or building
-- **Review build statistics** by viewing total costs, quantities produced, and cost per item
-- **Prepare for sale** by marking jobs as ready for sale or passing costs to parent jobs
-- **Archive jobs** by storing job data for historical analysis while removing from active planning
-- **Complete production chain** by passing build costs to parent jobs in production chains
+- Finalize costs by adding any extra costs not captured during purchasing or building
+- Review build statistics by viewing total costs, quantities produced, and cost per item
+- Prepare for sale by marking jobs as ready for sale or passing costs to parent jobs
+- Archive jobs by storing job data for historical analysis while removing from active planning
+- Complete production chain by passing build costs to parent jobs in production chains
 
-## Lifecycle Position
+## Where Complete sits in the workflow
 
-The Complete stage appears after building in the job lifecycle:
+Complete comes after Building:
 
-1. [Planning](planning) - Configuring job parameters and reviewing requirements
-2. [Purchasing](purchasing) - Acquiring materials and recording costs
-3. [Building](building) - Active manufacturing and production
-4. **Complete** ← You are here
-5. [Selling](selling) - Managing sales and market orders
+1. [Planning](planning) — Configure the build
+2. [Purchasing](purchasing) — Acquire materials and record costs
+3. [Building](building) — Link and track ESI industry jobs
+4. Complete ← You are here
+5. [Selling](selling) — Sales and market orders
 
-After completing this stage, jobs can move to the Selling stage to manage market orders and track sales, or be archived for historical reference.
+From here you can pass costs to parent jobs, mark group output ready for sale, move to Selling, or archive standalone jobs.
 
-## Complete Panels
+## What you do in Complete
 
-The Complete stage consists of the following panels:
+Use the panels on the Complete screen to review final numbers and finish the build:
 
 ### [Extras Panel](complete/extras%20panel)
 Add or remove additional costs such as hauling fees, manual installation costs, or other expenses not captured in earlier stages.

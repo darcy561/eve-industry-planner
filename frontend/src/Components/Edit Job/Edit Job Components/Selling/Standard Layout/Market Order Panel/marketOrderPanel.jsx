@@ -46,6 +46,7 @@ export function MarketOrderPanel(props) {
 
   return (
     <ContentPanel
+      wikiUrl="edit job/selling/market order panel"
       componentName="Market Order Panel"
       paperSx={{ minHeight: "30vh" }}
       isLoading={isLoading}
