@@ -56,6 +56,64 @@ func TestSaveAccountSessionsRecord_CASRejectsStaleWrite(t *testing.T) {
 	}
 }
 
+// TestConcurrentGrantsUpdatesAreNotLost drives many overlapping grant updates and asserts every
+// one is reflected in the stored record. A write that escapes MULTI/EXEC leaves the WATCH
+// unenforced, so a racing writer is silently overwritten and the version stalls below the count.
+func TestConcurrentGrantsUpdatesAreNotLost(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	rdb, _ := newAuthTestRedis(t)
+
+	const (
+		accountID = "acct-cas-lost-update"
+		rounds    = 40
+	)
+	now := time.Now().UTC()
+	if err := UpsertAccountSession(ctx, rdb, accountID, AccountSession{
+		SessionID:        "s1",
+		CharacterHash:    "hash",
+		StartedAt:        now,
+		LastSeenAt:       now,
+		ReauthRequiredAt: ReauthDeadlineFromSessionStart(now),
+	}); err != nil {
+		t.Fatalf("initial upsert: %v", err)
+	}
+
+	// Release both writers of each pair together so their read-compare-write windows overlap.
+	for range rounds {
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		wg.Add(2)
+		errCh := make(chan error, 2)
+
+		for _, corp := range []int64{1, 2} {
+			go func() {
+				defer wg.Done()
+				<-start
+				errCh <- UpdateAccountSessionGrants(ctx, rdb, accountID, []int64{corp}, nil)
+			}()
+		}
+
+		close(start)
+		wg.Wait()
+		close(errCh)
+		for err := range errCh {
+			if err != nil {
+				t.Fatalf("concurrent grants update failed: %v", err)
+			}
+		}
+	}
+
+	rec, err := GetAccountSessionsRecord(ctx, rdb, accountID)
+	if err != nil {
+		t.Fatalf("GetAccountSessionsRecord: %v", err)
+	}
+	// Every successful update bumps the version, so a lower count means a write was lost.
+	if rec.GrantsVersion < rounds*2 {
+		t.Fatalf("grants version = %d, want at least %d; updates were lost", rec.GrantsVersion, rounds*2)
+	}
+}
+
 func TestConcurrentUpsertAndGrantsPreservesSession(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
