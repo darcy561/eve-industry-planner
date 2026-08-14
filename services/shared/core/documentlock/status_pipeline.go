@@ -76,7 +76,7 @@ func statusBatchFetch(
 
 	for i, r := range refs {
 		k := LockKey(accountID, r.Collection, r.DocID)
-		kv := viewerPresenceKey(accountID, r.Collection, r.DocID)
+		kv := ViewerPresenceKey(accountID, r.Collection, r.DocID)
 		kw := waitlistKey(accountID, r.Collection, r.DocID)
 
 		get[i] = pipe.Get(ctx, k)

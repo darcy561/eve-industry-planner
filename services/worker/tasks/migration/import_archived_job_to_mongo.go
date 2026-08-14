@@ -7,16 +7,16 @@ import (
 	"sort"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	"eve-industry-planner/shared/archiveimport"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/archiveimport"
+	eipmongo "eve-industry-planner/shared/mongo"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 const importArchivedJobActor = "worker:importArchivedJobToMongo"
@@ -27,7 +27,7 @@ func ImportArchivedJobToMongo(ctx context.Context, task *asynq.Task, deps *esita
 	if task == nil {
 		return fmt.Errorf("task is nil")
 	}
-	if deps == nil || deps.ServiceClients == nil || deps.Mongo == nil {
+	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
 	}
 
@@ -125,17 +125,14 @@ func ImportArchivedJobToMongo(ctx context.Context, task *asynq.Task, deps *esita
 	job.MetaData.LastModified = now
 	job.MetaData.LastUpdatedBy = importArchivedJobActor
 
-	collection := deps.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionArchivedJobs)
+	collection := deps.Mongo.ArchivedJobs.Collection()
 	op := mongo.NewUpdateOneModel().
 		SetFilter(bson.M{"_id": job.JobID, "_meta.accountID": job.MetaData.AccountID}).
-		SetUpdate(bson.M{"$set": job, "$unset": mongocore.ArchivedJobsUpsertUnset}).
+		SetUpdate(bson.M{"$set": job, "$unset": eipmongo.ArchivedJobsUpsertUnset}).
 		SetUpsert(true)
 
-	retryCfg := mongocore.DefaultRetryConfig()
-	retryCfg.OperationName = fmt.Sprintf("import archived job %s", job.JobID)
-
 	var result *mongo.BulkWriteResult
-	err = mongocore.RetryMongoOperation(ctx, retryCfg, func() error {
+	err = eipmongo.Retry(ctx, fmt.Sprintf("import archived job %s", job.JobID), func() error {
 		var e error
 		result, e = collection.BulkWrite(ctx, []mongo.WriteModel{op}, options.BulkWrite().SetOrdered(false))
 		return e

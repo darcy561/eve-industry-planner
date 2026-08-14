@@ -15,8 +15,8 @@ func TestAttachDebugStep(t *testing.T) {
 	ctx = context.WithValue(ctx, RequestStartTimeKey{}, start)
 	r = r.WithContext(ctx)
 
-	AttachDebugStep(r, "auth_code_received", map[string]interface{}{"account_type": "character"})
-	AttachDebugStepMsg(r, "claims_parsed", "parsed SSO access token claims", map[string]interface{}{"character_hash": "abc"})
+	AttachDebugStep(r, "auth_code_received", map[string]any{"account_type": "character"})
+	AttachDebugStepMsg(r, "claims_parsed", "parsed SSO access token claims", map[string]any{"character_hash": "abc"})
 
 	steps := DebugStepsFromRequest(r)
 	if len(steps) != 2 {
@@ -40,8 +40,8 @@ func TestAttachDebugStep_MaxCap(t *testing.T) {
 	ctx := WithHandlerFailureDetailStore(r.Context())
 	r = r.WithContext(ctx)
 
-	for i := 0; i < MaxDebugSteps+5; i++ {
-		AttachDebugStep(r, "step", map[string]interface{}{"i": i})
+	for i := range MaxDebugSteps + 5 {
+		AttachDebugStep(r, "step", map[string]any{"i": i})
 	}
 	if len(DebugStepsFromRequest(r)) != MaxDebugSteps {
 		t.Fatalf("expected cap at %d, got %d", MaxDebugSteps, len(DebugStepsFromRequest(r)))
@@ -55,7 +55,7 @@ func TestAttachDebugStep_EnrichesBoundIdentity(t *testing.T) {
 	ctx = BindRequestIdentity(ctx, "acct-debug", "sess-debug")
 	r = r.WithContext(ctx)
 
-	AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{"found": true})
+	AttachDebugStep(r, "mongo_query_completed", map[string]any{"found": true})
 
 	steps := DebugStepsFromRequest(r)
 	if len(steps) != 1 {
@@ -78,7 +78,7 @@ func TestAttachDebugStep_EnrichesIdentityFromResolver(t *testing.T) {
 	ctx := WithHandlerFailureDetailStore(r.Context())
 	r = r.WithContext(ctx)
 
-	AttachDebugStep(r, "lock_gate_passed", map[string]interface{}{"doc_count": 3})
+	AttachDebugStep(r, "lock_gate_passed", map[string]any{"doc_count": 3})
 
 	formatted := DebugStepsForLog(DebugStepsFromRequest(r))
 	if formatted[0]["account_id"] != "acct-auth" || formatted[0]["session_id"] != "sess-auth" {

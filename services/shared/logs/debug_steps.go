@@ -2,6 +2,7 @@ package logs
 
 import (
 	"context"
+	"maps"
 	"net/http"
 	"strings"
 	"time"
@@ -17,13 +18,13 @@ const MaxDebugSteps = 50
 type DebugStep struct {
 	Step  string
 	Msg   string
-	Extra map[string]interface{}
+	Extra map[string]any
 	AtMS  int64
 }
 
 // AttachDebugStep records a diagnostic step on the request-scoped log store for the consolidated access log.
 // Prefer this over [DebugCtx] for in-request detail that should appear in debug_steps on the outcome line.
-func AttachDebugStep(r *http.Request, step string, extra map[string]interface{}) {
+func AttachDebugStep(r *http.Request, step string, extra map[string]any) {
 	if r == nil {
 		return
 	}
@@ -31,12 +32,12 @@ func AttachDebugStep(r *http.Request, step string, extra map[string]interface{})
 }
 
 // AttachDebugStepCtx is [AttachDebugStep] for callers that only have context (workers, tasks).
-func AttachDebugStepCtx(ctx context.Context, step string, extra map[string]interface{}) {
+func AttachDebugStepCtx(ctx context.Context, step string, extra map[string]any) {
 	attachDebugStep(ctx, step, "", extra)
 }
 
 // AttachDebugStepMsg records a step with an optional human-readable message.
-func AttachDebugStepMsg(r *http.Request, step, msg string, extra map[string]interface{}) {
+func AttachDebugStepMsg(r *http.Request, step, msg string, extra map[string]any) {
 	if r == nil {
 		return
 	}
@@ -45,7 +46,7 @@ func AttachDebugStepMsg(r *http.Request, step, msg string, extra map[string]inte
 
 // AttachDebugStepOrDebugCtx records a debug step when a request log store is present (HTTP);
 // otherwise emits a Debug line (workers, NATS callbacks, etc.).
-func AttachDebugStepOrDebugCtx(ctx context.Context, step, msg string, extra map[string]interface{}) {
+func AttachDebugStepOrDebugCtx(ctx context.Context, step, msg string, extra map[string]any) {
 	if failureDetailStoreFromContext(ctx) != nil {
 		attachDebugStep(ctx, step, msg, extra)
 		return
@@ -60,7 +61,7 @@ func AttachDebugStepOrDebugCtx(ctx context.Context, step, msg string, extra map[
 	DebugCtx(ctx, msg, kv...)
 }
 
-func attachDebugStep(ctx context.Context, step, msg string, extra map[string]interface{}) {
+func attachDebugStep(ctx context.Context, step, msg string, extra map[string]any) {
 	store := failureDetailStoreFromContext(ctx)
 	if store == nil {
 		return
@@ -74,10 +75,8 @@ func attachDebugStep(ctx context.Context, step, msg string, extra map[string]int
 		AtMS: elapsedMSSinceRequestStart(ctx),
 	}
 	if len(extra) > 0 {
-		s.Extra = make(map[string]interface{}, len(extra))
-		for k, v := range extra {
-			s.Extra[k] = v
-		}
+		s.Extra = make(map[string]any, len(extra))
+		maps.Copy(s.Extra, extra)
 		enrichFailureDetailRequestIdentity(ctx, s.Extra)
 	}
 	store.debugSteps = append(store.debugSteps, s)
@@ -109,22 +108,20 @@ func DebugStepsFromContext(ctx context.Context) []DebugStep {
 }
 
 // DebugStepsForLog formats debug steps for structured access logging.
-func DebugStepsForLog(steps []DebugStep) []map[string]interface{} {
+func DebugStepsForLog(steps []DebugStep) []map[string]any {
 	if len(steps) == 0 {
 		return nil
 	}
-	out := make([]map[string]interface{}, len(steps))
+	out := make([]map[string]any, len(steps))
 	for i, s := range steps {
-		m := map[string]interface{}{
+		m := map[string]any{
 			"step":  s.Step,
 			"at_ms": s.AtMS,
 		}
 		if s.Msg != "" {
 			m["msg"] = s.Msg
 		}
-		for k, v := range s.Extra {
-			m[k] = v
-		}
+		maps.Copy(m, s.Extra)
 		out[i] = m
 	}
 	return out

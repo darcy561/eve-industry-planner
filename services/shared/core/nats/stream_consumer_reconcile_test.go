@@ -1,8 +1,12 @@
 package nats
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
+
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 func TestConsumerKeptByPolicy(t *testing.T) {
@@ -36,6 +40,33 @@ func TestConsumerKeptByPolicy(t *testing.T) {
 		if got := ConsumerKeptByPolicy(tc.name, tc.policy); got != tc.want {
 			t.Errorf("ConsumerKeptByPolicy(%q)=%v want %v", tc.name, got, tc.want)
 		}
+	}
+}
+
+func TestIsConsumerNotFound(t *testing.T) {
+	t.Parallel()
+	if !isConsumerNotFound(jetstream.ErrConsumerNotFound) {
+		t.Fatal("direct ErrConsumerNotFound")
+	}
+	if !isConsumerNotFound(errors.Join(jetstream.ErrConsumerNotFound, errors.New("wrap"))) {
+		t.Fatal("wrapped ErrConsumerNotFound")
+	}
+	if isConsumerNotFound(nil) || isConsumerNotFound(errors.New("other")) {
+		t.Fatal("non not-found should be false")
+	}
+}
+
+func TestDeleteConsumerNoop(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	if err := DeleteConsumer(ctx, nil, "doc-live-updates-x"); err != nil {
+		t.Fatalf("nil stream: %v", err)
+	}
+	if err := DeleteConsumer(ctx, nil, ""); err != nil {
+		t.Fatalf("empty name: %v", err)
+	}
+	if n := DeleteConsumers(ctx, nil, "a", "", "b"); n != 2 {
+		t.Fatalf("DeleteConsumers nil stream ok=%d want 2 (not-found/noop path)", n)
 	}
 }
 

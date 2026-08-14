@@ -11,7 +11,7 @@ var (
 	reactionRegex = regexp.MustCompile(`(?i)reaction `)
 )
 
-func GenerateFullItemListOutput(combinedItemMap map[string]*EVEType, marketGroupsMap map[string]interface{}) map[string]*FullItem {
+func GenerateFullItemListOutput(combinedItemMap map[string]*EVEType, marketGroupsMap map[string]any) map[string]*FullItem {
 	fullItemList := make(map[string]*FullItem)
 	for key, value := range combinedItemMap {
 		if !shouldRemoveItem(value, marketGroupsMap) {
@@ -21,11 +21,11 @@ func GenerateFullItemListOutput(combinedItemMap map[string]*EVEType, marketGroup
 	return fullItemList
 }
 
-func shouldRemoveItem(item *EVEType, marketGroupsMap map[string]interface{}) bool {
+func shouldRemoveItem(item *EVEType, marketGroupsMap map[string]any) bool {
 	return item.MarketGroupID == 0 || skinRegex.MatchString(item.Name) || isBlueprintAndVolumeLessThanOne(item, marketGroupsMap) || reactionRegex.MatchString(item.Name)
 }
 
-func isBlueprintAndVolumeLessThanOne(item *EVEType, marketGroupsMap map[string]interface{}) bool {
+func isBlueprintAndVolumeLessThanOne(item *EVEType, marketGroupsMap map[string]any) bool {
 	parentGroupIDsToIgnore := map[int]bool{2: true}
 	parentGroupIDStr := findParentGroupFromMarketGroup(item, marketGroupsMap)
 	if parentGroupIDStr == "" {
@@ -38,7 +38,7 @@ func isBlueprintAndVolumeLessThanOne(item *EVEType, marketGroupsMap map[string]i
 	return parentGroupIDsToIgnore[parentGroupID]
 }
 
-func findParentGroupFromMarketGroup(item *EVEType, marketGroupsMap map[string]interface{}) string {
+func findParentGroupFromMarketGroup(item *EVEType, marketGroupsMap map[string]any) string {
 	if item.MarketSectionID == 0 {
 		return ""
 	}
@@ -47,7 +47,7 @@ func findParentGroupFromMarketGroup(item *EVEType, marketGroupsMap map[string]in
 	if !exists {
 		return ""
 	}
-	matchedGroup, ok := matchedGroupData.(map[string]interface{})
+	matchedGroup, ok := matchedGroupData.(map[string]any)
 	if !ok {
 		return ""
 	}

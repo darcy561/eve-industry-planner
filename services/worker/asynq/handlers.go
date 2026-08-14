@@ -2,11 +2,11 @@ package asynq
 
 import (
 	"context"
+	"eve-industry-planner/shared/stackservices"
 	"time"
 
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/natsprop"
 	"eve-industry-planner/shared/telemetry/workermetrics"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
@@ -26,7 +26,7 @@ import (
 
 // WorkerDependencies holds dependencies needed by task handlers
 type WorkerDependencies interface {
-	GetServiceClients() *shared.ServiceClients
+	GetClients() *stackservices.Clients
 	GetESIClient() esiratelimiter.ClientInterface
 }
 
@@ -48,13 +48,13 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 			if attrs := natscore.AsynqTaskPayloadSpanAttributes(taskType, t.Payload()); len(attrs) > 0 {
 				span.SetAttributes(attrs...)
 			}
-			logs.AttachDebugStepCtx(ctx, "asynq_task_started", map[string]interface{}{
+			logs.AttachDebugStepCtx(ctx, "asynq_task_started", map[string]any{
 				"task_type": taskType,
 			})
 			start := time.Now()
 			err := h.ProcessTask(ctx, t)
 			elapsed := time.Since(start)
-			outcomeDetail := map[string]interface{}{
+			outcomeDetail := map[string]any{
 				"task_type":   taskType,
 				"duration_ms": elapsed.Milliseconds(),
 			}
@@ -89,10 +89,7 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	})
 
 	// Create task dependencies once
-	taskDeps := &esitasks.TaskDependencies{
-		ServiceClients: deps.GetServiceClients(),
-		ESIClient:      deps.GetESIClient(),
-	}
+	taskDeps := esitasks.FromClients(deps.GetClients(), deps.GetESIClient())
 
 	// Register task handlers
 	mux.HandleFunc("refreshSystemIndexes", func(ctx context.Context, t *asynq.Task) error {
@@ -174,7 +171,7 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	})
 }
 
-func emitAsynqTaskLog(ctx context.Context, level, msg string, detail map[string]interface{}) {
+func emitAsynqTaskLog(ctx context.Context, level, msg string, detail map[string]any) {
 	steps := logs.DebugStepsFromContext(ctx)
 	caveats := logs.HandlerCaveatsFromContext(ctx)
 	logs.EmitAccessShapedLog(ctx, level, msg, detail, steps, caveats)

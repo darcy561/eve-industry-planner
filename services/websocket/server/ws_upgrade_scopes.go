@@ -16,19 +16,19 @@ func (s *Server) handleUpgradeScopesWS(ctx context.Context, client *Client, msg 
 	if err := json.Unmarshal(msg, &upgrade); err != nil {
 		finishWSOperationFailure(ctx, client, "upgrade_scopes",
 			"websocket upgrade scopes: invalid message",
-			"ws_upgrade_scopes_invalid_message", map[string]interface{}{
+			"ws_upgrade_scopes_invalid_message", map[string]any{
 				"error": err.Error(),
 			})
 		return
 	}
 
-	wsAppendDebugStep(ctx, "upgrade_scopes_request", map[string]interface{}{
+	wsAppendDebugStep(ctx, "upgrade_scopes_request", map[string]any{
 		"requested_corporation_count": len(upgrade.CorporationIDs),
 		"requested_alliance_count":    len(upgrade.AllianceIDs),
 	})
 
 	applied := s.ApplyRealtimeScopeUpgrade(client, upgrade.CorporationIDs, upgrade.AllianceIDs)
-	extra := map[string]interface{}{
+	extra := map[string]any{
 		"scopes_applied":            applied,
 		"active_corporation_scopes": len(client.Scopes.CorporationIDs),
 		"active_alliance_scopes":    len(client.Scopes.AllianceIDs),
@@ -52,7 +52,7 @@ func (s *Server) handleUpgradeScopesWS(ctx context.Context, client *Client, msg 
 	extra["ack_delivered"] = ackDelivered
 	if !ackDelivered {
 		logs.AttachHandlerCaveatCtx(ctx, "upgrade_scopes_ack_buffer_full",
-			"scopes_ack not delivered", map[string]interface{}{
+			"scopes_ack not delivered", map[string]any{
 				"client_id": client.id,
 			})
 	}

@@ -3,20 +3,21 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"eve-industry-planner/shared/lifecycle"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
-
-	"eve-industry-planner/shared/shared"
+	"time"
 )
 
 // RunPurgeWorkerQueues removes all Asynq keys from Redis (pattern: asynq:*).
 // Intended for operational recovery when queues/retries get stuck.
 func RunPurgeWorkerQueues() error {
 	ctx := context.Background()
-	clients, err := shared.ConnectServices(ctx, shared.ServiceRedis)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Redis)
 	if err != nil {
 		return fmt.Errorf("failed connecting to redis: %w", err)
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
 	const (
 		pattern   = "asynq:*"
@@ -24,7 +25,7 @@ func RunPurgeWorkerQueues() error {
 	)
 
 	var (
-		cursor      uint64
+		cursor       uint64
 		totalDeleted int64
 	)
 
@@ -62,4 +63,3 @@ func RunPurgeWorkerQueues() error {
 	fmt.Println(string(b))
 	return nil
 }
-

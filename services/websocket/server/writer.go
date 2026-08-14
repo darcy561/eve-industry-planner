@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"time"
 
 	"eve-industry-planner/shared/logs"
@@ -8,6 +9,22 @@ import (
 
 	"github.com/gorilla/websocket"
 )
+
+var errClientNoConn = errors.New("websocket client has no connection")
+
+// writeFrame serializes a WriteMessage on this client's conn. Gorilla allows only
+// one concurrent writer; the writer goroutine, drain kick, and close paths share this.
+func (c *Client) writeFrame(messageType int, data []byte, writeWait time.Duration) error {
+	if c == nil || c.conn == nil {
+		return errClientNoConn
+	}
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	if writeWait > 0 {
+		_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+	}
+	return c.conn.WriteMessage(messageType, data)
+}
 
 // writer writes messages to the WebSocket connection
 func (s *Server) writer(c *Client) {
@@ -32,15 +49,14 @@ func (s *Server) writer(c *Client) {
 	for {
 		select {
 		case msg, ok := <-c.Send:
-			c.conn.SetWriteDeadline(time.Now().Add(config.WriteWait))
 			if !ok {
 				// Channel closed - this is the signal to exit
 				// Try to send close message (best effort, may fail if connection already closed)
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				_ = c.writeFrame(websocket.CloseMessage, []byte{}, config.WriteWait)
 				return
 			}
 
-			if err := c.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+			if err := c.writeFrame(websocket.TextMessage, msg, config.WriteWait); err != nil {
 				// Log write error but continue running
 				// The writer should only exit when Send channel is closed
 				// The reader will detect connection closure and close the Send channel
@@ -50,8 +66,7 @@ func (s *Server) writer(c *Client) {
 
 		case <-pingTicker.C:
 			// Send ping to client
-			c.conn.SetWriteDeadline(time.Now().Add(config.WriteWait))
-			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			if err := c.writeFrame(websocket.PingMessage, nil, config.WriteWait); err != nil {
 				// Check if error is due to connection already closed (expected when client disconnects)
 				errStr := err.Error()
 				if errStr == "websocket: close sent" || errStr == "websocket: close 1006 (abnormal closure): no close frame received" {

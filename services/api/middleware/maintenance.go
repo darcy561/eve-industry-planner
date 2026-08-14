@@ -11,6 +11,8 @@ import (
 // Paths that stay available while MAINTENANCE_MODE is on (load balancers, client banner).
 var maintenanceBypassPaths = map[string]struct{}{
 	"/health":            {},
+	"/healthy":           {},
+	"/ready":             {},
 	"/api/v1/app-config": {},
 }
 

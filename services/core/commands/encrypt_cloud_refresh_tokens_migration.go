@@ -2,17 +2,18 @@ package commands
 
 import (
 	"context"
+	"eve-industry-planner/shared/lifecycle"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared"
 	taskscore "eve-industry-planner/shared/tasks"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type encryptCloudRefreshTokenMigrationOptions struct {
@@ -27,18 +28,18 @@ func runEncryptCloudRefreshTokensMigration(ctx context.Context, args []string) e
 		return err
 	}
 
-	clients, err := shared.ConnectServices(ctx, shared.ServiceNATS, shared.ServiceMongo)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Services{Mongo: true, NATS: true})
 	if err != nil {
 		return err
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
 	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
 		return fmt.Errorf("failed to ensure worker task stream: %w", err)
 	}
 
-	db := clients.Mongo.Database(mongocore.DatabaseName)
-	usersCol := db.Collection(mongocore.CollectionUsers)
+	mongo := clients.Mongo
+	usersCol := mongo.Users.Collection()
 	filter := bson.M{
 		"userCloudAccounts": true,
 		"refreshTokens": bson.M{

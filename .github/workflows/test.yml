@@ -1,0 +1,220 @@
+# Full unit/integration test suite (services + frontend + deployment-tool).
+# Auto: push/PR on Public + Development, only suites whose paths changed.
+# Other branches: workflow_dispatch only (pick suites). New tests under those
+# trees are picked up automatically by go test ./... / vitest.
+name: test
+
+on:
+  push:
+    branches: [Public, Development]
+  pull_request:
+    branches: [Public, Development]
+  workflow_dispatch:
+    inputs:
+      services:
+        description: Run services Go unit tests
+        type: boolean
+        default: true
+      frontend:
+        description: Run frontend Vitest
+        type: boolean
+        default: true
+      deployment_tool:
+        description: Run Deployment Tool unit + Swarm integration
+        type: boolean
+        default: true
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      services: ${{ steps.set.outputs.services }}
+      frontend: ${{ steps.set.outputs.frontend }}
+      deployment_tool: ${{ steps.set.outputs.deployment_tool }}
+    steps:
+      - name: Checkout
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/checkout@v6
+
+      - name: Path filter
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            services:
+              - 'services/**'
+              - '.github/workflows/test.yml'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/test.yml'
+            deployment_tool:
+              - 'deployment-tool/**'
+              - 'scripts/deployment-tool/**'
+              - '.github/workflows/test.yml'
+
+      - name: Set suite flags
+        id: set
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "services=${{ inputs.services }}" >> "$GITHUB_OUTPUT"
+            echo "frontend=${{ inputs.frontend }}" >> "$GITHUB_OUTPUT"
+            echo "deployment_tool=${{ inputs.deployment_tool }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "services=${{ steps.filter.outputs.services }}" >> "$GITHUB_OUTPUT"
+            echo "frontend=${{ steps.filter.outputs.frontend }}" >> "$GITHUB_OUTPUT"
+            echo "deployment_tool=${{ steps.filter.outputs.deployment_tool }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  services:
+    name: services
+    needs: changes
+    if: needs.changes.outputs.services == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: services/go.mod
+          cache-dependency-path: services/go.sum
+
+      - name: Test
+        run: go test ./...
+
+  frontend:
+    name: frontend
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Repo-root .env (APP_VERSION SoT) is gitignored; Vite requires a version to load.
+    env:
+      APP_VERSION: 0.0.0-ci
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test -- --run
+
+  deployment-tool:
+    name: deployment-tool
+    needs: changes
+    if: needs.changes.outputs.deployment_tool == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: deployment-tool
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: deployment-tool/go.mod
+          cache-dependency-path: deployment-tool/go.sum
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build
+        run: go build -o eip-ci .
+
+  deployment-tool-integration:
+    name: deployment-tool integration (swarm)
+    needs: changes
+    if: needs.changes.outputs.deployment_tool == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: deployment-tool
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: deployment-tool/go.mod
+          cache-dependency-path: deployment-tool/go.sum
+
+      - name: Docker info
+        run: docker info
+
+      - name: Swarm init
+        run: |
+          set -euo pipefail
+          docker swarm leave --force 2>/dev/null || true
+          docker swarm init
+
+      - name: Integration tests
+        run: go test ./internal/swarm/ -tags=integration -count=1 -timeout 10m
+
+      - name: Swarm leave
+        if: always()
+        run: docker swarm leave --force || true
+
+  # Stable required check for branch protection / ship gates (skipped suites are OK).
+  ci:
+    name: ci
+    needs:
+      - changes
+      - services
+      - frontend
+      - deployment-tool
+      - deployment-tool-integration
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require selected suites green
+        run: |
+          set -euo pipefail
+          fail=0
+          check() {
+            local name="$1" result="$2"
+            echo "${name}=${result}"
+            case "${result}" in
+              success|skipped) ;;
+              *)
+                echo "::error::${name} ended with ${result}"
+                fail=1
+                ;;
+            esac
+          }
+          check changes "${{ needs.changes.result }}"
+          check services "${{ needs.services.result }}"
+          check frontend "${{ needs.frontend.result }}"
+          check deployment-tool "${{ needs.deployment-tool.result }}"
+          check deployment-tool-integration "${{ needs.deployment-tool-integration.result }}"
+          exit "${fail}"

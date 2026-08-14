@@ -66,7 +66,7 @@ func BeginConsumerContext(
 		trace.WithAttributes(attrs...),
 	)
 
-	stepDetail := map[string]interface{}{
+	stepDetail := map[string]any{
 		"subject":        subject,
 		"delivery_count": deliveryCount,
 		"sequence":       sequence,
@@ -80,9 +80,9 @@ func BeginConsumerContext(
 }
 
 // FinishNATSConsumerOperation records a terminal debug step and emits one access-shaped outcome log.
-func FinishNATSConsumerOperation(ctx context.Context, level, msg string, detail map[string]interface{}) {
+func FinishNATSConsumerOperation(ctx context.Context, level, msg string, detail map[string]any) {
 	if detail == nil {
-		detail = make(map[string]interface{})
+		detail = make(map[string]any)
 	}
 	if start, ok := logs.RequestStartTime(ctx); ok {
 		detail["duration_ms"] = time.Since(start).Milliseconds()

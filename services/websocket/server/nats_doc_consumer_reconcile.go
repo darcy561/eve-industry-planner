@@ -15,13 +15,13 @@ import (
 // Call after subscriptions start so this replica has waiting pulls.
 func (s *Server) reconcileDocUpdateFanoutConsumers() {
 	ctx := context.Background()
-	if s.ServiceClients == nil || s.ServiceClients.JetStream == nil {
+	if s.Stack == nil || s.Stack.JetStream == nil {
 		return
 	}
 
 	stream, err := natscore.GetOrEnsureStream(
 		ctx,
-		s.ServiceClients.JetStream,
+		s.Stack.JetStream,
 		natscore.EnsureDocUpdateStream,
 		natscore.DocUpdateStream,
 	)

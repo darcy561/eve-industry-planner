@@ -6,15 +6,12 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
-	mongocore "eve-industry-planner/shared/core/mongo"
-	mongoget "eve-industry-planner/shared/core/mongo/get"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
 // GetGroupsHandler handles GET /v1/groups - retrieve all groups for the authenticated user
-func GetGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) GetGroupsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIGroups()
@@ -33,17 +30,14 @@ func GetGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 
 	accountID := helper.AuthenticatedAccountID(r)
 
-	database := clients.Mongo.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionUserJobGroups)
-
-	groups, err := mongoget.LoadGroupsByAccount(ctx, collection, accountID)
+	groups, err := h.Mongo.Groups.LoadGroupsByAccount(ctx, accountID)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to retrieve groups", "failed to query groups", "groups_query_failed", "groups_get", err, nil)
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 		"group_count": len(groups),
 	})
 
@@ -55,7 +49,7 @@ func GetGroupsHandler(w http.ResponseWriter, r *http.Request, clients *shared.Se
 
 	metrics.Success()
 	m.GroupsRequested.Observe(ctx, float64(len(groups)))
-	logs.AttachHandlerSuccessDetail(r, "user groups retrieved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "user groups retrieved", map[string]any{
 		"group_count": len(groups),
 		"duration_ms": time.Since(start).Milliseconds(),
 	})

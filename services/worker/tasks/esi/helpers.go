@@ -31,11 +31,11 @@ func (c *countingReader) Read(p []byte) (int, error) {
 func parseCacheSeconds(resp *http.Response) int {
 	cc := resp.Header.Get("Cache-Control")
 	if cc != "" {
-		parts := strings.Split(cc, ",")
-		for _, p := range parts {
+		parts := strings.SplitSeq(cc, ",")
+		for p := range parts {
 			p = strings.TrimSpace(p)
-			if strings.HasPrefix(p, "max-age=") {
-				v := strings.TrimPrefix(p, "max-age=")
+			if after, ok := strings.CutPrefix(p, "max-age="); ok {
+				v := after
 				if secs, err := strconv.Atoi(v); err == nil && secs > 0 {
 					return secs
 				}

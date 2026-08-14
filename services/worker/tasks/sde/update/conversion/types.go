@@ -3,11 +3,11 @@ package conversion
 // RecipeActivities mirrors SDE blueprint activities for static recipe output.
 // Invention uses Option B: each key is the source blueprint type ID (string); the value is that row's invention payload (materials, skills, time, products).
 type RecipeActivities struct {
-	Manufacturing    map[string]interface{}     `json:"manufacturing,omitempty"`
-	Reaction         map[string]interface{}     `json:"reaction,omitempty"`
-	Copying          map[string]interface{}     `json:"copying,omitempty"`
-	ResearchMaterial map[string]interface{}     `json:"research_material,omitempty"`
-	ResearchTime     map[string]interface{}     `json:"research_time,omitempty"`
+	Manufacturing    map[string]any             `json:"manufacturing,omitempty"`
+	Reaction         map[string]any             `json:"reaction,omitempty"`
+	Copying          map[string]any             `json:"copying,omitempty"`
+	ResearchMaterial map[string]any             `json:"research_material,omitempty"`
+	ResearchTime     map[string]any             `json:"research_time,omitempty"`
 	Invention        map[string]InventionSource `json:"invention,omitempty"`
 }
 
@@ -17,7 +17,7 @@ func (a *RecipeActivities) HasInventionSources() bool {
 }
 
 // ActivityMap returns manufacturing or reaction activity payloads used for material enrichment.
-func (a *RecipeActivities) ActivityMap(key string) (map[string]interface{}, bool) {
+func (a *RecipeActivities) ActivityMap(key string) (map[string]any, bool) {
 	if a == nil {
 		return nil, false
 	}

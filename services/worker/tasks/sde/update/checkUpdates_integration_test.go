@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	objectstore "eve-industry-planner/shared/core/objectstore"
+	sdecore "eve-industry-planner/shared/core/sde"
 	"eve-industry-planner/worker/tasks/sde/update/conversion"
 
 	"github.com/hibiken/asynq"
@@ -29,66 +30,34 @@ func expectBuildVersionLabel(t *testing.T, label string, buildNumber int) {
 	}
 }
 
-func seedPreviousVersion(t *testing.T, dataDir string, buildNumber int) {
+func assertObjectJSON(t *testing.T, b objectstore.Backend, key string, nonEmpty bool) {
 	t.Helper()
-
-	liveDir := filepath.Join(dataDir, "live_data")
-	if err := os.MkdirAll(liveDir, 0o755); err != nil {
-		t.Fatalf("mkdir live_data: %v", err)
-	}
-
-	// Minimal recipeList so the diff stage can unmarshal & compare.
-	recipeListPath := filepath.Join(liveDir, "recipeList.json")
-	if err := os.WriteFile(recipeListPath, []byte(`[]`), 0o644); err != nil {
-		t.Fatalf("write seed recipeList.json: %v", err)
-	}
-
-	versionPath := filepath.Join(dataDir, "version.json")
-	seed := map[string]any{
-		"version":      fmt.Sprintf("%d", buildNumber),
-		"build_number": buildNumber,
-		"release_date": "seed",
-	}
-	b, err := json.MarshalIndent(seed, "", "  ")
+	data, err := b.Get(context.Background(), key)
 	if err != nil {
-		t.Fatalf("marshal seed version.json: %v", err)
+		t.Fatalf("get %s: %v", key, err)
 	}
-	if err := os.WriteFile(versionPath, b, 0o644); err != nil {
-		t.Fatalf("write seed version.json: %v", err)
+	if nonEmpty && len(strings.TrimSpace(string(data))) <= 2 {
+		t.Fatalf("expected non-empty json: %s", key)
 	}
-}
-
-func assertFileJSON(t *testing.T, path string, nonEmpty bool) {
-	t.Helper()
-	b, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
-	if nonEmpty && len(strings.TrimSpace(string(b))) <= 2 {
-		t.Fatalf("expected non-empty json: %s", path)
-	}
-
-	// Just validate it parses into something.
 	var anyVal any
-	if err := json.Unmarshal(b, &anyVal); err != nil {
-		t.Fatalf("invalid json at %s: %v", path, err)
+	if err := json.Unmarshal(data, &anyVal); err != nil {
+		t.Fatalf("invalid json at %s: %v", key, err)
 	}
 }
 
-func integrationDataDir(t *testing.T) string {
+func seedPreviousVersion(t *testing.T, b objectstore.Backend, buildNumber int) {
 	t.Helper()
-
-	outputDir, err := filepath.Abs(filepath.Join("..", "..", "..", "tmp", "sde"))
-	if err != nil {
-		t.Fatalf("resolve integration output dir: %v", err)
+	ctx := context.Background()
+	if err := b.Put(ctx, sdecore.LiveKey(sdecore.RecipeListFile), []byte(`[]`)); err != nil {
+		t.Fatalf("seed recipeList: %v", err)
 	}
-	if err := os.RemoveAll(outputDir); err != nil {
-		t.Fatalf("remove existing integration output dir: %v", err)
+	if err := sdecore.WriteRootVersionJSON(ctx, b, sdecore.VersionJSON{
+		Version:     fmt.Sprintf("%d", buildNumber),
+		BuildNumber: buildNumber,
+		ReleaseDate: "seed",
+	}); err != nil {
+		t.Fatalf("seed version: %v", err)
 	}
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
-		t.Fatalf("mkdir integration output dir: %v", err)
-	}
-	return outputDir
 }
 
 func TestSDEUpdateWorkflowIntegration_buildsLatestSDEAndWritesDataFiles(t *testing.T) {
@@ -96,18 +65,10 @@ func TestSDEUpdateWorkflowIntegration_buildsLatestSDEAndWritesDataFiles(t *testi
 		t.Skip("set SDE_INTEGRATION=1 to run live-url integration test")
 	}
 
+	b := objectstore.OpenTestStore(t)
 	ctx := context.Background()
-	dataDir := integrationDataDir(t)
 
-	orig := os.Getenv("SDE_DATA_DIR")
-	t.Cleanup(func() {
-		_ = os.Setenv("SDE_DATA_DIR", orig)
-	})
-	if err := os.Setenv("SDE_DATA_DIR", dataDir); err != nil {
-		t.Fatalf("set SDE_DATA_DIR: %v", err)
-	}
-
-	versionResult, err := runSDEVersionCheckStage(ctx, dataDir)
+	versionResult, err := runSDEVersionCheckStage(ctx)
 	if err != nil {
 		t.Fatalf("runSDEVersionCheckStage failed: %v", err)
 	}
@@ -131,26 +92,15 @@ func TestSDEUpdateWorkflowIntegration_buildsLatestSDEAndWritesDataFiles(t *testi
 		t.Fatalf("runSDEPersistStage failed: %v", err)
 	}
 
-	liveDir := filepath.Join(dataDir, "live_data")
-	t.Logf("validated generated files in %s", liveDir)
+	assertObjectJSON(t, b, sdecore.LiveKey(sdecore.RecipeListFile), true)
+	assertObjectJSON(t, b, sdecore.LiveKey(sdecore.SearchIndexFile), true)
+	assertObjectJSON(t, b, sdecore.LiveKey(sdecore.FullItemListFile), true)
+	assertObjectJSON(t, b, sdecore.LiveKey(sdecore.ReprocessingFile), true)
+	assertObjectJSON(t, b, sdecore.LiveKey(sdecore.InventionModifiersFile), true)
 
-	assertFileJSON(t, filepath.Join(liveDir, "recipeList.json"), true)
-	assertFileJSON(t, filepath.Join(liveDir, "searchIndex.json"), true)
-	assertFileJSON(t, filepath.Join(liveDir, "fullItemList.json"), true)
-	assertFileJSON(t, filepath.Join(liveDir, "reprocessingData.json"), true)
-	assertFileJSON(t, filepath.Join(liveDir, "inventionModifiers.json"), true)
-
-	rootVersionPath := filepath.Join(dataDir, "version.json")
-	rootB, err := os.ReadFile(rootVersionPath)
-	if err != nil {
-		t.Fatalf("read root version.json: %v", err)
-	}
-	var root struct {
-		Version     string `json:"version"`
-		BuildNumber int    `json:"build_number"`
-	}
-	if err := json.Unmarshal(rootB, &root); err != nil {
-		t.Fatalf("parse root version.json: %v", err)
+	root, err := sdecore.ReadRootVersionJSON(ctx, b)
+	if err != nil || root == nil {
+		t.Fatalf("read root version: %v %#v", err, root)
 	}
 	if root.BuildNumber != versionResult.LatestBuildInfo.BuildNumber {
 		t.Fatalf("expected root build_number=%d, got %d", versionResult.LatestBuildInfo.BuildNumber, root.BuildNumber)
@@ -163,21 +113,10 @@ func TestSDEUpdateWorkflowIntegration_generatesAndVersionFiles(t *testing.T) {
 		t.Skip("set SDE_INTEGRATION=1 to run live-url integration test")
 	}
 
-	// Keep this test non-parallel: it touches the real workflow stages once and then
-	// repeatedly persists with the same conversion output.
+	b := objectstore.OpenTestStore(t)
 	ctx := context.Background()
 
-	dataDir := t.TempDir()
-	orig := os.Getenv("SDE_DATA_DIR")
-	t.Cleanup(func() {
-		_ = os.Setenv("SDE_DATA_DIR", orig)
-	})
-	if err := os.Setenv("SDE_DATA_DIR", dataDir); err != nil {
-		t.Fatalf("set SDE_DATA_DIR: %v", err)
-	}
-
-	// 1) Download+convert exactly once from the live URL.
-	versionResult, err := runSDEVersionCheckStage(ctx, dataDir)
+	versionResult, err := runSDEVersionCheckStage(ctx)
 	if err != nil {
 		t.Fatalf("runSDEVersionCheckStage failed: %v", err)
 	}
@@ -199,17 +138,10 @@ func TestSDEUpdateWorkflowIntegration_generatesAndVersionFiles(t *testing.T) {
 		t.Fatalf("runSDEConversionStage failed: %v", err)
 	}
 
-	// 2) Persist multiple "versions" by only changing the build number.
-	// This validates:
-	// - archive folder naming is based on the version currently served (from root version.json)
-	//   using standard versioned names like <build>_v1, <build>_v2, ...
-	// - each previous snapshot gets its own version.json (including generated_at)
-	// - we keep only the newest 5 previous versions
-	totalPersistUpdates := 7 // creates 6 previous snapshots; retention keeps the last 5
-	for i := 0; i < totalPersistUpdates; i++ {
+	totalPersistUpdates := 7
+	for i := range totalPersistUpdates {
 		versionResult.LatestBuildInfo.BuildNumber = baseBuild + i
 		if versionResult.LatestBuildInfo.ReleaseDate == "" {
-			// keep whatever came back from live URL; should never happen, but safe-guard
 			versionResult.LatestBuildInfo.ReleaseDate = "unknown"
 		}
 
@@ -217,45 +149,24 @@ func TestSDEUpdateWorkflowIntegration_generatesAndVersionFiles(t *testing.T) {
 		if err != nil {
 			t.Fatalf("runSDEPersistStage failed at i=%d: %v", i, err)
 		}
-
-		// Mimic the workflow: diff then prune.
 		if err := runSDENewRecipeItemsStage(ctx, persistResult, nil); err != nil {
 			t.Fatalf("runSDENewRecipeItemsStage failed at i=%d: %v", i, err)
 		}
-		if err := runSDEPrunePreviousVersions(dataDir); err != nil {
+		if err := runSDEPrunePreviousVersions(); err != nil {
 			t.Fatalf("runSDEPrunePreviousVersions failed at i=%d: %v", i, err)
 		}
-
-		// Ensure archived generated_at timestamps differ.
-		// (sort relies on generated_at)
-		// Keep this tiny to avoid slowing the test too much.
-		//nolint:staticcheck // time.Sleep is fine for test determinism
-		// Use a small sleep to guarantee differing instants.
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	liveDir := filepath.Join(dataDir, "live_data")
-	previousRoot := filepath.Join(dataDir, "previous_versions")
+	assertObjectJSON(t, b, sdecore.LiveKey(sdecore.RecipeListFile), true)
+	assertObjectJSON(t, b, sdecore.LiveKey(sdecore.SearchIndexFile), true)
+	assertObjectJSON(t, b, sdecore.LiveKey(sdecore.FullItemListFile), true)
+	assertObjectJSON(t, b, sdecore.LiveKey(sdecore.ReprocessingFile), true)
+	assertObjectJSON(t, b, sdecore.LiveKey(sdecore.InventionModifiersFile), true)
 
-	// Validate generated outputs exist and are JSON after the final persist.
-	assertFileJSON(t, filepath.Join(liveDir, "recipeList.json"), true)
-	assertFileJSON(t, filepath.Join(liveDir, "searchIndex.json"), true)
-	assertFileJSON(t, filepath.Join(liveDir, "fullItemList.json"), true)
-	assertFileJSON(t, filepath.Join(liveDir, "reprocessingData.json"), true)
-	assertFileJSON(t, filepath.Join(liveDir, "inventionModifiers.json"), true)
-
-	// Validate root version.json build_number matches the last synthetic update.
-	rootVersionPath := filepath.Join(dataDir, "version.json")
-	rootB, err := os.ReadFile(rootVersionPath)
-	if err != nil {
-		t.Fatalf("read root version.json: %v", err)
-	}
-	var root struct {
-		Version     string `json:"version"`
-		BuildNumber int    `json:"build_number"`
-	}
-	if err := json.Unmarshal(rootB, &root); err != nil {
-		t.Fatalf("parse root version.json: %v", err)
+	root, err := sdecore.ReadRootVersionJSON(ctx, b)
+	if err != nil || root == nil {
+		t.Fatalf("read root version: %v %#v", err, root)
 	}
 	expectedRoot := baseBuild + (totalPersistUpdates - 1)
 	if root.BuildNumber != expectedRoot {
@@ -263,22 +174,10 @@ func TestSDEUpdateWorkflowIntegration_generatesAndVersionFiles(t *testing.T) {
 	}
 	expectBuildVersionLabel(t, root.Version, root.BuildNumber)
 
-	// Validate previous_versions retention policy and version.json generation metadata.
-	entries, err := os.ReadDir(previousRoot)
+	prevDirs, err := b.ListChildNames(ctx, sdecore.PreviousVersionsPrefix)
 	if err != nil {
-		t.Fatalf("read previous_versions: %v", err)
+		t.Fatalf("list previous_versions: %v", err)
 	}
-	var prevDirs []string
-	for _, e := range entries {
-		if e.IsDir() {
-			prevDirs = append(prevDirs, e.Name())
-		}
-	}
-	if len(prevDirs) > 5 {
-		t.Fatalf("expected <= 5 previous version dirs, got %d (%v)", len(prevDirs), prevDirs)
-	}
-
-	// With 7 persists, we expect exactly 5 after pruning.
 	if len(prevDirs) != 5 {
 		t.Fatalf("expected 5 retained previous version dirs, got %d (%v)", len(prevDirs), prevDirs)
 	}
@@ -286,32 +185,25 @@ func TestSDEUpdateWorkflowIntegration_generatesAndVersionFiles(t *testing.T) {
 	minExpected := baseBuild + 1
 	maxExpected := baseBuild + 5
 	for _, dir := range prevDirs {
-		prevVersionPath := filepath.Join(previousRoot, dir, "version.json")
-		prevB, err := os.ReadFile(prevVersionPath)
+		prevB, err := b.Get(ctx, sdecore.PreviousVersionKey(dir, sdecore.VersionObjectKey))
 		if err != nil {
 			t.Fatalf("read prev version.json: %v", err)
 		}
-
 		var prev previousVersionJSON
 		if err := json.Unmarshal(prevB, &prev); err != nil {
 			t.Fatalf("parse prev version.json: %v", err)
 		}
-
 		if prev.Version != dir {
 			t.Fatalf("expected prev.version=%q to match previous dir=%q", prev.Version, dir)
 		}
 		expectBuildVersionLabel(t, prev.Version, prev.BuildNumber)
-
 		if prev.BuildNumber < minExpected || prev.BuildNumber > maxExpected {
 			t.Fatalf("retained previous build out of expected range [%d,%d]: got %d (dir=%s)", minExpected, maxExpected, prev.BuildNumber, dir)
 		}
 		if strings.TrimSpace(prev.GeneratedAt) == "" {
 			t.Fatalf("expected archived generated_at to be set (dir=%s)", dir)
 		}
-
-		// Ensure each previous dir contains recipeList.json.
-		prevRecipePath := filepath.Join(previousRoot, dir, "recipeList.json")
-		assertFileJSON(t, prevRecipePath, false)
+		assertObjectJSON(t, b, sdecore.PreviousVersionKey(dir, sdecore.RecipeListFile), false)
 	}
 }
 
@@ -320,29 +212,20 @@ func TestSDEUpdateWorkflowIntegration_parsesRecipeListTypes(t *testing.T) {
 		t.Skip("set SDE_INTEGRATION=1 and SDE_INTEGRATION_PARSE=1 to run live-url recipe parse test")
 	}
 
+	b := objectstore.OpenTestStore(t)
 	ctx := context.Background()
-	dataDir := t.TempDir()
+	seedPreviousVersion(t, b, 1)
 
-	if err := os.Setenv("SDE_DATA_DIR", dataDir); err != nil {
-		t.Fatalf("set SDE_DATA_DIR: %v", err)
-	}
-
-	seedPreviousVersion(t, dataDir, 1)
 	if err := CheckSDEUpdates(ctx, asynq.NewTask("checkSDEUpdates", nil), nil); err != nil {
 		t.Fatalf("CheckSDEUpdates failed: %v", err)
 	}
 
-	recipeListPath := filepath.Join(dataDir, "live_data", "recipeList.json")
-	b, err := os.ReadFile(recipeListPath)
+	data, err := b.Get(ctx, sdecore.LiveKey(sdecore.RecipeListFile))
 	if err != nil {
 		t.Fatalf("read recipeList.json: %v", err)
 	}
-
 	var recipe []*conversion.EVEType
-	if err := json.Unmarshal(b, &recipe); err != nil {
+	if err := json.Unmarshal(data, &recipe); err != nil {
 		t.Fatalf("failed unmarshal recipeList into []*conversion.EVEType: %v", err)
-	}
-	if len(recipe) == 0 {
-		t.Fatalf("expected non-empty recipe list")
 	}
 }

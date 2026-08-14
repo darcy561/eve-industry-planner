@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"eve-industry-planner/shared/logs"
@@ -12,10 +15,43 @@ import (
 	"github.com/hibiken/asynq"
 )
 
+// MaxConcurrency is the hard per-process Asynq pool cap.
+const MaxConcurrency = 50
+
+// DefaultConcurrency is the per-process default when unset.
+const DefaultConcurrency = 50
+
 // ServerConfig holds configuration for an asynq server
 type ServerConfig struct {
 	RedisOpt    asynq.RedisClientOpt
 	Concurrency int
+}
+
+// ResolveConcurrency clamps requested concurrency into [1, MaxConcurrency].
+// Zero / negative → DefaultConcurrency.
+func ResolveConcurrency(requested int) int {
+	if requested <= 0 {
+		requested = DefaultConcurrency
+	}
+	if requested > MaxConcurrency {
+		return MaxConcurrency
+	}
+	return requested
+}
+
+// ConcurrencyFromEnv reads WORKER_ASYNQ_CONCURRENCY (optional). Empty → default.
+func ConcurrencyFromEnv() int {
+	raw := strings.TrimSpace(os.Getenv("WORKER_ASYNQ_CONCURRENCY"))
+	if raw == "" {
+		return DefaultConcurrency
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		logs.WarnCtx(context.Background(), "invalid WORKER_ASYNQ_CONCURRENCY; using default",
+			"value", raw, "default", DefaultConcurrency)
+		return DefaultConcurrency
+	}
+	return ResolveConcurrency(n)
 }
 
 // setupServer creates and starts an asynq server that handles all tasks.
@@ -24,10 +60,8 @@ type ServerConfig struct {
 // Concurrency is the worker pool size - controls how many tasks run concurrently.
 // Returns a cleanup function to shut down the server.
 func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(context.Context), error) {
-	// Server configuration - handles all tasks (ESI and regular)
-	// Concurrency IS the worker pool - controls how many tasks run simultaneously
-	// Use 50-75 workers to balance ESI rate limits and regular task throughput
-	concurrency := min(config.Concurrency, 75)
+	// Concurrency IS the worker pool — hard-capped by MaxConcurrency (#7).
+	concurrency := ResolveConcurrency(config.Concurrency)
 
 	srv := asynq.NewServer(
 		config.RedisOpt,
@@ -54,7 +88,7 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 						waitTime += 1 * time.Second
 
 						// CRITICAL: Add jitter to spread out retries and prevent thundering herd
-						// With 150 concurrent workers and 3 req/s rate limit, many tasks retry simultaneously
+						// Shared Redis ESI limiter + multi-replica workers can pile onto RetryAfter.
 						// Jitter spreads retries over a window to prevent synchronized failures
 						// Use 20% jitter (random 0-20% of wait time) to break synchronization
 						// This ensures tasks don't all retry at exactly the same time
@@ -71,11 +105,8 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 								taskIDHash = taskIDHash*31 + uint64(b)
 							}
 							// Hash payload (use first 100 bytes to avoid excessive computation)
-							payloadLen := len(payloadBytes)
-							if payloadLen > 100 {
-								payloadLen = 100
-							}
-							for i := 0; i < payloadLen; i++ {
+							payloadLen := min(len(payloadBytes), 100)
+							for i := range payloadLen {
 								taskIDHash = taskIDHash*31 + uint64(payloadBytes[i])
 							}
 							jitter := time.Duration(taskIDHash % uint64(jitterWindow))
@@ -109,11 +140,8 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 					for _, b := range taskTypeBytes {
 						taskIDHash = taskIDHash*31 + uint64(b)
 					}
-					payloadLen := len(payloadBytes)
-					if payloadLen > 100 {
-						payloadLen = 100
-					}
-					for i := 0; i < payloadLen; i++ {
+					payloadLen := min(len(payloadBytes), 100)
+					for i := range payloadLen {
 						taskIDHash = taskIDHash*31 + uint64(payloadBytes[i])
 					}
 					jitter := time.Duration(taskIDHash%1000) * time.Millisecond // 0-1s jitter
@@ -131,11 +159,8 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 					for _, b := range taskTypeBytes {
 						taskIDHash = taskIDHash*31 + uint64(b)
 					}
-					payloadLen := len(payloadBytes)
-					if payloadLen > 100 {
-						payloadLen = 100
-					}
-					for i := 0; i < payloadLen; i++ {
+					payloadLen := min(len(payloadBytes), 100)
+					for i := range payloadLen {
 						taskIDHash = taskIDHash*31 + uint64(payloadBytes[i])
 					}
 					jitter := time.Duration(taskIDHash % uint64(jitterWindow))
@@ -238,13 +263,11 @@ func SetupServer(
 	redisOpt asynq.RedisClientOpt,
 	deps WorkerDependencies,
 ) (func(context.Context), error) {
-	// Setup and start asynq server (handles all tasks)
-	// Concurrency of 50-75 balances ESI rate limits and regular task throughput
-	// ESI rate limiting is enforced by Redis, not worker count, so higher concurrency
-	// allows tasks from different rate limit groups to process in parallel
+	// Per-process concurrency: default/cap 50 (#7). Operator YAML field is
+	// services.worker.concurrency (#19); until make swarm-sync, WORKER_ASYNQ_CONCURRENCY is the bridge.
 	serverConfig := ServerConfig{
 		RedisOpt:    redisOpt,
-		Concurrency: 75, // Balanced concurrency for all tasks
+		Concurrency: ConcurrencyFromEnv(),
 	}
 	cleanup, err := setupServer(serverConfig, func(mux *asynq.ServeMux) {
 		SetupHandlers(mux, deps)

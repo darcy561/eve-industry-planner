@@ -71,7 +71,7 @@ func TestFloodLimiter_TokenExhaustion(t *testing.T) {
 	// We'll make requests that succeed to build up token usage
 	// Reduced to avoid blocking
 	t.Log("Starting initial requests to exhaust tokens...")
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		wg.Add(1)
 		go func(reqNum int) {
 			defer wg.Done()
@@ -117,7 +117,7 @@ func TestFloodLimiter_TokenExhaustion(t *testing.T) {
 	rateLimitErrorCount = 0
 	otherErrorCount = 0
 
-	for i := 0; i < numRequests; i++ {
+	for i := range numRequests {
 		wg.Add(1)
 		go func(reqNum int) {
 			defer wg.Done()
@@ -232,10 +232,8 @@ func TestFloodLimiter_ProgressiveExhaustion(t *testing.T) {
 		batchRateLimitErrors := int64(0)
 		batchSuccesses := int64(0)
 
-		for i := 0; i < batchSize; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+		for range batchSize {
+			wg.Go(func() {
 				reqCtx, reqCancel := context.WithTimeout(ctx, 5*time.Second)
 				defer reqCancel()
 				_, _, err := client.Do(reqCtx, "GET", "/test", nil, nil, designation)
@@ -248,7 +246,7 @@ func TestFloodLimiter_ProgressiveExhaustion(t *testing.T) {
 					atomic.AddInt64(&batchSuccesses, 1)
 					atomic.AddInt64(&successes, 1)
 				}
-			}()
+			})
 		}
 
 		wg.Wait()
@@ -287,10 +285,7 @@ func TestFloodLimiter_RecoveryAfterExhaustion(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Increment server-side usage (simulate 2 tokens per request)
 		currentUsed := atomic.AddInt64(&serverTokenUsed, 2)
-		remaining := serverTokenLimit - currentUsed
-		if remaining < 0 {
-			remaining = 0
-		}
+		remaining := max(serverTokenLimit-currentUsed, 0)
 
 		w.Header().Set("X-Ratelimit-Limit", "100/15m")
 		w.Header().Set("X-Ratelimit-Remaining", strconv.FormatInt(remaining, 10))
@@ -334,10 +329,8 @@ func TestFloodLimiter_RecoveryAfterExhaustion(t *testing.T) {
 	var initialRateLimitErrors int64
 	var wg sync.WaitGroup
 
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 10 {
+		wg.Go(func() {
 			reqCtx, reqCancel := context.WithTimeout(ctx, 5*time.Second)
 			defer reqCancel()
 			_, _, err := client.Do(reqCtx, "GET", "/test", nil, nil, designation)
@@ -346,7 +339,7 @@ func TestFloodLimiter_RecoveryAfterExhaustion(t *testing.T) {
 					atomic.AddInt64(&initialRateLimitErrors, 1)
 				}
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -386,10 +379,8 @@ func TestFloodLimiter_RecoveryAfterExhaustion(t *testing.T) {
 	var recoverySuccesses int64
 	var recoveryRateLimitErrors int64
 
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 10 {
+		wg.Go(func() {
 			reqCtx, reqCancel := context.WithTimeout(ctx, 5*time.Second)
 			defer reqCancel()
 			_, _, err := client.Do(reqCtx, "GET", "/test", nil, nil, designation)
@@ -400,7 +391,7 @@ func TestFloodLimiter_RecoveryAfterExhaustion(t *testing.T) {
 			} else {
 				atomic.AddInt64(&recoverySuccesses, 1)
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -422,10 +413,7 @@ func TestFloodLimiter_ConcurrentExhaustion(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Increment server-side usage (simulate 2 tokens per request)
 		currentUsed := atomic.AddInt64(&serverTokenUsed, 2)
-		remaining := serverTokenLimit - currentUsed
-		if remaining < 0 {
-			remaining = 0
-		}
+		remaining := max(serverTokenLimit-currentUsed, 0)
 
 		w.Header().Set("X-Ratelimit-Limit", "20/15m")
 		w.Header().Set("X-Ratelimit-Remaining", strconv.FormatInt(remaining, 10))
@@ -468,7 +456,7 @@ func TestFloodLimiter_ConcurrentExhaustion(t *testing.T) {
 
 	startTime := time.Now()
 
-	for i := 0; i < numRequests; i++ {
+	for i := range numRequests {
 		wg.Add(1)
 		go func(requestNum int) {
 			defer wg.Done()
@@ -572,10 +560,8 @@ func TestFloodLimiter_RetryAfterRecovery(t *testing.T) {
 	var blockedCount int64
 	var wg sync.WaitGroup
 
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 10 {
+		wg.Go(func() {
 			reqCtx, reqCancel := context.WithTimeout(ctx, 5*time.Second)
 			defer reqCancel()
 			_, _, err := client.Do(reqCtx, "GET", "/test", nil, nil, designation)
@@ -585,7 +571,7 @@ func TestFloodLimiter_RetryAfterRecovery(t *testing.T) {
 					atomic.AddInt64(&blockedCount, 1)
 				}
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -609,10 +595,8 @@ func TestFloodLimiter_RetryAfterRecovery(t *testing.T) {
 	var successCount int64
 	blockedCount = 0
 
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 10 {
+		wg.Go(func() {
 			reqCtx, reqCancel := context.WithTimeout(ctx, 5*time.Second)
 			defer reqCancel()
 			_, _, err := client.Do(reqCtx, "GET", "/test", nil, nil, designation)
@@ -624,7 +608,7 @@ func TestFloodLimiter_RetryAfterRecovery(t *testing.T) {
 			} else {
 				atomic.AddInt64(&successCount, 1)
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

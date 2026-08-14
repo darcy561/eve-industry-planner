@@ -78,7 +78,7 @@ type ServerSyncMessage struct {
 	Type       string                 `json:"type"`                 // "sync_started", "sync_complete", "update", "delete"
 	DocumentID string                 `json:"documentid,omitempty"` // Document ID (for update/delete)
 	Collection string                 `json:"collection,omitempty"` // Collection name (for update/delete)
-	Data       map[string]interface{} `json:"data,omitempty"`       // Document data (for update)
+	Data       map[string]any `json:"data,omitempty"`       // Document data (for update)
 }
 
 // FormatSyncStarted formats a sync_started message
@@ -99,7 +99,7 @@ func FormatSyncComplete() ([]byte, error) {
 
 // FormatSyncError formats an error message during sync
 func FormatSyncError(errorMsg string) ([]byte, error) {
-	msg := map[string]interface{}{
+	msg := map[string]any{
 		"type":  "sync_error",
 		"error": errorMsg,
 	}
@@ -108,7 +108,7 @@ func FormatSyncError(errorMsg string) ([]byte, error) {
 
 // SyncDataCollection represents data for a single collection in sync_data message
 type SyncDataCollection struct {
-	Updates map[string]map[string]interface{} `json:"updates,omitempty"` // documentID -> document data
+	Updates map[string]map[string]any `json:"updates,omitempty"` // documentID -> document data
 	Deletes []string                          `json:"deletes,omitempty"` // document IDs to delete
 }
 
@@ -117,14 +117,14 @@ type SyncDataCollection struct {
 type SyncDataMessage struct {
 	Type        string                        `json:"type"`                  // "sync_data"
 	AccountID   string                        `json:"accountID"`             // Account ID
-	User        map[string]interface{}        `json:"user,omitempty"`        // User account document (single document, not a collection)
+	User        map[string]any        `json:"user,omitempty"`        // User account document (single document, not a collection)
 	Collections map[string]SyncDataCollection `json:"collections,omitempty"` // collection -> {updates, deletes}
 }
 
 // FormatSyncData formats a consolidated sync data message
 // This sends all sync data in a single message, split by collection and action type
 // User document is sent separately as it's a single document per account, not a collection
-func FormatSyncData(accountID string, userDoc map[string]interface{}, collections map[string]SyncDataCollection) ([]byte, error) {
+func FormatSyncData(accountID string, userDoc map[string]any, collections map[string]SyncDataCollection) ([]byte, error) {
 	msg := SyncDataMessage{
 		Type:        "sync_data",
 		AccountID:   accountID,

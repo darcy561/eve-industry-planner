@@ -34,7 +34,7 @@ func TestStripPassiveViewerOnHolderGrant_removesPromotedSession(t *testing.T) {
 		t.Fatalf("AddViewer holder-as-viewer: %v", err)
 	}
 
-	k := viewerPresenceKey(testAccountID, testCollection, testDocID)
+	k := ViewerPresenceKey(testAccountID, testCollection, testDocID)
 	raw, err := rdb.ZCard(ctx, k).Result()
 	if err != nil || raw != 2 {
 		t.Fatalf("zcard before = %d, want 2", raw)

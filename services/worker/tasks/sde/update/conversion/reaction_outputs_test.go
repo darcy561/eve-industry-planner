@@ -10,15 +10,15 @@ func TestReactionBlueprintMatching_mergesFormulaOntoProduct(t *testing.T) {
 	const productType = `{"_key":30306,"groupID":429,"marketGroupID":2404,"name":{"en":"Methanofullerene"},"published":true,"volume":0.01}`
 	const formulaType = `{"_key":46157,"groupID":1889,"name":{"en":"Methanofullerene Reaction Formula"},"published":true,"volume":0.01}`
 
-	var bpRow map[string]interface{}
+	var bpRow map[string]any
 	if err := json.Unmarshal([]byte(formulaRow), &bpRow); err != nil {
 		t.Fatal(err)
 	}
-	blueprints := map[string]interface{}{"46157": bpRow}
+	blueprints := map[string]any{"46157": bpRow}
 
-	types := map[string]interface{}{}
+	types := map[string]any{}
 	for _, raw := range []string{productType, formulaType} {
-		var row map[string]interface{}
+		var row map[string]any
 		if err := json.Unmarshal([]byte(raw), &row); err != nil {
 			t.Fatal(err)
 		}

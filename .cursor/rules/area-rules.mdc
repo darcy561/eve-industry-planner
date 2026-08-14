@@ -1,0 +1,33 @@
+---
+description: Before plan/work — read nearest area documentation + technical rules and acknowledge
+alwaysApply: true
+---
+
+# Area rules (read before work)
+
+Lasting project rules live only under `technical-documentation/**` as `documentation-rules.md` and `technical-rules.md`. This file does **not** restate them.
+
+## Before planning or any implementation
+
+1. Resolve the **working area** from the task (paths you will touch, or the docs folder in scope).
+2. **Read** the nearest `documentation-rules.md` and `technical-rules.md` for that area (see resolution below). Use the Read tool — do not skim from memory.
+3. In your **first reply** for the task (or before the plan), state briefly that you have read those files and will follow them. Name the paths.
+4. Only then plan or edit. If the area shifts mid-task, re-resolve and re-ack for the new pair.
+
+## Resolve which files
+
+**Precedence:** nearest section file **supersedes** parents on overlap; root masters apply where the section is silent. Nested sections win the same way.
+
+| If work is under… | Start from |
+|-------------------|------------|
+| `technical-documentation/<section>/…` | That section’s pair; walk **up** toward `technical-documentation/` until each of the two files exists |
+| `frontend/` | `technical-documentation/frontend/` |
+| `services/` | `technical-documentation/backend/` |
+| `deployment-tool/`, `scripts/deployment-tool/` | `technical-documentation/deployment/deployment-tool/` |
+| `.github/` | `technical-documentation/deployment/github-actions/` |
+| `docker-stack*.yml`, `docker-bake.hcl`, compose at repo root | `technical-documentation/stack/` |
+| Unclear / cross-cutting | Root `technical-documentation/documentation-rules.md` + `technical-documentation/technical-rules.md`; add every area pair you will actually edit |
+
+Always open both files for the resolved area (docs discipline + engineering). If only one exists at a level, use that level’s file and keep walking up for the missing one.
+
+Cross-area tasks: read **each** relevant nearest pair (still ack once, listing all paths).

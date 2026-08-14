@@ -8,11 +8,9 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
-	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/logs"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 const (
@@ -28,18 +26,18 @@ const (
 //	503 — Mongo client unavailable
 //	500 — Mongo query or encode failure
 //	200 — JSON success
-func BlueprintsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) BlueprintsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		BlueprintGetHandler(w, r, clients)
+		h.BlueprintGetHandler(w, r)
 	case http.MethodPost:
-		BlueprintsPostHandler(w, r, clients)
+		h.BlueprintsPostHandler(w, r)
 	default:
-		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for blueprints endpoint", "method_not_allowed", "blueprints", nil, map[string]interface{}{"method": r.Method})
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for blueprints endpoint", "method_not_allowed", "blueprints", nil, map[string]any{"method": r.Method})
 	}
 }
 
-func BlueprintGetHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) BlueprintGetHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 
@@ -53,33 +51,32 @@ func BlueprintGetHandler(w http.ResponseWriter, r *http.Request, clients *shared
 		return
 	}
 
-	if clients == nil || clients.Mongo == nil {
+	if h.Mongo == nil {
 		helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Service unavailable", "blueprints mongo client unavailable", "blueprints_mongo_unavailable", "blueprints", errors.New("mongo client unavailable"), nil)
 		return
 	}
 
-	collection := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionBlueprints)
-	data, found, err := mongocore.GetPublicDocumentByID(ctx, collection, blueprintID)
+	data, found, err := h.Mongo.Blueprints.GetPublicByID(ctx, blueprintID)
 	if err != nil {
-		helper.RespondEndpointServerError(w, r, "An error occurred while retrieving blueprint data. Please try again later.", "blueprints get: mongo error", "blueprints_get_mongo_failed", "blueprints", err, map[string]interface{}{"blueprint_id": blueprintID})
+		helper.RespondEndpointServerError(w, r, "An error occurred while retrieving blueprint data. Please try again later.", "blueprints get: mongo error", "blueprints_get_mongo_failed", "blueprints", err, map[string]any{"blueprint_id": blueprintID})
 		return
 	}
 	if !found {
-		helper.RespondEndpointError(w, r, http.StatusNotFound, "Blueprint not found", "blueprints get: blueprint not found", "blueprints_not_found", "blueprints", nil, map[string]interface{}{"blueprint_id": blueprintID})
+		helper.RespondEndpointError(w, r, http.StatusNotFound, "Blueprint not found", "blueprints get: blueprint not found", "blueprints_not_found", "blueprints", nil, map[string]any{"blueprint_id": blueprintID})
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 		"blueprint_id": blueprintID,
 	})
 
 	w.Header().Set("Cache-Control", blueprintsCacheControl)
 	if err := helper.EncodeJSON(w, data); err != nil {
-		helper.RespondEndpointServerError(w, r, "Internal server error", "blueprints get: encode error", "blueprints_get_encode_failed", "blueprints", err, map[string]interface{}{"blueprint_id": blueprintID})
+		helper.RespondEndpointServerError(w, r, "Internal server error", "blueprints get: encode error", "blueprints_get_encode_failed", "blueprints", err, map[string]any{"blueprint_id": blueprintID})
 		return
 	}
 
-	logs.AttachHandlerSuccessDetail(r, "blueprint retrieved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "blueprint retrieved", map[string]any{
 		"blueprint_id": blueprintID,
 		"duration_ms":  time.Since(start).Milliseconds(),
 	})
@@ -91,7 +88,7 @@ type BlueprintsPostBody struct {
 
 // BlueprintsPostHandler accepts any non-empty idArray; there is no per-request ID count cap beyond
 // helper.DefaultMaxBodySize (1MB JSON) and Mongo query timeout.
-func BlueprintsPostHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) BlueprintsPostHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 
@@ -110,20 +107,19 @@ func BlueprintsPostHandler(w http.ResponseWriter, r *http.Request, clients *shar
 		typeIDs = append(typeIDs, strconv.Itoa(n))
 	}
 
-	if clients == nil || clients.Mongo == nil {
+	if h.Mongo == nil {
 		helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Service unavailable", "blueprints mongo client unavailable", "blueprints_mongo_unavailable", "blueprints", errors.New("mongo client unavailable"), nil)
 		return
 	}
 
-	collection := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionBlueprints)
-	docs, err := mongocore.GetPublicDocumentsByIDs(ctx, collection, typeIDs)
+	docs, err := h.Mongo.Blueprints.GetPublicByIDs(ctx, typeIDs)
 	if err != nil {
 		helper.RespondEndpointServerError(w, r, "An error occurred while retrieving blueprint data. Please try again.", "blueprints post: mongo error", "blueprints_post_mongo_failed", "blueprints", err, nil)
 		return
 	}
 	results := bsonDocsToMaps(docs)
 
-	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 		"requested": len(typeIDs),
 		"returned":  len(results),
 	})
@@ -134,7 +130,7 @@ func BlueprintsPostHandler(w http.ResponseWriter, r *http.Request, clients *shar
 		return
 	}
 
-	logs.AttachHandlerSuccessDetail(r, "blueprints retrieved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "blueprints retrieved", map[string]any{
 		"requested":   len(typeIDs),
 		"returned":    len(results),
 		"duration_ms": time.Since(start).Milliseconds(),

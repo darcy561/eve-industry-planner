@@ -13,7 +13,6 @@ import (
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 )
 
 const (
@@ -73,7 +72,7 @@ type DiscordWebhookPayload struct {
 //	400 — invalid JSON, missing/empty response, length limits, invalid metadata
 //	500 — JSON marshal or Discord webhook failure
 //	200 — success (including when webhook URL is unset)
-func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (a *Handlers) FeedbackHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 
@@ -102,19 +101,19 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 
 	contactName := strings.TrimSpace(reqBody.ContactName)
 	if len(contactName) > MaxFeedbackContactField {
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("contact_name exceeds maximum length of %d", MaxFeedbackContactField), "feedback contact_name too long", "feedback_contact_name_too_long", "feedback", nil, map[string]interface{}{"length": len(contactName)})
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("contact_name exceeds maximum length of %d", MaxFeedbackContactField), "feedback contact_name too long", "feedback_contact_name_too_long", "feedback", nil, map[string]any{"length": len(contactName)})
 		return
 	}
 
 	contactDetails := strings.TrimSpace(reqBody.ContactInfo)
 	if len(contactDetails) > MaxFeedbackContactField {
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("contact_info exceeds maximum length of %d", MaxFeedbackContactField), "feedback contact_info too long", "feedback_contact_info_too_long", "feedback", nil, map[string]interface{}{"length": len(contactDetails)})
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("contact_info exceeds maximum length of %d", MaxFeedbackContactField), "feedback contact_info too long", "feedback_contact_info_too_long", "feedback", nil, map[string]any{"length": len(contactDetails)})
 		return
 	}
 
 	sentryEventID := strings.TrimSpace(reqBody.SentryEventID)
 	if len(sentryEventID) > MaxSentryEventIDLength {
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("sentry_event_id exceeds maximum length of %d", MaxSentryEventIDLength), "feedback sentry_event_id too long", "feedback_sentry_event_id_too_long", "feedback", nil, map[string]interface{}{"length": len(sentryEventID)})
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("sentry_event_id exceeds maximum length of %d", MaxSentryEventIDLength), "feedback sentry_event_id too long", "feedback_sentry_event_id_too_long", "feedback", nil, map[string]any{"length": len(sentryEventID)})
 		return
 	}
 
@@ -126,7 +125,7 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 			return
 		}
 		if len(metaJSON) > MaxFeedbackMetadataJSON {
-			helper.RespondEndpointError(w, r, http.StatusBadRequest, "metadata too large", "feedback metadata too large", "feedback_metadata_too_large", "feedback", nil, map[string]interface{}{"bytes": len(metaJSON)})
+			helper.RespondEndpointError(w, r, http.StatusBadRequest, "metadata too large", "feedback metadata too large", "feedback_metadata_too_large", "feedback", nil, map[string]any{"bytes": len(metaJSON)})
 			return
 		}
 		metadataNorm, err = normalizeFeedbackMetadata(reqBody.Metadata)
@@ -138,12 +137,12 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 
 	// Validate feedback content length
 	if len(feedbackContent) < MinFeedbackLength {
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Feedback content is required", "feedback content too short", "feedback_content_too_short", "feedback", nil, map[string]interface{}{"length": len(feedbackContent)})
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Feedback content is required", "feedback content too short", "feedback_content_too_short", "feedback", nil, map[string]any{"length": len(feedbackContent)})
 		return
 	}
 
 	if len(feedbackContent) > MaxFeedbackLength {
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Feedback content exceeds maximum length of %d characters", MaxFeedbackLength), "feedback content too long", "feedback_content_too_long", "feedback", nil, map[string]interface{}{"length": len(feedbackContent), "max": MaxFeedbackLength})
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Feedback content exceeds maximum length of %d characters", MaxFeedbackLength), "feedback content too long", "feedback_content_too_long", "feedback", nil, map[string]any{"length": len(feedbackContent), "max": MaxFeedbackLength})
 		return
 	}
 
@@ -162,18 +161,13 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 	// Sanitize content for Discord (remove control characters)
 	sanitizedContent := sanitizeForDiscord(feedbackContent)
 
-	logs.AttachDebugStep(r, "feedback_validated", map[string]interface{}{
+	logs.AttachDebugStep(r, "feedback_validated", map[string]any{
 		"content_len": len(sanitizedContent),
 	})
 
 	// Only send Discord message if feedback content is not blank
 	if sanitizedContent != "" {
-		// Get Discord webhook URL from config
-		cfg, err := config.LoadConfig()
-		if err != nil {
-			// Log error but continue without Discord webhook
-			logs.ErrorCtx(ctx, "failed to load config for feedback", "error", err, "account_id", accountID)
-		} else if cfg.FeedbackDiscordWebhookURL != "" {
+		if webhookURL := config.FeedbackDiscordWebhookURL(); webhookURL != "" {
 			// Split content into multiple embeds if needed (Discord field max is 1024 chars)
 			contentParts := splitContentForDiscord(sanitizedContent, 1024)
 
@@ -251,7 +245,7 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 				return
 			}
 
-			webhookReq, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.FeedbackDiscordWebhookURL, bytes.NewReader(payloadJSON))
+			webhookReq, err := http.NewRequestWithContext(ctx, http.MethodPost, webhookURL, bytes.NewReader(payloadJSON))
 			if err != nil {
 				helper.RespondEndpointServerError(w, r, "Failed to submit feedback", "failed to build Discord webhook request", "feedback_webhook_request_failed", "feedback", err, nil)
 				return
@@ -267,10 +261,10 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 
 			// Check Discord webhook response
 			if webhookResp.StatusCode < 200 || webhookResp.StatusCode >= 300 {
-				helper.RespondEndpointServerError(w, r, "Failed to submit feedback", "Discord webhook returned error status", "feedback_webhook_status_error", "feedback", fmt.Errorf("discord webhook status %d", webhookResp.StatusCode), map[string]interface{}{"status_code": webhookResp.StatusCode})
+				helper.RespondEndpointServerError(w, r, "Failed to submit feedback", "Discord webhook returned error status", "feedback_webhook_status_error", "feedback", fmt.Errorf("discord webhook status %d", webhookResp.StatusCode), map[string]any{"status_code": webhookResp.StatusCode})
 				return
 			}
-			logs.AttachDebugStep(r, "discord_webhook_sent", map[string]interface{}{
+			logs.AttachDebugStep(r, "discord_webhook_sent", map[string]any{
 				"status_code": webhookResp.StatusCode,
 			})
 		} else {
@@ -280,7 +274,7 @@ func FeedbackHandler(w http.ResponseWriter, r *http.Request, clients *shared.Ser
 		logs.AttachHandlerCaveat(r, "discord_skipped_blank_content", "feedback content is blank, skipping Discord notification", nil)
 	}
 
-	logs.AttachHandlerSuccessDetail(r, "feedback submitted", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "feedback submitted", map[string]any{
 		"duration_ms": time.Since(start).Milliseconds(),
 	})
 

@@ -8,20 +8,19 @@ import (
 	"strconv"
 
 	"eve-industry-planner/api/helper"
-	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // GetBuildStatsHandler serves GET /api/v1/statistics/build-stats?typeID=<int>.
 // Returns one Mongo build_stats row for the JWT account and item type (same aggregate shape as legacy
 // Firestore BuildStats documents). When no row exists, returns 200 with a zeroed aggregate for that typeID.
-func GetBuildStatsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) GetBuildStatsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	m := apimetrics.GetAPIStatistics()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
@@ -38,7 +37,7 @@ func GetBuildStatsHandler(w http.ResponseWriter, r *http.Request, clients *share
 	}
 	accountID := helper.AuthenticatedAccountID(r)
 
-	if clients == nil || clients.Mongo == nil {
+	if h.Mongo == nil {
 		metrics.Error("mongo_client_missing")
 		helper.RespondEndpointError(w, r, http.StatusServiceUnavailable, "Service unavailable", "build stats get: mongo client missing", "build_stats_mongo_unavailable", "build_stats", errors.New("mongo client missing"), nil)
 		return
@@ -53,30 +52,27 @@ func GetBuildStatsHandler(w http.ResponseWriter, r *http.Request, clients *share
 	typeID64, err := strconv.ParseInt(typeIDStr, 10, 32)
 	if err != nil || typeID64 < 0 {
 		metrics.Error("invalid_type_id")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, "invalid typeID", "build stats get: invalid typeID", "build_stats_invalid_type_id", "build_stats", err, map[string]interface{}{"type_id": typeIDStr})
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "invalid typeID", "build stats get: invalid typeID", "build_stats_invalid_type_id", "build_stats", err, map[string]any{"type_id": typeIDStr})
 		return
 	}
 	typeID := int(typeID64)
 
-	logs.AttachDebugStep(r, "type_id_resolved", map[string]interface{}{
+	logs.AttachDebugStep(r, "type_id_resolved", map[string]any{
 		"type_id": typeID,
 	})
 
-	statsID := mongocore.BuildStatsDocumentID(accountID, typeID)
-	coll := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionBuildStats)
-
-	retryCfg := mongocore.DefaultRetryConfig()
-	retryCfg.OperationName = fmt.Sprintf("get build_stats %s", statsID)
+	statsID := eipmongo.BuildStatsDocumentID(accountID, typeID)
+	coll := h.Mongo.BuildStats.Collection()
 
 	var row models.BuildStatsRow
 	foundInDB := true
-	err = mongocore.RetryMongoOperation(ctx, retryCfg, func() error {
+	err = eipmongo.Retry(ctx, fmt.Sprintf("get build_stats %s", statsID), func() error {
 		return coll.FindOne(ctx, bson.M{"_id": statsID}).Decode(&row)
 	})
 	if err != nil {
-		if err != mongo.ErrNoDocuments {
+		if !errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("database_error")
-			helper.RespondEndpointServerError(w, r, "Failed to retrieve build statistics", "build stats get: query failed", "build_stats_query_failed", "build_stats", err, map[string]interface{}{"type_id": typeID})
+			helper.RespondEndpointServerError(w, r, "Failed to retrieve build statistics", "build stats get: query failed", "build_stats_query_failed", "build_stats", err, map[string]any{"type_id": typeID})
 			return
 		}
 		foundInDB = false
@@ -92,7 +88,7 @@ func GetBuildStatsHandler(w http.ResponseWriter, r *http.Request, clients *share
 		return
 	}
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "build stats retrieved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "build stats retrieved", map[string]any{
 		"type_id": typeID,
 		"found":   foundInDB,
 	})

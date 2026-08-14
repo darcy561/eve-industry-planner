@@ -1,0 +1,63 @@
+# Delete accumulated GHCR prerelease image versions for app services.
+# Never touches Public live tags (:latest / X.Y.Z / X.Y / X).
+#
+# Prerelease tags (from publish-prerelease.yml):
+#   - immutable: 0.0.0-prerelease.<slug>.<sha7>
+#   - branch float: prerelease-<slug>
+#   - generic float: prerelease (Development only)
+name: Prune prerelease images
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run — list candidates only (no deletes)"
+        required: true
+        type: boolean
+        default: true
+      keep_floating:
+        description: "Keep floating :prerelease / :prerelease-* tips (delete immutable 0.0.0-prerelease.* pins only)"
+        required: true
+        type: boolean
+        default: true
+      services:
+        description: "Services to prune (space-separated; empty = all prerelease services)"
+        required: false
+        type: string
+        default: ""
+
+concurrency:
+  group: prune-prerelease-images
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Prune prerelease package versions
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+          KEEP_FLOATING: ${{ github.event.inputs.keep_floating }}
+          SERVICES_INPUT: ${{ github.event.inputs.services }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GHCR_TOKEN}" ]; then
+            echo "::error::GHCR_TOKEN secret is required (needs read:packages + delete:packages on package-owning account)."
+            exit 1
+          fi
+          REPO_NAME="$(echo "${{ github.repository }}" | cut -d'/' -f2 | tr '[:upper:]' '[:lower:]')"
+          export OWNER REPO_NAME GHCR_TOKEN DRY_RUN KEEP_FLOATING
+          if [ -n "${SERVICES_INPUT}" ]; then
+            export SERVICES="${SERVICES_INPUT}"
+          fi
+          bash .github/scripts/ghcr-prune-prerelease.sh

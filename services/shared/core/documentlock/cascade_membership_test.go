@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 )
 
 func TestReleaseStaleDependentJobLocksOnGroupMembershipAdded_evictsNonHolder(t *testing.T) {
@@ -13,7 +13,7 @@ func TestReleaseStaleDependentJobLocksOnGroupMembershipAdded_evictsNonHolder(t *
 	rdb, _ := newTestRedis(t)
 	ctx := context.Background()
 	jobID := "job-new-member"
-	seedLock(t, rdb, testAccountID, mongocore.CollectionUserJobDocuments, jobID, LockRecord{
+	seedLock(t, rdb, testAccountID, eipmongo.CollectionUserJobDocuments, jobID, LockRecord{
 		HolderSessionID: "sess-other",
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
@@ -23,7 +23,7 @@ func TestReleaseStaleDependentJobLocksOnGroupMembershipAdded_evictsNonHolder(t *
 		Redis: rdb,
 	}, testAccountID, "group-x", []string{jobID}, "sess-group-holder")
 
-	rec, err := GetLock(ctx, rdb, testAccountID, mongocore.CollectionUserJobDocuments, jobID)
+	rec, err := GetLock(ctx, rdb, testAccountID, eipmongo.CollectionUserJobDocuments, jobID)
 	if err != nil {
 		t.Fatalf("GetLock: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestReleaseStaleDependentJobLocksOnGroupMembershipAdded_keepsAlignedHolder(
 	rdb, _ := newTestRedis(t)
 	ctx := context.Background()
 	jobID := "job-aligned"
-	seedLock(t, rdb, testAccountID, mongocore.CollectionUserJobDocuments, jobID, LockRecord{
+	seedLock(t, rdb, testAccountID, eipmongo.CollectionUserJobDocuments, jobID, LockRecord{
 		HolderSessionID: "sess-group-holder",
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
@@ -47,7 +47,7 @@ func TestReleaseStaleDependentJobLocksOnGroupMembershipAdded_keepsAlignedHolder(
 		Redis: rdb,
 	}, testAccountID, "group-x", []string{jobID}, "sess-group-holder")
 
-	rec, err := GetLock(ctx, rdb, testAccountID, mongocore.CollectionUserJobDocuments, jobID)
+	rec, err := GetLock(ctx, rdb, testAccountID, eipmongo.CollectionUserJobDocuments, jobID)
 	if err != nil {
 		t.Fatalf("GetLock: %v", err)
 	}

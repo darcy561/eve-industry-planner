@@ -6,15 +6,13 @@ import (
 	"time"
 
 	"eve-industry-planner/core/scheduler/contract"
-	mongocore "eve-industry-planner/shared/core/mongo"
-	"eve-industry-planner/shared/core/mongo/indexing"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	taskscore "eve-industry-planner/shared/tasks"
 
 	redislib "github.com/redis/go-redis/v9"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 const (
@@ -22,7 +20,7 @@ const (
 	cronInactiveAccountPlannerCleanupSchedule = "0 8 * * 1" // Mondays 08:00 (typically UTC in containers)
 	inactiveAccountCleanupBookmarkKey         = "scheduler:maintenance:inactive_account_cleanup_user_bookmark"
 	defaultInactiveLoginStaleYears            = 2
-	maxAccountsPublishedPerCron               = 40
+	maxAccountsPublishedPerCron = 40
 )
 
 // ScheduleInactiveAccountPlannerCleanup runs weekly: walks users whose last login is older than
@@ -48,9 +46,10 @@ func ScheduleInactiveAccountPlannerCleanup(deps contract.Dependencies, sched con
 			SetProjection(bson.M{"_id": 1}).
 			SetSort(bson.D{{Key: "_id", Value: 1}}).
 			SetLimit(int64(maxAccountsPublishedPerCron)).
-			SetHint(indexing.UsersMetaLastLoginAtIndexName)
+			SetHint(usersMetaLastLoginAtIndexName)
 
-		col := deps.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUsers)
+		mongo := deps.Mongo
+		col := mongo.Users.Collection()
 		cur, err := col.Find(ctx, filter, opts)
 		if err != nil {
 			logs.ErrorCtx(ctx, "inactive account planner cleanup: user query failed", "component", schedulerLogComponent, "error", err)

@@ -1,0 +1,98 @@
+package stack
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"testing"
+)
+
+// repoRoot is the Eve-Industry-Planner-React checkout (deployment-tool/../).
+func repoRoot(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller")
+	}
+	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", ".."))
+	if _, err := os.Stat(filepath.Join(root, "docker-stack.yml")); err != nil {
+		t.Skipf("repo docker-stack.yml not found under %s: %v", root, err)
+	}
+	return root
+}
+
+func TestExpandRepoStacksNoBareDollarCORS(t *testing.T) {
+	root := repoRoot(t)
+	ctx := context.Background()
+	devTags := map[string]string{
+		"TAG_api": "t", "TAG_core": "t", "TAG_frontend": "t",
+		"TAG_websocket": "t", "TAG_worker": "t", "TAG_ws_router": "t",
+	}
+	cases := []struct {
+		name  string
+		src   string
+		files []string
+		env   map[string]string
+	}{
+		{"data live", "live", []string{"docker-stack.data.yml"}, nil},
+		{"app live", "live", []string{"docker-stack.yml"}, nil},
+		{"app+dev", "dev", []string{"docker-stack.yml", "docker-stack.dev.yml"}, devTags},
+		{"obs live", "live", []string{"docker-stack.obs.yml"}, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, f := range tc.files {
+				if _, err := os.Stat(filepath.Join(root, f)); err != nil {
+					t.Skipf("missing %s", f)
+				}
+			}
+			path, err := Expand(ctx, Opts{
+				Home:       root,
+				StackFiles: tc.files,
+				Source:     tc.src,
+				Env:        tc.env,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(path)
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			text := string(raw)
+			assertStackDeploySafeDollars(t, text)
+		})
+	}
+}
+
+func assertStackDeploySafeDollars(t *testing.T, text string) {
+	t.Helper()
+	// CORS regex anchors must be $$ for docker stack deploy's second interpolate.
+	for line := range strings.SplitSeq(text, "\n") {
+		if !strings.Contains(line, "accessControlAllowOriginListRegex") {
+			continue
+		}
+		if strings.Contains(line, "$$") {
+			continue
+		}
+		if strings.Contains(line, "$") {
+			t.Fatalf("unescaped $ in CORS label (would fail stack deploy):\n%s", line)
+		}
+	}
+	// Healthcheck shell vars must stay $$VAR after our re-escape.
+	for _, needle := range []string{"REDIS_PASSWORD", "MONGO_ROOT_USERNAME", "MONGO_ROOT_PASSWORD"} {
+		if !strings.Contains(text, needle) {
+			continue
+		}
+		if strings.Contains(text, "$$"+needle) {
+			continue
+		}
+		// Single $VAR would be wrong for stack deploy → container shell.
+		if strings.Contains(text, "$"+needle) {
+			t.Fatalf("healthcheck %s not $$ escaped for stack deploy", needle)
+		}
+	}
+}

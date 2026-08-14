@@ -3,6 +3,7 @@ package logs
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/http"
 	"strings"
 )
@@ -22,10 +23,10 @@ type handlerFailureDetailKey struct{}
 type handlerFailureDetailStoreKey struct{}
 
 type handlerFailureDetailStore struct {
-	detail        map[string]interface{}
+	detail        map[string]any
 	err           error
 	successMsg    string
-	successDetail map[string]interface{}
+	successDetail map[string]any
 	caveats       []HandlerCaveat
 	debugSteps    []DebugStep
 }
@@ -42,7 +43,7 @@ func WithHandlerFailureDetailStore(ctx context.Context) context.Context {
 // WithFreshHandlerFailureDetailStore installs a new log store even when ctx already has one.
 // Use for nested operations (e.g. each WebSocket message) that need their own debug_steps.
 func WithFreshHandlerFailureDetailStore(ctx context.Context) context.Context {
-	store := &handlerFailureDetailStore{detail: make(map[string]interface{})}
+	store := &handlerFailureDetailStore{detail: make(map[string]any)}
 	return context.WithValue(ctx, handlerFailureDetailStoreKey{}, store)
 }
 
@@ -56,25 +57,23 @@ func failureDetailStoreFromContext(ctx context.Context) *handlerFailureDetailSto
 
 // AttachClientFailureDetail records a 4xx failure for consolidated request logging.
 // Handlers should prefer this over a separate WarnCtx when returning 4xx.
-func AttachClientFailureDetail(r *http.Request, msg string, detail map[string]interface{}) {
+func AttachClientFailureDetail(r *http.Request, msg string, detail map[string]any) {
 	attachFailureDetailWithMsg(r, ClientFailureMsgKey, msg, detail)
 }
 
 // AttachServerFailureDetail records a 5xx failure for consolidated request logging.
 // Handlers should prefer this over a separate ErrorCtx when returning 5xx.
-func AttachServerFailureDetail(r *http.Request, msg string, err error, detail map[string]interface{}) {
+func AttachServerFailureDetail(r *http.Request, msg string, err error, detail map[string]any) {
 	attachFailureDetailWithMsg(r, ServerFailureMsgKey, msg, detail)
 	AttachHandlerError(r, err)
 }
 
-func attachFailureDetailWithMsg(r *http.Request, msgKey, msg string, detail map[string]interface{}) {
+func attachFailureDetailWithMsg(r *http.Request, msgKey, msg string, detail map[string]any) {
 	if r == nil {
 		return
 	}
-	merged := make(map[string]interface{}, len(detail)+1)
-	for k, v := range detail {
-		merged[k] = v
-	}
+	merged := make(map[string]any, len(detail)+1)
+	maps.Copy(merged, detail)
 	if strings.TrimSpace(msg) != "" {
 		merged[msgKey] = msg
 	}
@@ -82,7 +81,7 @@ func attachFailureDetailWithMsg(r *http.Request, msgKey, msg string, detail map[
 }
 
 // AccessLogMessage returns the access-log message for a completed request.
-func AccessLogMessage(statusCode int, detail map[string]interface{}) string {
+func AccessLogMessage(statusCode int, detail map[string]any) string {
 	if msg := failureDetailMessage(detail); msg != "" {
 		return msg
 	}
@@ -103,7 +102,7 @@ func AccessLogMessage(statusCode int, detail map[string]interface{}) string {
 	return "request completed"
 }
 
-func failureDetailMessage(detail map[string]interface{}) string {
+func failureDetailMessage(detail map[string]any) string {
 	if detail == nil {
 		return ""
 	}
@@ -116,13 +115,13 @@ func failureDetailMessage(detail map[string]interface{}) string {
 }
 
 // ClientAccessLogMessage is an alias for [AccessLogMessage] (4xx/5xx).
-func ClientAccessLogMessage(statusCode int, detail map[string]interface{}) string {
+func ClientAccessLogMessage(statusCode int, detail map[string]any) string {
 	return AccessLogMessage(statusCode, detail)
 }
 
 // AttachHandlerFailureDetail merges detail into request context (last key wins on collision).
 // Safe for nil r or empty detail.
-func AttachHandlerFailureDetail(r *http.Request, detail map[string]interface{}) {
+func AttachHandlerFailureDetail(r *http.Request, detail map[string]any) {
 	if r == nil || len(detail) == 0 {
 		return
 	}
@@ -131,43 +130,37 @@ func AttachHandlerFailureDetail(r *http.Request, detail map[string]interface{}) 
 		mergeHandlerFailureDetailMap(store, detail)
 		return
 	}
-	existing, _ := r.Context().Value(handlerFailureDetailKey{}).(map[string]interface{})
+	existing, _ := r.Context().Value(handlerFailureDetailKey{}).(map[string]any)
 	merged := mergeHandlerFailureDetailMaps(existing, detail)
 	*r = *r.WithContext(context.WithValue(r.Context(), handlerFailureDetailKey{}, merged))
 }
 
-func mergeHandlerFailureDetailMap(store *handlerFailureDetailStore, detail map[string]interface{}) {
+func mergeHandlerFailureDetailMap(store *handlerFailureDetailStore, detail map[string]any) {
 	if store == nil || len(detail) == 0 {
 		return
 	}
 	if store.detail == nil {
-		store.detail = make(map[string]interface{}, len(detail))
+		store.detail = make(map[string]any, len(detail))
 	}
-	for k, v := range detail {
-		store.detail[k] = v
-	}
+	maps.Copy(store.detail, detail)
 }
 
-func mergeHandlerFailureDetailMaps(existing, detail map[string]interface{}) map[string]interface{} {
-	merged := make(map[string]interface{}, len(existing)+len(detail))
-	for k, v := range existing {
-		merged[k] = v
-	}
-	for k, v := range detail {
-		merged[k] = v
-	}
+func mergeHandlerFailureDetailMaps(existing, detail map[string]any) map[string]any {
+	merged := make(map[string]any, len(existing)+len(detail))
+	maps.Copy(merged, existing)
+	maps.Copy(merged, detail)
 	return merged
 }
 
 // HandlerFailureDetailFromRequest returns detail attached with [AttachHandlerFailureDetail], if any.
-func HandlerFailureDetailFromRequest(r *http.Request) map[string]interface{} {
+func HandlerFailureDetailFromRequest(r *http.Request) map[string]any {
 	if r == nil {
 		return nil
 	}
 	if store := failureDetailStoreFromContext(r.Context()); store != nil && len(store.detail) > 0 {
 		return store.detail
 	}
-	d, _ := r.Context().Value(handlerFailureDetailKey{}).(map[string]interface{})
+	d, _ := r.Context().Value(handlerFailureDetailKey{}).(map[string]any)
 	return d
 }
 
@@ -213,7 +206,7 @@ func RespondHTTPError(w http.ResponseWriter, r *http.Request, statusCode int, ms
 }
 
 // RespondHTTPServerError writes a 500, attaches logMsg + detail for middleware, and records err for Sentry.
-func RespondHTTPServerError(w http.ResponseWriter, r *http.Request, publicMsg, logMsg string, err error, detail map[string]interface{}) {
+func RespondHTTPServerError(w http.ResponseWriter, r *http.Request, publicMsg, logMsg string, err error, detail map[string]any) {
 	AttachServerFailureDetail(r, logMsg, err, detail)
 	http.Error(w, publicMsg, http.StatusInternalServerError)
 }

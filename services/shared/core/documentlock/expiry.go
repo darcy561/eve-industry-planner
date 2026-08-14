@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 )
 
@@ -114,7 +114,7 @@ func handleExpiryMessage(ctx context.Context, d Deps, rawKey string) {
 
 	if promoted {
 		StripPassiveViewerOnHolderGrant(ctx, d, accountID, collection, docID, newHolder, true)
-		if collection == mongocore.CollectionUserJobGroups {
+		if collection == eipmongo.CollectionUserJobGroups {
 			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, d, accountID, docID, newHolder)
 		}
 	}

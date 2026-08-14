@@ -116,7 +116,7 @@ func RequestIdentityFromRequest(r *http.Request) (accountID, sessionID string) {
 	if accountID != "" && sessionID != "" {
 		return accountID, sessionID
 	}
-	identityFromDetail := func(detail map[string]interface{}) {
+	identityFromDetail := func(detail map[string]any) {
 		if detail == nil {
 			return
 		}
@@ -141,7 +141,7 @@ func RequestIdentityFromRequest(r *http.Request) (accountID, sessionID string) {
 	return accountID, sessionID
 }
 
-func enrichFailureDetailRequestIdentity(ctx context.Context, detail map[string]interface{}) {
+func enrichFailureDetailRequestIdentity(ctx context.Context, detail map[string]any) {
 	if detail == nil {
 		return
 	}

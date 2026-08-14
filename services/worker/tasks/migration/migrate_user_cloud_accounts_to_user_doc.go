@@ -2,17 +2,18 @@ package migration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
+	eipmongo "eve-industry-planner/shared/mongo"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // MigrateUserCloudAccountsToUserDoc copies userCloudAccounts from application_settings
@@ -38,9 +39,8 @@ func MigrateUserCloudAccountsToUserDoc(ctx context.Context, task *asynq.Task, de
 		return fmt.Errorf("account_id is required")
 	}
 
-	db := deps.Mongo.Database(mongocore.DatabaseName)
-	usersCol := db.Collection(mongocore.CollectionUsers)
-	settingsCol := db.Collection(mongocore.CollectionApplicationSettings)
+	mongo := deps.Mongo
+	settingsCol := mongo.ApplicationSettings.Collection()
 
 	var settings struct {
 		UseCloudAccounts bool `bson:"userCloudAccounts"`
@@ -49,7 +49,7 @@ func MigrateUserCloudAccountsToUserDoc(ctx context.Context, task *asynq.Task, de
 		ctx,
 		bson.M{"_id": p.AccountID, "_meta.accountID": p.AccountID},
 	).Decode(&settings); err != nil {
-		if err == mongo.ErrNoDocuments {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			return nil
 		}
 		return fmt.Errorf("load settings for %s: %w", p.AccountID, err)
@@ -60,8 +60,8 @@ func MigrateUserCloudAccountsToUserDoc(ctx context.Context, task *asynq.Task, de
 	}
 
 	now := time.Now().UTC()
-	if _, err := usersCol.UpdateOne(
-		ctx,
+	bulk := mongo.Bulk()
+	bulk.UpdateOne(mongo.Users,
 		bson.M{"_id": p.AccountID, "_meta.accountID": p.AccountID},
 		bson.M{
 			"$set": bson.M{
@@ -69,12 +69,8 @@ func MigrateUserCloudAccountsToUserDoc(ctx context.Context, task *asynq.Task, de
 				"_meta.lastModified": now,
 			},
 		},
-	); err != nil {
-		return fmt.Errorf("update users.userCloudAccounts for %s: %w", p.AccountID, err)
-	}
-
-	if _, err := settingsCol.UpdateOne(
-		ctx,
+	)
+	bulk.UpdateOne(mongo.ApplicationSettings,
 		bson.M{"_id": p.AccountID, "_meta.accountID": p.AccountID},
 		bson.M{
 			"$unset": bson.M{
@@ -84,8 +80,13 @@ func MigrateUserCloudAccountsToUserDoc(ctx context.Context, task *asynq.Task, de
 				"_meta.lastModified": now,
 			},
 		},
-	); err != nil {
-		return fmt.Errorf("unset settings.userCloudAccounts for %s: %w", p.AccountID, err)
+	)
+	err := eipmongo.Retry(ctx, fmt.Sprintf("migrate userCloudAccounts %s", p.AccountID), func() error {
+		_, e := bulk.RunOrdered(ctx)
+		return e
+	})
+	if err != nil {
+		return fmt.Errorf("migrate userCloudAccounts for %s: %w", p.AccountID, err)
 	}
 
 	return nil

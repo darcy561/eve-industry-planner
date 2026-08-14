@@ -10,11 +10,10 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
-	userendpoints "eve-industry-planner/api/v1endpoints/user"
+	user "eve-industry-planner/api/v1endpoints/user"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
@@ -43,20 +42,23 @@ type RefreshRequest struct {
 }
 
 // RotateHandler handles periodic planner session rotation (POST /api/v1/auth/sessions/rotate).
-func RotateHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	refreshHandler(w, r, clients, false)
+func (a *Handlers) RotateHandler(w http.ResponseWriter, r *http.Request) {
+	a.refreshHandler(w, r, false)
 }
 
 // BootstrapHandler handles planner session bootstrap after login flows (POST /api/v1/auth/sessions/bootstrap).
-func BootstrapHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
-	refreshHandler(w, r, clients, true)
+func (a *Handlers) BootstrapHandler(w http.ResponseWriter, r *http.Request) {
+	a.refreshHandler(w, r, true)
 }
 
-func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients, touchLastLogin bool) {
+func (a *Handlers) refreshHandler(w http.ResponseWriter, r *http.Request, touchLastLogin bool) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPISessionRefresh()
 	sessionMetrics := apimetrics.GetAPIAuthSessionLifecycle()
+	mongo := a.Mongo
+	rdb := a.Redis
+	h := user.New(a.Deps)
 	appVersion := extractAppVersion(r)
 	sessionEndpoint := "sessions_rotate"
 	if touchLastLogin {
@@ -67,7 +69,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	// Only allow POST requests
 	if !helper.RequireMethod(w, r, http.MethodPost) {
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
-		attachSessionRefreshClientFailure(r, credLog, "invalid method for refresh endpoint", "auth_refresh_method_not_allowed", map[string]interface{}{
+		attachSessionRefreshClientFailure(r, credLog, "invalid method for refresh endpoint", "auth_refresh_method_not_allowed", map[string]any{
 			"metric": "session_refresh",
 			"method": r.Method,
 		})
@@ -79,14 +81,14 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	credLog = auth.BuildRefreshCredentialLogDetail(r, sessionEndpoint, refreshToken, refreshFromCookie, eveToken)
 	if err != nil {
 		m.Errors.WithLabelValues("extraction_error").Inc(ctx)
-		respondSessionRefreshClientError(w, r, credLog, http.StatusBadRequest, "Invalid request", "failed to extract planner refresh credentials", "auth_refresh_extraction_error", map[string]interface{}{
+		respondSessionRefreshClientError(w, r, credLog, http.StatusBadRequest, "Invalid request", "failed to extract planner refresh credentials", "auth_refresh_extraction_error", map[string]any{
 			"metric": "session_refresh",
 			"error":  err.Error(),
 		})
 		return
 	}
 
-	logs.AttachDebugStep(r, "credentials_extracted", map[string]interface{}{
+	logs.AttachDebugStep(r, "credentials_extracted", map[string]any{
 		"refresh_from_cookie": refreshFromCookie,
 		"has_eve_token":       eveToken != "",
 		"refresh_token_len":   len(refreshToken),
@@ -96,7 +98,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	// Validate refresh token length to prevent DoS attacks
 	if len(refreshToken) > maxRefreshTokenLength {
 		m.Errors.WithLabelValues("refresh_token_too_long").Inc(ctx)
-		respondSessionRefreshClientError(w, r, credLog, http.StatusBadRequest, "Invalid request", "refresh token too long", "auth_refresh_token_too_long", map[string]interface{}{
+		respondSessionRefreshClientError(w, r, credLog, http.StatusBadRequest, "Invalid request", "refresh token too long", "auth_refresh_token_too_long", map[string]any{
 			"metric": "session_refresh",
 			"length": len(refreshToken),
 			"max":    maxRefreshTokenLength,
@@ -107,7 +109,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	// Validate EVE token length to prevent DoS attacks
 	if len(eveToken) > maxTokenLength {
 		m.Errors.WithLabelValues("eve_token_too_long").Inc(ctx)
-		respondSessionRefreshClientError(w, r, credLog, http.StatusBadRequest, "Invalid request", "EVE token too long", "auth_refresh_eve_token_too_long", map[string]interface{}{
+		respondSessionRefreshClientError(w, r, credLog, http.StatusBadRequest, "Invalid request", "EVE token too long", "auth_refresh_eve_token_too_long", map[string]any{
 			"metric": "session_refresh",
 			"length": len(eveToken),
 			"max":    maxTokenLength,
@@ -117,14 +119,14 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 
 	// Validate planner refresh material (refresh_token:<opaque>). When the presented token is missing or
 	// stale but eip_session is valid, resolve the current refresh row for that session_id (multi-tab local).
-	resolved, err := auth.ResolvePresentedRefreshTokenFromRequest(ctx, clients.Redis, refreshToken, r)
+	resolved, err := auth.ResolvePresentedRefreshTokenFromRequest(ctx, rdb, refreshToken, r)
 	recoveredViaSession := resolved.RecoveredViaSession
 	refreshToken = resolved.Token
 	tokenData := resolved.Data
 	if err != nil {
 		if errors.Is(err, auth.ErrRefreshTokenNotFound) {
 			m.Errors.WithLabelValues("refresh_token_not_found").Inc(ctx)
-			respondSessionRefreshClientError(w, r, credLog, http.StatusUnauthorized, "Invalid token", "planner refresh token not found in Redis", "auth_refresh_token_not_found", map[string]interface{}{
+			respondSessionRefreshClientError(w, r, credLog, http.StatusUnauthorized, "Invalid token", "planner refresh token not found in Redis", "auth_refresh_token_not_found", map[string]any{
 				"metric":                     "session_refresh",
 				"session_recovery_attempted": credLog.HasEipSessionCookie,
 			})
@@ -137,17 +139,17 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 
 	r = logs.BindRequestIdentityToRequest(r, tokenData.AccountID, tokenData.SessionID)
 	ctx = r.Context()
-	logs.AttachDebugStep(r, "refresh_token_resolved", map[string]interface{}{
+	logs.AttachDebugStep(r, "refresh_token_resolved", map[string]any{
 		"recovered_via_session": recoveredViaSession,
 		"session_id":            tokenData.SessionID,
 	})
 
 	now := time.Now().UTC()
-	if strings.TrimSpace(tokenData.SessionID) != "" && auth.IsRefreshTokenDataReauthExpired(ctx, clients.Redis, tokenData, now) {
+	if strings.TrimSpace(tokenData.SessionID) != "" && auth.IsRefreshTokenDataReauthExpired(ctx, rdb, tokenData, now) {
 		m.Errors.WithLabelValues("reauth_required").Inc(ctx)
-		attachSessionRefreshClientFailure(r, credLog, "planner session reauth window elapsed", "auth_reauth_required", map[string]interface{}{
-			"metric":         "session_refresh",
-			"session_start":  tokenData.SessionStart,
+		attachSessionRefreshClientFailure(r, credLog, "planner session reauth window elapsed", "auth_reauth_required", map[string]any{
+			"metric":        "session_refresh",
+			"session_start": tokenData.SessionStart,
 		})
 		auth.ClearAppSessionCookie(w)
 		auth.ClearAppRefreshCookie(w, r)
@@ -155,7 +157,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		return
 	}
 
-	cfg, err := config.LoadConfig()
+	cfg, err := config.LoadCloudStoredESI()
 	if err != nil {
 		m.Errors.WithLabelValues("config_error").Inc(ctx)
 		respondRefreshServerError(w, r, sessionEndpoint, "failed to load config for auth refresh", "auth_config_load", err, nil)
@@ -166,48 +168,48 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		// Per-tab sessions send refresh_token in the JSON body (sessionStorage), not only the
 		// legacy HttpOnly cookie. Cloud resume still omits eve_token; local accounts must
 		// provide eve_token (RefreshStoredEsiFromMongo returns ErrMongoStoredEsiNotCloud).
-		_, err := userendpoints.RefreshStoredEsiFromMongoForCharacter(ctx, clients, tokenData.AccountID, tokenData.CharacterHash)
+		_, err := h.RefreshStoredEsiFromMongoForCharacter(ctx, tokenData.AccountID, tokenData.CharacterHash)
 		if err != nil {
 			switch {
-			case errors.Is(err, userendpoints.ErrMongoStoredEsiNotCloud):
+			case errors.Is(err, user.ErrMongoStoredEsiNotCloud):
 				m.Errors.WithLabelValues("validation_error").Inc(ctx)
-				respondSessionRefreshClientError(w, r, credLog, http.StatusBadRequest, "eve_token is required for non-cloud sessions", "eve_token required for non-cloud planner session refresh", "auth_refresh_eve_token_required_non_cloud", map[string]interface{}{
-					"metric":     "session_refresh",
+				respondSessionRefreshClientError(w, r, credLog, http.StatusBadRequest, "eve_token is required for non-cloud sessions", "eve_token required for non-cloud planner session refresh", "auth_refresh_eve_token_required_non_cloud", map[string]any{
+					"metric": "session_refresh",
 				})
-			case errors.Is(err, userendpoints.ErrMongoStoredEsiNoRow), errors.Is(err, userendpoints.ErrMongoStoredEsiUserNotFound):
+			case errors.Is(err, user.ErrMongoStoredEsiNoRow), errors.Is(err, user.ErrMongoStoredEsiUserNotFound):
 				m.Errors.WithLabelValues("cloud_esi_not_found").Inc(ctx)
-				respondSessionRefreshClientError(w, r, credLog, http.StatusUnauthorized, "Invalid token", "cloud ESI material not found for refresh session", "auth_cloud_esi_not_found", map[string]interface{}{
+				respondSessionRefreshClientError(w, r, credLog, http.StatusUnauthorized, "Invalid token", "cloud ESI material not found for refresh session", "auth_cloud_esi_not_found", map[string]any{
 					"metric":         "session_refresh",
 					"character_hash": tokenData.CharacterHash,
 				})
-			case errors.Is(err, userendpoints.ErrMongoStoredEsiKeyring), errors.Is(err, userendpoints.ErrMongoStoredEsiDecrypt), errors.Is(err, userendpoints.ErrMongoStoredEsiPersist):
+			case errors.Is(err, user.ErrMongoStoredEsiKeyring), errors.Is(err, user.ErrMongoStoredEsiDecrypt), errors.Is(err, user.ErrMongoStoredEsiPersist):
 				m.Errors.WithLabelValues("config_error").Inc(ctx)
-				respondRefreshServerError(w, r, sessionEndpoint, "cloud stored ESI refresh internal error", "cloud_stored_esi_internal", err, map[string]interface{}{
+				respondRefreshServerError(w, r, sessionEndpoint, "cloud stored ESI refresh internal error", "cloud_stored_esi_internal", err, map[string]any{
 					"character_hash": tokenData.CharacterHash,
 				})
-			case errors.Is(err, userendpoints.ErrMongoStoredEsiInvalidGrant):
+			case errors.Is(err, user.ErrMongoStoredEsiInvalidGrant):
 				m.Errors.WithLabelValues("validation_error").Inc(ctx)
-				respondSessionRefreshClientError(w, r, credLog, http.StatusUnauthorized, "Stored ESI refresh invalid — full EVE login required", "stored ESI refresh invalid for planner session refresh", "auth_cloud_esi_invalid_grant", map[string]interface{}{
-					"metric":     "session_refresh",
+				respondSessionRefreshClientError(w, r, credLog, http.StatusUnauthorized, "Stored ESI refresh invalid — full EVE login required", "stored ESI refresh invalid for planner session refresh", "auth_cloud_esi_invalid_grant", map[string]any{
+					"metric": "session_refresh",
 				})
 			default:
 				m.Errors.WithLabelValues("validation_error").Inc(ctx)
-				respondSessionRefreshClientError(w, r, credLog, http.StatusUnauthorized, "Invalid token", "mongo stored ESI refresh failed (cookie resume)", "auth_cloud_esi_refresh_failed", map[string]interface{}{
-					"metric":     "session_refresh",
-					"error":      err.Error(),
+				respondSessionRefreshClientError(w, r, credLog, http.StatusUnauthorized, "Invalid token", "mongo stored ESI refresh failed (cookie resume)", "auth_cloud_esi_refresh_failed", map[string]any{
+					"metric": "session_refresh",
+					"error":  err.Error(),
 				})
 			}
 			return
 		}
-		logs.AttachDebugStep(r, "cloud_esi_refreshed", map[string]interface{}{
+		logs.AttachDebugStep(r, "cloud_esi_refreshed", map[string]any{
 			"character_hash": tokenData.CharacterHash,
 		})
 	} else {
-		eveTokenInfo, err := auth.ValidateEveTokenAndExtractHash(r.Context(), eveToken, cfg.EveSSOClientID)
+		eveTokenInfo, err := auth.ValidateEveTokenAndExtractHash(r.Context(), eveToken, cfg.SSO.ClientID)
 		if err != nil {
 			contentType := r.Header.Get("Content-Type")
 			m.Errors.WithLabelValues("validation_error").Inc(ctx)
-			respondSessionRefreshClientError(w, r, credLog, http.StatusUnauthorized, auth.GetEveTokenErrorMessage(err), "EVE SSO token validation failed (refresh)", "auth_eve_token_invalid", map[string]interface{}{
+			respondSessionRefreshClientError(w, r, credLog, http.StatusUnauthorized, auth.GetEveTokenErrorMessage(err), "EVE SSO token validation failed (refresh)", "auth_eve_token_invalid", map[string]any{
 				"metric":           "session_refresh",
 				"error":            err.Error(),
 				"eve_token_length": len(eveToken),
@@ -218,7 +220,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 
 		if tokenData.CharacterHash != eveTokenInfo.CharacterHash {
 			m.Errors.WithLabelValues("character_hash_mismatch").Inc(ctx)
-			respondSessionRefreshClientError(w, r, credLog, http.StatusUnauthorized, "Invalid token", "EVE token owner field (character hash) does not match refresh token", "auth_character_hash_mismatch", map[string]interface{}{
+			respondSessionRefreshClientError(w, r, credLog, http.StatusUnauthorized, "Invalid token", "EVE token owner field (character hash) does not match refresh token", "auth_character_hash_mismatch", map[string]any{
 				"metric":      "session_refresh",
 				"eve_hash":    eveTokenInfo.CharacterHash,
 				"stored_hash": tokenData.CharacterHash,
@@ -226,14 +228,14 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 			return
 		}
 
-		logs.AttachDebugStep(r, "eve_token_validated", map[string]interface{}{
+		logs.AttachDebugStep(r, "eve_token_validated", map[string]any{
 			"character_hash": eveTokenInfo.CharacterHash,
 		})
 	}
 
 	// Load corporation/alliance caches from Redis (aggregated from all characters on the account)
-	corporations := auth.GetCorporations(ctx, clients.Redis, tokenData.AccountID)
-	alliances := auth.GetAlliances(ctx, clients.Redis, tokenData.AccountID)
+	corporations := auth.GetCorporations(ctx, rdb, tokenData.AccountID)
+	alliances := auth.GetAlliances(ctx, rdb, tokenData.AccountID)
 
 	// Update token data with fresh corporation/alliance lists from Redis
 	updatedTokenData := *tokenData
@@ -246,7 +248,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		sessionID, err := auth.GenerateSessionID()
 		if err != nil {
 			m.Errors.WithLabelValues("session_generation_error").Inc(ctx)
-			respondRefreshServerError(w, r, sessionEndpoint, "failed to generate session id", "auth_session_id_gen", err, map[string]interface{}{
+			respondRefreshServerError(w, r, sessionEndpoint, "failed to generate session id", "auth_session_id_gen", err, map[string]any{
 				"character_hash": tokenData.CharacterHash,
 			})
 			return
@@ -271,22 +273,22 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	}
 
 	// Mint and persist the next planner refresh token (same path as login).
-	newRefreshToken, err := auth.MintAndStoreRefreshToken(ctx, clients.Redis, updatedTokenData)
+	newRefreshToken, err := auth.MintAndStoreRefreshToken(ctx, rdb, updatedTokenData)
 	if err != nil {
 		if errors.Is(err, auth.ErrRefreshTokenGenerate) {
 			m.Errors.WithLabelValues("refresh_token_generation_error").Inc(ctx)
-			respondRefreshServerError(w, r, sessionEndpoint, "failed to generate new refresh token", "auth_refresh_token_gen", err, map[string]interface{}{
+			respondRefreshServerError(w, r, sessionEndpoint, "failed to generate new refresh token", "auth_refresh_token_gen", err, map[string]any{
 				"character_hash": tokenData.CharacterHash,
 			})
 			return
 		}
 		m.Errors.WithLabelValues("redis_error").Inc(ctx)
-		respondRefreshServerError(w, r, sessionEndpoint, "failed to store new refresh token", "auth_redis_store_refresh", err, map[string]interface{}{
+		respondRefreshServerError(w, r, sessionEndpoint, "failed to store new refresh token", "auth_redis_store_refresh", err, map[string]any{
 			"character_hash": tokenData.CharacterHash,
 		})
 		return
 	}
-	if err := auth.UpsertSessionRecord(ctx, clients.Redis, auth.SessionRecord{
+	if err := auth.UpsertSessionRecord(ctx, rdb, auth.SessionRecord{
 		SessionID:     updatedTokenData.SessionID,
 		AccountID:     tokenData.AccountID,
 		CharacterHash: tokenData.CharacterHash,
@@ -294,79 +296,78 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		StartedAt:     updatedTokenData.SessionStart,
 		LastSeenAt:    updatedTokenData.SessionSeenAt,
 	}); err != nil {
-		auth.RevokeRefreshTokenBestEffort(ctx, clients.Redis, newRefreshToken)
+		auth.RevokeRefreshTokenBestEffort(ctx, rdb, newRefreshToken)
 		m.Errors.WithLabelValues("session_store_error").Inc(ctx)
 		sessionMetrics.StoreErrors.WithLabelValues(sessionFlow).Inc(ctx)
-		respondRefreshServerError(w, r, sessionEndpoint, "failed to store session record", "auth_redis_session_record", err, map[string]interface{}{
-			"session_flow":     sessionFlow,
-			"character_hash":   tokenData.CharacterHash,
+		respondRefreshServerError(w, r, sessionEndpoint, "failed to store session record", "auth_redis_session_record", err, map[string]any{
+			"session_flow":   sessionFlow,
+			"character_hash": tokenData.CharacterHash,
 		})
 		return
 	}
-	logs.AttachDebugStep(r, "session_rotated", map[string]interface{}{
+	logs.AttachDebugStep(r, "session_rotated", map[string]any{
 		"session_flow":     sessionFlow,
 		"started_session":  startedSession,
 		"session_endpoint": sessionEndpoint,
 	})
-	if err := auth.VerifyAccountSessionPersisted(ctx, clients.Redis, tokenData.AccountID, updatedTokenData.SessionID); err != nil {
-		auth.RevokeRefreshTokenBestEffort(ctx, clients.Redis, newRefreshToken)
+	if err := auth.VerifyAccountSessionPersisted(ctx, rdb, tokenData.AccountID, updatedTokenData.SessionID); err != nil {
+		auth.RevokeRefreshTokenBestEffort(ctx, rdb, newRefreshToken)
 		m.Errors.WithLabelValues("session_verify_error").Inc(ctx)
 		sessionMetrics.StoreErrors.WithLabelValues(sessionFlow).Inc(ctx)
-		respondRefreshServerError(w, r, sessionEndpoint, "account_sessions row missing after upsert", "auth_session_verify", err, map[string]interface{}{
-			"session_flow":     sessionFlow,
-			"character_hash":   tokenData.CharacterHash,
+		respondRefreshServerError(w, r, sessionEndpoint, "account_sessions row missing after upsert", "auth_session_verify", err, map[string]any{
+			"session_flow":   sessionFlow,
+			"character_hash": tokenData.CharacterHash,
 		})
 		return
 	}
 	if startedSession {
 		sessionMetrics.Started.WithLabelValues(sessionFlow).Inc(ctx)
-		apimetrics.RecordAuthSessionDistinctAccount(ctx, clients.Redis, tokenData.AccountID)
+		apimetrics.RecordAuthSessionDistinctAccount(ctx, rdb, tokenData.AccountID)
 	} else {
 		sessionMetrics.Continued.WithLabelValues(sessionFlow).Inc(ctx)
 	}
 	sessionMetrics.Stored.WithLabelValues(sessionFlow).Inc(ctx)
-	if err := auth.UpdateAccountSessionGrants(ctx, clients.Redis, tokenData.AccountID, corporations, alliances); err != nil {
-		logs.AttachHandlerCaveat(r, "account_session_grants_update_failed", "failed to update account session grants", map[string]interface{}{
+	if err := auth.UpdateAccountSessionGrants(ctx, rdb, tokenData.AccountID, corporations, alliances); err != nil {
+		logs.AttachHandlerCaveat(r, "account_session_grants_update_failed", "failed to update account session grants", map[string]any{
 			"error": err.Error(),
 		})
 	}
-	if err := auth.VerifyAccountSessionPersisted(ctx, clients.Redis, tokenData.AccountID, updatedTokenData.SessionID); err != nil {
-		auth.RevokeRefreshTokenBestEffort(ctx, clients.Redis, newRefreshToken)
+	if err := auth.VerifyAccountSessionPersisted(ctx, rdb, tokenData.AccountID, updatedTokenData.SessionID); err != nil {
+		auth.RevokeRefreshTokenBestEffort(ctx, rdb, newRefreshToken)
 		m.Errors.WithLabelValues("session_verify_error").Inc(ctx)
 		sessionMetrics.StoreErrors.WithLabelValues(sessionFlow).Inc(ctx)
-		respondRefreshServerError(w, r, sessionEndpoint, "account_sessions row missing before issuing session cookies", "auth_session_verify", err, map[string]interface{}{
-			"session_flow":     sessionFlow,
-			"character_hash":   tokenData.CharacterHash,
+		respondRefreshServerError(w, r, sessionEndpoint, "account_sessions row missing before issuing session cookies", "auth_session_verify", err, map[string]any{
+			"session_flow":   sessionFlow,
+			"character_hash": tokenData.CharacterHash,
 		})
 		return
 	}
 
 	// Rotation: invalidate only the refresh token that authenticated this request (other devices hold different strings).
-	if err := auth.RevokeSupersededRefreshToken(ctx, clients.Redis, refreshToken); err != nil {
-		logs.AttachHandlerCaveat(r, "superseded_refresh_revoke_failed", "failed to revoke superseded planner app session refresh token", map[string]interface{}{
+	if err := auth.RevokeSupersededRefreshToken(ctx, rdb, refreshToken); err != nil {
+		logs.AttachHandlerCaveat(r, "superseded_refresh_revoke_failed", "failed to revoke superseded planner app session refresh token", map[string]any{
 			"error":          err.Error(),
 			"character_hash": tokenData.CharacterHash,
 		})
 	}
 
 	if touchLastLogin {
-		loginDocs, err := helper.ResolveUserDocumentsForLogin(ctx, clients.Mongo, tokenData.AccountID)
+		loginDocs, err := helper.ResolveUserDocumentsForLogin(ctx, mongo, tokenData.AccountID)
 		if err != nil {
 			m.Errors.WithLabelValues("mongo_error").Inc(ctx)
-			respondRefreshServerError(w, r, sessionEndpoint, "failed to resolve user documents for login refresh", "auth_mongo_user_docs", err, map[string]interface{}{
-			})
+			respondRefreshServerError(w, r, sessionEndpoint, "failed to resolve user documents for login refresh", "auth_mongo_user_docs", err, map[string]any{})
 			return
 		}
 		userOut := loginDocs.User
 		var linkedCharacters []models.LinkedCharacterSession
-		if userOut.UserCloudAccounts && cfg.RefreshTokenKeyring != nil {
+		if userOut.UserCloudAccounts && cfg.Keys.Keyring != nil {
 			if len(userOut.RefreshTokens) > 0 {
-				linkedCharacterSessions, err := userendpoints.BuildCloudLinkedCharactersForLogin(
-					ctx, clients.Mongo, tokenData.AccountID, &userOut,
-					cfg.EveSSOClientID, cfg.EveSSOClientSecret, cfg.RefreshTokenKeyring,
+				linkedCharacterSessions, err := h.BuildCloudLinkedCharactersForLogin(
+					ctx, tokenData.AccountID, &userOut,
+					cfg.SSO.ClientID, cfg.SSO.ClientSecret, cfg.Keys.Keyring,
 				)
 				if err != nil {
-					logs.AttachHandlerCaveat(r, "cloud_linked_characters_failed", "cloud linked-character ESI session bundle failed (bootstrap)", map[string]interface{}{
+					logs.AttachHandlerCaveat(r, "cloud_linked_characters_failed", "cloud linked-character ESI session bundle failed (bootstrap)", map[string]any{
 						"error": err.Error(),
 					})
 				} else {
@@ -374,7 +375,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 				}
 			}
 		}
-		userendpoints.StripRefreshTokensFromUserDocumentForClient(&userOut)
+		user.StripRefreshTokensFromUserDocumentForClient(&userOut)
 		bootstrap := SessionBootstrapResponse{
 			Kind:                sessionKindBootstrap,
 			EsiOAuthStorage:     esiOAuthStorageFromUserCloud(userOut.UserCloudAccounts),
@@ -390,6 +391,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		bootstrap.RefreshToken = newRefreshToken
 		auth.ApplyRotatedSessionCookies(w, r, updatedTokenData.SessionID, newRefreshToken, refreshFromCookie, recoveredViaSession)
 		auth.SetEsiOAuthStorageCookieFromUserCloud(w, r, userOut.UserCloudAccounts)
+		auth.SetTenantAffinityCookieAccount(w, r, tokenData.AccountID)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
@@ -397,8 +399,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 		w.WriteHeader(http.StatusOK)
 		if err := json.NewEncoder(w).Encode(bootstrap); err != nil {
 			m.Errors.WithLabelValues("encode_error").Inc(ctx)
-			respondRefreshServerError(w, r, sessionEndpoint, "failed to encode response", "auth_response_encode", err, map[string]interface{}{
-			})
+			respondRefreshServerError(w, r, sessionEndpoint, "failed to encode response", "auth_response_encode", err, map[string]any{})
 			return
 		}
 		duration := time.Since(start)
@@ -418,6 +419,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 	}
 	rotate.RefreshToken = newRefreshToken
 	auth.ApplyRotatedSessionCookies(w, r, updatedTokenData.SessionID, newRefreshToken, refreshFromCookie, recoveredViaSession)
+	auth.SetTenantAffinityCookieAccount(w, r, tokenData.AccountID)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
@@ -426,8 +428,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request, clients *shared.Serv
 
 	if err := json.NewEncoder(w).Encode(rotate); err != nil {
 		m.Errors.WithLabelValues("encode_error").Inc(ctx)
-		respondRefreshServerError(w, r, sessionEndpoint, "failed to encode response", "auth_response_encode", err, map[string]interface{}{
-		})
+		respondRefreshServerError(w, r, sessionEndpoint, "failed to encode response", "auth_response_encode", err, map[string]any{})
 		return
 	}
 
@@ -444,7 +445,7 @@ func logSessionRefreshSuccess(r *http.Request, sessionEndpoint string, tokenData
 	if tokenData == nil || r == nil {
 		return
 	}
-	logs.AttachHandlerSuccessDetail(r, fmt.Sprintf("successfully refreshed token (%s)", auth.AccountStorageLogPhrase(accountStorage)), map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, fmt.Sprintf("successfully refreshed token (%s)", auth.AccountStorageLogPhrase(accountStorage)), map[string]any{
 		"account_storage":       accountStorage,
 		"session_endpoint":      sessionEndpoint,
 		"refresh_from_cookie":   refreshFromCookie,
@@ -453,9 +454,9 @@ func logSessionRefreshSuccess(r *http.Request, sessionEndpoint string, tokenData
 	})
 }
 
-func respondRefreshServerError(w http.ResponseWriter, r *http.Request, sessionEndpoint, logMsg, failureClass string, err error, extra map[string]interface{}) {
+func respondRefreshServerError(w http.ResponseWriter, r *http.Request, sessionEndpoint, logMsg, failureClass string, err error, extra map[string]any) {
 	if extra == nil {
-		extra = map[string]interface{}{}
+		extra = map[string]any{}
 	}
 	extra["session_endpoint"] = sessionEndpoint
 	helper.RespondEndpointServerError(w, r, "Internal server error", logMsg, failureClass, "session_refresh", err, extra)

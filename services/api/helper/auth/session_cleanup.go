@@ -24,12 +24,12 @@ type SessionCleanupOptions struct {
 
 // SessionCleanupStats summarizes one maintenance pass.
 type SessionCleanupStats struct {
-	AccountsScanned           int
-	OrphanSessionIndexesFound int
+	AccountsScanned             int
+	OrphanSessionIndexesFound   int
 	OrphanSessionIndexesRemoved int
-	OrphanRefreshTokensFound  int
-	OrphanRefreshTokensRemoved int
-	DryRun                    bool
+	OrphanRefreshTokensFound    int
+	OrphanRefreshTokensRemoved  int
+	DryRun                      bool
 }
 
 // SessionCleanupOptionsFromEnv reads AUTH_SESSION_CLEANUP_DRY_RUN (true/1/yes).

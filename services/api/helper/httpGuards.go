@@ -11,7 +11,7 @@ func RequireMethod(w http.ResponseWriter, r *http.Request, expected string) bool
 	if r.Method == expected {
 		return true
 	}
-	RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "method not allowed", "method_not_allowed", "", nil, map[string]interface{}{
+	RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "method not allowed", "method_not_allowed", "", nil, map[string]any{
 		"method":          r.Method,
 		"expected_method": expected,
 	})

@@ -11,9 +11,8 @@ import (
 	"testing"
 	"time"
 
-	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 	natscore "eve-industry-planner/shared/core/nats"
-	"eve-industry-planner/shared/shared"
+	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
 	"github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"
@@ -561,9 +560,7 @@ func TestRefreshMarketPrices_NilTask(t *testing.T) {
 	})
 
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{
-			Redis: redisClient,
-		},
+		Redis: redisClient,
 		ESIClient: &mockESIClientForStreaming{},
 	}
 
@@ -592,9 +589,7 @@ func TestRefreshMarketPrices_InvalidJSON(t *testing.T) {
 	})
 
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{
-			Redis: redisClient,
-		},
+		Redis: redisClient,
 		ESIClient: &mockESIClientForStreaming{},
 	}
 
@@ -618,9 +613,7 @@ func TestRefreshMarketPrices_MissingParameters(t *testing.T) {
 	})
 
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{
-			Redis: redisClient,
-		},
+		Redis: redisClient,
 		ESIClient: &mockESIClientForStreaming{},
 	}
 

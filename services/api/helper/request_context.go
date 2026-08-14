@@ -7,7 +7,7 @@ import (
 
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 )
 
 // RequestStartOrNow returns middleware request start time or current time.
@@ -20,7 +20,7 @@ func RequestStartOrNow(ctx context.Context) time.Time {
 }
 
 // PopulateRequestMeta fills account id, session id (from auth context / cookie), and client id (X-WS-Client-ID).
-// Bulk upserts in mongoput use the same session/client pairing via ApplyMetaSessionClient.
+// Bulk upserts use the same session/client pairing via eipmongo.ApplyMetaSessionClient.
 func PopulateRequestMeta(r *http.Request, meta *models.MetaData, accountID string) {
 	if meta == nil {
 		return

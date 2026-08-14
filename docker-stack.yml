@@ -1,0 +1,558 @@
+# App-layer Swarm fragment on eip-core. Data: docker-stack.data.yml. Obs: docker-stack.obs.yml.
+# Roll order: app start-first (x-app-deploy) + 60s stop grace (x-app-stop-grace); socket proxies stop-first (x-proxy-deploy).
+# Day-2 ship: eip rebuild / rematerialize / eip up — Swarm honors update_config below.
+# Probe port 19100 must match services/shared/orchestrationprobes ListenPort.
+#
+# Secrets: per-service `secrets:` lists below are the attach SoT (logical names →
+# /run/secrets/<KEY>). Bring-up sync creates hashed Swarm objects + overlay; expand
+# strips these mounts so the overlay supplies external names (optional keys omitted
+# when unset in .env).
+
+x-common-dns: &common-dns
+  - 8.8.8.8
+  - 8.8.4.4
+  - 1.1.1.1
+
+x-mongo-env: &mongo-env
+  MONGO_HOST: mongo
+  MONGO_PORT: "27017"
+
+x-redis-env: &redis-env
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+
+x-nats-env: &nats-env
+  NATS_URL: nats://nats:4222
+
+x-objectstore-env: &objectstore-env
+  S3_URL: http://seaweedfs:8333
+
+# Non-secret knobs from .env. Credentials are Swarm secrets (not env_file).
+x-app-public-env: &app-public-env
+  EVE_CLIENT_ID: ${EVE_CLIENT_ID:-}
+  REFRESH_TOKEN_AES_KEY_VERSION: ${REFRESH_TOKEN_AES_KEY_VERSION:-v1}
+  ENVIRONMENT: ${ENVIRONMENT:-}
+  MAINTENANCE_MODE: ${MAINTENANCE_MODE:-false}
+
+x-frontend-public-env: &frontend-public-env
+  ENVIRONMENT: ${ENVIRONMENT:-}
+  GA4_MEASUREMENT_ID: ${GA4_MEASUREMENT_ID:-}
+  EVE_CLIENT_ID: ${EVE_CLIENT_ID:-}
+  EVE_CALLBACK_URL: ${EVE_CALLBACK_URL:-}
+  EVE_SCOPE: ${EVE_SCOPE:-}
+
+# Logical secret attach lists (SoT for swarmsecrets / secrets.sh).
+x-secrets-api: &secrets-api
+  - MONGO_USERNAME
+  - MONGO_PASSWORD
+  - REDIS_PASSWORD
+  - S3_ACCESS_KEY
+  - S3_SECRET_KEY
+  - EVE_CLIENT_SECRET
+  - REFRESH_TOKEN_AES_KEY
+  - AUTHZ_HMAC_KEY
+  - REFRESH_TOKEN_AES_LEGACY_KEYS
+  - FEEDBACK_DISCORD_WEBHOOK_URL
+
+x-secrets-websocket: &secrets-websocket
+  - MONGO_USERNAME
+  - MONGO_PASSWORD
+  - REDIS_PASSWORD
+
+x-secrets-worker: &secrets-worker
+  - MONGO_USERNAME
+  - MONGO_PASSWORD
+  - REDIS_PASSWORD
+  - S3_ACCESS_KEY
+  - S3_SECRET_KEY
+  - EVE_CLIENT_SECRET
+  - REFRESH_TOKEN_AES_KEY
+  - AUTHZ_HMAC_KEY
+  - REFRESH_TOKEN_AES_LEGACY_KEYS
+
+x-secrets-core: &secrets-core
+  - MONGO_USERNAME
+  - MONGO_PASSWORD
+  - REDIS_PASSWORD
+  - S3_ACCESS_KEY
+  - S3_SECRET_KEY
+  - REFRESH_TOKEN_AES_KEY
+  - REFRESH_TOKEN_AES_LEGACY_KEYS
+
+x-secrets-capacity: &secrets-capacity
+  - REDIS_PASSWORD
+
+# App / Traefik: start-first so the replacement is up before the old task stops.
+x-app-deploy: &app-deploy
+  update_config:
+    order: start-first
+    parallelism: 1
+    failure_action: rollback
+    monitor: 30s
+  rollback_config:
+    order: stop-first
+    parallelism: 1
+  restart_policy:
+    condition: on-failure
+    delay: 5s
+
+# Service-level (not under deploy:). Every *app-deploy consumer merges this at the service root.
+x-app-stop-grace: &app-stop-grace
+  stop_grace_period: 60s
+
+# Docker socket proxies: stop-first (avoid two proxies on the same sock).
+x-proxy-deploy: &proxy-deploy
+  replicas: 1
+  update_config:
+    order: stop-first
+    parallelism: 1
+    failure_action: pause
+    monitor: 30s
+  rollback_config:
+    order: stop-first
+    parallelism: 1
+  restart_policy:
+    condition: on-failure
+    delay: 5s
+
+services:
+  # Docker API proxy for Traefik — own overlay eip-docker-traefik only (not on eip-core).
+  traefik-docker-proxy:
+    image: tecnativa/docker-socket-proxy:v0.4.2
+    networks: [eip-docker-traefik]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      CONTAINERS: "1"
+      SERVICES: "1"
+      TASKS: "1"
+      NETWORKS: "1"
+      NODES: "1"
+      EVENTS: "1"
+      POST: "0"
+    deploy:
+      <<: *proxy-deploy
+
+  traefik:
+    <<: *app-stop-grace
+    image: traefik:v3
+    networks:
+      eip-core:
+        aliases: [traefik]
+      eip-public: {}
+      eip-docker-traefik: {}
+    dns: *common-dns
+    environment:
+      TRAEFIK_ENTRYPOINTS_WEB_FORWARDEDHEADERS_TRUSTEDIPS: ${EIP_TRAEFIK_TRUSTED_PROXY_CIDRS:-}
+      TRAEFIK_ENTRYPOINTS_WEBSECURE_FORWARDEDHEADERS_TRUSTEDIPS: ${EIP_TRAEFIK_TRUSTED_PROXY_CIDRS:-}
+    command:
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.websecure.http.tls=true"
+      - "--entrypoints.dashboard.address=:81"
+      - "--entrypoints.metrics.address=:8082"
+      - "--providers.docker=true"
+      - "--providers.docker.endpoint=tcp://traefik-docker-proxy:2375"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=eip-core"
+      - "--providers.swarm=true"
+      - "--providers.swarm.endpoint=tcp://traefik-docker-proxy:2375"
+      - "--providers.swarm.exposedByDefault=false"
+      - "--providers.swarm.network=eip-public"
+      - "--providers.swarm.refreshSeconds=5"
+      - "--api.dashboard=true"
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.entryPoint=metrics"
+      - "--metrics.prometheus.addEntryPointsLabels=true"
+      - "--metrics.prometheus.addRoutersLabels=true"
+      - "--metrics.prometheus.addServicesLabels=true"
+      - "--metrics.prometheus.buckets=0.1,0.3,1.2,5.0"
+      - "--accesslog=true"
+      - "--log.level=INFO"
+      - "--ping=true"
+      - "--ping.entrypoint=web"
+    volumes:
+      - traefik_data:/data
+    ports:
+      - target: 80
+        published: ${EIP_HTTP_PORT:-80}
+        protocol: tcp
+        mode: ingress
+      - target: 443
+        published: ${EIP_HTTPS_PORT:-443}
+        protocol: tcp
+        mode: ingress
+      - target: 81
+        published: ${EIP_TRAEFIK_DASHBOARD_PORT:-81}
+        protocol: tcp
+        mode: ingress
+    deploy:
+      <<: *app-deploy
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.swarm.network=eip-public"
+        - "traefik.http.routers.traefik-dashboard.rule=PathPrefix(`${EIP_TRAEFIK_DASHBOARD_PATH:-/dashboard}`) || PathPrefix(`/api`)"
+        - "traefik.http.routers.traefik-dashboard.service=api@internal"
+        - "traefik.http.routers.traefik-dashboard.entrypoints=dashboard"
+        - "traefik.http.services.traefik.loadbalancer.server.port=80"
+
+  api:
+    <<: *app-stop-grace
+    image: ghcr.io/darcy561/eve-industry-planner-api:${APP_VERSION}
+    networks: [eip-core, eip-public]
+    dns: *common-dns
+    environment:
+      <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env]
+      APP_VERSION: ${APP_VERSION}
+    secrets: *secrets-api
+    volumes:
+      - api_data:/data
+    deploy:
+      <<: *app-deploy
+      replicas: ${EIP_API_REPLICAS:-1}
+      labels:
+        - "traefik.enable=true"
+        - "traefik.swarm.network=eip-public"
+        - "traefik.http.routers.api.rule=PathPrefix(`/api`)"
+        - "traefik.http.routers.api.entrypoints=web"
+        - "traefik.http.routers.api.service=api"
+        - "traefik.http.routers.api.middlewares=cors"
+        - "traefik.http.routers.api-secure.rule=PathPrefix(`/api`)"
+        - "traefik.http.routers.api-secure.entrypoints=websecure"
+        - "traefik.http.routers.api-secure.service=api"
+        - "traefik.http.routers.api-secure.middlewares=cors"
+        - "traefik.http.middlewares.cors.headers.accessControlAllowMethods=GET,POST,PUT,DELETE,PATCH,OPTIONS"
+        - "traefik.http.middlewares.cors.headers.accessControlAllowHeaders=Content-Type,Authorization,X-Requested-With,Accept,Origin"
+        - "traefik.http.middlewares.cors.headers.accessControlAllowOriginListRegex=^https://eveindustryplanner.com$$"
+        - "traefik.http.middlewares.cors.headers.accessControlAllowCredentials=true"
+        - "traefik.http.middlewares.cors.headers.accessControlMaxAge=86400"
+        - "traefik.http.middlewares.cors.headers.addVaryHeader=true"
+        - "traefik.http.services.api.loadbalancer.server.port=4000"
+        - "traefik.http.services.api.loadbalancer.healthcheck.port=19100"
+        - "traefik.http.services.api.loadbalancer.healthcheck.path=/ready"
+        - "traefik.http.services.api.loadbalancer.healthcheck.interval=10s"
+        - "traefik.http.services.api.loadbalancer.healthcheck.timeout=3s"
+        - "traefik.http.services.api.loadbalancer.healthcheck.scheme=http"
+        - "eip.capacity.service=api"
+        - "eip.capacity.min=${EIP_API_CAPACITY_MIN:-1}"
+        - "eip.capacity.max=${EIP_API_CAPACITY_MAX:-5}"
+        - "eip.capacity.sync=1"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:19100/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 60s
+
+  websocket:
+    <<: *app-stop-grace
+    image: ghcr.io/darcy561/eve-industry-planner-websocket:${APP_VERSION}
+    networks: [eip-core]
+    dns: *common-dns
+    environment:
+      <<: [*mongo-env, *redis-env, *nats-env, *app-public-env]
+      APP_VERSION: ${APP_VERSION}
+      WS_CLIENT_CUTOFF: "2000"
+      WS_TARGET_CLIENTS: "1500"
+    secrets: *secrets-websocket
+    volumes:
+      - api_data:/data
+    deploy:
+      <<: *app-deploy
+      replicas: ${EIP_WEBSOCKET_REPLICAS:-1}
+      labels:
+        - "eip.capacity.service=websocket"
+        - "eip.capacity.min=${EIP_WEBSOCKET_CAPACITY_MIN:-1}"
+        - "eip.capacity.max=${EIP_WEBSOCKET_CAPACITY_MAX:-5}"
+        - "eip.capacity.sync=1"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:19100/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+
+  # Docker API proxy for ws-router — own overlay eip-docker-ws only (not on eip-core).
+  ws-docker-proxy:
+    image: tecnativa/docker-socket-proxy:v0.4.2
+    networks: [eip-docker-ws]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      SERVICES: "1"
+      TASKS: "1"
+      POST: "0"
+      EVENTS: "0"
+      PING: "0"
+      VERSION: "0"
+    deploy:
+      <<: *proxy-deploy
+
+  ws-router:
+    <<: *app-stop-grace
+    image: ghcr.io/darcy561/eve-industry-planner-ws-router:${APP_VERSION}
+    networks: [eip-core, eip-public, eip-docker-ws]
+    dns: *common-dns
+    environment:
+      <<: *nats-env
+      APP_VERSION: ${APP_VERSION}
+      EIP_WEBSOCKET_SERVICE: eip_websocket
+      EIP_WS_BACKEND_PORT: "4001"
+      EIP_WS_ROUTER_LISTEN: ":8080"
+      DOCKER_HOST: tcp://ws-docker-proxy:2375
+    deploy:
+      <<: *app-deploy
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.swarm.network=eip-public"
+        - "traefik.http.routers.ws.rule=PathPrefix(`/ws`)"
+        - "traefik.http.routers.ws.entrypoints=web"
+        - "traefik.http.routers.ws.service=ws-router"
+        - "traefik.http.routers.ws.middlewares=cors"
+        - "traefik.http.routers.ws-secure.rule=PathPrefix(`/ws`)"
+        - "traefik.http.routers.ws-secure.entrypoints=websecure"
+        - "traefik.http.routers.ws-secure.service=ws-router"
+        - "traefik.http.routers.ws-secure.middlewares=cors"
+        - "traefik.http.middlewares.cors.headers.accessControlAllowMethods=GET,POST,PUT,DELETE,PATCH,OPTIONS"
+        - "traefik.http.middlewares.cors.headers.accessControlAllowHeaders=Content-Type,Authorization,X-Requested-With,Accept,Origin"
+        - "traefik.http.middlewares.cors.headers.accessControlAllowOriginListRegex=^https://eveindustryplanner.com$$"
+        - "traefik.http.middlewares.cors.headers.accessControlAllowCredentials=true"
+        - "traefik.http.middlewares.cors.headers.accessControlMaxAge=86400"
+        - "traefik.http.middlewares.cors.headers.addVaryHeader=true"
+        - "traefik.http.services.ws-router.loadbalancer.server.port=8080"
+        - "traefik.http.services.ws-router.loadbalancer.healthcheck.port=19100"
+        - "traefik.http.services.ws-router.loadbalancer.healthcheck.path=/ready"
+        - "traefik.http.services.ws-router.loadbalancer.healthcheck.interval=5s"
+        - "traefik.http.services.ws-router.loadbalancer.healthcheck.timeout=3s"
+        - "traefik.http.services.ws-router.loadbalancer.healthcheck.scheme=http"
+        - "eip.capacity.service=ws-router"
+        - "eip.capacity.min=1"
+        - "eip.capacity.max=2"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:19100/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+
+  worker:
+    <<: *app-stop-grace
+    image: ghcr.io/darcy561/eve-industry-planner-worker:${APP_VERSION}
+    networks: [eip-core]
+    dns: *common-dns
+    environment:
+      <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env]
+      APP_VERSION: ${APP_VERSION}
+      WORKER_ASYNQ_CONCURRENCY: "50"
+    secrets: *secrets-worker
+    volumes:
+      - worker_data:/data
+    deploy:
+      <<: *app-deploy
+      replicas: ${EIP_WORKER_REPLICAS:-1}
+      labels:
+        - "eip.capacity.service=worker"
+        - "eip.capacity.min=${EIP_WORKER_CAPACITY_MIN:-1}"
+        - "eip.capacity.max=${EIP_WORKER_CAPACITY_MAX:-5}"
+        - "eip.capacity.sync=1"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:19100/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+
+  core:
+    <<: *app-stop-grace
+    image: ghcr.io/darcy561/eve-industry-planner-core:${APP_VERSION}
+    networks: [eip-core]
+    dns: *common-dns
+    environment:
+      <<: [*mongo-env, *redis-env, *nats-env, *objectstore-env, *app-public-env]
+      APP_VERSION: ${APP_VERSION}
+    secrets: *secrets-core
+    volumes:
+      - core_data:/data
+    deploy:
+      <<: *app-deploy
+      replicas: 1
+      # Core needs a longer monitor/delay than the shared app-deploy defaults.
+      update_config:
+        order: start-first
+        parallelism: 1
+        failure_action: rollback
+        monitor: 45s
+        delay: 10s
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:19100/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 36
+      start_period: 30s
+
+  # Docker API proxy for capacity-controller — own overlay eip-docker-capacity (POST allowed for Scale).
+  capacity-docker-proxy:
+    image: tecnativa/docker-socket-proxy:v0.4.2
+    networks: [eip-docker-capacity]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      SERVICES: "1"
+      TASKS: "1"
+      POST: "1"
+      EVENTS: "0"
+      PING: "0"
+      VERSION: "0"
+    deploy:
+      <<: *proxy-deploy
+
+  capacity-controller:
+    <<: *app-stop-grace
+    image: ghcr.io/darcy561/eve-industry-planner-capacity-controller:${APP_VERSION}
+    networks: [eip-core, eip-docker-capacity]
+    dns: *common-dns
+    environment:
+      <<: [*redis-env, *nats-env]
+      APP_VERSION: ${APP_VERSION}
+      DOCKER_HOST: tcp://capacity-docker-proxy:2375
+      EIP_STACK_NAME: eip
+      EIP_CAPACITY_POLICY_PATH: /etc/eip/eip.config.yaml
+    secrets: *secrets-capacity
+    configs:
+      - source: eip_config_yaml
+        target: /etc/eip/eip.config.yaml
+    deploy:
+      <<: *app-deploy
+      replicas: 1
+      update_config:
+        order: start-first
+        parallelism: 1
+        failure_action: rollback
+        monitor: 45s
+        delay: 10s
+      labels:
+        - "eip.config.sync=1"
+        - "eip.capacity.service=capacity-controller"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:19100/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+
+  frontend:
+    <<: *app-stop-grace
+    image: ghcr.io/darcy561/eve-industry-planner-frontend:${APP_VERSION}
+    networks: [eip-public]
+    dns: *common-dns
+    environment:
+      <<: *frontend-public-env
+      APP_VERSION: ${APP_VERSION}
+    deploy:
+      <<: *app-deploy
+      replicas: ${EIP_FRONTEND_REPLICAS:-1}
+      labels:
+        - "traefik.enable=true"
+        - "traefik.swarm.network=eip-public"
+        - "traefik.http.routers.frontend.service=frontend"
+        - "traefik.http.services.frontend.loadbalancer.server.port=80"
+        - "traefik.http.services.frontend.loadbalancer.healthcheck.path=/health.json"
+        - "traefik.http.services.frontend.loadbalancer.healthcheck.interval=10s"
+        - "traefik.http.services.frontend.loadbalancer.healthcheck.timeout=3s"
+        - "traefik.http.services.frontend.loadbalancer.healthcheck.scheme=http"
+        - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
+        - "traefik.http.routers.frontend.priority=1"
+        - "traefik.http.routers.frontend.entrypoints=web"
+        - "traefik.http.routers.frontend.middlewares=frontend-contenttype,security-headers"
+        - "traefik.http.routers.frontend-secure.rule=PathPrefix(`/`)"
+        - "traefik.http.routers.frontend-secure.priority=1"
+        - "traefik.http.routers.frontend-secure.entrypoints=websecure"
+        - "traefik.http.routers.frontend-secure.service=frontend"
+        - "traefik.http.routers.frontend-secure.middlewares=frontend-contenttype,security-headers"
+        - "traefik.http.middlewares.frontend-contenttype.contentType=true"
+        - "traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true"
+        - "traefik.http.middlewares.security-headers.headers.browserXssFilter=true"
+        - "traefik.http.middlewares.security-headers.headers.frameDeny=true"
+        - "traefik.http.middlewares.security-headers.headers.isDevelopment=false"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:80/health.json',r=>{r.resume();process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))",
+        ]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+# External stubs so compose config accepts service secret mounts; overlay sets hashed names.
+secrets:
+  MONGO_USERNAME:
+    external: true
+  MONGO_PASSWORD:
+    external: true
+  REDIS_PASSWORD:
+    external: true
+  S3_ACCESS_KEY:
+    external: true
+  S3_SECRET_KEY:
+    external: true
+  EVE_CLIENT_SECRET:
+    external: true
+  REFRESH_TOKEN_AES_KEY:
+    external: true
+  AUTHZ_HMAC_KEY:
+    external: true
+  REFRESH_TOKEN_AES_LEGACY_KEYS:
+    external: true
+  FEEDBACK_DISCORD_WEBHOOK_URL:
+    external: true
+
+# Network name SoT for this fragment (compose map keys still literal).
+x-net-core: &net-core eip-core
+x-net-public: &net-public eip-public
+
+networks:
+  eip-core:
+    name: *net-core
+    external: true
+  eip-public:
+    name: *net-public
+    driver: overlay
+    attachable: false
+  # One overlay per Docker socket proxy — never share; proxies stay off eip-core.
+  eip-docker-traefik:
+    name: eip-docker-traefik
+    driver: overlay
+    attachable: false
+  eip-docker-ws:
+    name: eip-docker-ws
+    driver: overlay
+    attachable: false
+  eip-docker-capacity:
+    name: eip-docker-capacity
+    driver: overlay
+    attachable: false
+
+volumes:
+  api_data:
+    name: eve-industry-planner_api_data
+    external: true
+  worker_data:
+    name: eve-industry-planner_worker_data
+    external: true
+  core_data:
+    name: eve-industry-planner_core_data
+    external: true
+  traefik_data:
+    name: eve-industry-planner_traefik_data
+    external: true
+
+# file: is discovery SoT for sync_swarm_configs; deploy uses hashed external overlay.
+configs:
+  eip_config_yaml:
+    file: ./eip.config.yaml

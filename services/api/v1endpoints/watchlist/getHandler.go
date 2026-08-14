@@ -7,18 +7,15 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
-	mongocore "eve-industry-planner/shared/core/mongo"
-	mongoget "eve-industry-planner/shared/core/mongo/get"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // GetHandler handles GET /api/v1/user/watchlist.
-func GetHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) GetHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIEveTokenLogin()
@@ -34,13 +31,9 @@ func GetHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceC
 	if !ok {
 		return
 	}
-
-	database := clients.Mongo.Database(mongocore.DatabaseName)
-	collection := database.Collection(mongocore.CollectionUserWatchlistDeprecated)
-
-	raw, err := mongoget.LoadWatchlistDeprecated(ctx, collection, accountID)
+	raw, err := h.Mongo.WatchlistDeprecated.LoadWatchlistDeprecated(ctx, accountID)
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			resp := map[string]any{
 				"groups": []any{},
 				"items":  []any{},
@@ -51,10 +44,10 @@ func GetHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceC
 				return
 			}
 			metrics.Success()
-			logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+			logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 				"has_document": false,
 			})
-			logs.AttachHandlerSuccessDetail(r, "watchlist document empty", map[string]interface{}{
+			logs.AttachHandlerSuccessDetail(r, "watchlist document empty", map[string]any{
 				"duration_ms": time.Since(start).Milliseconds(),
 			})
 			return
@@ -65,7 +58,7 @@ func GetHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceC
 	}
 
 	groups, items := coalesceGroupsItemsFromDoc(raw)
-	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 		"has_document": true,
 	})
 	resp := map[string]any{
@@ -79,7 +72,7 @@ func GetHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceC
 	}
 
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "watchlist document retrieved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "watchlist document retrieved", map[string]any{
 		"duration_ms": time.Since(start).Milliseconds(),
 	})
 }

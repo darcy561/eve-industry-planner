@@ -47,8 +47,6 @@ func runSDEDownloadStage(ctx context.Context, versionResult *sdeVersionCheckResu
 		return &sdeDownloadResult{ExtractedFiles: map[string][]byte{}}, nil
 	}
 
-	_ = versionResult.DataDir // kept for future stages where we may write out files
-
 	downloadURL := JSONDataURL
 	if versionResult.LatestBuildInfo != nil && versionResult.LatestBuildInfo.DownloadURL != "" {
 		downloadURL = versionResult.LatestBuildInfo.DownloadURL

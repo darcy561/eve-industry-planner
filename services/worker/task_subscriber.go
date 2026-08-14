@@ -53,7 +53,7 @@ func processMessage(
 	taskType := getTaskTypeFromSubject(subject)
 	if taskType == "" {
 		deliveryCount, _ := natscore.GetMessageMetadata(msg)
-		natscore.FinishNATSConsumerOperation(ctx, "warn", "nats task rejected", map[string]interface{}{
+		natscore.FinishNATSConsumerOperation(ctx, "warn", "nats task rejected", map[string]any{
 			"subject": subject,
 			"reason":  "unknown task type",
 		})
@@ -66,7 +66,7 @@ func processMessage(
 	err := asynqpkg.Enqueue(msg, client, taskType, subject)
 	if err != nil {
 		logs.ErrorCtx(ctx, "failed to enqueue task to asynq", "subject", subject, "error", err)
-		natscore.FinishNATSConsumerOperation(ctx, "warn", "nats task enqueue failed", map[string]interface{}{
+		natscore.FinishNATSConsumerOperation(ctx, "warn", "nats task enqueue failed", map[string]any{
 			"subject":   subject,
 			"task_type": taskType,
 			"error":     err.Error(),
@@ -80,7 +80,7 @@ func processMessage(
 	// Message is now safely in asynq queue with retention, won't expire
 	deliveryCount, _ := natscore.GetMessageMetadata(msg)
 	natscore.AcknowledgeMessage(msg, "enqueued to asynq", deliveryCount)
-	natscore.FinishNATSConsumerOperation(ctx, "debug", "nats task enqueued", map[string]interface{}{
+	natscore.FinishNATSConsumerOperation(ctx, "debug", "nats task enqueued", map[string]any{
 		"subject":   subject,
 		"task_type": taskType,
 	})

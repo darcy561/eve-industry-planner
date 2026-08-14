@@ -46,7 +46,8 @@ ARG APP_FEATURE_FLAGS_JSON="{}"
 ARG FEEDBACK_DISCORD_WEBHOOK_URL=""
 
 # Install only essential packages (including su-exec for user switching and bash for exec -a)
-RUN apk --no-cache add ca-certificates tzdata su-exec bash && \
+# wget: Swarm healthcheck probes :19100/ready
+RUN apk --no-cache add ca-certificates tzdata su-exec bash wget && \
     addgroup -g 1001 -S appuser && \
     adduser -u 1001 -S appuser -G appuser
 

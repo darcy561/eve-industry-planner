@@ -20,7 +20,7 @@ import (
 // Connect establishes a connection and returns it.
 // The connection includes automatic reconnection handling.
 func Connect() (*natslib.Conn, error) {
-	cfg, err := config.LoadConfig()
+	natsURL, err := config.NATSURL()
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func Connect() (*natslib.Conn, error) {
 			natslib.Timeout(retryDelay),
 		}
 
-		conn, err := natslib.Connect(cfg.NATS_URL, opts...)
+		conn, err := natslib.Connect(natsURL, opts...)
 		if err == nil {
 			i++
 			message := fmt.Sprintf("Connected to NATS on attempt %d/%d", i, retryCount)
@@ -120,7 +120,7 @@ func Cleanup(conn *natslib.Conn) {
 //	PublishTask(ctx, js, subject, "refreshMarketPrices", request)
 //	PublishTask(ctx, js, subject, "refreshMarketPrices", request, natsConn)
 //	PublishTask(ctx, js, subject, "migrateUserDocumentToMongo", payload, natsConn, "priority_5")
-func PublishTask(ctx context.Context, js jetstream.JetStream, subject string, taskType string, payload interface{}, opts ...interface{}) (err error) {
+func PublishTask(ctx context.Context, js jetstream.JetStream, subject string, taskType string, payload any, opts ...any) (err error) {
 	var natsConn *natslib.Conn
 	var priority string
 	for _, a := range opts {
@@ -252,16 +252,13 @@ func PublishMessage[T any](ctx context.Context, js jetstream.JetStream, subject 
 	}
 
 	var lastErr error
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	for attempt := range maxRetries {
 		// Check connection status if connection is provided
 		if conn != nil {
 			if !conn.IsConnected() {
 				// Wait for reconnection with exponential backoff
 				if attempt < maxRetries-1 {
-					delay := baseDelay * time.Duration(1<<attempt)
-					if delay > maxDelay {
-						delay = maxDelay
-					}
+					delay := min(baseDelay*time.Duration(1<<attempt), maxDelay)
 					logs.InfoCtx(ctx, "NATS not connected, waiting for reconnection", "attempt", attempt+1, "delay_ms", delay.Milliseconds())
 					time.Sleep(delay)
 					continue
@@ -288,12 +285,12 @@ func PublishMessage[T any](ctx context.Context, js jetstream.JetStream, subject 
 				logs.InfoCtx(ctx, "JetStream publish succeeded after retry", "attempt", attempt+1, "subject", subject)
 			} else {
 				if pubAck != nil {
-					logs.AttachDebugStepOrDebugCtx(ctx, "jetstream_published", "JetStream message published", map[string]interface{}{
+					logs.AttachDebugStepOrDebugCtx(ctx, "jetstream_published", "JetStream message published", map[string]any{
 						"subject":  subject,
 						"sequence": pubAck.Sequence,
 					})
 				} else {
-					logs.AttachDebugStepOrDebugCtx(ctx, "jetstream_published", "JetStream message published", map[string]interface{}{
+					logs.AttachDebugStepOrDebugCtx(ctx, "jetstream_published", "JetStream message published", map[string]any{
 						"subject": subject,
 					})
 				}
@@ -324,10 +321,7 @@ func PublishMessage[T any](ctx context.Context, js jetstream.JetStream, subject 
 		}
 
 		// Exponential backoff before retry
-		delay := baseDelay * time.Duration(1<<attempt)
-		if delay > maxDelay {
-			delay = maxDelay
-		}
+		delay := min(baseDelay*time.Duration(1<<attempt), maxDelay)
 		logs.InfoCtx(ctx, "JetStream publish failed, retrying", "attempt", attempt+1, "max_retries", maxRetries, "delay_ms", delay.Milliseconds(), "error", errStr, "subject", subject)
 		time.Sleep(delay)
 	}

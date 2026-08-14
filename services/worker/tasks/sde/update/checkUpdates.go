@@ -2,14 +2,13 @@ package update
 
 import (
 	"context"
+	objectstore "eve-industry-planner/shared/core/objectstore"
+	sdecore "eve-industry-planner/shared/core/sde"
 	"fmt"
-	"os"
 	"time"
 
-	esitasks "eve-industry-planner/worker/tasks/esi"
-	sdeshared "eve-industry-planner/worker/tasks/sde/shared"
-
 	"eve-industry-planner/shared/logs"
+	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
 )
@@ -40,18 +39,17 @@ func CheckSDEUpdates(ctx context.Context, task *asynq.Task, deps *esitasks.TaskD
 
 	logs.DebugCtx(ctx, "SDE update check task received")
 
-	dataDir := os.Getenv("SDE_DATA_DIR")
-	if dataDir == "" {
-		dataDir = sdeshared.DefaultDataDir
+	backend, err := objectstore.OpenStaticData(ctx)
+	if err != nil {
+		return fmt.Errorf("sde store: %w", err)
 	}
-
-	lock, err := sdeshared.ReadVersionLock(dataDir)
+	lock, err := sdecore.ReadVersionLock(ctx, backend)
 	if err != nil {
 		return fmt.Errorf("failed reading SDE version lock: %w", err)
 	}
 	if lock != nil {
 		logs.InfoCtx(ctx, "SDE update skipped due to version lock",
-			"data_dir", dataDir,
+			"backend", backend.Kind(),
 			"locked_build_number", lock.BuildNumber,
 			"locked_version", lock.Version,
 			"locked_at", lock.LockedAt,
@@ -59,7 +57,7 @@ func CheckSDEUpdates(ctx context.Context, task *asynq.Task, deps *esitasks.TaskD
 		return nil
 	}
 
-	versionResult, err := stageVersionCheck(ctx, dataDir)
+	versionResult, err := stageVersionCheck(ctx)
 	if err != nil {
 		return err
 	}
@@ -67,7 +65,7 @@ func CheckSDEUpdates(ctx context.Context, task *asynq.Task, deps *esitasks.TaskD
 	if err := runSDEUpdatePipeline(ctx, deps, versionResult); err != nil {
 		return err
 	}
-	if v, err := sdeshared.ReadRootVersionJSON(dataDir); err == nil && v != nil {
+	if v, err := sdecore.ReadRootVersionJSON(ctx, backend); err == nil && v != nil {
 		pushCoreSDEBuildUpdate(ctx, deps, v.BuildNumber, v.Version)
 	}
 	return nil
@@ -121,7 +119,7 @@ func runSDEUpdatePipelineWithPersist(
 
 	// Stage 6: keep only the newest N previous versions.
 	if persistResult != nil {
-		if err := stagePrunePrevious(versionResult.DataDir); err != nil {
+		if err := stagePrunePrevious(); err != nil {
 			return err
 		}
 	}

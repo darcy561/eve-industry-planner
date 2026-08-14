@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"time"
 
+	"eve-industry-planner/shared/httpclient"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/httpclient"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -97,7 +97,7 @@ func (c *RedisESIClient) checkAndReserve(ctx context.Context, group string, esti
 	}
 
 	// Parse result: {allowed, wait_until}
-	resultArray, ok := result.([]interface{})
+	resultArray, ok := result.([]any)
 	if !ok || len(resultArray) != 2 {
 		return false, time.Time{}, fmt.Errorf("invalid result from checkAndReserve script: %v", result)
 	}

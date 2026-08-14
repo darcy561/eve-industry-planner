@@ -3,7 +3,7 @@ package documentlock
 import (
 	"testing"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 )
 
 func TestBuildHandoffCompletedPayload(t *testing.T) {
@@ -85,9 +85,9 @@ func TestBuildGroupCascadePayload(t *testing.T) {
 		{JobID: "job-b", EvictedSessionID: "sess-old"},
 	}
 	p := BuildGroupCascadePayload(
-		mongocore.CollectionUserJobGroups,
+		eipmongo.CollectionUserJobGroups,
 		"group-1",
-		mongocore.CollectionUserJobDocuments,
+		eipmongo.CollectionUserJobDocuments,
 		releases,
 		LockReleaseReasonGroupHandoffCascade,
 	)
@@ -95,13 +95,13 @@ func TestBuildGroupCascadePayload(t *testing.T) {
 	if p[LockPayloadEventKey] != LockEventGroupCascade {
 		t.Fatalf("expected event=%s, got %v", LockEventGroupCascade, p[LockPayloadEventKey])
 	}
-	if p["groupCollection"] != mongocore.CollectionUserJobGroups {
+	if p["groupCollection"] != eipmongo.CollectionUserJobGroups {
 		t.Fatalf("groupCollection: got %v", p["groupCollection"])
 	}
 	if p["groupID"] != "group-1" {
 		t.Fatalf("groupID: got %v", p["groupID"])
 	}
-	if p["collection"] != mongocore.CollectionUserJobDocuments {
+	if p["collection"] != eipmongo.CollectionUserJobDocuments {
 		t.Fatalf("collection: got %v", p["collection"])
 	}
 	if p["reason"] != LockReleaseReasonGroupHandoffCascade {
@@ -125,9 +125,9 @@ func TestBuildGroupCascadePayload_reasonVariants(t *testing.T) {
 
 	t.Run("membership_added", func(t *testing.T) {
 		p := BuildGroupCascadePayload(
-			mongocore.CollectionUserJobGroups,
+			eipmongo.CollectionUserJobGroups,
 			"g99",
-			mongocore.CollectionUserJobDocuments,
+			eipmongo.CollectionUserJobDocuments,
 			releases,
 			LockReleaseReasonGroupMembershipAdded,
 		)
@@ -138,9 +138,9 @@ func TestBuildGroupCascadePayload_reasonVariants(t *testing.T) {
 
 	t.Run("empty_reason_defaults_to_handoff_cascade", func(t *testing.T) {
 		p := BuildGroupCascadePayload(
-			mongocore.CollectionUserJobGroups,
+			eipmongo.CollectionUserJobGroups,
 			"g98",
-			mongocore.CollectionUserJobDocuments,
+			eipmongo.CollectionUserJobDocuments,
 			releases,
 			"",
 		)
@@ -149,4 +149,3 @@ func TestBuildGroupCascadePayload_reasonVariants(t *testing.T) {
 		}
 	})
 }
-

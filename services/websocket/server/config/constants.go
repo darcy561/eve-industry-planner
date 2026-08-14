@@ -25,6 +25,8 @@ const (
 
 	// Security configuration.
 	defaultMaxConnectionsPerUser = 5
+	defaultClientCutoff          = 2000
+	defaultTargetClients         = 1500
 	MessageRateLimit             = 200
 	MessageRateWindow            = 1 * time.Second
 
@@ -58,3 +60,43 @@ func MaxConnectionsPerUser() int {
 
 // SessionHandoffTTL is used for Redis key TTL and in-memory handoff expiry.
 var SessionHandoffTTL = time.Duration(WSReconnectMaxMS+WSSessionHandoffSlackMS) * time.Millisecond
+
+// ClientCutoff is the hard per-replica client count for placement full + upgrade refuse.
+// 0 means unlimited (never mark the backend full / never refuse for cutoff).
+func ClientCutoff() int {
+	v := strings.TrimSpace(os.Getenv("WS_CLIENT_CUTOFF"))
+	if v == "" {
+		return defaultClientCutoff
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return defaultClientCutoff
+	}
+	return n
+}
+
+// AtClientCutoff reports whether connected clients have reached the cutoff.
+func AtClientCutoff(connected int) bool {
+	cutoff := ClientCutoff()
+	return cutoff > 0 && connected >= cutoff
+}
+
+// TargetClients is the soft per-replica client count for placement soft divert.
+// 0 means soft divert off (never mark soft).
+func TargetClients() int {
+	v := strings.TrimSpace(os.Getenv("WS_TARGET_CLIENTS"))
+	if v == "" {
+		return defaultTargetClients
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return defaultTargetClients
+	}
+	return n
+}
+
+// AtTargetClients reports whether connected clients have reached the soft target.
+func AtTargetClients(connected int) bool {
+	target := TargetClients()
+	return target > 0 && connected >= target
+}

@@ -43,7 +43,7 @@ func distinctSSORefreshMergedHours(ctx context.Context, rdb *redis.Client, numHo
 	}
 	now := time.Now().UTC().Truncate(time.Hour)
 	keys := make([]string, 0, numHours)
-	for i := 0; i < numHours; i++ {
+	for i := range numHours {
 		t := now.Add(-time.Duration(i) * time.Hour)
 		keys = append(keys, ssoDistinctHourRedisKey(t))
 	}

@@ -2,6 +2,7 @@ package logs
 
 import (
 	"context"
+	"maps"
 	"strings"
 	"time"
 
@@ -35,7 +36,7 @@ func BeginIsolatedOperationContext(parent context.Context) context.Context {
 }
 
 // AttachHandlerCaveatCtx records a non-fatal issue on an operation context (WebSocket messages, workers).
-func AttachHandlerCaveatCtx(ctx context.Context, key, msg string, extra map[string]interface{}) {
+func AttachHandlerCaveatCtx(ctx context.Context, key, msg string, extra map[string]any) {
 	store := failureDetailStoreFromContext(ctx)
 	if store == nil {
 		return
@@ -45,10 +46,8 @@ func AttachHandlerCaveatCtx(ctx context.Context, key, msg string, extra map[stri
 		Msg: strings.TrimSpace(msg),
 	}
 	if len(extra) > 0 {
-		c.Extra = make(map[string]interface{}, len(extra))
-		for k, v := range extra {
-			c.Extra[k] = v
-		}
+		c.Extra = make(map[string]any, len(extra))
+		maps.Copy(c.Extra, extra)
 		enrichFailureDetailRequestIdentity(ctx, c.Extra)
 	}
 	store.caveats = append(store.caveats, c)
@@ -66,7 +65,7 @@ func HandlerCaveatsFromContext(ctx context.Context) []HandlerCaveat {
 // EmitAccessShapedLog writes one structured line in the same field shape as HTTP access logs
 // (identity, flattened detail, debug_steps, caveats). Use for high-volume success paths that
 // should not emit middleware Info lines (e.g. lock-state-batch polling).
-func EmitAccessShapedLog(ctx context.Context, level, msg string, detail map[string]interface{}, steps []DebugStep, caveats []HandlerCaveat) {
+func EmitAccessShapedLog(ctx context.Context, level, msg string, detail map[string]any, steps []DebugStep, caveats []HandlerCaveat) {
 	fields := accessShapedLogFields(ctx, detail, steps, caveats)
 	logger := FromContext(ctx)
 	switch level {
@@ -106,7 +105,7 @@ func EnsureOperationLogger(ctx context.Context) context.Context {
 	return ContextWithLogger(ctx, Zap().With(fields...))
 }
 
-func accessShapedLogFields(ctx context.Context, detail map[string]interface{}, steps []DebugStep, caveats []HandlerCaveat) []zap.Field {
+func accessShapedLogFields(ctx context.Context, detail map[string]any, steps []DebugStep, caveats []HandlerCaveat) []zap.Field {
 	fields := []zap.Field{Ctx(ctx)}
 	if rid := RequestIDFromContext(ctx); rid != "" {
 		fields = append(fields, zap.String("request_id", rid))

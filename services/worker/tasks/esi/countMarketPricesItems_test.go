@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"eve-industry-planner/shared/shared"
-
 	"github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"
 )
@@ -13,9 +11,7 @@ import (
 func TestCountMarketPricesItems_NilTask(t *testing.T) {
 	ctx := context.Background()
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{
-			Redis: redis.NewClient(&redis.Options{Addr: "invalid:6379"}),
-		},
+		Redis:     redis.NewClient(&redis.Options{Addr: "invalid:6379"}),
 		ESIClient: &mockESIClient{},
 	}
 	err := CountMarketPricesItems(ctx, nil, deps)
@@ -28,9 +24,7 @@ func TestCountMarketPricesItems_InvalidRedisSkipsViaLock(t *testing.T) {
 	ctx := context.Background()
 	task := asynq.NewTask("countMarketPricesItems", []byte(`{}`))
 	deps := &TaskDependencies{
-		ServiceClients: &shared.ServiceClients{
-			Redis: redis.NewClient(&redis.Options{Addr: "invalid:6379"}),
-		},
+		Redis:     redis.NewClient(&redis.Options{Addr: "invalid:6379"}),
 		ESIClient: &mockESIClient{},
 	}
 	// Lock acquisition fails → shouldContinue false → nil return (same as other refresh tasks)

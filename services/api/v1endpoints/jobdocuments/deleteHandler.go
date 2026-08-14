@@ -9,17 +9,16 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/documentlock"
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // DeleteJobDocumentsHandler handles DELETE /api/v1/job-documents with { jobIDs: [] }.
-func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPIJobs()
@@ -49,18 +48,17 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 	const maxBatchSize = 200
 	if len(reqBody.JobIDs) > maxBatchSize {
 		metrics.Error("batch_too_large")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d job IDs)", maxBatchSize), "job documents delete batch too large", "job_docs_delete_batch_too_large", "job_documents", nil, map[string]interface{}{
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d job IDs)", maxBatchSize), "job documents delete batch too large", "job_docs_delete_batch_too_large", "job_documents", nil, map[string]any{
 			"count": len(reqBody.JobIDs),
 			"max":   maxBatchSize,
 		})
 		return
 	}
 
-	logs.AttachDebugStep(r, "batch_validated", map[string]interface{}{
+	logs.AttachDebugStep(r, "batch_validated", map[string]any{
 		"batch_size": len(reqBody.JobIDs),
 	})
 
-	collection := collJobDocuments(clients)
 	filter := bson.M{
 		"_meta.accountID": accountID,
 		"_id":             bson.M{"$in": reqBody.JobIDs},
@@ -70,19 +68,20 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 	sessionID := helper.AuthenticatedSessionID(r)
 	wsClientID := helper.ExtractWSClientID(r)
 
-	if clients.Redis != nil {
+	if h.locks.Redis != nil {
 		if sessionID == "" {
 			metrics.Error("auth_error")
 			helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "job documents delete lock gate: missing session", "job_docs_delete_missing_session", "job_documents", nil, nil)
 			return
 		}
 		jobGroupBypass := documentlock.JobGroupBypass{}
-		if clients.Mongo != nil {
+		if h.Mongo != nil {
 			type jobGroupRow struct {
 				ID              string `bson:"_id"`
 				GroupID         string `bson:"groupID"`
 				IncludedInGroup bool   `bson:"includedInGroup"`
 			}
+			collection := h.Mongo.JobDocuments.Collection()
 			cur, findErr := collection.Find(ctx, bson.M{
 				"_meta.accountID": accountID,
 				"_id":             bson.M{"$in": reqBody.JobIDs},
@@ -110,7 +109,7 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 				return
 			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, clients.Redis, accountID, sessionID, mongocore.CollectionUserJobDocuments, reqBody.JobIDs, jobGroupBypass)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionUserJobDocuments, reqBody.JobIDs, jobGroupBypass)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -123,18 +122,16 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 		}
 		if len(rejects) > 0 {
 			metrics.Error("lock_conflict")
-			helper.RespondLockHeldElsewhereJSON(w, r, mongocore.CollectionUserJobDocuments, rejects)
+			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionUserJobDocuments, rejects)
 			return
 		}
-		logs.AttachDebugStep(r, "lock_gate_passed", map[string]interface{}{
+		logs.AttachDebugStep(r, "lock_gate_passed", map[string]any{
 			"doc_count": len(reqBody.JobIDs),
 		})
 	}
 
-	retryConfig := mongocore.DefaultRetryConfig()
-	retryConfig.OperationName = fmt.Sprintf("delete %d job documents", len(reqBody.JobIDs))
-
-	deletedCount, err := mongocore.DeleteManyAfterStampingMeta(ctx, retryConfig, collection, filter, now, sessionID, wsClientID)
+	deletedCount, err := h.Mongo.JobDocuments.DeleteManyAfterStampingMeta(ctx, filter, now, sessionID, wsClientID,
+		eipmongo.WithOpName(fmt.Sprintf("delete %d job documents", len(reqBody.JobIDs))))
 
 	if err != nil {
 		metrics.Error("database_error")
@@ -142,13 +139,13 @@ func DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Request, clients *
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_write_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_write_completed", map[string]any{
 		"deleted": deletedCount,
 	})
 
 	w.WriteHeader(http.StatusNoContent)
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "job documents deleted", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "job documents deleted", map[string]any{
 		"requested":   len(reqBody.JobIDs),
 		"deleted":     deletedCount,
 		"duration_ms": time.Since(start).Milliseconds(),

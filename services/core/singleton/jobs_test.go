@@ -14,7 +14,7 @@ import (
 //     elect leaders for each other),
 //   - `lease:` prefix on the lease key (convention).
 //
-// We pass nil for *shared.ServiceClients because the catalog's job
+// We pass nil for *stackservices.Clients because the catalog's job
 // constructors only consume the clients lazily inside their Run closures.
 // If a future constructor starts touching clients at build time it'll need
 // a real bundle; that's the right time to revisit this test.

@@ -3,11 +3,11 @@ package server
 import (
 	"context"
 	"hash/fnv"
+	"time"
 
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/websocket/server/config"
-	"eve-industry-planner/websocket/server/identity"
 	"eve-industry-planner/websocket/server/outgoinglogic"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -52,9 +52,8 @@ func shardIndexForDocUpdate(partitionKey string, shardCount int) int {
 
 func (s *Server) finishDocUpdateDelivery(ctx context.Context, docID, subject string, outcome outboundDeliveryOutcome) {
 	if outcome.RouteKind == "invalid" {
-	detail := outboundDeliveryDetail(docID, subject, outcome)
-	detail["ws_instance_id"] = identity.JetStreamConsumerSuffix()
-	natscore.FinishNATSConsumerOperation(ctx, "warn", "doc update rejected", detail)
+		detail := outboundDeliveryDetail(docID, subject, outcome)
+		natscore.FinishNATSConsumerOperation(ctx, "warn", "doc update rejected", detail)
 		return
 	}
 	finishReplicaFanoutOperation(ctx, "doc update delivered", docID, subject, outcome, nil)
@@ -106,14 +105,58 @@ func (s *Server) runDocUpdateOutboundShardWorker(shard int) {
 			if !ok {
 				return
 			}
-			ctx := w.ctx
-			if ctx == nil {
-				ctx = context.Background()
-			}
-			payload := append([]byte(nil), w.msg.Data()...)
-			outcome := s.deliverOutboundDocUpdate(ctx, w.collectionScopedDocID, payload)
-			natscore.AcknowledgeMessage(w.msg, "delivered", natscore.GetDeliveryCount(w.msg))
-			s.finishDocUpdateDelivery(ctx, w.collectionScopedDocID, w.subject, outcome)
+			s.outboundInFlight.Add(1)
+			func() {
+				defer s.outboundInFlight.Add(-1)
+				ctx := w.ctx
+				if ctx == nil {
+					ctx = context.Background()
+				}
+				payload := append([]byte(nil), w.msg.Data()...)
+				outcome := s.deliverOutboundDocUpdate(ctx, w.collectionScopedDocID, payload)
+				natscore.AcknowledgeMessage(w.msg, "delivered", natscore.GetDeliveryCount(w.msg))
+				s.finishDocUpdateDelivery(ctx, w.collectionScopedDocID, w.subject, outcome)
+			}()
+		}
+	}
+}
+
+func (s *Server) outboundQueuedCount() int {
+	n := 0
+	for _, ch := range s.docUpdateOutboundShards {
+		n += len(ch)
+	}
+	return n
+}
+
+// flushOutboundShards waits until shard FIFOs are empty and no worker is in-flight,
+// or ctx is done. Call after intake stop and before kick so sockets can still receive.
+func (s *Server) flushOutboundShards(ctx context.Context) {
+	if s == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	traceDrainStop("flush")
+	if len(s.docUpdateOutboundShards) == 0 {
+		return
+	}
+	t := time.NewTicker(5 * time.Millisecond)
+	defer t.Stop()
+	for {
+		if s.outboundQueuedCount() == 0 && s.outboundInFlight.Load() == 0 {
+			logs.DebugCtx(ctx, "outbound shard flush complete")
+			return
+		}
+		select {
+		case <-ctx.Done():
+			logs.WarnCtx(ctx, "outbound shard flush interrupted",
+				"error", ctx.Err(),
+				"queued", s.outboundQueuedCount(),
+				"in_flight", s.outboundInFlight.Load())
+			return
+		case <-t.C:
 		}
 	}
 }

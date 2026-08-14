@@ -8,16 +8,15 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/config"
-	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
 	esicore "eve-industry-planner/worker/esi"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 const (
@@ -52,11 +51,11 @@ func CloudStoredEsiRefreshMaintenance(ctx context.Context, task *asynq.Task, dep
 		abandonMonths = defaultAbandonAfterLoginMonths
 	}
 
-	cfg, err := config.LoadConfig()
+	cfg, err := config.LoadCloudStoredESI()
 	if err != nil {
 		return err
 	}
-	if cfg.RefreshTokenKeyring == nil {
+	if cfg.Keys.Keyring == nil {
 		return fmt.Errorf("refresh token keyring is not configured")
 	}
 
@@ -71,10 +70,10 @@ func CloudStoredEsiRefreshMaintenance(ctx context.Context, task *asynq.Task, dep
 	rotateCutoff := now.AddDate(0, 0, -rotateDays)
 	abandonCutoff := now.AddDate(0, -abandonMonths, 0)
 
-	usersCol := deps.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUsers)
+	mongo := deps.Mongo
 	var userDoc models.UserAccountDocument
-	if err := usersCol.FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&userDoc); err != nil {
-		if err == mongo.ErrNoDocuments {
+	if err := mongo.Users.Collection().FindOne(ctx, bson.M{"_id": accountID, "_meta.accountID": accountID}).Decode(&userDoc); err != nil {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			logs.InfoCtx(ctx, "cloud esi refresh maintenance: user not found", "account_id", accountID)
 			return nil
 		}
@@ -108,9 +107,8 @@ func CloudStoredEsiRefreshMaintenance(ctx context.Context, task *asynq.Task, dep
 		return nil
 	}
 
-	stats, err := maintainAccountCloudRefreshTokens(ctx, usersCol, accountID, &cfg)
+	stats, err := maintainAccountCloudRefreshTokens(ctx, mongo.Users, accountID, &cfg)
 	if err != nil {
-		// Scheduler should only enqueue cloud accounts; these are benign races if state changed mid-flight.
 		if errors.Is(err, errCloudEsiMaintUserNotFound) {
 			logs.InfoCtx(ctx, "cloud esi refresh maintenance: user not found", "account_id", accountID)
 			return nil

@@ -169,10 +169,8 @@ func TestRedisRateLimiter_MultipleWorkers(t *testing.T) {
 	startTime := time.Now()
 
 	// Worker 1: Make 50 requests (with retry on rate limit)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 50; i++ {
+	wg.Go(func() {
+		for range 50 {
 			_, _, err := doWithRetry(ctx, worker1, "GET", "/markets/prices/", nil, group)
 			if err != nil {
 				atomic.AddInt64(&worker1Errors, 1)
@@ -180,13 +178,11 @@ func TestRedisRateLimiter_MultipleWorkers(t *testing.T) {
 				atomic.AddInt64(&worker1Requests, 1)
 			}
 		}
-	}()
+	})
 
 	// Worker 2: Make 50 requests (with retry on rate limit)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 50; i++ {
+	wg.Go(func() {
+		for range 50 {
 			_, _, err := doWithRetry(ctx, worker2, "GET", "/markets/prices/", nil, group)
 			if err != nil {
 				atomic.AddInt64(&worker2Errors, 1)
@@ -194,7 +190,7 @@ func TestRedisRateLimiter_MultipleWorkers(t *testing.T) {
 				atomic.AddInt64(&worker2Requests, 1)
 			}
 		}
-	}()
+	})
 
 	wg.Wait()
 	duration := time.Since(startTime)
@@ -247,10 +243,8 @@ func TestRedisRateLimiter_TokenBucket(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Worker 1: Try to make 200 requests (with retry on rate limit, but track token errors)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 200; i++ {
+	wg.Go(func() {
+		for range 200 {
 			_, _, err := doWithRetry(ctx, worker1, "GET", "/industry/systems/", nil, group)
 			if err != nil {
 				if rateLimitErr := GetRateLimitError(err); rateLimitErr != nil {
@@ -262,13 +256,11 @@ func TestRedisRateLimiter_TokenBucket(t *testing.T) {
 				atomic.AddInt64(&worker1Success, 1)
 			}
 		}
-	}()
+	})
 
 	// Worker 2: Try to make 200 requests (with retry on rate limit, but track token errors)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 200; i++ {
+	wg.Go(func() {
+		for range 200 {
 			_, _, err := doWithRetry(ctx, worker2, "GET", "/industry/systems/", nil, group)
 			if err != nil {
 				if rateLimitErr := GetRateLimitError(err); rateLimitErr != nil {
@@ -280,7 +272,7 @@ func TestRedisRateLimiter_TokenBucket(t *testing.T) {
 				atomic.AddInt64(&worker2Success, 1)
 			}
 		}
-	}()
+	})
 
 	wg.Wait()
 
@@ -336,14 +328,11 @@ func TestRedisRateLimiter_MultipleGroups(t *testing.T) {
 	var totalErrors int64
 
 	// Each worker makes requests to all groups
-	for workerID := 0; workerID < 2; workerID++ {
-		workerID := workerID
+	for workerID := range 2 {
 		worker := []*RedisESIClient{worker1, worker2}[workerID]
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := 0; i < 20; i++ {
+		wg.Go(func() {
+			for range 20 {
 				for j, group := range groups {
 					_, _, err := doWithRetry(ctx, worker, "GET", paths[j], nil, group)
 					if err != nil {
@@ -353,7 +342,7 @@ func TestRedisRateLimiter_MultipleGroups(t *testing.T) {
 					}
 				}
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -541,7 +530,7 @@ func TestRedisRateLimiter_TokenExhaustionAndRecovery(t *testing.T) {
 
 	// Phase 1: Exhaust tokens
 	var exhaustedCount int64
-	for i := 0; i < 350; i++ {
+	for i := range 350 {
 		_, _, err := client.Do(ctx, "GET", "/industry/systems/", nil, nil, group)
 		if err != nil {
 			if rateLimitErr := GetRateLimitError(err); rateLimitErr != nil {
@@ -587,10 +576,8 @@ func TestRedisRateLimiter_GroupsWithoutTokens(t *testing.T) {
 	startTime := time.Now()
 
 	// Worker 1: 50 requests
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 50; i++ {
+	wg.Go(func() {
+		for range 50 {
 			_, _, err := doWithRetry(ctx, worker1, "GET", "/markets/prices/", nil, group)
 			if err != nil {
 				atomic.AddInt64(&worker1Errors, 1)
@@ -598,13 +585,11 @@ func TestRedisRateLimiter_GroupsWithoutTokens(t *testing.T) {
 				atomic.AddInt64(&worker1Success, 1)
 			}
 		}
-	}()
+	})
 
 	// Worker 2: 50 requests
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 50; i++ {
+	wg.Go(func() {
+		for range 50 {
 			_, _, err := doWithRetry(ctx, worker2, "GET", "/markets/prices/", nil, group)
 			if err != nil {
 				atomic.AddInt64(&worker2Errors, 1)
@@ -612,7 +597,7 @@ func TestRedisRateLimiter_GroupsWithoutTokens(t *testing.T) {
 				atomic.AddInt64(&worker2Success, 1)
 			}
 		}
-	}()
+	})
 
 	wg.Wait()
 	duration := time.Since(startTime)
@@ -684,10 +669,8 @@ func TestRedisRateLimiter_PerPrimaryGroupRateLimit(t *testing.T) {
 	startTime := time.Now()
 
 	// Worker 1: 30 requests to markets (should take ~6 seconds at 5 req/s)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 30; i++ {
+	wg.Go(func() {
+		for range 30 {
 			_, _, err := doWithRetry(ctx, worker1, "GET", "/markets/prices/", nil, marketsGroup)
 			if err != nil {
 				atomic.AddInt64(&marketsErrors, 1)
@@ -695,13 +678,11 @@ func TestRedisRateLimiter_PerPrimaryGroupRateLimit(t *testing.T) {
 				atomic.AddInt64(&marketsSuccess, 1)
 			}
 		}
-	}()
+	})
 
 	// Worker 2: 30 requests to markets (should take ~6 seconds at 5 req/s total)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 30; i++ {
+	wg.Go(func() {
+		for range 30 {
 			_, _, err := doWithRetry(ctx, worker2, "GET", "/markets/prices/", nil, marketsGroup)
 			if err != nil {
 				atomic.AddInt64(&marketsErrors, 1)
@@ -709,7 +690,7 @@ func TestRedisRateLimiter_PerPrimaryGroupRateLimit(t *testing.T) {
 				atomic.AddInt64(&marketsSuccess, 1)
 			}
 		}
-	}()
+	})
 
 	wg.Wait()
 	marketsDuration := time.Since(startTime)
@@ -731,10 +712,8 @@ func TestRedisRateLimiter_PerPrimaryGroupRateLimit(t *testing.T) {
 	startTime = time.Now()
 
 	// Worker 1: 20 requests to industry (should take ~10 seconds at 2 req/s)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 20; i++ {
+	wg.Go(func() {
+		for range 20 {
 			_, _, err := doWithRetry(ctx, worker1, "GET", "/industry/systems/", nil, industryGroup)
 			if err != nil {
 				atomic.AddInt64(&industryErrors, 1)
@@ -742,13 +721,11 @@ func TestRedisRateLimiter_PerPrimaryGroupRateLimit(t *testing.T) {
 				atomic.AddInt64(&industrySuccess, 1)
 			}
 		}
-	}()
+	})
 
 	// Worker 2: 20 requests to industry (should take ~10 seconds at 2 req/s total)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 20; i++ {
+	wg.Go(func() {
+		for range 20 {
 			_, _, err := doWithRetry(ctx, worker2, "GET", "/industry/systems/", nil, industryGroup)
 			if err != nil {
 				atomic.AddInt64(&industryErrors, 1)
@@ -756,7 +733,7 @@ func TestRedisRateLimiter_PerPrimaryGroupRateLimit(t *testing.T) {
 				atomic.AddInt64(&industrySuccess, 1)
 			}
 		}
-	}()
+	})
 
 	wg.Wait()
 	industryDuration := time.Since(startTime)

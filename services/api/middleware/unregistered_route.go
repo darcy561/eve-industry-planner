@@ -40,7 +40,7 @@ func respondUnregisteredRoute(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
 	logMsg := fmt.Sprintf("no API route registered for %s %s", method, path)
-	logs.AttachClientFailureDetail(r, logMsg, map[string]interface{}{
+	logs.AttachClientFailureDetail(r, logMsg, map[string]any{
 		"failure_class": "api_route_not_found",
 		"method":        method,
 		"path":          path,

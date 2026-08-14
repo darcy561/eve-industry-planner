@@ -10,14 +10,12 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
-	mongocore "eve-industry-planner/shared/core/mongo"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 const maxCitadelNameBatch = 200
@@ -73,31 +71,31 @@ const (
 	citadelNamesCDNCacheControl = "public, s-maxage=2592000, stale-while-revalidate=604800, stale-if-error=604800"
 )
 
-func CitadelNamesHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) CitadelNamesHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	switch r.Method {
 	case http.MethodPost:
-		handleSubmitCitadelName(w, r, clients)
+		h.handleSubmitCitadelName(w, r)
 	default:
 		m := apimetrics.GetAPICitadelNames()
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
-		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use POST to submit citadel names.", "invalid method for citadel names endpoint", "citadel_names_method_not_allowed", "citadel_names", nil, map[string]interface{}{"method": r.Method})
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use POST to submit citadel names.", "invalid method for citadel names endpoint", "citadel_names_method_not_allowed", "citadel_names", nil, map[string]any{"method": r.Method})
 	}
 }
 
-func CitadelNameByIDHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) CitadelNameByIDHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	switch r.Method {
 	case http.MethodGet:
-		handleGetCitadelNameByID(w, r, clients)
+		h.handleGetCitadelNameByID(w, r)
 	default:
 		m := apimetrics.GetAPICitadelNames()
 		m.Errors.WithLabelValues("method_not_allowed").Inc(ctx)
-		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use GET to resolve citadel names.", "invalid method for citadel name lookup endpoint", "citadel_name_lookup_method_not_allowed", "citadel_names", nil, map[string]interface{}{"method": r.Method})
+		helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed. Use GET to resolve citadel names.", "invalid method for citadel name lookup endpoint", "citadel_name_lookup_method_not_allowed", "citadel_names", nil, map[string]any{"method": r.Method})
 	}
 }
 
-func handleSubmitCitadelName(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) handleSubmitCitadelName(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPICitadelNames()
@@ -128,7 +126,7 @@ func handleSubmitCitadelName(w http.ResponseWriter, r *http.Request, clients *sh
 	}
 	if len(items) > maxCitadelNameBatch {
 		metrics.Error("validation_error")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("at most %d submissions per request", maxCitadelNameBatch), "citadel names submit: batch too large", "citadel_names_batch_too_large", "citadel_names", nil, map[string]interface{}{"count": len(items), "max": maxCitadelNameBatch})
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("at most %d submissions per request", maxCitadelNameBatch), "citadel names submit: batch too large", "citadel_names_batch_too_large", "citadel_names", nil, map[string]any{"count": len(items), "max": maxCitadelNameBatch})
 		return
 	}
 
@@ -150,11 +148,11 @@ func handleSubmitCitadelName(w http.ResponseWriter, r *http.Request, clients *sh
 	}
 
 	now := time.Now().UTC()
-	coll := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionCitadelNames)
+	coll := h.Mongo.CitadelNames.Collection()
 
-	var writes []mongo.WriteModel
+	var writes []mongodriver.WriteModel
 	for _, s := range byID {
-		writes = append(writes, mongo.NewUpdateOneModel().
+		writes = append(writes, mongodriver.NewUpdateOneModel().
 			SetFilter(bson.M{"_id": s.ID}).
 			SetUpdate(bson.M{
 				"$set": bson.M{
@@ -175,23 +173,23 @@ func handleSubmitCitadelName(w http.ResponseWriter, r *http.Request, clients *sh
 	_, err := coll.BulkWrite(ctx, writes, bulkOpts)
 	if err != nil {
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to submit citadel names", "failed to bulk upsert citadel names", "citadel_names_upsert_failed", "citadel_names", err, map[string]interface{}{"count": len(writes)})
+		helper.RespondEndpointServerError(w, r, "Failed to submit citadel names", "failed to bulk upsert citadel names", "citadel_names_upsert_failed", "citadel_names", err, map[string]any{"count": len(writes)})
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_upsert_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_upsert_completed", map[string]any{
 		"count": len(writes),
 	})
 
 	w.WriteHeader(http.StatusNoContent)
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "citadel names submitted", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "citadel names submitted", map[string]any{
 		"count":       len(writes),
 		"duration_ms": time.Since(start).Milliseconds(),
 	})
 }
 
-func handleGetCitadelNameByID(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (h *Handlers) handleGetCitadelNameByID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
 	m := apimetrics.GetAPICitadelNames()
@@ -207,24 +205,24 @@ func handleGetCitadelNameByID(w http.ResponseWriter, r *http.Request, clients *s
 	citadelID, err := strconv.ParseInt(strings.TrimSpace(citadelIDRaw), 10, 64)
 	if err != nil || citadelID <= 0 {
 		metrics.Error("validation_error")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid citadel ID", "citadel name lookup: invalid citadel id", "citadel_name_invalid_id", "citadel_names", err, map[string]interface{}{"citadel_id_raw": citadelIDRaw})
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid citadel ID", "citadel name lookup: invalid citadel id", "citadel_name_invalid_id", "citadel_names", err, map[string]any{"citadel_id_raw": citadelIDRaw})
 		return
 	}
 
-	coll := clients.Mongo.Database(mongocore.DatabaseName).Collection(mongocore.CollectionCitadelNames)
+	coll := h.Mongo.CitadelNames.Collection()
 	var record citadelNameRecord
 	if err := coll.FindOne(ctx, bson.M{"_id": citadelID}).Decode(&record); err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
+		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
-			helper.RespondEndpointError(w, r, http.StatusNotFound, "Citadel name not found", "citadel name not found", "citadel_name_not_found", "citadel_names", nil, map[string]interface{}{"citadel_id": citadelID})
+			helper.RespondEndpointError(w, r, http.StatusNotFound, "Citadel name not found", "citadel name not found", "citadel_name_not_found", "citadel_names", nil, map[string]any{"citadel_id": citadelID})
 			return
 		}
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to retrieve citadel name", "failed to retrieve citadel name", "citadel_name_query_failed", "citadel_names", err, map[string]interface{}{"citadel_id": citadelID})
+		helper.RespondEndpointServerError(w, r, "Failed to retrieve citadel name", "failed to retrieve citadel name", "citadel_name_query_failed", "citadel_names", err, map[string]any{"citadel_id": citadelID})
 		return
 	}
 
-	logs.AttachDebugStep(r, "mongo_query_completed", map[string]interface{}{
+	logs.AttachDebugStep(r, "mongo_query_completed", map[string]any{
 		"citadel_id": citadelID,
 	})
 
@@ -244,12 +242,12 @@ func handleGetCitadelNameByID(w http.ResponseWriter, r *http.Request, clients *s
 
 	if err := helper.EncodeJSON(w, response); err != nil {
 		metrics.Error("encode_error")
-		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode citadel name response", "citadel_name_encode_failed", "citadel_names", err, map[string]interface{}{"citadel_id": citadelID})
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode citadel name response", "citadel_name_encode_failed", "citadel_names", err, map[string]any{"citadel_id": citadelID})
 		return
 	}
 
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "citadel name resolved", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "citadel name resolved", map[string]any{
 		"id":          citadelID,
 		"duration_ms": time.Since(start).Milliseconds(),
 	})

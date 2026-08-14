@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"eve-industry-planner/core/scheduler/contract"
-	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	taskscore "eve-industry-planner/shared/tasks"
@@ -43,7 +42,8 @@ func PublishProcessArchivedBuildStatsPerAccount(ctx context.Context, deps contra
 	if deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required for archived build stats fan-out")
 	}
-	accounts, err := mongocore.DistinctUnprocessedArchivedAccountIDs(ctx, deps.Mongo)
+	mongo := deps.Mongo
+	accounts, err := mongo.DistinctUnprocessedArchivedAccountIDs(ctx)
 	if err != nil {
 		return fmt.Errorf("distinct unprocessed archived accounts: %w", err)
 	}

@@ -13,7 +13,7 @@ func (s *Server) handleSyncWS(ctx context.Context, client *Client, msg []byte) {
 	if err != nil {
 		finishWSOperationFailure(ctx, client, "sync",
 			"websocket sync: invalid message",
-			"ws_sync_invalid_message", map[string]interface{}{
+			"ws_sync_invalid_message", map[string]any{
 				"error": err.Error(),
 			})
 		return
@@ -21,13 +21,13 @@ func (s *Server) handleSyncWS(ctx context.Context, client *Client, msg []byte) {
 
 	collectionCount := len(syncMsg.Subscriptions)
 	docCount := syncSubscriptionDocCount(syncMsg.Subscriptions)
-	wsAppendDebugStep(ctx, "sync_request", map[string]interface{}{
+	wsAppendDebugStep(ctx, "sync_request", map[string]any{
 		"collection_count": collectionCount,
 		"doc_count":        docCount,
 	})
 
 	outcome := syncpkg.EnqueueSyncMessageWithOutcome(ctx, s, client.id, *syncMsg)
-	extra := map[string]interface{}{
+	extra := map[string]any{
 		"collection_count": collectionCount,
 		"doc_count":        docCount,
 		"enqueue_status":   outcome.Status,

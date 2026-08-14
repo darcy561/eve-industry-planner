@@ -1,16 +1,16 @@
 package conversion
 
 // isPublishedBlueprintFormula is true when the SDE types row for blueprintTypeID is published (in-game).
-func isPublishedBlueprintFormula(blueprint map[string]interface{}, typesData map[string]interface{}) bool {
+func isPublishedBlueprintFormula(blueprint map[string]any, typesData map[string]any) bool {
 	return isPublishedInGameType(blueprintTypeIDKey(blueprint), typesData)
 }
 
 // isPublishedInGameType is true when types.jsonl lists the type as published.
-func isPublishedInGameType(typeIDKey string, typesData map[string]interface{}) bool {
+func isPublishedInGameType(typeIDKey string, typesData map[string]any) bool {
 	if typeIDKey == "" || typesData == nil {
 		return false
 	}
-	raw, ok := typesData[typeIDKey].(map[string]interface{})
+	raw, ok := typesData[typeIDKey].(map[string]any)
 	if !ok {
 		return false
 	}
@@ -20,7 +20,7 @@ func isPublishedInGameType(typeIDKey string, typesData map[string]interface{}) b
 
 // preferBlueprintRow reports whether candidate should replace existing when both published rows
 // map to the same product type ID (rare duplicate products in SDE).
-func preferBlueprintRow(existing, candidate map[string]interface{}, _ map[string]interface{}) bool {
+func preferBlueprintRow(existing, candidate map[string]any, _ map[string]any) bool {
 	if existing == nil {
 		return true
 	}
@@ -42,11 +42,11 @@ func preferBlueprintRow(existing, candidate map[string]interface{}, _ map[string
 	return candidateID > existingID
 }
 
-func assignBlueprintKey(out map[string]interface{}, key string, blueprint map[string]interface{}, typesData map[string]interface{}) {
+func assignBlueprintKey(out map[string]any, key string, blueprint map[string]any, typesData map[string]any) {
 	if key == "" || blueprint == nil || !isPublishedBlueprintFormula(blueprint, typesData) {
 		return
 	}
-	if existing, ok := out[key].(map[string]interface{}); ok {
+	if existing, ok := out[key].(map[string]any); ok {
 		if !preferBlueprintRow(existing, blueprint, typesData) {
 			return
 		}
@@ -54,21 +54,21 @@ func assignBlueprintKey(out map[string]interface{}, key string, blueprint map[st
 	out[key] = blueprint
 }
 
-func firstActivityProductQuantity(blueprint map[string]interface{}) (int, bool) {
-	activities, ok := blueprint["activities"].(map[string]interface{})
+func firstActivityProductQuantity(blueprint map[string]any) (int, bool) {
+	activities, ok := blueprint["activities"].(map[string]any)
 	if !ok {
 		return 0, false
 	}
 	for _, key := range []string{"manufacturing", "reaction"} {
-		activity, ok := activities[key].(map[string]interface{})
+		activity, ok := activities[key].(map[string]any)
 		if !ok {
 			continue
 		}
-		products, ok := activity["products"].([]interface{})
+		products, ok := activity["products"].([]any)
 		if !ok || len(products) == 0 {
 			continue
 		}
-		product, ok := products[0].(map[string]interface{})
+		product, ok := products[0].(map[string]any)
 		if !ok {
 			continue
 		}

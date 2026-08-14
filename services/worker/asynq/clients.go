@@ -14,14 +14,12 @@ import (
 // SetupClient creates and returns an asynq client for all tasks.
 // It handles Redis connection configuration and client initialization.
 func SetupClient() (*asynq.Client, asynq.RedisClientOpt, error) {
-	// Get Redis connection info for asynq
-	cfg, err := config.LoadConfig()
+	rawURL, err := config.RedisURL()
 	if err != nil {
-		return nil, asynq.RedisClientOpt{}, fmt.Errorf("failed to load config for asynq: %w", err)
+		return nil, asynq.RedisClientOpt{}, fmt.Errorf("failed to load redis config for asynq: %w", err)
 	}
 
-	// Parse Redis URL to extract connection details for asynq
-	redisURL, err := url.Parse(cfg.REDIS_URL)
+	redisURL, err := url.Parse(rawURL)
 	if err != nil {
 		return nil, asynq.RedisClientOpt{}, fmt.Errorf("failed to parse Redis URL: %w", err)
 	}
@@ -53,4 +51,3 @@ func SetupClient() (*asynq.Client, asynq.RedisClientOpt, error) {
 
 	return client, redisOpt, nil
 }
-

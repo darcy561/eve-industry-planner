@@ -1,0 +1,148 @@
+# Data-layer Swarm fragment (mongo / redis / nats / SeaweedFS / Prometheus) on eip-core.
+# Roll order: stop-first (x-data-deploy) — R=1 + exclusive volumes.
+# File configs: eip.config.sync=1 → hash-synced via eip sync / rematerialize.
+# Network name SoT: x-net-* anchors (reuse in name: + eip.network.* labels).
+
+x-net-core: &net-core eip-core
+x-net-obs: &net-obs eip-obs
+
+x-common-dns: &common-dns
+  - 8.8.8.8
+  - 8.8.4.4
+  - 1.1.1.1
+
+x-data-deploy: &data-deploy
+  replicas: 1
+  update_config:
+    order: stop-first
+    parallelism: 1
+    failure_action: pause
+    monitor: 30s
+  rollback_config:
+    order: stop-first
+    parallelism: 1
+  restart_policy:
+    condition: on-failure
+    delay: 5s
+
+services:
+  nats:
+    image: nats:2
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    networks:
+      eip-core:
+        aliases: [nats]
+    dns: *common-dns
+    volumes:
+      - nats_data:/data
+    deploy:
+      <<: *data-deploy
+
+  redis:
+    image: redis:8
+    command:
+      [
+        "redis-server",
+        "--requirepass",
+        "${REDIS_PASSWORD}",
+        "--bind",
+        "0.0.0.0",
+        "--notify-keyspace-events",
+        "Ex",
+      ]
+    networks:
+      eip-core:
+        aliases: [redis]
+    dns: *common-dns
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    deploy:
+      <<: *data-deploy
+
+  mongo:
+    image: mongo:8
+    # Auth-first mongod (no dual-boot). RS/users/preimages: eip ensure-mongo / Ready Ensure.
+    # Host keyfile SoT: ./mongo-keyfile (project home). Desktop bind mounts often appear
+    # mode 777; copy+chmod 600 in /tmp for mongod only (host file unchanged).
+    command:
+      [
+        "bash",
+        "-c",
+        "cp /etc/mongo-keyfile /tmp/mongo-keyfile && chmod 600 /tmp/mongo-keyfile && exec mongod --replSet rs0 --bind_ip_all --auth --keyFile /tmp/mongo-keyfile",
+      ]
+    # RS member host is mongo:27017; Swarm VIP aliases do not loop back to this
+    # task, so pin hostname + hosts entry (same fix as docker run --hostname mongo).
+    hostname: mongo
+    extra_hosts:
+      - "mongo:127.0.0.1"
+    networks:
+      eip-core:
+        aliases: [mongo]
+    dns: *common-dns
+    environment:
+      MONGO_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_USERNAME: ${MONGO_USERNAME}
+      MONGO_PASSWORD: ${MONGO_PASSWORD}
+    volumes:
+      - mongo_data:/data/db
+      - type: bind
+        source: ./mongo-keyfile
+        target: /etc/mongo-keyfile
+        read_only: true
+    healthcheck:
+      # Root ping after Ensure; unauth/localhost ping allows fresh empty volume before users exist.
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet -u \"$$MONGO_ROOT_USERNAME\" -p \"$$MONGO_ROOT_PASSWORD\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" >/dev/null 2>&1 || mongosh --quiet --eval \"db.adminCommand('ping').ok\" >/dev/null 2>&1 || exit 1",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
+    deploy:
+      <<: *data-deploy
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.40
+    command: ["mini", "-dir=/data", "-ip.bind=0.0.0.0"]
+    networks:
+      eip-core:
+        aliases: [seaweedfs]
+    dns: *common-dns
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET: static-data,static-data-test
+    volumes:
+      - seaweedfs_data:/data
+    deploy:
+      <<: *data-deploy
+
+networks:
+  eip-core:
+    name: *net-core
+    external: true
+
+volumes:
+  nats_data:
+    name: eve-industry-planner_nats_data
+    external: true
+  redis_data:
+    name: eve-industry-planner_redis_data
+    external: true
+  mongo_data:
+    name: eve-industry-planner_mongo_data
+    external: true
+  seaweedfs_data:
+    name: eve-industry-planner_seaweedfs_data
+    external: true

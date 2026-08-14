@@ -78,4 +78,3 @@ func ResolvePlannerSessionID(r *http.Request) string {
 	}
 	return ReadAppSessionCookie(r)
 }
-

@@ -10,7 +10,6 @@ import (
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
@@ -63,9 +62,9 @@ const maxFrontendByTypeKeys = 500
 // maxFrontendBatchEvents caps items per POST /api/v1/analytics/events (defensive; client debatches).
 const maxFrontendBatchEvents = 60
 
-func frontendAnalyticsAudience(ctx context.Context, r *http.Request, clients *shared.ServiceClients) string {
-	if clients != nil {
-		if _, ok := auth.TryExtractAccountSession(ctx, r, clients.Redis); ok {
+func (a *Handlers) frontendAnalyticsAudience(ctx context.Context, r *http.Request) string {
+	if a.Redis != nil {
+		if _, ok := auth.TryExtractAccountSession(ctx, r, a.Redis); ok {
 			return apimetrics.FrontendAudienceAuthenticated
 		}
 	}
@@ -111,18 +110,15 @@ func recordValidatedFrontendAnalytics(ctx context.Context, met *apimetrics.WebFr
 		met.RecordItemTreeViews(ctx, audience, byType)
 		return
 	}
-	n := body.Count
-	if n < 1 {
-		n = 1
-	}
+	n := max(body.Count, 1)
 	met.RecordEvent(ctx, key, audience, n)
 }
 
 // FrontendAppEventsBatchHandler handles POST /api/v1/analytics/events (batched product analytics for OTel).
 // Body: {"events":[{...},{...}]} - each object matches [frontendAnalyticsBody]. Max [maxFrontendBatchEvents] items.
-func FrontendAppEventsBatchHandler(w http.ResponseWriter, r *http.Request, clients *shared.ServiceClients) {
+func (a *Handlers) FrontendAppEventsBatchHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	audience := frontendAnalyticsAudience(ctx, r, clients)
+	audience := a.frontendAnalyticsAudience(ctx, r)
 	met := apimetrics.GetWebFrontendEvents()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
 		ObserveDuration: func(ctx context.Context, ms float64) { met.RecordRequestMilliseconds(ctx, ms, audience) },
@@ -152,19 +148,19 @@ func FrontendAppEventsBatchHandler(w http.ResponseWriter, r *http.Request, clien
 	}
 	if n > maxFrontendBatchEvents {
 		metrics.Error("batch_too_many")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid request", "frontend analytics batch: too many events", "frontend_analytics_batch_too_many", "frontend_analytics", nil, map[string]interface{}{"count": n})
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid request", "frontend analytics batch: too many events", "frontend_analytics_batch_too_many", "frontend_analytics", nil, map[string]any{"count": n})
 		return
 	}
 
 	for i := range batch.Events {
 		if reason := validateFrontendAnalyticsBody(&batch.Events[i]); reason != "" {
 			metrics.Error("batch_item_" + reason)
-			helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid request", "frontend analytics batch: item validation failed", "frontend_analytics_item_invalid", "frontend_analytics", nil, map[string]interface{}{"reason": reason, "index": i})
+			helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid request", "frontend analytics batch: item validation failed", "frontend_analytics_item_invalid", "frontend_analytics", nil, map[string]any{"reason": reason, "index": i})
 			return
 		}
 	}
 
-	logs.AttachDebugStep(r, "batch_validated", map[string]interface{}{
+	logs.AttachDebugStep(r, "batch_validated", map[string]any{
 		"event_count": n,
 		"audience":    audience,
 	})
@@ -173,7 +169,7 @@ func FrontendAppEventsBatchHandler(w http.ResponseWriter, r *http.Request, clien
 		recordValidatedFrontendAnalytics(ctx, met, &batch.Events[i], audience)
 	}
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "frontend analytics batch recorded", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "frontend analytics batch recorded", map[string]any{
 		"event_count": n,
 		"audience":    audience,
 	})

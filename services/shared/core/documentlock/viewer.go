@@ -16,7 +16,8 @@ const ViewerPresenceTTL = 5 * time.Minute
 
 const viewerPresencePrefix = "doc_lock_viewers:"
 
-func viewerPresenceKey(accountID, collection, docID string) string {
+// ViewerPresenceKey is the Redis ZSET of sessions passively viewing a doc.
+func ViewerPresenceKey(accountID, collection, docID string) string {
 	return viewerPresencePrefix + accountID + KeyPartSep + collection + KeyPartSep + docID
 }
 
@@ -27,7 +28,7 @@ func AddViewer(ctx context.Context, rdb *redis.Client, accountID, collection, do
 		return false, nil
 	}
 	score := float64(time.Now().Add(ViewerPresenceTTL).Unix())
-	added, err := rdb.ZAddArgs(ctx, viewerPresenceKey(accountID, collection, docID), redis.ZAddArgs{
+	added, err := rdb.ZAddArgs(ctx, ViewerPresenceKey(accountID, collection, docID), redis.ZAddArgs{
 		Members: []redis.Z{{Score: score, Member: sessionID}},
 	}).Result()
 	if err != nil {
@@ -41,7 +42,7 @@ func RemoveViewer(ctx context.Context, rdb *redis.Client, accountID, collection,
 	if rdb == nil || sessionID == "" {
 		return false, nil
 	}
-	n, err := rdb.ZRem(ctx, viewerPresenceKey(accountID, collection, docID), sessionID).Result()
+	n, err := rdb.ZRem(ctx, ViewerPresenceKey(accountID, collection, docID), sessionID).Result()
 	if err != nil {
 		return false, err
 	}
@@ -87,7 +88,7 @@ func PruneAndCountViewers(ctx context.Context, rdb *redis.Client, accountID, col
 	if rdb == nil {
 		return 0, nil
 	}
-	k := viewerPresenceKey(accountID, collection, docID)
+	k := ViewerPresenceKey(accountID, collection, docID)
 	nowScore := strconv.FormatInt(time.Now().Unix(), 10)
 	pipe := rdb.Pipeline()
 	_ = pipe.ZRemRangeByScore(ctx, k, "0", nowScore)

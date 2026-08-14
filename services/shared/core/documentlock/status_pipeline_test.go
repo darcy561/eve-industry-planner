@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -29,8 +29,8 @@ func TestStatusBatchFetch_AllUnheld(t *testing.T) {
 	ctx := context.Background()
 
 	refs := []statusDocRef{
-		{Collection: mongocore.CollectionUserJobDocuments, DocID: "job-a"},
-		{Collection: mongocore.CollectionUserJobDocuments, DocID: "job-b"},
+		{Collection: eipmongo.CollectionUserJobDocuments, DocID: "job-a"},
+		{Collection: eipmongo.CollectionUserJobDocuments, DocID: "job-b"},
 	}
 	results, err := statusBatchFetch(ctx, rdb, testAccountID, refs)
 	if err != nil {
@@ -73,7 +73,7 @@ func TestStatusBatchFetch_HeldWithViewersAndWaitlist(t *testing.T) {
 	if _, err := AddViewer(ctx, rdb, testAccountID, testCollection, docID, "viewer-b"); err != nil {
 		t.Fatalf("AddViewer b: %v", err)
 	}
-	if err := rdb.ZAddArgs(ctx, viewerPresenceKey(testAccountID, testCollection, docID), redis.ZAddArgs{
+	if err := rdb.ZAddArgs(ctx, ViewerPresenceKey(testAccountID, testCollection, docID), redis.ZAddArgs{
 		Members: []redis.Z{{Score: float64(time.Now().Add(-time.Hour).Unix()), Member: "viewer-stale"}},
 	}).Err(); err != nil {
 		t.Fatalf("seed stale viewer: %v", err)
@@ -230,12 +230,12 @@ func TestStatusBatchResults_RoutesJobsAndGroupsIntoSeparateBuckets(t *testing.T)
 	jobID := "job-x"
 	groupID := "group-x"
 
-	seedLock(t, rdb, testAccountID, mongocore.CollectionUserJobDocuments, jobID, LockRecord{
+	seedLock(t, rdb, testAccountID, eipmongo.CollectionUserJobDocuments, jobID, LockRecord{
 		HolderSessionID: "sess-job",
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
 	})
-	seedLock(t, rdb, testAccountID, mongocore.CollectionUserJobGroups, groupID, LockRecord{
+	seedLock(t, rdb, testAccountID, eipmongo.CollectionUserJobGroups, groupID, LockRecord{
 		HolderSessionID: "sess-group",
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),

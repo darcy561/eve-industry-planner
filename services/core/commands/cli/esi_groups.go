@@ -3,21 +3,22 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"eve-industry-planner/shared/lifecycle"
+	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"time"
 
 	esimetrics "eve-industry-planner/core/metrics/esi"
-	"eve-industry-planner/shared/shared"
 )
 
 // RunEsiRateLimitGroups prints current ESI limiter groups and state from Redis.
 func RunEsiRateLimitGroups() error {
 	ctx := context.Background()
-	clients, err := shared.ConnectServices(ctx, shared.ServiceRedis)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Redis)
 	if err != nil {
 		return fmt.Errorf("failed connecting to redis: %w", err)
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
 	groupNames, err := esimetrics.DiscoverGroups(ctx, clients.Redis)
 	if err != nil {
@@ -51,11 +52,11 @@ func RunEsiRateLimitGroups() error {
 // discovered ESI group. Preserves esi:group:{name}:token_limit.
 func RunResetEsiRateLimitGroups() error {
 	ctx := context.Background()
-	clients, err := shared.ConnectServices(ctx, shared.ServiceRedis)
+	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Redis)
 	if err != nil {
 		return fmt.Errorf("failed connecting to redis: %w", err)
 	}
-	defer runImmediateCleanups(clients.CleanupFns...)
+	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
 	groupNames, err := esimetrics.DiscoverGroups(ctx, clients.Redis)
 	if err != nil {

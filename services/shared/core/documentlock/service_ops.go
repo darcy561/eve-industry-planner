@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 )
 
 // AcquireResult is the outcome of attempting to acquire the edit lock.
@@ -45,12 +45,12 @@ func (s *Service) Acquire(ctx context.Context, accountID, sessionID, collection,
 		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, sessionID, true)
 		_ = PublishLockEvent(ctx, s.Deps.JetStream, accountID, map[string]any{
 			LockPayloadEventKey: LockEventAcquired,
-			"collection":    collection,
-			"docID":         docID,
-			"sessionID":     sessionID,
-			"expiresAtUnix": tx.Record.ExpiresAtUnix,
+			"collection":        collection,
+			"docID":             docID,
+			"sessionID":         sessionID,
+			"expiresAtUnix":     tx.Record.ExpiresAtUnix,
 		})
-		if collection == mongocore.CollectionUserJobGroups {
+		if collection == eipmongo.CollectionUserJobGroups {
 			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, s.Deps, accountID, docID, sessionID)
 		}
 		payload := LockPayloadForRecord(tx.Record.ExpiresAtUnix, tx.Record.LeaseMode)
@@ -229,7 +229,7 @@ func (s *Service) ForceReleaseSameAccount(ctx context.Context, accountID, reques
 			"requesterSessionID": requesterSessionID,
 			"reason":             LockReleaseReasonForceReleasedSameAccount,
 		})
-		if collection == mongocore.CollectionUserJobGroups {
+		if collection == eipmongo.CollectionUserJobGroups {
 			ReleaseDependentJobLocksOnGroupHandoff(ctx, s.Deps, accountID, docID, prev)
 		}
 		StripPassiveViewerOnHolderGrant(ctx, s.Deps, accountID, collection, docID, requesterSessionID, true)
@@ -240,7 +240,7 @@ func (s *Service) ForceReleaseSameAccount(ctx context.Context, accountID, reques
 			"sessionID":         requesterSessionID,
 			"expiresAtUnix":     tx.Record.ExpiresAtUnix,
 		})
-		if collection == mongocore.CollectionUserJobGroups {
+		if collection == eipmongo.CollectionUserJobGroups {
 			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, s.Deps, accountID, docID, requesterSessionID)
 		}
 		payload := LockPayloadForRecord(tx.Record.ExpiresAtUnix, tx.Record.LeaseMode)
@@ -314,7 +314,7 @@ func (s *Service) HandOver(ctx context.Context, accountID, holderSessionID, coll
 				Reason:                  LockHandoffReasonHolderHandover,
 			},
 		))
-		if collection == mongocore.CollectionUserJobGroups {
+		if collection == eipmongo.CollectionUserJobGroups {
 			ReleaseDependentJobLocksOnGroupHandoff(ctx, s.Deps, accountID, docID, tx.PreviousHolderSessionID)
 		}
 		payload := LockPayload(tx.ExpiresAtUnix)
@@ -367,7 +367,7 @@ func (s *Service) RequestAccess(ctx context.Context, accountID, requesterSession
 			"expiresAtUnix":        tx.ExpiresAtUnix,
 			"accessRequestGranted": true,
 		})
-		if collection == mongocore.CollectionUserJobGroups {
+		if collection == eipmongo.CollectionUserJobGroups {
 			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, s.Deps, accountID, docID, requesterSessionID)
 		}
 		payload := LockPayload(tx.ExpiresAtUnix)
@@ -443,7 +443,7 @@ func (s *Service) ClaimHandoff(ctx context.Context, accountID, requesterSessionI
 			tx.ExpiresAtUnix,
 			HandoffCompletedOpts{PreviousHolderSessionID: tx.PreviousHolderSessionID},
 		))
-		if collection == mongocore.CollectionUserJobGroups {
+		if collection == eipmongo.CollectionUserJobGroups {
 			ReleaseDependentJobLocksOnGroupHandoff(ctx, s.Deps, accountID, docID, tx.PreviousHolderSessionID)
 		}
 		payload := LockPayload(tx.ExpiresAtUnix)

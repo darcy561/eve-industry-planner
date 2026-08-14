@@ -2,15 +2,14 @@ package users
 
 import (
 	"context"
-	"sync/atomic"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"eve-industry-planner/core/metrics/common"
-	mongocore "eve-industry-planner/shared/core/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
 
-	gomongo "go.mongodb.org/mongo-driver/mongo"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -20,9 +19,9 @@ const usersCountRefreshInterval = 1 * time.Hour
 
 // Register registers an observable gauge for total users in MongoDB.
 // Callback runs on the OTel metric export interval (~15s).
-func Register(mongoClient *gomongo.Client) {
+func Register(mongoHandle *eipmongo.Mongo) {
 	registerOnce.Do(func() {
-		if mongoClient == nil {
+		if mongoHandle == nil {
 			return
 		}
 		m := common.Meter()
@@ -39,7 +38,7 @@ func Register(mongoClient *gomongo.Client) {
 		refreshCount := func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 			defer cancel()
-			coll := mongoClient.Database(mongocore.DatabaseName).Collection(mongocore.CollectionUsers)
+			coll := mongoHandle.Users.Collection()
 			total, err := coll.CountDocuments(ctx, map[string]any{})
 			if err != nil {
 				logs.WarnCtx(ctx, "core metrics users: count users", "error", err)

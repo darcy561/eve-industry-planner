@@ -14,7 +14,7 @@ import (
 	natslib "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	redislib "github.com/redis/go-redis/v9"
-	mongodriver "go.mongodb.org/mongo-driver/mongo"
+	eipmongo "eve-industry-planner/shared/mongo"
 )
 
 const schedulerLogComponent = "scheduler"
@@ -45,7 +45,7 @@ func (r *JobRegistry) Register(scheduler SchedulerFunc) {
 }
 
 // Start registers all schedulers
-func (r *JobRegistry) Start(natsConn *natslib.Conn, jsContext jetstream.JetStream, redisClient *redislib.Client, mongoClient *mongodriver.Client) error {
+func (r *JobRegistry) Start(natsConn *natslib.Conn, jsContext jetstream.JetStream, redisClient *redislib.Client, mongoHandle *eipmongo.Mongo) error {
 	// Ensure required JetStream streams exist before starting schedulers
 	if err := natscore.EnsureWorkerTaskStream(jsContext); err != nil {
 		return err
@@ -62,7 +62,7 @@ func (r *JobRegistry) Start(natsConn *natslib.Conn, jsContext jetstream.JetStrea
 		NATS:      natsConn,
 		JSContext: jsContext,
 		Redis:     redisClient,
-		Mongo:     mongoClient,
+		Mongo:     mongoHandle,
 	}
 
 	bg := context.Background()
@@ -103,7 +103,7 @@ func (r *JobRegistry) Stop() {
 
 // StartService starts the scheduler service with all registered schedulers.
 // Returns a stop function for graceful shutdown, plus an error if startup fails.
-func StartService(logComponent string, natsConn *natslib.Conn, jsContext jetstream.JetStream, redisClient *redislib.Client, mongoClient *mongodriver.Client) (func(), error) {
+func StartService(logComponent string, natsConn *natslib.Conn, jsContext jetstream.JetStream, redisClient *redislib.Client, mongoHandle *eipmongo.Mongo) (func(), error) {
 	_ = logComponent // legacy parameter; component is embedded in log lines
 	stop := make(chan struct{})
 
@@ -125,7 +125,7 @@ func StartService(logComponent string, natsConn *natslib.Conn, jsContext jetstre
 	// registry.Register(market.ScheduleMarketHistoryRefresh)
 
 	// Start all registered schedulers
-	if err := registry.Start(natsConn, jsContext, redisClient, mongoClient); err != nil {
+	if err := registry.Start(natsConn, jsContext, redisClient, mongoHandle); err != nil {
 		logs.ErrorCtx(context.Background(), "failed to start job registry", "component", schedulerLogComponent, "error", err)
 		registry.Stop()
 		close(stop)

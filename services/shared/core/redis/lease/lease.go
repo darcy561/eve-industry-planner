@@ -53,7 +53,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
-	"eve-industry-planner/shared/core/instanceid"
+	"eve-industry-planner/shared/container"
 	"eve-industry-planner/shared/logs"
 )
 
@@ -150,14 +150,14 @@ end
 return 0
 `)
 
-// InstanceID returns a stable-per-process lease value: "<replica>:<uuid>".
+// InstanceID returns a per-hold lease value: "<container.ID()>:<uuid>".
 //
-// The hostname/replica prefix makes a held lease attributable in `KEYS *`
+// The container-id prefix makes a held lease attributable in `KEYS *`
 // inspection; the UUID suffix guarantees uniqueness across restarts so a
 // resurrected process can't accidentally refresh its own (now-expired)
 // stale lease.
 func InstanceID() string {
-	return instanceid.Replica() + ":" + strings.TrimSpace(uuid.NewString())
+	return container.ID() + ":" + strings.TrimSpace(uuid.NewString())
 }
 
 // RunWhileHeld blocks until ctx is cancelled. It acquires the named lease,
@@ -332,13 +332,21 @@ func renewIfMine(ctx context.Context, client *redis.Client, key, instanceID stri
 	return res == 1, nil
 }
 
-// releaseIfMine deletes the lease key if our id still matches. No-op if we
-// no longer hold it.
-func releaseIfMine(ctx context.Context, client *redis.Client, key, instanceID string) error {
+// ReleaseIfMine deletes the lease key if our id still matches. No-op if we
+// no longer hold it. Used for shutdown and unhealthy-leader forced release.
+func ReleaseIfMine(ctx context.Context, client *redis.Client, key, instanceID string) error {
+	if client == nil {
+		return errors.New("redis lease: redis client is required")
+	}
 	if _, err := releaseIfMineScript.Run(ctx, client, []string{key}, instanceID).Result(); err != nil && !errors.Is(err, redis.Nil) {
 		return fmt.Errorf("release script: %w", err)
 	}
 	return nil
+}
+
+// releaseIfMine is the internal alias used by RunWhileHeld.
+func releaseIfMine(ctx context.Context, client *redis.Client, key, instanceID string) error {
+	return ReleaseIfMine(ctx, client, key, instanceID)
 }
 
 // sleepWithCtx blocks for d (plus optional jitter) but returns early on

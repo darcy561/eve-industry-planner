@@ -15,15 +15,24 @@ node_modules
 
 # production
 /dist
+admintool/dist
 frontend/dist
 frontend/routeTree.gen.js
+
+# Cursor IDE — plans/transcripts stay local. Project agent rules are tracked.
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
 
 # misc
 *.exe
 *.env
-.env.*
+*.env*
 services/worker/tmp/
 mongo-keyfile
+mongo-keyfile.bak
+mongo-keyfile.tmp
+mongo-keyfile.bak.tmp
 bin/
 docker-compose
 npm-debug.log*
@@ -47,5 +56,21 @@ archivejobs_firestore_normalized/
 # Sentry Config File
 .env.sentry-build-plugin
 
-# Version tracking (optional - remove if you want to track versions in git)
-.downloaded-versions.json
+# Operator config (local copy — make swarm-sync). Root only; keep kit embed template tracked.
+/eip.config.yaml
+.eip-sync.env
+.eip-sync.env.bak
+.eip-sync.*
+.eip-swarm-secrets.yml
+.eip-swarm-configs.yml
+.eip-local-build.env
+.eip-stack-mode
+
+# Local backups (default .env stem backups/env/env; other tools may use backups/ later)
+backups/
+# Legacy root-stem .env backups
+eip-env-backups/
+eip-env-backup-current.txt
+eip-env-backup-*.txt
+*-env-backup-current.txt
+*-env-backup-*.txt

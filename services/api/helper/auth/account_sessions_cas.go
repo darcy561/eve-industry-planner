@@ -157,7 +157,7 @@ func mutateAccountSessionsRecord(ctx context.Context, redisClient *redis.Client,
 		return errors.New("account_id is required")
 	}
 	var lastErr error
-	for attempt := 0; attempt < accountSessionsSaveMaxAttempts; attempt++ {
+	for range accountSessionsSaveMaxAttempts {
 		rec, exists, err := loadAccountSessionsRecordRaw(ctx, redisClient, acc)
 		if err != nil {
 			return err

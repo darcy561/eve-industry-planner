@@ -80,6 +80,28 @@ func TestDefaultConfig_serviceVersion(t *testing.T) {
 	}
 }
 
+func TestResolveDeploymentEnvironment(t *testing.T) {
+	saved := BakedAppMode
+	BakedAppMode = "baked"
+	t.Cleanup(func() { BakedAppMode = saved })
+
+	t.Setenv("DEPLOYMENT_ENVIRONMENT", "")
+	t.Setenv("ENVIRONMENT", "")
+	if got := resolveDeploymentEnvironment(); got != "baked" {
+		t.Fatalf("want baked, got %q", got)
+	}
+
+	t.Setenv("ENVIRONMENT", "development")
+	if got := resolveDeploymentEnvironment(); got != "development" {
+		t.Fatalf("want ENVIRONMENT, got %q", got)
+	}
+
+	t.Setenv("DEPLOYMENT_ENVIRONMENT", "staging")
+	if got := resolveDeploymentEnvironment(); got != "staging" {
+		t.Fatalf("want DEPLOYMENT_ENVIRONMENT, got %q", got)
+	}
+}
+
 func TestResolveSentryTracesSampleRate_emptyMeansZero(t *testing.T) {
 	t.Setenv(sentryTracesSampleRateEnv, "")
 	saved := BakedSentryTracesSampleRate

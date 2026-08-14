@@ -1,5 +1,7 @@
 package outgoinglogic
 
+import "slices"
+
 type RouteInfo struct {
 	AccountID       string
 	CorporationID   string
@@ -12,12 +14,7 @@ func ScopeContains(ids []string, want string) bool {
 	if want == "" || len(ids) == 0 {
 		return false
 	}
-	for _, id := range ids {
-		if id == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(ids, want)
 }
 
 // ShouldSuppressRecipient implements realtime echo suppression for outbound NATS payloads.
@@ -34,7 +31,7 @@ func ShouldSuppressRecipient(sourceSessionID, sourceClientID, recipientSessionID
 	return false
 }
 
-func asString(v interface{}) string {
+func asString(v any) string {
 	s, _ := v.(string)
 	return s
 }

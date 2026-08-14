@@ -3,6 +3,8 @@ package nats
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"eve-industry-planner/shared/logs"
 
@@ -16,10 +18,14 @@ const (
 	MessageTypeSchedule     = "schedule"     // Schedule message type
 	MessageTypeEmpty        = "empty"        // Empty message type
 	MessageTypeSubscription = "subscription" // Legacy envelope type (historic doc.subscribe payloads)
+	MessageTypeHealth       = "health"       // Control-plane health census (core NATS, not JetStream)
+	MessageTypeWSPlacement  = "ws_placement" // Websocket placement load flags (core NATS pub/sub)
+	MessageTypeWSCommand    = "ws_command"   // Planned cordon/drain/uncordon ack
 )
 
 const (
 	// SubjectCoreSDEBuildUpdated is published by worker after SDE version-changing tasks complete.
+	// Subscribers: core (metrics gauge) and api (static-data cache refresh).
 	SubjectCoreSDEBuildUpdated = "core.metrics.sde.build.updated"
 )
 
@@ -167,6 +173,85 @@ type StatusMessage struct {
 	Time    int64  `json:"time,omitempty"`    // Optional timestamp in Unix milliseconds
 }
 
+// HealthPing is an optional payload on health.command.ping (raw or Message.Data).
+// Empty Role means all roles should Respond; non-empty filters to that role.
+type HealthPing struct {
+	Role string `json:"role,omitempty"`
+}
+
+// HealthStatus is the census reply payload (Message.Type == MessageTypeHealth).
+type HealthStatus struct {
+	Role       string `json:"role"`
+	InstanceID string `json:"instance_id"`
+	Healthy    bool   `json:"healthy"`
+	Ready      bool   `json:"ready"`
+	Error      string `json:"error,omitempty"`
+	TimeUnixMs int64  `json:"time_unix_ms"`
+
+	// Optional census fields (capacity Observe / dashboards). Omitempty keeps replies lean.
+	AppVersion        string `json:"app_version,omitempty"`
+	Clients           int    `json:"clients,omitempty"`
+	Soft              bool   `json:"soft,omitempty"`
+	Full              bool   `json:"full,omitempty"`
+	Draining          bool   `json:"draining,omitempty"`
+	HostedTenantCount int    `json:"hosted_tenant_count,omitempty"`
+	ActiveTasks       int    `json:"active_tasks,omitempty"`
+}
+
+// MessageType returns the message type identifier for HealthStatus.
+func (HealthStatus) MessageType() string {
+	return MessageTypeHealth
+}
+
+// PlacementState is the raw JSON payload for SubjectWSPlacementState (not a Message envelope)
+// and for websocket GET /placement.
+type PlacementState struct {
+	ContainerID string `json:"container_id"`
+	Clients     int    `json:"clients"`
+	Soft        bool   `json:"soft"`
+	Full        bool   `json:"full"`
+	Draining    bool   `json:"draining"`
+}
+
+// MessageType returns the message type identifier for PlacementState.
+func (PlacementState) MessageType() string {
+	return MessageTypeWSPlacement
+}
+
+// WSCommand is the req payload for ws.command.cordon|drain|uncordon.
+type WSCommand struct {
+	ContainerID string `json:"container_id"`
+}
+
+// WSCommandAck is the reply payload (Message.Type == MessageTypeWSCommand).
+type WSCommandAck struct {
+	OK          bool   `json:"ok"`
+	ContainerID string `json:"container_id"`
+	Action      string `json:"action"` // cordon | drain | uncordon
+	Error       string `json:"error,omitempty"`
+}
+
+// MessageType returns the message type identifier for WSCommandAck.
+func (WSCommandAck) MessageType() string {
+	return MessageTypeWSCommand
+}
+
+// ParsePlacementState decodes raw PlacementState JSON (not a Message envelope).
+func ParsePlacementState(data []byte) (PlacementState, error) {
+	var s PlacementState
+	if err := json.Unmarshal(data, &s); err != nil {
+		return PlacementState{}, err
+	}
+	s.ContainerID = strings.TrimSpace(s.ContainerID)
+	if s.ContainerID == "" {
+		return PlacementState{}, fmt.Errorf("nats: placement state container_id required")
+	}
+	if s.Clients < 0 {
+		s.Clients = 0
+	}
+	return s, nil
+}
+
 // MarketPricesRequest represents the JSON data payload for market prices refresh task.
 // This struct is used as the Data field content in TaskMessage when triggering market prices refreshes.
 // The JSON representation of this struct is embedded in TaskMessage.Data.
@@ -182,7 +267,7 @@ type SDEApplyVersionRequest struct {
 	BuildNumber int `json:"build_number"`
 }
 
-// SDECurrentBuildUpdate notifies core to refresh in-memory SDE build metric cache.
+// SDECurrentBuildUpdate notifies subscribers that live SDE in the object store changed.
 type SDECurrentBuildUpdate struct {
 	BuildNumber int    `json:"build_number"`
 	Version     string `json:"version,omitempty"`

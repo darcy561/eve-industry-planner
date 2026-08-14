@@ -7,18 +7,18 @@ import (
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/appconfig"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
 type AppConfigResponse struct {
 	AppVersionNumber string                 `json:"app_version_number"`
 	MaintenanceMode  bool                   `json:"maintenance_mode"`
-	FeatureFlags     map[string]interface{} `json:"feature_flags"`
+	FeatureFlags     map[string]any `json:"feature_flags"`
 }
 
 // AppConfigHandler returns lightweight client config without Firebase Remote Config.
-func AppConfigHandler(w http.ResponseWriter, r *http.Request, _ *shared.ServiceClients) {
+// app_version_number is this process bake/env (APP_VERSION family).
+func (a *Handlers) AppConfigHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	m := apimetrics.GetAPIAppConfig()
 	metrics := helper.BeginRequestMetrics(ctx, helper.RequestMetricsHooks{
@@ -36,7 +36,7 @@ func AppConfigHandler(w http.ResponseWriter, r *http.Request, _ *shared.ServiceC
 	featureFlags := appconfig.FeatureFlags()
 
 	response := AppConfigResponse{
-		AppVersionNumber: appconfig.AdvertisedAppVersion(),
+		AppVersionNumber: appconfig.ProcessAppVersion(),
 		MaintenanceMode:  appconfig.MaintenanceModeEnabled(),
 		FeatureFlags:     featureFlags,
 	}
@@ -51,18 +51,18 @@ func AppConfigHandler(w http.ResponseWriter, r *http.Request, _ *shared.ServiceC
 	w.Header().Set("Cache-Control", "public, max-age=60")
 	w.Header().Set("ETag", etag)
 	if helper.IfNoneMatchSatisfied(r.Header.Get("If-None-Match"), etag) {
-		logs.AttachDebugStep(r, "cache_not_modified", map[string]interface{}{
+		logs.AttachDebugStep(r, "cache_not_modified", map[string]any{
 			"app_version": response.AppVersionNumber,
 		})
 		metrics.Success()
-		logs.AttachHandlerSuccessDetail(r, "app config not modified", map[string]interface{}{
+		logs.AttachHandlerSuccessDetail(r, "app config not modified", map[string]any{
 			"app_version": response.AppVersionNumber,
 		})
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
 
-	logs.AttachDebugStep(r, "app_config_built", map[string]interface{}{
+	logs.AttachDebugStep(r, "app_config_built", map[string]any{
 		"app_version":      response.AppVersionNumber,
 		"maintenance_mode": response.MaintenanceMode,
 		"feature_flags":    len(response.FeatureFlags),
@@ -75,7 +75,7 @@ func AppConfigHandler(w http.ResponseWriter, r *http.Request, _ *shared.ServiceC
 		return
 	}
 	metrics.Success()
-	logs.AttachHandlerSuccessDetail(r, "app config served", map[string]interface{}{
+	logs.AttachHandlerSuccessDetail(r, "app config served", map[string]any{
 		"app_version": response.AppVersionNumber,
 	})
 }

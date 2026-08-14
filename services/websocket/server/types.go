@@ -3,14 +3,17 @@ package server
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"eve-industry-planner/shared/shared"
+	natscore "eve-industry-planner/shared/core/nats"
+	"eve-industry-planner/shared/stackservices"
 	"eve-industry-planner/websocket/server/model"
 	syncpkg "eve-industry-planner/websocket/sync"
 
 	"github.com/alitto/pond/v2"
 	"github.com/gorilla/websocket"
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 type Server struct {
@@ -19,13 +22,10 @@ type Server struct {
 	Clients   map[string]*Client
 	ClientsMu sync.RWMutex
 
-	// User connection tracking (account_id -> []client_id)
+	// Per-account client ids (account_id -> set of client_id). Caps concurrent tabs;
+	// also the account: side of HostedTenants.
 	userConnections map[string]map[string]bool
 	userConnMu      sync.RWMutex
-
-	// Session connection tracking (session_id -> active client_id). Exactly one live client per session.
-	sessionConnections map[string]string
-	sessionConnMu      sync.RWMutex
 
 	// Short-lived snapshots of subscription sets for reconnect resume (in-process; see also Redis keys in session_resume.go).
 	sessionHandoffs   map[string]*sessionHandoffEntry
@@ -47,6 +47,7 @@ type Server struct {
 	explicitDocSubMu       sync.RWMutex
 
 	// Reverse indexes for corporation / alliance realtime pools (populated after upgrade_scopes).
+	// Also the corporation: / alliance: side of HostedTenants.
 	// Two mutexes reduce contention: corp broadcasts do not block alliance index updates and vice versa.
 	// When both locks are required, always take corpIndexMu before allianceIndexMu.
 	corpToClients     map[string]map[string]bool // corporation id -> client_id set
@@ -56,6 +57,7 @@ type Server struct {
 
 	// JetStream doc.update fan-out: one FIFO per shard (see outbound_doc_update.go).
 	docUpdateOutboundShards []chan docUpdateWork
+	outboundInFlight        atomic.Int64 // work currently inside a shard worker
 
 	// Sync queues (client_id -> sync queue)
 	// One sync per client at a time (enforced by queue)
@@ -68,12 +70,31 @@ type Server struct {
 	SyncPool pond.Pool // For sync operations (separate pool) - exported for sync package
 
 	// Configuration
-	upgrader       websocket.Upgrader
-	ServiceClients *shared.ServiceClients
-	metrics        *websocketMetrics
+	upgrader websocket.Upgrader
+	Stack    *stackservices.Clients
+	metrics  *websocketMetrics
 
 	// Shutdown coordination
-	shutdownChan chan struct{}
+	// intakeStopChan stops JetStream pull loops only (outbound shard workers stay up for flush).
+	// shutdownChan stops shard workers, sync coordinator, placement maintainer, cleanup.
+	intakeStopChan  chan struct{}
+	intakeStopOnce  sync.Once
+	shutdownChan    chan struct{}
+	stopConsumeOnce sync.Once   // closes shutdownChan (workers / coordinators)
+	shutdownOnce    sync.Once   // sync pool + durable delete (after stopConsume)
+	draining      atomic.Bool // SIGTERM roll / planned kick — Ready fails + refuse upgrades
+	plannedCordon atomic.Bool // planned evacuate soft-stop — refuse upgrades + placement draining; Ready stays OK
+
+	// Placement state publish (NATS SubjectWSPlacementState); optional override for tests.
+	placementPublishFn func(subject string, data []byte) error
+	placementMu        sync.Mutex
+	lastPlacementState natscore.PlacementState
+	hasLastPlacement   bool
+
+	// Selective JetStream fan-out: debounced FilterSubjects from HostedTenants.
+	fanoutFilterMu    sync.Mutex
+	fanoutFilterTimer *time.Timer
+	fanoutStream      jetstream.Stream
 }
 
 type Client struct {
@@ -98,6 +119,7 @@ type Client struct {
 	connectedAt    time.Time    // When this connection was established
 	lastActivity   time.Time    // Last time connection received activity (pong or message)
 	activityMu     sync.RWMutex // Protects lastActivity
+	writeMu        sync.Mutex   // Serializes conn writes (gorilla allows one writer)
 
 	// Sync state tracking
 	// Exported fields for use by sync package
@@ -154,7 +176,7 @@ func (s *Server) GetClientsMu() interface {
 }
 
 func (s *Server) GetSyncPool() interface {
-	SubmitErr(func() error) interface{}
+	SubmitErr(func() error) any
 } {
 	// Wrap pond.Pool to match interface signature
 	return &poolWrapper{p: s.SyncPool}
@@ -165,7 +187,7 @@ type poolWrapper struct {
 	p pond.Pool
 }
 
-func (pw *poolWrapper) SubmitErr(f func() error) interface{} {
+func (pw *poolWrapper) SubmitErr(f func() error) any {
 	return pw.p.SubmitErr(f)
 }
 
@@ -224,9 +246,9 @@ func (s *Server) clientLogCtx(clientID string) context.Context {
 }
 
 // Implement syncpkg.SyncServer interface - MongoDB access
-func (s *Server) GetMongoClient() interface{} {
-	if s.ServiceClients == nil || s.ServiceClients.Mongo == nil {
+func (s *Server) GetMongoClient() any {
+	if s.Stack == nil || s.Stack.Mongo == nil {
 		return nil
 	}
-	return s.ServiceClients.Mongo
+	return s.Stack.Mongo
 }

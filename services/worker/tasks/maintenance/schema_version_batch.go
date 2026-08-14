@@ -6,16 +6,15 @@ import (
 	"strings"
 	"time"
 
-	mongocore "eve-industry-planner/shared/core/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
-	"eve-industry-planner/shared/shared/models"
+	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 const (
@@ -47,22 +46,23 @@ func SchemaVersionMaintenanceBatch(ctx context.Context, task *asynq.Task, deps *
 		batchSize = maxSchemaMaintenanceBatchSize
 	}
 
-	db := deps.Mongo.Database(mongocore.DatabaseName)
+	mongo := deps.Mongo
 	switch payload.Collection {
-	case mongocore.CollectionUsers:
-		return maintainUsersSchemaVersionBatch(ctx, db.Collection(payload.Collection), batchSize)
-	case mongocore.CollectionApplicationSettings:
-		return maintainApplicationSettingsSchemaVersionBatch(ctx, db.Collection(payload.Collection), batchSize)
-	case mongocore.CollectionUserJobDocuments, mongocore.CollectionJobs:
-		return maintainJobSchemaVersionBatch(ctx, db.Collection(payload.Collection), batchSize)
-	case mongocore.CollectionUserJobGroups:
-		return maintainGroupSchemaVersionBatch(ctx, db.Collection(payload.Collection), batchSize)
+	case eipmongo.CollectionUsers:
+		return maintainUsersSchemaVersionBatch(ctx, mongo.Users, batchSize)
+	case eipmongo.CollectionApplicationSettings:
+		return maintainApplicationSettingsSchemaVersionBatch(ctx, mongo.ApplicationSettings, batchSize)
+	case eipmongo.CollectionUserJobDocuments, eipmongo.CollectionJobs:
+		return maintainJobSchemaVersionBatch(ctx, mongo.Docs(payload.Collection), batchSize)
+	case eipmongo.CollectionUserJobGroups:
+		return maintainGroupSchemaVersionBatch(ctx, mongo.Groups, batchSize)
 	default:
 		return fmt.Errorf("unsupported schema maintenance collection %q", payload.Collection)
 	}
 }
 
-func maintainUsersSchemaVersionBatch(ctx context.Context, col *mongo.Collection, batchSize int) error {
+func maintainUsersSchemaVersionBatch(ctx context.Context, docs *eipmongo.Docs, batchSize int) error {
+	col := docs.Collection()
 	filter := bson.M{
 		"$or": []bson.M{
 			{"schemaVersion": bson.M{"$lt": models.UserAccountDocumentSchemaCurrent}},
@@ -80,7 +80,7 @@ func maintainUsersSchemaVersionBatch(ctx context.Context, col *mongo.Collection,
 	defer cursor.Close(ctx)
 
 	scanned := 0
-	upgradeCandidates := make([]mongocore.StructUpsertItem, 0, batchSize)
+	upgradeCandidates := make([]eipmongo.StructUpsertItem, 0, batchSize)
 	for cursor.Next(ctx) {
 		var doc models.UserAccountDocument
 		if err := cursor.Decode(&doc); err != nil {
@@ -97,7 +97,7 @@ func maintainUsersSchemaVersionBatch(ctx context.Context, col *mongo.Collection,
 		if accountID == "" {
 			continue
 		}
-		upgradeCandidates = append(upgradeCandidates, mongocore.StructUpsertItem{
+		upgradeCandidates = append(upgradeCandidates, eipmongo.StructUpsertItem{
 			DocID: accountID,
 			Value: doc,
 		})
@@ -106,17 +106,17 @@ func maintainUsersSchemaVersionBatch(ctx context.Context, col *mongo.Collection,
 		return fmt.Errorf("iterate users schema maintenance batch: %w", err)
 	}
 
-	summary := mongocore.BulkUpsertSummary{}
+	summary := eipmongo.BulkUpsertSummary{}
 	if len(upgradeCandidates) > 0 {
 		var err error
-		summary, err = mongocore.UpsertStructsByIDPreservingMetaBulk(ctx, col, upgradeCandidates, batchSize)
+		summary, err = docs.UpsertStructsPreservingMetaBulk(ctx, upgradeCandidates, batchSize)
 		if err != nil {
 			return fmt.Errorf("users schema maintenance bulk upsert failed: %w", err)
 		}
 	}
 
 	logs.InfoCtx(ctx, "schema maintenance users batch complete",
-		"collection", mongocore.CollectionUsers,
+		"collection", eipmongo.CollectionUsers,
 		"scanned", scanned,
 		"upgrade_candidates", len(upgradeCandidates),
 		"upgraded", summary.Success,
@@ -127,7 +127,8 @@ func maintainUsersSchemaVersionBatch(ctx context.Context, col *mongo.Collection,
 	return nil
 }
 
-func maintainApplicationSettingsSchemaVersionBatch(ctx context.Context, col *mongo.Collection, batchSize int) error {
+func maintainApplicationSettingsSchemaVersionBatch(ctx context.Context, docs *eipmongo.Docs, batchSize int) error {
+	col := docs.Collection()
 	filter := bson.M{
 		"$or": []bson.M{
 			{"schemaVersion": bson.M{"$lt": models.ApplicationSettingsSchemaCurrent}},
@@ -145,7 +146,7 @@ func maintainApplicationSettingsSchemaVersionBatch(ctx context.Context, col *mon
 	defer cursor.Close(ctx)
 
 	scanned := 0
-	upgradeCandidates := make([]mongocore.StructUpsertItem, 0, batchSize)
+	upgradeCandidates := make([]eipmongo.StructUpsertItem, 0, batchSize)
 	now := time.Now().UTC()
 	for cursor.Next(ctx) {
 		var doc models.ApplicationSettings
@@ -163,7 +164,7 @@ func maintainApplicationSettingsSchemaVersionBatch(ctx context.Context, col *mon
 		if beforeSchema == doc.SchemaVersion {
 			continue
 		}
-		upgradeCandidates = append(upgradeCandidates, mongocore.StructUpsertItem{
+		upgradeCandidates = append(upgradeCandidates, eipmongo.StructUpsertItem{
 			DocID: accountID,
 			Value: doc,
 		})
@@ -172,17 +173,17 @@ func maintainApplicationSettingsSchemaVersionBatch(ctx context.Context, col *mon
 		return fmt.Errorf("iterate application settings schema maintenance batch: %w", err)
 	}
 
-	summary := mongocore.BulkUpsertSummary{}
+	summary := eipmongo.BulkUpsertSummary{}
 	if len(upgradeCandidates) > 0 {
 		var err error
-		summary, err = mongocore.UpsertStructsByIDPreservingMetaBulk(ctx, col, upgradeCandidates, batchSize)
+		summary, err = docs.UpsertStructsPreservingMetaBulk(ctx, upgradeCandidates, batchSize)
 		if err != nil {
 			return fmt.Errorf("application settings schema maintenance bulk upsert failed: %w", err)
 		}
 	}
 
 	logs.InfoCtx(ctx, "schema maintenance application settings batch complete",
-		"collection", mongocore.CollectionApplicationSettings,
+		"collection", eipmongo.CollectionApplicationSettings,
 		"scanned", scanned,
 		"upgrade_candidates", len(upgradeCandidates),
 		"upgraded", summary.Success,
@@ -193,7 +194,8 @@ func maintainApplicationSettingsSchemaVersionBatch(ctx context.Context, col *mon
 	return nil
 }
 
-func maintainJobSchemaVersionBatch(ctx context.Context, col *mongo.Collection, batchSize int) error {
+func maintainJobSchemaVersionBatch(ctx context.Context, docs *eipmongo.Docs, batchSize int) error {
+	col := docs.Collection()
 	filter := bson.M{
 		"$or": []bson.M{
 			{"schemaVersion": bson.M{"$lt": models.JobSchemaCurrent}},
@@ -211,7 +213,7 @@ func maintainJobSchemaVersionBatch(ctx context.Context, col *mongo.Collection, b
 	defer cursor.Close(ctx)
 
 	scanned := 0
-	upgradeCandidates := make([]mongocore.StructUpsertItem, 0, batchSize)
+	upgradeCandidates := make([]eipmongo.StructUpsertItem, 0, batchSize)
 	for cursor.Next(ctx) {
 		var doc models.Job
 		if err := cursor.Decode(&doc); err != nil {
@@ -228,7 +230,7 @@ func maintainJobSchemaVersionBatch(ctx context.Context, col *mongo.Collection, b
 		if docID == "" {
 			continue
 		}
-		upgradeCandidates = append(upgradeCandidates, mongocore.StructUpsertItem{
+		upgradeCandidates = append(upgradeCandidates, eipmongo.StructUpsertItem{
 			DocID: docID,
 			Value: doc,
 		})
@@ -237,10 +239,10 @@ func maintainJobSchemaVersionBatch(ctx context.Context, col *mongo.Collection, b
 		return fmt.Errorf("iterate jobs schema maintenance batch: %w", err)
 	}
 
-	summary := mongocore.BulkUpsertSummary{}
+	summary := eipmongo.BulkUpsertSummary{}
 	if len(upgradeCandidates) > 0 {
 		var err error
-		summary, err = mongocore.UpsertStructsByIDPreservingMetaBulk(ctx, col, upgradeCandidates, batchSize)
+		summary, err = docs.UpsertStructsPreservingMetaBulk(ctx, upgradeCandidates, batchSize)
 		if err != nil {
 			return fmt.Errorf("jobs schema maintenance bulk upsert failed: %w", err)
 		}
@@ -258,7 +260,8 @@ func maintainJobSchemaVersionBatch(ctx context.Context, col *mongo.Collection, b
 	return nil
 }
 
-func maintainGroupSchemaVersionBatch(ctx context.Context, col *mongo.Collection, batchSize int) error {
+func maintainGroupSchemaVersionBatch(ctx context.Context, docs *eipmongo.Docs, batchSize int) error {
+	col := docs.Collection()
 	filter := bson.M{
 		"$or": []bson.M{
 			{"schemaVersion": bson.M{"$lt": models.GroupSchemaCurrent}},
@@ -276,7 +279,7 @@ func maintainGroupSchemaVersionBatch(ctx context.Context, col *mongo.Collection,
 	defer cursor.Close(ctx)
 
 	scanned := 0
-	upgradeCandidates := make([]mongocore.StructUpsertItem, 0, batchSize)
+	upgradeCandidates := make([]eipmongo.StructUpsertItem, 0, batchSize)
 	for cursor.Next(ctx) {
 		var doc models.Group
 		if err := cursor.Decode(&doc); err != nil {
@@ -293,7 +296,7 @@ func maintainGroupSchemaVersionBatch(ctx context.Context, col *mongo.Collection,
 		if docID == "" {
 			continue
 		}
-		upgradeCandidates = append(upgradeCandidates, mongocore.StructUpsertItem{
+		upgradeCandidates = append(upgradeCandidates, eipmongo.StructUpsertItem{
 			DocID: docID,
 			Value: doc,
 		})
@@ -302,10 +305,10 @@ func maintainGroupSchemaVersionBatch(ctx context.Context, col *mongo.Collection,
 		return fmt.Errorf("iterate groups schema maintenance batch: %w", err)
 	}
 
-	summary := mongocore.BulkUpsertSummary{}
+	summary := eipmongo.BulkUpsertSummary{}
 	if len(upgradeCandidates) > 0 {
 		var err error
-		summary, err = mongocore.UpsertStructsByIDPreservingMetaBulk(ctx, col, upgradeCandidates, batchSize)
+		summary, err = docs.UpsertStructsPreservingMetaBulk(ctx, upgradeCandidates, batchSize)
 		if err != nil {
 			return fmt.Errorf("groups schema maintenance bulk upsert failed: %w", err)
 		}

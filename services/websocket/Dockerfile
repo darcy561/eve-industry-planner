@@ -38,7 +38,8 @@ FROM alpine:3.20
 # Build arguments (only non-secret values)
 ARG IMAGE_SOURCE=https://github.com/darcy561/eve-industry-planner
 
-RUN apk --no-cache add ca-certificates tzdata su-exec bash && \
+# wget: Swarm healthcheck probes :19100/ready
+RUN apk --no-cache add ca-certificates tzdata su-exec bash wget && \
     addgroup -g 1001 -S appuser && \
     adduser -u 1001 -S appuser -G appuser
 
