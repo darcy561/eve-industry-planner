@@ -1,4 +1,4 @@
-package keyrings
+﻿package keyrings
 
 import (
 	"encoding/base64"
@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	corecrypto "eve-industry-planner/shared/core/crypto"
+	"eve-industry-planner/shared/crypto/aesgcm"
 	"eve-industry-planner/shared/core/swarmsecret"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -22,13 +22,13 @@ const (
 
 // RefreshTokenKeyringSpec contains the keyring and derived version metadata.
 type RefreshTokenKeyringSpec struct {
-	Keyring           *corecrypto.Keyring
+	Keyring           *aesgcm.Keyring
 	ActiveVersion     string
 	SupportedVersions map[string]struct{}
 }
 
 // NewRefreshTokenKeyring builds the refresh-token keyring from environment variables.
-func NewRefreshTokenKeyring() (*corecrypto.Keyring, error) {
+func NewRefreshTokenKeyring() (*aesgcm.Keyring, error) {
 	spec, err := NewRefreshTokenKeyringSpec()
 	if err != nil {
 		return nil, err
@@ -57,7 +57,7 @@ func NewRefreshTokenKeyringSpec() (*RefreshTokenKeyringSpec, error) {
 	if err != nil {
 		return nil, err
 	}
-	kr, err := corecrypto.NewKeyring(ver, key, legacy)
+	kr, err := aesgcm.NewKeyring(ver, key, legacy)
 	if err != nil {
 		return nil, err
 	}

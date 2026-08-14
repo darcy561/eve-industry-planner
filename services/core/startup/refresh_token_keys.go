@@ -1,4 +1,4 @@
-package startup
+﻿package startup
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/core/crypto/keyrings"
+	"eve-industry-planner/shared/crypto/aesgcm/keyrings"
 	"eve-industry-planner/shared/logs"
 
 	"go.mongodb.org/mongo-driver/v2/bson"

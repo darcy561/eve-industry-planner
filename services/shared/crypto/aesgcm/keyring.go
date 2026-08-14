@@ -1,5 +1,5 @@
-// Package corecrypto provides reusable AES-GCM keyring encryption utilities.
-package corecrypto
+// Package aesgcm provides reusable AES-GCM keyring encryption utilities.
+package aesgcm
 
 import (
 	"crypto/aes"
