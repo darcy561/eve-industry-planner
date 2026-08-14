@@ -66,6 +66,42 @@ flowchart LR
   future -.-> watch
 ```
 
+### Phase A-0 — Baseline correctness (prerequisite to A)
+
+The shared Mongo client sets a client-wide CSOT (`SetTimeout`), which applies to every
+operation including `changeStream.Next`. A change stream is a long-lived awaitable cursor
+with no obligation to return promptly, so on an idle database the budget drains, the driver
+declines to send `getMore` with a zero server-side timeout, and the cursor dies. Each group
+loop then rebuilds and replays its resume token on a fixed cycle, always with zero events
+processed.
+
+Two consequences for this plan. Lag and hot-tenant signals gathered under a forced rebuild
+cycle would measure the defect rather than tenant behaviour, so Phase A cannot produce a
+trustworthy baseline until this is fixed. And every rebuild replays `StartAfter`, which is
+the window where events can be missed or duplicated — the property Phase B's done-when
+depends on.
+
+The driver offers no exported way to clear a client-level timeout for a single operation:
+`csot.WithTimeout` is internal, and a context deadline pre-empts the client timeout rather
+than removing it. Per-call deadlines were considered and rejected — they only move the
+ceiling, and an expiry still destroys the cursor.
+
+The watcher therefore gets its own Mongo client built without a client-wide timeout, added
+as an additive constructor in `services/shared/mongo` alongside the existing one.
+`MaxAwaitTime` (30s) bounds how long the server holds each `getMore` before returning an
+empty batch, so expiry is a normal empty return that leaves the cursor valid. Existing
+callers keep the timeout unchanged: it is correct for ordinary request/response work in api,
+worker, websocket, ws-router, and capacity-controller, which are unaffected because core
+owns the only production `Watch` in `services/`. Cost is one extra connection pool, sized
+small.
+
+`MaxAwaitTime` also becomes the interval at which an idle group loop regains control, which
+is the seam Phase B needs to drain per-tenant queues when no events are arriving.
+
+**Done when:** an idle stream survives well past the old ceiling without rebuilding; events
+after an idle gap still arrive and advance the resume token; lose-primary cancellation stays
+prompt.
+
 ### Phase A — Metrics (prerequisite)
 
 Instrument the existing loops **before** changing scheduling. Contract → [metrics.md](./metrics.md).
@@ -118,6 +154,7 @@ Fold landed behaviour into [backend/core/core.md](../../backend/core/core.md) (c
 ## Status checklist
 
 - [x] Phase 1 — project folder + plan + metrics/auto-detect scaffolds + section `contents.md` link
+- [x] Phase A-0 — changestream idle-timeout baseline correctness (landed; live-tested, not promoted)
 - [ ] Phase A — metrics landed
 - [ ] Phase B — per-tenant publish queues landed
 - [ ] Phase C — corp/alliance collection groups registered (when collections exist)

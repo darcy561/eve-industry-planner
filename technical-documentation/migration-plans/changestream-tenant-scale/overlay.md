@@ -4,6 +4,7 @@ Per-phase land notes for [plan.md](./plan.md). **Not live SoT.** On overlap with
 
 | Phase | Status | Overlay |
 |-------|--------|---------|
+| A-0 — Baseline correctness | landed (not promoted) | [overlays/a0-idle-timeout.md](./overlays/a0-idle-timeout.md) |
 | A — Metrics | open | [overlays/a-metrics.md](./overlays/a-metrics.md) |
 | B — Per-tenant publish queues | open | [overlays/b-tenant-queues.md](./overlays/b-tenant-queues.md) |
 | C — Corp/alliance collection groups | open (blocked on product collections) | [overlays/c-collection-groups.md](./overlays/c-collection-groups.md) |

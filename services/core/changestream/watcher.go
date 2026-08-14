@@ -25,6 +25,11 @@ import (
 
 const changestreamLogComponent = "changestream"
 
+// changeStreamMaxAwaitTime bounds how long the server holds a getMore before returning an
+// empty batch. Expiry leaves the cursor valid, so it is also how often an idle watch loop
+// regains control.
+const changeStreamMaxAwaitTime = 30 * time.Second
+
 // ScopesPayload narrows websocket fan-out under alliance/corporation roots (optional metadata).
 type ScopesPayload struct {
 	CorporationIDs []string `json:"corporationIDs,omitempty"`
@@ -139,7 +144,8 @@ func (w *Watcher) watchCollectionGroup(streamCtx context.Context, group Collecti
 
 		opts := options.ChangeStream().
 			SetFullDocument(options.UpdateLookup).
-			SetFullDocumentBeforeChange(options.WhenAvailable)
+			SetFullDocumentBeforeChange(options.WhenAvailable).
+			SetMaxAwaitTime(changeStreamMaxAwaitTime)
 
 		if token, ok := loadResumeToken(ctx, w.rdb, group.ID); ok {
 			opts.SetStartAfter(token)
