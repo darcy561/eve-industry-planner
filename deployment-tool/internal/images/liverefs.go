@@ -84,6 +84,9 @@ func resolveStackImage(raw, appVer string) string {
 	}
 	img = strings.ReplaceAll(img, "${APP_VERSION}", appVer)
 	img = strings.ReplaceAll(img, "${APP_VERSION:-}", appVer)
+	compat := stack.WikiCompatTag(appVer)
+	img = strings.ReplaceAll(img, "${WIKI_COMPAT_TAG}", compat)
+	img = strings.ReplaceAll(img, "${WIKI_COMPAT_TAG:-}", compat)
 	if img == "" || strings.Contains(img, "${") {
 		return ""
 	}

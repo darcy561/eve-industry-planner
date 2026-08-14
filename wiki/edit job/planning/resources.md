@@ -1,47 +1,47 @@
 # Resources Panel
 
-The Resources Panel displays all raw materials and resources required for the job. It shows material quantities, tracks child job relationships, and provides tools for managing material acquisition through purchasing or child job creation.
+The Resources Panel displays all raw materials and resources required for the planner job. It shows material quantities, tracks child planner job relationships, and provides tools for managing material acquisition through purchasing or child job creation.
 
 ## Overview
 
 The Resources Panel provides:
-- **Complete material list** showing all required resources
-- **Quantity display** for each material
-- **Child job tracking** indicating which materials have linked production jobs
-- **Display mode selection** to view all setups or just the active setup
-- **Bulk operations** for creating child jobs and copying material lists
+- Complete material list showing all required resources
+- Quantity display for each material
+- Child job tracking indicating which materials have linked production jobs
+- Display mode selection to view all setups or just the active setup
+- Bulk operations for creating child jobs and copying material lists
 
 ## Panel Controls
 
 ### Display Type Selector
-- **Location**: Top-left area of the panel
-- **Function**: Switches between viewing all setups or just the active setup
-- **Options**:
-  - **Display All Setups**: Shows total quantities across all setups
-  - **Display Selected Setup**: Shows quantities for the currently active setup only
-- **Behavior**: 
+- Location: Top-left area of the panel
+- Function: Switches between viewing all setups or just the active setup
+- Options:
+  - Display All Setups: Shows total quantities across all setups
+  - Display Selected Setup: Shows quantities for the currently active setup only
+- Behavior: 
   - Saves selection to job layout preferences
   - Updates all material quantities immediately
   - Affects volume calculations
 
 ### Menu Button
-- **Location**: Top-right corner of the panel
-- **Icon**: Three vertical dots (⋮)
-- **Function**: Opens context menu with bulk operations
+- Location: Top-right corner of the panel
+- Icon: Three vertical dots (⋮)
+- Function: Opens context menu with bulk operations
 
 #### Menu Options
 
-**Copy Resources List**
+Copy Resources List
 - Copies all materials and quantities to clipboard
-- **Format**: "Material Name Quantity" (one per line)
-- **Use Case**: 
+- Format: "Material Name Quantity" (one per line)
+- Use Case: 
   - Creating shopping lists
   - Sharing requirements with others
   - Importing into other tools
 
-**Create All Child Jobs**
+Create All Child Jobs
 - Automatically creates child jobs for all buildable materials
-- **Behavior**:
+- Behavior:
   - Only creates jobs for materials that can be produced (manufacturing/reaction)
   - Skips materials that already have child jobs
   - Links new jobs to the current job as parent
@@ -58,47 +58,47 @@ Each material is displayed as a row with status indicators and quantity informat
 A colored icon on the left indicates the material's status:
 
 #### Lens Icon (●)
-- **Color**: Varies by material type
-- **Meaning**: Material has no child job linked
-- **Tooltip**: Shows material type (Base Material, Manufacturing Job, Reaction Job, Planetary Interaction)
+- Color: Varies by material type
+- Meaning: Material has no child job linked
+- Tooltip: Shows material category (Base Material, Buildable via Manufacturing, Buildable via Reaction, PI product—typically purchased)
 
 #### Checkmark Icon (✓)
-- **Color**: Varies by material type
-- **Meaning**: Material has a child job linked or pending
-- **Tooltip**: 
+- Color: Varies by material type
+- Meaning: Material has a child job linked or pending
+- Tooltip: 
   - "Linked" for confirmed child jobs
   - "Pending" for temporary/pending child jobs
 
 ### Material Type Colors
 
-The status icon color indicates the material type:
-- **Manufacturing**: Manufacturing job type color
-- **Reaction**: Reaction job type color
-- **Planetary Interaction**: PI job type color
-- **Base Material**: Base material color
+The status icon color indicates how the material is usually sourced (not which planner job types the app supports—the planner only creates manufacturing and reaction planner jobs today):
+- Manufacturing: Material that can be built via a manufacturing child planner job
+- Reaction: Material that can be built via a reaction child planner job
+- PI product: Planetary-interaction output you normally buy (no PI planner job type in the app)
+- Base Material: Purchased or mined inputs that are not built via child planner jobs
 
 ### Material Information
 
 #### Material Name
-- **Display**: Material/item name
-- **Interaction**: Clickable to open material information popover
-- **Popover**: Shows item details, market information, and related data
+- Display: Material/item name
+- Interaction: Clickable to open material information popover
+- Popover: Shows item details, market information, and related data
 
 #### Quantity
-- **Display**: Formatted number showing required quantity
-- **Format**: Locale-formatted with thousand separators
-- **Calculation**: 
-  - **All Setups**: Sum of quantities across all setups
-  - **Selected Setup**: Quantity for active setup only
+- Display: Formatted number showing required quantity
+- Format: Locale-formatted with thousand separators
+- Calculation: 
+  - All Setups: Sum of quantities across all setups
+  - Selected Setup: Quantity for active setup only
 
 ## Volume Calculation
 
 ### Total Volume
-- **Location**: Bottom of the material list
-- **Display**: Total volume in cubic meters (m³)
-- **Calculation**: Sum of `material volume × quantity` for all materials
-- **Display Mode**: Respects the selected display type (all setups vs. active setup)
-- **Purpose**: 
+- Location: Bottom of the material list
+- Display: Total volume in cubic meters (m³)
+- Calculation: Sum of `material volume × quantity` for all materials
+- Display Mode: Respects the selected display type (all setups vs. active setup)
+- Purpose: 
   - Planning cargo capacity
   - Estimating transport requirements
   - Understanding storage needs
@@ -106,32 +106,32 @@ The status icon color indicates the material type:
 ## Material Status States
 
 ### No Child Job
-- **Icon**: Lens (●)
-- **Color**: Material type color
-- **Meaning**: Material must be purchased or child job created
-- **Action**: Can create child job or purchase material
+- Icon: Lens (●)
+- Color: Material type color
+- Meaning: Material must be purchased or child job created
+- Action: Can create child job or purchase material
 
 ### Child Job Linked
-- **Icon**: Checkmark (✓)
-- **Color**: Material type color
-- **Meaning**: Material has a confirmed child job
-- **Action**: Child job exists and is linked
+- Icon: Checkmark (✓)
+- Color: Material type color
+- Meaning: Material has a confirmed child job
+- Action: Child job exists and is linked
 
 ### Child Job Pending
-- **Icon**: Checkmark (✓)
-- **Color**: Warning (orange)
-- **Meaning**: Child job is pending creation or linking
-- **Action**: Child job will be created/linked when job is saved
+- Icon: Checkmark (✓)
+- Color: Warning (orange)
+- Meaning: Child job is pending creation or linking
+- Action: Child job will be created/linked when job is saved
 
 ## Using the Resources Panel
 
 ### Viewing Material Requirements
 
-1. **Select Display Mode**:
+1. Select Display Mode:
    - "Display All Setups" to see total requirements
    - "Display Selected Setup" to see requirements for one setup
 
-2. **Review Materials**:
+2. Review Materials:
    - Check status indicators to see which need child jobs
    - Review quantities to understand scale
    - Check total volume for transport planning
@@ -187,20 +187,19 @@ The status icon color indicates the material type:
 - Must be purchased or obtained through other means
 - Examples: Minerals, ice products, basic components
 
-### Manufacturing Jobs
-- Can be produced via manufacturing jobs
+### Buildable via manufacturing
+- Can be produced via a manufacturing child planner job
 - Can create child jobs to produce them
 - Examples: Ships, modules, ammunition
 
-### Reaction Jobs
-- Can be produced via reaction jobs
+### Buildable via reaction
+- Can be produced via a reaction child planner job
 - Can create child jobs to produce them
 - Examples: Advanced materials, composite materials
 
-### Planetary Interaction
-- Produced via planetary interaction
-- May have special handling
-- Examples: PI materials, processed materials
+### PI products (purchased)
+- Produced in-game via planetary interaction; in the planner you typically record purchase cost, not a PI build job
+- Examples: PI commodities, processed PI materials
 
 ## Related Documentation
 

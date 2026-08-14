@@ -1,37 +1,37 @@
 # Edit Job - Planning Stage
 
-The Planning stage is the first step in the job lifecycle. This is where you configure all aspects of your industry job before beginning material acquisition and production. During planning, you select blueprints, configure manufacturing setups, review material requirements, analyze costs, and ensure you have the necessary skills to execute the job.
+The Planning stage is the first step in the planner job lifecycle. This is where you configure all aspects of your manufacturing or reaction planner job before beginning material acquisition and production. During planning, you select blueprints, configure setups, review material requirements, analyze costs, and ensure you have the necessary skills to execute the job.
 
 ## Stage Purpose
 
 The Planning stage serves to:
-- **Configure production parameters** including blueprint selection, efficiency values, and job setups
-- **Plan material requirements** by reviewing what materials are needed and in what quantities
-- **Analyze costs and profitability** by comparing market prices with estimated production costs
-- **Validate job feasibility** by checking skill requirements and reviewing historical data
-- **Prepare for production** by setting up all configurations needed before purchasing materials
+- Configure production parameters including blueprint selection, efficiency values, and job setups
+- Plan material requirements by reviewing what materials are needed and in what quantities
+- Analyze costs and profitability by comparing market prices with estimated production costs
+- Validate job feasibility by checking skill requirements and reviewing historical data
+- Prepare for production by setting up all configurations needed before purchasing materials
 
-## Lifecycle Position
+## Where Planning sits in the workflow
 
-The Planning stage appears at the beginning of the job lifecycle:
+Planning is the first stage on the [Job Planner](job%20planner) board:
 
-1. **Planning** ← You are here
-2. [Purchasing](purchasing) - Acquiring materials and recording costs
-3. [Building](building) - Active manufacturing and production
-4. [Complete](complete) - Finished production ready for sale
-5. [Selling](selling) - Managing sales and market orders
+1. Planning ← You are here
+2. [Purchasing](purchasing) — Buy materials and record costs
+3. [Building](building) — Link and track ESI industry jobs
+4. [Complete](complete) — Production finished; prepare for sale
+5. [Selling](selling) — Sales and market orders
 
-After completing the planning stage, jobs move to the Purchasing stage where you begin acquiring materials and recording costs.
+When planning is done, move the planner job to Purchasing and start acquiring materials.
 
-## Planning Panels
+## What you configure in Planning
 
-The Planning stage consists of the following panels:
+Use the panels on the Planning screen to set up the build before you spend ISK:
 
 ### [Setups](planning/setups)
 Configure multiple manufacturing setups for the job, including structure selection, location, efficiency settings, and character assignment.
 
 ### [Blueprint Options](planning/blueprint%20options)
-Browse and select from available blueprints in your inventory, with one-click application of efficiency values to your job setup.
+Browse and select from available blueprints in your inventory, with one-click application of efficiency values to the planner job setup.
 
 ### [Material Prices](planning/material%20prices)
 View estimated market costs for all required materials, compare purchase prices with build costs, and analyze total job profitability.

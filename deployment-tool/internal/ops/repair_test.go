@@ -1,6 +1,9 @@
 package ops
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -131,5 +134,27 @@ func TestRepairPlanEnsureOnlyFromRegistry(t *testing.T) {
 	}
 	if len(p.ForceUpdate) != 1 || p.ForceUpdate[0] != "redis" {
 		t.Fatalf("force-update=%v", p.ForceUpdate)
+	}
+}
+
+func TestRepairForceUpdateBeforeEnsure(t *testing.T) {
+	t.Parallel()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller")
+	}
+	src, err := os.ReadFile(filepath.Join(filepath.Dir(file), "repair.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(src)
+	forceIdx := strings.Index(body, "for _, short := range plan.ForceUpdate")
+	waitIdx := strings.Index(body, "waitForEnsureTasks(")
+	ensureIdx := strings.Index(body, "dataplane.RunEnsuresFor(")
+	if forceIdx < 0 || waitIdx < 0 || ensureIdx < 0 {
+		t.Fatal("missing force-update / wait / ensure call sites")
+	}
+	if !(forceIdx < waitIdx && waitIdx < ensureIdx) {
+		t.Fatalf("want force-update then wait then ensure; idxs force=%d wait=%d ensure=%d", forceIdx, waitIdx, ensureIdx)
 	}
 }

@@ -6,7 +6,7 @@ import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel
 
 export function InformationPanel({ state }) {
   return (
-    <ContentPanel componentName="Information Panel">
+    <ContentPanel componentName="Information Panel" wikiUrl="edit job/building/information panel">
       <Grid container sx={{ width: "100%" }}>
         <Grid
           align="center"

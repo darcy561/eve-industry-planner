@@ -5,73 +5,73 @@ The Child Job Dialogue is a modal window that allows you to manage child job rel
 ## Overview
 
 The Child Job Dialogue provides:
-- **Available child jobs** list showing jobs that can be linked
-- **Linked child jobs** list showing currently connected jobs
-- **Job management** to add or remove child job links
-- **Material-specific** filtering to show only relevant jobs
+- Available child jobs list showing jobs that can be linked
+- Linked child jobs list showing currently connected jobs
+- Job management to add or remove child job links
+- Material-specific filtering to show only relevant jobs
 
 ## Opening the Dialogue
 
 ### Trigger
-- **Method**: Click the child jobs avatar on a material card
-- **Avatar**: Circular avatar showing number of linked jobs
-- **Visibility**: Only shown for buildable materials (manufacturing/reaction)
-- **Tooltip**: "Number of child jobs linked, click to add or remove."
+- Method: Click the child jobs avatar on a material card
+- Avatar: Circular avatar showing number of linked jobs
+- Visibility: Only shown for buildable materials (manufacturing/reaction)
+- Tooltip: "Number of child jobs linked, click to add or remove."
 
 ### Dialogue Display
-- **Type**: Modal dialog window
-- **Title**: "Available Child Jobs"
-- **Size**: Responsive, adapts to content
-- **Padding**: 20px around content
+- Type: Modal dialog window
+- Title: "Available Child Jobs"
+- Size: Responsive, adapts to content
+- Padding: 20px around content
 
 ## Dialogue Sections
 
 ### Available Child Jobs Section
-- **Title**: "Available Child Jobs" (in dialog title)
-- **Content**: List of jobs that can be linked to this material
-- **Filtering**: 
+- Title: "Available Child Jobs" (in dialog title)
+- Content: List of jobs that can be linked to this material
+- Filtering: 
   - Only shows jobs matching the material's item type
   - Excludes already linked jobs
   - Respects group membership (if job is in a group)
-- **Purpose**: Jobs you can link to supply this material
+- Purpose: Jobs you can link to supply this material
 
 ### Linked Child Jobs Section
-- **Title**: "Linked Child Jobs" (in content area)
-- **Content**: List of jobs currently linked to this material
-- **Styling**: Highlighted or distinct from available jobs
-- **Purpose**: Shows which jobs are currently supplying this material
+- Title: "Linked Child Jobs" (in content area)
+- Content: List of jobs currently linked to this material
+- Styling: Highlighted or distinct from available jobs
+- Purpose: Shows which jobs are currently supplying this material
 
 ## Available Child Jobs
 
 ### Job Display
 Each available job shows:
-- **Job information**: Item name, quantities, status
-- **Action buttons**: Options to link the job
-- **Filtering**: Only relevant jobs are shown
+- Job information: Item name, quantities, status
+- Action buttons: Options to link the job
+- Filtering: Only relevant jobs are shown
 
 ### Filtering Logic
 Jobs are included if:
-- **Item matches**: Job produces the same item type as the material
-- **Not already linked**: Job is not in the linked jobs list
-- **Group membership**: If parent job is in a group, only shows jobs from same group
-- **If no group**: Shows all matching jobs from user's job list
+- Item matches: Job produces the same item type as the material
+- Not already linked: Job is not in the linked jobs list
+- Group membership: If parent job is in a group, only shows jobs from same group
+- If no group: Shows all matching jobs from user's job list
 
 ### Job Sources
-- **User Jobs**: Jobs from your personal job list
-- **Group Jobs**: Jobs from the same group (if applicable)
-- **Temporary Jobs**: Jobs pending creation/linking
+- User Jobs: Jobs from your personal job list
+- Group Jobs: Jobs from the same group (if applicable)
+- Temporary Jobs: Jobs pending creation/linking
 
 ## Linked Child Jobs
 
 ### Job Display
 Each linked job shows:
-- **Job information**: Item name, quantities, status
-- **Action buttons**: Options to unlink the job
-- **Status**: Indicates the job is currently linked
+- Job information: Item name, quantities, status
+- Action buttons: Options to unlink the job
+- Status: Indicates the job is currently linked
 
 ### Unlinking Jobs
-- **Method**: Click unlink/remove button on linked job
-- **Behavior**: 
+- Method: Click unlink/remove button on linked job
+- Behavior: 
   - Removes job from linked list
   - Job becomes available to link again
   - Material calculations update automatically
@@ -95,9 +95,9 @@ Each linked job shows:
 6. Material calculations update
 
 ### Creating New Child Jobs
-- **Option**: May be available in the dialogue
-- **Function**: Creates a new job for this material
-- **Behavior**: 
+- Option: May be available in the dialogue
+- Function: Creates a new job for this material
+- Behavior: 
   - Creates job with appropriate configuration
   - Automatically links to parent job
   - Appears in linked child jobs list
@@ -105,10 +105,10 @@ Each linked job shows:
 ## Dialogue Controls
 
 ### Close Button
-- **Location**: Bottom of dialogue (Dialog Actions)
-- **Label**: "Close"
-- **Function**: Closes the dialogue
-- **Behavior**: 
+- Location: Bottom of dialogue (Dialog Actions)
+- Label: "Close"
+- Function: Closes the dialogue
+- Behavior: 
   - Saves any changes made
   - Updates material card display
   - Returns focus to main interface
@@ -117,16 +117,16 @@ Each linked job shows:
 
 ### With Linked Child Jobs
 When child jobs are linked:
-- **Production Total**: Sum of production from all linked jobs
-- **Remaining**: Material quantity - child job production
-- **Cost Import**: Costs can be imported from completed child jobs
-- **Completion**: Material complete when child jobs cover requirement or shortfall is purchased
+- Production Total: Sum of production from all linked jobs
+- Remaining: Material quantity - child job production
+- Cost Import: Costs can be imported from completed child jobs
+- Completion: Material complete when child jobs cover requirement or shortfall is purchased
 
 ### Without Child Jobs
 When no child jobs are linked:
-- **Remaining**: Material quantity - purchased
-- **Cost Entry**: Standard purchase cost entry
-- **Completion**: Material complete when purchased ≥ required
+- Remaining: Material quantity - purchased
+- Cost Entry: Standard purchase cost entry
+- Completion: Material complete when purchased ≥ required
 
 ## Best Practices
 

@@ -7,7 +7,7 @@ Live SoT for Swarm overlay networks. Membership SoT is the stack fragments: [`do
 | Network | Kind | Attachable | Owner | Role |
 |---------|------|------------|-------|------|
 | **`eip-core`** | external overlay | **yes** (create-once) | `engine.Ready` from `external: true` in fragments | Mesh — data + app DNS; Traefik alias. Obs exporters / Alloy / Prometheus dual-home when obs on. Grafana is **not** on mesh. |
-| **`eip-public`** | stack overlay | no | app (+ obs) fragment | Edge — Traefik swarm provider ↔ frontend / api / ws-router; Grafana only when Access is **Public** ([config.md](./config.md)) |
+| **`eip-public`** | stack overlay | no | app (+ obs) fragment | Edge — Traefik swarm provider ↔ frontend / wiki / api / ws-router; Grafana only when Access is **Public** ([config.md](./config.md)) |
 | **`eip-obs`** | stack overlay | yes | obs fragment | Obs overlay — Prometheus / Loki / Grafana / Alloy / exporters / asynqmon |
 | **`eip-docker-traefik`** | stack overlay | no | app | Socket-proxy island — Traefik ↔ `traefik-docker-proxy:2375` |
 | **`eip-docker-ws`** | stack overlay | no | app | Socket-proxy island — ws-router ↔ `ws-docker-proxy:2375` |
@@ -22,7 +22,7 @@ Live SoT for Swarm overlay networks. Membership SoT is the stack fragments: [`do
    └─ eip_traefik published :80 / :443 / :81  (mode: ingress)
 
 1  eip-public  (edge overlay)
-   └─ traefik ↔ frontend · api · ws-router · grafana†
+   └─ traefik ↔ frontend · wiki · api · ws-router · grafana†
 
 2  eip-core  (mesh overlay, external attachable)
    └─ api · websocket · worker · core · ws-router · traefik
@@ -50,6 +50,7 @@ Live SoT for Swarm overlay networks. Membership SoT is the stack fragments: [`do
 | traefik-docker-proxy | app | `eip-docker-traefik` | never on mesh/edge |
 | traefik | app | `eip-core` · `eip-public` · `eip-docker-traefik` | alias `traefik` on mesh; **only** host publish |
 | frontend | app | `eip-public` | edge-only SPA |
+| wiki | app | `eip-public` | edge-only Otter — [wiki.md](./wiki.md) |
 | api | app | `eip-core` · `eip-public` | dual-home |
 | websocket | app | `eip-core` | mesh only (no Traefik labels) |
 | ws-docker-proxy | app | `eip-docker-ws` | never on mesh/edge |
@@ -87,6 +88,7 @@ Label **values** are Docker network **names** from fragment `x-net-*` anchors (s
 |------|----|-----|-----|
 | Internet / browser | traefik | host ingress | `:80` / `:443` (/ `:81` dashboard) |
 | traefik | frontend | `eip-public` | PathPrefix `/` (swarm provider) |
+| traefik | wiki | `eip-public` | Host `wiki.{host}` — [wiki.md](./wiki.md) |
 | traefik | api | `eip-public` | PathPrefix `/api` |
 | traefik | ws-router | `eip-public` | PathPrefix `/ws` |
 | traefik | grafana | `eip-public` | When Public — PathPrefix / entrypoints → [traefik.md](./traefik.md); knobs → [config.md](./config.md) |

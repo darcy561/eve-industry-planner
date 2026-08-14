@@ -60,6 +60,39 @@ export const themeStorage = {
   },
 };
 
+/** Cookie name read by Otter Wiki `custom.js`. */
+export const WIKI_THEME_COOKIE = "eip-theme";
+
+/**
+ * Cookie Domain so Otter on wiki.{host} can read the SPA theme.
+ * localhost / 127.0.0.1 stay host-only (not shared with wiki.localhost).
+ */
+export function wikiThemeCookieDomain(hostname) {
+  if (!hostname || hostname === "localhost" || hostname === "127.0.0.1") {
+    return hostname;
+  }
+  const parts = hostname.split(".");
+  if (parts.length >= 2) {
+    return `.${parts.slice(-2).join(".")}`;
+  }
+  return hostname;
+}
+
+export function persistWikiThemeCookie(
+  themeValue,
+  hostname = window.location.hostname
+) {
+  try {
+    const domain = wikiThemeCookieDomain(hostname);
+    const expires = new Date();
+    expires.setTime(expires.getTime() + 365 * 24 * 60 * 60 * 1000);
+    const domainAttr = domain ? `;domain=${domain}` : "";
+    document.cookie = `${WIKI_THEME_COOKIE}=${themeValue};expires=${expires.toUTCString()};path=/${domainAttr}`;
+  } catch {
+    // Cookie unavailable; wiki theme sync is best-effort.
+  }
+}
+
 /**
  * Resolve the initial theme mode from storage and system preference.
  * @param {string|null} storedTheme
@@ -123,6 +156,7 @@ export function ThemeProvider({ children }) {
   // Persist theme preference
   useEffect(() => {
     themeStorage.setItem("theme", mode);
+    persistWikiThemeCookie(mode);
   }, [mode]);
 
   const theme = useMemo(() => {

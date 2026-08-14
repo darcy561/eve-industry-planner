@@ -35,7 +35,7 @@ export function PurchasingDataPanel_EditJob(props) {
   const totalComplete = state.activeJob.totalCompletedMaterials();
 
   return (
-    <ContentPanel>
+    <ContentPanel wikiUrl="edit job/purchasing/purchasing data panel">
       <Grid container align="center" sx={{
         width: "100%"
       }}>

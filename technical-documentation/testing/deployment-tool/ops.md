@@ -17,7 +17,7 @@ go test ./internal/ops/ ./internal/status/ ./internal/msg/ ./internal/process/ .
 
 | Area | What the tests cover |
 |------|----------------------|
-| `ops` | Repair plan (healthy, selective ensure/force, missing rematerialize, registry-only); core CLI sole-owner / bad-update guards; restart target resolution; logs guards / effective tail |
+| `ops` | Repair plan (healthy, selective ensure/force, missing rematerialize, registry-only); force-update before ensure; core CLI sole-owner / bad-update guards; restart target resolution; logs guards / effective tail |
 | `status` | Report build with/without obs; JSON round-trip; service/overall signal rollup; section/row/task formatting; write source fields |
 | `msg` | EIPMSG line parse/reject/emit/progress/chip decoding; chipstate mapping; docker/health probe events |
 | `process` | Update-resume flags; signal context timeout/cancel; console want-size; confirm yes/TUI/non-TTY |

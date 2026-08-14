@@ -1,94 +1,67 @@
 # Blueprint Settings
 
-The Blueprint Settings section allows you to configure default values for blueprints and control how the application handles blueprint-related calculations and job building.
+Blueprint Settings control how the app builds planner jobs automatically and what defaults apply when blueprints are added. They affect [Job Planner](../job%20planner) actions such as Build Child Jobs, Build Full Tree, and Add New Jobs, as well as material trees inside [groups](../groups).
+
+These are account-wide preferences. Individual jobs still let you change blueprint ME/TE and setups in [Edit Job](../edit%20job).
+
+## Where you control it
+
+- Settings → Blueprint Settings tab
 
 ## Default Material Efficiency
 
-### Default Material Efficiency Value
+Choose the default Material Efficiency (ME) for new manufacturing job setups. ESI-owned blueprints (character and corporation) take priority when a match is found; this value is used when no matching blueprint is available from ESI.
 
-**Dropdown:** Select the default Material Efficiency (ME) value
+## Automatically Recalculate Jobs
 
-This setting determines the default Material Efficiency level that will be applied to new blueprints when they're added to jobs. Material Efficiency reduces the amount of materials required to build items.
+When on (default), closing [Edit Job](../edit%20job) after you change quantities or [parent/child](../parent%20and%20child%20jobs) links runs the [material tree shaker](../material%20tree%20shaker) over every job in that chain—tree shaking aligns planned output with what parent jobs need.
 
-Available options typically range from ME 0 to ME 10, representing the number of research levels completed on the blueprint.
+When off, tree shaking on close is skipped and you adjust each job in the chain yourself.
 
-**How it works:**
-- Higher ME values reduce material costs
-- Each ME level reduces material requirements by a percentage
-- This default is applied to new blueprints but can be overridden per blueprint
+Edit from the top of the production chain (output jobs) when possible; output jobs have no parent jobs and are not resized by tree shaking—you set the target quantity, and jobs further down are adjusted when their parent jobs’ material lists change. See [Material tree shaker](../material%20tree%20shaker) for the full algorithm, diagram, and every trigger (Build Child Jobs and Build Full Tree always run it; Edit Job close only when this switch is on).
 
-## Job Recalculation
+Turn this off only if you want full manual control over chain quantities; most users leave it enabled so linked jobs stay aligned after edits.
 
-### Automatically Recalculate Jobs
+## Ignore Items Without Blueprints
 
-**Toggle:** Enable/Disable automatic job recalculation
+When on, items with no matching ESI blueprint (character or corporation) are treated as not buildable:
 
-When enabled, jobs will automatically recalculate material requirements and costs when:
-- Blueprint settings change
-- Market prices update
-- Structure bonuses are modified
-- Other relevant settings are adjusted
+| Where | Behaviour |
+|-------|-----------|
+| Automatic builds | Skipped in Build Child Jobs, Build Full Tree, group tree builds, and similar |
+| Add New Jobs search | The item dropdown lists only recipes you have a blueprint for (helper text: *Filtered by available blueprints*) |
 
-- **Enabled:** Jobs recalculate automatically when relevant settings change
-- **Disabled:** Manual recalculation is required
+When off, automatic builds include every item in the chain, and Add New Jobs search shows the full recipe list.
 
-## Blueprint Filtering
+Filtering applies when you are logged in and blueprint data has loaded from ESI. When logged out or offline, search is not blueprint-filtered even if this switch is on.
 
-### Ignore Items Without Blueprints
+How “has a blueprint” is decided: The check uses blueprints from every linked character and every corporation your account can read from ESI. If any matching blueprint exists for that recipe, the item counts as buildable. The app does not check copy vs original, remaining runs, or whether you have enough runs for the quantity you want—presence only.
 
-**Toggle:** Enable/Disable ignoring items without blueprints
-
-When enabled, items that don't have associated blueprints will be excluded from automatic job building. This is useful for focusing on items you can actually manufacture.
-
-- **Enabled:** Items without blueprints are excluded from automatic job building
-- **Disabled:** All items are considered for job building
+Use this to keep automatic trees and job search focused on items you can actually produce in-game.
 
 ## Materials To Ignore
 
-### Excluded Materials List
+Some materials you may choose to always buy or handle outside the planner—capitals, fuel blocks, niche components. Materials To Ignore is an exclusion list for automatic job building only.
 
-**Search Field:** Add materials to exclude from automatic job building
+How to manage the list:
 
-This feature allows you to specify materials that should be excluded when the application automatically builds jobs. This is useful for:
-- Materials you prefer to buy rather than manufacture
-- Items that are difficult or expensive to produce
-- Materials you want to handle manually
+1. Search for an item in the field above the chip list.
+2. Select it to add a chip (name and type icon).
+3. Remove an item with the delete control on its chip.
 
-**How to use:**
-1. Use the search field to find the material you want to exclude
-2. Select the material from the search results
-3. The material will be added to the excluded materials list
-4. Remove materials by clicking the delete icon on their chip
+| Behaviour | Detail |
+|-----------|--------|
+| Automatic builds | Listed materials are not turned into child planner jobs |
+| Child jobs | Any subtree those materials would have created is skipped |
+| Manual adds | You can still add the material or a job for it by hand |
+| [Material Prices](../edit%20job/planning/material%20prices) panel | Buildable rows show an info icon—orange (warning) for ignored materials, blue (primary) for everything else. Opening the popover shows *Material has been marked as exempt from builds.* |
 
-**Important Notes:**
-- Materials in this list are excluded from automatic job building
-- Any child jobs these materials might generate are also skipped
-- Excluded materials can still be added manually to jobs if needed
-- The list shows material names with icons for easy identification
+The list is stored on your account and applies everywhere automatic building runs—including inside [groups](../groups) when you expand a production chain. The same list drives the highlight on the [Material Prices](../edit%20job/planning/material%20prices) panel so you can spot “buy only” items while comparing purchase vs build costs.
 
-### Managing Excluded Materials
+## Related pages
 
-The excluded materials are displayed as chips below the search field. Each chip shows:
-- Material name
-- Material icon
-- Delete button to remove from the list
-
-## How Settings Are Saved
-
-- **Material Efficiency and Toggles:** Saved immediately when changed
-- **Excluded Materials:** Saved immediately when added or removed
-- All settings are synced across all your devices
-
-## Best Practices
-
-1. **Set Appropriate ME Defaults:** Choose an ME level that matches your typical blueprint research level
-2. **Use Automatic Recalculation:** Keep this enabled for the most up-to-date job calculations
-3. **Curate Excluded Materials:** Regularly review and update your excluded materials list
-4. **Consider Your Workflow:** Adjust settings based on whether you prefer to buy or manufacture materials
-
-## Related Documentation
-
-- [Settings Overview](../settings)
-- [Job Settings](job)
-- [Custom Structures](custom%20structures)
-
+- [Settings overview](../settings) — All settings tabs
+- [Layout Settings](../settings/layout) — Planner appearance and stage names
+- [Job Settings](../settings/job) — Market and asset defaults for built jobs
+- [Custom Structures](../settings/custom%20structures) — Structure defaults for automatic jobs
+- [Reprocessing Settings](../settings/reprocessing%20settings) — Default reprocessing character

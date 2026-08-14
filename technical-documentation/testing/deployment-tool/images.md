@@ -19,7 +19,7 @@ go test ./internal/images/
 |------|----------------------|
 | Pull | Parallelism bounds; stream consume (up-to-date, layers, errors); progress board render/JSON/fraction |
 | Registry | Host parsing; auth base64 |
-| Live refs | App/data refs; obs gating |
+| Live refs | App/data refs; obs gating; wiki `WIKI_COMPAT_TAG` |
 | Reconcile helper | Digest match |
 | Bake | Role env key; arg parsing (`--no-cache`, role names, `swarm`); swarm local tag |
 

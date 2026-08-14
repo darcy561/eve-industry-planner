@@ -104,6 +104,7 @@ export function MaterialCardFrame_Purchasing(props) {
       }}
     >
       <ContentPanel
+        wikiUrl="edit job/purchasing/material cards"
         paperSx={{
           minHeight: { xs: 180, sm: 200, md: 240 },
           width: "100%",

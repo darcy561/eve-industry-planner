@@ -27,7 +27,7 @@ export function TabPanel_Building(props) {
   };
 
   return (
-    <ContentPanel componentName="Tab Panel" paperSx={{ minHeight: "35vh", padding: 1 }}>
+    <ContentPanel componentName="Tab Panel" wikiUrl="edit job/building/tab panel" paperSx={{ minHeight: "35vh", padding: 1 }}>
       <TabContext value={currentTab}>
         <Box sx={{ width: "100%" }}>
           <Tabs value={currentTab} onChange={handleChange} variant="fullWidth">

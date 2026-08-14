@@ -139,6 +139,7 @@ export function AvailableTransactionsPanel({
   return (
     <ContentPanel
       title="New Transactions"
+      wikiUrl="edit job/selling/available transactions panel"
       componentName="Available Transactions Panel"
       isLoading={combinedIsLoading}
       isError={combinedIsError}

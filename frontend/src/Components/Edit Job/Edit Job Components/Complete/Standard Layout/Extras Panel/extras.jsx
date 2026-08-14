@@ -84,6 +84,7 @@ export function ExtrasPanel({ state, actions }) {
   return (
     <ContentPanel 
       title="Extra Costs"
+      wikiUrl="edit job/complete/extras panel"
       paperSx={{ height: "auto" }}
     >
       <Grid container spacing={1} sx={{ width: '100%' }}>

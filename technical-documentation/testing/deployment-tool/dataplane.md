@@ -18,7 +18,7 @@ go test ./internal/dataplane/...
 | Area | What the tests cover |
 |------|----------------------|
 | Ready / registry | Not-ready errors; ready registry wiring; service-ensures registry; ensure-mongo/s3 as SoT entry points |
-| Task | Retry / timeout / cancel / wait |
+| Task | Retry / timeout / cancel / wait; wait force-updates an idle-stuck service after 8s |
 | S3 | App buckets; safe bucket names |
 | Mongo keyfile | Write/restore; refuse-generate; container-restore |
 | Mongo indexes / preimage | Specs render/validate/ensure-with mocks; preimage collections; JS parity |

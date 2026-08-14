@@ -128,6 +128,7 @@ export default function ArchiveJobsPanel({ state }) {
     <ContentPanel
       visible={isLoggedIn}
       title="Archived Job Data"
+      wikiUrl="edit job/planning/archive jobs"
       paperSx={{ height: "auto" }}
       componentName="Archive Jobs Panel"
       isLoading={isLoading}

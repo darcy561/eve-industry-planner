@@ -5,27 +5,27 @@ The Selling stage is where you manage market orders, track sales transactions, a
 ## Stage Purpose
 
 The Selling stage serves to:
-- **Link market orders** by connecting your job to active sell orders from EVE Online
-- **Track sales** by linking transactions from the ESI API or manually entering sales data
-- **Calculate profitability** by comparing total costs against sales revenue
-- **Monitor order status** by tracking order progress, completion, and cancellation
-- **Analyze performance** by reviewing sales statistics, average prices, and profit margins
+- Link market orders by connecting the planner job to active sell orders from EVE Online
+- Track sales by linking wallet transactions from the game or entering sales manually
+- Calculate profitability by comparing total costs against sales revenue
+- Monitor order status by tracking order progress, completion, and cancellation
+- Analyze performance by reviewing sales statistics, average prices, and profit margins
 
-## Lifecycle Position
+## Where Selling sits in the workflow
 
-The Selling stage appears after completion in the job lifecycle:
+Selling is the last stage on the board:
 
-1. [Planning](planning) - Configuring job parameters and reviewing requirements
-2. [Purchasing](purchasing) - Acquiring materials and recording costs
-3. [Building](building) - Active manufacturing and production
-4. [Complete](complete) - Finished production ready for sale
-5. **Selling** ← You are here
+1. [Planning](planning) — Configure the build
+2. [Purchasing](purchasing) — Acquire materials and record costs
+3. [Building](building) — Link and track ESI industry jobs
+4. [Complete](complete) — Finalize costs and prepare for sale
+5. Selling ← You are here
 
-This is the final stage in the job lifecycle, where you track sales and analyze profitability before archiving the job.
+Track sales and profit here, then archive standalone jobs when you are done.
 
-## Selling Panels
+## What you do in Selling
 
-The Selling stage consists of the following panels:
+Use the panels on the Selling screen to link orders, record sales, and review profit:
 
 ### [Market Costs Panel](selling/market%20costs%20panel)
 Displays current market prices across different market options (buy/sell) for the produced item, with quick access to market data and history.

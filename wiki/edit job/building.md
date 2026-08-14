@@ -1,31 +1,31 @@
 # Edit Job - Building Stage
 
-The Building stage is where you track active manufacturing jobs that are currently running in EVE Online. This stage allows you to link your planned jobs to actual industry jobs from the ESI API, monitor their progress, and track completion.
+The Building stage is where you link ESI industry jobs (in-game runs on your characters) to the planner job and track progress while production is underway.
 
 ## Stage Purpose
 
 The Building stage serves to:
-- **Link to ESI jobs** by connecting your planned jobs to active industry jobs from EVE Online
-- **Monitor progress** by tracking build time, completion status, and job details from the game
-- **Track costs** by automatically importing installation costs from linked ESI jobs
-- **Manage job execution** by viewing which jobs are active, delivered, or cancelled
-- **Prepare for completion** by ensuring all jobs are properly tracked before moving to the complete stage
+- Link ESI industry jobs by connecting the planner job to active in-game industry jobs from EVE Online
+- Monitor progress by tracking build time, completion status, and job details from the game
+- Track costs by automatically importing installation costs from linked ESI industry jobs
+- Manage execution by viewing which in-game jobs are active, delivered, or cancelled
+- Prepare for completion by ensuring all required ESI industry jobs are linked before moving to the Complete stage
 
-## Lifecycle Position
+## Where Building sits in the workflow
 
-The Building stage appears after purchasing in the job lifecycle:
+Building comes after Purchasing:
 
-1. [Planning](planning) - Configuring job parameters and reviewing requirements
-2. [Purchasing](purchasing) - Acquiring materials and recording costs
-3. **Building** ← You are here
-4. [Complete](complete) - Finished production ready for sale
-5. [Selling](selling) - Managing sales and market orders
+1. [Planning](planning) — Configure the build
+2. [Purchasing](purchasing) — Acquire materials and record costs
+3. Building ← You are here
+4. [Complete](complete) — Finalize costs and prepare for sale
+5. [Selling](selling) — Sales and market orders
 
-After completing the building stage (all jobs delivered), jobs move to the Complete stage where you finalize costs and prepare for sale.
+When linked ESI industry jobs are delivered, move the planner job to Complete.
 
-## Building Panels
+## What you do in Building
 
-The Building stage consists of the following panels:
+Use the panels on the Building screen to connect in-game industry runs and watch progress:
 
 ### [Information Panel](building/information%20panel)
 Displays total material costs, installation costs, and cost per item for quick reference during the building process.

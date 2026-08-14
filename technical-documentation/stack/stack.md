@@ -7,7 +7,7 @@ Live SoT for Swarm stack name **`eip`**: fragment files, membership, replica ide
 | File | Role |
 |------|------|
 | [`docker-stack.data.yml`](../../docker-stack.data.yml) | **Data** fragment — mongo, redis, nats, SeaweedFS (lean). Membership = top-level `services:` |
-| [`docker-stack.yml`](../../docker-stack.yml) | **App** fragment — Traefik + api / websocket / worker / ws-router / core / frontend / **capacity-controller** (+ socket proxies) |
+| [`docker-stack.yml`](../../docker-stack.yml) | **App** fragment — Traefik + api / websocket / worker / ws-router / core / frontend / wiki / **capacity-controller** (+ socket proxies) |
 | [`docker-stack.obs.yml`](../../docker-stack.obs.yml) | **Obs** addon — **Prometheus**, Grafana/Loki/Alloy/exporters/asynqmon; merged only when `addons.observability.enabled` |
 | [`docker-stack.dev.yml`](../../docker-stack.dev.yml) | **Dev overlay** — per-role `${TAG_*}` image refs (merged on `eip dev` / `eip rebuild`) |
 
@@ -17,7 +17,7 @@ Operator YAML defaults → [config.md](./config.md). Secrets → [secrets.md](./
 
 ```text
 data   mongo · redis · nats · seaweedfs
-app    traefik (+ traefik-docker-proxy) · frontend · api · websocket
+app    traefik (+ traefik-docker-proxy) · frontend · wiki · api · websocket
        · worker · ws-router (+ ws-docker-proxy) · core
        · capacity-controller (+ capacity-docker-proxy)
 obs*   prometheus · grafana · loki · alloy (+ alloy-docker-proxy)
@@ -38,7 +38,7 @@ App services that roll **start-first** (`x-app-deploy`) also merge service-root 
 |-------|--------|
 | Anchor | `x-app-stop-grace` → `stop_grace_period: 60s` |
 | Consumers | traefik, api, websocket, ws-router, worker, core, frontend, capacity-controller |
-| Not applied | `x-proxy-deploy` socket proxies (stop-first, short-lived) |
+| Not applied | `x-proxy-deploy` socket proxies; `x-wiki-deploy` wiki (stop-first, SQLite) — [wiki.md](./wiki.md) |
 
 Compose puts grace **outside** `deploy:` — hence a separate service-root merge, not inside `x-app-deploy`.
 
@@ -60,4 +60,4 @@ Per-process identity is the Docker **short container id** — in-container `HOST
 
 ## Probes
 
-App roles expose orchestration probes on **`:19100`** (`/healthy`, `/ready`). Go SoT: `shared/orchestrationprobes.ListenPort` — stack literals must match. Traefik LB healthchecks for api / ws-router use `healthcheck.port=19100`. Core `/ready` = handoff-ready standby (not lease holder) — [core.md](../backend/core/core.md). Websocket `/ready` fails while local roll drain is in progress — [websocket.md](../backend/websocket/websocket.md).
+Go app roles expose orchestration probes on **`:19100`** (`/healthy`, `/ready`). Traefik, frontend, and wiki do not. Go SoT: `shared/orchestrationprobes.ListenPort` — stack literals must match. Traefik LB healthchecks for api / ws-router use `healthcheck.port=19100`. Core `/ready` = handoff-ready standby (not lease holder) — [core.md](../backend/core/core.md). Websocket `/ready` fails while local roll drain is in progress — [websocket.md](../backend/websocket/websocket.md).

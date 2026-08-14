@@ -15,3 +15,5 @@ services:
     image: eve-industry-planner-capacity-controller:${TAG_capacity_controller}
   frontend:
     image: eve-industry-planner-frontend:${TAG_frontend}
+  wiki:
+    image: eve-industry-planner-wiki:${TAG_wiki}

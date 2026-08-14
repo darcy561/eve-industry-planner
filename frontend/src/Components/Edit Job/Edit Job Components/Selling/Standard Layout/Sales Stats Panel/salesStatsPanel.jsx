@@ -28,7 +28,7 @@ export function SalesStats({ state }) {
     );
 
   return (
-    <ContentPanel componentName="Sales Stats Panel">
+    <ContentPanel componentName="Sales Stats Panel" wikiUrl="edit job/selling/sales stats panel">
       <Grid container spacing={1}>
         <Grid container size={12}>
           <Grid size={{ xs: 12, sm: 8 }}>

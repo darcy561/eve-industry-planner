@@ -26,9 +26,15 @@ func repoRoot(t *testing.T) string {
 func TestExpandRepoStacksNoBareDollarCORS(t *testing.T) {
 	root := repoRoot(t)
 	ctx := context.Background()
+	liveEnv := map[string]string{
+		"APP_VERSION":      "1.2.3",
+		"EVE_CALLBACK_URL": "https://example.test/callback",
+	}
 	devTags := map[string]string{
 		"TAG_api": "t", "TAG_core": "t", "TAG_frontend": "t",
 		"TAG_websocket": "t", "TAG_worker": "t", "TAG_ws_router": "t",
+		"TAG_capacity_controller": "t", "TAG_wiki": "t",
+		"APP_VERSION": "1.2.3", "EVE_CALLBACK_URL": "https://example.test/callback",
 	}
 	cases := []struct {
 		name  string
@@ -37,7 +43,7 @@ func TestExpandRepoStacksNoBareDollarCORS(t *testing.T) {
 		env   map[string]string
 	}{
 		{"data live", "live", []string{"docker-stack.data.yml"}, nil},
-		{"app live", "live", []string{"docker-stack.yml"}, nil},
+		{"app live", "live", []string{"docker-stack.yml"}, liveEnv},
 		{"app+dev", "dev", []string{"docker-stack.yml", "docker-stack.dev.yml"}, devTags},
 		{"obs live", "live", []string{"docker-stack.obs.yml"}, nil},
 	}
@@ -64,6 +70,25 @@ func TestExpandRepoStacksNoBareDollarCORS(t *testing.T) {
 			}
 			text := string(raw)
 			assertStackDeploySafeDollars(t, text)
+			if tc.name == "app live" {
+				if strings.Contains(text, "${WIKI_COMPAT_TAG}") || strings.Contains(text, "${EIP_WIKI_HOST}") {
+					t.Fatal("wiki expand vars left unsubstituted")
+				}
+				if !strings.Contains(text, "wiki.example.test") {
+					t.Fatal("missing wiki Host")
+				}
+				if !strings.Contains(text, "eve-industry-planner-wiki:1.2") {
+					t.Fatal("missing wiki compat tag")
+				}
+			}
+			if tc.name == "app+dev" {
+				if !strings.Contains(text, "wiki.localhost") {
+					t.Fatal("missing wiki.localhost")
+				}
+				if !strings.Contains(text, "eve-industry-planner-wiki:t") {
+					t.Fatal("missing dev wiki image")
+				}
+			}
 		})
 	}
 }

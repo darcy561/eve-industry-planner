@@ -60,6 +60,9 @@ func Expand(ctx context.Context, opts Opts) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if err := applyWikiExpandEnv(env, opts.Source, sources); err != nil {
+		return "", err
+	}
 
 	project, err := loadComposeProject(ctx, opts.Home, sources, env)
 	if err != nil {

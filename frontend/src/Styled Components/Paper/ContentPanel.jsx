@@ -4,6 +4,7 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 
 import ContentErrorBoundary from "./ContentErrorBoundary";
 import PanelFallBack from "./panelStates";
+import WikiLinkIconButton from "../IconButton/wikiLink";
 import { LoadingPage } from "../../Components/loadingPage";
 
 /**
@@ -12,7 +13,7 @@ import { LoadingPage } from "../../Components/loadingPage";
  *
  * @param {Object} props - Component props
  * @param {React.ReactNode} props.children - Content to display inside the panel
- * @param {string} [props.title] - Optional title to display at the top of the panel
+ * @param {string} [props.wikiUrl] - Otter Wiki page path (see getWikiUrl); help icon in the title row when set
  * @param {number} [props.elevation=3] - Material-UI Paper elevation level
  * @param {string} [props.padding="20px"] - Internal padding for the panel content
  * @param {Object} [props.titleTypography] - Typography variant for the title
@@ -51,6 +52,7 @@ import { LoadingPage } from "../../Components/loadingPage";
 export default function ContentPanel({
   children,
   title,
+  wikiUrl,
   elevation = 3,
   titleTypography = { xs: "h6", sm: "h6" },
   titleColor = "primary",
@@ -145,15 +147,42 @@ export default function ContentPanel({
           flexDirection: "column",
         }}
       >
-        {title && (
-          <Grid sx={{ marginBottom: titleMarginBottom }} size={12}>
-            <Typography
-              color={titleColor}
-              align={titleAlign}
-              sx={{ typography: titleTypography }}
-            >
-              {title}
-            </Typography>
+        {(title || wikiUrl) && (
+          <Grid
+            sx={{
+              marginBottom: titleMarginBottom,
+              display: "flex",
+              alignItems: "center",
+              justifyContent:
+                titleAlign === "center"
+                  ? "center"
+                  : titleAlign === "right"
+                    ? "flex-end"
+                    : "flex-start",
+              gap: 1,
+            }}
+            size={12}
+          >
+            {title ? (
+              <Typography
+                color={titleColor}
+                align={titleAlign}
+                sx={{ typography: titleTypography }}
+              >
+                {title}
+              </Typography>
+            ) : null}
+            {wikiUrl ? (
+              <WikiLinkIconButton
+                path={wikiUrl}
+                sx={{
+                  padding: 0.5,
+                  "& .MuiSvgIcon-root": {
+                    fontSize: "1.25rem",
+                  },
+                }}
+              />
+            ) : null}
           </Grid>
         )}
         <Grid 

@@ -50,6 +50,7 @@ export function RawResourceList(props) {
   return (
     <ContentPanel
       title="Raw Resources"
+      wikiUrl="edit job/planning/resources"
       paperSx={{ position: "relative", height: "auto" }}
       titleMarginBottom={{ xs: 6, sm: 2 }}
       enableMenu

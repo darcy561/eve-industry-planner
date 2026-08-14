@@ -5,28 +5,28 @@ The Material Prices panel displays estimated market costs for all materials requ
 ## Overview
 
 The Material Prices panel provides:
-- **Market price information** for all required materials
-- **Build cost comparisons** showing whether it's cheaper to buy or produce materials
-- **Total cost calculations** including installation costs and extras
-- **Profit/loss analysis** comparing total costs to market value of products
-- **Market location and listing type selection** for accurate price data
+- Market price information for all required materials
+- Build cost comparisons showing whether it's cheaper to buy or produce materials
+- Total cost calculations including installation costs and extras
+- Profit/loss analysis comparing total costs to market value of products
+- Market location and listing type selection for accurate price data
 
 ## Panel Controls
 
 ### Market Location Selector
-- **Location**: Top-right corner of the panel
-- **Function**: Selects the market region for price calculations
-- **Options**: Various EVE Online regions (The Forge, Domain, etc.)
-- **Behavior**: 
+- Location: Top-right corner of the panel
+- Function: Selects the market region for price calculations
+- Options: Various EVE Online regions (The Forge, Domain, etc.)
+- Behavior: 
   - Saves selection to job layout preferences
   - Updates all price calculations immediately
   - Uses default market location if not previously set
 
 ### Market Listing Selector
-- **Location**: Top-left area of the panel
-- **Function**: Selects the type of market listing to use for prices
-- **Options**: Typically "buy" or "sell" orders
-- **Behavior**: 
+- Location: Top-left area of the panel
+- Function: Selects the type of market listing to use for prices
+- Options: Typically "buy" or "sell" orders
+- Behavior: 
   - Saves selection to job layout preferences
   - Updates all price calculations immediately
   - Uses default listing type if not previously set
@@ -36,31 +36,31 @@ The Material Prices panel provides:
 The header section displays information about the item being produced:
 
 ### Product Information
-- **Item Icon**: Visual representation of the product
-- **Item Name**: Name of the item being manufactured
+- Item Icon: Visual representation of the product
+- Item Name: Name of the item being manufactured
   - Clickable to open item information popover
-- **Item Market Price**: Current market price per unit for the selected listing type
-- **Total Market Price**: Total value of all items that will be produced
+- Item Market Price: Current market price per unit for the selected listing type
+- Total Market Price: Total value of all items that will be produced
 
 ### Column Headers
-- **Material [Listing] Price**: Price per unit for each material
-- **Build Price**: Estimated cost to produce the material via child jobs (if applicable)
-- **Total Material Price**: Total cost for all units needed
-- **Total Build Price**: Total estimated cost if producing via child jobs
+- Material [Listing] Price: Price per unit for each material
+- Build Price: Estimated cost to produce the material via child jobs (if applicable)
+- Total Material Price: Total cost for all units needed
+- Total Build Price: Total estimated cost if producing via child jobs
 
 ## Material Rows
 
 Each material required by the job is displayed as a row with the following information:
 
 ### Material Information
-- **Material Icon**: Visual representation of the material
-- **Material Name**: Name of the material
+- Material Icon: Visual representation of the material
+- Material Name: Name of the material
   - Clickable to open material information popover
-- **Info Icon** (if buildable): Appears for materials that can be produced (manufacturing/reaction jobs)
-  - **Color**: 
+- Info Icon (if buildable): Appears for materials that can be produced (manufacturing/reaction jobs)
+  - Color: 
     - Primary (blue) for normal materials
     - Warning (orange) for exempt materials
-  - **Function**: Opens a popover comparing purchase cost vs. build cost
+  - Function: Opens a popover comparing purchase cost vs. build cost
 
 ### Price Display
 
@@ -73,17 +73,17 @@ Each material required by the job is displayed as a row with the following infor
 - Shows estimated cost per unit to produce via child jobs
 - Displayed in italics below market price
 - Only shown for materials that can be produced (manufacturing/reaction)
-- **Color coding**:
-  - **Red**: Market price is higher than build cost (buying is more expensive)
-  - **Green**: Market price is lower than build cost (buying is cheaper)
-  - **No color**: Prices are equal or no child jobs exist
+- Color coding:
+  - Red: Market price is higher than build cost (buying is more expensive)
+  - Green: Market price is lower than build cost (buying is cheaper)
+  - No color: Prices are equal or no child jobs exist
 
 #### Total Material Price
 - Shows total cost for all units needed
 - Calculated as: `market price × quantity`
-- **Color coding**:
-  - **Red**: Market price total is higher than build cost total
-  - **Green**: Market price total is lower than build cost total
+- Color coding:
+  - Red: Market price total is higher than build cost total
+  - Green: Market price total is lower than build cost total
 
 #### Total Build Price (if applicable)
 - Shows total estimated cost if producing via child jobs
@@ -107,29 +107,29 @@ The totals section appears at the bottom of the material list and provides compr
 
 This section shows costs when purchasing all materials from the market:
 
-- **Total Material [Listing] Price**: Sum of all material purchase costs
-- **Total Install Costs**: Sum of all installation fees for all setups
-- **Total Cost**: Material costs + installation costs + extras
-- **Total Cost Per Item**: Average cost per produced item
-- **Profit/Loss**: Difference between total market value of products and total cost
-  - **Color coding**:
-    - **Green**: Profitable (cost < market value)
-    - **Orange**: Marginally profitable (build cost < market cost, but still profitable)
-    - **Red**: Unprofitable (cost > market value)
+- Total Material [Listing] Price: Sum of all material purchase costs
+- Total Install Costs: Sum of all installation fees for all setups
+- Total Cost: Material costs + installation costs + extras
+- Total Cost Per Item: Average cost per produced item
+- Profit/Loss: Difference between total market value of products and total cost
+  - Color coding:
+    - Green: Profitable (cost < market value)
+    - Orange: Marginally profitable (build cost < market cost, but still profitable)
+    - Red: Unprofitable (cost > market value)
 
 ### Totals with Child Jobs
 
 This section appears when child jobs exist and shows costs when producing materials:
 
-- **Total Estimated Material Price With Child Jobs**: Sum of estimated build costs
-- **Total Install Costs**: Sum of all installation fees
-- **Total Estimated Cost With Child Jobs**: Build costs + installation + extras
-- **Total Estimated Price Per Item With Child Jobs**: Average cost per item when producing materials
-- **Profit/Loss**: Difference between market value and estimated build cost
-  - **Color coding**:
-    - **Green**: Profitable with child jobs
-    - **Orange**: Marginally profitable (build cost > market cost, but still profitable overall)
-    - **Red**: Unprofitable even with child jobs
+- Total Estimated Material Price With Child Jobs: Sum of estimated build costs
+- Total Install Costs: Sum of all installation fees
+- Total Estimated Cost With Child Jobs: Build costs + installation + extras
+- Total Estimated Price Per Item With Child Jobs: Average cost per item when producing materials
+- Profit/Loss: Difference between market value and estimated build cost
+  - Color coding:
+    - Green: Profitable with child jobs
+    - Orange: Marginally profitable (build cost > market cost, but still profitable overall)
+    - Red: Unprofitable even with child jobs
 
 ## Understanding Price Comparisons
 
@@ -137,17 +137,17 @@ This section appears when child jobs exist and shows costs when producing materi
 
 The panel helps you decide whether to purchase materials or produce them:
 
-1. **Market Price < Build Price**: 
+1. Market Price < Build Price: 
    - Buying is cheaper
    - Market price displays in green
    - Consider purchasing materials
 
-2. **Market Price > Build Price**:
+2. Market Price > Build Price:
    - Building is cheaper
    - Market price displays in red
    - Consider creating child jobs
 
-3. **Equal Prices**:
+3. Equal Prices:
    - No color coding
    - Either option is equivalent
 
@@ -155,8 +155,8 @@ The panel helps you decide whether to purchase materials or produce them:
 
 The totals section provides two perspectives:
 
-1. **Market Prices**: What it costs if you buy everything
-2. **Child Jobs**: What it costs if you produce materials
+1. Market Prices: What it costs if you buy everything
+2. Child Jobs: What it costs if you produce materials
 
 Compare these to determine the most cost-effective approach for your production chain.
 

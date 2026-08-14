@@ -24,7 +24,7 @@ Manual `workflow_dispatch` only. App and CLI are **separate** workflows (bump in
 
 | Product | Workflow | Result |
 |---------|----------|--------|
-| **App images** | [`publish-containers-public.yml`](../../../.github/workflows/publish-containers-public.yml) | GHCR images for api, websocket, worker, core, frontend — tags `X.Y.Z`, `X.Y`, `X`, `latest`. Notes-only GitHub Release `app-vX.Y.Z`. Requires Sentry DSN on the Public environment. Optional **confirm overwrite** if that semver already exists on GHCR. |
+| **App images** | [`publish-containers-public.yml`](../../../.github/workflows/publish-containers-public.yml) | GHCR images for api, websocket, worker, core, frontend, capacity-controller, wiki — tags `X.Y.Z`, `X.Y`, `X`, `latest`. Notes-only GitHub Release `app-vX.Y.Z`. Requires Sentry DSN on the Public environment. Optional **confirm overwrite** if that semver already exists on GHCR. |
 | **CLI binary** | [`deployment-tool.yml`](../../../.github/workflows/deployment-tool.yml) → **Run workflow** bump | Builds `eip-{os}-{arch}` + `SHA256SUMS`; uploads pin `cli-vX.Y.Z` and refreshes floating **`cli`** (`make_latest: false`, `prerelease: false`). Bakes `kit.Channel=cli` and `kit.KitBranch=Public`. First ship with no `cli-v*` history → **`1.0.0`**. |
 
 ```bash

@@ -7,6 +7,7 @@ import ForumOutlinedIcon from "@mui/icons-material/ForumOutlined";
 import { FaDiscord } from "react-icons/fa";
 import GLOBAL_CONFIG from "../../../global-config-app";
 import { openFeedbackDialog } from "../../../Events/feedbackDialogEvents";
+import { getWikiUrl } from "../../../Functions/Helper/getWikiUrl";
 import { FirstLoginSetupSection } from "../shared/FirstLoginSetupSection";
 
 const bookendCardInteractiveSx = {
@@ -198,14 +199,15 @@ export function FirstLoginSupportStep() {
         </SupportBookendCard>
 
         <SupportBookendCard
-          title="Wiki (coming soon)"
+          title="Wiki"
           bookendIcon={
             <MenuBookOutlinedIcon color="primary" sx={{ fontSize: 28 }} />
           }
+          href={getWikiUrl()}
         >
           <Typography variant="body2" color="text.secondary">
-            A full wiki for this site is under development and will be linked
-            here and throughout the app once ready.
+            In-app docs for the planner, jobs, groups, and settings. Help icons
+            on panels open the matching wiki page.
           </Typography>
         </SupportBookendCard>
 

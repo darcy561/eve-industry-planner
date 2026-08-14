@@ -1,6 +1,6 @@
 # Assets Dialogue
 
-The Assets dialogue displays all your assets for a specific item type, allowing you to view quantities, locations, and use assets in your jobs.
+The Assets dialogue displays all your assets for a specific item type, allowing you to view quantities, locations, and use assets in planner jobs.
 
 ## Overview
 
@@ -46,7 +46,7 @@ The Assets dialogue shows:
 2. Select "View Assets" or similar option
 3. Review available assets and locations
 4. Select assets to use or import
-5. Apply assets to your job or shopping list
+5. Apply assets to a planner job or shopping list
 
 ## Related Documentation
 

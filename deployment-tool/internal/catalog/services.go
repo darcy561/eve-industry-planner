@@ -51,7 +51,7 @@ type Group struct {
 // repair force-update, image reconcile). Unlisted candidates follow in sorted order.
 func RestartPrefer() []string {
 	return []string{
-		"traefik", "api", "websocket", "worker", "ws-router", "core", "capacity-controller", "frontend",
+		"traefik", "api", "websocket", "worker", "ws-router", "core", "capacity-controller", "frontend", "wiki",
 		"mongo", "redis", "nats", "seaweedfs", "prometheus",
 	}
 }
@@ -92,6 +92,7 @@ func Groups() []Group {
 			Services: []Service{
 				{Short: "traefik", Label: "Traefik"},
 				{Short: "frontend", Label: "Website"},
+				{Short: "wiki", Label: "Wiki"},
 				{Short: "api", Label: "API"},
 				{Short: "websocket", Label: "Websocket"},
 				{Short: "ws-router", Label: "Websocket router"},

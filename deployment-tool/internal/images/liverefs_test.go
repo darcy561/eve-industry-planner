@@ -21,6 +21,8 @@ func TestLiveImageRefsAppAndData(t *testing.T) {
 services:
   api:
     image: ghcr.io/example/api:${APP_VERSION}
+  wiki:
+    image: ghcr.io/example/wiki:${WIKI_COMPAT_TAG}
   proxy:
     image: traefik:v3
 `)
@@ -40,6 +42,9 @@ services:
 	if bySvc["api"] != "ghcr.io/example/api:0.8" {
 		t.Fatalf("api=%q", bySvc["api"])
 	}
+	if bySvc["wiki"] != "ghcr.io/example/wiki:0.8" {
+		t.Fatalf("wiki=%q", bySvc["wiki"])
+	}
 	if bySvc["proxy"] != "traefik:v3" {
 		t.Fatalf("proxy=%q", bySvc["proxy"])
 	}
@@ -47,8 +52,32 @@ services:
 		t.Fatalf("mongo=%q", bySvc["mongo"])
 	}
 	imgs := UniqueImages(refs)
-	if len(imgs) != 3 {
+	if len(imgs) != 4 {
 		t.Fatalf("unique=%v", imgs)
+	}
+}
+
+func TestLiveImageRefsWikiCompatTag(t *testing.T) {
+	home := t.TempDir()
+	write := func(name, body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(home, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(kit.EnvFile, "APP_VERSION=1.2.3\n")
+	write(kit.AppStackFile, `
+services:
+  wiki:
+    image: ghcr.io/example/wiki:${WIKI_COMPAT_TAG}
+`)
+	write(kit.DataStackFile, "services: {}\n")
+	refs, err := LiveImageRefs(home, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Service != "wiki" || refs[0].Image != "ghcr.io/example/wiki:1.2" {
+		t.Fatalf("%+v", refs)
 	}
 }
 

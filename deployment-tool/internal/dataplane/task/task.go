@@ -10,11 +10,15 @@ import (
 	"github.com/moby/moby/client"
 
 	"eve-industry-planner/deployment-tool/internal/docker"
+	"eve-industry-planner/deployment-tool/internal/msg"
 )
 
 const (
 	DefaultTimeout  = 90 * time.Second
 	DefaultInterval = 2 * time.Second
+	// unstickAfter: stop-first can leave Desired=1 with only Shutdown tasks.
+	// Wait this long with no running container before force-updating once.
+	unstickAfter = 8 * time.Second
 )
 
 // ReadyFunc probes whether a running task container is usable.
@@ -67,6 +71,8 @@ func Running(ctx context.Context, stackName, service string) (bool, error) {
 
 // Wait polls until a running task exists and optional ready succeeds.
 // timeout <= 0 defaults to DefaultTimeout; poll interval is DefaultInterval.
+// After unstickAfter with no running container, force-updates an idle-stuck
+// Swarm service once (stop-first can leave Desired=1 with only Shutdown tasks).
 func Wait(ctx context.Context, stackName, service string, timeout time.Duration, ready ReadyFunc) (string, error) {
 	if timeout <= 0 {
 		timeout = DefaultTimeout
@@ -78,6 +84,8 @@ func Wait(ctx context.Context, stackName, service string, timeout time.Duration,
 	defer apiClient.Close()
 
 	deadline := time.Now().Add(timeout)
+	start := time.Now()
+	didUnstick := false
 	for time.Now().Before(deadline) {
 		if err := ctx.Err(); err != nil {
 			return "", err
@@ -92,6 +100,16 @@ func Wait(ctx context.Context, stackName, service string, timeout time.Duration,
 			}
 			if err := ready(ctx, cid); err == nil {
 				return cid, nil
+			}
+		}
+		if !didUnstick && time.Since(start) >= unstickAfter {
+			didUnstick = true
+			stuck, err := docker.UnstickIdleService(ctx, apiClient, stackName, service)
+			if err != nil {
+				return "", err
+			}
+			if stuck {
+				msg.Line(service + " task not scheduled — force-updating")
 			}
 		}
 		select {

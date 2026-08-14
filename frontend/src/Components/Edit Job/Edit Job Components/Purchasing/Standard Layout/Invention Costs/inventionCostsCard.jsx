@@ -66,6 +66,7 @@ export function InventionCostsCard({ state, actions }) {
       }}
     >
       <ContentPanel
+        wikiUrl="edit job/purchasing/invention costs card"
         paperSx={{ minHeight: { xs: 32, md: 30 }, position: "relative" }}
       >
         <Grid container>

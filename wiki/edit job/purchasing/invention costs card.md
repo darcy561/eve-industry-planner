@@ -5,55 +5,55 @@ The Invention Costs Card allows you to track additional costs associated with in
 ## Overview
 
 The Invention Costs Card provides:
-- **Invention cost tracking** for T2 and special items
-- **Cost entry** for individual invention items
-- **Total cost display** showing sum of all invention costs
-- **Cost management** with ability to add and remove entries
+- Invention cost tracking for T2 and special items
+- Cost entry for individual invention items
+- Total cost display showing sum of all invention costs
+- Cost management with ability to add and remove entries
 
 ## Card Visibility
 
 The card only appears when:
-- **Item requires invention**: Item is a T2 item (meta level that requires invention)
-- **OR special exception**: Item is in the exception list for invention costs
-- **Hidden otherwise**: Card doesn't appear for standard manufacturing items
+- Item requires invention: Item is a T2 item (meta level that requires invention)
+- OR special exception: Item is in the exception list for invention costs
+- Hidden otherwise: Card doesn't appear for standard manufacturing items
 
 ## Card Display
 
 ### Invention Icon
-- **Image**: Invention icon/logo
-- **Size**: 32px on mobile, 64px on desktop
-- **Background**: Primary theme color
-- **Position**: Centered at top of card
+- Image: Invention icon/logo
+- Size: 32px on mobile, 64px on desktop
+- Background: Primary theme color
+- Position: Centered at top of card
 
 ### Title
-- **Text**: "Invention Costs"
-- **Position**: Below icon
-- **Format**: Subtitle style
+- Text: "Invention Costs"
+- Position: Below icon
+- Format: Subtitle style
 
 ### Total Cost Display
-- **Label**: "Total Cost:"
-- **Value**: Sum of all invention cost entries
-- **Format**: Locale-formatted currency
-- **Calculation**: Sum of all `itemCost` values from invention entries
-- **Purpose**: Quick reference for total invention expenses
+- Label: "Total Cost:"
+- Value: Sum of all invention cost entries
+- Format: Locale-formatted currency
+- Calculation: Sum of all `itemCost` values from invention entries
+- Purpose: Quick reference for total invention expenses
 
 ## Cost Entries Display
 
 ### Entry Chips
 Each invention cost is displayed as a chip:
-- **Format**: "Item Name Cost"
-- **Style**: Outlined chip with delete icon
-- **Color**: Secondary theme color
-- **Delete Icon**: Red X icon on the right
-- **Behavior**: 
+- Format: "Item Name Cost"
+- Style: Outlined chip with delete icon
+- Color: Secondary theme color
+- Delete Icon: Red X icon on the right
+- Behavior: 
   - Click delete to remove entry
   - Updates total cost automatically
   - Shows confirmation via snackbar
 
 ### Scrollable Area
-- **Height**: 7vh (viewport height based)
-- **Scrollable**: If entries exceed visible area
-- **Layout**: Centered chips in vertical stack
+- Height: 7vh (viewport height based)
+- Scrollable: If entries exceed visible area
+- Layout: Centered chips in vertical stack
 
 ## Adding Invention Costs
 
@@ -61,28 +61,28 @@ Each invention cost is displayed as a chip:
 Located at the bottom of the card:
 
 #### Item Name Field
-- **Type**: Text input
-- **Label**: "Item"
-- **Required**: Yes
-- **Validation**: 
+- Type: Text input
+- Label: "Item"
+- Required: Yes
+- Validation: 
   - Only allows alphanumeric characters and spaces
   - Removes special characters automatically
-- **Purpose**: Name of the invention item (e.g., "Datacore", "Decryptor")
+- Purpose: Name of the invention item (e.g., "Datacore", "Decryptor")
 
 #### Item Price Field
-- **Type**: Number input
-- **Label**: "Item Price"
-- **Required**: Yes
-- **Default**: 0
-- **Step**: 0.01 (allows decimal values)
-- **Validation**: Must be a valid number
-- **Purpose**: Cost of the invention item
+- Type: Number input
+- Label: "Item Price"
+- Required: Yes
+- Default: 0
+- Step: 0.01 (allows decimal values)
+- Validation: Must be a valid number
+- Purpose: Cost of the invention item
 
 #### Add Button
-- **Icon**: Plus (+) icon
-- **Color**: Primary theme color
-- **Type**: Submit button for form
-- **Behavior**: 
+- Icon: Plus (+) icon
+- Color: Primary theme color
+- Type: Submit button for form
+- Behavior: 
   - Validates both fields are filled
   - Adds entry to invention costs
   - Resets form after submission
@@ -105,9 +105,9 @@ Located at the bottom of the card:
 4. Confirmation message appears
 
 ### Editing Entries
-- **Not directly editable**: Entries cannot be edited in place
-- **Workaround**: Delete and re-add with corrected values
-- **Best practice**: Double-check values before adding
+- Not directly editable: Entries cannot be edited in place
+- Workaround: Delete and re-add with corrected values
+- Best practice: Double-check values before adding
 
 ## Use Cases
 

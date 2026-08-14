@@ -34,9 +34,9 @@ type RepairPlan struct {
 }
 
 // Repair heals an already-deployed unhealthy stack: optional rematerialize for
-// missing membership, selective dataplane ensures (registry), force-update bad
-// services. No pull/bake/Ready/cold start. Refuse if Swarm inactive / no stack /
-// fully healthy.
+// missing membership, force-update bad present services, then selective
+// dataplane ensures (registry). No pull/bake/Ready/cold start. Refuse if Swarm
+// inactive / no stack / fully healthy.
 func Repair(ctx context.Context, opts RepairOpts) error {
 	apiClient, err := docker.NewAPIClient(client.WithTimeout(5 * time.Minute))
 	if err != nil {
@@ -93,24 +93,11 @@ func Repair(ctx context.Context, opts RepairOpts) error {
 		if err != nil {
 			return err
 		}
-		// Rematerialize returns before tasks are necessarily Running; wait so
-		// RunEnsuresFor does not skip the services we just restored.
-		if err := waitForEnsureTasks(ctx, stackName, plan.Ensure); err != nil {
-			return err
-		}
 	}
 
-	if len(plan.Ensure) > 0 {
-		msg.Step("Running dataplane ensure for: %s", strings.Join(plan.Ensure, ", "))
-		if err := dataplane.RunEnsuresFor(ctx, stackName, plan.Ensure, func(e dataplane.ServiceEnsure) {
-			msg.Step("Skipping %s ensure (no running task)", e.Label)
-		}); err != nil {
-			return err
-		}
-	}
-
-	// ForceUpdate is only shorts present at plan time; rematerialized
-	// (formerly missing) services are not listed — remat already redeployed them.
+	// Force-update present bad services before ensure. stop-first data rolls can
+	// leave Desired=1 with only Shutdown tasks; ensure would skip/time out.
+	// Rematerialized (formerly missing) shorts are not in ForceUpdate.
 	for _, short := range plan.ForceUpdate {
 		info, ok := snap.Services[short]
 		if !ok {
@@ -118,6 +105,18 @@ func Repair(ctx context.Context, opts RepairOpts) error {
 		}
 		msg.Step("Rolling restart: %s", short)
 		if err := docker.ForceUpdateService(ctx, apiClient, info.FullName); err != nil {
+			return err
+		}
+	}
+
+	if len(plan.Ensure) > 0 {
+		if err := waitForEnsureTasks(ctx, stackName, plan.Ensure); err != nil {
+			return err
+		}
+		msg.Step("Running dataplane ensure for: %s", strings.Join(plan.Ensure, ", "))
+		if err := dataplane.RunEnsuresFor(ctx, stackName, plan.Ensure, func(e dataplane.ServiceEnsure) {
+			msg.Step("Skipping %s ensure (no running task)", e.Label)
+		}); err != nil {
 			return err
 		}
 	}
@@ -187,7 +186,8 @@ func serviceHealthBad(info docker.ServiceInfo) bool {
 
 // waitForEnsureTasks polls until every registered ensure short has a running
 // task, or until ensureTaskWait elapses (then RunEnsuresFor may still skip).
-// Shorts are polled together so wall time ≈ max readiness, not the sum.
+// Called after rematerialize and/or force-update. Shorts are polled together
+// so wall time ≈ max readiness, not the sum.
 func waitForEnsureTasks(ctx context.Context, stackName string, shorts []string) error {
 	if len(shorts) == 0 {
 		return nil

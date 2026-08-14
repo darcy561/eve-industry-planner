@@ -18,6 +18,7 @@ export default function JobSetupInfoFrame(props) {
 
   return (
     <ContentPanel
+      wikiUrl="edit job/purchasing/job setup info"
       paperSx={{
         overflow: "hidden",
         display: "flex",

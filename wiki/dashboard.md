@@ -1,6 +1,6 @@
 # Dashboard
 
-The Dashboard provides an overview of all your industry operations, including account data, active jobs, transactions, and watchlists.
+The Dashboard provides an overview of your planner activity, including account data, ESI industry jobs, transactions, and watchlists.
 
 ## Overview
 
@@ -37,7 +37,7 @@ The Dashboard gives you:
 ### Character Slots
 
 - View character information
-- See active industry jobs per character
+- See active ESI industry jobs per character
 - Monitor character activity
 - Manage character assignments
 
