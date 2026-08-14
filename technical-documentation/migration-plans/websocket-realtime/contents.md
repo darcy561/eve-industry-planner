@@ -2,7 +2,9 @@
 
 ## Owns
 
-Historical plan, interactions log, and implementation notes for the websocket realtime migration. **Not live SoT** — when behaviour is current, prefer backend/frontend/stack topics.
+Historical plan, interactions log, and implementation notes for the websocket realtime migration, plus the plan to promote what is still accurate into live SoT and retire this folder. **Not live SoT** — when behaviour is current, prefer backend/frontend/stack topics.
+
+> **Read [plan.md](./plan.md) first.** Parts of the files below describe a design the code no longer implements — most notably a JWT scope ceiling, where the server now uses the session's grants. `plan.md` records which claims were verified against the code.
 
 ## Does not own
 
@@ -14,6 +16,7 @@ Historical plan, interactions log, and implementation notes for the websocket re
 
 | I need to… | Read |
 |------------|------|
+| What is verified accurate, and what gets promoted | [plan.md](./plan.md) |
 | Overview / maintenance rules for this migration folder | [readme.md](./readme.md) |
 | Architecture / implementation snapshot | [implementation.md](./implementation.md) |
 | Decision / interaction log | [interactions.md](./interactions.md) |
