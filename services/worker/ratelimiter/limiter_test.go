@@ -238,8 +238,47 @@ func TestCanMakeRequest_Concurrent(t *testing.T) {
 		}
 	}
 
-	// All should succeed since we have 100 tokens and only need 50 total
 	if successCount != 10 {
 		t.Errorf("CanMakeRequest() concurrent calls: got %d successes, want 10", successCount)
+	}
+}
+
+func TestCanMakeRequest_ConcurrentReservation(t *testing.T) {
+	ctx := context.Background()
+	const limit = 20
+	const cost = 5
+	gl := createTestGroupLimiter("test", limit, 0)
+
+	const n = 20
+	errs := make(chan error, n)
+	for range n {
+		go func() {
+			errs <- gl.CanMakeRequest(ctx, cost)
+		}()
+	}
+
+	successes := 0
+	failures := 0
+	for range n {
+		err := <-errs
+		if err == nil {
+			successes++
+			continue
+		}
+		if GetRateLimitError(err) == nil {
+			t.Fatalf("CanMakeRequest() unexpected error: %v", err)
+		}
+		failures++
+	}
+
+	wantSuccess := limit / cost
+	if successes != wantSuccess {
+		t.Errorf("CanMakeRequest() concurrent admissions = %d, want %d", successes, wantSuccess)
+	}
+	if failures != n-wantSuccess {
+		t.Errorf("CanMakeRequest() concurrent rejections = %d, want %d", failures, n-wantSuccess)
+	}
+	if gl.TokenUsed != limit {
+		t.Errorf("TokenUsed = %d, want %d after reservations", gl.TokenUsed, limit)
 	}
 }
