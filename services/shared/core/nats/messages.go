@@ -252,13 +252,12 @@ func ParsePlacementState(data []byte) (PlacementState, error) {
 	return s, nil
 }
 
-// MarketPricesRequest represents the JSON data payload for market prices refresh task.
-// This struct is used as the Data field content in TaskMessage when triggering market prices refreshes.
+// RegionMarketOrdersRequest represents the JSON data payload for a region market orders refresh task.
+// One request covers every order in the region, so no type filter is carried.
 // The JSON representation of this struct is embedded in TaskMessage.Data.
-type MarketPricesRequest struct {
-	TypeID     int32 `json:"type_id"`     // Item type ID to refresh
-	LocationID int32 `json:"location_id"` // Region ID for the market endpoint
-	StationID  int64 `json:"station_id"`  // Station ID to filter orders (matches order.LocationID)
+type RegionMarketOrdersRequest struct {
+	RegionID  int32 `json:"region_id"`  // Region ID for the market endpoint
+	StationID int64 `json:"station_id"` // Station ID to filter orders (matches order.LocationID)
 }
 
 // SDEApplyVersionRequest represents a request to apply a specific SDE build.

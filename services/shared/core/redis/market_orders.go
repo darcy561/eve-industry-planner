@@ -1,4 +1,4 @@
-package redis
+﻿package redis
 
 import (
 	"context"
@@ -8,34 +8,33 @@ import (
 	"strconv"
 	"time"
 
-	esicore "eve-industry-planner/shared/core/esi"
-
 	"github.com/redis/go-redis/v9"
 )
 
 const (
-	// refreshTimesKey is the Redis key for the sorted set tracking market orders refresh times
-	refreshTimesKey = "esi:market_orders:refresh_times"
-	// totalCountCacheKey is the Redis key for caching the total count of market orders items
-	totalCountCacheKey = "esi:market_orders:total_count_cache"
+	// regionRefreshTimesKey is the Redis key for the sorted set tracking region market orders refresh times
+	regionRefreshTimesKey = "esi:market_orders:region_refresh_times"
+	// regionCronCursorKey tracks which region the refresh cron publishes next.
+	regionCronCursorKey = "esi:market_orders:region:cron_cursor"
 	// marketTokenLimitKey is the Redis key for market-order group token limit.
 	marketTokenLimitKey = "esi:group:market-order:token_limit"
 	// marketTokenUsedKey is the Redis key for market-order group rolling token usage.
 	marketTokenUsedKey = "esi:group:market-order:tokens:sum"
 )
 
-// MarketPriceEntry is a helper type for GetMarketPriceEntriesByType
-// This matches the structure used in internal/tasks/esi/refreshMarketPrices.go
+// MarketPriceEntry holds the prices derived from one region's order book for a single type.
+// Buy and Sell are the best prices; BuyP95 and SellP05 are the outlier-trimmed percentiles.
 type MarketPriceEntry struct {
 	Buy         float64 `json:"buy"`
 	Sell        float64 `json:"sell"`
+	BuyP95      float64 `json:"buy_p95"`
+	SellP05     float64 `json:"sell_p05"`
 	LastUpdated int64   `json:"last_updated"`
 }
 
-// MarketOrdersRefreshTime represents an entry in the refresh tracking sorted set
-type MarketOrdersRefreshTime struct {
-	TypeID      int32
-	LocationID  int32
+// RegionMarketOrdersRefreshTime represents an entry in the region refresh tracking sorted set
+type RegionMarketOrdersRefreshTime struct {
+	RegionID    int32
 	LastUpdated int64 // Unix timestamp in milliseconds
 }
 
@@ -103,19 +102,15 @@ func GetMarketPriceEntriesByType(ctx context.Context, client *redis.Client, type
 	return result, nil
 }
 
-// SaveMarketOrdersETags stores ETags per page for market orders as a hash (page number -> ETag).
-// Key format: esi:market_orders:{type_id}:{location_id}:etags
-// Note: station_id is used only for filtering orders, not in the Redis key
-func SaveMarketOrdersETags(ctx context.Context, client *redis.Client, typeID int32, locationID int32, etags map[int]string) error {
+// SaveRegionMarketOrdersETags stores ETags per page for one region's order book as a hash (page number -> ETag).
+// Key format: esi:market_orders:region:{region_id}:etags
+func SaveRegionMarketOrdersETags(ctx context.Context, client *redis.Client, regionID int32, etags map[int]string) error {
 	if len(etags) == 0 {
 		return nil
 	}
-	key := fmt.Sprintf("esi:market_orders:%s:%s:etags",
-		url.PathEscape(strconv.FormatInt(int64(typeID), 10)),
-		url.PathEscape(strconv.FormatInt(int64(locationID), 10)))
+	key := regionETagsKey(regionID)
 
-	// Use Redis hash to store page -> ETag mapping
-	hashFields := make(map[string]any)
+	hashFields := make(map[string]any, len(etags))
 	for page, etag := range etags {
 		if etag != "" {
 			hashFields[strconv.Itoa(page)] = etag
@@ -129,20 +124,12 @@ func SaveMarketOrdersETags(ctx context.Context, client *redis.Client, typeID int
 	return client.HSet(ctx, key, hashFields).Err()
 }
 
-// GetMarketOrdersETags retrieves stored ETags per page for market orders.
+// GetRegionMarketOrdersETags retrieves stored ETags per page for one region's order book.
 // Returns a map[page]etag.
-func GetMarketOrdersETags(ctx context.Context, client *redis.Client, typeID int32, locationID int32) (map[int]string, error) {
-	key := fmt.Sprintf("esi:market_orders:%s:%s:etags",
-		url.PathEscape(strconv.FormatInt(int64(typeID), 10)),
-		url.PathEscape(strconv.FormatInt(int64(locationID), 10)))
-
-	hashData, err := client.HGetAll(ctx, key).Result()
+func GetRegionMarketOrdersETags(ctx context.Context, client *redis.Client, regionID int32) (map[int]string, error) {
+	hashData, err := client.HGetAll(ctx, regionETagsKey(regionID)).Result()
 	if err != nil {
 		return nil, err
-	}
-
-	if len(hashData) == 0 {
-		return make(map[int]string), nil
 	}
 
 	etags := make(map[int]string, len(hashData))
@@ -155,116 +142,73 @@ func GetMarketOrdersETags(ctx context.Context, client *redis.Client, typeID int3
 	return etags, nil
 }
 
-// SaveMarketOrdersPage stores market orders for a specific page with a TTL.
-// Key format: esi:market_orders:{type_id}:{location_id}:page:{page_number}
-// TTL is set to expire the cached data after the specified duration.
-func SaveMarketOrdersPage(ctx context.Context, client *redis.Client, typeID int32, locationID int32, page int, orders any, ttl time.Duration) error {
-	key := fmt.Sprintf("esi:market_orders:%s:%s:page:%d",
-		url.PathEscape(strconv.FormatInt(int64(typeID), 10)),
-		url.PathEscape(strconv.FormatInt(int64(locationID), 10)),
-		page)
-	return SaveJSON(ctx, client, key, orders, ttl)
-}
+// DeleteRegionMarketOrdersETagsFrom removes cached ETags for pages at or above fromPage.
+// Used when a region's page count shrinks so stale trailing pages are not replayed.
+func DeleteRegionMarketOrdersETagsFrom(ctx context.Context, client *redis.Client, regionID int32, fromPage int) error {
+	etags, err := client.HGetAll(ctx, regionETagsKey(regionID)).Result()
+	if err != nil {
+		return err
+	}
 
-// GetMarketOrdersPage retrieves cached market orders for a specific page.
-// Returns error if not found or on error.
-func GetMarketOrdersPage(ctx context.Context, client *redis.Client, typeID int32, locationID int32, page int, target any) error {
-	key := fmt.Sprintf("esi:market_orders:%s:%s:page:%d",
-		url.PathEscape(strconv.FormatInt(int64(typeID), 10)),
-		url.PathEscape(strconv.FormatInt(int64(locationID), 10)),
-		page)
-	return GetJSON(ctx, client, key, target)
-}
+	stale := make([]string, 0)
+	for pageStr := range etags {
+		if page, err := strconv.Atoi(pageStr); err == nil && page >= fromPage {
+			stale = append(stale, pageStr)
+		}
+	}
 
-// SaveMarketOrdersLastUpdated stores the last successful refresh timestamp (millis since epoch).
-func SaveMarketOrdersLastUpdated(ctx context.Context, client *redis.Client, typeID int32, locationID int32, unixMillis int64) error {
-	key := fmt.Sprintf("esi:market_orders:%s:%s:last_updated",
-		url.PathEscape(strconv.FormatInt(int64(typeID), 10)),
-		url.PathEscape(strconv.FormatInt(int64(locationID), 10)))
-	return SetString(ctx, client, key, strconv.FormatInt(unixMillis, 10), 0)
-}
-
-// parseRefreshTimeMember parses a member string in format "type_id:location_id" and score into MarketOrdersRefreshTime.
-// Returns nil if parsing fails.
-func parseRefreshTimeMember(member string, score float64) *MarketOrdersRefreshTime {
-	var typeID, locationID int64
-	if _, err := fmt.Sscanf(member, "%d:%d", &typeID, &locationID); err != nil {
+	if len(stale) == 0 {
 		return nil
 	}
-	return &MarketOrdersRefreshTime{
-		TypeID:      int32(typeID),
-		LocationID:  int32(locationID),
-		LastUpdated: int64(score),
-	}
+
+	return client.HDel(ctx, regionETagsKey(regionID), stale...).Err()
 }
 
-// formatScoreRange converts minScore and maxScore to Redis string format.
-// If score is 0, it's treated as infinity (-inf for min, +inf for max).
-func formatScoreRange(minScore, maxScore float64) (minStr, maxStr string) {
-	if minScore == 0 {
-		minStr = "-inf"
-	} else {
-		minStr = fmt.Sprintf("%.0f", minScore)
-	}
-	if maxScore == 0 {
-		maxStr = "+inf"
-	} else {
-		maxStr = fmt.Sprintf("%.0f", maxScore)
-	}
-	return minStr, maxStr
+// SaveRegionMarketOrdersPage stores one page of a region's order book with a TTL.
+// Key format: esi:market_orders:region:{region_id}:page:{page_number}
+func SaveRegionMarketOrdersPage(ctx context.Context, client *redis.Client, regionID int32, page int, orders any, ttl time.Duration) error {
+	return SaveJSON(ctx, client, regionPageKey(regionID, page), orders, ttl)
 }
 
-// SaveMarketOrdersRefreshTime updates the refresh time tracking sorted set.
-// Uses composite key format: "{type_id}:{location_id}" as member, timestamp as score.
-func SaveMarketOrdersRefreshTime(ctx context.Context, client *redis.Client, typeID int32, locationID int32, unixMillis int64) error {
-	member := fmt.Sprintf("%d:%d", typeID, locationID)
-	return client.ZAdd(ctx, refreshTimesKey, redis.Z{
+// GetRegionMarketOrdersPage retrieves one cached page of a region's order book.
+// Returns an error if the page is not cached.
+func GetRegionMarketOrdersPage(ctx context.Context, client *redis.Client, regionID int32, page int, target any) error {
+	return GetJSON(ctx, client, regionPageKey(regionID, page), target)
+}
+
+// SaveRegionMarketOrdersRefreshTime records when a region was last refreshed.
+// Member is the region id, score is the timestamp in unix millis.
+func SaveRegionMarketOrdersRefreshTime(ctx context.Context, client *redis.Client, regionID int32, unixMillis int64) error {
+	return client.ZAdd(ctx, regionRefreshTimesKey, redis.Z{
 		Score:  float64(unixMillis),
-		Member: member,
+		Member: strconv.FormatInt(int64(regionID), 10),
 	}).Err()
 }
 
-// CountMarketOrdersRefreshTimesByScoreRange counts items in the refresh times sorted set
-// within a score range (timestamp range). Useful for estimating outdated items without fetching all data.
-// minScore and maxScore are timestamps in milliseconds. Use 0 for infinity (-inf for min, +inf for max).
-func CountMarketOrdersRefreshTimesByScoreRange(ctx context.Context, client *redis.Client, minScore, maxScore float64) (int64, error) {
-	minStr, maxStr := formatScoreRange(minScore, maxScore)
-	count, err := client.ZCount(ctx, refreshTimesKey, minStr, maxStr).Result()
-	return count, err
-}
-
-// CountTotalMarketOrdersRefreshTimes counts the total number of items in the refresh times sorted set.
-// This is used to calculate batch sizes based on total items that need to be refreshed.
-func CountTotalMarketOrdersRefreshTimes(ctx context.Context, client *redis.Client) (int64, error) {
-	// ZCard returns the cardinality (total count) of the sorted set
-	count, err := client.ZCard(ctx, refreshTimesKey).Result()
-	return count, err
-}
-
-// GetCachedTotalMarketOrdersCount retrieves the cached total count of market orders items.
-// Returns 0 if not found (cache miss is not an error).
-func GetCachedTotalMarketOrdersCount(ctx context.Context, client *redis.Client) (int64, error) {
-	val, err := client.Get(ctx, totalCountCacheKey).Int64()
-	if err == redis.Nil {
-		return 0, nil // Cache miss, not an error
-	}
-	return val, err
-}
-
-// CachedTotalMarketOrdersCountExists checks if the cached total count key exists in Redis.
-// Returns true if the key exists, false otherwise.
-func CachedTotalMarketOrdersCountExists(ctx context.Context, client *redis.Client) (bool, error) {
-	exists, err := client.Exists(ctx, totalCountCacheKey).Result()
+// GetRegionMarketOrdersRefreshTimes returns every tracked region refresh time, oldest first.
+func GetRegionMarketOrdersRefreshTimes(ctx context.Context, client *redis.Client) ([]RegionMarketOrdersRefreshTime, error) {
+	results, err := client.ZRangeWithScores(ctx, regionRefreshTimesKey, 0, -1).Result()
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	return exists > 0, nil
-}
 
-// SetCachedTotalMarketOrdersCount stores the total count of market orders items in cache.
-// TTL should be set to match the recalculation interval (e.g., 4 hours).
-func SetCachedTotalMarketOrdersCount(ctx context.Context, client *redis.Client, count int64, ttl time.Duration) error {
-	return client.Set(ctx, totalCountCacheKey, count, ttl).Err()
+	refreshTimes := make([]RegionMarketOrdersRefreshTime, 0, len(results))
+	for _, z := range results {
+		member, ok := z.Member.(string)
+		if !ok {
+			continue
+		}
+		regionID, err := strconv.ParseInt(member, 10, 32)
+		if err != nil {
+			continue
+		}
+		refreshTimes = append(refreshTimes, RegionMarketOrdersRefreshTime{
+			RegionID:    int32(regionID),
+			LastUpdated: int64(z.Score),
+		})
+	}
+
+	return refreshTimes, nil
 }
 
 // GetMarketOrderTokenLimit retrieves current market-order group token limit from Redis.
@@ -293,189 +237,31 @@ func GetMarketOrderTokensUsed(ctx context.Context, client *redis.Client) (float6
 	return val, nil
 }
 
-// GetOldestMarketOrdersRefreshTimes retrieves the N oldest market orders that need refreshing.
-// Returns entries sorted by last refresh time (oldest first).
-func GetOldestMarketOrdersRefreshTimes(ctx context.Context, client *redis.Client, limit int) ([]MarketOrdersRefreshTime, error) {
-	// ZRange returns members with scores, ordered by score ascending (oldest first)
-	results, err := client.ZRangeWithScores(ctx, refreshTimesKey, 0, int64(limit-1)).Result()
+// NextRegionCronIndex advances the region refresh cursor and returns the index to publish,
+// wrapped into [0, count). Regions are refreshed one per cron run so their paginations do not
+// compete for the shared market-order token budget.
+func NextRegionCronIndex(ctx context.Context, client *redis.Client, count int) (int, error) {
+	if count <= 0 {
+		return 0, nil
+	}
+
+	next, err := client.Incr(ctx, regionCronCursorKey).Result()
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	refreshTimes := make([]MarketOrdersRefreshTime, 0, len(results))
-	for _, result := range results {
-		member, ok := result.Member.(string)
-		if !ok {
-			continue
-		}
-
-		parsed := parseRefreshTimeMember(member, result.Score)
-		if parsed != nil {
-			refreshTimes = append(refreshTimes, *parsed)
-		}
-	}
-
-	return refreshTimes, nil
+	// Incr returns the value after increment, so the first run yields index 0.
+	return int((next - 1) % int64(count)), nil
 }
 
-// GetMarketOrdersRefreshTimesByScoreRange retrieves items within a score (timestamp) range.
-// Useful for fetching only outdated items without fetching everything.
-// minScore and maxScore are timestamps in milliseconds. Use 0 for infinity (-inf for min, +inf for max).
-func GetMarketOrdersRefreshTimesByScoreRange(ctx context.Context, client *redis.Client, minScore, maxScore float64, limit int) ([]MarketOrdersRefreshTime, error) {
-	minStr, maxStr := formatScoreRange(minScore, maxScore)
-
-	// ZRangeByScore returns members with scores between minScore and maxScore, ordered by score ascending
-	opt := &redis.ZRangeBy{
-		Min:    minStr,
-		Max:    maxStr,
-		Offset: 0,
-		Count:  int64(limit),
-	}
-	results, err := client.ZRangeByScoreWithScores(ctx, refreshTimesKey, opt).Result()
-	if err != nil {
-		return nil, err
-	}
-
-	refreshTimes := make([]MarketOrdersRefreshTime, 0, len(results))
-	for _, result := range results {
-		member, ok := result.Member.(string)
-		if !ok {
-			continue
-		}
-
-		parsed := parseRefreshTimeMember(member, result.Score)
-		if parsed != nil {
-			refreshTimes = append(refreshTimes, *parsed)
-		}
-	}
-
-	return refreshTimes, nil
+// regionETagsKey builds the per-region ETag hash key.
+func regionETagsKey(regionID int32) string {
+	return fmt.Sprintf("esi:market_orders:region:%s:etags",
+		url.PathEscape(strconv.FormatInt(int64(regionID), 10)))
 }
 
-// GetMarketOrdersRefreshTimesByType retrieves refresh times for a specific type_id.
-// Uses ZScan to find members matching the pattern "{type_id}:*"
-func GetMarketOrdersRefreshTimesByType(ctx context.Context, client *redis.Client, typeID int32, limit int) ([]MarketOrdersRefreshTime, error) {
-	pattern := fmt.Sprintf("%d:*", typeID)
-
-	var refreshTimes []MarketOrdersRefreshTime
-	var cursor uint64 = 0
-
-	for {
-		var keys []string
-		var err error
-		keys, cursor, err = client.ZScan(ctx, refreshTimesKey, cursor, pattern, int64(limit)).Result()
-		if err != nil {
-			return nil, err
-		}
-
-		// ZScan returns alternating member and score pairs
-		for i := 0; i < len(keys); i += 2 {
-			if i+1 >= len(keys) {
-				break
-			}
-			member := keys[i]
-			scoreStr := keys[i+1]
-
-			score, err := strconv.ParseFloat(scoreStr, 64)
-			if err != nil {
-				continue
-			}
-
-			parsed := parseRefreshTimeMember(member, score)
-			if parsed != nil {
-				refreshTimes = append(refreshTimes, *parsed)
-			}
-		}
-
-		if cursor == 0 || len(refreshTimes) >= limit {
-			break
-		}
-	}
-
-	return refreshTimes, nil
-}
-
-// GetExistingMarketOrdersTypeIDs checks which typeIDs have at least one entry
-// in the market orders refresh-time tracking sorted set.
-// If a typeID is "existing", Redis already has refresh history for it.
-func GetExistingMarketOrdersTypeIDs(ctx context.Context, client *redis.Client, typeIDs []int32) (map[int32]bool, error) {
-	present := make(map[int32]bool, len(typeIDs))
-
-	// Deduplicate type IDs up front.
-	uniqueTypeIDs := make([]int32, 0, len(typeIDs))
-	seen := make(map[int32]struct{}, len(typeIDs))
-	for _, id := range typeIDs {
-		if id == 0 {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		uniqueTypeIDs = append(uniqueTypeIDs, id)
-	}
-
-	if len(uniqueTypeIDs) == 0 {
-		return present, nil
-	}
-
-	// Refresh-time members are stored as "{type_id}:{location_id}" where location_id
-	// is the market region id we refresh for (see RefreshMarketPrices request building).
-	locationIDs := make([]int32, 0, len(esicore.DefaultMarketLocations))
-	for _, loc := range esicore.DefaultMarketLocations {
-		locationIDs = append(locationIDs, loc.RegionID)
-	}
-	if len(locationIDs) == 0 {
-		return present, nil
-	}
-
-	// Use batched ZMSCORES to avoid doing ZSCAN per typeID (too slow for large lists).
-	// We chunk to keep the member list size reasonable.
-	const maxMembersPerQuery = 5000
-
-	memberTypeIDs := make([]int32, 0, maxMembersPerQuery)
-	members := make([]string, 0, maxMembersPerQuery)
-
-	flush := func() error {
-		if len(members) == 0 {
-			return nil
-		}
-
-		// ZMScore returns 0 for missing members (Redis nil reply -> 0).
-		// Since refresh timestamps are unix millis, a score of 0 effectively means "not present".
-		scores, err := client.ZMScore(ctx, refreshTimesKey, members...).Result()
-		if err != nil {
-			return err
-		}
-
-		for i, score := range scores {
-			if score != 0 {
-				present[memberTypeIDs[i]] = true
-			}
-		}
-
-		// reset buffers
-		members = members[:0]
-		memberTypeIDs = memberTypeIDs[:0]
-		return nil
-	}
-
-	for _, typeID := range uniqueTypeIDs {
-		for _, locationID := range locationIDs {
-			members = append(members, fmt.Sprintf("%d:%d", typeID, locationID))
-			memberTypeIDs = append(memberTypeIDs, typeID)
-
-			if len(members) >= maxMembersPerQuery {
-				if err := flush(); err != nil {
-					return nil, err
-				}
-			}
-		}
-	}
-
-	if err := flush(); err != nil {
-		return nil, err
-	}
-
-	return present, nil
+// regionPageKey builds the per-region cached page key.
+func regionPageKey(regionID int32, page int) string {
+	return fmt.Sprintf("esi:market_orders:region:%s:page:%d",
+		url.PathEscape(strconv.FormatInt(int64(regionID), 10)), page)
 }

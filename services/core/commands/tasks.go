@@ -1,4 +1,4 @@
-package commands
+﻿package commands
 
 import (
 	"context"
@@ -24,7 +24,6 @@ const usage = `Usage:
   tasks sdeVersionHistory
   tasks esiRateLimitGroups
   tasks resetEsiRateLimitGroups
-  tasks displayMarketPriceCount
   tasks workerQueues
   tasks purgeWorkerQueues
   tasks unlockSdeVersion
@@ -49,7 +48,6 @@ Examples:
   tasks sdeVersionHistory
   tasks esiRateLimitGroups
   tasks resetEsiRateLimitGroups
-  tasks displayMarketPriceCount
   tasks workerQueues
   tasks purgeWorkerQueues
   tasks unlockSdeVersion
@@ -74,7 +72,6 @@ Examples:
   tasks resetBuildStats -account <firebase_uid>
   tasks checkSdeUpdates
   tasks applySdeVersion --version=12345
-  tasks recountMarketPrices
   tasks processArchivedBuildStats
   tasks startArchivedJobProcessing
   tasks processArchivedBuildStats --data='{"account_id":"<firebase_uid>"}'
@@ -91,7 +88,6 @@ var enabledTasks = []taskscore.Task{
 	taskscore.CheckSDEUpdates,
 	taskscore.ApplySDEVersion,
 	taskscore.RebuildCurrentSDEVersion,
-	taskscore.CountMarketPricesItems,
 	taskscore.ProcessArchivedBuildStats,
 }
 
@@ -100,7 +96,6 @@ func enabledTasksLowerLookup() map[string]taskscore.Task {
 		"checksdeupdates":           taskscore.CheckSDEUpdates,
 		"applysdeversion":           taskscore.ApplySDEVersion,
 		"forcesderebuild":           taskscore.RebuildCurrentSDEVersion,
-		"recountmarketprices":       taskscore.CountMarketPricesItems,
 		"processarchivedbuildstats": taskscore.ProcessArchivedBuildStats,
 	}
 }
@@ -113,8 +108,6 @@ func commandTaskName(task taskscore.Task) string {
 		return "applySdeVersion"
 	case taskscore.RebuildCurrentSDEVersion.Name:
 		return "forceSdeRebuild"
-	case taskscore.CountMarketPricesItems.Name:
-		return "recountMarketPrices"
 	case taskscore.ProcessArchivedBuildStats.Name:
 		return "processArchivedBuildStats"
 	default:
@@ -143,8 +136,6 @@ func Handle(ctx context.Context, args []string) (bool, error) {
 		return true, clicommands.RunEsiRateLimitGroups()
 	case "resetEsiRateLimitGroups":
 		return true, clicommands.RunResetEsiRateLimitGroups()
-	case "displayMarketPriceCount":
-		return true, clicommands.RunDisplayMarketPriceCount()
 	case "workerQueues":
 		return true, clicommands.RunWorkerQueues()
 	case "purgeWorkerQueues":
@@ -189,7 +180,6 @@ func runList() error {
 	fmt.Println("  - sdeVersionHistory")
 	fmt.Println("  - esiRateLimitGroups")
 	fmt.Println("  - resetEsiRateLimitGroups")
-	fmt.Println("  - displayMarketPriceCount")
 	fmt.Println("  - workerQueues")
 	fmt.Println("  - purgeWorkerQueues")
 	fmt.Println("  - unlockSdeVersion")

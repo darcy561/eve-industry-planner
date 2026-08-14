@@ -106,8 +106,8 @@ const (
 	// TaskNameAdjustedPricesRefresh is the human-readable name for adjusted prices refresh task
 	TaskNameAdjustedPricesRefresh = "adjusted prices refresh"
 
-	// TaskNameMarketPricesRefresh is the human-readable name for market prices refresh task
-	TaskNameMarketPricesRefresh = "market prices refresh"
+	// TaskNameRegionMarketOrdersRefresh is the human-readable name for region market orders refresh task
+	TaskNameRegionMarketOrdersRefresh = "region market orders refresh"
 
 	// TaskNameCorporationsFetch is the human-readable name for corporation lookup task
 	TaskNameCorporationsFetch = "corporations fetch"

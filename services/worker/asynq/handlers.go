@@ -100,15 +100,8 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 		return esitasks.RefreshAdjustedPrices(ctx, t, taskDeps)
 	})
 
-	mux.HandleFunc("refreshMarketPrices", func(ctx context.Context, t *asynq.Task) error {
-		return esitasks.RefreshMarketPrices(ctx, t, taskDeps)
-	})
-	mux.HandleFunc("fetchMissingMarketPrices", func(ctx context.Context, t *asynq.Task) error {
-		return esitasks.RefreshMarketPrices(ctx, t, taskDeps)
-	})
-
-	mux.HandleFunc("countMarketPricesItems", func(ctx context.Context, t *asynq.Task) error {
-		return esitasks.CountMarketPricesItems(ctx, t, taskDeps)
+	mux.HandleFunc("refreshRegionMarketOrders", func(ctx context.Context, t *asynq.Task) error {
+		return esitasks.RefreshRegionMarketOrders(ctx, t, taskDeps)
 	})
 
 	mux.HandleFunc("checkSDEUpdates", func(ctx context.Context, t *asynq.Task) error {

@@ -17,7 +17,7 @@ func TestTaskScheduler_StopCancelsInFlightJob(t *testing.T) {
 
 	var running atomic.Bool
 	cancelled := make(chan struct{})
-	s.RegisterHandler("refreshMarketPrices", func(ctx context.Context, _ json.RawMessage) error {
+	s.RegisterHandler("refreshRegionMarketOrders", func(ctx context.Context, _ json.RawMessage) error {
 		running.Store(true)
 		select {
 		case <-ctx.Done():
@@ -32,7 +32,7 @@ func TestTaskScheduler_StopCancelsInFlightJob(t *testing.T) {
 	if err := s.Start(); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.ScheduleOneTimeJob("cancel-test", "refreshMarketPrices", time.Now().Add(150*time.Millisecond), nil); err != nil {
+	if err := s.ScheduleOneTimeJob("cancel-test", "refreshRegionMarketOrders", time.Now().Add(150*time.Millisecond), nil); err != nil {
 		t.Fatal(err)
 	}
 

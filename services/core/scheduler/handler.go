@@ -29,9 +29,9 @@ const otelTracerName = "eve-industry-planner/core"
 // Requestable task types - tasks that can be scheduled via message requests
 var requestableTaskTypes = map[string]bool{
 	// ESI refresh tasks - can be rescheduled when rate limited
-	"refreshSystemIndexes":  true,
-	"refreshAdjustedPrices": true,
-	"refreshMarketPrices":   true,
+	"refreshSystemIndexes":      true,
+	"refreshAdjustedPrices":     true,
+	"refreshRegionMarketOrders": true,
 }
 
 // OneTimeJob represents a one-time scheduled job

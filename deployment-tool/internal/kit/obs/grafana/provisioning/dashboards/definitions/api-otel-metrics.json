@@ -900,7 +900,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Cumulative count of successful market-prices POSTs where at least one requested type had no Redis row (`requests_with_missing_prices_total`). Resets only on process restart.",
+      "description": "Cumulative count of successful market-prices POSTs where at least one requested type had no orders at any trade hub (`requests_with_missing_prices_total`). Resets only on process restart.",
       "fieldConfig": {
         "defaults": {
           "color": {
