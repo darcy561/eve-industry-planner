@@ -7,26 +7,20 @@ import (
 	eipmongo "eve-industry-planner/shared/mongo"
 )
 
-// Every collection whose documents carry a schemaVersion must be in the rotation,
-// or its documents never reach the current schema.
-func TestSchemaMaintenanceCoversVersionedCollections(t *testing.T) {
+// The rotation must be the shared list itself, not a copy of it. A literal here
+// would assert only that this file agrees with itself, which is what it did before
+// jobs drifted out of the rotation while the batch handler still accepted it.
+func TestSchemaMaintenanceRotationIsTheSharedList(t *testing.T) {
 	t.Parallel()
 
-	want := []string{
-		eipmongo.CollectionUsers,
-		eipmongo.CollectionApplicationSettings,
-		eipmongo.CollectionUserJobDocuments,
-		eipmongo.CollectionArchivedJobs,
-		eipmongo.CollectionUserJobGroups,
+	want := eipmongo.SchemaMaintainedCollections()
+	if !slices.Equal(schemaMaintenanceCollections, want) {
+		t.Fatalf("rotation = %v, want %v", schemaMaintenanceCollections, want)
 	}
-
 	for _, c := range want {
 		if !slices.Contains(schemaMaintenanceCollections, c) {
 			t.Fatalf("%s is not scheduled for schema maintenance", c)
 		}
-	}
-	if len(schemaMaintenanceCollections) != len(want) {
-		t.Fatalf("rotation = %v, want exactly %v", schemaMaintenanceCollections, want)
 	}
 }
 

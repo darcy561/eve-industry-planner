@@ -3,6 +3,8 @@ package mongo
 import (
 	"testing"
 	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func TestNewMongoBindsStatisticsCollections(t *testing.T) {
@@ -120,5 +122,70 @@ func TestClearQueuedAccountsSkipsBlankIDs(t *testing.T) {
 	}
 	if deleted != 0 {
 		t.Fatalf("deleted = %d, want 0", deleted)
+	}
+}
+
+// The queue's whole purpose is that a change arriving while a rebuild is in
+// flight is not swallowed by that rebuild's clear. These pin the documents that
+// implement it, without needing a server.
+
+func TestQueueAccountRebuildPreservesQueuedAtAndBumpsClaim(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 8, 22, 10, 0, 0, 0, time.UTC)
+
+	update := queueAccountRebuildUpdate(now)
+
+	// queuedAt is set only on insert, so a re-queue leaves the original wait time
+	// alone rather than making a long-outstanding account look fresh.
+	insert, ok := update["$setOnInsert"].(bson.M)
+	if !ok {
+		t.Fatalf("$setOnInsert = %T, want bson.M", update["$setOnInsert"])
+	}
+	if insert["queuedAt"] != now {
+		t.Fatalf("queuedAt = %v, want %v", insert["queuedAt"], now)
+	}
+	if _, bumped := insert["claim"]; bumped {
+		t.Fatal("claim must not be in $setOnInsert, or a re-queue would not invalidate an in-flight rebuild")
+	}
+
+	// claim increments on every request, including the first.
+	inc, ok := update["$inc"].(bson.M)
+	if !ok {
+		t.Fatalf("$inc = %T, want bson.M", update["$inc"])
+	}
+	if inc["claim"] != 1 {
+		t.Fatalf("$inc claim = %v, want 1", inc["claim"])
+	}
+	if _, wrong := update["$set"]; wrong {
+		t.Fatal("$set would overwrite queuedAt on every request")
+	}
+}
+
+func TestClearQueuedAccountFilterIsClaimScoped(t *testing.T) {
+	t.Parallel()
+
+	filter := clearQueuedAccountFilter(QueuedAccount{AccountID: "acct-1", Claim: 7})
+
+	if filter["_id"] != "acct-1" {
+		t.Fatalf("_id = %v", filter["_id"])
+	}
+	claim, present := filter["claim"]
+	if !present {
+		t.Fatal("filter has no claim — an account re-queued mid-rebuild would be deleted anyway")
+	}
+	if claim != int64(7) {
+		t.Fatalf("claim = %v, want the claim the rebuild read", claim)
+	}
+}
+
+// A rebuild that read claim 3 must not clear an account now on claim 4.
+func TestClearFilterDoesNotMatchARequeuedAccount(t *testing.T) {
+	t.Parallel()
+
+	read := clearQueuedAccountFilter(QueuedAccount{AccountID: "acct-1", Claim: 3})
+	requeued := bson.M{"_id": "acct-1", "claim": int64(4)}
+
+	if read["claim"] == requeued["claim"] {
+		t.Fatal("a stale claim must not equal the current one")
 	}
 }

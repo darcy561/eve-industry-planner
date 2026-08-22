@@ -38,11 +38,8 @@ func (m *Mongo) QueueAccountRebuild(ctx context.Context, accountID string, now t
 	return Retry(ctx, applyRetryOptions("QueueAccountRebuild", opts), func() error {
 		_, uerr := coll.UpdateOne(
 			ctx,
-			bson.M{"_id": accountID},
-			bson.M{
-				"$setOnInsert": bson.M{"queuedAt": now},
-				"$inc":         bson.M{"claim": 1},
-			},
+			queuedAccountFilter(accountID),
+			queueAccountRebuildUpdate(now),
 			options.UpdateOne().SetUpsert(true),
 		)
 		return uerr
@@ -114,7 +111,7 @@ func (m *Mongo) ClearQueuedAccounts(ctx context.Context, accounts []QueuedAccoun
 			continue
 		}
 		models = append(models, mongo.NewDeleteOneModel().
-			SetFilter(bson.M{"_id": a.AccountID, "claim": a.Claim}))
+			SetFilter(clearQueuedAccountFilter(a)))
 	}
 	if len(models) == 0 {
 		return 0, nil
@@ -136,4 +133,25 @@ func (m *Mongo) ClearQueuedAccounts(ctx context.Context, accounts []QueuedAccoun
 		return 0, err
 	}
 	return deleted, nil
+}
+
+// queuedAccountFilter selects one account's queue entry.
+func queuedAccountFilter(accountID string) bson.M {
+	return bson.M{"_id": accountID}
+}
+
+// queueAccountRebuildUpdate preserves the first queuedAt while bumping the claim
+// on every request, so wait time measures the oldest outstanding request and a
+// request arriving mid-rebuild still invalidates that rebuild's claim.
+func queueAccountRebuildUpdate(now time.Time) bson.M {
+	return bson.M{
+		"$setOnInsert": bson.M{"queuedAt": now},
+		"$inc":         bson.M{"claim": 1},
+	}
+}
+
+// clearQueuedAccountFilter matches only an entry still on the claim the rebuild
+// read, so an account re-queued mid-rebuild survives the clear.
+func clearQueuedAccountFilter(a QueuedAccount) bson.M {
+	return bson.M{"_id": a.AccountID, "claim": a.Claim}
 }

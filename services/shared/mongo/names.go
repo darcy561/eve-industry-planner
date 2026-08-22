@@ -22,3 +22,20 @@ const (
 	CollectionUserRollupBuckets   = "user_rollup_buckets"
 	CollectionAccountRebuildQueue = "stats_rebuild_queue_accounts"
 )
+
+// SchemaMaintainedCollections lists every collection whose documents carry a
+// schemaVersion and are upgraded by the maintenance batch.
+//
+// The scheduler rotates this list and the batch handler dispatches on it, so a
+// collection added here is picked up by both. A collection in only one of the two
+// is either never visited or rejected when it arrives.
+func SchemaMaintainedCollections() []string {
+	return []string{
+		CollectionUsers,
+		CollectionApplicationSettings,
+		CollectionUserJobDocuments,
+		CollectionJobs,
+		CollectionArchivedJobs,
+		CollectionUserJobGroups,
+	}
+}

@@ -20,7 +20,7 @@ const (
 	cronInactiveAccountPlannerCleanupSchedule = "0 8 * * 1" // Mondays 08:00 (typically UTC in containers)
 	inactiveAccountCleanupBookmarkKey         = "scheduler:maintenance:inactive_account_cleanup_user_bookmark"
 	defaultInactiveLoginStaleYears            = 2
-	maxAccountsPublishedPerCron = 40
+	maxAccountsPublishedPerCron               = 40
 )
 
 // ScheduleInactiveAccountPlannerCleanup runs weekly: walks users whose last login is older than
