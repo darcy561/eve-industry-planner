@@ -360,19 +360,16 @@ func resolveJobExpectsFromSnap(snap liveSnapshot, job fanoutJob) []string {
 		}
 		return nil
 	case fanoutMsgCorpFull:
-		corp := parseInt64ID(job.CorporationRef)
-		return append([]string{}, snap.ReadyByCorp[corp]...)
+		return append([]string{}, snap.ReadyByCorp[job.CorpID]...)
 	case fanoutMsgCorpDownAccount:
 		return filterReady(job.ScopeAccountIDs)
 	case fanoutMsgAllianceFull:
-		all := parseInt64ID(job.AllianceID)
-		return append([]string{}, snap.ReadyByAll[all]...)
+		return append([]string{}, snap.ReadyByAll[job.AllianceID]...)
 	case fanoutMsgAllianceDownCorp:
-		if len(job.ScopeCorporationIDs) == 0 {
+		if len(job.ScopeCorpIDs) == 0 {
 			return nil
 		}
-		corp := parseInt64ID(job.ScopeCorporationIDs[0])
-		return append([]string{}, snap.ReadyByCorp[corp]...)
+		return append([]string{}, snap.ReadyByCorp[job.ScopeCorpIDs[0]]...)
 	case fanoutMsgAllianceDownAccount:
 		return filterReady(job.ScopeAccountIDs)
 	default:

@@ -38,7 +38,7 @@ func CorporationRef(id int64) string {
 	return r
 }
 
-// AllianceID converts a soak alliance id.
+// AllianceRef converts a soak alliance id.
 func AllianceRef(id int64) string {
 	h, err := entityRefHelper()
 	if err != nil {

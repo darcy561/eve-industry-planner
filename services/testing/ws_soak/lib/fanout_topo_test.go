@@ -112,8 +112,8 @@ func TestBuildFanoutJobsKindsVarietyAndExpect(t *testing.T) {
 	}
 	seenKind := map[fanoutMsgKind]bool{}
 	seenColl := map[string]bool{}
-	seenCorp := map[string]bool{}
-	seenAlliance := map[string]bool{}
+	seenCorp := map[int64]bool{}
+	seenAlliance := map[int64]bool{}
 	seenAcct := map[string]bool{}
 	for _, j := range jobs {
 		seenKind[j.Kind] = true
@@ -128,22 +128,22 @@ func TestBuildFanoutJobsKindsVarietyAndExpect(t *testing.T) {
 			}
 			seenAcct[j.AccountID] = true
 		case fanoutMsgCorpFull:
-			if j.CorporationRef == "" || j.Expect != len(topo.corpMembers(mustInt64(j.CorporationRef))) || len(j.ExpectAccounts) != j.Expect {
+			if j.CorporationRef == "" || j.Expect != len(topo.corpMembers(j.CorpID)) || len(j.ExpectAccounts) != j.Expect {
 				t.Fatalf("corp_full %+v", j)
 			}
-			seenCorp[j.CorporationRef] = true
+			seenCorp[j.CorpID] = true
 		case fanoutMsgCorpDownAccount:
 			if len(j.ScopeAccountIDs) == 0 || j.Expect != len(j.ScopeAccountIDs) || len(j.ExpectAccounts) != j.Expect {
 				t.Fatalf("corp_down %+v", j)
 			}
-			seenCorp[j.CorporationRef] = true
+			seenCorp[j.CorpID] = true
 		case fanoutMsgAllianceFull:
-			if j.AllianceID == "" || j.Expect != len(topo.allianceMembers(mustInt64(j.AllianceID))) || len(j.ExpectAccounts) != j.Expect {
+			if j.AllianceID == 0 || j.Expect != len(topo.allianceMembers(j.AllianceID)) || len(j.ExpectAccounts) != j.Expect {
 				t.Fatalf("alliance_full %+v", j)
 			}
 			seenAlliance[j.AllianceID] = true
 		case fanoutMsgAllianceDownCorp:
-			if len(j.ScopeCorporationIDs) != 1 || j.Expect < 1 || len(j.ExpectAccounts) != j.Expect {
+			if len(j.ScopeCorporationRefs) != 1 || j.Expect < 1 || len(j.ExpectAccounts) != j.Expect {
 				t.Fatalf("alliance_down_corp %+v", j)
 			}
 			seenAlliance[j.AllianceID] = true
@@ -174,7 +174,7 @@ func TestBuildFanoutJobsKindsVarietyAndExpect(t *testing.T) {
 	// Corp set should include at least one standalone (93000x defaults).
 	standHit := false
 	for id := range seenCorp {
-		c := topo.corpByID[mustInt64(id)]
+		c := topo.corpByID[id]
 		if c != nil && c.AllianceID == 0 {
 			standHit = true
 			break
@@ -186,15 +186,4 @@ func TestBuildFanoutJobsKindsVarietyAndExpect(t *testing.T) {
 	if fanoutExpectTotal(jobs) < len(jobs) {
 		t.Fatalf("expect total too small")
 	}
-}
-
-func mustInt64(s string) int64 {
-	var n int64
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return 0
-		}
-		n = n*10 + int64(c-'0')
-	}
-	return n
 }

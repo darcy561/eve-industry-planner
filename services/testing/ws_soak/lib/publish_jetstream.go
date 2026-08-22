@@ -72,15 +72,15 @@ func marshalFanoutPayload(subject, coll, docID string, msg DocUpdate) ([]byte, e
 	if id := strings.TrimSpace(msg.CorporationRef); id != "" {
 		body["corporationRef"] = id
 	}
-	if id := strings.TrimSpace(msg.AllianceID); id != "" {
-		body["allianceID"] = id
+	if ref := strings.TrimSpace(msg.AllianceRef); ref != "" {
+		body["allianceRef"] = ref
 	}
 	scopes := map[string]any{}
 	if len(msg.ScopeAccountIDs) > 0 {
 		scopes["accountIDs"] = append([]string{}, msg.ScopeAccountIDs...)
 	}
-	if len(msg.ScopeCorporationIDs) > 0 {
-		scopes["corporationIDs"] = append([]string{}, msg.ScopeCorporationIDs...)
+	if len(msg.ScopeCorporationRefs) > 0 {
+		scopes["corporationRefs"] = append([]string{}, msg.ScopeCorporationRefs...)
 	}
 	if len(scopes) > 0 {
 		body["scopes"] = scopes
@@ -106,13 +106,13 @@ func docUpdateFromJob(job fanoutJob) DocUpdate {
 		coll = soakFanoutCollection
 	}
 	return DocUpdate{
-		TenantString:        job.TenantString,
-		Collection:          coll,
-		DocID:               job.DocID,
-		AccountID:           job.AccountID,
-		CorporationRef:      job.CorporationRef,
-		AllianceID:          job.AllianceID,
-		ScopeAccountIDs:     job.ScopeAccountIDs,
-		ScopeCorporationIDs: job.ScopeCorporationIDs,
+		TenantString:         job.TenantString,
+		Collection:           coll,
+		DocID:                job.DocID,
+		AccountID:            job.AccountID,
+		CorporationRef:       job.CorporationRef,
+		AllianceRef:          job.AllianceRef,
+		ScopeAccountIDs:      job.ScopeAccountIDs,
+		ScopeCorporationRefs: job.ScopeCorporationRefs,
 	}
 }
