@@ -54,9 +54,13 @@ func (b BuildStatsBreakdown) Plus(src BuildStatsBreakdown) BuildStatsBreakdown {
 	return b
 }
 
-// BuildStatsRow is one document in MongoDB build_stats, keyed by account and item type.
+// BuildStatsRow is one document in account_production_totals, keyed by account and item type.
 type BuildStatsRow struct {
-	ID            string `bson:"_id" json:"-"`
+	ID string `bson:"_id" json:"-"`
+	// AccountID scopes the document. The account is also the leading segment of
+	// the _id, but a field lets a rebuild prune an account's totals with an
+	// indexed match instead of a prefix scan over every account's documents.
+	AccountID     string `bson:"accountID" json:"-"`
 	JobType       int    `bson:"jobType" json:"jobType"`
 	TypeID        int    `bson:"typeID" json:"typeID"`
 	BuildMeasures `bson:",inline"`
@@ -74,7 +78,8 @@ func (r BuildStatsRow) Plus(src BuildStatsRow) BuildStatsRow {
 	return r
 }
 
-// BuildStatSnapshot is one archived job's contribution stored in build_stats.dataSnapshots.
+// BuildStatSnapshot is one archived job's contribution, stored in the totals
+// document's dataSnapshots array.
 type BuildStatSnapshot struct {
 	TypeID              int     `json:"typeID" bson:"typeID"`
 	JobID               string  `json:"jobID" bson:"jobID"`

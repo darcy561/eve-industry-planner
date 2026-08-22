@@ -27,7 +27,7 @@ func TestLive_accountRebuild_revokeAndPrune(t *testing.T) {
 	defer cancel()
 
 	statsColl := mongo.ArchivedJobStats.Collection()
-	bucketColl := mongo.UserRollupBuckets.Collection()
+	bucketColl := mongo.AccountTimelineMonths.Collection()
 	clean := func() {
 		cctx, c := context.WithTimeout(context.Background(), 15*time.Second)
 		defer c()
@@ -84,14 +84,14 @@ func TestLive_accountRebuild_revokeAndPrune(t *testing.T) {
 	}
 
 	// Pruning keeps the months the rebuild produced and drops the rest.
-	keptBucket := eipmongo.UserRollupMonthlyDocumentID(rebuildStatsScratchAccount, scratchTypeID, 2026, 8)
-	goneBucket := eipmongo.UserRollupMonthlyDocumentID(rebuildStatsScratchAccount, scratchTypeID, 2026, 7)
+	keptBucket := eipmongo.AccountTimelineMonthDocumentID(rebuildStatsScratchAccount, scratchTypeID, 2026, 8)
+	goneBucket := eipmongo.AccountTimelineMonthDocumentID(rebuildStatsScratchAccount, scratchTypeID, 2026, 7)
 	seedBucket(t, ctx, mongo, keptBucket)
 	seedBucket(t, ctx, mongo, goneBucket)
 
-	pruned, err := mongo.PruneAccountRollupBuckets(ctx, rebuildStatsScratchAccount, []string{keptBucket})
+	pruned, err := mongo.PruneAccountTimelineMonths(ctx, rebuildStatsScratchAccount, []string{keptBucket})
 	if err != nil {
-		t.Fatalf("PruneAccountRollupBuckets: %v", err)
+		t.Fatalf("PruneAccountTimelineMonths: %v", err)
 	}
 	if pruned != 1 {
 		t.Fatalf("pruned = %d buckets, want 1", pruned)
@@ -116,7 +116,7 @@ func TestLive_accountRebuild_emptyKeepListClearsTheAccount(t *testing.T) {
 	defer cancel()
 
 	statsColl := mongo.ArchivedJobStats.Collection()
-	bucketColl := mongo.UserRollupBuckets.Collection()
+	bucketColl := mongo.AccountTimelineMonths.Collection()
 	clean := func() {
 		cctx, c := context.WithTimeout(context.Background(), 15*time.Second)
 		defer c()
@@ -127,7 +127,7 @@ func TestLive_accountRebuild_emptyKeepListClearsTheAccount(t *testing.T) {
 	t.Cleanup(clean)
 
 	rowID := eipmongo.ArchivedJobStatsDocumentID(rebuildStatsScratchAccount, "job-only")
-	bucketID := eipmongo.UserRollupMonthlyDocumentID(rebuildStatsScratchAccount, scratchTypeID, 2026, 8)
+	bucketID := eipmongo.AccountTimelineMonthDocumentID(rebuildStatsScratchAccount, scratchTypeID, 2026, 8)
 	seedStatsRow(t, ctx, mongo, rowID)
 	seedBucket(t, ctx, mongo, bucketID)
 
@@ -142,9 +142,9 @@ func TestLive_accountRebuild_emptyKeepListClearsTheAccount(t *testing.T) {
 		t.Fatal("an empty keep-list left a row unrevoked; the account's last removed job would keep counting")
 	}
 
-	pruned, err := mongo.PruneAccountRollupBuckets(ctx, rebuildStatsScratchAccount, nil)
+	pruned, err := mongo.PruneAccountTimelineMonths(ctx, rebuildStatsScratchAccount, nil)
 	if err != nil {
-		t.Fatalf("PruneAccountRollupBuckets: %v", err)
+		t.Fatalf("PruneAccountTimelineMonths: %v", err)
 	}
 	if pruned != 1 {
 		t.Fatalf("pruned = %d buckets, want 1", pruned)
@@ -224,11 +224,11 @@ func seedStatsRow(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, docI
 
 func seedBucket(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, docID string) {
 	t.Helper()
-	bucket := models.UserRollupMonthlyBucket{
+	bucket := models.AccountTimelineMonthBucket{
 		ID:        docID,
 		AccountID: rebuildStatsScratchAccount,
 	}
-	if _, err := mongo.UserRollupBuckets.UpsertStructsPreservingMetaBulk(ctx, []eipmongo.StructUpsertItem{{DocID: docID, Value: bucket}}, 10); err != nil {
+	if _, err := mongo.AccountTimelineMonths.UpsertStructsPreservingMetaBulk(ctx, []eipmongo.StructUpsertItem{{DocID: docID, Value: bucket}}, 10); err != nil {
 		t.Fatalf("seed bucket %s: %v", docID, err)
 	}
 }
@@ -255,7 +255,7 @@ func countStatsRows(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo) in
 
 func bucketExists(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, docID string) bool {
 	t.Helper()
-	n, err := mongo.UserRollupBuckets.Collection().CountDocuments(ctx, bson.M{"_id": docID})
+	n, err := mongo.AccountTimelineMonths.Collection().CountDocuments(ctx, bson.M{"_id": docID})
 	if err != nil {
 		t.Fatalf("count bucket %s: %v", docID, err)
 	}

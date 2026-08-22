@@ -26,7 +26,7 @@ func buildStatsIDPrefixFilter(accountID string) bson.M {
 }
 
 // runMarkArchivedJobsUnprocessed sets archiveProcessed to false on Mongo archivedJobs documents
-// so the build_stats pipeline will pick them up again. _meta.archivedAt, _meta.archivedBy,
+// so the Firestore archive import will pick them up again. _meta.archivedAt, _meta.archivedBy,
 // archiveTimeStamp, and other fields are not modified.
 func runMarkArchivedJobsUnprocessed(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("markArchivedJobsUnprocessed", flag.ContinueOnError)
@@ -106,54 +106,7 @@ func archivedJobsEmptyHint(scopeDesc string) string {
 		"note: no documents matched in %s.%s (scope: %s). "+
 			"If you expected rows here, confirm MONGO_URL points at the right cluster and that archived jobs "+
 			"have been imported into Mongo (they are not read from Firestore by this command).\n",
-		eipmongo.DatabaseName, eipmongo.CollectionArchivedJobs, scopeDesc,
+		eipmongo.DatabaseName, eipmongo.CollectionAccountArchivedJobs, scopeDesc,
 	)
 }
 
-// runResetBuildStats deletes documents from Mongo build_stats (aggregate counters + dataSnapshots).
-// With -account, only rows whose _id starts with "accountID|" are removed.
-func runResetBuildStats(ctx context.Context, args []string) error {
-	fs := flag.NewFlagSet("resetBuildStats", flag.ContinueOnError)
-	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: tasks resetBuildStats [flags]\n\n")
-		fmt.Fprintf(fs.Output(), "Deletes build_stats documents. Use after markArchivedJobsUnprocessed if you need to re-run\n")
-		fmt.Fprintf(fs.Output(), "aggregation without double-counting. Does not modify archivedJobs.\n\n")
-		fs.PrintDefaults()
-	}
-	account := fs.String("account", "", "if set, only delete stats whose _id matches this account (prefix before '|')")
-	dryRun := fs.Bool("dry-run", false, "print matched count only; do not delete")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-
-	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Mongo)
-	if err != nil {
-		return err
-	}
-	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
-
-	mongo := clients.Mongo
-	filter := buildStatsIDPrefixFilter(*account)
-	coll := mongo.BuildStats.Collection()
-
-	ctxOp, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
-
-	n, err := coll.CountDocuments(ctxOp, filter)
-	if err != nil {
-		return fmt.Errorf("count build_stats: %w", err)
-	}
-
-	if *dryRun {
-		fmt.Printf("dry-run: would delete %d build_stats document(s)\n", n)
-		return nil
-	}
-
-	res, err := coll.DeleteMany(ctxOp, filter)
-	if err != nil {
-		return fmt.Errorf("delete build_stats: %w", err)
-	}
-
-	fmt.Printf("reset build_stats: deleted=%d (matched request)\n", res.DeletedCount)
-	return nil
-}

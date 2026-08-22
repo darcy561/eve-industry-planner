@@ -8,11 +8,11 @@ import (
 // PreimageCollections need changeStreamPreAndPostImages enabled (SoT; was bash CHANGE_STREAM_PREIMAGE_COLLECTIONS).
 // New names apply on the next Ensure.
 var PreimageCollections = []string{
-	"user_job_groups",
-	"user_job_documents",
-	"users",
-	"application_settings",
-	"user_watchlist_deprecated",
+	"account_job_groups",
+	"account_job_documents",
+	"accounts",
+	"account_settings",
+	"account_watchlist_deprecated",
 }
 
 // ensurePreimageJS: createCollection + collMod changeStreamPreAndPostImages.

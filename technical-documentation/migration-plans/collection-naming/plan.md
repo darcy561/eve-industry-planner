@@ -140,61 +140,166 @@ blocked, only more expensive — each needs its frontend subscription updated an
 backend. The two lists are separate: a collection can be watched without being directly
 subscribable, so both need checking, not just the allow-list.
 
-`build_stats` is the clearest case to defer: [archived-jobs-stats](../archived-jobs-stats/plan.md)
-Stage E retires the endpoint that reads it, so renaming it before then is work that Stage E would
-redo.
+**The expense is the SPA, not the backend.** Both files reference the `eipmongo.Collection*`
+constants rather than string literals, as do the `Docs` handles in `store.go` and
+`SchemaMaintainedCollections`, so a rename reaches them through the compiler and cannot drift
+silently. What breaks is the wire: the SPA subscribes by literal collection name, and nothing on the
+Go side can catch that.
+
+`build_stats` was planned as the clearest case to defer, on the grounds that
+[archived-jobs-stats](../archived-jobs-stats/plan.md) Stage E retires the endpoint reading it. It
+moved with the rest anyway — see § Handoff status. The **collection** is now
+`account_production_totals`; the **endpoint** `GET /api/v1/statistics/build-stats` still has its
+old path and response shape, and Stage E still owns retiring it.
 
 ## Suggested order
 
-1. **Collections with no client coupling first** — `user_archived_job_stats`,
-   `stats_rebuild_queue_accounts`, `user_rollup_buckets`, the template collections. These prove the
-   mechanism on collections whose only readers are backend code.
-2. **The shared collections and `user_watchlist_deprecated`** — `citadel_names` has no client
-   coupling at all; `blueprints` and the watchlist are watched by a changestream group but nothing
-   subscribes to either directly, so they are cheaper than the rest of the client-visible set
-   without being free.
-3. **Client-visible collections**, one at a time, each with its SPA subscription change.
-4. **`build_stats`** last, folded into archived-jobs-stats Stage E.
+**All fifteen renames have landed.** The order below is kept because it records why some
+collections were cheaper than others, which is the reusable part; the status is in § Handoff status.
+
+1. ~~Collections with no client coupling first~~ — the statistics rows, the rebuild queue and the
+   two template collections. These proved the mechanism on collections whose only readers are
+   backend code.
+2. ~~The shared collections and the watchlist~~ — `citadel_names` had no client coupling at all;
+   `blueprints` and the watchlist are watched by a changestream group but nothing subscribes to
+   either directly.
+3. ~~Client-visible collections~~ — each needed its SPA subscription changed in the same move.
+4. ~~`build_stats`~~ — landed here rather than with Stage E; the endpoint it feeds did not move.
+
+## Promotion
+
+**Done.** The convention and the corrected names are in live SoT; this folder keeps the history.
+
+### What was promoted
+
+| Live doc | Change |
+|----------|--------|
+| [`backend/shared/mongo.md`](../../backend/shared/mongo.md) | New § Collection naming — the four prefixes, the scope test, why `character_` is reserved, and the cross-module pinning. Handle-surface table now names each collection |
+| [`backend/shared/contents.md`](../../backend/shared/contents.md) | Task-map row: naming a new collection |
+| [`backend/api/document-lock/overview.md`](../../backend/api/document-lock/overview.md) | 6 collection names in the `collection` field description, JSON examples and sequence diagram |
+| [`backend/api/document-lock/locks.md`](../../backend/api/document-lock/locks.md) | 5 — endpoint → collection table, group-promotion step, cascade rule |
+| [`backend/api/document-lock/roadmap.md`](../../backend/api/document-lock/roadmap.md) | Documents row |
+| [`frontend/document-lock/spa.md`](../../frontend/document-lock/spa.md) | `resolveDocumentLockApiTarget` mapping |
+
+The document-lock docs carried the most because that API takes a collection name as a **request
+field**, so the name is a published contract there rather than an implementation detail.
+
+**The auth docs were not stale.** An earlier draft of this section listed
+`backend/api/auth/overview.md` and `roadmap.md` for their `application_settings` mentions. Those are
+JSON **wire field** names (`json:"application_settings"` in `session_types.go`), not collection
+names, and the rename did not touch them. Left alone.
+
+### Other migration plans
+
+All six project folders were swept for old collection names. Two needed correcting, and the
+distinction between them is the rule to apply next time:
+
+| Project | Verdict |
+|---------|---------|
+| **websocket-realtime** (active) | **Corrected.** `implementation.md` and `readme.md` are current-behaviour references — the subscribe ACL, the SPA routing table, the sync cursor key `account_job_documents.{jobID}` — and were describing collections that no longer exist |
+| **archived-jobs-stats** (active) | **Corrected** — index table, preimage note and schema-maintenance line |
+| **swarm-stack** (closed) | Left alone. Its `promote/` folder is explicitly "copies of live at promote time"; rewriting a point-in-time snapshot would falsify the record |
+| **changestream-tenant-scale** | No change needed. Its `blueprints` mention is a changestream **group** name, not a collection, and groups did not move |
+| **entity-id-encryption** | Clean |
+
+**History keeps its original names; current-behaviour text does not.** Within
+websocket-realtime the same folder holds both: `interactions.md` is a dated decision log,
+`plan-snapshot.md` a snapshot and `plan-todo-tracker.md` a done-list, so all three keep the names
+that were true when written. Only the two "as built" references were rewritten.
+
+Go and JS identifiers were left alone throughout — `USER_JOB_GROUPS_COLLECTION` and
+`handlers/userJobGroupsDocument.js` are real symbols that did not change, and only the collection
+strings did.
+
+### What stayed here
+
+§ How a rename lands and § What a rename touches are migration process, not current behaviour. Live
+docs should not teach a rename procedure as though it were routine work.
+
+### Still open
+
+Promotion was approved and applied ahead of the live-database verification that § Handoff status
+calls for. `eip ensure-mongo` has **not** been run against a deployed stack: the running services
+are on images built before the rename, so the database still holds the old collection names. Live
+docs therefore describe the code as it stands, not the deployed database, until that runs.
 
 ## Done when
 
-- Every collection carries a scope prefix — `account_`, `corporation_`, `alliance_` or `shared_` —
-  and no collection uses `user_`. `accounts` is the one bare name, because the tier word is its noun.
-- An unprefixed collection is therefore a defect: something nobody has classified.
-- The naming convention is promoted into live SoT beside the Mongo access layer, so the next new
-  collection is named correctly without reading this plan.
+- ~~Every collection carries a scope prefix~~ — **done in code.** No collection uses `user_`, and
+  `accounts` is the one bare name because the tier word is its noun. An unprefixed collection is
+  now a defect: something nobody has classified.
+- `eip ensure-mongo` has been run against a deployed stack and every collection moved with its
+  indexes. **Open** — see § Handoff status.
+- ~~The naming convention is promoted into live SoT~~ — **done.** It lives in
+  [`backend/shared/mongo.md`](../../backend/shared/mongo.md) § Collection naming, so the next new
+  collection is named correctly without reading this plan. See § Promotion.
 
 ## Handoff status
 
-**Phase 1 only.** The rename mechanism and its drift guards are written; no collection has been
-renamed and `CollectionRenames` is empty.
+**Every collection in § Mapping has been renamed.** `CollectionRenames` carries all fifteen entries,
+with the constants, index specs, preimage list, both modules' name tests and the SPA's collection
+strings updated to match. Both Go modules and the SPA's 194 frontend tests pass.
 
-**The mapping is settled.** Every collection has an agreed target name; no naming questions remain
-open. Work from the table in § Mapping rather than re-deriving it.
+The constants were renamed alongside their values, so `CollectionUsers` is now `CollectionAccounts`
+and `CollectionBuildStats` is `CollectionAccountProductionTotals`. Index name prefixes moved too:
+`ujg_` → `ajg_`, `uwd_` → `awd_`, `ujd_` → `ajd_`, `urb_` → `atm_`, `uajs_` → `aajs_`.
 
-**Start here:** rename one backend-only collection end to end to prove the four-edit flow before
-batching the rest. `user_archived_job_stats` → `account_archived_job_stats` is the cleanest
-candidate: this project owns it, nothing subscribes to it, and its documents are rebuilt from
-archived jobs anyway.
+**Not yet verified against a live database.** This is the one open item. The renames are applied by
+`Ensure`, so no unit test exercises them, and fifteen at once is a much larger first run than the
+mechanism has ever done. `renameCollection` refuses when both names exist, so an environment part
+way through a manual rename needs resolving by hand first. Run `eip ensure-mongo` against a deployed
+stack and confirm every collection moved and kept its indexes.
 
-Then verify the guards actually caught a mistake, rather than assuming: change the name in one
-module only and confirm the other module's test fails. Both directions were checked when the guards
-were written, and a rename is the point at which that matters.
+**Two renames overtook the project that owned them.** `user_rollup_buckets` →
+`account_timeline_months` belonged to archived-jobs-stats Stage D and `build_stats` →
+`account_production_totals` to Stage E. Both moved here instead:
+
+- `account_timeline_months` is consistent: the `rollup` → `timeline` vocabulary landed separately
+  and the word no longer appears in `services/`, so the collection name and the code around it
+  agree. Nothing is outstanding for that one.
+- `GET /api/v1/statistics/build-stats` keeps its path and response shape. Only the collection
+  behind it moved, so Stage E's job — moving the SPA off that endpoint — is unchanged. The
+  collection is `account_production_totals`; the endpoint is still `build-stats`.
+
+**Deploy the SPA and the backend together.** Six of these collections are subscribed to over the
+websocket, whose wire format is `collection.docID`. An old SPA against a renamed database subscribes
+to names the allow-list no longer recognises, and realtime goes quiet with no error on either side.
+
+**Start here:** § Promotion below. The code work is done; what remains is verifying it against a
+live database and moving the convention into live SoT.
 
 ### What a rename touches
 
-For `user_archived_job_stats` → `account_archived_job_stats`, all four in one change:
+Four coordinated edits, all in one change:
 
-1. `CollectionArchivedJobStats` in `services/shared/mongo/names.go`, plus its row in
-   `TestCollectionNames_canonical`
-2. Two `IndexSpec` entries in `deployment-tool/internal/dataplane/mongo/index_specs.go`
-3. Not in the preimage list, so nothing to do there — but check, because most collections are
-4. A `CollectionRenames` entry in `deployment-tool/internal/dataplane/mongo/renames.go`, whose
-   `From` must no longer appear in that module's `knownCollections`
+1. The constant in `services/shared/mongo/names.go`, plus its row in `TestCollectionNames_canonical`
+2. Every `IndexSpec` naming it in `deployment-tool/internal/dataplane/mongo/index_specs.go`
+3. The preimage list in `deployment-tool/internal/dataplane/mongo/preimage.go`, if it appears there
+4. A `CollectionRenames` entry, whose `From` must no longer appear in that module's
+   `knownCollections`
 
-The Go symbol `ArchivedJobStats` (the `Docs` handle) and `ArchivedJobStatsDocumentID` are separate
-from the collection name and need not move in the same change; decide deliberately rather than
-letting a find-and-replace decide.
+**Then sweep the repo for the literal old name.** Those four edits are what *fails a build*; they
+are not what *mentions the name*. Comments are guarded by nothing, and the four renames above left
+stale ones in `services/shared/mongo/build_stats.go`, two `services/shared/models` files and
+`frontend/src/Functions/Endpoints/Pirivate/groupTemplates.js` — the last invisible to any Go-scoped
+search. Grep every text file, not just `*.go`, and exclude `node_modules`, `frontend/dist` and
+`.tmp` (all generated). Expect the only surviving hits to be the `From:` fields in
+`CollectionRenames` and the history in these plans.
 
-Verify with `eip ensure-mongo` against a deployed stack — the rename is applied by `Ensure`, so it
-is not exercised by unit tests alone.
+**Also rename the constant itself when its name contradicts the value.**
+`CollectionUserGroupTemplateCatalog = "account_group_template_catalog"` reads as a bug at every call
+site. The constants for the four renamed collections were moved with them; a `Docs` handle or an
+`_id` builder is a separate decision, since those names describe the data rather than the
+collection.
+
+**Index names carry the prefix too**, and renaming them is cosmetic on an existing database.
+`uajs_…` became `aajs_…` when `user_archived_job_stats` moved, but `renameCollection` carries
+indexes across under the names they already had. `Ensure` then tries to create `aajs_…` over the
+same keys, which Mongo rejects with code 85 (`IndexOptionsConflict`) — and `ensureIndexes` treats
+that as idempotent, so nothing happens and the index keeps its old name.
+
+The result is a database where indexes read `uajs_…` while the specs say `aajs_…`. Harmless — the
+keys are what matter and only one index exists — but it means index names in a long-lived
+environment reflect when they were created, not what the specs currently say. A fresh database gets
+the new names. Dropping and recreating to align them is a deliberate choice, not something `Ensure`
+will do.

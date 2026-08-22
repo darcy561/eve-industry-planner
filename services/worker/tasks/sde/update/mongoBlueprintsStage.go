@@ -41,14 +41,14 @@ func runSDEBlueprintsMongoStageAsync(_ context.Context, conversionResult *sdeCon
 		summary, err := mongo.Blueprints.UpsertStructsPreservingMetaBulk(stageCtx, items, blueprintsBulkWriteBatchSize)
 		if err != nil {
 			logs.WarnCtx(stageCtx, "SDE mongo blueprint bulk upsert failed",
-				"collection", eipmongo.CollectionBlueprints,
+				"collection", eipmongo.CollectionSharedBlueprints,
 				"error", err,
 			)
 			return
 		}
 
 		logs.InfoCtx(stageCtx, "SDE mongo blueprint sync completed",
-			"collection", eipmongo.CollectionBlueprints,
+			"collection", eipmongo.CollectionSharedBlueprints,
 			"total", summary.Total,
 			"upserted", summary.Success,
 			"failed", summary.Failed,

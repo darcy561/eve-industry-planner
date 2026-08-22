@@ -32,7 +32,83 @@ type CollectionRename struct {
 // Renaming a collection the SPA subscribes to over the changestream is a
 // client-facing break, not just a storage change. Check the changestream
 // collection groups and the websocket subscribe allow-list before adding one.
-var CollectionRenames = []CollectionRename{}
+var CollectionRenames = []CollectionRename{
+	{
+		From: "user_archived_job_stats",
+		To:   "account_archived_job_stats",
+		Why:  "scope prefix: the rows are scoped by account, not by character",
+	},
+	{
+		From: "user_group_template_catalog",
+		To:   "account_group_template_catalog",
+		Why:  "scope prefix: the rows are scoped by account, not by character",
+	},
+	{
+		From: "user_group_template_payloads",
+		To:   "account_group_template_payloads",
+		Why:  "scope prefix: the rows are scoped by account, not by character",
+	},
+	{
+		From: "stats_rebuild_queue_accounts",
+		To:   "account_stats_rebuild_queue",
+		Why:  "scope prefix leads the name, matching every other account collection",
+	},
+	{
+		From: "citadel_names",
+		To:   "shared_citadel_names",
+		Why:  "reference data every caller reads identically takes the shared prefix",
+	},
+	{
+		From: "blueprints",
+		To:   "shared_blueprints",
+		Why:  "reference data every caller reads identically takes the shared prefix",
+	},
+	{
+		From: "user_watchlist_deprecated",
+		To:   "account_watchlist_deprecated",
+		Why:  "scope prefix: the rows are scoped by account, not by character; the deprecated suffix describes the feature, not the scope",
+	},
+	{
+		From: "users",
+		To:   "accounts",
+		Why:  "the collection is the account records, so the tier word is the noun",
+	},
+	{
+		From: "application_settings",
+		To:   "account_settings",
+		Why:  "scope prefix: the rows are scoped by account, not by character",
+	},
+	{
+		From: "jobs",
+		To:   "account_jobs",
+		Why:  "scope prefix: the rows are scoped by account, not by character",
+	},
+	{
+		From: "user_job_documents",
+		To:   "account_job_documents",
+		Why:  "scope prefix: the rows are scoped by account, not by character",
+	},
+	{
+		From: "user_job_groups",
+		To:   "account_job_groups",
+		Why:  "scope prefix: the rows are scoped by account, not by character",
+	},
+	{
+		From: "archivedJobs",
+		To:   "account_archived_jobs",
+		Why:  "scope prefix: the rows are scoped by account, not by character; also the only camelCase name, snake_cased by the same move",
+	},
+	{
+		From: "user_rollup_buckets",
+		To:   "account_timeline_months",
+		Why:  "scope prefix: the rows are scoped by account, not by character; months is what the documents hold, and timeline is the wire vocabulary",
+	},
+	{
+		From: "build_stats",
+		To:   "account_production_totals",
+		Why:  "scope prefix: the rows are scoped by account, not by character; production totals says what is measured rather than naming a category",
+	},
+}
 
 // renameCollectionJS renames appDb.<from> to <to>.
 //

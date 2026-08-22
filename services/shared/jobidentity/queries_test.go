@@ -49,15 +49,15 @@ func TestAccountWorkFilterCoversBothConditions(t *testing.T) {
 func TestSupportedCollections(t *testing.T) {
 	t.Parallel()
 	for _, c := range []string{
-		eipmongo.CollectionUserJobDocuments,
-		eipmongo.CollectionArchivedJobs,
-		eipmongo.CollectionJobs,
+		eipmongo.CollectionAccountJobDocuments,
+		eipmongo.CollectionAccountArchivedJobs,
+		eipmongo.CollectionAccountJobs,
 	} {
 		if !SupportedCollection(c) {
 			t.Fatalf("%s should be sweepable", c)
 		}
 	}
-	if SupportedCollection(eipmongo.CollectionUsers) {
+	if SupportedCollection(eipmongo.CollectionAccounts) {
 		t.Fatal("users carry no job identity and must be rejected")
 	}
 	if SupportedCollection("") {

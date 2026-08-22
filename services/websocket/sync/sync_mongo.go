@@ -52,7 +52,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 
 	// Handle known collections with struct decoding
 	switch collectionName {
-	case eipmongo.CollectionUsers:
+	case eipmongo.CollectionAccounts:
 		var users []models.UserAccountDocument
 		if err := cursor.All(ctx, &users); err != nil {
 			return nil, fmt.Errorf("failed to decode users: %w", err)
@@ -70,7 +70,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		}
 		return results, cursor.Err()
 
-	case eipmongo.CollectionJobs:
+	case eipmongo.CollectionAccountJobs:
 		var jobs []models.Job
 		if err := cursor.All(ctx, &jobs); err != nil {
 			return nil, fmt.Errorf("failed to decode jobs: %w", err)
@@ -87,7 +87,7 @@ func queryDocumentsOnce(ctx context.Context, collection *mongo.Collection, filte
 		}
 		return results, cursor.Err()
 
-	case eipmongo.CollectionUserJobGroups:
+	case eipmongo.CollectionAccountJobGroups:
 		var groups []models.Group
 		if err := cursor.All(ctx, &groups); err != nil {
 			return nil, fmt.Errorf("failed to decode groups: %w", err)
@@ -200,10 +200,10 @@ func QueryDocumentsByCollection(ctx context.Context, s SyncServer, collectionNam
 
 	// Account scoping: jobs, users, application_settings, and user_watchlist_deprecated use _meta.accountID (see models.Job, UserAccountDocument).
 	// Other collections use root accountID.
-	if collectionName == eipmongo.CollectionJobs ||
-		collectionName == eipmongo.CollectionUsers ||
-		collectionName == eipmongo.CollectionApplicationSettings ||
-		collectionName == eipmongo.CollectionUserWatchlistDeprecated {
+	if collectionName == eipmongo.CollectionAccountJobs ||
+		collectionName == eipmongo.CollectionAccounts ||
+		collectionName == eipmongo.CollectionAccountSettings ||
+		collectionName == eipmongo.CollectionAccountWatchlistDeprecated {
 		filter["_meta.accountID"] = accountID
 	} else {
 		filter["accountID"] = accountID
@@ -300,7 +300,7 @@ func QueryAllJobsForAccount(ctx context.Context, s SyncServer, accountID string)
 	}
 
 	logs.DebugCtx(ctx, "queried all jobs for account",
-		"collection", eipmongo.CollectionJobs,
+		"collection", eipmongo.CollectionAccountJobs,
 		"account_id", accountID,
 		"found", len(results))
 
@@ -371,7 +371,7 @@ func QueryAllGroupsForAccount(ctx context.Context, s SyncServer, accountID strin
 	}
 
 	logs.DebugCtx(ctx, "queried all groups for account",
-		"collection", eipmongo.CollectionUserJobGroups,
+		"collection", eipmongo.CollectionAccountJobGroups,
 		"account_id", accountID,
 		"found", len(results))
 

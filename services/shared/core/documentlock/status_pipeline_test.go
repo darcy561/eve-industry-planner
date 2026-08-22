@@ -29,8 +29,8 @@ func TestStatusBatchFetch_AllUnheld(t *testing.T) {
 	ctx := context.Background()
 
 	refs := []statusDocRef{
-		{Collection: eipmongo.CollectionUserJobDocuments, DocID: "job-a"},
-		{Collection: eipmongo.CollectionUserJobDocuments, DocID: "job-b"},
+		{Collection: eipmongo.CollectionAccountJobDocuments, DocID: "job-a"},
+		{Collection: eipmongo.CollectionAccountJobDocuments, DocID: "job-b"},
 	}
 	results, err := statusBatchFetch(ctx, rdb, testAccountID, refs)
 	if err != nil {
@@ -230,12 +230,12 @@ func TestStatusBatchResults_RoutesJobsAndGroupsIntoSeparateBuckets(t *testing.T)
 	jobID := "job-x"
 	groupID := "group-x"
 
-	seedLock(t, rdb, testAccountID, eipmongo.CollectionUserJobDocuments, jobID, LockRecord{
+	seedLock(t, rdb, testAccountID, eipmongo.CollectionAccountJobDocuments, jobID, LockRecord{
 		HolderSessionID: "sess-job",
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),
 	})
-	seedLock(t, rdb, testAccountID, eipmongo.CollectionUserJobGroups, groupID, LockRecord{
+	seedLock(t, rdb, testAccountID, eipmongo.CollectionAccountJobGroups, groupID, LockRecord{
 		HolderSessionID: "sess-group",
 		AccountID:       testAccountID,
 		ExpiresAtUnix:   time.Now().Add(time.Minute).Unix(),

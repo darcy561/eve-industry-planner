@@ -8,7 +8,7 @@ import (
 	eipmongo "eve-industry-planner/shared/mongo"
 )
 
-// BucketKey identifies one monthly rollup bucket: an item type in a calendar month.
+// BucketKey identifies one monthly bucket: an item type in a calendar month.
 type BucketKey struct {
 	TypeID int
 	models.CalendarMonth
@@ -90,7 +90,7 @@ func costMonthOf(doc models.ArchivedJobStats) models.CalendarMonth {
 
 // AccountBuckets renders the folded measures as the documents to persist, sorted
 // by identity so a rebuild writes them in a stable order.
-func AccountBuckets(accountID string, docs []models.ArchivedJobStats) []models.UserRollupMonthlyBucket {
+func AccountBuckets(accountID string, docs []models.ArchivedJobStats) []models.AccountTimelineMonthBucket {
 	folded := AccumulateAccountBuckets(docs)
 	if len(folded) == 0 {
 		return nil
@@ -106,10 +106,10 @@ func AccountBuckets(accountID string, docs []models.ArchivedJobStats) []models.U
 		return a.TypeID - b.TypeID
 	})
 
-	out := make([]models.UserRollupMonthlyBucket, 0, len(keys))
+	out := make([]models.AccountTimelineMonthBucket, 0, len(keys))
 	for _, key := range keys {
-		out = append(out, models.UserRollupMonthlyBucket{
-			ID:            eipmongo.UserRollupMonthlyDocumentID(accountID, key.TypeID, key.Year, key.Month),
+		out = append(out, models.AccountTimelineMonthBucket{
+			ID:            eipmongo.AccountTimelineMonthDocumentID(accountID, key.TypeID, key.Year, key.Month),
 			AccountID:     accountID,
 			TypeID:        key.TypeID,
 			CalendarMonth: key.CalendarMonth,

@@ -73,11 +73,11 @@ export async function applyRemoteMessage(raw) {
   const ctxBase = { accountId, docKey, docID, rs };
 
   if (operationType === "delete" || operationType === "drop") {
-    if (collection === "application_settings") {
+    if (collection === "account_settings") {
       handleApplicationSettingsDocumentDelete(ctxBase);
       return;
     }
-    if (collection === "users") {
+    if (collection === "accounts") {
       handleUsersDocumentDelete(ctxBase);
       return;
     }
@@ -118,12 +118,12 @@ export async function applyRemoteMessage(raw) {
     linkedCharactersChanged,
   };
 
-  if (collection === "users") {
+  if (collection === "accounts") {
     handleUsersDocumentUpsert(upsertCtx);
     return;
   }
 
-  if (collection === "application_settings") {
+  if (collection === "account_settings") {
     handleApplicationSettingsDocumentUpsert(upsertCtx);
     return;
   }

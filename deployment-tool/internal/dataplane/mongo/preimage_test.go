@@ -8,11 +8,11 @@ import (
 func TestPreimageCollections(t *testing.T) {
 	t.Parallel()
 	want := []string{
-		"user_job_groups",
-		"user_job_documents",
-		"users",
-		"application_settings",
-		"user_watchlist_deprecated",
+		"account_job_groups",
+		"account_job_documents",
+		"accounts",
+		"account_settings",
+		"account_watchlist_deprecated",
 	}
 	if len(PreimageCollections) != len(want) {
 		t.Fatalf("len=%d want %d: %#v", len(PreimageCollections), len(want), PreimageCollections)
@@ -35,7 +35,7 @@ func TestEnsureJSParity(t *testing.T) {
 		need []string
 	}{
 		{"firstRoot", createFirstRootJS, []string{"createUser", "EIP_MONGO_ROOT_USERNAME"}},
-		{"users", ensureUsersJS, []string{"createUser", "updateUser", "fsync", "eve_industry_planner", "EIP_MONGO_USERNAME"}},
+		{"accounts", ensureUsersJS, []string{"createUser", "updateUser", "fsync", "eve_industry_planner", "EIP_MONGO_USERNAME"}},
 		{"preimage", ensurePreimageJS, []string{"createCollection", "changeStreamPreAndPostImages", "EIP_COLLMOD_COLL_NAME"}},
 	} {
 		for _, n := range snip.need {

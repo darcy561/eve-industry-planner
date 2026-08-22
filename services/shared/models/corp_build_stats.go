@@ -1,6 +1,6 @@
 package models
 
-// CorpBuildStatsRow is one document in MongoDB corp_build_stats, keyed by corporation ref and item type.
+// CorpBuildStatsRow is one corporation production total, keyed by corporation ref and item type.
 type CorpBuildStatsRow struct {
 	ID            string `bson:"_id" json:"-"`
 	CorpRef       string `bson:"corpRef" json:"corpRef"`

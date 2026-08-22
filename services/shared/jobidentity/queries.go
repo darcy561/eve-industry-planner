@@ -11,9 +11,9 @@ import (
 // Collections carry job documents, so they carry job identity.
 func Collections() []string {
 	return []string{
-		eipmongo.CollectionUserJobDocuments,
-		eipmongo.CollectionArchivedJobs,
-		eipmongo.CollectionJobs,
+		eipmongo.CollectionAccountJobDocuments,
+		eipmongo.CollectionAccountArchivedJobs,
+		eipmongo.CollectionAccountJobs,
 	}
 }
 

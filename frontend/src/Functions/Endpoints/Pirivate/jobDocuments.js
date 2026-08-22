@@ -1,5 +1,5 @@
 /**
- * User job documents: `user_job_documents` collection (private API).
+ * User job documents: `account_job_documents` collection (private API).
  * Must match `mongocore.CollectionUserJobDocuments` / changestream `collection` field.
  */
 import Job from "../../../Classes/job.js";
@@ -10,7 +10,7 @@ import {
 } from "./applyPrivateHeaders.js";
 import { requestJobDocumentsByIdsFromApi } from "./requestJobDocumentsByIds.js";
 
-export const USER_JOB_DOCUMENTS_COLLECTION = "user_job_documents";
+export const USER_JOB_DOCUMENTS_COLLECTION = "account_job_documents";
 
 const jsonHeaders = { "Content-Type": "application/json" };
 

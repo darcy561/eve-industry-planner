@@ -63,13 +63,6 @@ var (
 		DefaultPriority: Priority5,
 		DefaultTimeout:  10 * time.Minute,
 	}
-	// ProcessArchivedBuildStats aggregates unprocessed archived Mongo jobs into build_stats (worker: tasks/archivedjobs; Firebase archievedJobs.js replacement).
-	ProcessArchivedBuildStats = Task{
-		Name:            "processArchivedBuildStats",
-		Subject:         "task.scheduled.processArchivedBuildStats",
-		DefaultPriority: Priority4,
-		DefaultTimeout:  15 * time.Minute,
-	}
 	// DrainAccountStatsRebuildQueue rebuilds every account waiting in the statistics
 	// rebuild queue (worker: tasks/archivedjobs). One pass handles the whole queue
 	// rather than fanning out per account: the claim protocol that keeps a mid-rebuild
@@ -179,7 +172,6 @@ var ByName = map[string]Task{
 	ImportUserJobDocumentsForAccount.Name:  ImportUserJobDocumentsForAccount,
 	EncryptCloudRefreshTokensBatch.Name:    EncryptCloudRefreshTokensBatch,
 	MigrateUserCloudAccountsToUserDoc.Name: MigrateUserCloudAccountsToUserDoc,
-	ProcessArchivedBuildStats.Name:         ProcessArchivedBuildStats,
 	DrainAccountStatsRebuildQueue.Name:     DrainAccountStatsRebuildQueue,
 	RefreshSystemIndexes.Name:              RefreshSystemIndexes,
 	RefreshAdjustedPrices.Name:             RefreshAdjustedPrices,

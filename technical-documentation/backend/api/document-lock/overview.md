@@ -1,7 +1,7 @@
 # Document lock system
 
-Cross-tab edit coordination for `user_job_documents` (planner jobs) and
-`user_job_groups` (job groups). Other sessions on the same account can see who is
+Cross-tab edit coordination for `account_job_documents` (planner jobs) and
+`account_job_groups` (job groups). Other sessions on the same account can see who is
 editing, queue for access, watch passively, and take over cleanly when the
 holder leaves or their lease expires.
 
@@ -29,7 +29,7 @@ This README is the cross-stack overview. Implementation detail lives in:
 
 | Term | Meaning |
 |------|---------|
-| **`collection`** | Mongo logical collection the lock guards: `user_job_documents` or `user_job_groups`. |
+| **`collection`** | Mongo logical collection the lock guards: `account_job_documents` or `account_job_groups`. |
 | **`docID`** | Document id within `collection` (jobID or groupID). |
 | **`sessionID`** | JWT `session_id` claim. Identifies *one tab*; not the user, not the device. Two tabs of the same account have different sessionIDs and can fight for the same lock. |
 | **Holder** | The session in `LockRecord.HolderSessionID`. Has exclusive write access. |
@@ -122,7 +122,7 @@ realtime channel tag and the domain discriminator is `event` at the top level
   "type": "document_lock",
   "event": "document_lock_handoff_completed",
   "accountID": "…",
-  "collection": "user_job_documents",
+  "collection": "account_job_documents",
   "docID": "…",
   "sessionID": "…",
   "expiresAtUnix": 1731435678,
@@ -165,9 +165,9 @@ carrying every release in a single payload:
   "type": "document_lock",
   "event": "document_lock_group_cascade",
   "accountID": "…",
-  "groupCollection": "user_job_groups",
+  "groupCollection": "account_job_groups",
   "groupID": "group-1",
-  "collection": "user_job_documents",
+  "collection": "account_job_documents",
   "reason": "group_handoff_cascade",
   "releases": [
     { "docID": "job-a", "sessionID": "sess-old" },
@@ -272,7 +272,7 @@ sequenceDiagram
     API->>R: SET ... rec(HolderSessionID=head, exp=now+5m)
     API->>R: LREM head from waitlist
     E->>JS: type=handoff_completed,<br/>sessionID=head,<br/>reason=ttl_promotion
-    opt collection = user_job_groups
+    opt collection = account_job_groups
       E->>API: ReleaseStaleDependentJobLocksAfterGroupGrant
       API->>R: DEL stale per-job locks
       API->>JS: type=released, reason=group_handoff_cascade (per job)

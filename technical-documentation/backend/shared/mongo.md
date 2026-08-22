@@ -41,15 +41,54 @@ Type **`Mongo`**: one driver client, pinned database, named **`Docs`** fields (n
 
 | Field | Role |
 |-------|------|
-| `JobDocuments` | Planner job docs (`user_job_documents`) — hot API path |
-| `Jobs` | Distinct jobs collection — **not** the job-docs API |
-| `Users` / `ApplicationSettings` / `Groups` / `ArchivedJobs` / `BuildStats` | Account and archive surfaces |
-| `TemplateCatalog` / `TemplatePayloads` | Group templates |
-| `Blueprints` / `CitadelNames` / `WatchlistDeprecated` | Supporting collections |
+| `JobDocuments` | Planner job docs (`account_job_documents`) — hot API path |
+| `Jobs` | Distinct jobs collection (`account_jobs`) — **not** the job-docs API |
+| `Users` / `ApplicationSettings` / `Groups` / `ArchivedJobs` / `BuildStats` | Account and archive surfaces (`accounts`, `account_settings`, `account_job_groups`, `account_archived_jobs`, `account_production_totals`) |
+| `TemplateCatalog` / `TemplatePayloads` | Group templates (`account_group_template_catalog`, `account_group_template_payloads`) |
+| `Blueprints` / `CitadelNames` / `WatchlistDeprecated` | Supporting collections (`shared_blueprints`, `shared_citadel_names`, `account_watchlist_deprecated`) |
 
 Same-collection reads/writes go through Docs helpers (many already wrap `Retry`). Cross-collection units go through **`writers`** (`RunOrdered` / `RunUnordered` own `Retry`) — do not assemble client `Bulk()` in HTTP handlers.
 
 `Collection()` returns the raw driver collection for call sites that build bulk models or one-off queries; prefer Docs/writers when a helper exists.
+
+## Collection naming
+
+Every collection name states the scope of its documents: who a query filters on to decide which rows
+a caller may see.
+
+```
+<owner>_<noun>
+```
+
+| Kind | Test | Prefix |
+|------|------|--------|
+| Entity data | The rows a caller sees depend on which account / corporation / alliance they are | `account_` / `corporation_` / `alliance_` |
+| Shared reference | Every caller reads the same rows regardless of who they are | `shared_` |
+
+`shared_` is about **scope, not mutability**: `shared_blueprints` is rebuilt from the SDE and
+`shared_citadel_names` is written by users submitting names they have seen, but both serve every
+caller the same rows.
+
+`accounts` is the one bare name — that collection *is* the account records, so the tier word is the
+noun rather than a prefix on one. Everything else an account owns reads as `account_<noun>`.
+
+**An unprefixed collection is a defect**, not a default: it means nobody has classified it.
+
+The planner has four tiers and they are not interchangeable. An account is the login, derived from
+the EVE main character hash; it attaches **several** in-game characters. So `character_` is
+deliberately unused — every collection today filters on `_meta.accountID`, and `characterHash`
+appears only as a field inside job documents, never as a collection key. Naming an account-scoped
+collection `character_*` would assert a scope the data does not have. The prefix is reserved for
+collections that are genuinely character-keyed, which would be new collections rather than renamed
+ones.
+
+Collection names are duplicated across a module boundary — this package holds the constants, and
+`deployment-tool` repeats them as bare strings, because `deployment-tool` cannot import `services`.
+`TestCollectionNames_canonical` here and `TestIndexSpecCollectionsAreKnown` /
+`TestPreimageCollectionsAreKnown` there pin the two copies together, so changing a name in one
+module fails the other module's test. Renaming an existing collection additionally needs a
+`CollectionRenames` entry so deployed databases move with the code — see
+[deploy.md](../../deployment/deployment-tool/cli/deploy.md) (`eip ensure-mongo`).
 
 ## Errors & retry
 

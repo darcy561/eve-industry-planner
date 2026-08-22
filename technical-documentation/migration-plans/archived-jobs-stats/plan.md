@@ -11,9 +11,9 @@ Live SoT will not be edited until this project is complete and promotion is appr
 Archived jobs currently produce a single flat aggregate per account and item type. This project
 replaces that with a statistics surface that answers questions over time and across a corporation:
 
-- Per-account build statistics with monthly rollups and retained snapshots.
+- Per-account build statistics with monthly timelines and retained snapshots.
 - Per-corporation aggregation, derived from the jobs its members archived.
-- API endpoints serving rollups, timelines, and snapshot history.
+- API endpoints serving monthly timelines, lifetime totals, and snapshot history.
 - Dashboard and archive-dialogue views that present them.
 
 ## Starting position
@@ -69,7 +69,7 @@ stay readable until Stage B replaces their producer.
 
 ### Stage B — Account statistics pipeline
 
-Worker tasks that aggregate an account's archived jobs into rollup buckets and snapshots, with the
+Worker tasks that aggregate an account's archived jobs into monthly buckets and snapshots, with the
 rebuild queue that holds accounts needing recomputation. Replaces the current flat per-account
 aggregate.
 
@@ -87,7 +87,7 @@ More of this stage exists than the original plan assumed:
 | Already built | Where |
 |---------------|-------|
 | The attribution rule — one distinct corporation across a job's linked industry jobs resolves, two or more resolve to none | `shared/archivestats.InferJobCorp`, with tests |
-| The persisted shapes | `models.CorpBuildStatsRow`, `CorpRollupMonthlyBucket`, `CorpRollupOwnedLane` |
+| The persisted shapes | `models.CorpBuildStatsRow`, `CorpTimelineMonthBucket`, `CorpTimelineOwnedLane` |
 | The org-scoped delivery path — routing, tenant key, scope matching, payload stripping | Traced end to end in [overlay.md](./overlay.md) § Stage C |
 | The routing field itself | `models.MetaData.CorporationRef` → `_meta.corporationRef` |
 
@@ -136,21 +136,63 @@ with the range and `typeID` as query parameters. Adding corporation views then a
 than reshaping account routes, and the account and corporation forms of a view stay visibly the same
 shape.
 
-Two views:
+Three views:
 
 | View | Returns |
 |------|---------|
-| `timeline` | monthly figures over a range, one entry per calendar month and item type. `from` / `to` as `YYYY-MM`, `typeID` optional |
+| `timeline` | one entry per calendar month, summed across every item type. `from` / `to` as `YYYY-MM` |
+| `timeline/items` | the per-item breakdown within the same window, ranked and paged |
 | `totals` | one all-time aggregate per item type — what `build-stats` serves today |
+
+#### Why the breakdown is its own view
+
+Buckets are stored per month **and** per item type (`_id` is `accountID|typeID|YYYY-MM`), so a
+month's total is a sum across every type the account touched that month. An account can touch
+thousands of types, so the two questions have very different response sizes:
+
+- *What did July make?* — one row
+- *What drove it?* — potentially thousands of rows
+
+Embedding the breakdown inside each month multiplies the second by the number of months in the
+window, which makes the common chart request pay for detail it does not draw. Splitting them keeps
+`timeline` a fixed, small response — one row per month, whatever the account's size — and makes the
+expensive question explicit, paged, and separately cacheable.
+
+**Both aggregations happen server-side.** The client never sums buckets: there are too many rows to
+ship, and `SalesMeasures.Plus` is the authority on how they combine. `ProfitLoss` in particular is
+accumulated as a sum of signed contributions rather than recomputed from the other fields, and
+`extraCategoryTotals` merges by category id, so a client-side fold would drift from the pipeline.
+
+**`timeline` sums with a Mongo aggregation**, grouping the bucket rows in range by `{year, month}`.
+Every measure is additive, which is what makes the group valid.
+
+**`timeline/items` groups by `typeID`** over the same window and sorts server-side, because ranking
+by profit or revenue cannot be done on a page of arbitrary rows. Default ordering is descending
+`profitLoss`; `sort` selects another measure, `limit` / `offset` page it. `typeID` on either view
+narrows to one item, which is a covered filter on the existing
+`accountID, year, month, typeID` index.
+
+This needs an aggregation helper on `Docs`, which has none today — reads there are `Find`-shaped.
+Add it to the shared surface with a `RetryOption` and an operation name, the way `DistinctStrings`
+and `ListIDs` already are, rather than reaching for `Collection()` beside the handler.
 
 **`timeline` is the only range query.** An earlier sketch had `rollups` for the buckets and
 `timeline` for a chart series; they read the same documents over the same filter and differ only in
 serialisation, so a second endpoint would have bought a second index and a second cache key for one
 response shape. The consumer reshapes.
 
-**The range defaults to the trailing 3 months** when `from` / `to` are absent, so a caller that
-omits them cannot accidentally request an account's whole history. Bound the maximum span too, and
-reject rather than silently truncate — a truncated range looks like missing data to a chart.
+**The range defaults to the trailing 2 months** — the current month and the one before it — when
+`from` / `to` are absent. That is the dashboard's month-on-month comparison, so its query is the
+bare endpoint with no parameters, and a caller that omits the range cannot accidentally request an
+account's whole history.
+
+Two months means two rows, and the earlier of them is the complete one. The current month is
+partial by definition, so a client comparing them is comparing a month-to-date against a full month
+unless it says otherwise — the response marks which months are complete rather than leaving the
+consumer to work it out from the calendar.
+
+Bound the maximum span too, and reject rather than silently truncate — a truncated range looks like
+missing data to a chart.
 
 The alternative — `?scope=corp&corpRef=…` on flat routes — was rejected because it makes the
 authorization boundary a query parameter, which is exactly the input a caller controls.
@@ -175,20 +217,31 @@ response body. The wire name is `timeline`; internal names follow it rather than
 vocabulary, so the same thing is not called a bucket in Mongo, a rollup in the worker and a timeline
 on the wire.
 
-Rename with Stage D, before the first endpoint ships — the name otherwise lands in the route, the
-JSON, the React Query keys and the `_id` builders at once, and each extra copy makes it harder to
-undo. Surfaces carrying `rollup` today:
+**Done.** The word no longer appears in `services/`:
 
-| Surface | Today |
-|---------|-------|
-| Collection | `user_rollup_buckets` (`names.go`, `store.go`) → `account_timeline_months`, per [collection-naming](../collection-naming/plan.md) |
-| Model | `UserRollupMonthlyBucket`, `CorpRollupMonthlyBucket`, `BuildStatsRollupTotals`, `CorpRollupOwnedLane` |
-| `_id` builder | `UserRollupMonthlyDocumentID` |
-| Transformation | `archivestats/rollup_buckets.go`, `AccumulateAccountBuckets`, `AccountBuckets` |
-| Mongo handle / helpers | `UserRollupBuckets`, `PruneAccountRollupBuckets` |
+| Surface | Was | Now |
+|---------|-----|-----|
+| Collection | `user_rollup_buckets` | `account_timeline_months` (renamed by [collection-naming](../collection-naming/plan.md)) |
+| Model | `UserRollupMonthlyBucket` | `AccountTimelineMonthBucket` |
+| Model | `CorpRollupMonthlyBucket` | `CorpTimelineMonthBucket` |
+| Model | `CorpRollupOwnedLane` | `CorpTimelineOwnedLane` |
+| Model | `BuildStatsRollupTotals` | `TimelineTotals` |
+| `_id` builder | `UserRollupMonthlyDocumentID` | `AccountTimelineMonthDocumentID` |
+| Transformation | `archivestats/rollup_buckets.go` | `archivestats/timeline_months.go` |
+| Models file | `models/build_stats_rollup.go` | `models/build_stats_timeline.go` |
+| Mongo handle | `UserRollupBuckets` | `AccountTimelineMonths` |
+| Mongo helper | `PruneAccountRollupBuckets` | `PruneAccountTimelineMonths` |
+| Worker result field | `AccountRebuildResult.RollupBuckets` | `.TimelineMonths` |
 
-The collection moves with them — see [Collection renames](#collection-renames-are-the-expensive-part)
-for why `user_rollup_buckets` is cheap to rename and `build_stats` is not.
+`AccumulateAccountBuckets` and `AccountBuckets` keep their names: they fold rows into buckets, which
+is what they do, and `bucket` is not the jargon being retired — `rollup` was.
+
+**Three response types were deleted rather than renamed.** `BuildStatsRollupResponse`,
+`BuildStatsRollupByType` and `BuildStatsRollupPeriodMeta` came from
+`feature/archived-jobs-redesign` and had no references. They encoded a different API than the one
+this stage builds — a single response bundling period totals with a per-type breakdown, and a
+four-mode `Kind` of `month|year|range|years` — which the three-view split replaces. Keeping them
+renamed would have left a second, contradictory API design in the models package.
 
 #### `build-stats` becomes `totals`
 
@@ -210,14 +263,18 @@ module boundary, so the two cases differ sharply:
 
 | Collection | Holds | Rename cost |
 |------------|-------|-------------|
-| `user_rollup_buckets` | Buckets this project created | **Low.** No other subsystem references it. The wholesale rebuild repopulates it from archived jobs, so a rename can drop the old collection rather than migrate it |
-| `build_stats` | The aggregate the SPA reads today | **High — do not rename with Stage D** |
+| `account_timeline_months` | Buckets this project created | **Low.** No other subsystem references it. The wholesale rebuild repopulates it from archived jobs, so a rename can drop the old collection rather than migrate it |
+| `account_production_totals` (was `build_stats`) | The aggregate the SPA reads today | **Was High — the collection has since moved anyway** |
 
-`build_stats` is not contained. Beyond `names.go` and `store.go` it appears in the changestream
-`archive_and_stats` collection group and in the websocket subscribe-auth allow-list, so the name is
-part of a **live client-facing subscription surface**, not just storage. Renaming it would break
-realtime subscriptions for a collection the SPA still reads, to rename a document set that Stage E
-retires anyway. Leave it; if it moves at all, it moves after the frontend no longer reads it.
+`build_stats` was held back because it is not contained: beyond `names.go` and `store.go` it appears
+in the changestream `archive_and_stats` collection group and the websocket subscribe-auth allow-list,
+so the name is part of a **live client-facing subscription surface**, not just storage.
+[collection-naming](../collection-naming/plan.md) renamed it to `account_production_totals` anyway,
+moving the SPA's subscription strings in the same change.
+
+**This does not shorten Stage E.** What made the rename expensive was never the collection — it was
+the endpoint. `GET /api/v1/statistics/build-stats` still serves its old path and response shape, and
+moving the frontend off it is unchanged.
 
 Both names are also duplicated across a module boundary: `services/shared/mongo/names.go` holds the
 constant, while `deployment-tool/internal/dataplane/mongo/index_specs.go` repeats the collection as
@@ -248,12 +305,12 @@ in-scope package needs modernization before the work starts.
 | A — data model and Mongo layer | Complete for the account scope — entity refs on job documents, statistics models, Mongo layer and index specs landed. Corp scope held for C; partial indexes land with D |
 | B — account statistics pipeline | **Complete** — transformation, worker rebuild, queue drain, its task and asynq handler, the hourly schedule, and the archived-jobs producer are all landed. Queue → publish → drain runs end to end, and the claim protocol, revoke, prune and write-then-remove ordering are pinned by passing live tests. The worker's end-to-end composition of those helpers has no live test yet (see Open questions) |
 | C — corporation statistics pipeline | **Deferred** at Stage B close — blocked on a producer for `_meta.corporationRef`, not on effort. See § Stage C is deferred |
-| D — statistics API | Not started |
+| D — statistics API | **Complete for the account scope** — timeline, timeline/items and totals land under `/api/v1/statistics/account/`, with the indexes their filters need. The old build-stats producer is retired and its documents are rebuilt by the statistics pipeline. Corporation views wait for Stage C |
 | E — frontend | Not started |
 
 ## Done when
 
-- Account and corporation statistics are produced by the new pipeline, with rollups and snapshots
+- Account and corporation statistics are produced by the new pipeline, with timelines and snapshots
   persisted and served.
 - The frontend reads the new endpoints and the previous flat aggregate has no remaining callers.
 - Tests ship with each stage, not as a later wave.
@@ -274,15 +331,21 @@ than swept in.
 `ScheduleDrainAccountStatsRebuildQueue` publishes hourly at minute 30, the worker drains, and the
 claim protocol decides what stays queued. Behaviour → [overlay.md](./overlay.md) § Stage B.
 
-**Start here:** two things, in either order.
+**Start here: Stage E.** The backend is complete for the account scope — one pipeline produces every
+statistics document, and three endpoints serve them. Stage E moves the SPA onto those endpoints and
+retires `GET /api/v1/statistics/build-stats`, the last caller of the old contract.
 
-1. **Stage D.** It depends only on the Stage A account models, so nothing blocks it, and it is what
-   unblocks E. Stage C is deferred (below), which does not hold D up.
-2. **Watch the first live drains.** Revoke, prune and write-then-remove ordering now have live
-   coverage and pass, so the individual Mongo helpers are no longer taken on trust. What the cron
-   still exercises untested is the worker's composition of them end to end — see Open question 1.
+Two things to verify before or alongside E, neither blocking:
 
-Stage D depends on the Stage A models, not on C, so it can start regardless.
+1. **Nothing has run against real data.** No deployment has happened since the pipeline changed, so
+   the first `eip dev` is when the rebuild writes production totals for the first time. Worth
+   watching that pass rather than assuming it.
+2. **The worker's end-to-end composition still has no live test** — see Open question 1. The Mongo
+   helpers are covered individually; what the cron exercises untested is the rebuild that calls them
+   in order.
+
+**The wire rename lands with E.** `build-stats` keeps its path until the SPA moves, at which point
+the endpoint retires rather than being renamed — `totals` already serves the same documents.
 
 ### Open questions
 
@@ -324,6 +387,24 @@ Stage D depends on the Stage A models, not on C, so it can start regardless.
    instead.
 4. ~~**Producer without consumer.**~~ Closed: the hourly drain schedule landed, so the queue has a
    consumer and the first pass picks up whatever accumulated.
+
+5. **`shared/archivestats` is not shared.** Its only importer is
+   `worker/tasks/archivedjobs/rebuild_account.go`, and nothing in `api/`, `core/` or `websocket/`
+   touches it. The package sits in `shared/` on the expectation of a second consumer, but Stage C's
+   corporation pipeline is another worker task, so even then both callers are the same service.
+
+   What would justify `shared/` is a consumer in a different service, and the API is the only
+   candidate — which Stage D deliberately ruled out by having it read pre-aggregated documents
+   rather than recompute anything.
+
+   Moving it to `worker/tasks/archivedjobs/archivestats/` is a mechanical change: the package imports
+   only `models` and `mongo`, so nothing structural blocks it. Left where it is for now because Stage
+   C will add code to it, and moving a package while a stage is still writing into it is churn for no
+   benefit. Revisit when Stage C closes, or sooner if it is cancelled.
+
+   Three of its six exported symbols have no caller outside the package: `AccumulateAccountBuckets`
+   (an exported internal — `AccountBuckets` is its only caller), and `InferJobCorp` /
+   `DistinctLinkedIndustryCorpRefs`, which are Stage C's attribution rule waiting for their pipeline.
 
 ### Decisions already made, so they are not re-litigated
 

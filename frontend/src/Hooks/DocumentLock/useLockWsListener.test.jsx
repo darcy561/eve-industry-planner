@@ -40,7 +40,7 @@ function dispatchLockEvent(detail) {
 }
 
 describe("useLockWsListener — document_lock_requested (regression)", () => {
-  const collection = "user_job_documents";
+  const collection = "account_job_documents";
   const docID = "job-ws-1";
   const scopeKey = docLockScopeKey(collection, docID);
 
@@ -396,7 +396,7 @@ describe("useLockWsListener — document_lock_requested (regression)", () => {
       dispatchLockEvent({
         event: DOCUMENT_LOCK_DOMAIN_EVENTS.GROUP_CASCADE,
         type: DOCUMENT_LOCK_DOMAIN_EVENTS.GROUP_CASCADE,
-        collection: "user_job_groups",
+        collection: "account_job_groups",
         releases: [{ docID }],
       });
     });

@@ -10,10 +10,12 @@ import (
 	taskscore "eve-industry-planner/shared/tasks"
 )
 
+const logComponent = "archivedjobs"
+
 const (
 	cronDrainAccountStatsRebuildQueueName = "cron.drainAccountStatsRebuildQueue"
-	// Hourly, offset from the build stats fan-out on minute 0 so the two
-	// archived-jobs crons do not contend for Mongo in the same minute.
+	// Hourly at minute 30, off the hour so the drain does not start alongside
+	// every other cron that fires on minute 0.
 	cronDrainAccountStatsRebuildQueueSchedule = "30 * * * *"
 )
 

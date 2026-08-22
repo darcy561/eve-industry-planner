@@ -28,11 +28,11 @@ func ReportSchemaVersionLag(ctx context.Context, mongoHandle *eipmongo.Mongo) {
 		collection string
 		current    int
 	}{
-		{eipmongo.CollectionUsers, models.UserAccountDocumentSchemaCurrent},
-		{eipmongo.CollectionApplicationSettings, models.ApplicationSettingsSchemaCurrent},
-		{eipmongo.CollectionUserJobDocuments, models.JobSchemaCurrent},
-		{eipmongo.CollectionUserJobGroups, models.GroupSchemaCurrent},
-		{eipmongo.CollectionJobs, models.JobSchemaCurrent},
+		{eipmongo.CollectionAccounts, models.UserAccountDocumentSchemaCurrent},
+		{eipmongo.CollectionAccountSettings, models.ApplicationSettingsSchemaCurrent},
+		{eipmongo.CollectionAccountJobDocuments, models.JobSchemaCurrent},
+		{eipmongo.CollectionAccountJobGroups, models.GroupSchemaCurrent},
+		{eipmongo.CollectionAccountJobs, models.JobSchemaCurrent},
 	}
 
 	for _, t := range targets {

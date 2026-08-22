@@ -20,4 +20,6 @@ order collections move in.
 | Know what a collection should be called | [plan.md](./plan.md) § The convention |
 | See the current → target mapping | [plan.md](./plan.md) § Mapping |
 | Rename a collection safely | [plan.md](./plan.md) § How a rename lands |
-| Understand why some collections are held back | [plan.md](./plan.md) § Client-visible names |
+| Understand why some collections were more expensive | [plan.md](./plan.md) § Client-visible names |
+| See what is left before this project closes | [plan.md](./plan.md) § Handoff status |
+| Promote the convention into live SoT | [plan.md](./plan.md) § Promotion |

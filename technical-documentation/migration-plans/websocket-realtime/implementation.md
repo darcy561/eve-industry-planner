@@ -228,8 +228,8 @@ Enforced in **`(*Server).docSubscribeAuthorized`** ([`subscribe_auth.go`](../../
 
 | Collections | Rule |
 |---------------|------|
-| `users`, `application_settings` | **Session account:** the Mongo document id segment after the first `.` must equal the connection’s **`accountID`** (singleton docs keyed by account). |
-| `jobs`, `user_job_documents`, `archivedJobs`, `groups`, `build_stats` | **Mongo:** document must exist with `_id` and **`_meta.accountID`** matching the session account (via `DocumentExistsByID`, 3s timeout). |
+| `accounts`, `account_settings` | **Session account:** the Mongo document id segment after the first `.` must equal the connection’s **`accountID`** (singleton docs keyed by account). |
+| `account_jobs`, `account_job_documents`, `account_archived_jobs`, `groups`, `account_production_totals` | **Mongo:** document must exist with `_id` and **`_meta.accountID`** matching the session account (via `DocumentExistsByID`, 3s timeout). |
 | **Any other collection** | **Denied** (fail closed). |
 
 If Mongo is unavailable, Mongo-backed subscriptions are denied. **Adding a new realtime collection:** extend the `switch` in `subscribe_auth.go` with the correct ownership rule.
@@ -248,13 +248,13 @@ If Mongo is unavailable, Mongo-backed subscriptions are denied. **Adding a new r
 | [`frontend/src/Realtime/realtimeClient.js`](../../../frontend/src/Realtime/realtimeClient.js) | Same-origin **`/ws`** with **HttpOnly session cookie** (no auth query string or JWT subprotocol), **no baseline `subscribe`** (account stream implied after upgrade), ping/pong, reconnect backoff (cap **20s**), optional `subscribeDocIDs` / `unsubscribeDocIDs` for explicit docs. On **`open`**, compares store `sessionID` to the last successful open to decide baseline HTTP resync + planner job refetch. **`session_resume`** / **`resume_ack`** for tab handoff. Exports **`stashRealtimeSessionResumeHint`** for the hook. |
 | [`frontend/src/Realtime/resyncRealtimeDocumentsFromServer.js`](../../../frontend/src/Realtime/resyncRealtimeDocumentsFromServer.js) | Parallel **GET** [`/api/v1/user/main`](../../../services/api/apiServer.go) + [`/api/v1/user/application-settings`](../../../services/api/apiServer.go); merges into Zustand + advances `realtimeSync` cursors from `_meta.lastModified` (same contract as login / WS apply). |
 | [`frontend/src/Realtime/useAccountWebSocket.js`](../../../frontend/src/Realtime/useAccountWebSocket.js) | Connect when `isLoggedIn && accountID`; disconnect otherwise; **`stashRealtimeSessionResumeHint()`** in effect cleanup before **`disconnectRealtime()`**; visibility wake handler debounces singleton + planner refetch for background tabs. |
-| [`frontend/src/Realtime/applyRemoteMessage.js`](../../../frontend/src/Realtime/applyRemoteMessage.js) | Routes `ChangeStreamMessage`-shaped JSON for **`users`**, **`application_settings`**, and **`user_job_groups`** (`USER_JOB_GROUPS_COLLECTION`). Delegates to [`Realtime/handlers/`](../../../frontend/src/Realtime/handlers/). See **SPA: `applyRemoteMessage`** below. |
+| [`frontend/src/Realtime/applyRemoteMessage.js`](../../../frontend/src/Realtime/applyRemoteMessage.js) | Routes `ChangeStreamMessage`-shaped JSON for **`accounts`**, **`account_settings`**, and **`account_job_groups`** (`USER_JOB_GROUPS_COLLECTION`). Delegates to [`Realtime/handlers/`](../../../frontend/src/Realtime/handlers/). See **SPA: `applyRemoteMessage`** below. |
 | [`frontend/src/Realtime/wsClientIdentity.js`](../../../frontend/src/Realtime/wsClientIdentity.js) | In-memory WS `clientID` from `{ type: "connected" }`; still used for transport/session-resume hints and socket-level diagnostics. Lock ownership no longer depends on WS client id. |
 | [`frontend/src/Zustand/realtimeSyncSlice.js`](../../../frontend/src/Zustand/realtimeSyncSlice.js) | Per-doc cursors; seeded on login in [`tokenActions.js`](../../../frontend/src/Zustand/account/tokenActions.js). |
 | [`frontend/src/App.jsx`](../../../frontend/src/App.jsx) | Mounts `useAccountWebSocket()`. |
 | [`frontend/src/routes/signout.jsx`](../../../frontend/src/routes/signout.jsx) | Calls `disconnectRealtime()` on sign-out. |
 
-### SPA: `applyRemoteMessage` (`users`, `application_settings`, `user_job_groups`, `user_job_documents`)
+### SPA: `applyRemoteMessage` (`accounts`, `account_settings`, `account_job_groups`, `account_job_documents`)
 
 The **router** is [`frontend/src/Realtime/applyRemoteMessage.js`](../../../frontend/src/Realtime/applyRemoteMessage.js); per-collection logic lives under [`frontend/src/Realtime/handlers/`](../../../frontend/src/Realtime/handlers/) (`usersDocument.js`, `applicationSettingsDocument.js`, **`userJobGroupsDocument.js`**, shared `accountReconcile.js`). Job documents use [`inboundJobDocumentsCoalesce.js`](../../../frontend/src/Functions/Debounce/inboundJobDocumentsCoalesce.js) (coalesced upserts/deletes into `jobData.jobArray`). **One coordinated pipeline** — no separate side-effect registration module.
 
@@ -271,11 +271,11 @@ The **router** is [`frontend/src/Realtime/applyRemoteMessage.js`](../../../front
    - **Snapshot** `userCloudAccounts` before merge.
    - **Apply:** `mergeApplicationSettingsState` via `setState`; advance cursor.
    - **Async reconcile:** if cloud mode **toggled**, run the same cloud vs local branch as above (using current store tokens when enabling cloud). **Debounced** `getSystemIndexDataFromUserStructures` → `worldData.actions.addSystemIndex` when structures may have changed (coalesces bursts).
-4. **`user_job_groups`:** Upserts/deletes update the in-memory [`Group`](../../../frontend/src/Classes/group.js) graph + Zustand (`handlers/userJobGroupsDocument.js`) with the same cursor rules.
+4. **`account_job_groups`:** Upserts/deletes update the in-memory [`Group`](../../../frontend/src/Classes/group.js) graph + Zustand (`handlers/userJobGroupsDocument.js`) with the same cursor rules.
 
-5. **`user_job_documents`:** Same stale guard as above; debounced merge updates [`Job`](../../../frontend/src/Classes/job.js) rows in `jobArray`. Sync cursor key `user_job_documents.{jobID}`.
+5. **`account_job_documents`:** Same stale guard as above; debounced merge updates [`Job`](../../../frontend/src/Classes/job.js) rows in `jobArray`. Sync cursor key `account_job_documents.{jobID}`.
 
-6. **Deletes:** `application_settings` reset store; `users` delete logs a session warning (same as prior behavior).
+6. **Deletes:** `account_settings` reset store; `accounts` delete logs a session warning (same as prior behavior).
 
 **HTTP baseline resync** on reconnect / session rotation remains [`resyncRealtimeDocumentsFromServer.js`](../../../frontend/src/Realtime/resyncRealtimeDocumentsFromServer.js) (parallel GETs); it is separate from per-message `applyRemoteMessage`.
 
@@ -289,7 +289,7 @@ The **router** is [`frontend/src/Realtime/applyRemoteMessage.js`](../../../front
 
 ### Document locks
 
-Redis + API + WebSocket + SPA: account-scoped **collaborative edit** locks for Mongo documents (e.g. **`user_job_documents`**, **`user_job_groups`**) live in **Redis**; the API publishes change notifications on **`doc.lock.{accountID}`**; the websocket service consumes them via JetStream ([`nats_doc_lock.go`](../../../services/websocket/server/nats_doc_lock.go)) and sends **`{ type: "document_lock", … }`** to browsers. The SPA turns that into a window event **`eip-document-lock`** ([`realtimeClient.js`](../../../frontend/src/Realtime/realtimeClient.js)).
+Redis + API + WebSocket + SPA: account-scoped **collaborative edit** locks for Mongo documents (e.g. **`account_job_documents`**, **`account_job_groups`**) live in **Redis**; the API publishes change notifications on **`doc.lock.{accountID}`**; the websocket service consumes them via JetStream ([`nats_doc_lock.go`](../../../services/websocket/server/nats_doc_lock.go)) and sends **`{ type: "document_lock", … }`** to browsers. The SPA turns that into a window event **`eip-document-lock`** ([`realtimeClient.js`](../../../frontend/src/Realtime/realtimeClient.js)).
 
 | Layer | Role |
 |-------|------|
@@ -353,7 +353,7 @@ The client **closes** `/ws` on teardown (e.g. React effect cleanup) and may **op
 - Logged out: no `/ws` connection attempts.
 - Two tabs: change settings or user doc; both UIs update.
 - Two replicas: both instances run **JetStream** consumers on **`doc.update.>`** with **different** durable suffixes and push to **their** connected clients (every pod sees every message).
-- **Expired JWT in store:** no reconnect backoff loop; after refresh/login supplies a new token, `/ws` opens and baseline GETs refresh `users` / `application_settings` + cursors when the token string changed or the client had halted for expiry (unless **`resume_ack`** skipped baseline after a successful **`session_resume`**).
+- **Expired JWT in store:** no reconnect backoff loop; after refresh/login supplies a new token, `/ws` opens and baseline GETs refresh `accounts` / `account_settings` + cursors when the token string changed or the client had halted for expiry (unless **`resume_ack`** skipped baseline after a successful **`session_resume`**).
 - **JWT refresh (same tab):** observe `session_resume` → `resume_ack` and optional skip of duplicate baseline GETs when handoff hits (Redis or same replica memory).
 - **Traefik:** after first `/ws`, browser stores **`eip_ws_affinity`**; subsequent connects prefer the same replica when healthy.
 - **Document lock / JWT refresh:** edit a job with an acquired lock; wait for access-token rotation (~pre-expiry reconnect). Header stays **locked/editor** via stable JWT **`session_id`** ownership (no client-id rebind path).

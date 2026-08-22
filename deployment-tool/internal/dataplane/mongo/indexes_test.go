@@ -2,78 +2,32 @@ package mongo
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"testing"
 )
 
-// unprocessedArchivedJobFilterCanonicalJSON pins the archivedJobs partial filter
-// in the same canonical form services pins it in. A partial index only covers a
-// query when its filter matches the query's, so the two must move together.
-//
-// The same literal is pinned by TestUnprocessedArchivedJobFilter_canonicalJSON in
-// services/shared/mongo. services is a separate module and cannot be imported
-// here, so changing the filter means changing both — and changing either alone
-// fails the other module's test.
-const unprocessedArchivedJobFilterCanonicalJSON = `{"$or":[` +
-	`{"_meta.archiveProcessed":null,"archiveProcessed":null},` +
-	`{"_meta.archiveProcessed":null,"archiveProcessed":false},` +
-	`{"_meta.archiveProcessed":false,"archiveProcessed":null},` +
-	`{"_meta.archiveProcessed":false,"archiveProcessed":false}` +
-	`]}`
-
-func TestArchivedJobsPartialFilterMatchesServices(t *testing.T) {
-	t.Parallel()
-
-	var spec IndexSpec
-	for _, s := range IndexSpecs() {
-		if s.Collection == "archivedJobs" && s.PartialFilterJSON != "" {
-			spec = s
-			break
-		}
-	}
-	if spec.Name == "" {
-		t.Fatal("archivedJobs spec with a partial filter is missing")
-	}
-
-	// Re-marshal through any so formatting differences do not matter, only content.
-	var parsed any
-	if err := json.Unmarshal([]byte(spec.PartialFilterJSON), &parsed); err != nil {
-		t.Fatalf("PartialFilterJSON is not valid JSON: %v", err)
-	}
-	got, err := json.Marshal(parsed)
-	if err != nil {
-		t.Fatalf("json.Marshal: %v", err)
-	}
-
-	if string(got) != unprocessedArchivedJobFilterCanonicalJSON {
-		t.Fatalf("partial filter no longer matches services UnprocessedArchivedJobFilter.\n got: %s\nwant: %s\n\n"+
-			"Update services/shared/mongo/archive.go to match, or this index stops covering that query.",
-			got, unprocessedArchivedJobFilterCanonicalJSON)
-	}
-}
-
 func TestIndexSpecsCoverExpected(t *testing.T) {
 	t.Parallel()
 	specs := IndexSpecs()
 	want := map[string]bool{
-		"archivedJobs.meta_accountID_1__id_1_unprocessed_archived_jobs": true,
-		"users.meta_accountID_1":                                                    true,
-		"users.users_meta_lastLoginAt_1":                                            true,
-		"application_settings.meta_accountID_1":                                     true,
-		"user_job_groups.ujg_meta_accountID_1":                                      true,
-		"user_watchlist_deprecated.uwd_meta_accountID_1":                            true,
-		"user_job_documents.ujd_meta_accountID_displayOnPlanner_1":                  true,
-		"user_job_documents.ujd_meta_accountID_groupID_1":                           true,
-		"user_job_documents.ujd_linkedJobs_corporation_id_1":                        true,
-		"user_job_documents.ujd_protected_spec_1":                                   true,
-		"archivedJobs.aj_linkedJobs_corporation_id_1":                               true,
-		"archivedJobs.aj_protected_spec_1":                                          true,
-		"user_archived_job_stats.uajs_accountID_typeID_isProductionChain_revoked_1": true,
-		"user_archived_job_stats.uajs_accountID_archivedAt_revoked_1":               true,
-		"user_rollup_buckets.urb_accountID_year_month_typeID_1":                     true,
+		"accounts.meta_accountID_1":                                                    true,
+		"accounts.accounts_meta_lastLoginAt_1":                                         true,
+		"account_settings.meta_accountID_1":                                            true,
+		"account_job_groups.ajg_meta_accountID_1":                                      true,
+		"account_watchlist_deprecated.awd_meta_accountID_1":                            true,
+		"account_job_documents.ajd_meta_accountID_displayOnPlanner_1":                  true,
+		"account_job_documents.ajd_meta_accountID_groupID_1":                           true,
+		"account_job_documents.ajd_linkedJobs_corporation_id_1":                        true,
+		"account_job_documents.ajd_protected_spec_1":                                   true,
+		"account_archived_jobs.aj_linkedJobs_corporation_id_1":                         true,
+		"account_archived_jobs.aj_protected_spec_1":                                    true,
+		"account_archived_job_stats.aajs_accountID_typeID_isProductionChain_revoked_1": true,
+		"account_archived_job_stats.aajs_accountID_archivedAt_revoked_1":               true,
+		"account_timeline_months.atm_accountID_year_month_typeID_1":                    true,
+		"account_timeline_months.atm_accountID_typeID_year_month_1":                    true,
+		"account_production_totals.apt_accountID_typeID_1":                             true,
 	}
 	if len(specs) != len(want) {
 		t.Fatalf("len=%d want %d", len(specs), len(want))
@@ -130,17 +84,18 @@ func TestIndexSpecsRenderAll(t *testing.T) {
 	}
 }
 
-func TestRenderCreateIndexJSPartialArchivedJobs(t *testing.T) {
+// No IndexSpec declares a partial filter today, but renderCreateIndexJS still
+// supports one. The rendering is covered with a synthetic spec so the mechanism
+// does not rot before the next index that needs it — a partial filter that fails
+// to reach mongosh produces a full index silently, which is a correctness
+// problem rather than a visible error.
+func TestRenderCreateIndexJSEmitsPartialFilter(t *testing.T) {
 	t.Parallel()
-	var spec IndexSpec
-	for _, s := range IndexSpecs() {
-		if s.Collection == "archivedJobs" {
-			spec = s
-			break
-		}
-	}
-	if spec.Name == "" {
-		t.Fatal("archivedJobs spec missing")
+	spec := IndexSpec{
+		Collection:        "account_archived_jobs",
+		Name:              "test_partial_1",
+		Keys:              []IndexKey{{Field: "_meta.accountID", Order: 1}},
+		PartialFilterJSON: `{"revoked": false}`,
 	}
 	js, err := renderCreateIndexJS(spec)
 	if err != nil {
@@ -148,11 +103,9 @@ func TestRenderCreateIndexJSPartialArchivedJobs(t *testing.T) {
 	}
 	for _, frag := range []string{
 		"partialFilterExpression",
-		"_meta.archiveProcessed",
-		"archiveProcessed",
-		`"archivedJobs"`,
+		`"revoked": false`,
+		`"account_archived_jobs"`,
 		`"_meta.accountID": 1`,
-		`"_id": 1`,
 	} {
 		if !strings.Contains(js, frag) {
 			t.Fatalf("missing %q in:\n%s", frag, js)
@@ -252,11 +205,11 @@ func TestIndexSpecsPreimageCollectionsOverlap(t *testing.T) {
 	t.Parallel()
 	// Collections that need delete fullDocumentBeforeChange must stay in PreimageCollections.
 	needPreimage := map[string]bool{
-		"user_job_groups":           true,
-		"user_job_documents":        true,
-		"users":                     true,
-		"application_settings":      true,
-		"user_watchlist_deprecated": true,
+		"account_job_groups":           true,
+		"account_job_documents":        true,
+		"accounts":                     true,
+		"account_settings":             true,
+		"account_watchlist_deprecated": true,
 	}
 	pre := map[string]bool{}
 	for _, name := range PreimageCollections {
