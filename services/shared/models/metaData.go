@@ -11,4 +11,15 @@ type MetaData struct {
 	AccountID    string    `bson:"accountID" json:"accountID"`
 	ClientID     string    `bson:"clientID,omitempty" json:"clientID,omitempty"`
 	SessionID    string    `bson:"sessionID,omitempty" json:"sessionID,omitempty"`
+	// Org ownership for documents that are not account scoped. The changestream
+	// routes on these when AccountID is absent.
+	CorporationRef string `bson:"corporationRef,omitempty" json:"-"`
+	AllianceRef    string `bson:"allianceRef,omitempty" json:"-"`
 }
+
+// Field names the changestream reads out of a raw _meta subdocument, where it has
+// no struct to decode into.
+const (
+	MetaFieldCorporationRef = "corporationRef"
+	MetaFieldAllianceRef    = "allianceRef"
+)
