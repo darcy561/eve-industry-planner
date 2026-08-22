@@ -18,8 +18,9 @@ import (
 )
 
 // GetBuildStatsHandler serves GET /api/v1/statistics/build-stats?typeID=<int>.
-// Returns one Mongo build_stats row for the JWT account and item type (same aggregate shape as legacy
-// Firestore BuildStats documents). When no row exists, returns 200 with a zeroed aggregate for that typeID.
+// Returns one Mongo build_stats row for the authenticated account and item type. The account is
+// resolved by the auth middleware from the session cookie, never read from the request.
+// When no row exists, returns 200 with a zeroed aggregate for that typeID.
 func (h *Handlers) GetBuildStatsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	m := apimetrics.GetAPIStatistics()
