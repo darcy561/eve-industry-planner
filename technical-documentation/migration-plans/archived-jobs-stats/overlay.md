@@ -240,10 +240,79 @@ get `IndexSpec` entries there — an operator-surface change, not a services one
 
 ## Stage B — account statistics pipeline
 
-_Not landed._
+_Written, not committed._ Everything below exists in the working tree only; see
+[plan.md](./plan.md) § Handoff status for how to pick it up.
 
-Fill in: how an account's archived jobs become rollup buckets and snapshots, what queues an account
-for rebuild, recomputation triggers, and task ownership.
+### The transformation — `shared/archivestats`
+
+Pure: no Mongo, no clock, no key material, so the attribution rules are testable apart from the
+worker that applies them. `now` is a parameter, which is what makes a rebuild reproducible.
+
+`BuildAccountSnapshot` reduces one archived job to its `user_archived_job_stats` row.
+`AccumulateAccountBuckets` and `AccountBuckets` fold those rows into `user_rollup_buckets`.
+
+**Cost attribution.** A job's costs are attributed to the month production started — the earliest
+linked industry job, falling back to the earliest sale, then the archive date. A build spanning a
+month boundary keeps its costs where they were spent rather than following its sales. The month is
+pinned on the row so a rebuild cannot re-decide it and shift historical figures.
+
+**Corporation attribution** cascades: the sale line's own ref, then its market order's, then a
+single distinct corporation across the linked facility jobs. Two or more resolves to **none** — a
+corporation aggregate crediting revenue it never earned is worse than one missing a line. A
+corp-flagged line whose corporation cannot be named records `corp_unknown` rather than passing as
+personal.
+
+**What a bucket counts.** Sale lines land in the month they occurred; costs land in the job's cost
+month, so one job can touch two buckets. Revoked rows are excluded. Production-chain intermediates
+are excluded — their costs are already counted through the parent that consumed them. Broker and
+transaction fees are never folded into `jobCostTotal`; buckets carry them as their own measures, and
+including them there would count them against profit twice.
+
+A job's cost contribution is `TotalBuildCosts + TotalInventionCost`. `TotalBuildCosts` already
+covers materials, install and extras, so invention is the only component to add.
+`feature/archived-jobs-redesign` summed all four and overstated every month's costs by the install
+and extras totals; that bug is not carried over, and `TestJobCostCountsInstallAndExtrasOnce` names
+the reason.
+
+### The worker — `worker/tasks/archivedjobs`
+
+`RebuildAccountStatistics` recomputes an account **wholesale**. The queue records only that an
+account changed, not which jobs, and recomputing everything is idempotent — which is what lets a
+rebuild be retried, or race a re-queue, without corrupting totals.
+
+Rows and buckets are written **before** anything is removed, so a reader arriving mid-rebuild sees
+the previous complete set or the new one, never a gap where a month has been pruned and not yet
+rewritten.
+
+A job whose snapshot cannot be computed is skipped and counted in `SkippedJobs`, but its row id is
+still kept out of the revoke set: the job is still archived, so revoking its row would record it as
+removed and drop its history permanently.
+
+`DrainAccountRebuildQueue` carries each account's claim through to the clear, so an account
+re-queued mid-rebuild keeps its place. A rebuild that errors is left queued rather than cleared, so
+a transient failure retries instead of losing the request. `DrainResult` separates `Failed` from
+`Requeued`, which look identical in a count of "not cleared" and mean opposite things.
+
+### Mongo layer added for it
+
+`LoadAccountArchivedJobs`, `LoadAccountArchivedJobStats`, `RevokeAccountArchivedJobStats` and
+`PruneAccountRollupBuckets`. Rows are revoked rather than deleted so a rebuild can tell a removed
+job from one it has never seen, and so a job restored from the archive keeps its history.
+
+### What queues an account
+
+`PUT /archived-jobs` queues the account after a successful write. Queuing rather than recomputing
+inline keeps the write cheap and collapses a burst of archives into one rebuild. A failure to queue
+is a handler caveat, not a request failure: the jobs are saved either way and the next archive
+re-queues the account.
+
+### Not wired yet
+
+Nothing drains the queue. The consumer needs a `Task` entry in `shared/tasks/types.go` with its NATS
+subject, a scheduler registration in `core/scheduler/archivedjobs/` following
+`ScheduleProcessArchivedBuildStats`, a worker handler routing that subject to
+`DrainAccountRebuildQueue`, and a cadence. Until then accounts queue and accumulate — harmless, and
+the drain picks them all up when it lands, but deliberate rather than accidental.
 
 ## Stage C — corporation statistics pipeline
 
