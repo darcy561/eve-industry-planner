@@ -24,11 +24,11 @@ type DocUpdate struct {
 	SentAt       time.Time
 
 	// Routing fields (ChangeStream-shaped). Account takes precedence over corp/alliance.
-	AccountID           string
-	CorporationRef      string
-	AllianceID          string
-	ScopeAccountIDs     []string
-	ScopeCorporationIDs []string
+	AccountID            string
+	CorporationRef       string
+	AllianceRef          string
+	ScopeAccountIDs      []string
+	ScopeCorporationRefs []string
 }
 
 // Publisher injects doc.update traffic for fan-out soaks.

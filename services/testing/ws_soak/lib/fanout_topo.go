@@ -31,17 +31,22 @@ var fanoutCollections = []string{
 
 // fanoutJob is one stamped publish with exact expected receiver accounts.
 type fanoutJob struct {
-	Kind                fanoutMsgKind
-	DocID               string
-	Collection          string
-	TenantString        string
-	AccountID           string
-	CorporationRef      string
-	AllianceID          string
-	ScopeAccountIDs     []string
-	ScopeCorporationIDs []string
-	ExpectAccounts      []string
-	Expect              int // len(ExpectAccounts); kept for summaries
+	Kind         fanoutMsgKind
+	DocID        string
+	Collection   string
+	TenantString string
+	AccountID    string
+	// Refs are what the services route on, so they are what the harness publishes.
+	CorporationRef       string
+	AllianceRef          string
+	ScopeAccountIDs      []string
+	ScopeCorporationRefs []string
+	// Numeric ids for the harness's own expectation lookups, which are keyed by id.
+	CorpID         int64
+	AllianceID     int64
+	ScopeCorpIDs   []int64
+	ExpectAccounts []string
+	Expect         int // len(ExpectAccounts); kept for summaries
 }
 
 type fanoutCorp struct {
@@ -351,7 +356,8 @@ func makeFanoutJob(topo fanoutTopology, kind fanoutMsgKind, docID, collection st
 			DocID:          docID,
 			Collection:     collection,
 			TenantString:   wsplacement.TenantKeyCorporation(CorporationRef(corp.ID)),
-			CorporationRef: fmt.Sprintf("%d", corp.ID),
+			CorporationRef: CorporationRef(corp.ID),
+			CorpID:         corp.ID,
 			ExpectAccounts: accts,
 			Expect:         len(accts),
 		}, nil
@@ -374,7 +380,8 @@ func makeFanoutJob(topo fanoutTopology, kind fanoutMsgKind, docID, collection st
 			DocID:           docID,
 			Collection:      collection,
 			TenantString:    wsplacement.TenantKeyCorporation(CorporationRef(corp.ID)),
-			CorporationRef:  fmt.Sprintf("%d", corp.ID),
+			CorporationRef:  CorporationRef(corp.ID),
+			CorpID:          corp.ID,
 			ScopeAccountIDs: scope,
 			ExpectAccounts:  append([]string{}, scope...),
 			Expect:          len(scope),
@@ -388,7 +395,8 @@ func makeFanoutJob(topo fanoutTopology, kind fanoutMsgKind, docID, collection st
 			DocID:          docID,
 			Collection:     collection,
 			TenantString:   wsplacement.TenantKeyAlliance(AllianceRef(a.ID)),
-			AllianceID:     fmt.Sprintf("%d", a.ID),
+			AllianceRef:    AllianceRef(a.ID),
+			AllianceID:     a.ID,
 			ExpectAccounts: accts,
 			Expect:         len(accts),
 		}, nil
@@ -402,14 +410,16 @@ func makeFanoutJob(topo fanoutTopology, kind fanoutMsgKind, docID, collection st
 		corp := corps[i%len(corps)]
 		accts := memberAccountIDs(corp.Members)
 		return fanoutJob{
-			Kind:                kind,
-			DocID:               docID,
-			Collection:          collection,
-			TenantString:        wsplacement.TenantKeyAlliance(AllianceRef(a.ID)),
-			AllianceID:          fmt.Sprintf("%d", a.ID),
-			ScopeCorporationIDs: []string{fmt.Sprintf("%d", corp.ID)},
-			ExpectAccounts:      accts,
-			Expect:              len(accts),
+			Kind:                 kind,
+			DocID:                docID,
+			Collection:           collection,
+			TenantString:         wsplacement.TenantKeyAlliance(AllianceRef(a.ID)),
+			AllianceRef:          AllianceRef(a.ID),
+			AllianceID:           a.ID,
+			ScopeCorporationRefs: []string{CorporationRef(corp.ID)},
+			ScopeCorpIDs:         []int64{corp.ID},
+			ExpectAccounts:       accts,
+			Expect:               len(accts),
 		}, nil
 
 	case fanoutMsgAllianceDownAccount:
@@ -423,7 +433,8 @@ func makeFanoutJob(topo fanoutTopology, kind fanoutMsgKind, docID, collection st
 			DocID:           docID,
 			Collection:      collection,
 			TenantString:    wsplacement.TenantKeyAlliance(AllianceRef(a.ID)),
-			AllianceID:      fmt.Sprintf("%d", a.ID),
+			AllianceRef:     AllianceRef(a.ID),
+			AllianceID:      a.ID,
 			ScopeAccountIDs: scope,
 			ExpectAccounts:  append([]string{}, scope...),
 			Expect:          len(scope),
