@@ -9,8 +9,8 @@ import (
 // DownwardScopes narrows delivery under an alliance or corporation root (message metadata).
 // Empty lists mean "no extra filter" on that dimension (full fan-out under the root).
 type DownwardScopes struct {
-	CorporationIDs []string
-	AccountIDs     []string
+	CorporationRefs []string
+	AccountIDs      []string
 }
 
 // DecodedOutbound is the result of parsing a single NATS doc.update JSON payload.
@@ -29,8 +29,8 @@ func DecodeOutboundMessage(messageData []byte) (DecodedOutbound, error) {
 	return DecodedOutbound{
 		Route: RouteInfo{
 			AccountID:       strings.TrimSpace(stringFromScalar(msgData["accountID"])),
-			CorporationID:   stringFieldOrNumber(msgData, "corporationID", "corporationId"),
-			AllianceID:      stringFieldOrNumber(msgData, "allianceID", "allianceId"),
+			CorporationRef:  stringFieldOrNumber(msgData, "corporationRef"),
+			AllianceRef:     stringFieldOrNumber(msgData, "allianceRef"),
 			SourceClientID:  asString(msgData["sourceClientID"]),
 			SourceSessionID: asString(msgData["sourceSessionID"]),
 		},
@@ -59,8 +59,8 @@ func parseScopes(v any) DownwardScopes {
 		return DownwardScopes{}
 	}
 	return DownwardScopes{
-		CorporationIDs: stringSliceFromJSONField(m, "corporationIDs"),
-		AccountIDs:     stringSliceFromJSONField(m, "accountIDs"),
+		CorporationRefs: stringSliceFromJSONField(m, "corporationRefs"),
+		AccountIDs:      stringSliceFromJSONField(m, "accountIDs"),
 	}
 }
 
@@ -116,14 +116,14 @@ func AllianceRecipientMatchesDownward(
 	clientAccountID string,
 	scopes DownwardScopes,
 ) bool {
-	hasCorpFilter := len(scopes.CorporationIDs) > 0
+	hasCorpFilter := len(scopes.CorporationRefs) > 0
 	hasAcctFilter := len(scopes.AccountIDs) > 0
 	if !hasCorpFilter && !hasAcctFilter {
 		return true
 	}
 	corpHit := false
 	if hasCorpFilter {
-		for _, want := range scopes.CorporationIDs {
+		for _, want := range scopes.CorporationRefs {
 			if ScopeContains(clientCorpScope, want) {
 				corpHit = true
 				break
@@ -160,4 +160,42 @@ func CorporationRecipientMatchesDownward(clientAccountID string, scopes Downward
 		}
 	}
 	return false
+}
+
+// routingOnlyFields are the message keys this service routes on. They name
+// internal identities — refs and source ids — and are stripped before a payload
+// reaches a browser, which has no use for them and should not learn them.
+var routingOnlyFields = []string{
+	"corporationRef",
+	"allianceRef",
+	"scopes",
+	"sourceClientID",
+	"sourceSessionID",
+}
+
+// ClientPayload returns messageData with routing metadata removed, for delivery to
+// browsers. It returns the original bytes unchanged when nothing needs stripping,
+// so the common account-scoped path allocates nothing.
+func ClientPayload(messageData []byte) []byte {
+	var m map[string]any
+	if err := json.Unmarshal(messageData, &m); err != nil {
+		return messageData
+	}
+
+	stripped := false
+	for _, k := range routingOnlyFields {
+		if _, ok := m[k]; ok {
+			delete(m, k)
+			stripped = true
+		}
+	}
+	if !stripped {
+		return messageData
+	}
+
+	out, err := json.Marshal(m)
+	if err != nil {
+		return messageData
+	}
+	return out
 }

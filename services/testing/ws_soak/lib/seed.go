@@ -8,6 +8,7 @@ import (
 	apihelperauth "eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/shared/wsplacement"
 
+	"eve-industry-planner/shared/crypto/entityid"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -68,12 +69,12 @@ func buildIdentities(clients, accounts int, mode affinityMode, corpID, allianceI
 			if corpID == 0 {
 				return nil, fmt.Errorf("affinity=corp requires -corp > 0")
 			}
-			id.Affinity = wsplacement.TenantKeyCorporation(fmt.Sprintf("%d", corpID))
+			id.Affinity = wsplacement.TenantKeyCorporation(CorporationRef(corpID))
 		case affinityAlliance:
 			if allianceID == 0 {
 				return nil, fmt.Errorf("affinity=alliance requires -alliance > 0")
 			}
-			id.Affinity = wsplacement.TenantKeyAlliance(fmt.Sprintf("%d", allianceID))
+			id.Affinity = wsplacement.TenantKeyAlliance(AllianceRef(allianceID))
 		}
 		out[i] = id
 	}
@@ -82,6 +83,11 @@ func buildIdentities(clients, accounts int, mode affinityMode, corpID, allianceI
 
 func seedSessions(ctx context.Context, rdb *redis.Client, ids []clientIdentity) error {
 	seenAcct := map[string]bool{}
+	entityCipher, err := entityid.NewFromEnv()
+	if err != nil {
+		return fmt.Errorf("load authz hmac key for seeded session grants: %w", err)
+	}
+
 	now := time.Now().UTC()
 	for _, id := range ids {
 		if err := apihelperauth.UpsertAccountSession(ctx, rdb, id.AccountID, apihelperauth.AccountSession{
@@ -103,7 +109,7 @@ func seedSessions(ctx context.Context, rdb *redis.Client, ids []clientIdentity) 
 				if id.AllianceID != 0 {
 					alliances = []int64{id.AllianceID}
 				}
-				if err := apihelperauth.UpdateAccountSessionGrants(ctx, rdb, id.AccountID, corps, alliances); err != nil {
+				if err := apihelperauth.UpdateAccountSessionGrants(ctx, rdb, entityCipher, id.AccountID, corps, alliances); err != nil {
 					return fmt.Errorf("seed grants %s: %w", id.AccountID, err)
 				}
 			}

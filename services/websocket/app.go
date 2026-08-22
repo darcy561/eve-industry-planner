@@ -80,7 +80,11 @@ func (a *app) connectDeps(ctx context.Context) error {
 }
 
 func (a *app) startServer(ctx context.Context) error {
-	a.ws = wsserver.NewServer(a.clients)
+	ws, err := wsserver.NewServer(a.clients)
+	if err != nil {
+		return err
+	}
+	a.ws = ws
 
 	// Do not wrap with otelhttp: gorilla/websocket Upgrade requires Hijacker.
 	core := http.HandlerFunc(a.ws.HandleWS)

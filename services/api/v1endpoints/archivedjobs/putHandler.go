@@ -9,9 +9,10 @@ import (
 
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/core/documentlock"
-	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/shared/jobidentity"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -105,6 +106,18 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 			})
 			return
 		}
+		if h.EntityCipher == nil {
+			metrics.Error("entity_refs_unavailable")
+			helper.RespondEndpointServerError(w, r, "Failed to archive jobs", "entity ref helper is not configured", "archived_jobs_put_entity_refs_missing", "archived_jobs_put", nil, nil)
+			return
+		}
+		if err := jobidentity.Encrypt(job, h.EntityCipher); err != nil {
+			metrics.Error("entity_refs_failed")
+			helper.RespondEndpointServerError(w, r, "Failed to archive jobs", "failed to convert entity ids to refs", "archived_jobs_put_entity_refs_failed", "archived_jobs_put", err, map[string]any{"index": i, "job_id": job.JobID})
+			return
+		}
+		job.SchemaVersion = models.JobSchemaCurrent
+
 		seenJobID[job.JobID] = struct{}{}
 	}
 

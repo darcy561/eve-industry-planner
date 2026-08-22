@@ -75,9 +75,9 @@ func HandleSyncMessage(ctx context.Context, s SyncServer, clientID string, accou
 
 // ServerSyncMessage represents messages sent from server to client during sync
 type ServerSyncMessage struct {
-	Type       string                 `json:"type"`                 // "sync_started", "sync_complete", "update", "delete"
-	DocumentID string                 `json:"documentid,omitempty"` // Document ID (for update/delete)
-	Collection string                 `json:"collection,omitempty"` // Collection name (for update/delete)
+	Type       string         `json:"type"`                 // "sync_started", "sync_complete", "update", "delete"
+	DocumentID string         `json:"documentid,omitempty"` // Document ID (for update/delete)
+	Collection string         `json:"collection,omitempty"` // Collection name (for update/delete)
 	Data       map[string]any `json:"data,omitempty"`       // Document data (for update)
 }
 
@@ -109,7 +109,7 @@ func FormatSyncError(errorMsg string) ([]byte, error) {
 // SyncDataCollection represents data for a single collection in sync_data message
 type SyncDataCollection struct {
 	Updates map[string]map[string]any `json:"updates,omitempty"` // documentID -> document data
-	Deletes []string                          `json:"deletes,omitempty"` // document IDs to delete
+	Deletes []string                  `json:"deletes,omitempty"` // document IDs to delete
 }
 
 // SyncDataMessage represents the consolidated sync data message
@@ -117,7 +117,7 @@ type SyncDataCollection struct {
 type SyncDataMessage struct {
 	Type        string                        `json:"type"`                  // "sync_data"
 	AccountID   string                        `json:"accountID"`             // Account ID
-	User        map[string]any        `json:"user,omitempty"`        // User account document (single document, not a collection)
+	User        map[string]any                `json:"user,omitempty"`        // User account document (single document, not a collection)
 	Collections map[string]SyncDataCollection `json:"collections,omitempty"` // collection -> {updates, deletes}
 }
 

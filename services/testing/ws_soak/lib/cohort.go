@@ -47,7 +47,7 @@ func buildLimitsIdentities(fillN, softDivertN, fullProbeN int, fillCorpID int64)
 		}
 	}
 
-	fillAff := wsplacement.TenantKeyCorporation(fmt.Sprintf("%d", fillCorpID))
+	fillAff := wsplacement.TenantKeyCorporation(CorporationRef(fillCorpID))
 	for i := range fillN {
 		acct := fmt.Sprintf("soak-fill-%d", i+1)
 		out = append(out, next(cohortFill, acct, fillAff, fillCorpID, 0))
@@ -61,10 +61,10 @@ func buildLimitsIdentities(fillN, softDivertN, fullProbeN int, fillCorpID int64)
 				out = append(out, next(cohort, acct, wsplacement.TenantKeyAccount(acct), 0, 0))
 			case 1:
 				corp := corpBase + int64(i+1)
-				out = append(out, next(cohort, acct, wsplacement.TenantKeyCorporation(fmt.Sprintf("%d", corp)), corp, 0))
+				out = append(out, next(cohort, acct, wsplacement.TenantKeyCorporation(CorporationRef(corp)), corp, 0))
 			default:
 				alliance := allianceBase + int64(i+1)
-				out = append(out, next(cohort, acct, wsplacement.TenantKeyAlliance(fmt.Sprintf("%d", alliance)), 0, alliance))
+				out = append(out, next(cohort, acct, wsplacement.TenantKeyAlliance(AllianceRef(alliance)), 0, alliance))
 			}
 		}
 	}

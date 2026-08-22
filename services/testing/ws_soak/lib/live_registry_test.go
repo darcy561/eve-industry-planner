@@ -59,7 +59,7 @@ func TestResolveJobExpectsFiltersOffline(t *testing.T) {
 		t.Fatalf("offline account should skip: %v", got)
 	}
 
-	corp := fanoutJob{Kind: fanoutMsgCorpFull, CorporationID: "20"}
+	corp := fanoutJob{Kind: fanoutMsgCorpFull, CorporationRef: "20"}
 	got := resolveJobExpects(reg, corp)
 	if len(got) != 2 {
 		t.Fatalf("corp ready=%v want 2 (excludes settling m3)", got)

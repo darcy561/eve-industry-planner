@@ -320,6 +320,14 @@ type RotateRefreshTokenKeysRequest struct {
 	DryRun      bool   `json:"dry_run,omitempty"`
 }
 
+// EncodeJobIdentityRequest is the per-account payload for the entity-ref
+// conversion sweep.
+type EncodeJobIdentityRequest struct {
+	AccountID  string `json:"account_id"`
+	Collection string `json:"collection"`
+	DryRun     bool   `json:"dry_run,omitempty"`
+}
+
 // SchemaVersionMaintenanceBatchRequest scopes one schema-maintenance batch run.
 type SchemaVersionMaintenanceBatchRequest struct {
 	Collection string `json:"collection"`

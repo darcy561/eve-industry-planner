@@ -32,9 +32,9 @@ func TestWriteMissing(t *testing.T) {
 	if kit.Get(m, "APP_VERSION") == "" {
 		t.Fatal("expected APP_VERSION from registry defaults")
 	}
-	hmac := kit.Get(m, "AUTHZ_HMAC_KEY")
+	hmac := kit.Get(m, "ENTITY_ID_KEY")
 	if hmac == "" || hmac == AutoGenerateSentinel {
-		t.Fatalf("AUTHZ_HMAC_KEY should be generated, got %q", hmac)
+		t.Fatalf("ENTITY_ID_KEY should be generated, got %q", hmac)
 	}
 	raw, err := os.ReadFile(envPath)
 	if err != nil {

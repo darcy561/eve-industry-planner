@@ -15,8 +15,8 @@ type outboundDeliveryOutcome struct {
 	RecipientCount                 int
 	CandidateCount                 int
 	AccountID                      string
-	CorporationID                  string
-	AllianceID                     string
+	CorporationRef                 string
+	AllianceRef                    string
 	SourceClientID                 string
 	SourceSessionID                string
 	SuppressSessionID              string
@@ -86,7 +86,7 @@ func (o *outboundDeliveryOutcome) hasSuppression() bool {
 }
 
 // deliverOutboundDocUpdate routes a NATS doc.update payload to local WebSocket clients.
-// Precedence: accountID → corporationID → allianceID → explicit doc subscribers.
+// Precedence: accountID → corporationRef → allianceRef → explicit doc subscribers.
 func (s *Server) deliverOutboundDocUpdate(ctx context.Context, collectionScopedDocID string, messageData []byte) outboundDeliveryOutcome {
 	decoded, err := outgoinglogic.DecodeOutboundMessage(messageData)
 	if err != nil {
@@ -96,16 +96,20 @@ func (s *Server) deliverOutboundDocUpdate(ctx context.Context, collectionScopedD
 		return outboundDeliveryOutcome{RouteKind: "invalid"}
 	}
 
+	// Routing metadata names internal identities; strip it once here rather than
+	// per recipient, so no ref reaches a browser.
+	clientData := outgoinglogic.ClientPayload(messageData)
+
 	if decoded.Route.AccountID != "" {
-		return s.broadcastToAccountClients(ctx, collectionScopedDocID, messageData, decoded.Route)
+		return s.broadcastToAccountClients(ctx, collectionScopedDocID, clientData, decoded.Route)
 	}
-	if decoded.Route.CorporationID != "" {
-		return s.broadcastToCorporationScope(ctx, collectionScopedDocID, messageData, decoded)
+	if decoded.Route.CorporationRef != "" {
+		return s.broadcastToCorporationScope(ctx, collectionScopedDocID, clientData, decoded)
 	}
-	if decoded.Route.AllianceID != "" {
-		return s.broadcastToAllianceScope(ctx, collectionScopedDocID, messageData, decoded)
+	if decoded.Route.AllianceRef != "" {
+		return s.broadcastToAllianceScope(ctx, collectionScopedDocID, clientData, decoded)
 	}
-	return s.deliverToExplicitDocSubscribers(ctx, collectionScopedDocID, messageData, decoded.Route.SourceClientID, decoded.Route.SourceSessionID)
+	return s.deliverToExplicitDocSubscribers(ctx, collectionScopedDocID, clientData, decoded.Route.SourceClientID, decoded.Route.SourceSessionID)
 }
 
 // broadcastToAccountClients sends a payload to every connection for the account except the source client.
@@ -201,19 +205,19 @@ func copyClientIDSet(m map[string]bool) []string {
 func (s *Server) broadcastToCorporationScope(ctx context.Context, docID string, messageData []byte, decoded outgoinglogic.DecodedOutbound) outboundDeliveryOutcome {
 	out := outboundDeliveryOutcome{
 		RouteKind:       "corporation",
-		CorporationID:   decoded.Route.CorporationID,
+		CorporationRef:  decoded.Route.CorporationRef,
 		SourceClientID:  decoded.Route.SourceClientID,
 		SourceSessionID: decoded.Route.SourceSessionID,
 	}
-	corporationID := decoded.Route.CorporationID
+	corporationRef := decoded.Route.CorporationRef
 	sourceClientID := decoded.Route.SourceClientID
 	sourceSessionID := decoded.Route.SourceSessionID
 	scopes := decoded.Scopes
 
-	s.corpIndexMu.RLock()
-	idsMap := s.corpToClients[corporationID]
+	s.corpRefIndexMu.RLock()
+	idsMap := s.corpRefToClients[corporationRef]
 	clientIDs := copyClientIDSet(idsMap)
-	s.corpIndexMu.RUnlock()
+	s.corpRefIndexMu.RUnlock()
 	out.CandidateCount = len(clientIDs)
 
 	if len(clientIDs) == 0 {
@@ -235,7 +239,7 @@ func (s *Server) broadcastToCorporationScope(ctx context.Context, docID string, 
 		client.SyncMu.Lock()
 		syncing := client.SyncInProgress
 		client.SyncMu.Unlock()
-		if !outgoinglogic.ScopeContains(client.Scopes.CorporationIDs, corporationID) {
+		if !outgoinglogic.ScopeContains(client.Scopes.CorporationRefs, corporationRef) {
 			out.recordScopeSkip(clientID)
 			continue
 		}
@@ -254,7 +258,7 @@ func (s *Server) broadcastToCorporationScope(ctx context.Context, docID string, 
 			out.recordSendBufferFull(clientID)
 			logs.WarnCtx(client.LogContext(), "corporation scope: send buffer full",
 				"client_id", client.id,
-				"corporation_id", corporationID)
+				"corporation_ref", corporationRef)
 		}
 	}
 	s.ClientsMu.RUnlock()
@@ -266,19 +270,19 @@ func (s *Server) broadcastToCorporationScope(ctx context.Context, docID string, 
 func (s *Server) broadcastToAllianceScope(ctx context.Context, docID string, messageData []byte, decoded outgoinglogic.DecodedOutbound) outboundDeliveryOutcome {
 	out := outboundDeliveryOutcome{
 		RouteKind:       "alliance",
-		AllianceID:      decoded.Route.AllianceID,
+		AllianceRef:     decoded.Route.AllianceRef,
 		SourceClientID:  decoded.Route.SourceClientID,
 		SourceSessionID: decoded.Route.SourceSessionID,
 	}
-	allianceID := decoded.Route.AllianceID
+	allianceRef := decoded.Route.AllianceRef
 	sourceClientID := decoded.Route.SourceClientID
 	sourceSessionID := decoded.Route.SourceSessionID
 	scopes := decoded.Scopes
 
-	s.allianceIndexMu.RLock()
-	idsMap := s.allianceToClients[allianceID]
+	s.allianceRefIndexMu.RLock()
+	idsMap := s.allianceRefToClients[allianceRef]
 	clientIDs := copyClientIDSet(idsMap)
-	s.allianceIndexMu.RUnlock()
+	s.allianceRefIndexMu.RUnlock()
 	out.CandidateCount = len(clientIDs)
 
 	if len(clientIDs) == 0 {
@@ -293,7 +297,7 @@ func (s *Server) broadcastToAllianceScope(ctx context.Context, docID string, mes
 			out.recordNotConnectedSkip(clientID)
 			continue
 		}
-		corpScope := append([]string(nil), client.Scopes.CorporationIDs...)
+		corpScope := append([]string(nil), client.Scopes.CorporationRefs...)
 		if !outgoinglogic.AllianceRecipientMatchesDownward(corpScope, client.AccountID, scopes) {
 			out.recordScopeSkip(clientID)
 			continue
@@ -301,7 +305,7 @@ func (s *Server) broadcastToAllianceScope(ctx context.Context, docID string, mes
 		client.SyncMu.Lock()
 		syncing := client.SyncInProgress
 		client.SyncMu.Unlock()
-		if !outgoinglogic.ScopeContains(client.Scopes.AllianceIDs, allianceID) {
+		if !outgoinglogic.ScopeContains(client.Scopes.AllianceRefs, allianceRef) {
 			out.recordScopeSkip(clientID)
 			continue
 		}
@@ -320,7 +324,7 @@ func (s *Server) broadcastToAllianceScope(ctx context.Context, docID string, mes
 			out.recordSendBufferFull(clientID)
 			logs.WarnCtx(client.LogContext(), "alliance scope: send buffer full",
 				"client_id", client.id,
-				"alliance_id", allianceID)
+				"alliance_ref", allianceRef)
 		}
 	}
 	s.ClientsMu.RUnlock()
@@ -402,11 +406,11 @@ func outboundDeliveryDetail(docID, subject string, o outboundDeliveryOutcome) ma
 	if o.AccountID != "" {
 		detail["account_id"] = o.AccountID
 	}
-	if o.CorporationID != "" {
-		detail["corporation_id"] = o.CorporationID
+	if o.CorporationRef != "" {
+		detail["corporation_ref"] = o.CorporationRef
 	}
-	if o.AllianceID != "" {
-		detail["alliance_id"] = o.AllianceID
+	if o.AllianceRef != "" {
+		detail["alliance_ref"] = o.AllianceRef
 	}
 	if o.SourceClientID != "" {
 		detail["source_client_id"] = o.SourceClientID

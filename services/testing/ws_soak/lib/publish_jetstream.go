@@ -69,8 +69,8 @@ func marshalFanoutPayload(subject, coll, docID string, msg DocUpdate) ([]byte, e
 	if id := strings.TrimSpace(msg.AccountID); id != "" {
 		body["accountID"] = id
 	}
-	if id := strings.TrimSpace(msg.CorporationID); id != "" {
-		body["corporationID"] = id
+	if id := strings.TrimSpace(msg.CorporationRef); id != "" {
+		body["corporationRef"] = id
 	}
 	if id := strings.TrimSpace(msg.AllianceID); id != "" {
 		body["allianceID"] = id
@@ -110,7 +110,7 @@ func docUpdateFromJob(job fanoutJob) DocUpdate {
 		Collection:          coll,
 		DocID:               job.DocID,
 		AccountID:           job.AccountID,
-		CorporationID:       job.CorporationID,
+		CorporationRef:      job.CorporationRef,
 		AllianceID:          job.AllianceID,
 		ScopeAccountIDs:     job.ScopeAccountIDs,
 		ScopeCorporationIDs: job.ScopeCorporationIDs,

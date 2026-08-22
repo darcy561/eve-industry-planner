@@ -32,7 +32,7 @@ func TestParsePublishMode(t *testing.T) {
 
 func TestMarshalFanoutPayloadOrg(t *testing.T) {
 	raw, err := marshalFanoutPayload("doc.update.corporation:1.soakFanout.d1", soakFanoutCollection, "d1", DocUpdate{
-		CorporationID:   "1",
+		CorporationRef:  "1",
 		ScopeAccountIDs: []string{"a", "b"},
 	})
 	if err != nil {
@@ -42,7 +42,7 @@ func TestMarshalFanoutPayloadOrg(t *testing.T) {
 	if err := json.Unmarshal(raw, &m); err != nil {
 		t.Fatal(err)
 	}
-	if m["corporationID"] != "1" || m["accountID"] != nil {
+	if m["corporationRef"] != "1" || m["accountID"] != nil {
 		t.Fatalf("route=%v", m)
 	}
 	scopes, _ := m["scopes"].(map[string]any)

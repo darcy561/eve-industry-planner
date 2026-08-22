@@ -271,7 +271,7 @@ services:
     secrets: *sec
   worker:
     secrets:
-      - AUTHZ_HMAC_KEY
+      - ENTITY_ID_KEY
 `)
 	doc, err := Load(path)
 	if err != nil {
@@ -280,7 +280,7 @@ services:
 	got := SecretAttaches(doc)
 	want := map[string][]string{
 		"api":    {"MONGO_PASSWORD", "REDIS_PASSWORD"},
-		"worker": {"AUTHZ_HMAC_KEY"},
+		"worker": {"ENTITY_ID_KEY"},
 	}
 	bySvc := map[string][]string{}
 	for _, a := range got {

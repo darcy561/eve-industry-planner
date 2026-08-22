@@ -8,9 +8,9 @@ import (
 )
 
 const (
-	defaultFanoutAllianceBase    int64 = 910001
-	defaultFanoutAffiliatedCorp  int64 = 920001
-	defaultFanoutStandaloneCorp  int64 = 930001
+	defaultFanoutAllianceBase   int64 = 910001
+	defaultFanoutAffiliatedCorp int64 = 920001
+	defaultFanoutStandaloneCorp int64 = 930001
 )
 
 type fanoutMsgKind string
@@ -36,7 +36,7 @@ type fanoutJob struct {
 	Collection          string
 	TenantString        string
 	AccountID           string
-	CorporationID       string
+	CorporationRef      string
 	AllianceID          string
 	ScopeAccountIDs     []string
 	ScopeCorporationIDs []string
@@ -350,8 +350,8 @@ func makeFanoutJob(topo fanoutTopology, kind fanoutMsgKind, docID, collection st
 			Kind:           kind,
 			DocID:          docID,
 			Collection:     collection,
-			TenantString:   wsplacement.TenantKeyCorporation(fmt.Sprintf("%d", corp.ID)),
-			CorporationID:  fmt.Sprintf("%d", corp.ID),
+			TenantString:   wsplacement.TenantKeyCorporation(CorporationRef(corp.ID)),
+			CorporationRef: fmt.Sprintf("%d", corp.ID),
 			ExpectAccounts: accts,
 			Expect:         len(accts),
 		}, nil
@@ -373,8 +373,8 @@ func makeFanoutJob(topo fanoutTopology, kind fanoutMsgKind, docID, collection st
 			Kind:            kind,
 			DocID:           docID,
 			Collection:      collection,
-			TenantString:    wsplacement.TenantKeyCorporation(fmt.Sprintf("%d", corp.ID)),
-			CorporationID:   fmt.Sprintf("%d", corp.ID),
+			TenantString:    wsplacement.TenantKeyCorporation(CorporationRef(corp.ID)),
+			CorporationRef:  fmt.Sprintf("%d", corp.ID),
 			ScopeAccountIDs: scope,
 			ExpectAccounts:  append([]string{}, scope...),
 			Expect:          len(scope),
@@ -387,7 +387,7 @@ func makeFanoutJob(topo fanoutTopology, kind fanoutMsgKind, docID, collection st
 			Kind:           kind,
 			DocID:          docID,
 			Collection:     collection,
-			TenantString:   wsplacement.TenantKeyAlliance(fmt.Sprintf("%d", a.ID)),
+			TenantString:   wsplacement.TenantKeyAlliance(AllianceRef(a.ID)),
 			AllianceID:     fmt.Sprintf("%d", a.ID),
 			ExpectAccounts: accts,
 			Expect:         len(accts),
@@ -405,7 +405,7 @@ func makeFanoutJob(topo fanoutTopology, kind fanoutMsgKind, docID, collection st
 			Kind:                kind,
 			DocID:               docID,
 			Collection:          collection,
-			TenantString:        wsplacement.TenantKeyAlliance(fmt.Sprintf("%d", a.ID)),
+			TenantString:        wsplacement.TenantKeyAlliance(AllianceRef(a.ID)),
 			AllianceID:          fmt.Sprintf("%d", a.ID),
 			ScopeCorporationIDs: []string{fmt.Sprintf("%d", corp.ID)},
 			ExpectAccounts:      accts,
@@ -422,7 +422,7 @@ func makeFanoutJob(topo fanoutTopology, kind fanoutMsgKind, docID, collection st
 			Kind:            kind,
 			DocID:           docID,
 			Collection:      collection,
-			TenantString:    wsplacement.TenantKeyAlliance(fmt.Sprintf("%d", a.ID)),
+			TenantString:    wsplacement.TenantKeyAlliance(AllianceRef(a.ID)),
 			AllianceID:      fmt.Sprintf("%d", a.ID),
 			ScopeAccountIDs: scope,
 			ExpectAccounts:  append([]string{}, scope...),

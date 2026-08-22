@@ -7,6 +7,7 @@ import (
 	"time"
 
 	natscore "eve-industry-planner/shared/core/nats"
+	"eve-industry-planner/shared/documentschema"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
@@ -18,7 +19,7 @@ import (
 )
 
 const (
-	defaultSchemaMaintenanceBatchSize = 50
+	defaultSchemaMaintenanceBatchSize = 200
 	maxSchemaMaintenanceBatchSize     = 200
 )
 
@@ -52,7 +53,7 @@ func SchemaVersionMaintenanceBatch(ctx context.Context, task *asynq.Task, deps *
 		return maintainUsersSchemaVersionBatch(ctx, mongo.Users, batchSize)
 	case eipmongo.CollectionApplicationSettings:
 		return maintainApplicationSettingsSchemaVersionBatch(ctx, mongo.ApplicationSettings, batchSize)
-	case eipmongo.CollectionUserJobDocuments, eipmongo.CollectionJobs:
+	case eipmongo.CollectionUserJobDocuments, eipmongo.CollectionJobs, eipmongo.CollectionArchivedJobs:
 		return maintainJobSchemaVersionBatch(ctx, mongo.Docs(payload.Collection), batchSize)
 	case eipmongo.CollectionUserJobGroups:
 		return maintainGroupSchemaVersionBatch(ctx, mongo.Groups, batchSize)
@@ -89,7 +90,7 @@ func maintainUsersSchemaVersionBatch(ctx context.Context, docs *eipmongo.Docs, b
 		}
 		scanned++
 		beforeSchema := doc.SchemaVersion
-		models.UpgradeUserAccountDocument(&doc)
+		documentschema.Upgrader{}.UserAccountDocument(&doc)
 		if beforeSchema == doc.SchemaVersion {
 			continue
 		}
@@ -160,7 +161,7 @@ func maintainApplicationSettingsSchemaVersionBatch(ctx context.Context, docs *ei
 		if accountID == "" {
 			continue
 		}
-		models.UpgradeApplicationSettings(&doc, accountID, now)
+		documentschema.Upgrader{}.ApplicationSettings(&doc, accountID, now)
 		if beforeSchema == doc.SchemaVersion {
 			continue
 		}
@@ -195,6 +196,8 @@ func maintainApplicationSettingsSchemaVersionBatch(ctx context.Context, docs *ei
 }
 
 func maintainJobSchemaVersionBatch(ctx context.Context, docs *eipmongo.Docs, batchSize int) error {
+	upgrader := documentschema.Upgrader{}
+
 	col := docs.Collection()
 	filter := bson.M{
 		"$or": []bson.M{
@@ -222,7 +225,7 @@ func maintainJobSchemaVersionBatch(ctx context.Context, docs *eipmongo.Docs, bat
 		}
 		scanned++
 		beforeSchema := doc.SchemaVersion
-		models.UpgradeJob(&doc)
+		upgrader.Job(&doc)
 		if beforeSchema == doc.SchemaVersion {
 			continue
 		}
@@ -288,7 +291,7 @@ func maintainGroupSchemaVersionBatch(ctx context.Context, docs *eipmongo.Docs, b
 		}
 		scanned++
 		beforeSchema := doc.SchemaVersion
-		models.UpgradeGroup(&doc)
+		documentschema.Upgrader{}.Group(&doc)
 		if beforeSchema == doc.SchemaVersion {
 			continue
 		}

@@ -2,24 +2,78 @@ package mongo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"testing"
 )
 
+// unprocessedArchivedJobFilterCanonicalJSON pins the archivedJobs partial filter
+// in the same canonical form services pins it in. A partial index only covers a
+// query when its filter matches the query's, so the two must move together.
+//
+// The same literal is pinned by TestUnprocessedArchivedJobFilter_canonicalJSON in
+// services/shared/mongo. services is a separate module and cannot be imported
+// here, so changing the filter means changing both — and changing either alone
+// fails the other module's test.
+const unprocessedArchivedJobFilterCanonicalJSON = `{"$or":[` +
+	`{"_meta.archiveProcessed":null,"archiveProcessed":null},` +
+	`{"_meta.archiveProcessed":null,"archiveProcessed":false},` +
+	`{"_meta.archiveProcessed":false,"archiveProcessed":null},` +
+	`{"_meta.archiveProcessed":false,"archiveProcessed":false}` +
+	`]}`
+
+func TestArchivedJobsPartialFilterMatchesServices(t *testing.T) {
+	t.Parallel()
+
+	var spec IndexSpec
+	for _, s := range IndexSpecs() {
+		if s.Collection == "archivedJobs" && s.PartialFilterJSON != "" {
+			spec = s
+			break
+		}
+	}
+	if spec.Name == "" {
+		t.Fatal("archivedJobs spec with a partial filter is missing")
+	}
+
+	// Re-marshal through any so formatting differences do not matter, only content.
+	var parsed any
+	if err := json.Unmarshal([]byte(spec.PartialFilterJSON), &parsed); err != nil {
+		t.Fatalf("PartialFilterJSON is not valid JSON: %v", err)
+	}
+	got, err := json.Marshal(parsed)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+
+	if string(got) != unprocessedArchivedJobFilterCanonicalJSON {
+		t.Fatalf("partial filter no longer matches services UnprocessedArchivedJobFilter.\n got: %s\nwant: %s\n\n"+
+			"Update services/shared/mongo/archive.go to match, or this index stops covering that query.",
+			got, unprocessedArchivedJobFilterCanonicalJSON)
+	}
+}
+
 func TestIndexSpecsCoverExpected(t *testing.T) {
 	t.Parallel()
 	specs := IndexSpecs()
 	want := map[string]bool{
 		"archivedJobs.meta_accountID_1__id_1_unprocessed_archived_jobs": true,
-		"users.meta_accountID_1":                                   true,
-		"users.users_meta_lastLoginAt_1":                           true,
-		"application_settings.meta_accountID_1":                    true,
-		"user_job_groups.ujg_meta_accountID_1":                     true,
-		"user_watchlist_deprecated.uwd_meta_accountID_1":           true,
-		"user_job_documents.ujd_meta_accountID_displayOnPlanner_1": true,
-		"user_job_documents.ujd_meta_accountID_groupID_1":          true,
+		"users.meta_accountID_1":                                                    true,
+		"users.users_meta_lastLoginAt_1":                                            true,
+		"application_settings.meta_accountID_1":                                     true,
+		"user_job_groups.ujg_meta_accountID_1":                                      true,
+		"user_watchlist_deprecated.uwd_meta_accountID_1":                            true,
+		"user_job_documents.ujd_meta_accountID_displayOnPlanner_1":                  true,
+		"user_job_documents.ujd_meta_accountID_groupID_1":                           true,
+		"user_job_documents.ujd_linkedJobs_corporation_id_1":                        true,
+		"user_job_documents.ujd_protected_spec_1":                                   true,
+		"archivedJobs.aj_linkedJobs_corporation_id_1":                               true,
+		"archivedJobs.aj_protected_spec_1":                                          true,
+		"user_archived_job_stats.uajs_accountID_typeID_isProductionChain_revoked_1": true,
+		"user_archived_job_stats.uajs_accountID_archivedAt_revoked_1":               true,
+		"user_rollup_buckets.urb_accountID_year_month_typeID_1":                     true,
 	}
 	if len(specs) != len(want) {
 		t.Fatalf("len=%d want %d", len(specs), len(want))

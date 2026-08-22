@@ -25,6 +25,10 @@ type Mongo struct {
 	Blueprints          *Docs
 	CitadelNames        *Docs
 	WatchlistDeprecated *Docs
+
+	ArchivedJobStats    *Docs // per-archived-job figures the statistics pipelines read
+	UserRollupBuckets   *Docs // pre-aggregated calendar months per account and item type
+	AccountRebuildQueue *Docs // accounts whose statistics need recalculating
 }
 
 // NewMongo pins DatabaseName and binds named Docs fields. client must be non-nil.
@@ -48,6 +52,9 @@ func NewMongo(client *mongo.Client) (*Mongo, error) {
 	m.Blueprints = m.Docs(CollectionBlueprints)
 	m.CitadelNames = m.Docs(CollectionCitadelNames)
 	m.WatchlistDeprecated = m.Docs(CollectionUserWatchlistDeprecated)
+	m.ArchivedJobStats = m.Docs(CollectionArchivedJobStats)
+	m.UserRollupBuckets = m.Docs(CollectionUserRollupBuckets)
+	m.AccountRebuildQueue = m.Docs(CollectionAccountRebuildQueue)
 	return m, nil
 }
 

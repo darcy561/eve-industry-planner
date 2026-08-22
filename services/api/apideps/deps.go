@@ -5,6 +5,7 @@ package apideps
 
 import (
 	"eve-industry-planner/shared/core/documentlock"
+	"eve-industry-planner/shared/crypto/entityid"
 	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/stackservices"
 
@@ -19,18 +20,23 @@ type Deps struct {
 	Redis     *redis.Client
 	NATS      *nats.Conn
 	JetStream jetstream.JetStream
+	// EntityCipher derives the refs that replace raw entity ids. Nil in mongo-only
+	// wiring, so handlers that write documents carrying ids must check it.
+	EntityCipher *entityid.Cipher
 }
 
 // FromClients maps the composition-root connect bag into Deps for handlers.
-func FromClients(c *stackservices.Clients) *Deps {
+// refs derives entity refs; the connect bag does not carry it.
+func FromClients(c *stackservices.Clients, refs *entityid.Cipher) *Deps {
 	if c == nil {
 		return &Deps{}
 	}
 	return &Deps{
-		Mongo:     c.Mongo,
-		Redis:     c.Redis,
-		NATS:      c.NATS,
-		JetStream: c.JetStream,
+		Mongo:        c.Mongo,
+		Redis:        c.Redis,
+		NATS:         c.NATS,
+		JetStream:    c.JetStream,
+		EntityCipher: refs,
 	}
 }
 

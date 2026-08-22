@@ -13,26 +13,27 @@ const TenantAffinityCookieName = wsplacement.AffinityCookie
 
 const tenantAffinityCookiePath = "/"
 
-// FormatTenantAffinityKey builds alliance:{id} → corporation:{id} → account:{id}.
-// Empty alliance/corp fall through; accountID must be non-empty for a usable key.
-// Prefix shapes come from wsplacement.TenantKey*.
-func FormatTenantAffinityKey(accountID, corporationID, allianceID string) string {
-	if k := wsplacement.TenantKeyAlliance(allianceID); k != "" {
+// FormatTenantAffinityKey builds alliance:{ref} → corporation:{ref} → account:{id}.
+// Organisations are named by ref, so this cookie never carries an EVE entity id.
+// Empty or non-ref organisation values fall through; accountID must be non-empty
+// for a usable key. Prefix shapes come from wsplacement.TenantKey*.
+func FormatTenantAffinityKey(accountID, corporationRef, allianceRef string) string {
+	if k := wsplacement.TenantKeyAlliance(allianceRef); k != "" {
 		return k
 	}
-	if k := wsplacement.TenantKeyCorporation(corporationID); k != "" {
+	if k := wsplacement.TenantKeyCorporation(corporationRef); k != "" {
 		return k
 	}
 	return wsplacement.TenantKeyAccount(accountID)
 }
 
 // SetTenantAffinityCookie sets eip_tenant_affinity (Path=/) for ws-router place lookup.
-func SetTenantAffinityCookie(w http.ResponseWriter, r *http.Request, accountID, corporationID, allianceID string) {
+func SetTenantAffinityCookie(w http.ResponseWriter, r *http.Request, accountID, corporationRef, allianceRef string) {
 	_ = r
 	if w == nil {
 		return
 	}
-	value := FormatTenantAffinityKey(accountID, corporationID, allianceID)
+	value := FormatTenantAffinityKey(accountID, corporationRef, allianceRef)
 	if value == "" {
 		return
 	}

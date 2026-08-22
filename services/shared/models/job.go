@@ -15,30 +15,31 @@ import (
 // This model is shared across services for job data consistency.
 // Ownership and lifecycle (account, archive, delete flags) live on MetaData (`_meta`), not root fields.
 type Job struct {
-	SchemaVersion       int         `json:"schemaVersion,omitempty" bson:"schemaVersion,omitempty"`
-	DisplayOnPlanner    bool        `json:"displayOnPlanner" bson:"displayOnPlanner"`
-	IncludedInGroup     bool        `json:"includedInGroup" bson:"includedInGroup"`
-	MetaLevel           *int        `json:"metaLevel" bson:"metaLevel"`
-	JobType             int         `json:"jobType" bson:"jobType"`
-	Name                string      `json:"name" bson:"name"`
-	JobID               string      `json:"jobID" bson:"jobID"`
-	JobStatus           int         `json:"jobStatus" bson:"jobStatus"`
-	Volume              float64     `json:"volume" bson:"volume"`
-	ItemID              int         `json:"itemID" bson:"itemID"`
-	MaxProductionLimit  int         `json:"maxProductionLimit" bson:"maxProductionLimit"`
-	APIJobs             []int       `json:"apiJobs" bson:"apiJobs"`
-	APIOrders           []int       `json:"apiOrders" bson:"apiOrders"`
-	APITransactions     []int       `json:"apiTransactions" bson:"apiTransactions"`
-	ParentJobs          []string    `json:"parentJobs" bson:"parentJobs"` // canonical document key (Firestore exports may use parentJob; normalizer rewrites)
-	BlueprintTypeID     *int        `json:"blueprintTypeID" bson:"blueprintTypeID"`
-	GroupID             string      `json:"groupID" bson:"groupID"` // empty string when not in a group
-	IsReadyToSell       bool        `json:"isReadyToSell" bson:"isReadyToSell"`
-	Build               JobBuild    `json:"build" bson:"build"`
-	RawData             RawData     `json:"rawData" bson:"rawData"`
-	Skills              []Skill     `json:"skills" bson:"skills"`
-	ItemsProducedPerRun int         `json:"itemsProducedPerRun" bson:"itemsProducedPerRun"`
-	Layout              JobLayout   `json:"layout" bson:"layout"`
-	MetaData            JobMetaData `json:"_meta" bson:"_meta"`
+	SchemaVersion       int              `json:"schemaVersion,omitempty" bson:"schemaVersion,omitempty"`
+	DisplayOnPlanner    bool             `json:"displayOnPlanner" bson:"displayOnPlanner"`
+	IncludedInGroup     bool             `json:"includedInGroup" bson:"includedInGroup"`
+	MetaLevel           *int             `json:"metaLevel" bson:"metaLevel"`
+	JobType             int              `json:"jobType" bson:"jobType"`
+	Name                string           `json:"name" bson:"name"`
+	JobID               string           `json:"jobID" bson:"jobID"`
+	JobStatus           int              `json:"jobStatus" bson:"jobStatus"`
+	Volume              float64          `json:"volume" bson:"volume"`
+	ItemID              int              `json:"itemID" bson:"itemID"`
+	MaxProductionLimit  int              `json:"maxProductionLimit" bson:"maxProductionLimit"`
+	APIJobs             []int            `json:"apiJobs" bson:"apiJobs"`
+	APIOrders           []int            `json:"apiOrders" bson:"apiOrders"`
+	APITransactions     []int            `json:"apiTransactions" bson:"apiTransactions"`
+	ParentJobs          []string         `json:"parentJobs" bson:"parentJobs"` // canonical document key (Firestore exports may use parentJob; normalizer rewrites)
+	BlueprintTypeID     *int             `json:"blueprintTypeID" bson:"blueprintTypeID"`
+	GroupID             string           `json:"groupID" bson:"groupID"` // empty string when not in a group
+	IsReadyToSell       bool             `json:"isReadyToSell" bson:"isReadyToSell"`
+	Build               JobBuild         `json:"build" bson:"build"`
+	RawData             RawData          `json:"rawData" bson:"rawData"`
+	Skills              []Skill          `json:"skills" bson:"skills"`
+	ItemsProducedPerRun int              `json:"itemsProducedPerRun" bson:"itemsProducedPerRun"`
+	Layout              JobLayout        `json:"layout" bson:"layout"`
+	Protected           *FieldProtection `json:"-" bson:"protected,omitempty"`
+	MetaData            JobMetaData      `json:"_meta" bson:"_meta"`
 }
 
 // JobBuild contains all build-related data including setups, costs, and sales
@@ -293,8 +294,11 @@ type LinkedESIJob struct {
 	Duration        int     `json:"duration" bson:"duration"`                                 // Duration in seconds
 	BlueprintID     int     `json:"blueprint_id" bson:"blueprint_id"`                         // Blueprint ID
 	IsCorporation   bool    `json:"is_corporation" bson:"is_corporation"`                     // Whether it's a corporation job
-	CorporationID   int     `json:"corporation_id,omitempty" bson:"corporation_id,omitempty"` // zero = none; legacy null/string normalized in archiveimport
-	JobType         int     `json:"job_type" bson:"job_type"`                                 // Job type
+	CorporationID   int     `json:"corporation_id,omitempty" bson:"corporation_id,omitempty"` // client-facing; converted to CorporationRef before write
+	CorporationRef  string  `json:"-" bson:"corporation_ref,omitempty"`
+	CharacterID     int     `json:"character_id,omitempty" bson:"-"` // client-facing only
+	CharacterRef    string  `json:"-" bson:"character_ref,omitempty"`
+	JobType         int     `json:"job_type" bson:"job_type"` // Job type
 }
 
 // InventionEntry represents invention-related costs
@@ -317,50 +321,62 @@ type JobSale struct {
 // MarketOrder represents a market order for selling products
 // Matches the structure created by createESIMarketOrder in createMarketOrder.js
 type MarketOrder struct {
-	Duration      int      `json:"duration" bson:"duration"`                               // Order duration in days
-	IsCorporation bool     `json:"is_corporation" bson:"is_corporation"`                   // Whether this is a corporation order
-	Issued        string   `json:"issued" bson:"issued"`                                   // Order issue timestamp
-	LocationID    int      `json:"location_id" bson:"location_id"`                         // Location ID where order is placed
-	OrderID       int      `json:"order_id" bson:"order_id"`                               // Unique order ID
-	ItemPrice     float64  `json:"item_price" bson:"item_price"`                           // Order price per unit
-	Range         string   `json:"range" bson:"range"`                                     // ESI string (e.g. "region"); legacy non-strings normalized in archiveimport
-	RegionID      int      `json:"region_id" bson:"region_id"`                             // Region ID where order is placed
-	TypeID        int      `json:"type_id" bson:"type_id"`                                 // Item type ID
-	VolumeRemain  int      `json:"volume_remain" bson:"volume_remain"`                     // Remaining volume
-	VolumeTotal   int      `json:"volume_total" bson:"volume_total"`                       // Total volume
-	TimeStamps    []string `json:"timeStamps" bson:"timeStamps"`                           // Array of timestamp history
-	CharacterHash string   `json:"CharacterHash,omitempty" bson:"CharacterHash,omitempty"` // Character hash for identification
-	Complete      bool     `json:"complete" bson:"complete"`                               // Whether order is complete
-	State         string   `json:"state" bson:"state"`                                     // Order state (active, etc.)
+	Duration       int      `json:"duration" bson:"duration"`                               // Order duration in days
+	IsCorporation  bool     `json:"is_corporation" bson:"is_corporation"`                   // Whether this is a corporation order
+	Issued         string   `json:"issued" bson:"issued"`                                   // Order issue timestamp
+	LocationID     int      `json:"location_id" bson:"location_id"`                         // Location ID where order is placed
+	OrderID        int      `json:"order_id" bson:"order_id"`                               // Unique order ID
+	ItemPrice      float64  `json:"item_price" bson:"item_price"`                           // Order price per unit
+	Range          string   `json:"range" bson:"range"`                                     // ESI string (e.g. "region"); legacy non-strings normalized in archiveimport
+	RegionID       int      `json:"region_id" bson:"region_id"`                             // Region ID where order is placed
+	TypeID         int      `json:"type_id" bson:"type_id"`                                 // Item type ID
+	VolumeRemain   int      `json:"volume_remain" bson:"volume_remain"`                     // Remaining volume
+	VolumeTotal    int      `json:"volume_total" bson:"volume_total"`                       // Total volume
+	TimeStamps     []string `json:"timeStamps" bson:"timeStamps"`                           // Array of timestamp history
+	CharacterHash  string   `json:"CharacterHash,omitempty" bson:"CharacterHash,omitempty"` // Character hash for identification
+	CorporationID  int      `json:"corporation_id,omitempty" bson:"-"`                      // client-facing only
+	CorporationRef string   `json:"-" bson:"corporation_ref,omitempty"`
+	CharacterID    int      `json:"character_id,omitempty" bson:"-"` // client-facing only
+	CharacterRef   string   `json:"-" bson:"character_ref,omitempty"`
+	Complete       bool     `json:"complete" bson:"complete"` // Whether order is complete
+	State          string   `json:"state" bson:"state"`       // Order state (active, etc.)
 }
 
 // Transaction represents a completed market transaction
 // Matches the structure created by createTransaction in createTransaction.js
 type Transaction struct {
-	OrderID       int     `json:"order_id,omitempty" bson:"order_id,omitempty"`           // zero = none; legacy null/string/float normalized in archiveimport
-	JournalRefID  int64   `json:"journal_ref_id" bson:"journal_ref_id"`                   // Journal reference ID
-	UnitPrice     float64 `json:"unit_price" bson:"unit_price"`                           // Price per unit
-	Amount        float64 `json:"amount" bson:"amount"`                                   // Transaction amount
-	Tax           float64 `json:"tax" bson:"tax"`                                         // Tax amount
-	TransactionID int64   `json:"transaction_id" bson:"transaction_id"`                   // ESI id; string/float historic imports normalized in archiveimport
-	Quantity      int     `json:"quantity" bson:"quantity"`                               // Quantity of items
-	Date          string  `json:"date" bson:"date"`                                       // Transaction date
-	LocationID    int     `json:"location_id" bson:"location_id"`                         // Location ID
-	IsCorp        bool    `json:"is_corp" bson:"is_corp"`                                 // Whether it's a corporation transaction
-	TypeID        int     `json:"type_id" bson:"type_id"`                                 // Item type ID
-	Description   string  `json:"description" bson:"description"`                         // Transaction description
-	CharacterHash string  `json:"CharacterHash,omitempty" bson:"CharacterHash,omitempty"` // Character hash for identification
+	OrderID        int     `json:"order_id,omitempty" bson:"order_id,omitempty"`           // zero = none; legacy null/string/float normalized in archiveimport
+	JournalRefID   int64   `json:"journal_ref_id" bson:"journal_ref_id"`                   // Journal reference ID
+	UnitPrice      float64 `json:"unit_price" bson:"unit_price"`                           // Price per unit
+	Amount         float64 `json:"amount" bson:"amount"`                                   // Transaction amount
+	Tax            float64 `json:"tax" bson:"tax"`                                         // Tax amount
+	TransactionID  int64   `json:"transaction_id" bson:"transaction_id"`                   // ESI id; string/float historic imports normalized in archiveimport
+	Quantity       int     `json:"quantity" bson:"quantity"`                               // Quantity of items
+	Date           string  `json:"date" bson:"date"`                                       // Transaction date
+	LocationID     int     `json:"location_id" bson:"location_id"`                         // Location ID
+	IsCorp         bool    `json:"is_corp" bson:"is_corp"`                                 // Whether it's a corporation transaction
+	TypeID         int     `json:"type_id" bson:"type_id"`                                 // Item type ID
+	Description    string  `json:"description" bson:"description"`                         // Transaction description
+	CharacterHash  string  `json:"CharacterHash,omitempty" bson:"CharacterHash,omitempty"` // Character hash for identification
+	CorporationID  int     `json:"corporation_id,omitempty" bson:"-"`                      // client-facing only
+	CorporationRef string  `json:"-" bson:"corporation_ref,omitempty"`
+	CharacterID    int     `json:"character_id,omitempty" bson:"-"` // client-facing only
+	CharacterRef   string  `json:"-" bson:"character_ref,omitempty"`
 }
 
 // BrokerFee represents broker fees for market orders
 // Matches the structure created by ESIBrokerFee in findBrokersFeeEntry.js
 type BrokerFee struct {
-	OrderID       int     `json:"order_id" bson:"order_id"`                               // Order ID associated with the fee
-	ID            int64   `json:"id" bson:"id"`                                           // Journal entry ID
-	Complete      bool    `json:"complete" bson:"complete"`                               // Whether the fee is complete
-	Date          string  `json:"date" bson:"date"`                                       // Fee date
-	Amount        float64 `json:"amount" bson:"amount"`                                   // Fee amount
-	CharacterHash string  `json:"CharacterHash,omitempty" bson:"CharacterHash,omitempty"` // Character hash for identification
+	OrderID        int     `json:"order_id" bson:"order_id"`                               // Order ID associated with the fee
+	ID             int64   `json:"id" bson:"id"`                                           // Journal entry ID
+	Complete       bool    `json:"complete" bson:"complete"`                               // Whether the fee is complete
+	Date           string  `json:"date" bson:"date"`                                       // Fee date
+	Amount         float64 `json:"amount" bson:"amount"`                                   // Fee amount
+	CharacterHash  string  `json:"CharacterHash,omitempty" bson:"CharacterHash,omitempty"` // Character hash for identification
+	CorporationID  int     `json:"corporation_id,omitempty" bson:"-"`                      // client-facing only
+	CorporationRef string  `json:"-" bson:"corporation_ref,omitempty"`
+	CharacterID    int     `json:"character_id,omitempty" bson:"-"` // client-facing only
+	CharacterRef   string  `json:"-" bson:"character_ref,omitempty"`
 }
 
 // JobMaterial represents a material required for the job

@@ -90,6 +90,12 @@ func (h *Handlers) GetJobDocumentByIDHandler(w http.ResponseWriter, r *http.Requ
 		"job_id": jobID,
 	})
 
+	if err := h.decryptJob(&doc); err != nil {
+		metrics.Error("entity_decrypt_error")
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to restore entity ids on job document", "job_doc_decrypt_failed", "job_documents", err, map[string]any{"job_id": jobID})
+		return
+	}
+
 	if err := helper.EncodeJSON(w, doc); err != nil {
 		metrics.Error("encode_error")
 		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to encode job document response", "job_doc_encode_failed", "job_documents", err, map[string]any{"job_id": jobID})
@@ -186,6 +192,12 @@ func findJobs(
 		"kind":      label,
 		"job_count": len(jobs),
 	})
+
+	if err := h.decryptJobs(jobs); err != nil {
+		metrics.Error("entity_decrypt_error")
+		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to restore entity ids on job documents", "job_docs_decrypt_failed", "job_documents", err, map[string]any{"kind": label})
+		return
+	}
 
 	if err := helper.EncodeJSON(w, jobs); err != nil {
 		metrics.Error("encode_error")

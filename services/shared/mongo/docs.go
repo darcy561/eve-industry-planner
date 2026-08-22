@@ -240,6 +240,82 @@ func (d *Docs) deleteManyAfterStampingMeta(ctx context.Context, filter bson.M, n
 	return result.DeletedCount, nil
 }
 
+// DistinctStrings returns the distinct non-empty string values of field.
+// Non-string and empty values are skipped.
+// Log label defaults to "DistinctStrings"; override with [WithOpName].
+func (d *Docs) DistinctStrings(ctx context.Context, field string, filter bson.M, opts ...RetryOption) ([]string, error) {
+	coll, err := d.requireColl()
+	if err != nil {
+		return nil, err
+	}
+	if field == "" {
+		return nil, fmt.Errorf("field is required")
+	}
+	if filter == nil {
+		filter = bson.M{}
+	}
+
+	var raw []any
+	err = Retry(ctx, applyRetryOptions("DistinctStrings", opts), func() error {
+		raw = nil
+		return coll.Distinct(ctx, field, filter).Decode(&raw)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]string, 0, len(raw))
+	for _, v := range raw {
+		s, ok := v.(string)
+		if !ok || s == "" {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out, nil
+}
+
+// ListIDs returns the _id of every matching document, for collections whose _id
+// is a string key. A nil filter lists the whole collection.
+// Log label defaults to "ListIDs"; override with [WithOpName].
+func (d *Docs) ListIDs(ctx context.Context, filter bson.M, opts ...RetryOption) ([]string, error) {
+	coll, err := d.requireColl()
+	if err != nil {
+		return nil, err
+	}
+	if filter == nil {
+		filter = bson.M{}
+	}
+
+	var out []string
+	err = Retry(ctx, applyRetryOptions("ListIDs", opts), func() error {
+		out = nil
+		cursor, findErr := coll.Find(ctx, filter, options.Find().SetProjection(bson.M{"_id": 1}))
+		if findErr != nil {
+			return findErr
+		}
+		defer cursor.Close(ctx)
+
+		for cursor.Next(ctx) {
+			var row struct {
+				ID string `bson:"_id"`
+			}
+			if decErr := cursor.Decode(&row); decErr != nil {
+				return decErr
+			}
+			if row.ID == "" {
+				continue
+			}
+			out = append(out, row.ID)
+		}
+		return cursor.Err()
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (d *Docs) getByID(ctx context.Context, docID string, extraFilter bson.M) (bson.M, bool, error) {
 	coll, err := d.requireColl()
 	if err != nil {

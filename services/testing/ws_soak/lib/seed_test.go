@@ -47,7 +47,7 @@ func TestBuildIdentitiesCorpRequiresID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := wsplacement.TenantKeyCorporation("99")
+	want := wsplacement.TenantKeyCorporation(CorporationRef(99))
 	if ids[0].Affinity != want || ids[1].Affinity != want {
 		t.Fatalf("corp affinity: %#v", ids)
 	}

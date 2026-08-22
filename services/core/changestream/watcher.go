@@ -32,8 +32,8 @@ const changeStreamMaxAwaitTime = 30 * time.Second
 
 // ScopesPayload narrows websocket fan-out under alliance/corporation roots (optional metadata).
 type ScopesPayload struct {
-	CorporationIDs []string `json:"corporationIDs,omitempty"`
-	AccountIDs     []string `json:"accountIDs,omitempty"`
+	CorporationRefs []string `json:"corporationRefs,omitempty"`
+	AccountIDs      []string `json:"accountIDs,omitempty"`
 }
 
 // ChangeStreamMessage represents the message payload sent to NATS
@@ -45,8 +45,8 @@ type ChangeStreamMessage struct {
 	SourceClientID          string         `json:"sourceClientID,omitempty"`  // ClientID that originated the change (for filtering)
 	SourceSessionID         string         `json:"sourceSessionID,omitempty"` // SessionID that originated the change (stable across client reconnects)
 	AccountID               string         `json:"accountID,omitempty"`       // AccountID for INSERT operations (broadcast to all account clients)
-	CorporationID           string         `json:"corporationID,omitempty"`   // Org routing when accountID is absent (see websocket dispatch)
-	AllianceID              string         `json:"allianceID,omitempty"`
+	CorporationRef          string         `json:"corporationRef,omitempty"`  // Org routing when accountID is absent (see websocket dispatch)
+	AllianceRef             string         `json:"allianceRef,omitempty"`
 	Scopes                  *ScopesPayload `json:"scopes,omitempty"`
 	Document                map[string]any `json:"document,omitempty"`
 	PreviousDocument        map[string]any `json:"previousDocument,omitempty"`
@@ -407,9 +407,9 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		previousDocument = nil
 	}
 
-	corpID, allianceID, scopePayload := extractOrgRoutingFromDocument(docToExtract)
+	corpID, allianceRef, scopePayload := extractOrgRoutingFromDocument(docToExtract)
 
-	tenantString := wsplacement.TenantStringFromRouting(accountID, corpID, allianceID)
+	tenantString := wsplacement.TenantStringFromRouting(accountID, corpID, allianceRef)
 	subject := natscore.DocUpdateSubject(tenantString, collection, docID)
 	if subject == "" {
 		logs.WarnCtx(ctx, "change stream event skipped: no tenant for doc.update subject",
@@ -418,8 +418,8 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 			"collection", collection,
 			"doc_id", docID,
 			"account_id", accountID,
-			"corporation_id", corpID,
-			"alliance_id", allianceID)
+			"corporation_ref", corpID,
+			"alliance_ref", allianceRef)
 		return nil
 	}
 
@@ -432,8 +432,8 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		SourceClientID:          sourceClientID,
 		SourceSessionID:         sourceSessionID,
 		AccountID:               accountID,
-		CorporationID:           corpID,
-		AllianceID:              allianceID,
+		CorporationRef:          corpID,
+		AllianceRef:             allianceRef,
 		Scopes:                  scopePayload,
 		Document:                document,
 		PreviousDocument:        previousDocument,
@@ -624,17 +624,17 @@ func stripUsersRefreshTokenFields(doc map[string]any) {
 	delete(doc, "refresh_tokens")
 }
 
-func extractOrgRoutingFromDocument(doc bson.M) (corpID, allianceID string, scopes *ScopesPayload) {
+func extractOrgRoutingFromDocument(doc bson.M) (corpID, allianceRef string, scopes *ScopesPayload) {
 	if doc == nil {
 		return "", "", nil
 	}
 	meta := subDocumentToMap(doc["_meta"])
-	corpID = docFieldString(doc, meta, "corporationID", "corporationId")
-	allianceID = docFieldString(doc, meta, "allianceID", "allianceId")
-	if sp := scopesFromDocOrMeta(doc, meta); sp != nil && (len(sp.CorporationIDs) > 0 || len(sp.AccountIDs) > 0) {
+	corpID = docFieldString(doc, meta, "corporationRef")
+	allianceRef = docFieldString(doc, meta, "allianceRef")
+	if sp := scopesFromDocOrMeta(doc, meta); sp != nil && (len(sp.CorporationRefs) > 0 || len(sp.AccountIDs) > 0) {
 		scopes = sp
 	}
-	return corpID, allianceID, scopes
+	return corpID, allianceRef, scopes
 }
 
 func docFieldString(doc, meta bson.M, keys ...string) string {
@@ -683,12 +683,12 @@ func scopesFromDocOrMeta(doc, meta bson.M) *ScopesPayload {
 	if raw == nil {
 		return nil
 	}
-	cids := bsonArrayToStrings(raw["corporationIDs"])
+	cids := bsonArrayToStrings(raw["corporationRefs"])
 	aids := bsonArrayToStrings(raw["accountIDs"])
 	if len(cids) == 0 && len(aids) == 0 {
 		return nil
 	}
-	return &ScopesPayload{CorporationIDs: cids, AccountIDs: aids}
+	return &ScopesPayload{CorporationRefs: cids, AccountIDs: aids}
 }
 
 func asBsonM(v any) bson.M {

@@ -13,7 +13,9 @@ type IndexSpec struct {
 	Name       string
 	Keys       []IndexKey
 	// PartialFilterJSON is optional mongosh/JSON object for partialFilterExpression.
-	// archivedJobs: must match services UnprocessedArchivedJobFilter when that filter changes.
+	// A partial filter must match the query filter it serves, or the index stops
+	// covering that query. services/ is a separate module, so filters mirrored from
+	// there are pinned by tests on both sides rather than shared as code.
 	PartialFilterJSON string
 }
 
@@ -27,7 +29,8 @@ func IndexSpecs() []IndexSpec {
 				{Field: "_meta.accountID", Order: 1},
 				{Field: "_id", Order: 1},
 			},
-			// Port of UnprocessedArchivedJobFilter (services/shared/core/mongo/archived_job_queries.go).
+			// Mirror of UnprocessedArchivedJobFilter (services/shared/mongo/archive.go).
+			// Both sides pin the canonical form in their tests; changing one alone fails the other.
 			PartialFilterJSON: `{
   "$or": [
     {"_meta.archiveProcessed": null, "archiveProcessed": null},
@@ -76,6 +79,55 @@ func IndexSpecs() []IndexSpec {
 			Keys: []IndexKey{
 				{Field: "_meta.accountID", Order: 1},
 				{Field: "groupID", Order: 1},
+			},
+		},
+		{
+			Collection: "user_job_documents",
+			Name:       "ujd_linkedJobs_corporation_id_1",
+			Keys:       []IndexKey{{Field: "build.costs.linkedJobs.corporation_id", Order: 1}},
+		},
+		{
+			Collection: "user_job_documents",
+			Name:       "ujd_protected_spec_1",
+			Keys:       []IndexKey{{Field: "protected.spec", Order: 1}},
+		},
+		{
+			Collection: "archivedJobs",
+			Name:       "aj_linkedJobs_corporation_id_1",
+			Keys:       []IndexKey{{Field: "build.costs.linkedJobs.corporation_id", Order: 1}},
+		},
+		{
+			Collection: "archivedJobs",
+			Name:       "aj_protected_spec_1",
+			Keys:       []IndexKey{{Field: "protected.spec", Order: 1}},
+		},
+		{
+			Collection: "user_archived_job_stats",
+			Name:       "uajs_accountID_typeID_isProductionChain_revoked_1",
+			Keys: []IndexKey{
+				{Field: "accountID", Order: 1},
+				{Field: "typeID", Order: 1},
+				{Field: "isProductionChain", Order: 1},
+				{Field: "revoked", Order: 1},
+			},
+		},
+		{
+			Collection: "user_archived_job_stats",
+			Name:       "uajs_accountID_archivedAt_revoked_1",
+			Keys: []IndexKey{
+				{Field: "accountID", Order: 1},
+				{Field: "archivedAt", Order: 1},
+				{Field: "revoked", Order: 1},
+			},
+		},
+		{
+			Collection: "user_rollup_buckets",
+			Name:       "urb_accountID_year_month_typeID_1",
+			Keys: []IndexKey{
+				{Field: "accountID", Order: 1},
+				{Field: "year", Order: 1},
+				{Field: "month", Order: 1},
+				{Field: "typeID", Order: 1},
 			},
 		},
 	}

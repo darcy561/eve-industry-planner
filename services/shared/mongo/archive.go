@@ -24,25 +24,14 @@ func ArchivedJobAccountFilter(accountID string) bson.M {
 }
 
 // DistinctUnprocessedArchivedAccountIDs returns distinct account IDs with unprocessed archived jobs.
-func (m *Mongo) DistinctUnprocessedArchivedAccountIDs(ctx context.Context) ([]string, error) {
+func (m *Mongo) DistinctUnprocessedArchivedAccountIDs(ctx context.Context, opts ...RetryOption) ([]string, error) {
 	if m == nil || m.ArchivedJobs == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
-	coll := m.ArchivedJobs.Collection()
-	if coll == nil {
-		return nil, fmt.Errorf("mongo handle is required")
-	}
-	var raw []any
-	if err := coll.Distinct(ctx, "_meta.accountID", UnprocessedArchivedJobFilter()).Decode(&raw); err != nil {
-		return nil, err
-	}
-	out := make([]string, 0, len(raw))
-	for _, v := range raw {
-		id, ok := v.(string)
-		if !ok || id == "" {
-			continue
-		}
-		out = append(out, id)
-	}
-	return out, nil
+	return m.ArchivedJobs.DistinctStrings(
+		ctx,
+		"_meta.accountID",
+		UnprocessedArchivedJobFilter(),
+		append([]RetryOption{WithOpName("DistinctUnprocessedArchivedAccountIDs")}, opts...)...,
+	)
 }

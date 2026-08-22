@@ -107,14 +107,13 @@ var envFields = []EnvField{
 	},
 
 	{
-		Key: "AUTHZ_HMAC_KEY", Section: "Encryption", Label: "Authz HMAC key",
-		Help: "HMAC secret for deterministic authz refs. Autogen on first create; locked once set (roll later).",
+		Key: "ENTITY_ID_KEY", Section: "Encryption", Label: "Entity id key",
+		Help: "Secret protecting character, corporation and alliance ids at rest. Autogen on " +
+			"first create, then permanent: stored ids are encrypted under it and are the key " +
+			"every document, lock and routing lane is matched on, so rolling it would orphan " +
+			"them. Keep it out of database backups — it is the only thing standing between a " +
+			"leaked database and readable ids.",
 		Type: FieldHMAC, Required: true, Default: "", Autogen: true, Locked: true,
-	},
-	{
-		Key: "AUTHZ_HMAC_KEY_VERSION", Section: "Encryption", Label: "Authz HMAC version",
-		Help: "Active authz ref version (default v1). Stamped into every derived ref, so changing it invalidates stored refs until they are recomputed.",
-		Type: FieldText, Required: true, Default: "v1", Hidden: true,
 	},
 	{
 		Key: "REFRESH_TOKEN_AES_KEY", Section: "Encryption", Label: "Refresh token AES key",

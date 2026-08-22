@@ -76,7 +76,7 @@ type TemplateJobNode struct {
 // GroupTemplatePayloadSource optional provenance.
 type GroupTemplatePayloadSource struct {
 	GroupID    string    `json:"groupID,omitempty" bson:"groupID,omitempty"`
-	CapturedAt time.Time `json:"capturedAt,omitempty" bson:"capturedAt,omitempty"`
+	CapturedAt time.Time `json:"capturedAt" bson:"capturedAt,omitempty"`
 }
 
 // GroupTemplatePayload is one Mongo document per templateID (_id = templateID string).

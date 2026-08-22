@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"eve-industry-planner/shared/stackservices"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -24,6 +25,7 @@ import (
 	user "eve-industry-planner/api/v1endpoints/user"
 	"eve-industry-planner/api/v1endpoints/watchlist"
 	"eve-industry-planner/shared/core/config"
+	"eve-industry-planner/shared/crypto/entityid"
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/logs"
 
@@ -97,7 +99,14 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients) (lifecy
 		middleware.AuthConstructor(clients.Redis),
 	)
 
-	deps := apideps.FromClients(clients)
+	// Documents carrying entity ids convert them to refs on write, so a missing
+	// authz key must stop startup rather than surface as a failed save.
+	entityCipher, err := entityid.NewFromEnv()
+	if err != nil {
+		return nil, fmt.Errorf("load authz hmac key for entity refs: %w", err)
+	}
+
+	deps := apideps.FromClients(clients, entityCipher)
 	v1 := v1endpoints.New(deps)
 	ssoH := ssoendpoints.New(deps)
 	userH := user.New(deps)

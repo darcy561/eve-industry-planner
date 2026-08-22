@@ -25,7 +25,7 @@ type DocUpdate struct {
 
 	// Routing fields (ChangeStream-shaped). Account takes precedence over corp/alliance.
 	AccountID           string
-	CorporationID       string
+	CorporationRef      string
 	AllianceID          string
 	ScopeAccountIDs     []string
 	ScopeCorporationIDs []string

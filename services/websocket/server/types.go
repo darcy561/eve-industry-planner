@@ -11,12 +11,18 @@ import (
 	"eve-industry-planner/websocket/server/model"
 	syncpkg "eve-industry-planner/websocket/sync"
 
+	"eve-industry-planner/shared/crypto/entityid"
 	"github.com/alitto/pond/v2"
 	"github.com/gorilla/websocket"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
 type Server struct {
+	// entityCipher converts organisation ids a client asks for into the refs that
+	// session grants, realtime indexes and tenant keys are expressed in. It is the
+	// only place a raw id enters this service.
+	entityCipher *entityid.Cipher
+
 	// Client management
 	// Exported for use by sync package
 	Clients   map[string]*Client
@@ -49,11 +55,11 @@ type Server struct {
 	// Reverse indexes for corporation / alliance realtime pools (populated after upgrade_scopes).
 	// Also the corporation: / alliance: side of HostedTenants.
 	// Two mutexes reduce contention: corp broadcasts do not block alliance index updates and vice versa.
-	// When both locks are required, always take corpIndexMu before allianceIndexMu.
-	corpToClients     map[string]map[string]bool // corporation id -> client_id set
-	allianceToClients map[string]map[string]bool // alliance id -> client_id set
-	corpIndexMu       sync.RWMutex
-	allianceIndexMu   sync.RWMutex
+	// When both locks are required, always take corpRefIndexMu before allianceRefIndexMu.
+	corpRefToClients     map[string]map[string]bool // corporation id -> client_id set
+	allianceRefToClients map[string]map[string]bool // alliance id -> client_id set
+	corpRefIndexMu       sync.RWMutex
+	allianceRefIndexMu   sync.RWMutex
 
 	// JetStream doc.update fan-out: one FIFO per shard (see outbound_doc_update.go).
 	docUpdateOutboundShards []chan docUpdateWork
@@ -82,8 +88,8 @@ type Server struct {
 	shutdownChan    chan struct{}
 	stopConsumeOnce sync.Once   // closes shutdownChan (workers / coordinators)
 	shutdownOnce    sync.Once   // sync pool + durable delete (after stopConsume)
-	draining      atomic.Bool // SIGTERM roll / planned kick — Ready fails + refuse upgrades
-	plannedCordon atomic.Bool // planned evacuate soft-stop — refuse upgrades + placement draining; Ready stays OK
+	draining        atomic.Bool // SIGTERM roll / planned kick — Ready fails + refuse upgrades
+	plannedCordon   atomic.Bool // planned evacuate soft-stop — refuse upgrades + placement draining; Ready stays OK
 
 	// Placement state publish (NATS SubjectWSPlacementState); optional override for tests.
 	placementPublishFn func(subject string, data []byte) error
@@ -106,9 +112,9 @@ type Client struct {
 	SessionID string          // Session ID from validated app session
 	Scopes    model.RealtimeScopes
 
-	// grantedCorpIDs / grantedAllianceIDs are org id ceilings from the server session (never trust the browser alone).
-	grantedCorpIDs     map[string]struct{}
-	grantedAllianceIDs map[string]struct{}
+	// grantedCorpRefs / grantedAllianceRefs are org id ceilings from the server session (never trust the browser alone).
+	grantedCorpRefs     map[string]struct{}
+	grantedAllianceRefs map[string]struct{}
 
 	// Explicit collection-scoped doc subscriptions (subscribe / unsubscribe JSON). Account-scoped
 	// realtime does not require entries here.

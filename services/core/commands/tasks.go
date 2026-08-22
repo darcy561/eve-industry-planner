@@ -1,4 +1,4 @@
-﻿package commands
+package commands
 
 import (
 	"context"
@@ -163,6 +163,8 @@ func Handle(ctx context.Context, args []string) (bool, error) {
 		return true, runFanOutArchivedBuildStats(ctx)
 	case "rotateRefreshTokenKeys":
 		return true, runRotateRefreshTokenKeys(ctx, args[2:])
+	case "encodeJobIdentity":
+		return true, runEncodeJobIdentity(ctx, args[2:])
 	case "migrateEncryptedCloudRefreshTokens":
 		return true, runEncryptCloudRefreshTokensMigration(ctx, args[2:])
 	case "migrateUserCloudAccountsToUserDoc":
