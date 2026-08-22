@@ -285,9 +285,61 @@ partial filters use applies here, and index specs must move in the same change a
 
 ### Stage E — Frontend
 
-Dashboard overview, archive-dialogue breakdown, and the React Query hooks and endpoint modules that
-feed them. Mostly carried from the branch; applies cleanly against today's components apart from
-`ThemeContext.jsx`, which drifted and needs a hand-merge.
+Move the SPA onto the Stage D endpoints, add the views that need the new data, and retire the
+build-stats read once nothing calls it.
+
+#### What reads statistics today
+
+| Site | Reads | Becomes |
+|------|-------|---------|
+| `Functions/Endpoints/Pirivate/buildStats.js` | `GET /statistics/build-stats?typeID=` | the `totals` read, plus new modules for the timeline views |
+| `Hooks/React Query/Backend/buildStats.js` | query key `["backend","buildStats",id]`, invalidation helpers | one module per view, keys named for the view |
+| `Components/Dialogues/Blueprint Archive/hasMeaningfulBuildStats.js` | `dataSnapshots.length > 0` | unchanged in meaning; the field still ships |
+| `.../Archive Jobs Panel/archiveJobsPanel.jsx` | `archiveData?.dataSnapshots` | unchanged, or the per-job view when one exists |
+| `.../Button Panel/archiveJobButton.jsx`, `Groups/Side Menu/Buttons/buttonFunctions.jsx` | invalidate after archiving | invalidate every statistics key, not just build-stats |
+
+#### Order
+
+1. **Repoint the existing read.** `totals` serves the same documents as `build-stats`, so this is a
+   path change in one module. Nothing else in the SPA moves and `dataSnapshots` still arrives.
+2. **Add the timeline reads** — a module and hook per view, `timeline` and `timeline/items`.
+3. **Build the views** the new data exists for: the dashboard month-on-month comparison and the
+   per-item breakdown.
+4. **Retire `build-stats`** once step 1 leaves it with no caller. The endpoint is deleted rather
+   than renamed — `totals` already serves it — along with `getBuildStats.go` and its router case.
+
+Steps 1 and 4 are the wire change; 2 and 3 are additive and can land separately.
+
+#### Things the endpoints require of the client
+
+**The default window is two months and the response says so.** `period.defaulted` distinguishes a
+server-chosen window from a narrow explicit one, and each month carries `complete`. The current
+month is a month-to-date figure, so the comparison view must label it rather than showing an
+unmarked decline against a finished month.
+
+**Ranges are rejected, not repaired.** A half-given or over-long range returns 400 with a specific
+code (`statistics_incomplete_range`, `statistics_range_too_long`, …). The client should not retry
+these — the existing retry policy already covers only 408/429/5xx, so this needs no change, but a
+view that builds ranges must send both bounds or neither.
+
+**The item breakdown is paged and ranked server-side.** `paging.totalItems` is every item type in
+the window, not the page length. Sorting is a request parameter, not a client-side array sort, and
+`sort` must be one of the measures the API advertises.
+
+#### Invalidation
+
+Archiving a job queues a rebuild that recomputes all three collections, so a write invalidates every
+statistics view rather than one type's build stats. The existing `invalidateAllBuildStatsQueries`
+becomes an invalidate across the statistics key root; missing this leaves a stale dashboard after an
+archive, which is the failure most likely to be read as a backend bug.
+
+#### Carried from the branch
+
+`feature/archived-jobs-redesign` holds the dashboard and archive-dialogue components this stage
+needs. They are a design reference, not a merge: they were written against the branch's own response
+shapes, which Stage D did not adopt — it split the single rollup response into `timeline`,
+`timeline/items` and `totals`. Read them for layout and wiring, and expect the data access to be
+rewritten.
 
 ## Go modernization in scope
 
@@ -306,7 +358,7 @@ in-scope package needs modernization before the work starts.
 | B — account statistics pipeline | **Complete** — transformation, worker rebuild, queue drain, its task and asynq handler, the hourly schedule, and the archived-jobs producer are all landed. Queue → publish → drain runs end to end, and the claim protocol, revoke, prune and write-then-remove ordering are pinned by passing live tests. The worker's end-to-end composition of those helpers has no live test yet (see Open questions) |
 | C — corporation statistics pipeline | **Deferred** at Stage B close — blocked on a producer for `_meta.corporationRef`, not on effort. See § Stage C is deferred |
 | D — statistics API | **Complete for the account scope** — timeline, timeline/items and totals land under `/api/v1/statistics/account/`, with the indexes their filters need. The old build-stats producer is retired and its documents are rebuilt by the statistics pipeline. Corporation views wait for Stage C |
-| E — frontend | Not started |
+| E — frontend | Not started — scoped, see § Stage E. The backend it depends on is complete for the account scope |
 
 ## Done when
 
