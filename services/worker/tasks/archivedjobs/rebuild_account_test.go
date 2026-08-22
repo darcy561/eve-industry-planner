@@ -7,6 +7,7 @@ import (
 
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	esitasks "eve-industry-planner/worker/tasks/esi"
 )
 
 func TestRebuildAccountStatisticsRequiresHandleAndAccount(t *testing.T) {
@@ -89,5 +90,18 @@ func TestNoJobsKeepsNothing(t *testing.T) {
 	rows, keepIDs, skipped := buildAccountRows(nil, time.Now().UTC())
 	if len(rows) != 0 || len(keepIDs) != 0 || skipped != 0 {
 		t.Fatalf("rows=%d keep=%d skipped=%d, want all zero", len(rows), len(keepIDs), skipped)
+	}
+}
+
+// The task carries no payload, so a nil task is valid input — the queue names
+// the work. Missing dependencies are not.
+func TestDrainAccountStatsRebuildQueueTaskRequiresDependencies(t *testing.T) {
+	t.Parallel()
+
+	if err := DrainAccountStatsRebuildQueue(t.Context(), nil, nil); err == nil {
+		t.Fatal("expected an error without task dependencies")
+	}
+	if err := DrainAccountStatsRebuildQueue(t.Context(), nil, &esitasks.TaskDependencies{}); err == nil {
+		t.Fatal("expected an error without a mongo client")
 	}
 }

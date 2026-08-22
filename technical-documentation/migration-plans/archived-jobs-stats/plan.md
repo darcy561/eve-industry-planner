@@ -104,7 +104,7 @@ in-scope package needs modernization before the work starts.
 |-------|--------|
 | Phase 1 — project docs | Complete |
 | A — data model and Mongo layer | Complete for the account scope — entity refs on job documents, statistics models, Mongo layer and index specs landed. Corp scope held for C; partial indexes land with D |
-| B — account statistics pipeline | **Written, not committed** — transformation, worker rebuild, queue drain and the archived-jobs producer are in the working tree. The drain has no schedule, so nothing consumes the queue yet |
+| B — account statistics pipeline | **Complete** — transformation, worker rebuild, queue drain, its task and asynq handler, the hourly schedule, and the archived-jobs producer are all landed. Queue → publish → drain runs end to end, and the claim protocol, revoke, prune and write-then-remove ordering are pinned by passing live tests. The worker's end-to-end composition of those helpers has no live test yet (see Open questions) |
 | C — corporation statistics pipeline | Not started, may be deferred |
 | D — statistics API | Not started |
 | E — frontend | Not started |
@@ -119,45 +119,71 @@ in-scope package needs modernization before the work starts.
 
 ## Handoff status
 
-**The Stage B work is uncommitted.** It exists only in the working tree of the machine it was
-written on. To pick it up anywhere else it has to be committed and pushed first — nothing below is
-reachable from a clone until that happens.
+**Stage B is committed on `feature/archived-jobs-stats`**, apart from the schedule. The
+transformation, the worker rebuild, the drain, its task and asynq handler, and the archived-jobs
+producer are all reachable from a clone.
 
-Uncommitted paths:
+`services` builds, vets and tests clean, and `go fix -diff` reports nothing on any package this
+stage touched. The one outstanding `go fix` suggestion in scope is `shared/tasks/queue_scale.go`
+(a `maps` import), which predates this work and sits outside its touch surface — it was left rather
+than swept in.
 
-```
- M services/api/v1endpoints/archivedjobs/putHandler.go   queue the account after a write
- M services/shared/models/job.go                         JobMetaData.RetainedStockBuild
- M services/shared/mongo/build_stats.go                  load / revoke / prune helpers
-?? services/shared/archivestats/                         the pure transformation + tests
-?? services/worker/tasks/archivedjobs/rebuild_account.go
-?? services/worker/tasks/archivedjobs/drain_rebuild_queue.go
-?? services/worker/tasks/archivedjobs/rebuild_account_test.go
-```
+**Stage B is closed.** The account pipeline runs end to end: `PUT /archived-jobs` queues an account,
+`ScheduleDrainAccountStatsRebuildQueue` publishes hourly at minute 30, the worker drains, and the
+claim protocol decides what stays queued. Behaviour → [overlay.md](./overlay.md) § Stage B.
 
-`services` and `deployment-tool` both build, vet and test clean with these applied, and
-`go fix -diff` is empty on every package they touch.
+**Start here:** two things, in either order.
 
-**Start here:** finish Stage B by wiring the drain — a `Task` entry in `shared/tasks/types.go`, a
-scheduler registration in `core/scheduler/archivedjobs/` modelled on
-`ScheduleProcessArchivedBuildStats`, a worker handler routing that subject to
-`DrainAccountRebuildQueue`, and a cadence. Behaviour → [overlay.md](./overlay.md) § Stage B.
+1. **Decide Stage C.** The plan defers the corporation pipeline to a call at Stage B close, which is
+   now. Deferring it keeps `corp_archivedJobs`, the corp rebuild queue and the corp `_id` builders
+   out of `shared/mongo` — they are held back deliberately because nothing populates a `corpRef`
+   today. Committing to it means landing those together, per Stage A's still-open half.
+2. **Watch the first live drains.** Revoke, prune and write-then-remove ordering now have live
+   coverage and pass, so the individual Mongo helpers are no longer taken on trust. What the cron
+   still exercises untested is the worker's composition of them end to end — see Open question 1.
+
+Stage D depends on the Stage A models, not on C, so it can start regardless.
 
 ### Open questions
 
-1. **Live coverage.** The Mongo-facing rebuild behaviour — revoke on removal, bucket pruning,
-   write-then-remove ordering — has only nil-handle and argument tests. It needs a live test in the
-   `EIP_MONGO_PARITY_LIVE` style before running against real data. The rebuild-queue live test in
-   `shared/mongo/live_rebuild_queue_test.go` is written but **has never been executed**: Mongo sits
-   on the Swarm overlay and was not reachable from the machine it was written on.
+1. **Live coverage.** Narrowed to one gap; the Mongo helpers themselves are covered.
+
+   **Confirmed against stack Mongo**, all passing:
+
+   | Test | Pins |
+   |------|------|
+   | `live_rebuild_queue_test.go` | The claim protocol — `queuedAt` survives a re-queue while `claim` increments, a stale claim clears nothing, the current claim clears the account |
+   | `live_account_rebuild_test.go` § revokeAndPrune | Keep-list rows survive, absent ones are revoked not deleted, produced months stay and empty ones are pruned |
+   | `live_account_rebuild_test.go` § emptyKeepListClearsTheAccount | An empty keep-list drops the `$nin` and empties the account, rather than leaving it untouched |
+   | `live_account_rebuild_test.go` § writesBeforeRemoving | Both outgoing and incoming rows are readable between the write and removal halves, so a mid-rebuild reader sees no gap |
+
+   **Still open:** no live test drives `RebuildAccountStatistics` end to end over seeded archived
+   jobs. The helpers are pinned individually, but the worker's own composition of them — load,
+   build rows, upsert, revoke, prune — is exercised only by the hourly cron against real data.
+   Closing this needs full `models.Job` fixtures, which is why it was not done with the rest.
+
+   **The revoke idempotency assertion is deliberately awkward.** It passes a *later* timestamp on
+   the second pass, because `$set` writes `revokedAt` as well as `revoked`: with the same
+   timestamp, re-matching an already-revoked row changes nothing, Mongo reports no modification,
+   and the assertion holds even with the `revoked: {$ne: true}` guard deleted. That weaker version
+   was written first and confirmed worthless by deleting the guard and watching the test still
+   pass. Do not simplify it back.
+
+   **Running a live test needs a container on the overlay.** Mongo publishes no host port and the
+   app credentials are Swarm secrets, so `go test` from a host shell cannot reach it. Cross-compile
+   the package (`GOOS=linux go test -c ./shared/mongo/`), build it into a scratch image, and run it
+   as a one-off service on `eip-core` with `MONGO_USERNAME` / `MONGO_PASSWORD` mounted from the
+   stack secrets and `MONGO_HOST=mongo`, `MONGO_PORT=27017`, `EIP_MONGO_PARITY_LIVE=1` in the
+   environment. Publishing 27017 to the host in dev would make this ordinary; that is a stack
+   decision, not one this project should take unilaterally.
 2. **Unarchiving.** `feature/archived-jobs-redesign` had a separate `removal.go` path rather than
    relying on a wholesale rebuild to notice a job had gone. Revoke-on-rebuild covers it, but only
    when something queues the account — decide whether unarchive needs its own producer.
 3. **Keep-list size.** Revoke and prune pass every surviving id in a `$nin`. Fine at hundreds; an
    account with tens of thousands of archived jobs would want a generation counter on the rows
    instead.
-4. **Producer without consumer.** Merging as-is fills the queue with nothing draining it. Harmless
-   and self-correcting, but a choice rather than an accident.
+4. ~~**Producer without consumer.**~~ Closed: the hourly drain schedule landed, so the queue has a
+   consumer and the first pass picks up whatever accumulated.
 
 ### Decisions already made, so they are not re-litigated
 
@@ -166,6 +192,15 @@ scheduler registration in `core/scheduler/archivedjobs/` modelled on
   depends on.
 - Entity ids reach `archivestats` as **refs**, never raw. Corporation inference works on refs
   because raw ids do not survive a write.
+- The drain cron runs **hourly at minute 30**, offset from the build stats fan-out on minute 0
+  because both read archived-jobs data and contending every hour buys nothing. It publishes
+  **unconditionally** rather than reading the queue first: that read would duplicate the worker's
+  own and give the scheduler a Mongo dependency to fail on, to save one message an hour.
+- The drain is **one task over the whole queue**, not one task per account, even though the
+  neighbouring `ProcessArchivedBuildStats` fans out per account. The claim protocol that keeps a
+  mid-rebuild re-queue from being cleared lives in the drain; per-account fan-out would move that
+  logic into a path the queue's semantics are not tested against, to buy parallelism a queue of this
+  size does not need. Revisit if a pass approaches its 15 minute timeout.
 - The B1 / B2 / B3 split is conversational shorthand, not a documented structure: B1 pure
   transformation, B2 worker tasks, B3 scheduling and producers. This plan defines Stage B as one
   stage.
