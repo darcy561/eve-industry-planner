@@ -37,6 +37,10 @@ type Engine struct {
 	ServiceUpdateStatus int
 	// ServiceUpdateBody overrides the JSON response (empty → {}).
 	ServiceUpdateBody string
+
+	// ContainerList is the GET /containers/json queue: each call pops the
+	// next entry, and the last entry repeats once drained. Empty → [].
+	ContainerList []Response
 }
 
 // ServiceUpdateCall is one captured ServiceUpdate request.
@@ -59,7 +63,7 @@ func New(t testing.TB) *Engine {
 		t:              t,
 		ServiceInspect: map[string]Response{},
 	}
-	e.srv = httptest.NewServer(http.HandlerFunc(e.serve))
+	e.srv = httptest.NewTestServer(t, http.HandlerFunc(e.serve))
 	t.Cleanup(e.srv.Close)
 	return e
 }
@@ -67,8 +71,10 @@ func New(t testing.TB) *Engine {
 // APIClient returns a Moby client aimed at this Engine (fixed API version, no host resolve).
 func (e *Engine) APIClient() *client.Client {
 	e.t.Helper()
+	// NewTestServer is in-memory: no URL/listener. Give the client a
+	// placeholder host and route every request through the server's client.
 	apiClient, err := client.New(
-		client.WithHost(e.srv.URL),
+		client.WithHost("http://enginetest.invalid"),
 		client.WithAPIVersion(client.MaxAPIVersion),
 		client.WithHTTPClient(e.srv.Client()),
 	)
@@ -120,6 +126,34 @@ func (e *Engine) SetServiceOK(name string, svc swarm.Service) {
 	if svc.ID != name {
 		e.SetServiceInspect(svc.ID, http.StatusOK, string(body))
 	}
+}
+
+// SetContainerList makes every GET /containers/json return these containers.
+func (e *Engine) SetContainerList(names ...string) {
+	e.t.Helper()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.ContainerList = []Response{{Status: http.StatusOK, Body: containersJSON(names)}}
+}
+
+// QueueContainerList appends one GET /containers/json result. Queued entries
+// are returned in order so a poll loop can observe the set changing; the final
+// entry repeats once the queue is drained.
+func (e *Engine) QueueContainerList(names ...string) {
+	e.t.Helper()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.ContainerList = append(e.ContainerList, Response{Status: http.StatusOK, Body: containersJSON(names)})
+}
+
+// containersJSON renders a minimal /containers/json body, one entry per name.
+func containersJSON(names []string) string {
+	items := make([]map[string]any, 0, len(names))
+	for _, n := range names {
+		items = append(items, map[string]any{"Id": n + "-id", "Names": []string{"/" + n}})
+	}
+	b, _ := json.Marshal(items)
+	return string(b)
 }
 
 // LastServiceUpdate returns the most recent update call, or ok=false.
@@ -175,6 +209,30 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		if body == "" {
 			body = `{}`
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = io.WriteString(w, body)
+		return
+	case r.Method == http.MethodGet && path == "/containers/json":
+		e.mu.Lock()
+		var resp Response
+		switch len(e.ContainerList) {
+		case 0:
+			resp = Response{Status: http.StatusOK, Body: "[]"}
+		case 1:
+			resp = e.ContainerList[0] // last entry repeats
+		default:
+			resp, e.ContainerList = e.ContainerList[0], e.ContainerList[1:]
+		}
+		e.mu.Unlock()
+		status := resp.Status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		body := resp.Body
+		if body == "" {
+			body = "[]"
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)

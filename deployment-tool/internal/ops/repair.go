@@ -189,11 +189,17 @@ func serviceHealthBad(info docker.ServiceInfo) bool {
 // task, or until ensureTaskWait elapses (then RunEnsuresFor may still skip).
 // Shorts are polled together so wall time ≈ max readiness, not the sum.
 func waitForEnsureTasks(ctx context.Context, stackName string, shorts []string) error {
+	return waitForEnsureTasksIn(ctx, stackName, shorts, dataplane.ServiceEnsures(), ensureTaskWait)
+}
+
+// waitForEnsureTasksIn is waitForEnsureTasks over an explicit registry and
+// budget, so tests can supply their own ensures.
+func waitForEnsureTasksIn(ctx context.Context, stackName string, shorts []string, registry []dataplane.ServiceEnsure, budget time.Duration) error {
 	if len(shorts) == 0 {
 		return nil
 	}
 	byShort := make(map[string]dataplane.ServiceEnsure, len(shorts))
-	for _, e := range dataplane.ServiceEnsures() {
+	for _, e := range registry {
 		byShort[e.Short] = e
 	}
 	pending := make([]dataplane.ServiceEnsure, 0, len(shorts))
@@ -206,7 +212,7 @@ func waitForEnsureTasks(ctx context.Context, stackName string, shorts []string) 
 		return nil
 	}
 
-	deadline := time.Now().Add(ensureTaskWait)
+	deadline := time.Now().Add(budget)
 	announced := map[string]bool{}
 	for len(pending) > 0 {
 		next := pending[:0]
