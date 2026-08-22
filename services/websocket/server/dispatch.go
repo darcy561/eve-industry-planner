@@ -96,9 +96,10 @@ func (s *Server) deliverOutboundDocUpdate(ctx context.Context, collectionScopedD
 		return outboundDeliveryOutcome{RouteKind: "invalid"}
 	}
 
-	// Routing metadata names internal identities; strip it once here rather than
-	// per recipient, so no ref reaches a browser.
-	clientData := outgoinglogic.ClientPayload(messageData)
+	// Routing metadata names internal identities and the document body carries
+	// refs; rewrite once here rather than per recipient, after routing has been
+	// decided from the untouched message, so no ref reaches a browser.
+	clientData := outgoinglogic.ClientPayload(messageData, s.entityCipher)
 
 	if decoded.Route.AccountID != "" {
 		return s.broadcastToAccountClients(ctx, collectionScopedDocID, clientData, decoded.Route)
