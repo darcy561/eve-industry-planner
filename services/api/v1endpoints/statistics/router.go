@@ -6,7 +6,7 @@ import (
 	"eve-industry-planner/api/helper"
 )
 
-// Router routes /api/v1/statistics/* (private mux: rate limit + JWT).
+// Router routes /api/v1/statistics/* (private mux: rate limit + session auth).
 func (h *Handlers) Router(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	switch {

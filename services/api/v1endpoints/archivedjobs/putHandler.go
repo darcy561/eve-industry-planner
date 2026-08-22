@@ -28,7 +28,7 @@ import (
 //
 // Before this handler:
 //   - 429 — rate limiter (private rate); safe to retry with backoff
-//   - 401 — auth middleware: missing/invalid Bearer JWT (do not retry until token refresh)
+//   - 401 — auth middleware: missing/invalid session (do not retry until the session is refreshed)
 //
 // Router (archivedjobs.Router):
 //   - 405 — method other than PUT
@@ -37,11 +37,11 @@ import (
 // This handler:
 //   - 400 — malformed JSON, empty batch, batch >100, empty jobID, duplicate jobIDs
 //   - 401 — should not occur if auth middleware passed (ExtractAccountID failure)
-//   - 403 — job has non-empty _meta.accountID ≠ JWT account_id (do not retry)
+//   - 403 — job has non-empty _meta.accountID ≠ the authenticated account (do not retry)
 //   - 500 — Mongo bulk write failure (retry)
 //   - 204 — success
 //
-// For each job, _meta.archivedBy is set to the JWT account_id (who submitted the request), in addition
+// For each job, _meta.archivedBy is set to the authenticated account (who submitted the request), in addition
 // to _meta.archivedAt, accountID, lastModified, and lastUpdatedBy.
 func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request) {
 	obsCtx := r.Context()
