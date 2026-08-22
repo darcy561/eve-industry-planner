@@ -17,6 +17,9 @@ type SalesMeasures struct {
 }
 
 // Plus returns m with src added, merging extra-category totals by category id.
+//
+// The returned value never shares a map with either operand, so an accumulator
+// built by folding can be mutated without reaching back into what it summed.
 func (m SalesMeasures) Plus(src SalesMeasures) SalesMeasures {
 	m.TransactionCount += src.TransactionCount
 	m.QuantitySold += src.QuantitySold
@@ -26,7 +29,7 @@ func (m SalesMeasures) Plus(src SalesMeasures) SalesMeasures {
 	m.BrokersFeeTotal += src.BrokersFeeTotal
 	m.ProfitLoss += src.ProfitLoss
 
-	if len(src.ExtraCategoryTotals) > 0 {
+	if len(m.ExtraCategoryTotals) > 0 || len(src.ExtraCategoryTotals) > 0 {
 		merged := make(map[string]float64, len(m.ExtraCategoryTotals)+len(src.ExtraCategoryTotals))
 		maps.Copy(merged, m.ExtraCategoryTotals)
 		for category, value := range src.ExtraCategoryTotals {

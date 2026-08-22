@@ -228,3 +228,84 @@ func TestEmptyBuildStatsRowIsSerialisable(t *testing.T) {
 		t.Fatalf("dataSnapshots = %v, want an empty array", out["dataSnapshots"])
 	}
 }
+
+// Folding an empty month into an accumulator must not hand back the
+// accumulator's own map. A rollup that then writes to the result would
+// otherwise corrupt the value it summed from.
+func TestSalesMeasuresPlusNeverSharesAMap(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		src  SalesMeasures
+	}{
+		{"empty src", SalesMeasures{}},
+		{"nil src map", SalesMeasures{SalesTotal: 5}},
+		{"populated src", SalesMeasures{ExtraCategoryTotals: map[string]float64{"tax": 1}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			base := SalesMeasures{ExtraCategoryTotals: map[string]float64{"shipping": 10}}
+
+			got := base.Plus(tc.src)
+			got.ExtraCategoryTotals["shipping"] = 999
+			got.ExtraCategoryTotals["injected"] = 1
+
+			if base.ExtraCategoryTotals["shipping"] != 10 {
+				t.Fatalf("receiver shipping = %v, want 10 — the result aliased the receiver's map",
+					base.ExtraCategoryTotals["shipping"])
+			}
+			if _, leaked := base.ExtraCategoryTotals["injected"]; leaked {
+				t.Fatal("a key written to the result appeared on the receiver")
+			}
+			if len(base.ExtraCategoryTotals) != 1 {
+				t.Fatalf("receiver map has %d entries, want 1", len(base.ExtraCategoryTotals))
+			}
+		})
+	}
+}
+
+// The src operand must be left alone too.
+func TestSalesMeasuresPlusDoesNotMutateSrc(t *testing.T) {
+	t.Parallel()
+
+	base := SalesMeasures{}
+	src := SalesMeasures{ExtraCategoryTotals: map[string]float64{"tax": 5}}
+
+	got := base.Plus(src)
+	got.ExtraCategoryTotals["tax"] = 999
+
+	if src.ExtraCategoryTotals["tax"] != 5 {
+		t.Fatalf("src tax = %v, want 5 — the result aliased src's map", src.ExtraCategoryTotals["tax"])
+	}
+}
+
+// Folding a sequence must accumulate, which is the pattern the aliasing bug
+// silently broke.
+func TestSalesMeasuresPlusAccumulatesAcrossAFold(t *testing.T) {
+	t.Parallel()
+
+	months := []SalesMeasures{
+		{SalesTotal: 100, ExtraCategoryTotals: map[string]float64{"tax": 1}},
+		{SalesTotal: 50},
+		{SalesTotal: 25, ExtraCategoryTotals: map[string]float64{"tax": 2, "shipping": 3}},
+	}
+
+	var total SalesMeasures
+	for _, m := range months {
+		total = total.Plus(m)
+	}
+
+	if total.SalesTotal != 175 {
+		t.Fatalf("SalesTotal = %v, want 175", total.SalesTotal)
+	}
+	if total.ExtraCategoryTotals["tax"] != 3 {
+		t.Fatalf("tax = %v, want 3", total.ExtraCategoryTotals["tax"])
+	}
+	if total.ExtraCategoryTotals["shipping"] != 3 {
+		t.Fatalf("shipping = %v, want 3", total.ExtraCategoryTotals["shipping"])
+	}
+	// The month that started the fold must be untouched by later additions.
+	if months[0].ExtraCategoryTotals["tax"] != 1 || len(months[0].ExtraCategoryTotals) != 1 {
+		t.Fatalf("the first month was mutated by the fold: %v", months[0].ExtraCategoryTotals)
+	}
+}
