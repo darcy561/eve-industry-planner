@@ -43,7 +43,7 @@ any field whose only surviving copy of the id was the stored ref, conversion des
 permanently.
 
 The concrete failure: a converted linked job is serialised with neither `corporation_id`
-(zeroed) nor `corporation_ref` (`json:"-"`), the client echoes the document back without
+(zeroed) nor `corporationRef` (`json:"-"`), the client echoes the document back without
 either, and the next write persists the absence. Fields whose id the client holds from
 another source survive by re-derivation and mask the problem.
 
@@ -126,7 +126,8 @@ in § Wire and schema compatibility.
   reason the gap survived review: the limitation was documented rather than resolved.
 
 Field naming did **not** change. A ref is named for what it is — a reference to an entity —
-not for the primitive behind it, so `CorporationRef` / `corporation_ref` are unchanged.
+not for the primitive behind it, so `CorporationRef` is unchanged. Stored refs are
+camelCase (`corporationRef`), matching the `_meta` block they sit alongside.
 
 **Open at promote:** [backend/api/auth/roadmap.md](../../backend/api/auth/roadmap.md) links to
 this project under its old folder name and names the old key. It is live SoT, so it is not edited

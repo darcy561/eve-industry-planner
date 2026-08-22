@@ -184,14 +184,22 @@ Refs must not reach a browser. Two paths carry them outward and are handled diff
   `corporationRef`, `allianceRef` and `scopes` — and `outgoinglogic.ClientPayload` strips it once
   per message before delivery, rather than per recipient.
 
-`ClientPayload` strips only top-level routing keys; it does not reach into the document body.
-Nothing populates the routing fields yet — the changestream reads them from
-`_meta.corporationRef`, `_meta.allianceRef` and `scopes` on the stored document, and no document
-carries them until corporation and alliance documents exist — so the strip is untested against
-real traffic and is flagged for recheck in
+`ClientPayload` strips the top-level routing keys and then walks the document body,
+replacing every ref with the id behind it. It runs on the copy handed to delivery, after
+routing has been decided from the untouched message, because delivery matches on refs — a
+conversion any earlier would produce a message that routes to nobody. A value that looks
+like a ref but does not decrypt is dropped rather than passed through.
+
+Stored refs are camelCase everywhere — document bodies and `_meta` alike — so one suffix
+rule covers them, and `models.MetaData` declares `CorporationRef` / `AllianceRef` rather
+than the changestream matching a bare string.
+
+Nothing populates the routing fields yet — no document carries `_meta.corporationRef` until
+corporation and alliance documents exist — so the routing strip is untested against real
+traffic and is flagged for recheck in
 [archived-jobs-stats/overlay.md](../archived-jobs-stats/overlay.md) § Recheck when corporation
-documents land. A job document published through this path still carries its stored refs in the
-body; restoring or removing them there is open.
+documents land. The body walk, by contrast, is exercised now: every job `doc.update` carries
+refs on the sale and linked-job lines.
 
 ## Login backfill
 

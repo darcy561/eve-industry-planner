@@ -48,7 +48,7 @@ The model convention makes the boundary visible in the type:
 | Field | Tags | Meaning |
 |-------|------|---------|
 | `CorporationID int` | `json:"corporation_id"` `bson:"-"` | client-facing only, never persisted |
-| `CorporationRef string` | `json:"-"` `bson:"corporation_ref"` | stored, never sent |
+| `CorporationRef string` | `json:"-"` `bson:"corporationRef"` | stored, never sent |
 
 `LinkedESIJob.CorporationID` is the one exception: it keeps `bson:"corporation_id,omitempty"`
 because the backfill selects on that field to find documents predating conversion. It is
@@ -89,7 +89,7 @@ then stops matching, so the backlog does drain; the 1,404 figure is how many hol
 convert, not how many the sweep visits.
 
 **Wire compatibility:** breaking for `linkedJobs[].corporation_id`, which becomes
-`corporation_ref`. Additive elsewhere. No ref has ever been written to the production
+`corporationRef`. Additive elsewhere. No ref has ever been written to the production
 database, so there is no stored ref to migrate.
 
 ### Statistics models

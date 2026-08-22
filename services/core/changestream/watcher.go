@@ -12,6 +12,7 @@ import (
 
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/wsplacement"
 
@@ -629,8 +630,8 @@ func extractOrgRoutingFromDocument(doc bson.M) (corpID, allianceRef string, scop
 		return "", "", nil
 	}
 	meta := subDocumentToMap(doc["_meta"])
-	corpID = docFieldString(doc, meta, "corporationRef")
-	allianceRef = docFieldString(doc, meta, "allianceRef")
+	corpID = docFieldString(doc, meta, models.MetaFieldCorporationRef)
+	allianceRef = docFieldString(doc, meta, models.MetaFieldAllianceRef)
 	if sp := scopesFromDocOrMeta(doc, meta); sp != nil && (len(sp.CorporationRefs) > 0 || len(sp.AccountIDs) > 0) {
 		scopes = sp
 	}
