@@ -104,7 +104,7 @@ in-scope package needs modernization before the work starts.
 |-------|--------|
 | Phase 1 — project docs | Complete |
 | A — data model and Mongo layer | Complete for the account scope — entity refs on job documents, statistics models, Mongo layer and index specs landed. Corp scope held for C; partial indexes land with D |
-| B — account statistics pipeline | Not started |
+| B — account statistics pipeline | **Written, not committed** — transformation, worker rebuild, queue drain and the archived-jobs producer are in the working tree. The drain has no schedule, so nothing consumes the queue yet |
 | C — corporation statistics pipeline | Not started, may be deferred |
 | D — statistics API | Not started |
 | E — frontend | Not started |
@@ -119,18 +119,56 @@ in-scope package needs modernization before the work starts.
 
 ## Handoff status
 
-**Start here:** Stage B — the worker pipeline that turns an account's archived jobs into
-`user_archived_job_stats` rows and `user_rollup_buckets`, filling and draining the rebuild queue.
+**The Stage B work is uncommitted.** It exists only in the working tree of the machine it was
+written on. To pick it up anywhere else it has to be committed and pushed first — nothing below is
+reachable from a clone until that happens.
 
-Stage A is closed for the account scope. Two things are held back with a reason recorded in
-[overlay.md](./overlay.md): everything corporation-scoped waits for Stage C (it needs `_meta.corpRef`
-and `corp_archivedJobs`, neither of which exists), and partial indexes wait for Stage D so their
-filters can mirror real query filters rather than guessed ones.
+Uncommitted paths:
 
-Entity ids on job documents are stored as refs, converted on write by both put paths, with
-`eip cli encodeJobIdentity` converting the 1,404-document backlog. Refs are owned by the
-[entity id encryption project](../entity-id-encryption/plan.md); this project consumes them. See
-[overlay.md](./overlay.md) § Entity refs on job documents.
+```
+ M services/api/v1endpoints/archivedjobs/putHandler.go   queue the account after a write
+ M services/shared/models/job.go                         JobMetaData.RetainedStockBuild
+ M services/shared/mongo/build_stats.go                  load / revoke / prune helpers
+?? services/shared/archivestats/                         the pure transformation + tests
+?? services/worker/tasks/archivedjobs/rebuild_account.go
+?? services/worker/tasks/archivedjobs/drain_rebuild_queue.go
+?? services/worker/tasks/archivedjobs/rebuild_account_test.go
+```
+
+`services` and `deployment-tool` both build, vet and test clean with these applied, and
+`go fix -diff` is empty on every package they touch.
+
+**Start here:** finish Stage B by wiring the drain — a `Task` entry in `shared/tasks/types.go`, a
+scheduler registration in `core/scheduler/archivedjobs/` modelled on
+`ScheduleProcessArchivedBuildStats`, a worker handler routing that subject to
+`DrainAccountRebuildQueue`, and a cadence. Behaviour → [overlay.md](./overlay.md) § Stage B.
+
+### Open questions
+
+1. **Live coverage.** The Mongo-facing rebuild behaviour — revoke on removal, bucket pruning,
+   write-then-remove ordering — has only nil-handle and argument tests. It needs a live test in the
+   `EIP_MONGO_PARITY_LIVE` style before running against real data. The rebuild-queue live test in
+   `shared/mongo/live_rebuild_queue_test.go` is written but **has never been executed**: Mongo sits
+   on the Swarm overlay and was not reachable from the machine it was written on.
+2. **Unarchiving.** `feature/archived-jobs-redesign` had a separate `removal.go` path rather than
+   relying on a wholesale rebuild to notice a job had gone. Revoke-on-rebuild covers it, but only
+   when something queues the account — decide whether unarchive needs its own producer.
+3. **Keep-list size.** Revoke and prune pass every surviving id in a `$nin`. Fine at hundreds; an
+   account with tens of thousands of archived jobs would want a generation counter on the rows
+   instead.
+4. **Producer without consumer.** Merging as-is fills the queue with nothing draining it. Harmless
+   and self-correcting, but a choice rather than an accident.
+
+### Decisions already made, so they are not re-litigated
+
+- Rebuilds are **wholesale per account**, not incremental. The queue stores `{accountID, claim}`
+  and cannot express which jobs changed, and wholesale is idempotent, which the claim protocol
+  depends on.
+- Entity ids reach `archivestats` as **refs**, never raw. Corporation inference works on refs
+  because raw ids do not survive a write.
+- The B1 / B2 / B3 split is conversational shorthand, not a documented structure: B1 pure
+  transformation, B2 worker tasks, B3 scheduling and producers. This plan defines Stage B as one
+  stage.
 
 **Recommended pickup order:** A → B → D → E, with C either after B or deferred. D depends on the
 Stage A models; E depends on D's response shapes.
