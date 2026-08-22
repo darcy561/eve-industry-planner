@@ -93,8 +93,8 @@ func TestClientPayloadRestoresIDsInTheDocumentBody(t *testing.T) {
 	    "jobID":"job-1",
 	    "_meta":{"accountID":"acct-1","corporationRef":"` + corpRef + `"},
 	    "build":{"costs":{"linkedJobs":[
-	      {"job_id":512345678,"corporationRef":"` + corpRef + `"},
-	      {"job_id":512345679,"characterRef":"` + charRef + `"}
+	      {"job_id":512345678,"corporation_ref":"` + corpRef + `"},
+	      {"job_id":512345679,"character_ref":"` + charRef + `"}
 	    ]}}
 	  }
 	}`)
@@ -120,15 +120,15 @@ func TestClientPayloadRestoresIDsInTheDocumentBody(t *testing.T) {
 
 	linked := doc["build"].(map[string]any)["costs"].(map[string]any)["linkedJobs"].([]any)
 	first := linked[0].(map[string]any)
-	if first["corporationID"] != float64(98765432) {
-		t.Fatalf("linkedJobs[0] corporationID = %v, want 98765432", first["corporationID"])
+	if first["corporation_id"] != float64(98765432) {
+		t.Fatalf("linkedJobs[0] corporation_id = %v, want 98765432", first["corporation_id"])
 	}
-	if _, still := first["corporationRef"]; still {
-		t.Fatal("linkedJobs[0] still carries corporationRef")
+	if _, still := first["corporation_ref"]; still {
+		t.Fatal("linkedJobs[0] still carries corporation_ref")
 	}
 	second := linked[1].(map[string]any)
-	if second["characterID"] != float64(91234567) {
-		t.Fatalf("linkedJobs[1] characterID = %v, want 91234567", second["characterID"])
+	if second["character_id"] != float64(91234567) {
+		t.Fatalf("linkedJobs[1] character_id = %v, want 91234567", second["character_id"])
 	}
 	// Non-identity fields are left exactly as they were.
 	if first["job_id"] != float64(512345678) {
@@ -151,7 +151,7 @@ func TestClientPayloadDropsRefsItCannotDecrypt(t *testing.T) {
 		t.Fatalf("Corporation: %v", err)
 	}
 
-	in := []byte(`{"collection":"c","document":{"corporationRef":"` + foreign + `"}}`)
+	in := []byte(`{"collection":"c","document":{"corporation_ref":"` + foreign + `"}}`)
 
 	got := ClientPayload(in, c)
 	if strings.Contains(string(got), foreign) {
@@ -163,7 +163,7 @@ func TestClientPayloadDropsRefsItCannotDecrypt(t *testing.T) {
 		t.Fatalf("client payload is not valid JSON: %v", err)
 	}
 	doc := m["document"].(map[string]any)
-	if _, present := doc["corporationID"]; present {
+	if _, present := doc["corporation_id"]; present {
 		t.Fatal("a ref that did not decrypt must not produce an id")
 	}
 }
@@ -178,7 +178,7 @@ func TestClientPayloadWithoutACipherStillRemovesRefs(t *testing.T) {
 		t.Fatalf("Corporation: %v", err)
 	}
 
-	in := []byte(`{"collection":"c","document":{"corporationRef":"` + ref + `"}}`)
+	in := []byte(`{"collection":"c","document":{"corporation_ref":"` + ref + `"}}`)
 	got := ClientPayload(in, nil)
 	if strings.Contains(string(got), ref) {
 		t.Fatalf("a ref survived without a cipher:\n%s", got)
@@ -201,30 +201,5 @@ func TestClientPayloadLeavesNonRefFieldsAlone(t *testing.T) {
 	}
 	if doc["some_ref"] != "not-a-ref" {
 		t.Fatalf("some_ref was rewritten: %v", doc["some_ref"])
-	}
-}
-
-// Refs are camelCase wherever they are stored, so a snake_case lookalike is an
-// ordinary field and must survive untouched.
-func TestClientPayloadIgnoresSnakeCaseLookalikes(t *testing.T) {
-	t.Parallel()
-	c := testCipher(t)
-	ref, err := c.Corporation(98765432)
-	if err != nil {
-		t.Fatalf("Corporation: %v", err)
-	}
-
-	in := []byte(`{"collection":"c","document":{"corporation_ref":"` + ref + `","journal_ref_id":77}}`)
-
-	var m map[string]any
-	if err := json.Unmarshal(ClientPayload(in, c), &m); err != nil {
-		t.Fatalf("client payload is not valid JSON: %v", err)
-	}
-	doc := m["document"].(map[string]any)
-	if doc["corporation_ref"] != ref {
-		t.Fatalf("corporation_ref was rewritten: %v", doc["corporation_ref"])
-	}
-	if doc["journal_ref_id"] != float64(77) {
-		t.Fatalf("journal_ref_id was rewritten: %v", doc["journal_ref_id"])
 	}
 }

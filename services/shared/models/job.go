@@ -295,9 +295,9 @@ type LinkedESIJob struct {
 	BlueprintID     int     `json:"blueprint_id" bson:"blueprint_id"`                         // Blueprint ID
 	IsCorporation   bool    `json:"is_corporation" bson:"is_corporation"`                     // Whether it's a corporation job
 	CorporationID   int     `json:"corporation_id,omitempty" bson:"corporation_id,omitempty"` // client-facing; converted to CorporationRef before write
-	CorporationRef  string  `json:"-" bson:"corporationRef,omitempty"`
+	CorporationRef  string  `json:"-" bson:"corporation_ref,omitempty"`
 	CharacterID     int     `json:"character_id,omitempty" bson:"-"` // client-facing only
-	CharacterRef    string  `json:"-" bson:"characterRef,omitempty"`
+	CharacterRef    string  `json:"-" bson:"character_ref,omitempty"`
 	JobType         int     `json:"job_type" bson:"job_type"` // Job type
 }
 
@@ -335,9 +335,9 @@ type MarketOrder struct {
 	TimeStamps     []string `json:"timeStamps" bson:"timeStamps"`                           // Array of timestamp history
 	CharacterHash  string   `json:"CharacterHash,omitempty" bson:"CharacterHash,omitempty"` // Character hash for identification
 	CorporationID  int      `json:"corporation_id,omitempty" bson:"-"`                      // client-facing only
-	CorporationRef string   `json:"-" bson:"corporationRef,omitempty"`
+	CorporationRef string   `json:"-" bson:"corporation_ref,omitempty"`
 	CharacterID    int      `json:"character_id,omitempty" bson:"-"` // client-facing only
-	CharacterRef   string   `json:"-" bson:"characterRef,omitempty"`
+	CharacterRef   string   `json:"-" bson:"character_ref,omitempty"`
 	Complete       bool     `json:"complete" bson:"complete"` // Whether order is complete
 	State          string   `json:"state" bson:"state"`       // Order state (active, etc.)
 }
@@ -359,9 +359,9 @@ type Transaction struct {
 	Description    string  `json:"description" bson:"description"`                         // Transaction description
 	CharacterHash  string  `json:"CharacterHash,omitempty" bson:"CharacterHash,omitempty"` // Character hash for identification
 	CorporationID  int     `json:"corporation_id,omitempty" bson:"-"`                      // client-facing only
-	CorporationRef string  `json:"-" bson:"corporationRef,omitempty"`
+	CorporationRef string  `json:"-" bson:"corporation_ref,omitempty"`
 	CharacterID    int     `json:"character_id,omitempty" bson:"-"` // client-facing only
-	CharacterRef   string  `json:"-" bson:"characterRef,omitempty"`
+	CharacterRef   string  `json:"-" bson:"character_ref,omitempty"`
 }
 
 // BrokerFee represents broker fees for market orders
@@ -374,9 +374,9 @@ type BrokerFee struct {
 	Amount         float64 `json:"amount" bson:"amount"`                                   // Fee amount
 	CharacterHash  string  `json:"CharacterHash,omitempty" bson:"CharacterHash,omitempty"` // Character hash for identification
 	CorporationID  int     `json:"corporation_id,omitempty" bson:"-"`                      // client-facing only
-	CorporationRef string  `json:"-" bson:"corporationRef,omitempty"`
+	CorporationRef string  `json:"-" bson:"corporation_ref,omitempty"`
 	CharacterID    int     `json:"character_id,omitempty" bson:"-"` // client-facing only
-	CharacterRef   string  `json:"-" bson:"characterRef,omitempty"`
+	CharacterRef   string  `json:"-" bson:"character_ref,omitempty"`
 }
 
 // JobMaterial represents a material required for the job

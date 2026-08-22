@@ -213,14 +213,20 @@ func ClientPayload(messageData []byte, cipher *entityid.Cipher) []byte {
 }
 
 // idKeyFor maps a ref-bearing key to the id key that replaces it, reporting
-// whether the key names a ref at all. Stored refs are camelCase throughout, in
-// document bodies and in _meta alike.
+// whether the key names a ref at all.
+//
+// Both spellings exist because a ref is spelled to match the id field it stands
+// in for, and those differ by area: job bodies mirror ESI (corporation_id), while
+// _meta is ours (accountID). The key produced here is what the client reads, so
+// it has to match the model's json tag, not the storage convention.
 func idKeyFor(key string) (string, bool) {
-	base, ok := strings.CutSuffix(key, "Ref")
-	if !ok || base == "" {
-		return "", false
+	if base, ok := strings.CutSuffix(key, "_ref"); ok && base != "" {
+		return base + "_id", true
 	}
-	return base + "ID", true
+	if base, ok := strings.CutSuffix(key, "Ref"); ok && base != "" {
+		return base + "ID", true
+	}
+	return "", false
 }
 
 // restoreEntityIDs walks a decoded message and replaces every ref with its id,

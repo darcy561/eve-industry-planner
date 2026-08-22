@@ -141,11 +141,11 @@ func TestPersistedShapeCarriesRefsNotIDs(t *testing.T) {
 	if strings.Contains(persisted, `"character_id"`) {
 		t.Fatalf("a raw character id reached the persisted document:\n%s", persisted)
 	}
-	if !strings.Contains(persisted, `"corporationRef"`) {
-		t.Fatalf("expected persisted corporationRef:\n%s", persisted)
+	if !strings.Contains(persisted, `"corporation_ref"`) {
+		t.Fatalf("expected persisted corporation_ref:\n%s", persisted)
 	}
-	if !strings.Contains(persisted, `"characterRef"`) {
-		t.Fatalf("expected persisted characterRef:\n%s", persisted)
+	if !strings.Contains(persisted, `"character_ref"`) {
+		t.Fatalf("expected persisted character_ref:\n%s", persisted)
 	}
 }
 
@@ -162,7 +162,7 @@ func TestClientShapeCarriesIDsNotRefs(t *testing.T) {
 	if !strings.Contains(served, `"corporation_id"`) {
 		t.Fatalf("expected the client shape to carry corporation_id:\n%s", served)
 	}
-	if strings.Contains(served, `"corporationRef"`) || strings.Contains(served, `"protected"`) {
+	if strings.Contains(served, `"corporation_ref"`) || strings.Contains(served, `"protected"`) {
 		t.Fatalf("a ref leaked to the client shape:\n%s", served)
 	}
 }
