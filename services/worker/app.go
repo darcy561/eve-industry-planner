@@ -16,6 +16,7 @@ import (
 	asynqpkg "eve-industry-planner/worker/asynq"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
+	"eve-industry-planner/shared/crypto/entityid"
 	"github.com/hibiken/asynq"
 )
 
@@ -90,10 +91,18 @@ func (a *app) prepare(ctx context.Context) error {
 	}
 	a.redisOpt = redisOpt
 	a.g.Add(lifecycle.FromStop("asynq-client", func() { asynqClient.Close() }))
+	// Tasks that persist documents convert entity ids to refs, so a missing authz
+	// key must stop the worker starting rather than fail individual tasks.
+	entityCipher, err := entityid.NewFromEnv()
+	if err != nil {
+		return a.fail(fmt.Errorf("load authz hmac key for entity refs: %w", err))
+	}
+
 	a.deps = &WorkerDependencies{
 		Clients:     a.clients,
 		ESIClient:   esiClient,
 		AsynqClient: asynqClient,
+		EntityCipher:  entityCipher,
 	}
 	return nil
 }

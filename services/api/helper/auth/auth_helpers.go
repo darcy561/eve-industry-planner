@@ -204,10 +204,12 @@ func ExtractSessionIDFromSession(ctx context.Context, r *http.Request, redisClie
 	return identity.SessionID, nil
 }
 
-func ExtractSessionGrants(ctx context.Context, r *http.Request, redisClient *redis.Client) ([]int64, []int64, error) {
+// ExtractSessionGrants returns the corporation and alliance refs a session may
+// see. Callers compare refs; to test membership for an id, derive its ref first.
+func ExtractSessionGrants(ctx context.Context, r *http.Request, redisClient *redis.Client) (corporationRefs, allianceRefs []string, err error) {
 	identity, err := ExtractAccountSession(ctx, r, redisClient)
 	if err != nil {
 		return nil, nil, err
 	}
-	return identity.Session.Grants.CorporationIDs, identity.Session.Grants.AllianceIDs, nil
+	return identity.Session.Grants.CorporationRefs, identity.Session.Grants.AllianceRefs, nil
 }

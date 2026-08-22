@@ -32,11 +32,11 @@ func outboundDocPartitionKey(collectionScopedDocID string, payload []byte) strin
 	if d.Route.AccountID != "" {
 		return "account:" + d.Route.AccountID
 	}
-	if d.Route.CorporationID != "" {
-		return "corporation:" + d.Route.CorporationID
+	if d.Route.CorporationRef != "" {
+		return "corporation:" + d.Route.CorporationRef
 	}
-	if d.Route.AllianceID != "" {
-		return "alliance:" + d.Route.AllianceID
+	if d.Route.AllianceRef != "" {
+		return "alliance:" + d.Route.AllianceRef
 	}
 	return "explicit:" + collectionScopedDocID
 }

@@ -12,11 +12,13 @@ import (
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 	archivedjobtasks "eve-industry-planner/worker/tasks/archivedjobs"
 	esitasks "eve-industry-planner/worker/tasks/esi"
+	jobidentitytasks "eve-industry-planner/worker/tasks/jobidentity"
 	maintenancetasks "eve-industry-planner/worker/tasks/maintenance"
 	migrationtasks "eve-industry-planner/worker/tasks/migration"
 	sderollbacktasks "eve-industry-planner/worker/tasks/sde/rollback"
 	sdetasks "eve-industry-planner/worker/tasks/sde/update"
 
+	"eve-industry-planner/shared/crypto/entityid"
 	"github.com/hibiken/asynq"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -28,6 +30,7 @@ import (
 type WorkerDependencies interface {
 	GetClients() *stackservices.Clients
 	GetESIClient() esiratelimiter.ClientInterface
+	GetEntityCipher() *entityid.Cipher
 }
 
 // SetupHandlers registers all task handlers (both ESI and regular) on the given mux
@@ -89,7 +92,7 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	})
 
 	// Create task dependencies once
-	taskDeps := esitasks.FromClients(deps.GetClients(), deps.GetESIClient())
+	taskDeps := esitasks.FromClients(deps.GetClients(), deps.GetESIClient(), deps.GetEntityCipher())
 
 	// Register task handlers
 	mux.HandleFunc("refreshSystemIndexes", func(ctx context.Context, t *asynq.Task) error {
@@ -149,6 +152,9 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	})
 	mux.HandleFunc("rotateRefreshTokenKeys", func(ctx context.Context, t *asynq.Task) error {
 		return maintenancetasks.RotateRefreshTokenKeys(ctx, t, taskDeps)
+	})
+	mux.HandleFunc("encodeJobIdentity", func(ctx context.Context, t *asynq.Task) error {
+		return jobidentitytasks.EncodeJobIdentity(ctx, t, taskDeps)
 	})
 	mux.HandleFunc("schemaVersionMaintenanceBatch", func(ctx context.Context, t *asynq.Task) error {
 		return maintenancetasks.SchemaVersionMaintenanceBatch(ctx, t, taskDeps)

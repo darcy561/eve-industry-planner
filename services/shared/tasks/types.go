@@ -124,6 +124,16 @@ var (
 		DefaultPriority: Priority5,
 		DefaultTimeout:  20 * time.Minute,
 	}
+
+	// EncodeJobIdentity converts the entity ids one account's job documents still
+	// hold in the clear into refs, and brings documents written under an older
+	// field set onto the current one.
+	EncodeJobIdentity = Task{
+		Name:            "encodeJobIdentity",
+		Subject:         "task.maintenance.encodeJobIdentity",
+		DefaultPriority: Priority5,
+		DefaultTimeout:  20 * time.Minute,
+	}
 	SchemaVersionMaintenanceBatch = Task{
 		Name:            "schemaVersionMaintenanceBatch",
 		Subject:         "task.maintenance.schemaVersionMaintenanceBatch",

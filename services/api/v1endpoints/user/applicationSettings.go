@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"eve-industry-planner/api/helper"
+	"eve-industry-planner/shared/documentschema"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/telemetry/apimetrics"
@@ -89,7 +90,7 @@ func (h *Handlers) handleSaveApplicationSettings(w http.ResponseWriter, r *http.
 		return
 	}
 
-	models.UpgradeApplicationSettings(&settingsDoc, accountID, time.Now().UTC())
+	documentschema.Upgrader{}.ApplicationSettings(&settingsDoc, accountID, time.Now().UTC())
 
 	if settingsDoc.MetaData.AccountID != "" && settingsDoc.MetaData.AccountID != accountID {
 		metrics.Error("account_id_mismatch")

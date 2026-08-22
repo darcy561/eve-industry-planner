@@ -15,8 +15,8 @@ func TestCleanupOrphanSessionIndexes(t *testing.T) {
 	if err := SaveAccountSessionsRecord(ctx, rdb, &AccountSessionsRecord{
 		AccountID: accountID,
 		Grants: SessionGrants{
-			CorporationIDs: []int64{},
-			AllianceIDs:    []int64{},
+			CorporationRefs: []string{},
+			AllianceRefs:    []string{},
 		},
 		Sessions: map[string]AccountSession{},
 	}); err != nil {

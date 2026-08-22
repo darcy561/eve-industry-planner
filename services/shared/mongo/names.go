@@ -17,4 +17,8 @@ const (
 	CollectionApplicationSettings       = "application_settings"
 	CollectionBlueprints                = "blueprints"
 	CollectionCitadelNames              = "citadel_names"
+
+	CollectionArchivedJobStats    = "user_archived_job_stats"
+	CollectionUserRollupBuckets   = "user_rollup_buckets"
+	CollectionAccountRebuildQueue = "stats_rebuild_queue_accounts"
 )

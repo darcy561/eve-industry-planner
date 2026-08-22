@@ -184,19 +184,19 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	connCtx := context.WithoutCancel(r.Context())
 	connCtx = logs.BindRequestIdentity(connCtx, identity.AccountID, identity.SessionID)
 	client := &Client{
-		id:                 clientID,
-		conn:               conn,
-		connCtx:            connCtx,
-		Send:               make(chan []byte, 256),
-		explicitDocIDs:     make(map[string]bool),
-		AccountID:          identity.AccountID,
-		SessionID:          identity.SessionID,
-		Scopes:             model.RealtimeScopes{},
-		grantedCorpIDs:     stringSetFromSlice(int64SliceToStringIDs(identity.Session.Grants.CorporationIDs)),
-		grantedAllianceIDs: stringSetFromSlice(int64SliceToStringIDs(identity.Session.Grants.AllianceIDs)),
-		lastReset:          now,
-		connectedAt:        now,
-		lastActivity:       now,
+		id:                  clientID,
+		conn:                conn,
+		connCtx:             connCtx,
+		Send:                make(chan []byte, 256),
+		explicitDocIDs:      make(map[string]bool),
+		AccountID:           identity.AccountID,
+		SessionID:           identity.SessionID,
+		Scopes:              model.RealtimeScopes{},
+		grantedCorpRefs:     stringSetFromSlice(identity.Session.Grants.CorporationRefs),
+		grantedAllianceRefs: stringSetFromSlice(identity.Session.Grants.AllianceRefs),
+		lastReset:           now,
+		connectedAt:         now,
+		lastActivity:        now,
 	}
 
 	s.ClientsMu.Lock()

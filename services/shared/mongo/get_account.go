@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"eve-industry-planner/shared/documentschema"
 	"eve-industry-planner/shared/models"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -27,7 +28,7 @@ func (m *Mongo) LoadUserAccount(ctx context.Context, accountID string) (models.U
 		return models.UserAccountDocument{}, err
 	}
 	beforeSchemaVersion := doc.SchemaVersion
-	models.UpgradeUserAccountDocument(&doc)
+	documentschema.Upgrader{}.UserAccountDocument(&doc)
 	if beforeSchemaVersion != doc.SchemaVersion {
 		if _, _, err := users.UpsertUserAccount(ctx, accountID, doc); err != nil {
 			return models.UserAccountDocument{}, fmt.Errorf("persist upgraded user document: %w", err)
@@ -53,7 +54,7 @@ func (m *Mongo) LoadApplicationSettings(ctx context.Context, accountID string, n
 		return models.ApplicationSettings{}, err
 	}
 	beforeSchemaVersion := doc.SchemaVersion
-	models.UpgradeApplicationSettings(&doc, accountID, now)
+	documentschema.Upgrader{}.ApplicationSettings(&doc, accountID, now)
 	if beforeSchemaVersion != doc.SchemaVersion {
 		if _, _, err := settings.UpsertApplicationSettings(ctx, accountID, doc); err != nil {
 			return models.ApplicationSettings{}, fmt.Errorf("persist upgraded application settings: %w", err)

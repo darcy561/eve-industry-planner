@@ -15,18 +15,18 @@ import (
 const redisHandoffKeyPrefix = "ws:session_handoff:v1"
 
 type sessionHandoffEntry struct {
-	AccountID      string
-	Docs           map[string]struct{}
-	CorporationIDs []string
-	AllianceIDs    []string
-	Expires        time.Time
+	AccountID       string
+	Docs            map[string]struct{}
+	CorporationRefs []string
+	AllianceRefs    []string
+	Expires         time.Time
 }
 
 type redisSessionHandoffPayload struct {
-	AccountID      string   `json:"account_id"`
-	Docs           []string `json:"docs"`
-	CorporationIDs []string `json:"corporation_ids,omitempty"`
-	AllianceIDs    []string `json:"alliance_ids,omitempty"`
+	AccountID       string   `json:"account_id"`
+	Docs            []string `json:"docs"`
+	CorporationRefs []string `json:"corporation_refs,omitempty"`
+	AllianceRefs    []string `json:"alliance_refs,omitempty"`
 }
 
 func sessionHandoffRedisKey(accountID, oldClientID string) string {
@@ -45,14 +45,14 @@ func (s *Server) snapshotSessionHandoff(ctx context.Context, client *Client) {
 			docList = append(docList, docID)
 		}
 	}
-	corpCopy := append([]string(nil), client.Scopes.CorporationIDs...)
-	allianceCopy := append([]string(nil), client.Scopes.AllianceIDs...)
+	corpCopy := append([]string(nil), client.Scopes.CorporationRefs...)
+	allianceCopy := append([]string(nil), client.Scopes.AllianceRefs...)
 	ent := &sessionHandoffEntry{
-		AccountID:      client.AccountID,
-		Docs:           docs,
-		CorporationIDs: corpCopy,
-		AllianceIDs:    allianceCopy,
-		Expires:        time.Now().Add(config.SessionHandoffTTL),
+		AccountID:       client.AccountID,
+		Docs:            docs,
+		CorporationRefs: corpCopy,
+		AllianceRefs:    allianceCopy,
+		Expires:         time.Now().Add(config.SessionHandoffTTL),
 	}
 	s.sessionHandoffsMu.Lock()
 	if s.sessionHandoffs == nil {
@@ -76,10 +76,10 @@ func (s *Server) storeRedisSessionHandoff(ctx context.Context, accountID, oldCli
 		return
 	}
 	payload := redisSessionHandoffPayload{
-		AccountID:      accountID,
-		Docs:           docList,
-		CorporationIDs: corpIDs,
-		AllianceIDs:    allianceIDs,
+		AccountID:       accountID,
+		Docs:            docList,
+		CorporationRefs: corpIDs,
+		AllianceRefs:    allianceIDs,
 	}
 	b, err := json.Marshal(payload)
 	if err != nil {
@@ -133,11 +133,11 @@ func (s *Server) popSessionHandoff(ctx context.Context, accountID, previousClien
 				delete(s.sessionHandoffs, previousClientID)
 				s.sessionHandoffsMu.Unlock()
 				return &sessionHandoffEntry{
-					AccountID:      accountID,
-					Docs:           docs,
-					CorporationIDs: append([]string(nil), payload.CorporationIDs...),
-					AllianceIDs:    append([]string(nil), payload.AllianceIDs...),
-					Expires:        time.Now().Add(config.SessionHandoffTTL),
+					AccountID:       accountID,
+					Docs:            docs,
+					CorporationRefs: append([]string(nil), payload.CorporationRefs...),
+					AllianceRefs:    append([]string(nil), payload.AllianceRefs...),
+					Expires:         time.Now().Add(config.SessionHandoffTTL),
 				}
 			}
 		} else if err != nil && err != redislib.Nil {
@@ -166,12 +166,12 @@ func (s *Server) popSessionHandoff(ctx context.Context, accountID, previousClien
 
 // SessionResumeResult summarizes reconnect handoff for consolidated WS logging.
 type SessionResumeResult struct {
-	PreviousClientID    string
-	HandoffApplied      bool
-	SkipBaselineSync    bool
-	RestoredDocIDs      []string
-	UnauthorizedDocIDs  []string
-	ScopesRestored      bool
+	PreviousClientID   string
+	HandoffApplied     bool
+	SkipBaselineSync   bool
+	RestoredDocIDs     []string
+	UnauthorizedDocIDs []string
+	ScopesRestored     bool
 }
 
 // ApplySessionResume moves NATS/outgoing subscription state from a disconnected client to this
@@ -197,9 +197,9 @@ func (s *Server) ApplySessionResume(ctx context.Context, client *Client, previou
 		res.RestoredDocIDs = append(res.RestoredDocIDs, docID)
 	}
 
-	if len(ent.CorporationIDs) > 0 || len(ent.AllianceIDs) > 0 {
-		next := replaceScopesWithinSessionGrants(client, ent.CorporationIDs, ent.AllianceIDs)
-		if len(next.CorporationIDs) > 0 || len(next.AllianceIDs) > 0 {
+	if len(ent.CorporationRefs) > 0 || len(ent.AllianceRefs) > 0 {
+		next := replaceScopesWithinSessionGrants(client, ent.CorporationRefs, ent.AllianceRefs)
+		if len(next.CorporationRefs) > 0 || len(next.AllianceRefs) > 0 {
 			s.swapClientOrgScopesAndIndexes(client, next)
 			res.ScopesRestored = true
 		}

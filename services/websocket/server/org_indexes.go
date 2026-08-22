@@ -1,7 +1,6 @@
 package server
 
 import (
-	"strconv"
 	"strings"
 
 	"eve-industry-planner/websocket/server/model"
@@ -18,32 +17,21 @@ func stringSetFromSlice(ids []string) map[string]struct{} {
 	return out
 }
 
-func int64SliceToStringIDs(ids []int64) []string {
-	if len(ids) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(ids))
-	for _, v := range ids {
-		out = append(out, strconv.FormatInt(v, 10))
-	}
-	return out
-}
-
-// Lock order when both corp and alliance indexes are touched: corpIndexMu before allianceIndexMu.
+// Lock order when both corp and alliance indexes are touched: corpRefIndexMu before allianceRefIndexMu.
 
 func (s *Server) registerCorpPoolsLocked(client *Client) {
 	if client == nil || client.id == "" {
 		return
 	}
-	for _, cid := range client.Scopes.CorporationIDs {
+	for _, cid := range client.Scopes.CorporationRefs {
 		cid = strings.TrimSpace(cid)
 		if cid == "" {
 			continue
 		}
-		if s.corpToClients[cid] == nil {
-			s.corpToClients[cid] = make(map[string]bool)
+		if s.corpRefToClients[cid] == nil {
+			s.corpRefToClients[cid] = make(map[string]bool)
 		}
-		s.corpToClients[cid][client.id] = true
+		s.corpRefToClients[cid][client.id] = true
 	}
 }
 
@@ -51,15 +39,15 @@ func (s *Server) registerAlliancePoolsLocked(client *Client) {
 	if client == nil || client.id == "" {
 		return
 	}
-	for _, aid := range client.Scopes.AllianceIDs {
+	for _, aid := range client.Scopes.AllianceRefs {
 		aid = strings.TrimSpace(aid)
 		if aid == "" {
 			continue
 		}
-		if s.allianceToClients[aid] == nil {
-			s.allianceToClients[aid] = make(map[string]bool)
+		if s.allianceRefToClients[aid] == nil {
+			s.allianceRefToClients[aid] = make(map[string]bool)
 		}
-		s.allianceToClients[aid][client.id] = true
+		s.allianceRefToClients[aid][client.id] = true
 	}
 }
 
@@ -67,15 +55,15 @@ func (s *Server) unregisterCorpPoolsLocked(client *Client) {
 	if client == nil || client.id == "" {
 		return
 	}
-	for _, cid := range client.Scopes.CorporationIDs {
+	for _, cid := range client.Scopes.CorporationRefs {
 		cid = strings.TrimSpace(cid)
 		if cid == "" {
 			continue
 		}
-		if m := s.corpToClients[cid]; m != nil {
+		if m := s.corpRefToClients[cid]; m != nil {
 			delete(m, client.id)
 			if len(m) == 0 {
-				delete(s.corpToClients, cid)
+				delete(s.corpRefToClients, cid)
 			}
 		}
 	}
@@ -85,15 +73,15 @@ func (s *Server) unregisterAlliancePoolsLocked(client *Client) {
 	if client == nil || client.id == "" {
 		return
 	}
-	for _, aid := range client.Scopes.AllianceIDs {
+	for _, aid := range client.Scopes.AllianceRefs {
 		aid = strings.TrimSpace(aid)
 		if aid == "" {
 			continue
 		}
-		if m := s.allianceToClients[aid]; m != nil {
+		if m := s.allianceRefToClients[aid]; m != nil {
 			delete(m, client.id)
 			if len(m) == 0 {
-				delete(s.allianceToClients, aid)
+				delete(s.allianceRefToClients, aid)
 			}
 		}
 	}
@@ -101,26 +89,26 @@ func (s *Server) unregisterAlliancePoolsLocked(client *Client) {
 
 // swapClientOrgScopesAndIndexes replaces client.Scopes and rebuilds corp/alliance indexes atomically.
 func (s *Server) swapClientOrgScopesAndIndexes(client *Client, next model.RealtimeScopes) {
-	s.corpIndexMu.Lock()
-	s.allianceIndexMu.Lock()
+	s.corpRefIndexMu.Lock()
+	s.allianceRefIndexMu.Lock()
 	s.unregisterCorpPoolsLocked(client)
 	s.unregisterAlliancePoolsLocked(client)
 	client.Scopes = next
 	s.registerCorpPoolsLocked(client)
 	s.registerAlliancePoolsLocked(client)
-	s.allianceIndexMu.Unlock()
-	s.corpIndexMu.Unlock()
+	s.allianceRefIndexMu.Unlock()
+	s.corpRefIndexMu.Unlock()
 	s.scheduleDocFanoutFilterReconcile()
 }
 
 // unregisterClientFromOrgPools removes this client from corp and alliance pools using current Scopes.
 func (s *Server) unregisterClientFromOrgPools(client *Client) {
-	s.corpIndexMu.Lock()
-	s.allianceIndexMu.Lock()
+	s.corpRefIndexMu.Lock()
+	s.allianceRefIndexMu.Lock()
 	s.unregisterCorpPoolsLocked(client)
 	s.unregisterAlliancePoolsLocked(client)
-	s.allianceIndexMu.Unlock()
-	s.corpIndexMu.Unlock()
+	s.allianceRefIndexMu.Unlock()
+	s.corpRefIndexMu.Unlock()
 	s.scheduleDocFanoutFilterReconcile()
 }
 
@@ -132,26 +120,26 @@ func replaceScopesWithinSessionGrants(client *Client, corps, alliances []string)
 		if c == "" {
 			continue
 		}
-		if client.grantedCorpIDs == nil {
+		if client.grantedCorpRefs == nil {
 			continue
 		}
-		if _, ok := client.grantedCorpIDs[c]; !ok {
+		if _, ok := client.grantedCorpRefs[c]; !ok {
 			continue
 		}
-		next.CorporationIDs = append(next.CorporationIDs, c)
+		next.CorporationRefs = append(next.CorporationRefs, c)
 	}
 	for _, a := range alliances {
 		a = strings.TrimSpace(a)
 		if a == "" {
 			continue
 		}
-		if client.grantedAllianceIDs == nil {
+		if client.grantedAllianceRefs == nil {
 			continue
 		}
-		if _, ok := client.grantedAllianceIDs[a]; !ok {
+		if _, ok := client.grantedAllianceRefs[a]; !ok {
 			continue
 		}
-		next.AllianceIDs = append(next.AllianceIDs, a)
+		next.AllianceRefs = append(next.AllianceRefs, a)
 	}
 	return next
 }

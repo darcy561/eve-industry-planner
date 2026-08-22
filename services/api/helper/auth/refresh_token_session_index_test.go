@@ -41,8 +41,8 @@ func TestGetAccountSessionsRecord_PruneDeletesSessionIndex(t *testing.T) {
 	rec := &AccountSessionsRecord{
 		AccountID: accountID,
 		Grants: SessionGrants{
-			CorporationIDs: []int64{},
-			AllianceIDs:    []int64{},
+			CorporationRefs: []string{},
+			AllianceRefs:    []string{},
 		},
 		Sessions: map[string]AccountSession{
 			sessionID: {
@@ -89,8 +89,8 @@ func TestResolveAccountSessionBySessionID_ClearsOrphanIndex(t *testing.T) {
 	rec := &AccountSessionsRecord{
 		AccountID: accountID,
 		Grants: SessionGrants{
-			CorporationIDs: []int64{},
-			AllianceIDs:    []int64{},
+			CorporationRefs: []string{},
+			AllianceRefs:    []string{},
 		},
 		Sessions: map[string]AccountSession{},
 	}
@@ -158,8 +158,8 @@ func TestExtractAccountSession_OrphanIndexReturnsSessionMissing(t *testing.T) {
 	rec := &AccountSessionsRecord{
 		AccountID: accountID,
 		Grants: SessionGrants{
-			CorporationIDs: []int64{},
-			AllianceIDs:    []int64{},
+			CorporationRefs: []string{},
+			AllianceRefs:    []string{},
 		},
 		Sessions: map[string]AccountSession{},
 	}

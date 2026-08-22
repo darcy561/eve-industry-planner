@@ -7,9 +7,9 @@ import (
 	"strconv"
 
 	"eve-industry-planner/core/scheduler/contract"
-	eipmongo "eve-industry-planner/shared/mongo"
 	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipmongo "eve-industry-planner/shared/mongo"
 	taskscore "eve-industry-planner/shared/tasks"
 )
 
@@ -18,13 +18,14 @@ const (
 	cronSchemaVersionMaintenanceName     = "cron.schemaVersionMaintenance"
 	cronSchemaVersionMaintenanceSchedule = "0 * * * *"
 	schemaMaintenanceRedisKey            = "scheduler:maintenance:schema_version_collection_index"
-	defaultSchemaMaintenanceBatchSize    = 50
+	defaultSchemaMaintenanceBatchSize    = 200
 )
 
 var schemaMaintenanceCollections = []string{
 	eipmongo.CollectionUsers,
 	eipmongo.CollectionApplicationSettings,
 	eipmongo.CollectionUserJobDocuments,
+	eipmongo.CollectionArchivedJobs,
 	eipmongo.CollectionUserJobGroups,
 }
 

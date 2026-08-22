@@ -67,7 +67,7 @@ func TestPersistWritesEnvAndConfig(t *testing.T) {
 	secs := s.Sections()
 	for si := range secs {
 		for fi := range secs[si].Fields {
-			if secs[si].Fields[fi].ID == "AUTHZ_HMAC_KEY" {
+			if secs[si].Fields[fi].ID == "ENTITY_ID_KEY" {
 				secs[si].Fields[fi].AutogenOn = true
 				secs[si].Fields[fi].Value = env.AutoGenerateSentinel
 			}
@@ -90,7 +90,7 @@ func TestPersistWritesEnvAndConfig(t *testing.T) {
 	if !strings.Contains(body, "APP_VERSION=") {
 		t.Fatalf("missing APP_VERSION in:\n%s", body)
 	}
-	if strings.Contains(body, "AUTHZ_HMAC_KEY="+env.AutoGenerateSentinel) {
+	if strings.Contains(body, "ENTITY_ID_KEY="+env.AutoGenerateSentinel) {
 		t.Fatal("HMAC still sentinel after Persist")
 	}
 	cfg, err := config.LoadYAML(filepath.Join(home, kit.ConfigFile))

@@ -31,7 +31,6 @@ x-objectstore-env: &objectstore-env
 x-app-public-env: &app-public-env
   EVE_CLIENT_ID: ${EVE_CLIENT_ID:-}
   REFRESH_TOKEN_AES_KEY_VERSION: ${REFRESH_TOKEN_AES_KEY_VERSION:-v1}
-  AUTHZ_HMAC_KEY_VERSION: ${AUTHZ_HMAC_KEY_VERSION:-v1}
   ENVIRONMENT: ${ENVIRONMENT:-}
   MAINTENANCE_MODE: ${MAINTENANCE_MODE:-false}
 
@@ -51,7 +50,7 @@ x-secrets-api: &secrets-api
   - S3_SECRET_KEY
   - EVE_CLIENT_SECRET
   - REFRESH_TOKEN_AES_KEY
-  - AUTHZ_HMAC_KEY
+  - ENTITY_ID_KEY
   - REFRESH_TOKEN_AES_LEGACY_KEYS
   - FEEDBACK_DISCORD_WEBHOOK_URL
 
@@ -59,6 +58,7 @@ x-secrets-websocket: &secrets-websocket
   - MONGO_USERNAME
   - MONGO_PASSWORD
   - REDIS_PASSWORD
+  - ENTITY_ID_KEY
 
 x-secrets-worker: &secrets-worker
   - MONGO_USERNAME
@@ -68,7 +68,7 @@ x-secrets-worker: &secrets-worker
   - S3_SECRET_KEY
   - EVE_CLIENT_SECRET
   - REFRESH_TOKEN_AES_KEY
-  - AUTHZ_HMAC_KEY
+  - ENTITY_ID_KEY
   - REFRESH_TOKEN_AES_LEGACY_KEYS
 
 x-secrets-core: &secrets-core
@@ -506,7 +506,7 @@ secrets:
     external: true
   REFRESH_TOKEN_AES_KEY:
     external: true
-  AUTHZ_HMAC_KEY:
+  ENTITY_ID_KEY:
     external: true
   REFRESH_TOKEN_AES_LEGACY_KEYS:
     external: true

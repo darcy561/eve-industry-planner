@@ -506,7 +506,7 @@ func TestRefreshAdjustedPrices_NilTask(t *testing.T) {
 	})
 
 	deps := &TaskDependencies{
-		Redis: redisClient,
+		Redis:     redisClient,
 		ESIClient: &mockESIClientForStreaming{},
 	}
 

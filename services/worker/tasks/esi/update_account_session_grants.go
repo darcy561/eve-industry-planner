@@ -215,7 +215,11 @@ func RefreshAccountSessionGrants(ctx context.Context, task *asynq.Task, deps *Ta
 			"error", err)
 		return fmt.Errorf("failed to store alliances: %w", err)
 	}
-	if err := auth.UpdateAccountSessionGrants(ctx, deps.Redis, request.AccountID, allCorporations, allAlliances); err != nil {
+	entityCipher := deps.EntityCipher
+	if entityCipher == nil {
+		return fmt.Errorf("entity ref helper is required")
+	}
+	if err := auth.UpdateAccountSessionGrants(ctx, deps.Redis, entityCipher, request.AccountID, allCorporations, allAlliances); err != nil {
 		logs.WarnCtx(ctx, "failed to update account session grants from affiliation lookup",
 			"account_id", request.AccountID,
 			"error", err)

@@ -1,6 +1,7 @@
 package mongo
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
@@ -85,6 +86,34 @@ func TestUnprocessedArchivedJobFilter_shape(t *testing.T) {
 	or, ok := f["$or"].([]any)
 	if !ok || len(or) != 4 {
 		t.Fatalf("$or=%#v", f["$or"])
+	}
+}
+
+// unprocessedArchivedJobFilterCanonicalJSON pins the exact filter that the
+// archivedJobs partial index in deployment-tool mirrors. A partial index only
+// covers a query when its filter matches, so the two must move together.
+//
+// The same literal is pinned by TestArchivedJobsPartialFilterMatchesServices in
+// deployment-tool/internal/dataplane/mongo. deployment-tool is a separate module
+// and cannot import this one, so changing the filter means changing both — and
+// changing either alone fails the other module's test.
+const unprocessedArchivedJobFilterCanonicalJSON = `{"$or":[` +
+	`{"_meta.archiveProcessed":null,"archiveProcessed":null},` +
+	`{"_meta.archiveProcessed":null,"archiveProcessed":false},` +
+	`{"_meta.archiveProcessed":false,"archiveProcessed":null},` +
+	`{"_meta.archiveProcessed":false,"archiveProcessed":false}` +
+	`]}`
+
+func TestUnprocessedArchivedJobFilter_canonicalJSON(t *testing.T) {
+	t.Parallel()
+	got, err := json.Marshal(UnprocessedArchivedJobFilter())
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	if string(got) != unprocessedArchivedJobFilterCanonicalJSON {
+		t.Fatalf("filter changed.\n got: %s\nwant: %s\n\nUpdate PartialFilterJSON for archivedJobs in "+
+			"deployment-tool/internal/dataplane/mongo/index_specs.go to match, or the partial index "+
+			"stops covering this query.", got, unprocessedArchivedJobFilterCanonicalJSON)
 	}
 }
 

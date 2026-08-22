@@ -360,7 +360,7 @@ func resolveJobExpectsFromSnap(snap liveSnapshot, job fanoutJob) []string {
 		}
 		return nil
 	case fanoutMsgCorpFull:
-		corp := parseInt64ID(job.CorporationID)
+		corp := parseInt64ID(job.CorporationRef)
 		return append([]string{}, snap.ReadyByCorp[corp]...)
 	case fanoutMsgCorpDownAccount:
 		return filterReady(job.ScopeAccountIDs)

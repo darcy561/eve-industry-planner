@@ -17,13 +17,13 @@ var websocketMeter = sync.OnceValue(func() metric.Meter {
 })
 
 type websocketMetrics struct {
-	upgradeDurationMs            metric.Float64Histogram
-	upgradeRequestsTotal         metric.Int64Counter
-	upgradeSuccessesTotal        metric.Int64Counter
-	upgradeErrorsTotal           metric.Int64Counter
-	connectionsOpenedTotal       metric.Int64Counter
-	connectionsClosedTotal       metric.Int64Counter
-	docUpdatesSentTotal metric.Int64Counter
+	upgradeDurationMs      metric.Float64Histogram
+	upgradeRequestsTotal   metric.Int64Counter
+	upgradeSuccessesTotal  metric.Int64Counter
+	upgradeErrorsTotal     metric.Int64Counter
+	connectionsOpenedTotal metric.Int64Counter
+	connectionsClosedTotal metric.Int64Counter
+	docUpdatesSentTotal    metric.Int64Counter
 }
 
 var (

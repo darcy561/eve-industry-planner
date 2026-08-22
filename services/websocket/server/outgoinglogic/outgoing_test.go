@@ -5,39 +5,39 @@ import "testing"
 func TestShouldSuppressRecipient(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name           string
-		srcSession     string
-		srcClient      string
-		recvSession    string
-		recvClient     string
-		wantSuppress   bool
+		name         string
+		srcSession   string
+		srcClient    string
+		recvSession  string
+		recvClient   string
+		wantSuppress bool
 	}{
 		{
-			name: "client match suppresses only originating tab",
+			name:       "client match suppresses only originating tab",
 			srcSession: "sess-a", srcClient: "0xabc",
 			recvSession: "sess-a", recvClient: "0xabc",
 			wantSuppress: true,
 		},
 		{
-			name: "same session different client delivers",
+			name:       "same session different client delivers",
 			srcSession: "sess-a", srcClient: "0xabc",
 			recvSession: "sess-a", recvClient: "0xdef",
 			wantSuppress: false,
 		},
 		{
-			name: "empty source client falls back to session suppress",
+			name:       "empty source client falls back to session suppress",
 			srcSession: "sess-a", srcClient: "",
 			recvSession: "sess-a", recvClient: "0xdef",
 			wantSuppress: true,
 		},
 		{
-			name: "legacy session-only different session delivers",
+			name:       "legacy session-only different session delivers",
 			srcSession: "sess-a", srcClient: "",
 			recvSession: "sess-b", recvClient: "0xdef",
 			wantSuppress: false,
 		},
 		{
-			name: "no source identifiers never suppresses",
+			name:       "no source identifiers never suppresses",
 			srcSession: "", srcClient: "",
 			recvSession: "sess-a", recvClient: "0xabc",
 			wantSuppress: false,

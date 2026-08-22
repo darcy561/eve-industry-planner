@@ -100,8 +100,8 @@ func TestExtractAccountSession_OrphanIndexIncludesAccountAndSession(t *testing.T
 	rec := &AccountSessionsRecord{
 		AccountID: accountID,
 		Grants: SessionGrants{
-			CorporationIDs: []int64{},
-			AllianceIDs:    []int64{},
+			CorporationRefs: []string{},
+			AllianceRefs:    []string{},
 		},
 		Sessions: map[string]AccountSession{},
 	}

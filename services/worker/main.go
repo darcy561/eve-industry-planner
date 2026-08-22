@@ -8,6 +8,7 @@ import (
 	"eve-industry-planner/shared/logs"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
+	"eve-industry-planner/shared/crypto/entityid"
 	"github.com/hibiken/asynq"
 )
 
@@ -16,6 +17,7 @@ type WorkerDependencies struct {
 	*stackservices.Clients
 	ESIClient   esiratelimiter.ClientInterface
 	AsynqClient *asynq.Client
+	EntityCipher  *entityid.Cipher
 }
 
 func (d *WorkerDependencies) GetClients() *stackservices.Clients {
@@ -24,6 +26,10 @@ func (d *WorkerDependencies) GetClients() *stackservices.Clients {
 
 func (d *WorkerDependencies) GetESIClient() esiratelimiter.ClientInterface {
 	return d.ESIClient
+}
+
+func (d *WorkerDependencies) GetEntityCipher() *entityid.Cipher {
+	return d.EntityCipher
 }
 
 func main() {

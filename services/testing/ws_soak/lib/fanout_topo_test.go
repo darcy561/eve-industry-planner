@@ -128,15 +128,15 @@ func TestBuildFanoutJobsKindsVarietyAndExpect(t *testing.T) {
 			}
 			seenAcct[j.AccountID] = true
 		case fanoutMsgCorpFull:
-			if j.CorporationID == "" || j.Expect != len(topo.corpMembers(mustInt64(j.CorporationID))) || len(j.ExpectAccounts) != j.Expect {
+			if j.CorporationRef == "" || j.Expect != len(topo.corpMembers(mustInt64(j.CorporationRef))) || len(j.ExpectAccounts) != j.Expect {
 				t.Fatalf("corp_full %+v", j)
 			}
-			seenCorp[j.CorporationID] = true
+			seenCorp[j.CorporationRef] = true
 		case fanoutMsgCorpDownAccount:
 			if len(j.ScopeAccountIDs) == 0 || j.Expect != len(j.ScopeAccountIDs) || len(j.ExpectAccounts) != j.Expect {
 				t.Fatalf("corp_down %+v", j)
 			}
-			seenCorp[j.CorporationID] = true
+			seenCorp[j.CorporationRef] = true
 		case fanoutMsgAllianceFull:
 			if j.AllianceID == "" || j.Expect != len(topo.allianceMembers(mustInt64(j.AllianceID))) || len(j.ExpectAccounts) != j.Expect {
 				t.Fatalf("alliance_full %+v", j)

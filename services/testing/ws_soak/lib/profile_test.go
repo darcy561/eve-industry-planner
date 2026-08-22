@@ -43,7 +43,7 @@ func TestBuildLimitsIdentitiesMixed(t *testing.T) {
 	if len(fill) != 4 {
 		t.Fatalf("fill=%d", len(fill))
 	}
-	wantFill := wsplacement.TenantKeyCorporation("910001")
+	wantFill := wsplacement.TenantKeyCorporation(CorporationRef(910001))
 	seenAcct := map[string]bool{}
 	for _, id := range fill {
 		if id.Affinity != wantFill {

@@ -126,10 +126,10 @@ func buildPressureIdentities(p pressurePlan) ([]clientIdentity, error) {
 			aff = wsplacement.TenantKeyAccount(fmt.Sprintf("soak-group-acct-%d", g+1))
 		case 1:
 			corpID = groupCorpBase + int64(g+1)
-			aff = wsplacement.TenantKeyCorporation(fmt.Sprintf("%d", corpID))
+			aff = wsplacement.TenantKeyCorporation(CorporationRef(corpID))
 		default:
 			allianceID = groupAllianceBase + int64(g+1)
-			aff = wsplacement.TenantKeyAlliance(fmt.Sprintf("%d", allianceID))
+			aff = wsplacement.TenantKeyAlliance(AllianceRef(allianceID))
 		}
 		for i := range p.GroupSize {
 			member := fmt.Sprintf("soak-group-%d-m-%d", g+1, i+1)
@@ -137,7 +137,7 @@ func buildPressureIdentities(p pressurePlan) ([]clientIdentity, error) {
 		}
 	}
 
-	fillAff := wsplacement.TenantKeyCorporation(fmt.Sprintf("%d", p.FillCorpID))
+	fillAff := wsplacement.TenantKeyCorporation(CorporationRef(p.FillCorpID))
 	for i := range p.FillHolders {
 		acct := fmt.Sprintf("soak-fill-%d", i+1)
 		out = append(out, next(cohortFill, acct, fillAff, p.FillCorpID, 0))
@@ -151,10 +151,10 @@ func buildPressureIdentities(p pressurePlan) ([]clientIdentity, error) {
 				out = append(out, next(cohort, acct, wsplacement.TenantKeyAccount(acct), 0, 0))
 			case 1:
 				corp := corpBase + int64(i+1)
-				out = append(out, next(cohort, acct, wsplacement.TenantKeyCorporation(fmt.Sprintf("%d", corp)), corp, 0))
+				out = append(out, next(cohort, acct, wsplacement.TenantKeyCorporation(CorporationRef(corp)), corp, 0))
 			default:
 				alliance := allianceBase + int64(i+1)
-				out = append(out, next(cohort, acct, wsplacement.TenantKeyAlliance(fmt.Sprintf("%d", alliance)), 0, alliance))
+				out = append(out, next(cohort, acct, wsplacement.TenantKeyAlliance(AllianceRef(alliance)), 0, alliance))
 			}
 		}
 	}

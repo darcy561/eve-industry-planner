@@ -34,10 +34,10 @@ type deliveryRecv struct {
 
 // wrongSample is a bounded diagnostic for unexpected recipients.
 type wrongSample struct {
-	DocID     string
-	Kind      fanoutMsgKind
-	Got       string
-	Expect    []string
+	DocID  string
+	Kind   fanoutMsgKind
+	Got    string
+	Expect []string
 }
 
 type kindDeliveryCounters struct {
@@ -64,7 +64,7 @@ type deliveryTracker struct {
 	latencyMaxUs atomic.Uint64
 	latencyN     atomic.Uint64
 
-	pending sync.Map // docID → *deliveryPend
+	pending  sync.Map // docID → *deliveryPend
 	openPend atomic.Int64
 
 	// acctOpen counts open (incomplete) expects still naming an account — leave waits use this.

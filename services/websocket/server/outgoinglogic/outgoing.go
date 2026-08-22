@@ -4,8 +4,8 @@ import "slices"
 
 type RouteInfo struct {
 	AccountID       string
-	CorporationID   string
-	AllianceID      string
+	CorporationRef  string
+	AllianceRef     string
 	SourceClientID  string
 	SourceSessionID string
 }

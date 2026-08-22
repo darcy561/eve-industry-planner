@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	defaultFanoutLiveRatio  = 0.65
+	defaultFanoutLiveRatio = 0.65
 	// Scheduler defaults keep harness CPU off the hot path; tests override with short ticks.
 	defaultChurnTick         = 250 * time.Millisecond
 	defaultChurnReplaceEvery = 2 * time.Second

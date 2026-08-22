@@ -31,11 +31,11 @@ func TestValidateGroupTemplatePayload_unknownParent(t *testing.T) {
 		TemplateID: "tpl-1",
 		Jobs: []TemplateJobNode{
 			{
-				TemplateJobID:         "tj-1",
-				ItemID:                34,
-				DesiredTotalQuantity:  100,
-				ParentTemplateJobIDs:  []string{"missing"},
-				PresetSetups:          []TemplatePresetSetup{{RunCount: 10, JobCount: 1, ME: 0, TE: 0}},
+				TemplateJobID:        "tj-1",
+				ItemID:               34,
+				DesiredTotalQuantity: 100,
+				ParentTemplateJobIDs: []string{"missing"},
+				PresetSetups:         []TemplatePresetSetup{{RunCount: 10, JobCount: 1, ME: 0, TE: 0}},
 			},
 		},
 	}

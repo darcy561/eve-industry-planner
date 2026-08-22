@@ -1,24 +1,80 @@
 package models
 
-// BuildStatsRow is one document in MongoDB build_stats (aggregates from ProcessBuildStats;
-// same field names as legacy Firestore Users/{uid}/BuildStats/{typeID}).
-type BuildStatsRow struct {
-	ID                  string              `bson:"_id" json:"-"`
-	JobType             int                 `bson:"jobType" json:"jobType"`
-	TypeID              int                 `bson:"typeID" json:"typeID"`
-	TotalJobs           int64               `bson:"totalJobs" json:"totalJobs"`
-	ItemBuildCount      float64             `bson:"itemBuildCount" json:"itemBuildCount"`
-	BuildCostTotal      float64             `bson:"buildCostTotal" json:"buildCostTotal"`
-	BrokersFeeTotal     float64             `bson:"brokersFeeTotal" json:"brokersFeeTotal"`
-	TransactionFeeTotal float64             `bson:"transactionFeeTotal" json:"transactionFeeTotal"`
-	JobCostTotal        float64             `bson:"jobCostTotal" json:"jobCostTotal"`
-	SalesTotal          float64             `bson:"salesTotal" json:"salesTotal"`
-	ProfitLoss          float64             `bson:"profitLoss" json:"profitLoss"`
-	DataSnapshots       []BuildStatSnapshot `bson:"dataSnapshots" json:"dataSnapshots"`
+// BuildMeasures is the set of totals every build-scoped aggregate carries. Embed
+// it rather than restating the fields, so a new measure lands in one place.
+type BuildMeasures struct {
+	TotalJobs           int64   `bson:"totalJobs" json:"totalJobs"`
+	ItemBuildCount      float64 `bson:"itemBuildCount" json:"itemBuildCount"`
+	BuildCostTotal      float64 `bson:"buildCostTotal" json:"buildCostTotal"`
+	BrokersFeeTotal     float64 `bson:"brokersFeeTotal" json:"brokersFeeTotal"`
+	TransactionFeeTotal float64 `bson:"transactionFeeTotal" json:"transactionFeeTotal"`
+	JobCostTotal        float64 `bson:"jobCostTotal" json:"jobCostTotal"`
+	SalesTotal          float64 `bson:"salesTotal" json:"salesTotal"`
+	// ProfitLoss is salesTotal − brokersFeeTotal − transactionFeeTotal − jobCostTotal.
+	ProfitLoss float64 `bson:"profitLoss" json:"profitLoss"`
 }
 
-// BuildStatSnapshot is one archived job's contribution stored in build_stats.dataSnapshots
-// (matches Firebase archievedJobs.js archiveObject).
+// Plus returns m with src added field by field.
+func (m BuildMeasures) Plus(src BuildMeasures) BuildMeasures {
+	m.TotalJobs += src.TotalJobs
+	m.ItemBuildCount += src.ItemBuildCount
+	m.BuildCostTotal += src.BuildCostTotal
+	m.BrokersFeeTotal += src.BrokersFeeTotal
+	m.TransactionFeeTotal += src.TransactionFeeTotal
+	m.JobCostTotal += src.JobCostTotal
+	m.SalesTotal += src.SalesTotal
+	m.ProfitLoss += src.ProfitLoss
+	return m
+}
+
+// BuildStatsSegmentTotals is one Blueprint Archive segment: a production chain,
+// retained stock, or a standalone recorded sale.
+type BuildStatsSegmentTotals struct {
+	BuildMeasures     `bson:",inline"`
+	TotalSoldQuantity float64 `bson:"totalSoldQuantity,omitempty" json:"totalSoldQuantity,omitempty"`
+}
+
+func (s BuildStatsSegmentTotals) Plus(src BuildStatsSegmentTotals) BuildStatsSegmentTotals {
+	s.BuildMeasures = s.BuildMeasures.Plus(src.BuildMeasures)
+	s.TotalSoldQuantity += src.TotalSoldQuantity
+	return s
+}
+
+// BuildStatsBreakdown splits a row's totals across the archive segments.
+type BuildStatsBreakdown struct {
+	ProductionChain        BuildStatsSegmentTotals `bson:"productionChain" json:"productionChain"`
+	RetainedStock          BuildStatsSegmentTotals `bson:"retainedStock" json:"retainedStock"`
+	StandaloneRecordedSale BuildStatsSegmentTotals `bson:"standaloneRecordedSale" json:"standaloneRecordedSale"`
+}
+
+func (b BuildStatsBreakdown) Plus(src BuildStatsBreakdown) BuildStatsBreakdown {
+	b.ProductionChain = b.ProductionChain.Plus(src.ProductionChain)
+	b.RetainedStock = b.RetainedStock.Plus(src.RetainedStock)
+	b.StandaloneRecordedSale = b.StandaloneRecordedSale.Plus(src.StandaloneRecordedSale)
+	return b
+}
+
+// BuildStatsRow is one document in MongoDB build_stats, keyed by account and item type.
+type BuildStatsRow struct {
+	ID            string `bson:"_id" json:"-"`
+	JobType       int    `bson:"jobType" json:"jobType"`
+	TypeID        int    `bson:"typeID" json:"typeID"`
+	BuildMeasures `bson:",inline"`
+	Breakdown     BuildStatsBreakdown `bson:"breakdown,omitempty" json:"breakdown"`
+	DataSnapshots []BuildStatSnapshot `bson:"dataSnapshots" json:"dataSnapshots"`
+}
+
+// Plus sums src into r. JobType is taken from the first non-zero value.
+func (r BuildStatsRow) Plus(src BuildStatsRow) BuildStatsRow {
+	if r.JobType == 0 && src.JobType != 0 {
+		r.JobType = src.JobType
+	}
+	r.BuildMeasures = r.BuildMeasures.Plus(src.BuildMeasures)
+	r.Breakdown = r.Breakdown.Plus(src.Breakdown)
+	return r
+}
+
+// BuildStatSnapshot is one archived job's contribution stored in build_stats.dataSnapshots.
 type BuildStatSnapshot struct {
 	TypeID              int     `json:"typeID" bson:"typeID"`
 	JobID               string  `json:"jobID" bson:"jobID"`

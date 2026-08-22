@@ -24,16 +24,16 @@ const (
 )
 
 const (
-	defaultTenantGenBuf            = 16
-	defaultTenantGenInterval       = 2 * time.Millisecond
+	defaultTenantGenBuf             = 16
+	defaultTenantGenInterval        = 2 * time.Millisecond
 	defaultTenantGenContinuousEvery = 250 * time.Millisecond
-	defaultFanoutAffinityMix       = 0.25
-	defaultTenantSeedChunk         = 32
-	defaultTenantSoloWeight        = 3
-	defaultTenantStandWeight       = 3
-	defaultTenantAllWeight         = 2
-	defaultTenantGrowWeight        = 2
-	defaultTenantOrphanWeight      = 1
+	defaultFanoutAffinityMix        = 0.25
+	defaultTenantSeedChunk          = 32
+	defaultTenantSoloWeight         = 3
+	defaultTenantStandWeight        = 3
+	defaultTenantAllWeight          = 2
+	defaultTenantGrowWeight         = 2
+	defaultTenantOrphanWeight       = 1
 )
 
 // TenantEvent is one generation step with newly created clients (already Redis-seeded when seeding is on).
@@ -50,7 +50,7 @@ type TenantEvent struct {
 
 // TenantGenOptions controls the streaming tenantGen producer.
 type TenantGenOptions struct {
-	Clients int // bootstrap target (and hard cap when Continuous is false)
+	Clients int   // bootstrap target (and hard cap when Continuous is false)
 	Seed    int64 // RNG seed; 0 = time-based
 	// AffinityMix is the fraction of org members that get corp/alliance affinity cookies (0 = default 0.25).
 	AffinityMix float64
@@ -557,13 +557,13 @@ func pickOrgAffinity(rng *rand.Rand, mix float64, accountID string, corpID, allI
 		return wsplacement.TenantKeyAccount(accountID)
 	}
 	if allID != 0 && rng.IntN(2) == 0 {
-		return wsplacement.TenantKeyAlliance(fmt.Sprintf("%d", allID))
+		return wsplacement.TenantKeyAlliance(AllianceRef(allID))
 	}
 	if corpID != 0 {
-		return wsplacement.TenantKeyCorporation(fmt.Sprintf("%d", corpID))
+		return wsplacement.TenantKeyCorporation(CorporationRef(corpID))
 	}
 	if allID != 0 {
-		return wsplacement.TenantKeyAlliance(fmt.Sprintf("%d", allID))
+		return wsplacement.TenantKeyAlliance(AllianceRef(allID))
 	}
 	return wsplacement.TenantKeyAccount(accountID)
 }

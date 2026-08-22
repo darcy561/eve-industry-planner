@@ -78,7 +78,7 @@ func TestBuildPressureIdentitiesMixedGroups(t *testing.T) {
 		t.Fatalf("group kinds account=%d corp=%d alliance=%d", a, c, al)
 	}
 	fill := filterCohort(ids, cohortFill)
-	wantFill := wsplacement.TenantKeyCorporation("910001")
+	wantFill := wsplacement.TenantKeyCorporation(CorporationRef(910001))
 	for _, id := range fill {
 		if id.Affinity != wantFill {
 			t.Fatalf("fill aff=%q", id.Affinity)

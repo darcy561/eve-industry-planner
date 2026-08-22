@@ -10,6 +10,7 @@ import (
 	natscore "eve-industry-planner/shared/core/nats"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
+	"eve-industry-planner/shared/crypto/entityid"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"
@@ -85,7 +86,8 @@ func createMockTask(taskType string, data any) *asynq.Task {
 func TestRefreshAccountSessionGrants_NilTask(t *testing.T) {
 	ctx := context.Background()
 	deps := &TaskDependencies{
-		ESIClient: &mockESIClient{},
+		EntityCipher: testEntityCipher(t),
+		ESIClient:  &mockESIClient{},
 	}
 
 	err := RefreshAccountSessionGrants(ctx, nil, deps)
@@ -108,7 +110,8 @@ func TestRefreshAccountSessionGrants_InvalidJSON(t *testing.T) {
 	task := asynq.NewTask("updateAccountSessionGrants", payloadBytes)
 
 	deps := &TaskDependencies{
-		ESIClient: &mockESIClient{},
+		EntityCipher: testEntityCipher(t),
+		ESIClient:  &mockESIClient{},
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
@@ -126,7 +129,8 @@ func TestRefreshAccountSessionGrants_MissingAccountID(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ESIClient: &mockESIClient{},
+		EntityCipher: testEntityCipher(t),
+		ESIClient:  &mockESIClient{},
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
@@ -147,7 +151,8 @@ func TestRefreshAccountSessionGrants_EmptyTokens(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ESIClient: &mockESIClient{},
+		EntityCipher: testEntityCipher(t),
+		ESIClient:  &mockESIClient{},
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
@@ -169,7 +174,8 @@ func TestRefreshAccountSessionGrants_TokenValidationFailure(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		Redis: setupAccountSessionGrantsTestEnv(t),
+		EntityCipher: testEntityCipher(t),
+		Redis:      setupAccountSessionGrantsTestEnv(t),
 
 		ESIClient: &mockESIClient{},
 	}
@@ -228,6 +234,7 @@ func TestRefreshAccountSessionGrants_ESIRetryableRateLimitError(t *testing.T) {
 		}
 
 		deps := &TaskDependencies{
+		EntityCipher: testEntityCipher(t),
 			ESIClient:      esiClient,
 		}
 
@@ -259,7 +266,8 @@ func TestRefreshAccountSessionGrants_ESINonRetryableError(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ESIClient: esiClient,
+		EntityCipher: testEntityCipher(t),
+		ESIClient:  esiClient,
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
@@ -290,7 +298,8 @@ func TestRefreshAccountSessionGrants_ESINon200Status(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ESIClient: esiClient,
+		EntityCipher: testEntityCipher(t),
+		ESIClient:  esiClient,
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
@@ -321,7 +330,8 @@ func TestRefreshAccountSessionGrants_InvalidJSONResponse(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ESIClient: esiClient,
+		EntityCipher: testEntityCipher(t),
+		ESIClient:  esiClient,
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
@@ -363,7 +373,8 @@ func TestRefreshAccountSessionGrants_SuccessfulProcessing(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ESIClient: esiClient,
+		EntityCipher: testEntityCipher(t),
+		ESIClient:  esiClient,
 	}
 
 	// We need to mock StoreCorporations - but it's in a different package
@@ -400,7 +411,8 @@ func TestRefreshAccountSessionGrants_DuplicateCorporations(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ESIClient: esiClient,
+		EntityCipher: testEntityCipher(t),
+		ESIClient:  esiClient,
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
@@ -433,7 +445,8 @@ func TestRefreshAccountSessionGrants_ZeroCorporationID(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ESIClient: esiClient,
+		EntityCipher: testEntityCipher(t),
+		ESIClient:  esiClient,
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
@@ -466,7 +479,8 @@ func TestRefreshAccountSessionGrants_MixedSuccessAndFailure(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ESIClient: esiClient,
+		EntityCipher: testEntityCipher(t),
+		ESIClient:  esiClient,
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
@@ -504,7 +518,8 @@ func TestRefreshAccountSessionGrants_RedisStorageFailure(t *testing.T) {
 
 	// Use nil Redis to trigger storage error
 	deps := &TaskDependencies{
-		Redis: nil, // This will cause StoreCorporations to fail,
+		EntityCipher: testEntityCipher(t),
+		Redis:      nil, // This will cause StoreCorporations to fail,
 
 		ESIClient: esiClient,
 	}
@@ -536,10 +551,20 @@ func TestRefreshAccountSessionGrants_NilResponse(t *testing.T) {
 	task := createMockTask("updateAccountSessionGrants", request)
 
 	deps := &TaskDependencies{
-		ESIClient: esiClient,
+		EntityCipher: testEntityCipher(t),
+		ESIClient:  esiClient,
 	}
 
 	err := RefreshAccountSessionGrants(ctx, task, deps)
 	// Should succeed when response is nil - continues with other tokens
 	_ = err // May succeed or fail depending on token validation
+}
+
+func testEntityCipher(t *testing.T) *entityid.Cipher {
+	t.Helper()
+	h, err := entityid.New([]byte("0123456789abcdef0123456789abcdef"))
+	if err != nil {
+		t.Fatalf("entityid.New: %v", err)
+	}
+	return h
 }
