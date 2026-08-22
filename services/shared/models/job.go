@@ -504,6 +504,9 @@ type JobMetaData struct {
 	ArchivedAt       time.Time `json:"archivedAt,omitzero" bson:"archivedAt,omitzero"`
 	ArchivedBy       string    `json:"archivedBy,omitempty" bson:"archivedBy,omitempty"`
 	ArchiveProcessed bool      `json:"archiveProcessed,omitempty" bson:"archiveProcessed,omitempty"`
-	DeletedAt        time.Time `json:"deletedAt,omitzero" bson:"deletedAt,omitzero"`
-	DeletedBy        string    `json:"deletedBy,omitempty" bson:"deletedBy,omitempty"`
+	// RetainedStockBuild marks output the user keeps rather than sells, so the
+	// statistics pipeline counts it as retained rather than as an unsold shortfall.
+	RetainedStockBuild bool      `json:"retainedStockBuild,omitempty" bson:"retainedStockBuild,omitempty"`
+	DeletedAt          time.Time `json:"deletedAt,omitzero" bson:"deletedAt,omitzero"`
+	DeletedBy          string    `json:"deletedBy,omitempty" bson:"deletedBy,omitempty"`
 }
