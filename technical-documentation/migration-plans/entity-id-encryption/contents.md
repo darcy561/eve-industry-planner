@@ -1,11 +1,11 @@
-# AuthZ HMAC
+# Entity id encryption
 
 ## Owns
 
-Plan, stage notes, and behaviour overlays for moving authorization onto deterministic internal
-entity refs: HMAC-derived `char_ref` / `corp_ref` / `alliance_ref`, the entitlements snapshot that
-replaces token-embedded scope lists, login-time backfill for legacy accounts, and the key rotation
-policy behind the refs.
+Plan, stage notes, and behaviour overlays for naming EVE entities internally by **ref** — a
+deterministic, reversible encryption of a character, corporation or alliance id, stored in its
+place. Covers the `entityid` primitive and its key, the conversion framework, the entitlements
+snapshot that replaces token-embedded scope lists, and login-time backfill for legacy accounts.
 
 ## Does not own
 
@@ -20,5 +20,6 @@ policy behind the refs.
 |------------|------|
 | Understand the ref model, contracts, and rollout phases | [plan.md](./plan.md) |
 | Check what has landed and what is still open | [plan.md](./plan.md) § Rollout status |
-| Know what the shared HMAC helper needs before it can land | [plan.md](./plan.md) § Shared helper implementation |
+| Understand why refs are encrypted rather than hashed | [plan.md](./plan.md) § Decision |
+| See how the `entityid` primitive behaves | [overlay.md](./overlay.md) § Shared entity id helpers |
 | See how a surface behaves after a phase lands | [overlay.md](./overlay.md) |
