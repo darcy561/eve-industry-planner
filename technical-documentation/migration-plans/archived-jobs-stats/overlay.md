@@ -226,10 +226,19 @@ test — `TestUnprocessedArchivedJobFilter_canonicalJSON` in `services/shared/mo
 changing either alone fails the other module's test, with a message naming the file to update. Any
 partial filter added for the new collections follows the same pattern.
 
-Corporation queries are held back deliberately: they key on `_meta.corpRef` and a
-`corp_archivedJobs` collection, and neither exists on Development — `JobMetaData` carries no
-`CorpRef` or `CorporationID`. Adding those fields now would put shape in the model that nothing
-populates, so `corp_archivedJobs`, `corp_build_stats`, `corp_rollup_buckets`, the `CorpRebuildQueue`
+Corporation queries are held back deliberately, though not for the reason first recorded here.
+
+The **field exists**: `models.MetaData` — embedded in `JobMetaData` — declares `CorporationRef` and
+`AllianceRef`, stored as `_meta.corporationRef` / `_meta.allianceRef`, and the changestream already
+routes on them. It arrived with the entity-ref work. The spelling is `corporationRef`, not
+`corpRef`.
+
+What is missing is a **producer**: nothing in `services/` assigns `MetaData.CorporationRef` on a
+write path, so every stored job carries it empty. A corporation pipeline built against it today
+would aggregate nothing, and its query shapes would be guesses no data exercises. The contract a
+corporation document has to meet is in [Stage C](#stage-c--corporation-statistics-pipeline).
+
+So `corp_archivedJobs`, `corp_build_stats`, `corp_rollup_buckets`, the `CorpRebuildQueue`
 (`stats_rebuild_queue_corps`, with `QueueCorpRebuild` / `ListQueuedCorpRefs`) and the corp `_id`
 builders land together with Stage C, when that stage is committed to rather than deferred.
 
