@@ -76,13 +76,155 @@ aggregate.
 ### Stage C — Corporation statistics pipeline
 
 Corporation-level aggregation over member jobs, its own rebuild queue and pruning. Separable from
-Stage B and may be deferred without blocking the rest — decide at Stage B close.
+Stage B and deferred without blocking the rest — decided at Stage B close.
+
+#### Stage C is deferred
+
+Decided at Stage B close. **The blocker is a missing producer, not effort.**
+
+More of this stage exists than the original plan assumed:
+
+| Already built | Where |
+|---------------|-------|
+| The attribution rule — one distinct corporation across a job's linked industry jobs resolves, two or more resolve to none | `shared/archivestats.InferJobCorp`, with tests |
+| The persisted shapes | `models.CorpBuildStatsRow`, `CorpRollupMonthlyBucket`, `CorpRollupOwnedLane` |
+| The org-scoped delivery path — routing, tenant key, scope matching, payload stripping | Traced end to end in [overlay.md](./overlay.md) § Stage C |
+| The routing field itself | `models.MetaData.CorporationRef` → `_meta.corporationRef` |
+
+What is missing is anything that **writes** `_meta.corporationRef`. No write path in `services/`
+assigns it, so every stored job carries it empty. Building the aggregation now would produce a
+pipeline that reads nothing, with query and index shapes chosen against no data — the same failure
+the partial indexes were held back to avoid.
+
+Revisit when a producer exists, which in practice means corporation documents exist. The contract
+such a document must satisfy is already written down in [overlay.md](./overlay.md) § Stage C.
+
+Still to land with the stage when it starts: the corporation collections, `QueueCorpRebuild` /
+`ListQueuedCorpRefs`, the corp `_id` builders, a `CollectionGroup` entry (all four existing groups
+are account scoped, so no corporation collection is watched), and index specs in the Deployment
+Tool.
+
+These are **new** collections, so they are named to the convention in
+[collection-naming](../collection-naming/plan.md) from the start rather than renamed later:
+`corporation_archived_jobs`, `corporation_production_totals`, `corporation_timeline_months`,
+`corporation_stats_rebuild_queue`. Corporation-scoped data is the case the `<scope>_` prefix exists
+for, and it is the first collection set that will not be account scoped.
 
 ### Stage D — Statistics API
 
-Endpoints for rollups, timelines, and snapshot history, per account and per corporation. Additive
-to the existing statistics router; the current build-stats endpoint keeps its contract until the
+Endpoints for monthly timelines and lifetime totals, per account and per corporation. Additive to
+the existing statistics router; the current build-stats endpoint keeps its contract until the
 frontend no longer calls it.
+
+`/api/v1/statistics` and `/api/v1/statistics/` are already mounted to the package `Router` in
+`apiServer.go`'s private route table, so new sub-paths need no route-table or wiring change. The
+`GetAPIStatistics` metrics bag is shared by every handler in the package — new endpoints reuse it
+and distinguish themselves by the `reason` label rather than adding instruments.
+
+#### Scope in the path, filters in the query
+
+The account is resolved by auth middleware from the session cookie and is never read from the
+request, so it does not appear in a route. Corporation reads cannot follow that rule — a user may
+belong to several — so the scope has to be nameable:
+
+```
+/api/v1/statistics/account/{view}          scope implicit (the session's account)
+/api/v1/statistics/corporation/{corpRef}/{view}
+```
+
+with the range and `typeID` as query parameters. Adding corporation views then adds a segment rather
+than reshaping account routes, and the account and corporation forms of a view stay visibly the same
+shape.
+
+Two views:
+
+| View | Returns |
+|------|---------|
+| `timeline` | monthly figures over a range, one entry per calendar month and item type. `from` / `to` as `YYYY-MM`, `typeID` optional |
+| `totals` | one all-time aggregate per item type — what `build-stats` serves today |
+
+**`timeline` is the only range query.** An earlier sketch had `rollups` for the buckets and
+`timeline` for a chart series; they read the same documents over the same filter and differ only in
+serialisation, so a second endpoint would have bought a second index and a second cache key for one
+response shape. The consumer reshapes.
+
+**The range defaults to the trailing 3 months** when `from` / `to` are absent, so a caller that
+omits them cannot accidentally request an account's whole history. Bound the maximum span too, and
+reject rather than silently truncate — a truncated range looks like missing data to a chart.
+
+The alternative — `?scope=corp&corpRef=…` on flat routes — was rejected because it makes the
+authorization boundary a query parameter, which is exactly the input a caller controls.
+
+`GET /api/v1/statistics/build-stats` keeps its current flat path regardless; it is the one endpoint
+with live SPA callers, and it retires in Stage E rather than moving.
+
+#### Corporation authorization has an answer
+
+Sessions already carry the corporation refs they may see:
+`auth.ExtractSessionGrants` returns `Grants.CorporationRefs`, and the websocket dispatch path
+already authorizes org-scoped delivery by matching against exactly that list.
+
+So a corporation endpoint compares `{corpRef}` against the session's granted refs and returns 403
+when absent. Refs are compared as refs; an id is converted to a ref first, never the reverse. This
+removes what would otherwise be an open question for Stage C.
+
+#### Naming
+
+**`rollup` goes.** It is the internal aggregation verb and reads as jargon on a URL and in a
+response body. The wire name is `timeline`; internal names follow it rather than keeping a second
+vocabulary, so the same thing is not called a bucket in Mongo, a rollup in the worker and a timeline
+on the wire.
+
+Rename with Stage D, before the first endpoint ships — the name otherwise lands in the route, the
+JSON, the React Query keys and the `_id` builders at once, and each extra copy makes it harder to
+undo. Surfaces carrying `rollup` today:
+
+| Surface | Today |
+|---------|-------|
+| Collection | `user_rollup_buckets` (`names.go`, `store.go`) → `account_timeline_months`, per [collection-naming](../collection-naming/plan.md) |
+| Model | `UserRollupMonthlyBucket`, `CorpRollupMonthlyBucket`, `BuildStatsRollupTotals`, `CorpRollupOwnedLane` |
+| `_id` builder | `UserRollupMonthlyDocumentID` |
+| Transformation | `archivestats/rollup_buckets.go`, `AccumulateAccountBuckets`, `AccountBuckets` |
+| Mongo handle / helpers | `UserRollupBuckets`, `PruneAccountRollupBuckets` |
+
+The collection moves with them — see [Collection renames](#collection-renames-are-the-expensive-part)
+for why `user_rollup_buckets` is cheap to rename and `build_stats` is not.
+
+#### `build-stats` becomes `totals`
+
+`build-stats` says almost nothing — every view here is a build statistic. What the endpoint serves
+is **one all-time aggregate per item type**: `BuildStatsRow`, running totals with a `dataSnapshots`
+history, keyed by account and `typeID`. The distinction that matters is lifetime totals against a
+range of months, so the view is `totals` and internal names say **production totals** — clearer
+about what is being totalled than "build stats", which reads as a category rather than a measure.
+
+Not a free rename: `GET /api/v1/statistics/build-stats` is the one statistics endpoint with live SPA
+callers — three read sites plus its React Query hooks — and `dataSnapshots` is read directly. The
+endpoint keeps its contract until Stage E moves the frontend off it, so the wire rename lands with
+that move rather than as a separate break.
+
+#### Collection renames are the expensive part
+
+Renaming a Go symbol is a refactor. Renaming a **collection** moves live documents and crosses a
+module boundary, so the two cases differ sharply:
+
+| Collection | Holds | Rename cost |
+|------------|-------|-------------|
+| `user_rollup_buckets` | Buckets this project created | **Low.** No other subsystem references it. The wholesale rebuild repopulates it from archived jobs, so a rename can drop the old collection rather than migrate it |
+| `build_stats` | The aggregate the SPA reads today | **High — do not rename with Stage D** |
+
+`build_stats` is not contained. Beyond `names.go` and `store.go` it appears in the changestream
+`archive_and_stats` collection group and in the websocket subscribe-auth allow-list, so the name is
+part of a **live client-facing subscription surface**, not just storage. Renaming it would break
+realtime subscriptions for a collection the SPA still reads, to rename a document set that Stage E
+retires anyway. Leave it; if it moves at all, it moves after the frontend no longer reads it.
+
+Both names are also duplicated across a module boundary: `services/shared/mongo/names.go` holds the
+constant, while `deployment-tool/internal/dataplane/mongo/index_specs.go` repeats the collection as
+a **bare string**, because `deployment-tool` cannot import `services`. A rename that misses the
+Deployment Tool leaves `eip ensure-mongo` building indexes on a collection nothing reads — silently,
+since creating an index on an absent collection is not an error. The same two-module pinning the
+partial filters use applies here, and index specs must move in the same change as the constant.
 
 ### Stage E — Frontend
 
@@ -105,7 +247,7 @@ in-scope package needs modernization before the work starts.
 | Phase 1 — project docs | Complete |
 | A — data model and Mongo layer | Complete for the account scope — entity refs on job documents, statistics models, Mongo layer and index specs landed. Corp scope held for C; partial indexes land with D |
 | B — account statistics pipeline | **Complete** — transformation, worker rebuild, queue drain, its task and asynq handler, the hourly schedule, and the archived-jobs producer are all landed. Queue → publish → drain runs end to end, and the claim protocol, revoke, prune and write-then-remove ordering are pinned by passing live tests. The worker's end-to-end composition of those helpers has no live test yet (see Open questions) |
-| C — corporation statistics pipeline | Not started, may be deferred |
+| C — corporation statistics pipeline | **Deferred** at Stage B close — blocked on a producer for `_meta.corporationRef`, not on effort. See § Stage C is deferred |
 | D — statistics API | Not started |
 | E — frontend | Not started |
 
@@ -134,10 +276,8 @@ claim protocol decides what stays queued. Behaviour → [overlay.md](./overlay.m
 
 **Start here:** two things, in either order.
 
-1. **Decide Stage C.** The plan defers the corporation pipeline to a call at Stage B close, which is
-   now. Deferring it keeps `corp_archivedJobs`, the corp rebuild queue and the corp `_id` builders
-   out of `shared/mongo` — they are held back deliberately because nothing populates a `corpRef`
-   today. Committing to it means landing those together, per Stage A's still-open half.
+1. **Stage D.** It depends only on the Stage A account models, so nothing blocks it, and it is what
+   unblocks E. Stage C is deferred (below), which does not hold D up.
 2. **Watch the first live drains.** Revoke, prune and write-then-remove ordering now have live
    coverage and pass, so the individual Mongo helpers are no longer taken on trust. What the cron
    still exercises untested is the worker's composition of them end to end — see Open question 1.
@@ -205,8 +345,8 @@ Stage D depends on the Stage A models, not on C, so it can start regardless.
   transformation, B2 worker tasks, B3 scheduling and producers. This plan defines Stage B as one
   stage.
 
-**Recommended pickup order:** A → B → D → E, with C either after B or deferred. D depends on the
-Stage A models; E depends on D's response shapes.
+**Recommended pickup order:** A → B → D → E. A and B are done; C is deferred until a producer for
+`_meta.corporationRef` exists. D depends on the Stage A models; E depends on D's response shapes.
 
 **Reference material:** `feature/archived-jobs-redesign` on origin. Read it for pipeline shapes and
 bucketing logic; do not merge or cherry-pick its Mongo-touching commits.
