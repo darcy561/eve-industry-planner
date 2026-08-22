@@ -20,7 +20,7 @@ go test ./internal/docker/...
 | Endpoint | `ResolveDockerEndpoint` from context / `DOCKER_HOST` / config JSON (many edge cases) |
 | Health / status helpers | Health rollup; no-stack summary; friendly ports; replica detail |
 | Logs / version helpers | Service log line formatting; deployed app version from env/image; running image digest |
-| `enginetest` | Fake Engine httptest — service inspect 404 vs error; `SetServiceOK` + ServiceUpdate body capture (used by config `ApplyServiceSpecPatch` tests) |
+| `enginetest` | Fake Engine httptest — service inspect 404 vs error; `SetServiceOK` + ServiceUpdate body capture (used by config `ApplyServiceSpecPatch` tests); queued `/containers/json` lists (used by the `ops` capacity wait tests) |
 
 ### Thin
 
@@ -34,3 +34,5 @@ go test ./internal/docker/...
 ## Topic-only detail
 
 - Expand `enginetest` handlers when adding SDK call-site coverage. Do not unit-test create races or HTTP client timeouts. Depth labels → [contents.md](./contents.md).
+- `enginetest` is backed by `httptest.NewTestServer` (in-memory), so it is safe inside a `testing/synctest` bubble. It has no `URL` or listener — reach it only through `APIClient()`. Keep it that way: a conventional `httptest.NewServer` deadlocks a bubble. → [CLI testing](../../deployment/deployment-tool/cli/testing.md) § Time-dependent loops.
+- `SetContainerList` fixes one `/containers/json` result; `QueueContainerList` appends results returned in order (the last repeats), so a poll loop can observe the container set changing.

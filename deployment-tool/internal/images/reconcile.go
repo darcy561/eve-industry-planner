@@ -102,8 +102,8 @@ func normalizeDigest(d string) string {
 		return ""
 	}
 	// RepoDigests sometimes return repo@sha256:… — keep digest only.
-	if i := strings.LastIndex(d, "@"); i >= 0 {
-		d = d[i+1:]
+	if _, digest, ok := strings.CutLast(d, "@"); ok {
+		d = digest
 	}
 	return d
 }
