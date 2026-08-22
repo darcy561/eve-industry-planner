@@ -1,4 +1,4 @@
-# AuthZ HMAC Rollout Plan
+# Entity id encryption rollout plan
 
 **Rules:** Read and following [`../documentation-rules.md`](../documentation-rules.md)
 and [`../technical-rules.md`](../technical-rules.md) (migration-plans).
@@ -13,8 +13,8 @@ Statuses reflect what runs today, not what was intended when this plan was writt
 | Rollout phase | Status |
 |---------------|--------|
 | Phase 1 — project docs | Complete |
-| 1. Shared HMAC helpers + tests | **Landed** — `shared/crypto/authzhmac/{helper,ref}`; see [overlay.md](./overlay.md) § Shared HMAC helpers |
-| 2. Metadata schema fields and reverse indexes | Not started |
+| 1. Shared entity id helpers + tests | **Landed** — `shared/crypto/entityid`; see [overlay.md](./overlay.md) § Shared entity id helpers |
+| 2. Refs as the internal representation | **Landed** — session grants, websocket scopes, tenant keys and job documents carry refs, and job reads restore ids at the response boundary; see [overlay.md](./overlay.md) § Refs as the internal representation |
 | 3. Login-time backfill for legacy accounts | Not started |
 | 4. Refresh-token encryption at rest + migration | **Landed** — `models.RefreshToken` persists `rTokenCiphertext` / `rTokenNonce` / `rTokenKeyVersion`, with the keyring built by `crypto/aesgcm/keyrings.NewRefreshTokenKeyringSpec` |
 | 5. Entitlements store and event recompute worker | Not started |
@@ -23,17 +23,123 @@ Statuses reflect what runs today, not what was intended when this plan was writt
 | 8. Dual-read migration period | Not started |
 | 9. Full cutover to entitlements | Not started |
 
-Nothing under phases 1–3 or 5–9 exists in the codebase yet. No `crypto/hmac` use, no
-`char_ref` / `corp_ref` / `alliance_ref` symbols, and no entitlements store are present on
-`Development`.
+Phases 3 and 5–9 do not exist in the codebase yet: there is no login backfill and no
+entitlements store. Refs themselves are in use across sessions, websocket routing and job
+documents.
+
+## Decision — refs become reversible deterministic encryption (SIV)
+
+**Status: landed.** `shared/crypto/entityid` replaces the HMAC helpers, and every consumer
+converts through it.
+
+### Why the HMAC ref is being replaced
+
+A ref must be recoverable. The lifecycle in this plan has always said a raw id is converted
+at ingest and converted back before serialising to the client, and § End-to-End ID Lifecycle
+holds only because its scope was authorization state, where no id is ever displayed. Refs
+were later extended to job document fields — corporation and character on transactions,
+market orders, broker fees and linked jobs — which *are* displayed. HMAC is one-way, so for
+any field whose only surviving copy of the id was the stored ref, conversion destroys the id
+permanently.
+
+The concrete failure: a converted linked job is serialised with neither `corporation_id`
+(zeroed) nor `corporation_ref` (`json:"-"`), the client echoes the document back without
+either, and the next write persists the absence. Fields whose id the client holds from
+another source survive by re-derivation and mask the problem.
+
+### The replacement
+
+One value per entity id, stored in place of the ref, produced by **deterministic authenticated
+encryption** — SIV mode ([RFC 5297](https://www.rfc-editor.org/rfc/rfc5297),
+[RFC 8452](https://www.rfc-editor.org/rfc/rfc8452)). The nonce is derived from the plaintext
+rather than randomly, so the same id always yields the same ciphertext and the ciphertext
+still decrypts.
+
+This keeps every property the ref was chosen for and adds the missing one:
+
+| Property | HMAC ref | SIV |
+|---|---|---|
+| Same id → same stored value (queryable, usable as an aggregation key, lock partition, tenant key) | yes | yes |
+| Opaque in logs and in the database | yes | yes |
+| Useless if the database leaks without the key | yes | yes |
+| Recoverable at the response boundary | **no** | yes |
+
+Because the value is deterministic, it serves as identity directly: no second field, no
+sealed envelope beside it, no per-document spec marker.
+
+### Options considered
+
+1. **SIV replaces the ref entirely.** One mechanism, one stored value, one identity per
+   entity. Chosen.
+2. **Keep the HMAC ref and add a sealed envelope holding the raw ids.** Also works, but it is
+   two fields doing one field's job, and the document carries a spec marker to describe the
+   envelope layout. Rejected as more surface for no additional property.
+3. **Keep HMAC for authorization surfaces and use SIV for document fields.** Rejected: one
+   corporation would hold two different opaque values, splitting the identity that statistics
+   aggregation, lock partitions and tenant pools all key on — the same failure § Single key,
+   never rolled exists to prevent.
+
+### Construction
+
+Implemented in-tree rather than by taking a new crypto dependency, because both halves already
+exist and the construction is small:
+
+```
+nonce = HMAC(nonceKey, kind + ":" + id)[:12]
+ct    = AES-GCM(dataKey, nonce, id, aad = kind)
+```
+
+`nonceKey` and `dataKey` are separate keys. Reusing a GCM nonce is only catastrophic across
+*different* plaintexts under one key; here the nonce is a function of the plaintext, so a
+repeated nonce always accompanies the identical plaintext. The alternative — depending on
+`github.com/secure-io/siv-go` for RFC 5297 / RFC 8452 — was considered and can be revisited if
+the in-tree construction proves awkward to review.
+
+### Accepted trade-off
+
+Anything that can return an id to a client can recover every id in the database, so the key
+holder can decrypt. Ids are still never stored in readable form and a database leak without
+the key still yields nothing. Irreversibility and returning ids to clients are mutually
+exclusive; this project takes the latter.
+
+### Wire and schema compatibility
+
+**Migrate-required in principle, no-op in practice.** No ref has ever been written to a
+deployed database: live job documents still carry raw `corporation_id`, and no sealed
+envelope was ever persisted. The stored format is therefore still free to change, and no
+backfill of existing refs is needed. The pending conversion of legacy raw ids is unaffected
+— it reads the same raw field and writes the new value instead of a ref.
+
+Surfaces that change shape: Redis session grants, websocket scope payloads, the affinity
+cookie, NATS routing keys, and the job document fields. All are internal or already flagged
+in § Wire and schema compatibility.
+
+### What this replaced
+
+- `shared/crypto/authzhmac/{helper,ref}` and `shared/crypto/sealedfields` are deleted.
+  `models.FieldProtection` no longer carries an envelope; it is the spec marker alone.
+- `AUTHZ_HMAC_KEY` is now `ENTITY_ID_KEY`, in the `EnvFields` entry, the Swarm secret list and
+  `docker-stack.yml`.
+- `protectedfields.ToRefs` / `RefsForIDs` are `Encrypt` / `ValuesForIDs`, and `Decrypt` is new.
+- [overlay.md](./overlay.md) § Reverse lookup is not provided is retracted. It contradicted
+  § End-to-End ID Lifecycle in this plan and an explicit project requirement, and it is the
+  reason the gap survived review: the limitation was documented rather than resolved.
+
+Field naming did **not** change. A ref is named for what it is — a reference to an entity —
+not for the primitive behind it, so `CorporationRef` / `corporation_ref` are unchanged.
+
+**Open at promote:** [backend/api/auth/roadmap.md](../../backend/api/auth/roadmap.md) links to
+this project under its old folder name and names the old key. It is live SoT, so it is not edited
+during the project; repair the link and the key name on promote.
 
 ## Shared helper implementation
 
-Rollout phase 1 landed as `shared/crypto/authzhmac/{helper,ref}`. Behaviour and operator surface →
-[overlay.md](./overlay.md) § Shared HMAC helpers.
+Rollout phase 1 landed as `shared/crypto/entityid`. Behaviour and operator surface →
+[overlay.md](./overlay.md) § Shared entity id helpers.
 
-The helpers have no callers yet. Rollout phase 2 (metadata schema fields and reverse indexes) is
-the first consumer.
+Rollout phase 2 was the first consumer. Refs now carry organisation identity through session
+grants, websocket scopes and tenant keys, and through job documents via
+`shared/protectedfields`.
 
 ## Objectives
 
@@ -51,17 +157,72 @@ the first consumer.
 Implementation notes:
 
 - Use domain separation prefixes exactly as above.
-- Use a version prefix in stored values (example: `v1_char_...`).
+- Refs carry no version prefix: the format is `{kind}_{token}` (example: `char_...`).
 - Encode as base64url without padding (optionally truncate digest before encoding).
 - Keep pepper in secrets management, never in source control.
+
+### Single key, never rolled
+
+There is **one** entity id key and it is not rotated. `ENTITY_ID_KEY` is locked once
+generated, there is no legacy-key set, and no keyring type exists for it — unlike the
+refresh-token AES key, which does roll and keeps legacy versions.
+
+This is a deliberate decision, not a gap. Refs are identity, not merely storage: they key
+statistics aggregation, lock partitions and websocket tenant pools, and those uses compare refs
+to each other rather than deriving them from a supplied id. One entity holding two refs would
+split aggregates and hand two clients separate lock partitions for the same document. Rolling
+the key would therefore mean rewriting every stored ref in one pass, not a gradual re-derive.
+
+A stored ref cannot be
+recomputed under a new key without the original id, and the whole point of refs is that no
+raw id is retained anywhere. Rolling would therefore leave old refs stranded on the old key.
+
+The decisive constraint is that refs are **identity**, not merely a query filter. They key
+corp and alliance statistics aggregation, Redis lock partitions (`corporation:{ref}`) and
+websocket tenant pools. If one entity held two refs — one per key version — those uses
+fragment: aggregates split into two rows per corporation, and two clients on the same corp
+document take different lock partitions and both acquire the lease. Query-time fan-out
+across key versions does not fix that, because those uses compare refs to each other rather
+than deriving them from a supplied id.
+
+Consequences to design around:
+
+- A ref is stable for the life of the deployment; treat it as a permanent identifier.
+- Refs carry no version prefix. A version would advertise a rotation that cannot happen, and
+  costs bytes in every document, Redis partition key and log line. If the key ever has to
+  change, old and new refs are indistinguishable — accepted, because without a way to
+  canonicalise across keys they could not be used together regardless.
+- Making rolling possible later needs a way to canonicalise refs across versions without
+  storing ids — for example a table grouping refs known to denote the same entity, filled
+  as real ids cross the API boundary. That is future work, not a current requirement.
+- Because the key is permanent, its secrecy is the entire control. Character, corporation
+  and alliance ids are a small enumerable space, so anyone holding both the database and the
+  pepper can rebuild the id-to-ref table. Refs defend against a database leak *without* the
+  secrets, which is the case worth defending given Mongo and Swarm secrets have different
+  blast radii.
+
+### Wire and schema compatibility
+
+Converting organisations to refs changed several cross-process and persisted surfaces. All
+producers and consumers live in this repo and deploy together, so these are coordinated cuts
+rather than migrations.
+
+| Surface | Change | Classification |
+|---------|--------|----------------|
+| Redis account sessions | `SessionGrants.corporation_ids` / `alliance_ids` (`[]int64`) become `corporation_refs` / `alliance_refs` (`[]string`) | **breaking** — existing sessions lose org grants until re-authentication; the key rename means old records are ignored rather than failing to unmarshal a number into a string |
+| Redis websocket handoff | `corporation_ids` / `alliance_ids` become `corporation_refs` / `alliance_refs` | **breaking**, short-lived keys |
+| NATS `doc.update` | route fields and `scopes` renamed to ref names | **breaking**, same-deploy |
+| Affinity cookie | `corporation:{id}` becomes `corporation:{ref}` | **breaking** — existing cookies stop matching, so connected clients are reshuffled across websocket replicas once |
+| Operator env | `AUTHZ_HMAC_KEY` replaced by `ENTITY_ID_KEY`, mounted for api, worker and websocket | **migrate-required** — the key must be mounted before deploy, or the services will not start |
+| Browser `upgrade_scopes` | unchanged — the client still names organisations by id | additive |
 
 ## ID Spec (Implementation Contract)
 
 ### Canonical ref format
 
-- `v1_char_<token>`
-- `v1_corp_<token>`
-- `v1_alliance_<token>`
+- `char_<token>`
+- `corp_<token>`
+- `alliance_<token>`
 
 Where `<token>` is base64url(no padding) of an HMAC-SHA256 digest (optionally truncated to 20 bytes before encoding).
 
@@ -74,21 +235,22 @@ Where `<token>` is base64url(no padding) of an HMAC-SHA256 digest (optionally tr
 
 ### Determinism and scope separation guarantees
 
-- Same `(kind, id, key_version)` always yields the same ref.
+- Same `(kind, id)` always yields the same ref. Refs carry no key version.
 - Different kinds must not collide for the same numeric id because kind prefix is part of HMAC input.
-- Ref stability is guaranteed only while the same HMAC key/version remains active.
+- Ref stability holds for the life of the deployment, which is what lets a ref serve as identity —
+  see § Single key, never rolled.
 
 ### Required shared helper API
 
 - `RefFromCharacterID(id int64) (string, error)`
 - `RefFromCorporationID(id int64) (string, error)`
 - `RefFromAllianceID(id int64) (string, error)`
-- `ParseRefVersion(ref string) (version string, kind string, ok bool)`
-- `ValidateRefShape(ref string) bool`
+- `ParseRefKind(ref string) (kind string, ok bool)`
+- `ValidShape(ref string) bool`
 
 Operational rules:
 
-- Helpers read HMAC key and key version from environment (`AUTHZ_HMAC_KEY`, `AUTHZ_HMAC_KEY_VERSION`).
+- The cipher reads its key from environment (`ENTITY_ID_KEY`). There is no key version.
 - Fail fast at service startup if key is missing/too short.
 - Never log raw ids or full secret material from helper failures.
 
@@ -96,16 +258,14 @@ Operational rules:
 
 ### Runtime env
 
-- `AUTHZ_HMAC_KEY` is the active signing key material.
-- `AUTHZ_HMAC_KEY_VERSION` defaults to `v1` for initial rollout.
+- `ENTITY_ID_KEY` is the key material. It is a Swarm secret mounted for the api, worker
+  and websocket services, and it is the only entity id env knob. The encryption and
+  nonce-derivation subkeys are derived from it under distinct labels.
 
-### Rotation strategy (no downtime)
+### Rotation
 
-1. Introduce new key as `v2`.
-2. Dual-read refs (`v1` + `v2`) during migration windows where needed.
-3. Recompute snapshots/indexes writing `v2` refs.
-4. Cut readers to `v2` only after convergence.
-5. Retire `v1` key from runtime.
+The key is not rotated — see § Single key, never rolled for why, and for what would have to be
+built first if that decision is ever revisited.
 
 ### Security constraints
 

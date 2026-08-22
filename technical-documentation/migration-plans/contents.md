@@ -13,7 +13,7 @@ Decision/history/work logs for long-running migrations. **Not SoT.**
 | I need to… | Read |
 |------------|------|
 | Websocket realtime — promote verified behaviour, then retire | [websocket-realtime/contents.md](./websocket-realtime/contents.md) |
-| AuthZ HMAC rollout (entity refs, entitlements snapshot) | [authz-hmac/contents.md](./authz-hmac/contents.md) |
+| Entity id encryption (entity refs, entitlements snapshot) | [entity-id-encryption/contents.md](./entity-id-encryption/contents.md) |
 | Swarm stack migration (**closed** — history; live SoT promoted) | [swarm-stack/contents.md](./swarm-stack/contents.md) |
 | Changestream tenant scale (publisher queues / metrics / future auto-detect) | [changestream-tenant-scale/contents.md](./changestream-tenant-scale/contents.md) |
 | Shared packages `go fix` cleanup (**closed** — history; Tier 4 omit tags waived) | [shared-go-fix/contents.md](./shared-go-fix/contents.md) |

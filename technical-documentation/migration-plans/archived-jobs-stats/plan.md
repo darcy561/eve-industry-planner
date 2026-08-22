@@ -41,7 +41,7 @@ code is therefore reviewed against the current bars rather than assumed to meet 
 
 ### What the branch is worth
 
-The design is sound and driver-agnostic: aggregation pipeline shapes, rollup bucketing, dirty-queue
+The design is sound and driver-agnostic: aggregation pipeline shapes, rollup bucketing, rebuild-queue
 semantics, and the account/corporation split all survive the driver change. The code around them
 does not. Treat the branch as a specification.
 
@@ -50,9 +50,10 @@ does not. Treat the branch as a specification.
 | Disposition | Surface |
 |-------------|---------|
 | **Carry forward, review before use** | Frontend delta — 11 new components/modules plus 10 files still byte-identical to the merge base. Leaf packages with no Mongo dependency: `archivestats/`, `core/moneyutil/`, `core/jobid/corpinference/`, `core/jobid/linkedjobcorp/`, `core/sealedfields/` (+ `entityids/`). |
-| **Reimplement against driver v2** | `worker/tasks/archivedjobs/` including its `helpers/` package, `api/v1endpoints/statistics/` endpoints, `core/scheduler/archivedjobs/publish_fanout.go`, new models, and all Mongo query/index code. |
+| **Reimplement against driver v2** | `worker/tasks/archivedjobs/` including its `helpers/` package, `api/v1endpoints/statistics/` endpoints, `core/scheduler/archivedjobs/publish_fanout.go`, and all Mongo query code. |
+| **Relocate** | The branch's `shared/core/mongo/indexing/` package. Index ownership sits in the Deployment Tool (`internal/dataplane/mongo/index_specs.go`, applied by `eip ensure-mongo`); Development has no index-creation code in `services/`. New collections get `IndexSpec` entries there rather than a services-side indexing package called from `main.go`. |
 | **Drop** | `services/shared/shared/*` renames (already landed on Development), all 19 `docs/` files (content re-targeted into this project folder), `go.mod` / `go.sum` changes, `frontend/package-lock.json` (regenerate). |
-| **Separate decision** | The branch's `core/crypto/authzhmac/` package implements [authz-hmac-rollout-plan.md](../authz-hmac-rollout-plan.md), not this project. The `crypto/aesgcm_keyring.go` → `crypto/aesgcm/keyring.go` nesting is orthogonal to archived jobs and collides with recent auth work; land it separately if still wanted. |
+| **Separate decision** | The branch's `core/crypto/authzhmac/` package implements [entity-id-encryption/plan.md](../entity-id-encryption/plan.md), not this project. The `crypto/aesgcm_keyring.go` → `crypto/aesgcm/keyring.go` nesting is orthogonal to archived jobs and collides with recent auth work; land it separately if still wanted. |
 
 ## Phases
 
@@ -61,7 +62,7 @@ Phase 1 is this folder. Later stages run only after that gate.
 ### Stage A — Data model and Mongo layer
 
 Models for archived job statistics, corporation statistics, and snapshot documents; the Mongo
-queries, indexes, and dirty-queue collections they need. Gates every later stage.
+queries, indexes, and rebuild-queue collections they need. Gates every later stage.
 
 Wire compatibility: new persisted document shapes are additive; existing `BuildStatsRow` documents
 stay readable until Stage B replaces their producer.
@@ -69,12 +70,12 @@ stay readable until Stage B replaces their producer.
 ### Stage B — Account statistics pipeline
 
 Worker tasks that aggregate an account's archived jobs into rollup buckets and snapshots, with the
-dirty-queue that marks accounts needing recomputation. Replaces the current flat per-account
+rebuild queue that holds accounts needing recomputation. Replaces the current flat per-account
 aggregate.
 
 ### Stage C — Corporation statistics pipeline
 
-Corporation-level aggregation over member jobs, its own dirty queue and pruning. Separable from
+Corporation-level aggregation over member jobs, its own rebuild queue and pruning. Separable from
 Stage B and may be deferred without blocking the rest — decide at Stage B close.
 
 ### Stage D — Statistics API
@@ -102,7 +103,7 @@ in-scope package needs modernization before the work starts.
 | Stage | Status |
 |-------|--------|
 | Phase 1 — project docs | Complete |
-| A — data model and Mongo layer | Not started |
+| A — data model and Mongo layer | Complete for the account scope — entity refs on job documents, statistics models, Mongo layer and index specs landed. Corp scope held for C; partial indexes land with D |
 | B — account statistics pipeline | Not started |
 | C — corporation statistics pipeline | Not started, may be deferred |
 | D — statistics API | Not started |
@@ -118,7 +119,18 @@ in-scope package needs modernization before the work starts.
 
 ## Handoff status
 
-**Start here:** Stage A. Nothing is in flight.
+**Start here:** Stage B — the worker pipeline that turns an account's archived jobs into
+`user_archived_job_stats` rows and `user_rollup_buckets`, filling and draining the rebuild queue.
+
+Stage A is closed for the account scope. Two things are held back with a reason recorded in
+[overlay.md](./overlay.md): everything corporation-scoped waits for Stage C (it needs `_meta.corpRef`
+and `corp_archivedJobs`, neither of which exists), and partial indexes wait for Stage D so their
+filters can mirror real query filters rather than guessed ones.
+
+Entity ids on job documents are stored as refs, converted on write by both put paths, with
+`eip cli encodeJobIdentity` converting the 1,404-document backlog. Refs are owned by the
+[entity id encryption project](../entity-id-encryption/plan.md); this project consumes them. See
+[overlay.md](./overlay.md) § Entity refs on job documents.
 
 **Recommended pickup order:** A → B → D → E, with C either after B or deferred. D depends on the
 Stage A models; E depends on D's response shapes.

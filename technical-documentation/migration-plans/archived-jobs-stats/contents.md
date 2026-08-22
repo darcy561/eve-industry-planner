@@ -10,7 +10,7 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 
 - Live archived-jobs behaviour → [backend/contents.md](../../backend/contents.md) (promoted only when this project closes)
 - Live Mongo access layer → [backend/shared/mongo.md](../../backend/shared/mongo.md)
-- Deterministic entity refs (`char_ref` / `corp_ref` / `alliance_ref`) → [authz-hmac-rollout-plan.md](../authz-hmac-rollout-plan.md)
+- Deterministic entity refs (`char_…` / `corp_…` / `alliance_…`) and the authz HMAC key → [entity-id-encryption/plan.md](../entity-id-encryption/plan.md)
 - Frontend SPA conventions → [frontend/technical-rules.md](../../frontend/technical-rules.md)
 
 ## Task map
