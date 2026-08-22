@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"eve-industry-planner/shared/crypto/entityid"
 )
 
 // DownwardScopes narrows delivery under an alliance or corporation root (message metadata).
@@ -173,23 +175,33 @@ var routingOnlyFields = []string{
 	"sourceSessionID",
 }
 
-// ClientPayload returns messageData with routing metadata removed, for delivery to
-// browsers. It returns the original bytes unchanged when nothing needs stripping,
-// so the common account-scoped path allocates nothing.
-func ClientPayload(messageData []byte) []byte {
+// ClientPayload returns messageData shaped for a browser: routing metadata
+// removed, and every entity ref in the document body converted back to the raw
+// id the client is owed.
+//
+// This runs after routing has been decided, and only on the copy handed to
+// delivery. Routing matches on refs, so converting any earlier would leave a
+// message that matches nothing.
+//
+// It returns the original bytes unchanged when nothing needs rewriting, so the
+// common account-scoped path allocates nothing.
+func ClientPayload(messageData []byte, cipher *entityid.Cipher) []byte {
 	var m map[string]any
 	if err := json.Unmarshal(messageData, &m); err != nil {
 		return messageData
 	}
 
-	stripped := false
+	changed := false
 	for _, k := range routingOnlyFields {
 		if _, ok := m[k]; ok {
 			delete(m, k)
-			stripped = true
+			changed = true
 		}
 	}
-	if !stripped {
+	if restoreEntityIDs(m, cipher) {
+		changed = true
+	}
+	if !changed {
 		return messageData
 	}
 
@@ -198,4 +210,65 @@ func ClientPayload(messageData []byte) []byte {
 		return messageData
 	}
 	return out
+}
+
+// idKeyFor maps a ref-bearing key to the id key that replaces it, reporting
+// whether the key names a ref at all. Both spellings occur: document bodies use
+// the bson names (corporation_ref) and _meta uses the camelCase ones.
+func idKeyFor(key string) (string, bool) {
+	if base, ok := strings.CutSuffix(key, "_ref"); ok && base != "" {
+		return base + "_id", true
+	}
+	if base, ok := strings.CutSuffix(key, "Ref"); ok && base != "" {
+		return base + "ID", true
+	}
+	return "", false
+}
+
+// restoreEntityIDs walks a decoded message and replaces every ref with its id,
+// reporting whether anything changed.
+//
+// A value that looks like a ref but does not decrypt is dropped rather than
+// passed through, so a ref cannot reach a browser because a key was missing or
+// the value was malformed.
+func restoreEntityIDs(node any, cipher *entityid.Cipher) bool {
+	changed := false
+
+	switch n := node.(type) {
+	case map[string]any:
+		for key, value := range n {
+			if restoreEntityIDs(value, cipher) {
+				changed = true
+			}
+
+			idKey, isRef := idKeyFor(key)
+			if !isRef {
+				continue
+			}
+			ref, ok := value.(string)
+			if !ok || ref == "" {
+				continue
+			}
+			if !entityid.ValidShape(ref) {
+				continue
+			}
+
+			delete(n, key)
+			changed = true
+			if cipher == nil {
+				continue
+			}
+			if _, id, err := cipher.Decrypt(ref); err == nil {
+				n[idKey] = id
+			}
+		}
+	case []any:
+		for _, value := range n {
+			if restoreEntityIDs(value, cipher) {
+				changed = true
+			}
+		}
+	}
+
+	return changed
 }
