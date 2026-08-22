@@ -1,5 +1,5 @@
 /**
- * Job groups: `user_job_groups` collection (private API).
+ * Job groups: `account_job_groups` collection (private API).
  */
 import Group from "../../../Classes/group.js";
 import useUsersStore from "../../../Zustand/usersStore.js";
@@ -9,7 +9,7 @@ import {
 } from "./applyPrivateHeaders.js";
 
 /** Must match `mongocore.CollectionUserJobGroups` / changestream `collection` field. */
-export const USER_JOB_GROUPS_COLLECTION = "user_job_groups";
+export const USER_JOB_GROUPS_COLLECTION = "account_job_groups";
 
 /** Kept in sync with Go `PutGroupsHandler` (`maxBatchSize`). */
 const MAX_PUT_JOB_GROUPS_BATCH = 100;

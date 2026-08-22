@@ -102,7 +102,7 @@ stored documents and JSON stay flat while a new measure lands in a single struct
 | Shared struct | Fields | Embedded by |
 |---------------|--------|-------------|
 | `BuildMeasures` | totalJobs, itemBuildCount, buildCostTotal, brokersFeeTotal, transactionFeeTotal, jobCostTotal, salesTotal, profitLoss | `BuildStatsRow`, `CorpBuildStatsRow`, `BuildStatsSegmentTotals` |
-| `SalesMeasures` | transactionCount, quantitySold, salesTotal, jobCostTotal, extraCategoryTotals, transactionFeeTotal, brokersFeeTotal, profitLoss | `BuildStatsRollupTotals`, `UserRollupMonthlyBucket`, `CorpRollupMonthlyBucket`, both timeline buckets |
+| `SalesMeasures` | transactionCount, quantitySold, salesTotal, jobCostTotal, extraCategoryTotals, transactionFeeTotal, brokersFeeTotal, profitLoss | `TimelineTotals`, `AccountTimelineMonthBucket`, `CorpTimelineMonthBucket`, both timeline buckets |
 | `CalendarMonth` | year, month | every monthly bucket and timeline entry |
 | `ArchivedJobCostTotals` | the seven per-job cost totals | `ArchivedJobStats` |
 | `ArchivedJobLine` | orderID, date, year, month, amount, isCorp, corpStatus, resolvedCorpRef | `ArchivedJobTransactionLine`, `ArchivedJobFeeLine` |
@@ -138,9 +138,9 @@ collection name travels as a string:
 
 | Collection | Handle | Holds |
 |------------|--------|-------|
-| `user_archived_job_stats` | `ArchivedJobStats` | per-archived-job figures the pipelines read |
-| `user_rollup_buckets` | `UserRollupBuckets` | pre-aggregated calendar months per account and item type |
-| `stats_rebuild_queue_accounts` | `AccountRebuildQueue` | accounts whose statistics need recalculating |
+| `account_archived_job_stats` | `ArchivedJobStats` | per-archived-job figures the pipelines read |
+| `account_timeline_months` | `AccountTimelineMonths` | pre-aggregated calendar months per account and item type |
+| `account_stats_rebuild_queue` | `AccountRebuildQueue` | accounts whose statistics need recalculating |
 
 **Rebuild queue.** Queues are named for the work they trigger rather than the state of the data.
 `QueueAccountRebuild` keeps the original `queuedAt` across re-queues, so the wait time reflects
@@ -163,7 +163,7 @@ helpers already do. `DistinctUnprocessedArchivedAccountIDs` now goes through `Di
 instead of reaching for `Collection()` and hand-decoding `[]any`, and gains retry it did not have.
 
 **Document `_id` builders** live beside `BuildStatsDocumentID` in `build_stats.go` — the contract
-between the workers that write and the API that reads. `UserRollupMonthlyDocumentID` zero-pads the
+between the workers that write and the API that reads. `AccountTimelineMonthDocumentID` zero-pads the
 month (`acct|1234|2026-08`) so `_id` ordering matches calendar ordering.
 
 ### Indexes
@@ -173,39 +173,44 @@ declarative source of truth and `eip ensure-mongo` applies it. Seven specs join 
 
 | Collection | Index | Serves |
 |------------|-------|--------|
-| `user_archived_job_stats` | `accountID, typeID, isProductionChain, revoked` | per-account, per-type reads that exclude chain intermediates and revoked rows |
-| `user_archived_job_stats` | `accountID, archivedAt, revoked` | account rebuild scans in archive order |
-| `user_rollup_buckets` | `accountID, year, month, typeID` | rollups over a month range, all types or one |
-| `user_job_documents` | `build.costs.linkedJobs.corporation_id` | finding documents that still hold a raw entity id |
-| `user_job_documents` | `protected.spec` | finding documents written under an older field set |
-| `archivedJobs` | `build.costs.linkedJobs.corporation_id` | as above, for archives |
-| `archivedJobs` | `protected.spec` | as above, for archives |
+| `account_archived_job_stats` | `accountID, typeID, isProductionChain, revoked` | per-account, per-type reads that exclude chain intermediates and revoked rows |
+| `account_archived_job_stats` | `accountID, archivedAt, revoked` | account rebuild scans in archive order |
+| `account_timeline_months` | `accountID, year, month, typeID` | timeline reads over a month range, all types or one |
+| `account_job_documents` | `build.costs.linkedJobs.corporation_id` | finding documents that still hold a raw entity id |
+| `account_job_documents` | `protected.spec` | finding documents written under an older field set |
+| `account_archived_jobs` | `build.costs.linkedJobs.corporation_id` | as above, for archives |
+| `account_archived_jobs` | `protected.spec` | as above, for archives |
 
 The last four serve the conversion backfill. Both are selective — the raw-id index covers
 1,404 documents out of ~41,500 and shrinks to nothing as the backlog drains, since writes
 convert before persisting.
 
-`stats_rebuild_queue_accounts` gets no spec. Its documents are keyed by account ID alone and
+`account_stats_rebuild_queue` gets no spec. Its documents are keyed by account ID alone and
 `ListQueuedAccounts` reads the whole collection unordered, so the automatic `_id` index covers it.
 A `queuedAt` index only becomes worth adding if draining moves to oldest-first, which would also
 need a sort on that read.
 
 No preimage entry is needed: `PreimageCollections` covers the user-document collections the
-changestream syncs to clients, which is why `archivedJobs` and `build_stats` are absent from it too.
+changestream syncs to clients, which is why `account_archived_jobs` and `account_production_totals` are absent from it too.
 
-**Partial indexes are deferred, deliberately.** The branch carried partial indexes over an "active
-snapshot" filter, and the rollup query they serve does not exist yet. A partial index only covers a
-query whose filter matches it, so writing the filter before the query means guessing at the match —
-exactly the failure the pinning below exists to prevent. They land with the Stage D handlers, whose
-filters they must mirror.
+**No partial indexes were added.** The branch carried them over an "active snapshot" filter, and the
+deferral existed so the filter could be written against a real query rather than guessed at. With
+the Stage D handlers written, none of them filters on a subset: every read is scoped by `accountID`
+and optionally `typeID`, both of which every document carries. A partial filter would exclude
+nothing, so it would add a constraint to keep in step across two modules and buy no selectivity.
 
-The single-type rollup path may want `accountID, typeID, year, month` as well. The index above
-serves both shapes and is optimal for the all-types one; whether the single-type case justifies a
-second index is a Stage D call, once there is a real query to measure rather than a guess.
+**The single-type question resolved as yes.** `atm_accountID_year_month_typeID_1` leads with year and
+month, so a query naming one item type over a range of months can only use its `accountID` prefix and
+scans the account's whole window. `atm_accountID_typeID_year_month_1` puts `typeID` second, which the
+archive dialogue's per-blueprint read needs. Both are kept: the first is still the better index when
+no type is named.
+
+`account_production_totals` gained `apt_accountID_typeID_1`, which serves the lifetime read in both
+its forms. It had no index of its own before — the collection was previously reached only by `_id`.
 
 ### Schema maintenance
 
-`archivedJobs` joined the schema-maintenance rotation, because it carries `schemaVersion` like the
+`account_archived_jobs` joined the schema-maintenance rotation, because it carries `schemaVersion` like the
 planner collections and would otherwise never reach the current version. The rotation now visits
 five collections rather than four, so each is scanned every fifth hourly tick.
 
@@ -238,13 +243,21 @@ write path, so every stored job carries it empty. A corporation pipeline built a
 would aggregate nothing, and its query shapes would be guesses no data exercises. The contract a
 corporation document has to meet is in [Stage C](#stage-c--corporation-statistics-pipeline).
 
-So `corp_archivedJobs`, `corp_build_stats`, `corp_rollup_buckets`, the `CorpRebuildQueue`
-(`stats_rebuild_queue_corps`, with `QueueCorpRebuild` / `ListQueuedCorpRefs`) and the corp `_id`
-builders land together with Stage C, when that stage is committed to rather than deferred.
+So `corporation_archived_jobs`, `corporation_production_totals`, `corporation_timeline_months`,
+the `CorpRebuildQueue` (`corporation_stats_rebuild_queue`, with `QueueCorpRebuild` /
+`ListQueuedCorpRefs`) and the corp `_id` builders land together with Stage C, when that stage is
+committed to rather than deferred.
+
+These are **new** collections, so they take the convention in
+[collection-naming](../collection-naming/plan.md) from the start rather than being renamed later.
+Corporation-scoped data is the case the `<scope>_` prefix exists for, and it is the first
+collection set that is not account scoped. The names also follow the Stage D vocabulary — see
+[§ Naming](./plan.md#naming) — so `production_totals` and `timeline_months` rather than
+`account_production_totals` and `account_timeline_months`.
 
 Index definitions do **not** land in `services/`. Development has no index-creation code there at
 all; `deployment-tool/internal/dataplane/mongo/index_specs.go` is the declared source of truth,
-applied by `eip ensure-mongo`, and it already carries an `archivedJobs` entry. The new collections
+applied by `eip ensure-mongo`, and it already carries an `account_archived_jobs` entry. The new collections
 get `IndexSpec` entries there — an operator-surface change, not a services one.
 
 ## Stage B — account statistics pipeline
@@ -258,8 +271,8 @@ handler, and the archived-jobs producer are committed. Nothing publishes the dra
 Pure: no Mongo, no clock, no key material, so the attribution rules are testable apart from the
 worker that applies them. `now` is a parameter, which is what makes a rebuild reproducible.
 
-`BuildAccountSnapshot` reduces one archived job to its `user_archived_job_stats` row.
-`AccumulateAccountBuckets` and `AccountBuckets` fold those rows into `user_rollup_buckets`.
+`BuildAccountSnapshot` reduces one archived job to its `account_archived_job_stats` row.
+`AccumulateAccountBuckets` and `AccountBuckets` fold those rows into `account_timeline_months`.
 
 **Cost attribution.** A job's costs are attributed to the month production started — the earliest
 linked industry job, falling back to the earliest sale, then the archive date. A build spanning a
@@ -306,7 +319,7 @@ a transient failure retries instead of losing the request. `DrainResult` separat
 ### Mongo layer added for it
 
 `LoadAccountArchivedJobs`, `LoadAccountArchivedJobStats`, `RevokeAccountArchivedJobStats` and
-`PruneAccountRollupBuckets`. Rows are revoked rather than deleted so a rebuild can tell a removed
+`PruneAccountTimelineMonths`. Rows are revoked rather than deleted so a rebuild can tell a removed
 job from one it has never seen, and so a job restored from the archive keeps its history.
 
 `LoadAccountArchivedJobStats` returns revoked rows too, which is what lets a rebuild distinguish a
@@ -435,10 +448,74 @@ client, not against id disclosure.
 
 ## Stage D — statistics API
 
-_Not landed._
+_Landed for the account scope._ Corporation views wait for Stage C.
 
-Fill in: endpoints, request and response shapes, and which contracts are additive versus replacing
-an existing read.
+### The routes
+
+Scope leads the path, filters stay in the query. The account scope carries no identifier because the
+account is resolved from the session cookie and never read from the request; a corporation route
+will name its ref in the path, because a caller may belong to several and the value it names decides
+what it may see. A query parameter is the wrong place for that.
+
+| Route | Returns |
+|-------|---------|
+| `GET /api/v1/statistics/account/timeline` | one entry per calendar month, summed across every item type |
+| `GET /api/v1/statistics/account/timeline/items` | the per-item breakdown for the same window, ranked and paged |
+| `GET /api/v1/statistics/account/totals` | lifetime figures, one row per item type |
+| `GET /api/v1/statistics/build-stats` | unchanged; the SPA's current read, retired in Stage E |
+
+`/api/v1/statistics` was already mounted, so no route-table or wiring change was needed, and all
+four handlers share the existing `GetAPIStatistics` metrics bag rather than adding instruments.
+
+### The window
+
+`from` and `to` are calendar months as `YYYY-MM`, matching the timeline document `_id` so a month a
+caller names is the month the rows were filed under.
+
+**Omitting both gives the current month and the one before it** — the dashboard's month-on-month
+comparison, so its query is the bare endpoint with no parameters. The response marks that window
+`defaulted`, because a client cannot otherwise tell a chosen default from an account with little
+history.
+
+Each month carries `complete`, false for the month still in progress. The current month is a
+month-to-date figure, so a client comparing it against a finished month is comparing unlike things
+unless something says so.
+
+**Bad ranges are refused, not repaired.** Half a range (`from` without `to`) is rejected rather than
+half-defaulted, and a range beyond 60 months is rejected rather than truncated: a silently shortened
+window is indistinguishable from missing data once it reaches a chart. Every rejection carries its
+own error code, so `statistics_range_reversed` and `statistics_invalid_month` are separable in logs
+rather than collapsing into one bad-request reason.
+
+### Why the breakdown is a separate view
+
+Buckets are stored per month **and** per item type, so a month's total is a sum across every type the
+account touched. An account can touch thousands. Embedding the breakdown inside each month would
+multiply that by the window length and make the common chart request pay for detail it does not draw.
+
+Both aggregations run server-side. The client never sums buckets: there are too many rows to ship,
+and `SalesMeasures.Plus` is the authority on how they combine — `profitLoss` accumulates as a sum of
+signed parts rather than being recomputed, and `extraCategoryTotals` merges by category id, so a
+client-side fold would drift from the pipeline.
+
+Ranking is server-side for a stronger reason: ordering item types by profit needs every type in the
+window before a page can be taken, which a client holding one page cannot do. `sort` is validated
+against the measures the aggregation accepts rather than passed through, because the value reaches a
+`$sort` key. Ties break on `_id` so a row cannot appear on two pages.
+
+### The aggregation
+
+`Docs` had no aggregation helper — every read there was `Find`-shaped, which cannot express a grouped
+read. `Docs.Aggregate` joins the shared surface under `Retry` with an operation name, the way
+`DistinctStrings` and `ListIDs` already are.
+
+The month range is filtered on a computed `year*12+month` ordinal rather than on year and month
+separately. The obvious filter is wrong across a year boundary:
+`{year: {$gte: 2025, $lte: 2026}, month: {$gte: 12, $lte: 2}}` matches nothing, because no month is
+both ≥ 12 and ≤ 2. That is not an edge case here — every January the default window crosses one.
+
+`extraCategoryTotals` is deliberately absent from the `$group`: it is a map keyed by category id and
+`$sum` cannot merge maps, so including it would produce a silently wrong value rather than an error.
 
 ## Stage E — frontend
 

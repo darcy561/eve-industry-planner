@@ -31,7 +31,7 @@ describe("applyDocumentLockStatusFromPayload", () => {
   });
 
   it("sets lockHeld when this session is holder", () => {
-    applyDocumentLockStatusFromPayload("user_job_documents", "j1", {
+    applyDocumentLockStatusFromPayload("account_job_documents", "j1", {
       held: true,
       holderSessionID: "session-self",
       expiresAtUnix: 100,
@@ -40,7 +40,7 @@ describe("applyDocumentLockStatusFromPayload", () => {
       extendCount: 1,
       waitlistLen: 0,
     });
-    const k = docLockScopeKey("user_job_documents", "j1");
+    const k = docLockScopeKey("account_job_documents", "j1");
     const scope = storeHolder.current.getState().documentLock.scopes[k];
     expect(scope.lockHeld).toBe(true);
     expect(scope.readOnly).toBe(false);
@@ -52,11 +52,11 @@ describe("applyDocumentLockStatusFromPayload", () => {
   });
 
   it("sets readOnly when another session holds", () => {
-    applyDocumentLockStatusFromPayload("user_job_documents", "j1", {
+    applyDocumentLockStatusFromPayload("account_job_documents", "j1", {
       held: true,
       holderSessionID: "other-session",
     });
-    const k = docLockScopeKey("user_job_documents", "j1");
+    const k = docLockScopeKey("account_job_documents", "j1");
     const scope = storeHolder.current.getState().documentLock.scopes[k];
     expect(scope.readOnly).toBe(true);
     expect(scope.lockHeld).toBe(false);
@@ -65,9 +65,9 @@ describe("applyDocumentLockStatusFromPayload", () => {
   it("preserves readOnly and clears it after grace when lock drops", () => {
     const { patchDocumentLockForScope } =
       storeHolder.current.getState().documentLock.actions;
-    patchDocumentLockForScope("user_job_documents", "j1", { readOnly: true });
-    applyDocumentLockStatusFromPayload("user_job_documents", "j1", { held: false });
-    const k = docLockScopeKey("user_job_documents", "j1");
+    patchDocumentLockForScope("account_job_documents", "j1", { readOnly: true });
+    applyDocumentLockStatusFromPayload("account_job_documents", "j1", { held: false });
+    const k = docLockScopeKey("account_job_documents", "j1");
     let scope = storeHolder.current.getState().documentLock.scopes[k];
     expect(scope.readOnly).toBe(true);
     expect(scope.lockHeld).toBe(false);
@@ -77,7 +77,7 @@ describe("applyDocumentLockStatusFromPayload", () => {
   });
 
   it("returns early for falsy docID", () => {
-    applyDocumentLockStatusFromPayload("user_job_documents", "", { held: false });
+    applyDocumentLockStatusFromPayload("account_job_documents", "", { held: false });
     expect(storeHolder.current.getState().documentLock.scopes).toEqual({});
   });
 });

@@ -37,10 +37,10 @@ func (s *Server) docSubscribeAuthorized(ctx context.Context, docID, accountID st
 	collection, id := parts[0], parts[1]
 
 	switch collection {
-	case eipmongo.CollectionUsers, eipmongo.CollectionApplicationSettings, eipmongo.CollectionUserWatchlistDeprecated:
+	case eipmongo.CollectionAccounts, eipmongo.CollectionAccountSettings, eipmongo.CollectionAccountWatchlistDeprecated:
 		return id == accountID
 
-	case eipmongo.CollectionJobs, eipmongo.CollectionUserJobDocuments, eipmongo.CollectionArchivedJobs, eipmongo.CollectionUserJobGroups, eipmongo.CollectionBuildStats:
+	case eipmongo.CollectionAccountJobs, eipmongo.CollectionAccountJobDocuments, eipmongo.CollectionAccountArchivedJobs, eipmongo.CollectionAccountJobGroups, eipmongo.CollectionAccountProductionTotals:
 		if s.Stack == nil || s.Stack.Mongo == nil {
 			logs.WarnCtx(context.Background(), "subscribe auth denied: mongo client unavailable",
 				"collection", collection, "doc_id", id)

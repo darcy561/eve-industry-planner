@@ -54,13 +54,13 @@ func SchemaVersionMaintenanceBatch(ctx context.Context, task *asynq.Task, deps *
 
 	mongo := deps.Mongo
 	switch payload.Collection {
-	case eipmongo.CollectionUsers:
+	case eipmongo.CollectionAccounts:
 		return maintainUsersSchemaVersionBatch(ctx, mongo.Users, batchSize)
-	case eipmongo.CollectionApplicationSettings:
+	case eipmongo.CollectionAccountSettings:
 		return maintainApplicationSettingsSchemaVersionBatch(ctx, mongo.ApplicationSettings, batchSize)
-	case eipmongo.CollectionUserJobDocuments, eipmongo.CollectionJobs, eipmongo.CollectionArchivedJobs:
+	case eipmongo.CollectionAccountJobDocuments, eipmongo.CollectionAccountJobs, eipmongo.CollectionAccountArchivedJobs:
 		return maintainJobSchemaVersionBatch(ctx, mongo.Docs(payload.Collection), batchSize)
-	case eipmongo.CollectionUserJobGroups:
+	case eipmongo.CollectionAccountJobGroups:
 		return maintainGroupSchemaVersionBatch(ctx, mongo.Groups, batchSize)
 	default:
 		return fmt.Errorf("unsupported schema maintenance collection %q", payload.Collection)
@@ -129,7 +129,7 @@ func maintainUsersSchemaVersionBatch(ctx context.Context, docs *eipmongo.Docs, b
 	}
 
 	logs.InfoCtx(ctx, "schema maintenance users batch complete",
-		"collection", eipmongo.CollectionUsers,
+		"collection", eipmongo.CollectionAccounts,
 		"scanned", scanned,
 		"upgrade_candidates", len(upgradeCandidates),
 		"upgraded", summary.Success,
@@ -196,7 +196,7 @@ func maintainApplicationSettingsSchemaVersionBatch(ctx context.Context, docs *ei
 	}
 
 	logs.InfoCtx(ctx, "schema maintenance application settings batch complete",
-		"collection", eipmongo.CollectionApplicationSettings,
+		"collection", eipmongo.CollectionAccountSettings,
 		"scanned", scanned,
 		"upgrade_candidates", len(upgradeCandidates),
 		"upgraded", summary.Success,

@@ -15,4 +15,5 @@ Shared Go libraries under `services/shared` that are not owned by a single servi
 | I need to… | Read |
 |------------|------|
 | Use the Mongo handle / Docs / writers / Retry | [mongo.md](./mongo.md) |
+| Name a new Mongo collection | [mongo.md](./mongo.md) § Collection naming |
 | Document locks (shared package) | [api/document-lock/](../api/document-lock/overview.md) (API topic owns product behaviour; package under `services/shared/core/documentlock`) |

@@ -109,7 +109,7 @@ func (h *Handlers) DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Requ
 				return
 			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionUserJobDocuments, reqBody.JobIDs, jobGroupBypass)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionAccountJobDocuments, reqBody.JobIDs, jobGroupBypass)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -122,7 +122,7 @@ func (h *Handlers) DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Requ
 		}
 		if len(rejects) > 0 {
 			metrics.Error("lock_conflict")
-			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionUserJobDocuments, rejects)
+			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionAccountJobDocuments, rejects)
 			return
 		}
 		logs.AttachDebugStep(r, "lock_gate_passed", map[string]any{

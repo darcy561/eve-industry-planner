@@ -301,11 +301,6 @@ type ImportArchivedJobToMongoRequest struct {
 	CanonicalBuildVer   string          `json:"canonical_build_ver,omitempty"`
 }
 
-// ProcessArchivedBuildStatsRequest scopes build_stats aggregation to one account's archived jobs.
-type ProcessArchivedBuildStatsRequest struct {
-	AccountID string `json:"account_id"`
-}
-
 // ImportUserJobDocumentsForAccountRequest runs firestoremig.ImportAllReferencedUserJobDocumentsForAccount in the worker.
 // LoginRecencyMaxAgeSeconds: 0 = apply server default window (~2y of Auth activity). -1 = skip Auth check. >0 = max window in seconds.
 type ImportUserJobDocumentsForAccountRequest struct {

@@ -470,3 +470,36 @@ func executeBulkUpsertModels(ctx context.Context, collection *mongo.Collection, 
 	}
 	return 0, len(models), err
 }
+
+// Aggregate runs a pipeline and decodes every result into out, which must be a
+// pointer to a slice.
+//
+// Reads on this surface are otherwise Find-shaped, which cannot express a
+// grouped read: summing pre-aggregated rows across a dimension has to happen on
+// the server, because the alternative is shipping every row to the caller and
+// folding it there. Callers pass a pipeline rather than a filter, so the shape
+// of the grouping stays with the query that needs it.
+//
+// Under Retry like the other helpers, so a grouped read carries an operation
+// name in its logs. Log label defaults to "Aggregate"; override with [WithOpName].
+func (d *Docs) Aggregate(ctx context.Context, pipeline mongo.Pipeline, out any, opts ...RetryOption) error {
+	coll, err := d.requireColl()
+	if err != nil {
+		return err
+	}
+	if pipeline == nil {
+		return fmt.Errorf("pipeline is required")
+	}
+	if out == nil {
+		return fmt.Errorf("out is required")
+	}
+
+	return Retry(ctx, applyRetryOptions("Aggregate", opts), func() error {
+		cursor, aggErr := coll.Aggregate(ctx, pipeline)
+		if aggErr != nil {
+			return aggErr
+		}
+		defer cursor.Close(ctx)
+		return cursor.All(ctx, out)
+	})
+}

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"

@@ -362,11 +362,11 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	// explicitly subscribed). Singleton account docs use Mongo _id === account id string.
 	if accountID == "" && operationType == "delete" {
 		switch collection {
-		case eipmongo.CollectionUsers, eipmongo.CollectionApplicationSettings, eipmongo.CollectionUserWatchlistDeprecated:
+		case eipmongo.CollectionAccounts, eipmongo.CollectionAccountSettings, eipmongo.CollectionAccountWatchlistDeprecated:
 			accountID = docID
 		default:
-			if collection == eipmongo.CollectionUserJobGroups ||
-				collection == eipmongo.CollectionUserJobDocuments {
+			if collection == eipmongo.CollectionAccountJobGroups ||
+				collection == eipmongo.CollectionAccountJobDocuments {
 				logs.WarnCtx(ctx, "delete missing accountID on collection (fullDocumentBeforeChange empty);"+
 					" websocket account fan-out skipped — enable changeStreamPreAndPostImages"+
 					" (eip ensure-mongo / deployment-tool PreimageCollections)",
@@ -385,7 +385,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	}
 
 	switch collection {
-	case eipmongo.CollectionUsers, eipmongo.CollectionApplicationSettings, eipmongo.CollectionUserWatchlistDeprecated:
+	case eipmongo.CollectionAccounts, eipmongo.CollectionAccountSettings, eipmongo.CollectionAccountWatchlistDeprecated:
 		if operationType == "update" || operationType == "replace" {
 			if previousDocToExtract != nil {
 				previousDocument = make(map[string]any, len(previousDocToExtract))
@@ -395,7 +395,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	}
 	refreshTokensChanged := false
 	linkedCharactersChanged := false
-	if collection == eipmongo.CollectionUsers {
+	if collection == eipmongo.CollectionAccounts {
 		refreshTokensChanged = usersRefreshTokensChanged(operationType, docToExtract, previousDocToExtract)
 		linkedCharactersChanged = usersRefreshTokenCharacterHashesChanged(operationType, docToExtract, previousDocToExtract)
 		stripUsersRefreshTokenFields(document)
@@ -403,7 +403,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		// Client no longer needs previous users-doc payload; it relies on change flags
 		// plus dedicated token endpoint reads for linked-character reconciliation.
 		previousDocument = nil
-	} else if collection == eipmongo.CollectionApplicationSettings {
+	} else if collection == eipmongo.CollectionAccountSettings {
 		// Application settings reconcile uses the current authoritative document only.
 		previousDocument = nil
 	}

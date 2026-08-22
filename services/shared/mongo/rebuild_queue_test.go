@@ -17,7 +17,7 @@ func TestNewMongoBindsStatisticsCollections(t *testing.T) {
 		want string
 	}{
 		{"ArchivedJobStats", m.ArchivedJobStats, CollectionArchivedJobStats},
-		{"UserRollupBuckets", m.UserRollupBuckets, CollectionUserRollupBuckets},
+		{"AccountTimelineMonths", m.AccountTimelineMonths, CollectionAccountTimelineMonths},
 		{"AccountRebuildQueue", m.AccountRebuildQueue, CollectionAccountRebuildQueue},
 	} {
 		if tc.docs == nil || tc.docs.Collection() == nil {
@@ -86,28 +86,28 @@ func TestDocsReadHelpersValidateInput(t *testing.T) {
 func TestStatisticsDocumentIDs(t *testing.T) {
 	t.Parallel()
 
-	if got := BuildStatsDocumentID("acct", 1234); got != "acct|1234" {
-		t.Fatalf("BuildStatsDocumentID = %q", got)
+	if got := AccountProductionTotalsDocumentID("acct", 1234); got != "acct|1234" {
+		t.Fatalf("AccountProductionTotalsDocumentID = %q", got)
 	}
 	if got := ArchivedJobStatsDocumentID("acct", "job-1"); got != "acct|job-1" {
 		t.Fatalf("ArchivedJobStatsDocumentID = %q", got)
 	}
-	if got := UserRollupMonthlyDocumentID("acct", 1234, 2026, 8); got != "acct|1234|2026-08" {
-		t.Fatalf("UserRollupMonthlyDocumentID = %q, want acct|1234|2026-08", got)
+	if got := AccountTimelineMonthDocumentID("acct", 1234, 2026, 8); got != "acct|1234|2026-08" {
+		t.Fatalf("AccountTimelineMonthDocumentID = %q, want acct|1234|2026-08", got)
 	}
 }
 
 // The month segment is zero padded so _id ordering matches calendar ordering.
-func TestUserRollupMonthlyDocumentIDPadsMonth(t *testing.T) {
+func TestAccountTimelineMonthDocumentIDPadsMonth(t *testing.T) {
 	t.Parallel()
 
-	if got := UserRollupMonthlyDocumentID("acct", 1, 2026, 12); got != "acct|1|2026-12" {
+	if got := AccountTimelineMonthDocumentID("acct", 1, 2026, 12); got != "acct|1|2026-12" {
 		t.Fatalf("December = %q", got)
 	}
-	if got := UserRollupMonthlyDocumentID("acct", 1, 2026, 1); got != "acct|1|2026-01" {
+	if got := AccountTimelineMonthDocumentID("acct", 1, 2026, 1); got != "acct|1|2026-01" {
 		t.Fatalf("January = %q, want a padded month", got)
 	}
-	if UserRollupMonthlyDocumentID("acct", 1, 2026, 1) >= UserRollupMonthlyDocumentID("acct", 1, 2026, 2) {
+	if AccountTimelineMonthDocumentID("acct", 1, 2026, 1) >= AccountTimelineMonthDocumentID("acct", 1, 2026, 2) {
 		t.Fatal("padded ids must sort in calendar order")
 	}
 }

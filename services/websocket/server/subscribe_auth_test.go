@@ -10,16 +10,16 @@ import (
 func TestDocSubscribeAuthorized_singletonAccountDocs(t *testing.T) {
 	s := &Server{Stack: &stackservices.Clients{}}
 
-	if !s.docSubscribeAuthorized(context.Background(), "users.acc123", "acc123") {
-		t.Fatal("expected users doc for same account")
+	if !s.docSubscribeAuthorized(context.Background(), "accounts.acc123", "acc123") {
+		t.Fatal("expected accounts doc for same account")
 	}
-	if s.docSubscribeAuthorized(context.Background(), "users.other", "acc123") {
-		t.Fatal("expected reject users doc for other account id")
+	if s.docSubscribeAuthorized(context.Background(), "accounts.other", "acc123") {
+		t.Fatal("expected reject accounts doc for other account id")
 	}
-	if !s.docSubscribeAuthorized(context.Background(), "application_settings.acc123", "acc123") {
-		t.Fatal("expected application_settings for same account")
+	if !s.docSubscribeAuthorized(context.Background(), "account_settings.acc123", "acc123") {
+		t.Fatal("expected account_settings for same account")
 	}
-	if s.docSubscribeAuthorized(context.Background(), "application_settings.other", "acc123") {
+	if s.docSubscribeAuthorized(context.Background(), "account_settings.other", "acc123") {
 		t.Fatal("expected reject settings for other account")
 	}
 }

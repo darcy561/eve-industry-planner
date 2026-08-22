@@ -66,7 +66,7 @@ type ArchivedJobStats struct {
 	// RetainedStockBuild marks a job the user keeps as stock rather than selling.
 	RetainedStockBuild bool      `bson:"retainedStockBuild,omitempty" json:"retainedStockBuild,omitempty"`
 	ArchivedAt         time.Time `bson:"archivedAt" json:"archivedAt"`
-	// CostMonth pins job-cost attribution so rollups stay stable across rebuilds.
+	// CostMonth pins job-cost attribution so monthly figures stay stable across rebuilds.
 	// Workers fall back to ArchivedAt when it is zero.
 	CostMonth             CalendarMonth `bson:"costMonth" json:"costMonth,omitzero"`
 	ArchivedJobCostTotals `bson:",inline"`

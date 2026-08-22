@@ -1,5 +1,5 @@
 /**
- * Placeholders for user_job_documents WS upserts that are new to this client (not yet merged into jobArray).
+ * Placeholders for account_job_documents WS upserts that are new to this client (not yet merged into jobArray).
  * Cleared when the debounced flush applies jobs or when a delete is queued for that id.
  */
 

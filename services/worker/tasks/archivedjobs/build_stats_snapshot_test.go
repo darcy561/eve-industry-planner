@@ -76,8 +76,8 @@ func TestComputeBuildStatSnapshot_zeroQuantityErrors(t *testing.T) {
 	}
 }
 
-func TestBuildStatsDocumentID(t *testing.T) {
-	if g, w := eipmongo.BuildStatsDocumentID("acc", 34), "acc|34"; g != w {
+func TestAccountProductionTotalsDocumentID(t *testing.T) {
+	if g, w := eipmongo.AccountProductionTotalsDocumentID("acc", 34), "acc|34"; g != w {
 		t.Fatalf("got %q want %q", g, w)
 	}
 }

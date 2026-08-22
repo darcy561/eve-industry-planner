@@ -18,4 +18,4 @@ Decision/history/work logs for long-running migrations. **Not SoT.**
 | Changestream tenant scale (publisher queues / metrics / future auto-detect) | [changestream-tenant-scale/contents.md](./changestream-tenant-scale/contents.md) |
 | Shared packages `go fix` cleanup (**closed** — history; Tier 4 omit tags waived) | [shared-go-fix/contents.md](./shared-go-fix/contents.md) |
 | Archived jobs statistics (rollups, snapshots, corp aggregation) | [archived-jobs-stats/contents.md](./archived-jobs-stats/contents.md) |
-| Collection naming (owner prefixes, rename mechanism) | [collection-naming/contents.md](./collection-naming/contents.md) |
+| Collection naming (**promoted** — history; live SoT in [backend/shared/mongo.md](../backend/shared/mongo.md)) | [collection-naming/contents.md](./collection-naming/contents.md) |

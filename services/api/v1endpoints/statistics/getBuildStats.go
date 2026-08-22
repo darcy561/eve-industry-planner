@@ -18,7 +18,7 @@ import (
 )
 
 // GetBuildStatsHandler serves GET /api/v1/statistics/build-stats?typeID=<int>.
-// Returns one Mongo build_stats row for the authenticated account and item type. The account is
+// Returns one account_production_totals row for the authenticated account and item type. The account is
 // resolved by the auth middleware from the session cookie, never read from the request.
 // When no row exists, returns 200 with a zeroed aggregate for that typeID.
 func (h *Handlers) GetBuildStatsHandler(w http.ResponseWriter, r *http.Request) {
@@ -62,12 +62,12 @@ func (h *Handlers) GetBuildStatsHandler(w http.ResponseWriter, r *http.Request) 
 		"type_id": typeID,
 	})
 
-	statsID := eipmongo.BuildStatsDocumentID(accountID, typeID)
-	coll := h.Mongo.BuildStats.Collection()
+	statsID := eipmongo.AccountProductionTotalsDocumentID(accountID, typeID)
+	coll := h.Mongo.AccountProductionTotals.Collection()
 
 	var row models.BuildStatsRow
 	foundInDB := true
-	err = eipmongo.Retry(ctx, fmt.Sprintf("get build_stats %s", statsID), func() error {
+	err = eipmongo.Retry(ctx, fmt.Sprintf("get account_production_totals %s", statsID), func() error {
 		return coll.FindOne(ctx, bson.M{"_id": statsID}).Decode(&row)
 	})
 	if err != nil {

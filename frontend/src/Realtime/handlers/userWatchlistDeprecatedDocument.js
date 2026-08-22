@@ -1,5 +1,5 @@
 /**
- * Change-stream handlers for `user_watchlist_deprecated` (legacy Firestore-shaped watchlist blob).
+ * Change-stream handlers for `account_watchlist_deprecated` (legacy Firestore-shaped watchlist blob).
  */
 
 import useUsersStore from "../../Zustand/usersStore.js";

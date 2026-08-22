@@ -66,7 +66,7 @@ func TestSkippedJobsAreStillKeptFromRevocation(t *testing.T) {
 		archivedJob("acct-1", "good-2", 5),
 	}
 
-	rows, keepIDs, skipped := buildAccountRows(jobs, time.Now().UTC())
+	rows, keepIDs, _, skipped := buildAccountRows(jobs, time.Now().UTC())
 
 	if skipped != 1 {
 		t.Fatalf("skipped = %d, want 1", skipped)
@@ -87,7 +87,7 @@ func TestSkippedJobsAreStillKeptFromRevocation(t *testing.T) {
 func TestNoJobsKeepsNothing(t *testing.T) {
 	t.Parallel()
 
-	rows, keepIDs, skipped := buildAccountRows(nil, time.Now().UTC())
+	rows, keepIDs, _, skipped := buildAccountRows(nil, time.Now().UTC())
 	if len(rows) != 0 || len(keepIDs) != 0 || skipped != 0 {
 		t.Fatalf("rows=%d keep=%d skipped=%d, want all zero", len(rows), len(keepIDs), skipped)
 	}

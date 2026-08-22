@@ -1,6 +1,7 @@
 package archivedjobs
 
 import (
+	"strings"
 	"testing"
 
 	"eve-industry-planner/core/scheduler/contract"
@@ -52,13 +53,12 @@ func TestScheduleDrainAccountStatsRebuildQueue_RegistersCron(t *testing.T) {
 	}
 }
 
-// The drain cron is deliberately offset from the build stats fan-out: both read
-// archived-jobs data, and running them in the same minute makes them contend for
-// Mongo every hour for no reason.
-func TestArchivedJobsCronsDoNotShareAMinute(t *testing.T) {
+// The drain runs off the hour so it does not start alongside every other cron
+// that fires on minute 0.
+func TestDrainCronRunsOffTheHour(t *testing.T) {
 	t.Parallel()
-	if cronDrainAccountStatsRebuildQueueSchedule == cronProcessArchivedBuildStatsSchedule {
-		t.Fatalf("drain and build stats crons share the schedule %q", cronDrainAccountStatsRebuildQueueSchedule)
+	if strings.HasPrefix(cronDrainAccountStatsRebuildQueueSchedule, "0 ") {
+		t.Fatalf("drain cron fires on minute 0 (%q), alongside the rest of the hourly crons", cronDrainAccountStatsRebuildQueueSchedule)
 	}
 }
 

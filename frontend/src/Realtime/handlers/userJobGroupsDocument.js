@@ -1,5 +1,5 @@
 /**
- * Change-stream handlers for `user_job_groups` collection.
+ * Change-stream handlers for `account_job_groups` collection.
  */
 
 import Group from "../../Classes/group.js";

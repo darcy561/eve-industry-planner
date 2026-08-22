@@ -11,21 +11,21 @@ import "testing"
 // Changing a name in one module without the other fails whichever test was not
 // updated, with a message naming the file to fix.
 var knownCollections = map[string]bool{
-	"users":                        true,
-	"jobs":                         true,
-	"user_job_documents":           true,
-	"archivedJobs":                 true,
-	"build_stats":                  true,
-	"user_job_groups":              true,
-	"user_group_template_catalog":  true,
-	"user_group_template_payloads": true,
-	"user_watchlist_deprecated":    true,
-	"application_settings":         true,
-	"blueprints":                   true,
-	"citadel_names":                true,
-	"user_archived_job_stats":      true,
-	"user_rollup_buckets":          true,
-	"stats_rebuild_queue_accounts": true,
+	"accounts":                        true,
+	"account_jobs":                    true,
+	"account_job_documents":           true,
+	"account_archived_jobs":           true,
+	"account_production_totals":       true,
+	"account_job_groups":              true,
+	"account_group_template_catalog":  true,
+	"account_group_template_payloads": true,
+	"account_watchlist_deprecated":    true,
+	"account_settings":                true,
+	"shared_blueprints":               true,
+	"shared_citadel_names":            true,
+	"account_archived_job_stats":      true,
+	"account_timeline_months":         true,
+	"account_stats_rebuild_queue":     true,
 }
 
 const servicesSoT = "collection names are owned by services/shared/mongo/names.go; " +

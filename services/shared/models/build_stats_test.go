@@ -67,8 +67,8 @@ func TestSegmentTotalsPersistFlat(t *testing.T) {
 	requireFlatKeys(t, seg, "totalJobs", "totalSoldQuantity")
 }
 
-func TestRollupBucketsPersistFlat(t *testing.T) {
-	user := UserRollupMonthlyBucket{
+func TestTimelineMonthBucketsPersistFlat(t *testing.T) {
+	user := AccountTimelineMonthBucket{
 		ID:            "acct|1234|2026|8",
 		AccountID:     "acct",
 		TypeID:        1234,
@@ -77,10 +77,10 @@ func TestRollupBucketsPersistFlat(t *testing.T) {
 	}
 	requireFlatKeys(t, user, "_id", "accountID", "typeID", "year", "month", "transactionCount", "salesTotal")
 
-	corp := CorpRollupMonthlyBucket{
+	corp := CorpTimelineMonthBucket{
 		ID:            "corpref|~|1234|2026|8",
 		CorpRef:       "corpref",
-		Lane:          CorpRollupOwnedLane,
+		Lane:          CorpTimelineOwnedLane,
 		TypeID:        1234,
 		CalendarMonth: CalendarMonth{Year: 2026, Month: 8},
 		SalesMeasures: SalesMeasures{TransactionCount: 2},
@@ -233,7 +233,7 @@ func TestEmptyBuildStatsRowIsSerialisable(t *testing.T) {
 }
 
 // Folding an empty month into an accumulator must not hand back the
-// accumulator's own map. A rollup that then writes to the result would
+// accumulator’s own map. A fold that then writes to the result would
 // otherwise corrupt the value it summed from.
 func TestSalesMeasuresPlusNeverSharesAMap(t *testing.T) {
 	t.Parallel()
@@ -351,7 +351,7 @@ func TestNoStructFieldClaimsOmitempty(t *testing.T) {
 	for _, doc := range []any{
 		BuildStatsRow{}, CorpBuildStatsRow{}, BuildStatsBreakdown{}, BuildStatsSegmentTotals{},
 		ArchivedJobStats{}, ArchivedJobLine{}, ArchivedJobTransactionLine{}, ArchivedJobFeeLine{},
-		BuildStatsRollupTotals{}, BuildStatsTimelineBucket{}, UserRollupMonthlyBucket{},
+		TimelineTotals{}, BuildStatsTimelineBucket{}, AccountTimelineMonthBucket{},
 	} {
 		checkNoStructOmitempty(t, reflect.TypeOf(doc))
 	}

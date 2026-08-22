@@ -16,9 +16,13 @@ type AccountRebuildResult struct {
 	AccountID     string
 	ArchivedJobs  int
 	StatsRows     int
-	RollupBuckets int
+	TimelineMonths int
 	RevokedRows   int64
 	PrunedBuckets int64
+	// ProductionTotals counts the lifetime per-item aggregates written.
+	ProductionTotals int
+	// PrunedTotals counts item types the account no longer has any job for.
+	PrunedTotals int64
 	// SkippedJobs counts archived jobs whose snapshot could not be computed. They
 	// are absent from the totals, so a non-zero count means the account's figures
 	// are incomplete rather than wrong.
@@ -62,7 +66,7 @@ func RebuildAccountStatistics(
 	}
 	out.ArchivedJobs = len(jobs)
 
-	rows, keepRowIDs, skipped := buildAccountRows(jobs, now)
+	rows, keepRowIDs, snapshots, skipped := buildAccountRows(jobs, now)
 	out.StatsRows = len(rows)
 	out.SkippedJobs = skipped
 
@@ -84,11 +88,29 @@ func RebuildAccountStatistics(
 		bucketItems = append(bucketItems, eipmongo.StructUpsertItem{DocID: bucket.ID, Value: bucket})
 		keepBucketIDs = append(keepBucketIDs, bucket.ID)
 	}
-	out.RollupBuckets = len(buckets)
+	out.TimelineMonths = len(buckets)
 
 	if len(bucketItems) > 0 {
-		if _, err := mongo.UserRollupBuckets.UpsertStructsPreservingMetaBulk(ctx, bucketItems, rebuildUpsertBatch); err != nil {
-			return out, fmt.Errorf("upsert rollup buckets: %w", err)
+		if _, err := mongo.AccountTimelineMonths.UpsertStructsPreservingMetaBulk(ctx, bucketItems, rebuildUpsertBatch); err != nil {
+			return out, fmt.Errorf("upsert timeline months: %w", err)
+		}
+	}
+
+	// Lifetime totals per item type, the documents the build-stats read serves.
+	// Derived from the same rows rather than incremented per job by a second
+	// worker, so a rebuild cannot disagree with the timeline it was built beside.
+	totals := archivestats.AccountProductionTotals(accountID, rows, snapshots)
+	totalItems := make([]eipmongo.StructUpsertItem, 0, len(totals))
+	keepTotalIDs := make([]string, 0, len(totals))
+	for _, total := range totals {
+		totalItems = append(totalItems, eipmongo.StructUpsertItem{DocID: total.ID, Value: total})
+		keepTotalIDs = append(keepTotalIDs, total.ID)
+	}
+	out.ProductionTotals = len(totals)
+
+	if len(totalItems) > 0 {
+		if _, err := mongo.AccountProductionTotals.UpsertStructsPreservingMetaBulk(ctx, totalItems, rebuildUpsertBatch); err != nil {
+			return out, fmt.Errorf("upsert production totals: %w", err)
 		}
 	}
 
@@ -100,11 +122,17 @@ func RebuildAccountStatistics(
 	}
 	out.RevokedRows = revoked
 
-	pruned, err := mongo.PruneAccountRollupBuckets(ctx, accountID, keepBucketIDs)
+	pruned, err := mongo.PruneAccountTimelineMonths(ctx, accountID, keepBucketIDs)
 	if err != nil {
-		return out, fmt.Errorf("prune rollup buckets: %w", err)
+		return out, fmt.Errorf("prune timeline months: %w", err)
 	}
 	out.PrunedBuckets = pruned
+
+	prunedTotals, err := mongo.PruneAccountProductionTotals(ctx, accountID, keepTotalIDs)
+	if err != nil {
+		return out, fmt.Errorf("prune production totals: %w", err)
+	}
+	out.PrunedTotals = prunedTotals
 
 	return out, nil
 }
@@ -116,9 +144,10 @@ func RebuildAccountStatistics(
 // the job is still archived, so revoking its existing row would record it as
 // removed and drop its history from the account's totals. Skipping it leaves the
 // previous row in place, unchanged, until the job is corrected.
-func buildAccountRows(jobs []models.Job, now time.Time) (rows []models.ArchivedJobStats, keepIDs []string, skipped int) {
+func buildAccountRows(jobs []models.Job, now time.Time) (rows []models.ArchivedJobStats, keepIDs []string, snapshots map[string]models.BuildStatSnapshot, skipped int) {
 	rows = make([]models.ArchivedJobStats, 0, len(jobs))
 	keepIDs = make([]string, 0, len(jobs))
+	snapshots = make(map[string]models.BuildStatSnapshot, len(jobs))
 
 	for _, job := range jobs {
 		snap, err := computeBuildStatSnapshot(job)
@@ -130,6 +159,7 @@ func buildAccountRows(jobs []models.Job, now time.Time) (rows []models.ArchivedJ
 		row := archivestats.BuildAccountSnapshot(job, snap, now)
 		rows = append(rows, row)
 		keepIDs = append(keepIDs, row.ID)
+		snapshots[job.JobID] = snap
 	}
-	return rows, keepIDs, skipped
+	return rows, keepIDs, snapshots, skipped
 }

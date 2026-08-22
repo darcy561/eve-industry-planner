@@ -5,22 +5,22 @@ package mongo
 const (
 	DatabaseName = "eve_industry_planner"
 
-	CollectionUsers                     = "users"
-	CollectionJobs                      = "jobs"
-	CollectionUserJobDocuments          = "user_job_documents"
-	CollectionArchivedJobs              = "archivedJobs"
-	CollectionBuildStats                = "build_stats"
-	CollectionUserJobGroups             = "user_job_groups"
-	CollectionUserGroupTemplateCatalog  = "user_group_template_catalog"
-	CollectionUserGroupTemplatePayloads = "user_group_template_payloads"
-	CollectionUserWatchlistDeprecated   = "user_watchlist_deprecated"
-	CollectionApplicationSettings       = "application_settings"
-	CollectionBlueprints                = "blueprints"
-	CollectionCitadelNames              = "citadel_names"
+	CollectionAccounts                     = "accounts"
+	CollectionAccountJobs                  = "account_jobs"
+	CollectionAccountJobDocuments          = "account_job_documents"
+	CollectionAccountArchivedJobs          = "account_archived_jobs"
+	CollectionAccountProductionTotals      = "account_production_totals"
+	CollectionAccountJobGroups             = "account_job_groups"
+	CollectionAccountGroupTemplateCatalog  = "account_group_template_catalog"
+	CollectionAccountGroupTemplatePayloads = "account_group_template_payloads"
+	CollectionAccountWatchlistDeprecated   = "account_watchlist_deprecated"
+	CollectionAccountSettings              = "account_settings"
+	CollectionSharedBlueprints             = "shared_blueprints"
+	CollectionSharedCitadelNames           = "shared_citadel_names"
 
-	CollectionArchivedJobStats    = "user_archived_job_stats"
-	CollectionUserRollupBuckets   = "user_rollup_buckets"
-	CollectionAccountRebuildQueue = "stats_rebuild_queue_accounts"
+	CollectionArchivedJobStats      = "account_archived_job_stats"
+	CollectionAccountTimelineMonths = "account_timeline_months"
+	CollectionAccountRebuildQueue   = "account_stats_rebuild_queue"
 )
 
 // SchemaMaintainedCollections lists every collection whose documents carry a
@@ -31,11 +31,11 @@ const (
 // is either never visited or rejected when it arrives.
 func SchemaMaintainedCollections() []string {
 	return []string{
-		CollectionUsers,
-		CollectionApplicationSettings,
-		CollectionUserJobDocuments,
-		CollectionJobs,
-		CollectionArchivedJobs,
-		CollectionUserJobGroups,
+		CollectionAccounts,
+		CollectionAccountSettings,
+		CollectionAccountJobDocuments,
+		CollectionAccountJobs,
+		CollectionAccountArchivedJobs,
+		CollectionAccountJobGroups,
 	}
 }

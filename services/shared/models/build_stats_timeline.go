@@ -3,7 +3,7 @@ package models
 import "maps"
 
 // SalesMeasures is the set of totals every sales-scoped aggregate carries —
-// rollup responses and the pre-aggregated monthly buckets behind them.
+// timeline responses and the pre-aggregated monthly buckets behind them.
 type SalesMeasures struct {
 	TransactionCount    int64              `bson:"transactionCount" json:"transactionCount"`
 	QuantitySold        float64            `bson:"quantitySold" json:"quantitySold"`
@@ -52,43 +52,16 @@ type BuildStatsTimelineBucket struct {
 	SalesMeasures `bson:",inline"`
 }
 
-// BuildStatsRollupTotals sums sales lines across a resolved period.
-type BuildStatsRollupTotals struct {
+// TimelineTotals sums sales lines across a resolved window.
+type TimelineTotals struct {
 	SalesMeasures `bson:",inline"`
 }
 
-// BuildStatsRollupByType is one item type's share of a rollup.
-type BuildStatsRollupByType struct {
-	TypeID int `json:"typeID"`
-	BuildStatsRollupTotals
-}
+// CorpTimelineOwnedLane marks corp-owned rows in a corporation monthly bucket.
+const CorpTimelineOwnedLane = "~"
 
-// BuildStatsRollupPeriodMeta describes the time window resolved from query parameters.
-type BuildStatsRollupPeriodMeta struct {
-	Kind      string `json:"kind"` // month|year|range|years
-	Year      int    `json:"year,omitempty"`
-	Month     int    `json:"month,omitempty"`
-	FromYear  int    `json:"fromYear,omitempty"`
-	FromMonth int    `json:"fromMonth,omitempty"`
-	ToYear    int    `json:"toYear,omitempty"`
-	ToMonth   int    `json:"toMonth,omitempty"`
-	Years     []int  `json:"years,omitempty"`
-}
-
-// BuildStatsRollupResponse is the rollup read for either scope.
-type BuildStatsRollupResponse struct {
-	Period BuildStatsRollupPeriodMeta `json:"period"`
-	// TypeID is set when the client asked for a single item type; ByType is then omitted.
-	TypeID *int                     `json:"typeID,omitempty"`
-	Totals BuildStatsRollupTotals   `json:"totals"`
-	ByType []BuildStatsRollupByType `json:"byType,omitempty"`
-}
-
-// CorpRollupOwnedLane marks corp-owned rows in corp_rollup_buckets.
-const CorpRollupOwnedLane = "~"
-
-// UserRollupMonthlyBucket is a pre-aggregated calendar month for an account and item type.
-type UserRollupMonthlyBucket struct {
+// AccountTimelineMonthBucket is a pre-aggregated calendar month for an account and item type.
+type AccountTimelineMonthBucket struct {
 	ID            string `bson:"_id"`
 	AccountID     string `bson:"accountID"`
 	TypeID        int    `bson:"typeID"`
@@ -96,9 +69,9 @@ type UserRollupMonthlyBucket struct {
 	SalesMeasures `bson:",inline"`
 }
 
-// CorpRollupMonthlyBucket is a pre-aggregated calendar month for a corporation and item type.
-// Lane is CorpRollupOwnedLane for corpRef-only rows, otherwise the accountID of the linked account.
-type CorpRollupMonthlyBucket struct {
+// CorpTimelineMonthBucket is a pre-aggregated calendar month for a corporation and item type.
+// Lane is CorpTimelineOwnedLane for corpRef-only rows, otherwise the accountID of the linked account.
+type CorpTimelineMonthBucket struct {
 	ID            string `bson:"_id"`
 	CorpRef       string `bson:"corpRef"`
 	Lane          string `bson:"lane"`

@@ -4,5 +4,5 @@
  */
 export { USER_JOB_GROUPS_COLLECTION } from "../Endpoints/Pirivate/groups.js";
 
-/** Live planner jobs — Mongo `user_job_documents`; pair with `useDocumentLock(USER_JOBS_COLLECTION, jobID, enabled)`. */
-export const USER_JOBS_COLLECTION = "user_job_documents";
+/** Live planner jobs — Mongo `account_job_documents`; pair with `useDocumentLock(USER_JOBS_COLLECTION, jobID, enabled)`. */
+export const USER_JOBS_COLLECTION = "account_job_documents";
