@@ -203,12 +203,13 @@ derivation fails there rather than in the browser.
 `models.MetaData` declares `CorporationRef` / `AllianceRef` so the changestream reads the
 field names from the model rather than matching a bare string.
 
-Nothing populates the routing fields yet — no document carries `_meta.corporationRef` until
-corporation and alliance documents exist — so the routing strip is untested against real
-traffic and is flagged for recheck in
-[archived-jobs-stats/overlay.md](../archived-jobs-stats/overlay.md) § Recheck when corporation
-documents land. The body walk, by contrast, is exercised now: every job `doc.update` carries
-refs on the sale and linked-job lines.
+The body walk is exercised now — every job `doc.update` carries refs on the sale and
+linked-job lines. The top-level routing strip is not: no document carries
+`_meta.corporationRef` until corporation and alliance documents land, and the org-scoped path
+is built ahead of them deliberately. What such a document has to supply for the existing
+machinery to carry it is set out in
+[archived-jobs-stats/overlay.md](../archived-jobs-stats/overlay.md) § What a corporation
+document has to supply.
 
 ## Login backfill
 

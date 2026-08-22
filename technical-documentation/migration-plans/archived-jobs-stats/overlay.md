@@ -252,30 +252,49 @@ _Not landed._
 Fill in: how member jobs roll into corporation figures, which identity a job is attributed to,
 pruning rules, and how this differs from account aggregation.
 
-### Recheck when corporation documents land
+### What a corporation document has to supply
 
-`outgoinglogic.ClientPayload` strips routing metadata — `corporationRef`, `allianceRef`, `scopes`,
-`sourceClientID`, `sourceSessionID` — from a `doc.update` payload before it reaches a browser. It
-was written ahead of the surface it guards and has never run against a populated message, because
-`extractOrgRoutingFromDocument` reads `_meta.corporationRef`, `_meta.allianceRef` and `scopes` from
-the stored document and no document carries any of them yet. Every field is `omitempty`, so today
-they are absent from every published message.
+The org-scoped delivery path is built and unexercised: corporation and alliance documents do
+not exist yet, and the machinery was written ahead of them deliberately. Traced end to end,
+the pieces below are in place and correct; what follows is the contract the eventual document
+has to meet for a change on it to reach a browser.
 
-Corporation and alliance documents are what populate them. When they land, confirm:
+**Already built.** `deliverOutboundDocUpdate` routes on `Route.CorporationRef` before falling
+through to explicit subscribers, matching it against `Server.corpRefToClients`, which is
+populated from each client's `Scopes.CorporationRefs` when it sends `upgrade_scopes`.
+`wsplacement.TenantKeyCorporation` guards the tenant key, `models.MetaData` declares
+`CorporationRef` / `AllianceRef`, and `outgoinglogic.ClientPayload` strips the routing
+metadata and restores ids in the body.
 
-- The fields are populated as expected, and stripping removes all of them — a new routing field
-  added later would not be in the list.
-- The strip list still matches what the websocket actually routes on, so nothing the server needs
-  is removed and nothing internal survives.
-- The decode-and-re-encode cost is acceptable at real corporation fan-out volume. Account-scoped
-  messages return the original slice untouched, so only org-scoped traffic pays it.
-- Whether `sourceClientID` / `sourceSessionID` should keep being stripped. Unlike the refs these
-  are populated today, and they are the receiving client's own identifiers rather than anything
-  about another user, so the case for removing them is weaker.
+**What the producer must add.**
 
-The values were never raw entity ids: the changestream reads them from the document, and documents
-store refs. This is defence against a stable internal identifier reaching a client, not against id
-disclosure.
+| Piece | Where | Why |
+|---|---|---|
+| The collection itself | `shared/mongo` | Nothing stores corporation-owned documents today |
+| A `CollectionGroup` entry | `core/changestream/collection_groups.go` | The four groups — account, planner, archive_and_stats, blueprints — are all account scoped, so no corporation collection is watched |
+| `_meta.corporationRef` on the stored document | the write path | `extractOrgRoutingFromDocument` reads it; without it `Route.CorporationRef` is empty and dispatch never takes the corporation branch |
+| `_meta.allianceRef` where alliance fan-out is wanted | the write path | Same, for the alliance lane |
+| `scopes` where delivery must narrow under the org root | the write path | Optional; absent means full fan-out under the root |
+
+An account-scoped document needs none of this — `_meta.accountID` alone routes it, which is
+the path job documents take today.
+
+**Confirm when they land.**
+
+- The routing fields are populated as expected and stripping removes all of them. A routing
+  field added later would not be in `routingOnlyFields`.
+- The strip list still matches what the websocket routes on, so nothing the server needs is
+  removed and nothing internal survives.
+- The decode-and-re-encode cost is acceptable at real corporation fan-out volume.
+  Account-scoped messages return the original slice untouched, so only org-scoped traffic
+  pays it.
+- Whether `sourceClientID` / `sourceSessionID` should keep being stripped. Unlike the refs
+  these are populated today, and they are the receiving client's own identifiers rather than
+  anything about another user, so the case for removing them is weaker.
+
+The routing values were never raw entity ids: the changestream reads them from the document,
+and documents store refs. This is defence against a stable internal identifier reaching a
+client, not against id disclosure.
 
 ## Stage D — statistics API
 
