@@ -150,6 +150,9 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	mux.HandleFunc("processArchivedBuildStats", func(ctx context.Context, t *asynq.Task) error {
 		return archivedjobtasks.ProcessBuildStats(ctx, t, taskDeps)
 	})
+	mux.HandleFunc("drainAccountStatsRebuildQueue", func(ctx context.Context, t *asynq.Task) error {
+		return archivedjobtasks.DrainAccountStatsRebuildQueue(ctx, t, taskDeps)
+	})
 	mux.HandleFunc("rotateRefreshTokenKeys", func(ctx context.Context, t *asynq.Task) error {
 		return maintenancetasks.RotateRefreshTokenKeys(ctx, t, taskDeps)
 	})

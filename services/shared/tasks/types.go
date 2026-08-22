@@ -70,6 +70,17 @@ var (
 		DefaultPriority: Priority4,
 		DefaultTimeout:  15 * time.Minute,
 	}
+	// DrainAccountStatsRebuildQueue rebuilds every account waiting in the statistics
+	// rebuild queue (worker: tasks/archivedjobs). One pass handles the whole queue
+	// rather than fanning out per account: the claim protocol that keeps a mid-rebuild
+	// re-queue from being cleared lives in the drain, and splitting it per account
+	// would move that logic into a path the queue's semantics are not tested against.
+	DrainAccountStatsRebuildQueue = Task{
+		Name:            "drainAccountStatsRebuildQueue",
+		Subject:         "task.scheduled.drainAccountStatsRebuildQueue",
+		DefaultPriority: Priority4,
+		DefaultTimeout:  15 * time.Minute,
+	}
 	RefreshSystemIndexes = Task{
 		Name:            "refreshSystemIndexes",
 		Subject:         "task.scheduled.refreshSystemIndexes",
@@ -169,6 +180,7 @@ var ByName = map[string]Task{
 	EncryptCloudRefreshTokensBatch.Name:    EncryptCloudRefreshTokensBatch,
 	MigrateUserCloudAccountsToUserDoc.Name: MigrateUserCloudAccountsToUserDoc,
 	ProcessArchivedBuildStats.Name:         ProcessArchivedBuildStats,
+	DrainAccountStatsRebuildQueue.Name:     DrainAccountStatsRebuildQueue,
 	RefreshSystemIndexes.Name:              RefreshSystemIndexes,
 	RefreshAdjustedPrices.Name:             RefreshAdjustedPrices,
 	RefreshRegionMarketOrders.Name:         RefreshRegionMarketOrders,

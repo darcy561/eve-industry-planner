@@ -240,8 +240,9 @@ get `IndexSpec` entries there — an operator-surface change, not a services one
 
 ## Stage B — account statistics pipeline
 
-_Written, not committed._ Everything below exists in the working tree only; see
-[plan.md](./plan.md) § Handoff status for how to pick it up.
+_Landed apart from the schedule._ The transformation, the worker rebuild, the drain, its task and
+handler, and the archived-jobs producer are committed. Nothing publishes the drain subject yet — see
+[Not wired yet](#not-wired-yet).
 
 ### The transformation — `shared/archivestats`
 
@@ -299,6 +300,17 @@ a transient failure retries instead of losing the request. `DrainResult` separat
 `PruneAccountRollupBuckets`. Rows are revoked rather than deleted so a rebuild can tell a removed
 job from one it has never seen, and so a job restored from the archive keeps its history.
 
+`LoadAccountArchivedJobStats` returns revoked rows too, which is what lets a rebuild distinguish a
+job it removed from one it has never processed.
+
+**Revoke and prune share a keep-list convention.** Both take the ids the rebuild produced and act on
+everything else for that account, and both **drop the `$nin` when the keep-list is empty** — so a
+rebuild that produces nothing empties the account rather than leaving it untouched. That is correct
+for a wholesale rebuild whose last archived job was removed, and it is the most destructive path in
+the pipeline, so it is pinned by a live test rather than left to inspection.
+
+Behaviour here is covered by `shared/mongo/live_account_rebuild_test.go` against stack Mongo.
+
 ### What queues an account
 
 `PUT /archived-jobs` queues the account after a successful write. Queuing rather than recomputing
@@ -306,13 +318,60 @@ inline keeps the write cheap and collapses a burst of archives into one rebuild.
 is a handler caveat, not a request failure: the jobs are saved either way and the next archive
 re-queues the account.
 
-### Not wired yet
+### The drain task
 
-Nothing drains the queue. The consumer needs a `Task` entry in `shared/tasks/types.go` with its NATS
-subject, a scheduler registration in `core/scheduler/archivedjobs/` following
-`ScheduleProcessArchivedBuildStats`, a worker handler routing that subject to
-`DrainAccountRebuildQueue`, and a cadence. Until then accounts queue and accumulate — harmless, and
-the drain picks them all up when it lands, but deliberate rather than accidental.
+`DrainAccountStatsRebuildQueue` (`task.scheduled.drainAccountStatsRebuildQueue`, Priority4, 15
+minute timeout) is the worker entrypoint over `DrainAccountRebuildQueue`. It is declared in
+`shared/tasks/types.go` and registered on the asynq mux in `worker/asynq/handlers.go`.
+
+**One pass handles the whole queue** rather than fanning out one task per account, which is how the
+neighbouring `ProcessArchivedBuildStats` works. The claim protocol that keeps an account re-queued
+mid-rebuild from being cleared by the rebuild it raced lives inside the drain; per-account fan-out
+would move that logic into a path the queue's semantics are not tested against, to buy parallelism a
+queue of this size does not need. Revisit if a pass approaches the timeout — the fan-out shape is
+the escape hatch, and the per-account clear would have to carry the claim with it.
+
+**The task carries no payload.** The queue names the work, so a pass is always "everything waiting"
+and there is nothing for a caller to scope. A nil task is therefore valid input; missing
+dependencies are not.
+
+**A pass with failures still succeeds.** Failed accounts keep their place in the queue and retry on
+the next pass, so returning an error would retry the accounts that already succeeded to no purpose.
+The count is attached as a handler caveat instead, and `Requeued` stays distinguishable from
+`Failed` in the log line — they look identical in a count of "not cleared" and mean opposite things.
+
+The asynq mux keys handlers by a bare string, so a handler key that does not match its task name
+registers cleanly and is never routed to — the queue would fill with nothing draining it and no
+error anywhere to say so. `TestDrainAccountStatsRebuildQueue_TaskNameIsRegistered` pins the name,
+the `ByName` row and the resolved timeout together.
+
+### The schedule
+
+`ScheduleDrainAccountStatsRebuildQueue` publishes one drain task per tick, registered in
+`core/scheduler/registry.go` alongside the build stats fan-out.
+
+**Hourly at minute 30** (`30 * * * *`), deliberately offset from
+`ScheduleProcessArchivedBuildStats` on minute 0. Both crons read archived-jobs data, so running
+them in the same minute makes them contend for Mongo every hour to no purpose. A test pins that the
+two schedules differ.
+
+**It publishes unconditionally** rather than checking the queue first. Reading the queue to decide
+whether to publish would duplicate the read the worker does anyway and give the scheduler a Mongo
+dependency to fail on; the cost of being wrong is one message an hour, and a pass over an empty
+queue returns before reaching Mongo. The task carries an empty payload for the same reason the
+worker takes none: the queue names the work.
+
+With this the account pipeline is closed end to end — `PUT /archived-jobs` queues an account, the
+cron publishes, the worker drains, and the claim protocol decides what stays queued.
+
+The Mongo-facing behaviour the drain depends on is confirmed against stack Mongo rather than only
+reasoned about: the claim protocol, revoke-on-removal, bucket pruning, and write-then-remove
+ordering all have passing live tests. Rows are revoked and never deleted, so a job restored from the
+archive keeps its history; an empty keep-list empties the account rather than leaving it untouched.
+
+What the cron still exercises without a live test is the worker's end-to-end composition of those
+helpers over real archived jobs. See [plan.md](./plan.md) § Open questions for that gap and for how
+to run a live test against the overlay.
 
 ## Stage C — corporation statistics pipeline
 

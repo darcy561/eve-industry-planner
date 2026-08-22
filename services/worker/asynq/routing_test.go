@@ -44,3 +44,25 @@ func TestGetTaskTimeout_ClampMax(t *testing.T) {
 		t.Fatalf("GetTaskTimeout(..., huge) = %v, want max %v", got, maxTaskTimeout)
 	}
 }
+
+// The asynq mux keys handlers by a bare string. A drain task whose handler key
+// does not match its task name is registered but never routed to — the queue
+// would fill with nothing draining it and no error anywhere to say so.
+func TestDrainAccountStatsRebuildQueue_TaskNameIsRegistered(t *testing.T) {
+	task := taskscore.DrainAccountStatsRebuildQueue
+
+	if task.Name != "drainAccountStatsRebuildQueue" {
+		t.Fatalf("task name = %q; the asynq handler key in handlers.go must be updated to match", task.Name)
+	}
+
+	got, ok := taskscore.ByName[task.Name]
+	if !ok {
+		t.Fatalf("ByName is missing %q, so the worker falls back to the default timeout", task.Name)
+	}
+	if got.DefaultTimeout != task.DefaultTimeout {
+		t.Fatalf("ByName[%q].DefaultTimeout = %v, want %v", task.Name, got.DefaultTimeout, task.DefaultTimeout)
+	}
+	if GetTaskTimeout(task.Name, 0) != task.DefaultTimeout {
+		t.Fatalf("GetTaskTimeout(%q, 0) = %v, want %v", task.Name, GetTaskTimeout(task.Name, 0), task.DefaultTimeout)
+	}
+}
