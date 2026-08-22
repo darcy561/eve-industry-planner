@@ -60,7 +60,7 @@ type BuildStatsRow struct {
 	JobType       int    `bson:"jobType" json:"jobType"`
 	TypeID        int    `bson:"typeID" json:"typeID"`
 	BuildMeasures `bson:",inline"`
-	Breakdown     BuildStatsBreakdown `bson:"breakdown,omitempty" json:"breakdown"`
+	Breakdown     BuildStatsBreakdown `bson:"breakdown" json:"breakdown"`
 	DataSnapshots []BuildStatSnapshot `bson:"dataSnapshots" json:"dataSnapshots"`
 }
 

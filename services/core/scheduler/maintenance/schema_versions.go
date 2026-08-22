@@ -21,13 +21,7 @@ const (
 	defaultSchemaMaintenanceBatchSize    = 200
 )
 
-var schemaMaintenanceCollections = []string{
-	eipmongo.CollectionUsers,
-	eipmongo.CollectionApplicationSettings,
-	eipmongo.CollectionUserJobDocuments,
-	eipmongo.CollectionArchivedJobs,
-	eipmongo.CollectionUserJobGroups,
-}
+var schemaMaintenanceCollections = eipmongo.SchemaMaintainedCollections()
 
 // ScheduleSchemaVersionMaintenance schedules a low-frequency maintenance task that
 // upgrades legacy schema versions in small batches. It rotates one collection per run

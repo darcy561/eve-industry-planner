@@ -2,7 +2,10 @@ package models
 
 import (
 	"encoding/json"
+	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -307,5 +310,67 @@ func TestSalesMeasuresPlusAccumulatesAcrossAFold(t *testing.T) {
 	// The month that started the fold must be untouched by later additions.
 	if months[0].ExtraCategoryTotals["tax"] != 1 || len(months[0].ExtraCategoryTotals) != 1 {
 		t.Fatalf("the first month was mutated by the fold: %v", months[0].ExtraCategoryTotals)
+	}
+}
+
+// These sub-documents are always stored, even when zero. Pinning that here means a
+// change to how they are encoded — a pointer field, or the encoder's OmitZeroStruct
+// being enabled — shows up as a failing test rather than as documents that silently
+// stop carrying a key readers expect.
+func TestZeroRowsStoreTheirStructFields(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		doc  any
+		want string
+	}{
+		{"BuildStatsRow", BuildStatsRow{ID: "acct|1"}, "breakdown"},
+		{"CorpBuildStatsRow", CorpBuildStatsRow{ID: "acct|1"}, "breakdown"},
+		{"ArchivedJobStats", ArchivedJobStats{}, "costMonth"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			keys := bsonKeys(t, tc.doc)
+			if _, ok := keys[tc.want]; !ok {
+				t.Fatalf("%s is absent from a zero %s; if it is now omitted, the field's tag and this test disagree",
+					tc.want, tc.name)
+			}
+		})
+	}
+}
+
+// bson ",omitempty" is a no-op on a struct-typed field in mongo-driver v2: it tests
+// the zero value of primitives, maps, slices and pointers only, and the driver has
+// no "omitzero". Carrying it on a struct field claims the sub-document is optional
+// while it is always written, which is exactly the kind of tag a reader trusts.
+//
+// Pointer-to-struct fields are exempt: omitempty works on a nil pointer.
+func TestNoStructFieldClaimsOmitempty(t *testing.T) {
+	t.Parallel()
+
+	for _, doc := range []any{
+		BuildStatsRow{}, CorpBuildStatsRow{}, BuildStatsBreakdown{}, BuildStatsSegmentTotals{},
+		ArchivedJobStats{}, ArchivedJobLine{}, ArchivedJobTransactionLine{}, ArchivedJobFeeLine{},
+		BuildStatsRollupTotals{}, BuildStatsTimelineBucket{}, UserRollupMonthlyBucket{},
+	} {
+		checkNoStructOmitempty(t, reflect.TypeOf(doc))
+	}
+}
+
+func checkNoStructOmitempty(t *testing.T, typ reflect.Type) {
+	t.Helper()
+	if typ.Kind() != reflect.Struct {
+		return
+	}
+	for field := range typ.Fields() {
+		tag := field.Tag.Get("bson")
+		if field.Type.Kind() == reflect.Struct && field.Type != reflect.TypeFor[time.Time]() &&
+			strings.Contains(tag, ",omitempty") {
+			t.Errorf("%s.%s is a struct with bson %q — omitempty does nothing here, so the tag misleads",
+				typ.Name(), field.Name, tag)
+		}
+		if field.Type.Kind() == reflect.Struct {
+			checkNoStructOmitempty(t, field.Type)
+		}
 	}
 }

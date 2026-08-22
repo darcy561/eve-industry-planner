@@ -68,7 +68,7 @@ type ArchivedJobStats struct {
 	ArchivedAt         time.Time `bson:"archivedAt" json:"archivedAt"`
 	// CostMonth pins job-cost attribution so rollups stay stable across rebuilds.
 	// Workers fall back to ArchivedAt when it is zero.
-	CostMonth             CalendarMonth `bson:"costMonth,omitempty" json:"costMonth,omitzero"`
+	CostMonth             CalendarMonth `bson:"costMonth" json:"costMonth,omitzero"`
 	ArchivedJobCostTotals `bson:",inline"`
 	ExtraCategoryTotals   map[string]float64 `bson:"extraCategoryTotals,omitempty" json:"extraCategoryTotals,omitempty"`
 	UnsoldQuantity        float64            `bson:"unsoldQuantity" json:"unsoldQuantity"`

@@ -3,6 +3,7 @@ package maintenance
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -47,6 +48,10 @@ func SchemaVersionMaintenanceBatch(ctx context.Context, task *asynq.Task, deps *
 		batchSize = maxSchemaMaintenanceBatchSize
 	}
 
+	if !schemaMaintenanceCollectionSupported(payload.Collection) {
+		return fmt.Errorf("unsupported schema maintenance collection %q", payload.Collection)
+	}
+
 	mongo := deps.Mongo
 	switch payload.Collection {
 	case eipmongo.CollectionUsers:
@@ -60,6 +65,13 @@ func SchemaVersionMaintenanceBatch(ctx context.Context, task *asynq.Task, deps *
 	default:
 		return fmt.Errorf("unsupported schema maintenance collection %q", payload.Collection)
 	}
+}
+
+// schemaMaintenanceCollectionSupported reports whether this handler upgrades a
+// collection. It reads the shared list so the scheduler cannot rotate a collection
+// that arrives here and is rejected.
+func schemaMaintenanceCollectionSupported(collection string) bool {
+	return slices.Contains(eipmongo.SchemaMaintainedCollections(), collection)
 }
 
 func maintainUsersSchemaVersionBatch(ctx context.Context, docs *eipmongo.Docs, batchSize int) error {

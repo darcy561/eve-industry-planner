@@ -6,7 +6,7 @@ type CorpBuildStatsRow struct {
 	CorpRef       string `bson:"corpRef" json:"corpRef"`
 	TypeID        int    `bson:"typeID" json:"typeID"`
 	BuildMeasures `bson:",inline"`
-	Breakdown     BuildStatsBreakdown `bson:"breakdown,omitempty" json:"breakdown"`
+	Breakdown     BuildStatsBreakdown `bson:"breakdown" json:"breakdown"`
 }
 
 // Plus sums src into r.
