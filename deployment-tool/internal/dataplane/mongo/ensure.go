@@ -10,7 +10,8 @@ import (
 )
 
 // Ensure brings a running mongo task to desired state (idempotent):
-// keyfile SoT, replica set, root + app users, preimage collections, indexes, then Check.
+// keyfile SoT, replica set, root + app users, collection renames, preimage collections,
+// indexes, then Check.
 // Callers should use dataplane.EnsureMongo (Ready / eip ensure-mongo / init).
 // Index builds are not short-timeout'd — progress via msg; cancel via parent ctx.
 func Ensure(ctx context.Context, stackName string) error {
@@ -39,6 +40,10 @@ func Ensure(ctx context.Context, stackName string) error {
 		return err
 	}
 	msg.Line("users ok")
+	if err := ensureRenames(ctx, cid, c); err != nil {
+		return err
+	}
+	msg.Line("collection names ok")
 	if err := ensurePreimages(ctx, cid, c); err != nil {
 		return err
 	}
