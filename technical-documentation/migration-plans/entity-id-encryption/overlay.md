@@ -190,9 +190,18 @@ routing has been decided from the untouched message, because delivery matches on
 conversion any earlier would produce a message that routes to nobody. A value that looks
 like a ref but does not decrypt is dropped rather than passed through.
 
-Stored refs are camelCase everywhere — document bodies and `_meta` alike — so one suffix
-rule covers them, and `models.MetaData` declares `CorporationRef` / `AllianceRef` rather
-than the changestream matching a bare string.
+A ref is spelled to match the id field it stands in for, which differs by area: job bodies
+mirror ESI, so `corporation_id` pairs with `corporation_ref`; `_meta` is ours and camelCase,
+so `accountID` pairs with `corporationRef`. The rewrite produces the key the **client** reads,
+so it must land on the model's json tag rather than on the storage convention — the two
+spellings are the mechanism for that, not drift between them.
+
+`TestClientPayloadKeysMatchTheAPIResponse` pins it by putting the same job through both
+transports and comparing the delivered key sets, so a storage rename that breaks the
+derivation fails there rather than in the browser.
+
+`models.MetaData` declares `CorporationRef` / `AllianceRef` so the changestream reads the
+field names from the model rather than matching a bare string.
 
 Nothing populates the routing fields yet — no document carries `_meta.corporationRef` until
 corporation and alliance documents exist — so the routing strip is untested against real
