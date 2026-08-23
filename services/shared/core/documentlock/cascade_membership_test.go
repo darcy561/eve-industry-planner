@@ -6,11 +6,12 @@ import (
 	"time"
 
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/testing/redisfake"
 )
 
 func TestReleaseStaleDependentJobLocksOnGroupMembershipAdded_evictsNonHolder(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 	jobID := "job-new-member"
 	seedLock(t, rdb, testAccountID, eipmongo.CollectionAccountJobDocuments, jobID, LockRecord{
@@ -34,7 +35,7 @@ func TestReleaseStaleDependentJobLocksOnGroupMembershipAdded_evictsNonHolder(t *
 
 func TestReleaseStaleDependentJobLocksOnGroupMembershipAdded_keepsAlignedHolder(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 	jobID := "job-aligned"
 	seedLock(t, rdb, testAccountID, eipmongo.CollectionAccountJobDocuments, jobID, LockRecord{

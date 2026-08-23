@@ -6,7 +6,7 @@
 //
 // Hold soak (default — drain / reconnect evidence):
 //
-//	go build -o ../.tmp/ws_soak ./testing/ws_soak
+//	go build -o ../.tmp/ws_soak ./ws_soak
 //	docker run --rm --network eip-core --env-file ../.env \
 //	  -e LOG_LEVEL=warn -e REDIS_HOST=redis -e REDIS_PORT=6379 -e NATS_URL=nats://nats:4222 \
 //	  -v "$PWD/../.tmp/ws_soak:/ws_soak:ro" --entrypoint /ws_soak alpine:3.20 \

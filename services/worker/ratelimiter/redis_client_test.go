@@ -3,14 +3,16 @@ package ratelimiter
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/redis/go-redis/v9"
+
+	"eve-industry-planner/testing/httpfake"
 )
 
 // Stress tests for Redis-based distributed rate limiter
@@ -83,47 +85,37 @@ func cleanupTestRedis(t *testing.T, client *redis.Client) {
 }
 
 // createMockESIServer creates a mock HTTP server that simulates ESI endpoints
-func createMockESIServer(t *testing.T) *httptest.Server {
-	mux := http.NewServeMux()
+// createMockESIServer stands in for the ESI endpoints these tests call, with the
+// per-group rate-limit headers the client reads. ESI paths carry ids, so the
+// route key is the group prefix.
+func createMockESIServer(t *testing.T) *httpfake.Server {
+	f := httpfake.New(t)
+	prefixes := []string{"/markets/prices/", "/industry/systems/", "/characters/", "/status/"}
+	f.RewritePath = func(p string) string {
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(p, prefix) {
+				return prefix
+			}
+		}
+		return p
+	}
 
-	// Mock endpoint that returns token limit headers
-	mux.HandleFunc("/markets/prices/", func(w http.ResponseWriter, r *http.Request) {
-		// Markets group - no token restrictions (token_limit = -1)
-		w.Header().Set("X-Ratelimit-Limit", "0/15m") // No token restrictions
-		w.Header().Set("X-Ratelimit-Remaining", "0")
-		w.Header().Set("X-Ratelimit-Used", "0")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`[{"type_id": 123, "price": 100.5}]`))
-	})
-
-	mux.HandleFunc("/industry/systems/", func(w http.ResponseWriter, r *http.Request) {
-		// Industry group - has token restrictions (600 tokens)
-		w.Header().Set("X-Ratelimit-Limit", "600/15m")
-		w.Header().Set("X-Ratelimit-Remaining", "598")
-		w.Header().Set("X-Ratelimit-Used", "2")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`[{"solar_system_id": 30000142, "cost_index": 0.1}]`))
-	})
-
-	mux.HandleFunc("/characters/", func(w http.ResponseWriter, r *http.Request) {
-		// Characters group - has token restrictions (150 tokens)
-		w.Header().Set("X-Ratelimit-Limit", "150/15m")
-		w.Header().Set("X-Ratelimit-Remaining", "148")
-		w.Header().Set("X-Ratelimit-Used", "2")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"character_id": 123456, "name": "Test Character"}`))
-	})
-
-	mux.HandleFunc("/status/", func(w http.ResponseWriter, r *http.Request) {
-		// Status group - has token restrictions (600 tokens)
-		w.Header().Set("X-Ratelimit-Limit", "600/15m")
-		w.Header().Set("X-Ratelimit-Remaining", "599")
-		w.Header().Set("X-Ratelimit-Used", "1")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"players": 50000, "server_version": "test"}`))
-	})
-
-	return httptest.NewServer(mux)
+	set := func(path, limit, remaining, used, body string) {
+		f.Set(http.MethodGet, path, httpfake.Response{
+			Body: body,
+			Header: http.Header{
+				"X-Ratelimit-Limit":     {limit},
+				"X-Ratelimit-Remaining": {remaining},
+				"X-Ratelimit-Used":      {used},
+			},
+		})
+	}
+	// Markets carries no token restrictions; the rest do.
+	set("/markets/prices/", "0/15m", "0", "0", `[{"type_id": 123, "price": 100.5}]`)
+	set("/industry/systems/", "600/15m", "598", "2", `[{"solar_system_id": 30000142, "cost_index": 0.1}]`)
+	set("/characters/", "150/15m", "148", "2", `{"character_id": 123456, "name": "Test Character"}`)
+	set("/status/", "600/15m", "599", "1", `{"players": 50000, "server_version": "test"}`)
+	return f
 }
 
 // doWithRetry performs a request with automatic retry on rate limit errors
@@ -151,11 +143,12 @@ func TestRedisRateLimiter_MultipleWorkers(t *testing.T) {
 	defer cleanupTestRedis(t, redisClient)
 
 	server := createMockESIServer(t)
-	defer server.Close()
 
 	// Create 2 workers (simulating 2 containers)
-	worker1 := NewRedisESIClient(server.URL, redisClient, 3.0)
-	worker2 := NewRedisESIClient(server.URL, redisClient, 3.0)
+	worker1 := NewRedisESIClient(server.BaseURL(), redisClient, 3.0)
+	worker1.httpClient = server.Client()
+	worker2 := NewRedisESIClient(server.BaseURL(), redisClient, 3.0)
+	worker2.httpClient = server.Client()
 
 	ctx := context.Background()
 	group := GroupDesignation{PrimaryGroup: "market-order"}
@@ -222,11 +215,12 @@ func TestRedisRateLimiter_TokenBucket(t *testing.T) {
 	defer cleanupTestRedis(t, redisClient)
 
 	server := createMockESIServer(t)
-	defer server.Close()
 
 	// Create 2 workers
-	worker1 := NewRedisESIClient(server.URL, redisClient, 10.0) // Higher rate for faster testing
-	worker2 := NewRedisESIClient(server.URL, redisClient, 10.0)
+	worker1 := NewRedisESIClient(server.BaseURL(), redisClient, 10.0)
+	worker1.httpClient = server.Client() // Higher rate for faster testing
+	worker2 := NewRedisESIClient(server.BaseURL(), redisClient, 10.0)
+	worker2.httpClient = server.Client()
 
 	ctx := context.Background()
 	group := GroupDesignation{PrimaryGroup: "industry"}
@@ -301,10 +295,11 @@ func TestRedisRateLimiter_MultipleGroups(t *testing.T) {
 	defer cleanupTestRedis(t, redisClient)
 
 	server := createMockESIServer(t)
-	defer server.Close()
 
-	worker1 := NewRedisESIClient(server.URL, redisClient, 3.0)
-	worker2 := NewRedisESIClient(server.URL, redisClient, 3.0)
+	worker1 := NewRedisESIClient(server.BaseURL(), redisClient, 3.0)
+	worker1.httpClient = server.Client()
+	worker2 := NewRedisESIClient(server.BaseURL(), redisClient, 3.0)
+	worker2.httpClient = server.Client()
 
 	ctx := context.Background()
 
@@ -363,9 +358,9 @@ func TestRedisRateLimiter_Downtime(t *testing.T) {
 	defer cleanupTestRedis(t, redisClient)
 
 	server := createMockESIServer(t)
-	defer server.Close()
 
-	client := NewRedisESIClient(server.URL, redisClient, 3.0)
+	client := NewRedisESIClient(server.BaseURL(), redisClient, 3.0)
+	client.httpClient = server.Client()
 
 	// Test during downtime
 	downtimeTime := time.Date(2024, 1, 1, 11, 5, 0, 0, time.UTC)
@@ -410,11 +405,12 @@ func TestRedisRateLimiter_ConcurrentStressTest(t *testing.T) {
 	defer cleanupTestRedis(t, redisClient)
 
 	server := createMockESIServer(t)
-	defer server.Close()
 
 	// Create 2 workers
-	worker1 := NewRedisESIClient(server.URL, redisClient, 3.0)
-	worker2 := NewRedisESIClient(server.URL, redisClient, 3.0)
+	worker1 := NewRedisESIClient(server.BaseURL(), redisClient, 3.0)
+	worker1.httpClient = server.Client()
+	worker2 := NewRedisESIClient(server.BaseURL(), redisClient, 3.0)
+	worker2.httpClient = server.Client()
 
 	ctx := context.Background()
 
@@ -519,9 +515,9 @@ func TestRedisRateLimiter_TokenExhaustionAndRecovery(t *testing.T) {
 	defer cleanupTestRedis(t, redisClient)
 
 	server := createMockESIServer(t)
-	defer server.Close()
 
-	client := NewRedisESIClient(server.URL, redisClient, 10.0) // Higher rate for faster testing
+	client := NewRedisESIClient(server.BaseURL(), redisClient, 10.0)
+	client.httpClient = server.Client() // Higher rate for faster testing
 
 	ctx := context.Background()
 	group := GroupDesignation{PrimaryGroup: "industry"}
@@ -561,10 +557,11 @@ func TestRedisRateLimiter_GroupsWithoutTokens(t *testing.T) {
 	defer cleanupTestRedis(t, redisClient)
 
 	server := createMockESIServer(t)
-	defer server.Close()
 
-	worker1 := NewRedisESIClient(server.URL, redisClient, 3.0)
-	worker2 := NewRedisESIClient(server.URL, redisClient, 3.0)
+	worker1 := NewRedisESIClient(server.BaseURL(), redisClient, 3.0)
+	worker1.httpClient = server.Client()
+	worker2 := NewRedisESIClient(server.BaseURL(), redisClient, 3.0)
+	worker2.httpClient = server.Client()
 
 	ctx := context.Background()
 	group := GroupDesignation{PrimaryGroup: "market-order"} // Market-order has no token restrictions
@@ -630,11 +627,12 @@ func TestRedisRateLimiter_PerPrimaryGroupRateLimit(t *testing.T) {
 	defer cleanupTestRedis(t, redisClient)
 
 	server := createMockESIServer(t)
-	defer server.Close()
 
 	// Create 2 workers with default rate limit of 3 req/s
-	worker1 := NewRedisESIClient(server.URL, redisClient, 3.0)
-	worker2 := NewRedisESIClient(server.URL, redisClient, 3.0)
+	worker1 := NewRedisESIClient(server.BaseURL(), redisClient, 3.0)
+	worker1.httpClient = server.Client()
+	worker2 := NewRedisESIClient(server.BaseURL(), redisClient, 3.0)
+	worker2.httpClient = server.Client()
 
 	ctx := context.Background()
 

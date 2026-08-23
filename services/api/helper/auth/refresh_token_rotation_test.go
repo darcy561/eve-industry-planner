@@ -4,12 +4,14 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"eve-industry-planner/testing/redisfake"
 )
 
 func TestResolvePresentedRefreshToken_RecoversFromSession(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const (
 		accountID    = "acct-presented-resolve"
@@ -65,7 +67,7 @@ func TestResolvePresentedRefreshToken_RecoversFromSession(t *testing.T) {
 func TestMintAndStoreRefreshToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const sessionID = "sess-mint-store"
 	now := time.Now().UTC()

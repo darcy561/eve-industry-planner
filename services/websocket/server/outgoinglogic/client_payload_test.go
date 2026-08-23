@@ -6,16 +6,8 @@ import (
 	"testing"
 
 	"eve-industry-planner/shared/crypto/entityid"
+	"eve-industry-planner/testing/keys"
 )
-
-func testCipher(t *testing.T) *entityid.Cipher {
-	t.Helper()
-	c, err := entityid.New([]byte("0123456789abcdef0123456789abcdef"))
-	if err != nil {
-		t.Fatalf("entityid.New: %v", err)
-	}
-	return c
-}
 
 // Refs are the internal representation and must not reach a browser. The routing
 // fields carry them, so delivery strips them.
@@ -32,7 +24,7 @@ func TestClientPayloadStripsRoutingRefs(t *testing.T) {
 	  "document":{"jobID":"job-1"}
 	}`)
 
-	got := string(ClientPayload(in, testCipher(t)))
+	got := string(ClientPayload(in, keys.EntityCipher(t)))
 	for _, leaked := range []string{"corporationRef", "allianceRef", "scopes", "corp_abc123", "alliance_def456", "sourceClientID", "sourceSessionID"} {
 		if strings.Contains(got, leaked) {
 			t.Fatalf("%q survived into the client payload:\n%s", leaked, got)
@@ -56,7 +48,7 @@ func TestClientPayloadPassesThroughWhenNothingToStrip(t *testing.T) {
 	t.Parallel()
 	in := []byte(`{"collection":"user_job_documents","docID":"job-1","accountID":"acct-1"}`)
 
-	got := ClientPayload(in, testCipher(t))
+	got := ClientPayload(in, keys.EntityCipher(t))
 	if &got[0] != &in[0] {
 		t.Fatal("expected the original slice to be returned unchanged")
 	}
@@ -65,7 +57,7 @@ func TestClientPayloadPassesThroughWhenNothingToStrip(t *testing.T) {
 func TestClientPayloadLeavesMalformedJSONAlone(t *testing.T) {
 	t.Parallel()
 	in := []byte(`not json`)
-	if string(ClientPayload(in, testCipher(t))) != string(in) {
+	if string(ClientPayload(in, keys.EntityCipher(t))) != string(in) {
 		t.Fatal("malformed input must pass through rather than be dropped")
 	}
 }
@@ -74,7 +66,7 @@ func TestClientPayloadLeavesMalformedJSONAlone(t *testing.T) {
 // The client is owed the ids behind them and must never see the refs.
 func TestClientPayloadRestoresIDsInTheDocumentBody(t *testing.T) {
 	t.Parallel()
-	c := testCipher(t)
+	c := keys.EntityCipher(t)
 
 	corpRef, err := c.Corporation(98765432)
 	if err != nil {
@@ -140,7 +132,7 @@ func TestClientPayloadRestoresIDsInTheDocumentBody(t *testing.T) {
 // open here would leak the exact value this strip exists to contain.
 func TestClientPayloadDropsRefsItCannotDecrypt(t *testing.T) {
 	t.Parallel()
-	c := testCipher(t)
+	c := keys.EntityCipher(t)
 
 	other, err := entityid.New([]byte("ffffffffffffffffffffffffffffffff"))
 	if err != nil {
@@ -172,7 +164,7 @@ func TestClientPayloadDropsRefsItCannotDecrypt(t *testing.T) {
 // no id can be produced.
 func TestClientPayloadWithoutACipherStillRemovesRefs(t *testing.T) {
 	t.Parallel()
-	c := testCipher(t)
+	c := keys.EntityCipher(t)
 	ref, err := c.Corporation(98765432)
 	if err != nil {
 		t.Fatalf("Corporation: %v", err)
@@ -190,7 +182,7 @@ func TestClientPayloadLeavesNonRefFieldsAlone(t *testing.T) {
 	t.Parallel()
 	in := []byte(`{"collection":"c","document":{"journal_ref_id":77,"some_ref":"not-a-ref","nested":{"other_ref":""}}}`)
 
-	got := ClientPayload(in, testCipher(t))
+	got := ClientPayload(in, keys.EntityCipher(t))
 	var m map[string]any
 	if err := json.Unmarshal(got, &m); err != nil {
 		t.Fatalf("client payload is not valid JSON: %v", err)

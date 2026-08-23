@@ -1,14 +1,14 @@
 // Command capacity_soak drills capacity-controller scale-up/down on a live Swarm stack.
 //
 // Implementation: eve-industry-planner/testing/capacity_soak/lib (package capsoak).
-// Shared: eve-industry-planner/testing/harness (NATS, PollUntil, Asynq Redis).
+// Shared: eve-industry-planner/testing/harness (NATS, Asynq Redis), .../wait (poll loops).
 // WS clients: eve-industry-planner/testing/ws_soak/lib (ProfileHold, Accounts=Clients).
 //
 // Phases (any profile): -phase all|up|down
 //
 // Worker:
 //
-//	go build -o ../.tmp/capacity_soak ./testing/capacity_soak
+//	go build -o ../.tmp/capacity_soak ./capacity_soak
 //	DOCKER_HOST=unix:///var/run/docker.sock \
 //	  ./.tmp/capacity_soak -profile worker -phase all -enqueue 40 -want 2 -min 1
 //

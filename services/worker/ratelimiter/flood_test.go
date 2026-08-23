@@ -2,8 +2,8 @@ package ratelimiter
 
 import (
 	"context"
+	"io"
 	"net/http"
-	"net/http/httptest"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -11,25 +11,35 @@ import (
 	"time"
 
 	"golang.org/x/time/rate"
+
+	"eve-industry-planner/testing/httpfake"
 )
+
+// tokenConsumingESI stands in for ESI charging 2 tokens per request, reporting
+// the running total in the rate-limit headers the client reads. used is the
+// caller's counter so a test can reset it to simulate a window rolling over.
+func tokenConsumingESI(t *testing.T, used *int64, limitHeader string, tokenLimit int64) *httpfake.Server {
+	t.Helper()
+	f := httpfake.New(t)
+	f.Handle(http.MethodGet, "/test", func(w http.ResponseWriter, _ *http.Request) {
+		current := atomic.AddInt64(used, 2)
+		w.Header().Set("X-Ratelimit-Limit", limitHeader)
+		w.Header().Set("X-Ratelimit-Remaining", strconv.FormatInt(max(tokenLimit-current, 0), 10))
+		w.Header().Set("X-Ratelimit-Used", strconv.FormatInt(current, 10))
+		_, _ = io.WriteString(w, `{"test": "data"}`)
+	})
+	return f
+}
 
 // TestFloodLimiter_TokenExhaustion simulates flooding a limiter with many requests
 // and verifies that requests are properly blocked when tokens run out.
 func TestFloodLimiter_TokenExhaustion(t *testing.T) {
 	const tokenLimit = 40
 	var serverTokenUsed int64
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		currentUsed := atomic.AddInt64(&serverTokenUsed, 2)
-		remaining := max(int64(tokenLimit)-currentUsed, 0)
-		w.Header().Set("X-Ratelimit-Limit", "40/15m")
-		w.Header().Set("X-Ratelimit-Remaining", strconv.FormatInt(remaining, 10))
-		w.Header().Set("X-Ratelimit-Used", strconv.FormatInt(currentUsed, 10))
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"test": "data"}`))
-	}))
-	defer server.Close()
+	esi := tokenConsumingESI(t, &serverTokenUsed, "40/15m", int64(tokenLimit))
 
-	client := createTestESIClient(server.URL)
+	client := createTestESIClient(esi.BaseURL())
+	client.httpClient = esi.Client()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -108,18 +118,10 @@ func TestFloodLimiter_TokenExhaustion(t *testing.T) {
 func TestFloodLimiter_ProgressiveExhaustion(t *testing.T) {
 	const tokenLimit = 100
 	var serverTokenUsed int64
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		currentUsed := atomic.AddInt64(&serverTokenUsed, 2)
-		remaining := max(int64(tokenLimit)-currentUsed, 0)
-		w.Header().Set("X-Ratelimit-Limit", "100/15m")
-		w.Header().Set("X-Ratelimit-Remaining", strconv.FormatInt(remaining, 10))
-		w.Header().Set("X-Ratelimit-Used", strconv.FormatInt(currentUsed, 10))
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"test": "data"}`))
-	}))
-	defer server.Close()
+	esi := tokenConsumingESI(t, &serverTokenUsed, "100/15m", int64(tokenLimit))
 
-	client := createTestESIClient(server.URL)
+	client := createTestESIClient(esi.BaseURL())
+	client.httpClient = esi.Client()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -201,20 +203,10 @@ func TestFloodLimiter_RecoveryAfterExhaustion(t *testing.T) {
 	var serverTokenUsed int64
 	serverTokenLimit := int64(100)
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Increment server-side usage (simulate 2 tokens per request)
-		currentUsed := atomic.AddInt64(&serverTokenUsed, 2)
-		remaining := max(serverTokenLimit-currentUsed, 0)
+	esi := tokenConsumingESI(t, &serverTokenUsed, "100/15m", serverTokenLimit)
 
-		w.Header().Set("X-Ratelimit-Limit", "100/15m")
-		w.Header().Set("X-Ratelimit-Remaining", strconv.FormatInt(remaining, 10))
-		w.Header().Set("X-Ratelimit-Used", strconv.FormatInt(currentUsed, 10))
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"test": "data"}`))
-	}))
-	defer server.Close()
-
-	client := createTestESIClient(server.URL)
+	client := createTestESIClient(esi.BaseURL())
+	client.httpClient = esi.Client()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -317,20 +309,10 @@ func TestFloodLimiter_ConcurrentExhaustion(t *testing.T) {
 	// Track server-side token usage to simulate realistic behavior
 	var serverTokenUsed int64
 	serverTokenLimit := int64(20) // Very low limit - 20 requests need 40 tokens, but limit is 20, so many should be blocked
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Increment server-side usage (simulate 2 tokens per request)
-		currentUsed := atomic.AddInt64(&serverTokenUsed, 2)
-		remaining := max(serverTokenLimit-currentUsed, 0)
+	esi := tokenConsumingESI(t, &serverTokenUsed, "20/15m", serverTokenLimit)
 
-		w.Header().Set("X-Ratelimit-Limit", "20/15m")
-		w.Header().Set("X-Ratelimit-Remaining", strconv.FormatInt(remaining, 10))
-		w.Header().Set("X-Ratelimit-Used", strconv.FormatInt(currentUsed, 10))
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"test": "data"}`))
-	}))
-	defer server.Close()
-
-	client := createTestESIClient(server.URL)
+	client := createTestESIClient(esi.BaseURL())
+	client.httpClient = esi.Client()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -416,17 +398,19 @@ func TestFloodLimiter_ConcurrentExhaustion(t *testing.T) {
 // TestFloodLimiter_RetryAfterRecovery tests that requests are properly blocked
 // during retry-after periods and recover after the period expires.
 func TestFloodLimiter_RetryAfterRecovery(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Send headers that match the test's token limit to avoid rate limiter recalculation
-		w.Header().Set("X-Ratelimit-Limit", "100/15m")
-		w.Header().Set("X-Ratelimit-Remaining", "50")
-		w.Header().Set("X-Ratelimit-Used", "50")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"test": "data"}`))
-	}))
-	defer server.Close()
+	// Headers match the test's token limit so the rate limiter does not recalculate.
+	esi := httpfake.New(t)
+	esi.Set(http.MethodGet, "/test", httpfake.Response{
+		Body: `{"test": "data"}`,
+		Header: http.Header{
+			"X-Ratelimit-Limit":     {"100/15m"},
+			"X-Ratelimit-Remaining": {"50"},
+			"X-Ratelimit-Used":      {"50"},
+		},
+	})
 
-	client := createTestESIClient(server.URL)
+	client := createTestESIClient(esi.BaseURL())
+	client.httpClient = esi.Client()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 

@@ -8,18 +8,10 @@ import (
 	"eve-industry-planner/shared/crypto/entityid"
 	"eve-industry-planner/shared/models"
 	"eve-industry-planner/shared/protectedfields"
+	"eve-industry-planner/testing/keys"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
-
-func testHelper(t *testing.T) *entityid.Cipher {
-	t.Helper()
-	h, err := entityid.New([]byte("0123456789abcdef0123456789abcdef"))
-	if err != nil {
-		t.Fatalf("entityid.New: %v", err)
-	}
-	return h
-}
 
 func jobWithIDs() *models.Job {
 	job := &models.Job{JobID: "job-1"}
@@ -32,7 +24,7 @@ func jobWithIDs() *models.Job {
 
 func TestToRefsReplacesEveryIDAndMarksTheSpec(t *testing.T) {
 	job := jobWithIDs()
-	if err := Encrypt(job, testHelper(t)); err != nil {
+	if err := Encrypt(job, keys.EntityCipher(t)); err != nil {
 		t.Fatalf("ToRefs: %v", err)
 	}
 
@@ -60,7 +52,7 @@ func TestToRefsReplacesEveryIDAndMarksTheSpec(t *testing.T) {
 // The same id must always yield the same ref, since refs are used as identity for
 // aggregation, lock partitions and tenant routing.
 func TestRefsAreDeterministicAcrossDocuments(t *testing.T) {
-	h := testHelper(t)
+	h := keys.EntityCipher(t)
 	a, b := jobWithIDs(), jobWithIDs()
 
 	if err := Encrypt(a, h); err != nil {
@@ -80,7 +72,7 @@ func TestKindsDoNotCollide(t *testing.T) {
 	job := &models.Job{JobID: "job-collide"}
 	job.Build.Sale.Transactions = []models.Transaction{{TransactionID: 1, CorporationID: 42, CharacterID: 42}}
 
-	if err := Encrypt(job, testHelper(t)); err != nil {
+	if err := Encrypt(job, keys.EntityCipher(t)); err != nil {
 		t.Fatalf("ToRefs: %v", err)
 	}
 	line := job.Build.Sale.Transactions[0]
@@ -90,7 +82,7 @@ func TestKindsDoNotCollide(t *testing.T) {
 }
 
 func TestToRefsIsIdempotent(t *testing.T) {
-	h := testHelper(t)
+	h := keys.EntityCipher(t)
 	job := jobWithIDs()
 
 	if err := Encrypt(job, h); err != nil {
@@ -115,7 +107,7 @@ func TestToRefsRequiresAHelper(t *testing.T) {
 // Raw ids must not reach the database, and refs must not reach the client.
 func TestPersistedShapeCarriesRefsNotIDs(t *testing.T) {
 	job := jobWithIDs()
-	if err := Encrypt(job, testHelper(t)); err != nil {
+	if err := Encrypt(job, keys.EntityCipher(t)); err != nil {
 		t.Fatalf("ToRefs: %v", err)
 	}
 
@@ -173,7 +165,7 @@ func TestClientShapeCarriesIDsNotRefs(t *testing.T) {
 // values must match byte for byte — if they do not, a save silently replaces a
 // job's identity with nothing, and it cannot be recovered.
 func TestClientRoundTripPreservesStoredIdentity(t *testing.T) {
-	c := testHelper(t)
+	c := keys.EntityCipher(t)
 
 	stored := jobWithIDs()
 	if err := Encrypt(stored, c); err != nil {
@@ -221,7 +213,7 @@ func TestClientRoundTripPreservesStoredIdentity(t *testing.T) {
 
 // The response must carry the raw ids and never the stored values.
 func TestResponseCarriesIDsAndNotStoredValues(t *testing.T) {
-	c := testHelper(t)
+	c := keys.EntityCipher(t)
 
 	job := jobWithIDs()
 	if err := Encrypt(job, c); err != nil {

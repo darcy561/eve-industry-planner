@@ -785,7 +785,7 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 - **overlay:** [overlays/26-ws-affinity-sim.md](./overlays/26-ws-affinity-sim.md)
 - **status:** **done** — hold + limits + co-location fail-on-split (`-require-coloc`, default true)
 - **size:** M
-- **where:** `services/testing/ws_soak` (`main` + `lib`/`soaklib`); [testing/services/websocket.md](../../testing/services/websocket.md) § Ops soak; harness parent → [testing/harness.md](../../testing/harness.md)
+- **where:** `testing/ws_soak` (`main` + `lib`/`soaklib`); [testing/services/websocket.md](../../testing/services/websocket.md) § Ops soak; harness parent → [testing/harness.md](../../testing/harness.md)
 - **why:** Cannot validate place co-location or divert behaviour with a handful of manual browsers
 - **how (landed):** Configurable N clients; hold + limits + **pressure** (multi-group account/corp/alliance hold while fill corp drives soft→full + divert asserts; scale via `-clients`/`-groups`/`-group-size`); place via `connected.container_id` + NATS flags; **fail if shared affinity splits backends**. Read-idle false reconnects fixed. Runnable against local stack via **`eip dev`** / `eip-core`.
 - **acceptance:** “N clients with key K → same backend” — **met** (`-require-coloc`). Combined soft/hard + multi-group allocation — **met** (`-profile pressure`). Scripted kill/evacuate recovery → **#29** (needs #21 ops).

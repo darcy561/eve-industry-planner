@@ -1,4 +1,4 @@
-# Full unit/integration test suite (services + frontend + deployment-tool).
+# Full unit/integration test suite (services + shared testing library + frontend + deployment-tool).
 # Auto: push/PR on Public + Development, only suites whose paths changed.
 # Other branches: workflow_dispatch only (pick suites). New tests under those
 # trees are picked up automatically by go test ./... / vitest.
@@ -13,6 +13,10 @@ on:
     inputs:
       services:
         description: Run services Go unit tests
+        type: boolean
+        default: true
+      shared_testing:
+        description: Run shared testing library Go unit tests
         type: boolean
         default: true
       frontend:
@@ -35,6 +39,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       services: ${{ steps.set.outputs.services }}
+      shared_testing: ${{ steps.set.outputs.shared_testing }}
       frontend: ${{ steps.set.outputs.frontend }}
       deployment_tool: ${{ steps.set.outputs.deployment_tool }}
     steps:
@@ -51,6 +56,14 @@ jobs:
           # markdown. None of it changes what a suite exercises, so exclude it.
           filters: |
             services:
+              - all:
+                - 'services/**'
+                - '!**/*.md'
+              - '.github/workflows/test.yml'
+            shared_testing:
+              - all:
+                - 'testing/**'
+                - '!**/*.md'
               - all:
                 - 'services/**'
                 - '!**/*.md'
@@ -75,10 +88,12 @@ jobs:
           set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "services=${{ inputs.services }}" >> "$GITHUB_OUTPUT"
+            echo "shared_testing=${{ inputs.shared_testing }}" >> "$GITHUB_OUTPUT"
             echo "frontend=${{ inputs.frontend }}" >> "$GITHUB_OUTPUT"
             echo "deployment_tool=${{ inputs.deployment_tool }}" >> "$GITHUB_OUTPUT"
           else
             echo "services=${{ steps.filter.outputs.services }}" >> "$GITHUB_OUTPUT"
+            echo "shared_testing=${{ steps.filter.outputs.shared_testing }}" >> "$GITHUB_OUTPUT"
             echo "frontend=${{ steps.filter.outputs.frontend }}" >> "$GITHUB_OUTPUT"
             echo "deployment_tool=${{ steps.filter.outputs.deployment_tool }}" >> "$GITHUB_OUTPUT"
           fi
@@ -101,6 +116,28 @@ jobs:
         with:
           go-version-file: services/go.mod
           cache-dependency-path: services/go.sum
+
+      - name: Test
+        run: go test ./...
+
+  shared-testing:
+    name: shared testing library
+    needs: changes
+    if: needs.changes.outputs.shared_testing == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: testing
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: testing/go.mod
+          cache-dependency-path: testing/go.sum
 
       - name: Test
         run: go test ./...
@@ -200,6 +237,7 @@ jobs:
     needs:
       - changes
       - services
+      - shared-testing
       - frontend
       - deployment-tool
       - deployment-tool-integration
@@ -224,6 +262,7 @@ jobs:
           }
           check changes "${{ needs.changes.result }}"
           check services "${{ needs.services.result }}"
+          check shared-testing "${{ needs.shared-testing.result }}"
           check frontend "${{ needs.frontend.result }}"
           check deployment-tool "${{ needs.deployment-tool.result }}"
           check deployment-tool-integration "${{ needs.deployment-tool-integration.result }}"

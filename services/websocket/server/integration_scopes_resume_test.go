@@ -1,8 +1,11 @@
 package server
 
 import (
+	"fmt"
 	"testing"
 	"time"
+
+	"eve-industry-planner/testing/wait"
 )
 
 func TestIntegrationUpgradeScopesAckAndHosted(t *testing.T) {
@@ -34,14 +37,10 @@ func TestIntegrationUpgradeScopesAckAndHosted(t *testing.T) {
 	corpTenant := "corporation:" + wsTestCorpRef(t, 10)
 	allianceTenant := "alliance:" + wsTestAllianceRef(t, 99)
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if f.Server.HostsTenant(corpTenant) && f.Server.HostsTenant(allianceTenant) {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Fatalf("hosted=%v, want %s and %s", f.Server.HostedTenants(), corpTenant, allianceTenant)
+	wait.For(t, 2*time.Second, func() (bool, string) {
+		ok := f.Server.HostsTenant(corpTenant) && f.Server.HostsTenant(allianceTenant)
+		return ok, fmt.Sprintf("hosted=%v, want %s and %s", f.Server.HostedTenants(), corpTenant, allianceTenant)
+	})
 }
 
 func TestIntegrationSessionResumeRestoresScopes(t *testing.T) {

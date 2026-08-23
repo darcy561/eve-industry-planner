@@ -1,33 +1,40 @@
-# Shared Go test harness (`services/testing`)
+# Shared Go test harness (`testing`)
 
-Live SoT for cross-cutting **ops soak / harness packages** under [`services/testing/`](../../services/testing/). Import path prefix: `eve-industry-planner/testing/…` (not the Go stdlib `testing` package). Per-service unit depth stays in [services/contents.md](./services/contents.md).
+Live SoT for cross-cutting **ops soak / harness packages** under [`testing/`](../../testing/) — its own Go module `eve-industry-planner/testing`, sitting beside `services/` and `deployment-tool/` so either product module can share test code. Import path prefix: `eve-industry-planner/testing/…` (not the Go stdlib `testing` package). The module requires `services` (`replace ../services`); nothing in `services/` imports it back. Per-service unit depth stays in [services/contents.md](./services/contents.md).
 
 ## Entrypoints
 
 | Check | Where | Notes |
 |-------|--------|--------|
-| Harness unit | From `services/`: `go test ./testing/...` | No Docker for plan/cohort/fanout helpers |
-| Ops soak CLI | `go build -o ../.tmp/ws_soak ./testing/ws_soak` then docker on `eip-core` | Needs live stack — [services/websocket.md](./services/websocket.md) § Ops soak |
-| Capacity soak CLI | `go build -o ../.tmp/capacity_soak ./testing/capacity_soak` | Live stack — [services/capacity-controller.md](./services/capacity-controller.md) § Ops soak |
-| Full services suite | `go test ./…` | Includes `./testing/...` |
+| Harness unit | From `testing/`: `go test ./...` | No Docker for `keys` / `wait` / `httpfake` / `redisfake` / plan / cohort / fanout helpers |
+| Ops soak CLI | From `testing/`: `go build -o ../.tmp/ws_soak ./ws_soak` then docker on `eip-core` | Needs live stack — [services/websocket.md](./services/websocket.md) § Ops soak |
+| Capacity soak CLI | From `testing/`: `go build -o ../.tmp/capacity_soak ./capacity_soak` | Live stack — [services/capacity-controller.md](./services/capacity-controller.md) § Ops soak |
+| CI | `shared testing library` job in [test.yml](../../.github/workflows/test.yml) | Separate module — outside the `services` suite |
 
 ## Coverage map
 
 | Package | Depth | What it covers |
 |---------|-------|----------------|
-| `testing/harness` | **Tested** (unit) | Shared `ConnectNATS`, `PollUntil`, `AsynqRedisOpt` / `CapacitySoakNoop` |
+| `testing/harness` | **Tested** (unit) | Shared `ConnectNATS`, `AsynqRedisOpt` / `CapacitySoakNoop` |
+| `testing/keys` | **Tested** (unit) | Shared test key material: `EntityID` plus `EntityCipher` / `SetEntityID` for entity refs |
+| `testing/wait` | **Tested** (unit) | `For` (test form, fails with the last detail) and `Until` (long-running form, returns an error and reports progress) |
+| `testing/httpfake` | **Tested** (unit) | In-memory stand-in for an HTTP dependency a package calls out to: canned and queued replies, custom handlers, recorded calls |
+| `testing/redisfake` | **Tested** (unit) | Per-test miniredis plus a wired client, both closed on cleanup; `Server` for direct store access (TTL, FastForward, Exists) |
 | `testing/ws_soak/lib` (`soaklib`) | **Tested** (unit) / **ops** (live stack) | Hold / limits / pressure placement; **fanout**; `tenantGen` + `churnPool`; delivery tracker; JetStream publish (Mongo stubbed). **SoT for WS client seed/dial.** |
 | `testing/ws_soak` | CLI | Thin `main.go` → `soaklib.Run` (flags only) |
 | `testing/capacity_soak/lib` (`capsoak`) | **Tested** (unit) / **ops** (live stack) | Worker Asynq via harness; websocket/api hold via soaklib (`Accounts==Clients`) + Docker/NATS Observer; `-phase all\|up\|down` |
 | `testing/capacity_soak` | CLI | Thin `main.go` → parse profile/phase → `capsoak.Run` |
-| `testing/capacity_controller/clusterfake` | **Tested** | Recording in-memory `cluster.Cluster` — not in product binary |
 
 ## Topic-only detail
 
-- **Parent folder** — `services/testing/` holds shared harness products (CLI `main` + reusable `lib/` under the same tree).
-- **Shared package** — `testing/harness` for connect/poll/Asynq Redis. Domain WS profiles + client SoT stay in `soaklib`; Swarm observe + capacity phases stay in `capsoak` (capsoak calls soaklib hold directly).
+- **Parent folder** — `testing/` holds shared harness products (CLI `main` + reusable `lib/` under the same tree). Fakes for one product package live next to that package instead — e.g. `services/capacity-controller/cluster/clusterfake`.
+- **`httpfake`** — for a package under test that *calls out* over HTTP. Built on `httptest.NewTestServer`, so it has no listener and no loopback socket: callers reach it through `Client()`, and it works inside a `testing/synctest` bubble, where real network I/O never counts as durably blocked and would deadlock the test. Queued replies drain in order and the last repeats, so a poll loop can watch a value change and then settle. Product-specific stand-ins (ESI rate-limit headers, and the Deployment Tool's Engine routes in `internal/docker/enginetest`) are route tables built on that shape, not separate mechanisms. A test that hosts **its own** handler and needs a dialable address — the websocket integration fixture, which opens a real `ws://` connection — still uses `httptest.NewServer`: that is serving the code under test, not faking a dependency.
+- **`keys`** — key material every test shares. Entity refs are deterministic, so a value encrypted under one key does not match a lookup derived under another: `keys.EntityCipher(t)` for a cipher, `keys.SetEntityID(t)` where the code resolves `ENTITY_ID_KEY` itself, and `keys.EntityID` for the rare caller with no `testing.TB` (a `TestMain`). A package testing the crypto itself supplies its own key — this is for everything downstream that just needs refs to line up.
+- **`wait`** — one polling loop for the repo. `wait.For(t, timeout, cond)` is the test form: `cond` returns whether it holds plus a **detail string describing what it just observed**, and a timeout fails with that detail rather than a bare "never ready". `wait.Until(ctx, opts, try)` is the long-running form the soak tools use — same detail string, returned in the error, plus `Report` / `Alive`. Two loop shapes deliberately stay hand-written: a **steady-state** loop that asserts an invariant holds for a period, and a **blocking read** loop that waits on I/O rather than polling.
+- **`redisfake`** — every test needing Redis takes `redisfake.New(t)`; `.Client` for the wired client, `.Server` to manipulate the store. It owns construction and both cleanups, so no test hand-rolls the miniredis dance. One caveat it also owns: miniredis listens on loopback TCP, so a client call is real network I/O and a test using this fixture cannot run inside a `testing/synctest` bubble. This constructor is the single place to change if that becomes necessary.
+- **Shared package** — `testing/harness` for NATS connect / Asynq Redis; polling lives in `wait`. Domain WS profiles + client SoT stay in `soaklib`; Swarm observe + capacity phases stay in `capsoak` (capsoak calls soaklib hold directly).
 - **Product unit/integration tests** stay next to the code under test.
-- Unit: `go test ./testing/harness/... ./testing/ws_soak/lib/... ./testing/capacity_soak/lib/...`
+- Unit, from `testing/`: `go test ./harness/... ./ws_soak/lib/... ./capacity_soak/lib/...`
 
 ### Shared harness conventions
 
@@ -53,7 +60,7 @@ Live SoT for cross-cutting **ops soak / harness packages** under [`services/test
 | Logging | Prefer `LOG_LEVEL=warn` on `eip-core` |
 | Pass | up: effective ≥ `-want`; down: effective ≤ `-min` |
 
-How to run → [services/capacity-controller.md](./services/capacity-controller.md) § Ops soak. CLI: [`services/testing/capacity_soak/main.go`](../../services/testing/capacity_soak/main.go).
+How to run → [services/capacity-controller.md](./services/capacity-controller.md) § Ops soak. CLI: [`testing/capacity_soak/main.go`](../../testing/capacity_soak/main.go).
 
 ### Fanout ops conventions
 
@@ -67,4 +74,4 @@ How to run → [services/capacity-controller.md](./services/capacity-controller.
 | `pending` in reports | Soak `deliveryTracker` open expects — **not** NATS consumer pending or WS outbound queue depth |
 | Pass | `wrong=0 dup=0 offline_hit=0` and drain completes; coloc when `-require-coloc` |
 
-CLI: [`services/testing/ws_soak/main.go`](../../services/testing/ws_soak/main.go).
+CLI: [`testing/ws_soak/main.go`](../../testing/ws_soak/main.go).

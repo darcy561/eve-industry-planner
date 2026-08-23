@@ -6,6 +6,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"eve-industry-planner/testing/wait"
 )
 
 // #28: gocron Shutdown cancels in-flight job contexts (lose-primary path).
@@ -36,13 +38,9 @@ func TestTaskScheduler_StopCancelsInFlightJob(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) && !running.Load() {
-		time.Sleep(20 * time.Millisecond)
-	}
-	if !running.Load() {
-		t.Fatal("job never started")
-	}
+	wait.For(t, 3*time.Second, func() (bool, string) {
+		return running.Load(), "scheduled job never started"
+	})
 
 	done := make(chan struct{})
 	go func() {

@@ -7,11 +7,12 @@ import (
 	"time"
 
 	eipmongo "eve-industry-planner/shared/mongo"
+	"eve-industry-planner/testing/redisfake"
 )
 
 func TestPipelinedDecideAndReleaseJobLocks_NoLocksReturnsNoReleases(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	releases, err := pipelinedDecideAndReleaseJobLocks(
 		context.Background(),
@@ -30,7 +31,7 @@ func TestPipelinedDecideAndReleaseJobLocks_NoLocksReturnsNoReleases(t *testing.T
 
 func TestPipelinedDecideAndReleaseJobLocks_PartialReleaseDelsOnlyChosen(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 
 	heldBy := func(id string) LockRecord {
@@ -102,7 +103,7 @@ func TestPipelinedDecideAndReleaseJobLocks_PartialReleaseDelsOnlyChosen(t *testi
 
 func TestPipelinedDecideAndReleaseJobLocks_ExpiredRecordsBypassPredicate(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 
 	jobID := "job-expired"
@@ -140,7 +141,7 @@ func TestPipelinedDecideAndReleaseJobLocks_ExpiredRecordsBypassPredicate(t *test
 
 func TestPipelinedDecideAndReleaseJobLocks_BlankIDsSkipped(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 
 	seedLock(t, rdb, testAccountID, eipmongo.CollectionAccountJobDocuments, "job-real", LockRecord{
@@ -173,7 +174,7 @@ func TestPipelinedDecideAndReleaseJobLocks_BlankIDsSkipped(t *testing.T) {
 
 func TestPipelinedDecideAndReleaseJobLocks_NilRedisAndPredicateGuards(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	if r, err := pipelinedDecideAndReleaseJobLocks(context.Background(), nil, testAccountID, []string{"x"}, func(*LockRecord) (bool, string) { return true, "" }); err != nil || r != nil {
 		t.Fatalf("nil rdb: expected (nil, nil), got (%v, %v)", r, err)

@@ -4,23 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/alicebob/miniredis/v2"
-	"github.com/redis/go-redis/v9"
+	"eve-industry-planner/testing/redisfake"
 )
-
-func newTestRedis(t *testing.T) *redis.Client {
-	t.Helper()
-
-	server := miniredis.RunT(t)
-	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
-	t.Cleanup(func() { client.Close() })
-
-	return client
-}
 
 func TestNextRegionCronIndex_CyclesInOrder(t *testing.T) {
 	ctx := context.Background()
-	client := newTestRedis(t)
+	client := redisfake.New(t).Client
 
 	const count = 4
 	want := []int{0, 1, 2, 3, 0, 1}
@@ -37,7 +26,7 @@ func TestNextRegionCronIndex_CyclesInOrder(t *testing.T) {
 }
 
 func TestNextRegionCronIndex_ZeroCount(t *testing.T) {
-	got, err := NextRegionCronIndex(context.Background(), newTestRedis(t), 0)
+	got, err := NextRegionCronIndex(context.Background(), redisfake.New(t).Client, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -48,7 +37,7 @@ func TestNextRegionCronIndex_ZeroCount(t *testing.T) {
 
 func TestSaveAndGetRegionMarketOrdersETags(t *testing.T) {
 	ctx := context.Background()
-	client := newTestRedis(t)
+	client := redisfake.New(t).Client
 	const regionID = 10000002
 
 	if err := SaveRegionMarketOrdersETags(ctx, client, regionID, map[int]string{1: "a", 2: "b", 3: ""}); err != nil {
@@ -68,7 +57,7 @@ func TestSaveAndGetRegionMarketOrdersETags(t *testing.T) {
 
 func TestDeleteRegionMarketOrdersETagsFrom(t *testing.T) {
 	ctx := context.Background()
-	client := newTestRedis(t)
+	client := redisfake.New(t).Client
 	const regionID = 10000002
 
 	if err := SaveRegionMarketOrdersETags(ctx, client, regionID, map[int]string{1: "a", 2: "b", 3: "c", 4: "d"}); err != nil {

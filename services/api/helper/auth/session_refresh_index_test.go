@@ -7,12 +7,13 @@ import (
 	"time"
 
 	rediscore "eve-industry-planner/shared/core/redis"
+	"eve-industry-planner/testing/redisfake"
 )
 
 func TestSessionRefreshIndex_StoreRevokeResolve(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const (
 		accountID = "acct-sess-refresh-idx"
@@ -80,7 +81,7 @@ func TestSessionRefreshIndex_StoreRevokeResolve(t *testing.T) {
 func TestResolveRefreshTokenForValidSession_ScanFallback(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const (
 		accountID = "acct-scan-fallback"

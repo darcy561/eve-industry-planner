@@ -3,9 +3,10 @@ package ratelimiter
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
+
+	"eve-industry-planner/testing/httpfake"
 )
 
 func TestNewESIClient(t *testing.T) {
@@ -208,17 +209,18 @@ func TestGetOrCreateGroupLimiter(t *testing.T) {
 }
 
 func TestDo_Success(t *testing.T) {
-	// Create a mock HTTP server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Ratelimit-Limit", "600/15m")
-		w.Header().Set("X-Ratelimit-Remaining", "595")
-		w.Header().Set("X-Ratelimit-Used", "5")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"test": "data"}`))
-	}))
-	defer server.Close()
+	esi := httpfake.New(t)
+	esi.Set(http.MethodGet, "/test", httpfake.Response{
+		Body: `{"test": "data"}`,
+		Header: http.Header{
+			"X-Ratelimit-Limit":     {"600/15m"},
+			"X-Ratelimit-Remaining": {"595"},
+			"X-Ratelimit-Used":      {"5"},
+		},
+	})
 
-	client := createTestESIClient(server.URL)
+	client := createTestESIClient(esi.BaseURL())
+	client.httpClient = esi.Client()
 	ctx := context.Background()
 
 	body, resp, err := client.Do(
@@ -245,21 +247,28 @@ func TestDo_Success(t *testing.T) {
 	if len(body) == 0 {
 		t.Error("Do() body is empty")
 	}
+
+	if _, ok := esi.Last(http.MethodGet, "/test"); !ok {
+		t.Error("Do() did not reach the ESI stand-in")
+	}
 }
 
 func TestDo_429Response(t *testing.T) {
 	// Create a mock HTTP server that returns 429
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Ratelimit-Limit", "600/15m")
-		w.Header().Set("X-Ratelimit-Remaining", "0")
-		w.Header().Set("X-Ratelimit-Used", "600")
-		w.Header().Set("Retry-After", "60")
-		w.WriteHeader(http.StatusTooManyRequests)
-		w.Write([]byte(`{"error": "rate limited"}`))
-	}))
-	defer server.Close()
+	esi := httpfake.New(t)
+	esi.Set(http.MethodGet, "/test", httpfake.Response{
+		Status: http.StatusTooManyRequests,
+		Body:   `{"error": "rate limited"}`,
+		Header: http.Header{
+			"X-Ratelimit-Limit":     {"600/15m"},
+			"X-Ratelimit-Remaining": {"0"},
+			"X-Ratelimit-Used":      {"600"},
+			"Retry-After":           {"60"},
+		},
+	})
 
-	client := createTestESIClient(server.URL)
+	client := createTestESIClient(esi.BaseURL())
+	client.httpClient = esi.Client()
 	ctx := context.Background()
 
 	body, resp, err := client.Do(
@@ -298,13 +307,11 @@ func TestDo_429Response(t *testing.T) {
 }
 
 func TestDo_RateLimitCheck(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"test": "data"}`))
-	}))
-	defer server.Close()
+	esi := httpfake.New(t)
+	esi.Set(http.MethodGet, "/test", httpfake.Response{Body: `{"test": "data"}`})
 
-	client := createTestESIClient(server.URL)
+	client := createTestESIClient(esi.BaseURL())
+	client.httpClient = esi.Client()
 	ctx := context.Background()
 
 	// Manually set up a limiter with insufficient tokens

@@ -5,21 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
-	"github.com/redis/go-redis/v9"
+	"eve-industry-planner/testing/redisfake"
 )
-
-func newTestRedis(t *testing.T) (*redis.Client, *miniredis.Miniredis) {
-	t.Helper()
-	srv, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("miniredis.Run: %v", err)
-	}
-	t.Cleanup(func() { srv.Close() })
-	rdb := redis.NewClient(&redis.Options{Addr: srv.Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
-	return rdb, srv
-}
 
 const (
 	testAccountID  = "acct-1"
@@ -52,7 +39,7 @@ func TestParseExpiredLockKey(t *testing.T) {
 
 func TestSetAndGetLockRoundtrip(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 
 	now := time.Now().Unix()
@@ -110,7 +97,7 @@ func TestSetAndGetLockRoundtrip(t *testing.T) {
 
 func TestEnqueueWaitlistUniqueAndPeek(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 
 	if err := EnqueueWaitlistUnique(ctx, rdb, testAccountID, testCollection, testDocID, "sess-a"); err != nil {
@@ -142,7 +129,7 @@ func TestEnqueueWaitlistUniqueAndPeek(t *testing.T) {
 
 func TestPeekWaitlistHeadAlive_PrunesStale(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 
 	for _, s := range []string{"sess-stale-1", "sess-stale-2", "sess-alive"} {
@@ -173,7 +160,7 @@ func TestPeekWaitlistHeadAlive_PrunesStale(t *testing.T) {
 
 func TestPeekWaitlistHeadAlive_EmptyAfterPruning(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 
 	for _, s := range []string{"sess-x", "sess-y"} {
@@ -201,7 +188,7 @@ func TestPeekWaitlistHeadAlive_EmptyAfterPruning(t *testing.T) {
 
 func TestPromoteWaitlistHead_Success(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 
 	now := time.Now().Unix()
@@ -265,7 +252,7 @@ func TestPromoteWaitlistHead_Success(t *testing.T) {
 
 func TestPromoteWaitlistHead_NoAliveHead(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 
 	t.Run("empty_waitlist", func(t *testing.T) {
@@ -305,7 +292,7 @@ func TestPromoteWaitlistHead_NoAliveHead(t *testing.T) {
 
 func TestLockHeldByOther(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 
 	now := time.Now().Unix()
@@ -360,7 +347,7 @@ func TestLockHeldByOther(t *testing.T) {
 
 func TestHasWaitlistPulseAndRemoveFromWaitlist(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 
 	if err := EnqueueWaitlistUnique(ctx, rdb, testAccountID, testCollection, testDocID, "sess-a"); err != nil {

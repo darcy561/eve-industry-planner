@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"eve-industry-planner/api/apideps"
-	"eve-industry-planner/shared/crypto/entityid"
 	"eve-industry-planner/shared/jobidentity"
 	"eve-industry-planner/shared/models"
+	"eve-industry-planner/testing/keys"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -17,10 +17,7 @@ func testHandlers(t *testing.T, withCipher bool) *Handlers {
 	t.Helper()
 	deps := &apideps.Deps{}
 	if withCipher {
-		c, err := entityid.New([]byte("0123456789abcdef0123456789abcdef"))
-		if err != nil {
-			t.Fatalf("entityid.New: %v", err)
-		}
+		c := keys.EntityCipher(t)
 		deps.EntityCipher = c
 	}
 	return New(deps)

@@ -26,7 +26,9 @@ import (
 	"eve-industry-planner/shared/wsplacement"
 	"eve-industry-planner/websocket/server/model"
 
-	"eve-industry-planner/shared/crypto/entityid"
+	"eve-industry-planner/testing/keys"
+	"eve-industry-planner/testing/redisfake"
+	"eve-industry-planner/testing/wait"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/alitto/pond/v2"
 	"github.com/gorilla/websocket"
@@ -65,12 +67,11 @@ func newIntegFixture(t *testing.T) *integFixture {
 	t.Setenv("WS_CLIENT_CUTOFF", "0")
 	t.Setenv("WS_TARGET_CLIENTS", "0")
 
-	mr := miniredis.RunT(t)
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
+	fake := redisfake.New(t)
+	mr, rdb := fake.Server, fake.Client
 
 	s := &Server{
-		entityCipher:           wsTestEntityCipher(t),
+		entityCipher:           keys.EntityCipher(t),
 		Clients:                make(map[string]*Client),
 		userConnections:        make(map[string]map[string]bool),
 		sessionHandoffs:        make(map[string]*sessionHandoffEntry),
@@ -160,7 +161,7 @@ func (f *integFixture) seedSession(accountID, sessionID string) {
 func (f *integFixture) seedSessionWithGrants(accountID, sessionID string, corps, alliances []int64) {
 	f.t.Helper()
 	f.seedSession(accountID, sessionID)
-	if err := apihelperauth.UpdateAccountSessionGrants(context.Background(), f.Redis, wsTestEntityCipher(f.t), accountID, corps, alliances); err != nil {
+	if err := apihelperauth.UpdateAccountSessionGrants(context.Background(), f.Redis, keys.EntityCipher(f.t), accountID, corps, alliances); err != nil {
 		f.t.Fatalf("seedSession grants: %v", err)
 	}
 }
@@ -219,14 +220,10 @@ func (f *integFixture) get(path string) (status int, body string) {
 
 func (f *integFixture) waitClients(want int, timeout time.Duration) {
 	f.t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if f.Server.ConnectedCount() == want {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	f.t.Fatalf("ConnectedCount=%d want %d", f.Server.ConnectedCount(), want)
+	wait.For(f.t, timeout, func() (bool, string) {
+		got := f.Server.ConnectedCount()
+		return got == want, fmt.Sprintf("ConnectedCount=%d want %d", got, want)
+	})
 }
 
 func (f *integFixture) readJSONMessage(conn *websocket.Conn, timeout time.Duration) map[string]any {
@@ -311,26 +308,16 @@ func (f *integFixture) requireRedisAbsent(key string) {
 
 func (f *integFixture) waitRedisExists(key string, timeout time.Duration) {
 	f.t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if f.redisExists(key) > 0 {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	f.t.Fatalf("redis key absent after wait: %s", key)
+	wait.For(f.t, timeout, func() (bool, string) {
+		return f.redisExists(key) > 0, "redis key absent: " + key
+	})
 }
 
 func (f *integFixture) waitRedisAbsent(key string, timeout time.Duration) {
 	f.t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if f.redisExists(key) == 0 {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	f.t.Fatalf("redis key still present: %s", key)
+	wait.For(f.t, timeout, func() (bool, string) {
+		return f.redisExists(key) == 0, "redis key still present: " + key
+	})
 }
 
 // --- in-process client / placement helpers (no second Server construction) ---
@@ -417,18 +404,9 @@ func (f *integFixture) requirePlacement(soft, full bool, clients int) {
 	}
 }
 
-func wsTestEntityCipher(t *testing.T) *entityid.Cipher {
-	t.Helper()
-	h, err := entityid.New([]byte("0123456789abcdef0123456789abcdef"))
-	if err != nil {
-		t.Fatalf("entityid.New: %v", err)
-	}
-	return h
-}
-
 func wsTestCorpRef(t *testing.T, id int64) string {
 	t.Helper()
-	r, err := wsTestEntityCipher(t).Corporation(id)
+	r, err := keys.EntityCipher(t).Corporation(id)
 	if err != nil {
 		t.Fatalf("RefFromCorporationID: %v", err)
 	}
@@ -437,7 +415,7 @@ func wsTestCorpRef(t *testing.T, id int64) string {
 
 func wsTestAllianceRef(t *testing.T, id int64) string {
 	t.Helper()
-	r, err := wsTestEntityCipher(t).Alliance(id)
+	r, err := keys.EntityCipher(t).Alliance(id)
 	if err != nil {
 		t.Fatalf("RefFromAllianceID: %v", err)
 	}

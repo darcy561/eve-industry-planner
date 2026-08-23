@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"eve-industry-planner/testing/redisfake"
 )
 
 func TestReauthDeadlineFromSessionStart(t *testing.T) {
@@ -71,7 +73,7 @@ func TestIsReauthExpired_MatchesMiddlewareAndRefreshTokenPaths(t *testing.T) {
 func TestIsRefreshTokenDataReauthExpired_AccountSessionStricter(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const (
 		accountID = "acct-reauth-align"
@@ -103,7 +105,7 @@ func TestIsRefreshTokenDataReauthExpired_AccountSessionStricter(t *testing.T) {
 func TestUpsertSessionRecord_ReauthMatchesSessionStart(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const (
 		accountID = "acct-upsert-reauth"
