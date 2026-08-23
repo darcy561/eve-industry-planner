@@ -146,6 +146,12 @@ func jobMeasures(row models.ArchivedJobStats) models.BuildMeasures {
 // carrying the same quantity, amount and tax. Both reach this point as
 // TransactionLines, so both count.
 //
+// A broker fee counts too. Listing output on the market is market activity even
+// before anything sells, and a fee-only job sent to stock would show a broker fee
+// total in a block that suppresses the fee row explaining it. Lines are weighed
+// by their figures rather than their presence, so a placeholder carrying nothing
+// is not evidence of anything.
+//
 // Everything left over is stock. Falling the other way — treating "not a chain
 // step and not flagged" as sold — put every unsold build under Market with
 // nothing but zeros for sales and fees, which read as a market sale that had
@@ -161,11 +167,31 @@ func addSegment(breakdown *models.BuildStatsBreakdown, row models.ArchivedJobSta
 	switch {
 	case row.IsProductionChain:
 		breakdown.ProductionChain = breakdown.ProductionChain.Plus(segment)
-	case len(row.TransactionLines) > 0 && !row.RetainedStockBuild:
+	case hasRecordedMarketActivity(row) && !row.RetainedStockBuild:
 		breakdown.StandaloneRecordedSale = breakdown.StandaloneRecordedSale.Plus(segment)
 	default:
 		breakdown.RetainedStock = breakdown.RetainedStock.Plus(segment)
 	}
+}
+
+// hasRecordedMarketActivity reports whether a row carries evidence its output
+// met the market: a sale of any size, or a broker fee paid to list it.
+//
+// Zero-valued lines are not evidence. A line carrying neither an amount nor a
+// quantity records no money and no goods, so it says nothing about whether the
+// job sold.
+func hasRecordedMarketActivity(row models.ArchivedJobStats) bool {
+	for _, line := range row.TransactionLines {
+		if line.Amount != 0 || line.Quantity != 0 {
+			return true
+		}
+	}
+	for _, line := range row.FeeLines {
+		if line.Amount != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func compareStrings(a, b string) int {
