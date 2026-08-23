@@ -5,7 +5,7 @@
 #
 # Build context: ./admintool (see docker-bake.hcl)
 
-FROM golang:1.26.5-alpine AS builder
+FROM golang:1.27.0-alpine AS builder
 
 WORKDIR /app
 
@@ -25,7 +25,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -trimpath \
     -o /out/eip .
 
-FROM golang:1.26.5-alpine AS winbuilder
+FROM golang:1.27.0-alpine AS winbuilder
 
 WORKDIR /app
 
