@@ -26,6 +26,7 @@ const usage = `Usage:
   tasks purgeWorkerQueues
   tasks unlockSdeVersion
   tasks forceSdeRebuild
+  tasks drainAccountStatsRebuildQueue
   tasks rotateRefreshTokenKeys [--from=<version>] [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]
   tasks migrateEncryptedCloudRefreshTokens [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]
   tasks migrateUserCloudAccountsToUserDoc [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]
@@ -78,13 +79,15 @@ var enabledTasks = []taskscore.Task{
 	taskscore.CheckSDEUpdates,
 	taskscore.ApplySDEVersion,
 	taskscore.RebuildCurrentSDEVersion,
+	taskscore.DrainAccountStatsRebuildQueue,
 }
 
 func enabledTasksLowerLookup() map[string]taskscore.Task {
 	return map[string]taskscore.Task{
-		"checksdeupdates":           taskscore.CheckSDEUpdates,
-		"applysdeversion":           taskscore.ApplySDEVersion,
-		"forcesderebuild":           taskscore.RebuildCurrentSDEVersion,
+		"checksdeupdates":               taskscore.CheckSDEUpdates,
+		"applysdeversion":               taskscore.ApplySDEVersion,
+		"forcesderebuild":               taskscore.RebuildCurrentSDEVersion,
+		"drainaccountstatsrebuildqueue": taskscore.DrainAccountStatsRebuildQueue,
 	}
 }
 
@@ -96,6 +99,8 @@ func commandTaskName(task taskscore.Task) string {
 		return "applySdeVersion"
 	case taskscore.RebuildCurrentSDEVersion.Name:
 		return "forceSdeRebuild"
+	case taskscore.DrainAccountStatsRebuildQueue.Name:
+		return "drainAccountStatsRebuildQueue"
 	default:
 		return task.Name
 	}
@@ -349,7 +354,7 @@ func buildTaskPayload(task taskscore.Task, versionSet bool, version int, rawJSON
 	}
 }
 
-func payloadToInterface(payload json.RawMessage) interface{} {
+func payloadToInterface(payload json.RawMessage) any {
 	if payload == nil {
 		return nil
 	}

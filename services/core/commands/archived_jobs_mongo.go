@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
@@ -16,18 +15,20 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-func buildStatsIDPrefixFilter(accountID string) bson.M {
-	if strings.TrimSpace(accountID) == "" {
-		return bson.M{}
-	}
-	// _id is "accountID|typeID" (see worker archivedjobs.buildStatsDocumentID).
-	pattern := "^" + regexp.QuoteMeta(strings.TrimSpace(accountID)) + `\|`
-	return bson.M{"_id": bson.M{"$regex": pattern}}
-}
-
-// runMarkArchivedJobsUnprocessed sets archiveProcessed to false on Mongo archivedJobs documents
-// so the Firestore archive import will pick them up again. _meta.archivedAt, _meta.archivedBy,
-// archiveTimeStamp, and other fields are not modified.
+// runMarkArchivedJobsUnprocessed clears the archive processing flags and queues
+// the affected accounts for a statistics rebuild.
+//
+// The flag and the queue answer to different consumers. `archiveProcessed` is
+// read by the Firestore archive import; statistics are rebuilt from a queue an
+// account is placed on. Clearing the flag alone therefore reprocesses nothing:
+// it was the trigger for a worker that no longer exists.
+//
+// Queuing here rather than in a separate command keeps the two in step, because
+// an operator reaching for this is asking for the figures to be recomputed, not
+// for a flag to change value.
+//
+// _meta.archivedAt, _meta.archivedBy, archiveTimeStamp and other fields are not
+// modified.
 func runMarkArchivedJobsUnprocessed(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("markArchivedJobsUnprocessed", flag.ContinueOnError)
 	fs.Usage = func() {
@@ -109,4 +110,3 @@ func archivedJobsEmptyHint(scopeDesc string) string {
 		eipmongo.DatabaseName, eipmongo.CollectionAccountArchivedJobs, scopeDesc,
 	)
 }
-
