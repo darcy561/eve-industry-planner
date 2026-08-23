@@ -35,6 +35,7 @@ const usage = `Usage:
   tasks importWatchlistFromFirestore [flags]
   tasks importJobGroupsFromFirestore [flags]
   tasks importUserJobDocumentsFromFirestore [flags]
+  tasks backfillArchivedAt [-dry-run]
   tasks queueArchivedJobStatsRebuild [-all] [-account id] [-dry-run]
   tasks <task-name> [--priority=<priority_queue>] [--version=<int>] [--data='<json>']
 
@@ -143,6 +144,8 @@ func Handle(ctx context.Context, args []string) (bool, error) {
 		return true, firestoreimport.RunImportJobGroupsFromFirestore(ctx, args[2:])
 	case "importUserJobDocumentsFromFirestore", "importUserJobDocuementsFromFirestore":
 		return true, firestoreimport.RunImportUserJobDocumentsFromFirestore(ctx, args[2:])
+	case "backfillArchivedAt":
+		return true, runBackfillArchivedAt(ctx, args[2:])
 	case "queueArchivedJobStatsRebuild":
 		return true, runQueueArchivedJobStatsRebuild(ctx, args[2:])
 	case "rotateRefreshTokenKeys":
@@ -174,6 +177,7 @@ func runList() error {
 	fmt.Println("  - importWatchlistFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-login-within duration]")
 	fmt.Println("  - importJobGroupsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-login-within duration]")
 	fmt.Println("  - importUserJobDocumentsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-inline] [-enqueue] [-skip-auth-recency]")
+	fmt.Println("  - backfillArchivedAt [-dry-run]")
 	fmt.Println("  - queueArchivedJobStatsRebuild [-all] [-account id] [-dry-run]")
 	fmt.Println("  - rotateRefreshTokenKeys [--from=<version>] [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
 	fmt.Println("  - migrateEncryptedCloudRefreshTokens [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
