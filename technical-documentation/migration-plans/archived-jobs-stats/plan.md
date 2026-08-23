@@ -142,7 +142,7 @@ Three views:
 |------|---------|
 | `timeline` | one entry per calendar month, summed across every item type. `from` / `to` as `YYYY-MM` |
 | `timeline/items` | the per-item breakdown within the same window, ranked and paged |
-| `totals` | one all-time aggregate per item type — what `build-stats` serves today |
+| `totals` | one all-time aggregate per item type — what `build-stats` served before it was retired |
 
 #### Why the breakdown is its own view
 
@@ -197,8 +197,9 @@ missing data to a chart.
 The alternative — `?scope=corp&corpRef=…` on flat routes — was rejected because it makes the
 authorization boundary a query parameter, which is exactly the input a caller controls.
 
-`GET /api/v1/statistics/build-stats` keeps its current flat path regardless; it is the one endpoint
-with live SPA callers, and it retires in Stage E rather than moving.
+`GET /api/v1/statistics/build-stats` kept its flat path while the SPA still called it, and was
+deleted in Stage E rather than moved under the scoped prefix — `totals` already served the same
+documents.
 
 #### Corporation authorization has an answer
 
@@ -243,18 +244,18 @@ this stage builds — a single response bundling period totals with a per-type b
 four-mode `Kind` of `month|year|range|years` — which the three-view split replaces. Keeping them
 renamed would have left a second, contradictory API design in the models package.
 
-#### `build-stats` becomes `totals`
+#### `build-stats` became `totals`
 
-`build-stats` says almost nothing — every view here is a build statistic. What the endpoint serves
+`build-stats` said almost nothing — every view here is a build statistic. What the endpoint served
 is **one all-time aggregate per item type**: `BuildStatsRow`, running totals with a `dataSnapshots`
 history, keyed by account and `typeID`. The distinction that matters is lifetime totals against a
 range of months, so the view is `totals` and internal names say **production totals** — clearer
 about what is being totalled than "build stats", which reads as a category rather than a measure.
 
-Not a free rename: `GET /api/v1/statistics/build-stats` is the one statistics endpoint with live SPA
-callers — three read sites plus its React Query hooks — and `dataSnapshots` is read directly. The
-endpoint keeps its contract until Stage E moves the frontend off it, so the wire rename lands with
-that move rather than as a separate break.
+Not a free rename at the time: `GET /api/v1/statistics/build-stats` was the one statistics endpoint
+with live SPA callers, and `dataSnapshots` is read directly. So it kept its contract until Stage E
+moved the frontend, and was then deleted rather than renamed — by that point `totals` existed and a
+rename would have left two paths to one set of documents.
 
 #### Collection renames are the expensive part
 
@@ -272,9 +273,8 @@ so the name is part of a **live client-facing subscription surface**, not just s
 [collection-naming](../collection-naming/plan.md) renamed it to `account_production_totals` anyway,
 moving the SPA's subscription strings in the same change.
 
-**This does not shorten Stage E.** What made the rename expensive was never the collection — it was
-the endpoint. `GET /api/v1/statistics/build-stats` still serves its old path and response shape, and
-moving the frontend off it is unchanged.
+**This did not shorten Stage E.** What made the rename expensive was never the collection — it was
+the endpoint, and moving the frontend off it was unchanged by the collection having already moved.
 
 Both names are also duplicated across a module boundary: `services/shared/mongo/names.go` holds the
 constant, while `deployment-tool/internal/dataplane/mongo/index_specs.go` repeats the collection as
