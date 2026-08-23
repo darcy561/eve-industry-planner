@@ -3,6 +3,7 @@ package deploy
 import (
 	"context"
 	"os"
+	"path/filepath"
 
 	"eve-industry-planner/deployment-tool/internal/config"
 	"eve-industry-planner/deployment-tool/internal/kit"
@@ -44,7 +45,13 @@ func materializeExpanded(ctx context.Context, home string, src Source, cfg confi
 		return expandedStack{}, err
 	}
 
-	tmpData, err := expandFragment(ctx, "data", home, []string{kit.DataStackFile}, expandEnv, src, cfg.SyncEnvMap())
+	dataFiles := []string{kit.DataStackFile}
+	if src == SourceDev {
+		if _, err := os.Stat(filepath.Join(home, kit.DataStackDevFile)); err == nil {
+			dataFiles = append(dataFiles, kit.DataStackDevFile)
+		}
+	}
+	tmpData, err := expandFragment(ctx, "data", home, dataFiles, expandEnv, src, cfg.SyncEnvMap())
 	if err != nil {
 		return expandedStack{}, err
 	}
