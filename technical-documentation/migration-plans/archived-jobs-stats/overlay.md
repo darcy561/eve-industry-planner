@@ -279,6 +279,31 @@ linked industry job, falling back to the earliest sale, then the archive date. A
 month boundary keeps its costs where they were spent rather than following its sales. The month is
 pinned on the row so a rebuild cannot re-decide it and shift historical figures.
 
+The archive date itself resolves through `archiveDateFor`: `_meta.archivedAt`, then the document's
+`lastModified`, then its `createdAt`. **The rebuild clock is not in that chain.** It was, and the
+consequence was that a job with no archive date, no linked jobs and no sales had its costs filed
+under whichever month the rebuild happened to run in — and moved to a new month on the next run,
+against a database whose newest archived job was four months old. That is precisely what pinning the
+cost month exists to prevent, so `now` is reachable only for a document carrying no usable timestamp
+at all, which keeps such a row in some month rather than counting in lifetime totals and none.
+
+The bug was inherited rather than introduced: the same six lines appear in
+`feature/archived-jobs-redesign`, which the plan treats as a specification. That branch also applies
+the clock a second time at read time, in `jobCostYearMonth`, so it can file a job under one month
+when writing and report another when reading. Stage D reads pre-aggregated buckets rather than
+re-deriving, so only the write path needed fixing here.
+
+`TestCostMonthDoesNotMoveWithTheRebuildClock` pins the property directly: the same job rebuilt five
+months later must keep its month. With the fallback chain removed it fails, moving 2026-08 to
+2027-01.
+
+**Validated against the retired pipeline.** For the 5,057 jobs where both a derived date and the old
+Firestore `processDate` exist, processing never preceded the derived date — 0 occurrences — and
+followed it by a median of 7 days, p90 22 days. A rule picking dates from the wrong field would
+produce negatives by chance; none appeared. The two disagree on the calendar month for 30% of jobs,
+which is the rule working rather than failing: a build in March that sold in early April incurred
+its costs in March, and `processDate` says April.
+
 **Corporation attribution** cascades: the sale line's own ref, then its market order's, then a
 single distinct corporation across the linked facility jobs. Two or more resolves to **none** — a
 corporation aggregate crediting revenue it never earned is worse than one missing a line. A
@@ -332,6 +357,19 @@ for a wholesale rebuild whose last archived job was removed, and it is the most 
 the pipeline, so it is pinned by a live test rather than left to inspection.
 
 Behaviour here is covered by `shared/mongo/live_account_rebuild_test.go` against stack Mongo.
+
+#### The retired pipeline could double-count, and did on dev
+
+`$inc` and `$push` guarded only by an `archiveProcessed` flag means a job processed twice is counted
+twice, permanently, with nothing to detect or correct it. On dev this produced 9,247 counted jobs
+against 9,162 real ones — an 85-job overcount, all on the account reprocessed during this work.
+
+**Production was not affected.** Live shows `sum(totalJobs)` = 10,094 against exactly 10,094
+archived jobs and 10,094 snapshot entries, all flagged processed. The dev overcount came from this
+project resetting the flag on data the worker had already aggregated, not from anything users saw.
+
+The wholesale rebuild has no such failure mode: it recomputes from source, so running it twice
+cannot double-count and no flag is needed.
 
 #### Verified against the retired pipeline's output
 

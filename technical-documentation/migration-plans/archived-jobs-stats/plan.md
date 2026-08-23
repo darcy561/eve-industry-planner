@@ -403,6 +403,51 @@ unbounded per-job array that duplicates `account_archived_job_stats`, kept so th
 it did not have to change with the endpoint. Replacing it with a per-job view is a Stage E decision
 once those panels are being touched anyway.
 
+### Archive dates: what the sources actually hold
+
+Cost attribution needs a date per job, and most archived jobs did not carry one. Establishing where
+one could come from took an investigation across three sources; the conclusions are recorded here so
+it is not repeated.
+
+**`_meta.archivedAt` is missing on nearly every imported job** — 9,129 of 10,094 on live, a
+comparable share on dev. The live write path always stamps it (`putHandler.go`), so every such job
+came from the Firestore import.
+
+**The import did not lose it. Firestore never had it.** `hoistLifecycleToMeta` maps
+`archiveTimeStamp` → `archivedAt`, and a read-only sweep of all 9,129 Firestore `ArchivedJobs`
+documents found **zero** carrying that field. The mapping is correct and had nothing to map.
+
+**The old build stats did record a date.** Firestore `BuildStats` documents hold a `dataSnapshots`
+array with a `jobID` and `processDate` per job — 9,108 entries, all populated. That is when the
+retired worker processed a job rather than when a user archived it, but it is real evidence: see the
+overlay's validation of the 5,057-job overlap.
+
+**`jobID` is not a usable source.** 2,580 legacy ids encode a millisecond epoch, but it is a
+*creation* time, covers only 224 of the undatable jobs, and shrinks toward zero as UUID ids replace
+it. Rejected.
+
+**Resolution.** Dates are taken from the job's own linked jobs or sales where present, then from the
+recovered `processDate` map, and otherwise left unset for the read-time fallback to handle:
+
+| Source | Live jobs |
+|--------|-----------|
+| The job's own linked industry jobs or sales | 7,358 |
+| Recovered Firestore `processDate` | 1,537 |
+| Nothing dates them | 234 |
+
+Applied to live on 2026-08-23, taking coverage to 9,860 of 10,094 (97.7%), spread across 2022–2026.
+Live carries no statistics collections yet, so this changed no figure any user sees — it is
+preparation, done while the Firestore keyfile and the export were both to hand and the source is
+being retired.
+
+The backfill ran from a standalone `mongosh` script with the recovered dates inlined, not from a
+repo command: it is a one-time historical correction against a system being decommissioned, and
+embedding 1,537 dates in the service would outlive its usefulness.
+
+**The 234 are genuinely unknowable.** No archive date, no linked jobs, no sales, no Firestore
+record. They resolve a month at read time through `archiveDateFor`, which is honest about not
+knowing rather than manufacturing a date.
+
 ### Open questions
 
 1. **Live coverage.** Narrowed to one gap; the Mongo helpers themselves are covered.
