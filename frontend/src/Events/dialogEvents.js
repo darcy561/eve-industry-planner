@@ -65,7 +65,7 @@ export function showAssetsDialog(typeID = null) {
 }
 
 /**
- * Shows archived build statistics for a blueprint product type (backend build-stats API).
+ * Shows archived build statistics for a blueprint product type (backend statistics API).
  *
  * @param {number|null} [typeID=null] - Product / output item type ID (same as blueprint index `itemID`)
  * @param {string|null} [displayName=null] - Optional title label (e.g. blueprint name from search index)

@@ -13,7 +13,7 @@ import useUsersStore from "../../Zustand/usersStore.js";
  * Archives selected jobs from the active group. Reads job/account state from Zustand.
  *
  * @param {Array} selectedJobs
- * @returns {Promise<boolean>} `true` when jobs were archived on the server (caller may invalidate build-stats queries); `false` otherwise.
+ * @returns {Promise<boolean>} `true` when jobs were archived on the server (caller may invalidate statistics queries); `false` otherwise.
  */
 export async function archiveGroupJobs(selectedJobs) {
   const { jobData, account } = useUsersStore.getState();

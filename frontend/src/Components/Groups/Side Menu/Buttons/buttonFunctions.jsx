@@ -20,7 +20,7 @@ import { passBuildCostsToParentJobs } from "../../../../Functions/Shared/passBui
 import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
 import buildNextMaterialsTree from "../../../../Functions/JobPlanner/buildNextMaterialsTree";
 import { archiveGroupJobs } from "../../../../Functions/Groups/archiveGroupJobs.js";
-import { invalidateAllBuildStatsQueries } from "../../../../Hooks/React Query/Backend/buildStats.js";
+import { invalidateStatisticsQueries } from "../../../../Hooks/React Query/Backend/buildStats.js";
 import {
   showSnackbarSuccess,
   showSnackbarError,
@@ -313,7 +313,7 @@ export function useGroupPageSideMenuFunctions(
         onClick: async () => {
           const didArchiveOnServer = await archiveGroupJobs(groupJobs);
           if (didArchiveOnServer) {
-            invalidateAllBuildStatsQueries(queryClient);
+            invalidateStatisticsQueries(queryClient);
           }
           navigate({ to: "/jobplanner" });
         },
