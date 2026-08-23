@@ -136,9 +136,21 @@ func jobMeasures(row models.ArchivedJobStats) models.BuildMeasures {
 // addSegment credits a job to exactly one segment of the breakdown.
 //
 // The segments are a closed classification and a job belongs to one of them:
-// an intermediate consumed by a parent build, output the user keeps as stock, or
-// a build whose output was sold. Crediting more than one would double-count the
-// same job inside a single document.
+// an intermediate consumed by a parent build, a build whose output was sold, or
+// output that left no sale behind. Crediting more than one would double-count
+// the same job inside a single document.
+//
+// Market is decided by evidence rather than by elimination. A sale is a
+// transaction line, whoever wrote it: ESI records market transactions, and a
+// contract or other off-market sale is entered by hand as a custom transaction
+// carrying the same quantity, amount and tax. Both reach this point as
+// TransactionLines, so both count.
+//
+// Everything left over is stock. Falling the other way — treating "not a chain
+// step and not flagged" as sold — put every unsold build under Market with
+// nothing but zeros for sales and fees, which read as a market sale that had
+// somehow earned nothing. RetainedStockBuild still routes a job here explicitly,
+// so a user marking output as kept is honoured whether or not it ever sold.
 func addSegment(breakdown *models.BuildStatsBreakdown, row models.ArchivedJobStats, measures models.BuildMeasures) {
 	var sold float64
 	for _, line := range row.TransactionLines {
@@ -149,10 +161,10 @@ func addSegment(breakdown *models.BuildStatsBreakdown, row models.ArchivedJobSta
 	switch {
 	case row.IsProductionChain:
 		breakdown.ProductionChain = breakdown.ProductionChain.Plus(segment)
-	case row.RetainedStockBuild:
-		breakdown.RetainedStock = breakdown.RetainedStock.Plus(segment)
-	default:
+	case len(row.TransactionLines) > 0 && !row.RetainedStockBuild:
 		breakdown.StandaloneRecordedSale = breakdown.StandaloneRecordedSale.Plus(segment)
+	default:
+		breakdown.RetainedStock = breakdown.RetainedStock.Plus(segment)
 	}
 }
 
