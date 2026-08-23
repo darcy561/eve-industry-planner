@@ -8,15 +8,13 @@ import (
 
 func jobRow(jobID string, typeID int, buildCosts, produced float64) models.ArchivedJobStats {
 	return models.ArchivedJobStats{
-		ID:        "acct-1|" + jobID,
-		AccountID: "acct-1",
-		JobID:     jobID,
-		TypeID:    typeID,
-		JobType:   1,
-		ArchivedJobCostTotals: models.ArchivedJobCostTotals{
-			TotalBuildCosts: buildCosts,
-			TotalProduced:   produced,
-		},
+		ID:              "acct-1|" + jobID,
+		AccountID:       "acct-1",
+		JobID:           jobID,
+		TypeID:          typeID,
+		JobType:         1,
+		TotalBuildCosts: buildCosts,
+		TotalProduced:   produced,
 	}
 }
 
@@ -24,16 +22,14 @@ func withSale(row models.ArchivedJobStats, amount, tax, quantity float64) models
 	row.TransactionLines = append(row.TransactionLines, models.ArchivedJobTransactionLine{
 		Quantity: quantity,
 		Tax:      tax,
-		ArchivedJobLine: models.ArchivedJobLine{
-			Amount: amount,
-		},
+		Amount:   amount,
 	})
 	return row
 }
 
 func withFee(row models.ArchivedJobStats, amount float64) models.ArchivedJobStats {
 	row.FeeLines = append(row.FeeLines, models.ArchivedJobFeeLine{
-		ArchivedJobLine: models.ArchivedJobLine{Amount: amount},
+		Amount: amount,
 	})
 	return row
 }
@@ -161,6 +157,81 @@ func TestBreakdownCreditsEachJobToOneSegment(t *testing.T) {
 	}
 	if b.StandaloneRecordedSale.TotalSoldQuantity != 3 {
 		t.Fatalf("standalone sold %v, want 3", b.StandaloneRecordedSale.TotalSoldQuantity)
+	}
+}
+
+// An unsold build is stock, not a sale that earned nothing. Classifying by
+// elimination put every such job under Market showing zero sales against real
+// build costs, which reads as a sale that somehow returned nothing.
+func TestUnsoldBuildIsStockRatherThanMarket(t *testing.T) {
+	t.Parallel()
+
+	unsold := jobRow("job-1", 34, 228_579_115.40, 200)
+
+	totals := AccountProductionTotals("acct-1", []models.ArchivedJobStats{unsold}, nil)
+	b := totals[0].Breakdown
+
+	if b.StandaloneRecordedSale.TotalJobs != 0 {
+		t.Fatalf("market holds %d jobs, want 0 — nothing recorded a sale", b.StandaloneRecordedSale.TotalJobs)
+	}
+	if b.RetainedStock.TotalJobs != 1 {
+		t.Fatalf("stock holds %d jobs, want the unsold build", b.RetainedStock.TotalJobs)
+	}
+	if b.RetainedStock.JobCostTotal != 228_579_115.40 {
+		t.Fatalf("stock jobCostTotal = %v, want the build cost to follow the job", b.RetainedStock.JobCostTotal)
+	}
+}
+
+// A contract sale is entered by hand as a custom transaction carrying the same
+// quantity, amount and tax as an ESI one, and reaches the pipeline as an ordinary
+// transaction line. Market must count it: the segment asks whether a sale was
+// recorded, not where the record came from.
+func TestSaleRecordedByHandCountsAsMarket(t *testing.T) {
+	t.Parallel()
+
+	// A custom transaction is distinguished only by a negative id.
+	contract := jobRow("job-1", 34, 1000, 10)
+	contract.TransactionLines = append(contract.TransactionLines, models.ArchivedJobTransactionLine{
+		TransactionID: -1_700_000_000_000_123,
+		Quantity:      10,
+		Tax:           30,
+		Amount:        2000,
+	})
+
+	totals := AccountProductionTotals("acct-1", []models.ArchivedJobStats{contract}, nil)
+	b := totals[0].Breakdown
+
+	if b.StandaloneRecordedSale.TotalJobs != 1 {
+		t.Fatalf("market holds %d jobs, want the hand-entered sale", b.StandaloneRecordedSale.TotalJobs)
+	}
+	if b.RetainedStock.TotalJobs != 0 {
+		t.Fatalf("stock holds %d jobs, want 0 — the job sold", b.RetainedStock.TotalJobs)
+	}
+	if b.StandaloneRecordedSale.SalesTotal != 2000 {
+		t.Fatalf("market salesTotal = %v, want 2000", b.StandaloneRecordedSale.SalesTotal)
+	}
+	if b.StandaloneRecordedSale.TransactionFeeTotal != 30 {
+		t.Fatalf("market transactionFeeTotal = %v, want the tax on the custom line", b.StandaloneRecordedSale.TransactionFeeTotal)
+	}
+}
+
+// The flag is a user's statement about their own output, so it outranks the
+// sale evidence: a job marked as kept stays stock even if a line was recorded
+// against it.
+func TestRetainedFlagOutranksRecordedSale(t *testing.T) {
+	t.Parallel()
+
+	flagged := withSale(jobRow("job-1", 34, 1000, 10), 2000, 0, 10)
+	flagged.RetainedStockBuild = true
+
+	totals := AccountProductionTotals("acct-1", []models.ArchivedJobStats{flagged}, nil)
+	b := totals[0].Breakdown
+
+	if b.RetainedStock.TotalJobs != 1 {
+		t.Fatalf("stock holds %d jobs, want the flagged build", b.RetainedStock.TotalJobs)
+	}
+	if b.StandaloneRecordedSale.TotalJobs != 0 {
+		t.Fatalf("market holds %d jobs, want 0 — the user marked this as kept", b.StandaloneRecordedSale.TotalJobs)
 	}
 }
 

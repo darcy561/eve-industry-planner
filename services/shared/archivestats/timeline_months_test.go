@@ -16,26 +16,24 @@ func statsRow(typeID int, cost models.CalendarMonth) models.ArchivedJobStats {
 		AccountID: "acct-1",
 		TypeID:    typeID,
 		CostMonth: cost,
-		ArchivedJobCostTotals: models.ArchivedJobCostTotals{
-			// TotalBuildCosts already covers materials, install and extras.
-			TotalBuildCosts:    100,
-			TotalInstallCost:   20,
-			TotalExtras:        10,
-			TotalInventionCost: 5,
-		},
+		// TotalBuildCosts already covers materials, install and extras.
+		TotalBuildCosts:    100,
+		TotalInstallCost:   20,
+		TotalExtras:        10,
+		TotalInventionCost: 5,
 	}
 }
 
 func txLine(m models.CalendarMonth, qty, amount, tax float64) models.ArchivedJobTransactionLine {
 	return models.ArchivedJobTransactionLine{
-		ArchivedJobLine: models.ArchivedJobLine{CalendarMonth: m, Amount: amount},
-		Quantity:        qty,
-		Tax:             tax,
+		CalendarMonth: m, Amount: amount,
+		Quantity: qty,
+		Tax:      tax,
 	}
 }
 
 func feeLine(m models.CalendarMonth, amount float64) models.ArchivedJobFeeLine {
-	return models.ArchivedJobFeeLine{ArchivedJobLine: models.ArchivedJobLine{CalendarMonth: m, Amount: amount}}
+	return models.ArchivedJobFeeLine{CalendarMonth: m, Amount: amount}
 }
 
 // TotalBuildCosts already includes install and extras, so a bucket must add only
