@@ -273,19 +273,92 @@ func TestSnapshotCarriesAccountIdentityAndStamps(t *testing.T) {
 
 // A job with no archive date is stamped with the supplied clock rather than the
 // zero time, which would land it in year 1.
-func TestMissingArchiveDateUsesTheSuppliedClock(t *testing.T) {
+// A job imported from a source with no archive timestamp falls back to the
+// document's own dates. The rebuild clock must not be reachable here: it decides
+// the cost month, so using it files the costs under whichever month the rebuild
+// ran in and moves them on the next run.
+func TestMissingArchiveDateFallsBackToDocumentTimestamps(t *testing.T) {
+	t.Parallel()
+
+	lastModified := time.Date(2026, 4, 9, 0, 0, 0, 0, time.UTC)
+	created := time.Date(2026, 2, 3, 0, 0, 0, 0, time.UTC)
+
+	job := sampleJob()
+	job.MetaData.ArchivedAt = time.Time{}
+	job.MetaData.LastModified = lastModified
+	job.MetaData.CreatedAt = created
+	job.Build.Sale.Transactions = nil
+	job.Build.Sale.BrokersFee = nil
+	job.Build.Costs.LinkedJobs = nil
+
+	doc := BuildAccountSnapshot(job, sampleSnap(), buildNow)
+	if !doc.ArchivedAt.Equal(lastModified) {
+		t.Fatalf("archivedAt = %v, want lastModified %v", doc.ArchivedAt, lastModified)
+	}
+	if doc.CostMonth.Year != 2026 || doc.CostMonth.Month != 4 {
+		t.Fatalf("costMonth = %+v, want 2026-4 from lastModified, not %d-%d from the clock",
+			doc.CostMonth, buildNow.Year(), int(buildNow.Month()))
+	}
+}
+
+// createdAt covers a document old enough to predate lastModified being written.
+func TestMissingArchiveAndModifiedDatesFallBackToCreated(t *testing.T) {
+	t.Parallel()
+
+	created := time.Date(2026, 2, 3, 0, 0, 0, 0, time.UTC)
+
+	job := sampleJob()
+	job.MetaData.ArchivedAt = time.Time{}
+	job.MetaData.LastModified = time.Time{}
+	job.MetaData.CreatedAt = created
+	job.Build.Sale.Transactions = nil
+	job.Build.Sale.BrokersFee = nil
+	job.Build.Costs.LinkedJobs = nil
+
+	doc := BuildAccountSnapshot(job, sampleSnap(), buildNow)
+	if !doc.ArchivedAt.Equal(created) {
+		t.Fatalf("archivedAt = %v, want createdAt %v", doc.ArchivedAt, created)
+	}
+	if doc.CostMonth.Month != 2 {
+		t.Fatalf("costMonth = %+v, want 2026-2 from createdAt", doc.CostMonth)
+	}
+}
+
+// The property the pinned cost month exists to guarantee: rebuilding the same
+// job at a different time must not move its costs to another month.
+func TestCostMonthDoesNotMoveWithTheRebuildClock(t *testing.T) {
 	t.Parallel()
 
 	job := sampleJob()
 	job.MetaData.ArchivedAt = time.Time{}
+	job.MetaData.LastModified = time.Date(2026, 4, 9, 0, 0, 0, 0, time.UTC)
 	job.Build.Sale.Transactions = nil
 	job.Build.Sale.BrokersFee = nil
+	job.Build.Costs.LinkedJobs = nil
+
+	first := BuildAccountSnapshot(job, sampleSnap(), buildNow)
+	later := BuildAccountSnapshot(job, sampleSnap(), buildNow.AddDate(0, 5, 0))
+
+	if first.CostMonth != later.CostMonth {
+		t.Fatalf("costMonth moved between rebuilds: %+v then %+v", first.CostMonth, later.CostMonth)
+	}
+}
+
+// A document with no usable timestamp keeps a month rather than dropping its
+// costs out of every bucket while still counting in lifetime totals.
+func TestJobWithNoTimestampsStillGetsAMonth(t *testing.T) {
+	t.Parallel()
+
+	job := sampleJob()
+	job.MetaData.ArchivedAt = time.Time{}
+	job.MetaData.LastModified = time.Time{}
+	job.MetaData.CreatedAt = time.Time{}
+	job.Build.Sale.Transactions = nil
+	job.Build.Sale.BrokersFee = nil
+	job.Build.Costs.LinkedJobs = nil
 
 	doc := BuildAccountSnapshot(job, sampleSnap(), buildNow)
-	if !doc.ArchivedAt.Equal(buildNow) {
-		t.Fatalf("archivedAt = %v, want %v", doc.ArchivedAt, buildNow)
-	}
-	if doc.CostMonth.Year != 2026 || doc.CostMonth.Month != 8 {
-		t.Fatalf("costMonth = %+v, want 2026-8", doc.CostMonth)
+	if doc.CostMonth.Year == 0 {
+		t.Fatal("costMonth is unset; the row would count in totals but no month")
 	}
 }
