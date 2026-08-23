@@ -63,6 +63,34 @@ func extraCategoryTotals(extras []models.ExtraCost) map[string]float64 {
 	return out
 }
 
+// archiveDateFor resolves the date a job is treated as archived on.
+//
+// `_meta.archivedAt` is set by the archive write path, so a job that lacks it was
+// imported from a source that carried no archive timestamp rather than archived
+// through the app. The document's own timestamps stand in: lastModified is
+// always written, and createdAt covers a document old enough to predate it.
+//
+// The rebuild clock is deliberately not a fallback. It is the only candidate that
+// changes between runs, and this value reaches costMonthFor, so using it would
+// file a job's costs under whichever month the rebuild happened to run in and
+// move them on the next rebuild. Cost months are pinned precisely so history does
+// not shift underneath a reader.
+//
+// now is returned only when a document carries no usable timestamp at all, which
+// leaves the row attributed rather than dropping its costs from every month.
+func archiveDateFor(job models.Job, now time.Time) time.Time {
+	for _, candidate := range []time.Time{
+		job.MetaData.ArchivedAt,
+		job.MetaData.LastModified,
+		job.MetaData.CreatedAt,
+	} {
+		if !candidate.IsZero() {
+			return candidate.UTC()
+		}
+	}
+	return now.UTC()
+}
+
 // costMonthFor decides which calendar month a job's build costs are attributed to.
 //
 // Costs are attributed to when production started, not when the job was archived,
@@ -129,11 +157,7 @@ func BuildAccountSnapshot(job models.Job, snap models.BuildStatSnapshot, now tim
 
 func buildSnapshot(job models.Job, snap models.BuildStatSnapshot, now time.Time) models.ArchivedJobStats {
 	now = now.UTC()
-	archivedAt := job.MetaData.ArchivedAt
-	if archivedAt.IsZero() {
-		archivedAt = now
-	}
-	archivedAt = archivedAt.UTC()
+	archivedAt := archiveDateFor(job, now)
 
 	costPerItem := 0.0
 	if snap.TotalProduced > 0 {
@@ -160,18 +184,16 @@ func buildSnapshot(job models.Job, snap models.BuildStatSnapshot, now time.Time)
 		IsProductionChain: len(job.ParentJobs) > 0,
 		// A retained build is produced but deliberately not sold, so it must not
 		// read as an unsold shortfall in the aggregates.
-		RetainedStockBuild: job.MetaData.RetainedStockBuild,
-		ArchivedAt:         archivedAt,
-		CostMonth:          costMonthFor(job, archivedAt),
-		ArchivedJobCostTotals: models.ArchivedJobCostTotals{
-			TotalProduced:      snap.TotalProduced,
-			TotalMaterialCost:  snap.TotalMaterialCost,
-			TotalInstallCost:   snap.TotalInstallCost,
-			TotalExtras:        snap.TotalExtras,
-			TotalInventionCost: snap.TotalInventionCost,
-			TotalBuildCosts:    snap.TotalBuildCosts,
-			TotalCostPerItem:   snap.TotalCostPerItem,
-		},
+		RetainedStockBuild:     job.MetaData.RetainedStockBuild,
+		ArchivedAt:             archivedAt,
+		CostMonth:              costMonthFor(job, archivedAt),
+		TotalProduced:          snap.TotalProduced,
+		TotalMaterialCost:      snap.TotalMaterialCost,
+		TotalInstallCost:       snap.TotalInstallCost,
+		TotalExtras:            snap.TotalExtras,
+		TotalInventionCost:     snap.TotalInventionCost,
+		TotalBuildCosts:        snap.TotalBuildCosts,
+		TotalCostPerItem:       snap.TotalCostPerItem,
 		ExtraCategoryTotals:    extraCategoryTotals(job.Build.Costs.ExtrasCosts),
 		UnsoldQuantity:         unsoldQuantity,
 		UnsoldCost:             unsoldQuantity * costPerItem,
@@ -212,20 +234,18 @@ func buildTransactionLines(
 		date := parseLineDate(t.Date, archivedAt)
 		proratedCost := quantity * costPerItem
 		lines = append(lines, models.ArchivedJobTransactionLine{
-			TransactionID: t.TransactionID,
-			ArchivedJobLine: models.ArchivedJobLine{
-				OrderID:         t.OrderID,
-				Date:            date,
-				CalendarMonth:   monthOf(date),
-				Amount:          t.Amount,
-				IsCorp:          isCorp,
-				CorpStatus:      corpStatusFor(isCorp, corpRef),
-				ResolvedCorpRef: resolvedCorpRef(isCorp, corpRef),
-			},
-			Quantity:     quantity,
-			Tax:          t.Tax,
-			ProratedCost: proratedCost,
-			Profit:       t.Amount - t.Tax - proratedCost,
+			TransactionID:   t.TransactionID,
+			OrderID:         t.OrderID,
+			Date:            date,
+			CalendarMonth:   monthOf(date),
+			Amount:          t.Amount,
+			IsCorp:          isCorp,
+			CorpStatus:      corpStatusFor(isCorp, corpRef),
+			ResolvedCorpRef: resolvedCorpRef(isCorp, corpRef),
+			Quantity:        quantity,
+			Tax:             t.Tax,
+			ProratedCost:    proratedCost,
+			Profit:          t.Amount - t.Tax - proratedCost,
 		})
 	}
 	return lines, soldQuantity
@@ -252,16 +272,14 @@ func buildFeeLines(
 
 		date := parseLineDate(f.Date, archivedAt)
 		lines = append(lines, models.ArchivedJobFeeLine{
-			FeeID: f.ID,
-			ArchivedJobLine: models.ArchivedJobLine{
-				OrderID:         f.OrderID,
-				Date:            date,
-				CalendarMonth:   monthOf(date),
-				Amount:          f.Amount,
-				IsCorp:          identity.isCorp,
-				CorpStatus:      corpStatusFor(identity.isCorp, identity.corpRef),
-				ResolvedCorpRef: resolvedCorpRef(identity.isCorp, identity.corpRef),
-			},
+			FeeID:           f.ID,
+			OrderID:         f.OrderID,
+			Date:            date,
+			CalendarMonth:   monthOf(date),
+			Amount:          f.Amount,
+			IsCorp:          identity.isCorp,
+			CorpStatus:      corpStatusFor(identity.isCorp, identity.corpRef),
+			ResolvedCorpRef: resolvedCorpRef(identity.isCorp, identity.corpRef),
 		})
 	}
 	return lines
