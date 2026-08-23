@@ -34,15 +34,17 @@ const PAGE_SIZE = 5;
 /**
  * Measures a reader can rank by.
  *
+ * Two, deliberately. This is a dashboard glance rather than an analysis tool, so
+ * it answers "what earned most" and "what cost most" and leaves the rest to a
+ * fuller view. The API accepts more, and adding one here is a line.
+ *
  * The server sorts, so these are request parameters rather than a client-side
  * comparator — ordering item types by profit needs every type in the window
  * before a page can be taken, which a page of rows cannot do.
  */
 const SORT_OPTIONS = [
-  { value: "profitLoss", label: "Profit" },
-  { value: "salesTotal", label: "Sales" },
-  { value: "jobCostTotal", label: "Cost" },
-  { value: "quantitySold", label: "Quantity sold" },
+  { value: "profitLoss", label: "Total profit" },
+  { value: "jobCostTotal", label: "Total cost" },
 ];
 
 /**
