@@ -215,6 +215,50 @@ func TestSaleRecordedByHandCountsAsMarket(t *testing.T) {
 	}
 }
 
+// Listing output on the market is market activity before anything sells. Sent to
+// stock, such a job would report a broker fee total in a block that suppresses
+// the fee row explaining where it came from.
+func TestBrokerFeeAloneCountsAsMarket(t *testing.T) {
+	t.Parallel()
+
+	listed := withFee(jobRow("job-1", 34, 1000, 10), 25)
+
+	totals := AccountProductionTotals("acct-1", []models.ArchivedJobStats{listed}, nil)
+	b := totals[0].Breakdown
+
+	if b.StandaloneRecordedSale.TotalJobs != 1 {
+		t.Fatalf("market holds %d jobs, want the listed build", b.StandaloneRecordedSale.TotalJobs)
+	}
+	if b.RetainedStock.TotalJobs != 0 {
+		t.Fatalf("stock holds %d jobs, want 0 — a broker fee is market activity", b.RetainedStock.TotalJobs)
+	}
+	if b.StandaloneRecordedSale.BrokersFeeTotal != 25 {
+		t.Fatalf("market brokersFeeTotal = %v, want 25", b.StandaloneRecordedSale.BrokersFeeTotal)
+	}
+	// Listed but unsold: the fee is real, the sale is not.
+	if b.StandaloneRecordedSale.SalesTotal != 0 {
+		t.Fatalf("market salesTotal = %v, want 0", b.StandaloneRecordedSale.SalesTotal)
+	}
+}
+
+// A line carrying neither money nor goods records nothing, so it cannot be the
+// evidence that decides a job met the market.
+func TestZeroValuedLinesAreNotMarketEvidence(t *testing.T) {
+	t.Parallel()
+
+	placeholder := withFee(withSale(jobRow("job-1", 34, 1000, 10), 0, 0, 0), 0)
+
+	totals := AccountProductionTotals("acct-1", []models.ArchivedJobStats{placeholder}, nil)
+	b := totals[0].Breakdown
+
+	if b.StandaloneRecordedSale.TotalJobs != 0 {
+		t.Fatalf("market holds %d jobs, want 0 — the lines carry nothing", b.StandaloneRecordedSale.TotalJobs)
+	}
+	if b.RetainedStock.TotalJobs != 1 {
+		t.Fatalf("stock holds %d jobs, want the job with empty lines", b.RetainedStock.TotalJobs)
+	}
+}
+
 // The flag is a user's statement about their own output, so it outranks the
 // sale evidence: a job marked as kept stays stock even if a line was recorded
 // against it.
