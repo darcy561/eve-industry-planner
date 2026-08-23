@@ -57,3 +57,36 @@ func TestEnabledTaskLookupMatchesTheListedSet(t *testing.T) {
 		}
 	}
 }
+
+// A mistyped command name falls through to the trigger path, which used to read
+// it as the task and the next token as a stray argument — so `queueArchivedJobsStatsRebuild -all`
+// reported an "unexpected extra argument -all" and never mentioned the name that
+// was wrong. The typo has to be named, or the operator debugs the flag instead.
+func TestUnknownCommandNamesItselfRatherThanBlamingAFlag(t *testing.T) {
+	t.Parallel()
+
+	err := runTrigger(t.Context(), []string{"queueArchivedJobsStatsRebuild", "-all"})
+	if err == nil {
+		t.Fatal("expected an error for an unknown command name")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "queueArchivedJobsStatsRebuild") {
+		t.Fatalf("error does not name the unrecognised command: %s", msg)
+	}
+	if strings.Contains(msg, "unexpected extra argument") {
+		t.Fatalf("error blames the flag rather than the command name: %s", msg)
+	}
+}
+
+// A real task name must still reach the trigger path; the guard rejects unknown
+// names only, not every non-flag token.
+func TestKnownTaskPassesTheNameGuard(t *testing.T) {
+	t.Parallel()
+
+	// Fails on connecting to NATS rather than on the name, which is enough to
+	// show the guard let it through.
+	err := runTrigger(t.Context(), []string{"drainAccountStatsRebuildQueue"})
+	if err != nil && strings.Contains(err.Error(), "unknown command or task") {
+		t.Fatalf("a listed task was rejected by the name guard: %v", err)
+	}
+}
