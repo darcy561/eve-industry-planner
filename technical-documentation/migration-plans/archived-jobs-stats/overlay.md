@@ -333,6 +333,29 @@ the pipeline, so it is pinned by a live test rather than left to inspection.
 
 Behaviour here is covered by `shared/mongo/live_account_rebuild_test.go` against stack Mongo.
 
+#### Verified against the retired pipeline's output
+
+The rename left 4,039 `account_production_totals` documents written by the old `$inc` worker, which
+is the only comparison available for the fold that replaced it. Two things were confirmed against
+them rather than reasoned about:
+
+**`jobCostTotal` is build costs plus both fees.** Across all 4,039 rows,
+`buildCostTotal + brokersFeeTotal + transactionFeeTotal` equals `jobCostTotal` exactly.
+
+**`profitLoss` is computed per job, not per row, and that distinction is load-bearing.** Summed over
+the rows that sold, reported profit is 257bn while `salesTotal − jobCostTotal` is 133bn — the two
+disagree by nearly a factor of two, and a fold that computed profit from row totals would be wrong
+by that much.
+
+The cause is the `if sales > 0` guard. A job that sold contributes `sales − cost`; a job that sold
+nothing contributes **zero profit but still adds its cost**. Within one item type those mix, so the
+guard has to be applied per job and the results summed — which is what `jobMeasures` does and what
+the old worker did before it. Row-level arithmetic silently re-applies the guard once.
+
+Checked directly: single-job rows always satisfy `profitLoss == salesTotal − jobCostTotal`; only
+multi-job rows diverge. 2,955 rows have no sales at all, carrying 842bn of cost against exactly zero
+profit, which is the guard behaving as intended rather than lost data.
+
 ### What queues an account
 
 `PUT /archived-jobs` queues the account after a successful write. Queuing rather than recomputing
