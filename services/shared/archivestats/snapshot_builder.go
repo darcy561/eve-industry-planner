@@ -293,3 +293,27 @@ func resolvedCorpRef(isCorp bool, corpRef string) string {
 	}
 	return ""
 }
+
+// EvidencedArchiveDate returns the earliest date a job's own records show work
+// happening, and whether any such record exists.
+//
+// This is the evidence `_meta.archivedAt` should have carried. A job imported
+// from a source that recorded no archive timestamp can still be dated by its
+// linked industry jobs or its sales; a job with neither cannot be dated at all,
+// and says so rather than substituting a date that only looks precise.
+//
+// The document's own createdAt is deliberately not consulted. On imported jobs it
+// records when the import ran, so it would date months of history to the week the
+// migration happened.
+func EvidencedArchiveDate(job models.Job) (time.Time, bool) {
+	// The zero time is only a parse fallback here; both helpers report whether
+	// they found anything, so it is never returned as a real date.
+	var none time.Time
+	if earliest, ok := earliestLinkedJobDate(job.Build.Costs.LinkedJobs, none); ok && !earliest.IsZero() {
+		return earliest.UTC(), true
+	}
+	if earliest, ok := earliestTransactionDate(job.Build.Sale.Transactions, none); ok && !earliest.IsZero() {
+		return earliest.UTC(), true
+	}
+	return time.Time{}, false
+}

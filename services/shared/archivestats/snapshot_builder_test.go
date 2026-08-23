@@ -362,3 +362,59 @@ func TestJobWithNoTimestampsStillGetsAMonth(t *testing.T) {
 		t.Fatal("costMonth is unset; the row would count in totals but no month")
 	}
 }
+
+// The backfill writes archivedAt from a job's own records. createdAt is
+// deliberately excluded: on imported jobs it records when the import ran, so
+// using it would date months of history to the week of the migration.
+func TestEvidencedArchiveDateUsesTheJobsOwnRecords(t *testing.T) {
+	t.Parallel()
+
+	job := sampleJob()
+	job.MetaData.ArchivedAt = time.Time{}
+	job.MetaData.CreatedAt = time.Date(2026, 4, 10, 0, 0, 0, 0, time.UTC)
+
+	got, ok := EvidencedArchiveDate(job)
+	if !ok {
+		t.Fatal("a job with linked jobs and sales must be datable")
+	}
+	if got.Year() == 2026 && got.Month() == time.April && got.Day() == 10 {
+		t.Fatal("createdAt was used; it records the import, not the work")
+	}
+}
+
+// A job with nothing to date it says so, rather than returning a zero time a
+// caller might mistake for a real date.
+func TestEvidencedArchiveDateReportsWhenItCannotDate(t *testing.T) {
+	t.Parallel()
+
+	job := sampleJob()
+	job.MetaData.ArchivedAt = time.Time{}
+	job.MetaData.CreatedAt = time.Date(2026, 4, 10, 0, 0, 0, 0, time.UTC)
+	job.Build.Costs.LinkedJobs = nil
+	job.Build.Sale.Transactions = nil
+
+	got, ok := EvidencedArchiveDate(job)
+	if ok {
+		t.Fatalf("reported a date (%v) for a job with no linked jobs and no sales", got)
+	}
+	if !got.IsZero() {
+		t.Fatalf("returned %v alongside ok=false; callers check ok, but a non-zero value invites misuse", got)
+	}
+}
+
+// Sales date a job that has no linked industry jobs.
+func TestEvidencedArchiveDateFallsBackToSales(t *testing.T) {
+	t.Parallel()
+
+	job := sampleJob()
+	job.MetaData.ArchivedAt = time.Time{}
+	job.Build.Costs.LinkedJobs = nil
+
+	got, ok := EvidencedArchiveDate(job)
+	if !ok {
+		t.Fatal("a job with sales must be datable from them")
+	}
+	if got.IsZero() {
+		t.Fatal("returned a zero date with ok=true")
+	}
+}
