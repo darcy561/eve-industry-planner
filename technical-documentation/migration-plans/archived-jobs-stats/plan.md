@@ -293,23 +293,90 @@ build-stats read once nothing calls it.
 | Site | Reads | Becomes |
 |------|-------|---------|
 | ~~`Functions/Endpoints/Pirivate/buildStats.js`~~ | ~~`GET /statistics/build-stats?typeID=`~~ | **done** — reads `totals`, unwrapping `items[0]` and supplying the zeroed row the endpoint no longer returns |
-| `Hooks/React Query/Backend/buildStats.js` | query key `["backend","buildStats",id]`, invalidation helpers | **partly done** — `invalidateStatisticsQueries` replaced the per-type and build-stats-only helpers; still needs a module per timeline view |
+| `Hooks/React Query/Backend/buildStats.js` | query key `["backend","buildStats",id]`, invalidation helpers | **done** — `invalidateStatisticsQueries` replaced the per-type and build-stats-only helpers; `statisticsTimeline.js` adds the timeline hooks. The module and key still read `buildStats` while the endpoint says `totals` — a cosmetic rename left open, see § Left open |
 | `Components/Dialogues/Blueprint Archive/hasMeaningfulBuildStats.js` | `dataSnapshots.length > 0` | unchanged in meaning; the field still ships |
-| `.../Archive Jobs Panel/archiveJobsPanel.jsx` | `archiveData?.dataSnapshots` | unchanged, or the per-job view when one exists |
+| `.../Archive Jobs Panel/archiveJobsPanel.jsx` | `archiveData?.dataSnapshots` | unchanged — still renders the per-job rows from the embedded snapshots |
 | ~~`.../Button Panel/archiveJobButton.jsx`, `Groups/Side Menu/Buttons/buttonFunctions.jsx`~~ | ~~invalidate after archiving~~ | **done** — both call `invalidateStatisticsQueries` |
 
 #### Order
 
 1. ~~**Repoint the existing read.**~~ **Done.** `totals` serves the same documents, so this was a
    path change in one module; `dataSnapshots` still arrives and no panel changed.
-2. **Add the timeline reads** — a module and hook per view, `timeline` and `timeline/items`.
-3. **Build the views** the new data exists for: the dashboard month-on-month comparison and the
-   per-item breakdown.
+2. ~~**Add the timeline reads**~~ **Done.** `Functions/Endpoints/Pirivate/statisticsTimeline.js` and
+   `Hooks/React Query/Backend/statisticsTimeline.js` cover `timeline` and `timeline/items`, keyed
+   under a shared statistics root.
+3. ~~**Build the views**~~ **Done.** The dashboard carries `ArchivedStatsOverview` (this month
+   against last) and `ArchivedItemBreakdown` (which items drove it). The archive dialogue was split
+   into its four segment blocks — see § The archive dialogue below.
 4. ~~**Retire `build-stats`**~~ **Done.** With no caller left, `getBuildStats.go`, its router case
    and `models.EmptyBuildStatsRow` were deleted rather than renamed — `totals` already served the
    same documents. The router test pins the path as a 404 so it is not revived by accident.
 
-The wire change is complete. Steps 2 and 3 remain, and are additive.
+All four steps have landed for the account scope.
+
+#### The archive dialogue
+
+The dialogue showed one flat set of lifetime totals, which could not distinguish a build sold on the
+market from one consumed by a parent job or kept as stock. It now renders four blocks — Combined,
+Market, Stock, Chain — from the `breakdown` the API has served all along.
+
+`mapApiStatsToArchiveBreakdown` reshapes the row already in hand, so no extra request is made.
+Combined **sums** the three segments rather than recomputing profit from the summed money fields:
+`jobCostTotal` already contains both fee totals, so subtracting them again reports a loss against
+profitable builds. The branch this was ported from made exactly that error; a test pins the correct
+figure against the one double subtraction produces.
+
+Stock and Chain show the build side only and say why — neither records a sale of its own, so their
+sale and fee rows would be zeros beside real build costs. Segments with no activity are omitted, and
+a row whose breakdown is empty falls through to the flat summary so older documents still render.
+
+The corporation toggle carried on the source branch was **not** ported — it belongs to Stage C. The
+seams are left open for it: `statsBreakdown` is a prop rather than computed inside the body, the
+mapper takes a whole row so a corp row maps identically, and both are exported from the folder index.
+
+#### Segment classification is decided on evidence
+
+Discovered while reading the dialogue against real data. A job with 200 items built and no sale
+appeared under Market showing zeros for sales, fees and profit beside a six-figure job cost.
+
+The cause was a `default:` catch-all: a job was Market whenever it was neither a chain step nor
+flagged `retainedStockBuild`. **Nothing sets that flag** — the only assignment in the repo is a test
+fixture — so the Stock segment was permanently empty and every non-chain job was reported as Market.
+
+Market now asks whether market activity was recorded, and anything left over is stock:
+
+- A **sale** is a transaction line whoever wrote it. ESI supplies market transactions; a contract or
+  other off-market sale is entered by hand through the SPA's custom-transaction dialogue, carrying
+  the same quantity, amount and tax and distinguished only by a negative transaction id. Both arrive
+  as `TransactionLines`, so both count.
+- A **broker fee** counts too. Listing output is market activity before anything sells, and a
+  fee-only job sent to stock would report a broker fee in a block that suppresses the row explaining
+  it.
+- Lines are weighed by their **figures**, not their presence: one carrying neither an amount nor a
+  quantity records no money and no goods, so it decides nothing.
+- `retainedStockBuild` still routes a job to stock ahead of the sale check, so an explicit mark is
+  honoured whether or not a line was recorded. (The source branch resolved this the other way, with
+  market winning. Moot while nothing writes the flag; noted so the divergence is deliberate.)
+
+Existing rows keep their old classification until a statistics rebuild runs.
+
+#### Extras by category reach the monthly figures
+
+Already produced end to end, and now covered by tests. `extraCategoryTotals` is folded per job by
+category id (blank → `"0"`, Unassigned), stored on the row, merged into monthly buckets against the
+**cost month** — the same attribution `jobCostTotal` uses — and served in each `months[]` entry and
+in `totals`.
+
+Three tests pin the monthly path, which previously had none: extras follow the cost month rather
+than the month the output sold, several jobs in a month sum their categories rather than the last
+written winning, and a month with no extras leaves the field absent rather than `{}`.
+
+No frontend view reads it yet — deliberately. The data is ready for a later breakdown. Two things
+that work will need: the API returns bare category **ids**, whose labels live in
+`applicationSettings.extrasCategories` in the user store; and that list includes **deleted**
+categories, which historical months can still reference. The existing category select hides deleted
+entries, which is right for choosing and wrong for reporting — a past cost still belongs to the
+category it was filed under.
 
 #### Things the endpoints require of the client
 
@@ -359,7 +426,7 @@ in-scope package needs modernization before the work starts.
 | B — account statistics pipeline | **Complete** — transformation, worker rebuild, queue drain, its task and asynq handler, the hourly schedule, and the archived-jobs producer are all landed. Queue → publish → drain runs end to end, and the claim protocol, revoke, prune and write-then-remove ordering are pinned by passing live tests. The worker's end-to-end composition of those helpers has no live test yet (see Open questions) |
 | C — corporation statistics pipeline | **Deferred** at Stage B close — blocked on a producer for `_meta.corporationRef`, not on effort. See § Stage C is deferred |
 | D — statistics API | **Complete for the account scope** — timeline, timeline/items and totals land under `/api/v1/statistics/account/`, with the indexes their filters need. The old build-stats producer is retired and its documents are rebuilt by the statistics pipeline. Corporation views wait for Stage C |
-| E — frontend | **In progress** — the wire change is done: the SPA reads `totals` and build-stats is deleted. The timeline views and the screens they feed remain |
+| E — frontend | **Complete for the account scope** — the SPA reads `totals`, `timeline` and `timeline/items`; build-stats is deleted; the dashboard carries the month-on-month comparison and the item breakdown; the archive dialogue is split into its four segment blocks. Corporation scope waits for Stage C |
 
 ## Done when
 
@@ -384,17 +451,29 @@ than swept in.
 `ScheduleDrainAccountStatsRebuildQueue` publishes hourly at minute 30, the worker drains, and the
 claim protocol decides what stays queued. Behaviour → [overlay.md](./overlay.md) § Stage B.
 
-**Start here: Stage E, steps 2 and 3.** The wire change is done — the SPA reads `totals` and the
-build-stats endpoint is deleted, so nothing serves the old contract. What remains is additive: the
-timeline reads (a module and hook per view) and the screens they feed, the dashboard month-on-month
-comparison and the per-item breakdown.
+**Stage E is closed for the account scope.** The SPA reads `totals`, `timeline` and
+`timeline/items`; the dashboard carries the month-on-month comparison and the item breakdown; the
+archive dialogue renders its four segment blocks. Every remaining stage item belongs to Stage C.
 
-Two things to verify before or alongside E, neither blocking:
+**Start here: Stage C, once a `_meta.corporationRef` producer exists.** Nothing else in the plan is
+blocked. The frontend seams for the corporation scope are already open — see § The archive dialogue.
 
-1. **Nothing has run against real data.** No deployment has happened since the pipeline changed, so
-   the first `eip dev` is when the rebuild writes production totals for the first time. Worth
-   watching that pass rather than assuming it.
-2. **The worker's end-to-end composition still has no live test** — see Open question 1. The Mongo
+### Left open, none blocking
+
+1. **A statistics rebuild is owed.** Two classification changes landed after the last rebuild — the
+   Market segment now decides on evidence, and broker fees count as market activity. Existing rows
+   keep their old segments until `tasks queueArchivedJobStatsRebuild -all` runs.
+2. **`retainedStockBuild` is dead in the UI.** Nothing in `frontend/src` writes it, so Stock means
+   "no recorded sale" rather than "deliberately kept". Wiring it would separate the two.
+3. **The lifetime-totals module still says `buildStats`.** `Functions/Endpoints/Pirivate/buildStats.js`,
+   its hook and the `BUILD_STATS_QUERY_KEY_ROOT` key predate the rename to `totals`. A pure rename
+   with no wire change, in the spirit of rollup → timeline; deferred as cosmetic.
+4. **`extrasTotal` is recomputed only on add and remove.** Editing a row's value in place, or
+   loading a document with a stale total, leaves it unreconciled — and the archive would inherit the
+   drift permanently. Not investigated further; outside this plan's surface.
+5. **The dev database holds 110 `testfixture-` jobs** from month-duplication testing. Harmless,
+   removable whenever.
+6. **The worker's end-to-end composition still has no live test** — see Open question 1. The Mongo
    helpers are covered individually; what the cron exercises untested is the rebuild that calls them
    in order.
 
