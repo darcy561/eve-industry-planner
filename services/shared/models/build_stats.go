@@ -102,12 +102,3 @@ type BuildStatSnapshot struct {
 	CorpMarketOrder     bool    `json:"corpMarketOrder" bson:"corpMarketOrder"`
 	CorpIndustryJob     bool    `json:"corpIndustryJob" bson:"corpIndustryJob"`
 }
-
-// EmptyBuildStatsRow returns a zeroed aggregate for typeID when no Mongo document exists yet.
-// Matches the JSON shape of a real row so clients can always parse 200 responses.
-func EmptyBuildStatsRow(typeID int) BuildStatsRow {
-	return BuildStatsRow{
-		TypeID:        typeID,
-		DataSnapshots: []BuildStatSnapshot{},
-	}
-}

@@ -113,8 +113,8 @@ for, and it is the first collection set that will not be account scoped.
 ### Stage D — Statistics API
 
 Endpoints for monthly timelines and lifetime totals, per account and per corporation. Additive to
-the existing statistics router; the current build-stats endpoint keeps its contract until the
-frontend no longer calls it.
+the existing statistics router. The build-stats endpoint kept its contract until the frontend moved
+off it in Stage E, and was then deleted.
 
 `/api/v1/statistics` and `/api/v1/statistics/` are already mounted to the package `Router` in
 `apiServer.go`'s private route table, so new sub-paths need no route-table or wiring change. The
@@ -292,23 +292,24 @@ build-stats read once nothing calls it.
 
 | Site | Reads | Becomes |
 |------|-------|---------|
-| `Functions/Endpoints/Pirivate/buildStats.js` | `GET /statistics/build-stats?typeID=` | the `totals` read, plus new modules for the timeline views |
-| `Hooks/React Query/Backend/buildStats.js` | query key `["backend","buildStats",id]`, invalidation helpers | one module per view, keys named for the view |
+| ~~`Functions/Endpoints/Pirivate/buildStats.js`~~ | ~~`GET /statistics/build-stats?typeID=`~~ | **done** — reads `totals`, unwrapping `items[0]` and supplying the zeroed row the endpoint no longer returns |
+| `Hooks/React Query/Backend/buildStats.js` | query key `["backend","buildStats",id]`, invalidation helpers | **partly done** — `invalidateStatisticsQueries` replaced the per-type and build-stats-only helpers; still needs a module per timeline view |
 | `Components/Dialogues/Blueprint Archive/hasMeaningfulBuildStats.js` | `dataSnapshots.length > 0` | unchanged in meaning; the field still ships |
 | `.../Archive Jobs Panel/archiveJobsPanel.jsx` | `archiveData?.dataSnapshots` | unchanged, or the per-job view when one exists |
-| `.../Button Panel/archiveJobButton.jsx`, `Groups/Side Menu/Buttons/buttonFunctions.jsx` | invalidate after archiving | invalidate every statistics key, not just build-stats |
+| ~~`.../Button Panel/archiveJobButton.jsx`, `Groups/Side Menu/Buttons/buttonFunctions.jsx`~~ | ~~invalidate after archiving~~ | **done** — both call `invalidateStatisticsQueries` |
 
 #### Order
 
-1. **Repoint the existing read.** `totals` serves the same documents as `build-stats`, so this is a
-   path change in one module. Nothing else in the SPA moves and `dataSnapshots` still arrives.
+1. ~~**Repoint the existing read.**~~ **Done.** `totals` serves the same documents, so this was a
+   path change in one module; `dataSnapshots` still arrives and no panel changed.
 2. **Add the timeline reads** — a module and hook per view, `timeline` and `timeline/items`.
 3. **Build the views** the new data exists for: the dashboard month-on-month comparison and the
    per-item breakdown.
-4. **Retire `build-stats`** once step 1 leaves it with no caller. The endpoint is deleted rather
-   than renamed — `totals` already serves it — along with `getBuildStats.go` and its router case.
+4. ~~**Retire `build-stats`**~~ **Done.** With no caller left, `getBuildStats.go`, its router case
+   and `models.EmptyBuildStatsRow` were deleted rather than renamed — `totals` already served the
+   same documents. The router test pins the path as a 404 so it is not revived by accident.
 
-Steps 1 and 4 are the wire change; 2 and 3 are additive and can land separately.
+The wire change is complete. Steps 2 and 3 remain, and are additive.
 
 #### Things the endpoints require of the client
 
@@ -358,7 +359,7 @@ in-scope package needs modernization before the work starts.
 | B — account statistics pipeline | **Complete** — transformation, worker rebuild, queue drain, its task and asynq handler, the hourly schedule, and the archived-jobs producer are all landed. Queue → publish → drain runs end to end, and the claim protocol, revoke, prune and write-then-remove ordering are pinned by passing live tests. The worker's end-to-end composition of those helpers has no live test yet (see Open questions) |
 | C — corporation statistics pipeline | **Deferred** at Stage B close — blocked on a producer for `_meta.corporationRef`, not on effort. See § Stage C is deferred |
 | D — statistics API | **Complete for the account scope** — timeline, timeline/items and totals land under `/api/v1/statistics/account/`, with the indexes their filters need. The old build-stats producer is retired and its documents are rebuilt by the statistics pipeline. Corporation views wait for Stage C |
-| E — frontend | Not started — scoped, see § Stage E. The backend it depends on is complete for the account scope |
+| E — frontend | **In progress** — the wire change is done: the SPA reads `totals` and build-stats is deleted. The timeline views and the screens they feed remain |
 
 ## Done when
 
@@ -383,9 +384,10 @@ than swept in.
 `ScheduleDrainAccountStatsRebuildQueue` publishes hourly at minute 30, the worker drains, and the
 claim protocol decides what stays queued. Behaviour → [overlay.md](./overlay.md) § Stage B.
 
-**Start here: Stage E.** The backend is complete for the account scope — one pipeline produces every
-statistics document, and three endpoints serve them. Stage E moves the SPA onto those endpoints and
-retires `GET /api/v1/statistics/build-stats`, the last caller of the old contract.
+**Start here: Stage E, steps 2 and 3.** The wire change is done — the SPA reads `totals` and the
+build-stats endpoint is deleted, so nothing serves the old contract. What remains is additive: the
+timeline reads (a module and hook per view) and the screens they feed, the dashboard month-on-month
+comparison and the per-item breakdown.
 
 Two things to verify before or alongside E, neither blocking:
 
@@ -396,8 +398,10 @@ Two things to verify before or alongside E, neither blocking:
    helpers are covered individually; what the cron exercises untested is the rebuild that calls them
    in order.
 
-**The wire rename lands with E.** `build-stats` keeps its path until the SPA moves, at which point
-the endpoint retires rather than being renamed — `totals` already serves the same documents.
+**`dataSnapshots` is the one shape still carried for compatibility.** The totals row holds an
+unbounded per-job array that duplicates `account_archived_job_stats`, kept so the two panels reading
+it did not have to change with the endpoint. Replacing it with a per-job view is a Stage E decision
+once those panels are being touched anyway.
 
 ### Open questions
 

@@ -52,16 +52,16 @@ func keysOf(m map[string]bson.RawValue) []string {
 
 func TestBuildStatsRowPersistsFlat(t *testing.T) {
 	row := BuildStatsRow{
-		ID:            "acct|1234",
-		TypeID:        1234,
-		BuildMeasures: BuildMeasures{TotalJobs: 3, SalesTotal: 100},
+		ID:        "acct|1234",
+		TypeID:    1234,
+		TotalJobs: 3, SalesTotal: 100,
 	}
 	requireFlatKeys(t, row, "_id", "typeID", "totalJobs", "salesTotal", "profitLoss", "dataSnapshots")
 }
 
 func TestSegmentTotalsPersistFlat(t *testing.T) {
 	seg := BuildStatsSegmentTotals{
-		BuildMeasures:     BuildMeasures{TotalJobs: 1},
+		TotalJobs:         1,
 		TotalSoldQuantity: 5,
 	}
 	requireFlatKeys(t, seg, "totalJobs", "totalSoldQuantity")
@@ -69,21 +69,21 @@ func TestSegmentTotalsPersistFlat(t *testing.T) {
 
 func TestTimelineMonthBucketsPersistFlat(t *testing.T) {
 	user := AccountTimelineMonthBucket{
-		ID:            "acct|1234|2026|8",
-		AccountID:     "acct",
-		TypeID:        1234,
-		CalendarMonth: CalendarMonth{Year: 2026, Month: 8},
-		SalesMeasures: SalesMeasures{TransactionCount: 2, SalesTotal: 50},
+		ID:        "acct|1234|2026|8",
+		AccountID: "acct",
+		TypeID:    1234,
+		Year:      2026, Month: 8,
+		TransactionCount: 2, SalesTotal: 50,
 	}
 	requireFlatKeys(t, user, "_id", "accountID", "typeID", "year", "month", "transactionCount", "salesTotal")
 
 	corp := CorpTimelineMonthBucket{
-		ID:            "corpref|~|1234|2026|8",
-		CorpRef:       "corpref",
-		Lane:          CorpTimelineOwnedLane,
-		TypeID:        1234,
-		CalendarMonth: CalendarMonth{Year: 2026, Month: 8},
-		SalesMeasures: SalesMeasures{TransactionCount: 2},
+		ID:      "corpref|~|1234|2026|8",
+		CorpRef: "corpref",
+		Lane:    CorpTimelineOwnedLane,
+		TypeID:  1234,
+		Year:    2026, Month: 8,
+		TransactionCount: 2,
 	}
 	requireFlatKeys(t, corp, "_id", "corpRef", "lane", "year", "month", "transactionCount")
 }
@@ -91,37 +91,35 @@ func TestTimelineMonthBucketsPersistFlat(t *testing.T) {
 func TestArchivedJobLinesPersistFlat(t *testing.T) {
 	tx := ArchivedJobTransactionLine{
 		TransactionID: 7712345678,
-		ArchivedJobLine: ArchivedJobLine{
-			CalendarMonth: CalendarMonth{Year: 2026, Month: 8},
-			Amount:        100,
-			CorpStatus:    CorpStatusCorpKnown,
-		},
-		Quantity: 2,
+		Year:          2026, Month: 8,
+		Amount:     100,
+		CorpStatus: CorpStatusCorpKnown,
+		Quantity:   2,
 	}
 	requireFlatKeys(t, tx, "transactionID", "year", "month", "amount", "corpStatus", "quantity")
 
 	fee := ArchivedJobFeeLine{
-		FeeID:           5500000001,
-		ArchivedJobLine: ArchivedJobLine{Amount: -3, CorpStatus: CorpStatusPersonal},
+		FeeID:  5500000001,
+		Amount: -3, CorpStatus: CorpStatusPersonal,
 	}
 	requireFlatKeys(t, fee, "feeID", "amount", "corpStatus")
 }
 
 func TestArchivedJobStatsPersistsFlat(t *testing.T) {
 	stats := ArchivedJobStats{
-		ID:                    "acct|job-1",
-		AccountID:             "acct",
-		JobID:                 "job-1",
-		ArchivedJobCostTotals: ArchivedJobCostTotals{TotalProduced: 10, TotalBuildCosts: 500},
+		ID:            "acct|job-1",
+		AccountID:     "acct",
+		JobID:         "job-1",
+		TotalProduced: 10, TotalBuildCosts: 500,
 	}
 	requireFlatKeys(t, stats, "_id", "accountID", "jobID", "totalProduced", "totalBuildCosts")
 }
 
 func TestBuildStatsRowJSONStaysFlat(t *testing.T) {
 	row := BuildStatsRow{
-		TypeID:        1234,
-		JobType:       1,
-		BuildMeasures: BuildMeasures{TotalJobs: 3, SalesTotal: 100, ProfitLoss: 40},
+		TypeID:    1234,
+		JobType:   1,
+		TotalJobs: 3, SalesTotal: 100, ProfitLoss: 40,
 		DataSnapshots: []BuildStatSnapshot{},
 	}
 	raw, err := json.Marshal(row)
@@ -158,7 +156,7 @@ func TestBuildMeasuresPlus(t *testing.T) {
 }
 
 func TestBuildStatsRowPlusKeepsFirstJobType(t *testing.T) {
-	got := BuildStatsRow{TypeID: 1234}.Plus(BuildStatsRow{JobType: 7, BuildMeasures: BuildMeasures{TotalJobs: 1}})
+	got := BuildStatsRow{TypeID: 1234}.Plus(BuildStatsRow{JobType: 7, TotalJobs: 1})
 	if got.JobType != 7 {
 		t.Fatalf("jobType = %d, want 7", got.JobType)
 	}
@@ -212,23 +210,6 @@ func TestSalesMeasuresPlusMergesExtraCategories(t *testing.T) {
 	}
 	if b.ExtraCategoryTotals["shipping"] != 3 {
 		t.Fatalf("Plus mutated its argument's map: %v", b.ExtraCategoryTotals)
-	}
-}
-
-func TestEmptyBuildStatsRowIsSerialisable(t *testing.T) {
-	raw, err := json.Marshal(EmptyBuildStatsRow(1234))
-	if err != nil {
-		t.Fatalf("json.Marshal: %v", err)
-	}
-	var out map[string]any
-	if err := json.Unmarshal(raw, &out); err != nil {
-		t.Fatalf("json.Unmarshal: %v", err)
-	}
-	if out["typeID"] != float64(1234) {
-		t.Fatalf("typeID = %v, want 1234", out["typeID"])
-	}
-	if snapshots, ok := out["dataSnapshots"].([]any); !ok || snapshots == nil {
-		t.Fatalf("dataSnapshots = %v, want an empty array", out["dataSnapshots"])
 	}
 }
 

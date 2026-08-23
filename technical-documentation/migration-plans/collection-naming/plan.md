@@ -73,7 +73,7 @@ destination, and collections move individually.
 | `archivedJobs` | account | `account_archived_jobs` | yes |
 | `user_job_documents` | account | `account_job_documents` | yes |
 | `user_job_groups` | account | `account_job_groups` | yes |
-| `build_stats` | account | `account_production_totals` | yes — defer to Stage E |
+| `build_stats` | account | `account_production_totals` | yes — done |
 | `user_watchlist_deprecated` | account | `account_watchlist_deprecated` | yes |
 | `user_group_template_catalog` | account | `account_group_template_catalog` | no |
 | `user_group_template_payloads` | account | `account_group_template_payloads` | no |
@@ -149,8 +149,8 @@ Go side can catch that.
 `build_stats` was planned as the clearest case to defer, on the grounds that
 [archived-jobs-stats](../archived-jobs-stats/plan.md) Stage E retires the endpoint reading it. It
 moved with the rest anyway — see § Handoff status. The **collection** is now
-`account_production_totals`; the **endpoint** `GET /api/v1/statistics/build-stats` still has its
-old path and response shape, and Stage E still owns retiring it.
+`account_production_totals`, and the endpoint that read it has since been retired: the SPA reads
+`GET /api/v1/statistics/account/totals`, which serves the same documents.
 
 ## Suggested order
 
@@ -257,9 +257,9 @@ stack and confirm every collection moved and kept its indexes.
 - `account_timeline_months` is consistent: the `rollup` → `timeline` vocabulary landed separately
   and the word no longer appears in `services/`, so the collection name and the code around it
   agree. Nothing is outstanding for that one.
-- `GET /api/v1/statistics/build-stats` keeps its path and response shape. Only the collection
-  behind it moved, so Stage E's job — moving the SPA off that endpoint — is unchanged. The
-  collection is `account_production_totals`; the endpoint is still `build-stats`.
+- `GET /api/v1/statistics/build-stats` is gone. The SPA moved to
+  `GET /api/v1/statistics/account/totals` and the old handler was deleted rather than renamed,
+  since totals already served the same documents from `account_production_totals`.
 
 **Deploy the SPA and the backend together.** Six of these collections are subscribed to over the
 websocket, whose wire format is `collection.docID`. An old SPA against a renamed database subscribes
