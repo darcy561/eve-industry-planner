@@ -1,4 +1,4 @@
-﻿package commands
+package commands
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/config"
-	"eve-industry-planner/shared/crypto/aesgcm/keyrings"
 	natscore "eve-industry-planner/shared/core/nats"
+	"eve-industry-planner/shared/crypto/aesgcm/keyrings"
 	taskscore "eve-industry-planner/shared/tasks"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
