@@ -10,6 +10,7 @@ Live SoT for Swarm stack name **`eip`**: fragment files, membership, replica ide
 | [`docker-stack.yml`](../../docker-stack.yml) | **App** fragment — Traefik + api / websocket / worker / ws-router / core / frontend / **capacity-controller** (+ socket proxies) |
 | [`docker-stack.obs.yml`](../../docker-stack.obs.yml) | **Obs** addon — **Prometheus**, Grafana/Loki/Alloy/exporters/asynqmon; merged only when `addons.observability.enabled` |
 | [`docker-stack.dev.yml`](../../docker-stack.dev.yml) | **Dev overlay** — per-role `${TAG_*}` image refs (merged on `eip dev` / `eip rebuild`) |
+| [`docker-stack.data.dev.yml`](../../docker-stack.data.dev.yml) | **Data dev overlay** — publishes mongo `27017` and redis `6379` on the host (`mode: host`) for local tooling; merged on `eip dev` / `eip rebuild` **when present**, never by `eip up` |
 
 Operator YAML defaults → [config.md](./config.md). Secrets → [secrets.md](./secrets.md). Bake / image tags → [verbs.md](../deployment/deployment-tool/cli/verbs.md).
 

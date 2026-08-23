@@ -41,7 +41,7 @@ No dedicated menu rows for **Apply secrets/settings** — Persist auto-queues; u
 ## Verb behaviour
 
 - **`eip up`**: live pulls; two-pass + Ready ([deploy.md](./deploy.md)). If the stack was already healthy before bring-up, skips `dataplane.Ready` (step: “Stack already healthy — skipping ensure”).
-- **`eip dev`**: bake + merge `docker-stack.dev.yml`; same two-pass + Ready (same healthy skip).
+- **`eip dev`**: bake + merge `docker-stack.dev.yml`, plus `docker-stack.data.dev.yml` when that file exists (host-published data ports for local tooling); same two-pass + Ready (same healthy skip).
 - **`eip sync`**: targeted Moby `ServiceUpdate` from `eip.config.yaml` (capacity, Traefik ports/paths/proxy, Grafana Path / Base URL / Access, labeled network membership); `--dry-run` / `-n`. Stack labels include `eip.capacity.sync`, `eip.config.sync`, and network attach/detach labels. Effect → [config.md](../../../stack/config.md), [network.md](../../../stack/network.md). TUI: Persist / Command — not a Main row.
 - **`eip secrets`**: hashed secrets from `.env` (Moby Secret*), then Rematerialize. Default `--live`; `--dev` when stack was `eip dev`. Attach → [secrets.md](../../../stack/secrets.md). TUI: Persist after Secrets / Command — not a Main row.
 - **`eip rebuild`**: bake + rematerialize (dev). No Ready. After index SoT changes without full up/dev, run **`eip ensure-mongo`**.

@@ -39,6 +39,7 @@ func TestExpandRepoStacksNoBareDollarCORS(t *testing.T) {
 		{"data live", "live", []string{"docker-stack.data.yml"}, nil},
 		{"app live", "live", []string{"docker-stack.yml"}, nil},
 		{"app+dev", "dev", []string{"docker-stack.yml", "docker-stack.dev.yml"}, devTags},
+		{"data+dev", "dev", []string{"docker-stack.data.yml", "docker-stack.data.dev.yml"}, nil},
 		{"obs live", "live", []string{"docker-stack.obs.yml"}, nil},
 	}
 	for _, tc := range cases {
@@ -94,5 +95,47 @@ func assertStackDeploySafeDollars(t *testing.T, text string) {
 		if strings.Contains(text, "$"+needle) {
 			t.Fatalf("healthcheck %s not $$ escaped for stack deploy", needle)
 		}
+	}
+}
+
+// The data dev overlay publishes mongo and redis on the host for local tooling;
+// the live data fragment alone must keep the data layer mesh-internal.
+func TestExpandDataDevPublishesDataPorts(t *testing.T) {
+	root := repoRoot(t)
+	ctx := context.Background()
+	for _, f := range []string{"docker-stack.data.yml", "docker-stack.data.dev.yml"} {
+		if _, err := os.Stat(filepath.Join(root, f)); err != nil {
+			t.Skipf("missing %s", f)
+		}
+	}
+
+	expand := func(t *testing.T, files []string, src string) string {
+		t.Helper()
+		path, err := Expand(ctx, Opts{Home: root, StackFiles: files, Source: src})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(path)
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(raw)
+	}
+
+	live := expand(t, []string{"docker-stack.data.yml"}, "live")
+	if strings.Contains(live, "published:") {
+		t.Errorf("live data fragment must not publish data ports on the host:\n%s", live)
+	}
+
+	dev := expand(t, []string{"docker-stack.data.yml", "docker-stack.data.dev.yml"}, "dev")
+	for _, port := range []string{"published: 27017", "published: 6379"} {
+		if !strings.Contains(dev, port) {
+			t.Errorf("data dev overlay missing %q:\n%s", port, dev)
+		}
+	}
+	// Host mode binds only the node running the task; ingress would span the mesh.
+	if strings.Count(dev, "mode: host") != 2 {
+		t.Errorf("want both data ports published in host mode, got:\n%s", dev)
 	}
 }

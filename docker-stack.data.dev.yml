@@ -1,0 +1,20 @@
+# Dev overlay (data) — publish data ports on the host for local tooling.
+#
+# Merged onto docker-stack.data.yml by `eip dev` / `eip rebuild` when present;
+# `eip up` never reads it, so live deploys keep the data layer mesh-internal.
+# Optional: absent file is not an error.
+
+services:
+  mongo:
+    ports:
+      - target: 27017
+        published: 27017
+        protocol: tcp
+        mode: host
+
+  redis:
+    ports:
+      - target: 6379
+        published: 6379
+        protocol: tcp
+        mode: host

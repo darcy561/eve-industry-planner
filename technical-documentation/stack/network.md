@@ -46,7 +46,7 @@ Live SoT for Swarm overlay networks. Membership SoT is the stack fragments: [`do
 
 | Service | Fragment | Networks | Notes |
 |---------|----------|----------|-------|
-| nats / redis / mongo / seaweedfs | data | `eip-core` | DNS aliases on mesh (`mongo`, `redis`, …) |
+| nats / redis / mongo / seaweedfs | data | `eip-core` | DNS aliases on mesh (`mongo`, `redis`, …); mongo + redis also host-published under `eip dev` — see [Host publish](#host-publish) |
 | traefik-docker-proxy | app | `eip-docker-traefik` | never on mesh/edge |
 | traefik | app | `eip-core` · `eip-public` · `eip-docker-traefik` | alias `traefik` on mesh; **only** host publish |
 | frontend | app | `eip-public` | edge-only SPA |
@@ -115,7 +115,9 @@ From `docker-stack.yml` x-\*-env: `MONGO_HOST=mongo`, `REDIS_HOST=redis`, `NATS_
 
 ## Host publish
 
-**Only** `eip_traefik`: host ports from operator config, `mode: ingress`. Port knobs → [config.md](./config.md) / [traefik.md](./traefik.md).
+`eip_traefik` is the only live host publish: host ports from operator config, `mode: ingress`. Port knobs → [config.md](./config.md) / [traefik.md](./traefik.md).
+
+Under **`eip dev`** only, the optional [`docker-stack.data.dev.yml`](../../docker-stack.data.dev.yml) overlay also publishes mongo `27017` and redis `6379` on the host in `mode: host`, so desktop tooling (Compass, `mongosh`, RedisInsight) can reach the data layer. Mongo host clients must pass `directConnection=true` — the RS advertises its member as `mongo:27017`, which resolves only on `eip-core`; redis needs `REDIS_PASSWORD` with no username. `eip up` never merges the overlay, so live deploys keep the data layer mesh-internal.
 
 ## Bootstrap
 

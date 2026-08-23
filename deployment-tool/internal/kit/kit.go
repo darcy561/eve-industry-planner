@@ -11,12 +11,13 @@ import (
 )
 
 const (
-	EnvFile         = ".env"
-	ConfigFile      = "eip.config.yaml"
-	AppStackFile    = "docker-stack.yml"
-	AppStackDevFile = "docker-stack.dev.yml"
-	DataStackFile   = "docker-stack.data.yml"
-	ObsStackFile    = "docker-stack.obs.yml"
+	EnvFile          = ".env"
+	ConfigFile       = "eip.config.yaml"
+	AppStackFile     = "docker-stack.yml"
+	AppStackDevFile  = "docker-stack.dev.yml"
+	DataStackFile    = "docker-stack.data.yml"
+	DataStackDevFile = "docker-stack.data.dev.yml"
+	ObsStackFile     = "docker-stack.obs.yml"
 )
 
 // Require fails if any required kit file is missing under home.
