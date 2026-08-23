@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"eve-industry-planner/core/commands/archivedates"
 	"eve-industry-planner/shared/archivestats"
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/models"
@@ -29,11 +30,15 @@ const backfillBatchSize = 500
 // jobs and its sales still date it, and that date is what the statistics pipeline
 // would otherwise re-derive on every rebuild.
 //
-// Jobs with neither linked jobs nor sales are left alone. Their createdAt records
-// when the import ran rather than when the work happened, so writing it would
-// date months of history to the week of the migration — precise-looking and
-// wrong. Those jobs keep falling back at read time, which is honest about not
-// knowing.
+// A job with neither linked jobs nor sales falls back to the archive dates
+// recovered from Firestore, where the previous pipeline recorded a processDate
+// for everything it aggregated. That is when the job was processed rather than
+// archived — later by a median of a week — but it is evidence, where createdAt
+// would only record when the import ran.
+//
+// Jobs that neither source can date are left alone rather than given a
+// manufactured date. They keep resolving a month at read time, which is honest
+// about not knowing.
 func runBackfillArchivedAt(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("backfillArchivedAt", flag.ContinueOnError)
 	fs.Usage = func() {
@@ -77,12 +82,18 @@ func runBackfillArchivedAt(ctx context.Context, args []string) error {
 	}
 	defer cursor.Close(ctxRun)
 
+	recovered, err := archivedates.Count()
+	if err != nil {
+		return err
+	}
+
 	var (
-		scanned    int
-		evidenced  int
-		unevidence int
-		written    int64
-		writes     []mongodriver.WriteModel
+		scanned     int
+		fromJob     int
+		fromRecords int
+		undatable   int
+		written     int64
+		writes      []mongodriver.WriteModel
 	)
 
 	flush := func() error {
@@ -108,11 +119,23 @@ func runBackfillArchivedAt(ctx context.Context, args []string) error {
 		scanned++
 
 		archivedAt, ok := archivestats.EvidencedArchiveDate(job)
-		if !ok {
-			unevidence++
-			continue
+		switch {
+		case ok:
+			fromJob++
+		default:
+			// The job says nothing about its own date; fall back to what the
+			// previous pipeline recorded when it processed the job.
+			recoveredAt, found, lerr := archivedates.Lookup(job.JobID)
+			if lerr != nil {
+				return lerr
+			}
+			if !found {
+				undatable++
+				continue
+			}
+			archivedAt = recoveredAt
+			fromRecords++
 		}
-		evidenced++
 
 		if *dryRun {
 			continue
@@ -136,17 +159,19 @@ func runBackfillArchivedAt(ctx context.Context, args []string) error {
 	}
 
 	if *dryRun {
-		fmt.Printf("dry-run: %d job(s) without an archive date; %d can be dated from their own records, %d cannot\n",
-			scanned, evidenced, unevidence)
+		fmt.Printf("dry-run: %d job(s) without an archive date\n", scanned)
+		fmt.Printf("  %d datable from their own linked jobs or sales\n", fromJob)
+		fmt.Printf("  %d datable from recovered Firestore records (%d available)\n", fromRecords, recovered)
+		fmt.Printf("  %d cannot be dated by either\n", undatable)
 		return nil
 	}
 
-	fmt.Printf("archive dates written: %d/%d (scanned %d, %d have no evidence to date them)\n",
-		written, evidenced, scanned, unevidence)
-	if unevidence > 0 {
+	fmt.Printf("archive dates written: %d of %d datable (scanned %d)\n", written, fromJob+fromRecords, scanned)
+	fmt.Printf("  %d from the job's own records, %d from recovered Firestore dates\n", fromJob, fromRecords)
+	if undatable > 0 {
 		fmt.Fprintf(os.Stderr,
-			"note: %d job(s) carry no linked industry job and no sale, so nothing in the document dates them. "+
-				"They keep resolving their month at read time.\n", unevidence)
+			"note: %d job(s) carry no linked industry job, no sale, and no recovered date, so nothing dates them. "+
+				"They keep resolving their month at read time.\n", undatable)
 	}
 	fmt.Println("run `tasks queueArchivedJobStatsRebuild -all` so cost months pick up the new dates")
 	return nil
