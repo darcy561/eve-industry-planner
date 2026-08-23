@@ -21,7 +21,6 @@ func TestRouterReachesEachView(t *testing.T) {
 		path string
 		want int
 	}{
-		{"/api/v1/statistics/build-stats", http.StatusServiceUnavailable},
 		{"/api/v1/statistics/account/timeline", http.StatusServiceUnavailable},
 		{"/api/v1/statistics/account/timeline/", http.StatusServiceUnavailable},
 		{"/api/v1/statistics/account/timeline/items", http.StatusServiceUnavailable},
@@ -53,6 +52,9 @@ func TestRouterRejectsUnknownViews(t *testing.T) {
 		"/api/v1/statistics/account",
 		"/api/v1/statistics/account/",
 		"/api/v1/statistics/account/rollups",
+		// Retired once the SPA moved to totals, which serves the same documents.
+		// Pinned as absent so it is not revived by accident.
+		"/api/v1/statistics/build-stats",
 		"/api/v1/statistics/account/timeline/items/extra",
 		// Corporation scope is Stage C; naming it must not fall through to an
 		// account view and read the caller's own data under a corporation path.

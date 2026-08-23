@@ -18,27 +18,21 @@ import (
 func (h *Handlers) Router(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
-	switch {
-	case path == "/api/v1/statistics/build-stats" || path == "/api/v1/statistics/build-stats/":
-		h.GetBuildStatsHandler(w, r)
+	const prefix = "/api/v1/statistics/account/"
+	if !strings.HasPrefix(path, prefix) {
+		helper.RespondEndpointError(w, r, http.StatusNotFound, "Not found", "statistics route not found", "not_found", "statistics", nil, map[string]any{"path": path})
+		return
+	}
+	rest := strings.TrimSuffix(strings.TrimPrefix(path, prefix), "/")
 
+	switch rest {
+	case "timeline":
+		h.GetTimelineHandler(w, r)
+	case "timeline/items":
+		h.GetTimelineItemsHandler(w, r)
+	case "totals":
+		h.GetTotalsHandler(w, r)
 	default:
-		const prefix = "/api/v1/statistics/account/"
-		if !strings.HasPrefix(path, prefix) {
-			helper.RespondEndpointError(w, r, http.StatusNotFound, "Not found", "statistics route not found", "not_found", "statistics", nil, map[string]any{"path": path})
-			return
-		}
-		rest := strings.TrimSuffix(strings.TrimPrefix(path, prefix), "/")
-
-		switch rest {
-		case "timeline":
-			h.GetTimelineHandler(w, r)
-		case "timeline/items":
-			h.GetTimelineItemsHandler(w, r)
-		case "totals":
-			h.GetTotalsHandler(w, r)
-		default:
-			helper.RespondEndpointError(w, r, http.StatusNotFound, "Not found", "statistics account route not found", "not_found", "statistics", nil, map[string]any{"path": path, "view": rest})
-		}
+		helper.RespondEndpointError(w, r, http.StatusNotFound, "Not found", "statistics account route not found", "not_found", "statistics", nil, map[string]any{"path": path, "view": rest})
 	}
 }

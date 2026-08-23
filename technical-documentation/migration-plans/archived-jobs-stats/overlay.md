@@ -121,9 +121,9 @@ segment a one-const change, but segments are a closed classification that change
 than measures, and named fields keep the compiler checking producers.
 
 **Wire compatibility:** additive for the statistics shapes, which no document uses yet.
-`BuildStatsRow` keeps `dataSnapshots` — the current build-stats endpoint serves it and the SPA reads
-it in three places, so it stays until Stage E moves the frontend off it. Embedding does not change
-the stored or served shape of any existing document.
+`BuildStatsRow` keeps `dataSnapshots` — the totals read serves it and the SPA reads it in two
+places, so it stays until a view exists for the per-job rows it duplicates. Embedding does not
+change the stored or served shape of any existing document.
 
 ### Also landed
 
@@ -462,7 +462,7 @@ what it may see. A query parameter is the wrong place for that.
 | `GET /api/v1/statistics/account/timeline` | one entry per calendar month, summed across every item type |
 | `GET /api/v1/statistics/account/timeline/items` | the per-item breakdown for the same window, ranked and paged |
 | `GET /api/v1/statistics/account/totals` | lifetime figures, one row per item type |
-| `GET /api/v1/statistics/build-stats` | unchanged; the SPA's current read, retired in Stage E |
+| ~~`GET /api/v1/statistics/build-stats`~~ | retired in Stage E; `totals` serves the same documents |
 
 `/api/v1/statistics` was already mounted, so no route-table or wiring change was needed, and all
 four handlers share the existing `GetAPIStatistics` metrics bag rather than adding instruments.
