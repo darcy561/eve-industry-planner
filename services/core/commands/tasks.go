@@ -35,7 +35,7 @@ const usage = `Usage:
   tasks importWatchlistFromFirestore [flags]
   tasks importJobGroupsFromFirestore [flags]
   tasks importUserJobDocumentsFromFirestore [flags]
-  tasks markArchivedJobsUnprocessed [-all] [-account id] [-dry-run]
+  tasks queueArchivedJobStatsRebuild [-all] [-account id] [-dry-run]
   tasks <task-name> [--priority=<priority_queue>] [--version=<int>] [--data='<json>']
 
 Examples:
@@ -62,8 +62,8 @@ Examples:
   tasks importUserJobDocumentsFromFirestore -account <firebase_uid> -live
   tasks importUserJobDocumentsFromFirestore -account <firebase_uid> -enqueue -live
   tasks importUserJobDocumentsFromFirestore -inline -live
-  tasks markArchivedJobsUnprocessed -all -dry-run
-  tasks markArchivedJobsUnprocessed -account <firebase_uid> -dry-run
+  tasks queueArchivedJobStatsRebuild -all -dry-run
+  tasks queueArchivedJobStatsRebuild -account <firebase_uid> -dry-run
   tasks checkSdeUpdates
   tasks applySdeVersion --version=12345
   tasks forceSdeRebuild
@@ -143,8 +143,8 @@ func Handle(ctx context.Context, args []string) (bool, error) {
 		return true, firestoreimport.RunImportJobGroupsFromFirestore(ctx, args[2:])
 	case "importUserJobDocumentsFromFirestore", "importUserJobDocuementsFromFirestore":
 		return true, firestoreimport.RunImportUserJobDocumentsFromFirestore(ctx, args[2:])
-	case "markArchivedJobsUnprocessed":
-		return true, runMarkArchivedJobsUnprocessed(ctx, args[2:])
+	case "queueArchivedJobStatsRebuild":
+		return true, runQueueArchivedJobStatsRebuild(ctx, args[2:])
 	case "rotateRefreshTokenKeys":
 		return true, runRotateRefreshTokenKeys(ctx, args[2:])
 	case "encodeJobIdentity":
@@ -174,7 +174,7 @@ func runList() error {
 	fmt.Println("  - importWatchlistFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-login-within duration]")
 	fmt.Println("  - importJobGroupsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-login-within duration]")
 	fmt.Println("  - importUserJobDocumentsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-inline] [-enqueue] [-skip-auth-recency]")
-	fmt.Println("  - markArchivedJobsUnprocessed [-all] [-account id] [-dry-run]")
+	fmt.Println("  - queueArchivedJobStatsRebuild [-all] [-account id] [-dry-run]")
 	fmt.Println("  - rotateRefreshTokenKeys [--from=<version>] [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
 	fmt.Println("  - migrateEncryptedCloudRefreshTokens [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
 	fmt.Println("  - migrateUserCloudAccountsToUserDoc [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")

@@ -7,7 +7,7 @@ import (
 	taskscore "eve-industry-planner/shared/tasks"
 )
 
-// markArchivedJobsUnprocessed queues accounts and then tells the operator to run
+// queueArchivedJobStatsRebuild queues accounts and then tells the operator to run
 // the drain by name. A drain that is not triggerable leaves those accounts
 // waiting for the next cron tick with no way to hurry it, and the advice the
 // command prints would name a command that does not exist.
@@ -17,7 +17,7 @@ func TestDrainTaskIsTriggerable(t *testing.T) {
 	lookup := enabledTasksLowerLookup()
 	task, ok := lookup["drainaccountstatsrebuildqueue"]
 	if !ok {
-		t.Fatal("drainAccountStatsRebuildQueue is not in the triggerable lookup; markArchivedJobsUnprocessed tells operators to run it")
+		t.Fatal("drainAccountStatsRebuildQueue is not in the triggerable lookup; queueArchivedJobStatsRebuild tells operators to run it")
 	}
 	if task.Name != taskscore.DrainAccountStatsRebuildQueue.Name {
 		t.Fatalf("lookup resolves to %q, want %q", task.Name, taskscore.DrainAccountStatsRebuildQueue.Name)
