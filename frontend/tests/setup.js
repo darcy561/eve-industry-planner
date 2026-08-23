@@ -19,16 +19,21 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
-// Mock ResizeObserver
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
+// Mock ResizeObserver and IntersectionObserver.
+//
+// Declared as classes and assigned to both global and window: components reach
+// for `window.ResizeObserver`, which jsdom does not alias to `global`, and MUI
+// calls it with `new`, which a plain mock function does not satisfy.
+class MockObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return [];
+  }
+}
 
-// Mock IntersectionObserver
-global.IntersectionObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
+global.ResizeObserver = MockObserver;
+global.IntersectionObserver = MockObserver;
+window.ResizeObserver = MockObserver;
+window.IntersectionObserver = MockObserver;

@@ -3,6 +3,7 @@ import { Box, Grid } from "@mui/material";
 import { AccountData } from "./Components/AccountData";
 import { NewTransactions } from "./Components/NewTransactions";
 import { ArchivedStatsOverview } from "./Components/ArchivedStatsOverview";
+import { ArchivedItemBreakdown } from "./Components/ArchivedItemBreakdown";
 import { TutorialDashboard } from "./Components/dashboardTutorial";
 import { ItemWatchPanel } from "./Components/ItemWatch/ItemWatchPanel";
 import { ActiveCharacterSlots } from "./Components/characterSlots";
@@ -65,6 +66,9 @@ function Dashboard() {
           <Grid container spacing={2}>
             <Grid size={12}>
               <ArchivedStatsOverview />
+            </Grid>
+            <Grid size={12}>
+              <ArchivedItemBreakdown />
             </Grid>
             <Grid size={12}>
               <NewTransactions />
