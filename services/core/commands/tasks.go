@@ -187,6 +187,20 @@ func runList() error {
 }
 
 func runTrigger(ctx context.Context, args []string) error {
+	// A name that is neither a CLI command nor a triggerable task reaches here,
+	// because dispatch falls through to the trigger path. Reject it up front:
+	// otherwise the loop below reads the name as the task and the next token as a
+	// stray argument, so a mistyped command is reported as a flag error and the
+	// name it failed on is never mentioned.
+	if len(args) > 0 {
+		first := strings.TrimSpace(args[0])
+		if first != "" && !strings.HasPrefix(first, "-") {
+			if _, known := enabledTasksLowerLookup()[strings.ToLower(first)]; !known {
+				return fmt.Errorf("unknown command or task %q (use `tasks list`)\n\n%s", first, usage)
+			}
+		}
+	}
+
 	// Support args in either order:
 	// - <task-name> [--priority=...] [--data=...]
 	// - --priority=... --data=... <task-name>
