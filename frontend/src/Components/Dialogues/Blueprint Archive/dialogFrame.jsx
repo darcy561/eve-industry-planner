@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { AppEvent } from "../../../analytics/appEventNames";
 import { trackAppEvent } from "../../../analytics/trackAppEvent";
 import ContentDialog, {
@@ -11,6 +11,7 @@ import {
   normalizeBuildStatsTypeID,
 } from "../../../Hooks/React Query/Backend/buildStats";
 import ArchiveDialogBody from "./ArchiveDialogBody";
+import { mapApiStatsToArchiveBreakdown } from "./mapApiStatsToArchiveBreakdown";
 
 function BlueprintArchiveDialog() {
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
@@ -31,6 +32,13 @@ function BlueprintArchiveDialog() {
     enabled:
       messageData.isOpen && !!normalizedId && isLoggedIn,
   });
+
+  // Derived rather than fetched: the breakdown is a reshaping of the row already
+  // in hand, so it costs one pass over three segments and no extra request.
+  const statsBreakdown = useMemo(
+    () => mapApiStatsToArchiveBreakdown(data),
+    [data],
+  );
 
   useEffect(() => {
     if (!messageData.isOpen) {
@@ -92,6 +100,7 @@ function BlueprintArchiveDialog() {
         normalizedId={normalizedId}
         isLoading={isLoading}
         data={data}
+        statsBreakdown={statsBreakdown}
       />
     </ContentDialog>
   );
