@@ -4,18 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/alicebob/miniredis/v2"
-	"github.com/redis/go-redis/v9"
+	"eve-industry-planner/testing/redisfake"
 )
 
 func TestStripPassiveViewerOnHolderGrant_removesPromotedSession(t *testing.T) {
-	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("miniredis: %v", err)
-	}
-	defer mr.Close()
-
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	rdb := redisfake.New(t).Client
 	ctx := context.Background()
 	const holder = "sess-holder"
 	const viewer = "sess-viewer"

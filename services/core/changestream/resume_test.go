@@ -6,21 +6,16 @@ import (
 	"testing"
 
 	"eve-industry-planner/core/primaryhandoff"
+	"eve-industry-planner/testing/redisfake"
 
-	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 func TestResumeToken_roundTrip(t *testing.T) {
-	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(mr.Close)
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
+	fake := redisfake.New(t)
+	mr, rdb := fake.Server, fake.Client
 
 	token := bson.Raw([]byte{0x08, 0x00, 0x00, 0x00, 0x0a, 0x00}) // minimal-ish
 	saveResumeToken(context.Background(), rdb, "planner", token)

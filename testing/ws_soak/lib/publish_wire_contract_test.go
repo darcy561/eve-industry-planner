@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"eve-industry-planner/shared/crypto/entityid"
+	"eve-industry-planner/testing/keys"
 	"eve-industry-planner/websocket/server/outgoinglogic"
 )
 
@@ -11,7 +12,7 @@ import (
 // This decodes a published payload with the server's own decoder, so a rename on
 // either side fails here rather than as a silently empty fan-out.
 func TestPublishedFanoutPayloadDecodesAsTheServerReadsIt(t *testing.T) {
-	t.Setenv("ENTITY_ID_KEY", "0123456789abcdef0123456789abcdef")
+	keys.SetEntityID(t)
 
 	corpRef := CorporationRef(98000001)
 	allyRef := AllianceRef(99000001)
@@ -84,7 +85,7 @@ func TestPublishedFanoutPayloadDecodesAsTheServerReadsIt(t *testing.T) {
 // Org routing values on the wire must be refs. A raw id would never match a
 // client's granted refs, so the lane would deliver to nobody.
 func TestPublishedOrgRoutingValuesAreRefs(t *testing.T) {
-	t.Setenv("ENTITY_ID_KEY", "0123456789abcdef0123456789abcdef")
+	keys.SetEntityID(t)
 
 	topo, err := buildFanoutTopology(80, 0, 0, 0)
 	if err != nil {

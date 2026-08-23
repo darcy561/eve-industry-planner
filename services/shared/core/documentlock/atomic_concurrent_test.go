@@ -11,6 +11,8 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
+
+	"eve-industry-planner/testing/redisfake"
 )
 
 // concurrencyTestService builds a Service with Redis only — no JetStream /
@@ -21,7 +23,8 @@ import (
 // forward time / seed state), and a t.Cleanup runs everything.
 func concurrencyTestService(t *testing.T) (*Service, *redis.Client, *miniredis.Miniredis) {
 	t.Helper()
-	rdb, srv := newTestRedis(t)
+	f := redisfake.New(t)
+	rdb, srv := f.Client, f.Server
 	svc := NewService(Deps{Redis: rdb})
 	return svc, rdb, srv
 }

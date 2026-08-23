@@ -1,8 +1,6 @@
 package ratelimiter
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -45,26 +43,6 @@ func createTestGroupLimiter(name string, tokenLimit int, tokenUsed int) *GroupLi
 // createTestESIClient creates an ESIClient for testing
 func createTestESIClient(baseURL string) *ESIClient {
 	return NewESIClient(baseURL, 1.0, 10)
-}
-
-// createMockHTTPServer creates a mock HTTP server for testing
-func createMockHTTPServer(handler func(w http.ResponseWriter, r *http.Request)) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(handler))
-}
-
-// createMockResponse creates a mock HTTP response with rate limit headers
-func createMockResponse(statusCode int, headers map[string]string) *http.Response {
-	resp := &http.Response{
-		StatusCode: statusCode,
-		Header:     make(http.Header),
-		Body:       http.NoBody,
-	}
-
-	for k, v := range headers {
-		resp.Header.Set(k, v)
-	}
-
-	return resp
 }
 
 // addTokenConsumption adds a token consumption to a limiter at a specific time

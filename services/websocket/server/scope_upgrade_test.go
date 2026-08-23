@@ -3,16 +3,13 @@ package server
 import (
 	"testing"
 
-	"eve-industry-planner/shared/crypto/entityid"
+	"eve-industry-planner/testing/keys"
 )
 
 // A client asks for scopes by id; grants and indexes hold refs. Conversion happens
 // at this boundary, so a raw id must never be compared against a grant.
 func TestScopeUpgradeConvertsRequestedIDsToRefs(t *testing.T) {
-	h, err := entityid.New([]byte("0123456789abcdef0123456789abcdef"))
-	if err != nil {
-		t.Fatalf("entityid.New: %v", err)
-	}
+	h := keys.EntityCipher(t)
 	corpRef, err := h.Corporation(10)
 	if err != nil {
 		t.Fatalf("RefFromCorporationID: %v", err)
@@ -35,10 +32,7 @@ func TestScopeUpgradeConvertsRequestedIDsToRefs(t *testing.T) {
 
 // An id outside the grant ceiling must still be refused after conversion.
 func TestScopeUpgradeStillHonoursTheGrantCeiling(t *testing.T) {
-	h, err := entityid.New([]byte("0123456789abcdef0123456789abcdef"))
-	if err != nil {
-		t.Fatalf("entityid.New: %v", err)
-	}
+	h := keys.EntityCipher(t)
 	granted, err := h.Corporation(10)
 	if err != nil {
 		t.Fatalf("RefFromCorporationID: %v", err)
@@ -59,10 +53,7 @@ func TestScopeUpgradeStillHonoursTheGrantCeiling(t *testing.T) {
 // Malformed input must be dropped rather than compared raw, which would let a
 // client's own string sneak into a grant comparison.
 func TestScopeUpgradeDropsMalformedIDs(t *testing.T) {
-	h, err := entityid.New([]byte("0123456789abcdef0123456789abcdef"))
-	if err != nil {
-		t.Fatalf("entityid.New: %v", err)
-	}
+	h := keys.EntityCipher(t)
 	s := &Server{entityCipher: h, corpRefToClients: map[string]map[string]bool{}, allianceRefToClients: map[string]map[string]bool{}}
 	client := &Client{
 		id:                  "c1",

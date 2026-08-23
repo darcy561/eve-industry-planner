@@ -1,8 +1,11 @@
 package sdecache
 
 import (
+	"fmt"
 	"testing"
 	"time"
+
+	"eve-industry-planner/testing/wait"
 
 	objectstore "eve-industry-planner/shared/core/objectstore"
 )
@@ -21,19 +24,12 @@ func waitCacheReady(t *testing.T, timeout time.Duration) {
 
 func waitCacheVersion(t *testing.T, want string, timeout time.Duration) {
 	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
+	wait.For(t, timeout, func() (bool, string) {
 		cacheMu.RLock()
 		got := cacheVer
-		ready := IsReady()
 		cacheMu.RUnlock()
-		if ready && got == want {
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	cacheMu.RLock()
-	got := cacheVer
-	cacheMu.RUnlock()
-	t.Fatalf("cache version want %q got %q (ready=%v) within %s", want, got, IsReady(), timeout)
+		ready := IsReady()
+		return ready && got == want,
+			fmt.Sprintf("cache version want %q got %q (ready=%v)", want, got, ready)
+	})
 }

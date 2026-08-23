@@ -4,12 +4,14 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"eve-industry-planner/testing/redisfake"
 )
 
 func TestCleanupOrphanSessionIndexes(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const accountID = "acct-orphan-cleanup"
 	if err := SaveAccountSessionsRecord(ctx, rdb, &AccountSessionsRecord{
@@ -54,7 +56,7 @@ func TestCleanupOrphanSessionIndexes(t *testing.T) {
 func TestCleanupOrphanRefreshTokens(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const (
 		accountID = "acct-orphan-refresh"
@@ -98,7 +100,7 @@ func TestCleanupOrphanRefreshTokens(t *testing.T) {
 func TestRunAuthSessionMaintenance_Integrated(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const accountID = "acct-maint-integrated"
 	if err := rdb.Set(ctx, sessionIndexKey("idx-maint"), accountID, SessionTTL).Err(); err != nil {

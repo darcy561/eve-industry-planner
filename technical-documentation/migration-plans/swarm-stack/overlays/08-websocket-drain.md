@@ -13,7 +13,7 @@
 | Soft divert / hard cutoff | `target_clients` → `WS_TARGET_CLIENTS`; `client_cutoff` → `WS_CLIENT_CUTOFF` via `eip sync` |
 | Placement flags | NATS `PlacementState` + `GET /placement` (**#2** — not Redis keys) |
 | Hosted-tenant query view | In-process `HostedTenants` / `HostsTenant` only — **no** Redis hosting mirror |
-| Soak evidence | `services/testing/ws_soak` hold + limits (observe via `connected.container_id` + NATS) |
+| Soak evidence | `testing/ws_soak` hold + limits (observe via `connected.container_id` + NATS) |
 
 **History:** Early #8 drafts assumed Redis placement flags; **#2** cut over to memory place + NATS. Prefer live SoT above.
 

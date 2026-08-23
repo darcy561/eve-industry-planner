@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"eve-industry-planner/testing/harness"
+	"eve-industry-planner/testing/wait"
 )
 
 func waitReplicas(ctx context.Context, every, reportEvery time.Duration, label string, get func(context.Context) (Shape, error), ok func(Shape) bool, alive func() error) (Shape, error) {
 	var last Shape
-	err := harness.PollUntil(ctx, harness.PollOptions{
+	err := wait.Until(ctx, wait.Options{
 		Every:       every,
 		ReportEvery: reportEvery,
 		Alive:       alive,
@@ -31,7 +31,7 @@ func waitReplicas(ctx context.Context, every, reportEvery time.Duration, label s
 
 func waitWebsocketClients(ctx context.Context, obs *Observer, every, reportEvery time.Duration, label string, need int, atLeast bool, alive func() error) (ClientCensus, error) {
 	var last ClientCensus
-	err := harness.PollUntil(ctx, harness.PollOptions{
+	err := wait.Until(ctx, wait.Options{
 		Every:       every,
 		ReportEvery: reportEvery,
 		Alive:       alive,

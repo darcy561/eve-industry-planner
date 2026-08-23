@@ -1,6 +1,6 @@
 module eve-industry-planner
 
-go 1.26.5
+go 1.27.0
 
 require (
 	cloud.google.com/go/firestore v1.24.0
@@ -137,3 +137,7 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/ini.v1 v1.67.3 // indirect
 )
+
+require eve-industry-planner/testing v0.0.0
+
+replace eve-industry-planner/testing => ../testing

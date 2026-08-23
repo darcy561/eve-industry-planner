@@ -6,7 +6,7 @@
 **Code anchors:**
 - [`services/websocket/server/drain.go`](../../../../services/websocket/server/drain.go) — `DrainForRoll`, force-close
 - [`services/websocket/server/placement_flags.go`](../../../../services/websocket/server/placement_flags.go) — publish `draining`
-- Client / soak: `please_reconnect` in [`services/testing/ws_soak/lib`](../../../../services/testing/ws_soak/lib) (CLI: [`testing/ws_soak`](../../../../services/testing/ws_soak))
+- Client / soak: `please_reconnect` in [`testing/ws_soak/lib`](../../../../testing/ws_soak/lib) (CLI: [`testing/ws_soak`](../../../../testing/ws_soak))
 
 **History:** Redis drain PUBLISH / cordon-key watchers were retired under #2. Roll drain is local SIGTERM + NATS `draining`. Armed evacuate ops → **#21 / #18**.
 

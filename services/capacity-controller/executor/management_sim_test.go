@@ -9,7 +9,7 @@ import (
 	"eve-industry-planner/capacity-controller/config"
 	"eve-industry-planner/capacity-controller/executor"
 	"eve-industry-planner/capacity-controller/policy"
-	"eve-industry-planner/testing/capacity_controller/clusterfake"
+	"eve-industry-planner/capacity-controller/cluster/clusterfake"
 )
 
 // Management drill without Swarm: underutilized WS → cordon → drain → scale.

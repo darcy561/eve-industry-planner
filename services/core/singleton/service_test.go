@@ -3,29 +3,19 @@ package singleton
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 
 	"eve-industry-planner/shared/core/redis/lease"
+	"eve-industry-planner/testing/redisfake"
+	"eve-industry-planner/testing/wait"
 )
-
-func newTestRedis(t *testing.T) (*redis.Client, *miniredis.Miniredis) {
-	t.Helper()
-	srv, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("miniredis.Run: %v", err)
-	}
-	t.Cleanup(func() { srv.Close() })
-	rdb := redis.NewClient(&redis.Options{Addr: srv.Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
-	return rdb, srv
-}
 
 type silentLogger struct{}
 
@@ -46,7 +36,7 @@ func fastOpts() lease.Options {
 // scoped context.
 func TestStartService_RunsAllRegisteredJobs(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	var aCount, bCount atomic.Int32
 	aEntered := make(chan struct{}, 1)
@@ -98,7 +88,7 @@ func TestStartService_RunsAllRegisteredJobs(t *testing.T) {
 // replicas) and asserts only one of them runs the Job at any moment.
 func TestStartService_OnlyOneLeaderPerJob(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	var (
 		mu          sync.Mutex
@@ -157,7 +147,7 @@ func TestStartService_OnlyOneLeaderPerJob(t *testing.T) {
 // every Job and waits for every goroutine to exit before returning.
 func TestStartService_StopDrainsAllJobs(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	var aExited, bExited atomic.Bool
 
@@ -204,7 +194,7 @@ func TestStartService_StopDrainsAllJobs(t *testing.T) {
 // transient error gets re-invoked (no permanent stop on bad luck).
 func TestStartService_TransientErrorIsRecovered(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	var calls atomic.Int32
 	stop, err := StartService(rdb, Job{
@@ -225,20 +215,17 @@ func TestStartService_TransientErrorIsRecovered(t *testing.T) {
 	}
 	defer stop()
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) && calls.Load() < 2 {
-		time.Sleep(20 * time.Millisecond)
-	}
-	if calls.Load() < 2 {
-		t.Fatalf("expected Job.Run to be re-invoked after error, got %d calls", calls.Load())
-	}
+	wait.For(t, 2*time.Second, func() (bool, string) {
+		return calls.Load() >= 2,
+			fmt.Sprintf("expected Job.Run to be re-invoked after error, got %d calls", calls.Load())
+	})
 }
 
 // TestStartService_ValidationErrors covers all config-error paths so
 // programmer mistakes fail loudly at startup.
 func TestStartService_ValidationErrors(t *testing.T) {
 	t.Parallel()
-	rdb, _ := newTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	noop := func(context.Context) error { return nil }
 

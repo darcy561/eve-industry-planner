@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"eve-industry-planner/testing/redisfake"
 )
 
 func TestAuthSessionFailureDetail_ClientFailureDetail(t *testing.T) {
@@ -70,7 +72,7 @@ func TestExtractAccountSession_MissingCookieIncludesReason(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 	req := newSessionCookieRequest("")
 	_, err := ExtractAccountSession(ctx, req, rdb)
 	if err == nil {
@@ -91,7 +93,7 @@ func TestExtractAccountSession_MissingCookieIncludesReason(t *testing.T) {
 func TestExtractAccountSession_OrphanIndexIncludesAccountAndSession(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const (
 		accountID = "acct-extract-orphan-detail"

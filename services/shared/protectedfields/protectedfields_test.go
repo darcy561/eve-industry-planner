@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"eve-industry-planner/shared/crypto/entityid"
+	"eve-industry-planner/testing/keys"
 )
 
 type doc struct {
@@ -27,20 +28,11 @@ var testDecl = Declaration[doc]{
 	},
 }
 
-func testHelper(t *testing.T) *entityid.Cipher {
-	t.Helper()
-	h, err := entityid.New([]byte("0123456789abcdef0123456789abcdef"))
-	if err != nil {
-		t.Fatalf("entityid.New: %v", err)
-	}
-	return h
-}
-
 // All three entity kinds must convert, including alliance, which has no
 // declaration using it yet.
 func TestToRefsCoversEveryKind(t *testing.T) {
 	d := &doc{CorpID: 98765432, CharID: 91234567, AllyID: 99000001}
-	if err := Encrypt(testDecl, d, testHelper(t)); err != nil {
+	if err := Encrypt(testDecl, d, keys.EntityCipher(t)); err != nil {
 		t.Fatalf("ToRefs: %v", err)
 	}
 
@@ -66,7 +58,7 @@ func TestToRefsCoversEveryKind(t *testing.T) {
 // declaration exists, and worth failing loudly about if that ever changes.
 func TestUndeclaredFieldsAreUntouched(t *testing.T) {
 	d := &doc{CorpID: 1, Untagged: 42}
-	if err := Encrypt(testDecl, d, testHelper(t)); err != nil {
+	if err := Encrypt(testDecl, d, keys.EntityCipher(t)); err != nil {
 		t.Fatalf("ToRefs: %v", err)
 	}
 	if d.Untagged != 42 {
@@ -76,14 +68,14 @@ func TestUndeclaredFieldsAreUntouched(t *testing.T) {
 
 func TestToRefsRejectsAnUnknownSpec(t *testing.T) {
 	bad := Declaration[doc]{Spec: "nope", Targets: testDecl.Targets}
-	if err := Encrypt(bad, &doc{CorpID: 1}, testHelper(t)); err == nil {
+	if err := Encrypt(bad, &doc{CorpID: 1}, keys.EntityCipher(t)); err == nil {
 		t.Fatal("expected an error for an unallocated spec")
 	}
 }
 
 // RefsForIDs is the query direction: hand it ids, compare the refs it returns.
 func TestRefsForIDsMatchesConversion(t *testing.T) {
-	h := testHelper(t)
+	h := keys.EntityCipher(t)
 
 	d := &doc{CorpID: 98765432}
 	if err := Encrypt(testDecl, d, h); err != nil {

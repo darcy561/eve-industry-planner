@@ -1,15 +1,7 @@
 # syntax=docker/dockerfile:1.4
-FROM golang:1.26.5-alpine AS builder
+FROM golang:1.27.0-alpine AS builder
 
 WORKDIR /app
-
-# Copy module files first for better layer caching
-COPY go.mod go.sum ./
-
-# Download dependencies with BuildKit cache mount for faster builds
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go mod download
 
 # Copy source code
 COPY . .

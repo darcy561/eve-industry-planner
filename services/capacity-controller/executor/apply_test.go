@@ -6,7 +6,7 @@ import (
 
 	"eve-industry-planner/capacity-controller/cluster"
 	"eve-industry-planner/capacity-controller/executor"
-	"eve-industry-planner/testing/capacity_controller/clusterfake"
+	"eve-industry-planner/capacity-controller/cluster/clusterfake"
 )
 
 func TestScale_managed(t *testing.T) {

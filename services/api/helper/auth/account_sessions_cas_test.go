@@ -3,6 +3,8 @@ package auth
 import (
 	"context"
 	"eve-industry-planner/shared/crypto/entityid"
+	"eve-industry-planner/testing/keys"
+	"eve-industry-planner/testing/redisfake"
 	"strings"
 	"sync"
 	"testing"
@@ -12,7 +14,7 @@ import (
 func TestSaveAccountSessionsRecord_CASRejectsStaleWrite(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const accountID = "acct-cas-stale"
 	now := time.Now().UTC()
@@ -32,7 +34,7 @@ func TestSaveAccountSessionsRecord_CASRejectsStaleWrite(t *testing.T) {
 	}
 	staleCAS := accountSessionsCASFromRecord(loaded, exists)
 
-	if err := UpdateAccountSessionGrants(ctx, rdb, testEntityCipher(t), accountID, []int64{1}, nil); err != nil {
+	if err := UpdateAccountSessionGrants(ctx, rdb, keys.EntityCipher(t), accountID, []int64{1}, nil); err != nil {
 		t.Fatalf("grants bump: %v", err)
 	}
 
@@ -65,7 +67,7 @@ func TestSaveAccountSessionsRecord_CASRejectsStaleWrite(t *testing.T) {
 func TestConcurrentGrantsUpdatesAreNotLost(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const (
 		accountID = "acct-cas-lost-update"
@@ -93,7 +95,7 @@ func TestConcurrentGrantsUpdatesAreNotLost(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				<-start
-				errCh <- UpdateAccountSessionGrants(ctx, rdb, testEntityCipher(t), accountID, []int64{corp}, nil)
+				errCh <- UpdateAccountSessionGrants(ctx, rdb, keys.EntityCipher(t), accountID, []int64{corp}, nil)
 			}()
 		}
 
@@ -120,7 +122,7 @@ func TestConcurrentGrantsUpdatesAreNotLost(t *testing.T) {
 func TestConcurrentUpsertAndGrantsPreservesSession(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const (
 		accountID = "acct-cas-concurrent"
@@ -146,7 +148,7 @@ func TestConcurrentUpsertAndGrantsPreservesSession(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		time.Sleep(2 * time.Millisecond)
-		errCh <- UpdateAccountSessionGrants(ctx, rdb, testEntityCipher(t), accountID, []int64{100}, []int64{200})
+		errCh <- UpdateAccountSessionGrants(ctx, rdb, keys.EntityCipher(t), accountID, []int64{100}, []int64{200})
 	}()
 
 	wg.Wait()
@@ -181,18 +183,9 @@ func TestConcurrentUpsertAndGrantsPreservesSession(t *testing.T) {
 	}
 }
 
-func testEntityCipher(t *testing.T) *entityid.Cipher {
-	t.Helper()
-	h, err := entityid.New([]byte("0123456789abcdef0123456789abcdef"))
-	if err != nil {
-		t.Fatalf("entityid.New: %v", err)
-	}
-	return h
-}
-
 func testCorpRef(t *testing.T, id int64) string {
 	t.Helper()
-	r, err := testEntityCipher(t).Corporation(id)
+	r, err := keys.EntityCipher(t).Corporation(id)
 	if err != nil {
 		t.Fatalf("RefFromCorporationID: %v", err)
 	}
@@ -201,7 +194,7 @@ func testCorpRef(t *testing.T, id int64) string {
 
 func testAllianceRef(t *testing.T, id int64) string {
 	t.Helper()
-	r, err := testEntityCipher(t).Alliance(id)
+	r, err := keys.EntityCipher(t).Alliance(id)
 	if err != nil {
 		t.Fatalf("RefFromAllianceID: %v", err)
 	}
@@ -211,10 +204,10 @@ func testAllianceRef(t *testing.T, id int64) string {
 // Grants must never persist a raw entity id: the ref is what is stored.
 func TestSessionGrantsStoreRefsNotIDs(t *testing.T) {
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const accountID = "acct-refs"
-	if err := UpdateAccountSessionGrants(ctx, rdb, testEntityCipher(t), accountID, []int64{98765432}, []int64{99000001}); err != nil {
+	if err := UpdateAccountSessionGrants(ctx, rdb, keys.EntityCipher(t), accountID, []int64{98765432}, []int64{99000001}); err != nil {
 		t.Fatalf("UpdateAccountSessionGrants: %v", err)
 	}
 

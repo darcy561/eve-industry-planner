@@ -7,6 +7,7 @@ import (
 
 	"eve-industry-planner/shared/jobidentity"
 	"eve-industry-planner/shared/models"
+	"eve-industry-planner/testing/keys"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -19,7 +20,7 @@ import (
 // from the stored bson key. This asserts the derivation lands on the tag.
 func TestClientPayloadKeysMatchTheAPIResponse(t *testing.T) {
 	t.Parallel()
-	cipher := testCipher(t)
+	cipher := keys.EntityCipher(t)
 
 	job := &models.Job{JobID: "job-1"}
 	job.Build.Sale.Transactions = []models.Transaction{{TransactionID: 77, CorporationID: 98765432, CharacterID: 91234567}}

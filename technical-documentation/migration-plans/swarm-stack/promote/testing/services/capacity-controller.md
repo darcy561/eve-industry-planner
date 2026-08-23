@@ -48,9 +48,9 @@ go test ./testing/capacity_soak/lib/
 
 ## Ops soak
 
-`services/testing/capacity_soak` (`main.go` + `lib` / `capsoak`) against `eip up` / `eip dev` with capacity-controller running and **`capacity_controller_managed: true`** for the role under test.
+`testing/capacity_soak` (`main.go` + `lib` / `capsoak`) against `eip up` / `eip dev` with capacity-controller running and **`capacity_controller_managed: true`** for the role under test.
 
-Shared: [`testing/harness`](../../../services/testing/harness) (NATS / poll / Asynq Redis). WS clients: soaklib `ProfileHold` with **`Accounts == Clients`** (one account per connection — avoids per-user session cap pile-up).
+Shared: [`testing/harness`](../../../testing/harness) (NATS / poll / Asynq Redis). WS clients: soaklib `ProfileHold` with **`Accounts == Clients`** (one account per connection — avoids per-user session cap pile-up).
 
 ### Prerequisites
 
@@ -108,7 +108,7 @@ Default `-ws-url` is `ws://traefik:80/ws`. Auto `-ramp` (~25ms/client) and `-min
 
 **Ops evidence:** managed websocket `-phase all` scale-up + scale-down verified on live stack (use lowered demo `target_clients` for the run).
 
-Shared conventions → [../harness.md](../harness.md) § Capacity soak. CLI header → `services/testing/capacity_soak/main.go`. Behaviour → [stack capacity-controller](../../stack/capacity-controller.md).
+Shared conventions → [../harness.md](../harness.md) § Capacity soak. CLI header → `testing/capacity_soak/main.go`. Behaviour → [stack capacity-controller](../../stack/capacity-controller.md).
 
 ## Topic-only detail
 

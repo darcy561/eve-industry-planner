@@ -50,7 +50,7 @@ go test ./websocket/server/ -count=1 -run Integration
 
 ## Ops soak (not CI)
 
-`services/testing/ws_soak` (`main.go` + library `lib` / `soaklib`) against `eip up` / `eip dev` on docker network `eip-core`.
+`testing/ws_soak` (`main.go` + library `lib` / `soaklib`) against `eip up` / `eip dev` on docker network `eip-core`.
 
 **Default path:** `-ws-url ws://traefik:80/ws` → Traefik → ws-router → websocket (same as browsers). Bypass router-only: `-ws-url ws://ws-router:8080/ws`. Redis is used only to seed sessions.
 
@@ -83,7 +83,7 @@ docker run --rm --network eip-core --env-file ../.env \
 | `wrong` / `dup` / `offline_hit` | Exact-delivery failures (pass requires all zero) |
 | Drain timeout | Soft-stop waited for pending=0; high rate can leave soak-side lag with capacity still healthy |
 
-Shared conventions → [../harness.md](../harness.md). CLI comments → `services/testing/ws_soak/main.go`. Pressure / limits need lowered thresholds via `eip sync` and ≥2 websocket replicas; restore prod thresholds after. Fanout needs live JetStream `doc-update-stream`.
+Shared conventions → [../harness.md](../harness.md). CLI comments → `testing/ws_soak/main.go`. Pressure / limits need lowered thresholds via `eip sync` and ≥2 websocket replicas; restore prod thresholds after. Fanout needs live JetStream `doc-update-stream`.
 
 **Dev profiling:** websocket `:19100/debug/pprof/*` when `ENVIRONMENT=development` — [backend websocket.md](../../backend/websocket/websocket.md) § Health. Off on live.
 

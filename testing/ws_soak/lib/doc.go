@@ -3,7 +3,7 @@
 // and fanout (JetStream → WS). Reusable from other testing harnesses via
 // eve-industry-planner/testing/ws_soak/lib.
 //
-// CLI: go build -o ../.tmp/ws_soak ./testing/ws_soak
-// Tests: go test ./testing/ws_soak/lib/...
+// CLI: go build -o ../.tmp/ws_soak ./ws_soak
+// Tests: go test ./ws_soak/lib/...
 
 package soaklib

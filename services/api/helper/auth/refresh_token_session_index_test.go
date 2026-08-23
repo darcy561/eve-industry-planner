@@ -6,8 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
-	"github.com/redis/go-redis/v9"
+	"eve-industry-planner/testing/redisfake"
 )
 
 func newSessionCookieRequest(sessionID string) *http.Request {
@@ -16,22 +15,10 @@ func newSessionCookieRequest(sessionID string) *http.Request {
 	return r
 }
 
-func newAuthTestRedis(t *testing.T) (*redis.Client, *miniredis.Miniredis) {
-	t.Helper()
-	srv, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("miniredis.Run: %v", err)
-	}
-	t.Cleanup(func() { srv.Close() })
-	rdb := redis.NewClient(&redis.Options{Addr: srv.Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
-	return rdb, srv
-}
-
 func TestGetAccountSessionsRecord_PruneDeletesSessionIndex(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const (
 		accountID = "acct-prune-index"
@@ -80,7 +67,7 @@ func TestGetAccountSessionsRecord_PruneDeletesSessionIndex(t *testing.T) {
 func TestResolveAccountSessionBySessionID_ClearsOrphanIndex(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const (
 		accountID = "acct-orphan-index"
@@ -117,7 +104,7 @@ func TestResolveAccountSessionBySessionID_ClearsOrphanIndex(t *testing.T) {
 func TestRevokeAccountSession_DeletesSessionIndex(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const (
 		accountID = "acct-revoke-index"
@@ -149,7 +136,7 @@ func TestRevokeAccountSession_DeletesSessionIndex(t *testing.T) {
 func TestExtractAccountSession_OrphanIndexReturnsSessionMissing(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	rdb, _ := newAuthTestRedis(t)
+	rdb := redisfake.New(t).Client
 
 	const (
 		accountID = "acct-extract-orphan"

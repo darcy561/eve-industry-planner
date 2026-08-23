@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/documentlock"
+	"eve-industry-planner/testing/wait"
 	"eve-industry-planner/websocket/server/doclocklogic"
 )
 
@@ -54,32 +55,20 @@ func TestIntegrationDocLockViewerArrivedAndDeparted(t *testing.T) {
 		"collection": collection,
 		"docID":      docID,
 	})
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
+	wait.For(t, 2*time.Second, func() (bool, string) {
 		n, err := f.Redis.ZScore(context.Background(), viewersKey, sessionID).Result()
-		if err == nil && n > 0 {
-			break
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	if _, err := f.Redis.ZScore(context.Background(), viewersKey, sessionID).Result(); err != nil {
-		t.Fatalf("viewer not in set: %v", err)
-	}
+		return err == nil && n > 0, fmt.Sprintf("viewer not in set: score=%v err=%v", n, err)
+	})
 
 	f.writeJSON(conn, map[string]any{
 		"type":       doclocklogic.MsgViewerDeparted,
 		"collection": collection,
 		"docID":      docID,
 	})
-	deadline = time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
+	wait.For(t, 2*time.Second, func() (bool, string) {
 		err := f.Redis.ZScore(context.Background(), viewersKey, sessionID).Err()
-		if err != nil {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Fatal("viewer still in set after departed")
+		return err != nil, "viewer still in set after departed"
+	})
 }
 
 func TestIntegrationDocLockLockStateBatchAckOK(t *testing.T) {
