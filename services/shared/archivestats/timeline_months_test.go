@@ -154,6 +154,63 @@ func TestRowsCombineIntoSharedBuckets(t *testing.T) {
 
 // Extra-category totals merge across jobs sharing a bucket, and the fold must not
 // hand back a map any row still owns.
+// Extras follow the job's costs, not its sales. A job archived in one month and
+// sold in the next must report its extras against the month the money was spent,
+// or a category's monthly spend drifts to whenever the output happened to sell.
+func TestExtraCategoryTotalsLandInTheCostMonth(t *testing.T) {
+	t.Parallel()
+
+	row := statsRow(34, month(2026, 1))
+	row.ExtraCategoryTotals = map[string]float64{"1": 42, "3": 8}
+	row.TransactionLines = []models.ArchivedJobTransactionLine{txLine(month(2026, 2), 5, 900, 10)}
+
+	buckets := AccumulateAccountBuckets([]models.ArchivedJobStats{row})
+
+	cost := buckets[BucketKey{TypeID: 34, CalendarMonth: month(2026, 1)}]
+	if cost.ExtraCategoryTotals["1"] != 42 || cost.ExtraCategoryTotals["3"] != 8 {
+		t.Fatalf("cost month extras = %v, want the job's categories", cost.ExtraCategoryTotals)
+	}
+
+	sale := buckets[BucketKey{TypeID: 34, CalendarMonth: month(2026, 2)}]
+	if len(sale.ExtraCategoryTotals) != 0 {
+		t.Fatalf("sale month extras = %v, want none — the spend happened in January", sale.ExtraCategoryTotals)
+	}
+}
+
+// Several jobs sharing a month must have their categories summed rather than the
+// last one written winning, and a category only one job used must survive.
+func TestExtraCategoryTotalsSumAcrossJobsInAMonth(t *testing.T) {
+	t.Parallel()
+
+	first := statsRow(34, month(2026, 1))
+	first.ExtraCategoryTotals = map[string]float64{"1": 40, "0": 2}
+	second := statsRow(34, month(2026, 1))
+	second.ExtraCategoryTotals = map[string]float64{"1": 10, "5": 7}
+
+	buckets := AccumulateAccountBuckets([]models.ArchivedJobStats{first, second})
+	got := buckets[BucketKey{TypeID: 34, CalendarMonth: month(2026, 1)}].ExtraCategoryTotals
+
+	if got["1"] != 50 {
+		t.Fatalf("shared category = %v, want 50 — both jobs used it", got["1"])
+	}
+	if got["0"] != 2 || got["5"] != 7 {
+		t.Fatalf("extras = %v, want each job's own category kept", got)
+	}
+}
+
+// A job with no extras must leave the month's map absent rather than empty, so
+// the field stays omitted on the wire instead of serialising as {}.
+func TestMonthWithoutExtrasCarriesNoCategoryMap(t *testing.T) {
+	t.Parallel()
+
+	buckets := AccumulateAccountBuckets([]models.ArchivedJobStats{statsRow(34, month(2026, 1))})
+	got := buckets[BucketKey{TypeID: 34, CalendarMonth: month(2026, 1)}]
+
+	if len(got.ExtraCategoryTotals) != 0 {
+		t.Fatalf("extras = %v, want none", got.ExtraCategoryTotals)
+	}
+}
+
 func TestExtraCategoryTotalsMergeWithoutAliasing(t *testing.T) {
 	t.Parallel()
 
