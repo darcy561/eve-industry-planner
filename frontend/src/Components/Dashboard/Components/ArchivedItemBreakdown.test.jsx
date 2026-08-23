@@ -77,7 +77,7 @@ describe("ArchivedItemBreakdown", () => {
     });
 
     fireEvent.mouseDown(screen.getByRole("combobox"));
-    fireEvent.click(screen.getByRole("option", { name: "Total cost" }));
+    fireEvent.click(screen.getByRole("option", { name: "Total Cost" }));
 
     await waitFor(() => {
       const latest = useAccountTimelineItemsQuery.mock.calls.at(-1)[0];
@@ -85,37 +85,56 @@ describe("ArchivedItemBreakdown", () => {
     });
   });
 
+  // Two lengths, not a growing list: the toggle asks the server for ten rows and
+  // back again rather than accumulating.
+  it("toggles between five and ten rows", async () => {
+    useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems, 40));
+
+    render(<ArchivedItemBreakdown />);
+    expect(useAccountTimelineItemsQuery.mock.calls[0][0].limit).toBe(5);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show top 10" }));
+    await waitFor(() => {
+      expect(useAccountTimelineItemsQuery.mock.calls.at(-1)[0].limit).toBe(10);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Show top 5" }));
+    await waitFor(() => {
+      expect(useAccountTimelineItemsQuery.mock.calls.at(-1)[0].limit).toBe(5);
+    });
+  });
+
   // A new ranking is a new list, so an expansion made against the old order
   // should not carry over.
-  it("collapses back to one page when the ranking changes", async () => {
+  it("collapses when the ranking changes", async () => {
     useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems, 40));
 
     render(<ArchivedItemBreakdown />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Show more/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Show top 10" }));
     await waitFor(() => {
       expect(useAccountTimelineItemsQuery.mock.calls.at(-1)[0].limit).toBe(10);
     });
 
     fireEvent.mouseDown(screen.getByRole("combobox"));
-    fireEvent.click(screen.getByRole("option", { name: "Total cost" }));
+    fireEvent.click(screen.getByRole("option", { name: "Total Cost" }));
 
     await waitFor(() => {
       expect(useAccountTimelineItemsQuery.mock.calls.at(-1)[0].limit).toBe(5);
     });
   });
 
-  // totalItems counts every item type in the window, not the page, so it is what
-  // decides whether more remain.
-  it("offers more rows only while the window holds them", async () => {
+  // totalItems counts every item type in the window, so it decides whether an
+  // expansion would show anything the collapsed table does not.
+  it("offers the longer view only when the window holds more than five items", () => {
     useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems, 40));
     const { unmount } = render(<ArchivedItemBreakdown />);
-    expect(screen.getByRole("button", { name: /Show more/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show top 10" })).toBeInTheDocument();
     unmount();
 
-    useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems, 2));
+    useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems, 5));
     render(<ArchivedItemBreakdown />);
-    expect(screen.queryByRole("button", { name: /Show more/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Show top/ })).not.toBeInTheDocument();
   });
 
   // A dashboard glance, not an analysis tool: two rankings and five rows. More
@@ -127,10 +146,10 @@ describe("ArchivedItemBreakdown", () => {
     fireEvent.mouseDown(screen.getByRole("combobox"));
 
     const options = screen.getAllByRole("option").map((o) => o.textContent);
-    expect(options).toEqual(["Total profit", "Total cost"]);
+    expect(options).toEqual(["Total Profit", "Total Cost"]);
   });
 
-  it("asks for five rows at a time", () => {
+  it("starts at five rows", () => {
     useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems, 40));
 
     render(<ArchivedItemBreakdown />);

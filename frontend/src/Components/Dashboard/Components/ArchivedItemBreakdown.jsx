@@ -28,8 +28,15 @@ import {
 import { getFullItemList } from "../../../Functions/Helper/getCachedData";
 import { useAccountTimelineItemsQuery } from "../../../Hooks/React Query/Backend/statisticsTimeline";
 
-/** How many rows the table shows before "Show more". */
-const PAGE_SIZE = 5;
+/**
+ * The two lengths this table has.
+ *
+ * A fixed toggle rather than a growing list: a dashboard tile that can keep
+ * expanding competes with the panels beneath it, and a reader wanting the whole
+ * ranking is asking for a different view rather than a longer tile.
+ */
+const ROWS_COLLAPSED = 5;
+const ROWS_EXPANDED = 10;
 
 /**
  * Measures a reader can rank by.
@@ -43,8 +50,8 @@ const PAGE_SIZE = 5;
  * before a page can be taken, which a page of rows cannot do.
  */
 const SORT_OPTIONS = [
-  { value: "profitLoss", label: "Total profit" },
-  { value: "jobCostTotal", label: "Total cost" },
+  { value: "profitLoss", label: "Total Profit" },
+  { value: "jobCostTotal", label: "Total Cost" },
 ];
 
 /**
@@ -96,7 +103,7 @@ function Money({ value }) {
 }
 
 function LoadingRows() {
-  return Array.from({ length: PAGE_SIZE }, (_, i) => (
+  return Array.from({ length: ROWS_COLLAPSED }, (_, i) => (
     <TableRow key={i}>
       <TableCell><Skeleton width="70%" /></TableCell>
       <TableCell align="right"><Skeleton width="50%" /></TableCell>
@@ -113,21 +120,22 @@ function LoadingRows() {
  * one before — so the rows explain the totals rather than describing a different
  * period.
  *
- * Ranking and paging happen on the server. `limit` grows rather than stepping
- * through pages: a reader following the biggest earners wants more of the same
- * list, not to lose sight of the top of it.
+ * Ranking and paging happen on the server; the toggle changes how many rows are
+ * asked for rather than slicing a list already fetched.
  */
 export function ArchivedItemBreakdown() {
   const theme = useTheme();
   const [sort, setSort] = useState("profitLoss");
-  const [limit, setLimit] = useState(PAGE_SIZE);
+  const [expanded, setExpanded] = useState(false);
+  const limit = expanded ? ROWS_EXPANDED : ROWS_COLLAPSED;
 
   const { data, isLoading } = useAccountTimelineItemsQuery({ sort, limit });
 
   const items = useMemo(() => data?.items ?? [], [data]);
   const names = useItemNames(items);
   const totalItems = data?.paging?.totalItems ?? 0;
-  const hasMore = items.length < totalItems;
+  // Offered only when there are rows the collapsed table is not already showing.
+  const canExpand = totalItems > ROWS_COLLAPSED;
 
   return (
     <Paper variant="outlined" sx={{ ...appShellSetupSectionPaperSx, p: 2 }}>
@@ -154,7 +162,7 @@ export function ArchivedItemBreakdown() {
                 setSort(String(e.target.value));
                 // A new ranking is a new list, so start it from the top rather
                 // than keeping an expansion that referred to the old order.
-                setLimit(PAGE_SIZE);
+                setExpanded(false);
               }}
               MenuProps={getAppShellSelectMenuProps(theme)}
             >
@@ -213,14 +221,14 @@ export function ArchivedItemBreakdown() {
         </TableBody>
       </Table>
 
-      {hasMore && (
+      {canExpand && (
         <Grid container sx={{ justifyContent: "center", mt: 1 }}>
           <Button
             size="small"
-            onClick={() => setLimit((current) => current + PAGE_SIZE)}
+            onClick={() => setExpanded((current) => !current)}
             disabled={isLoading}
           >
-            {`Show more (${items.length} of ${totalItems})`}
+            {expanded ? `Show top ${ROWS_COLLAPSED}` : `Show top ${ROWS_EXPANDED}`}
           </Button>
         </Grid>
       )}
