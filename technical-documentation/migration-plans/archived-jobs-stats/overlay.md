@@ -322,6 +322,41 @@ covers materials, install and extras, so invention is the only component to add.
 and extras totals; that bug is not carried over, and `TestJobCostCountsInstallAndExtrasOnce` names
 the reason.
 
+**Which segment a job belongs to.** The breakdown on a lifetime totals row partitions a type's jobs
+three ways, and a job is credited to exactly one — crediting two would count it twice inside a single
+document. The order is: a production-chain step, then an explicit `retainedStockBuild` mark, then a
+job with recorded market activity, and anything left over is stock.
+
+Market is decided on **evidence**, not by elimination. It was decided by elimination — a job was
+Market whenever it was neither a chain step nor flagged — and since nothing writes
+`retainedStockBuild`, the Stock segment was permanently empty and every non-chain job reported as
+Market, including builds that never sold. A job with 200 items built and no sale showed zeros for
+sales, fees and profit beside a six-figure job cost.
+
+Market activity is either a sale or a broker fee:
+
+- A sale is a **transaction line whoever wrote it**. ESI supplies market transactions; a contract or
+  other off-market sale is entered by hand through the SPA's custom-transaction dialogue, carrying
+  the same quantity, amount and tax, distinguished only by a negative transaction id. Both arrive as
+  `TransactionLines`, so both count.
+- A **broker fee alone** is enough. Listing output is market activity before anything sells, and a
+  fee-only job sent to stock would report a broker fee total in a block that hides the fee row
+  explaining it.
+- Lines are weighed by their **figures**, not their presence — a line carrying neither an amount nor
+  a quantity records no money and no goods, so it is not evidence of anything.
+
+`retainedStockBuild` is checked ahead of the sale evidence, so a user's explicit mark is honoured
+whether or not a line was recorded against the job. `feature/archived-jobs-redesign` resolved this
+the other way, letting market win; the divergence is deliberate and currently moot, since nothing
+writes the flag.
+
+**Extras by category.** `extraCategoryTotals` folds a job's extra costs by category id — a blank
+category becomes `"0"`, Unassigned — and rides the row into the monthly buckets against the **cost
+month**, the same attribution `jobCostTotal` uses. Several jobs in a month sum their categories per
+id; a month with no extras leaves the map absent so the field stays omitted on the wire rather than
+serialising as `{}`. Category ids are per-account and their labels live in the account's
+`extrasCategories` setting, so the pipeline never resolves a label — only the SPA can.
+
 ### The worker — `worker/tasks/archivedjobs`
 
 `RebuildAccountStatistics` recomputes an account **wholesale**. The queue records only that an
@@ -580,9 +615,60 @@ both ≥ 12 and ≤ 2. That is not an edge case here — every January the defau
 
 ## Stage E — frontend
 
-_Not landed._
+Landed for the account scope.
 
-Fill in: which views consume which endpoints, and what a user sees that they did not before.
+### What reads what
+
+| View | Endpoint | Shows |
+|------|----------|-------|
+| `Dashboard/Components/ArchivedStatsOverview` | `timeline` | This month against last — sales, job cost, profit, each with the change |
+| `Dashboard/Components/ArchivedItemBreakdown` | `timeline/items` | Which item types drove the month, ranked server-side |
+| `Dialogues/Blueprint Archive` | `totals` | One item type's lifetime figures, split into four segment blocks |
+| `Edit Job/.../Archive Jobs Panel` | `totals` | Per-job rows, from the `dataSnapshots` embedded on the row |
+
+`Functions/Endpoints/Pirivate/statisticsTimeline.js` holds the two timeline reads and
+`Hooks/React Query/Backend/statisticsTimeline.js` their hooks, keyed under a statistics root shared
+with the lifetime-totals hook. Archiving a job queues a rebuild that recomputes all three
+collections, so `invalidateStatisticsQueries` invalidates that whole root rather than one type.
+
+### The dashboard is a running position
+
+The current month is month-to-date, so the comparison labels it rather than showing an unmarked
+decline against a finished month. A change from zero is reported as new activity rather than an
+infinite percentage.
+
+The item table is a **glance, not an analysis tool**: two rankings — total profit and total cost —
+and two fixed lengths, five rows with a toggle to ten. It asks the server for the length it wants
+rather than slicing a list already fetched, so the ranking always covers every item type in the
+window rather than the page. The toggle appears only when the window holds more than five items, and
+collapses when the ranking changes, since an expansion made against the old order means nothing under
+a new one.
+
+### The archive dialogue shows four blocks
+
+Combined, Market, Stock and Chain, mapped from the `breakdown` the row already carries — no extra
+request. Combined **sums** the three segments rather than recomputing profit from the summed money
+fields: `jobCostTotal` already contains both fee totals, so subtracting them again reports a loss
+against profitable builds. `feature/archived-jobs-redesign` made exactly that error in
+`combinedFromSegmentBuckets`; a test pins the correct figure against the one it produces.
+
+Stock and Chain show the build side only and carry a line saying why — neither records a sale of its
+own, so their sale and fee rows would be zeros standing beside real build costs. A segment with no
+activity is omitted rather than rendered as noughts, and a row whose breakdown is empty falls through
+to the flat summary so documents written before the breakdown existed still show their headline
+figures.
+
+The corporation toggle on the source branch was not ported — it is Stage C. The seams are open for
+it: `statsBreakdown` is a prop rather than computed inside the body, the mapper takes a whole row so
+a corporation row maps identically, and both are exported from the folder index.
+
+### Not built yet, by choice
+
+Extras by category reach the monthly figures and are served in every timeline response, but no view
+reads them. Whatever builds that will need to resolve category **ids** to labels from
+`applicationSettings.extrasCategories` in the user store, and should render **deleted** categories
+for historical months — the existing category select hides them, which is right for choosing and
+wrong for reporting, since a past cost still belongs to the category it was filed under.
 
 ## Missing live SoT found during this work
 
