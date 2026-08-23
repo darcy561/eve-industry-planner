@@ -77,11 +77,11 @@ describe("ArchivedItemBreakdown", () => {
     });
 
     fireEvent.mouseDown(screen.getByRole("combobox"));
-    fireEvent.click(screen.getByRole("option", { name: "Sales" }));
+    fireEvent.click(screen.getByRole("option", { name: "Total cost" }));
 
     await waitFor(() => {
       const latest = useAccountTimelineItemsQuery.mock.calls.at(-1)[0];
-      expect(latest.sort).toBe("salesTotal");
+      expect(latest.sort).toBe("jobCostTotal");
     });
   });
 
@@ -98,7 +98,7 @@ describe("ArchivedItemBreakdown", () => {
     });
 
     fireEvent.mouseDown(screen.getByRole("combobox"));
-    fireEvent.click(screen.getByRole("option", { name: "Cost" }));
+    fireEvent.click(screen.getByRole("option", { name: "Total cost" }));
 
     await waitFor(() => {
       expect(useAccountTimelineItemsQuery.mock.calls.at(-1)[0].limit).toBe(5);
@@ -116,6 +116,26 @@ describe("ArchivedItemBreakdown", () => {
     useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems, 2));
     render(<ArchivedItemBreakdown />);
     expect(screen.queryByRole("button", { name: /Show more/ })).not.toBeInTheDocument();
+  });
+
+  // A dashboard glance, not an analysis tool: two rankings and five rows. More
+  // options belong in a fuller view rather than here.
+  it("offers exactly two rankings", () => {
+    useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems));
+
+    render(<ArchivedItemBreakdown />);
+    fireEvent.mouseDown(screen.getByRole("combobox"));
+
+    const options = screen.getAllByRole("option").map((o) => o.textContent);
+    expect(options).toEqual(["Total profit", "Total cost"]);
+  });
+
+  it("asks for five rows at a time", () => {
+    useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems, 40));
+
+    render(<ArchivedItemBreakdown />);
+
+    expect(useAccountTimelineItemsQuery.mock.calls[0][0].limit).toBe(5);
   });
 
   it("says so when the window is empty rather than showing an empty table", () => {
