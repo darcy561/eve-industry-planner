@@ -116,6 +116,18 @@ only as missing data. `TestCollectionNames_canonical`,
 **Order within one rename:** ship the code and the `CollectionRenames` entry together. `Ensure`
 moves the data before the new code reads it, and the old code is already gone.
 
+**Rebuild `eip.exe` before running `ensure-mongo`.** The renames live in the Deployment Tool binary,
+not in the stack, so a binary built before the entry was added applies the list it was compiled with
+and reports success. Nothing detects this: a binary declaring no renames and a database with nothing
+left to rename produce identical output. `go build -o ../eip.exe .` from `deployment-tool/`, then
+verify with `grep -c <new-collection-name> eip.exe`.
+
+**`eip dev` alone does not apply renames.** It skips the Ready phase — and with it `EnsureMongo` —
+when the stack is already healthy, which it is on a redeploy. Run `eip ensure-mongo` explicitly
+after deploying code that expects renamed collections. Until it runs, services read collections that
+do not exist and return empty rather than failing, so the app looks like an empty account rather
+than a broken one.
+
 ## Client-visible names
 
 Some collection names are not private storage detail. They appear in the changestream collection
