@@ -2,11 +2,19 @@ package main
 
 import (
 	"context"
-	"eve-industry-planner/shared/lifecycle"
 	"log"
+	"os"
+
+	"eve-industry-planner/shared/lifecycle"
 )
 
 func main() {
+	os.Exit(run())
+}
+
+// run returns the process exit code; non-zero on init failure so Swarm restarts the task
+// instead of recording a clean stop.
+func run() int {
 	ctx, cancel := lifecycle.NewSignalContext(context.Background())
 	defer cancel()
 
@@ -22,11 +30,12 @@ func main() {
 		if err := phase(ctx); err != nil {
 			log.Printf("initialization failed: %v", err)
 			cancel()
-			return
+			return 1
 		}
 	}
 
 	log.Printf("ws-router listening on %s (service=%s nats=%s)",
 		a.cfg.ListenAddr, a.cfg.WebsocketService, a.nc.ConnectedUrl())
 	lifecycle.WaitForShutdown(ctx, shutdownTimeout, a.cleanups()...)
+	return 0
 }
