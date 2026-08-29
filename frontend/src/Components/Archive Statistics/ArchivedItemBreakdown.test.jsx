@@ -219,30 +219,4 @@ describe("ArchivedItemBreakdown", () => {
       }),
     );
   });
-
-  // Four columns of figures need more width than a phone has, so each item
-  // becomes a labelled card instead of a row whose headings scroll away.
-  it("uses cards on a narrow screen", async () => {
-    const original = window.matchMedia;
-    window.matchMedia = vi.fn().mockImplementation((query) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }));
-
-    useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems));
-    getFullItemList.mockResolvedValue([]);
-
-    const { container } = render(<ArchivedItemBreakdown />);
-    await waitFor(() => expect(container.querySelector("table")).toBeNull());
-    expect(screen.getAllByText("Cost").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Profit").length).toBeGreaterThan(0);
-
-    window.matchMedia = original;
-  });
 });

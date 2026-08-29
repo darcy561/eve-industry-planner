@@ -1,5 +1,10 @@
 import { useMemo, useState } from "react";
-import { MenuItem, Select, Typography } from "@mui/material";
+import { FormControl, MenuItem, Select, Typography } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+import {
+  appShellOutlinedFormControl,
+  getAppShellSelectMenuProps,
+} from "../../Context/appShell";
 import { useQuery } from "@tanstack/react-query";
 import AppShellPanel from "../../Styled Components/Paper/AppShellPanel";
 import {
@@ -32,19 +37,25 @@ function monthLabel(rows) {
 
 /** The measure a panel ranks or splits by, shown in the panel header. */
 function MeasureSelect({ value, onChange, options }) {
+  const theme = useTheme();
   return (
-    <Select
+    <FormControl
+      fullWidth
       size="small"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      sx={{ minWidth: 140 }}
+      sx={(t) => ({ ...appShellOutlinedFormControl(t) })}
     >
-      {options.map((option) => (
-        <MenuItem key={option.key} value={option.key}>
-          By {option.label.toLowerCase()}
-        </MenuItem>
-      ))}
-    </Select>
+      <Select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        MenuProps={getAppShellSelectMenuProps(theme)}
+      >
+        {options.map((option) => (
+          <MenuItem key={option.key} value={option.key}>
+            By {option.label.toLowerCase()}
+          </MenuItem>
+        ))}
+      </Select>
+    </FormControl>
   );
 }
 

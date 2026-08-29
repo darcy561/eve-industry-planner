@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Grid, Stack, Tab, Tabs } from "@mui/material";
+import { Box, Grid, Stack, Tab, Tabs, useMediaQuery } from "@mui/material";
 import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
 import {
   ArchiveCumulativePanel,
@@ -29,6 +29,7 @@ const TAB_JOBS = "jobs";
  * is not queried until its tab is opened.
  */
 export function ArchivedJobsPage() {
+  const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("sm"));
   const [tab, setTab] = useState(TAB_STATISTICS);
   const [rangeKey, setRangeKey] = useState("default");
   const range = useMemo(() => resolveArchiveRange(rangeKey), [rangeKey]);
@@ -53,14 +54,16 @@ export function ArchivedJobsPage() {
             <Tabs
               value={tab}
               onChange={openTab}
-              variant="fullWidth"
-              sx={{ width: { xs: "100%", sm: "auto" } }}
+              variant={deviceNotMobile ? "standard" : "fullWidth"}
+              sx={{ width: { xs: "100%", sm: "auto" }, flexShrink: 0 }}
             >
               <Tab label="Statistics" value={TAB_STATISTICS} />
               <Tab label="Archived Jobs" value={TAB_JOBS} />
             </Tabs>
             {tab === TAB_STATISTICS && (
-              <ArchiveRangeControl value={rangeKey} onChange={setRangeKey} />
+              <Box sx={{ ml: { sm: "auto" } }}>
+                <ArchiveRangeControl value={rangeKey} onChange={setRangeKey} />
+              </Box>
             )}
           </Stack>
         </Grid>

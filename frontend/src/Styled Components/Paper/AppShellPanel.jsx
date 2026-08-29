@@ -1,11 +1,11 @@
 import { useState } from "react";
 import {
   Box,
+  Grid,
   IconButton,
   Menu,
   MenuItem,
   Paper,
-  Stack,
   Typography,
 } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
@@ -79,22 +79,26 @@ export default function AppShellPanel({
       {...otherProps}
     >
       {hasHeader && (
-        <Stack
-          direction="row"
-          spacing={1}
-          alignItems="center"
-          justifyContent="space-between"
-          sx={{ mb: 1.5, minHeight: 32 }}
-        >
-          {title && (
-            <Typography
-              color="text.secondary"
-              sx={{ typography: { xs: "caption", md: "body2" } }}
-            >
-              {title}
-            </Typography>
-          )}
-          <Stack direction="row" spacing={1} alignItems="center">
+        <Grid container spacing={1.5} sx={{ alignItems: "center", mb: 1.5 }}>
+          <Grid size={{ xs: 12, sm: action ? 7 : 12 }}>
+            {title && (
+              <Typography
+                color="text.secondary"
+                sx={{ typography: { xs: "caption", md: "body2" } }}
+              >
+                {title}
+              </Typography>
+            )}
+          </Grid>
+          <Grid
+            size={{ xs: 12, sm: action ? 5 : "auto" }}
+            sx={{
+              display: "flex",
+              gap: 1,
+              alignItems: "center",
+              justifyContent: "flex-end",
+            }}
+          >
             {action}
             {hasMenu && (
               <>
@@ -135,8 +139,8 @@ export default function AppShellPanel({
                 </Menu>
               </>
             )}
-          </Stack>
-        </Stack>
+          </Grid>
+        </Grid>
       )}
 
       <Box
