@@ -12,7 +12,7 @@ import {
   Typography,
 } from "@mui/material";
 import { useQueryClient } from "@tanstack/react-query";
-import ContentPanel from "../../Styled Components/Paper/ContentPanel";
+import AppShellPanel from "../../Styled Components/Paper/AppShellPanel";
 import { formatNumberForLocale } from "../../Functions/Helper/numberParser";
 import {
   showSnackbarError,
@@ -224,7 +224,7 @@ export function ArchivedJobsList({ enabled = true }) {
   };
 
   return (
-    <ContentPanel
+    <AppShellPanel
       title="Archived jobs"
       componentName="Archived Jobs List"
       isLoading={isLoading}
@@ -290,7 +290,7 @@ export function ArchivedJobsList({ enabled = true }) {
           />
         )}
       </Stack>
-    </ContentPanel>
+    </AppShellPanel>
   );
 }
 

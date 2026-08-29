@@ -1,4 +1,5 @@
 import { alpha } from "@mui/material/styles";
+import { appShellInsetSurfaceSx } from "../../Context/appShell";
 import {
   formatNumberForLocale,
   numberToShortText,
@@ -39,6 +40,7 @@ export function formatTooltipValue(value) {
 }
 
 export function chartTooltipProps(theme) {
+  const surface = appShellInsetSurfaceSx(theme);
   return {
     allowEscapeViewBox: { x: false, y: false },
     wrapperStyle: {
@@ -46,25 +48,32 @@ export function chartTooltipProps(theme) {
       zIndex: 2,
     },
     contentStyle: {
-      backgroundColor: theme.palette.background.paper,
-      borderColor: theme.palette.divider,
+      backgroundColor: surface.backgroundColor,
+      border: surface.border,
       color: theme.palette.text.primary,
-      borderRadius: 4,
+      borderRadius: theme.shape.borderRadius * 2,
       padding: "10px",
       maxWidth: "min(420px, calc(100vw - 48px))",
       whiteSpace: "normal",
       wordBreak: "break-word",
+      backdropFilter: "blur(3px)",
     },
     itemStyle: { color: theme.palette.text.primary },
-    cursor: { fill: alpha(theme.palette.text.primary, 0.06) },
+    cursor: { fill: alpha(theme.palette.primary.main, 0.08) },
   };
 }
 
 export function chartAxisProps(theme) {
   return {
-    stroke: theme.palette.text.secondary,
+    stroke: alpha(theme.palette.primary.main, 0.35),
     tick: { fill: theme.palette.text.secondary, fontSize: 12 },
+    tickLine: { stroke: alpha(theme.palette.primary.main, 0.35) },
   };
+}
+
+/** Grid lines, kept faint so they sit behind the marks rather than beside them. */
+export function chartGridStroke(theme) {
+  return alpha(theme.palette.primary.main, 0.12);
 }
 
 /**
@@ -89,5 +98,15 @@ export function chartMargins(
     right: 16,
     bottom: Math.min(110, 24 + longest * perChar),
     left: 8,
+  };
+}
+
+/** Legend type, matched to the panel's secondary text. */
+export function chartLegendProps(theme) {
+  return {
+    wrapperStyle: {
+      fontSize: 12,
+      color: theme.palette.text.secondary,
+    },
   };
 }

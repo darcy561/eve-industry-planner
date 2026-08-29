@@ -68,7 +68,7 @@ export function ArchivedJobsPage() {
             <Grid size={12}>
               <ArchivedStatsOverview {...range} />
             </Grid>
-            <Grid size={12}>
+            <Grid size={{ xs: 12, lg: 6 }}>
               <ArchiveTimelinePanel {...range} />
             </Grid>
             <Grid size={{ xs: 12, lg: 6 }}>
@@ -90,7 +90,11 @@ export function ArchivedJobsPage() {
         </Grid>
 
         <Grid size={12} sx={{ display: tab === TAB_JOBS ? "block" : "none" }}>
-          {jobsOpened && <ArchivedJobsList enabled={jobsOpened} />}
+          <Grid container spacing={2}>
+            <Grid size={12}>
+              {jobsOpened && <ArchivedJobsList enabled={jobsOpened} />}
+            </Grid>
+          </Grid>
         </Grid>
       </Grid>
     </DefaultPageLayout>
