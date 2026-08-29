@@ -75,29 +75,86 @@ aggregate.
 
 ### Stage C — Corporation statistics pipeline
 
-Corporation-level aggregation over member jobs, its own rebuild queue and pruning. Separable from
-Stage B and deferred without blocking the rest — decided at Stage B close.
+Aggregation over a corporation's own archived jobs, with its own rebuild queue and pruning.
+Separable from Stage B and deferred without blocking the rest — decided at Stage B close.
+
+#### Ownership is a property of the job, not of its lines
+
+**A job belongs to one archive.** Personal jobs go to the personal archive and are aggregated for
+the account; corporation-scoped jobs go to the corporation archive and are aggregated for the
+corporation. Each archive runs the same pipeline over its own jobs, so a corporation total is not a
+slice carved out of an account's jobs — it is the corporation's own archive counted the same way.
+
+That makes `_meta.corporationRef` the discriminator, and the stage's original framing correct: the
+field records which corporation a job is scoped to, and nothing writes it yet.
+
+Everything built to attribute *individual sale lines* to corporations has been removed, because
+under this rule there is nothing for it to decide. `shared/archivestats/corpinference.go`
+(`InferJobCorp`, `DistinctLinkedIndustryCorpRefs`), the `corpStatus` / `resolvedCorpRef` / `isCorp`
+fields on `ArchivedJobLine`, `linkedIndustryCorpRefs` on the stats document, the
+`ArchivedJobCorpStatus` type, the `corpMarketOrder` / `corpIndustryJob` flags on
+`BuildStatSnapshot`, and the `lane` on `CorpTimelineMonthBucket` are all gone. The lane in
+particular existed to divide a corporation month between corporation-owned rows and per-account
+contributions, which a single-owner job cannot produce.
 
 #### Stage C is deferred
 
-Decided at Stage B close. **The blocker is a missing producer, not effort.**
-
-More of this stage exists than the original plan assumed:
+Decided at Stage B close, and unchanged by the simplification above.
 
 | Already built | Where |
 |---------------|-------|
-| The attribution rule — one distinct corporation across a job's linked industry jobs resolves, two or more resolve to none | `shared/archivestats.InferJobCorp`, with tests |
-| The persisted shapes | `models.CorpBuildStatsRow`, `CorpTimelineMonthBucket`, `CorpTimelineOwnedLane` |
+| The persisted shapes | `models.CorpBuildStatsRow`, `CorpTimelineMonthBucket` |
 | The org-scoped delivery path — routing, tenant key, scope matching, payload stripping | Traced end to end in [overlay.md](./overlay.md) § Stage C |
-| The routing field itself | `models.MetaData.CorporationRef` → `_meta.corporationRef` |
+| The scope field itself | `models.MetaData.CorporationRef` → `_meta.corporationRef` |
 
-What is missing is anything that **writes** `_meta.corporationRef`. No write path in `services/`
-assigns it, so every stored job carries it empty. Building the aggregation now would produce a
-pipeline that reads nothing, with query and index shapes chosen against no data — the same failure
-the partial indexes were held back to avoid.
+What is missing is a **producer**: no write path in `services/` assigns `_meta.corporationRef`, so
+every stored job is personal and the corporation archive would be empty. Building the aggregation
+first would produce a pipeline that reads nothing, with query and index shapes chosen against no
+data — the same failure the partial indexes were held back to avoid.
 
-Revisit when a producer exists, which in practice means corporation documents exist. The contract
-such a document must satisfy is already written down in [overlay.md](./overlay.md) § Stage C.
+Revisit when jobs are being scoped to a corporation at ingest, which in practice means corporation
+documents exist. The contract such a document must satisfy is in [overlay.md](./overlay.md)
+§ Stage C.
+
+#### What may scope a job to a corporation
+
+Only a corporation id **recorded from the ESI endpoint that owns it** — corporation industry jobs,
+market orders and transactions. That is an observation made at fetch time, not something a later
+pass can derive.
+
+Nothing else on a job identifies a corporation, and the near misses are worth writing down so they
+are not proposed again: a **character** hash names a character, whose corporation is a
+point-in-time fact the document never recorded and which changes; a **station** is a structure many
+corporations share; a **blueprint** is an item that can be sold or moved between owners; an
+**account** is a user, who may belong to several corporations. A bridge built from any of them
+resolves a satisfying share of the backlog — a character-hash bridge answers 1,641 of 2,309
+corporate-flagged jobs on dev with no internal conflict — and is still a guess about a fact the
+data never held.
+
+Measured on dev, from 9,130 archived jobs: 5,914 carry no corporation evidence at all, 834 carry a
+recorded corporation id on their linked jobs (15 corporations, none ambiguous), and 2,382 were
+corporate work whose owner was never recorded. `Transaction`, `MarketOrder` and `BrokerFee` declare
+`CorporationID` as `bson:"-"`, so a sale's corporation was never persisted at all, and ESI's
+corporation endpoints serve only a recent window, so none of it can be fetched back.
+
+**History therefore stays personal**, which costs nothing: account statistics count every job in
+the personal archive regardless of who owned the facility, exactly as they always have.
+
+**Sale lines now record the corporation and the character. Landed.** The ESI corporation fetchers stamp
+`corporation_id` on every industry job, order, transaction and journal entry they return, and
+`LinkedESIJob` already carried it through to the stored job — so the industry-job side was never
+lost. The three sale-line builders dropped it: `createESIMarketOrder`, `createTransaction` and
+`ESIBrokerFee` inside `findBrokersFeeEntry` each rebuilt the line field by field without it. All
+three now carry `corporation_id`, `null` for a personal sale, and a broker fee inherits its order's
+because a journal entry names no owner of its own. `character_id` had the same defect and was fixed
+with it — see [overlay.md § Ingest](./overlay.md#ingest--entity-ids-on-stored-jobs).
+`shared/jobidentity` already declares both ref targets on all four line types, so an arriving id is
+converted to a ref and persisted with no backend change.
+
+**Still open: nothing scopes the job itself.** A stored job now carries the corporation ids its
+lines were fetched under, but no write path decides from them that the job belongs to a corporation
+and stamps `_meta.corporationRef`. That decision is Stage C's, and it is the last thing between here
+and a corporation archive with data in it.
 
 Still to land with the stage when it starts: the corporation collections, `QueueCorpRebuild` /
 `ListQueuedCorpRefs`, the corp `_id` builders, a `CollectionGroup` entry (all four existing groups
@@ -225,7 +282,6 @@ on the wire.
 | Collection | `user_rollup_buckets` | `account_timeline_months` (renamed by [collection-naming](../collection-naming/plan.md)) |
 | Model | `UserRollupMonthlyBucket` | `AccountTimelineMonthBucket` |
 | Model | `CorpRollupMonthlyBucket` | `CorpTimelineMonthBucket` |
-| Model | `CorpRollupOwnedLane` | `CorpTimelineOwnedLane` |
 | Model | `BuildStatsRollupTotals` | `TimelineTotals` |
 | `_id` builder | `UserRollupMonthlyDocumentID` | `AccountTimelineMonthDocumentID` |
 | Transformation | `archivestats/rollup_buckets.go` | `archivestats/timeline_months.go` |
@@ -292,8 +348,8 @@ build-stats read once nothing calls it.
 
 | Site | Reads | Becomes |
 |------|-------|---------|
-| ~~`Functions/Endpoints/Pirivate/buildStats.js`~~ | ~~`GET /statistics/build-stats?typeID=`~~ | **done** — reads `totals`, unwrapping `items[0]` and supplying the zeroed row the endpoint no longer returns |
-| `Hooks/React Query/Backend/buildStats.js` | query key `["backend","buildStats",id]`, invalidation helpers | **done** — `invalidateStatisticsQueries` replaced the per-type and build-stats-only helpers; `statisticsTimeline.js` adds the timeline hooks. The module and key still read `buildStats` while the endpoint says `totals` — a cosmetic rename left open, see § Left open |
+| ~~`Functions/Endpoints/Private/buildStats.js`~~ | ~~`GET /statistics/build-stats?typeID=`~~ | **done** — now `statisticsTotals.js`, reading `totals`, unwrapping `items[0]` and supplying the zeroed row the endpoint no longer returns |
+| ~~`Hooks/React Query/Backend/buildStats.js`~~ | ~~query key `["backend","buildStats",id]`, invalidation helpers~~ | **done** — `invalidateStatisticsQueries` replaced the per-type and build-stats-only helpers; `statisticsTimeline.js` adds the timeline hooks; the module and key were then renamed to `totals`, see § The SPA's statistics modules are named for their views |
 | `Components/Dialogues/Blueprint Archive/hasMeaningfulBuildStats.js` | `dataSnapshots.length > 0` | unchanged in meaning; the field still ships |
 | `.../Archive Jobs Panel/archiveJobsPanel.jsx` | `archiveData?.dataSnapshots` | unchanged — still renders the per-job rows from the embedded snapshots |
 | ~~`.../Button Panel/archiveJobButton.jsx`, `Groups/Side Menu/Buttons/buttonFunctions.jsx`~~ | ~~invalidate after archiving~~ | **done** — both call `invalidateStatisticsQueries` |
@@ -302,7 +358,7 @@ build-stats read once nothing calls it.
 
 1. ~~**Repoint the existing read.**~~ **Done.** `totals` serves the same documents, so this was a
    path change in one module; `dataSnapshots` still arrives and no panel changed.
-2. ~~**Add the timeline reads**~~ **Done.** `Functions/Endpoints/Pirivate/statisticsTimeline.js` and
+2. ~~**Add the timeline reads**~~ **Done.** `Functions/Endpoints/Private/statisticsTimeline.js` and
    `Hooks/React Query/Backend/statisticsTimeline.js` cover `timeline` and `timeline/items`, keyed
    under a shared statistics root.
 3. ~~**Build the views**~~ **Done.** The dashboard carries `ArchivedStatsOverview` (this month
@@ -394,6 +450,32 @@ view that builds ranges must send both bounds or neither.
 the window, not the page length. Sorting is a request parameter, not a client-side array sort, and
 `sort` must be one of the measures the API advertises.
 
+#### The SPA's statistics modules are named for their views
+
+The API serves three views — `timeline`, `timeline/items` and `totals` — and the SPA modules now
+match, so a reader moving between the two sees one vocabulary rather than the endpoint's and the
+retired producer's.
+
+| Was | Now |
+|-----|-----|
+| `Functions/Endpoints/Private/buildStats.js` → `getBuildStatsByTypeID` | `statisticsTotals.js` → `getAccountTotalsByTypeID` |
+| `Hooks/React Query/Backend/buildStats.js` → `useBuildStatsQuery`, `prefetchBuildStatsQuery`, `buildStatsQueryKey`, `normalizeBuildStatsTypeID` | `statisticsTotals.js` → `useAccountTotalsQuery`, `prefetchAccountTotalsQuery`, `totalsQueryKey`, `normalizeTotalsTypeID` |
+| `STATISTICS_QUERY_KEY_ROOT` and `invalidateStatisticsQueries` inside the totals module | `Hooks/React Query/Backend/statisticsKeys.js` |
+
+**Totals moved under the shared statistics key root.** It was keyed
+`["backend", "buildStats", id]` beside the timeline's `["backend", "statistics", …]`, which forced
+`invalidateStatisticsQueries` to invalidate two roots and made forgetting one a live hazard. Totals
+is now `["backend", "statistics", "totals", id]`, alongside `"timeline"` and `"timelineItems"`, so
+one invalidation reaches every view. The React Query cache is not persisted, so changing the key
+value costs nothing — a reload starts empty either way.
+
+The shared root moved out with it. `statisticsTimeline.js` had been importing
+`STATISTICS_QUERY_KEY_ROOT` from the totals module, so one view's file owned a fact both views
+depend on; `statisticsKeys.js` now holds the root and the invalidation helper that goes with it.
+
+`BuildStatsPanel` under `Edit Job Components/Complete/Standard Layout/Build Stats Panel/` keeps its
+name: it is a UI panel, and "build stats" is still what it shows a user.
+
 #### Invalidation
 
 Archiving a job queues a rebuild that recomputes all three collections, so a write invalidates every
@@ -424,7 +506,7 @@ in-scope package needs modernization before the work starts.
 | Phase 1 — project docs | Complete |
 | A — data model and Mongo layer | Complete for the account scope — entity refs on job documents, statistics models, Mongo layer and index specs landed. Corp scope held for C; partial indexes land with D |
 | B — account statistics pipeline | **Complete** — transformation, worker rebuild, queue drain, its task and asynq handler, the hourly schedule, and the archived-jobs producer are all landed. Queue → publish → drain runs end to end, and the claim protocol, revoke, prune and write-then-remove ordering are pinned by passing live tests. The worker's end-to-end composition of those helpers has no live test yet (see Open questions) |
-| C — corporation statistics pipeline | **Deferred** at Stage B close — blocked on a producer for `_meta.corporationRef`, not on effort. See § Stage C is deferred |
+| C — corporation statistics pipeline | **Deferred** — a job belongs to one archive, so this pipeline aggregates corporation-scoped jobs rather than slicing account ones; per-line attribution was removed. The producer is half built: the SPA now records the corporation and character ids ESI supplies, but nothing yet decides from them that a job is corporation scoped and stamps `_meta.corporationRef`. See § Ownership is a property of the job |
 | D — statistics API | **Complete for the account scope** — timeline, timeline/items and totals land under `/api/v1/statistics/account/`, with the indexes their filters need. The old build-stats producer is retired and its documents are rebuilt by the statistics pipeline. Corporation views wait for Stage C |
 | E — frontend | **Complete for the account scope** — the SPA reads `totals`, `timeline` and `timeline/items`; build-stats is deleted; the dashboard carries the month-on-month comparison and the item breakdown; the archive dialogue is split into its four segment blocks. Corporation scope waits for Stage C |
 
@@ -438,9 +520,9 @@ in-scope package needs modernization before the work starts.
 
 ## Handoff status
 
-**Stage B is committed on `feature/archived-jobs-stats`**, apart from the schedule. The
-transformation, the worker rebuild, the drain, its task and asynq handler, and the archived-jobs
-producer are all reachable from a clone.
+**Stage B is committed on `feature/archived-jobs-stats`.** The transformation, the worker rebuild,
+the drain, its task and asynq handler, the archived-jobs producer and the hourly schedule are all
+reachable from a clone.
 
 `services` builds, vets and tests clean, and `go fix -diff` reports nothing on any package this
 stage touched. The one outstanding `go fix` suggestion in scope is `shared/tasks/queue_scale.go`
@@ -455,19 +537,48 @@ claim protocol decides what stays queued. Behaviour → [overlay.md](./overlay.m
 `timeline/items`; the dashboard carries the month-on-month comparison and the item breakdown; the
 archive dialogue renders its four segment blocks. Every remaining stage item belongs to Stage C.
 
-**Start here: Stage C, once a `_meta.corporationRef` producer exists.** Nothing else in the plan is
-blocked. The frontend seams for the corporation scope are already open — see § The archive dialogue.
+**The ingest half of Stage C's producer has landed.** The SPA's sale-line builders were dropping
+the corporation and character ids ESI already supplies; all four now record them, and
+`shared/jobidentity` converts them to refs on write with no backend change. Behaviour →
+[overlay.md](./overlay.md) § Ingest — entity ids on stored jobs.
+
+**Start here: decide what scopes a job to a corporation.** That decision — and the
+`_meta.corporationRef` it stamps — is the only thing between here and a corporation archive with
+data in it. Everything downstream of it is either built or deliberately deferred. The frontend seams
+for the corporation scope are already open, see § The archive dialogue.
+
+Before designing the aggregation against real shapes, run the two data steps below; a pipeline
+designed against a database where every corporation ref is empty would be guessing.
+
+### Operational steps owed
+
+Neither is development work. Both are commands run against a database, and both are needed on dev
+before Stage C can be designed against representative data.
+
+**Order matters: identity conversion first, then the rebuild.** The rebuild derives statistics from
+job documents, so converting identities first means it sees refs where they exist. The other order
+just means the corporation data arrives a rebuild late.
+
+| Step | Command | Why |
+|------|---------|-----|
+| 1. Convert stored entity ids | `tasks encodeJobIdentity` (`-dry-run` first) | On dev, `protected.spec` is null on all 9,130 archived jobs and 834 still hold a raw `corporation_id` on their linked jobs. Those are the only corporation ids in the database, and `archivestats` reads refs, so until they are converted the aggregation sees nothing. It is also the first thing that would give `character_ref` any value at all. Owned by [entity-id-encryption](../entity-id-encryption/plan.md); this project only depends on it |
+| 2. Rebuild statistics | `tasks queueArchivedJobStatsRebuild -all` (`-dry-run` first) | Recomputes every account's three collections. Idempotent, and safe to re-run |
+
+Both must also run against **live** when this work ships — with the caveat that live carries no
+statistics collections yet, so step 2 there is a first population rather than a catch-up. Whether
+step 1 has already run against live was not checked; do not assume live matches dev.
 
 ### Left open, none blocking
 
-1. **A statistics rebuild is owed.** Two classification changes landed after the last rebuild — the
-   Market segment now decides on evidence, and broker fees count as market activity. Existing rows
-   keep their old segments until `tasks queueArchivedJobStatsRebuild -all` runs.
+1. **A statistics rebuild is owed** — see § Operational steps owed. Three changes have landed since
+   the last one: the Market segment now decides on evidence, broker fees count as market activity,
+   and the stored row lost its per-line corporation fields. Existing rows keep the old segments and
+   carry the orphaned fields until a rebuild rewrites them. The orphans are inert — nothing queries
+   or indexes them, and the driver ignores fields the struct no longer declares.
 2. **`retainedStockBuild` is dead in the UI.** Nothing in `frontend/src` writes it, so Stock means
    "no recorded sale" rather than "deliberately kept". Wiring it would separate the two.
-3. **The lifetime-totals module still says `buildStats`.** `Functions/Endpoints/Pirivate/buildStats.js`,
-   its hook and the `BUILD_STATS_QUERY_KEY_ROOT` key predate the rename to `totals`. A pure rename
-   with no wire change, in the spirit of rollup → timeline; deferred as cosmetic.
+3. ~~**The lifetime-totals module still says `buildStats`.**~~ **Done** — see § The SPA's statistics
+   modules are named for their views.
 4. **`extrasTotal` is recomputed only on add and remove.** Editing a row's value in place, or
    loading a document with a stale total, leaves it unreconciled — and the archive would inherit the
    drift permanently. Not investigated further; outside this plan's surface.
@@ -475,7 +586,8 @@ blocked. The frontend seams for the corporation scope are already open — see �
    removable whenever.
 6. **The worker's end-to-end composition still has no live test** — see Open question 1. The Mongo
    helpers are covered individually; what the cron exercises untested is the rebuild that calls them
-   in order.
+   in order. The obstacle the question recorded is gone: `eip dev` now publishes the data ports on
+   the host, so a live test runs from a host shell rather than needing a one-off container.
 
 **`dataSnapshots` is the one shape still carried for compatibility.** The totals row holds an
 unbounded per-job array that duplicates `account_archived_job_stats`, kept so the two panels reading
@@ -552,13 +664,12 @@ knowing rather than manufacturing a date.
    was written first and confirmed worthless by deleting the guard and watching the test still
    pass. Do not simplify it back.
 
-   **Running a live test needs a container on the overlay.** Mongo publishes no host port and the
-   app credentials are Swarm secrets, so `go test` from a host shell cannot reach it. Cross-compile
-   the package (`GOOS=linux go test -c ./shared/mongo/`), build it into a scratch image, and run it
-   as a one-off service on `eip-core` with `MONGO_USERNAME` / `MONGO_PASSWORD` mounted from the
-   stack secrets and `MONGO_HOST=mongo`, `MONGO_PORT=27017`, `EIP_MONGO_PARITY_LIVE=1` in the
-   environment. Publishing 27017 to the host in dev would make this ordinary; that is a stack
-   decision, not one this project should take unilaterally.
+   **Reaching Mongo is no longer the obstacle.** `eip dev` publishes the data ports on the host, so
+   a live test runs from a host shell with `MONGO_HOST=localhost`, `MONGO_PORT=27017` and
+   `EIP_MONGO_PARITY_LIVE=1`, taking the app credentials from the stack secrets. The earlier
+   workaround — cross-compiling the package into a scratch image and running it as a one-off service
+   on `eip-core` — is no longer needed. What remains is the fixture work: the test needs full
+   `models.Job` documents to seed.
 2. **Unarchiving.** `feature/archived-jobs-redesign` had a separate `removal.go` path rather than
    relying on a wholesale rebuild to notice a job had gone. Revoke-on-rebuild covers it, but only
    when something queues the account — decide whether unarchive needs its own producer.
@@ -582,17 +693,21 @@ knowing rather than manufacturing a date.
    C will add code to it, and moving a package while a stage is still writing into it is churn for no
    benefit. Revisit when Stage C closes, or sooner if it is cancelled.
 
-   Three of its six exported symbols have no caller outside the package: `AccumulateAccountBuckets`
-   (an exported internal — `AccountBuckets` is its only caller), and `InferJobCorp` /
-   `DistinctLinkedIndustryCorpRefs`, which are Stage C's attribution rule waiting for their pipeline.
+   One of its four exported symbols has no caller outside the package: `AccumulateAccountBuckets`,
+   an exported internal whose only caller is `AccountBuckets`.
 
 ### Decisions already made, so they are not re-litigated
 
 - Rebuilds are **wholesale per account**, not incremental. The queue stores `{accountID, claim}`
   and cannot express which jobs changed, and wholesale is idempotent, which the claim protocol
   depends on.
-- Entity ids reach `archivestats` as **refs**, never raw. Corporation inference works on refs
-  because raw ids do not survive a write.
+- Entity ids reach `archivestats` as **refs**, never raw, because raw ids do not survive a write.
+- **A job belongs to one archive**: personal jobs to the personal archive, corporation-scoped jobs
+  to the corporation archive, each aggregated by the same pipeline over its own documents. Sale
+  lines are never split between owners, so per-line corporation attribution was removed.
+- A job is scoped to a corporation only from an **id recorded against it**, never inferred from a
+  character, station, blueprint or account — see § What may scope a job to a corporation. Work whose
+  corporation was never recorded stays personal.
 - The drain cron runs **hourly at minute 30**, offset from the build stats fan-out on minute 0
   because both read archived-jobs data and contending every hour buys nothing. It publishes
   **unconditionally** rather than reading the queue first: that read would duplicate the worker's
