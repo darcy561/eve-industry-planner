@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 
 const useAccountTimelineQuery = vi.fn();
 
-vi.mock("../../../Hooks/React Query/Backend/statisticsTimeline", () => ({
+vi.mock("../../Hooks/React Query/Backend/statisticsTimeline", () => ({
   useAccountTimelineQuery: (...args) => useAccountTimelineQuery(...args),
 }));
 
@@ -19,7 +19,10 @@ beforeEach(() => {
 
 describe("ArchivedStatsOverview", () => {
   it("labels the figures as month-to-date", () => {
-    useAccountTimelineQuery.mockReturnValue({ data: { months: [] }, isLoading: false });
+    useAccountTimelineQuery.mockReturnValue({
+      data: { months: [] },
+      isLoading: false,
+    });
 
     render(<ArchivedStatsOverview />);
 
@@ -86,13 +89,18 @@ describe("ArchivedStatsOverview", () => {
   });
 
   it("shows a placeholder while loading rather than zeroes", () => {
-    useAccountTimelineQuery.mockReturnValue({ data: undefined, isLoading: true });
+    useAccountTimelineQuery.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+    });
 
     const { container } = render(<ArchivedStatsOverview />);
 
     // Zeroes would read as a real month with no activity.
     expect(screen.queryByText("0.00")).not.toBeInTheDocument();
-    expect(container.querySelectorAll(".MuiSkeleton-root").length).toBeGreaterThan(0);
+    expect(
+      container.querySelectorAll(".MuiSkeleton-root").length,
+    ).toBeGreaterThan(0);
   });
 
   it("renders a card for each measure", () => {
@@ -111,11 +119,32 @@ describe("ArchivedStatsOverview", () => {
   // Reads the window the server chooses, which is the current month and the one
   // before it. Passing a range would pin the dashboard to a fixed window.
   it("asks for the default window", () => {
-    useAccountTimelineQuery.mockReturnValue({ data: { months: [] }, isLoading: false });
+    useAccountTimelineQuery.mockReturnValue({
+      data: { months: [] },
+      isLoading: false,
+    });
 
     render(<ArchivedStatsOverview />);
 
-    const args = useAccountTimelineQuery.mock.calls[0];
-    expect(args.length === 0 || args[0] === undefined).toBe(true);
+    // No range means the server picks the window, which is what this view wants.
+    const options = useAccountTimelineQuery.mock.calls[0]?.[0] ?? {};
+    expect(options.from).toBeUndefined();
+    expect(options.to).toBeUndefined();
+  });
+
+  // A caller with its own range control passes one, so the cards agree with the
+  // rest of that page rather than showing the server's default window.
+  it("passes a caller's range through", () => {
+    useAccountTimelineQuery.mockReturnValue({
+      data: { months: [] },
+      isLoading: false,
+    });
+
+    render(<ArchivedStatsOverview from="2026-01" to="2026-06" />);
+
+    expect(useAccountTimelineQuery.mock.calls[0][0]).toMatchObject({
+      from: "2026-01",
+      to: "2026-06",
+    });
   });
 });

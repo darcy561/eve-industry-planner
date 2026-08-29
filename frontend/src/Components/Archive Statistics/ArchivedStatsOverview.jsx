@@ -2,12 +2,12 @@ import { Grid, Paper, Skeleton, Tooltip, Typography } from "@mui/material";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import RemoveIcon from "@mui/icons-material/Remove";
-import { appShellSetupSectionPaperSx } from "../../../Context/appShell";
+import { appShellSetupSectionPaperSx } from "../../Context/appShell";
 import {
   formatNumberForLocale,
   numberToShortText,
-} from "../../../Functions/Helper/numberParser";
-import { useAccountTimelineQuery } from "../../../Hooks/React Query/Backend/statisticsTimeline";
+} from "../../Functions/Helper/numberParser";
+import { useAccountTimelineQuery } from "../../Hooks/React Query/Backend/statisticsTimeline";
 
 /**
  * Percentage change from previous to current.
@@ -52,7 +52,11 @@ function changeDisplay(current, previous, favourable) {
       ? "—"
       : `${percent >= 0 ? "+" : ""}${formatNumberForLocale(percent, { min: 1, max: 1 })}%`;
 
-  const ArrowIcon = isFlat ? RemoveIcon : isUp ? ArrowUpwardIcon : ArrowDownwardIcon;
+  const ArrowIcon = isFlat
+    ? RemoveIcon
+    : isUp
+      ? ArrowUpwardIcon
+      : ArrowDownwardIcon;
   return { tone, label, ArrowIcon };
 }
 
@@ -75,11 +79,11 @@ function MetricCard({ label, value, previousValue, favourable, isLoading }) {
     );
   }
 
-  const { tone, label: changeLabel, ArrowIcon } = changeDisplay(
-    value,
-    previousValue,
-    favourable
-  );
+  const {
+    tone,
+    label: changeLabel,
+    ArrowIcon,
+  } = changeDisplay(value, previousValue, favourable);
 
   return (
     <Paper variant="outlined" sx={{ ...appShellSetupSectionPaperSx, p: 2 }}>
@@ -109,7 +113,11 @@ function MetricCard({ label, value, previousValue, favourable, isLoading }) {
           {changeLabel}
         </Typography>
       </Grid>
-      <Tooltip title={numberToShortText(previousValue, 2)} arrow placement="top">
+      <Tooltip
+        title={numberToShortText(previousValue, 2)}
+        arrow
+        placement="top"
+      >
         <Typography
           sx={{
             typography: "caption",
@@ -133,12 +141,18 @@ function MetricCard({ label, value, previousValue, favourable, isLoading }) {
  * progress against a completed month. Charts over finished months are a separate
  * view.
  *
- * Reads the timeline with no range, which is how a caller asks for the current
- * month and the one before it — the server picks the window and reports that it
- * did.
+ * With no range, the server picks the window: the current month and the one
+ * before it, which is the comparison this view exists to make. A caller with its
+ * own range control passes one so the cards agree with what it shows elsewhere.
+ *
+ * @param {Object} [props]
+ * @param {string} [props.from] - YYYY-MM
+ * @param {string} [props.to] - YYYY-MM
  */
-export function ArchivedStatsOverview() {
-  const { data, isLoading } = useAccountTimelineQuery();
+export function ArchivedStatsOverview({ from, to } = {}) {
+  const { data, isLoading } = useAccountTimelineQuery(
+    from && to ? { from, to } : {},
+  );
 
   const months = data?.months ?? [];
   // Ascending from the server, so the last entry is the month in progress. Read

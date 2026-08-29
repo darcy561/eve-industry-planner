@@ -4,11 +4,12 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 const useAccountTimelineItemsQuery = vi.fn();
 const getFullItemList = vi.fn();
 
-vi.mock("../../../Hooks/React Query/Backend/statisticsTimeline", () => ({
-  useAccountTimelineItemsQuery: (...args) => useAccountTimelineItemsQuery(...args),
+vi.mock("../../Hooks/React Query/Backend/statisticsTimeline", () => ({
+  useAccountTimelineItemsQuery: (...args) =>
+    useAccountTimelineItemsQuery(...args),
 }));
 
-vi.mock("../../../Functions/Helper/getCachedData", () => ({
+vi.mock("../../Functions/Helper/getCachedData", () => ({
   getFullItemList: (...args) => getFullItemList(...args),
 }));
 
@@ -19,8 +20,18 @@ function page(items, totalItems = items.length) {
 }
 
 const sampleItems = [
-  { typeID: 23773, jobCostTotal: 12_000_000_000, salesTotal: 16_000_000_000, profitLoss: 4_000_000_000 },
-  { typeID: 671, jobCostTotal: 3_000_000_000, salesTotal: 2_000_000_000, profitLoss: -1_000_000_000 },
+  {
+    typeID: 23773,
+    jobCostTotal: 12_000_000_000,
+    salesTotal: 16_000_000_000,
+    profitLoss: 4_000_000_000,
+  },
+  {
+    typeID: 671,
+    jobCostTotal: 3_000_000_000,
+    salesTotal: 2_000_000_000,
+    profitLoss: -1_000_000_000,
+  },
 ];
 
 beforeEach(() => {
@@ -38,7 +49,9 @@ describe("ArchivedItemBreakdown", () => {
 
     render(<ArchivedItemBreakdown />);
 
-    await waitFor(() => expect(screen.getByText("Ragnarok")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Ragnarok")).toBeInTheDocument(),
+    );
     expect(screen.getByText("Erebus")).toBeInTheDocument();
   });
 
@@ -49,7 +62,9 @@ describe("ArchivedItemBreakdown", () => {
 
     render(<ArchivedItemBreakdown />);
 
-    await waitFor(() => expect(screen.getByText("Ragnarok")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Ragnarok")).toBeInTheDocument(),
+    );
     expect(getFullItemList).toHaveBeenCalledTimes(1);
   });
 
@@ -61,7 +76,9 @@ describe("ArchivedItemBreakdown", () => {
 
     render(<ArchivedItemBreakdown />);
 
-    await waitFor(() => expect(screen.getByText("Type 23773")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Type 23773")).toBeInTheDocument(),
+    );
   });
 
   // Ranking happens on the server, so the sort is a request parameter. Sorting
@@ -129,12 +146,16 @@ describe("ArchivedItemBreakdown", () => {
   it("offers the longer view only when the window holds more than five items", () => {
     useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems, 40));
     const { unmount } = render(<ArchivedItemBreakdown />);
-    expect(screen.getByRole("button", { name: "Show top 10" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Show top 10" }),
+    ).toBeInTheDocument();
     unmount();
 
     useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems, 5));
     render(<ArchivedItemBreakdown />);
-    expect(screen.queryByRole("button", { name: /Show top/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Show top/ }),
+    ).not.toBeInTheDocument();
   });
 
   // A dashboard glance, not an analysis tool: two rankings and five rows. More
@@ -162,15 +183,40 @@ describe("ArchivedItemBreakdown", () => {
 
     render(<ArchivedItemBreakdown />);
 
-    expect(screen.getByText("Nothing archived in this period yet.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Nothing archived in this period yet."),
+    ).toBeInTheDocument();
   });
 
   it("shows placeholders while loading rather than an empty state", () => {
-    useAccountTimelineItemsQuery.mockReturnValue({ data: undefined, isLoading: true });
+    useAccountTimelineItemsQuery.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+    });
 
     const { container } = render(<ArchivedItemBreakdown />);
 
-    expect(screen.queryByText("Nothing archived in this period yet.")).not.toBeInTheDocument();
-    expect(container.querySelectorAll(".MuiSkeleton-root").length).toBeGreaterThan(0);
+    expect(
+      screen.queryByText("Nothing archived in this period yet."),
+    ).not.toBeInTheDocument();
+    expect(
+      container.querySelectorAll(".MuiSkeleton-root").length,
+    ).toBeGreaterThan(0);
+  });
+
+  // A caller with its own range control passes one, so the table agrees with the
+  // rest of that page rather than showing the server's default window.
+  it("passes a caller's range through", async () => {
+    useAccountTimelineItemsQuery.mockReturnValue(page(sampleItems));
+    getFullItemList.mockResolvedValue([]);
+
+    render(<ArchivedItemBreakdown from="2026-01" to="2026-06" />);
+
+    await waitFor(() =>
+      expect(useAccountTimelineItemsQuery.mock.calls[0][0]).toMatchObject({
+        from: "2026-01",
+        to: "2026-06",
+      }),
+    );
   });
 });
