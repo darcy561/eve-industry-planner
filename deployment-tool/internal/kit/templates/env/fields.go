@@ -157,6 +157,13 @@ var envFields = []EnvField{
 		Help: "API maintenance mode when true-ish. Missing/empty → false.",
 		Type: FieldText, Required: false, Default: "",
 	},
+	{
+		Key: "EIP_ALLOWED_ORIGINS", Section: "Runtime", Label: "Allowed origins",
+		Help: "Comma-separated browser origins allowed to open the WebSocket and call the API " +
+			"(scheme + host + optional port, e.g. https://your-domain.com,http://localhost). " +
+			"Required: empty refuses every browser origin. Single \"*\" allows any origin.",
+		Type: FieldText, Required: true, Default: "",
+	},
 
 	{
 		Key: "SENTRY_DSN", Section: "Sentry", Label: "Sentry DSN",

@@ -21,10 +21,27 @@ import (
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  4096,
 	WriteBufferSize: 4096,
-	CheckOrigin:     nil, // Disable origin checking - handled by Nginx/proxy in front
+	CheckOrigin:     checkOrigin,
 	// RFC 7692: negotiate permessage-deflate when the client offers it. Flate level is set
 	// after upgrade to match shared/compression.FlateDefaultLevel (API default HTTP tier).
 	EnableCompression: true,
+}
+
+// checkOrigin allows browser origins listed in config.AllowedOrigins. The proxy chain
+// rewrites Host to the backend address, so gorilla's same-origin default can never match.
+// A request with no Origin header is not browser-initiated and is allowed.
+func checkOrigin(r *http.Request) bool {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		return true
+	}
+	origin = strings.TrimSuffix(strings.ToLower(origin), "/")
+	for _, allowed := range config.AllowedOrigins() {
+		if allowed == "*" || allowed == origin {
+			return true
+		}
+	}
+	return false
 }
 
 // HandleWS handles WebSocket requests from clients

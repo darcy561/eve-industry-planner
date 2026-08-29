@@ -225,7 +225,7 @@ services:
         - "traefik.http.routers.api-secure.middlewares=cors"
         - "traefik.http.middlewares.cors.headers.accessControlAllowMethods=GET,POST,PUT,DELETE,PATCH,OPTIONS"
         - "traefik.http.middlewares.cors.headers.accessControlAllowHeaders=Content-Type,Authorization,X-Requested-With,Accept,Origin"
-        - "traefik.http.middlewares.cors.headers.accessControlAllowOriginListRegex=^https://eveindustryplanner.com$$"
+        - "traefik.http.middlewares.cors.headers.accessControlAllowOriginList=${EIP_ALLOWED_ORIGINS:?EIP_ALLOWED_ORIGINS must be set}"
         - "traefik.http.middlewares.cors.headers.accessControlAllowCredentials=true"
         - "traefik.http.middlewares.cors.headers.accessControlMaxAge=86400"
         - "traefik.http.middlewares.cors.headers.addVaryHeader=true"
@@ -254,6 +254,7 @@ services:
     environment:
       <<: [*mongo-env, *redis-env, *nats-env, *app-public-env]
       APP_VERSION: ${APP_VERSION}
+      EIP_ALLOWED_ORIGINS: ${EIP_ALLOWED_ORIGINS:?EIP_ALLOWED_ORIGINS must be set}
       WS_CLIENT_CUTOFF: "2000"
       WS_TARGET_CLIENTS: "1500"
     secrets: *secrets-websocket
@@ -318,7 +319,7 @@ services:
         - "traefik.http.routers.ws-secure.middlewares=cors"
         - "traefik.http.middlewares.cors.headers.accessControlAllowMethods=GET,POST,PUT,DELETE,PATCH,OPTIONS"
         - "traefik.http.middlewares.cors.headers.accessControlAllowHeaders=Content-Type,Authorization,X-Requested-With,Accept,Origin"
-        - "traefik.http.middlewares.cors.headers.accessControlAllowOriginListRegex=^https://eveindustryplanner.com$$"
+        - "traefik.http.middlewares.cors.headers.accessControlAllowOriginList=${EIP_ALLOWED_ORIGINS:?EIP_ALLOWED_ORIGINS must be set}"
         - "traefik.http.middlewares.cors.headers.accessControlAllowCredentials=true"
         - "traefik.http.middlewares.cors.headers.accessControlMaxAge=86400"
         - "traefik.http.middlewares.cors.headers.addVaryHeader=true"
