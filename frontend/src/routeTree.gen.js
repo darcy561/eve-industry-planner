@@ -9,47 +9,31 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as UpcomingchangesRouteImport } from './routes/upcomingchanges'
-import { Route as SignoutRouteImport } from './routes/signout'
-import { Route as ReprocessingRouteImport } from './routes/reprocessing'
-import { Route as JobplannerRouteImport } from './routes/jobplanner'
-import { Route as ItemtreesRouteImport } from './routes/itemtrees'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as GroupNewRouteImport } from './routes/group/new'
-import { Route as GroupGroupIDRouteImport } from './routes/group/$groupID'
-import { Route as EditjobJobIDRouteImport } from './routes/editjob/$jobID'
-import { Route as ProtectedSettingsRouteImport } from './routes/_protected/settings'
-import { Route as ProtectedFirstLoginRouteImport } from './routes/_protected/first-login'
-import { Route as ProtectedDashboardRouteImport } from './routes/_protected/dashboard'
-import { Route as ProtectedBlueprintLibraryRouteImport } from './routes/_protected/blueprint-library'
-import { Route as ProtectedAssetLibraryRouteImport } from './routes/_protected/asset-library'
+import { Route as ProtectedRouteImport } from './routes/_protected'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ItemtreesRouteImport } from './routes/itemtrees'
+import { Route as JobplannerRouteImport } from './routes/jobplanner'
+import { Route as ReprocessingRouteImport } from './routes/reprocessing'
+import { Route as SignoutRouteImport } from './routes/signout'
+import { Route as UpcomingchangesRouteImport } from './routes/upcomingchanges'
 import { Route as ProtectedAccountsRouteImport } from './routes/_protected/accounts'
+import { Route as ProtectedAssetLibraryRouteImport } from './routes/_protected/asset-library'
+import { Route as ProtectedBlueprintLibraryRouteImport } from './routes/_protected/blueprint-library'
+import { Route as ProtectedDashboardRouteImport } from './routes/_protected/dashboard'
+import { Route as ProtectedFirstLoginRouteImport } from './routes/_protected/first-login'
+import { Route as ProtectedSettingsRouteImport } from './routes/_protected/settings'
+import { Route as EditjobJobIDRouteImport } from './routes/editjob/$jobID'
+import { Route as GroupGroupIDRouteImport } from './routes/group/$groupID'
+import { Route as GroupNewRouteImport } from './routes/group/new'
 
-const UpcomingchangesRoute = UpcomingchangesRouteImport.update({
-  id: '/upcomingchanges',
-  path: '/upcomingchanges',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 })
-const SignoutRoute = SignoutRouteImport.update({
-  id: '/signout',
-  path: '/signout',
-  getParentRoute: () => rootRouteImport,
-})
-const ReprocessingRoute = ReprocessingRouteImport.update({
-  id: '/reprocessing',
-  path: '/reprocessing',
-  getParentRoute: () => rootRouteImport,
-})
-const JobplannerRoute = JobplannerRouteImport.update({
-  id: '/jobplanner',
-  path: '/jobplanner',
-  getParentRoute: () => rootRouteImport,
-})
-const ItemtreesRoute = ItemtreesRouteImport.update({
-  id: '/itemtrees',
-  path: '/itemtrees',
+const ProtectedRoute = ProtectedRouteImport.update({
+  id: '/_protected',
   getParentRoute: () => rootRouteImport,
 })
 const AuthRoute = AuthRouteImport.update({
@@ -57,43 +41,39 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 })
-const ProtectedRoute = ProtectedRouteImport.update({
-  id: '/_protected',
+const ItemtreesRoute = ItemtreesRouteImport.update({
+  id: '/itemtrees',
+  path: '/itemtrees',
   getParentRoute: () => rootRouteImport,
 })
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const JobplannerRoute = JobplannerRouteImport.update({
+  id: '/jobplanner',
+  path: '/jobplanner',
   getParentRoute: () => rootRouteImport,
 })
-const GroupNewRoute = GroupNewRouteImport.update({
-  id: '/group/new',
-  path: '/group/new',
+const ReprocessingRoute = ReprocessingRouteImport.update({
+  id: '/reprocessing',
+  path: '/reprocessing',
   getParentRoute: () => rootRouteImport,
 })
-const GroupGroupIDRoute = GroupGroupIDRouteImport.update({
-  id: '/group/$groupID',
-  path: '/group/$groupID',
+const SignoutRoute = SignoutRouteImport.update({
+  id: '/signout',
+  path: '/signout',
   getParentRoute: () => rootRouteImport,
 })
-const EditjobJobIDRoute = EditjobJobIDRouteImport.update({
-  id: '/editjob/$jobID',
-  path: '/editjob/$jobID',
+const UpcomingchangesRoute = UpcomingchangesRouteImport.update({
+  id: '/upcomingchanges',
+  path: '/upcomingchanges',
   getParentRoute: () => rootRouteImport,
 })
-const ProtectedSettingsRoute = ProtectedSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+const ProtectedAccountsRoute = ProtectedAccountsRouteImport.update({
+  id: '/accounts',
+  path: '/accounts',
   getParentRoute: () => ProtectedRoute,
 })
-const ProtectedFirstLoginRoute = ProtectedFirstLoginRouteImport.update({
-  id: '/first-login',
-  path: '/first-login',
-  getParentRoute: () => ProtectedRoute,
-})
-const ProtectedDashboardRoute = ProtectedDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+const ProtectedAssetLibraryRoute = ProtectedAssetLibraryRouteImport.update({
+  id: '/asset-library',
+  path: '/asset-library',
   getParentRoute: () => ProtectedRoute,
 })
 const ProtectedBlueprintLibraryRoute =
@@ -102,15 +82,35 @@ const ProtectedBlueprintLibraryRoute =
     path: '/blueprint-library',
     getParentRoute: () => ProtectedRoute,
   })
-const ProtectedAssetLibraryRoute = ProtectedAssetLibraryRouteImport.update({
-  id: '/asset-library',
-  path: '/asset-library',
+const ProtectedDashboardRoute = ProtectedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => ProtectedRoute,
 })
-const ProtectedAccountsRoute = ProtectedAccountsRouteImport.update({
-  id: '/accounts',
-  path: '/accounts',
+const ProtectedFirstLoginRoute = ProtectedFirstLoginRouteImport.update({
+  id: '/first-login',
+  path: '/first-login',
   getParentRoute: () => ProtectedRoute,
+})
+const ProtectedSettingsRoute = ProtectedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => ProtectedRoute,
+})
+const EditjobJobIDRoute = EditjobJobIDRouteImport.update({
+  id: '/editjob/$jobID',
+  path: '/editjob/$jobID',
+  getParentRoute: () => rootRouteImport,
+})
+const GroupGroupIDRoute = GroupGroupIDRouteImport.update({
+  id: '/group/$groupID',
+  path: '/group/$groupID',
+  getParentRoute: () => rootRouteImport,
+})
+const GroupNewRoute = GroupNewRouteImport.update({
+  id: '/group/new',
+  path: '/group/new',
+  getParentRoute: () => rootRouteImport,
 })
 
 const ProtectedRouteChildren = {
