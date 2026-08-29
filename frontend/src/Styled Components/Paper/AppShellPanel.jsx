@@ -142,10 +142,12 @@ export default function AppShellPanel({
       <Box
         sx={{
           flex: 1,
+          width: "100%",
           minWidth: 0,
           minHeight: 0,
           display: "flex",
           flexDirection: "column",
+          alignItems: "stretch",
           ...contentSx,
         }}
       >

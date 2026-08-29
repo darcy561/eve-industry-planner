@@ -3,12 +3,17 @@ import {
   Box,
   Button,
   Chip,
-  Divider,
   MenuItem,
   Pagination,
   Select,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { useQueryClient } from "@tanstack/react-query";
@@ -43,9 +48,14 @@ const SORT_OPTIONS = [
 function Money({ value }) {
   if (value == null) {
     return (
-      <Typography variant="body2" color="text.disabled">
-        —
-      </Typography>
+      <Tooltip
+        arrow
+        title="Not counted yet — the statistics rebuild has not reached this job."
+      >
+        <Typography variant="body2" color="text.disabled">
+          —
+        </Typography>
+      </Tooltip>
     );
   }
   return (
@@ -55,6 +65,96 @@ function Money({ value }) {
     >
       {formatNumberForLocale(value)}
     </Typography>
+  );
+}
+
+/**
+ * What each column means. The figures are per job and come from the statistics
+ * rebuild, so a reader needs telling which cost and whose profit.
+ */
+const COLUMNS = [
+  { key: "name", label: "Job", align: "left" },
+  { key: "archivedAt", label: "Archived", align: "left", width: 110 },
+  {
+    key: "segment",
+    label: "Outcome",
+    align: "left",
+    width: 110,
+    help: "Whether the build sold on the market, was kept as stock, or fed another job.",
+  },
+  {
+    key: "jobCostTotal",
+    label: "Job cost",
+    align: "right",
+    width: 140,
+    help: "Everything the job cost to build: materials, install fees, extras and any invention.",
+  },
+  {
+    key: "profitLoss",
+    label: "Profit / loss",
+    align: "right",
+    width: 140,
+    help: "Sales minus job cost. Zero where nothing sold, rather than a loss the size of the build.",
+  },
+  { key: "actions", label: "", align: "right", width: 110 },
+];
+
+/** Column headings, with a note on the ones whose meaning is not obvious. */
+function ListHeader() {
+  return (
+    <TableHead>
+      <TableRow>
+        {COLUMNS.map((column) => (
+          <TableCell
+            key={column.key}
+            align={column.align}
+            sx={{ width: column.width, whiteSpace: "nowrap" }}
+          >
+            {column.help ? (
+              <Tooltip arrow title={column.help}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ borderBottom: "1px dotted", cursor: "help" }}
+                >
+                  {column.label}
+                </Typography>
+              </Tooltip>
+            ) : (
+              <Typography variant="caption" color="text.secondary">
+                {column.label}
+              </Typography>
+            )}
+          </TableCell>
+        ))}
+      </TableRow>
+    </TableHead>
+  );
+}
+
+/** How a job's output was disposed of, as the statistics pipeline classified it. */
+const SEGMENT_LABELS = {
+  standaloneRecordedSale: { label: "Market", colour: "success" },
+  retainedStock: { label: "Stock", colour: "default" },
+  productionChain: { label: "Chain", colour: "info" },
+};
+
+function SegmentChip({ segment }) {
+  const meta = SEGMENT_LABELS[segment];
+  if (!meta) {
+    return (
+      <Typography variant="caption" color="text.disabled">
+        —
+      </Typography>
+    );
+  }
+  return (
+    <Chip
+      size="small"
+      variant="outlined"
+      label={meta.label}
+      color={meta.colour}
+    />
   );
 }
 
@@ -89,90 +189,115 @@ function restoreSummary(result) {
 }
 
 /** One archived job. */
-function JobRow({ job, onRestore, busy }) {
+function JobRow({ job, onRestore, busy, indented }) {
   return (
-    <Stack
-      direction="row"
-      spacing={2}
-      alignItems="center"
-      sx={{ py: 0.75, pl: 2 }}
-    >
-      <Typography
-        variant="body2"
-        sx={{ flex: "1 1 200px", minWidth: 0 }}
-        noWrap
-      >
-        {job.name}
-      </Typography>
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        sx={{ width: 96, flexShrink: 0 }}
-      >
-        {job.archivedAt?.slice(0, 10)}
-      </Typography>
-      <Box sx={{ width: 120, flexShrink: 0, textAlign: "right" }}>
+    <TableRow hover>
+      <TableCell sx={{ pl: indented ? 4 : 2 }}>
+        <Typography variant="body2" noWrap>
+          {job.name}
+        </Typography>
+      </TableCell>
+      <TableCell>
+        <Typography variant="caption" color="text.secondary">
+          {job.archivedAt?.slice(0, 10) ?? "—"}
+        </Typography>
+      </TableCell>
+      <TableCell>
+        <SegmentChip segment={job.measures?.segment} />
+      </TableCell>
+      <TableCell align="right">
         <Money value={job.measures?.jobCostTotal} />
-      </Box>
-      <Box sx={{ width: 120, flexShrink: 0, textAlign: "right" }}>
+      </TableCell>
+      <TableCell align="right">
         <Money value={job.measures?.profitLoss} />
-      </Box>
-      <Button
-        size="small"
-        disabled={busy}
-        onClick={() => onRestore(RESTORE_SCOPES.JOB, job.jobID)}
-      >
-        Restore
-      </Button>
-    </Stack>
+      </TableCell>
+      <TableCell align="right">
+        <Button
+          size="small"
+          disabled={busy}
+          onClick={() => onRestore(RESTORE_SCOPES.JOB, job.jobID)}
+        >
+          Restore
+        </Button>
+      </TableCell>
+    </TableRow>
   );
 }
 
 /** A group, a related set, or a single job. */
 function Block({ block, onRestore, busy }) {
   const totals = useMemo(() => blockTotals(block.jobs), [block.jobs]);
-  const isBlock = block.kind !== "job";
 
-  if (!isBlock) {
+  if (block.kind === "job") {
     return <JobRow job={block.jobs[0]} onRestore={onRestore} busy={busy} />;
   }
 
+  const isGroup = block.kind === "group";
   return (
-    <Box sx={{ py: 1 }}>
-      <Stack direction="row" spacing={2} alignItems="center">
-        <Chip
-          size="small"
-          label={block.kind === "group" ? "Group" : "Linked"}
-          color={block.kind === "group" ? "primary" : "default"}
-          variant="outlined"
-        />
-        <Typography variant="subtitle2" sx={{ flex: 1, minWidth: 0 }} noWrap>
-          {block.label}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          {block.jobs.length} jobs
-          {totals.uncounted > 0 ? ` (${totals.uncounted} not yet counted)` : ""}
-        </Typography>
-        <Button
-          size="small"
-          variant="outlined"
-          disabled={busy}
-          onClick={() =>
-            onRestore(
-              block.kind === "group"
-                ? RESTORE_SCOPES.GROUP
-                : RESTORE_SCOPES.RELATED,
-              block.kind === "group" ? block.id : block.jobs[0].jobID,
-            )
-          }
-        >
-          Restore {block.kind === "group" ? "group" : "set"}
-        </Button>
-      </Stack>
+    <>
+      <TableRow sx={{ backgroundColor: "action.hover" }}>
+        <TableCell sx={{ pl: 2 }}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Tooltip
+              arrow
+              title={
+                isGroup
+                  ? "Archived together as a group. Restoring rebuilds the group from these jobs."
+                  : "Linked through parent and child jobs. Restoring brings back the whole chain."
+              }
+            >
+              <Chip
+                size="small"
+                label={isGroup ? "Group" : "Linked"}
+                color={isGroup ? "primary" : "default"}
+                variant="outlined"
+              />
+            </Tooltip>
+            <Typography variant="subtitle2" noWrap>
+              {block.label}
+            </Typography>
+          </Stack>
+        </TableCell>
+        <TableCell colSpan={2}>
+          <Typography variant="caption" color="text.secondary">
+            {block.jobs.length} jobs
+            {totals.uncounted > 0
+              ? ` · ${totals.uncounted} not counted yet`
+              : ""}
+          </Typography>
+        </TableCell>
+        <TableCell align="right">
+          <Money value={totals.counted > 0 ? totals.jobCostTotal : null} />
+        </TableCell>
+        <TableCell align="right">
+          <Money value={totals.counted > 0 ? totals.profitLoss : null} />
+        </TableCell>
+        <TableCell align="right">
+          <Button
+            size="small"
+            variant="outlined"
+            disabled={busy}
+            onClick={() =>
+              onRestore(
+                isGroup ? RESTORE_SCOPES.GROUP : RESTORE_SCOPES.RELATED,
+                isGroup ? block.id : block.jobs[0].jobID,
+              )
+            }
+          >
+            Restore {isGroup ? "group" : "set"}
+          </Button>
+        </TableCell>
+      </TableRow>
       {block.jobs.map((job) => (
-        <JobRow key={job.jobID} job={job} onRestore={onRestore} busy={busy} />
+        <JobRow
+          key={job.jobID}
+          job={job}
+          onRestore={onRestore}
+          busy={busy}
+          indented
+        />
       ))}
-    </Box>
+    </>
   );
 }
 
@@ -271,13 +396,20 @@ export function ArchivedJobsList({ enabled = true }) {
               : "Nothing archived yet."}
           </Typography>
         ) : (
-          <Box>
-            {blocks.map((block, index) => (
-              <Box key={`${block.kind}:${block.id}`}>
-                {index > 0 && <Divider />}
-                <Block block={block} onRestore={handleRestore} busy={busy} />
-              </Box>
-            ))}
+          <Box sx={{ width: "100%", overflowX: "auto" }}>
+            <Table size="small">
+              <ListHeader />
+              <TableBody>
+                {blocks.map((block) => (
+                  <Block
+                    key={`${block.kind}:${block.id}`}
+                    block={block}
+                    onRestore={handleRestore}
+                    busy={busy}
+                  />
+                ))}
+              </TableBody>
+            </Table>
           </Box>
         )}
 
