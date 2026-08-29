@@ -261,7 +261,12 @@ function PriceHistoryLineGraph({
             leftDomain={iskDomain}
             rightDomain={volumeDomain}
             categoryAngle={-20}
-            style={{ height: "100%", aspectRatio: "auto", minHeight: 320 }}
+            style={{
+              height: "100%",
+              maxHeight: "none",
+              aspectRatio: "auto",
+              minHeight: 320,
+            }}
           />
         )}
       </Box>

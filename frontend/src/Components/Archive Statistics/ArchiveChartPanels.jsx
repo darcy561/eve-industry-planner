@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { MenuItem, Select, Stack, Typography } from "@mui/material";
+import { MenuItem, Select, Typography } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
-import ContentPanel from "../../Styled Components/Paper/ContentPanel";
+import AppShellPanel from "../../Styled Components/Paper/AppShellPanel";
 import {
   PieChart,
   RankedBarChart,
@@ -28,6 +28,24 @@ function monthLabel(rows) {
     const row = rows.find((r) => r.month === value);
     return row && !row.complete ? `${value} (so far)` : value;
   };
+}
+
+/** The measure a panel ranks or splits by, shown in the panel header. */
+function MeasureSelect({ value, onChange, options }) {
+  return (
+    <Select
+      size="small"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      sx={{ minWidth: 140 }}
+    >
+      {options.map((option) => (
+        <MenuItem key={option.key} value={option.key}>
+          By {option.label.toLowerCase()}
+        </MenuItem>
+      ))}
+    </Select>
+  );
 }
 
 /** Shared empty state, so a panel with no rows says why rather than drawing nothing. */
@@ -58,7 +76,7 @@ export function ArchiveTimelinePanel({ from, to }) {
   const rows = useMemo(() => toTimelineRows(data), [data]);
 
   return (
-    <ContentPanel
+    <AppShellPanel
       title="Monthly totals"
       componentName="Archive Timeline Panel"
       isLoading={isLoading}
@@ -78,7 +96,7 @@ export function ArchiveTimelinePanel({ from, to }) {
           ]}
         />
       )}
-    </ContentPanel>
+    </AppShellPanel>
   );
 }
 
@@ -90,7 +108,7 @@ export function ArchiveCumulativePanel({ from, to }) {
   const rows = useMemo(() => toCumulativeRows(data), [data]);
 
   return (
-    <ContentPanel
+    <AppShellPanel
       title="Cumulative profit"
       componentName="Archive Cumulative Panel"
       isLoading={isLoading}
@@ -108,7 +126,7 @@ export function ArchiveCumulativePanel({ from, to }) {
           ]}
         />
       )}
-    </ContentPanel>
+    </AppShellPanel>
   );
 }
 
@@ -145,40 +163,33 @@ export function ArchiveItemChartPanel({ from, to, limit = 10 }) {
   const measure = ITEM_MEASURES.find((m) => m.key === sort);
 
   return (
-    <ContentPanel
+    <AppShellPanel
       title="Top items"
       componentName="Archive Item Chart Panel"
+      action={
+        <MeasureSelect
+          value={sort}
+          onChange={setSort}
+          options={ITEM_MEASURES}
+        />
+      }
       isLoading={isLoading}
       isError={isError}
     >
-      <Stack spacing={1}>
-        <Select
-          size="small"
-          value={sort}
-          onChange={(event) => setSort(event.target.value)}
-          sx={{ alignSelf: "flex-end", minWidth: 160 }}
-        >
-          {ITEM_MEASURES.map((option) => (
-            <MenuItem key={option.key} value={option.key}>
-              By {option.label.toLowerCase()}
-            </MenuItem>
-          ))}
-        </Select>
-        {rows.length === 0 ? (
-          <NoData>No archived jobs in this period.</NoData>
-        ) : (
-          <RankedBarChart
-            rows={rows}
-            categoryKey="name"
-            valueKey={sort}
-            valueLabel={measure?.label}
-            colourFor={(row) =>
-              row?.[sort] < 0 ? "var(--eip-loss, #f03939)" : undefined
-            }
-          />
-        )}
-      </Stack>
-    </ContentPanel>
+      {rows.length === 0 ? (
+        <NoData>No archived jobs in this period.</NoData>
+      ) : (
+        <RankedBarChart
+          rows={rows}
+          categoryKey="name"
+          valueKey={sort}
+          valueLabel={measure?.label}
+          colourFor={(row) =>
+            row?.[sort] < 0 ? "var(--eip-loss, #f03939)" : undefined
+          }
+        />
+      )}
+    </AppShellPanel>
   );
 }
 
@@ -200,32 +211,25 @@ export function ArchiveSegmentPanel({ typeID = 0 }) {
   const rows = useMemo(() => toSegmentRows(data, measure), [data, measure]);
 
   return (
-    <ContentPanel
+    <AppShellPanel
       title="Where the work went"
       componentName="Archive Segment Panel"
+      action={
+        <MeasureSelect
+          value={measure}
+          onChange={setMeasure}
+          options={SEGMENT_MEASURES}
+        />
+      }
       isLoading={isLoading}
       isError={isError}
     >
-      <Stack spacing={1}>
-        <Select
-          size="small"
-          value={measure}
-          onChange={(event) => setMeasure(event.target.value)}
-          sx={{ alignSelf: "flex-end", minWidth: 160 }}
-        >
-          {SEGMENT_MEASURES.map((option) => (
-            <MenuItem key={option.key} value={option.key}>
-              By {option.label.toLowerCase()}
-            </MenuItem>
-          ))}
-        </Select>
-        {rows.length === 0 ? (
-          <NoData>Nothing archived yet.</NoData>
-        ) : (
-          <PieChart rows={rows} categoryKey="segment" valueKey="value" />
-        )}
-      </Stack>
-    </ContentPanel>
+      {rows.length === 0 ? (
+        <NoData>Nothing archived yet.</NoData>
+      ) : (
+        <PieChart rows={rows} categoryKey="segment" valueKey="value" />
+      )}
+    </AppShellPanel>
   );
 }
 
@@ -248,7 +252,7 @@ export function ArchiveExtrasPanel({ from, to }) {
   );
 
   return (
-    <ContentPanel
+    <AppShellPanel
       title="Extras by category"
       componentName="Archive Extras Panel"
       isLoading={isLoading}
@@ -264,6 +268,6 @@ export function ArchiveExtrasPanel({ from, to }) {
           series={series}
         />
       )}
-    </ContentPanel>
+    </AppShellPanel>
   );
 }

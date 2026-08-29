@@ -12,6 +12,8 @@ import {
 } from "recharts";
 import {
   chartAxisProps,
+  chartGridStroke,
+  chartLegendProps,
   chartMargins,
   chartTooltipProps,
   formatAxisValue,
@@ -71,9 +73,14 @@ export function TimeSeriesChart({
         formatCategory,
         angle: categoryAngle,
       })}
-      style={{ width: "100%", aspectRatio: 1.9, ...style }}
+      style={{
+        width: "100%",
+        aspectRatio: 1.9,
+        maxHeight: 320,
+        ...style,
+      }}
     >
-      <CartesianGrid stroke={theme.palette.divider} vertical={false} />
+      <CartesianGrid stroke={chartGridStroke(theme)} vertical={false} />
       <XAxis
         dataKey={categoryKey}
         tickFormatter={formatCategory}
@@ -112,7 +119,9 @@ export function TimeSeriesChart({
         formatter={(value, name) => [formatValue(value), name]}
         labelFormatter={formatCategoryLabel ?? formatCategory}
       />
-      {series.length > 1 && <Legend position="top" />}
+      {series.length > 1 && (
+        <Legend position="top" {...chartLegendProps(theme)} />
+      )}
       {series.map((s, index) => {
         const colour = resolveSeriesColour(theme, s, index);
         const shared = {

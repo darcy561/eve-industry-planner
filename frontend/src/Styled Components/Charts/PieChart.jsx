@@ -7,6 +7,7 @@ import {
   Tooltip,
 } from "recharts";
 import {
+  chartLegendProps,
   chartTooltipProps,
   formatTooltipValue,
   resolveSeriesColour,
@@ -38,7 +39,12 @@ export function PieChart({
       responsive
       {...(width ? { width } : {})}
       {...(height ? { height } : {})}
-      style={{ width: "100%", aspectRatio: 1.4, ...style }}
+      style={{
+        width: "100%",
+        aspectRatio: 1.4,
+        maxHeight: 320,
+        ...style,
+      }}
     >
       <Pie
         data={rows}
@@ -51,7 +57,7 @@ export function PieChart({
           <Sector
             {...props}
             fill={resolveSeriesColour(theme, props?.payload, index ?? 0)}
-            stroke={theme.palette.background.paper}
+            stroke={theme.palette.background.default}
           />
         )}
       />
@@ -59,7 +65,7 @@ export function PieChart({
         {...chartTooltipProps(theme)}
         formatter={(value, name) => [formatValue(value), name]}
       />
-      <Legend position="bottom" />
+      <Legend position="bottom" {...chartLegendProps(theme)} />
     </RechartsPieChart>
   );
 }

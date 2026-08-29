@@ -9,5 +9,7 @@ export {
   formatTooltipValue,
   chartTooltipProps,
   chartAxisProps,
+  chartGridStroke,
+  chartLegendProps,
   chartMargins,
 } from "./chartTheme";

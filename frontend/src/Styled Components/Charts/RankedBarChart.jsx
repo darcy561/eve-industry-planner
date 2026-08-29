@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import {
   chartAxisProps,
+  chartGridStroke,
   chartTooltipProps,
   formatAxisValue,
   formatTooltipValue,
@@ -47,7 +48,8 @@ export function RankedBarChart({
   const theme = useTheme();
   const axisProps = chartAxisProps(theme);
   const baseColour = colour ?? resolveSeriesColour(theme, null, 0);
-  const rowsHeight = height ?? Math.max(160, rows.length * barHeight + 48);
+  const rowsHeight =
+    height ?? Math.min(320, Math.max(160, rows.length * barHeight + 48));
 
   return (
     <BarChart
@@ -59,7 +61,7 @@ export function RankedBarChart({
       layout="vertical"
       margin={{ top: 8, right: 24, bottom: 8, left: 8 }}
     >
-      <CartesianGrid stroke={theme.palette.divider} horizontal={false} />
+      <CartesianGrid stroke={chartGridStroke(theme)} horizontal={false} />
       <XAxis type="number" tickFormatter={formatAxisValue} {...axisProps} />
       <YAxis
         type="category"
