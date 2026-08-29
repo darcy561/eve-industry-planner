@@ -16,7 +16,7 @@ func roundBuildStatMoney(x float64) float64 {
 	return math.Round((x+buildStatRoundEps)*100) / 100
 }
 
-// computeBuildStatSnapshot mirrors frontend/functions archievedJobs.js reducers and arithmetic.
+// computeBuildStatSnapshot mirrors frontend/functions archivedJobs.js reducers and arithmetic.
 func computeBuildStatSnapshot(job models.Job) (models.BuildStatSnapshot, error) {
 	totalProduced := float64(job.Build.Products.TotalQuantity)
 	if totalProduced <= 0 {
@@ -56,22 +56,6 @@ func computeBuildStatSnapshot(job models.Job) (models.BuildStatSnapshot, error) 
 		profitLoss = totalSale - totalJobCost
 	}
 
-	corpMarketOrder := false
-	for _, order := range job.Build.Sale.MarketOrders {
-		if order.IsCorporation {
-			corpMarketOrder = true
-			break
-		}
-	}
-
-	corpIndustryJob := false
-	for _, linked := range job.Build.Costs.LinkedJobs {
-		if linked.IsCorporation {
-			corpIndustryJob = true
-			break
-		}
-	}
-
 	return models.BuildStatSnapshot{
 		TypeID:              job.ItemID,
 		JobID:               job.JobID,
@@ -91,8 +75,6 @@ func computeBuildStatSnapshot(job models.Job) (models.BuildStatSnapshot, error) 
 		TotalSales:          totalSale,
 		AverageSalePrice:    averageSalePrice,
 		ProfitLoss:          profitLoss,
-		CorpMarketOrder:     corpMarketOrder,
-		CorpIndustryJob:     corpIndustryJob,
 	}, nil
 }
 

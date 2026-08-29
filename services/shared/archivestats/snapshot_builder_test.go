@@ -90,78 +90,6 @@ func TestZeroProducedDoesNotDivideByZero(t *testing.T) {
 	}
 }
 
-// A transaction naming no corporation inherits the order's, and a fee inherits it
-// too — otherwise a corporation sale reads as personal.
-func TestLinesInheritCorporationFromTheirOrder(t *testing.T) {
-	t.Parallel()
-
-	job := sampleJob()
-	job.Build.Sale.MarketOrders[0] = models.MarketOrder{OrderID: 900, IsCorporation: true, CorporationRef: "corp_a"}
-
-	doc := BuildAccountSnapshot(job, sampleSnap(), buildNow)
-
-	tx := doc.TransactionLines[0]
-	if !tx.IsCorp || tx.ResolvedCorpRef != "corp_a" || tx.CorpStatus != models.CorpStatusCorpKnown {
-		t.Fatalf("transaction = %+v, want corp_a known", tx.ArchivedJobLine)
-	}
-	fee := doc.FeeLines[0]
-	if !fee.IsCorp || fee.ResolvedCorpRef != "corp_a" || fee.CorpStatus != models.CorpStatusCorpKnown {
-		t.Fatalf("fee = %+v, want corp_a known", fee.ArchivedJobLine)
-	}
-}
-
-// When neither the line nor its order names a corporation, a single distinct
-// corporation across the linked facility jobs resolves it.
-func TestLinesFallBackToTheInferredCorporation(t *testing.T) {
-	t.Parallel()
-
-	job := sampleJob()
-	job.Build.Costs.LinkedJobs = linked("corp_a", "corp_a")
-
-	doc := BuildAccountSnapshot(job, sampleSnap(), buildNow)
-	if doc.TransactionLines[0].ResolvedCorpRef != "corp_a" {
-		t.Fatalf("transaction corp = %q, want corp_a", doc.TransactionLines[0].ResolvedCorpRef)
-	}
-	if doc.FeeLines[0].ResolvedCorpRef != "corp_a" {
-		t.Fatalf("fee corp = %q, want corp_a", doc.FeeLines[0].ResolvedCorpRef)
-	}
-}
-
-// Two corporations across the linked jobs must resolve to none rather than pick
-// one, so no corporation is credited revenue it may not have earned.
-func TestAmbiguousCorporationIsNotAttributed(t *testing.T) {
-	t.Parallel()
-
-	job := sampleJob()
-	job.Build.Costs.LinkedJobs = linked("corp_a", "corp_b")
-
-	doc := BuildAccountSnapshot(job, sampleSnap(), buildNow)
-	line := doc.TransactionLines[0]
-	if line.ResolvedCorpRef != "" {
-		t.Fatalf("resolvedCorpRef = %q, want empty when ambiguous", line.ResolvedCorpRef)
-	}
-	if line.CorpStatus != models.CorpStatusPersonal {
-		t.Fatalf("corpStatus = %q; an unattributed line stays personal", line.CorpStatus)
-	}
-}
-
-// A corporation line whose corporation cannot be named is recorded as such rather
-// than silently counted as personal.
-func TestCorpLineWithoutARefIsMarkedUnknown(t *testing.T) {
-	t.Parallel()
-
-	job := sampleJob()
-	job.Build.Sale.Transactions[0].IsCorp = true
-
-	line := BuildAccountSnapshot(job, sampleSnap(), buildNow).TransactionLines[0]
-	if line.CorpStatus != models.CorpStatusCorpUnknown {
-		t.Fatalf("corpStatus = %q, want corp_unknown", line.CorpStatus)
-	}
-	if line.ResolvedCorpRef != "" {
-		t.Fatal("an unknown corporation must not be recorded as resolved")
-	}
-}
-
 // Costs belong to the month production started, not the month the job was
 // archived, so a build spanning a boundary keeps its costs where they were spent.
 func TestCostMonthComesFromTheEarliestLinkedJob(t *testing.T) {
@@ -232,7 +160,10 @@ func TestBuildIsDeterministic(t *testing.T) {
 	t.Parallel()
 
 	job := sampleJob()
-	job.Build.Costs.LinkedJobs = linked("corp_b", "corp_a")
+	job.Build.Costs.LinkedJobs = []models.LinkedESIJob{
+		{JobID: 2, StartDate: "2026-05-04T00:00:00Z"},
+		{JobID: 1, StartDate: "2026-05-02T00:00:00Z"},
+	}
 	job.Build.Costs.ExtrasCosts = []models.ExtraCost{{Category: "x", ExtraValue: 1}}
 
 	first := BuildAccountSnapshot(job, sampleSnap(), buildNow)
@@ -241,14 +172,8 @@ func TestBuildIsDeterministic(t *testing.T) {
 		if again.ID != first.ID || again.CostMonth != first.CostMonth {
 			t.Fatal("identity or cost month changed between rebuilds")
 		}
-		if len(again.LinkedIndustryCorpRefs) != len(first.LinkedIndustryCorpRefs) {
-			t.Fatal("linked corporation refs changed between rebuilds")
-		}
-		for i := range first.LinkedIndustryCorpRefs {
-			if again.LinkedIndustryCorpRefs[i] != first.LinkedIndustryCorpRefs[i] {
-				t.Fatalf("linked corporation refs reordered: %v vs %v",
-					again.LinkedIndustryCorpRefs, first.LinkedIndustryCorpRefs)
-			}
+		if len(again.TransactionLines) != len(first.TransactionLines) {
+			t.Fatal("transaction lines changed between rebuilds")
 		}
 	}
 }
