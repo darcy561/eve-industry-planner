@@ -980,10 +980,11 @@ Two things this depends on, both of which would fail quietly:
 - **Every write moves `_meta.lastModified`.** The SPA drops a realtime event older than its cursor, so
   a write that did not move the document's clock would be routed, delivered, and then discarded.
 - **The originating client is excluded from its own broadcast.** `broadcastToAccountClients` skips
-  the source client id, so the tab that called restore is the one tab the push does not reach. It is
-  expected to apply the response it already has — the restored jobs into the planner array, the
-  rebuilt group, and the reclaimed ESI ids — which is a requirement on the SPA rather than something
-  the fan-out covers.
+  the source client id, so the tab that called restore is the one tab the push does not reach. The
+  restore response therefore carries the restored job **documents** as well as their ids, and the
+  rebuilt group, so the calling client applies the change itself rather than waiting for a push that
+  is not coming. Returning them costs nothing: the handler has already decrypted and link-resolved
+  them to write them.
 
 ### A chain can straddle the archive boundary
 

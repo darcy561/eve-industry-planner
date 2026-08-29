@@ -18,6 +18,7 @@ import { Route as ReprocessingRouteImport } from './routes/reprocessing'
 import { Route as SignoutRouteImport } from './routes/signout'
 import { Route as UpcomingchangesRouteImport } from './routes/upcomingchanges'
 import { Route as ProtectedAccountsRouteImport } from './routes/_protected/accounts'
+import { Route as ProtectedArchivedJobsRouteImport } from './routes/_protected/archived-jobs'
 import { Route as ProtectedAssetLibraryRouteImport } from './routes/_protected/asset-library'
 import { Route as ProtectedBlueprintLibraryRouteImport } from './routes/_protected/blueprint-library'
 import { Route as ProtectedDashboardRouteImport } from './routes/_protected/dashboard'
@@ -71,6 +72,11 @@ const ProtectedAccountsRoute = ProtectedAccountsRouteImport.update({
   path: '/accounts',
   getParentRoute: () => ProtectedRoute,
 })
+const ProtectedArchivedJobsRoute = ProtectedArchivedJobsRouteImport.update({
+  id: '/archived-jobs',
+  path: '/archived-jobs',
+  getParentRoute: () => ProtectedRoute,
+})
 const ProtectedAssetLibraryRoute = ProtectedAssetLibraryRouteImport.update({
   id: '/asset-library',
   path: '/asset-library',
@@ -115,6 +121,7 @@ const GroupNewRoute = GroupNewRouteImport.update({
 
 const ProtectedRouteChildren = {
   ProtectedAccountsRoute: ProtectedAccountsRoute,
+  ProtectedArchivedJobsRoute: ProtectedArchivedJobsRoute,
   ProtectedAssetLibraryRoute: ProtectedAssetLibraryRoute,
   ProtectedBlueprintLibraryRoute: ProtectedBlueprintLibraryRoute,
   ProtectedDashboardRoute: ProtectedDashboardRoute,

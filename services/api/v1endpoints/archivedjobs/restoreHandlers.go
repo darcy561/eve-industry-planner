@@ -14,6 +14,9 @@ import (
 // restoreResponse is the same shape whichever route produced it.
 type restoreResponse struct {
 	RestoredJobIDs []string `json:"restoredJobIDs"`
+	// Jobs lets the calling client apply the restore itself: the realtime
+	// broadcast skips the client that caused it.
+	Jobs []models.Job `json:"jobs"`
 	// Conflicts and Unresolved are reported, not errors.
 	Conflicts  []esiConflict `json:"conflicts,omitempty"`
 	Group      *models.Group `json:"group,omitempty"`
@@ -94,6 +97,7 @@ func (h *Handlers) RestoreArchivedJobsHandler(w http.ResponseWriter, r *http.Req
 
 	resp := restoreResponse{
 		RestoredJobIDs: result.RestoredJobIDs,
+		Jobs:           result.Jobs,
 		Conflicts:      result.Conflicts,
 		Group:          result.Group,
 		Unresolved:     unresolved,
