@@ -1,3 +1,4 @@
+import { useMediaQuery } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import {
   Legend,
@@ -33,6 +34,7 @@ export function PieChart({
   height,
 }) {
   const theme = useTheme();
+  const deviceNotMobile = useMediaQuery(theme.breakpoints.up("sm"));
 
   return (
     <RechartsPieChart
@@ -41,7 +43,8 @@ export function PieChart({
       {...(height ? { height } : {})}
       style={{
         width: "100%",
-        aspectRatio: 1.4,
+        aspectRatio: deviceNotMobile ? 1.4 : 1,
+        minHeight: 220,
         maxHeight: 320,
         ...style,
       }}
