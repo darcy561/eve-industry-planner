@@ -264,7 +264,7 @@ export default function ContentDialogue({
 
   const appShellDialogueSx = useAppShellDesign
     ? {
-        "& .MuiDialogue-paper": {
+        "& .MuiDialog-paper": {
           boxShadow: (theme) =>
             `0 18px 50px ${alpha(theme.palette.common.black, 0.35)}, 0 0 0 1px ${alpha(theme.palette.primary.main, 0.2)}, 0 0 30px ${alpha(theme.palette.primary.main, 0.18)}`,
         },

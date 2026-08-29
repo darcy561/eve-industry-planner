@@ -75,7 +75,7 @@ function PriceHistoryDialogue() {
             : null
       }
       dialogueSx={{
-        "& .MuiDialogue-paper": {
+        "& .MuiDialog-paper": {
           height: "90vh",
           width: "90vw",
           maxWidth: "100%",

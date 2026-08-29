@@ -289,7 +289,7 @@ export default function AssetsDialogueContent(props) {
         </>
       }
       dialogueSx={{
-        "& .MuiDialogue-paper": {
+        "& .MuiDialog-paper": {
           height: "100vh",
           width: "90vw",
         },

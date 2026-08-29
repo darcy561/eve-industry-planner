@@ -94,7 +94,7 @@ function MarketDataDialogue() {
             : null
       }
       dialogueSx={{
-        "& .MuiDialogue-paper": {
+        "& .MuiDialog-paper": {
           height: "100vh",
           width: "90vw",
           display: "flex",
