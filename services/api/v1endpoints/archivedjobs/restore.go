@@ -22,8 +22,11 @@ type restoreRequest struct {
 
 type restoreResult struct {
 	RestoredJobIDs []string
-	Conflicts      []esiConflict
-	Group          *models.Group
+	// Jobs are the documents as written, so the client that asked can apply them
+	// without a second read. The realtime broadcast excludes its own originator.
+	Jobs      []models.Job
+	Conflicts []esiConflict
+	Group     *models.Group
 }
 
 // restoreJobs returns archived jobs to the planner: decrypt, resolve ESI links,
@@ -106,7 +109,7 @@ func restoreJobs(ctx context.Context, h *Handlers, req restoreRequest) (restoreR
 		return restoreResult{}, fmt.Errorf("queue statistics rebuild: %w", queueErr)
 	}
 
-	return restoreResult{RestoredJobIDs: jobIDs, Conflicts: conflicts, Group: group}, nil
+	return restoreResult{RestoredJobIDs: jobIDs, Jobs: req.Jobs, Conflicts: conflicts, Group: group}, nil
 }
 
 func conflictIndex(conflicts []esiConflict) map[esiLinkKind]map[int]struct{} {

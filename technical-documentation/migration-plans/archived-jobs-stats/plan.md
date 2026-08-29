@@ -899,7 +899,7 @@ needs modernization first.
 | E — frontend | **Complete for the account scope** — the SPA reads `totals`, `timeline` and `timeline/items`; build-stats is deleted; the dashboard carries the month-on-month comparison and the item breakdown; the archive dialogue is split into its four segment blocks. Corporation scope waits for Stage C |
 | F — archived jobs read API | **Complete** — `GET /api/v1/archived-jobs` serves a paged, filtered list of summaries and `GET /api/v1/archived-jobs/{jobID}` one full document. Rows report group and related-set membership, figures come from the shared `archivestats` reduction, and the query parsing both this and the statistics views use moved to `api/helper`. Indexes landed in the Deployment Tool |
 | G — restore | **Complete** — three POST routes restore a job, a group rebuilt from its jobs, or a related set walked over the archive. The write is one server-side sequence: decrypt, resolve links, write job documents, re-link free ESI ids on the account, rebuild the group, delete the archived documents, queue the rebuild. Conflicts are reported and stripped rather than blocking |
-| H — archived jobs page | **Planned** — a `/archived-jobs` page carrying the four charts and the list/restore table in one slice, over reusable data-agnostic chart primitives that the price-history dialogue is also moved onto |
+| H — archived jobs page | **Complete for the account scope** — `/archived-jobs` carries the statistics tab (metric cards, four charts, item table) and the jobs tab (list, three row shapes, restore). Chart primitives are shared and the price-history dialogue moved onto them. The list is not queried until its tab is opened |
 
 ## Done when
 
