@@ -20,13 +20,13 @@ import {
   appShellOutlinedFormControl,
   appShellSetupSectionPaperSx,
   getAppShellSelectMenuProps,
-} from "../../../Context/appShell";
+} from "../../Context/appShell";
 import {
   formatNumberForLocale,
   numberToShortText,
-} from "../../../Functions/Helper/numberParser";
-import { getFullItemList } from "../../../Functions/Helper/getCachedData";
-import { useAccountTimelineItemsQuery } from "../../../Hooks/React Query/Backend/statisticsTimeline";
+} from "../../Functions/Helper/numberParser";
+import { getFullItemList } from "../../Functions/Helper/getCachedData";
+import { useAccountTimelineItemsQuery } from "../../Hooks/React Query/Backend/statisticsTimeline";
 
 /**
  * The two lengths this table has.
@@ -75,8 +75,11 @@ function useItemNames(items) {
         if (cancelled || !list) return;
         setNames(
           Object.fromEntries(
-            items.map(({ typeID }) => [typeID, list[typeID]?.name ?? `Type ${typeID}`])
-          )
+            items.map(({ typeID }) => [
+              typeID,
+              list[typeID]?.name ?? `Type ${typeID}`,
+            ]),
+          ),
         );
       })
       .catch(() => {
@@ -105,10 +108,18 @@ function Money({ value }) {
 function LoadingRows() {
   return Array.from({ length: ROWS_COLLAPSED }, (_, i) => (
     <TableRow key={i}>
-      <TableCell><Skeleton width="70%" /></TableCell>
-      <TableCell align="right"><Skeleton width="50%" /></TableCell>
-      <TableCell align="right"><Skeleton width="50%" /></TableCell>
-      <TableCell align="right"><Skeleton width="50%" /></TableCell>
+      <TableCell>
+        <Skeleton width="70%" />
+      </TableCell>
+      <TableCell align="right">
+        <Skeleton width="50%" />
+      </TableCell>
+      <TableCell align="right">
+        <Skeleton width="50%" />
+      </TableCell>
+      <TableCell align="right">
+        <Skeleton width="50%" />
+      </TableCell>
     </TableRow>
   ));
 }
@@ -122,14 +133,22 @@ function LoadingRows() {
  *
  * Ranking and paging happen on the server; the toggle changes how many rows are
  * asked for rather than slicing a list already fetched.
+ *
+ * @param {Object} [props]
+ * @param {string} [props.from] - YYYY-MM; omit for the server's default window
+ * @param {string} [props.to] - YYYY-MM
  */
-export function ArchivedItemBreakdown() {
+export function ArchivedItemBreakdown({ from, to } = {}) {
   const theme = useTheme();
   const [sort, setSort] = useState("profitLoss");
   const [expanded, setExpanded] = useState(false);
   const limit = expanded ? ROWS_EXPANDED : ROWS_COLLAPSED;
 
-  const { data, isLoading } = useAccountTimelineItemsQuery({ sort, limit });
+  const { data, isLoading } = useAccountTimelineItemsQuery({
+    sort,
+    limit,
+    ...(from && to ? { from, to } : {}),
+  });
 
   const items = useMemo(() => data?.items ?? [], [data]);
   const names = useItemNames(items);
@@ -201,7 +220,9 @@ export function ArchivedItemBreakdown() {
               const profit = Number(item.profitLoss ?? 0);
               return (
                 <TableRow key={item.typeID}>
-                  <TableCell>{names[item.typeID] ?? `Type ${item.typeID}`}</TableCell>
+                  <TableCell>
+                    {names[item.typeID] ?? `Type ${item.typeID}`}
+                  </TableCell>
                   <TableCell align="right">
                     <Money value={item.jobCostTotal} />
                   </TableCell>
@@ -228,7 +249,9 @@ export function ArchivedItemBreakdown() {
             onClick={() => setExpanded((current) => !current)}
             disabled={isLoading}
           >
-            {expanded ? `Show top ${ROWS_COLLAPSED}` : `Show top ${ROWS_EXPANDED}`}
+            {expanded
+              ? `Show top ${ROWS_COLLAPSED}`
+              : `Show top ${ROWS_EXPANDED}`}
           </Button>
         </Grid>
       )}
