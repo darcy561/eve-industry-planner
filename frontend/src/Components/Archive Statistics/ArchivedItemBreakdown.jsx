@@ -103,11 +103,11 @@ function useItemNames(items) {
 /** A labelled figure, so a card does not depend on a header row above it. */
 function ItemFigure({ label, children }) {
   return (
-    <Box sx={{ minWidth: 0 }}>
+    <Box sx={{ flex: 1, minWidth: 0 }}>
       <Typography variant="caption" color="text.secondary" display="block">
         {label}
       </Typography>
-      {children}
+      <Box sx={{ typography: "body2", mt: 0.25 }}>{children}</Box>
     </Box>
   );
 }
