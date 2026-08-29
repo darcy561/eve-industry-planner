@@ -261,6 +261,20 @@ function PriceHistoryLineGraph({
             leftDomain={iskDomain}
             rightDomain={volumeDomain}
             categoryAngle={-20}
+            showGrid={false}
+            axisProps={{ stroke: theme.palette.text.secondary }}
+            tooltipProps={{
+              contentStyle: {
+                backgroundColor: theme.palette.background.paper,
+                borderColor: theme.palette.divider,
+                color: theme.palette.text.primary,
+                borderRadius: 4,
+                padding: "10px",
+                maxWidth: "min(420px, calc(100vw - 48px))",
+                whiteSpace: "normal",
+                wordBreak: "break-word",
+              },
+            }}
             style={{
               height: "100%",
               maxHeight: "none",

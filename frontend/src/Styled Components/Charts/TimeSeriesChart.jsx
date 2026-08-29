@@ -38,6 +38,9 @@ import {
  * @param {[number, number]} [props.leftDomain] - defaults to recharts' own scaling
  * @param {[number, number]} [props.rightDomain]
  * @param {number} [props.categoryAngle] - rotate category labels when they are long
+ * @param {boolean} [props.showGrid] - grid lines; on by default
+ * @param {Object} [props.tooltipProps] - merged over the app-shell tooltip
+ * @param {Object} [props.axisProps] - merged over the app-shell axis styling
  * @param {Object} [props.style] - CSS sizing; defaults to full width at a fixed
  *   aspect ratio, so the chart follows the width of the page it is on
  * @param {string} [props.rightAxisLabel]
@@ -55,12 +58,15 @@ export function TimeSeriesChart({
   leftDomain,
   rightDomain,
   categoryAngle,
+  showGrid = true,
+  tooltipProps,
+  axisProps: axisPropsOverride,
   style,
   width,
   height,
 }) {
   const theme = useTheme();
-  const axisProps = chartAxisProps(theme);
+  const axisProps = { ...chartAxisProps(theme), ...axisPropsOverride };
   const hasRightAxis = series.some((s) => s.axis === "right");
 
   return (
@@ -80,7 +86,9 @@ export function TimeSeriesChart({
         ...style,
       }}
     >
-      <CartesianGrid stroke={chartGridStroke(theme)} vertical={false} />
+      {showGrid && (
+        <CartesianGrid stroke={chartGridStroke(theme)} vertical={false} />
+      )}
       <XAxis
         dataKey={categoryKey}
         tickFormatter={formatCategory}
@@ -116,6 +124,7 @@ export function TimeSeriesChart({
       )}
       <Tooltip
         {...chartTooltipProps(theme)}
+        {...tooltipProps}
         formatter={(value, name) => [formatValue(value), name]}
         labelFormatter={formatCategoryLabel ?? formatCategory}
       />

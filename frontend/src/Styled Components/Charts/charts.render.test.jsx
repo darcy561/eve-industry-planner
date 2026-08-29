@@ -157,6 +157,33 @@ describe("chart primitives", () => {
     expect(chart.style.height).toBe("100%");
   });
 
+  // The app-shell chrome is a default, not a requirement: a caller with its own
+  // look overrides it rather than being forced into the panel design.
+  it("lets a caller turn the grid off", () => {
+    const withGrid = sized(
+      <TimeSeriesChart
+        rows={months}
+        categoryKey="month"
+        series={[{ key: "profitLoss", label: "Profit" }]}
+      />,
+    );
+    expect(
+      withGrid.container.querySelector(".recharts-cartesian-grid"),
+    ).not.toBeNull();
+
+    const without = sized(
+      <TimeSeriesChart
+        rows={months}
+        categoryKey="month"
+        series={[{ key: "profitLoss", label: "Profit" }]}
+        showGrid={false}
+      />,
+    );
+    expect(
+      without.container.querySelector(".recharts-cartesian-grid"),
+    ).toBeNull();
+  });
+
   it("draws a pie chart", () => {
     const { container } = sized(
       <PieChart
