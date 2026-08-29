@@ -245,7 +245,7 @@ export default function JobDependencyTreeDialogue() {
       fullWidth
       actions={<DialogueCloseAction onClose={handleClose} />}
       dialogueSx={{
-        "& .MuiDialogue-paper": {
+        "& .MuiDialog-paper": {
           height: { xs: "100%", sm: "min(90vh, 900px)" },
           maxHeight: "95vh",
           display: "flex",

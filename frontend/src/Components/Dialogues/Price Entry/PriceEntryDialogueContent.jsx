@@ -225,7 +225,7 @@ export function PriceEntryDialogueContent({ state, actions }) {
       helperArea={helperArea}
       helperAreaSx={{ textAlign: "center", pb: 2 }}
       dialogueSx={{
-        "& .MuiDialogue-paper": {
+        "& .MuiDialog-paper": {
           maxHeight: "90vh",
           width: { xs: "95vw", sm: "90vw", md: "1200px" },
         },
