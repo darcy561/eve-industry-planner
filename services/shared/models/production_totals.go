@@ -27,35 +27,44 @@ func (m BuildMeasures) Plus(src BuildMeasures) BuildMeasures {
 	return m
 }
 
-// BuildStatsSegmentTotals is one Blueprint Archive segment: a production chain,
+// Segment names, matching the breakdown field each job is credited to. A view
+// labelling a job and the document counting it read the same values from here
+// rather than restating them as literals.
+const (
+	ArchiveSegmentProductionChain        = "productionChain"
+	ArchiveSegmentRetainedStock          = "retainedStock"
+	ArchiveSegmentStandaloneRecordedSale = "standaloneRecordedSale"
+)
+
+// ArchiveSegmentTotals is one Blueprint Archive segment: a production chain,
 // retained stock, or a standalone recorded sale.
-type BuildStatsSegmentTotals struct {
+type ArchiveSegmentTotals struct {
 	BuildMeasures     `bson:",inline"`
 	TotalSoldQuantity float64 `bson:"totalSoldQuantity,omitempty" json:"totalSoldQuantity,omitempty"`
 }
 
-func (s BuildStatsSegmentTotals) Plus(src BuildStatsSegmentTotals) BuildStatsSegmentTotals {
+func (s ArchiveSegmentTotals) Plus(src ArchiveSegmentTotals) ArchiveSegmentTotals {
 	s.BuildMeasures = s.BuildMeasures.Plus(src.BuildMeasures)
 	s.TotalSoldQuantity += src.TotalSoldQuantity
 	return s
 }
 
-// BuildStatsBreakdown splits a row's totals across the archive segments.
-type BuildStatsBreakdown struct {
-	ProductionChain        BuildStatsSegmentTotals `bson:"productionChain" json:"productionChain"`
-	RetainedStock          BuildStatsSegmentTotals `bson:"retainedStock" json:"retainedStock"`
-	StandaloneRecordedSale BuildStatsSegmentTotals `bson:"standaloneRecordedSale" json:"standaloneRecordedSale"`
+// ProductionTotalsBreakdown splits a row's totals across the archive segments.
+type ProductionTotalsBreakdown struct {
+	ProductionChain        ArchiveSegmentTotals `bson:"productionChain" json:"productionChain"`
+	RetainedStock          ArchiveSegmentTotals `bson:"retainedStock" json:"retainedStock"`
+	StandaloneRecordedSale ArchiveSegmentTotals `bson:"standaloneRecordedSale" json:"standaloneRecordedSale"`
 }
 
-func (b BuildStatsBreakdown) Plus(src BuildStatsBreakdown) BuildStatsBreakdown {
+func (b ProductionTotalsBreakdown) Plus(src ProductionTotalsBreakdown) ProductionTotalsBreakdown {
 	b.ProductionChain = b.ProductionChain.Plus(src.ProductionChain)
 	b.RetainedStock = b.RetainedStock.Plus(src.RetainedStock)
 	b.StandaloneRecordedSale = b.StandaloneRecordedSale.Plus(src.StandaloneRecordedSale)
 	return b
 }
 
-// BuildStatsRow is one document in account_production_totals, keyed by account and item type.
-type BuildStatsRow struct {
+// ProductionTotalsRow is one document in account_production_totals, keyed by account and item type.
+type ProductionTotalsRow struct {
 	ID string `bson:"_id" json:"-"`
 	// AccountID scopes the document. The account is also the leading segment of
 	// the _id, but a field lets a rebuild prune an account's totals with an
@@ -64,12 +73,12 @@ type BuildStatsRow struct {
 	JobType       int    `bson:"jobType" json:"jobType"`
 	TypeID        int    `bson:"typeID" json:"typeID"`
 	BuildMeasures `bson:",inline"`
-	Breakdown     BuildStatsBreakdown `bson:"breakdown" json:"breakdown"`
+	Breakdown     ProductionTotalsBreakdown `bson:"breakdown" json:"breakdown"`
 	DataSnapshots []BuildStatSnapshot `bson:"dataSnapshots" json:"dataSnapshots"`
 }
 
 // Plus sums src into r. JobType is taken from the first non-zero value.
-func (r BuildStatsRow) Plus(src BuildStatsRow) BuildStatsRow {
+func (r ProductionTotalsRow) Plus(src ProductionTotalsRow) ProductionTotalsRow {
 	if r.JobType == 0 && src.JobType != 0 {
 		r.JobType = src.JobType
 	}

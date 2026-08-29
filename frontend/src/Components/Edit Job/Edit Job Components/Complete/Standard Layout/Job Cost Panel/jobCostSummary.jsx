@@ -4,9 +4,9 @@ import { getJobInstallCostForPlanning } from "../../../../../../Functions/Instal
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 
-export function BuildStatsPanel({ state }) {
+export function JobCostSummaryPanel({ state }) {
   return (
-    <ContentPanel componentName="Build Stats Panel">
+    <ContentPanel componentName="Job Cost Summary Panel">
       <Grid container spacing={1} sx={{ flexDirection: "row" }}>
         <Grid container size={12}>
           <Grid

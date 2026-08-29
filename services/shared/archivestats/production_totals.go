@@ -26,12 +26,12 @@ func AccountProductionTotals(
 	accountID string,
 	rows []models.ArchivedJobStats,
 	snapshots map[string]models.BuildStatSnapshot,
-) []models.BuildStatsRow {
+) []models.ProductionTotalsRow {
 	if accountID == "" || len(rows) == 0 {
 		return nil
 	}
 
-	byType := make(map[int]*models.BuildStatsRow)
+	byType := make(map[int]*models.ProductionTotalsRow)
 	history := make(map[int][]models.BuildStatSnapshot)
 
 	for _, row := range rows {
@@ -43,7 +43,7 @@ func AccountProductionTotals(
 
 		total, ok := byType[row.TypeID]
 		if !ok {
-			total = &models.BuildStatsRow{
+			total = &models.ProductionTotalsRow{
 				ID:        eipmongo.AccountProductionTotalsDocumentID(accountID, row.TypeID),
 				AccountID: accountID,
 				TypeID:    row.TypeID,
@@ -63,7 +63,7 @@ func AccountProductionTotals(
 		}
 	}
 
-	out := make([]models.BuildStatsRow, 0, len(byType))
+	out := make([]models.ProductionTotalsRow, 0, len(byType))
 	for _, typeID := range slices.Sorted(maps.Keys(byType)) {
 		total := byType[typeID]
 		snaps := history[typeID]
@@ -157,12 +157,37 @@ func jobMeasures(row models.ArchivedJobStats) models.BuildMeasures {
 // nothing but zeros for sales and fees, which read as a market sale that had
 // somehow earned nothing. RetainedStockBuild still routes a job here explicitly,
 // so a user marking output as kept is honoured whether or not it ever sold.
-func addSegment(breakdown *models.BuildStatsBreakdown, row models.ArchivedJobStats, measures models.BuildMeasures) {
+// JobMeasures reduces one archived job to its money figures.
+//
+// Exported so a caller reporting a single job — a list row, say — reads the same
+// arithmetic the totals are folded from, rather than restating the two rules
+// above and getting the fee handling wrong.
+func JobMeasures(row models.ArchivedJobStats) models.BuildMeasures {
+	return jobMeasures(row)
+}
+
+// JobSegment names the segment a job is credited to.
+//
+// The classification is a closed set and a job belongs to exactly one of its
+// members; exported so a view can label a job with the same answer the breakdown
+// counted it under.
+func JobSegment(row models.ArchivedJobStats) string {
+	switch {
+	case row.IsProductionChain:
+		return models.ArchiveSegmentProductionChain
+	case hasRecordedMarketActivity(row) && !row.RetainedStockBuild:
+		return models.ArchiveSegmentStandaloneRecordedSale
+	default:
+		return models.ArchiveSegmentRetainedStock
+	}
+}
+
+func addSegment(breakdown *models.ProductionTotalsBreakdown, row models.ArchivedJobStats, measures models.BuildMeasures) {
 	var sold float64
 	for _, line := range row.TransactionLines {
 		sold += line.Quantity
 	}
-	segment := models.BuildStatsSegmentTotals{BuildMeasures: measures, TotalSoldQuantity: sold}
+	segment := models.ArchiveSegmentTotals{BuildMeasures: measures, TotalSoldQuantity: sold}
 
 	switch {
 	case row.IsProductionChain:

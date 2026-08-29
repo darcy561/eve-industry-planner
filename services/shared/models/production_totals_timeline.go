@@ -46,8 +46,8 @@ type CalendarMonth struct {
 	Month int `bson:"month" json:"month"`
 }
 
-// BuildStatsTimelineBucket is one calendar month of an account's sales.
-type BuildStatsTimelineBucket struct {
+// ProductionTotalsTimelineBucket is one calendar month of an account's sales.
+type ProductionTotalsTimelineBucket struct {
 	CalendarMonth `bson:",inline"`
 	SalesMeasures `bson:",inline"`
 }
