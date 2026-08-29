@@ -3,7 +3,7 @@
  * Tranquility status cache from React Query (`TRANQUILITY_SERVER_STATUS_QUERY_KEY`).
  *
  * Until the first successful `/status/` fetch, refreshes are allowed (same as the prior
- * `eveServerStatusUpdatedAt == null` behavior). After a successful fetch records offline,
+ * `eveServerStatusUpdatedAt == null` behaviour). After a successful fetch records offline,
  * staggered and interval refreshes defer.
  */
 

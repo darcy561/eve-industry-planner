@@ -3,7 +3,7 @@ package home
 import (
 	"strings"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 )
 
 // cmdLineAction is one parsed line from the combined Command window.
@@ -53,7 +53,7 @@ func parseCommandLine(line string) cmdLineAction {
 		run := append([]string{"cli"}, rest...)
 		return cmdLineAction{RunArgs: run, Label: strings.Join(run, " ")}
 	default:
-		if _, ok := catalog.ByID(args[0]); ok {
+		if _, ok := catalogue.ByID(args[0]); ok {
 			return cmdLineAction{RunArgs: args, Label: strings.Join(args, " ")}
 		}
 		// Not a host verb — treat as core tasks subcommand (list, sdeVersion, …).

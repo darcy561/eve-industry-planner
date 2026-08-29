@@ -13,7 +13,7 @@ const characterAssetsQueryKey = "characterAssets";
  * - Pagination support for large asset collections
  * - ESI rate limiting awareness and handling
  * - Automatic retry with exponential backoff
- * - Caching strategy optimized for asset data
+ * - Caching strategy optimised for asset data
  * - Error handling with descriptive messages
  * 
  * The query process:

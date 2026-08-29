@@ -20,24 +20,24 @@ import { passBuildCostsToParentJobs } from "../../../../Functions/Shared/passBui
 import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
 import buildNextMaterialsTree from "../../../../Functions/JobPlanner/buildNextMaterialsTree";
 import { archiveGroupJobs } from "../../../../Functions/Groups/archiveGroupJobs.js";
-import { invalidateStatisticsQueries } from "../../../../Hooks/React Query/Backend/buildStats.js";
+import { invalidateStatisticsQueries } from "../../../../Hooks/React Query/Backend/statisticsKeys.js";
 import {
   showSnackbarSuccess,
   showSnackbarError,
 } from "../../../../Events/snackbarEvents";
-import { displayNotificationDialog } from "../../../../Events/notificationDialogEvents";
+import { displayNotificationDialogue } from "../../../../Events/notificationDialogueEvents";
 import useUsersStore from "../../../../Zustand/usersStore";
 import toggleRightDrawerColapse from "../../../SideMenu/Functions/toggleRightMenuDrawerColapse";
 import { shouldExpandRightDrawer } from "../../../Tutorials/Functions/checkDisplayTutorials";
 import { showShoppingList } from "../../../../Events/shoppingListEvents";
-import { showPriceEntryDialog } from "../../../../Events/priceEntryEvents";
+import { showPriceEntryDialogue } from "../../../../Events/priceEntryEvents";
 import moveItemsOnPlanner from "../../../../Functions/JobPlanner/moveItemsOnPlanner";
 import closeActiveGroup from "../../../../Functions/Groups/closeGroup";
 import { USER_JOB_GROUPS_COLLECTION } from "../../../../Functions/DocumentLock/documentLockCollections.js";
 import {
-  openGroupTemplatesApplyDialog,
-  openGroupTemplatesSaveDialog,
-} from "../../../../Events/groupTemplatesDialogEvents";
+  openGroupTemplatesApplyDialogue,
+  openGroupTemplatesSaveDialogue,
+} from "../../../../Events/groupTemplatesDialogueEvents";
 
 /** Left drawer actions still allowed when the group is not editable (viewer
  *  or #21 vacancy). Close/list/selection stay usable to leave or browse. */
@@ -68,7 +68,7 @@ export function useGroupPageSideMenuFunctions(
   const navigate = useNavigate();
   const activeGroupObject = getActiveGroupObject();
 
-  const standardDialogError =
+  const standardDialogueError =
     "You will need to select at least 1 job using the checkbox's on the job cards.";
 
   const buttons = useMemo(() => {
@@ -128,13 +128,13 @@ export function useGroupPageSideMenuFunctions(
               disabled: mutateOff("Save as template"),
               onClick: () => {
                 if (!groupJobs?.length) {
-                  displayNotificationDialog(
+                  displayNotificationDialogue(
                     "No jobs",
                     "Add jobs to this group before saving a template.",
                   );
                   return;
                 }
-                openGroupTemplatesSaveDialog({
+                openGroupTemplatesSaveDialogue({
                   contextGroupId: activeGroupObject?.groupID ?? null,
                 });
               },
@@ -145,7 +145,7 @@ export function useGroupPageSideMenuFunctions(
               tooltip: "Create jobs from a saved group template.",
               disabled: mutateOff("Apply template…"),
               onClick: () => {
-                openGroupTemplatesApplyDialog({
+                openGroupTemplatesApplyDialogue({
                   contextGroupId: activeGroupObject?.groupID ?? null,
                 });
               },
@@ -178,14 +178,14 @@ export function useGroupPageSideMenuFunctions(
               ? multiSelect
               : [...activeGroupObject.includedJobIDs];
 
-          showPriceEntryDialog(jobList);
+          showPriceEntryDialogue(jobList);
         },
       },
       {
         displayText: "Build Child Jobs",
         icon: <AccountTreeIcon />,
         tooltip:
-          "Adds the next ingrediants of all of the jobs or just the selected jobs.",
+          "Adds the next ingredients of all of the jobs or just the selected jobs.",
         disabled: mutateOff("Build Child Jobs"),
         onClick: async () => {
           const jobList =
@@ -225,7 +225,7 @@ export function useGroupPageSideMenuFunctions(
         disabled: mutateOff("Move Backwards"),
         onClick: () => {
           if (multiSelect.length === 0) {
-            throwDialogError();
+            throwDialogueError();
             return;
           }
           moveItemsOnPlanner(multiSelect, "backward");
@@ -238,7 +238,7 @@ export function useGroupPageSideMenuFunctions(
         disabled: mutateOff("Move Forwards"),
         onClick: () => {
           if (multiSelect.length === 0) {
-            throwDialogError();
+            throwDialogueError();
             return;
           }
           moveItemsOnPlanner(multiSelect, "forward");
@@ -252,7 +252,7 @@ export function useGroupPageSideMenuFunctions(
         disabled: mutateOff("Send Item Costs"),
         onClick: async () => {
           if (multiSelect.length === 0) {
-            throwDialogError();
+            throwDialogueError();
             return;
           }
           const group = getActiveGroupObject();
@@ -296,7 +296,7 @@ export function useGroupPageSideMenuFunctions(
         disabled: mutateOff("Delete"),
         onClick: async () => {
           if (multiSelect.length === 0) {
-            throwDialogError();
+            throwDialogueError();
             return;
           }
           await deleteJobsFromPlanner(multiSelect);
@@ -329,8 +329,8 @@ export function useGroupPageSideMenuFunctions(
     isLoggedIn,
   ]);
 
-  function throwDialogError(inputText = standardDialogError) {
-    displayNotificationDialog("Oops", inputText);
+  function throwDialogueError(inputText = standardDialogueError) {
+    displayNotificationDialogue("Oops", inputText);
   }
 
   return buttons;

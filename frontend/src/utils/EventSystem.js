@@ -1,12 +1,12 @@
 /**
  * Event System for EVE Industry Planner.
  * 
- * Provides a centralized event management system using EventEmitter3 for
+ * Provides a centralised event management system using EventEmitter3 for
  * inter-component communication and application-wide event handling.
  * Supports both subscription and unsubscription patterns with automatic
  * cleanup capabilities.
  * 
- * @fileoverview Centralized event system for EVE Industry Planner
+ * @fileoverview Centralised event system for EVE Industry Planner
  * @author EVE Industry Planner Team
  */
 
@@ -15,7 +15,7 @@ import EventEmitter from "eventemitter3";
 /**
  * Global event emitter instance for EVE Industry Planner.
  * 
- * Centralized event emitter that allows components and modules throughout
+ * Centralised event emitter that allows components and modules throughout
  * the application to communicate via events. Supports all standard EventEmitter
  * methods including on, off, emit, once, and removeAllListeners.
  * 

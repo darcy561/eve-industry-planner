@@ -1,4 +1,4 @@
-import { fetchWatchlistDeprecatedFromApi } from "../../Functions/Endpoints/Pirivate/watchlistDeprecated.js";
+import { fetchWatchlistDeprecatedFromApi } from "../../Functions/Endpoints/Private/watchlistDeprecated.js";
 import {
   emitLoginError,
   emitLoginStepComplete,

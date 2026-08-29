@@ -45,7 +45,7 @@ export default function JobTreeLegend() {
           }}
         />
         <Typography variant="caption" color="text.secondary">
-          Job is currently being built, incdicates how many ESI jobs are linked.
+          Job is currently being built, indicates how many ESI jobs are linked.
         </Typography>
       </Box>
 

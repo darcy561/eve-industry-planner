@@ -1,6 +1,6 @@
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import { flushPendingGroupSave } from "../Debounce/jobGroupsPersistSchedule.js";
-import normalizeParentChildRelationships from "../Shared/normalizeParentChildRelationships.js";
+import normaliseParentChildRelationships from "../Shared/normaliseParentChildRelationships.js";
 import { canPersistGroupClose } from "../DocumentLock/canPersistDocumentEditClose.js";
 import useUsersStore from "../../Zustand/usersStore";
 
@@ -54,7 +54,7 @@ export default async function closeActiveGroup(groupJobs) {
     return job;
   });
 
-  const normalizedJobIDs = normalizeParentChildRelationships(updatedGroupJobs);
+  const normalizedJobIDs = normaliseParentChildRelationships(updatedGroupJobs);
   for (const jobID of normalizedJobIDs) {
     modifiedJobIDsToPersist.add(jobID);
   }

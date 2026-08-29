@@ -1,11 +1,11 @@
 /**
  * Edit Job Reducer Hook for EVE Industry Planner.
  * 
- * Custom React hook that provides state management for the edit job dialog component.
+ * Custom React hook that provides state management for the edit job dialogue component.
  * Uses useReducer with a custom reducer to handle complex state transitions for
  * job editing, parent-child relationships, ESI data linking, and temporary job management.
  * 
- * @fileoverview Custom hook for edit job dialog state management
+ * @fileoverview Custom hook for edit job dialogue state management
  * @author EVE Industry Planner Team
  */
 
@@ -14,15 +14,15 @@ import { editJobReducer, EDIT_JOB_ACTION_TYPES } from "./editJobReducer";
 import { buildSetIsLoadingActionPayload } from "../../../Functions/Helper/setIsLoadingAction";
 
 /**
- * Custom hook for managing edit job dialog state.
+ * Custom hook for managing edit job dialogue state.
  * 
- * Provides a reducer-based state management solution for the edit job dialog,
+ * Provides a reducer-based state management solution for the edit job dialogue,
  * including initial state creation, action dispatching, and state access.
  * The hook manages complex job editing operations including parent-child
  * relationships, ESI data linking, and temporary job state.
  * 
  * @returns {Object} Hook return object
- * @returns {Object} returns.state - Current dialog state
+ * @returns {Object} returns.state - Current dialogue state
  * @returns {Object|null} returns.state.activeJob - Currently active job being edited
  * @returns {boolean} returns.state.jobModified - Whether the job has unsaved changes
  * @returns {Object} returns.state.temporaryChildJobs - Temporary child jobs data
@@ -51,7 +51,7 @@ import { buildSetIsLoadingActionPayload } from "../../../Functions/Helper/setIsL
  * @returns {Function} returns.actions.addTransactionsForRemoval - Remove transactions
  * 
  * @example
- * function EditJobDialog() {
+ * function EditJobDialogue() {
  *   const { state, actions } = useEditJobReducer();
  *   
  *   const handleJobUpdate = (jobData) => {
@@ -95,7 +95,7 @@ export default function useEditJobReducer() {
   const [state, dispatch] = useReducer(editJobReducer, initialState);
 
   /**
-   * Action dispatchers for the edit job dialog state.
+   * Action dispatchers for the edit job dialogue state.
    * 
    * Provides convenient methods to dispatch actions to the reducer,
    * abstracting away the action creation and dispatch logic.

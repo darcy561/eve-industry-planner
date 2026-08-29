@@ -12,7 +12,7 @@ import { routeTree } from '../routeTree.gen.js';
 /**
  * Extracts all protected route paths from the TanStack Router route tree.
  * 
- * This function analyzes the actual route tree structure to identify routes that are
+ * This function analyses the actual route tree structure to identify routes that are
  * nested under the _protected layout, which indicates they require authentication.
  * 
  * The function dynamically extracts routes from the TanStack Router's generated route tree,

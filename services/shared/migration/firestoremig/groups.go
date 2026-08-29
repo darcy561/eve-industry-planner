@@ -189,7 +189,7 @@ func groupDataArrayFromDoc(data map[string]any) []any {
 }
 
 // groupFromFirestoreMap maps a Firestore group object to models.Group (json round-trip + ownership metadata).
-// Legacy Firestore data may use numeric job IDs, string type IDs, etc. — we normalize to match models.Group
+// Legacy Firestore data may use numeric job IDs, string type IDs, etc. — we normalise to match models.Group
 // before JSON decode (same invariants as the current JS toDocument() shape).
 func groupFromFirestoreMap(accountID string, now time.Time, obj map[string]any) (models.Group, error) {
 	norm := make(map[string]any, len(obj))

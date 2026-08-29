@@ -34,7 +34,7 @@ func InjectLogContext(ctx context.Context, h natslib.Header) {
 	}
 }
 
-// LogContextFromContext serializes request identity from ctx into a string map (e.g. Asynq headers).
+// LogContextFromContext serialises request identity from ctx into a string map (e.g. Asynq headers).
 func LogContextFromContext(ctx context.Context) map[string]string {
 	if ctx == nil {
 		return nil

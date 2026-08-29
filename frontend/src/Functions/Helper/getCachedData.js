@@ -186,7 +186,7 @@ async function pruneStaleStaticCacheEntries(cache, meta) {
     requests.map(async (req) => {
       if (!isStaticDataRequestURL(req.url)) return;
 
-      // Normalize to path+query so it matches meta URLs.
+      // Normalise to path+query so it matches meta URLs.
       const parsed = new URL(req.url, window.location.origin);
       const normalized = `${parsed.pathname}${parsed.search}`;
       if (!validURLs.has(normalized)) {

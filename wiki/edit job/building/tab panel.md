@@ -47,7 +47,7 @@ Each available job is displayed as a card showing:
 #### Job Linking
 - **Click to Link**: Click anywhere on card to link the job
 - **Animation**: Card animates out when linked
-- **Behavior**: 
+- **Behaviour**: 
   - Links job to your planned job
   - Imports installation cost automatically
   - Updates linked jobs count
@@ -100,7 +100,7 @@ Each linked job displays:
 #### Job Unlinking
 - **Click to Unlink**: Click anywhere on card to unlink the job
 - **Animation**: Card animates out when unlinked
-- **Behavior**: 
+- **Behaviour**: 
   - Removes job from linked list
   - Removes installation cost
   - Job becomes available again

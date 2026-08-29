@@ -101,7 +101,7 @@ func RefreshAdjustedPrices(ctx context.Context, task *asynq.Task, deps *TaskDepe
 // StreamAdjustedPrices makes an HTTP request to ESI and checks the response status code first.
 // For HTTP 304 Not Modified responses, it returns early without streaming.
 // For HTTP 200 OK responses, it performs a streaming decode of the ESI array and invokes
-// onItem for each normalized AdjustedPrice. Callers typically persist within the callback.
+// onItem for each normalised AdjustedPrice. Callers typically persist within the callback.
 // Returns the new ETag, whether it was not modified (HTTP 304), bytes read, and any error.
 // cacheSecondsOut will be populated with parsed cache max-age from response headers if available.
 func StreamAdjustedPrices(ctx context.Context, esiClient esiratelimiter.ClientInterface, etag string, onItem func(esitypes.AdjustedPrice) error, cacheSecondsOut *int) (string, bool, int64, error) {

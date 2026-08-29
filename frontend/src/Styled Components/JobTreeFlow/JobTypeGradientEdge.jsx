@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { BaseEdge, getSmoothStepPath, Position } from "@xyflow/react";
 import { useTheme } from "@mui/material";
-import { getJobTypeAccentColor } from "../../Functions/Helper/jobTypeDividerColor";
+import { getJobTypeAccentColour } from "../../Functions/Helper/jobTypeDividerColour";
 
 function sanitizeGradId(s) {
   return `jg-${String(s).replace(/[^a-zA-Z0-9_-]/g, "_")}`;
@@ -43,8 +43,8 @@ const JobTypeGradientEdge = memo(function JobTypeGradientEdge({
     centerY: pathOptions?.centerY,
   });
 
-  const cFrom = getJobTypeAccentColor(theme, data?.sourceJobType);
-  const cTo = getJobTypeAccentColor(theme, data?.targetJobType);
+  const cFrom = getJobTypeAccentColour(theme, data?.sourceJobType);
+  const cTo = getJobTypeAccentColour(theme, data?.targetJobType);
   const dimmed = Boolean(data?.edgeDimmed);
   const gradId = sanitizeGradId(id);
 

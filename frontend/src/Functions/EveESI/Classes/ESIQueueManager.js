@@ -31,7 +31,7 @@ class ESIQueueManager {
    * @returns {Promise<Response>} HTTP response
    */
   async addRequest(url, options = {}, config = {}) {
-    // Use 'default' group for queue organization until group is discovered from headers
+    // Use 'default' group for queue organisation until group is discovered from headers
     // The actual rate limiting will use the discovered group dynamically
     const group = 'default';
     const priority = config.priority || 'normal';
@@ -70,7 +70,7 @@ class ESIQueueManager {
    */
   getGroupForUrl(url) {
     // Groups are discovered from headers and cached
-    // For queue organization, we use 'default' until group is discovered
+    // For queue organisation, we use 'default' until group is discovered
     // The actual rate limiting will use the discovered group from headers
     return 'default';
   }

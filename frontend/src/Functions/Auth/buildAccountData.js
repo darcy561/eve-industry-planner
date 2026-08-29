@@ -33,7 +33,7 @@ export async function hydrateLinkedCharactersFromAccessSessions(
       });
       await ch.getPublicCharacterData();
       await buildCorporationObjectFromUserObject(ch);
-      // Keep login progress UI behavior consistent with refresh-token hydration:
+      // Keep login progress UI behaviour consistent with refresh-token hydration:
       // surface each linked character as it finishes loading.
       emitUserDataUpdate({
         eveLoginComplete: true,
@@ -199,7 +199,7 @@ export async function buildUsersFromRefreshTokens(userData) {
         userData.settings?.userCloudAccounts ??
         userData.userCloudAccounts ??
         false;
-    // Normalize refreshTokens from database (characterHash -> CharacterHash) for internal use
+    // Normalise refreshTokens from database (characterHash -> CharacterHash) for internal use
     const refreshTokens = (userData.refreshTokens || []).map(token => ({
         CharacterHash: token.CharacterHash || token.characterHash,
         rToken: token.rToken,

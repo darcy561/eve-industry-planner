@@ -1,12 +1,12 @@
 # Settings
 
-The Settings page allows you to customize various aspects of Eve Industry Planner to match your workflow and preferences. Access the Settings page from the main navigation menu.
+The Settings page allows you to customise various aspects of Eve Industry Planner to match your workflow and preferences. Access the Settings page from the main navigation menu.
 
 ## Overview
 
-The Settings page is organized into five main sections, each accessible via tabs:
+The Settings page is organised into five main sections, each accessible via tabs:
 
-1. **[Layout Settings](settings/layout)** - Customize the appearance and layout of the application
+1. **[Layout Settings](settings/layout)** - Customise the appearance and layout of the application
 2. **[Job Settings](settings/job)** - Configure default values and preferences for industry jobs
 3. **[Custom Structures](settings/custom%20structures)** - Manage custom structures for manufacturing and reprocessing
 4. **[Blueprint Settings](settings/blueprint)** - Configure blueprint defaults and material exclusions

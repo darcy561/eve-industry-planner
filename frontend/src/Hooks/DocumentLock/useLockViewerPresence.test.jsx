@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useLockViewerPresence } from "./useLockViewerPresence.js";
 
-vi.mock("../../Functions/Endpoints/Pirivate/documentLockClient.js", () => ({
+vi.mock("../../Functions/Endpoints/Private/documentLockClient.js", () => ({
   postDocumentLockViewerArrived: vi.fn(() => Promise.resolve()),
   postDocumentLockViewerDeparted: vi.fn(() => Promise.resolve()),
   sendDocumentLockViewerDepartedBeacon: vi.fn(),
@@ -11,7 +11,7 @@ vi.mock("../../Functions/Endpoints/Pirivate/documentLockClient.js", () => ({
 import {
   postDocumentLockViewerArrived,
   postDocumentLockViewerDeparted,
-} from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
+} from "../../Functions/Endpoints/Private/documentLockClient.js";
 
 describe("useLockViewerPresence", () => {
   beforeEach(() => {

@@ -16,7 +16,7 @@ Engineering rules — Moby-first, Go idioms and `go fix`, operator-surface owner
 
 ```text
 deployment-tool/
-  internal/catalog/              # CLI verb SoT + services.go (expected Swarm services)
+  internal/catalogue/              # CLI verb SoT + services.go (expected Swarm services)
   internal/kit/                  # Home, product, envfile, writable, Version/Channel/KitBranch,
                                  # SelfUpdate, UpdateStacks, pathlink, relaunch, obs/
   internal/kit/templates/        # WriteMissing* facade + CheckOperatorDocs
@@ -25,7 +25,7 @@ deployment-tool/
   internal/config/               # Load/Validate/WriteYAML/SyncEnv/Sync (live YAML)
   internal/stack/                # stack YAML SoT + compose-go expand/inject
   internal/swarm/                # SyncSecrets / SyncConfigs / ApplyConfigs (Moby Secret*/Config*)
-  internal/deploy/               # Inspect, Source, Run (up/dev), Rematerialize, Rebuild
+  internal/deploy/               # Inspect, Source, Run (up/dev), Rematerialise, Rebuild
   internal/engine/               # Swarm init + eip-core overlay + volumes (Moby)
   internal/dockercli/            # docker binary: stack deploy (+ Verbose/LookPath)
   internal/images/               # pull (ImagePull) | bake (buildx CLI) + ImageInspect/Tag
@@ -67,7 +67,7 @@ Stack YAML may list `file: ./observability/…` as logical paths. Bytes come fro
 
 | Path | Role |
 |------|------|
-| **`eip`** / `eip.exe` | CLI binary + TUI entry; operator verbs come from `internal/catalog` |
+| **`eip`** / `eip.exe` | CLI binary + TUI entry; operator verbs come from `internal/catalogue` |
 | `scripts/deployment-tool/build-host.sh` / `.ps1` | Builds repo-root `eip` / `eip.exe` (no `dist/`) |
 | repo-root `eip-bootstrap.sh` / `.ps1` | Operator bootstrap |
 

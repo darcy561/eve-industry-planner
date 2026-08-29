@@ -8,7 +8,7 @@ import useUsersStore from "../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { scheduleDebouncedUserAccountDocumentSave } from "../../Functions/Debounce/userDocumentsPersistSchedule.js";
 import { updateLocalRefreshTokens } from "../../Functions/Auth/buildAccountData.js";
-import { deleteCloudStoredEsiRefreshTokens } from "../../Functions/Endpoints/Pirivate/cloudStoredEsiRefreshTokens.js";
+import { deleteCloudStoredEsiRefreshTokens } from "../../Functions/Endpoints/Private/cloudStoredEsiRefreshTokens.js";
 
 export function AccountEntry({ character, appearance = "default" }) {
   const cloudAccounts = useUsersStore(

@@ -5,7 +5,7 @@ import {
   acquireDocumentLock,
   postDocumentLockViewerDeparted,
   releaseDocumentLock,
-} from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
+} from "../../Functions/Endpoints/Private/documentLockClient.js";
 import {
   buildGrantedHolderPatch,
   numberOrNull,

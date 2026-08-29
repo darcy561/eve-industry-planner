@@ -31,7 +31,7 @@ The Assets dialogue shows:
 - Select assets to use in jobs
 - Import assets to shopping lists
 - Link assets to material requirements
-- Track asset utilization
+- Track asset utilisation
 
 ### Character and Corporation Assets
 

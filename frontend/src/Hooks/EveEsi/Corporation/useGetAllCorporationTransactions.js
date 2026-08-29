@@ -122,7 +122,7 @@ function removeDuplicateTransactions(transactions) {
 }
 
 /**
- * Utility function to create transactions object organized by corporation ID only.
+ * Utility function to create transactions object organised by corporation ID only.
  * 
  * @param {Array<Object>} characters - Array of user objects
  * @param {Array<Object>} dataArray - Array of data objects (query results or cached data)

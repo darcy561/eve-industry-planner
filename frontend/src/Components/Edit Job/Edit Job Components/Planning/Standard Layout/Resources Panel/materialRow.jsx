@@ -5,7 +5,7 @@ import DoneIcon from "@mui/icons-material/Done";
 import LensIcon from "@mui/icons-material/Lens";
 import MaterialPopoverIconButtons from "../../../../../../Styled Components/Popover/iconButtons";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
-import { getJobTypeAccentColor } from "../../../../../../Functions/Helper/jobTypeDividerColor";
+import { getJobTypeAccentColour } from "../../../../../../Functions/Helper/jobTypeDividerColour";
 import { resolveMaterialChildJobStatus } from "../Material Prices/Helpers/materialChildJobs";
 
 export function MaterialRow({ state, material, displayType }) {
@@ -42,7 +42,7 @@ export function MaterialRow({ state, material, displayType }) {
       }
     }
 
-    return getJobTypeAccentColor(theme, jobType);
+    return getJobTypeAccentColour(theme, jobType);
   }
 
   return (

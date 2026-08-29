@@ -2,7 +2,7 @@
  * World Data Slice for EVE Industry Planner.
  * 
  * Manages world-related data including market data, universe IDs, and system indexes.
- * This slice provides centralized state
+ * This slice provides centralised state
  * management for all EVE Online world data that is shared across the application.
  * 
  * @fileoverview World data state management slice for EVE Industry Planner

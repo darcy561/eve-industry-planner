@@ -3,7 +3,7 @@ package status
 import (
 	"strings"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 	"eve-industry-planner/deployment-tool/internal/deploy"
 	"eve-industry-planner/deployment-tool/internal/docker"
 	"eve-industry-planner/deployment-tool/internal/kit"
@@ -30,7 +30,7 @@ type GroupSection struct {
 	Rows  []ServiceRow `json:"rows"`
 }
 
-// Build evaluates the expected catalog against a deploy.View (Inspect output).
+// Build evaluates the expected catalogue against a deploy.View (Inspect output).
 func Build(v deploy.View) Report {
 	snap := v.Snapshot
 	r := Report{
@@ -45,8 +45,8 @@ func Build(v deploy.View) Report {
 		r.StackName = kit.StackName
 	}
 
-	for _, g := range catalog.Groups() {
-		if g.Fragment == catalog.FragmentObs && !groupOnStack(snap, g) {
+	for _, g := range catalogue.Groups() {
+		if g.Fragment == catalogue.FragmentObs && !groupOnStack(snap, g) {
 			continue
 		}
 		sec := GroupSection{Title: g.Title}
@@ -68,7 +68,7 @@ func Build(v deploy.View) Report {
 	return r
 }
 
-func groupOnStack(snap docker.StackSnapshot, g catalog.Group) bool {
+func groupOnStack(snap docker.StackSnapshot, g catalogue.Group) bool {
 	for _, svc := range g.Services {
 		if _, ok := snap.Services[svc.Short]; ok {
 			return true

@@ -6,7 +6,7 @@
 
 ## Where / how (today)
 
-Prometheus lives on the **observability** fragment (`docker-stack.obs.yml`), dual-homed **`eip-obs` + `eip-core`**, gated by `addons.observability.enabled`. Data fragment = mongo/redis/nats/SeaweedFS. Controller has no Prom query client. DT SyncConfigs/materialize includes AppStackFile; InjectExternalConfigs on app; catalog Groups updated.
+Prometheus lives on the **observability** fragment (`docker-stack.obs.yml`), dual-homed **`eip-obs` + `eip-core`**, gated by `addons.observability.enabled`. Data fragment = mongo/redis/nats/SeaweedFS. Controller has no Prom query client. DT SyncConfigs/materialise includes AppStackFile; InjectExternalConfigs on app; catalogue Groups updated.
 
 ## Correctness need
 

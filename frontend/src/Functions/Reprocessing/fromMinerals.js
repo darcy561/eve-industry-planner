@@ -2,13 +2,13 @@ import parseInputMineralString from "./parseMineralInput";
 import { reprocessingItemTypes } from "../../Context/defaultValues";
 import ReprocessingItem from "../../Classes/reprocessingItem";
 import getMarketData from "../MarketData/findMarketData";
-import oreSelector from "./oreSelecter";
+import oreSelector from "./oreSelector";
 import { getReprocessingData } from "../Helper/getCachedData";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
  * Processes mineral input string and finds optimal ore selection to produce those minerals.
- * Analyzes all available ores, calculates costs and yields, then selects the most
+ * Analyses all available ores, calculates costs and yields, then selects the most
  * efficient combination based on market prices and user preferences.
  *
  * @param {string} inputString - Input string containing mineral quantities and types

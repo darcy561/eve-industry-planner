@@ -35,7 +35,7 @@ Phase 1 is complete only when all of the following exist and are linked:
 1. **Named project subfolder** under `migration-plans/` (name of the work).
 2. **`contents.md`** — Owns / Does not own / task map for the project folder.
 3. **Plan or roadmap entry** — goals, phases after Phase 1, done-when, handoff notes as needed.
-4. **Rules acknowledgment** in that plan/roadmap (see below).
+4. **Rules acknowledgement** in that plan/roadmap (see below).
 5. **Row in** [`contents.md`](./contents.md) (section task map) pointing at the project folder.
 6. **Scaffold for overlays** — enough structure that later “what changed / how it works now” and missing-SoT drafts have a clear place (stubs or empty sections are fine; invent shape as needed, same discipline as live docs / testing gaps).
 
@@ -77,9 +77,9 @@ When implementing under an active migration project, **code comments** (and othe
 
 Same bar applies to stack YAML comments and operator-facing copy produced by the change. Process detail → [`technical-rules.md`](./technical-rules.md).
 
-## Rules acknowledgment in every plan / roadmap
+## Rules acknowledgement in every plan / roadmap
 
-Each plan or roadmap doc **must** include a short acknowledgment that these migration-plans documentation rules (and the paired [`technical-rules.md`](./technical-rules.md)) were **read** and will be followed — so later readers know the process bar was applied when the plan was written or updated.
+Each plan or roadmap doc **must** include a short acknowledgement that these migration-plans documentation rules (and the paired [`technical-rules.md`](./technical-rules.md)) were **read** and will be followed — so later readers know the process bar was applied when the plan was written or updated.
 
 Suggested block near the top of the plan entry file:
 

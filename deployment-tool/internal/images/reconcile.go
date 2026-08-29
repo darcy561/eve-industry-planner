@@ -8,7 +8,7 @@ import (
 
 	"github.com/moby/moby/client"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 	"eve-industry-planner/deployment-tool/internal/docker"
 	"eve-industry-planner/deployment-tool/internal/msg"
 )
@@ -83,7 +83,7 @@ func reconcileOrder(byService map[string]string, snap docker.StackSnapshot) []st
 		}
 		cands[short] = struct{}{}
 	}
-	return catalog.OrderPrefer(cands)
+	return catalogue.OrderPrefer(cands)
 }
 
 // DigestsMatch reports whether two digests name the same content.

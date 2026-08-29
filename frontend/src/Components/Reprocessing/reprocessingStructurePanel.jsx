@@ -5,11 +5,11 @@ import StructureTypeSelect from "../../Styled Components/Select/structureType";
 import { jobTypes } from "../../Context/defaultValues";
 import SystemTypeSelect from "../../Styled Components/Select/systemType";
 import RigTypeSelect from "../../Styled Components/Select/rigType";
-import SkillSelecter from "../../Styled Components/Select/skillSelecter";
+import SkillSelector from "../../Styled Components/Select/skillSelector";
 import getAllReprocessingSkills from "../../Functions/Skills/getAllReprocessingSkills";
 import AssignUsersSelect from "../../Styled Components/Select/users";
 import ReprocessingStructure from "../../Classes/reprocessingStructure";
-import ImplantSelect from "../../Styled Components/Select/implantSelecter";
+import ImplantSelect from "../../Styled Components/Select/implantSelector";
 import useUsersStore from "../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { getCachedCharacterSkills } from "../../Hooks/EveEsi/Character/useGetCharacterSkills";
@@ -213,7 +213,7 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
         {requiredSkills.map(({ id, name }) => {
           return (
             <Grid key={id} size={6}>
-              <SkillSelecter
+              <SkillSelector
                 level={pageState.activeSkills[id] || 0}
                 skillName={name}
                 onChange={(newLevel) =>

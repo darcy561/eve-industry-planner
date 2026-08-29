@@ -17,7 +17,7 @@ class ESIRateLimiter {
     // But each (group, userID) pair gets its own bucket
     this.pathToGroup = new Map(); // path -> group name (shared across all userIDs)
     
-    // Initialize disabled groups from configuration (if any)
+    // Initialise disabled groups from configuration (if any)
     this.disabledGroups = new Set();
     
     // Default limits for unknown groups (will be updated from headers)
@@ -329,7 +329,7 @@ class ESIRateLimiter {
       // Group requests by (group, userID) to process them in parallel batches
       const requestGroups = new Map();
       
-      // Organize requests by group and userID
+      // Organise requests by group and userID
       for (const request of this.requestQueue) {
         const key = `${request.group}:${request.userID}`;
         if (!requestGroups.has(key)) {

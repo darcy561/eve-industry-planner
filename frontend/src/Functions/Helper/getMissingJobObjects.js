@@ -1,5 +1,5 @@
 import useUsersStore from "../../Zustand/usersStore";
-import { fetchJobDocumentsByIdsFromApi } from "../Endpoints/Pirivate/jobDocuments.js";
+import { fetchJobDocumentsByIdsFromApi } from "../Endpoints/Private/jobDocuments.js";
 
 /**
  * Loads job documents from the API for IDs not already in `jobArray`.

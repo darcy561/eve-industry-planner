@@ -12,7 +12,7 @@ import (
 
 var errClientNoConn = errors.New("websocket client has no connection")
 
-// writeFrame serializes a WriteMessage on this client's conn. Gorilla allows only
+// writeFrame serialises a WriteMessage on this client's conn. Gorilla allows only
 // one concurrent writer; the writer goroutine, drain kick, and close paths share this.
 func (c *Client) writeFrame(messageType int, data []byte, writeWait time.Duration) error {
 	if c == nil || c.conn == nil {

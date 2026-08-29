@@ -13,9 +13,9 @@ const characterBlueprintsQueryKey = "characterBlueprints";
  * - Pagination support for large blueprint collections
  * - ESI rate limiting awareness and handling
  * - Automatic retry with exponential backoff
- * - Caching strategy optimized for blueprint data
+ * - Caching strategy optimised for blueprint data
  * - Error handling with descriptive messages
- * - Character hash tracking for data organization
+ * - Character hash tracking for data organisation
  * 
  * The query process:
  * 1. Checks ESI rate limits for character group

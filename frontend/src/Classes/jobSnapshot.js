@@ -11,7 +11,7 @@ import { getAppVersionNumber } from "../Functions/Endpoints/Public/appConfig.js"
  * - Material and setup count tracking
  * - ESI API integration tracking
  * 
- * The JobSnapshot class is optimized for performance and collaboration:
+ * The JobSnapshot class is optimised for performance and collaboration:
  * - Lightweight data structure for fast loading
  * - Locking mechanism to prevent concurrent editing
  * - Material and setup count tracking for quick overview

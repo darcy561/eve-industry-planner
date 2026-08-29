@@ -291,7 +291,7 @@ type MigrateFirestoreWatchlistToMongoRequest struct {
 	AccountID string `json:"account_id"`
 }
 
-// ImportArchivedJobToMongoRequest is the payload for one ArchivedJobs Firestore document to normalize and upsert into the archivedJobs collection.
+// ImportArchivedJobToMongoRequest is the payload for one ArchivedJobs Firestore document to normalise and upsert into the archivedJobs collection.
 // CanonicalBuildVer is optional; when empty the worker resolves it for structured logs only (not persisted on the job document).
 type ImportArchivedJobToMongoRequest struct {
 	UserID              string          `json:"user_id"`

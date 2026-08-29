@@ -6,7 +6,7 @@ import {
   pulseDocumentLockWaitlist,
   releaseDocumentLock,
   requestDocumentLockAccess,
-} from "../Functions/Endpoints/Pirivate/documentLockClient.js";
+} from "../Functions/Endpoints/Private/documentLockClient.js";
 import { suppressDocumentLockVacancyNotice } from "../Functions/DocumentLock/documentLockAcquireFeedback.js";
 import { showSnackbarSuccess, showSnackbarWarning } from "../Events/snackbarEvents.js";
 import { requestEditJobReleaseConfirmation } from "../Events/editJobReleaseRequestEvents.js";
@@ -290,7 +290,7 @@ const documentLockSlice = (set, get) => ({
 
       /**
        * Snackbar "accept" entry point. When the holder is on the edit-job page
-       * with unsaved changes we route through the unsaved-changes dialog (via
+       * with unsaved changes we route through the unsaved-changes dialogue (via
        * {@link requestEditJobReleaseConfirmation}); save / discard both end up
        * calling {@link handOverEditAccess} themselves and resolve `proceed`
        * here, cancel resolves `cancelled` (we dismiss the notice, requester

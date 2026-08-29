@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../Functions/Endpoints/Pirivate/documentLockClient.js", () => ({
+vi.mock("../Functions/Endpoints/Private/documentLockClient.js", () => ({
   acquireDocumentLock: vi.fn(),
   claimDocumentLockHandoff: vi.fn(),
   forceReleaseDocumentLockSameAccount: vi.fn(),
@@ -47,7 +47,7 @@ import {
   pulseDocumentLockWaitlist,
   releaseDocumentLock,
   requestDocumentLockAccess,
-} from "../Functions/Endpoints/Pirivate/documentLockClient.js";
+} from "../Functions/Endpoints/Private/documentLockClient.js";
 import { suppressDocumentLockVacancyNotice } from "../Functions/DocumentLock/documentLockAcquireFeedback.js";
 import { showSnackbarSuccess, showSnackbarWarning } from "../Events/snackbarEvents.js";
 import { requestEditJobReleaseConfirmation } from "../Events/editJobReleaseRequestEvents.js";

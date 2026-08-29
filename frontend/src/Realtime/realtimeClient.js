@@ -3,8 +3,8 @@
  * Does not live in Zustand — connect/disconnect are explicit from auth lifecycle.
  */
 
-import { getSessionIDFromStore } from "../Functions/Endpoints/Pirivate/applyPrivateHeaders.js";
-import { fetchPlannerJobDocumentsFromApi } from "../Functions/Endpoints/Pirivate/jobDocuments.js";
+import { getSessionIDFromStore } from "../Functions/Endpoints/Private/applyPrivateHeaders.js";
+import { fetchPlannerJobDocumentsFromApi } from "../Functions/Endpoints/Private/jobDocuments.js";
 import {
   considerRemoteAppVersion,
   isClientAppVersionOutdated,
@@ -36,7 +36,7 @@ let manualClose = false;
 const PING_MS = 45_000;
 
 /**
- * Normalizes doc.lock fan-out into the `eip-document-lock` detail shape.
+ * Normalises doc.lock fan-out into the `eip-document-lock` detail shape.
  * The server always emits the flat envelope `{ type: "document_lock", event, …fields }`
  * (see `services/websocket/server/natslogic/locks.go::BuildDocumentLockWire`).
  * @param {Record<string, unknown>} parsed

@@ -54,7 +54,7 @@ func ConsumerFilterSubjects(cfg jetstream.ConsumerConfig) []string {
 }
 
 // UpdateConsumerFilterSubjects sets FilterSubjects on an existing durable.
-// No-op when the normalized desired set equals the current filters.
+// No-op when the normalised desired set equals the current filters.
 // Pass an empty desired slice only when the caller has already substituted an inert pattern;
 // this helper will not invent inert subjects.
 func UpdateConsumerFilterSubjects(ctx context.Context, stream jetstream.Stream, durable string, subjects []string) error {

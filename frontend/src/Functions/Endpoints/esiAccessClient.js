@@ -1,5 +1,5 @@
 import { fetchWithPublicHeaders } from "./Public/applyPublicHeaders.js";
-import requestWithPrivateHeaders from "./Pirivate/applyPrivateHeaders.js";
+import requestWithPrivateHeaders from "./Private/applyPrivateHeaders.js";
 
 const ESI_ACCESS_TOKEN_SERVER = "/api/v1/esi/characters/access-token/server";
 const EVE_SSO_TOKENS_REFRESH = "/api/v1/eve-sso/tokens/refresh";

@@ -33,7 +33,7 @@ import useUsersStore from "../../Zustand/usersStore";
  * @param {string|number} props.stageId
  * @param {string} props.stageName
  * @param {boolean} props.expanded
- * @param {() => void} props.onToggle - Called when the accordion should toggle (MUI `onChange` is normalized to a no-arg callback).
+ * @param {() => void} props.onToggle - Called when the accordion should toggle (MUI `onChange` is normalised to a no-arg callback).
  * @param {(event: import("react").MouseEvent) => void} props.onSelectAll
  * @param {import("react").ElementType} [props.classicContents]
  * @param {import("react").ElementType} [props.compactContents]

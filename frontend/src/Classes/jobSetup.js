@@ -26,9 +26,9 @@ import calculateMaterialsFromSetup from "../Functions/Blueprint Calculations/cal
  *
  * The Setup class provides comprehensive job configuration capabilities:
  * - Structure and rig selection with requirement validation
- * - System and tax configuration for cost optimization
+ * - System and tax configuration for cost optimisation
  * - Character assignment for skill-based calculations
- * - Material efficiency optimization settings
+ * - Material efficiency optimisation settings
  * - Time estimation and cost calculation
  * - Alternative system index value management
  *

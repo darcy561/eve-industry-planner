@@ -55,7 +55,7 @@ A colored bar at the bottom indicates blueprint status:
 
 - **Click**: Applies the blueprint's ME and TE values to the active setup
 - **Tooltip**: "Click To Use Blueprint" appears on hover
-- **Behavior**: 
+- **Behaviour**: 
   - Updates setup ME value to match blueprint
   - Updates setup TE value to match blueprint (divided by 2)
   - Automatically recalculates job parameters

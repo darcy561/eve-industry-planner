@@ -29,18 +29,18 @@ Evaluate does **not** query Prometheus (Prom is optional obs only).
 ### Worker
 
 - Slots ≈ `concurrency × running` (`C×R`).
-- Scale-up when any priority queue’s pending exceeds that queue’s `queue_scale_up_pct` fraction of `C×R` (and stabilization elapsed); scale-down when underutilized and above `min`.
+- Scale-up when any priority queue’s pending exceeds that queue’s `queue_scale_up_pct` fraction of `C×R` (and stabilization elapsed); scale-down when underutilised and above `min`.
 - Missing queue signal → hold (no blind scale).
 
 ### Websocket
 
 - Average clients across backends vs `target_clients` and `reserve_capacity`: scale-up when `avg > target × (1 − reserve)`.
-- Scale-in when underutilized (`avg ≤ target × 0.35`) and above `min`: **cordon → drain → wait empty / drain ack → Scale(desired−1)** (NATS `ws.command.*`; drain wait = `lifecycle.AppStopGrace`, not a YAML drain timer).
+- Scale-in when underutilised (`avg ≤ target × 0.35`) and above `min`: **cordon → drain → wait empty / drain ack → Scale(desired−1)** (NATS `ws.command.*`; drain wait = `lifecycle.AppStopGrace`, not a YAML drain timer).
 - Soft divert env (`WS_TARGET_CLIENTS`) is separate from controller reserve math — both come from the same YAML keys via sync / policy mount.
 
 ### Api
 
-- Scales from **websocket client load** (same reserve / underutilized thresholds as websocket). Approximation until api has its own request signal.
+- Scales from **websocket client load** (same reserve / underutilised thresholds as websocket). Approximation until api has its own request signal.
 - **Plain Scale only** — no cordon/drain for api.
 
 ## Operator path

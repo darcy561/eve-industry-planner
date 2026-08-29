@@ -27,7 +27,7 @@ This README is the pointer; [interactions.md](./interactions.md) is the living l
 | What changed | Where to reflect it |
 |----------------|---------------------|
 | Org routing, `scopes`, `upgrade_scopes`, JWT org claims | [routing-and-scopes.md](./routing-and-scopes.md) + [implementation.md](./implementation.md) |
-| Behavior, paths, env vars, security rules | [implementation.md](./implementation.md) |
+| Behaviour, paths, env vars, security rules | [implementation.md](./implementation.md) |
 | Document lock HTTP routes and session-based identity semantics (`session_id`, `eip-document-lock`) | [implementation.md](./implementation.md) § Document locks; [interactions.md](./interactions.md) dated entry |
 | NATS subject prefixes (`doc.update`, `doc.lock`; legacy **`doc.subscribe`** / **`ws.doc.fanout`** / **`ws.doc.subscribe.fanout`** constants for decode/compat only) | [implementation.md](./implementation.md), contract table in [interactions.md](./interactions.md) |
 | **Docker / Traefik / Redis handoff / sticky `/ws`** | [implementation.md](./implementation.md) (**Deployment** + **Session resume**) |

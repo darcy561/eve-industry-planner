@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 	"eve-industry-planner/deployment-tool/internal/msg"
 	"eve-industry-planner/deployment-tool/internal/ops"
 	"eve-industry-planner/deployment-tool/internal/process"
@@ -14,7 +14,7 @@ import (
 )
 
 func init() {
-	if v, ok := catalog.ByID("logs"); ok {
+	if v, ok := catalogue.ByID("logs"); ok {
 		logsCmd.Short = v.Short
 	}
 	logsCmd.Flags().BoolP("follow", "f", false, "follow log output (one service only)")

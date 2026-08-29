@@ -10,7 +10,7 @@
 |------|--------|
 | Named subfolder `swarm-stack/` (work name, not branch name) | done |
 | Project [`contents.md`](./contents.md) | done |
-| This roadmap + rules acknowledgment | done |
+| This roadmap + rules acknowledgement | done |
 | Row in [`../contents.md`](../contents.md) | done |
 | Overlay scaffold — [`overlay.md`](./overlay.md) index + [`overlays/`](./overlays/) one file per `#1`–`#36` | done |
 
@@ -99,7 +99,7 @@ Companion context:
 | Layer | Today | Pain |
 |-------|--------|------|
 | Deploy | **`eip up`** / **`eip dev`** — two-pass stack deploy + Ready (`EnsureS3` ‖ `EnsureMongo`) via [deploy.md](../../deployment/deployment-tool/cli/deploy.md) | Day-2: **`eip sync`**, **`eip secrets`**, **`eip rebuild`**, **`eip update`** ([verbs.md](../../deployment/deployment-tool/cli/verbs.md); #32 / #33 / #23) |
-| Operator UX | Host **`eip`** binary (TUI + CLI); bootstrap installs it | #17 done — keep verbs in Deployment Tool catalog / TUI |
+| Operator UX | Host **`eip`** binary (TUI + CLI); bootstrap installs it | #17 done — keep verbs in Deployment Tool catalogue / TUI |
 | api / websocket / worker / ws-router / Traefik / **core** / **frontend** / **capacity-controller** | Swarm `docker-stack.yml` | #2/#4/#7/#8/#16/#20 done; capacity Phases A–D done; **WS soak signed off**; pin/move **scrapped for now** |
 | websocket identity | `container.ID()` (`HOSTNAME` / ContainerID[:12]); OTel `service.instance.id` only | **#2 done** — no slot-stable SoT; graceful durable delete + InactiveThreshold backstop |
 | core | Swarm `eip_core` (`replicas: 1`, `start-first`); probes `:19100`; primary lease + Redis changestream resume | Optional warm `replicas: 2` parked; **#28** dual-publisher failover tests done |
@@ -273,7 +273,7 @@ Placement can ship with **account-key affinity** before corp collections exist, 
 19. **Public UX hides orchestration internals** - operators learn **`eip`** + config files; NETWORK/STACK are implementer docs.
 20. **Same `eip` experience on Windows, Linux, and macOS** - one Go binary (TUI + CLI); bootstrap `.sh` / `.ps1` only places the binary (#17 / #32 / #33 / #35). No OS-specific public command set.
 21. **Observability is an optional addon** - default off for lean self-hosts (#34 **done**). **No separate metrics toggle.** Prometheus lives on the Swarm **obs** fragment (with Grafana/Loki/…); data fragment is lean. Apps must run with observability off.
-22. **Host ops = Deployment Tool** - verbs in catalog / TUI only: [guide.md](../../deployment/guide.md) / [verbs.md](../../deployment/deployment-tool/cli/verbs.md).
+22. **Host ops = Deployment Tool** - verbs in catalogue / TUI only: [guide.md](../../deployment/guide.md) / [verbs.md](../../deployment/deployment-tool/cli/verbs.md).
 
 ---
 
@@ -654,7 +654,7 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 
 - **overlay:** [overlays/18-capacity-controller.md](./overlays/18-capacity-controller.md)
 - **decision pack:** [18-capacity-controller/](./18-capacity-controller/) — Phase 0 locked; **Phases A–D landed** (2026-08-09) incl. promote
-- **status:** **done** — Phases A–D **landed** + live SoT + **WS managed soak signed off** (2026-08-09; underutilized down-pressure fix). **Pin/move scrapped for now.**
+- **status:** **done** — Phases A–D **landed** + live SoT + **WS managed soak signed off** (2026-08-09; underutilised down-pressure fix). **Pin/move scrapped for now.**
 - **size:** L
 - **where:** `services/capacity-controller` + Swarm `capacity-controller` / `capacity-docker-proxy` on `eip-docker-capacity`; lease `lease:capacity:primary`; cooldown `eip:capacity:cooldown:v1`; policy `/etc/eip/eip.config.yaml`; Evaluate SoT = Moby + Redis Asynq + NATS health (no Prom). **Prometheus on obs fragment.** Apply gated by managed YAML. Operator: **`eip capacity`** → Moby exec → ctl.
 - **why:** Swarm only holds a desired replica count. Something still must decide **cluster shape**: how many worker/WS/api replicas, when to drain/remove a slot, how much spare capacity to keep, and (later) which replica should receive a new or migrated tenant. That is richer than watching CPU. Own container keeps Docker privileges and scale loops out of core/api/worker, and lets Swarm replace it like other singletons.
@@ -692,7 +692,7 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 - **size:** M
 - **where:** [`yamldefaults.DefaultConfig`](../../../deployment-tool/internal/kit/templates/yamldefaults/default.go); `eip.config.yaml` (project home); Swarm config mount on `capacity-controller`; deployment-tool `config.Sync` / Expand; [config.md](../../stack/config.md); [verbs.md](../../deployment/deployment-tool/cli/verbs.md)
 - **why:** One operator YAML for day-2 sync knobs **and** capacity-controller policy — ceilings, reserve %, drain timeouts, kill-switches, addons — without rebuilding images; secrets stay in `.env`
-- **how (landed — `eip sync` / expand):** Versioned defaults; Go validate; ephemeral SyncEnvMap. Applied today: `services.*.min`→replicas + `eip.capacity.min/max` labels; `services.worker.concurrency`; `services.websocket.client_cutoff` → `WS_CLIENT_CUTOFF`; **`services.websocket.target_clients` → `WS_TARGET_CLIENTS` (soft divert)**; `ports.*` / `paths.*` / `proxy.*`; file-config hash rolls; obs fragment merge on rematerialize (#34). Live SoT → [config.md](../../stack/config.md).
+- **how (landed — `eip sync` / expand):** Versioned defaults; Go validate; ephemeral SyncEnvMap. Applied today: `services.*.min`→replicas + `eip.capacity.min/max` labels; `services.worker.concurrency`; `services.websocket.client_cutoff` → `WS_CLIENT_CUTOFF`; **`services.websocket.target_clients` → `WS_TARGET_CLIENTS` (soft divert)**; `ports.*` / `paths.*` / `proxy.*`; file-config hash rolls; obs fragment merge on rematerialise (#34). Live SoT → [config.md](../../stack/config.md).
 - **how (landed — controller consume):** mirrored YAML load/validate; Swarm config mount `/etc/eip/eip.config.yaml`; Observe merges RoleState; Evaluate uses managed/min/max, worker thresholds, WS reserve, scale_timing/cooldown (Redis live).
 - **acceptance (partial):** **`eip sync`** + obs toggle + soft `target_clients` + controller mount/Load + promote — **met** for schema path.
 
@@ -748,11 +748,11 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 #### #23 - Day-2 image ship (Swarm rolls via `eip update` / `eip rebuild`)
 
 - **overlay:** [overlays/23-app-image-ship.md](./overlays/23-app-image-ship.md)
-- **status:** **done** — day-2 ship is **`eip update`** (GHCR pull + digest-reconcile) / **`eip rebuild`** (local bake + rematerialize); absorbs **#6** and **#22**. Standard Swarm `start-first` / `stop-first` from stack YAML
+- **status:** **done** — day-2 ship is **`eip update`** (GHCR pull + digest-reconcile) / **`eip rebuild`** (local bake + rematerialise); absorbs **#6** and **#22**. Standard Swarm `start-first` / `stop-first` from stack YAML
 - **size:** M
 - **where:** deployment-tool `update` / `rebuild` / `images.ReconcileLive`; [verbs.md](../../deployment/deployment-tool/cli/verbs.md) (§ Day-2 images); pairs with #33 rebuild
 - **why:** Day-2 must ship images from kit stack YAML without inventing a second orchestration surface
-- **how (landed):** **`eip update`** — binary / stack YAML / pull live images (`LiveImageRefs`: app + data + obs when on) + digest-reconcile. **`eip rebuild`** — bake + rematerialize app fragment (no Ready). Swarm owns rolling replacement. ws-router **prefers newest bake** mid-roll; FE snackbar does not block WS reconnect.
+- **how (landed):** **`eip update`** — binary / stack YAML / pull live images (`LiveImageRefs`: app + data + obs when on) + digest-reconcile. **`eip rebuild`** — bake + rematerialise app fragment (no Ready). Swarm owns rolling replacement. ws-router **prefers newest bake** mid-roll; FE snackbar does not block WS reconnect.
 - **acceptance:** Day-2 ship via **`eip update`** / **`eip rebuild`** — **met**. **Removed:** Redis advertised-version PUBLISH / WS fan-out (`eip:app:advertised_version:v1`) — not used; version surfaces stay bake / `GET /api/v1/app-config` / WS `connected.app_version` ([verbs.md](../../deployment/deployment-tool/cli/verbs.md)). Dead FE `{type: app_version}` handler → Follow-ups § frontend realtime polish. Controller soft-cutover remains **#18**.
 
 #### #24 - Secrets apply + day-2 config refresh (public deploy)
@@ -762,9 +762,9 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 - **size:** M
 - **where:** [secrets.md](../../stack/secrets.md); [config.md](../../stack/config.md); #32; [guide.md](../../deployment/guide.md); `docker-stack.yml`; deployment-tool `swarm` + `config.Sync`; operator config YAML (#19)
 - **why:** Public tool - operators edit secrets and config. Swarm tasks do not auto-reload; need a clear apply path that is not full `eip up`
-- **how (landed):** **`.env` = secrets** → **`eip secrets`** (versioned Swarm secrets + `/run/secrets/<KEY>` + rematerialize); non-secrets in operator YAML (#19) via **`eip sync`** (ephemeral sync-env + ServiceUpdate). Mesh hosts/URLs from stack anchors. Frontend public knobs via `x-frontend-public-env` (#16). Operators taught day-2 verbs, not raw `docker secret` / stack-deploy.
+- **how (landed):** **`.env` = secrets** → **`eip secrets`** (versioned Swarm secrets + `/run/secrets/<KEY>` + rematerialise); non-secrets in operator YAML (#19) via **`eip sync`** (ephemeral sync-env + ServiceUpdate). Mesh hosts/URLs from stack anchors. Frontend public knobs via `x-frontend-public-env` (#16). Operators taught day-2 verbs, not raw `docker secret` / stack-deploy.
 - **acceptance:** Following the doc, a user changes a documented secret via **`eip secrets`** or config via **`eip sync`** without bouncing the data plane unnecessarily — **met**.
-- **acceptance detail (rescued from former env.md):** Operator can (1) change an elastic secret in `.env` → **`eip secrets`** → confirm `/run/secrets/<KEY>` remount on `eip_api` (etc.) without bouncing mongo/redis/nats; (2) edit `eip.config.yaml` → **`eip sync`** → capacity / ports / paths update without a data-plane bounce. Do not teach raw `docker secret`; rematerialize is internal to `eip up` / `eip secrets`.
+- **acceptance detail (rescued from former env.md):** Operator can (1) change an elastic secret in `.env` → **`eip secrets`** → confirm `/run/secrets/<KEY>` remount on `eip_api` (etc.) without bouncing mongo/redis/nats; (2) edit `eip.config.yaml` → **`eip sync`** → capacity / ports / paths update without a data-plane bounce. Do not teach raw `docker secret`; rematerialise is internal to `eip up` / `eip secrets`.
 - **out of #24 (rescued):** Obs addon toggle is **#34** (done).
 - **pairs with:** #3, #16, #32 (done); #17 (operator surface)
 
@@ -846,19 +846,19 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 - **overlay:** [overlays/32-eip-sync-secrets.md](./overlays/32-eip-sync-secrets.md)
 - **status:** **done** (2026-07-20; ephemeral sync-env 2026-07-23; operator surface Deployment Tool after #17) — YAML targeted apply + secrets-only path; Swarm `secret` objects under **#3**; public docs under **#24**
 - **size:** M
-- **where:** deployment-tool `config.Sync` / `swarm` secrets / `Rematerialize`; [verbs.md](../../deployment/deployment-tool/cli/verbs.md); [secrets.md](../../stack/secrets.md); [config.md](../../stack/config.md); [traefik.md](../../stack/traefik.md)
+- **where:** deployment-tool `config.Sync` / `swarm` secrets / `Rematerialise`; [verbs.md](../../deployment/deployment-tool/cli/verbs.md); [secrets.md](../../stack/secrets.md); [config.md](../../stack/config.md); [traefik.md](../../stack/traefik.md)
 - **why:** Full `eip up` is a sledgehammer for config/secrets edits while the stack is running; secrets and YAML must not share one easy-to-mistype verb
-- **how (landed):** **`eip sync`** validate + ephemeral sync-env + Moby ServiceUpdate; **`eip secrets`** → versioned Swarm secrets + rematerialize (no YAML; no data-plane bounce); adminSDK binds removed; cross-platform via Go `eip`
-- **acceptance:** Edit `eip.config.yaml` → **`eip sync`**; edit `.env` → **`eip secrets`** without mongo/redis/nats bounce — **met**. Minor rematerialize UX polish can land without reopening.
+- **how (landed):** **`eip sync`** validate + ephemeral sync-env + Moby ServiceUpdate; **`eip secrets`** → versioned Swarm secrets + rematerialise (no YAML; no data-plane bounce); adminSDK binds removed; cross-platform via Go `eip`
+- **acceptance:** Edit `eip.config.yaml` → **`eip sync`**; edit `.env` → **`eip secrets`** without mongo/redis/nats bounce — **met**. Minor rematerialise UX polish can land without reopening.
 
 #### #33 - `eip rebuild` (dev scoped image rebuild + roll)
 
 - **overlay:** [overlays/33-eip-rebuild.md](./overlays/33-eip-rebuild.md)
-- **status:** **done** (2026-07-20; FE on Swarm default 2026-07-23; CLI scope nuance 2026-08-02) for **dev day-2** — full bakeable app group (incl. frontend), Docker cache, rematerialize; prod GHCR path still with #23 / **`eip update`**
+- **status:** **done** (2026-07-20; FE on Swarm default 2026-07-23; CLI scope nuance 2026-08-02) for **dev day-2** — full bakeable app group (incl. frontend), Docker cache, rematerialise; prod GHCR path still with #23 / **`eip update`**
 - **size:** M
 - **where:** deployment-tool `Rebuild` / `images` bake (`parseBakeArgs`); [verbs.md](../../deployment/deployment-tool/cli/verbs.md)
 - **why:** Local code changes should not require full down/up of mongo/redis/nats
-- **how (landed):** **`eip rebuild`** bakes the full app group to `:bake`, promotes per-role `TAG_*` **only on digest change**, rematerializes stack (no Ready). Public CLI: **`Args: cobra.NoArgs`** + opt-in `--no-cache` only (TUI same). Local-dev only — prod day-2 images stay **`eip update`**.
+- **how (landed):** **`eip rebuild`** bakes the full app group to `:bake`, promotes per-role `TAG_*` **only on digest change**, rematerialises stack (no Ready). Public CLI: **`Args: cobra.NoArgs`** + opt-in `--no-cache` only (TUI same). Local-dev only — prod day-2 images stay **`eip update`**.
 - **acceptance:** Cached rebuild of full app fragment without bouncing healthy data plane; unchanged digests do not roll — **met**. Per-role bake CLI **dropped** (full-group bake + digest promote is enough for local dev).
 
 #### #34 - Observability addon (optional; default off)
@@ -866,9 +866,9 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 - **overlay:** [overlays/34-obs-addon.md](./overlays/34-obs-addon.md)
 - **status:** **done** (Swarm fragment + toggle + **Prom on obs** + live docs promote 2026-08-09) — pairs with #15 / #19
 - **size:** M
-- **where:** [`docker-stack.obs.yml`](../../../docker-stack.obs.yml) (includes Prometheus, dual-home `eip-obs`+`eip-core`); `addons.observability.enabled` in [`yamldefaults`](../../../deployment-tool/internal/kit/templates/yamldefaults/default.go); deployment-tool `deploy` materialize / rematerialize / recipe; [deploy.md](../../deployment/deployment-tool/cli/deploy.md)
+- **where:** [`docker-stack.obs.yml`](../../../docker-stack.obs.yml) (includes Prometheus, dual-home `eip-obs`+`eip-core`); `addons.observability.enabled` in [`yamldefaults`](../../../deployment-tool/internal/kit/templates/yamldefaults/default.go); deployment-tool `deploy` materialise / rematerialise / recipe; [deploy.md](../../deployment/deployment-tool/cli/deploy.md)
 - **why:** Lean self-hosts should not pay for Grafana/Loki/Alloy/exporters/asynqmon/Prom; controller Evaluate does not need Prom (#18)
-- **how (landed):** Toggle = include/omit Swarm obs fragment. Addon = Grafana, Loki, Alloy, exporters, asynqmon, node_exporter, **Prometheus**. **`eip up` / `eip dev` / rematerialize** merge or prune obs when YAML enabled. Apps soft-fail OTLP / run with addon off. Data fragment lean (no Prom).
+- **how (landed):** Toggle = include/omit Swarm obs fragment. Addon = Grafana, Loki, Alloy, exporters, asynqmon, node_exporter, **Prometheus**. **`eip up` / `eip dev` / rematerialise** merge or prune obs when YAML enabled. Apps soft-fail OTLP / run with addon off. Data fragment lean (no Prom).
 - **acceptance:** Default install runs core app path with obs off; enabling via config + bring-up starts only that fragment; apps healthy without Alloy; Prom scrapes when obs on — **met**
 
 ---
@@ -880,7 +880,7 @@ Core is the **control plane** (changestream -> JetStream, scheduler -> tasks, si
 - **size:** M
 - **where:** [`deployment-tool/internal/images/docker-bake.hcl`](../../../deployment-tool/internal/images/docker-bake.hcl) (`//go:embed`, stdin `-f -`); `images.Bake` → in-memory `TAG_*` into stack expand; `docker-stack.dev.yml`; [deploy.md](../../deployment/deployment-tool/cli/deploy.md); [verbs.md](../../deployment/deployment-tool/cli/verbs.md)
 - **why:** Swarm does not build images. Compose `--profile build-elastic` coupled bring-up and stamped Compose ownership on Swarm tasks.
-- **how (landed):** buildx bake group `swarm` → stable `:bake`, then per-role promote to `${APP_VERSION}-<timestamp>` only when digest changes; digests via `docker image inspect`. **`TAG_*` are process/expand env** from `Bake()` / `TagsFromStack` — **not** written to a durable `.eip-local-build.env` (that name remains gitignored only). **`eip dev`** bakes then two-pass deploy; **`eip up`** pulls GHCR (no bake); **`eip rebuild`** bake + rematerialize. No `stack-force-local` (unique tags roll without `--force`). No repo-root `docker-bake.hcl`.
+- **how (landed):** buildx bake group `swarm` → stable `:bake`, then per-role promote to `${APP_VERSION}-<timestamp>` only when digest changes; digests via `docker image inspect`. **`TAG_*` are process/expand env** from `Bake()` / `TagsFromStack` — **not** written to a durable `.eip-local-build.env` (that name remains gitignored only). **`eip dev`** bakes then two-pass deploy; **`eip up`** pulls GHCR (no bake); **`eip rebuild`** bake + rematerialise. No `stack-force-local` (unique tags roll without `--force`). No repo-root `docker-bake.hcl`.
 - **acceptance:** Local Swarm images build without Compose service definitions for app roles; `eip up` and `eip dev` diverge (pull vs bake); Desktop no longer implies app tasks are Compose-owned; Win/Linux/macOS via Go `eip` — **met**
 - **pairs with:** #17 (operator surface), #33 (rebuild), #16 (frontend on Swarm)
 
@@ -1006,7 +1006,7 @@ Material removed from live [stack.md](../../stack/stack.md) so history/checklist
 - Services on `eip-core` resolve mesh names (`mongo`, `redis`, `nats`, `seaweedfs`, `prometheus`, `traefik`, …).
 - Traefik swarm provider reaches frontend / api / ws-router on `eip-public`; docker provider network is `eip-core`.
 - Socket proxies are unreachable from random `eip-core` app tasks.
-- With obs on: Alloy on `eip-core` + `eip-obs` + `eip-docker-alloy`; Prometheus on mesh always and attached to **`eip-obs`** while addon on (labeled membership — [network.md](../../stack/network.md)).
+- With obs on: Alloy on `eip-core` + `eip-obs` + `eip-docker-alloy`; Prometheus on mesh always and attached to **`eip-obs`** while addon on (labelled membership — [network.md](../../stack/network.md)).
 
 ---
 

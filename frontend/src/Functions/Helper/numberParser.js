@@ -114,7 +114,7 @@ export function formatNumberForLocale(number, options) {
   const finalMaxDigits = Math.max(minDigits, maxDigits);
 
   // Use Intl.NumberFormat for locale-specific formatting
-  // This preserves existing locale behavior while using numbro for parsing
+  // This preserves existing locale behaviour while using numbro for parsing
   const locale = useUsersStore
     .getState()
     .applicationSettings.actions.getCurrentLocale();
@@ -327,7 +327,7 @@ export function formatTimeRemaining(inputTime, options = {}) {
     }
 
     // Convert milliseconds to seconds and use formatTimeDuration
-    // Default to not showing seconds (matching original behavior)
+    // Default to not showing seconds (matching original behaviour)
     const formatOptions = {
       seconds: false,
       ...options,
@@ -335,7 +335,7 @@ export function formatTimeRemaining(inputTime, options = {}) {
  
     const formatted = formatTimeDuration(timeLeft / 1000, formatOptions);
 
-    // Return formatted string (empty string if less than a minute, matching original behavior)
+    // Return formatted string (empty string if less than a minute, matching original behaviour)
     return formatted;
   } catch (err) {
     return "Time Not Available";

@@ -15,7 +15,7 @@ import (
 // takes a field here and a constructor, without changing any call site.
 type Upgrader struct{}
 
-// UserAccountDocument normalizes legacy rows in memory. Idempotent.
+// UserAccountDocument normalises legacy rows in memory. Idempotent.
 func (u Upgrader) UserAccountDocument(doc *models.UserAccountDocument) {
 	if doc == nil {
 		return
@@ -34,7 +34,7 @@ func (u Upgrader) UserAccountDocument(doc *models.UserAccountDocument) {
 	}
 }
 
-// ApplicationSettings normalizes legacy application_settings in memory. Idempotent.
+// ApplicationSettings normalises legacy application_settings in memory. Idempotent.
 // accountID and now are reserved for future steps that need DefaultApplicationSettings field fill.
 func (u Upgrader) ApplicationSettings(doc *models.ApplicationSettings, accountID string, now time.Time) {
 	if doc == nil {
@@ -54,7 +54,7 @@ func (u Upgrader) ApplicationSettings(doc *models.ApplicationSettings, accountID
 	}
 }
 
-// Group normalizes legacy user_job_groups documents in memory. Idempotent.
+// Group normalises legacy user_job_groups documents in memory. Idempotent.
 func (u Upgrader) Group(doc *models.Group) {
 	if doc == nil {
 		return
@@ -67,7 +67,7 @@ func (u Upgrader) Group(doc *models.Group) {
 	}
 }
 
-// Job normalizes legacy job documents in memory. Idempotent.
+// Job normalises legacy job documents in memory. Idempotent.
 //
 // How job identity is stored is not a schema concern: entity ids are converted to
 // refs on write and the document records which field set was applied. See

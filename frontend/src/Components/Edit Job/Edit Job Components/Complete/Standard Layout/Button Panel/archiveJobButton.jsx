@@ -1,16 +1,16 @@
 import { Button, Tooltip } from "@mui/material";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { deleteJobDocumentsFromApi } from "../../../../../../Functions/Endpoints/Pirivate/jobDocuments.js";
+import { deleteJobDocumentsFromApi } from "../../../../../../Functions/Endpoints/Private/jobDocuments.js";
 import { flushPendingJobDocumentsSave } from "../../../../../../Functions/Debounce/jobDocumentsPersistSchedule.js";
-import { saveUserAccountDocument } from "../../../../../../Functions/Endpoints/Pirivate/userDocument";
-import saveArchivedJobs from "../../../../../../Functions/Endpoints/Pirivate/archivedJobs";
+import { saveUserAccountDocument } from "../../../../../../Functions/Endpoints/Private/userDocument";
+import saveArchivedJobs from "../../../../../../Functions/Endpoints/Private/archivedJobs";
 import {
   showSnackbarError,
   showSnackbarSuccess,
 } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
-import { invalidateStatisticsQueries } from "../../../../../../Hooks/React Query/Backend/buildStats";
+import { invalidateStatisticsQueries } from "../../../../../../Hooks/React Query/Backend/statisticsKeys";
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 import { yieldEditJobDocumentLocksOnLeave } from "../../../../../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";

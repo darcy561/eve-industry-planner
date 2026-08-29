@@ -1,6 +1,6 @@
 import Job from "../../Classes/job";
 import { showSnackbarError } from "../../Events/snackbarEvents";
-import { displayOutdatedAppVersionDialog } from "../../Events/notificationDialogEvents";
+import { displayOutdatedAppVersionDialogue } from "../../Events/notificationDialogueEvents";
 import getItemRecipes from "../Job Build/getItemRecipes";
 import { trackNewJobsCreated } from "../../analytics/trackNewJobsCreated";
 import {
@@ -71,7 +71,7 @@ export function jobBuildErrors(buildRequest, newJob) {
     } else if (newJob === "objectError") {
       showSnackbarError("Error building job object, please try again");
     } else if (newJob === "Outdated App Version") {
-      displayOutdatedAppVersionDialog();
+      displayOutdatedAppVersionDialogue();
     } else if (newJob === "Item Data Missing From Request") {
       showSnackbarError("Item Data Missing From Request");
     } else {

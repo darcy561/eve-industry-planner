@@ -57,7 +57,7 @@ func runWebsocketUp(ctx context.Context, obs *Observer, cfg Config) error {
 }
 
 func runWebsocketDown(ctx context.Context, obs *Observer, cfg Config) error {
-	fmt.Printf("capacity_soak: websocket DOWN want<=%d (idle / underutilized cordon→drain→scale)\n", cfg.MinReplicas)
+	fmt.Printf("capacity_soak: websocket DOWN want<=%d (idle / underutilised cordon→drain→scale)\n", cfg.MinReplicas)
 
 	idleCtx, cancelIdle := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancelIdle()
@@ -161,7 +161,7 @@ func startHold(ctx context.Context, cfg Config) *wsHold {
 		clients = 1
 	}
 	go func() {
-		// Standardized WS clients: soaklib ProfileHold with Accounts == Clients.
+		// Standardised WS clients: soaklib ProfileHold with Accounts == Clients.
 		done <- soaklib.Run(soakCtx, soaklib.Config{
 			Profile:     soaklib.ProfileHold,
 			WSURL:       cfg.WSURL,

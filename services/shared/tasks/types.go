@@ -37,7 +37,7 @@ var (
 		DefaultPriority: Priority5,
 		DefaultTimeout:  2 * time.Minute,
 	}
-	// ImportArchivedJobToMongo normalizes one Firestore ArchivedJobs document and upserts [models.Job] into MongoDB archivedJobs.
+	// ImportArchivedJobToMongo normalises one Firestore ArchivedJobs document and upserts [models.Job] into MongoDB archivedJobs.
 	ImportArchivedJobToMongo = Task{
 		Name:            "importArchivedJobToMongo",
 		Subject:         "task.migration.importArchivedJobToMongo",

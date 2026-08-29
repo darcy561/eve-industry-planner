@@ -6,7 +6,7 @@ The Extras Panel allows you to add or remove additional costs that weren't captu
 
 The Extras Panel provides:
 - **Extra cost tracking** for expenses not captured elsewhere
-- **Categorized costs** using custom categories for organization
+- **Categorised costs** using custom categories for organisation
 - **Cost entry** with description and amount
 - **Cost management** with ability to add and remove entries
 - **Total calculation** showing sum of all extra costs
@@ -26,7 +26,7 @@ Each extra cost is displayed as a card showing:
 - **Display**: Category label as a filled chip
 - **Color**: Secondary theme color
 - **Size**: Small chip with category name
-- **Purpose**: Organizes costs by category
+- **Purpose**: Organises costs by category
 
 #### Description
 - **Display**: Text description of the cost
@@ -42,7 +42,7 @@ Each extra cost is displayed as a card showing:
 - **Icon**: Delete (trash) icon
 - **Color**: Error (red)
 - **Function**: Removes the extra cost entry
-- **Behavior**: 
+- **Behaviour**: 
   - Removes entry immediately
   - Updates total costs
   - Shows confirmation message
@@ -63,7 +63,7 @@ Located below existing costs:
 - **Label**: Category selection
 - **Options**: Custom categories from application settings
 - **Default**: "Unassigned" (category ID 0)
-- **Purpose**: Organize costs by type (e.g., "Hauling", "Fees", "Other")
+- **Purpose**: Organise costs by type (e.g., "Hauling", "Fees", "Other")
 
 #### Description Field
 - **Type**: Text input
@@ -72,7 +72,7 @@ Located below existing costs:
 - **Required**: Yes (if category is Unassigned)
 - **Validation**: 
   - Required if category is 0 (Unassigned)
-  - Sanitized to remove HTML/special characters
+  - Sanitised to remove HTML/special characters
 - **Purpose**: Describe what the cost is for
 
 #### Cost Field
@@ -93,7 +93,7 @@ Located below existing costs:
 - **Disabled State**: 
   - Disabled if description empty (when category is Unassigned)
   - Disabled if cost is 0 or less
-- **Behavior**: 
+- **Behaviour**: 
   - Validates inputs
   - Adds entry to list
   - Resets form
@@ -113,7 +113,7 @@ Located below existing costs:
 ### Category System
 - **Custom Categories**: Defined in application settings
 - **Unassigned**: Default category (ID 0) for uncategorized costs
-- **Organization**: Helps group similar costs together
+- **Organisation**: Helps group similar costs together
 - **Filtering**: Can filter costs by category in other views
 
 ### Common Use Cases
@@ -161,7 +161,7 @@ Total build cost includes:
 
 ### Cost Tracking
 - Keep extras separate from other costs
-- Use categories to organize expenses
+- Use categories to organise expenses
 - Document unusual costs with descriptions
 - Review totals before archiving
 

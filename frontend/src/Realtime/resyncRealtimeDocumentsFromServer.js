@@ -12,7 +12,7 @@ import {
 import {
   getApplicationSettingsDocument,
   getUserAccountDocument,
-} from "../Functions/Endpoints/Pirivate/userDocument.js";
+} from "../Functions/Endpoints/Private/userDocument.js";
 
 /**
  * Fetches both singleton account documents, merges settings before users (cloud flag visible to user reconcile),

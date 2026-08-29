@@ -1,6 +1,6 @@
 import { Typography, Grid } from "@mui/material";
 
-export default function NoAssetsFound_AssetsDialog(props) {
+export default function NoAssetsFound_AssetsDialogue(props) {
   const { state } = props;
 
   if (!state.topLevelAssets || state.topLevelAssets.size > 0) return null;

@@ -1,5 +1,5 @@
 /**
- * Central place for Sentry behavior driven by the build-time `ENVIRONMENT` value
+ * Central place for Sentry behaviour driven by the build-time `ENVIRONMENT` value
  * and optional `SENTRY_*_SAMPLE_RATE` vars (see root `.env` / `frontend/vite.config.js` `define`).
  */
 

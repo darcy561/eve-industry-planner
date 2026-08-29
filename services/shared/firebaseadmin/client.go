@@ -25,7 +25,7 @@ var (
 	authClientErr  error
 )
 
-// getFirebaseApp lazily initializes a shared Firebase App instance using environment configuration.
+// getFirebaseApp lazily initialises a shared Firebase App instance using environment configuration.
 func getFirebaseApp(ctx context.Context) (*firebase.App, error) {
 	appOnce.Do(func() {
 		var opts []option.ClientOption

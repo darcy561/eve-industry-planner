@@ -3,8 +3,8 @@ import { releaseJobsAfterGroupRemoved } from "./releaseJobsAfterGroupRemoved.js"
 import {
   deleteJobGroupsFromApi,
   USER_JOB_GROUPS_COLLECTION,
-} from "../Endpoints/Pirivate/groups.js";
-import { getDocumentLockState } from "../Endpoints/Pirivate/documentLockClient.js";
+} from "../Endpoints/Private/groups.js";
+import { getDocumentLockState } from "../Endpoints/Private/documentLockClient.js";
 import { showSnackbarError } from "../../Events/snackbarEvents.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 

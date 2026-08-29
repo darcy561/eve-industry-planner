@@ -1,6 +1,6 @@
 import { AppEvent } from "../../analytics/appEventNames";
 import { trackAppEvent } from "../../analytics/trackAppEvent";
-import { saveApplicationSettings } from "../Endpoints/Pirivate/userDocument";
+import { saveApplicationSettings } from "../Endpoints/Private/userDocument";
 import getSystemIndexes from "../../Functions/System Indexes/findSystemIndex";
 import { jobTypes } from "../../Context/defaultValues";
 import { showSnackbarSuccess } from "../../Events/snackbarEvents";

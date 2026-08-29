@@ -26,7 +26,7 @@ After selecting a job type, choose the specific structure type you want to add:
 - Engineering Complexes (various sizes)
 - Citadels
 - Upwell Structures
-- Other specialized structures
+- Other specialised structures
 
 ### Step 3: Configure Structure Details
 
@@ -50,7 +50,7 @@ Once you've added structures, they will appear in the Current Structures list. Y
 Manufacturing structures are used for building items from blueprints. Different structure types offer different bonuses:
 - **Engineering Complexes:** Provide material and time efficiency bonuses
 - **Citadels:** Offer various bonuses depending on the citadel type
-- **Upwell Structures:** Specialized structures with specific bonuses
+- **Upwell Structures:** Specialised structures with specific bonuses
 
 ### Reaction Structures
 
@@ -64,7 +64,7 @@ Reprocessing structures are used for reprocessing ores and ice into refined mate
 
 ### Current Structures List
 
-The Current Structures section displays all structures you've configured, organized by job type. You can:
+The Current Structures section displays all structures you've configured, organised by job type. You can:
 - See all structures at a glance
 - Identify which structures are configured for which job types
 - Access structure editing options

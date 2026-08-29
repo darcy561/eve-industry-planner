@@ -1,12 +1,12 @@
 import { flushPendingGroupSave } from "../Debounce/jobGroupsPersistSchedule.js";
-import saveArchivedJobs from "../Endpoints/Pirivate/archivedJobs.js";
+import saveArchivedJobs from "../Endpoints/Private/archivedJobs.js";
 import {
   showSnackbarError,
   showSnackbarSuccess,
 } from "../../Events/snackbarEvents.js";
-import { saveUserAccountDocument } from "../Endpoints/Pirivate/userDocument.js";
-import { deleteJobGroupsFromApi } from "../Endpoints/Pirivate/groups.js";
-import { deleteJobDocumentsFromApi } from "../Endpoints/Pirivate/jobDocuments.js";
+import { saveUserAccountDocument } from "../Endpoints/Private/userDocument.js";
+import { deleteJobGroupsFromApi } from "../Endpoints/Private/groups.js";
+import { deleteJobDocumentsFromApi } from "../Endpoints/Private/jobDocuments.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 
 /**

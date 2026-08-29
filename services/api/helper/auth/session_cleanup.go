@@ -48,7 +48,7 @@ func sessionCleanupScanCount(opts SessionCleanupOptions) int64 {
 }
 
 // PruneAllAccountSessionsRecords scans account_sessions:* and loads each record so
-// expired session rows and their session_index keys are pruned (existing API behavior).
+// expired session rows and their session_index keys are pruned (existing API behaviour).
 func PruneAllAccountSessionsRecords(ctx context.Context, redisClient *redis.Client) (int, error) {
 	if redisClient == nil {
 		return 0, nil

@@ -70,7 +70,7 @@ func ExtractFromStringMap(ctx context.Context, headers map[string]string) contex
 	return otel.GetTextMapPropagator().Extract(ctx, propagation.MapCarrier(cp))
 }
 
-// AsynqHeadersFromContext serializes the trace context from ctx into a string map suitable for
+// AsynqHeadersFromContext serialises the trace context from ctx into a string map suitable for
 // asynq.NewTaskWithHeaders, so child tasks stay on the same trace as the current span.
 // Returns nil if nothing was injected (e.g. no active span).
 func AsynqHeadersFromContext(ctx context.Context) map[string]string {

@@ -1,5 +1,5 @@
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
-import { requestJobDocumentsByIdsFromApi } from "../Endpoints/Pirivate/requestJobDocumentsByIds.js";
+import { requestJobDocumentsByIdsFromApi } from "../Endpoints/Private/requestJobDocumentsByIds.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 
 /**

@@ -9,13 +9,14 @@ vi.mock("../../../Zustand/usersStore", () => ({
 vi.mock("../../../global-config-app", () => ({
   default: { DEFAULT_ARCHIVE_REFRESH_PERIOD: 2 },
 }));
-vi.mock("../../../Functions/Endpoints/Pirivate/statisticsTimeline.js", () => ({
+vi.mock("../../../Functions/Endpoints/Private/statisticsTimeline.js", () => ({
   getAccountTimeline: vi.fn(), getAccountTimelineItems: vi.fn(),
 }));
-vi.mock("../../../Functions/Endpoints/Pirivate/buildStats.js", () => ({ default: vi.fn() }));
+vi.mock("../../../Functions/Endpoints/Private/statisticsTotals.js", () => ({ default: vi.fn() }));
 
 const { timelineQueryKey, timelineItemsQueryKey } = await import("./statisticsTimeline.js");
-const { invalidateStatisticsQueries, buildStatsQueryKey } = await import("./buildStats.js");
+const { invalidateStatisticsQueries } = await import("./statisticsKeys.js");
+const { totalsQueryKey } = await import("./statisticsTotals.js");
 
 // The three views are produced by one rebuild, so an archive must invalidate all
 // of them. A key that sits outside the shared root survives and shows figures the
@@ -29,11 +30,11 @@ describe("statistics invalidation", () => {
     const qc = new QueryClient();
     qc.setQueryData(timelineQueryKey(), { months: [] });
     qc.setQueryData(timelineItemsQueryKey(), { items: [] });
-    qc.setQueryData(buildStatsQueryKey(34), { typeID: 34 });
+    qc.setQueryData(totalsQueryKey(34), { typeID: 34 });
 
     invalidateStatisticsQueries(qc);
 
-    for (const key of [timelineQueryKey(), timelineItemsQueryKey(), buildStatsQueryKey(34)]) {
+    for (const key of [timelineQueryKey(), timelineItemsQueryKey(), totalsQueryKey(34)]) {
       expect(qc.getQueryState(key)?.isInvalidated, JSON.stringify(key)).toBe(true);
     }
   });

@@ -6,14 +6,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 	"eve-industry-planner/deployment-tool/internal/dataplane/mongo"
 	"eve-industry-planner/deployment-tool/internal/msg"
 	"eve-industry-planner/deployment-tool/internal/process"
 )
 
 func init() {
-	if v, ok := catalog.ByID("rekey-mongo"); ok {
+	if v, ok := catalogue.ByID("rekey-mongo"); ok {
 		rekeyMongoCmd.Short = v.Short
 	}
 	rekeyMongoCmd.Flags().BoolP("yes", "y", false, "skip confirmation prompt")

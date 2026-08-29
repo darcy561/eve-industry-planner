@@ -106,7 +106,7 @@ func RefreshSystemIndexes(ctx context.Context, task *asynq.Task, deps *TaskDepen
 // StreamIndustrySystems makes an HTTP request to ESI and checks the response status code first.
 // For HTTP 304 Not Modified responses, it returns early without streaming.
 // For HTTP 200 OK responses, it performs a streaming decode of the ESI array and invokes
-// onItem for each normalized SystemIndexes. Callers typically persist within the callback.
+// onItem for each normalised SystemIndexes. Callers typically persist within the callback.
 // Returns the new ETag, whether it was not modified (HTTP 304), bytes read, and any error.
 // cacheSecondsOut will be populated with parsed cache max-age from response headers if available.
 func StreamIndustrySystems(ctx context.Context, esiClient esiratelimiter.ClientInterface, etag string, onItem func(esitypes.SystemIndexes) error, cacheSecondsOut *int) (string, bool, int64, error) {

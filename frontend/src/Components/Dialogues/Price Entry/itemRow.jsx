@@ -37,7 +37,7 @@ export function ItemPriceRow({
   // Unconfirmed entries are held in component state only
   const confirmedEntries = item.priceEntries || [];
   
-  // Initialize unconfirmed entries - start with one entry if no confirmed entries exist
+  // Initialise unconfirmed entries - start with one entry if no confirmed entries exist
   const getInitialUnconfirmedEntries = () => {
     const confirmedQty = confirmedEntries.reduce((sum, e) => sum + (e.itemCount || 0), 0);
     const remainingQty = item.remainingQuantity - confirmedQty;

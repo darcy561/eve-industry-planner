@@ -21,7 +21,7 @@ type Phase string
 const (
 	PhaseAll  Phase = "all"  // scale-up then scale-down
 	PhaseUp   Phase = "up"   // scale-up only (cleanup load/queue; no down wait)
-	PhaseDown Phase = "down" // scale-down only (expect idle / already underutilized)
+	PhaseDown Phase = "down" // scale-down only (expect idle / already underutilised)
 )
 
 // Config is CLI-facing soak options.

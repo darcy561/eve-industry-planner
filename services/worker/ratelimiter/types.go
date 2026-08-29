@@ -49,7 +49,7 @@ type ESIClient struct {
 	defLim     *GroupLimiter
 	// Tracks which paths belong to which groups (discovered dynamically)
 	pathToGroup map[string]string
-	// Synchronization for unknown groups - prevents concurrent requests to same unknown group
+	// Synchronisation for unknown groups - prevents concurrent requests to same unknown group
 	unknownGroupMutex sync.Mutex
 	unknownGroups     map[string]*sync.Mutex // Per-path mutex for unknown groups
 	// Cleanup configuration

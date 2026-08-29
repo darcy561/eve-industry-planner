@@ -18,19 +18,19 @@ EIP_MONGO_PARITY_LIVE=1 go test ./shared/mongo/ -run Live -count=1
 
 ## Coverage map
 
-**Depth:** Strong for document locks, archiveimport normalize, models, crypto/keyrings, Redis lease, orchestration probes. Object store, SDE store, connect/monitor loops, and lifecycle runners are largely untested. Opt-in live Mongo covers Docs put/get parity under `shared/mongo`.
+**Depth:** Strong for document locks, archiveimport normalise, models, crypto/keyrings, Redis lease, orchestration probes. Object store, SDE store, connect/monitor loops, and lifecycle runners are largely untested. Opt-in live Mongo covers Docs put/get parity under `shared/mongo`.
 
 ### Tested
 
 | Area | What the tests cover |
 |------|----------------------|
 | `core/documentlock` | Atomic acquire/release/handover/extend races; Redis lock roundtrip, waitlist, promote; status batch; cascade pipeline/predicate/membership; lease rebind; event payloads |
-| `archiveimport` (normalize) | Firestore→job normalization (legacy/modern shapes, materials, groups, export samples) |
+| `archiveimport` (normalise) | Firestore→job normalisation (legacy/modern shapes, materials, groups, export samples) |
 | `models` | Job JSON/BSON parity & unknown-field policy; refresh-token encrypt/reencrypt; group-template validation; flexible JSON scalars |
 | `core/crypto` + `keyrings` | AES-GCM roundtrip/rotate/AAD; refresh-token keyring legacy parsing |
 | `core/redis/lease` | Single-leader, takeover, lost-lease cancel, reacquire on fn error |
 | `orchestrationprobes` | Health/ready handlers; bus ping role parse/start |
-| `telemetry` | Trace sample rate, service version, deployment env, OTLP endpoint normalize; NATS log-context inject/extract |
+| `telemetry` | Trace sample rate, service version, deployment env, OTLP endpoint normalise; NATS log-context inject/extract |
 | `core/nats` | Respond envelope; consumer keep policy; JetStream subject-set equality; message log-context enrichment; `UpdateConsumerFilterSubjects` + selective fan-out live JetStream (embedded nats-server); `doc.update` subject/filter helpers |
 | `logs` | Request ID/account identity; operation context; debug steps; access-log / handler detail; OTLP JSON export |
 | `mongo` (unit) | `IsRetryableMongoError` classifier (cancel / no-docs / disconnected / string fallback); groups membership-diff helper |

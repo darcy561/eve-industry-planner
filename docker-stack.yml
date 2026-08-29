@@ -1,6 +1,6 @@
 # App-layer Swarm fragment on eip-core. Data: docker-stack.data.yml. Obs: docker-stack.obs.yml.
 # Roll order: app start-first (x-app-deploy) + 60s stop grace (x-app-stop-grace); socket proxies stop-first (x-proxy-deploy).
-# Day-2 ship: eip rebuild / rematerialize / eip up — Swarm honors update_config below.
+# Day-2 ship: eip rebuild / rematerialise / eip up — Swarm honours update_config below.
 # Probe port 19100 must match services/shared/orchestrationprobes ListenPort.
 #
 # Secrets: per-service `secrets:` lists below are the attach SoT (logical names →

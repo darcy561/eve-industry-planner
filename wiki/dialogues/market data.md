@@ -35,7 +35,7 @@ The Market Data dialogue provides:
 
 ### Data Grid Display
 
-- Organized data presentation
+- Organised data presentation
 - Sortable columns
 - Filterable data
 - Export capabilities

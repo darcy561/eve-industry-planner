@@ -1,10 +1,10 @@
 import { SnackBarNotification } from "./Components/snackbar";
-import GeneralDialog from "./Components/Dialogues/General/generalDialog";
-import JobDependencyTreeDialog from "./Components/Dialogues/Job Tree/JobDependencyTreeDialog";
+import GeneralDialogue from "./Components/Dialogues/General/generalDialogue";
+import JobDependencyTreeDialogue from "./Components/Dialogues/Job Tree/JobDependencyTreeDialogue";
 import CssBaseline from "@mui/material/CssBaseline";
 import { Outlet } from "@tanstack/react-router";
 import { FeedbackIcon } from "./Components/Dialogues/Feedback/feedback";
-import { CrashReportDialog } from "./Components/Dialogues/CrashReport/CrashReportDialog";
+import { CrashReportDialogue } from "./Components/Dialogues/CrashReport/CrashReportDialogue";
 import GLOBAL_CONFIG from "./global-config-app";
 import { Box } from "@mui/material";
 import MaintenanceMode from "./MaintenanceMode";
@@ -30,13 +30,13 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <CrashReportDialog />
+      <CrashReportDialogue />
       <Box sx={{ display: "flex", width: "100%", height: "100%" }}>
         <CssBaseline />
         <ErrorBoundary>
           <SnackBarNotification />
-          <GeneralDialog />
-          <JobDependencyTreeDialog />
+          <GeneralDialogue />
+          <JobDependencyTreeDialogue />
           {isMaintenanceMode ? <MaintenanceMode /> : <Outlet />}
           {ENABLE_FEEDBACK_ICON && !isMaintenanceMode && <FeedbackIcon />}
         </ErrorBoundary>

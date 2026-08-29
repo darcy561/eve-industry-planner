@@ -8,9 +8,9 @@ import { TutorialDashboard } from "./Components/dashboardTutorial";
 import { ItemWatchPanel } from "./Components/ItemWatch/ItemWatchPanel";
 import { ActiveCharacterSlots } from "./Components/characterSlots";
 import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
-import PriceHistoryDialog from "../Dialogues/Price History/dialogFrame";
-import MarketDataDialog from "../Dialogues/Market Data/dialogFrame";
-import AssetsDialogue from "../Dialogues/Assets/dialogFrame";
+import PriceHistoryDialogue from "../Dialogues/Price History/dialogueFrame";
+import MarketDataDialogue from "../Dialogues/Market Data/dialogueFrame";
+import AssetsDialogue from "../Dialogues/Assets/dialogueFrame";
 import TutorialTemplate from "../Tutorials/tutorialTemplate";
 import useUsersStore from "../../Zustand/usersStore";
 
@@ -79,8 +79,8 @@ function Dashboard() {
           <ItemWatchPanel />
         </Grid>
       </Grid>
-      <PriceHistoryDialog />
-      <MarketDataDialog />
+      <PriceHistoryDialogue />
+      <MarketDataDialogue />
       <AssetsDialogue />
     </DefaultPageLayout>
   );

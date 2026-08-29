@@ -341,7 +341,7 @@ func TestDo_RateLimitCheck(t *testing.T) {
 	rateLimitErr := GetRateLimitError(err)
 	if rateLimitErr == nil {
 		// If cleanup freed up tokens, the request might succeed
-		// This is actually correct behavior - cleanup should free tokens
+		// This is actually correct behaviour - cleanup should free tokens
 		// So we'll just verify that either we got an error OR the request succeeded
 		if err != nil {
 			t.Errorf("Do() error = %v, want RateLimitError or nil", err)

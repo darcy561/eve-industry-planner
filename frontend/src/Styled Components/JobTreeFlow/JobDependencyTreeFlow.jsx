@@ -41,7 +41,7 @@ function JobDependencyTreeFlowInner({
   emptyLabel = "No jobs to display.",
   hideControls = false,
   hideLegend = false,
-  onOpenInDialog,
+  onOpenInDialogue,
   flowClassName = "job-dependency-tree-flow",
   minHeight = { xs: 360, md: 420 },
   interactionResetKey,
@@ -286,7 +286,7 @@ function JobDependencyTreeFlowInner({
             {fitViewRequestKey !== undefined ? (
               <FitViewToGraphEffect fitViewRequestKey={fitViewRequestKey} />
             ) : null}
-            {!hideControls ? <JobTreeControls onOpenInDialog={onOpenInDialog} /> : null}
+            {!hideControls ? <JobTreeControls onOpenInDialogue={onOpenInDialogue} /> : null}
           </ReactFlow>
         </Box>
       </Box>
@@ -305,7 +305,7 @@ function JobDependencyTreeFlowInner({
  * @param {ReadonlySet<string>|Set<string>|null|undefined} [props.completeJobIds]
  * @param {ReadonlySet<string>|Set<string>|null|undefined} [props.chainHighlightJobIds] — non-empty: dim outside set; these nodes get “selected” ring/pulse
  * @param {string|number|null|undefined} [props.initialFocusJobId]
- * @param {string|number|null|undefined} [props.focusRequestKey] — change to re-fit the same `initialFocusJobId` (e.g. dialog open counter)
+ * @param {string|number|null|undefined} [props.focusRequestKey] — change to re-fit the same `initialFocusJobId` (e.g. dialogue open counter)
  * @param {string|number|null|undefined} [props.fitViewRequestKey] — change to re-fit/center the full graph
  * @param {(jobID: string) => void} [props.onJobDoubleClick]
  * @param {boolean} [props.showHelpText]
@@ -313,7 +313,7 @@ function JobDependencyTreeFlowInner({
  * @param {string} [props.emptyLabel]
  * @param {boolean} [props.hideControls]
  * @param {boolean} [props.hideLegend]
- * @param {() => void} [props.onOpenInDialog]
+ * @param {() => void} [props.onOpenInDialogue]
  * @param {string} [props.flowClassName]
  * @param {object|number} [props.minHeight]
  * @param {string|number|undefined} [props.interactionResetKey] — when this changes, clear in-graph click/hover selection

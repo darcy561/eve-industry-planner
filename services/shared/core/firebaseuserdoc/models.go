@@ -31,7 +31,7 @@ type Token struct {
 	RToken        string `json:"rToken"`
 }
 
-// JobStatusEntryFirestore mirrors settings.jobStatuses values (name only from legacy clients; extra JSON fields ignored until modeled).
+// JobStatusEntryFirestore mirrors settings.jobStatuses values (name only from legacy clients; extra JSON fields ignored until modelled).
 type JobStatusEntryFirestore struct {
 	Name string `json:"name"`
 }

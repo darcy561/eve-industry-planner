@@ -14,7 +14,7 @@ Defined in `frontend/src/Zustand/account/account.js` (defaults) and `frontend/sr
 
 | Field | Type | Notes |
 |---|---|---|
-| `accountID` | `string \| null` | Sanitized character hash. Set by `applyLoginAuthResponse`. |
+| `accountID` | `string \| null` | Sanitised character hash. Set by `applyLoginAuthResponse`. |
 | `mainCharacterHash` | `string \| null` | EVE character hash for the main character. |
 | `sessionID` | `string \| null` | Planner session id for **this tab** (mirrors `sessionStorage` via `tabSessionStorage.js`). |
 | `lastPlannerSessionValidatedAt` | `number \| null` | `Date.now()` of the last successful login / rotate / bootstrap. Drives the rotate cooldown. |
@@ -86,7 +86,7 @@ After `setLoggedIn(true)`, `useAccountWebSocket` reacts to `[isLoggedIn, account
 
 ## 3. Request-time authentication
 
-All private API calls go through `requestWithPrivateHeaders` (`frontend/src/Functions/Endpoints/Pirivate/applyPrivateHeaders.js`).
+All private API calls go through `requestWithPrivateHeaders` (`frontend/src/Functions/Endpoints/Private/applyPrivateHeaders.js`).
 
 ### 3.1 Single fetch path
 
@@ -396,7 +396,7 @@ stateDiagram-v2
 | `frontend/src/Functions/Auth/sessionClient.js` | Raw `fetch` to `/auth/sessions[/rotate|/bootstrap|/logout]`. |
 | `frontend/src/Functions/Auth/serverTokens.js` | Aliases re-exported from `sessionClient`. |
 | `frontend/src/Functions/Auth/authRefreshTranquilityGate.js` | Deferral predicate. |
-| `frontend/src/Functions/Endpoints/Pirivate/applyPrivateHeaders.js` | Cookie-backed private fetch + header builder + batching. |
+| `frontend/src/Functions/Endpoints/Private/applyPrivateHeaders.js` | Cookie-backed private fetch + header builder + batching. |
 | `frontend/src/Functions/EveESI/fetchTranquilityStatus.js` | `/status/` fetch + rate-limit error shape. |
 | `frontend/src/Hooks/React Query/tranquilityServerStatus.js` | Query options + cache accessors. |
 | `frontend/src/Hooks/App/useRefreshESITokens.js` | Maintenance + stagger timers. |

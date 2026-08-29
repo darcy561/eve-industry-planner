@@ -16,7 +16,7 @@ import (
 )
 
 // processIncomingQueue processes events from an incoming queue (client → database)
-// Serialized per docID via queue mutex (TryLock); invoked from coordinator goroutines.
+// Serialised per docID via queue mutex (TryLock); invoked from coordinator goroutines.
 // Uses deduplication to reduce redundant database writes
 func (s *Server) processIncomingQueue(docID string) error {
 	// Get queue with read lock

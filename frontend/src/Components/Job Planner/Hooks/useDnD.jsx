@@ -98,7 +98,7 @@ export function useDnD() {
   const { updateModifiedGroups, getGroupObject, updateOrAddJobsToJobArray } =
     useUsersStore.getState().jobData.actions;
 
-  const recieveJobCardToStage = async (item, status) => {
+  const receiveJobCardToStage = async (item, status) => {
     if (sameWorkflowStage(item.currentStatus, status.id)) {
       return;
     }
@@ -149,5 +149,5 @@ export function useDnD() {
     }
   };
 
-  return { canDropCard, recieveJobCardToStage };
+  return { canDropCard, receiveJobCardToStage };
 }

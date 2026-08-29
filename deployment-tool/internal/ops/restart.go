@@ -12,7 +12,7 @@ import (
 
 	"github.com/moby/moby/client"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 	"eve-industry-planner/deployment-tool/internal/docker"
 	"eve-industry-planner/deployment-tool/internal/msg"
 	"eve-industry-planner/deployment-tool/internal/process"
@@ -104,7 +104,7 @@ func restartAll(ctx context.Context, apiClient *client.Client, snap docker.Stack
 		cands[short] = struct{}{}
 	}
 	n := 0
-	for _, short := range catalog.OrderPrefer(cands) {
+	for _, short := range catalogue.OrderPrefer(cands) {
 		info := snap.Services[short]
 		msg.Step("  rolling restart: %s", short)
 		if err := docker.ForceUpdateService(ctx, apiClient, info.FullName); err != nil {

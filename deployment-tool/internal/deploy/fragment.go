@@ -1,17 +1,17 @@
 package deploy
 
 import (
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 	"eve-industry-planner/deployment-tool/internal/docker"
 )
 
-// FragmentState is live membership for one catalog fragment.
+// FragmentState is live membership for one catalogue fragment.
 type FragmentState struct {
-	ID       string // catalog.Fragment*
+	ID       string // catalogue.Fragment*
 	Title    string
 	Optional bool
-	Expected int // catalog services in this fragment
-	OnStack  int // catalog services present on the live stack
+	Expected int // catalogue services in this fragment
+	OnStack  int // catalogue services present on the live stack
 }
 
 // Present reports whether any expected service for this fragment is on the stack.
@@ -19,7 +19,7 @@ func (f FragmentState) Present() bool {
 	return f.OnStack > 0
 }
 
-// FragmentStates rolls catalog groups into fragment membership.
+// FragmentStates rolls catalogue groups into fragment membership.
 func FragmentStates(snap docker.StackSnapshot) []FragmentState {
 	type acc struct {
 		title    string
@@ -27,13 +27,13 @@ func FragmentStates(snap docker.StackSnapshot) []FragmentState {
 		expected int
 		onStack  int
 	}
-	frags := catalog.Fragments()
+	frags := catalogue.Fragments()
 	by := make(map[string]*acc, len(frags))
 	for _, f := range frags {
 		by[f.ID] = &acc{title: f.Title, optional: f.Optional}
 	}
 
-	for _, g := range catalog.Groups() {
+	for _, g := range catalogue.Groups() {
 		a := by[g.Fragment]
 		if a == nil {
 			continue

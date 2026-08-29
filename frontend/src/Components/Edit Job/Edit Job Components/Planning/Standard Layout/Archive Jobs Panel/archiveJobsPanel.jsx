@@ -8,7 +8,7 @@ import {
 } from "../../../../../../Context/defaultValues";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
-import { useBuildStatsQuery } from "../../../../../../Hooks/React Query/Backend/buildStats";
+import { useAccountTotalsQuery } from "../../../../../../Hooks/React Query/Backend/statisticsTotals";
 
 const cellTextSx = { typography: STANDARD_TEXT_FORMAT };
 
@@ -120,7 +120,7 @@ export default function ArchiveJobsPanel({ state }) {
     isLoading,
     isError,
     error,
-  } = useBuildStatsQuery(state.activeJob?.itemID);
+  } = useAccountTotalsQuery(state.activeJob?.itemID);
 
   const snapshots = archiveData?.dataSnapshots ?? [];
 

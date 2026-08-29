@@ -17,7 +17,7 @@ vi.mock("./plannerLockScopeFromApi.js", () => ({
     patchPlannerGroupLockScopeFromApi(...a),
 }));
 
-vi.mock("../../Functions/Endpoints/Pirivate/documentLockClient.js", () => ({
+vi.mock("../../Functions/Endpoints/Private/documentLockClient.js", () => ({
   getDocumentLockStateBatch: vi.fn().mockResolvedValue({
     ok: true,
     json: async () => ({ jobResults: {}, groupResults: {} }),
@@ -106,7 +106,7 @@ describe("useLockScopeSync — eip-document-lock (regression)", () => {
     });
 
     const { getDocumentLockStateBatch } = await import(
-      "../../Functions/Endpoints/Pirivate/documentLockClient.js"
+      "../../Functions/Endpoints/Private/documentLockClient.js"
     );
     expect(getDocumentLockStateBatch).toHaveBeenCalled();
 

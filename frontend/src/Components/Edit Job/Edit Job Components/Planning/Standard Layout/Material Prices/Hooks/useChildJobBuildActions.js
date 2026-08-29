@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import checkJobTypeIsBuildable from "../../../../../../../Functions/Helper/checkJobTypeIsBuildable";
 import { findMaterialJobInGroup } from "../../../../../../../Functions/Groups/findMaterialJobInGroup.js";
 import { buildChildJobs, hydrateChildJobsWithMissingData } from "../Helpers/childJobBuildPipeline";
-import { finalizeCreatedChildJobs } from "../Helpers/finalizeCreatedChildJobs";
+import { finaliseCreatedChildJobs } from "../Helpers/finaliseCreatedChildJobs";
 
 export function useChildJobBuildActions({ state, actions }) {
   const queryClient = useQueryClient();
@@ -46,7 +46,7 @@ export function useChildJobBuildActions({ state, actions }) {
     const allJobsToAdd = [...newJobs, ...groupJobsToLink.values()];
     if (allJobsToAdd.length === 0) return;
 
-    await finalizeCreatedChildJobs({
+    await finaliseCreatedChildJobs({
       jobsForMissingDataAndRecalc: newJobs,
       jobsToMarkForAddition: allJobsToAdd,
       actions,

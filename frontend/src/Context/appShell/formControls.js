@@ -149,7 +149,7 @@ export function appShellTextFieldOutlinedSx(theme) {
   };
 }
 
-/** Bordered inset surface (dialogs, dense tool panels). */
+/** Bordered inset surface (dialogueues, dense tool panels). */
 export function appShellInsetSurfaceSx(theme) {
   return {
     borderRadius: 2,

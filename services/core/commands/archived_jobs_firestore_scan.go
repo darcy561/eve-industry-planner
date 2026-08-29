@@ -22,7 +22,7 @@ import (
 )
 
 // runImportArchivedJobsFromFirestoreScan queries Firestore collection group ArchivedJobs and publishes
-// one low-priority NATS task per document for the worker to normalize and upsert into MongoDB.
+// one low-priority NATS task per document for the worker to normalise and upsert into MongoDB.
 func runImportArchivedJobsFromFirestoreScan(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("importArchivedJobsFromFirestore", flag.ContinueOnError)
 	fs.Usage = func() {

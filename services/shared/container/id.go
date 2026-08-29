@@ -16,7 +16,7 @@ import (
 
 var idSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
 
-// ID returns the sanitized short container id for this process.
+// ID returns the sanitised short container id for this process.
 //
 // Priority: HOSTNAME env → os.Hostname() → "local". Max 64 chars.
 func ID() string {

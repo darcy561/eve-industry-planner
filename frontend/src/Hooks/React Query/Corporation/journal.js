@@ -15,7 +15,7 @@ const corporationJournalQueryKey = "corporationJournal";
  * - Parallel fetching of all divisions for improved performance
  * - ESI rate limiting awareness and handling
  * - Automatic retry with exponential backoff
- * - Caching strategy optimized for corporation journal data
+ * - Caching strategy optimised for corporation journal data
  * - Error handling with descriptive messages
  * 
  * The query process:

@@ -21,7 +21,7 @@ The Building stage appears after purchasing in the job lifecycle:
 4. [Complete](complete) - Finished production ready for sale
 5. [Selling](selling) - Managing sales and market orders
 
-After completing the building stage (all jobs delivered), jobs move to the Complete stage where you finalize costs and prepare for sale.
+After completing the building stage (all jobs delivered), jobs move to the Complete stage where you finalise costs and prepare for sale.
 
 ## Building Panels
 

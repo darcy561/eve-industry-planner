@@ -11,7 +11,7 @@ import { corporationTransactionsQuery, corporationTransactionsQueryKey } from ".
 import { isQueryStateLoading } from "./queryLoadingState";
 
 /**
- * Empty character data model template for initializing character data structures.
+ * Empty character data model template for initialising character data structures.
  * Contains empty arrays and eTags objects for all character and corporation data types.
  * @constant {Object}
  * @private
@@ -36,14 +36,14 @@ const emptyCharacterDataModel = {
  * - Corporation market orders (active and historic)
  * - Corporation transactions and journal entries
  * - Multi-character support with parallel data fetching
- * - Structured data organization by character hash
+ * - Structured data organisation by character hash
  * - ETag support for efficient data updates
  * 
  * The fetching process:
  * 1. Validates character hashes and finds corresponding user objects
  * 2. Creates queries for all required data types (8 queries per character)
  * 3. Fetches data in parallel using React Query's useQueries
- * 4. Organizes data by character hash with structured data models
+ * 4. Organises data by character hash with structured data models
  * 5. Handles pagination and data flattening for consistent access
  * 
  * @param {string|Array<string>} characterHashes - Character hash(es) to fetch data for
@@ -109,7 +109,7 @@ export function useGetCharacterOrdersAndWalletData(characterHashes) {
     queries: queryConfigs,
   });
 
-  // Initialize data structure for all characters
+  // Initialise data structure for all characters
   const characterData = requestedCharacters.reduce((acc, character) => {
     acc[character.CharacterHash] = { ...emptyCharacterDataModel };
     return acc;
@@ -172,7 +172,7 @@ function getDataKeyFromQueryIndex(index) {
  * This function provides access to cached character financial data without triggering new queries:
  * - Checks loading states for all character and corporation queries
  * - Extracts cached data from React Query cache
- * - Organizes data by character hash with structured data models
+ * - Organises data by character hash with structured data models
  * - Handles pagination and data flattening for consistent access
  * - Returns appropriate loading, error, or success states
  * 
@@ -181,7 +181,7 @@ function getDataKeyFromQueryIndex(index) {
  * 2. Checks query states for all required data types
  * 3. Determines overall loading and error states
  * 4. Extracts cached data from successful queries
- * 5. Organizes data by character hash with structured models
+ * 5. Organises data by character hash with structured models
  * 
  * @param {string|Array<string>} characterHashes - Character hash(es) to get cached data for
  * @param {Object} queryClient - React Query client instance

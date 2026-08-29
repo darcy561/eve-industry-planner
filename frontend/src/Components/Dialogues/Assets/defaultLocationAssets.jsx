@@ -1,6 +1,6 @@
 import { Typography, Grid } from "@mui/material";
 
-import AssetLocationLogic_AssetDialogWindow from "./AssetTemplates/templateLogic";
+import AssetLocationLogic_AssetDialogueWindow from "./AssetTemplates/templateLogic";
 import useUsersStore from "../../../Zustand/usersStore";
 
 export default function DefaultLocationAssets(props) {
@@ -36,7 +36,7 @@ export default function DefaultLocationAssets(props) {
             </Grid>
             {assets.map((assetObject) => {
               return (
-                <AssetLocationLogic_AssetDialogWindow
+                <AssetLocationLogic_AssetDialogueWindow
                   key={assetObject.item_id}
                   {...props}
                   assetObject={assetObject}

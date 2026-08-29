@@ -1,7 +1,7 @@
 // Package env is the Go SoT for .env: EnvFields registry, emit/load, backup, autogen.
 package env
 
-// FieldType selects validation/generate behavior (Phase 3+) and emit shaping.
+// FieldType selects validation/generate behaviour (Phase 3+) and emit shaping.
 type FieldType int
 
 const (
@@ -164,7 +164,7 @@ var envFields = []EnvField{
 	},
 	{
 		Key: "SENTRY_ORG", Section: "Sentry", Label: "Sentry org",
-		Help: "Sentry organization slug.",
+		Help: "Sentry organisation slug.",
 		Type: FieldText, Required: false, Default: "",
 	},
 	{

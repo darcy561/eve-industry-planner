@@ -56,7 +56,7 @@ func TestRepairPlanSelectiveEnsureAndForce(t *testing.T) {
 		}},
 	}
 	p := BuildRepairPlan(report, snap, deploy.SourceLive)
-	if p.Rematerialize {
+	if p.Rematerialise {
 		t.Fatalf("unexpected remat: %+v", p)
 	}
 	if !slices.Contains(p.Ensure, "mongo") {
@@ -74,7 +74,7 @@ func TestRepairPlanSelectiveEnsureAndForce(t *testing.T) {
 	}
 }
 
-func TestRepairPlanMissingTriggersRematerialize(t *testing.T) {
+func TestRepairPlanMissingTriggersRematerialise(t *testing.T) {
 	t.Parallel()
 	snap := docker.StackSnapshot{
 		Present: true,
@@ -93,8 +93,8 @@ func TestRepairPlanMissingTriggersRematerialize(t *testing.T) {
 		}},
 	}
 	p := BuildRepairPlan(report, snap, deploy.SourceDev)
-	if !p.Rematerialize || p.RematSource != deploy.SourceDev {
-		t.Fatalf("want rematerialize dev: %+v", p)
+	if !p.Rematerialise || p.RematSource != deploy.SourceDev {
+		t.Fatalf("want rematerialise dev: %+v", p)
 	}
 	if len(p.Missing) != 2 {
 		t.Fatalf("missing=%v", p.Missing)

@@ -300,7 +300,7 @@ export function useCharacterHooks() {
      * Prefetch data for multiple characters in batches to avoid overwhelming ESI endpoints
      * @param {Object} queryClient - React Query client
      * @param {Array<string>} characterHashes - Array of character hashes to prefetch
-     * @param {boolean} shouldLog - Whether to log waterfall visualization
+     * @param {boolean} shouldLog - Whether to log waterfall visualisation
      * @returns {Promise<void>} Promise that resolves when all characters are processed
      */
     async function prefetchMultipleCharacters(queryClient, characterHashes, shouldLog = false) {

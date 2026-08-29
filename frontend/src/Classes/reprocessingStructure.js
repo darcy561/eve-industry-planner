@@ -130,7 +130,7 @@ class ReprocessingStructure {
   }
 
   /**
-   * Sets the structure name with input sanitization.
+   * Sets the structure name with input sanitisation.
    * 
    * @param {string} name - Structure name to set
    */

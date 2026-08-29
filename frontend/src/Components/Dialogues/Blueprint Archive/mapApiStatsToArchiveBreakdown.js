@@ -1,5 +1,5 @@
 /**
- * Maps a lifetime totals row onto the four blocks the archive dialog shows.
+ * Maps a lifetime totals row onto the four blocks the archive dialogue shows.
  *
  * The API serves `breakdown` alongside the headline figures, splitting a type's
  * totals across the three archive segments. A job belongs to exactly one of them,

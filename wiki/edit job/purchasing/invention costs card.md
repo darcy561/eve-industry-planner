@@ -45,7 +45,7 @@ Each invention cost is displayed as a chip:
 - **Style**: Outlined chip with delete icon
 - **Color**: Secondary theme color
 - **Delete Icon**: Red X icon on the right
-- **Behavior**: 
+- **Behaviour**: 
   - Click delete to remove entry
   - Updates total cost automatically
   - Shows confirmation via snackbar
@@ -82,7 +82,7 @@ Located at the bottom of the card:
 - **Icon**: Plus (+) icon
 - **Color**: Primary theme color
 - **Type**: Submit button for form
-- **Behavior**: 
+- **Behaviour**: 
   - Validates both fields are filled
   - Adds entry to invention costs
   - Resets form after submission

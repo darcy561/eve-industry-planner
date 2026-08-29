@@ -3,8 +3,8 @@ import Job from "../../Classes/job";
 import {
   putJobDocumentsBatch,
   deleteJobDocumentsFromApi,
-} from "../Endpoints/Pirivate/jobDocuments.js";
-import normalizeParentChildRelationships from "../Shared/normalizeParentChildRelationships.js";
+} from "../Endpoints/Private/jobDocuments.js";
+import normaliseParentChildRelationships from "../Shared/normaliseParentChildRelationships.js";
 import { showSnackbarError, showSnackbarSuccess } from "../../Events/snackbarEvents";
 
 /**
@@ -12,7 +12,7 @@ import { showSnackbarError, showSnackbarSuccess } from "../../Events/snackbarEve
  *
  * Notes:
  * - Only selected jobs are candidates for merge.
- * - Relationship normalization is scoped to touched jobs only, so links to jobs
+ * - Relationship normalisation is scoped to touched jobs only, so links to jobs
  *   outside the touched set are preserved as-is.
  *
  * @param {string[]|Set<string>|string} inputJobIDs
@@ -191,7 +191,7 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
     }
   }
 
-  normalizeParentChildRelationships([...touchedJobs]);
+  normaliseParentChildRelationships([...touchedJobs]);
 
   const jobsToPersist = [...touchedJobs].filter(
     (job) => !oldJobIDsToRemove.has(job.jobID)

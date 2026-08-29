@@ -71,7 +71,7 @@ export function InventionCostsCard({ state, actions }) {
         <Grid container>
           <Grid align="center" size={12}>
             <Avatar
-              variant="cirular"
+              variant="circular"
               sx={{
                 bgcolor: "primary.main",
                 height: { xs: "32px", sm: "64px" },

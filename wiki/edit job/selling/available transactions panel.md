@@ -68,7 +68,7 @@ Each available transaction is displayed as a row showing:
 - **Color**: Primary theme color
 - **Function**: Links transaction to the job
 - **Tooltip**: "Link Transaction"
-- **Behavior**:
+- **Behaviour**:
   - Links transaction to active market order
   - Adds to linked transactions
   - Updates sales stats
@@ -90,7 +90,7 @@ Transactions are matched based on:
 - **Visibility**: Shown when multiple transactions are available
 - **Label**: "Link All"
 - **Function**: Links all available transactions at once
-- **Behavior**:
+- **Behaviour**:
   - Links all transactions to active order
   - Updates sales stats with all sales
   - Shows success notification

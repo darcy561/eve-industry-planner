@@ -13,7 +13,7 @@ const corporationHistoricMarketOrdersQueryKey = "corporationHistoricMarketOrders
  * - Pagination support for large corporation historic market order collections
  * - ESI rate limiting awareness and handling
  * - Automatic retry with exponential backoff
- * - Caching strategy optimized for corporation historic market order data
+ * - Caching strategy optimised for corporation historic market order data
  * - Error handling with descriptive messages
  * 
  * The query process:

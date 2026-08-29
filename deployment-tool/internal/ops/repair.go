@@ -10,7 +10,7 @@ import (
 
 	"github.com/moby/moby/client"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 	"eve-industry-planner/deployment-tool/internal/dataplane"
 	"eve-industry-planner/deployment-tool/internal/deploy"
 	"eve-industry-planner/deployment-tool/internal/docker"
@@ -26,14 +26,14 @@ type RepairOpts struct {
 
 // RepairPlan is the heal actions derived from status + health (testable).
 type RepairPlan struct {
-	Rematerialize bool
+	Rematerialise bool
 	RematSource   deploy.Source
 	Ensure        []string // Swarm shorts with a registered dataplane ensure
-	ForceUpdate   []string // present + bad (catalog.OrderPrefer)
+	ForceUpdate   []string // present + bad (catalogue.OrderPrefer)
 	Missing       []string
 }
 
-// Repair heals an already-deployed unhealthy stack: optional rematerialize for
+// Repair heals an already-deployed unhealthy stack: optional rematerialise for
 // missing membership, selective dataplane ensures (registry), force-update bad
 // services. No pull/bake/Ready/cold start. Refuse if Swarm inactive / no stack /
 // fully healthy.
@@ -84,16 +84,16 @@ func Repair(ctx context.Context, opts RepairOpts) error {
 		return nil
 	}
 
-	if plan.Rematerialize {
-		msg.Step("Rematerializing stack (%s) to restore missing services…", plan.RematSource)
-		if err := deploy.Rematerialize(ctx, plan.RematSource); err != nil {
+	if plan.Rematerialise {
+		msg.Step("Rematerialising stack (%s) to restore missing services…", plan.RematSource)
+		if err := deploy.Rematerialise(ctx, plan.RematSource); err != nil {
 			return err
 		}
 		snap, err = docker.LoadStackSnapshotWithHealth(ctx, apiClient, stackName)
 		if err != nil {
 			return err
 		}
-		// Rematerialize returns before tasks are necessarily Running; wait so
+		// Rematerialise returns before tasks are necessarily Running; wait so
 		// RunEnsuresFor does not skip the services we just restored.
 		if err := waitForEnsureTasks(ctx, stackName, plan.Ensure); err != nil {
 			return err
@@ -109,7 +109,7 @@ func Repair(ctx context.Context, opts RepairOpts) error {
 		}
 	}
 
-	// ForceUpdate is only shorts present at plan time; rematerialized
+	// ForceUpdate is only shorts present at plan time; rematerialised
 	// (formerly missing) services are not listed — remat already redeployed them.
 	for _, short := range plan.ForceUpdate {
 		info, ok := snap.Services[short]
@@ -149,7 +149,7 @@ func BuildRepairPlan(report status.Report, snap docker.StackSnapshot, src deploy
 
 	p := RepairPlan{}
 	if len(missing) > 0 {
-		p.Rematerialize = true
+		p.Rematerialise = true
 		p.RematSource = deploy.SourceLive
 		if src == deploy.SourceDev {
 			p.RematSource = deploy.SourceDev
@@ -169,7 +169,7 @@ func BuildRepairPlan(report status.Report, snap docker.StackSnapshot, src deploy
 
 // Empty reports whether the plan has no heal work.
 func (p RepairPlan) Empty() bool {
-	return !p.Rematerialize && len(p.Ensure) == 0 && len(p.ForceUpdate) == 0
+	return !p.Rematerialise && len(p.Ensure) == 0 && len(p.ForceUpdate) == 0
 }
 
 func serviceHealthBad(info docker.ServiceInfo) bool {
@@ -256,16 +256,16 @@ func orderForceUpdate(bad map[string]bool, snap docker.StackSnapshot) []string {
 		}
 		cands[short] = struct{}{}
 	}
-	return catalog.OrderPrefer(cands)
+	return catalogue.OrderPrefer(cands)
 }
 
 func printRepairPlan(p RepairPlan) {
 	msg.Line("repair dry-run:")
-	if p.Rematerialize {
-		msg.Line(fmt.Sprintf("  rematerialize: yes (source=%s)", p.RematSource))
+	if p.Rematerialise {
+		msg.Line(fmt.Sprintf("  rematerialise: yes (source=%s)", p.RematSource))
 		msg.Line(fmt.Sprintf("  missing: %s", strings.Join(p.Missing, ", ")))
 	} else {
-		msg.Line("  rematerialize: no")
+		msg.Line("  rematerialise: no")
 	}
 	if len(p.Ensure) == 0 {
 		msg.Line("  ensure: (none)")

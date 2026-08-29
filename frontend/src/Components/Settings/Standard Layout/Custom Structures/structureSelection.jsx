@@ -248,7 +248,7 @@ function StructureOptionsSelection_CustomStructures({
         >
           {wrapFirstLogin(
             "Structure rigs",
-            "Rig bonuses are the same for each tech level regardless of type of items they are applied to. The application does differenciate between the different rigs that apply to specific items. For structures that have rigs that only apply to specific item types just select the tech level for this and use an additional custom structure for items that the bonus does not apply to. ",
+            "Rig bonuses are the same for each tech level regardless of type of items they are applied to. The application does differentiate between the different rigs that apply to specific items. For structures that have rigs that only apply to specific item types just select the tech level for this and use an additional custom structure for items that the bonus does not apply to. ",
             <RigTypeSelect
               {...appShellFieldProps}
               value={currentStructure.rigType}

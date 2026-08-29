@@ -2,10 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import {
   getAccountTimeline,
   getAccountTimelineItems,
-} from "../../../Functions/Endpoints/Pirivate/statisticsTimeline.js";
+} from "../../../Functions/Endpoints/Private/statisticsTimeline.js";
 import GLOBAL_CONFIG from "../../../global-config-app";
 import useUsersStore from "../../../Zustand/usersStore";
-import { STATISTICS_QUERY_KEY_ROOT } from "./buildStats.js";
+import { STATISTICS_QUERY_KEY_ROOT } from "./statisticsKeys.js";
 
 /**
  * Stale time for every statistics view, in milliseconds.

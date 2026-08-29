@@ -25,9 +25,9 @@ Keep track of your sell orders and market data. Know when and where to sell for 
 ## Quick Links
 
 ### Core Features
-- [Job Planner](job%20planner) - Manage and organize your industry jobs
+- [Job Planner](job%20planner) - Manage and organise your industry jobs
 - [Edit Job](edit%20job) - Configure individual jobs through the workflow
-- [Groups](groups) - Organize related jobs into groups
+- [Groups](groups) - Organise related jobs into groups
 - [Dashboard](dashboard) - Overview of all your operations
 
 ### Libraries & Tools

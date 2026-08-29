@@ -3,7 +3,7 @@
  * 
  * Manages application-wide settings including user preferences, market configurations,
  * structure settings, reprocessing options, and localization settings. This slice
- * provides centralized state management for all application settings that persist
+ * provides centralised state management for all application settings that persist
  * across user sessions.
  * 
  * @fileoverview Application settings state management slice for EVE Industry Planner

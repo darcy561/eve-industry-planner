@@ -1,6 +1,6 @@
 // Package ops is the home TUI menu SoT: plain-language titles, helpers, and
-// Docker/Health gating. Entry.Args keep real CLI verb ids from internal/catalog;
-// menus are not built mechanically from catalog.Verbs().
+// Docker/Health gating. Entry.Args keep real CLI verb ids from internal/catalogue;
+// menus are not built mechanically from catalogue.Verbs().
 package ops
 
 import (

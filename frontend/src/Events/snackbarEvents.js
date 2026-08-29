@@ -9,7 +9,7 @@ import { eventEmitter } from "../utils/EventSystem";
  * @param {string} [severity="info"] - Severity level: "success", "error", "warning", "info"
  * @param {number|null} [duration=1] - Duration in seconds before auto-hide (null = no auto-hide)
  * @param {string|null} [action=null] - Action identifier for special snackbar types
- * @param {Object} [extra={}] - Additional event payload fields for specialized snackbars
+ * @param {Object} [extra={}] - Additional event payload fields for specialised snackbars
  * @returns {void}
  * 
  * @example

@@ -7,7 +7,7 @@
 
 ## What changed
 
-Addon fragment + YAML toggle **landed**. **Phase B:** Prometheus relocated **data → obs** (`docker-stack.obs.yml`), dual-home **`eip-obs` + `eip-core`**; data fragment lean (mongo/redis/nats/SeaweedFS). DT catalog Groups / SyncConfigs / materialize / InjectExternalConfigs updated for the move. **Phase D:** live stack/network/config/guide docs promoted.
+Addon fragment + YAML toggle **landed**. **Phase B:** Prometheus relocated **data → obs** (`docker-stack.obs.yml`), dual-home **`eip-obs` + `eip-core`**; data fragment lean (mongo/redis/nats/SeaweedFS). DT catalogue Groups / SyncConfigs / materialise / InjectExternalConfigs updated for the move. **Phase D:** live stack/network/config/guide docs promoted.
 
 ## How this part works after the change
 

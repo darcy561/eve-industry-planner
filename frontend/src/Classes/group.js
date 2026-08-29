@@ -4,10 +4,10 @@ import getAllRelatedJobs from "../Functions/Helper/getAllRelatedJobs";
 import { getRealtimeClientID } from "../Realtime/wsClientIdentity.js";
 
 /**
- * Group class for organizing and managing EVE Online industry jobs.
+ * Group class for organising and managing EVE Online industry jobs.
  * 
  * This class represents a group of related industry jobs for:
- * - Job organization and categorization
+ * - Job organisation and categorisation
  * - Batch operations on multiple jobs
  * - Progress tracking and completion management
  * - ESI API integration tracking
@@ -21,7 +21,7 @@ import { getRealtimeClientID } from "../Realtime/wsClientIdentity.js";
  * - Group status progression (0-3)
  * - Completion tracking and visibility controls
  * - Batch operations for job management
- * - Input sanitization for security
+ * - Input sanitisation for security
  * 
  * @class Group
  * @example
@@ -47,7 +47,7 @@ import { getRealtimeClientID } from "../Realtime/wsClientIdentity.js";
  */
 class Group {
   /**
-   * Creates a new Group instance for job organization.
+   * Creates a new Group instance for job organisation.
    * 
    * @param {Object} data - Group configuration data
    * @param {string} [data.groupName] - Name of the group
@@ -87,7 +87,7 @@ class Group {
   }
 
   /**
-   * Whether this group includes an output job for the given EVE type ID (number-normalized).
+   * Whether this group includes an output job for the given EVE type ID (number-normalised).
    *
    * @param {number|string} typeID
    * @returns {boolean}
@@ -259,7 +259,7 @@ class Group {
   }
 
   /**
-   * Sets the group name with input sanitization.
+   * Sets the group name with input sanitisation.
    * 
    * This method sets the group name with security and formatting:
    * - Validates input parameters
@@ -611,7 +611,7 @@ class Group {
   /**
    * Creates a new group from job objects.
    * 
-   * This method initializes a group with job data:
+   * This method initialises a group with job data:
    * - Sets group name from output jobs
    * - Calculates material and type IDs
    * - Counts output jobs

@@ -199,7 +199,7 @@ func TestFloodLimiter_ProgressiveExhaustion(t *testing.T) {
 // TestFloodLimiter_RecoveryAfterExhaustion tests that the limiter recovers
 // when tokens become available again (via cleanup of old consumptions).
 func TestFloodLimiter_RecoveryAfterExhaustion(t *testing.T) {
-	// Track server-side token usage to simulate realistic behavior
+	// Track server-side token usage to simulate realistic behaviour
 	var serverTokenUsed int64
 	serverTokenLimit := int64(100)
 
@@ -306,7 +306,7 @@ func TestFloodLimiter_RecoveryAfterExhaustion(t *testing.T) {
 // TestFloodLimiter_ConcurrentExhaustion tests concurrent requests exhausting tokens
 // and verifies thread safety.
 func TestFloodLimiter_ConcurrentExhaustion(t *testing.T) {
-	// Track server-side token usage to simulate realistic behavior
+	// Track server-side token usage to simulate realistic behaviour
 	var serverTokenUsed int64
 	serverTokenLimit := int64(20) // Very low limit - 20 requests need 40 tokens, but limit is 20, so many should be blocked
 	esi := tokenConsumingESI(t, &serverTokenUsed, "20/15m", serverTokenLimit)

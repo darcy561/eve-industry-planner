@@ -5,7 +5,7 @@
  * content ID changes and tutorial requirements. Provides intelligent drawer
  * management that respects tutorial settings and user interactions.
  * 
- * @fileoverview Function for managing right drawer toggle behavior
+ * @fileoverview Function for managing right drawer toggle behaviour
  * @author EVE Industry Planner Team
  */
 
@@ -16,7 +16,7 @@ import { shouldExpandRightDrawer } from "../../Tutorials/Functions/checkDisplayT
  * 
  * Handles the complex logic for determining whether the right drawer should be
  * expanded or collapsed when content changes or when the same content is clicked.
- * Integrates with tutorial system to respect tutorial-driven drawer behavior.
+ * Integrates with tutorial system to respect tutorial-driven drawer behaviour.
  * 
  * @param {string|null} newContentID - The new content ID to display in the drawer
  * @param {string|null} existingContentID - The current content ID in the drawer

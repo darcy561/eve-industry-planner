@@ -18,9 +18,9 @@ Open this file in the editor (not Preview). `diff` fences use **red = removed / 
 + paths: Traefik dashboard path; Grafana Path
 +   Applied: eip sync (Grafana only if eip_grafana running)
 
-- addons: only observability.enabled → Bring-up / rematerialize
+- addons: only observability.enabled → Bring-up / rematerialise
 + addons: enabled + grafana Access + Base URL
-+   enabled → rematerialize; grafana knobs → eip sync when grafana running
++   enabled → rematerialise; grafana knobs → eip sync when grafana running
 
 - sync table: paths.grafana → PathPrefix + GF_SERVER_ROOT_URL
 + paths.grafana + base_url → PathPrefix; GF_SERVER_ROOT_URL = Base + Path
@@ -71,7 +71,7 @@ Live SoT for non-secret operator YAML. Secrets → [secrets.md](../../../stack/s
 | **`ports`** | Host publish for Traefik (`http` / `https` / `traefik_dashboard`) | **`eip sync`** (+ bring-up expand) |
 | **`paths`** | Traefik dashboard path; Grafana Path | **`eip sync`** (Grafana only if `eip_grafana` running) |
 | **`proxy`** | Traefik `forwardedHeaders` trust (`trusted_ips`, `trusted_cidrs`) | **`eip sync`** |
-| **`addons`** | `observability.enabled`; `observability.grafana` Access + Base URL | enabled → rematerialize; grafana knobs → **`eip sync`** when grafana running |
+| **`addons`** | `observability.enabled`; `observability.grafana` Access + Base URL | enabled → rematerialise; grafana knobs → **`eip sync`** when grafana running |
 | **`scale_timing`** | Cooldown / stabilization windows | **Future work** — validated/stored; nothing consumes it yet |
 | **`cli`** | Host Deployment Tool settings (e.g. `.env` backup stem) | **Host/TUI only** — never sent to containers |
 
@@ -102,11 +102,11 @@ Targeted Moby `ServiceUpdate` + Swarm file-config hash roll. Does **not** bounce
 | `paths.traefik_dashboard` | Traefik dashboard PathPrefix label |
 | `paths.grafana` + `addons.observability.grafana.base_url` | Grafana PathPrefix labels; `GF_SERVER_ROOT_URL` = Base URL + Path (blank base → `http://127.0.0.1`) — if `eip_grafana` running. Route labels → [traefik.md](../../../stack/traefik.md) |
 | `addons.observability.grafana.public` | Access Public / Private — edge membership → [network.md](../../../stack/network.md); Traefik enable → [traefik.md](../../../stack/traefik.md) |
-| Labeled network membership | Prom ↔ `eip-obs` from obs toggle; Grafana edge from Access — [network.md](../../../stack/network.md) |
+| Labelled network membership | Prom ↔ `eip-obs` from obs toggle; Grafana edge from Access — [network.md](../../../stack/network.md) |
 | `proxy.trusted_*` | Traefik trusted-proxy / forwardedHeaders |
-| File bodies for services labeled `eip.config.sync=1` | Hash-diff Swarm configs (Prometheus yml on data; Loki/Alloy/… when obs on) |
+| File bodies for services labelled `eip.config.sync=1` | Hash-diff Swarm configs (Prometheus yml on data; Loki/Alloy/… when obs on) |
 
-Bring-up / rematerialize also interpolates ports/paths/proxy into stack templates from this YAML.
+Bring-up / rematerialise also interpolates ports/paths/proxy into stack templates from this YAML.
 
 `GRAFANA_ROOT_URL` is a SyncEnv expand bridge only — not a Secrets / `.env` field.
 
@@ -122,7 +122,7 @@ Toggle: **`addons.observability.enabled`** (default **off**).
 
 ### Turning the addon on or off
 
-`eip sync` does not add or remove the obs fragment. Toggle takes effect on stack rematerialize (bring-up or day-2 rematerialize — [deploy.md](../../../deployment/deployment-tool/cli/deploy.md), [verbs.md](../../../deployment/deployment-tool/cli/verbs.md)).
+`eip sync` does not add or remove the obs fragment. Toggle takes effect on stack rematerialise (bring-up or day-2 rematerialise — [deploy.md](../../../deployment/deployment-tool/cli/deploy.md), [verbs.md](../../../deployment/deployment-tool/cli/verbs.md)).
 
 With the addon **off**, `eip sync` skips obs file-config stacks, Grafana apply, and Grafana edge membership (no `eip_grafana`).
 

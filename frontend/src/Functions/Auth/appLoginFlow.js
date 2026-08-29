@@ -16,7 +16,7 @@ import { runPostLoginAccountSync } from "../../Components/Auth/runPostLoginAccou
 import { bootstrapJobGroupsLoginStep } from "../../Components/Auth/bootstrapJobGroupsLoginStep";
 import { bootstrapJobDocumentsLoginStep } from "../../Components/Auth/bootstrapJobDocumentsLoginStep.js";
 import { bootstrapWatchlistLoginStep } from "../../Components/Auth/bootstrapWatchlistLoginStep.js";
-import { upsertCloudStoredEsiRefreshTokens } from "../Endpoints/Pirivate/cloudStoredEsiRefreshTokens.js";
+import { upsertCloudStoredEsiRefreshTokens } from "../Endpoints/Private/cloudStoredEsiRefreshTokens.js";
 import { decodeJwt } from "jose";
 import Character from "../../Classes/character";
 import { getTabPlannerRefreshToken } from "./tabSessionStorage.js";

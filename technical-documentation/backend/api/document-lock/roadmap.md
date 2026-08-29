@@ -291,7 +291,7 @@ These items apply to **today’s personal stack** and remain valid after tenant 
     6. `backupJobRef.current = new Job(merged)` (leave/discard path stays consistent with `useEditJobLeaveConfirm`).
     7. Clear pending remote; dismiss snackbar.
 - **Out of scope for v1**: per-field dirty tracking; 3-way merge; `GET /job-documents` refetch (WS miss / `syncInProgress` drop → optional v2 fallback or planner resync only).
-- **v2 (optional)**: pre-merge review dialog (summary: name, step, setup count, material totals) — still server-wins replace; or per-section “apply remote materials only” (each section still full replace, not blend).
+- **v2 (optional)**: pre-merge review dialogue (summary: name, step, setup count, material totals) — still server-wins replace; or per-section “apply remote materials only” (each section still full replace, not blend).
 - **Locks (#38)**: promotion does **not** auto-merge. If pending remote exists when becoming holder, user merges (or read-only already auto-applied). `doc.update` vs `handoff_completed` ordering independent.
 - **Echo**: holder’s writing tab is WS echo-suppressed — no self-notification.
 - **Multi-tenant**: same merge UX for corp/alliance edit surfaces once those fork an `activeJob`-like document; planner arrays remain source of truth after coalesce.

@@ -5,14 +5,14 @@ import uuid from "react-uuid";
  * 
  * This class represents a single item in a watchlist for:
  * - Item tracking and monitoring
- * - Group organization and categorization
+ * - Group organisation and categorisation
  * - Quantity tracking for market monitoring
  * - Version tracking for data compatibility
  * 
  * The WatchlistItem class provides simple item tracking:
  * - Unique item identification
  * - Type ID and name tracking
- * - Group association for organization
+ * - Group association for organisation
  * - Quantity monitoring for market analysis
  * - Version tracking for future compatibility
  * 

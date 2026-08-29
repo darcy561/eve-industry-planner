@@ -5,7 +5,7 @@ import { useTheme } from "@mui/material/styles";
 import useUsersStore from "../../../Zustand/usersStore";
 import { LARGE_TEXT_FORMAT, SMALL_TEXT_FORMAT } from "../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
-import { getJobTypeAccentColor } from "../../../Functions/Helper/jobTypeDividerColor";
+import { getJobTypeAccentColour } from "../../../Functions/Helper/jobTypeDividerColour";
 
 export default function ItemBreakdownFrame({ groupJobs = [], outputJob = null }) {
     const theme = useTheme();
@@ -87,7 +87,7 @@ export default function ItemBreakdownFrame({ groupJobs = [], outputJob = null })
                     flexItem
                     sx={{
                         borderBottomWidth: 2,
-                        borderBottomColor: getJobTypeAccentColor(theme, outputJob?.jobType),
+                        borderBottomColor: getJobTypeAccentColour(theme, outputJob?.jobType),
                     }}
                 />
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>

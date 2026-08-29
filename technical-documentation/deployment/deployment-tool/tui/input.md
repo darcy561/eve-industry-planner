@@ -7,7 +7,7 @@ Home keys/mouse, list selection, theme. Hard rules → [tui.md](./tui.md).
 - Full-width blue selection bars; helpers readable on the bar.
 - Long helpers: ellipsis when unselected; selected row marquees (`ui.MarqueeDelegate`).
 - Short panes paginate (bubbles paginator chrome). ↑/↓ and wheel over COMMANDS cross pages; ←/→ jump pages. PgUp/PgDn always scroll OUTPUT, not the menu.
-- Generic rows: `ui.NewItem` / `ui.NewList`; home catalog rows: `ops` `Entry` / `row`.
+- Generic rows: `ui.NewItem` / `ui.NewList`; home catalogue rows: `ops` `Entry` / `row`.
 
 ## Theme
 
