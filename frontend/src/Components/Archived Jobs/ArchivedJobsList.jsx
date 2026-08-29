@@ -15,7 +15,9 @@ import {
   TextField,
   Tooltip,
   Typography,
+  useMediaQuery,
 } from "@mui/material";
+import { appShellInsetSurfaceSx } from "../../Context/appShell";
 import { useQueryClient } from "@tanstack/react-query";
 import AppShellPanel from "../../Styled Components/Paper/AppShellPanel";
 import { formatNumberForLocale } from "../../Functions/Helper/numberParser";
@@ -224,6 +226,143 @@ function JobRow({ job, onRestore, busy, indented }) {
   );
 }
 
+/**
+ * One archived job as a card.
+ *
+ * A table of six columns cannot be read on a phone, and scrolling it sideways
+ * hides the figures behind the name. The card labels each value instead, so
+ * nothing depends on a header that has scrolled out of view.
+ */
+function JobCard({ job, onRestore, busy }) {
+  return (
+    <Box
+      sx={(theme) => ({
+        ...appShellInsetSurfaceSx(theme),
+        p: 1.5,
+      })}
+    >
+      <Stack spacing={1}>
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="flex-start"
+          justifyContent="space-between"
+        >
+          <Typography variant="subtitle2">{job.name}</Typography>
+          <SegmentChip segment={job.measures?.segment} />
+        </Stack>
+
+        <Stack direction="row" spacing={2}>
+          <Field label="Job cost">
+            <Money value={job.measures?.jobCostTotal} />
+          </Field>
+          <Field label="Profit / loss">
+            <Money value={job.measures?.profitLoss} />
+          </Field>
+          <Field label="Archived">
+            <Typography variant="body2" color="text.secondary">
+              {job.archivedAt?.slice(0, 10) ?? "—"}
+            </Typography>
+          </Field>
+        </Stack>
+
+        <Button
+          size="small"
+          fullWidth
+          variant="outlined"
+          disabled={busy}
+          onClick={() => onRestore(RESTORE_SCOPES.JOB, job.jobID)}
+        >
+          Restore
+        </Button>
+      </Stack>
+    </Box>
+  );
+}
+
+/** A labelled value, so a card carries its own headings. */
+function Field({ label, children }) {
+  return (
+    <Box sx={{ minWidth: 0 }}>
+      <Typography variant="caption" color="text.secondary" display="block">
+        {label}
+      </Typography>
+      {children}
+    </Box>
+  );
+}
+
+/** A group or linked set as a card, with its members inside it. */
+function BlockCard({ block, onRestore, busy }) {
+  const totals = useMemo(() => blockTotals(block.jobs), [block.jobs]);
+
+  if (block.kind === "job") {
+    return <JobCard job={block.jobs[0]} onRestore={onRestore} busy={busy} />;
+  }
+
+  const isGroup = block.kind === "group";
+  return (
+    <Box
+      sx={(theme) => ({
+        ...appShellInsetSurfaceSx(theme),
+        p: 1.5,
+      })}
+    >
+      <Stack spacing={1.5}>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Chip
+            size="small"
+            label={isGroup ? "Group" : "Linked"}
+            color={isGroup ? "primary" : "default"}
+            variant="outlined"
+          />
+          <Typography variant="subtitle2" sx={{ flex: 1, minWidth: 0 }} noWrap>
+            {block.label}
+          </Typography>
+        </Stack>
+
+        <Stack direction="row" spacing={2}>
+          <Field label="Job cost">
+            <Money value={totals.counted > 0 ? totals.jobCostTotal : null} />
+          </Field>
+          <Field label="Profit / loss">
+            <Money value={totals.counted > 0 ? totals.profitLoss : null} />
+          </Field>
+          <Field label="Jobs">
+            <Typography variant="body2">{block.jobs.length}</Typography>
+          </Field>
+        </Stack>
+
+        <Button
+          size="small"
+          fullWidth
+          variant="outlined"
+          disabled={busy}
+          onClick={() =>
+            onRestore(
+              isGroup ? RESTORE_SCOPES.GROUP : RESTORE_SCOPES.RELATED,
+              isGroup ? block.id : block.jobs[0].jobID,
+            )
+          }
+        >
+          Restore {isGroup ? "group" : "set"}
+        </Button>
+
+        <Stack spacing={1} sx={{ pl: 1.5 }}>
+          {block.jobs.map((job) => (
+            <JobCard
+              key={job.jobID}
+              job={job}
+              onRestore={onRestore}
+              busy={busy}
+            />
+          ))}
+        </Stack>
+      </Stack>
+    </Box>
+  );
+}
+
 /** A group, a related set, or a single job. */
 function Block({ block, onRestore, busy }) {
   const totals = useMemo(() => blockTotals(block.jobs), [block.jobs]);
@@ -309,6 +448,7 @@ function Block({ block, onRestore, busy }) {
  */
 export function ArchivedJobsList({ enabled = true }) {
   const queryClient = useQueryClient();
+  const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("md"));
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("archivedAt");
   const [page, setPage] = useState(1);
@@ -396,20 +536,33 @@ export function ArchivedJobsList({ enabled = true }) {
               : "Nothing archived yet."}
           </Typography>
         ) : (
-          <Box sx={{ width: "100%", overflowX: "auto" }}>
-            <Table size="small">
-              <ListHeader />
-              <TableBody>
+          <Box sx={{ width: "100%" }}>
+            {deviceNotMobile ? (
+              <Table size="small">
+                <ListHeader />
+                <TableBody>
+                  {blocks.map((block) => (
+                    <Block
+                      key={`${block.kind}:${block.id}`}
+                      block={block}
+                      onRestore={handleRestore}
+                      busy={busy}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <Stack spacing={1.5}>
                 {blocks.map((block) => (
-                  <Block
+                  <BlockCard
                     key={`${block.kind}:${block.id}`}
                     block={block}
                     onRestore={handleRestore}
                     busy={busy}
                   />
                 ))}
-              </TableBody>
-            </Table>
+              </Stack>
+            )}
           </Box>
         )}
 

@@ -50,7 +50,12 @@ export function ArchivedJobsPage() {
             justifyContent="space-between"
             alignItems={{ xs: "stretch", sm: "center" }}
           >
-            <Tabs value={tab} onChange={openTab}>
+            <Tabs
+              value={tab}
+              onChange={openTab}
+              variant="fullWidth"
+              sx={{ width: { xs: "100%", sm: "auto" } }}
+            >
               <Tab label="Statistics" value={TAB_STATISTICS} />
               <Tab label="Archived Jobs" value={TAB_JOBS} />
             </Tabs>
