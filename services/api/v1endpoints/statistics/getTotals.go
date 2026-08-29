@@ -19,7 +19,7 @@ import (
 // month against.
 type totalsResponse struct {
 	// TypeID echoes the item filter when one was applied.
-	TypeID int                    `json:"typeID,omitempty"`
+	TypeID int                          `json:"typeID,omitempty"`
 	Items  []models.ProductionTotalsRow `json:"items"`
 }
 

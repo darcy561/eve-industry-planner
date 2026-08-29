@@ -80,12 +80,12 @@ func (h *Handlers) GetTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 	window, err := resolveTimelineWindow(r, now)
 	if err != nil {
-		respondParamError(w, r, metrics, "statistics_timeline", err)
+		helper.RespondParamError(w, r, metrics, "statistics_timeline", err)
 		return
 	}
-	typeID, err := parseTypeID(r)
+	typeID, err := helper.ParseTypeID(r, "statistics")
 	if err != nil {
-		respondParamError(w, r, metrics, "statistics_timeline", err)
+		helper.RespondParamError(w, r, metrics, "statistics_timeline", err)
 		return
 	}
 
@@ -143,17 +143,4 @@ func (h *Handlers) GetTimelineHandler(w http.ResponseWriter, r *http.Request) {
 		"months":    len(months),
 		"type_id":   typeID,
 	})
-}
-
-// respondParamError reports a rejected query parameter with the code the
-// parameter carried, so each failure is distinguishable in logs and metrics
-// rather than collapsing into one bad-request reason.
-func respondParamError(w http.ResponseWriter, r *http.Request, metrics *helper.RequestMetricsTracker, component string, err error) {
-	if pErr, ok := errors.AsType[paramError](err); ok {
-		metrics.Error(pErr.metric)
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, pErr.message, "statistics: "+pErr.message, pErr.code, component, nil, nil)
-		return
-	}
-	metrics.Error("invalid_request")
-	helper.RespondEndpointError(w, r, http.StatusBadRequest, "Invalid request", "statistics: invalid request", "statistics_invalid_request", component, err, nil)
 }

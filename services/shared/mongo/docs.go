@@ -462,8 +462,7 @@ func executeBulkUpsertModels(ctx context.Context, collection *mongo.Collection, 
 	if err == nil {
 		return len(models), 0, nil
 	}
-	var bwe mongo.BulkWriteException
-	if errors.As(err, &bwe) {
+	if bwe, ok := errors.AsType[mongo.BulkWriteException](err); ok {
 		failed = len(bwe.WriteErrors)
 		success = len(models) - failed
 		return success, failed, nil

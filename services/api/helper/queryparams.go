@@ -9,14 +9,8 @@ import (
 )
 
 // Query parameter parsing shared by the endpoints that page and filter reads.
-//
-// The statistics views and the archived-job list accept the same vocabulary —
-// a YYYY-MM range, an item type, and sort/order/limit/offset paging — so the
-// parsing and the rejection codes live here rather than in each endpoint
-// package. A client that can drive one of those views can drive the others.
 
-// ParamError is a bad request carrying the failure class the handler reports
-// and the metric label it counts under.
+// ParamError is a bad request carrying its failure class and metric label.
 type ParamError struct {
 	Code    string
 	Metric  string
@@ -31,10 +25,6 @@ func BadParam(code, metric, format string, args ...any) ParamError {
 }
 
 // RespondParamError writes the 400 a rejected parameter earns.
-//
-// Ranges and paging are rejected rather than repaired: a shortened range or a
-// half-defaulted window is indistinguishable from missing data once it reaches
-// a chart, and a caller cannot tell it asked the wrong question.
 func RespondParamError(w http.ResponseWriter, r *http.Request, metrics *RequestMetricsTracker, component string, err error) {
 	if pErr, ok := errors.AsType[ParamError](err); ok {
 		metrics.Error(pErr.Metric)
@@ -67,8 +57,7 @@ type Paging struct {
 	Offset    int
 }
 
-// Order renders the direction as the wire value, so a response echoes what it
-// applied rather than what the caller happened to send.
+// Order renders the direction as its wire value.
 func (p Paging) Order() string {
 	if p.Ascending {
 		return "asc"
@@ -76,25 +65,19 @@ func (p Paging) Order() string {
 	return "desc"
 }
 
-// PagingRules describe what a specific view accepts.
+// PagingRules describe what a view accepts.
 type PagingRules struct {
-	// Sortable reports whether a field may be ranked on. Validating here keeps a
-	// caller-supplied string out of the $sort key.
-	Sortable func(string) bool
-	// SortableFields lists the accepted values for the rejection message.
+	// Sortable keeps caller input out of the $sort key; SortableFields lists the
+	// accepted values for the rejection message.
+	Sortable       func(string) bool
 	SortableFields func() []string
 	DefaultLimit   int
 	MaxLimit       int
-	// CodePrefix namespaces the failure classes, so a client can tell which view
-	// rejected it.
+	// CodePrefix namespaces this view's failure classes.
 	CodePrefix string
 }
 
 // ResolvePaging reads sort, order, limit and offset against a view's rules.
-//
-// Ranking is server-side because a page is a window over the whole match:
-// ordering the page alone would rank rows against each other rather than
-// against everything the query covered.
 func ResolvePaging(r *http.Request, rules PagingRules) (Paging, error) {
 	q := r.URL.Query()
 	out := Paging{Limit: rules.DefaultLimit}
