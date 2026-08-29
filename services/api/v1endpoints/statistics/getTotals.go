@@ -20,7 +20,7 @@ import (
 type totalsResponse struct {
 	// TypeID echoes the item filter when one was applied.
 	TypeID int                    `json:"typeID,omitempty"`
-	Items  []models.BuildStatsRow `json:"items"`
+	Items  []models.ProductionTotalsRow `json:"items"`
 }
 
 // GetTotalsHandler serves GET /api/v1/statistics/account/totals.
@@ -54,9 +54,9 @@ func (h *Handlers) GetTotalsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	typeID, err := parseTypeID(r)
+	typeID, err := helper.ParseTypeID(r, "statistics")
 	if err != nil {
-		respondParamError(w, r, metrics, "statistics_totals", err)
+		helper.RespondParamError(w, r, metrics, "statistics_totals", err)
 		return
 	}
 
@@ -72,7 +72,7 @@ func (h *Handlers) GetTotalsHandler(w http.ResponseWriter, r *http.Request) {
 	// knows which one its view should show.
 	items := rows
 	if items == nil {
-		items = []models.BuildStatsRow{}
+		items = []models.ProductionTotalsRow{}
 	}
 	for i := range items {
 		if items[i].DataSnapshots == nil {

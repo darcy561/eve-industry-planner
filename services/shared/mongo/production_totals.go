@@ -216,7 +216,7 @@ func (m *Mongo) PruneAccountProductionTotals(ctx context.Context, accountID stri
 //
 // typeID narrows to a single item when non-zero, which is the read the archive
 // dialogue makes for one blueprint.
-func (m *Mongo) LoadAccountProductionTotals(ctx context.Context, accountID string, typeID int, opts ...RetryOption) ([]models.BuildStatsRow, error) {
+func (m *Mongo) LoadAccountProductionTotals(ctx context.Context, accountID string, typeID int, opts ...RetryOption) ([]models.ProductionTotalsRow, error) {
 	if m == nil || m.AccountProductionTotals == nil {
 		return nil, fmt.Errorf("mongo handle is required")
 	}
@@ -233,7 +233,7 @@ func (m *Mongo) LoadAccountProductionTotals(ctx context.Context, accountID strin
 		filter["typeID"] = typeID
 	}
 
-	var out []models.BuildStatsRow
+	var out []models.ProductionTotalsRow
 	err = Retry(ctx, applyRetryOptions("LoadAccountProductionTotals", opts), func() error {
 		out = nil
 		cursor, findErr := coll.Find(ctx, filter, options.Find().SetSort(bson.D{{Key: "typeID", Value: 1}}))

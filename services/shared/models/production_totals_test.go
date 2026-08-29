@@ -50,8 +50,8 @@ func keysOf(m map[string]bson.RawValue) []string {
 	return out
 }
 
-func TestBuildStatsRowPersistsFlat(t *testing.T) {
-	row := BuildStatsRow{
+func TestProductionTotalsRowPersistsFlat(t *testing.T) {
+	row := ProductionTotalsRow{
 		ID:        "acct|1234",
 		TypeID:    1234,
 		TotalJobs: 3, SalesTotal: 100,
@@ -60,7 +60,7 @@ func TestBuildStatsRowPersistsFlat(t *testing.T) {
 }
 
 func TestSegmentTotalsPersistFlat(t *testing.T) {
-	seg := BuildStatsSegmentTotals{
+	seg := ArchiveSegmentTotals{
 		TotalJobs:         1,
 		TotalSoldQuantity: 5,
 	}
@@ -113,8 +113,8 @@ func TestArchivedJobStatsPersistsFlat(t *testing.T) {
 	requireFlatKeys(t, stats, "_id", "accountID", "jobID", "totalProduced", "totalBuildCosts")
 }
 
-func TestBuildStatsRowJSONStaysFlat(t *testing.T) {
-	row := BuildStatsRow{
+func TestProductionTotalsRowJSONStaysFlat(t *testing.T) {
+	row := ProductionTotalsRow{
 		TypeID:    1234,
 		JobType:   1,
 		TotalJobs: 3, SalesTotal: 100, ProfitLoss: 40,
@@ -153,8 +153,8 @@ func TestBuildMeasuresPlus(t *testing.T) {
 	}
 }
 
-func TestBuildStatsRowPlusKeepsFirstJobType(t *testing.T) {
-	got := BuildStatsRow{TypeID: 1234}.Plus(BuildStatsRow{JobType: 7, TotalJobs: 1})
+func TestProductionTotalsRowPlusKeepsFirstJobType(t *testing.T) {
+	got := ProductionTotalsRow{TypeID: 1234}.Plus(ProductionTotalsRow{JobType: 7, TotalJobs: 1})
 	if got.JobType != 7 {
 		t.Fatalf("jobType = %d, want 7", got.JobType)
 	}
@@ -162,17 +162,17 @@ func TestBuildStatsRowPlusKeepsFirstJobType(t *testing.T) {
 		t.Fatalf("totalJobs = %d, want 1", got.TotalJobs)
 	}
 
-	got = got.Plus(BuildStatsRow{JobType: 9})
+	got = got.Plus(ProductionTotalsRow{JobType: 9})
 	if got.JobType != 7 {
 		t.Fatalf("jobType = %d, want the first non-zero value 7", got.JobType)
 	}
 }
 
 func TestBreakdownPlusSumsEverySegment(t *testing.T) {
-	one := BuildStatsBreakdown{
-		ProductionChain:        BuildStatsSegmentTotals{BuildMeasures: BuildMeasures{TotalJobs: 1}},
-		RetainedStock:          BuildStatsSegmentTotals{BuildMeasures: BuildMeasures{TotalJobs: 2}},
-		StandaloneRecordedSale: BuildStatsSegmentTotals{BuildMeasures: BuildMeasures{TotalJobs: 3}},
+	one := ProductionTotalsBreakdown{
+		ProductionChain:        ArchiveSegmentTotals{BuildMeasures: BuildMeasures{TotalJobs: 1}},
+		RetainedStock:          ArchiveSegmentTotals{BuildMeasures: BuildMeasures{TotalJobs: 2}},
+		StandaloneRecordedSale: ArchiveSegmentTotals{BuildMeasures: BuildMeasures{TotalJobs: 3}},
 	}
 	got := one.Plus(one)
 
@@ -304,8 +304,8 @@ func TestZeroRowsStoreTheirStructFields(t *testing.T) {
 		doc  any
 		want string
 	}{
-		{"BuildStatsRow", BuildStatsRow{ID: "acct|1"}, "breakdown"},
-		{"CorpBuildStatsRow", CorpBuildStatsRow{ID: "acct|1"}, "breakdown"},
+		{"ProductionTotalsRow", ProductionTotalsRow{ID: "acct|1"}, "breakdown"},
+		{"CorpProductionTotalsRow", CorpProductionTotalsRow{ID: "acct|1"}, "breakdown"},
 		{"ArchivedJobStats", ArchivedJobStats{}, "costMonth"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -328,9 +328,9 @@ func TestNoStructFieldClaimsOmitempty(t *testing.T) {
 	t.Parallel()
 
 	for _, doc := range []any{
-		BuildStatsRow{}, CorpBuildStatsRow{}, BuildStatsBreakdown{}, BuildStatsSegmentTotals{},
+		ProductionTotalsRow{}, CorpProductionTotalsRow{}, ProductionTotalsBreakdown{}, ArchiveSegmentTotals{},
 		ArchivedJobStats{}, ArchivedJobLine{}, ArchivedJobTransactionLine{}, ArchivedJobFeeLine{},
-		TimelineTotals{}, BuildStatsTimelineBucket{}, AccountTimelineMonthBucket{},
+		TimelineTotals{}, ProductionTotalsTimelineBucket{}, AccountTimelineMonthBucket{},
 	} {
 		checkNoStructOmitempty(t, reflect.TypeOf(doc))
 	}

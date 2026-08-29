@@ -1,7 +1,7 @@
 import { Grid, Typography } from "@mui/material";
 import ArchiveStatsBreakdown from "./ArchiveStatsBreakdown";
 import ArchiveStatsSummary from "./ArchiveStatsSummary";
-import { hasMeaningfulBuildStats } from "./hasMeaningfulBuildStats";
+import { hasMeaningfulTotals } from "./hasMeaningfulTotals";
 
 /**
  * Whether the breakdown describes any activity.
@@ -79,7 +79,7 @@ export default function ArchiveDialogueBody({
     );
   }
 
-  if (!isLoading && hasMeaningfulBuildStats(data)) {
+  if (!isLoading && hasMeaningfulTotals(data)) {
     return <ArchiveStatsSummary data={data} />;
   }
 
