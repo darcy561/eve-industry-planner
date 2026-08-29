@@ -111,6 +111,7 @@ async function getCharacterMarketOrders({
       .map((order) => ({
         ...order,
         CharacterHash: character.CharacterHash,
+        character_id: CharacterID,
         is_corporation: false,
       }));
 

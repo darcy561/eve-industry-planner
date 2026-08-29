@@ -13,6 +13,8 @@ export default function findBrokersFeeEntry(order, brokersFee, queryClient) {
             complete: false,
             date: entry.date,
             amount: brokersFee || 0,
+            corporation_id: order.corporation_id ?? null,
+            character_id: entry.character_id ?? null,
             CharacterHash: order.CharacterHash
         }
     }
