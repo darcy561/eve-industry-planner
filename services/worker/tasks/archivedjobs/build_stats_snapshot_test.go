@@ -7,7 +7,7 @@ import (
 	"eve-industry-planner/shared/models"
 )
 
-func TestComputeBuildStatSnapshot_matchesArchievedJobsMath(t *testing.T) {
+func TestComputeBuildStatSnapshot_matchesArchivedJobsMath(t *testing.T) {
 	job := models.Job{
 		JobID:   "job-test-1",
 		ItemID:  34,
@@ -57,9 +57,6 @@ func TestComputeBuildStatSnapshot_matchesArchievedJobsMath(t *testing.T) {
 	}
 	if snap.ProfitLoss != (120 - 110.25) {
 		t.Fatalf("ProfitLoss: got %v", snap.ProfitLoss)
-	}
-	if !snap.CorpMarketOrder || !snap.CorpIndustryJob {
-		t.Fatalf("corp flags: market=%v industry=%v", snap.CorpMarketOrder, snap.CorpIndustryJob)
 	}
 	if snap.TotalCostPerItem != 11.03 {
 		t.Fatalf("TotalCostPerItem: got %v want 11.03", snap.TotalCostPerItem)

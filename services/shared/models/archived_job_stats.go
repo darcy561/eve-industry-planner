@@ -4,16 +4,6 @@ import (
 	"time"
 )
 
-// ArchivedJobCorpStatus records how a sale line was attributed when corporation
-// statistics were built.
-type ArchivedJobCorpStatus string
-
-const (
-	CorpStatusPersonal    ArchivedJobCorpStatus = "personal"
-	CorpStatusCorpKnown   ArchivedJobCorpStatus = "corp_known"
-	CorpStatusCorpUnknown ArchivedJobCorpStatus = "corp_unknown"
-)
-
 // ArchivedJobCostTotals is the cost side of one archived job.
 type ArchivedJobCostTotals struct {
 	TotalProduced      float64 `bson:"totalProduced" json:"totalProduced"`
@@ -30,12 +20,7 @@ type ArchivedJobLine struct {
 	OrderID       int       `bson:"orderID,omitempty" json:"orderID,omitempty"`
 	Date          time.Time `bson:"date" json:"date"`
 	CalendarMonth `bson:",inline"`
-	Amount        float64               `bson:"amount" json:"amount"`
-	IsCorp        bool                  `bson:"isCorp" json:"isCorp"`
-	CorpStatus    ArchivedJobCorpStatus `bson:"corpStatus" json:"corpStatus"`
-	// ResolvedCorpRef names the corporation a line was attributed to when the job's
-	// own line refs did not identify one.
-	ResolvedCorpRef string `bson:"resolvedCorpRef,omitempty" json:"resolvedCorpRef,omitempty"`
+	Amount        float64 `bson:"amount" json:"amount"`
 }
 
 type ArchivedJobTransactionLine struct {
@@ -70,17 +55,14 @@ type ArchivedJobStats struct {
 	// Workers fall back to ArchivedAt when it is zero.
 	CostMonth             CalendarMonth `bson:"costMonth" json:"costMonth,omitzero"`
 	ArchivedJobCostTotals `bson:",inline"`
-	ExtraCategoryTotals   map[string]float64 `bson:"extraCategoryTotals,omitempty" json:"extraCategoryTotals,omitempty"`
-	UnsoldQuantity        float64            `bson:"unsoldQuantity" json:"unsoldQuantity"`
-	UnsoldCost            float64            `bson:"unsoldCost" json:"unsoldCost"`
-	// LinkedIndustryCorpRefs identifies the corporation from linked facility jobs
-	// when a production-chain intermediate has no sale lines of its own.
-	LinkedIndustryCorpRefs []string                     `bson:"linkedIndustryCorpRefs,omitempty" json:"linkedIndustryCorpRefs,omitempty"`
-	TransactionLines       []ArchivedJobTransactionLine `bson:"transactionLines" json:"transactionLines"`
-	FeeLines               []ArchivedJobFeeLine         `bson:"feeLines" json:"feeLines"`
-	Protected              *FieldProtection             `bson:"protected,omitempty" json:"-"`
-	ProcessedAt            time.Time                    `bson:"processedAt" json:"processedAt"`
-	Revoked                bool                         `bson:"revoked" json:"revoked"`
-	RevokedAt              *time.Time                   `bson:"revokedAt,omitempty" json:"revokedAt,omitempty"`
-	Version                int                          `bson:"version" json:"version"`
+	ExtraCategoryTotals   map[string]float64           `bson:"extraCategoryTotals,omitempty" json:"extraCategoryTotals,omitempty"`
+	UnsoldQuantity        float64                      `bson:"unsoldQuantity" json:"unsoldQuantity"`
+	UnsoldCost            float64                      `bson:"unsoldCost" json:"unsoldCost"`
+	TransactionLines      []ArchivedJobTransactionLine `bson:"transactionLines" json:"transactionLines"`
+	FeeLines              []ArchivedJobFeeLine         `bson:"feeLines" json:"feeLines"`
+	Protected             *FieldProtection             `bson:"protected,omitempty" json:"-"`
+	ProcessedAt           time.Time                    `bson:"processedAt" json:"processedAt"`
+	Revoked               bool                         `bson:"revoked" json:"revoked"`
+	RevokedAt             *time.Time                   `bson:"revokedAt,omitempty" json:"revokedAt,omitempty"`
+	Version               int                          `bson:"version" json:"version"`
 }

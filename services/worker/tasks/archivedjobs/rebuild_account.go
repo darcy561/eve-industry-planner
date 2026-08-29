@@ -96,7 +96,7 @@ func RebuildAccountStatistics(
 		}
 	}
 
-	// Lifetime totals per item type, the documents the build-stats read serves.
+	// Lifetime totals per item type, the documents the totals read serves.
 	// Derived from the same rows rather than incremented per job by a second
 	// worker, so a rebuild cannot disagree with the timeline it was built beside.
 	totals := archivestats.AccountProductionTotals(accountID, rows, snapshots)

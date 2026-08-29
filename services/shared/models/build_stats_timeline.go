@@ -57,9 +57,6 @@ type TimelineTotals struct {
 	SalesMeasures `bson:",inline"`
 }
 
-// CorpTimelineOwnedLane marks corp-owned rows in a corporation monthly bucket.
-const CorpTimelineOwnedLane = "~"
-
 // AccountTimelineMonthBucket is a pre-aggregated calendar month for an account and item type.
 type AccountTimelineMonthBucket struct {
 	ID            string `bson:"_id"`
@@ -70,11 +67,9 @@ type AccountTimelineMonthBucket struct {
 }
 
 // CorpTimelineMonthBucket is a pre-aggregated calendar month for a corporation and item type.
-// Lane is CorpTimelineOwnedLane for corpRef-only rows, otherwise the accountID of the linked account.
 type CorpTimelineMonthBucket struct {
 	ID            string `bson:"_id"`
 	CorpRef       string `bson:"corpRef"`
-	Lane          string `bson:"lane"`
 	TypeID        int    `bson:"typeID"`
 	CalendarMonth `bson:",inline"`
 	SalesMeasures `bson:",inline"`

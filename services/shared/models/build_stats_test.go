@@ -80,29 +80,27 @@ func TestTimelineMonthBucketsPersistFlat(t *testing.T) {
 	corp := CorpTimelineMonthBucket{
 		ID:      "corpref|~|1234|2026|8",
 		CorpRef: "corpref",
-		Lane:    CorpTimelineOwnedLane,
 		TypeID:  1234,
 		Year:    2026, Month: 8,
 		TransactionCount: 2,
 	}
-	requireFlatKeys(t, corp, "_id", "corpRef", "lane", "year", "month", "transactionCount")
+	requireFlatKeys(t, corp, "_id", "corpRef", "year", "month", "transactionCount")
 }
 
 func TestArchivedJobLinesPersistFlat(t *testing.T) {
 	tx := ArchivedJobTransactionLine{
 		TransactionID: 7712345678,
 		Year:          2026, Month: 8,
-		Amount:     100,
-		CorpStatus: CorpStatusCorpKnown,
-		Quantity:   2,
+		Amount:   100,
+		Quantity: 2,
 	}
-	requireFlatKeys(t, tx, "transactionID", "year", "month", "amount", "corpStatus", "quantity")
+	requireFlatKeys(t, tx, "transactionID", "year", "month", "amount", "quantity")
 
 	fee := ArchivedJobFeeLine{
 		FeeID:  5500000001,
-		Amount: -3, CorpStatus: CorpStatusPersonal,
+		Amount: -3,
 	}
-	requireFlatKeys(t, fee, "feeID", "amount", "corpStatus")
+	requireFlatKeys(t, fee, "feeID", "amount")
 }
 
 func TestArchivedJobStatsPersistsFlat(t *testing.T) {

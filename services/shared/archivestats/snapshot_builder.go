@@ -1,3 +1,7 @@
+// Package archivestats turns an archived job into the figures the statistics
+// pipelines read. Everything here is a pure transformation: no Mongo, no clock,
+// no key material, so the rules are testable in isolation from the worker that
+// applies them.
 package archivestats
 
 import (
@@ -26,23 +30,6 @@ func parseLineDate(raw string, fallback time.Time) time.Time {
 		}
 	}
 	return fallback.UTC()
-}
-
-// orderIdentity is what a market order says about who sold a line, for lines that
-// do not say so themselves.
-type orderIdentity struct {
-	isCorp  bool
-	corpRef string
-}
-
-func corpStatusFor(isCorp bool, corpRef string) models.ArchivedJobCorpStatus {
-	if !isCorp {
-		return models.CorpStatusPersonal
-	}
-	if corpRef != "" {
-		return models.CorpStatusCorpKnown
-	}
-	return models.CorpStatusCorpUnknown
 }
 
 // extraCategoryTotals folds a job's extra costs by category. An extra with no
@@ -164,16 +151,8 @@ func buildSnapshot(job models.Job, snap models.BuildStatSnapshot, now time.Time)
 		costPerItem = snap.TotalJobCost / snap.TotalProduced
 	}
 
-	orders := make(map[int]orderIdentity, len(job.Build.Sale.MarketOrders))
-	for _, o := range job.Build.Sale.MarketOrders {
-		orders[o.OrderID] = orderIdentity{isCorp: o.IsCorporation, corpRef: o.CorporationRef}
-	}
-
-	inferredCorpRef, inference := InferJobCorp(job.Build.Costs.LinkedJobs)
-	inferred := inference == CorpInferenceKnown
-
-	transactionLines, soldQuantity := buildTransactionLines(job, orders, inferredCorpRef, inferred, archivedAt, costPerItem)
-	feeLines := buildFeeLines(job, orders, inferredCorpRef, inferred, archivedAt)
+	transactionLines, soldQuantity := buildTransactionLines(job, archivedAt, costPerItem)
+	feeLines := buildFeeLines(job, archivedAt)
 
 	unsoldQuantity := max(snap.TotalProduced-soldQuantity, 0)
 
@@ -184,31 +163,27 @@ func buildSnapshot(job models.Job, snap models.BuildStatSnapshot, now time.Time)
 		IsProductionChain: len(job.ParentJobs) > 0,
 		// A retained build is produced but deliberately not sold, so it must not
 		// read as an unsold shortfall in the aggregates.
-		RetainedStockBuild:     job.MetaData.RetainedStockBuild,
-		ArchivedAt:             archivedAt,
-		CostMonth:              costMonthFor(job, archivedAt),
-		TotalProduced:          snap.TotalProduced,
-		TotalMaterialCost:      snap.TotalMaterialCost,
-		TotalInstallCost:       snap.TotalInstallCost,
-		TotalExtras:            snap.TotalExtras,
-		TotalInventionCost:     snap.TotalInventionCost,
-		TotalBuildCosts:        snap.TotalBuildCosts,
-		TotalCostPerItem:       snap.TotalCostPerItem,
-		ExtraCategoryTotals:    extraCategoryTotals(job.Build.Costs.ExtrasCosts),
-		UnsoldQuantity:         unsoldQuantity,
-		UnsoldCost:             unsoldQuantity * costPerItem,
-		LinkedIndustryCorpRefs: DistinctLinkedIndustryCorpRefs(job.Build.Costs.LinkedJobs),
-		TransactionLines:       transactionLines,
-		FeeLines:               feeLines,
-		ProcessedAt:            now,
+		RetainedStockBuild:  job.MetaData.RetainedStockBuild,
+		ArchivedAt:          archivedAt,
+		CostMonth:           costMonthFor(job, archivedAt),
+		TotalProduced:       snap.TotalProduced,
+		TotalMaterialCost:   snap.TotalMaterialCost,
+		TotalInstallCost:    snap.TotalInstallCost,
+		TotalExtras:         snap.TotalExtras,
+		TotalInventionCost:  snap.TotalInventionCost,
+		TotalBuildCosts:     snap.TotalBuildCosts,
+		TotalCostPerItem:    snap.TotalCostPerItem,
+		ExtraCategoryTotals: extraCategoryTotals(job.Build.Costs.ExtrasCosts),
+		UnsoldQuantity:      unsoldQuantity,
+		UnsoldCost:          unsoldQuantity * costPerItem,
+		TransactionLines:    transactionLines,
+		FeeLines:            feeLines,
+		ProcessedAt:         now,
 	}
 }
 
 func buildTransactionLines(
 	job models.Job,
-	orders map[int]orderIdentity,
-	inferredCorpRef string,
-	inferred bool,
 	archivedAt time.Time,
 	costPerItem float64,
 ) ([]models.ArchivedJobTransactionLine, float64) {
@@ -219,79 +194,37 @@ func buildTransactionLines(
 		quantity := float64(t.Quantity)
 		soldQuantity += quantity
 
-		isCorp, corpRef := t.IsCorp, t.CorporationRef
-		// A transaction often names no corporation while the order it filled does.
-		if corpRef == "" && t.OrderID != 0 {
-			if order, ok := orders[t.OrderID]; ok {
-				isCorp = isCorp || order.isCorp
-				corpRef = order.corpRef
-			}
-		}
-		if inferred && corpRef == "" {
-			isCorp, corpRef = true, inferredCorpRef
-		}
-
 		date := parseLineDate(t.Date, archivedAt)
 		proratedCost := quantity * costPerItem
 		lines = append(lines, models.ArchivedJobTransactionLine{
-			TransactionID:   t.TransactionID,
-			OrderID:         t.OrderID,
-			Date:            date,
-			CalendarMonth:   monthOf(date),
-			Amount:          t.Amount,
-			IsCorp:          isCorp,
-			CorpStatus:      corpStatusFor(isCorp, corpRef),
-			ResolvedCorpRef: resolvedCorpRef(isCorp, corpRef),
-			Quantity:        quantity,
-			Tax:             t.Tax,
-			ProratedCost:    proratedCost,
-			Profit:          t.Amount - t.Tax - proratedCost,
+			TransactionID: t.TransactionID,
+			OrderID:       t.OrderID,
+			Date:          date,
+			CalendarMonth: monthOf(date),
+			Amount:        t.Amount,
+			Quantity:      quantity,
+			Tax:           t.Tax,
+			ProratedCost:  proratedCost,
+			Profit:        t.Amount - t.Tax - proratedCost,
 		})
 	}
 	return lines, soldQuantity
 }
 
-func buildFeeLines(
-	job models.Job,
-	orders map[int]orderIdentity,
-	inferredCorpRef string,
-	inferred bool,
-	archivedAt time.Time,
-) []models.ArchivedJobFeeLine {
+func buildFeeLines(job models.Job, archivedAt time.Time) []models.ArchivedJobFeeLine {
 	lines := make([]models.ArchivedJobFeeLine, 0, len(job.Build.Sale.BrokersFee))
 
 	for _, f := range job.Build.Sale.BrokersFee {
-		// A broker fee carries no identity of its own; it inherits the order's.
-		identity := orders[f.OrderID]
-		if identity.corpRef == "" && f.CorporationRef != "" {
-			identity = orderIdentity{isCorp: true, corpRef: f.CorporationRef}
-		}
-		if inferred && identity.corpRef == "" {
-			identity = orderIdentity{isCorp: true, corpRef: inferredCorpRef}
-		}
-
 		date := parseLineDate(f.Date, archivedAt)
 		lines = append(lines, models.ArchivedJobFeeLine{
-			FeeID:           f.ID,
-			OrderID:         f.OrderID,
-			Date:            date,
-			CalendarMonth:   monthOf(date),
-			Amount:          f.Amount,
-			IsCorp:          identity.isCorp,
-			CorpStatus:      corpStatusFor(identity.isCorp, identity.corpRef),
-			ResolvedCorpRef: resolvedCorpRef(identity.isCorp, identity.corpRef),
+			FeeID:         f.ID,
+			OrderID:       f.OrderID,
+			Date:          date,
+			CalendarMonth: monthOf(date),
+			Amount:        f.Amount,
 		})
 	}
 	return lines
-}
-
-// resolvedCorpRef records the corporation only when the line is genuinely
-// attributed to one, so an unresolved corp line carries no ref to be aggregated by.
-func resolvedCorpRef(isCorp bool, corpRef string) string {
-	if isCorp && corpRef != "" {
-		return corpRef
-	}
-	return ""
 }
 
 // EvidencedArchiveDate returns the earliest date a job's own records show work

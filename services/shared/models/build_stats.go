@@ -99,6 +99,4 @@ type BuildStatSnapshot struct {
 	TotalSales          float64 `json:"totalSales" bson:"totalSales"`
 	AverageSalePrice    float64 `json:"averageSalePrice" bson:"averageSalePrice"`
 	ProfitLoss          float64 `json:"profitLoss" bson:"profitLoss"`
-	CorpMarketOrder     bool    `json:"corpMarketOrder" bson:"corpMarketOrder"`
-	CorpIndustryJob     bool    `json:"corpIndustryJob" bson:"corpIndustryJob"`
 }
