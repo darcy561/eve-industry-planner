@@ -1,3 +1,4 @@
+import { useMediaQuery } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import {
   Area,
@@ -66,6 +67,7 @@ export function TimeSeriesChart({
   height,
 }) {
   const theme = useTheme();
+  const deviceNotMobile = useMediaQuery(theme.breakpoints.up("sm"));
   const axisProps = { ...chartAxisProps(theme), ...axisPropsOverride };
   const hasRightAxis = series.some((s) => s.axis === "right");
 
@@ -81,7 +83,8 @@ export function TimeSeriesChart({
       })}
       style={{
         width: "100%",
-        aspectRatio: 1.9,
+        aspectRatio: deviceNotMobile ? 1.9 : 1.2,
+        minHeight: 220,
         maxHeight: 320,
         ...style,
       }}
