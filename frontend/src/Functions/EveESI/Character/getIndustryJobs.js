@@ -109,7 +109,7 @@ async function getCharacterIndustryJobs({ character, page = 1, existingData = {}
           currentDate - Date.parse(job.completed_date) <=
           GLOBAL_CONFIG.ESI_DATE_PERIOD * 24 * 60 * 60 * 1000
       )
-      .map((job) => ({ ...job, is_corporation: false }));
+      .map((job) => ({ ...job, is_corporation: false, character_id: CharacterID }));
 
     return {
       data,

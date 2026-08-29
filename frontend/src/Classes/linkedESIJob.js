@@ -47,6 +47,7 @@ class LinkedESIJob {
      * @param {number} originalJob.blueprint_id - Blueprint ID
      * @param {boolean} originalJob.is_corporation - Whether it's a corporation job
      * @param {number} [originalJob.corporation_id] - Corporation ID
+     * @param {number} [originalJob.character_id] - Character ID the job was fetched for
      * @param {Object} owner - Job owner information
      * @param {string} owner.CharacterHash - Character hash of the owner
      */
@@ -67,6 +68,7 @@ class LinkedESIJob {
       this.blueprint_id = originalJob.blueprint_id;
       this.is_corporation = originalJob.is_corporation;
       this.corporation_id = originalJob?.corporation_id ?? null
+      this.character_id = originalJob?.character_id ?? null
     }
 }
   

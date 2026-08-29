@@ -99,7 +99,7 @@ async function getCorpIndustryJobs({ character, page = 1, existingData = {}, con
             GLOBAL_CONFIG.ESI_DATE_PERIOD * 24 * 60 * 60 * 1000 &&
             job.installer_id === CharacterID)
       )
-      .map((job) => ({ ...job, is_corporation: true, corporation_id }));
+      .map((job) => ({ ...job, is_corporation: true, corporation_id, character_id: CharacterID }));
 
     return {
       data,

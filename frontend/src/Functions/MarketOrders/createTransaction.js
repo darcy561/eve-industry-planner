@@ -10,6 +10,8 @@ export default function createTransaction(transaction, desc, journal, tax, Chara
         date: transaction.date,
         location_id: transaction.location_id,
         is_corp: !transaction.is_personal,
+        corporation_id: transaction.corporation_id ?? null,
+        character_id: transaction.character_id ?? null,
         type_id: transaction.type_id,
         description: desc,
         CharacterHash: CharacterHash,
