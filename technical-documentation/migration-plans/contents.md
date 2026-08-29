@@ -18,3 +18,4 @@ Decision/history/work logs for long-running migrations. **Not SoT.**
 | Changestream tenant scale (publisher queues / metrics / future auto-detect) | [changestream-tenant-scale/contents.md](./changestream-tenant-scale/contents.md) |
 | Shared packages `go fix` cleanup (**closed** — history; Tier 4 omit tags waived) | [shared-go-fix/contents.md](./shared-go-fix/contents.md) |
 | Archived jobs statistics (rollups, snapshots, corp aggregation) | [archived-jobs-stats/contents.md](./archived-jobs-stats/contents.md) |
+| Reprocessing shipping cost (ISK/m³ freight in ore selection) | [reprocessing-shipping-cost/contents.md](./reprocessing-shipping-cost/contents.md) |
