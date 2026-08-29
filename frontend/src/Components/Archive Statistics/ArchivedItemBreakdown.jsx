@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Box,
   Button,
   FormControl,
   Grid,
@@ -8,7 +7,6 @@ import {
   Paper,
   Select,
   Skeleton,
-  Stack,
   Table,
   TableBody,
   TableCell,
@@ -16,11 +14,9 @@ import {
   TableRow,
   Tooltip,
   Typography,
-  useMediaQuery,
   useTheme,
 } from "@mui/material";
 import {
-  appShellInsetSurfaceSx,
   appShellOutlinedFormControl,
   appShellSetupSectionPaperSx,
   getAppShellSelectMenuProps,
@@ -100,18 +96,6 @@ function useItemNames(items) {
 }
 
 /** Money, abbreviated in the cell with the full value on hover. */
-/** A labelled figure, so a card does not depend on a header row above it. */
-function ItemFigure({ label, children }) {
-  return (
-    <Box sx={{ flex: 1, minWidth: 0 }}>
-      <Typography variant="caption" color="text.secondary" display="block">
-        {label}
-      </Typography>
-      <Box sx={{ typography: "body2", mt: 0.25 }}>{children}</Box>
-    </Box>
-  );
-}
-
 function Money({ value }) {
   const amount = Number(value ?? 0);
   return (
@@ -156,7 +140,6 @@ function LoadingRows() {
  */
 export function ArchivedItemBreakdown({ from, to } = {}) {
   const theme = useTheme();
-  const deviceNotMobile = useMediaQuery(theme.breakpoints.up("sm"));
   const [sort, setSort] = useState("profitLoss");
   const [expanded, setExpanded] = useState(false);
   const limit = expanded ? ROWS_EXPANDED : ROWS_COLLAPSED;
@@ -212,95 +195,52 @@ export function ArchivedItemBreakdown({ from, to } = {}) {
         </Grid>
       </Grid>
 
-      {deviceNotMobile ? (
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Item</TableCell>
-              <TableCell align="right">Cost</TableCell>
-              <TableCell align="right">Sales</TableCell>
-              <TableCell align="right">Profit</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {isLoading && items.length === 0 ? (
-              <LoadingRows />
-            ) : items.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4}>
-                  <Typography variant="body2" color="text.secondary">
-                    Nothing archived in this period yet.
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            ) : (
-              items.map((item) => {
-                const profit = Number(item.profitLoss ?? 0);
-                return (
-                  <TableRow key={item.typeID}>
-                    <TableCell>
-                      {names[item.typeID] ?? `Type ${item.typeID}`}
-                    </TableCell>
-                    <TableCell align="right">
-                      <Money value={item.jobCostTotal} />
-                    </TableCell>
-                    <TableCell align="right">
-                      <Money value={item.salesTotal} />
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={{ color: profit < 0 ? "error.main" : "success.main" }}
-                    >
-                      <Money value={profit} />
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      ) : (
-        <Stack spacing={1}>
+      <Table size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell>Item</TableCell>
+            <TableCell align="right">Cost</TableCell>
+            <TableCell align="right">Sales</TableCell>
+            <TableCell align="right">Profit</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
           {isLoading && items.length === 0 ? (
-            <Skeleton variant="rounded" height={64} />
+            <LoadingRows />
           ) : items.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">
-              Nothing archived in this period yet.
-            </Typography>
+            <TableRow>
+              <TableCell colSpan={4}>
+                <Typography variant="body2" color="text.secondary">
+                  Nothing archived in this period yet.
+                </Typography>
+              </TableCell>
+            </TableRow>
           ) : (
             items.map((item) => {
               const profit = Number(item.profitLoss ?? 0);
               return (
-                <Box
-                  key={item.typeID}
-                  sx={(t) => ({ ...appShellInsetSurfaceSx(t), p: 1.25 })}
-                >
-                  <Typography variant="body2" noWrap sx={{ mb: 0.5 }}>
+                <TableRow key={item.typeID}>
+                  <TableCell>
                     {names[item.typeID] ?? `Type ${item.typeID}`}
-                  </Typography>
-                  <Stack direction="row" spacing={2}>
-                    <ItemFigure label="Cost">
-                      <Money value={item.jobCostTotal} />
-                    </ItemFigure>
-                    <ItemFigure label="Sales">
-                      <Money value={item.salesTotal} />
-                    </ItemFigure>
-                    <ItemFigure label="Profit">
-                      <Box
-                        sx={{
-                          color: profit < 0 ? "error.main" : "success.main",
-                        }}
-                      >
-                        <Money value={profit} />
-                      </Box>
-                    </ItemFigure>
-                  </Stack>
-                </Box>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Money value={item.jobCostTotal} />
+                  </TableCell>
+                  <TableCell align="right">
+                    <Money value={item.salesTotal} />
+                  </TableCell>
+                  <TableCell
+                    align="right"
+                    sx={{ color: profit < 0 ? "error.main" : "success.main" }}
+                  >
+                    <Money value={profit} />
+                  </TableCell>
+                </TableRow>
               );
             })
           )}
-        </Stack>
-      )}
+        </TableBody>
+      </Table>
 
       {canExpand && (
         <Grid container sx={{ justifyContent: "center", mt: 1 }}>

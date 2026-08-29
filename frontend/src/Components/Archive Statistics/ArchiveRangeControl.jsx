@@ -1,4 +1,15 @@
-import { MenuItem, Select, Stack, Typography } from "@mui/material";
+import {
+  FormControl,
+  MenuItem,
+  Select,
+  Stack,
+  Typography,
+} from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+import {
+  appShellOutlinedFormControl,
+  getAppShellSelectMenuProps,
+} from "../../Context/appShell";
 
 /**
  * Window presets, as a count of months back from the current one.
@@ -49,23 +60,28 @@ export function resolveArchiveRange(key, now = new Date()) {
  * @param {(key: string) => void} props.onChange
  */
 export function ArchiveRangeControl({ value, onChange }) {
+  const theme = useTheme();
   return (
     <Stack direction="row" spacing={1} alignItems="center">
       <Typography variant="body2" color="text.secondary">
         Period
       </Typography>
-      <Select
+      <FormControl
         size="small"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        sx={{ minWidth: 200 }}
+        sx={(t) => ({ ...appShellOutlinedFormControl(t), minWidth: 200 })}
       >
-        {ARCHIVE_RANGES.map((option) => (
-          <MenuItem key={option.key} value={option.key}>
-            {option.label}
-          </MenuItem>
-        ))}
-      </Select>
+        <Select
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          MenuProps={getAppShellSelectMenuProps(theme)}
+        >
+          {ARCHIVE_RANGES.map((option) => (
+            <MenuItem key={option.key} value={option.key}>
+              {option.label}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
     </Stack>
   );
 }

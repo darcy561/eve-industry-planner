@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   Chip,
+  FormControl,
   MenuItem,
   Pagination,
   Select,
@@ -17,7 +18,12 @@ import {
   Typography,
   useMediaQuery,
 } from "@mui/material";
-import { appShellInsetSurfaceSx } from "../../Context/appShell";
+import { useTheme } from "@mui/material/styles";
+import {
+  appShellInsetSurfaceSx,
+  appShellOutlinedFormControl,
+  getAppShellSelectMenuProps,
+} from "../../Context/appShell";
 import { useQueryClient } from "@tanstack/react-query";
 import AppShellPanel from "../../Styled Components/Paper/AppShellPanel";
 import { formatNumberForLocale } from "../../Functions/Helper/numberParser";
@@ -448,6 +454,7 @@ function Block({ block, onRestore, busy }) {
  */
 export function ArchivedJobsList({ enabled = true }) {
   const queryClient = useQueryClient();
+  const theme = useTheme();
   const deviceNotMobile = useMediaQuery((theme) => theme.breakpoints.up("md"));
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("archivedAt");
@@ -507,21 +514,25 @@ export function ArchivedJobsList({ enabled = true }) {
             }}
             sx={{ flex: 1 }}
           />
-          <Select
+          <FormControl
             size="small"
-            value={sort}
-            onChange={(event) => {
-              setSort(event.target.value);
-              setPage(1);
-            }}
-            sx={{ minWidth: 180 }}
+            sx={(t) => ({ ...appShellOutlinedFormControl(t), minWidth: 180 })}
           >
-            {SORT_OPTIONS.map((option) => (
-              <MenuItem key={option.key} value={option.key}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </Select>
+            <Select
+              value={sort}
+              onChange={(event) => {
+                setSort(event.target.value);
+                setPage(1);
+              }}
+              MenuProps={getAppShellSelectMenuProps(theme)}
+            >
+              {SORT_OPTIONS.map((option) => (
+                <MenuItem key={option.key} value={option.key}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </Stack>
 
         {blocks.length === 0 ? (

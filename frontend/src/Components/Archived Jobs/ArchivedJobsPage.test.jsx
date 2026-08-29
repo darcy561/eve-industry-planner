@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 const panelCalls = [];
 function stubPanel(name) {
@@ -25,19 +26,29 @@ vi.mock("../../Styled Components/defaultPageLayout", () => ({
 
 const { ArchivedJobsPage } = await import("./ArchivedJobsPage.jsx");
 
+// useMediaQuery reads breakpoints off the theme, so one has to be in context.
+const theme = createTheme();
+function renderPage() {
+  return render(
+    <ThemeProvider theme={theme}>
+      <ArchivedJobsPage />
+    </ThemeProvider>,
+  );
+}
+
 beforeEach(() => {
   panelCalls.length = 0;
 });
 
 describe("ArchivedJobsPage", () => {
   it("opens on the statistics tab", () => {
-    render(<ArchivedJobsPage />);
+    renderPage();
     expect(screen.getByTestId("timeline")).toBeInTheDocument();
   });
 
   // The charts are why most people open the page, so they load immediately.
   it("renders every statistics panel on load", () => {
-    render(<ArchivedJobsPage />);
+    renderPage();
     for (const name of [
       "overview",
       "timeline",
@@ -54,7 +65,7 @@ describe("ArchivedJobsPage", () => {
   // One selection drives every panel, so the figures on the page agree with
   // each other rather than describing different periods.
   it("passes one range to every panel that takes one", () => {
-    render(<ArchivedJobsPage />);
+    renderPage();
     fireEvent.mouseDown(screen.getByRole("combobox"));
     fireEvent.click(screen.getByText("Last 12 months"));
 
@@ -67,7 +78,7 @@ describe("ArchivedJobsPage", () => {
   // The segment split describes the archive as a whole rather than a window,
   // because the segment a job belongs to is a property of the job.
   it("does not narrow the segment split to the range", () => {
-    render(<ArchivedJobsPage />);
+    renderPage();
     const segment = panelCalls.filter((c) => c.name === "segment").at(-1);
     expect(segment.props.from).toBeUndefined();
   });
