@@ -283,11 +283,11 @@ function JobCard({ job, onRestore, busy }) {
 /** A labelled value, so a card carries its own headings. */
 function Field({ label, children }) {
   return (
-    <Box sx={{ minWidth: 0 }}>
+    <Box sx={{ flex: 1, minWidth: 0 }}>
       <Typography variant="caption" color="text.secondary" display="block">
         {label}
       </Typography>
-      {children}
+      <Box sx={{ mt: 0.25 }}>{children}</Box>
     </Box>
   );
 }
