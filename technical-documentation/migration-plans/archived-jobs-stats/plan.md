@@ -736,8 +736,8 @@ Three layers instead, split so the boundary is where the data stops being generi
 array, the key naming the category axis, and a list of series (`{ key, label, colour, type }`) —
 so the same component draws profit against months, cost by item, or extras by category with no
 knowledge of which it is doing. The concrete primitives this page needs: a time-series chart
-(bars or lines, several series, one shared axis), a ranked horizontal bar chart, and a share chart
-for the segment split. A fourth view — extras by category over months — is the time-series primitive
+(bars or lines, several series, one shared axis), a ranked horizontal bar chart, and a pie chart for
+the segment split. A fourth view — extras by category over months — is the time-series primitive
 with a different series list, not a new component.
 
 Consequences that make the split worth keeping:
@@ -778,6 +778,17 @@ are sent as both bounds or neither — the API rejects a half-given range with 4
 repairing it, and those codes are not retried.
 
 #### List and restore
+
+**The page is two tabs — Statistics and Archived Jobs.** Charts sit on the default tab; the list
+gets the second, and the full page width its three row shapes need.
+
+**The list does not load with the page.** Charts are the reason most visitors open it, so eagerly
+paging the archive would spend a database read per visit on a table almost nobody scrolls, and the
+list is the expensive half: a page of rows means a count, a find, and a second read for the
+statistics rows behind it. The query is gated on the user opening the list, using the `enabled`
+option every statistics hook already takes and the archive dialogue already gates on: the query is
+enabled when the Jobs tab is first opened, and React Query caches it for the session afterwards, so
+switching back costs nothing. Charts still load immediately — they are what the page is for.
 
 A table over `GET /api/v1/archived-jobs` with the filters the endpoint offers and rows expandable to
 the full document. Restore reports its ESI conflicts in the confirmation that follows rather than
@@ -832,11 +843,28 @@ The `ResizeObserver` and `containerDimensions` bookkeeping is **not** carried ov
 its place — `ResponsiveContainer` already handles resize, and measured dimensions are read but not
 used by the recharts tree.
 
-Sequencing: build the primitives with the statistics charts first, since they are what the page
-needs and what pins the props; convert price history once the primitive is real and its tests pass.
-The rewrite is done when the dialogue renders the same chart it does today with no behaviour change
-the user can see. If converting it forces a prop that only price history would use, that is the
-signal the split is wrong, and it is reported rather than papered over with an escape-hatch prop.
+**Done.** The primitives were built first and price history converted onto them, 483 lines down to
+269. No prop was added that only price history would use, which was the test the split had to pass.
+
+Two things the conversion settled for every later chart:
+
+**Charts size through CSS, not pixels.** `width: 100%` with an aspect ratio and the `responsive`
+prop, which is recharts' documented approach from 3.3 and uses standard CSS sizing rather than the
+container's own resolution logic. A chart therefore follows the width of the page it is on. Callers
+needing something else pass a `style`; price history overrides with `height: 100%` because it fills
+a fixed-height dialogue. Fixed pixel heights are not used.
+
+**The `ResponsiveContainer` wrapper is gone**, and its absence matters: an element between a sized
+parent and the chart with no height of its own collapses the chart to nothing. That is what the
+`responsive` prop avoids by needing no wrapper at all.
+
+Carried over unchanged: the axis domains scaled to the visible window, full-number tick formatting,
+rotated category labels, per-series fill opacities, and the window resetting when the series
+changes. The `ResizeObserver` and container measurement went, since the `responsive` prop handles
+resizing.
+
+The dependency moved 3.2.1 → 3.10.1 and off two deprecated APIs on the way: `Cell`, removed in
+recharts 4, became the `shape` render prop, and `Legend`'s `verticalAlign` became `position`.
 
 #### Seams left open for Stage C
 
