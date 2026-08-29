@@ -105,15 +105,15 @@ stored documents and JSON stay flat while a new measure lands in a single struct
 | `SalesMeasures` | transactionCount, quantitySold, salesTotal, jobCostTotal, extraCategoryTotals, transactionFeeTotal, brokersFeeTotal, profitLoss | `TimelineTotals`, `AccountTimelineMonthBucket`, `CorpTimelineMonthBucket`, both timeline buckets |
 | `CalendarMonth` | year, month | every monthly bucket and timeline entry |
 | `ArchivedJobCostTotals` | the seven per-job cost totals | `ArchivedJobStats` |
-| `ArchivedJobLine` | orderID, date, year, month, amount, isCorp, corpStatus, resolvedCorpRef | `ArchivedJobTransactionLine`, `ArchivedJobFeeLine` |
+| `ArchivedJobLine` | orderID, date, year, month, amount | `ArchivedJobTransactionLine`, `ArchivedJobFeeLine` |
 
 Summation lives with the measures as `Plus` methods rather than free functions per row type;
 `SalesMeasures.Plus` merges `extraCategoryTotals` by category id without mutating either operand.
 Tests assert that each embedding marshals flat in both BSON and JSON, so an omitted `inline` tag
 fails the build rather than silently nesting a document.
 
-`corpStatus` values (`personal`, `corp_known`, `corp_unknown`) are the `ArchivedJobCorpStatus`
-constants instead of bare strings.
+A sale line carries no owner of its own. Ownership belongs to the job, which lives in one archive
+or the other, so a line is owned by whoever owns the job that produced it.
 
 The segment breakdown keeps three named fields — `productionChain`, `retainedStock`,
 `standaloneRecordedSale`. A map keyed by segment const was considered: it would make a fourth
@@ -238,10 +238,15 @@ The **field exists**: `models.MetaData` — embedded in `JobMetaData` — declar
 routes on them. It arrived with the entity-ref work. The spelling is `corporationRef`, not
 `corpRef`.
 
-What is missing is a **producer**: nothing in `services/` assigns `MetaData.CorporationRef` on a
-write path, so every stored job carries it empty. A corporation pipeline built against it today
-would aggregate nothing, and its query shapes would be guesses no data exercises. The contract a
-corporation document has to meet is in [Stage C](#stage-c--corporation-statistics-pipeline).
+What is missing is the second half of a **producer**. A stored job now records the corporation and
+character ids ESI supplied for its lines — see § Ingest — entity ids on stored jobs — but nothing
+in `services/` decides from them that the job belongs to a corporation and assigns
+`MetaData.CorporationRef`, so every stored job is personal and a corporation archive would be
+empty. Its query and
+index shapes would be guesses no data exercises. What may legitimately scope a job to a
+corporation, and what dev actually holds, is in [plan.md § What may scope a job to a
+corporation](./plan.md#what-may-scope-a-job-to-a-corporation). The contract a corporation document
+has to meet is in [Stage C](#stage-c--corporation-statistics-pipeline).
 
 So `corporation_archived_jobs`, `corporation_production_totals`, `corporation_timeline_months`,
 the `CorpRebuildQueue` (`corporation_stats_rebuild_queue`, with `QueueCorpRebuild` /
@@ -262,9 +267,9 @@ get `IndexSpec` entries there — an operator-surface change, not a services one
 
 ## Stage B — account statistics pipeline
 
-_Landed apart from the schedule._ The transformation, the worker rebuild, the drain, its task and
-handler, and the archived-jobs producer are committed. Nothing publishes the drain subject yet — see
-[Not wired yet](#not-wired-yet).
+_Landed._ The transformation, the worker rebuild, the drain, its task and handler, the archived-jobs
+producer and the hourly schedule are all committed, so queue → publish → drain runs end to end — see
+[The schedule](#the-schedule).
 
 ### The transformation — `shared/archivestats`
 
@@ -304,11 +309,11 @@ produce negatives by chance; none appeared. The two disagree on the calendar mon
 which is the rule working rather than failing: a build in March that sold in early April incurred
 its costs in March, and `processDate` says April.
 
-**Corporation attribution** cascades: the sale line's own ref, then its market order's, then a
-single distinct corporation across the linked facility jobs. Two or more resolves to **none** — a
-corporation aggregate crediting revenue it never earned is worse than one missing a line. A
-corp-flagged line whose corporation cannot be named records `corp_unknown` rather than passing as
-personal.
+**Ownership is not decided here.** A job belongs to one archive — personal or corporation — and
+every line it carries is counted for that archive's owner. The transformation therefore reads no
+corporation at all: it aggregates the jobs it is given. Which archive a job lands in is a scoping
+decision made at ingest from `_meta.corporationRef`, described in
+[plan.md § What may scope a job to a corporation](./plan.md#what-may-scope-a-job-to-a-corporation).
 
 **What a bucket counts.** Sale lines land in the month they occurred; costs land in the job's cost
 month, so one job can touch two buckets. Revoked rows are excluded. Production-chain intermediates
@@ -626,10 +631,15 @@ Landed for the account scope.
 | `Dialogues/Blueprint Archive` | `totals` | One item type's lifetime figures, split into four segment blocks |
 | `Edit Job/.../Archive Jobs Panel` | `totals` | Per-job rows, from the `dataSnapshots` embedded on the row |
 
-`Functions/Endpoints/Pirivate/statisticsTimeline.js` holds the two timeline reads and
-`Hooks/React Query/Backend/statisticsTimeline.js` their hooks, keyed under a statistics root shared
-with the lifetime-totals hook. Archiving a job queues a rebuild that recomputes all three
-collections, so `invalidateStatisticsQueries` invalidates that whole root rather than one type.
+Three modules serve them, named for the views rather than for the retired producer:
+`statisticsTimeline.js` (the two timeline reads), `statisticsTotals.js` (lifetime totals), and
+`statisticsKeys.js`, which owns the shared key root and the invalidation helper both depend on —
+each with a matching module under `Hooks/React Query/Backend/`.
+
+Every view is keyed under one root: `["backend", "statistics", …]`, with `timeline`,
+`timelineItems` and `totals` beneath it. Archiving a job queues a rebuild that recomputes all three
+collections, so `invalidateStatisticsQueries` invalidates that whole root rather than one type —
+a single call, because totals no longer sits under a root of its own.
 
 ### The dashboard is a running position
 
@@ -669,6 +679,48 @@ reads them. Whatever builds that will need to resolve category **ids** to labels
 `applicationSettings.extrasCategories` in the user store, and should render **deleted** categories
 for historical months — the existing category select hides them, which is right for choosing and
 wrong for reporting, since a past cost still belongs to the category it was filed under.
+
+## Ingest — entity ids on stored jobs
+
+`shared/jobidentity` declares a corporation **and** a character target on all four identity-bearing
+line types — transactions, market orders, broker fees and linked industry jobs. Every one of those
+eight fields was declared; only one of them ever received a value, because the SPA discarded the
+ids before the job was written.
+
+Each builder rebuilds its line field by field, so a field it does not list is lost. They now list
+both:
+
+| Builder | Records |
+|---------|---------|
+| `Functions/MarketOrders/createMarketOrder.js` | `corporation_id` and `character_id` from the order ESI returned |
+| `Functions/MarketOrders/createTransaction.js` | `corporation_id` and `character_id` from the transaction ESI returned |
+| `Functions/MarketOrders/findBrokersFeeEntry.js` | the **order's** `corporation_id`, and the **journal entry's** `character_id` |
+| `Classes/linkedESIJob.js` | `character_id` beside the `corporation_id` it already carried |
+
+Where the values come from: the ESI corporation fetchers already stamped `corporation_id` on
+everything they return. `character_id` was stamped only by the character transaction and journal
+fetchers, so the character market-order, historic-order and industry-job fetchers now stamp it too,
+from the character whose token made the call. A corporation wallet names no character, so a
+corporation order or transaction records `null` there, and a personal sale records `null` for the
+corporation.
+
+A broker fee inherits its order's corporation and its journal entry's character, because the fee
+itself names neither.
+
+Nothing on the backend changed — the conversion was already built and already tested. `Encrypt`
+runs on the archived-jobs PUT (`putHandler.go`) and on job documents, walks the declaration, and
+converts every populated id to a ref while clearing the id. What was missing was an input. The
+`jobidentity` fixture now populates a character on all four line types rather than on transactions
+alone, so the conversion is pinned for every field the SPA can now fill.
+
+This is a **producer** change only. It records which corporation a line's money moved through; it
+does not decide that a job belongs to a corporation. That decision, and the `_meta.corporationRef`
+it would stamp, is still Stage C's and still unbuilt — so every stored job remains personal and the
+personal archive still counts them all.
+
+Historical jobs are unaffected. On dev no stored job carries a character on any line and none
+carries a corporation on a sale line, so there is nothing to convert; ESI's wallet endpoints serve
+only a recent window, so none of it can be fetched back either.
 
 ## Missing live SoT found during this work
 
