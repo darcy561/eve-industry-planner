@@ -42,7 +42,7 @@ export function ArchivedJobsPage() {
 
   return (
     <DefaultPageLayout>
-      <Grid container size={12} spacing={2}>
+      <Grid container spacing={2} sx={{ flex: 1, width: "100%", minWidth: 0 }}>
         <Grid size={12}>
           <Stack
             direction={{ xs: "column", sm: "row" }}
@@ -64,7 +64,7 @@ export function ArchivedJobsPage() {
           size={12}
           sx={{ display: tab === TAB_STATISTICS ? "block" : "none" }}
         >
-          <Grid container spacing={2}>
+          <Grid container spacing={2} sx={{ width: "100%", minWidth: 0 }}>
             <Grid size={12}>
               <ArchivedStatsOverview {...range} />
             </Grid>
@@ -90,7 +90,7 @@ export function ArchivedJobsPage() {
         </Grid>
 
         <Grid size={12} sx={{ display: tab === TAB_JOBS ? "block" : "none" }}>
-          <Grid container spacing={2}>
+          <Grid container spacing={2} sx={{ width: "100%", minWidth: 0 }}>
             <Grid size={12}>
               {jobsOpened && <ArchivedJobsList enabled={jobsOpened} />}
             </Grid>
