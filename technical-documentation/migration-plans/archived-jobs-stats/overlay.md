@@ -101,7 +101,7 @@ stored documents and JSON stay flat while a new measure lands in a single struct
 
 | Shared struct | Fields | Embedded by |
 |---------------|--------|-------------|
-| `BuildMeasures` | totalJobs, itemBuildCount, buildCostTotal, brokersFeeTotal, transactionFeeTotal, jobCostTotal, salesTotal, profitLoss | `BuildStatsRow`, `CorpBuildStatsRow`, `BuildStatsSegmentTotals` |
+| `BuildMeasures` | totalJobs, itemBuildCount, buildCostTotal, brokersFeeTotal, transactionFeeTotal, jobCostTotal, salesTotal, profitLoss | `ProductionTotalsRow`, `CorpProductionTotalsRow`, `ArchiveSegmentTotals` |
 | `SalesMeasures` | transactionCount, quantitySold, salesTotal, jobCostTotal, extraCategoryTotals, transactionFeeTotal, brokersFeeTotal, profitLoss | `TimelineTotals`, `AccountTimelineMonthBucket`, `CorpTimelineMonthBucket`, both timeline buckets |
 | `CalendarMonth` | year, month | every monthly bucket and timeline entry |
 | `ArchivedJobCostTotals` | the seven per-job cost totals | `ArchivedJobStats` |
@@ -121,14 +121,14 @@ segment a one-const change, but segments are a closed classification that change
 than measures, and named fields keep the compiler checking producers.
 
 **Wire compatibility:** additive for the statistics shapes, which no document uses yet.
-`BuildStatsRow` keeps `dataSnapshots` — the totals read serves it and the SPA reads it in two
+`ProductionTotalsRow` keeps `dataSnapshots` — the totals read serves it and the SPA reads it in two
 places, so it stays until a view exists for the per-job rows it duplicates. Embedding does not
 change the stored or served shape of any existing document.
 
 ### Also landed
 
 Two `go fix` items in `shared/models`, both removing an `omitempty` that never applied to its type
-(a `time.Time` in `group_template.go`, a struct in `BuildStatsRow.Breakdown`). Neither changes what
+(a `time.Time` in `group_template.go`, a struct in `ProductionTotalsRow.Breakdown`). Neither changes what
 is emitted. The first is the item the plan reserved for Stage A.
 
 ### Mongo layer — account scope
@@ -679,6 +679,328 @@ reads them. Whatever builds that will need to resolve category **ids** to labels
 `applicationSettings.extrasCategories` in the user store, and should render **deleted** categories
 for historical months — the existing category select hides them, which is right for choosing and
 wrong for reporting, since a past cost still belongs to the category it was filed under.
+
+## Stage F — archived jobs read API
+
+The archive is readable. `GET /api/v1/archived-jobs` serves a paged list of summaries and
+`GET /api/v1/archived-jobs/{jobID}` serves one full document, both scoped to the session's account.
+`PUT` is unchanged.
+
+### The routes
+
+`archivedjobs.Router` dispatches on path shape and then method. A job id is one path segment; a
+deeper path is a 404 rather than a job whose id contains a slash, which keeps the restore routes
+free to live at `/{jobID}/restore` and `/groups/{groupID}/restore` later.
+
+| Route | Method | Serves |
+|-------|--------|--------|
+| `/api/v1/archived-jobs` | GET | a page of summaries |
+| `/api/v1/archived-jobs` | PUT | the batch upsert, unchanged |
+| `/api/v1/archived-jobs/{jobID}` | GET | one full job document |
+
+The account is never named in a path. It is resolved from the session by the auth middleware, so a
+caller can only address its own archive — the same rule the statistics views follow, and the reason
+neither carries an account segment.
+
+A job belonging to another account is **not found**, not forbidden: the reply does not distinguish a
+job that is not yours from one that does not exist, so the endpoint cannot be used to probe which
+job ids exist.
+
+### The list serves summaries assembled from two collections
+
+A row draws a job's identity and its money, and those live in different places. The job document
+holds the name, item, group and dependency links; the figures are on the statistics row the rebuild
+writes. `listArchivedJobs` reads the first with a projection, and `loadArchivedJobStatsByJobIDs`
+reads the second **by `_id`** — `ArchivedJobStatsDocumentID` builds `accountID|jobID`, so this is a
+keyed read of the page's jobs rather than a join pipeline running per row.
+
+### The queries live in the API, the contract stays shared
+
+`api/v1endpoints/archivedjobs/archivelist.go` holds the list and single-document queries. They are
+unexported functions taking the shared `*eipmongo.Mongo` store, reaching Mongo through
+`.Collection()` and `eipmongo.Retry` — the pattern `putHandler.go` in the same package has always
+used.
+
+`services/shared/` is for code more than one service runs. Nothing outside the API will call these:
+no other service serves an HTTP list. What stays shared is what more than one service depends on —
+the store handles and `Docs` plumbing, `models.*`, `archivestats`, and, most importantly here, the
+**filter helper and the id builders**:
+
+| Shared | Why |
+|--------|-----|
+| `ArchivedJobAccountFilter` | the API list and the worker rebuild must agree on what owning an archived job means |
+| `ArchivedJobStatsDocumentID` | the worker writes these ids and the API reads them |
+| `models.*`, `archivestats` | shapes and arithmetic three services persist and compute |
+
+That is the seam that matters: **filters and id builders are the contract, the queries built from
+them are not.** Three services already query `account_archived_jobs` directly — the API, the worker's
+migration import, and `core/commands` — each with its own query over the same shared filter.
+
+Two pre-existing cases sit the other way and are **not** fixed here, being outside this stage:
+`shared/mongo/timeline.go` has no consumer outside the API, and `production_totals.go` plus
+`rebuild_queue.go` are worker-only. Worth splitting by consumer once Stage G has settled what
+restore needs from that code, so each query moves once rather than twice.
+
+The projection is the point of the endpoint: an archived job carries its whole build, every
+material and every sale line, so a page of fifty unprojected documents would ship megabytes to draw
+a table of names and figures.
+
+**A job with no statistics row reports no measures at all**, rather than zeros. The row is written
+by the rebuild, so its absence means the job has not been folded yet — which is a different claim
+from a job that earned nothing, and a zeroed row would state the wrong one. Revoked rows are skipped
+for the same reason: they describe a job the rebuild has superseded.
+
+**The figures come from `archivestats.JobMeasures` and `archivestats.JobSegment`**, exported for
+this endpoint rather than restated in it. The arithmetic has two rules that are easy to get wrong
+and were got wrong while writing this — `jobCostTotal` already contains both fee totals, and
+`profitLoss` is zero rather than negative when nothing sold — so the list reads the same reduction
+the totals are folded from. The segment names moved to constants on `models` at the same time
+(`BuildStatsSegmentProductionChain` and friends), so the classification has one owner rather than a
+literal in each place that reports it.
+
+### Filters narrow, they do not define a window
+
+The list accepts `from` / `to` as `YYYY-MM` against the archive month, plus `typeID`, `groupID` and
+a `search` over the job name, with `sort` / `order` / `limit` / `offset` paging.
+
+**One bound is meaningful here**, unlike the timeline. A statistics view is *defined over* a window,
+so a half-given range there is rejected — a caller asking for "since March" and silently getting
+"March to March" would see missing data. A list is the whole archive narrowed, so "everything since
+March" is a coherent request and one bound is accepted. A reversed range is still refused, because
+it matches nothing and an empty archive reads as data loss.
+
+`search` is quoted with `regexp.QuoteMeta` before it reaches the filter. Job names contain brackets
+and full stops, so an unquoted pattern would be either an invalid regex or a wildcard matching the
+wrong rows. Its length is bounded because the filter is a regex over an indexed field: an unbounded
+pattern is work a caller asks for cheaply and the database cannot.
+
+Sorting is validated against `ArchivedJobSortable` rather than passed through to the `$sort` key,
+the same rule `TimelineSortable` applies to the item breakdown. The page sorts on `_meta.archivedAt`
+descending by default — newest first, because the job a user wants back is usually one they archived
+recently — with `jobID` breaking ties so paging is stable: two jobs archived in the same instant
+would otherwise be free to swap between pages.
+
+### Rows report both a group and a related set
+
+A group is a container the user made; a related set is a structural fact about a build. Neither
+implies the other, so a row carries `groupID` and `relatedSetID` and the client decides which block
+to draw it in.
+
+The set is computed by union-find over the page's jobs, following `parentJobs` and
+`build.childJobs` in both directions — a parent naming its child and a child naming its parent
+describe one edge. The id is the **lowest job id in the set**, so the same set carries the same id
+across requests and pages, which a client uses to keep a block collapsed or selected.
+
+A job that links to nothing carries **no** set id and is drawn as a standalone row: a set of one is
+a container the build does not have. A job whose only link points outside the page is still marked
+as linked — the link is evidence it belongs to a chain — but cannot join two rows together.
+
+`relatedJobIDsInArchive` is the traversal Stage G restores over: the walk the SPA runs in
+`getAllRelatedJobs`, moved to the archive because that is where the documents are. It returns only
+what the archive holds, so a chain straddling the boundary does not invent its missing half.
+
+### Shared query parsing moved to `api/helper`
+
+`ParamError`, `BadParam`, `RespondParamError`, `ParseTypeID` and `ResolvePaging` now live in
+`api/helper/queryparams.go`, and `statistics` was moved onto them rather than keeping a second copy.
+Both endpoints accept the same vocabulary — a month range, an item type, sort/order/limit/offset —
+so the parsing and the rejection codes have one owner, and a client that can drive one view can
+drive the other.
+
+`ResolvePaging` takes a `PagingRules` describing what a view accepts (its sortable fields, its
+limits, and the code prefix that namespaces its failure classes), so the shared parser does not need
+to know which endpoint called it. `MonthKey` gained `ParseMonthKey`, `IsZero` and `Start`, keeping
+the wire format's parser beside `String`, its inverse.
+
+### Indexes
+
+Three specs in the Deployment Tool (`internal/dataplane/mongo/index_specs.go`), matching the
+filters: `_meta.accountID` with `_meta.archivedAt` descending for the default ordering and the range
+filter, and account-scoped indexes on `itemID` and `groupID` for the other two. Index ownership sits
+there rather than in `services/`, per the salvage decision.
+
+### Tests
+
+Covering the parsing, the grouping and the routing: that the bare list filters nothing while the
+timeline defaults a window; that one bound is accepted and a reversed range is not; that regex
+metacharacters in a search are literal; that every advertised sort field is actually accepted, so
+the rejection message cannot name a value the endpoint refuses; that a chain reaches one set from
+either direction and separate chains stay separate; that a self-reference is not a link and a cycle
+does not hang the walk; and that the routes dispatch on method and depth, with the deeper restore
+paths still 404 until Stage G serves them.
+
+## Stage G — restore
+
+Archived jobs come back to the planner. Three routes, all POST, all account scoped by the session:
+
+| Route | Restores |
+|-------|----------|
+| `POST /api/v1/archived-jobs/{jobID}/restore` | that job alone |
+| `POST /api/v1/archived-jobs/groups/{groupID}/restore` | every archived job carrying that `groupID`, plus the rebuilt group |
+| `POST /api/v1/archived-jobs/related/{jobID}/restore` | that job and every archived job reachable through parent/child links |
+
+POST rather than GET because they create planner documents and delete archived ones — not something
+a navigation or a prefetch should reach. One handler serves all three: they differ only in how they
+choose jobs, and everything after that choice is a sequence that must not diverge.
+
+### The order is the reverse of archiving, and it matters
+
+1. Decrypt entity refs back to raw ids.
+2. Resolve ESI links against the planner.
+3. Write the job documents.
+4. Re-link the free ESI ids on the account.
+5. Rebuild and write the group, when the route asked for one.
+6. Delete the archived documents.
+7. Queue the statistics rebuild.
+
+**The job document is written before the archived document is deleted**, so a failure part-way
+leaves the job in both places rather than in neither. A job present twice is visible and
+recoverable; one deleted from the archive before its planner copy existed is gone.
+
+**The rebuild is queued last** because it recomputes from the archive and has to see the deletion.
+That is also why deleting needs no decrement logic: `RebuildAccount` folds every archived job the
+account still holds, so removing a document and queueing is sufficient and idempotent.
+
+### The ESI re-link is written server-side
+
+The linked sets are three arrays on the `accounts` document, and the SPA had been their only writer
+— it holds them in Zustand and persists them wholesale through `PUT /api/v1/user/main`. That makes a
+server write look unsafe, as though the client's next save would overwrite it.
+
+It is safe, because the document is realtime synced end to end: `accounts` is in the `account`
+change-stream group, `applyRemoteMessage` routes an upsert on it to `handleUsersDocumentUpsert`, and
+that calls `applyUserDocumentFromRemote`, which patches `linkedOrders` / `linkedJobs` / `linkedTrans`
+straight into the store. The client's copy is updated before it would next save from it.
+
+Writing it here is what keeps restore atomic. Returning the ids for the SPA to apply would put the
+job write and the re-link in different processes — the split that lets the archive flow strand a job
+today.
+
+Two details the write depends on:
+
+- **`$addToSet`, not read-modify-write.** Another session may be linking at the same time, and
+  re-running a restore must not duplicate an id.
+- **`_meta.lastModified` is bumped.** The SPA drops a realtime event older than its cursor, so a
+  write that did not move the document's clock would be ignored and the re-link never applied. The
+  session and client ids are stamped for the same reason every other write does it.
+
+### Conflicts are reported, not fatal, and the job is stripped
+
+Archiving released the job's ESI ids, so another job may have claimed one since. The **planner's job
+documents** are the authority on what is claimed now — the account's linked sets record that an id is
+in use but not by which job, and a user told only that something failed cannot act on it. Each
+conflict names the id, its kind, and the job holding it.
+
+A restored job keeps only what it reclaimed. Leaving a conflicted id on the document would show a
+link the account does not hold, and the next save would try to claim it back from its owner.
+
+Two rules the resolution depends on:
+
+- **Kinds do not cross.** Orders, jobs and transactions are separate arrays whose ids can collide
+  numerically, so a conflict on one kind never strips that number from another.
+- **The set being restored excludes itself.** A related set restored together would otherwise report
+  its own members as conflicting holders once the first of them was written.
+
+Lookup is one query per kind, not per id: a job's ids go in together with `$in`, so a job linking a
+hundred transactions costs one round trip. Three indexes in the Deployment Tool serve it —
+`_meta.accountID` with each of `apiOrders`, `apiJobs` and `apiTransactions`.
+
+### Groups are rebuilt from their jobs
+
+Archiving a group deletes the group document while every archived job keeps its `groupID`, so the
+container is gone but derivable. `rebuildGroup` computes the name, output count, type and material
+ids, member ids and all three linked-ESI sets from the jobs alone — the same derivation
+`Group.createGroup` runs in the SPA. Nothing in a group is a fact its jobs do not already hold.
+
+**Only a parentless job is an output.** It is what the output count counts and what names the group,
+so an intermediate feeding another member must not be mistaken for one.
+
+Two fields are **not** derivable and reset rather than being invented: `groupStatus` returns to zero
+and `areComplete` starts empty. Both describe workflow progress at the moment of archiving, which
+was never recorded per job, so inventing either would tell a user the group was further along than
+anything can attest. `showComplete` and `groupType` take their SPA defaults.
+
+Ids come back sorted, so an unchanged group does not look modified — map iteration order would
+rewrite the document differently on every restore. The name is capped at the same 75 characters the
+SPA uses, so a group rebuilt here and one created there cannot differ in length.
+
+A **partially archived** group rebuilds around whatever the archive still holds, the same rule the
+SPA applies to a shrinking group. Restoring a **single** job that carries a `groupID` does not
+resurrect the group: the job returns ungrouped, because a one-job group is a container the user did
+not ask for.
+
+### An archive is addressed by scope, not by account id
+
+Every read and write goes through an `archiveScope`: the collection, the ownership filter, the
+statistics-row id builder, the rebuild-queue call, and whether the archive reclaims ESI ids.
+`accountArchiveScope` builds the only one with a producer today.
+
+The shape exists because the corporation archive is a **separate collection** with its own rebuild
+queue — `corporation_archived_jobs` and `QueueCorpRebuild`, per the plan — rather than a different
+filter over the same rows. Passing a corporation ref where an account id went would have queried the
+wrong collection entirely, so the coupling to fix was never the id: it was that the collection, the
+filter and the queue were named at each call site.
+
+With the scope threaded through, the parts that carry the reasoning are already scope-free:
+
+| Reusable as-is | Why |
+|----------------|-----|
+| `relatedsets.go` | union-find and the archive walk read summaries and know nothing about ownership |
+| `grouprebuild.go` | jobs in, group out; no collection and no owner |
+| conflict handling in `esilinks.go` | `conflictIndex`, `stripConflictedLinks`, the link set algebra |
+| `restoreJobs` ordering | write, re-link, group, delete, queue — the sequence a second archive must not re-derive |
+| list filters, paging, response shapes | the owner is a value on the query |
+
+**ESI re-linking is deliberately not generalised.** The linked sets live on the `accounts` document
+and ESI ownership is per account, so an archive without them has nothing to reclaim rather than a set
+it should reclaim differently. `relinksESI` says so on the scope, and `restoreJobs` skips both the
+resolve and the write when it is false — the alternative, running the re-link against a corporation
+ref, would search the wrong owner's job documents.
+
+Two things a corporation scope will still have to decide, which no seam can settle in advance: where
+a restored corporation job is written, since `BulkUpsertJobs` targets `account_job_documents`, and
+what a corporation group means. Both are Stage C questions about behaviour, not about plumbing.
+
+### Restored documents reach clients through the existing fan-out
+
+No subscription step is owed. Delivery is account-routed, not per document: the change stream reads
+`_meta.accountID` off the written document into the message's `AccountID`, which becomes
+`Route.AccountID` on the outbound payload, and `deliverOutboundDocUpdate` hands anything carrying one
+to `broadcastToAccountClients` — every connection for that account. Explicit per-document
+subscribers are only the fallback for a payload with no account, corporation or alliance route.
+
+The JetStream filter is `doc.update.{tenant}.>`, a wildcard across the tenant, so a document that did
+not exist when a client connected still arrives. All four collections a restore touches are watched:
+`account_job_documents` and `account_job_groups` in the `planner` group, `accounts` in `account`, and
+`account_archived_jobs` in `archive_and_stats`. `BulkUpsertJobs` and `BulkUpsertGroups` stamp
+`_meta.accountID` themselves, so the routing metadata is always present on what restore writes.
+
+Two things this depends on, both of which would fail quietly:
+
+- **Every write moves `_meta.lastModified`.** The SPA drops a realtime event older than its cursor, so
+  a write that did not move the document's clock would be routed, delivered, and then discarded.
+- **The originating client is excluded from its own broadcast.** `broadcastToAccountClients` skips
+  the source client id, so the tab that called restore is the one tab the push does not reach. It is
+  expected to apply the response it already has — the restored jobs into the planner array, the
+  rebuilt group, and the reclaimed ESI ids — which is a requirement on the SPA rather than something
+  the fan-out covers.
+
+### A chain can straddle the archive boundary
+
+The related walk runs over the whole archive rather than one page — a chain is not guaranteed to
+fall inside whatever page a client last read. It returns only what the archive holds, and ids that
+resolve to nothing archived come back in `unresolved`: a job's parent may still be in the planner
+while its children are archived, and a job may have been deleted. Neither is an error, so neither
+fails the restore.
+
+### Tests
+
+The group rebuild and the link resolution carry the reasoning, so they carry the tests: that
+everything is derived from the jobs; that only parentless jobs count as outputs; that workflow
+progress resets rather than being invented; that a group of pure intermediates still gets a name;
+that ids are sorted and stable; that a conflict on one kind does not strip the same number from
+another; and that a job with no links short-circuits. The router tests pin the three shapes
+dispatching, restore refusing anything but POST, and near-miss paths staying 404.
 
 ## Ingest — entity ids on stored jobs
 

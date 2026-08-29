@@ -24,3 +24,11 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 | See what a job records at ingest, and what still does not scope it | [overlay.md](./overlay.md) § Ingest — entity ids on stored jobs |
 | Find the data steps owed before Stage C can be designed | [plan.md](./plan.md) § Operational steps owed |
 | Understand why a job belongs to exactly one archive | [plan.md](./plan.md) § Ownership is a property of the job |
+| Add the archived-jobs page, its charts, or the restore flow | [plan.md](./plan.md) §§ Stage F, G, H |
+| Know why a group can be rebuilt without having been stored | [plan.md](./plan.md) § Groups are rebuilt from their jobs |
+| See how the archive is read, filtered and grouped today | [overlay.md](./overlay.md) § Stage F |
+| Decide whether a query belongs in `shared/` or a service | [overlay.md](./overlay.md) § The queries live in the API |
+| Restore a job, a group, or a set of related jobs | [plan.md](./plan.md) § Jobs come back individually, by group, or by related set |
+| See how restore works today, and why its order is what it is | [overlay.md](./overlay.md) § Stage G |
+| Add a chart, or reuse one with different data | [plan.md](./plan.md) § Chart primitives are data-agnostic |
+| Know what happens to the price-history chart | [plan.md](./plan.md) § Price history moves onto the primitives |

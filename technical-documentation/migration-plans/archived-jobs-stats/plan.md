@@ -103,7 +103,7 @@ Decided at Stage B close, and unchanged by the simplification above.
 
 | Already built | Where |
 |---------------|-------|
-| The persisted shapes | `models.CorpBuildStatsRow`, `CorpTimelineMonthBucket` |
+| The persisted shapes | `models.CorpProductionTotalsRow`, `CorpTimelineMonthBucket` |
 | The org-scoped delivery path — routing, tenant key, scope matching, payload stripping | Traced end to end in [overlay.md](./overlay.md) § Stage C |
 | The scope field itself | `models.MetaData.CorporationRef` → `_meta.corporationRef` |
 
@@ -473,8 +473,29 @@ The shared root moved out with it. `statisticsTimeline.js` had been importing
 `STATISTICS_QUERY_KEY_ROOT` from the totals module, so one view's file owned a fact both views
 depend on; `statisticsKeys.js` now holds the root and the invalidation helper that goes with it.
 
-`BuildStatsPanel` under `Edit Job Components/Complete/Standard Layout/Build Stats Panel/` keeps its
-name: it is a UI panel, and "build stats" is still what it shows a user.
+**The Go types and the last SPA names followed.** "Build stats" named a retired endpoint, so every
+identifier carrying it was renamed for what it actually is. No BSON or JSON tag contained the term,
+so nothing persisted or on the wire changed — these were Go and JavaScript identifiers only.
+
+| Was | Now | Named for |
+|-----|-----|-----------|
+| `models.BuildStatsRow` | `models.ProductionTotalsRow` | `account_production_totals`, the collection it decodes |
+| `models.BuildStatsBreakdown` | `models.ProductionTotalsBreakdown` | the row it splits |
+| `models.BuildStatsSegmentTotals` | `models.ArchiveSegmentTotals` | the archive segment it totals |
+| `models.BuildStatsSegment*` constants | `models.ArchiveSegment*` | same |
+| `models.CorpBuildStatsRow` | `models.CorpProductionTotalsRow` | the corporation collection |
+| `hasMeaningfulBuildStats` | `hasMeaningfulTotals` | the `totals` view it tests |
+| `BuildStatsPanel` | `JobCostSummaryPanel` | what it draws |
+
+The panel rename is the one that changes a user-facing decision rather than a name. It was kept
+earlier on the grounds that "build stats" was what it showed a user; reading it again, that was
+wrong on its own terms. The panel renders **the cost breakdown of the job being edited** — material
+cost, install cost, extras, cost per item — and has nothing to do with the archive or with
+`account_production_totals`. Its former name pointed at a surface it does not read. `componentName`
+is an error-boundary label rather than visible copy, so no text a user sees changed.
+
+`BuildMeasures` keeps its name throughout: a build's measures is what it holds, and the term was
+never the endpoint's.
 
 #### Invalidation
 
@@ -491,6 +512,338 @@ shapes, which Stage D did not adopt — it split the single rollup response into
 `timeline/items` and `totals`. Read them for layout and wiring, and expect the data access to be
 rewritten.
 
+### Stage F — Archived jobs read API
+
+The SPA cannot read an archived job. `archivedjobs.Router` accepts **PUT only** — GET, POST and
+DELETE all answer 405 — so the only read surface over the archive is the aggregated statistics from
+Stage D. A page that lists archived jobs, or restores one, needs the documents themselves.
+
+Two endpoints, both account scoped by the session the same way the statistics views are:
+
+| Route | Serves |
+|-------|--------|
+| `GET /api/v1/archived-jobs` | a paged, sorted, filterable list of **summaries** |
+| `GET /api/v1/archived-jobs/{jobID}` | one full job document |
+
+**The list serves summaries, not documents.** An archived job carries its whole build — materials,
+cost rows, every sale line — and a page of fifty would ship megabytes to render a table of names and
+figures. The summary projects what the table draws: `jobID`, `name`, `itemID`, `jobType`,
+`archivedAt`, `groupID`, output quantity, `jobCostTotal`, `profitLoss`, the segment the job
+classified as, and the related-set key described under Stage G — so the client can render groups,
+related sets and standalone jobs without walking links it cannot resolve. The full document is fetched only when a row is expanded or restored.
+
+**Filters follow the statistics vocabulary** rather than inventing a second one: `from` / `to` as
+`YYYY-MM` against the archive month, `typeID`, `groupID`, and a `search` over the job name. Sorting
+and paging reuse the `sort` / `order` / `limit` / `offset` shape `timeline/items` already
+established, including `paging.totalItems` meaning every match rather than the page length. A client
+that can drive one view can drive this one.
+
+Wire compatibility: **additive**. New methods on an existing path; the PUT contract is untouched.
+
+Index specs for the list's filters go in the Deployment Tool
+(`internal/dataplane/mongo/index_specs.go`), per the salvage decision that index ownership sits
+there rather than in a services-side indexing package.
+
+The queries themselves live in the API service (`api/v1endpoints/archivedjobs/`), not in
+`shared/mongo`: no other service serves an HTTP list, and `shared/` is for code more than one
+service runs. The shared half is the filter helper and the id builders both the API and the worker
+depend on — see [overlay.md](./overlay.md) § The queries live in the API.
+
+### Stage G — Restore
+
+Restore returns an archived job to the planner. The archive kept the **whole** document —
+`saveArchivedJobs` sends `job.toDocument()` and the handler adds only `_meta` and entity refs — so
+nothing about the job was discarded and a faithful restore is possible.
+
+Three things the archive did are not reversed by simply copying the document back.
+
+**Entity ids became refs.** `jobidentity.Encrypt` ran on the way in. Restore decrypts back to raw
+ids, or the planner receives a job whose identities it cannot read. The conversion is owned by
+[entity-id-encryption](../entity-id-encryption/plan.md); this stage only calls it.
+
+**ESI links were released.** Archiving removes the job's `apiOrders`, `apiJobs` and
+`apiTransactions` from the account's linked-ESI set, so those entries became available to other jobs
+and may since have been claimed. Restore **re-links what is still free and reports what is not**:
+the response names each entry another job now holds, along with the job holding it, and the restored
+job comes back without it. Blocking the whole restore on a single claimed order would strand a user
+behind an unrelated job they would have to edit first; silently double-linking would attribute one
+sale to two jobs and corrupt both their figures. Reporting is the only option that leaves the user
+with a usable job and an accurate account of what did not reconnect.
+
+**The re-link is written server-side, and reaches the SPA over the websocket.** The linked sets are
+three arrays on the `accounts` document (`linkedJobs`, `linkedTrans`, `linkedOrders`), which the SPA
+had been the only writer of — it holds them in Zustand and persists them wholesale through
+`PUT /api/v1/user/main`. That made a server-side write look unsafe, as if the SPA's next save would
+overwrite it.
+
+It is safe, because the document is realtime-synced end to end: `accounts` sits in the `account`
+change-stream group, `applyRemoteMessage` routes an upsert on it to `handleUsersDocumentUpsert`, and
+that calls `applyUserDocumentFromRemote`, which patches `linkedOrders` / `linkedJobs` / `linkedTrans`
+straight into the store from the incoming document. A restore that writes the arrays therefore
+reaches the client's in-memory copy before the client would next save from it.
+
+Writing them server-side is what makes restore atomic. The alternative — returning the free ids and
+having the SPA apply them — puts the job document write and the ESI re-link in different processes,
+which is the split that lets the archive flow strand a job today.
+
+**The job document was deleted.** Restore writes it back to `account_job_documents`.
+
+#### Restore is one server-side operation
+
+`POST /api/v1/archived-jobs/{jobID}/restore`, doing the whole sequence server-side: read the
+archived document, decrypt identities, resolve ESI links, write the job document, delete the
+archived document, queue a statistics rebuild.
+
+The alternative — the SPA choreographing four calls, as the archive flow does today — reproduces a
+failure the archive path already has. `archiveJobButton` can leave a job archived **and** still in
+the planner, and says so in its own error copy: "Job was archived but removing it from the server
+failed." The mirror of that bug is worse, because a half-restore can leave the job in the planner
+and in the archive at once, where the statistics rebuild counts a job the user is actively editing.
+Restore therefore owns the ordering rather than the client.
+
+**Deleting the archived document is what makes the statistics correct**, and it needs no decrement
+logic: `RebuildAccount` recomputes from scratch over `LoadAccountArchivedJobs`, so removing the
+document and queuing a rebuild is sufficient and idempotent.
+
+Wire compatibility: **additive**.
+
+#### Groups are rebuilt from their jobs, not stored
+
+Archiving a group deletes the group document (`deleteJobGroupsFromApi`) while every archived job
+keeps its `groupID`. The group object is therefore gone, but it is **derivable**:
+`Group.createGroup` computes `groupName` (from the output jobs), `outputJobCount`, `materialIDs`,
+`includedTypeIDs`, `includedJobIDs` and all three linked-ESI sets entirely from the jobs handed to
+it. Nothing in a group is a fact the jobs do not already hold.
+
+Two fields are not derivable and reset rather than being invented: `groupStatus` returns to 0, and
+`areComplete` starts empty — both describe workflow progress at the moment of archiving, which was
+never recorded per job. `showComplete` and `groupType` take their constructor defaults.
+
+So restoring a group is restoring its jobs and rebuilding the container:
+`POST /api/v1/archived-jobs/groups/{groupID}/restore` restores every archived job carrying that
+`groupID` and returns the rebuilt group alongside them, with one merged ESI-conflict report across
+the whole set. A partially archived group — some jobs restored earlier, some still archived —
+rebuilds from whatever the archive still holds, which is the same rule `removeJobsFromGroup` already
+applies to a shrinking group.
+
+Restoring a **single** job that carries a `groupID` does not resurrect the group; the job returns to
+the planner ungrouped, because a one-job group is a container the user did not ask for. Restoring
+the group is a separate call, below.
+
+#### Jobs come back individually, by group, or by related set
+
+A restore takes one of three shapes, and the API offers all three rather than making the client
+assemble a set from single-job calls. A client-side loop over N restores is N chances to half-finish,
+and it cannot see the relationships in the first place — they live in documents the SPA no longer
+holds.
+
+| Route | Restores |
+|-------|----------|
+| `POST /api/v1/archived-jobs/{jobID}/restore` | that job alone |
+| `POST /api/v1/archived-jobs/groups/{groupID}/restore` | every archived job carrying that `groupID`, plus the rebuilt group |
+| `POST /api/v1/archived-jobs/related/{jobID}/restore` | that job and every archived job reachable from it through parent/child links |
+
+Each returns the restored jobs and one merged ESI-conflict report across the set, so a set restore
+reports conflicts the same way a single one does.
+
+#### Relationships survive archiving, so the set is computable
+
+A job that belongs to no group can still be part of a build chain. Both link fields are ordinary
+persisted job fields — `ParentJobs []string` and `Build.ChildJobs map[string][]string` (keyed by
+material type id) — so archiving preserves the whole dependency graph. Nothing has to be inferred.
+
+The traversal is the one the SPA already does in `getAllRelatedJobs`: a stack-based walk over
+`parentJobs` plus every value in `childJobs`, collecting each job once. The difference is where it
+looks. The SPA version resolves ids through `findJobInJobArray`, the planner's in-memory array, which
+by definition does not contain archived jobs — so the walk **must run server-side over the archive**.
+The rule stays the same; only the lookup changes.
+
+**A chain can straddle the archive boundary.** Jobs are archived individually, so a job's parent may
+still be sitting in the planner while its children are archived. The traversal therefore walks only
+what the archive holds, and the response reports ids it could not resolve, split by cause: still in
+the planner (nothing to restore — it is already there), or absent entirely (deleted at some point).
+Neither is an error, and neither blocks the restore; a user restoring the archived half of a chain
+gets it back and is told the rest is already live.
+
+#### Groups and related sets are different questions
+
+A group is a container the user made; a related set is a structural fact about a build. They can
+overlap — a group usually holds a chain — but neither implies the other, and the list has to answer
+both. So the read API reports both for every row:
+
+- `groupID` — the container it was archived from, if any.
+- A **related-set key** shared by every job in one dependency graph, so rows that belong together can
+  be recognised without the client walking links it cannot resolve.
+
+Computing the related-set key is the same traversal as the restore, run at list time over the page's
+jobs. Rows carrying a `groupID` take the group as their grouping; ungrouped rows fall back to the
+related-set key; a job with neither stands alone.
+
+#### The page shows the three cases as three things
+
+The list is grouped visually, not flat:
+
+- **Groups** render as a named block with their jobs inside and a restore action for the whole group.
+- **Related sets** render as a block too, but labelled by their output job rather than a group name
+  — there is no user-given name to show — with a restore action for the set.
+- **Standalone jobs** render as ordinary rows.
+
+Every job inside a block still carries its own restore action, so the choice between restoring one
+job and restoring the set it belongs to stays the user's. Restoring one job out of a related set does
+not drag its relatives back; the remaining jobs keep pointing at it, and a later set restore picks up
+whatever is still archived.
+
+### Stage H — Archived jobs page
+
+A page at `/archived-jobs`, following the SPA's existing conventions: a `_protected` file route
+(`frontend/src/routes/_protected/archived-jobs.jsx`) lazy-loading its component through `Suspense`
+and `LoadingPage`, wrapped in `DefaultPageLayout`, reached from the side menu. Charts use
+**recharts**, already a dependency and already the SPA's charting library in `priceHistory.jsx` — no
+new package.
+
+The page carries both halves in one slice: the charts and the list.
+
+#### Charts
+
+| Chart | Source | Notes |
+|-------|--------|-------|
+| Monthly timeline | `timeline` | profit and cost per calendar month. The current month is month-to-date and must be labelled as such — `months[].complete` says which |
+| Item breakdown | `timeline/items` | top items by the selected measure, ranked and paged **server-side**; the chart draws the page it was given and never re-sorts locally |
+| Segment split | `totals` | Combined / Market / Stock / Chain share of the window, the same four segments the archive dialogue renders, reusing `mapApiStatsToArchiveBreakdown` |
+| Extras by category | `timeline` | `extraCategoryTotals` per month, already served on every `months[]` entry and on `totals` |
+
+#### Chart primitives are data-agnostic and live outside the page
+
+The four charts differ only in what they are handed. Written directly against the statistics hooks
+they would each fuse fetching, shaping and drawing into one component, and the next view wanting a
+month-over-month bar chart would copy one and edit it — the parallel-copies failure the master rules
+call out.
+
+The SPA already has one instance of exactly that. `Styled Components/LineGraph/priceHistory.jsx`
+fuses its own market selector, range slider, item-name resolution and theming into the chart, so
+none of it can be reused here despite being the repo's only recharts code. It moves onto the
+primitives as part of this stage — see § Price history moves onto the primitives.
+
+Three layers instead, split so the boundary is where the data stops being generic:
+
+| Layer | Lives in | Knows about |
+|-------|----------|-------------|
+| **Primitives** | `Styled Components/Charts/` | recharts, the theme, and the shape of its own props. Nothing about statistics |
+| **Adapters** | beside the page's components | how to turn one statistics response into the rows a primitive takes |
+| **Panels** | the page | which hook to call, which adapter to run, which primitive to draw, and the empty and loading states |
+
+**A primitive takes rows and a series description, never a query result.** Its props are the data
+array, the key naming the category axis, and a list of series (`{ key, label, colour, type }`) —
+so the same component draws profit against months, cost by item, or extras by category with no
+knowledge of which it is doing. The concrete primitives this page needs: a time-series chart
+(bars or lines, several series, one shared axis), a ranked horizontal bar chart, and a share chart
+for the segment split. A fourth view — extras by category over months — is the time-series primitive
+with a different series list, not a new component.
+
+Consequences that make the split worth keeping:
+
+- **Theming and formatting are decided once.** Axis and tooltip number formatting comes from
+  `Functions/Helper/numberParser.js` (`formatNumberForLocale`, `numberToShortText`), and colours from
+  the MUI theme, so every chart on the page agrees without each one re-deriving it.
+- **Primitives are testable without a server.** They are pure given rows, so their tests are rows in
+  and marks out — no query client, no fetch mocking.
+- **Corporation scope costs nothing.** A corporation row adapts to the same rows, so the Stage C
+  views reuse the primitives unchanged; this is the seam § Seams left open for Stage C describes,
+  made concrete.
+- **Empty and loading states belong to the panel, not the primitive.** A primitive handed no rows
+  draws nothing; deciding whether that means "still loading", "no jobs in this window" or "this
+  account has never archived" needs the query state, which only the panel has.
+
+The adapters stay separate from the primitives because response shapes are the API's business and
+will move with it — `months[]`, `paging`, `period.defaulted` and the segment breakdown are Stage D's
+vocabulary, and a primitive that knew them would break when they changed. Where an adapter already
+exists it is reused rather than rewritten: the segment split maps through
+`mapApiStatsToArchiveBreakdown`, the same function the archive dialogue uses, so the page and the
+dialogue cannot disagree about what Market or Chain means.
+
+**The extras chart needs no backend work** — `SalesMeasures.ExtraCategoryTotals` is produced, merged
+by `Plus`, and serialised already. What it needs is **labels**: the API returns bare category ids,
+whose names live in `applicationSettings.extrasCategories` on the account document. Two rules apply,
+both recorded when the field was built:
+
+- A blank category id folds to `"0"`, shown as **Unassigned**.
+- **Deleted categories must still resolve.** The existing category select hides them, which is right
+  when choosing a category and wrong when reporting one — a past cost belongs to the category it was
+  filed under. The chart resolves names from the full list, deleted included, and falls back to the
+  raw id if a category is missing entirely.
+
+The range control is shared by all four charts, so one window selection drives the page. The default
+window is the server's (`period.defaulted` distinguishes it from a narrow explicit one), and ranges
+are sent as both bounds or neither — the API rejects a half-given range with 400 rather than
+repairing it, and those codes are not retried.
+
+#### List and restore
+
+A table over `GET /api/v1/archived-jobs` with the filters the endpoint offers and rows expandable to
+the full document. Restore reports its ESI conflicts in the confirmation that follows rather than
+failing silently, and invalidates the statistics queries on success — the rebuild it queued changes
+every view on the page.
+
+Rows are presented in the three shapes Stage G restores: named group blocks, related-set blocks
+labelled by their output job, and standalone rows. Each block restores as a unit, and every job
+inside one keeps its own restore action.
+
+#### Price history moves onto the primitives
+
+`Styled Components/LineGraph/priceHistory.jsx` is rewritten to draw through the time-series
+primitive rather than its own recharts tree. It is the SPA's only other chart, and leaving it fused
+would leave two chart implementations in the repo the moment this page lands — the parallel-copies
+outcome the primitives exist to avoid. It has **one caller**
+(`Components/Dialogues/Price History/dialogueFrame.jsx`), so the blast radius is one dialogue.
+
+It is also the better test of whether the primitive is actually general. The statistics charts are
+four variations on "months against money"; price history is a different shape in every axis that
+matters, and a primitive that survives it will survive the next view without another rewrite:
+
+| It needs | Which forces the primitive to support |
+|----------|---------------------------------------|
+| Two `Area`s, a `Line` and a `Bar` on one chart | mixed mark types in one series list — already the `type` on a series |
+| Volume on a right-hand axis against ISK on the left | a second value axis, series naming which they belong to |
+| A brushable window over the data | range selection as a prop, not a built-in |
+| Dates on the category axis, not month labels | category values formatted by the caller |
+
+**What stays behind in the dialogue**, because none of it is charting: the region select and
+`updateRegionID`, the region-name lookup through `worldData.actions.findUniverseData`, and the
+`graphData` prop itself. The range slider moves out with the primitive only if it generalises
+cleanly — it currently carries price-specific thumb labels (`formatThumbDate`) and an index-based
+window over `graphData` — so it moves as a **separate** range-control component the primitive
+accepts, rather than being absorbed into it. The statistics page's own range control is a month
+picker over the API's window, which is a different control entirely; the two share the primitive,
+not the picker.
+
+Two behaviours in the current component are **kept, not simplified away**, because they are real
+fixes rather than incidental code, and a primitive that drops them regresses the dialogue:
+
+- **Axis margins are computed from the formatted tick widths** (`longestYAxisTickISK`,
+  `longestXAxisTick`, `dynamicMargins`). ISK values are long enough to clip against a fixed margin.
+  The primitive derives margins the same way from whatever its formatter produces, which the
+  statistics charts need too — ISK totals are the same order of magnitude.
+- **The visible range resets when the series changes** (`rangeResetKey`, keyed on length and end
+  dates), so switching item or region does not leave a window pointing into the old data. Any
+  primitive taking a range prop needs the same rule, expressed as the caller re-deriving the range
+  when its data identity changes.
+
+The `ResizeObserver` and `containerDimensions` bookkeeping is **not** carried over unless it earns
+its place — `ResponsiveContainer` already handles resize, and measured dimensions are read but not
+used by the recharts tree.
+
+Sequencing: build the primitives with the statistics charts first, since they are what the page
+needs and what pins the props; convert price history once the primitive is real and its tests pass.
+The rewrite is done when the dialogue renders the same chart it does today with no behaviour change
+the user can see. If converting it forces a prop that only price history would use, that is the
+signal the split is wrong, and it is reported rather than papered over with an escape-hatch prop.
+
+#### Seams left open for Stage C
+
+The page is account scoped. As with the archive dialogue, the corporation scope gets seams rather
+than stubs: the range and scope selection is a prop rather than page-internal state, and the chart
+components take their rows as data so a corporation row renders identically once Stage C exists.
+
 ## Go modernization in scope
 
 Per the planning gate, `go fix -diff` was run against the packages this project will touch
@@ -498,6 +851,13 @@ Per the planning gate, `go fix -diff` was run against the packages this project 
 `shared/models/…`, `shared/mongo/…`). One suggestion was reported, in
 `shared/models/group_template.go`. Land it with Stage A rather than as a separate sweep. No other
 in-scope package needs modernization before the work starts.
+
+Re-run for Stages F and G, against the packages they add to the touch surface
+(`api/v1endpoints/archivedjobs/…`, `shared/jobidentity/…`, `shared/mongo/…`). One suggestion is
+reported, in `shared/mongo/docs.go`: `errors.As` with a declared variable becomes
+`errors.AsType[mongo.BulkWriteException]`. That file is the archive read/write layer both stages
+extend, so land it with Stage F rather than as a separate sweep. No other package in their scope
+needs modernization first.
 
 ## Stage status
 
@@ -509,6 +869,9 @@ in-scope package needs modernization before the work starts.
 | C — corporation statistics pipeline | **Deferred** — a job belongs to one archive, so this pipeline aggregates corporation-scoped jobs rather than slicing account ones; per-line attribution was removed. The producer is half built: the SPA now records the corporation and character ids ESI supplies, but nothing yet decides from them that a job is corporation scoped and stamps `_meta.corporationRef`. See § Ownership is a property of the job |
 | D — statistics API | **Complete for the account scope** — timeline, timeline/items and totals land under `/api/v1/statistics/account/`, with the indexes their filters need. The old build-stats producer is retired and its documents are rebuilt by the statistics pipeline. Corporation views wait for Stage C |
 | E — frontend | **Complete for the account scope** — the SPA reads `totals`, `timeline` and `timeline/items`; build-stats is deleted; the dashboard carries the month-on-month comparison and the item breakdown; the archive dialogue is split into its four segment blocks. Corporation scope waits for Stage C |
+| F — archived jobs read API | **Complete** — `GET /api/v1/archived-jobs` serves a paged, filtered list of summaries and `GET /api/v1/archived-jobs/{jobID}` one full document. Rows report group and related-set membership, figures come from the shared `archivestats` reduction, and the query parsing both this and the statistics views use moved to `api/helper`. Indexes landed in the Deployment Tool |
+| G — restore | **Complete** — three POST routes restore a job, a group rebuilt from its jobs, or a related set walked over the archive. The write is one server-side sequence: decrypt, resolve links, write job documents, re-link free ESI ids on the account, rebuild the group, delete the archived documents, queue the rebuild. Conflicts are reported and stripped rather than blocking |
+| H — archived jobs page | **Planned** — a `/archived-jobs` page carrying the four charts and the list/restore table in one slice, over reusable data-agnostic chart primitives that the price-history dialogue is also moved onto |
 
 ## Done when
 
@@ -516,6 +879,10 @@ in-scope package needs modernization before the work starts.
   persisted and served.
 - The frontend reads the new endpoints and the previous flat aggregate has no remaining callers.
 - Tests ship with each stage, not as a later wave.
+- Archived jobs can be listed, read, and restored — a job on its own, a group rebuilt from the jobs
+  it still holds, or a set of jobs related through parent/child links — with ESI re-link conflicts
+  reported to the user rather than silently dropped or blocking the restore.
+- The archived-jobs page presents the charts and the restore table over those endpoints.
 - Overlays in this folder describe the landed behaviour, ready to promote into live SoT.
 
 ## Handoff status
@@ -542,7 +909,31 @@ the corporation and character ids ESI already supplies; all four now record them
 `shared/jobidentity` converts them to refs on write with no backend change. Behaviour →
 [overlay.md](./overlay.md) § Ingest — entity ids on stored jobs.
 
-**Start here: decide what scopes a job to a corporation.** That decision — and the
+**Stage F is complete and committed.** The archive is readable: a paged list of summaries and a
+single-document read, both account scoped by the session. `services` builds, vets and tests clean,
+and `go fix -diff` reports nothing on any package the stage touched — the one suggestion the
+planning gate found, `errors.AsType` in `shared/mongo/docs.go`, landed with it. Behaviour →
+[overlay.md](./overlay.md) § Stage F.
+
+**Stage G is complete.** The three restore routes are served and the write sequence is one
+server-side operation. `services` builds, vets and tests clean, and `go fix -diff` reports nothing on
+the packages it touched. Behaviour → [overlay.md](./overlay.md) § Stage G.
+
+One design point changed during the work and is recorded above: the ESI re-link is written
+**server-side**, not handed to the SPA to apply. The `accounts` document is realtime synced, so a
+server write reaches the client's store before it would next save — which is what lets restore stay
+atomic instead of splitting the job write and the re-link across two processes.
+
+**Start here: Stage H, the page.** Every endpoint it reads now exists — the list and single-document
+reads from Stage F, the three restore routes from Stage G, and the statistics views from Stage D.
+What is owed is the SPA: the reusable chart primitives, the four charts, the list with its three
+row shapes, the restore actions and their conflict reporting, and moving the price-history dialogue
+onto the primitives.
+
+**Stage H is independent of Stage C** and can proceed while the corporation scope stays deferred;
+the page leaves the same corporation seams the archive dialogue does.
+
+**Start here for Stage C: decide what scopes a job to a corporation.** That decision — and the
 `_meta.corporationRef` it stamps — is the only thing between here and a corporation archive with
 data in it. Everything downstream of it is either built or deliberately deferred. The frontend seams
 for the corporation scope are already open, see § The archive dialogue.
