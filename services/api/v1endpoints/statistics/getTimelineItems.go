@@ -75,17 +75,17 @@ func (h *Handlers) GetTimelineItemsHandler(w http.ResponseWriter, r *http.Reques
 
 	window, err := resolveTimelineWindow(r, time.Now().UTC())
 	if err != nil {
-		respondParamError(w, r, metrics, "statistics_timeline_items", err)
+		helper.RespondParamError(w, r, metrics, "statistics_timeline_items", err)
 		return
 	}
-	typeID, err := parseTypeID(r)
+	typeID, err := helper.ParseTypeID(r, "statistics")
 	if err != nil {
-		respondParamError(w, r, metrics, "statistics_timeline_items", err)
+		helper.RespondParamError(w, r, metrics, "statistics_timeline_items", err)
 		return
 	}
-	paging, err := resolveItemPaging(r)
+	paging, err := helper.ResolvePaging(r, timelineItemPagingRules)
 	if err != nil {
-		respondParamError(w, r, metrics, "statistics_timeline_items", err)
+		helper.RespondParamError(w, r, metrics, "statistics_timeline_items", err)
 		return
 	}
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"eve-industry-planner/shared/models"
@@ -25,6 +27,24 @@ func (m MonthKey) String() string {
 	return fmt.Sprintf("%04d-%02d", m.Year, m.Month)
 }
 
+// ParseMonthKey reads the wire form, YYYY-MM.
+//
+// The inverse of String, kept beside it so the format has one owner: the wire
+// value a caller names is the month the rows were filed under, with no second
+// convention to keep in step.
+func ParseMonthKey(raw string) (MonthKey, error) {
+	year, month, ok := strings.Cut(raw, "-")
+	if !ok || len(year) != 4 || len(month) != 2 {
+		return MonthKey{}, fmt.Errorf("month must be YYYY-MM, got %q", raw)
+	}
+	y, yErr := strconv.Atoi(year)
+	mo, mErr := strconv.Atoi(month)
+	if yErr != nil || mErr != nil || mo < 1 || mo > 12 {
+		return MonthKey{}, fmt.Errorf("month must be YYYY-MM, got %q", raw)
+	}
+	return MonthKey{Year: y, Month: mo}, nil
+}
+
 // Before reports whether m is an earlier month than other.
 func (m MonthKey) Before(other MonthKey) bool {
 	if m.Year != other.Year {
@@ -41,6 +61,21 @@ func (m MonthKey) Before(other MonthKey) bool {
 func CurrentMonth(now time.Time) MonthKey {
 	u := now.UTC()
 	return MonthKey{Year: u.Year(), Month: int(u.Month())}
+}
+
+// IsZero reports whether a month key was never set, which callers read as an
+// open end on a range rather than as the year zero.
+func (m MonthKey) IsZero() bool {
+	return m.Year == 0 && m.Month == 0
+}
+
+// Start is the first instant of the month, in UTC.
+//
+// UTC for the same reason CurrentMonth resolves there: the rows this bounds were
+// filed against UTC timestamps, so a boundary in another zone would include or
+// exclude jobs at the edges of the month.
+func (m MonthKey) Start() time.Time {
+	return time.Date(m.Year, time.Month(m.Month), 1, 0, 0, 0, 0, time.UTC)
 }
 
 // AddMonths shifts a month key, normalising the month into 1..12.

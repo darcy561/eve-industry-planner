@@ -1,12 +1,11 @@
 package statistics
 
 import (
-	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
+	"eve-industry-planner/api/helper"
 	eipmongo "eve-industry-planner/shared/mongo"
 )
 
@@ -32,6 +31,15 @@ const (
 	maxItemLimit     = 200
 )
 
+// timelineItemPagingRules describe the ranking the item breakdown accepts.
+var timelineItemPagingRules = helper.PagingRules{
+	Sortable:       eipmongo.TimelineSortable,
+	SortableFields: eipmongo.TimelineSortableMeasures,
+	DefaultLimit:   defaultItemLimit,
+	MaxLimit:       maxItemLimit,
+	CodePrefix:     "statistics",
+}
+
 // timelineWindow is the resolved month range a request reads.
 type timelineWindow struct {
 	From eipmongo.MonthKey
@@ -47,37 +55,15 @@ func (w timelineWindow) months() int {
 	return (w.To.Year*12 + w.To.Month) - (w.From.Year*12 + w.From.Month) + 1
 }
 
-// paramError is a bad request carrying the code the handler reports.
-type paramError struct {
-	code    string
-	metric  string
-	message string
-}
-
-func (e paramError) Error() string { return e.message }
-
-func badParam(code, metric, format string, args ...any) paramError {
-	return paramError{code: code, metric: metric, message: fmt.Sprintf(format, args...)}
-}
-
-// parseMonth reads a YYYY-MM query parameter.
-//
-// The wire format matches the timeline document _id, so a month a caller names
-// is the month the rows were filed under, with no second convention to keep in
-// step.
+// parseMonth reads a YYYY-MM query parameter, reporting the statistics failure
+// class for a value MonthKey cannot parse.
 func parseMonth(name, raw string) (eipmongo.MonthKey, error) {
-	parts := strings.Split(raw, "-")
-	if len(parts) != 2 || len(parts[0]) != 4 || len(parts[1]) != 2 {
-		return eipmongo.MonthKey{}, badParam("statistics_invalid_month", "invalid_month",
+	month, err := eipmongo.ParseMonthKey(raw)
+	if err != nil {
+		return eipmongo.MonthKey{}, helper.BadParam("statistics_invalid_month", "invalid_month",
 			"%s must be a calendar month as YYYY-MM, got %q", name, raw)
 	}
-	year, yErr := strconv.Atoi(parts[0])
-	month, mErr := strconv.Atoi(parts[1])
-	if yErr != nil || mErr != nil || month < 1 || month > 12 {
-		return eipmongo.MonthKey{}, badParam("statistics_invalid_month", "invalid_month",
-			"%s must be a calendar month as YYYY-MM, got %q", name, raw)
-	}
-	return eipmongo.MonthKey{Year: year, Month: month}, nil
+	return month, nil
 }
 
 // resolveTimelineWindow reads from / to, applying the default window when both
@@ -99,7 +85,7 @@ func resolveTimelineWindow(r *http.Request, now time.Time) (timelineWindow, erro
 		}, nil
 	}
 	if fromRaw == "" || toRaw == "" {
-		return timelineWindow{}, badParam("statistics_incomplete_range", "incomplete_range",
+		return timelineWindow{}, helper.BadParam("statistics_incomplete_range", "incomplete_range",
 			"from and to must be given together, or both omitted for the trailing %d months", defaultTimelineMonths)
 	}
 
@@ -112,7 +98,7 @@ func resolveTimelineWindow(r *http.Request, now time.Time) (timelineWindow, erro
 		return timelineWindow{}, err
 	}
 	if to.Before(from) {
-		return timelineWindow{}, badParam("statistics_range_reversed", "range_reversed",
+		return timelineWindow{}, helper.BadParam("statistics_range_reversed", "range_reversed",
 			"to (%s) is before from (%s)", to, from)
 	}
 
@@ -120,81 +106,8 @@ func resolveTimelineWindow(r *http.Request, now time.Time) (timelineWindow, erro
 	if window.months() > maxTimelineMonths {
 		// Refused rather than truncated: a shortened range is indistinguishable
 		// from missing data once it reaches a chart.
-		return timelineWindow{}, badParam("statistics_range_too_long", "range_too_long",
+		return timelineWindow{}, helper.BadParam("statistics_range_too_long", "range_too_long",
 			"range covers %d months, the maximum is %d", window.months(), maxTimelineMonths)
 	}
 	return window, nil
-}
-
-// parseTypeID reads the optional typeID filter. Zero means every item type.
-func parseTypeID(r *http.Request) (int, error) {
-	raw := strings.TrimSpace(r.URL.Query().Get("typeID"))
-	if raw == "" {
-		return 0, nil
-	}
-	typeID, err := strconv.Atoi(raw)
-	if err != nil || typeID <= 0 {
-		return 0, badParam("statistics_invalid_type_id", "invalid_type_id",
-			"typeID must be a positive integer, got %q", raw)
-	}
-	return typeID, nil
-}
-
-// itemPaging is the resolved ordering and page for the per-item breakdown.
-type itemPaging struct {
-	Sort      string
-	Ascending bool
-	Limit     int
-	Offset    int
-}
-
-// resolveItemPaging reads sort, order, limit and offset.
-//
-// Ranking is server-side because a page of arbitrary rows cannot be ordered by
-// the client, so the sort field is validated here against the measures the
-// aggregation accepts rather than passed through to a $sort key.
-func resolveItemPaging(r *http.Request) (itemPaging, error) {
-	q := r.URL.Query()
-	out := itemPaging{Limit: defaultItemLimit}
-
-	if sort := strings.TrimSpace(q.Get("sort")); sort != "" {
-		if !eipmongo.TimelineSortable(sort) {
-			return out, badParam("statistics_invalid_sort", "invalid_sort",
-				"sort must be one of %s, got %q", strings.Join(eipmongo.TimelineSortableMeasures(), ", "), sort)
-		}
-		out.Sort = sort
-	}
-
-	switch order := strings.TrimSpace(q.Get("order")); order {
-	case "", "desc":
-	case "asc":
-		out.Ascending = true
-	default:
-		return out, badParam("statistics_invalid_order", "invalid_order",
-			"order must be asc or desc, got %q", order)
-	}
-
-	if raw := strings.TrimSpace(q.Get("limit")); raw != "" {
-		limit, err := strconv.Atoi(raw)
-		if err != nil || limit <= 0 {
-			return out, badParam("statistics_invalid_limit", "invalid_limit",
-				"limit must be a positive integer, got %q", raw)
-		}
-		if limit > maxItemLimit {
-			return out, badParam("statistics_limit_too_large", "limit_too_large",
-				"limit %d exceeds the maximum of %d", limit, maxItemLimit)
-		}
-		out.Limit = limit
-	}
-
-	if raw := strings.TrimSpace(q.Get("offset")); raw != "" {
-		offset, err := strconv.Atoi(raw)
-		if err != nil || offset < 0 {
-			return out, badParam("statistics_invalid_offset", "invalid_offset",
-				"offset must be zero or a positive integer, got %q", raw)
-		}
-		out.Offset = offset
-	}
-
-	return out, nil
 }

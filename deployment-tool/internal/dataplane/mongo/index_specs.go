@@ -74,6 +74,33 @@ func IndexSpecs() []IndexSpec {
 			Keys:       []IndexKey{{Field: "protected.spec", Order: 1}},
 		},
 		{
+			// Restore asks which planner job already claims an ESI id before it
+			// hands one back, so each linked series is searched by value within
+			// an account.
+			Collection: "account_job_documents",
+			Name:       "ajd_meta_accountID_apiOrders_1",
+			Keys: []IndexKey{
+				{Field: "_meta.accountID", Order: 1},
+				{Field: "apiOrders", Order: 1},
+			},
+		},
+		{
+			Collection: "account_job_documents",
+			Name:       "ajd_meta_accountID_apiJobs_1",
+			Keys: []IndexKey{
+				{Field: "_meta.accountID", Order: 1},
+				{Field: "apiJobs", Order: 1},
+			},
+		},
+		{
+			Collection: "account_job_documents",
+			Name:       "ajd_meta_accountID_apiTransactions_1",
+			Keys: []IndexKey{
+				{Field: "_meta.accountID", Order: 1},
+				{Field: "apiTransactions", Order: 1},
+			},
+		},
+		{
 			Collection: "account_archived_jobs",
 			Name:       "aj_linkedJobs_corporation_id_1",
 			Keys:       []IndexKey{{Field: "build.costs.linkedJobs.corporation_id", Order: 1}},
@@ -82,6 +109,35 @@ func IndexSpecs() []IndexSpec {
 			Collection: "account_archived_jobs",
 			Name:       "aj_protected_spec_1",
 			Keys:       []IndexKey{{Field: "protected.spec", Order: 1}},
+		},
+		{
+			// The archived-jobs list orders by archive date within an account,
+			// which is both its default sort and the field its range filter
+			// narrows on.
+			Collection: "account_archived_jobs",
+			Name:       "aj_meta_accountID_archivedAt_1",
+			Keys: []IndexKey{
+				{Field: "_meta.accountID", Order: 1},
+				{Field: "_meta.archivedAt", Order: -1},
+			},
+		},
+		{
+			// Serves the list filtered to one item type, and the group filter
+			// that restores a whole group reads the same account scope.
+			Collection: "account_archived_jobs",
+			Name:       "aj_meta_accountID_itemID_1",
+			Keys: []IndexKey{
+				{Field: "_meta.accountID", Order: 1},
+				{Field: "itemID", Order: 1},
+			},
+		},
+		{
+			Collection: "account_archived_jobs",
+			Name:       "aj_meta_accountID_groupID_1",
+			Keys: []IndexKey{
+				{Field: "_meta.accountID", Order: 1},
+				{Field: "groupID", Order: 1},
+			},
 		},
 		{
 			Collection: "account_archived_job_stats",

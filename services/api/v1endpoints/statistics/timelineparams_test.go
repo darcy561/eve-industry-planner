@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"eve-industry-planner/api/helper"
 	eipmongo "eve-industry-planner/shared/mongo"
 )
 
@@ -17,11 +18,11 @@ func requestWithQuery(t *testing.T, query string) *http.Request {
 
 func paramCode(t *testing.T, err error) string {
 	t.Helper()
-	pErr, ok := errors.AsType[paramError](err)
+	pErr, ok := errors.AsType[helper.ParamError](err)
 	if !ok {
-		t.Fatalf("expected a paramError, got %v", err)
+		t.Fatalf("expected a helper.ParamError, got %v", err)
 	}
-	return pErr.code
+	return pErr.Code
 }
 
 // The dashboard's month-on-month comparison is the bare endpoint with no
@@ -150,18 +151,18 @@ func TestOverlongRangeIsRejectedNotTruncated(t *testing.T) {
 func TestTypeIDIsOptionalAndValidated(t *testing.T) {
 	t.Parallel()
 
-	typeID, err := parseTypeID(requestWithQuery(t, ""))
+	typeID, err := helper.ParseTypeID(requestWithQuery(t, ""), "statistics")
 	if err != nil || typeID != 0 {
 		t.Fatalf("absent typeID = %d, %v; want 0 with no error so every type is read", typeID, err)
 	}
 
-	typeID, err = parseTypeID(requestWithQuery(t, "typeID=34"))
+	typeID, err = helper.ParseTypeID(requestWithQuery(t, "typeID=34"), "statistics")
 	if err != nil || typeID != 34 {
 		t.Fatalf("typeID = %d, %v; want 34", typeID, err)
 	}
 
 	for _, query := range []string{"typeID=0", "typeID=-1", "typeID=abc"} {
-		if _, err := parseTypeID(requestWithQuery(t, query)); err == nil {
+		if _, err := helper.ParseTypeID(requestWithQuery(t, query), "statistics"); err == nil {
 			t.Fatalf("%s: expected a rejection", query)
 		}
 	}
@@ -170,7 +171,7 @@ func TestTypeIDIsOptionalAndValidated(t *testing.T) {
 func TestItemPagingDefaults(t *testing.T) {
 	t.Parallel()
 
-	paging, err := resolveItemPaging(requestWithQuery(t, ""))
+	paging, err := helper.ResolvePaging(requestWithQuery(t, ""), timelineItemPagingRules)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +194,7 @@ func TestItemPagingDefaults(t *testing.T) {
 func TestItemPagingRejectsUnknownSort(t *testing.T) {
 	t.Parallel()
 
-	_, err := resolveItemPaging(requestWithQuery(t, "sort=_id"))
+	_, err := helper.ResolvePaging(requestWithQuery(t, "sort=_id"), timelineItemPagingRules)
 	if err == nil {
 		t.Fatal("expected a rejection for a field outside the sortable set")
 	}
@@ -202,7 +203,7 @@ func TestItemPagingRejectsUnknownSort(t *testing.T) {
 	}
 
 	for _, measure := range eipmongo.TimelineSortableMeasures() {
-		if _, err := resolveItemPaging(requestWithQuery(t, "sort="+measure)); err != nil {
+		if _, err := helper.ResolvePaging(requestWithQuery(t, "sort="+measure), timelineItemPagingRules); err != nil {
 			t.Fatalf("advertised measure %q was rejected: %v", measure, err)
 		}
 	}
@@ -221,7 +222,7 @@ func TestItemPagingRejectsBadPaging(t *testing.T) {
 		"order=up":    "statistics_invalid_order",
 	}
 	for query, wantCode := range cases {
-		_, err := resolveItemPaging(requestWithQuery(t, query))
+		_, err := helper.ResolvePaging(requestWithQuery(t, query), timelineItemPagingRules)
 		if err == nil {
 			t.Fatalf("%s: expected a rejection", query)
 		}
@@ -234,11 +235,11 @@ func TestItemPagingRejectsBadPaging(t *testing.T) {
 func TestItemPagingAcceptsExplicitOrder(t *testing.T) {
 	t.Parallel()
 
-	asc, err := resolveItemPaging(requestWithQuery(t, "order=asc"))
+	asc, err := helper.ResolvePaging(requestWithQuery(t, "order=asc"), timelineItemPagingRules)
 	if err != nil || !asc.Ascending {
 		t.Fatalf("order=asc did not select ascending: %+v %v", asc, err)
 	}
-	desc, err := resolveItemPaging(requestWithQuery(t, "order=desc"))
+	desc, err := helper.ResolvePaging(requestWithQuery(t, "order=desc"), timelineItemPagingRules)
 	if err != nil || desc.Ascending {
 		t.Fatalf("order=desc did not select descending: %+v %v", desc, err)
 	}
