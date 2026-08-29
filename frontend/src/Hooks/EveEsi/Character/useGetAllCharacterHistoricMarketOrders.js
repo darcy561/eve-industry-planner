@@ -8,7 +8,7 @@ import {
 } from "../queryLoadingState";
 
 /**
- * Utility function to extract market orders from query results and organize by character hash.
+ * Utility function to extract market orders from query results and organise by character hash.
  * 
  * @param {Array<Object>} results - Array of query result objects
  * @param {Array<Object>} characters - Array of user objects with CharacterHash
@@ -112,7 +112,7 @@ function createSuccessObject(data) {
  * - Fetches historic market orders for all user characters
  * - Checks loading states for all character historic market order queries
  * - Extracts cached data from React Query cache
- * - Organizes data by character hash for easy access
+ * - Organises data by character hash for easy access
  * - Returns appropriate loading, error, or success states
  * 
  * The caching process:
@@ -120,7 +120,7 @@ function createSuccessObject(data) {
  * 2. Checks query states for all character historic market order queries
  * 3. Determines overall loading and error states
  * 4. Extracts cached data from successful queries
- * 5. Organizes data by character hash
+ * 5. Organises data by character hash
  * 
  * @param {Object} queryClient - React Query client instance
  * @returns {Object} Object containing cached character historic market orders data
@@ -166,7 +166,7 @@ export function getAllCachedCharacterHistoricMarketOrders(queryClient) {
     return createErrorObject(error);
   }
 
-  // Extract cached market orders and organize by character hash
+  // Extract cached market orders and organise by character hash
   const marketOrdersObject = {};
   queryStates.forEach(({ cachedData, CharacterHash }) => {
     const characterOrders = cachedData?.data || [];
@@ -180,7 +180,7 @@ export function getAllCachedCharacterHistoricMarketOrders(queryClient) {
  * 
  * This hook provides comprehensive character historic market orders data fetching:
  * - Fetches historic market orders for all user characters in parallel
- * - Organizes orders by character hash for easy access
+ * - Organises orders by character hash for easy access
  * - Handles pagination automatically through the underlying query
  * - Provides loading, error, and success states
  * - Uses React Query's useQueries for parallel data fetching
@@ -191,7 +191,7 @@ export function getAllCachedCharacterHistoricMarketOrders(queryClient) {
  * 2. Creates queries for all character historic market order data
  * 3. Fetches data in parallel using React Query's useQueries
  * 4. Combines results using a custom combine function
- * 5. Organizes data by character hash for structured access
+ * 5. Organises data by character hash for structured access
  * 
  * @returns {Object} Object containing character historic market orders data and states
  * @returns {Object} returns.data - Object with character hashes as keys and market order arrays as values

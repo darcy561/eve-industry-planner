@@ -11,7 +11,7 @@ const characterIndustryJobsQueryKey = "characterIndustryJobs";
  * This query handles character industry job data fetching with:
  * - ESI rate limiting awareness and handling
  * - Automatic retry with exponential backoff
- * - Caching strategy optimized for industry job data
+ * - Caching strategy optimised for industry job data
  * - Error handling with descriptive messages
  * - ETag support for efficient data updates
  * - Single-page data fetching (industry jobs are not paginated)

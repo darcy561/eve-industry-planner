@@ -1,6 +1,6 @@
 # Layout Settings
 
-The Layout Settings section allows you to customize the visual appearance and user interface behavior of Eve Industry Planner.
+The Layout Settings section allows you to customise the visual appearance and user interface behaviour of Eve Industry Planner.
 
 ## Available Options
 

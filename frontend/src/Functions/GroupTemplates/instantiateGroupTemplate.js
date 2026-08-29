@@ -1,7 +1,7 @@
 import Group from "../../Classes/group";
 import { buildJob } from "../JobPlanner/buildJob";
 import mergeJobs from "../JobPlanner/mergeJobs";
-import normalizeParentChildRelationships from "../Shared/normalizeParentChildRelationships";
+import normaliseParentChildRelationships from "../Shared/normaliseParentChildRelationships";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import useUsersStore from "../../Zustand/usersStore";
 import getMissingESIData from "../Shared/getMissingESIData";
@@ -97,7 +97,7 @@ export async function instantiateGroupTemplate({
     job.build.childJobs = childByMat;
   }
 
-  normalizeParentChildRelationships(built);
+  normaliseParentChildRelationships(built);
 
   let group = null;
   let activeGroupMergeIDs = null;

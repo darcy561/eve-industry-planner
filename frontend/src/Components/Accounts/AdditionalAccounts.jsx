@@ -29,7 +29,7 @@ import {
 } from "../../Functions/Debounce/userDocumentsPersistSchedule.js";
 import {
   upsertCloudStoredEsiRefreshTokens,
-} from "../../Functions/Endpoints/Pirivate/cloudStoredEsiRefreshTokens.js";
+} from "../../Functions/Endpoints/Private/cloudStoredEsiRefreshTokens.js";
 import {
   clearAdditionalUserAuthCode,
   EVE_SSO_ADDITIONAL_ACCOUNT_STATE,

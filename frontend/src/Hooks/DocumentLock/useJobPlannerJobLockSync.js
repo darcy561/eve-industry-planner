@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { MAX_STATUS_BATCH_DOC_IDS } from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
+import { MAX_STATUS_BATCH_DOC_IDS } from "../../Functions/Endpoints/Private/documentLockClient.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 import { useLockScopeSync } from "./useLockScopeSync.js";
 

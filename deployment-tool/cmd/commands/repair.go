@@ -6,14 +6,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 	"eve-industry-planner/deployment-tool/internal/msg"
 	"eve-industry-planner/deployment-tool/internal/ops"
 	"eve-industry-planner/deployment-tool/internal/process"
 )
 
 func init() {
-	if v, ok := catalog.ByID("repair"); ok {
+	if v, ok := catalogue.ByID("repair"); ok {
 		repairCmd.Short = v.Short
 	}
 	repairCmd.Flags().BoolP("dry-run", "n", false, "print heal plan only; do not mutate")
@@ -32,8 +32,8 @@ Refuses when Swarm is inactive / nothing is deployed (use eip up) or when the
 stack looks healthy (use eip update).
 
 Steps:
-  • rematerialize once if expected services are missing (live, or dev if stack is pure dev)
-  • wait briefly for rematerialized ensure-targets, then run ServiceEnsures for bad shorts (skip if still no task)
+  • rematerialise once if expected services are missing (live, or dev if stack is pure dev)
+  • wait briefly for rematerialised ensure-targets, then run ServiceEnsures for bad shorts (skip if still no task)
   • force-update bad services that were already present (same images; no pull/bake)
 
 Does not run dataplane.Ready, engine cold start, binary/stack kit update, or image pull.

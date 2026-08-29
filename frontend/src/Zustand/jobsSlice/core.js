@@ -2,15 +2,15 @@
  * Core Jobs Management for EVE Industry Planner.
  *
  * Contains the default state configuration and core actions for managing
- * job-related data including state initialization and basic job operations.
+ * job-related data including state initialisation and basic job operations.
  *
  * @fileoverview Core jobs management state and actions
  * @author EVE Industry Planner Team
  */
 
-import { requestJobDocumentsByIdsFromApi } from "../../Functions/Endpoints/Pirivate/requestJobDocumentsByIds.js";
+import { requestJobDocumentsByIdsFromApi } from "../../Functions/Endpoints/Private/requestJobDocumentsByIds.js";
 import retrieveJobIDsFromGroupObjects from "../../Functions/Helper/getJobIDsFromGroupObjects";
-import seperateGroupAndJobIDs from "../../Functions/Helper/seperateGroupAndJobIDs";
+import separateGroupAndJobIDs from "../../Functions/Helper/separateGroupAndJobIDs";
 
 /**
  * Default state configuration for jobs data.
@@ -405,7 +405,7 @@ export const coreActions = (set, get) => ({
    * @returns {Promise<Array<Object>>}
    */
   resolveJobObjectsForMixedSelection: async (inputJobIDs) => {
-    const { groupIDs, jobIDs } = seperateGroupAndJobIDs(inputJobIDs);
+    const { groupIDs, jobIDs } = separateGroupAndJobIDs(inputJobIDs);
     const groupJobIDs = retrieveJobIDsFromGroupObjects(groupIDs);
     return get().jobData.actions.jobsFromIdsOrObjects([...jobIDs, ...groupJobIDs]);
   },

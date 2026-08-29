@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import { extendDocumentLock } from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
+import { extendDocumentLock } from "../../Functions/Endpoints/Private/documentLockClient.js";
 import { numberOrNull } from "../../Functions/DocumentLock/documentLockStatusFields.js";
 import { LOCK_EXTEND_INTERVAL_MS } from "../../Functions/DocumentLock/documentLockTimings.js";
 import {

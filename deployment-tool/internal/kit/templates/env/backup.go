@@ -16,7 +16,7 @@ import (
 
 const maxTimestampedEnvBackups = 3
 
-// EmitOpts controls EmitEnv backup behavior.
+// EmitOpts controls EmitEnv backup behaviour.
 type EmitOpts struct {
 	// BackupStem is a path prefix (relative paths join with the .env directory).
 	// Empty uses config.DefaultEnvBackupStem. Ignored when SkipBackup is true.

@@ -21,7 +21,7 @@ import (
 
 const importArchivedJobActor = "worker:importArchivedJobToMongo"
 
-// ImportArchivedJobToMongo parses one Firestore ArchivedJobs payload, normalizes it to [models.Job], and upserts into the archivedJobs Mongo collection.
+// ImportArchivedJobToMongo parses one Firestore ArchivedJobs payload, normalises it to [models.Job], and upserts into the archivedJobs Mongo collection.
 // On any failure it returns a non-nil error so asynq marks the task failed (and logs retain context for review).
 func ImportArchivedJobToMongo(ctx context.Context, task *asynq.Task, deps *esitasks.TaskDependencies) error {
 	if task == nil {

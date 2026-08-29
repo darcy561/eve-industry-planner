@@ -190,7 +190,7 @@ flowchart TB
 |----|------|--------|------|
 | **#40** | **Exchange handler integration tests** — `POST /eve-sso/tokens/exchange`: invalid code, empty token, happy path mock CCP | open | M |
 | **#41** | **ESI refresh handler tests** — `POST /eve-sso/tokens/refresh`; `isSSOGrantClientError` mapping to 401 vs 503 | open | S |
-| **#42** | **Rate-limit / outage behavior** — document deferral when CCP token endpoint fails; align with Tranquility gate on SPA | open | S |
+| **#42** | **Rate-limit / outage behaviour** — document deferral when CCP token endpoint fails; align with Tranquility gate on SPA | open | S |
 
 **Where:** `services/api/v1endpoints/sso/*`, [README §6.1–6.4](./overview.md#6-end-to-end-flows).
 

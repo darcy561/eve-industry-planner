@@ -11,7 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
-// CreateGroupTemplate inserts the payload doc then pushes the catalog entry (ordered).
+// CreateGroupTemplate inserts the payload doc then pushes the catalogue entry (ordered).
 // Callers map mongo.IsDuplicateKeyError to conflict responses.
 func CreateGroupTemplate(ctx context.Context, m *eipmongo.Mongo, accountID string, entry models.TemplateCatalogEntry, payloadDoc bson.M) error {
 	if m == nil || accountID == "" {
@@ -31,7 +31,7 @@ func CreateGroupTemplate(ctx context.Context, m *eipmongo.Mongo, accountID strin
 	return err
 }
 
-// ReplaceGroupTemplatePayload replaces the payload and updates the matching catalog entry (ordered).
+// ReplaceGroupTemplatePayload replaces the payload and updates the matching catalogue entry (ordered).
 func ReplaceGroupTemplatePayload(ctx context.Context, m *eipmongo.Mongo, accountID, templateID string, entry models.TemplateCatalogEntry, payloadDoc bson.M) error {
 	if m == nil || accountID == "" || templateID == "" {
 		return fmt.Errorf("ReplaceGroupTemplatePayload: mongo, accountID, and templateID are required")
@@ -46,7 +46,7 @@ func ReplaceGroupTemplatePayload(ctx context.Context, m *eipmongo.Mongo, account
 	return err
 }
 
-// DeleteGroupTemplate deletes the payload then pulls the catalog entry (ordered).
+// DeleteGroupTemplate deletes the payload then pulls the catalogue entry (ordered).
 // Returns the bulk result so callers can treat DeletedCount==0 as not found.
 func DeleteGroupTemplate(ctx context.Context, m *eipmongo.Mongo, accountID, templateID string) (*mongo.ClientBulkWriteResult, error) {
 	if m == nil || accountID == "" || templateID == "" {

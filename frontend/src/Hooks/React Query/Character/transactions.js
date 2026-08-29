@@ -13,7 +13,7 @@ const characterTransactionsQueryKey = "characterTransactions";
  * - Pagination support for large transaction collections
  * - ESI rate limiting awareness and handling
  * - Automatic retry with exponential backoff
- * - Caching strategy optimized for transaction data
+ * - Caching strategy optimised for transaction data
  * - Error handling with descriptive messages
  * 
  * The query process:

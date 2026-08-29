@@ -1,10 +1,10 @@
 # Job Planner
 
-The Job Planner is the central hub for managing your industry jobs. It organizes your jobs into five stages, with each material represented as a job card that progresses through the workflow as you build materials.
+The Job Planner is the central hub for managing your industry jobs. It organises your jobs into five stages, with each material represented as a job card that progresses through the workflow as you build materials.
 
 ## Overview
 
-The Job Planner displays all your industry jobs organized by their current status:
+The Job Planner displays all your industry jobs organised by their current status:
 - **Planning** - Jobs in the planning phase
 - **Purchasing** - Jobs where materials are being acquired
 - **Building** - Active manufacturing jobs
@@ -44,6 +44,6 @@ Use the checkbox in the corner of job cards to:
 ## Related Documentation
 
 - [Edit Job](edit%20job) - Detailed job editing guide
-- [Groups](groups) - Organizing jobs into groups
+- [Groups](groups) - Organising jobs into groups
 - [Dashboard](dashboard) - Overview of all your industry operations
 

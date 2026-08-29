@@ -1,7 +1,7 @@
 /**
  * Fetches paginated data with parallel page fetching.
  * 
- * This function optimizes paginated API calls by:
+ * This function optimises paginated API calls by:
  * 1. Fetching the first page to determine total pages (totalPages is used internally only)
  * 2. Fetching all remaining pages in parallel
  * 3. Combining all results into a single array

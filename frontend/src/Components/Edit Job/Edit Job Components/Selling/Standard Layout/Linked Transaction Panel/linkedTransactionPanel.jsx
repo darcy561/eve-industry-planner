@@ -7,7 +7,7 @@ import {
   Typography,
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
-import { AddCustomTransactionDialog } from "./addCustomTransaction";
+import { AddCustomTransactionDialogue } from "./addCustomTransaction";
 import { showSnackbarError } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatDateForLocale, formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
@@ -221,7 +221,7 @@ export function LinkedTransactionPanel(props) {
           )}
         </Grid>
       </Grid>
-      <AddCustomTransactionDialog
+      <AddCustomTransactionDialogue
         {...props}
         newTransactionTrigger={newTransactionTrigger}
         updateNewTransactionTrigger={updateNewTransactionTrigger}

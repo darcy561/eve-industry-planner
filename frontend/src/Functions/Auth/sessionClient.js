@@ -1,5 +1,5 @@
 import withRequestRetries from "../Endpoints/withRequestRetries.js";
-import requestWithPrivateHeaders from "../Endpoints/Pirivate/applyPrivateHeaders.js";
+import requestWithPrivateHeaders from "../Endpoints/Private/applyPrivateHeaders.js";
 import { clearPlannerAuthCookiesClientSide } from "./plannerAuthCookies.js";
 import {
   parsePlannerAuthCodeFromText,

@@ -1,13 +1,13 @@
 import applyParentChildChanges from "../../Components/Edit Job/functions/applyParentChildChanges";
 import repairMissingParentChildRelationships from "../Shared/repairParentChildRelationships";
-import normalizeParentChildRelationships from "../Shared/normalizeParentChildRelationships.js";
+import normaliseParentChildRelationships from "../Shared/normaliseParentChildRelationships.js";
 import materialTreeShaker from "../Helper/materialTreeShaker";
 import getAllRelatedJobs from "../Helper/getAllRelatedJobs";
 import { canPersistJobClose } from "../DocumentLock/canPersistDocumentEditClose.js";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import { showSnackbarInfo } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
-import { saveUserAccountDocument } from "../Endpoints/Pirivate/userDocument";
+import { saveUserAccountDocument } from "../Endpoints/Private/userDocument";
 import recalculateJobForNewTotal from "./recalculateJobForNewTotal";
 
 export default async function closeActiveJob(
@@ -58,7 +58,7 @@ export default async function closeActiveJob(
     tempJobs
   );
   const allRelatedJobs = getAllRelatedJobs(inputJob.jobID);
-  const normalizedJobIDs = normalizeParentChildRelationships([
+  const normalizedJobIDs = normaliseParentChildRelationships([
     inputJob,
     ...tempJobs,
     ...allRelatedJobs,

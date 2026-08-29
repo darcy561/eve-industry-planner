@@ -3,7 +3,7 @@
  *
  * Creates and configures the main Zustand store by combining all state slices
  * including application settings, account session, world data, and jobs data.
- * Provides centralized state management with Redux DevTools integration
+ * Provides centralised state management with Redux DevTools integration
  * and hot module replacement support for development.
  *
  * @fileoverview Main Zustand store configuration for EVE Industry Planner

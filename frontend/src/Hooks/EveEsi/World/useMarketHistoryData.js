@@ -20,7 +20,7 @@ import useESIRateLimiting from "../../App/useESIRateLimiting";
  * 1. Validates typeID and regionID parameters
  * 2. Checks ESI rate limits for market group
  * 3. Fetches market history data with ETag support
- * 4. Transforms data to standardized format
+ * 4. Transforms data to standardised format
  * 5. Handles rate limiting errors with appropriate wait times
  * 6. Retains inactive cache (gcTime) 30 minutes with 5-minute stale time
  *

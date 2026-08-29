@@ -5,7 +5,7 @@ import BuildIcon from "@mui/icons-material/Build";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { Handle, Position } from "@xyflow/react";
-import { getJobTypeAccentColor } from "../../Functions/Helper/jobTypeDividerColor";
+import { getJobTypeAccentColour } from "../../Functions/Helper/jobTypeDividerColour";
 import { JobTreeInteractionContext } from "./jobTreeInteractionContext";
 
 const HANDLE_TO_PARENT = "to-parent";
@@ -16,14 +16,14 @@ function getJobTreeNodeSelectionColor(theme, data) {
   if (data.readyToBuild) return theme.palette.warning.main;
   const esi = Number(data.esiCount) || 0;
   if (esi > 0) return theme.palette.info.main;
-  return getJobTypeAccentColor(theme, data.jobType);
+  return getJobTypeAccentColour(theme, data.jobType);
 }
 
 function JobDependencyNodeImpl({ id, data }) {
   const theme = useTheme();
   const { onSelectNode, onOpenNode } = useContext(JobTreeInteractionContext);
   const focused = Boolean(data.focused);
-  const accent = getJobTypeAccentColor(theme, data.jobType);
+  const accent = getJobTypeAccentColour(theme, data.jobType);
   const complete = Boolean(data.isComplete);
   const esiCount = Number(data.esiCount) || 0;
   const showEsiBuild = !complete && esiCount > 0;

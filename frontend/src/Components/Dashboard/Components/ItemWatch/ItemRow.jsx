@@ -14,7 +14,7 @@ import { useCallback, useState } from "react";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ClearIcon from "@mui/icons-material/Clear";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import { putWatchlistDeprecatedToApi } from "../../../../Functions/Endpoints/Pirivate/watchlistDeprecated.js";
+import { putWatchlistDeprecatedToApi } from "../../../../Functions/Endpoints/Private/watchlistDeprecated.js";
 import { AppEvent } from "../../../../analytics/appEventNames";
 import { trackAppEvent } from "../../../../analytics/trackAppEvent";
 import { ExpandedWatchlistRow } from "./ItemRowExpanded";
@@ -32,7 +32,7 @@ import addNewJobsToPlanner from "../../../../Functions/JobPlanner/addNewJobsToPl
 export function WatchListRow({
   item,
   index,
-  setOpenDialog,
+  setOpenDialogue,
   updateWatchlistItemToEdit,
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -468,7 +468,7 @@ export function WatchListRow({
                     <IconButton
                       color="primary"
                       onClick={() => {
-                        setOpenDialog(true);
+                        setOpenDialogue(true);
                         updateWatchlistItemToEdit(index);
                       }}
                     >

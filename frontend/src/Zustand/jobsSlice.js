@@ -3,7 +3,7 @@
  * 
  * Manages job-related state including job arrays, group arrays, multi-selection,
  * active job/group tracking, and watchlist data.
- * This slice provides centralized state management for all job-related operations
+ * This slice provides centralised state management for all job-related operations
  * and user interactions within the industry planner.
  * 
  * @fileoverview Jobs and groups state management slice for EVE Industry Planner

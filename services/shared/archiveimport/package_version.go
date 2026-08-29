@@ -14,7 +14,7 @@ import (
 var DefaultCanonicalBuildVer string
 
 // ResolveCanonicalBuildVer returns a migration/trace string for logs and CLI output.
-// It is not persisted on normalized job documents. Order:
+// It is not persisted on normalised job documents. Order:
 // 1. buildVerFlag (e.g. optional task payload override)
 // 2. CANONICAL_BUILD_VER environment variable
 // 3. DefaultCanonicalBuildVer (link-time)

@@ -8,7 +8,7 @@
 
 - **Request / context:** Account-scoped websocket delivery makes prior “re-subscribe after group persist” paths no-ops; several exports were unused.
 - **Decision:** Delete `frontend/src/Realtime/syncJobGroupWebSocketSubscriptions.js`; remove dynamic imports from [`groupManagement.js`](../../../frontend/src/Zustand/jobsSlice/groupManagement.js) and [`handlers/userJobGroupsDocument.js`](../../../frontend/src/Realtime/handlers/userJobGroupsDocument.js). Drop **`replaceGroupArray`**’s unused **`skipRealtimeResync`** option. Remove empty **`sendBaselineSubscriptionsForOpen`** and unused **`reconnectRealtime`** from [`realtimeClient.js`](../../../frontend/src/Realtime/realtimeClient.js).
-- **Docs:** Session/cookie realtime behavior remains in [`frontend/auth/spa.md`](../../../frontend/auth/spa.md) §6.2 and [`implementation.md`](./implementation.md) (architecture + frontend table); this entry records the cleanup (no separate feature doc named the removed module).
+- **Docs:** Session/cookie realtime behaviour remains in [`frontend/auth/spa.md`](../../../frontend/auth/spa.md) §6.2 and [`implementation.md`](./implementation.md) (architecture + frontend table); this entry records the cleanup (no separate feature doc named the removed module).
 - **Links:** (none)
 
 ---
@@ -54,7 +54,7 @@
 - **Collection:** Mongo `user_job_documents` — same [`models.Job`](../../../services/shared/models/job.go) shape; indexes on `(_meta.accountID, displayOnPlanner)` and `(_meta.accountID, groupID)` (`IndexSpecs` in [`deployment-tool/internal/dataplane/mongo`](../../../deployment-tool/internal/dataplane/mongo/)); `changeStreamPreAndPostImages` via deployment-tool `PreimageCollections` / `dataplane.EnsureMongo` (`eip ensure-mongo`).
 - **REST (private JWT):** `GET /api/v1/job-documents/planner`, `GET /api/v1/job-documents/by-group/{groupID}`, `GET /api/v1/job-documents/{jobID}`, `PUT /api/v1/job-documents`, `DELETE /api/v1/job-documents` — wired in [`jobdocuments/router.go`](../../../services/api/v1endpoints/jobdocuments/router.go). No account-wide GET-all.
 - **Realtime:** Changestream publishes `accountID` from `_meta` → account broadcast like `user_job_groups`. SPA: [`applyRemoteMessage.js`](../../../frontend/src/Realtime/applyRemoteMessage.js) + [`inboundJobDocumentsCoalesce.js`](../../../frontend/src/Functions/Debounce/inboundJobDocumentsCoalesce.js); persists via [`jobDocumentsPersistSchedule.js`](../../../frontend/src/Functions/Debounce/jobDocumentsPersistSchedule.js) / [`saveJobsViaApi.js`](../../../frontend/src/Functions/JobDocuments/saveJobsViaApi.js) mirroring groups.
-- **Firebase:** Job document listeners and Firestore batch update paths removed from login/edit/group flows in favor of API + WS.
+- **Firebase:** Job document listeners and Firestore batch update paths removed from login/edit/group flows in favour of API + WS.
 - **Locks:** [`documentLockCollections.js`](../../../frontend/src/Functions/DocumentLock/documentLockCollections.js) — `USER_JOBS_COLLECTION` is `user_job_documents`.
 
 ---
@@ -85,7 +85,7 @@
 
 - **Request / context:** Drop the autosubscribe path entirely—no API or core publishing subscription envelopes to JetStream, no websocket consumer for `doc.subscribe.*`. Subscribe to specific documents only via explicit WebSocket **`subscribe`** / **`unsubscribe`** when needed.
 - **Decision:** Removed **`AutoSubscribe`** / **`subscribe`** query handling and NATS publishes from API document and job/group handlers; deleted **`services/api/helper/subscription.go`** and **`v1endpoints/subscription.go`**; core changestream no longer emits **`doc.subscribe`**; websocket no longer runs **`doc-live-subscribe-*`** JetStream consumer; shared NATS **`DocUpdateStreamSubjects`** excludes **`doc.subscribe.>`**; **`ws_autosubscribe_requests_total`** dropped from Grafana. Frontend group APIs no longer pass subscribe flags on GET/PUT. **`MessageTypeSubscription`** retained only for decoding legacy payloads if encountered.
-- **Code / infra touched:** `services/api/**`, `services/core/changestream/watcher.go`, `services/shared/core/nats/{constants.go,messages.go,nats.go}`, `services/websocket/server/{server.go,nats_subscriptions.go,jetstream_consumer_id.go,metrics.go}`, `frontend/src/Functions/Endpoints/Pirivate/groups.js`, related group save/bootstrap helpers, `observability/grafana/**`, docs in this folder + [`technical-documentation/migration-plans/README.md`](../contents.md).
+- **Code / infra touched:** `services/api/**`, `services/core/changestream/watcher.go`, `services/shared/core/nats/{constants.go,messages.go,nats.go}`, `services/websocket/server/{server.go,nats_subscriptions.go,jetstream_consumer_id.go,metrics.go}`, `frontend/src/Functions/Endpoints/Private/groups.js`, related group save/bootstrap helpers, `observability/grafana/**`, docs in this folder + [`technical-documentation/migration-plans/README.md`](../contents.md).
 - **Links:** (none)
 
 ---
@@ -110,7 +110,7 @@
 
 ## 2026-04-18 — Session resume + Traefik sticky + Redis handoff (multi-replica VPS)
 
-- **Request / context:** Document and preserve JWT rotation behavior: optional baseline skip when the same tab reconnects; horizontal websocket replicas behind Traefik; avoid relying on single-process memory only.
+- **Request / context:** Document and preserve JWT rotation behaviour: optional baseline skip when the same tab reconnects; horizontal websocket replicas behind Traefik; avoid relying on single-process memory only.
 - **Decision:** **Client:** `stashRealtimeSessionResumeHint` before `disconnectRealtime` in `useAccountWebSocket`; after `open`, send `session_resume` with prior server `clientID`, await `resume_ack` (`skipBaselineSync`) with timeout ~400ms. **Server:** `session_resume.go` snapshots subscriptions on disconnect; **`popSessionHandoff`** uses Redis **`GETDEL`** on key `ws:session_handoff:v1:{accountID}:{oldClientID}` (JSON `account_id` + `docs`), then in-memory fallback; Session handoff TTL **synced with client reconnect caps**: `RECONNECT_MAX_MS (20s) + slack (5s) = 25s` — see `realtime_timing.go` + `realtimeClient.js` exports. **Infra:** `docker-compose` Traefik labels — sticky cookie **`eip_ws_affinity`**, `httpOnly`; default Traefik sticky **maxAge** unset (per Traefik docs, affinity cookie not given a finite lifetime unless configured). Load balancing: default RR for new clients, not least-connection-count.
 - **Code / infra touched:** `frontend/src/Realtime/{realtimeClient.js,useAccountWebSocket.js}`, `services/websocket/server/session_resume.go`, `services/websocket/server/{reader.go,types.go,server.go}`, `docker-compose.yml`, `technical-documentation/migration-plans/websocket-realtime/{implementation.md,README.md}`.
 - **Links:** (none)
@@ -141,8 +141,8 @@
 
 ## 2026-04-18 — SPA realtime apply: unified reconcile (tokens, characters, system indexes)
 
-- **Request / context:** Remote `users` / `application_settings` updates should mirror login + Accounts-page behavior (cloud vs local refresh tokens, add/remove additional characters, system indexes) without a fragile “apply then separate side-effects” split; refresh tokens on existing `Character` instances must update when the server pushes a new `rToken` for the same hash.
-- **Decision:** Consolidate into [`frontend/src/Realtime/applyRemoteMessage.js`](../../../frontend/src/Realtime/applyRemoteMessage.js): snapshot → Zustand merge → async serialized reconcile. Cloud on: optional `refreshTokens` array in the message compared to pre-apply linked tokens before `setLinkedCharacterRefreshTokens`; character list reconciled against the **effective** store token map; `esiRefreshToken` patched on existing characters when different; cloud off: `updateLocalRefreshTokens` + clear linked. `application_settings`: snapshot `userCloudAccounts` before merge; on toggle run the same branches; debounced system-index fetch from merged structures. Removed standalone `processRemoteDocumentSideEffects.js` / `registerRealtimeSideEffects.js`.
+- **Request / context:** Remote `users` / `application_settings` updates should mirror login + Accounts-page behaviour (cloud vs local refresh tokens, add/remove additional characters, system indexes) without a fragile “apply then separate side-effects” split; refresh tokens on existing `Character` instances must update when the server pushes a new `rToken` for the same hash.
+- **Decision:** Consolidate into [`frontend/src/Realtime/applyRemoteMessage.js`](../../../frontend/src/Realtime/applyRemoteMessage.js): snapshot → Zustand merge → async serialised reconcile. Cloud on: optional `refreshTokens` array in the message compared to pre-apply linked tokens before `setLinkedCharacterRefreshTokens`; character list reconciled against the **effective** store token map; `esiRefreshToken` patched on existing characters when different; cloud off: `updateLocalRefreshTokens` + clear linked. `application_settings`: snapshot `userCloudAccounts` before merge; on toggle run the same branches; debounced system-index fetch from merged structures. Removed standalone `processRemoteDocumentSideEffects.js` / `registerRealtimeSideEffects.js`.
 - **Code / infra touched:** `frontend/src/Realtime/applyRemoteMessage.js` (only); deleted `frontend/src/Realtime/processRemoteDocumentSideEffects.js`, `frontend/src/Realtime/registerRealtimeSideEffects.js`; `technical-documentation/migration-plans/websocket-realtime/{implementation.md,README.md,plan-todo-tracker.md,interactions.md}`.
 - **Links:** (none)
 
@@ -169,7 +169,7 @@
 ## 2026-04-23 — Websocket OTel metrics for dashboarding
 
 - **Request / context:** Add OpenTelemetry metrics to websocket service (similar to API metrics) for dashboards: request/error counters, account/client/document visibility, autosubscribe and update sends.
-- **Decision:** Added websocket meter/instruments in `services/websocket/server/metrics.go` and initialized telemetry in `services/websocket/main.go` with `telemetry.Init(DefaultConfig("websocket"))`. Instrumented upgrade request/success/error/latency (incl. expired-token rejects), connection open/close by account, autosubscribe requests, and document updates sent. Added observable gauges for connected accounts/clients and per-account/per-client/per-document live state snapshots for dashboard panels.
+- **Decision:** Added websocket meter/instruments in `services/websocket/server/metrics.go` and initialised telemetry in `services/websocket/main.go` with `telemetry.Init(DefaultConfig("websocket"))`. Instrumented upgrade request/success/error/latency (incl. expired-token rejects), connection open/close by account, autosubscribe requests, and document updates sent. Added observable gauges for connected accounts/clients and per-account/per-client/per-document live state snapshots for dashboard panels.
 - **Code / infra touched:** `services/websocket/main.go`, `services/websocket/server/{metrics.go,server.go,types.go,handler.go,reader.go,nats_subscriptions.go,processor.go}`; docs in this folder.
 - **Links:** (none)
 
@@ -193,7 +193,7 @@
 
 ---
 
-## 2026-04-21 — Centralize app JWT decode / expiry
+## 2026-04-21 — Centralise app JWT decode / expiry
 
 - **Request / context:** Realtime and Zustand both decoded or inspected the app JWT; avoid duplicated `jose` / expiry logic.
 - **Decision:** Add `frontend/src/Functions/Auth/appJwt.js` — `decodeAppJwt`, `getAppJwtExpiryUnix`, `isAppJwtExpired`, `getEffectiveAppAccessExpiryUnix`. **`realtimeClient`** uses `isAppJwtExpired`; **`getDeserialisedSerializedServerToken`** uses `decodeAppJwt`; **`useAccountWebSocket`** pre-expiry timer and **`refreshServerToken`** use `getEffectiveAppAccessExpiryUnix` (store `expires_at` when valid, else JWT `exp`). EVE SSO / ESI tokens stay in existing Character / ESI code paths.
@@ -206,7 +206,7 @@
 
 - **Request / context:** Prevent expired tokens from driving reconnect requests; allow a clean reopen once a new token exists; **resync** client state with the server after that.
 - **Decision:** `realtimeClient` decodes JWT `exp` (via `jose`) with 60s skew—**no** `WebSocket` open and **no** exponential reconnect when expired; `close` / `scheduleReconnect` paths also refuse stale tokens. When the socket **opens** after recovery from that halt or after an **`accessToken` string change** (rotation), call **`resyncRealtimeDocumentsFromServer`**: parallel GET `/api/v1/user/main` and GET `/api/v1/user/application-settings` (`getApplicationSettingsDocument` added next to `getUserAccountDocument`), merge via existing account + `mergeApplicationSettingsFromServer`, refresh cloud `refreshTokens` + `realtimeSync` cursors from `_meta.lastModified`. First successful connect in a session does **not** run the extra GETs (only rotation / post-expiry reopen).
-- **Code / infra touched:** `frontend/src/Realtime/realtimeClient.js`, `frontend/src/Realtime/resyncRealtimeDocumentsFromServer.js` (new), `frontend/src/Functions/Endpoints/Pirivate/userDocument.js`; docs in this folder.
+- **Code / infra touched:** `frontend/src/Realtime/realtimeClient.js`, `frontend/src/Realtime/resyncRealtimeDocumentsFromServer.js` (new), `frontend/src/Functions/Endpoints/Private/userDocument.js`; docs in this folder.
 - **Links:** (none)
 
 ---
@@ -225,7 +225,7 @@
 - **Request / context:** Land WebSocket realtime migration in repo; tighten subscribe authorization to owned documents only; document JWT lifecycle at the socket; keep migration docs current.
 - **Decision:**
   - **Internal JWT:** `services/shared/core/internaljwt`; API and websocket share it; removed `services/websocket/auth`.
-  - **JetStream:** Durable consumer names include per-replica suffix (`WS_CONSUMER_NAME` → `DOCKER_CONTAINER_NAME` / `CONTAINER_NAME` → `HOSTNAME` → `os.Hostname()`), sanitized.
+  - **JetStream:** Durable consumer names include per-replica suffix (`WS_CONSUMER_NAME` → `DOCKER_CONTAINER_NAME` / `CONTAINER_NAME` → `HOSTNAME` → `os.Hostname()`), sanitised.
   - **Workers:** Incoming/outgoing use coordinator-spawned goroutines (no `pond` pools for those paths); sync keeps `pond`.
   - **Autosubscribe:** NATS `doc.subscribe` handler calls `SubscribeClientToDocument` (all account tabs).
   - **Subscribe ACL:** `(*Server).docSubscribeAuthorized` — `users` / `application_settings` require doc id == JWT `account_id`; `jobs`, `archivedJobs`, `groups`, `build_stats` require Mongo `DocumentExistsByID` (`_id` + `_meta.accountID`); all other collections denied. Enforced in `reader.go` and `processor.go`.

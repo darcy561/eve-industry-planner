@@ -5,7 +5,7 @@
 
 ## Where / how (today)
 
-`capacity-controller` Swarm service always Apply-capable. Gate is **`services.*.capacity_controller_managed`** (default **true** for worker / websocket / api). Apply v1: worker Scale; WS cordon/drain/scale-in when managed; **api plain Scale from websocket client load** (same reserve / underutilized thresholds). Operators set baselines via `eip.config.yaml` + `eip sync`. Soft divert: `target_clients` → `WS_TARGET_CLIENTS`. Live SoT → [capacity-controller.md](../../../stack/capacity-controller.md).
+`capacity-controller` Swarm service always Apply-capable. Gate is **`services.*.capacity_controller_managed`** (default **true** for worker / websocket / api). Apply v1: worker Scale; WS cordon/drain/scale-in when managed; **api plain Scale from websocket client load** (same reserve / underutilised thresholds). Operators set baselines via `eip.config.yaml` + `eip sync`. Soft divert: `target_clients` → `WS_TARGET_CLIENTS`. Live SoT → [capacity-controller.md](../../../stack/capacity-controller.md).
 
 ## Correctness need
 
@@ -27,4 +27,4 @@
 - **Out of all Phases A–D until separately reopened:** hosted-tenant **id lists**, node-exporter headroom, Prom as Evaluate dependency, multi-node, global arm env.
 - **Scrapped for now:** pin/move tenant verbs (not a remainder; reopen only with explicit go-ahead).
 - **Prom:** on obs fragment ([prometheus-placement.md](./prometheus-placement.md)); not required for Evaluate.
-- **Ops evidence:** WS managed capacity soak **signed off** 2026-08-09 (`capacity_soak -profile websocket -phase all` up+down after `wsClientPressure` underutilized fix).
+- **Ops evidence:** WS managed capacity soak **signed off** 2026-08-09 (`capacity_soak -profile websocket -phase all` up+down after `wsClientPressure` underutilised fix).

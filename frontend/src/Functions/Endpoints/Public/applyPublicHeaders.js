@@ -20,7 +20,7 @@ const {
  * @property {number} size - Max items per HTTP request; must be >= 1.
  * @property {string} arrayKey - JSON body field to split.
  * @property {boolean} [mergeResponseJsonArrays] - Each JSON body is an array; results concatenated (strict: throws on !ok per chunk after retries).
- * @property {boolean} [mergeResponseJsonObjects] - Each JSON body is an object; merged with `Object.assign` in chunk order. **Lenient:** failed chunk responses are skipped (empty object) so partial results match legacy `fetchMarketPrices` / `fetchSystemIndexes` behavior.
+ * @property {boolean} [mergeResponseJsonObjects] - Each JSON body is an object; merged with `Object.assign` in chunk order. **Lenient:** failed chunk responses are skipped (empty object) so partial results match legacy `fetchMarketPrices` / `fetchSystemIndexes` behaviour.
  * @property {'first'|'aggregate'} [failure] - Used when neither merge flag is set; how to handle rejections in `allSettled` (default `aggregate`).
  * @property {string} [errorLabel] - For aggregate errors.
  */

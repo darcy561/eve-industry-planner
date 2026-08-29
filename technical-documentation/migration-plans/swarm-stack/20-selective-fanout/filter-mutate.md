@@ -24,7 +24,7 @@
 
 ### Shared helper (`shared/core/nats`) — landed
 
-- `UpdateConsumerFilterSubjects`: normalize, no-op if equal, `UpdateConsumer` with **FilterSubjects**.
+- `UpdateConsumerFilterSubjects`: normalise, no-op if equal, `UpdateConsumer` with **FilterSubjects**.
 - **Not** HostedTenants-aware — reusable.
 - Fan-out path: `FilterSubjects` drift → in-place update (not delete/recreate). Worker/scheduler keep static singular `FilterSubject` (recreate-on-mismatch).
 - Empty hosted set → inert subjects (`DocUpdateFilterInert` / `DocLockFilterInert`) — never empty `FilterSubjects`.

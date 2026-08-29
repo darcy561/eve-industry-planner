@@ -4,7 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { calculateInstallCostfromSetup } from "../../../Functions/Installation Costs/installCosts";
 import { clearOrphanedCustomStructureOnSetups } from "../../../Functions/Helper/customStructureSetup";
 import Job from "../../../Classes/job";
-import { prefetchBuildStatsQuery } from "../../../Hooks/React Query/Backend/buildStats";
+import { prefetchAccountTotalsQuery } from "../../../Hooks/React Query/Backend/statisticsTotals";
 import getMissingESIData from "../../../Functions/Shared/getMissingESIData";
 import useUsersStore from "../../../Zustand/usersStore";
 
@@ -41,7 +41,7 @@ export function useEditJobInitialState({
           ]);
 
         if (useUsersStore.getState().account.isLoggedIn) {
-          await prefetchBuildStatsQuery(queryClient, matchedJob.itemID);
+          await prefetchAccountTotalsQuery(queryClient, matchedJob.itemID);
         }
 
         const { requestedMarketData, requestedSystemIndexes } =

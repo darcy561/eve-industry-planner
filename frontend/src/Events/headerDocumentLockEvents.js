@@ -13,7 +13,7 @@ import useUsersStore from "../Zustand/usersStore.js";
 /**
  * Register (or replace) document lock header targets. Pass **`{ registrations: [...] }`** for multiple
  * scopes (first enabled row is primary for the icon), or legacy **`collection` + `docID`** for one scope.
- * Idempotent when normalized registrations are unchanged.
+ * Idempotent when normalised registrations are unchanged.
  *
  * @param {HeaderDocumentLockUIRegistration & { registrations?: HeaderDocumentLockUIRegistration[] }} config
  * @returns {void}

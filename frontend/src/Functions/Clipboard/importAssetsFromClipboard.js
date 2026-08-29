@@ -33,7 +33,7 @@ export default async function importAssetsFromClipboard_IconView() {
           // Skip empty lines
           if (!line.trim()) return;
           
-          // Split by tab (since spaces are normalized to tabs)
+          // Split by tab (since spaces are normalised to tabs)
           const parts = line.split('\t').map(part => part.trim());
           
           // First part is always the item name

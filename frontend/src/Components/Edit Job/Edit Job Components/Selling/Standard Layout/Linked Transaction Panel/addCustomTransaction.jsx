@@ -17,12 +17,12 @@ import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDoc
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 
 /**
- * The trigger for this dialog already gates on the active job lock, but we
- * keep a defensive guard on the Add button (mirrors how `parentJobDialog`
- * locks its internal AddIcon rows): if the dialog is mounted while the lock
+ * The trigger for this dialogue already gates on the active job lock, but we
+ * keep a defensive guard on the Add button (mirrors how `parentJobDialogue`
+ * locks its internal AddIcon rows): if the dialogue is mounted while the lock
  * flips to read-only, we still refuse to mutate the persisted job.
  */
-export function AddCustomTransactionDialog({
+export function AddCustomTransactionDialogue({
   state,
   actions,
   newTransactionTrigger,

@@ -19,7 +19,7 @@ export function MaterialCardFrame_Purchasing(props) {
   const { state, material } = props;
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
   const { jobArray } = useUsersStore((state) => state.jobData);
-  const [childDialogTrigger, updateChildDialogTrigger] = useState(false);
+  const [childDialogueTrigger, updateChildDialogueTrigger] = useState(false);
 
   function calculateChildJobData() {
     let childJobs = [];
@@ -194,7 +194,7 @@ export function MaterialCardFrame_Purchasing(props) {
             )}
             <ChildJobsAvatar_Purchasing
               {...props}
-              updateChildDialogTrigger={updateChildDialogTrigger}
+              updateChildDialogueTrigger={updateChildDialogueTrigger}
               childJobs={childJobs}
             />
           </Box>
@@ -280,8 +280,8 @@ export function MaterialCardFrame_Purchasing(props) {
         </Box>
         <ChildJobDialogue
           {...props}
-          childDialogTrigger={childDialogTrigger}
-          updateChildDialogTrigger={updateChildDialogTrigger}
+          childDialogueTrigger={childDialogueTrigger}
+          updateChildDialogueTrigger={updateChildDialogueTrigger}
         />
       </ContentPanel>
     </Grid>

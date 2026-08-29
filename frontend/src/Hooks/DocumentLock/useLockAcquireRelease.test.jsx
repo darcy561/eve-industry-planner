@@ -8,7 +8,7 @@ import { docLockScopeKey } from "../../Functions/DocumentLock/documentLockScope.
 const acquireDocumentLock = vi.fn();
 const releaseDocumentLock = vi.fn();
 
-vi.mock("../../Functions/Endpoints/Pirivate/documentLockClient.js", () => ({
+vi.mock("../../Functions/Endpoints/Private/documentLockClient.js", () => ({
   acquireDocumentLock: (...args) => acquireDocumentLock(...args),
   releaseDocumentLock: (...args) => releaseDocumentLock(...args),
 }));

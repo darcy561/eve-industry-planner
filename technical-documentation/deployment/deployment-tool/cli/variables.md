@@ -15,10 +15,10 @@ Conventions → [engineering.md](./engineering.md). Verbs / menu map → [verbs.
 
 | Value | SoT |
 |-------|-----|
-| CLI verbs (id, title, short for `--help`) | [`internal/catalog/verbs.go`](../../../../deployment-tool/internal/catalog/verbs.go) |
+| CLI verbs (id, title, short for `--help`) | [`internal/catalogue/verbs.go`](../../../../deployment-tool/internal/catalogue/verbs.go) |
 | Home TUI menu titles / helpers / gating | [`tui/ops`](../../../../deployment-tool/tui/ops/) (`Entries`, `MoreEntries`, `SetupNeeded`, `Allowed`) — plain-language; `Args` keep CLI ids |
 
-When adding a **CLI** verb: update `catalog` first, wire Cobra under `cmd/commands/`, keep Cobra `Short` aligned with `catalog.Verb.Short`. TUI may omit the verb from `tui/ops`, remap the title (e.g. Start → `up`), or nest it under **More** — catalog order ≠ home menu order.
+When adding a **CLI** verb: update `catalogue` first, wire Cobra under `cmd/commands/`, keep Cobra `Short` aligned with `catalogue.Verb.Short`. TUI may omit the verb from `tui/ops`, remap the title (e.g. Start → `up`), or nest it under **More** — catalogue order ≠ home menu order.
 
 Full **TUI row → CLI verb** map → [verbs.md](./verbs.md). Health gating UX → [home.md](../tui/home.md).
 
@@ -40,7 +40,7 @@ Full **TUI row → CLI verb** map → [verbs.md](./verbs.md). Health gating UX �
 | Tool binary version / Release channel / kit git branch | [`kit.Version`](../../../../deployment-tool/internal/kit/channel.go) / `kit.Channel` / `kit.KitBranch` (ldflags); `BinaryChannel()` / `ResolveKitBranch()` — operator narrative → [release-channels.md](./release-channels.md) |
 | Required/optional Swarm secret keys from `.env` | [`internal/swarm`](../../../../deployment-tool/internal/swarm/) (`RequiredKeys` / `OptionalKeys`) |
 | Per-service secret attach lists | [`docker-stack.yml`](../../../../docker-stack.yml) `secrets:` (discovered by `swarm.DiscoverAttach` / `stack.SecretAttaches`) |
-| Expected Swarm service groups + fragments | [`internal/catalog/services.go`](../../../../deployment-tool/internal/catalog/services.go) |
+| Expected Swarm service groups + fragments | [`internal/catalogue/services.go`](../../../../deployment-tool/internal/catalogue/services.go) |
 | Dataplane ensure registry / bucket names / mongo specs | [`dataplane.ServiceEnsures`](../../../../deployment-tool/internal/dataplane/), [`s3.AppBuckets`](../../../../deployment-tool/internal/dataplane/s3/), [`mongo.IndexSpecs`](../../../../deployment-tool/internal/dataplane/mongo/) — behaviour → [deploy.md](./deploy.md) |
 | Swarm stack / network IDs | `kit.StackName`; external nets from fragment YAML via `stack.ExternalNetworks` (today `eip-core`) — [stack/network.md](../../../stack/network.md) |
 
@@ -61,7 +61,7 @@ Import direction: `kit` ← `config` ← `templates/env` and `templates/yamldefa
 
 Never document process flags as `.env` keys; never add them to `EnvFields`. `msg` emit helpers gate on `process.FromTUI()` — do not redefine `EIP_FROM_TUI` elsewhere.
 
-**Docker CLI env** (`DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_CONFIG`) is owned by Docker, not the Deployment Tool. `internal/docker.NewAPIClient` honors it the same way the `docker` CLI does; do not mirror those keys into `.env` / `EnvFields`.
+**Docker CLI env** (`DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_CONFIG`) is owned by Docker, not the Deployment Tool. `internal/docker.NewAPIClient` honours it the same way the `docker` CLI does; do not mirror those keys into `.env` / `EnvFields`.
 
 Optional host env (not `.env` / not TUI process flags):
 

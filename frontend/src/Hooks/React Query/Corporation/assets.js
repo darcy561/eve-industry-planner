@@ -13,7 +13,7 @@ const corporationAssetsQueryKey = "corporationAssets";
  * - Pagination support for large corporation asset collections
  * - ESI rate limiting awareness and handling
  * - Automatic retry with exponential backoff
- * - Caching strategy optimized for corporation asset data
+ * - Caching strategy optimised for corporation asset data
  * - Error handling with descriptive messages
  * 
  * The query process:

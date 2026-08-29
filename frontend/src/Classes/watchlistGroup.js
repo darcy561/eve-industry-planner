@@ -1,10 +1,10 @@
 import uuid from "react-uuid";
 
 /**
- * WatchlistGroup class for organizing watchlist items in EVE Online industry planning.
+ * WatchlistGroup class for organising watchlist items in EVE Online industry planning.
  * 
- * This class represents a group for organizing watchlist items:
- * - Item organization and categorization
+ * This class represents a group for organising watchlist items:
+ * - Item organisation and categorisation
  * - Group expansion state management
  * - Version tracking for data compatibility
  * - Document storage and retrieval
@@ -14,7 +14,7 @@ import uuid from "react-uuid";
  * - Group name management
  * - Expansion state for UI display
  * - Version tracking for future compatibility
- * - Document serialization for storage
+ * - Document serialisation for storage
  * 
  * @class WatchlistGroup
  * @example

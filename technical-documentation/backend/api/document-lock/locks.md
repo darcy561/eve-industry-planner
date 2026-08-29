@@ -35,7 +35,7 @@ services/api/v1endpoints/documentlocks/
   viewer_presence.go   /viewer-arrived /viewer-departed (delegates to documentlock.Handle…Ingress)
 
 services/core/singleton/service.go       Generic singleton-job runner used by core (Job + StartService)
-services/core/singleton/jobs.go          Catalog of registered singleton jobs (DoclockExpirySubscriberJob, allJobs, Start)
+services/core/singleton/jobs.go          Catalogue of registered singleton jobs (DoclockExpirySubscriberJob, allJobs, Start)
 services/core/main.go                    singleton.Start(clients) on core boot
 services/shared/core/redis/lease/lease.go Reusable single-leader primitive (SET NX + CAS renew)
 

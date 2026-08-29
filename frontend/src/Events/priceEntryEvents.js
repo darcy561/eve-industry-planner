@@ -1,8 +1,8 @@
 import { eventEmitter } from '../utils/EventSystem';
 
 /**
- * Shows the price entry dialog for specified job IDs with market and order display options.
- * Emits an event to display the price entry dialog for manual price input.
+ * Shows the price entry dialogue for specified job IDs with market and order display options.
+ * Emits an event to display the price entry dialogue for manual price input.
  * 
  * @param {Array<string>} jobIDs - Array of job IDs to show price entry for
  * @param {string|null} [displayMarket=null] - Market location to display (e.g., "jita", "amarr")
@@ -10,12 +10,12 @@ import { eventEmitter } from '../utils/EventSystem';
  * @returns {void}
  * 
  * @example
- * showPriceEntryDialog(["job_123", "job_456"], "jita", "sell");
+ * showPriceEntryDialogue(["job_123", "job_456"], "jita", "sell");
  * 
  * @example
- * showPriceEntryDialog(["job_123"]); // Shows price entry without market/order presets
+ * showPriceEntryDialogue(["job_123"]); // Shows price entry without market/order presets
  */
-export function showPriceEntryDialog(jobIDs, displayMarket = null, displayOrder = null) {
+export function showPriceEntryDialogue(jobIDs, displayMarket = null, displayOrder = null) {
   eventEmitter.emit("priceEntry", {
     isOpen: true,
     jobIDs,
@@ -25,15 +25,15 @@ export function showPriceEntryDialog(jobIDs, displayMarket = null, displayOrder 
 }
 
 /**
- * Hides the price entry dialog.
- * Emits an event to close the price entry dialog.
+ * Hides the price entry dialogue.
+ * Emits an event to close the price entry dialogue.
  * 
  * @returns {void}
  * 
  * @example
- * hidePriceEntryDialog(); // Closes the price entry dialog
+ * hidePriceEntryDialogue(); // Closes the price entry dialogue
  */
-export function hidePriceEntryDialog() {
+export function hidePriceEntryDialogue() {
   eventEmitter.emit("priceEntry", {
     isOpen: false,
     jobIDs: [],

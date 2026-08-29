@@ -1,5 +1,5 @@
 import useUserStore from "../../Zustand/usersStore";
-import updateCorporationClaims from "../Endpoints/Pirivate/corporationClaims";
+import updateCorporationClaims from "../Endpoints/Private/corporationClaims";
 
 /**
  * Submits current character ESI access tokens so the backend can refresh

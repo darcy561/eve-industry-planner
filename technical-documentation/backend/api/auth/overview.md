@@ -421,7 +421,7 @@ See [BACKEND.md §3](./sessions.md#3-redis-key-layout) for the full struct defin
 - `Functions/Auth/serverTokens.js` — re-export aliases.
 - `Functions/Auth/appLoginFlow.js` — login mode resolvers + post-login hydration.
 - `Functions/Auth/authRefreshTranquilityGate.js` — refresh deferral helper.
-- `Functions/Endpoints/Pirivate/applyPrivateHeaders.js` — pre-rotate + cookie + `X-WS-Client-ID` headers.
+- `Functions/Endpoints/Private/applyPrivateHeaders.js` — pre-rotate + cookie + `X-WS-Client-ID` headers.
 - `Functions/EveESI/fetchTranquilityStatus.js` — `/status/` ESI fetch.
 - `Hooks/React Query/tranquilityServerStatus.js` — Tranquility query options + key.
 - `Hooks/App/useRefreshESITokens.js` — maintenance + stagger timers.

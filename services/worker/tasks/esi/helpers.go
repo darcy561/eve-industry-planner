@@ -196,7 +196,7 @@ func DoRequestWithRetry(
 }
 
 // DoWithRetry runs ClientInterface.Do with the same bounded in-task retry, backoff,
-// and rate-limit short-circuit behavior as DoRequestWithRetry. Use a nil body for GET.
+// and rate-limit short-circuit behaviour as DoRequestWithRetry. Use a nil body for GET.
 func DoWithRetry(
 	ctx context.Context,
 	maxAttempts int,

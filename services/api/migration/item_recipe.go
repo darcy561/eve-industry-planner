@@ -33,7 +33,7 @@ func GetItemRecipe(ctx context.Context, itemID string) (map[string]any, bool, er
 }
 
 // GetMultipleItemRecipes fetches item recipes for the given type IDs from Firestore using a batch read.
-// Missing documents are skipped; returns only documents that exist (mirrors JS behavior).
+// Missing documents are skipped; returns only documents that exist (mirrors JS behaviour).
 func GetMultipleItemRecipes(ctx context.Context, typeIDs []string) ([]map[string]any, error) {
 	if len(typeIDs) == 0 {
 		return nil, fmt.Errorf("typeIDs cannot be empty")

@@ -204,7 +204,7 @@ const (
 
 // GrafanaApplySurfaceFromDoc reads services.grafana path templates from the obs
 func GrafanaApplySurfaceFromDoc(doc Doc) (GrafanaApplySurface, error) {
-	const grafanaShort = "grafana" // compose services key (catalog.ServiceGrafana)
+	const grafanaShort = "grafana" // compose services key (catalogue.ServiceGrafana)
 	svc, ok := doc.Services[grafanaShort]
 	if !ok {
 		return GrafanaApplySurface{}, fmt.Errorf("stack has no grafana service")

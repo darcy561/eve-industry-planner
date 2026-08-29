@@ -1,7 +1,7 @@
 import { eventEmitter } from "../utils/EventSystem";
 
 /**
- * Shows the shopping list dialog with specified job IDs.
+ * Shows the shopping list dialogue with specified job IDs.
  * Emits an event to display the shopping list for the given jobs.
  * 
  * @param {Array<string>} [jobIDs=[]] - Array of job IDs to include in the shopping list
@@ -21,13 +21,13 @@ export function showShoppingList(jobIDs = []) {
 }
 
 /**
- * Hides the shopping list dialog.
- * Emits an event to close the shopping list dialog.
+ * Hides the shopping list dialogue.
+ * Emits an event to close the shopping list dialogue.
  * 
  * @returns {void}
  * 
  * @example
- * hideShoppingList(); // Closes the shopping list dialog
+ * hideShoppingList(); // Closes the shopping list dialogue
  */
 export function hideShoppingList() {
   eventEmitter.emit("shoppingList", {

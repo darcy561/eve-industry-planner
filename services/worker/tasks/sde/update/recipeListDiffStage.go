@@ -21,7 +21,7 @@ type recipeListDiffItem struct {
 // and logs the recipe items that are new in the latest update.
 func runSDENewRecipeItemsStage(ctx context.Context, persistResult *sdePersistResult, deps *esitasks.TaskDependencies) error {
 	if persistResult == nil {
-		// Placeholder for "no previous version" behavior (e.g. first-run warmup checks).
+		// Placeholder for "no previous version" behaviour (e.g. first-run warmup checks).
 		logs.DebugCtx(ctx, "SDE recipeList diff skipped (persist result was nil)")
 		return nil
 	}
@@ -115,7 +115,7 @@ func addRecipeTypeIDs(typeIDs map[int32]struct{}, r *conversion.EVEType) {
 	case conversion.ReactionID:
 		activityKey = "reaction"
 	default:
-		// Try both activity paths if job type is unknown to maximize coverage.
+		// Try both activity paths if job type is unknown to maximise coverage.
 		addMaterialsTypeIDs(typeIDs, r, "manufacturing")
 		addMaterialsTypeIDs(typeIDs, r, "reaction")
 		addInventionMaterialTypeIDs(typeIDs, r)

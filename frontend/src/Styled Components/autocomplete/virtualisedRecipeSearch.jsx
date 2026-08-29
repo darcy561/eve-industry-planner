@@ -264,7 +264,7 @@ function RecipeSearchWithBlueprintQueries({
   itemList,
   isLoadingItemList,
   itemListError,
-  ignoreSelectionOverides,
+  ignoreSelectionOverrides,
   appShellStyled = false,
 }) {
   const queryClient = useQueryClient();
@@ -280,14 +280,14 @@ function RecipeSearchWithBlueprintQueries({
   const listToDisplay = useMemo(() => {
     if (isLoadingItemList) return [];
     if (itemListError) return [];
-    if (ignoreSelectionOverides) return itemList;
+    if (ignoreSelectionOverrides) return itemList;
     const idSet = getAvailableBlueprintByBlueprintID(queryClient);
     return itemList.filter(({ blueprintID }) => idSet.has(blueprintID));
   }, [
     itemList,
     isLoadingItemList,
     itemListError,
-    ignoreSelectionOverides,
+    ignoreSelectionOverrides,
     queryClient,
   ]);
 
@@ -315,19 +315,19 @@ function RecipeSearchWithBlueprintQueries({
  *
  * @param {Object} props - Component props
  * @param {Function} props.onSelect - Callback function called when a recipe is selected. Receives the selected recipe object.
- * @param {boolean} [props.ignoreSelectionOverides=false] - If true, ignores blueprint availability filtering and shows all items
+ * @param {boolean} [props.ignoreSelectionOverrides=false] - If true, ignores blueprint availability filtering and shows all items
  * @param {boolean} [props.appShellStyled=false] - Outlined field + app-shell dropdown styling
  * @returns {JSX.Element} Virtualized recipe search autocomplete component
  *
  * @example
  * <VirtualisedRecipeSearch
  *   onSelect={(recipe) => console.log('Selected:', recipe.name)}
- *   ignoreSelectionOverides={false}
+ *   ignoreSelectionOverrides={false}
  * />
  */
 function VirtualisedRecipeSearch({
   onSelect,
-  ignoreSelectionOverides = false,
+  ignoreSelectionOverrides = false,
   appShellStyled = false,
 }) {
   const ignoreItemsWithoutBlueprints = useUsersStore(
@@ -345,7 +345,7 @@ function VirtualisedRecipeSearch({
   } = useCachedData(CACHED_DATA_FILES.SEARCH_INDEX);
 
   const shouldApplyBlueprintFilter =
-    !ignoreSelectionOverides &&
+    !ignoreSelectionOverrides &&
     ignoreItemsWithoutBlueprints &&
     isLoggedIn &&
     queryEnabled;
@@ -353,9 +353,9 @@ function VirtualisedRecipeSearch({
   const listToDisplayUnfiltered = useMemo(() => {
     if (isLoadingItemList) return [];
     if (itemListError) return [];
-    if (ignoreSelectionOverides) return itemList;
+    if (ignoreSelectionOverrides) return itemList;
     return itemList;
-  }, [itemList, isLoadingItemList, itemListError, ignoreSelectionOverides]);
+  }, [itemList, isLoadingItemList, itemListError, ignoreSelectionOverrides]);
 
   if (!shouldApplyBlueprintFilter) {
     return (
@@ -378,7 +378,7 @@ function VirtualisedRecipeSearch({
       itemList={itemList}
       isLoadingItemList={isLoadingItemList}
       itemListError={itemListError}
-      ignoreSelectionOverides={ignoreSelectionOverides}
+      ignoreSelectionOverrides={ignoreSelectionOverrides}
       appShellStyled={appShellStyled}
     />
   );

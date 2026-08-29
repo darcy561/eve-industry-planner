@@ -11,7 +11,7 @@ import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
-import findOrderTransactins from "../../../../../../Functions/MarketOrders/findOrderTransactins";
+import findOrderTransactions from "../../../../../../Functions/MarketOrders/findOrderTransactions";
 import {
   formatDateForLocale,
   formatNumberForLocale,
@@ -100,7 +100,7 @@ export function AvailableTransactionsPanel({
     corporationJournalError;
 
   // Memoize transaction data to recalculate when transaction/journal/market order cache updates
-  // Market orders are included because findOrderTransactins searches for transactions matching the job's market orders
+  // Market orders are included because findOrderTransactions searches for transactions matching the job's market orders
   // Only calculate when data is loaded to prevent errors from incomplete data
   const transactionData = useMemo(() => {
     // Don't run if data is still loading to prevent errors from incomplete data
@@ -113,7 +113,7 @@ export function AvailableTransactionsPanel({
       return [];
     }
     
-    return findOrderTransactins(
+    return findOrderTransactions(
       state.activeJob,
       queryClient,
       state.esiDataToLink.transactions.add,

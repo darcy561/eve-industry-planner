@@ -7,13 +7,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 	"eve-industry-planner/deployment-tool/internal/kit"
 	"eve-industry-planner/deployment-tool/internal/msg"
 )
 
 func init() {
-	if v, ok := catalog.ByID("add-path"); ok {
+	if v, ok := catalogue.ByID("add-path"); ok {
 		addPathCmd.Short = v.Short
 	}
 	addPathCmd.Flags().String("dir", "", "directory for the symlink (default: first writable of /usr/local/bin, ~/.local/bin, ~/bin, or %LOCALAPPDATA%\\eip\\bin on Windows)")

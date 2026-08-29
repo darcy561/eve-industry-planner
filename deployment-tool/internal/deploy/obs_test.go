@@ -36,9 +36,9 @@ func TestRunRejectsBadSource(t *testing.T) {
 	}
 }
 
-func TestRematerializeRejectsBadSource(t *testing.T) {
+func TestRematerialiseRejectsBadSource(t *testing.T) {
 	t.Parallel()
-	err := Rematerialize(context.Background(), SourceUnknown)
+	err := Rematerialise(context.Background(), SourceUnknown)
 	if err == nil || !strings.Contains(err.Error(), "live or dev") {
 		t.Fatalf("got %v", err)
 	}

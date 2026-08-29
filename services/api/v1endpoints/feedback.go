@@ -158,7 +158,7 @@ func (a *Handlers) FeedbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Sanitize content for Discord (remove control characters)
+	// Sanitise content for Discord (remove control characters)
 	sanitizedContent := sanitizeForDiscord(feedbackContent)
 
 	logs.AttachDebugStep(r, "feedback_validated", map[string]any{

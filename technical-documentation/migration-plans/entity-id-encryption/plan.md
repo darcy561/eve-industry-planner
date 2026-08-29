@@ -433,7 +433,7 @@ Pipeline:
   - successful login/refresh
   - authz recompute writes
   - authenticated activity touch interval (bounded; avoid touching on every request).
-- Expiration behavior:
+- Expiration behaviour:
   - if snapshot is expired/missing, rebuild from source-of-truth at next login (or first protected access with bounded singleflight rebuild).
   - stale accounts naturally age out of Redis without persistent memory growth.
 
@@ -473,7 +473,7 @@ Corporation claims task milestone (must be completed before phase 5 cutover):
 - Unit: deterministic vectors for char/corp/alliance refs.
 - Unit: invalid id rejection and ref shape validation.
 - Integration: login backfill creates `character_ref` + reverse index without persisting `character_id`.
-- Integration: snapshot rebuild after TTL expiry restores authz behavior.
+- Integration: snapshot rebuild after TTL expiry restores authz behaviour.
 - Security: assert logs/metrics do not emit raw ids for these entities.
 
 ### Readiness gates

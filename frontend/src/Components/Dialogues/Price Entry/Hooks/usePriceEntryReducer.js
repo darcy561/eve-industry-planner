@@ -1,9 +1,9 @@
 /**
  * Price Entry Reducer Hook for EVE Industry Planner.
  * 
- * Custom React hook that provides state management for the price entry dialog component.
+ * Custom React hook that provides state management for the price entry dialogue component.
  * Uses useReducer with a custom reducer to handle state transitions for price entry
- * building, market/order display settings, and dialog visibility.
+ * building, market/order display settings, and dialogue visibility.
  */
 
 import { useReducer, useMemo } from "react";
@@ -16,7 +16,7 @@ import { useAdvanceWhenFollowingAppDefault } from "../../../../Hooks/Planner/use
 const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_OPTION } = GLOBAL_CONFIG;
 
 /**
- * Custom hook for managing price entry dialog state.
+ * Custom hook for managing price entry dialogue state.
  */
 export default function usePriceEntryReducer() {
     const defaultMarketLocation = useUsersStore(
@@ -27,7 +27,7 @@ export default function usePriceEntryReducer() {
     );
 
     /**
-     * Creates the initial state for the price entry dialog.
+     * Creates the initial state for the price entry dialogue.
      */
     const createInitialState = () => ({
         isOpen: false,
@@ -67,7 +67,7 @@ export default function usePriceEntryReducer() {
     });
 
     /**
-     * Action dispatchers for the price entry dialog state.
+     * Action dispatchers for the price entry dialogue state.
      */
     const actions = useMemo(() => ({
         toggleIsOpen: () => {

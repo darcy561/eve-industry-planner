@@ -37,7 +37,7 @@ async function getMarketData(inputIDs) {
 
 /**
  * Determines which item IDs need to be requested from the market data API.
- * Checks existing cached data and refresh requirements to minimize unnecessary API calls.
+ * Checks existing cached data and refresh requirements to minimise unnecessary API calls.
  * 
  * @param {Set<string|number>} inputSet - Set of item IDs to check
  * @returns {Array<string|number>} Array of item IDs that need to be requested

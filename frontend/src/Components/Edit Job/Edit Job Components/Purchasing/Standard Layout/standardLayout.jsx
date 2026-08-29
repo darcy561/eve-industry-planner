@@ -194,7 +194,7 @@ export function Purchasing_StandardLayout_EditJob(props) {
           overflowY: { xs: "scroll", sm: "visible" },
           paddingRight: { xs: 0.5, sm: 0 },
           marginTop: { xs: 2, sm: 0 },
-          marginBotton: { xs: 6, sm: 0 },
+          marginBottom: { xs: 6, sm: 0 },
           maxHeight: { xs: 600, sm: "none" },
         }}
       >

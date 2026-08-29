@@ -217,7 +217,7 @@ func (s *Server) reader(client *Client) {
 		msgStr := string(msg)
 		if msgStr == "ping" {
 			// Send pong response through writer goroutine (frontend expects plain string "pong" as returnMessage)
-			// Must use Send channel to avoid concurrent writes (gorilla/websocket requires serialized writes)
+			// Must use Send channel to avoid concurrent writes (gorilla/websocket requires serialised writes)
 			select {
 			case client.Send <- []byte("pong"):
 			default:

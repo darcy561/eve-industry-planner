@@ -21,7 +21,7 @@ Live SoT for non-secret operator YAML. Secrets → [secrets.md](./secrets.md). A
 | **`ports`** | Host publish for Traefik (`http` / `https` / `traefik_dashboard`) | **`eip sync`** (+ bring-up expand) |
 | **`paths`** | Traefik dashboard path; Grafana Path | **`eip sync`** (Grafana only if `eip_grafana` running) |
 | **`proxy`** | Traefik `forwardedHeaders` trust (`trusted_ips`, `trusted_cidrs`) | **`eip sync`** |
-| **`addons`** | `observability.enabled`; `observability.grafana` Access + Base URL | enabled → rematerialize; grafana knobs → **`eip sync`** when grafana running |
+| **`addons`** | `observability.enabled`; `observability.grafana` Access + Base URL | enabled → rematerialise; grafana knobs → **`eip sync`** when grafana running |
 | **`scale_timing`** | Cooldown / stabilization windows | **capacity-controller** (Redis cooldown + Evaluate) |
 | **`cli`** | Host Deployment Tool settings (e.g. `.env` backup stem) | **Host/TUI only** — never sent to containers |
 
@@ -40,11 +40,11 @@ Live SoT for non-secret operator YAML. Secrets → [secrets.md](./secrets.md). A
 
 Validate: `min` ≥ 1; `max` ≥ `min`; `client_cutoff` ≥ 0; `target_clients` ≥ 0; when both > 0 require `target_clients` ≤ `client_cutoff`; `reserve_capacity` in `[0, 1)`; `queue_scale_up_pct.*` ≥ 0 when set.
 
-**Controller Evaluate (summary):** worker pending % of `C×R`; websocket avg clients vs `target × (1 − reserve)` up / `target × 0.35` underutilized scale-in playbook; api plain Scale from the same WS client signal. Detail → [capacity-controller.md](./capacity-controller.md).
+**Controller Evaluate (summary):** worker pending % of `C×R`; websocket avg clients vs `target × (1 − reserve)` up / `target × 0.35` underutilised scale-in playbook; api plain Scale from the same WS client signal. Detail → [capacity-controller.md](./capacity-controller.md).
 
 Capacity sync membership is **label-discovered** in [`docker-stack.yml`](../../docker-stack.yml): only services with `eip.capacity.sync=1` (api / websocket / worker). ws-router has capacity labels but is **not** synced.
 
-**Policy mount:** Swarm config `eip_config_yaml` is the project-home `eip.config.yaml` body, mounted on `capacity-controller` at `/etc/eip/eip.config.yaml` (`eip.config.sync=1`). Hash-diff rolls with other file configs on rematerialize / sync. The controller loads that path (does not import Deployment Tool).
+**Policy mount:** Swarm config `eip_config_yaml` is the project-home `eip.config.yaml` body, mounted on `capacity-controller` at `/etc/eip/eip.config.yaml` (`eip.config.sync=1`). Hash-diff rolls with other file configs on rematerialise / sync. The controller loads that path (does not import Deployment Tool).
 
 ## What `eip sync` applies
 
@@ -61,11 +61,11 @@ Targeted Moby `ServiceUpdate` + Swarm file-config hash roll. Does **not** bounce
 | `paths.traefik_dashboard` | Traefik dashboard PathPrefix label |
 | `paths.grafana` + `addons.observability.grafana.base_url` | Grafana PathPrefix labels; `GF_SERVER_ROOT_URL` = Base URL + Path (blank base → `http://127.0.0.1`) — if `eip_grafana` running. Route labels → [traefik.md](./traefik.md) |
 | `addons.observability.grafana.public` | Access Public / Private — edge membership → [network.md](./network.md); Traefik enable → [traefik.md](./traefik.md) |
-| Labeled network membership | Grafana edge from Access — [network.md](./network.md) |
+| Labelled network membership | Grafana edge from Access — [network.md](./network.md) |
 | `proxy.trusted_*` | Traefik trusted-proxy / forwardedHeaders |
-| File bodies for services labeled `eip.config.sync=1` | Hash-diff Swarm configs (`eip_config_yaml` on app; Loki/Alloy/Prometheus yml when obs on) |
+| File bodies for services labelled `eip.config.sync=1` | Hash-diff Swarm configs (`eip_config_yaml` on app; Loki/Alloy/Prometheus yml when obs on) |
 
-Bring-up / rematerialize also interpolates ports/paths/proxy into stack templates from this YAML. Stack YAML may keep bootstrap literals for `WS_CLIENT_CUTOFF` / `WS_TARGET_CLIENTS`; **live operator values** come from this YAML via sync.
+Bring-up / rematerialise also interpolates ports/paths/proxy into stack templates from this YAML. Stack YAML may keep bootstrap literals for `WS_CLIENT_CUTOFF` / `WS_TARGET_CLIENTS`; **live operator values** come from this YAML via sync.
 
 `GRAFANA_ROOT_URL` is a SyncEnv expand bridge only — not a Secrets / `.env` field.
 
@@ -81,7 +81,7 @@ Toggle: **`addons.observability.enabled`** (default **off**).
 
 ### Turning the addon on or off
 
-`eip sync` does not add or remove the obs fragment. Toggle takes effect on stack rematerialize (bring-up or day-2 rematerialize — [deploy.md](../deployment/deployment-tool/cli/deploy.md), [verbs.md](../deployment/deployment-tool/cli/verbs.md)).
+`eip sync` does not add or remove the obs fragment. Toggle takes effect on stack rematerialise (bring-up or day-2 rematerialise — [deploy.md](../deployment/deployment-tool/cli/deploy.md), [verbs.md](../deployment/deployment-tool/cli/verbs.md)).
 
 With the addon **off**, `eip sync` skips obs file-config stacks, Grafana apply, and Grafana edge membership (no `eip_grafana`).
 

@@ -295,7 +295,7 @@ func (s *Swarm) linkAPIPressureFromWS(st *State) {
 		return
 	}
 	up, down := wsClientPressure(ws)
-	// Scale-down for api is plain Scale when underutilized (no WS drain gate).
+	// Scale-down for api is plain Scale when underutilised (no WS drain gate).
 	if !up && wsClientUnderutilized(ws) && api.DesiredReplicas > api.Min {
 		down = true
 	}

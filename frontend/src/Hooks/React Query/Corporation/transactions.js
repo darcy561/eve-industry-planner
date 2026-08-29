@@ -12,7 +12,7 @@ const corporationTransactionsQueryKey = "corporationTransactions";
  * - Division-based data fetching for corporation wallet divisions
  * - ESI rate limiting awareness and handling
  * - Automatic retry with exponential backoff
- * - Caching strategy optimized for corporation transaction data
+ * - Caching strategy optimised for corporation transaction data
  * - Error handling with descriptive messages
  * - Division data flattening for unified access
  *

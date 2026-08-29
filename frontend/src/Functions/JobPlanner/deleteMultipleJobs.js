@@ -3,17 +3,17 @@ import Group from "../../Classes/group";
 import {
   deleteJobDocumentsFromApi,
   putJobDocumentsBatch,
-} from "../Endpoints/Pirivate/jobDocuments.js";
-import { putJobGroupsBatch } from "../Endpoints/Pirivate/groups.js";
+} from "../Endpoints/Private/jobDocuments.js";
+import { putJobGroupsBatch } from "../Endpoints/Private/groups.js";
 import { showSnackbarError } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
-import { saveUserAccountDocument } from "../Endpoints/Pirivate/userDocument";
+import { saveUserAccountDocument } from "../Endpoints/Private/userDocument";
 
 /**
  * Deletes one or more jobs with clone-on-write safety and strict persistence ordering.
  *
  * Flow:
- * - Normalizes input IDs and resolves existing jobs.
+ * - Normalises input IDs and resolves existing jobs.
  * - Rewrites parent/child links on cloned related jobs only.
  * - Recomputes touched groups once per group using a post-delete effective job array.
  * - (Logged-in) Persists changed job docs, changed group docs, account linked-ESI data, then

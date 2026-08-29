@@ -19,9 +19,9 @@ import {
   handleWatchlistDeprecatedDelete,
   handleWatchlistDeprecatedUpsert,
 } from "./handlers/index.js";
-import { USER_JOB_GROUPS_COLLECTION } from "../Functions/Endpoints/Pirivate/groups.js";
-import { USER_JOB_DOCUMENTS_COLLECTION } from "../Functions/Endpoints/Pirivate/jobDocuments.js";
-import { USER_WATCHLIST_DEPRECATED_COLLECTION } from "../Functions/Endpoints/Pirivate/watchlistDeprecated.js";
+import { USER_JOB_GROUPS_COLLECTION } from "../Functions/Endpoints/Private/groups.js";
+import { USER_JOB_DOCUMENTS_COLLECTION } from "../Functions/Endpoints/Private/jobDocuments.js";
+import { USER_WATCHLIST_DEPRECATED_COLLECTION } from "../Functions/Endpoints/Private/watchlistDeprecated.js";
 
 /**
  * @param {unknown} raw - parsed JSON from WebSocket

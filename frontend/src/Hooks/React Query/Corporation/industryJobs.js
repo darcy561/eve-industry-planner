@@ -13,9 +13,9 @@ const corporationIndustryJobsQueryKey = "corporationIndustryJobs";
  * - Pagination support for large corporation industry job collections
  * - ESI rate limiting awareness and handling
  * - Automatic retry with exponential backoff
- * - Caching strategy optimized for corporation industry job data
+ * - Caching strategy optimised for corporation industry job data
  * - Error handling with descriptive messages
- * - Corporation ID tracking for data organization
+ * - Corporation ID tracking for data organisation
  * 
  * The query process:
  * 1. Checks ESI rate limits for industry group

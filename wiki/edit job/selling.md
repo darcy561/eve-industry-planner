@@ -1,6 +1,6 @@
 # Edit Job - Selling Stage
 
-The Selling stage is where you manage market orders, track sales transactions, and analyze profitability for completed jobs. This stage provides comprehensive tools for linking market orders, recording sales, and calculating final profit/loss.
+The Selling stage is where you manage market orders, track sales transactions, and analyse profitability for completed jobs. This stage provides comprehensive tools for linking market orders, recording sales, and calculating final profit/loss.
 
 ## Stage Purpose
 
@@ -9,7 +9,7 @@ The Selling stage serves to:
 - **Track sales** by linking transactions from the ESI API or manually entering sales data
 - **Calculate profitability** by comparing total costs against sales revenue
 - **Monitor order status** by tracking order progress, completion, and cancellation
-- **Analyze performance** by reviewing sales statistics, average prices, and profit margins
+- **Analyse performance** by reviewing sales statistics, average prices, and profit margins
 
 ## Lifecycle Position
 
@@ -21,7 +21,7 @@ The Selling stage appears after completion in the job lifecycle:
 4. [Complete](complete) - Finished production ready for sale
 5. **Selling** ← You are here
 
-This is the final stage in the job lifecycle, where you track sales and analyze profitability before archiving the job.
+This is the final stage in the job lifecycle, where you track sales and analyse profitability before archiving the job.
 
 ## Selling Panels
 

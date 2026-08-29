@@ -41,7 +41,7 @@ cd D:\eip
 
 Other release tags → [release-channels.md](./deployment-tool/cli/release-channels.md) (`--release` / `-Release`).
 
-### 2. Initialize config
+### 2. Initialise config
 
 ```bash
 ./eip init

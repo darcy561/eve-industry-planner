@@ -12,9 +12,9 @@ const corporationBlueprintsQueryKey = "corporationBlueprints";
  * - Pagination support for large corporation blueprint collections
  * - ESI rate limiting awareness and handling
  * - Automatic retry with exponential backoff
- * - Caching strategy optimized for corporation blueprint data
+ * - Caching strategy optimised for corporation blueprint data
  * - Error handling with descriptive messages
- * - Corporation ID tracking for data organization
+ * - Corporation ID tracking for data organisation
  * 
  * The query process:
  * 1. Checks ESI rate limits for corporation group

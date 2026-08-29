@@ -3,7 +3,7 @@ import { useRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
 
-vi.mock("../../Functions/Endpoints/Pirivate/documentLockClient.js", () => ({
+vi.mock("../../Functions/Endpoints/Private/documentLockClient.js", () => ({
   acquireDocumentLock: vi.fn(),
   claimDocumentLockHandoff: vi.fn(),
   forceReleaseDocumentLockSameAccount: vi.fn(),

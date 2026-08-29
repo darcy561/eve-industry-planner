@@ -10,7 +10,7 @@ Open this file in the editor (not Preview). `diff` fences use **red = removed / 
 - Live SoT for overlay planes. …
 + Live SoT for Swarm overlay networks. …
 + Operator Access / Path / Base URL → config.md.
-+ Day-2 labeled membership → eip sync / rematerialize.
++ Day-2 labeled membership → eip sync / rematerialise.
 
 - ## Planes
 + ## Networks
@@ -38,7 +38,7 @@ Open this file in the editor (not Preview). `diff` fences use **red = removed / 
 +   Prom↔eip-obs, Grafana edge + keep off mesh
 +   Labels: eip.network.attach / .when / .detach
 +   when: observability | grafana.public
-+   Applied on rematerialize and eip sync
++   Applied on rematerialise and eip sync
 
 - traefik→grafana: PathPrefix `/grafana` (obs; web entrypoint today)
 + traefik→grafana: When Public — PathPrefix/entrypoints → traefik.md; knobs → config.md
@@ -58,7 +58,7 @@ Open this file in the editor (not Preview). `diff` fences use **red = removed / 
 
 ## Proposed live body (below)
 
-Live SoT for Swarm overlay networks. Membership SoT is the stack fragments: [`docker-stack.data.yml`](../../../../docker-stack.data.yml), [`docker-stack.yml`](../../../../docker-stack.yml), [`docker-stack.obs.yml`](../../../../docker-stack.obs.yml). Edge Traefik → [traefik.md](../../../stack/traefik.md). Operator Access / Path / Base URL → [config.md](../../../stack/config.md). Bootstrap → **`eip up`** / **`eip dev`**. Day-2 labeled membership → **`eip sync`** / rematerialize.
+Live SoT for Swarm overlay networks. Membership SoT is the stack fragments: [`docker-stack.data.yml`](../../../../docker-stack.data.yml), [`docker-stack.yml`](../../../../docker-stack.yml), [`docker-stack.obs.yml`](../../../../docker-stack.obs.yml). Edge Traefik → [traefik.md](../../../stack/traefik.md). Operator Access / Path / Base URL → [config.md](../../../stack/config.md). Bootstrap → **`eip up`** / **`eip dev`**. Day-2 labelled membership → **`eip sync`** / rematerialise.
 
 ## Networks
 
@@ -98,14 +98,14 @@ Live SoT for Swarm overlay networks. Membership SoT is the stack fragments: [`do
 
 \* Only when `addons.observability.enabled` deploys `docker-stack.obs.yml`.  
 † Edge only when Access is **Public** — [config.md](../../../stack/config.md).  
-‡ Data-fragment Prometheus; attached to `eip-obs` while the addon is on (labeled membership below).
+‡ Data-fragment Prometheus; attached to `eip-obs` while the addon is on (labelled membership below).
 
 ## Membership matrix
 
 | Service | Fragment | Networks | Notes |
 |---------|----------|----------|-------|
 | nats / redis / mongo / seaweedfs | data | `eip-core` | DNS aliases on mesh (`mongo`, `redis`, …) |
-| prometheus | data | `eip-core`; + `eip-obs` when obs on | Mesh always; obs via labeled membership |
+| prometheus | data | `eip-core`; + `eip-obs` when obs on | Mesh always; obs via labelled membership |
 | traefik-docker-proxy | app | `eip-docker-traefik` | never on mesh/edge |
 | traefik | app | `eip-core` · `eip-public` · `eip-docker-traefik` | alias `traefik` on mesh; **only** host publish |
 | frontend | app | `eip-public` | edge-only SPA |
@@ -123,9 +123,9 @@ Live SoT for Swarm overlay networks. Membership SoT is the stack fragments: [`do
 **Not on the edge overlay (by design):** websocket, worker, core, seaweedfs, mongo, redis, nats, prometheus; Grafana when Access is **Private**.  
 Traefik never routes directly to websocket; `/ws` → ws-router → Docker API + mesh to `eip_websocket` tasks.
 
-## Labeled network membership
+## Labelled network membership
 
-Some services need overlays that are **not** always in their static `networks:` list — e.g. Prometheus only on `eip-obs` while the addon is on, Grafana only on `eip-public` when Access is **Public**, and Grafana kept **off** `eip-core`. Stack fragments declare that intent with Swarm deploy labels; the Deployment Tool reads them and runs an idempotent attach/detach on rematerialize and **`eip sync`**.
+Some services need overlays that are **not** always in their static `networks:` list — e.g. Prometheus only on `eip-obs` while the addon is on, Grafana only on `eip-public` when Access is **Public**, and Grafana kept **off** `eip-core`. Stack fragments declare that intent with Swarm deploy labels; the Deployment Tool reads them and runs an idempotent attach/detach on rematerialise and **`eip sync`**.
 
 Label **values** are Docker network **names** from fragment `x-net-*` anchors (same names as `networks.*.name`). Go resolves those strings; it does not hard-code overlay name lists.
 
@@ -175,5 +175,5 @@ From `docker-stack.yml` x-\*-env: `MONGO_HOST=mongo`, `REDIS_HOST=redis`, `NATS_
 
 1. **`eip up` / `eip dev`** → `engine.Ready` ensures Swarm, then creates each **external** network from the fragment set as an **attachable overlay** (today: **`eip-core`** — name from YAML `external: true`).
 2. Stack deploy creates stack-owned nets (`eip-public`, `eip-docker-*`, and when obs is on `eip-obs` / `eip-docker-alloy`).
-3. After obs merge/prune (and on **`eip sync`**), labeled network membership runs.
+3. After obs merge/prune (and on **`eip sync`**), labelled network membership runs.
 4. Shutdown keeps volumes and **external** nets (`eip-core`); stack-owned nets go with the stack.

@@ -14,7 +14,7 @@ import (
 )
 
 // TagsFromStack returns APP_VERSION + TAG_* from running Swarm service images
-// (dev bake tags). Used by rematerialize expand; does not bake.
+// (dev bake tags). Used by rematerialise expand; does not bake.
 func TagsFromStack(ctx context.Context, home string) (map[string]string, error) {
 	envMap, err := kit.Map(filepath.Join(home, kit.EnvFile))
 	if err != nil {

@@ -5,7 +5,7 @@ import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
 import JobDependencyTreeFlow from "../../../Styled Components/JobTreeFlow/JobDependencyTreeFlow";
 import useUsersStore from "../../../Zustand/usersStore";
 import { buildGroupSearchAfterEditClose } from "../../../Functions/Groups/groupPageViewSearch";
-import { openJobDependencyTreeDialog } from "../../../Events/jobDependencyTreeDialogEvents";
+import { openJobDependencyTreeDialogue } from "../../../Events/jobDependencyTreeDialogueEvents";
 
 export default function GroupJobTreeFlow({
   groupJobs = [],
@@ -118,9 +118,9 @@ export default function GroupJobTreeFlow({
       ? String(focusJobId)
       : undefined;
 
-  const openTreeDialog = useCallback(() => {
+  const openTreeDialogue = useCallback(() => {
     if (routeGroupID) {
-      openJobDependencyTreeDialog({
+      openJobDependencyTreeDialogue({
         groupId: routeGroupID,
         jobIds: null,
         chainHighlightJobIds: panelChainIds ? [...panelChainIds] : null,
@@ -130,7 +130,7 @@ export default function GroupJobTreeFlow({
         activeGroupForEdit: groupForEditSearch,
       });
     } else {
-      openJobDependencyTreeDialog({
+      openJobDependencyTreeDialogue({
         groupId: null,
         jobIds: groupJobs.map((j) => j.jobID),
         chainHighlightJobIds: panelChainIds ? [...panelChainIds] : null,
@@ -169,7 +169,7 @@ export default function GroupJobTreeFlow({
         onJobDoubleClick={onJobDoubleClick}
         showHelpText
         helpText={groupHelpText}
-        onOpenInDialog={openTreeDialog}
+        onOpenInDialogue={openTreeDialogue}
         interactionResetKey={routeGroupID}
         initialFocusJobId={focusInGroup}
         focusRequestKey={focusInGroup ? focusSession : undefined}

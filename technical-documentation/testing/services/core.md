@@ -26,7 +26,7 @@ go test ./core/...
 | `servicemanager` | Standby ack-ready; leader start failure; lose-primary stops work |
 | `health` | Live check; nil deps; standby handoff `/ready` (200/503); election-loop-down fails ready |
 | `changestream` | Resume-token round-trip / invalid; collection-group validation; empty-groups stop; cancel sleep; tenant-keyed `doc.update` subject shape helpers |
-| `singleton` | Job catalog validity; doclock subscriber wiring; start/stop; single-leader-per-job; transient recovery |
+| `singleton` | Job catalogue validity; doclock subscriber wiring; start/stop; single-leader-per-job; transient recovery |
 | `scheduler` | In-flight job cancel when scheduler stops |
 | `scheduler/maintenance` | Cron registration for cloud-ESI refresh / inactive cleanup / session prune; microbatch plan math; Mongo user-filter contracts |
 | `startup` | `EnsureLiveSDEExists` present/missing |

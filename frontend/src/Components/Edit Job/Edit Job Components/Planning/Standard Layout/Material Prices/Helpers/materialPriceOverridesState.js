@@ -1,6 +1,6 @@
 /**
  * Shared material price override map logic (Material Prices panel + pricing model).
- * Keeps normalization rules in one place to match Job layout persistence.
+ * Keeps normalisation rules in one place to match Job layout persistence.
  */
 
 export function getSafeMaterialPriceOverrides(layout) {

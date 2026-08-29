@@ -2,7 +2,7 @@ package models
 
 import "time"
 
-// Group represents a group of jobs for organization and management
+// Group represents a group of jobs for organisation and management
 type Group struct {
 	SchemaVersion   int           `json:"schemaVersion,omitempty" bson:"schemaVersion,omitempty"`
 	AccountID       string        `json:"accountID" bson:"accountID"`

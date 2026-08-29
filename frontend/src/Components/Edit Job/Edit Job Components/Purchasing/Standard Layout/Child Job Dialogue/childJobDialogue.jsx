@@ -15,11 +15,11 @@ import useUsersStore from "../../../../../../Zustand/usersStore";
 import { useSiblingLinkLock } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
 
 export function ChildJobDialogue(props) {
-  const { state, material, childDialogTrigger, updateChildDialogTrigger } =
+  const { state, material, childDialogueTrigger, updateChildDialogueTrigger } =
     props;
   const { jobArray } = useUsersStore((rootState) => rootState.jobData);
   /**
-   * Computed once at the dialog level and broadcast through `{...props}` so the
+   * Computed once at the dialogue level and broadcast through `{...props}` so the
    * Add/Clear row buttons share the same reactive lock subscription instead of
    * each row re-running the selector chain.
    */
@@ -33,7 +33,7 @@ export function ChildJobDialogue(props) {
   );
 
   function handleClose() {
-    updateChildDialogTrigger(false);
+    updateChildDialogueTrigger(false);
   }
 
   const availableChildJobs = useMemo(() => {
@@ -49,11 +49,11 @@ export function ChildJobDialogue(props) {
 
   return (
     <Dialog
-      open={childDialogTrigger}
+      open={childDialogueTrigger}
       onClose={handleClose}
       sx={{ padding: "20px", width: "100%" }}
     >
-      <DialogTitle id="ParentJobDialog" align="center" color="primary">
+      <DialogTitle id="ParentJobDialogue" align="center" color="primary">
         Available Child Jobs
       </DialogTitle>
       <DialogContent>

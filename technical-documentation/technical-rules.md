@@ -37,7 +37,7 @@ Operator surface is the **Deployment Tool** (CLI + TUI). Binary prefix **`eip`**
 
 Verb behaviour → [`deployment/deployment-tool/cli/verbs.md`](./deployment/deployment-tool/cli/verbs.md). Bring-up → [`deploy.md`](./deployment/deployment-tool/cli/deploy.md). Task map → [`cli/contents.md`](./deployment/deployment-tool/cli/contents.md).
 
-Operator verbs stay in `deployment-tool/internal/catalog` and the TUI menu — do not invent parallel ship/release host commands.
+Operator verbs stay in `deployment-tool/internal/catalogue` and the TUI menu — do not invent parallel ship/release host commands.
 
 Day-2 app images: **`eip update`** (GHCR pull + digest-reconcile) or **`eip rebuild`** (local bake) for the **app fragment**. Fragments → [`stack/stack.md`](./stack/stack.md).
 
@@ -75,7 +75,7 @@ Applies to **SPA / frontend**, Go services, and Deployment Tool alike — not a 
   - Operator secrets / `.env` schema → `EnvFields` (Deployment Tool)
   - Capacity/addons/tunables → `yamldefaults.DefaultConfig` / `ConfigFields`
   - Stack membership → fragment YAML
-  - Expected Swarm services → catalog / stack discovery as appropriate
+  - Expected Swarm services → catalogue / stack discovery as appropriate
   - Frontend public runtime knobs → stack/`x-frontend-public-env` (and the owning template/emit path) — not a second hand-maintained list in the SPA
   - Product strings / theme tokens / menu catalogs → their existing single owners (kit, theme, ops) — do not fork copies into screens
 

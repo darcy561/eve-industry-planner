@@ -11,7 +11,7 @@ vi.mock("../../../global-config-app", () => ({
   default: { DEFAULT_ARCHIVE_REFRESH_PERIOD: 2 },
 }));
 
-vi.mock("../../../Functions/Endpoints/Pirivate/statisticsTimeline.js", () => ({
+vi.mock("../../../Functions/Endpoints/Private/statisticsTimeline.js", () => ({
   getAccountTimeline: vi.fn(),
   getAccountTimelineItems: vi.fn(),
 }));
@@ -23,7 +23,7 @@ const {
   timelineItemsQueryOptions,
 } = await import("./statisticsTimeline.js");
 
-const { STATISTICS_QUERY_KEY_ROOT } = await import("./buildStats.js");
+const { STATISTICS_QUERY_KEY_ROOT } = await import("./statisticsKeys.js");
 
 describe("timeline query keys", () => {
   // Invalidation targets ["backend", STATISTICS_QUERY_KEY_ROOT]. A key outside

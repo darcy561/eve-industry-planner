@@ -170,7 +170,7 @@ func InstanceID() string {
 //   - `fn` may return an error to indicate a transient failure; the lease
 //     is released and re-acquisition continues. Use a clean return (nil)
 //     for graceful "I'm done" shutdowns triggered by context cancellation.
-//   - Concurrent callers are serialized by Redis itself: only one replica
+//   - Concurrent callers are serialised by Redis itself: only one replica
 //     can hold the lease at a time.
 //
 // `key` is the Redis lease key (e.g. `lease:doclock:expiry-subscriber`).

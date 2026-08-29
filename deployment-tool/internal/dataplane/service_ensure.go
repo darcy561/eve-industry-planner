@@ -12,7 +12,7 @@ import (
 // ServiceEnsure binds a Swarm service short name to its dataplane ensure step.
 // SoT for Ready (all) and repair (subset by short name). Register new ensures here only.
 type ServiceEnsure struct {
-	Short       string // catalog / stack short name, e.g. "mongo"
+	Short       string // catalogue / stack short name, e.g. "mongo"
 	Label       string // operator-facing progress label
 	Run         func(context.Context, string) error
 	TaskRunning func(context.Context, string) (bool, error)

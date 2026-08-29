@@ -45,5 +45,5 @@ The Dashboard gives you:
 
 - [Accounts](accounts) - Managing accounts and characters
 - [Job Planner](job%20planner) - Detailed job management
-- [Groups](groups) - Organizing jobs
+- [Groups](groups) - Organising jobs
 

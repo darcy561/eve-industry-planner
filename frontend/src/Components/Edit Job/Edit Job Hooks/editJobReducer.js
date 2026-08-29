@@ -1,12 +1,12 @@
 /**
  * Edit Job Reducer for EVE Industry Planner.
  * 
- * Manages state transitions for the edit job dialog component, handling actions
+ * Manages state transitions for the edit job dialogue component, handling actions
  * for job editing, parent-child job relationships, ESI data linking, and temporary
- * job management. This reducer provides centralized state management for complex
+ * job management. This reducer provides centralised state management for complex
  * job editing operations.
  * 
- * @fileoverview Reducer for edit job dialog state management
+ * @fileoverview Reducer for edit job dialogue state management
  * @author EVE Industry Planner Team
  */
 
@@ -17,7 +17,7 @@ import { normalizeSetIsLoadingPayload } from "../../../Functions/Helper/setIsLoa
  * Action types for the edit job reducer.
  * 
  * Defines all possible action types that can be dispatched to modify
- * the edit job dialog state. Each action type corresponds to a specific
+ * the edit job dialogue state. Each action type corresponds to a specific
  * state change operation for job editing functionality.
  * 
  * @constant {Object} EDIT_JOB_ACTION_TYPES
@@ -60,10 +60,10 @@ export const EDIT_JOB_ACTION_TYPES = {
 };
 
 /**
- * Reducer function for managing edit job dialog state.
+ * Reducer function for managing edit job dialogue state.
  * 
  * Handles state transitions based on action types, providing immutable
- * state updates for the edit job dialog component. Includes complex logic
+ * state updates for the edit job dialogue component. Includes complex logic
  * for managing parent-child job relationships, ESI data linking, and
  * temporary job state management.
  * 

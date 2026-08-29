@@ -12,7 +12,7 @@ import (
 )
 
 // SetupClient creates and returns an asynq client for all tasks.
-// It handles Redis connection configuration and client initialization.
+// It handles Redis connection configuration and client initialisation.
 func SetupClient() (*asynq.Client, asynq.RedisClientOpt, error) {
 	rawURL, err := config.RedisURL()
 	if err != nil {
@@ -47,7 +47,7 @@ func SetupClient() (*asynq.Client, asynq.RedisClientOpt, error) {
 	// Create asynq client for all tasks
 	client := asynq.NewClient(redisOpt)
 
-	logs.InfoCtx(context.Background(), "asynq client initialized", "redis_addr", redisAddr)
+	logs.InfoCtx(context.Background(), "asynq client initialised", "redis_addr", redisAddr)
 
 	return client, redisOpt, nil
 }

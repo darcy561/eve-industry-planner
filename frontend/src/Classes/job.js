@@ -294,8 +294,8 @@ class Job {
   /**
    * Converts the job instance to a document object for storage.
    *
-   * This method serializes the job data for persistence:
-   * - Converts Sets to Arrays for JSON serialization
+   * This method serialises the job data for persistence:
+   * - Converts Sets to Arrays for JSON serialisation
    * - Recursively converts Setup objects to documents
    * - `build.costs.extrasCosts[]` stays in SPA form: `{ id, category, extraText, extraValue }` (see Extras panel; `category` is string id, e.g. `"0"`…`"5"`)
    * - Preserves all job configuration and state data
@@ -351,7 +351,7 @@ class Job {
 
   /**
    * Parent job IDs (canonical planner links), each as a string.
-   * Normalizes legacy `parentJob` singular shapes that may not be arrays on hydrated docs.
+   * Normalises legacy `parentJob` singular shapes that may not be arrays on hydrated docs.
    *
    * @returns {string[]}
    */
@@ -509,7 +509,7 @@ class Job {
    * Canonical row shape (same as Extras panel): `{ id, category, extraText, extraValue }`.
    * - `id` — string UUID (e.g. react-uuid)
    * - `category` — extras category id as string (`"0"` = unassigned; matches `ExtraCategory.id`)
-   * - `extraText` — label / description (HTML sanitized in UI before add)
+   * - `extraText` — label / description (HTML sanitised in UI before add)
    * - `extraValue` — ISK amount (number)
    *
    * @param {Object} newItem - Extra cost row

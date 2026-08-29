@@ -2,7 +2,7 @@
  * Constants for EVE Online asset location types and flags.
  * 
  * These constants define which location types and flags are accepted
- * when processing and organizing EVE Online assets.
+ * when processing and organising EVE Online assets.
  */
 
 /**

@@ -1,9 +1,9 @@
 import { IconButton, Tooltip } from "@mui/material";
 import WarehouseIcon from "@mui/icons-material/Warehouse";
-import { showAssetsDialog } from "../../Events/dialogEvents";
+import { showAssetsDialogue } from "../../Events/dialogueEvents";
 
 /**
- * An icon button component that opens the assets dialog for a specific material.
+ * An icon button component that opens the assets dialogue for a specific material.
  * Displays a warehouse icon and shows user's assets for the given material type.
  * 
  * @param {Object} props - Component props
@@ -32,7 +32,7 @@ function AssetsIconButton({
     <Tooltip title={tooltipText} arrow placement={tooltipPlacement}>
       <IconButton
         color="primary"
-        onClick={() => showAssetsDialog(materialTypeID)}
+        onClick={() => showAssetsDialogue(materialTypeID)}
         sx={{ ...iconButtonStyle }}
       >
         <WarehouseIcon sx={{ ...iconStyle }} />

@@ -13,7 +13,7 @@ vi.mock("../src/Functions/JobDocuments/saveJobsViaApi.js", () => ({
   saveJobsViaApi: (...args) => saveJobsViaApi(...args),
 }));
 
-vi.mock("../src/Functions/Endpoints/Pirivate/userDocument.js", () => ({
+vi.mock("../src/Functions/Endpoints/Private/userDocument.js", () => ({
   saveUserAccountDocument: (...args) => saveUserAccountDocument(...args),
 }));
 
@@ -25,7 +25,7 @@ vi.mock("../src/Functions/Shared/repairMissingParentChildRelationships", () => (
   default: () => [],
 }));
 
-vi.mock("../src/Functions/Shared/normalizeParentChildRelationships.js", () => ({
+vi.mock("../src/Functions/Shared/normaliseParentChildRelationships.js", () => ({
   default: () => [],
 }));
 

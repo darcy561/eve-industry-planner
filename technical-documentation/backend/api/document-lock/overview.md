@@ -398,7 +398,7 @@ services/api/v1endpoints/documentlocks/
   viewer_presence.go      — /viewer-arrived / viewer-departed HTTP handlers (delegate to documentlock.Handle…Ingress)
 
 services/core/singleton/service.go      — generic singleton-job runner (Job + StartService)
-services/core/singleton/jobs.go         — catalog of singleton jobs (DoclockExpirySubscriberJob, Start)
+services/core/singleton/jobs.go         — catalogue of singleton jobs (DoclockExpirySubscriberJob, Start)
 services/core/main.go                   — singleton.Start(clients) on core startup
 
 services/websocket/server/
@@ -452,7 +452,7 @@ frontend/src/Events/
   headerDocumentLockEvents.js       — imperative API for the header slice
   editJobReleaseRequestEvents.js    — release-request handler registry (edit-job ↔ slice)
 
-frontend/src/Functions/Endpoints/Pirivate/documentLockClient.js — REST client functions + WS-batch path
+frontend/src/Functions/Endpoints/Private/documentLockClient.js — REST client functions + WS-batch path
 
 frontend/src/Components/Edit Job/Edit Job Hooks/useActiveJobDocumentLock.js
                                     — reducer-shaped hooks for the Edit Job page

@@ -11,7 +11,7 @@ const characterSkillsQueryKey = "characterSkills";
  * This query handles character skill data fetching with:
  * - ESI rate limiting awareness and handling
  * - Automatic retry with exponential backoff
- * - Caching strategy optimized for skill data
+ * - Caching strategy optimised for skill data
  * - Error handling with descriptive messages
  * - Single-page data fetching (skills are not paginated)
  * 

@@ -12,7 +12,7 @@ import {
   Switch,
   Typography,
 } from "@mui/material";
-import { saveApplicationSettings } from "../../../Functions/Endpoints/Pirivate/userDocument";
+import { saveApplicationSettings } from "../../../Functions/Endpoints/Private/userDocument";
 import { blueprintOptions } from "../../../Context/defaultValues";
 import uuid from "react-uuid";
 import VirtualisedRecipeSearch from "../../../Styled Components/autocomplete/virtualisedRecipeSearch";
@@ -147,7 +147,7 @@ function BlueprintSettingsFrame() {
                   addExemptTypeID(value.itemID);
                   await saveApplicationSettings();
                 }}
-                ignoreSelectionOverides={true}
+                ignoreSelectionOverrides={true}
               />
             </Grid>
             <Grid sx={{ marginTop: { xs: "0px", sm: "20px" } }} size={12}>

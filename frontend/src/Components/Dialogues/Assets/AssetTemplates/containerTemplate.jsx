@@ -1,9 +1,9 @@
 import { Typography, Grid } from "@mui/material";
 
-import AssetLocationLogic_AssetDialogWindow from "./templateLogic";
+import AssetLocationLogic_AssetDialogueWindow from "./templateLogic";
 import { buildAssetName } from "../../../../Functions/Assets/assetHelpers";
 
-export default function AssetContainerTemplate_AssetDialogWindow(props) {
+export default function AssetContainerTemplate_AssetDialogueWindow(props) {
   const { state, assetObject, matchedAssets } = props;
   const itemName = buildAssetName(assetObject, state.assetLocationNames, state.useCorporationAssets, state.selectedCorporation, state.fullItemList)
 
@@ -15,7 +15,7 @@ export default function AssetContainerTemplate_AssetDialogWindow(props) {
       <Grid container size={12}>
         {matchedAssets.map((asset) => {
           return (
-            <AssetLocationLogic_AssetDialogWindow
+            <AssetLocationLogic_AssetDialogueWindow
               key={asset.item_id}
               {...props}
               assetObject={asset}

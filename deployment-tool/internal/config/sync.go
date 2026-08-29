@@ -45,7 +45,7 @@ func Sync(ctx context.Context, dryRun bool) error {
 	targets := stack.CapacityTargets(doc, stackPrefix)
 
 	msg.Step("Applying targeted diffs (eip.capacity.sync + traefik ports/paths + network labels + grafana)…")
-	msg.Line("(APP_VERSION / image ship is NOT part of eip sync — use eip rebuild or rematerialize)")
+	msg.Line("(APP_VERSION / image ship is NOT part of eip sync — use eip rebuild or rematerialise)")
 	if err := ApplyCapacity(ctx, cfg, targets, doc, dryRun); err != nil {
 		return err
 	}

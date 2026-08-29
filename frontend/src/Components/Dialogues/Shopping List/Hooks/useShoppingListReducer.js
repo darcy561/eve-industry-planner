@@ -1,12 +1,12 @@
 /**
  * Shopping List Reducer Hook for EVE Industry Planner.
  * 
- * Custom React hook that provides state management for the shopping list dialog component.
+ * Custom React hook that provides state management for the shopping list dialogue component.
  * Uses useReducer with a custom reducer to handle complex state transitions for
  * shopping list building, asset management, character/corporation selection,
  * and clipboard operations.
  * 
- * @fileoverview Custom hook for shopping list dialog state management
+ * @fileoverview Custom hook for shopping list dialogue state management
  * @author EVE Industry Planner Team
  */
 
@@ -16,16 +16,16 @@ import useUsersStore from "../../../../Zustand/usersStore";
 import { buildSetIsLoadingActionPayload } from "../../../../Functions/Helper/setIsLoadingAction";
 
 /**
- * Custom hook for managing shopping list dialog state.
+ * Custom hook for managing shopping list dialogue state.
  * 
- * Provides a reducer-based state management solution for the shopping list dialog,
+ * Provides a reducer-based state management solution for the shopping list dialogue,
  * including initial state creation based on current user data, action dispatching,
  * and state access. The hook automatically determines initial values based on
  * the current user's data and application settings.
  * 
  * @returns {Object} Hook return object
- * @returns {Object} returns.state - Current dialog state
- * @returns {boolean} returns.state.isOpen - Whether dialog is open
+ * @returns {Object} returns.state - Current dialogue state
+ * @returns {boolean} returns.state.isOpen - Whether dialogue is open
  * @returns {boolean} returns.state.isLoading - Loading state
  * @returns {boolean} returns.state.buildingShoppingList - Whether building shopping list
  * @returns {Array} returns.state.requestedJobIDs - Array of requested job IDs
@@ -39,7 +39,7 @@ import { buildSetIsLoadingActionPayload } from "../../../../Functions/Helper/set
  * @returns {number|null} returns.state.selectedAssetLocation - Selected asset location ID
  * @returns {number|null} returns.state.selectedCorporation - Selected corporation ID
  * @returns {Object} returns.actions - Action dispatchers
- * @returns {Function} returns.actions.toggleIsOpen - Toggle dialog open/closed
+ * @returns {Function} returns.actions.toggleIsOpen - Toggle dialogue open/closed
  * @returns {Function} returns.actions.toggleIsLoading - Toggle loading state
  * @returns {Function} returns.actions.setIsLoading - Set loading state
  * @returns {Function} returns.actions.toggleBuildingShoppingList - Toggle building mode
@@ -59,10 +59,10 @@ import { buildSetIsLoadingActionPayload } from "../../../../Functions/Helper/set
  * @returns {Function} returns.actions.resetState - Reset state to initial values
  * 
  * @example
- * function ShoppingListDialog() {
+ * function ShoppingListDialogue() {
  *   const { state, actions } = useShoppingListReducer();
  *   
- *   const handleOpenDialog = () => {
+ *   const handleOpenDialogue = () => {
  *     actions.toggleIsOpen();
  *   };
  *   
@@ -84,7 +84,7 @@ import { buildSetIsLoadingActionPayload } from "../../../../Functions/Helper/set
  */
 export default function useShoppingListReducer() {
     /**
-     * Creates the initial state for the shopping list dialog.
+     * Creates the initial state for the shopping list dialogue.
      * 
      * Determines initial values based on current user data and application settings,
      * including main character data, available characters, and default asset locations.
@@ -133,7 +133,7 @@ export default function useShoppingListReducer() {
     const [state, dispatch] = useReducer((state, action) => shoppingListReducer(state, action, createInitialState), initialState);
 
     /**
-     * Action dispatchers for the shopping list dialog state.
+     * Action dispatchers for the shopping list dialogue state.
      * 
      * Provides convenient methods to dispatch actions to the reducer,
      * abstracting away the action creation and dispatch logic.
@@ -143,7 +143,7 @@ export default function useShoppingListReducer() {
      */
     const actions = useMemo(() => ({
         /**
-         * Toggles the dialog open/closed state.
+         * Toggles the dialogue open/closed state.
          * 
          * @example
          * actions.toggleIsOpen();

@@ -10,7 +10,7 @@ import (
 )
 
 // pastCompatibilityDate is an intentionally old date (minimum supported window) to verify
-// X-Compatibility-Date is honored; ESI typically echoes it on the response.
+// X-Compatibility-Date is honoured; ESI typically echoes it on the response.
 // Live pin for normal clients: worker/esi.CompatibilityDate and frontend GLOBAL_CONFIG.ESI_COMPATIBILITY_DATE.
 const pastCompatibilityDate = "2020-01-01"
 

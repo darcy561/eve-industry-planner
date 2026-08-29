@@ -219,8 +219,8 @@ func evaluateWebsocket(ss cluster.ServiceState, timing config.ScaleTiming, now t
 	}
 
 	// Scale-in playbook: prefer scale when draining+empty; else drain (kick); else cordon victim.
-	underutilized := avg <= float64(target)*0.35
-	if d > ss.Min && underutilized {
+	underutilised := avg <= float64(target)*0.35
+	if d > ss.Min && underutilised {
 		if drainingEmpty {
 			if sustained(ss.PressureDownSince, downStab, now) {
 				next := d - 1
@@ -246,7 +246,7 @@ func evaluateWebsocket(ss cluster.ServiceState, timing config.ScaleTiming, now t
 }
 
 // evaluateAPI scales api replicas from websocket client load (same reserve /
-// underutilized thresholds as websocket). Approximation until api has its own
+// underutilised thresholds as websocket). Approximation until api has its own
 // request signal. Plain Scale only — no cordon/drain.
 func evaluateAPI(api, ws cluster.ServiceState, timing config.ScaleTiming, now time.Time) (*Action, time.Duration, string) {
 	if !api.Managed {
@@ -295,11 +295,11 @@ func evaluateAPI(api, ws cluster.ServiceState, timing config.ScaleTiming, now ti
 		return nil, remainingStab(api.PressureUpSince, upStab, now), "api scale-up stabilizing"
 	}
 
-	underutilized := avg <= float64(target)*0.35
-	if d > api.Min && underutilized {
+	underutilised := avg <= float64(target)*0.35
+	if d > api.Min && underutilised {
 		if sustained(api.PressureDownSince, downStab, now) {
 			next := d - 1
-			return scaleAction(cluster.ServiceAPI, next, "api linked to websocket underutilized"), 0, fmt.Sprintf("scale api %d→%d", d, next)
+			return scaleAction(cluster.ServiceAPI, next, "api linked to websocket underutilised"), 0, fmt.Sprintf("scale api %d→%d", d, next)
 		}
 		return nil, remainingStab(api.PressureDownSince, downStab, now), "api scale-down stabilizing"
 	}

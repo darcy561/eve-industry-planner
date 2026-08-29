@@ -3,7 +3,7 @@
  * 
  * Manages state transitions for the job planner page component, handling actions
  * for right drawer management, skeleton loading states, and page requirements.
- * This reducer provides centralized state management for the job planner UI.
+ * This reducer provides centralised state management for the job planner UI.
  * 
  * @fileoverview Reducer for job planner page state management
  * @author EVE Industry Planner Team

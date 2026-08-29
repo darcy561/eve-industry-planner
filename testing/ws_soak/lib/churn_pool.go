@@ -63,7 +63,7 @@ type ChurnPoolOptions struct {
 	Pending func(accountID string) bool
 
 	// RunIdentity holds one live client until ctx is cancelled. Required.
-	// Affinity cookies are already on clientIdentity; dial paths must honor them.
+	// Affinity cookies are already on clientIdentity; dial paths must honour them.
 	RunIdentity func(ctx context.Context, id clientIdentity)
 
 	// OnLeaveTimeout is optional; called when leave wait expires after a force-leave

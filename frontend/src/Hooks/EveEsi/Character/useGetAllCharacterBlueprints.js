@@ -105,7 +105,7 @@ function createSuccessObject(data) {
  * - Fetches blueprints for all user characters
  * - Checks loading states for all character blueprint queries
  * - Extracts cached data from React Query cache
- * - Organizes data by character hash for easy access
+ * - Organises data by character hash for easy access
  * - Returns appropriate loading, error, or success states
  * 
  * The caching process:
@@ -113,7 +113,7 @@ function createSuccessObject(data) {
  * 2. Checks query states for all character blueprint queries
  * 3. Determines overall loading and error states
  * 4. Extracts cached data from successful queries
- * 5. Organizes data by character hash
+ * 5. Organises data by character hash
  * 
  * @param {Object} queryClient - React Query client instance
  * @returns {Object} Object containing cached character blueprints data
@@ -159,7 +159,7 @@ export function getAllCachedCharacterBlueprints(queryClient) {
     return createErrorObject(error);
   }
 
-  // Extract cached blueprints organized by character hash
+  // Extract cached blueprints organised by character hash
   const blueprintsByCharacter = {};
   queryStates.forEach(({ CharacterHash, cachedData }) => {
     // The cached data structure is { data: allData, characterHash: characterHash }
@@ -175,7 +175,7 @@ export function getAllCachedCharacterBlueprints(queryClient) {
  * 
  * This hook provides comprehensive character blueprint data fetching:
  * - Fetches blueprints for all user characters in parallel
- * - Organizes blueprints by character hash for easy access
+ * - Organises blueprints by character hash for easy access
  * - Handles pagination automatically through the underlying query
  * - Provides loading, error, and success states
  * - Uses React Query's useQueries for parallel data fetching
@@ -186,7 +186,7 @@ export function getAllCachedCharacterBlueprints(queryClient) {
  * 2. Creates queries for all character blueprint data
  * 3. Fetches data in parallel using React Query's useQueries
  * 4. Combines results using a custom combine function
- * 5. Organizes data by character hash for structured access
+ * 5. Organises data by character hash for structured access
  * 
  * @returns {Object} Object containing character blueprints data and states
  * @returns {Object} returns.data - Object with character hashes as keys and blueprint arrays as values
@@ -227,7 +227,7 @@ export function useGetAllCharacterBlueprints() {
       return createErrorObject(error);
     }
 
-    // Organize blueprints by character hash
+    // Organise blueprints by character hash
     const blueprintsByCharacter = {};
     results.forEach((result, index) => {
       const { CharacterHash } = characters[index];

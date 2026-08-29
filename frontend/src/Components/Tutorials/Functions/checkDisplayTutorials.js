@@ -1,12 +1,12 @@
 /**
  * Tutorial Display Functions for EVE Industry Planner.
  * 
- * Provides utility functions for determining tutorial display behavior and
+ * Provides utility functions for determining tutorial display behaviour and
  * right drawer expansion based on user login status and tutorial preferences.
  * These functions integrate with the application's tutorial system to provide
- * contextual UI behavior for new and returning users.
+ * contextual UI behaviour for new and returning users.
  * 
- * @fileoverview Functions for tutorial display and drawer behavior management
+ * @fileoverview Functions for tutorial display and drawer behaviour management
  * @author EVE Industry Planner Team
  */
 
@@ -45,7 +45,7 @@ export default function checkDisplayTutorials() {
  * 
  * Provides intelligent drawer expansion logic that considers page requirements,
  * user login status, and tutorial preferences. This function is used throughout
- * the application to ensure consistent drawer behavior that respects both
+ * the application to ensure consistent drawer behaviour that respects both
  * user preferences and tutorial requirements.
  * 
  * @param {boolean} [pageRequiresDrawerToBeOpen=false] - Whether the current page requires the drawer to be open

@@ -1,6 +1,6 @@
 import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../DocumentLock/documentLockEvents.js";
 import useUsersStore from "../../Zustand/usersStore.js";
-import { putJobGroupsBatch } from "../Endpoints/Pirivate/groups.js";
+import { putJobGroupsBatch } from "../Endpoints/Private/groups.js";
 
 /**
  * Persists job groups to the API (`PUT /api/v1/groups`).

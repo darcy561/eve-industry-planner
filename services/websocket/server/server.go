@@ -44,7 +44,7 @@ func NewServer(clients *stackservices.Clients) (*Server, error) {
 		return nil, fmt.Errorf("load authz hmac key for websocket scope upgrades: %w", err)
 	}
 
-	// Sync worker pool (pond). Incoming document work uses per-docID mutex serialization in processIncomingQueue.
+	// Sync worker pool (pond). Incoming document work uses per-docID mutex serialisation in processIncomingQueue.
 	syncPool := pond.NewPool(config.SyncPoolSize)
 
 	shardN := max(config.DocUpdateOutboundShardCount, 1)

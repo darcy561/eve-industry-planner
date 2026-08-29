@@ -2,8 +2,8 @@ import { jobTypes } from "../../Context/defaultValues";
 
 /**
  * Combines character and corporation blueprints into a single array
- * @param {Object} characterBlueprints - Character blueprints data organized by character hash
- * @param {Object} corporationBlueprints - Corporation blueprints data organized by corporation ID
+ * @param {Object} characterBlueprints - Character blueprints data organised by character hash
+ * @param {Object} corporationBlueprints - Corporation blueprints data organised by corporation ID
  * @returns {Array} Combined array of blueprints
  */
 export function combineBlueprints(characterBlueprints, corporationBlueprints) {

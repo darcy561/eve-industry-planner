@@ -3,7 +3,7 @@ import { Avatar, Typography, Grid, Checkbox, Tooltip } from "@mui/material";
 import { LARGE_TEXT_FORMAT } from "../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
 
-export function ShoppingListItem_ShoppingListDialog({ item, actions, isEven = false }) {
+export function ShoppingListItem_ShoppingListDialogue({ item, actions, isEven = false }) {
   const { typeID, name } = item;
 
   const assetQuantityText = Math.max(

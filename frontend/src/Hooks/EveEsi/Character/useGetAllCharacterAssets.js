@@ -75,7 +75,7 @@ function findFirstError(results) {
  * - Fetches assets for all user characters
  * - Checks loading states for all character asset queries
  * - Extracts cached data from React Query cache
- * - Organizes data by character hash for easy access
+ * - Organises data by character hash for easy access
  * - Returns appropriate loading, error, or success states
  * 
  * The caching process:
@@ -83,7 +83,7 @@ function findFirstError(results) {
  * 2. Checks query states for all character asset queries
  * 3. Determines overall loading and error states
  * 4. Extracts cached data from successful queries
- * 5. Organizes data by character hash
+ * 5. Organises data by character hash
  * 
  * @param {Object} queryClient - React Query client instance
  * @returns {Object} Object containing cached character assets data

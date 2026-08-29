@@ -203,7 +203,7 @@ func TestRefreshAccountSessionGrants_ESIRetryableRateLimitError(t *testing.T) {
 	// In a real scenario, you'd use integration tests with valid tokens.
 	t.Skip("Requires valid SSO token - testing ESI error handling is better done in integration tests")
 
-	// The following code shows the expected behavior:
+	// The following code shows the expected behaviour:
 	// When ESI returns a retryable rate limit error, the message should be nacked
 	/*
 		request := natscore.AccountSessionGrantsRequest{

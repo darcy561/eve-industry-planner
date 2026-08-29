@@ -1,4 +1,4 @@
-// jobs.go is the catalog of singleton workloads that should run on exactly
+// jobs.go is the catalogue of singleton workloads that should run on exactly
 // one core replica at a time. The generic plumbing lives in service.go;
 // this file owns *which* jobs are wired in production.
 //
@@ -34,7 +34,7 @@ const (
 
 // DoclockExpirySubscriberJob builds the singleton.Job that drives the
 // doc-lock TTL expiry subscriber. Exposed so tests can register just this
-// one job without pulling in the whole catalog.
+// one job without pulling in the whole catalogue.
 func DoclockExpirySubscriberJob(deps documentlock.Deps) Job {
 	return Job{
 		Name:     "doclock-expiry-subscriber",
@@ -67,11 +67,11 @@ func allJobs(clients *stackservices.Clients) []Job {
 	}
 }
 
-// Start spawns every registered singleton workload and returns a Catalog
+// Start spawns every registered singleton workload and returns a Catalogue
 // that implements health.Component and lifecycle.Runner.
 //
 // Tests that want a custom subset can call StartService instead.
-func Start(clients *stackservices.Clients) (*Catalog, error) {
+func Start(clients *stackservices.Clients) (*Catalogue, error) {
 	if clients == nil || clients.Redis == nil {
 		return nil, errors.New("singleton: redis client is required")
 	}
@@ -79,7 +79,7 @@ func Start(clients *stackservices.Clients) (*Catalog, error) {
 	if err != nil {
 		return nil, err
 	}
-	cat := &Catalog{rdb: clients.Redis}
+	cat := &Catalogue{rdb: clients.Redis}
 	cat.running.Store(true)
 	var once sync.Once
 	cat.stop = func() {

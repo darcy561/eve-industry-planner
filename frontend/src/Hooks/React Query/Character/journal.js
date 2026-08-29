@@ -13,7 +13,7 @@ const characterJournalQueryKey = "characterJournal";
  * - Pagination support for large journal collections
  * - ESI rate limiting awareness and handling
  * - Automatic retry with exponential backoff
- * - Caching strategy optimized for journal data
+ * - Caching strategy optimised for journal data
  * - Error handling with descriptive messages
  * 
  * The query process:

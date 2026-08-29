@@ -850,12 +850,12 @@ export const CACHED_DATA_FILES = {
  * Default reprocessing calculation settings for EVE Online.
  *
  * Defines the default preferences and multipliers used in reprocessing
- * calculations to optimize ore selection and mineral output.
+ * calculations to optimise ore selection and mineral output.
  *
  * @type {Object}
  * @property {boolean} preferCompressed - Whether to prefer compressed ores
  * @property {number} compressionBonusMultiplier - Bonus multiplier for compressed ores
- * @property {number} valueMultiplier - Cost-effectiveness prioritization multiplier
+ * @property {number} valueMultiplier - Cost-effectiveness prioritisation multiplier
  * @property {number} wastePenaltyMultiplier - Penalty multiplier for excess minerals
  * @property {boolean} sellExcessMineralTypes - Whether to sell excess mineral types
  */

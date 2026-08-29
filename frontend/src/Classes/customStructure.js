@@ -37,7 +37,7 @@ function coerceSystemID(value, fallback) {
  * - System and tax configuration
  * - Default structure designation
  * - Job type specific structure definitions
- * - Input sanitization for security
+ * - Input sanitisation for security
  * 
  * @class CustomStructure
  * @example
@@ -95,7 +95,7 @@ class CustomStructure {
   }
 
   /**
-   * Sets the structure name with input sanitization.
+   * Sets the structure name with input sanitisation.
    * 
    * @param {string} name - Structure name to set
    */

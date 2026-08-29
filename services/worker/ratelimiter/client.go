@@ -16,7 +16,7 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// NewESIClient initializes the client with a default limiter.
+// NewESIClient initialises the client with a default limiter.
 func NewESIClient(baseURL string, defaultRPS float64, burst int) *ESIClient {
 	def := &GroupLimiter{
 		Limiter:                  rate.NewLimiter(rate.Limit(defaultRPS), burst),
@@ -137,7 +137,7 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 		// 2. ESI server isn't sending group headers for some reason
 		// 3. We're hitting an old endpoint that doesn't support grouping
 		//
-		// Behavior: All paths without group headers use the default limiter which has
+		// Behaviour: All paths without group headers use the default limiter which has
 		// a steady request rate limit. This provides basic rate limiting while we wait
 		// for ESI to provide group information.
 		actualLimiter = gl
@@ -158,7 +158,7 @@ func (c *ESIClient) updateFromHeaders(ctx context.Context, gl *GroupLimiter, res
 		// - Unknown paths without headers will stay on default limiter (steady rate)
 		// - The default limiter uses rate limiting only (no token bucket tracking)
 		// - The default limiter has a steady request rate (RPS limit) that prevents bursts
-		// - This is the desired behavior for pre-rollout and unknown endpoints
+		// - This is the desired behaviour for pre-rollout and unknown endpoints
 	}
 
 	// If no group info (using default limiter), skip token bucket tracking

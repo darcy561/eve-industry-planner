@@ -230,7 +230,7 @@ func buildFanoutTopology(clients int, allianceBase, corpBase, standaloneBase int
 			perAlliance[i] = 4
 		}
 	}
-	// Re-normalize if floors grew past affN (rare); accept slightly more clients.
+	// Re-normalise if floors grew past affN (rare); accept slightly more clients.
 	corpIdx := 0
 	sizeIdx := 0
 	for ai := 0; ai < allianceCount; ai++ {

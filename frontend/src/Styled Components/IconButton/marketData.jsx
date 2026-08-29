@@ -1,5 +1,5 @@
 import { IconButton, Tooltip } from "@mui/material";
-import { showMarketDataDialog } from "../../Events/dialogEvents";
+import { showMarketDataDialogue } from "../../Events/dialogueEvents";
 import LocalAtmIcon from "@mui/icons-material/LocalAtm";
 import useUsersStore from "../../Zustand/usersStore";
 import GLOBAL_CONFIG from "../../global-config-app";
@@ -7,7 +7,7 @@ import GLOBAL_CONFIG from "../../global-config-app";
 const { MARKET_OPTIONS } = GLOBAL_CONFIG;
 
 /**
- * An icon button component that opens the market data dialog for a specific item.
+ * An icon button component that opens the market data dialogue for a specific item.
  * Displays current market orders and pricing information for the given item and location.
  * 
  * @param {Object} props - Component props
@@ -50,7 +50,7 @@ function MarketDataIconButton({
     <Tooltip title={tooltipText} arrow placement={tooltipPlacement}>
       <IconButton
         color="primary"
-        onClick={() => showMarketDataDialog(itemTypeID, locationID)}
+        onClick={() => showMarketDataDialogue(itemTypeID, locationID)}
         sx={{ ...iconButtonStyle }}
       >
         <LocalAtmIcon sx={{ ...iconStyle }} />

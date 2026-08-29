@@ -11,7 +11,7 @@ const characterStandingsQueryKey = "characterStandings";
  * This query handles character standings data fetching with:
  * - ESI rate limiting awareness and handling
  * - Automatic retry with exponential backoff
- * - Caching strategy optimized for standings data
+ * - Caching strategy optimised for standings data
  * - Error handling with descriptive messages
  * - Single-page data fetching (standings are not paginated)
  * 

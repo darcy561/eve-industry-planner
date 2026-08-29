@@ -7,10 +7,10 @@ import {
 import useUsersStore from "../../../Zustand/usersStore";
 import CorporationSelect from "../../../Styled Components/Select/corporations";
 import CorporationOfficesSelect from "../../../Styled Components/Select/corporationOffices";
-import CorporationHangarsSelect from "../../../Styled Components/Select/coporationHangars";
+import CorporationHangarsSelect from "../../../Styled Components/Select/corporationHangars";
 import { isNoAccessLocation } from "../../../Functions/Assets/assetLocationConstants";
 
-export default function SelectAssetLocation_ShoppingListDialog({
+export default function SelectAssetLocation_ShoppingListDialogue({
   state,
   actions
 }) {

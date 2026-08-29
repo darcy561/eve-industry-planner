@@ -87,7 +87,7 @@ func Run(ctx context.Context, src Source) error {
 		}
 	}
 
-	expanded, err := materializeExpanded(ctx, home, src, cfg, expandEnv)
+	expanded, err := materialiseExpanded(ctx, home, src, cfg, expandEnv)
 	if err != nil {
 		return err
 	}
@@ -114,7 +114,7 @@ func Run(ctx context.Context, src Source) error {
 	if expanded.Obs != "" {
 		msg.Step("  (+ observability addon)")
 	}
-	// Labeled attach/detach before prune so target overlays still exist for ID match.
+	// Labelled attach/detach before prune so target overlays still exist for ID match.
 	if !wantObs {
 		if err := config.ApplyLabeledNetworkMemberships(ctx, cfg, home, stackName, false); err != nil {
 			return err

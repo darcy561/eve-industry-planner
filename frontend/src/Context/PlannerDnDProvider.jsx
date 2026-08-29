@@ -8,7 +8,7 @@
  * 3. On drag end: resolve target stage from `event.over`, or fall back to the last stage seen in `onDragOver`
  *    (the HTML5-style transformed card often blocks hit-testing so `over` is null on release even when highlights worked).
  * 4. Validation: {@link ../Hooks/useDnD.jsx useDnD.canDropCard}
- * 5. Persist: {@link ../Hooks/useDnD.jsx useDnD.recieveJobCardToStage}
+ * 5. Persist: {@link ../Hooks/useDnD.jsx useDnD.receiveJobCardToStage}
  *
  * Active drag payload is mirrored to context so stage accordions can tint targets.
  */
@@ -67,7 +67,7 @@ export function PlannerDnDProvider({ children }) {
     /** @type {{ stageId: number } | null} */ (null)
   );
 
-  const { recieveJobCardToStage, canDropCard } = useDnD();
+  const { receiveJobCardToStage, canDropCard } = useDnD();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -132,14 +132,14 @@ export function PlannerDnDProvider({ children }) {
       }
 
       try {
-        dbg("calling recieveJobCardToStage...");
-        await recieveJobCardToStage(dragItem, { id: stageId });
-        dbg("recieveJobCardToStage finished");
+        dbg("calling receiveJobCardToStage...");
+        await receiveJobCardToStage(dragItem, { id: stageId });
+        dbg("receiveJobCardToStage finished");
       } catch (err) {
-        console.error(DBG, "recieveJobCardToStage threw", err);
+        console.error(DBG, "receiveJobCardToStage threw", err);
       }
     },
-    [canDropCard, recieveJobCardToStage]
+    [canDropCard, receiveJobCardToStage]
   );
 
   const contextValue = useMemo(() => ({ payload }), [payload]);

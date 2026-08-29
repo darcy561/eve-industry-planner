@@ -82,7 +82,7 @@ When using default structure selection:
 - **Layout**: Flex column layout
 - **Scrollable Content**: Internal content scrolls if needed
 
-### Information Organization
+### Information Organisation
 - **Top Section**: Efficiency values and runs/jobs
 - **Middle Section**: Structure information
 - **Bottom Section**: Quantity planned
@@ -108,13 +108,13 @@ When using default structure selection:
 - Check efficiency values for cost calculations
 - Verify setup configurations are correct
 
-## Responsive Behavior
+## Responsive Behaviour
 
 ### Mobile
 - **Card Width**: 220px
 - **Auto-scroll**: Enabled
 - **Touch Scrolling**: Smooth touch scrolling
-- **Compact Layout**: Optimized for small screens
+- **Compact Layout**: Optimised for small screens
 
 ### Desktop
 - **Card Width**: 280-400px depending on screen size

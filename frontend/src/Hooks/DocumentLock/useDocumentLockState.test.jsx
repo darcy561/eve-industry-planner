@@ -15,7 +15,7 @@ const { useUsersStoreMock, storeRef } = vi.hoisted(() => {
   return { useUsersStoreMock: mock, storeRef: ref };
 });
 
-vi.mock("../../Functions/Endpoints/Pirivate/documentLockClient.js", () => ({
+vi.mock("../../Functions/Endpoints/Private/documentLockClient.js", () => ({
   acquireDocumentLock: vi.fn(),
   claimDocumentLockHandoff: vi.fn(),
   forceReleaseDocumentLockSameAccount: vi.fn(),

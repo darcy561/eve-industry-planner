@@ -126,7 +126,7 @@ The Sales Stats Panel provides:
 1. Check total job cost (all expenses)
 2. Review total of sales (revenue)
 3. Calculate profit/loss
-4. Analyze performance
+4. Analyse performance
 
 ### Cost Analysis
 1. Review build costs
@@ -137,7 +137,7 @@ The Sales Stats Panel provides:
 ### Performance Evaluation
 1. Compare cost per item to sale price
 2. Review profit margins
-3. Analyze fee impact
+3. Analyse fee impact
 4. Make informed decisions
 
 ## Best Practices
@@ -148,16 +148,16 @@ The Sales Stats Panel provides:
 - Review fee impact
 - Track performance over time
 
-### Cost Optimization
+### Cost Optimisation
 - Review build costs for efficiency
-- Minimize brokers fees where possible
+- Minimise brokers fees where possible
 - Track transaction fees
-- Optimize for profitability
+- Optimise for profitability
 
 ### Profitability Analysis
 - Compare to market prices
 - Review profit margins
-- Analyze cost components
+- Analyse cost components
 - Use for future planning
 
 ## Related Documentation

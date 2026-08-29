@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import {
   getDocumentLockStateBatch,
   MAX_STATUS_BATCH_DOC_IDS,
-} from "../../Functions/Endpoints/Pirivate/documentLockClient.js";
+} from "../../Functions/Endpoints/Private/documentLockClient.js";
 import { applyDocumentLockStatusFromPayload } from "../../Functions/DocumentLock/applyDocumentLockStatusFromPayload.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 import {

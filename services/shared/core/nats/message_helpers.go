@@ -13,10 +13,10 @@ import (
 
 // AcknowledgeMessage acknowledges a NATS message with appropriate logging.
 // This is preferred over calling msg.Ack() directly because it provides observability:
-// - Logs the reason for acknowledgment (e.g., "lock already held", "server unavailable")
+// - Logs the reason for acknowledgement (e.g., "lock already held", "server unavailable")
 // - Logs the delivery count for monitoring retry patterns
-// - Handles nil checks and retries acknowledgment with exponential backoff before giving up
-// - If all acknowledgment attempts fail, automatically falls back to NackMessage with backoff for retry
+// - Handles nil checks and retries acknowledgement with exponential backoff before giving up
+// - If all acknowledgement attempts fail, automatically falls back to NackMessage with backoff for retry
 //
 // reason describes why the message is being acknowledged (e.g., "lock already held", "server unavailable").
 // deliveryCount is the number of times this message has been delivered, used for logging purposes.
@@ -211,7 +211,7 @@ func NackMessageWithDelay(msg jetstream.Msg, delay time.Duration) {
 }
 
 // InProgressMessage sends an in-progress heartbeat to NATS, retrying with exponential backoff if the operation fails.
-// This is used to extend the acknowledgment deadline for long-running message processing.
+// This is used to extend the acknowledgement deadline for long-running message processing.
 // If all retry attempts fail, the error is logged but the function returns (doesn't block processing).
 //
 // This function will retry the InProgress operation up to 3 times with exponential backoff (100ms, 200ms, 400ms)

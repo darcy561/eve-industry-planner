@@ -40,7 +40,7 @@ Each available order is displayed as a card showing:
 - **Link Button**: Plus icon with link symbol
 - **Tooltip**: "Link Order To Job."
 - **Function**: Links order to the job
-- **Behavior**:
+- **Behaviour**:
   1. Calculates brokers fee based on character skills and standings
   2. Links order to job
   3. Adds brokers fee entry
@@ -100,7 +100,7 @@ Status indicators show order state:
 - **Visibility**: Only shown when multiple orders are linked
 - **Function**: Filters transactions by order location
 - **Tooltip**: "Filter Transactions By Location"
-- **Behavior**:
+- **Behaviour**:
   - Toggles location filter on/off
   - Filters linked transactions panel
   - Shows filtered icon when active
@@ -110,7 +110,7 @@ Status indicators show order state:
 - **Color**: Error (red)
 - **Tooltip**: "Unlink Order From Job."
 - **Function**: Removes order from job
-- **Behavior**:
+- **Behaviour**:
   - Unlinks order from job
   - Removes associated transactions
   - Removes brokers fee

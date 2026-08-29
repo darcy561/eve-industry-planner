@@ -6,7 +6,7 @@ import AlternateEmailIcon from "@mui/icons-material/AlternateEmail";
 import ForumOutlinedIcon from "@mui/icons-material/ForumOutlined";
 import { FaDiscord } from "react-icons/fa";
 import GLOBAL_CONFIG from "../../../global-config-app";
-import { openFeedbackDialog } from "../../../Events/feedbackDialogEvents";
+import { openFeedbackDialogue } from "../../../Events/feedbackDialogueEvents";
 import { FirstLoginSetupSection } from "../shared/FirstLoginSetupSection";
 
 const bookendCardInteractiveSx = {
@@ -34,7 +34,7 @@ function SupportBookendCard({
   children,
   /** When set, the entire card opens this URL in a new tab. */
   href,
-  /** When set (and no `href`), the whole card acts as a button (e.g. open feedback dialog). */
+  /** When set (and no `href`), the whole card acts as a button (e.g. open feedback dialogue). */
   onAction,
   /** When true and `href` is missing, the card is visibly inactive (e.g. forum not configured). */
   inactiveWithoutHref = false,
@@ -123,7 +123,7 @@ function SupportBookendCard({
             onAction(event);
           }
         }}
-        aria-label={`${title} (opens dialog)`}
+        aria-label={`${title} (opens dialogue)`}
         sx={{ ...staticPaperSx, ...bookendCardInteractiveSx }}
       >
         {inner}
@@ -176,7 +176,7 @@ export function FirstLoginSupportStep() {
             bookendIcon={
               <FeedbackOutlinedIcon color="primary" sx={{ fontSize: 28 }} />
             }
-            onAction={() => openFeedbackDialog()}
+            onAction={() => openFeedbackDialogue()}
           >
             <Typography variant="body2" color="text.secondary">
               Send bug reports, suggestions, and screenshots.

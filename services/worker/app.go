@@ -81,9 +81,9 @@ func (a *app) prepare(ctx context.Context) error {
 	if err := esiClient.InitializeDefaultRateLimits(ctx, rateLimits); err != nil {
 		logs.ErrorCtx(ctx, "failed to initialize rate limits", "error", err)
 	} else {
-		logs.InfoCtx(ctx, "rate limits initialized for primary groups", "rate_limits", rateLimits)
+		logs.InfoCtx(ctx, "rate limits initialised for primary groups", "rate_limits", rateLimits)
 	}
-	logs.InfoCtx(ctx, "Redis-based ESI rate-limited client initialized (distributed rate limiting enabled)")
+	logs.InfoCtx(ctx, "Redis-based ESI rate-limited client initialised (distributed rate limiting enabled)")
 
 	asynqClient, redisOpt, err := asynqpkg.SetupClient()
 	if err != nil {

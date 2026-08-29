@@ -1,12 +1,12 @@
 /**
  * Shopping List Reducer for EVE Industry Planner.
  * 
- * Manages state transitions for the shopping list dialog component, handling actions
- * for dialog visibility, shopping list building, asset management, character/corporation
- * selection, and clipboard operations. This reducer provides centralized state
+ * Manages state transitions for the shopping list dialogue component, handling actions
+ * for dialogue visibility, shopping list building, asset management, character/corporation
+ * selection, and clipboard operations. This reducer provides centralised state
  * management for the shopping list functionality.
  * 
- * @fileoverview Reducer for shopping list dialog state management
+ * @fileoverview Reducer for shopping list dialogue state management
  * @author EVE Industry Planner Team
  */
 
@@ -16,11 +16,11 @@ import { normalizeSetIsLoadingPayload } from "../../../../Functions/Helper/setIs
  * Action types for the shopping list reducer.
  * 
  * Defines all possible action types that can be dispatched to modify
- * the shopping list dialog state. Each action type corresponds to a specific
+ * the shopping list dialogue state. Each action type corresponds to a specific
  * state change operation.
  * 
  * @constant {Object} SHOPPING_LIST_ACTION_TYPES
- * @property {string} TOGGLE_IS_OPEN - Toggle dialog open/closed state
+ * @property {string} TOGGLE_IS_OPEN - Toggle dialogue open/closed state
  * @property {string} TOGGLE_IS_LOADING - Toggle loading state
  * @property {string} SET_IS_LOADING - Set loading state to specific value
  * @property {string} TOGGLE_BUILDING_SHOPPING_LIST - Toggle shopping list building mode
@@ -61,14 +61,14 @@ export const SHOPPING_LIST_ACTION_TYPES = {
 }
 
 /**
- * Reducer function for managing shopping list dialog state.
+ * Reducer function for managing shopping list dialogue state.
  * 
  * Handles state transitions based on action types, providing immutable
- * state updates for the shopping list dialog component. Includes special
+ * state updates for the shopping list dialogue component. Includes special
  * handling for shopping list operations that trigger calculations.
  * 
  * @param {Object} state - Current state object
- * @param {boolean} state.isOpen - Whether the dialog is open
+ * @param {boolean} state.isOpen - Whether the dialogue is open
  * @param {boolean} state.isLoading - Loading state
  * @param {boolean} state.buildingShoppingList - Whether building shopping list
  * @param {Array} state.requestedJobIDs - Array of requested job IDs

@@ -1,6 +1,6 @@
 # Data-layer Swarm fragment (mongo / redis / nats / SeaweedFS / Prometheus) on eip-core.
 # Roll order: stop-first (x-data-deploy) — R=1 + exclusive volumes.
-# File configs: eip.config.sync=1 → hash-synced via eip sync / rematerialize.
+# File configs: eip.config.sync=1 → hash-synced via eip sync / rematerialise.
 # Network name SoT: x-net-* anchors (reuse in name: + eip.network.* labels).
 
 x-net-core: &net-core eip-core

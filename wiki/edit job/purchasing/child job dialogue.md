@@ -19,7 +19,7 @@ The Child Job Dialogue provides:
 - **Tooltip**: "Number of child jobs linked, click to add or remove."
 
 ### Dialogue Display
-- **Type**: Modal dialog window
+- **Type**: Modal dialogue window
 - **Title**: "Available Child Jobs"
 - **Size**: Responsive, adapts to content
 - **Padding**: 20px around content
@@ -27,7 +27,7 @@ The Child Job Dialogue provides:
 ## Dialogue Sections
 
 ### Available Child Jobs Section
-- **Title**: "Available Child Jobs" (in dialog title)
+- **Title**: "Available Child Jobs" (in dialogue title)
 - **Content**: List of jobs that can be linked to this material
 - **Filtering**: 
   - Only shows jobs matching the material's item type
@@ -71,7 +71,7 @@ Each linked job shows:
 
 ### Unlinking Jobs
 - **Method**: Click unlink/remove button on linked job
-- **Behavior**: 
+- **Behaviour**: 
   - Removes job from linked list
   - Job becomes available to link again
   - Material calculations update automatically
@@ -97,7 +97,7 @@ Each linked job shows:
 ### Creating New Child Jobs
 - **Option**: May be available in the dialogue
 - **Function**: Creates a new job for this material
-- **Behavior**: 
+- **Behaviour**: 
   - Creates job with appropriate configuration
   - Automatically links to parent job
   - Appears in linked child jobs list
@@ -108,7 +108,7 @@ Each linked job shows:
 - **Location**: Bottom of dialogue (Dialog Actions)
 - **Label**: "Close"
 - **Function**: Closes the dialogue
-- **Behavior**: 
+- **Behaviour**: 
   - Saves any changes made
   - Updates material card display
   - Returns focus to main interface

@@ -1,12 +1,12 @@
 import { PlannerAccordion } from "./Planner Components/accordion";
 import { SearchBar } from "./Planner Components/searchbar";
 import { Box, useMediaQuery } from "@mui/material";
-import { ShoppingListDialog } from "../Dialogues/Shopping List/ShoppingList";
-import { PriceEntryDialog } from "../Dialogues/Price Entry/PriceEntry";
-import ApplyGroupTemplateDialog from "../Dialogues/Group Templates/ApplyGroupTemplateDialog";
+import { ShoppingListDialogue } from "../Dialogues/Shopping List/ShoppingList";
+import { PriceEntryDialogue } from "../Dialogues/Price Entry/PriceEntry";
+import ApplyGroupTemplateDialogue from "../Dialogues/Group Templates/ApplyGroupTemplateDialogue";
 import { MassBuildFeedback } from "./Planner Components/massBuildInfo";
-import LeftCollapseableMenuDrawer from "../SideMenu/leftMenuDrawer";
-import CollapseableContentDrawer_Right from "../SideMenu/rightContentDrawer";
+import LeftCollapsibleMenuDrawer from "../SideMenu/leftMenuDrawer";
+import CollapsibleContentDrawer_Right from "../SideMenu/rightContentDrawer";
 import RightSideMenuContent_JobPlanner from "./Planner Components/Side Menu/rightMenuContents";
 import { useJobPlannerSideMenuFunctions } from "./Planner Components/Side Menu/Buttons/buttonfunctions";
 import useJobPlannerReducer from "./Hooks/useJobPlannerReducer";
@@ -23,7 +23,7 @@ function JobPlanner() {
 
   return (
     <DefaultPageLayout>
-      <LeftCollapseableMenuDrawer inputDrawerButtons={buttonOptions} />
+      <LeftCollapsibleMenuDrawer inputDrawerButtons={buttonOptions} />
       <Box
         component="main"
         sx={{
@@ -53,7 +53,7 @@ function JobPlanner() {
         </Box>
       </Box>
       {deviceNotMobile && (
-        <CollapseableContentDrawer_Right
+        <CollapsibleContentDrawer_Right
           state={pageState}
           actions={pageActions}
           DrawerContent={
@@ -64,10 +64,10 @@ function JobPlanner() {
           }
         />
       )}
-      <ShoppingListDialog />
+      <ShoppingListDialogue />
       <MassBuildFeedback />
-      <PriceEntryDialog />
-      <ApplyGroupTemplateDialog />
+      <PriceEntryDialogue />
+      <ApplyGroupTemplateDialogue />
     </DefaultPageLayout>
   );
 }

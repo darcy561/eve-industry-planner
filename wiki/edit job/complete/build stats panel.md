@@ -101,7 +101,7 @@ The Build Stats Panel provides:
 ### Extras Costs
 - Additional costs added in complete stage
 - Hauling fees, manual installation, etc.
-- Categorized for organization
+- Categorised for organisation
 - Manually entered by user
 
 ## Best Practices
@@ -115,7 +115,7 @@ The Build Stats Panel provides:
 ### Cost Analysis
 - Compare to planning estimates
 - Review cost per item efficiency
-- Analyze cost components
+- Analyse cost components
 - Use for future planning
 
 ### Profitability

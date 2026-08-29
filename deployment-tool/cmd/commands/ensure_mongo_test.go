@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"eve-industry-planner/deployment-tool/internal/catalog"
+	"eve-industry-planner/deployment-tool/internal/catalogue"
 )
 
 func TestEnsureMongoCmdNoShortTimeout(t *testing.T) {
@@ -34,9 +34,9 @@ func TestEnsureMongoCmdNoShortTimeout(t *testing.T) {
 
 func TestEnsureMongoCatalogMentionsIndexes(t *testing.T) {
 	t.Parallel()
-	v, ok := catalog.ByID("ensure-mongo")
+	v, ok := catalogue.ByID("ensure-mongo")
 	if !ok {
-		t.Fatal("ensure-mongo missing from catalog")
+		t.Fatal("ensure-mongo missing from catalogue")
 	}
 	if !strings.Contains(strings.ToLower(v.Short), "index") {
 		t.Fatalf("Short should mention indexes: %q", v.Short)

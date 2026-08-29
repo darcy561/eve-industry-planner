@@ -18,7 +18,7 @@ func StackNamespaceFilter(stackName string) client.Filters {
 	return filters
 }
 
-// RemoveStackServices removes every Swarm service labeled with the stack namespace.
+// RemoveStackServices removes every Swarm service labelled with the stack namespace.
 // Does not remove volumes. External networks (e.g. eip-core) are left alone.
 func RemoveStackServices(ctx context.Context, apiClient *client.Client, stackName string) (int, error) {
 	if stackName == "" {
@@ -40,7 +40,7 @@ func RemoveStackServices(ctx context.Context, apiClient *client.Client, stackNam
 	return len(svcs.Items), nil
 }
 
-// RemoveStackNetworks removes networks labeled with the stack namespace (best-effort).
+// RemoveStackNetworks removes networks labelled with the stack namespace (best-effort).
 func RemoveStackNetworks(ctx context.Context, apiClient *client.Client, stackName string) (int, error) {
 	if stackName == "" {
 		stackName = ResolveStackName()

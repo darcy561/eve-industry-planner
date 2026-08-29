@@ -3,7 +3,7 @@
  * 
  * Manages state transitions for the group page component, handling actions
  * for right drawer management, skeleton loading states, and item highlighting.
- * This reducer provides centralized state management for the group page UI.
+ * This reducer provides centralised state management for the group page UI.
  * 
  * @fileoverview Reducer for group page state management
  * @author EVE Industry Planner Team

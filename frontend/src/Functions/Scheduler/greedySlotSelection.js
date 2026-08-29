@@ -2,13 +2,13 @@
  * Greedy slot selection strategy for task scheduling.
  *
  * This strategy prioritizes:
- * 1. Earliest end time (minimize makespan)
- * 2. Slots already in use (packing preference - minimize slot count)
- * 3. Characters already used for this activity (minimize character count)
+ * 1. Earliest end time (minimise makespan)
+ * 2. Slots already in use (packing preference - minimise slot count)
+ * 3. Characters already used for this activity (minimise character count)
  * 4. Characters running tasks from the same job (grouping preference, if multiple slots available)
  * 5. Earlier characters in order (stable tie-breaker)
  *
- * This is a balanced approach that aims to minimize overall completion time
+ * This is a balanced approach that aims to minimise overall completion time
  * while also trying to use fewer slots and characters when possible.
  */
 
@@ -96,7 +96,7 @@ export function selectSlotGreedyStrategy({
             // Check if this slot is already in use (has tasks scheduled)
             // A slot is "in use" if its free time is greater than 0 (the global start time)
             // This means the slot has been used for previous tasks, so we're packing into it
-            // We prefer packing into used slots to minimize the total number of slots used
+            // We prefer packing into used slots to minimise the total number of slots used
             const slotInUse = slotFreeTime > 0;
 
             const candidate = {
@@ -123,7 +123,7 @@ export function selectSlotGreedyStrategy({
                 if (candidate.slotInUse && !best.slotInUse) {
                     best = candidate;
                 } else if (candidate.slotInUse === best.slotInUse) {
-                    // Then, prefer characters already used for this activity (minimize character count)
+                    // Then, prefer characters already used for this activity (minimise character count)
                     if (candidate.alreadyUsed && !best.alreadyUsed) {
                         best = candidate;
                     } else if (candidate.alreadyUsed === best.alreadyUsed) {

@@ -11,7 +11,7 @@
 
 | Layer | Path | What binds this ticket |
 |-------|------|------------------------|
-| Master | [`../../../technical-rules.md`](../../../technical-rules.md) | **One SoT** (fragment YAML / catalog — no scattered network/service string lists); **reusable helpers** in shared packages; extend existing Sync/deploy apply paths; no legacy wrappers; test as we build; host ops stay Deployment Tool verbs |
+| Master | [`../../../technical-rules.md`](../../../technical-rules.md) | **One SoT** (fragment YAML / catalogue — no scattered network/service string lists); **reusable helpers** in shared packages; extend existing Sync/deploy apply paths; no legacy wrappers; test as we build; host ops stay Deployment Tool verbs |
 | Deployment Tool | [`../../../deployment/deployment-tool/technical-rules.md`](../../../deployment/deployment-tool/technical-rules.md) | Module conventions → `cli/engineering.md`; no parallel ship verbs |
 | Stack | [`../../../stack/technical-rules.md`](../../../stack/technical-rules.md) | Fragments are membership SoT; Moby/SDK changes via Deployment Tool; no socket on app containers |
 
@@ -42,7 +42,7 @@ Choices already explained and locked below (reusable ensure vs Prom-only; resolv
 - Prom: `attach: *net-obs` + `when: observability`
 - Grafana: `detach: *net-core`; `attach: *net-public` + `when: grafana.public`
 - `ApplyGrafanaPath` — path/Traefik labels only (no ServiceUpdate networks)
-- Hooks: labeled ensure before prune when obs off; after deploy when on; then Grafana path; `eip sync` same order
+- Hooks: labelled ensure before prune when obs off; after deploy when on; then Grafana path; `eip sync` same order
 
 ## How this part works after the change
 
@@ -78,7 +78,7 @@ Bound by master **One SoT** + **reusable helpers** / extend-shared-packages (see
 | **Names** | One vocabulary: Docker network **name** from fragment YAML (`x-net-*` anchors). Service labels carry that name; Go resolves via `ResolveNetworkRef`. |
 | **Lookups** | Label **keys** (`eip.network.attach` / `detach`) live in `stack`; values never hard-coded as network names in Go. |
 | **Forbidden** | Parallel role/plane vocabularies; `const` lists of `eip-core` / `eip-public` / `eip-obs` in Go; container `NetworkConnect` for Swarm services; new CLI verb. |
-| **Hooks** | `deploy.Run` / rematerialize after obs merge/prune; extend `ApplyGrafanaPath` (already on `eip sync`) for public/private edge. |
+| **Hooks** | `deploy.Run` / rematerialise after obs merge/prune; extend `ApplyGrafanaPath` (already on `eip sync`) for public/private edge. |
 
 ### Config (locked)
 

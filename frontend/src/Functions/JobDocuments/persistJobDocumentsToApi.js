@@ -1,4 +1,4 @@
-import { putJobDocumentsBatch } from "../Endpoints/Pirivate/jobDocuments.js";
+import { putJobDocumentsBatch } from "../Endpoints/Private/jobDocuments.js";
 import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../DocumentLock/documentLockEvents.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 

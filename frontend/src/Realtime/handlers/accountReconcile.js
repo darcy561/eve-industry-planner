@@ -16,7 +16,7 @@ import {
 } from "../../Functions/Auth/buildAccountData.js";
 import {
   getCloudStoredEsiRefreshTokens,
-} from "../../Functions/Endpoints/Pirivate/cloudStoredEsiRefreshTokens.js";
+} from "../../Functions/Endpoints/Private/cloudStoredEsiRefreshTokens.js";
 import { isCombinedUserAccountSaveDebouncePending } from "../../Functions/Debounce/userDocumentsPersistSchedule.js";
 
 /**

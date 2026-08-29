@@ -1,9 +1,9 @@
 /**
- * Optimizes job production quantities based on parent job requirements.
- * Iteratively recalculates job quantities to minimize overproduction while meeting requirements.
+ * Optimises job production quantities based on parent job requirements.
+ * Iteratively recalculates job quantities to minimise overproduction while meeting requirements.
  * Uses a "tree shaking" approach to eliminate unnecessary production.
  * 
- * @param {Array} allJobObjects - Array of all job objects to optimize
+ * @param {Array} allJobObjects - Array of all job objects to optimise
  * @param {Function} recalculateJob - Function to recalculate a job's production quantities
  * @returns {Set<string>} Set of job IDs that were recalculated
  * 

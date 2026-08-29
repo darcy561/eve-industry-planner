@@ -13,7 +13,7 @@ const characterMarketOrdersQueryKey = "characterMarketOrders";
  * - Pagination support for large market order collections
  * - ESI rate limiting awareness and handling
  * - Automatic retry with exponential backoff
- * - Caching strategy optimized for market order data
+ * - Caching strategy optimised for market order data
  * - Error handling with descriptive messages
  * 
  * The query process:

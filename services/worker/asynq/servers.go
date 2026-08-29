@@ -89,8 +89,8 @@ func setupServer(config ServerConfig, handlerFunc func(*asynq.ServeMux)) (func(c
 
 						// CRITICAL: Add jitter to spread out retries and prevent thundering herd
 						// Shared Redis ESI limiter + multi-replica workers can pile onto RetryAfter.
-						// Jitter spreads retries over a window to prevent synchronized failures
-						// Use 20% jitter (random 0-20% of wait time) to break synchronization
+						// Jitter spreads retries over a window to prevent synchronised failures
+						// Use 20% jitter (random 0-20% of wait time) to break synchronisation
 						// This ensures tasks don't all retry at exactly the same time
 						jitterWindow := waitTime / 5 // 20% of wait time
 						if jitterWindow > 0 {

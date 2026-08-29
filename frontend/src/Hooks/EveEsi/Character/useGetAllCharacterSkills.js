@@ -110,7 +110,7 @@ function mergeSkillsByCharacter(results, characters) {
  * - Fetches skills for all user characters
  * - Checks loading states for all character skills queries
  * - Extracts cached data from React Query cache
- * - Organizes data by character hash for easy access
+ * - Organises data by character hash for easy access
  * - Returns appropriate loading, error, or success states
  * 
  * The caching process:
@@ -118,7 +118,7 @@ function mergeSkillsByCharacter(results, characters) {
  * 2. Checks query states for all character skills queries
  * 3. Determines overall loading and error states
  * 4. Extracts cached data from successful queries
- * 5. Organizes data by character hash
+ * 5. Organises data by character hash
  * 
  * @param {Object} queryClient - React Query client instance
  * @returns {Object} Object containing cached character skills data
@@ -180,7 +180,7 @@ export function getCachedCharacterSkills(queryClient) {
  * 
  * This hook provides comprehensive character skills data fetching:
  * - Fetches skills for all user characters in parallel
- * - Organizes skills by character hash for easy access
+ * - Organises skills by character hash for easy access
  * - Provides loading, error, and success states
  * - Uses React Query's useQueries for parallel data fetching
  * - Supports skill analysis and character progression tracking
@@ -190,7 +190,7 @@ export function getCachedCharacterSkills(queryClient) {
  * 2. Creates queries for all character skills data
  * 3. Fetches data in parallel using React Query's useQueries
  * 4. Combines results using a custom combine function
- * 5. Organizes data by character hash for structured access
+ * 5. Organises data by character hash for structured access
  * 
  * @returns {Object} Object containing character skills data and states
  * @returns {Object} returns.data - Object with character hashes as keys and skills objects as values

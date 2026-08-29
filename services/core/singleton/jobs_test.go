@@ -7,14 +7,14 @@ import (
 	"eve-industry-planner/shared/core/documentlock"
 )
 
-// TestAllJobs_CatalogIsValid is a guardrail on the production catalog.
+// TestAllJobs_CatalogIsValid is a guardrail on the production catalogue.
 // Any new singleton Job added to `allJobs` is automatically checked for:
 //   - non-empty Name + LeaseKey + Run (avoids a runtime startup error),
 //   - globally unique LeaseKey (two jobs sharing a key would unintentionally
 //     elect leaders for each other),
 //   - `lease:` prefix on the lease key (convention).
 //
-// We pass nil for *stackservices.Clients because the catalog's job
+// We pass nil for *stackservices.Clients because the catalogue's job
 // constructors only consume the clients lazily inside their Run closures.
 // If a future constructor starts touching clients at build time it'll need
 // a real bundle; that's the right time to revisit this test.
@@ -23,7 +23,7 @@ func TestAllJobs_CatalogIsValid(t *testing.T) {
 
 	jobs := allJobs(nil)
 	if len(jobs) == 0 {
-		t.Fatalf("expected at least one Job in the catalog, got 0")
+		t.Fatalf("expected at least one Job in the catalogue, got 0")
 	}
 
 	seen := map[string]string{}

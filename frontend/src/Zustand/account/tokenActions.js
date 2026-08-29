@@ -20,7 +20,7 @@ import {
   redirectToFullEveLoginIfTerminal,
 } from "../../Functions/Auth/plannerSessionRedirect.js";
 import { shouldDeferAuthRefreshDueToTranquilityOffline } from "../../Functions/Auth/authRefreshTranquilityGate.js";
-import updateCorporationClaims from "../../Functions/Endpoints/Pirivate/corporationClaims.js";
+import updateCorporationClaims from "../../Functions/Endpoints/Private/corporationClaims.js";
 import GLOBAL_CONFIG from "../../global-config-app.js";
 import { dedupeLinkedCharacterHashStrings } from "../../Functions/Auth/characterHashCanonical.js";
 import { mergeApplicationSettingsState } from "../applicationSettings/core.js";

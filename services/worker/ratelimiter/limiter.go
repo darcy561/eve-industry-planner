@@ -383,7 +383,7 @@ func (c *ESIClient) GetOrCreateGroupLimiter(ctx context.Context, fullGroupName s
 		// 2. We should rely on server headers as the source of truth
 		// 3. Wrong limits could cause rate limiting issues
 		newLimiter.TokenLimit = 0 // No token tracking
-		// Use default rate and burst to match initial default behavior
+		// Use default rate and burst to match initial default behaviour
 		newLimiter.Limiter.SetLimit(c.defLim.DefaultRate)
 		newLimiter.Limiter.SetBurst(c.defLim.DefaultBurst)
 

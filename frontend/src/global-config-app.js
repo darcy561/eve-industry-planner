@@ -3,18 +3,18 @@
  * 
  * This file contains all the default configuration values used throughout the React application.
  * Incorrect values here will result in errors when deployed. All constants are frozen to prevent
- * accidental modification and provide centralized configuration management for the client-side application.
+ * accidental modification and provide centralised configuration management for the client-side application.
  * 
  * @fileoverview Global configuration constants for EVE Industry Planner React Application
  * @author EVE Industry Planner Team
  */
 
-// This document changes the default behaviour of the application. Incorect values here will result in errors when deployed.
+// This document changes the default behaviour of the application. Incorrect values here will result in errors when deployed.
 
 /**
  * Global configuration object containing all application settings.
  * 
- * This frozen object provides centralized configuration management for the React application.
+ * This frozen object provides centralised configuration management for the React application.
  * All values are immutable to prevent accidental modification during runtime.
  * 
  * @type {Object}
@@ -398,7 +398,7 @@ const GLOBAL_CONFIG = Object.freeze({
 /**
  * Exports the global configuration object.
  * 
- * This frozen configuration object provides centralized settings management
+ * This frozen configuration object provides centralised settings management
  * for the EVE Industry Planner React application.
  * 
  * @type {Object}

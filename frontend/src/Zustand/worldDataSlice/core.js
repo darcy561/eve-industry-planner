@@ -2,7 +2,7 @@
  * Core World Data Management for EVE Industry Planner.
  * 
  * Contains the default state configuration and core actions for managing
- * world-related data including state initialization and basic world data operations.
+ * world-related data including state initialisation and basic world data operations.
  * 
  * @fileoverview Core world data management state and actions
  * @author EVE Industry Planner Team
