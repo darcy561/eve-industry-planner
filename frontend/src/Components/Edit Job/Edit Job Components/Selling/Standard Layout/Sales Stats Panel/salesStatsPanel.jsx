@@ -4,25 +4,18 @@ import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel
 import { STANDARD_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 
 export function SalesStats({ state }) {
-  const brokersFeesTotal = state.activeJob.build.sale.brokersFee.reduce(
-    (prev, item) => {
-      return (prev += item.amount);
-    },
-    0
-  );
+  const brokersFeesTotal = state.activeJob.brokersFeeTotal();
+  const transactionFeeTotal = state.activeJob.transactionFeeTotal();
+  const totalSale = state.activeJob.salesTotal();
 
-  const { transactionFeeTotal, totalSale, averageQuantity } =
+  const { averageQuantity } =
     state.activeJob.build.sale.transactions.reduce(
       (prev, item) => {
         return {
-          transactionFeeTotal: prev.transactionFeeTotal + item.tax,
-          totalSale: prev.totalSale + item.amount,
           averageQuantity: prev.averageQuantity + item.quantity,
         };
       },
       {
-        transactionFeeTotal: 0,
-        totalSale: 0,
         averageQuantity: 0,
       }
     );
@@ -33,7 +26,7 @@ export function SalesStats({ state }) {
         <Grid container size={12}>
           <Grid size={{ xs: 12, sm: 8 }}>
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-              Total Items Produced:
+              Total Items Built:
             </Typography>
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
@@ -61,11 +54,7 @@ export function SalesStats({ state }) {
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
             >
-              {formatNumberForLocale(
-                state.activeJob.build.costs.totalPurchaseCost +
-                state.activeJob.build.costs.installCosts +
-                state.activeJob.build.costs.extrasTotal
-              )}
+              {formatNumberForLocale(state.activeJob.buildCost())}
             </Typography>
           </Grid>
         </Grid>
@@ -76,7 +65,7 @@ export function SalesStats({ state }) {
               sm: 8
             }}>
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-              Brokers Fee Total:
+              Total Broker Fees:
             </Typography>
           </Grid>
           <Grid
@@ -99,7 +88,7 @@ export function SalesStats({ state }) {
               sm: 8
             }}>
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-              Transaction Fee Total:
+              Total Transaction Fees:
             </Typography>
           </Grid>
           <Grid
@@ -134,13 +123,7 @@ export function SalesStats({ state }) {
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
             >
-              {formatNumberForLocale(
-                state.activeJob.build.costs.totalPurchaseCost +
-                state.activeJob.build.costs.installCosts +
-                state.activeJob.build.costs.extrasTotal +
-                brokersFeesTotal +
-                transactionFeeTotal
-              )}
+              {formatNumberForLocale(state.activeJob.totalCost())}
             </Typography>
           </Grid>
         </Grid>
@@ -163,18 +146,7 @@ export function SalesStats({ state }) {
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
             >
-              {formatNumberForLocale(
-                Math.round(
-                  ((state.activeJob.build.costs.totalPurchaseCost +
-                    state.activeJob.build.costs.installCosts +
-                    state.activeJob.build.costs.extrasTotal +
-                    brokersFeesTotal +
-                    transactionFeeTotal) /
-                    state.activeJob.build.products.totalQuantity +
-                    Number.EPSILON) *
-                  100
-                ) / 100
-              )}
+              {formatNumberForLocale(state.activeJob.totalCostPerItem())}
             </Typography>
           </Grid>
         </Grid>
@@ -185,7 +157,7 @@ export function SalesStats({ state }) {
               sm: 8
             }}>
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-              Total Of Sales:
+              Total Sales:
             </Typography>
           </Grid>
           <Grid
@@ -249,25 +221,12 @@ export function SalesStats({ state }) {
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
               color={
-                totalSale -
-                  (state.activeJob.build.costs.totalPurchaseCost +
-                    state.activeJob.build.costs.installCosts +
-                    state.activeJob.build.costs.extrasTotal +
-                    brokersFeesTotal +
-                    transactionFeeTotal) <
-                  0
+                totalSale - state.activeJob.totalCost() < 0
                   ? "error"
                   : "primary"
               }
             >
-              {formatNumberForLocale(
-                totalSale -
-                (state.activeJob.build.costs.totalPurchaseCost +
-                  state.activeJob.build.costs.installCosts +
-                  state.activeJob.build.costs.extrasTotal +
-                  brokersFeesTotal +
-                  transactionFeeTotal)
-              )}
+              {formatNumberForLocale(totalSale - state.activeJob.totalCost())}
             </Typography>
           </Grid>
         </Grid>

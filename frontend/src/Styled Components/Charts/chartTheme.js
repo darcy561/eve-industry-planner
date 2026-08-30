@@ -22,12 +22,75 @@ export function chartSeriesColours(theme) {
   ];
 }
 
-/** Resolves a series colour, honouring an explicit one before falling back. */
+/**
+ * Colours for series that mean the same thing wherever they are drawn, so cost
+ * reads as cost on every chart rather than taking whatever position it happens
+ * to hold in the rotation.
+ */
+export function chartRoleColours(theme) {
+  return {
+    cost: theme.palette.warning.main,
+    sales: theme.palette.info.main,
+    profit: theme.palette.success.main,
+    loss: theme.palette.error.main,
+  };
+}
+
+/**
+ * Resolves a series colour: an explicit one wins, then a named role, then the
+ * rotation for series that carry no meaning beyond being distinct.
+ */
 export function resolveSeriesColour(theme, series, index) {
   if (series?.colour) return series.colour;
+  if (series?.role) {
+    const byRole = chartRoleColours(theme)[series.role];
+    if (byRole) return byRole;
+  }
   const palette = chartSeriesColours(theme);
   return palette[index % palette.length];
 }
+
+/**
+ * Stamps each row with the colour its mark is drawn in. Recharts takes a legend
+ * swatch from the entry's own `fill`, so colouring marks only in a shape renderer
+ * draws correctly and legends grey.
+ */
+export function withSeriesColours(theme, rows = []) {
+  return rows.map((row, index) => ({
+    ...row,
+    fill: resolveSeriesColour(theme, row, index),
+  }));
+}
+
+/**
+ * How a sector should be drawn given what the pointer is over.
+ *
+ * Matched by name, not position: `Legend` sorts its own items (`itemSorter`
+ * defaults to `"value"`) while sectors keep data order, so the index a legend
+ * event reports points at the wrong slice. `isActive` is the chart's own hover
+ * state, so a mark and its key read the same.
+ *
+ * @param {{isActive?: boolean, name?: string, outerRadius?: number}} sector
+ * @param {string|null} hoveredName - legend item under the pointer, or null
+ */
+export function sectorHighlight(sector, hoveredName) {
+  const hovering = hoveredName !== null && hoveredName !== undefined;
+  const active =
+    Boolean(sector?.isActive) || (hovering && sector?.name === hoveredName);
+  const dimmed = hovering && !active;
+  const outerRadius = Number(sector?.outerRadius);
+  return {
+    active,
+    fillOpacity: dimmed ? 0.35 : 1,
+    outerRadius:
+      active && Number.isFinite(outerRadius)
+        ? outerRadius * HIGHLIGHT_GROWTH
+        : sector?.outerRadius,
+  };
+}
+
+/** How much a highlighted sector grows. Enough to read, not enough to reflow. */
+const HIGHLIGHT_GROWTH = 1.06;
 
 /** Axis ticks use short text; long ISK values would otherwise clip. */
 export function formatAxisValue(value) {

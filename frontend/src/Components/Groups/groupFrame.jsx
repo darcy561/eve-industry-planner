@@ -113,15 +113,18 @@ function GroupPageFrame() {
           throw new Error("Unable to find requested group");
         }
 
+        // Archived members have no job document to load until they are restored.
+        const liveMemberIDs = [
+          ...currentActiveGroupObject.includedJobIDs,
+        ].filter((jobID) => !currentActiveGroupObject.archivedJobIDs.has(jobID));
+
         hint("Loading jobs…");
-        await getMissingJobObjects(currentActiveGroupObject.includedJobIDs);
+        await getMissingJobObjects(liveMemberIDs);
 
         hint("Preparing job data…");
         const allJobObjects = await useUsersStore
           .getState()
-          .jobData.actions.jobsFromIdsOrObjects(
-            currentActiveGroupObject.includedJobIDs
-          );
+          .jobData.actions.jobsFromIdsOrObjects(liveMemberIDs);
 
         hint("Gathering market data…");
         const { requestedMarketData, requestedSystemIndexes } =

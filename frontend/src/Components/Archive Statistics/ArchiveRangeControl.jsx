@@ -1,10 +1,4 @@
-import {
-  FormControl,
-  MenuItem,
-  Select,
-  Stack,
-  Typography,
-} from "@mui/material";
+import { FormControl, FormHelperText, MenuItem, Select } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import {
   appShellOutlinedFormControl,
@@ -20,7 +14,7 @@ import {
  * choose — the current month and the one before.
  */
 export const ARCHIVE_RANGES = [
-  { key: "default", label: "This month & last", months: null },
+  { key: "default", label: "Last 2 months", months: null },
   { key: "6m", label: "Last 6 months", months: 6 },
   { key: "12m", label: "Last 12 months", months: 12 },
   { key: "24m", label: "Last 24 months", months: 24 },
@@ -62,27 +56,23 @@ export function resolveArchiveRange(key, now = new Date()) {
 export function ArchiveRangeControl({ value, onChange }) {
   const theme = useTheme();
   return (
-    <Stack direction="row" spacing={1} alignItems="center">
-      <Typography variant="body2" color="text.secondary">
-        Period
-      </Typography>
-      <FormControl
-        size="small"
-        sx={(t) => ({ ...appShellOutlinedFormControl(t), minWidth: 200 })}
+    <FormControl
+      size="small"
+      sx={(t) => ({ ...appShellOutlinedFormControl(t), minWidth: 200 })}
+    >
+      <Select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        MenuProps={getAppShellSelectMenuProps(theme)}
       >
-        <Select
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          MenuProps={getAppShellSelectMenuProps(theme)}
-        >
-          {ARCHIVE_RANGES.map((option) => (
-            <MenuItem key={option.key} value={option.key}>
-              {option.label}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-    </Stack>
+        {ARCHIVE_RANGES.map((option) => (
+          <MenuItem key={option.key} value={option.key}>
+            {option.label}
+          </MenuItem>
+        ))}
+      </Select>
+      <FormHelperText>Period</FormHelperText>
+    </FormControl>
   );
 }
 

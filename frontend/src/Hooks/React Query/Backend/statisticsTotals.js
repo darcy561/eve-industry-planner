@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import getAccountTotalsByTypeID from "../../../Functions/Endpoints/Private/statisticsTotals.js";
+import getAccountTotalsByTypeID, {
+  getAccountTotalsSummary,
+} from "../../../Functions/Endpoints/Private/statisticsTotals.js";
 import GLOBAL_CONFIG from "../../../global-config-app";
 import useUsersStore from "../../../Zustand/usersStore";
 import { STATISTICS_QUERY_KEY_ROOT } from "./statisticsKeys.js";
@@ -108,5 +110,23 @@ export function resetAccountTotalsQueries(queryClient, typeID) {
   }
   queryClient.resetQueries({
     queryKey: ["backend", STATISTICS_QUERY_KEY_ROOT, "totals"],
+  });
+}
+
+/**
+ * The account's whole archive as one aggregate row.
+ *
+ * Separate from {@link useAccountTotalsQuery} because it is a different read:
+ * that one filters to a type, this one asks the server to fold every type.
+ */
+export function useAccountTotalsSummaryQuery({ enabled: enabledOption } = {}) {
+  const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
+
+  return useQuery({
+    queryKey: ["backend", STATISTICS_QUERY_KEY_ROOT, "totals", "summary"],
+    queryFn: getAccountTotalsSummary,
+    staleTime: GLOBAL_CONFIG.DEFAULT_ARCHIVE_REFRESH_PERIOD * 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    enabled: enabledOption === false ? false : isLoggedIn,
   });
 }

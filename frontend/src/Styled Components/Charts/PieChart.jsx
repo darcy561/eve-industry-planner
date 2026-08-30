@@ -1,3 +1,4 @@
+import { useCallback, useMemo, useState } from "react";
 import { useMediaQuery } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import {
@@ -11,7 +12,8 @@ import {
   chartLegendProps,
   chartTooltipProps,
   formatTooltipValue,
-  resolveSeriesColour,
+  sectorHighlight,
+  withSeriesColours,
 } from "./chartTheme";
 
 /**
@@ -36,6 +38,29 @@ export function PieChart({
   const theme = useTheme();
   const deviceNotMobile = useMediaQuery(theme.breakpoints.up("sm"));
 
+  const colouredRows = useMemo(() => withSeriesColours(theme, rows), [rows, theme]);
+
+  // Matched on name: the legend sorts its own keys, so the index it reports is
+  // not the sector's.
+  const [hoveredName, setHoveredName] = useState(null);
+  const highlight = useCallback((payload) => setHoveredName(payload?.value ?? null), []);
+  const clearHighlight = useCallback(() => setHoveredName(null), []);
+
+  const renderSector = useCallback(
+    (props) => {
+      const { fillOpacity, outerRadius } = sectorHighlight(props, hoveredName);
+      return (
+        <Sector
+          {...props}
+          outerRadius={outerRadius}
+          fillOpacity={fillOpacity}
+          stroke={theme.palette.background.default}
+        />
+      );
+    },
+    [hoveredName, theme],
+  );
+
   return (
     <RechartsPieChart
       responsive
@@ -50,25 +75,24 @@ export function PieChart({
       }}
     >
       <Pie
-        data={rows}
+        data={colouredRows}
         dataKey={valueKey}
         nameKey={categoryKey}
         innerRadius="45%"
         outerRadius="75%"
         paddingAngle={2}
-        shape={(props, index) => (
-          <Sector
-            {...props}
-            fill={resolveSeriesColour(theme, props?.payload, index ?? 0)}
-            stroke={theme.palette.background.default}
-          />
-        )}
+        shape={renderSector}
       />
       <Tooltip
         {...chartTooltipProps(theme)}
         formatter={(value, name) => [formatValue(value), name]}
       />
-      <Legend position="bottom" {...chartLegendProps(theme)} />
+      <Legend
+        position="bottom"
+        {...chartLegendProps(theme)}
+        onMouseEnter={highlight}
+        onMouseLeave={clearHighlight}
+      />
     </RechartsPieChart>
   );
 }

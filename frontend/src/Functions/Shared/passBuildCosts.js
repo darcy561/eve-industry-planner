@@ -59,7 +59,7 @@ function collectMaterialsAndParentJobs(chosenJobs) {
   for (let job of chosenJobs) {
     const materialID = job.itemID;
     const quantity = job.build.products.totalQuantity;
-    const itemCost = job.totalCostPerItem();
+    const itemCost = job.buildCostPerItem();
 
     if (!collectedMaterials[materialID]) {
       collectedMaterials[materialID] = {

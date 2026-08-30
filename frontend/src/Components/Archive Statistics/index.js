@@ -6,4 +6,7 @@ export {
   ArchiveItemChartPanel,
   ArchiveSegmentPanel,
   ArchiveExtrasPanel,
+  ArchiveExtrasTotalsPanel,
+  ArchiveCostBreakdownPanel,
+  ArchiveCostTotalsPanel,
 } from "./ArchiveChartPanels";

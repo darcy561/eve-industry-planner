@@ -27,9 +27,7 @@ export function JobCostSummaryPanel({ state }) {
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
             >
-              {formatNumberForLocale(
-                state.activeJob.build.costs.totalPurchaseCost
-              )}
+              {formatNumberForLocale(state.activeJob.materialCost())}
             </Typography>
           </Grid>
         </Grid>
@@ -92,6 +90,31 @@ export function JobCostSummaryPanel({ state }) {
               sm: 8
             }}>
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
+              Total Invention Costs:
+            </Typography>
+          </Grid>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 4
+            }}
+            sx={{ marginBottom: 1 }}
+          >
+            <Typography
+              sx={{ typography: STANDARD_TEXT_FORMAT }}
+              align="right"
+            >
+              {formatNumberForLocale(state.activeJob.build.costs.inventionCosts)}
+            </Typography>
+          </Grid>
+        </Grid>
+        <Grid container size={12}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 8
+            }}>
+            <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
               Total Build Cost:
             </Typography>
           </Grid>
@@ -104,11 +127,7 @@ export function JobCostSummaryPanel({ state }) {
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
             >
-              {formatNumberForLocale(
-                state.activeJob.build.costs.totalPurchaseCost +
-                state.activeJob.build.costs.installCosts +
-                state.activeJob.build.costs.extrasTotal
-              )}
+              {formatNumberForLocale(state.activeJob.buildCost())}
             </Typography>
           </Grid>
         </Grid>
@@ -145,7 +164,7 @@ export function JobCostSummaryPanel({ state }) {
               sm: 8
             }}>
             <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
-              Cost per item:
+              Build Cost Per Item:
             </Typography>
           </Grid>
           <Grid
@@ -157,16 +176,7 @@ export function JobCostSummaryPanel({ state }) {
               sx={{ typography: STANDARD_TEXT_FORMAT }}
               align="right"
             >
-              {formatNumberForLocale(
-                Math.round(
-                  ((state.activeJob.build.costs.extrasTotal +
-                    state.activeJob.build.costs.installCosts +
-                    state.activeJob.build.costs.totalPurchaseCost) /
-                    state.activeJob.build.products.totalQuantity +
-                    Number.EPSILON) *
-                  100
-                ) / 100
-              )}
+              {formatNumberForLocale(state.activeJob.buildCostPerItem())}
             </Typography>
           </Grid>
         </Grid>

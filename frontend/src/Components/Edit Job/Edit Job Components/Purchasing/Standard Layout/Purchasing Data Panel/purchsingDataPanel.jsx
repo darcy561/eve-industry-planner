@@ -61,9 +61,7 @@ export function PurchasingDataPanel_EditJob(props) {
           >
             <Typography sx={{ typography: { xs: "caption", sm: "body2" } }}>
               Total Material Cost:{" "}
-              {formatNumberForLocale(
-                state.activeJob.build.costs.totalPurchaseCost
-              )}
+              {formatNumberForLocale(state.activeJob.materialCost())}
             </Typography>
           </Grid>
           <Grid
@@ -74,9 +72,9 @@ export function PurchasingDataPanel_EditJob(props) {
             }}
           >
             <Typography sx={{ typography: { xs: "caption", sm: "body2" } }}>
-              Current Cost Per Item:{" "}
+              Material Cost Per Item:{" "}
               {formatNumberForLocale(
-                state.activeJob.build.costs.totalPurchaseCost /
+                state.activeJob.materialCost() /
                   state.activeJob.build.products.totalQuantity
               )}
             </Typography>

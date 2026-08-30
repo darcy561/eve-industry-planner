@@ -55,7 +55,9 @@ export async function archiveGroupJobs(selectedJobs) {
     }
   }
 
-  const removeIds = new Set(selectedJobs.map((j) => j.jobID));
+  // Only the jobs that were archived leave the planner. A job kept back stays
+  // visible, still naming the group it came from.
+  const removeIds = new Set(filteredJobs.map((j) => j.jobID));
   const linkedEsiPatch = {
     ordersToAdd: new Set(),
     jobsToAdd: new Set(),

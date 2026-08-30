@@ -174,12 +174,24 @@ function SegmentChip({ segment }) {
  * already has rather than waiting for a push that is not coming.
  */
 function applyRestoreLocally(result) {
-  const { updateOrAddJobsToJobArray, addGroupToGroupArray } =
-    useUsersStore.getState().jobData.actions;
+  const { jobData } = useUsersStore.getState();
+  const { updateOrAddJobsToJobArray, addGroupToGroupArray, updateModifiedGroups } =
+    jobData.actions;
 
   const jobs = (result?.jobs ?? []).map((document) => new Job(document));
   if (jobs.length > 0) updateOrAddJobsToJobArray(jobs);
-  if (result?.group) addGroupToGroupArray(new Group(result.group));
+
+  // The server has already written these, so the store only has to agree: a
+  // group the restore rebuilt is new here, one it merged into is already held.
+  for (const document of result?.groups ?? []) {
+    const group = new Group(document);
+    const held = jobData.groupArray.some((g) => g.groupID === group.groupID);
+    if (held) {
+      updateModifiedGroups(group, { queuePersist: false });
+    } else {
+      addGroupToGroupArray(group);
+    }
+  }
 }
 
 /** What a restore reports back, in the terms a user can act on. */

@@ -557,7 +557,6 @@ class Job {
     if (!inputObject) return;
     this.build.costs.inventionEntries.push(inputObject);
     this.build.costs.inventionCosts += inputObject.itemCost;
-    this.build.costs.totalPurchaseCost += inputObject.itemCost;
   }
 
   /**
@@ -572,7 +571,6 @@ class Job {
     this.build.costs.inventionEntries =
       this.build.costs.inventionEntries.filter((i) => i.id !== inputObject.id);
     this.build.costs.inventionCosts -= inputObject.itemCost;
-    this.build.costs.totalPurchaseCost -= inputObject.itemCost;
   }
 
   /**
@@ -645,19 +643,117 @@ class Job {
   }
 
   /**
-   * Calculates the total cost per item produced.
+   * What it cost to build the item, before any cost of selling it.
    *
-   * @returns {number} Cost per item (rounded to 2 decimal places)
+   * @returns {number} Build cost
+   */
+  buildCost() {
+    return (
+      this.materialCost() +
+      this.build.costs.installCosts +
+      this.build.costs.extrasTotal +
+      this.build.costs.inventionCosts
+    );
+  }
+
+  /**
+   * What the job cost: building it, and then selling it.
+   *
+   * @returns {number} Total cost
+   */
+  totalCost() {
+    return this.buildCost() + this.brokersFeeTotal() + this.transactionFeeTotal();
+  }
+
+  /**
+   * Broker fees paid to list the output.
+   *
+   * @returns {number} Fee total
+   */
+  brokersFeeTotal() {
+    return this.build.sale.brokersFee.reduce(
+      (total, fee) => total + (fee.amount || 0),
+      0
+    );
+  }
+
+  /**
+   * Fees taken on the sales.
+   *
+   * `transaction.tax` keeps ESI's own name for the same figure, which is where
+   * it is read from.
+   *
+   * @returns {number} Transaction fee total
+   */
+  transactionFeeTotal() {
+    return this.build.sale.transactions.reduce(
+      (total, transaction) => total + (transaction.tax || 0),
+      0
+    );
+  }
+
+  /**
+   * What the sales brought in.
+   *
+   * @returns {number} Sales total
+   */
+  salesTotal() {
+    return this.build.sale.transactions.reduce(
+      (total, transaction) => total + (transaction.amount || 0),
+      0
+    );
+  }
+
+  /**
+   * What was spent on materials, summed from the purchases themselves.
+   *
+   * `totalPurchaseCost` is a cached copy of this and has been written both ways
+   * historically — materials alone, and materials with invention folded in — so
+   * the purchases are the figure to trust.
+   *
+   * @returns {number} Material spend
+   */
+  materialCost() {
+    return this.build.materials.reduce(
+      (total, material) => total + (material.purchasedCost || 0),
+      0
+    );
+  }
+
+  /**
+   * What one unit cost to make, before any cost of selling it.
+   *
+   * This is the figure a parent build pays for a child job's output, so it must
+   * not carry the child's selling costs.
+   *
+   * @returns {number} Build cost per item (rounded to 2 decimal places)
+   */
+  buildCostPerItem() {
+    return this._perItem(this.buildCost());
+  }
+
+  /**
+   * What one unit cost in total, selling included.
+   *
+   * Matches `totalCostPerItem` on an archived job, so the planner and the
+   * archive mean the same thing by the name.
+   *
+   * @returns {number} Total cost per item (rounded to 2 decimal places)
    */
   totalCostPerItem() {
+    return this._perItem(this.totalCost());
+  }
+
+  /**
+   * @private
+   * @param {number} cost
+   * @returns {number} Cost divided by what was produced, or 0 when nothing was
+   */
+  _perItem(cost) {
+    if (!this.build.products.totalQuantity) return 0;
     return (
       Math.round(
-        ((this.build.costs.extrasTotal +
-          this.build.costs.installCosts +
-          this.build.costs.totalPurchaseCost) /
-          this.build.products.totalQuantity +
-          Number.EPSILON) *
-        100
+        (cost / this.build.products.totalQuantity + Number.EPSILON) * 100
       ) / 100
     );
   }

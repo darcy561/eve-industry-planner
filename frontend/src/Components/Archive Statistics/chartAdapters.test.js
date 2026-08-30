@@ -6,6 +6,9 @@ import {
   toItemRows,
   toSegmentRows,
   toExtrasRows,
+  toExtrasTotalRows,
+  toCostComponentRows,
+  toCostComponentTotalRows,
 } from "./chartAdapters";
 
 describe("monthKey", () => {
@@ -196,5 +199,118 @@ describe("toExtrasRows", () => {
 
   it("returns nothing for an absent response", () => {
     expect(toExtrasRows(undefined, [])).toEqual({ rows: [], series: [] });
+  });
+});
+
+describe("toExtrasTotalRows", () => {
+  const categories = [
+    { id: "1", label: "Hauling Service" },
+    { id: "90", label: "Retired Courier Contract", deleted: true },
+  ];
+
+  test("reads the window's own totals rather than re-summing months", () => {
+    const rows = toExtrasTotalRows(
+      { totals: { extraCategoryTotals: { 1: 300, 90: 700 } } },
+      categories,
+    );
+
+    expect(rows).toEqual([
+      { category: "Retired Courier Contract", value: 700 },
+      { category: "Hauling Service", value: 300 },
+    ]);
+  });
+
+  test("names a category the account no longer lists", () => {
+    const rows = toExtrasTotalRows(
+      { totals: { extraCategoryTotals: { 7: 10 } } },
+      categories,
+    );
+
+    expect(rows).toEqual([{ category: "Category 7", value: 10 }]);
+  });
+
+  test("drops categories with nothing in them, which a slice cannot show", () => {
+    const rows = toExtrasTotalRows(
+      { totals: { extraCategoryTotals: { 1: 0, 90: -5 } } },
+      categories,
+    );
+
+    expect(rows).toEqual([]);
+  });
+
+  test("survives a response with no totals", () => {
+    expect(toExtrasTotalRows(undefined, categories)).toEqual([]);
+    expect(toExtrasTotalRows({}, categories)).toEqual([]);
+  });
+});
+
+describe("cost components", () => {
+  const data = {
+    months: [
+      {
+        year: 2026,
+        month: 3,
+        complete: true,
+        materialCostTotal: 100,
+        installCostTotal: 10,
+        inventionCostTotal: 5,
+        extrasTotal: 7,
+        brokersFeeTotal: 2,
+        transactionFeeTotal: 3,
+      },
+    ],
+    totals: {
+      materialCostTotal: 100,
+      installCostTotal: 10,
+      inventionCostTotal: 0,
+      extrasTotal: 7,
+      brokersFeeTotal: 2,
+      transactionFeeTotal: 3,
+    },
+  };
+
+  test("carries every component through per month", () => {
+    expect(toCostComponentRows(data)).toEqual([
+      {
+        month: "2026-03",
+        complete: true,
+        materialCostTotal: 100,
+        installCostTotal: 10,
+        inventionCostTotal: 5,
+        extrasTotal: 7,
+        brokersFeeTotal: 2,
+        transactionFeeTotal: 3,
+      },
+    ]);
+  });
+
+  test("a month missing a component reads as zero rather than a gap", () => {
+    const rows = toCostComponentRows({ months: [{ year: 2026, month: 4 }] });
+
+    expect(rows[0].materialCostTotal).toBe(0);
+    expect(rows[0].transactionFeeTotal).toBe(0);
+  });
+
+  // The pie reads the response's own totals, so it cannot disagree with the
+  // month-by-month chart beside it.
+  test("slices the window's totals, largest first", () => {
+    expect(toCostComponentTotalRows(data)).toEqual([
+      { component: "Materials", value: 100 },
+      { component: "Install", value: 10 },
+      { component: "Extras", value: 7 },
+      { component: "Transaction Fees", value: 3 },
+      { component: "Broker fees", value: 2 },
+    ]);
+  });
+
+  test("drops a component with nothing in it, which a slice cannot show", () => {
+    const rows = toCostComponentTotalRows(data);
+
+    expect(rows.map((row) => row.component)).not.toContain("Invention");
+  });
+
+  test("survives a response with no months or totals", () => {
+    expect(toCostComponentRows(undefined)).toEqual([]);
+    expect(toCostComponentTotalRows(undefined)).toEqual([]);
   });
 });
