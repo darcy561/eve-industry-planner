@@ -54,7 +54,7 @@ func AccountProductionTotals(
 			total.JobType = row.JobType
 		}
 
-		measures := jobMeasures(row)
+		measures := JobMeasures(row)
 		total.BuildMeasures = total.BuildMeasures.Plus(measures)
 		addSegment(&total.Breakdown, row, measures)
 
@@ -89,7 +89,8 @@ func AccountProductionTotals(
 	return out
 }
 
-// jobMeasures reduces one archived job row to the lifetime measures it adds.
+// JobMeasures reduces one archived job row to the lifetime measures it adds.
+// Exported so a view can label a job with the same figures the totals counted.
 //
 // The definitions here match what the per-job snapshot contributed, because
 // these documents are read by a client that has been served those figures all
@@ -104,30 +105,24 @@ func AccountProductionTotals(
 //
 // profitLoss is zero when nothing sold, rather than a negative figure equal to
 // the build cost: an unsold build has not lost money, it has not realised any.
-func jobMeasures(row models.ArchivedJobStats) models.BuildMeasures {
-	var sales, brokersFee, transactionFee float64
-	for _, line := range row.TransactionLines {
-		sales += line.Amount
-		transactionFee += line.Tax
-	}
-	for _, line := range row.FeeLines {
-		brokersFee += line.Amount
-	}
+func JobMeasures(row models.ArchivedJobStats) models.BuildMeasures {
+	cost := row.CostParts()
+	sales := row.SalesTotal()
 
-	jobCost := row.TotalBuildCosts + brokersFee + transactionFee
-
+	// A job with no sale has no profit to report, rather than a loss the size of
+	// its cost: it has not been sold yet.
 	profitLoss := 0.0
 	if sales > 0 {
-		profitLoss = sales - jobCost
+		profitLoss = sales - cost.Total()
 	}
 
 	return models.BuildMeasures{
 		TotalJobs:           1,
 		ItemBuildCount:      row.TotalProduced,
-		BuildCostTotal:      row.TotalBuildCosts,
-		BrokersFeeTotal:     brokersFee,
-		TransactionFeeTotal: transactionFee,
-		JobCostTotal:        jobCost,
+		BuildCostTotal:      cost.Build(),
+		BrokersFeeTotal:     cost.BrokersFee,
+		TransactionFeeTotal: cost.TransactionFee,
+		JobCostTotal:        cost.Total(),
 		SalesTotal:          sales,
 		ProfitLoss:          profitLoss,
 	}
@@ -157,14 +152,6 @@ func jobMeasures(row models.ArchivedJobStats) models.BuildMeasures {
 // nothing but zeros for sales and fees, which read as a market sale that had
 // somehow earned nothing. RetainedStockBuild still routes a job here explicitly,
 // so a user marking output as kept is honoured whether or not it ever sold.
-// JobMeasures reduces one archived job to its money figures.
-//
-// Exported so a caller reporting a single job — a list row, say — reads the same
-// arithmetic the totals are folded from, rather than restating the two rules
-// above and getting the fee handling wrong.
-func JobMeasures(row models.ArchivedJobStats) models.BuildMeasures {
-	return jobMeasures(row)
-}
 
 // JobSegment names the segment a job is credited to.
 //

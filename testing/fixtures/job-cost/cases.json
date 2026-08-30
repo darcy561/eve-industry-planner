@@ -1,0 +1,338 @@
+{
+  "$comment": "Job cost corpus. The SPA (Classes/job.js) and the backend (models.Job.CostParts) both work out what a job cost, and both read these cases so the two cannot drift. Sale lines keep ESI's own field names (`tax`); our own aggregate is a transaction fee. Materials are summed from the purchases: build.costs.totalPurchaseCost is a cached copy that has historically been written both with and without invention.",
+  "cases": [
+    {
+      "name": "every component",
+      "why": "A job's cost is materials, install, extras, invention, broker fees and tax.",
+      "job": {
+        "jobID": "job-every-component",
+        "itemID": 587,
+        "jobType": 1,
+        "build": {
+          "products": {
+            "totalQuantity": 10
+          },
+          "materials": [
+            {
+              "typeID": 34,
+              "purchasedCost": 60
+            },
+            {
+              "typeID": 35,
+              "purchasedCost": 40
+            }
+          ],
+          "costs": {
+            "totalPurchaseCost": 100,
+            "installCosts": 5,
+            "extrasTotal": 3,
+            "inventionCosts": 2
+          },
+          "sale": {
+            "brokersFee": [
+              {
+                "id": 0,
+                "amount": 1.5
+              }
+            ],
+            "transactions": [
+              {
+                "transaction_id": 0,
+                "tax": 0.5
+              },
+              {
+                "transaction_id": 1,
+                "tax": 0.25
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "materials": 100,
+        "install": 5,
+        "invention": 2,
+        "extras": 3,
+        "brokersFee": 1.5,
+        "transactionFee": 0.75,
+        "build": 110,
+        "total": 112.25
+      }
+    },
+    {
+      "name": "materials come from the purchases",
+      "why": "Materials are summed from each purchase, not read from the cached total.",
+      "job": {
+        "jobID": "job-materials-come-from-the-purchases",
+        "itemID": 587,
+        "jobType": 1,
+        "build": {
+          "products": {
+            "totalQuantity": 10
+          },
+          "materials": [
+            {
+              "typeID": 34,
+              "purchasedCost": 10
+            },
+            {
+              "typeID": 35,
+              "purchasedCost": 20
+            },
+            {
+              "typeID": 36,
+              "purchasedCost": 30
+            }
+          ],
+          "costs": {
+            "totalPurchaseCost": 60,
+            "installCosts": 0,
+            "extrasTotal": 0,
+            "inventionCosts": 0
+          },
+          "sale": {
+            "brokersFee": [],
+            "transactions": []
+          }
+        }
+      },
+      "expected": {
+        "materials": 60,
+        "install": 0,
+        "invention": 0,
+        "extras": 0,
+        "brokersFee": 0,
+        "transactionFee": 0,
+        "build": 60,
+        "total": 60
+      }
+    },
+    {
+      "name": "cached total is ignored when it disagrees",
+      "why": "totalPurchaseCost has been written both as materials alone and with invention folded in, so it is not the figure to trust.",
+      "job": {
+        "jobID": "job-cached-total-is-ignored-when-it-disagrees",
+        "itemID": 587,
+        "jobType": 1,
+        "build": {
+          "products": {
+            "totalQuantity": 10
+          },
+          "materials": [
+            {
+              "typeID": 34,
+              "purchasedCost": 100
+            }
+          ],
+          "costs": {
+            "totalPurchaseCost": 125,
+            "installCosts": 0,
+            "extrasTotal": 0,
+            "inventionCosts": 25
+          },
+          "sale": {
+            "brokersFee": [],
+            "transactions": []
+          }
+        }
+      },
+      "expected": {
+        "materials": 100,
+        "install": 0,
+        "invention": 25,
+        "extras": 0,
+        "brokersFee": 0,
+        "transactionFee": 0,
+        "build": 125,
+        "total": 125
+      }
+    },
+    {
+      "name": "invention counts toward the build",
+      "why": "Inventing the blueprint is part of what building the item cost.",
+      "job": {
+        "jobID": "job-invention-counts-toward-the-build",
+        "itemID": 587,
+        "jobType": 1,
+        "build": {
+          "products": {
+            "totalQuantity": 10
+          },
+          "materials": [
+            {
+              "typeID": 34,
+              "purchasedCost": 100
+            }
+          ],
+          "costs": {
+            "totalPurchaseCost": 100,
+            "installCosts": 0,
+            "extrasTotal": 0,
+            "inventionCosts": 7
+          },
+          "sale": {
+            "brokersFee": [],
+            "transactions": []
+          }
+        }
+      },
+      "expected": {
+        "materials": 100,
+        "install": 0,
+        "invention": 7,
+        "extras": 0,
+        "brokersFee": 0,
+        "transactionFee": 0,
+        "build": 107,
+        "total": 107
+      }
+    },
+    {
+      "name": "fees are cost but not build cost",
+      "why": "Selling costs money too, but it is not what the item cost to make.",
+      "job": {
+        "jobID": "job-fees-are-cost-but-not-build-cost",
+        "itemID": 587,
+        "jobType": 1,
+        "build": {
+          "products": {
+            "totalQuantity": 10
+          },
+          "materials": [
+            {
+              "typeID": 34,
+              "purchasedCost": 100
+            }
+          ],
+          "costs": {
+            "totalPurchaseCost": 100,
+            "installCosts": 0,
+            "extrasTotal": 0,
+            "inventionCosts": 0
+          },
+          "sale": {
+            "brokersFee": [
+              {
+                "id": 0,
+                "amount": 3
+              }
+            ],
+            "transactions": [
+              {
+                "transaction_id": 0,
+                "tax": 2
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "materials": 100,
+        "install": 0,
+        "invention": 0,
+        "extras": 0,
+        "brokersFee": 3,
+        "transactionFee": 2,
+        "build": 100,
+        "total": 105
+      }
+    },
+    {
+      "name": "a job with nothing bought",
+      "why": "A job that has purchased nothing has no material cost, not a missing one.",
+      "job": {
+        "jobID": "job-a-job-with-nothing-bought",
+        "itemID": 587,
+        "jobType": 1,
+        "build": {
+          "products": {
+            "totalQuantity": 10
+          },
+          "materials": [],
+          "costs": {
+            "totalPurchaseCost": 0,
+            "installCosts": 0,
+            "extrasTotal": 0,
+            "inventionCosts": 0
+          },
+          "sale": {
+            "brokersFee": [],
+            "transactions": []
+          }
+        }
+      },
+      "expected": {
+        "materials": 0,
+        "install": 0,
+        "invention": 0,
+        "extras": 0,
+        "brokersFee": 0,
+        "transactionFee": 0,
+        "build": 0,
+        "total": 0
+      }
+    },
+    {
+      "name": "several fees and taxes",
+      "why": "Every fee and every transaction's tax counts.",
+      "job": {
+        "jobID": "job-several-fees-and-taxes",
+        "itemID": 587,
+        "jobType": 1,
+        "build": {
+          "products": {
+            "totalQuantity": 10
+          },
+          "materials": [
+            {
+              "typeID": 34,
+              "purchasedCost": 50
+            }
+          ],
+          "costs": {
+            "totalPurchaseCost": 50,
+            "installCosts": 0,
+            "extrasTotal": 0,
+            "inventionCosts": 0
+          },
+          "sale": {
+            "brokersFee": [
+              {
+                "id": 0,
+                "amount": 1
+              },
+              {
+                "id": 1,
+                "amount": 2
+              },
+              {
+                "id": 2,
+                "amount": 3
+              }
+            ],
+            "transactions": [
+              {
+                "transaction_id": 0,
+                "tax": 0.5
+              },
+              {
+                "transaction_id": 1,
+                "tax": 1.5
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "materials": 50,
+        "install": 0,
+        "invention": 0,
+        "extras": 0,
+        "brokersFee": 6,
+        "transactionFee": 2.0,
+        "build": 50,
+        "total": 58.0
+      }
+    }
+  ]
+}

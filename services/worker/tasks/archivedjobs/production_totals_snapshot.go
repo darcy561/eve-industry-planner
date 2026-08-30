@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/models"
-
-	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 const buildStatRoundEps = 1e-9
@@ -23,27 +21,16 @@ func computeBuildStatSnapshot(job models.Job) (models.BuildStatSnapshot, error) 
 		return models.BuildStatSnapshot{}, fmt.Errorf("build.products.totalQuantity must be > 0 (jobID=%s)", job.JobID)
 	}
 
-	brokersFeesTotal := 0.0
-	for _, item := range job.Build.Sale.BrokersFee {
-		brokersFeesTotal += item.Amount
-	}
-
-	transactionFeeTotal := 0.0
 	totalSale := 0.0
 	averageQuantity := 0.0
 	for _, item := range job.Build.Sale.Transactions {
-		transactionFeeTotal += item.Tax
 		totalSale += item.Amount
 		averageQuantity += float64(item.Quantity)
 	}
 
-	totalMaterialCost := job.Build.Costs.TotalPurchaseCost
-	materialCostPerItem := totalMaterialCost / totalProduced
-	totalInventionCost := job.Build.Costs.InventionCosts
-	totalInstallCost := job.Build.Costs.InstallCosts
-	totalExtras := job.Build.Costs.ExtrasTotal
-	totalBuildCosts := totalMaterialCost + totalInstallCost + totalExtras
-	totalJobCost := totalBuildCosts + brokersFeesTotal + transactionFeeTotal
+	cost := job.CostParts()
+	materialCostPerItem := cost.Materials / totalProduced
+	totalJobCost := cost.Total()
 	totalCostPerItem := roundBuildStatMoney(totalJobCost / totalProduced)
 
 	averageSalePrice := 0.0
@@ -62,33 +49,17 @@ func computeBuildStatSnapshot(job models.Job) (models.BuildStatSnapshot, error) 
 		JobType:             job.JobType,
 		ProcessDate:         time.Now().UTC().UnixMilli(),
 		TotalProduced:       totalProduced,
-		TotalMaterialCost:   totalMaterialCost,
+		TotalMaterialCost:   cost.Materials,
 		MaterialCostPerItem: materialCostPerItem,
-		TotalInventionCost:  totalInventionCost,
-		TotalInstallCost:    totalInstallCost,
-		TotalExtras:         totalExtras,
-		TotalBuildCosts:     totalBuildCosts,
-		BrokersFeeTotal:     brokersFeesTotal,
-		TransactionFeeTotal: transactionFeeTotal,
+		TotalInventionCost:  cost.Invention,
+		TotalInstallCost:    cost.Install,
+		TotalExtras:         cost.Extras,
+		BrokersFeeTotal:     cost.BrokersFee,
+		TransactionFeeTotal: cost.TransactionFee,
 		TotalJobCost:        totalJobCost,
 		TotalCostPerItem:    totalCostPerItem,
 		TotalSales:          totalSale,
 		AverageSalePrice:    averageSalePrice,
 		ProfitLoss:          profitLoss,
 	}, nil
-}
-
-// buildStatSnapshotIncUpdate returns per-job deltas for build_stats — use only with Update $inc
-// so totals accumulate across all processed archived jobs for this account+item row.
-func buildStatSnapshotIncUpdate(s models.BuildStatSnapshot) bson.M {
-	return bson.M{
-		"totalJobs":           1,
-		"itemBuildCount":      s.TotalProduced,
-		"buildCostTotal":      s.TotalBuildCosts,
-		"brokersFeeTotal":     s.BrokersFeeTotal,
-		"transactionFeeTotal": s.TransactionFeeTotal,
-		"jobCostTotal":        s.TotalJobCost,
-		"salesTotal":          s.TotalSales,
-		"profitLoss":          s.ProfitLoss,
-	}
 }

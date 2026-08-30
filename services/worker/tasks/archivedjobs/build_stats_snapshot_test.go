@@ -3,8 +3,8 @@ package archivedjobs
 import (
 	"testing"
 
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 )
 
 func TestComputeBuildStatSnapshot_matchesArchivedJobsMath(t *testing.T) {
@@ -14,6 +14,10 @@ func TestComputeBuildStatSnapshot_matchesArchivedJobsMath(t *testing.T) {
 		JobType: 1,
 		Build: models.JobBuild{
 			Products: models.JobProducts{TotalQuantity: 10},
+			Materials: []models.JobMaterial{
+				{TypeID: 34, PurchasedCost: 70},
+				{TypeID: 35, PurchasedCost: 30},
+			},
 			Costs: models.JobCosts{
 				TotalPurchaseCost: 100,
 				InstallCosts:      5,
@@ -43,11 +47,9 @@ func TestComputeBuildStatSnapshot_matchesArchivedJobsMath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if snap.TotalBuildCosts != 108 {
-		t.Fatalf("TotalBuildCosts: got %v want 108", snap.TotalBuildCosts)
-	}
-	if snap.TotalJobCost != 110.25 {
-		t.Fatalf("TotalJobCost: got %v want 110.25", snap.TotalJobCost)
+	// materials 100 + install 5 + extras 3 + invention 2 + brokers 1.5 + tax 0.75
+	if snap.TotalJobCost != 112.25 {
+		t.Fatalf("TotalJobCost: got %v want 112.25", snap.TotalJobCost)
 	}
 	if snap.TotalSales != 120 {
 		t.Fatalf("TotalSales: got %v", snap.TotalSales)
@@ -55,11 +57,11 @@ func TestComputeBuildStatSnapshot_matchesArchivedJobsMath(t *testing.T) {
 	if snap.AverageSalePrice != 12 {
 		t.Fatalf("AverageSalePrice: got %v want 12", snap.AverageSalePrice)
 	}
-	if snap.ProfitLoss != (120 - 110.25) {
+	if snap.ProfitLoss != (120 - 112.25) {
 		t.Fatalf("ProfitLoss: got %v", snap.ProfitLoss)
 	}
-	if snap.TotalCostPerItem != 11.03 {
-		t.Fatalf("TotalCostPerItem: got %v want 11.03", snap.TotalCostPerItem)
+	if snap.TotalCostPerItem != 11.23 {
+		t.Fatalf("TotalCostPerItem: got %v want 11.23", snap.TotalCostPerItem)
 	}
 }
 

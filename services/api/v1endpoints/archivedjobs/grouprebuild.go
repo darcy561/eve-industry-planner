@@ -2,112 +2,79 @@ package archivedjobs
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"slices"
-	"strings"
 	"time"
 
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
-// groupNameLimit matches the SPA's cap when naming a group from its outputs.
-const groupNameLimit = 75
-
-// rebuildGroup reconstructs a group from its jobs, mirroring the SPA's
-// Group.createGroup. GroupStatus and AreComplete reset: per-job workflow
-// progress was never recorded, so it cannot be derived.
-func rebuildGroup(groupID string, jobs []models.Job) models.Group {
-	group := models.Group{
-		GroupID:      groupID,
-		ShowComplete: true,
-		GroupType:    1,
-		GroupStatus:  0,
-		AreComplete:  []string{},
-	}
-
-	includedJobIDs := make([]string, 0, len(jobs))
-	typeIDs := map[int]struct{}{}
-	materialIDs := map[int]struct{}{}
-	linkedJobs := map[int64]struct{}{}
-	linkedOrders := map[int64]struct{}{}
-	linkedTrans := map[int64]struct{}{}
-	outputNames := make([]string, 0, len(jobs))
-
+// groupJobsByGroupID splits restored jobs by the group each belongs to: a related
+// set can reach jobs archived from different groups.
+func groupJobsByGroupID(jobs []models.Job) ([]string, map[string][]models.Job) {
+	byGroup := map[string][]models.Job{}
+	order := make([]string, 0)
 	for i := range jobs {
-		job := &jobs[i]
-		includedJobIDs = append(includedJobIDs, job.JobID)
-		typeIDs[job.ItemID] = struct{}{}
-		materialIDs[job.ItemID] = struct{}{}
-
-		// A parentless job is an output rather than an intermediate.
-		if len(job.ParentJobs) == 0 {
-			group.OutputJobCount++
-			if name := strings.TrimSpace(job.Name); name != "" {
-				outputNames = append(outputNames, name)
-			}
+		groupID := jobs[i].GroupID
+		if groupID == "" {
+			continue
 		}
-
-		for _, material := range job.Build.Materials {
-			materialIDs[material.TypeID] = struct{}{}
+		if _, seen := byGroup[groupID]; !seen {
+			order = append(order, groupID)
 		}
-		for _, id := range job.APIJobs {
-			linkedJobs[int64(id)] = struct{}{}
-		}
-		for _, id := range job.APIOrders {
-			linkedOrders[int64(id)] = struct{}{}
-		}
-		for _, id := range job.APITransactions {
-			linkedTrans[int64(id)] = struct{}{}
-		}
+		byGroup[groupID] = append(byGroup[groupID], jobs[i])
 	}
-
-	group.GroupName = groupNameFromOutputs(outputNames)
-	group.IncludedJobIDs = includedJobIDs
-	group.IncludedTypeIDs = sortedInts(typeIDs)
-	group.MaterialIDs = sortedInts(materialIDs)
-	group.LinkedJobIDs = sortedInt64s(linkedJobs)
-	group.LinkedOrderIDs = sortedInt64s(linkedOrders)
-	group.LinkedTransIDs = sortedInt64s(linkedTrans)
-	return group
+	return order, byGroup
 }
 
-// groupNameFromOutputs names a group after the jobs it produces.
-func groupNameFromOutputs(names []string) string {
-	if len(names) == 0 {
-		return "Untitled Group"
+// liveGroupMembers reads every job document on the account that names the group.
+// The restored jobs are written before this runs, so one lookup returns them and
+// any member that was never archived.
+func liveGroupMembers(ctx context.Context, m *eipmongo.Mongo, accountID, groupID string) ([]models.Job, error) {
+	if m == nil || m.JobDocuments == nil {
+		return nil, fmt.Errorf("mongo handle is required")
 	}
-	joined := strings.Join(names, ", ")
-	if len(joined) > groupNameLimit {
-		return joined[:groupNameLimit]
-	}
-	return joined
+	return m.JobDocuments.LoadJobsByFilter(ctx, accountID, bson.M{"groupID": groupID})
 }
 
-// sortedInts renders a set stably, so an unchanged group is not rewritten as
-// modified on every restore.
-func sortedInts(set map[int]struct{}) []int {
-	out := make([]int, 0, len(set))
-	for id := range set {
-		out = append(out, id)
+// restoreGroups returns each restored job to the group it was archived from:
+// merged into the live group, or rebuilt from every job that names it when the
+// group is gone.
+func restoreGroups(ctx context.Context, m *eipmongo.Mongo, accountID string, jobs []models.Job, now time.Time, sessionID, wsClientID string) ([]models.Group, error) {
+	order, byGroup := groupJobsByGroupID(jobs)
+	if len(order) == 0 {
+		return nil, nil
 	}
-	slices.Sort(out)
-	return out
-}
-
-func sortedInt64s(set map[int64]struct{}) []int64 {
-	out := make([]int64, 0, len(set))
-	for id := range set {
-		out = append(out, id)
-	}
-	slices.Sort(out)
-	return out
-}
-
-func writeGroup(ctx context.Context, m *eipmongo.Mongo, accountID string, group models.Group, now time.Time, sessionID, wsClientID string) error {
 	if m == nil || m.Groups == nil {
-		return fmt.Errorf("mongo handle is required")
+		return nil, fmt.Errorf("mongo handle is required")
 	}
-	_, err := m.Groups.BulkUpsertGroups(ctx, accountID, []models.Group{group}, now, sessionID, wsClientID)
-	return err
+
+	out := make([]models.Group, 0, len(order))
+	for _, groupID := range order {
+		existing, err := m.Groups.LoadGroupByID(ctx, accountID, groupID)
+		switch {
+		case err == nil:
+			out = append(out, existing.AddJobs(byGroup[groupID]))
+		case errors.Is(err, mongodriver.ErrNoDocuments):
+			members, mErr := liveGroupMembers(ctx, m, accountID, groupID)
+			if mErr != nil {
+				return nil, fmt.Errorf("load members of group %s: %w", groupID, mErr)
+			}
+			if len(members) == 0 {
+				members = byGroup[groupID]
+			}
+			out = append(out, models.Group{GroupID: groupID}.RebuildFrom(members))
+		default:
+			return nil, fmt.Errorf("load group %s: %w", groupID, err)
+		}
+	}
+
+	if _, err := m.Groups.BulkUpsertGroups(ctx, accountID, out, now, sessionID, wsClientID); err != nil {
+		return nil, err
+	}
+	return out, nil
 }

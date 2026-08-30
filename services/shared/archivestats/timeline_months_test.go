@@ -16,8 +16,8 @@ func statsRow(typeID int, cost models.CalendarMonth) models.ArchivedJobStats {
 		AccountID: "acct-1",
 		TypeID:    typeID,
 		CostMonth: cost,
-		// TotalBuildCosts already covers materials, install and extras.
-		TotalBuildCosts:    100,
+		// The lump is the sum of its components, as the pipeline writes it.
+		TotalMaterialCost:  70,
 		TotalInstallCost:   20,
 		TotalExtras:        10,
 		TotalInventionCost: 5,
@@ -36,9 +36,8 @@ func feeLine(m models.CalendarMonth, amount float64) models.ArchivedJobFeeLine {
 	return models.ArchivedJobFeeLine{CalendarMonth: m, Amount: amount}
 }
 
-// TotalBuildCosts already includes install and extras, so a bucket must add only
-// invention on top. Summing all four would count install and extras twice and
-// overstate every month's costs.
+// Each component is counted once. Materials, install and extras make the build
+// cost, and invention goes on top of it.
 func TestJobCostCountsInstallAndExtrasOnce(t *testing.T) {
 	t.Parallel()
 
@@ -47,7 +46,7 @@ func TestJobCostCountsInstallAndExtrasOnce(t *testing.T) {
 
 	got := buckets[BucketKey{TypeID: 34, CalendarMonth: month(2026, 6)}]
 	if got.JobCostTotal != 105 { // 100 build (materials+install+extras) + 5 invention
-		t.Fatalf("jobCostTotal = %v, want 105 — install and extras are inside TotalBuildCosts", got.JobCostTotal)
+		t.Fatalf("jobCostTotal = %v, want 105 — each component counted once", got.JobCostTotal)
 	}
 	if got.ProfitLoss != -105 {
 		t.Fatalf("profitLoss = %v, want -105", got.ProfitLoss)
@@ -280,5 +279,36 @@ func TestAccountBucketsAreIdentifiedAndOrdered(t *testing.T) {
 	}
 	if AccountBuckets("acct-1", nil) != nil {
 		t.Fatal("no rows must produce no buckets")
+	}
+}
+
+// Each component reaches the bucket, not just their sum.
+func TestBucketsCarryTheComponentsOfCost(t *testing.T) {
+	t.Parallel()
+
+	doc := models.ArchivedJobStats{
+		TypeID:             587,
+		CostMonth:          models.CalendarMonth{Year: 2026, Month: 3},
+		TotalMaterialCost:  100,
+		TotalInstallCost:   10,
+		TotalExtras:        5,
+		TotalInventionCost: 5,
+	}
+
+	buckets := AccumulateAccountBuckets([]models.ArchivedJobStats{doc, doc})
+	got := buckets[BucketKey{TypeID: 587, Year: 2026, Month: 3}]
+
+	if got.MaterialCostTotal != 200 {
+		t.Errorf("materialCostTotal = %v, want 200", got.MaterialCostTotal)
+	}
+	if got.InstallCostTotal != 20 {
+		t.Errorf("installCostTotal = %v, want 20", got.InstallCostTotal)
+	}
+	if got.InventionCostTotal != 10 {
+		t.Errorf("inventionCostTotal = %v, want 10", got.InventionCostTotal)
+	}
+	// The components describe the cost; they do not replace it.
+	if got.JobCostTotal != 240 {
+		t.Errorf("jobCostTotal = %v, want the whole production cost", got.JobCostTotal)
 	}
 }

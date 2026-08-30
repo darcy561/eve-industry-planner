@@ -108,9 +108,9 @@ func TestArchivedJobStatsPersistsFlat(t *testing.T) {
 		ID:            "acct|job-1",
 		AccountID:     "acct",
 		JobID:         "job-1",
-		TotalProduced: 10, TotalBuildCosts: 500,
+		TotalProduced: 10, TotalMaterialCost: 500,
 	}
-	requireFlatKeys(t, stats, "_id", "accountID", "jobID", "totalProduced", "totalBuildCosts")
+	requireFlatKeys(t, stats, "_id", "accountID", "jobID", "totalProduced", "totalMaterialCost")
 }
 
 func TestProductionTotalsRowJSONStaysFlat(t *testing.T) {

@@ -101,6 +101,53 @@ type JobCosts struct {
 	InventionEntries  []InventionEntry `json:"inventionEntries" bson:"inventionEntries"`
 }
 
+// JobCostParts are the six components a job's cost is made of.
+type JobCostParts struct {
+	Materials  float64
+	Install    float64
+	Invention  float64
+	Extras     float64
+	BrokersFee float64
+	// TransactionFee is the fee taken on each sale. `Transaction.Tax` keeps ESI's
+	// own name for the same figure, which is where it is read from.
+	TransactionFee float64
+}
+
+// Build is what it cost to make the item — invention included, because a job
+// that had to invent its blueprint cost that too.
+func (p JobCostParts) Build() float64 {
+	return p.Materials + p.Install + p.Extras + p.Invention
+}
+
+// Total is what the job cost: building it, and then selling it.
+func (p JobCostParts) Total() float64 {
+	return p.Build() + p.BrokersFee + p.TransactionFee
+}
+
+// CostParts reads what the job cost from its own fields.
+//
+// Materials are summed from the purchases rather than read from
+// `totalPurchaseCost`: that field has been written both ways — materials alone,
+// and materials with invention folded in — so it cannot say which it holds. The
+// purchases can.
+func (j Job) CostParts() JobCostParts {
+	parts := JobCostParts{
+		Install:   j.Build.Costs.InstallCosts,
+		Invention: j.Build.Costs.InventionCosts,
+		Extras:    j.Build.Costs.ExtrasTotal,
+	}
+	for _, material := range j.Build.Materials {
+		parts.Materials += material.PurchasedCost
+	}
+	for _, fee := range j.Build.Sale.BrokersFee {
+		parts.BrokersFee += fee.Amount
+	}
+	for _, transaction := range j.Build.Sale.Transactions {
+		parts.TransactionFee += transaction.Tax
+	}
+	return parts
+}
+
 // ExtraCost matches the SPA extras row (Extras panel, Job.toDocument): id, category, extraText, extraValue.
 // Category is the extras category id as a string (same as ExtraCategory.ID). ExtraText is the description.
 // ExtraValue is the ISK amount (numeric JSON/BSON). UnmarshalJSON/UnmarshalBSON coerce legacy scalars (numeric category,

@@ -49,6 +49,17 @@ func ParseTypeID(r *http.Request, codePrefix string) (int, error) {
 	return typeID, nil
 }
 
+// BoolParam reads a flag-style query parameter. Anything but a truthy spelling
+// is off, so an unrecognised value cannot silently switch a response shape.
+func BoolParam(r *http.Request, name string) bool {
+	switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get(name))) {
+	case "1", "true", "yes":
+		return true
+	default:
+		return false
+	}
+}
+
 // Paging is a resolved ordering and page.
 type Paging struct {
 	Sort      string

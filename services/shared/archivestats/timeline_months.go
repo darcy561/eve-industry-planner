@@ -14,17 +14,6 @@ type BucketKey struct {
 	models.CalendarMonth
 }
 
-// jobBuildCost is what a job contributes to a bucket's cost total.
-//
-// TotalBuildCosts already covers materials, install and extras; invention is the
-// one component it excludes, so the two sum to the whole production cost without
-// counting anything twice. Broker and transaction fees are deliberately absent —
-// a bucket carries those in their own measures, and folding them in here would
-// count them against profit twice.
-func jobBuildCost(doc models.ArchivedJobStats) float64 {
-	return doc.TotalBuildCosts + doc.TotalInventionCost
-}
-
 // AccumulateAccountBuckets folds an account's statistics rows into monthly buckets
 // keyed by item type and calendar month.
 //
@@ -67,10 +56,18 @@ func AccumulateAccountBuckets(docs []models.ArchivedJobStats) map[BucketKey]mode
 			})
 		}
 
-		cost := jobBuildCost(doc)
+		// The two fees are absent: a bucket carries them as its own measures, in
+		// the months they fell, and subtracts them from profit there.
+		cost := doc.CostParts().Build()
 		add(BucketKey{TypeID: doc.TypeID, CalendarMonth: costMonthOf(doc)}, models.SalesMeasures{
-			JobCostTotal:        cost,
-			ProfitLoss:          -cost,
+			JobCostTotal: cost,
+			ProfitLoss:   -cost,
+			// Components of that cost, carried alongside it. They do not sum to
+			// jobCostTotal: extras are counted per category instead.
+			MaterialCostTotal:   doc.TotalMaterialCost,
+			InventionCostTotal:  doc.TotalInventionCost,
+			InstallCostTotal:    doc.TotalInstallCost,
+			ExtrasTotal:         doc.TotalExtras,
 			ExtraCategoryTotals: maps.Clone(doc.ExtraCategoryTotals),
 		})
 	}

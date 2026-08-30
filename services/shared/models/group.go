@@ -9,6 +9,7 @@ type Group struct {
 	GroupName       string        `json:"groupName" bson:"groupName"`
 	GroupID         string        `json:"groupID" bson:"groupID"`
 	IncludedJobIDs  []string      `json:"includedJobIDs" bson:"includedJobIDs"`
+	ArchivedJobIDs  []string      `json:"archivedJobIDs" bson:"archivedJobIDs"` // members held in the archive; still in IncludedJobIDs, absent from the derived sets
 	IncludedTypeIDs []int         `json:"includedTypeIDs" bson:"includedTypeIDs"`
 	MaterialIDs     []int         `json:"materialIDs" bson:"materialIDs"`
 	OutputJobCount  int           `json:"outputJobCount" bson:"outputJobCount"`
