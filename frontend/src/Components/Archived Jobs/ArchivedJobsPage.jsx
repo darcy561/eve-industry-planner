@@ -1,9 +1,12 @@
 import { useMemo, useState } from "react";
-import { Box, Grid, Stack, Tab, Tabs, useMediaQuery } from "@mui/material";
+import { Box, Grid, Tab, Tabs, useMediaQuery } from "@mui/material";
 import DefaultPageLayout from "../../Styled Components/defaultPageLayout";
 import {
+  ArchiveCostBreakdownPanel,
+  ArchiveCostTotalsPanel,
   ArchiveCumulativePanel,
   ArchiveExtrasPanel,
+  ArchiveExtrasTotalsPanel,
   ArchiveItemChartPanel,
   ArchiveSegmentPanel,
   ArchiveTimelinePanel,
@@ -45,28 +48,29 @@ export function ArchivedJobsPage() {
     <DefaultPageLayout>
       <Grid container spacing={2} sx={{ flex: 1, width: "100%", minWidth: 0 }}>
         <Grid size={12}>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={2}
-            justifyContent="space-between"
-            alignItems={{ xs: "stretch", sm: "center" }}
+          <Tabs
+            value={tab}
+            onChange={openTab}
+            variant={deviceNotMobile ? "standard" : "fullWidth"}
+            sx={{ width: "100%" }}
           >
-            <Tabs
-              value={tab}
-              onChange={openTab}
-              variant={deviceNotMobile ? "standard" : "fullWidth"}
-              sx={{ width: { xs: "100%", sm: "auto" }, flexShrink: 0 }}
-            >
-              <Tab label="Statistics" value={TAB_STATISTICS} />
-              <Tab label="Archived Jobs" value={TAB_JOBS} />
-            </Tabs>
-            {tab === TAB_STATISTICS && (
-              <Box sx={{ ml: { sm: "auto" } }}>
-                <ArchiveRangeControl value={rangeKey} onChange={setRangeKey} />
-              </Box>
-            )}
-          </Stack>
+            <Tab label="Statistics" value={TAB_STATISTICS} />
+            <Tab label="Archived Jobs" value={TAB_JOBS} />
+          </Tabs>
         </Grid>
+
+        {tab === TAB_STATISTICS && (
+          <Grid size={12}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: { xs: "stretch", sm: "flex-end" },
+              }}
+            >
+              <ArchiveRangeControl value={rangeKey} onChange={setRangeKey} />
+            </Box>
+          </Grid>
+        )}
 
         <Grid
           size={12}
@@ -90,6 +94,15 @@ export function ArchivedJobsPage() {
             </Grid>
             <Grid size={{ xs: 12, lg: 6 }}>
               <ArchiveExtrasPanel {...range} />
+            </Grid>
+            <Grid size={{ xs: 12, lg: 6 }}>
+              <ArchiveExtrasTotalsPanel {...range} />
+            </Grid>
+            <Grid size={{ xs: 12, lg: 6 }}>
+              <ArchiveCostBreakdownPanel {...range} />
+            </Grid>
+            <Grid size={{ xs: 12, lg: 6 }}>
+              <ArchiveCostTotalsPanel {...range} />
             </Grid>
             <Grid size={12}>
               <ArchivedItemBreakdown {...range} />

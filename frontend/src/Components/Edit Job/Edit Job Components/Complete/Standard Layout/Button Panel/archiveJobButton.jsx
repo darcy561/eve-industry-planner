@@ -5,6 +5,7 @@ import { deleteJobDocumentsFromApi } from "../../../../../../Functions/Endpoints
 import { flushPendingJobDocumentsSave } from "../../../../../../Functions/Debounce/jobDocumentsPersistSchedule.js";
 import { saveUserAccountDocument } from "../../../../../../Functions/Endpoints/Private/userDocument";
 import saveArchivedJobs from "../../../../../../Functions/Endpoints/Private/archivedJobs";
+import { markJobsArchivedInGroups } from "../../../../../../Functions/Groups/markJobsArchivedInGroups.js";
 import {
   showSnackbarError,
   showSnackbarSuccess,
@@ -42,6 +43,8 @@ export function ArchiveJobButton({ state }) {
     }
 
     invalidateStatisticsQueries(queryClient);
+
+    await markJobsArchivedInGroups([state.activeJob]);
 
     try {
       await flushPendingJobDocumentsSave();

@@ -104,4 +104,41 @@ async function getAccountTotalsByTypeID(typeID) {
   }
 }
 
+/**
+ * The account's whole archive as one aggregate row.
+ *
+ * GET `/api/v1/statistics/account/totals?summary=1`, with no `typeID`: the
+ * endpoint rejects `typeID=0` rather than reading it as "everything", and the
+ * unfiltered read returns a row per item type, each carrying an unbounded
+ * per-job snapshot array. `summary=1` asks the server to fold them instead.
+ *
+ * @returns {Promise<Object|null>} The summed row, or null if the request failed
+ */
+export async function getAccountTotalsSummary() {
+  try {
+    const response = await requestWithPrivateHeaders(
+      `${TOTALS_PATH}?summary=1`,
+      { method: "GET" },
+      {
+        requestName: "getAccountTotalsSummary",
+        retry: { maxAttempts: MAX_ATTEMPTS, baseDelayMs: RETRY_BASE_DELAY_MS },
+      }
+    );
+
+    if (!response.ok) {
+      console.error(
+        `getAccountTotalsSummary: ${response.status} ${response.statusText}`,
+        await response.text()
+      );
+      return null;
+    }
+
+    const payload = await response.json();
+    return payload?.total ?? null;
+  } catch (error) {
+    console.error("getAccountTotalsSummary:", error);
+    return null;
+  }
+}
+
 export default getAccountTotalsByTypeID;

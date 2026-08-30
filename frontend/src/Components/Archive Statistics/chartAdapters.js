@@ -84,6 +84,23 @@ const SEGMENT_LABELS = {
  * @param {object|undefined} row - one row from `GET /statistics/account/totals`
  * @param {string} [measure] - which figure the slices compare
  */
+/**
+ * Item rows as slices of one measure.
+ *
+ * A slice is a share of a total, which a negative figure cannot be, so items
+ * that lost money on the selected measure are left out rather than drawn as
+ * though they contributed to it.
+ *
+ * @param {Object} data
+ * @param {Record<number, string>} names
+ * @param {string} measure
+ */
+export function toItemShareRows(data, names = {}, measure = "profitLoss") {
+  return toItemRows(data, names)
+    .map((row) => ({ name: row.name, value: Number(row[measure] ?? 0) }))
+    .filter((slice) => slice.value > 0);
+}
+
 export function toSegmentRows(row, measure = "jobCostTotal") {
   const breakdown = mapApiStatsToArchiveBreakdown(row);
   if (!breakdown) return [];
@@ -107,6 +124,74 @@ export function toSegmentRows(row, measure = "jobCostTotal") {
  * @param {Array<{id: string, label: string}>} [categories]
  * @returns {{rows: object[], series: {key: string, label: string}[]}}
  */
+/**
+ * The components a period's cost is made of, in the order they are drawn. The six
+ * together are what a job cost, so the charts partition it rather than sampling
+ * it; extras appear here as one figure and per category in their own charts.
+ */
+export const COST_COMPONENTS = [
+  { key: "materialCostTotal", label: "Materials" },
+  { key: "installCostTotal", label: "Install" },
+  { key: "inventionCostTotal", label: "Invention" },
+  { key: "extrasTotal", label: "Extras" },
+  { key: "brokersFeeTotal", label: "Broker fees" },
+  { key: "transactionFeeTotal", label: "Transaction Fees" },
+];
+
+/**
+ * Cost components per month, as stacked bars.
+ *
+ * @param {Object} data
+ */
+export function toCostComponentRows(data) {
+  const months = data?.months ?? [];
+  return months.map((row) => {
+    const entry = { month: monthKey(row), complete: Boolean(row?.complete) };
+    for (const { key } of COST_COMPONENTS) {
+      entry[key] = Number(row?.[key] ?? 0);
+    }
+    return entry;
+  });
+}
+
+/**
+ * Cost components for the whole window, one slice each. Reads the response's own
+ * totals, so this cannot disagree with the month-by-month chart.
+ *
+ * @param {Object} data
+ */
+export function toCostComponentTotalRows(data) {
+  const totals = data?.totals ?? {};
+  return COST_COMPONENTS.map(({ key, label }) => ({
+    component: label,
+    value: Number(totals?.[key] ?? 0),
+  }))
+    .filter((slice) => slice.value > 0)
+    .sort((a, b) => b.value - a.value);
+}
+
+/**
+ * Extras spend for the whole window, one slice per category. Reads the timeline's
+ * own totals, so this cannot disagree with the month-by-month chart.
+ *
+ * @param {Object} data
+ * @param {Array<{id: string, label: string}>} categories
+ */
+export function toExtrasTotalRows(data, categories = []) {
+  const totals = data?.totals?.extraCategoryTotals ?? {};
+  const labels = new Map(
+    categories.map((category) => [String(category.id), category.label]),
+  );
+
+  return Object.entries(totals)
+    .map(([id, amount]) => ({
+      category: labels.get(id) ?? `Category ${id}`,
+      value: Number(amount ?? 0),
+    }))
+    .filter((slice) => slice.value > 0)
+    .sort((a, b) => b.value - a.value);
+}
+
 export function toExtrasRows(data, categories = []) {
   const months = data?.months ?? [];
   const labels = new Map(

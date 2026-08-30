@@ -4,6 +4,8 @@ import {
   chartMargins,
   resolveSeriesColour,
   chartSeriesColours,
+  sectorHighlight,
+  withSeriesColours,
 } from "./chartTheme";
 
 const theme = createTheme();
@@ -68,5 +70,90 @@ describe("chartMargins", () => {
     const margins = chartMargins([], "month");
     expect(Number.isFinite(margins.left)).toBe(true);
     expect(Number.isFinite(margins.bottom)).toBe(true);
+  });
+});
+
+describe("withSeriesColours", () => {
+  // Recharts reads a legend swatch from the entry's own fill. Colouring marks
+  // only in a shape renderer draws the chart correctly and legends it grey, so
+  // the colour has to reach the data.
+  it("puts a colour on every row", () => {
+    const rows = withSeriesColours(theme, [{ name: "A" }, { name: "B" }]);
+
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.fill).toBeTruthy();
+    }
+  });
+
+  it("gives neighbouring rows different colours", () => {
+    const rows = withSeriesColours(theme, [{ name: "A" }, { name: "B" }, { name: "C" }]);
+
+    expect(new Set(rows.map((row) => row.fill)).size).toBe(3);
+  });
+
+  it("keeps the row's own fields, and its own colour when it has one", () => {
+    const rows = withSeriesColours(theme, [{ name: "A", value: 5, colour: "#123456" }]);
+
+    expect(rows[0]).toMatchObject({ name: "A", value: 5, fill: "#123456" });
+  });
+
+  it("survives no rows", () => {
+    expect(withSeriesColours(theme)).toEqual([]);
+    expect(withSeriesColours(theme, [])).toEqual([]);
+  });
+});
+
+describe("sectorHighlight", () => {
+  const sector = { name: "Hauling Service", index: 1, outerRadius: 100, isActive: false };
+
+  // Nothing is hovered, so every slice draws at full strength.
+  it("leaves the chart alone when nothing is hovered", () => {
+    expect(sectorHighlight(sector, null)).toMatchObject({
+      active: false,
+      fillOpacity: 1,
+      outerRadius: 100,
+    });
+  });
+
+  it("grows the slice whose legend key is hovered", () => {
+    const { active, fillOpacity, outerRadius } = sectorHighlight(sector, "Hauling Service");
+
+    expect(active).toBe(true);
+    expect(fillOpacity).toBe(1);
+    expect(outerRadius).toBeGreaterThan(100);
+  });
+
+  // The point of the highlight is contrast, so the others have to recede.
+  it("fades the slices that are not hovered", () => {
+    expect(sectorHighlight(sector, "Blueprint Copies")).toMatchObject({
+      active: false,
+      fillOpacity: 0.35,
+      outerRadius: 100,
+    });
+  });
+
+  // The legend sorts its own items, so its index is a position in the key list
+  // rather than in the data. Matching on position highlights the wrong slice.
+  it("matches on name rather than position", () => {
+    const first = { name: "Other", index: 0, outerRadius: 100 };
+    const second = { name: "Hauling Service", index: 1, outerRadius: 100 };
+
+    expect(sectorHighlight(first, "Hauling Service").active).toBe(false);
+    expect(sectorHighlight(second, "Hauling Service").active).toBe(true);
+  });
+
+  // Pointing at the slice itself reads the same as pointing at its key.
+  it("honours the chart's own hover state", () => {
+    expect(sectorHighlight({ ...sector, isActive: true }, null)).toMatchObject({
+      active: true,
+      fillOpacity: 1,
+    });
+  });
+
+  // A percentage radius is resolved by the chart before the shape sees it, but a
+  // non-numeric one must pass through rather than becoming NaN.
+  it("passes a non-numeric radius through untouched", () => {
+    expect(sectorHighlight({ name: "A", outerRadius: "75%" }, "A").outerRadius).toBe("75%");
   });
 });

@@ -57,7 +57,7 @@ function getTooltipContent(job) {
               max: 0,
             })}
           </p>
-          <p>Item Cost: {formatNumberForLocale(job.totalCostPerItem())}</p>
+          <p>Build Cost Per Item: {formatNumberForLocale(job.buildCostPerItem())}</p>
         </span>
       );
     case 4:

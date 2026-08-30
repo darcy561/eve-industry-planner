@@ -17,9 +17,7 @@ export function InformationPanel({ state }) {
           }}>
           <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
             Total Material Cost:{" "}
-            {formatNumberForLocale(
-              state.activeJob.build.costs.totalPurchaseCost
-            )}
+            {formatNumberForLocale(state.activeJob.materialCost())}
           </Typography>
         </Grid>
         <Grid
@@ -44,9 +42,9 @@ export function InformationPanel({ state }) {
             sm: 4
           }}>
           <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
-            Total Cost Per Item:{" "}
+            Estimated Cost Per Item:{" "}
             {formatNumberForLocale(
-              (state.activeJob.build.costs.totalPurchaseCost +
+              (state.activeJob.materialCost() +
                 getJobInstallCostForPlanning(state.activeJob)) /
               state.activeJob.build.products.totalQuantity
             )}

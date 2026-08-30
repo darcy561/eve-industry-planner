@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Button,
+  Fade,
   FormControl,
   Grid,
   MenuItem,
@@ -27,6 +28,7 @@ import {
 } from "../../Functions/Helper/numberParser";
 import { getFullItemList } from "../../Functions/Helper/getCachedData";
 import { useAccountTimelineItemsQuery } from "../../Hooks/React Query/Backend/statisticsTimeline";
+import { ITEM_BREAKDOWN_TITLE } from "./ArchiveChartPanels";
 
 /**
  * The two lengths this table has.
@@ -37,6 +39,13 @@ import { useAccountTimelineItemsQuery } from "../../Hooks/React Query/Backend/st
  */
 const ROWS_COLLAPSED = 5;
 const ROWS_EXPANDED = 10;
+
+/**
+ * Fade rather than Collapse: Collapse wraps its child in a `div`, which is not
+ * valid between a table body and a row.
+ */
+const ROW_FADE_MS = 220;
+const ROW_STAGGER_MS = 40;
 
 /**
  * Measures a reader can rank by.
@@ -54,12 +63,10 @@ const SORT_OPTIONS = [
   { value: "jobCostTotal", label: "Total Cost" },
 ];
 
+
 /**
- * Item names for the rows on screen.
- *
- * The endpoint returns type ids; names live in a cached list the app already
- * loads. Resolving them here rather than per row means one lookup per page
- * regardless of how many rows it holds.
+ * Item names for the rows on screen. The endpoint returns type ids; names come
+ * from the cached static list, read the way the rest of the app reads it.
  *
  * @param {{typeID: number}[]} items
  */
@@ -150,11 +157,25 @@ export function ArchivedItemBreakdown({ from, to } = {}) {
     ...(from && to ? { from, to } : {}),
   });
 
-  const items = useMemo(() => data?.items ?? [], [data]);
+  const fetched = useMemo(() => data?.items ?? [], [data]);
+  // The shorter page can arrive from the cache in the same tick, so the rows
+  // being faded out are held here until the transition reports it is done.
+  const [collapsingRows, setCollapsingRows] = useState(null);
+  const items = collapsingRows ?? fetched;
   const names = useItemNames(items);
   const totalItems = data?.paging?.totalItems ?? 0;
   // Offered only when there are rows the collapsed table is not already showing.
   const canExpand = totalItems > ROWS_COLLAPSED;
+
+  const toggleRows = () => {
+    if (expanded) {
+      setCollapsingRows(items);
+      setExpanded(false);
+      return;
+    }
+    setCollapsingRows(null);
+    setExpanded(true);
+  };
 
   return (
     <Paper variant="outlined" sx={{ ...appShellSetupSectionPaperSx, p: 2 }}>
@@ -166,7 +187,7 @@ export function ArchivedItemBreakdown({ from, to } = {}) {
               color: "text.secondary",
             }}
           >
-            What drove it
+            {ITEM_BREAKDOWN_TITLE}
           </Typography>
         </Grid>
         <Grid size={{ xs: 12, sm: 5 }}>
@@ -179,8 +200,10 @@ export function ArchivedItemBreakdown({ from, to } = {}) {
               value={sort}
               onChange={(e) => {
                 setSort(String(e.target.value));
-                // A new ranking is a new list, so start it from the top rather
-                // than keeping an expansion that referred to the old order.
+                // A new ranking is a new list, so start it from the top. The
+                // old rows are dropped rather than faded: they belong to an
+                // ordering that no longer applies.
+                setCollapsingRows(null);
                 setExpanded(false);
               }}
               MenuProps={getAppShellSelectMenuProps(theme)}
@@ -216,9 +239,10 @@ export function ArchivedItemBreakdown({ from, to } = {}) {
               </TableCell>
             </TableRow>
           ) : (
-            items.map((item) => {
+            items.map((item, index) => {
               const profit = Number(item.profitLoss ?? 0);
-              return (
+              const revealed = index - ROWS_COLLAPSED;
+              const row = (
                 <TableRow key={item.typeID}>
                   <TableCell>
                     {names[item.typeID] ?? `Type ${item.typeID}`}
@@ -237,6 +261,30 @@ export function ArchivedItemBreakdown({ from, to } = {}) {
                   </TableCell>
                 </TableRow>
               );
+
+              if (revealed < 0) return row;
+              const isLastExtraRow = index === items.length - 1;
+              return (
+                <Fade
+                  key={item.typeID}
+                  in={expanded}
+                  appear
+                  timeout={ROW_FADE_MS}
+                  // Revealing staggers; collapsing does not, so the table shuts
+                  // in one step rather than unravelling backwards.
+                  style={{
+                    transitionDelay: expanded
+                      ? `${revealed * ROW_STAGGER_MS}ms`
+                      : "0ms",
+                  }}
+                  onExited={
+                    isLastExtraRow ? () => setCollapsingRows(null) : undefined
+                  }
+                  unmountOnExit
+                >
+                  {row}
+                </Fade>
+              );
             })
           )}
         </TableBody>
@@ -246,7 +294,7 @@ export function ArchivedItemBreakdown({ from, to } = {}) {
         <Grid container sx={{ justifyContent: "center", mt: 1 }}>
           <Button
             size="small"
-            onClick={() => setExpanded((current) => !current)}
+            onClick={toggleRows}
             disabled={isLoading}
           >
             {expanded

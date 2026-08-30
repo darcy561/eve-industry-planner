@@ -53,6 +53,7 @@ class Group {
    * @param {string} [data.groupName] - Name of the group
    * @param {string} [data.groupID] - Unique group identifier
    * @param {Array<string>} [data.includedJobIDs] - Array of job IDs to include
+   * @param {Array<string>} [data.archivedJobIDs] - Members currently held in the archive
    * @param {Array<number>} [data.includedTypeIDs] - Array of type IDs to include
    * @param {Array<number>} [data.materialIDs] - Array of material type IDs
    * @param {number} [data.outputJobCount] - Number of output jobs
@@ -68,6 +69,7 @@ class Group {
     this.groupName = data?.groupName || "Untitled Group";
     this.groupID = data?.groupID || `group-${uuid()}`;
     this.includedJobIDs = new Set(data?.includedJobIDs?.map(String) || []);
+    this.archivedJobIDs = new Set(data?.archivedJobIDs?.map(String) || []);
     this.includedTypeIDs = this._newSet(data?.includedTypeIDs ?? [], this._convertToNumber);
     this.materialIDs = this._newSet(data?.materialIDs ?? [], this._convertToNumber);
     this.outputJobCount = data?.outputJobCount || 0;
@@ -103,12 +105,17 @@ class Group {
    * @returns {Object} Document object ready for storage
    */
   toDocument() {
+    // Sorted, so an unchanged group is not rewritten as modified, and a document
+    // written here matches one the backend derives from the same jobs.
     const intArrayFromSet = (set) =>
-      [...set].filter((id) => Number.isFinite(Number(id)));
+      [...set]
+        .filter((id) => Number.isFinite(Number(id)))
+        .sort((a, b) => a - b);
     const doc = {
       groupName: this.groupName,
       groupID: this.groupID,
       includedJobIDs: [...this.includedJobIDs],
+      archivedJobIDs: [...this.archivedJobIDs],
       includedTypeIDs: intArrayFromSet(this.includedTypeIDs),
       materialIDs: intArrayFromSet(this.materialIDs),
       outputJobCount: this.outputJobCount,
@@ -273,10 +280,15 @@ class Group {
     if (!inputGroupName || inputGroupName.length === 0) return;
 
     if (Array.isArray(inputGroupName)) {
-      const stringArray = [];
-      inputGroupName.forEach((obj) => stringArray.push(obj.name));
+      // An unnamed output is still an output, but it must not leave an empty
+      // segment in the name.
+      const names = inputGroupName
+        .map((obj) => (typeof obj?.name === "string" ? obj.name.trim() : ""))
+        .filter((name) => name !== "");
 
-      this.groupName = stringArray.join(", ").substring(0, 75);
+      this.groupName = names.length
+        ? names.join(", ").substring(0, 75)
+        : "Untitled Group";
     } else {
       const sanitizedName = DOMPurify.sanitize(inputGroupName, {
         ALLOWED_TAGS: [],
@@ -317,6 +329,20 @@ class Group {
    */
   setIncludedJobIDs(inputJobIDs) {
     this.includedJobIDs = this._newSet(inputJobIDs, this._convertToString);
+  }
+
+  /**
+   * Replaces membership with the live jobs given, keeping archived members.
+   *
+   * `jobArray` holds only jobs on the planner, so a recompute would otherwise
+   * evict every archived member.
+   *
+   * @private
+   * @param {string|Array<string>|Set<string>} inputJobIDs
+   */
+  _setLiveIncludedJobIDs(inputJobIDs) {
+    this.setIncludedJobIDs(inputJobIDs);
+    this.addIncludedJobIDs(this.archivedJobIDs);
   }
 
   /**
@@ -641,7 +667,7 @@ class Group {
     this.setGroupName(outputJobs);
     this.updateOutputJobCount(newOutputJobCount);
     this.setMaterialIDs(newMaterialIDs);
-    this.setIncludedJobIDs(newIncludedJobIDs);
+    this._setLiveIncludedJobIDs(newIncludedJobIDs);
     this.setIncludedTypeIDs(newJobTypeIDs);
     this.setLinkedJobIDs(newLinkedJobIDs);
     this.setLinkedOrderIDs(newLinkedOrderIDs);
@@ -677,7 +703,7 @@ class Group {
 
     this.updateOutputJobCount(newOutputJobCount);
     this.setMaterialIDs(newMaterialIDs);
-    this.setIncludedJobIDs(newIncludedJobIDs);
+    this._setLiveIncludedJobIDs(newIncludedJobIDs);
     this.setIncludedTypeIDs(newJobTypeIDs);
     this.setLinkedJobIDs(newLinkedJobIDs);
     this.setLinkedOrderIDs(newLinkedOrderIDs);
@@ -759,11 +785,33 @@ class Group {
 
     this.updateOutputJobCount(newOutputJobCount);
     this.setMaterialIDs(newMaterialIDs);
-    this.setIncludedJobIDs(newIncludedJobIDs);
+    this._setLiveIncludedJobIDs(newIncludedJobIDs);
     this.setIncludedTypeIDs(newJobTypeIDs);
     this.setLinkedJobIDs(newLinkedJobIDs);
     this.setLinkedOrderIDs(newLinkedOrderIDs);
     this.setLinkedTransIDs(newLinkedTransIDs);
+  }
+
+  /**
+   * Marks jobs as archived. They stay members; the derived sets describe live
+   * jobs, so their contribution comes out until they are restored.
+   *
+   * @param {Array<Job>|Job} archivedJobs - Jobs being archived
+   * @param {Array<Job>} jobArray - Complete array of jobs for recalculation
+   */
+  markJobsArchived(archivedJobs, jobArray) {
+    if (!archivedJobs || !jobArray) return;
+
+    const asArray = Array.isArray(archivedJobs) ? archivedJobs : [archivedJobs];
+    if (asArray.length === 0) return;
+
+    this._toSet(
+      asArray.map((job) => job.jobID),
+      Set.prototype.add,
+      this.archivedJobIDs,
+      this._convertToString
+    );
+    this.removeJobsFromGroup(asArray, jobArray);
   }
 
   findOutputJobs(groupJobs) {

@@ -10,6 +10,9 @@ const STATIC_DATA_META_URL = "/api/static-data/meta";
 const LEGACY_STATIC_CACHE_PREFIX = "static-data-cache-";
 let cacheMigrationDone = false;
 
+/** Parsed static payloads by versioned URL, so each is parsed once per build. */
+const parsedPayloads = new Map();
+
 let staticMetaCache = null;
 let staticMetaFetchedAt = 0;
 let staticMetaInFlight = null;
@@ -269,17 +272,33 @@ export async function getCachedData(fileName) {
       throw new Error("Static metadata unavailable");
     }
     const cacheURL = getVersionedURLFromMeta(meta, fileName);
-    const cache = await getCache();
-    if (!cache) {
-      return fetchAndCacheByURL(null, cacheURL);
-    }
 
-    const cachedResponse = await cache.match(cacheURL);
-    if (!cachedResponse) {
-      return fetchAndCacheByURL(cache, cacheURL);
-    }
+    // The Cache API holds the file; this holds the parsed result, so callers
+    // share one object instead of each parsing the whole payload again. Keyed by
+    // the versioned URL, so a new build cannot be served the old parse.
+    const parsed = parsedPayloads.get(cacheURL);
+    if (parsed) return parsed;
 
-    return parseJSONResponse(cachedResponse);
+    const load = (async () => {
+      const cache = await getCache();
+      if (!cache) {
+        return fetchAndCacheByURL(null, cacheURL);
+      }
+      const cachedResponse = await cache.match(cacheURL);
+      if (!cachedResponse) {
+        return fetchAndCacheByURL(cache, cacheURL);
+      }
+      return parseJSONResponse(cachedResponse);
+    })();
+
+    // A failed load must not be remembered as the answer.
+    parsedPayloads.set(cacheURL, load);
+    try {
+      return await load;
+    } catch (error) {
+      parsedPayloads.delete(cacheURL);
+      throw error;
+    }
   } catch (error) {
     console.error(`Error getting ${fileName}:`, error);
 

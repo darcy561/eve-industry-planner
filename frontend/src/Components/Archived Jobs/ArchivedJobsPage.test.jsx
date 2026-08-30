@@ -18,6 +18,9 @@ vi.mock("../Archive Statistics", () => ({
   ArchiveItemChartPanel: stubPanel("items"),
   ArchiveSegmentPanel: stubPanel("segment"),
   ArchiveExtrasPanel: stubPanel("extras"),
+  ArchiveExtrasTotalsPanel: stubPanel("extrasTotals"),
+  ArchiveCostBreakdownPanel: stubPanel("costBreakdown"),
+  ArchiveCostTotalsPanel: stubPanel("costTotals"),
 }));
 
 vi.mock("../../Styled Components/defaultPageLayout", () => ({
@@ -56,6 +59,9 @@ describe("ArchivedJobsPage", () => {
       "segment",
       "items",
       "extras",
+      "extrasTotals",
+      "costBreakdown",
+      "costTotals",
       "breakdown",
     ]) {
       expect(screen.getByTestId(name)).toBeInTheDocument();

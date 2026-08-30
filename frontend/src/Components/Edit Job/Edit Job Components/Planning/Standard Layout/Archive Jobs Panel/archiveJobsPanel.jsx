@@ -45,7 +45,7 @@ function ArchiveTableHeader({ isReaction, producedSm }) {
         Total Items Produced
       </HeaderCell>
       <HeaderCell size={{ xs: 4, sm: 3 }}>Total Job Cost</HeaderCell>
-      <HeaderCell size={{ xs: 4, sm: 2 }}>Job Cost Per Item</HeaderCell>
+      <HeaderCell size={{ xs: 4, sm: 2 }}>Total Cost Per Item</HeaderCell>
       <HeaderCell
         size={{ xs: isReaction ? 4 : 0, sm: producedSm }}
         sx={{

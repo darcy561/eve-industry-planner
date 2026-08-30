@@ -121,6 +121,39 @@ describe("ArchivedItemBreakdown", () => {
     });
   });
 
+  // Collapsing has to animate, and the shorter page can arrive from the cache in
+  // the same tick. The rows being faded out must survive that, or the table
+  // snaps shut instead of closing.
+  it("keeps the extra rows on screen while they fade out", async () => {
+    const tenItems = Array.from({ length: 10 }, (_, i) => ({
+      typeID: 1000 + i,
+      jobCostTotal: 1,
+      salesTotal: 2,
+      profitLoss: 1,
+    }));
+    getFullItemList.mockResolvedValue(
+      Object.fromEntries(tenItems.map((item) => [item.typeID, { name: `Item ${item.typeID}` }])),
+    );
+    useAccountTimelineItemsQuery.mockReturnValue(page(tenItems, 40));
+
+    render(<ArchivedItemBreakdown />);
+    fireEvent.click(screen.getByRole("button", { name: "Show top 10" }));
+    await waitFor(() => expect(screen.getByText("Item 1009")).toBeInTheDocument());
+
+    // The shorter page lands immediately, as a cached one would.
+    useAccountTimelineItemsQuery.mockReturnValue(page(tenItems.slice(0, 5), 40));
+    fireEvent.click(screen.getByRole("button", { name: "Show top 5" }));
+
+    // Still drawn, mid-fade, rather than removed on the spot.
+    expect(screen.getByText("Item 1009")).toBeInTheDocument();
+
+    await waitFor(
+      () => expect(screen.queryByText("Item 1009")).not.toBeInTheDocument(),
+      { timeout: 2000 },
+    );
+    expect(screen.getByText("Item 1000")).toBeInTheDocument();
+  });
+
   // A new ranking is a new list, so an expansion made against the old order
   // should not carry over.
   it("collapses when the ranking changes", async () => {
