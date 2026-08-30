@@ -568,6 +568,12 @@ what it may see. A query parameter is the wrong place for that.
 `/api/v1/statistics` was already mounted, so no route-table or wiring change was needed, and all
 four handlers share the existing `GetAPIStatistics` metrics bag rather than adding instruments.
 
+`totals` takes an optional `typeID`, and a **present** one must be positive — "everything" is asked
+for by omitting it, not by sending `0`. The unfiltered read returns a row per item type, each with an
+unbounded per-job snapshot array, so a view wanting the archive as a whole asks for `summary=1`
+instead: the server folds every row into one `total` and returns no items. Summing client-side would
+ship the account's entire history to compute one figure.
+
 ### The window
 
 `from` and `to` are calendar months as `YYYY-MM`, matching the timeline document `_id` so a month a
@@ -615,8 +621,57 @@ separately. The obvious filter is wrong across a year boundary:
 `{year: {$gte: 2025, $lte: 2026}, month: {$gte: 12, $lte: 2}}` matches nothing, because no month is
 both ≥ 12 and ≤ 2. That is not an edge case here — every January the default window crosses one.
 
-`extraCategoryTotals` is deliberately absent from the `$group`: it is a map keyed by category id and
-`$sum` cannot merge maps, so including it would produce a silently wrong value rather than an error.
+`extraCategoryTotals` cannot be `$sum`med: it is a map keyed by category id, and `$sum` does not
+merge maps. The monthly view collects the maps with `$push` instead and folds them through
+`SalesMeasures.Plus`, which merges by category. `$push` skips documents where the field is missing,
+so a month of buckets carrying no extras collects nothing rather than a list of empty maps.
+
+Every other measure is summed, and the `$group` stage is **derived from `SalesMeasures` itself** by
+reading its `bson` tags: a measure added to the document reaches the aggregation without anyone
+remembering to list it. The failure it prevents is silent — an unlisted measure aggregates to zero
+rather than erroring, which is how the extras gap presented before it was found.
+
+### What a period cost, and what it was spent on
+
+A month carries the components of its cost as well as the total:
+
+| Measure | From |
+|---------|------|
+| `materialCostTotal` | the job's purchase cost |
+| `installCostTotal` | install fees |
+| `inventionCostTotal` | invention cost |
+| `extrasTotal` | the job's extras, also carried per category in `extraCategoryTotals` |
+| `brokersFeeTotal` | broker fees, in the month each fee fell |
+| `transactionFeeTotal` | transaction tax, in the month each sale fell |
+
+**Those six are what a job cost, and the arithmetic over them exists once.** `JobCostParts` owns it:
+
+| Method | Is |
+|--------|-----|
+| `Build()` | materials + install + extras + invention — what it cost to make, and what a monthly bucket counts |
+| `Total()` | `Build()` + broker fees + tax — what the job cost |
+
+Building and producing are the same act, so there is one method for it. Invention is part of it: a job
+that had to invent its blueprint cost that too. That also settles `buildCostTotal`, which is served on
+the totals row and previously excluded invention while `jobCostTotal` included it.
+
+A job and a reduced row are two representations of the same thing, so each has a **reader** that fills
+`JobCostParts` from its own fields — `Job.CostParts()` and `ArchivedJobStats.CostParts()` — and
+neither does any arithmetic. Every caller sums through the methods above, so a change to what a cost
+is happens in one place.
+
+`totalBuildCosts` is **gone** from both `ArchivedJobStats` and `BuildStatSnapshot`. It was a stored
+sum of the three build components, written beside them and read by nothing once the components became
+the truth — and holding both is what let two versions of the cost calculation exist. `JobCostParts`
+answers the same question with `Build()`. Documents written before this keep the field inertly; the
+driver ignores what the struct no longer declares. It sits on the
+model rather than in `archivestats` because it is arithmetic over one document's own fields, the same
+reason the `Plus` methods live there. What belongs in `archivestats` is the interpretation — which
+components a bucket counts, which segment a job falls in, what dates it.
+
+A bucket's own `jobCostTotal` is deliberately narrower — the cost of building, without the two fees. Buckets carry each fee as its own measure in the month it fell and subtract it from profit
+there, so folding fees into the cost as well would both count them twice against profit and move them
+into the job's cost month. `jobBuildCost` states that relationship where it is computed.
 
 ## Stage E — frontend
 
@@ -829,6 +884,57 @@ either direction and separate chains stay separate; that a self-reference is not
 does not hang the walk; and that the routes dispatch on method and depth, with the deeper restore
 paths still 404 until Stage G serves them.
 
+## Group membership while a job is archived
+
+A job archived on its own stays a member of the group it belongs to. The archive is not a way of
+leaving a group, and the group relationship is what lets a restore put the job back where it came
+from.
+
+This is reachable through the ordinary planner. Marking a group member **ready for sale**
+(`Job.toggleGroupJobReadyForSale`) sets `displayOnPlanner` and leaves `groupID` and `includedInGroup`
+alone, so the job appears on the global planner grid while still belonging to its group. Opened from
+`/jobplanner` there is no active group, so the Edit Job archive button renders and archives that one
+job. Its group is untouched and stays on the planner.
+
+### The group records which members are archived
+
+`models.Group` carries `archivedJobIDs` beside `includedJobIDs`, and `Group` in the SPA carries the
+matching set:
+
+| Field | Holds |
+|-------|-------|
+| `includedJobIDs` | Every member, archived or not |
+| `archivedJobIDs` | The members currently in the archive |
+
+The **derived** fields — `includedTypeIDs`, `materialIDs`, `outputJobCount`, and the three linked-ESI
+sets — describe the members still on the planner. An archived member's contribution comes out when it
+is archived and goes back when it is restored, which keeps them recomputable from the jobs the store
+actually holds.
+
+Two consequences follow from splitting membership this way:
+
+- **A recompute cannot silently drop an archived member.** `Group.updateGroupData` and
+  `Group.removeJobsFromGroup` rebuild membership from the live `jobArray`, which by definition does
+  not contain archived jobs. `_setLiveIncludedJobIDs` re-adds `archivedJobIDs` after every rebuild,
+  so deleting one member does not evict the archived ones.
+- **The group knows why a member will not load.** `groupFrame` asks for job documents for the live
+  members only, rather than requesting an archived member's document on every open and getting
+  nothing back.
+
+`Group.markJobsArchived(jobs, jobArray)` performs both halves — mark, then recompute from the
+remaining live jobs — and `markJobsArchivedInGroups` applies it across the groups a batch of archived
+jobs belongs to and persists them. The archive button calls it after the archive write succeeds.
+
+Wire compatibility: `archivedJobIDs` is **additive** on the group document and on `PUT /v1/groups`.
+A client that does not know the field ignores it, and an absent field means no archived members.
+
+### Archiving a whole group still deletes it
+
+`archiveGroupJobs` archives the group's jobs and deletes the group document, which is why a restore
+has to be able to rebuild a group that no longer exists. It holds back members that are on the
+planner in their own right: those are not archived, not deleted, and stay on the planner still naming
+the group they came from. That name is what a later rebuild uses to find them.
+
 ## Stage G — restore
 
 Archived jobs come back to the planner. Three routes, all POST, all account scoped by the session:
@@ -836,12 +942,61 @@ Archived jobs come back to the planner. Three routes, all POST, all account scop
 | Route | Restores |
 |-------|----------|
 | `POST /api/v1/archived-jobs/{jobID}/restore` | that job alone |
-| `POST /api/v1/archived-jobs/groups/{groupID}/restore` | every archived job carrying that `groupID`, plus the rebuilt group |
+| `POST /api/v1/archived-jobs/groups/{groupID}/restore` | every archived job carrying that `groupID` |
 | `POST /api/v1/archived-jobs/related/{jobID}/restore` | that job and every archived job reachable through parent/child links |
 
 POST rather than GET because they create planner documents and delete archived ones — not something
 a navigation or a prefetch should reach. One handler serves all three: they differ only in how they
 choose jobs, and everything after that choice is a sequence that must not diverge.
+
+All three answer the same body: `restoredJobIDs`, the `jobs` as written, any `conflicts` and
+`unresolved` ids, and `groups` — the containers the restored jobs rejoined. `groups` is a list
+because one restore can reach several.
+
+### Every restored job returns to its own group
+
+A restore does not take a group id from the request. Each archived job carries the group it belongs
+to, so `groupJobsByGroupID` splits the restored set by `groupID` and each group is written
+independently. One related-set restore can therefore reach jobs archived from several groups and
+return each to the right one, and a job with no group is simply left on the planner.
+
+For each group the restore takes one of two paths:
+
+| The group is | What happens |
+|--------------|--------------|
+| Still on the planner | `Group.AddJobs` — membership loses the archive marks, the derived sets gain what the jobs contribute, and `groupName`, `groupStatus`, `areComplete` and `showComplete` are left as the user left them |
+| Gone | `rebuildGroup` over **every job that names the group**, not only the ones coming out of the archive |
+
+The merge exists because the group may never have been deleted: the ready-for-sale route archives one
+member and leaves the group standing. Rebuilding such a group from the restored jobs alone would
+overwrite the live document, evicting its remaining members and resetting the name and completion
+state.
+
+The rebuild reads live members through `liveGroupMembers`, one
+`LoadJobsByFilter(accountID, {groupID})` — the account scope is merged into the filter by the query
+itself. It is a single read rather than two because the restored jobs are written to the job
+documents collection **before** the group is written, so by then they are live documents and the
+lookup returns them alongside any member that was never archived. An empty result falls back to the
+restored jobs, so a read that cannot see the writes cannot produce an empty group.
+
+### The group's lock stands for its archived members
+
+An archived job has no editor, so it holds no document lock of its own. Its group's lock stands for
+it, and the restore is gated on that:
+
+| The restore touches | Gated on |
+|---------------------|----------|
+| A job that belongs to a group | That group's lock |
+| A job with no group | Its own job document |
+
+`restoreLockRejects` runs before any write and answers 409 through
+`helper.RespondLockHeldElsewhereJSON` when another session holds one of them, naming the group in
+preference to a member job. The session holding the group may restore its own members.
+
+The gate refuses; it does not acquire. Sessions that hold nothing learn about the restore from the
+document fan-out: `CollectionAccountJobGroups` travels the same change stream group as job documents,
+and the SPA's group handler replaces the stored instance and clears that group's pending write, so a
+session holding an older copy drops the save it was about to make rather than writing it back.
 
 ### The order is the reverse of archiving, and it matters
 
@@ -907,10 +1062,13 @@ hundred transactions costs one round trip. Three indexes in the Deployment Tool 
 
 ### Groups are rebuilt from their jobs
 
-Archiving a group deletes the group document while every archived job keeps its `groupID`, so the
-container is gone but derivable. `rebuildGroup` computes the name, output count, type and material
-ids, member ids and all three linked-ESI sets from the jobs alone — the same derivation
-`Group.createGroup` runs in the SPA. Nothing in a group is a fact its jobs do not already hold.
+Archiving a whole group deletes the group document while every archived job keeps its `groupID`, so
+the container is gone but derivable. `rebuildGroup` computes the name, output count, type and
+material ids, member ids and all three linked-ESI sets from the jobs alone. Nothing in a group is a
+fact its jobs do not already hold.
+
+The SPA derives the same fields from the same jobs in `Group._buildNewGroupData`. That the two agree
+is held by a shared corpus — see § Stage I.
 
 **Only a parentless job is an output.** It is what the output count counts and what names the group,
 so an intermediate feeding another member must not be mistaken for one.
@@ -921,13 +1079,13 @@ was never recorded per job, so inventing either would tell a user the group was 
 anything can attest. `showComplete` and `groupType` take their SPA defaults.
 
 Ids come back sorted, so an unchanged group does not look modified — map iteration order would
-rewrite the document differently on every restore. The name is capped at the same 75 characters the
-SPA uses, so a group rebuilt here and one created there cannot differ in length.
+rewrite the document differently on every restore. The name is capped at 75 characters, the same cap
+counted the same way as in the SPA.
 
-A **partially archived** group rebuilds around whatever the archive still holds, the same rule the
-SPA applies to a shrinking group. Restoring a **single** job that carries a `groupID` does not
-resurrect the group: the job returns ungrouped, because a one-job group is a container the user did
-not ask for.
+A rebuild gathers **every job that names the group**, not only the archived ones — see § Every
+restored job returns to its own group. Restoring a single job restores its group membership with it;
+which of the two paths runs depends on whether the group document survived, not on how the restore
+was addressed.
 
 ### An archive is addressed by scope, not by account id
 
@@ -1003,6 +1161,137 @@ that ids are sorted and stable; that a conflict on one kind does not strip the s
 another; and that a job with no links short-circuits. The router tests pin the three shapes
 dispatching, restore refusing anything but POST, and near-miss paths staying 404.
 
+## Stage H — archived jobs page
+
+`/archived-jobs` is a `_protected` file route lazy-loading its component through `Suspense` and
+`LoadingPage`, wrapped in `DefaultPageLayout` and reached from the side menu. It carries two tabs
+over the endpoints Stages D, F and G serve.
+
+### The statistics tab
+
+Metric cards, eight charts and the item table, all reading `totals`, `timeline` and
+`timeline/items`. The period control sits in its own row above them, right aligned, with `Period` as
+the select's helper text.
+
+The charts are three layers, split so the boundary falls where the data stops being generic:
+
+| Layer | Lives in | Knows about |
+|-------|----------|-------------|
+| Primitives | `Styled Components/Charts/` | recharts, the theme, and its own props |
+| Adapters | beside the page's components | how to turn one statistics response into rows |
+| Panels | the page | which hook, which adapter, which primitive, and the empty and loading states |
+
+`TimeSeriesChart`, `RankedBarChart` and `PieChart` take rows and a series description, never a query
+result, so the same component draws profit against months, cost by item, or extras by category. The
+price-history dialogue moved onto them, which is what made them shared rather than page-local, and
+the chart chrome is overridable so price history keeps its own.
+
+Every figure a reader sees comes from `Functions/Helper/numberParser`: `formatNumberForLocale` for
+hover values and card figures, `numberToShortText` for axis ticks and abbreviated cells. No component
+formats a number itself.
+
+### The jobs tab
+
+A list of the archive with three row shapes — a group, a related set, and a standalone job —
+assembled by `groupArchivedRows`. A row carries both a `groupID` and a `relatedSetID` and they answer
+different questions, so the group wins when a row has both: it is the thing the user named and
+archived as a unit. Restore actions sit on the block for a group or set and on the row for a single
+job.
+
+The list is not queried until its tab is opened, so the statistics tab costs one set of requests
+rather than two.
+
+The item table shows five rows or ten. Expanding and collapsing both animate: the extra rows fade in
+on a stagger so the table unrolls, and leave together so it shuts in one step. Collapsing holds those
+rows in state until the transition reports it is done, because the shorter page can arrive from the
+cache in the same tick and would otherwise unmount them mid-fade. Changing the ranking drops them
+outright instead — they belong to an ordering that no longer applies. `Fade` rather than `Collapse`,
+which wraps its child in a `div` that is not valid between a table body and a row.
+
+### The charts, and what each answers
+
+| Panel | Reads | Shows |
+|-------|-------|-------|
+| Monthly totals | `timeline` | cost and sales per month, with profit as a line |
+| Cumulative profit | `timeline` | running profit across the window |
+| Where the work went | `totals?summary=1` | the archive split across the three segments |
+| Top items | `timeline/items` | each item's share of the selected measure |
+| What it cost | `timeline` | the six cost components per month, stacked |
+| Costs for the period | `timeline` | the same six summed over the window |
+| Extras by category | `timeline` | extras per month, by category |
+| Extras for the period | `timeline` | extras summed over the window, by category |
+
+The paired shapes answer different questions: a monthly chart says **when**, its pie says **what**,
+and the pie reads the response's own `totals` rather than re-summing the months so the two cannot
+disagree.
+
+A pie slice is a share of a total, which a negative figure cannot be, so non-positive values are
+dropped. On Top items ranked by profit that is a likely outcome rather than an edge case, so the
+panel distinguishes "no item profited" from "nothing archived" instead of reporting an empty period.
+
+### Colours, keys and hover
+
+Series that mean the same thing wherever they are drawn take their colour from a role — cost, sales,
+profit, loss — rather than from their position in the rotation, so cost reads as cost on every chart.
+
+Slice colours go on the **row**, not only on the drawn sector: recharts takes a legend swatch from
+the entry's own `fill`, so colouring in a shape renderer alone draws correctly and legends grey.
+
+Hovering a legend key highlights its slice — the sector grows and the others fade. Sector and key are
+matched **by name, not by index**: `Legend` sorts its own items (`itemSorter` defaults to `"value"`)
+while sectors keep data order, so the index a legend event reports points at the wrong slice. The
+chart's own hover state is honoured too, so a mark and its key read the same.
+
+### Both tabs have a mobile layout
+
+The page fills the width it is given. Below the small breakpoint the list becomes cards rather than a
+table, the statistics panels and charts stack, card figures sit under their labels, and the
+statistics dropdowns align with the header controls.
+
+## Stage I — one owner for group derivation
+
+A group holds no fact its members do not already carry, so the whole document apart from workflow
+state is computed from them. That computation exists twice, because both sides genuinely need it: the
+SPA builds groups with no server, and restore is one server-side sequence. Neither copy can be
+deleted, so they are held together by a shared corpus instead.
+
+### Where the derivation lives
+
+A group is derived from its jobs, so the group knows how, on both sides:
+
+| SPA `Group` | `models.Group` | Is |
+|-------------|----------------|-----|
+| `createGroup(jobs)` | `RebuildFrom(jobs)` | the whole group, rebuilt from the jobs that belong to it |
+| `addJobsToGroup(jobs)` | `AddJobs(jobs)` | jobs folded into a group that already exists |
+
+`AddJobs` also clears the added jobs' archived marks, because a job being added is a live member.
+
+`api/v1endpoints/archivedjobs` holds no derivation of its own. It keeps what belongs to restoring —
+`restoreGroups`, `groupJobsByGroupID`, `liveGroupMembers` — and asks the group for the rest.
+
+### The corpus is the rule
+
+`testing/fixtures/group-derivation/cases.json` holds nine cases: input jobs, and the group document
+they must produce. Both suites read that file by path rather than copying it — a Go test over
+`Group.RebuildFrom`, a vitest test over `Group.createGroup().toDocument()` — so a rule that changes
+on one side alone turns the other red.
+
+The cases pin what a member contributes (its `itemID` into both the type and material sets, each
+build material into materials, its three ESI id lists into the linked sets), that only a parentless
+job counts as an output, that ids are sorted and deduplicated, and how the name is built.
+
+Three rules disagreed before the corpus existed, and each was fixed on the side that was wrong:
+
+| Rule | Resolution |
+|------|-----------|
+| The 75 cap | Counted in characters. The backend truncated on bytes, which can cut a multi-byte character in half |
+| A blank output name | Trimmed and skipped. The SPA joined it raw, producing `", Rifter"`, and a group whose outputs are all unnamed is now `Untitled Group` rather than a string of separators |
+| Order of the numeric id arrays | Sorted. The SPA emitted insertion order, so the same jobs produced two different documents and an unchanged group could look modified |
+
+Derivation is all the corpus covers. Merge, restore and the lock gate have no SPA counterpart, and
+the archived-member rules are not shared logic despite touching the same field — the SPA preserves
+`archivedJobIDs` through a recompute, the backend clears them on merge. Those keep their own tests.
+
 ## Ingest — entity ids on stored jobs
 
 `shared/jobidentity` declares a corporation **and** a character target on all four identity-bearing
@@ -1044,6 +1333,168 @@ personal archive still counts them all.
 Historical jobs are unaffected. On dev no stored job carries a character on any line and none
 carries a corporation on a sale line, so there is nothing to convert; ESI's wallet endpoints serve
 only a recent window, so none of it can be fetched back either.
+
+## Generated archive data for development
+
+Working on the statistics views needs an account with a populated archive. That is seeded straight
+into Mongo with a standalone `mongosh` script — `.tmp/seed-archived-jobs.js`, gitignored, the same
+shape of one-off data work as the archived-date backfill. It is throwaway, so it stays out of the
+`tasks` CLI rather than becoming an operator surface that has to be kept working.
+
+```
+mongosh "mongodb://localhost:27017/eve_industry_planner" \
+  --eval 'const ACCOUNT_ID="<accountID>", COUNT=400, MONTHS=18' \
+  --file .tmp/seed-archived-jobs.js
+
+tasks encodeJobIdentity
+tasks queueArchivedJobStatsRebuild -account <accountID>
+```
+
+`eip dev` publishes the data ports on the host, so this runs from a host shell.
+
+It writes **job documents only**. Everything the statistics views read is derived from them by the
+rebuild, which is why the two commands after it are not optional: the script leaves raw character and
+corporation ids on sale lines, and `encodeJobIdentity` converts them to refs exactly as the archive
+PUT route would.
+
+The shapes are mixed so every branch the statistics take is represented: jobs with parents land in
+the production-chain segment, jobs with sales or a broker fee in the market segment, and jobs whose
+output was kept in retained stock. Costs, install fees, invention and sale prices vary per item, and
+a batch usually clears over more than one transaction.
+
+**Extras cover live and retired categories.** Costs are filed under the account's own
+`extrasCategories`, and if the account holds no deleted category the script adds one before
+generating, so the views that must keep naming a retired category have something to name. A past cost
+belongs to the category it was filed under, whether or not that category still exists.
+
+Re-running is safe: the generator is seeded, so it produces the same set each time, and every job id
+starts with `seed-`, which is both how the script clears its previous run and how the jobs can be
+dropped without touching real ones.
+
+## Corrections to figures already served
+
+Changes that make a stored figure different from what it was, so a rebuild is not optional.
+
+### A job's cost now includes invention
+
+`computeBuildStatSnapshot` summed materials, install, extras, broker fees and tax into `totalJobCost`
+and left **invention out**, while still recording `totalInventionCost` on the row beside it. Every
+job with an invention cost therefore reported a cost that was too low, and a profit that was too
+high, by that amount — in `profitLoss`, in `totalCostPerItem`, and in the per-transaction profit
+prorated from it.
+
+A job's cost is all six components. The definition now lives once, on `models.Job.CostParts()`.
+
+Two assertions encoded the old arithmetic and were changed with it: `TotalJobCost` 110.25 → 112.25
+and `TotalCostPerItem` 11.03 → 11.23, on a fixture carrying 2 ISK of invention over 10 units.
+
+The monthly bucket's `jobCostTotal` already included invention, so the timeline and the per-job views
+disagreed until this landed.
+
+The same omission was in a **second** reduction: `jobMeasures` summed `TotalBuildCosts` plus the two
+fees, which feeds the lifetime totals, every segment of the breakdown, and the cost and profit shown
+on each row of the archived jobs list. Those understated cost by a job's invention too. Both now read one
+definition through `JobCostParts`.
+
+### Extras reach the monthly view
+
+`TimelineMonths` collapsed its per-item buckets with a `$group` that could not carry
+`extraCategoryTotals`, so `months[].extraCategoryTotals` and `totals.extraCategoryTotals` were always
+absent and the extras charts could never draw. The maps are now collected and folded — see § The
+aggregation.
+
+### `totalPurchaseCost` meant two things, so nothing reads it any more
+
+`Job.addInventionCost` added the cost to `inventionCosts` **and** to `totalPurchaseCost`, while
+`addMaterialCostsToJob` recomputed `totalPurchaseCost` from the material purchases alone and so
+discarded it. Whether a job's `totalPurchaseCost` included its invention therefore depended on the
+order the user did things, and nothing on the document records which.
+
+The field is no longer an input to any cost. **Materials are summed from the purchases** —
+`material.purchasedCost` — on both sides: `models.Job.CostParts()` and `Job.materialCost()`. The
+purchases are what was actually spent, so this is right whichever way the cached field was last
+written, and it corrects historic jobs on rebuild rather than only new ones. `addInventionCost` and
+`removeInventionCost` no longer touch it, so it stops diverging going forward.
+
+The SPA's `Job.buildCost()` answers what it cost to make, invention included, and
+`totalCostPerItem()` divides it — it also returns 0 rather than `Infinity` for a job that produced
+nothing, a figure `passBuildCosts` passes up into parent builds. The Job Cost panel had two inline
+copies of the arithmetic; both call the methods now, and the panel gained the invention row it was
+missing so its itemised components sum to the total it prints.
+
+Exposure when this landed: 178 real archived jobs carried an invention cost, and **no** live job
+document did — so there was nothing on anyone's planner to migrate.
+
+### The SPA asks the job, rather than adding it up again
+
+`Job` answers what it cost, mirroring the backend's `JobCostParts`:
+
+| Method | Is |
+|--------|-----|
+| `materialCost()` | summed from the purchases |
+| `buildCost()` | materials + install + extras + invention |
+| `totalCost()` | `buildCost()` + broker fees + tax |
+| `brokersFeeTotal()`, `transactionFeeTotal()`, `salesTotal()` | summed from the job's own sale lines |
+
+Nine call sites had been adding those components up by hand — five in the Sales Stats panel alone,
+which is why the invention question surfaced in one place and not the others. Every reader now calls a
+method; `build.costs.totalPurchaseCost` is written by the material paths and read by none of them.
+
+### Two costs per item, named apart
+
+A job has two per-item figures and they were both called "cost per item":
+
+| Method | Is | Shown as |
+|--------|-----|----------|
+| `buildCostPerItem()` | `buildCost()` ÷ produced | **Build Cost Per Item** — the Complete panel, the group cards, and what `passBuildCosts` charges a parent for a child's output |
+| `totalCostPerItem()` | `totalCost()` ÷ produced | **Total Cost Per Item** — the Selling panel and the archive views |
+
+A parent build pays for a child's output but not for the child's broker fees, which is why these
+cannot be one method. `totalCostPerItem()` now means what `totalCostPerItem` means on an archived
+job, so the planner and the archive no longer use one name for two figures.
+
+The labels follow the figure rather than the panel:
+
+| Label | Is |
+|-------|-----|
+| Material Cost Per Item | material spend ÷ produced — the Purchasing tab |
+| Estimated Cost Per Item | materials + the **planning** install estimate ÷ produced — the Building tab |
+| Build Cost Per Item | what one unit cost to make |
+| Total Cost Per Item | what one unit cost to make and sell |
+
+The Building tab's figure keeps its own formula: it uses `getJobInstallCostForPlanning` rather than
+the recorded `installCosts`, so it answers a planning question rather than a cost one. Its label now
+says so rather than claiming to be the total.
+
+Wording was made consistent across the panels that show the same figures — "Total Items Built",
+"Total Broker Fees", "Total Transaction Fees", "Total Job Cost", "Total Sales" — so the Selling
+stage, the Complete stage and the archive dialogue no longer each have their own name for one
+number.
+
+**The fee taken on a sale is a transaction fee**, in our own naming everywhere: the label, the chart
+component, `Job.transactionFeeTotal()`, `JobCostParts.TransactionFee`, and the existing
+`transactionFeeTotal` measures. What keeps the word "tax" is ESI's: `Transaction.Tax` is the field
+the figure is read from, and `ref_type === "transaction_tax"` is the journal entry it is matched by,
+so both stay as ESI names them. The structure tax percentage in Settings is a different thing again
+and is untouched.
+
+### One corpus holds the two implementations together
+
+`testing/fixtures/job-cost/cases.json` is seven cases of a job and what it cost, read by a Go test
+over `Job.CostParts()` and a vitest test over `Job.buildCost()`. It is the same arrangement as the
+group-derivation corpus and exists for the same reason: the SPA and the backend both work out what a
+job cost, neither can be deleted, and the question had already drifted in four places.
+
+One case sets `totalPurchaseCost` to a figure that disagrees with the purchases, so a reader that
+trusts the cached field fails. Removing invention from either side's build cost fails three cases.
+
+### The segment split could not read its own data
+
+`ArchiveSegmentPanel` asked for `?typeID=0`, which the endpoint rejects: a present `typeID` must be
+positive. Every measure showed blank. It reads `summary=1` now.
+
+**A statistics rebuild applies all three.** `tasks queueArchivedJobStatsRebuild -account <id>` then
+`tasks drainAccountStatsRebuildQueue`, or wait for the hourly drain.
 
 ## Missing live SoT found during this work
 
