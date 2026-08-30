@@ -11,7 +11,6 @@ type ArchivedJobCostTotals struct {
 	TotalInstallCost   float64 `bson:"totalInstallCost" json:"totalInstallCost"`
 	TotalExtras        float64 `bson:"totalExtras" json:"totalExtras"`
 	TotalInventionCost float64 `bson:"totalInventionCost" json:"totalInventionCost"`
-	TotalBuildCosts    float64 `bson:"totalBuildCosts" json:"totalBuildCosts"`
 	TotalCostPerItem   float64 `bson:"totalCostPerItem" json:"totalCostPerItem"`
 }
 
@@ -65,4 +64,32 @@ type ArchivedJobStats struct {
 	Revoked               bool                         `bson:"revoked" json:"revoked"`
 	RevokedAt             *time.Time                   `bson:"revokedAt,omitempty" json:"revokedAt,omitempty"`
 	Version               int                          `bson:"version" json:"version"`
+}
+
+// CostParts reads what the job cost from the reduced row. The same six
+// components Job.CostParts reads, from the other representation; the arithmetic
+// over them belongs to JobCostParts.
+func (s ArchivedJobStats) CostParts() JobCostParts {
+	parts := JobCostParts{
+		Materials: s.TotalMaterialCost,
+		Install:   s.TotalInstallCost,
+		Invention: s.TotalInventionCost,
+		Extras:    s.TotalExtras,
+	}
+	for _, line := range s.FeeLines {
+		parts.BrokersFee += line.Amount
+	}
+	for _, line := range s.TransactionLines {
+		parts.TransactionFee += line.Tax
+	}
+	return parts
+}
+
+// SalesTotal sums what the row's transaction lines brought in.
+func (s ArchivedJobStats) SalesTotal() float64 {
+	var sales float64
+	for _, line := range s.TransactionLines {
+		sales += line.Amount
+	}
+	return sales
 }

@@ -9,6 +9,12 @@ type SalesMeasures struct {
 	QuantitySold        float64            `bson:"quantitySold" json:"quantitySold"`
 	SalesTotal          float64            `bson:"salesTotal" json:"salesTotal"`
 	JobCostTotal        float64            `bson:"jobCostTotal" json:"jobCostTotal"`
+	// What jobCostTotal is made of. Extras are not among them: they are carried
+	// per category in ExtraCategoryTotals.
+	MaterialCostTotal  float64 `bson:"materialCostTotal" json:"materialCostTotal"`
+	InventionCostTotal float64 `bson:"inventionCostTotal" json:"inventionCostTotal"`
+	InstallCostTotal   float64 `bson:"installCostTotal" json:"installCostTotal"`
+	ExtrasTotal        float64 `bson:"extrasTotal" json:"extrasTotal"`
 	ExtraCategoryTotals map[string]float64 `bson:"extraCategoryTotals,omitempty" json:"extraCategoryTotals,omitempty"`
 	TransactionFeeTotal float64            `bson:"transactionFeeTotal" json:"transactionFeeTotal"`
 	BrokersFeeTotal     float64            `bson:"brokersFeeTotal" json:"brokersFeeTotal"`
@@ -25,6 +31,10 @@ func (m SalesMeasures) Plus(src SalesMeasures) SalesMeasures {
 	m.QuantitySold += src.QuantitySold
 	m.SalesTotal += src.SalesTotal
 	m.JobCostTotal += src.JobCostTotal
+	m.MaterialCostTotal += src.MaterialCostTotal
+	m.InventionCostTotal += src.InventionCostTotal
+	m.InstallCostTotal += src.InstallCostTotal
+	m.ExtrasTotal += src.ExtrasTotal
 	m.TransactionFeeTotal += src.TransactionFeeTotal
 	m.BrokersFeeTotal += src.BrokersFeeTotal
 	m.ProfitLoss += src.ProfitLoss

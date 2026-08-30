@@ -8,13 +8,13 @@ import (
 
 func jobRow(jobID string, typeID int, buildCosts, produced float64) models.ArchivedJobStats {
 	return models.ArchivedJobStats{
-		ID:              "acct-1|" + jobID,
-		AccountID:       "acct-1",
-		JobID:           jobID,
-		TypeID:          typeID,
-		JobType:         1,
-		TotalBuildCosts: buildCosts,
-		TotalProduced:   produced,
+		ID:                "acct-1|" + jobID,
+		AccountID:         "acct-1",
+		JobID:             jobID,
+		TypeID:            typeID,
+		JobType:           1,
+		TotalMaterialCost: buildCosts,
+		TotalProduced:     produced,
 	}
 }
 
@@ -326,5 +326,36 @@ func TestNoRowsProducesNoTotals(t *testing.T) {
 	}
 	if got := AccountProductionTotals("", []models.ArchivedJobStats{jobRow("job-1", 34, 1, 1)}, nil); got != nil {
 		t.Fatal("an empty accountID must produce nothing rather than documents keyed on an empty account")
+	}
+}
+
+// Invention is part of what a job cost, and the component most easily left out:
+// it is neither per unit nor a fee.
+func TestInventionIsCountedInAJobsCost(t *testing.T) {
+	t.Parallel()
+
+	row := models.ArchivedJobStats{
+		TypeID:             587,
+		TotalProduced:      10,
+		TotalMaterialCost:  100,
+		TotalInventionCost: 7,
+		TransactionLines: []models.ArchivedJobTransactionLine{
+			{Amount: 200, Tax: 3},
+		},
+		FeeLines: []models.ArchivedJobFeeLine{{Amount: 2}},
+	}
+
+	measures := JobMeasures(row)
+
+	// Building it cost 100 in materials and 7 to invent the blueprint.
+	if measures.BuildCostTotal != 107 {
+		t.Fatalf("buildCostTotal = %v, want 107 — inventing the blueprint is part of building it", measures.BuildCostTotal)
+	}
+	// 107 to build + 2 brokers + 3 tax
+	if measures.JobCostTotal != 112 {
+		t.Fatalf("jobCostTotal = %v, want 112", measures.JobCostTotal)
+	}
+	if measures.ProfitLoss != 88 {
+		t.Fatalf("profitLoss = %v, want 200 - 112", measures.ProfitLoss)
 	}
 }

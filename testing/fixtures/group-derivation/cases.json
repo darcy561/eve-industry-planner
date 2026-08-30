@@ -1,0 +1,498 @@
+{
+  "$comment": "Group derivation corpus. Both the SPA (Classes/group.js) and the backend (shared/groupshape) derive a group document from the jobs it holds, and both read these cases so a rule cannot change on one side alone. Derivation only: merge, restore and archived-member membership are not shared logic.",
+  "cases": [
+    {
+      "name": "every field a member contributes",
+      "why": "A member adds its own itemID to both the type and material sets, each build material to the materials, and its three ESI id lists to the linked sets.",
+      "jobs": [
+        {
+          "jobID": "job-out",
+          "name": "Rifter",
+          "itemID": 587,
+          "parentJobs": [],
+          "apiJobs": [
+            11
+          ],
+          "apiOrders": [
+            22
+          ],
+          "apiTransactions": [],
+          "build": {
+            "materials": [
+              {
+                "typeID": 34
+              },
+              {
+                "typeID": 36
+              }
+            ]
+          }
+        },
+        {
+          "jobID": "job-mid",
+          "name": "Tritanium",
+          "itemID": 34,
+          "parentJobs": [
+            "job-out"
+          ],
+          "apiJobs": [],
+          "apiOrders": [],
+          "apiTransactions": [
+            33
+          ],
+          "build": {
+            "materials": []
+          }
+        }
+      ],
+      "expected": {
+        "groupName": "Rifter",
+        "includedJobIDs": [
+          "job-out",
+          "job-mid"
+        ],
+        "includedTypeIDs": [
+          34,
+          587
+        ],
+        "materialIDs": [
+          34,
+          36,
+          587
+        ],
+        "outputJobCount": 1,
+        "linkedJobIDs": [
+          11
+        ],
+        "linkedOrderIDs": [
+          22
+        ],
+        "linkedTransIDs": [
+          33
+        ]
+      }
+    },
+    {
+      "name": "only a parentless job is an output",
+      "why": "The output count counts outputs and the name is built from them, so an intermediate feeding another member must not be mistaken for one.",
+      "jobs": [
+        {
+          "jobID": "job-out",
+          "name": "Rifter",
+          "itemID": 587,
+          "parentJobs": [],
+          "apiJobs": [],
+          "apiOrders": [],
+          "apiTransactions": [],
+          "build": {
+            "materials": []
+          }
+        },
+        {
+          "jobID": "job-a",
+          "name": "Tritanium",
+          "itemID": 34,
+          "parentJobs": [
+            "job-out"
+          ],
+          "apiJobs": [],
+          "apiOrders": [],
+          "apiTransactions": [],
+          "build": {
+            "materials": []
+          }
+        },
+        {
+          "jobID": "job-b",
+          "name": "Pyerite",
+          "itemID": 35,
+          "parentJobs": [
+            "job-out"
+          ],
+          "apiJobs": [],
+          "apiOrders": [],
+          "apiTransactions": [],
+          "build": {
+            "materials": []
+          }
+        }
+      ],
+      "expected": {
+        "groupName": "Rifter",
+        "includedJobIDs": [
+          "job-out",
+          "job-a",
+          "job-b"
+        ],
+        "includedTypeIDs": [
+          34,
+          35,
+          587
+        ],
+        "materialIDs": [
+          34,
+          35,
+          587
+        ],
+        "outputJobCount": 1,
+        "linkedJobIDs": [],
+        "linkedOrderIDs": [],
+        "linkedTransIDs": []
+      }
+    },
+    {
+      "name": "several outputs name the group in order",
+      "why": "Names join in member order, not sorted, so the group reads the way the planner lists it.",
+      "jobs": [
+        {
+          "jobID": "job-1",
+          "name": "Rifter",
+          "itemID": 587,
+          "parentJobs": [],
+          "apiJobs": [],
+          "apiOrders": [],
+          "apiTransactions": [],
+          "build": {
+            "materials": []
+          }
+        },
+        {
+          "jobID": "job-2",
+          "name": "Punisher",
+          "itemID": 597,
+          "parentJobs": [],
+          "apiJobs": [],
+          "apiOrders": [],
+          "apiTransactions": [],
+          "build": {
+            "materials": []
+          }
+        }
+      ],
+      "expected": {
+        "groupName": "Rifter, Punisher",
+        "includedJobIDs": [
+          "job-1",
+          "job-2"
+        ],
+        "includedTypeIDs": [
+          587,
+          597
+        ],
+        "materialIDs": [
+          587,
+          597
+        ],
+        "outputJobCount": 2,
+        "linkedJobIDs": [],
+        "linkedOrderIDs": [],
+        "linkedTransIDs": []
+      }
+    },
+    {
+      "name": "ids are sorted and deduplicated",
+      "why": "Two members sharing a type contribute it once, and the arrays come back sorted so an unchanged group is not rewritten as modified.",
+      "jobs": [
+        {
+          "jobID": "job-1",
+          "name": "Rifter",
+          "itemID": 587,
+          "parentJobs": [],
+          "apiJobs": [],
+          "apiOrders": [
+            99,
+            22
+          ],
+          "apiTransactions": [],
+          "build": {
+            "materials": [
+              {
+                "typeID": 36
+              },
+              {
+                "typeID": 34
+              }
+            ]
+          }
+        },
+        {
+          "jobID": "job-2",
+          "name": "Rifter",
+          "itemID": 587,
+          "parentJobs": [],
+          "apiJobs": [],
+          "apiOrders": [
+            22,
+            11
+          ],
+          "apiTransactions": [],
+          "build": {
+            "materials": [
+              {
+                "typeID": 34
+              }
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "groupName": "Rifter, Rifter",
+        "includedJobIDs": [
+          "job-1",
+          "job-2"
+        ],
+        "includedTypeIDs": [
+          587
+        ],
+        "materialIDs": [
+          34,
+          36,
+          587
+        ],
+        "outputJobCount": 2,
+        "linkedJobIDs": [],
+        "linkedOrderIDs": [
+          11,
+          22,
+          99
+        ],
+        "linkedTransIDs": []
+      }
+    },
+    {
+      "name": "a blank name contributes nothing to the group name",
+      "why": "An unnamed output is still an output and still counted, but it must not leave an empty segment in the name.",
+      "jobs": [
+        {
+          "jobID": "job-1",
+          "name": "",
+          "itemID": 587,
+          "parentJobs": [],
+          "apiJobs": [],
+          "apiOrders": [],
+          "apiTransactions": [],
+          "build": {
+            "materials": []
+          }
+        },
+        {
+          "jobID": "job-2",
+          "name": "Rifter",
+          "itemID": 597,
+          "parentJobs": [],
+          "apiJobs": [],
+          "apiOrders": [],
+          "apiTransactions": [],
+          "build": {
+            "materials": []
+          }
+        }
+      ],
+      "expected": {
+        "groupName": "Rifter",
+        "includedJobIDs": [
+          "job-1",
+          "job-2"
+        ],
+        "includedTypeIDs": [
+          587,
+          597
+        ],
+        "materialIDs": [
+          587,
+          597
+        ],
+        "outputJobCount": 2,
+        "linkedJobIDs": [],
+        "linkedOrderIDs": [],
+        "linkedTransIDs": []
+      }
+    },
+    {
+      "name": "no named output falls back",
+      "why": "A group whose outputs are all unnamed still needs a name.",
+      "jobs": [
+        {
+          "jobID": "job-1",
+          "name": "",
+          "itemID": 587,
+          "parentJobs": [],
+          "apiJobs": [],
+          "apiOrders": [],
+          "apiTransactions": [],
+          "build": {
+            "materials": []
+          }
+        },
+        {
+          "jobID": "job-2",
+          "name": "  ",
+          "itemID": 597,
+          "parentJobs": [],
+          "apiJobs": [],
+          "apiOrders": [],
+          "apiTransactions": [],
+          "build": {
+            "materials": []
+          }
+        }
+      ],
+      "expected": {
+        "groupName": "Untitled Group",
+        "includedJobIDs": [
+          "job-1",
+          "job-2"
+        ],
+        "includedTypeIDs": [
+          587,
+          597
+        ],
+        "materialIDs": [
+          587,
+          597
+        ],
+        "outputJobCount": 2,
+        "linkedJobIDs": [],
+        "linkedOrderIDs": [],
+        "linkedTransIDs": []
+      }
+    },
+    {
+      "name": "the name is capped at 75",
+      "why": "Two long output names exceed the cap and are cut to it.",
+      "jobs": [
+        {
+          "jobID": "job-1",
+          "name": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "itemID": 587,
+          "parentJobs": [],
+          "apiJobs": [],
+          "apiOrders": [],
+          "apiTransactions": [],
+          "build": {
+            "materials": []
+          }
+        },
+        {
+          "jobID": "job-2",
+          "name": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+          "itemID": 597,
+          "parentJobs": [],
+          "apiJobs": [],
+          "apiOrders": [],
+          "apiTransactions": [],
+          "build": {
+            "materials": []
+          }
+        }
+      ],
+      "expected": {
+        "groupName": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "includedJobIDs": [
+          "job-1",
+          "job-2"
+        ],
+        "includedTypeIDs": [
+          587,
+          597
+        ],
+        "materialIDs": [
+          587,
+          597
+        ],
+        "outputJobCount": 2,
+        "linkedJobIDs": [],
+        "linkedOrderIDs": [],
+        "linkedTransIDs": []
+      }
+    },
+    {
+      "name": "the cap counts characters, not bytes",
+      "why": "Multi-byte names must be cut on a character boundary. Cutting 75 bytes here would land mid-character and produce invalid text.",
+      "jobs": [
+        {
+          "jobID": "job-1",
+          "name": "éééééééééééééééééééééééééééééééééééééééé",
+          "itemID": 587,
+          "parentJobs": [],
+          "apiJobs": [],
+          "apiOrders": [],
+          "apiTransactions": [],
+          "build": {
+            "materials": []
+          }
+        },
+        {
+          "jobID": "job-2",
+          "name": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+          "itemID": 597,
+          "parentJobs": [],
+          "apiJobs": [],
+          "apiOrders": [],
+          "apiTransactions": [],
+          "build": {
+            "materials": []
+          }
+        }
+      ],
+      "expected": {
+        "groupName": "éééééééééééééééééééééééééééééééééééééééé, BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "includedJobIDs": [
+          "job-1",
+          "job-2"
+        ],
+        "includedTypeIDs": [
+          587,
+          597
+        ],
+        "materialIDs": [
+          587,
+          597
+        ],
+        "outputJobCount": 2,
+        "linkedJobIDs": [],
+        "linkedOrderIDs": [],
+        "linkedTransIDs": []
+      }
+    },
+    {
+      "name": "a group of one",
+      "why": "A single member is a whole group: it is the output, it names the group, and it is the only contributor.",
+      "jobs": [
+        {
+          "jobID": "job-1",
+          "name": "Rifter",
+          "itemID": 587,
+          "parentJobs": [],
+          "apiJobs": [],
+          "apiOrders": [],
+          "apiTransactions": [],
+          "build": {
+            "materials": [
+              {
+                "typeID": 34
+              }
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "groupName": "Rifter",
+        "includedJobIDs": [
+          "job-1"
+        ],
+        "includedTypeIDs": [
+          587
+        ],
+        "materialIDs": [
+          34,
+          587
+        ],
+        "outputJobCount": 1,
+        "linkedJobIDs": [],
+        "linkedOrderIDs": [],
+        "linkedTransIDs": []
+      }
+    }
+  ]
+}

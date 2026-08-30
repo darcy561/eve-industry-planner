@@ -74,7 +74,7 @@ type ProductionTotalsRow struct {
 	TypeID        int    `bson:"typeID" json:"typeID"`
 	BuildMeasures `bson:",inline"`
 	Breakdown     ProductionTotalsBreakdown `bson:"breakdown" json:"breakdown"`
-	DataSnapshots []BuildStatSnapshot `bson:"dataSnapshots" json:"dataSnapshots"`
+	DataSnapshots []BuildStatSnapshot       `bson:"dataSnapshots" json:"dataSnapshots"`
 }
 
 // Plus sums src into r. JobType is taken from the first non-zero value.
@@ -100,7 +100,6 @@ type BuildStatSnapshot struct {
 	TotalInventionCost  float64 `json:"totalInventionCost" bson:"totalInventionCost"`
 	TotalInstallCost    float64 `json:"totalInstallCost" bson:"totalInstallCost"`
 	TotalExtras         float64 `json:"totalExtras" bson:"totalExtras"`
-	TotalBuildCosts     float64 `json:"totalBuildCosts" bson:"totalBuildCosts"`
 	BrokersFeeTotal     float64 `json:"brokersFeeTotal" bson:"brokersFeeTotal"`
 	TransactionFeeTotal float64 `json:"transactionFeeTotal" bson:"transactionFeeTotal"`
 	TotalJobCost        float64 `json:"totalJobCost" bson:"totalJobCost"`

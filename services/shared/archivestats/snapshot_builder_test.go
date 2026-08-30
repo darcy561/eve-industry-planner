@@ -22,7 +22,7 @@ func sampleJob() models.Job {
 }
 
 func sampleSnap() models.BuildStatSnapshot {
-	return models.BuildStatSnapshot{TotalProduced: 10, TotalJobCost: 500, TotalBuildCosts: 500}
+	return models.BuildStatSnapshot{TotalProduced: 10, TotalJobCost: 500}
 }
 
 // Cost per item prorates the job's cost across what actually sold, and profit is

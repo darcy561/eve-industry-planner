@@ -21,6 +21,10 @@ type totalsResponse struct {
 	// TypeID echoes the item filter when one was applied.
 	TypeID int                          `json:"typeID,omitempty"`
 	Items  []models.ProductionTotalsRow `json:"items"`
+	// Total is the whole archive folded into one row, served for `summary=1`.
+	// Summing client-side instead would ship every type's unbounded per-job
+	// snapshot array to compute one figure.
+	Total *models.ProductionTotalsRow `json:"total,omitempty"`
 }
 
 // GetTotalsHandler serves GET /api/v1/statistics/account/totals.
@@ -67,6 +71,22 @@ func (h *Handlers) GetTotalsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if helper.BoolParam(r, "summary") {
+		total := foldTotals(rows)
+		w.WriteHeader(http.StatusOK)
+		if err := helper.EncodeJSON(w, totalsResponse{TypeID: typeID, Items: []models.ProductionTotalsRow{}, Total: &total}); err != nil {
+			metrics.Error("encode_error")
+			helper.RespondEndpointServerError(w, r, "Internal server error", "totals get: encode failed", "statistics_totals_encode_failed", "statistics_totals", err, nil)
+			return
+		}
+		metrics.Success()
+		logs.AttachHandlerSuccessDetail(r, "totals summary retrieved", map[string]any{
+			"type_id": typeID,
+			"rows":    len(rows),
+		})
+		return
+	}
+
 	// An account with no archived jobs for a type gets an empty list rather than
 	// a zeroed row: absent and zero are different answers, and only the caller
 	// knows which one its view should show.
@@ -92,4 +112,16 @@ func (h *Handlers) GetTotalsHandler(w http.ResponseWriter, r *http.Request) {
 		"type_id": typeID,
 		"items":   len(items),
 	})
+}
+
+// foldTotals sums every row into one. The per-job snapshots are dropped: they
+// belong to a type's own history and mean nothing once types are summed.
+func foldTotals(rows []models.ProductionTotalsRow) models.ProductionTotalsRow {
+	var total models.ProductionTotalsRow
+	for _, row := range rows {
+		total = total.Plus(row)
+	}
+	total.DataSnapshots = []models.BuildStatSnapshot{}
+	total.TypeID = 0
+	return total
 }

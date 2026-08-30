@@ -16,8 +16,6 @@ type restoreRequest struct {
 	SessionID  string
 	WSClientID string
 	Jobs       []models.Job
-	// GroupID rebuilds the container when set.
-	GroupID string
 }
 
 type restoreResult struct {
@@ -26,12 +24,15 @@ type restoreResult struct {
 	// without a second read. The realtime broadcast excludes its own originator.
 	Jobs      []models.Job
 	Conflicts []esiConflict
-	Group     *models.Group
+	// Groups are the containers the restored jobs rejoined, one per group they
+	// were archived from.
+	Groups []models.Group
 }
 
 // restoreJobs returns archived jobs to the planner: decrypt, resolve ESI links,
-// write job documents, re-link, rebuild the group, delete from the archive, then
-// queue the statistics rebuild. The write-before-delete order is deliberate.
+// write job documents, re-link, return them to their groups, delete from the
+// archive, then queue the statistics rebuild. The write-before-delete order is
+// deliberate.
 func restoreJobs(ctx context.Context, h *Handlers, req restoreRequest) (restoreResult, error) {
 	if len(req.Jobs) == 0 {
 		return restoreResult{}, nil
@@ -73,7 +74,6 @@ func restoreJobs(ctx context.Context, h *Handlers, req restoreRequest) (restoreR
 		req.Jobs[i].MetaData.ArchivedAt = time.Time{}
 		req.Jobs[i].MetaData.ArchivedBy = ""
 		req.Jobs[i].MetaData.ArchiveProcessed = false
-		req.Jobs[i].GroupID = req.GroupID
 	}
 
 	if _, failed, writeErr := h.Mongo.JobDocuments.BulkUpsertJobs(ctx, req.Archive.OwnerID, req.Jobs, now, req.SessionID, req.WSClientID); writeErr != nil {
@@ -88,13 +88,9 @@ func restoreJobs(ctx context.Context, h *Handlers, req restoreRequest) (restoreR
 		}
 	}
 
-	var group *models.Group
-	if req.GroupID != "" {
-		rebuilt := rebuildGroup(req.GroupID, req.Jobs)
-		if groupErr := writeGroup(ctx, h.Mongo, req.Archive.OwnerID, rebuilt, now, req.SessionID, req.WSClientID); groupErr != nil {
-			return restoreResult{}, fmt.Errorf("write group: %w", groupErr)
-		}
-		group = &rebuilt
+	groups, groupErr := restoreGroups(ctx, h.Mongo, req.Archive.OwnerID, req.Jobs, now, req.SessionID, req.WSClientID)
+	if groupErr != nil {
+		return restoreResult{}, fmt.Errorf("write group: %w", groupErr)
 	}
 
 	if delErr := deleteArchivedJobs(ctx, req.Archive, jobIDs, now, req.SessionID, req.WSClientID); delErr != nil {
@@ -109,7 +105,7 @@ func restoreJobs(ctx context.Context, h *Handlers, req restoreRequest) (restoreR
 		return restoreResult{}, fmt.Errorf("queue statistics rebuild: %w", queueErr)
 	}
 
-	return restoreResult{RestoredJobIDs: jobIDs, Jobs: req.Jobs, Conflicts: conflicts, Group: group}, nil
+	return restoreResult{RestoredJobIDs: jobIDs, Jobs: req.Jobs, Conflicts: conflicts, Groups: groups}, nil
 }
 
 func conflictIndex(conflicts []esiConflict) map[esiLinkKind]map[int]struct{} {

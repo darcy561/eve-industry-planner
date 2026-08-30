@@ -171,7 +171,6 @@ func buildSnapshot(job models.Job, snap models.BuildStatSnapshot, now time.Time)
 		TotalInstallCost:    snap.TotalInstallCost,
 		TotalExtras:         snap.TotalExtras,
 		TotalInventionCost:  snap.TotalInventionCost,
-		TotalBuildCosts:     snap.TotalBuildCosts,
 		TotalCostPerItem:    snap.TotalCostPerItem,
 		ExtraCategoryTotals: extraCategoryTotals(job.Build.Costs.ExtrasCosts),
 		UnsoldQuantity:      unsoldQuantity,

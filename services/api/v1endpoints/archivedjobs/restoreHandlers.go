@@ -6,8 +6,10 @@ import (
 	"net/http"
 
 	"eve-industry-planner/api/helper"
+	"eve-industry-planner/shared/core/documentlock"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
@@ -18,9 +20,9 @@ type restoreResponse struct {
 	// broadcast skips the client that caused it.
 	Jobs []models.Job `json:"jobs"`
 	// Conflicts and Unresolved are reported, not errors.
-	Conflicts  []esiConflict `json:"conflicts,omitempty"`
-	Group      *models.Group `json:"group,omitempty"`
-	Unresolved []string      `json:"unresolved,omitempty"`
+	Conflicts  []esiConflict  `json:"conflicts,omitempty"`
+	Groups     []models.Group `json:"groups,omitempty"`
+	Unresolved []string       `json:"unresolved,omitempty"`
 }
 
 // restoreScope is how a request selected what to restore.
@@ -70,7 +72,7 @@ func (h *Handlers) RestoreArchivedJobsHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	jobs, unresolved, groupID, err := selectJobsToRestore(ctx, archive, scope, id)
+	jobs, unresolved, err := selectJobsToRestore(ctx, archive, scope, id)
 	if err != nil {
 		metrics.Error("database_error")
 		helper.RespondEndpointServerError(w, r, "Failed to restore", "archived jobs restore: selection failed", "archived_jobs_restore_select_failed", "archived_jobs_restore", err, map[string]any{"id": id})
@@ -82,12 +84,29 @@ func (h *Handlers) RestoreArchivedJobsHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	sessionID := helper.AuthenticatedSessionID(r)
+	collection, rejects, lerr := h.restoreLockRejects(ctx, accountID, sessionID, jobs)
+	if lerr != nil {
+		if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
+			metrics.Error("auth_error")
+			helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "archived jobs restore lock gate: session required", "archived_jobs_restore_session_required", "archived_jobs_restore", lerr, nil)
+			return
+		}
+		metrics.Error("lock_error")
+		helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "archived jobs restore lock gate failed", "archived_jobs_restore_lock_gate_failed", "archived_jobs_restore", lerr, nil)
+		return
+	}
+	if len(rejects) > 0 {
+		metrics.Error("lock_conflict")
+		helper.RespondLockHeldElsewhereJSON(w, r, collection, rejects)
+		return
+	}
+
 	result, err := restoreJobs(ctx, h, restoreRequest{
 		Archive:    archive,
-		SessionID:  helper.AuthenticatedSessionID(r),
+		SessionID:  sessionID,
 		WSClientID: helper.ExtractWSClientID(r),
 		Jobs:       jobs,
-		GroupID:    groupID,
 	})
 	if err != nil {
 		metrics.Error("restore_failed")
@@ -99,7 +118,7 @@ func (h *Handlers) RestoreArchivedJobsHandler(w http.ResponseWriter, r *http.Req
 		RestoredJobIDs: result.RestoredJobIDs,
 		Jobs:           result.Jobs,
 		Conflicts:      result.Conflicts,
-		Group:          result.Group,
+		Groups:         result.Groups,
 		Unresolved:     unresolved,
 	}
 
@@ -114,51 +133,96 @@ func (h *Handlers) RestoreArchivedJobsHandler(w http.ResponseWriter, r *http.Req
 		"restored":   len(result.RestoredJobIDs),
 		"conflicts":  len(result.Conflicts),
 		"unresolved": len(unresolved),
-		"group_id":   groupID,
+		"groups":     len(result.Groups),
 	})
 }
 
-// selectJobsToRestore reads the addressed documents, returning the jobs, ids the
-// walk could not resolve, and the group to rejoin (group scope only).
-func selectJobsToRestore(ctx context.Context, archive archiveScope, scope restoreScope, id string) ([]models.Job, []string, string, error) {
+// restoreLockRejects reports documents the restore would write that another
+// session is holding.
+//
+// An archived job holds no lock of its own, so its group's lock stands for it and
+// only an ungrouped job is gated on its own document.
+func (h *Handlers) restoreLockRejects(ctx context.Context, accountID, sessionID string, jobs []models.Job) (string, []documentlock.LockHeldElsewhereItem, error) {
+	if h.locks.Redis == nil {
+		return "", nil, nil
+	}
+	if sessionID == "" {
+		return "", nil, documentlock.ErrSessionRequiredForLockGate
+	}
+
+	groupIDs, _ := groupJobsByGroupID(jobs)
+	if len(groupIDs) > 0 {
+		rejects, err := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionAccountJobGroups, groupIDs, nil)
+		if err != nil {
+			return "", nil, err
+		}
+		if len(rejects) > 0 {
+			return eipmongo.CollectionAccountJobGroups, rejects, nil
+		}
+	}
+
+	loose := make([]string, 0, len(jobs))
+	for i := range jobs {
+		if jobs[i].JobID == "" || jobs[i].GroupID != "" {
+			continue
+		}
+		loose = append(loose, jobs[i].JobID)
+	}
+	if len(loose) == 0 {
+		return "", nil, nil
+	}
+	rejects, err := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, accountID, sessionID, eipmongo.CollectionAccountJobDocuments, loose, nil)
+	if err != nil {
+		return "", nil, err
+	}
+	if len(rejects) > 0 {
+		return eipmongo.CollectionAccountJobDocuments, rejects, nil
+	}
+	return "", nil, nil
+}
+
+// selectJobsToRestore reads the addressed documents, returning the jobs and the
+// ids the walk could not resolve. Each job carries its own group, so the
+// selection does not name one.
+func selectJobsToRestore(ctx context.Context, archive archiveScope, scope restoreScope, id string) ([]models.Job, []string, error) {
 	switch scope {
 	case restoreScopeJob:
 		job, err := loadArchivedJob(ctx, archive, id)
 		if err != nil {
-			return nil, nil, "", err
+			return nil, nil, err
 		}
 		if job == nil {
-			return nil, nil, "", nil
+			return nil, nil, nil
 		}
-		return []models.Job{*job}, nil, "", nil
+		return []models.Job{*job}, nil, nil
 
 	case restoreScopeGroup:
+		// Everything the archive still holds for the group.
 		jobs, err := loadArchivedJobsByFilter(ctx, ArchivedJobQuery{
 			Scope:   archive,
 			GroupID: id,
 		})
 		if err != nil {
-			return nil, nil, "", err
+			return nil, nil, err
 		}
-		// Rebuilt from whatever the archive still holds.
-		return jobs, nil, id, nil
+		return jobs, nil, nil
 
 	case restoreScopeRelated:
 		summaries, err := listAllArchivedSummaries(ctx, archive)
 		if err != nil {
-			return nil, nil, "", err
+			return nil, nil, err
 		}
 		reachable := relatedJobIDsInArchive(summaries, id)
 		if len(reachable) == 0 {
-			return nil, nil, "", nil
+			return nil, nil, nil
 		}
 		jobs, err := loadArchivedJobsByIDs(ctx, archive, reachable)
 		if err != nil {
-			return nil, nil, "", err
+			return nil, nil, err
 		}
-		return jobs, unresolvedLinks(summaries, reachable), "", nil
+		return jobs, unresolvedLinks(summaries, reachable), nil
 	}
-	return nil, nil, "", nil
+	return nil, nil, nil
 }
 
 // unresolvedLinks names ids the restored jobs point at that the archive does not

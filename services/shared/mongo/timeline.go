@@ -3,9 +3,11 @@ package mongo
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"eve-industry-planner/shared/models"
@@ -101,6 +103,25 @@ type TimelineMonthRow struct {
 	models.SalesMeasures `bson:",inline"`
 }
 
+// timelineMonthAggregateRow is a month as the pipeline returns it: summed
+// measures, plus the maps it could not sum.
+type timelineMonthAggregateRow struct {
+	TimelineMonthRow    `bson:",inline"`
+	ExtraCategoryTotals []map[string]float64 `bson:"extraCategoryTotalsList"`
+}
+
+// fold merges the collected maps into the row's own measures.
+func (r timelineMonthAggregateRow) fold() TimelineMonthRow {
+	row := r.TimelineMonthRow
+	for _, extras := range r.ExtraCategoryTotals {
+		if len(extras) == 0 {
+			continue
+		}
+		row.SalesMeasures = row.SalesMeasures.Plus(models.SalesMeasures{ExtraCategoryTotals: extras})
+	}
+	return row
+}
+
 // TimelineItemRow is one item type's share of the whole window.
 type TimelineItemRow struct {
 	TypeID               int `bson:"typeID"`
@@ -133,24 +154,52 @@ func monthOrdinal(m MonthKey) int {
 	return m.Year*12 + m.Month
 }
 
+// summableMeasureFields names every numeric measure on SalesMeasures, read from
+// the struct so a measure added to the document cannot be left out of the
+// aggregation — which returns zeros rather than failing.
+//
+// Maps are skipped by the kind test: extraCategoryTotals cannot be $summed, and a
+// caller that needs it collects the maps with extraCategoryTotalsPush and folds
+// them with SalesMeasures.Plus.
+var summableMeasureFields = sync.OnceValue(func() []string {
+	t := reflect.TypeFor[models.SalesMeasures]()
+	fields := make([]string, 0, t.NumField())
+	for field := range t.Fields() {
+		switch field.Type.Kind() {
+		case reflect.Int64, reflect.Float64:
+		default:
+			continue
+		}
+		name, _, _ := strings.Cut(field.Tag.Get("bson"), ",")
+		if name == "" || name == "-" {
+			continue
+		}
+		fields = append(fields, name)
+	}
+	return fields
+})
+
 // sumMeasuresGroup accumulates every additive measure in a $group stage.
 //
-// extraCategoryTotals is deliberately absent: it is a map keyed by category id,
-// and $sum cannot merge maps. Callers that need it fold the rows with
-// SalesMeasures.Plus instead, which merges by category. Every other measure is
-// a plain running total, including profitLoss — it is accumulated as a sum of
-// signed contributions rather than recomputed, so summing sums is correct.
+// profitLoss is a sum of signed contributions rather than a recomputed figure, so
+// summing sums is correct.
 func sumMeasuresGroup(id any) bson.M {
-	return bson.M{
-		"_id":                 id,
-		"transactionCount":    bson.M{"$sum": "$transactionCount"},
-		"quantitySold":        bson.M{"$sum": "$quantitySold"},
-		"salesTotal":          bson.M{"$sum": "$salesTotal"},
-		"jobCostTotal":        bson.M{"$sum": "$jobCostTotal"},
-		"transactionFeeTotal": bson.M{"$sum": "$transactionFeeTotal"},
-		"brokersFeeTotal":     bson.M{"$sum": "$brokersFeeTotal"},
-		"profitLoss":          bson.M{"$sum": "$profitLoss"},
+	group := bson.M{"_id": id}
+	for _, field := range summableMeasureFields() {
+		group[field] = bson.M{"$sum": "$" + field}
 	}
+	return group
+}
+
+// extraCategoryTotalsField names the collected maps in a group that asks for them.
+const extraCategoryTotalsField = "extraCategoryTotalsList"
+
+// extraCategoryTotalsPush adds the per-category maps to a group stage. $push
+// skips documents where the field is missing, so buckets carrying no extras
+// collect nothing rather than a list of empty maps.
+func extraCategoryTotalsPush(group bson.M) bson.M {
+	group[extraCategoryTotalsField] = bson.M{"$push": "$extraCategoryTotals"}
+	return group
 }
 
 // rangeMatchStages are the shared leading stages: filter by account and type on
@@ -184,14 +233,19 @@ func (m *Mongo) TimelineMonths(ctx context.Context, q TimelineQuery, opts ...Ret
 	}
 
 	pipeline := mongo.Pipeline(append(rangeMatchStages(q),
-		bson.D{{Key: "$group", Value: sumMeasuresGroup(bson.M{"year": "$year", "month": "$month"})}},
+		bson.D{{Key: "$group", Value: extraCategoryTotalsPush(sumMeasuresGroup(bson.M{"year": "$year", "month": "$month"}))}},
 		bson.D{{Key: "$sort", Value: bson.D{{Key: "_id.year", Value: 1}, {Key: "_id.month", Value: 1}}}},
 		bson.D{{Key: "$addFields", Value: bson.M{"year": "$_id.year", "month": "$_id.month"}}},
 	))
 
-	var out []TimelineMonthRow
-	if err := m.AccountTimelineMonths.Aggregate(ctx, pipeline, &out, append([]RetryOption{WithOpName("TimelineMonths")}, opts...)...); err != nil {
+	var rows []timelineMonthAggregateRow
+	if err := m.AccountTimelineMonths.Aggregate(ctx, pipeline, &rows, append([]RetryOption{WithOpName("TimelineMonths")}, opts...)...); err != nil {
 		return nil, err
+	}
+
+	out := make([]TimelineMonthRow, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, row.fold())
 	}
 	return out, nil
 }

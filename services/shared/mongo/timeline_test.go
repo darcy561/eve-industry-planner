@@ -1,8 +1,11 @@
 package mongo
 
 import (
+	"fmt"
 	"testing"
 	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func TestMonthKeyStringIsZeroPadded(t *testing.T) {
@@ -119,10 +122,75 @@ func TestSumMeasuresGroupOmitsExtraCategoryTotals(t *testing.T) {
 	if _, ok := group["extraCategoryTotals"]; ok {
 		t.Fatal("extraCategoryTotals cannot be summed by $sum; fold with SalesMeasures.Plus instead")
 	}
-	for _, measure := range []string{"salesTotal", "jobCostTotal", "profitLoss", "transactionCount", "quantitySold", "transactionFeeTotal", "brokersFeeTotal"} {
+	// Derived from the struct, so a measure added to the document reaches the
+	// aggregation without anyone remembering to list it here.
+	if len(group) != len(summableMeasureFields())+1 {
+		t.Fatalf("group has %d entries for %d measures plus _id", len(group), len(summableMeasureFields()))
+	}
+	for _, measure := range []string{
+		"salesTotal", "jobCostTotal", "profitLoss", "transactionCount", "quantitySold",
+		"transactionFeeTotal", "brokersFeeTotal",
+		"materialCostTotal", "inventionCostTotal", "installCostTotal", "extrasTotal",
+	} {
 		if _, ok := group[measure]; !ok {
 			t.Fatalf("%s is missing from the group stage, so it would come back zero", measure)
 		}
+	}
+}
+
+// The monthly view has to serve extras, so its group collects the maps $sum
+// could not merge.
+func TestMonthlyGroupCollectsExtraCategoryTotals(t *testing.T) {
+	t.Parallel()
+
+	group := extraCategoryTotalsPush(sumMeasuresGroup(bson.M{"year": "$year", "month": "$month"}))
+	push, ok := group[extraCategoryTotalsField]
+	if !ok {
+		t.Fatal("the monthly group drops extraCategoryTotals, so the extras chart has nothing to draw")
+	}
+	if want := (bson.M{"$push": "$extraCategoryTotals"}); fmt.Sprint(push) != fmt.Sprint(want) {
+		t.Fatalf("collected with %v, want %v", push, want)
+	}
+}
+
+// A month is many per-item buckets; folding sums by category across them rather
+// than keeping the last one seen.
+func TestMonthFoldSumsExtrasByCategory(t *testing.T) {
+	t.Parallel()
+
+	row := timelineMonthAggregateRow{
+		Year: 2026, Month: 3,
+		SalesTotal: 100,
+		ExtraCategoryTotals: []map[string]float64{
+			{"1": 10, "2": 5},
+			{"1": 2.5},
+			{},
+		},
+	}
+
+	folded := row.fold()
+
+	if folded.SalesTotal != 100 || folded.Year != 2026 || folded.Month != 3 {
+		t.Fatalf("folding changed the summed measures: %+v", folded)
+	}
+	if got := folded.ExtraCategoryTotals["1"]; got != 12.5 {
+		t.Fatalf("category 1 = %v, want the buckets summed to 12.5", got)
+	}
+	if got := folded.ExtraCategoryTotals["2"]; got != 5 {
+		t.Fatalf("category 2 = %v, want 5", got)
+	}
+}
+
+// An empty map would read as a category with no spend.
+func TestMonthFoldLeavesExtrasUnsetWhenThereAreNone(t *testing.T) {
+	t.Parallel()
+
+	row := timelineMonthAggregateRow{
+		SalesTotal: 10,
+	}
+
+	if folded := row.fold(); folded.ExtraCategoryTotals != nil {
+		t.Fatalf("extraCategoryTotals = %v, want nil", folded.ExtraCategoryTotals)
 	}
 }
 
