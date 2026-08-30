@@ -30,5 +30,16 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 | Decide whether a query belongs in `shared/` or a service | [overlay.md](./overlay.md) § The queries live in the API |
 | Restore a job, a group, or a set of related jobs | [plan.md](./plan.md) § Jobs come back individually, by group, or by related set |
 | See how restore works today, and why its order is what it is | [overlay.md](./overlay.md) § Stage G |
+| Understand what happens to a group when one of its jobs is archived | [overlay.md](./overlay.md) § Group membership while a job is archived |
+| Know which group a restored job rejoins, and whether it is merged or rebuilt | [overlay.md](./overlay.md) § Every restored job returns to its own group |
+| Find out why a restore can be refused while another session is editing | [overlay.md](./overlay.md) § The group's lock stands for its archived members |
+| See what the archived-jobs page renders and how its charts are layered | [overlay.md](./overlay.md) § Stage H |
+| Understand why group derivation exists twice, and what keeps the two honest | [overlay.md](./overlay.md) § Stage I |
+| Change a rule about what a group derives from its jobs | [overlay.md](./overlay.md) § The corpus is the rule |
+| Get archive data on a dev account to work against | [overlay.md](./overlay.md) § Generated archive data for development |
+| Know what a job's cost is made of | [overlay.md](./overlay.md) § What a period cost, and what it was spent on |
+| Change how a job's cost is worked out | [overlay.md](./overlay.md) § One corpus holds the two implementations together |
+| See which stored figures changed and why a rebuild is owed | [overlay.md](./overlay.md) § Corrections to figures already served |
+| Add or change a chart on the statistics tab | [overlay.md](./overlay.md) § The charts, and what each answers |
 | Add a chart, or reuse one with different data | [plan.md](./plan.md) § Chart primitives are data-agnostic |
 | Know what happens to the price-history chart | [plan.md](./plan.md) § Price history moves onto the primitives |

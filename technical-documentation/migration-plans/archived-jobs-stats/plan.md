@@ -619,16 +619,18 @@ Two fields are not derivable and reset rather than being invented: `groupStatus`
 `areComplete` starts empty — both describe workflow progress at the moment of archiving, which was
 never recorded per job. `showComplete` and `groupType` take their constructor defaults.
 
-So restoring a group is restoring its jobs and rebuilding the container:
+So restoring a group is restoring its jobs and putting the container back:
 `POST /api/v1/archived-jobs/groups/{groupID}/restore` restores every archived job carrying that
-`groupID` and returns the rebuilt group alongside them, with one merged ESI-conflict report across
-the whole set. A partially archived group — some jobs restored earlier, some still archived —
-rebuilds from whatever the archive still holds, which is the same rule `removeJobsFromGroup` already
-applies to a shrinking group.
+`groupID` and returns the group alongside them, with one merged ESI-conflict report across the whole
+set.
 
-Restoring a **single** job that carries a `groupID` does not resurrect the group; the job returns to
-the planner ungrouped, because a one-job group is a container the user did not ask for. Restoring
-the group is a separate call, below.
+Which is rebuilt and which is merged is decided by the group, not by the route. A group that was
+deleted when it was archived is rebuilt from every job that names it — the archived ones and any left
+on the planner. A group still on the planner, because only some of its members were archived, is
+merged into: its membership, name and completion state are the user's, and only the restored jobs'
+contributions are folded back. Restoring a **single** job follows the same rule, so a job always
+returns to the group it was archived from. Behaviour → [overlay.md](./overlay.md) § Every restored
+job returns to its own group.
 
 #### Jobs come back individually, by group, or by related set
 
@@ -640,7 +642,7 @@ holds.
 | Route | Restores |
 |-------|----------|
 | `POST /api/v1/archived-jobs/{jobID}/restore` | that job alone |
-| `POST /api/v1/archived-jobs/groups/{groupID}/restore` | every archived job carrying that `groupID`, plus the rebuilt group |
+| `POST /api/v1/archived-jobs/groups/{groupID}/restore` | every archived job carrying that `groupID` |
 | `POST /api/v1/archived-jobs/related/{jobID}/restore` | that job and every archived job reachable from it through parent/child links |
 
 Each returns the restored jobs and one merged ESI-conflict report across the set, so a set restore
@@ -872,6 +874,71 @@ The page is account scoped. As with the archive dialogue, the corporation scope 
 than stubs: the range and scope selection is a prop rather than page-internal state, and the chart
 components take their rows as data so a corporation row renders identically once Stage C exists.
 
+### Stage I — One owner for group derivation
+
+Two implementations derive a group from the jobs it holds, and they have to agree because they write
+the same document. As the stage found them:
+
+| Where | What it did |
+|-------|--------------|
+| `frontend/src/Classes/group.js` | `_buildNewGroupData`, and the callers that use it: `createGroup`, `updateGroupData`, `addJobsToGroup`, `removeJobsFromGroup`, `markJobsArchived` |
+| `services/api/v1endpoints/archivedjobs/grouprebuild.go` | `contributionOf`, `rebuildGroup`, `mergeRestoredJobs` |
+
+Both encode the same four facts: what a member contributes (its `itemID` into the type and material
+sets, each `build.materials[].typeID` into materials, and the three ESI link sets), that a job with
+no parents is an output, that the name is the output names joined and capped at 75, and the defaults
+`groupType 1` / `groupStatus 0` / `showComplete true`.
+
+#### Neither implementation can be deleted
+
+The obvious fix — one side owns it — does not survive contact with either constraint:
+
+- **Server-only derivation** cannot work: the SPA builds groups with no server. `addNewJobsToPlanner`
+  creates one locally, and `archiveGroupJobs` has a logged-out branch that maintains group state
+  client-side.
+- **Client-only derivation** cannot work either: restore is deliberately one server-side sequence,
+  for the same reason the ESI re-link is. Handing the group rebuild back to the SPA splits the job
+  write and the group write across two processes.
+
+So the goal is not to remove the duplication. It is to stop the two copies disagreeing without
+anyone noticing.
+
+#### They had already drifted
+
+Three differences existed, each producing a different group document from the same jobs. Two were
+found by reading the two implementations against each other; the third only appeared when the corpus
+ran:
+
+| Rule | Was | Now |
+|------|-----|-----|
+| Truncation at 75 | SPA counted UTF-16 code units, the backend counted bytes and could split a rune into invalid UTF-8 | Both count characters; the backend truncates on runes |
+| A job with a blank name | The SPA joined it raw, leaving an empty segment (`", Rifter"`); the backend trimmed and skipped it | Both trim and skip, and a group whose outputs are all unnamed is `Untitled Group` |
+| Order of the numeric id arrays | The backend sorted them; the SPA emitted insertion order | Both sorted, so an unchanged group is not rewritten as modified |
+
+#### What landed
+
+1. **`models.Group` derives itself** — `RebuildFrom(jobs)` and `AddJobs(jobs)`, mirroring the SPA's
+   `createGroup` and `addJobsToGroup`. A group is derived from its jobs, so the group knows how, and
+   `archivedjobs` keeps only its restore concerns.
+2. **A corpus** at `testing/fixtures/group-derivation/cases.json`: nine cases of input jobs and the
+   group document they must produce, covering the contribution rules, the output count, id ordering
+   and deduplication, and naming.
+3. **A harness on each side** reading it — a Go test over `Group.RebuildFrom`, a vitest test over
+   `Group.createGroup`.
+   Both read the file by path rather than copying it, so a rule change on one side turns the other
+   red.
+4. **The three divergences resolved**, each fixed on the side that was wrong.
+
+Wire compatibility: **none affected**. The package move is internal, and the corpus is test-only. No
+document shape, endpoint, or operator surface changes.
+
+#### What the corpus does not cover
+
+Derivation only — jobs in, derived fields and name out. Merge, restore and the lock gate are backend
+concerns with no SPA counterpart, and the archived-member rules are not shared logic despite touching
+the same field: the SPA preserves `archivedJobIDs` through a recompute, the backend clears them on
+merge. Those stay as tests in their own packages.
+
 ## Go modernization in scope
 
 Per the planning gate, `go fix -diff` was run against the packages this project will touch
@@ -895,11 +962,12 @@ needs modernization first.
 | A — data model and Mongo layer | Complete for the account scope — entity refs on job documents, statistics models, Mongo layer and index specs landed. Corp scope held for C; partial indexes land with D |
 | B — account statistics pipeline | **Complete** — transformation, worker rebuild, queue drain, its task and asynq handler, the hourly schedule, and the archived-jobs producer are all landed. Queue → publish → drain runs end to end, and the claim protocol, revoke, prune and write-then-remove ordering are pinned by passing live tests. The worker's end-to-end composition of those helpers has no live test yet (see Open questions) |
 | C — corporation statistics pipeline | **Deferred** — a job belongs to one archive, so this pipeline aggregates corporation-scoped jobs rather than slicing account ones; per-line attribution was removed. The producer is half built: the SPA now records the corporation and character ids ESI supplies, but nothing yet decides from them that a job is corporation scoped and stamps `_meta.corporationRef`. See § Ownership is a property of the job |
-| D — statistics API | **Complete for the account scope** — timeline, timeline/items and totals land under `/api/v1/statistics/account/`, with the indexes their filters need. The old build-stats producer is retired and its documents are rebuilt by the statistics pipeline. Corporation views wait for Stage C |
+| D — statistics API | **Complete for the account scope** — timeline, timeline/items and totals land under `/api/v1/statistics/account/`, with the indexes their filters need. Months carry the six components of a period's cost and its extras by category; `totals?summary=1` folds the archive into one row. The old build-stats producer is retired and its documents are rebuilt by the statistics pipeline. Corporation views wait for Stage C |
 | E — frontend | **Complete for the account scope** — the SPA reads `totals`, `timeline` and `timeline/items`; build-stats is deleted; the dashboard carries the month-on-month comparison and the item breakdown; the archive dialogue is split into its four segment blocks. Corporation scope waits for Stage C |
 | F — archived jobs read API | **Complete** — `GET /api/v1/archived-jobs` serves a paged, filtered list of summaries and `GET /api/v1/archived-jobs/{jobID}` one full document. Rows report group and related-set membership, figures come from the shared `archivestats` reduction, and the query parsing both this and the statistics views use moved to `api/helper`. Indexes landed in the Deployment Tool |
-| G — restore | **Complete** — three POST routes restore a job, a group rebuilt from its jobs, or a related set walked over the archive. The write is one server-side sequence: decrypt, resolve links, write job documents, re-link free ESI ids on the account, rebuild the group, delete the archived documents, queue the rebuild. Conflicts are reported and stripped rather than blocking |
-| H — archived jobs page | **Complete for the account scope** — `/archived-jobs` carries the statistics tab (metric cards, four charts, item table) and the jobs tab (list, three row shapes, restore). Chart primitives are shared and the price-history dialogue moved onto them. The list is not queried until its tab is opened |
+| G — restore | **Complete** — three POST routes restore a job, a group rebuilt from its jobs, or a related set walked over the archive. The write is one server-side sequence: decrypt, resolve links, write job documents, re-link free ESI ids on the account, return the jobs to their groups, delete the archived documents, queue the rebuild. Each job rejoins the group it was archived from, merging into it when it is still on the planner. Conflicts are reported and stripped rather than blocking, and a group another session holds refuses the restore |
+| H — archived jobs page | **Complete for the account scope** — `/archived-jobs` carries the statistics tab (metric cards, eight charts, item table) and the jobs tab (list, three row shapes, restore). Chart primitives are shared and the price-history dialogue moved onto them. The list is not queried until its tab is opened, and both tabs carry a mobile layout |
+| I — one owner for group derivation | **Complete** — `models.Group` derives itself through `RebuildFrom` and `AddJobs`, mirroring the SPA's `createGroup` and `addJobsToGroup`; a nine-case corpus at `testing/fixtures/group-derivation` defines the rules and a harness on each side reads it. The three divergences it found are fixed |
 
 ## Done when
 
@@ -911,6 +979,9 @@ needs modernization first.
   it still holds, or a set of jobs related through parent/child links — with ESI re-link conflicts
   reported to the user rather than silently dropped or blocking the restore.
 - The archived-jobs page presents the charts and the restore table over those endpoints.
+- A job restored on its own, or with its group, returns to the group it was archived from, and a
+  group is rebuilt from every job that names it.
+- Group derivation has one owner per side, with a shared corpus proving the two agree.
 - Overlays in this folder describe the landed behaviour, ready to promote into live SoT.
 
 ## Handoff status
@@ -952,13 +1023,25 @@ One design point changed during the work and is recorded above: the ESI re-link 
 server write reaches the client's store before it would next save — which is what lets restore stay
 atomic instead of splitting the job write and the re-link across two processes.
 
-**Start here: Stage H, the page.** Every endpoint it reads now exists — the list and single-document
-reads from Stage F, the three restore routes from Stage G, and the statistics views from Stage D.
-What is owed is the SPA: the reusable chart primitives, the four charts, the list with its three
-row shapes, the restore actions and their conflict reporting, and moving the price-history dialogue
-onto the primitives.
+**Stage H is complete for the account scope.** The page carries both tabs, the chart primitives are
+shared, the price-history dialogue moved onto them, and the list and statistics panels each have a
+mobile layout. Behaviour → [overlay.md](./overlay.md) § Stage H.
 
-**Stage H is independent of Stage C** and can proceed while the corporation scope stays deferred;
+**Group membership survives archiving, and restore honours it.** A job archived on its own stays a
+member of its group; the group marks it in `archivedJobIDs` and drops its contribution from the
+derived sets until it comes back. Restore returns each job to the group it was archived from, merging
+into that group when it is still on the planner and rebuilding it from every job that names it when
+it is not. A group another session holds refuses the restore. Behaviour →
+[overlay.md](./overlay.md) § Group membership while a job is archived and § Stage G.
+
+**Stage I is complete.** Group derivation has one backend owner and a corpus both sides read, and the
+three rules that had drifted — name truncation, blank output names, and id ordering — now agree.
+Behaviour → [overlay.md](./overlay.md) § Stage I.
+
+**Start here: Stage C**, the only stage still open. Everything else is complete for the account
+scope.
+
+**Stages H and I are independent of Stage C** and proceed while the corporation scope stays deferred;
 the page leaves the same corporation seams the archive dialogue does.
 
 **Start here for Stage C: decide what scopes a job to a corporation.** That decision — and the
@@ -989,11 +1072,11 @@ step 1 has already run against live was not checked; do not assume live matches 
 
 ### Left open, none blocking
 
-1. **A statistics rebuild is owed** — see § Operational steps owed. Three changes have landed since
-   the last one: the Market segment now decides on evidence, broker fees count as market activity,
-   and the stored row lost its per-line corporation fields. Existing rows keep the old segments and
-   carry the orphaned fields until a rebuild rewrites them. The orphans are inert — nothing queries
-   or indexes them, and the driver ignores fields the struct no longer declares.
+1. **A statistics rebuild is owed** — see § Operational steps owed. Changes have landed since the last
+   one: the Market segment decides on evidence, broker fees count as market activity, the stored row
+   lost its per-line corporation fields, and a job's cost now includes invention. Existing rows keep
+   the old figures until a rebuild rewrites them. Behaviour →
+   [overlay.md](./overlay.md) § Corrections to figures already served.
 2. **`retainedStockBuild` is dead in the UI.** Nothing in `frontend/src` writes it, so Stock means
    "no recorded sale" rather than "deliberately kept". Wiring it would separate the two.
 3. ~~**The lifetime-totals module still says `buildStats`.**~~ **Done** — see § The SPA's statistics
