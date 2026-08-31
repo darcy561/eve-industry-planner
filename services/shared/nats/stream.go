@@ -41,12 +41,13 @@ func (s *Stream) Ensure(ctx context.Context) (jetstream.Stream, error) {
 	}
 
 	stream, err := s.js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
-		Name:      s.spec.Name,
-		Subjects:  append([]string(nil), s.spec.Subjects...),
-		Retention: jetstream.LimitsPolicy,
-		Storage:   jetstream.FileStorage,
-		MaxAge:    s.spec.MaxAge,
-		Metadata:  map[string]string{MetadataOwnerKey: MetadataOwnerValue},
+		Name:              s.spec.Name,
+		Subjects:          append([]string(nil), s.spec.Subjects...),
+		Retention:         jetstream.LimitsPolicy,
+		Storage:           jetstream.FileStorage,
+		MaxAge:            s.spec.MaxAge,
+		AllowMsgSchedules: s.spec.Schedules,
+		Metadata:          map[string]string{MetadataOwnerKey: MetadataOwnerValue},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("ensure stream %s: %w", s.spec.Name, err)

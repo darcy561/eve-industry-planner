@@ -48,10 +48,10 @@ func TestJobFromFirestoreMap_legacyNumericJobIDAndFlatBlueprintFields(t *testing
 				"totalQuantity":  float64(1200),
 			},
 			"costs": map[string]any{
-				"extrasCosts":    []any{},
+				"extrasCosts":       []any{},
 				"totalPurchaseCost": float64(100),
-				"installCosts":   float64(10),
-				"linkedJobs":     []any{},
+				"installCosts":      float64(10),
+				"linkedJobs":        []any{},
 			},
 			"materials": []any{
 				map[string]any{
@@ -67,7 +67,7 @@ func TestJobFromFirestoreMap_legacyNumericJobIDAndFlatBlueprintFields(t *testing
 					map[string]any{
 						"order_id":       float64(1),
 						"price":          float64(11.35),
-						"duration":     float64(90),
+						"duration":       float64(90),
 						"is_corporation": false,
 						"type_id":        float64(213),
 						"volume_total":   float64(100),
@@ -82,7 +82,7 @@ func TestJobFromFirestoreMap_legacyNumericJobIDAndFlatBlueprintFields(t *testing
 				"brokersFee":   []any{},
 			},
 		},
-		"skills": []any{},
+		"skills":    []any{},
 		"parentJob": []any{},
 	}
 
@@ -154,13 +154,13 @@ func TestJobFromFirestoreMap_legacyNumericJobIDAndFlatBlueprintFields(t *testing
 
 func TestJobFromFirestoreMap_extrasCostsRemapAndLinkedJobType(t *testing.T) {
 	doc := map[string]any{
-		"jobID":    float64(1),
-		"jobType":  float64(2),
-		"name":     "X",
-		"itemID":   float64(1),
-		"jobStatus": float64(0),
-		"volume":   float64(1),
-		"archived": true,
+		"jobID":              float64(1),
+		"jobType":            float64(2),
+		"name":               "X",
+		"itemID":             float64(1),
+		"jobStatus":          float64(0),
+		"volume":             float64(1),
+		"archived":           true,
 		"maxProductionLimit": float64(1),
 		"rawData": map[string]any{
 			"products": []any{map[string]any{"quantity": float64(1), "typeID": float64(1)}},
@@ -212,18 +212,18 @@ func TestJobFromFirestoreMap_extrasCostsRemapAndLinkedJobType(t *testing.T) {
 
 func TestJobFromFirestoreMap_extrasCosts_missingCategoryDefaultsToZero(t *testing.T) {
 	doc := map[string]any{
-		"jobID":               float64(2),
-		"jobType":             float64(1),
-		"name":                "Y",
-		"itemID":              float64(34),
-		"jobStatus":           float64(0),
-		"volume":              float64(1),
-		"archived":            true,
-		"maxProductionLimit":  float64(1),
-		"rawData":             map[string]any{"products": []any{map[string]any{"quantity": float64(1), "typeID": float64(1)}}},
-		"bpME":                float64(0),
-		"runCount":            float64(1),
-		"jobCount":            float64(1),
+		"jobID":              float64(2),
+		"jobType":            float64(1),
+		"name":               "Y",
+		"itemID":             float64(34),
+		"jobStatus":          float64(0),
+		"volume":             float64(1),
+		"archived":           true,
+		"maxProductionLimit": float64(1),
+		"rawData":            map[string]any{"products": []any{map[string]any{"quantity": float64(1), "typeID": float64(1)}}},
+		"bpME":               float64(0),
+		"runCount":           float64(1),
+		"jobCount":           float64(1),
 		"build": map[string]any{
 			"products":  map[string]any{"totalQuantity": float64(1)},
 			"materials": []any{},
@@ -255,17 +255,17 @@ func TestJobFromFirestoreMap_extrasCosts_missingCategoryDefaultsToZero(t *testin
 func TestJobFromFirestoreMap_modernShapeRoundTripMeta(t *testing.T) {
 	// Minimal modern doc: setup already under build, string jobID, linked uses isCorp
 	doc := map[string]any{
-		"jobID":              "job-uuid-1",
-		"jobType":            float64(1),
-		"name":               "Modern",
-		"itemID":             float64(2420),
-		"maxProductionLimit": float64(10),
-		"jobStatus":          float64(4),
-		"volume":             float64(20),
-		"archived":           true,
+		"jobID":               "job-uuid-1",
+		"jobType":             float64(1),
+		"name":                "Modern",
+		"itemID":              float64(2420),
+		"maxProductionLimit":  float64(10),
+		"jobStatus":           float64(4),
+		"volume":              float64(20),
+		"archived":            true,
 		"itemsProducedPerRun": float64(1),
-		"buildVer":           "0.7.65",
-		"groupID":            nil,
+		"buildVer":            "0.7.65",
+		"groupID":             nil,
 		"build": map[string]any{
 			"childJobs": map[string]any{"11399": []any{}},
 			"setup": map[string]any{
@@ -277,7 +277,7 @@ func TestJobFromFirestoreMap_modernShapeRoundTripMeta(t *testing.T) {
 			},
 			"products": map[string]any{"totalQuantity": float64(13)},
 			"costs": map[string]any{
-				"extrasCosts":   []any{},
+				"extrasCosts": []any{},
 				"linkedJobs": []any{
 					map[string]any{
 						"job_id": float64(1), "status": "delivered", "isCorp": true,
@@ -291,8 +291,8 @@ func TestJobFromFirestoreMap_modernShapeRoundTripMeta(t *testing.T) {
 				"marketOrders": []any{}, "transactions": []any{}, "brokersFee": []any{},
 			},
 		},
-		"rawData": map[string]any{"materials": []any{}, "products": []any{}, "time": float64(0)},
-		"skills":  []any{},
+		"rawData":   map[string]any{"materials": []any{}, "products": []any{}, "time": float64(0)},
+		"skills":    []any{},
 		"parentJob": []any{},
 	}
 
@@ -1187,11 +1187,11 @@ func TestJobFromFirestoreMap_normalizesJobMaterialScalars(t *testing.T) {
 			"costs":    map[string]any{"extrasCosts": []any{}, "linkedJobs": []any{}},
 			"materials": []any{
 				map[string]any{
-					"typeID":            float64(34),
-					"name":              "Trit",
-					"quantity":          "1001",
-					"jobType":           float64(0),
-					"volume":            "0.0375",
+					"typeID":   float64(34),
+					"name":     "Trit",
+					"quantity": "1001",
+					"jobType":  float64(0),
+					"volume":   "0.0375",
 					"purchasing": []any{
 						map[string]any{
 							"id":             "p1",
@@ -1332,10 +1332,10 @@ func TestJobFromFirestoreMap_rootAPIArraysNeverNull(t *testing.T) {
 			"materials": []any{},
 			"sale":      map[string]any{"marketOrders": []any{}, "transactions": []any{}, "brokersFee": []any{}},
 		},
-		"bpME":     float64(0),
-		"runCount": float64(1),
-		"jobCount": float64(1),
-		"skills":   []any{},
+		"bpME":      float64(0),
+		"runCount":  float64(1),
+		"jobCount":  float64(1),
+		"skills":    []any{},
 		"parentJob": []any{},
 	}
 
@@ -1390,10 +1390,10 @@ func TestJobFromFirestoreMap_metaLevelFromRecipeList(t *testing.T) {
 				"marketOrders": []any{}, "transactions": []any{}, "brokersFee": []any{},
 			},
 		},
-		"bpME":     float64(0),
-		"runCount": float64(1),
-		"jobCount": float64(1),
-		"skills":   []any{},
+		"bpME":      float64(0),
+		"runCount":  float64(1),
+		"jobCount":  float64(1),
+		"skills":    []any{},
 		"parentJob": []any{},
 	}
 

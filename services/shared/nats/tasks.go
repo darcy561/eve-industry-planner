@@ -74,21 +74,18 @@ var (
 		Subject:         "task.scheduled.refreshSystemIndexes",
 		DefaultPriority: Priority3,
 		DefaultTimeout:  60 * time.Second,
-		Requestable:     true,
 	})
 	RefreshAdjustedPrices = defineTask(Definition{
 		Name:            "refreshAdjustedPrices",
 		Subject:         "task.scheduled.refreshAdjustedPrices",
 		DefaultPriority: Priority3,
 		DefaultTimeout:  60 * time.Second,
-		Requestable:     true,
 	})
 	RefreshRegionMarketOrders = defineTask(Definition{
 		Name:            "refreshRegionMarketOrders",
 		Subject:         "task.scheduled.refreshRegionMarketOrders",
 		DefaultPriority: Priority4,
 		DefaultTimeout:  30 * time.Minute,
-		Requestable:     true,
 	})
 	UpdateAccountSessionGrants = defineTask(Definition{
 		Name:            "updateAccountSessionGrants",

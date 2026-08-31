@@ -11,7 +11,4 @@ func TestParsePlacementStateRequiresContainerID(t *testing.T) {
 
 func TestPlacementStateMessageType(t *testing.T) {
 	t.Parallel()
-	if (PlacementState{}).MessageType() != MessageTypeWSPlacement {
-		t.Fatalf("got %q", (PlacementState{}).MessageType())
-	}
 }

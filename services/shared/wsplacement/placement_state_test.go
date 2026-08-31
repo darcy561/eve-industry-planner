@@ -39,9 +39,6 @@ func TestNewPlacementStateAndRoundTrip(t *testing.T) {
 	if !s.Soft || s.Full || s.Draining || s.Clients != 12 || s.ContainerID != "abc123456789" {
 		t.Fatalf("unexpected state: %+v", s)
 	}
-	if s.MessageType() != eipnats.MessageTypeWSPlacement {
-		t.Fatalf("MessageType=%q", s.MessageType())
-	}
 	raw, err := json.Marshal(s)
 	if err != nil {
 		t.Fatal(err)

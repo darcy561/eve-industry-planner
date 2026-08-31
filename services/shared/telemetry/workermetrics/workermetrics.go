@@ -71,4 +71,3 @@ func RecordAsynqTask(ctx context.Context, taskType, outcome string, d time.Durat
 	mm.durationMs.Record(ctx, ms, metric.WithAttributes(attrs...))
 	mm.tasksTotal.Add(ctx, 1, metric.WithAttributes(attrs...))
 }
-

@@ -14,8 +14,6 @@ type Definition struct {
 	Subject         string
 	DefaultPriority string
 	DefaultTimeout  time.Duration
-	// Requestable marks a task the scheduler will accept a deferred run for.
-	Requestable bool
 }
 
 var taskRegistry = map[string]Definition{}

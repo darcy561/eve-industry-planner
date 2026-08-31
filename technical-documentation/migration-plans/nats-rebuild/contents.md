@@ -47,4 +47,5 @@ message schedules, and the management surface (list, modify, cancel) built on to
 | Check what has landed and what is still open | [plan.md](./plan.md) § Stage status |
 | See the call sites still reading a task definition | [plan.md](./plan.md) § Deferred for review |
 | Revisit how the worker resolves a task | [plan.md](./plan.md) § The worker's interaction with a task wants revisiting |
+| Revisit the cron scheduler | [plan.md](./plan.md) § The cron scheduler wants a rewrite of its own |
 | See how a part of the system works after a stage lands | [overlay.md](./overlay.md) |

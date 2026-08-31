@@ -20,8 +20,8 @@ type NATS struct {
 
 	// Named streams, bound from [Specs]. Binding touches no server.
 	Tasks     *Stream
-	Scheduler *Stream
 	DocUpdate *Stream
+	Schedules *Stream
 }
 
 // NewNATS binds a connection, its JetStream context, and the declared streams.
@@ -36,8 +36,8 @@ func NewNATS(conn *natslib.Conn, js jetstream.JetStream) (*NATS, error) {
 		conn:      conn,
 		js:        js,
 		Tasks:     newStream(TaskStreamSpec(), js),
-		Scheduler: newStream(SchedulerStreamSpec(), js),
 		DocUpdate: newStream(DocUpdateStreamSpec(), js),
+		Schedules: newStream(ScheduleStreamSpec(), js),
 	}, nil
 }
 

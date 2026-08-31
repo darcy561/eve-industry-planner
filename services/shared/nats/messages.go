@@ -15,7 +15,6 @@ import (
 // Message type constants for the Message.Type field
 const (
 	MessageTypeTask        = "task"         // Task message type
-	MessageTypeSchedule    = "schedule"     // Schedule message type
 	MessageTypeEmpty       = "empty"        // Empty message type
 	MessageTypeHealth      = "health"       // Control-plane health census (core NATS, not JetStream)
 	MessageTypeWSPlacement = "ws_placement" // Websocket placement load flags (core NATS pub/sub)
@@ -27,13 +26,6 @@ const (
 	// Subscribers: core (metrics gauge) and api (static-data cache refresh).
 	SubjectCoreSDEBuildUpdated = "core.metrics.sde.build.updated"
 )
-
-// MessageType is an interface that message payload types can implement to specify their message type.
-// If a type implements this interface, Publish will use the returned type string.
-// Otherwise, the type name will be used as the message type.
-type MessageType interface {
-	MessageType() string
-}
 
 // Message represents a generic message with a type and optional payload data.
 // This is the unified message structure used for all NATS message publishing.
@@ -119,32 +111,12 @@ func MergeTraceCarrierIntoHeaders(headers map[string]string, traceparent, traces
 	return headers
 }
 
-// ScheduleRequest represents a request to schedule a one-time task.
-// Used for scheduling tasks via the scheduler.schedule subject.
-// This is the payload structure for "schedule" type messages.
-type ScheduleRequest struct {
-	JobID    string          `json:"job_id,omitempty"` // Unique job identifier (optional, will be generated if not provided)
-	TaskType string          `json:"task_type"`        // e.g., "refreshSystemIndexes"
-	RunAt    int64           `json:"run_at"`           // Unix timestamp in milliseconds
-	Data     json.RawMessage `json:"data,omitempty"`   // Optional JSON-encoded data to pass to the task handler
-}
-
-// MessageType returns the message type identifier for ScheduleRequest.
-func (ScheduleRequest) MessageType() string {
-	return MessageTypeSchedule
-}
-
 // TaskMessage is the payload of a "task" message: which task, and its data. The
 // queue and deadline come from the task's definition, resolved by name in the
 // worker.
 type TaskMessage struct {
 	TaskType string          `json:"task_type"`
 	Data     json.RawMessage `json:"data,omitempty"`
-}
-
-// MessageType returns the message type identifier for TaskMessage.
-func (TaskMessage) MessageType() string {
-	return MessageTypeTask
 }
 
 // HealthPing is an optional payload on health.command.ping (raw or Message.Data).
@@ -172,11 +144,6 @@ type HealthStatus struct {
 	ActiveTasks       int    `json:"active_tasks,omitempty"`
 }
 
-// MessageType returns the message type identifier for HealthStatus.
-func (HealthStatus) MessageType() string {
-	return MessageTypeHealth
-}
-
 // PlacementState is the raw JSON payload for SubjectWSPlacementState (not a Message envelope)
 // and for websocket GET /placement.
 type PlacementState struct {
@@ -185,11 +152,6 @@ type PlacementState struct {
 	Soft        bool   `json:"soft"`
 	Full        bool   `json:"full"`
 	Draining    bool   `json:"draining"`
-}
-
-// MessageType returns the message type identifier for PlacementState.
-func (PlacementState) MessageType() string {
-	return MessageTypeWSPlacement
 }
 
 // WSCommand is the req payload for ws.command.cordon|drain|uncordon.
@@ -203,11 +165,6 @@ type WSCommandAck struct {
 	ContainerID string `json:"container_id"`
 	Action      string `json:"action"` // cordon | drain | uncordon
 	Error       string `json:"error,omitempty"`
-}
-
-// MessageType returns the message type identifier for WSCommandAck.
-func (WSCommandAck) MessageType() string {
-	return MessageTypeWSCommand
 }
 
 // ParsePlacementState decodes raw PlacementState JSON (not a Message envelope).

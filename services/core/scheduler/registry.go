@@ -75,12 +75,7 @@ func (r *JobRegistry) Start(natsHandle *eipnats.NATS, redisClient *redislib.Clie
 		r.cleanups = append(r.cleanups, cleanup)
 	}
 
-	// Restore one-time jobs from Redis (after handlers are registered)
-	if err := r.schedulerHandler.RestoreOneTimeJobs(); err != nil {
-		logs.WarnCtx(bg, "failed to restore one-time jobs from Redis", "component", schedulerLogComponent, "error", err)
-	}
-
-	// Start the scheduler after all handlers are registered, cron jobs are scheduled, and one-time jobs are restored
+	// Start the scheduler after all handlers are registered and cron jobs are scheduled
 	if err := r.schedulerHandler.Start(); err != nil {
 		return err
 	}
