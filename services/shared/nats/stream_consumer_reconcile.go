@@ -12,14 +12,15 @@ import (
 )
 
 // StreamConsumerKeepPolicy describes which durables on a stream are still intentional.
-// Anything else is deleted. Prefer this over maintaining legacy-name delete lists.
+// Durables this app owns that match neither rule are deleted; durables it does not
+// own are never touched.
 type StreamConsumerKeepPolicy struct {
 	// KeepExact are durable names that must remain (this process's fan-out durables,
 	// or shared names like task-worker).
 	KeepExact []string
-	// KeepPrefixes are per-replica durable prefixes. Matching names with waiting pulls
-	// are retained (live peers); matching names with 0 waiters are deleted as orphans.
-	// InactiveThreshold is stamped onto kept prefix matches.
+	// KeepPrefixes are the per-replica durable prefixes currently in use. A peer's
+	// durable matches too; an abandoned one is reaped by InactiveThreshold rather
+	// than by this pass.
 	KeepPrefixes []string
 	// InactiveThreshold, when > 0, is stamped onto kept prefix-matching durables
 	// (and onto KeepExact when ApplyThresholdToExact is true).
@@ -31,6 +32,7 @@ type StreamConsumerKeepPolicy struct {
 // StreamConsumerReconcileResult summarizes allowlist-based consumer hygiene.
 type StreamConsumerReconcileResult struct {
 	Listed  int
+	Skipped int // durables this app does not own
 	Deleted int
 	Updated int
 }
@@ -48,9 +50,7 @@ func keepExactSet(names []string) map[string]struct{} {
 	return out
 }
 
-// ConsumerKeptByPolicy reports whether name is allowed by the keep policy's static
-// allowlist (exact name or prefix). Runtime orphan detection (0 waiting pulls) is
-// applied separately in ReconcileStreamConsumers.
+// ConsumerKeptByPolicy reports whether name is allowed by the keep policy.
 func ConsumerKeptByPolicy(name string, policy StreamConsumerKeepPolicy) bool {
 	if _, ok := keepExactSet(policy.KeepExact)[name]; ok {
 		return true
@@ -102,49 +102,20 @@ func DeleteConsumers(ctx context.Context, stream jetstream.Stream, names ...stri
 	return ok
 }
 
-// ReconcileStreamConsumers deletes durables not covered by policy and optionally
-// reconciles InactiveThreshold on kept durables. Listing is fully buffered before
-// any deletes so offset-based JetStream pagination cannot skip consumers mid-pass.
-// Multiple passes cover concurrent peer deletes.
+// ReconcileStreamConsumers deletes durables this app owns that the policy no
+// longer covers, and stamps InactiveThreshold on the ones it keeps.
+//
+// Abandoned per-replica durables are left to InactiveThreshold: the server
+// deletes one that stops pulling, which needs no guess about whether a quiet
+// peer is dead. Listing is fully buffered before any delete so offset-based
+// pagination cannot skip a consumer mid-pass.
 func ReconcileStreamConsumers(ctx context.Context, stream jetstream.Stream, policy StreamConsumerKeepPolicy) (StreamConsumerReconcileResult, error) {
 	var result StreamConsumerReconcileResult
 	if stream == nil {
 		return result, nil
 	}
-
-	const maxPasses = 8
-	for range maxPasses {
-		passResult, err := reconcileStreamConsumersOnce(ctx, stream, policy)
-		result.Listed = passResult.Listed
-		result.Deleted += passResult.Deleted
-		result.Updated += passResult.Updated
-		if err != nil {
-			return result, err
-		}
-		if passResult.Deleted == 0 {
-			break
-		}
-	}
-
-	if result.Deleted > 0 || result.Updated > 0 {
-		logs.InfoCtx(ctx, "reconciled JetStream stream consumers",
-			"listed", result.Listed,
-			"deleted", result.Deleted,
-			"updated_inactive_threshold", result.Updated,
-			"inactive_threshold", policy.InactiveThreshold.String())
-	} else {
-		logs.DebugCtx(ctx, "JetStream stream consumers already reconciled",
-			"listed", result.Listed)
-	}
-	return result, nil
-}
-
-func reconcileStreamConsumersOnce(ctx context.Context, stream jetstream.Stream, policy StreamConsumerKeepPolicy) (StreamConsumerReconcileResult, error) {
-	var result StreamConsumerReconcileResult
 	exact := keepExactSet(policy.KeepExact)
 
-	// Buffer the full consumer list before mutating — deleting while walking
-	// JetStream's offset pages skips remaining durables.
 	lister := stream.ListConsumers(ctx)
 	var infos []*jetstream.ConsumerInfo
 	for info := range lister.Info() {
@@ -156,37 +127,21 @@ func reconcileStreamConsumersOnce(ctx context.Context, stream jetstream.Stream, 
 	result.Listed = len(infos)
 
 	for _, info := range infos {
+		if info.Config.Metadata[MetadataOwnerKey] != MetadataOwnerValue {
+			result.Skipped++
+			continue
+		}
 		name := info.Name
 		_, keptExact := exact[name]
 		keptPrefix := consumerMatchesPrefix(name, policy.KeepPrefixes)
-
-		switch {
-		case keptExact:
-			// Always keep this process's durables.
-		case keptPrefix:
-			// Same naming generation: drop abandoned replicas (no waiters).
-			// Callers should run this after pull loops are up so peers show NumWaiting > 0.
-			if info.NumWaiting == 0 {
-				if err := DeleteConsumer(ctx, stream, name); err == nil {
-					result.Deleted++
-				}
-				continue
-			}
-		default:
+		if !keptExact && !keptPrefix {
 			if err := DeleteConsumer(ctx, stream, name); err == nil {
 				result.Deleted++
 			}
 			continue
 		}
 
-		applyThreshold := false
-		if policy.InactiveThreshold > 0 {
-			if keptPrefix {
-				applyThreshold = true
-			} else if keptExact && policy.ApplyThresholdToExact {
-				applyThreshold = true
-			}
-		}
+		applyThreshold := policy.InactiveThreshold > 0 && (keptPrefix || policy.ApplyThresholdToExact)
 		if !applyThreshold || info.Config.InactiveThreshold == policy.InactiveThreshold {
 			continue
 		}
@@ -198,36 +153,17 @@ func reconcileStreamConsumersOnce(ctx context.Context, stream jetstream.Stream, 
 		}
 		result.Updated++
 	}
+
+	if result.Deleted > 0 || result.Updated > 0 {
+		logs.InfoCtx(ctx, "reconciled JetStream stream consumers",
+			"listed", result.Listed,
+			"skipped_not_owned", result.Skipped,
+			"deleted", result.Deleted,
+			"updated_inactive_threshold", result.Updated,
+			"inactive_threshold", policy.InactiveThreshold.String())
+	} else {
+		logs.DebugCtx(ctx, "JetStream stream consumers already reconciled",
+			"listed", result.Listed, "skipped_not_owned", result.Skipped)
+	}
 	return result, nil
-}
-
-// DocUpdateFanoutKeepPolicy is the allowlist for doc-update-stream websocket durables.
-// keepExact should be this replica's current durable names so they are never treated as orphans.
-func DocUpdateFanoutKeepPolicy(inactiveThreshold time.Duration, keepExact ...string) StreamConsumerKeepPolicy {
-	if inactiveThreshold <= 0 {
-		inactiveThreshold = time.Hour
-	}
-	return StreamConsumerKeepPolicy{
-		KeepExact: keepExact,
-		KeepPrefixes: []string{
-			DurablePrefixDocLiveUpdates,
-			DurablePrefixDocLock,
-		},
-		InactiveThreshold:     inactiveThreshold,
-		ApplyThresholdToExact: true,
-	}
-}
-
-// WorkerTaskKeepPolicy is the allowlist for worker-task-stream (single shared durable).
-func WorkerTaskKeepPolicy() StreamConsumerKeepPolicy {
-	return StreamConsumerKeepPolicy{
-		KeepExact: []string{ConsumerTaskWorker},
-	}
-}
-
-// SchedulerKeepPolicy is the allowlist for scheduler-stream (single shared durable).
-func SchedulerKeepPolicy() StreamConsumerKeepPolicy {
-	return StreamConsumerKeepPolicy{
-		KeepExact: []string{ConsumerScheduler},
-	}
 }

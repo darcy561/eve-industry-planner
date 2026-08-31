@@ -26,10 +26,7 @@ func TestIntegrationSelectiveFanoutHostPullsNonHostDoesNot(t *testing.T) {
 	js := fake.JS()
 	ctx := context.Background()
 
-	if err := eipnats.EnsureDocUpdateStream(js); err != nil {
-		t.Fatal(err)
-	}
-	stream, err := js.Stream(ctx, eipnats.DocUpdateStream)
+	stream, err := fake.NATS.DocUpdate.Ensure(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +45,7 @@ func TestIntegrationSelectiveFanoutHostPullsNonHostDoesNot(t *testing.T) {
 	host.fanoutStream = stream
 
 	liveDurable, liveCfg := natslogic.DocLiveUpdatesConsumerConfig()
-	hostCons, err := eipnats.GetOrCreateConsumer(ctx, stream, liveCfg)
+	hostCons, err := fake.NATS.DocUpdate.Consumer(ctx, liveCfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,12 +54,12 @@ func TestIntegrationSelectiveFanoutHostPullsNonHostDoesNot(t *testing.T) {
 	}
 
 	// Peer durable stays inert (no HostedTenants reconcile).
-	peerCons, err := eipnats.GetOrCreateConsumer(ctx, stream, jetstream.ConsumerConfig{
+	peerCons, err := fake.NATS.DocUpdate.Consumer(ctx, jetstream.ConsumerConfig{
 		Durable:           "doc-live-updates-websocket-integ-fanout-peer",
 		FilterSubjects:    []string{eipnats.DocUpdateFilterInert},
 		DeliverPolicy:     jetstream.DeliverNewPolicy,
 		AckPolicy:         jetstream.AckExplicitPolicy,
-		InactiveThreshold: natslogic.DocFanoutConsumerInactiveThreshold,
+		InactiveThreshold: eipnats.DocFanoutInactiveThreshold,
 	})
 	if err != nil {
 		t.Fatal(err)

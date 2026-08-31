@@ -94,11 +94,7 @@ func NewServer(clients *stackservices.Clients) (*Server, error) {
 	// Lock notifications (API → NATS doc.lock.{accountID} → all tabs)
 	s.subscribeToDocLockNotifications()
 
-	// Delay so both replicas have waiting pulls before orphan deletes run.
-	go func() {
-		time.Sleep(5 * time.Second)
-		s.reconcileDocUpdateFanoutConsumers()
-	}()
+	s.reconcileDocUpdateFanoutConsumers()
 
 	// Start cleanup goroutine for idle queues
 	s.startCleanupGoroutine()

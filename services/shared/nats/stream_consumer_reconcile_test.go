@@ -4,16 +4,16 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
 
 func TestConsumerKeptByPolicy(t *testing.T) {
 	t.Parallel()
-	doc := DocUpdateFanoutKeepPolicy(time.Hour, "doc-live-updates-mine", "doc-lock-mine")
-	worker := WorkerTaskKeepPolicy()
-	sched := SchedulerKeepPolicy()
+	doc := DocUpdateStreamSpec().Keep
+	doc.KeepExact = []string{"doc-live-updates-mine", "doc-lock-mine"}
+	worker := TaskStreamSpec().Keep
+	sched := SchedulerStreamSpec().Keep
 
 	cases := []struct {
 		name   string
@@ -70,16 +70,18 @@ func TestDeleteConsumerNoop(t *testing.T) {
 	}
 }
 
-func TestDocUpdateFanoutKeepPolicyIncludesExactAndThreshold(t *testing.T) {
+// The fan-out spec carries the crash backstop; a replica adds its own durables
+// as exact keeps when it reconciles.
+func TestDocUpdateSpecKeepCarriesThreshold(t *testing.T) {
 	t.Parallel()
-	p := DocUpdateFanoutKeepPolicy(time.Hour, "doc-live-updates-a", "doc-lock-a")
-	if len(p.KeepExact) != 2 {
-		t.Fatalf("KeepExact=%v", p.KeepExact)
-	}
-	if p.InactiveThreshold != time.Hour {
+	p := DocUpdateStreamSpec().Keep
+	if p.InactiveThreshold != DocFanoutInactiveThreshold {
 		t.Fatalf("InactiveThreshold=%v", p.InactiveThreshold)
 	}
 	if !p.ApplyThresholdToExact {
 		t.Fatal("expected ApplyThresholdToExact")
+	}
+	if len(p.KeepPrefixes) != 2 {
+		t.Fatalf("KeepPrefixes=%v", p.KeepPrefixes)
 	}
 }

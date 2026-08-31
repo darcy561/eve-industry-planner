@@ -274,9 +274,11 @@ and are not mistaken for orphans. Stamping `ConsumerConfig.Metadata` with the ow
 the *generation* question a recorded fact rather than a naming convention. It does not by itself
 answer *liveness*, so the sweep still needs a signal for "this owner is gone".
 
-**Open question for Stage B:** whether `InactiveThreshold` alone is a sufficient reaper for crashed
-replicas, letting the peer-orphan pass and its boot delay be dropped, or whether the peer sweep is
-still wanted for faster cleanup. Decide with the metadata design, not before it.
+**Decided in Stage B:** `InactiveThreshold` is the reaper. The peer-orphan pass and the boot delay it
+required are removed, and reconcile gates on ownership metadata instead of guessing from waiting
+pulls. A crashed replica's durable now lingers up to the threshold rather than until the next peer
+boot; that is the trade accepted, and the threshold is one constant on the spec if it proves too
+slow.
 
 **This cleanup fixed a real failure.** Before it, abandoned durables accumulated without any reaper —
 development reached several thousand dead consumers, because every replica restart left its durables
@@ -482,7 +484,7 @@ topic today), a testing topic, and `backend/shared/contents.md` task-map rows.
 | Phase 1 — project folder and docs | Done |
 | Version pinning (server image, client, embedded test server) | Done |
 | A — handle and errors | Done |
-| B — streams and consumers as specs | Not started |
+| B — streams and consumers as specs | Done |
 | C — typed tasks and topics | Not started |
 | D — call-site cutover | Not started |
 | E — scheduled messages | Not started |

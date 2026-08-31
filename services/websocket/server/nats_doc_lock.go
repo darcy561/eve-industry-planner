@@ -17,19 +17,9 @@ func (s *Server) subscribeToDocLockNotifications() {
 	if s.Stack == nil || s.Stack.NATS.JS() == nil {
 		return
 	}
-	if err := eipnats.EnsureDocUpdateStream(s.Stack.NATS.JS()); err != nil {
-		logs.ErrorCtx(ctx, "doc lock: ensure stream", "error", err)
-		return
-	}
-
-	stream, err := eipnats.GetOrEnsureStream(
-		ctx,
-		s.Stack.NATS.JS(),
-		eipnats.EnsureDocUpdateStream,
-		eipnats.DocUpdateStream,
-	)
+	stream, err := s.Stack.NATS.DocUpdate.Ensure(ctx)
 	if err != nil {
-		logs.ErrorCtx(ctx, "doc lock: get stream", "error", err)
+		logs.ErrorCtx(ctx, "doc lock: ensure stream", "error", err)
 		return
 	}
 	s.fanoutFilterMu.Lock()
@@ -38,7 +28,7 @@ func (s *Server) subscribeToDocLockNotifications() {
 
 	docLockDurable, consumerConfig := natslogic.DocLockConsumerConfig()
 
-	consumer, err := eipnats.GetOrCreateConsumer(ctx, stream, consumerConfig)
+	consumer, err := s.Stack.NATS.DocUpdate.Consumer(ctx, consumerConfig)
 	if err != nil {
 		logs.ErrorCtx(ctx, "doc lock: create consumer", "error", err)
 		return
@@ -92,12 +82,9 @@ func (s *Server) subscribeToDocLockNotifications() {
 		close(stopChan)
 	}()
 
-	eipnats.StartMessageProcessingLoop(
-		consumer,
-		processor,
-		stopChan,
-		"doc.lock.>",
-	)
+	if err := eipnats.ConsumeUntil(consumer, "doc.lock.>", processor, stopChan); err != nil {
+		return
+	}
 
 	logs.DebugCtx(ctx, "subscribed to doc.lock notifications",
 		"consumer", docLockDurable,

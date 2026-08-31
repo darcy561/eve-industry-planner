@@ -13,13 +13,12 @@ import (
 )
 
 func TestLiveSelectiveFanoutFiltersAndColonTenant(t *testing.T) {
-	js := natsfake.New(t).JS()
+	fake := natsfake.New(t)
+	docUpdate := fake.NATS.DocUpdate
+	js := fake.JS()
 	ctx := context.Background()
 
-	if err := eipnats.EnsureDocUpdateStream(js); err != nil {
-		t.Fatal(err)
-	}
-	stream, err := js.Stream(ctx, eipnats.DocUpdateStream)
+	stream, err := docUpdate.Ensure(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,11 +35,11 @@ func TestLiveSelectiveFanoutFiltersAndColonTenant(t *testing.T) {
 		DeliverPolicy:  jetstream.DeliverNewPolicy,
 		AckPolicy:      jetstream.AckExplicitPolicy,
 	}
-	host, err := eipnats.GetOrCreateConsumer(ctx, stream, hostCfg)
+	host, err := docUpdate.Consumer(ctx, hostCfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := eipnats.GetOrCreateConsumer(ctx, stream, otherCfg)
+	other, err := docUpdate.Consumer(ctx, otherCfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +100,7 @@ func TestLiveSelectiveFanoutFiltersAndColonTenant(t *testing.T) {
 
 	// GetOrCreate with drifted filters updates in place.
 	hostCfg.FilterSubjects = eipnats.DocUpdateFiltersForHostedTenants([]string{"account:acct-1"})
-	again, err := eipnats.GetOrCreateConsumer(ctx, stream, hostCfg)
+	again, err := docUpdate.Consumer(ctx, hostCfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,11 +114,13 @@ func TestLiveSelectiveFanoutFiltersAndColonTenant(t *testing.T) {
 }
 
 func TestLiveUpdateConsumerFilterSubjectsNoop(t *testing.T) {
-	js := natsfake.New(t).JS()
+	docUpdate := natsfake.New(t).NATS.DocUpdate
 	ctx := context.Background()
-	_ = eipnats.EnsureDocUpdateStream(js)
-	stream, _ := js.Stream(ctx, eipnats.DocUpdateStream)
-	_, err := eipnats.GetOrCreateConsumer(ctx, stream, jetstream.ConsumerConfig{
+	stream, err := docUpdate.Ensure(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = docUpdate.Consumer(ctx, jetstream.ConsumerConfig{
 		Durable:        "noop",
 		FilterSubjects: []string{eipnats.DocUpdateFilterInert},
 		DeliverPolicy:  jetstream.DeliverNewPolicy,
