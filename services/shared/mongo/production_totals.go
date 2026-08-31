@@ -264,3 +264,33 @@ func (m *Mongo) LoadAccountProductionTotals(ctx context.Context, accountID strin
 	}
 	return out, nil
 }
+
+// LoadAccountTimelineMonths reads an account's stored monthly buckets, the
+// documents a reconcile compares its fold against.
+func (m *Mongo) LoadAccountTimelineMonths(ctx context.Context, accountID string, opts ...RetryOption) ([]models.AccountTimelineMonthBucket, error) {
+	if m == nil || m.AccountTimelineMonths == nil {
+		return nil, fmt.Errorf("mongo handle is required")
+	}
+	if accountID == "" {
+		return nil, fmt.Errorf("accountID is required")
+	}
+	coll, err := m.AccountTimelineMonths.requireColl()
+	if err != nil {
+		return nil, err
+	}
+
+	var out []models.AccountTimelineMonthBucket
+	err = Retry(ctx, applyRetryOptions("LoadAccountTimelineMonths", opts), func() error {
+		out = nil
+		cursor, findErr := coll.Find(ctx, bson.M{"accountID": accountID})
+		if findErr != nil {
+			return findErr
+		}
+		defer cursor.Close(ctx)
+		return cursor.All(ctx, &out)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}

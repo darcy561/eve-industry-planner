@@ -194,6 +194,10 @@ type AccountTimelineMonthBucket struct {
 	IsProductionChain bool   `bson:"isProductionChain"`
 	CalendarMonth     `bson:",inline"`
 	SalesMeasures     `bson:",inline"`
+	// ContributingRows counts the statistics rows folded into this bucket. It
+	// decides emptiness, which a sum of float money cannot: subtraction leaves a
+	// residue rather than zero.
+	ContributingRows int64 `bson:"contributingRows"`
 }
 
 // CorpTimelineMonthBucket is a pre-aggregated calendar month for a corporation and item type.

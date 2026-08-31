@@ -1210,11 +1210,20 @@ Computation stays pure and application stays in Mongo, matching how `AccountBuck
 `UpsertStructsPreservingMetaBulk` are already split: `archivestats` gains the delta derivation, and
 `shared/mongo` gains the write that applies it.
 
-**Cheapest and dearest do not invert.** Sums do; minima and maxima do not — removing the cheapest
-build leaves no way to recover the next one from a counter. Those two fields are recomputed by a
-bounded `sort + limit 1` against the owner/type/date index on the removal path only, which is
-rare. This is the one place in the stage where the incremental path cannot stand alone, and it is
-cheaper to say so than to let the figures drift.
+The shape they pass between them lives in `shared/models`, because `archivestats` already imports
+`shared/mongo` for document ids and the import cannot go both ways. `StatsDelta`, `StatsBucketKey`
+and `StatsTypeDelta` therefore sit with the measures they carry: one side derives, the other writes,
+and models names the thing in between.
+
+**Cheapest and dearest do not invert**, so they are not incremented at all. Sums move by addition;
+minima and maxima do not, and removing the cheapest build leaves nothing in a counter to recover the
+next one from.
+
+Rather than incrementing one way and repairing the other, the marks for a touched item type are
+**recomputed from that type's rows in both directions**. The measurement that decides it: an
+owner+type holds **2.3 rows on average and 46 at most**, so recomputing is a handful of small
+documents — cheaper than any scheme for maintaining a minimum in place, and it removes the asymmetry
+rather than handling it.
 
 **This re-opens something Stage B deliberately closed.** `AccountProductionTotals` records that these
 totals were once produced by a separate worker applying `$inc` per job behind a processed flag, and
@@ -1253,13 +1262,21 @@ delta landing while a rebuild is in flight would be lost: the rebuild folded its
 read before the delta, then upserts them wholesale over the `$inc`. The claim protocol protects the
 queue entry, not the documents.
 
-No new lock is introduced for this. The rebuild marks the queue entry when it claims the owner
-(`rebuildStartedAt`), and the delta path checks it: **if a rebuild is in flight, bump the claim
-instead of applying the delta**. Bumping the claim is already what invalidates that rebuild's clear,
-so the owner stays queued, is rebuilt again, and the new job is picked up by the rebuild that follows.
+No new lock is introduced for this. **If a rebuild is in flight, the delta path bumps the claim
+instead of applying.** Bumping the claim is already what invalidates that rebuild's clear, so the
+owner stays queued, is rebuilt again, and the new job is picked up by the rebuild that follows.
 
 The mechanism that already exists for "a change arrived mid-rebuild" is exactly the mechanism this
 needs. The delta path only has to recognise the case and fall back to it.
+
+Recognising it needs no new field. This section first proposed a `rebuildStartedAt` marker written by
+the rebuild, but the single-queue decision below makes that marker unreachable: a fold is only ever
+dispatched from an entry whose work is `delta`, and the only way that entry becomes a rebuild is
+`QueueOwnerWork`, which bumps the claim in the same call. So a rebuild can never be in flight for an
+owner while a fold still holds the current claim, and a marker would only ever restate what the claim
+already says. The condition the fold checks is therefore the **claim itself** —
+`OwnerClaimIsCurrent`, sharing `clearQueuedOwnerFilter` with `ClearQueuedOwner` so a fold may write
+exactly when it would still be allowed to finish.
 
 ##### Subtracting to nothing must remove the document, and counts decide that
 
@@ -1343,6 +1360,65 @@ document shapes are unchanged.
 documents a full rebuild produces, and the assertion that applying the same jobs as deltas produces
 the same documents. Plus the inverse: applying and then reverting a job returns the documents to
 their prior state.
+
+##### What landed
+
+1. **`ContributionOf` calls the folds rather than repeating them.** A row's contribution is derived by
+   folding a slice of one, through the same `AccumulateAccountBuckets`, `JobMeasures` and
+   `JobSegment` a rebuild uses. A test pins the property the whole approach rests on: summing every
+   row's contribution reaches what folding all of them reaches. Removal is that contribution negated,
+   so the figures a row put in are exactly what comes back out.
+2. **Totals are keyed by item type *and segment*.** Rows of one type can sit in different segments — a
+   build sold on the market, another consumed by a parent job — so merging on type alone credits only
+   whichever was folded last.
+3. **Emptiness is decided on a count.** Buckets carry `contributingRows`; a bucket is deleted when it
+   reaches zero. Subtracting float64 leaves a residue, so a test for zero money would never match and
+   the documents would accumulate — and an absent bucket means something a zeroed one does not.
+4. **The queue carries a work kind**, `delta` or `rebuild`. A rebuild supersedes a delta and upgrades
+   the entry; the reverse never happens. An entry written before the field existed reads as a
+   rebuild. Only rebuilds wait out the debounce — a fold is what a user is waiting on.
+5. **The fold task carries no job list.** Its work is the rows with no contribution stamp, and the
+   rows that still carry one although their job is no longer archived. The stamp that prevents
+   double-counting is therefore also the description of what is outstanding, in both directions.
+6. **Restoring revokes the rows it removed from the archive**, leaving the stamp in place. Revoked
+   says the figures should not be counted, the stamp says they still are, and the difference is the
+   work.
+7. **A rebuilt row is stamped as counted.** This was not anticipated and is the bug that would have
+   done the most damage: a rebuild writes the aggregates and the rows in one pass, so leaving a row
+   unstamped offers finished work to the next fold, which adds it on top of totals that are already
+   whole. Every test covered a single path; nothing saw the seam until a rebuild and a fold ran in
+   order. There is now a test for that seam.
+
+Verified against the development archive: a full rebuild of 227 owners reproduced the baseline
+figures exactly and stamped 9,530 rows, and a fold immediately afterwards reported `added:0
+removed:0` and left every figure identical.
+
+##### The guard, as built
+
+`applyOwnerDelta` reads the owner's outstanding rows before it writes anything, so between the read
+and the `$inc` a rebuild could have counted those same rows itself. The fold therefore calls
+`OwnerClaimIsCurrent` after loading and before the first write, and where the claim has moved it
+writes nothing: it re-queues the owner as delta work and returns `Deferred`. The rows stay unstamped
+and outstanding, and the bumped claim invalidates the clear of whatever superseded the fold, so the
+owner is worked again rather than left half applied.
+
+Three states fail the check and all three are correct to back off from: the entry was re-queued, it
+was upgraded to a rebuild, or it is gone because a rebuild already swept it. In each case something
+that derives every figure from the rows themselves is accounting for them.
+
+The check is skipped when the fold found nothing to do — with no rows there is nothing to
+double-count, and the clear that follows already carries the claim.
+
+`TestLive_rebuildQueue_claimCurrencyGuardsAFold` drives the three states against stack Mongo: current
+on the dispatched claim, not current once a rebuild upgrades the entry, and not current once the
+entry is swept.
+
+##### Known and not built — two folds on one claim
+
+Nothing marks a queue entry as dispatched, so two dispatcher passes overlapping on one owner can
+publish the same fold twice on the same claim. Both would pass the guard, both would read the same
+outstanding rows, and the figures would be added twice. It has not been observed, and J4 rewrites
+aggregates from rows every cycle, so drift of this shape self-heals. Recorded rather than fixed.
 
 #### J3 — One task per owner, dispatched rather than drained
 
@@ -1470,9 +1546,10 @@ derivation makes a property rather than a list to check.
 1. **`models.StatsOwner`** — a kind (`account` / `corporation` / `alliance`) and an id, with a
    `kind:id` key and a parser that keeps colons in the id, since a ref carries its own. `Validate`
    refuses a kind nothing can read back, so an entry nothing can address cannot reach storage.
-2. **The queue is keyed by owner.** `QueueOwnerRebuild`, `ListQueuedOwners` and `ClearQueuedOwner`
-   replace the account-shaped API; `QueueAccountRebuild` remains as the call every existing producer
-   makes. The entry stores the owner beside the key so a reader need not parse ids.
+2. **The queue is keyed by owner.** `QueueOwnerWork`, `ListQueuedOwners` and `ClearQueuedOwner`
+   replace the account-shaped API, and every producer names the owner and the work it wants. The
+   `kind:id` key is the only copy of the owner: a stored duplicate of it was written for a while and
+   never read, so it is gone.
 3. **`drainAccountStatsRebuildQueue` dispatches and no longer rebuilds.** It publishes one
    `rebuildOwnerStatistics` task (`priority_5`) per eligible owner, each carrying the claim its entry
    held. Each task rebuilds its owner and clears its own entry on its own claim, so there is no
@@ -1528,14 +1605,23 @@ nothing.
   therefore unambiguously a bug rather than arithmetic. Counts are the primary drift signal.
 - **Money compares with a relative tolerance**, falling back to an absolute one near zero.
 
-The same tolerance rule governs the zero test in J2, so it is defined once and used by both rather
-than re-derived at each site.
+J2's emptiness test is not one of these: it counts rows, so it needs no tolerance at all. The
+tolerance is defined once in `archivestats` and used only where floats are compared to each other,
+which is reporting.
 
 ##### Scheduling
 
-A rota, not a sweep: each owner is reconciled once per window, with the owner's id hashed across the
-window so load is flat rather than every owner landing on the same tick. It runs at `priority_5`
-alongside bulk rebuilds, since nothing waits on it.
+A rota, not a sweep: each owner is reconciled once per window. **Due time decides whose turn it is** —
+each reconcile stamps its owner in `account_stats_reconcile_rota`, and a tick takes the owners whose
+stamp is older than the window, oldest first, capped per tick. It runs at `priority_5` alongside bulk
+rebuilds, since nothing waits on it.
+
+Hashing the owner's id into a slot was the first design here, and it was dropped: the slot count is
+`window / interval`, so the constant and the cron expression in `core/scheduler/jobs.go` would have
+to agree, and disagreeing silently halves coverage or doubles the work. That is the shape the jobs
+table was introduced to remove. Due time needs no such agreement — the tick interval sets throughput
+and the window sets coverage, and either can change alone. It also takes on an owner seen for the
+first time immediately, where a slot would make it wait for its turn to come round.
 
 It is dispatched as **one task per owner**, reusing J3's task shape rather than the shape the existing
 maintenance tasks use. Its owners come from the rota, not from the rebuild queue — reconciliation is
@@ -1545,12 +1631,55 @@ that is small per entity. Reconciliation is not: it folds an owner's whole row s
 same per-owner weight as a rebuild and wants the same treatment. Using J3's dispatcher also means
 statistics work has one task shape rather than a third one.
 
-**Wire compatibility: none.** Reconciliation writes the documents that already exist, in the shape
-they already have.
+**Wire compatibility: additive.** Reconciliation writes the documents that already exist, and adds
+one field to the monthly bucket — see below. A new collection, `account_stats_reconcile_rota`, holds
+one small document per owner.
+
+##### The bucket's contributing-row count was never written by a rebuild
+
+Found while building this slice, and it is a defect in J2 rather than a gap in J4.
+
+`contributingRows` is what decides whether a bucket still has contributors — J2 chose an integer
+count precisely because subtracting float money leaves a residue rather than zero. But the count was
+only ever written by the delta path's `$inc`. It was not a field on
+`models.AccountTimelineMonthBucket`, so the rebuild, which writes buckets whole, never produced it.
+Measured on development: **0 of 7,584 buckets carried the field.**
+
+The consequence is not a missing figure, it is a wrong one. A bucket rebuilt from five rows carries
+no count; a delta that later adds one job `$inc`s it from absent to 1; removing two jobs takes it to
+-1, and the prune deletes a bucket that still has four rows behind it.
+
+The count is now a field on the bucket, folded by `AccumulateAccountBuckets` alongside the measures,
+so every absolute write — rebuild and reconcile alike — sets the true value. A row reaches several
+buckets but counts once in each, which is why the fold tracks the keys a row touched rather than
+counting the measures it added. Existing buckets gain the field the first time their owner is
+reconciled, so the rota repairs this on its own.
 
 **Tests:** a fixture where the aggregates are deliberately wrong and reconciliation restores them; a
 fixture where they are correct and reconciliation reports no drift and writes the same values; and
 tolerance cases — a float residue is not drift, a count mismatch is.
+
+##### What landed
+
+1. **The absolute write is shared with the rebuild.** `foldAccountAggregates` derives both
+   collections from rows and `writeAccountAggregates` writes them whole; the rebuild and the
+   reconcile call the same pair, so they cannot disagree about what an owner's aggregates should be.
+   The reconcile adds only the read of the rows and the comparison.
+2. **A reconcile bumps the owner's claim before it writes.** It accounts for every row a fold might
+   be holding, so that fold must not also apply them. `BumpOwnerClaim` reuses the mechanism the fold
+   already reads as "something else took this owner on"; it does not upsert, because with no queue
+   entry there is no work in flight to invalidate.
+3. **A reconcile restamps the rows.** Every live row is in the aggregates afterwards and every
+   revoked one is not, so the stamps have to say the same — leaving a live row unstamped would offer
+   it to the next fold as though it were new.
+4. **Drift is reported, never acted on.** `Drift` separates documents missing, extra, counts off and
+   money off, and records the widest money gap and the measure it was on. The write happens either
+   way.
+
+Verified against stack Mongo: a seeded owner's aggregates broken in all four ways at once —
+money off, count off, one bucket deleted, one orphan inserted — were reported as exactly those four
+and restored to the values the first reconcile produced, and a third reconcile over correct
+aggregates reported no drift.
 
 #### J5 — How the client learns the figures moved
 
@@ -1765,7 +1894,7 @@ whichever work touches SSO next rather than widened into this stage.
 | G — restore | **Complete** — three POST routes restore a job, a group rebuilt from its jobs, or a related set walked over the archive. The write is one server-side sequence: decrypt, resolve links, write job documents, re-link free ESI ids on the account, return the jobs to their groups, delete the archived documents, queue the rebuild. Each job rejoins the group it was archived from, merging into it when it is still on the planner. Conflicts are reported and stripped rather than blocking, and a group another session holds refuses the restore |
 | H — archived jobs page | **Complete for the account scope** — `/archived-jobs` carries the statistics tab (metric cards, eight charts, item table) and the jobs tab (list, three row shapes, restore). Chart primitives are shared and the price-history dialogue moved onto them. The list is not queried until its tab is opened, and both tabs carry a mobile layout |
 | I — one owner for group derivation | **Complete** — `models.Group` derives itself through `RebuildFrom` and `AddJobs`, mirroring the SPA's `createGroup` and `addJobsToGroup`; a nine-case corpus at `testing/fixtures/group-derivation` defines the rules and a harness on each side reads it. The three divergences it found are fixed |
-| J — incremental statistics and the build history panel | **J1 and J3 complete; J2, J4, J5 planned.** J1 landed the bucket's `quantityProduced` and `isProductionChain` key, `BuildHistoryMarks` on the totals row, `includeProductionChain` on the timeline read, the rebuilt Build History panel, the deletion of `BuildStatSnapshot`'s stored array, and the removal of the `archive_and_stats` change-stream group. A full rebuild and one Redis key deletion are owed — see § Operational steps owed. The rest:  archiving a job currently rebuilds every statistic the account holds, because `RebuildAccountStatistics` reduces every archived job on every run. Three slices: the stored snapshot array becomes a query and the panel that read it is rebuilt on the existing chart primitives; a job's contribution is applied as a delta rather than recomputed wholesale; the drain becomes a dispatcher over one task per owner, split by cost into a routine reconcile and a bulk full rebuild; reconciliation rewrites aggregates from rows every cycle so drift self-heals and detection is only reporting; and the client is told when figures move and when a recalculation is outstanding. Built on an owner rather than an account id, so Stage C adds a kind rather than a rewrite |
+| J — incremental statistics and the build history panel | **J1 to J4 complete; J5 planned.** Archiving and restoring no longer rebuild anything: a job's figures are folded in or taken back out on their own, and a fold that finds the owner taken on by a rebuild stands down instead of writing.  J1 landed the bucket's `quantityProduced` and `isProductionChain` key, `BuildHistoryMarks` on the totals row, `includeProductionChain` on the timeline read, the rebuilt Build History panel, the deletion of `BuildStatSnapshot`'s stored array, and the removal of the `archive_and_stats` change-stream group. The rest:  archiving a job currently rebuilds every statistic the account holds, because `RebuildAccountStatistics` reduces every archived job on every run. Three slices: the stored snapshot array becomes a query and the panel that read it is rebuilt on the existing chart primitives; a job's contribution is applied as a delta rather than recomputed wholesale; the drain becomes a dispatcher over one task per owner, split by cost into a routine reconcile and a bulk full rebuild; reconciliation rewrites aggregates from rows every cycle so drift self-heals and detection is only reporting; and the client is told when figures move and when a recalculation is outstanding. Built on an owner rather than an account id, so Stage C adds a kind rather than a rewrite |
 
 ## Done when
 
@@ -1865,8 +1994,13 @@ designed against a database where every corporation ref is empty would be guessi
 
 ### Operational steps owed
 
-Neither is development work. Both are commands run against a database, and both are needed on dev
+None of these is development work. They are commands run against a database, and they are needed
 before Stage C can be designed against representative data.
+
+**Steps 2 and 3 have been run on dev.** The rebuild covered all 227 owners and the resume token is
+deleted. They remain listed because they are still owed against live, and because `tasks
+prepareArchivedJobStatistics` performs all of them in one command — which is how a deploy should run
+them rather than one at a time.
 
 **Order matters: identity conversion first, then the rebuild.** The rebuild derives statistics from
 job documents, so converting identities first means it sees refs where they exist. The other order
@@ -1878,7 +2012,7 @@ just means the corporation data arrives a rebuild late.
 | 2. Rebuild statistics | `tasks queueArchivedJobStatsRebuild -all` (`-dry-run` first) | Recomputes every account's three collections. Idempotent, and safe to re-run. Owed again after J1: every bucket gains `quantityProduced` and `isProductionChain`, and every total gains `history` |
 | 3. Drop the retired resume token | `DEL eip:core:handoff:v1:cs:resume:archive_and_stats` in Redis | J1 removes the `archive_and_stats` change-stream group. Resume tokens are written with no expiry, so its key would sit there forever. One key, deleted once — a startup sweep to enumerate and prune stale group ids is more machinery than a single stale key earns |
 
-Both must also run against **live** when this work ships — with the caveat that live carries no
+These must also run against **live** when this work ships — with the caveat that live carries no
 statistics collections yet, so step 2 there is a first population rather than a catch-up. Whether
 step 1 has already run against live was not checked; do not assume live matches dev.
 
@@ -1962,6 +2096,7 @@ knowing rather than manufacturing a date.
    | Test | Pins |
    |------|------|
    | `live_rebuild_queue_test.go` | The claim protocol — `queuedAt` survives a re-queue while `claim` increments, a stale claim clears nothing, the current claim clears the account |
+   | `live_rebuild_queue_test.go` | The fold guard — `OwnerClaimIsCurrent` is true only on the dispatched claim, and false once a rebuild upgrades the entry or sweeps it |
    | `live_account_rebuild_test.go` § revokeAndPrune | Keep-list rows survive, absent ones are revoked not deleted, produced months stay and empty ones are pruned |
    | `live_account_rebuild_test.go` § emptyKeepListClearsTheAccount | An empty keep-list drops the `$nin` and empties the account, rather than leaving it untouched |
    | `live_account_rebuild_test.go` § writesBeforeRemoving | Both outgoing and incoming rows are readable between the write and removal halves, so a mid-rebuild reader sees no gap |

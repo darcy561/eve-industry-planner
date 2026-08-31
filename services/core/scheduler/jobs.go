@@ -25,6 +25,7 @@ var jobs = []Job{
 	{"cron.regionMarketOrdersRefresh", "*/15 * * * *", esi.RegionMarketOrdersRefresh},
 	{"cron.checkSDEUpdates", "0 17 * * *", sde.CheckSDEUpdates},
 	{"cron.drainAccountStatsRebuildQueue", "*/2 * * * *", archivedjobs.DrainAccountStatsRebuildQueue},
+	{"cron.dispatchStatisticsReconciles", "*/15 * * * *", archivedjobs.DispatchStatisticsReconciles},
 	{"cron.schemaVersionMaintenance", "0 * * * *", maintenance.SchemaVersionMaintenance},
 	{"cron.inactiveAccountPlannerCleanup", "0 8 * * 1", maintenance.InactiveAccountPlannerCleanup},
 	{"cron.cloudStoredEsiRefreshMaintenance", "*/10 * * * *", maintenance.CloudStoredEsiRefreshMaintenance},

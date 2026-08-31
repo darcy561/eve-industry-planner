@@ -80,14 +80,76 @@ func RebuildAccountStatistics(
 		}
 	}
 
-	buckets := archivestats.AccountBuckets(accountID, rows)
+	folded := foldAccountAggregates(accountID, rows)
+	written, err := writeAccountAggregates(ctx, mongo, folded)
+	if err != nil {
+		return out, err
+	}
+	out.TimelineMonths = written.Buckets
+	out.ProductionTotals = written.Totals
+
+	// Anything the rebuild did not produce describes a job that is no longer
+	// archived.
+	revoked, err := mongo.RevokeAccountArchivedJobStats(ctx, accountID, keepRowIDs, now)
+	if err != nil {
+		return out, fmt.Errorf("revoke removed statistics rows: %w", err)
+	}
+	out.RevokedRows = revoked
+	out.PrunedBuckets = written.PrunedBuckets
+	out.PrunedTotals = written.PrunedTotals
+
+	return out, nil
+}
+
+// aggregateWrite reports what one absolute write of an owner's aggregates did.
+type aggregateWrite struct {
+	Buckets       int
+	Totals        int
+	PrunedBuckets int64
+	PrunedTotals  int64
+}
+
+// accountAggregates is one owner's two aggregate collections, folded from its
+// rows and not yet written.
+type accountAggregates struct {
+	AccountID string
+	Buckets   []models.AccountTimelineMonthBucket
+	Totals    []models.ProductionTotalsRow
+}
+
+// foldAccountAggregates derives both collections from the rows.
+//
+// Separate from the write so a caller that wants to compare what is stored
+// against what should be there folds once and uses the result for both.
+func foldAccountAggregates(accountID string, rows []models.ArchivedJobStats) accountAggregates {
+	return accountAggregates{
+		AccountID: accountID,
+		Buckets:   archivestats.AccountBuckets(accountID, rows),
+		Totals:    archivestats.AccountProductionTotals(accountID, rows),
+	}
+}
+
+// writeAccountAggregates writes a fold whole, removing anything it did not
+// produce.
+//
+// Absolute rather than incremental: the result depends only on the rows, so two
+// of these racing write the same values, and it repairs whatever was there
+// before without needing to know how it went wrong.
+//
+// Order matters. Documents are written before anything is removed, so a reader
+// arriving mid-write sees the previous complete set or the new one, never a gap
+// where a month has been pruned and not yet rewritten.
+func writeAccountAggregates(ctx context.Context, mongo *eipmongo.Mongo, folded accountAggregates) (aggregateWrite, error) {
+	var out aggregateWrite
+	accountID, buckets, totals := folded.AccountID, folded.Buckets, folded.Totals
+
 	bucketItems := make([]eipmongo.StructUpsertItem, 0, len(buckets))
 	keepBucketIDs := make([]string, 0, len(buckets))
 	for _, bucket := range buckets {
 		bucketItems = append(bucketItems, eipmongo.StructUpsertItem{DocID: bucket.ID, Value: bucket})
 		keepBucketIDs = append(keepBucketIDs, bucket.ID)
 	}
-	out.TimelineMonths = len(buckets)
+	out.Buckets = len(buckets)
 
 	if len(bucketItems) > 0 {
 		if _, err := mongo.AccountTimelineMonths.UpsertStructsPreservingMetaBulk(ctx, bucketItems, rebuildUpsertBatch); err != nil {
@@ -97,29 +159,20 @@ func RebuildAccountStatistics(
 
 	// Lifetime totals per item type, the documents the totals read serves.
 	// Derived from the same rows rather than incremented per job by a second
-	// worker, so a rebuild cannot disagree with the timeline it was built beside.
-	totals := archivestats.AccountProductionTotals(accountID, rows)
+	// worker, so they cannot disagree with the timeline written beside them.
 	totalItems := make([]eipmongo.StructUpsertItem, 0, len(totals))
 	keepTotalIDs := make([]string, 0, len(totals))
 	for _, total := range totals {
 		totalItems = append(totalItems, eipmongo.StructUpsertItem{DocID: total.ID, Value: total})
 		keepTotalIDs = append(keepTotalIDs, total.ID)
 	}
-	out.ProductionTotals = len(totals)
+	out.Totals = len(totals)
 
 	if len(totalItems) > 0 {
 		if _, err := mongo.AccountProductionTotals.UpsertStructsPreservingMetaBulk(ctx, totalItems, rebuildUpsertBatch); err != nil {
 			return out, fmt.Errorf("upsert production totals: %w", err)
 		}
 	}
-
-	// Anything the rebuild did not produce describes a job that is no longer
-	// archived, or a month that no longer has activity.
-	revoked, err := mongo.RevokeAccountArchivedJobStats(ctx, accountID, keepRowIDs, now)
-	if err != nil {
-		return out, fmt.Errorf("revoke removed statistics rows: %w", err)
-	}
-	out.RevokedRows = revoked
 
 	pruned, err := mongo.PruneAccountTimelineMonths(ctx, accountID, keepBucketIDs)
 	if err != nil {

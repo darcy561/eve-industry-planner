@@ -58,11 +58,6 @@ var (
 		DefaultPriority: Priority5,
 		DefaultTimeout:  10 * time.Minute,
 	})
-	// DrainAccountStatsRebuildQueue rebuilds every account waiting in the statistics
-	// rebuild queue (worker: tasks/archivedjobs). One pass handles the whole queue
-	// rather than fanning out per account: the claim protocol that keeps a mid-rebuild
-	// re-queue from being cleared lives in the drain, and splitting it per account
-	// would move that logic into a path the queue's semantics are not tested against.
 	// ApplyOwnerStatisticsDelta folds one owner's uncounted statistics rows into
 	// its aggregates. Small and user-facing — the figures a user just archived
 	// wait on it — so it outranks the bulk rebuild.
@@ -81,11 +76,31 @@ var (
 		DefaultPriority: Priority5,
 		DefaultTimeout:  15 * time.Minute,
 	})
+	// DrainAccountStatsRebuildQueue reads the statistics queue and publishes one
+	// task per owner whose wait is up. It dispatches only, so its timeout covers a
+	// queue read and a fan-out rather than any owner's work.
 	DrainAccountStatsRebuildQueue = defineTask(Definition{
 		Name:            "drainAccountStatsRebuildQueue",
 		Subject:         "task.scheduled.drainAccountStatsRebuildQueue",
 		DefaultPriority: Priority4,
 		DefaultTimeout:  15 * time.Minute,
+	})
+	// ReconcileOwnerStatistics rewrites one owner's aggregates from its stored
+	// rows. Bulk work on a rota that nothing waits on, so it ranks with the
+	// rebuild it shares a write path with.
+	ReconcileOwnerStatistics = defineTask(Definition{
+		Name:            "reconcileOwnerStatistics",
+		Subject:         "task.scheduled.reconcileOwnerStatistics",
+		DefaultPriority: Priority5,
+		DefaultTimeout:  15 * time.Minute,
+	})
+	// DispatchStatisticsReconciles publishes a reconcile for every owner whose
+	// turn has come round. Like the drain, it only dispatches.
+	DispatchStatisticsReconciles = defineTask(Definition{
+		Name:            "dispatchStatisticsReconciles",
+		Subject:         "task.scheduled.dispatchStatisticsReconciles",
+		DefaultPriority: Priority5,
+		DefaultTimeout:  5 * time.Minute,
 	})
 	RefreshSystemIndexes = defineTask(Definition{
 		Name:            "refreshSystemIndexes",
@@ -238,6 +253,21 @@ func PublishRebuildOwnerStatistics(ctx context.Context, n *NATS, kind, id string
 		OwnerKind: kind,
 		OwnerID:   id,
 		Claim:     claim,
+	})
+}
+
+// PublishDispatchStatisticsReconciles asks the worker to dispatch a reconcile
+// for every owner whose turn has come round.
+func PublishDispatchStatisticsReconciles(ctx context.Context, n *NATS) error {
+	return publish(ctx, n, DispatchStatisticsReconciles, struct{}{})
+}
+
+// PublishReconcileOwnerStatistics asks the worker to rewrite one owner's
+// aggregates from its rows.
+func PublishReconcileOwnerStatistics(ctx context.Context, n *NATS, kind, id string) error {
+	return publish(ctx, n, ReconcileOwnerStatistics, ReconcileOwnerStatisticsRequest{
+		OwnerKind: kind,
+		OwnerID:   id,
 	})
 }
 

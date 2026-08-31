@@ -45,11 +45,11 @@ func TestJobCostCountsInstallAndExtrasOnce(t *testing.T) {
 	buckets := AccumulateAccountBuckets([]models.ArchivedJobStats{row})
 
 	got := buckets[models.StatsBucketKey{TypeID: 34, CalendarMonth: month(2026, 6)}]
-	if got.JobCostTotal != 105 { // 100 build (materials+install+extras) + 5 invention
-		t.Fatalf("jobCostTotal = %v, want 105 — each component counted once", got.JobCostTotal)
+	if got.Measures.JobCostTotal != 105 { // 100 build (materials+install+extras) + 5 invention
+		t.Fatalf("jobCostTotal = %v, want 105 — each component counted once", got.Measures.JobCostTotal)
 	}
-	if got.ProfitLoss != -105 {
-		t.Fatalf("profitLoss = %v, want -105", got.ProfitLoss)
+	if got.Measures.ProfitLoss != -105 {
+		t.Fatalf("profitLoss = %v, want -105", got.Measures.ProfitLoss)
 	}
 }
 
@@ -68,21 +68,21 @@ func TestSalesAndCostsSplitAcrossMonths(t *testing.T) {
 	}
 
 	may := buckets[models.StatsBucketKey{TypeID: 34, CalendarMonth: month(2026, 5)}]
-	if may.JobCostTotal != 105 || may.SalesTotal != 0 {
+	if may.Measures.JobCostTotal != 105 || may.Measures.SalesTotal != 0 {
 		t.Fatalf("May = %+v, want costs only", may)
 	}
 
 	june := buckets[models.StatsBucketKey{TypeID: 34, CalendarMonth: month(2026, 6)}]
-	if june.SalesTotal != 400 || june.TransactionFeeTotal != 40 || june.BrokersFeeTotal != 10 {
+	if june.Measures.SalesTotal != 400 || june.Measures.TransactionFeeTotal != 40 || june.Measures.BrokersFeeTotal != 10 {
 		t.Fatalf("June = %+v, want the sale and its fees", june)
 	}
-	if june.JobCostTotal != 0 {
-		t.Fatalf("June jobCostTotal = %v, want 0", june.JobCostTotal)
+	if june.Measures.JobCostTotal != 0 {
+		t.Fatalf("June jobCostTotal = %v, want 0", june.Measures.JobCostTotal)
 	}
-	if june.ProfitLoss != 350 { // 400 − 40 tax − 10 broker fee
-		t.Fatalf("June profitLoss = %v, want 350", june.ProfitLoss)
+	if june.Measures.ProfitLoss != 350 { // 400 − 40 tax − 10 broker fee
+		t.Fatalf("June profitLoss = %v, want 350", june.Measures.ProfitLoss)
 	}
-	if june.TransactionCount != 1 || june.QuantitySold != 2 {
+	if june.Measures.TransactionCount != 1 || june.Measures.QuantitySold != 2 {
 		t.Fatalf("June counts = %+v", june)
 	}
 }
@@ -96,8 +96,8 @@ func TestProfitAcrossBucketsIsSalesLessFeesAndCosts(t *testing.T) {
 	row.FeeLines = []models.ArchivedJobFeeLine{feeLine(month(2026, 6), 10)}
 
 	got := AccumulateAccountBuckets([]models.ArchivedJobStats{row})[models.StatsBucketKey{TypeID: 34, CalendarMonth: month(2026, 6)}]
-	if got.ProfitLoss != 245 { // 400 − 40 − 10 − 105
-		t.Fatalf("profitLoss = %v, want 245", got.ProfitLoss)
+	if got.Measures.ProfitLoss != 245 { // 400 − 40 − 10 − 105
+		t.Fatalf("profitLoss = %v, want 245", got.Measures.ProfitLoss)
 	}
 }
 
@@ -135,13 +135,13 @@ func TestProductionChainIntermediatesGetTheirOwnBucket(t *testing.T) {
 	}
 	chainKey := models.StatsBucketKey{TypeID: 34, IsProductionChain: true, CalendarMonth: month(2026, 6)}
 	directKey := models.StatsBucketKey{TypeID: 34, CalendarMonth: month(2026, 6)}
-	if got := buckets[chainKey].QuantityProduced; got != 3 {
+	if got := buckets[chainKey].Measures.QuantityProduced; got != 3 {
 		t.Errorf("chain bucket produced: got %v, want 3", got)
 	}
-	if got := buckets[directKey].QuantityProduced; got != 2 {
+	if got := buckets[directKey].Measures.QuantityProduced; got != 2 {
 		t.Errorf("direct bucket produced: got %v, want 2", got)
 	}
-	if buckets[directKey].JobCostTotal == buckets[chainKey].JobCostTotal+buckets[directKey].JobCostTotal {
+	if buckets[directKey].Measures.JobCostTotal == buckets[chainKey].Measures.JobCostTotal+buckets[directKey].Measures.JobCostTotal {
 		t.Error("chain cost was summed into the direct bucket")
 	}
 }
@@ -161,7 +161,7 @@ func TestChainOnlyItemStillProducesBuckets(t *testing.T) {
 		t.Fatalf("buckets = %+v, want one", buckets)
 	}
 	key := models.StatsBucketKey{TypeID: 34, IsProductionChain: true, CalendarMonth: month(2026, 6)}
-	if got := buckets[key].QuantityProduced; got != 4 {
+	if got := buckets[key].Measures.QuantityProduced; got != 4 {
 		t.Fatalf("chain bucket produced: got %v, want 4", got)
 	}
 }
@@ -201,11 +201,11 @@ func TestRowsCombineIntoSharedBuckets(t *testing.T) {
 	}
 
 	got := buckets[models.StatsBucketKey{TypeID: 34, CalendarMonth: month(2026, 6)}]
-	if got.TransactionCount != 2 || got.QuantitySold != 4 || got.SalesTotal != 400 {
+	if got.Measures.TransactionCount != 2 || got.Measures.QuantitySold != 4 || got.Measures.SalesTotal != 400 {
 		t.Fatalf("combined = %+v", got)
 	}
-	if got.JobCostTotal != 210 { // both jobs' costs
-		t.Fatalf("combined jobCostTotal = %v, want 210", got.JobCostTotal)
+	if got.Measures.JobCostTotal != 210 { // both jobs' costs
+		t.Fatalf("combined jobCostTotal = %v, want 210", got.Measures.JobCostTotal)
 	}
 }
 
@@ -224,13 +224,13 @@ func TestExtraCategoryTotalsLandInTheCostMonth(t *testing.T) {
 	buckets := AccumulateAccountBuckets([]models.ArchivedJobStats{row})
 
 	cost := buckets[models.StatsBucketKey{TypeID: 34, CalendarMonth: month(2026, 1)}]
-	if cost.ExtraCategoryTotals["1"] != 42 || cost.ExtraCategoryTotals["3"] != 8 {
-		t.Fatalf("cost month extras = %v, want the job's categories", cost.ExtraCategoryTotals)
+	if cost.Measures.ExtraCategoryTotals["1"] != 42 || cost.Measures.ExtraCategoryTotals["3"] != 8 {
+		t.Fatalf("cost month extras = %v, want the job's categories", cost.Measures.ExtraCategoryTotals)
 	}
 
 	sale := buckets[models.StatsBucketKey{TypeID: 34, CalendarMonth: month(2026, 2)}]
-	if len(sale.ExtraCategoryTotals) != 0 {
-		t.Fatalf("sale month extras = %v, want none — the spend happened in January", sale.ExtraCategoryTotals)
+	if len(sale.Measures.ExtraCategoryTotals) != 0 {
+		t.Fatalf("sale month extras = %v, want none — the spend happened in January", sale.Measures.ExtraCategoryTotals)
 	}
 }
 
@@ -245,7 +245,7 @@ func TestExtraCategoryTotalsSumAcrossJobsInAMonth(t *testing.T) {
 	second.ExtraCategoryTotals = map[string]float64{"1": 10, "5": 7}
 
 	buckets := AccumulateAccountBuckets([]models.ArchivedJobStats{first, second})
-	got := buckets[models.StatsBucketKey{TypeID: 34, CalendarMonth: month(2026, 1)}].ExtraCategoryTotals
+	got := buckets[models.StatsBucketKey{TypeID: 34, CalendarMonth: month(2026, 1)}].Measures.ExtraCategoryTotals
 
 	if got["1"] != 50 {
 		t.Fatalf("shared category = %v, want 50 — both jobs used it", got["1"])
@@ -263,8 +263,8 @@ func TestMonthWithoutExtrasCarriesNoCategoryMap(t *testing.T) {
 	buckets := AccumulateAccountBuckets([]models.ArchivedJobStats{statsRow(34, month(2026, 1))})
 	got := buckets[models.StatsBucketKey{TypeID: 34, CalendarMonth: month(2026, 1)}]
 
-	if len(got.ExtraCategoryTotals) != 0 {
-		t.Fatalf("extras = %v, want none", got.ExtraCategoryTotals)
+	if len(got.Measures.ExtraCategoryTotals) != 0 {
+		t.Fatalf("extras = %v, want none", got.Measures.ExtraCategoryTotals)
 	}
 }
 
@@ -277,11 +277,11 @@ func TestExtraCategoryTotalsMergeWithoutAliasing(t *testing.T) {
 	b.ExtraCategoryTotals = map[string]float64{"shipping": 5, "tax": 2}
 
 	got := AccumulateAccountBuckets([]models.ArchivedJobStats{a, b})[models.StatsBucketKey{TypeID: 34, CalendarMonth: month(2026, 6)}]
-	if got.ExtraCategoryTotals["shipping"] != 15 || got.ExtraCategoryTotals["tax"] != 2 {
-		t.Fatalf("extras = %v", got.ExtraCategoryTotals)
+	if got.Measures.ExtraCategoryTotals["shipping"] != 15 || got.Measures.ExtraCategoryTotals["tax"] != 2 {
+		t.Fatalf("extras = %v", got.Measures.ExtraCategoryTotals)
 	}
 
-	got.ExtraCategoryTotals["shipping"] = 999
+	got.Measures.ExtraCategoryTotals["shipping"] = 999
 	if a.ExtraCategoryTotals["shipping"] != 10 {
 		t.Fatal("the fold returned a map the source row still owns")
 	}
@@ -356,18 +356,18 @@ func TestBucketsCarryTheComponentsOfCost(t *testing.T) {
 	buckets := AccumulateAccountBuckets([]models.ArchivedJobStats{doc, doc})
 	got := buckets[models.StatsBucketKey{TypeID: 587, Year: 2026, Month: 3}]
 
-	if got.MaterialCostTotal != 200 {
-		t.Errorf("materialCostTotal = %v, want 200", got.MaterialCostTotal)
+	if got.Measures.MaterialCostTotal != 200 {
+		t.Errorf("materialCostTotal = %v, want 200", got.Measures.MaterialCostTotal)
 	}
-	if got.InstallCostTotal != 20 {
-		t.Errorf("installCostTotal = %v, want 20", got.InstallCostTotal)
+	if got.Measures.InstallCostTotal != 20 {
+		t.Errorf("installCostTotal = %v, want 20", got.Measures.InstallCostTotal)
 	}
-	if got.InventionCostTotal != 10 {
-		t.Errorf("inventionCostTotal = %v, want 10", got.InventionCostTotal)
+	if got.Measures.InventionCostTotal != 10 {
+		t.Errorf("inventionCostTotal = %v, want 10", got.Measures.InventionCostTotal)
 	}
 	// The components describe the cost; they do not replace it.
-	if got.JobCostTotal != 240 {
-		t.Errorf("jobCostTotal = %v, want the whole production cost", got.JobCostTotal)
+	if got.Measures.JobCostTotal != 240 {
+		t.Errorf("jobCostTotal = %v, want the whole production cost", got.Measures.JobCostTotal)
 	}
 }
 
@@ -382,13 +382,13 @@ func TestQuantityProducedLandsInTheCostMonth(t *testing.T) {
 	buckets := AccumulateAccountBuckets([]models.ArchivedJobStats{row})
 
 	cost := buckets[models.StatsBucketKey{TypeID: 34, CalendarMonth: month(2026, 3)}]
-	if cost.QuantityProduced != 4 {
-		t.Fatalf("cost month quantity: got %v, want 4", cost.QuantityProduced)
+	if cost.Measures.QuantityProduced != 4 {
+		t.Fatalf("cost month quantity: got %v, want 4", cost.Measures.QuantityProduced)
 	}
-	if sales := buckets[models.StatsBucketKey{TypeID: 34, CalendarMonth: month(2026, 4)}]; sales.QuantityProduced != 0 {
-		t.Fatalf("sales month carried produced quantity: got %v, want 0", sales.QuantityProduced)
+	if sales := buckets[models.StatsBucketKey{TypeID: 34, CalendarMonth: month(2026, 4)}]; sales.Measures.QuantityProduced != 0 {
+		t.Fatalf("sales month carried produced quantity: got %v, want 0", sales.Measures.QuantityProduced)
 	}
-	if perUnit := cost.JobCostTotal / cost.QuantityProduced; perUnit != 26.25 {
+	if perUnit := cost.Measures.JobCostTotal / cost.Measures.QuantityProduced; perUnit != 26.25 {
 		t.Fatalf("cost per unit: got %v, want 26.25", perUnit)
 	}
 }
@@ -410,7 +410,7 @@ func TestQuantityProducedKeepsChainAndRevokedOutOfTheDirectBucket(t *testing.T) 
 
 	buckets := AccumulateAccountBuckets([]models.ArchivedJobStats{chain, revoked, kept})
 
-	if got := buckets[models.StatsBucketKey{TypeID: 34, CalendarMonth: month(2026, 3)}].QuantityProduced; got != 2 {
+	if got := buckets[models.StatsBucketKey{TypeID: 34, CalendarMonth: month(2026, 3)}].Measures.QuantityProduced; got != 2 {
 		t.Fatalf("quantity produced: got %v, want 2", got)
 	}
 }

@@ -70,6 +70,7 @@ Examples:
   tasks forceSdeRebuild
   tasks rotateRefreshTokenKeys --from=v1 --scan-batch-size=500
   tasks migrateEncryptedCloudRefreshTokens --scan-batch-size=500
+  tasks dispatchStatisticsReconciles
   tasks migrateUserCloudAccountsToUserDoc --scan-batch-size=500
 `
 
@@ -81,6 +82,7 @@ var enabledTasks = []eipnats.Definition{
 	eipnats.ApplySDEVersion,
 	eipnats.RebuildCurrentSDEVersion,
 	eipnats.DrainAccountStatsRebuildQueue,
+	eipnats.DispatchStatisticsReconciles,
 }
 
 // commandTaskNames renames a task for the command line where the two differ.
