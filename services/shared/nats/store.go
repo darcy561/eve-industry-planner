@@ -3,10 +3,14 @@ package nats
 import (
 	"context"
 	"fmt"
+	"time"
 
 	natslib "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
+
+// pingTimeout applies only when a caller's context carries no deadline.
+const pingTimeout = 5 * time.Second
 
 // NATS is the app messaging handle: one connection and the JetStream context bound to it.
 type NATS struct {
@@ -53,6 +57,12 @@ func (n *NATS) Ping(ctx context.Context) error {
 	}
 	if !n.conn.IsConnected() {
 		return fmt.Errorf("nats not connected")
+	}
+	// FlushWithContext rejects a context with no deadline.
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, pingTimeout)
+		defer cancel()
 	}
 	if err := n.conn.FlushWithContext(ctx); err != nil {
 		return fmt.Errorf("nats ping: %w", err)
