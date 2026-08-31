@@ -224,14 +224,21 @@ cancelling takes the same id.
 | Inspect | `LookupSchedule(ctx, id)` — reports the server's fire time |
 | List | `ListSchedules(ctx)` |
 
-Core consumes `scheduled.>` and runs the cron job the id names, through the same registry the crons
-use. Recurring crons are not schedules: they run on gocron under the core primary lease, because that
-is what stops every replica firing them.
+Core consumes `scheduled.>` on the `schedule-runner` durable and runs the cron job the id names,
+through the same registry the crons use — so a deferred run and a scheduled one execute the same
+handler. Recurring crons are **not** schedules: they run on gocron under the core primary lease,
+because that is what stops every replica firing them.
 
-**Nothing schedules work today.** The stream, the `schedule-runner` durable and the consumer are all
-live, and no caller creates a schedule — so an empty stream and an idle durable are the expected
-state here, not a symptom. The first caller will be the ESI downtime deferral, which currently holds
-its wait on an in-memory timer.
+The one caller is the ESI downtime deferral: a cron firing inside EVE's maintenance window schedules
+itself past the window under its own job name → [core/scheduler.md](../core/scheduler.md) § Deferring
+past EVE downtime.
+
+A schedule carries a one-hour `Nats-Schedule-TTL`, and the stream sets `AllowMsgTTL` to honour it.
+The TTL applies to what a schedule *generates*, not to the schedule: a definition lives until it
+fires or is cancelled. It exists because the stream has no `MaxAge` — a schedule is state and must
+survive — so without it every delivery would be kept for the stream's lifetime as well. An hour
+outlives a deploy, and is short enough that a run nothing collected expires rather than firing long
+after it was due.
 
 ## Errors and retry
 

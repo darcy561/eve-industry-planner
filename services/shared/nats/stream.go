@@ -48,7 +48,10 @@ func (s *Stream) Ensure(ctx context.Context) (jetstream.Stream, error) {
 		Storage:           jetstream.FileStorage,
 		MaxAge:            s.spec.MaxAge,
 		AllowMsgSchedules: s.spec.Schedules,
-		Metadata:          map[string]string{MetadataOwnerKey: MetadataOwnerValue},
+		// A schedule sets a TTL on the messages it generates, so a fired run that
+		// nothing consumes expires instead of being kept for the stream's lifetime.
+		AllowMsgTTL: s.spec.Schedules,
+		Metadata:    map[string]string{MetadataOwnerKey: MetadataOwnerValue},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("ensure stream %s: %w", s.spec.Name, err)

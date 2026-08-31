@@ -54,6 +54,12 @@ func validScheduleID(id string) error {
 	return nil
 }
 
+// scheduleDeliveryTTL bounds how long a fired run waits for a consumer. The stream
+// keeps schedule definitions for their lifetime, so without a TTL every delivery
+// would be kept too. An hour outlives a deploy and is short enough that a run
+// nothing collected expires rather than firing long after it was due.
+const scheduleDeliveryTTL = time.Hour
+
 // ScheduleAt defers payload until at, delivered on this schedule's own subject
 // under `scheduled.`. The id is the schedule's identity: scheduling again under
 // the same id replaces what was there, and cancelling takes the same id.
@@ -72,6 +78,7 @@ func (n *NATS) ScheduleAt(ctx context.Context, id string, at time.Time, payload 
 	if _, err := n.js.Publish(ctx, scheduleSubject(id), payload,
 		jetstream.WithScheduleAt(at),
 		jetstream.WithScheduleTarget(scheduledSubject(id)),
+		jetstream.WithScheduleTTL(scheduleDeliveryTTL),
 	); err != nil {
 		return fmt.Errorf("schedule %s: %w", id, err)
 	}
@@ -119,7 +126,7 @@ func (n *NATS) LookupSchedule(ctx context.Context, id string) (Schedule, bool, e
 	return scheduleFromRaw(id, raw), true, nil
 }
 
-// Schedules lists what is waiting to fire.
+// ListSchedules lists what is waiting to fire.
 func (n *NATS) ListSchedules(ctx context.Context) ([]Schedule, error) {
 	if n == nil {
 		return nil, fmt.Errorf("nats handle is required")

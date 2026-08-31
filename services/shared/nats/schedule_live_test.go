@@ -149,3 +149,32 @@ func TestScheduleIDRejectsSubjectTokens(t *testing.T) {
 		}
 	}
 }
+
+// A fired run carries a TTL, so a delivery nothing consumes expires instead of
+// being kept for the stream's lifetime. The schedule definition itself is not
+// affected: it lives until it fires or is cancelled.
+func TestLiveFiredScheduleExpires(t *testing.T) {
+	fake := natsfake.New(t)
+	ctx := context.Background()
+
+	stream, err := fake.NATS.Schedules.Ensure(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info, err := stream.Info(ctx); err != nil {
+		t.Fatal(err)
+	} else if !info.Config.AllowMsgTTL {
+		t.Fatal("schedule stream does not allow per-message TTLs, so a delivery is kept forever")
+	}
+
+	if err := fake.NATS.ScheduleAt(ctx, "expires", time.Now().Add(time.Second), []byte(`{}`)); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := stream.GetLastMsgForSubject(ctx, "schedule.expires")
+	if err != nil {
+		t.Fatalf("schedule definition: %v", err)
+	}
+	if got := raw.Header.Get("Nats-Schedule-TTL"); got != "1h0m0s" {
+		t.Fatalf("schedule carries TTL %q, want an hour", got)
+	}
+}
