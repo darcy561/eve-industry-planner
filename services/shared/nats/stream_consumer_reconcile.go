@@ -50,8 +50,8 @@ func keepExactSet(names []string) map[string]struct{} {
 	return out
 }
 
-// ConsumerKeptByPolicy reports whether name is allowed by the keep policy.
-func ConsumerKeptByPolicy(name string, policy StreamConsumerKeepPolicy) bool {
+// consumerKeptByPolicy reports whether name is allowed by the keep policy.
+func consumerKeptByPolicy(name string, policy StreamConsumerKeepPolicy) bool {
 	if _, ok := keepExactSet(policy.KeepExact)[name]; ok {
 		return true
 	}

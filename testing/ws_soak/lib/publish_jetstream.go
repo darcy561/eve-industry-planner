@@ -52,7 +52,7 @@ func (p *jetStreamPublisher) Publish(ctx context.Context, msg DocUpdate) error {
 			return err
 		}
 	}
-	return eipnats.PublishMessage(ctx, p.nats, subject, payload)
+	return p.nats.Publish(ctx, subject, payload)
 }
 
 func marshalFanoutPayload(subject, coll, docID string, msg DocUpdate) ([]byte, error) {

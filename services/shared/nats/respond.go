@@ -8,7 +8,7 @@ import (
 )
 
 // RespondJSON marshals v and sends it as a core-NATS reply (msg.Respond).
-func RespondJSON(msg *natslib.Msg, v any) error {
+func respondJSON(msg *natslib.Msg, v any) error {
 	if msg == nil {
 		return fmt.Errorf("nats: RespondJSON nil msg")
 	}
@@ -32,5 +32,5 @@ func RespondEnvelope(msg *natslib.Msg, typ string, payload any) error {
 		}
 		data = b
 	}
-	return RespondJSON(msg, Message{Type: typ, Data: data})
+	return respondJSON(msg, Message{Type: typ, Data: data})
 }

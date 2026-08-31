@@ -124,22 +124,8 @@ func NackMessage(ctx context.Context, msg jetstream.Msg) {
 	_ = msg.NakWithDelay(time.Duration(delaySecs) * time.Second)
 }
 
-// NackMessageWithDelay naks with an explicit delay, falling back to [NackMessage].
-func NackMessageWithDelay(ctx context.Context, msg jetstream.Msg, delay time.Duration) {
-	if msg == nil {
-		return
-	}
-	ctx = context.WithoutCancel(ctx)
-	err := Retry(ctx, AckRetry, "jetstream nak", func() error { return msg.NakWithDelay(delay) })
-	if err != nil {
-		logs.WarnCtx(ctx, "failed to nack with delay, falling back to backoff nack",
-			"error", err, "requested_delay", delay)
-		NackMessage(ctx, msg)
-	}
-}
-
 // InProgressMessage extends the ack deadline; failure is logged and processing continues.
-func InProgressMessage(ctx context.Context, msg jetstream.Msg) {
+func inProgressMessage(ctx context.Context, msg jetstream.Msg) {
 	if msg == nil {
 		return
 	}
