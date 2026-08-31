@@ -2,7 +2,6 @@ package nats
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -39,61 +38,6 @@ func GetDeliveryCount(msg jetstream.Msg) uint64 {
 		return 1
 	}
 	return md.NumDelivered
-}
-
-// parseTaskMessageData extracts the payload nested inside a TaskMessage envelope.
-func parseTaskMessageData[T any](taskMsgData json.RawMessage, result *T) error {
-	var taskMsg TaskMessage
-	if err := json.Unmarshal(taskMsgData, &taskMsg); err != nil {
-		return fmt.Errorf("failed to unmarshal TaskMessage: %w", err)
-	}
-	if taskMsg.Data == nil {
-		return fmt.Errorf("TaskMessage has no data field")
-	}
-	if err := json.Unmarshal(taskMsg.Data, result); err != nil {
-		return fmt.Errorf("failed to unmarshal task message payload: %w", err)
-	}
-	return nil
-}
-
-// UnmarshalMessagePayloadBytes parses the same [Message] envelope as [UnmarshalMessagePayload] from raw bytes
-// (e.g. core NATS subscription callbacks).
-func UnmarshalMessagePayloadBytes[T any](data []byte) (T, error) {
-	var result T
-	if len(data) == 0 {
-		return result, fmt.Errorf("message has no data")
-	}
-
-	var expectedType string
-	if mt, ok := any(result).(MessageType); ok {
-		expectedType = mt.MessageType()
-	}
-
-	var msgWrapper Message
-	if err := json.Unmarshal(data, &msgWrapper); err == nil && msgWrapper.Data != nil {
-		if expectedType != "" && msgWrapper.Type != expectedType {
-			return result, fmt.Errorf("message type mismatch: expected %s, got %s", expectedType, msgWrapper.Type)
-		}
-		if msgWrapper.Type == MessageTypeTask {
-			if err := parseTaskMessageData(msgWrapper.Data, &result); err != nil {
-				return result, err
-			}
-			return result, nil
-		}
-		if err := json.Unmarshal(msgWrapper.Data, &result); err != nil {
-			return result, fmt.Errorf("failed to unmarshal message payload: %w", err)
-		}
-		return result, nil
-	}
-
-	return result, fmt.Errorf("message does not match expected Message wrapper format")
-}
-
-// UnmarshalMessagePayload decodes a [Message] envelope's payload as T, unwrapping the
-// inner TaskMessage for task messages. If T implements [MessageType] the envelope type
-// must match.
-func UnmarshalMessagePayload[T any](msg jetstream.Msg) (T, error) {
-	return UnmarshalMessagePayloadBytes[T](msg.Data())
 }
 
 // GetMessageMetadata returns message metadata for logging purposes.

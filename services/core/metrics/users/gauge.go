@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"eve-industry-planner/core/metrics/common"
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	"go.opentelemetry.io/otel/metric"
 )

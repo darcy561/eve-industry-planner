@@ -13,50 +13,42 @@ import (
 
 const schedulerLogComponent = "scheduler"
 
-// SetupScheduleRequestReceiver sets up a JetStream consumer to receive schedule request messages.
-// Returns the consumer and starts a background goroutine for message processing.
-func SetupScheduleRequestReceiver(
+// SetupScheduleRunner consumes schedules as they fire. A fired schedule arrives
+// on `scheduled.{id}`, where the id names the cron job to run, so the runner
+// resolves work through the same registry the crons themselves use.
+func SetupScheduleRunner(
 	natsHandle *eipnats.NATS,
 	processMessage func(msg jetstream.Msg),
 	stopChan chan struct{},
 ) (jetstream.Consumer, error) {
 	ctx := context.Background()
-	subject := eipnats.SubjectSchedulerSchedule
-	consumerName := eipnats.ConsumerScheduler
+	schedules := natsHandle.Schedules
 
-	scheduler := natsHandle.Scheduler
-	if _, err := scheduler.Ensure(ctx); err != nil {
-		return nil, fmt.Errorf("failed to ensure scheduler stream: %w", err)
+	if _, err := schedules.Ensure(ctx); err != nil {
+		return nil, fmt.Errorf("failed to ensure schedule stream: %w", err)
+	}
+	if _, err := schedules.Reconcile(ctx); err != nil {
+		logs.WarnCtx(ctx, "schedule stream consumer reconcile failed", "component", schedulerLogComponent, "error", err)
 	}
 
-	if _, err := scheduler.Reconcile(ctx); err != nil {
-		logs.WarnCtx(ctx, "scheduler stream consumer reconcile failed", "component", schedulerLogComponent, "error", err)
-	}
-
-	// Create or get durable consumer
-	// Use DeliverAllPolicy to get all messages including those published while scheduler was down
-	// FilterSubject filters to only receive messages for the specific subject (stream accepts all scheduler.*)
-	consumerConfig := jetstream.ConsumerConfig{
-		Durable:       consumerName,
-		FilterSubject: subject,
+	filter := eipnats.SubjectScheduledPrefix + ".>"
+	consumer, err := schedules.Consumer(ctx, jetstream.ConsumerConfig{
+		Durable:       eipnats.ConsumerScheduleRunner,
+		FilterSubject: filter,
 		DeliverPolicy: jetstream.DeliverAllPolicy,
 		AckPolicy:     jetstream.AckExplicitPolicy,
 		AckWait:       30 * time.Second,
 		MaxDeliver:    5,
-	}
-
-	consumer, err := scheduler.Consumer(ctx, consumerConfig)
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create scheduler consumer: %w", err)
+		return nil, fmt.Errorf("failed to create schedule runner consumer: %w", err)
 	}
 
-	logs.DebugCtx(ctx, "scheduler consumer setup", "component", schedulerLogComponent,
-		"subject", subject, "consumer", consumerName, "stream", scheduler.Spec().Name)
+	logs.DebugCtx(ctx, "schedule runner consumer setup", "component", schedulerLogComponent,
+		"subject", filter, "consumer", eipnats.ConsumerScheduleRunner, "stream", schedules.Spec().Name)
 
-	// Start message processing loop in background
-	if err := eipnats.ConsumeUntil(consumer, subject, processMessage, stopChan); err != nil {
+	if err := eipnats.ConsumeUntil(consumer, filter, processMessage, stopChan); err != nil {
 		return nil, err
 	}
-
 	return consumer, nil
 }

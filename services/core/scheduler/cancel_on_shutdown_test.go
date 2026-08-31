@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"eve-industry-planner/testing/wait"
+
+	"github.com/go-co-op/gocron/v2"
 )
 
 // #28: gocron Shutdown cancels in-flight job contexts (lose-primary path).
@@ -34,7 +36,13 @@ func TestTaskScheduler_StopCancelsInFlightJob(t *testing.T) {
 	if err := s.Start(); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.ScheduleOneTimeJob("cancel-test", "refreshRegionMarketOrders", time.Now().Add(150*time.Millisecond), nil); err != nil {
+	// Drive the handler from a one-shot gocron job: the property under test is
+	// that Shutdown cancels whatever is in flight, whoever started it.
+	handler := s.handlers["refreshRegionMarketOrders"]
+	if _, err := s.scheduler.NewJob(
+		gocron.DurationJob(150*time.Millisecond),
+		gocron.NewTask(func(jobCtx context.Context) { _ = handler(jobCtx, nil) }),
+	); err != nil {
 		t.Fatal(err)
 	}
 

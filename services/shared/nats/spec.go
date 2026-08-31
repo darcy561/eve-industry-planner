@@ -7,11 +7,12 @@ const (
 	// WorkerTaskStream is the JetStream stream name for worker task processing
 	WorkerTaskStream = "worker-task-stream"
 
-	// SchedulerStream is the JetStream stream name for scheduler task requests
-	SchedulerStream = "scheduler-stream"
-
 	// DocUpdateStream is the JetStream stream name for document update notifications
 	DocUpdateStream = "doc-update-stream"
+
+	// ScheduleStream holds deferred work: the schedules themselves and the
+	// subjects they deliver to when they fire.
+	ScheduleStream = "schedule-stream"
 )
 
 // TaskSubjectPrefix is the subject prefix for all worker tasks. The worker subscribes to "task.>"
@@ -21,13 +22,17 @@ const TaskSubjectPrefix = "task."
 
 // Subject names (non-task; task subjects are in shared/tasks)
 const (
-	// SubjectSchedulerSchedule is the NATS subject for requesting one-time scheduled tasks
-	SubjectSchedulerSchedule = "scheduler.schedule"
-
 	// SubjectDocUpdate is the NATS subject prefix for document updates.
 	// Format: doc.update.{tenantString}.{collection}.{docID}
 	// Example: doc.update.account:abc.jobs.doc123
 	SubjectDocUpdate = "doc.update"
+
+	// SubjectSchedulePrefix holds one schedule per subject: schedule.{id}.
+	SubjectSchedulePrefix = "schedule"
+
+	// SubjectScheduledPrefix is where a schedule delivers when it fires:
+	// scheduled.{id}.
+	SubjectScheduledPrefix = "scheduled"
 
 	// SubjectDocLock is the NATS subject for document lock coordination (API → websocket fan-out).
 	// Format: doc.lock.{accountID}
@@ -54,8 +59,8 @@ const (
 	// ConsumerTaskWorker is the single shared durable on worker-task-stream.
 	ConsumerTaskWorker = "task-worker"
 
-	// ConsumerScheduler is the durable consumer name for scheduler
-	ConsumerScheduler = "scheduler"
+	// ConsumerScheduleRunner is the durable that receives schedules as they fire.
+	ConsumerScheduleRunner = "schedule-runner"
 
 	// DurablePrefixDocLiveUpdates is the per-replica websocket fan-out prefix for doc.update.
 	DurablePrefixDocLiveUpdates = "doc-live-updates-"
@@ -88,12 +93,14 @@ type StreamSpec struct {
 	Subjects []string
 	MaxAge   time.Duration
 	Keep     StreamConsumerKeepPolicy
+	// Schedules lets the server hold scheduled messages on this stream.
+	Schedules bool
 }
 
 // Specs is the source of truth for the streams this app owns. A stream carrying
 // the ownership stamp but absent from here is obsolete and reconcile deletes it.
 func Specs() []StreamSpec {
-	return []StreamSpec{TaskStreamSpec(), SchedulerStreamSpec(), DocUpdateStreamSpec()}
+	return []StreamSpec{TaskStreamSpec(), DocUpdateStreamSpec(), ScheduleStreamSpec()}
 }
 
 // TaskStreamSpec accepts every worker task subject; one shared durable consumes them.
@@ -103,16 +110,6 @@ func TaskStreamSpec() StreamSpec {
 		Subjects: []string{TaskSubjectPrefix + ">"},
 		MaxAge:   24 * time.Hour,
 		Keep:     StreamConsumerKeepPolicy{KeepExact: []string{ConsumerTaskWorker}},
-	}
-}
-
-// SchedulerStreamSpec carries scheduler requests; one shared durable consumes them.
-func SchedulerStreamSpec() StreamSpec {
-	return StreamSpec{
-		Name:     SchedulerStream,
-		Subjects: []string{"scheduler.>"},
-		MaxAge:   24 * time.Hour,
-		Keep:     StreamConsumerKeepPolicy{KeepExact: []string{ConsumerScheduler}},
 	}
 }
 
@@ -130,5 +127,21 @@ func DocUpdateStreamSpec() StreamSpec {
 			InactiveThreshold:     DocFanoutInactiveThreshold,
 			ApplyThresholdToExact: true,
 		},
+	}
+}
+
+// ScheduleStreamSpec holds deferred work. A schedule lives on
+// `schedule.{id}` and names a delivery subject under `scheduled.` that a
+// consumer watches; both are on this stream because a schedule's target must be.
+//
+// Retention is long because a schedule is state, not traffic: it must survive
+// until it fires or is cancelled.
+func ScheduleStreamSpec() StreamSpec {
+	return StreamSpec{
+		Name:      ScheduleStream,
+		Subjects:  []string{SubjectSchedulePrefix + ".>", SubjectScheduledPrefix + ".>"},
+		MaxAge:    0,
+		Schedules: true,
+		Keep:      StreamConsumerKeepPolicy{KeepExact: []string{ConsumerScheduleRunner}},
 	}
 }

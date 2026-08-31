@@ -13,7 +13,6 @@ func TestConsumerKeepPolicy(t *testing.T) {
 	doc := DocUpdateStreamSpec().Keep
 	doc.KeepExact = []string{"doc-live-updates-mine", "doc-lock-mine"}
 	worker := TaskStreamSpec().Keep
-	sched := SchedulerStreamSpec().Keep
 
 	cases := []struct {
 		name   string
@@ -33,8 +32,6 @@ func TestConsumerKeepPolicy(t *testing.T) {
 		{"task-scheduled", worker, false},
 		{"task-scheduled-market-prices", worker, false},
 		{"task-auth", worker, false},
-		{"scheduler", sched, true},
-		{"scheduler-old", sched, false},
 	}
 	for _, tc := range cases {
 		if got := consumerKeptByPolicy(tc.name, tc.policy); got != tc.want {

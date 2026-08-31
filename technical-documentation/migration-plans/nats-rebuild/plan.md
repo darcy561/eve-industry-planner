@@ -556,6 +556,32 @@ runtime. Worth looking at as a whole rather than patching piecemeal:
 whether the inner envelope survives that. The last point is the breaking wire change already parked
 under § Wire compatibility, so these belong together.
 
+### The cron scheduler wants a rewrite of its own
+
+Not this project's to do — recorded here because Stage E left it exposed. Core's cron scheduler is the
+last place still resolving work by hand-written string, and the mechanism Stage E built replaces some
+of what it does by hand:
+
+- **Handlers are registered under string keys.** `RegisterHandler("cron.industrySystemsRefresh", …)`
+  with no compile-time link between the name, the schedule and the function. This is exactly the seam
+  that produced a one-time-job path which could never match a handler, and the same shape the task
+  helpers just removed on the publish side.
+- **Cron expressions are scattered.** Ten `cron…Schedule = "…"` constants live beside their
+  registrations across four packages, so no one place says when this service does things.
+- **The downtime deferral holds a goroutine and a timer** for the length of an EVE downtime window.
+  It survives no restart, appears nowhere, and cannot be cancelled — which is precisely what
+  `ScheduleAt` now does properly. The most obvious first caller for schedules.
+- **`Requestable` is gone.** It marked tasks the old ingress would accept a deferred run for; with
+  that path removed it had no reader, and a flag set on three tasks and read by nothing is worse than
+  no flag. Whatever replaces it should express which *cron jobs* may be deferred, if that gate is
+  wanted at all.
+- **gocron is worth re-examining.** Deferred runs no longer need it. Whether recurring schedules
+  should keep it, or move to the server with the primary lease enforced another way, is the actual
+  design question — and the reason this is a rewrite rather than a tidy.
+
+**To decide:** whether this becomes its own migration project. It touches the primary lease, so it is
+not a refactor that can be done casually.
+
 ### Two scheduler locals survive for the downtime defer
 
 `deferTaskPublicationUntilAfterDowntime(ctx, task.Name, task.Subject, publish)` in
@@ -575,7 +601,7 @@ Deliberately not changed here — it is an ESI downtime concern, not a messaging
 | B — streams and consumers as specs | Done |
 | C — typed tasks and topics | Partial — typed definitions, payload relocation, span attributes and the requestable flag landed; async batch publish, asynq adapter and typed topics open |
 | D — call-site cutover | Not started |
-| E — scheduled messages | Not started |
+| E — scheduled messages | Done |
 | F — promote | Not started |
 
 ## Handoff
