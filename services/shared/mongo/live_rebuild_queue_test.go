@@ -30,7 +30,7 @@ func TestLive_rebuildQueue_claimProtocol(t *testing.T) {
 	t.Cleanup(clean)
 
 	first := time.Now().UTC().Truncate(time.Millisecond)
-	if err := mongo.QueueAccountRebuild(ctx, rebuildQueueScratchAccount, first); err != nil {
+	if err := mongo.QueueOwnerWork(ctx, models.AccountStatsOwner(rebuildQueueScratchAccount), eipmongo.StatsWorkRebuild, first); err != nil {
 		t.Fatalf("QueueAccountRebuild: %v", err)
 	}
 
@@ -44,7 +44,7 @@ func TestLive_rebuildQueue_claimProtocol(t *testing.T) {
 
 	// A second request re-queues without resetting the wait time.
 	later := first.Add(time.Hour)
-	if err := mongo.QueueAccountRebuild(ctx, rebuildQueueScratchAccount, later); err != nil {
+	if err := mongo.QueueOwnerWork(ctx, models.AccountStatsOwner(rebuildQueueScratchAccount), eipmongo.StatsWorkRebuild, later); err != nil {
 		t.Fatalf("re-queue: %v", err)
 	}
 	var stored struct {
@@ -62,24 +62,25 @@ func TestLive_rebuildQueue_claimProtocol(t *testing.T) {
 	}
 
 	// A rebuild holding the stale claim must not clear the account.
-	deleted, err := mongo.ClearQueuedOwners(ctx, []eipmongo.QueuedOwner{{Owner: models.AccountStatsOwner(rebuildQueueScratchAccount), Claim: 1}})
+	owner := models.AccountStatsOwner(rebuildQueueScratchAccount)
+	cleared, err := mongo.ClearQueuedOwner(ctx, eipmongo.QueuedOwner{Owner: owner, Claim: 1})
 	if err != nil {
-		t.Fatalf("ClearQueuedOwners (stale): %v", err)
+		t.Fatalf("ClearQueuedOwner (stale): %v", err)
 	}
-	if deleted != 0 {
-		t.Fatalf("stale claim cleared %d accounts; the re-queued request was lost", deleted)
+	if cleared {
+		t.Fatal("stale claim cleared the account; the re-queued request was lost")
 	}
 	if len(findScratch(t, ctx, mongo)) != 1 {
 		t.Fatal("account should still be queued after a stale clear")
 	}
 
 	// The current claim clears it.
-	deleted, err = mongo.ClearQueuedOwners(ctx, []eipmongo.QueuedOwner{{Owner: models.AccountStatsOwner(rebuildQueueScratchAccount), Claim: 2}})
+	cleared, err = mongo.ClearQueuedOwner(ctx, eipmongo.QueuedOwner{Owner: owner, Claim: 2})
 	if err != nil {
-		t.Fatalf("ClearQueuedOwners (current): %v", err)
+		t.Fatalf("ClearQueuedOwner (current): %v", err)
 	}
-	if deleted != 1 {
-		t.Fatalf("current claim cleared %d accounts, want 1", deleted)
+	if !cleared {
+		t.Fatal("current claim did not clear the account")
 	}
 	if len(findScratch(t, ctx, mongo)) != 0 {
 		t.Fatal("account should be gone after clearing on the current claim")
@@ -99,4 +100,71 @@ func findScratch(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo) []eip
 		}
 	}
 	return out
+}
+
+// A fold may only write while its claim is the current one, so the same
+// condition that lets it clear the entry has to be readable before it writes.
+// Requires EIP_MONGO_PARITY_LIVE=1.
+func TestLive_rebuildQueue_claimCurrencyGuardsAFold(t *testing.T) {
+	mongo := requireLiveMongo(t)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	owner := models.AccountStatsOwner(rebuildQueueScratchAccount)
+	coll := mongo.AccountRebuildQueue.Collection()
+	clean := func() {
+		cctx, c := context.WithTimeout(context.Background(), 15*time.Second)
+		defer c()
+		_, _ = coll.DeleteMany(cctx, bson.M{"_id": owner.Key()})
+	}
+	clean()
+	t.Cleanup(clean)
+
+	now := time.Now().UTC()
+	if err := mongo.QueueOwnerWork(ctx, owner, eipmongo.StatsWorkDelta, now); err != nil {
+		t.Fatalf("queue delta: %v", err)
+	}
+	queued := findScratch(t, ctx, mongo)
+	if len(queued) != 1 || queued[0].Work != eipmongo.StatsWorkDelta {
+		t.Fatalf("queued = %+v, want one delta entry", queued)
+	}
+	dispatched := queued[0]
+
+	current, err := mongo.OwnerClaimIsCurrent(ctx, dispatched)
+	if err != nil {
+		t.Fatalf("OwnerClaimIsCurrent: %v", err)
+	}
+	if !current {
+		t.Fatal("a fold holding the dispatched claim should be allowed to write")
+	}
+
+	// A rebuild taking the owner on bumps the claim, which is what the fold reads
+	// as "something else is accounting for these rows".
+	if err := mongo.QueueOwnerWork(ctx, owner, eipmongo.StatsWorkRebuild, now.Add(time.Minute)); err != nil {
+		t.Fatalf("upgrade to rebuild: %v", err)
+	}
+	current, err = mongo.OwnerClaimIsCurrent(ctx, dispatched)
+	if err != nil {
+		t.Fatalf("OwnerClaimIsCurrent after upgrade: %v", err)
+	}
+	if current {
+		t.Fatal("a fold superseded by a rebuild must not write")
+	}
+
+	// A rebuild that swept the entry leaves nothing to match, and that too has to
+	// stop the fold: its rows are counted by the rebuild that removed the entry.
+	upgraded := findScratch(t, ctx, mongo)
+	if len(upgraded) != 1 || upgraded[0].Work != eipmongo.StatsWorkRebuild {
+		t.Fatalf("upgraded = %+v, want one rebuild entry", upgraded)
+	}
+	if _, err := mongo.ClearQueuedOwner(ctx, upgraded[0]); err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	current, err = mongo.OwnerClaimIsCurrent(ctx, dispatched)
+	if err != nil {
+		t.Fatalf("OwnerClaimIsCurrent after clear: %v", err)
+	}
+	if current {
+		t.Fatal("a fold whose entry has been swept must not write")
+	}
 }

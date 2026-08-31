@@ -13,6 +13,7 @@ import (
 	"eve-industry-planner/core/primaryhandoff"
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/models"
+	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/stackservices"
 
 	"github.com/redis/go-redis/v9"
@@ -222,7 +223,7 @@ func queueEveryAccountForRebuild(ctx context.Context, clients *stackservices.Cli
 	queued := 0
 	var queueErrs []error
 	for _, accountID := range accounts {
-		if err := mongo.QueueAccountRebuild(ctx, accountID, now); err != nil {
+		if err := mongo.QueueOwnerWork(ctx, models.AccountStatsOwner(accountID), eipmongo.StatsWorkRebuild, now); err != nil {
 			queueErrs = append(queueErrs, fmt.Errorf("queue %s: %w", accountID, err))
 			continue
 		}

@@ -2,6 +2,7 @@ package mongo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -36,16 +37,6 @@ type QueuedOwner struct {
 	QueuedAt time.Time
 }
 
-// QueueOwnerRebuild records that an owner's build statistics need recalculating.
-//
-// queuedAt is preserved across re-queues so the wait time reflects when the work
-// first became outstanding, but claim is bumped every time. A rebuild clears the
-// owner only if the claim it read is still current, so a change arriving while
-// that rebuild is in flight leaves the owner queued rather than being dropped.
-func (m *Mongo) QueueOwnerRebuild(ctx context.Context, owner models.StatsOwner, now time.Time, opts ...RetryOption) error {
-	return m.QueueOwnerWork(ctx, owner, StatsWorkRebuild, now, opts...)
-}
-
 // QueueOwnerWork records that an owner has statistics work outstanding.
 //
 // A rebuild supersedes a delta: it re-derives every row from its jobs and stamps
@@ -68,7 +59,7 @@ func (m *Mongo) QueueOwnerWork(ctx context.Context, owner models.StatsOwner, wor
 		_, uerr := coll.UpdateOne(
 			ctx,
 			queuedOwnerFilter(owner),
-			queueOwnerWorkUpdate(owner, work, now),
+			queueOwnerWorkUpdate(work, now),
 			options.UpdateOne().SetUpsert(true),
 		)
 		if uerr != nil || work != StatsWorkRebuild {
@@ -84,14 +75,8 @@ func (m *Mongo) QueueOwnerWork(ctx context.Context, owner models.StatsOwner, wor
 	})
 }
 
-// QueueAccountRebuild queues an account, the owner kind every caller outside the
-// corporation work uses.
-func (m *Mongo) QueueAccountRebuild(ctx context.Context, accountID string, now time.Time, opts ...RetryOption) error {
-	return m.QueueOwnerRebuild(ctx, models.AccountStatsOwner(accountID), now, opts...)
-}
-
-// ListQueuedOwners returns owners waiting for a statistics rebuild with the claim
-// token to pass back to ClearQueuedOwners.
+// ListQueuedOwners returns owners waiting for statistics work with the claim
+// token to pass back to ClearQueuedOwner.
 //
 // eligibleBefore drops entries that have not waited long enough yet: because
 // queuedAt is not moved by a re-queue, that is a longest-wait bound rather than a
@@ -138,8 +123,8 @@ func (m *Mongo) ListQueuedOwners(ctx context.Context, eligibleBefore time.Time, 
 			}
 			work := StatsWork(row.Work)
 			if work != StatsWorkDelta && work != StatsWorkRebuild {
-				// An entry written before the kind existed is a rebuild: that is
-				// the only work anything queued at the time.
+				// Rebuild is the safe reading of an unrecognised kind: it derives
+				// every figure from the rows, so it covers whatever was meant.
 				work = StatsWorkRebuild
 			}
 			out = append(out, QueuedOwner{Owner: owner, Work: work, Claim: row.Claim, QueuedAt: row.QueuedAt})
@@ -152,11 +137,12 @@ func (m *Mongo) ListQueuedOwners(ctx context.Context, eligibleBefore time.Time, 
 	return out, nil
 }
 
-// ClearQueuedOwner removes one owner whose rebuild has completed, but only where
-// the claim still matches the one read at the start of that rebuild.
+// ClearQueuedOwner removes one owner whose work has completed, but only where the
+// claim still matches the one that work was dispatched with.
 //
 // Reports whether the entry was removed: false means the owner was re-queued
-// mid-rebuild and keeps its place, so the request that arrived is not lost.
+// while the work ran and keeps its place, so the request that arrived is not
+// lost.
 func (m *Mongo) ClearQueuedOwner(ctx context.Context, queued QueuedOwner, opts ...RetryOption) (bool, error) {
 	if m == nil || m.AccountRebuildQueue == nil {
 		return false, fmt.Errorf("mongo handle is required")
@@ -187,50 +173,67 @@ func (m *Mongo) ClearQueuedOwner(ctx context.Context, queued QueuedOwner, opts .
 	return deleted > 0, nil
 }
 
-// ClearQueuedOwners clears a set of owners, reporting how many were removed.
+// OwnerClaimIsCurrent reports whether the owner's entry is still the one this
+// task was dispatched from.
 //
-// The difference against len(owners) is how many were re-queued mid-rebuild and
-// remain outstanding.
-func (m *Mongo) ClearQueuedOwners(ctx context.Context, owners []QueuedOwner, opts ...RetryOption) (int64, error) {
+// It shares its filter with [Mongo.ClearQueuedOwner], so a caller may write
+// exactly when it would still be allowed to finish. False means the owner was
+// re-queued, upgraded to a rebuild, or swept by one, and whatever took it on
+// accounts for the same rows.
+func (m *Mongo) OwnerClaimIsCurrent(ctx context.Context, queued QueuedOwner, opts ...RetryOption) (bool, error) {
 	if m == nil || m.AccountRebuildQueue == nil {
-		return 0, fmt.Errorf("mongo handle is required")
+		return false, fmt.Errorf("mongo handle is required")
 	}
-	if len(owners) == 0 {
-		return 0, nil
+	if err := queued.Owner.Validate(); err != nil {
+		return false, err
 	}
 	coll, err := m.AccountRebuildQueue.requireColl()
 	if err != nil {
-		return 0, err
+		return false, err
 	}
 
-	writes := make([]mongo.WriteModel, 0, len(owners))
-	for _, queued := range owners {
-		if queued.Owner.Validate() != nil {
-			continue
+	var current bool
+	err = Retry(ctx, applyRetryOptions("OwnerClaimIsCurrent", opts), func() error {
+		current = false
+		ferr := coll.FindOne(ctx, clearQueuedOwnerFilter(queued)).Err()
+		if errors.Is(ferr, mongo.ErrNoDocuments) {
+			return nil
 		}
-		writes = append(writes, mongo.NewDeleteOneModel().
-			SetFilter(clearQueuedOwnerFilter(queued)))
-	}
-	if len(writes) == 0 {
-		return 0, nil
-	}
-
-	var deleted int64
-	err = Retry(ctx, applyRetryOptions("ClearQueuedOwners", opts), func() error {
-		deleted = 0
-		result, berr := coll.BulkWrite(ctx, writes, options.BulkWrite().SetOrdered(false))
-		if berr != nil {
-			return berr
+		if ferr != nil {
+			return ferr
 		}
-		if result != nil {
-			deleted = result.DeletedCount
-		}
+		current = true
 		return nil
 	})
 	if err != nil {
-		return 0, err
+		return false, err
 	}
-	return deleted, nil
+	return current, nil
+}
+
+// BumpOwnerClaim invalidates whatever an owner's queued work was dispatched
+// with, without queueing anything itself.
+//
+// A writer that derives an owner's aggregates from its rows — a reconcile —
+// accounts for every row a fold might be holding, so that fold must not also
+// apply them. Bumping the claim is what the fold already reads as "something
+// else took this owner on". There is no upsert: with no entry there is no work
+// in flight to invalidate, and creating one would invent work nothing asked for.
+func (m *Mongo) BumpOwnerClaim(ctx context.Context, owner models.StatsOwner, opts ...RetryOption) error {
+	if m == nil || m.AccountRebuildQueue == nil {
+		return fmt.Errorf("mongo handle is required")
+	}
+	if err := owner.Validate(); err != nil {
+		return err
+	}
+	coll, err := m.AccountRebuildQueue.requireColl()
+	if err != nil {
+		return err
+	}
+	return Retry(ctx, applyRetryOptions("BumpOwnerClaim", opts), func() error {
+		_, uerr := coll.UpdateOne(ctx, queuedOwnerFilter(owner), bson.M{"$inc": bson.M{"claim": 1}})
+		return uerr
+	})
 }
 
 // queuedOwnerFilter selects one owner's queue entry.
@@ -238,21 +241,18 @@ func queuedOwnerFilter(owner models.StatsOwner) bson.M {
 	return bson.M{"_id": owner.Key()}
 }
 
-// queueOwnerRebuildUpdate preserves the first queuedAt while bumping the claim on
+// queueOwnerWorkUpdate preserves the first queuedAt while bumping the claim on
 // every request, so wait time measures the oldest outstanding request and a
 // request arriving mid-rebuild still invalidates that rebuild's claim.
-//
-// The owner is written out as well as being the key, so the queue can be read
-// without every consumer parsing ids.
-func queueOwnerWorkUpdate(owner models.StatsOwner, work StatsWork, now time.Time) bson.M {
+func queueOwnerWorkUpdate(work StatsWork, now time.Time) bson.M {
 	return bson.M{
-		"$setOnInsert": bson.M{"queuedAt": now.UTC(), "owner": owner, "work": string(work)},
+		"$setOnInsert": bson.M{"queuedAt": now.UTC(), "work": string(work)},
 		"$inc":         bson.M{"claim": 1},
 	}
 }
 
-// clearQueuedOwnerFilter matches only an entry still on the claim the rebuild
-// read, so an owner re-queued mid-rebuild survives the clear.
+// clearQueuedOwnerFilter matches only an entry still on the claim its work was
+// dispatched with, so an owner re-queued while that work ran survives the clear.
 func clearQueuedOwnerFilter(queued QueuedOwner) bson.M {
 	return bson.M{"_id": queued.Owner.Key(), "claim": queued.Claim}
 }

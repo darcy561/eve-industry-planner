@@ -21,6 +21,9 @@ type DeltaResult struct {
 	Removed       int
 	TypesTouched  int
 	BucketsPruned int64
+	// Deferred means the fold found the owner taken on by something else and
+	// wrote nothing, leaving its rows outstanding.
+	Deferred bool
 }
 
 // ApplyOwnerStatisticsDelta folds an owner's uncounted rows into its aggregates.
@@ -62,6 +65,7 @@ func ApplyOwnerStatisticsDelta(ctx context.Context, t *asynq.Task, deps *esitask
 		"removed", result.Removed,
 		"types_touched", result.TypesTouched,
 		"buckets_pruned", result.BucketsPruned,
+		"deferred", result.Deferred,
 		"cleared", cleared,
 	)
 	return nil
@@ -81,6 +85,27 @@ func applyOwnerDelta(ctx context.Context, mongo *eipmongo.Mongo, queued eipmongo
 		return out, false, fmt.Errorf("load revoked rows still counted: %w", err)
 	}
 	out.Added, out.Removed = len(added), len(removed)
+
+	if len(added) > 0 || len(removed) > 0 {
+		// The rows were read before this point, so a rebuild finishing in between
+		// would have counted them already and the increments below would count
+		// them a second time. A fold may only write while its claim is the current
+		// one; anything else holding the owner accounts for these rows itself.
+		current, cerr := mongo.OwnerClaimIsCurrent(ctx, queued)
+		if cerr != nil {
+			return out, false, fmt.Errorf("check owner claim: %w", cerr)
+		}
+		if !current {
+			// Re-queueing rather than clearing keeps the rows outstanding, and the
+			// bumped claim invalidates the clear of whatever superseded this fold,
+			// so the owner is worked again rather than being left half applied.
+			if qerr := mongo.QueueOwnerWork(ctx, queued.Owner, eipmongo.StatsWorkDelta, now); qerr != nil {
+				return out, false, fmt.Errorf("re-queue deferred delta: %w", qerr)
+			}
+			out.Deferred = true
+			return out, false, nil
+		}
+	}
 
 	types := map[int]struct{}{}
 
