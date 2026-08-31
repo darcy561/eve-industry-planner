@@ -7,12 +7,10 @@ import (
 	"eve-industry-planner/shared/models"
 )
 
-func at(day int) time.Time {
-	return time.Date(2026, time.March, day, 12, 0, 0, 0, time.UTC)
-}
-
-// historyRow builds a row whose per-unit build cost is exactly costPerItem.
-func historyRow(jobID string, day int, costPerItem, produced float64) models.ArchivedJobStats {
+// historyRow builds a row whose per-unit build cost is exactly costPerItem, with
+// its costs filed under the given month. archivedAt is deliberately unrelated to
+// that month: on imported history the two bear no relation to each other.
+func historyRow(jobID string, costMonth int, costPerItem, produced float64) models.ArchivedJobStats {
 	return models.ArchivedJobStats{
 		ID:                "acct-1|" + jobID,
 		AccountID:         "acct-1",
@@ -21,8 +19,13 @@ func historyRow(jobID string, day int, costPerItem, produced float64) models.Arc
 		JobType:           1,
 		TotalMaterialCost: costPerItem * produced,
 		TotalProduced:     produced,
-		ArchivedAt:        at(day),
+		CostMonth:         models.CalendarMonth{Year: 2026, Month: costMonth},
+		ArchivedAt:        time.Date(2026, time.August, 31, 4, 0, 0, 0, time.UTC),
 	}
+}
+
+func month26(m int) models.CalendarMonth {
+	return models.CalendarMonth{Year: 2026, Month: m}
 }
 
 func TestBuildCostPerItemExcludesSaleSideFees(t *testing.T) {
@@ -50,10 +53,10 @@ func TestBuildCostPerItemReportsNoOutput(t *testing.T) {
 func TestAccountBuildHistoryMarks(t *testing.T) {
 	t.Parallel()
 	rows := []models.ArchivedJobStats{
-		historyRow("job-2", 9, 231, 1),
-		historyRow("job-4", 27, 236, 1),
+		historyRow("job-2", 4, 231, 1),
+		historyRow("job-4", 9, 236, 1),
 		historyRow("job-1", 2, 228, 1),
-		historyRow("job-3", 18, 234, 1),
+		historyRow("job-3", 6, 234, 1),
 	}
 
 	got := AccountBuildHistory(rows)
@@ -61,17 +64,17 @@ func TestAccountBuildHistoryMarks(t *testing.T) {
 	if got.BuildCount != 4 {
 		t.Fatalf("build count: got %d, want 4", got.BuildCount)
 	}
-	if !got.FirstBuildAt.Equal(at(2)) {
-		t.Errorf("first build: got %v, want %v", got.FirstBuildAt, at(2))
+	if got.FirstCostMonth != month26(2) {
+		t.Errorf("first build: got %v, want %v", got.FirstCostMonth, month26(2))
 	}
-	if !got.LastBuildAt.Equal(at(27)) || got.LastCostPerItem != 236 {
-		t.Errorf("last build: got %v at %v, want 236 at %v", got.LastCostPerItem, got.LastBuildAt, at(27))
+	if got.LastCostMonth != month26(9) || got.LastCostPerItem != 236 {
+		t.Errorf("last build: got %v in %v, want 236 in %v", got.LastCostPerItem, got.LastCostMonth, month26(9))
 	}
-	if got.CheapestCostPerItem != 228 || !got.CheapestBuildAt.Equal(at(2)) {
-		t.Errorf("cheapest: got %v at %v, want 228 at %v", got.CheapestCostPerItem, got.CheapestBuildAt, at(2))
+	if got.CheapestCostPerItem != 228 || got.CheapestCostMonth != month26(2) {
+		t.Errorf("cheapest: got %v in %v, want 228 in %v", got.CheapestCostPerItem, got.CheapestCostMonth, month26(2))
 	}
-	if got.DearestCostPerItem != 236 || !got.DearestBuildAt.Equal(at(27)) {
-		t.Errorf("dearest: got %v at %v, want 236 at %v", got.DearestCostPerItem, got.DearestBuildAt, at(27))
+	if got.DearestCostPerItem != 236 || got.DearestCostMonth != month26(9) {
+		t.Errorf("dearest: got %v in %v, want 236 in %v", got.DearestCostPerItem, got.DearestCostMonth, month26(9))
 	}
 }
 
@@ -81,7 +84,7 @@ func TestAccountBuildHistorySkipsRevoked(t *testing.T) {
 	t.Parallel()
 	revoked := historyRow("job-cheap", 2, 10, 1)
 	revoked.Revoked = true
-	kept := historyRow("job-1", 9, 231, 1)
+	kept := historyRow("job-1", 4, 231, 1)
 
 	got := AccountBuildHistory([]models.ArchivedJobStats{revoked, kept})
 
@@ -117,7 +120,7 @@ func TestAccountBuildHistoryEmptyWithoutBuilds(t *testing.T) {
 
 	got := AccountBuildHistory([]models.ArchivedJobStats{noOutput})
 
-	if got.BuildCount != 0 || !got.FirstBuildAt.IsZero() || got.LastCostPerItem != 0 {
+	if got.BuildCount != 0 || got.FirstCostMonth != (models.CalendarMonth{}) || got.LastCostPerItem != 0 {
 		t.Fatalf("expected empty marks, got %+v", got)
 	}
 }
@@ -127,15 +130,41 @@ func TestAccountBuildHistoryEmptyWithoutBuilds(t *testing.T) {
 func TestAccountBuildHistoryTiesBreakOnJobID(t *testing.T) {
 	t.Parallel()
 	rows := []models.ArchivedJobStats{
-		historyRow("job-b", 9, 200, 1),
-		historyRow("job-a", 9, 200, 1),
+		historyRow("job-b", 4, 200, 1),
+		historyRow("job-a", 4, 200, 1),
 	}
 	reversed := []models.ArchivedJobStats{rows[1], rows[0]}
 
 	if AccountBuildHistory(rows) != AccountBuildHistory(reversed) {
 		t.Fatal("marks depend on row order")
 	}
-	if got := AccountBuildHistory(rows); got.LastBuildAt != at(9) {
-		t.Fatalf("last build at: got %v, want %v", got.LastBuildAt, at(9))
+	if got := AccountBuildHistory(rows); got.LastCostMonth != month26(4) {
+		t.Fatalf("last cost month: got %v, want %v", got.LastCostMonth, month26(4))
+	}
+}
+
+// Imported history archives in an order unrelated to when the builds happened: on
+// live data the most recently archived row carries costs from three years before
+// the earliest archived one. Ordering on archive dates would make "last build" the
+// last row written rather than the most recent build.
+func TestAccountBuildHistoryOrdersOnCostMonthNotArchiveDate(t *testing.T) {
+	t.Parallel()
+
+	recentBuild := historyRow("job-early-archive", 5, 42_549, 1)
+	recentBuild.ArchivedAt = time.Date(2026, time.May, 6, 0, 0, 0, 0, time.UTC)
+
+	oldBuild := historyRow("job-late-archive", 1, 48_127, 1)
+	oldBuild.ArchivedAt = time.Date(2026, time.August, 31, 0, 0, 0, 0, time.UTC)
+
+	got := AccountBuildHistory([]models.ArchivedJobStats{recentBuild, oldBuild})
+
+	if got.LastCostMonth != month26(5) {
+		t.Fatalf("last cost month: got %v, want %v", got.LastCostMonth, month26(5))
+	}
+	if got.LastCostPerItem != 42_549 {
+		t.Fatalf("last build cost: got %v, want the build with the later cost month", got.LastCostPerItem)
+	}
+	if got.FirstCostMonth != month26(1) {
+		t.Fatalf("first cost month: got %v, want %v", got.FirstCostMonth, month26(1))
 	}
 }

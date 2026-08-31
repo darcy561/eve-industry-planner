@@ -8,9 +8,14 @@ import {
   Link,
   Tooltip,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import AppShellPanel from "../../../../../../Styled Components/Paper/AppShellPanel";
-import { TimeSeriesChart } from "../../../../../../Styled Components/Charts";
+import {
+  TimeSeriesChart,
+  timeSeriesSurfaceStyle,
+} from "../../../../../../Styled Components/Charts";
 import { appShellInsetSurfaceSx } from "../../../../../../Context/appShell";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import {
@@ -25,8 +30,10 @@ import {
 } from "../../../../../../Components/Archive Statistics/chartAdapters";
 import {
   costRange,
-  estimateComparison,
+  historyWindow,
+  monthLabel,
   outputDestinations,
+  shortMonthLabel,
 } from "./buildHistoryFigures";
 
 const labelSx = {
@@ -79,56 +86,43 @@ function Figure({ label, value, title, note, noteColor }) {
   );
 }
 
-function isk(value) {
-  return formatNumberForLocale(value);
-}
-
-function ComparisonStrip({ estimate, history }) {
-  const comparison = estimateComparison(estimate, history);
+function ComparisonStrip({ history }) {
   const range = costRange(history);
   const builds = Number(history?.buildCount ?? 0);
 
   return (
     <Grid container spacing={2} size={12}>
       <Figure
-        label="Current estimate"
-        value={estimate > 0 ? isk(estimate) : "—"}
-        title={estimate > 0 ? numberToShortText(estimate) : null}
-        note={
-          comparison
-            ? `${comparison.dearer ? "▲" : "▼"} ${formatNumberForLocale(
-                Math.abs(comparison.percent),
-                { max: 1 },
-              )}% vs last build`
-            : null
-        }
-        noteColor={comparison?.dearer ? "error.main" : "success.main"}
+        label="Builds"
+        value={formatNumberForLocale(builds, { max: 0 })}
+        note={builds > 0 ? `since ${monthLabel(history.firstCostMonth)}` : null}
       />
       <Figure
         label="Last build"
-        value={builds > 0 ? isk(history.lastCostPerItem) : "—"}
+        value={
+          builds > 0 ? formatNumberForLocale(history.lastCostPerItem) : "—"
+        }
         title={builds > 0 ? numberToShortText(history.lastCostPerItem) : null}
-        note={builds > 0 ? monthOf(history.lastBuildAt) : "no builds yet"}
+        note={builds > 0 ? monthLabel(history.lastCostMonth) : "no builds yet"}
       />
       <Figure
         label="Average"
-        value={builds > 0 ? isk(averageOf(history)) : "—"}
+        value={builds > 0 ? formatNumberForLocale(averageOf(history)) : "—"}
         title={builds > 0 ? numberToShortText(averageOf(history)) : null}
-        note={
-          builds > 0
-            ? `${formatNumberForLocale(builds, { max: 0 })} builds`
-            : null
-        }
       />
       <Figure
         label="Range"
-        value={range ? `${isk(range.low)} – ${isk(range.high)}` : "—"}
+        value={
+          range
+            ? `${formatNumberForLocale(range.low)} – ${formatNumberForLocale(range.high)}`
+            : "—"
+        }
         title={
           range
             ? `${numberToShortText(range.low)} – ${numberToShortText(range.high)}`
             : null
         }
-        note={range ? `spread ${numberToShortText(range.spread)}` : null}
+        note={range ? `spread ${formatNumberForLocale(range.spread)}` : null}
       />
     </Grid>
   );
@@ -142,22 +136,6 @@ function averageOf(history) {
   const low = Number(history?.cheapestCostPerItem ?? 0);
   const high = Number(history?.dearestCostPerItem ?? 0);
   return (low + high) / 2;
-}
-
-/** `2026-03` as `Mar 26`, so a narrow axis fits more of them. */
-function shortMonth(value) {
-  const [year, month] = String(value ?? "").split("-");
-  const date = new Date(Number(year), Number(month) - 1, 1);
-  if (Number.isNaN(date.getTime())) return value;
-  return `${date.toLocaleDateString(undefined, { month: "short" })} ${year.slice(2)}`;
-}
-
-function monthOf(iso) {
-  if (!iso) return null;
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime())
-    ? null
-    : date.toLocaleDateString(undefined, { month: "short", year: "numeric" });
 }
 
 function DestinationSplit({ totals }) {
@@ -199,22 +177,32 @@ export default function ArchiveJobsPanel({ state }) {
   const history = totalsData?.history;
   const hasHistory = Number(history?.buildCount ?? 0) > 0;
 
+  const theme = useTheme();
+  const deviceNotMobile = useMediaQuery(theme.breakpoints.up("sm"));
+  const chartSurfaceSx = useMemo(
+    () => timeSeriesSurfaceStyle(deviceNotMobile),
+    [deviceNotMobile],
+  );
+
   // Chain output counts: an item built only as an intermediate still has a cost
   // history, and it is the one its builder wants to compare against.
-  const { data: timelineData } = useAccountTimelineQuery(
-    { typeID, includeProductionChain: true },
-    { enabled: showChart && hasHistory },
-  );
+  const window = useMemo(() => historyWindow(history), [history]);
+  const { data: timelineData, isLoading: chartLoading } =
+    useAccountTimelineQuery(
+      { ...window, typeID, includeProductionChain: true },
+      { enabled: showChart && hasHistory && Boolean(window) },
+    );
+
+  // Opening waits for the rows: a collapse that grows once to the finished chart
+  // reads as one movement, where growing to a loading state and again to the
+  // chart reads as a jump.
+  const chartOpening = showChart && chartLoading;
+  const chartReady = showChart && !chartLoading;
 
   const chartRows = useMemo(
     () => toBuildCostPerUnitRows(timelineData),
     [timelineData],
   );
-
-  const estimate = useMemo(() => {
-    const value = state.activeJob?.buildCostPerItem?.();
-    return Number.isFinite(value) ? value : 0;
-  }, [state.activeJob]);
 
   return (
     <AppShellPanel
@@ -236,7 +224,7 @@ export default function ArchiveJobsPanel({ state }) {
       ) : (
         <Fade in appear timeout={400}>
           <Grid container spacing={2} sx={{ width: "100%" }}>
-            <ComparisonStrip estimate={estimate} history={history} />
+            <ComparisonStrip history={history} />
 
             <Grid size={12}>
               <Divider />
@@ -250,22 +238,32 @@ export default function ArchiveJobsPanel({ state }) {
                 onClick={() => setShowChart((open) => !open)}
                 sx={{ typography: "body2" }}
               >
-                {showChart ? "Hide cost over time" : "Show cost over time"}
+                {chartOpening
+                  ? "Loading cost over time…"
+                  : showChart
+                    ? "Hide cost over time"
+                    : "Show cost over time"}
               </Link>
-              <Collapse in={showChart} timeout={350} unmountOnExit>
+              <Collapse in={chartReady} timeout={350} unmountOnExit>
                 <Box sx={[appShellInsetSurfaceSx, { mt: 1, p: 1.5 }]}>
-                  {chartRows.length === 0 ? (
-                    <Typography sx={{ typography: "body2" }} align="center">
-                      No monthly figures for this item yet.
-                    </Typography>
-                  ) : (
-                    <TimeSeriesChart
-                      rows={chartRows}
-                      categoryKey="month"
-                      series={COST_SERIES}
-                      leftAxisLabel="Cost per unit"
-                    />
-                  )}
+                  {/* The chart sizes itself from its container, which it can only
+                      measure once laid out. Holding that height here keeps the
+                      collapse growing to the size the chart settles at. */}
+                  <Box sx={chartSurfaceSx}>
+                    {chartRows.length === 0 ? (
+                      <Typography sx={{ typography: "body2" }} align="center">
+                        No monthly figures for this item yet.
+                      </Typography>
+                    ) : (
+                      <TimeSeriesChart
+                        rows={chartRows}
+                        categoryKey="month"
+                        series={COST_SERIES}
+                        formatCategory={shortMonthLabel}
+                        leftAxisLabel="Cost per unit"
+                      />
+                    )}
+                  </Box>
                 </Box>
               </Collapse>
             </Grid>
