@@ -17,14 +17,14 @@ const placementPublishRefreshEvery = 30 * time.Second
 
 // placementPub publishes to NATS when available. ok=false means skipped (nil NATS);
 // callers must not treat a skip as a successful publish for dedupe.
-func (s *Server) placementPub(subject string, data []byte) (ok bool, err error) {
+func (s *Server) placementPub(state eipnats.PlacementState) (ok bool, err error) {
 	if s != nil && s.placementPublishFn != nil {
-		return true, s.placementPublishFn(subject, data)
+		return true, s.placementPublishFn(state)
 	}
 	if s == nil || s.Stack == nil || s.Stack.NATS == nil {
 		return false, nil
 	}
-	return true, s.Stack.NATS.Conn().Publish(subject, data)
+	return true, eipnats.PublishPlacementState(s.Stack.NATS, state)
 }
 
 // currentPlacementState builds PlacementState from live count and config thresholds.
@@ -65,15 +65,10 @@ func (s *Server) publishPlacementState(ctx context.Context, connected int, force
 	}
 	s.placementMu.Unlock()
 
-	raw, err := json.Marshal(state)
-	if err != nil {
-		logs.WarnCtx(ctx, "placement state marshal failed", "error", err)
-		return
-	}
-	ok, err := s.placementPub(eipnats.SubjectWSPlacementState, raw)
+	ok, err := s.placementPub(state)
 	if err != nil {
 		logs.WarnCtx(ctx, "placement state publish failed",
-			"error", err, "subject", eipnats.SubjectWSPlacementState,
+			"error", err,
 			"clients", state.Clients, "soft", state.Soft, "full", state.Full, "draining", state.Draining)
 		return
 	}

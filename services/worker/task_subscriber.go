@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -23,58 +22,17 @@ const MaxConcurrentEnqueues = 20
 
 // processMessage receives a NATS message and enqueues it to the asynq server.
 // Acknowledges NATS message immediately after successful enqueue to prevent redelivery.
-func processMessage(
-	msg jetstream.Msg,
-	subject string,
-	client *asynq.Client,
-) {
-	var envelope eipnats.Message
-	_ = json.Unmarshal(msg.Data(), &envelope)
-
-	ctx, endSpan := eipnats.BeginConsumerContext(
-		context.Background(),
-		workerNatsTracerName,
-		"nats.enqueue_task",
-		msg,
-		&envelope,
-	)
-	defer endSpan()
-
-	// Determine task type from subject
+func processMessage(ctx context.Context, msg jetstream.Msg, client *asynq.Client) error {
+	subject := msg.Subject()
 	taskType := getTaskTypeFromSubject(subject)
 	if taskType == "" {
-		deliveryCount, _ := eipnats.GetMessageMetadata(msg)
-		eipnats.FinishNATSConsumerOperation(ctx, "warn", "nats task rejected", map[string]any{
-			"subject": subject,
-			"reason":  "unknown task type",
-		})
-		eipnats.AcknowledgeMessage(ctx, msg, "unknown task type", deliveryCount)
-		return
+		return eipnats.Terminate("unknown task type for subject %s", subject)
 	}
-
-	// Enqueue to asynq server
-	// This is fast and non-blocking - asynq server handles processing with priority queues
-	err := asynqpkg.Enqueue(msg, client, taskType, subject)
-	if err != nil {
-		logs.ErrorCtx(ctx, "failed to enqueue task to asynq", "subject", subject, "error", err)
-		eipnats.FinishNATSConsumerOperation(ctx, "warn", "nats task enqueue failed", map[string]any{
-			"subject":   subject,
-			"task_type": taskType,
-			"error":     err.Error(),
-		})
-		// Nack the message so it can be retried
-		eipnats.NackMessage(ctx, msg)
-		return
+	if err := asynqpkg.Enqueue(msg, client, taskType, subject); err != nil {
+		return fmt.Errorf("enqueue %s to asynq: %w", taskType, err)
 	}
-
-	// Acknowledge NATS message immediately after successful enqueue
-	// Message is now safely in asynq queue with retention, won't expire
-	deliveryCount, _ := eipnats.GetMessageMetadata(msg)
-	eipnats.AcknowledgeMessage(ctx, msg, "enqueued to asynq", deliveryCount)
-	eipnats.FinishNATSConsumerOperation(ctx, "debug", "nats task enqueued", map[string]any{
-		"subject":   subject,
-		"task_type": taskType,
-	})
+	logs.DebugCtx(ctx, "nats task enqueued", "subject", subject, "task_type", taskType)
+	return nil
 }
 
 // getTaskTypeFromSubject derives the asynq task type from the NATS subject.
@@ -125,9 +83,10 @@ func SubscribeScheduledTasks(deps *WorkerDependencies) (func(context.Context), e
 		return nil, fmt.Errorf("failed to create task consumer: %w", err)
 	}
 
-	processor := func(msg jetstream.Msg) {
-		processMessage(msg, msg.Subject(), deps.AsynqClient)
-	}
+	processor := eipnats.Handle(workerNatsTracerName, "nats.enqueue_task",
+		func(ctx context.Context, msg jetstream.Msg) error {
+			return processMessage(ctx, msg, deps.AsynqClient)
+		})
 
 	stop, err := eipnats.Consume(consumer, taskSubjects, processor, eipnats.WithConcurrency(MaxConcurrentEnqueues))
 	if err != nil {

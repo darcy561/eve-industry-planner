@@ -4,10 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
-	"time"
 
-	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/telemetry/natsprop"
 
@@ -18,97 +15,6 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
-
-// ConnectRetry bounds boot-time connection attempts.
-var ConnectRetry = RetryPolicy{Attempts: 5, InitialDelay: 5 * time.Second, MaxDelay: 5 * time.Second}
-
-const (
-	connectTimeout = 5 * time.Second
-	// jetStreamAPITimeout applies only when a caller's context carries no deadline.
-	jetStreamAPITimeout = 5 * time.Second
-)
-
-// Connect establishes a connection, retrying while ctx allows.
-func Connect(ctx context.Context) (*natslib.Conn, error) {
-	natsURL, err := config.NATSURL()
-	if err != nil {
-		return nil, err
-	}
-
-	opts := []natslib.Option{
-		natslib.ReconnectWait(2 * time.Second),
-		natslib.MaxReconnects(-1),
-		natslib.ReconnectOnFlusherError(),
-		natslib.Timeout(connectTimeout),
-		natslib.DisconnectErrHandler(func(_ *natslib.Conn, err error) {
-			if err != nil {
-				logs.WarnCtx(ctx, "NATS disconnected", "error", err)
-			}
-		}),
-		natslib.ReconnectHandler(func(nc *natslib.Conn) {
-			logs.InfoCtx(ctx, "NATS reconnected", "url", nc.ConnectedUrl())
-		}),
-		natslib.ReconnectErrHandler(func(_ *natslib.Conn, err error) {
-			if err != nil {
-				logs.WarnCtx(ctx, "NATS reconnect attempt failed", "error", err)
-			}
-		}),
-		natslib.ErrorHandler(func(_ *natslib.Conn, _ *natslib.Subscription, err error) {
-			if err != nil {
-				logs.ErrorCtx(ctx, "NATS error", "error", err)
-			}
-		}),
-	}
-
-	var conn *natslib.Conn
-	err = Retry(ctx, ConnectRetry, "nats connect", func() error {
-		c, connErr := natslib.Connect(natsURL, opts...)
-		if connErr != nil {
-			return connErr
-		}
-		conn = c
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("connect to NATS: %w", err)
-	}
-	logs.DebugCtx(ctx, "connected to NATS", "url", conn.ConnectedUrl())
-	return conn, nil
-}
-
-// Open establishes a connection and returns the handle bound to it.
-func Open(ctx context.Context) (*NATS, error) {
-	conn, err := Connect(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	js, err := getJetStream(conn)
-	if err != nil {
-		conn.Close()
-		return nil, err
-	}
-
-	handle, err := NewNATS(conn, js)
-	if err != nil {
-		conn.Close()
-		return nil, err
-	}
-	return handle, nil
-}
-
-// GetJetStream returns a JetStream context from the connection using the new API.
-// Use this when you already have a connection.
-// Note: JetStream contexts automatically work with NATS connection reconnection.
-// If the connection is reconnected, JetStream operations will automatically use the
-// reconnected connection without needing to recreate the context.
-func getJetStream(conn *natslib.Conn) (jetstream.JetStream, error) {
-	js, err := jetstream.New(conn, jetstream.WithDefaultTimeout(jetStreamAPITimeout))
-	if err != nil {
-		return nil, fmt.Errorf("failed to get JetStream context: %w", err)
-	}
-	return js, nil
-}
 
 // PublishTask publishes a task message to NATS JetStream with retry logic.
 // The payload is automatically marshaled and wrapped in a TaskMessage structure.
@@ -191,16 +97,23 @@ func (n *NATS) Publish(ctx context.Context, subject string, msg any) error {
 		return err
 	}
 
+	hdr := make(natslib.Header)
+	natsprop.Inject(ctx, hdr)
+	natsprop.InjectLogContext(ctx, hdr)
+	outgoing := &natslib.Msg{Subject: subject, Data: msgData, Header: hdr}
+
+	// A batching handle does not wait here; its acks are collected by Wait, and
+	// retrying a publish whose ack has not been seen would duplicate it.
+	if n.batch != nil {
+		return n.publishAsync(outgoing)
+	}
+
 	var pubAck *jetstream.PubAck
 	err = Retry(ctx, PublishRetry, "jetstream publish "+subject, func() error {
 		if !n.Connected() {
 			return ErrNotConnected
 		}
-		hdr := make(natslib.Header)
-		natsprop.Inject(ctx, hdr)
-		natsprop.InjectLogContext(ctx, hdr)
-
-		ack, publishErr := n.js.PublishMsg(ctx, &natslib.Msg{Subject: subject, Data: msgData, Header: hdr})
+		ack, publishErr := n.js.PublishMsg(ctx, outgoing)
 		if publishErr != nil {
 			return publishErr
 		}
@@ -230,32 +143,6 @@ func encodeMessage(ctx context.Context, msg any) ([]byte, error) {
 		return json.Marshal(m)
 	}
 	return json.Marshal(msg)
-}
-
-// ExtractIDFromSubject extracts an ID from a NATS subject after a given prefix.
-// Subject format: {prefix}.{id} or {prefix}.{nested.id}
-// Example: ExtractIDFromSubject("doc.update.user.account123", "doc.update") returns "user.account123"
-// Example: ExtractIDFromSubject("doc.subscribe.account123", "doc.subscribe") returns "account123"
-// Returns the extracted ID and an error if the subject format is invalid.
-func ExtractIDFromSubject(subject string, prefix string) (string, error) {
-	// Ensure prefix ends with a dot for proper matching
-	prefixWithDot := prefix
-	if !strings.HasSuffix(prefix, ".") {
-		prefixWithDot = prefix + "."
-	}
-
-	// Check if subject starts with prefix
-	if !strings.HasPrefix(subject, prefixWithDot) {
-		return "", fmt.Errorf("subject does not match prefix: subject=%s, prefix=%s", subject, prefix)
-	}
-
-	// Extract the ID part (everything after prefix.)
-	id := strings.TrimPrefix(subject, prefixWithDot)
-	if id == "" {
-		return "", fmt.Errorf("subject has no ID after prefix: subject=%s, prefix=%s", subject, prefix)
-	}
-
-	return id, nil
 }
 
 const otelTracerNameNATS = "eve-industry-planner/shared/nats"

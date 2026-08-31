@@ -18,6 +18,10 @@ type NATS struct {
 	conn *natslib.Conn
 	js   jetstream.JetStream
 
+	// batch is set on a handle returned by [NATS.Batching]; nil publishes
+	// synchronously.
+	batch *batch
+
 	// Named streams, bound from [Specs]. Binding touches no server.
 	Tasks     *Stream
 	DocUpdate *Stream
@@ -82,10 +86,17 @@ func (n *NATS) Ping(ctx context.Context) error {
 	return nil
 }
 
-// Close drains and closes the connection.
+// Close waits for anything published asynchronously to be acknowledged, then
+// drains and closes the connection. Closing first would fail those publishes.
 func (n *NATS) Close() {
 	if n == nil || n.conn == nil {
 		return
+	}
+	if n.js != nil {
+		select {
+		case <-n.js.PublishAsyncComplete():
+		case <-time.After(asyncPublishTimeout):
+		}
 	}
 	_ = n.conn.Drain()
 	n.conn.Close()

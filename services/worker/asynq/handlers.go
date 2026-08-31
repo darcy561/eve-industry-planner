@@ -2,6 +2,7 @@ package asynq
 
 import (
 	"context"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/stackservices"
 	"time"
 
@@ -91,77 +92,77 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 	taskDeps := esitasks.FromClients(deps.GetClients(), deps.GetESIClient(), deps.GetEntityCipher())
 
 	// Register task handlers
-	mux.HandleFunc("refreshSystemIndexes", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.RefreshSystemIndexes, func(ctx context.Context, t *asynq.Task) error {
 		return esitasks.RefreshSystemIndexes(ctx, t, taskDeps)
 	})
 
-	mux.HandleFunc("refreshAdjustedPrices", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.RefreshAdjustedPrices, func(ctx context.Context, t *asynq.Task) error {
 		return esitasks.RefreshAdjustedPrices(ctx, t, taskDeps)
 	})
 
-	mux.HandleFunc("refreshRegionMarketOrders", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.RefreshRegionMarketOrders, func(ctx context.Context, t *asynq.Task) error {
 		return esitasks.RefreshRegionMarketOrders(ctx, t, taskDeps)
 	})
 
-	mux.HandleFunc("checkSDEUpdates", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.CheckSDEUpdates, func(ctx context.Context, t *asynq.Task) error {
 		return sdetasks.CheckSDEUpdates(ctx, t, taskDeps)
 	})
-	mux.HandleFunc("rollbackSDEVersion", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.RollbackSDEVersion, func(ctx context.Context, t *asynq.Task) error {
 		return sderollbacktasks.RollbackSDEVersion(ctx, t, taskDeps)
 	})
-	mux.HandleFunc("applySDEVersion", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.ApplySDEVersion, func(ctx context.Context, t *asynq.Task) error {
 		return sdetasks.ApplySDEVersion(ctx, t, taskDeps)
 	})
-	mux.HandleFunc("rebuildCurrentSDEVersion", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.RebuildCurrentSDEVersion, func(ctx context.Context, t *asynq.Task) error {
 		return sdetasks.RebuildCurrentSDEVersion(ctx, t, taskDeps)
 	})
 
-	mux.HandleFunc("updateAccountSessionGrants", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.UpdateAccountSessionGrants, func(ctx context.Context, t *asynq.Task) error {
 		return esitasks.RefreshAccountSessionGrants(ctx, t, taskDeps)
 	})
 
-	mux.HandleFunc("migrateUserDocumentToMongo", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.MigrateUserDocumentToMongo, func(ctx context.Context, t *asynq.Task) error {
 		return migrationtasks.MigrateUserDocumentToMongo(ctx, t, taskDeps)
 	})
 
-	mux.HandleFunc("encryptCloudRefreshTokensBatch", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.EncryptCloudRefreshTokensBatch, func(ctx context.Context, t *asynq.Task) error {
 		return migrationtasks.EncryptCloudRefreshTokensBatch(ctx, t, taskDeps)
 	})
-	mux.HandleFunc("migrateUserCloudAccountsToUserDoc", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.MigrateUserCloudAccountsToUserDoc, func(ctx context.Context, t *asynq.Task) error {
 		return migrationtasks.MigrateUserCloudAccountsToUserDoc(ctx, t, taskDeps)
 	})
 
-	mux.HandleFunc("migrateFirestoreWatchlistToMongo", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.MigrateFirestoreWatchlistToMongo, func(ctx context.Context, t *asynq.Task) error {
 		return migrationtasks.MigrateFirestoreWatchlistToMongo(ctx, t, taskDeps)
 	})
 
-	mux.HandleFunc("importArchivedJobToMongo", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.ImportArchivedJobToMongo, func(ctx context.Context, t *asynq.Task) error {
 		return migrationtasks.ImportArchivedJobToMongo(ctx, t, taskDeps)
 	})
 
-	mux.HandleFunc("importUserJobDocumentsForAccount", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.ImportUserJobDocumentsForAccount, func(ctx context.Context, t *asynq.Task) error {
 		return migrationtasks.ImportUserJobDocumentsForAccount(ctx, t, taskDeps)
 	})
 
-	mux.HandleFunc("drainAccountStatsRebuildQueue", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.DrainAccountStatsRebuildQueue, func(ctx context.Context, t *asynq.Task) error {
 		return archivedjobtasks.DrainAccountStatsRebuildQueue(ctx, t, taskDeps)
 	})
-	mux.HandleFunc("rotateRefreshTokenKeys", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.RotateRefreshTokenKeys, func(ctx context.Context, t *asynq.Task) error {
 		return maintenancetasks.RotateRefreshTokenKeys(ctx, t, taskDeps)
 	})
-	mux.HandleFunc("encodeJobIdentity", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.EncodeJobIdentity, func(ctx context.Context, t *asynq.Task) error {
 		return jobidentitytasks.EncodeJobIdentity(ctx, t, taskDeps)
 	})
-	mux.HandleFunc("schemaVersionMaintenanceBatch", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.SchemaVersionMaintenanceBatch, func(ctx context.Context, t *asynq.Task) error {
 		return maintenancetasks.SchemaVersionMaintenanceBatch(ctx, t, taskDeps)
 	})
-	mux.HandleFunc("inactiveAccountPlannerCleanup", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.InactiveAccountPlannerCleanup, func(ctx context.Context, t *asynq.Task) error {
 		return maintenancetasks.InactiveAccountPlannerCleanup(ctx, t, taskDeps)
 	})
-	mux.HandleFunc("cloudStoredEsiRefreshMaintenance", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.CloudStoredEsiRefreshMaintenance, func(ctx context.Context, t *asynq.Task) error {
 		return maintenancetasks.CloudStoredEsiRefreshMaintenance(ctx, t, taskDeps)
 	})
-	mux.HandleFunc("pruneExpiredAccountSessions", func(ctx context.Context, t *asynq.Task) error {
+	handle(mux, eipnats.PruneExpiredAccountSessions, func(ctx context.Context, t *asynq.Task) error {
 		return maintenancetasks.PruneExpiredAccountSessions(ctx, t, taskDeps)
 	})
 }

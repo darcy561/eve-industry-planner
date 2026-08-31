@@ -25,15 +25,7 @@ func TestPublishPlacementStateOnChange(t *testing.T) {
 	s := &Server{
 		Stack:        &stackservices.Clients{},
 		shutdownChan: make(chan struct{}),
-		placementPublishFn: func(subject string, data []byte) error {
-			if subject != eipnats.SubjectWSPlacementState {
-				t.Errorf("subject=%q", subject)
-			}
-			st, err := eipnats.ParsePlacementState(data)
-			if err != nil {
-				t.Errorf("parse: %v", err)
-				return err
-			}
+		placementPublishFn: func(st eipnats.PlacementState) error {
 			mu.Lock()
 			pubs = append(pubs, st)
 			mu.Unlock()
@@ -74,7 +66,7 @@ func TestPublishPlacementStateSkipsDedupeWithoutNATS(t *testing.T) {
 	}
 
 	var pubs int
-	s.placementPublishFn = func(string, []byte) error {
+	s.placementPublishFn = func(eipnats.PlacementState) error {
 		pubs++
 		return nil
 	}

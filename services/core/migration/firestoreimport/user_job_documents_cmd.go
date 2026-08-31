@@ -162,6 +162,7 @@ func publishImportUserJobDocumentTasksScanAll(ctx context.Context, skipAuthRecen
 	}
 	defer func() { _ = firebaseadmin.Close(ctx) }()
 
+	batch := clients.NATS.Batching()
 	taskDef := eipnats.ImportUserJobDocumentsForAccount
 	var published, errorsN int
 	iter := fsc.Collection(firestoremig.FirestoreUsersCollection).Documents(ctx)
@@ -177,12 +178,15 @@ func publishImportUserJobDocumentTasksScanAll(ctx context.Context, skipAuthRecen
 		if aid == "" {
 			continue
 		}
-		if err := eipnats.PublishImportUserJobDocumentsForAccount(ctx, clients.NATS, aid, loginRecencyWindow(skipAuthRecency)); err != nil {
+		if err := eipnats.PublishImportUserJobDocumentsForAccount(ctx, batch, aid, loginRecencyWindow(skipAuthRecency)); err != nil {
 			logs.ErrorCtx(ctx, "import user job documents: publish task", "account_id", aid, "error", err)
 			errorsN++
 			continue
 		}
 		published++
+	}
+	if err := batch.Wait(ctx); err != nil {
+		return fmt.Errorf("enqueue importUserJobDocumentsForAccount: %w", err)
 	}
 	if errorsN > 0 {
 		return fmt.Errorf("enqueue had %d publication error(s); published=%d", errorsN, published)

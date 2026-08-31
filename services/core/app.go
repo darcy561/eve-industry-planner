@@ -65,7 +65,7 @@ func (a *app) connectDeps(ctx context.Context) error {
 	}
 	a.clients = clients
 	a.stopDeps = stopDeps
-	a.g.AddApp(metrics.RegisterAll(clients.Redis, clients.Mongo, clients.NATS.Conn())...)
+	a.g.AddApp(metrics.RegisterAll(clients.Redis, clients.Mongo, clients.NATS)...)
 	health.Register(health.Deps(clients))
 
 	// Core owns stream lifecycle: a stream this app made but no longer declares
@@ -96,7 +96,7 @@ func (a *app) startProbes(ctx context.Context) error {
 	bus, err := orchestrationprobes.StartBus(ctx, orchestrationprobes.BusOptions{
 		Role:       "core",
 		InstanceID: container.ID(),
-		Conn:       a.clients.NATS.Conn(),
+		NATS:       a.clients.NATS,
 		Ready:      health.Check,
 		Enabled:    true,
 		Fill: func(st *eipnats.HealthStatus) {

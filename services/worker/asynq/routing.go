@@ -1,8 +1,12 @@
 package asynq
 
 import (
-	eipnats "eve-industry-planner/shared/nats"
+	"context"
 	"time"
+
+	eipnats "eve-industry-planner/shared/nats"
+
+	"github.com/hibiken/asynq"
 )
 
 const (
@@ -46,4 +50,25 @@ func clampTaskTimeout(d time.Duration) time.Duration {
 // GetTaskTimeout returns the asynq handler deadline for a task, clamped.
 func GetTaskTimeout(taskType string) time.Duration {
 	return clampTaskTimeout(DefaultTimeoutForTaskType(taskType))
+}
+
+// handle registers a task's handler under the name in its definition, so a
+// handler and the task it serves cannot drift apart. The asynq mux keys on a
+// bare string; this is the one place that string is written.
+func handle(mux *asynq.ServeMux, task eipnats.Definition, fn func(context.Context, *asynq.Task) error) {
+	registeredHandlers[task.Name] = struct{}{}
+	mux.HandleFunc(task.Name, fn)
+}
+
+// registeredHandlers records what has been wired, for the test that checks every
+// task has somewhere to run.
+var registeredHandlers = map[string]struct{}{}
+
+// RegisteredHandlers returns the task names with a handler.
+func RegisteredHandlers() []string {
+	out := make([]string, 0, len(registeredHandlers))
+	for name := range registeredHandlers {
+		out = append(out, name)
+	}
+	return out
 }

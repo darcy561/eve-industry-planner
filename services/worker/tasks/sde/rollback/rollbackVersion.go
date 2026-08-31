@@ -2,7 +2,6 @@ package rollback
 
 import (
 	"context"
-	"encoding/json"
 	objectstore "eve-industry-planner/shared/core/objectstore"
 	sdecore "eve-industry-planner/shared/core/sde"
 	"fmt"
@@ -55,12 +54,9 @@ func RollbackSDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.Ta
 		"build_number", rollbackVersion.BuildNumber,
 	)
 	if deps != nil && deps.NATS != nil && rollbackVersion.BuildNumber > 0 {
-		payload, err := json.Marshal(eipnats.SDECurrentBuildUpdate{BuildNumber: rollbackVersion.BuildNumber, Version: rollbackVersion.Version})
-		if err == nil {
-			if err := deps.NATS.Conn().Publish(eipnats.SubjectCoreSDEBuildUpdated, payload); err != nil {
-				logs.WarnCtx(ctx, "failed to publish core SDE build update after rollback",
-					"build_number", rollbackVersion.BuildNumber, "error", err)
-			}
+		if err := eipnats.PublishSDEBuildUpdated(deps.NATS, rollbackVersion.BuildNumber, rollbackVersion.Version); err != nil {
+			logs.WarnCtx(ctx, "failed to publish core SDE build update after rollback",
+				"build_number", rollbackVersion.BuildNumber, "error", err)
 		}
 	}
 

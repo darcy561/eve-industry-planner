@@ -139,6 +139,7 @@ func publishMigrateUserTasksScanAll(
 	dryRun bool,
 	loginWithin time.Duration,
 ) error {
+	batch := clients.NATS.Batching()
 	iter := fsClient.Collection(firestoreUsersTopCollection).Documents(ctx)
 
 	var wouldEnqueue, published, errorsN, skippedAuthWindow int
@@ -174,12 +175,16 @@ func publishMigrateUserTasksScanAll(
 			continue
 		}
 
-		if err := eipnats.PublishMigrateUserDocumentToMongo(ctx, clients.NATS, accountID); err != nil {
+		if err := eipnats.PublishMigrateUserDocumentToMongo(ctx, batch, accountID); err != nil {
 			logs.ErrorCtx(ctx, "user accounts scan: publish task", "account_id", accountID, "error", err)
 			errorsN++
 			continue
 		}
 		published++
+	}
+
+	if err := batch.Wait(ctx); err != nil {
+		return fmt.Errorf("enqueue migrate tasks: %w", err)
 	}
 
 	if dryRun {
