@@ -1,12 +1,46 @@
-# Overlay — how core defers a cron run past EVE downtime
+# Overlay — how core declares and runs a cron job
 
 **Rules:** Read and following [`../documentation-rules.md`](../documentation-rules.md)
 and [`../technical-rules.md`](../technical-rules.md) (migration-plans).
 Live SoT will not be edited until this project is complete and promotion is approved.
 
-Landed in Stage C. Where this overlaps live documentation, this file is the truth until promote.
+Where this overlaps live documentation, this file is the truth until promote.
 
-## What changed
+## A cron job is one declaration (Stage A and B)
+
+`jobs` in [`core/scheduler/jobs.go`](../../../services/core/scheduler/jobs.go) is the whole schedule:
+nine entries of name, expression and builder. Nothing else declares a job, and the registry registers
+and schedules each entry from that one row, so a handler cannot exist without a cron and a cron
+cannot name a handler that was never built.
+
+```go
+{"cron.industrySystemsRefresh", "50 * * * *", esi.IndustrySystemsRefresh},
+```
+
+The owning packages no longer touch the scheduler. Each exports a builder,
+`func(deps contract.Dependencies, jobName string) contract.TaskHandler`, and the name comes *in* from
+the table rather than being written a second time beside the handler — which is also how the downtime
+deferral gets the schedule id it defers under.
+
+What this removed:
+
+| Gone | Why it could go |
+|------|-----------------|
+| `contract.Scheduler` and the `RegisterHandler` / `ScheduleCronJob` seam | Job packages no longer register anything; both methods are now unexported on `TaskScheduler` |
+| `SchedulerFunc`, `JobRegistry.Register` and the nine cleanup returns | Every cleanup was `func() {}` and `Stop` already had nothing to run |
+| `HasScheduledJob` | No production caller — only the interface and two test fakes |
+| `contract.Dependencies.Cron` | A `*robfig/cron.Cron` nothing ever read |
+| Eighteen `cron…Name` / `cron…Schedule` constants across four packages | The table is their single home |
+
+`scheduleCronJob` now **returns an error** when a name has no handler. It previously returned `nil`,
+so a job that failed to register was indistinguishable from one that worked — the silent half of the
+seam that produced the unrunnable deferred path.
+
+**Expressions are UTC.** The scheduler is created with `gocron.WithLocation(time.UTC)`, replacing two
+constants that hedged with "typically UTC in containers". A declared hour now means the same thing
+wherever core runs, and agrees with the downtime window, which was always computed in UTC.
+
+## What changed — the downtime deferral (Stage C)
 
 The deferral no longer waits in core's memory. It is a schedule on the schedule stream, keyed by the
 cron job's name.

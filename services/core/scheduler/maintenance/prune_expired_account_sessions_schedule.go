@@ -9,19 +9,14 @@ import (
 	"eve-industry-planner/shared/logs"
 )
 
-const (
-	cronPruneExpiredAccountSessionsName     = "cron.pruneExpiredAccountSessions"
-	cronPruneExpiredAccountSessionsSchedule = "0 */4 * * *" // every 4 hours
-)
-
 // SchedulePruneExpiredAccountSessions enqueues a worker task that scans Redis
 // account_sessions:* keys, prunes expired sessions, and removes orphan session_index
 // and refresh_token rows (see auth.RunAuthSessionMaintenance). Core also runs an
 // hourly singleton pass (auth-session-maintenance).
 // so expired sessions are removed for inactive accounts as well.
-func SchedulePruneExpiredAccountSessions(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
+func PruneExpiredAccountSessions(deps contract.Dependencies, jobName string) contract.TaskHandler {
 	natsHandle := deps.NATS
-	sched.RegisterHandler(cronPruneExpiredAccountSessionsName, func(ctx context.Context, data json.RawMessage) error {
+	return func(ctx context.Context, data json.RawMessage) error {
 		_ = data
 		if err := eipnats.TriggerPruneExpiredAccountSessions(ctx, natsHandle); err != nil {
 			logs.ErrorCtx(ctx, "prune expired account sessions: publish failed", "component", schedulerLogComponent, "error", err)
@@ -29,9 +24,5 @@ func SchedulePruneExpiredAccountSessions(deps contract.Dependencies, sched contr
 		}
 		logs.InfoCtx(ctx, "prune expired account sessions task queued", "component", schedulerLogComponent)
 		return nil
-	})
-	if err := sched.ScheduleCronJob(cronPruneExpiredAccountSessionsSchedule, cronPruneExpiredAccountSessionsName); err != nil {
-		return nil, err
 	}
-	return func() {}, nil
 }

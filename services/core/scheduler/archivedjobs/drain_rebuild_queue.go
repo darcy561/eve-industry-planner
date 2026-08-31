@@ -12,11 +12,9 @@ import (
 const logComponent = "archivedjobs"
 
 const (
-	cronDrainAccountStatsRebuildQueueName = "cron.drainAccountStatsRebuildQueue"
-	// Every two minutes. The tick only dispatches, so it is cheap, and a tick that
-	// fails to publish costs one interval rather than an hour. How long an owner
-	// actually waits is the debounce the worker applies, not this.
-	cronDrainAccountStatsRebuildQueueSchedule = "*/2 * * * *"
+// Every two minutes. The tick only dispatches, so it is cheap, and a tick that
+// fails to publish costs one interval rather than an hour. How long an owner
+// actually waits is the debounce the worker applies, not this.
 )
 
 // ScheduleDrainAccountStatsRebuildQueue publishes one dispatch task per tick.
@@ -26,8 +24,8 @@ const (
 // Mongo dependency to fail on, and publishing unconditionally rather than
 // checking the queue first costs one message against a read the worker makes
 // anyway.
-func ScheduleDrainAccountStatsRebuildQueue(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
-	sched.RegisterHandler(cronDrainAccountStatsRebuildQueueName, func(ctx context.Context, data json.RawMessage) error {
+func DrainAccountStatsRebuildQueue(deps contract.Dependencies, jobName string) contract.TaskHandler {
+	return func(ctx context.Context, data json.RawMessage) error {
 		_ = data
 		logs.DebugCtx(ctx, "account statistics rebuild drain publishing", "component", logComponent)
 		if err := eipnats.PublishDrainAccountStatsRebuildQueue(ctx, deps.NATS); err != nil {
@@ -35,9 +33,5 @@ func ScheduleDrainAccountStatsRebuildQueue(deps contract.Dependencies, sched con
 			return err
 		}
 		return nil
-	})
-	if err := sched.ScheduleCronJob(cronDrainAccountStatsRebuildQueueSchedule, cronDrainAccountStatsRebuildQueueName); err != nil {
-		return nil, err
 	}
-	return func() {}, nil
 }

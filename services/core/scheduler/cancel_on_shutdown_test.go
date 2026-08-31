@@ -12,7 +12,7 @@ import (
 	"github.com/go-co-op/gocron/v2"
 )
 
-// #28: gocron Shutdown cancels in-flight job contexts (lose-primary path).
+// gocron Shutdown cancels in-flight job contexts (lose-primary path).
 func TestTaskScheduler_StopCancelsInFlightJob(t *testing.T) {
 	s, err := NewTaskScheduler(nil, nil)
 	if err != nil {
@@ -21,7 +21,7 @@ func TestTaskScheduler_StopCancelsInFlightJob(t *testing.T) {
 
 	var running atomic.Bool
 	cancelled := make(chan struct{})
-	s.RegisterHandler("refreshRegionMarketOrders", func(ctx context.Context, _ json.RawMessage) error {
+	s.registerHandler("refreshRegionMarketOrders", func(ctx context.Context, _ json.RawMessage) error {
 		running.Store(true)
 		select {
 		case <-ctx.Done():

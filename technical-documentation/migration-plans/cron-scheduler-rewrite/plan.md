@@ -26,7 +26,7 @@ A cron job is three unrelated things that must agree, with nothing checking that
 | A cron expression | a `const cron…Schedule = "*/15 * * * *"` beside it |
 | A name tying them together | the same string literal, written twice in the same file |
 
-Ten of these live across four packages under `services/core/scheduler`. No one place says when this
+Nine of these live across four packages under `services/core/scheduler`. No one place says when this
 service does things, and a typo in either string produces a job that is registered and never runs, or
 scheduled and never found.
 
@@ -34,7 +34,7 @@ scheduled and never found.
 
 - **Handler keys are strings.** `RegisterHandler(name, fn)` has no compile-time link between a name,
   its expression and its function. This is the seam that produced the unrunnable deferred path.
-- **Expressions are scattered.** Ten constants across four packages; the schedule of the service is
+- **Expressions are scattered.** Eighteen constants across four packages; the schedule of the service is
   not readable in one place.
 - **The downtime deferral holds a goroutine and a timer.** `deferTaskPublicationUntilAfterDowntime`
   in `core/scheduler/esi/downtime.go` waits out an EVE downtime window in memory: it survives no
@@ -58,8 +58,8 @@ that every declared job has a handler and every registered handler belongs to a 
 
 ### Stage B — One place says when the service acts
 
-The ten expressions move into that declaration set, so the service's schedule can be read, and
-changed, in one place.
+The expressions move into that declaration set, so the service's schedule can be read, and changed,
+in one place.
 
 ### Stage C — Downtime deferral becomes a schedule
 
@@ -139,15 +139,17 @@ process-local. A deferred run becomes a schedule on an existing stream, which is
 | Stage | Status |
 |-------|--------|
 | Phase 1 — project folder and docs | Done |
-| A — one declaration per cron job | Not started |
-| B — one place for expressions | Not started |
+| A — one declaration per cron job | Done — [overlay.md](./overlay.md) |
+| B — one place for expressions | Done with A — [overlay.md](./overlay.md) |
 | C — downtime deferral as a schedule | Done — [overlay.md](./overlay.md) |
 | D — decide gocron's future | Not started |
 
 ## Handoff
 
-**Start here:** Stage A. Stage B is mechanical once a job is a single declaration; Stage D is the
-judgement call and should not be attempted first.
+**Start here:** Stage D, the only stage left, and the judgement call this project exists to answer.
+
+Stages A and B landed together: gathering the expressions was the same edit as gathering the
+declarations, and doing them separately would have opened the same nine files twice.
 
 **Stage C ran before A**, by decision, rather than after it as first sequenced. Two reasons: A rewrites
 all ten declarations including `archivedjobs/drain_rebuild_queue.go`, which
