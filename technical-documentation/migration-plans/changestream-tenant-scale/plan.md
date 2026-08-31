@@ -37,7 +37,7 @@ Product direction adds **separate corporation and alliance collections** (users-
 | Leadership | Only primary runs changestream |
 | Partition today | `CollectionGroups()` — parallel Watch per group |
 | Resume | Redis `eip:core:handoff:v1:cs:resume:{groupID}` + `StartAfter` |
-| Publish | Sync JetStream `PublishMessage` on the watch loop |
+| Publish | Sync JetStream `PublishMessage` on the watch loop — the helper itself is being reshaped, see [§ The publish call Phase B builds on is being reshaped](#the-publish-call-phase-b-builds-on-is-being-reshaped) |
 | Downstream | Tenant-keyed subjects; WS filters by hosted tenants |
 
 ## Target shape (phased)
@@ -138,6 +138,31 @@ Design seams only in B/C so a later controller can promote a whale without rewri
 | Swarm #20 selective fan-out | Consumer path; this plan is publisher path |
 | Corp/alliance product collections | Drive Phase C timing; do not wait on Phase D |
 | Capacity controller #18 | May **consume** publisher hot-tenant metrics later; does not own Mongo Watches |
+| Shared NATS layer rebuild (separate project) | Reshapes the publish call Phase B moves onto workers — see below |
+
+### The publish call Phase B builds on is being reshaped
+
+A separate project rebuilds the shared NATS layer, and the publish helper named in the baseline above
+is part of that rebuild. Expect the surface Phase B calls to differ from today's free function
+`PublishMessage(ctx, js, subject, msg, conn)`:
+
+- Publishing goes through a **handle** that owns the connection and JetStream context, so a worker is
+  given one object rather than a `jetstream.JetStream` plus a `*nats.Conn`.
+- Retry and error classification move **inside** that handle, are context-aware, and stop matching on
+  error strings. Per-tenant workers should not carry publish retry logic of their own.
+- Subjects are produced by the messaging layer from a typed definition. The
+  `doc.update.{tenantString}.{collection}.{docID}` shape is unchanged — this affects who builds the
+  string, not what it spells.
+
+None of this changes the **semantics** Phase B depends on: publishing still waits for the server ack
+before returning, so ordering per tenant and resume-token advancement after a successful publish both
+behave as the baseline describes. Document-update publishing is deliberately excluded from that
+project's async-publish work for exactly that reason.
+
+Check the current shape of the shared publish surface when Phase B starts rather than coding against
+the baseline row above. No link is given here on purpose: that work is expected to finish and be
+promoted into live backend documentation before Phase B begins, at which point the live shared-NATS
+topic is the place to look.
 
 ## Go touch surface (when product work starts)
 

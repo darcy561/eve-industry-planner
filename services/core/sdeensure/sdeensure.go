@@ -16,7 +16,7 @@ func Run(ctx context.Context, clients *stackservices.Clients) {
 		logs.WarnCtx(ctx, "sdeensure: no clients; skip")
 		return
 	}
-	if err := startup.EnsureLiveSDEExists(ctx, clients.JetStream, clients.NATS); err != nil {
+	if err := startup.EnsureLiveSDEExists(ctx, clients.NATS); err != nil {
 		logs.WarnCtx(ctx, "sdeensure: live SDE ensure failed (continuing)", "error", err)
 	}
 }

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
+	eipmongo "eve-industry-planner/shared/mongo"
 
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
@@ -97,10 +97,10 @@ func ReleaseStaleDependentJobLocksOnGroupMembershipAdded(
 	if len(releases) == 0 {
 		return
 	}
-	if d.JetStream == nil {
+	if d.NATS == nil {
 		return
 	}
-	_ = PublishLockEvent(ctx, d.JetStream, accountID, BuildGroupCascadePayload(
+	_ = PublishLockEvent(ctx, d.NATS, accountID, BuildGroupCascadePayload(
 		eipmongo.CollectionAccountJobGroups,
 		groupID,
 		eipmongo.CollectionAccountJobDocuments,
@@ -116,7 +116,7 @@ func cascadeReleaseDependentJobLocks(
 	decide func(*LockRecord) (bool, string),
 	cascadeReason string,
 ) {
-	if d.Mongo == nil || d.Redis == nil || d.JetStream == nil {
+	if d.Mongo == nil || d.Redis == nil || d.NATS == nil {
 		return
 	}
 	if accountID == "" || groupID == "" {
@@ -157,7 +157,7 @@ func cascadeReleaseDependentJobLocks(
 	if len(releases) == 0 {
 		return
 	}
-	_ = PublishLockEvent(ctx, d.JetStream, accountID, BuildGroupCascadePayload(
+	_ = PublishLockEvent(ctx, d.NATS, accountID, BuildGroupCascadePayload(
 		eipmongo.CollectionAccountJobGroups,
 		groupID,
 		eipmongo.CollectionAccountJobDocuments,

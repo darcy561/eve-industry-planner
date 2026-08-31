@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/firebaseadmin"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 
 	"cloud.google.com/go/firestore"
@@ -63,7 +63,7 @@ func runImportArchivedJobsFromFirestoreScan(ctx context.Context, args []string) 
 	}
 	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
-	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
+	if err := eipnats.EnsureWorkerTaskStream(clients.NATS.JS()); err != nil {
 		return fmt.Errorf("ensure worker task stream: %w", err)
 	}
 
@@ -113,13 +113,13 @@ func runImportArchivedJobsFromFirestoreScan(ctx context.Context, args []string) 
 			continue
 		}
 
-		req := natscore.ImportArchivedJobToMongoRequest{
+		req := eipnats.ImportArchivedJobToMongoRequest{
 			UserID:              userID,
 			FirestorePath:       snap.Ref.Path,
 			FirestoreDocumentID: snap.Ref.ID,
 			RawData:             docJSON,
 		}
-		if err := natscore.PublishTask(ctx, clients.JetStream, taskDef.Subject, taskDef.Name, req, clients.NATS, taskscore.Priority5); err != nil {
+		if err := eipnats.PublishTask(ctx, clients.NATS, taskDef.Subject, taskDef.Name, req, taskscore.Priority5); err != nil {
 			logs.ErrorCtx(ctx, "archived job scan: publish task", "firestore_path", snap.Ref.Path, "error", err)
 			errorsN++
 			continue

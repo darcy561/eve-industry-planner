@@ -9,6 +9,8 @@ import (
 
 	"eve-industry-planner/shared/core/documentlock"
 
+	eipnats "eve-industry-planner/shared/nats"
+
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -40,7 +42,8 @@ func TestIsUnavailable_nats(t *testing.T) {
 		nats.ErrNoServers,
 		nats.ErrDisconnected,
 		jetstream.ErrConnectionClosed,
-		errors.New("nats connection is not connected after retries"),
+		eipnats.ErrNotConnected,
+		fmt.Errorf("publish failed: %w", eipnats.ErrNotConnected),
 	}
 	for _, err := range tests {
 		if !IsUnavailable(err) {

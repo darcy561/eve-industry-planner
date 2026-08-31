@@ -3,7 +3,7 @@ package natslogic
 import (
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/websocket/server/identity"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -23,7 +23,7 @@ func DocLiveUpdatesConsumerConfig() (durable string, cfg jetstream.ConsumerConfi
 	durable = identity.DocLiveUpdatesJetStreamDurable()
 	return durable, jetstream.ConsumerConfig{
 		Durable:           durable,
-		FilterSubjects:    []string{natscore.DocUpdateFilterInert},
+		FilterSubjects:    []string{eipnats.DocUpdateFilterInert},
 		DeliverPolicy:     jetstream.DeliverNewPolicy,
 		AckPolicy:         jetstream.AckExplicitPolicy,
 		AckWait:           30 * time.Second,
@@ -37,7 +37,7 @@ func DocLockConsumerConfig() (durable string, cfg jetstream.ConsumerConfig) {
 	durable = identity.DocLockJetStreamDurable()
 	return durable, jetstream.ConsumerConfig{
 		Durable:           durable,
-		FilterSubjects:    []string{natscore.DocLockFilterInert},
+		FilterSubjects:    []string{eipnats.DocLockFilterInert},
 		DeliverPolicy:     jetstream.DeliverLastPolicy,
 		AckPolicy:         jetstream.AckExplicitPolicy,
 		AckWait:           30 * time.Second,

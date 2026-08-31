@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 
 	"eve-industry-planner/core/scheduler/contract"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 )
 
@@ -34,13 +34,12 @@ func ScheduleDrainAccountStatsRebuildQueue(deps contract.Dependencies, sched con
 	sched.RegisterHandler(cronDrainAccountStatsRebuildQueueName, func(ctx context.Context, data json.RawMessage) error {
 		_ = data
 		logs.DebugCtx(ctx, "account statistics rebuild drain publishing", "component", logComponent, "subject", task.Subject)
-		if err := natscore.PublishTask(
+		if err := eipnats.PublishTask(
 			ctx,
-			deps.JSContext,
+			deps.NATS,
 			task.Subject,
 			task.Name,
 			struct{}{},
-			deps.NATS,
 			task.DefaultPriority,
 		); err != nil {
 			logs.ErrorCtx(ctx, "account statistics rebuild drain publish failed", "component", logComponent, "subject", task.Subject, "error", err)

@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/documentschema"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	eipnats "eve-industry-planner/shared/nats"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
@@ -32,7 +32,7 @@ func SchemaVersionMaintenanceBatch(ctx context.Context, task *asynq.Task, deps *
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
 	}
-	payload, err := esitasks.UnmarshalTaskPayload[natscore.SchemaVersionMaintenanceBatchRequest](task)
+	payload, err := esitasks.UnmarshalTaskPayload[eipnats.SchemaVersionMaintenanceBatchRequest](task)
 	if err != nil {
 		return fmt.Errorf("invalid payload: %w", err)
 	}

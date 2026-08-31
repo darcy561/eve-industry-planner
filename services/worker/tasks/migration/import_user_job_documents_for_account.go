@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/firebaseadmin"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/migration/firestoremig"
+	eipnats "eve-industry-planner/shared/nats"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
@@ -27,7 +27,7 @@ func ImportUserJobDocumentsForAccount(ctx context.Context, task *asynq.Task, dep
 		return fmt.Errorf("mongo client is required")
 	}
 
-	req, err := esitasks.UnmarshalTaskPayload[natscore.ImportUserJobDocumentsForAccountRequest](task)
+	req, err := esitasks.UnmarshalTaskPayload[eipnats.ImportUserJobDocumentsForAccountRequest](task)
 	if err != nil {
 		return fmt.Errorf("invalid task data: %w", err)
 	}
@@ -77,7 +77,7 @@ func ImportUserJobDocumentsForAccount(ctx context.Context, task *asynq.Task, dep
 // loginRecencyWindowFromRequest maps ImportUserJobDocumentsForAccountRequest.LoginRecencyMaxAgeSeconds to a max age for
 // AccountHasAuthActivitySince, and whether the check should be skipped entirely.
 // -1: skip. 0: default server window. >0: that many seconds.
-func loginRecencyWindowFromRequest(req natscore.ImportUserJobDocumentsForAccountRequest) (maxAge time.Duration, skip bool) {
+func loginRecencyWindowFromRequest(req eipnats.ImportUserJobDocumentsForAccountRequest) (maxAge time.Duration, skip bool) {
 	switch {
 	case req.LoginRecencyMaxAgeSeconds == -1:
 		return 0, true

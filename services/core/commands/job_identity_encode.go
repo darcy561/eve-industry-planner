@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/jobidentity"
 	"eve-industry-planner/shared/lifecycle"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/stackservices"
 	taskscore "eve-industry-planner/shared/tasks"
 
@@ -39,7 +39,7 @@ func runEncodeJobIdentity(ctx context.Context, args []string) error {
 	}
 	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
-	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
+	if err := eipnats.EnsureWorkerTaskStream(clients.NATS.JS()); err != nil {
 		return fmt.Errorf("failed to ensure worker task stream: %w", err)
 	}
 
@@ -61,18 +61,17 @@ func runEncodeJobIdentity(ctx context.Context, args []string) error {
 		}
 
 		for _, accountID := range accounts {
-			payload := natscore.EncodeJobIdentityRequest{
+			payload := eipnats.EncodeJobIdentityRequest{
 				AccountID:  accountID,
 				Collection: collection,
 				DryRun:     opts.dryRun,
 			}
-			if err := natscore.PublishTask(
+			if err := eipnats.PublishTask(
 				ctx,
-				clients.JetStream,
+				clients.NATS,
 				taskscore.EncodeJobIdentity.Subject,
 				taskscore.EncodeJobIdentity.Name,
 				payload,
-				clients.NATS,
 				taskscore.EncodeJobIdentity.DefaultPriority,
 			); err != nil {
 				return fmt.Errorf("publish encodeJobIdentity for %s/%s: %w", collection, accountID, err)

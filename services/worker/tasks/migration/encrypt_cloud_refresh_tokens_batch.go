@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/config"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	eipnats "eve-industry-planner/shared/nats"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
@@ -28,9 +28,9 @@ func EncryptCloudRefreshTokensBatch(ctx context.Context, task *asynq.Task, deps 
 		return fmt.Errorf("mongo client is required")
 	}
 
-	var p natscore.EncryptCloudRefreshTokensRequest
+	var p eipnats.EncryptCloudRefreshTokensRequest
 	if len(task.Payload()) > 0 {
-		payload, err := esitasks.UnmarshalTaskPayload[natscore.EncryptCloudRefreshTokensRequest](task)
+		payload, err := esitasks.UnmarshalTaskPayload[eipnats.EncryptCloudRefreshTokensRequest](task)
 		if err != nil {
 			return fmt.Errorf("invalid payload: %w", err)
 		}

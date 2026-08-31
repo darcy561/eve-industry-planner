@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/wsplacement"
 
 	natslib "github.com/nats-io/nats.go"
@@ -37,7 +37,7 @@ func newPlacementStore() *placementStore {
 	}
 }
 
-func (p *placementStore) applyState(state natscore.PlacementState) {
+func (p *placementStore) applyState(state eipnats.PlacementState) {
 	id := strings.TrimSpace(state.ContainerID)
 	if id == "" {
 		return
@@ -56,7 +56,7 @@ func (p *placementStore) applyMsg(msg *natslib.Msg) {
 	if msg == nil {
 		return
 	}
-	state, err := natscore.ParsePlacementState(msg.Data)
+	state, err := eipnats.ParsePlacementState(msg.Data)
 	if err != nil {
 		log.Printf("placement nats parse: %v", err)
 		return
@@ -156,7 +156,7 @@ func (p *placementStore) reconcileStatuses(ctx context.Context, cfg config, http
 	}
 	type result struct {
 		id    string // discovery container id (registry key)
-		state natscore.PlacementState
+		state eipnats.PlacementState
 		ok    bool
 	}
 	ch := make(chan result, len(ready))
@@ -200,9 +200,9 @@ func (p *placementStore) reconcileStatuses(ctx context.Context, cfg config, http
 	p.mu.Unlock()
 }
 
-func fetchPlacementStatus(ctx context.Context, httpClient *http.Client, port string, be backend) (natscore.PlacementState, error) {
+func fetchPlacementStatus(ctx context.Context, httpClient *http.Client, port string, be backend) (eipnats.PlacementState, error) {
 	if be.IP == "" || port == "" {
-		return natscore.PlacementState{}, fmt.Errorf("missing ip or port")
+		return eipnats.PlacementState{}, fmt.Errorf("missing ip or port")
 	}
 	host := be.IP
 	if strings.Contains(be.IP, ":") && !strings.HasPrefix(be.IP, "[") {
@@ -211,23 +211,23 @@ func fetchPlacementStatus(ctx context.Context, httpClient *http.Client, port str
 	u := fmt.Sprintf("http://%s:%s%s", host, port, wsplacement.StatusPath)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
-		return natscore.PlacementState{}, err
+		return eipnats.PlacementState{}, err
 	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return natscore.PlacementState{}, err
+		return eipnats.PlacementState{}, err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return natscore.PlacementState{}, err
+		return eipnats.PlacementState{}, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return natscore.PlacementState{}, fmt.Errorf("%s: %s", u, resp.Status)
+		return eipnats.PlacementState{}, fmt.Errorf("%s: %s", u, resp.Status)
 	}
-	state, err := natscore.ParsePlacementState(body)
+	state, err := eipnats.ParsePlacementState(body)
 	if err != nil {
-		return natscore.PlacementState{}, err
+		return eipnats.PlacementState{}, err
 	}
 	return state, nil
 }

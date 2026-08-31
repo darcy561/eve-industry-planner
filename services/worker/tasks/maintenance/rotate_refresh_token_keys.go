@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/config"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	eipnats "eve-industry-planner/shared/nats"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
@@ -27,9 +27,9 @@ func RotateRefreshTokenKeys(ctx context.Context, task *asynq.Task, deps *esitask
 		return fmt.Errorf("mongo client is required")
 	}
 
-	var p natscore.RotateRefreshTokenKeysRequest
+	var p eipnats.RotateRefreshTokenKeysRequest
 	if len(task.Payload()) > 0 {
-		payload, err := esitasks.UnmarshalTaskPayload[natscore.RotateRefreshTokenKeysRequest](task)
+		payload, err := esitasks.UnmarshalTaskPayload[eipnats.RotateRefreshTokenKeysRequest](task)
 		if err == nil {
 			p = payload
 		} else if err := json.Unmarshal(task.Payload(), &p); err != nil {

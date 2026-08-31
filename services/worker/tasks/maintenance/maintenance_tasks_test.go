@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
@@ -45,7 +45,7 @@ func TestCloudStoredEsiRefreshMaintenance_Validation(t *testing.T) {
 
 	t.Run("nil_mongo", func(t *testing.T) {
 		task := asynq.NewTask("x", encodeAsynqWrappedPayload(t, "task.maintenance.cloudStoredEsiRefreshMaintenance",
-			natscore.CloudStoredEsiRefreshMaintenanceRequest{AccountID: "a"}))
+			eipnats.CloudStoredEsiRefreshMaintenanceRequest{AccountID: "a"}))
 		err := CloudStoredEsiRefreshMaintenance(ctx, task, depsMongoNil())
 		if err == nil || err.Error() != "mongo client is required" {
 			t.Fatalf("got %v", err)
@@ -75,7 +75,7 @@ func TestInactiveAccountPlannerCleanup_Validation(t *testing.T) {
 
 	t.Run("nil_mongo", func(t *testing.T) {
 		task := asynq.NewTask("x", encodeAsynqWrappedPayload(t, "task.maintenance.inactiveAccountPlannerCleanup",
-			natscore.InactiveAccountPlannerCleanupRequest{AccountID: "a"}))
+			eipnats.InactiveAccountPlannerCleanupRequest{AccountID: "a"}))
 		err := InactiveAccountPlannerCleanup(ctx, task, depsMongoNil())
 		if err == nil || err.Error() != "mongo client is required" {
 			t.Fatalf("got %v", err)
@@ -104,7 +104,7 @@ func TestRotateRefreshTokenKeys_Validation(t *testing.T) {
 
 	t.Run("nil_mongo", func(t *testing.T) {
 		task := asynq.NewTask("x", encodeAsynqWrappedPayload(t, "task.maintenance.rotateRefreshTokenKeys",
-			natscore.RotateRefreshTokenKeysRequest{AccountID: "a"}))
+			eipnats.RotateRefreshTokenKeysRequest{AccountID: "a"}))
 		err := RotateRefreshTokenKeys(ctx, task, depsMongoNil())
 		if err == nil || err.Error() != "mongo client is required" {
 			t.Fatalf("got %v", err)

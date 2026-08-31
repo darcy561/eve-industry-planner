@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -21,17 +21,17 @@ func SetupScheduleRequestReceiver(
 	stopChan chan struct{},
 ) (jetstream.Consumer, error) {
 	ctx := context.Background()
-	subject := natscore.SubjectSchedulerSchedule
-	streamName := natscore.SchedulerStream
-	consumerName := natscore.ConsumerScheduler
+	subject := eipnats.SubjectSchedulerSchedule
+	streamName := eipnats.SchedulerStream
+	consumerName := eipnats.ConsumerScheduler
 
 	// Get or ensure the stream exists (accepts all scheduler.* subjects)
-	stream, err := natscore.GetOrEnsureStream(ctx, js, natscore.EnsureSchedulerStream, streamName)
+	stream, err := eipnats.GetOrEnsureStream(ctx, js, eipnats.EnsureSchedulerStream, streamName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get or ensure scheduler stream: %w", err)
 	}
 
-	if _, err := natscore.ReconcileStreamConsumers(ctx, stream, natscore.SchedulerKeepPolicy()); err != nil {
+	if _, err := eipnats.ReconcileStreamConsumers(ctx, stream, eipnats.SchedulerKeepPolicy()); err != nil {
 		logs.WarnCtx(ctx, "scheduler stream consumer reconcile failed", "component", schedulerLogComponent, "error", err)
 	}
 
@@ -47,7 +47,7 @@ func SetupScheduleRequestReceiver(
 		MaxDeliver:    5,
 	}
 
-	consumer, err := natscore.GetOrCreateConsumer(ctx, stream, consumerConfig)
+	consumer, err := eipnats.GetOrCreateConsumer(ctx, stream, consumerConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create scheduler consumer: %w", err)
 	}
@@ -56,7 +56,7 @@ func SetupScheduleRequestReceiver(
 		"subject", subject, "consumer", consumerName, "stream", streamName)
 
 	// Start message processing loop in background
-	natscore.StartMessageProcessingLoop(consumer, processMessage, stopChan, subject)
+	eipnats.StartMessageProcessingLoop(consumer, processMessage, stopChan, subject)
 
 	return consumer, nil
 }

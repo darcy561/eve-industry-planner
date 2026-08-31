@@ -15,10 +15,10 @@ func StartUnderPrimary(ctx context.Context, clients *stackservices.Clients, stat
 		return nil, fmt.Errorf("scheduler: clients required")
 	}
 	m := servicemanager.New("scheduler", func(context.Context) (func(), error) {
-		if clients.NATS == nil || clients.JetStream == nil || clients.Redis == nil || clients.Mongo == nil {
-			return nil, fmt.Errorf("scheduler: nats, jetstream, redis, and mongo required")
+		if clients.NATS == nil || clients.Redis == nil || clients.Mongo == nil {
+			return nil, fmt.Errorf("scheduler: nats, redis, and mongo required")
 		}
-		return StartService("scheduler", clients.NATS, clients.JetStream, clients.Redis, clients.Mongo)
+		return StartService("scheduler", clients.NATS, clients.Redis, clients.Mongo)
 	})
 	if err := m.Follow(ctx, states); err != nil {
 		return nil, err

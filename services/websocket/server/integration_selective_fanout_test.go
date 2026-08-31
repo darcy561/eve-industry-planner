@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/stackservices"
 	"eve-industry-planner/websocket/server/identity"
 	"eve-industry-planner/websocket/server/natslogic"
@@ -51,14 +51,14 @@ func startIntegJS(t *testing.T) (jetstream.JetStream, *natslib.Conn, func()) {
 func TestIntegrationSelectiveFanoutHostPullsNonHostDoesNot(t *testing.T) {
 	// Stable HOSTNAME for host durable + reconcile (identity.DocLiveUpdatesJetStreamDurable).
 	t.Setenv("HOSTNAME", "websocket-integ-fanout-host")
-	js, _, cleanup := startIntegJS(t)
+	js, nc, cleanup := startIntegJS(t)
 	defer cleanup()
 	ctx := context.Background()
 
-	if err := natscore.EnsureDocUpdateStream(js); err != nil {
+	if err := eipnats.EnsureDocUpdateStream(js); err != nil {
 		t.Fatal(err)
 	}
-	stream, err := js.Stream(ctx, natscore.DocUpdateStream)
+	stream, err := js.Stream(ctx, eipnats.DocUpdateStream)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,14 +70,14 @@ func TestIntegrationSelectiveFanoutHostPullsNonHostDoesNot(t *testing.T) {
 		},
 		corpRefToClients:     make(map[string]map[string]bool),
 		allianceRefToClients: make(map[string]map[string]bool),
-		Stack:                &stackservices.Clients{JetStream: js},
+		Stack:                &stackservices.Clients{NATS: mustNATS(t, nc, js)},
 		intakeStopChan:       make(chan struct{}),
 		shutdownChan:         make(chan struct{}),
 	}
 	host.fanoutStream = stream
 
 	liveDurable, liveCfg := natslogic.DocLiveUpdatesConsumerConfig()
-	hostCons, err := natscore.GetOrCreateConsumer(ctx, stream, liveCfg)
+	hostCons, err := eipnats.GetOrCreateConsumer(ctx, stream, liveCfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,9 +86,9 @@ func TestIntegrationSelectiveFanoutHostPullsNonHostDoesNot(t *testing.T) {
 	}
 
 	// Peer durable stays inert (no HostedTenants reconcile).
-	peerCons, err := natscore.GetOrCreateConsumer(ctx, stream, jetstream.ConsumerConfig{
+	peerCons, err := eipnats.GetOrCreateConsumer(ctx, stream, jetstream.ConsumerConfig{
 		Durable:           "doc-live-updates-websocket-integ-fanout-peer",
-		FilterSubjects:    []string{natscore.DocUpdateFilterInert},
+		FilterSubjects:    []string{eipnats.DocUpdateFilterInert},
 		DeliverPolicy:     jetstream.DeliverNewPolicy,
 		AckPolicy:         jetstream.AckExplicitPolicy,
 		InactiveThreshold: natslogic.DocFanoutConsumerInactiveThreshold,
@@ -104,8 +104,8 @@ func TestIntegrationSelectiveFanoutHostPullsNonHostDoesNot(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantFilter := []string{"doc.update.account:acct-host.>"}
-	if !natscoreFiltersEqual(natscore.ConsumerFilterSubjects(info.Config), wantFilter) {
-		t.Fatalf("host filters %v want %v", natscore.ConsumerFilterSubjects(info.Config), wantFilter)
+	if !filtersEqual(eipnats.ConsumerFilterSubjects(info.Config), wantFilter) {
+		t.Fatalf("host filters %v want %v", eipnats.ConsumerFilterSubjects(info.Config), wantFilter)
 	}
 
 	payload, _ := json.Marshal(map[string]any{
@@ -113,7 +113,7 @@ func TestIntegrationSelectiveFanoutHostPullsNonHostDoesNot(t *testing.T) {
 		"docID":      "j1",
 		"accountID":  "acct-host",
 	})
-	subj := natscore.DocUpdateSubject("account:acct-host", "jobs", "j1")
+	subj := eipnats.DocUpdateSubject("account:acct-host", "jobs", "j1")
 	if _, err := js.Publish(ctx, subj, payload); err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestIntegrationSelectiveFanoutHostPullsNonHostDoesNot(t *testing.T) {
 		"docID":      "j2",
 		"accountID":  "acct-other",
 	})
-	if _, err := js.Publish(ctx, natscore.DocUpdateSubject("account:acct-other", "jobs", "j2"), otherPayload); err != nil {
+	if _, err := js.Publish(ctx, eipnats.DocUpdateSubject("account:acct-other", "jobs", "j2"), otherPayload); err != nil {
 		t.Fatal(err)
 	}
 
@@ -161,12 +161,12 @@ func TestIntegrationSelectiveFanoutHostPullsNonHostDoesNot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !natscoreFiltersEqual(natscore.ConsumerFilterSubjects(info2.Config), []string{natscore.DocUpdateFilterInert}) {
-		t.Fatalf("after empty host filters %v", natscore.ConsumerFilterSubjects(info2.Config))
+	if !filtersEqual(eipnats.ConsumerFilterSubjects(info2.Config), []string{eipnats.DocUpdateFilterInert}) {
+		t.Fatalf("after empty host filters %v", eipnats.ConsumerFilterSubjects(info2.Config))
 	}
 }
 
-func natscoreFiltersEqual(a, b []string) bool {
+func filtersEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -186,4 +186,14 @@ func natscoreFiltersEqual(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// mustNATS binds a test connection and JetStream context into the shared handle.
+func mustNATS(t *testing.T, nc *natslib.Conn, js jetstream.JetStream) *eipnats.NATS {
+	t.Helper()
+	handle, err := eipnats.NewNATS(nc, js)
+	if err != nil {
+		t.Fatalf("NewNATS: %v", err)
+	}
+	return handle
 }

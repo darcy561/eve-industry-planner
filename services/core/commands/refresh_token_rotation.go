@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/config"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/crypto/aesgcm/keyrings"
+	eipnats "eve-industry-planner/shared/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -37,7 +37,7 @@ func runRotateRefreshTokenKeys(ctx context.Context, args []string) error {
 	}
 	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
-	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
+	if err := eipnats.EnsureWorkerTaskStream(clients.NATS.JS()); err != nil {
 		return fmt.Errorf("failed to ensure worker task stream: %w", err)
 	}
 	rt, err := config.LoadCloudStoredESIKeys()
@@ -89,18 +89,17 @@ func runRotateRefreshTokenKeys(ctx context.Context, args []string) error {
 			continue
 		}
 
-		payload := natscore.RotateRefreshTokenKeysRequest{
+		payload := eipnats.RotateRefreshTokenKeysRequest{
 			AccountID:   accountID,
 			FromVersion: opts.fromVersion,
 			DryRun:      opts.dryRun,
 		}
-		if err := natscore.PublishTask(
+		if err := eipnats.PublishTask(
 			ctx,
-			clients.JetStream,
+			clients.NATS,
 			taskscore.RotateRefreshTokenKeys.Subject,
 			taskscore.RotateRefreshTokenKeys.Name,
 			payload,
-			clients.NATS,
 			taskscore.RotateRefreshTokenKeys.DefaultPriority,
 		); err != nil {
 			return fmt.Errorf("publish rotateRefreshTokenKeys for %s: %w", accountID, err)

@@ -12,7 +12,7 @@ import (
 
 // #28: gocron Shutdown cancels in-flight job contexts (lose-primary path).
 func TestTaskScheduler_StopCancelsInFlightJob(t *testing.T) {
-	s, err := NewTaskScheduler(nil, nil, nil)
+	s, err := NewTaskScheduler(nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

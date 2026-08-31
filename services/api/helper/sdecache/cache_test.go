@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	sdecore "eve-industry-planner/shared/core/sde"
+	eipnats "eve-industry-planner/shared/nats"
 )
 
 func TestTryWarmOnce_setsReadyAndServesFromCache(t *testing.T) {
@@ -50,7 +50,7 @@ func TestTryWarmOnce_incompleteLiveNotReady(t *testing.T) {
 
 func TestSignalSDERewarm_triggersChannel(t *testing.T) {
 	rewarm := make(chan struct{}, 1)
-	payload, _ := json.Marshal(natscore.SDECurrentBuildUpdate{BuildNumber: 99, Version: "99_v1"})
+	payload, _ := json.Marshal(eipnats.SDECurrentBuildUpdate{BuildNumber: 99, Version: "99_v1"})
 	signalSDERewarm(context.Background(), payload, rewarm)
 
 	select {

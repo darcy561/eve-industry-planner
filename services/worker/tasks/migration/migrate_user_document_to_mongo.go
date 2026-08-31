@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/firebaseuserdoc"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/firebaseadmin"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
@@ -30,7 +30,7 @@ func MigrateUserDocumentToMongo(ctx context.Context, task *asynq.Task, deps *esi
 		return fmt.Errorf("mongo client is required")
 	}
 
-	request, err := esitasks.UnmarshalTaskPayload[natscore.MigrateUserDocumentToMongoRequest](task)
+	request, err := esitasks.UnmarshalTaskPayload[eipnats.MigrateUserDocumentToMongoRequest](task)
 	if err != nil {
 		logs.WarnCtx(ctx, "failed to parse migrate user document task payload", "error", err)
 		return fmt.Errorf("invalid task data: %w", err)

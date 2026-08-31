@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 
 	"github.com/hibiken/asynq"
 )
@@ -25,7 +25,7 @@ func UnmarshalTaskPayload[T any](task *asynq.Task) (T, error) {
 	}
 
 	// Parse the actual task data from TaskMessage.Data
-	var taskMsg natscore.TaskMessage
+	var taskMsg eipnats.TaskMessage
 	if err := json.Unmarshal(payload.Data, &taskMsg); err != nil {
 		// If not TaskMessage format, try parsing payload.Data directly
 		if err := json.Unmarshal(payload.Data, &result); err != nil {

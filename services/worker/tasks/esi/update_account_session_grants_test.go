@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
 	"eve-industry-planner/testing/keys"
@@ -56,7 +56,7 @@ func createMockTask(taskType string, data any) *asynq.Task {
 	if data != nil {
 		dataBytes, _ := json.Marshal(data)
 		// Wrap data in TaskMessage structure
-		taskMsg := natscore.TaskMessage{
+		taskMsg := eipnats.TaskMessage{
 			TaskType: taskType,
 			Data:     dataBytes,
 		}
@@ -116,7 +116,7 @@ func TestRefreshAccountSessionGrants_InvalidJSON(t *testing.T) {
 
 func TestRefreshAccountSessionGrants_MissingAccountID(t *testing.T) {
 	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
+	request := eipnats.AccountSessionGrantsRequest{
 		AccountID: "",
 		Tokens:    []string{"token1"},
 	}
@@ -138,7 +138,7 @@ func TestRefreshAccountSessionGrants_MissingAccountID(t *testing.T) {
 
 func TestRefreshAccountSessionGrants_EmptyTokens(t *testing.T) {
 	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
+	request := eipnats.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{},
 	}
@@ -161,7 +161,7 @@ func TestRefreshAccountSessionGrants_EmptyTokens(t *testing.T) {
 func TestRefreshAccountSessionGrants_TokenValidationFailure(t *testing.T) {
 	// Invalid tokens yield no character IDs; the task still stores empty corp/alliance lists and exits cleanly.
 	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
+	request := eipnats.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"invalid-token-that-will-fail-validation"},
 	}
@@ -206,7 +206,7 @@ func TestRefreshAccountSessionGrants_ESIRetryableRateLimitError(t *testing.T) {
 	// The following code shows the expected behaviour:
 	// When ESI returns a retryable rate limit error, the message should be nacked
 	/*
-		request := natscore.AccountSessionGrantsRequest{
+		request := eipnats.AccountSessionGrantsRequest{
 			AccountID: "test-account-123",
 			Tokens:    []string{"valid-token"},
 		}
@@ -253,7 +253,7 @@ func TestRefreshAccountSessionGrants_ESINonRetryableError(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
+	request := eipnats.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1"},
 	}
@@ -285,7 +285,7 @@ func TestRefreshAccountSessionGrants_ESINon200Status(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
+	request := eipnats.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1"},
 	}
@@ -317,7 +317,7 @@ func TestRefreshAccountSessionGrants_InvalidJSONResponse(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
+	request := eipnats.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1"},
 	}
@@ -360,7 +360,7 @@ func TestRefreshAccountSessionGrants_SuccessfulProcessing(t *testing.T) {
 		},
 	}
 
-	request := natscore.AccountSessionGrantsRequest{
+	request := eipnats.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1", "token2", "token3"},
 	}
@@ -398,7 +398,7 @@ func TestRefreshAccountSessionGrants_DuplicateCorporations(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
+	request := eipnats.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1", "token2", "token3"}, // All same character
 	}
@@ -432,7 +432,7 @@ func TestRefreshAccountSessionGrants_ZeroCorporationID(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
+	request := eipnats.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1"},
 	}
@@ -466,7 +466,7 @@ func TestRefreshAccountSessionGrants_MixedSuccessAndFailure(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
+	request := eipnats.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1", "token2"},
 	}
@@ -504,7 +504,7 @@ func TestRefreshAccountSessionGrants_RedisStorageFailure(t *testing.T) {
 		},
 	}
 
-	request := natscore.AccountSessionGrantsRequest{
+	request := eipnats.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1"},
 	}
@@ -538,7 +538,7 @@ func TestRefreshAccountSessionGrants_NilResponse(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	request := natscore.AccountSessionGrantsRequest{
+	request := eipnats.AccountSessionGrantsRequest{
 		AccountID: "test-account-123",
 		Tokens:    []string{"token1"},
 	}

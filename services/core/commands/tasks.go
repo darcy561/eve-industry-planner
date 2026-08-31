@@ -12,7 +12,7 @@ import (
 
 	clicommands "eve-industry-planner/core/commands/cli"
 	firestoreimport "eve-industry-planner/core/migration/firestoreimport"
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 )
 
@@ -322,13 +322,13 @@ func runTrigger(ctx context.Context, args []string) error {
 	}
 	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
-	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
+	if err := eipnats.EnsureWorkerTaskStream(clients.NATS.JS()); err != nil {
 		return fmt.Errorf("failed to ensure worker task stream: %w", err)
 	}
 
 	publishPayload := payloadToInterface(payload)
 
-	if err := natscore.PublishTask(ctx, clients.JetStream, task.Subject, task.Name, publishPayload, clients.NATS, priority); err != nil {
+	if err := eipnats.PublishTask(ctx, clients.NATS, task.Subject, task.Name, publishPayload, priority); err != nil {
 		return fmt.Errorf("failed to publish task %q: %w", task.Name, err)
 	}
 
@@ -360,7 +360,7 @@ func buildTaskPayload(task taskscore.Task, versionSet bool, version int, rawJSON
 		if version <= 0 {
 			return nil, fmt.Errorf("task %q requires --version to be a positive integer (> 0), got %d", commandTaskName(task), version)
 		}
-		payload, err := json.Marshal(natscore.SDEApplyVersionRequest{
+		payload, err := json.Marshal(eipnats.SDEApplyVersionRequest{
 			BuildNumber: version,
 		})
 		if err != nil {

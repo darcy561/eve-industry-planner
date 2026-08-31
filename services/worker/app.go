@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/container"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/orchestrationprobes"
 	"eve-industry-planner/shared/telemetry"
 	asynqpkg "eve-industry-planner/worker/asynq"
@@ -66,7 +66,7 @@ func (a *app) connectDeps(ctx context.Context) error {
 }
 
 func (a *app) prepare(ctx context.Context) error {
-	if err := natscore.EnsureWorkerTaskStream(a.clients.JetStream); err != nil {
+	if err := eipnats.EnsureWorkerTaskStream(a.clients.NATS.JS()); err != nil {
 		return a.fail(err)
 	}
 
@@ -99,10 +99,10 @@ func (a *app) prepare(ctx context.Context) error {
 	}
 
 	a.deps = &WorkerDependencies{
-		Clients:     a.clients,
-		ESIClient:   esiClient,
-		AsynqClient: asynqClient,
-		EntityCipher:  entityCipher,
+		Clients:      a.clients,
+		ESIClient:    esiClient,
+		AsynqClient:  asynqClient,
+		EntityCipher: entityCipher,
 	}
 	return nil
 }
@@ -130,7 +130,7 @@ func (a *app) startProbes(ctx context.Context) error {
 		if err := a.clients.Redis.Ping(c).Err(); err != nil {
 			return fmt.Errorf("redis: %w", err)
 		}
-		if a.clients.NATS == nil || !a.clients.NATS.IsConnected() {
+		if a.clients.NATS == nil || !a.clients.NATS.Connected() {
 			return fmt.Errorf("nats not connected")
 		}
 		if err := a.clients.Mongo.Ping(c); err != nil {
@@ -147,10 +147,10 @@ func (a *app) startProbes(ctx context.Context) error {
 	bus, err := orchestrationprobes.StartBus(ctx, orchestrationprobes.BusOptions{
 		Role:       "worker",
 		InstanceID: container.ID(),
-		Conn:       a.clients.NATS,
+		Conn:       a.clients.NATS.Conn(),
 		Ready:      ready,
 		Enabled:    true,
-		Fill: func(st *natscore.HealthStatus) {
+		Fill: func(st *eipnats.HealthStatus) {
 			if st != nil {
 				st.AppVersion = os.Getenv("APP_VERSION")
 			}

@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/stackservices"
 	"eve-industry-planner/websocket/server/model"
 	syncpkg "eve-industry-planner/websocket/sync"
@@ -94,7 +94,7 @@ type Server struct {
 	// Placement state publish (NATS SubjectWSPlacementState); optional override for tests.
 	placementPublishFn func(subject string, data []byte) error
 	placementMu        sync.Mutex
-	lastPlacementState natscore.PlacementState
+	lastPlacementState eipnats.PlacementState
 	hasLastPlacement   bool
 
 	// Selective JetStream fan-out: debounced FilterSubjects from HostedTenants.

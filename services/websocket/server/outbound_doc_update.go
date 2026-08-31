@@ -5,8 +5,8 @@ import (
 	"hash/fnv"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/websocket/server/config"
 	"eve-industry-planner/websocket/server/outgoinglogic"
 
@@ -53,7 +53,7 @@ func shardIndexForDocUpdate(partitionKey string, shardCount int) int {
 func (s *Server) finishDocUpdateDelivery(ctx context.Context, docID, subject string, outcome outboundDeliveryOutcome) {
 	if outcome.RouteKind == "invalid" {
 		detail := outboundDeliveryDetail(docID, subject, outcome)
-		natscore.FinishNATSConsumerOperation(ctx, "warn", "doc update rejected", detail)
+		eipnats.FinishNATSConsumerOperation(ctx, "warn", "doc update rejected", detail)
 		return
 	}
 	finishReplicaFanoutOperation(ctx, "doc update delivered", docID, subject, outcome, nil)
@@ -65,7 +65,7 @@ func (s *Server) enqueueOutboundDocUpdate(ctx context.Context, collectionScopedD
 	shards := s.docUpdateOutboundShards
 	if len(shards) == 0 {
 		outcome := s.deliverOutboundDocUpdate(ctx, collectionScopedDocID, payloadCopy)
-		natscore.AcknowledgeMessage(msg, "no_shards", natscore.GetDeliveryCount(msg))
+		eipnats.AcknowledgeMessage(ctx, msg, "no_shards", eipnats.GetDeliveryCount(msg))
 		s.finishDocUpdateDelivery(ctx, collectionScopedDocID, subject, outcome)
 		return
 	}
@@ -86,7 +86,7 @@ func (s *Server) enqueueOutboundDocUpdate(ctx context.Context, collectionScopedD
 			"partition", key,
 			"shard_queue_cap", config.DocUpdateOutboundShardQueueCap)
 		outcome := s.deliverOutboundDocUpdate(ctx, collectionScopedDocID, payloadCopy)
-		natscore.AcknowledgeMessage(msg, "inline_fallback", natscore.GetDeliveryCount(msg))
+		eipnats.AcknowledgeMessage(ctx, msg, "inline_fallback", eipnats.GetDeliveryCount(msg))
 		s.finishDocUpdateDelivery(ctx, collectionScopedDocID, subject, outcome)
 	}
 }
@@ -114,7 +114,7 @@ func (s *Server) runDocUpdateOutboundShardWorker(shard int) {
 				}
 				payload := append([]byte(nil), w.msg.Data()...)
 				outcome := s.deliverOutboundDocUpdate(ctx, w.collectionScopedDocID, payload)
-				natscore.AcknowledgeMessage(w.msg, "delivered", natscore.GetDeliveryCount(w.msg))
+				eipnats.AcknowledgeMessage(ctx, w.msg, "delivered", eipnats.GetDeliveryCount(w.msg))
 				s.finishDocUpdateDelivery(ctx, w.collectionScopedDocID, w.subject, outcome)
 			}()
 		}

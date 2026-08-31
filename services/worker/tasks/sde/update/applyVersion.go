@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
@@ -24,7 +24,7 @@ func ApplySDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.TaskD
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
-	req, err := esitasks.UnmarshalTaskPayload[natscore.SDEApplyVersionRequest](task)
+	req, err := esitasks.UnmarshalTaskPayload[eipnats.SDEApplyVersionRequest](task)
 	if err != nil {
 		return fmt.Errorf("failed to parse applySDEVersion payload: %w", err)
 	}

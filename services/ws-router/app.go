@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/lifecycle"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/orchestrationprobes"
 
 	natslib "github.com/nats-io/nats.go"
@@ -41,9 +41,9 @@ func (a *app) fail(err error) error {
 	return err
 }
 
-func (a *app) connectDeps(context.Context) error {
+func (a *app) connectDeps(ctx context.Context) error {
 	a.cfg = loadConfig()
-	nc, err := natscore.Connect()
+	nc, err := eipnats.Connect(ctx)
 	if err != nil {
 		return a.fail(fmt.Errorf("nats: %w", err))
 	}
@@ -63,8 +63,8 @@ func (a *app) startDiscovery(ctx context.Context) error {
 		// running = Swarm tasks still up (may include draining / not /ready).
 		a.place.reconcileStatuses(c, a.cfg, a.be.statusHTTP, running)
 	}
-	if _, err := a.nc.Subscribe(natscore.SubjectWSPlacementState, a.place.applyMsg); err != nil {
-		return a.fail(fmt.Errorf("nats subscribe %s: %w", natscore.SubjectWSPlacementState, err))
+	if _, err := a.nc.Subscribe(eipnats.SubjectWSPlacementState, a.place.applyMsg); err != nil {
+		return a.fail(fmt.Errorf("nats subscribe %s: %w", eipnats.SubjectWSPlacementState, err))
 	}
 	lifecycle.GoCtx(ctx, a.be.pollLoop)
 	return nil

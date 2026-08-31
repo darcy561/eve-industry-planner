@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/firebaseadmin"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/migration/firestoremig"
 	eipmongo "eve-industry-planner/shared/mongo"
+	eipnats "eve-industry-planner/shared/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 
 	"cloud.google.com/go/firestore"
@@ -154,7 +154,7 @@ func publishImportUserJobDocumentTasksScanAll(ctx context.Context, skipAuthRecen
 		return err
 	}
 	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
-	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
+	if err := eipnats.EnsureWorkerTaskStream(clients.NATS.JS()); err != nil {
 		return fmt.Errorf("ensure worker task stream: %w", err)
 	}
 	fsc, err := firebaseadmin.GetFirestoreClient(ctx)
@@ -179,7 +179,7 @@ func publishImportUserJobDocumentTasksScanAll(ctx context.Context, skipAuthRecen
 			continue
 		}
 		req := newImportUserJobDocumentTaskRequest(aid, skipAuthRecency)
-		if err := natscore.PublishTask(ctx, clients.JetStream, taskDef.Subject, taskDef.Name, req, clients.NATS, taskscore.Priority5); err != nil {
+		if err := eipnats.PublishTask(ctx, clients.NATS, taskDef.Subject, taskDef.Name, req, taskscore.Priority5); err != nil {
 			logs.ErrorCtx(ctx, "import user job documents: publish task", "account_id", aid, "error", err)
 			errorsN++
 			continue
@@ -199,8 +199,8 @@ func publishImportUserJobDocumentTasksScanAll(ctx context.Context, skipAuthRecen
 
 // newImportUserJobDocumentTaskRequest builds the worker payload. skipAuthRecency means LoginRecencyMaxAgeSeconds = -1.
 // Otherwise 0/omitted so the worker applies DefaultRecencyForActiveAccounts.
-func newImportUserJobDocumentTaskRequest(accountID string, skipAuthRecency bool) natscore.ImportUserJobDocumentsForAccountRequest {
-	req := natscore.ImportUserJobDocumentsForAccountRequest{AccountID: accountID}
+func newImportUserJobDocumentTaskRequest(accountID string, skipAuthRecency bool) eipnats.ImportUserJobDocumentsForAccountRequest {
+	req := eipnats.ImportUserJobDocumentsForAccountRequest{AccountID: accountID}
 	if skipAuthRecency {
 		req.LoginRecencyMaxAgeSeconds = -1
 	}
@@ -213,7 +213,7 @@ func publishImportUserJobDocumentTaskSingle(ctx context.Context, accountID strin
 		return err
 	}
 	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
-	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
+	if err := eipnats.EnsureWorkerTaskStream(clients.NATS.JS()); err != nil {
 		return fmt.Errorf("ensure worker task stream: %w", err)
 	}
 	fsc, err := firebaseadmin.GetFirestoreClient(ctx)
@@ -232,7 +232,7 @@ func publishImportUserJobDocumentTaskSingle(ctx context.Context, accountID strin
 
 	taskDef := taskscore.ImportUserJobDocumentsForAccount
 	req := newImportUserJobDocumentTaskRequest(accountID, true)
-	if err := natscore.PublishTask(ctx, clients.JetStream, taskDef.Subject, taskDef.Name, req, clients.NATS, taskscore.Priority5); err != nil {
+	if err := eipnats.PublishTask(ctx, clients.NATS, taskDef.Subject, taskDef.Name, req, taskscore.Priority5); err != nil {
 		return err
 	}
 	fmt.Printf("Enqueued 1 importUserJobDocumentsForAccount task for account %q on %q (queue %q)\n", accountID, taskDef.Subject, taskscore.Priority5)

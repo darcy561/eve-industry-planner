@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"eve-industry-planner/shared/container"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 
 	natslib "github.com/nats-io/nats.go"
 )
@@ -24,9 +24,9 @@ func (s *Server) StartWSCommandBus(ctx context.Context, conn *natslib.Conn) (lif
 	}
 	subs := make([]*natslib.Subscription, 0, 3)
 	for _, subject := range []string{
-		natscore.SubjectWSCommandCordon,
-		natscore.SubjectWSCommandDrain,
-		natscore.SubjectWSCommandUncordon,
+		eipnats.SubjectWSCommandCordon,
+		eipnats.SubjectWSCommandDrain,
+		eipnats.SubjectWSCommandUncordon,
 	} {
 		subj := subject
 		sub, err := conn.Subscribe(subj, func(msg *natslib.Msg) {
@@ -43,9 +43,9 @@ func (s *Server) StartWSCommandBus(ctx context.Context, conn *natslib.Conn) (lif
 	logs.InfoCtx(ctx, "websocket planned command bus enabled",
 		"container_id", container.ID(),
 		"subjects", []string{
-			natscore.SubjectWSCommandCordon,
-			natscore.SubjectWSCommandDrain,
-			natscore.SubjectWSCommandUncordon,
+			eipnats.SubjectWSCommandCordon,
+			eipnats.SubjectWSCommandDrain,
+			eipnats.SubjectWSCommandUncordon,
 		},
 	)
 	return lifecycle.Func{
@@ -73,16 +73,16 @@ func (s *Server) handleWSCommand(ctx context.Context, subject string, msg *natsl
 
 	action := ""
 	switch subject {
-	case natscore.SubjectWSCommandCordon:
+	case eipnats.SubjectWSCommandCordon:
 		action = "cordon"
 		s.PlannedCordon(ctx)
-	case natscore.SubjectWSCommandDrain:
+	case eipnats.SubjectWSCommandDrain:
 		action = "drain"
 		s.PlannedDrain(ctx)
-	case natscore.SubjectWSCommandUncordon:
+	case eipnats.SubjectWSCommandUncordon:
 		action = "uncordon"
 		if err := s.PlannedUncordon(ctx); err != nil {
-			_ = natscore.RespondEnvelope(msg, natscore.MessageTypeWSCommand, natscore.WSCommandAck{
+			_ = eipnats.RespondEnvelope(msg, eipnats.MessageTypeWSCommand, eipnats.WSCommandAck{
 				OK: false, ContainerID: self, Action: action, Error: err.Error(),
 			})
 			return
@@ -90,7 +90,7 @@ func (s *Server) handleWSCommand(ctx context.Context, subject string, msg *natsl
 	default:
 		return
 	}
-	if err := natscore.RespondEnvelope(msg, natscore.MessageTypeWSCommand, natscore.WSCommandAck{
+	if err := eipnats.RespondEnvelope(msg, eipnats.MessageTypeWSCommand, eipnats.WSCommandAck{
 		OK: true, ContainerID: self, Action: action,
 	}); err != nil {
 		logs.WarnCtx(ctx, "websocket ws.command Respond failed",
@@ -98,21 +98,21 @@ func (s *Server) handleWSCommand(ctx context.Context, subject string, msg *natsl
 	}
 }
 
-func parseWSCommand(data []byte) (natscore.WSCommand, bool) {
-	var env natscore.Message
+func parseWSCommand(data []byte) (eipnats.WSCommand, bool) {
+	var env eipnats.Message
 	if err := json.Unmarshal(data, &env); err == nil && env.Type != "" {
 		if len(env.Data) == 0 {
-			return natscore.WSCommand{}, false
+			return eipnats.WSCommand{}, false
 		}
-		var cmd natscore.WSCommand
+		var cmd eipnats.WSCommand
 		if err := json.Unmarshal(env.Data, &cmd); err != nil {
-			return natscore.WSCommand{}, false
+			return eipnats.WSCommand{}, false
 		}
 		return cmd, true
 	}
-	var cmd natscore.WSCommand
+	var cmd eipnats.WSCommand
 	if err := json.Unmarshal(data, &cmd); err != nil {
-		return natscore.WSCommand{}, false
+		return eipnats.WSCommand{}, false
 	}
 	return cmd, true
 }

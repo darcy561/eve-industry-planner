@@ -7,9 +7,9 @@ import (
 	"slices"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 	esicore "eve-industry-planner/worker/esi"
 
@@ -46,7 +46,7 @@ func RefreshRegionMarketOrders(ctx context.Context, task *asynq.Task, deps *Task
 		return fmt.Errorf("task dependencies are nil")
 	}
 
-	request, err := UnmarshalTaskPayload[natscore.RegionMarketOrdersRequest](task)
+	request, err := UnmarshalTaskPayload[eipnats.RegionMarketOrdersRequest](task)
 	if err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func RefreshRegionMarketOrders(ctx context.Context, task *asynq.Task, deps *Task
 	defer cleanup()
 
 	statusResult := esicore.CheckServerStatus(ctx, deps.ESIClient, deps.Redis)
-	if err := HandleStatusCheckResult(ctx, statusResult, natscore.TaskNameRegionMarketOrdersRefresh); err != nil {
+	if err := HandleStatusCheckResult(ctx, statusResult, eipnats.TaskNameRegionMarketOrdersRefresh); err != nil {
 		return err
 	}
 
@@ -95,7 +95,7 @@ func RefreshRegionMarketOrders(ctx context.Context, task *asynq.Task, deps *Task
 
 	fetchResult, err := FetchRegionMarketOrders(ctx, deps.ESIClient, deps.Redis, request.RegionID, prevETags, onOrder)
 	if err != nil {
-		return HandleStreamError(ctx, err, natscore.TaskNameRegionMarketOrdersRefresh)
+		return HandleStreamError(ctx, err, eipnats.TaskNameRegionMarketOrdersRefresh)
 	}
 
 	now := time.Now().UnixMilli()

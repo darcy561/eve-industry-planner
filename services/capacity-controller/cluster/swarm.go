@@ -16,8 +16,8 @@ import (
 	redislib "github.com/redis/go-redis/v9"
 
 	"eve-industry-planner/capacity-controller/config"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/lifecycle"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/tasks"
 )
 
@@ -149,7 +149,7 @@ func (s *Swarm) loadCooldown(ctx context.Context, svc Service) CooldownState {
 	return cd
 }
 
-func (s *Swarm) observeService(ctx context.Context, svc Service, cfg config.Config, health []natscore.HealthStatus) (ServiceState, error) {
+func (s *Swarm) observeService(ctx context.Context, svc Service, cfg config.Config, health []eipnats.HealthStatus) (ServiceState, error) {
 	spec := cfg.Services[string(svc)]
 	ss := ServiceState{
 		Managed:         spec.CapacityControllerManaged,
@@ -377,8 +377,8 @@ func (s *Swarm) applyPressure(svc Service, ss *ServiceState, now time.Time, up, 
 	}
 }
 
-func (s *Swarm) pingHealth(ctx context.Context) (map[string][]natscore.HealthStatus, error) {
-	out := map[string][]natscore.HealthStatus{}
+func (s *Swarm) pingHealth(ctx context.Context) (map[string][]eipnats.HealthStatus, error) {
+	out := map[string][]eipnats.HealthStatus{}
 	if s.opts.NATS == nil || !s.opts.NATS.IsConnected() {
 		return out, nil
 	}
@@ -389,8 +389,8 @@ func (s *Swarm) pingHealth(ctx context.Context) (map[string][]natscore.HealthSta
 	}
 	defer func() { _ = sub.Unsubscribe() }()
 
-	payload, _ := json.Marshal(natscore.HealthPing{})
-	if err := s.opts.NATS.PublishRequest(natscore.SubjectHealthCommandPing, inbox, payload); err != nil {
+	payload, _ := json.Marshal(eipnats.HealthPing{})
+	if err := s.opts.NATS.PublishRequest(eipnats.SubjectHealthCommandPing, inbox, payload); err != nil {
 		return out, err
 	}
 
@@ -413,10 +413,10 @@ func (s *Swarm) pingHealth(ctx context.Context) (map[string][]natscore.HealthSta
 	return out, nil
 }
 
-func decodeHealthStatus(data []byte) (natscore.HealthStatus, bool) {
-	var env natscore.Message
+func decodeHealthStatus(data []byte) (eipnats.HealthStatus, bool) {
+	var env eipnats.Message
 	if err := json.Unmarshal(data, &env); err == nil && env.Type != "" {
-		var st natscore.HealthStatus
+		var st eipnats.HealthStatus
 		if len(env.Data) == 0 {
 			return st, false
 		}
@@ -425,7 +425,7 @@ func decodeHealthStatus(data []byte) (natscore.HealthStatus, bool) {
 		}
 		return st, true
 	}
-	var st natscore.HealthStatus
+	var st eipnats.HealthStatus
 	if err := json.Unmarshal(data, &st); err != nil {
 		return st, false
 	}
@@ -463,18 +463,18 @@ func (s *Swarm) Scale(ctx context.Context, svc Service, desired int) error {
 
 // Cordon soft-stops a websocket backend via NATS ws.command.cordon.
 func (s *Swarm) Cordon(ctx context.Context, containerID string) error {
-	return s.wsCommand(ctx, natscore.SubjectWSCommandCordon, containerID, 5*time.Second)
+	return s.wsCommand(ctx, eipnats.SubjectWSCommandCordon, containerID, 5*time.Second)
 }
 
 // Drain kicks clients on a websocket backend via NATS ws.command.drain.
 // Wait budget follows websocket PlannedDrain (lifecycle.AppStopGrace) plus NATS RTT slack.
 func (s *Swarm) Drain(ctx context.Context, containerID string) error {
-	return s.wsCommand(ctx, natscore.SubjectWSCommandDrain, containerID, lifecycle.AppStopGrace+5*time.Second)
+	return s.wsCommand(ctx, eipnats.SubjectWSCommandDrain, containerID, lifecycle.AppStopGrace+5*time.Second)
 }
 
 // Uncordon clears planned soft-stop via NATS ws.command.uncordon.
 func (s *Swarm) Uncordon(ctx context.Context, containerID string) error {
-	return s.wsCommand(ctx, natscore.SubjectWSCommandUncordon, containerID, 5*time.Second)
+	return s.wsCommand(ctx, eipnats.SubjectWSCommandUncordon, containerID, 5*time.Second)
 }
 
 func (s *Swarm) wsCommand(ctx context.Context, subject, containerID string, timeout time.Duration) error {
@@ -485,7 +485,7 @@ func (s *Swarm) wsCommand(ctx context.Context, subject, containerID string, time
 	if containerID == "" {
 		return fmt.Errorf("%s: empty container_id", subject)
 	}
-	raw, err := json.Marshal(natscore.WSCommand{ContainerID: containerID})
+	raw, err := json.Marshal(eipnats.WSCommand{ContainerID: containerID})
 	if err != nil {
 		return err
 	}
@@ -511,10 +511,10 @@ func (s *Swarm) wsCommand(ctx context.Context, subject, containerID string, time
 	return nil
 }
 
-func decodeWSCommandAck(data []byte) (natscore.WSCommandAck, bool) {
-	var env natscore.Message
+func decodeWSCommandAck(data []byte) (eipnats.WSCommandAck, bool) {
+	var env eipnats.Message
 	if err := json.Unmarshal(data, &env); err == nil && env.Type != "" {
-		var ack natscore.WSCommandAck
+		var ack eipnats.WSCommandAck
 		if len(env.Data) == 0 {
 			return ack, false
 		}
@@ -523,7 +523,7 @@ func decodeWSCommandAck(data []byte) (natscore.WSCommandAck, bool) {
 		}
 		return ack, true
 	}
-	var ack natscore.WSCommandAck
+	var ack eipnats.WSCommandAck
 	if err := json.Unmarshal(data, &ack); err != nil {
 		return ack, false
 	}

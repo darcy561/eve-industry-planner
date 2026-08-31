@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -34,7 +34,7 @@ func runMigrateUserCloudAccountsToUserDoc(ctx context.Context, args []string) er
 	}
 	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
-	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
+	if err := eipnats.EnsureWorkerTaskStream(clients.NATS.JS()); err != nil {
 		return fmt.Errorf("failed to ensure worker task stream: %w", err)
 	}
 
@@ -78,17 +78,16 @@ func runMigrateUserCloudAccountsToUserDoc(ctx context.Context, args []string) er
 		}
 		checked++
 
-		payload := natscore.MigrateUserCloudAccountsToUserDocRequest{
+		payload := eipnats.MigrateUserCloudAccountsToUserDocRequest{
 			AccountID: accountID,
 			DryRun:    opts.dryRun,
 		}
-		if err := natscore.PublishTask(
+		if err := eipnats.PublishTask(
 			ctx,
-			clients.JetStream,
+			clients.NATS,
 			taskscore.MigrateUserCloudAccountsToUserDoc.Subject,
 			taskscore.MigrateUserCloudAccountsToUserDoc.Name,
 			payload,
-			clients.NATS,
 			taskscore.MigrateUserCloudAccountsToUserDoc.DefaultPriority,
 		); err != nil {
 			return fmt.Errorf("publish migrateUserCloudAccountsToUserDoc for %s: %w", accountID, err)

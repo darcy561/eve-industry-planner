@@ -2,7 +2,7 @@
 // and API affinity cookies. Not operator-overridable.
 //
 // Cookies live here. HTTP path: StatusPath.
-// NATS subject/payload SoT: shared/core/nats (SubjectWSPlacementState, PlacementState).
+// NATS subject/payload SoT: shared/nats (SubjectWSPlacementState, PlacementState).
 package wsplacement
 
 const (

@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/wsplacement"
 )
 
@@ -87,8 +87,8 @@ func TestCompareSemverXYZ(t *testing.T) {
 func TestPickBackendPrefersLowerClients(t *testing.T) {
 	t.Parallel()
 	place := newPlacementStore()
-	place.applyState(natscore.PlacementState{ContainerID: "aaa111111111", Clients: 5})
-	place.applyState(natscore.PlacementState{ContainerID: "bbb222222222", Clients: 1})
+	place.applyState(eipnats.PlacementState{ContainerID: "aaa111111111", Clients: 5})
+	place.applyState(eipnats.PlacementState{ContainerID: "bbb222222222", Clients: 1})
 	r := &Router{place: place}
 	got := r.pickBackend([]string{"aaa111111111", "bbb222222222"})
 	if got != "bbb222222222" {
@@ -162,7 +162,7 @@ func TestShortContainerID(t *testing.T) {
 func TestPlacementStoreApplyAndPlace(t *testing.T) {
 	t.Parallel()
 	p := newPlacementStore()
-	p.applyState(natscore.PlacementState{
+	p.applyState(eipnats.PlacementState{
 		ContainerID: "aaa111111111", Clients: 3, Soft: true, Full: false, Draining: true,
 	})
 	f := p.flagsOf("aaa111111111")
@@ -179,8 +179,8 @@ func TestPlacementStoreApplyAndPlace(t *testing.T) {
 func TestResolveBackendPlaceHitAndMiss(t *testing.T) {
 	t.Parallel()
 	place := newPlacementStore()
-	place.applyState(natscore.PlacementState{ContainerID: "aaa111111111", Clients: 10})
-	place.applyState(natscore.PlacementState{ContainerID: "bbb222222222", Clients: 1})
+	place.applyState(eipnats.PlacementState{ContainerID: "aaa111111111", Clients: 10})
+	place.applyState(eipnats.PlacementState{ContainerID: "bbb222222222", Clients: 1})
 	be := &backendRegistry{byID: map[string]backend{
 		"aaa111111111": {ContainerID: "aaa111111111", IP: "10.0.0.1", AppVersion: "0.8.26"},
 		"bbb222222222": {ContainerID: "bbb222222222", IP: "10.0.0.2", AppVersion: "0.8.26"},
@@ -227,8 +227,8 @@ func TestResolveBackendPlaceHitAndMiss(t *testing.T) {
 func TestResolveBackendReassignsFullHome(t *testing.T) {
 	t.Parallel()
 	place := newPlacementStore()
-	place.applyState(natscore.PlacementState{ContainerID: "aaa111111111", Clients: 1, Full: true})
-	place.applyState(natscore.PlacementState{ContainerID: "bbb222222222", Clients: 5})
+	place.applyState(eipnats.PlacementState{ContainerID: "aaa111111111", Clients: 1, Full: true})
+	place.applyState(eipnats.PlacementState{ContainerID: "bbb222222222", Clients: 5})
 	place.setPlace("account:1", "aaa111111111")
 	be := &backendRegistry{byID: map[string]backend{
 		"aaa111111111": {ContainerID: "aaa111111111", IP: "10.0.0.1", AppVersion: "0.8.26"},
@@ -256,8 +256,8 @@ func TestResolveBackendReassignsFullHome(t *testing.T) {
 func TestResolveBackendReassignsDrainingHome(t *testing.T) {
 	t.Parallel()
 	place := newPlacementStore()
-	place.applyState(natscore.PlacementState{ContainerID: "aaa111111111", Clients: 1, Draining: true})
-	place.applyState(natscore.PlacementState{ContainerID: "bbb222222222", Clients: 5})
+	place.applyState(eipnats.PlacementState{ContainerID: "aaa111111111", Clients: 1, Draining: true})
+	place.applyState(eipnats.PlacementState{ContainerID: "bbb222222222", Clients: 5})
 	place.setPlace("account:2", "aaa111111111")
 	be := &backendRegistry{byID: map[string]backend{
 		"aaa111111111": {ContainerID: "aaa111111111", IP: "10.0.0.1", AppVersion: "0.8.26"},

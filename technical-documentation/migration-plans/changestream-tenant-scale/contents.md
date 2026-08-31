@@ -20,6 +20,7 @@ Named for the **work**, not a git branch. **Project close** = plan phases done +
 | Goals, phases, non-goals, done-when | [plan.md](./plan.md) |
 | Metrics contract (labels / signals) | [metrics.md](./metrics.md) |
 | Future auto-detect / dedicated Watch split | [auto-detect.md](./auto-detect.md) |
+| Know how the shared publish call is expected to change before Phase B | [plan.md](./plan.md) § The publish call Phase B builds on is being reshaped |
 | Phase overlay index | [overlay.md](./overlay.md) |
 | Landed behaviour notes (fill as work lands) | [overlays/](./overlays/) |
 | Related Swarm multi-tenant context | [swarm-stack roadmap § Multi-tenant fit](../swarm-stack/roadmap.md#multi-tenant-fit-account--corp--alliance) |

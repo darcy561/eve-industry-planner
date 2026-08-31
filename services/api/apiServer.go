@@ -68,7 +68,7 @@ func StartAPIServer(ctx context.Context, clients *stackservices.Clients) (lifecy
 	mux := http.NewServeMux()
 
 	// Warm live SDE into process memory; refresh on worker NATS SDE build updates.
-	sdecache.StartCacheWarmer(ctx, clients.NATS)
+	sdecache.StartCacheWarmer(ctx, clients.NATS.Conn())
 
 	// Outermost: RequestStartTimeConstructor (before otelhttp) so duration includes tracing.
 	// Under otelhttp: deadline, logging, maintenance, compression, then mux (unregistered-route logging).

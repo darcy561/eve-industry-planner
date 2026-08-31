@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/core/config"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	eipnats "eve-industry-planner/shared/nats"
 	esicore "eve-industry-planner/worker/esi"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
@@ -34,7 +34,7 @@ func CloudStoredEsiRefreshMaintenance(ctx context.Context, task *asynq.Task, dep
 	if deps == nil || deps.Mongo == nil {
 		return fmt.Errorf("mongo client is required")
 	}
-	payload, err := esitasks.UnmarshalTaskPayload[natscore.CloudStoredEsiRefreshMaintenanceRequest](task)
+	payload, err := esitasks.UnmarshalTaskPayload[eipnats.CloudStoredEsiRefreshMaintenanceRequest](task)
 	if err != nil {
 		return fmt.Errorf("invalid payload: %w", err)
 	}

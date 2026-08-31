@@ -1,5 +1,5 @@
 // Package natsprop propagates OpenTelemetry trace context and request identity through NATS headers and string maps (e.g. Asynq).
-// Publisher: [Inject] and [InjectLogContext] on NATS headers (used by shared/core/nats PublishMessage).
+// Publisher: [Inject] and [InjectLogContext] on NATS headers (used by shared/nats PublishMessage).
 // Worker: jetstream subscriber copies headers into Asynq via [AsynqHeadersFromNATS]; the worker mux
 // calls [ExtractFromStringMap] and [BindLogContextFromStringMap] before running each task handler—pass that ctx into logs.*Ctx and HTTP/DB calls.
 package natsprop

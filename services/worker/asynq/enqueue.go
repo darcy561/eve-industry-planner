@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/telemetry/natsprop"
 
 	"github.com/hibiken/asynq"
@@ -32,13 +32,13 @@ func Enqueue(
 ) error {
 	payload := msg.Data()
 
-	var natsMsg natscore.Message
+	var natsMsg eipnats.Message
 	if err := json.Unmarshal(payload, &natsMsg); err != nil {
 		return fmt.Errorf("failed to unmarshal NATS message: %w", err)
 	}
 
 	// Parse TaskMessage to get optional priority and timeout overrides
-	var taskMsg natscore.TaskMessage
+	var taskMsg eipnats.TaskMessage
 	overridePriority := ""
 	overrideTimeoutSec := 0
 	if err := json.Unmarshal(natsMsg.Data, &taskMsg); err == nil {
@@ -66,9 +66,9 @@ func Enqueue(
 
 	// Propagate W3C trace from NATS; handlers that publish follow-up tasks should use the same ctx so
 	// PublishMessage injects the active span. For enqueue without NATS, use natsprop.AsynqHeadersFromContext(ctx).
-	// JSON envelope may carry trace_carrier_* when JetStream omits user headers (see [natscore.Message]).
+	// JSON envelope may carry trace_carrier_* when JetStream omits user headers (see [eipnats.Message]).
 	traceHeaders := natsprop.AsynqHeadersFromNATS(msg.Headers())
-	traceHeaders = natscore.MergeTraceCarrierIntoHeaders(traceHeaders,
+	traceHeaders = eipnats.MergeTraceCarrierIntoHeaders(traceHeaders,
 		natsMsg.TraceCarrierTraceparent, natsMsg.TraceCarrierTracestate)
 	if natsMsg.LogContext != nil {
 		traceHeaders = natsprop.MergeLogContextIntoHeaders(traceHeaders,

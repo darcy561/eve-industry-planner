@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/logs"
+	eipmongo "eve-industry-planner/shared/mongo"
 )
 
 // RunExpirySubscriber listens for Redis TTL expirations on doc-lock keys
@@ -27,7 +27,7 @@ import (
 // The Service deps must include Redis + JetStream; without either the
 // function returns a nil error immediately (caller logs it once on startup).
 func RunExpirySubscriber(ctx context.Context, d Deps) error {
-	if d.Redis == nil || d.JetStream == nil {
+	if d.Redis == nil || d.NATS == nil {
 		return nil
 	}
 
@@ -97,7 +97,7 @@ func handleExpiryMessage(ctx context.Context, d Deps, rawKey string) {
 		}
 	}
 
-	if err := PublishLockEvent(ctx, d.JetStream, accountID, payload); err != nil {
+	if err := PublishLockEvent(ctx, d.NATS, accountID, payload); err != nil {
 		logs.WarnCtx(ctx, "doc lock expiry: publish failed",
 			"error", err,
 			"account_id", accountID,

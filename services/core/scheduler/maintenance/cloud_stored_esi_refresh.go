@@ -8,8 +8,8 @@ import (
 
 	"eve-industry-planner/core/scheduler/contract"
 	schedesi "eve-industry-planner/core/scheduler/esi"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 
 	redislib "github.com/redis/go-redis/v9"
@@ -206,18 +206,17 @@ func microBatchPublishCloudEsiTasks(ctx context.Context, deps contract.Dependenc
 	for start := 0; start < len(accountIDs); start += requestsPerSlice {
 		end := min(start+requestsPerSlice, len(accountIDs))
 		for _, accountID := range accountIDs[start:end] {
-			payload := natscore.CloudStoredEsiRefreshMaintenanceRequest{
+			payload := eipnats.CloudStoredEsiRefreshMaintenanceRequest{
 				AccountID:               accountID,
 				RotateAfterLoginDays:    defaultRotateAfterLoginDays,
 				AbandonAfterLoginMonths: defaultAbandonAfterLoginMonths,
 			}
-			if err := natscore.PublishTask(
+			if err := eipnats.PublishTask(
 				ctx,
-				deps.JSContext,
+				deps.NATS,
 				task.Subject,
 				task.Name,
 				payload,
-				deps.NATS,
 				task.DefaultPriority,
 			); err != nil {
 				logs.ErrorCtx(ctx, "cloud esi refresh maintenance: publish failed", "component", schedulerLogComponent,

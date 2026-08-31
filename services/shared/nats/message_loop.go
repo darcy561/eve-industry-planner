@@ -25,7 +25,7 @@ func StartMessageProcessingLoop(
 
 	cc, err := consumer.Consume(
 		func(msg jetstream.Msg) {
-			InProgressMessage(msg)
+			InProgressMessage(bg, msg)
 			processor(msg)
 		},
 		jetstream.ConsumeErrHandler(func(_ jetstream.ConsumeContext, err error) {

@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/firebaseadmin"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/migration/firestoremig"
+	eipnats "eve-industry-planner/shared/nats"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
@@ -25,7 +25,7 @@ func MigrateFirestoreWatchlistToMongo(ctx context.Context, task *asynq.Task, dep
 		return fmt.Errorf("mongo client is required")
 	}
 
-	request, err := esitasks.UnmarshalTaskPayload[natscore.MigrateFirestoreWatchlistToMongoRequest](task)
+	request, err := esitasks.UnmarshalTaskPayload[eipnats.MigrateFirestoreWatchlistToMongoRequest](task)
 	if err != nil {
 		logs.WarnCtx(ctx, "failed to parse migrate watchlist task payload", "error", err)
 		return fmt.Errorf("invalid task data: %w", err)

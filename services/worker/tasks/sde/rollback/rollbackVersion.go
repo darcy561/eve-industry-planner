@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 	sdepublish "eve-industry-planner/worker/tasks/sde/publish"
 
@@ -55,9 +55,9 @@ func RollbackSDEVersion(ctx context.Context, task *asynq.Task, deps *esitasks.Ta
 		"build_number", rollbackVersion.BuildNumber,
 	)
 	if deps != nil && deps.NATS != nil && rollbackVersion.BuildNumber > 0 {
-		payload, err := json.Marshal(natscore.SDECurrentBuildUpdate{BuildNumber: rollbackVersion.BuildNumber, Version: rollbackVersion.Version})
+		payload, err := json.Marshal(eipnats.SDECurrentBuildUpdate{BuildNumber: rollbackVersion.BuildNumber, Version: rollbackVersion.Version})
 		if err == nil {
-			if err := deps.NATS.Publish(natscore.SubjectCoreSDEBuildUpdated, payload); err != nil {
+			if err := deps.NATS.Conn().Publish(eipnats.SubjectCoreSDEBuildUpdated, payload); err != nil {
 				logs.WarnCtx(ctx, "failed to publish core SDE build update after rollback",
 					"build_number", rollbackVersion.BuildNumber, "error", err)
 			}
