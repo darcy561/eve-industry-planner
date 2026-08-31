@@ -175,14 +175,3 @@ func hasRecordedMarketActivity(row models.ArchivedJobStats) bool {
 	}
 	return false
 }
-
-func compareStrings(a, b string) int {
-	switch {
-	case a < b:
-		return -1
-	case a > b:
-		return 1
-	default:
-		return 0
-	}
-}

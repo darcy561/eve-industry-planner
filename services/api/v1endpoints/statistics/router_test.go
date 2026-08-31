@@ -52,7 +52,6 @@ func TestRouterRejectsUnknownViews(t *testing.T) {
 		"/api/v1/statistics/account",
 		"/api/v1/statistics/account/",
 		"/api/v1/statistics/account/rollups",
-		// Retired once the SPA moved to totals, which serves the same documents.
 		// Pinned as absent so it is not revived by accident.
 		"/api/v1/statistics/build-stats",
 		"/api/v1/statistics/account/timeline/items/extra",
