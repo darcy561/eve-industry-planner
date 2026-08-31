@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useLockViewerPresence } from "./useLockViewerPresence.js";
 
@@ -14,10 +14,6 @@ import {
 } from "../../Functions/Endpoints/Private/documentLockClient.js";
 
 describe("useLockViewerPresence", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("registers viewer when queued on waitlist even if not readOnly", () => {
     renderHook(() =>
       useLockViewerPresence({

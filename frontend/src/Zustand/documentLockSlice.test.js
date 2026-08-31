@@ -181,7 +181,6 @@ describe("documentLockSlice — async lock flows (regression)", () => {
   let useStore;
 
   beforeEach(() => {
-    vi.clearAllMocks();
     mockResolveDocumentLockApiTarget.mockImplementation((collection, docID) => ({
       collection,
       docID,

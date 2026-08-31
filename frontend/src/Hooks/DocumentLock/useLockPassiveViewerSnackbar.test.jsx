@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { docLockScopeKey } from "../../Functions/DocumentLock/documentLockScope.js";
 import { showSnackbarInfo } from "../../Events/snackbarEvents.js";
@@ -9,9 +9,6 @@ vi.mock("../../Events/snackbarEvents.js", () => ({
 }));
 
 describe("useLockPassiveViewerSnackbar", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
 
   function prevRef(sk, viewerCount = 0, lockHeld = true, readOnly = false) {
     return {

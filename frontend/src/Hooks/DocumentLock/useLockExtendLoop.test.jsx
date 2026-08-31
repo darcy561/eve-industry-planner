@@ -10,7 +10,6 @@ vi.mock("../../Functions/Endpoints/Private/documentLockClient.js", () => ({
 
 describe("useLockExtendLoop", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     extendDocumentLock.mockResolvedValue({
       ok: true,
       status: 200,

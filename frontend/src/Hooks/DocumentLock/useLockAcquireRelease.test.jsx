@@ -51,7 +51,6 @@ function buildHarness() {
 
 describe("useLockAcquireRelease (#21 vacancy self-heal)", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     for (const k of Object.keys(mockLockScopes)) delete mockLockScopes[k];
     acquireDocumentLock.mockResolvedValue(grantedResponse());
     releaseDocumentLock.mockResolvedValue(undefined);

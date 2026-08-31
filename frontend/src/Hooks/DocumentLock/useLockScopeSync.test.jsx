@@ -46,7 +46,6 @@ function dispatchDocLock(detail) {
 
 describe("useLockScopeSync — eip-document-lock (regression)", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.useFakeTimers();
     storeState.account.isLoggedIn = true;
   });

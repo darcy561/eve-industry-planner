@@ -45,7 +45,6 @@ describe("useLockWsListener — document_lock_requested (regression)", () => {
   const scopeKey = docLockScopeKey(collection, docID);
 
   beforeEach(() => {
-    vi.clearAllMocks();
     storeSnapshot.documentLock.scopes = {};
     storeSnapshot.account.sessionID = "jwt-session-shared";
   });

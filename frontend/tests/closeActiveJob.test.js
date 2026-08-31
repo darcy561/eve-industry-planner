@@ -62,7 +62,6 @@ function makeJob(id = "j1", groupID = null) {
 
 describe("closeActiveJob", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     const job = makeJob();
     storeHolder.current = create((set, get) => ({
       account: {

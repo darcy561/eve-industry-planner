@@ -10,23 +10,9 @@ import {
   clearClientReadablePlannerAuthCookies,
 } from "../src/Functions/Auth/plannerAuthCookies.js";
 
-function createStorage() {
-  /** @type {Record<string, string>} */
-  const store = {};
-  return {
-    getItem: (key) => (key in store ? store[key] : null),
-    setItem: (key, value) => {
-      store[key] = String(value);
-    },
-    removeItem: (key) => {
-      delete store[key];
-    },
-  };
-}
-
 describe("hasResumablePlannerSession", () => {
   beforeEach(() => {
-    vi.stubGlobal("localStorage", createStorage());
+    localStorage.clear();
     sessionStorage.removeItem(TAB_REFRESH_TOKEN_KEY);
     sessionStorage.removeItem(TAB_REAUTH_REQUIRED_AT_KEY);
     clearClientReadablePlannerAuthCookies();

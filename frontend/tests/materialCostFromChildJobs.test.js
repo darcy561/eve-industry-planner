@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { calculateMaterialCostFromChildJobs } from "../src/Functions/Groups/materialCostFromChildJobs.js";
 
 vi.mock("../src/Zustand/usersStore.js", () => ({
@@ -15,10 +15,6 @@ vi.mock("../src/Zustand/usersStore.js", () => ({
 }));
 
 describe("calculateMaterialCostFromChildJobs install rollup", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("includes child setup install estimates in material cost", () => {
     const childJob = {
       jobID: "child-1",

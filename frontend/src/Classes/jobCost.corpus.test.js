@@ -10,7 +10,7 @@ const corpusPath = resolve(process.cwd(), "../testing/fixtures/job-cost/cases.js
 const corpus = JSON.parse(readFileSync(corpusPath, "utf8"));
 
 describe("job cost corpus", () => {
-  test.each(corpus.cases.map((c) => [c.name, c]))("%s", (_name, testCase) => {
+  test.for(corpus.cases)("$name", (testCase) => {
     const job = new Job(testCase.job);
     const { expected, why } = testCase;
 
