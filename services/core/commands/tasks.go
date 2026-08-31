@@ -36,6 +36,7 @@ const usage = `Usage:
   tasks importUserJobDocumentsFromFirestore [flags]
   tasks backfillArchivedAt [-dry-run]
   tasks queueArchivedJobStatsRebuild [-all] [-account id] [-dry-run]
+  tasks prepareArchivedJobStatistics [-dry-run]
   tasks <task-name> [--version=<int>] [--data='<json>']
 
 Examples:
@@ -82,28 +83,29 @@ var enabledTasks = []eipnats.Definition{
 	eipnats.DrainAccountStatsRebuildQueue,
 }
 
+// commandTaskNames renames a task for the command line where the two differ.
+// A task absent from here is typed as it is defined.
+var commandTaskNames = map[string]string{
+	eipnats.RebuildCurrentSDEVersion.Name: "forceSdeRebuild",
+	eipnats.CheckSDEUpdates.Name:          "checkSdeUpdates",
+	eipnats.ApplySDEVersion.Name:          "applySdeVersion",
+}
+
+// enabledTasksLowerLookup is derived from the allowlist so a task cannot be
+// runnable but unfindable, or findable under a name the list does not offer.
 func enabledTasksLowerLookup() map[string]eipnats.Definition {
-	return map[string]eipnats.Definition{
-		"checksdeupdates":               eipnats.CheckSDEUpdates,
-		"applysdeversion":               eipnats.ApplySDEVersion,
-		"forcesderebuild":               eipnats.RebuildCurrentSDEVersion,
-		"drainaccountstatsrebuildqueue": eipnats.DrainAccountStatsRebuildQueue,
+	lookup := make(map[string]eipnats.Definition, len(enabledTasks))
+	for _, task := range enabledTasks {
+		lookup[strings.ToLower(commandTaskName(task))] = task
 	}
+	return lookup
 }
 
 func commandTaskName(task eipnats.Definition) string {
-	switch task.Name {
-	case eipnats.CheckSDEUpdates.Name:
-		return "checkSdeUpdates"
-	case eipnats.ApplySDEVersion.Name:
-		return "applySdeVersion"
-	case eipnats.RebuildCurrentSDEVersion.Name:
-		return "forceSdeRebuild"
-	case eipnats.DrainAccountStatsRebuildQueue.Name:
-		return "drainAccountStatsRebuildQueue"
-	default:
-		return task.Name
+	if name, renamed := commandTaskNames[task.Name]; renamed {
+		return name
 	}
+	return task.Name
 }
 
 // Handle runs command-mode task commands.
@@ -147,6 +149,8 @@ func Handle(ctx context.Context, args []string) (bool, error) {
 		return true, runBackfillArchivedAt(ctx, args[2:])
 	case "queueArchivedJobStatsRebuild":
 		return true, runQueueArchivedJobStatsRebuild(ctx, args[2:])
+	case "prepareArchivedJobStatistics":
+		return true, runPrepareArchivedJobStatistics(ctx, args[2:])
 	case "rotateRefreshTokenKeys":
 		return true, runRotateRefreshTokenKeys(ctx, args[2:])
 	case "encodeJobIdentity":
@@ -178,6 +182,7 @@ func runList() error {
 	fmt.Println("  - importUserJobDocumentsFromFirestore [-dev|-live|-credentials path] [-firebase-project-id id] [-account uid] [-dry-run] [-inline] [-enqueue] [-skip-auth-recency]")
 	fmt.Println("  - backfillArchivedAt [-dry-run]")
 	fmt.Println("  - queueArchivedJobStatsRebuild [-all] [-account id] [-dry-run]")
+	fmt.Println("  - prepareArchivedJobStatistics [-dry-run]")
 	fmt.Println("  - rotateRefreshTokenKeys [--from=<version>] [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
 	fmt.Println("  - migrateEncryptedCloudRefreshTokens [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
 	fmt.Println("  - migrateUserCloudAccountsToUserDoc [--scan-batch-size=<n>] [--limit=<n>] [--dry-run]")
