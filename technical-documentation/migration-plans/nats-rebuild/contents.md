@@ -45,7 +45,5 @@ message schedules, and the management surface (list, modify, cancel) built on to
 | Know why the gocron one-time scheduler is being removed | [plan.md](./plan.md) § The one-time scheduler has no callers |
 | Check whether a change breaks the wire | [plan.md](./plan.md) § Wire compatibility |
 | Check what has landed and what is still open | [plan.md](./plan.md) § Stage status |
-| See the call sites still reading a task definition | [plan.md](./plan.md) § Deferred for review |
-| Revisit how the worker resolves a task | [plan.md](./plan.md) § The worker's interaction with a task wants revisiting |
-| Revisit the cron scheduler | [plan.md](./plan.md) § The cron scheduler wants a rewrite of its own |
+| Find where this project's follow-ups are tracked | [plan.md](./plan.md) § Follow-ups, and where they went |
 | See how a part of the system works after a stage lands | [overlay.md](./overlay.md) |

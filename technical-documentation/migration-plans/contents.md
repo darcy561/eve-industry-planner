@@ -23,3 +23,5 @@ Decision/history/work logs for long-running migrations. **Not SoT.**
 | Service library modules (split `shared/` into local `eip/*` modules; build per closure) | [service-library-modules/contents.md](./service-library-modules/contents.md) |
 | NATS rebuild (bus handle, typed messages, stream specs, scheduled messages) | [nats-rebuild/contents.md](./nats-rebuild/contents.md) |
 | Service import boundaries (stop services importing each other) | [service-import-boundaries/contents.md](./service-import-boundaries/contents.md) |
+| Cron scheduler rewrite (one declaration per job, downtime deferral, gocron's future) | [cron-scheduler-rewrite/contents.md](./cron-scheduler-rewrite/contents.md) |
+| Task dispatch (task type authority, envelope collapse, operator CLI) | [task-dispatch/contents.md](./task-dispatch/contents.md) |
