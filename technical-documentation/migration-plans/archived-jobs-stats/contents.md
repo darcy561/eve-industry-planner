@@ -43,3 +43,8 @@ Also owns the salvage decisions for `feature/archived-jobs-redesign` — which p
 | Add or change a chart on the statistics tab | [overlay.md](./overlay.md) § The charts, and what each answers |
 | Add a chart, or reuse one with different data | [plan.md](./plan.md) § Chart primitives are data-agnostic |
 | Know what happens to the price-history chart | [plan.md](./plan.md) § Price history moves onto the primitives |
+| Understand why archiving a job must not rebuild the whole account | [plan.md](./plan.md) § Stage J |
+| See why the stored snapshot array is being removed | [plan.md](./plan.md) § J1 |
+| Know what the build history panel shows and where each figure comes from | [plan.md](./plan.md) § J1 |
+| Apply a job's statistics as a delta instead of a rebuild | [plan.md](./plan.md) § J2 |
+| Change how often archived-job statistics are recalculated | [plan.md](./plan.md) § J3 |

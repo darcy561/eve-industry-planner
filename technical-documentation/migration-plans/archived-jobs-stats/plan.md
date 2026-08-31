@@ -939,6 +939,184 @@ concerns with no SPA counterpart, and the archived-member rules are not shared l
 the same field: the SPA preserves `archivedJobIDs` through a recompute, the backend clears them on
 merge. Those stay as tests in their own packages.
 
+### Stage J — Incremental statistics and the build history panel
+
+Archiving one job rebuilds every statistic the account holds. `RebuildAccountStatistics` loads every
+archived job for the account, reduces all of them, and rewrites every row, bucket and lifetime total.
+The cost of archiving a job therefore grows with the size of the archive it joins: a build from a
+year ago is recomputed because something was archived today.
+
+Three slices, in this order — each makes the next smaller.
+
+#### The aggregates already decompose
+
+The stage is affordable because the maths is already additive, and that is worth stating before the
+slices lean on it:
+
+| Layer | Shape | Consequence |
+|-------|-------|-------------|
+| `ArchivedJobStats` row | `buildSnapshot(job, snap, now)` reads one job and nothing else | Already per-job; the rebuild only redoes them because it redoes everything |
+| `AccountTimelineMonths` bucket | every step is `buckets[key] = buckets[key].Plus(measures)` | A bucket is exactly the sum of its rows' contributions |
+| `ProductionTotalsRow` | `BuildMeasures.Plus` and `addSegment(...).Plus` | Same, per item type |
+
+There is no average, minimum, maximum or distinct count anywhere in either fold, and `JobSegment`
+classifies a row from its own fields — `IsProductionChain` comes from the job's `ParentJobs`, so
+archiving a child never reclassifies anything already stored. A job's contribution can therefore be
+added to, or subtracted from, the documents it touches without reading its neighbours.
+
+Two exceptions are named in J2 rather than glossed: the snapshot array, which is not a measure at
+all, and the cheapest/dearest figures J1 introduces, which do not invert.
+
+#### J1 — The build history panel, and the end of stored snapshots
+
+`ProductionTotalsRow.DataSnapshots` holds one `BuildStatSnapshot` per job of that type, inside a
+single document. It grows without bound toward Mongo's document limit, and it is the reason a
+rebuild's output scales with the archive rather than with what changed.
+
+It is also duplicated. Every field is derivable from the `ArchivedJobStats` row that is already
+stored:
+
+| Snapshot field | Row source |
+|----------------|------------|
+| `TypeID`, `JobID`, `JobType` | same fields |
+| `ProcessDate` | `ArchivedAt` |
+| `TotalProduced`, `TotalMaterialCost`, `TotalInstallCost`, `TotalExtras`, `TotalInventionCost`, `TotalCostPerItem` | same fields |
+| `BrokersFeeTotal`, `TransactionFeeTotal`, `TotalJobCost` | `CostParts()` |
+| `TotalSales`, `ProfitLoss` | `SalesTotal()` / `JobMeasures()` |
+| `MaterialCostPerItem`, `AverageSalePrice` | ratios of the above |
+
+Both are produced side by side in the same pass, from the same job, so this is one fact stored twice.
+
+The array cannot simply be deleted: `ArchiveJobsPanel` renders it. So the panel is rebuilt in the
+same slice, around what the panel is actually for — comparing an item's past build costs against the
+estimate currently on screen, and seeing whether that cost is drifting.
+
+**What the panel reads.** Both existing endpoints already take the filter it needs:
+
+| Block | Source | New work |
+|-------|--------|----------|
+| Comparison strip, destination split, lifetime figures | `GET /statistics/account/totals?typeID=` — already fetched by the panel today | Scalars added in this slice |
+| Cost make-up over time, cost/extras share | `GET /statistics/account/timeline?typeID=&from=&to=` — **already accepts `typeID`** | None |
+| Builds within a month, recent builds | `GET /api/v1/archived-jobs?typeID=&limit=` — **already paged, filtered and sorted `archivedAt` newest-first** | A date-range filter on `archivedAt` |
+
+**What the panel draws.** Nothing new: the chart primitives take `rows` + `series` and know nothing
+about months, so they render both granularities unchanged.
+
+| Block | Primitive | Adapter |
+|-------|-----------|---------|
+| Cost make-up per unit, by month | `TimeSeriesChart` | `toCostComponentRows`, plus a per-unit variant |
+| Average sale price over it | same chart, `{type: "line", role: "sales"}` | `salesTotal / quantitySold` |
+| Where output went | `PieChart` | `toSegmentRows` |
+| Cost make-up for the window | `PieChart` | `toCostComponentTotalRows` |
+| Extras by category | `PieChart` | `toExtrasTotalRows` |
+| Period | `ChartRangeSlider` + `trailingRange` | — |
+| Builds within a month | `TimeSeriesChart`, **the same series config** | new `toBuildCostRows` |
+
+`COST_COMPONENTS` is a list of field keys, so a per-build adapter emitting those keys renders through
+the identical series definition. The drill-down is a different adapter, not a different chart.
+
+**The comparison uses build cost, not total cost.** `COST_COMPONENTS` carries six entries including
+broker and transaction fees, which are sale-side. What the panel compares against an estimate is
+`JobCostParts.Build()` — materials, install, invention, extras. That four-key subset is defined
+beside `COST_COMPONENTS` rather than inlined at the call site, for the reason the cost model itself
+was consolidated.
+
+**What lands:**
+
+1. `quantityProduced` on the timeline bucket, so cost per unit is derivable. Additive, and it folds
+   like every other measure in `SalesMeasures.Plus`.
+2. Fixed scalars on `ProductionTotalsRow`: last build cost per unit and its date, cheapest and
+   dearest with dates, first build date. All O(1).
+3. A date-range filter on the archived-jobs list.
+4. The rebuilt panel, on the primitives above.
+5. `BuildStatSnapshot`, `DataSnapshots`, and the `foldTotals` line that empties it — deleted, along
+   with the `statisticsTotals.js` default and the `hasMeaningfulTotals` check that reads the array.
+
+**Wire compatibility: breaking**, and the only breaking change in the stage. `dataSnapshots` leaves
+the totals response. Consumers are `archiveJobsPanel.jsx`, `hasMeaningfulTotals.js` and the
+`statisticsTotals.js` default shape. Sequenced additively — scalars and the range filter first, the
+panel moved onto them, then the field removed and no longer written.
+
+**Tests:** the per-unit and per-build adapters against fixed rows; a Go test that the new scalars
+match a full reduction of the same jobs.
+
+#### J2 — Statistics are applied as a delta
+
+With the array gone, every document the pipeline writes is fixed-size, and a job's contribution can
+be applied directly.
+
+- **Archive** — build the row, `$inc` its measures into the one to three buckets it names and its
+  type total, and stamp `contributedAt` on the row in the same operation. O(1) in the size of the
+  archive.
+- **Restore** — read the row, `$inc` the negation, mark it revoked. The row is the record of what was
+  contributed, so the delta is read rather than inferred.
+- **Idempotence** — `contributedAt` is the guard: a row already folded in cannot be folded twice.
+  The existing `claim` protocol continues to cover the racing case.
+
+Computation stays pure and application stays in Mongo, matching how `AccountBuckets` and
+`UpsertStructsPreservingMetaBulk` are already split: `archivestats` gains the delta derivation, and
+`shared/mongo` gains the write that applies it.
+
+**Cheapest and dearest do not invert.** Sums do; minima and maxima do not — removing the cheapest
+build leaves no way to recover the next one from a counter. Those two fields are recomputed by a
+bounded `sort + limit 1` against `(accountID, typeID, archivedAt)` on the restore path only, which is
+rare. This is the one place in the stage where the incremental path cannot stand alone, and it is
+cheaper to say so than to let the figures drift.
+
+**This re-opens something Stage B deliberately closed.** `AccountProductionTotals` records that these
+totals were once produced by a separate worker applying `$inc` per job behind a processed flag, and
+that deriving them wholesale removed both. Stage J gives that guarantee up, so it has to be replaced
+rather than assumed:
+
+- `contributedAt` is a stronger guard than the flag it replaces, because it lives on the row whose
+  contribution it describes rather than on a separate marker.
+- A **reconciliation** rebuild recomputes an account in full and compares against the incremented
+  values, so drift is detected instead of presumed absent.
+- The full rebuild remains as an explicit operation for definition changes — a correction to the cost
+  model invalidates every stored row, and only a recompute fixes it.
+
+Archiving therefore no longer queues a full rebuild. The queue's remaining producers are
+reconciliation and definition changes.
+
+**Wire compatibility: additive.** `ArchivedJobStats` gains `contributedAt`. Bucket and totals
+document shapes are unchanged.
+
+**Tests:** the corpus pattern already used for group derivation and job cost — a fixture of jobs, the
+documents a full rebuild produces, and the assertion that applying the same jobs as deltas produces
+the same documents. Plus the inverse: applying and then reverting a job returns the documents to
+their prior state.
+
+#### J3 — The drain becomes the correctness path, not the latency path
+
+`queueAccountRebuildUpdate` writes `queuedAt` with `$setOnInsert`, so it records when an account
+first became outstanding and is never pushed forward by later changes. That makes it a maximum wait
+rather than a sliding one, which is exactly the gate a frequent tick needs.
+
+- The cron moves from `30 * * * *` to a short interval, and `ListQueuedAccounts` selects only
+  accounts where `now - queuedAt` exceeds a debounce window.
+- Because `queuedAt` does not move, an account changing continuously still rebuilds at most once per
+  window. The window is a single tunable meaning both *the longest an account waits* and *the
+  shortest gap between two of its rebuilds*.
+- A tick that fails to publish costs one interval instead of an hour. That failure is observed:
+  a publish returned `NATS connection is not connected after retries` during a core restart, and
+  nothing retried it, because the drain carries no payload to redeliver and gocron does not re-run a
+  failed job.
+
+`*/10` and `*/15` crons already exist in this scheduler, so a sub-hourly tick is not a new shape.
+
+**Wire compatibility: none.** An additional filter on a read, and a cron expression.
+
+**Tests:** the eligibility filter against a fixed clock — an account inside the window is not
+selected, one outside it is, and a re-queue mid-window does not extend the wait.
+
+#### What this stage does not change
+
+- The reduction rules. What a job contributes is unchanged; only how often it is recomputed and how
+  much is recomputed with it.
+- Corporation scope, which stays with Stage C.
+- The restore sequence, whose ordering and lock gate are Stage G's and are untouched beyond the
+  delta and the min/max repair.
+
 ## Go modernization in scope
 
 Per the planning gate, `go fix -diff` was run against the packages this project will touch
@@ -954,6 +1132,13 @@ reported, in `shared/mongo/docs.go`: `errors.As` with a declared variable become
 extend, so land it with Stage F rather than as a separate sweep. No other package in their scope
 needs modernization first.
 
+Re-run for Stage J, against its touch surface (`shared/archivestats/…`, `shared/mongo/…`,
+`shared/models/…`, `core/scheduler/archivedjobs/…`, `worker/tasks/archivedjobs/…`,
+`api/v1endpoints/statistics/…`, `api/v1endpoints/archivedjobs/…`). **No suggestions** in any of
+them. One is reported in `api/helper/sso/jwt.go` — an `interface{}` that becomes `any` — but that
+package is a dependency of the scan rather than part of Stage J's surface, so it is left for
+whichever work touches SSO next rather than widened into this stage.
+
 ## Stage status
 
 | Stage | Status |
@@ -968,6 +1153,7 @@ needs modernization first.
 | G — restore | **Complete** — three POST routes restore a job, a group rebuilt from its jobs, or a related set walked over the archive. The write is one server-side sequence: decrypt, resolve links, write job documents, re-link free ESI ids on the account, return the jobs to their groups, delete the archived documents, queue the rebuild. Each job rejoins the group it was archived from, merging into it when it is still on the planner. Conflicts are reported and stripped rather than blocking, and a group another session holds refuses the restore |
 | H — archived jobs page | **Complete for the account scope** — `/archived-jobs` carries the statistics tab (metric cards, eight charts, item table) and the jobs tab (list, three row shapes, restore). Chart primitives are shared and the price-history dialogue moved onto them. The list is not queried until its tab is opened, and both tabs carry a mobile layout |
 | I — one owner for group derivation | **Complete** — `models.Group` derives itself through `RebuildFrom` and `AddJobs`, mirroring the SPA's `createGroup` and `addJobsToGroup`; a nine-case corpus at `testing/fixtures/group-derivation` defines the rules and a harness on each side reads it. The three divergences it found are fixed |
+| J — incremental statistics and the build history panel | **Planned** — archiving a job currently rebuilds every statistic the account holds, because `RebuildAccountStatistics` reduces every archived job on every run. Three slices: the stored snapshot array becomes a query and the panel that read it is rebuilt on the existing chart primitives; a job's contribution is applied as a delta rather than recomputed wholesale; and the drain gains a debounce so it becomes the correctness path rather than the latency path |
 
 ## Done when
 
@@ -982,6 +1168,10 @@ needs modernization first.
 - A job restored on its own, or with its group, returns to the group it was archived from, and a
   group is rebuilt from every job that names it.
 - Group derivation has one owner per side, with a shared corpus proving the two agree.
+- Archiving a job costs the same whether the archive holds ten jobs or ten thousand, and no
+  statistics document grows without bound.
+- The build history panel answers what an item has cost before and whether that is drifting,
+  from documents the panel already fetches, with per-build detail read only on request.
 - Overlays in this folder describe the landed behaviour, ready to promote into live SoT.
 
 ## Handoff status
