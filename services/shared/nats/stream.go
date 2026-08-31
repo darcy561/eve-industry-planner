@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"strings"
 	"sync"
 
 	"eve-industry-planner/shared/logs"
@@ -116,17 +117,25 @@ func withOwnerMetadata(in map[string]string) map[string]string {
 // StreamReconcileResult summarises a pass over the server's streams.
 type StreamReconcileResult struct {
 	Listed  int
-	Skipped int // streams this app does not own
+	Skipped int // streams backing a KV bucket or object store
 	Deleted int
 }
 
-// ReconcileStreams deletes streams this app owns that no longer appear in
-// [Specs]. Retiring a stream is therefore deleting its spec.
+// isReservedStream reports whether the NATS client owns this stream on a
+// caller's behalf, which it does for key-value and object-store backing streams.
+func isReservedStream(name string) bool {
+	return strings.HasPrefix(name, "KV_") || strings.HasPrefix(name, "OBJ_")
+}
+
+// ReconcileStreams deletes streams that no longer appear in [Specs]. The specs
+// are what a stream is, so retiring one is deleting its spec, and anything else
+// on the server is not this app's.
 //
-// Only streams carrying the ownership stamp are candidates, so a KV or
-// object-store backing stream, or one an operator made, is never touched.
-// Deleting a stream destroys its messages: the streams here carry live delivery
-// and re-runnable work, never the only copy of anything.
+// The exception is the prefixes the NATS client reserves for itself: a key-value
+// bucket or object store is backed by a stream it creates implicitly, and that
+// one holds the only copy of its data. Deleting a stream destroys its messages —
+// the streams here carry live delivery and re-runnable work, never the only copy
+// of anything.
 func (n *NATS) ReconcileStreams(ctx context.Context) (StreamReconcileResult, error) {
 	var result StreamReconcileResult
 	if n == nil || n.js == nil {
@@ -149,7 +158,7 @@ func (n *NATS) ReconcileStreams(ctx context.Context) (StreamReconcileResult, err
 	result.Listed = len(infos)
 
 	for _, info := range infos {
-		if info.Config.Metadata[MetadataOwnerKey] != MetadataOwnerValue {
+		if isReservedStream(info.Config.Name) {
 			result.Skipped++
 			continue
 		}

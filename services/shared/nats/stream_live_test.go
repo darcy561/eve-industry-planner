@@ -265,7 +265,14 @@ func TestLiveReconcileStreamsDeletesUndeclared(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	// A stream from somewhere else entirely.
+	// A stream from a build that predates the ownership stamp.
+	if _, err := fake.JS().CreateStream(ctx, jetstream.StreamConfig{
+		Name:     "unstamped-stream",
+		Subjects: []string{"unstamped.>"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// A key-value bucket's backing stream, which the client owns.
 	if _, err := fake.JS().CreateStream(ctx, jetstream.StreamConfig{
 		Name:     "KV_somebody_else",
 		Subjects: []string{"$KV.somebody_else.>"},
@@ -277,17 +284,20 @@ func TestLiveReconcileStreamsDeletesUndeclared(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Deleted != 1 {
-		t.Fatalf("deleted %d streams, want 1", result.Deleted)
+	if result.Deleted != 2 {
+		t.Fatalf("deleted %d streams, want 2", result.Deleted)
 	}
 	if result.Skipped != 1 {
-		t.Fatalf("skipped %d unowned streams, want 1", result.Skipped)
+		t.Fatalf("skipped %d reserved streams, want 1", result.Skipped)
 	}
 	if _, err := fake.JS().Stream(ctx, "retired-stream"); err == nil {
 		t.Error("undeclared stream survived")
 	}
+	if _, err := fake.JS().Stream(ctx, "unstamped-stream"); err == nil {
+		t.Error("undeclared stream from before the stamp survived")
+	}
 	if _, err := fake.JS().Stream(ctx, "KV_somebody_else"); err != nil {
-		t.Errorf("unowned stream was deleted: %v", err)
+		t.Errorf("reserved stream was deleted: %v", err)
 	}
 	if _, err := fake.JS().Stream(ctx, eipnats.WorkerTaskStream); err != nil {
 		t.Errorf("declared stream was deleted: %v", err)
