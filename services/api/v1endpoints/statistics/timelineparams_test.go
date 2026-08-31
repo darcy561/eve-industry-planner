@@ -260,3 +260,32 @@ func TestSortableMeasuresAreStablyOrdered(t *testing.T) {
 		}
 	}
 }
+
+// Chain output is only countable for a view scoped to one item; summed across
+// types those costs appear twice.
+func TestResolveProductionChainScope(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		query  string
+		typeID int
+		want   bool
+	}{
+		{name: "asked for, scoped to a type", query: "includeProductionChain=true", typeID: 34, want: true},
+		{name: "asked for, no type filter", query: "includeProductionChain=true", typeID: 0, want: false},
+		{name: "not asked for", query: "", typeID: 34, want: false},
+		{name: "explicitly off", query: "includeProductionChain=false", typeID: 34, want: false},
+		{name: "unrecognised value is off", query: "includeProductionChain=maybe", typeID: 34, want: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := resolveProductionChainScope(requestWithQuery(t, tc.query), tc.typeID)
+			if got != tc.want {
+				t.Fatalf("resolveProductionChainScope(%q, %d) = %v, want %v", tc.query, tc.typeID, got, tc.want)
+			}
+		})
+	}
+}

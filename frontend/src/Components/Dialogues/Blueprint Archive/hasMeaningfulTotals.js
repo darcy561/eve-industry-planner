@@ -3,5 +3,5 @@ export function hasMeaningfulTotals(data) {
   if (!data) return false;
   if ((data.totalJobs ?? 0) > 0) return true;
   if ((data.itemBuildCount ?? 0) > 0) return true;
-  return Array.isArray(data.dataSnapshots) && data.dataSnapshots.length > 0;
+  return (data.history?.buildCount ?? 0) > 0;
 }

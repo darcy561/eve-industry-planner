@@ -18,7 +18,7 @@ const sampleRow = {
   totalJobs: 3,
   salesTotal: 5000,
   profitLoss: 1200,
-  dataSnapshots: [{ jobID: "job-1" }],
+  history: { buildCount: 3, lastCostPerItem: 250 },
 };
 
 beforeEach(() => {
@@ -38,7 +38,7 @@ describe("getAccountTotalsByTypeID", () => {
     const got = await getAccountTotalsByTypeID(34);
 
     expect(got).toEqual(sampleRow);
-    expect(got.dataSnapshots).toHaveLength(1);
+    expect(got.history.buildCount).toBe(3);
   });
 
   it("requests the totals route with the type as a query parameter", async () => {
@@ -67,9 +67,10 @@ describe("getAccountTotalsByTypeID", () => {
     expect(got.typeID).toBe(99);
     expect(got.totalJobs).toBe(0);
     expect(got.profitLoss).toBe(0);
-    // Panels test `dataSnapshots.length`, so it has to be an array rather than
-    // undefined for a type with no history.
-    expect(got.dataSnapshots).toEqual([]);
+    // Panels branch on `history.buildCount`, so the placeholder carries it rather
+    // than leaving them to guard an undefined.
+    expect(got.history).toEqual({ buildCount: 0 });
+    expect(got.breakdown).toEqual({});
   });
 
   it("returns null when the request fails", async () => {

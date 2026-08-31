@@ -117,14 +117,72 @@ func TestRevokedRowsAreExcluded(t *testing.T) {
 
 // An intermediate's costs are already counted through the parent that consumed
 // it, so counting it again would double the build.
-func TestProductionChainIntermediatesAreExcluded(t *testing.T) {
+// Each kind of build gets its own bucket, so a view summing across item types can
+// read the direct buckets alone while an item keeps its whole history.
+func TestProductionChainIntermediatesGetTheirOwnBucket(t *testing.T) {
+	t.Parallel()
+
+	chain := statsRow(34, month(2026, 6))
+	chain.IsProductionChain = true
+	chain.TotalProduced = 3
+	direct := statsRow(34, month(2026, 6))
+	direct.TotalProduced = 2
+
+	buckets := AccumulateAccountBuckets([]models.ArchivedJobStats{chain, direct})
+
+	if len(buckets) != 2 {
+		t.Fatalf("want a bucket per kind, got %d: %+v", len(buckets), buckets)
+	}
+	chainKey := BucketKey{TypeID: 34, IsProductionChain: true, CalendarMonth: month(2026, 6)}
+	directKey := BucketKey{TypeID: 34, CalendarMonth: month(2026, 6)}
+	if got := buckets[chainKey].QuantityProduced; got != 3 {
+		t.Errorf("chain bucket produced: got %v, want 3", got)
+	}
+	if got := buckets[directKey].QuantityProduced; got != 2 {
+		t.Errorf("direct bucket produced: got %v, want 2", got)
+	}
+	if buckets[directKey].JobCostTotal == buckets[chainKey].JobCostTotal+buckets[directKey].JobCostTotal {
+		t.Error("chain cost was summed into the direct bucket")
+	}
+}
+
+// An item only ever built as an intermediate still produces buckets, which is the
+// history its panel shows.
+func TestChainOnlyItemStillProducesBuckets(t *testing.T) {
 	t.Parallel()
 
 	row := statsRow(34, month(2026, 6))
 	row.IsProductionChain = true
+	row.TotalProduced = 4
 
-	if got := AccumulateAccountBuckets([]models.ArchivedJobStats{row}); len(got) != 0 {
-		t.Fatalf("buckets = %+v, want none", got)
+	buckets := AccumulateAccountBuckets([]models.ArchivedJobStats{row})
+
+	if len(buckets) != 1 {
+		t.Fatalf("buckets = %+v, want one", buckets)
+	}
+	key := BucketKey{TypeID: 34, IsProductionChain: true, CalendarMonth: month(2026, 6)}
+	if got := buckets[key].QuantityProduced; got != 4 {
+		t.Fatalf("chain bucket produced: got %v, want 4", got)
+	}
+}
+
+func TestChainBucketGetsItsOwnDocumentID(t *testing.T) {
+	t.Parallel()
+
+	chain := statsRow(34, month(2026, 6))
+	chain.IsProductionChain = true
+	direct := statsRow(34, month(2026, 6))
+
+	docs := AccountBuckets("acct-1", []models.ArchivedJobStats{chain, direct})
+
+	if len(docs) != 2 {
+		t.Fatalf("want two documents, got %d", len(docs))
+	}
+	if docs[0].ID != "acct-1|34|2026-06" || docs[0].IsProductionChain {
+		t.Errorf("direct bucket: got %q chain=%v", docs[0].ID, docs[0].IsProductionChain)
+	}
+	if docs[1].ID != "acct-1|34|2026-06|chain" || !docs[1].IsProductionChain {
+		t.Errorf("chain bucket: got %q chain=%v", docs[1].ID, docs[1].IsProductionChain)
 	}
 }
 
@@ -310,5 +368,59 @@ func TestBucketsCarryTheComponentsOfCost(t *testing.T) {
 	// The components describe the cost; they do not replace it.
 	if got.JobCostTotal != 240 {
 		t.Errorf("jobCostTotal = %v, want the whole production cost", got.JobCostTotal)
+	}
+}
+
+// Output is filed with the cost that paid for it, so cost per unit divides two
+// figures from the same month even when the sales landed in another.
+func TestQuantityProducedLandsInTheCostMonth(t *testing.T) {
+	t.Parallel()
+	row := statsRow(34, month(2026, 3))
+	row.TotalProduced = 4
+	row.TransactionLines = []models.ArchivedJobTransactionLine{txLine(month(2026, 4), 4, 1000, 50)}
+
+	buckets := AccumulateAccountBuckets([]models.ArchivedJobStats{row})
+
+	cost := buckets[BucketKey{TypeID: 34, CalendarMonth: month(2026, 3)}]
+	if cost.QuantityProduced != 4 {
+		t.Fatalf("cost month quantity: got %v, want 4", cost.QuantityProduced)
+	}
+	if sales := buckets[BucketKey{TypeID: 34, CalendarMonth: month(2026, 4)}]; sales.QuantityProduced != 0 {
+		t.Fatalf("sales month carried produced quantity: got %v, want 0", sales.QuantityProduced)
+	}
+	if perUnit := cost.JobCostTotal / cost.QuantityProduced; perUnit != 26.25 {
+		t.Fatalf("cost per unit: got %v, want 26.25", perUnit)
+	}
+}
+
+// A revoked row contributes nothing; a chain row contributes to its own bucket,
+// so neither reaches the direct bucket's quantity.
+func TestQuantityProducedKeepsChainAndRevokedOutOfTheDirectBucket(t *testing.T) {
+	t.Parallel()
+	chain := statsRow(34, month(2026, 3))
+	chain.TotalProduced = 9
+	chain.IsProductionChain = true
+
+	revoked := statsRow(34, month(2026, 3))
+	revoked.TotalProduced = 7
+	revoked.Revoked = true
+
+	kept := statsRow(34, month(2026, 3))
+	kept.TotalProduced = 2
+
+	buckets := AccumulateAccountBuckets([]models.ArchivedJobStats{chain, revoked, kept})
+
+	if got := buckets[BucketKey{TypeID: 34, CalendarMonth: month(2026, 3)}].QuantityProduced; got != 2 {
+		t.Fatalf("quantity produced: got %v, want 2", got)
+	}
+}
+
+func TestQuantityProducedSumsAcrossPlus(t *testing.T) {
+	t.Parallel()
+	a := models.SalesMeasures{QuantityProduced: 3}
+	b := models.SalesMeasures{QuantityProduced: 4}
+
+	if got := a.Plus(b).QuantityProduced; got != 7 {
+		t.Fatalf("Plus dropped quantityProduced: got %v, want 7", got)
 	}
 }

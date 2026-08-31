@@ -92,7 +92,7 @@ func TestStatisticsDocumentIDs(t *testing.T) {
 	if got := ArchivedJobStatsDocumentID("acct", "job-1"); got != "acct|job-1" {
 		t.Fatalf("ArchivedJobStatsDocumentID = %q", got)
 	}
-	if got := AccountTimelineMonthDocumentID("acct", 1234, 2026, 8); got != "acct|1234|2026-08" {
+	if got := AccountTimelineMonthDocumentID("acct", 1234, 2026, 8, false); got != "acct|1234|2026-08" {
 		t.Fatalf("AccountTimelineMonthDocumentID = %q, want acct|1234|2026-08", got)
 	}
 }
@@ -101,13 +101,13 @@ func TestStatisticsDocumentIDs(t *testing.T) {
 func TestAccountTimelineMonthDocumentIDPadsMonth(t *testing.T) {
 	t.Parallel()
 
-	if got := AccountTimelineMonthDocumentID("acct", 1, 2026, 12); got != "acct|1|2026-12" {
+	if got := AccountTimelineMonthDocumentID("acct", 1, 2026, 12, false); got != "acct|1|2026-12" {
 		t.Fatalf("December = %q", got)
 	}
-	if got := AccountTimelineMonthDocumentID("acct", 1, 2026, 1); got != "acct|1|2026-01" {
+	if got := AccountTimelineMonthDocumentID("acct", 1, 2026, 1, false); got != "acct|1|2026-01" {
 		t.Fatalf("January = %q, want a padded month", got)
 	}
-	if AccountTimelineMonthDocumentID("acct", 1, 2026, 1) >= AccountTimelineMonthDocumentID("acct", 1, 2026, 2) {
+	if AccountTimelineMonthDocumentID("acct", 1, 2026, 1, false) >= AccountTimelineMonthDocumentID("acct", 1, 2026, 2, false) {
 		t.Fatal("padded ids must sort in calendar order")
 	}
 }

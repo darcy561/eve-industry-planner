@@ -23,6 +23,10 @@ type timelinePeriod struct {
 	Defaulted bool `json:"defaulted"`
 	// TypeID echoes the item filter when one was applied.
 	TypeID int `json:"typeID,omitempty"`
+	// IncludesProductionChain reports whether output consumed by a parent build
+	// is counted. A caller cannot otherwise tell a request it was refused from
+	// one it never made, and the figures differ.
+	IncludesProductionChain bool `json:"includesProductionChain"`
 }
 
 // timelineMonthEntry is one calendar month of an account's figures.
@@ -89,11 +93,14 @@ func (h *Handlers) GetTimelineHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	includeChain := resolveProductionChainScope(r, typeID)
+
 	rows, err := h.Mongo.TimelineMonths(ctx, eipmongo.TimelineQuery{
-		AccountID: accountID,
-		From:      window.From,
-		To:        window.To,
-		TypeID:    typeID,
+		AccountID:              accountID,
+		From:                   window.From,
+		To:                     window.To,
+		TypeID:                 typeID,
+		IncludeProductionChain: includeChain,
 	})
 	if err != nil {
 		metrics.Error("database_error")
@@ -124,6 +131,8 @@ func (h *Handlers) GetTimelineHandler(w http.ResponseWriter, r *http.Request) {
 			To:        window.To.String(),
 			Defaulted: window.Defaulted,
 			TypeID:    typeID,
+
+			IncludesProductionChain: includeChain,
 		},
 		Totals: totals,
 		Months: months,

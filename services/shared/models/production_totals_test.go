@@ -56,7 +56,7 @@ func TestProductionTotalsRowPersistsFlat(t *testing.T) {
 		TypeID:    1234,
 		TotalJobs: 3, SalesTotal: 100,
 	}
-	requireFlatKeys(t, row, "_id", "typeID", "totalJobs", "salesTotal", "profitLoss", "dataSnapshots")
+	requireFlatKeys(t, row, "_id", "typeID", "totalJobs", "salesTotal", "profitLoss", "history")
 }
 
 func TestSegmentTotalsPersistFlat(t *testing.T) {
@@ -118,7 +118,6 @@ func TestProductionTotalsRowJSONStaysFlat(t *testing.T) {
 		TypeID:    1234,
 		JobType:   1,
 		TotalJobs: 3, SalesTotal: 100, ProfitLoss: 40,
-		DataSnapshots: []BuildStatSnapshot{},
 	}
 	raw, err := json.Marshal(row)
 	if err != nil {
@@ -128,7 +127,7 @@ func TestProductionTotalsRowJSONStaysFlat(t *testing.T) {
 	if err := json.Unmarshal(raw, &out); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	for _, k := range []string{"typeID", "jobType", "totalJobs", "salesTotal", "profitLoss", "dataSnapshots"} {
+	for _, k := range []string{"typeID", "jobType", "totalJobs", "salesTotal", "profitLoss", "history"} {
 		if _, ok := out[k]; !ok {
 			t.Fatalf("expected top-level JSON key %q in %s", k, raw)
 		}
@@ -351,5 +350,15 @@ func checkNoStructOmitempty(t *testing.T, typ reflect.Type) {
 		if field.Type.Kind() == reflect.Struct {
 			checkNoStructOmitempty(t, field.Type)
 		}
+	}
+}
+
+func TestPlusDropsBuildHistoryMarks(t *testing.T) {
+	t.Parallel()
+	a := ProductionTotalsRow{TypeID: 34, History: BuildHistoryMarks{BuildCount: 3, LastCostPerItem: 250}}
+	b := ProductionTotalsRow{TypeID: 35, History: BuildHistoryMarks{BuildCount: 7, LastCostPerItem: 900}}
+
+	if got := a.Plus(b).History; got != (BuildHistoryMarks{}) {
+		t.Fatalf("a folded row carried marks from one of its types: %+v", got)
 	}
 }

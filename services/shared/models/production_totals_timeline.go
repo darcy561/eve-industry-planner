@@ -5,16 +5,17 @@ import "maps"
 // SalesMeasures is the set of totals every sales-scoped aggregate carries —
 // timeline responses and the pre-aggregated monthly buckets behind them.
 type SalesMeasures struct {
-	TransactionCount    int64              `bson:"transactionCount" json:"transactionCount"`
-	QuantitySold        float64            `bson:"quantitySold" json:"quantitySold"`
-	SalesTotal          float64            `bson:"salesTotal" json:"salesTotal"`
-	JobCostTotal        float64            `bson:"jobCostTotal" json:"jobCostTotal"`
+	TransactionCount int64   `bson:"transactionCount" json:"transactionCount"`
+	QuantitySold     float64 `bson:"quantitySold" json:"quantitySold"`
+	SalesTotal       float64 `bson:"salesTotal" json:"salesTotal"`
+	QuantityProduced float64 `bson:"quantityProduced" json:"quantityProduced"` // makes cost per unit derivable from a month
+	JobCostTotal     float64 `bson:"jobCostTotal" json:"jobCostTotal"`
 	// What jobCostTotal is made of. Extras are not among them: they are carried
 	// per category in ExtraCategoryTotals.
-	MaterialCostTotal  float64 `bson:"materialCostTotal" json:"materialCostTotal"`
-	InventionCostTotal float64 `bson:"inventionCostTotal" json:"inventionCostTotal"`
-	InstallCostTotal   float64 `bson:"installCostTotal" json:"installCostTotal"`
-	ExtrasTotal        float64 `bson:"extrasTotal" json:"extrasTotal"`
+	MaterialCostTotal   float64            `bson:"materialCostTotal" json:"materialCostTotal"`
+	InventionCostTotal  float64            `bson:"inventionCostTotal" json:"inventionCostTotal"`
+	InstallCostTotal    float64            `bson:"installCostTotal" json:"installCostTotal"`
+	ExtrasTotal         float64            `bson:"extrasTotal" json:"extrasTotal"`
 	ExtraCategoryTotals map[string]float64 `bson:"extraCategoryTotals,omitempty" json:"extraCategoryTotals,omitempty"`
 	TransactionFeeTotal float64            `bson:"transactionFeeTotal" json:"transactionFeeTotal"`
 	BrokersFeeTotal     float64            `bson:"brokersFeeTotal" json:"brokersFeeTotal"`
@@ -30,6 +31,7 @@ func (m SalesMeasures) Plus(src SalesMeasures) SalesMeasures {
 	m.TransactionCount += src.TransactionCount
 	m.QuantitySold += src.QuantitySold
 	m.SalesTotal += src.SalesTotal
+	m.QuantityProduced += src.QuantityProduced
 	m.JobCostTotal += src.JobCostTotal
 	m.MaterialCostTotal += src.MaterialCostTotal
 	m.InventionCostTotal += src.InventionCostTotal
@@ -69,11 +71,12 @@ type TimelineTotals struct {
 
 // AccountTimelineMonthBucket is a pre-aggregated calendar month for an account and item type.
 type AccountTimelineMonthBucket struct {
-	ID            string `bson:"_id"`
-	AccountID     string `bson:"accountID"`
-	TypeID        int    `bson:"typeID"`
-	CalendarMonth `bson:",inline"`
-	SalesMeasures `bson:",inline"`
+	ID                string `bson:"_id"`
+	AccountID         string `bson:"accountID"`
+	TypeID            int    `bson:"typeID"`
+	IsProductionChain bool   `bson:"isProductionChain"`
+	CalendarMonth     `bson:",inline"`
+	SalesMeasures     `bson:",inline"`
 }
 
 // CorpTimelineMonthBucket is a pre-aggregated calendar month for a corporation and item type.
