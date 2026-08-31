@@ -47,6 +47,7 @@ func BeginConsumerContext(
 
 	ctx = logs.BeginOperationContext(ctx)
 	ctx = logs.EnsureOperationLogger(ctx)
+	ctx = withOutcomeTracking(ctx)
 
 	subject := ""
 	if msg != nil {
@@ -79,8 +80,30 @@ func BeginConsumerContext(
 	return ctx, func() { span.End() }
 }
 
+// outcomeReported marks a context whose message has already had its outcome
+// reported, so a handler that reports something the generic outcome cannot
+// express is not followed by a second, blander log line for the same message.
+type outcomeReported struct{ done bool }
+
+type outcomeReportedKey struct{}
+
+// withOutcomeTracking returns a context that remembers whether the outcome has
+// been reported.
+func withOutcomeTracking(ctx context.Context) context.Context {
+	return context.WithValue(ctx, outcomeReportedKey{}, &outcomeReported{})
+}
+
+// outcomeAlreadyReported reports whether something already logged this message's outcome.
+func outcomeAlreadyReported(ctx context.Context) bool {
+	state, ok := ctx.Value(outcomeReportedKey{}).(*outcomeReported)
+	return ok && state.done
+}
+
 // FinishNATSConsumerOperation records a terminal debug step and emits one access-shaped outcome log.
 func FinishNATSConsumerOperation(ctx context.Context, level, msg string, detail map[string]any) {
+	if state, ok := ctx.Value(outcomeReportedKey{}).(*outcomeReported); ok {
+		state.done = true
+	}
 	if detail == nil {
 		detail = make(map[string]any)
 	}

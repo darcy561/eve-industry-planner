@@ -18,6 +18,7 @@ and run, and what remains of gocron once deferred work is a JetStream schedule.
 |------------|------|
 | Understand what is wrong and why it is a rewrite | [plan.md](./plan.md) |
 | See every place a cron job is named | [plan.md](./plan.md) § What a cron job is today |
-| Know what replaces the downtime deferral | [plan.md](./plan.md) § Stage C |
+| Replace the downtime deferral with a schedule | [plan.md](./plan.md) § Stage C |
+| See what the deferral does today and why it is fragile | [plan.md](./plan.md) § What the deferral does today |
 | Decide whether gocron stays | [plan.md](./plan.md) § Stage D |
 | Check what has landed | [plan.md](./plan.md) § Stage status |

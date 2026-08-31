@@ -16,6 +16,24 @@ Applies to everything under `migration-plans/`. On overlap with the project mast
 
 Do not teach operators from migration-plans alone after promote — live SoT must carry the current behaviour.
 
+## A promoted project folder is deleted, not archived
+
+Once a project has promoted, the folder survives only if **another project still needs something in
+it**. Recording useful history is not a reason to keep it: the live topic doc is where a future reader
+looks, so anything worth keeping belongs there before the folder goes.
+
+The test is one command, run before deleting:
+
+```bash
+grep -rn '<project>/' --include='*.md' technical-documentation/ \
+  | grep -v '^technical-documentation/migration-plans/<project>/'
+```
+
+An **active** project citing the folder is a reason to keep it — `swarm-stack/` stays because
+changestream-tenant-scale links into its overlays, and `collection-naming/` stays because
+archived-jobs-stats cites its renames. Its own row in [`contents.md`](./contents.md) is not; that row
+goes with the folder, and a row pointing at a folder that no longer exists is a defect.
+
 ## One subfolder per plan / roadmap
 
 **New** plans and roadmaps live in their **own subfolder** named for the **work** (e.g. `mongo-driver-v2/`, `websocket-realtime/`, `swarm-stack/`). Put the plan, stage notes, change log, and behaviour overlays in that folder.
@@ -53,7 +71,7 @@ Phase 1 itself may only touch docs under the project folder and the section `con
 - Document **all** project changes, decisions, and “how this part now works” **inside the project subfolder**.
 - Missing live SoT discovered mid-work is written **into the project docs** first (same topic shape / discipline as live docs and as filling testing gaps). It rolls into live SoT only on promote.
 
-This supersedes any “re-document live SoT in the same change as the code” guidance for **active migration projects**. After go-ahead, promote overlays into live SoT and leave history / pointers in the project folder.
+This supersedes any “re-document live SoT in the same change as the code” guidance for **active migration projects**. After go-ahead, promote overlays into live SoT and delete the project folder.
 
 ## Overlay SoT while a project is active
 
@@ -104,12 +122,13 @@ Live SoT will not be edited until this project is complete and promotion is appr
 
 - When statuses change, update the active roadmap’s **Handoff status**, **Start here**, and **Recommended pickup order** (or equivalent) **in the project folder**.
 - **Align project docs at each step:** after each phase/slice lands (not only at the end), refresh plan status/checklists, overlay “what changed / how it works,” inventory/versions if pins or touch-surface changed, and handoff text so nothing still describes a prior step as current.
-- On **promote** (go-ahead): update companion live docs so they match landed behaviour, verbs, and topology; leave history in the project folder.
+- On **promote** (go-ahead): update companion live docs so they match landed behaviour, verbs, and topology, then delete the project folder.
 - Live stack → [`../stack/contents.md`](../stack/contents.md). Host verbs → [`../deployment/deployment-tool/cli/verbs.md`](../deployment/deployment-tool/cli/verbs.md).
 
 ## Promote checklist (when go-ahead is given)
 
 1. Fold project overlays (including missing-SoT drafts) into the correct live topic docs / `contents.md` task maps.
 2. Match current-behaviour-only rules in live docs (no cutover checklists left as operator guidance).
-3. Close or mark the project folder status; keep history / pointers here.
-4. Git merge / ship of the carrying branch is **out of scope** for this checklist — promote closes the **docs project**; shipping code is a separate decision.
+3. Check the live topic doc carries every fact worth keeping — the promoted doc, not the project folder, is what a future reader gets.
+4. **Delete the project folder** unless another project still needs something in it (see below), and remove its row from [`contents.md`](./contents.md).
+5. Git merge / ship of the carrying branch is **out of scope** for this checklist — promote closes the **docs project**; shipping code is a separate decision.

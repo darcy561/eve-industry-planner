@@ -174,7 +174,7 @@ Run `go fix -diff` only on packages in scope before edits; re-run on edited pack
 
 ## Promote (when go-ahead)
 
-Fold landed behaviour into [backend/core/core.md](../../backend/core/core.md) (changestream section: groups, per-tenant queues, metrics). Leave history here.
+Fold landed behaviour into [backend/core/core.md](../../backend/core/core.md) (changestream section: groups, per-tenant queues, metrics), then delete this folder.
 
 ## Status checklist
 

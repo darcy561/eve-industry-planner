@@ -17,7 +17,7 @@ const (
 	headerScheduleTarget = "Nats-Schedule-Target"
 )
 
-// Schedule is deferred work waiting to fire.
+// Schedule is a message the server is holding until its time.
 type Schedule struct {
 	// ID is the caller's name for it, and the last token of its subject.
 	ID string

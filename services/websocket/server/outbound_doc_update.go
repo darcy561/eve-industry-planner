@@ -65,7 +65,6 @@ func (s *Server) enqueueOutboundDocUpdate(ctx context.Context, collectionScopedD
 	shards := s.docUpdateOutboundShards
 	if len(shards) == 0 {
 		outcome := s.deliverOutboundDocUpdate(ctx, collectionScopedDocID, payloadCopy)
-		eipnats.AcknowledgeMessage(ctx, msg, "no_shards", eipnats.GetDeliveryCount(msg))
 		s.finishDocUpdateDelivery(ctx, collectionScopedDocID, subject, outcome)
 		return
 	}
@@ -86,7 +85,6 @@ func (s *Server) enqueueOutboundDocUpdate(ctx context.Context, collectionScopedD
 			"partition", key,
 			"shard_queue_cap", config.DocUpdateOutboundShardQueueCap)
 		outcome := s.deliverOutboundDocUpdate(ctx, collectionScopedDocID, payloadCopy)
-		eipnats.AcknowledgeMessage(ctx, msg, "inline_fallback", eipnats.GetDeliveryCount(msg))
 		s.finishDocUpdateDelivery(ctx, collectionScopedDocID, subject, outcome)
 	}
 }
@@ -114,7 +112,6 @@ func (s *Server) runDocUpdateOutboundShardWorker(shard int) {
 				}
 				payload := append([]byte(nil), w.msg.Data()...)
 				outcome := s.deliverOutboundDocUpdate(ctx, w.collectionScopedDocID, payload)
-				eipnats.AcknowledgeMessage(ctx, w.msg, "delivered", eipnats.GetDeliveryCount(w.msg))
 				s.finishDocUpdateDelivery(ctx, w.collectionScopedDocID, w.subject, outcome)
 			}()
 		}

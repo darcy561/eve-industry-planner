@@ -94,3 +94,16 @@ func TestTerminateSurvivesWrapping(t *testing.T) {
 		t.Fatal("wrapped Terminate was treated as retryable")
 	}
 }
+
+// A handler that reports its own outcome is not followed by a second, blander
+// log line for the same message — but the message is still acknowledged.
+func TestHandleLeavesOutcomeToAHandlerThatReportsOne(t *testing.T) {
+	if deliver(t, func(ctx context.Context, msg jetstream.Msg) error {
+		eipnats.FinishNATSConsumerOperation(ctx, "info", "handler reported this itself", map[string]any{
+			"recipients": 3,
+		})
+		return nil
+	}) {
+		t.Fatal("message was not acknowledged")
+	}
+}

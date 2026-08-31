@@ -53,7 +53,12 @@ func Handle(tracerName, spanName string, handler Handler) MessageProcessor {
 		switch {
 		case err == nil:
 			AcknowledgeMessage(ctx, msg, spanName, deliveryCount)
-			FinishNATSConsumerOperation(ctx, "debug", spanName+" handled", detail)
+			// A handler that reported an outcome the generic one cannot express —
+			// how many clients a fan-out reached, say — is not followed by a
+			// second log line saying less about the same message.
+			if !outcomeAlreadyReported(ctx) {
+				FinishNATSConsumerOperation(ctx, "debug", spanName+" handled", detail)
+			}
 
 		case isTerminal(err):
 			detail["reason"] = err.Error()
