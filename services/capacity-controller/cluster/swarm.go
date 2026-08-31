@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"encoding/json"
+	"eve-industry-planner/shared/queuescale"
 	"fmt"
 	"os"
 	"strings"
@@ -18,7 +19,6 @@ import (
 	"eve-industry-planner/capacity-controller/config"
 	"eve-industry-planner/shared/lifecycle"
 	eipnats "eve-industry-planner/shared/nats"
-	"eve-industry-planner/shared/tasks"
 )
 
 const (
@@ -161,7 +161,7 @@ func (s *Swarm) observeService(ctx context.Context, svc Service, cfg config.Conf
 		Cooldown:        s.loadCooldown(ctx, svc),
 	}
 	if svc == ServiceWorker {
-		ss.QueueScaleUpPct = tasks.MergeQueueScaleUpPendingPct(spec.QueueScaleUpPct)
+		ss.QueueScaleUpPct = queuescale.MergeQueueScaleUpPendingPct(spec.QueueScaleUpPct)
 	}
 
 	name := s.swarmServiceName(svc)
@@ -254,7 +254,7 @@ func (s *Swarm) stampPressure(svc Service, ss *ServiceState) {
 	case ServiceWorker:
 		if ss.QueueDepthKnown && ss.Concurrency > 0 && ss.Running > 0 {
 			slots := ss.Concurrency * ss.Running
-			if tasks.ScaleUpPressure(ss.QueuePending, slots, ss.QueueScaleUpPct) {
+			if queuescale.ScaleUpPressure(ss.QueuePending, slots, ss.QueueScaleUpPct) {
 				up = true
 			}
 		}

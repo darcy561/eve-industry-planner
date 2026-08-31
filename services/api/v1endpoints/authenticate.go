@@ -3,6 +3,7 @@ package v1endpoints
 import (
 	"encoding/json"
 	"errors"
+	eipnats "eve-industry-planner/shared/nats"
 	"net/http"
 	"strings"
 	"time"
@@ -13,8 +14,6 @@ import (
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
-	eipnats "eve-industry-planner/shared/nats"
-	taskscore "eve-industry-planner/shared/tasks"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
@@ -217,11 +216,7 @@ func (a *Handlers) AuthHandler(w http.ResponseWriter, r *http.Request) {
 				tokens = append(tokens, strings.TrimSpace(linked.AccessToken))
 			}
 		}
-		taskRequest := eipnats.AccountSessionGrantsRequest{
-			AccountID: accountID,
-			Tokens:    tokens,
-		}
-		if err := eipnats.PublishTask(ctx, natsHandle, taskscore.UpdateAccountSessionGrants.Subject, taskscore.UpdateAccountSessionGrants.Name, taskRequest); err != nil {
+		if err := eipnats.PublishUpdateAccountSessionGrants(ctx, natsHandle, accountID, tokens); err != nil {
 			logs.AttachHandlerCaveat(r, "account_grants_publish_failed", "failed to publish account access grants refresh task on login", map[string]any{
 				"error": err.Error(),
 			})

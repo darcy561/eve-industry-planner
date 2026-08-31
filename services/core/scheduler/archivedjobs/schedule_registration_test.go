@@ -1,11 +1,11 @@
 package archivedjobs
 
 import (
+	eipnats "eve-industry-planner/shared/nats"
 	"strings"
 	"testing"
 
 	"eve-industry-planner/core/scheduler/contract"
-	taskscore "eve-industry-planner/shared/tasks"
 )
 
 type recordingScheduler struct {
@@ -67,7 +67,7 @@ func TestDrainCronRunsOffTheHour(t *testing.T) {
 // bound to and the queue would silently stop draining.
 func TestDrainCronPublishesTheDeclaredTaskSubject(t *testing.T) {
 	t.Parallel()
-	task := taskscore.DrainAccountStatsRebuildQueue
+	task := eipnats.DrainAccountStatsRebuildQueue
 	if task.Subject != "task.scheduled.drainAccountStatsRebuildQueue" {
 		t.Fatalf("task subject = %q; the worker handler binding must be updated to match", task.Subject)
 	}

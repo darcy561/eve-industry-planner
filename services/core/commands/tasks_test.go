@@ -1,10 +1,9 @@
 package commands
 
 import (
+	eipnats "eve-industry-planner/shared/nats"
 	"strings"
 	"testing"
-
-	taskscore "eve-industry-planner/shared/tasks"
 )
 
 // queueArchivedJobStatsRebuild queues accounts and then tells the operator to run
@@ -19,13 +18,13 @@ func TestDrainTaskIsTriggerable(t *testing.T) {
 	if !ok {
 		t.Fatal("drainAccountStatsRebuildQueue is not in the triggerable lookup; queueArchivedJobStatsRebuild tells operators to run it")
 	}
-	if task.Name != taskscore.DrainAccountStatsRebuildQueue.Name {
-		t.Fatalf("lookup resolves to %q, want %q", task.Name, taskscore.DrainAccountStatsRebuildQueue.Name)
+	if task.Name != eipnats.DrainAccountStatsRebuildQueue.Name {
+		t.Fatalf("lookup resolves to %q, want %q", task.Name, eipnats.DrainAccountStatsRebuildQueue.Name)
 	}
 
 	var listed bool
 	for _, enabled := range enabledTasks {
-		if enabled.Name == taskscore.DrainAccountStatsRebuildQueue.Name {
+		if enabled.Name == eipnats.DrainAccountStatsRebuildQueue.Name {
 			listed = true
 			break
 		}
@@ -34,7 +33,7 @@ func TestDrainTaskIsTriggerable(t *testing.T) {
 		t.Fatal("drainAccountStatsRebuildQueue is missing from enabledTasks, so `tasks list` does not advertise it")
 	}
 
-	if got := commandTaskName(taskscore.DrainAccountStatsRebuildQueue); got != "drainAccountStatsRebuildQueue" {
+	if got := commandTaskName(eipnats.DrainAccountStatsRebuildQueue); got != "drainAccountStatsRebuildQueue" {
 		t.Fatalf("commandTaskName = %q, want the name the usage text prints", got)
 	}
 }

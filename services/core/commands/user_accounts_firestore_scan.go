@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"eve-industry-planner/shared/lifecycle"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/stackservices"
 	"flag"
 	"fmt"
@@ -12,8 +13,6 @@ import (
 
 	"eve-industry-planner/shared/firebaseadmin"
 	"eve-industry-planner/shared/logs"
-	eipnats "eve-industry-planner/shared/nats"
-	taskscore "eve-industry-planner/shared/tasks"
 
 	"cloud.google.com/go/firestore"
 	"google.golang.org/api/iterator"
@@ -96,7 +95,7 @@ func runImportUserAccountsFromFirestoreScan(ctx context.Context, args []string) 
 	}
 	defer func() { _ = firebaseadmin.Close(ctx) }()
 
-	taskDef := taskscore.MigrateUserDocumentToMongo
+	taskDef := eipnats.MigrateUserDocumentToMongo
 	accountTrim := strings.TrimSpace(*accountIDFlag)
 
 	if accountTrim != "" {
@@ -109,7 +108,7 @@ func publishMigrateUserTasksSingle(
 	ctx context.Context,
 	clients *stackservices.Clients,
 	fsClient *firestore.Client,
-	taskDef taskscore.Task,
+	taskDef eipnats.Definition,
 	accountID string,
 	dryRun bool,
 ) error {
@@ -125,8 +124,7 @@ func publishMigrateUserTasksSingle(
 		fmt.Printf("Dry-run: would enqueue 1 migrate task for account %q on subject %q\n", accountID, taskDef.Subject)
 		return nil
 	}
-	req := eipnats.MigrateUserDocumentToMongoRequest{AccountID: accountID}
-	if err := eipnats.PublishTask(ctx, clients.NATS, taskDef.Subject, taskDef.Name, req, taskscore.Priority5); err != nil {
+	if err := eipnats.PublishMigrateUserDocumentToMongo(ctx, clients.NATS, accountID); err != nil {
 		return fmt.Errorf("publish task for %s: %w", accountID, err)
 	}
 	fmt.Printf("Enqueued 1 migrate task for account %q on subject %q\n", accountID, taskDef.Subject)
@@ -137,7 +135,7 @@ func publishMigrateUserTasksScanAll(
 	ctx context.Context,
 	clients *stackservices.Clients,
 	fsClient *firestore.Client,
-	taskDef taskscore.Task,
+	taskDef eipnats.Definition,
 	dryRun bool,
 	loginWithin time.Duration,
 ) error {
@@ -176,8 +174,7 @@ func publishMigrateUserTasksScanAll(
 			continue
 		}
 
-		req := eipnats.MigrateUserDocumentToMongoRequest{AccountID: accountID}
-		if err := eipnats.PublishTask(ctx, clients.NATS, taskDef.Subject, taskDef.Name, req, taskscore.Priority5); err != nil {
+		if err := eipnats.PublishMigrateUserDocumentToMongo(ctx, clients.NATS, accountID); err != nil {
 			logs.ErrorCtx(ctx, "user accounts scan: publish task", "account_id", accountID, "error", err)
 			errorsN++
 			continue

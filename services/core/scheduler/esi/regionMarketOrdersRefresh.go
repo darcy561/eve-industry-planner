@@ -11,7 +11,6 @@ import (
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
-	taskscore "eve-industry-planner/shared/tasks"
 
 	redislib "github.com/redis/go-redis/v9"
 )
@@ -38,9 +37,8 @@ func ScheduleRegionMarketOrdersRefresh(deps contract.Dependencies, sched contrac
 	natsHandle := deps.NATS
 	redisClient := deps.Redis
 
-	task := taskscore.RefreshRegionMarketOrders
 	sched.RegisterHandler(cronRegionMarketOrdersRefreshName, func(ctx context.Context, data json.RawMessage) error {
-		return runRegionMarketOrdersRefresh(ctx, natsHandle, redisClient, task)
+		return runRegionMarketOrdersRefresh(ctx, natsHandle, redisClient)
 	})
 	if err := sched.ScheduleCronJob(cronRegionMarketOrdersRefreshSchedule, cronRegionMarketOrdersRefreshName); err != nil {
 		return nil, err
@@ -52,7 +50,6 @@ func runRegionMarketOrdersRefresh(
 	ctx context.Context,
 	natsHandle *eipnats.NATS,
 	redisClient *redislib.Client,
-	task taskscore.Task,
 ) error {
 	now := time.Now().UTC()
 
@@ -80,11 +77,7 @@ func runRegionMarketOrdersRefresh(
 	}
 	location := regions[index]
 
-	request := eipnats.RegionMarketOrdersRequest{
-		RegionID:  location.RegionID,
-		StationID: location.StationID,
-	}
-	if err := eipnats.PublishTask(ctx, natsHandle, task.Subject, task.Name, request); err != nil {
+	if err := eipnats.PublishRefreshRegionMarketOrders(ctx, natsHandle, location.RegionID, location.StationID); err != nil {
 		return err
 	}
 

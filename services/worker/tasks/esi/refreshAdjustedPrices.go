@@ -13,7 +13,6 @@ import (
 	esitypes "eve-industry-planner/shared/core/esi/types"
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/logs"
-	taskscore "eve-industry-planner/shared/tasks"
 	esicore "eve-industry-planner/worker/esi"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
@@ -44,7 +43,7 @@ func RefreshAdjustedPrices(ctx context.Context, task *asynq.Task, deps *TaskDepe
 
 	// Acquire a lock to prevent concurrent refreshes
 	lockKey := "esi:market_prices:refresh_lock"
-	cleanup, shouldContinue := taskscore.AcquireRefreshLock(ctx, deps.Redis, lockKey)
+	cleanup, shouldContinue := rediscore.AcquireRefreshLockLogged(ctx, deps.Redis, lockKey)
 	if !shouldContinue {
 		// Lock already held - skip processing (not an error)
 		return nil

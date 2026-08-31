@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"eve-industry-planner/shared/lifecycle"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"strconv"
@@ -11,8 +12,6 @@ import (
 
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/crypto/aesgcm/keyrings"
-	eipnats "eve-industry-planner/shared/nats"
-	taskscore "eve-industry-planner/shared/tasks"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -89,19 +88,7 @@ func runRotateRefreshTokenKeys(ctx context.Context, args []string) error {
 			continue
 		}
 
-		payload := eipnats.RotateRefreshTokenKeysRequest{
-			AccountID:   accountID,
-			FromVersion: opts.fromVersion,
-			DryRun:      opts.dryRun,
-		}
-		if err := eipnats.PublishTask(
-			ctx,
-			clients.NATS,
-			taskscore.RotateRefreshTokenKeys.Subject,
-			taskscore.RotateRefreshTokenKeys.Name,
-			payload,
-			taskscore.RotateRefreshTokenKeys.DefaultPriority,
-		); err != nil {
+		if err := eipnats.PublishRotateRefreshTokenKeys(ctx, clients.NATS, accountID, opts.fromVersion, opts.dryRun); err != nil {
 			return fmt.Errorf("publish rotateRefreshTokenKeys for %s: %w", accountID, err)
 		}
 		queued++
@@ -112,8 +99,8 @@ func runRotateRefreshTokenKeys(ctx context.Context, args []string) error {
 
 	fmt.Printf("Queued %d rotateRefreshTokenKeys tasks on subject %q (priority=%s)\n",
 		queued,
-		taskscore.RotateRefreshTokenKeys.Subject,
-		taskscore.RotateRefreshTokenKeys.DefaultPriority,
+		eipnats.RotateRefreshTokenKeys.Subject,
+		eipnats.RotateRefreshTokenKeys.DefaultPriority,
 	)
 	return nil
 }

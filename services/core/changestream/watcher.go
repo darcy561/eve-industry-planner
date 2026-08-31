@@ -445,7 +445,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	}
 
 	// Publish to NATS (JetStream for persistence + optional offline replay)
-	if err := eipnats.PublishMessage(ctx, w.nats, subject, messageData); err != nil {
+	if err := w.nats.Publish(ctx, subject, messageData); err != nil {
 		logs.ErrorCtx(ctx, "failed to publish change stream message to NATS",
 			"component", changestreamLogComponent,
 			"operation", operationType,

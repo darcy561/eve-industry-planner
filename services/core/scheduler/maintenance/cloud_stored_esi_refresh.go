@@ -3,14 +3,13 @@ package maintenance
 import (
 	"context"
 	"encoding/json"
+	eipnats "eve-industry-planner/shared/nats"
 	"math"
 	"time"
 
 	"eve-industry-planner/core/scheduler/contract"
 	schedesi "eve-industry-planner/core/scheduler/esi"
 	"eve-industry-planner/shared/logs"
-	eipnats "eve-industry-planner/shared/nats"
-	taskscore "eve-industry-planner/shared/tasks"
 
 	redislib "github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -38,7 +37,7 @@ const (
 // Uses dynamic batch sizing, EVE downtime deferral (like industry indexes), downtime publish caps
 // (like market prices), and micro-batch staggering across the cron window.
 func ScheduleCloudStoredEsiRefreshMaintenance(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
-	task := taskscore.CloudStoredEsiRefreshMaintenance
+	task := eipnats.CloudStoredEsiRefreshMaintenance
 	sched.RegisterHandler(cronCloudStoredEsiRefreshName, func(ctx context.Context, data json.RawMessage) error {
 		_ = data
 		publish := func(pctx context.Context) error {
@@ -55,7 +54,7 @@ func ScheduleCloudStoredEsiRefreshMaintenance(deps contract.Dependencies, sched 
 	return func() {}, nil
 }
 
-func publishCloudEsiRefreshMaintenanceBatch(ctx context.Context, deps contract.Dependencies, task taskscore.Task) error {
+func publishCloudEsiRefreshMaintenanceBatch(ctx context.Context, deps contract.Dependencies, task eipnats.Definition) error {
 	if deps.Mongo == nil {
 		logs.ErrorCtx(ctx, "cloud esi refresh maintenance: mongo client is nil", "component", schedulerLogComponent)
 		return nil
@@ -196,7 +195,7 @@ func microBatchPlan(accountCount int) (plannedSlices int, requestsPerSlice int) 
 	return plannedSlices, requestsPerSlice
 }
 
-func microBatchPublishCloudEsiTasks(ctx context.Context, deps contract.Dependencies, task taskscore.Task, accountIDs []string) int {
+func microBatchPublishCloudEsiTasks(ctx context.Context, deps contract.Dependencies, task eipnats.Definition, accountIDs []string) int {
 	if len(accountIDs) == 0 {
 		return 0
 	}
@@ -206,21 +205,8 @@ func microBatchPublishCloudEsiTasks(ctx context.Context, deps contract.Dependenc
 	for start := 0; start < len(accountIDs); start += requestsPerSlice {
 		end := min(start+requestsPerSlice, len(accountIDs))
 		for _, accountID := range accountIDs[start:end] {
-			payload := eipnats.CloudStoredEsiRefreshMaintenanceRequest{
-				AccountID:               accountID,
-				RotateAfterLoginDays:    defaultRotateAfterLoginDays,
-				AbandonAfterLoginMonths: defaultAbandonAfterLoginMonths,
-			}
-			if err := eipnats.PublishTask(
-				ctx,
-				deps.NATS,
-				task.Subject,
-				task.Name,
-				payload,
-				task.DefaultPriority,
-			); err != nil {
-				logs.ErrorCtx(ctx, "cloud esi refresh maintenance: publish failed", "component", schedulerLogComponent,
-					"subject", task.Subject, "account_id", accountID, "error", err)
+			if err := eipnats.PublishCloudStoredEsiRefreshMaintenance(ctx, deps.NATS, accountID, defaultRotateAfterLoginDays, defaultAbandonAfterLoginMonths); err != nil {
+				logs.ErrorCtx(ctx, "cloud esi refresh maintenance: publish failed", "component", schedulerLogComponent, "account_id", accountID, "error", err)
 				continue
 			}
 			published++
