@@ -946,7 +946,7 @@ archived job for the account, reduces all of them, and rewrites every row, bucke
 The cost of archiving a job therefore grows with the size of the archive it joins: a build from a
 year ago is recomputed because something was archived today.
 
-Three slices, in this order — each makes the next smaller.
+Five slices, in this order — each makes the next smaller.
 
 #### The aggregates already decompose
 
@@ -966,6 +966,39 @@ added to, or subtracted from, the documents it touches without reading its neigh
 
 Two exceptions are named in J2 rather than glossed: the snapshot array, which is not a measure at
 all, and the cheapest/dearest figures J1 introduces, which do not invert.
+
+#### Owners, not accounts
+
+Stage C scopes statistics to corporations, and corporations are **peers of accounts** rather than a
+slice of one: a corporation holds its own jobs and its own archive, and an alliance is expected to
+follow as a third kind. Everything Stage J builds is therefore shaped around an **owner** — a kind
+plus an id — rather than an account id:
+
+| Kind | Id |
+|------|-----|
+| `account` | the account id |
+| `corporation` | the corporation ref |
+| `alliance` | the alliance ref |
+
+Corporation and alliance ids are refs, never raw ids, per
+[entity-id-encryption](../entity-id-encryption/plan.md); an owner therefore carries whatever
+identifies its kind internally, and nothing here converts it back.
+
+This lands **now** rather than in Stage C because Stage J creates the surfaces that would otherwise
+have to be redone: the delta derivation, the rebuild queue key, and two new task payloads. New code
+takes an owner from the start, and the account kind resolves to exactly the key used today.
+
+The **rebuild queue's `_id` is the exception, and it changes now**: from a bare account id to an owner
+key, `{kind}:{id}`. It is one of the surfaces Stage J rewrites anyway, and the queue is empty in
+normal operation — so the change costs a drain before deploy, where doing it in Stage C would mean
+migrating live entries with corporations already in them.
+
+Other storage keys and collection names are **not** renamed here. `ArchivedJobStatsDocumentID`,
+`AccountTimelineMonthDocumentID` and the `account_*` collections keep their present shape, with the
+owner mapping onto them for the account kind. This plan already records that collection renames are
+the expensive part of a scope change; that cost belongs to Stage C. What Stage J owes Stage C is that
+adding a kind is **additive** — a new owner value and its storage mapping — not a rewrite of the
+delta, the queue and the tasks.
 
 #### J1 — The build history panel, and the end of stored snapshots
 
@@ -997,7 +1030,7 @@ estimate currently on screen, and seeing whether that cost is drifting.
 |-------|--------|----------|
 | Comparison strip, destination split, lifetime figures | `GET /statistics/account/totals?typeID=` — already fetched by the panel today | Scalars added in this slice |
 | Cost make-up over time, cost/extras share | `GET /statistics/account/timeline?typeID=&from=&to=` — **already accepts `typeID`** | None |
-| Builds within a month, recent builds | `GET /api/v1/archived-jobs?typeID=&limit=` — **already paged, filtered and sorted `archivedAt` newest-first** | A date-range filter on `archivedAt` |
+| Builds within a month, recent builds | `GET /api/v1/archived-jobs?typeID=&from=&to=&limit=` — **already paged, filtered by type and month, and sorted `archivedAt` newest-first** | None |
 
 **What the panel draws.** Nothing new: the chart primitives take `rows` + `series` and know nothing
 about months, so they render both granularities unchanged.
@@ -1025,17 +1058,95 @@ was consolidated.
 
 1. `quantityProduced` on the timeline bucket, so cost per unit is derivable. Additive, and it folds
    like every other measure in `SalesMeasures.Plus`.
-2. Fixed scalars on `ProductionTotalsRow`: last build cost per unit and its date, cheapest and
-   dearest with dates, first build date. All O(1).
-3. A date-range filter on the archived-jobs list.
+2. **Production chain moves into the bucket key** rather than being dropped during the fold.
+   `AccumulateAccountBuckets` skipped chain intermediates because their costs are already counted
+   through the parent job that consumed them — true for account-wide spend, and wrong for a per-item
+   history. Measured against the development archive, dropping them would have left **172 of 1,141
+   item types with a completely empty panel** and hidden 6,099 of 9,530 builds; those are exactly the
+   items built only as intermediates, where "what did this cost me last time" is a routine question.
+
+   A month therefore holds one bucket per kind. `TimelineQuery.IncludeProductionChain` is off by
+   default, so account-wide views read the direct buckets and their figures are unchanged; a per-item
+   view sets it and reads the whole history. The chain bucket's `_id` carries a `|chain` segment, so
+   direct-build ids are untouched. Doing it in this slice costs nothing extra: `quantityProduced`
+   already forces a full rebuild.
+3. Fixed scalars on `ProductionTotalsRow`: last build cost per unit and its date, cheapest and
+   dearest with dates, first build date. All O(1), and drawn from every non-revoked build including
+   chain, so the marks and the timeline agree.
 4. The rebuilt panel, on the primitives above.
 5. `BuildStatSnapshot`, `DataSnapshots`, and the `foldTotals` line that empties it — deleted, along
    with the `statisticsTotals.js` default and the `hasMeaningfulTotals` check that reads the array.
 
-**Wire compatibility: breaking**, and the only breaking change in the stage. `dataSnapshots` leaves
-the totals response. Consumers are `archiveJobsPanel.jsx`, `hasMeaningfulTotals.js` and the
-`statisticsTotals.js` default shape. Sequenced additively — scalars and the range filter first, the
-panel moved onto them, then the field removed and no longer written.
+The date-range filter this slice expected to add **already exists**: `resolveListQuery` reads `from`
+and `to` as `YYYY-MM` month keys and bounds `_meta.archivedAt` between them, each bound optional. A
+month's builds are `?typeID=34&from=2026-03&to=2026-03`.
+
+**Wire compatibility: breaking on the response, migrate-required on storage.**
+
+`dataSnapshots` leaves the totals response, and archive and statistics documents stop being fanned
+out at all. Consumers of the field are `archiveJobsPanel.jsx`, `hasMeaningfulTotals.js` and the
+`statisticsTotals.js` default shape. Sequenced additively — scalars first, the panel moved onto
+them, then the field removed and no longer written.
+
+Stored documents change shape, so a full rebuild is owed before the panel reads them:
+
+| Document | Change |
+|----------|--------|
+| `account_timeline_months` | gains `quantityProduced` and `isProductionChain`; a chain month is a new document whose id carries a `chain` segment, and direct-build ids are the ones already stored |
+| `account_production_totals` | gains `history`; loses `dataSnapshots` at the end of the slice |
+
+Nothing reads the new fields until the panel does, so the rebuild can run either side of the deploy.
+Documents are not migrated in place: the rebuild rewrites every bucket and total it produces and
+prunes what it does not, so an account's shape converges in one pass.
+
+##### The archive and statistics change streams are removed
+
+Investigating what `dataSnapshots` reached found a realtime path that runs end to end and is thrown
+away at the last step. The `archive_and_stats` group watches `account_archived_jobs` and
+`account_production_totals`, and both are delivered to connected clients.
+
+Delivery does not require a subscription. Account-scoped realtime has no per-document fan-in —
+`enqueue.go` states it, and `dispatch.go` resolves recipients by precedence
+`accountID → corporationRef → allianceRef → explicit doc subscribers`. A client authenticated for an
+account therefore receives **every** change event for that account, whether or not it asked for one.
+The per-document allowlist in `subscribe_auth.go` governs only the explicit subscriber path, which is
+the last resort in that precedence, not the way these documents arrive.
+
+What receives them is `Realtime/applyRemoteMessage.js`, and it handles five collections: `accounts`,
+`account_settings`, `account_job_groups`, `account_watchlist_deprecated` and
+`account_job_documents`. Anything else falls through its checks and is discarded. Archive and
+statistics documents are in that second category.
+
+So the cost is paid the whole way along, and the last step is a browser dropping the message:
+
+1. the oplog entry is read and decoded,
+2. the **full document** is embedded in a `ChangeStreamMessage` (with the previous document, where
+   the collection keeps one) and marshalled to JSON,
+3. the message is published to **JetStream**, which persists it for offline replay,
+4. ws-router routes it to every connected session for the account,
+5. `applyRemoteMessage` finds no handler and discards it.
+
+The writes this project makes are the expensive ones. Archived job documents average 6.4 KB, so
+archiving a job pushes one to each of that user's open sessions for nothing, and seeding the
+development archive wrote 9,530 of them. A rebuild that genuinely changes figures — a cost-model
+correction, for instance — rewrites up to 4,073 production-totals documents and sends every one.
+
+**J5's notification does not depend on any of this.** It is an explicit push published when
+processing finishes, not a document event, which is also why it is cheaper: one small message per
+completed rebuild instead of thousands of document copies carrying the same news.
+
+What lands:
+
+- The `archive_and_stats` group is removed from `CollectionGroups()`, taking one parallel watcher with
+  it. Its stored resume token is deleted as an operational step rather than by code — see
+  § Operational steps owed.
+- **Both collections leave the `subscribe_auth.go` allowlist too.** Authorising an explicit
+  subscription that can never receive an event is worse than not offering one: a future subscriber
+  would connect successfully and silently receive nothing.
+
+Nothing breaks, because nothing handles these messages today. It is reversible in one line each, and
+would need an `applyRemoteMessage` handler to be worth anything — which is the check to make before
+adding a collection to a group, since delivery is automatic and only the handling is opt-in.
 
 **Tests:** the per-unit and per-build adapters against fixed rows; a Go test that the new scalars
 match a full reduction of the same jobs.
@@ -1043,15 +1154,16 @@ match a full reduction of the same jobs.
 #### J2 — Statistics are applied as a delta
 
 With the array gone, every document the pipeline writes is fixed-size, and a job's contribution can
-be applied directly.
+be applied on its own rather than recomputed with every other job's:
 
-- **Archive** — build the row, `$inc` its measures into the one to three buckets it names and its
-  type total, and stamp `contributedAt` on the row in the same operation. O(1) in the size of the
-  archive.
-- **Restore** — read the row, `$inc` the negation, mark it revoked. The row is the record of what was
-  contributed, so the delta is read rather than inferred.
+- **Adding** — `$inc` the row's measures into the one to three buckets it names and its type total,
+  and stamp `contributedAt` on the row in the same operation. O(1) in the size of the archive.
+- **Removing** — `$inc` the negation and mark the row revoked. The row records what it contributed,
+  so the delta is read rather than inferred.
 - **Idempotence** — `contributedAt` is the guard: a row already folded in cannot be folded twice.
-  The existing `claim` protocol continues to cover the racing case.
+
+Both directions are applied by a task rather than by the request that caused them, for the reasons
+below.
 
 Computation stays pure and application stays in Mongo, matching how `AccountBuckets` and
 `UpsertStructsPreservingMetaBulk` are already split: `archivestats` gains the delta derivation, and
@@ -1059,7 +1171,7 @@ Computation stays pure and application stays in Mongo, matching how `AccountBuck
 
 **Cheapest and dearest do not invert.** Sums do; minima and maxima do not — removing the cheapest
 build leaves no way to recover the next one from a counter. Those two fields are recomputed by a
-bounded `sort + limit 1` against `(accountID, typeID, archivedAt)` on the restore path only, which is
+bounded `sort + limit 1` against the owner/type/date index on the removal path only, which is
 rare. This is the one place in the stage where the incremental path cannot stand alone, and it is
 cheaper to say so than to let the figures drift.
 
@@ -1070,13 +1182,118 @@ rather than assumed:
 
 - `contributedAt` is a stronger guard than the flag it replaces, because it lives on the row whose
   contribution it describes rather than on a separate marker.
-- A **reconciliation** rebuild recomputes an account in full and compares against the incremented
-  values, so drift is detected instead of presumed absent.
+- **Reconciliation** folds an owner's stored rows and writes the result over the aggregates the
+  deltas produced, so drift is corrected on a schedule instead of presumed absent. It compares only
+  in order to report.
 - The full rebuild remains as an explicit operation for definition changes — a correction to the cost
-  model invalidates every stored row, and only a recompute fixes it.
+  model invalidates every stored row, and only re-deriving them fixes it.
 
-Archiving therefore no longer queues a full rebuild. The queue's remaining producers are
-reconciliation and definition changes.
+Reconciliation does not re-derive anything, and the distinction is what keeps it affordable. A
+rebuild carries two costs, and only the second can drift:
+
+| Step | Reads | Account measured 31 Aug |
+|------|-------|--------------------------|
+| Re-derive rows from jobs | full archived job documents | 9,530 docs @ 6,386B = **58.0 MB** |
+| Fold rows into buckets and totals | the rows, already computed | 9,931 docs @ 1,352B = **12.8 MB** |
+
+Rows are written whole, once per job, and never incremented; a `$inc` that goes missing or lands
+twice corrupts a bucket or a total, never a row. So correcting the deltas means folding the rows that
+already exist — 4.7× less data and no re-derivation — and re-deriving is only necessary when the
+derivation rules themselves change.
+
+Archiving therefore never queues a **rebuild**. Rebuild work comes only from a command or from a
+definition change, which is what makes it rare enough to treat as an event worth telling the user
+about.
+
+##### A delta must never race a rebuild
+
+Until now the rebuild is the only writer of buckets and totals. The delta is a second one, and a
+delta landing while a rebuild is in flight would be lost: the rebuild folded its aggregates from rows
+read before the delta, then upserts them wholesale over the `$inc`. The claim protocol protects the
+queue entry, not the documents.
+
+No new lock is introduced for this. The rebuild marks the queue entry when it claims the owner
+(`rebuildStartedAt`), and the delta path checks it: **if a rebuild is in flight, bump the claim
+instead of applying the delta**. Bumping the claim is already what invalidates that rebuild's clear,
+so the owner stays queued, is rebuilt again, and the new job is picked up by the rebuild that follows.
+
+The mechanism that already exists for "a change arrived mid-rebuild" is exactly the mechanism this
+needs. The delta path only has to recognise the case and fall back to it.
+
+##### Subtracting to nothing must remove the document, and counts decide that
+
+The rebuild ends by pruning what it did not produce — `RevokeAccountArchivedJobStats`,
+`PruneAccountTimelineMonths`, `PruneAccountProductionTotals`. The delta path has no equivalent, so a
+bucket whose last job is restored would remain as a zero-valued document. That is not cosmetic:
+`AccumulateAccountBuckets` only ever creates a bucket that had activity, so an absent bucket and an
+all-zero bucket mean different things, and the timeline would start reporting months that should not
+appear.
+
+The delta path therefore deletes a document once nothing contributes to it, **decided on an integer
+count, never on the money fields**. Subtracting float64 leaves a residue rather than zero, so an
+"all measures are zero" filter would silently never match and the documents would accumulate anyway.
+Buckets gain a contributing-row count, totals use the job count they already carry, and
+`TransactionCount` is already `int64`. A count reaching zero is exact; a sum reaching zero is not.
+
+A periodic sweep stays as a backstop for anything a failed delete leaves behind.
+
+##### The delta is a task, and its work list is the rows themselves
+
+Applying the delta is not part of the archive request. The request writes the archived jobs and their
+rows and queues the owner; a **per-owner delta task** applies them. Archiving returns as fast as it
+does today, and the figures follow within seconds rather than within an hour.
+
+The task carries no job list. Its work is *every row for this owner with no `contributedAt`*, so the
+stamp that makes the delta idempotent is also what describes the outstanding work. Three properties
+follow without any extra machinery:
+
+- **It coalesces by itself.** `PutArchivedJobsHandler` already takes a batch of up to 100 jobs, so
+  archiving twenty is one request, one queued owner and one task. Even if it were twenty requests,
+  the queue is keyed by owner and the task picks up whatever is uncontributed — the count of requests
+  does not change the count of tasks.
+- **A crashed task loses nothing.** Rows it did not reach are still unstamped, so the next run takes
+  them.
+- **It cannot double-apply.** A row is stamped in the same operation that applies it.
+
+Failure is handled by the task rather than by the request, which is what keeps a broken statistics
+write from failing an archive that actually succeeded. A failed delta fails its task and is retried
+under asynq's existing backoff and jitter.
+
+Repeated failure must not become a loop. Once the retries are exhausted the failure is recorded on
+the queue entry — `failures`, `lastError`, `lastFailedAt` — and the task stops. That entry is what J5
+reads to tell the user their figures are stale, so a permanently failing owner surfaces as a failed
+recalculation rather than a spinner that never resolves.
+
+##### One queue, carrying a work kind
+
+The delta task means archiving queues the owner again — not for a rebuild, but for delta application.
+The queue therefore carries two kinds of work, and a single entry has to say which.
+
+It stays **one queue**. The claim protocol, `queuedAt` and the dispatcher are all per-owner already,
+so a second queue would duplicate every one of them for no gain. The entry gains a `work` field
+instead, and the kind decides three things that would otherwise conflict:
+
+| | `delta` | `rebuild` |
+|---|---|---|
+| Dispatched | as soon as the next tick sees it | after the debounce window |
+| Priority | `priority_3` | `priority_5` |
+| Reported to the user (J5) | no | yes |
+
+**A rebuild supersedes a delta.** Queueing a rebuild for an owner that has deltas outstanding
+upgrades the entry rather than adding to it: a rebuild re-derives every row from its jobs and
+rewrites the aggregates wholesale, so it already accounts for whatever the deltas would have applied,
+and it stamps `contributedAt` on the rows it writes. Upgrading is therefore lossless, and the reverse
+never happens — a delta arriving against a queued rebuild leaves the rebuild in place.
+
+That upgrade is also what makes the guard in *A delta must never race a rebuild* complete: the delta
+path's fallback when a rebuild is in flight is the same operation, so there is one rule rather than
+two.
+
+##### Restoring many jobs at once
+
+Restoring a group or a related set returns many jobs in one operation. Their deltas are accumulated
+in memory and applied as one batched write per affected document, rather than one round trip per job.
+The subtraction is the same; only the number of writes changes.
 
 **Wire compatibility: additive.** `ArchivedJobStats` gains `contributedAt`. Bucket and totals
 document shapes are unchanged.
@@ -1086,34 +1303,354 @@ documents a full rebuild produces, and the assertion that applying the same jobs
 the same documents. Plus the inverse: applying and then reverting a job returns the documents to
 their prior state.
 
-#### J3 — The drain becomes the correctness path, not the latency path
+#### J3 — One task per owner, dispatched rather than drained
 
-`queueAccountRebuildUpdate` writes `queuedAt` with `$setOnInsert`, so it records when an account
-first became outstanding and is never pushed forward by later changes. That makes it a maximum wait
-rather than a sliding one, which is exactly the gate a frequent tick needs.
+The drain is a single task that rebuilds every waiting account in one serial pass, time-boxed at 15
+minutes. Three properties of that shape do not survive a queue longer than the box:
 
-- The cron moves from `30 * * * *` to a short interval, and `ListQueuedAccounts` selects only
-  accounts where `now - queuedAt` exceeds a debounce window.
-- Because `queuedAt` does not move, an account changing continuously still rebuilds at most once per
-  window. The window is a single tunable meaning both *the longest an account waits* and *the
-  shortest gap between two of its rebuilds*.
-- A tick that fails to publish costs one interval instead of an hour. That failure is observed:
-  a publish returned `NATS connection is not connected after retries` during a core restart, and
-  nothing retried it, because the drain carries no payload to redeliver and gocron does not re-run a
-  failed job.
+- **It is serial** while the worker pool is 50, so one account is rebuilt at a time.
+- **It clears once, after the loop.** For the whole pass the queue still lists accounts already
+  rebuilt, so an overlapping pass redoes them from the top — and nothing prevents overlap: the cron
+  publishes unconditionally every tick, there is no message id, no unique-task option and no lock.
+- **A timeout clears nothing.** The loop breaks on `ctx.Err()` intending to keep its progress, but
+  `ClearQueuedAccounts` is called with that same cancelled context, so the write fails. A queue that
+  cannot be drained inside 15 minutes therefore makes *no* forward progress: every pass rebuilds the
+  same leading accounts, times out, clears nothing, and the next pass starts from the same place.
+
+None of it is a correctness fault — rebuilds are wholesale recompute-and-upsert, so duplicate and
+concurrent passes write the same values, and the claim protocol still protects a mid-rebuild
+re-queue. It is throughput and liveness.
+
+##### The single task is not protecting what it was said to protect
+
+The shape was chosen to keep the claim protocol in one place rather than spread across per-account
+tasks. But a claim is already per-account data — read as `{accountID, claim}`, cleared on
+`{_id, claim}` — so a task carrying its own claim holds the protocol *closer* than a pass that reads
+five hundred claims and clears them fifteen minutes later. `ImportUserJobDocumentsForAccount` is
+already documented as one account per task, so the shape is not new here either.
+
+##### Three tiers of work
+
+| Work | Shape | Priority | Reads |
+|------|-------|----------|-------|
+| Delta apply (J2) | per-owner task | `priority_3` | that owner's uncontributed rows |
+| Reconcile — fold stored rows, rewrite aggregates (J4) | per-owner task | `priority_4` | that owner's rows |
+| Full rebuild — re-derive rows from jobs | per-owner task, dispatched in bulk | `priority_5` | that owner's jobs |
+
+`priority_5` is already described as reserved for bulk work, so a mass rebuild cannot crowd out ESI
+or user-facing tasks.
+
+All three per-owner tasks carry an **owner** in their payload, not an account id, so Stage C adds a
+kind rather than a task. The dispatcher reads eligible owners from the queue and publishes one task each,
+keyed by owner and claim — `{kind}:{id}:{claim}` is a natural deduplication key, and the claim makes
+it correct rather than merely deduplicating, because a re-queued owner is a genuinely different piece
+of work.
+
+`drainAccountStatsRebuildQueue` stops rebuilding and becomes a **dispatcher**: read the eligible
+owners, publish one task each, return. It carries no per-owner work, so it cannot meaningfully time
+out, and each task clears its own owner on completion — which makes progress incremental by
+construction and removes the stall above without a separate fix.
+
+##### Priority is fairness, not a memory cap
+
+Asynq's `Queues` map weights how often each queue is dequeued; it is not a concurrency limit.
+`Concurrency: 50` is one global pool and `setupServer` has a single caller, so if rebuilds are the
+only work available, fifty run at once whatever their priority. `LoadAccountArchivedJobs` calls
+`cursor.All`, materialising every job — fifty of those at the size measured above is roughly 2.9 GB.
+
+So the memory answer is to stop holding the archive, not to schedule around it: walk the cursor and
+reduce each job to its row rather than collecting jobs first. Peak falls from jobs *and* rows to rows
+alone, the same 4.7×, and it benefits every caller rather than one task type. Folding as rows are
+produced would reduce it again to the accumulators plus the kept-row ids; that is the end state, not
+the first move.
+
+A concurrency cap — a semaphore in the handler, or a second server with a small pool — stays in
+reserve as a tuning knob once streaming is in place, rather than a load-bearing part of the design.
+
+##### The debounce
+
+`queueAccountRebuildUpdate` writes `queuedAt` with `$setOnInsert`, so it records when an owner first
+became outstanding and is never pushed forward by later changes. That makes it a maximum wait rather
+than a sliding one, which is exactly the gate a frequent tick needs.
+
+- The cron moves from `30 * * * *` to a short interval. Delta entries are eligible on the next tick;
+  **rebuild entries wait** until `now - queuedAt` exceeds the debounce window, so the window governs
+  the expensive kind and never the one a user is waiting on.
+- Because `queuedAt` does not move, an owner changing continuously is still rebuilt at most once per
+  window. The window is a single tunable meaning both *the longest a rebuild waits* and *the shortest
+  gap between two of them*.
+- A tick that fails to publish costs one interval instead of an hour. That failure is observed: a
+  publish returned `NATS connection is not connected after retries` during a core restart, and
+  nothing retried it, because gocron does not re-run a failed job and the task carried no payload to
+  redeliver.
 
 `*/10` and `*/15` crons already exist in this scheduler, so a sub-hourly tick is not a new shape.
 
-**Wire compatibility: none.** An additional filter on a read, and a cron expression.
+##### The operator surface moves with the tasks
 
-**Tests:** the eligibility filter against a fixed clock — an account inside the window is not
-selected, one outside it is, and a re-queue mid-window does not extend the wait.
+Task names are spread across six files plus this project's overlay, so adding three of them is a
+documentation change as much as a code one. All of these change together:
+
+| File | What it carries |
+|------|------------------|
+| `shared/tasks/types.go` | the `Task` definitions, their subjects, priorities and timeouts |
+| `worker/asynq/handlers.go` | `mux.HandleFunc` per task name |
+| `core/scheduler/archivedjobs/drain_rebuild_queue.go` | the cron, now publishing a dispatch |
+| `core/commands/tasks.go` | usage text, the `enabledTasks` allowlist, `enabledTasksLowerLookup`, `commandTaskName`, the dispatch switch, and the summary list |
+| `core/commands/archived_jobs_mongo.go` | `queueArchivedJobStatsRebuild`, and the hint it prints on success |
+| `core/commands/backfill_archived_at.go` | the hint it prints on success |
+| `overlay.md` § Stage B | the task the overlay documents |
+
+Two of those hints state the old cadence — `archived_jobs_mongo.go` tells the operator to "wait for
+the hourly drain" — and become wrong the moment the interval changes. They are behaviour statements
+in operator-facing output, so they move with the change rather than being left to drift.
+
+`core/commands/tasks.go` also lists the same tasks three times: once in `enabledTasks`, once as
+lowercase keys in `enabledTasksLowerLookup`, and once in `commandTaskName`. Adding three tasks would
+mean nine new hand-maintained entries that can disagree. The lookup and the display name are both
+derivable from the allowlist, so they are derived from it in this slice rather than extended — the
+one-source-of-truth rule applies to a command table as much as to a data model.
+
+**Wire compatibility: additive.** Three new task names and subjects — delta, reconcile and rebuild;
+`drainAccountStatsRebuildQueue` keeps its name and subject and changes what it does, so nothing that
+publishes it needs to know.
+
+**Tests:** the eligibility filter against a fixed clock — a rebuild entry inside the window is not
+selected, one outside it is, a delta entry is selected immediately, and a re-queue mid-window does not
+extend the wait. Dispatch publishes one task per eligible owner and none for an empty queue. A
+per-owner task clears only its own owner, and only on its own claim. Queueing a rebuild over
+outstanding deltas upgrades the entry; queueing a delta against a queued rebuild leaves it alone. The CLI allowlist, lookup and display name all agree, which the
+derivation makes a property rather than a list to check.
+
+#### J4 — Reconciliation, and how drift is corrected
+
+Deltas can drift: an `$inc` that never lands, or lands twice, leaves a bucket or a total disagreeing
+with the rows beneath it. Rows cannot drift — they are written whole, once per job, and never
+incremented — so the rows remain authoritative for every aggregate above them.
+
+That makes repair and detection the same operation, and the ordering matters:
+
+**Reconciliation folds an owner's stored rows and writes the result, unconditionally.** It does not
+compare first and repair on mismatch. Comparing is done only to *report* — log the field and the
+magnitude, emit a metric — so that a delta bug becomes visible. The correction happens whether or not
+the comparison notices anything.
+
+That ordering is deliberate. "Detect, then queue a repair" fails silently when detection is the thing
+that is broken; writing the fold every cycle means the system self-heals on a fixed schedule and
+detection is observability rather than a repair trigger.
+
+Reconciliation is therefore the second half of `RebuildAccountStatistics` — `AccountBuckets` and
+`AccountProductionTotals` over stored rows — with no re-derivation. It reads 12.8 MB where a full
+rebuild reads 58.0 MB, and never opens a job document.
+
+##### Comparing figures that are floats
+
+Exact equality is the wrong test. Repeated `$inc` and repeated summation do not produce identical
+float64s from the same inputs, so a strict comparison would report drift on every owner and mean
+nothing.
+
+- **Counts compare exactly.** They are integers, cannot drift by rounding, and a count mismatch is
+  therefore unambiguously a bug rather than arithmetic. Counts are the primary drift signal.
+- **Money compares with a relative tolerance**, falling back to an absolute one near zero.
+
+The same tolerance rule governs the zero test in J2, so it is defined once and used by both rather
+than re-derived at each site.
+
+##### Scheduling
+
+A rota, not a sweep: each owner is reconciled once per window, with the owner's id hashed across the
+window so load is flat rather than every owner landing on the same tick. It runs at `priority_5`
+alongside bulk rebuilds, since nothing waits on it.
+
+It is dispatched as **one task per owner**, reusing J3's task shape rather than the shape the existing
+maintenance tasks use. Its owners come from the rota, not from the rebuild queue — reconciliation is
+something every owner receives in turn, not work that anything requested. `schemaVersionMaintenanceBatch`, `inactiveAccountPlannerCleanup` and
+`pruneExpiredAccountSessions` are *batch* tasks — one task walks a slice of work — which suits work
+that is small per entity. Reconciliation is not: it folds an owner's whole row set, so it carries the
+same per-owner weight as a rebuild and wants the same treatment. Using J3's dispatcher also means
+statistics work has one task shape rather than a third one.
+
+**Wire compatibility: none.** Reconciliation writes the documents that already exist, in the shape
+they already have.
+
+**Tests:** a fixture where the aggregates are deliberately wrong and reconciliation restores them; a
+fixture where they are correct and reconciliation reports no drift and writes the same values; and
+tolerance cases — a float residue is not drift, a count mismatch is.
+
+#### J5 — How the client learns the figures moved
+
+The SPA queries statistics when it needs them and does not watch the documents. That stays: the
+statistics collections are not added to any subscription the SPA opens, and
+`account_production_totals` is not subscribed to despite the fan-out admitting it.
+
+What is added is a small **account-scoped notification** — the figures for your owner have been
+processed — carrying no statistics payload. The SPA shows a brief confirmation and refreshes what it
+is actually displaying. It is a signal, not a feed: the client already knows whether the user is
+looking at statistics, and the server does not need to.
+
+**One notification per completed task**, which is what makes it quiet without a coalescing rule.
+Archiving twenty jobs is one batched request, one queued owner and one delta task, so it is one
+message — the task granularity does the coalescing that would otherwise need a debounce window on
+either end. Delivery rides the existing account-scoped routing, so it needs a message kind and a
+handler in `applyRemoteMessage`; without the handler the SPA discards it, exactly as it discards the
+document events J1 removes.
+
+##### How the notification reaches a browser
+
+The worker publishes to NATS and the websocket service delivers it, mirroring how document changes
+already travel — the worker holds no client connections, and the websocket service holds no knowledge
+of statistics.
+
+The document path is `doc.update.{tenant}.{collection}.{docID}`, consumed by the websocket service as
+a JetStream consumer filtered per hosted tenant (`DocUpdateFilterForTenant`) and routed by
+`deliverOutboundDocUpdate`. A notification has neither a collection nor a document id, and
+`DocUpdateSubject` returns an empty subject when either is missing, so it cannot ride that scheme
+without pretending to be a document.
+
+It gets its own subject family instead — `notify.{tenant}.{subtype}` — with a delivery function
+beside the existing one. Tenant construction, the hosted-tenant set and placement are reused
+unchanged; only the subject and the handler are new.
+
+**On core NATS, not JetStream.** The document stream persists for offline replay, which is right for
+a document change: a client that reconnects still needs it. A notification is the opposite — "your
+figures were updated" is worthless replayed three hours later, and delivering a queue of stale ones
+on reconnect would be worse than delivering none. Core NATS is already used this way in-tree for
+placement state and the health census, so this is the existing answer to "a message that only matters
+now" rather than a new mechanism.
+
+It is published and forgotten: no acknowledgement, no retry, and no delivery if nothing is listening.
+Nothing is lost by dropping one — the pending and failed states in the next section are derived at
+read time, so a client that missed a notification still learns the truth from its next request. The
+message only saves it from waiting for one, which is exactly as much as it should be trusted to do.
+
+##### Messages gain a family and a kind
+
+Every message the SPA receives today is `ChangeStreamMessage`-shaped, and `applyRemoteMessage`
+dispatches on `collection` and `operationType`. There is no message type: "this is a document change"
+is implicit in the shape. A notification has no collection and no document id, and
+`applyRemoteMessage` returns early without both — so a notification sent into the current envelope
+would be discarded in silence, which is precisely how the archive events J1 removes have been
+disappearing.
+
+So the envelope gains two fields, and the notification is the first user of them:
+
+| Field | Meaning | Values now |
+|-------|---------|------------|
+| `type` | the family of message | `document` (implicit today), `notification` |
+| `subtype` | what within that family | for `notification`: `archiveStatsProcessed` |
+
+The archive notification is therefore `type: "notification"`,
+`subtype: "archiveStatsProcessed"`, carrying the owner and a timestamp and no figures.
+
+**The same pair names the message internally.** `nats.Message` already carries a `Type` alongside its
+`Data` payload — the vocabulary is flat rather than absent, with `task`, `schedule`, `health`,
+`ws_placement` and `ws_command` sitting at one level. It gains an optional `Subtype`, so a message is
+described the same way on the wire between services as it is on the wire to a browser, and a new kind
+is one definition rather than an internal name and an outbound name that have to be kept aligned.
+
+For the notification the two are the same message. The websocket service forwards its payload rather
+than rebuilding it, because there is nothing to strip: the tenant is in the subject and the body
+carries no routing.
+
+That is *not* true of the document family and must not become true of it. `ChangeStreamMessage`
+carries `CorporationRef`, `AllianceRef`, `SourceClientID` and the scope payload — the values delivery
+routes on — and refs stay internal until the last hop before a browser. The shared part is the
+`type`/`subtype` vocabulary; what a family carries beside it, and what survives the outbound
+boundary, remains that family's own business.
+
+**Existing messages are not migrated in this slice**, inside or out. A client message with no `type`
+is the document family, which is what every current producer sends; an internal message with no
+`subtype` keeps the meaning its `Type` already has. Both can be filled in whenever a later change
+touches that path. What lands now is the structure and one producer using it end to end.
+
+`applyRemoteMessage` becomes a router over the family rather than a single flat chain:
+
+- no `type`, or `document` — the existing collection dispatch, moved into its own module beside the
+  handlers it already calls
+- `notification` — a notification router dispatching on `subtype`
+
+**An unrecognised message is logged rather than dropped in silence.** The current early return is
+what let two collections stream to every browser for nothing without anyone noticing; a router that
+can say "no handler for `notification/x`" makes the next such gap visible on the first message
+instead of during an unrelated investigation.
+
+One vocabulary now spans two languages, and the SPA cannot import the Go constants. This project
+already has the pattern for that: a small shared corpus under `testing/fixtures/` listing the valid
+`type` and `subtype` values, with a Go test and a vitest test reading the same file, exactly as
+`group-derivation` and `job-cost` keep their two implementations honest. Adding a message kind on one
+side without the other then turns the other side red.
+
+##### Telling the user when figures are known to be behind
+
+A full recalculation that is queued but not finished means the figures on screen are stale in a way
+the user cannot otherwise see. The read surface therefore reports that state — but it is **derived at
+read time from the rebuild queue**, not stored on any statistics document, and it is carried on the
+response envelope rather than beside any figure.
+
+One lookup by `_id` on a small collection answers it. What it must **not** do is report every entry:
+after J2 the queue also carries delta work, so an owner is in it briefly every time a job is
+archived, and a flag on mere membership would announce a recalculation for ordinary new jobs — the
+opposite of what this is for.
+
+The flag therefore reads the entry's `work` kind and reports only `rebuild`. Delta entries are
+invisible here, which is right: their latency is seconds, the notification already covers them, and
+there is nothing a user could usefully do about one.
+
+Three states, read from the same entry:
+
+| State | Queue entry | What the client shows |
+|-------|-------------|------------------------|
+| Current | absent, or `work: delta` | nothing |
+| Recalculating | `work: rebuild` | figures are being rebuilt |
+| Failed | `work: rebuild` with exhausted `failures` | recalculation failed, figures are stale |
+
+The failed state is what J2's retry ceiling produces, so a permanently failing owner is visible
+rather than indefinitely pending.
+
+##### One place decides what a change invalidates
+
+Cache invalidation after archiving is currently spread across the call sites that archive.
+`ArchivedJobsList.jsx` invalidates the archive list after a restore, but the two archiving paths —
+`archiveJobButton.jsx` and `buttonFunctions.jsx` — invalidate only the statistics queries, so the
+archived-jobs list keeps a cached page after a job is archived into it.
+
+Adding the missing call at each site would repeat the defect, because the knowledge being duplicated
+is *which caches an action affects*, and the next archiving entry point will get it wrong the same
+way. The notification above replaces it: one handler receives the signal and invalidates both, so a
+call site archives a job and does not have to know what that invalidates.
+
+**Wire compatibility: additive.** Two new envelope fields that existing producers omit, one new
+message kind using them, and a field on the statistics response envelope. Nothing existing changes
+shape, and a message with no `type` keeps meaning what it means today.
+
+**Tests:** the flag resolves to the three states from queue entries; the notification handler
+invalidates both query sets; a client with no statistics on screen does nothing with it; a message
+with no `type` still routes to the document path; and an unrecognised `subtype` is reported rather
+than silently dropped. The message-kind corpus is read by a test on each side, so a kind added in Go
+without its SPA counterpart fails.
+
+#### Chosen values
+
+Set here so they are decided once rather than at each call site, and so a later change is a change to
+this table rather than an archaeology exercise.
+
+| Value | Setting | Reasoning |
+|-------|---------|-----------|
+| Dispatch cron | `*/2 * * * *` | A tick that fails to publish costs two minutes rather than an hour |
+| Debounce window | 5 minutes | The longest an owner waits, and the shortest gap between two of its rebuilds |
+| Reconciliation rota | every owner once per 7 days, id hashed across the window | Routine enough to catch a delta bug, spread so no tick carries the fleet |
+| Retry ceiling | asynq's default `MaxRetry` | Statistics do not need a second retry policy beside the one every other task uses |
+| Float tolerance | 1e-6 relative, 0.01 ISK absolute near zero | Counts still compare exactly, and are the primary drift signal |
+| Delta task priority | `priority_3` | User-facing freshness, small unit of work |
+| Reconcile / rebuild priority | `priority_5` | Bulk, nothing waits on them |
 
 #### What this stage does not change
 
 - The reduction rules. What a job contributes is unchanged; only how often it is recomputed and how
   much is recomputed with it.
-- Corporation scope, which stays with Stage C.
+- Corporation scope itself, which stays with Stage C. Stage J makes its surfaces owner-shaped; it
+  does not add the corporation kind, decide what scopes a job to a corporation, or rename the
+  `account_*` collections.
 - The restore sequence, whose ordering and lock gate are Stage G's and are untouched beyond the
   delta and the min/max repair.
 
@@ -1153,7 +1690,7 @@ whichever work touches SSO next rather than widened into this stage.
 | G — restore | **Complete** — three POST routes restore a job, a group rebuilt from its jobs, or a related set walked over the archive. The write is one server-side sequence: decrypt, resolve links, write job documents, re-link free ESI ids on the account, return the jobs to their groups, delete the archived documents, queue the rebuild. Each job rejoins the group it was archived from, merging into it when it is still on the planner. Conflicts are reported and stripped rather than blocking, and a group another session holds refuses the restore |
 | H — archived jobs page | **Complete for the account scope** — `/archived-jobs` carries the statistics tab (metric cards, eight charts, item table) and the jobs tab (list, three row shapes, restore). Chart primitives are shared and the price-history dialogue moved onto them. The list is not queried until its tab is opened, and both tabs carry a mobile layout |
 | I — one owner for group derivation | **Complete** — `models.Group` derives itself through `RebuildFrom` and `AddJobs`, mirroring the SPA's `createGroup` and `addJobsToGroup`; a nine-case corpus at `testing/fixtures/group-derivation` defines the rules and a harness on each side reads it. The three divergences it found are fixed |
-| J — incremental statistics and the build history panel | **Planned** — archiving a job currently rebuilds every statistic the account holds, because `RebuildAccountStatistics` reduces every archived job on every run. Three slices: the stored snapshot array becomes a query and the panel that read it is rebuilt on the existing chart primitives; a job's contribution is applied as a delta rather than recomputed wholesale; and the drain gains a debounce so it becomes the correctness path rather than the latency path |
+| J — incremental statistics and the build history panel | **J1 complete, J2–J5 planned.** J1 landed the bucket's `quantityProduced` and `isProductionChain` key, `BuildHistoryMarks` on the totals row, `includeProductionChain` on the timeline read, the rebuilt Build History panel, the deletion of `BuildStatSnapshot`'s stored array, and the removal of the `archive_and_stats` change-stream group. A full rebuild and one Redis key deletion are owed — see § Operational steps owed. The rest:  archiving a job currently rebuilds every statistic the account holds, because `RebuildAccountStatistics` reduces every archived job on every run. Three slices: the stored snapshot array becomes a query and the panel that read it is rebuilt on the existing chart primitives; a job's contribution is applied as a delta rather than recomputed wholesale; the drain becomes a dispatcher over one task per owner, split by cost into a routine reconcile and a bulk full rebuild; reconciliation rewrites aggregates from rows every cycle so drift self-heals and detection is only reporting; and the client is told when figures move and when a recalculation is outstanding. Built on an owner rather than an account id, so Stage C adds a kind rather than a rewrite |
 
 ## Done when
 
@@ -1172,6 +1709,15 @@ whichever work touches SSO next rather than widened into this stage.
   statistics document grows without bound.
 - The build history panel answers what an item has cost before and whether that is drifting,
   from documents the panel already fetches, with per-build detail read only on request.
+- A rebuild that cannot finish in one pass still makes progress, and the tasks CLI names the
+  same work the scheduler and worker do.
+- Aggregates that disagree with the rows beneath them are corrected on a schedule without anyone
+  asking, and the disagreement is reported when it happens.
+- A user is told when their figures have been updated, and when a recalculation is outstanding or
+  has failed, rather than reading stale numbers presented as current.
+- No change stream carries archive or statistics documents that nothing subscribes to.
+- Realtime messages carry a family and a kind, and one the client does not recognise is reported
+  rather than discarded.
 - Overlays in this folder describe the landed behaviour, ready to promote into live SoT.
 
 ## Handoff status
@@ -1254,7 +1800,8 @@ just means the corporation data arrives a rebuild late.
 | Step | Command | Why |
 |------|---------|-----|
 | 1. Convert stored entity ids | `tasks encodeJobIdentity` (`-dry-run` first) | On dev, `protected.spec` is null on all 9,130 archived jobs and 834 still hold a raw `corporation_id` on their linked jobs. Those are the only corporation ids in the database, and `archivestats` reads refs, so until they are converted the aggregation sees nothing. It is also the first thing that would give `character_ref` any value at all. Owned by [entity-id-encryption](../entity-id-encryption/plan.md); this project only depends on it |
-| 2. Rebuild statistics | `tasks queueArchivedJobStatsRebuild -all` (`-dry-run` first) | Recomputes every account's three collections. Idempotent, and safe to re-run |
+| 2. Rebuild statistics | `tasks queueArchivedJobStatsRebuild -all` (`-dry-run` first) | Recomputes every account's three collections. Idempotent, and safe to re-run. Owed again after J1: every bucket gains `quantityProduced` and `isProductionChain`, and every total gains `history` |
+| 3. Drop the retired resume token | `DEL eip:core:handoff:v1:cs:resume:archive_and_stats` in Redis | J1 removes the `archive_and_stats` change-stream group. Resume tokens are written with no expiry, so its key would sit there forever. One key, deleted once — a startup sweep to enumerate and prune stale group ids is more machinery than a single stale key earns |
 
 Both must also run against **live** when this work ships — with the caveat that live carries no
 statistics collections yet, so step 2 there is a first population rather than a catch-up. Whether
