@@ -3,11 +3,10 @@ package archivedjobs
 import (
 	"context"
 	"encoding/json"
+	eipnats "eve-industry-planner/shared/nats"
 
 	"eve-industry-planner/core/scheduler/contract"
 	"eve-industry-planner/shared/logs"
-	eipnats "eve-industry-planner/shared/nats"
-	taskscore "eve-industry-planner/shared/tasks"
 )
 
 const logComponent = "archivedjobs"
@@ -30,19 +29,11 @@ const (
 // message an hour against a read of the same collection the worker reads anyway,
 // and leaves the scheduler with no Mongo dependency to fail on.
 func ScheduleDrainAccountStatsRebuildQueue(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
-	task := taskscore.DrainAccountStatsRebuildQueue
 	sched.RegisterHandler(cronDrainAccountStatsRebuildQueueName, func(ctx context.Context, data json.RawMessage) error {
 		_ = data
-		logs.DebugCtx(ctx, "account statistics rebuild drain publishing", "component", logComponent, "subject", task.Subject)
-		if err := eipnats.PublishTask(
-			ctx,
-			deps.NATS,
-			task.Subject,
-			task.Name,
-			struct{}{},
-			task.DefaultPriority,
-		); err != nil {
-			logs.ErrorCtx(ctx, "account statistics rebuild drain publish failed", "component", logComponent, "subject", task.Subject, "error", err)
+		logs.DebugCtx(ctx, "account statistics rebuild drain publishing", "component", logComponent)
+		if err := eipnats.PublishDrainAccountStatsRebuildQueue(ctx, deps.NATS); err != nil {
+			logs.ErrorCtx(ctx, "account statistics rebuild drain publish failed", "component", logComponent, "error", err)
 			return err
 		}
 		return nil

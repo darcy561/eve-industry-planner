@@ -13,7 +13,6 @@ import (
 	clicommands "eve-industry-planner/core/commands/cli"
 	firestoreimport "eve-industry-planner/core/migration/firestoreimport"
 	eipnats "eve-industry-planner/shared/nats"
-	taskscore "eve-industry-planner/shared/tasks"
 )
 
 const usage = `Usage:
@@ -37,7 +36,7 @@ const usage = `Usage:
   tasks importUserJobDocumentsFromFirestore [flags]
   tasks backfillArchivedAt [-dry-run]
   tasks queueArchivedJobStatsRebuild [-all] [-account id] [-dry-run]
-  tasks <task-name> [--priority=<priority_queue>] [--version=<int>] [--data='<json>']
+  tasks <task-name> [--version=<int>] [--data='<json>']
 
 Examples:
   tasks list
@@ -76,31 +75,31 @@ Examples:
 // Enabled task allowlist.
 // Add more tasks to this slice to expose them in `tasks`.
 // Matching is case-insensitive for user convenience.
-var enabledTasks = []taskscore.Task{
-	taskscore.CheckSDEUpdates,
-	taskscore.ApplySDEVersion,
-	taskscore.RebuildCurrentSDEVersion,
-	taskscore.DrainAccountStatsRebuildQueue,
+var enabledTasks = []eipnats.Definition{
+	eipnats.CheckSDEUpdates,
+	eipnats.ApplySDEVersion,
+	eipnats.RebuildCurrentSDEVersion,
+	eipnats.DrainAccountStatsRebuildQueue,
 }
 
-func enabledTasksLowerLookup() map[string]taskscore.Task {
-	return map[string]taskscore.Task{
-		"checksdeupdates":               taskscore.CheckSDEUpdates,
-		"applysdeversion":               taskscore.ApplySDEVersion,
-		"forcesderebuild":               taskscore.RebuildCurrentSDEVersion,
-		"drainaccountstatsrebuildqueue": taskscore.DrainAccountStatsRebuildQueue,
+func enabledTasksLowerLookup() map[string]eipnats.Definition {
+	return map[string]eipnats.Definition{
+		"checksdeupdates":               eipnats.CheckSDEUpdates,
+		"applysdeversion":               eipnats.ApplySDEVersion,
+		"forcesderebuild":               eipnats.RebuildCurrentSDEVersion,
+		"drainaccountstatsrebuildqueue": eipnats.DrainAccountStatsRebuildQueue,
 	}
 }
 
-func commandTaskName(task taskscore.Task) string {
+func commandTaskName(task eipnats.Definition) string {
 	switch task.Name {
-	case taskscore.CheckSDEUpdates.Name:
+	case eipnats.CheckSDEUpdates.Name:
 		return "checkSdeUpdates"
-	case taskscore.ApplySDEVersion.Name:
+	case eipnats.ApplySDEVersion.Name:
 		return "applySdeVersion"
-	case taskscore.RebuildCurrentSDEVersion.Name:
+	case eipnats.RebuildCurrentSDEVersion.Name:
 		return "forceSdeRebuild"
-	case taskscore.DrainAccountStatsRebuildQueue.Name:
+	case eipnats.DrainAccountStatsRebuildQueue.Name:
 		return "drainAccountStatsRebuildQueue"
 	default:
 		return task.Name
@@ -206,10 +205,9 @@ func runTrigger(ctx context.Context, args []string) error {
 	}
 
 	// Support args in either order:
-	// - <task-name> [--priority=...] [--data=...]
-	// - --priority=... --data=... <task-name>
+	// - <task-name> [--version=...] [--data=...]
+	// - --version=... --data=... <task-name>
 	var (
-		priority      string
 		version       int
 		versionSet    bool
 		data          string
@@ -231,24 +229,6 @@ func runTrigger(ctx context.Context, args []string) error {
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
-		case strings.HasPrefix(a, "priority="):
-			priority = strings.TrimPrefix(a, "priority=")
-		case a == "priority":
-			v, next, err := consumeValue(i)
-			if err != nil {
-				return err
-			}
-			priority = v
-			i = next
-		case strings.HasPrefix(a, "--priority="):
-			priority = strings.TrimPrefix(a, "--priority=")
-		case a == "--priority":
-			v, next, err := consumeValue(i)
-			if err != nil {
-				return err
-			}
-			priority = v
-			i = next
 		case strings.HasPrefix(a, "data="):
 			data = strings.TrimPrefix(a, "data=")
 		case a == "data":
@@ -328,14 +308,11 @@ func runTrigger(ctx context.Context, args []string) error {
 
 	publishPayload := payloadToInterface(payload)
 
-	if err := eipnats.PublishTask(ctx, clients.NATS, task.Subject, task.Name, publishPayload, priority); err != nil {
+	if err := clients.NATS.PublishTask(ctx, task.Subject, task.Name, publishPayload); err != nil {
 		return fmt.Errorf("failed to publish task %q: %w", task.Name, err)
 	}
 
 	fmt.Printf("Triggered task %q on subject %q", task.Name, task.Subject)
-	if priority != "" {
-		fmt.Printf(" with priority override %q", priority)
-	}
 	fmt.Println()
 	return nil
 }
@@ -351,9 +328,9 @@ func parseJSONRaw(data string) (json.RawMessage, error) {
 	return json.RawMessage(trimmed), nil
 }
 
-func buildTaskPayload(task taskscore.Task, versionSet bool, version int, rawJSON string) (json.RawMessage, error) {
+func buildTaskPayload(task eipnats.Definition, versionSet bool, version int, rawJSON string) (json.RawMessage, error) {
 	switch task.Name {
-	case taskscore.ApplySDEVersion.Name:
+	case eipnats.ApplySDEVersion.Name:
 		if !versionSet {
 			return nil, fmt.Errorf("task %q requires --version=<int> (example: tasks applySdeVersion --version=3272045)", commandTaskName(task))
 		}
@@ -381,6 +358,6 @@ func payloadToInterface(payload json.RawMessage) any {
 	return payload
 }
 
-func allTasks() []taskscore.Task {
+func allTasks() []eipnats.Definition {
 	return enabledTasks
 }

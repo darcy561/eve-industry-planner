@@ -3,11 +3,10 @@ package maintenance
 import (
 	"context"
 	"encoding/json"
+	eipnats "eve-industry-planner/shared/nats"
 
 	"eve-industry-planner/core/scheduler/contract"
 	"eve-industry-planner/shared/logs"
-	eipnats "eve-industry-planner/shared/nats"
-	taskscore "eve-industry-planner/shared/tasks"
 )
 
 const (
@@ -22,14 +21,13 @@ const (
 // so expired sessions are removed for inactive accounts as well.
 func SchedulePruneExpiredAccountSessions(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
 	natsHandle := deps.NATS
-	task := taskscore.PruneExpiredAccountSessions
 	sched.RegisterHandler(cronPruneExpiredAccountSessionsName, func(ctx context.Context, data json.RawMessage) error {
 		_ = data
-		if err := eipnats.PublishEmpty(ctx, natsHandle, task.Subject); err != nil {
-			logs.ErrorCtx(ctx, "prune expired account sessions: publish failed", "component", schedulerLogComponent, "subject", task.Subject, "error", err)
+		if err := eipnats.TriggerPruneExpiredAccountSessions(ctx, natsHandle); err != nil {
+			logs.ErrorCtx(ctx, "prune expired account sessions: publish failed", "component", schedulerLogComponent, "error", err)
 			return err
 		}
-		logs.InfoCtx(ctx, "prune expired account sessions task queued", "component", schedulerLogComponent, "subject", task.Subject)
+		logs.InfoCtx(ctx, "prune expired account sessions task queued", "component", schedulerLogComponent)
 		return nil
 	})
 	if err := sched.ScheduleCronJob(cronPruneExpiredAccountSessionsSchedule, cronPruneExpiredAccountSessionsName); err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"eve-industry-planner/shared/lifecycle"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/stackservices"
 	"flag"
 	"fmt"
@@ -13,8 +14,6 @@ import (
 
 	"eve-industry-planner/shared/firebaseadmin"
 	"eve-industry-planner/shared/logs"
-	eipnats "eve-industry-planner/shared/nats"
-	taskscore "eve-industry-planner/shared/tasks"
 
 	"cloud.google.com/go/firestore"
 	"google.golang.org/api/iterator"
@@ -82,7 +81,7 @@ func runImportArchivedJobsFromFirestoreScan(ctx context.Context, args []string) 
 		logs.InfoCtx(ctx, "archived job scan: reprocess=true, including archiveProcessed documents")
 	}
 
-	taskDef := taskscore.ImportArchivedJobToMongo
+	taskDef := eipnats.ImportArchivedJobToMongo
 	iter := query.Documents(ctx)
 
 	var published, errorsN int
@@ -113,13 +112,7 @@ func runImportArchivedJobsFromFirestoreScan(ctx context.Context, args []string) 
 			continue
 		}
 
-		req := eipnats.ImportArchivedJobToMongoRequest{
-			UserID:              userID,
-			FirestorePath:       snap.Ref.Path,
-			FirestoreDocumentID: snap.Ref.ID,
-			RawData:             docJSON,
-		}
-		if err := eipnats.PublishTask(ctx, clients.NATS, taskDef.Subject, taskDef.Name, req, taskscore.Priority5); err != nil {
+		if err := eipnats.PublishImportArchivedJobToMongo(ctx, clients.NATS, userID, snap.Ref.Path, snap.Ref.ID, docJSON, ""); err != nil {
 			logs.ErrorCtx(ctx, "archived job scan: publish task", "firestore_path", snap.Ref.Path, "error", err)
 			errorsN++
 			continue

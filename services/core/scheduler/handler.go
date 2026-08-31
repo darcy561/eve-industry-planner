@@ -25,14 +25,6 @@ import (
 
 const otelTracerName = "eve-industry-planner/core"
 
-// Requestable task types - tasks that can be scheduled via message requests
-var requestableTaskTypes = map[string]bool{
-	// ESI refresh tasks - can be rescheduled when rate limited
-	"refreshSystemIndexes":      true,
-	"refreshAdjustedPrices":     true,
-	"refreshRegionMarketOrders": true,
-}
-
 // OneTimeJob represents a one-time scheduled job
 type OneTimeJob struct {
 	JobID    string          `json:"job_id"`
@@ -152,7 +144,7 @@ func (s *TaskScheduler) ScheduleCronJob(cronExpr string, taskType string) error 
 // ScheduleOneTimeJob schedules a one-time job to run at the specified time
 func (s *TaskScheduler) ScheduleOneTimeJob(jobID string, taskType string, runAt time.Time, data json.RawMessage) error {
 	// Check if task type is requestable
-	if !requestableTaskTypes[taskType] {
+	if d, ok := eipnats.LookupTask(taskType); !ok || !d.Requestable {
 		return fmt.Errorf("task type %s is not requestable", taskType)
 	}
 
@@ -361,7 +353,7 @@ func (s *TaskScheduler) RestoreOneTimeJobs() error {
 		}
 
 		// Check if task type is requestable
-		if !requestableTaskTypes[job.TaskType] {
+		if d, ok := eipnats.LookupTask(job.TaskType); !ok || !d.Requestable {
 			logs.WarnCtx(ctx, "task type is not requestable, discarding", "component", schedulerLogComponent,
 				"job_id", job.JobID, "task_type", job.TaskType)
 			_ = s.redisClient.Del(ctx, key).Err()

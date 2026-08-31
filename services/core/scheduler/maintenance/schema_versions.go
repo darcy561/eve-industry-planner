@@ -3,14 +3,13 @@ package maintenance
 import (
 	"context"
 	"encoding/json"
+	eipnats "eve-industry-planner/shared/nats"
 	"fmt"
 	"strconv"
 
 	"eve-industry-planner/core/scheduler/contract"
 	"eve-industry-planner/shared/logs"
 	eipmongo "eve-industry-planner/shared/mongo"
-	eipnats "eve-industry-planner/shared/nats"
-	taskscore "eve-industry-planner/shared/tasks"
 )
 
 const (
@@ -27,7 +26,6 @@ var schemaMaintenanceCollections = eipmongo.SchemaMaintainedCollections()
 // upgrades legacy schema versions in small batches. It rotates one collection per run
 // to avoid touching all collections on every tick.
 func ScheduleSchemaVersionMaintenance(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
-	task := taskscore.SchemaVersionMaintenanceBatch
 	sched.RegisterHandler(cronSchemaVersionMaintenanceName, func(ctx context.Context, data json.RawMessage) error {
 		_ = data
 		collection, err := nextSchemaMaintenanceCollection(ctx, deps)
@@ -35,26 +33,14 @@ func ScheduleSchemaVersionMaintenance(deps contract.Dependencies, sched contract
 			logs.ErrorCtx(ctx, "schema maintenance: failed to resolve next collection", "component", schedulerLogComponent, "error", err)
 			return err
 		}
-		payload := eipnats.SchemaVersionMaintenanceBatchRequest{
-			Collection: collection,
-			BatchSize:  defaultSchemaMaintenanceBatchSize,
-		}
-		if err := eipnats.PublishTask(
-			ctx,
-			deps.NATS,
-			task.Subject,
-			task.Name,
-			payload,
-			task.DefaultPriority,
-		); err != nil {
-			logs.ErrorCtx(ctx, "schema maintenance: failed to publish task", "component", schedulerLogComponent, "subject", task.Subject, "collection", collection, "error", err)
+		if err := eipnats.PublishSchemaVersionMaintenanceBatch(ctx, deps.NATS, collection, defaultSchemaMaintenanceBatchSize); err != nil {
+			logs.ErrorCtx(ctx, "schema maintenance: failed to publish task", "component", schedulerLogComponent, "collection", collection, "error", err)
 			return err
 		}
 		logs.InfoCtx(ctx, "schema maintenance task queued",
 			"component", schedulerLogComponent,
-			"subject", task.Subject,
 			"collection", collection,
-			"batch_size", payload.BatchSize,
+			"batch_size", defaultSchemaMaintenanceBatchSize,
 		)
 		return nil
 	})

@@ -2,13 +2,13 @@
 package policy
 
 import (
+	"eve-industry-planner/shared/queuescale"
 	"fmt"
 	"strings"
 	"time"
 
 	"eve-industry-planner/capacity-controller/cluster"
 	"eve-industry-planner/capacity-controller/config"
-	"eve-industry-planner/shared/tasks"
 )
 
 // Action kinds emitted by Evaluate.
@@ -142,10 +142,10 @@ func evaluateWorker(ss cluster.ServiceState, timing config.ScaleTiming, now time
 
 	pct := ss.QueueScaleUpPct
 	if len(pct) == 0 {
-		pct = tasks.DefaultQueueScaleUpPendingPct
+		pct = queuescale.DefaultQueueScaleUpPendingPct
 	}
 	slots := c * r
-	upPressure := tasks.ScaleUpPressure(ss.QueuePending, slots, pct)
+	upPressure := queuescale.ScaleUpPressure(ss.QueuePending, slots, pct)
 	downPressure := ss.QueueDepth == 0 && ss.DesiredReplicas > ss.Min &&
 		(r <= 1 || ss.ActiveTasks <= c*(r-1))
 

@@ -13,7 +13,10 @@ import (
 
 	natslib "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // ConnectRetry bounds boot-time connection attempts.
@@ -80,7 +83,7 @@ func Open(ctx context.Context) (*NATS, error) {
 		return nil, err
 	}
 
-	js, err := GetJetStream(conn)
+	js, err := getJetStream(conn)
 	if err != nil {
 		conn.Close()
 		return nil, err
@@ -99,7 +102,7 @@ func Open(ctx context.Context) (*NATS, error) {
 // Note: JetStream contexts automatically work with NATS connection reconnection.
 // If the connection is reconnected, JetStream operations will automatically use the
 // reconnected connection without needing to recreate the context.
-func GetJetStream(conn *natslib.Conn) (jetstream.JetStream, error) {
+func getJetStream(conn *natslib.Conn) (jetstream.JetStream, error) {
 	js, err := jetstream.New(conn, jetstream.WithDefaultTimeout(jetStreamAPITimeout))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get JetStream context: %w", err)
@@ -120,11 +123,7 @@ func GetJetStream(conn *natslib.Conn) (jetstream.JetStream, error) {
 //	PublishTask(ctx, js, subject, "refreshRegionMarketOrders", request)
 //	PublishTask(ctx, js, subject, "refreshRegionMarketOrders", request, natsConn)
 //	PublishTask(ctx, js, subject, "migrateUserDocumentToMongo", payload, natsConn, "priority_5")
-func PublishTask(ctx context.Context, n *NATS, subject string, taskType string, payload any, opts ...string) (err error) {
-	priority := ""
-	if len(opts) > 0 {
-		priority = opts[0]
-	}
+func (n *NATS) PublishTask(ctx context.Context, subject string, taskType string, payload any) (err error) {
 
 	var payloadJSON json.RawMessage
 	if payload != nil {
@@ -133,7 +132,7 @@ func PublishTask(ctx context.Context, n *NATS, subject string, taskType string, 
 			return err
 		}
 	}
-	taskDataAttrs := taskDataAttrsFromJSON(taskType, payloadJSON)
+	taskDataAttrs := payloadSpanAttrs(payload)
 	ctx, span := startPublishTaskSpan(ctx, subject, taskType, taskDataAttrs)
 	defer func() {
 		if err != nil {
@@ -148,9 +147,6 @@ func PublishTask(ctx context.Context, n *NATS, subject string, taskType string, 
 	taskMsg := TaskMessage{
 		TaskType: taskType,
 	}
-	if priority != "" {
-		taskMsg.Priority = priority
-	}
 	if len(payloadJSON) > 0 {
 		taskMsg.Data = payloadJSON
 	}
@@ -163,7 +159,7 @@ func PublishTask(ctx context.Context, n *NATS, subject string, taskType string, 
 		Type: MessageTypeTask,
 		Data: taskMsgData,
 	}
-	return PublishMessage(ctx, n, subject, msg)
+	return n.Publish(ctx, subject, msg)
 }
 
 // PublishEmpty publishes an empty message to NATS JetStream with retry logic.
@@ -174,16 +170,16 @@ func PublishTask(ctx context.Context, n *NATS, subject string, taskType string, 
 // Example:
 //
 //	PublishEmpty(js, subject, natsConn...)
-func PublishEmpty(ctx context.Context, n *NATS, subject string) error {
+func (n *NATS) PublishEmpty(ctx context.Context, subject string) error {
 	msg := Message{
 		Type: MessageTypeEmpty,
 		Data: nil,
 	}
-	return PublishMessage(ctx, n, subject, msg)
+	return n.Publish(ctx, subject, msg)
 }
 
 // PublishMessage publishes to JetStream under [PublishRetry], injecting trace context into headers.
-func PublishMessage[T any](ctx context.Context, n *NATS, subject string, msg T) error {
+func (n *NATS) Publish(ctx context.Context, subject string, msg any) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -224,11 +220,11 @@ func PublishMessage[T any](ctx context.Context, n *NATS, subject string, msg T) 
 }
 
 // encodeMessage marshals a payload; []byte passes through, a [Message] is enriched first.
-func encodeMessage[T any](ctx context.Context, msg T) ([]byte, error) {
-	if bytes, ok := any(msg).([]byte); ok {
+func encodeMessage(ctx context.Context, msg any) ([]byte, error) {
+	if bytes, ok := msg.([]byte); ok {
 		return bytes, nil
 	}
-	if m, ok := any(msg).(Message); ok {
+	if m, ok := msg.(Message); ok {
 		m.EnrichTraceCarrierFromContext(ctx)
 		m.EnrichLogContextFromContext(ctx)
 		return json.Marshal(m)
@@ -260,4 +256,37 @@ func ExtractIDFromSubject(subject string, prefix string) (string, error) {
 	}
 
 	return id, nil
+}
+
+const otelTracerNameNATS = "eve-industry-planner/shared/nats"
+
+// SpanAttributed is implemented by a payload that contributes attributes to the
+// span covering its publish and its execution.
+type SpanAttributed interface {
+	SpanAttributes() []attribute.KeyValue
+}
+
+// payloadSpanAttrs returns a payload's own span attributes, if it declares any.
+func payloadSpanAttrs(payload any) []attribute.KeyValue {
+	if sa, ok := payload.(SpanAttributed); ok {
+		return sa.SpanAttributes()
+	}
+	return nil
+}
+
+// startPublishTaskSpan starts a producer span for a JetStream task publish.
+func startPublishTaskSpan(ctx context.Context, subject, taskType string, taskDataAttrs []attribute.KeyValue) (context.Context, trace.Span) {
+	tracer := otel.Tracer(otelTracerNameNATS)
+	opts := []trace.SpanStartOption{
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String("messaging.system", "nats"),
+			attribute.String("messaging.destination.name", subject),
+			attribute.String("task.type", taskType),
+		),
+	}
+	if len(taskDataAttrs) > 0 {
+		opts = append(opts, trace.WithAttributes(taskDataAttrs...))
+	}
+	return tracer.Start(ctx, "nats.publish_task", opts...)
 }

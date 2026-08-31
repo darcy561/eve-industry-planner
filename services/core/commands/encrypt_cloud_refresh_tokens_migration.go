@@ -3,14 +3,12 @@ package commands
 import (
 	"context"
 	"eve-industry-planner/shared/lifecycle"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
-
-	eipnats "eve-industry-planner/shared/nats"
-	taskscore "eve-industry-planner/shared/tasks"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -82,18 +80,7 @@ func runEncryptCloudRefreshTokensMigration(ctx context.Context, args []string) e
 		}
 		checked++
 
-		payload := eipnats.EncryptCloudRefreshTokensRequest{
-			AccountID: accountID,
-			DryRun:    opts.dryRun,
-		}
-		if err := eipnats.PublishTask(
-			ctx,
-			clients.NATS,
-			taskscore.EncryptCloudRefreshTokensBatch.Subject,
-			taskscore.EncryptCloudRefreshTokensBatch.Name,
-			payload,
-			taskscore.EncryptCloudRefreshTokensBatch.DefaultPriority,
-		); err != nil {
+		if err := eipnats.PublishEncryptCloudRefreshTokensBatch(ctx, clients.NATS, accountID, opts.dryRun); err != nil {
 			return fmt.Errorf("publish encryptCloudRefreshTokensBatch for %s: %w", accountID, err)
 		}
 		queued++
@@ -105,8 +92,8 @@ func runEncryptCloudRefreshTokensMigration(ctx context.Context, args []string) e
 	fmt.Printf("Queued %d encryptCloudRefreshTokensBatch tasks (checked=%d) on subject %q (priority=%s)\n",
 		queued,
 		checked,
-		taskscore.EncryptCloudRefreshTokensBatch.Subject,
-		taskscore.EncryptCloudRefreshTokensBatch.DefaultPriority,
+		eipnats.EncryptCloudRefreshTokensBatch.Subject,
+		eipnats.EncryptCloudRefreshTokensBatch.DefaultPriority,
 	)
 	return nil
 }

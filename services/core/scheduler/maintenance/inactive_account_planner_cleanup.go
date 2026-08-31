@@ -3,12 +3,11 @@ package maintenance
 import (
 	"context"
 	"encoding/json"
+	eipnats "eve-industry-planner/shared/nats"
 	"time"
 
 	"eve-industry-planner/core/scheduler/contract"
 	"eve-industry-planner/shared/logs"
-	eipnats "eve-industry-planner/shared/nats"
-	taskscore "eve-industry-planner/shared/tasks"
 
 	redislib "github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -27,7 +26,6 @@ const (
 // the threshold (via Redis bookmark on user _id), and publishes one worker task per account to
 // delete that account's planner jobs and groups.
 func ScheduleInactiveAccountPlannerCleanup(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
-	task := taskscore.InactiveAccountPlannerCleanup
 	sched.RegisterHandler(cronInactiveAccountPlannerCleanupName, func(ctx context.Context, data json.RawMessage) error {
 		_ = data
 		if deps.Mongo == nil {
@@ -76,20 +74,8 @@ func ScheduleInactiveAccountPlannerCleanup(deps contract.Dependencies, sched con
 
 		published := 0
 		for _, accountID := range batch {
-			payload := eipnats.InactiveAccountPlannerCleanupRequest{
-				AccountID:     accountID,
-				StaleAgeYears: defaultInactiveLoginStaleYears,
-			}
-			if err := eipnats.PublishTask(
-				ctx,
-				deps.NATS,
-				task.Subject,
-				task.Name,
-				payload,
-				task.DefaultPriority,
-			); err != nil {
-				logs.ErrorCtx(ctx, "inactive account planner cleanup: publish failed", "component", schedulerLogComponent,
-					"subject", task.Subject, "account_id", accountID, "error", err)
+			if err := eipnats.PublishInactiveAccountPlannerCleanup(ctx, deps.NATS, accountID, defaultInactiveLoginStaleYears); err != nil {
+				logs.ErrorCtx(ctx, "inactive account planner cleanup: publish failed", "component", schedulerLogComponent, "account_id", accountID, "error", err)
 				continue
 			}
 			published++

@@ -1,47 +1,35 @@
-﻿package asynq
+package asynq
 
 import (
+	eipnats "eve-industry-planner/shared/nats"
 	"testing"
 	"time"
-
-	taskscore "eve-industry-planner/shared/tasks"
 )
 
 func TestGetTaskTimeout_DefaultPerTaskType(t *testing.T) {
-	got := GetTaskTimeout("refreshRegionMarketOrders", 0)
-	want := taskscore.RefreshRegionMarketOrders.DefaultTimeout
+	got := GetTaskTimeout("refreshRegionMarketOrders")
+	want := eipnats.RefreshRegionMarketOrders.DefaultTimeout
 	if got != want {
-		t.Fatalf("GetTaskTimeout(refreshRegionMarketOrders, 0) = %v, want %v", got, want)
+		t.Fatalf("GetTaskTimeout(refreshRegionMarketOrders) = %v, want %v", got, want)
+	}
+}
+
+// A definition's timeout is still clamped, which is what keeps an implausible
+// value in tasks.go from becoming an asynq deadline.
+func TestGetTaskTimeout_ClampsDefinitionDefault(t *testing.T) {
+	if got := clampTaskTimeout(time.Second); got != minTaskTimeout {
+		t.Fatalf("clamp(1s) = %v, want min %v", got, minTaskTimeout)
+	}
+	if got := clampTaskTimeout(72 * time.Hour); got != maxTaskTimeout {
+		t.Fatalf("clamp(72h) = %v, want max %v", got, maxTaskTimeout)
 	}
 }
 
 func TestGetTaskTimeout_UnknownTaskType(t *testing.T) {
-	got := GetTaskTimeout("nonexistentTask", 0)
-	want := taskscore.DefaultWorkerTaskTimeout
+	got := GetTaskTimeout("nonexistentTask")
+	want := eipnats.DefaultWorkerTaskTimeout
 	if got != want {
-		t.Fatalf("GetTaskTimeout(unknown, 0) = %v, want default %v", got, want)
-	}
-}
-
-func TestGetTaskTimeout_OverrideSeconds(t *testing.T) {
-	got := GetTaskTimeout("refreshRegionMarketOrders", 120)
-	want := 2 * time.Minute
-	if got != want {
-		t.Fatalf("GetTaskTimeout(..., 120) = %v, want %v", got, want)
-	}
-}
-
-func TestGetTaskTimeout_ClampMin(t *testing.T) {
-	got := GetTaskTimeout("refreshRegionMarketOrders", 1)
-	if got != minTaskTimeout {
-		t.Fatalf("GetTaskTimeout(..., 1) = %v, want min %v", got, minTaskTimeout)
-	}
-}
-
-func TestGetTaskTimeout_ClampMax(t *testing.T) {
-	got := GetTaskTimeout("refreshRegionMarketOrders", 999999)
-	if got != maxTaskTimeout {
-		t.Fatalf("GetTaskTimeout(..., huge) = %v, want max %v", got, maxTaskTimeout)
+		t.Fatalf("GetTaskTimeout(unknown) = %v, want default %v", got, want)
 	}
 }
 
@@ -49,20 +37,20 @@ func TestGetTaskTimeout_ClampMax(t *testing.T) {
 // does not match its task name is registered but never routed to — the queue
 // would fill with nothing draining it and no error anywhere to say so.
 func TestDrainAccountStatsRebuildQueue_TaskNameIsRegistered(t *testing.T) {
-	task := taskscore.DrainAccountStatsRebuildQueue
+	task := eipnats.DrainAccountStatsRebuildQueue
 
 	if task.Name != "drainAccountStatsRebuildQueue" {
 		t.Fatalf("task name = %q; the asynq handler key in handlers.go must be updated to match", task.Name)
 	}
 
-	got, ok := taskscore.ByName[task.Name]
+	got, ok := eipnats.LookupTask(task.Name)
 	if !ok {
-		t.Fatalf("ByName is missing %q, so the worker falls back to the default timeout", task.Name)
+		t.Fatalf("the registry is missing %q, so the worker falls back to the default timeout", task.Name)
 	}
 	if got.DefaultTimeout != task.DefaultTimeout {
-		t.Fatalf("ByName[%q].DefaultTimeout = %v, want %v", task.Name, got.DefaultTimeout, task.DefaultTimeout)
+		t.Fatalf("registry[%q].DefaultTimeout = %v, want %v", task.Name, got.DefaultTimeout, task.DefaultTimeout)
 	}
-	if GetTaskTimeout(task.Name, 0) != task.DefaultTimeout {
-		t.Fatalf("GetTaskTimeout(%q, 0) = %v, want %v", task.Name, GetTaskTimeout(task.Name, 0), task.DefaultTimeout)
+	if GetTaskTimeout(task.Name) != task.DefaultTimeout {
+		t.Fatalf("GetTaskTimeout(%q) = %v, want %v", task.Name, GetTaskTimeout(task.Name), task.DefaultTimeout)
 	}
 }

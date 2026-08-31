@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	eipnats "eve-industry-planner/shared/nats"
 	"flag"
 	"fmt"
 	"strings"
@@ -9,9 +10,7 @@ import (
 
 	"eve-industry-planner/shared/jobidentity"
 	"eve-industry-planner/shared/lifecycle"
-	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/stackservices"
-	taskscore "eve-industry-planner/shared/tasks"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -61,19 +60,7 @@ func runEncodeJobIdentity(ctx context.Context, args []string) error {
 		}
 
 		for _, accountID := range accounts {
-			payload := eipnats.EncodeJobIdentityRequest{
-				AccountID:  accountID,
-				Collection: collection,
-				DryRun:     opts.dryRun,
-			}
-			if err := eipnats.PublishTask(
-				ctx,
-				clients.NATS,
-				taskscore.EncodeJobIdentity.Subject,
-				taskscore.EncodeJobIdentity.Name,
-				payload,
-				taskscore.EncodeJobIdentity.DefaultPriority,
-			); err != nil {
+			if err := eipnats.PublishEncodeJobIdentity(ctx, clients.NATS, accountID, collection, opts.dryRun); err != nil {
 				return fmt.Errorf("publish encodeJobIdentity for %s/%s: %w", collection, accountID, err)
 			}
 			queued++
@@ -82,7 +69,7 @@ func runEncodeJobIdentity(ctx context.Context, args []string) error {
 	}
 
 	fmt.Printf("Queued %d encodeJobIdentity tasks on subject %q (dry_run=%t)\n",
-		queued, taskscore.EncodeJobIdentity.Subject, opts.dryRun)
+		queued, eipnats.EncodeJobIdentity.Subject, opts.dryRun)
 	return nil
 }
 

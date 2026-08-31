@@ -3,14 +3,12 @@ package commands
 import (
 	"context"
 	"eve-industry-planner/shared/lifecycle"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/stackservices"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
-
-	eipnats "eve-industry-planner/shared/nats"
-	taskscore "eve-industry-planner/shared/tasks"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -78,18 +76,7 @@ func runMigrateUserCloudAccountsToUserDoc(ctx context.Context, args []string) er
 		}
 		checked++
 
-		payload := eipnats.MigrateUserCloudAccountsToUserDocRequest{
-			AccountID: accountID,
-			DryRun:    opts.dryRun,
-		}
-		if err := eipnats.PublishTask(
-			ctx,
-			clients.NATS,
-			taskscore.MigrateUserCloudAccountsToUserDoc.Subject,
-			taskscore.MigrateUserCloudAccountsToUserDoc.Name,
-			payload,
-			taskscore.MigrateUserCloudAccountsToUserDoc.DefaultPriority,
-		); err != nil {
+		if err := eipnats.PublishMigrateUserCloudAccountsToUserDoc(ctx, clients.NATS, accountID, opts.dryRun); err != nil {
 			return fmt.Errorf("publish migrateUserCloudAccountsToUserDoc for %s: %w", accountID, err)
 		}
 		queued++
@@ -101,8 +88,8 @@ func runMigrateUserCloudAccountsToUserDoc(ctx context.Context, args []string) er
 	fmt.Printf("Queued %d migrateUserCloudAccountsToUserDoc tasks (checked=%d) on subject %q (priority=%s)\n",
 		queued,
 		checked,
-		taskscore.MigrateUserCloudAccountsToUserDoc.Subject,
-		taskscore.MigrateUserCloudAccountsToUserDoc.DefaultPriority,
+		eipnats.MigrateUserCloudAccountsToUserDoc.Subject,
+		eipnats.MigrateUserCloudAccountsToUserDoc.DefaultPriority,
 	)
 	return nil
 }

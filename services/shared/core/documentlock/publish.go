@@ -13,5 +13,5 @@ func PublishDocLockNotification(ctx context.Context, n *eipnats.NATS, accountID 
 		return nil
 	}
 	subject := fmt.Sprintf("%s.%s", eipnats.SubjectDocLock, accountID)
-	return eipnats.PublishMessage(ctx, n, subject, payload)
+	return n.Publish(ctx, subject, payload)
 }

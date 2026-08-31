@@ -3,6 +3,7 @@ package v1endpoints
 import (
 	"context"
 	"errors"
+	eipnats "eve-industry-planner/shared/nats"
 	"fmt"
 	"net/http"
 	"strings"
@@ -12,8 +13,6 @@ import (
 	"eve-industry-planner/api/helper/sso"
 	"eve-industry-planner/shared/core/config"
 	"eve-industry-planner/shared/logs"
-	eipnats "eve-industry-planner/shared/nats"
-	taskscore "eve-industry-planner/shared/tasks"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
@@ -103,12 +102,7 @@ func (a *Handlers) CorporationsHandler(w http.ResponseWriter, r *http.Request) {
 		"skipped_tokens": skippedTokens,
 	})
 
-	taskRequest := eipnats.AccountSessionGrantsRequest{
-		AccountID: accountID,
-		Tokens:    validTokens,
-	}
-
-	if err := eipnats.PublishTask(ctx, a.NATS, taskscore.UpdateAccountSessionGrants.Subject, taskscore.UpdateAccountSessionGrants.Name, taskRequest); err != nil {
+	if err := eipnats.PublishUpdateAccountSessionGrants(ctx, a.NATS, accountID, validTokens); err != nil {
 		metrics.Error("publish_error")
 		helper.RespondEndpointServerError(w, r, "Internal server error", "failed to publish account session grants refresh task", "corporations_publish_failed", "corporations", err, map[string]any{"token_count": len(validTokens)})
 		return

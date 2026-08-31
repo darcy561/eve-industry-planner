@@ -9,7 +9,6 @@ import (
 	objectstore "eve-industry-planner/shared/core/objectstore"
 	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
-	taskscore "eve-industry-planner/shared/tasks"
 )
 
 // EnsureLiveSDEExists checks that the object store has a complete live SDE set.
@@ -35,9 +34,8 @@ func EnsureLiveSDEExists(ctx context.Context, natsHandle *eipnats.NATS) error {
 		return fmt.Errorf("live SDE missing and nats unavailable for checkSDEUpdates publish")
 	}
 
-	logs.InfoCtx(ctx, "live SDE missing in object store; publishing checkSDEUpdates bootstrap",
-		"subject", taskscore.CheckSDEUpdates.Subject)
-	if err := eipnats.PublishEmpty(ctx, natsHandle, taskscore.CheckSDEUpdates.Subject); err != nil {
+	logs.InfoCtx(ctx, "live SDE missing in object store; publishing checkSDEUpdates bootstrap")
+	if err := eipnats.TriggerCheckSDEUpdates(ctx, natsHandle); err != nil {
 		return fmt.Errorf("publish checkSDEUpdates: %w", err)
 	}
 	return nil

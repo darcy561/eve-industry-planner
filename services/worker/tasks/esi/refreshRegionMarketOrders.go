@@ -10,7 +10,6 @@ import (
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/logs"
 	eipnats "eve-industry-planner/shared/nats"
-	taskscore "eve-industry-planner/shared/tasks"
 	esicore "eve-industry-planner/worker/esi"
 
 	"github.com/hibiken/asynq"
@@ -55,7 +54,7 @@ func RefreshRegionMarketOrders(ctx context.Context, task *asynq.Task, deps *Task
 	}
 
 	lockKey := fmt.Sprintf("esi:market_orders:region:%d:refresh_lock", request.RegionID)
-	cleanup, shouldContinue := taskscore.AcquireRefreshLock(ctx, deps.Redis, lockKey)
+	cleanup, shouldContinue := rediscore.AcquireRefreshLockLogged(ctx, deps.Redis, lockKey)
 	if !shouldContinue {
 		return nil
 	}

@@ -1,9 +1,8 @@
-package tasks
+package redis
 
 import (
 	"context"
 
-	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/logs"
 
 	"github.com/redis/go-redis/v9"
@@ -17,8 +16,8 @@ import (
 // Returns the cleanup function and a boolean indicating if processing should continue.
 // If cleanup is returned and shouldContinue is true, the caller must call defer cleanup() to release the lock.
 // If shouldContinue is false, another refresh is in progress and the caller should return (not an error).
-func AcquireRefreshLock(ctx context.Context, redisClient *redis.Client, lockKey string) (cleanup func(), shouldContinue bool) {
-	lockAcquired, cleanupFunc, err := rediscore.AcquireRefreshLock(ctx, redisClient, lockKey)
+func AcquireRefreshLockLogged(ctx context.Context, redisClient *redis.Client, lockKey string) (cleanup func(), shouldContinue bool) {
+	lockAcquired, cleanupFunc, err := AcquireRefreshLock(ctx, redisClient, lockKey)
 	if err != nil {
 		logs.WarnCtx(ctx, "failed to acquire refresh lock", "error", err)
 		return nil, false

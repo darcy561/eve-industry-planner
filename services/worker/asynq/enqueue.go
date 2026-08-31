@@ -37,19 +37,6 @@ func Enqueue(
 		return fmt.Errorf("failed to unmarshal NATS message: %w", err)
 	}
 
-	// Parse TaskMessage to get optional priority and timeout overrides
-	var taskMsg eipnats.TaskMessage
-	overridePriority := ""
-	overrideTimeoutSec := 0
-	if err := json.Unmarshal(natsMsg.Data, &taskMsg); err == nil {
-		if taskMsg.Priority != "" {
-			overridePriority = taskMsg.Priority
-		}
-		if taskMsg.TimeoutSeconds > 0 {
-			overrideTimeoutSec = taskMsg.TimeoutSeconds
-		}
-	}
-
 	asynqPayload := taskPayload{
 		TaskType: taskType,
 		Data:     natsMsg.Data,
@@ -60,9 +47,8 @@ func Enqueue(
 		return fmt.Errorf("failed to marshal asynq payload: %w", err)
 	}
 
-	// Queue from message override (if valid) or task type default
-	queue := GetPriorityQueue(taskType, overridePriority)
-	taskTimeout := GetTaskTimeout(taskType, overrideTimeoutSec)
+	queue := GetPriorityQueue(taskType)
+	taskTimeout := GetTaskTimeout(taskType)
 
 	// Propagate W3C trace from NATS; handlers that publish follow-up tasks should use the same ctx so
 	// PublishMessage injects the active span. For enqueue without NATS, use natsprop.AsynqHeadersFromContext(ctx).

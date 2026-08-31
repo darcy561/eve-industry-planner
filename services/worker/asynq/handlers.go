@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/logs"
-	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/telemetry/natsprop"
 	"eve-industry-planner/shared/telemetry/workermetrics"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
@@ -48,9 +47,6 @@ func SetupHandlers(mux *asynq.ServeMux, deps WorkerDependencies) {
 			ctx, span := tracer.Start(ctx, "asynq.task",
 				trace.WithAttributes(attribute.String("asynq.task.type", taskType)),
 			)
-			if attrs := eipnats.AsynqTaskPayloadSpanAttributes(taskType, t.Payload()); len(attrs) > 0 {
-				span.SetAttributes(attrs...)
-			}
 			logs.AttachDebugStepCtx(ctx, "asynq_task_started", map[string]any{
 				"task_type": taskType,
 			})

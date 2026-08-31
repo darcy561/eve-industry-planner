@@ -3,6 +3,7 @@ package firestoreimport
 import (
 	"context"
 	"eve-industry-planner/shared/lifecycle"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/stackservices"
 	"flag"
 	"fmt"
@@ -14,8 +15,6 @@ import (
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/migration/firestoremig"
 	eipmongo "eve-industry-planner/shared/mongo"
-	eipnats "eve-industry-planner/shared/nats"
-	taskscore "eve-industry-planner/shared/tasks"
 
 	"cloud.google.com/go/firestore"
 	"google.golang.org/api/iterator"
@@ -163,7 +162,7 @@ func publishImportUserJobDocumentTasksScanAll(ctx context.Context, skipAuthRecen
 	}
 	defer func() { _ = firebaseadmin.Close(ctx) }()
 
-	taskDef := taskscore.ImportUserJobDocumentsForAccount
+	taskDef := eipnats.ImportUserJobDocumentsForAccount
 	var published, errorsN int
 	iter := fsc.Collection(firestoremig.FirestoreUsersCollection).Documents(ctx)
 	for {
@@ -178,8 +177,7 @@ func publishImportUserJobDocumentTasksScanAll(ctx context.Context, skipAuthRecen
 		if aid == "" {
 			continue
 		}
-		req := newImportUserJobDocumentTaskRequest(aid, skipAuthRecency)
-		if err := eipnats.PublishTask(ctx, clients.NATS, taskDef.Subject, taskDef.Name, req, taskscore.Priority5); err != nil {
+		if err := eipnats.PublishImportUserJobDocumentsForAccount(ctx, clients.NATS, aid, loginRecencyWindow(skipAuthRecency)); err != nil {
 			logs.ErrorCtx(ctx, "import user job documents: publish task", "account_id", aid, "error", err)
 			errorsN++
 			continue
@@ -190,21 +188,22 @@ func publishImportUserJobDocumentTasksScanAll(ctx context.Context, skipAuthRecen
 		return fmt.Errorf("enqueue had %d publication error(s); published=%d", errorsN, published)
 	}
 	if skipAuthRecency {
-		fmt.Printf("Enqueued %d importUserJobDocumentsForAccount task(s) on %q (queue %q) with login recency disabled per task\n", published, taskDef.Subject, taskscore.Priority5)
+		fmt.Printf("Enqueued %d importUserJobDocumentsForAccount task(s) on %q (queue %q) with login recency disabled per task\n", published, taskDef.Subject, eipnats.Priority5)
 	} else {
-		fmt.Printf("Enqueued %d importUserJobDocumentsForAccount task(s) on %q (queue %q) (login recency in worker, default window %v)\n", published, taskDef.Subject, taskscore.Priority5, firebaseadmin.DefaultRecencyForActiveAccounts)
+		fmt.Printf("Enqueued %d importUserJobDocumentsForAccount task(s) on %q (queue %q) (login recency in worker, default window %v)\n", published, taskDef.Subject, eipnats.Priority5, firebaseadmin.DefaultRecencyForActiveAccounts)
 	}
 	return nil
 }
 
 // newImportUserJobDocumentTaskRequest builds the worker payload. skipAuthRecency means LoginRecencyMaxAgeSeconds = -1.
 // Otherwise 0/omitted so the worker applies DefaultRecencyForActiveAccounts.
-func newImportUserJobDocumentTaskRequest(accountID string, skipAuthRecency bool) eipnats.ImportUserJobDocumentsForAccountRequest {
-	req := eipnats.ImportUserJobDocumentsForAccountRequest{AccountID: accountID}
+// loginRecencyWindow is the recency argument for an import: -1 skips the Auth
+// check, 0 applies the server default.
+func loginRecencyWindow(skipAuthRecency bool) int64 {
 	if skipAuthRecency {
-		req.LoginRecencyMaxAgeSeconds = -1
+		return -1
 	}
-	return req
+	return 0
 }
 
 func publishImportUserJobDocumentTaskSingle(ctx context.Context, accountID string) error {
@@ -230,12 +229,11 @@ func publishImportUserJobDocumentTaskSingle(ctx context.Context, accountID strin
 		return fmt.Errorf("firestore %s/%s does not exist", firestoremig.FirestoreUsersCollection, accountID)
 	}
 
-	taskDef := taskscore.ImportUserJobDocumentsForAccount
-	req := newImportUserJobDocumentTaskRequest(accountID, true)
-	if err := eipnats.PublishTask(ctx, clients.NATS, taskDef.Subject, taskDef.Name, req, taskscore.Priority5); err != nil {
+	taskDef := eipnats.ImportUserJobDocumentsForAccount
+	if err := eipnats.PublishImportUserJobDocumentsForAccount(ctx, clients.NATS, accountID, loginRecencyWindow(true)); err != nil {
 		return err
 	}
-	fmt.Printf("Enqueued 1 importUserJobDocumentsForAccount task for account %q on %q (queue %q)\n", accountID, taskDef.Subject, taskscore.Priority5)
+	fmt.Printf("Enqueued 1 importUserJobDocumentsForAccount task for account %q on %q (queue %q)\n", accountID, taskDef.Subject, eipnats.Priority5)
 	return nil
 }
 
