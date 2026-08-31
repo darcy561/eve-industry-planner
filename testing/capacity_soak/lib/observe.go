@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 
 	"github.com/moby/moby/api/types/swarm"
 	"github.com/moby/moby/client"
@@ -120,8 +120,8 @@ func (o *Observer) clientCensus(ctx context.Context, role string) (ClientCensus,
 	}
 	defer func() { _ = sub.Unsubscribe() }()
 
-	payload, _ := json.Marshal(natscore.HealthPing{})
-	if err := o.NATS.PublishRequest(natscore.SubjectHealthCommandPing, inbox, payload); err != nil {
+	payload, _ := json.Marshal(eipnats.HealthPing{})
+	if err := o.NATS.PublishRequest(eipnats.SubjectHealthCommandPing, inbox, payload); err != nil {
 		return out, err
 	}
 
@@ -174,8 +174,8 @@ func countHealth(ctx context.Context, nc *natslib.Conn, role string) (int, error
 	}
 	defer func() { _ = sub.Unsubscribe() }()
 
-	payload, _ := json.Marshal(natscore.HealthPing{})
-	if err := nc.PublishRequest(natscore.SubjectHealthCommandPing, inbox, payload); err != nil {
+	payload, _ := json.Marshal(eipnats.HealthPing{})
+	if err := nc.PublishRequest(eipnats.SubjectHealthCommandPing, inbox, payload); err != nil {
 		return 0, err
 	}
 
@@ -202,10 +202,10 @@ func countHealth(ctx context.Context, nc *natslib.Conn, role string) (int, error
 	return n, nil
 }
 
-func decodeHealth(data []byte) (natscore.HealthStatus, bool) {
-	var env natscore.Message
+func decodeHealth(data []byte) (eipnats.HealthStatus, bool) {
+	var env eipnats.Message
 	if err := json.Unmarshal(data, &env); err == nil && env.Type != "" {
-		var st natscore.HealthStatus
+		var st eipnats.HealthStatus
 		if len(env.Data) == 0 {
 			return st, false
 		}
@@ -214,7 +214,7 @@ func decodeHealth(data []byte) (natscore.HealthStatus, bool) {
 		}
 		return st, true
 	}
-	var st natscore.HealthStatus
+	var st eipnats.HealthStatus
 	if err := json.Unmarshal(data, &st); err != nil {
 		return st, false
 	}

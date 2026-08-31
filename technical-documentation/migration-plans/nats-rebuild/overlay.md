@@ -99,6 +99,20 @@ whose context already carries a deadline now keeps it.
 `ErrorMessage`, and three of the four `TaskName*` labels. `ScheduleRequest` and `MessageTypeSchedule`
 remain until Stage E retires the path that decodes them.
 
+### Shared test fixture
+
+`testing/natsfake` starts an in-process NATS server with JetStream enabled and returns the product
+handle bound to it, tearing both down with the test. It replaces the embedded-server setup that
+`shared/nats` and `websocket/server` each carried their own copy of.
+
+`shared/nats`'s live test moved to an external `nats_test` package, because the fixture imports the
+package under test and an in-package test cannot import it back.
+
+A `jetstream.Msg` fake for ack and nak assertions stays in `shared/nats` — one package uses it, so it
+is not shared code.
+
+Owed at promote: a `testing/natsfake` row in the shared harness coverage map.
+
 ## Stage B — streams and consumers as specs
 
 _Not landed._

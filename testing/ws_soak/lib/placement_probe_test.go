@@ -3,7 +3,7 @@ package soaklib
 import (
 	"testing"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 
 	natslib "github.com/nats-io/nats.go"
 )
@@ -22,7 +22,7 @@ func TestPlacementWatcherSoftFull(t *testing.T) {
 		t.Fatalf("full %#v", full)
 	}
 	// Clear soft on update.
-	w.applyState(natscore.PlacementState{ContainerID: "aaa111111111", Clients: 1, Soft: false})
+	w.applyState(eipnats.PlacementState{ContainerID: "aaa111111111", Clients: 1, Soft: false})
 	if len(w.softIDs()) != 1 || w.softIDs()[0] != "bbb222222222" {
 		t.Fatalf("soft after clear %#v", w.softIDs())
 	}

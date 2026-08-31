@@ -6,33 +6,29 @@ import (
 	"fmt"
 	"strings"
 
-	natscore "eve-industry-planner/shared/core/nats"
-
-	natslib "github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
+	eipnats "eve-industry-planner/shared/nats"
 )
 
 const soakFanoutCollection = "soakFanout"
 
 type jetStreamPublisher struct {
-	nc *natslib.Conn
-	js jetstream.JetStream
+	nats *eipnats.NATS
 }
 
 func newJetStreamPublisher() (Publisher, error) {
-	nc, js, err := natscore.ConnectJetStream()
+	handle, err := eipnats.Open(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("jetstream connect: %w", err)
 	}
-	if err := natscore.EnsureDocUpdateStream(js); err != nil {
-		nc.Close()
+	if err := eipnats.EnsureDocUpdateStream(handle.JS()); err != nil {
+		handle.Close()
 		return nil, fmt.Errorf("ensure doc-update stream: %w", err)
 	}
-	return &jetStreamPublisher{nc: nc, js: js}, nil
+	return &jetStreamPublisher{nats: handle}, nil
 }
 
 func (p *jetStreamPublisher) Publish(ctx context.Context, msg DocUpdate) error {
-	if p == nil || p.js == nil {
+	if p == nil || p.nats == nil {
 		return fmt.Errorf("jetstream publisher closed")
 	}
 	tenant := strings.TrimSpace(msg.TenantString)
@@ -44,7 +40,7 @@ func (p *jetStreamPublisher) Publish(ctx context.Context, msg DocUpdate) error {
 	if tenant == "" || docID == "" {
 		return fmt.Errorf("jetstream publish: tenant and docID required")
 	}
-	subject := natscore.DocUpdateSubject(tenant, coll, docID)
+	subject := eipnats.DocUpdateSubject(tenant, coll, docID)
 	if subject == "" {
 		return fmt.Errorf("jetstream publish: empty subject")
 	}
@@ -56,7 +52,7 @@ func (p *jetStreamPublisher) Publish(ctx context.Context, msg DocUpdate) error {
 			return err
 		}
 	}
-	return natscore.PublishMessage(ctx, p.js, subject, payload, p.nc)
+	return eipnats.PublishMessage(ctx, p.nats, subject, payload)
 }
 
 func marshalFanoutPayload(subject, coll, docID string, msg DocUpdate) ([]byte, error) {
@@ -92,11 +88,11 @@ func (p *jetStreamPublisher) Close() error {
 	if p == nil {
 		return nil
 	}
-	if p.nc != nil {
-		natscore.Cleanup(p.nc)
-		p.nc = nil
+	if p.nats != nil {
+		p.nats.Close()
+		p.nats = nil
 	}
-	p.js = nil
+	p.nats = nil
 	return nil
 }
 

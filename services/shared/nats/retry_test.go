@@ -158,3 +158,10 @@ func (m *fakeMsg) NakWithDelay(time.Duration) error { m.naks++; return nil }
 func (m *fakeMsg) Metadata() (*jetstream.MsgMetadata, error) {
 	return &jetstream.MsgMetadata{NumDelivered: 1}, nil
 }
+
+// FlushWithContext rejects a context with no deadline, so Ping must supply one.
+func TestPing_withoutDeadline(t *testing.T) {
+	if err := (&NATS{}).Ping(context.Background()); err == nil {
+		t.Fatal("Ping on an empty handle should fail")
+	}
+}

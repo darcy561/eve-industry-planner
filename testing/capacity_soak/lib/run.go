@@ -23,7 +23,7 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	cfg.Phase = ph
 
-	nc, err := harness.ConnectNATS()
+	nc, err := harness.ConnectNATS(ctx)
 	if err != nil {
 		return err
 	}

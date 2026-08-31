@@ -12,47 +12,18 @@ import (
 
 	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/stackservices"
+	"eve-industry-planner/testing/natsfake"
 	"eve-industry-planner/websocket/server/identity"
 	"eve-industry-planner/websocket/server/natslogic"
 
-	natsserver "github.com/nats-io/nats-server/v2/server"
-	natslib "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
-
-func startIntegJS(t *testing.T) (jetstream.JetStream, *natslib.Conn, func()) {
-	t.Helper()
-	opts := &natsserver.Options{Host: "127.0.0.1", Port: -1, JetStream: true, StoreDir: t.TempDir()}
-	ns, err := natsserver.NewServer(opts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	go ns.Start()
-	if !ns.ReadyForConnections(5 * time.Second) {
-		t.Fatal("nats not ready")
-	}
-	nc, err := natslib.Connect(ns.ClientURL())
-	if err != nil {
-		ns.Shutdown()
-		t.Fatal(err)
-	}
-	js, err := jetstream.New(nc)
-	if err != nil {
-		nc.Close()
-		ns.Shutdown()
-		t.Fatal(err)
-	}
-	return js, nc, func() {
-		nc.Close()
-		ns.Shutdown()
-	}
-}
 
 func TestIntegrationSelectiveFanoutHostPullsNonHostDoesNot(t *testing.T) {
 	// Stable HOSTNAME for host durable + reconcile (identity.DocLiveUpdatesJetStreamDurable).
 	t.Setenv("HOSTNAME", "websocket-integ-fanout-host")
-	js, nc, cleanup := startIntegJS(t)
-	defer cleanup()
+	fake := natsfake.New(t)
+	js := fake.JS()
 	ctx := context.Background()
 
 	if err := eipnats.EnsureDocUpdateStream(js); err != nil {
@@ -70,7 +41,7 @@ func TestIntegrationSelectiveFanoutHostPullsNonHostDoesNot(t *testing.T) {
 		},
 		corpRefToClients:     make(map[string]map[string]bool),
 		allianceRefToClients: make(map[string]map[string]bool),
-		Stack:                &stackservices.Clients{NATS: mustNATS(t, nc, js)},
+		Stack:                &stackservices.Clients{NATS: fake.NATS},
 		intakeStopChan:       make(chan struct{}),
 		shutdownChan:         make(chan struct{}),
 	}
@@ -186,14 +157,4 @@ func filtersEqual(a, b []string) bool {
 		}
 	}
 	return true
-}
-
-// mustNATS binds a test connection and JetStream context into the shared handle.
-func mustNATS(t *testing.T, nc *natslib.Conn, js jetstream.JetStream) *eipnats.NATS {
-	t.Helper()
-	handle, err := eipnats.NewNATS(nc, js)
-	if err != nil {
-		t.Fatalf("NewNATS: %v", err)
-	}
-	return handle
 }

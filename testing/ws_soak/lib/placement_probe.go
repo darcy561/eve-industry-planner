@@ -1,12 +1,13 @@
 package soaklib
 
 import (
+	"context"
 	"log"
 	"sort"
 	"strings"
 	"sync"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/testing/harness"
 
 	natslib "github.com/nats-io/nats.go"
@@ -15,18 +16,18 @@ import (
 // placementWatcher tracks latest PlacementState per container from NATS.
 type placementWatcher struct {
 	mu   sync.RWMutex
-	byID map[string]natscore.PlacementState
+	byID map[string]eipnats.PlacementState
 }
 
 func newPlacementWatcher() *placementWatcher {
-	return &placementWatcher{byID: map[string]natscore.PlacementState{}}
+	return &placementWatcher{byID: map[string]eipnats.PlacementState{}}
 }
 
 func (w *placementWatcher) applyMsg(msg *natslib.Msg) {
 	if w == nil || msg == nil {
 		return
 	}
-	state, err := natscore.ParsePlacementState(msg.Data)
+	state, err := eipnats.ParsePlacementState(msg.Data)
 	if err != nil {
 		log.Printf("placement nats parse: %v", err)
 		return
@@ -34,7 +35,7 @@ func (w *placementWatcher) applyMsg(msg *natslib.Msg) {
 	w.applyState(state)
 }
 
-func (w *placementWatcher) applyState(state natscore.PlacementState) {
+func (w *placementWatcher) applyState(state eipnats.PlacementState) {
 	id := strings.TrimSpace(state.ContainerID)
 	if w == nil || id == "" {
 		return
@@ -45,14 +46,14 @@ func (w *placementWatcher) applyState(state natscore.PlacementState) {
 }
 
 func (w *placementWatcher) softIDs() []string {
-	return w.idsWhere(func(s natscore.PlacementState) bool { return s.Soft })
+	return w.idsWhere(func(s eipnats.PlacementState) bool { return s.Soft })
 }
 
 func (w *placementWatcher) fullIDs() []string {
-	return w.idsWhere(func(s natscore.PlacementState) bool { return s.Full })
+	return w.idsWhere(func(s eipnats.PlacementState) bool { return s.Full })
 }
 
-func (w *placementWatcher) idsWhere(match func(natscore.PlacementState) bool) []string {
+func (w *placementWatcher) idsWhere(match func(eipnats.PlacementState) bool) []string {
 	if w == nil {
 		return nil
 	}
@@ -69,7 +70,7 @@ func (w *placementWatcher) idsWhere(match func(natscore.PlacementState) bool) []
 }
 
 func connectNATS() (*natslib.Conn, error) {
-	return harness.ConnectNATS()
+	return harness.ConnectNATS(context.Background())
 }
 
 func startPlacementWatch(nc *natslib.Conn) (*placementWatcher, error) {
@@ -77,7 +78,7 @@ func startPlacementWatch(nc *natslib.Conn) (*placementWatcher, error) {
 	if nc == nil {
 		return w, nil
 	}
-	if _, err := nc.Subscribe(natscore.SubjectWSPlacementState, w.applyMsg); err != nil {
+	if _, err := nc.Subscribe(eipnats.SubjectWSPlacementState, w.applyMsg); err != nil {
 		return nil, err
 	}
 	return w, nil
