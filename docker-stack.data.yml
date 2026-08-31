@@ -27,7 +27,7 @@ x-data-deploy: &data-deploy
 
 services:
   nats:
-    image: nats:2
+    image: nats:2.14.6
     command: ["-js", "-sd", "/data", "-m", "8222"]
     networks:
       eip-core:

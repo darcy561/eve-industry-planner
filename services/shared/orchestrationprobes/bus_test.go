@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 )
 
 func TestParseHealthPingRole(t *testing.T) {
@@ -17,8 +17,8 @@ func TestParseHealthPingRole(t *testing.T) {
 	if !ok || role != "api" {
 		t.Fatalf("raw: role=%q ok=%v", role, ok)
 	}
-	env, err := json.Marshal(natscore.Message{
-		Type: natscore.MessageTypeHealth,
+	env, err := json.Marshal(eipnats.Message{
+		Type: eipnats.MessageTypeHealth,
 		Data: []byte(`{"role":"worker"}`),
 	})
 	if err != nil {

@@ -42,7 +42,7 @@ func HandleViewerArrivedIngress(ctx context.Context, d Deps, accountID, sessionI
 	}
 
 	if added {
-		_ = PublishLockEvent(ctx, d.JetStream, accountID, map[string]any{
+		_ = PublishLockEvent(ctx, d.NATS, accountID, map[string]any{
 			LockPayloadEventKey: LockViewerEventJoined,
 			"collection":        collection,
 			"docID":             docID,
@@ -76,7 +76,7 @@ func HandleViewerDepartedIngress(ctx context.Context, d Deps, accountID, session
 	}
 
 	if removed && !suppressViewerLeftFanout {
-		_ = PublishLockEvent(ctx, d.JetStream, accountID, map[string]any{
+		_ = PublishLockEvent(ctx, d.NATS, accountID, map[string]any{
 			LockPayloadEventKey: LockViewerEventLeft,
 			"collection":        collection,
 			"docID":             docID,

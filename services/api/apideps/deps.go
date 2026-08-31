@@ -7,19 +7,17 @@ import (
 	"eve-industry-planner/shared/core/documentlock"
 	"eve-industry-planner/shared/crypto/entityid"
 	eipmongo "eve-industry-planner/shared/mongo"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/stackservices"
 
-	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
 	"github.com/redis/go-redis/v9"
 )
 
 // Deps is this API process’s data-plane handles (not a browser/SPA client).
 type Deps struct {
-	Mongo     *eipmongo.Mongo
-	Redis     *redis.Client
-	NATS      *nats.Conn
-	JetStream jetstream.JetStream
+	Mongo *eipmongo.Mongo
+	Redis *redis.Client
+	NATS  *eipnats.NATS
 	// EntityCipher derives the refs that replace raw entity ids. Nil in mongo-only
 	// wiring, so handlers that write documents carrying ids must check it.
 	EntityCipher *entityid.Cipher
@@ -35,7 +33,6 @@ func FromClients(c *stackservices.Clients, refs *entityid.Cipher) *Deps {
 		Mongo:        c.Mongo,
 		Redis:        c.Redis,
 		NATS:         c.NATS,
-		JetStream:    c.JetStream,
 		EntityCipher: refs,
 	}
 }
@@ -49,5 +46,5 @@ func (d *Deps) LockDeps() documentlock.Deps {
 	if d == nil {
 		return documentlock.Deps{}
 	}
-	return documentlock.Deps{Mongo: d.Mongo, Redis: d.Redis, JetStream: d.JetStream}
+	return documentlock.Deps{Mongo: d.Mongo, Redis: d.Redis, NATS: d.NATS}
 }

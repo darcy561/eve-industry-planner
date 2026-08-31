@@ -9,8 +9,8 @@ import (
 
 	"eve-industry-planner/api/helper/sdecache"
 	"eve-industry-planner/shared/container"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/lifecycle"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/orchestrationprobes"
 	"eve-industry-planner/shared/telemetry"
 	"eve-industry-planner/shared/telemetry/apimetrics"
@@ -87,10 +87,10 @@ func (a *app) startProbes(ctx context.Context) error {
 	bus, err := orchestrationprobes.StartBus(ctx, orchestrationprobes.BusOptions{
 		Role:       "api",
 		InstanceID: container.ID(),
-		Conn:       a.clients.NATS,
+		Conn:       a.clients.NATS.Conn(),
 		Ready:      ready,
 		Enabled:    true,
-		Fill: func(st *natscore.HealthStatus) {
+		Fill: func(st *eipnats.HealthStatus) {
 			if st != nil {
 				st.AppVersion = os.Getenv("APP_VERSION")
 			}

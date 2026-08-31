@@ -8,9 +8,8 @@ import (
 
 	"eve-industry-planner/shared/core/documentlock"
 	rediscore "eve-industry-planner/shared/core/redis"
+	eipnats "eve-industry-planner/shared/nats"
 
-	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
@@ -30,7 +29,7 @@ func IsUnavailable(err error) bool {
 	if isMongoUnavailable(err) {
 		return true
 	}
-	if isNATSUnavailable(err) {
+	if eipnats.IsRetryable(err) {
 		return true
 	}
 	if errors.Is(err, documentlock.ErrLocksUnavailable) {
@@ -62,27 +61,12 @@ func isMongoUnavailable(err error) bool {
 	return false
 }
 
-func isNATSUnavailable(err error) bool {
-	if errors.Is(err, nats.ErrConnectionClosed) ||
-		errors.Is(err, nats.ErrNoServers) ||
-		errors.Is(err, nats.ErrDisconnected) ||
-		errors.Is(err, nats.ErrTimeout) ||
-		errors.Is(err, jetstream.ErrConnectionClosed) ||
-		errors.Is(err, jetstream.ErrServerShutdown) {
-		return true
-	}
-	return false
-}
-
 func hasInfrastructureMessage(msg string) bool {
 	msg = strings.ToLower(msg)
 	if msg == "" {
 		return false
 	}
 	if strings.Contains(msg, "mongo client") && strings.Contains(msg, "nil") {
-		return true
-	}
-	if strings.Contains(msg, "nats connection is not connected") {
 		return true
 	}
 	if strings.Contains(msg, "locks unavailable") {
@@ -98,19 +82,13 @@ func isNetworkMessage(msg string) bool {
 		strings.Contains(msg, "connection reset") ||
 		strings.Contains(msg, "i/o timeout") ||
 		strings.Contains(msg, "server selection error") ||
-		strings.Contains(msg, "no response from stream") ||
-		strings.Contains(msg, "connection closed") ||
-		strings.Contains(msg, "connection drained") ||
-		strings.Contains(msg, "invalid connection") ||
-		strings.Contains(msg, "connection reconnecting") ||
-		strings.Contains(msg, "no responders")
+		strings.Contains(msg, "connection closed")
 }
 
 func isNetInfrastructure(err error) bool {
-	var netErr net.Error
-	if errors.As(err, &netErr) {
+	if _, ok := errors.AsType[net.Error](err); ok {
 		return true
 	}
-	var opErr *net.OpError
-	return errors.As(err, &opErr)
+	_, ok := errors.AsType[*net.OpError](err)
+	return ok
 }

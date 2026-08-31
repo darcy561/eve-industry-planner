@@ -6,16 +6,16 @@ import (
 	"fmt"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 
 	natslib "github.com/nats-io/nats.go"
 )
 
 // StatusFill enriches a HealthStatus after ready/healthy are set (role-specific census fields).
 // Callers must not mutate Role / InstanceID / Healthy / Ready / Error / TimeUnixMs except via fill needs.
-type StatusFill func(status *natscore.HealthStatus)
+type StatusFill func(status *eipnats.HealthStatus)
 
 // BusOptions configures the gated health census responder (controller poll / scatter-gather).
 // Enabled defaults to false — no subscription until a controller path flips it on.
@@ -44,14 +44,14 @@ func StartBus(ctx context.Context, opts BusOptions) (lifecycle.Runner, error) {
 		return nil, fmt.Errorf("orchestrationprobes: Bus InstanceID required when Enabled")
 	}
 
-	sub, err := opts.Conn.Subscribe(natscore.SubjectHealthCommandPing, func(msg *natslib.Msg) {
+	sub, err := opts.Conn.Subscribe(eipnats.SubjectHealthCommandPing, func(msg *natslib.Msg) {
 		handleHealthPing(opts, msg)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("orchestrationprobes: subscribe %s: %w", natscore.SubjectHealthCommandPing, err)
+		return nil, fmt.Errorf("orchestrationprobes: subscribe %s: %w", eipnats.SubjectHealthCommandPing, err)
 	}
 	logs.InfoCtx(ctx, "orchestration probes NATS health bus enabled",
-		"subject", natscore.SubjectHealthCommandPing,
+		"subject", eipnats.SubjectHealthCommandPing,
 		"role", opts.Role,
 		"instance_id", opts.InstanceID,
 	)
@@ -72,7 +72,7 @@ func handleHealthPing(opts BusOptions, msg *natslib.Msg) {
 		return
 	}
 
-	status := natscore.HealthStatus{
+	status := eipnats.HealthStatus{
 		Role:       opts.Role,
 		InstanceID: opts.InstanceID,
 		Healthy:    true,
@@ -96,7 +96,7 @@ func handleHealthPing(opts BusOptions, msg *natslib.Msg) {
 		opts.Fill(&status)
 	}
 
-	if err := natscore.RespondEnvelope(msg, natscore.MessageTypeHealth, status); err != nil {
+	if err := eipnats.RespondEnvelope(msg, eipnats.MessageTypeHealth, status); err != nil {
 		logs.WarnCtx(context.Background(), "orchestration probes health Respond failed",
 			"error", err,
 			"role", opts.Role,
@@ -111,18 +111,18 @@ func parseHealthPingRole(data []byte) (string, bool) {
 	if len(data) == 0 {
 		return "", true
 	}
-	var env natscore.Message
+	var env eipnats.Message
 	if err := json.Unmarshal(data, &env); err == nil && env.Type != "" {
 		if len(env.Data) == 0 {
 			return "", true
 		}
-		var ping natscore.HealthPing
+		var ping eipnats.HealthPing
 		if err := json.Unmarshal(env.Data, &ping); err != nil {
 			return "", true
 		}
 		return ping.Role, true
 	}
-	var ping natscore.HealthPing
+	var ping eipnats.HealthPing
 	if err := json.Unmarshal(data, &ping); err != nil {
 		return "", true
 	}

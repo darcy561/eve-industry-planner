@@ -11,9 +11,9 @@ import (
 	"eve-industry-planner/api/helper/auth"
 	user "eve-industry-planner/api/v1endpoints/user"
 	"eve-industry-planner/shared/core/config"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
+	eipnats "eve-industry-planner/shared/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
@@ -31,8 +31,7 @@ func (a *Handlers) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	sessionMetrics := apimetrics.GetAPIAuthSessionLifecycle()
 	mongo := a.Mongo
 	rdb := a.Redis
-	js := a.JetStream
-	nc := a.NATS
+	natsHandle := a.NATS
 	h := user.New(a.Deps)
 	cfg, err := config.LoadCloudStoredESI()
 	if err != nil {
@@ -210,7 +209,7 @@ func (a *Handlers) AuthHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	user.StripRefreshTokensFromUserDocumentForClient(&userOut)
-	if js != nil && len(linkedCharacters) > 0 {
+	if natsHandle != nil && len(linkedCharacters) > 0 {
 		tokens := make([]string, 0, len(linkedCharacters)+1)
 		tokens = append(tokens, tokenString)
 		for _, linked := range linkedCharacters {
@@ -218,11 +217,11 @@ func (a *Handlers) AuthHandler(w http.ResponseWriter, r *http.Request) {
 				tokens = append(tokens, strings.TrimSpace(linked.AccessToken))
 			}
 		}
-		taskRequest := natscore.AccountSessionGrantsRequest{
+		taskRequest := eipnats.AccountSessionGrantsRequest{
 			AccountID: accountID,
 			Tokens:    tokens,
 		}
-		if err := natscore.PublishTask(ctx, js, taskscore.UpdateAccountSessionGrants.Subject, taskscore.UpdateAccountSessionGrants.Name, taskRequest, nc); err != nil {
+		if err := eipnats.PublishTask(ctx, natsHandle, taskscore.UpdateAccountSessionGrants.Subject, taskscore.UpdateAccountSessionGrants.Name, taskRequest); err != nil {
 			logs.AttachHandlerCaveat(r, "account_grants_publish_failed", "failed to publish account access grants refresh task on login", map[string]any{
 				"error": err.Error(),
 			})

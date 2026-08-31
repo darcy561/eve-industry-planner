@@ -1,6 +1,6 @@
 # WS placement router (`eip_ws_router`)
 
-Live SoT for the **ws-router** service: in-memory tenant→backend placement and reverse-proxy of `/ws` upgrades to `eip_websocket` tasks. Code: [`services/ws-router`](../../../services/ws-router/). Cookie + `/placement` path: [`shared/wsplacement`](../../../services/shared/wsplacement/). NATS subject/payload: [`shared/core/nats`](../../../services/shared/core/nats/) (`SubjectWSPlacementState`, `PlacementState`). Soft/full/draining writers → [websocket.md](../websocket/websocket.md). Swarm edge PathPrefix → [traefik.md](../../stack/traefik.md); networks → [network.md](../../stack/network.md).
+Live SoT for the **ws-router** service: in-memory tenant→backend placement and reverse-proxy of `/ws` upgrades to `eip_websocket` tasks. Code: [`services/ws-router`](../../../services/ws-router/). Cookie + `/placement` path: [`shared/wsplacement`](../../../services/shared/wsplacement/). NATS subject/payload: [`shared/nats`](../../../services/shared/nats/) (`SubjectWSPlacementState`, `PlacementState`). Soft/full/draining writers → [websocket.md](../websocket/websocket.md). Swarm edge PathPrefix → [traefik.md](../../stack/traefik.md); networks → [network.md](../../stack/network.md).
 
 ## Image & defaults
 

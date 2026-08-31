@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	asynqpkg "eve-industry-planner/worker/asynq"
 
 	"github.com/hibiken/asynq"
@@ -37,10 +37,10 @@ func processMessage(
 	subject string,
 	client *asynq.Client,
 ) {
-	var envelope natscore.Message
+	var envelope eipnats.Message
 	_ = json.Unmarshal(msg.Data(), &envelope)
 
-	ctx, endSpan := natscore.BeginConsumerContext(
+	ctx, endSpan := eipnats.BeginConsumerContext(
 		context.Background(),
 		workerNatsTracerName,
 		"nats.enqueue_task",
@@ -52,12 +52,12 @@ func processMessage(
 	// Determine task type from subject
 	taskType := getTaskTypeFromSubject(subject)
 	if taskType == "" {
-		deliveryCount, _ := natscore.GetMessageMetadata(msg)
-		natscore.FinishNATSConsumerOperation(ctx, "warn", "nats task rejected", map[string]any{
+		deliveryCount, _ := eipnats.GetMessageMetadata(msg)
+		eipnats.FinishNATSConsumerOperation(ctx, "warn", "nats task rejected", map[string]any{
 			"subject": subject,
 			"reason":  "unknown task type",
 		})
-		natscore.AcknowledgeMessage(msg, "unknown task type", deliveryCount)
+		eipnats.AcknowledgeMessage(ctx, msg, "unknown task type", deliveryCount)
 		return
 	}
 
@@ -66,21 +66,21 @@ func processMessage(
 	err := asynqpkg.Enqueue(msg, client, taskType, subject)
 	if err != nil {
 		logs.ErrorCtx(ctx, "failed to enqueue task to asynq", "subject", subject, "error", err)
-		natscore.FinishNATSConsumerOperation(ctx, "warn", "nats task enqueue failed", map[string]any{
+		eipnats.FinishNATSConsumerOperation(ctx, "warn", "nats task enqueue failed", map[string]any{
 			"subject":   subject,
 			"task_type": taskType,
 			"error":     err.Error(),
 		})
 		// Nack the message so it can be retried
-		natscore.NackMessage(msg)
+		eipnats.NackMessage(ctx, msg)
 		return
 	}
 
 	// Acknowledge NATS message immediately after successful enqueue
 	// Message is now safely in asynq queue with retention, won't expire
-	deliveryCount, _ := natscore.GetMessageMetadata(msg)
-	natscore.AcknowledgeMessage(msg, "enqueued to asynq", deliveryCount)
-	natscore.FinishNATSConsumerOperation(ctx, "debug", "nats task enqueued", map[string]any{
+	deliveryCount, _ := eipnats.GetMessageMetadata(msg)
+	eipnats.AcknowledgeMessage(ctx, msg, "enqueued to asynq", deliveryCount)
+	eipnats.FinishNATSConsumerOperation(ctx, "debug", "nats task enqueued", map[string]any{
 		"subject":   subject,
 		"task_type": taskType,
 	})
@@ -90,10 +90,10 @@ func processMessage(
 // Any subject starting with the task prefix (task.) uses the last segment as the task type.
 // Example: task.scheduled.refreshSystemIndexes -> refreshSystemIndexes, task.migration.migrateUserDocumentToMongo -> migrateUserDocumentToMongo
 func getTaskTypeFromSubject(subject string) string {
-	if !strings.HasPrefix(subject, natscore.TaskSubjectPrefix) {
+	if !strings.HasPrefix(subject, eipnats.TaskSubjectPrefix) {
 		return ""
 	}
-	after := strings.TrimPrefix(subject, natscore.TaskSubjectPrefix)
+	after := strings.TrimPrefix(subject, eipnats.TaskSubjectPrefix)
 	if after == "" {
 		return ""
 	}
@@ -204,25 +204,25 @@ func processBatchInParallel(
 func SubscribeScheduledTasks(deps *WorkerDependencies) (func(context.Context), error) {
 	ctx := context.Background()
 
-	stream, err := natscore.GetOrEnsureStream(ctx, deps.JetStream, natscore.EnsureWorkerTaskStream, natscore.WorkerTaskStream)
+	stream, err := eipnats.GetOrEnsureStream(ctx, deps.NATS.JS(), eipnats.EnsureWorkerTaskStream, eipnats.WorkerTaskStream)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get or ensure stream: %w", err)
 	}
 
-	if _, err := natscore.ReconcileStreamConsumers(ctx, stream, natscore.WorkerTaskKeepPolicy()); err != nil {
+	if _, err := eipnats.ReconcileStreamConsumers(ctx, stream, eipnats.WorkerTaskKeepPolicy()); err != nil {
 		logs.WarnCtx(ctx, "worker task stream consumer reconcile failed", "error", err)
 	}
 
 	consumerConfig := jetstream.ConsumerConfig{
-		Durable:       natscore.ConsumerTaskWorker,
-		FilterSubject: natscore.WorkerTaskStreamSubjects[0], // "task.>"
+		Durable:       eipnats.ConsumerTaskWorker,
+		FilterSubject: eipnats.WorkerTaskStreamSubjects[0], // "task.>"
 		DeliverPolicy: jetstream.DeliverLastPolicy,
 		AckPolicy:     jetstream.AckExplicitPolicy,
 		AckWait:       30 * time.Second,
 		MaxDeliver:    5,
 	}
 
-	consumer, err := natscore.GetOrCreateConsumer(ctx, stream, consumerConfig)
+	consumer, err := eipnats.GetOrCreateConsumer(ctx, stream, consumerConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task consumer: %w", err)
 	}
@@ -232,9 +232,9 @@ func SubscribeScheduledTasks(deps *WorkerDependencies) (func(context.Context), e
 	}
 
 	stopChan := make(chan struct{})
-	startMessageLoop(consumer, processor, stopChan, natscore.WorkerTaskStreamSubjects[0], ctx)
+	startMessageLoop(consumer, processor, stopChan, eipnats.WorkerTaskStreamSubjects[0], ctx)
 
-	logs.DebugCtx(ctx, "subscribed to task stream", "subject", natscore.WorkerTaskStreamSubjects[0], "consumer", natscore.ConsumerTaskWorker, "type", "pull")
+	logs.DebugCtx(ctx, "subscribed to task stream", "subject", eipnats.WorkerTaskStreamSubjects[0], "consumer", eipnats.ConsumerTaskWorker, "type", "pull")
 
 	return func(ctx context.Context) {
 		close(stopChan)

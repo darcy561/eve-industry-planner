@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/archiveimport"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	eipmongo "eve-industry-planner/shared/mongo"
+	eipnats "eve-industry-planner/shared/nats"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
@@ -31,7 +31,7 @@ func ImportArchivedJobToMongo(ctx context.Context, task *asynq.Task, deps *esita
 		return fmt.Errorf("mongo client is required")
 	}
 
-	req, err := esitasks.UnmarshalTaskPayload[natscore.ImportArchivedJobToMongoRequest](task)
+	req, err := esitasks.UnmarshalTaskPayload[eipnats.ImportArchivedJobToMongoRequest](task)
 	if err != nil {
 		logs.ErrorCtx(ctx, "import archived job: invalid task payload",
 			"error", err,

@@ -10,9 +10,9 @@ import (
 	"eve-industry-planner/api/middleware"
 	"eve-industry-planner/shared/container"
 	"eve-industry-planner/shared/core/config"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/lifecycle"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/orchestrationprobes"
 	"eve-industry-planner/shared/telemetry"
 	"eve-industry-planner/shared/wsplacement"
@@ -116,7 +116,7 @@ func (a *app) startProbes(ctx context.Context) error {
 		if err := a.clients.Redis.Ping(c).Err(); err != nil {
 			return fmt.Errorf("redis: %w", err)
 		}
-		if a.clients.NATS == nil || !a.clients.NATS.IsConnected() {
+		if a.clients.NATS == nil || !a.clients.NATS.Connected() {
 			return fmt.Errorf("nats not connected")
 		}
 		if err := a.clients.Mongo.Ping(c); err != nil {
@@ -133,10 +133,10 @@ func (a *app) startProbes(ctx context.Context) error {
 	bus, err := orchestrationprobes.StartBus(ctx, orchestrationprobes.BusOptions{
 		Role:       "websocket",
 		InstanceID: container.ID(),
-		Conn:       a.clients.NATS,
+		Conn:       a.clients.NATS.Conn(),
 		Ready:      ready,
 		Enabled:    true,
-		Fill: func(st *natscore.HealthStatus) {
+		Fill: func(st *eipnats.HealthStatus) {
 			if st == nil {
 				return
 			}
@@ -157,7 +157,7 @@ func (a *app) startProbes(ctx context.Context) error {
 	}
 	a.g.Add(bus)
 
-	cmdBus, err := a.ws.StartWSCommandBus(ctx, a.clients.NATS)
+	cmdBus, err := a.ws.StartWSCommandBus(ctx, a.clients.NATS.Conn())
 	if err != nil {
 		return a.fail(err)
 	}

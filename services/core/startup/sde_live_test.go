@@ -24,7 +24,7 @@ func TestEnsureLiveSDEExists_presentIsNoopWithoutNATS(t *testing.T) {
 	}
 
 	// Live set is complete; should return nil without needing NATS.
-	if err := EnsureLiveSDEExists(ctx, nil, nil); err != nil {
+	if err := EnsureLiveSDEExists(ctx, nil); err != nil {
 		t.Fatalf("expected noop success when live SDE present: %v", err)
 	}
 }
@@ -34,7 +34,7 @@ func TestEnsureLiveSDEExists_missingRequiresNATS(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	err := EnsureLiveSDEExists(ctx, nil, nil)
+	err := EnsureLiveSDEExists(ctx, nil)
 	if err == nil {
 		t.Fatal("expected error when live SDE missing and NATS unavailable")
 	}

@@ -7,9 +7,9 @@ import (
 	"strconv"
 
 	"eve-industry-planner/core/scheduler/contract"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	eipmongo "eve-industry-planner/shared/mongo"
+	eipnats "eve-industry-planner/shared/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 )
 
@@ -35,17 +35,16 @@ func ScheduleSchemaVersionMaintenance(deps contract.Dependencies, sched contract
 			logs.ErrorCtx(ctx, "schema maintenance: failed to resolve next collection", "component", schedulerLogComponent, "error", err)
 			return err
 		}
-		payload := natscore.SchemaVersionMaintenanceBatchRequest{
+		payload := eipnats.SchemaVersionMaintenanceBatchRequest{
 			Collection: collection,
 			BatchSize:  defaultSchemaMaintenanceBatchSize,
 		}
-		if err := natscore.PublishTask(
+		if err := eipnats.PublishTask(
 			ctx,
-			deps.JSContext,
+			deps.NATS,
 			task.Subject,
 			task.Name,
 			payload,
-			deps.NATS,
 			task.DefaultPriority,
 		); err != nil {
 			logs.ErrorCtx(ctx, "schema maintenance: failed to publish task", "component", schedulerLogComponent, "subject", task.Subject, "collection", collection, "error", err)

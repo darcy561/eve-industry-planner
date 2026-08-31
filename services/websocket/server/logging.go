@@ -7,8 +7,8 @@ import (
 	"time"
 
 	apihelperauth "eve-industry-planner/api/helper/auth"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 
 	"go.uber.org/zap"
 )
@@ -290,7 +290,7 @@ func finishReplicaFanoutOperation(ctx context.Context, msg, docID, subject strin
 	default:
 		logMsg = msg + " (no recipients on replica)"
 	}
-	natscore.FinishNATSConsumerOperation(ctx, level, logMsg, detail)
+	eipnats.FinishNATSConsumerOperation(ctx, level, logMsg, detail)
 }
 
 func wsLockTargetExtra(client *Client, collection, docID string, extra map[string]any) map[string]any {

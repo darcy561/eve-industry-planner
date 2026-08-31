@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"eve-industry-planner/shared/container"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/wsplacement"
 	"eve-industry-planner/websocket/server/config"
 )
@@ -24,11 +24,11 @@ func (s *Server) placementPub(subject string, data []byte) (ok bool, err error) 
 	if s == nil || s.Stack == nil || s.Stack.NATS == nil {
 		return false, nil
 	}
-	return true, s.Stack.NATS.Publish(subject, data)
+	return true, s.Stack.NATS.Conn().Publish(subject, data)
 }
 
 // currentPlacementState builds PlacementState from live count and config thresholds.
-func (s *Server) currentPlacementState(connected int) natscore.PlacementState {
+func (s *Server) currentPlacementState(connected int) eipnats.PlacementState {
 	return wsplacement.NewPlacementState(
 		container.ID(),
 		connected,
@@ -39,9 +39,9 @@ func (s *Server) currentPlacementState(connected int) natscore.PlacementState {
 }
 
 // CurrentPlacementSnapshot returns placement flags for health census (capacity Observe).
-func (s *Server) CurrentPlacementSnapshot() natscore.PlacementState {
+func (s *Server) CurrentPlacementSnapshot() eipnats.PlacementState {
 	if s == nil {
-		return natscore.PlacementState{}
+		return eipnats.PlacementState{}
 	}
 	return s.currentPlacementState(s.ConnectedCount())
 }
@@ -70,10 +70,10 @@ func (s *Server) publishPlacementState(ctx context.Context, connected int, force
 		logs.WarnCtx(ctx, "placement state marshal failed", "error", err)
 		return
 	}
-	ok, err := s.placementPub(natscore.SubjectWSPlacementState, raw)
+	ok, err := s.placementPub(eipnats.SubjectWSPlacementState, raw)
 	if err != nil {
 		logs.WarnCtx(ctx, "placement state publish failed",
-			"error", err, "subject", natscore.SubjectWSPlacementState,
+			"error", err, "subject", eipnats.SubjectWSPlacementState,
 			"clients", state.Clients, "soft", state.Soft, "full", state.Full, "draining", state.Draining)
 		return
 	}
@@ -85,7 +85,7 @@ func (s *Server) publishPlacementState(ctx context.Context, connected int, force
 	s.hasLastPlacement = true
 	s.placementMu.Unlock()
 	logs.DebugCtx(ctx, "placement state published",
-		"subject", natscore.SubjectWSPlacementState,
+		"subject", eipnats.SubjectWSPlacementState,
 		"clients", state.Clients, "soft", state.Soft, "full", state.Full, "draining", state.Draining)
 }
 

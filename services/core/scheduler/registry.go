@@ -8,13 +8,11 @@ import (
 	"eve-industry-planner/core/scheduler/esi"
 	"eve-industry-planner/core/scheduler/maintenance"
 	"eve-industry-planner/core/scheduler/sde"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 
-	natslib "github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
-	redislib "github.com/redis/go-redis/v9"
 	eipmongo "eve-industry-planner/shared/mongo"
+	redislib "github.com/redis/go-redis/v9"
 )
 
 const schedulerLogComponent = "scheduler"
@@ -45,24 +43,23 @@ func (r *JobRegistry) Register(scheduler SchedulerFunc) {
 }
 
 // Start registers all schedulers
-func (r *JobRegistry) Start(natsConn *natslib.Conn, jsContext jetstream.JetStream, redisClient *redislib.Client, mongoHandle *eipmongo.Mongo) error {
+func (r *JobRegistry) Start(natsHandle *eipnats.NATS, redisClient *redislib.Client, mongoHandle *eipmongo.Mongo) error {
 	// Ensure required JetStream streams exist before starting schedulers
-	if err := natscore.EnsureWorkerTaskStream(jsContext); err != nil {
+	if err := eipnats.EnsureWorkerTaskStream(natsHandle.JS()); err != nil {
 		return err
 	}
 
 	// Create the task scheduler
 	var err error
-	r.schedulerHandler, err = NewTaskScheduler(jsContext, redisClient, natsConn)
+	r.schedulerHandler, err = NewTaskScheduler(natsHandle, redisClient)
 	if err != nil {
 		return err
 	}
 
 	deps := contract.Dependencies{
-		NATS:      natsConn,
-		JSContext: jsContext,
-		Redis:     redisClient,
-		Mongo:     mongoHandle,
+		NATS:  natsHandle,
+		Redis: redisClient,
+		Mongo: mongoHandle,
 	}
 
 	bg := context.Background()
@@ -103,7 +100,7 @@ func (r *JobRegistry) Stop() {
 
 // StartService starts the scheduler service with all registered schedulers.
 // Returns a stop function for graceful shutdown, plus an error if startup fails.
-func StartService(logComponent string, natsConn *natslib.Conn, jsContext jetstream.JetStream, redisClient *redislib.Client, mongoHandle *eipmongo.Mongo) (func(), error) {
+func StartService(logComponent string, natsHandle *eipnats.NATS, redisClient *redislib.Client, mongoHandle *eipmongo.Mongo) (func(), error) {
 	_ = logComponent // legacy parameter; component is embedded in log lines
 	stop := make(chan struct{})
 
@@ -124,7 +121,7 @@ func StartService(logComponent string, natsConn *natslib.Conn, jsContext jetstre
 	// registry.Register(market.ScheduleMarketHistoryRefresh)
 
 	// Start all registered schedulers
-	if err := registry.Start(natsConn, jsContext, redisClient, mongoHandle); err != nil {
+	if err := registry.Start(natsHandle, redisClient, mongoHandle); err != nil {
 		logs.ErrorCtx(context.Background(), "failed to start job registry", "component", schedulerLogComponent, "error", err)
 		registry.Stop()
 		close(stop)

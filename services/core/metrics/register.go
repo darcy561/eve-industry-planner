@@ -8,12 +8,12 @@ import (
 	"eve-industry-planner/core/metrics/esi"
 	"eve-industry-planner/core/metrics/sde"
 	"eve-industry-planner/core/metrics/users"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 
+	eipmongo "eve-industry-planner/shared/mongo"
 	natslib "github.com/nats-io/nats.go"
 	"github.com/redis/go-redis/v9"
-	eipmongo "eve-industry-planner/shared/mongo"
 )
 
 // RegisterAll wires core service metric groups.
@@ -24,8 +24,8 @@ func RegisterAll(rdb *redis.Client, mongoHandle *eipmongo.Mongo, natsConn *natsl
 	sde.Register()
 	appconfig.Register()
 	if natsConn != nil {
-		sub, err := natsConn.Subscribe(natscore.SubjectCoreSDEBuildUpdated, func(msg *natslib.Msg) {
-			var u natscore.SDECurrentBuildUpdate
+		sub, err := natsConn.Subscribe(eipnats.SubjectCoreSDEBuildUpdated, func(msg *natslib.Msg) {
+			var u eipnats.SDECurrentBuildUpdate
 			if unmarshalErr := json.Unmarshal(msg.Data, &u); unmarshalErr != nil {
 				return
 			}

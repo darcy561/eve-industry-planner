@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 
 	"eve-industry-planner/core/scheduler/contract"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 )
 
@@ -18,13 +18,12 @@ const (
 // ScheduleAdjustedPricesRefresh sets up a cron job for adjusted prices refresh (hourly).
 // When the cron fires, this handler runs and publishes to the worker task's NATS subject.
 func ScheduleAdjustedPricesRefresh(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
-	jsContext := deps.JSContext
-	natsConn := deps.NATS
+	natsHandle := deps.NATS
 	task := taskscore.RefreshAdjustedPrices
 	sched.RegisterHandler(cronAdjustedPricesRefresh, func(ctx context.Context, data json.RawMessage) error {
 		publish := func(publishCtx context.Context) error {
 			logs.DebugCtx(publishCtx, "publishing adjusted prices refresh trigger", "component", schedulerLogComponent, "subject", task.Subject)
-			if err := natscore.PublishEmpty(publishCtx, jsContext, task.Subject, natsConn); err != nil {
+			if err := eipnats.PublishEmpty(publishCtx, natsHandle, task.Subject); err != nil {
 				logs.ErrorCtx(publishCtx, "failed to publish adjusted prices refresh trigger", "component", schedulerLogComponent, "subject", task.Subject, "error", err)
 				return err
 			}

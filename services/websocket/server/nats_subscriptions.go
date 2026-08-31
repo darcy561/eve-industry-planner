@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 
 	"eve-industry-planner/shared/container"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/websocket/server/natslogic"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -17,20 +17,20 @@ import (
 // a tenant can pull that tenant's subjects (FilterSubjects from HostedTenants).
 func (s *Server) subscribeToDocUpdates() {
 	ctx := context.Background()
-	if s.Stack == nil || s.Stack.JetStream == nil {
+	if s.Stack == nil || s.Stack.NATS.JS() == nil {
 		logs.WarnCtx(ctx, "JetStream not available, document update subscription disabled")
 		return
 	}
-	if err := natscore.EnsureDocUpdateStream(s.Stack.JetStream); err != nil {
+	if err := eipnats.EnsureDocUpdateStream(s.Stack.NATS.JS()); err != nil {
 		logs.ErrorCtx(ctx, "doc updates: ensure stream", "error", err)
 		return
 	}
 
-	stream, err := natscore.GetOrEnsureStream(
+	stream, err := eipnats.GetOrEnsureStream(
 		ctx,
-		s.Stack.JetStream,
-		natscore.EnsureDocUpdateStream,
-		natscore.DocUpdateStream,
+		s.Stack.NATS.JS(),
+		eipnats.EnsureDocUpdateStream,
+		eipnats.DocUpdateStream,
 	)
 	if err != nil {
 		logs.ErrorCtx(ctx, "doc updates: get stream", "error", err)
@@ -42,7 +42,7 @@ func (s *Server) subscribeToDocUpdates() {
 
 	durable, consumerConfig := natslogic.DocLiveUpdatesConsumerConfig()
 
-	consumer, err := natscore.GetOrCreateConsumer(ctx, stream, consumerConfig)
+	consumer, err := eipnats.GetOrCreateConsumer(ctx, stream, consumerConfig)
 	if err != nil {
 		logs.ErrorCtx(ctx, "doc updates: create consumer", "error", err)
 		return
@@ -54,7 +54,7 @@ func (s *Server) subscribeToDocUpdates() {
 	s.startOutboundDocUpdateShardWorkers()
 
 	processor := func(msg jetstream.Msg) {
-		ctx, endSpan := natscore.BeginConsumerContext(
+		ctx, endSpan := eipnats.BeginConsumerContext(
 			context.Background(),
 			"eve-industry-planner/websocket/nats",
 			"nats.doc_update",
@@ -66,12 +66,12 @@ func (s *Server) subscribeToDocUpdates() {
 		subject := msg.Subject()
 		docID, err := collectionScopedDocIDFromDocUpdate(msg.Data(), subject)
 		if err != nil {
-			natscore.FinishNATSConsumerOperation(ctx, "warn", "doc update rejected", map[string]any{
+			eipnats.FinishNATSConsumerOperation(ctx, "warn", "doc update rejected", map[string]any{
 				"subject": subject,
 				"reason":  "bad subject or payload",
 				"error":   err.Error(),
 			})
-			natscore.AcknowledgeMessage(msg, "bad subject", natscore.GetDeliveryCount(msg))
+			eipnats.AcknowledgeMessage(ctx, msg, "bad subject", eipnats.GetDeliveryCount(msg))
 			return
 		}
 
@@ -85,7 +85,7 @@ func (s *Server) subscribeToDocUpdates() {
 		close(stopChan)
 	}()
 
-	natscore.StartMessageProcessingLoop(
+	eipnats.StartMessageProcessingLoop(
 		consumer,
 		processor,
 		stopChan,
@@ -105,10 +105,10 @@ func collectionScopedDocIDFromDocUpdate(payload []byte, subject string) (string,
 		DocID      string `json:"docID"`
 	}
 	if err := json.Unmarshal(payload, &meta); err == nil {
-		if id := natscore.CollectionScopedDocID(meta.Collection, meta.DocID); id != "" {
+		if id := eipnats.CollectionScopedDocID(meta.Collection, meta.DocID); id != "" {
 			return id, nil
 		}
 	}
 	// Fallback for legacy / non-JSON tests: strip doc.update. prefix only.
-	return natscore.ExtractIDFromSubject(subject, natscore.SubjectDocUpdate)
+	return eipnats.ExtractIDFromSubject(subject, eipnats.SubjectDocUpdate)
 }

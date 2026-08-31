@@ -20,7 +20,7 @@ import (
 	"time"
 
 	apihelperauth "eve-industry-planner/api/helper/auth"
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/orchestrationprobes"
 	"eve-industry-planner/shared/stackservices"
 	"eve-industry-planner/shared/wsplacement"
@@ -378,7 +378,7 @@ func (f *integFixture) syncPlacementHints() {
 	f.Server.syncPlacementFlags(context.Background(), n)
 }
 
-func (f *integFixture) placementStatus() natscore.PlacementState {
+func (f *integFixture) placementStatus() eipnats.PlacementState {
 	f.t.Helper()
 	res, err := http.Get(f.HTTP.URL + wsplacement.StatusPath)
 	if err != nil {
@@ -388,7 +388,7 @@ func (f *integFixture) placementStatus() natscore.PlacementState {
 	if res.StatusCode != http.StatusOK {
 		f.t.Fatalf("placement status=%d", res.StatusCode)
 	}
-	var st natscore.PlacementState
+	var st eipnats.PlacementState
 	if err := json.NewDecoder(res.Body).Decode(&st); err != nil {
 		f.t.Fatalf("decode placement: %v", err)
 	}

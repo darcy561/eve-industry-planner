@@ -3,8 +3,8 @@ package server
 import (
 	"context"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/websocket/server/identity"
 	"eve-industry-planner/websocket/server/natslogic"
 )
@@ -15,27 +15,27 @@ import (
 // Call after subscriptions start so this replica has waiting pulls.
 func (s *Server) reconcileDocUpdateFanoutConsumers() {
 	ctx := context.Background()
-	if s.Stack == nil || s.Stack.JetStream == nil {
+	if s.Stack == nil || s.Stack.NATS.JS() == nil {
 		return
 	}
 
-	stream, err := natscore.GetOrEnsureStream(
+	stream, err := eipnats.GetOrEnsureStream(
 		ctx,
-		s.Stack.JetStream,
-		natscore.EnsureDocUpdateStream,
-		natscore.DocUpdateStream,
+		s.Stack.NATS.JS(),
+		eipnats.EnsureDocUpdateStream,
+		eipnats.DocUpdateStream,
 	)
 	if err != nil {
 		logs.WarnCtx(ctx, "doc fan-out reconcile: get stream", "error", err)
 		return
 	}
 
-	policy := natscore.DocUpdateFanoutKeepPolicy(
+	policy := eipnats.DocUpdateFanoutKeepPolicy(
 		natslogic.DocFanoutConsumerInactiveThreshold,
 		identity.DocLiveUpdatesJetStreamDurable(),
 		identity.DocLockJetStreamDurable(),
 	)
-	if _, err := natscore.ReconcileStreamConsumers(ctx, stream, policy); err != nil {
+	if _, err := eipnats.ReconcileStreamConsumers(ctx, stream, policy); err != nil {
 		logs.WarnCtx(ctx, "doc fan-out reconcile failed", "error", err)
 	}
 }

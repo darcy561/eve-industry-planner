@@ -14,13 +14,12 @@ import (
 
 // Message type constants for the Message.Type field
 const (
-	MessageTypeTask         = "task"         // Task message type
-	MessageTypeSchedule     = "schedule"     // Schedule message type
-	MessageTypeEmpty        = "empty"        // Empty message type
-	MessageTypeSubscription = "subscription" // Legacy envelope type (historic doc.subscribe payloads)
-	MessageTypeHealth       = "health"       // Control-plane health census (core NATS, not JetStream)
-	MessageTypeWSPlacement  = "ws_placement" // Websocket placement load flags (core NATS pub/sub)
-	MessageTypeWSCommand    = "ws_command"   // Planned cordon/drain/uncordon ack
+	MessageTypeTask        = "task"         // Task message type
+	MessageTypeSchedule    = "schedule"     // Schedule message type
+	MessageTypeEmpty       = "empty"        // Empty message type
+	MessageTypeHealth      = "health"       // Control-plane health census (core NATS, not JetStream)
+	MessageTypeWSPlacement = "ws_placement" // Websocket placement load flags (core NATS pub/sub)
+	MessageTypeWSCommand   = "ws_command"   // Planned cordon/drain/uncordon ack
 )
 
 const (
@@ -155,22 +154,6 @@ type TaskMessage struct {
 // MessageType returns the message type identifier for TaskMessage.
 func (TaskMessage) MessageType() string {
 	return MessageTypeTask
-}
-
-// ErrorMessage represents an error response message.
-// Used for error reporting in NATS message exchanges.
-type ErrorMessage struct {
-	Error   string `json:"error"`             // Error message
-	Code    string `json:"code,omitempty"`    // Optional error code
-	Details string `json:"details,omitempty"` // Optional error details
-}
-
-// StatusMessage represents a status or health check message.
-// Used for status reporting and health checks.
-type StatusMessage struct {
-	Status  string `json:"status"`            // Status value (e.g., "ok", "error")
-	Message string `json:"message,omitempty"` // Optional status message
-	Time    int64  `json:"time,omitempty"`    // Optional timestamp in Unix milliseconds
 }
 
 // HealthPing is an optional payload on health.command.ping (raw or Message.Data).
@@ -354,17 +337,6 @@ type EncryptCloudRefreshTokensRequest struct {
 type MigrateUserCloudAccountsToUserDocRequest struct {
 	AccountID string `json:"account_id"`
 	DryRun    bool   `json:"dry_run,omitempty"`
-}
-
-// SubscriptionRequest is retained for decoding legacy JetStream payloads (MessageTypeSubscription).
-type SubscriptionRequest struct {
-	Collection string   `json:"collection"` // MongoDB collection name (e.g., "users", "jobs")
-	DocIDs     []string `json:"docIDs"`     // Array of document IDs to subscribe to
-}
-
-// MessageType returns the NATS envelope type for UnmarshalMessagePayload type matching.
-func (SubscriptionRequest) MessageType() string {
-	return MessageTypeSubscription
 }
 
 // Add more message types here as needed for your application

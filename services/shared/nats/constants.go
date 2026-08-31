@@ -46,26 +46,9 @@ const (
 	// Example: doc.update.account:abc.jobs.doc123
 	SubjectDocUpdate = "doc.update"
 
-	// SubjectDocSubscribe is the NATS subject pattern for document subscribe
-	// Format: doc.subscribe.{docID}
-	// Example: doc.subscribe.user123, doc.subscribe.job456
-	SubjectDocSubscribe = "doc.subscribe"
-
-	// SubjectDocUnsubscribe is the NATS subject pattern for document unsubscribe
-	// Format: doc.unsubscribe.{docID}
-	// Example: doc.unsubscribe.user123, doc.unsubscribe.job456
-	SubjectDocUnsubscribe = "doc.unsubscribe"
-
 	// SubjectDocLock is the NATS subject for document lock coordination (API → websocket fan-out).
 	// Format: doc.lock.{accountID}
 	SubjectDocLock = "doc.lock"
-
-	// SubjectDocUpdateFanout is the legacy core-NATS prefix (ws.doc.fanout.{collection}.{docID}).
-	// Live websocket delivery uses JetStream doc.update.> with a per-replica durable consumer instead.
-	SubjectDocUpdateFanout = "ws.doc.fanout"
-
-	// SubjectDocSubscribeFanout is the legacy core-NATS prefix (ws.doc.subscribe.fanout.{accountID}).
-	SubjectDocSubscribeFanout = "ws.doc.subscribe.fanout"
 
 	// SubjectHealthCommandPing is the core-NATS fan-out subject for controller health census.
 	// Every app replica Subscribe()s (no queue group) and Respond()s HealthStatus.
@@ -77,8 +60,8 @@ const (
 
 	// SubjectWSCommandCordon / SubjectWSCommandDrain are planned evacuate req/reply
 	// (capacity controller → matching websocket container_id). Distinct from SIGTERM DrainForRoll.
-	SubjectWSCommandCordon = "ws.command.cordon"
-	SubjectWSCommandDrain  = "ws.command.drain"
+	SubjectWSCommandCordon   = "ws.command.cordon"
+	SubjectWSCommandDrain    = "ws.command.drain"
 	SubjectWSCommandUncordon = "ws.command.uncordon"
 )
 
@@ -98,17 +81,6 @@ const (
 	DurablePrefixDocLock = "doc-lock-"
 )
 
-// Task names for logging purposes (human-readable labels)
-const (
-	// TaskNameSystemIndexesRefresh is the human-readable name for system indexes refresh task
-	TaskNameSystemIndexesRefresh = "system indexes refresh"
-
-	// TaskNameAdjustedPricesRefresh is the human-readable name for adjusted prices refresh task
-	TaskNameAdjustedPricesRefresh = "adjusted prices refresh"
-
-	// TaskNameRegionMarketOrdersRefresh is the human-readable name for region market orders refresh task
-	TaskNameRegionMarketOrdersRefresh = "region market orders refresh"
-
-	// TaskNameCorporationsFetch is the human-readable name for corporation lookup task
-	TaskNameCorporationsFetch = "corporations fetch"
-)
+// TaskNameRegionMarketOrdersRefresh is the human-readable label used in region
+// market orders refresh logs.
+const TaskNameRegionMarketOrdersRefresh = "region market orders refresh"

@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"strings"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	sharedjobidentity "eve-industry-planner/shared/jobidentity"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/protectedfields"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
@@ -30,7 +30,7 @@ func EncodeJobIdentity(ctx context.Context, task *asynq.Task, deps *esitasks.Tas
 		return fmt.Errorf("mongo client is required")
 	}
 
-	payload, err := esitasks.UnmarshalTaskPayload[natscore.EncodeJobIdentityRequest](task)
+	payload, err := esitasks.UnmarshalTaskPayload[eipnats.EncodeJobIdentityRequest](task)
 	if err != nil {
 		return fmt.Errorf("invalid payload: %w", err)
 	}

@@ -3,8 +3,8 @@ package server
 import (
 	"context"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/websocket/server/identity"
 )
 
@@ -63,17 +63,17 @@ func (s *Server) stopConsumeLoops() {
 // Best-effort: requires a live JetStream client (call before stackservices NATS cleanup).
 func (s *Server) deleteOwnDocFanoutConsumers(ctx context.Context) {
 	traceDrainStop("delete")
-	if s == nil || s.Stack == nil || s.Stack.JetStream == nil {
+	if s == nil || s.Stack == nil || s.Stack.NATS.JS() == nil {
 		return
 	}
-	stream, err := s.Stack.JetStream.Stream(ctx, natscore.DocUpdateStream)
+	stream, err := s.Stack.NATS.JS().Stream(ctx, eipnats.DocUpdateStream)
 	if err != nil {
 		logs.WarnCtx(ctx, "doc fan-out durable delete: get stream failed", "error", err)
 		return
 	}
 	live := identity.DocLiveUpdatesJetStreamDurable()
 	lock := identity.DocLockJetStreamDurable()
-	ok := natscore.DeleteConsumers(ctx, stream, live, lock)
+	ok := eipnats.DeleteConsumers(ctx, stream, live, lock)
 	logs.InfoCtx(ctx, "deleted own doc fan-out durables",
 		"ok", ok, "live", live, "lock", lock)
 }

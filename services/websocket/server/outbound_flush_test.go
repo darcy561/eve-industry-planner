@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
+	eipnats "eve-industry-planner/shared/nats"
 )
 
 func TestFlushOutboundShardsEmptyOK(t *testing.T) {
@@ -41,7 +41,7 @@ func TestFlushOutboundShardsRespectsCancel(t *testing.T) {
 func TestDrainForRollPublishesDraining(t *testing.T) {
 	t.Setenv("HOSTNAME", "websocket-drain-pub")
 	intake, shutdown := testServerChans()
-	var got natscore.PlacementState
+	var got eipnats.PlacementState
 	var pubs int
 	s := &Server{
 		Clients:        make(map[string]*Client),
@@ -49,7 +49,7 @@ func TestDrainForRollPublishesDraining(t *testing.T) {
 		shutdownChan:   shutdown,
 		placementPublishFn: func(_ string, data []byte) error {
 			pubs++
-			st, err := natscore.ParsePlacementState(data)
+			st, err := eipnats.ParsePlacementState(data)
 			if err != nil {
 				t.Errorf("parse: %v", err)
 				return err

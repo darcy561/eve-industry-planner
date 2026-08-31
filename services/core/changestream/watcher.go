@@ -10,14 +10,12 @@ import (
 	"sync"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/wsplacement"
 
-	natslib "github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -58,25 +56,23 @@ type ChangeStreamMessage struct {
 
 // Watcher watches MongoDB change streams and publishes changes to NATS.
 type Watcher struct {
-	mongo     *eipmongo.Mongo
-	jsContext jetstream.JetStream
-	natsConn  *natslib.Conn
-	rdb       *redis.Client
-	database  *mongo.Database
+	mongo    *eipmongo.Mongo
+	nats     *eipnats.NATS
+	rdb      *redis.Client
+	database *mongo.Database
 }
 
 // NewWatcher creates a new change stream watcher. rdb may be nil (cold start only).
-func NewWatcher(mongoHandle *eipmongo.Mongo, jsContext jetstream.JetStream, natsConn *natslib.Conn, rdb *redis.Client) *Watcher {
+func NewWatcher(mongoHandle *eipmongo.Mongo, natsHandle *eipnats.NATS, rdb *redis.Client) *Watcher {
 	var database *mongo.Database
 	if mongoHandle != nil {
 		database = mongoHandle.DB
 	}
 	return &Watcher{
-		mongo:     mongoHandle,
-		jsContext: jsContext,
-		natsConn:  natsConn,
-		rdb:       rdb,
-		database:  database,
+		mongo:    mongoHandle,
+		nats:     natsHandle,
+		rdb:      rdb,
+		database: database,
 	}
 }
 
@@ -411,7 +407,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	corpID, allianceRef, scopePayload := extractOrgRoutingFromDocument(docToExtract)
 
 	tenantString := wsplacement.TenantStringFromRouting(accountID, corpID, allianceRef)
-	subject := natscore.DocUpdateSubject(tenantString, collection, docID)
+	subject := eipnats.DocUpdateSubject(tenantString, collection, docID)
 	if subject == "" {
 		logs.WarnCtx(ctx, "change stream event skipped: no tenant for doc.update subject",
 			"component", changestreamLogComponent,
@@ -449,7 +445,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 	}
 
 	// Publish to NATS (JetStream for persistence + optional offline replay)
-	if err := natscore.PublishMessage(ctx, w.jsContext, subject, messageData, w.natsConn); err != nil {
+	if err := eipnats.PublishMessage(ctx, w.nats, subject, messageData); err != nil {
 		logs.ErrorCtx(ctx, "failed to publish change stream message to NATS",
 			"component", changestreamLogComponent,
 			"operation", operationType,
@@ -730,11 +726,11 @@ func bsonArrayToStrings(v any) []string {
 
 // StartService starts the MongoDB change stream watcher service (parallel watches per CollectionGroups entry).
 // Returns a stop function for graceful shutdown. rdb stores per-group resume tokens (optional).
-func StartService(mongoHandle *eipmongo.Mongo, jsContext jetstream.JetStream, natsConn *natslib.Conn, rdb *redis.Client) (func(), error) {
+func StartService(mongoHandle *eipmongo.Mongo, natsHandle *eipnats.NATS, rdb *redis.Client) (func(), error) {
 	groups := CollectionGroups()
 	if err := validateCollectionGroups(groups); err != nil {
 		return nil, err
 	}
-	watcher := NewWatcher(mongoHandle, jsContext, natsConn, rdb)
+	watcher := NewWatcher(mongoHandle, natsHandle, rdb)
 	return watcher.Start(groups), nil
 }

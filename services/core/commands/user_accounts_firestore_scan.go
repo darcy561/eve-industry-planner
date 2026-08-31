@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/firebaseadmin"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 
 	"cloud.google.com/go/firestore"
@@ -86,7 +86,7 @@ func runImportUserAccountsFromFirestoreScan(ctx context.Context, args []string) 
 	}
 	defer lifecycle.RunCleanups(5*time.Second, stopDeps)
 
-	if err := natscore.EnsureWorkerTaskStream(clients.JetStream); err != nil {
+	if err := eipnats.EnsureWorkerTaskStream(clients.NATS.JS()); err != nil {
 		return fmt.Errorf("ensure worker task stream: %w", err)
 	}
 
@@ -125,8 +125,8 @@ func publishMigrateUserTasksSingle(
 		fmt.Printf("Dry-run: would enqueue 1 migrate task for account %q on subject %q\n", accountID, taskDef.Subject)
 		return nil
 	}
-	req := natscore.MigrateUserDocumentToMongoRequest{AccountID: accountID}
-	if err := natscore.PublishTask(ctx, clients.JetStream, taskDef.Subject, taskDef.Name, req, clients.NATS, taskscore.Priority5); err != nil {
+	req := eipnats.MigrateUserDocumentToMongoRequest{AccountID: accountID}
+	if err := eipnats.PublishTask(ctx, clients.NATS, taskDef.Subject, taskDef.Name, req, taskscore.Priority5); err != nil {
 		return fmt.Errorf("publish task for %s: %w", accountID, err)
 	}
 	fmt.Printf("Enqueued 1 migrate task for account %q on subject %q\n", accountID, taskDef.Subject)
@@ -176,8 +176,8 @@ func publishMigrateUserTasksScanAll(
 			continue
 		}
 
-		req := natscore.MigrateUserDocumentToMongoRequest{AccountID: accountID}
-		if err := natscore.PublishTask(ctx, clients.JetStream, taskDef.Subject, taskDef.Name, req, clients.NATS, taskscore.Priority5); err != nil {
+		req := eipnats.MigrateUserDocumentToMongoRequest{AccountID: accountID}
+		if err := eipnats.PublishTask(ctx, clients.NATS, taskDef.Subject, taskDef.Name, req, taskscore.Priority5); err != nil {
 			logs.ErrorCtx(ctx, "user accounts scan: publish task", "account_id", accountID, "error", err)
 			errorsN++
 			continue

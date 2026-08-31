@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/websocket/server/identity"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -16,7 +16,7 @@ const docFanoutFilterDebounce = 100 * time.Millisecond
 
 // scheduleDocFanoutFilterReconcile queues a debounced FilterSubjects update from HostedTenants.
 func (s *Server) scheduleDocFanoutFilterReconcile() {
-	if s == nil || s.Stack == nil || s.Stack.JetStream == nil {
+	if s == nil || s.Stack == nil || s.Stack.NATS.JS() == nil {
 		return
 	}
 	s.fanoutFilterMu.Lock()
@@ -31,7 +31,7 @@ func (s *Server) scheduleDocFanoutFilterReconcile() {
 
 // reconcileDocFanoutFilters applies HostedTenants → FilterSubjects for both fan-out durables.
 func (s *Server) reconcileDocFanoutFilters(ctx context.Context) {
-	if s == nil || s.Stack == nil || s.Stack.JetStream == nil {
+	if s == nil || s.Stack == nil || s.Stack.NATS.JS() == nil {
 		return
 	}
 	stream, err := s.docFanoutStream(ctx)
@@ -40,17 +40,17 @@ func (s *Server) reconcileDocFanoutFilters(ctx context.Context) {
 		return
 	}
 	tenants := s.HostedTenants()
-	updateFilters := natscore.DocUpdateFiltersForHostedTenants(tenants)
-	lockFilters := natscore.DocLockFiltersForHostedTenants(tenants)
+	updateFilters := eipnats.DocUpdateFiltersForHostedTenants(tenants)
+	lockFilters := eipnats.DocLockFiltersForHostedTenants(tenants)
 
 	liveDurable := identity.DocLiveUpdatesJetStreamDurable()
 	lockDurable := identity.DocLockJetStreamDurable()
 
-	if err := natscore.UpdateConsumerFilterSubjects(ctx, stream, liveDurable, updateFilters); err != nil {
+	if err := eipnats.UpdateConsumerFilterSubjects(ctx, stream, liveDurable, updateFilters); err != nil {
 		logs.WarnCtx(ctx, "doc fanout filters: update live consumer",
 			"consumer", liveDurable, "filters", updateFilters, "error", err)
 	}
-	if err := natscore.UpdateConsumerFilterSubjects(ctx, stream, lockDurable, lockFilters); err != nil {
+	if err := eipnats.UpdateConsumerFilterSubjects(ctx, stream, lockDurable, lockFilters); err != nil {
 		logs.WarnCtx(ctx, "doc fanout filters: update lock consumer",
 			"consumer", lockDurable, "filters", lockFilters, "error", err)
 	}
@@ -63,11 +63,11 @@ func (s *Server) docFanoutStream(ctx context.Context) (jetstream.Stream, error) 
 	if cached != nil {
 		return cached, nil
 	}
-	stream, err := natscore.GetOrEnsureStream(
+	stream, err := eipnats.GetOrEnsureStream(
 		ctx,
-		s.Stack.JetStream,
-		natscore.EnsureDocUpdateStream,
-		natscore.DocUpdateStream,
+		s.Stack.NATS.JS(),
+		eipnats.EnsureDocUpdateStream,
+		eipnats.DocUpdateStream,
 	)
 	if err != nil {
 		return nil, err

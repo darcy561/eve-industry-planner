@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"eve-industry-planner/core/scheduler/contract"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 
 	redislib "github.com/redis/go-redis/v9"
@@ -76,17 +76,16 @@ func ScheduleInactiveAccountPlannerCleanup(deps contract.Dependencies, sched con
 
 		published := 0
 		for _, accountID := range batch {
-			payload := natscore.InactiveAccountPlannerCleanupRequest{
+			payload := eipnats.InactiveAccountPlannerCleanupRequest{
 				AccountID:     accountID,
 				StaleAgeYears: defaultInactiveLoginStaleYears,
 			}
-			if err := natscore.PublishTask(
+			if err := eipnats.PublishTask(
 				ctx,
-				deps.JSContext,
+				deps.NATS,
 				task.Subject,
 				task.Name,
 				payload,
-				deps.NATS,
 				task.DefaultPriority,
 			); err != nil {
 				logs.ErrorCtx(ctx, "inactive account planner cleanup: publish failed", "component", schedulerLogComponent,

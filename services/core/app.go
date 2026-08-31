@@ -15,8 +15,8 @@ import (
 	"eve-industry-planner/core/singleton"
 	"eve-industry-planner/core/startup"
 	"eve-industry-planner/shared/container"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/lifecycle"
+	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/orchestrationprobes"
 	"eve-industry-planner/shared/telemetry"
 )
@@ -64,7 +64,7 @@ func (a *app) connectDeps(ctx context.Context) error {
 	}
 	a.clients = clients
 	a.stopDeps = stopDeps
-	a.g.AddApp(metrics.RegisterAll(clients.Redis, clients.Mongo, clients.NATS)...)
+	a.g.AddApp(metrics.RegisterAll(clients.Redis, clients.Mongo, clients.NATS.Conn())...)
 	health.Register(health.Deps(clients))
 	return nil
 }
@@ -89,10 +89,10 @@ func (a *app) startProbes(ctx context.Context) error {
 	bus, err := orchestrationprobes.StartBus(ctx, orchestrationprobes.BusOptions{
 		Role:       "core",
 		InstanceID: container.ID(),
-		Conn:       a.clients.NATS,
+		Conn:       a.clients.NATS.Conn(),
 		Ready:      health.Check,
 		Enabled:    true,
-		Fill: func(st *natscore.HealthStatus) {
+		Fill: func(st *eipnats.HealthStatus) {
 			if st != nil {
 				st.AppVersion = os.Getenv("APP_VERSION")
 			}

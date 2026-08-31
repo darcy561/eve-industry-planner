@@ -6,18 +6,15 @@ import (
 	"fmt"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	objectstore "eve-industry-planner/shared/core/objectstore"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	taskscore "eve-industry-planner/shared/tasks"
-
-	natslib "github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
 )
 
 // EnsureLiveSDEExists checks that the object store has a complete live SDE set.
 // If missing, publishes checkSDEUpdates once (same trigger as the daily cron).
-func EnsureLiveSDEExists(ctx context.Context, js jetstream.JetStream, natsConn *natslib.Conn) error {
+func EnsureLiveSDEExists(ctx context.Context, natsHandle *eipnats.NATS) error {
 	checkCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
@@ -34,13 +31,13 @@ func EnsureLiveSDEExists(ctx context.Context, js jetstream.JetStream, natsConn *
 		return nil
 	}
 
-	if js == nil && natsConn == nil {
+	if natsHandle == nil {
 		return fmt.Errorf("live SDE missing and nats unavailable for checkSDEUpdates publish")
 	}
 
 	logs.InfoCtx(ctx, "live SDE missing in object store; publishing checkSDEUpdates bootstrap",
 		"subject", taskscore.CheckSDEUpdates.Subject)
-	if err := natscore.PublishEmpty(ctx, js, taskscore.CheckSDEUpdates.Subject, natsConn); err != nil {
+	if err := eipnats.PublishEmpty(ctx, natsHandle, taskscore.CheckSDEUpdates.Subject); err != nil {
 		return fmt.Errorf("publish checkSDEUpdates: %w", err)
 	}
 	return nil

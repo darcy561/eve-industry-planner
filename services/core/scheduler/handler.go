@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
-	natslib "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	redislib "github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel"
@@ -17,8 +16,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 
 	"eve-industry-planner/core/scheduler/contract"
 	"eve-industry-planner/core/scheduler/helpers"
@@ -45,9 +44,8 @@ type OneTimeJob struct {
 // TaskScheduler manages static cron jobs and one-time scheduled tasks
 type TaskScheduler struct {
 	scheduler   gocron.Scheduler
-	jsContext   jetstream.JetStream
+	nats        *eipnats.NATS
 	redisClient *redislib.Client
-	natsConn    *natslib.Conn
 	handlers    map[string]contract.TaskHandler
 	consumer    jetstream.Consumer
 
@@ -59,7 +57,7 @@ type TaskScheduler struct {
 }
 
 // NewTaskScheduler creates a new task scheduler for cron jobs and one-time scheduled tasks
-func NewTaskScheduler(jsContext jetstream.JetStream, redisClient *redislib.Client, natsConn *natslib.Conn) (*TaskScheduler, error) {
+func NewTaskScheduler(natsHandle *eipnats.NATS, redisClient *redislib.Client) (*TaskScheduler, error) {
 	// Bound how long Shutdown waits for cancelled jobs to exit (default 10s).
 	sched, err := gocron.NewScheduler(gocron.WithStopTimeout(15 * time.Second))
 	if err != nil {
@@ -68,9 +66,8 @@ func NewTaskScheduler(jsContext jetstream.JetStream, redisClient *redislib.Clien
 
 	return &TaskScheduler{
 		scheduler:   sched,
-		jsContext:   jsContext,
+		nats:        natsHandle,
 		redisClient: redisClient,
-		natsConn:    natsConn,
 		handlers:    make(map[string]contract.TaskHandler),
 		oneTimeJobs: make(map[string]gocron.Job),
 		stopChan:    make(chan struct{}),
@@ -397,9 +394,9 @@ func (s *TaskScheduler) Start() error {
 	s.scheduler.Start()
 
 	// Set up JetStream consumer for one-time job requests
-	if s.jsContext != nil {
+	if s.nats != nil {
 		consumer, err := helpers.SetupScheduleRequestReceiver(
-			s.jsContext,
+			s.nats.JS(),
 			s.processScheduleRequest,
 			s.stopChan,
 		)
@@ -417,10 +414,10 @@ func (s *TaskScheduler) Start() error {
 
 // processScheduleRequest processes a schedule request message from JetStream
 func (s *TaskScheduler) processScheduleRequest(msg jetstream.Msg) {
-	var envelope natscore.Message
+	var envelope eipnats.Message
 	_ = json.Unmarshal(msg.Data(), &envelope)
 
-	ctx, endSpan := natscore.BeginConsumerContext(
+	ctx, endSpan := eipnats.BeginConsumerContext(
 		context.Background(),
 		otelTracerName,
 		"scheduler.consume_schedule_request",
@@ -430,16 +427,16 @@ func (s *TaskScheduler) processScheduleRequest(msg jetstream.Msg) {
 	defer endSpan()
 	span := trace.SpanFromContext(ctx)
 
-	req, err := natscore.UnmarshalMessagePayload[natscore.ScheduleRequest](msg)
+	req, err := eipnats.UnmarshalMessagePayload[eipnats.ScheduleRequest](msg)
 	if err != nil {
 		logs.ErrorCtx(ctx, "failed to parse schedule request", "component", schedulerLogComponent, "error", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		natscore.FinishNATSConsumerOperation(ctx, "warn", "schedule request rejected", map[string]any{
+		eipnats.FinishNATSConsumerOperation(ctx, "warn", "schedule request rejected", map[string]any{
 			"reason": "parse_failed",
 			"error":  err.Error(),
 		})
-		natscore.NackMessage(msg)
+		eipnats.NackMessage(ctx, msg)
 		return
 	}
 
@@ -450,7 +447,7 @@ func (s *TaskScheduler) processScheduleRequest(msg jetstream.Msg) {
 			logs.ErrorCtx(ctx, "failed to generate job ID", "component", schedulerLogComponent, "error", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
-			natscore.NackMessage(msg)
+			eipnats.NackMessage(ctx, msg)
 			return
 		}
 		req.JobID = jobID
@@ -473,8 +470,8 @@ func (s *TaskScheduler) processScheduleRequest(msg jetstream.Msg) {
 		span.SetAttributes(attribute.String("scheduler.drop_reason", "run_at_not_future"))
 		span.SetStatus(codes.Ok, "dropped: run_at not in future")
 		// Acknowledge and drop the message
-		deliveryCount := natscore.GetDeliveryCount(msg)
-		natscore.AcknowledgeMessage(msg, "run_at not in future", deliveryCount)
+		deliveryCount := eipnats.GetDeliveryCount(msg)
+		eipnats.AcknowledgeMessage(ctx, msg, "run_at not in future", deliveryCount)
 		return
 	}
 
@@ -485,8 +482,8 @@ func (s *TaskScheduler) processScheduleRequest(msg jetstream.Msg) {
 			"task_type", req.TaskType)
 		span.SetAttributes(attribute.String("scheduler.drop_reason", "no_handler"))
 		span.SetStatus(codes.Ok, "no handler registered")
-		deliveryCount := natscore.GetDeliveryCount(msg)
-		natscore.AcknowledgeMessage(msg, "no handler registered", deliveryCount)
+		deliveryCount := eipnats.GetDeliveryCount(msg)
+		eipnats.AcknowledgeMessage(ctx, msg, "no handler registered", deliveryCount)
 		return
 	}
 
@@ -501,15 +498,15 @@ func (s *TaskScheduler) processScheduleRequest(msg jetstream.Msg) {
 			"job_id", req.JobID, "task_type", req.TaskType, "error", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		natscore.NackMessage(msg)
+		eipnats.NackMessage(ctx, msg)
 		return
 	}
 
 	span.SetStatus(codes.Ok, "")
 	// Acknowledge successful processing
-	deliveryCount := natscore.GetDeliveryCount(msg)
-	natscore.AcknowledgeMessage(msg, "successful scheduling", deliveryCount)
-	natscore.FinishNATSConsumerOperation(ctx, "info", "schedule request accepted", map[string]any{
+	deliveryCount := eipnats.GetDeliveryCount(msg)
+	eipnats.AcknowledgeMessage(ctx, msg, "successful scheduling", deliveryCount)
+	eipnats.FinishNATSConsumerOperation(ctx, "info", "schedule request accepted", map[string]any{
 		"component": schedulerLogComponent,
 		"job_id":    req.JobID,
 		"task_type": req.TaskType,

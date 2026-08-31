@@ -10,8 +10,8 @@ import (
 	"eve-industry-planner/api/helper/auth"
 	"eve-industry-planner/api/helper/sso"
 	"eve-industry-planner/shared/core/config"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	esicore "eve-industry-planner/worker/esi"
 	esiratelimiter "eve-industry-planner/worker/ratelimiter"
 
@@ -44,7 +44,7 @@ func RefreshAccountSessionGrants(ctx context.Context, task *asynq.Task, deps *Ta
 
 	logs.InfoCtx(ctx, "account session grants refresh task received")
 
-	request, err := UnmarshalTaskPayload[natscore.AccountSessionGrantsRequest](task)
+	request, err := UnmarshalTaskPayload[eipnats.AccountSessionGrantsRequest](task)
 	if err != nil {
 		logs.WarnCtx(ctx, "failed to parse task data", "error", err)
 		return fmt.Errorf("invalid task data: %w", err)

@@ -7,13 +7,11 @@ import (
 	"context"
 	"fmt"
 
-	eipmongo "eve-industry-planner/shared/mongo"
-	"eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/core/objectstore"
 	"eve-industry-planner/shared/core/redis"
+	eipmongo "eve-industry-planner/shared/mongo"
+	eipnats "eve-industry-planner/shared/nats"
 
-	natslib "github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
 	redislib "github.com/redis/go-redis/v9"
 )
 
@@ -37,8 +35,7 @@ var (
 // Clients holds open stack-service clients (no shutdown list).
 type Clients struct {
 	Mongo       *eipmongo.Mongo
-	NATS        *natslib.Conn
-	JetStream   jetstream.JetStream
+	NATS        *eipnats.NATS
 	Redis       *redislib.Client
 	ObjectStore objectstore.Backend
 }
@@ -74,13 +71,12 @@ func Connect(ctx context.Context, services Services) (*Clients, func(context.Con
 	}
 
 	if services.NATS {
-		natsConn, jsContext, err := nats.ConnectJetStream()
+		natsHandle, err := eipnats.Open(ctx)
 		if err != nil {
 			return fail(fmt.Errorf("failed to connect to nats: %w", err))
 		}
-		clients.NATS = natsConn
-		clients.JetStream = jsContext
-		cleanups = append(cleanups, func(c context.Context) { nats.Cleanup(natsConn) })
+		clients.NATS = natsHandle
+		cleanups = append(cleanups, func(context.Context) { natsHandle.Close() })
 	}
 
 	if services.Redis {

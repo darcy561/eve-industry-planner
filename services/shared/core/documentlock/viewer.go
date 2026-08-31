@@ -75,7 +75,7 @@ func StripPassiveViewerOnHolderGrant(
 	if !removed || !publishLeft {
 		return
 	}
-	_ = PublishLockEvent(ctx, d.JetStream, accountID, map[string]any{
+	_ = PublishLockEvent(ctx, d.NATS, accountID, map[string]any{
 		LockPayloadEventKey: LockViewerEventLeft,
 		"collection":        collection,
 		"docID":             docID,

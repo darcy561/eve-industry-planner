@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 )
 
@@ -13,11 +13,11 @@ func pushCoreSDEBuildUpdate(ctx context.Context, deps *esitasks.TaskDependencies
 	if deps == nil || deps.NATS == nil || build <= 0 {
 		return
 	}
-	payload, err := json.Marshal(natscore.SDECurrentBuildUpdate{BuildNumber: build, Version: version})
+	payload, err := json.Marshal(eipnats.SDECurrentBuildUpdate{BuildNumber: build, Version: version})
 	if err != nil {
 		return
 	}
-	if err := deps.NATS.Publish(natscore.SubjectCoreSDEBuildUpdated, payload); err != nil {
+	if err := deps.NATS.Conn().Publish(eipnats.SubjectCoreSDEBuildUpdated, payload); err != nil {
 		logs.WarnCtx(ctx, "failed to publish core SDE build update", "build_number", build, "error", err)
 	}
 }

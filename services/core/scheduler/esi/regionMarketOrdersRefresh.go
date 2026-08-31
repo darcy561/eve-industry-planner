@@ -8,13 +8,11 @@ import (
 
 	"eve-industry-planner/core/scheduler/contract"
 	esicore "eve-industry-planner/shared/core/esi"
-	natscore "eve-industry-planner/shared/core/nats"
 	rediscore "eve-industry-planner/shared/core/redis"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 
-	natslib "github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
 	redislib "github.com/redis/go-redis/v9"
 )
 
@@ -37,13 +35,12 @@ const (
 // Publishing is skipped while ESI is in downtime, or when the token budget cannot absorb a run.
 // Returns a cleanup function and an error if scheduling fails.
 func ScheduleRegionMarketOrdersRefresh(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
-	jsContext := deps.JSContext
-	natsConn := deps.NATS
+	natsHandle := deps.NATS
 	redisClient := deps.Redis
 
 	task := taskscore.RefreshRegionMarketOrders
 	sched.RegisterHandler(cronRegionMarketOrdersRefreshName, func(ctx context.Context, data json.RawMessage) error {
-		return runRegionMarketOrdersRefresh(ctx, jsContext, natsConn, redisClient, task)
+		return runRegionMarketOrdersRefresh(ctx, natsHandle, redisClient, task)
 	})
 	if err := sched.ScheduleCronJob(cronRegionMarketOrdersRefreshSchedule, cronRegionMarketOrdersRefreshName); err != nil {
 		return nil, err
@@ -53,8 +50,7 @@ func ScheduleRegionMarketOrdersRefresh(deps contract.Dependencies, sched contrac
 
 func runRegionMarketOrdersRefresh(
 	ctx context.Context,
-	jsContext jetstream.JetStream,
-	natsConn *natslib.Conn,
+	natsHandle *eipnats.NATS,
 	redisClient *redislib.Client,
 	task taskscore.Task,
 ) error {
@@ -84,11 +80,11 @@ func runRegionMarketOrdersRefresh(
 	}
 	location := regions[index]
 
-	request := natscore.RegionMarketOrdersRequest{
+	request := eipnats.RegionMarketOrdersRequest{
 		RegionID:  location.RegionID,
 		StationID: location.StationID,
 	}
-	if err := natscore.PublishTask(ctx, jsContext, task.Subject, task.Name, request, natsConn); err != nil {
+	if err := eipnats.PublishTask(ctx, natsHandle, task.Subject, task.Name, request); err != nil {
 		return err
 	}
 

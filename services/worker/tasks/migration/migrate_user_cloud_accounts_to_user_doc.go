@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	eipmongo "eve-industry-planner/shared/mongo"
+	eipnats "eve-industry-planner/shared/nats"
 	esitasks "eve-industry-planner/worker/tasks/esi"
 
 	"github.com/hibiken/asynq"
@@ -26,9 +26,9 @@ func MigrateUserCloudAccountsToUserDoc(ctx context.Context, task *asynq.Task, de
 		return fmt.Errorf("mongo client is required")
 	}
 
-	var p natscore.MigrateUserCloudAccountsToUserDocRequest
+	var p eipnats.MigrateUserCloudAccountsToUserDocRequest
 	if len(task.Payload()) > 0 {
-		payload, err := esitasks.UnmarshalTaskPayload[natscore.MigrateUserCloudAccountsToUserDocRequest](task)
+		payload, err := esitasks.UnmarshalTaskPayload[eipnats.MigrateUserCloudAccountsToUserDocRequest](task)
 		if err != nil {
 			return fmt.Errorf("invalid payload: %w", err)
 		}

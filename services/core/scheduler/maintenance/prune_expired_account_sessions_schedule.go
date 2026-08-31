@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 
 	"eve-industry-planner/core/scheduler/contract"
-	natscore "eve-industry-planner/shared/core/nats"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 	taskscore "eve-industry-planner/shared/tasks"
 )
 
@@ -21,12 +21,11 @@ const (
 // hourly singleton pass (auth-session-maintenance).
 // so expired sessions are removed for inactive accounts as well.
 func SchedulePruneExpiredAccountSessions(deps contract.Dependencies, sched contract.Scheduler) (func(), error) {
-	jsContext := deps.JSContext
-	natsConn := deps.NATS
+	natsHandle := deps.NATS
 	task := taskscore.PruneExpiredAccountSessions
 	sched.RegisterHandler(cronPruneExpiredAccountSessionsName, func(ctx context.Context, data json.RawMessage) error {
 		_ = data
-		if err := natscore.PublishEmpty(ctx, jsContext, task.Subject, natsConn); err != nil {
+		if err := eipnats.PublishEmpty(ctx, natsHandle, task.Subject); err != nil {
 			logs.ErrorCtx(ctx, "prune expired account sessions: publish failed", "component", schedulerLogComponent, "subject", task.Subject, "error", err)
 			return err
 		}

@@ -9,10 +9,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	natscore "eve-industry-planner/shared/core/nats"
 	objectstore "eve-industry-planner/shared/core/objectstore"
 	sdecore "eve-industry-planner/shared/core/sde"
 	"eve-industry-planner/shared/logs"
+	eipnats "eve-industry-planner/shared/nats"
 
 	natslib "github.com/nats-io/nats.go"
 )
@@ -71,7 +71,7 @@ func StartCacheWarmer(ctx context.Context, nc *natslib.Conn) {
 	warmerOnce.Do(func() {
 		rewarm := make(chan struct{}, 1)
 		if nc != nil {
-			_, err := nc.Subscribe(natscore.SubjectCoreSDEBuildUpdated, func(msg *natslib.Msg) {
+			_, err := nc.Subscribe(eipnats.SubjectCoreSDEBuildUpdated, func(msg *natslib.Msg) {
 				signalSDERewarm(ctx, msg.Data, rewarm)
 			})
 			if err != nil {
@@ -86,7 +86,7 @@ func StartCacheWarmer(ctx context.Context, nc *natslib.Conn) {
 }
 
 func signalSDERewarm(ctx context.Context, data []byte, rewarm chan<- struct{}) {
-	var u natscore.SDECurrentBuildUpdate
+	var u eipnats.SDECurrentBuildUpdate
 	if err := json.Unmarshal(data, &u); err != nil {
 		return
 	}
