@@ -946,7 +946,14 @@ archived job for the account, reduces all of them, and rewrites every row, bucke
 The cost of archiving a job therefore grows with the size of the archive it joins: a build from a
 year ago is recomputed because something was archived today.
 
-Five slices, in this order — each makes the next smaller.
+Five slices. J1 first, then **J3 before J2**: the drain's timeout clears nothing, so a queue too
+large for one pass makes no progress at all rather than draining over several. J3 replaces that path
+with one task per owner, each clearing its own, so the fault goes with the code rather than being
+patched in a path about to be deleted. The rest follow in order, each making the next smaller.
+
+Dev measurements do not speak to this. 227 accounts and 9,530 archived jobs drain serially in six
+seconds there, which says nothing about a live archive: the failure is a cliff at the fifteen-minute
+task timeout, not a slope, so a comfortable dev margin is not evidence of a live one.
 
 #### The aggregates already decompose
 
@@ -1427,11 +1434,12 @@ documentation change as much as a code one. All of these change together:
 
 | File | What it carries |
 |------|------------------|
-| `shared/tasks/types.go` | the `Task` definitions, their subjects, priorities and timeouts |
+| `shared/nats/tasks.go` | the `defineTask` definitions — name, subject, priority, timeout — the request payload types, and a named `Publish…` per task |
 | `worker/asynq/handlers.go` | `mux.HandleFunc` per task name |
 | `core/scheduler/archivedjobs/drain_rebuild_queue.go` | the cron, now publishing a dispatch |
 | `core/commands/tasks.go` | usage text, the `enabledTasks` allowlist, `enabledTasksLowerLookup`, `commandTaskName`, the dispatch switch, and the summary list |
 | `core/commands/archived_jobs_mongo.go` | `queueArchivedJobStatsRebuild`, and the hint it prints on success |
+| `core/commands/prepare_archived_job_statistics.go` | the release steps, which gain a drain once one is safe to fire and forget |
 | `core/commands/backfill_archived_at.go` | the hint it prints on success |
 | `overlay.md` § Stage B | the task the overlay documents |
 
@@ -1439,9 +1447,10 @@ Two of those hints state the old cadence — `archived_jobs_mongo.go` tells the 
 the hourly drain" — and become wrong the moment the interval changes. They are behaviour statements
 in operator-facing output, so they move with the change rather than being left to drift.
 
-`core/commands/tasks.go` also lists the same tasks three times: once in `enabledTasks`, once as
-lowercase keys in `enabledTasksLowerLookup`, and once in `commandTaskName`. Adding three tasks would
-mean nine new hand-maintained entries that can disagree. The lookup and the display name are both
+A task is defined once in `shared/nats/tasks.go` and published through a named function, so the
+subject and priority have a single owner. `core/commands/tasks.go` is the exception: it lists the
+same tasks three times — in `enabledTasks`, as lowercase keys in `enabledTasksLowerLookup`, and in
+`commandTaskName`. Adding three tasks would mean nine new hand-maintained entries that can disagree. The lookup and the display name are both
 derivable from the allowlist, so they are derived from it in this slice rather than extended — the
 one-source-of-truth rule applies to a command table as much as to a data model.
 
@@ -1455,6 +1464,38 @@ extend the wait. Dispatch publishes one task per eligible owner and none for an 
 per-owner task clears only its own owner, and only on its own claim. Queueing a rebuild over
 outstanding deltas upgrades the entry; queueing a delta against a queued rebuild leaves it alone. The CLI allowlist, lookup and display name all agree, which the
 derivation makes a property rather than a list to check.
+
+##### What landed
+
+1. **`models.StatsOwner`** — a kind (`account` / `corporation` / `alliance`) and an id, with a
+   `kind:id` key and a parser that keeps colons in the id, since a ref carries its own. `Validate`
+   refuses a kind nothing can read back, so an entry nothing can address cannot reach storage.
+2. **The queue is keyed by owner.** `QueueOwnerRebuild`, `ListQueuedOwners` and `ClearQueuedOwner`
+   replace the account-shaped API; `QueueAccountRebuild` remains as the call every existing producer
+   makes. The entry stores the owner beside the key so a reader need not parse ids.
+3. **`drainAccountStatsRebuildQueue` dispatches and no longer rebuilds.** It publishes one
+   `rebuildOwnerStatistics` task (`priority_5`) per eligible owner, each carrying the claim its entry
+   held. Each task rebuilds its owner and clears its own entry on its own claim, so there is no
+   batch clear left to fail on a cancelled context and progress is per owner rather than per pass.
+4. **The cron moved to `*/2 * * * *`.** The tick only dispatches, so it is cheap and a failed publish
+   costs one interval; how long an owner waits is the five-minute debounce the worker applies to
+   `queuedAt`.
+5. **The rebuild streams its input.** `EachAccountArchivedJob` walks a cursor and an `accountRows`
+   accumulator reduces one job at a time, so memory is proportional to what a rebuild writes rather
+   than to the archive it reads — which is what makes many rebuilds safe to run at once. The
+   collecting `LoadAccountArchivedJobs` had no callers left and is gone.
+6. **The CLI lookups are derived.** `enabledTasksLowerLookup` and `commandTaskName` are built from
+   `enabledTasks` rather than being three lists that can disagree, with a test that every enabled task
+   is findable under its command name and that none collide.
+7. **`prepareArchivedJobStatistics`** carries the release steps a deploy owes: dropping retired
+   statistics fields, retired change-stream resume tokens, and queue entries whose id names no owner,
+   then queueing every account. Steps accumulate in one list rather than becoming sibling commands.
+
+##### Carried to J2
+
+The queue entry has no `work` kind yet. Every entry means a rebuild until the delta task exists, so
+the field would have one value and the debounce, priority and reporting it decides have nothing to
+choose between. It lands with the delta that gives it a second value.
 
 #### J4 — Reconciliation, and how drift is corrected
 
@@ -1724,7 +1765,7 @@ whichever work touches SSO next rather than widened into this stage.
 | G — restore | **Complete** — three POST routes restore a job, a group rebuilt from its jobs, or a related set walked over the archive. The write is one server-side sequence: decrypt, resolve links, write job documents, re-link free ESI ids on the account, return the jobs to their groups, delete the archived documents, queue the rebuild. Each job rejoins the group it was archived from, merging into it when it is still on the planner. Conflicts are reported and stripped rather than blocking, and a group another session holds refuses the restore |
 | H — archived jobs page | **Complete for the account scope** — `/archived-jobs` carries the statistics tab (metric cards, eight charts, item table) and the jobs tab (list, three row shapes, restore). Chart primitives are shared and the price-history dialogue moved onto them. The list is not queried until its tab is opened, and both tabs carry a mobile layout |
 | I — one owner for group derivation | **Complete** — `models.Group` derives itself through `RebuildFrom` and `AddJobs`, mirroring the SPA's `createGroup` and `addJobsToGroup`; a nine-case corpus at `testing/fixtures/group-derivation` defines the rules and a harness on each side reads it. The three divergences it found are fixed |
-| J — incremental statistics and the build history panel | **J1 complete, J2–J5 planned.** J1 landed the bucket's `quantityProduced` and `isProductionChain` key, `BuildHistoryMarks` on the totals row, `includeProductionChain` on the timeline read, the rebuilt Build History panel, the deletion of `BuildStatSnapshot`'s stored array, and the removal of the `archive_and_stats` change-stream group. A full rebuild and one Redis key deletion are owed — see § Operational steps owed. The rest:  archiving a job currently rebuilds every statistic the account holds, because `RebuildAccountStatistics` reduces every archived job on every run. Three slices: the stored snapshot array becomes a query and the panel that read it is rebuilt on the existing chart primitives; a job's contribution is applied as a delta rather than recomputed wholesale; the drain becomes a dispatcher over one task per owner, split by cost into a routine reconcile and a bulk full rebuild; reconciliation rewrites aggregates from rows every cycle so drift self-heals and detection is only reporting; and the client is told when figures move and when a recalculation is outstanding. Built on an owner rather than an account id, so Stage C adds a kind rather than a rewrite |
+| J — incremental statistics and the build history panel | **J1 and J3 complete; J2, J4, J5 planned.** J1 landed the bucket's `quantityProduced` and `isProductionChain` key, `BuildHistoryMarks` on the totals row, `includeProductionChain` on the timeline read, the rebuilt Build History panel, the deletion of `BuildStatSnapshot`'s stored array, and the removal of the `archive_and_stats` change-stream group. A full rebuild and one Redis key deletion are owed — see § Operational steps owed. The rest:  archiving a job currently rebuilds every statistic the account holds, because `RebuildAccountStatistics` reduces every archived job on every run. Three slices: the stored snapshot array becomes a query and the panel that read it is rebuilt on the existing chart primitives; a job's contribution is applied as a delta rather than recomputed wholesale; the drain becomes a dispatcher over one task per owner, split by cost into a routine reconcile and a bulk full rebuild; reconciliation rewrites aggregates from rows every cycle so drift self-heals and detection is only reporting; and the client is told when figures move and when a recalculation is outstanding. Built on an owner rather than an account id, so Stage C adds a kind rather than a rewrite |
 
 ## Done when
 
