@@ -115,6 +115,10 @@ The properties fall out of the mechanism rather than being built:
 **Done when:** no goroutine holds a deferred publication, a deferral survives a core restart, and
 `ListSchedules` shows what is waiting.
 
+**Landed.** How it works now, and the four decisions above as taken → [overlay.md](./overlay.md). The
+last of those done-whens is only half met: schedules are listable, but `ListSchedules` has no operator
+surface, so inspection is the `nats` CLI against the stream.
+
 ### Stage D — Decide what gocron is still for
 
 Deferred runs no longer need it. Whether recurring schedules keep it, or move to the server with the
@@ -137,10 +141,17 @@ process-local. A deferred run becomes a schedule on an existing stream, which is
 | Phase 1 — project folder and docs | Done |
 | A — one declaration per cron job | Not started |
 | B — one place for expressions | Not started |
-| C — downtime deferral as a schedule | Not started |
+| C — downtime deferral as a schedule | Done — [overlay.md](./overlay.md) |
 | D — decide gocron's future | Not started |
 
 ## Handoff
 
-**Start here:** Stage A. Stages B and C are mechanical once a job is a single declaration; Stage D is
-the judgement call and should not be attempted first.
+**Start here:** Stage A. Stage B is mechanical once a job is a single declaration; Stage D is the
+judgement call and should not be attempted first.
+
+**Stage C ran before A**, by decision, rather than after it as first sequenced. Two reasons: A rewrites
+all ten declarations including `archivedjobs/drain_rebuild_queue.go`, which
+[archived-jobs-stats](../archived-jobs-stats/plan.md) is editing at the same time, and C touches none
+of them; and C removes the deferring goroutine that
+[go-127-adoption](../go-127-adoption/plan.md) § Track B listed as a synctest target carrying an
+uncancellable-wait defect. That target no longer exists, and that plan has been updated to say so.

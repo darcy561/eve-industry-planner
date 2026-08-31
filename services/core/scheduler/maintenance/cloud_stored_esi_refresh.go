@@ -43,8 +43,8 @@ func ScheduleCloudStoredEsiRefreshMaintenance(deps contract.Dependencies, sched 
 		publish := func(pctx context.Context) error {
 			return publishCloudEsiRefreshMaintenanceBatch(pctx, deps, task)
 		}
-		if schedesi.DeferTaskPublicationUntilAfterDowntime(ctx, cronCloudStoredEsiRefreshName, task.Subject, publish) {
-			return nil
+		if deferred, err := schedesi.DeferPublicationUntilAfterDowntime(ctx, deps.NATS, cronCloudStoredEsiRefreshName, time.Now()); err != nil || deferred {
+			return err
 		}
 		return publish(ctx)
 	})

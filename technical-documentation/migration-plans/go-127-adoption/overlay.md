@@ -24,7 +24,9 @@ _Not started._ One row per boundary once decided — Redis blobs, asynq / NATS p
 
 ## Track B — Simulated-time tests
 
-_Not started._ Record here: which tests moved to `testing/synctest`, the fix to the uncancellable downtime deferral goroutine, and the outcome of the lease-seam decision.
+_Not started._ Record here: which tests moved to `testing/synctest`, and the outcome of the lease-seam decision.
+
+The uncancellable downtime deferral goroutine this track was to fix no longer exists — [cron-scheduler-rewrite](../cron-scheduler-rewrite/overlay.md) Stage C replaced the deferral with a schedule. Nothing is owed here for it.
 
 ## Track C — `go fix` sweep
 
