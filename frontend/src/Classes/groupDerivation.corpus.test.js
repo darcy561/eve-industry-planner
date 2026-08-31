@@ -15,7 +15,7 @@ const corpusPath = resolve(
 const corpus = JSON.parse(readFileSync(corpusPath, "utf8"));
 
 describe("group derivation corpus", () => {
-  test.each(corpus.cases.map((c) => [c.name, c]))("%s", (_name, testCase) => {
+  test.for(corpus.cases)("$name", (testCase) => {
     const jobs = testCase.jobs.map((document) => new Job(document));
 
     const group = new Group({ groupID: "group-1" });

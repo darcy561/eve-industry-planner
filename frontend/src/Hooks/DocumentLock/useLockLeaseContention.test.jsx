@@ -1,12 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useLockLeaseContentionEffects } from "./useLockLeaseContention.js";
 
 describe("useLockLeaseContentionEffects", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("syncs from server when lease pressure turns on (does not extend)", () => {
     const syncLockFromServer = vi.fn();
 

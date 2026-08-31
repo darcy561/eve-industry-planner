@@ -1,13 +1,12 @@
 import { vi } from 'vitest';
-import '@testing-library/jest-dom';
+import '@testing-library/jest-dom/vitest';
 
 // Mock environment variables - Vitest handles this automatically
 // No need to manually set process.env in Vitest
 
-// Mock window.matchMedia
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: vi.fn().mockImplementation(query => ({
+vi.stubGlobal(
+  'matchMedia',
+  vi.fn().mockImplementation(query => ({
     matches: false,
     media: query,
     onchange: null,
@@ -16,14 +15,10 @@ Object.defineProperty(window, 'matchMedia', {
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
     dispatchEvent: vi.fn(),
-  })),
-});
+  }))
+);
 
-// Mock ResizeObserver and IntersectionObserver.
-//
-// Declared as classes and assigned to both global and window: components reach
-// for `window.ResizeObserver`, which jsdom does not alias to `global`, and MUI
-// calls it with `new`, which a plain mock function does not satisfy.
+// Declared as a class because MUI calls these with `new`, which a plain mock does not satisfy.
 class MockObserver {
   observe() {}
   unobserve() {}
@@ -33,10 +28,8 @@ class MockObserver {
   }
 }
 
-global.ResizeObserver = MockObserver;
-global.IntersectionObserver = MockObserver;
-window.ResizeObserver = MockObserver;
-window.IntersectionObserver = MockObserver;
+vi.stubGlobal('ResizeObserver', MockObserver);
+vi.stubGlobal('IntersectionObserver', MockObserver);
 
 // Node's own Web Storage global has no methods unless `--localstorage-file` names a path, and
 // Vitest skips jsdom's `localStorage`/`sessionStorage` when a global of that name already

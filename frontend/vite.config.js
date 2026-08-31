@@ -1,5 +1,6 @@
 import { sentryVitePlugin } from "@sentry/vite-plugin";
-import { defineConfig, loadEnv } from "vite";
+import { loadEnv } from "vite";
+import { defaultExclude, defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { visualizer } from "rollup-plugin-visualizer";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
@@ -111,11 +112,11 @@ export default defineConfig(({ command, mode }) => {
     test: {
       environment: "jsdom",
       globals: true,
+      clearMocks: true,
       setupFiles: ["tests/setup.js"],
       coverage: {
         provider: 'v8',
         reporter: ['text', 'json', 'html'],
-        all: true,
         include: ['src/**/*.{js,jsx}'],
         exclude: [
           'node_modules/',
@@ -129,16 +130,8 @@ export default defineConfig(({ command, mode }) => {
           '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*'
         ]
       },
-      // Include test files
-      include: ['**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-      // Exclude files from test runs
-      exclude: [
-        '**/node_modules/**',
-        '**/dist/**',
-        '**/cypress/**',
-        '**/.{idea,git,cache,output,temp}/**',
-        '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*'
-      ],
+      // `include` is Vitest's default. Only the build output needs excluding beyond the default.
+      exclude: [...defaultExclude, '**/dist/**'],
       // Test timeout
       testTimeout: 10000,
       // Hook timeout

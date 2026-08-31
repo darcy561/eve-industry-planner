@@ -48,7 +48,6 @@ function makeJob(id = "j1") {
 
 describe("closeActiveGroup", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     const group = makeGroup();
     const job = makeJob();
     group.includedJobIDs.add(job.jobID);
