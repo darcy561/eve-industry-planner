@@ -63,6 +63,15 @@ var (
 	// rather than fanning out per account: the claim protocol that keeps a mid-rebuild
 	// re-queue from being cleared lives in the drain, and splitting it per account
 	// would move that logic into a path the queue's semantics are not tested against.
+	// ApplyOwnerStatisticsDelta folds one owner's uncounted statistics rows into
+	// its aggregates. Small and user-facing — the figures a user just archived
+	// wait on it — so it outranks the bulk rebuild.
+	ApplyOwnerStatisticsDelta = defineTask(Definition{
+		Name:            "applyOwnerStatisticsDelta",
+		Subject:         "task.scheduled.applyOwnerStatisticsDelta",
+		DefaultPriority: Priority3,
+		DefaultTimeout:  5 * time.Minute,
+	})
 	// RebuildOwnerStatistics recomputes one owner's statistics from its archived
 	// jobs. Bulk work: a definition change dispatches one of these per owner, and
 	// nothing waits on the result.
@@ -211,6 +220,16 @@ func PublishMigrateUserCloudAccountsToUserDoc(ctx context.Context, n *NATS, acco
 // every owner waiting in the queue.
 func PublishDrainAccountStatsRebuildQueue(ctx context.Context, n *NATS) error {
 	return publish(ctx, n, DrainAccountStatsRebuildQueue, struct{}{})
+}
+
+// PublishApplyOwnerStatisticsDelta asks the worker to fold one owner's uncounted
+// rows into its aggregates.
+func PublishApplyOwnerStatisticsDelta(ctx context.Context, n *NATS, kind, id string, claim int64) error {
+	return publish(ctx, n, ApplyOwnerStatisticsDelta, RebuildOwnerStatisticsRequest{
+		OwnerKind: kind,
+		OwnerID:   id,
+		Claim:     claim,
+	})
 }
 
 // PublishRebuildOwnerStatistics asks the worker to rebuild one owner.

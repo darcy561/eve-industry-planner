@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -42,7 +43,7 @@ func accountArchiveScope(m *eipmongo.Mongo, accountID string) (archiveScope, err
 		ownerFilter:     eipmongo.ArchivedJobAccountFilter,
 		statsDocumentID: eipmongo.ArchivedJobStatsDocumentID,
 		queueRebuild: func(ctx context.Context, m *eipmongo.Mongo, ownerID string, now time.Time) error {
-			return m.QueueAccountRebuild(ctx, ownerID, now)
+			return m.QueueOwnerWork(ctx, models.AccountStatsOwner(ownerID), eipmongo.StatsWorkDelta, now)
 		},
 		relinksESI: true,
 	}, nil
